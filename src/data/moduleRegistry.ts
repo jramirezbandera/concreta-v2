@@ -43,7 +43,7 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Vigas',
     group: 'Acero',
     defaults: steelBeamDefaults,
-    shipped: false,
+    shipped: true,
   },
   {
     key: 'concreta-footings',

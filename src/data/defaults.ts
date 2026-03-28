@@ -34,11 +34,17 @@ export interface RCColumnInputs {
 }
 
 export interface SteelBeamInputs {
-  profile: string; // e.g. 'IPE270'
-  span: number;    // mm
-  fyk: number;     // MPa
-  MEd: number;     // kNm
-  VEd: number;     // kN
+  [key: string]: string | number;
+  tipo: 'IPE' | 'HEA' | 'HEB';
+  size: number;
+  steel: 'S275' | 'S355';
+  MEd: number;
+  VEd: number;
+  Lcr: number;
+  loadTypeLTB: 'uniform' | 'point';
+  Mser: number;
+  L: number;
+  loadTypeDefl: 'uniform' | 'point';
 }
 
 export interface FootingInputs {
@@ -88,11 +94,16 @@ export const rcColumnDefaults: RCColumnInputs = {
 };
 
 export const steelBeamDefaults: SteelBeamInputs = {
-  profile: 'IPE270',
-  span: 5000,
-  fyk: 275,
-  MEd: 45,
-  VEd: 35,
+  tipo: 'IPE',
+  size: 300,
+  steel: 'S275',
+  MEd: 80,
+  VEd: 60,
+  Lcr: 4000,
+  loadTypeLTB: 'uniform',
+  Mser: 50,
+  L: 6000,
+  loadTypeDefl: 'uniform',
 };
 
 export const footingDefaults: FootingInputs = {
