@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { deriveFromLoads, GAMMA_G, GAMMA_Q } from '../../lib/calculations/loadGen';
 import { steelBeamDefaults } from '../../data/defaults';
 
-// Base inputs for all tests: A1 residential, bTrib=3m, L=6000mm, gk=1.0, qk=2.0
+// Base inputs for all tests: ss, A1 residential, bTrib=3m, L=6000mm, gk=1.0, qk=2.0
 // Hand-calc reference:
 //   Gk_line = 1.0 × 3.0 = 3.0 kN/m
 //   Qk_line = 2.0 × 3.0 = 6.0 kN/m
 //   wEd     = 1.35×3.0 + 1.50×6.0 = 4.05 + 9.0 = 13.05 kN/m
 //   wSer    = 3.0 + 6.0 = 9.0 kN/m
-//   MEd     = 13.05 × 6.0²/8 = 13.05 × 4.5 = 58.725 kNm
-//   VEd     = 13.05 × 6.0/2  = 39.15 kN
+//   MEd     = 13.05 × 6.0²/8 = 13.05 × 4.5 = 58.725 kNm  (ss)
+//   VEd     = 13.05 × 6.0/2  = 39.15 kN                   (ss)
+//   VEd_interaction = 0                                     (ss midspan)
 //   Mser    = 9.0 × 6.0²/8   = 9.0 × 4.5 = 40.5 kNm
 
 const base = {
@@ -18,11 +19,10 @@ const base = {
   qk: 2.0,
   bTrib: 3.0,
   L: 6000,
-  loadGenActive: true,
   useCategory: 'A1',
 };
 
-describe('deriveFromLoads — basic derivation', () => {
+describe('deriveFromLoads — basic derivation (ss)', () => {
   it('A1 residential nominal values match hand-calc', () => {
     const r = deriveFromLoads(base);
     expect(r.Gk_line).toBeCloseTo(3.0, 6);
@@ -31,6 +31,11 @@ describe('deriveFromLoads — basic derivation', () => {
     expect(r.MEd).toBeCloseTo(58.725, 3);
     expect(r.VEd).toBeCloseTo(39.15, 3);
     expect(r.Mser).toBeCloseTo(40.5, 6);
+  });
+
+  it('ss: VEd_interaction = 0 (no M-V interaction at midspan)', () => {
+    const r = deriveFromLoads(base);
+    expect(r.VEd_interaction).toBe(0);
   });
 
   it('VEd cross-check: VEd × 2 × 1000 ≈ wEd × L (mm units)', () => {
@@ -59,6 +64,55 @@ describe('deriveFromLoads — basic derivation', () => {
     expect(r2.MEd).toBeCloseTo(r1.MEd * 4, 6);
     expect(r2.Mser).toBeCloseTo(r1.Mser * 4, 6);
     expect(r2.VEd).toBeCloseTo(r1.VEd * 2, 6);
+  });
+});
+
+describe('deriveFromLoads — beam type formulas', () => {
+  // w = wEd for all, L_m = 6.0, wEd = 13.05 kN/m
+  const w = 13.05;
+  const L = 6.0;
+
+  it('cantilever: MEd = wL²/2, VEd = wL, VEd_interaction = wL', () => {
+    const r = deriveFromLoads({ ...base, beamType: 'cantilever' });
+    expect(r.MEd).toBeCloseTo((w * L * L) / 2, 2);
+    expect(r.VEd).toBeCloseTo(w * L, 2);
+    expect(r.VEd_interaction).toBeCloseTo(w * L, 2);
+  });
+
+  it('fp: MEd = wL²/8, VEd = 5wL/8, VEd_interaction = 5wL/8', () => {
+    const r = deriveFromLoads({ ...base, beamType: 'fp' });
+    expect(r.MEd).toBeCloseTo((w * L * L) / 8, 2);
+    expect(r.VEd).toBeCloseTo((5 * w * L) / 8, 2);
+    expect(r.VEd_interaction).toBeCloseTo((5 * w * L) / 8, 2);
+  });
+
+  it('ff: MEd = wL²/12, VEd = wL/2, VEd_interaction = wL/2', () => {
+    const r = deriveFromLoads({ ...base, beamType: 'ff' });
+    expect(r.MEd).toBeCloseTo((w * L * L) / 12, 2);
+    expect(r.VEd).toBeCloseTo((w * L) / 2, 2);
+    expect(r.VEd_interaction).toBeCloseTo((w * L) / 2, 2);
+  });
+
+  it('cantilever MEd is largest (worst bending case)', () => {
+    const ss   = deriveFromLoads({ ...base, beamType: 'ss'         });
+    const cant = deriveFromLoads({ ...base, beamType: 'cantilever' });
+    const fp   = deriveFromLoads({ ...base, beamType: 'fp'         });
+    const ff   = deriveFromLoads({ ...base, beamType: 'ff'         });
+    expect(cant.MEd).toBeGreaterThan(ss.MEd);
+    expect(cant.MEd).toBeGreaterThan(fp.MEd);
+    expect(cant.MEd).toBeGreaterThan(ff.MEd);
+  });
+
+  it('ff MEd < ss MEd (stiffer beam → lower peak moment)', () => {
+    const ss = deriveFromLoads({ ...base, beamType: 'ss' });
+    const ff = deriveFromLoads({ ...base, beamType: 'ff' });
+    expect(ff.MEd).toBeLessThan(ss.MEd);
+  });
+
+  it('fp VEd > ss VEd (asymmetric reactions)', () => {
+    const ss = deriveFromLoads({ ...base, beamType: 'ss' });
+    const fp = deriveFromLoads({ ...base, beamType: 'fp' });
+    expect(fp.VEd).toBeGreaterThan(ss.VEd);
   });
 });
 

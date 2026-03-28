@@ -3,6 +3,7 @@ import { type SteelBeamResult, type SteelCheckRow, type SteelCheckStatus } from 
 
 interface SteelBeamsResultsProps {
   result: SteelBeamResult;
+  deflLimit: number;
 }
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
@@ -61,12 +62,18 @@ function ActiveCheckRow({ check }: { check: SteelCheckRow }) {
   const status = check.status as DisplayStatus;
   const pct = Math.min(check.utilization * 100, 100);
   return (
-    <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
+    <div className="grid grid-cols-[1fr_auto_w-28_auto] items-center gap-3 py-1.75 border-b border-border-sub last:border-b-0"
+      style={{ gridTemplateColumns: '1fr auto 112px auto' }}>
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
-      <span className="font-mono text-[11px] text-text-primary text-right whitespace-nowrap tabular-nums">
-        {check.value}
-      </span>
-      <div className="h-0.75 bg-border-main rounded-sm overflow-hidden">
+      <div className="flex flex-col items-end gap-0 shrink-0">
+        <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">
+          {check.value}
+        </span>
+        <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">
+          {check.limit}
+        </span>
+      </div>
+      <div className="h-1 bg-border-main rounded-sm overflow-hidden">
         <div
           className={`h-full rounded-sm ${BAR_CLASSES[status]}`}
           style={{ width: `${pct}%` }}
@@ -106,7 +113,7 @@ function ValueRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function SteelBeamsResults({ result }: SteelBeamsResultsProps) {
+export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps) {
   // Class 4 or unknown profile error
   if (!result.valid && result.governing === 'class4') {
     return (
@@ -166,7 +173,7 @@ export function SteelBeamsResults({ result }: SteelBeamsResultsProps) {
       <ValueRow label="χLT" value={result.chi_LT.toFixed(3)} />
       <ValueRow label="λ̄LT" value={result.lambda_LT.toFixed(3)} />
       <ValueRow label="δmax" value={`${result.delta_max.toFixed(1)} mm`} />
-      <ValueRow label="δadm = L/300" value={`${result.delta_adm.toFixed(1)} mm`} />
+      <ValueRow label={`δadm = L/${deflLimit}`} value={`${result.delta_adm.toFixed(1)} mm`} />
 
       {/* Section classification */}
       <GroupHeader label="Sección" />

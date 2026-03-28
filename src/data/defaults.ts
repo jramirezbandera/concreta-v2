@@ -33,20 +33,30 @@ export interface RCColumnInputs {
   Lk: number;   // buckling length (m)
 }
 
+export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
+
+/** ELS serviceability combination for deflection check (CTE DB-SE Tabla 4.2). */
+export type ElsCombo = 'characteristic' | 'frequent' | 'quasi-permanent';
+
 export interface SteelBeamInputs {
   [key: string]: string | number | boolean;
   tipo: 'IPE' | 'HEA' | 'HEB';
   size: number;
   steel: 'S275' | 'S355';
+  beamType: BeamType;
   MEd: number;
   VEd: number;
+  /**
+   * @internal — always overridden by effectiveInputs in index.tsx.
+   * Do not read from raw state. Set by deriveFromLoads() per beam type.
+   */
+  VEd_interaction: number;
   Lcr: number;
-  loadTypeLTB: 'uniform' | 'point';
   Mser: number;
   L: number;
-  loadTypeDefl: 'uniform' | 'point';
+  deflLimit: number;   // denominator of L/n admissible deflection limit (e.g. 300)
+  elsCombo: ElsCombo;  // ELS combination type for deflection
   // Load generator
-  loadGenActive: boolean;
   useCategory: string;  // 'A1'|'A2'|'B'|'C1'|'C2'|'C3'|'D1'|'E1'|'G1'|'custom'
   gk: number;           // additional permanent surface load (kN/m²)
   qk: number;           // variable surface load (kN/m²) — prefilled from category
@@ -103,14 +113,15 @@ export const steelBeamDefaults: SteelBeamInputs = {
   tipo: 'IPE',
   size: 300,
   steel: 'S275',
+  beamType: 'ss',
   MEd: 80,
   VEd: 60,
-  Lcr: 4000,
-  loadTypeLTB: 'uniform',
+  VEd_interaction: 0,
+  Lcr: 6000,   // autoLcr = 1.0 × L = 6000mm for ss default
   Mser: 50,
   L: 6000,
-  loadTypeDefl: 'uniform',
-  loadGenActive: false,
+  deflLimit: 300,
+  elsCombo: 'characteristic',
   useCategory: 'A1',
   gk: 1.0,
   qk: 2.0,

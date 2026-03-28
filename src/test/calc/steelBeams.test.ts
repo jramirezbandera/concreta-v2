@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { steelBeamDefaults } from '../../data/defaults';
 
-// ─── Suite 1: IPE300 / S275 / defaults — CUMPLE ────────────────────────────
+// ─── Suite 1: IPE300 / S275 / ss defaults — CUMPLE ──────────────────────────
 // Reference hand-calc:
 //   Wpl_y = 628 cm³ = 628000 mm³
 //   Mc_Rd = 628000 × 275 / 1.05 / 1e6 = 164.5 kNm
@@ -10,7 +10,9 @@ import { steelBeamDefaults } from '../../data/defaults';
 //   Vc_Rd ≈ 388 kN → eta_V = 60/388 = 0.155  (< 0.5, no M-V interaction)
 //   delta_max = (5/48) × 50e6 × (6000)² / (210000 × 83,560,000) ≈ 10.7 mm
 //   delta_adm = 6000/300 = 20 mm  → eta_delta ≈ 0.535
-describe('calcSteelBeam — IPE300/S275 defaults (CUMPLE)', () => {
+//
+// beamType='ss': VEd_interaction=0 → interaction row absent → 5 rows total
+describe('calcSteelBeam — IPE300/S275 defaults ss (CUMPLE)', () => {
   const result = calcSteelBeam(steelBeamDefaults);
 
   it('result is valid', () => {
@@ -43,15 +45,16 @@ describe('calcSteelBeam — IPE300/S275 defaults (CUMPLE)', () => {
     expect(result.delta_adm).toBeCloseTo(20, 1);
   });
 
-  it('all standard checks present (6 rows)', () => {
-    expect(result.checks).toHaveLength(6);
+  // ss + VEd_interaction=0 → interaction row absent → 5 rows
+  it('ss beam: 5 check rows (interaction absent)', () => {
+    expect(result.checks).toHaveLength(5);
     const ids = result.checks.map((c) => c.id);
     expect(ids).toContain('classification');
     expect(ids).toContain('bending');
     expect(ids).toContain('shear');
-    expect(ids).toContain('interaction');
     expect(ids).toContain('ltb');
     expect(ids).toContain('deflection');
+    expect(ids).not.toContain('interaction');
   });
 
   it('classification row is neutral', () => {
@@ -145,14 +148,17 @@ describe('calcSteelBeam — IPE160/S275/MEd=50 (INCUMPLE bending)', () => {
 });
 
 // ─── Suite 4: M-V interaction active ────────────────────────────────────────
-// IPE200/S275: Vc_Rd ≈ 212 kN → VEd=150 > 0.5×Vc_Rd → rho > 0 → Mv_Rd < Mc_Rd
-describe('calcSteelBeam — M-V interaction (VEd > 0.5·Vc,Rd)', () => {
+// IPE200/S275: Vc_Rd ≈ 212 kN → VEd_interaction=150 > 0.5×Vc_Rd → rho > 0 → Mv_Rd < Mc_Rd
+// beamType must be non-ss (cantilever) so VEd_interaction>0 triggers the interaction row.
+describe('calcSteelBeam — M-V interaction (VEd_interaction > 0.5·Vc,Rd)', () => {
   const result = calcSteelBeam({
     ...steelBeamDefaults,
+    beamType: 'cantilever',
     tipo: 'IPE',
     size: 200,
     MEd: 20,
     VEd: 150,
+    VEd_interaction: 150,
     Lcr: 4000,
     Mser: 10,
     L: 4000,
@@ -172,6 +178,11 @@ describe('calcSteelBeam — M-V interaction (VEd > 0.5·Vc,Rd)', () => {
 
   it('Mv_Rd < Mc_Rd due to interaction', () => {
     expect(result.Mv_Rd).toBeLessThan(result.Mc_Rd);
+  });
+
+  it('interaction check row is present (VEd_interaction > 0)', () => {
+    const interactionRow = result.checks.find((c) => c.id === 'interaction');
+    expect(interactionRow).toBeDefined();
   });
 });
 
@@ -205,17 +216,18 @@ describe('calcSteelBeam — LTB with long buckling length (Lcr=8000)', () => {
   });
 });
 
-// ─── Suite 6: LTB — point load has higher C1 ─────────────────────────────────
-describe('calcSteelBeam — LTB load type affects Mcr', () => {
-  const uniform = calcSteelBeam({ ...steelBeamDefaults, loadTypeLTB: 'uniform', Lcr: 6000 });
-  const point   = calcSteelBeam({ ...steelBeamDefaults, loadTypeLTB: 'point',   Lcr: 6000 });
+// ─── Suite 6: LTB — beam type C1 effect on Mcr ──────────────────────────────
+// ss: C1=1.13, cantilever: C1=1.0 → ss Mcr > cantilever Mcr (higher C1 = more stable)
+describe('calcSteelBeam — LTB beam type affects C1 and Mcr', () => {
+  const ss   = calcSteelBeam({ ...steelBeamDefaults, beamType: 'ss',         Lcr: 6000 });
+  const cant = calcSteelBeam({ ...steelBeamDefaults, beamType: 'cantilever', Lcr: 6000 });
 
-  it('C1=1.35 (point) gives higher Mcr than C1=1.13 (uniform)', () => {
-    expect(point.Mcr).toBeGreaterThan(uniform.Mcr);
+  it('ss (C1=1.13) gives higher Mcr than cantilever (C1=1.0)', () => {
+    expect(ss.Mcr).toBeGreaterThan(cant.Mcr);
   });
 
-  it('point load gives lower lambda_LT (more favourable)', () => {
-    expect(point.lambda_LT).toBeLessThan(uniform.lambda_LT);
+  it('cantilever gives higher lambda_LT (less favourable)', () => {
+    expect(cant.lambda_LT).toBeGreaterThan(ss.lambda_LT);
   });
 });
 
@@ -257,14 +269,14 @@ describe('calcSteelBeam — deflection governing (large span)', () => {
   });
 });
 
-// ─── Suite 8: Point load deflection formula ──────────────────────────────────
-describe('calcSteelBeam — deflection point vs uniform', () => {
-  const uniform = calcSteelBeam({ ...steelBeamDefaults, loadTypeDefl: 'uniform' });
-  const point   = calcSteelBeam({ ...steelBeamDefaults, loadTypeDefl: 'point' });
+// ─── Suite 8: Beam type k_defl affects deflection ────────────────────────────
+// cantilever k=1/4 ≈ 0.250 >> ss k=5/48 ≈ 0.104 → cantilever deflects more
+describe('calcSteelBeam — deflection: cantilever vs ss', () => {
+  const ss   = calcSteelBeam({ ...steelBeamDefaults, beamType: 'ss'         });
+  const cant = calcSteelBeam({ ...steelBeamDefaults, beamType: 'cantilever' });
 
-  it('uniform load (5/48) gives larger deflection than midpoint load (1/12)', () => {
-    // 5/48 ≈ 0.1042,  1/12 ≈ 0.0833  → uniform > point
-    expect(uniform.delta_max).toBeGreaterThan(point.delta_max);
+  it('cantilever (k=1/4) deflects more than ss (k=5/48) for same loads', () => {
+    expect(cant.delta_max).toBeGreaterThan(ss.delta_max);
   });
 });
 
@@ -320,6 +332,50 @@ describe('calcSteelBeam — classification tag', () => {
   });
 });
 
+// ─── Suite 13: ss beam type — interaction row absent ─────────────────────────
+// For beamType='ss', VEd_interaction=0 → interaction row absent (midspan V=0 for UDL).
+describe('calcSteelBeam — ss beam type (M-V interaction absent)', () => {
+  const result = calcSteelBeam({
+    ...steelBeamDefaults,
+    beamType: 'ss',
+    MEd: 58.7,
+    VEd: 39.15,
+    VEd_interaction: 0,
+    Mser: 40.5,
+  });
+
+  it('result is valid', () => {
+    expect(result.valid).toBe(true);
+  });
+
+  it('VEd_interaction = 0', () => {
+    expect(result.VEd_interaction).toBe(0);
+  });
+
+  it('rho = 0 (no web reduction when VEd_interaction = 0)', () => {
+    expect(result.rho).toBe(0);
+  });
+
+  it('Mv_Rd = Mc_Rd (no interaction reduction)', () => {
+    expect(result.Mv_Rd).toBeCloseTo(result.Mc_Rd, 3);
+  });
+
+  it('5 check rows (interaction row absent)', () => {
+    expect(result.checks).toHaveLength(5);
+    const ids = result.checks.map((c) => c.id);
+    expect(ids).not.toContain('interaction');
+  });
+
+  it('checks has classification, bending, shear, ltb, deflection', () => {
+    const ids = result.checks.map((c) => c.id);
+    expect(ids).toContain('classification');
+    expect(ids).toContain('bending');
+    expect(ids).toContain('shear');
+    expect(ids).toContain('ltb');
+    expect(ids).toContain('deflection');
+  });
+});
+
 // ─── Suite 14: Lcr > L warning row ──────────────────────────────────────────
 // When Lcr > L (e.g. conservative cantilever assumption), a neutral 'lcr-warning'
 // row is injected. Result is still valid and conservative.
@@ -353,50 +409,51 @@ describe('calcSteelBeam — Lcr > L warning', () => {
   });
 });
 
-// ─── Suite 13: Generator mode — M-V interaction skipped ─────────────────────
-// When loadGenActive=true (simply supported UDL), max V is at supports and max M
-// is at midspan. VEd_interaction at the bending design section = 0 → no M-V
-// interaction → rho = 0, Mv_Rd = Mc_Rd, and the interaction check row is absent.
-// Reference: CTE DB-SE-A 6.2.8, section design approach.
-describe('calcSteelBeam — generator mode (loadGenActive:true)', () => {
-  // Derived from load gen defaults: gk=1.0, qk=2.0, bTrib=3.0, L=6000
-  // MEd=58.7 kNm, VEd=39.15 kN (high support reaction, but zero at midspan)
+// ─── Suite 15: cantilever — interaction row present ──────────────────────────
+// cantilever: VEd_interaction = VEd (shear at fixed support = max V = wL)
+// With VEd_interaction > 0, interaction row always appears in check list.
+describe('calcSteelBeam — cantilever beam type (interaction row present)', () => {
   const result = calcSteelBeam({
     ...steelBeamDefaults,
-    loadGenActive: true,
-    MEd: 58.7,
-    VEd: 39.15,
-    Mser: 40.5,
+    beamType: 'cantilever',
+    MEd: 60,
+    VEd: 40,
+    VEd_interaction: 40,
+    Mser: 30,
+    L: 4000,
+    Lcr: 8000,
   });
 
   it('result is valid', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('VEd_interaction = 0 (midspan design section, V=0 for UDL)', () => {
-    expect(result.VEd_interaction).toBe(0);
-  });
-
-  it('rho = 0 (no web reduction when VEd_interaction = 0)', () => {
-    expect(result.rho).toBe(0);
-  });
-
-  it('Mv_Rd = Mc_Rd (no interaction reduction)', () => {
-    expect(result.Mv_Rd).toBeCloseTo(result.Mc_Rd, 3);
-  });
-
-  it('checks has 5 rows (interaction row absent in generator mode)', () => {
-    expect(result.checks).toHaveLength(5);
+  it('interaction row present (VEd_interaction > 0)', () => {
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain('interaction');
+    expect(ids).toContain('interaction');
   });
 
-  it('checks has classification, bending, shear, ltb, deflection', () => {
-    const ids = result.checks.map((c) => c.id);
-    expect(ids).toContain('classification');
-    expect(ids).toContain('bending');
-    expect(ids).toContain('shear');
-    expect(ids).toContain('ltb');
-    expect(ids).toContain('deflection');
+  it('6 check rows for cantilever (interaction present)', () => {
+    // classification + bending + shear + interaction + ltb + deflection = 6
+    // (no lcr-warning since Lcr=2×L=8000 which equals Lcr_factor×L=2×4000)
+    const nonWarning = result.checks.filter((c) => c.id !== 'lcr-warning');
+    expect(nonWarning).toHaveLength(6);
+  });
+});
+
+// ─── Suite 16: ff beam type — k_defl and MEd formulas ───────────────────────
+// ff: k=1/32=0.03125, MEd=wL²/12 (less than ss wL²/8)
+// For same Mser, ff deflects less than ss (lower k).
+describe('calcSteelBeam — ff vs ss: deflection and MEd', () => {
+  const ss = calcSteelBeam({ ...steelBeamDefaults, beamType: 'ss' });
+  const ff = calcSteelBeam({ ...steelBeamDefaults, beamType: 'ff' });
+
+  it('both are valid', () => {
+    expect(ss.valid).toBe(true);
+    expect(ff.valid).toBe(true);
+  });
+
+  it('ff deflects less than ss for same Mser and L (k_ff < k_ss)', () => {
+    expect(ff.delta_max).toBeLessThan(ss.delta_max);
   });
 });

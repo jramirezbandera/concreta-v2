@@ -11,6 +11,7 @@
 
 import { type SteelBeamInputs } from '../../data/defaults';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
+import { BEAM_CASES } from './beamCases';
 
 // CTE DB-SE-A constants
 const E = 210000;   // N/mm²  — Young's modulus
@@ -190,9 +191,9 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const eta_V = Vc_Rd > 0 ? inp.VEd / Vc_Rd : Infinity;
 
   // 8. M-V interaction (CTE 6.2.8)
-  // loadGenActive: simply-supported UDL/central point load — V=0 at midspan (section of max M).
-  // Manual mode: engineer provides VEd for their design section — use as-is.
-  const VEd_interaction = inp.loadGenActive ? 0 : inp.VEd;
+  // VEd_interaction is the shear at the critical M section (beam-type specific).
+  // Always provided via effectiveInputs from index.tsx (set by deriveFromLoads).
+  const VEd_interaction = inp.VEd_interaction;
 
   let rho = 0;
   let Mv_Rd = Mc_Rd;
@@ -209,7 +210,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const eta_MV = Mv_Rd > 0 ? inp.MEd / Mv_Rd : Infinity;
 
   // 9. LTB (CTE 6.3.2)
-  const C1 = inp.loadTypeLTB === 'uniform' ? 1.13 : 1.35;
+  const C1 = BEAM_CASES[inp.beamType].C1;
   const Mcr_Nmm =
     C1 *
     ((Math.PI ** 2 * E * Iz_mm) / inp.Lcr ** 2) *
@@ -232,9 +233,9 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const eta_LTB = Mb_Rd > 0 ? inp.MEd / Mb_Rd : Infinity;
 
   // 10. Deflection (CTE DB-SE 4.3.3)
-  const k = inp.loadTypeDefl === 'uniform' ? 5 / 48 : 1 / 12;
+  const k = BEAM_CASES[inp.beamType].k_defl;
   const delta_max = (k * inp.Mser * 1e6 * inp.L ** 2) / (E * Iy_mm);   // mm
-  const delta_adm = inp.L / 300;
+  const delta_adm = inp.L / inp.deflLimit;
   const eta_delta = delta_adm > 0 ? delta_max / delta_adm : Infinity;
 
   // 11. Build check rows
@@ -273,9 +274,9 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
     ),
   );
 
-  // In generator mode (VEd_interaction=0, simply supported UDL), no M-V interaction occurs.
-  // Skip the row — it would always show 0% and duplicate the bending check.
-  if (!inp.loadGenActive) {
+  // For ss beam type VEd_interaction=0 — skip M-V row (would always show 0%, duplicate bending).
+  // For cantilever/fp/ff the critical section has significant shear — show the check.
+  if (VEd_interaction > 0) {
     checks.push(
       check(
         'interaction',
@@ -321,7 +322,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
       delta_max,
       delta_adm,
       `${delta_max.toFixed(1)} mm`,
-      `${delta_adm.toFixed(1)} mm`,
+      `L/${inp.deflLimit} = ${delta_adm.toFixed(1)} mm`,
       'CTE DB-SE 4.3.3',
     ),
   );

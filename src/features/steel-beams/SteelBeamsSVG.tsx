@@ -116,20 +116,22 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1}
         />
 
-        {/* Dimension: h (right side) */}
+        {/* Dimension: h (left side, rotated label — keeps text inside panel) */}
         <line
-          x1={ox + sW + 10} y1={oy}
-          x2={ox + sW + 10} y2={oy + sH}
+          x1={ox - 8} y1={oy}
+          x2={ox - 8} y2={oy + sH}
           stroke={C.dim} strokeWidth={0.75}
         />
-        <line x1={ox + sW + 7} y1={oy} x2={ox + sW + 13} y2={oy} stroke={C.dim} strokeWidth={0.75} />
-        <line x1={ox + sW + 7} y1={oy + sH} x2={ox + sW + 13} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
+        <line x1={ox - 11} y1={oy}      x2={ox - 5} y2={oy}      stroke={C.dim} strokeWidth={0.75} />
+        <line x1={ox - 11} y1={oy + sH} x2={ox - 5} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
         <text
-          x={ox + sW + 14}
+          x={ox - 16}
           y={oy + sH / 2}
           dominantBaseline="middle"
+          textAnchor="middle"
           fontSize={8}
           fill={C.dimText}
+          transform={`rotate(-90, ${ox - 16}, ${oy + sH / 2})`}
           style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
           className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}
         >
@@ -222,8 +224,12 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
   const gridV = toPlotX(0.5);
   const gridM = toPlotY(0.5);
 
-  // Design point
-  const ptX = result.valid ? toPlotX(Math.min(result.eta_V, 1.5)) : null;
+  // Design point: x = VEd_interaction / Vc,Rd (shear at critical moment section)
+  // For ss beams VEd_interaction=0, so the point falls on the y-axis (pure bending).
+  const eta_V_interac = result.valid && result.Vc_Rd > 0
+    ? result.VEd_interaction / result.Vc_Rd
+    : 0;
+  const ptX = result.valid ? toPlotX(Math.min(eta_V_interac, 1.5)) : null;
   const ptY = result.valid ? toPlotY(Math.min(result.eta_M, 1.5)) : null;
   const ptColor = result.valid ? statusColor(result.eta_MV, C) : C.pointNeutral;
 
