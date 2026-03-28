@@ -244,33 +244,33 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   checks.push(
     checkNeutral(
       'classification',
-      'Clasificación sección (CTE 5.5)',
+      'Clasificación sección (CTE DB-SE-A §5.5)',
       `CLASE ${sectionClass}`,
-      'CTE DB-SE-A 5.5',
+      'CTE DB-SE-A §5.5 — Clasificación de secciones transversales',
     ),
   );
 
   checks.push(
     check(
       'bending',
-      'Flexión Mc,Rd (CTE 6.2.5)',
+      'Flexión Mc,Rd (CTE DB-SE-A §6.2.5)',
       inp.MEd,
       Mc_Rd,
       `${inp.MEd.toFixed(1)} kNm`,
       `${Mc_Rd.toFixed(1)} kNm`,
-      'CTE DB-SE-A 6.2.5',
+      'CTE DB-SE-A §6.2.5 — Resistencia a flexión',
     ),
   );
 
   checks.push(
     check(
       'shear',
-      'Cortante Vc,Rd (CTE 6.2.6)',
+      'Cortante Vc,Rd (CTE DB-SE-A §6.2.6)',
       inp.VEd,
       Vc_Rd,
       `${inp.VEd.toFixed(1)} kN`,
       `${Vc_Rd.toFixed(1)} kN`,
-      'CTE DB-SE-A 6.2.6',
+      'CTE DB-SE-A §6.2.6 — Resistencia a cortante',
     ),
   );
 
@@ -280,12 +280,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
     checks.push(
       check(
         'interaction',
-        'Interacción M-V (CTE 6.2.8)',
+        'Interacción M-V (CTE DB-SE-A §6.2.8)',
         inp.MEd,
         Mv_Rd,
         `${inp.MEd.toFixed(1)} kNm`,
         `${Mv_Rd.toFixed(1)} kNm`,
-        'CTE DB-SE-A 6.2.8',
+        'CTE DB-SE-A §6.2.8 — Interacción cortante y flexión',
       ),
     );
   }
@@ -298,7 +298,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
         'lcr-warning',
         `Lcr (${(inp.Lcr / 1000).toFixed(2)} m) > L (${(inp.L / 1000).toFixed(2)} m) — verificar longitud de pandeo`,
         'REVISAR',
-        'CTE DB-SE-A 6.3.2',
+        'CTE DB-SE-A §6.3.2 — Pandeo lateral torsional',
       ),
     );
   }
@@ -306,24 +306,24 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   checks.push(
     check(
       'ltb',
-      'Pandeo lateral Mb,Rd (CTE 6.3.2)',
+      'Pandeo lateral Mb,Rd (CTE DB-SE-A §6.3.2)',
       inp.MEd,
       Mb_Rd,
       `${inp.MEd.toFixed(1)} kNm`,
       `${Mb_Rd.toFixed(1)} kNm`,
-      'CTE DB-SE-A 6.3.2',
+      'CTE DB-SE-A §6.3.2 — Pandeo lateral torsional (LTB)',
     ),
   );
 
   checks.push(
     check(
       'deflection',
-      'Flecha δmax (CTE DB-SE 4.3.3)',
+      'Flecha δmax (CTE DB-SE §4.3.3)',
       delta_max,
       delta_adm,
       `${delta_max.toFixed(1)} mm`,
       `L/${inp.deflLimit} = ${delta_adm.toFixed(1)} mm`,
-      'CTE DB-SE 4.3.3',
+      'CTE DB-SE §4.3.3 — Estados límite de servicio. Flechas',
     ),
   );
 
