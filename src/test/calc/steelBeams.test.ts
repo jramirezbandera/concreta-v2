@@ -319,3 +319,84 @@ describe('calcSteelBeam — classification tag', () => {
     expect(classRow.tag).toBe('CLASE 1');
   });
 });
+
+// ─── Suite 14: Lcr > L warning row ──────────────────────────────────────────
+// When Lcr > L (e.g. conservative cantilever assumption), a neutral 'lcr-warning'
+// row is injected. Result is still valid and conservative.
+describe('calcSteelBeam — Lcr > L warning', () => {
+  const result = calcSteelBeam({
+    ...steelBeamDefaults,
+    Lcr: 8000,   // > L=6000
+    L: 6000,
+    MEd: 80,
+  });
+
+  it('result is valid (Lcr>L is conservative, not unconservative)', () => {
+    expect(result.valid).toBe(true);
+  });
+
+  it('lcr-warning row is present', () => {
+    const warnRow = result.checks.find((c) => c.id === 'lcr-warning');
+    expect(warnRow).toBeDefined();
+  });
+
+  it('lcr-warning row is neutral (informational, no utilization bar)', () => {
+    const warnRow = result.checks.find((c) => c.id === 'lcr-warning')!;
+    expect(warnRow.neutral).toBe(true);
+    expect(warnRow.status).toBe('neutral');
+    expect(warnRow.tag).toBe('REVISAR');
+  });
+
+  it('lcr-warning row references CTE DB-SE-A 6.3.2', () => {
+    const warnRow = result.checks.find((c) => c.id === 'lcr-warning')!;
+    expect(warnRow.article).toMatch(/6\.3\.2/);
+  });
+});
+
+// ─── Suite 13: Generator mode — M-V interaction skipped ─────────────────────
+// When loadGenActive=true (simply supported UDL), max V is at supports and max M
+// is at midspan. VEd_interaction at the bending design section = 0 → no M-V
+// interaction → rho = 0, Mv_Rd = Mc_Rd, and the interaction check row is absent.
+// Reference: CTE DB-SE-A 6.2.8, section design approach.
+describe('calcSteelBeam — generator mode (loadGenActive:true)', () => {
+  // Derived from load gen defaults: gk=1.0, qk=2.0, bTrib=3.0, L=6000
+  // MEd=58.7 kNm, VEd=39.15 kN (high support reaction, but zero at midspan)
+  const result = calcSteelBeam({
+    ...steelBeamDefaults,
+    loadGenActive: true,
+    MEd: 58.7,
+    VEd: 39.15,
+    Mser: 40.5,
+  });
+
+  it('result is valid', () => {
+    expect(result.valid).toBe(true);
+  });
+
+  it('VEd_interaction = 0 (midspan design section, V=0 for UDL)', () => {
+    expect(result.VEd_interaction).toBe(0);
+  });
+
+  it('rho = 0 (no web reduction when VEd_interaction = 0)', () => {
+    expect(result.rho).toBe(0);
+  });
+
+  it('Mv_Rd = Mc_Rd (no interaction reduction)', () => {
+    expect(result.Mv_Rd).toBeCloseTo(result.Mc_Rd, 3);
+  });
+
+  it('checks has 5 rows (interaction row absent in generator mode)', () => {
+    expect(result.checks).toHaveLength(5);
+    const ids = result.checks.map((c) => c.id);
+    expect(ids).not.toContain('interaction');
+  });
+
+  it('checks has classification, bending, shear, ltb, deflection', () => {
+    const ids = result.checks.map((c) => c.id);
+    expect(ids).toContain('classification');
+    expect(ids).toContain('bending');
+    expect(ids).toContain('shear');
+    expect(ids).toContain('ltb');
+    expect(ids).toContain('deflection');
+  });
+});
