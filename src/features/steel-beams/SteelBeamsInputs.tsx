@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/defaults';
-import { BEAM_CASES } from '../../lib/calculations/beamCases';
+
 import { type LoadGenResult, getPsiRow } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
 
@@ -92,7 +92,7 @@ function SvgFF() {
   );
 }
 
-const BEAM_TYPE_OPTIONS: Array<{ type: BeamType; label: string; Svg: () => JSX.Element; tooltip: string }> = [
+const BEAM_TYPE_OPTIONS: Array<{ type: BeamType; label: string; Svg: () => React.ReactElement; tooltip: string }> = [
   { type: 'ss',        label: 'Biart.',   Svg: SvgSS,        tooltip: 'Articulada–Articulada' },
   { type: 'cantilever',label: 'Ménsula',  Svg: SvgCantilever,tooltip: 'Ménsula (empotrada–libre)' },
   { type: 'fp',        label: 'Art-Emp.', Svg: SvgFP,        tooltip: 'Articulada–Empotrada' },
