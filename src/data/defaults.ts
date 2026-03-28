@@ -34,7 +34,7 @@ export interface RCColumnInputs {
 }
 
 export interface SteelBeamInputs {
-  [key: string]: string | number;
+  [key: string]: string | number | boolean;
   tipo: 'IPE' | 'HEA' | 'HEB';
   size: number;
   steel: 'S275' | 'S355';
@@ -45,6 +45,12 @@ export interface SteelBeamInputs {
   Mser: number;
   L: number;
   loadTypeDefl: 'uniform' | 'point';
+  // Load generator
+  loadGenActive: boolean;
+  useCategory: string;  // 'A1'|'A2'|'B'|'C1'|'C2'|'C3'|'D1'|'E1'|'G1'|'custom'
+  gk: number;           // additional permanent surface load (kN/m²)
+  qk: number;           // variable surface load (kN/m²) — prefilled from category
+  bTrib: number;        // tributary width (m)
 }
 
 export interface FootingInputs {
@@ -104,6 +110,11 @@ export const steelBeamDefaults: SteelBeamInputs = {
   Mser: 50,
   L: 6000,
   loadTypeDefl: 'uniform',
+  loadGenActive: false,
+  useCategory: 'A1',
+  gk: 1.0,
+  qk: 2.0,
+  bTrib: 3.0,
 };
 
 export const footingDefaults: FootingInputs = {
