@@ -28,7 +28,7 @@ The answer is usually a monthly subscription in the 30-80€ range — which mak
 
 RC Beams: 17 Vitest tests — CUMPLE, ADVERTENCIA, INCUMPLE + input validation edge cases. See `src/test/calc/rcBeams.test.ts`.
 
-Steel Beams: test plan written at `~/.gstack/projects/concreta-gstack-v2/Javier-master-eng-review-test-plan-20260328-115702.md`. 10 suites required (class detection, M-V interaction, LTB, deflection, input validation).
+Steel Beams: DONE (v0.1.1, 2026-03-28) — 14 suites, 79 tests: class detection, M-V interaction, LTB, deflection, generator mode, Lcr>L validation, input validation. See `src/test/calc/steelBeams.test.ts`.
 
 RC Columns, Footings: not yet implemented — test plan required before shipping.
 
@@ -80,3 +80,4 @@ When a user rapidly edits multiple fields, `setSearchParams` may fire after `loc
 
 - [x] `@media print` CSS rule for browser Ctrl+P — DONE (added to src/index.css 2026-03-27)
 - [ ] Content-Security-Policy headers via `vercel.json`
+- [ ] Color contrast audit — `accent` (#38bdf8) on `bg-primary` (#0f172a) at 11-12px font-mono. Check WCAG AA for small text (4.5:1 required). The ratio is ~4.9:1 so likely passes but worth confirming with a tool before public launch.
