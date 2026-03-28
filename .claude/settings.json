@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:mclare.blog)",
+      "WebFetch(domain:strucalc.com)",
+      "WebFetch(domain:tribby3d.com)",
+      "WebFetch(domain:www.viktor.ai)",
+      "WebFetch(domain:www.buildsoft.eu)",
+      "WebFetch(domain:eurocodeapplied.com)",
+      "Bash(/c/Users/Javier/.gstack/projects/concreta-gstack-v2/ceo-plans/2026-03-27-concreta-mvp.md:*)",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-read)",
+      "Read(//c/tmp/**)",
+      "Bash(cygpath -w /tmp/concreta-design-1774626009.html)",
+      "Bash(wslpath -w /tmp/concreta-design-1774626009.html)",
+      "Bash(bun run:*)",
+      "Bash(B=~/.claude/skills/gstack/browse/dist/browse)",
+      "Bash($B goto:*)",
+      "Bash($B screenshot:*)",
+      "Bash($B viewport:*)",
+      "Read(//c/Users/Javier/AppData/Local/Temp/**)",
+      "Bash($B scroll:*)",
+      "Bash($B js:*)",
+      "Bash($B console:*)",
+      "Bash(~/.claude/skills/gstack/bin/gstack-config get:*)",
+      "Skill(gstack-upgrade)",
+      "Skill(gstack-upgrade:*)",
+      "Bash(B=~/.claude/skills/gstack/browse/dist/browse $B html body)",
+      "Skill(gstack-ship)",
+      "Skill(gstack-ship:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Javier\\.gstack\\projects\\concreta-gstack-v2\\ceo-plans",
+      "c:\\tmp",
+      "C:\\Users\\Javier\\.gstack\\projects\\concreta-gstack-v2"
+    ]
+  }
+}

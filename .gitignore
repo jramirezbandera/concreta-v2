@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.gstack/
+
+# Design exploration prototypes (not part of the app)
+design-preview*.html
