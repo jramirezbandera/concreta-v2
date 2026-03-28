@@ -2,16 +2,30 @@ import { useMemo, useState } from 'react';
 import { steelBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
+import { deriveFromLoads } from '../../lib/calculations/loadGen';
 import { exportSteelBeamsPDF } from '../../lib/pdf/steelBeams';
 import { Topbar } from '../../components/layout/Topbar';
 import { showToast } from '../../components/ui/Toast';
 import { SteelBeamsInputs } from './SteelBeamsInputs';
 import { SteelBeamsSVG } from './SteelBeamsSVG';
 import { SteelBeamsResults } from './SteelBeamsResults';
+import { SteelBeamsDiagrams } from './SteelBeamsDiagrams';
 
 export function SteelBeamsModule() {
   const { state, setField, reset } = useModuleState('steel-beams', steelBeamDefaults);
-  const result = useMemo(() => calcSteelBeam(state), [state]);
+  // Co-memoize effectiveInputs + loadGen + result so calcSteelBeam only runs when state changes.
+  // When the generator is active, derived MEd/VEd/Mser and forced load types override state.
+  const [effectiveInputs, loadGen, result] = useMemo(() => {
+    if (!state.loadGenActive) return [state, null, calcSteelBeam(state)] as const;
+    const lg = deriveFromLoads(state);
+    const eff = {
+      ...state,
+      ...lg,
+      loadTypeLTB: 'uniform' as const,
+      loadTypeDefl: 'uniform' as const,
+    };
+    return [eff, lg, calcSteelBeam(eff)] as const;
+  }, [state]);
   const [pdfExporting, setPdfExporting] = useState(false);
 
   const handleExportPdf = async () => {
@@ -21,7 +35,7 @@ export function SteelBeamsModule() {
     }
     setPdfExporting(true);
     try {
-      await exportSteelBeamsPDF(state, result);
+      await exportSteelBeamsPDF(effectiveInputs, result);
     } catch {
       showToast('Error al generar el PDF', { autoDismiss: 4000 });
     } finally {
@@ -60,8 +74,20 @@ export function SteelBeamsModule() {
         {/* Right: SVG + results */}
         <div className="flex-1 min-w-0 overflow-y-auto scroll-hide">
           {/* SVG canvas */}
-          <div className="border-b border-border-main canvas-dot-grid flex items-center justify-center py-8">
-            <SteelBeamsSVG inp={state} result={result} mode="screen" width={340} height={220} />
+          <div className="border-b border-border-main canvas-dot-grid flex items-center justify-center py-8 px-4 gap-8">
+            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={420} height={280} />
+            {state.loadGenActive && loadGen && result.valid && (
+              <SteelBeamsDiagrams
+                MEd={loadGen.MEd}
+                VEd={loadGen.VEd}
+                L={effectiveInputs.L}
+                deltaMax={result.delta_max}
+                deltaAdm={result.delta_adm}
+                mode="screen"
+                width={400}
+                height={280}
+              />
+            )}
           </div>
 
           {/* Results */}
@@ -72,13 +98,33 @@ export function SteelBeamsModule() {
 
       </div>
 
-      {/* Hidden PDF clone */}
+      {/* Hidden PDF clone — beam cross-section */}
       <div
         id="steel-beams-svg-pdf"
         aria-hidden="true"
         style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
       >
-        <SteelBeamsSVG inp={state} result={result} mode="pdf" width={420} height={260} />
+        <SteelBeamsSVG inp={effectiveInputs} result={result} mode="pdf" width={420} height={260} />
+      </div>
+
+      {/* Hidden PDF clone — M/V diagrams */}
+      <div
+        id="steel-beams-diagrams-pdf"
+        aria-hidden="true"
+        style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+      >
+        {loadGen && result.valid && (
+          <SteelBeamsDiagrams
+            MEd={loadGen.MEd}
+            VEd={loadGen.VEd}
+            L={effectiveInputs.L}
+            deltaMax={result.delta_max}
+            deltaAdm={result.delta_adm}
+            mode="pdf"
+            width={420}
+            height={220}
+          />
+        )}
       </div>
     </div>
   );
