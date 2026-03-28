@@ -64,6 +64,24 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
     diagramH = SVG_H_MM + 4;
   }
 
+  // ── Diagrams (generator mode only) ───────────────────────────────────────
+  let diagramsH = 0;
+  if (inp.loadGenActive) {
+    const diagContainer = document.getElementById('steel-beams-diagrams-pdf');
+    const diagSvg = diagContainer?.querySelector('svg') as SVGSVGElement | null;
+    if (diagSvg) {
+      const DIAG_W_MM = 100;
+      const DIAG_H_MM = 52;   // 420:220 at 100mm width → 52.4mm ≈ 52mm
+      await svg2pdf(diagSvg, doc, {
+        x: M,
+        y: M + 12 + diagramH,
+        width: DIAG_W_MM,
+        height: DIAG_H_MM,
+      });
+      diagramsH = DIAG_H_MM + 4;
+    }
+  }
+
   // ── Input summary (right of diagram) ─────────────────────────────────────
   const infoX = M + 106;
   let infoY = M + 14;
@@ -102,7 +120,7 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
   doc.text(`MEd = ${inp.MEd} kNm`, infoX, infoY);
   doc.text(`VEd = ${inp.VEd} kN`, infoX + 35, infoY);
   infoY += lineH;
-  doc.text(`Lcr = ${inp.Lcr} mm`, infoX, infoY);
+  doc.text(`Lcr = ${(inp.Lcr / 1000).toFixed(2)} m`, infoX, infoY);
   doc.text(`C₁: ${inp.loadTypeLTB === 'uniform' ? '1.13' : '1.35'} (${inp.loadTypeLTB === 'uniform' ? 'unif.' : 'punt.'})`, infoX + 35, infoY);
   infoY += lineH;
 
@@ -116,12 +134,12 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
   doc.setFont('helvetica', 'normal');
   setGray(doc, 80);
   doc.text(`Mser = ${inp.Mser} kNm`, infoX, infoY);
-  doc.text(`L = ${inp.L} mm`, infoX + 35, infoY);
+  doc.text(`L = ${(inp.L / 1000).toFixed(2)} m`, infoX + 35, infoY);
   infoY += lineH;
   doc.text(`δadm = L/300 = ${(inp.L / 300).toFixed(1)} mm`, infoX, infoY);
 
   // ── Computed values ────────────────────────────────────────────────────────
-  const tableY = M + 12 + diagramH + 4;
+  const tableY = M + 12 + diagramH + diagramsH + 4;
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
