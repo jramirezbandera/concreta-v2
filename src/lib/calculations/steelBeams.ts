@@ -45,6 +45,7 @@ export interface SteelBeamResult {
   Vc_Rd: number;
   eta_V: number;
   // M-V interaction
+  VEd_interaction: number;
   rho: number;
   Mv_Rd: number;
   eta_MV: number;
@@ -119,7 +120,7 @@ function invalidResult(
     sectionClass,
     Mc_Rd: 0, eta_M: 0,
     Av: 0, Vc_Rd: 0, eta_V: 0,
-    rho: 0, Mv_Rd: 0, eta_MV: 0,
+    VEd_interaction: 0, rho: 0, Mv_Rd: 0, eta_MV: 0,
     Mcr: 0, lambda_LT: 0, chi_LT: 0, Mb_Rd: 0, eta_LTB: 0,
     delta_max: 0, delta_adm: 0, eta_delta: 0,
     governing,
@@ -189,11 +190,15 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const eta_V = Vc_Rd > 0 ? inp.VEd / Vc_Rd : Infinity;
 
   // 8. M-V interaction (CTE 6.2.8)
+  // loadGenActive: simply-supported UDL/central point load — V=0 at midspan (section of max M).
+  // Manual mode: engineer provides VEd for their design section — use as-is.
+  const VEd_interaction = inp.loadGenActive ? 0 : inp.VEd;
+
   let rho = 0;
   let Mv_Rd = Mc_Rd;
 
-  if (eta_V > 0.5) {
-    rho = Math.pow(2 * inp.VEd / Vc_Rd - 1, 2);
+  if (VEd_interaction / Vc_Rd > 0.5) {
+    rho = Math.pow(2 * VEd_interaction / Vc_Rd - 1, 2);
     if (sectionClass <= 2) {
       const Aw = profile.tw * (profile.h - 2 * profile.tf);
       const Wpl_y_red = Wpl_y_mm - (rho * Aw * Aw) / (4 * profile.tw);
@@ -268,17 +273,34 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
     ),
   );
 
-  checks.push(
-    check(
-      'interaction',
-      'Interacción M-V (CTE 6.2.8)',
-      inp.MEd,
-      Mv_Rd,
-      `${inp.MEd.toFixed(1)} kNm`,
-      `${Mv_Rd.toFixed(1)} kNm`,
-      'CTE DB-SE-A 6.2.8',
-    ),
-  );
+  // In generator mode (VEd_interaction=0, simply supported UDL), no M-V interaction occurs.
+  // Skip the row — it would always show 0% and duplicate the bending check.
+  if (!inp.loadGenActive) {
+    checks.push(
+      check(
+        'interaction',
+        'Interacción M-V (CTE 6.2.8)',
+        inp.MEd,
+        Mv_Rd,
+        `${inp.MEd.toFixed(1)} kNm`,
+        `${Mv_Rd.toFixed(1)} kNm`,
+        'CTE DB-SE-A 6.2.8',
+      ),
+    );
+  }
+
+  // Warn if Lcr > L: physically unusual (cantilevered or conservative assumption may be valid,
+  // but most common case is an input error). Result is conservative, not unconservative.
+  if (inp.Lcr > inp.L) {
+    checks.push(
+      checkNeutral(
+        'lcr-warning',
+        `Lcr (${(inp.Lcr / 1000).toFixed(2)} m) > L (${(inp.L / 1000).toFixed(2)} m) — verificar longitud de pandeo`,
+        'REVISAR',
+        'CTE DB-SE-A 6.3.2',
+      ),
+    );
+  }
 
   checks.push(
     check(
@@ -328,7 +350,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
     sectionClass,
     Mc_Rd, eta_M,
     Av, Vc_Rd, eta_V,
-    rho, Mv_Rd, eta_MV,
+    VEd_interaction, rho, Mv_Rd, eta_MV,
     Mcr, lambda_LT, chi_LT, Mb_Rd, eta_LTB,
     delta_max, delta_adm, eta_delta,
     governing,
