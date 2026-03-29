@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router';
+
 import { moduleRegistry } from '../../data/moduleRegistry';
 
 // Small structural icons per module key
@@ -51,16 +52,40 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
 
 const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   return (
     <nav
-      className="w-[190px] shrink-0 h-full bg-bg-surface border-r border-border-main flex flex-col"
+      className={[
+        'w-[190px] shrink-0 h-full bg-bg-surface border-r border-border-main flex flex-col',
+        // Mobile: fixed overlay drawer with slide transition
+        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50',
+        'max-md:transition-transform max-md:duration-200 max-md:ease-in-out',
+        isOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
+      ].join(' ')}
       aria-label="Navegación de módulos"
     >
       {/* Logo */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-2">
         <span className="w-[7px] h-[7px] rounded-full bg-accent shrink-0" aria-hidden="true" />
         <span className="text-[15px] font-semibold text-text-primary tracking-tight">Concreta</span>
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="ml-auto md:hidden p-3 -mr-2 text-text-disabled hover:text-text-secondary transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Module groups */}
@@ -89,7 +114,10 @@ export function Sidebar() {
                     ].join(' ')
                   }
                   title={!mod.shipped ? 'Próximamente' : undefined}
-                  onClick={(e) => { if (!mod.shipped) e.preventDefault(); }}
+                  onClick={(e) => {
+                    if (!mod.shipped) { e.preventDefault(); return; }
+                    onClose?.();
+                  }}
                 >
                   {() => (
                     <>

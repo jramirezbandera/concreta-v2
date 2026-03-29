@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { rcBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
+import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { exportRCBeamsPDF } from '../../lib/pdf/rcBeams';
 import { Topbar } from '../../components/layout/Topbar';
@@ -11,6 +13,8 @@ import { RCBeamsResults } from './RCBeamsResults';
 
 export function RCBeamsModule() {
   const { state, setField, reset } = useModuleState('rc-beams', rcBeamDefaults);
+  const { openDrawer } = useDrawer();
+  const [tab, setTab] = useState<'inputs' | 'results'>('inputs');
   const result = useMemo(() => calcRCBeam(state), [state]);
   const [pdfExporting, setPdfExporting] = useState(false);
 
@@ -29,6 +33,18 @@ export function RCBeamsModule() {
     }
   };
 
+  // Responsive SVG sizing
+  const [canvasRef, canvasWidth] = useContainerWidth();
+  // RCBeamsSVG aspect ratio: 220:270
+  const FIXED_W = 220;
+  const FIXED_H = 270;
+  const CANVAS_PAD = 32;
+  let rcSvgW = FIXED_W;
+  if (canvasWidth !== undefined && canvasWidth > 0 && canvasWidth < FIXED_W + CANVAS_PAD) {
+    rcSvgW = Math.max(140, canvasWidth - CANVAS_PAD);
+  }
+  const rcSvgH = Math.round(rcSvgW * (FIXED_H / FIXED_W));
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <Topbar
@@ -36,17 +52,25 @@ export function RCBeamsModule() {
         moduleGroup="Hormigón Armado"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
+        onMenuOpen={openDrawer}
       />
 
-      {/* Two-column layout */}
+      {/* Two-column layout (desktop) / Tabbed (mobile) */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* Left: inputs panel */}
-        <div className="w-75 shrink-0 border-r border-border-main flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+        <div
+          className={[
+            'flex flex-col min-h-0 overflow-hidden',
+            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
+            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
+            'md:flex',
+          ].join(' ')}
+        >
+          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4 pb-20 md:pb-4">
             <RCBeamsInputs state={state} setField={setField} />
           </div>
-          <div className="px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -58,27 +82,54 @@ export function RCBeamsModule() {
         </div>
 
         {/* Right: SVG + results */}
-        <div className="flex-1 min-w-0 overflow-y-auto scroll-hide">
-          {/* SVG canvas */}
-          <div className="border-b border-border-main canvas-dot-grid flex items-center justify-center py-8">
-            <RCBeamsSVG inp={state} result={result} mode="screen" width={220} height={270} />
+        <div
+          className={[
+            'min-w-0 overflow-y-auto scroll-hide',
+            'md:flex-1',
+            tab === 'results' ? 'flex-1' : 'hidden',
+            'md:block',
+          ].join(' ')}
+        >
+          {/* SVG canvas — tablet+ only */}
+          <div
+            ref={canvasRef}
+            className="hidden md:flex border-b border-border-main canvas-dot-grid items-center justify-center py-8"
+          >
+            <RCBeamsSVG inp={state} result={result} mode="screen" width={rcSvgW} height={rcSvgH} />
           </div>
 
           {/* Results */}
-          <div className="px-6 py-5">
+          <div className="px-6 py-5 pb-20 md:pb-5">
             <RCBeamsResults result={result} />
           </div>
         </div>
 
       </div>
 
-      {/* Hidden PDF clone */}
-      <div
-        id="rc-beams-svg-pdf"
-        aria-hidden="true"
-        style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
-      >
-        <RCBeamsSVG inp={state} result={result} mode="pdf" width={300} height={360} />
+      {/* Mobile bottom tab bar */}
+      <nav className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10" aria-label="Secciones">
+        <button
+          onClick={() => setTab('inputs')}
+          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'inputs' ? 'text-accent' : 'text-text-secondary'}`}
+        >
+          Datos
+        </button>
+        <button
+          onClick={() => setTab('results')}
+          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'results' ? 'text-accent' : 'text-text-secondary'}`}
+        >
+          Resultados
+        </button>
+      </nav>
+
+      {/* Hidden PDF clone — wrapped to prevent mobile horizontal scroll */}
+      <div className="overflow-hidden w-0 h-0" aria-hidden="true">
+        <div
+          id="rc-beams-svg-pdf"
+          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+        >
+          <RCBeamsSVG inp={state} result={result} mode="pdf" width={300} height={360} />
+        </div>
       </div>
     </div>
   );

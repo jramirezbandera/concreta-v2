@@ -38,7 +38,7 @@ Before shipping any module, run reference calculations by hand (or from CE code 
 
 Two explicit overrides from the CEO review that SPECS.md still reflects incorrectly:
 1. Section 8.2 specifies a "Calculate" button — overridden to live recalculation (no button in MVP)
-2. Section 19 acceptance criteria includes tablet — overridden to desktop ≥900px for MVP
+2. Section 19 acceptance criteria includes tablet — originally overridden to desktop ≥900px for MVP, but mobile/tablet support was implemented 2026-03-29 (tabbed layout <768px, full desktop ≥768px)
 
 Update SPECS.md to reflect these decisions before public launch.
 
@@ -66,7 +66,7 @@ Fix: add a `bending-over` check row that sets status='warn' when x > xLimit.
 When a user rapidly edits multiple fields, `setSearchParams` may fire after `localStorage` has already been written with a newer state. Low risk in practice but could cause a stale URL to persist for 300ms. Consider using a single debounced callback that writes both atomically.
 
 - [ ] Calculation history panel (show last 5 calcs per module)
-- [ ] Mobile / tablet layout (currently desktop ≥900px only)
+- [x] Mobile / tablet layout — DONE 2026-03-29 (tabbed layout <768px, full desktop ≥768px)
 - [ ] Keyboard shortcuts (Tab through inputs, Enter to focus results)
 - [ ] Copy-to-clipboard on individual result values
 - [ ] Two-tab localStorage sync via `storage` event listener
