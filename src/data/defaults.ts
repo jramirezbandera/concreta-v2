@@ -3,21 +3,33 @@
 
 export interface RCBeamInputs {
   [key: string]: string | number | boolean;
-  b: number;           // width (mm)
-  h: number;           // total depth (mm)
-  cover: number;       // mechanical cover (mm)
-  nBars: number;       // number of tension bars
-  barDiam: number;     // bar diameter (mm)
-  stirrupDiam: number; // stirrup diameter (mm)
-  stirrupSpacing: number; // stirrup spacing (mm)
-  stirrupLegs: number; // number of stirrup legs
-  fck: number;         // characteristic concrete strength (MPa)
-  fyk: number;         // characteristic steel strength (MPa)
-  exposureClass: string; // XC1–XC4
-  Md: number;          // design bending moment (kNm)
-  VEd: number;         // design shear force (kN)
-  Ms: number;          // quasi-permanent SLS moment (kNm)
-  psi2: number;        // ψ2·Qk/(Gk+Qk) ratio (dimensionless, 0–1)
+  // Shared geometry + materials
+  b: number;              // width (mm)
+  h: number;              // total depth (mm)
+  cover: number;          // mechanical cover (mm)
+  stirrupDiam: number;    // stirrup diameter (mm) — shared across sections
+  stirrupLegs: number;    // number of stirrup legs — shared
+  fck: number;            // characteristic concrete strength (MPa)
+  fyk: number;            // characteristic steel strength (MPa)
+  exposureClass: string;  // XC1–XC4
+  loadType: string;       // 'residential'|'office'|'parking'|'roof'|'custom'
+  psi2Custom: number;     // psi2 value when loadType='custom'
+  // Midspan (Vano) — bottom bars, positive bending
+  midspan_Md: number;             // design moment (kNm)
+  midspan_VEd: number;            // design shear (kN)
+  midspan_M_G: number;            // SLS moment from permanent loads (kNm)
+  midspan_M_Q: number;            // SLS moment from variable loads (kNm)
+  midspan_nBars: number;          // number of bottom bars
+  midspan_barDiam: number;        // bottom bar diameter (mm)
+  midspan_stirrupSpacing: number; // stirrup spacing at midspan (mm)
+  // Support (Apoyo) — top bars, negative bending
+  support_Md: number;
+  support_VEd: number;
+  support_M_G: number;
+  support_M_Q: number;
+  support_nBars: number;
+  support_barDiam: number;
+  support_stirrupSpacing: number;
 }
 
 export interface RCColumnInputs {
@@ -58,8 +70,8 @@ export interface SteelBeamInputs {
   elsCombo: ElsCombo;  // ELS combination type for deflection
   // Load generator
   useCategory: string;  // 'A1'|'A2'|'B'|'C1'|'C2'|'C3'|'D1'|'E1'|'G1'|'custom'
-  gk: number;           // additional permanent surface load (kN/m²)
-  qk: number;           // variable surface load (kN/m²) — prefilled from category
+  gk: number;           // additional permanent surface load (kN/m2)
+  qk: number;           // variable surface load (kN/m2) — prefilled from category
   bTrib: number;        // tributary width (m)
 }
 
@@ -82,18 +94,29 @@ export const rcBeamDefaults: RCBeamInputs = {
   b: 300,
   h: 500,
   cover: 30,
-  nBars: 4,
-  barDiam: 16,
   stirrupDiam: 8,
-  stirrupSpacing: 200,
   stirrupLegs: 2,
   fck: 25,
   fyk: 500,
   exposureClass: 'XC1',
-  Md: 85,
-  VEd: 65,
-  Ms: 55,
-  psi2: 0.3,
+  loadType: 'residential',
+  psi2Custom: 0.3,
+  // Midspan — d = 500 - 30 - 8 - 8 = 454 mm
+  midspan_Md: 85,
+  midspan_VEd: 65,
+  midspan_M_G: 45,
+  midspan_M_Q: 20,
+  midspan_nBars: 4,
+  midspan_barDiam: 16,
+  midspan_stirrupSpacing: 150,
+  // Support
+  support_Md: 65,
+  support_VEd: 65,
+  support_M_G: 35,
+  support_M_Q: 15,
+  support_nBars: 3,
+  support_barDiam: 16,
+  support_stirrupSpacing: 100,
 };
 
 export const rcColumnDefaults: RCColumnInputs = {
@@ -117,7 +140,7 @@ export const steelBeamDefaults: SteelBeamInputs = {
   MEd: 80,
   VEd: 60,
   VEd_interaction: 0,
-  Lcr: 6000,   // autoLcr = 1.0 × L = 6000mm for ss default
+  Lcr: 6000,   // autoLcr = 1.0 x L = 6000mm for ss default
   Mser: 50,
   L: 6000,
   deflLimit: 300,

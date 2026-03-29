@@ -4,7 +4,9 @@ import { availableBarDiams } from '../../data/rebar';
 
 interface RCBeamsInputsProps {
   state: RCBeamInputs;
-  setField: (field: keyof RCBeamInputs, value: RCBeamInputs[keyof RCBeamInputs]) => void;
+  section: 'vano' | 'apoyo';
+  setSection: (s: 'vano' | 'apoyo') => void;
+  setField: (field: string, value: RCBeamInputs[keyof RCBeamInputs]) => void;
 }
 
 function NumField({
@@ -18,7 +20,7 @@ function NumField({
 }: {
   label: string;
   sub?: string;
-  field: keyof RCBeamInputs;
+  field: string;
   value: number;
   unit: string;
   min?: number;
@@ -59,7 +61,7 @@ function SelectField({
   setField,
 }: {
   label: string;
-  field: keyof RCBeamInputs;
+  field: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: RCBeamsInputsProps['setField'];
@@ -97,63 +99,172 @@ function SectionHeader({ label }: { label: string }) {
   );
 }
 
-export function RCBeamsInputs({ state, setField }: RCBeamsInputsProps) {
+const LOAD_TYPE_OPTIONS = [
+  { value: 'residential', label: 'Residencial (\u03c8\u2082=0.3)' },
+  { value: 'office',      label: 'Oficinas (\u03c8\u2082=0.3)' },
+  { value: 'parking',     label: 'Garaje (\u03c8\u2082=0.6)' },
+  { value: 'roof',        label: 'Cubierta (\u03c8\u2082=0.0)' },
+  { value: 'custom',      label: 'Personalizado' },
+];
+
+export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsInputsProps) {
+  const isVano = section === 'vano';
+  const prefix = isVano ? 'midspan' : 'support';
+
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
-      <SectionHeader label="Geometría" />
-      <NumField label="Ancho b" field="b" value={state.b} unit="mm" min={1} setField={setField} />
-      <NumField label="Canto h" field="h" value={state.h} unit="mm" min={1} setField={setField} />
-      <NumField label="Recubrimiento" field="cover" value={state.cover} unit="mm" min={1} setField={setField} />
 
-      <SectionHeader label="Armadura long." />
-      <NumField label="Núm. barras" field="nBars" value={state.nBars} unit="ud" min={1} setField={setField} />
-      <SelectField
-        label="Diámetro φ"
-        field="barDiam"
-        value={state.barDiam}
-        options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))}
-        setField={setField}
-      />
+      {/* Shared geometry */}
+      <SectionHeader label="Geometria" />
+      <NumField label="Ancho b"         field="b"     value={state.b as number}     unit="mm" min={1} setField={setField} />
+      <NumField label="Canto h"         field="h"     value={state.h as number}     unit="mm" min={1} setField={setField} />
+      <NumField label="Recubrimiento"   field="cover" value={state.cover as number} unit="mm" min={1} setField={setField} />
 
-      <SectionHeader label="Armadura trans." />
-      <SelectField
-        label="Estribos φ"
-        field="stirrupDiam"
-        value={state.stirrupDiam}
-        options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `φ ${d}` }))}
-        setField={setField}
-      />
-      <NumField label="Separación" field="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
-      <NumField label="Núm. ramas" field="stirrupLegs" value={state.stirrupLegs} unit="ud" min={1} setField={setField} />
-
+      {/* Shared materials */}
       <SectionHeader label="Materiales" />
       <SelectField
         label="fck"
         field="fck"
-        value={state.fck}
+        value={state.fck as number}
         options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
         setField={setField}
       />
       <SelectField
         label="fyk"
         field="fyk"
-        value={state.fyk}
+        value={state.fyk as number}
         options={[400, 500, 600].map((f) => ({ value: f, label: `${f} MPa` }))}
         setField={setField}
       />
       <SelectField
-        label="Exposición"
+        label="Exposicion"
         field="exposureClass"
-        value={state.exposureClass}
+        value={state.exposureClass as string}
         options={['XC1', 'XC2', 'XC3', 'XC4'].map((c) => ({ value: c, label: c }))}
         setField={setField}
       />
 
+      {/* Shared stirrups */}
+      <SectionHeader label="Armadura trans. (compartida)" />
+      <SelectField
+        label="Estribos \u03c6"
+        field="stirrupDiam"
+        value={state.stirrupDiam as number}
+        options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+        setField={setField}
+      />
+      <NumField label="Num. ramas" field="stirrupLegs" value={state.stirrupLegs as number} unit="ud" min={1} setField={setField} />
+
+      {/* Section tab selector */}
+      <div className="flex mt-3 mb-0 border-b border-border-main" role="tablist" aria-label="Seccion">
+        <button
+          role="tab"
+          aria-selected={isVano}
+          onClick={() => setSection('vano')}
+          className={[
+            'flex-1 py-2 text-[12px] font-medium transition-colors border-b-2 -mb-px',
+            isVano
+              ? 'text-accent border-accent'
+              : 'text-text-secondary border-transparent hover:text-text-primary',
+          ].join(' ')}
+        >
+          Vano
+        </button>
+        <button
+          role="tab"
+          aria-selected={!isVano}
+          onClick={() => setSection('apoyo')}
+          className={[
+            'flex-1 py-2 text-[12px] font-medium transition-colors border-b-2 -mb-px',
+            !isVano
+              ? 'text-accent border-accent'
+              : 'text-text-secondary border-transparent hover:text-text-primary',
+          ].join(' ')}
+        >
+          Apoyo
+        </button>
+      </div>
+
+      {/* Per-section armadura longitudinal */}
+      <SectionHeader label={isVano ? 'Armadura inferior (vano)' : 'Armadura superior (apoyo)'} />
+      <NumField
+        label="Num. barras"
+        field={`${prefix}_nBars`}
+        value={state[`${prefix}_nBars`] as number}
+        unit="ud"
+        min={1}
+        setField={setField}
+      />
+      <SelectField
+        label="Diametro \u03c6"
+        field={`${prefix}_barDiam`}
+        value={state[`${prefix}_barDiam`] as number}
+        options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+        setField={setField}
+      />
+      <NumField
+        label="Separacion estribos"
+        field={`${prefix}_stirrupSpacing`}
+        value={state[`${prefix}_stirrupSpacing`] as number}
+        unit="mm"
+        min={50}
+        setField={setField}
+      />
+
+      {/* Per-section solicitations */}
       <SectionHeader label="Solicitaciones" />
-      <NumField label="Md" sub="(ELU)" field="Md" value={state.Md} unit="kNm" setField={setField} />
-      <NumField label="VEd" sub="(ELU)" field="VEd" value={state.VEd} unit="kN" setField={setField} />
-      <NumField label="Ms" sub="(ELS)" field="Ms" value={state.Ms} unit="kNm" setField={setField} />
-      <NumField label="ψ₂·Qk / total" field="psi2" value={state.psi2} unit="—" min={0} setField={setField} />
+      <NumField
+        label="Md"
+        sub="(ELU)"
+        field={`${prefix}_Md`}
+        value={state[`${prefix}_Md`] as number}
+        unit="kNm"
+        setField={setField}
+      />
+      <NumField
+        label="VEd"
+        sub="(ELU)"
+        field={`${prefix}_VEd`}
+        value={state[`${prefix}_VEd`] as number}
+        unit="kN"
+        setField={setField}
+      />
+      <NumField
+        label="M perm."
+        sub="(ELS)"
+        field={`${prefix}_M_G`}
+        value={state[`${prefix}_M_G`] as number}
+        unit="kNm"
+        setField={setField}
+      />
+      <NumField
+        label="M var."
+        sub="(ELS)"
+        field={`${prefix}_M_Q`}
+        value={state[`${prefix}_M_Q`] as number}
+        unit="kNm"
+        setField={setField}
+      />
+
+      {/* Load type (shared, affects psi2 for cracking SLS) */}
+      <SectionHeader label="Uso (fisuracion ELS)" />
+      <SelectField
+        label="Tipo de carga"
+        field="loadType"
+        value={state.loadType as string}
+        options={LOAD_TYPE_OPTIONS}
+        setField={setField}
+      />
+      {state.loadType === 'custom' && (
+        <NumField
+          label="\u03c8\u2082 personalizado"
+          field="psi2Custom"
+          value={state.psi2Custom as number}
+          unit="\u2014"
+          min={0}
+          setField={setField}
+        />
+      )}
     </div>
   );
 }
