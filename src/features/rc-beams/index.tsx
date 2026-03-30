@@ -37,19 +37,21 @@ export function RCBeamsModule() {
 
   // Responsive SVG sizing — two SVGs side by side, stacked below STACK_THRESHOLD
   const [canvasRef, canvasWidth] = useContainerWidth();
-  const CANVAS_PAD   = 32;
-  const GAP          = 16;
+  const CANVAS_PAD      = 32;
+  const GAP             = 16;
   const STACK_THRESHOLD = 560;
+  const MAX_SVG_H       = 200;  // cap height so canvas doesn't dominate the panel
   const isStacked = (canvasWidth ?? 0) < STACK_THRESHOLD;
   let rcSvgW: number;
   if (isStacked && canvasWidth !== undefined && canvasWidth > 0) {
-    rcSvgW = Math.max(160, canvasWidth - CANVAS_PAD);
+    rcSvgW = Math.max(140, canvasWidth - CANVAS_PAD);
   } else if (canvasWidth !== undefined && canvasWidth > 0) {
-    rcSvgW = Math.max(130, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2));
+    rcSvgW = Math.max(110, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2));
   } else {
-    rcSvgW = 220;
+    rcSvgW = 180;
   }
-  const rcSvgH = Math.round(rcSvgW * 1.4);
+  // Aspect ratio ~1.1 (slightly taller than wide) — cross-sections are nearly square
+  const rcSvgH = Math.min(MAX_SVG_H, Math.round(rcSvgW * 1.1));
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -105,8 +107,8 @@ export function RCBeamsModule() {
           <div
             ref={canvasRef}
             className={[
-              'hidden md:flex border-b border-border-main canvas-dot-grid py-6 px-4',
-              isStacked ? 'flex-col items-center gap-4' : 'flex-row items-start justify-center gap-4',
+              'hidden md:flex border-b border-border-main canvas-dot-grid py-4 px-4',
+              isStacked ? 'flex-col items-center gap-3' : 'flex-row items-start justify-center gap-4',
             ].join(' ')}
           >
             {result.midspan && (
