@@ -312,21 +312,24 @@ export async function exportSteelColumnsPDF(
       doc.setFontSize(5.5);
       doc.text(pdfStr(c.article), COL.art, y, { align: 'right' });
 
-      // Utilization bar (below text, spans under value+limit+util columns)
+      // Utilization bar — drawn below text, spans value→status columns
       const barX  = COL.value;
       const barW  = COL.status - COL.value - 2;
       const barH  = 1.4;
       const fillW = barW * Math.min(c.utilization, 1);
-      setGray(doc, 218);
-      doc.rect(barX, y + 1, barW, barH, 'F');
-      setGray(doc, status === 'ok' ? 90 : status === 'warn' ? 50 : 0);
-      if (fillW > 0) doc.rect(barX, y + 1, fillW, barH, 'F');
+      // track: y+1 … y+2.4  (bar) | y+5 (separator line) | y+8 (next row)
+      doc.setFillColor(220, 220, 220);
+      doc.rect(barX, y + 1.5, barW, barH, 'F');
+      const barRgb = status === 'ok' ? 110 : status === 'warn' ? 60 : 20;
+      doc.setFillColor(barRgb, barRgb, barRgb);
+      if (fillW > 0) doc.rect(barX, y + 1.5, fillW, barH, 'F');
     }
 
-    y += 7;
-    setGray(doc, 230);
+    // Separator — drawn at y+5.5, well below bar and above next row text (y+8)
+    setGray(doc, 225);
     doc.setLineWidth(0.08);
-    doc.line(M, y - 1.5, PAGE_W - M, y - 1.5);
+    doc.line(M, y + 5.5, PAGE_W - M, y + 5.5);
+    y += 8;
   }
 
   y += 2;
@@ -399,18 +402,24 @@ export async function exportSteelColumnsPDF(
   const hasFail = result.checks.some((c) => !c.neutral && c.status === 'fail');
   const hasWarn = result.checks.some((c) => !c.neutral && c.status === 'warn');
   const overallStatus: DisplayStatus = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
-  const overallGray = hasFail ? 0 : hasWarn ? 30 : 50;
 
-  setGray(doc, 220);
-  doc.rect(M, y - 4, CW, 9, 'F');
-  setGray(doc, overallGray);
+  // Light-gray banner — use setFillColor (not setGray) so 'F' rect picks it up
+  doc.setFillColor(235, 235, 235);
+  doc.rect(M, y - 4, CW, 10, 'F');
+  // Thin border
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.rect(M, y - 4, CW, 10, 'S');
+
+  const textGray = hasFail ? 20 : hasWarn ? 40 : 50;
+  setGray(doc, textGray);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text(
     `VEREDICTO GLOBAL:  ${STATUS_LABEL[overallStatus]}  (utilizacion maxima: ${(result.utilization * 100).toFixed(1)}%)`,
-    PAGE_W / 2, y + 0.5, { align: 'center' },
+    PAGE_W / 2, y + 1.5, { align: 'center' },
   );
-  y += 8;
+  y += 10;
 
   // ── Final footer ──────────────────────────────────────────────────────────
   drawPageFooter(doc);
