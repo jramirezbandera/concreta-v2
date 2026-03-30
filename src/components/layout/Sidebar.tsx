@@ -27,6 +27,15 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <circle cx="17" cy="17" r="1.5" fill="currentColor" stroke="none" />
         </svg>
       );
+    // Steel column: I-profile vertical
+    case 'concreta-steel-columns':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <rect x="3"  y="2"  width="18" height="3.5" />
+          <rect x="10" y="5.5" width="4" height="13" />
+          <rect x="3"  y="18.5" width="18" height="3.5" />
+        </svg>
+      );
     // Steel beam: I-profile
     case 'concreta-steel-beams':
       return (

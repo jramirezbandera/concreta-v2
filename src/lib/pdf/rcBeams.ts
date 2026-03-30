@@ -189,7 +189,7 @@ export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult):
 
   const infoRows = [
     [`b = ${inp.b} mm`,        `h = ${inp.h} mm`],
-    [`Recub. = ${inp.cover} mm`, `Estribos f${inp.stirrupDiam} (${inp.stirrupLegs}R)`],
+    [`Recub. = ${inp.cover} mm`, ``],
     [`fck = ${inp.fck} MPa`,   `fyk = ${inp.fyk} MPa`],
     [`Exposicion: ${inp.exposureClass}`, `Uso: ${inp.loadType}`],
     [`Vano: ${inp.midspan_nBars}f${inp.midspan_barDiam}, s=${inp.midspan_stirrupSpacing}mm`, ``],

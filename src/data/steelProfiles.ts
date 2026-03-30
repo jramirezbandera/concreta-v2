@@ -92,3 +92,115 @@ export function getProfile(tipo: 'IPE' | 'HEA' | 'HEB', size: number): SteelProf
 export function getSizesForTipo(tipo: 'IPE' | 'HEA' | 'HEB'): number[] {
   return STEEL_PROFILES.filter((p) => p.tipo === tipo).map((p) => p.size);
 }
+
+// ---------------------------------------------------------------------------
+// UPN channel sections — ArcelorMittal standard catalogue
+// Units: h, b, tf, tw in mm; A in cm²; Iy, Iz in cm⁴; Wpl_y, Wel_y in cm³; It in cm⁴; e1 in mm
+// e1 = distance from outer web face to UPN centroid (needed for Iz_box)
+// ---------------------------------------------------------------------------
+
+export interface UPNProfile {
+  size: number;
+  h: number; b: number; tf: number; tw: number;
+  A: number; Iy: number; Iz: number;
+  Wpl_y: number; Wel_y: number; It: number;
+  e1: number;
+}
+
+// size, h, b, tf, tw, A, Iy, Iz, Wpl_y, Wel_y, It, e1
+const UPN_DATA: Array<[number,number,number,number,number,number,number,number,number,number,number,number]> = [
+  [ 80,  80,  45,  8.0,  6.0,  11.0,   106,  19.4,   33.6,   26.5,   2.42, 14.4],
+  [100, 100,  50,  8.5,  6.0,  13.5,   206,  29.3,   51.5,   41.2,   3.42, 15.5],
+  [120, 120,  55,  9.0,  7.0,  17.0,   364,  43.2,   76.4,   60.7,   5.64, 17.0],
+  [140, 140,  60, 10.0,  7.0,  20.4,   605,  62.7,  109.0,   86.4,   8.71, 18.6],
+  [160, 160,  65, 10.5,  7.5,  24.0,   925,  85.3,  148.0,  116.0,  12.50, 19.8],
+  [180, 180,  70, 11.0,  8.0,  28.0,  1350, 114.0,  195.0,  150.0,  17.70, 21.2],
+  [200, 200,  75, 11.5,  8.5,  32.2,  1910, 148.0,  251.0,  191.0,  23.80, 22.5],
+  [220, 220,  80, 12.5,  9.0,  37.4,  2690, 195.0,  322.0,  245.0,  34.70, 24.0],
+  [240, 240,  85, 13.0,  9.5,  42.3,  3600, 248.0,  400.0,  300.0,  44.40, 25.1],
+  [260, 260,  90, 14.0, 10.0,  48.3,  4820, 317.0,  497.0,  371.0,  62.40, 26.6],
+  [280, 280,  95, 15.0, 10.0,  53.3,  6280, 399.0,  608.0,  449.0,  82.50, 27.7],
+  [300, 300, 100, 16.0, 10.0,  58.8,  8030, 495.0,  739.0,  535.0, 108.00, 28.8],
+  [320, 320, 100, 17.5, 10.5,  65.2, 10870, 597.0,  942.0,  679.0, 158.00, 30.0],
+  [350, 350, 100, 16.0, 12.0,  66.0, 13210, 570.0, 1043.0,  755.0, 136.00, 27.6],
+  [380, 380, 102, 16.0, 13.5,  70.4, 16160, 615.0, 1183.0,  851.0, 149.00, 27.4],
+  [400, 400, 110, 18.0, 14.0,  91.5, 23130, 846.0, 1590.0, 1160.0, 243.00, 30.3],
+];
+
+export const UPN_PROFILES: UPNProfile[] = UPN_DATA.map(
+  ([size, h, b, tf, tw, A, Iy, Iz, Wpl_y, Wel_y, It, e1]) =>
+    ({ size, h, b, tf, tw, A, Iy, Iz, Wpl_y, Wel_y, It, e1 }),
+);
+
+export function getUPN(size: number): UPNProfile | undefined {
+  return UPN_PROFILES.find((p) => p.size === size);
+}
+
+export function getSizesUPN(): number[] {
+  return UPN_PROFILES.map((p) => p.size);
+}
+
+// ---------------------------------------------------------------------------
+// 2UPN cajón cerrado — composite closed-box section (zero gap, flanges welded)
+// Webs on the outside (left/right), flanges forming the inner top/bottom walls.
+// Box dims: H = h_UPN, B_total = 2 * b_UPN
+// ---------------------------------------------------------------------------
+
+export interface UPNBoxProfile {
+  isBox: true;
+  size: number;
+  /** Single UPN flange width (mm) — half the box total width. */
+  b_upn: number;
+  /** Box total height = h_UPN (mm) */
+  h: number;
+  /** Box total width = 2 * b_UPN (mm) */
+  b: number;
+  /** Flange thickness = tf_UPN (mm) */
+  tf: number;
+  /** Web thickness = tw_UPN (mm) */
+  tw: number;
+  A: number;     // 2 · A_UPN                                  (cm²)
+  Iy: number;    // 2 · Iy_UPN                                 (cm⁴)
+  Iz: number;    // 2·Iz_UPN + 2·A_UPN·(b_upn − e1)²          (cm⁴)
+  Wpl_y: number; // 2 · Wpl_y_UPN                              (cm³)
+  Wel_y: number; // Iy_box / (h/2)                             (cm³)
+  It: number;    // Bredt 4·Am²/Σ(ds/t)                       (cm⁴)
+  Iw: number;    // 0 — closed section                        (cm⁶)
+}
+
+export function buildUPNBox(size: number): UPNBoxProfile | undefined {
+  const upn = getUPN(size);
+  if (!upn) return undefined;
+
+  const { h, b: b_upn, tf, tw, A: A1, Iy: Iy1, Iz: Iz1, Wpl_y: Wply1, e1 } = upn;
+
+  const A = 2 * A1;
+  const Iy = 2 * Iy1;
+
+  // Iz: parallel-axis theorem — centroid-to-z-axis distance = (b_upn − e1)
+  const d_cm = (b_upn - e1) / 10; // mm → cm
+  const Iz = 2 * Iz1 + 2 * A1 * d_cm * d_cm;
+
+  const Wpl_y = 2 * Wply1;
+
+  // Wel_y = Iy_box / (h/2 in cm)  →  20·Iy_box / h_mm
+  const Wel_y = (20 * Iy) / h;
+
+  // Bredt torsion — using median-line dimensions
+  const h_m = h - tf;          // mm — median web height
+  const b_m = 2 * b_upn - tw;  // mm — median box width (web-to-web centre)
+  const Am_cm2 = (h_m * b_m) / 100; // mm² → cm²
+  const sum_ds_t = 2 * h_m / tw + 2 * b_m / tf; // dimensionless (mm/mm)
+  const It = (4 * Am_cm2 * Am_cm2) / sum_ds_t;
+
+  return {
+    isBox: true,
+    size,
+    b_upn,
+    h, b: 2 * b_upn,
+    tf, tw,
+    A, Iy, Iz,
+    Wpl_y, Wel_y,
+    It, Iw: 0,
+  };
+}

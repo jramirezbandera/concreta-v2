@@ -2,14 +2,16 @@ import {
   rcBeamDefaults,
   rcColumnDefaults,
   steelBeamDefaults,
+  steelColumnDefaults,
   footingDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
+  type SteelColumnInputs,
   type FootingInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | FootingInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -43,6 +45,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Vigas',
     group: 'Acero',
     defaults: steelBeamDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-steel-columns',
+    route: '/acero/pilares',
+    label: 'Pilares',
+    group: 'Acero',
+    defaults: steelColumnDefaults,
     shipped: true,
   },
   {

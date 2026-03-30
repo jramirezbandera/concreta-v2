@@ -79,7 +79,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer shrink-0"
+        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -136,24 +136,34 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         options={[400, 500, 600].map((f) => ({ value: f, label: `${f} MPa` }))}
         setField={setField}
       />
+
+
+      {/* Shared: exposure class + load type (affect cracking ELS in both sections) */}
+      <SectionHeader label="Uso y exposicion (fisuracion ELS)" />
       <SelectField
-        label="Exposicion"
+        label="Clase de exposicion"
         field="exposureClass"
         value={state.exposureClass as string}
         options={['XC1', 'XC2', 'XC3', 'XC4'].map((c) => ({ value: c, label: c }))}
         setField={setField}
       />
-
-      {/* Shared stirrups */}
-      <SectionHeader label="Armadura trans. (compartida)" />
       <SelectField
-        label="Estribos \u03c6"
-        field="stirrupDiam"
-        value={state.stirrupDiam as number}
-        options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+        label="Tipo de carga"
+        field="loadType"
+        value={state.loadType as string}
+        options={LOAD_TYPE_OPTIONS}
         setField={setField}
       />
-      <NumField label="Num. ramas" field="stirrupLegs" value={state.stirrupLegs as number} unit="ud" min={1} setField={setField} />
+      {state.loadType === 'custom' && (
+        <NumField
+          label="\u03c8\u2082 personalizado"
+          field="psi2Custom"
+          value={state.psi2Custom as number}
+          unit="\u2014"
+          min={0}
+          setField={setField}
+        />
+      )}
 
       {/* Section tab selector */}
       <div className="flex mt-3 mb-0 border-b border-border-main" role="tablist" aria-label="Seccion">
@@ -185,8 +195,8 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         </button>
       </div>
 
-      {/* Per-section armadura longitudinal */}
-      <SectionHeader label={isVano ? 'Armadura inferior (vano)' : 'Armadura superior (apoyo)'} />
+      {/* Per-section armadura longitudinal + transversal */}
+      <SectionHeader label={isVano ? 'Armadura (vano)' : 'Armadura (apoyo)'} />
       <NumField
         label="Num. barras"
         field={`${prefix}_nBars`}
@@ -196,18 +206,33 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
       <SelectField
-        label="Diametro \u03c6"
+        label="Diametro"
         field={`${prefix}_barDiam`}
         value={state[`${prefix}_barDiam`] as number}
         options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
         setField={setField}
       />
+      <SelectField
+        label="Estribos"
+        field={`${prefix}_stirrupDiam`}
+        value={state[`${prefix}_stirrupDiam`] as number}
+        options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+        setField={setField}
+      />
       <NumField
-        label="Separacion estribos"
+        label="Separacion"
         field={`${prefix}_stirrupSpacing`}
         value={state[`${prefix}_stirrupSpacing`] as number}
         unit="mm"
         min={50}
+        setField={setField}
+      />
+      <NumField
+        label="Num. ramas"
+        field={`${prefix}_stirrupLegs`}
+        value={state[`${prefix}_stirrupLegs`] as number}
+        unit="ud"
+        min={1}
         setField={setField}
       />
 
@@ -230,7 +255,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
       <NumField
-        label="M perm."
+        label="M carga permanente"
         sub="(ELS)"
         field={`${prefix}_M_G`}
         value={state[`${prefix}_M_G`] as number}
@@ -238,7 +263,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
       <NumField
-        label="M var."
+        label="M carga variable"
         sub="(ELS)"
         field={`${prefix}_M_Q`}
         value={state[`${prefix}_M_Q`] as number}
@@ -246,25 +271,6 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
 
-      {/* Load type (shared, affects psi2 for cracking SLS) */}
-      <SectionHeader label="Uso (fisuracion ELS)" />
-      <SelectField
-        label="Tipo de carga"
-        field="loadType"
-        value={state.loadType as string}
-        options={LOAD_TYPE_OPTIONS}
-        setField={setField}
-      />
-      {state.loadType === 'custom' && (
-        <NumField
-          label="\u03c8\u2082 personalizado"
-          field="psi2Custom"
-          value={state.psi2Custom as number}
-          unit="\u2014"
-          min={0}
-          setField={setField}
-        />
-      )}
     </div>
   );
 }

@@ -61,6 +61,16 @@ Update SPECS.md to reflect these decisions before public launch.
 
 Fix: add a `bending-over` check row that sets status='warn' when x > xLimit.
 
+**Status:** IN SCOPE for RC beams redesign (2026-03-29). Will be fixed in that pass.
+
+### T-beam effective flange width in RC beams (CEO review 2026-03-29)
+
+`calcRCBeam` currently assumes rectangular cross-section for bending resistance. For beam-slab buildings (the majority of real construction), the compression flange dramatically increases MRd — often 2-3x vs. rectangular. Engineers using T-beams will see conservative (over-failing) bending results.
+
+Fix: add `midspan_beff` (effective flange width, mm) and `midspan_hf` (slab thickness, mm) as optional flat state fields. When set, use T-section stress block per CE art. 18.2.4. When not set, default to rectangular (current behavior).
+
+**Why P2:** Conservative result is not wrong — it's safe. But it forces engineers to oversize or ignore the check. After talking to first users, this will likely become P1.
+
 ### URL double-write race in useModuleState (adversarial review finding)
 
 When a user rapidly edits multiple fields, `setSearchParams` may fire after `localStorage` has already been written with a newer state. Low risk in practice but could cause a stale URL to persist for 300ms. Consider using a single debounced callback that writes both atomically.
@@ -68,13 +78,19 @@ When a user rapidly edits multiple fields, `setSearchParams` may fire after `loc
 - [ ] Calculation history panel (show last 5 calcs per module)
 - [x] Mobile / tablet layout — DONE 2026-03-29 (tabbed layout <768px, full desktop ≥768px)
 - [ ] Keyboard shortcuts (Tab through inputs, Enter to focus results)
-- [ ] Copy-to-clipboard on individual result values
+- [ ] Copy-to-clipboard on individual result values (including rebar schedule line — e.g. "4Ø16 + Ø8/c150 (2T)")
 - [ ] Two-tab localStorage sync via `storage` event listener
 - [ ] URL versioning (`?v=1&b=300...`) if external integrations are built on top
 - [ ] Custom section input for steel profiles (currently bundled IPE/HEA/HEB only)
 - [ ] Mat foundations (losas) — 2D plate theory, requires separate module
 - [ ] `<title>` tag per module (`Viga HEM — Concreta`) — `document.title` on route change
 - [ ] PWA icons — create `public/icons/icon-192.png` and `icon-512.png` (referenced in manifest)
+
+### RC beams PDF — draftsman-quality one-page report (CEO review 2026-03-29)
+
+Current PDF export is an incremental update (both sections, same jsPDF template). The 10x version is a polished one-page compliance report: section diagrams with dimensions, all CE checks with PASS/FAIL pills, rebar schedule, minimum lap note, exposure class and project metadata. Engineers would hand this directly to draftsmen.
+
+Priority: P3 — implement after talking to first users. They'll tell you what format they actually want.
 
 ## P3 — Nice to have
 

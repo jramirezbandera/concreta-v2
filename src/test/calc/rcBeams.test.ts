@@ -227,14 +227,14 @@ describe('rho-w-min check', () => {
   it('rhoW < rhoWMin -> rho-w-min fail', () => {
     // rhoWMin = 0.072*sqrt(25)/500 = 0.00072
     // f6/c1000: rhoW = 2*28.3/(1000*300) = 0.000189 < 0.00072
-    const r = calcRCBeam({ ...base, stirrupDiam: 6, midspan_stirrupSpacing: 1000 });
+    const r = calcRCBeam({ ...base, midspan_stirrupDiam: 6, midspan_stirrupSpacing: 1000 });
     expect(r.midspan.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('fail');
   });
 
   it('rhoW ok but stirrupSpacing > 0.75*d -> rho-w-min warn', () => {
     // d=454, 0.75*d=340.5. f8/c400: rhoW=2*50.3/(400*300)=0.000838 > 0.00072 ok ratio
     // but 400 > 340.5 -> warn
-    const r = calcRCBeam({ ...base, stirrupDiam: 8, midspan_stirrupSpacing: 400 });
+    const r = calcRCBeam({ ...base, midspan_stirrupDiam: 8, midspan_stirrupSpacing: 400 });
     expect(r.midspan.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('warn');
   });
 

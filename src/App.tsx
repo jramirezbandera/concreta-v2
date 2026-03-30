@@ -3,6 +3,7 @@ import { AppShell, NotFound } from './components/layout/AppShell';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { RCBeamsModule } from './features/rc-beams';
 import { SteelBeamsModule } from './features/steel-beams';
+import { SteelColumnsModule } from './features/steel-columns';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
         ),
       },
       { path: 'acero/vigas', element: <SteelBeamsModule /> },
+      { path: 'acero/pilares', element: <SteelColumnsModule /> },
       {
         path: 'ciment/zapatas',
         element: (

@@ -7,8 +7,6 @@ export interface RCBeamInputs {
   b: number;              // width (mm)
   h: number;              // total depth (mm)
   cover: number;          // mechanical cover (mm)
-  stirrupDiam: number;    // stirrup diameter (mm) — shared across sections
-  stirrupLegs: number;    // number of stirrup legs — shared
   fck: number;            // characteristic concrete strength (MPa)
   fyk: number;            // characteristic steel strength (MPa)
   exposureClass: string;  // XC1–XC4
@@ -19,9 +17,11 @@ export interface RCBeamInputs {
   midspan_VEd: number;            // design shear (kN)
   midspan_M_G: number;            // SLS moment from permanent loads (kNm)
   midspan_M_Q: number;            // SLS moment from variable loads (kNm)
-  midspan_nBars: number;          // number of bottom bars
-  midspan_barDiam: number;        // bottom bar diameter (mm)
-  midspan_stirrupSpacing: number; // stirrup spacing at midspan (mm)
+  midspan_nBars: number;
+  midspan_barDiam: number;
+  midspan_stirrupDiam: number;
+  midspan_stirrupSpacing: number;
+  midspan_stirrupLegs: number;
   // Support (Apoyo) — top bars, negative bending
   support_Md: number;
   support_VEd: number;
@@ -29,7 +29,9 @@ export interface RCBeamInputs {
   support_M_Q: number;
   support_nBars: number;
   support_barDiam: number;
+  support_stirrupDiam: number;
   support_stirrupSpacing: number;
+  support_stirrupLegs: number;
 }
 
 export interface RCColumnInputs {
@@ -94,8 +96,6 @@ export const rcBeamDefaults: RCBeamInputs = {
   b: 300,
   h: 500,
   cover: 30,
-  stirrupDiam: 8,
-  stirrupLegs: 2,
   fck: 25,
   fyk: 500,
   exposureClass: 'XC1',
@@ -108,7 +108,9 @@ export const rcBeamDefaults: RCBeamInputs = {
   midspan_M_Q: 20,
   midspan_nBars: 4,
   midspan_barDiam: 16,
+  midspan_stirrupDiam: 8,
   midspan_stirrupSpacing: 150,
+  midspan_stirrupLegs: 2,
   // Support
   support_Md: 65,
   support_VEd: 65,
@@ -116,7 +118,9 @@ export const rcBeamDefaults: RCBeamInputs = {
   support_M_Q: 15,
   support_nBars: 3,
   support_barDiam: 16,
+  support_stirrupDiam: 8,
   support_stirrupSpacing: 100,
+  support_stirrupLegs: 2,
 };
 
 export const rcColumnDefaults: RCColumnInputs = {
@@ -149,6 +153,42 @@ export const steelBeamDefaults: SteelBeamInputs = {
   gk: 1.0,
   qk: 2.0,
   bTrib: 3.0,
+};
+
+export type ColumnBCType = 'ff' | 'pp' | 'pf' | 'fc' | 'custom';
+export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN';
+
+export interface SteelColumnInputs {
+  [key: string]: string | number | boolean;
+  sectionType: SteelColumnSectionType;
+  size: number;
+  steel: 'S275' | 'S355';
+  // Geometry — independent unbraced lengths per axis
+  Ly: number;      // unbraced length y-y (strong axis) in mm
+  Lz: number;      // unbraced length z-z (weak axis) in mm
+  bcType: ColumnBCType;
+  /** β about y-y — only editable when bcType='custom' */
+  beta_y: number;
+  /** β about z-z — only editable when bcType='custom' */
+  beta_z: number;
+  // Loads (ULS)
+  Ned: number;    // axial force (kN), positive = compression
+  My_Ed: number;  // major-axis moment (kNm)
+  Mz_Ed: number;  // minor-axis moment (kNm)
+}
+
+export const steelColumnDefaults: SteelColumnInputs = {
+  sectionType: 'HEB',
+  size: 200,
+  steel: 'S275',
+  Ly: 3500,
+  Lz: 3500,
+  bcType: 'pp',
+  beta_y: 1.0,
+  beta_z: 1.0,
+  Ned: 400,
+  My_Ed: 50,
+  Mz_Ed: 8,
 };
 
 export const footingDefaults: FootingInputs = {

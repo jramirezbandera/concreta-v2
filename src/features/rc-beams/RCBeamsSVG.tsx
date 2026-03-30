@@ -61,7 +61,9 @@ export function RCBeamsSVG({
   const b = inp.b as number;
   const h = inp.h as number;
   const cover = inp.cover as number;
-  const stirrupDiam = inp.stirrupDiam as number;
+  const midStirrupDiam = inp.midspan_stirrupDiam as number;
+  const supStirrupDiam = inp.support_stirrupDiam as number;
+  const stirrupDiam = section === 'apoyo' ? supStirrupDiam : midStirrupDiam;
   const midBarDiam = inp.midspan_barDiam as number;
   const supBarDiam = inp.support_barDiam as number;
   const midNBars = inp.midspan_nBars as number;
