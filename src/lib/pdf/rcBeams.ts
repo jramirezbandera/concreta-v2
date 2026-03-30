@@ -160,16 +160,40 @@ export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult):
   setGray(doc, 200);
   doc.line(M, M + 8, PAGE_W - M, M + 8);
 
-  // SVG diagram
-  const svgContainer = document.getElementById('rc-beams-svg-pdf');
-  const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
+  // SVG diagrams — vano (M+) and apoyo (M-), stacked vertically
+  const SVG_W_MM = PAGE_W - 2 * M;  // full content width
+  const SVG_H_MM = 70;
 
   let diagramH = 0;
-  if (svgEl) {
-    const SVG_W_MM = 65;
-    const SVG_H_MM = 80;
-    await svg2pdf(svgEl, doc, { x: M, y: M + 12, width: SVG_W_MM, height: SVG_H_MM });
-    diagramH = SVG_H_MM + 4;
+  let diagramY = M + 12;
+
+  const svgVano = document.getElementById('rc-beams-svg-pdf-vano')?.querySelector('svg') as SVGSVGElement | null;
+  if (svgVano) {
+    try {
+      await svg2pdf(svgVano, doc, { x: M, y: diagramY, width: SVG_W_MM, height: SVG_H_MM });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      setGray(doc, 120);
+      doc.text('VANO — M+  (compresion en cara superior)', M, diagramY + SVG_H_MM + 3);
+      diagramH += SVG_H_MM + 8;
+      diagramY += SVG_H_MM + 8;
+    } catch {
+      console.warn('rc-beams PDF: failed to render VANO SVG');
+    }
+  }
+
+  const svgApoyo = document.getElementById('rc-beams-svg-pdf-apoyo')?.querySelector('svg') as SVGSVGElement | null;
+  if (svgApoyo) {
+    try {
+      await svg2pdf(svgApoyo, doc, { x: M, y: diagramY, width: SVG_W_MM, height: SVG_H_MM });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      setGray(doc, 120);
+      doc.text('APOYO — M-  (compresion en cara inferior)', M, diagramY + SVG_H_MM + 3);
+      diagramH += SVG_H_MM + 8;
+    } catch {
+      console.warn('rc-beams PDF: failed to render APOYO SVG');
+    }
   }
 
   // Input summary (right of diagram)

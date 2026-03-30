@@ -35,16 +35,21 @@ export function RCBeamsModule() {
     }
   };
 
-  // Responsive SVG sizing
+  // Responsive SVG sizing — two SVGs side by side, stacked below STACK_THRESHOLD
   const [canvasRef, canvasWidth] = useContainerWidth();
-  const FIXED_W = 240;
-  const FIXED_H = 300;
-  const CANVAS_PAD = 32;
-  let rcSvgW = FIXED_W;
-  if (canvasWidth !== undefined && canvasWidth > 0 && canvasWidth < FIXED_W + CANVAS_PAD) {
+  const CANVAS_PAD   = 32;
+  const GAP          = 16;
+  const STACK_THRESHOLD = 560;
+  const isStacked = (canvasWidth ?? 0) < STACK_THRESHOLD;
+  let rcSvgW: number;
+  if (isStacked && canvasWidth !== undefined && canvasWidth > 0) {
     rcSvgW = Math.max(160, canvasWidth - CANVAS_PAD);
+  } else if (canvasWidth !== undefined && canvasWidth > 0) {
+    rcSvgW = Math.max(130, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2));
+  } else {
+    rcSvgW = 220;
   }
-  const rcSvgH = Math.round(rcSvgW * (FIXED_H / FIXED_W));
+  const rcSvgH = Math.round(rcSvgW * 1.4);
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -96,19 +101,40 @@ export function RCBeamsModule() {
             'md:block',
           ].join(' ')}
         >
-          {/* SVG canvas — tablet+ only */}
+          {/* SVG canvas — desktop only, two sections side by side */}
           <div
             ref={canvasRef}
-            className="hidden md:flex border-b border-border-main canvas-dot-grid items-center justify-center py-8"
+            className={[
+              'hidden md:flex border-b border-border-main canvas-dot-grid py-6 px-4',
+              isStacked ? 'flex-col items-center gap-4' : 'flex-row items-start justify-center gap-4',
+            ].join(' ')}
           >
-            <RCBeamsSVG
-              inp={state}
-              result={result}
-              section={section}
-              mode="screen"
-              width={rcSvgW}
-              height={rcSvgH}
-            />
+            {result.midspan && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
+                <RCBeamsSVG
+                  inp={state}
+                  result={result}
+                  momentSign="positive"
+                  mode="screen"
+                  width={rcSvgW}
+                  height={rcSvgH}
+                />
+              </div>
+            )}
+            {result.support && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
+                <RCBeamsSVG
+                  inp={state}
+                  result={result}
+                  momentSign="negative"
+                  mode="screen"
+                  width={rcSvgW}
+                  height={rcSvgH}
+                />
+              </div>
+            )}
           </div>
 
           {/* Results */}
@@ -135,13 +161,19 @@ export function RCBeamsModule() {
         </button>
       </nav>
 
-      {/* Hidden PDF clone */}
+      {/* Hidden PDF clones — vano (M+) and apoyo (M-) */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
         <div
-          id="rc-beams-svg-pdf"
+          id="rc-beams-svg-pdf-vano"
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
-          <RCBeamsSVG inp={state} result={result} section="vano" mode="pdf" width={300} height={370} />
+          <RCBeamsSVG inp={state} result={result} momentSign="positive" mode="pdf" width={300} height={370} />
+        </div>
+        <div
+          id="rc-beams-svg-pdf-apoyo"
+          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+        >
+          <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="pdf" width={300} height={370} />
         </div>
       </div>
     </div>

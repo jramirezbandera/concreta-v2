@@ -1,6 +1,7 @@
-// RC Beam cross-section SVG — shows both midspan (bottom) and support (top) bars.
-// Active section bars drawn in accent color; inactive bars drawn dimmed.
-// Stirrups always shown at full opacity.
+// RC Beam cross-section SVG.
+//
+// momentSign='positive' — vano (M+): compression top, stress block top, tension bars bottom.
+// momentSign='negative' — apoyo (M-): compression bottom, stress block bottom, tension bars top.
 //
 // mode='screen': Tailwind CSS custom properties
 // mode='pdf':    inline styles, grayscale
@@ -11,7 +12,7 @@ import { type RCBeamResult } from '../../lib/calculations/rcBeams';
 interface RCBeamsSVGProps {
   inp: RCBeamInputs;
   result: RCBeamResult;
-  section?: 'vano' | 'apoyo';
+  momentSign?: 'positive' | 'negative';
   mode?: 'screen' | 'pdf';
   width?: number;
   height?: number;
@@ -22,7 +23,7 @@ const SCREEN_COLORS = {
   sectionFill:  '#1e293b',
   rebarActive:  '#38bdf8',  // accent — active section bars
   rebarDim:     '#475569',  // dimmed — inactive section bars
-  stirrup:      '#94a3b8',  // always full opacity
+  stirrup:      '#94a3b8',
   axis:         '#38bdf8',
   stressBlock:  '#38bdf8',
   dim:          '#94a3b8',
@@ -46,13 +47,14 @@ const PDF_COLORS = {
 export function RCBeamsSVG({
   inp,
   result,
-  section = 'vano',
+  momentSign = 'positive',
   mode = 'screen',
   width = 300,
   height = 360,
 }: RCBeamsSVGProps) {
   const isPdf = mode === 'pdf';
   const colors = isPdf ? PDF_COLORS : SCREEN_COLORS;
+  const isPositive = momentSign === 'positive';
 
   const margin = { top: 40, bottom: 40, left: 48, right: 48 };
   const drawW = width - margin.left - margin.right;
@@ -63,7 +65,7 @@ export function RCBeamsSVG({
   const cover = inp.cover as number;
   const midStirrupDiam = inp.midspan_stirrupDiam as number;
   const supStirrupDiam = inp.support_stirrupDiam as number;
-  const stirrupDiam = section === 'apoyo' ? supStirrupDiam : midStirrupDiam;
+  const stirrupDiam = isPositive ? midStirrupDiam : supStirrupDiam;
   const midBarDiam = inp.midspan_barDiam as number;
   const supBarDiam = inp.support_barDiam as number;
   const midNBars = inp.midspan_nBars as number;
@@ -104,17 +106,26 @@ export function RCBeamsSVG({
     r:  supBarDiamPx / 2,
   }));
 
-  // Neutral axis from midspan result (for visualization)
-  const midResult = result.midspan;
-  const xNA = midResult.valid ? midResult.x * scale : 0;
-  const xBlock = xNA * 0.8;
-  const dPx = midResult.valid ? midResult.d * scale : sH * 0.9;
+  // Use the correct section result based on moment sign
+  const sectionResult = isPositive ? result.midspan : result.support;
 
-  // Active / inactive bar colors
-  const midColor = section === 'vano'  ? colors.rebarActive : colors.rebarDim;
-  const supColor = section === 'apoyo' ? colors.rebarActive : colors.rebarDim;
-  const midOpacity = section === 'vano'  ? 1 : 0.45;
-  const supOpacity = section === 'apoyo' ? 1 : 0.45;
+  // x = neutral axis depth from compression face (mm → px)
+  const xNA    = sectionResult.valid ? sectionResult.x * scale : 0;
+  const xBlock = Math.max(3, xNA * 0.8);  // Whitney rect block, min 3px visible
+  const dPx    = sectionResult.valid ? sectionResult.d * scale : sH * 0.9;
+
+  // Positions derived from compression face direction
+  // positive: compression at TOP → y counted from oy downward
+  // negative: compression at BOTTOM → y counted from oy+sH upward
+  const stressBlockY = isPositive ? oy : oy + sH - xBlock;
+  const naY          = isPositive ? oy + xNA    : oy + sH - xNA;
+  const dLineY       = isPositive ? oy + dPx    : oy + sH - dPx;
+
+  // Active bars: tension bars are active (accent), opposite side dimmed
+  const midColor   = isPositive ? colors.rebarActive : colors.rebarDim;
+  const supColor   = isPositive ? colors.rebarDim    : colors.rebarActive;
+  const midOpacity = isPositive ? 1   : 0.45;
+  const supOpacity = isPositive ? 0.45 : 1;
 
   return (
     <svg
@@ -124,10 +135,10 @@ export function RCBeamsSVG({
       aria-hidden="true"
       style={isPdf ? { background: colors.bg } : undefined}
     >
-      {/* Stress block (Whitney) — midspan */}
-      {midResult.valid && section === 'vano' && (
+      {/* Stress block (Whitney equivalent rectangular) */}
+      {sectionResult.valid && (
         <rect
-          x={ox} y={oy}
+          x={ox} y={stressBlockY}
           width={sW} height={xBlock}
           fill={colors.stressBlock}
           opacity={isPdf ? 0.4 : 0.15}
@@ -152,31 +163,30 @@ export function RCBeamsSVG({
         fill="none"
         stroke={colors.stirrup}
         strokeWidth={isPdf ? 1.5 : 1}
-        strokeDasharray="none"
         opacity={0.6}
       />
 
-      {/* Neutral axis (dashed) — midspan */}
-      {midResult.valid && (
+      {/* Neutral axis — dashed, from compression face */}
+      {sectionResult.valid && (
         <line
-          x1={ox - 6} y1={oy + xNA}
-          x2={ox + sW + 6} y2={oy + xNA}
+          x1={ox - 6} y1={naY}
+          x2={ox + sW + 6} y2={naY}
           stroke={colors.axis}
           strokeWidth={1}
           strokeDasharray="5 3"
-          opacity={section === 'vano' ? 0.9 : 0.3}
+          opacity={0.9}
         />
       )}
 
-      {/* Effective depth line — midspan */}
-      {midResult.valid && (
+      {/* Effective depth line */}
+      {sectionResult.valid && (
         <line
-          x1={ox - 4} y1={oy + dPx}
-          x2={ox + sW + 4} y2={oy + dPx}
+          x1={ox - 4} y1={dLineY}
+          x2={ox + sW + 4} y2={dLineY}
           stroke={colors.dim}
           strokeWidth={0.75}
           strokeDasharray="2 4"
-          opacity={section === 'vano' ? 0.5 : 0.15}
+          opacity={0.5}
         />
       )}
 
@@ -216,45 +226,21 @@ export function RCBeamsSVG({
         color={colors.dimText} isPdf={isPdf} horizontal={false}
       />
 
-      {/* Neutral axis label */}
-      {midResult.valid && (
+      {/* "FN" label next to neutral axis */}
+      {sectionResult.valid && (
         <text
-          x={ox + sW + 10}
-          y={oy + xNA}
+          x={ox - 8}
+          y={naY}
+          textAnchor="end"
           dominantBaseline="middle"
-          fontSize={8}
+          fontSize={7}
           fill={colors.axis}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '8px', fill: colors.axis } : undefined}
-          className={isPdf ? undefined : 'text-[8px] font-mono fill-accent'}
-          opacity={section === 'vano' ? 1 : 0.3}
+          style={isPdf ? { fontFamily: 'monospace', fontSize: '7px', fill: colors.axis } : undefined}
+          className={isPdf ? undefined : 'text-[7px] font-mono fill-accent'}
         >
           FN
         </text>
       )}
-
-      {/* Section labels */}
-      <text
-        x={ox + sW / 2} y={oy + sH - coverPx - stirrupPx * 0.5}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={7}
-        fill={midColor}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px', fill: midColor } : undefined}
-        className={isPdf ? undefined : 'text-[7px] font-mono'}
-        opacity={midOpacity * 0.7}
-      >
-        vano
-      </text>
-      <text
-        x={ox + sW / 2} y={oy + coverPx + stirrupPx * 0.5}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={7}
-        fill={supColor}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px', fill: supColor } : undefined}
-        className={isPdf ? undefined : 'text-[7px] font-mono'}
-        opacity={supOpacity * 0.7}
-      >
-        apoyo
-      </text>
     </svg>
   );
 }

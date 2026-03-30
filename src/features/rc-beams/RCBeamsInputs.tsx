@@ -239,8 +239,8 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
       {/* Per-section solicitations */}
       <SectionHeader label="Solicitaciones" />
       <NumField
-        label="Md"
-        sub="(ELU)"
+        label={isVano ? 'Md' : '|Md|'}
+        sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
         field={`${prefix}_Md`}
         value={state[`${prefix}_Md`] as number}
         unit="kNm"
