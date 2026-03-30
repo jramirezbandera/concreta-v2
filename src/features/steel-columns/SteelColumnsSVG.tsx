@@ -377,7 +377,7 @@ function ColumnGeometry({
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export function SteelColumnsSVG({ inp, result, mode, width, height }: SteelColumnsSVGProps) {
+export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGProps) {
   const isPdf = mode === 'pdf';
   const C = isPdf ? PDF : SCREEN;
 
@@ -470,3 +470,4 @@ export function SteelColumnsSVG({ inp, result, mode, width, height }: SteelColum
     </svg>
   );
 }
+

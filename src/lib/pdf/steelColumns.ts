@@ -8,7 +8,8 @@
 import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
-import { type SteelColumnResult, type SteelCheckStatus } from '../calculations/steelColumns';
+import { type SteelColumnResult } from '../calculations/steelColumns';
+import { type SteelCheckStatus } from '../calculations/steelBeams';
 
 const PAGE_W = 210;
 const PAGE_H = 297;
@@ -238,3 +239,4 @@ export async function exportSteelColumnsPDF(
 
   doc.save(`concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly/100)}-Lz${Math.round(inp.Lz/100)}.pdf`);
 }
+

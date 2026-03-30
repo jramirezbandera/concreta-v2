@@ -6,7 +6,7 @@ import type { SteelColumnInputs } from '../../data/defaults';
 
 // Convenience wrapper — all fields from defaults unless overridden
 function inp(overrides: Partial<SteelColumnInputs> = {}): SteelColumnInputs {
-  return { ...steelColumnDefaults, ...overrides };
+  return { ...steelColumnDefaults, ...overrides } as SteelColumnInputs;
 }
 
 // ─── Suite 1: FTUX defaults ────────────────────────────────────────────────
@@ -289,3 +289,4 @@ describe('getBetaForBCType — effective length factors', () => {
     expect(rFC.chi_y).toBeLessThan(rPP.chi_y);
   });
 });
+
