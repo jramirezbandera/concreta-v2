@@ -40,18 +40,18 @@ export function RCBeamsModule() {
   const CANVAS_PAD      = 32;
   const GAP             = 16;
   const STACK_THRESHOLD = 560;
-  const MAX_SVG_H       = 200;  // cap height so canvas doesn't dominate the panel
+  const MAX_SVG_H       = 300;  // cap height so canvas doesn't dominate the panel
   const isStacked = (canvasWidth ?? 0) < STACK_THRESHOLD;
   let rcSvgW: number;
   if (isStacked && canvasWidth !== undefined && canvasWidth > 0) {
-    rcSvgW = Math.max(140, canvasWidth - CANVAS_PAD);
+    rcSvgW = Math.max(180, canvasWidth - CANVAS_PAD);
   } else if (canvasWidth !== undefined && canvasWidth > 0) {
-    rcSvgW = Math.max(110, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2));
+    rcSvgW = Math.max(150, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2));
   } else {
-    rcSvgW = 180;
+    rcSvgW = 220;
   }
-  // Aspect ratio ~1.1 (slightly taller than wide) — cross-sections are nearly square
-  const rcSvgH = Math.min(MAX_SVG_H, Math.round(rcSvgW * 1.1));
+  // Aspect ratio ~1.3 (portrait — beams are taller than wide)
+  const rcSvgH = Math.min(MAX_SVG_H, Math.round(rcSvgW * 1.3));
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
