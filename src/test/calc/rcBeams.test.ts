@@ -1,7 +1,7 @@
-// RC Beams test suite — full rewrite for two-section redesign
+// RC Beams test suite — 4 bar layers (vano_bot, vano_top, apoyo_top, apoyo_bot)
 // Tests: FTUX defaults, all check types, edge cases, per-section invalidation, global invalidation
 // Covers: d fix (stirrupDiam included), psi2 lookup, bending-over, rho-w-min, bar-spacing,
-//         cracking, lap lengths, rebar schedule format
+//         cracking, lap lengths, rebar schedule format, comp bar As,min, s_max stirrup check
 
 import { describe, expect, it } from 'vitest';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
@@ -17,70 +17,85 @@ describe('FTUX defaults', () => {
     expect(r.valid).toBe(true);
   });
 
-  it('midspan: d = 454 mm (stirrupDiam fix — was 462 before redesign)', () => {
+  it('vano: d = 454 mm (h=500, cover=30, stirrup=8, bar=16)', () => {
     // d = 500 - 30 - 8 - 16/2 = 454
     const r = calcRCBeam(base);
-    expect(r.midspan.valid).toBe(true);
-    expect(r.midspan.d).toBe(454);
+    expect(r.vano.valid).toBe(true);
+    expect(r.vano.d).toBe(454);
   });
 
-  it('midspan: As = 4 * 201.1 = 804.4 mm2', () => {
+  it('vano: As (tension) = 4 * 201.1 = 804.4 mm2', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.As).toBeCloseTo(804.4, 0);
+    expect(r.vano.As).toBeCloseTo(804.4, 0);
   });
 
-  it('midspan: x in 85-90 mm range', () => {
+  it('vano: AsComp (compression) = 2 * 113.1 = 226.2 mm2', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.x).toBeGreaterThan(85);
-    expect(r.midspan.x).toBeLessThan(90);
+    expect(r.vano.AsComp).toBeCloseTo(226.2, 0);
   });
 
-  it('midspan: MRd approx 147 kNm', () => {
+  it('vano: x in 85-90 mm range', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.MRd).toBeCloseTo(147, 0);
+    expect(r.vano.x).toBeGreaterThan(85);
+    expect(r.vano.x).toBeLessThan(90);
   });
 
-  it('midspan: Md=85 < MRd=147 → utilization ~0.58 → bending ok', () => {
+  it('vano: MRd approx 147 kNm', () => {
     const r = calcRCBeam(base);
-    const b = r.midspan.checks.find((c) => c.id === 'bending')!;
+    expect(r.vano.MRd).toBeCloseTo(147, 0);
+  });
+
+  it('vano: Md=85 < MRd=147 → utilization ~0.58 → bending ok', () => {
+    const r = calcRCBeam(base);
+    const b = r.vano.checks.find((c) => c.id === 'bending')!;
     expect(b.status).toBe('ok');
     expect(b.utilization).toBeGreaterThan(0.5);
     expect(b.utilization).toBeLessThan(0.8);
   });
 
-  it('midspan: all checks are ok (no fail, no warn)', () => {
+  it('vano: all checks are ok (no fail)', () => {
     const r = calcRCBeam(base);
-    for (const c of r.midspan.checks) {
+    for (const c of r.vano.checks) {
       expect(c.status).not.toBe('fail');
     }
   });
 
-  it('support: d = 454 mm (same barDiam)', () => {
+  it('apoyo: d = 454 mm (same bar diam)', () => {
     const r = calcRCBeam(base);
-    expect(r.support.valid).toBe(true);
-    expect(r.support.d).toBe(454);
+    expect(r.apoyo.valid).toBe(true);
+    expect(r.apoyo.d).toBe(454);
   });
 
-  it('support: all checks are ok (no fail)', () => {
+  it('apoyo: all checks are ok (no fail)', () => {
     const r = calcRCBeam(base);
-    for (const c of r.support.checks) {
+    for (const c of r.apoyo.checks) {
       expect(c.status).not.toBe('fail');
     }
   });
 
-  it('midspan checks include rho-w-min', () => {
+  it('vano checks include rho-w-min', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.checks.map((c) => c.id)).toContain('rho-w-min');
+    expect(r.vano.checks.map((c) => c.id)).toContain('rho-w-min');
   });
 
-  it('midspan checks include bar-spacing', () => {
+  it('vano checks include bar-spacing', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.checks.map((c) => c.id)).toContain('bar-spacing');
+    expect(r.vano.checks.map((c) => c.id)).toContain('bar-spacing');
+  });
+
+  it('vano checks include stirrup-spacing-max', () => {
+    const r = calcRCBeam(base);
+    expect(r.vano.checks.map((c) => c.id)).toContain('stirrup-spacing-max');
+  });
+
+  it('vano checks include as-min-comp', () => {
+    const r = calcRCBeam(base);
+    expect(r.vano.checks.map((c) => c.id)).toContain('as-min-comp');
   });
 
   it('all check rows have article field matching "CE art."', () => {
     const r = calcRCBeam(base);
-    for (const s of [r.midspan, r.support]) {
+    for (const s of [r.vano, r.apoyo]) {
       for (const c of s.checks) {
         expect(c.article).toMatch(/CE art\./);
       }
@@ -90,57 +105,55 @@ describe('FTUX defaults', () => {
 
 // ── Per-section effective depth ───────────────────────────────────────────────
 describe('Per-section effective depth', () => {
-  it('midspan barDiam=20 -> d=452, support barDiam=12 -> d=456', () => {
-    // d_mid = 500 - 30 - 8 - 20/2 = 452
-    // d_sup = 500 - 30 - 8 - 12/2 = 456
-    const r = calcRCBeam({ ...base, midspan_barDiam: 20, support_barDiam: 12 });
-    expect(r.midspan.d).toBe(452);
-    expect(r.support.d).toBe(456);
+  it('vano_bot_barDiam=20 -> d_vano=452, apoyo_top_barDiam=12 -> d_apoyo=456', () => {
+    const r = calcRCBeam({ ...base, vano_bot_barDiam: 20, apoyo_top_barDiam: 12 });
+    expect(r.vano.d).toBe(452);
+    expect(r.apoyo.d).toBe(456);
   });
 
-  it('more bars at midspan -> larger As at midspan', () => {
-    const r = calcRCBeam({ ...base, midspan_nBars: 6, support_nBars: 2 });
-    expect(r.midspan.As).toBeGreaterThan(r.support.As);
+  it('more tension bars at vano -> larger As at vano', () => {
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 6, apoyo_top_nBars: 2 });
+    expect(r.vano.As).toBeGreaterThan(r.apoyo.As);
   });
 });
 
 // ── Per-section stirrup spacing ───────────────────────────────────────────────
 describe('Per-section stirrup spacing', () => {
-  it('denser stirrups at support -> higher VRds at support', () => {
-    const r = calcRCBeam({ ...base, midspan_stirrupSpacing: 200, support_stirrupSpacing: 100 });
-    expect(r.support.VRds).toBeGreaterThan(r.midspan.VRds);
+  it('denser stirrups at apoyo -> higher VRds at apoyo', () => {
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 200, apoyo_stirrupSpacing: 100 });
+    expect(r.apoyo.VRds).toBeGreaterThan(r.vano.VRds);
   });
 });
 
 // ── psi2 / loadType lookup ────────────────────────────────────────────────────
 describe('psi2 / loadType', () => {
-  it('residential -> psi2 = 0.3 -> Ms = M_G + 0.3*M_Q', () => {
-    const r = calcRCBeam({ ...base, loadType: 'residential', midspan_M_G: 40, midspan_M_Q: 20 });
-    expect(r.midspan.wk).toBeGreaterThan(0);
+  it('residential -> psi2 = 0.3 -> wk > 0', () => {
+    const r = calcRCBeam({ ...base, loadType: 'residential', vano_M_G: 40, vano_M_Q: 20 });
+    expect(r.vano.wk).toBeGreaterThan(0);
   });
 
   it('roof -> psi2 = 0.0 -> lower wk than residential', () => {
-    const res  = calcRCBeam({ ...base, loadType: 'residential', midspan_M_G: 40, midspan_M_Q: 20 });
-    const roof = calcRCBeam({ ...base, loadType: 'roof',        midspan_M_G: 40, midspan_M_Q: 20 });
-    expect(roof.midspan.wk).toBeLessThan(res.midspan.wk);
+    const res  = calcRCBeam({ ...base, loadType: 'residential', vano_M_G: 40, vano_M_Q: 20 });
+    const roof = calcRCBeam({ ...base, loadType: 'roof',        vano_M_G: 40, vano_M_Q: 20 });
+    expect(roof.vano.wk).toBeLessThan(res.vano.wk);
   });
 
   it('parking -> psi2 = 0.6 -> higher wk than residential', () => {
-    const res = calcRCBeam({ ...base, loadType: 'residential', midspan_M_G: 30, midspan_M_Q: 20 });
-    const par = calcRCBeam({ ...base, loadType: 'parking',     midspan_M_G: 30, midspan_M_Q: 20 });
-    expect(par.midspan.wk).toBeGreaterThan(res.midspan.wk);
+    const res = calcRCBeam({ ...base, loadType: 'residential', vano_M_G: 30, vano_M_Q: 20 });
+    const par = calcRCBeam({ ...base, loadType: 'parking',     vano_M_G: 30, vano_M_Q: 20 });
+    expect(par.vano.wk).toBeGreaterThan(res.vano.wk);
   });
 
   it('custom loadType uses psi2Custom', () => {
-    const r   = calcRCBeam({ ...base, loadType: 'custom', psi2Custom: 0.6, midspan_M_G: 30, midspan_M_Q: 20 });
-    const par = calcRCBeam({ ...base, loadType: 'parking',                  midspan_M_G: 30, midspan_M_Q: 20 });
-    expect(r.midspan.wk).toBeCloseTo(par.midspan.wk, 3);
+    const r   = calcRCBeam({ ...base, loadType: 'custom', psi2Custom: 0.6, vano_M_G: 30, vano_M_Q: 20 });
+    const par = calcRCBeam({ ...base, loadType: 'parking',                  vano_M_G: 30, vano_M_Q: 20 });
+    expect(r.vano.wk).toBeCloseTo(par.vano.wk, 3);
   });
 
   it('psi2Custom ignored when loadType != custom', () => {
     const r1 = calcRCBeam({ ...base, loadType: 'residential', psi2Custom: 0.6 });
     const r2 = calcRCBeam({ ...base, loadType: 'residential', psi2Custom: 0.0 });
-    expect(r1.midspan.wk).toBeCloseTo(r2.midspan.wk, 6);
+    expect(r1.vano.wk).toBeCloseTo(r2.vano.wk, 6);
   });
 });
 
@@ -148,17 +161,17 @@ describe('psi2 / loadType', () => {
 describe('Bending check thresholds', () => {
   it('Md < 0.8*MRd -> bending ok', () => {
     const r = calcRCBeam(base); // Md=85, MRd~147 -> util~0.58
-    expect(r.midspan.checks.find((c) => c.id === 'bending')!.status).toBe('ok');
+    expect(r.vano.checks.find((c) => c.id === 'bending')!.status).toBe('ok');
   });
 
   it('0.8*MRd <= Md < MRd -> bending warn', () => {
-    const r = calcRCBeam({ ...base, midspan_Md: 130 }); // MRd~147, util~0.88
-    expect(r.midspan.checks.find((c) => c.id === 'bending')!.status).toBe('warn');
+    const r = calcRCBeam({ ...base, vano_Md: 130 }); // MRd~147, util~0.88
+    expect(r.vano.checks.find((c) => c.id === 'bending')!.status).toBe('warn');
   });
 
   it('Md > MRd -> bending fail, utilization > 1', () => {
-    const r = calcRCBeam({ ...base, midspan_Md: 200 });
-    const b = r.midspan.checks.find((c) => c.id === 'bending')!;
+    const r = calcRCBeam({ ...base, vano_Md: 200 });
+    const b = r.vano.checks.find((c) => c.id === 'bending')!;
     expect(b.status).toBe('fail');
     expect(b.utilization).toBeGreaterThan(1);
   });
@@ -168,12 +181,12 @@ describe('Bending check thresholds', () => {
 describe('Over-reinforcement', () => {
   it('normal section: no bending-over row', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.checks.map((c) => c.id)).not.toContain('bending-over');
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('bending-over');
   });
 
   it('over-reinforced: bending-over warn row present', () => {
-    const r = calcRCBeam({ ...base, midspan_nBars: 10, midspan_barDiam: 32 });
-    const bo = r.midspan.checks.find((c) => c.id === 'bending-over');
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 10, vano_bot_barDiam: 32 });
+    const bo = r.vano.checks.find((c) => c.id === 'bending-over');
     expect(bo).toBeDefined();
     expect(bo!.status).toBe('warn');
   });
@@ -181,98 +194,131 @@ describe('Over-reinforcement', () => {
 
 // ── Min/max reinforcement ─────────────────────────────────────────────────────
 describe('Reinforcement limits', () => {
-  it('default As satisfies as-min', () => {
-    expect(calcRCBeam(base).midspan.checks.find((c) => c.id === 'as-min')!.status).toBe('ok');
+  it('default As (tension) satisfies as-min', () => {
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'as-min')!.status).toBe('ok');
   });
 
-  it('As < As,min -> as-min fail', () => {
-    const r = calcRCBeam({ ...base, midspan_nBars: 1, midspan_barDiam: 6 });
-    expect(r.midspan.checks.find((c) => c.id === 'as-min')!.status).toBe('fail');
+  it('As (tension) < As,min -> as-min fail', () => {
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 1, vano_bot_barDiam: 6 });
+    expect(r.vano.checks.find((c) => c.id === 'as-min')!.status).toBe('fail');
   });
 
-  it('As > As,max -> as-max fail', () => {
-    // As,max = 0.04*300*500=6000mm2; 10*804.2=8042 > 6000
-    const r = calcRCBeam({ ...base, midspan_nBars: 10, midspan_barDiam: 32 });
-    expect(r.midspan.checks.find((c) => c.id === 'as-max')!.status).toBe('fail');
+  it('default AsComp (compression) satisfies as-min-comp', () => {
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('ok');
+  });
+
+  it('AsComp (compression) < As,min -> as-min-comp fail', () => {
+    const r = calcRCBeam({ ...base, vano_top_nBars: 1, vano_top_barDiam: 6 });
+    expect(r.vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('fail');
+  });
+
+  it('As,total > As,max -> as-max fail', () => {
+    // As,max = 0.04*300*500=6000mm2; tension 10*804.2=8042 alone exceeds limit
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 10, vano_bot_barDiam: 32 });
+    expect(r.vano.checks.find((c) => c.id === 'as-max')!.status).toBe('fail');
   });
 });
 
 // ── Shear ─────────────────────────────────────────────────────────────────────
 describe('Shear checks', () => {
   it('VEd < VRd -> shear ok', () => {
-    expect(calcRCBeam(base).midspan.checks.find((c) => c.id === 'shear')!.status).toBe('ok');
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'shear')!.status).toBe('ok');
   });
 
   it('VEd >> VRd -> shear fail', () => {
-    const r = calcRCBeam({ ...base, midspan_VEd: 500 });
-    expect(r.midspan.checks.find((c) => c.id === 'shear')!.status).toBe('fail');
+    const r = calcRCBeam({ ...base, vano_VEd: 500 });
+    expect(r.vano.checks.find((c) => c.id === 'shear')!.status).toBe('fail');
   });
 
   it('hasStirrups=true -> shear-max row present', () => {
-    expect(calcRCBeam(base).midspan.checks.map((c) => c.id)).toContain('shear-max');
+    expect(calcRCBeam(base).vano.checks.map((c) => c.id)).toContain('shear-max');
   });
 
   it('hasStirrups=false (spacing=0) -> no shear-max row', () => {
-    const r = calcRCBeam({ ...base, midspan_stirrupSpacing: 0 });
-    expect(r.midspan.checks.map((c) => c.id)).not.toContain('shear-max');
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 0 });
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('shear-max');
   });
 });
 
 // ── rho_w,min ─────────────────────────────────────────────────────────────────
 describe('rho-w-min check', () => {
   it('default stirrups: rho-w-min ok', () => {
-    expect(calcRCBeam(base).midspan.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('ok');
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('ok');
   });
 
   it('rhoW < rhoWMin -> rho-w-min fail', () => {
     // rhoWMin = 0.072*sqrt(25)/500 = 0.00072
     // f6/c1000: rhoW = 2*28.3/(1000*300) = 0.000189 < 0.00072
-    const r = calcRCBeam({ ...base, midspan_stirrupDiam: 6, midspan_stirrupSpacing: 1000 });
-    expect(r.midspan.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('fail');
+    const r = calcRCBeam({ ...base, vano_stirrupDiam: 6, vano_stirrupSpacing: 1000 });
+    expect(r.vano.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('fail');
   });
 
   it('rhoW ok but stirrupSpacing > 0.75*d -> rho-w-min warn', () => {
     // d=454, 0.75*d=340.5. f8/c400: rhoW=2*50.3/(400*300)=0.000838 > 0.00072 ok ratio
     // but 400 > 340.5 -> warn
-    const r = calcRCBeam({ ...base, midspan_stirrupDiam: 8, midspan_stirrupSpacing: 400 });
-    expect(r.midspan.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('warn');
+    const r = calcRCBeam({ ...base, vano_stirrupDiam: 8, vano_stirrupSpacing: 400 });
+    expect(r.vano.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('warn');
   });
 
   it('no stirrups -> no rho-w-min row', () => {
-    const r = calcRCBeam({ ...base, midspan_stirrupSpacing: 0 });
-    expect(r.midspan.checks.map((c) => c.id)).not.toContain('rho-w-min');
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 0 });
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('rho-w-min');
+  });
+});
+
+// ── Stirrup max spacing ───────────────────────────────────────────────────────
+describe('stirrup-spacing-max check', () => {
+  it('default spacing 150mm < s,max(0.75*454=340mm) -> ok', () => {
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'stirrup-spacing-max')!.status).toBe('ok');
+  });
+
+  it('spacing > min(0.75*d, 300) -> stirrup-spacing-max fail', () => {
+    // d=454, s,max=min(340.5,300)=300. spacing=350>300 -> fail
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 350 });
+    expect(r.vano.checks.find((c) => c.id === 'stirrup-spacing-max')!.status).toBe('fail');
+  });
+
+  it('spacing=300mm -> stirrup-spacing-max ok (boundary)', () => {
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 300 });
+    const ch = r.vano.checks.find((c) => c.id === 'stirrup-spacing-max')!;
+    expect(ch.utilization).toBeCloseTo(1.0, 1);
+  });
+
+  it('no stirrups (spacing=0) -> no stirrup-spacing-max row', () => {
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 0 });
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('stirrup-spacing-max');
   });
 });
 
 // ── Bar spacing ───────────────────────────────────────────────────────────────
 describe('Bar spacing check', () => {
   it('nBars=1 -> bar-spacing ok, value=N/A', () => {
-    const r = calcRCBeam({ ...base, midspan_nBars: 1 });
-    const c = r.midspan.checks.find((c) => c.id === 'bar-spacing')!;
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 1 });
+    const c = r.vano.checks.find((c) => c.id === 'bar-spacing')!;
     expect(c.status).toBe('ok');
     expect(c.value).toBe('N/A');
   });
 
   it('bars do not fit -> bar-spacing-impossible fail', () => {
     // available = 300-60-16-8*32 = 300-60-16-256 = -32 <= 0
-    const r = calcRCBeam({ ...base, midspan_nBars: 8, midspan_barDiam: 32 });
-    const c = r.midspan.checks.find((c) => c.id === 'bar-spacing-impossible');
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 8, vano_bot_barDiam: 32 });
+    const c = r.vano.checks.find((c) => c.id === 'bar-spacing-impossible');
     expect(c).toBeDefined();
     expect(c!.status).toBe('fail');
   });
 
   it('spacing < max(barDiam, 20) -> bar-spacing fail (too narrow)', () => {
     // 8 bars f16: available=300-60-16-128=96, spacing=96/7=13.7 < 16 (minLimit)
-    const r = calcRCBeam({ ...base, midspan_nBars: 8, midspan_barDiam: 16 });
-    const c = r.midspan.checks.find((c) => c.id === 'bar-spacing')!;
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 8, vano_bot_barDiam: 16 });
+    const c = r.vano.checks.find((c) => c.id === 'bar-spacing')!;
     expect(c.status).toBe('fail');
     expect(c.utilization).toBeGreaterThan(1);
   });
 
-  it('default midspan spacing ~53mm is ok', () => {
+  it('default vano spacing ~53mm is ok', () => {
     // available=300-60-16-64=160, spacing=160/3=53.3mm
     const r = calcRCBeam(base);
-    const c = r.midspan.checks.find((c) => c.id === 'bar-spacing')!;
+    const c = r.vano.checks.find((c) => c.id === 'bar-spacing')!;
     expect(c.status).toBe('ok');
     expect(c.value).toMatch(/53/);
   });
@@ -281,76 +327,76 @@ describe('Bar spacing check', () => {
 // ── Cracking ──────────────────────────────────────────────────────────────────
 describe('Cracking check', () => {
   it('default XC1: wk < 0.4 -> ok', () => {
-    expect(calcRCBeam(base).midspan.checks.find((c) => c.id === 'cracking')!.status).toBe('ok');
+    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'cracking')!.status).toBe('ok');
   });
 
   it('XC1 wkMax = 0.4, XC4 wkMax = 0.2', () => {
-    expect(calcRCBeam({ ...base, exposureClass: 'XC1' }).midspan.wkMax).toBe(0.4);
-    expect(calcRCBeam({ ...base, exposureClass: 'XC4' }).midspan.wkMax).toBe(0.2);
+    expect(calcRCBeam({ ...base, exposureClass: 'XC1' }).vano.wkMax).toBe(0.4);
+    expect(calcRCBeam({ ...base, exposureClass: 'XC4' }).vano.wkMax).toBe(0.2);
   });
 
   it('Ms=0 -> wk=0', () => {
-    const r = calcRCBeam({ ...base, midspan_M_G: 0, midspan_M_Q: 0 });
-    expect(r.midspan.wk).toBe(0);
+    const r = calcRCBeam({ ...base, vano_M_G: 0, vano_M_Q: 0 });
+    expect(r.vano.wk).toBe(0);
   });
 
   it('large Ms + XC4 -> cracking fail', () => {
-    const r = calcRCBeam({ ...base, exposureClass: 'XC4', midspan_M_G: 100, midspan_M_Q: 50, loadType: 'parking' });
-    expect(r.midspan.wk).toBeGreaterThan(0.2);
-    expect(r.midspan.checks.find((c) => c.id === 'cracking')!.status).toBe('fail');
+    const r = calcRCBeam({ ...base, exposureClass: 'XC4', vano_M_G: 100, vano_M_Q: 50, loadType: 'parking' });
+    expect(r.vano.wk).toBeGreaterThan(0.2);
+    expect(r.vano.checks.find((c) => c.id === 'cracking')!.status).toBe('fail');
   });
 });
 
 // ── Lap lengths ───────────────────────────────────────────────────────────────
 describe('Lap lengths (CE art. 69.5.2)', () => {
-  it('midspan (buena adherencia): lapLength = 60 * barDiam', () => {
-    expect(calcRCBeam(base).midspan.lapLength).toBe(60 * 16);
+  it('vano (buena adherencia): lapLength = 60 * barDiam', () => {
+    expect(calcRCBeam(base).vano.lapLength).toBe(60 * 16);
   });
 
-  it('support (adherencia deficiente): lapLength = 84 * barDiam', () => {
-    expect(calcRCBeam(base).support.lapLength).toBe(84 * 16);
+  it('apoyo (adherencia deficiente): lapLength = 84 * barDiam', () => {
+    expect(calcRCBeam(base).apoyo.lapLength).toBe(84 * 16);
   });
 
-  it('different barDiam -> different lapLength per section', () => {
-    const r = calcRCBeam({ ...base, midspan_barDiam: 20, support_barDiam: 12 });
-    expect(r.midspan.lapLength).toBe(60 * 20);
-    expect(r.support.lapLength).toBe(84 * 12);
+  it('different tension barDiam -> different lapLength per section', () => {
+    const r = calcRCBeam({ ...base, vano_bot_barDiam: 20, apoyo_top_barDiam: 12 });
+    expect(r.vano.lapLength).toBe(60 * 20);
+    expect(r.apoyo.lapLength).toBe(84 * 12);
   });
 });
 
 // ── Rebar schedule ────────────────────────────────────────────────────────────
 describe('Rebar schedule', () => {
-  it('midspan: "4\u00d816 + \u00d88/c150 (2R)"', () => {
-    expect(calcRCBeam(base).midspan.rebarSchedule).toBe('4\u00d816 + \u00d88/c150 (2R)');
+  it('vano: "4\u00d816(t) + 2\u00d812(c) + \u00d88/c150 (2R)"', () => {
+    expect(calcRCBeam(base).vano.rebarSchedule).toBe('4\u00d816(t) + 2\u00d812(c) + \u00d88/c150 (2R)');
   });
 
-  it('support: "3\u00d816 + \u00d88/c100 (2R)"', () => {
-    expect(calcRCBeam(base).support.rebarSchedule).toBe('3\u00d816 + \u00d88/c100 (2R)');
+  it('apoyo: "3\u00d816(t) + 2\u00d812(c) + \u00d88/c100 (2R)"', () => {
+    expect(calcRCBeam(base).apoyo.rebarSchedule).toBe('3\u00d816(t) + 2\u00d812(c) + \u00d88/c100 (2R)');
   });
 
   it('suffix is R (ramas), not T', () => {
     const r = calcRCBeam(base);
-    expect(r.midspan.rebarSchedule).toContain('R)');
-    expect(r.midspan.rebarSchedule).not.toContain('T)');
+    expect(r.vano.rebarSchedule).toContain('R)');
+    expect(r.vano.rebarSchedule).not.toContain('T)');
   });
 });
 
 // ── Per-section invalidation ──────────────────────────────────────────────────
 describe('Per-section invalidation', () => {
-  it('h too shallow for midspan barDiam -> midspan.valid=false, support.valid=true', () => {
-    // h=50, midspan barDiam=32: 50 <= 30+8+16=54 -> invalid
-    // support barDiam=10: 50 > 30+8+5=43 -> valid
-    const r = calcRCBeam({ ...base, h: 50, midspan_barDiam: 32, support_barDiam: 10 });
+  it('h too shallow for vano tension barDiam -> vano.valid=false, apoyo.valid=true', () => {
+    // h=50, vano_bot barDiam=32: 50 <= 30+8+16=54 -> invalid
+    // apoyo_top barDiam=10: 50 > 30+8+5=43 -> valid
+    const r = calcRCBeam({ ...base, h: 50, vano_bot_barDiam: 32, apoyo_top_barDiam: 10 });
     expect(r.valid).toBe(true);
-    expect(r.midspan.valid).toBe(false);
-    expect(r.support.valid).toBe(true);
+    expect(r.vano.valid).toBe(false);
+    expect(r.apoyo.valid).toBe(true);
   });
 
-  it('h too shallow for support barDiam -> support.valid=false, midspan.valid=true', () => {
-    const r = calcRCBeam({ ...base, h: 50, midspan_barDiam: 8, support_barDiam: 32 });
+  it('h too shallow for apoyo tension barDiam -> apoyo.valid=false, vano.valid=true', () => {
+    const r = calcRCBeam({ ...base, h: 50, vano_bot_barDiam: 8, apoyo_top_barDiam: 32 });
     expect(r.valid).toBe(true);
-    expect(r.midspan.valid).toBe(true);
-    expect(r.support.valid).toBe(false);
+    expect(r.vano.valid).toBe(true);
+    expect(r.apoyo.valid).toBe(false);
   });
 });
 
@@ -381,12 +427,12 @@ describe('Global input validation', () => {
     expect(calcRCBeam({ ...base, exposureClass: 'XD1' }).valid).toBe(false);
   });
 
-  it('midspan_nBars <= 0 -> invalid', () => {
-    expect(calcRCBeam({ ...base, midspan_nBars: 0 }).valid).toBe(false);
+  it('vano_bot_nBars <= 0 -> invalid', () => {
+    expect(calcRCBeam({ ...base, vano_bot_nBars: 0 }).valid).toBe(false);
   });
 
-  it('support_nBars <= 0 -> invalid', () => {
-    expect(calcRCBeam({ ...base, support_nBars: 0 }).valid).toBe(false);
+  it('apoyo_top_nBars <= 0 -> invalid', () => {
+    expect(calcRCBeam({ ...base, apoyo_top_nBars: 0 }).valid).toBe(false);
   });
 
   it('valid base inputs -> result.valid=true', () => {
@@ -397,23 +443,31 @@ describe('Global input validation', () => {
 // ── Regression: behavior that must not break ──────────────────────────────────
 describe('Regression', () => {
   it('XC2 wkMax = 0.3', () => {
-    expect(calcRCBeam({ ...base, exposureClass: 'XC2' }).midspan.wkMax).toBe(0.3);
+    expect(calcRCBeam({ ...base, exposureClass: 'XC2' }).vano.wkMax).toBe(0.3);
   });
 
   it('XC3 wkMax = 0.3', () => {
-    expect(calcRCBeam({ ...base, exposureClass: 'XC3' }).midspan.wkMax).toBe(0.3);
+    expect(calcRCBeam({ ...base, exposureClass: 'XC3' }).vano.wkMax).toBe(0.3);
   });
 
   it('shear-max only when hasStirrups=true', () => {
-    const with_s    = calcRCBeam({ ...base, midspan_stirrupSpacing: 150 });
-    const without_s = calcRCBeam({ ...base, midspan_stirrupSpacing: 0   });
-    expect(with_s.midspan.checks.some((c) => c.id === 'shear-max')).toBe(true);
-    expect(without_s.midspan.checks.some((c) => c.id === 'shear-max')).toBe(false);
+    const with_s    = calcRCBeam({ ...base, vano_stirrupSpacing: 150 });
+    const without_s = calcRCBeam({ ...base, vano_stirrupSpacing: 0   });
+    expect(with_s.vano.checks.some((c) => c.id === 'shear-max')).toBe(true);
+    expect(without_s.vano.checks.some((c) => c.id === 'shear-max')).toBe(false);
   });
 
   it('Md=0 is valid (pure shear case)', () => {
-    const r = calcRCBeam({ ...base, midspan_Md: 0, midspan_M_G: 0, midspan_M_Q: 0 });
+    const r = calcRCBeam({ ...base, vano_Md: 0, vano_M_G: 0, vano_M_Q: 0 });
     expect(r.valid).toBe(true);
-    expect(r.midspan.valid).toBe(true);
+    expect(r.vano.valid).toBe(true);
+  });
+
+  it('result has vano and apoyo keys (not midspan/support)', () => {
+    const r = calcRCBeam(base);
+    expect(r).toHaveProperty('vano');
+    expect(r).toHaveProperty('apoyo');
+    expect(r).not.toHaveProperty('midspan');
+    expect(r).not.toHaveProperty('support');
   });
 });

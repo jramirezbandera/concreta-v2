@@ -12,26 +12,30 @@ export interface RCBeamInputs {
   exposureClass: string;  // XC1–XC4
   loadType: string;       // 'residential'|'office'|'parking'|'roof'|'custom'
   psi2Custom: number;     // psi2 value when loadType='custom'
-  // Midspan (Vano) — bottom bars, positive bending
-  midspan_Md: number;             // design moment (kNm)
-  midspan_VEd: number;            // design shear (kN)
-  midspan_M_G: number;            // SLS moment from permanent loads (kNm)
-  midspan_M_Q: number;            // SLS moment from variable loads (kNm)
-  midspan_nBars: number;
-  midspan_barDiam: number;
-  midspan_stirrupDiam: number;
-  midspan_stirrupSpacing: number;
-  midspan_stirrupLegs: number;
-  // Support (Apoyo) — top bars, negative bending
-  support_Md: number;
-  support_VEd: number;
-  support_M_G: number;
-  support_M_Q: number;
-  support_nBars: number;
-  support_barDiam: number;
-  support_stirrupDiam: number;
-  support_stirrupSpacing: number;
-  support_stirrupLegs: number;
+  // Vano (midspan) — positive bending M+
+  vano_Md: number;               // design moment (kNm)
+  vano_VEd: number;              // design shear (kN)
+  vano_M_G: number;              // SLS moment from permanent loads (kNm)
+  vano_M_Q: number;              // SLS moment from variable loads (kNm)
+  vano_bot_nBars: number;        // tension bars (bottom, M+)
+  vano_bot_barDiam: number;
+  vano_top_nBars: number;        // compression bars (top, M+)
+  vano_top_barDiam: number;
+  vano_stirrupDiam: number;
+  vano_stirrupSpacing: number;
+  vano_stirrupLegs: number;
+  // Apoyo (support) — negative bending M-
+  apoyo_Md: number;
+  apoyo_VEd: number;
+  apoyo_M_G: number;
+  apoyo_M_Q: number;
+  apoyo_top_nBars: number;       // tension bars (top, M-)
+  apoyo_top_barDiam: number;
+  apoyo_bot_nBars: number;       // compression bars (bottom, M-)
+  apoyo_bot_barDiam: number;
+  apoyo_stirrupDiam: number;
+  apoyo_stirrupSpacing: number;
+  apoyo_stirrupLegs: number;
 }
 
 export interface RCColumnInputs {
@@ -101,26 +105,30 @@ export const rcBeamDefaults: RCBeamInputs = {
   exposureClass: 'XC1',
   loadType: 'residential',
   psi2Custom: 0.3,
-  // Midspan — d = 500 - 30 - 8 - 8 = 454 mm
-  midspan_Md: 85,
-  midspan_VEd: 65,
-  midspan_M_G: 45,
-  midspan_M_Q: 20,
-  midspan_nBars: 4,
-  midspan_barDiam: 16,
-  midspan_stirrupDiam: 8,
-  midspan_stirrupSpacing: 150,
-  midspan_stirrupLegs: 2,
-  // Support
-  support_Md: 65,
-  support_VEd: 65,
-  support_M_G: 35,
-  support_M_Q: 15,
-  support_nBars: 3,
-  support_barDiam: 16,
-  support_stirrupDiam: 8,
-  support_stirrupSpacing: 100,
-  support_stirrupLegs: 2,
+  // Vano — tension bottom d=500-30-8-8=454mm, compression top 2Ø12
+  vano_Md: 85,
+  vano_VEd: 65,
+  vano_M_G: 45,
+  vano_M_Q: 20,
+  vano_bot_nBars: 4,
+  vano_bot_barDiam: 16,
+  vano_top_nBars: 2,
+  vano_top_barDiam: 12,
+  vano_stirrupDiam: 8,
+  vano_stirrupSpacing: 150,
+  vano_stirrupLegs: 2,
+  // Apoyo — tension top 3Ø16, compression bottom 2Ø12
+  apoyo_Md: 65,
+  apoyo_VEd: 65,
+  apoyo_M_G: 35,
+  apoyo_M_Q: 15,
+  apoyo_top_nBars: 3,
+  apoyo_top_barDiam: 16,
+  apoyo_bot_nBars: 2,
+  apoyo_bot_barDiam: 12,
+  apoyo_stirrupDiam: 8,
+  apoyo_stirrupSpacing: 100,
+  apoyo_stirrupLegs: 2,
 };
 
 export const rcColumnDefaults: RCColumnInputs = {

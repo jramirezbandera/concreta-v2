@@ -63,13 +63,27 @@ export function RCBeamsSVG({
   const b = inp.b as number;
   const h = inp.h as number;
   const cover = inp.cover as number;
-  const midStirrupDiam = inp.midspan_stirrupDiam as number;
-  const supStirrupDiam = inp.support_stirrupDiam as number;
-  const stirrupDiam = isPositive ? midStirrupDiam : supStirrupDiam;
-  const midBarDiam = inp.midspan_barDiam as number;
-  const supBarDiam = inp.support_barDiam as number;
-  const midNBars = inp.midspan_nBars as number;
-  const supNBars = inp.support_nBars as number;
+
+  // Each SVG uses its own zone's bars — no cross-referencing between zones
+  const stirrupDiam = isPositive
+    ? inp.vano_stirrupDiam as number
+    : inp.apoyo_stirrupDiam as number;
+
+  // Bottom bars (always drawn at bottom of section)
+  const botBarDiam = isPositive
+    ? inp.vano_bot_barDiam as number
+    : inp.apoyo_bot_barDiam as number;
+  const botNBars = isPositive
+    ? inp.vano_bot_nBars as number
+    : inp.apoyo_bot_nBars as number;
+
+  // Top bars (always drawn at top of section)
+  const topBarDiam = isPositive
+    ? inp.vano_top_barDiam as number
+    : inp.apoyo_top_barDiam as number;
+  const topNBars = isPositive
+    ? inp.vano_top_nBars as number
+    : inp.apoyo_top_nBars as number;
 
   const scaleX = drawW / b;
   const scaleY = drawH / h;
@@ -84,30 +98,30 @@ export function RCBeamsSVG({
   const coverPx = cover * scale;
   const stirrupPx = stirrupDiam * scale;
 
-  // Midspan (bottom bars)
-  const midBarDiamPx = Math.max(4, midBarDiam * scale * 0.8);
-  const midBarY = oy + sH - coverPx - stirrupPx - midBarDiamPx / 2;
-  const midBarSpacing = midNBars > 1 ? (sW - 2 * coverPx - midBarDiamPx) / (midNBars - 1) : 0;
-  const midBarStartX = ox + coverPx + midBarDiamPx / 2;
-  const midBars = Array.from({ length: midNBars }, (_, i) => ({
-    cx: midBarStartX + i * midBarSpacing,
-    cy: midBarY,
-    r:  midBarDiamPx / 2,
+  // Bottom bars
+  const botBarDiamPx = Math.max(4, botBarDiam * scale * 0.8);
+  const botBarY = oy + sH - coverPx - stirrupPx - botBarDiamPx / 2;
+  const botBarSpacing = botNBars > 1 ? (sW - 2 * coverPx - botBarDiamPx) / (botNBars - 1) : 0;
+  const botBarStartX = ox + coverPx + botBarDiamPx / 2;
+  const botBars = Array.from({ length: botNBars }, (_, i) => ({
+    cx: botBarStartX + i * botBarSpacing,
+    cy: botBarY,
+    r:  botBarDiamPx / 2,
   }));
 
-  // Support (top bars)
-  const supBarDiamPx = Math.max(4, supBarDiam * scale * 0.8);
-  const supBarY = oy + coverPx + stirrupPx + supBarDiamPx / 2;
-  const supBarSpacing = supNBars > 1 ? (sW - 2 * coverPx - supBarDiamPx) / (supNBars - 1) : 0;
-  const supBarStartX = ox + coverPx + supBarDiamPx / 2;
-  const supBars = Array.from({ length: supNBars }, (_, i) => ({
-    cx: supBarStartX + i * supBarSpacing,
-    cy: supBarY,
-    r:  supBarDiamPx / 2,
+  // Top bars
+  const topBarDiamPx = Math.max(4, topBarDiam * scale * 0.8);
+  const topBarY = oy + coverPx + stirrupPx + topBarDiamPx / 2;
+  const topBarSpacing = topNBars > 1 ? (sW - 2 * coverPx - topBarDiamPx) / (topNBars - 1) : 0;
+  const topBarStartX = ox + coverPx + topBarDiamPx / 2;
+  const topBars = Array.from({ length: topNBars }, (_, i) => ({
+    cx: topBarStartX + i * topBarSpacing,
+    cy: topBarY,
+    r:  topBarDiamPx / 2,
   }));
 
   // Use the correct section result based on moment sign
-  const sectionResult = isPositive ? result.midspan : result.support;
+  const sectionResult = isPositive ? result.vano : result.apoyo;
 
   // x = neutral axis depth from compression face (mm → px)
   const xNA    = sectionResult.valid ? sectionResult.x * scale : 0;
@@ -121,11 +135,13 @@ export function RCBeamsSVG({
   const naY          = isPositive ? oy + xNA    : oy + sH - xNA;
   const dLineY       = isPositive ? oy + dPx    : oy + sH - dPx;
 
-  // Active bars: tension bars are active (accent), opposite side dimmed
-  const midColor   = isPositive ? colors.rebarActive : colors.rebarDim;
-  const supColor   = isPositive ? colors.rebarDim    : colors.rebarActive;
-  const midOpacity = isPositive ? 1   : 0.45;
-  const supOpacity = isPositive ? 0.45 : 1;
+  // Active bars: tension bars are active (accent), compression bars dimmed
+  // positive (vano, M+): tension = bottom bars, compression = top bars
+  // negative (apoyo, M-): tension = top bars, compression = bottom bars
+  const botColor   = isPositive ? colors.rebarActive : colors.rebarDim;
+  const topColor   = isPositive ? colors.rebarDim    : colors.rebarActive;
+  const botOpacity = isPositive ? 1    : 0.45;
+  const topOpacity = isPositive ? 0.45 : 1;
 
   return (
     <svg
@@ -190,27 +206,27 @@ export function RCBeamsSVG({
         />
       )}
 
-      {/* Support (top) bars */}
-      {supBars.map((bar, i) => (
+      {/* Top bars */}
+      {topBars.map((bar, i) => (
         <circle
-          key={`sup-${i}`}
+          key={`top-${i}`}
           cx={bar.cx} cy={bar.cy} r={bar.r}
-          fill={isPdf ? supColor : 'none'}
-          stroke={supColor}
+          fill={isPdf ? topColor : 'none'}
+          stroke={topColor}
           strokeWidth={isPdf ? 1 : 1.5}
-          opacity={supOpacity}
+          opacity={topOpacity}
         />
       ))}
 
-      {/* Midspan (bottom) bars */}
-      {midBars.map((bar, i) => (
+      {/* Bottom bars */}
+      {botBars.map((bar, i) => (
         <circle
-          key={`mid-${i}`}
+          key={`bot-${i}`}
           cx={bar.cx} cy={bar.cy} r={bar.r}
-          fill={isPdf ? midColor : 'none'}
-          stroke={midColor}
+          fill={isPdf ? botColor : 'none'}
+          stroke={botColor}
           strokeWidth={isPdf ? 1 : 1.5}
-          opacity={midOpacity}
+          opacity={botOpacity}
         />
       ))}
 

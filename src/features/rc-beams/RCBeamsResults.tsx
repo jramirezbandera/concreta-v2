@@ -110,10 +110,10 @@ function SectionBlock({
 
   const status = overallStatus(section.checks);
   const bendingChecks = section.checks.filter((c) =>
-    ['bending', 'bending-over', 'as-min', 'as-max'].includes(c.id),
+    ['bending', 'bending-over', 'as-min', 'as-min-comp', 'as-max'].includes(c.id),
   );
   const shearChecks = section.checks.filter((c) =>
-    ['shear', 'shear-max', 'rho-w-min'].includes(c.id),
+    ['shear', 'shear-max', 'rho-w-min', 'stirrup-spacing-max'].includes(c.id),
   );
   const spacingChecks = section.checks.filter((c) =>
     ['bar-spacing', 'bar-spacing-impossible'].includes(c.id),
@@ -136,7 +136,8 @@ function SectionBlock({
       {/* Key values */}
       <GroupHeader label="Valores" />
       <ValueRow label="d (canto util)"    value={`${section.d.toFixed(0)} mm`} />
-      <ValueRow label="As (armadura)"     value={`${section.As.toFixed(0)} mm\u00b2`} />
+      <ValueRow label="As (traccion)"      value={`${section.As.toFixed(0)} mm\u00b2`} />
+      <ValueRow label="As,c (compresion)" value={`${section.AsComp.toFixed(0)} mm\u00b2`} />
       <ValueRow label="x (eje neutro)"    value={`${section.x.toFixed(0)} mm`} />
       <ValueRow label="MRd"               value={`${section.MRd.toFixed(1)} kNm`} />
       <ValueRow label="VRd"               value={`${section.VRd.toFixed(1)} kN`} />
@@ -187,12 +188,12 @@ export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
     <div className="flex flex-col gap-4" aria-label="Resultados">
       <SectionBlock
         title="Vano"
-        section={result.midspan}
+        section={result.vano}
         isActive={activeSection === 'vano'}
       />
       <SectionBlock
         title="Apoyo"
-        section={result.support}
+        section={result.apoyo}
         isActive={activeSection === 'apoyo'}
       />
     </div>

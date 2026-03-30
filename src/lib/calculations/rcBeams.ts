@@ -31,9 +31,10 @@ export interface RCBeamSectionResult {
   valid: boolean;
   error?: string;
   // Geometry
-  d: number;      // effective depth (mm)
-  As: number;     // tension steel area (mm2)
-  Asw: number;    // stirrup area per unit length (mm2/mm)
+  d: number;        // effective depth (mm) — from compression face to tension steel centroid
+  As: number;       // tension steel area (mm2)
+  AsComp: number;   // compression steel area (mm2)
+  Asw: number;      // stirrup area per unit length (mm2/mm)
   // Bending
   x: number;      // neutral axis depth (mm)
   MRd: number;    // design bending resistance (kNm)
@@ -47,15 +48,15 @@ export interface RCBeamSectionResult {
   wkMax: number;  // limit for exposure class (mm)
   // Rebar info
   lapLength: number;     // minimum lap length (mm)
-  rebarSchedule: string; // e.g. "4O16 + O8/c150 (2R)"
+  rebarSchedule: string; // e.g. "4Ø16(t) + 2Ø12(c) + Ø8/c150 (2R)"
   checks: CheckRow[];
 }
 
 export interface RCBeamResult {
   valid: boolean;
   error?: string;
-  midspan: RCBeamSectionResult;
-  support: RCBeamSectionResult;
+  vano: RCBeamSectionResult;    // midspan — positive bending M+
+  apoyo: RCBeamSectionResult;   // support — negative bending M-
 }
 
 // psi2 quasi-permanent load combination factor (CE Table 12.1)
@@ -98,8 +99,10 @@ interface SectionInputs {
   Md: number;
   VEd: number;
   Ms: number;             // quasi-permanent SLS moment (kNm)
-  nBars: number;
-  barDiam: number;
+  nBars: number;          // tension bars
+  barDiam: number;        // tension bar diameter
+  nBarsComp: number;      // compression bars
+  barDiamComp: number;    // compression bar diameter
   stirrupSpacing: number;
   bondClass: 'good' | 'poor';
 }
@@ -107,7 +110,7 @@ interface SectionInputs {
 function invalidSection(error: string): RCBeamSectionResult {
   return {
     valid: false, error,
-    d: 0, As: 0, Asw: 0, x: 0,
+    d: 0, As: 0, AsComp: 0, Asw: 0, x: 0,
     MRd: 0, VRdc: 0, VRds: 0, VRd: 0, VRdmax: 0,
     wk: 0, wkMax: 0, lapLength: 0, rebarSchedule: '',
     checks: [],
@@ -128,6 +131,9 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
 
   const barArea = getBarArea(inp.barDiam);
   const As = inp.nBars * barArea;
+
+  const barAreaComp = getBarArea(inp.barDiamComp);
+  const AsComp = inp.nBarsComp * barAreaComp;
 
   const stirrupArea = getBarArea(inp.stirrupDiam);
   const Asw_total = inp.stirrupLegs * stirrupArea; // mm2 per stirrup set
@@ -170,27 +176,41 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     });
   }
 
-  // MIN REINFORCEMENT (CE art. 42.3.2) ──────────────────────────────────
+  // MIN REINFORCEMENT tension bars (CE art. 42.3.2) ─────────────────────
   const AsMinGeom = 0.0028 * inp.b * d;
   const AsMinMec = (0.04 * inp.b * inp.h * fcd) / fyd;
   const AsMin = Math.max(AsMinGeom, AsMinMec);
 
   checks.push(check(
     'as-min',
-    'Armadura minima geometrica y mecanica',
+    'Armadura minima traccion',
     AsMin, As,
     `As,min = ${AsMin.toFixed(0)} mm\u00b2`,
     `As = ${As.toFixed(0)} mm\u00b2`,
     'CE art. 42.3.2',
   ));
 
-  // MAX REINFORCEMENT (CE art. 42.3) ────────────────────────────────────
+  // MIN REINFORCEMENT compression bars — constructive minimum (CE art. 42.3.3)
+  // Tension As,min formula applies only to tension steel (CE art. 42.3.2 "traccionada").
+  // For compression bars: constructive minimum 0.001·b·d (two bars minimum).
+  const AsMinComp = 0.001 * inp.b * d;
+  checks.push(check(
+    'as-min-comp',
+    'Armadura minima compresion (constructiva)',
+    AsMinComp, AsComp,
+    `As,c,min = ${AsMinComp.toFixed(0)} mm\u00b2`,
+    `As,c = ${AsComp.toFixed(0)} mm\u00b2`,
+    'CE art. 42.3.3',
+  ));
+
+  // MAX REINFORCEMENT total (CE art. 42.3) ─────────────────────────────
+  const AsTotal = As + AsComp;
   const AsMax = 0.04 * inp.b * inp.h;
   checks.push(check(
     'as-max',
-    'Armadura maxima',
-    As, AsMax,
-    `As = ${As.toFixed(0)} mm\u00b2`,
+    'Armadura maxima total (traccion + compresion)',
+    AsTotal, AsMax,
+    `As,tot = ${AsTotal.toFixed(0)} mm\u00b2`,
     `As,max = ${AsMax.toFixed(0)} mm\u00b2`,
     'CE art. 42.3',
   ));
@@ -252,6 +272,17 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       status: rhoWStatus,
       article: 'CE art. 44.2.3.2.2',
     });
+
+    // MAX STIRRUP SPACING (CE art. 44.2.3.4) ─────────────────────────────
+    const sMax = Math.min(0.75 * d, 300);
+    checks.push(check(
+      'stirrup-spacing-max',
+      'Separacion maxima entre estribos',
+      inp.stirrupSpacing, sMax,
+      `s = ${inp.stirrupSpacing} mm`,
+      `s,max = ${sMax.toFixed(0)} mm`,
+      'CE art. 44.2.3.4',
+    ));
   }
 
   // BAR SPACING (CE art. 69.4) ──────────────────────────────────────────
@@ -354,11 +385,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
 
   // REBAR SCHEDULE ───────────────────────────────────────────────────────
   const rebarSchedule =
-    `${inp.nBars}\u00d8${inp.barDiam} + \u00d8${inp.stirrupDiam}/c${inp.stirrupSpacing} (${inp.stirrupLegs}R)`;
+    `${inp.nBars}\u00d8${inp.barDiam}(t) + ${inp.nBarsComp}\u00d8${inp.barDiamComp}(c) + \u00d8${inp.stirrupDiam}/c${inp.stirrupSpacing} (${inp.stirrupLegs}R)`;
 
   return {
     valid: true,
-    d, As, Asw, x, MRd,
+    d, As, AsComp, Asw, x, MRd,
     VRdc, VRds, VRd, VRdmax,
     wk, wkMax: wkLim,
     lapLength, rebarSchedule,
@@ -369,8 +400,8 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
 function globalInvalid(error: string): RCBeamResult {
   return {
     valid: false, error,
-    midspan: invalidSection(error),
-    support: invalidSection(error),
+    vano: invalidSection(error),
+    apoyo: invalidSection(error),
   };
 }
 
@@ -381,52 +412,56 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
   if ((inp.cover as number) <= 0) return globalInvalid('Recubrimiento debe ser > 0 mm');
   if ((inp.fck as number) < 12 || (inp.fck as number) > 90) return globalInvalid('fck fuera de rango (12-90 MPa)');
   if (!(inp.exposureClass in wkMax)) return globalInvalid(`Clase de exposicion invalida: ${inp.exposureClass}`);
-  if ((inp.midspan_nBars as number) <= 0) return globalInvalid('Numero de barras de vano debe ser > 0');
-  if ((inp.support_nBars as number) <= 0) return globalInvalid('Numero de barras de apoyo debe ser > 0');
+  if ((inp.vano_bot_nBars as number) <= 0) return globalInvalid('Numero de barras de vano (traccion) debe ser > 0');
+  if ((inp.apoyo_top_nBars as number) <= 0) return globalInvalid('Numero de barras de apoyo (traccion) debe ser > 0');
 
   // Quasi-permanent load factor psi2
   const psi2 = inp.loadType === 'custom'
     ? (inp.psi2Custom as number)
     : (PSI2_MAP[inp.loadType as string] ?? 0.3);
 
-  const midspanMs = (inp.midspan_M_G as number) + psi2 * (inp.midspan_M_Q as number);
-  const supportMs  = (inp.support_M_G as number)  + psi2 * (inp.support_M_Q as number);
+  const vanoMs  = (inp.vano_M_G  as number) + psi2 * (inp.vano_M_Q  as number);
+  const apoyoMs = (inp.apoyo_M_G as number) + psi2 * (inp.apoyo_M_Q as number);
 
-  const midspan = calcSection({
+  const vano = calcSection({
     b:              inp.b as number,
     h:              inp.h as number,
     cover:          inp.cover as number,
-    stirrupDiam:    inp.midspan_stirrupDiam as number,
-    stirrupLegs:    inp.midspan_stirrupLegs as number,
+    stirrupDiam:    inp.vano_stirrupDiam as number,
+    stirrupLegs:    inp.vano_stirrupLegs as number,
     fck:            inp.fck as number,
     fyk:            inp.fyk as number,
     exposureClass:  inp.exposureClass as string,
-    Md:             inp.midspan_Md as number,
-    VEd:            inp.midspan_VEd as number,
-    Ms:             midspanMs,
-    nBars:          inp.midspan_nBars as number,
-    barDiam:        inp.midspan_barDiam as number,
-    stirrupSpacing: inp.midspan_stirrupSpacing as number,
+    Md:             inp.vano_Md as number,
+    VEd:            inp.vano_VEd as number,
+    Ms:             vanoMs,
+    nBars:          inp.vano_bot_nBars as number,
+    barDiam:        inp.vano_bot_barDiam as number,
+    nBarsComp:      inp.vano_top_nBars as number,
+    barDiamComp:    inp.vano_top_barDiam as number,
+    stirrupSpacing: inp.vano_stirrupSpacing as number,
     bondClass:      'good',
   });
 
-  const support = calcSection({
+  const apoyo = calcSection({
     b:              inp.b as number,
     h:              inp.h as number,
     cover:          inp.cover as number,
-    stirrupDiam:    inp.support_stirrupDiam as number,
-    stirrupLegs:    inp.support_stirrupLegs as number,
+    stirrupDiam:    inp.apoyo_stirrupDiam as number,
+    stirrupLegs:    inp.apoyo_stirrupLegs as number,
     fck:            inp.fck as number,
     fyk:            inp.fyk as number,
     exposureClass:  inp.exposureClass as string,
-    Md:             inp.support_Md as number,
-    VEd:            inp.support_VEd as number,
-    Ms:             supportMs,
-    nBars:          inp.support_nBars as number,
-    barDiam:        inp.support_barDiam as number,
-    stirrupSpacing: inp.support_stirrupSpacing as number,
+    Md:             inp.apoyo_Md as number,
+    VEd:            inp.apoyo_VEd as number,
+    Ms:             apoyoMs,
+    nBars:          inp.apoyo_top_nBars as number,
+    barDiam:        inp.apoyo_top_barDiam as number,
+    nBarsComp:      inp.apoyo_bot_nBars as number,
+    barDiamComp:    inp.apoyo_bot_barDiam as number,
+    stirrupSpacing: inp.apoyo_stirrupSpacing as number,
     bondClass:      'poor',
   });
 
-  return { valid: true, midspan, support };
+  return { valid: true, vano, apoyo };
 }

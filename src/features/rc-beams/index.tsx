@@ -111,7 +111,7 @@ export function RCBeamsModule() {
               isStacked ? 'flex-col items-center gap-3' : 'flex-row items-start justify-center gap-4',
             ].join(' ')}
           >
-            {result.midspan && (
+            {result.vano && (
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
                 <RCBeamsSVG
@@ -124,7 +124,7 @@ export function RCBeamsModule() {
                 />
               </div>
             )}
-            {result.support && (
+            {result.apoyo && (
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
                 <RCBeamsSVG

@@ -109,7 +109,15 @@ const LOAD_TYPE_OPTIONS = [
 
 export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsInputsProps) {
   const isVano = section === 'vano';
-  const prefix = isVano ? 'midspan' : 'support';
+  const p = isVano ? 'vano' : 'apoyo';
+
+  // Labels that depend on the zone's moment sign
+  const tensionLabel   = isVano ? 'Traccion (barras inf.)' : 'Traccion (barras sup.)';
+  const comprLabel     = isVano ? 'Compresion (barras sup.)' : 'Compresion (barras inf.)';
+  const tensionNField  = isVano ? 'vano_bot_nBars'    : 'apoyo_top_nBars';
+  const tensionDField  = isVano ? 'vano_bot_barDiam'  : 'apoyo_top_barDiam';
+  const comprNField    = isVano ? 'vano_top_nBars'    : 'apoyo_bot_nBars';
+  const comprDField    = isVano ? 'vano_top_barDiam'  : 'apoyo_bot_barDiam';
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
@@ -137,8 +145,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
 
-
-      {/* Shared: exposure class + load type (affect cracking ELS in both sections) */}
+      {/* Shared: exposure class + load type */}
       <SectionHeader label="Uso y exposicion (fisuracion ELS)" />
       <SelectField
         label="Clase de exposicion"
@@ -195,42 +202,63 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         </button>
       </div>
 
-      {/* Per-section armadura longitudinal + transversal */}
-      <SectionHeader label={isVano ? 'Armadura (vano)' : 'Armadura (apoyo)'} />
+      {/* Tension bars */}
+      <SectionHeader label={tensionLabel} />
       <NumField
         label="Num. barras"
-        field={`${prefix}_nBars`}
-        value={state[`${prefix}_nBars`] as number}
+        field={tensionNField}
+        value={state[tensionNField] as number}
         unit="ud"
         min={1}
         setField={setField}
       />
       <SelectField
         label="Diametro"
-        field={`${prefix}_barDiam`}
-        value={state[`${prefix}_barDiam`] as number}
+        field={tensionDField}
+        value={state[tensionDField] as number}
         options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
         setField={setField}
       />
+
+      {/* Compression bars */}
+      <SectionHeader label={comprLabel} />
+      <NumField
+        label="Num. barras"
+        field={comprNField}
+        value={state[comprNField] as number}
+        unit="ud"
+        min={1}
+        setField={setField}
+      />
+      <SelectField
+        label="Diametro"
+        field={comprDField}
+        value={state[comprDField] as number}
+        options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+        setField={setField}
+      />
+
+      {/* Transverse reinforcement */}
+      <SectionHeader label="Armadura transversal" />
       <SelectField
         label="Estribos"
-        field={`${prefix}_stirrupDiam`}
-        value={state[`${prefix}_stirrupDiam`] as number}
+        field={`${p}_stirrupDiam`}
+        value={state[`${p}_stirrupDiam`] as number}
         options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
         setField={setField}
       />
       <NumField
         label="Separacion"
-        field={`${prefix}_stirrupSpacing`}
-        value={state[`${prefix}_stirrupSpacing`] as number}
+        field={`${p}_stirrupSpacing`}
+        value={state[`${p}_stirrupSpacing`] as number}
         unit="mm"
         min={50}
         setField={setField}
       />
       <NumField
         label="Num. ramas"
-        field={`${prefix}_stirrupLegs`}
-        value={state[`${prefix}_stirrupLegs`] as number}
+        field={`${p}_stirrupLegs`}
+        value={state[`${p}_stirrupLegs`] as number}
         unit="ud"
         min={1}
         setField={setField}
@@ -241,32 +269,32 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
       <NumField
         label={isVano ? 'Md' : '|Md|'}
         sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
-        field={`${prefix}_Md`}
-        value={state[`${prefix}_Md`] as number}
+        field={`${p}_Md`}
+        value={state[`${p}_Md`] as number}
         unit="kNm"
         setField={setField}
       />
       <NumField
         label="VEd"
         sub="(ELU)"
-        field={`${prefix}_VEd`}
-        value={state[`${prefix}_VEd`] as number}
+        field={`${p}_VEd`}
+        value={state[`${p}_VEd`] as number}
         unit="kN"
         setField={setField}
       />
       <NumField
         label="M carga permanente"
         sub="(ELS)"
-        field={`${prefix}_M_G`}
-        value={state[`${prefix}_M_G`] as number}
+        field={`${p}_M_G`}
+        value={state[`${p}_M_G`] as number}
         unit="kNm"
         setField={setField}
       />
       <NumField
         label="M carga variable"
         sub="(ELS)"
-        field={`${prefix}_M_Q`}
-        value={state[`${prefix}_M_Q`] as number}
+        field={`${p}_M_Q`}
+        value={state[`${p}_M_Q`] as number}
         unit="kNm"
         setField={setField}
       />
