@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AppShell, NotFound } from './components/layout/AppShell';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { RCBeamsModule } from './features/rc-beams';
+import { RCColumnsModule } from './features/rc-columns';
 import { SteelBeamsModule } from './features/steel-beams';
 import { SteelColumnsModule } from './features/steel-columns';
 import { Landing } from './pages/Landing';
@@ -15,19 +16,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: 'horm/vigas', element: <RCBeamsModule /> },
-      {
-        path: 'horm/pilares',
-        element: (
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="h-12 shrink-0 flex items-center px-4 bg-bg-primary border-b border-border-main">
-              <span className="text-base font-medium text-text-primary">
-                Pilares <span className="text-text-secondary font-normal">— Hormigón Armado</span>
-              </span>
-            </div>
-            <ModulePlaceholder label="Pilares" group="Hormigón" />
-          </div>
-        ),
-      },
+      { path: 'horm/pilares', element: <RCColumnsModule /> },
       { path: 'acero/vigas', element: <SteelBeamsModule /> },
       { path: 'acero/pilares', element: <SteelColumnsModule /> },
       {

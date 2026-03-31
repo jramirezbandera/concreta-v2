@@ -93,11 +93,11 @@ describe('FTUX defaults', () => {
     expect(r.vano.checks.map((c) => c.id)).toContain('as-min-comp');
   });
 
-  it('all check rows have article field matching "CE art."', () => {
+  it('all check rows have article field referencing CE code', () => {
     const r = calcRCBeam(base);
     for (const s of [r.vano, r.apoyo]) {
       for (const c of s.checks) {
-        expect(c.article).toMatch(/CE art\./);
+        expect(c.article).toMatch(/CE (?:art\.|Anejo)/);
       }
     }
   });
@@ -469,5 +469,51 @@ describe('Regression', () => {
     expect(r).toHaveProperty('apoyo');
     expect(r).not.toHaveProperty('midspan');
     expect(r).not.toHaveProperty('support');
+  });
+});
+
+// ── Stirrup leg spacing (CE Anejo 19 art. 9.2.2(8)) ──────────────────────────
+describe('stirrup-legs-spacing (CE Anejo 19 art. 9.2.2(8))', () => {
+  it('nLegs=2, standard beam -> ok (s_t=224 < 340 mm limit)', () => {
+    // b=300, h=500, cover=30, stirrupDiam=8, stirrupLegs=2
+    // inner = 300 - 60 - 16 = 224; s_t = 224/1 = 224
+    // d = 500 - 30 - 8 - 8 = 454; s_t_max = min(0.75*454, 600) = 340
+    const r = calcRCBeam({ ...base, b: 300, h: 500, cover: 30, vano_stirrupDiam: 8, vano_stirrupLegs: 2 });
+    const c = r.vano.checks.find((ch) => ch.id === 'stirrup-legs-spacing')!;
+    expect(c).toBeDefined();
+    expect(c.status).toBe('ok');
+  });
+
+  it('nLegs=2, very wide beam -> fail (s_t=1124 > 265 mm limit)', () => {
+    // b=1200, h=400, cover=30, stirrupDiam=8, stirrupLegs=2
+    // inner = 1200 - 60 - 16 = 1124; s_t = 1124/1 = 1124
+    // d = 400 - 30 - 8 - 8 = 354; s_t_max = min(0.75*354, 600) = min(265, 600) = 265
+    const r = calcRCBeam({
+      ...base, b: 1200, h: 400, cover: 30,
+      vano_stirrupDiam: 8, vano_stirrupLegs: 2, vano_bot_barDiam: 16,
+    });
+    const c = r.vano.checks.find((ch) => ch.id === 'stirrup-legs-spacing')!;
+    expect(c).toBeDefined();
+    expect(c.status).toBe('fail');
+  });
+
+  it('nLegs=3, standard beam -> ok (s_t=162 < 415 mm limit)', () => {
+    // b=400, h=600, cover=30, stirrupDiam=8, stirrupLegs=3
+    // inner = 400 - 60 - 16 = 324; s_t = 324/2 = 162
+    // d = 600 - 30 - 8 - 8 = 554; s_t_max = min(0.75*554, 600) = min(415, 600) = 415
+    const r = calcRCBeam({ ...base, b: 400, h: 600, cover: 30, vano_stirrupDiam: 8, vano_stirrupLegs: 3 });
+    const c = r.vano.checks.find((ch) => ch.id === 'stirrup-legs-spacing')!;
+    expect(c).toBeDefined();
+    expect(c.status).toBe('ok');
+  });
+
+  it('check id present in vano checks', () => {
+    const r = calcRCBeam(base);
+    expect(r.vano.checks.find((c) => c.id === 'stirrup-legs-spacing')).toBeDefined();
+  });
+
+  it('check id present in apoyo checks', () => {
+    const r = calcRCBeam(base);
+    expect(r.apoyo.checks.find((c) => c.id === 'stirrup-legs-spacing')).toBeDefined();
   });
 });

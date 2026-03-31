@@ -30,7 +30,9 @@ RC Beams: 17 Vitest tests — CUMPLE, ADVERTENCIA, INCUMPLE + input validation e
 
 Steel Beams: DONE (v0.1.1, 2026-03-28) — 14 suites, 79 tests: class detection, M-V interaction, LTB, deflection, generator mode, Lcr>L validation, input validation. See `src/test/calc/steelBeams.test.ts`.
 
-RC Columns, Footings: not yet implemented — test plan required before shipping.
+RC Columns: DONE (v0.2.0, 2026-03-30) — 67 tests: biaxial bending, per-axis slenderness, 15 CE checks. See `src/test/calc/rcColumns.test.ts`.
+
+Footings: not yet implemented — test plan required before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
 
@@ -86,6 +88,20 @@ When a user rapidly edits multiple fields, `setSearchParams` may fire after `loc
 - [ ] `<title>` tag per module (`Viga HEM — Concreta`) — `document.title` on route change
 - [ ] PWA icons — create `public/icons/icon-192.png` and `icon-512.png` (referenced in manifest)
 
+### Creep magnification factor Kφ in RC Columns second-order calc (eng review 2026-03-30)
+
+`calcRCColumn` omits CE art. 43.5.3(3) creep factor `Kφ = 1 + β·φ_ef`. For slender columns
+under sustained loads (offices: `φ_ef ≈ 2`), second-order eccentricity `e2` is underestimated
+by 35–75%. The current result is conservative relative to Kr (safe) but not for creep.
+
+Fix: add optional `phi_ef` input (default 0 = short-term, no creep). When `phi_ef > 0`:
+```
+Kφ = 1 + 0.35 * phi_ef   (CE art. 43.5.3, simplified)
+e2 = Kφ * curv * Lk² / c
+```
+
+Priority: P2 — ask first users whether they care about sustained loads. May become P1.
+
 ### RC beams PDF — draftsman-quality one-page report (CEO review 2026-03-29)
 
 Current PDF export is an incremental update (both sections, same jsPDF template). The 10x version is a polished one-page compliance report: section diagrams with dimensions, all CE checks with PASS/FAIL pills, rebar schedule, minimum lap note, exposure class and project metadata. Engineers would hand this directly to draftsmen.
@@ -94,6 +110,8 @@ Priority: P3 — implement after talking to first users. They'll tell you what f
 
 ## P3 — Nice to have
 
+- [x] RC Columns results: conditionally hide e2 and e_imp value rows when lambda ≤ 25 — DONE 2026-03-30 (bundled with biaxial bending implementation).
+- [ ] RC Columns: per-axis beta (beta_y, beta_z) instead of single shared beta. Useful for columns with asymmetric end conditions (e.g. fixed-pinned in one direction, fixed-fixed in the other). Currently `Lk = L × beta` is the same for both axes. Minor change in `defaults.ts` + `rcColumns.ts` + `RCColumnsInputs.tsx`. ~30 min.
 - [x] `@media print` CSS rule for browser Ctrl+P — DONE (added to src/index.css 2026-03-27)
 - [ ] Content-Security-Policy headers via `vercel.json`
 - [ ] Color contrast audit — `accent` (#38bdf8) on `bg-primary` (#0f172a) at 11-12px font-mono. Check WCAG AA for small text (4.5:1 required). The ratio is ~4.9:1 so likely passes but worth confirming with a tool before public launch.

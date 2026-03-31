@@ -14,18 +14,9 @@ import { type RCBeamInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
+import { toStatus, makeCheck as check } from './types';
 
-export type CheckStatus = 'ok' | 'warn' | 'fail';
-
-export interface CheckRow {
-  id: string;
-  description: string;
-  value: string;       // computed value with units
-  limit: string;       // limit value with units
-  utilization: number; // 0-1+ (>=1 = fail)
-  status: CheckStatus;
-  article: string;
-}
+export type { CheckStatus, CheckRow } from './types';
 
 export interface RCBeamSectionResult {
   valid: boolean;
@@ -68,24 +59,6 @@ const PSI2_MAP: Record<string, number> = {
   custom: 0.0, // overridden by psi2Custom when loadType='custom'
 };
 
-function toStatus(util: number): CheckStatus {
-  if (util < 0.8) return 'ok';
-  if (util < 1.0) return 'warn';
-  return 'fail';
-}
-
-function check(
-  id: string,
-  description: string,
-  demand: number,
-  capacity: number,
-  demandStr: string,
-  capacityStr: string,
-  article: string,
-): CheckRow {
-  const util = capacity > 0 ? demand / capacity : Infinity;
-  return { id, description, value: demandStr, limit: capacityStr, utilization: util, status: toStatus(util), article };
-}
 
 interface SectionInputs {
   b: number;
@@ -282,6 +255,19 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       `s = ${inp.stirrupSpacing} mm`,
       `s,max = ${sMax.toFixed(0)} mm`,
       'CE art. 44.2.3.4',
+    ));
+
+    // TRANSVERSE STIRRUP LEG SPACING (CE Anejo 19 art. 9.2.2(8)) ─────────
+    const innerWidth = inp.b - 2 * inp.cover - 2 * inp.stirrupDiam;
+    const s_t = innerWidth / (inp.stirrupLegs - 1);
+    const s_t_max = Math.min(0.75 * d, 600);
+    checks.push(check(
+      'stirrup-legs-spacing',
+      'Separacion transversal de ramas de cercos',
+      s_t, s_t_max,
+      `s_t = ${s_t.toFixed(0)} mm`,
+      `s_t,max = ${s_t_max.toFixed(0)} mm`,
+      'CE Anejo 19 art. 9.2.2(8)',
     ));
   }
 

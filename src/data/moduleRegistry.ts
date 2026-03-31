@@ -37,7 +37,7 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Pilares',
     group: 'Hormigón',
     defaults: rcColumnDefaults,
-    shipped: false,
+    shipped: true,
   },
   {
     key: 'concreta-steel-beams',

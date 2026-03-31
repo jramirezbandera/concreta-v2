@@ -42,13 +42,20 @@ export interface RCColumnInputs {
   b: number;
   h: number;
   cover: number;
-  nBars: number;
-  barDiam: number;
+  cornerBarDiam: number;   // mm — 4 corner bars (always present)
+  nBarsX: number;          // intermediate bars per face on top/bottom faces (≥ 0)
+  barDiamX: number;        // mm — diameter of top/bottom intermediate bars
+  nBarsY: number;          // intermediate bars per face on left/right faces (≥ 0)
+  barDiamY: number;        // mm — diameter of left/right intermediate bars
+  stirrupDiam: number;
+  stirrupSpacing: number;
   fck: number;
   fyk: number;
-  Nd: number;   // design axial force (kN)
-  Md: number;   // design bending moment (kNm)
-  Lk: number;   // buckling length (m)
+  Nd: number;    // design axial force (kN), compression positive
+  MEdy: number;  // design moment about y-axis (kNm), uses h dimension
+  MEdz: number;  // design moment about z-axis (kNm), uses b dimension
+  L: number;     // real column length (m)
+  beta: number;  // effective length factor β — Lk = L × β
 }
 
 export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
@@ -135,13 +142,20 @@ export const rcColumnDefaults: RCColumnInputs = {
   b: 300,
   h: 300,
   cover: 30,
-  nBars: 4,
-  barDiam: 16,
+  cornerBarDiam: 16,
+  nBarsX: 0,
+  barDiamX: 12,
+  nBarsY: 0,
+  barDiamY: 12,
+  stirrupDiam: 6,
+  stirrupSpacing: 150,
   fck: 25,
   fyk: 500,
   Nd: 500,
-  Md: 30,
-  Lk: 3.5,
+  MEdy: 30,
+  MEdz: 10,
+  L: 3.5,
+  beta: 1,
 };
 
 export const steelBeamDefaults: SteelBeamInputs = {

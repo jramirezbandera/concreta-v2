@@ -68,6 +68,9 @@ export function RCBeamsSVG({
   const stirrupDiam = isPositive
     ? inp.vano_stirrupDiam as number
     : inp.apoyo_stirrupDiam as number;
+  const stirrupLegs = isPositive
+    ? inp.vano_stirrupLegs as number
+    : inp.apoyo_stirrupLegs as number;
 
   // Bottom bars (always drawn at bottom of section)
   const botBarDiam = isPositive
@@ -143,6 +146,23 @@ export function RCBeamsSVG({
   const botOpacity = isPositive ? 1    : 0.45;
   const topOpacity = isPositive ? 0.45 : 1;
 
+  // Interior stirrup leg lines (nLegs > 2 → nLegs-2 evenly-spaced vertical lines)
+  const interiorLegs = stirrupLegs > 2
+    ? Array.from({ length: stirrupLegs - 2 }, (_, i) => {
+        const x = ox + coverPx + (i + 1) * (sW - 2 * coverPx) / (stirrupLegs - 1);
+        return (
+          <line
+            key={`leg-${i}`}
+            x1={x} y1={oy + coverPx}
+            x2={x} y2={oy + sH - coverPx}
+            stroke={colors.stirrup}
+            strokeWidth={isPdf ? 1 : 0.75}
+            opacity={0.5}
+          />
+        );
+      })
+    : null;
+
   return (
     <svg
       width={width}
@@ -181,6 +201,9 @@ export function RCBeamsSVG({
         strokeWidth={isPdf ? 1.5 : 1}
         opacity={0.6}
       />
+
+      {/* Interior stirrup leg lines */}
+      {interiorLegs}
 
       {/* Neutral axis — dashed, from compression face */}
       {sectionResult.valid && (

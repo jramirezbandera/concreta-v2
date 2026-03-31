@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { type RCBeamInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
@@ -15,7 +16,7 @@ function NumField({
   field,
   value,
   unit,
-  min,
+  integer = false,
   setField,
 }: {
   label: string;
@@ -24,8 +25,15 @@ function NumField({
   value: number;
   unit: string;
   min?: number;
+  integer?: boolean;
   setField: RCBeamsInputsProps['setField'];
 }) {
+  const [localStr, setLocalStr] = useState(() => String(value));
+
+  useEffect(() => {
+    setLocalStr(String(value));
+  }, [value]);
+
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
@@ -35,14 +43,21 @@ function NumField({
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
-          type="number"
-          value={value}
-          min={min}
+          type="text"
+          inputMode={integer ? 'numeric' : 'decimal'}
+          value={localStr}
           onChange={(e) => {
-            const n = Number(e.target.value);
+            const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
+            setLocalStr(raw);
+            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
             if (!isNaN(n)) setField(field, n);
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          onBlur={() => {
+            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+            if (isNaN(n)) setLocalStr(String(value));
+            else if (integer) setLocalStr(String(Math.round(n)));
+          }}
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
           aria-label={`${label} (${unit})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -210,6 +225,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         value={state[tensionNField] as number}
         unit="ud"
         min={1}
+        integer
         setField={setField}
       />
       <SelectField
@@ -228,6 +244,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         value={state[comprNField] as number}
         unit="ud"
         min={1}
+        integer
         setField={setField}
       />
       <SelectField
@@ -260,7 +277,8 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         field={`${p}_stirrupLegs`}
         value={state[`${p}_stirrupLegs`] as number}
         unit="ud"
-        min={1}
+        min={2}
+        integer
         setField={setField}
       />
 
