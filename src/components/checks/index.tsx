@@ -51,8 +51,15 @@ export function CheckRowItem({ check }: { check: CheckRow }) {
   return (
     <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
-      <span className="font-mono text-[11px] text-text-primary text-right whitespace-nowrap tabular-nums">
-        {check.value}
+      <span className="text-right">
+        <span className="block font-mono text-[11px] text-text-primary whitespace-nowrap tabular-nums">
+          {check.value}
+        </span>
+        {check.limit && (
+          <span className="block font-mono text-[10px] text-text-disabled whitespace-nowrap tabular-nums">
+            {check.limit}
+          </span>
+        )}
       </span>
       <div className="h-0.75 bg-border-main rounded-sm overflow-hidden">
         <div

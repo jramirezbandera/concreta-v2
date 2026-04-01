@@ -9,8 +9,8 @@ import { rcColumnDefaults } from '../../data/defaults';
 
 const D = rcColumnDefaults;
 
-function inp(overrides: Partial<typeof D> = {}) {
-  return { ...D, ...overrides };
+function inp(overrides: Partial<typeof D> = {}): typeof D {
+  return { ...D, ...overrides } as typeof D;
 }
 
 // ── FTUX defaults ───────────────────────────────────────────────────────────
@@ -386,7 +386,6 @@ describe('RC Columns — Edge cases', () => {
 describe('RC Columns — Biaxial bending (new)', () => {
   it('interpExponent: ned=0.1 → a=1.0', () => {
     // For ned=0.1: NEd = 0.1 * NRd_max
-    const r = calcRCColumn(inp());
     // Use ned≈0.1: NRd_max≈1836kN, NEd=184kN
     const r2 = calcRCColumn(inp({ Nd: 184 }));
     expect(r2.ned).toBeCloseTo(0.1, 1);

@@ -14,7 +14,7 @@
 import { type RCColumnInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
-import { toStatus, makeCheck } from './types';
+import { type CheckRow, toStatus, makeCheck } from './types';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -443,7 +443,6 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     if (nBarsX === 0) {
       clearX = innerX; // only 2 corner bars, full inner width available
     } else {
-      const totalBarWidthX = nBarsX * barDiamX + 0; // corner bars already subtracted via innerX
       clearX = (innerX - nBarsX * barDiamX) / (nBarsX + 1);
     }
     const sMinX = Math.max(barDiamX, cornerBarDiam, 20);

@@ -39,6 +39,7 @@ export interface RCBeamInputs {
 }
 
 export interface RCColumnInputs {
+  [key: string]: string | number | boolean;
   b: number;
   h: number;
   cover: number;
@@ -211,6 +212,72 @@ export const steelColumnDefaults: SteelColumnInputs = {
   Ned: 400,
   My_Ed: 50,
   Mz_Ed: 8,
+};
+
+export interface RetainingWallInputs {
+  [key: string]: string | number | boolean;
+  // Geometry (m)
+  H: number;        // clear stem height above footing top
+  hf: number;       // footing thickness
+  tFuste: number;   // stem thickness (uniform)
+  bPunta: number;   // toe projection
+  bTalon: number;   // heel projection
+  // Materials
+  fck: number;      // N/mm²
+  fyk: number;      // N/mm²
+  cover: number;    // m
+  // Backfill
+  gammaSuelo: number;   // dry/bulk unit weight (kN/m³)
+  gammaSat: number;     // saturated unit weight (kN/m³)
+  phi: number;          // internal friction angle (°)
+  delta: number;        // wall friction angle (°)
+  q: number;            // uniform surcharge on backfill (kN/m²)
+  sigmaAdm: number;     // admissible bearing capacity (kPa)
+  mu: number;           // base friction coefficient
+  // Water table
+  hasWater: boolean; // toggle: true = water table active
+  hw: number;        // depth to water table from top of wall (m), used when hasWater=true
+  // Seismic (NCSP-07 / NCSE-02) — kh and kv are derived internally
+  Ab: number;       // aceleración sísmica básica (fraction of g, from hazard map)
+  S: number;        // coeficiente de amplificación del terreno (NCSE-02 §2.2)
+  // Rebar — ø (mm) + spacing (mm) per zone; 0 = zone not specified (sizing mode)
+  diam_fv_int: number;  sep_fv_int: number;  // fuste vertical, cara trasdós (main bending)
+  diam_fv_ext: number;  sep_fv_ext: number;  // fuste vertical, cara intradós (compression face)
+  diam_fh:     number;  sep_fh:     number;  // fuste horizontal, per face (shrinkage)
+  diam_zs:     number;  sep_zs:     number;  // zapata superior — talón (tension on top)
+  diam_zi:     number;  sep_zi:     number;  // zapata inferior — punta (tension on bottom)
+  diam_zt_inf: number;  sep_zt_inf: number;  // zapata transversal — cara inferior
+  diam_zt_sup: number;  sep_zt_sup: number;  // zapata transversal — cara superior (opcional)
+}
+
+export const retainingWallDefaults: RetainingWallInputs = {
+  H: 3.0,
+  hf: 0.5,
+  tFuste: 0.3,
+  bPunta: 0.6,
+  bTalon: 1.5,
+  fck: 25,
+  fyk: 500,
+  cover: 0.04,
+  gammaSuelo: 18,
+  gammaSat: 20,
+  phi: 30,
+  delta: 10,
+  q: 0,
+  sigmaAdm: 200,
+  mu: 0.40,
+  hasWater: false,
+  hw: 2.0,
+  Ab: 0,
+  S: 1.0,
+  // Rebar — all default 0 (sizing mode)
+  diam_fv_int: 0, sep_fv_int: 200,
+  diam_fv_ext: 0, sep_fv_ext: 200,
+  diam_fh:     0, sep_fh:     200,
+  diam_zs:     0, sep_zs:     200,
+  diam_zi:     0, sep_zi:     200,
+  diam_zt_inf: 0, sep_zt_inf: 200,
+  diam_zt_sup: 0, sep_zt_sup: 200,
 };
 
 export const footingDefaults: FootingInputs = {

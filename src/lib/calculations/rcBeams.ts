@@ -14,7 +14,7 @@ import { type RCBeamInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
-import { toStatus, makeCheck as check } from './types';
+import { type CheckRow, type CheckStatus, toStatus, makeCheck as check } from './types';
 
 export type { CheckStatus, CheckRow } from './types';
 

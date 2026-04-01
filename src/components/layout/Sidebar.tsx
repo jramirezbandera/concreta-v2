@@ -45,6 +45,14 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <rect x="2" y="17.5" width="20" height="3.5" />
         </svg>
       );
+    // Retaining wall: cantilever L-profile (stem + footing)
+    case 'concreta-retaining-wall':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <rect x="8" y="2" width="4" height="15" />
+          <rect x="4" y="17" width="16" height="5" />
+        </svg>
+      );
     // Footing: T-shape foundation
     case 'concreta-footings':
       return (

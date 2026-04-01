@@ -32,6 +32,8 @@ Steel Beams: DONE (v0.1.1, 2026-03-28) — 14 suites, 79 tests: class detection,
 
 RC Columns: DONE (v0.2.0, 2026-03-30) — 67 tests: biaxial bending, per-axis slenderness, 15 CE checks. See `src/test/calc/rcColumns.test.ts`.
 
+Retaining walls: DONE (2026-04-01) — 57 tests + 20 rebar tests (after rebar feature), but hand-calc validation against CE/CTE examples not yet done. Run a reference calculation by hand (CE art. 18.2, CTE DB-SE-C §4.4) and diff against calcRetainingWall() before shipping. After rebar feature: also hand-check As_prov vs As_req for Ø16 c/200 on trasdós (H=3m, fck=25, fyk=500) — confirm As_prov=1005 mm²/m vs As_req computed by hand matches calc output.
+
 Footings: not yet implemented — test plan required before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
@@ -56,6 +58,22 @@ Update SPECS.md to reflect these decisions before public launch.
 ---
 
 ## P2 — Post-launch, pre-growth
+
+### Retaining wall: NCSP-07 S·Ab cap warning (eng-review 2026-04-01)
+
+When S·Ab > 0.1, NCSP-07 §2.2 requires recalculating S using a site-specific formula (not a simple constant). The current module uses S directly from user input with no validation. For most of Spain (low seismicity), S·Ab < 0.1 and this is fine. For soft soils (S=1.6) + moderate seismicity (Ab=0.08), S·Ab=0.128 — in range where the cap applies.
+
+Fix: add a warning in the inputs panel when `S * Ab > 0.1`: "S·Ab > 0.1: verificar S según NCSP-07 §2.2" and link to table.
+
+**Why P2:** Conservative safe side (higher kh). No structural risk. UI concern only.
+
+### Retaining wall: passive resistance Ep reduction (eng-review 2026-04-01)
+
+CTE DB-SE-C §7.3.2 notes that passive resistance should be excluded or reduced when toe embedment is unreliable (shallow hf, frost zone, disturbed soil in front of toe). Currently Ep is included at full Rankine Kp with no reduction factor or check on minimum hf.
+
+Fix: add a user-facing note in the results: "Ep incluida — verificar que la zapata esté por debajo de la línea de helada y el terreno frente a la punta no esté alterado" or add a checkbox to exclude Ep.
+
+**Why P2:** Including Ep is the unconservative side. In practice most engineers include it, but the user should be aware.
 
 ### Over-reinforcement handling in RC beams (adversarial review finding)
 
@@ -115,3 +133,18 @@ Priority: P3 — implement after talking to first users. They'll tell you what f
 - [x] `@media print` CSS rule for browser Ctrl+P — DONE (added to src/index.css 2026-03-27)
 - [ ] Content-Security-Policy headers via `vercel.json`
 - [ ] Color contrast audit — `accent` (#38bdf8) on `bg-primary` (#0f172a) at 11-12px font-mono. Check WCAG AA for small text (4.5:1 required). The ratio is ~4.9:1 so likely passes but worth confirming with a tool before public launch.
+
+### rcBeams: report As_req alongside bending check
+
+**Status:** DEFERRED (eng review 2026-03-31)
+
+After `solveRCBending` is added to `types.ts` for the retaining wall module, rcBeams
+could use it to display As_req (required steel area) in the key values panel alongside
+the existing MRd check. Currently rcBeams only shows MRd vs Md and the user must
+mentally invert it. As_req gives direct design guidance.
+
+**Where to start:** `src/lib/calculations/rcBeams.ts` `calcSection()` — call
+`solveRCBending(inp.Md, inp.b, d, fcd, fyd)` and add `As_req` to `RCBeamSectionResult`.
+Then display it in `RCBeamsResults.tsx` ValueRow section.
+
+**Depends on:** retaining wall module (introduces solveRCBending to types.ts first).

@@ -19,6 +19,22 @@ export function toStatus(util: number): CheckStatus {
   return 'fail';
 }
 
+// Inverse RC bending solver — shared by retainingWall.ts and other modules.
+// Returns As_req (mm²) to resist MEd_kNm in a rectangular section (b × d).
+// Returns Infinity if the section is over-reinforced (m ≥ 0.5).
+export function solveRCBending(
+  MEd_kNm: number,
+  b: number,    // mm
+  d: number,    // mm
+  fcd: number,  // MPa
+  fyd: number,  // MPa
+): number {
+  if (MEd_kNm <= 0) return 0;
+  const m = (MEd_kNm * 1e6) / (b * d * d * fcd);
+  if (m >= 0.5) return Infinity;
+  return (1 - Math.sqrt(1 - 2 * m)) * b * d * fcd / fyd;
+}
+
 export function makeCheck(
   id: string,
   description: string,

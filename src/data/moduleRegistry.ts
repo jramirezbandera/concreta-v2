@@ -4,14 +4,16 @@ import {
   steelBeamDefaults,
   steelColumnDefaults,
   footingDefaults,
+  retainingWallDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
   type SteelColumnInputs,
   type FootingInputs,
+  type RetainingWallInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -62,6 +64,14 @@ export const moduleRegistry: ModuleEntry[] = [
     group: 'Cimentación',
     defaults: footingDefaults,
     shipped: false,
+  },
+  {
+    key: 'concreta-retaining-wall',
+    route: '/ciment/muros',
+    label: 'Muros',
+    group: 'Cimentación',
+    defaults: retainingWallDefaults,
+    shipped: true,
   },
 ] as const;
 

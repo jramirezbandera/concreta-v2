@@ -5,6 +5,7 @@ import { RCBeamsModule } from './features/rc-beams';
 import { RCColumnsModule } from './features/rc-columns';
 import { SteelBeamsModule } from './features/steel-beams';
 import { SteelColumnsModule } from './features/steel-columns';
+import { RetainingWallModule } from './features/retaining-wall';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'horm/pilares', element: <RCColumnsModule /> },
       { path: 'acero/vigas', element: <SteelBeamsModule /> },
       { path: 'acero/pilares', element: <SteelColumnsModule /> },
+      { path: 'ciment/muros', element: <RetainingWallModule /> },
       {
         path: 'ciment/zapatas',
         element: (

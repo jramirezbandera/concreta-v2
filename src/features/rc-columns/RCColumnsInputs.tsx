@@ -35,8 +35,8 @@ function NumberField({
   fieldKey,
   value,
   unit,
-  min,
-  step = 1,
+  min: _min,
+  step: _step = 1,
   integer = false,
   setField,
 }: {
@@ -97,6 +97,7 @@ function NumberField({
 
 function SelectField({
   label,
+  sub,
   fieldKey,
   value,
   options,
@@ -104,6 +105,7 @@ function SelectField({
   setField,
 }: {
   label: string;
+  sub?: string;
   fieldKey: string;
   value: number;
   options: Array<{ value: number; label: string }>;
@@ -114,6 +116,7 @@ function SelectField({
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`select-${fieldKey}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
         {label}
+        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
         {unit && <span className="text-[11px] text-text-disabled ml-1">{unit}</span>}
       </label>
       <select
