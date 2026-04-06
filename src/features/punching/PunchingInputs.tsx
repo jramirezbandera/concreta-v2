@@ -1,0 +1,320 @@
+import React, { useState, useEffect } from 'react';
+import { type PunchingInputs, type PunchingMode, type PunchingPosition } from '../../data/defaults';
+import { availableFck } from '../../data/materials';
+import { availableBarDiams, getBarArea } from '../../data/rebar';
+
+interface PunchingInputsProps {
+  state: PunchingInputs;
+  setField: (field: string, value: PunchingInputs[keyof PunchingInputs]) => void;
+}
+
+function NumField({
+  label,
+  sub,
+  field,
+  value,
+  unit,
+  setField,
+}: {
+  label: string;
+  sub?: string;
+  field: string;
+  value: number;
+  unit: string;
+  setField: PunchingInputsProps['setField'];
+}) {
+  const [localStr, setLocalStr] = useState(() => String(value));
+
+  useEffect(() => {
+    setLocalStr(String(value));
+  }, [value]);
+
+  return (
+    <div className="flex items-center justify-between py-0.75 gap-2">
+      <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+        {label}
+        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+      </label>
+      <div className="flex shrink-0">
+        <input
+          id={`input-${field}`}
+          type="text"
+          inputMode="decimal"
+          value={localStr}
+          onChange={(e) => {
+            setLocalStr(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (!isNaN(n)) setField(field, n);
+          }}
+          onBlur={() => {
+            const n = parseFloat(localStr);
+            if (isNaN(n)) setLocalStr(String(value));
+          }}
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          aria-label={`${label} (${unit})`}
+        />
+        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  field,
+  value,
+  options,
+  setField,
+}: {
+  label: string;
+  field: string;
+  value: string | number;
+  options: Array<{ value: string | number; label: string }>;
+  setField: PunchingInputsProps['setField'];
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 gap-2">
+      <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+        {label}
+      </label>
+      <select
+        id={`select-${field}`}
+        value={value}
+        onChange={(e) => {
+          const raw = e.target.value;
+          const asNum = Number(raw);
+          setField(field, isNaN(asNum) ? raw : asNum);
+        }}
+        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
+      {label}
+    </p>
+  );
+}
+
+function ToggleButton({
+  label,
+  active,
+  disabled,
+  disabledTitle,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  disabledTitle?: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between py-0.75"
+      title={disabled ? disabledTitle : undefined}
+    >
+      <span className="text-[13px] text-text-secondary">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={active}
+        aria-disabled={disabled}
+        tabIndex={disabled ? -1 : 0}
+        disabled={disabled}
+        onClick={onClick}
+        className={[
+          'px-2.5 py-0.75 rounded border text-[11px] font-mono transition-colors',
+          active
+            ? 'bg-accent/10 border-accent/40 text-accent'
+            : 'bg-bg-primary border-border-main text-text-disabled hover:text-text-secondary',
+          disabled ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer',
+        ].join(' ')}
+      >
+        {active ? 'Activo' : 'Inactivo'}
+      </button>
+    </div>
+  );
+}
+
+// ── SVG schematics for mode buttons ──────────────────────────────────────────
+
+function SvgPilar() {
+  return (
+    <svg width="28" height="14" viewBox="0 0 28 14" aria-hidden="true">
+      {/* slab */}
+      <rect x="1" y="2" width="26" height="4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      {/* column stub below */}
+      <rect x="10" y="6" width="8" height="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      {/* upward force arrow inside column */}
+      <line x1="14" y1="13" x2="14" y2="9" stroke="currentColor" strokeWidth="1.2" />
+      <polygon points="14,6 11,9.5 17,9.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SvgCargaPuntual() {
+  return (
+    <svg width="28" height="14" viewBox="0 0 28 14" aria-hidden="true">
+      {/* downward load arrow */}
+      <line x1="14" y1="0" x2="14" y2="5" stroke="currentColor" strokeWidth="1.2" />
+      <polygon points="14,8 11,4 17,4" fill="currentColor" />
+      {/* slab */}
+      <rect x="1" y="8" width="26" height="4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+const MODES: Array<{ value: PunchingMode; label: string; Svg: () => React.ReactElement }> = [
+  { value: 'pilar',         label: 'Pilar',         Svg: SvgPilar },
+  { value: 'carga-puntual', label: 'Carga puntual', Svg: SvgCargaPuntual },
+];
+
+const POSITION_OPTIONS: Array<{ value: PunchingPosition; label: string }> = [
+  { value: 'interior', label: 'Interior' },
+  { value: 'borde',    label: 'Borde' },
+  { value: 'esquina',  label: 'Esquina' },
+];
+
+const FCK_OPTIONS  = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
+const BAR_DIAM_OPTIONS = availableBarDiams.map((v) => ({ value: v, label: `Ø ${v}` }));
+const SW_DIAM_OPTIONS  = [6, 8, 10, 12].map((v) => ({ value: v, label: `Ø ${v}` }));
+const SW_LEGS_OPTIONS  = [2, 3, 4, 5, 6].map((v) => ({ value: v, label: `${v}` }));
+
+export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
+  const mode     = state.mode as PunchingMode;
+  const position = state.position as PunchingPosition;
+  const isCircularDisabled = position !== 'interior';
+
+  const cxLabel = mode === 'pilar' ? 'Dim. pilar x' : 'Dim. área x';
+  const cyLabel = mode === 'pilar' ? 'Dim. pilar y' : 'Dim. área y';
+  const vedLabel = mode === 'pilar' ? 'Reacción pilar' : 'Carga puntual';
+
+  return (
+    <div className="flex flex-col" aria-label="Datos de entrada — Punzonamiento">
+
+      {/* MODE TOGGLE */}
+      <div
+        role="radiogroup"
+        aria-label="Modo de cálculo"
+        className="flex rounded border border-border-main mb-3 shrink-0 overflow-hidden"
+      >
+        {MODES.map(({ value, label, Svg }) => {
+          const isActive = mode === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              onClick={() => setField('mode', value)}
+              onKeyDown={(e) => {
+                const idx = MODES.findIndex((m) => m.value === value);
+                if (e.key === 'ArrowRight') {
+                  setField('mode', MODES[(idx + 1) % MODES.length].value);
+                } else if (e.key === 'ArrowLeft') {
+                  setField('mode', MODES[(idx - 1 + MODES.length) % MODES.length].value);
+                }
+              }}
+              className={[
+                'flex-1 flex flex-col items-center gap-1 py-1.5 px-0 transition-colors',
+                isActive
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-text-disabled hover:text-text-secondary',
+              ].join(' ')}
+            >
+              <Svg />
+              <span className="text-[10px] font-mono">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* GEOMETRÍA */}
+      <SectionHeader label="Geometría" />
+      <NumField label={cxLabel} sub="cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
+      <NumField label={cyLabel} sub="cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
+      <ToggleButton
+        label="Circular"
+        active={state.isCircular as boolean}
+        disabled={isCircularDisabled}
+        disabledTitle="Solo para posición interior"
+        onClick={() => setField('isCircular', !(state.isCircular as boolean))}
+      />
+      <NumField label="Canto útil" sub="d" field="d" value={state.d as number} unit="mm" setField={setField} />
+
+      {/* MATERIALES */}
+      <SectionHeader label="Materiales" />
+      <SelectField label="fck" field="fck" value={state.fck as number} options={FCK_OPTIONS} setField={setField} />
+      <NumField label="fyk" field="fyk" value={state.fyk as number} unit="MPa" setField={setField} />
+
+      {/* ARMADO DE FLEXIÓN */}
+      <SectionHeader label="Armado de flexión" />
+      <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
+      <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
+      <NumField label="Separación" sub="s" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
+      <p className="text-[10px] text-text-disabled mt-2 mb-1.5">Cara inferior</p>
+      <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField} />
+      <NumField label="Separación" sub="s" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
+      {/* Derived ρl feedback — tension face */}
+      {(() => {
+        const isSup = mode === 'pilar';
+        const diam = isSup ? state.barDiamSup as number : state.barDiamInf as number;
+        const s    = isSup ? state.sSup as number       : state.sInf as number;
+        const d    = state.d as number;
+        if (s > 0 && d > 0 && diam > 0) {
+          const rhoL = getBarArea(diam) / s / d;
+          return (
+            <div className="flex items-center justify-between py-0.75">
+              <span className="text-[10px] text-text-disabled">ρl cara tensión</span>
+              <span className="text-[10px] font-mono text-text-secondary tabular-nums">
+                {(rhoL * 100).toFixed(3)}%
+              </span>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* CARGA */}
+      <SectionHeader label="Carga" />
+      <NumField label={vedLabel} sub="VEd" field="VEd" value={state.VEd as number} unit="kN" setField={setField} />
+      <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Esfuerzo mayorado ELU</p>
+      <SelectField
+        label="Posición"
+        field="position"
+        value={state.position as string}
+        options={POSITION_OPTIONS}
+        setField={setField}
+      />
+
+      {/* ARMADO DE PUNZONAMIENTO */}
+      <SectionHeader label="Armado de punzonamiento" />
+      <ToggleButton
+        label="Con cercos tipo viga"
+        active={state.hasShearReinf as boolean}
+        onClick={() => setField('hasShearReinf', !(state.hasShearReinf as boolean))}
+      />
+      <div
+        className="overflow-hidden transition-all duration-150"
+        style={{ maxHeight: (state.hasShearReinf as boolean) ? '200px' : '0px', opacity: (state.hasShearReinf as boolean) ? 1 : 0 }}
+      >
+        <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField} />
+        <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField} />
+        <NumField    label="Separación" sub="sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
+        <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
+      </div>
+    </div>
+  );
+}

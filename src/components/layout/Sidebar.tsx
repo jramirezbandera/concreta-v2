@@ -53,6 +53,14 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <rect x="4" y="17" width="16" height="5" />
         </svg>
       );
+    // Punching: slab plan view with column square + u1 perimeter circle
+    case 'concreta-punching':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <rect x="9" y="9" width="6" height="6" />
+          <circle cx="12" cy="12" r="9" strokeDasharray="3 2" />
+        </svg>
+      );
     // Footing: T-shape foundation
     case 'concreta-footings':
       return (

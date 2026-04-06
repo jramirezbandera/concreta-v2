@@ -331,3 +331,5 @@ Explícitamente prohibido:
 | 2026-03-28 | border-sub: #253147 (no #1e293b) | #1e293b = bg-surface → divisores invisibles; #253147 es levemente visible |
 | 2026-03-28 | Canvas dot-grid (.canvas-dot-grid) | "Mesa de trabajo del ingeniero" — diferenciador único frente a competencia |
 | 2026-03-28 | bg-elevated: #263348 para sufijos de unidad | Contraste visual entre input y unidad sin usar un color disruptivo |
+| 2026-04-06 | Cercos punzonamiento: stroke-text-disabled (#475569), no accent | Distingue cercos de u1 y anotaciones de cota; sigue regla "Estribos: text-disabled" |
+| 2026-04-06 | ρl inline en panel inputs (punzonamiento) | Cierra el feedback loop al punto de entrada — el usuario ve el efecto sin ir a resultados |

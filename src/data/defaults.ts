@@ -280,6 +280,54 @@ export const retainingWallDefaults: RetainingWallInputs = {
   diam_zt_sup: 0, sep_zt_sup: 200,
 };
 
+// ── Punching shear (CE art. 6.4) ─────────────────────────────────────────────
+
+export type PunchingMode = 'pilar' | 'carga-puntual';
+export type PunchingPosition = 'interior' | 'borde' | 'esquina';
+
+export interface PunchingInputs {
+  [key: string]: string | number | boolean;
+  mode:          PunchingMode;      // 'pilar' | 'carga-puntual'
+  cx:            number;            // mm — column/area dim x (or Ø if circular)
+  cy:            number;            // mm — column/area dim y (= cx if circular)
+  isCircular:    boolean;           // only active when position='interior'
+  d:             number;            // mm — effective depth of slab
+  fck:           number;            // MPa
+  fyk:           number;            // MPa — flexural reinforcement steel
+  barDiamSup:    number;            // mm — top face rebar diameter
+  sSup:          number;            // mm — top face bar spacing
+  barDiamInf:    number;            // mm — bottom face rebar diameter
+  sInf:          number;            // mm — bottom face bar spacing
+  VEd:           number;            // kN — design force ELU
+  position:      PunchingPosition;  // 'interior' | 'borde' | 'esquina'
+  hasShearReinf: boolean;
+  swDiam:        number;            // mm — stirrup bar diameter
+  swLegs:        number;            // number of stirrup legs per stirrup group
+  sr:            number;            // mm — radial spacing between stirrup rows
+  fywk:          number;            // MPa — stirrup characteristic strength
+}
+
+export const punchingDefaults: PunchingInputs = {
+  mode:          'pilar',
+  cx:            300,
+  cy:            300,
+  isCircular:    false,
+  d:             200,     // mm — solid slab h≈250, cover≈40, rebar≈10
+  fck:           25,
+  fyk:           500,
+  barDiamSup:    12,     // Ø12@150 → As=0.754mm²/mm → ρl≈0.377% → vRdc≈0.507MPa
+  sSup:          150,
+  barDiamInf:    12,
+  sInf:          150,
+  VEd:           300,    // kN — produces ~80% util on vRd,c at FTUX
+  position:      'interior',
+  hasShearReinf: false,
+  swDiam:        8,      // mm — typical stirrup diameter
+  swLegs:        2,
+  sr:            100,    // mm — radial spacing between stirrup rows
+  fywk:          500,
+};
+
 export const footingDefaults: FootingInputs = {
   bc: 300,
   hc: 300,

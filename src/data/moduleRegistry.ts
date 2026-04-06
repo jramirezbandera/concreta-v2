@@ -5,15 +5,17 @@ import {
   steelColumnDefaults,
   footingDefaults,
   retainingWallDefaults,
+  punchingDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
   type SteelColumnInputs,
   type FootingInputs,
   type RetainingWallInputs,
+  type PunchingInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -71,6 +73,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Muros',
     group: 'Cimentación',
     defaults: retainingWallDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-punching',
+    route: '/horm/punzonamiento',
+    label: 'Punzonamiento',
+    group: 'Hormigón',
+    defaults: punchingDefaults,
     shipped: true,
   },
 ] as const;
