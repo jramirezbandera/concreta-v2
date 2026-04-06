@@ -44,11 +44,12 @@ describe('FTUX defaults', () => {
     }
   });
 
-  it('all check.article fields reference CTE, CE, NCSE, or NCSP', () => {
+  it('all check.article fields reference CTE, CE, NCSE, NCSP, or Criterio de ingeniería', () => {
     const r = calcRetainingWall(base);
     for (const c of r.checks) {
       const ok = c.article.includes('CTE') || c.article.includes('CE') ||
-                 c.article.includes('NCSE') || c.article.includes('NCSP');
+                 c.article.includes('NCSE') || c.article.includes('NCSP') ||
+                 c.article.includes('Criterio');
       expect(ok, `check ${c.id} article: "${c.article}"`).toBe(true);
     }
   });
@@ -406,10 +407,12 @@ describe('rebar verification', () => {
     expect(r.As_min_h_fuste).toBeGreaterThan(0);
   });
 
-  it('As_min_trans_zap = 0.0015 × 1000 × hf_mm (CE Anejo 19 art. 9.2, slab, fyk=500)', () => {
+  it('As_min_talon follows CE art. 9.1: max(0.26·fctm/fyk·b·d, 0.0013·b·d)', () => {
+    // base: fck=25 → fctm=2.56 MPa, fyk=500, hf=0.5m, cover=0.04m → d=446mm
     const r = calcRetainingWall(base);
-    const expected = 0.0015 * 1000 * (base.hf * 1000);
-    expect(r.As_min_trans_zap).toBeCloseTo(expected, 0);
+    const d = 0.5 * 1000 - 0.04 * 1000 - 14; // 446mm
+    const expected = Math.max(0.26 * 2.56 / 500 * 1000 * d, 0.0013 * 1000 * d);
+    expect(r.As_min_talon).toBeCloseTo(expected, 0);
   });
 
   // Fuste trasdós — sizing mode check still present
@@ -479,26 +482,30 @@ describe('rebar verification', () => {
     expect(c!.value).toMatch(/As,prov/);
   });
 
-  // zapata-asmin-trans — only when As_prov_zt > 0
-  it('zapata-asmin-trans absent when diam_zt_inf=0 and diam_zt_sup=0', () => {
+  // zapata-asmin-trans-inf / sup — only when As_prov_zt_inf / _sup > 0
+  it('zapata-asmin-trans-inf absent when diam_zt_inf=0', () => {
     const r = calcRetainingWall(base);
-    expect(r.checks.find((c) => c.id === 'zapata-asmin-trans')).toBeUndefined();
+    expect(r.checks.find((c) => c.id === 'zapata-asmin-trans-inf')).toBeUndefined();
+    expect(r.checks.find((c) => c.id === 'zapata-asmin-trans-sup')).toBeUndefined();
   });
 
-  it('zapata-asmin-trans present for ø16 c/150 transversal inferior only', () => {
-    // ø16 c/150 → ~1340 mm²/m > As_min_trans_zap = 0.0015*1000*500 = 750 mm²/m
+  it('zapata-asmin-trans-inf present for ø16 c/150 transversal inferior (30% rule + Ø12@20 floor)', () => {
+    // ø16 c/150 → ~1340 mm²/m > max(30% × As_t, 565) → ok
     const r = calcRetainingWall({ ...base, diam_zt_inf: 16, sep_zt_inf: 150 });
-    const c = r.checks.find((ch) => ch.id === 'zapata-asmin-trans');
+    const c = r.checks.find((ch) => ch.id === 'zapata-asmin-trans-inf');
     expect(c).toBeDefined();
     expect(c!.status).toBe('ok');
   });
 
-  it('zapata-asmin-trans sums inf + sup: two bars together pass', () => {
-    // ø10 c/150 inf → ~524 mm²/m; ø10 c/150 sup → ~524 mm²/m; total ~1047 > 750 → ok
-    const r = calcRetainingWall({ ...base, diam_zt_inf: 10, sep_zt_inf: 150, diam_zt_sup: 10, sep_zt_sup: 150 });
-    const c = r.checks.find((ch) => ch.id === 'zapata-asmin-trans');
-    expect(c).toBeDefined();
-    expect(c!.status).toBe('ok');
+  it('zapata-asmin-trans-sup present independently when sup rebar provided', () => {
+    // ø12 c/150 sup → ~754 mm²/m > max(30% × As_p, 565) → ok
+    const r = calcRetainingWall({ ...base, diam_zt_inf: 12, sep_zt_inf: 150, diam_zt_sup: 12, sep_zt_sup: 150 });
+    const cinf = r.checks.find((ch) => ch.id === 'zapata-asmin-trans-inf');
+    const csup = r.checks.find((ch) => ch.id === 'zapata-asmin-trans-sup');
+    expect(cinf).toBeDefined();
+    expect(csup).toBeDefined();
+    expect(cinf!.status).toBe('ok');
+    expect(csup!.status).toBe('ok');
     expect(r.As_prov_zt).toBeCloseTo(r.As_prov_zt_inf + r.As_prov_zt_sup, 0);
   });
 

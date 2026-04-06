@@ -8,7 +8,7 @@
 // CE Anejo 19 art. 9.6.2   — vertical minimum reinforcement (walls)
 // CE Anejo 19 art. 9.6.3   — horizontal minimum reinforcement (walls)
 // CE Anejo 19 art. 9.6.4   — transverse ties (walls)
-// CE Anejo 19 art. 9.2     — slab minimum reinforcement (footing)
+// CE art. 9.1              — general minimum reinforcement (bending, footing)
 // CE art. 44.2.3.2.1       — shear without transverse reinforcement
 // CTE DB-SE-C §4.4 — geotechnical stability checks
 // NCSE-02 / NCSP-07 — seismic stability
@@ -63,8 +63,9 @@ export interface RetainingWallResult {
   As_prov_zt_sup: number;
   As_prov_zt:     number;   // = inf + sup (total both faces)
   // Secondary minimums
-  As_min_h_fuste:   number;
-  As_min_trans_zap: number;
+  As_min_h_fuste:       number;
+  As_min_trans_zap_inf: number;   // transverse inf (30% × As_t, min Ø12@20)
+  As_min_trans_zap_sup: number;   // transverse sup (30% × As_p, min Ø12@20)
   checks: CheckRow[];
 }
 
@@ -78,7 +79,7 @@ function invalid(error: string): RetainingWallResult {
     MEd_punta: 0, As_req_punta: 0, As_min_punta: 0,
     As_prov_fv_int: 0, As_prov_fv_ext: 0, As_prov_fh: 0,
     As_prov_zs: 0, As_prov_zi: 0, As_prov_zt_inf: 0, As_prov_zt_sup: 0, As_prov_zt: 0,
-    As_min_h_fuste: 0, As_min_trans_zap: 0,
+    As_min_h_fuste: 0, As_min_trans_zap_inf: 0, As_min_trans_zap_sup: 0,
     checks: [],
   };
 }
@@ -125,6 +126,10 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const mat = getConcrete(inp.fck);
   const fcd  = mat.fcd;            // MPa
   const fyd  = inp.fyk / GAMMA_S;  // MPa
+  // CE art. 9.1 — general minimum reinforcement for bending (footing)
+  // As,min = max(0.26·fctm/fyk · b·d, 0.0013·b·d)
+  const asMin91 = (d_mm: number): number =>
+    Math.max(0.26 * mat.fctm / inp.fyk * 1000 * d_mm, 0.0013 * 1000 * d_mm);
 
   // ── 3. Active earth pressure coefficient (Coulomb) ───────────────────────
   const phi_r   = (inp.phi   * Math.PI) / 180;
@@ -333,7 +338,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   let MEd_fuste = 0, As_req_fuste = 0, As_min_fuste = 0;
   let MEd_talon = 0, As_req_talon = 0, As_min_talon = 0;
   let MEd_punta = 0, As_req_punta = 0, As_min_punta = 0;
-  let As_min_h_fuste = 0, As_min_trans_zap = 0;
+  let As_t = 0, As_p = 0;
+  let As_min_h_fuste = 0, As_min_trans_zap_inf = 0, As_min_trans_zap_sup = 0;
 
   if (!exceedsBoundary) {
     const b_w = 1000;  // per unit width (mm)
@@ -372,9 +378,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     // CE Anejo 19 art. 9.6.3 — horizontal minimum for wall (fuste), per face
     const coef_h = inp.fyk === 400 ? 0.004 : 0.0032;
     As_min_h_fuste = (coef_h / 2) * b_w * (tF_m * 1000);
-    // CE Anejo 19 art. 9.2 — slab minimum for footing (per face)
-    const coef_s = inp.fyk === 400 ? 0.0018 : 0.0015;
-    As_min_trans_zap = coef_s * b_w * (hf_m * 1000);
+    const MIN_TRANS_ABS = 565;  // mm²/m ≈ Ø12@20 (absolute floor for transverse rebar)
     const As_f   = Math.max(isFinite(As_req_fuste) ? As_req_fuste : As_min_fuste, As_min_fuste);
 
     // VRd,c (CE art. 44.2.3.2.1) — walls have no stirrups; use actual ρl when provided
@@ -469,9 +473,11 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const d_t    = d_talon_mm;
       const m_t    = MEd_talon > 0 ? (MEd_talon * 1e6) / (b_w * d_t * d_t * fcd) : 0;
       As_req_talon = solveRCBending(MEd_talon, b_w, d_t, fcd, fyd);
-      // CE Anejo 19 art. 9.2 — slab minimum for footing (per face)
-      As_min_talon = As_min_trans_zap;  // same slab formula: coef_s × b × h
-      const As_t   = Math.max(isFinite(As_req_talon) ? As_req_talon : As_min_talon, As_min_talon);
+      // CE art. 9.1 — general minimum reinforcement for bending (footing)
+      As_min_talon = asMin91(d_t);
+      As_t = Math.max(isFinite(As_req_talon) ? As_req_talon : As_min_talon, As_min_talon);
+      // Transverse inf minimum: engineering criterion (no normative reference for footing)
+      As_min_trans_zap_inf = Math.max(0.30 * As_t, MIN_TRANS_ABS);
 
       if (As_prov_zs > 0) {
         checks.push(makeCheck(
@@ -482,11 +488,11 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           'CE art. 18.2',
         ));
         checks.push(makeCheck(
-          'talon-asmin', 'Armadura minima talón (losa de cimentación)',
+          'talon-asmin', 'Armadura minima talón ≥ As,min (flexión CE art. 9.1)',
           As_min_talon, As_prov_zs,
           `As,prov = ${As_prov_zs.toFixed(0)} mm²/m`,
           `As,min = ${As_min_talon.toFixed(0)} mm²/m`,
-          'CE Anejo 19 art. 9.2',
+          'CE art. 9.1',
         ));
       } else {
         checks.push({
@@ -501,20 +507,20 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
         const As_t_cap = isFinite(As_req_talon) && As_req_talon < As_min_talon
           ? As_min_talon * 1.001 : As_t;
         checks.push(makeCheck(
-          'talon-asmin', 'Armadura minima talón (losa de cimentación)',
+          'talon-asmin', 'Armadura minima talón ≥ As,min (flexión CE art. 9.1)',
           As_min_talon, As_t_cap,
           `As,min = ${As_min_talon.toFixed(0)} mm²/m`, `As,prov = ${As_t.toFixed(0)} mm²/m`,
-          'CE Anejo 19 art. 9.2',
+          'CE art. 9.1',
         ));
       }
-      // Zapata transversal asmin (only when specified; placed under talón group)
-      if (As_prov_zt > 0) {
+      // Zapata transversal inf — criterio de ingeniería (≥ 30% As,long; mín. Ø12@20)
+      if (As_prov_zt_inf > 0) {
         checks.push(makeCheck(
-          'zapata-asmin-trans', 'Armado transversal zapata (inf + sup) ≥ As,min',
-          As_min_trans_zap, As_prov_zt,
-          `As,prov = ${As_prov_zt_inf.toFixed(0)} + ${As_prov_zt_sup.toFixed(0)} mm²/m`,
-          `As,min = ${As_min_trans_zap.toFixed(0)} mm²/m`,
-          'CE Anejo 19 art. 9.2',
+          'zapata-asmin-trans-inf', 'Armado transversal zapata inf ≥ As,min,trans',
+          As_min_trans_zap_inf, As_prov_zt_inf,
+          `As,prov = ${As_prov_zt_inf.toFixed(0)} mm²/m`,
+          `As,min = ${As_min_trans_zap_inf.toFixed(0)} mm²/m (30% As,long; mín. Ø12@20)`,
+          'Criterio de ingeniería',
         ));
       }
     }
@@ -534,9 +540,11 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const d_p    = d_punta_mm;
       const m_p    = MEd_punta > 0 ? (MEd_punta * 1e6) / (b_w * d_p * d_p * fcd) : 0;
       As_req_punta = solveRCBending(MEd_punta, b_w, d_p, fcd, fyd);
-      // CE Anejo 19 art. 9.2 — slab minimum for footing (per face)
-      As_min_punta = As_min_trans_zap;  // same slab formula: coef_s × b × h
-      const As_p   = Math.max(isFinite(As_req_punta) ? As_req_punta : As_min_punta, As_min_punta);
+      // CE art. 9.1 — general minimum reinforcement for bending (footing)
+      As_min_punta = asMin91(d_p);
+      As_p = Math.max(isFinite(As_req_punta) ? As_req_punta : As_min_punta, As_min_punta);
+      // Transverse sup minimum: engineering criterion (no normative reference for footing)
+      As_min_trans_zap_sup = Math.max(0.30 * As_p, MIN_TRANS_ABS);
 
       if (As_prov_zi > 0) {
         checks.push(makeCheck(
@@ -547,11 +555,11 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           'CE art. 18.2',
         ));
         checks.push(makeCheck(
-          'punta-asmin', 'Armadura minima punta (losa de cimentación)',
+          'punta-asmin', 'Armadura minima punta ≥ As,min (flexión CE art. 9.1)',
           As_min_punta, As_prov_zi,
           `As,prov = ${As_prov_zi.toFixed(0)} mm²/m`,
           `As,min = ${As_min_punta.toFixed(0)} mm²/m`,
-          'CE Anejo 19 art. 9.2',
+          'CE art. 9.1',
         ));
       } else {
         checks.push({
@@ -566,10 +574,20 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
         const As_p_cap = isFinite(As_req_punta) && As_req_punta < As_min_punta
           ? As_min_punta * 1.001 : As_p;
         checks.push(makeCheck(
-          'punta-asmin', 'Armadura minima punta (losa de cimentación)',
+          'punta-asmin', 'Armadura minima punta ≥ As,min (flexión CE art. 9.1)',
           As_min_punta, As_p_cap,
           `As,min = ${As_min_punta.toFixed(0)} mm²/m`, `As,prov = ${As_p.toFixed(0)} mm²/m`,
-          'CE Anejo 19 art. 9.2',
+          'CE art. 9.1',
+        ));
+      }
+      // Zapata transversal sup — criterio de ingeniería (≥ 30% As,long; mín. Ø12@20)
+      if (As_prov_zt_sup > 0) {
+        checks.push(makeCheck(
+          'zapata-asmin-trans-sup', 'Armado transversal zapata sup ≥ As,min,trans',
+          As_min_trans_zap_sup, As_prov_zt_sup,
+          `As,prov = ${As_prov_zt_sup.toFixed(0)} mm²/m`,
+          `As,min = ${As_min_trans_zap_sup.toFixed(0)} mm²/m (30% As,long; mín. Ø12@20)`,
+          'Criterio de ingeniería',
         ));
       }
     }
@@ -597,7 +615,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     MEd_punta, As_req_punta, As_min_punta,
     As_prov_fv_int, As_prov_fv_ext, As_prov_fh,
     As_prov_zs, As_prov_zi, As_prov_zt_inf, As_prov_zt_sup, As_prov_zt,
-    As_min_h_fuste, As_min_trans_zap,
+    As_min_h_fuste, As_min_trans_zap_inf, As_min_trans_zap_sup,
     checks,
   };
 }
