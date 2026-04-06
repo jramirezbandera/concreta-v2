@@ -328,6 +328,38 @@ export const punchingDefaults: PunchingInputs = {
   fywk:          500,
 };
 
+// ── Composite steel section (Steiner + EC3 classification) ───────────────────
+
+export type CompositeSectionMode = 'custom' | 'reinforced';
+export type CompositePlatePos = 'top' | 'bottom' | 'left' | 'right' | 'custom';
+export type SteelGrade = 'S235' | 'S275' | 'S355' | 'S450';
+
+export interface PlateEntry {
+  id: string;
+  b: number;             // mm — horizontal width in cross-section
+  t: number;             // mm — vertical thickness (ignored for left/right)
+  posType: CompositePlatePos;
+  customYBottom: number; // mm — only used when posType='custom'
+}
+
+export interface CompositeSectionInputs {
+  mode: CompositeSectionMode;
+  profileType: 'IPE' | 'HEA' | 'HEB';
+  profileSize: number;
+  grade: SteelGrade;
+  plates: PlateEntry[];
+}
+
+export const compositeSectionDefaults: CompositeSectionInputs = {
+  mode: 'reinforced',
+  profileType: 'IPE',
+  profileSize: 300,
+  grade: 'S275',
+  plates: [
+    { id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 },
+  ],
+};
+
 export const footingDefaults: FootingInputs = {
   bc: 300,
   hc: 300,

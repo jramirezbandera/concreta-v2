@@ -76,7 +76,17 @@
       "Bash(head -15 grep -n \"icon\\\\|Icon\\\\|moduleLabel\" /c/Users/Javier/Desktop/programacion/concreta-gstack-v2/src/components/ModuleLayout.tsx)",
       "Bash(head -20 grep -n \"hw\\\\|water\\\\|freatic\\\\|nivel\" /c/Users/Javier/Desktop/programacion/concreta-gstack-v2/src/features/retaining-wall/RetainingWallInputs.tsx)",
       "Bash(npx --package typescript tsc --noEmit)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(bash ~/.claude/skills/gstack/gstack-upgrade/migrations/v0.15.2.0.sh)",
+      "Bash(eval '$\\(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null\\)' echo 'SLUG: $SLUG' ls -t ~/.gstack/projects/$SLUG/*-design-*.md)",
+      "Bash(head -10 grep -n \"fctm\" c:/Users/Javier/Desktop/programacion/concreta-gstack-v2/src/lib/calculations/*.ts)",
+      "Bash(head -10 grep -n \"interface\\\\|type.*Concrete\\\\|getConcrete\" c:/Users/Javier/Desktop/programacion/concreta-gstack-v2/src/data/materials.ts)",
+      "Bash(node_modules/.bin/vitest run:*)",
+      "Bash(ls src/components/checks*)",
+      "Bash(cd /c/Users/Javier/Desktop/programacion/concreta-gstack-v2 bun run build)",
+      "Bash(eval '$\\(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null\\)' setopt +o nomatch)",
+      "Skill(plan-ceo-review)",
+      "Skill(plan-ceo-review:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Javier\\.gstack\\projects\\concreta-gstack-v2\\ceo-plans",

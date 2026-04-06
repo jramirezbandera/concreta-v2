@@ -61,6 +61,20 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <circle cx="12" cy="12" r="9" strokeDasharray="3 2" />
         </svg>
       );
+    // Composite section: I-section with cover plate on top
+    case 'concreta-composite-section':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* cover plate */}
+          <rect x="3"  y="1"  width="18" height="3" />
+          {/* top flange */}
+          <rect x="5"  y="4"  width="14" height="3" />
+          {/* web */}
+          <rect x="10" y="7"  width="4"  height="9" />
+          {/* bottom flange */}
+          <rect x="5"  y="16" width="14" height="3" />
+        </svg>
+      );
     // Footing: T-shape foundation
     case 'concreta-footings':
       return (

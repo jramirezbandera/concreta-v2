@@ -6,6 +6,7 @@ import {
   footingDefaults,
   retainingWallDefaults,
   punchingDefaults,
+  compositeSectionDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -81,6 +82,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Punzonamiento',
     group: 'Hormigón',
     defaults: punchingDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-composite-section',
+    route: '/acero/seccion-compuesta',
+    label: 'Sección compuesta',
+    group: 'Acero',
+    defaults: compositeSectionDefaults as unknown as ModuleInputs,
     shipped: true,
   },
 ] as const;

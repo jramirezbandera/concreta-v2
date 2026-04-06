@@ -36,6 +36,8 @@ Retaining walls: DONE (2026-04-01) — 57 tests + 20 rebar tests (after rebar fe
 
 Punching: DONE (2026-04-06) — 59 tests: ρl from bar dims, tipo-viga Asw by position, vRdcs formula, failing VEd paths, invalid inputs. But hand-calc validation against CE art. 6.4 examples not yet done. Run a reference calculation by hand (e.g. interior column 300×300, d=200, fck=25, Ø12@150, VEd=300kN) and diff against calcPunching() before shipping. Also add PDF export (src/lib/pdf/punching.ts) before shipping.
 
+Sección Compuesta: DONE (2026-04-06) — 35 tests: FTUX defaults, bare profile, centroid arithmetic, Wpl/Wel_min, EC3 classification (web + flanges), Mrd formula (class 1/2/3/4), custom mode, plate stacking, validation guards, custom y-position. Hand-calc confirmed in design doc: IPE 300 + 200×15 → Iy=13140.7 cm⁴, yc=206.4mm, Wel_min=637 cm³, Class 1 (CE art. 5.2, ε=0.924). See `src/test/calc/compositeSection.test.ts`. PDF export pending before shipping.
+
 Footings: not yet implemented — test plan required before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
