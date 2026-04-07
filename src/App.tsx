@@ -8,6 +8,7 @@ import { SteelColumnsModule } from './features/steel-columns';
 import { RetainingWallModule } from './features/retaining-wall';
 import { PunchingModule } from './features/punching';
 import { CompositeSectionModule } from './features/compositeSection';
+import { PileCapModule } from './features/pile-cap';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { path: 'ciment/muros', element: <RetainingWallModule /> },
       { path: 'horm/punzonamiento', element: <PunchingModule /> },
       { path: 'acero/seccion-compuesta', element: <CompositeSectionModule /> },
+      { path: 'horm/encepados', element: <PileCapModule /> },
       {
         path: 'ciment/zapatas',
         element: (

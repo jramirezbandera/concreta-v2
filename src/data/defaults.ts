@@ -360,6 +360,45 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
   ],
 };
 
+// ── Pile caps — Encepados de micropilotes (CE art. 48 / CTE DB-SE-C §5.1.4) ──
+
+export interface PileCapInputs {
+  [key: string]: string | number | boolean;
+  n:        number;  // 2 | 3 | 4 — number of micropiles
+  d_p:      number;  // mm — pile diameter
+  s:        number;  // mm — pile spacing c/c
+  h_enc:    number;  // mm — cap depth
+  b_col:    number;  // mm — column width (x)
+  h_col:    number;  // mm — column depth (y)
+  fck:      number;  // MPa
+  fyk:      number;  // MPa
+  cover:    number;  // mm — bottom cover to tie bar centroid
+  phi_tie:  number;  // mm — tie bar diameter
+  N_Ed:     number;  // kN — design axial (compression > 0)
+  Mx_Ed:    number;  // kNm — moment about x-axis (Navier)
+  My_Ed:    number;  // kNm — moment about y-axis
+  R_adm:    number;  // kN — admissible pile capacity
+}
+
+// FTUX defaults: all checks CUMPLE at ~60-75% utilization on first open.
+// Verified hand-calc: σ_strut=6.2MPa vs σ_Rd=9.0MPa → 69%; lb_net≈108mm vs lb_avail≈720mm → 15%.
+export const pileCapDefaults: PileCapInputs = {
+  n:       2,
+  d_p:     200,
+  s:       1200,
+  h_enc:   800,
+  b_col:   400,
+  h_col:   400,
+  fck:     25,
+  fyk:     500,
+  cover:   60,
+  phi_tie: 12,
+  N_Ed:    300,
+  Mx_Ed:   0,
+  My_Ed:   0,
+  R_adm:   250,
+};
+
 export const footingDefaults: FootingInputs = {
   bc: 300,
   hc: 300,

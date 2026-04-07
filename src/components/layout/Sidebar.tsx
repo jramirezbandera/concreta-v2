@@ -75,6 +75,21 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <rect x="5"  y="16" width="14" height="3" />
         </svg>
       );
+    // Pile cap: plan view — column square + 4 pile circles
+    case 'concreta-pile-cap':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Pile cap outline */}
+          <rect x="2" y="2" width="20" height="20" />
+          {/* Column */}
+          <rect x="9" y="9" width="6" height="6" fill="currentColor" stroke="none" opacity="0.5" />
+          {/* Piles — 4 corners */}
+          <circle cx="5"  cy="5"  r="1.8" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="5"  r="1.8" fill="currentColor" stroke="none" />
+          <circle cx="5"  cy="19" r="1.8" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="19" r="1.8" fill="currentColor" stroke="none" />
+        </svg>
+      );
     // Footing: T-shape foundation
     case 'concreta-footings':
       return (

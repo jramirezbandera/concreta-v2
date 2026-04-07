@@ -7,6 +7,7 @@ import {
   retainingWallDefaults,
   punchingDefaults,
   compositeSectionDefaults,
+  pileCapDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -14,9 +15,10 @@ import {
   type FootingInputs,
   type RetainingWallInputs,
   type PunchingInputs,
+  type PileCapInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -90,6 +92,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Sección compuesta',
     group: 'Acero',
     defaults: compositeSectionDefaults as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
+    key: 'concreta-pile-cap',
+    route: '/horm/encepados',
+    label: 'Encepados',
+    group: 'Hormigón',
+    defaults: pileCapDefaults,
     shipped: true,
   },
 ] as const;
