@@ -61,20 +61,24 @@ export async function exportIsolatedFootingPDF(
 
   const SVG_X  = M;
   const SVG_Y  = M + 12;
-  const SVG_W  = 80;
-  const SVG_H1 = 55;  // plan
-  const SVG_H2 = 55;  // section
+  // Plan SVG is square (260×260 viewBox) — allocate 60×60mm to avoid wasted space.
+  // Section SVG is wide (320×192 viewBox) — allocate 80mm wide to fill the column.
+  const SVG_W1 = 60;  // plan (square)
+  const SVG_H1 = 60;
+  const SVG_W2 = 80;  // section (wider)
+  const SVG_H2 = 50;
 
   if (planSvg) {
-    await svg2pdf(planSvg, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H1 });
+    await svg2pdf(planSvg, doc, { x: SVG_X, y: SVG_Y, width: SVG_W1, height: SVG_H1 });
   }
   if (sectionSvg) {
-    await svg2pdf(sectionSvg, doc, { x: SVG_X, y: SVG_Y + SVG_H1 + 3, width: SVG_W, height: SVG_H2 });
+    await svg2pdf(sectionSvg, doc, { x: SVG_X, y: SVG_Y + SVG_H1 + 3, width: SVG_W2, height: SVG_H2 });
   }
 
   // ── Right column ─────────────────────────────────────────────────────────────
-  const COL_R  = M + 87;
-  const COL_R2 = COL_R + 45;
+  // Start at M + SVG_W2 + 7 = M+87. Use SVG_W2 as the binding width (wider of the two).
+  const COL_R  = M + SVG_W2 + 7;
+  const COL_R2 = COL_R + 50;
   const LH     = 4.5;
   let ry = M + 14;
 
