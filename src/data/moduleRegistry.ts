@@ -3,11 +3,11 @@ import {
   rcColumnDefaults,
   steelBeamDefaults,
   steelColumnDefaults,
-  footingDefaults,
   retainingWallDefaults,
   punchingDefaults,
   compositeSectionDefaults,
   pileCapDefaults,
+  isolatedFootingDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -16,9 +16,10 @@ import {
   type RetainingWallInputs,
   type PunchingInputs,
   type PileCapInputs,
+  type IsolatedFootingInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -67,8 +68,8 @@ export const moduleRegistry: ModuleEntry[] = [
     route: '/ciment/zapatas',
     label: 'Zapatas',
     group: 'Cimentación',
-    defaults: footingDefaults,
-    shipped: false,
+    defaults: isolatedFootingDefaults,
+    shipped: true,
   },
   {
     key: 'concreta-retaining-wall',

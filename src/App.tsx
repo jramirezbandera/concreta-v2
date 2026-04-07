@@ -1,6 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AppShell, NotFound } from './components/layout/AppShell';
-import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { RCBeamsModule } from './features/rc-beams';
 import { RCColumnsModule } from './features/rc-columns';
 import { SteelBeamsModule } from './features/steel-beams';
@@ -9,6 +8,7 @@ import { RetainingWallModule } from './features/retaining-wall';
 import { PunchingModule } from './features/punching';
 import { CompositeSectionModule } from './features/compositeSection';
 import { PileCapModule } from './features/pile-cap';
+import { IsolatedFootingModule } from './features/isolated-footing';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -27,19 +27,7 @@ const router = createBrowserRouter([
       { path: 'horm/punzonamiento', element: <PunchingModule /> },
       { path: 'acero/seccion-compuesta', element: <CompositeSectionModule /> },
       { path: 'horm/encepados', element: <PileCapModule /> },
-      {
-        path: 'ciment/zapatas',
-        element: (
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="h-12 shrink-0 flex items-center px-4 bg-bg-primary border-b border-border-main">
-              <span className="text-base font-medium text-text-primary">
-                Zapatas <span className="text-text-secondary font-normal">— Cimentación</span>
-              </span>
-            </div>
-            <ModulePlaceholder label="Zapatas" group="Cimentación" />
-          </div>
-        ),
-      },
+      { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
       { path: '*', element: <NotFound /> },
     ],
   },

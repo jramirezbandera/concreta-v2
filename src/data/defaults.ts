@@ -413,3 +413,67 @@ export const footingDefaults: FootingInputs = {
   Nd: 450,
   qadm: 200,
 };
+
+// ── Isolated footing (CTE DB-SE-C art. 4.3.2/4.3.3 + CE armado) ──────────────
+
+export type FootingSoilType = 'cohesive' | 'granular';
+
+export interface IsolatedFootingInputs {
+  [key: string]: string | number | boolean;
+  // Geometry (m)
+  B:          number;  // footing width — x direction
+  L:          number;  // footing length — y direction
+  h:          number;  // footing height
+  bc:         number;  // column width x
+  hc:         number;  // column depth y
+  Df:         number;  // foundation depth from ground surface
+  cover:      number;  // mm — cover to bar centroid (bottom)
+  // SLS loads (soil checks)
+  N_k:        number;  // kN — vertical (compression +)
+  Mx_k:       number;  // kNm — moment about x axis (→ eccentricity in y)
+  My_k:       number;  // kNm — moment about y axis (→ eccentricity in x)
+  H_k:        number;  // kN — horizontal (for sliding check)
+  // ELU loads (structural checks)
+  N_Ed:       number;  // kN
+  Mx_Ed:      number;  // kNm
+  My_Ed:      number;  // kNm
+  // Materials
+  fck:        number;  // MPa
+  fyk:        number;  // MPa
+  // Reinforcement (user-defined)
+  phi_x:      number;  // mm — bar diameter, x-direction (parallel to B)
+  s_x:        number;  // mm — spacing x bars
+  phi_y:      number;  // mm — bar diameter, y-direction (parallel to L)
+  s_y:        number;  // mm — spacing y bars
+  // Soil model
+  soilType:   FootingSoilType;
+  // Cohesive (art. 4.3.2 — Hansen formula)
+  c_soil:     number;  // kPa — cohesion
+  phi_soil:   number;  // ° — friction angle
+  gamma_soil: number;  // kN/m³ — unit weight of soil
+  gamma_R:    number;  // — bearing capacity resistance factor (safety factor)
+  // Granular (art. 4.3.3 — NSPT method)
+  N_spt:      number;  // — representative NSPT in influence zone
+  // Sliding
+  mu:         number;  // — friction coefficient tanδ at footing base
+  c_base:     number;  // kPa — base adhesion (= c_soil cohesive, 0 granular)
+}
+
+// FTUX defaults — all checks CUMPLE at ~60-75% on first open.
+// Verified hand-calc:
+//   σmax_SLS = 300/(1.8·1.8) = 92.6 kPa
+//   qadm (c=20kPa, φ=15°, Df=0.8m) ≈ 153 kPa → util = 60.5% → OK
+//   MEd_x = 138.9·0.7²/2 = 34 kNm/m → As_req=183mm²/m < As_min=712mm²/m
+//   As_prov(Ø16@200) = 1005mm²/m → util_min=70.8% → OK
+//   Punching util ≈ 28% → OK
+export const isolatedFootingDefaults: IsolatedFootingInputs = {
+  B: 1.8, L: 1.8, h: 0.6, bc: 0.4, hc: 0.4, Df: 0.8, cover: 60,
+  N_k: 300, Mx_k: 0, My_k: 0, H_k: 0,
+  N_Ed: 450, Mx_Ed: 0, My_Ed: 0,
+  fck: 25, fyk: 500,
+  phi_x: 16, s_x: 200, phi_y: 16, s_y: 200,
+  soilType: 'cohesive',
+  c_soil: 20, phi_soil: 15, gamma_soil: 18, gamma_R: 3.0,
+  N_spt: 15,
+  mu: 0.40, c_base: 0,
+};
