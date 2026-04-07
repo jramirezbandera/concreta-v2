@@ -80,8 +80,18 @@ function PlanView({
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={sigmaColor(sigma_min)} stopOpacity="0.5" />
-          <stop offset="100%" stopColor={sigmaColor(sigma_max)} stopOpacity="0.6" />
+          {isPdf ? (
+            // PDF mode: grayscale only (DESIGN.md — PDF SVG rules)
+            <>
+              <stop offset="0%" stopColor="#cccccc" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#555555" stopOpacity="0.5" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor={sigmaColor(sigma_min)} stopOpacity="0.5" />
+              <stop offset="100%" stopColor={sigmaColor(sigma_max)} stopOpacity="0.6" />
+            </>
+          )}
         </linearGradient>
       </defs>
 
@@ -144,9 +154,9 @@ function PlanView({
       <text
         x={ox - halfB + 3} y={oy}
         textAnchor="start" fontSize={isPdf ? 6 : 7}
-        fill={c.pressLow} fontFamily="monospace" dominantBaseline="middle"
+        fill={sigma_min < 0 ? c.accent : c.pressLow} fontFamily="monospace" dominantBaseline="middle"
       >
-        {`${Math.max(sigma_min, 0).toFixed(0)}kPa`}
+        {sigma_min < 0 ? 'parcial' : `${sigma_min.toFixed(0)}kPa`}
       </text>
 
       {/* Effective area label if eccentricity */}
