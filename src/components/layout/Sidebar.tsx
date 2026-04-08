@@ -99,6 +99,23 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <line x1="2" y1="19" x2="22" y2="19" />
         </svg>
       );
+    // Empresillado: column cross-section with 4 corner L-angles
+    case 'concreta-empresillado':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Inner column square */}
+          <rect x="7" y="7" width="10" height="10" />
+          {/* 4 corner L-angles (two short segments per corner) */}
+          {/* Top-left */}
+          <polyline points="7,3 3,3 3,7" />
+          {/* Top-right */}
+          <polyline points="17,3 21,3 21,7" />
+          {/* Bottom-left */}
+          <polyline points="7,21 3,21 3,17" />
+          {/* Bottom-right */}
+          <polyline points="17,21 21,21 21,17" />
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }

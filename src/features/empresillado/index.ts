@@ -1,0 +1,1 @@
+export { EmpresalladoModule } from './EmpresalladoModule';

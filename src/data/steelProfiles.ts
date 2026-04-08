@@ -3,7 +3,7 @@
 
 export interface SteelProfile {
   key: string;
-  tipo: 'IPE' | 'HEA' | 'HEB';
+  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN';
   size: number;
   label: string;
   h: number;      // total height (mm)
@@ -37,6 +37,32 @@ const IPE_DATA: Array<[number, number, number, number, number, number, number, n
   [600,  600, 220, 19.0,12.0, 24,  156, 92080,  3387,  3512,  3069,  165,  2846000],
 ];
 
+// IPN sections — DIN 1025-1 / ArcelorMittal standard catalogue
+const IPN_DATA: Array<[number, number, number, number, number, number, number, number, number, number, number, number, number]> = [
+  // size,  h,   b,   tf,   tw,    r,    A,     Iy,    Iz,  Wpl_y,  Wel_y,   It,       Iw
+  [ 80,   80,  42,  5.9,  3.9,  3.9,  7.58,   77.8,   6.29,   20.0,   19.5, 0.700,      338],
+  [100,  100,  50,  6.8,  4.5,  4.5, 10.6,   171,    12.2,   36.6,   34.2, 1.20,      1050],
+  [120,  120,  58,  7.7,  5.1,  5.1, 14.2,   328,    21.5,   60.0,   54.7, 2.01,      2750],
+  [140,  140,  66,  8.6,  5.7,  5.7, 18.3,   573,    35.2,   91.8,   81.9, 3.16,      6290],
+  [160,  160,  74,  9.5,  6.3,  6.3, 22.8,   935,    54.7,  134,    117,   4.79,     13200],
+  [180,  180,  82, 10.4,  6.9,  6.9, 27.9,  1450,    81.3,  193,    161,   7.01,     26100],
+  [200,  200,  90, 11.3,  7.5,  7.5, 33.4,  2140,   117,    272,    214,   9.98,     47800],
+  [220,  220,  98, 12.2,  8.1,  8.1, 39.5,  3060,   162,    370,    278,  13.9,      83200],
+  [240,  240, 106, 13.1,  8.7,  8.7, 46.1,  4250,   221,    489,    354,  18.9,     138000],
+  [260,  260, 113, 14.1,  9.4,  9.4, 53.3,  5740,   288,    636,    442,  25.7,     214000],
+  [280,  280, 119, 15.2, 10.1, 10.1, 61.0,  7590,   364,    806,    542,  34.2,     316000],
+  [300,  300, 125, 16.2, 10.8, 10.8, 69.0,  9800,   451,   1010,    653,  45.0,     451000],
+  [320,  320, 131, 17.3, 11.5, 11.5, 77.7, 12510,   555,   1250,    782,  58.6,     626000],
+  [340,  340, 137, 18.3, 12.2, 12.2, 86.7, 15700,   674,   1530,    924,  75.2,     855000],
+  [360,  360, 143, 19.5, 13.0, 13.0, 97.0, 19610,   818,   1870,   1090,  98.0,    1150000],
+  [380,  380, 149, 20.5, 13.7, 13.7,  107, 24010,   975,   2230,   1260, 124,      1530000],
+  [400,  400, 155, 21.6, 14.4, 14.4,  118, 29210,  1160,   2650,   1460, 155,      2010000],
+  [450,  450, 170, 24.3, 16.2, 16.2,  147, 45850,  1730,   4080,   2040, 248,      3840000],
+  [500,  500, 185, 27.0, 18.0, 18.0,  179, 68740,  2480,   5930,   2750, 384,      6820000],
+  [550,  550, 200, 30.0, 19.0, 19.0,  212, 99180,  3490,   8270,   3610, 573,     11700000],
+  [600,  600, 215, 32.4, 21.6, 21.6,  254,139000,  4680,  11600,   4630, 836,     18900000],
+];
+
 // HEA sections
 const HEA_DATA: Array<[number, number, number, number, number, number, number, number, number, number, number, number, number]> = [
   // size,  h,   b,   tf,  tw,  r,   A,    Iy,    Iz,   Wpl_y, Wel_y, It,   Iw
@@ -64,7 +90,7 @@ const HEB_DATA: Array<[number, number, number, number, number, number, number, n
 ];
 
 function buildProfiles(
-  tipo: 'IPE' | 'HEA' | 'HEB',
+  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN',
   data: Array<[number, number, number, number, number, number, number, number, number, number, number, number, number]>,
 ): SteelProfile[] {
   return data.map(([size, h, b, tf, tw, r, A, Iy, Iz, Wpl_y, Wel_y, It, Iw]) => ({
@@ -83,13 +109,14 @@ export const STEEL_PROFILES: SteelProfile[] = [
   ...buildProfiles('IPE', IPE_DATA),
   ...buildProfiles('HEA', HEA_DATA),
   ...buildProfiles('HEB', HEB_DATA),
+  ...buildProfiles('IPN', IPN_DATA),
 ];
 
-export function getProfile(tipo: 'IPE' | 'HEA' | 'HEB', size: number): SteelProfile | undefined {
+export function getProfile(tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN', size: number): SteelProfile | undefined {
   return STEEL_PROFILES.find((p) => p.tipo === tipo && p.size === size);
 }
 
-export function getSizesForTipo(tipo: 'IPE' | 'HEA' | 'HEB'): number[] {
+export function getSizesForTipo(tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN'): number[] {
   return STEEL_PROFILES.filter((p) => p.tipo === tipo).map((p) => p.size);
 }
 

@@ -9,6 +9,7 @@ import { PunchingModule } from './features/punching';
 import { CompositeSectionModule } from './features/compositeSection';
 import { PileCapModule } from './features/pile-cap';
 import { IsolatedFootingModule } from './features/isolated-footing';
+import { EmpresalladoModule } from './features/empresillado';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -26,8 +27,9 @@ const router = createBrowserRouter([
       { path: 'ciment/muros', element: <RetainingWallModule /> },
       { path: 'horm/punzonamiento', element: <PunchingModule /> },
       { path: 'acero/seccion-compuesta', element: <CompositeSectionModule /> },
-      { path: 'horm/encepados', element: <PileCapModule /> },
+      { path: 'ciment/encepados', element: <PileCapModule /> },
       { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
+      { path: 'rehab/empresillado', element: <EmpresalladoModule /> },
       { path: '*', element: <NotFound /> },
     ],
   },

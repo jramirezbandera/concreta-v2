@@ -66,7 +66,7 @@ export type ElsCombo = 'characteristic' | 'frequent' | 'quasi-permanent';
 
 export interface SteelBeamInputs {
   [key: string]: string | number | boolean;
-  tipo: 'IPE' | 'HEA' | 'HEB';
+  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN';
   size: number;
   steel: 'S275' | 'S355';
   beamType: BeamType;
@@ -397,6 +397,50 @@ export const pileCapDefaults: PileCapInputs = {
   Mx_Ed:   0,
   My_Ed:   0,
   R_adm:   250,
+};
+
+// ── Empresillado — RC column jacketed with 4 equal-leg L-angles (EC3 §6.4) ──
+
+export interface EmpresalladoInputs {
+  [key: string]: string | number | boolean;
+  // Existing column geometry
+  bc: number;       // column width parallel to x-axis (mm)
+  hc: number;       // column depth parallel to y-axis (mm)
+  L: number;        // free height / inter-storey height (mm)
+  // Design loads (ULS)
+  N_Ed: number;     // axial compression (kN)
+  Mx_Ed: number;    // bending about x-axis (kNm)
+  My_Ed: number;    // bending about y-axis (kNm)
+  Vd: number;       // design transverse shear (kN) — pletina design; VEd = max(Vd, NEd/500)
+  // L-angle profile
+  perfil: string;   // AngleProfile key, e.g. 'L100x10'
+  fy: number;       // steel yield strength (MPa), typically 275 or 355
+  // Buckling length factors
+  beta_x: number;   // factor for x-axis (β·L = effective length)
+  beta_y: number;   // factor for y-axis
+  // Batten plates (pletinas)
+  s: number;        // batten spacing c/c (mm)
+  lp: number;       // batten length (mm) — must be < s
+  bp: number;       // batten width (mm)
+  tp: number;       // batten thickness (mm)
+}
+
+export const empresalladoDefaults: EmpresalladoInputs = {
+  bc: 300,
+  hc: 300,
+  L: 3000,
+  N_Ed: 500,
+  Mx_Ed: 20,
+  My_Ed: 10,
+  Vd: 0,
+  perfil: 'L100x10',
+  fy: 275,
+  beta_x: 0.5,
+  beta_y: 0.5,
+  s: 400,
+  lp: 120,
+  bp: 100,
+  tp: 10,
 };
 
 export const footingDefaults: FootingInputs = {

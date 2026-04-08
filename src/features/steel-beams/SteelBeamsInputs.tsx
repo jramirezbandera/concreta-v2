@@ -339,7 +339,7 @@ export function SteelBeamsInputs({
         label="Tipo"
         field="tipo"
         value={state.tipo}
-        options={(['IPE', 'HEA', 'HEB'] as const).map((t) => ({ value: t, label: t }))}
+        options={(['IPE', 'HEA', 'HEB', 'IPN'] as const).map((t) => ({ value: t, label: t }))}
         setField={setField}
       />
       <SelectField

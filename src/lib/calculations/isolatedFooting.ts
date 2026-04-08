@@ -133,6 +133,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   if (N_k <= 0) return invalid('N_k debe ser > 0 (compresión)');
   if (N_Ed <= 0) return invalid('N_Ed debe ser > 0');
   if (cover <= 0) return invalid('Recubrimiento debe ser > 0');
+  if (h > Df) return invalid('El canto h no puede superar la profundidad de cimentación Df');
   if (s_x <= 0 || s_y <= 0) return invalid('Separación de barras debe ser > 0');
   if (phi_x <= 0 || phi_y <= 0) return invalid('Diámetro de barras debe ser > 0');
 
@@ -142,8 +143,8 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const fyd  = fyk / 1.15;  // MPa
 
   // ── Effective depths (mm) ────────────────────────────────────────────────────
-  // x bars on top layer (parallel to B), y bars in bottom layer (parallel to L)
-  // Convention: x rebar sits above y rebar
+  // x bars in bottom layer (parallel to B, larger d_x — governs bending-x)
+  // y bars in second layer above (parallel to L, smaller d_y)
   const d_x = h * 1000 - cover - phi_x / 2;            // mm
   const d_y = h * 1000 - cover - phi_x - phi_y / 2;    // mm
 

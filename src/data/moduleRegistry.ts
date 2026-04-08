@@ -8,6 +8,7 @@ import {
   compositeSectionDefaults,
   pileCapDefaults,
   isolatedFootingDefaults,
+  empresalladoDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -17,9 +18,10 @@ import {
   type PunchingInputs,
   type PileCapInputs,
   type IsolatedFootingInputs,
+  type EmpresalladoInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -97,10 +99,18 @@ export const moduleRegistry: ModuleEntry[] = [
   },
   {
     key: 'concreta-pile-cap',
-    route: '/horm/encepados',
+    route: '/ciment/encepados',
     label: 'Encepados',
-    group: 'Hormigón',
+    group: 'Cimentación',
     defaults: pileCapDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-empresillado',
+    route: '/rehab/empresillado',
+    label: 'Empresillado',
+    group: 'Rehabilitación',
+    defaults: empresalladoDefaults,
     shipped: true,
   },
 ] as const;
