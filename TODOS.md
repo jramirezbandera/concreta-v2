@@ -152,3 +152,19 @@ mentally invert it. As_req gives direct design guidance.
 Then display it in `RCBeamsResults.tsx` ValueRow section.
 
 **Depends on:** retaining wall module (introduces solveRCBending to types.ts first).
+
+### empresillado: EC3 §6.4.2.1 minimum lp and maximum s normative checks
+
+**Status:** DEFERRED (eng review 2026-04-09)
+
+EC3 §6.4.2.1(5) imposes two normative limits that the current validation does not enforce:
+- **Minimum lp:** lp ≥ 0.75 × a, where a is the clear distance between chord centroids in the battened face (approximately hx or hy minus the chord leg width b). A user can enter lp=2cm on a 70cm column face and get a valid result with misleading pletina checks.
+- **Maximum s:** s ≤ min(15 × i₁, 70 × iv, a). Violating this limit invalidates the §6.4.3.1 effective slenderness formula — the formula assumes the chord is adequately braced between battens.
+
+These should be **warn-level** (not fail-level, not hard errors) check rows in `calcEmpresillado()` — the formula still produces numbers, but the user should be told the geometry is outside the EC3 applicability domain. Use `makeCheck()` with a threshold > 1.0 to show warn state.
+
+**Where to start:** `src/lib/calculations/empresillado.ts` — add after the `s0_cm` validation, compute `a_x = hx - b_cm` and `a_y = hy - b_cm`, then add warn checks to the `checks` array. Also need EC3 i₁ = sqrt(I1/A) for the max-s check.
+
+**Test:** Add a suite in `empresillado.test.ts` — enter lp=1cm, s=200cm on a 30cm column, expect checks to include a warn-status row.
+
+**Depends on:** none.
