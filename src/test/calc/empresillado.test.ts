@@ -174,6 +174,46 @@ describe('Pletina — EC3 biempotradas formulas', () => {
   });
 });
 
+// ─── Suite 11: Negative moments — abs() symmetry guard ───────────────────────
+describe('Negative moments produce same N_chord as positive (abs() symmetry)', () => {
+  it('Mx_Ed=-20 gives same N_chord as Mx_Ed=+20', () => {
+    const rPos = calcEmpresillado(inp({ Mx_Ed: 20, My_Ed: 0 }));
+    const rNeg = calcEmpresillado(inp({ Mx_Ed: -20, My_Ed: 0 }));
+    expect(rNeg.N_chord_max).toBeCloseTo(rPos.N_chord_max, 6);
+  });
+
+  it('My_Ed=-10 gives same N_chord as My_Ed=+10', () => {
+    const rPos = calcEmpresillado(inp({ Mx_Ed: 0, My_Ed: 10 }));
+    const rNeg = calcEmpresillado(inp({ Mx_Ed: 0, My_Ed: -10 }));
+    expect(rNeg.N_chord_max).toBeCloseTo(rPos.N_chord_max, 6);
+  });
+});
+
+// ─── Suite 12: Chi capped at 1.0 for stocky columns ─────────────────────────
+describe('Chi = 1.0 for very stocky columns (lambda_eff < 0.2)', () => {
+  // bc=hc=30cm, L=0.5m, beta=0.5 → Lk = 0.25m = 25cm. i_X ≈ 18cm → lambda_0 ≈ 25/(18*93.9*ε) ≪ 0.2
+  it('chi is capped at 1.0 for a very short column', () => {
+    const r = calcEmpresillado(inp({ L: 0.5, beta_x: 0.5, beta_y: 0.5, s: 20, lp: 5 }));
+    expect(r.valid).toBe(true);
+    expect(r.chi).toBeCloseTo(1.0, 3);
+  });
+});
+
+// ─── Suite 13: Zero load edge case ───────────────────────────────────────────
+describe('N_Ed=0 zero-load edge case', () => {
+  it('V_Ed = 0 and M_Ed_pl = 0 when N_Ed=0, Vd=0', () => {
+    const r = calcEmpresillado(inp({ N_Ed: 0, Mx_Ed: 0, My_Ed: 0, Vd: 0 }));
+    expect(r.valid).toBe(true);
+    expect(r.V_Ed).toBeCloseTo(0, 6);
+    expect(r.M_Ed_pl).toBeCloseTo(0, 6);
+  });
+
+  it('N_chord_max = 0 when all loads are zero', () => {
+    const r = calcEmpresillado(inp({ N_Ed: 0, Mx_Ed: 0, My_Ed: 0, Vd: 0 }));
+    expect(r.N_chord_max).toBeCloseTo(0, 6);
+  });
+});
+
 // ─── Suite 10: Profile L100x10 spot-check ─────────────────────────────────────
 describe('L100x10 profile spot-check', () => {
   const r = calcEmpresillado(inp());  // defaults: bc=hc=30cm, L100x10

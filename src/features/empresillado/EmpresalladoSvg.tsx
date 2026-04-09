@@ -64,21 +64,25 @@ function CrossSection({
   panelW: number;
   panelH: number;
 }) {
-  const { bc, hc } = inp;
   const profile = getAngleProfile(inp.perfil);
   const t_mm = profile?.t ?? 10;
   const b_mm = profile?.b ?? 100;
   const e_cm = profile?.e ?? 2.5;
+
+  // Normalise inputs to mm for consistent scale math
+  // Inputs: bc/hc in cm, so ×10 to get mm
+  const bc_mm = inp.bc * 10;
+  const hc_mm = inp.hc * 10;
 
   // Scale column into canvas with 20px margin
   // Legs run along column faces inward, only the thickness (t) protrudes outside
   const margin = 22;
   const availW = panelW - 2 * margin;
   const availH = panelH - 2 * margin;
-  const scale = Math.min(availW / (bc + 2 * t_mm), availH / (hc + 2 * t_mm));
+  const scale = Math.min(availW / (bc_mm + 2 * t_mm), availH / (hc_mm + 2 * t_mm));
 
-  const colW = bc * scale;
-  const colH = hc * scale;
+  const colW = bc_mm * scale;
+  const colH = hc_mm * scale;
   // Center column (which is inset by b_mm on each side)
   const ox = panelW / 2 - colW / 2;
   const oy = panelH / 2 - colH / 2;
@@ -95,7 +99,7 @@ function CrossSection({
   // Chord centroid positions for markers (in canvas coords)
   // centroid = back_of_leg + e = -(colW/2 + b_px) + t_px + e*scale ... simplified:
   // L is placed outside column, centroid at (colW/2 + e_px) from column center
-  const e_px = e_cm * 10 * scale;  // e in mm * scale
+  const e_px = e_cm * 10 * scale;  // e_cm → mm, then scale to px
 
   // Chord centroid positions — e from the back of each leg
   // TL: back of horizontal leg at y=oy → centroid at oy-e_px; back of vertical at x=ox → centroid at ox-e_px
@@ -163,16 +167,16 @@ function CrossSection({
         <text x={ox + colW / 2 - 8} y={oy + colH + b_px + 22} fontSize={7} fill={c.accent} fontFamily="monospace">My</text>
       </g>
 
-      {/* Dimension labels */}
+      {/* Dimension labels (inputs are in cm) */}
       <text x={ox + colW / 2} y={panelH - 4} textAnchor="middle" fontSize={9} fill={c.textSecondary} fontFamily="monospace">
-        bc={bc} mm
+        bc={inp.bc} cm
       </text>
       <text
         x={6} y={oy + colH / 2}
         textAnchor="middle" fontSize={9} fill={c.textSecondary} fontFamily="monospace"
         transform={`rotate(-90, 6, ${oy + colH / 2})`}
       >
-        hc={hc} mm
+        hc={inp.hc} cm
       </text>
     </g>
   );
@@ -205,16 +209,23 @@ function Elevation({
   const availW = panelW - leftM - rightM;
   const availH = panelH - topM - botM;
 
-  // Content: column face bc wide, total height L (mm)
-  // Chords add t on each side — keep proportional
-  const contentW = inp.bc + 2 * t_mm;
-  const scale    = Math.min(availW / contentW, availH / inp.L);
+  // Normalise all dimensional inputs to mm for consistent scale math
+  // bc in cm → mm; L in m → mm; s/lp in cm → mm
+  const bc_mm = inp.bc * 10;
+  const L_mm  = inp.L  * 1000;
+  const s_mm  = inp.s  * 10;
+  const lp_mm = inp.lp * 10;
 
-  const t_px  = t_mm * scale;
-  const bc_px = inp.bc * scale;
-  const L_px  = inp.L  * scale;
-  const s_px  = inp.s  * scale;
-  const lp_px = Math.max(inp.lp * scale, 3);  // min 3px visible
+  // Content: column face bc_mm wide, total height L_mm (both mm)
+  // Chords add t on each side — keep proportional
+  const contentW = bc_mm + 2 * t_mm;
+  const scale    = Math.min(availW / contentW, availH / L_mm);
+
+  const t_px  = t_mm  * scale;
+  const bc_px = bc_mm * scale;
+  const L_px  = L_mm  * scale;
+  const s_px  = s_mm  * scale;
+  const lp_px = Math.max(lp_mm * scale, 3);  // min 3px visible
 
   // Center horizontally in the available zone
   const drawX = offsetX + leftM + (availW - (bc_px + 2 * t_px)) / 2;
@@ -229,8 +240,8 @@ function Elevation({
   const topY     = drawY;
   const botY     = drawY + L_px;
 
-  // Battens (capped at 20 for readability)
-  const nBattens  = Math.min(Math.floor(inp.L / inp.s) + 1, 20);
+  // Battens (capped at 20 for readability) — both L_mm and s_mm in mm
+  const nBattens  = Math.min(Math.floor(L_mm / s_mm) + 1, 20);
   const sValid    = result.valid;
 
   // Status colors
@@ -335,7 +346,7 @@ function Elevation({
         textAnchor="middle" fontSize={7} fill={c.textSecondary} fontFamily="monospace"
         transform={`rotate(-90, ${lChordX - 8}, ${(topY + botY) / 2})`}
       >
-        L={inp.L}
+        L={inp.L}m
       </text>
 
       {/* ── s spacing annotation (right side, between first two battens) ──── */}
@@ -348,12 +359,12 @@ function Elevation({
           <line x1={rChordRX + 2} y1={s_y2} x2={rChordRX + 8} y2={s_y2}
             stroke={c.textSecondary} strokeWidth={0.7} />
           <text x={rChordRX + 11} y={s_mid + 3} fontSize={7} fill={c.textSecondary} fontFamily="monospace">
-            s={inp.s}
+            s={inp.s}cm
           </text>
           {/* lp annotation on a batten */}
           {lp_px > 5 && (
             <text x={rChordRX + 11} y={s_mid + 12} fontSize={6} fill={c.textDisabled} fontFamily="monospace">
-              lp={inp.lp}
+              lp={inp.lp}cm
             </text>
           )}
         </g>

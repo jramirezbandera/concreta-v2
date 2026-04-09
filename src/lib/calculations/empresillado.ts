@@ -68,6 +68,21 @@ export interface EmpresalladoResult {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function invalidResult(error: string): EmpresalladoResult {
+  return {
+    valid: false, error,
+    dx: 0, dy: 0, hx: 0, hy: 0,
+    I_X: 0, I_Y: 0, i_X: 0, i_Y: 0,
+    N_chord_max: 0, N_pl_Rd: 0, N_bv_Rd: 0,
+    lambda_v: 0, chi_v: 0,
+    lambda_0X: 0, lambda_0Y: 0, lambda_vl: 0,
+    lambda_effX: 0, lambda_effY: 0,
+    chi_X: 0, chi_Y: 0, chi: 0, N_b_Rd: 0,
+    V_Ed: 0, M_Ed_pl: 0, M_Rd_pl: 0, V_Rd_pl: 0,
+    checks: [], utilization: 0,
+  };
+}
+
 function bucklingChi(lambda_bar: number): number {
   if (lambda_bar <= 0) return 1.0;
   const phi = 0.5 * (1 + α * (lambda_bar - 0.2) + lambda_bar * lambda_bar);
@@ -92,13 +107,13 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   // ── Profile lookup ────────────────────────────────────────────────────────
   const profile = getAngleProfile(inp.perfil);
   if (!profile) {
-    return { valid: false, error: `Perfil "${inp.perfil}" no encontrado en el catálogo`, dx: 0, dy: 0, hx: 0, hy: 0, I_X: 0, I_Y: 0, i_X: 0, i_Y: 0, N_chord_max: 0, N_pl_Rd: 0, N_bv_Rd: 0, lambda_v: 0, chi_v: 0, lambda_0X: 0, lambda_0Y: 0, lambda_vl: 0, lambda_effX: 0, lambda_effY: 0, chi_X: 0, chi_Y: 0, chi: 0, N_b_Rd: 0, V_Ed: 0, M_Ed_pl: 0, M_Rd_pl: 0, V_Rd_pl: 0, checks: [], utilization: 0 };
+    return invalidResult(`Perfil "${inp.perfil}" no encontrado en el catálogo`);
   }
 
   // ── Validation ────────────────────────────────────────────────────────────
   const s0_cm = s_cm - lp_cm;
   if (s0_cm <= 0) {
-    return { valid: false, error: 's debe ser mayor que lp (separación libre s₀ = s − lp ≤ 0)', dx: 0, dy: 0, hx: 0, hy: 0, I_X: 0, I_Y: 0, i_X: 0, i_Y: 0, N_chord_max: 0, N_pl_Rd: 0, N_bv_Rd: 0, lambda_v: 0, chi_v: 0, lambda_0X: 0, lambda_0Y: 0, lambda_vl: 0, lambda_effX: 0, lambda_effY: 0, chi_X: 0, chi_Y: 0, chi: 0, N_b_Rd: 0, V_Ed: 0, M_Ed_pl: 0, M_Rd_pl: 0, V_Rd_pl: 0, checks: [], utilization: 0 };
+    return invalidResult('s debe ser mayor que lp (separación libre s₀ = s − lp ≤ 0)');
   }
 
   const { A, I1, iv, e } = profile;
