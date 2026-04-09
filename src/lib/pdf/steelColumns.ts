@@ -16,18 +16,12 @@ import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../calculations/steelColumns';
 import { type SteelCheckStatus } from '../calculations/steelBeams';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const M      = 15;   // margin mm
-const CW     = PAGE_W - 2 * M;  // content width = 180mm
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+
+const M  = 15;   // margin mm
+const CW = PAGE_W - 2 * M;  // content width = 180mm
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
-
-const STATUS_LABEL: Record<DisplayStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
-};
 
 // Table column x-positions for checks table
 const COL = {
@@ -38,20 +32,6 @@ const COL = {
   status: M + 152,     // CUMPLE / INCUMPLE
   art:    PAGE_W - M,  // normative article (right-aligned)
 };
-
-function setGray(doc: jsPDF, g: number) {
-  doc.setTextColor(g, g, g);
-  doc.setDrawColor(g, g, g);
-}
-
-function pdfStr(s: string): string {
-  return s
-    .replace(/λ̄/g, 'lam')
-    .replace(/λ/g, 'lam')
-    .replace(/χ/g, 'chi')
-    .replace(/β/g, 'beta')
-    .replace(/[^\x00-\xFF]/g, '?');
-}
 
 function fmt(v: number, d = 1): string {
   return v.toFixed(d);

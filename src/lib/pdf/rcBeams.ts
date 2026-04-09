@@ -7,21 +7,10 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus } from '../calculations/rcBeams';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const M = 20;          // margin
+import { PAGE_W, PAGE_H, setGray, STATUS_LABEL } from './utils';
+
+const M  = 20;          // margin
 const CW = PAGE_W - 2 * M;  // content width = 170mm
-
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
-};
-
-function setGray(doc: jsPDF, gray: number) {
-  doc.setTextColor(gray, gray, gray);
-  doc.setDrawColor(gray, gray, gray);
-}
 
 function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.setLineWidth(lw);

@@ -7,20 +7,16 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
+import { PAGE_W, PAGE_H, setGray } from './utils';
+
 const M  = 18;
 
+// NOTE: retainingWall uses abbreviated 'ADVERT.' — differs from shared STATUS_LABEL
 const STATUS_LABEL: Record<CheckStatus, string> = {
   ok:   'CUMPLE',
   warn: 'ADVERT.',
   fail: 'INCUMPLE',
 };
-
-function setGray(doc: jsPDF, gray: number) {
-  doc.setTextColor(gray, gray, gray);
-  doc.setDrawColor(gray, gray, gray);
-}
 
 function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.setLineWidth(lw);

@@ -9,43 +9,13 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
-import { type CheckRow } from '../calculations/types';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
 
-// CheckRow.status is 'ok' | 'warn' | 'fail' (no neutral for composite section checks)
-const PAGE_W = 210;
-const PAGE_H = 297;
-const M      = 20;   // page margin mm
-
-function setGray(doc: jsPDF, g: number) {
-  doc.setTextColor(g, g, g);
-  doc.setDrawColor(g, g, g);
-}
-
-/** Replace non-latin-1 characters with ASCII equivalents. */
-function pdfStr(s: string): string {
-  return s
-    .replace(/⁴/g, '^4')
-    .replace(/³/g, '^3')
-    .replace(/²/g, '^2')
-    .replace(/·/g, 'x')
-    .replace(/γ/g, 'gM0')
-    .replace(/ε/g, 'eps')
-    .replace(/\u2014/g, ' - ')
-    .replace(/\u2013/g, '-')
-    .replace(/[^\x00-\xFF]/g, '?');
-}
+const M = 20;   // page margin mm
 
 function fmt(v: number, decimals = 1): string {
   return v.toFixed(decimals);
 }
-
-type CheckStatus = CheckRow['status'];
-
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
-};
 
 export async function exportCompositeSectionPDF(
   inp: CompositeSectionInputs,
@@ -168,7 +138,7 @@ export async function exportCompositeSectionPDF(
   // Overall verdict
   const hasFail = result.checks.some((c) => c.status === 'fail');
   const hasWarn = result.checks.some((c) => c.status === 'warn');
-  const overall: CheckStatus = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
+  const overall = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
 
   if (result.sectionClass !== null && result.checks.length > 0) {
     doc.setFontSize(11);

@@ -6,32 +6,9 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { type CheckRow } from '../../lib/calculations/types';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const M      = 20;  // mm margin
-
-function setGray(doc: jsPDF, g: number) {
-  doc.setTextColor(g, g, g);
-  doc.setDrawColor(g, g, g);
-}
-
-function pdfStr(s: string): string {
-  return s
-    .replace(/⁴/g, '^4').replace(/³/g, '^3').replace(/²/g, '^2')
-    .replace(/·/g, 'x').replace(/θ/g, 'th').replace(/σ/g, 'sigma')
-    .replace(/γ/g, 'gM').replace(/ε/g, 'eps').replace(/Ø/g, 'ph')
-    .replace(/\u2014/g, ' - ').replace(/\u2013/g, '-')
-    .replace(/[^\x00-\xFF]/g, '?');
-}
-
-type CheckStatus = CheckRow['status'];
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
-};
+const M = 20;  // mm margin
 
 export async function exportPileCapPDF(
   inp: PileCapInputs,
@@ -145,7 +122,7 @@ export async function exportPileCapPDF(
   // Overall verdict
   const hasFail = result.checks.some((c) => c.status === 'fail');
   const hasWarn = result.checks.some((c) => c.status === 'warn');
-  const overall: CheckStatus = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
+  const overall = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
 
   doc.setFontSize(11);
   setGray(doc, 30);

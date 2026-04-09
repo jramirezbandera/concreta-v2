@@ -13,37 +13,11 @@ import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculati
 import { BEAM_CASES } from '../calculations/beamCases';
 import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const M      = 20;   // page margin mm
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+
+const M = 20;   // page margin mm
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
-
-const STATUS_LABEL: Record<DisplayStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
-};
-
-function setGray(doc: jsPDF, g: number) {
-  doc.setTextColor(g, g, g);
-  doc.setDrawColor(g, g, g);
-}
-
-/** Replace characters unsupported by jsPDF built-in fonts with ASCII equivalents. */
-function pdfStr(s: string): string {
-  return s
-    .replace(/δ/g, 'd')
-    .replace(/λ/g, 'lam')
-    .replace(/χ/g, 'chi')
-    .replace(/₁/g, '1')
-    .replace(/₂/g, '2')
-    .replace(/·/g, 'x')
-    .replace(/°/g, ' ')
-    .replace(/\u2014/g, ' - ')   // em dash —
-    .replace(/\u2013/g, '-')     // en dash –
-    .replace(/[^\x00-\xFF]/g, '?');
-}
 
 function fmt(v: number, decimals = 1): string {
   return v.toFixed(decimals);
