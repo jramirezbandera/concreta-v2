@@ -213,6 +213,46 @@ text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled
 pt-2.25 pb-1.75 border-b border-border-sub mb-2.5
 ```
 
+#### GroupHeader con description (opcional — módulos complejos)
+
+Para grupos que requieren contexto normativo, se puede añadir un subtítulo descriptivo:
+
+```
+CORDONES — EC3 §6.4.2
+Axil máximo en el angular más comprimido: N_chord = N_Ed/4 + |Mx|/(2·hy) + |My|/(2·hx).
+─────────────────────────────
+```
+
+```css
+/* Subtítulo */
+text-[10px] text-text-disabled mt-0.5 leading-tight
+```
+
+Uso: solo en módulos con muchos grupos de resultados donde la fórmula o la referencia normativa no es obvia. No usar en módulos sencillos.
+
+### NumberField con helpText (opcional — inputs no obvios)
+
+Para inputs cuya definición no es obvia (coeficientes normativos, mínimos normativos):
+
+```
+Coef. pandeo eje X (beta_x)
+┌─────────────────────────────┐
+│  0.5                        │
+└─────────────────────────────┘
+Condición de contorno del pilar en el marco estructural.
+Las pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).
+· Empotrado-empotrado: 0.5
+```
+
+```css
+/* helpText */
+text-[10px] text-text-disabled leading-tight whitespace-pre-line
+```
+
+- Aparece solo cuando no hay error activo (`{helpText && !error && ...}`)
+- Soporta saltos de línea vía `\n` en la cadena (gracias a `whitespace-pre-line`)
+- No usar para inputs con nombres autoexplicativos (b, h, fck, etc.)
+
 ### Check row (4 columnas)
 
 ```
@@ -333,3 +373,5 @@ Explícitamente prohibido:
 | 2026-03-28 | bg-elevated: #263348 para sufijos de unidad | Contraste visual entre input y unidad sin usar un color disruptivo |
 | 2026-04-06 | Cercos punzonamiento: stroke-text-disabled (#475569), no accent | Distingue cercos de u1 y anotaciones de cota; sigue regla "Estribos: text-disabled" |
 | 2026-04-06 | ρl inline en panel inputs (punzonamiento) | Cierra el feedback loop al punto de entrada — el usuario ve el efecto sin ir a resultados |
+| 2026-04-09 | GroupHeader description (subtítulo opcional) | Módulos complejos (empresillado) necesitan contexto normativo bajo el título de grupo — patrón opcional, no obligatorio |
+| 2026-04-09 | NumberField helpText (texto de ayuda opcional) | Inputs no obvios (beta_x, Vd) necesitan explicación inline sin tooltip — whitespace-pre-line para saltos de línea |
