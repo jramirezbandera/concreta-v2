@@ -404,31 +404,32 @@ export const pileCapDefaults: PileCapInputs = {
 export interface EmpresalladoInputs {
   [key: string]: string | number | boolean;
   // Existing column geometry
-  bc: number;       // column width parallel to x-axis (mm)
-  hc: number;       // column depth parallel to y-axis (mm)
-  L: number;        // free height / inter-storey height (mm)
+  bc: number;       // column width parallel to x-axis (cm)
+  hc: number;       // column depth parallel to y-axis (cm)
+  L: number;        // free height / inter-storey height (m)
   // Design loads (ULS)
   N_Ed: number;     // axial compression (kN)
   Mx_Ed: number;    // bending about x-axis (kNm)
   My_Ed: number;    // bending about y-axis (kNm)
-  Vd: number;       // design transverse shear (kN) — pletina design; VEd = max(Vd, NEd/500)
+  Vd: number;       // design shear in column section (kN); VEd = max(Vd, NEd/500) per EC3 §6.4.3.1
   // L-angle profile
   perfil: string;   // AngleProfile key, e.g. 'L100x10'
   fy: number;       // steel yield strength (MPa), typically 275 or 355
-  // Buckling length factors
-  beta_x: number;   // factor for x-axis (β·L = effective length)
-  beta_y: number;   // factor for y-axis
+  // Global buckling length factors (frame boundary conditions, independent of batten fixity)
+  // Batten plates use fixed lk_local = 0.5×s (welded = fixed-fixed, per EC3 §6.4.2.1 Table 6.8)
+  beta_x: number;   // global buckling factor x-axis (0.5=fixed-fixed, 0.7=pin-fixed, 1.0=pin-pin)
+  beta_y: number;   // global buckling factor y-axis
   // Batten plates (pletinas)
-  s: number;        // batten spacing c/c (mm)
-  lp: number;       // batten length (mm) — must be < s
-  bp: number;       // batten width (mm)
+  s: number;        // batten spacing c/c (cm)
+  lp: number;       // batten length (cm) — must be < s
+  bp: number;       // batten width (cm)
   tp: number;       // batten thickness (mm)
 }
 
 export const empresalladoDefaults: EmpresalladoInputs = {
-  bc: 300,
-  hc: 300,
-  L: 3000,
+  bc: 30,    // cm
+  hc: 30,    // cm
+  L: 3.0,   // m
   N_Ed: 500,
   Mx_Ed: 20,
   My_Ed: 10,
@@ -437,10 +438,10 @@ export const empresalladoDefaults: EmpresalladoInputs = {
   fy: 275,
   beta_x: 0.5,
   beta_y: 0.5,
-  s: 400,
-  lp: 120,
-  bp: 100,
-  tp: 10,
+  s: 40,    // cm
+  lp: 12,   // cm
+  bp: 10,   // cm
+  tp: 10,   // mm
 };
 
 export const footingDefaults: FootingInputs = {

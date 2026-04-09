@@ -4,6 +4,7 @@ import { empresalladoDefaults } from '../../data/defaults';
 import type { EmpresalladoInputs } from '../../data/defaults';
 
 // Convenience wrapper — all fields from defaults unless overridden
+// Unit reminder: bc/hc in cm, L in m, s/lp/bp in cm, tp in mm
 function inp(overrides: Partial<EmpresalladoInputs> = {}): EmpresalladoInputs {
   return { ...empresalladoDefaults, ...overrides } as EmpresalladoInputs;
 }
@@ -17,20 +18,20 @@ describe('Input validation', () => {
   });
 
   it('s ≤ lp → invalid (s₀ ≤ 0)', () => {
-    // s=200, lp=200 → s₀=0
-    const r = calcEmpresillado(inp({ s: 200, lp: 200 }));
+    // s=20cm, lp=20cm → s₀=0
+    const r = calcEmpresillado(inp({ s: 20, lp: 20 }));
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/s.*lp|s₀/i);
   });
 
   it('s < lp → invalid', () => {
-    const r = calcEmpresillado(inp({ s: 100, lp: 150 }));
+    const r = calcEmpresillado(inp({ s: 10, lp: 15 }));
     expect(r.valid).toBe(false);
   });
 });
 
 // ─── Suite 2: FTUX defaults ───────────────────────────────────────────────────
-describe('FTUX defaults — L100x10, bc=hc=300, L=3000', () => {
+describe('FTUX defaults — L100x10, bc=hc=30cm, L=3.0m', () => {
   const r = calcEmpresillado(inp());
 
   it('is valid', () => expect(r.valid).toBe(true));
@@ -73,7 +74,8 @@ describe('Chord force — N + Mx + My, square column', () => {
 
 // ─── Suite 5: Rectangular column (bc ≠ hc) ───────────────────────────────────
 describe('Rectangular column (bc ≠ hc)', () => {
-  const r = calcEmpresillado(inp({ bc: 300, hc: 500 }));
+  // bc=30cm, hc=50cm
+  const r = calcEmpresillado(inp({ bc: 30, hc: 50 }));
 
   it('is valid', () => expect(r.valid).toBe(true));
 
@@ -111,27 +113,27 @@ describe('EC3 §6.4 correction: λ̄_eff > λ̄_0 always when s₀>0', () => {
 });
 
 // ─── Suite 7: Monotone guard — wider spacing → higher λ̄_eff → lower χ ────────
-// Use L=8000 to get enough slenderness with β=0.5 for χ < 1.0
+// Use L=8.0m to get enough slenderness with β=0.5 for χ < 1.0
 describe('Monotone: doubling batten spacing increases λ̄_eff and decreases χ', () => {
-  it('s=300 vs s=600: λ̄_eff(600) > λ̄_eff(300)', () => {
-    const r300 = calcEmpresillado(inp({ L: 8000, s: 300, lp: 100 }));
-    const r600 = calcEmpresillado(inp({ L: 8000, s: 600, lp: 100 }));
-    expect(r300.valid).toBe(true);
-    expect(r600.valid).toBe(true);
-    expect(r600.lambda_effX).toBeGreaterThan(r300.lambda_effX);
+  it('s=30cm vs s=60cm: λ̄_eff(60) > λ̄_eff(30)', () => {
+    const r30 = calcEmpresillado(inp({ L: 8.0, s: 30, lp: 10 }));
+    const r60 = calcEmpresillado(inp({ L: 8.0, s: 60, lp: 10 }));
+    expect(r30.valid).toBe(true);
+    expect(r60.valid).toBe(true);
+    expect(r60.lambda_effX).toBeGreaterThan(r30.lambda_effX);
   });
 
-  it('s=300 vs s=600: χ(600) < χ(300)', () => {
-    const r300 = calcEmpresillado(inp({ L: 8000, s: 300, lp: 100 }));
-    const r600 = calcEmpresillado(inp({ L: 8000, s: 600, lp: 100 }));
-    expect(r600.chi).toBeLessThan(r300.chi);
+  it('s=30cm vs s=60cm: χ(60) < χ(30)', () => {
+    const r30 = calcEmpresillado(inp({ L: 8.0, s: 30, lp: 10 }));
+    const r60 = calcEmpresillado(inp({ L: 8.0, s: 60, lp: 10 }));
+    expect(r60.chi).toBeLessThan(r30.chi);
   });
 });
 
 // ─── Suite 8: Fail state — extreme slenderness ────────────────────────────────
 describe('Fail state: large N_Ed on slender column', () => {
-  // Long column L=8000mm, large load N=2000kN, small L60×5 angle
-  const r = calcEmpresillado(inp({ L: 8000, N_Ed: 2000, Mx_Ed: 0, My_Ed: 0, perfil: 'L60x5' }));
+  // Long column L=8.0m, large load N=2000kN, small L60×5 angle
+  const r = calcEmpresillado(inp({ L: 8.0, N_Ed: 2000, Mx_Ed: 0, My_Ed: 0, perfil: 'L60x5' }));
 
   it('is valid (no crash)', () => expect(r.valid).toBe(true));
 
@@ -166,26 +168,27 @@ describe('Pletina — EC3 biempotradas formulas', () => {
   it('M_Ed_pl = V_Ed · s / 4 (biempotrado, EC3 §6.4.3.2)', () => {
     const i = inp();
     const r = calcEmpresillado(i);
-    const expected = r.V_Ed * (i.s / 1000) / 4;  // s mm → m, /4 for 2-face fixed-fixed
+    // s in cm → m: i.s / 100; divide by 4 for fixed-fixed 2-face system
+    const expected = r.V_Ed * (i.s / 100) / 4;
     expect(r.M_Ed_pl).toBeCloseTo(expected, 8);
   });
 });
 
 // ─── Suite 10: Profile L100x10 spot-check ─────────────────────────────────────
 describe('L100x10 profile spot-check', () => {
-  const r = calcEmpresillado(inp());  // defaults use L100x10
+  const r = calcEmpresillado(inp());  // defaults: bc=hc=30cm, L100x10
 
-  it('compound i_X in expected range for bc=hc=300, L100x10', () => {
-    // dx = 30/2 + 2.868 = 17.868 cm; i_X = sqrt(I1/A + dy²) ≈ sqrt(9.47 + 319.27) = 18.13 cm
+  it('compound i_X in expected range for bc=hc=30cm, L100x10', () => {
+    // dx = 15 + 2.868 = 17.868 cm; i_X = sqrt(I1/A + dy²) ≈ sqrt(9.47 + 319.27) = 18.13 cm
     expect(r.i_X).toBeGreaterThan(15);
     expect(r.i_X).toBeLessThan(25);
   });
 
-  it('hx = hx symmetric for square column', () => {
+  it('hx = hy for square column (bc=hc)', () => {
     expect(r.hx).toBeCloseTo(r.hy, 4);
   });
 
-  it('chord force with default loads ≈ 125 + moments contribution', () => {
-    expect(r.N_chord_max).toBeGreaterThan(125);  // > N/4 due to moments
+  it('chord force with default loads > N/4 due to moments', () => {
+    expect(r.N_chord_max).toBeGreaterThan(inp().N_Ed / 4);
   });
 });

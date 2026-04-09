@@ -82,7 +82,7 @@ export function EmpresalladoModule() {
 
           {/* Results */}
           <div className="px-6 py-5 pb-20 md:pb-5">
-            <EmpresalladoResults result={result} />
+            <EmpresalladoResults result={result} inp={state} />
           </div>
         </div>
 

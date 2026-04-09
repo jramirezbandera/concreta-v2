@@ -80,13 +80,14 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const { N_Ed, Mx_Ed, My_Ed, Vd, fy, beta_x, beta_y } = inp;
 
   // ── Unit conversion ───────────────────────────────────────────────────────
-  const bc_cm = inp.bc / 10;   // mm → cm
-  const hc_cm = inp.hc / 10;
-  const L_cm  = inp.L  / 10;
-  const s_cm  = inp.s  / 10;
-  const lp_cm = inp.lp / 10;
-  const bp_mm = inp.bp;         // keep mm for pletina section modulus
-  const tp_mm = inp.tp;
+  // Inputs: bc/hc in cm, L in m, s/lp/bp in cm, tp in mm
+  const bc_cm = inp.bc;          // cm (already)
+  const hc_cm = inp.hc;          // cm (already)
+  const L_cm  = inp.L  * 100;   // m → cm
+  const s_cm  = inp.s;           // cm (already)
+  const lp_cm = inp.lp;          // cm (already)
+  const bp_mm = inp.bp * 10;    // cm → mm (W_pl and V_Rd formulas require mm)
+  const tp_mm = inp.tp;          // mm (already)
 
   // ── Profile lookup ────────────────────────────────────────────────────────
   const profile = getAngleProfile(inp.perfil);
