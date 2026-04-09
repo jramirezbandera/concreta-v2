@@ -9,6 +9,7 @@ import {
   pileCapDefaults,
   isolatedFootingDefaults,
   empresalladoDefaults,
+  timberBeamDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -19,9 +20,10 @@ import {
   type PileCapInputs,
   type IsolatedFootingInputs,
   type EmpresalladoInputs,
+  type TimberBeamInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -111,6 +113,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Empresillado',
     group: 'Rehabilitación',
     defaults: empresalladoDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-timber-beams',
+    route: '/madera/vigas',
+    label: 'Vigas',
+    group: 'Madera',
+    defaults: timberBeamDefaults,
     shipped: true,
   },
 ] as const;

@@ -522,3 +522,41 @@ export const isolatedFootingDefaults: IsolatedFootingInputs = {
   N_spt: 15,
   mu: 0.40, c_base: 0,
 };
+
+// ── Timber Beams (EC5 EN 1995-1-1) ───────────────────────────────────────────
+
+export interface TimberBeamInputs {
+  [key: string]: string | number | boolean;
+  gradeId: string;       // 'C24', 'GL28h', etc.
+  b: number;             // mm — section width
+  h: number;             // mm — section height (h ≥ b)
+  beamType: BeamType;
+  L: number;             // m — span
+  gk: number;            // kN/m — permanent UDL
+  qk: number;            // kN/m — variable UDL
+  serviceClass: 1 | 2 | 3;
+  loadDuration: string;  // LoadDurationClass
+  loadType: string;      // 'residential'|'office'|'storage'|'roof'|'custom'
+  psi2Custom: number;
+  fireResistance: string;  // FireResistance
+  exposedFaces: number;    // 3 | 4
+  isSystem: boolean;       // EC5 §6.6 — ksys=1.10 when part of load-sharing system
+}
+
+// FTUX defaults: C24 150×400, L=5m biart., g=2kN/m q=3kN/m → ~70% util
+export const timberBeamDefaults: TimberBeamInputs = {
+  gradeId: 'C24',
+  b: 150,
+  h: 400,
+  beamType: 'ss',
+  L: 5,
+  gk: 2.0,
+  qk: 3.0,
+  serviceClass: 1,
+  loadDuration: 'medium',
+  loadType: 'residential',
+  psi2Custom: 0.30,
+  fireResistance: 'R0',
+  exposedFaces: 3,
+  isSystem: false,
+};

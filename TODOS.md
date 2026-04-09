@@ -38,6 +38,8 @@ Punching: DONE (2026-04-06) — 59 tests: ρl from bar dims, tipo-viga Asw by po
 
 Sección Compuesta: DONE (2026-04-06) — 35 tests: FTUX defaults, bare profile, centroid arithmetic, Wpl/Wel_min, EC3 classification (web + flanges), Mrd formula (class 1/2/3/4), custom mode, plate stacking, validation guards, custom y-position. Hand-calc confirmed in design doc: IPE 300 + 200×15 → Iy=13140.7 cm⁴, yc=206.4mm, Wel_min=637 cm³, Class 1 (CE art. 5.2, ε=0.924). See `src/test/calc/compositeSection.test.ts`. PDF export pending before shipping.
 
+Vigas de madera (EC5): DONE (2026-04-09) — 70 tests: kmod/kdef/gammaM, ELU forces, kh size factor (sawn+glulam), kcr=0.67, LTB three-zone formula, ELS deflections, ksys §6.6, fire dchar/def/residual section, kdef SC2/SC3, load durations, beamType cases, fire-section-lost. See `src/test/calc/timberBeams.test.ts`. Hand-calc validation pending: run a fire check by hand (e.g. C24 200×400 R60, 3 faces) and verify against calcTimberBeam() before shipping. Also add PDF export (`src/lib/pdf/timberBeams.ts`) before shipping.
+
 Footings: not yet implemented — test plan required before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.

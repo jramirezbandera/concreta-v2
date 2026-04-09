@@ -116,6 +116,16 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <polyline points="17,21 21,21 21,17" />
         </svg>
       );
+    // Timber beam: rectangular section with wood-grain lines
+    case 'concreta-timber-beams':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <rect x="2" y="5" width="20" height="14" />
+          <line x1="2" y1="9"  x2="22" y2="9"  strokeDasharray="3 2" strokeWidth="1" />
+          <line x1="2" y1="12" x2="22" y2="12" strokeDasharray="3 2" strokeWidth="1" />
+          <line x1="2" y1="15" x2="22" y2="15" strokeDasharray="3 2" strokeWidth="1" />
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }
