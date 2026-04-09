@@ -133,7 +133,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
         errorText="s debe superar lp"
         onChange={(v) => set('s', v)}
       />
-      <NumberField label="Longitud de pletina (lp)" unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)} />
+      <NumberField label="Alto de pletina (lp)" unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)} />
       <NumberField label="Ancho de pletina (bp)" unit="cm" value={state.bp} step={1} min={2} onChange={(v) => set('bp', v)} />
       <NumberField label="Espesor de pletina (tp)" unit="mm" value={state.tp} step={1} min={4} onChange={(v) => set('tp', v)} />
     </div>

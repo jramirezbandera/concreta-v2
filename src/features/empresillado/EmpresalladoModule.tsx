@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { empresalladoDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcEmpresillado } from '../../lib/calculations/empresillado';
+import { exportEmpresalladoPDF } from '../../lib/pdf/empresillado';
 import { Topbar } from '../../components/layout/Topbar';
+import { showToast } from '../../components/ui/Toast';
 import { EmpresalladoInputsPanel } from './EmpresalladoInputs';
 import { EmpresalladoSvg } from './EmpresalladoSvg';
 import { EmpresalladoResults } from './EmpresalladoResults';
@@ -17,6 +19,22 @@ export function EmpresalladoModule() {
   const result = useMemo(() => calcEmpresillado(state), [state]);
   const sError = state.s <= state.lp;
 
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const handleExportPdf = useCallback(async () => {
+    if (!result.valid) {
+      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
+      return;
+    }
+    setPdfExporting(true);
+    try {
+      await exportEmpresalladoPDF(state, result);
+    } catch {
+      showToast('Error al generar el PDF', { autoDismiss: 4000 });
+    } finally {
+      setPdfExporting(false);
+    }
+  }, [state, result]);
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);
   const SVG_H = Math.round(SVG_W * (240 / 760));
@@ -26,6 +44,8 @@ export function EmpresalladoModule() {
       <Topbar
         moduleLabel="Empresillado"
         moduleGroup="Rehabilitación"
+        onExportPdf={handleExportPdf}
+        pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
 
