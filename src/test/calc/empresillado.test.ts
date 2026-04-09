@@ -172,6 +172,20 @@ describe('Pletina — EC3 biempotradas formulas', () => {
     const expected = r.V_Ed * (i.s / 100) / 4;
     expect(r.M_Ed_pl).toBeCloseTo(expected, 8);
   });
+
+  it('M_Rd_pl numeric spot-check — bp=10cm, tp=10mm, fy=275: W_pl = tp*bp²/4', () => {
+    // bp=10cm=100mm, tp=10mm → W_pl = 10 * 100² / 4 = 25000 mm³
+    // M_Rd = 25000 * 275 / (1.05 * 1e6) = 6.548 kNm
+    const r = calcEmpresillado(inp({ bp: 10, tp: 10, fy: 275 }));
+    expect(r.M_Rd_pl).toBeCloseTo(25000 * 275 / (1.05 * 1e6), 3);
+  });
+
+  it('V_Rd_pl numeric spot-check — bp=10cm, tp=10mm, fy=275', () => {
+    // bp=100mm, tp=10mm → V_Rd = 100 * 10 * 275 / (√3 * 1.05 * 1000) = 151.3 kN
+    const r = calcEmpresillado(inp({ bp: 10, tp: 10, fy: 275 }));
+    const expected = (100 * 10 * 275) / (Math.sqrt(3) * 1.05 * 1000);
+    expect(r.V_Rd_pl).toBeCloseTo(expected, 3);
+  });
 });
 
 // ─── Suite 11: Negative moments — abs() symmetry guard ───────────────────────

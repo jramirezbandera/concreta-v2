@@ -178,7 +178,10 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const M_Ed_pl = V_Ed * (s_cm / 100) / 4;   // kNm
 
   // Batten plate section (all mm):
-  const W_pl_mm3 = bp_mm * tp_mm * tp_mm / 4;           // mm³ — plastic modulus
+  // The batten bends in the plane of the column face (horizontal axis).
+  // Cross-section for bending: height = bp (vertical extent), width = tp (out-of-plane thickness).
+  // W_pl = tp × bp² / 4  (strong-axis bending; bp >> tp in all practical cases)
+  const W_pl_mm3 = tp_mm * bp_mm * bp_mm / 4;           // mm³ — plastic modulus
   const M_Rd_pl  = (W_pl_mm3 * fy) / (γM0 * 1e6);      // kNm  (N·mm → kNm ÷1e6)
   const V_Rd_pl  = (bp_mm * tp_mm * fy) / (Math.sqrt(3) * γM0 * 1000);  // kN
 
