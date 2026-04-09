@@ -77,12 +77,12 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
       <NumberField label="Momento eje X (Mx_Ed)" unit="kNm" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
       <NumberField label="Momento eje Y (My_Ed)" unit="kNm" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
       <NumberField
-        label="Cortante de diseno (V_Ed)"
+        label="Cortante de diseño (V_Ed)"
         unit="kN"
         value={state.Vd}
         step={1}
         min={0}
-        helpText={"Cortante actuante en la seccion del pilar.\nSi Vd < N_Ed/500, se aplica el minimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
+        helpText={"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
         onChange={(v) => set('Vd', v)}
       />
 
@@ -100,16 +100,16 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           ))}
         </select>
       </div>
-      <NumberField label="Limite elastico (fy)" unit="MPa" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
+      <NumberField label="Límite elástico (fy)" unit="MPa" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
 
-      {/* ── Longitudes de pandeo ──────────────────────────────────────── */}
+      {/* ── Pandeo global ────────────────────────────────────────────── */}
       <SectionHeader label="Pandeo global del pilar" />
       <NumberField
         label="Coef. pandeo eje X (beta_x)"
         value={state.beta_x}
         step={0.05}
         min={0.5}
-        helpText={"Condicion de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5*s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+        helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
         onChange={(v) => set('beta_x', v)}
       />
       <NumberField
@@ -117,14 +117,14 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
         value={state.beta_y}
         step={0.05}
         min={0.5}
-        helpText={"Condicion de contorno del pilar en el marco estructural.\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+        helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
         onChange={(v) => set('beta_y', v)}
       />
 
       {/* ── Pletinas ──────────────────────────────────────────────────── */}
       <SectionHeader label="Pletinas (battens)" />
       <NumberField
-        label="Separacion entre pletinas (s)"
+        label="Separación entre pletinas (s)"
         unit="cm"
         value={state.s}
         step={5}
