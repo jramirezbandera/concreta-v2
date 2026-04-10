@@ -11,6 +11,7 @@ import { PileCapModule } from './features/pile-cap';
 import { IsolatedFootingModule } from './features/isolated-footing';
 import { EmpresalladoModule } from './features/empresillado';
 import { TimberBeamsModule } from './features/timber-beams';
+import { TimberColumnsModule } from './features/timber-columns';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
       { path: 'rehab/empresillado', element: <EmpresalladoModule /> },
       { path: 'madera/vigas', element: <TimberBeamsModule /> },
+      { path: 'madera/pilares', element: <TimberColumnsModule /> },
       { path: '*', element: <NotFound /> },
     ],
   },

@@ -560,3 +560,41 @@ export const timberBeamDefaults: TimberBeamInputs = {
   exposedFaces: 3,
   isSystem: false,
 };
+
+// ── Timber Columns (EC5 EN 1995-1-1 §6.3) ────────────────────────────────────
+
+export interface TimberColumnInputs {
+  [key: string]: string | number | boolean;
+  gradeId: string;          // 'C24', 'GL28h', etc.
+  b: number;                // mm — section width
+  h: number;                // mm — section height
+  L: number;                // m — column height
+  beta: number;             // effective length factor (0.5 / 0.7 / 1.0 / 2.0)
+  Nd: number;               // kN — design axial compression (user-factored)
+  Vd: number;               // kN — design shear (user-factored)
+  Md: number;               // kNm — design moment (user-factored)
+  momentAxis: string;       // 'strong' | 'weak' — axis moment acts on
+  serviceClass: 1 | 2 | 3;
+  loadDuration: string;     // LoadDurationClass
+  fireResistance: string;   // 'R0'|'R30'|'R60'|'R90'|'R120'
+  exposedFaces: number;     // 3 | 4
+  etaFi: number;            // fire load reduction factor (0–1); used only when fireResistance !== 'R0'
+}
+
+// FTUX defaults: C24 160×160, L=3m, Nd=80kN wind moment → ~65% util
+export const timberColumnDefaults: TimberColumnInputs = {
+  gradeId: 'C24',
+  b: 160,
+  h: 160,
+  L: 3.0,
+  beta: 1.0,
+  Nd: 80,
+  Vd: 5,
+  Md: 8,
+  momentAxis: 'strong',
+  serviceClass: 1,
+  loadDuration: 'medium',
+  fireResistance: 'R0',
+  exposedFaces: 4,
+  etaFi: 0.65,
+};

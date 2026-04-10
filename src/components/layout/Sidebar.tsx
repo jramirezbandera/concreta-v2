@@ -116,6 +116,16 @@ function ModuleIcon({ moduleKey, size = 12 }: { moduleKey: string; size?: number
           <polyline points="17,21 21,21 21,17" />
         </svg>
       );
+    // Timber column: vertical rectangle with wood-grain lines
+    case 'concreta-timber-columns':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <rect x="8" y="2" width="8" height="20" />
+          <line x1="8" y1="7"  x2="16" y2="7"  strokeDasharray="3 2" strokeWidth="1" />
+          <line x1="8" y1="12" x2="16" y2="12" strokeDasharray="3 2" strokeWidth="1" />
+          <line x1="8" y1="17" x2="16" y2="17" strokeDasharray="3 2" strokeWidth="1" />
+        </svg>
+      );
     // Timber beam: rectangular section with wood-grain lines
     case 'concreta-timber-beams':
       return (
