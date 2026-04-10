@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { steelColumnDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -72,6 +73,10 @@ export function SteelColumnsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Pilares de acero — Concreta</title>
+        <meta name="description" content="Pandeo y empresillado en pilares de acero. EC3 §6.4." />
+      </Helmet>
       <Topbar
         moduleLabel="Pilares"
         moduleGroup="Acero"

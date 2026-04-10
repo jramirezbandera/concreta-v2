@@ -20,7 +20,8 @@ const BASE = {
   b: 160,
   h: 160,
   L: 3.0,
-  beta: 1.0,
+  beta_y: 1.0,
+  beta_z: 1.0,
   Nd: 80,
   Vd: 5,
   Md: 8,
@@ -55,13 +56,54 @@ describe('input validation', () => {
     expect(r.valid).toBe(false);
   });
 
-  it('rejects negative beta', () => {
-    const r = calcTimberColumn({ ...BASE, beta: 0 });
+  it('rejects zero beta_y', () => {
+    const r = calcTimberColumn({ ...BASE, beta_y: 0 });
     expect(r.valid).toBe(false);
   });
 });
 
 // ── Material parameters ───────────────────────────────────────────────────────
+describe('kh size factor (EC5 §3.2/§3.3)', () => {
+  it('kh=1.0 for 160mm section (h >= 150mm threshold)', () => {
+    const r = calcTimberColumn({ ...BASE, h: 160 });
+    expect(r.kh).toBeCloseTo(1.0, 5);
+  });
+
+  it('kh > 1.0 for small sawn section h=100mm', () => {
+    // kh = min((150/100)^0.2, 1.3) = min(1.5^0.2, 1.3) = min(1.0845, 1.3) = 1.0845
+    const r = calcTimberColumn({ ...BASE, h: 100, momentAxis: 'strong' });
+    expect(r.kh).toBeGreaterThan(1.0);
+    expect(r.kh).toBeCloseTo(Math.min(Math.pow(150 / 100, 0.2), 1.3), 4);
+  });
+
+  it('kh uses b when momentAxis=weak', () => {
+    const rStrong = calcTimberColumn({ ...BASE, b: 100, h: 160, momentAxis: 'strong' });
+    const rWeak   = calcTimberColumn({ ...BASE, b: 100, h: 160, momentAxis: 'weak' });
+    // strong → kh uses h=160 (>=150) → kh=1.0
+    // weak   → kh uses b=100 (<150)  → kh>1.0
+    expect(rStrong.kh).toBeCloseTo(1.0, 5);
+    expect(rWeak.kh).toBeGreaterThan(1.0);
+  });
+
+  it('kh=1.0 for glulam h=600mm (at threshold)', () => {
+    const r = calcTimberColumn({ ...BASE, gradeId: 'GL28h', h: 600, momentAxis: 'strong' });
+    expect(r.kh).toBeCloseTo(1.0, 3);
+  });
+
+  it('kh > 1.0 for glulam h=200mm', () => {
+    // kh = min((600/200)^0.1, 1.1) = min(3^0.1, 1.1) = min(1.1161, 1.1) = 1.1
+    const r = calcTimberColumn({ ...BASE, gradeId: 'GL28h', h: 200, momentAxis: 'strong' });
+    expect(r.kh).toBeCloseTo(1.1, 3);
+  });
+
+  it('kh increases fm_d (higher bending capacity for small sections)', () => {
+    const rSmall = calcTimberColumn({ ...BASE, h: 100, momentAxis: 'strong' });
+    const rFull  = calcTimberColumn({ ...BASE, h: 160, momentAxis: 'strong' });
+    // Both C24 with kmod=0.8, gammaM=1.3, but rSmall has kh>1 → fm_d higher
+    expect(rSmall.fm_d).toBeGreaterThan(rFull.fm_d);
+  });
+});
+
 describe('material parameters', () => {
   it('kmod=0.8 for medium duration SC1', () => {
     const r = calcTimberColumn(BASE);
@@ -118,15 +160,22 @@ describe('section geometry', () => {
 
 // ── Slenderness and buckling ──────────────────────────────────────────────────
 describe('slenderness EC5 §6.3.2', () => {
-  it('Lef = beta * L * 1000 mm', () => {
+  it('Lef_y = beta_y * L * 1000 mm', () => {
     const r = calcTimberColumn(BASE);
-    expect(r.Lef).toBeCloseTo(1.0 * 3.0 * 1000, 0);
+    expect(r.Lef_y).toBeCloseTo(1.0 * 3.0 * 1000, 0);
   });
 
-  it('Lef scales with beta', () => {
-    const r07 = calcTimberColumn({ ...BASE, beta: 0.7 });
-    const r10 = calcTimberColumn({ ...BASE, beta: 1.0 });
-    expect(r07.Lef).toBeCloseTo(r10.Lef * 0.7, 1);
+  it('Lef_z = beta_z * L * 1000 mm', () => {
+    const r = calcTimberColumn({ ...BASE, beta_z: 0.5 });
+    expect(r.Lef_z).toBeCloseTo(0.5 * 3.0 * 1000, 0);
+  });
+
+  it('Lef_y and Lef_z can differ (asymmetric boundary conditions)', () => {
+    const r = calcTimberColumn({ ...BASE, beta_y: 1.0, beta_z: 2.0 });
+    expect(r.Lef_y).toBeCloseTo(3000, 0);
+    expect(r.Lef_z).toBeCloseTo(6000, 0);
+    // Weak axis more slender → lambda_z > lambda_y → kc_z < kc_y
+    expect(r.kc_z).toBeLessThan(r.kc_y);
   });
 
   it('lambda_y = Lef / iy for 160x160 L=3m', () => {
@@ -419,15 +468,82 @@ describe('kmod by load duration and service class', () => {
 
 // ── Beta effective length ─────────────────────────────────────────────────────
 describe('effective length factor', () => {
-  it('beta=0.5 → Lef = 0.5 * L', () => {
-    const r = calcTimberColumn({ ...BASE, beta: 0.5, Nd: 10, Md: 0 });
-    expect(r.Lef).toBeCloseTo(0.5 * 3.0 * 1000, 0);
+  it('beta_y=0.5 → Lef_y = 0.5 * L', () => {
+    const r = calcTimberColumn({ ...BASE, beta_y: 0.5, Nd: 10, Md: 0 });
+    expect(r.Lef_y).toBeCloseTo(0.5 * 3.0 * 1000, 0);
   });
 
-  it('beta=2.0 (cantilever) → kc lower than beta=1.0', () => {
-    const rCant = calcTimberColumn({ ...BASE, beta: 2.0, Nd: 40, Md: 0 });
-    const rPin  = calcTimberColumn({ ...BASE, beta: 1.0, Nd: 40, Md: 0 });
+  it('beta_y=2.0 (cantilever) → kc_y lower than beta_y=1.0', () => {
+    const rCant = calcTimberColumn({ ...BASE, beta_y: 2.0, Nd: 40, Md: 0 });
+    const rPin  = calcTimberColumn({ ...BASE, beta_y: 1.0, Nd: 40, Md: 0 });
     expect(rCant.kc_y).toBeLessThan(rPin.kc_y);
+  });
+});
+
+// ── Additional input validation ───────────────────────────────────────────────
+describe('additional validation', () => {
+  it('rejects negative Vd', () => {
+    const r = calcTimberColumn({ ...BASE, Vd: -1 });
+    expect(r.valid).toBe(false);
+  });
+
+  it('rejects negative Md', () => {
+    const r = calcTimberColumn({ ...BASE, Md: -1 });
+    expect(r.valid).toBe(false);
+  });
+});
+
+// ── Hardwood grade ────────────────────────────────────────────────────────────
+describe('hardwood grade', () => {
+  it('D40 produces valid result', () => {
+    const r = calcTimberColumn({ ...BASE, gradeId: 'D40' });
+    expect(r.valid).toBe(true);
+  });
+
+  it('D40 gammaM=1.30 (sawn)', () => {
+    const r = calcTimberColumn({ ...BASE, gradeId: 'D40' });
+    expect(r.gammaM).toBeCloseTo(1.30, 5);
+  });
+
+  it('D40 betaC=0.2 (sawn hardwood)', () => {
+    const r = calcTimberColumn({ ...BASE, gradeId: 'D40' });
+    expect(r.betaC).toBeCloseTo(0.2, 5);
+  });
+
+  it('D40 betaN=0.70 for fire (hardwood slower charring)', () => {
+    const r = calcTimberColumn({ ...BASE, gradeId: 'D40', fireResistance: 'R30', exposedFaces: 4, etaFi: 0.65 });
+    expect(r.betaN).toBeCloseTo(0.70, 5);
+  });
+});
+
+// ── Fire edge cases ───────────────────────────────────────────────────────────
+describe('fire edge cases', () => {
+  it('etaFi=0 → fire stresses = 0, checks trivially pass', () => {
+    const r = calcTimberColumn({ ...BASE, fireResistance: 'R30', exposedFaces: 4, etaFi: 0 });
+    expect(r.valid).toBe(true);
+    expect(r.sigma_c_fi).toBeCloseTo(0, 5);
+    expect(r.sigma_m_fi).toBeCloseTo(0, 5);
+    expect(r.tau_fi).toBeCloseTo(0, 5);
+    const fireCombChecks = r.checks.filter(c => c.group === 'fire' && !c.neutral && c.id !== 'fire-section-lost');
+    fireCombChecks.forEach(ch => expect(ch.status).toBe('ok'));
+  });
+
+  it('etaFi=1.0 → fire stresses = ELU stresses (same loads, smaller section → higher util)', () => {
+    const r = calcTimberColumn({ ...BASE, fireResistance: 'R30', exposedFaces: 4, etaFi: 1.0 });
+    expect(r.valid).toBe(true);
+    // Residual section < full section → sigma_c_fi > sigma_c
+    expect(r.sigma_c_fi).toBeGreaterThan(r.sigma_c);
+  });
+
+  it('pure axial fire (Md=0) — util_623_fi = (σc/(kcy,fi·fc0,k))²', () => {
+    const r = calcTimberColumn({ ...BASE, fireResistance: 'R60', exposedFaces: 4, etaFi: 0.65, Md: 0, Vd: 0 });
+    expect(r.valid).toBe(true);
+    expect(r.checks.find(c => c.id === 'fire-comb-623')).toBeDefined();
+    // With Md=0: util_623_fi = (σc_fi/(kcy_fi·fc0_k))²
+    // fc0_k recovered as fc0_d * gammaM / kmod = (kmod·fc0_k/gammaM)·gammaM/kmod = fc0_k
+    const fc0_k = r.fc0_d * r.gammaM / r.kmod;
+    const expectedUtil = Math.pow(r.sigma_c_fi / (r.kc_y_fi * fc0_k), 2);
+    expect(r.checks.find(c => c.id === 'fire-comb-623')!.utilization).toBeCloseTo(expectedUtil, 3);
   });
 });
 

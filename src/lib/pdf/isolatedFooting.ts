@@ -197,7 +197,7 @@ export async function exportIsolatedFootingPDF(
   doc.setFontSize(7);
   setGray(doc, 160);
   doc.text('Concreta — CTE DB-SE-C / CE (Codigo Estructural espanol)', M, PAGE_H - M);
-  doc.text(window.location.href, PAGE_W - M, PAGE_H - M, { align: 'right' });
+  doc.text('Pagina 1', PAGE_W - M, PAGE_H - M, { align: 'right' });
 
   doc.save('zapata-aislada.pdf');
 }

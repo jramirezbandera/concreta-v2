@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { steelBeamDefaults } from '../../data/defaults';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { useModuleState } from '../../hooks/useModuleState';
@@ -97,6 +98,10 @@ export function SteelBeamsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Vigas de acero — Concreta</title>
+        <meta name="description" content="Flexión, pandeo lateral-torsional y deflexión en vigas de acero laminado. EC3 §6.2–6.3." />
+      </Helmet>
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Acero"

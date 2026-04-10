@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { pileCapDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -42,6 +43,10 @@ export function PileCapModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Encepados de micropilotes — Concreta</title>
+        <meta name="description" content="Encepado por bielas y tirantes. Código Estructural art. 48." />
+      </Helmet>
       <Topbar
         moduleLabel="Encepados"
         moduleGroup="Hormigón"

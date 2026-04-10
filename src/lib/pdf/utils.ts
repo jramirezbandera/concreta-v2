@@ -20,9 +20,9 @@ export function setGray(doc: jsPDF, g: number): void {
  * then strips any remaining non-Latin-1 characters.
  *
  * Covers all symbols used across Concreta modules:
- *   Greek: λ χ σ γ φ η δ β θ ε
+ *   Greek: λ χ σ τ γ φ η δ β θ ε
  *   Super/subscripts: ⁴ ³ ² ₁ ₂
- *   Math / punctuation: √ · ° Ø ' — –
+ *   Math / punctuation: √ · ≤ ≥ ° Ø ' — –
  */
 export function pdfStr(s: string): string {
   return s
@@ -43,9 +43,12 @@ export function pdfStr(s: string): string {
     .replace(/η/g, 'eta')
     .replace(/δ/g, 'd')
     .replace(/β/g, 'beta')
+    .replace(/τ/g, 't')
     .replace(/θ/g, 'th')
     .replace(/ε/g, 'eps')
     // Other symbols
+    .replace(/≤/g, '<=')
+    .replace(/≥/g, '>=')
     .replace(/√/g, 'sqrt')
     .replace(/·/g, 'x')
     .replace(/°/g, 'deg')

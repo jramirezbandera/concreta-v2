@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router';
+import { HelmetProvider } from 'react-helmet-async';
 import { AppShell, NotFound } from './components/layout/AppShell';
 import { RCBeamsModule } from './features/rc-beams';
 import { RCColumnsModule } from './features/rc-columns';
@@ -40,5 +41,9 @@ const router = createBrowserRouter([
 ], { basename: '/concreta-v2' });
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <HelmetProvider>
+      <RouterProvider router={router} />
+    </HelmetProvider>
+  );
 }

@@ -569,7 +569,8 @@ export interface TimberColumnInputs {
   b: number;                // mm — section width
   h: number;                // mm — section height
   L: number;                // m — column height
-  beta: number;             // effective length factor (0.5 / 0.7 / 1.0 / 2.0)
+  beta_y: number;           // effective length factor — strong axis (y-y, buckling in h-direction)
+  beta_z: number;           // effective length factor — weak axis  (z-z, buckling in b-direction)
   Nd: number;               // kN — design axial compression (user-factored)
   Vd: number;               // kN — design shear (user-factored)
   Md: number;               // kNm — design moment (user-factored)
@@ -587,7 +588,8 @@ export const timberColumnDefaults: TimberColumnInputs = {
   b: 160,
   h: 160,
   L: 3.0,
-  beta: 1.0,
+  beta_y: 1.0,
+  beta_z: 1.0,
   Nd: 80,
   Vd: 5,
   Md: 8,

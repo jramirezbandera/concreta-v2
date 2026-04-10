@@ -40,6 +40,8 @@ Sección Compuesta: DONE (2026-04-06) — 35 tests: FTUX defaults, bare profile,
 
 Vigas de madera (EC5): DONE (2026-04-09) — 70 tests: kmod/kdef/gammaM, ELU forces, kh size factor (sawn+glulam), kcr=0.67, LTB three-zone formula, ELS deflections, ksys §6.6, fire dchar/def/residual section, kdef SC2/SC3, load durations, beamType cases, fire-section-lost. See `src/test/calc/timberBeams.test.ts`. Hand-calc validation pending: run a fire check by hand (e.g. C24 200×400 R60, 3 faces) and verify against calcTimberBeam() before shipping. Also add PDF export (`src/lib/pdf/timberBeams.ts`) before shipping.
 
+Pilares de madera (EC5): DONE (2026-04-10) — 80 tests: input validation (Nd/Vd/Md/beta/b/L), material params, section geometry, slenderness §6.3.2, stresses (σc/σm/τd), §6.3.3 interaction (eq 6.23+6.24, strong/weak axis, pure axial), fire section reduction (3+4 faces, section-lost, etaFi=0/1), kmod matrix, beta factors, hardwood (D40 betaN=0.70), glulam (GL28h). See `src/test/calc/timberColumns.test.ts`. Hand-calc validation pending: run a buckling check by hand (C24 160×160, L=3m, β=1.0, Nd=80kN, Md=8kNm) using the comment header in the test file — λrel≈1.102, kc≈0.614, fc0_d≈12.92 N/mm², confirm util_623 and util_624 match. Also run a fire check by hand (C24 160×160, R60, 4 faces, η_fi=0.65) to verify dchar=48mm, def=55mm, b_ef=h_ef=50mm before shipping.
+
 Footings: not yet implemented — test plan required before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
@@ -64,6 +66,22 @@ Update SPECS.md to reflect these decisions before public launch.
 ---
 
 ## P2 — Post-launch, pre-growth
+
+### Landing: trust signals — testimonials strip (CEO review 2026-04-10)
+
+After the first 10 real users, ask each for a one-sentence quote about their specific use case
+(e.g. "Uso Concreta para revisar vigas antes de modelar en CYPE. Ahorra 20 minutos por proyecto.").
+
+When 3 quotes are collected, add a testimonials strip to `Landing.tsx` between the Features strip
+and the Modules section. Same design language as the Features strip — no avatars, just the quote,
+name, and discipline. Avoid placeholder copy at launch; wait for real quotes.
+
+**Where to start:** `src/pages/Landing.tsx` — add a `TESTIMONIALS` array and a strip section
+between `<div className="h-px bg-border-main" />` (after Features) and the Modules section.
+
+**Why P2:** Can't add fake testimonials. Landing is accurate today. Trust signals matter
+most when competing for engineers who heard about Concreta from a colleague — they'll check
+the landing before trying it.
 
 ### Retaining wall: NCSP-07 S·Ab cap warning (eng-review 2026-04-01)
 

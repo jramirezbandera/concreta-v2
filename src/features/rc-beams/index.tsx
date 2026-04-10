@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { rcBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -55,6 +56,10 @@ export function RCBeamsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Vigas de hormigón armado — Concreta</title>
+        <meta name="description" content="Cálculo de vigas HA: flexión, cortante y fisuración según el Código Estructural art. 22–26. Resultados instantáneos." />
+      </Helmet>
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Hormigon Armado"

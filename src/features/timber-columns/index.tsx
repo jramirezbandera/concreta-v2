@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { timberColumnDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -40,6 +41,10 @@ export function TimberColumnsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Pilares de madera — Concreta</title>
+        <meta name="description" content="Pandeo biaxial y resistencia al fuego en pilares de madera. EC5 EN 1995-1-1 §6.3." />
+      </Helmet>
       <Topbar
         moduleLabel="Pilares de madera"
         moduleGroup="Madera"

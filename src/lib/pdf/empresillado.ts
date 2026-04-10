@@ -38,7 +38,7 @@ export async function exportEmpresalladoPDF(
   const SVG_X = M;
   const SVG_Y = M + 12;
   const SVG_W = 90;   // mm — takes left ~half of page
-  const SVG_H = 58;   // mm
+  const SVG_H = 90;   // mm — matches 600×480 hidden SVG aspect (wider elevation view)
 
   if (svgEl) {
     await svg2pdf(svgEl, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
@@ -98,7 +98,8 @@ export async function exportEmpresalladoPDF(
   twoCol(`lambda_eff X/Y: ${result.lambda_effX.toFixed(3)} / ${result.lambda_effY.toFixed(3)}`);
 
   // ── Checks table ─────────────────────────────────────────────────────────────
-  const tableY = SVG_Y + SVG_H + 8;
+  // Start below whichever ends lower: the SVG or the right-column text block.
+  const tableY = Math.max(SVG_Y + SVG_H + 8, ry + 4);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -167,11 +168,12 @@ export async function exportEmpresalladoPDF(
   }
 
   // ── Footer ───────────────────────────────────────────────────────────────────
+  const footerY = PAGE_H - 10;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  setGray(doc, 160);
-  doc.text('Concreta — EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, PAGE_H - M);
-  doc.text(window.location.href, PAGE_W - M, PAGE_H - M, { align: 'right' });
+  setGray(doc, 150);
+  doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
+  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   doc.save('empresillado.pdf');
 }

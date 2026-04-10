@@ -17,30 +17,36 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function NumField({
-  label, sub, field, value, unit, min, step, setField,
+  label, sub, field, value, unit, min, step, setField, helpText,
 }: {
   label: string; sub?: string;
   field: keyof TimberColumnInputs; value: number; unit: string;
   min?: number; step?: number;
   setField: Props['setField'];
+  helpText?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`tc-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
-      </label>
-      <div className="flex shrink-0">
-        <input
-          id={`tc-${field}`}
-          type="number" value={value} min={min} step={step}
-          onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) setField(field, n); }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
-        </span>
+    <div className="py-0.75">
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={`tc-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+          {label}
+          {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        </label>
+        <div className="flex shrink-0">
+          <input
+            id={`tc-${field}`}
+            type="number" value={value} min={min} step={step}
+            onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) setField(field, n); }}
+            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+            {unit}
+          </span>
+        </div>
       </div>
+      {helpText && (
+        <span className="text-[10px] text-text-disabled leading-tight whitespace-pre-line mt-0.5 block">{helpText}</span>
+      )}
     </div>
   );
 }
@@ -110,6 +116,9 @@ const BETA_OPTIONS = [
   { value: 2.0, label: 'β = 2.00  — Ménsula' },
 ];
 
+const BETA_Y_OPTIONS = BETA_OPTIONS.map(o => ({ ...o, label: o.label.replace('β', 'βy') }));
+const BETA_Z_OPTIONS = BETA_OPTIONS.map(o => ({ ...o, label: o.label.replace('β', 'βz') }));
+
 const MOMENT_AXIS_OPTIONS = [
   { value: 'strong', label: 'Eje fuerte (h — canto mayor)' },
   { value: 'weak',   label: 'Eje débil  (b — ancho menor)' },
@@ -169,7 +178,8 @@ export function TimberColumnsInputs({ state, setField }: Props) {
       <SectionHeader label="Geometría" />
 
       <NumField label="Longitud" sub="L" field="L" value={state.L} unit="m" min={0.5} step={0.5} setField={setField} />
-      <SelectField label="Condición apoyo" field="beta" value={state.beta} options={BETA_OPTIONS} setField={setField} />
+      <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField} />
+      <SelectField label="Apoyo eje débil" field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField} />
 
       {/* ── Solicitaciones de diseño ─────────────────────────────────────── */}
       <SectionHeader label="Solicitaciones (mayoradas)" />
@@ -199,7 +209,9 @@ export function TimberColumnsInputs({ state, setField }: Props) {
       {state.fireResistance !== 'R0' && (
         <>
           <SelectField label="Caras expuestas" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
-          <NumField label="Factor carga" sub="η_fi" field="etaFi" value={state.etaFi} unit="" min={0} step={0.05} setField={setField} />
+          <NumField label="Factor carga" sub="η_fi" field="etaFi" value={state.etaFi} unit="" min={0} step={0.05} setField={setField}
+            helpText={"Factor de reducción de carga en incendio.\nNd,fi = η_fi · Nd  (EN 1995-1-2 §2.4.2)\nValor típico: 0.65–0.70 (cargas uso habitual).\nUsar 1.0 si Nd ya está en combinación de incendio."}
+          />
         </>
       )}
     </div>

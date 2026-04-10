@@ -20,6 +20,7 @@
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-helmet-async": "^3.0.0",
     "react-router": "^7.13.2",
     "svg2pdf.js": "^2.7.0",
     "tailwindcss": "^4.2.2"

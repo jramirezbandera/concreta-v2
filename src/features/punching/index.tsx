@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { punchingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPunching } from '../../lib/calculations/punching';
+import { exportPunchingPDF } from '../../lib/pdf/punching';
 import { Topbar } from '../../components/layout/Topbar';
+import { showToast } from '../../components/ui/Toast';
 import { PunchingInputsPanel } from './PunchingInputs';
 import { PunchingResults } from './PunchingResults';
 import { PunchingSVG } from './PunchingSVG';
@@ -16,6 +19,22 @@ export function PunchingModule() {
 
   const result = useMemo(() => calcPunching(state), [state]);
 
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const handleExportPdf = useCallback(async () => {
+    if (!result.valid) {
+      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
+      return;
+    }
+    setPdfExporting(true);
+    try {
+      await exportPunchingPDF(state, result);
+    } catch {
+      showToast('Error al generar el PDF', { autoDismiss: 4000 });
+    } finally {
+      setPdfExporting(false);
+    }
+  }, [state, result]);
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(200, canvasWidth - 32)
@@ -23,9 +42,15 @@ export function PunchingModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Punzonamiento en losa — Concreta</title>
+        <meta name="description" content="Comprobación de punzonamiento en losa maciza, perímetros críticos. Código Estructural art. 6.4." />
+      </Helmet>
       <Topbar
         moduleLabel="Punzonamiento"
         moduleGroup="Hormigón"
+        onExportPdf={handleExportPdf}
+        pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
 
@@ -75,6 +100,16 @@ export function PunchingModule() {
           </div>
         )}
 
+      </div>
+
+      {/* Hidden PDF SVG */}
+      <div className="overflow-hidden w-0 h-0" aria-hidden="true">
+        <div
+          id="punching-svg-pdf"
+          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+        >
+          <PunchingSVG inp={state} result={result} width={440} mode="pdf" />
+        </div>
       </div>
 
       {/* Mobile bottom tab bar */}

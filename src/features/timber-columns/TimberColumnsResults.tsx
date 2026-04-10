@@ -79,8 +79,8 @@ function ActiveRow({ check }: { check: TimberColumnCheckRow }) {
         <span className="text-[10px] font-mono text-text-disabled block tabular-nums">{`≤ ${check.limit}`}</span>
       </div>
       <div className="flex flex-col gap-1 justify-center min-w-0">
-        <div className="h-1.5 rounded-full bg-bg-primary overflow-hidden">
-          <div className={`h-full rounded-full ${BAR_CLS[st]}`} style={{ width: `${pct}%` }} />
+        <div className="h-1 rounded-sm bg-border-main overflow-hidden mt-1">
+          <div className={`h-full rounded-sm ${BAR_CLS[st]}`} style={{ width: `${pct}%` }} />
         </div>
         <span className="text-[10px] font-mono text-text-disabled tabular-nums">
           {`${(check.utilization * 100).toFixed(0)}%`}
@@ -94,7 +94,7 @@ function ActiveRow({ check }: { check: TimberColumnCheckRow }) {
 export function TimberColumnsResults({ result }: Props) {
   if (!result.valid) {
     return (
-      <div className="rounded-lg border border-state-fail/30 bg-state-fail/5 px-4 py-3">
+      <div className="rounded border border-state-fail/30 bg-state-fail/5 px-4 py-3">
         <p className="text-[12px] text-state-fail font-mono">{result.error ?? 'Error de cálculo'}</p>
       </div>
     );
@@ -128,6 +128,7 @@ export function TimberColumnsResults({ result }: Props) {
         <div className="divide-y divide-border-sub">
           <ValueRow label="kmod"     value={result.kmod.toFixed(2)} />
           <ValueRow label="γM"       value={result.gammaM.toFixed(2)} />
+          <ValueRow label="kh"       value={result.kh.toFixed(3)} />
           <ValueRow label="fc0,d"    value={`${result.fc0_d.toFixed(2)} N/mm²`} />
           <ValueRow label="fm,d"     value={`${result.fm_d.toFixed(2)} N/mm²`} />
           <ValueRow label="fv,d"     value={`${result.fv_d.toFixed(2)} N/mm²`} />
@@ -137,13 +138,14 @@ export function TimberColumnsResults({ result }: Props) {
       <div>
         <GroupHeader label="Pandeo EC5 §6.3.2" />
         <div className="divide-y divide-border-sub">
-          <ValueRow label="λy (eje fuerte)" value={result.lambda_y.toFixed(1)} />
-          <ValueRow label="λz (eje débil)"  value={result.lambda_z.toFixed(1)} />
-          <ValueRow label="λrel,y"           value={result.lambda_rel_y.toFixed(3)} />
-          <ValueRow label="λrel,z"           value={result.lambda_rel_z.toFixed(3)} />
-          <ValueRow label="kc,y"             value={result.kc_y.toFixed(3)} />
-          <ValueRow label="kc,z"             value={result.kc_z.toFixed(3)} />
-          <ValueRow label="Lef"              value={`${(result.Lef / 1000).toFixed(2)} m`} />
+          <ValueRow label="Lef,y (eje fuerte)" value={`${(result.Lef_y / 1000).toFixed(2)} m`} />
+          <ValueRow label="Lef,z (eje débil)"  value={`${(result.Lef_z / 1000).toFixed(2)} m`} />
+          <ValueRow label="λy (eje fuerte)"    value={result.lambda_y.toFixed(1)} />
+          <ValueRow label="λz (eje débil)"     value={result.lambda_z.toFixed(1)} />
+          <ValueRow label="λrel,y"             value={result.lambda_rel_y.toFixed(3)} />
+          <ValueRow label="λrel,z"             value={result.lambda_rel_z.toFixed(3)} />
+          <ValueRow label="kc,y"               value={result.kc_y.toFixed(3)} />
+          <ValueRow label="kc,z"               value={result.kc_z.toFixed(3)} />
         </div>
       </div>
 
@@ -181,9 +183,14 @@ export function TimberColumnsResults({ result }: Props) {
       </div>
 
       {/* Checks: Fire */}
-      {fireChecks.length > 0 && (
+      {fireChecks.length > 0 && (() => {
+        const fireActive2 = fireChecks.filter(c => !c.neutral);
+        const fireFail = fireActive2.some(c => c.status === 'fail');
+        const fireWarn = fireActive2.some(c => c.status === 'warn');
+        const fireStatus: CheckStatus = fireFail ? 'fail' : fireWarn ? 'warn' : 'ok';
+        return (
         <div>
-          <GroupHeader label="Fuego — Verificaciones" />
+          <GroupHeader label="Fuego — Verificaciones" status={fireStatus} />
           <div>
             {fireChecks.map(ch =>
               ch.neutral
@@ -192,7 +199,8 @@ export function TimberColumnsResults({ result }: Props) {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
     </div>
   );

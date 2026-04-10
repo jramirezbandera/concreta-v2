@@ -48,9 +48,13 @@ export interface TimberColumnResult {
   A: number;        // mm²
   iy: number;       // mm — radius of gyration strong axis
   iz: number;       // mm — radius of gyration weak axis
+  // Material
+  kh: number;        // size factor (EC5 §3.2/§3.3)
   // Buckling
   betaC: number;
-  Lef: number;      // mm
+  Lef: number;       // mm — strong axis (display)
+  Lef_y: number;     // mm — strong axis
+  Lef_z: number;     // mm — weak axis
   lambda_y: number;
   lambda_z: number;
   lambda_rel_y: number;
@@ -114,9 +118,9 @@ function mkNeutral(
 function invalidResult(error: string): TimberColumnResult {
   return {
     valid: false, error,
-    kmod: 0, gammaM: 0, fc0_d: 0, fm_d: 0, fv_d: 0,
+    kmod: 0, gammaM: 0, kh: 1, fc0_d: 0, fm_d: 0, fv_d: 0,
     A: 0, iy: 0, iz: 0,
-    betaC: 0, Lef: 0,
+    betaC: 0, Lef: 0, Lef_y: 0, Lef_z: 0,
     lambda_y: 0, lambda_z: 0, lambda_rel_y: 0, lambda_rel_z: 0,
     kc_y: 0, kc_z: 0,
     sigma_c: 0, sigma_m: 0, tau_d: 0,
@@ -159,7 +163,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   if (inp.Nd < 0) return invalidResult('El axil Nd debe ser ≥ 0');
   if (inp.Vd < 0) return invalidResult('El cortante Vd debe ser ≥ 0');
   if (inp.Md < 0) return invalidResult('El momento Md debe ser ≥ 0');
-  if (inp.beta <= 0) return invalidResult('Factor β inválido');
+  if (inp.beta_y <= 0 || inp.beta_z <= 0) return invalidResult('Factor β inválido');
 
   const { b, h } = inp;
   const Nd = inp.Nd;  // kN
@@ -172,8 +176,18 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const betaC  = grade.type === 'glulam' ? 0.1 : 0.2;
 
   const fc0_d = kmod * grade.fc0_k / gammaM;  // N/mm²
-  const fm_d  = kmod * grade.fm_k  / gammaM;  // N/mm²
   const fv_d  = kmod * grade.fv_k  / gammaM;  // N/mm²
+
+  // kh — size factor (EC5 §3.2 sawn / §3.3 glulam)
+  // Relevant dimension for kh is the section depth in the direction of bending.
+  // For columns with single-axis moment: use h (strong axis) or b (weak axis).
+  // For stability/compression only (no bending), kh does not apply to fc0.
+  const bendingDim = inp.momentAxis === 'strong' ? inp.h : inp.b;  // mm
+  const kh = grade.type === 'glulam'
+    ? (bendingDim < 600 ? Math.min(Math.pow(600 / bendingDim, 0.1), 1.1) : 1.0)
+    : (bendingDim < 150 ? Math.min(Math.pow(150 / bendingDim, 0.2), 1.3) : 1.0);
+
+  const fm_d  = kmod * kh * grade.fm_k / gammaM;  // N/mm² — with size factor
 
   const E0_05_Nmm2 = grade.E0_05 * 1000;  // kN/mm² → N/mm²
 
@@ -187,12 +201,14 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const Wz = h * b * b / 6;     // mm³ — weak axis   (moment about z-z)
   const W  = inp.momentAxis === 'strong' ? Wy : Wz;
 
-  // ── Effective length ───────────────────────────────────────────────────────
-  const Lef = inp.beta * inp.L * 1000;  // mm
+  // ── Effective lengths (independent per axis) ──────────────────────────────
+  const Lef_y = inp.beta_y * inp.L * 1000;  // mm — strong axis (y-y)
+  const Lef_z = inp.beta_z * inp.L * 1000;  // mm — weak axis  (z-z)
+  const Lef = Lef_y;  // kept for SVG/PDF display (strong axis governs in most cases)
 
   // ── Slenderness ───────────────────────────────────────────────────────────
-  const lambda_y = Lef / iy;
-  const lambda_z = Lef / iz;
+  const lambda_y = Lef_y / iy;
+  const lambda_z = Lef_z / iz;
   const lambda_rel_y = calcLambdaRel(lambda_y, grade.fc0_k, E0_05_Nmm2);
   const lambda_rel_z = calcLambdaRel(lambda_z, grade.fc0_k, E0_05_Nmm2);
   const kc_y = calcKc(lambda_rel_y, betaC);
@@ -249,9 +265,9 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const Wz_fi = h_ef * b_ef * b_ef / 6;
   const W_fi  = inp.momentAxis === 'strong' ? Wy_fi : Wz_fi;
 
-  // Buckling on residual section
-  const lambda_y_fi = iy_fi > 0 ? Lef / iy_fi : Infinity;
-  const lambda_z_fi = iz_fi > 0 ? Lef / iz_fi : Infinity;
+  // Buckling on residual section (independent Lef per axis)
+  const lambda_y_fi = iy_fi > 0 ? Lef_y / iy_fi : Infinity;
+  const lambda_z_fi = iz_fi > 0 ? Lef_z / iz_fi : Infinity;
   const lambda_rel_y_fi = calcLambdaRel(lambda_y_fi, grade.fc0_k, E0_05_Nmm2);
   const lambda_rel_z_fi = calcLambdaRel(lambda_z_fi, grade.fc0_k, E0_05_Nmm2);
   const kc_y_fi = calcKc(lambda_rel_y_fi, betaC);
@@ -386,8 +402,8 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
 
   return {
     valid: true,
-    kmod, gammaM, fc0_d, fm_d, fv_d,
-    A, iy, iz, betaC, Lef,
+    kmod, gammaM, kh, fc0_d, fm_d, fv_d,
+    A, iy, iz, betaC, Lef, Lef_y, Lef_z,
     lambda_y, lambda_z, lambda_rel_y, lambda_rel_z,
     kc_y, kc_z, sigma_c, sigma_m, tau_d,
     util_623, util_624,

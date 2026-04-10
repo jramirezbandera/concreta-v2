@@ -116,8 +116,13 @@ export async function exportTimberColumnsPDF(
   lSecHeader('SECCION Y GEOMETRIA');
   lRow(`Clase: ${inp.gradeId}`);
   lRow(`b = ${inp.b} mm`, `h = ${inp.h} mm`);
-  lRow(`L = ${inp.L} m`, `Lef = ${(inp.beta * inp.L).toFixed(2)} m`);
-  lRow(`${BETA_LABEL[inp.beta] ?? `b=${inp.beta}`}`);
+  const lefDisplay = inp.beta_y === inp.beta_z
+    ? `Lef = ${(inp.beta_y * inp.L).toFixed(2)} m`
+    : `Lef,y=${(inp.beta_y * inp.L).toFixed(2)} Lef,z=${(inp.beta_z * inp.L).toFixed(2)} m`;
+  lRow(`L = ${inp.L} m`, lefDisplay);
+  const betaYLabel = BETA_LABEL[inp.beta_y] ?? `by=${inp.beta_y}`;
+  const betaZLabel = inp.beta_y === inp.beta_z ? '' : (BETA_LABEL[inp.beta_z] ?? `bz=${inp.beta_z}`);
+  lRow(betaYLabel, betaZLabel || undefined);
   ly += 2;
   lSecHeader('SOLICITACIONES DE DISENO');
   lRow(`Nd = ${inp.Nd} kN`);

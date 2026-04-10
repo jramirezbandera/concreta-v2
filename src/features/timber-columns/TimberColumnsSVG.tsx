@@ -223,9 +223,13 @@ function ColumnElevation({
   const mDiagW = hasM ? Math.min(40, panelW * 0.15) : 0;
   const mDiagX = cx + colW / 2 + 4;
 
-  // Effective length annotation
-  const betaLabel = `β=${inp.beta}`;
-  const LefLabel  = `Lef=${(inp.beta * inp.L).toFixed(1)}m`;
+  // Effective length annotation (show both if different)
+  const betaLabel = inp.beta_y === inp.beta_z
+    ? `β=${inp.beta_y}`
+    : `βy=${inp.beta_y} / βz=${inp.beta_z}`;
+  const LefLabel = inp.beta_y === inp.beta_z
+    ? `Lef=${(inp.beta_y * inp.L).toFixed(1)}m`
+    : `Lef,y=${(inp.beta_y * inp.L).toFixed(1)}m`;
 
   return (
     <g>

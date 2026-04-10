@@ -266,15 +266,23 @@ function ColumnGeometry({
       const y = topY + t * colH;
       let dx = 0;
       if (bcT === 'pp') {
+        // Pin-Pin: half sine, zero at both ends, max at midspan
         dx = amp * Math.sin(Math.PI * t);
       } else if (bcT === 'pf') {
-        // pin at top, fixed at bottom — quarter-sine at bottom, grows to max at top
-        dx = amp * (1 - Math.cos(Math.PI * t / 2));
+        // Pin at top (t=0), Fixed at bottom (t=1)
+        // Both ends have zero lateral displacement; fixed end has zero slope.
+        // Approximate with t*(1-t)^2 normalised to unit amplitude (max at t=1/3).
+        dx = amp * 6.75 * t * Math.pow(1 - t, 2);
       } else if (bcT === 'fc') {
-        // fixed base, free top — cantilever — quarter-sine, max at top
-        dx = amp * (1 - Math.cos(Math.PI * t / 2));
+        // Fixed at base (t=1), Free at top (t=0) — cantilever
+        // Zero displacement AND zero slope at fixed base; max displacement at free top.
+        dx = amp * (1 - Math.cos(Math.PI * (1 - t) / 2));
+      } else if (bcT === 'ff') {
+        // Fixed-Fixed: zero displacement AND zero slope at both ends.
+        // sin²(πt) = (1 - cos(2πt)) / 2 — symmetric arch, max at midspan.
+        dx = amp * Math.pow(Math.sin(Math.PI * t), 2);
       } else {
-        // ff or custom: S-shape (inflection at L/4 and 3L/4)
+        // custom: generic S-shape
         dx = amp * Math.sin(2 * Math.PI * t);
       }
       pts.push([colX + dx, y]);
@@ -292,7 +300,8 @@ function ColumnGeometry({
       return <WallHatch x={colX - hatchW / 2} y={topY - hatchH} w={hatchW} h={hatchH} C={C} />;
     }
     if (bcType === 'pf') {
-      return <WallHatch x={colX - hatchW / 2} y={topY - hatchH} w={hatchW} h={hatchH} C={C} />;
+      // Articulado at top (pin)
+      return <PinTop cx={colX} cy={topY} size={pinSize} C={C} />;
     }
     if (bcType === 'fc') {
       // free top — open circle
@@ -311,8 +320,8 @@ function ColumnGeometry({
       return <PinBot cx={colX} cy={botY} size={pinSize} C={C} />;
     }
     if (bcType === 'pf') {
-      // pin at base
-      return <PinBot cx={colX} cy={botY} size={pinSize} C={C} />;
+      // Empotrado at bottom (fixed)
+      return <WallHatch x={colX - hatchW / 2} y={botY} w={hatchW} h={hatchH} C={C} />;
     }
     // ff, fc, custom — fixed/wall at base
     return <WallHatch x={colX - hatchW / 2} y={botY} w={hatchW} h={hatchH} C={C} />;
