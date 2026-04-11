@@ -398,14 +398,28 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // as-min
+  // as-min geom (CE art. 42.3.1 — cuantía geométrica)
   const As_min = 0.003 * b * h;
   checks.push(makeCheck(
     'as-min',
-    'Armadura m\u00ednima: As \u2265 0.003\u00b7b\u00b7h',
+    'Armadura m\u00ednima geom.: As \u2265 0.003\u00b7b\u00b7h',
     As_min, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min.toFixed(0)} mm\u00b2`,
+    'CE art. 42.3.1',
+  ));
+
+  // as-min mech (CE art. 42.3.1 — cuantía mecánica dependiente de carga)
+  // As · f_yc,d ≥ 0.10 · N_Ed,    con f_yc,d = min(f_yd, 400 N/mm²)
+  // Gobierna en pilares muy cargados con sección sobredimensionada.
+  const fyc_d = Math.min(fyd, 400);                   // N/mm²
+  const As_min_mech = 0.10 * NEd_N / fyc_d;           // mm²
+  checks.push(makeCheck(
+    'as-min-mech',
+    'Armadura m\u00ednima mec.: As\u00b7f_yc,d \u2265 0.10\u00b7N_Ed',
+    As_min_mech, As_total,
+    `${As_total.toFixed(0)} mm\u00b2`,
+    `\u2265 ${As_min_mech.toFixed(0)} mm\u00b2`,
     'CE art. 42.3.1',
   ));
 

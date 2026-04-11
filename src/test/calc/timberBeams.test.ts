@@ -19,23 +19,22 @@
 //           = 0.78×166 500 000/2 000 000 = 0.78×83.25 = 64.935 N/mm²
 //   λrel,m = sqrt(24/64.935) = sqrt(0.3695) = 0.608 → ≤0.75 → kcrit=1.0
 //
-// ELS:
+// ELS (formula contract: δ = k_defl · Mser · L² / EI; for ss → 5wL⁴/(384·EI)):
 //   I = 150×400³/12 = 800 000 000 mm⁴
-//   E0_mean = 11.0 kN/mm² = 11 000 N/mm²
+//   E0_mean = 11.0 kN/mm² → 11 000 N/mm²
+//   EI = 11000 × 8e8 = 8.8e12 N·mm²
+//   Mser_G = 2×5²/8 = 6.25 kNm = 6.25e6 Nmm
+//   Mser_Q = 3×5²/8 = 9.375 kNm = 9.375e6 Nmm
 //   k_defl (ss) = 5/48
-//   u_inst_G = (5/48)×2×5000⁴/(11000×8e8) = (5/48)×2×6.25e17/(8.8e12)
-//            = (5/48)×1.417e5 = 1.476e4 / 48×... let me compute:
-//            = (5/48) × 2 × 6.25e17 / 8.8e12
-//            = (5/48) × 1.25e17 / 8.8e12  wait, units:
-//   w[N/mm]=gk[kN/m]=2 numerically. L[mm]=5000. EI=11000×8e8=8.8e12 N·mm²
-//   u_inst_G = (5/48)×2×5000⁴/8.8e12 = 0.10417×2×6.25e14/8.8e12
-//            = 0.10417×2×71.02 = 14.80 mm
-//   u_inst_Q = (5/48)×3×5000⁴/8.8e12 = 22.20 mm
-//   u_inst = 14.80+22.20 = 37.00 mm  → L/300=16.67mm → FAIL (overloaded example)
-//   u_fin  = 14.80×(1+0.60) + 22.20×(1+0.30×0.60)
-//          = 23.68 + 22.20×1.18 = 23.68+26.20 = 49.88 mm → L/250=20mm → FAIL
-//   u_active = 22.20×(1+0.30×0.60) = 22.20×1.18 = 26.20mm → L/350=14.29mm → FAIL
-//   (confirms loads are intentionally high for FAIL demo; see separate OK test)
+//   u_inst_G = (5/48) × 6.25e6 × 5000² / 8.8e12
+//            = (5/48) × 6.25e6 × 2.5e7 / 8.8e12
+//            = (5/48) × 17.756 = 1.850 mm
+//   u_inst_Q = (5/48) × 9.375e6 × 2.5e7 / 8.8e12
+//            = (5/48) × 26.634 = 2.774 mm
+//   u_inst   = 1.850 + 2.774 = 4.624 mm  → L/300 = 16.67 mm → OK
+//   u_fin    = 1.850×(1+0.60) + 2.774×(1+0.30×0.60)
+//            = 2.960 + 3.273 = 6.234 mm → L/250 = 20.00 mm → OK
+//   u_active = 2.774 × 1.18 = 3.273 mm    → L/350 = 14.29 mm → OK
 
 import { describe, expect, it } from 'vitest';
 import { calcTimberBeam } from '../../lib/calculations/timberBeams';
@@ -155,9 +154,9 @@ describe('calcTimberBeam — C24 150×400 ss L=5m', () => {
     expect(r.sigma_m_crit).toBeCloseTo(64.9, 0);
   });
 
-  it('ELS: u_inst ≈ 37.0 mm', () => {
+  it('ELS: u_inst ≈ 4.62 mm (5wL⁴/384EI)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_inst).toBeCloseTo(37.0, 0);
+    expect(r.u_inst).toBeCloseTo(4.62, 1);
   });
 
   it('ELS: u_inst_lim = L/300 = 16.67 mm', () => {
@@ -165,21 +164,21 @@ describe('calcTimberBeam — C24 150×400 ss L=5m', () => {
     expect(r.u_inst_lim).toBeCloseTo(5000 / 300, 1);
   });
 
-  it('ELS: u_fin ≈ 49.9 mm', () => {
+  it('ELS: u_fin ≈ 6.23 mm', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_fin).toBeCloseTo(49.9, 0);
+    expect(r.u_fin).toBeCloseTo(6.23, 1);
   });
 
-  it('ELS: u_active ≈ 26.2 mm', () => {
+  it('ELS: u_active ≈ 3.27 mm', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_active).toBeCloseTo(26.2, 0);
+    expect(r.u_active).toBeCloseTo(3.27, 1);
   });
 
-  it('deflection checks FAIL for overloaded example', () => {
+  it('deflection checks PASS for base case (normal loads)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('fail');
-    expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('fail');
-    expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('fail');
+    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('ok');
+    expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('ok');
+    expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('ok');
   });
 
   it('no fire checks when R0', () => {
@@ -476,6 +475,22 @@ describe('calcTimberBeam — ELS all checks OK', () => {
     expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('ok');
+  });
+});
+
+describe('calcTimberBeam — ELS deflection FAIL path', () => {
+  it('long-span beam: all 3 deflection checks fail', () => {
+    // C24 150×400 ss, L=9m, gk=2, qk=3
+    // Mser_G = 2×81/8 = 20.25 kNm  → δ_G = (5/48)×20.25e6×81e6/8.8e12 ≈ 19.42 mm
+    // Mser_Q = 3×81/8 = 30.375 kNm → δ_Q ≈ 29.13 mm
+    // u_inst   ≈ 48.55 mm  > L/300 = 30.0  → FAIL
+    // u_fin    ≈ 65.44 mm  > L/250 = 36.0  → FAIL
+    // u_active ≈ 34.37 mm  > L/350 = 25.71 → FAIL
+    const r = calcTimberBeam({ ...baseInp, L: 9 });
+    expect(r.u_inst).toBeCloseTo(48.55, 0);
+    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('fail');
+    expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('fail');
+    expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('fail');
   });
 });
 

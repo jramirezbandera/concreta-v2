@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type PileCapInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface Props {
   state:    PileCapInputs;
@@ -11,11 +12,16 @@ interface Props {
 // ── NumField ──────────────────────────────────────────────────────────────────
 
 function NumField({
-  label, sub, field, value, unit, setField,
+  labelKey, label, sub, field, value, unit, setField,
 }: {
-  label: string; sub?: string; field: string;
-  value: number; unit: string; setField: Props['setField'];
+  labelKey?: LabelKey;
+  label?: string; sub?: string; field: string;
+  value: number; unit?: string; setField: Props['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => { setLocalStr(String(value)); }, [value]);
@@ -23,8 +29,8 @@ function NumField({
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`pc-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -42,10 +48,10 @@ function NumField({
             if (isNaN(n)) setLocalStr(String(value));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -55,16 +61,23 @@ function NumField({
 // ── SelectField ───────────────────────────────────────────────────────────────
 
 function SelectField({
-  label, field, value, options, setField,
+  labelKey, label, field, value, options, setField,
 }: {
-  label: string; field: string; value: string | number;
+  labelKey?: LabelKey;
+  label?: string; field: string; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`pc-sel-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`pc-sel-${field}`}
@@ -74,7 +87,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -139,30 +152,30 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
       {/* Geometry */}
       <SectionHeader label="Geometría" />
-      <NumField label="d_p"    sub="diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField} />
-      <NumField label="s"      sub="sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField} />
-      <NumField label="h_enc"  sub="canto encepado"   field="h_enc"  value={state.h_enc as number}  unit="mm"  setField={setField} />
-      <NumField label="b_col"  sub="ancho pilar x"    field="b_col"  value={state.b_col as number}  unit="mm"  setField={setField} />
-      <NumField label="h_col"  sub="canto pilar y"    field="h_col"  value={state.h_col as number}  unit="mm"  setField={setField} />
-      <NumField label="R_adm"  sub="cap. admisible"   field="R_adm"  value={state.R_adm as number}  unit="kN"  setField={setField} />
+      <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField} />
+      <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField} />
+      <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
+      <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
+      <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
+      <NumField label="R_adm"  sub="Cap. admisible"   field="R_adm"  value={state.R_adm as number}  unit="kN"  setField={setField} />
 
       {/* Loads */}
       <SectionHeader label="Acciones de diseño (ELU)" />
-      <NumField label="N_Ed"   sub="axil (compr.)"    field="N_Ed"   value={state.N_Ed as number}   unit="kN"  setField={setField} />
-      <NumField label="Mx_Ed"  sub="momento x"        field="Mx_Ed"  value={state.Mx_Ed as number}  unit="kNm" setField={setField} />
+      <NumField labelKey="NEd"        field="N_Ed"   value={state.N_Ed as number}   setField={setField} />
+      <NumField labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number}  setField={setField} />
       {n !== 2 && (
-        <NumField label="My_Ed" sub="momento y"       field="My_Ed"  value={state.My_Ed as number}  unit="kNm" setField={setField} />
+        <NumField labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number}  setField={setField} />
       )}
 
       {/* Materials */}
       <SectionHeader label="Materiales" />
-      <SelectField label="fck" field="fck" value={state.fck as number} options={fckOptions} setField={setField} />
-      <SelectField label="fyk" field="fyk" value={state.fyk as number} options={fykOptions} setField={setField} />
+      <SelectField labelKey="fck" field="fck" value={state.fck as number} options={fckOptions} setField={setField} />
+      <SelectField labelKey="fyk" field="fyk" value={state.fyk as number} options={fykOptions} setField={setField} />
 
       {/* Reinforcement */}
       <SectionHeader label="Armadura tirantes" />
-      <SelectField label="Ø tirante" field="phi_tie" value={state.phi_tie as number} options={barOptions} setField={setField} />
-      <NumField label="recubr."   sub="al eje barra"  field="cover"  value={state.cover as number}  unit="mm"  setField={setField} />
+      <SelectField labelKey="bar_diameter_tie" field="phi_tie" value={state.phi_tie as number} options={barOptions} setField={setField} />
+      <NumField labelKey="cover_mechanical" field="cover"  value={state.cover as number}  setField={setField} />
 
       {n === 2 && (
         <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">

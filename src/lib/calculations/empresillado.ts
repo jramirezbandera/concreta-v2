@@ -149,9 +149,14 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const N_pl_Rd = (A * fy_cm) / γM0;   // kN — one chord
 
   // ── Local buckling (eje v) ────────────────────────────────────────────────
-  // Pletinas are welded (biempotradas): lk_local = 0.5 × s per EC3 §6.4.2.1 Table 6.8
+  // EC3 §6.4.3.1(3): for battened compound members, the chord buckling
+  // length between consecutive battens equals the distance between battens
+  // (centre-to-centre spacing s), NOT 0.5·s. Using 0.5 assumes ideal fixity
+  // at the batten, which EC3 does not recognise for this check — it
+  // systematically under-reports chord local buckling utilization
+  // (λ halved → χ higher → N_bv,Rd inflated).
   const ε = Math.sqrt(235 / fy);
-  const lk_local_cm = 0.5 * s_cm;
+  const lk_local_cm = s_cm;
   const lambda_v = (lk_local_cm / iv) / (93.9 * ε);
   const chi_v = bucklingChi(lambda_v);
   const N_bv_Rd = (chi_v * A * fy_cm) / γM1;

@@ -1,6 +1,7 @@
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
   inp:    PileCapInputs;
@@ -70,9 +71,9 @@ export function PileCapResults({ inp, result }: Props) {
 
       {/* Armadura tirantes */}
       <GroupHeader label="Armadura de tirantes" />
-      <ValueRow label="As,req,x"     value={`${result.As_tie_x.toFixed(0)} mm²`} />
-      <ValueRow label="As,min,x"     value={`${result.As_min_x.toFixed(0)} mm²`} />
-      <ValueRow label="As,adoptado,x" value={`${result.As_adopted_x.toFixed(0)} mm²`} />
+      <ValueRow label={resultLabel('As_req_x')}     value={`${result.As_tie_x.toFixed(0)} mm²`} />
+      <ValueRow label={resultLabel('As_min_x')}     value={`${result.As_min_x.toFixed(0)} mm²`} />
+      <ValueRow label={resultLabel('As_adopted_x')} value={`${result.As_adopted_x.toFixed(0)} mm²`} />
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
         <span className="text-[12px] text-text-secondary">Barras x</span>
         <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
@@ -83,9 +84,9 @@ export function PileCapResults({ inp, result }: Props) {
       {n === 4 && result.n_bars_y !== null && result.As_min_y !== null &&
         result.As_adopted_y !== null && result.As_prov_y !== null && (
         <>
-          <ValueRow label="As,req,y"     value={`${result.As_tie_y?.toFixed(0)} mm²`} />
-          <ValueRow label="As,min,y"     value={`${result.As_min_y.toFixed(0)} mm²`} />
-          <ValueRow label="As,adoptado,y" value={`${result.As_adopted_y.toFixed(0)} mm²`} />
+          <ValueRow label={resultLabel('As_req_y')}     value={`${result.As_tie_y?.toFixed(0)} mm²`} />
+          <ValueRow label={resultLabel('As_min_y')}     value={`${result.As_min_y.toFixed(0)} mm²`} />
+          <ValueRow label={resultLabel('As_adopted_y')} value={`${result.As_adopted_y.toFixed(0)} mm²`} />
           <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
             <span className="text-[12px] text-text-secondary">Barras y</span>
             <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">

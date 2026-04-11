@@ -230,15 +230,21 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const sigma_m_y = inp.momentAxis === 'strong' ? sigma_m : 0;
   const sigma_m_z = inp.momentAxis === 'weak'   ? sigma_m : 0;
 
-  // Eq 6.23: (σc/(kcy·fc0,d))² + σm,y/fm,d + km·σm,z/fm,d ≤ 1
+  // EC5 §6.3.2(3) — columns with buckling + combined bending. Compression
+  // term is LINEAR (not squared). The squared form belongs to §6.2.4
+  // eqs (6.19)/(6.20) for members WITHOUT buckling risk, using fc0,d
+  // directly (no kc). Previous implementation mixed the two — it kept the
+  // squared form AND inserted kc — which systematically under-reports
+  // utilization for slender columns.
+  //
+  // Eq (6.23): σc,0,d/(kc,y·fc,0,d) + σm,y,d/fm,y,d + km·σm,z,d/fm,z,d ≤ 1
+  // Eq (6.24): σc,0,d/(kc,z·fc,0,d) + km·σm,y,d/fm,y,d + σm,z,d/fm,z,d ≤ 1
   const term_c_y = fc0_d > 0 && kc_y > 0 ? sigma_c / (kc_y * fc0_d) : 0;
+  const term_c_z = fc0_d > 0 && kc_z > 0 ? sigma_c / (kc_z * fc0_d) : 0;
   const term_m_y = fm_d > 0 ? sigma_m_y / fm_d : 0;
   const term_m_z = fm_d > 0 ? sigma_m_z / fm_d : 0;
-  const util_623 = term_c_y * term_c_y + term_m_y + km * term_m_z;
-
-  // Eq 6.24: (σc/(kcz·fc0,d))² + km·σm,y/fm,d + σm,z/fm,d ≤ 1
-  const term_c_z = fc0_d > 0 && kc_z > 0 ? sigma_c / (kc_z * fc0_d) : 0;
-  const util_624 = term_c_z * term_c_z + km * term_m_y + term_m_z;
+  const util_623 = term_c_y + term_m_y + km * term_m_z;
+  const util_624 = term_c_z + km * term_m_y + term_m_z;
 
   // ── FIRE — EN 1995-1-2 ────────────────────────────────────────────────────
   const fireActive = inp.fireResistance !== 'R0';
@@ -291,8 +297,9 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const term_c_z_fi  = fc0_d_fi > 0 && kc_z_fi > 0 ? sigma_c_fi / (kc_z_fi * fc0_d_fi) : 0;
   const term_m_y_fi  = fm_d_fi > 0 ? sigma_m_y_fi / fm_d_fi : 0;
   const term_m_z_fi  = fm_d_fi > 0 ? sigma_m_z_fi / fm_d_fi : 0;
-  const util_623_fi  = term_c_y_fi * term_c_y_fi + term_m_y_fi + km * term_m_z_fi;
-  const util_624_fi  = term_c_z_fi * term_c_z_fi + km * term_m_y_fi + term_m_z_fi;
+  // Fire combo — same linear EC5 §6.3.2(3) interaction on residual section.
+  const util_623_fi  = term_c_y_fi + term_m_y_fi + km * term_m_z_fi;
+  const util_624_fi  = term_c_z_fi + km * term_m_y_fi + term_m_z_fi;
 
   // ── Build check rows ───────────────────────────────────────────────────────
   const checks: TimberColumnCheckRow[] = [];

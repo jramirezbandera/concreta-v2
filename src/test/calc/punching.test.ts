@@ -80,6 +80,51 @@ describe('vEd', () => {
   });
 });
 
+// ── u0 / vEd0 — column-face perimeter (CE art. 6.4.5(3)) ──────────────────────
+describe('u0 / vEd,0', () => {
+  it('interior u0 = 2·(cx+cy)', () => {
+    const r = calcPunching(base);
+    expect(r.u0).toBeCloseTo(2 * (300 + 300), 6);
+  });
+
+  it('interior circular u0 = π·Ø', () => {
+    const r = calcPunching({ ...base, isCircular: true, cx: 400, cy: 400 });
+    expect(r.u0).toBeCloseTo(Math.PI * 400, 6);
+  });
+
+  it('borde u0 = min(cx+3d, cx+2·cy)', () => {
+    // cx=300, cy=300, d=200 → min(300+600, 300+600) = 900
+    const r = calcPunching({ ...base, position: 'borde' });
+    expect(r.u0).toBeCloseTo(Math.min(300 + 3 * 200, 300 + 2 * 300), 6);
+  });
+
+  it('esquina u0 = min(3d, cx+cy)', () => {
+    // d=200, cx=cy=300 → min(600, 600) = 600
+    const r = calcPunching({ ...base, position: 'esquina' });
+    expect(r.u0).toBeCloseTo(Math.min(3 * 200, 300 + 300), 6);
+  });
+
+  it('vEd0 = β·VEd·1000/(u0·d) — column-face stress', () => {
+    const r = calcPunching(base);
+    const expected = 1.0 * 300 * 1000 / (r.u0 * 200);
+    expect(r.vEd0).toBeCloseTo(expected, 4);
+  });
+
+  it('vEd0 > vEd — column-face stress strictly larger than u1 stress', () => {
+    const r = calcPunching(base);
+    // u0 < u1 for any real column, so vEd0 > vEd
+    expect(r.vEd0).toBeGreaterThan(r.vEd);
+  });
+
+  it('punz-ved-max check uses vEd0 (not vEd)', () => {
+    const r = calcPunching(base);
+    const c = r.checks.find((c) => c.id === 'punz-ved-max')!;
+    // "value" field of the check should show vEd0, not vEd
+    expect(c.value).toContain(r.vEd0.toFixed(3));
+    expect(c.value).not.toContain(r.vEd.toFixed(3));
+  });
+});
+
 // ── k size factor ────────────────────────────────────────────────────────────
 describe('k factor', () => {
   it('d=200 → k=2.0 (capped at 2.0)', () => {

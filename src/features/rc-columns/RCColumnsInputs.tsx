@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type RCColumnInputs } from '../../data/defaults';
 import { availableFck, availableFyk } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface RCColumnsInputsProps {
   state: RCColumnInputs;
@@ -30,6 +31,7 @@ function SubHeader({ label }: { label: string }) {
 }
 
 function NumberField({
+  labelKey,
   label,
   sub,
   fieldKey,
@@ -40,16 +42,21 @@ function NumberField({
   integer = false,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
   fieldKey: string;
   value: number;
-  unit: string;
+  unit?: string;
   min?: number;
   step?: number;
   integer?: boolean;
   setField: (key: string, value: number | string) => void;
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -62,8 +69,8 @@ function NumberField({
         htmlFor={`input-${fieldKey}`}
         className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
       >
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -82,12 +89,12 @@ function NumberField({
             if (isNaN(n)) setLocalStr(String(value));
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
-          aria-label={unit ? `${label} (${unit})` : label}
-          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors ${unit ? 'rounded-l' : 'rounded'}`}
+          aria-label={unitText ? `${resolved.label} (${unitText})` : resolved.label}
+          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
         />
-        {unit && (
+        {unitText && (
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {unit}
+            {unitText}
           </span>
         )}
       </div>
@@ -96,6 +103,7 @@ function NumberField({
 }
 
 function SelectField({
+  labelKey,
   label,
   sub,
   fieldKey,
@@ -104,7 +112,8 @@ function SelectField({
   unit,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
   fieldKey: string;
   value: number;
@@ -112,18 +121,23 @@ function SelectField({
   unit?: string;
   setField: (key: string, value: number | string) => void;
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`select-${fieldKey}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
-        {unit && <span className="text-[11px] text-text-disabled ml-1">{unit}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+        {!labelKey && unit && <span className="text-[11px] text-text-disabled ml-1">{unit}</span>}
       </label>
       <select
         id={`select-${fieldKey}`}
         value={value}
         onChange={(e) => setField(fieldKey, Number(e.target.value))}
-        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -144,30 +158,30 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
   return (
     <div>
       <SectionHeader label="Geometría" />
-      <NumberField label="Ancho b"       fieldKey="b"     value={state.b}     unit="mm" min={100}  setField={setField} />
-      <NumberField label="Canto h"       fieldKey="h"     value={state.h}     unit="mm" min={100}  setField={setField} />
-      <NumberField label="Recubrimiento" fieldKey="cover" value={state.cover} unit="mm" min={10}   setField={setField} />
-      <NumberField label="Longitud L"    fieldKey="L"     value={state.L}     unit="m"  min={0.5} step={0.1} setField={setField} />
-      <NumberField label="Beta β"        sub="(coef. pandeo)" fieldKey="beta" value={state.beta} unit="" min={0.5} step={0.05} setField={setField} />
+      <NumberField labelKey="b_section"        fieldKey="b"     value={state.b}     min={100}  setField={setField} />
+      <NumberField labelKey="h_section"        fieldKey="h"     value={state.h}     min={100}  setField={setField} />
+      <NumberField labelKey="cover_mechanical" fieldKey="cover" value={state.cover} min={10}   setField={setField} />
+      <NumberField labelKey="L_column"         fieldKey="L"     value={state.L}     min={0.5} step={0.1} setField={setField} />
+      <NumberField labelKey="beta_buckling"    fieldKey="beta"  value={state.beta}  min={0.5} step={0.05} setField={setField} />
       <div className="flex items-center justify-between py-0.75 gap-2">
         <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">Lk = L × β</span>
         <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{Lk} m</span>
       </div>
 
       <SectionHeader label="Materiales" />
-      <SelectField label="fck" fieldKey="fck" value={state.fck} options={FCK_OPTIONS} unit="MPa" setField={setField} />
-      <SelectField label="fyk" fieldKey="fyk" value={state.fyk} options={FYK_OPTIONS} unit="MPa" setField={setField} />
+      <SelectField labelKey="fck" fieldKey="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
+      <SelectField labelKey="fyk" fieldKey="fyk" value={state.fyk} options={FYK_OPTIONS} setField={setField} />
 
       <SectionHeader label="Armadura longitudinal" />
-      <SelectField label="Ø esquina" sub="(4 barras)" fieldKey="cornerBarDiam" value={state.cornerBarDiam} options={BAR_DIAM_OPTIONS} unit="mm" setField={setField} />
+      <SelectField labelKey="bar_diameter_corner" fieldKey="cornerBarDiam" value={state.cornerBarDiam} options={BAR_DIAM_OPTIONS} setField={setField} />
 
       <SubHeader label="Cara X  (sup. + inf.)" />
-      <NumberField label="Núm. interm." sub="(por cara)" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField} />
-      <SelectField label="Diámetro" fieldKey="barDiamX" value={state.barDiamX} options={BAR_DIAM_OPTIONS} unit="mm" setField={setField} />
+      <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField} />
+      <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamX" value={state.barDiamX} options={BAR_DIAM_OPTIONS} setField={setField} />
 
       <SubHeader label="Cara Y  (laterales)" />
-      <NumberField label="Núm. interm." sub="(por cara)" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
-      <SelectField label="Diámetro" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} unit="mm" setField={setField} />
+      <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
+      <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} setField={setField} />
 
       <div className="flex items-center justify-between py-0.75 gap-2 mt-1">
         <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">As total</span>
@@ -175,35 +189,29 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
       </div>
 
       <SectionHeader label="Armadura transversal" />
-      <SelectField label="Ø estribo" fieldKey="stirrupDiam" value={state.stirrupDiam} options={STIRRUP_DIAM_OPTIONS} unit="mm" setField={setField} />
-      <NumberField label="Separación" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
+      <SelectField labelKey="bar_diameter_stirrup" fieldKey="stirrupDiam" value={state.stirrupDiam} options={STIRRUP_DIAM_OPTIONS} setField={setField} />
+      <NumberField label="s" sub="Separación cercos" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
 
       <SectionHeader label="Solicitaciones" />
       <NumberField
-        label="NEd"
-        sub="(compresión +)"
+        labelKey="NEd"
         fieldKey="Nd"
         value={state.Nd}
-        unit="kN"
         min={1}
         step={10}
         setField={setField}
       />
       <NumberField
-        label="MEdy"
-        sub="(eje y, h)"
+        labelKey="My_Ed"
         fieldKey="MEdy"
         value={state.MEdy}
-        unit="kNm"
         step={1}
         setField={setField}
       />
       <NumberField
-        label="MEdz"
-        sub="(eje z, b)"
+        labelKey="Mz_Ed"
         fieldKey="MEdz"
         value={state.MEdz}
-        unit="kNm"
         step={1}
         setField={setField}
       />

@@ -153,6 +153,45 @@ describe('classification', () => {
     expect(r.sectionClass).toBeDefined();
     expect([1, 2, 3, 4]).toContain(r.sectionClass);
   });
+
+  // EC3 Table 5.2 — α-shifted web limits when the plastic NA moves due to
+  // asymmetric cover plates. Heavy bottom plate pushes the PNA downward,
+  // so MORE than half of the web is in compression (α > 0.5) and the
+  // class-1/2 c/tw limits tighten relative to the α=0.5 values [72, 83].
+  it('heavy bottom plate tightens web class limit vs bare profile (α > 0.5)', () => {
+    const bare = calcCompositeSection({ ...base, plates: [] });
+    // Very heavy bottom plate: 300×40 — shifts PNA far below web mid-height
+    const heavy = calcCompositeSection({
+      ...base,
+      plates: [{ id: 'pb', b: 300, t: 40, posType: 'bottom', customYBottom: 0 }],
+    });
+    expect(bare.valid).toBe(true);
+    expect(heavy.valid).toBe(true);
+    // The displayed web limit (`limit` field) must be strictly smaller in the
+    // heavy-bottom case vs. the bare profile — tighter because α > 0.5.
+    const barelim  = bare.checks.find(c => c.id === 'cls-web')!.limit;
+    const heavylim = heavy.checks.find(c => c.id === 'cls-web')!.limit;
+    const parseLim = (s: string) => parseFloat(s.match(/([\d.]+)/)?.[1] ?? '0');
+    expect(parseLim(heavylim)).toBeLessThan(parseLim(barelim));
+  });
+
+  it('symmetric cover plates → α ≈ 0.5 → web limit ≈ 72·ε (matches EC3 α=0.5)', () => {
+    // Equal top and bottom plates → plastic NA at mid-height → α=0.5
+    const r = calcCompositeSection({
+      ...base,
+      plates: [
+        { id: 'pt', b: 200, t: 15, posType: 'top',    customYBottom: 0 },
+        { id: 'pb', b: 200, t: 15, posType: 'bottom', customYBottom: 0 },
+      ],
+    });
+    expect(r.valid).toBe(true);
+    expect(r.webClass).toBe(1);
+    // Class 1 web limit for α=0.5: 72·ε
+    const ε = Math.sqrt(235 / r.fy_MPa);
+    const limStr = r.checks.find(c => c.id === 'cls-web')!.limit;
+    const limVal = parseFloat(limStr.match(/([\d.]+)/)?.[1] ?? '0');
+    expect(limVal).toBeCloseTo(72 * ε, 0);
+  });
 });
 
 // ── Mrd formula selection ────────────────────────────────────────────────────
@@ -164,7 +203,10 @@ describe('Mrd', () => {
     expect(r.Mrd_kNm).toBeCloseTo(expected, 1);
   });
 
-  it('custom mode → Mrd = Wpl·fy/γM0 (best estimate, no class)', () => {
+  it('custom mode → Mrd = Wel_min·fy/γM0 (elastic — no classification available)', () => {
+    // In custom mode we cannot classify the individual plates as web/flange,
+    // so we cannot guarantee the section reaches its plastic moment. Drop
+    // back to the elastic section modulus to stay on the safe side.
     const inp: CompositeSectionInputs = {
       ...base,
       mode: 'custom',
@@ -172,8 +214,11 @@ describe('Mrd', () => {
     };
     const r = calcCompositeSection(inp);
     expect(r.sectionClass).toBeNull();
-    const expected = r.Wpl_cm3 * 1000 * r.fy_MPa / 1.05 / 1e6;
+    const expected = r.Wel_min_cm3 * 1000 * r.fy_MPa / 1.05 / 1e6;
     expect(r.Mrd_kNm).toBeCloseTo(expected, 1);
+    // And it must be ≤ the Wpl-based value (safer)
+    const Wpl_based = r.Wpl_cm3 * 1000 * r.fy_MPa / 1.05 / 1e6;
+    expect(r.Mrd_kNm).toBeLessThanOrEqual(Wpl_based + 1e-6);
   });
 
   it('Mrd > 0 for all valid results', () => {

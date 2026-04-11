@@ -1,4 +1,5 @@
 import { type TimberBeamResult, type TimberCheckRow, type CheckStatus } from '../../lib/calculations/timberBeams';
+import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
   result: TimberBeamResult;
@@ -155,38 +156,38 @@ export function TimberBeamsResults({ result }: Props) {
       {/* ── Factores de modificación ────────────────────────────────────── */}
       <GroupHeader label="Factores de modificación  (EC5 §2.4)" />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-3">
-        <ValueRow label="kmod — duración y clase de servicio  (Tabla 3.1)" value={result.kmod.toFixed(2)} />
-        <ValueRow label="kh — factor de tamaño  (§3.2 / §3.3)"            value={result.kh.toFixed(3)} />
-        <ValueRow label="kcr — área eficaz a cortante  (§6.1.7(2))"       value={result.kcr.toFixed(2)} />
-        <ValueRow label="ksys — factor de sistema  (§6.6)"                 value={result.ksys.toFixed(2)} />
-        <ValueRow label="kdef — deformación diferida  (Tabla 3.2)"         value={result.kdef.toFixed(2)} />
-        <ValueRow label="γM — coeficiente de material"                     value={result.gammaM.toFixed(2)} />
-        <ValueRow label="ψ₂ — combinación cuasipermanente"                 value={result.psi2.toFixed(2)} />
+        <ValueRow label={resultLabel('kmod')}           value={result.kmod.toFixed(2)} />
+        <ValueRow label="kh — factor de tamaño  (EC5 §3.2 / §3.3)" value={result.kh.toFixed(3)} />
+        <ValueRow label={resultLabel('kcr')}            value={result.kcr.toFixed(2)} />
+        <ValueRow label={resultLabel('ksys')}           value={result.ksys.toFixed(2)} />
+        <ValueRow label={resultLabel('kdef')}           value={result.kdef.toFixed(2)} />
+        <ValueRow label={resultLabel('gamma_M_timber')} value={result.gammaM.toFixed(2)} />
+        <ValueRow label={resultLabel('psi2')}           value={result.psi2.toFixed(2)} />
       </div>
 
       {/* ── ELU ─────────────────────────────────────────────────────────── */}
       <GroupHeader label="ELU — Estado Límite Último" status={groupStatus(eluChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-        <ValueRow label="MEd — momento de cálculo"              value={`${result.MEd.toFixed(2)} kNm`} />
-        <ValueRow label="VEd — cortante de cálculo"             value={`${result.VEd.toFixed(2)} kN`}  />
-        <ValueRow label="σm,d — tensión de flexión"             value={`${result.sigma_m.toFixed(2)} N/mm²`} />
-        <ValueRow label="fm,d · kh · ksys — resist. flexión"   value={`${fm_d_sys.toFixed(2)} N/mm²`} />
-        <ValueRow label="τd — tensión cortante (Av = kcr·A)"   value={`${result.tau_d.toFixed(2)} N/mm²`} />
-        <ValueRow label="fv,d — resist. cortante"               value={`${result.fv_d.toFixed(2)} N/mm²`} />
-        <ValueRow label="λrel,m — esbeltez relativa LTB"        value={result.lambda_rel_m.toFixed(3)} />
-        <ValueRow label="kcrit — factor pandeo lateral  (§6.3.3)" value={result.kcrit.toFixed(3)} />
+        <ValueRow label={resultLabel('MEd')} value={`${result.MEd.toFixed(2)} kNm`} />
+        <ValueRow label={resultLabel('VEd')} value={`${result.VEd.toFixed(2)} kN`}  />
+        <ValueRow label="σm,d — tensión de flexión" value={`${result.sigma_m.toFixed(2)} N/mm²`} />
+        <ValueRow label="fm,d · kh · ksys — resist. flexión efectiva  (EC5 §6.1.6)" value={`${fm_d_sys.toFixed(2)} N/mm²`} />
+        <ValueRow label="τd — tensión cortante (Av = kcr·A)" value={`${result.tau_d.toFixed(2)} N/mm²`} />
+        <ValueRow label={resultLabel('fv_d')} value={`${result.fv_d.toFixed(2)} N/mm²`} />
+        <ValueRow label={resultLabel('lambda_rel')} value={result.lambda_rel_m.toFixed(3)} />
+        <ValueRow label={resultLabel('kcrit')} value={result.kcrit.toFixed(3)} />
       </div>
       <CheckRows checks={eluChecks} />
 
       {/* ── ELS ─────────────────────────────────────────────────────────── */}
-      <GroupHeader label="ELS — Deformaciones  (§7.2 / NA España)" status={groupStatus(elsChecks)} />
+      <GroupHeader label="ELS — Deformaciones  (EC5 §7.2 / NA España)" status={groupStatus(elsChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-        <ValueRow label="u_inst — flecha instantánea"  value={`${result.u_inst.toFixed(1)} mm`} />
+        <ValueRow label={resultLabel('u_inst')}    value={`${result.u_inst.toFixed(1)} mm`} />
         <ValueRow label="Límite instantánea  (L/300)"  value={`${result.u_inst_lim.toFixed(1)} mm`} />
-        <ValueRow label="u_fin — flecha final"          value={`${result.u_fin.toFixed(1)} mm`} />
-        <ValueRow label="Límite final  (L/250)"         value={`${result.u_fin_lim.toFixed(1)} mm`} />
-        <ValueRow label="u_activa — flecha activa"      value={`${result.u_active.toFixed(1)} mm`} />
-        <ValueRow label="Límite activa  (L/350)"        value={`${result.u_active_lim.toFixed(1)} mm`} />
+        <ValueRow label={resultLabel('u_fin')}     value={`${result.u_fin.toFixed(1)} mm`} />
+        <ValueRow label="Límite final  (L/250)"        value={`${result.u_fin_lim.toFixed(1)} mm`} />
+        <ValueRow label={resultLabel('u_active')}  value={`${result.u_active.toFixed(1)} mm`} />
+        <ValueRow label="Límite activa  (L/350)"       value={`${result.u_active_lim.toFixed(1)} mm`} />
       </div>
       <CheckRows checks={elsChecks} />
 
@@ -195,13 +196,13 @@ export function TimberBeamsResults({ result }: Props) {
         <>
           <GroupHeader label={`Incendio — R${result.t_fire}  (EN 1995-1-2 §4.2.2)`} status={groupStatus(fireChecks)} />
           <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-            <ValueRow label="βn — velocidad de carbonización"      value={`${result.betaN.toFixed(2)} mm/min`} />
-            <ValueRow label="dchar = βn · t — profundidad carbonizada" value={`${result.dchar.toFixed(1)} mm`} />
-            <ValueRow label="d0 — capa resistencia nula"           value="7.0 mm" />
-            <ValueRow label="def = dchar + d0 — penetración eficaz" value={`${result.def.toFixed(1)} mm`} />
-            <ValueRow label="Sección residual  b_ef × h_ef"        value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
-            <ValueRow label="MEd,fi — combinación incendio"        value={`${result.MEd_fi.toFixed(2)} kNm`} />
-            <ValueRow label="VEd,fi"                               value={`${result.VEd_fi.toFixed(2)} kN`} />
+            <ValueRow label={resultLabel('beta_n')}           value={`${result.betaN.toFixed(2)} mm/min`} />
+            <ValueRow label={resultLabel('dchar')}            value={`${result.dchar.toFixed(1)} mm`} />
+            <ValueRow label={resultLabel('d0_zeroStrength')}  value="7.0 mm" />
+            <ValueRow label={resultLabel('def_penetration')}  value={`${result.def.toFixed(1)} mm`} />
+            <ValueRow label="Sección residual  b_ef × h_ef"  value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
+            <ValueRow label="MEd,fi — combinación incendio (η_fi)"  value={`${result.MEd_fi.toFixed(2)} kNm`} />
+            <ValueRow label="VEd,fi — combinación incendio (η_fi)"  value={`${result.VEd_fi.toFixed(2)} kN`} />
             <ValueRow label="fm,k — resist. flexión  (γM,fi = 1.0)" value={`${result.fm_k_fi.toFixed(2)} N/mm²`} />
             <ValueRow label="fv,k — resist. cortante  (γM,fi = 1.0)" value={`${result.fv_k_fi.toFixed(2)} N/mm²`} />
           </div>

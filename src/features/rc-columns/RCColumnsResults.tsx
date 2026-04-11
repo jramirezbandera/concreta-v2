@@ -1,5 +1,6 @@
 import { type RCColumnResult } from '../../lib/calculations/rcColumns';
 import { VerdictBadge, CheckRowItem, GroupHeader, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface RCColumnsResultsProps {
   result: RCColumnResult;
@@ -137,10 +138,10 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
 
       {/* Shared values */}
       <div className="mt-1 pt-1 border-t border-border-sub">
-        <ValueRow label="d' (arm. compresión)" value={`${result.d_prime.toFixed(0)} mm`} />
-        <ValueRow label="As total"              value={`${result.As_total.toFixed(0)} mm\u00b2`} />
-        <ValueRow label="NRd,max"               value={`${result.NRd_max.toFixed(0)} kN`} />
-        <ValueRow label="MRdy / MRdz"           value={`${result.MRdy.toFixed(1)} / ${result.MRdz.toFixed(1)} kNm`} />
+        <ValueRow label="d' (arm. compresión)"         value={`${result.d_prime.toFixed(0)} mm`} />
+        <ValueRow label={resultLabel('As_total')}      value={`${result.As_total.toFixed(0)} mm\u00b2`} />
+        <ValueRow label={resultLabel('NRd_max')}       value={`${result.NRd_max.toFixed(0)} kN`} />
+        <ValueRow label="MRdy / MRdz"                   value={`${result.MRdy.toFixed(1)} / ${result.MRdz.toFixed(1)} kNm`} />
         <ValueRow label={`ned \u2192 a  (${result.ned.toFixed(3)} \u2192 ${result.a.toFixed(2)})`} value="" />
       </div>
 

@@ -22,6 +22,13 @@ export interface IsolatedFootingResult {
   B_eff:          number;  // m — Meyerhof effective width  B' = B - 2|ex|
   L_eff:          number;  // m — Meyerhof effective length L' = L - 2|ey|
 
+  // Stability (CTE DB-SE-C §4.4.1)
+  W_zap:          number;  // kN — concrete self-weight
+  W_soil:         number;  // kN — soil over footing
+  N_total_k:      number;  // kN — N_k + W_zap + W_soil
+  FS_vuelco_x:    number;  // (N_total · B/2) / |My_k|
+  FS_vuelco_y:    number;  // (N_total · L/2) / |Mx_k|
+
   // SLS pressure distribution (full contact assumed for display)
   sigma_max:      number;  // kPa — peak corner pressure (SLS)
   sigma_min:      number;  // kPa — min corner pressure (SLS, <0 → tension)
@@ -41,10 +48,21 @@ export interface IsolatedFootingResult {
   ax:             number;  // mm — cantilever arm x
   ay:             number;  // mm — cantilever arm y
 
-  // Bending (per m width)
-  MEd_x:          number;  // kNm/m
+  // Rigid/flexible classification (CE art. 55.1 / EHE-08 art. 58.2.1)
+  // Rigid: max(v_x, v_y) ≤ 2·h → strut-and-tie (biela-tirante)
+  // Flexible: max(v_x, v_y) > 2·h → beam bending + punching
+  v_max_x:        number;  // m — cantilever x = (B − bc)/2
+  v_max_y:        number;  // m — cantilever y = (L − hc)/2
+  is_rigid:       boolean; // true if max(v_x, v_y) ≤ 2·h
+
+  // Bending (flexible) OR biela-tirante (rigid), unified As_req_{x,y}
+  // For flexible footings: MEd_{x,y} drives As_req_{x,y} via RC bending solver.
+  // For rigid footings:    Td_{x,y} drives As_req_{x,y} via tie equilibrium.
+  MEd_x:          number;  // kNm/m — bending moment at column face (always computed, informational for rigid)
   MEd_y:          number;  // kNm/m
-  As_req_x:       number;  // mm²/m
+  Td_x:           number;  // kN — biela-tirante tie force dir. x (EHE art. 58.4.1.2)
+  Td_y:           number;  // kN — dir. y
+  As_req_x:       number;  // mm²/m — governing demand (method depends on is_rigid)
   As_req_y:       number;  // mm²/m
   As_min_x:       number;  // mm²/m
   As_min_y:       number;  // mm²/m
@@ -71,12 +89,17 @@ export interface IsolatedFootingResult {
   checks:         CheckRow[];
 }
 
+const GAMMA_C_RC = 25;      // kN/m³ — reinforced concrete unit weight
+const FS_VUELCO_MIN = 1.5;  // CTE DB-SE-C §4.4.1 — stability against overturning
+
 const EMPTY: IsolatedFootingResult = {
   valid: false, ex: 0, ey: 0, B_eff: 0, L_eff: 0,
+  W_zap: 0, W_soil: 0, N_total_k: 0, FS_vuelco_x: 0, FS_vuelco_y: 0,
   sigma_max: 0, sigma_min: 0, sigma_eff: 0,
   qh: 0, qadm: 0, Rd_slide: 0,
   sigma_Ed: 0, d_x: 0, d_y: 0, ax: 0, ay: 0,
-  MEd_x: 0, MEd_y: 0,
+  v_max_x: 0, v_max_y: 0, is_rigid: false,
+  MEd_x: 0, MEd_y: 0, Td_x: 0, Td_y: 0,
   As_req_x: 0, As_req_y: 0, As_min_x: 0, As_min_y: 0,
   As_adopted_x: 0, As_adopted_y: 0, As_prov_x: 0, As_prov_y: 0,
   ell_x: 0, ell_y: 0, VEd_x: 0, VEd_y: 0,
@@ -211,6 +234,21 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     qh = qadm;  // no separate γ_R in this method
   }
 
+  // ── Stability against overturning (CTE DB-SE-C §4.4.1) ───────────────────────
+  // Characteristic self-weight + soil cover above footing + applied vertical load.
+  // Check both axes: FS = M_resist / M_overturn ≥ 1.5
+  //   About y-axis (tipping in x direction): M_overturn = |My_k|, arm = B/2
+  //   About x-axis (tipping in y direction): M_overturn = |Mx_k|, arm = L/2
+  const W_zap  = GAMMA_C_RC * B * L * h;                                // kN
+  const h_soil = Math.max(Df - h, 0);
+  const W_soil = gamma_soil * h_soil * (B * L - bc * hc);               // kN
+  const N_total_k = N_k + W_zap + W_soil;                                // kN
+
+  const M_stab_x = N_total_k * (B / 2);   // kNm — restoring about y-axis
+  const M_stab_y = N_total_k * (L / 2);   // kNm — restoring about x-axis
+  const FS_vuelco_x = Math.abs(My_k) > 0 ? M_stab_x / Math.abs(My_k) : Infinity;
+  const FS_vuelco_y = Math.abs(Mx_k) > 0 ? M_stab_y / Math.abs(Mx_k) : Infinity;
+
   // ── Sliding (SLS) ────────────────────────────────────────────────────────────
   const Rd_slide = N_k * mu + c_base * B * L;   // kN
 
@@ -225,7 +263,19 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const ax = ((B - bc) / 2) * 1000;   // mm — x arm (from column face to footing edge)
   const ay = ((L - hc) / 2) * 1000;   // mm — y arm
 
-  // ── Bending (per m width) ────────────────────────────────────────────────────
+  // ── Rigid/flexible classification (CE art. 55.1 / EHE-08 art. 58.2.1) ────────
+  // Rigid if max(v_x, v_y) ≤ 2·h. Rigid footings behave as compression struts;
+  // flexible footings behave as beams/slabs. Different methods apply:
+  //   Rigid:    biela-tirante (strut-and-tie) → Td = Nd·(B−bc)/(6.8·d)
+  //             No punching (strut behaviour, no flexural shear transfer)
+  //   Flexible: standard bending at column face + punching at 2d perimeter
+  // Using flexible bending on rigid footings UNDER-ESTIMATES steel by ~40-50%.
+  const v_max_x = (B - bc) / 2;         // m
+  const v_max_y = (L - hc) / 2;         // m
+  const v_max   = Math.max(v_max_x, v_max_y);
+  const is_rigid = v_max <= 2 * h;
+
+  // ── Bending at column face (always computed — used when flexible, displayed always) ──
   // Moment at column face: MEd = σ_Ed · arm² / 2
   const MEd_x = sigma_Ed * Math.pow(ax / 1000, 2) / 2;   // kNm/m
   const MEd_y = sigma_Ed * Math.pow(ay / 1000, 2) / 2;   // kNm/m
@@ -242,8 +292,24 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     return Math.max(0.26 * fctm / fyk * 1000 * d, 0.0013 * 1000 * d);  // mm²/m
   }
 
-  const As_req_x = reqAs(MEd_x, d_x);
-  const As_req_y = reqAs(MEd_y, d_y);
+  const As_req_bend_x = reqAs(MEd_x, d_x);
+  const As_req_bend_y = reqAs(MEd_y, d_y);
+
+  // ── Biela-tirante tie force (CE art. 55.2 / EHE-08 art. 58.4.1.2) ────────────
+  // Concentric derivation: R₁d = σ_Ed·(B/2)·L, x₁ = B/4 from column axis, a₁ = bc
+  //   Td = R₁d·(x₁ − 0.25·a₁)/(0.85·d) = σ_Ed·L·B·(B − bc)/(6.8·d)
+  // Eccentric: σ_Ed is Meyerhof-amplified (N_Ed/(B'·L')), applied over full (B×L)
+  // footprint → conservative (over-estimates the half-footing resultant).
+  // Units: σ_Ed [kPa] · L [m] · B [m] · (B−bc) [m] / (6.8 · d_x [m]) = [kN]
+  const Td_x = sigma_Ed * L * B * (B - bc) / (6.8 * (d_x / 1000));  // kN
+  const Td_y = sigma_Ed * B * L * (L - hc) / (6.8 * (d_y / 1000));  // kN
+  // Tie area (total across perpendicular width) → per meter for UI consistency
+  const As_req_tie_x = (Td_x * 1000 / fyd) / L;   // mm²/m (spread across L)
+  const As_req_tie_y = (Td_y * 1000 / fyd) / B;   // mm²/m (spread across B)
+
+  // Governing demand: method depends on classification
+  const As_req_x = is_rigid ? As_req_tie_x : As_req_bend_x;
+  const As_req_y = is_rigid ? As_req_tie_y : As_req_bend_y;
   const As_min_x = minAs(d_x);
   const As_min_y = minAs(d_y);
   const As_adopted_x = Math.max(As_req_x, As_min_x);
@@ -342,6 +408,32 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     article: 'CTE DB-SE-C',
   });
 
+  // Overturning about y-axis (M_overturn = |My_k|, tipping in x direction)
+  if (Math.abs(My_k) > 0) {
+    checks.push({
+      id: 'overturning-x',
+      description: 'Estabilidad al vuelco (eje y, dir. x)',
+      value: `FS = ${FS_vuelco_x.toFixed(2)}`,
+      limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
+      utilization: FS_VUELCO_MIN / FS_vuelco_x,
+      status: FS_vuelco_x >= FS_VUELCO_MIN ? 'ok' : 'fail',
+      article: 'CTE DB-SE-C §4.4.1',
+    });
+  }
+
+  // Overturning about x-axis (M_overturn = |Mx_k|, tipping in y direction)
+  if (Math.abs(Mx_k) > 0) {
+    checks.push({
+      id: 'overturning-y',
+      description: 'Estabilidad al vuelco (eje x, dir. y)',
+      value: `FS = ${FS_vuelco_y.toFixed(2)}`,
+      limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
+      utilization: FS_VUELCO_MIN / FS_vuelco_y,
+      status: FS_vuelco_y >= FS_VUELCO_MIN ? 'ok' : 'fail',
+      article: 'CTE DB-SE-C §4.4.1',
+    });
+  }
+
   // Sliding (only if H_k > 0)
   if (H_k > 0) {
     checks.push(makeCheck(
@@ -353,35 +445,53 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     ));
   }
 
-  // Bending x
+  // Classification info row (always present — informational, always "ok")
+  const v_ratio = v_max / h;
+  checks.push({
+    id: 'footing-class',
+    description: is_rigid
+      ? 'Clasificación — rígida (biela-tirante, CE art. 55.2)'
+      : 'Clasificación — flexible (flexión + punzonamiento, CE art. 55.1)',
+    value: `v_max/h = ${v_ratio.toFixed(2)}`,
+    limit: is_rigid ? '≤ 2.00 (rígida)' : '> 2.00 (flexible)',
+    utilization: 0,
+    status: 'ok',
+    article: 'CE art. 55 / EHE-08 art. 58.2.1',
+  });
+
+  // Bending x (label depends on method)
+  const bending_label_x = is_rigid ? 'Armadura dir. x (biela-tirante)' : 'Armadura flexión dir. x';
+  const bending_art_x = is_rigid ? 'CE art. 55.2 / EHE art. 58.4.1.2' : 'CE art. 9.1';
   if (As_req_x === Infinity) {
     checks.push({
-      id: 'bending-x', description: 'Flexión dir. x — sección sobrearmada',
+      id: 'bending-x', description: `${bending_label_x} — sección sobrearmada`,
       value: '∞', limit: `${As_prov_x.toFixed(0)} mm²/m`,
-      utilization: 2, status: 'fail', article: 'CE art. 9.1',
+      utilization: 2, status: 'fail', article: bending_art_x,
     });
   } else {
     checks.push(makeCheck(
-      'bending-x', 'Armadura flexión dir. x',
+      'bending-x', bending_label_x,
       As_adopted_x, As_prov_x,
       `${As_adopted_x.toFixed(0)} mm²/m`, `${As_prov_x.toFixed(0)} mm²/m`,
-      'CE art. 9.1',
+      bending_art_x,
     ));
   }
 
   // Bending y
+  const bending_label_y = is_rigid ? 'Armadura dir. y (biela-tirante)' : 'Armadura flexión dir. y';
+  const bending_art_y = is_rigid ? 'CE art. 55.2 / EHE art. 58.4.1.2' : 'CE art. 9.1';
   if (As_req_y === Infinity) {
     checks.push({
-      id: 'bending-y', description: 'Flexión dir. y — sección sobrearmada',
+      id: 'bending-y', description: `${bending_label_y} — sección sobrearmada`,
       value: '∞', limit: `${As_prov_y.toFixed(0)} mm²/m`,
-      utilization: 2, status: 'fail', article: 'CE art. 9.1',
+      utilization: 2, status: 'fail', article: bending_art_y,
     });
   } else {
     checks.push(makeCheck(
-      'bending-y', 'Armadura flexión dir. y',
+      'bending-y', bending_label_y,
       As_adopted_y, As_prov_y,
       `${As_adopted_y.toFixed(0)} mm²/m`, `${As_prov_y.toFixed(0)} mm²/m`,
-      'CE art. 9.1',
+      bending_art_y,
     ));
   }
 
@@ -405,13 +515,18 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     ));
   }
 
-  // Punching
-  checks.push(makeCheck(
-    'punching', 'Punzonamiento (a 2d del pilar)',
-    vEd_punch, vRdc_punch,
-    `${vEd_punch.toFixed(3)} MPa`, `${vRdc_punch.toFixed(3)} MPa`,
-    'CE art. 46',
-  ));
+  // Punching — only applies to flexible footings.
+  // Rigid footings transfer load through compression struts; the 2d critical
+  // perimeter at d_avg ~ h lies near or beyond the footing edge and the shear
+  // flow assumed by CE art. 46 does not represent the real failure mode.
+  if (!is_rigid) {
+    checks.push(makeCheck(
+      'punching', 'Punzonamiento (a 2d del pilar)',
+      vEd_punch, vRdc_punch,
+      `${vEd_punch.toFixed(3)} MPa`, `${vRdc_punch.toFixed(3)} MPa`,
+      'CE art. 46',
+    ));
+  }
 
   // Spacing x
   const s_max = 300;  // mm — CE art. 42.3
@@ -441,11 +556,13 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   return {
     valid: !overall_fail,
     ex, ey, B_eff, L_eff,
+    W_zap, W_soil, N_total_k, FS_vuelco_x, FS_vuelco_y,
     sigma_max, sigma_min, sigma_eff,
     qh, qadm,
     Rd_slide,
     sigma_Ed, d_x, d_y, ax, ay,
-    MEd_x, MEd_y,
+    v_max_x, v_max_y, is_rigid,
+    MEd_x, MEd_y, Td_x, Td_y,
     As_req_x, As_req_y, As_min_x, As_min_y,
     As_adopted_x, As_adopted_y, As_prov_x, As_prov_y,
     ell_x, ell_y, VEd_x, VEd_y,

@@ -212,6 +212,40 @@ describe('Reinforcement limits', () => {
     expect(r.vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('fail');
   });
 
+  // CE art. 42.3.5 Tabla 42.3.5 — geometric minimum uses gross area b·h,
+  // NOT the effective depth b·d. Regression for the ~10% unconservative bug.
+  it('as-min geometric minimum uses b·h (CE art. 42.3.5), not b·d', () => {
+    // Default beam: b=300, h=500 → AsMinGeom = 0.0028·300·500 = 420 mm²
+    // Mechanical: 0.04·b·h·fcd/fyd = 0.04·300·500·(25/1.5)/(500/1.15)
+    //           = 6000·(16.67/434.78) = 6000·0.03833 = 230.0 mm²
+    // So geometric governs: As,min = 420 mm². A tiny As (e.g. 1∅6 = 28 mm²)
+    // should force the fail branch and expose the limit in the check label.
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 1, vano_bot_barDiam: 6 });
+    const asMin = r.vano.checks.find((c) => c.id === 'as-min')!;
+    expect(asMin.status).toBe('fail');
+    // Extract the limit from the value/limit fields (makeCheck stringifies)
+    // — parse "As,min = 420 mm²"
+    const match = asMin.value.match(/As,min\s*=\s*(\d+)/);
+    expect(match).toBeTruthy();
+    const asMinParsed = Number(match![1]);
+    // b·h → 420 mm²; with the buggy b·d it was ~380 mm² (for d≈452).
+    // Assert the exact new value (± rounding) to catch any regression.
+    expect(asMinParsed).toBe(420);
+  });
+
+  it('as-min scales with h when b·h is used', () => {
+    // Doubling h from 500 → 1000 with same cover must exactly double
+    // the geometric minimum (420 → 840). Under the old b·d formula the
+    // ratio would be slightly different because d scales non-linearly with h.
+    const r1 = calcRCBeam({ ...base, h: 500 });
+    const r2 = calcRCBeam({ ...base, h: 1000 });
+    const asMin1 = r1.vano.checks.find((c) => c.id === 'as-min')!;
+    const asMin2 = r2.vano.checks.find((c) => c.id === 'as-min')!;
+    const n1 = Number(asMin1.value.match(/As,min\s*=\s*(\d+)/)![1]);
+    const n2 = Number(asMin2.value.match(/As,min\s*=\s*(\d+)/)![1]);
+    expect(n2 / n1).toBeCloseTo(2.0, 2);
+  });
+
   it('As,total > As,max -> as-max fail', () => {
     // As,max = 0.04*300*500=6000mm2; tension 10*804.2=8042 alone exceeds limit
     const r = calcRCBeam({ ...base, vano_bot_nBars: 10, vano_bot_barDiam: 32 });

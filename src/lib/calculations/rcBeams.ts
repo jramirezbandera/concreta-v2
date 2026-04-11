@@ -149,10 +149,14 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     });
   }
 
-  // MIN REINFORCEMENT tension bars (CE art. 42.3.2) ─────────────────────
-  const AsMinGeom = 0.0028 * inp.b * d;
-  const AsMinMec = (0.04 * inp.b * inp.h * fcd) / fyd;
-  const AsMin = Math.max(AsMinGeom, AsMinMec);
+  // MIN REINFORCEMENT tension bars ──────────────────────────────────────
+  // Geometric minimum (CE art. 42.3.5 Tabla 42.3.5): 2.8‰ of the GROSS
+  // cross-section area b·h (NOT b·d). Using b·d understates As,min by
+  // ~10 % for typical cover/depth and is unconservative.
+  // Mechanical minimum (CE art. 42.3.2): 0.04·Ac·fcd/fyd, also on b·h.
+  const AsMinGeom = 0.0028 * inp.b * inp.h;
+  const AsMinMec  = (0.04 * inp.b * inp.h * fcd) / fyd;
+  const AsMin     = Math.max(AsMinGeom, AsMinMec);
 
   checks.push(check(
     'as-min',

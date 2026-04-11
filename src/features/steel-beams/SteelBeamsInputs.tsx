@@ -3,6 +3,7 @@ import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/d
 
 import { type LoadGenResult, getPsiRow } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface SteelBeamsInputsProps {
   state: SteelBeamInputs;
@@ -102,32 +103,38 @@ const BEAM_TYPE_OPTIONS: Array<{ type: BeamType; label: string; Svg: () => React
 // ── Shared field components ───────────────────────────────────────────────────
 
 function NumField({
+  labelKey,
   label,
   sub,
+  unit,
   field,
   value,
-  unit,
   min,
   step,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
+  unit?: string;
   field: keyof SteelBeamInputs;
   value: number;
-  unit: string;
   min?: number;
   step?: number;
   setField: SteelBeamsInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label
         htmlFor={`sb-input-${field}`}
         className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
       >
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -141,10 +148,10 @@ function NumField({
             if (!isNaN(n)) setField(field, n);
           }}
           className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -152,25 +159,33 @@ function NumField({
 }
 
 function SelectField({
+  labelKey,
   label,
   field,
   value,
   options,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   field: keyof SteelBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: SteelBeamsInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label
         htmlFor={`sb-select-${field}`}
         className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
       >
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`sb-select-${field}`}
@@ -180,7 +195,7 @@ function SelectField({
           const num = Number(raw);
           setField(field, isNaN(num) || raw === '' ? raw : num);
         }}
-        className="bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors max-w-40"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
@@ -336,34 +351,34 @@ export function SteelBeamsInputs({
       {/* PERFIL */}
       <SectionHeader label="Perfil" />
       <SelectField
-        label="Tipo"
+        labelKey="profile_type"
         field="tipo"
         value={state.tipo}
         options={(['IPE', 'HEA', 'HEB', 'IPN'] as const).map((t) => ({ value: t, label: t }))}
         setField={setField}
       />
       <SelectField
-        label="Tamaño"
+        labelKey="profile_size"
         field="size"
         value={state.size}
         options={availableSizes.map((s) => ({ value: s, label: `${state.tipo} ${s}` }))}
         setField={setField}
       />
       <SelectField
-        label="Acero"
+        labelKey="steel_grade"
         field="steel"
         value={state.steel}
         options={(['S275', 'S355'] as const).map((s) => ({ value: s, label: s }))}
         setField={setField}
       />
-      {/* L — beam span */}
+      {/* L — beam span, stored in mm, displayed in m */}
       <div className="flex items-center justify-between py-0.75 gap-2">
         <label
           htmlFor="sb-input-L"
           className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
         >
-          L
-          <span className="text-[11px] text-text-disabled ml-1">(luz viga)</span>
+          {LABELS.L_span.sym}
+          <span className="text-[11px] text-text-disabled ml-1">{LABELS.L_span.descShort}</span>
         </label>
         <div className="flex shrink-0">
           <input
@@ -377,10 +392,10 @@ export function SteelBeamsInputs({
               if (!isNaN(n) && n > 0) setField('L', Math.round(n * 1000));
             }}
             className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label="L (luz viga) en metros"
+            aria-label={`${LABELS.L_span.sym} (${LABELS.L_span.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            m
+            {LABELS.L_span.unit}
           </span>
         </div>
       </div>
@@ -389,29 +404,23 @@ export function SteelBeamsInputs({
       <SectionHeader label="Cargas" />
       {/* bTrib — directly below L */}
       <NumField
-        label="b"
-        sub="(ancho trib.)"
+        labelKey="b_trib"
         field="bTrib"
         value={state.bTrib}
-        unit="m"
         min={0}
         setField={setField}
       />
       <NumField
-        label="g"
-        sub="(perm. adicional)"
+        labelKey="gk_surface"
         field="gk"
         value={state.gk}
-        unit="kN/m²"
         min={0}
         setField={setField}
       />
       <NumField
-        label="q"
-        sub="(sobrecarga uso)"
+        labelKey="qk_surface"
         field="qk"
         value={state.qk}
-        unit="kN/m²"
         min={0}
         setField={(field, val) => {
           setField(field, val);
@@ -419,7 +428,7 @@ export function SteelBeamsInputs({
         }}
       />
       <SelectField
-        label="Categoría"
+        labelKey="loadType"
         field="useCategory"
         value={state.useCategory}
         options={USE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
@@ -469,8 +478,8 @@ export function SteelBeamsInputs({
           htmlFor="sb-input-Lcr"
           className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
         >
-          Lcr
-          <span className="text-[11px] text-text-disabled ml-1">(longitud)</span>
+          {LABELS.Lcr_LTB.sym}
+          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lcr_LTB.descShort}</span>
         </label>
         <div className="flex items-center gap-1.5 shrink-0">
           {lcrIsAuto && (
@@ -494,10 +503,10 @@ export function SteelBeamsInputs({
                 if (!isNaN(n) && n > 0) onLcrChange(Math.round(n * 1000));
               }}
               className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              aria-label="Lcr (longitud de pandeo lateral) en metros"
+              aria-label={`${LABELS.Lcr_LTB.sym} (${LABELS.Lcr_LTB.unit})`}
             />
             <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-              m
+              {LABELS.Lcr_LTB.unit}
             </span>
           </div>
         </div>
@@ -506,7 +515,7 @@ export function SteelBeamsInputs({
       {/* FLECHA ELS */}
       <SectionHeader label="Flecha ELS" />
       <SelectField
-        label="Combinación"
+        labelKey="elsCombo"
         field="elsCombo"
         value={state.elsCombo ?? 'characteristic'}
         options={[
@@ -517,13 +526,13 @@ export function SteelBeamsInputs({
         setField={setField}
       />
       <DerivedRow
-        label="Mser"
-        sub="(ELS)"
+        label={LABELS.Mser.sym}
+        sub={LABELS.Mser.descShort}
         value={derivedStr(loadGen?.Mser, 1)}
-        unit="kNm"
+        unit={LABELS.Mser.unit}
       />
       <SelectField
-        label="Límite flecha"
+        labelKey="deflLimit"
         field="deflLimit"
         value={state.deflLimit}
         options={[
@@ -535,7 +544,7 @@ export function SteelBeamsInputs({
         ]}
         setField={setField}
       />
-      <InfoRow label={`δadm = L/${state.deflLimit}`} value={`${deltaAdm} mm`} />
+      <InfoRow label={`${LABELS.delta_adm.sym} = L/${state.deflLimit}`} value={`${deltaAdm} mm`} />
     </div>
   );
 }

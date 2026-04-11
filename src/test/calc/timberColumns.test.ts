@@ -286,15 +286,15 @@ describe('EC5 §6.3.3 interaction', () => {
     expect(r.util_624).toBeGreaterThan(0);
   });
 
-  it('pure axial: util_623 = (sigma_c/(kcy*fc0_d))²', () => {
+  it('pure axial: util_623 = sigma_c/(kcy*fc0_d) — linear EC5 §6.3.2(3)', () => {
     const r = calcTimberColumn({ ...BASE, Md: 0, Vd: 0 });
-    const expected = Math.pow(r.sigma_c / (r.kc_y * r.fc0_d), 2);
+    const expected = r.sigma_c / (r.kc_y * r.fc0_d);
     expect(r.util_623).toBeCloseTo(expected, 4);
   });
 
-  it('pure axial: util_624 = (sigma_c/(kcz*fc0_d))²', () => {
+  it('pure axial: util_624 = sigma_c/(kcz*fc0_d) — linear EC5 §6.3.2(3)', () => {
     const r = calcTimberColumn({ ...BASE, Md: 0, Vd: 0 });
-    const expected = Math.pow(r.sigma_c / (r.kc_z * r.fc0_d), 2);
+    const expected = r.sigma_c / (r.kc_z * r.fc0_d);
     expect(r.util_624).toBeCloseTo(expected, 4);
   });
 
@@ -535,14 +535,14 @@ describe('fire edge cases', () => {
     expect(r.sigma_c_fi).toBeGreaterThan(r.sigma_c);
   });
 
-  it('pure axial fire (Md=0) — util_623_fi = (σc/(kcy,fi·fc0,k))²', () => {
+  it('pure axial fire (Md=0) — util_623_fi = σc/(kcy,fi·fc0,k) — linear EC5 §6.3.2(3)', () => {
     const r = calcTimberColumn({ ...BASE, fireResistance: 'R60', exposedFaces: 4, etaFi: 0.65, Md: 0, Vd: 0 });
     expect(r.valid).toBe(true);
     expect(r.checks.find(c => c.id === 'fire-comb-623')).toBeDefined();
-    // With Md=0: util_623_fi = (σc_fi/(kcy_fi·fc0_k))²
+    // With Md=0: util_623_fi = σc_fi/(kcy_fi·fc0,k)  [linear, not squared]
     // fc0_k recovered as fc0_d * gammaM / kmod = (kmod·fc0_k/gammaM)·gammaM/kmod = fc0_k
     const fc0_k = r.fc0_d * r.gammaM / r.kmod;
-    const expectedUtil = Math.pow(r.sigma_c_fi / (r.kc_y_fi * fc0_k), 2);
+    const expectedUtil = r.sigma_c_fi / (r.kc_y_fi * fc0_k);
     expect(r.checks.find(c => c.id === 'fire-comb-623')!.utilization).toBeCloseTo(expectedUtil, 3);
   });
 });

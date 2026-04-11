@@ -6,6 +6,7 @@ import {
   type SteelGrade,
 } from '../../data/defaults';
 import { getSizesForTipo } from '../../data/steelProfiles';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface Props {
   state: CompositeSectionInputs;
@@ -64,22 +65,30 @@ function NumField({
 }
 
 function SelectField({
+  labelKey,
   label,
   id,
   value,
   options,
   onChange,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   id: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   onChange: (v: string | number) => void;
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={id} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={id}
@@ -89,7 +98,7 @@ function SelectField({
           const asNum = Number(raw);
           onChange(isNaN(asNum) ? raw : asNum);
         }}
-        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -217,7 +226,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
         <>
           <SectionHeader label="Sección base" />
           <SelectField
-            label="Tipo"
+            labelKey="profile_type"
             id="cs-tipo"
             value={state.profileType}
             options={TIPO_OPTIONS}
@@ -229,7 +238,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             }}
           />
           <SelectField
-            label="Tamaño"
+            labelKey="profile_size"
             id="cs-size"
             value={state.profileSize}
             options={sizeOptions}
@@ -241,7 +250,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
       {/* Steel grade */}
       <SectionHeader label="Material" />
       <SelectField
-        label="Acero"
+        labelKey="steel_grade"
         id="cs-grade"
         value={state.grade}
         options={GRADE_OPTIONS}

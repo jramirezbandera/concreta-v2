@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type RCBeamInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface RCBeamsInputsProps {
   state: RCBeamInputs;
@@ -11,6 +12,7 @@ interface RCBeamsInputsProps {
 }
 
 function NumField({
+  labelKey,
   label,
   sub,
   field,
@@ -19,15 +21,20 @@ function NumField({
   integer = false,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
   field: string;
   value: number;
-  unit: string;
+  unit?: string;
   min?: number;
   integer?: boolean;
   setField: RCBeamsInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -37,8 +44,8 @@ function NumField({
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -58,10 +65,10 @@ function NumField({
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -69,22 +76,30 @@ function NumField({
 }
 
 function SelectField({
+  labelKey,
   label,
   field,
   value,
   options,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   field: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: RCBeamsInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`select-${field}`}
@@ -94,7 +109,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -139,21 +154,21 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
 
       {/* Shared geometry */}
       <SectionHeader label="Geometria" />
-      <NumField label="Ancho b"         field="b"     value={state.b as number}     unit="mm" min={1} setField={setField} />
-      <NumField label="Canto h"         field="h"     value={state.h as number}     unit="mm" min={1} setField={setField} />
-      <NumField label="Recubrimiento"   field="cover" value={state.cover as number} unit="mm" min={1} setField={setField} />
+      <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
+      <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
+      <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
 
       {/* Shared materials */}
       <SectionHeader label="Materiales" />
       <SelectField
-        label="fck"
+        labelKey="fck"
         field="fck"
         value={state.fck as number}
         options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
         setField={setField}
       />
       <SelectField
-        label="fyk"
+        labelKey="fyk"
         field="fyk"
         value={state.fyk as number}
         options={[400, 500, 600].map((f) => ({ value: f, label: `${f} MPa` }))}
@@ -163,14 +178,14 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
       {/* Shared: exposure class + load type */}
       <SectionHeader label="Uso y exposicion (fisuracion ELS)" />
       <SelectField
-        label="Clase de exposicion"
+        labelKey="exposureClass"
         field="exposureClass"
         value={state.exposureClass as string}
         options={['XC1', 'XC2', 'XC3', 'XC4'].map((c) => ({ value: c, label: c }))}
         setField={setField}
       />
       <SelectField
-        label="Tipo de carga"
+        labelKey="loadType"
         field="loadType"
         value={state.loadType as string}
         options={LOAD_TYPE_OPTIONS}
@@ -258,14 +273,15 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
       {/* Transverse reinforcement */}
       <SectionHeader label="Armadura transversal" />
       <SelectField
-        label="Estribos"
+        labelKey="bar_diameter_stirrup"
         field={`${p}_stirrupDiam`}
         value={state[`${p}_stirrupDiam`] as number}
         options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
         setField={setField}
       />
       <NumField
-        label="Separacion"
+        label="s"
+        sub="Separación"
         field={`${p}_stirrupSpacing`}
         value={state[`${p}_stirrupSpacing`] as number}
         unit="mm"
@@ -273,10 +289,9 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         setField={setField}
       />
       <NumField
-        label="Num. ramas"
+        labelKey="n_stirrup_legs"
         field={`${p}_stirrupLegs`}
         value={state[`${p}_stirrupLegs`] as number}
-        unit="ud"
         min={2}
         integer
         setField={setField}

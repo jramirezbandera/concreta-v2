@@ -1,5 +1,6 @@
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
 import { CheckRowItem, GroupHeader, ValueRow } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
   result: CompositeSectionResult;
@@ -118,8 +119,8 @@ export function CompositeSectionResults({ result }: Props) {
           </span>
         )}
       </div>
-      <ValueRow label="fy" value={`${result.fy_MPa} MPa`} />
-      <ValueRow label="γM0" value="1.05" />
+      <ValueRow label={resultLabel('fy_steel')} value={`${result.fy_MPa} MPa`} />
+      <ValueRow label={resultLabel('gamma_M0')} value="1.05" />
 
       {isClass4 && (
         <p className="text-[10px] text-state-fail mt-2">

@@ -230,16 +230,23 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const fm_d_eff = kcrit * fm_d_sys;   // effective bending strength after LTB (kh + ksys + kcrit)
 
   // ── ELS — Deflections (EC5 §7.2 + Spanish NA) ────────────────────────────
-  // E0_mean in kN/mm² → N/mm²
+  // Formula contract per BEAM_CASES.k_defl (see beamCases.ts):
+  //   δ = k_defl · Mser · L² / (E · I)
+  // where Mser is the characteristic (unfactored) bending moment from the
+  // service load, and k_defl encodes the beam-case integration constant.
+  // For ss this gives δ = (5/48)·(wL²/8)·L²/EI = 5wL⁴/(384·EI). ✓
   const E_mm2 = grade.E0_mean * 1000;   // N/mm²
   const L_mm  = L_m * 1000;             // mm
 
   const k_defl = BEAM_CASES[bc].k_defl;
 
-  // Instantaneous deflections from permanent and variable loads separately
-  // w[N/mm] = w[kN/m] × 1000 / 1000 = w[kN/m] numerically (units cancel)
-  const u_inst_G2 = k_defl * inp.gk * L_mm ** 4 / (E_mm2 * I);
-  const u_inst_Q  = k_defl * (inp.qk * 1.0) * L_mm ** 4 / (E_mm2 * I);
+  // Service-level (characteristic) moments from gk and qk separately
+  const Mser_G = BEAM_CASES[bc].MEd(inp.gk, L_m);   // kNm
+  const Mser_Q = BEAM_CASES[bc].MEd(inp.qk, L_m);   // kNm
+
+  // Instantaneous deflections — Mser kNm × 1e6 → Nmm; result in mm
+  const u_inst_G2 = k_defl * Mser_G * 1e6 * L_mm ** 2 / (E_mm2 * I);
+  const u_inst_Q  = k_defl * Mser_Q * 1e6 * L_mm ** 2 / (E_mm2 * I);
   const u_inst    = u_inst_G2 + u_inst_Q;
 
   // Long-term (final) deflections

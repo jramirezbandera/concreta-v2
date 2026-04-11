@@ -143,8 +143,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const Ka_denom    = cos_d * Math.pow(1 + Math.sqrt(Math.max(Ka_radicand, 0)), 2);
   const Ka          = (cos_phi * cos_phi) / Ka_denom;
 
-  // Rankine passive (horizontal backfill, no wall friction on passive side)
-  const Kp = Math.pow(Math.tan(Math.PI / 4 + phi_r / 2), 2);
+  // Rankine passive Kp is intentionally not computed: passive resistance is
+  // excluded from sliding FS per CTE DB-SE-C §9.3.3 (see §8 below for rationale).
 
   // ── 4. Pressure zones ────────────────────────────────────────────────────
   const h_dry     = Math.min(hw_m, H_total);   // dry zone height from top (m)
@@ -206,9 +206,17 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   if (ΣV <= 0) return invalid('Empuje hidrostático mayor que el peso total — zapata levanta');
 
   // ── 8. Static stability ──────────────────────────────────────────────────
-  const Ep        = 0.5 * Kp * inp.gammaSuelo * hf_m * hf_m;  // passive on toe
+  // Passive resistance Ep = ½·Kp·γ·hf² is intentionally NOT included in
+  // the sliding FS numerator. Per CTE DB-SE-C §9.3.3 / §4.6.2, passive
+  // pressure should not be relied on for sliding unless the soil in front
+  // of the toe is guaranteed to remain in place AND the wall movement
+  // required to mobilize Ep is acceptable. Both conditions are commonly
+  // unmet (future excavation, trench, service lines, frost, erosion), so
+  // the conservative default is to ignore Ep. This matches EC7 §9.3.2(2).
+  // Previously Ep was added at full value → FS inflated by ~10–25 % →
+  // walls could pass that shouldn't.
   const FS_vuelco = Mo > 0 ? Mr / Mo : Infinity;
-  const FS_desliz = EAH_total > 0 ? (ΣV * inp.mu + Ep) / EAH_total : Infinity;
+  const FS_desliz = EAH_total > 0 ? (ΣV * inp.mu) / EAH_total : Infinity;
   const e         = B_m / 2 - (Mr - Mo) / ΣV;
 
   // Footing stress (two branches)
@@ -308,7 +316,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
                    - U_uplift * (B_m / 2);
 
     FS_vuelco_seis = Mo_seis > 0 ? Mr_seis / Mo_seis : Infinity;
-    FS_desliz_seis = EAH_seis > 0 ? (ΣV_seis * inp.mu + Ep) / EAH_seis : Infinity;
+    // Passive Ep excluded for same reasons as static case (CTE DB-SE-C §9.3.3).
+    FS_desliz_seis = EAH_seis > 0 ? (ΣV_seis * inp.mu) / EAH_seis : Infinity;
 
     checks.push(makeCheck(
       'vuelco-sismico', 'Estabilidad al vuelco (sismica)',

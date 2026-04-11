@@ -1,5 +1,6 @@
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { ANGLE_PROFILES } from '../../data/angleProfiles';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface EmpresalladoInputsProps {
   state: EmpresalladoInputs;
@@ -17,7 +18,8 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 interface FieldProps {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   unit?: string;
   value: number;
   onChange: (v: number) => void;
@@ -28,12 +30,22 @@ interface FieldProps {
   helpText?: string;
 }
 
-function NumberField({ label, unit, value, onChange, step = 1, min = 0, error, errorText, helpText }: FieldProps) {
+function NumberField({ labelKey, label, unit, value, onChange, step = 1, min = 0, error, errorText, helpText }: FieldProps) {
+  const resolved = labelKey
+    ? {
+        label: LABELS[labelKey].sym || LABELS[labelKey].descShort,
+        sub: LABELS[labelKey].sym ? LABELS[labelKey].descShort : undefined,
+        unit: LABELS[labelKey].unit === '—' ? '' : LABELS[labelKey].unit,
+      }
+    : { label: label ?? '', sub: undefined as string | undefined, unit: unit ?? '' };
   return (
     <div className="flex flex-col gap-0.5 mb-2">
       <div className="flex items-center justify-between">
-        <label className="text-[12px] text-text-secondary">{label}</label>
-        {unit && <span className="text-[10px] text-text-disabled font-mono">{unit}</span>}
+        <label className="text-[12px] text-text-secondary whitespace-nowrap">
+          {resolved.label}
+          {resolved.sub && <span className="text-[10px] text-text-disabled ml-1">{resolved.sub}</span>}
+        </label>
+        {resolved.unit && <span className="text-[10px] text-text-disabled font-mono">{resolved.unit}</span>}
       </div>
       <input
         type="number"
@@ -67,18 +79,17 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
     <div>
       {/* ── Pilar existente ───────────────────────────────────────────── */}
       <SectionHeader label="Pilar existente" />
-      <NumberField label="Ancho del pilar (bc)" unit="cm" value={state.bc} step={5} min={10} onChange={(v) => set('bc', v)} />
-      <NumberField label="Canto del pilar (hc)" unit="cm" value={state.hc} step={5} min={10} onChange={(v) => set('hc', v)} />
-      <NumberField label="Altura libre del pilar (L)" unit="m" value={state.L} step={0.1} min={0.5} onChange={(v) => set('L', v)} />
+      <NumberField labelKey="bc_column" value={state.bc} step={5} min={10} onChange={(v) => set('bc', v)} />
+      <NumberField labelKey="hc_column" value={state.hc} step={5} min={10} onChange={(v) => set('hc', v)} />
+      <NumberField labelKey="L_column" value={state.L} step={0.1} min={0.5} onChange={(v) => set('L', v)} />
 
       {/* ── Cargas de diseño ──────────────────────────────────────────── */}
       <SectionHeader label="Cargas de diseño" />
-      <NumberField label="Axil de diseño (N_Ed)" unit="kN" value={state.N_Ed} step={10} min={0} onChange={(v) => set('N_Ed', v)} />
-      <NumberField label="Momento eje X (Mx_Ed)" unit="kNm" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
-      <NumberField label="Momento eje Y (My_Ed)" unit="kNm" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
+      <NumberField labelKey="NEd" value={state.N_Ed} step={10} min={0} onChange={(v) => set('N_Ed', v)} />
+      <NumberField labelKey="Mx_Ed_plan" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
+      <NumberField labelKey="My_Ed_plan" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
       <NumberField
-        label="Cortante de diseño (V_Ed)"
-        unit="kN"
+        labelKey="VEd"
         value={state.Vd}
         step={1}
         min={0}
@@ -100,7 +111,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           ))}
         </select>
       </div>
-      <NumberField label="Límite elástico (fy)" unit="MPa" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
+      <NumberField labelKey="fy_steel" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
 
       {/* ── Pandeo global ────────────────────────────────────────────── */}
       <SectionHeader label="Pandeo global del pilar" />

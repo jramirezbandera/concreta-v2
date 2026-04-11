@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import { type SteelBeamResult, type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
+import { LABELS, resultLabel } from '../../lib/text/labels';
 
 interface SteelBeamsResultsProps {
   result: SteelBeamResult;
@@ -167,13 +168,13 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
 
       {/* Key values */}
       <GroupHeader label="Valores" />
-      <ValueRow label="Mc,Rd" value={`${result.Mc_Rd.toFixed(1)} kNm`} />
-      <ValueRow label="Vc,Rd" value={`${result.Vc_Rd.toFixed(1)} kN`} />
-      <ValueRow label="Mb,Rd (LTB)" value={`${result.Mb_Rd.toFixed(1)} kNm`} />
-      <ValueRow label="χLT" value={result.chi_LT.toFixed(3)} />
-      <ValueRow label="λ̄LT" value={result.lambda_LT.toFixed(3)} />
-      <ValueRow label="δmax" value={`${result.delta_max.toFixed(1)} mm`} />
-      <ValueRow label={`δadm = L/${deflLimit}`} value={`${result.delta_adm.toFixed(1)} mm`} />
+      <ValueRow label={resultLabel('Mc_Rd')}        value={`${result.Mc_Rd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('Vc_Rd')}        value={`${result.Vc_Rd.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('Mb_Rd')}        value={`${result.Mb_Rd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('chi_LT')}       value={result.chi_LT.toFixed(3)} />
+      <ValueRow label={resultLabel('lambda_bar_LT')} value={result.lambda_LT.toFixed(3)} />
+      <ValueRow label={resultLabel('delta_max')}    value={`${result.delta_max.toFixed(1)} mm`} />
+      <ValueRow label={`${LABELS.delta_adm.sym} — admisible (L/${deflLimit})`} value={`${result.delta_adm.toFixed(1)} mm`} />
 
       {/* Section classification */}
       <GroupHeader label="Sección" />

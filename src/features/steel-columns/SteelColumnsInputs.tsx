@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface SteelColumnsInputsProps {
   state: SteelColumnInputs;
@@ -87,17 +88,25 @@ const BC_OPTIONS: Array<{ type: ColumnBCType; label: string; Svg: () => React.Re
 // ── Shared field components ───────────────────────────────────────────────────
 
 function NumField({
-  label, sub, id, value, unit, min, step, onChange,
+  labelKey, label, sub, id, value, unit, min, step, onChange,
 }: {
-  label: string; sub?: string; id: string; value: number; unit: string;
+  // Pull label/sub/unit from the LABELS catalog when a key is given.
+  labelKey?: LabelKey;
+  // Escape hatch for one-off fields not in the catalog.
+  label?: string; sub?: string; unit?: string;
+  id: string; value: number;
   min?: number; step?: number;
   onChange: (v: number) => void;
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={id} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -108,10 +117,10 @@ function NumField({
           step={step}
           onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) onChange(n); }}
           className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -119,16 +128,23 @@ function NumField({
 }
 
 function SelectField({
-  label, id, value, options, onChange,
+  labelKey, label, id, value, options, onChange,
 }: {
-  label: string; id: string; value: string | number;
+  labelKey?: LabelKey; label?: string;
+  id: string; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   onChange: (v: string | number) => void;
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={id} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={id}
@@ -138,7 +154,7 @@ function SelectField({
           const num = Number(raw);
           onChange(isNaN(num) || raw === '' ? raw : num);
         }}
-        className="bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors max-w-40"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
@@ -245,21 +261,21 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       {/* SECCIÓN */}
       <SectionHeader label="Sección" />
       <SelectField
-        label="Tipo"
+        labelKey="profile_type"
         id="sc-sectionType"
         value={state.sectionType}
         options={(['HEA', 'HEB', 'IPE', '2UPN'] as const).map((t) => ({ value: t, label: t }))}
         onChange={(v) => setField('sectionType', v)}
       />
       <SelectField
-        label="Tamaño"
+        labelKey="profile_size"
         id="sc-size"
         value={state.size}
         options={sizeOptions}
         onChange={(v) => setField('size', v)}
       />
       <SelectField
-        label="Acero"
+        labelKey="steel_grade"
         id="sc-steel"
         value={state.steel}
         options={(['S275', 'S355'] as const).map((s) => ({ value: s, label: s }))}
@@ -269,11 +285,11 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       {/* GEOMETRÍA */}
       <SectionHeader label="Geometría" />
 
-      {/* Ly — unbraced length y-axis, displayed in m */}
+      {/* Ly — unbraced length y-axis, displayed in m (stored internally in mm) */}
       <div className="flex items-center justify-between py-0.75 gap-2">
         <label htmlFor="sc-Ly" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-          Ly
-          <span className="text-[11px] text-text-disabled ml-1">(eje fuerte)</span>
+          {LABELS.Ly_strong.sym}
+          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Ly_strong.descShort}</span>
         </label>
         <div className="flex shrink-0">
           <input
@@ -287,19 +303,19 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               if (!isNaN(n) && n > 0) setField('Ly', Math.round(n * 1000));
             }}
             className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label="Ly (longitud libre eje fuerte) en metros"
+            aria-label={`${LABELS.Ly_strong.sym} (${LABELS.Ly_strong.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            m
+            {LABELS.Ly_strong.unit}
           </span>
         </div>
       </div>
 
-      {/* Lz — unbraced length z-axis, displayed in m */}
+      {/* Lz — unbraced length z-axis, displayed in m (stored internally in mm) */}
       <div className="flex items-center justify-between py-0.75 gap-2">
         <label htmlFor="sc-Lz" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-          Lz
-          <span className="text-[11px] text-text-disabled ml-1">(eje débil)</span>
+          {LABELS.Lz_weak.sym}
+          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lz_weak.descShort}</span>
         </label>
         <div className="flex shrink-0">
           <input
@@ -313,10 +329,10 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               if (!isNaN(n) && n > 0) setField('Lz', Math.round(n * 1000));
             }}
             className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label="Lz (longitud libre eje débil) en metros"
+            aria-label={`${LABELS.Lz_weak.sym} (${LABELS.Lz_weak.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            m
+            {LABELS.Lz_weak.unit}
           </span>
         </div>
       </div>
@@ -360,31 +376,25 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       {/* CARGAS */}
       <SectionHeader label="Cargas" />
       <NumField
-        label="NEd"
-        sub="(compresión)"
+        labelKey="NEd"
         id="sc-Ned"
         value={state.Ned}
-        unit="kN"
         min={0}
         step={10}
         onChange={(v) => setField('Ned', v)}
       />
       <NumField
-        label="My,Ed"
-        sub="(eje fuerte)"
+        labelKey="My_Ed"
         id="sc-My"
         value={state.My_Ed}
-        unit="kNm"
         min={0}
         step={1}
         onChange={(v) => setField('My_Ed', v)}
       />
       <NumField
-        label="Mz,Ed"
-        sub="(eje débil)"
+        labelKey="Mz_Ed"
         id="sc-Mz"
         value={state.Mz_Ed}
-        unit="kNm"
         min={0}
         step={1}
         onChange={(v) => setField('Mz_Ed', v)}

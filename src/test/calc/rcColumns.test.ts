@@ -92,7 +92,7 @@ describe('RC Columns — FTUX defaults', () => {
 
   it('checks array has 15 entries', () => {
     const r = calcRCColumn(inp());
-    expect(r.checks).toHaveLength(15);
+    expect(r.checks).toHaveLength(16);
   });
 
   it('result has all required fields', () => {
@@ -254,6 +254,36 @@ describe('RC Columns — Reinforcement limit checks', () => {
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'as-max');
     expect(ch?.status).toBe('fail');
+  });
+
+  it('as-min-mech passes for defaults (low axial load)', () => {
+    // Nd=500 kN → As_min_mech = 0.10·500000/400 = 125 mm²
+    // As = 4×Ø16 = 804 mm² > 125 → ok
+    const r = calcRCColumn(inp());
+    expect(r.valid).toBe(true);
+    const ch = r.checks.find((c) => c.id === 'as-min-mech');
+    expect(ch?.status).toBe('ok');
+  });
+
+  it('as-min-mech fails when As·f_yc,d < 0.10·N_Ed (high load, light reinforcement)', () => {
+    // Nd=2000 kN, cornerBarDiam=12 → As = 4×113 = 452 mm²
+    // f_yc,d = min(fyd, 400) = 400 N/mm² (fyk=500 → fyd=434.78)
+    // As_min_mech = 0.10·2 000 000/400 = 500 mm² > 452 → fail
+    const r = calcRCColumn(inp({ Nd: 2000, cornerBarDiam: 12 }));
+    expect(r.valid).toBe(true);
+    const ch = r.checks.find((c) => c.id === 'as-min-mech');
+    expect(ch?.status).toBe('fail');
+  });
+
+  it('as-min-mech uses f_yc,d cap of 400 N/mm² (not fyd) for B500S', () => {
+    // fyk=500, fyd=434.78 but f_yc,d capped to 400
+    // Nd=1000 kN → As_min_mech = 0.10·1 000 000/400 = 250 mm²
+    // With raw fyd it would be 0.10·1 000 000/434.78 = 230 mm² (non-conservative)
+    const r = calcRCColumn(inp({ Nd: 1000 }));
+    expect(r.valid).toBe(true);
+    const ch = r.checks.find((c) => c.id === 'as-min-mech');
+    // As = 804 mm² > 250 → ok, but verify limit string reflects 250 not 230
+    expect(ch?.limit).toBe('\u2265 250 mm\u00b2');
   });
 
   it('nBars-min always passes since we always have 4 corner bars', () => {

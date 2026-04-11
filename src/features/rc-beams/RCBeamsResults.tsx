@@ -1,5 +1,6 @@
 import { type RCBeamResult, type RCBeamSectionResult } from '../../lib/calculations/rcBeams';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface RCBeamsResultsProps {
   result: RCBeamResult;
@@ -53,13 +54,13 @@ function SectionBlock({
 
       {/* Key values */}
       <GroupHeader label="Valores" />
-      <ValueRow label="d (canto util)"    value={`${section.d.toFixed(0)} mm`} />
-      <ValueRow label="As (traccion)"      value={`${section.As.toFixed(0)} mm\u00b2`} />
-      <ValueRow label="As,c (compresion)" value={`${section.AsComp.toFixed(0)} mm\u00b2`} />
-      <ValueRow label="x (eje neutro)"    value={`${section.x.toFixed(0)} mm`} />
-      <ValueRow label="MRd"               value={`${section.MRd.toFixed(1)} kNm`} />
-      <ValueRow label="VRd"               value={`${section.VRd.toFixed(1)} kN`} />
-      <ValueRow label="wk"                value={`${section.wk.toFixed(3)} mm`} />
+      <ValueRow label="d (canto util)"           value={`${section.d.toFixed(0)} mm`} />
+      <ValueRow label={resultLabel('As_tension')}     value={`${section.As.toFixed(0)} mm\u00b2`} />
+      <ValueRow label={resultLabel('As_compression')} value={`${section.AsComp.toFixed(0)} mm\u00b2`} />
+      <ValueRow label="x (eje neutro)"           value={`${section.x.toFixed(0)} mm`} />
+      <ValueRow label={resultLabel('MRd_rc')}         value={`${section.MRd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('VRd_c')}          value={`${section.VRd.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('wk')}             value={`${section.wk.toFixed(3)} mm`} />
 
       {/* Check groups */}
       <GroupHeader label="ELU Flexion" />

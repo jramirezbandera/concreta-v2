@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { type PunchingInputs, type PunchingMode, type PunchingPosition } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
@@ -9,6 +10,7 @@ interface PunchingInputsProps {
 }
 
 function NumField({
+  labelKey,
   label,
   sub,
   field,
@@ -16,13 +18,18 @@ function NumField({
   unit,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
   field: string;
   value: number;
-  unit: string;
+  unit?: string;
   setField: PunchingInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -32,8 +39,8 @@ function NumField({
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -51,10 +58,10 @@ function NumField({
             if (isNaN(n)) setLocalStr(String(value));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -62,22 +69,30 @@ function NumField({
 }
 
 function SelectField({
+  labelKey,
   label,
   field,
   value,
   options,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   field: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: PunchingInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`select-${field}`}
@@ -87,7 +102,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -243,8 +258,8 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
 
       {/* GEOMETRÍA */}
       <SectionHeader label="Geometría" />
-      <NumField label={cxLabel} sub="cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
-      <NumField label={cyLabel} sub="cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
+      <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
+      <NumField label={cyLabel} sub="Cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
       <ToggleButton
         label="Circular"
         active={state.isCircular as boolean}
@@ -252,21 +267,21 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
         disabledTitle="Solo para posición interior"
         onClick={() => setField('isCircular', !(state.isCircular as boolean))}
       />
-      <NumField label="Canto útil" sub="d" field="d" value={state.d as number} unit="mm" setField={setField} />
+      <NumField labelKey="d_effective" field="d" value={state.d as number} setField={setField} />
 
       {/* MATERIALES */}
       <SectionHeader label="Materiales" />
-      <SelectField label="fck" field="fck" value={state.fck as number} options={FCK_OPTIONS} setField={setField} />
-      <NumField label="fyk" field="fyk" value={state.fyk as number} unit="MPa" setField={setField} />
+      <SelectField labelKey="fck" field="fck" value={state.fck as number} options={FCK_OPTIONS} setField={setField} />
+      <NumField labelKey="fyk" field="fyk" value={state.fyk as number} setField={setField} />
 
       {/* ARMADO DE FLEXIÓN */}
       <SectionHeader label="Armado de flexión" />
       <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
       <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-      <NumField label="Separación" sub="s" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
+      <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
       <p className="text-[10px] text-text-disabled mt-2 mb-1.5">Cara inferior</p>
       <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-      <NumField label="Separación" sub="s" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
+      <NumField label="Separación" sub="S" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
       {/* Derived ρl feedback — tension face */}
       {(() => {
         const isSup = mode === 'pilar';
@@ -312,7 +327,7 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
       >
         <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField} />
         <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField} />
-        <NumField    label="Separación" sub="sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
+        <NumField    label="Separación" sub="Sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
         <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
       </div>
     </div>

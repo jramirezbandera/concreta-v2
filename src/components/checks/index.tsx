@@ -49,9 +49,14 @@ export function VerdictBadge({ status }: { status: CheckStatus }) {
 export function CheckRowItem({ check }: { check: CheckRow }) {
   const pct = isFinite(check.utilization) ? Math.min(check.utilization * 100, 100) : 100;
   return (
-    <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
-      <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
-      <span className="text-right">
+    <div className="grid grid-cols-[1fr_auto_44px_auto] items-start gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
+      <div>
+        <span className="block text-[12px] text-text-secondary leading-snug">{check.description}</span>
+        {check.article && (
+          <span className="block font-mono text-[10px] text-text-disabled leading-snug mt-0.5">{check.article}</span>
+        )}
+      </div>
+      <span className="text-right pt-0.5">
         <span className="block font-mono text-[11px] text-text-primary whitespace-nowrap tabular-nums">
           {check.value}
         </span>
@@ -61,14 +66,14 @@ export function CheckRowItem({ check }: { check: CheckRow }) {
           </span>
         )}
       </span>
-      <div className="h-0.75 bg-border-main rounded-sm overflow-hidden">
+      <div className="h-0.75 bg-border-main rounded-sm overflow-hidden mt-2">
         <div
           className={`h-full rounded-sm ${BAR_CLASSES[check.status]}`}
           style={{ width: `${pct}%` }}
           role="presentation"
         />
       </div>
-      <span className={`font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] whitespace-nowrap ${STATUS_TAG_CLASSES[check.status]}`}>
+      <span className={`font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] whitespace-nowrap mt-0.5 ${STATUS_TAG_CLASSES[check.status]}`}>
         {isFinite(check.utilization) && check.utilization <= 1
           ? `${(check.utilization * 100).toFixed(0)}%`
           : STATUS_LABEL[check.status]}

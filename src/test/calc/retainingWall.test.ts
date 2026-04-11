@@ -125,6 +125,42 @@ describe('stability static', () => {
     expect(r.FS_desliz).toBeGreaterThanOrEqual(1.5);
   });
 
+  // CTE DB-SE-C §9.3.3 — passive resistance Ep must NOT be included in
+  // sliding FS by default (unreliable without guarantees on toe soil).
+  // Regression for the bug where Ep was added at full value to numerator.
+  it('FS_desliz excludes passive Ep (CTE DB-SE-C §9.3.3)', () => {
+    const r = calcRetainingWall(base);
+    // FS_desliz = ΣV·μ / EAH_total — no Ep term.
+    // Rebuild it from exposed quantities and compare exactly.
+    const expected = (r.ΣV * base.mu) / r.EAH_total;
+    expect(r.FS_desliz).toBeCloseTo(expected, 6);
+  });
+
+  it('FS_desliz scales linearly with mu when Ep is excluded', () => {
+    // If Ep were still in the numerator, doubling mu would NOT exactly
+    // double FS_desliz − Ep/EAH. With Ep excluded, doubling mu must
+    // exactly double FS_desliz.
+    const r1 = calcRetainingWall({ ...base, mu: 0.30 });
+    const r2 = calcRetainingWall({ ...base, mu: 0.60 });
+    expect(r2.FS_desliz).toBeCloseTo(2 * r1.FS_desliz, 5);
+  });
+
+  it('FS_desliz independent of hf when Ep excluded (keeping H_total fixed)', () => {
+    // If Ep were still in the numerator, larger hf → larger Ep → higher FS.
+    // With Ep excluded, FS_desliz depends on hf only through W_zap (25·B·hf)
+    // and B = bP + tF + bT (unchanged by hf). So hf still affects ΣV via
+    // footing self-weight, but NOT through Ep. Verify via a targeted diff:
+    // compare hf=0.4 vs hf=0.5 — the change in FS must match the change
+    // induced only by the extra 25·B·(0.1)·μ kN/m in the numerator.
+    const rA = calcRetainingWall({ ...base, hf: 0.4 });
+    const rB = calcRetainingWall({ ...base, hf: 0.5 });
+    const numA = rA.FS_desliz * rA.EAH_total;
+    const numB = rB.FS_desliz * rB.EAH_total;
+    const deltaNum = numB - numA;             // difference in ΣV·μ only
+    const deltaSigmaV = (rB.ΣV - rA.ΣV) * base.mu;
+    expect(deltaNum).toBeCloseTo(deltaSigmaV, 4);
+  });
+
   it('very tall wall → sigma_max > sigmaAdm → sigma-max fails', () => {
     const r = calcRetainingWall({ ...base, H: 6.0, sigmaAdm: 100 });
     expect(r.valid).toBe(true);

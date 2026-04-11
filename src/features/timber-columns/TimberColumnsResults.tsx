@@ -1,4 +1,5 @@
 import { type TimberColumnResult, type TimberColumnCheckRow, type CheckStatus } from '../../lib/calculations/timberColumns';
+import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
   result: TimberColumnResult;
@@ -126,12 +127,12 @@ export function TimberColumnsResults({ result }: Props) {
       <div>
         <GroupHeader label="Parámetros EC5" />
         <div className="divide-y divide-border-sub">
-          <ValueRow label="kmod"     value={result.kmod.toFixed(2)} />
-          <ValueRow label="γM"       value={result.gammaM.toFixed(2)} />
-          <ValueRow label="kh"       value={result.kh.toFixed(3)} />
-          <ValueRow label="fc0,d"    value={`${result.fc0_d.toFixed(2)} N/mm²`} />
-          <ValueRow label="fm,d"     value={`${result.fm_d.toFixed(2)} N/mm²`} />
-          <ValueRow label="fv,d"     value={`${result.fv_d.toFixed(2)} N/mm²`} />
+          <ValueRow label={resultLabel('kmod')}           value={result.kmod.toFixed(2)} />
+          <ValueRow label={resultLabel('gamma_M_timber')} value={result.gammaM.toFixed(2)} />
+          <ValueRow label="kh"                            value={result.kh.toFixed(3)} />
+          <ValueRow label={resultLabel('fc0_d')}          value={`${result.fc0_d.toFixed(2)} N/mm²`} />
+          <ValueRow label={resultLabel('fm_d')}           value={`${result.fm_d.toFixed(2)} N/mm²`} />
+          <ValueRow label={resultLabel('fv_d')}           value={`${result.fv_d.toFixed(2)} N/mm²`} />
         </div>
       </div>
 
@@ -144,8 +145,8 @@ export function TimberColumnsResults({ result }: Props) {
           <ValueRow label="λz (eje débil)"     value={result.lambda_z.toFixed(1)} />
           <ValueRow label="λrel,y"             value={result.lambda_rel_y.toFixed(3)} />
           <ValueRow label="λrel,z"             value={result.lambda_rel_z.toFixed(3)} />
-          <ValueRow label="kc,y"               value={result.kc_y.toFixed(3)} />
-          <ValueRow label="kc,z"               value={result.kc_z.toFixed(3)} />
+          <ValueRow label={resultLabel('kc_y')} value={result.kc_y.toFixed(3)} />
+          <ValueRow label={resultLabel('kc_z')} value={result.kc_z.toFixed(3)} />
         </div>
       </div>
 
@@ -163,9 +164,9 @@ export function TimberColumnsResults({ result }: Props) {
         <div>
           <GroupHeader label={`Sección residual R${result.t_fire}`} />
           <div className="divide-y divide-border-sub">
-            <ValueRow label="dchar"         value={`${result.dchar.toFixed(1)} mm`} />
-            <ValueRow label="def"           value={`${result.def.toFixed(1)} mm`} />
-            <ValueRow label="Secc. residual" value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
+            <ValueRow label={resultLabel('dchar')}           value={`${result.dchar.toFixed(1)} mm`} />
+            <ValueRow label={resultLabel('def_penetration')} value={`${result.def.toFixed(1)} mm`} />
+            <ValueRow label="Secc. residual"                 value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
           </div>
         </div>
       )}

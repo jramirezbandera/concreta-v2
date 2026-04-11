@@ -9,6 +9,13 @@ function inp(overrides: Partial<SteelColumnInputs> = {}): SteelColumnInputs {
   return { ...steelColumnDefaults, ...overrides } as SteelColumnInputs;
 }
 
+// Local replica of bucklingChi — for asserting which α was used in LTB
+function bucklingChiLocal(lb: number, a: number): number {
+  if (lb <= 0.2) return 1.0;
+  const phi = 0.5 * (1 + a * (lb - 0.2) + lb * lb);
+  return Math.min(1.0, 1 / (phi + Math.sqrt(Math.max(0, phi * phi - lb * lb))));
+}
+
 // ─── Suite 1: FTUX defaults ────────────────────────────────────────────────
 describe('FTUX defaults — HEB200 S275 pp', () => {
   const r = calcSteelColumn(inp());
@@ -182,6 +189,36 @@ describe('LTB — lateral-torsional buckling', () => {
     const r8 = calcSteelColumn(inp({ Ly: 8000, Lz: 8000, My_Ed: 30 }));
     expect(r8.chi_LT).toBeLessThan(r3.chi_LT);
   });
+
+  // EC3 §6.3.2.3 Tabla 6.5 — rolled I/H: h/b ≤ 2 → curve b (0.34); h/b > 2 → curve c (0.49)
+  it('LTB α_LT: rolled I/H with h/b ≤ 2 → curve b (α=0.34)', () => {
+    // HEB200: h=200, b=200 → h/b=1.0 ≤ 2 → curve b
+    const r = calcSteelColumn(inp({ sectionType: 'HEB', size: 200, Ly: 5000, Lz: 5000, My_Ed: 60 }));
+    expect(r.lambda_LT).toBeGreaterThan(0.2); // ensure curve choice matters
+    const expB = bucklingChiLocal(r.lambda_LT, 0.34);
+    const expC = bucklingChiLocal(r.lambda_LT, 0.49);
+    expect(r.chi_LT).toBeCloseTo(expB, 3);
+    expect(expB).toBeGreaterThan(expC); // sanity: curve b less conservative than c
+  });
+
+  it('LTB α_LT: rolled I/H with h/b > 2 → curve c (α=0.49)', () => {
+    // IPE400: h=400, b=180 → h/b=2.22 > 2 → curve c
+    const r = calcSteelColumn(inp({ sectionType: 'IPE', size: 400, Ly: 8000, Lz: 8000, My_Ed: 100 }));
+    expect(r.valid).toBe(true);
+    expect(r.lambda_LT).toBeGreaterThan(0.2);
+    const expB = bucklingChiLocal(r.lambda_LT, 0.34);
+    const expC = bucklingChiLocal(r.lambda_LT, 0.49);
+    expect(r.chi_LT).toBeCloseTo(expC, 3);
+    expect(r.chi_LT).toBeLessThan(expB); // curve c is more conservative
+  });
+
+  it('LTB α_LT: IPE200 (h/b=2.0, exactly) → curve b', () => {
+    // Boundary case: h=200, b=100 → h/b=2.0 (≤ 2, inclusive) → curve b
+    const r = calcSteelColumn(inp({ sectionType: 'IPE', size: 200, Ly: 4000, Lz: 4000, My_Ed: 20 }));
+    expect(r.lambda_LT).toBeGreaterThan(0.2);
+    const expB = bucklingChiLocal(r.lambda_LT, 0.34);
+    expect(r.chi_LT).toBeCloseTo(expB, 3);
+  });
 });
 
 // ─── Suite 8: Interaction checks 6.3.3 ───────────────────────────────────
@@ -205,6 +242,52 @@ describe('Interaction 6.3.3', () => {
     const r = calcSteelColumn(inp({ My_Ed: 0, Mz_Ed: 0, Ly: 5000, Lz: 5000 }));
     // chi_z < chi_y for HEB → Ned/Nb,Rd_z > Ned/Nb,Rd_y
     expect(r.util_check2).toBeGreaterThan(r.util_check1);
+  });
+
+  // EC3 Annex B Tabla B.1 — I/H Class 1&2 Method 2:
+  //   kyy = Cmy · [1 + (λ̄y − 0.2)·ny],  capped at Cmy · (1 + 0.8·ny)
+  //   kzz = Cmz · [1 + (2·λ̄z − 0.6)·nz], capped at Cmz · (1 + 1.4·nz)
+  // Cmy = Cmz = 1.0 (uniform moment, conservative) in this implementation.
+  it('kzz uses (2·λ̄z − 0.6)·nz formula, not (λ̄z − 0.2)·nz', () => {
+    // HEB200 with strong compression + minor-axis moment → kzz drives check2
+    const Ned = 500;
+    const Mz_Ed = 20;
+    const r = calcSteelColumn(inp({
+      sectionType: 'HEB', size: 200, steel: 'S275',
+      Ly: 5000, Lz: 5000, beta_y: 1, beta_z: 1,
+      Ned, My_Ed: 0, Mz_Ed,
+    }));
+    // With My_Ed=0, check2 = n_z_norm + kzz·Mz_Ed/Mz_Rd
+    // where n_z_norm = Ned/(chi_z·NRk/γM1). Since γM0=γM1=1.05 in this app,
+    // NRk/γM1 = NRd, so n_z_norm = Ned/(chi_z·NRd).
+    const n_z = Ned / (r.chi_z * r.NRd);
+    const kzzFromCheck = (r.util_check2 - n_z) * r.Mz_Rd / Mz_Ed;
+    // Expected (new, correct) formula
+    const mu_z_new = Math.min(Math.max(2 * r.lambda_z - 0.6, 0), 1.4);
+    const kzz_new  = 1 + mu_z_new * n_z;
+    // Old (buggy) formula — kept for contrast
+    const mu_z_old = Math.min(Math.max(r.lambda_z - 0.2, 0), 0.8);
+    const kzz_old  = 1 + mu_z_old * n_z;
+    expect(kzzFromCheck).toBeCloseTo(kzz_new, 4);
+    // Sanity: at λ̄z ~1 new > old (more conservative)
+    expect(kzz_new).toBeGreaterThan(kzz_old);
+  });
+
+  it('kyy still uses (λ̄y − 0.2)·ny formula (unchanged, correct for kyy)', () => {
+    const Ned = 500;
+    const My_Ed = 40;
+    const r = calcSteelColumn(inp({
+      sectionType: 'HEB', size: 200, steel: 'S275',
+      Ly: 5000, Lz: 5000, beta_y: 1, beta_z: 1,
+      Ned, My_Ed, Mz_Ed: 0,
+    }));
+    // With Mz_Ed=0, check1 = n_y + kyy·My_Ed/Mb_Rd where Mb_Rd = chi_LT·My_Rd (γM0=γM1)
+    const n_y = Ned / (r.chi_y * r.NRd);
+    const Mb_Rd = r.chi_LT * r.My_Rd;
+    const kyyFromCheck = (r.util_check1 - n_y) * Mb_Rd / My_Ed;
+    const mu_y = Math.min(Math.max(r.lambda_y - 0.2, 0), 0.8);
+    const kyy_expected = 1 + mu_y * n_y;
+    expect(kyyFromCheck).toBeCloseTo(kyy_expected, 4);
   });
 });
 

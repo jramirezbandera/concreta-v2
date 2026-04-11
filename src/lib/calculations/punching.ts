@@ -19,6 +19,7 @@ export interface PunchingResult {
   error?:       string;
   // Intermediate parameters
   beta:         number;   // eccentricity factor (simplified)
+  u0:           number;   // mm — column-face perimeter (for vRd,max check)
   u1:           number;   // mm — critical perimeter at 2d
   k:            number;   // size factor min(1+√(200/d), 2.0)
   rhoL:         number;   // effective flexural ratio (dimensionless, clamped)
@@ -28,7 +29,8 @@ export interface PunchingResult {
   vRdc:         number;   // MPa — resistance without shear reinf
   vRdmax:       number;   // MPa — absolute maximum resistance
   vRdcs?:       number;   // MPa — resistance with stirrups (only if hasShearReinf)
-  vEd:          number;   // MPa — design shear stress
+  vEd:          number;   // MPa — design shear stress at u1
+  vEd0:         number;   // MPa — design shear stress at u0 (column face)
   uout:         number;   // mm — perimeter beyond which no shear reinf needed
   rOut:         number;   // mm — equivalent radius of uout circle (approx for borde/esquina)
   asSup:        number;   // mm²/mm — top face As per unit width (from Ø+s)
@@ -38,8 +40,8 @@ export interface PunchingResult {
 }
 
 const EMPTY_RESULT: PunchingResult = {
-  valid: false, beta: 0, u1: 0, k: 0, rhoL: 0, rhoLMin: 0,
-  rhoLClamped: false, vMin: 0, vRdc: 0, vRdmax: 0, vEd: 0, uout: 0, rOut: 0,
+  valid: false, beta: 0, u0: 0, u1: 0, k: 0, rhoL: 0, rhoLMin: 0,
+  rhoLClamped: false, vMin: 0, vRdc: 0, vRdmax: 0, vEd: 0, vEd0: 0, uout: 0, rOut: 0,
   asSup: 0, asInf: 0, aswPerRow: 0,
   checks: [],
 };
@@ -106,10 +108,37 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     }
   }
 
+  // ── Column-face perimeter u0 (CE art. 6.4.5(3) / EC2 §6.4.5(3)) ──────────
+  // vRd,max crushing check is done at the column face, NOT at u1. Checking
+  // it at u1 gives a vEd ~ order of magnitude smaller and effectively
+  // disables the column-face crushing check.
+  //   interior : u0 = 2·(cx + cy)         [circular: π·Ø]
+  //   borde    : u0 = cx + 3d,  ≤ cx + 2·cy
+  //   esquina  : u0 = 3d,       ≤ cx + cy
+  let u0: number;
+  if (useCircular) {
+    u0 = Math.PI * cx;
+  } else {
+    switch (inp.position) {
+      case 'interior':
+        u0 = 2 * (cx + cy);
+        break;
+      case 'borde':
+        u0 = Math.min(cx + 3 * d, cx + 2 * cy);
+        break;
+      case 'esquina':
+        u0 = Math.min(3 * d, cx + cy);
+        break;
+      default:
+        u0 = 2 * (cx + cy);
+    }
+  }
+
   // ── Design shear stress (CE art. 6.4.3) ──────────────────────────────────
   // vEd = β · VEd[kN] · 1000 / (u1[mm] · d[mm])   → MPa = N/mm²
   // ×1000 converts kN → N
-  const vEd = beta * inp.VEd * 1000 / (u1 * d);
+  const vEd  = beta * inp.VEd * 1000 / (u1 * d);
+  const vEd0 = beta * inp.VEd * 1000 / (u0 * d);
 
   // ── k — size factor ───────────────────────────────────────────────────────
   const k = Math.min(1 + Math.sqrt(200 / d), 2.0);
@@ -199,14 +228,14 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     });
   }
 
-  // punz-ved-max: vEd ≤ vRd,max
+  // punz-ved-max: vEd0 ≤ vRd,max at column-face perimeter u0 (CE art. 6.4.5(3))
   checks.push(makeCheck(
     'punz-ved-max',
-    'vEd ≤ vRd,max (máximo absoluto)',
-    vEd, vRdmax,
-    `${vEd.toFixed(3)} MPa`,
+    'vEd,0 ≤ vRd,max (en u0, cara del pilar)',
+    vEd0, vRdmax,
+    `${vEd0.toFixed(3)} MPa`,
     `${vRdmax.toFixed(3)} MPa`,
-    'CE art. 6.4.5',
+    'CE art. 6.4.5(3)',
   ));
 
   // punz-ved-vrdc: vEd ≤ vRd,c (without shear reinf)
@@ -236,6 +265,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   return {
     valid,
     beta,
+    u0,
     u1,
     k,
     rhoL,
@@ -246,6 +276,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     vRdmax,
     vRdcs,
     vEd,
+    vEd0,
     uout,
     rOut,
     asSup,

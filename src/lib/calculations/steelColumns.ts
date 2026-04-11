@@ -245,20 +245,24 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
 
     if (Mcr > 0 && isFinite(Mcr)) {
       lambda_LT = Math.sqrt(My_Rk / Mcr);  // both in kNm
-      // α_LT: h/b > 2 → curve b (0.34), h/b ≤ 2 → curve c (0.49)
-      const alpha_LT = (h / b > 2) ? 0.34 : 0.49;
+      // α_LT: rolled I/H sections (EC3 §6.3.2.3 Tabla 6.5):
+      //   h/b ≤ 2  → curve b (α = 0.34)
+      //   h/b > 2  → curve c (α = 0.49)
+      const alpha_LT = (h / b <= 2) ? 0.34 : 0.49;
       chi_LT = bucklingChi(lambda_LT, alpha_LT);
       Mb_Rd  = chi_LT * My_Rk / γM1;
     }
   }
 
-  // 10. Interaction factors — Method 2, Annex B EC3 (Cmy = Cmz = 1.0)
-  const mu_y = Math.min(Math.max(lambda_y - 0.2, 0), 0.8);
-  const mu_z = Math.min(Math.max(lambda_z - 0.2, 0), 0.8);
-
-  // Normalized axial force relative to each buckling resistance
+  // 10. Interaction factors — Method 2, Annex B EC3 Tabla B.1 (I/H Class 1&2)
+  //     Cmy = Cmz = 1.0 (conservative, uniform moment)
+  //   kyy = Cmy · [1 + (λ̄y − 0.2)·ny],  capped at Cmy · (1 + 0.8·ny)
+  //   kzz = Cmz · [1 + (2·λ̄z − 0.6)·nz], capped at Cmz · (1 + 1.4·nz)
   const n_y = Ned / (chi_y * NRk / γM1);
   const n_z = Ned / (chi_z * NRk / γM1);
+
+  const mu_y = Math.min(Math.max(lambda_y - 0.2, 0), 0.8);
+  const mu_z = Math.min(Math.max(2 * lambda_z - 0.6, 0), 1.4);
 
   const kyy = 1 + mu_y * n_y;
   const kzz = 1 + mu_z * n_z;

@@ -1,6 +1,7 @@
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
   inp:    IsolatedFootingInputs;
@@ -69,14 +70,27 @@ export function IsolatedFootingResults({ inp, result }: Props) {
       <ValueRow label="d_y"    value={`${result.d_y.toFixed(0)} mm`} />
       <ValueRow label="ax"     value={`${(result.ax / 1000).toFixed(3)} m`} />
       <ValueRow label="ay"     value={`${(result.ay / 1000).toFixed(3)} m`} />
-      <ValueRow label="MEd,x"  value={`${result.MEd_x.toFixed(2)} kNm/m`} />
-      <ValueRow label="MEd,y"  value={`${result.MEd_y.toFixed(2)} kNm/m`} />
+      <ValueRow
+        label="Clasificación"
+        value={`${result.is_rigid ? 'Rígida' : 'Flexible'} — v/h=${(Math.max(result.v_max_x, result.v_max_y) / (inp.h as number)).toFixed(2)}`}
+      />
+      {result.is_rigid ? (
+        <>
+          <ValueRow label="Td,x" value={`${result.Td_x.toFixed(1)} kN (biela-tirante)`} />
+          <ValueRow label="Td,y" value={`${result.Td_y.toFixed(1)} kN (biela-tirante)`} />
+        </>
+      ) : (
+        <>
+          <ValueRow label="MEd,x"  value={`${result.MEd_x.toFixed(2)} kNm/m`} />
+          <ValueRow label="MEd,y"  value={`${result.MEd_y.toFixed(2)} kNm/m`} />
+        </>
+      )}
 
       {/* Armadura x */}
       <GroupHeader label="Armadura dir. x" />
-      <ValueRow label="As,req,x"     value={`${result.As_req_x.toFixed(0)} mm²/m`} />
-      <ValueRow label="As,min,x"     value={`${result.As_min_x.toFixed(0)} mm²/m`} />
-      <ValueRow label="As,adoptado,x" value={`${result.As_adopted_x.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_req_x')}     value={`${result.As_req_x.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_min_x')}     value={`${result.As_min_x.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_adopted_x')} value={`${result.As_adopted_x.toFixed(0)} mm²/m`} />
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
         <span className="text-[12px] text-text-secondary">Barras x</span>
         <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
@@ -86,9 +100,9 @@ export function IsolatedFootingResults({ inp, result }: Props) {
 
       {/* Armadura y */}
       <GroupHeader label="Armadura dir. y" />
-      <ValueRow label="As,req,y"     value={`${result.As_req_y.toFixed(0)} mm²/m`} />
-      <ValueRow label="As,min,y"     value={`${result.As_min_y.toFixed(0)} mm²/m`} />
-      <ValueRow label="As,adoptado,y" value={`${result.As_adopted_y.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_req_y')}     value={`${result.As_req_y.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_min_y')}     value={`${result.As_min_y.toFixed(0)} mm²/m`} />
+      <ValueRow label={resultLabel('As_adopted_y')} value={`${result.As_adopted_y.toFixed(0)} mm²/m`} />
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
         <span className="text-[12px] text-text-secondary">Barras y</span>
         <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
@@ -110,12 +124,22 @@ export function IsolatedFootingResults({ inp, result }: Props) {
       )}
       <ValueRow label="vRd,c"  value={`${result.vRdc.toFixed(3)} MPa`} />
 
-      {/* Punzonamiento */}
-      <GroupHeader label="Punzonamiento (CE art. 46)" />
-      <ValueRow label="d_avg"  value={`${result.d_avg.toFixed(0)} mm`} />
-      <ValueRow label="u1"     value={`${result.u1.toFixed(0)} mm`} />
-      <ValueRow label="vEd"    value={`${result.vEd_punch.toFixed(3)} MPa`} />
-      <ValueRow label="vRd,c"  value={`${result.vRdc_punch.toFixed(3)} MPa`} />
+      {/* Punzonamiento — only for flexible footings. Rigid footings transfer
+          load through compression struts and don't punch (CE art. 55.2). */}
+      {result.is_rigid ? (
+        <>
+          <GroupHeader label="Punzonamiento" />
+          <ValueRow label="Punzonamiento" value="N/A — zapata rígida" />
+        </>
+      ) : (
+        <>
+          <GroupHeader label="Punzonamiento (CE art. 46)" />
+          <ValueRow label="d_avg"  value={`${result.d_avg.toFixed(0)} mm`} />
+          <ValueRow label="u1"     value={`${result.u1.toFixed(0)} mm`} />
+          <ValueRow label="vEd"    value={`${result.vEd_punch.toFixed(3)} MPa`} />
+          <ValueRow label="vRd,c"  value={`${result.vRdc_punch.toFixed(3)} MPa`} />
+        </>
+      )}
 
       {/* Verificaciones */}
       <GroupHeader label="Verificaciones CE / CTE" />

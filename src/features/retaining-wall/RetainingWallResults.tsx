@@ -1,6 +1,7 @@
 import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { resultLabel } from '../../lib/text/labels';
 
 interface RetainingWallResultsProps {
   result: RetainingWallResult;
@@ -75,15 +76,15 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
       {/* Key values */}
       <div className="rounded border border-border-main px-4 py-3">
         <GroupHeader label="Valores geotécnicos" />
-        <ValueRow label="Ka (Coulomb)"          value={result.Ka.toFixed(4)} />
+        <ValueRow label={resultLabel('Ka_coulomb')}  value={result.Ka.toFixed(4)} />
         {result.kh_derived > 0 && (
           <>
-            <ValueRow label="kh (derivado)"     value={result.kh_derived.toFixed(3)} />
-            <ValueRow label="kv (derivado)"     value={result.kv_derived.toFixed(3)} />
+            <ValueRow label={resultLabel('kh_seismic')} value={result.kh_derived.toFixed(3)} />
+            <ValueRow label={resultLabel('kv_seismic')} value={result.kv_derived.toFixed(3)} />
           </>
         )}
         {result.KAD !== undefined && (
-          <ValueRow label="KAD (Mononobe-Okabe)" value={result.KAD.toFixed(4)} />
+          <ValueRow label={resultLabel('K_AE')}      value={result.KAD.toFixed(4)} />
         )}
         <ValueRow label="EAH total"             value={`${result.EAH_total.toFixed(2)} kN/m`} />
         {result.EW !== undefined && (
@@ -91,8 +92,8 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
         )}
         <ValueRow label="ΣV"                    value={`${result.ΣV.toFixed(2)} kN/m`} />
         <ValueRow label="e (excentricidad)"     value={`${result.e.toFixed(3)} m`} />
-        <ValueRow label="σ max"                 value={`${result.sigma_max.toFixed(1)} kPa`} />
-        <ValueRow label="σ min"                 value={`${result.sigma_min.toFixed(1)} kPa`} />
+        <ValueRow label={resultLabel('sigma_max')} value={`${result.sigma_max.toFixed(1)} kPa`} />
+        <ValueRow label={resultLabel('sigma_min')} value={`${result.sigma_min.toFixed(1)} kPa`} />
 
         {fusteChecks.length > 0 && (
           <>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface RetainingWallInputsProps {
   state: RetainingWallInputs;
@@ -8,6 +9,7 @@ interface RetainingWallInputsProps {
 }
 
 function NumField({
+  labelKey,
   label,
   sub,
   field,
@@ -16,15 +18,20 @@ function NumField({
   integer = false,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   sub?: string;
   field: string;
   value: number;
-  unit: string;
+  unit?: string;
   min?: number;
   integer?: boolean;
   setField: RetainingWallInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -34,8 +41,8 @@ function NumField({
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -55,10 +62,10 @@ function NumField({
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
-          aria-label={`${label} (${unit})`}
+          aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -66,22 +73,30 @@ function NumField({
 }
 
 function SelectField({
+  labelKey,
   label,
   field,
   value,
   options,
   setField,
 }: {
-  label: string;
+  labelKey?: LabelKey;
+  label?: string;
   field: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: RetainingWallInputsProps['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`select-${field}`}
@@ -91,7 +106,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="min-w-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -186,37 +201,37 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
     <div className="flex flex-col" aria-label="Datos de entrada">
 
       <SectionHeader label="Geometría" />
-      <NumField label="Altura fuste H"       field="H"      value={state.H as number}      unit="m" setField={setField} />
-      <NumField label="Canto zapata hf"      field="hf"     value={state.hf as number}     unit="m" setField={setField} />
-      <NumField label="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
-      <NumField label="Punta bP"             field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
-      <NumField label="Talón bT"             field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
+      <NumField labelKey="H_wall"       field="H"      value={state.H as number}      setField={setField} />
+      <NumField labelKey="hf_footing"   field="hf"     value={state.hf as number}     setField={setField} />
+      <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
+      <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
+      <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
 
       <SectionHeader label="Materiales" />
       <SelectField
-        label="fck"
+        labelKey="fck"
         field="fck"
         value={state.fck as number}
         options={availableFck.map((f) => ({ value: f, label: `${f} N/mm²` }))}
         setField={setField}
       />
       <SelectField
-        label="fyk"
+        labelKey="fyk"
         field="fyk"
         value={state.fyk as number}
         options={[400, 500, 600].map((f) => ({ value: f, label: `${f} N/mm²` }))}
         setField={setField}
       />
-      <NumField label="Recubrimiento" field="cover" value={state.cover as number} unit="m" setField={setField} />
+      <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} setField={setField} />
 
       <SectionHeader label="Terreno (trasdós)" />
-      <NumField label="γ suelo seco"         field="gammaSuelo" value={state.gammaSuelo as number} unit="kN/m³" setField={setField} />
-      <NumField label="γ suelo sat."         field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
-      <NumField label="φ fricción"           field="phi"        value={state.phi        as number} unit="°"     setField={setField} />
-      <NumField label="δ rozamiento pared"   field="delta"      value={state.delta      as number} unit="°"     setField={setField} />
-      <NumField label="Sobrecarga q"         field="q"          value={state.q          as number} unit="kN/m²" setField={setField} />
-      <NumField label="σ admisible"          field="sigmaAdm"   value={state.sigmaAdm   as number} unit="kPa"   setField={setField} />
-      <NumField label="μ fricción base"      field="mu"         value={state.mu         as number} unit="—"     setField={setField} />
+      <NumField labelKey="gamma_soil"       field="gammaSuelo" value={state.gammaSuelo as number} setField={setField} />
+      <NumField label="γsat" sub="Suelo saturado"     field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
+      <NumField labelKey="phi_soil"         field="phi"        value={state.phi        as number} setField={setField} />
+      <NumField labelKey="delta_wall"       field="delta"      value={state.delta      as number} setField={setField} />
+      <NumField label="q" sub="Sobrecarga trasdós"    field="q"          value={state.q          as number} unit="kN/m²" setField={setField} />
+      <NumField labelKey="sigma_adm"        field="sigmaAdm"   value={state.sigmaAdm   as number} setField={setField} />
+      <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
 
       <SectionHeader label="Nivel freático" />
       <div className="flex items-center justify-between py-0.75 gap-2">
@@ -245,8 +260,8 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       )}
 
       <SectionHeader label="Sismo (NCSE-02 / Mononobe-Okabe)" />
-      <NumField label="Ab (acel. básica)" field="Ab" value={state.Ab as number} unit="g" setField={setField} />
-      <NumField label="S (amplif. suelo)" field="S"  value={state.S  as number} unit="—" setField={setField} />
+      <NumField labelKey="Ab_accel" field="Ab" value={state.Ab as number} setField={setField} />
+      <NumField labelKey="S_site"   field="S"  value={state.S  as number} setField={setField} />
       {noSeismic ? (
         <p className="text-[11px] text-text-disabled mt-1">Sin sismo (Ab = 0)</p>
       ) : (

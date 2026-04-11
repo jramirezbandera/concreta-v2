@@ -1,5 +1,6 @@
 import { type TimberBeamInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getKdef, getTimberGrade } from '../../data/timberGrades';
+import { LABELS, type LabelKey } from '../../lib/text/labels';
 
 interface Props {
   state: TimberBeamInputs;
@@ -17,18 +18,25 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function NumField({
-  label, sub, field, value, unit, min, step, setField,
+  labelKey, label, sub, unit, field, value, min, step, setField,
 }: {
-  label: string; sub?: string;
-  field: keyof TimberBeamInputs; value: number; unit: string;
+  // Pull label/sub/unit from the LABELS catalog when a key is given.
+  labelKey?: LabelKey;
+  // Escape hatch for one-off fields not in the catalog (e.g. psi2Custom).
+  label?: string; sub?: string; unit?: string;
+  field: keyof TimberBeamInputs; value: number;
   min?: number; step?: number;
   setField: Props['setField'];
 }) {
+  const resolved = labelKey
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    : { label: label ?? '', sub, unit: unit ?? '' };
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label htmlFor={`tb-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <div className="flex shrink-0">
         <input
@@ -38,7 +46,7 @@ function NumField({
           className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       </div>
     </div>
@@ -46,17 +54,24 @@ function NumField({
 }
 
 function SelectField({
-  label, field, value, options, setField,
+  labelKey, label, field, value, options, setField,
 }: {
-  label: string; field: keyof TimberBeamInputs;
+  labelKey?: LabelKey; label?: string;
+  field: keyof TimberBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
 }) {
+  const resolved = labelKey
+    ? LABELS[labelKey].sym
+      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
+      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
+    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`tb-sel-${field}`} className="text-[13px] text-text-secondary min-w-0 truncate">
-        {label}
+      <label htmlFor={`tb-sel-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+        {resolved.label}
+        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
       <select
         id={`tb-sel-${field}`}
@@ -143,8 +158,9 @@ export function TimberBeamsInputs({ state, setField }: Props) {
       <SectionHeader label="Sección transversal" />
 
       <div className="flex items-center justify-between py-0.75 gap-2">
-        <label htmlFor="tb-gradeId" className="text-[13px] text-text-secondary min-w-0 truncate">
-          Clase resistente
+        <label htmlFor="tb-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+          {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
+          {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
         </label>
         <select
           id="tb-gradeId"
@@ -164,26 +180,26 @@ export function TimberBeamsInputs({ state, setField }: Props) {
         </select>
       </div>
 
-      <NumField label="b" sub="ancho" field="b" value={state.b} unit="mm" min={40}  step={10} setField={setField} />
-      <NumField label="h" sub="canto" field="h" value={state.h} unit="mm" min={80}  step={10} setField={setField} />
+      <NumField labelKey="b_section" field="b" value={state.b} min={40}  step={10} setField={setField} />
+      <NumField labelKey="h_section" field="h" value={state.h} min={80}  step={10} setField={setField} />
 
       {/* ── Geometría del vano ──────────────────────────────────────────── */}
       <SectionHeader label="Geometría del vano" />
 
-      <NumField label="Luz" sub="L" field="L" value={state.L} unit="m" min={0.5} step={0.5} setField={setField} />
+      <NumField labelKey="L_span" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
 
       {/* ── Cargas características ───────────────────────────────────────── */}
       <SectionHeader label="Cargas características" />
 
-      <NumField label="Permanente" sub="gk" field="gk" value={state.gk} unit="kN/m" min={0} step={0.5} setField={setField} />
-      <NumField label="Variable"   sub="qk" field="qk" value={state.qk} unit="kN/m" min={0} step={0.5} setField={setField} />
+      <NumField labelKey="gk_distributed" field="gk" value={state.gk} min={0} step={0.5} setField={setField} />
+      <NumField labelKey="qk_distributed" field="qk" value={state.qk} min={0} step={0.5} setField={setField} />
 
       {/* ── Clase de servicio y duración ────────────────────────────────── */}
       <SectionHeader label="Condiciones de uso" />
 
-      <SelectField label="Clase de servicio" field="serviceClass"  value={state.serviceClass}  options={SERVICE_CLASS_OPTIONS}  setField={setField} />
-      <SelectField label="Duración de carga" field="loadDuration"  value={state.loadDuration}  options={LOAD_DURATION_OPTIONS}  setField={setField} />
-      <SelectField label="Tipo de carga"     field="loadType"      value={state.loadType}       options={LOAD_TYPE_OPTIONS}      setField={setField} />
+      <SelectField labelKey="serviceClass" field="serviceClass" value={state.serviceClass} options={SERVICE_CLASS_OPTIONS} setField={setField} />
+      <SelectField labelKey="loadDuration" field="loadDuration" value={state.loadDuration} options={LOAD_DURATION_OPTIONS} setField={setField} />
+      <SelectField labelKey="loadType"     field="loadType"     value={state.loadType}     options={LOAD_TYPE_OPTIONS}     setField={setField} />
 
       {state.loadType === 'custom' && (
         <NumField label="ψ₂ personalizado" field="psi2Custom" value={state.psi2Custom} unit="" min={0} step={0.05} setField={setField} />
@@ -214,10 +230,10 @@ export function TimberBeamsInputs({ state, setField }: Props) {
       {/* ── Resistencia al fuego ─────────────────────────────────────────── */}
       <SectionHeader label="Resistencia al fuego" />
 
-      <SelectField label="Requisito fuego"  field="fireResistance" value={state.fireResistance} options={FIRE_OPTIONS}          setField={setField} />
+      <SelectField labelKey="fireResistance" field="fireResistance" value={state.fireResistance} options={FIRE_OPTIONS} setField={setField} />
 
       {state.fireResistance !== 'R0' && (
-        <SelectField label="Caras expuestas" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
+        <SelectField labelKey="exposedFaces" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
       )}
     </div>
   );

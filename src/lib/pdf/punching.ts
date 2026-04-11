@@ -114,7 +114,8 @@ export async function exportPunchingPDF(
   lRow(`beta = ${result.beta.toFixed(2)}`);
   ly += 1;
   lRow(`VEd = ${inp.VEd} kN`);
-  lRow(`vEd = ${result.vEd.toFixed(3)} N/mm·mm`);
+  lRow(`vEd,0 (u0) = ${result.vEd0.toFixed(3)} N/mm2`);
+  lRow(`vEd (u1) = ${result.vEd.toFixed(3)} N/mm2`);
 
   // Right: materials + armadura + resultados
   rSecHeader('MATERIALES');
@@ -126,6 +127,7 @@ export async function exportPunchingPDF(
   rRow(`rhoL = ${(result.rhoL * 100).toFixed(3)} %`);
   ry += 1;
   rSecHeader('PERIMETROS CRITICOS');
+  rRow(`u0 = ${result.u0.toFixed(0)} mm`);
   rRow(`u1 = ${result.u1.toFixed(0)} mm`);
   rRow(`uout = ${result.uout.toFixed(0)} mm`);
   rRow(`rout = ${result.rOut.toFixed(0)} mm`);

@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
 import { type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
+import { resultLabel } from '../../lib/text/labels';
 
 interface SteelColumnsResultsProps {
   result: SteelColumnResult | null;
@@ -178,20 +179,20 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
 
       {/* Key values */}
       <GroupHeader label="Valores" />
-      <ValueRow label="NRd" value={`${result.NRd.toFixed(1)} kN`} />
-      <ValueRow label="My,Rd" value={`${result.My_Rd.toFixed(1)} kNm`} />
-      <ValueRow label="Mz,Rd" value={`${result.Mz_Rd.toFixed(1)} kNm`} />
-      <ValueRow label="Nb,Rd,y" value={`${result.Nb_Rd_y.toFixed(1)} kN`} />
-      <ValueRow label="Nb,Rd,z" value={`${result.Nb_Rd_z.toFixed(1)} kN`} />
-      <ValueRow label="χy" value={result.chi_y.toFixed(3)} />
-      <ValueRow label="χz" value={result.chi_z.toFixed(3)} />
-      <ValueRow label="λ̄y" value={result.lambda_y.toFixed(3)} />
-      <ValueRow label="λ̄z" value={result.lambda_z.toFixed(3)} />
+      <ValueRow label={resultLabel('NRd_steel')}    value={`${result.NRd.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('MRd_y')}        value={`${result.My_Rd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('MRd_z')}        value={`${result.Mz_Rd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('Nb_Rd_y')}      value={`${result.Nb_Rd_y.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('Nb_Rd_z')}      value={`${result.Nb_Rd_z.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('chi_y')}        value={result.chi_y.toFixed(3)} />
+      <ValueRow label={resultLabel('chi_z')}        value={result.chi_z.toFixed(3)} />
+      <ValueRow label={resultLabel('lambda_bar_y')} value={result.lambda_y.toFixed(3)} />
+      <ValueRow label={resultLabel('lambda_bar_z')} value={result.lambda_z.toFixed(3)} />
       {hasLTB && (
         <>
-          <ValueRow label="Mcr" value={`${result.Mcr.toFixed(1)} kNm`} />
-          <ValueRow label="χLT" value={result.chi_LT.toFixed(3)} />
-          <ValueRow label="Mb,Rd" value={`${result.Mb_Rd.toFixed(1)} kNm`} />
+          <ValueRow label={resultLabel('Mcr')}    value={`${result.Mcr.toFixed(1)} kNm`} />
+          <ValueRow label={resultLabel('chi_LT')} value={result.chi_LT.toFixed(3)} />
+          <ValueRow label={resultLabel('Mb_Rd')}  value={`${result.Mb_Rd.toFixed(1)} kNm`} />
         </>
       )}
 

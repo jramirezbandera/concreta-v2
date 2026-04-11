@@ -121,8 +121,20 @@ export async function exportIsolatedFootingPDF(
   twoCol(`Barras x: ph${inp.phi_x}@${inp.s_x}mm`, `As,x = ${result.As_prov_x.toFixed(0)} mm2/m`);
   twoCol(`Barras y: ph${inp.phi_y}@${inp.s_y}mm`, `As,y = ${result.As_prov_y.toFixed(0)} mm2/m`);
   twoCol(`d_x = ${result.d_x.toFixed(0)} mm`, `d_y = ${result.d_y.toFixed(0)} mm`);
-  twoCol(`MEd,x = ${result.MEd_x.toFixed(2)} kNm/m`, `MEd,y = ${result.MEd_y.toFixed(2)} kNm/m`);
-  twoCol(`vEd,pun = ${result.vEd_punch.toFixed(3)} MPa`, `vRd,c = ${result.vRdc_punch.toFixed(3)} MPa`);
+  // Classification — method depends on v/h ratio (CE art. 55)
+  const v_ratio = Math.max(result.v_max_x, result.v_max_y) / (inp.h as number);
+  twoCol(
+    `Clasif: ${result.is_rigid ? 'rigida' : 'flexible'}`,
+    `v/h = ${v_ratio.toFixed(2)}`,
+  );
+  if (result.is_rigid) {
+    // Biela-tirante (CE art. 55.2): Td drives tie reinforcement, no punching
+    twoCol(`Td,x = ${result.Td_x.toFixed(1)} kN`, `Td,y = ${result.Td_y.toFixed(1)} kN`);
+    twoCol('Punzonamiento: N/A (rigida)');
+  } else {
+    twoCol(`MEd,x = ${result.MEd_x.toFixed(2)} kNm/m`, `MEd,y = ${result.MEd_y.toFixed(2)} kNm/m`);
+    twoCol(`vEd,pun = ${result.vEd_punch.toFixed(3)} MPa`, `vRd,c = ${result.vRdc_punch.toFixed(3)} MPa`);
+  }
 
   // ── Checks table ─────────────────────────────────────────────────────────────
   const tableY = SVG_Y + SVG_H1 + SVG_H2 + 10;

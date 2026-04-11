@@ -34,25 +34,25 @@ RC Columns: DONE (v0.2.0, 2026-03-30) — 67 tests: biaxial bending, per-axis sl
 
 Retaining walls: DONE (2026-04-01) — 57 tests + 20 rebar tests (after rebar feature), but hand-calc validation against CE/CTE examples not yet done. Run a reference calculation by hand (CE art. 18.2, CTE DB-SE-C §4.4) and diff against calcRetainingWall() before shipping. After rebar feature: also hand-check As_prov vs As_req for Ø16 c/200 on trasdós (H=3m, fck=25, fyk=500) — confirm As_prov=1005 mm²/m vs As_req computed by hand matches calc output.
 
-Punching: DONE (2026-04-06) — 59 tests: ρl from bar dims, tipo-viga Asw by position, vRdcs formula, failing VEd paths, invalid inputs. But hand-calc validation against CE art. 6.4 examples not yet done. Run a reference calculation by hand (e.g. interior column 300×300, d=200, fck=25, Ø12@150, VEd=300kN) and diff against calcPunching() before shipping. Also add PDF export (src/lib/pdf/punching.ts) before shipping.
+Punching: DONE (2026-04-06) — 59 tests: ρl from bar dims, tipo-viga Asw by position, vRdcs formula, failing VEd paths, invalid inputs. PDF export shipped. Hand-calc validation pending: run a reference calculation by hand (e.g. interior column 300×300, d=200, fck=25, Ø12@150, VEd=300kN) and diff against calcPunching() before shipping.
 
-Sección Compuesta: DONE (2026-04-06) — 35 tests: FTUX defaults, bare profile, centroid arithmetic, Wpl/Wel_min, EC3 classification (web + flanges), Mrd formula (class 1/2/3/4), custom mode, plate stacking, validation guards, custom y-position. Hand-calc confirmed in design doc: IPE 300 + 200×15 → Iy=13140.7 cm⁴, yc=206.4mm, Wel_min=637 cm³, Class 1 (CE art. 5.2, ε=0.924). See `src/test/calc/compositeSection.test.ts`. PDF export pending before shipping.
+Sección Compuesta: DONE (2026-04-06) — 35 tests: FTUX defaults, bare profile, centroid arithmetic, Wpl/Wel_min, EC3 classification (web + flanges), Mrd formula (class 1/2/3/4), custom mode, plate stacking, validation guards, custom y-position. Hand-calc confirmed in design doc: IPE 300 + 200×15 → Iy=13140.7 cm⁴, yc=206.4mm, Wel_min=637 cm³, Class 1 (CE art. 5.2, ε=0.924). See `src/test/calc/compositeSection.test.ts`. PDF export shipped.
 
-Vigas de madera (EC5): DONE (2026-04-09) — 70 tests: kmod/kdef/gammaM, ELU forces, kh size factor (sawn+glulam), kcr=0.67, LTB three-zone formula, ELS deflections, ksys §6.6, fire dchar/def/residual section, kdef SC2/SC3, load durations, beamType cases, fire-section-lost. See `src/test/calc/timberBeams.test.ts`. Hand-calc validation pending: run a fire check by hand (e.g. C24 200×400 R60, 3 faces) and verify against calcTimberBeam() before shipping. Also add PDF export (`src/lib/pdf/timberBeams.ts`) before shipping.
+Vigas de madera (EC5): DONE (2026-04-09) — 70 tests: kmod/kdef/gammaM, ELU forces, kh size factor (sawn+glulam), kcr=0.67, LTB three-zone formula, ELS deflections, ksys §6.6, fire dchar/def/residual section, kdef SC2/SC3, load durations, beamType cases, fire-section-lost. See `src/test/calc/timberBeams.test.ts`. PDF export shipped. Hand-calc validation pending: run a fire check by hand (e.g. C24 200×400 R60, 3 faces) and verify against calcTimberBeam() before shipping.
 
 Pilares de madera (EC5): DONE (2026-04-10) — 80 tests: input validation (Nd/Vd/Md/beta/b/L), material params, section geometry, slenderness §6.3.2, stresses (σc/σm/τd), §6.3.3 interaction (eq 6.23+6.24, strong/weak axis, pure axial), fire section reduction (3+4 faces, section-lost, etaFi=0/1), kmod matrix, beta factors, hardwood (D40 betaN=0.70), glulam (GL28h). See `src/test/calc/timberColumns.test.ts`. Hand-calc validation pending: run a buckling check by hand (C24 160×160, L=3m, β=1.0, Nd=80kN, Md=8kNm) using the comment header in the test file — λrel≈1.102, kc≈0.614, fc0_d≈12.92 N/mm², confirm util_623 and util_624 match. Also run a fire check by hand (C24 160×160, R60, 4 faces, η_fi=0.65) to verify dchar=48mm, def=55mm, b_ef=h_ef=50mm before shipping.
 
-Footings: not yet implemented — test plan required before shipping.
+Zapatas aisladas: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
+Encepados de pilotes: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
 
 ### SPECS.md known deviations — update before launch
 
-Two explicit overrides from the CEO review that SPECS.md still reflects incorrectly:
+One remaining override from the CEO review that SPECS.md still reflects incorrectly:
 1. Section 8.2 specifies a "Calculate" button — overridden to live recalculation (no button in MVP)
-2. Section 19 acceptance criteria includes tablet — originally overridden to desktop ≥900px for MVP, but mobile/tablet support was implemented 2026-03-29 (tabbed layout <768px, full desktop ≥768px)
 
-Update SPECS.md to reflect these decisions before public launch.
+Update SPECS.md to reflect this decision before public launch.
 
 ### sw.js Cache-Control header
 
@@ -98,14 +98,6 @@ CTE DB-SE-C §7.3.2 notes that passive resistance should be excluded or reduced 
 Fix: add a user-facing note in the results: "Ep incluida — verificar que la zapata esté por debajo de la línea de helada y el terreno frente a la punta no esté alterado" or add a checkbox to exclude Ep.
 
 **Why P2:** Including Ep is the unconservative side. In practice most engineers include it, but the user should be aware.
-
-### Over-reinforcement handling in RC beams (adversarial review finding)
-
-`calcRCBeam` silently continues when x > xLimit (over-reinforced section). Should either fail the check explicitly or add a 'warn' status row. Currently the beam result shows CUMPLE for an over-reinforced section, which is unconservative.
-
-Fix: add a `bending-over` check row that sets status='warn' when x > xLimit.
-
-**Status:** IN SCOPE for RC beams redesign (2026-03-29). Will be fixed in that pass.
 
 ### T-beam effective flange width in RC beams (CEO review 2026-03-29)
 
@@ -171,7 +163,7 @@ mentally invert it. As_req gives direct design guidance.
 `solveRCBending(inp.Md, inp.b, d, fcd, fyd)` and add `As_req` to `RCBeamSectionResult`.
 Then display it in `RCBeamsResults.tsx` ValueRow section.
 
-**Depends on:** retaining wall module (introduces solveRCBending to types.ts first).
+**Depends on:** none (solveRCBending already exists in types.ts, shipped with retaining wall).
 
 ### empresillado: EC3 §6.4.2.1 minimum lp and maximum s normative checks
 

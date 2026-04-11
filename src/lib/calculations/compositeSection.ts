@@ -97,7 +97,8 @@ function classUtil(ratio: number, cls: 1 | 2 | 3 | 4, limits: [number, number, n
   return ratio / (lim * eps);
 }
 
-const WEB_LIMITS: [number, number, number] = [72, 83, 124];
+// WEB_LIMITS removed: web is classified via webLimitsShifted() which accounts
+// for shifted plastic NA (α) and elastic stress ratio (ψ) — see below.
 const FLG_LIMITS: [number, number, number] = [9, 10, 14];
 
 // ── PNA via horizontal strip method ──────────────────────────────────────────
@@ -126,7 +127,7 @@ function buildStripElements(elements: SectionElement[]): StripEl[] {
   return result;
 }
 
-function computeWpl(stripEls: StripEl[], A_total: number): number {
+function computeWplAndPNA(stripEls: StripEl[]): { Wpl: number; y_pna: number } {
   // Collect all unique y-boundaries
   const bndSet = new Set<number>();
   for (const e of stripEls) {
@@ -151,8 +152,14 @@ function computeWpl(stripEls: StripEl[], A_total: number): number {
     if (width > 0) strips.push({ ya, yb, width });
   }
 
-  // Find PNA: accumulate area from bottom until A_total/2
-  const halfA = A_total / 2;
+  // Find PNA: accumulate strip area from bottom until strip-total/2.
+  // NOTE: we use the strip total (sum of strip widths × heights), NOT the
+  // element-total area passed from outside. The element total includes
+  // fillet area for rolled profiles, while the strip model is just the 3
+  // rectangles — if we mixed them the PNA would drift (symmetric sections
+  // would come out slightly off-centre).
+  const stripTotal = strips.reduce((s, st) => s + st.width * (st.yb - st.ya), 0);
+  const halfA = stripTotal / 2;
   let cumArea = 0;
   let y_pna = 0;
   for (const strip of strips) {
@@ -182,7 +189,41 @@ function computeWpl(stripEls: StripEl[], A_total: number): number {
       Wpl += w * (yb - y_pna) * ((y_pna + yb) / 2 - y_pna);
     }
   }
-  return Wpl;
+  return { Wpl, y_pna };
+}
+
+// ── Web classification for shifted PNA (EC3 Table 5.2, internal in bending) ──
+// When cover plates make the section asymmetric the plastic NA shifts. The
+// α=0.5 limits [72, 83, 124] apply only to pure bending with a centred PNA.
+// For α > 0.5 (more than half of the web in compression) EC3 uses much
+// tighter limits — ignoring this can let a web that is actually Class 3 be
+// reported as Class 1/2, inflating Mrd.
+//
+// Inputs:
+//   α  — fraction of web clear height in compression at the PLASTIC NA  (0..1)
+//   ψ  — elastic stress ratio σ_bottom/σ_top across the web clear region
+function webLimitsShifted(α: number, ψ: number, eps: number): { c1: number; c2: number; c3: number } {
+  // Class 1 & 2 — plastic (α)
+  let c1: number;
+  let c2: number;
+  if (α > 0.5) {
+    const denom = 13 * α - 1;   // > 5.5 for α>0.5 → always positive
+    c1 = (396 * eps) / denom;
+    c2 = (456 * eps) / denom;
+  } else {
+    const α_eff = Math.max(α, 1e-6);
+    c1 = (36 * eps) / α_eff;
+    c2 = (41.5 * eps) / α_eff;
+  }
+  // Class 3 — elastic (ψ)
+  let c3: number;
+  if (ψ > -1) {
+    c3 = (42 * eps) / (0.67 + 0.33 * ψ);
+  } else {
+    // ψ ≤ −1
+    c3 = 62 * eps * (1 - ψ) * Math.sqrt(-ψ);
+  }
+  return { c1, c2, c3 };
 }
 
 // ── main calc ─────────────────────────────────────────────────────────────────
@@ -335,7 +376,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
   const Wel_bot = Iy_total / Math.max(yc, 1);
   const Wel_min = Math.min(Wel_top, Wel_bot);
 
-  const Wpl_mm3 = computeWpl(buildStripElements(elements), A_total);
+  const { Wpl: Wpl_mm3, y_pna: y_pna_mm } = computeWplAndPNA(buildStripElements(elements));
 
   // ── classification (reinforced mode only) ─────────────────────────────────
   let epsilon: number | null = null;
@@ -348,13 +389,42 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
   let sectionClass: 1 | 2 | 3 | 4 | null = null;
   const checks: CheckRow[] = [];
 
+  // Web geometry + class-limit values (for the `limit` column of the check row).
+  // Filled below for reinforced mode; stay null for custom mode.
+  let webLimC1 = 0, webLimC2 = 0, webLimC3 = 0;
+
   if (inp.mode === 'reinforced' && profile) {
     epsilon = Math.sqrt(235 / fy);
 
     // Web — clear height between fillets
     const c_w = profile.h - 2 * profile.tf - 2 * profile.r;
     webRatio = c_w / profile.tw;
-    webClass = classifyElement(webRatio, WEB_LIMITS, epsilon);
+
+    // ── α and ψ for the web — accounts for shifted PNA from cover plates ──
+    // The profile sits at y ∈ [shift, shift + profile.h]. The web clear region
+    // is [shift + tf + r, shift + h − tf − r] (height = c_w).
+    // α = (compressed depth of web) / c_w — measured from the plastic NA.
+    // ψ = σ_bottom / σ_top — elastic stresses at web clear bounds; for pure
+    //     bending this reduces to a simple y-ratio around the elastic NA.
+    const web_y_bot = shift + profile.tf + profile.r;
+    const web_y_top = shift + profile.h - profile.tf - profile.r;
+    // Plastic: compressed part of the web is from y_pna to web_y_top
+    //   (sign convention: positive M puts the top in compression).
+    const compressed_depth = Math.max(0, Math.min(web_y_top, web_y_top - Math.max(y_pna_mm, web_y_bot)));
+    const α_web = Math.min(Math.max(compressed_depth / Math.max(c_w, 1), 0), 1);
+    // Elastic stress ratio at the web boundaries (signs: positive = compression)
+    const σ_top_web = web_y_top - yc;
+    const σ_bot_web = web_y_bot - yc;
+    const ψ_web = σ_top_web !== 0 ? (σ_bot_web / σ_top_web) : -1;
+
+    const webLims = webLimitsShifted(α_web, ψ_web, epsilon);
+    webLimC1 = webLims.c1;
+    webLimC2 = webLims.c2;
+    webLimC3 = webLims.c3;
+    webClass = webRatio <= webLimC1 ? 1
+             : webRatio <= webLimC2 ? 2
+             : webRatio <= webLimC3 ? 3
+             : 4;
 
     // Bottom flange outstand (rolled I: fillet included)
     const c_f_bot = (profile.b - profile.tw - 2 * profile.r) / 2;
@@ -377,13 +447,20 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     sectionClass = Math.max(webClass, flangeTopClass, flangeBotClass) as 1 | 2 | 3 | 4;
 
     // Build check rows
-    const webLimVal = WEB_LIMITS[Math.min(webClass - 1, 2)] * epsilon;
+    // Use α- and ψ-shifted limits for the web (accounts for cover-plate
+    // asymmetry — see webLimitsShifted above).
+    const webLimVal = webClass === 1 ? webLimC1
+                    : webClass === 2 ? webLimC2
+                    : webLimC3;
+    const webLimRef = webClass === 1 ? webLimC1
+                    : webClass === 2 ? webLimC2
+                    : webLimC3;
     checks.push({
       id: 'cls-web',
       description: 'Alma',
       value: `${webRatio.toFixed(1)}`,
       limit: `≤ ${webLimVal.toFixed(1)} (Cl.${webClass})`,
-      utilization: classUtil(webRatio, webClass, WEB_LIMITS, epsilon),
+      utilization: Math.min(webRatio / Math.max(webLimRef, 1e-6), 2),
       status: webClass <= 2 ? 'ok' : webClass === 3 ? 'warn' : 'fail',
       article: 'CE art. 5.2 T.5.2',
     });
@@ -412,12 +489,19 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
   }
 
   // ── Mmax,Rd ────────────────────────────────────────────────────────────────
+  // Custom mode (null) has no profile and we cannot classify arbitrary plate
+  // assemblies as web/flange elements. Using Wpl unconditionally would assume
+  // the section can reach its plastic moment — that is only true for
+  // Class 1/2, which we have not verified. Fall back to Wel_min (elastic
+  // bending) in custom mode to stay on the safe side.
   const class4Warning = sectionClass === 4;
   let Mrd_Nmm: number;
-  if (sectionClass === null || sectionClass === 1 || sectionClass === 2) {
-    // Custom mode (null) uses Wpl as best estimate (no classification)
+  if (sectionClass === 1 || sectionClass === 2) {
     Mrd_Nmm = Wpl_mm3 * fy / GAMMA_M0;
   } else if (sectionClass === 3) {
+    Mrd_Nmm = Wel_min * fy / GAMMA_M0;
+  } else if (sectionClass === null) {
+    // Custom mode — classification unavailable → use elastic modulus.
     Mrd_Nmm = Wel_min * fy / GAMMA_M0;
   } else {
     // Class 4: effective section (EN 1993-1-5) not implemented — cannot report Mrd
