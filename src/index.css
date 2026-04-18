@@ -83,8 +83,10 @@
 ::-webkit-scrollbar-thumb { background: #22304d; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #2c3d63; }
 
-.scroll-hide                    { -ms-overflow-style: none; scrollbar-width: none; }
-.scroll-hide::-webkit-scrollbar { display: none; }
+.scroll-hide                    { scrollbar-width: thin; scrollbar-color: #22304d transparent; }
+.scroll-hide::-webkit-scrollbar { width: 6px; }
+.scroll-hide::-webkit-scrollbar-thumb { background: #22304d; border-radius: 3px; }
+.scroll-hide::-webkit-scrollbar-track { background: transparent; }
 
 @media print {
   body { background: #fff !important; color: #000 !important; }

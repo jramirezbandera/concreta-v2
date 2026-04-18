@@ -153,10 +153,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       </div>
 
       {/* Module groups */}
-      <div className="flex-1 overflow-y-auto scroll-hide py-2.5">
+      <div className="flex-1 overflow-y-auto scroll-hide py-1.5">
         {groups.map((group, gi) => (
-          <div key={group} style={{ marginTop: gi === 0 ? 0 : 14 }}>
-            <p className="px-4 py-1 pb-1.5 text-[10px] font-semibold uppercase text-text-disabled" style={{ letterSpacing: '0.11em' }}>
+          <div key={group} style={{ marginTop: gi === 0 ? 0 : 12 }}>
+            <p className="px-4 py-0.5 text-[10px] font-semibold uppercase text-text-disabled" style={{ letterSpacing: '0.11em' }}>
               {group}
             </p>
             {moduleRegistry
@@ -169,7 +169,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   tabIndex={mod.shipped ? undefined : -1}
                   className={({ isActive }) =>
                     [
-                      'relative flex items-center gap-2.5 px-4 py-[7px] text-[13px] transition-colors',
+                      'relative flex items-center gap-2.5 px-4 py-[5px] text-[13px] transition-colors',
                       mod.shipped
                         ? isActive
                           ? 'text-accent'

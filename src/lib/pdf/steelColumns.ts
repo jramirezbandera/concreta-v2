@@ -408,6 +408,6 @@ export async function exportSteelColumnsPDF(
   const filename = `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = doc.internal.getNumberOfPages();
+  const pageCount = (doc.internal as any).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

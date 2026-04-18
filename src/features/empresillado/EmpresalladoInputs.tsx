@@ -44,7 +44,7 @@ function NumberField({ labelKey, label, unit, value, onChange, step = 1, min = 0
       <input
         type="number"
         className={[
-          'w-full bg-bg-primary border rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
+          'w-full bg-bg-primary border rounded pl-2 pr-6 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
           error ? 'border-state-fail' : 'border-border-main',
         ].join(' ')}
         value={value}
@@ -98,7 +98,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
         <div className="flex flex-col gap-0.5 mb-2">
           <label className="text-[12px] text-text-secondary">Perfil</label>
           <select
-            className="w-full bg-bg-primary border border-border-main rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+            className="w-full bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
             value={state.perfil}
             onChange={(e) => set('perfil', e.target.value)}
           >

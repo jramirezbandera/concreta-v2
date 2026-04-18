@@ -130,7 +130,7 @@ function SelectField({
         id={`select-${fieldKey}`}
         value={value}
         onChange={(e) => setField(fieldKey, Number(e.target.value))}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className="shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

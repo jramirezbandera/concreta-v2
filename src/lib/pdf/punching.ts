@@ -235,6 +235,6 @@ export async function exportPunchingPDF(
   const filename = 'punzonamiento.pdf';
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = doc.internal.getNumberOfPages();
+  const pageCount = (doc.internal as any).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

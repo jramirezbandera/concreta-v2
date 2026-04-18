@@ -238,6 +238,6 @@ export async function exportCompositeSectionPDF(
   const filename = `concreta-seccion-compuesta-${new Date().toISOString().slice(0, 10)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = doc.internal.getNumberOfPages();
+  const pageCount = (doc.internal as any).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

@@ -79,7 +79,7 @@ function SelectField({
           const n = Number(raw);
           setField(field, isNaN(n) || raw === '' ? raw : n);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
       </select>
@@ -164,7 +164,7 @@ export function TimberColumnsInputs({ state, setField }: Props) {
             id="tc-gradeId"
             value={state.gradeId}
             onChange={(e) => setField('gradeId', e.target.value)}
-            className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+            className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
           >
             <optgroup label="Conífera aserrada">
               {SOFTWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}

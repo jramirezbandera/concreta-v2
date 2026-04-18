@@ -196,7 +196,7 @@ function SelectField({
           const num = Number(raw);
           setField(field, isNaN(num) || raw === '' ? raw : num);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
@@ -477,14 +477,12 @@ export function SteelBeamsInputs({
           <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lcr_LTB.descShort}</span>
         </label>
         <div className="flex items-center gap-1.5 shrink-0">
-          {lcrIsAuto && (
-            <span
-              className="bg-bg-elevated text-text-disabled font-mono text-[9px] px-1.25 py-0.5 rounded"
-              aria-label="Lcr calculado automáticamente"
-            >
-              auto
-            </span>
-          )}
+          <span
+            className={`font-mono text-[9px] px-1.25 py-0.5 rounded transition-colors ${lcrIsAuto ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-disabled'}`}
+            aria-label={lcrIsAuto ? 'Lcr calculado automáticamente' : 'Lcr manual'}
+          >
+            auto
+          </span>
           <div className="flex shrink-0">
             <input
               id="sb-input-Lcr"
