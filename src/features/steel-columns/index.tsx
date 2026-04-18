@@ -3,12 +3,14 @@ import { Helmet } from 'react-helmet-async';
 import { steelColumnDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { exportSteelColumnsPDF } from '../../lib/pdf/steelColumns';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { SteelColumnsInputs } from './SteelColumnsInputs';
 import { SteelColumnsSVG } from './SteelColumnsSVG';
 import { SteelColumnsResults } from './SteelColumnsResults';
@@ -16,7 +18,7 @@ import { SteelColumnsResults } from './SteelColumnsResults';
 export function SteelColumnsModule() {
   const { state, setField, reset } = useModuleState('steel-columns', steelColumnDefaults);
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
 
   // Resolve effective inputs: derive beta from shared bcType (non-custom)
   const effectiveInputs = useMemo(() => {
@@ -29,22 +31,8 @@ export function SteelColumnsModule() {
 
   const zeroLoads = state.Ned === 0 && state.My_Ed === 0 && state.Mz_Ed === 0;
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  const handleExportPdf = async () => {
-    if (!result.valid) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportSteelColumnsPDF(effectiveInputs, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  };
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result), result.valid);
 
   // Responsive SVG sizing
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -84,6 +72,7 @@ export function SteelColumnsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       {/* Two-column layout (desktop) / Tabbed (mobile) */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -97,7 +86,7 @@ export function SteelColumnsModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <SteelColumnsInputs state={state} setField={setField} />
           </div>
           <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
@@ -135,31 +124,19 @@ export function SteelColumnsModule() {
           </div>
 
           {/* Results */}
-          <div className="px-6 py-5 pb-20 md:pb-5">
+          <div className="px-6 py-5">
             <SteelColumnsResults result={result} zeroLoads={zeroLoads} />
           </div>
         </div>
 
-      </div>
+        {/* Mobile: Diagramas tab */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            <SteelColumnsSVG inp={effectiveInputs} result={result} mode="screen" width={340} height={Math.round(340 * 0.7)} />
+          </div>
+        )}
 
-      {/* Mobile bottom tab bar */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10"
-        aria-label="Secciones"
-      >
-        <button
-          onClick={() => setTab('inputs')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'inputs' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Datos
-        </button>
-        <button
-          onClick={() => setTab('results')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'results' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Resultados
-        </button>
-      </nav>
+      </div>
 
       {/* Hidden PDF clone — off-screen */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
@@ -176,6 +153,16 @@ export function SteelColumnsModule() {
           />
         </div>
       </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

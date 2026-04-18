@@ -1,13 +1,15 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { punchingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPunching } from '../../lib/calculations/punching';
 import { exportPunchingPDF } from '../../lib/pdf/punching';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PunchingInputsPanel } from './PunchingInputs';
 import { PunchingResults } from './PunchingResults';
 import { PunchingSVG } from './PunchingSVG';
@@ -15,25 +17,12 @@ import { PunchingSVG } from './PunchingSVG';
 export function PunchingModule() {
   const { state, setField } = useModuleState('punching', punchingDefaults);
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results' | 'esquema'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcPunching(state), [state]);
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-  const handleExportPdf = useCallback(async () => {
-    if (!result.valid) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportPunchingPDF(state, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  }, [state, result]);
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportPunchingPDF(state, result), result.valid);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -53,6 +42,7 @@ export function PunchingModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
@@ -65,7 +55,7 @@ export function PunchingModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <PunchingInputsPanel state={state} setField={setField} />
           </div>
         </div>
@@ -88,15 +78,15 @@ export function PunchingModule() {
           </div>
 
           {/* Results */}
-          <div className="px-6 py-5 pb-20 md:pb-5">
+          <div className="px-6 py-5">
             <PunchingResults result={result} />
           </div>
         </div>
 
-        {/* Mobile: Esquema tab — SVG only */}
-        {tab === 'esquema' && (
-          <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid pb-20 md:hidden flex flex-col items-center py-4 px-4 gap-4">
-            <PunchingSVG inp={state} result={result} width={Math.min(340, 340)} mode="screen" />
+        {/* Mobile: Diagramas tab */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid md:hidden flex flex-col items-center py-4 px-4 gap-4">
+            <PunchingSVG inp={state} result={result} width={340} mode="screen" />
           </div>
         )}
 
@@ -112,30 +102,15 @@ export function PunchingModule() {
         </div>
       </div>
 
-      {/* Mobile bottom tab bar */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10"
-        aria-label="Secciones"
-      >
-        <button
-          onClick={() => setTab('inputs')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'inputs' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Datos
-        </button>
-        <button
-          onClick={() => setTab('esquema')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'esquema' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Esquema
-        </button>
-        <button
-          onClick={() => setTab('results')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'results' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Resultados
-        </button>
-      </nav>
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

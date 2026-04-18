@@ -1,5 +1,6 @@
 import { type TimberColumnResult, type TimberColumnCheckRow, type CheckStatus } from '../../lib/calculations/timberColumns';
 import { resultLabel } from '../../lib/text/labels';
+import { ambientStyle } from '../../components/checks';
 
 interface Props {
   result: TimberColumnResult;
@@ -115,7 +116,7 @@ export function TimberColumnsResults({ result }: Props) {
   const eluStatus: CheckStatus = eluFail ? 'fail' : eluWarn ? 'warn' : 'ok';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={ambientStyle(overall)}>
 
       {/* Overall verdict */}
       <div className="flex items-center justify-between pb-3 border-b border-border-main">

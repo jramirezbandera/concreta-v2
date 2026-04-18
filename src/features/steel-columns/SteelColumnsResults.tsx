@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
 import { type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { resultLabel } from '../../lib/text/labels';
+import { ambientStyle } from '../../components/checks';
 
 interface SteelColumnsResultsProps {
   result: SteelColumnResult | null;
@@ -160,7 +161,7 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
   const slendChecks    = result.checks.filter((c) => ['sy', 'sz'].includes(c.id));
 
   return (
-    <div className="flex flex-col" aria-label="Resultados">
+    <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(status)}>
 
       {/* Verdict header */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">

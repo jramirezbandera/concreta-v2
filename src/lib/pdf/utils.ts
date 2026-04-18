@@ -61,6 +61,13 @@ export function pdfStr(s: string): string {
     .replace(/[^\x00-\xFF]/g, '?');
 }
 
+/** Result returned by all PDF export functions for preview modal. */
+export interface PdfResult {
+  blobUrl: string;
+  filename: string;
+  pageCount: number;
+}
+
 /** Standard check status labels (Spanish). */
 export const STATUS_LABEL: Record<string, string> = {
   ok:   'CUMPLE',

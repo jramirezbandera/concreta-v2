@@ -1,6 +1,6 @@
 import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
 import { type RetainingWallInputs } from '../../data/defaults';
-import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 
 interface RetainingWallResultsProps {
@@ -41,7 +41,7 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
     <div className="flex flex-col gap-4" aria-label="Resultados">
 
       {/* Overall verdict */}
-      <div className={`rounded border-2 px-4 py-3 ${BORDER_CLASSES[allStatus]}`}>
+      <div className="rounded px-4 py-3" style={ambientStyle(allStatus)}>
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text-secondary">
             Muro de Contención — Resultado global

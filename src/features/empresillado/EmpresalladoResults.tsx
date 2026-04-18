@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type CheckStatus } from '../../lib/calculations/types';
+import { ambientStyle } from '../../components/checks';
 
 interface EmpresalladoResultsProps {
   result: EmpresalladoResult;
@@ -119,7 +120,7 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
   const contrib_My = (Math.abs(inp.My_Ed) * 100) / (2 * result.hx);
 
   return (
-    <div className="flex flex-col" aria-label="Resultados">
+    <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(status)}>
 
       {/* Verdict header */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">

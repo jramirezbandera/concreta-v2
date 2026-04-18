@@ -1,5 +1,5 @@
 import { type RCBeamResult, type RCBeamSectionResult } from '../../lib/calculations/rcBeams';
-import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 
 interface RCBeamsResultsProps {
@@ -43,8 +43,9 @@ function SectionBlock({
     <div
       className={[
         'rounded border px-4 py-3 transition-colors',
-        isActive ? `border-2 ${BORDER_CLASSES[status]}` : 'border-border-main',
+        isActive ? BORDER_CLASSES[status] : 'border-border-main',
       ].join(' ')}
+      style={isActive ? ambientStyle(status) : undefined}
     >
       {/* Section header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">

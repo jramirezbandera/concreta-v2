@@ -7,7 +7,7 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus } from '../calculations/rcBeams';
 
-import { PAGE_W, PAGE_H, setGray, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 20;          // margin
 const CW = PAGE_W - 2 * M;  // content width = 170mm
@@ -126,7 +126,7 @@ function drawSectionTable(
   return y + 1;
 }
 
-export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult): Promise<void> {
+export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -235,5 +235,9 @@ export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult):
   doc.text('Concreta \u2014 concreta.app | Codigo Estructural (CE) Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save(`concreta-viga-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const filename = `concreta-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

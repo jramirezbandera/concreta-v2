@@ -6,7 +6,7 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rcColumns';
 
-import { PAGE_W, PAGE_H, setGray, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 20;
 const CW = PAGE_W - 2 * M;
@@ -17,7 +17,7 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.line(M, y, PAGE_W - M, y);
 }
 
-export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnResult): Promise<void> {
+export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnResult): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ─────────────────────────────────────────────────────────────────
@@ -212,5 +212,9 @@ export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnRe
   doc.text('Concreta \u2014 concreta.app | C\u00f3digo Estructural (CE) Espa\u00f1a', M, footerY);
   doc.text('P\u00e1gina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save(`concreta-pilar-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const filename = `concreta-pilar-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

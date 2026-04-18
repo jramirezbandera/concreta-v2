@@ -3,11 +3,13 @@ import { Helmet } from 'react-helmet-async';
 import { rcBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { exportRCBeamsPDF } from '../../lib/pdf/rcBeams';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { RCBeamsInputs } from './RCBeamsInputs';
 import { RCBeamsSVG } from './RCBeamsSVG';
 import { RCBeamsResults } from './RCBeamsResults';
@@ -15,26 +17,13 @@ import { RCBeamsResults } from './RCBeamsResults';
 export function RCBeamsModule() {
   const { state, setField, reset } = useModuleState('rc-beams', rcBeamDefaults);
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
   const [section, setSection] = useState<'vano' | 'apoyo'>('vano');
 
   const result = useMemo(() => calcRCBeam(state), [state]);
-  const [pdfExporting, setPdfExporting] = useState(false);
 
-  const handleExportPdf = async () => {
-    if (!result.valid) {
-      showToast('Los datos de entrada no son validos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportRCBeamsPDF(state, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  };
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportRCBeamsPDF(state, result), result.valid);
 
   // Responsive SVG sizing — two SVGs side by side, stacked below STACK_THRESHOLD
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -67,6 +56,7 @@ export function RCBeamsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       {/* Two-column (desktop) / Tabbed (mobile) */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -80,7 +70,7 @@ export function RCBeamsModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <RCBeamsInputs
               state={state}
               section={section}
@@ -145,28 +135,30 @@ export function RCBeamsModule() {
           </div>
 
           {/* Results */}
-          <div className="px-6 py-5 pb-20 md:pb-5">
+          <div className="px-6 py-5">
             <RCBeamsResults result={result} activeSection={section} />
           </div>
         </div>
 
-      </div>
+        {/* Mobile: Diagramas tab */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            {result.vano && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
+                <RCBeamsSVG inp={state} result={result} momentSign="positive" mode="screen" width={340} height={Math.round(340 * 1.3)} />
+              </div>
+            )}
+            {result.apoyo && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
+                <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="screen" width={340} height={Math.round(340 * 1.3)} />
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Mobile bottom tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10" aria-label="Secciones">
-        <button
-          onClick={() => setTab('inputs')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'inputs' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Datos
-        </button>
-        <button
-          onClick={() => setTab('results')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'results' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Resultados
-        </button>
-      </nav>
+      </div>
 
       {/* Hidden PDF clones — vano (M+) and apoyo (M-) */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
@@ -183,6 +175,16 @@ export function RCBeamsModule() {
           <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="pdf" width={300} height={370} />
         </div>
       </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

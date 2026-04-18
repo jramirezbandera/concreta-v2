@@ -7,7 +7,7 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
 
-import { PAGE_W, PAGE_H, setGray } from './utils';
+import { PAGE_W, PAGE_H, setGray, type PdfResult } from './utils';
 
 const M  = 18;
 
@@ -27,7 +27,7 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
 export async function exportRetainingWallPDF(
   inp: RetainingWallInputs,
   result: RetainingWallResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ──────────────────────────────────────────────────────────────
@@ -189,5 +189,9 @@ export async function exportRetainingWallPDF(
   setGray(doc, 180);
   doc.text('Concreta \u2014 Herramienta de c\u00e1lculo estructural. Verificar resultados antes de su uso en proyecto.', M, PAGE_H - 10);
 
-  doc.save('muro-contencion.pdf');
+  const filename = 'muro-contencion.pdf';
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

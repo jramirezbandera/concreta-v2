@@ -1,13 +1,15 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { isolatedFootingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcIsolatedFooting } from '../../lib/calculations/isolatedFooting';
 import { exportIsolatedFootingPDF } from '../../lib/pdf/isolatedFooting';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { IsolatedFootingInputsPanel } from './IsolatedFootingInputsPanel';
 import { IsolatedFootingResults } from './IsolatedFootingResults';
 import { IsolatedFootingSVG } from './IsolatedFootingSVG';
@@ -15,26 +17,12 @@ import { IsolatedFootingSVG } from './IsolatedFootingSVG';
 export function IsolatedFootingModule() {
   const { state, setField } = useModuleState('isolated-footing', isolatedFootingDefaults);
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results' | 'esquema'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcIsolatedFooting(state), [state]);
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  const handleExportPdf = useCallback(async () => {
-    if (result.error) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportIsolatedFootingPDF(state, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  }, [state, result]);
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportIsolatedFootingPDF(state, result), !result.error);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -54,6 +42,7 @@ export function IsolatedFootingModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
@@ -66,7 +55,7 @@ export function IsolatedFootingModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <IsolatedFootingInputsPanel state={state} setField={setField} />
           </div>
         </div>
@@ -89,35 +78,19 @@ export function IsolatedFootingModule() {
           </div>
 
           {/* Results */}
-          <div className="px-2 py-3 pb-20 md:pb-5">
+          <div className="px-2 py-3">
             <IsolatedFootingResults inp={state} result={result} />
           </div>
         </div>
 
-        {/* Mobile: Esquema tab */}
-        {tab === 'esquema' && (
-          <div className="flex-1 overflow-y-auto scroll-hide pb-20 md:hidden flex flex-col items-center py-4 px-4 gap-4">
-            <IsolatedFootingSVG inp={state} result={result} width={Math.min(340, 340)} mode="screen" />
+        {/* Mobile: Diagramas tab */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            <IsolatedFootingSVG inp={state} result={result} width={340} mode="screen" />
           </div>
         )}
 
       </div>
-
-      {/* Mobile bottom tab bar */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10"
-        aria-label="Secciones"
-      >
-        {(['inputs', 'esquema', 'results'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === t ? 'text-accent' : 'text-text-secondary'}`}
-          >
-            {t === 'inputs' ? 'Datos' : t === 'esquema' ? 'Esquema' : 'Resultados'}
-          </button>
-        ))}
-      </nav>
 
       {/* Hidden PDF clone */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
@@ -128,6 +101,16 @@ export function IsolatedFootingModule() {
           <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

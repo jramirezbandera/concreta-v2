@@ -1,5 +1,5 @@
 import { type RCColumnResult } from '../../lib/calculations/rcColumns';
-import { VerdictBadge, CheckRowItem, GroupHeader, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { VerdictBadge, CheckRowItem, GroupHeader, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 
 interface RCColumnsResultsProps {
@@ -95,7 +95,8 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
 
   return (
     <div
-      className={`rounded px-4 py-3 transition-colors border-2 ${BORDER_CLASSES[status]}`}
+      className="rounded px-4 py-3 transition-colors"
+      style={ambientStyle(status)}
       aria-label="Resultados pilares"
     >
       {/* Header */}

@@ -3,6 +3,7 @@ import { type PunchingInputs, type PunchingMode, type PunchingPosition } from '.
 import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
@@ -57,7 +58,7 @@ function NumField({
             const n = parseFloat(localStr);
             if (isNaN(n)) setLocalStr(String(value));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -102,7 +103,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -114,13 +115,6 @@ function SelectField({
   );
 }
 
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
-  );
-}
 
 function ToggleButton({
   label,
@@ -257,79 +251,84 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
       </div>
 
       {/* GEOMETRÍA */}
-      <SectionHeader label="Geometría" />
-      <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
-      <NumField label={cyLabel} sub="Cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
-      <ToggleButton
-        label="Circular"
-        active={state.isCircular as boolean}
-        disabled={isCircularDisabled}
-        disabledTitle="Solo para posición interior"
-        onClick={() => setField('isCircular', !(state.isCircular as boolean))}
-      />
-      <NumField labelKey="d_effective" field="d" value={state.d as number} setField={setField} />
+      <CollapsibleSection label="Geometría">
+        <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
+        <NumField label={cyLabel} sub="Cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
+        <ToggleButton
+          label="Circular"
+          active={state.isCircular as boolean}
+          disabled={isCircularDisabled}
+          disabledTitle="Solo para posición interior"
+          onClick={() => setField('isCircular', !(state.isCircular as boolean))}
+        />
+        <NumField labelKey="d_effective" field="d" value={state.d as number} setField={setField} />
+      </CollapsibleSection>
 
       {/* MATERIALES */}
-      <SectionHeader label="Materiales" />
-      <SelectField labelKey="fck" field="fck" value={state.fck as number} options={FCK_OPTIONS} setField={setField} />
-      <NumField labelKey="fyk" field="fyk" value={state.fyk as number} setField={setField} />
+      <CollapsibleSection label="Materiales">
+        <SelectField labelKey="fck" field="fck" value={state.fck as number} options={FCK_OPTIONS} setField={setField} />
+        <NumField labelKey="fyk" field="fyk" value={state.fyk as number} setField={setField} />
+      </CollapsibleSection>
 
       {/* ARMADO DE FLEXIÓN */}
-      <SectionHeader label="Armado de flexión" />
-      <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
-      <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-      <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
-      <p className="text-[10px] text-text-disabled mt-2 mb-1.5">Cara inferior</p>
-      <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-      <NumField label="Separación" sub="S" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
-      {/* Derived ρl feedback — tension face */}
-      {(() => {
-        const isSup = mode === 'pilar';
-        const diam = isSup ? state.barDiamSup as number : state.barDiamInf as number;
-        const s    = isSup ? state.sSup as number       : state.sInf as number;
-        const d    = state.d as number;
-        if (s > 0 && d > 0 && diam > 0) {
-          const rhoL = getBarArea(diam) / s / d;
-          return (
-            <div className="flex items-center justify-between py-0.75">
-              <span className="text-[10px] text-text-disabled">ρl cara tensión</span>
-              <span className="text-[10px] font-mono text-text-secondary tabular-nums">
-                {(rhoL * 100).toFixed(3)}%
-              </span>
-            </div>
-          );
-        }
-        return null;
-      })()}
+      <CollapsibleSection label="Armado de flexión">
+        <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
+        <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
+        <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
+        <p className="text-[10px] text-text-disabled mt-2 mb-1.5">Cara inferior</p>
+        <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField} />
+        <NumField label="Separación" sub="S" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
+        {/* Derived ρl feedback — tension face */}
+        {(() => {
+          const isSup = mode === 'pilar';
+          const diam = isSup ? state.barDiamSup as number : state.barDiamInf as number;
+          const s    = isSup ? state.sSup as number       : state.sInf as number;
+          const d    = state.d as number;
+          if (s > 0 && d > 0 && diam > 0) {
+            const rhoL = getBarArea(diam) / s / d;
+            return (
+              <div className="flex items-center justify-between py-0.75">
+                <span className="text-[10px] text-text-disabled">ρl cara tensión</span>
+                <span className="text-[10px] font-mono text-text-secondary tabular-nums">
+                  {(rhoL * 100).toFixed(3)}%
+                </span>
+              </div>
+            );
+          }
+          return null;
+        })()}
+      </CollapsibleSection>
 
       {/* CARGA */}
-      <SectionHeader label="Carga" />
-      <NumField label={vedLabel} sub="VEd" field="VEd" value={state.VEd as number} unit="kN" setField={setField} />
-      <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Esfuerzo mayorado ELU</p>
-      <SelectField
-        label="Posición"
-        field="position"
-        value={state.position as string}
-        options={POSITION_OPTIONS}
-        setField={setField}
-      />
+      <CollapsibleSection label="Carga">
+        <NumField label={vedLabel} sub="VEd" field="VEd" value={state.VEd as number} unit="kN" setField={setField} />
+        <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Esfuerzo mayorado ELU</p>
+        <SelectField
+          label="Posición"
+          field="position"
+          value={state.position as string}
+          options={POSITION_OPTIONS}
+          setField={setField}
+        />
+      </CollapsibleSection>
 
       {/* ARMADO DE PUNZONAMIENTO */}
-      <SectionHeader label="Armado de punzonamiento" />
-      <ToggleButton
-        label="Con cercos tipo viga"
-        active={state.hasShearReinf as boolean}
-        onClick={() => setField('hasShearReinf', !(state.hasShearReinf as boolean))}
-      />
-      <div
-        className="overflow-hidden transition-all duration-150"
-        style={{ maxHeight: (state.hasShearReinf as boolean) ? '200px' : '0px', opacity: (state.hasShearReinf as boolean) ? 1 : 0 }}
-      >
-        <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField} />
-        <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField} />
-        <NumField    label="Separación" sub="Sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
-        <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
-      </div>
+      <CollapsibleSection label="Armado de punzonamiento">
+        <ToggleButton
+          label="Con cercos tipo viga"
+          active={state.hasShearReinf as boolean}
+          onClick={() => setField('hasShearReinf', !(state.hasShearReinf as boolean))}
+        />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: (state.hasShearReinf as boolean) ? '200px' : '0px', opacity: (state.hasShearReinf as boolean) ? 1 : 0 }}
+        >
+          <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField} />
+          <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField} />
+          <NumField    label="Separación" sub="Sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
+          <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }

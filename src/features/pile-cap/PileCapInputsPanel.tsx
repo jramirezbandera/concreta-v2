@@ -3,6 +3,7 @@ import { type PileCapInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface Props {
   state:    PileCapInputs;
@@ -47,7 +48,7 @@ function NumField({
             const n = parseFloat(localStr);
             if (isNaN(n)) setLocalStr(String(value));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -87,23 +88,13 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
     </div>
-  );
-}
-
-// ── SectionHeader ─────────────────────────────────────────────────────────────
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-disabled pt-4 pb-1 border-b border-border-sub mb-1">
-      {label}
-    </p>
   );
 }
 
@@ -122,66 +113,71 @@ export function PileCapInputsPanel({ state, setField }: Props) {
     <div className="flex flex-col gap-0">
 
       {/* n picker — segmented control */}
-      <SectionHeader label="Número de micropilotes" />
-      <div
-        role="radiogroup"
-        aria-label="Número de micropilotes"
-        className="flex rounded border border-border-main mb-3 shrink-0 overflow-hidden"
-      >
-        {N_OPTIONS.map((opt) => {
-          const isActive = n === opt;
-          return (
-            <button
-              key={opt}
-              type="button"
-              role="radio"
-              aria-checked={isActive}
-              onClick={() => setField('n', opt)}
-              className={[
-                'flex-1 py-2 text-center transition-colors border-r border-border-main last:border-r-0',
-                isActive
-                  ? 'bg-accent/10 text-accent font-semibold'
-                  : 'text-text-disabled hover:text-text-secondary',
-              ].join(' ')}
-            >
-              <span className="text-[12px] font-mono">{opt}</span>
-            </button>
-          );
-        })}
-      </div>
+      <CollapsibleSection label="Número de micropilotes">
+        <div
+          role="radiogroup"
+          aria-label="Número de micropilotes"
+          className="flex rounded border border-border-main mb-3 shrink-0 overflow-hidden"
+        >
+          {N_OPTIONS.map((opt) => {
+            const isActive = n === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => setField('n', opt)}
+                className={[
+                  'flex-1 py-2 text-center transition-colors border-r border-border-main last:border-r-0',
+                  isActive
+                    ? 'bg-accent/10 text-accent font-semibold'
+                    : 'text-text-disabled hover:text-text-secondary',
+                ].join(' ')}
+              >
+                <span className="text-[12px] font-mono">{opt}</span>
+              </button>
+            );
+          })}
+        </div>
+      </CollapsibleSection>
 
       {/* Geometry */}
-      <SectionHeader label="Geometría" />
-      <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField} />
-      <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField} />
-      <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
-      <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
-      <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
-      <NumField label="R_adm"  sub="Cap. admisible"   field="R_adm"  value={state.R_adm as number}  unit="kN"  setField={setField} />
+      <CollapsibleSection label="Geometría">
+        <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField} />
+        <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField} />
+        <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
+        <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
+        <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
+        <NumField label="R_adm"  sub="Cap. admisible"   field="R_adm"  value={state.R_adm as number}  unit="kN"  setField={setField} />
+      </CollapsibleSection>
 
       {/* Loads */}
-      <SectionHeader label="Acciones de diseño (ELU)" />
-      <NumField labelKey="NEd"        field="N_Ed"   value={state.N_Ed as number}   setField={setField} />
-      <NumField labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number}  setField={setField} />
-      {n !== 2 && (
-        <NumField labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number}  setField={setField} />
-      )}
+      <CollapsibleSection label="Acciones de diseño (ELU)">
+        <NumField labelKey="NEd"        field="N_Ed"   value={state.N_Ed as number}   setField={setField} />
+        <NumField labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number}  setField={setField} />
+        {n !== 2 && (
+          <NumField labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number}  setField={setField} />
+        )}
+      </CollapsibleSection>
 
       {/* Materials */}
-      <SectionHeader label="Materiales" />
-      <SelectField labelKey="fck" field="fck" value={state.fck as number} options={fckOptions} setField={setField} />
-      <SelectField labelKey="fyk" field="fyk" value={state.fyk as number} options={fykOptions} setField={setField} />
+      <CollapsibleSection label="Materiales">
+        <SelectField labelKey="fck" field="fck" value={state.fck as number} options={fckOptions} setField={setField} />
+        <SelectField labelKey="fyk" field="fyk" value={state.fyk as number} options={fykOptions} setField={setField} />
+      </CollapsibleSection>
 
       {/* Reinforcement */}
-      <SectionHeader label="Armadura tirantes" />
-      <SelectField labelKey="bar_diameter_tie" field="phi_tie" value={state.phi_tie as number} options={barOptions} setField={setField} />
-      <NumField labelKey="cover_mechanical" field="cover"  value={state.cover as number}  setField={setField} />
+      <CollapsibleSection label="Armadura tirantes">
+        <SelectField labelKey="bar_diameter_tie" field="phi_tie" value={state.phi_tie as number} options={barOptions} setField={setField} />
+        <NumField labelKey="cover_mechanical" field="cover"  value={state.cover as number}  setField={setField} />
 
-      {n === 2 && (
-        <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">
-          n=2: 2 pilotes alineados en X. Mx_Ed debe ser 0 (staticamente inadmisible). Usar n=4 para momento biaxial.
-        </p>
-      )}
+        {n === 2 && (
+          <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">
+            n=2: 2 pilotes alineados en X. Mx_Ed debe ser 0 (staticamente inadmisible). Usar n=4 para momento biaxial.
+          </p>
+        )}
+      </CollapsibleSection>
     </div>
   );
 }

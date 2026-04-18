@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface RetainingWallInputsProps {
   state: RetainingWallInputs;
@@ -61,7 +62,7 @@ function NumField({
             if (isNaN(n)) setLocalStr(String(value));
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -106,7 +107,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -115,14 +116,6 @@ function SelectField({
         ))}
       </select>
     </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
   );
 }
 
@@ -161,7 +154,7 @@ function RebarField({
         <select
           value={diam}
           onChange={(e) => setField(fieldDiam, Number(e.target.value))}
-          className="w-14 bg-bg-primary border border-border-main rounded-l px-1 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors cursor-pointer appearance-none text-center"
+          className="w-14 bg-bg-primary border border-border-main rounded-l px-1 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer appearance-none text-center transition-colors"
           aria-label={`${label} — diámetro (mm)`}
         >
           {REBAR_DIAMS.map((d) => (
@@ -200,90 +193,96 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
 
-      <SectionHeader label="Geometría" />
-      <NumField labelKey="H_wall"       field="H"      value={state.H as number}      setField={setField} />
-      <NumField labelKey="hf_footing"   field="hf"     value={state.hf as number}     setField={setField} />
-      <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
-      <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
-      <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
+      <CollapsibleSection label="Geometría">
+        <NumField labelKey="H_wall"       field="H"      value={state.H as number}      setField={setField} />
+        <NumField labelKey="hf_footing"   field="hf"     value={state.hf as number}     setField={setField} />
+        <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
+        <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
+        <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
+      </CollapsibleSection>
 
-      <SectionHeader label="Materiales" />
-      <SelectField
-        labelKey="fck"
-        field="fck"
-        value={state.fck as number}
-        options={availableFck.map((f) => ({ value: f, label: `${f} N/mm²` }))}
-        setField={setField}
-      />
-      <SelectField
-        labelKey="fyk"
-        field="fyk"
-        value={state.fyk as number}
-        options={[400, 500, 600].map((f) => ({ value: f, label: `${f} N/mm²` }))}
-        setField={setField}
-      />
-      <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} setField={setField} />
-
-      <SectionHeader label="Terreno (trasdós)" />
-      <NumField labelKey="gamma_soil"       field="gammaSuelo" value={state.gammaSuelo as number} setField={setField} />
-      <NumField label="γsat" sub="Suelo saturado"     field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
-      <NumField labelKey="phi_soil"         field="phi"        value={state.phi        as number} setField={setField} />
-      <NumField labelKey="delta_wall"       field="delta"      value={state.delta      as number} setField={setField} />
-      <NumField label="q" sub="Sobrecarga trasdós"    field="q"          value={state.q          as number} unit="kN/m²" setField={setField} />
-      <NumField labelKey="sigma_adm"        field="sigmaAdm"   value={state.sigmaAdm   as number} setField={setField} />
-      <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
-
-      <SectionHeader label="Nivel freático" />
-      <div className="flex items-center justify-between py-0.75 gap-2">
-        <span className="text-[13px] text-text-secondary">Nivel freático</span>
-        <button
-          type="button"
-          onClick={() => setField('hasWater', !(state.hasWater as boolean))}
-          className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
-            state.hasWater
-              ? 'bg-accent/15 text-accent border border-accent/40'
-              : 'bg-bg-elevated text-text-disabled border border-border-main'
-          }`}
-          aria-pressed={state.hasWater as boolean}
-        >
-          {state.hasWater ? 'Activo' : 'Sin NF'}
-        </button>
-      </div>
-      {state.hasWater && (
-        <NumField
-          label="Prof. NF (desde cor.)"
-          field="hw"
-          value={state.hw as number}
-          unit="m"
+      <CollapsibleSection label="Materiales">
+        <SelectField
+          labelKey="fck"
+          field="fck"
+          value={state.fck as number}
+          options={availableFck.map((f) => ({ value: f, label: `${f} N/mm²` }))}
           setField={setField}
         />
-      )}
+        <SelectField
+          labelKey="fyk"
+          field="fyk"
+          value={state.fyk as number}
+          options={[400, 500, 600].map((f) => ({ value: f, label: `${f} N/mm²` }))}
+          setField={setField}
+        />
+        <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} setField={setField} />
+      </CollapsibleSection>
 
-      <SectionHeader label="Sismo (NCSE-02 / Mononobe-Okabe)" />
-      <NumField labelKey="Ab_accel" field="Ab" value={state.Ab as number} setField={setField} />
-      <NumField labelKey="S_site"   field="S"  value={state.S  as number} setField={setField} />
-      {noSeismic ? (
-        <p className="text-[11px] text-text-disabled mt-1">Sin sismo (Ab = 0)</p>
-      ) : (
-        <p className="text-[11px] text-text-disabled mt-1">
-          kh = {((state.S as number) * (state.Ab as number)).toFixed(3)}&nbsp;&nbsp;
-          kv = {((state.S as number) * (state.Ab as number) / 2).toFixed(3)}
+      <CollapsibleSection label="Terreno (trasdós)">
+        <NumField labelKey="gamma_soil"       field="gammaSuelo" value={state.gammaSuelo as number} setField={setField} />
+        <NumField label="γsat" sub="Suelo saturado"     field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
+        <NumField labelKey="phi_soil"         field="phi"        value={state.phi        as number} setField={setField} />
+        <NumField labelKey="delta_wall"       field="delta"      value={state.delta      as number} setField={setField} />
+        <NumField label="q" sub="Sobrecarga trasdós"    field="q"          value={state.q          as number} unit="kN/m²" setField={setField} />
+        <NumField labelKey="sigma_adm"        field="sigmaAdm"   value={state.sigmaAdm   as number} setField={setField} />
+        <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Nivel freático">
+        <div className="flex items-center justify-between py-0.75 gap-2">
+          <span className="text-[13px] text-text-secondary">Nivel freático</span>
+          <button
+            type="button"
+            onClick={() => setField('hasWater', !(state.hasWater as boolean))}
+            className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+              state.hasWater
+                ? 'bg-accent/15 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-disabled border border-border-main'
+            }`}
+            aria-pressed={state.hasWater as boolean}
+          >
+            {state.hasWater ? 'Activo' : 'Sin NF'}
+          </button>
+        </div>
+        {state.hasWater && (
+          <NumField
+            label="Prof. NF (desde cor.)"
+            field="hw"
+            value={state.hw as number}
+            unit="m"
+            setField={setField}
+          />
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Sismo (NCSE-02 / Mononobe-Okabe)">
+        <NumField labelKey="Ab_accel" field="Ab" value={state.Ab as number} setField={setField} />
+        <NumField labelKey="S_site"   field="S"  value={state.S  as number} setField={setField} />
+        {noSeismic ? (
+          <p className="text-[11px] text-text-disabled mt-1">Sin sismo (Ab = 0)</p>
+        ) : (
+          <p className="text-[11px] text-text-disabled mt-1">
+            kh = {((state.S as number) * (state.Ab as number)).toFixed(3)}&nbsp;&nbsp;
+            kv = {((state.S as number) * (state.Ab as number) / 2).toFixed(3)}
+          </p>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Armado (ø mm / sep mm)">
+        <p className="text-[11px] text-text-disabled mb-2">
+          Dejar ø = 0 para calcular solo As,req (modo diseño)
         </p>
-      )}
-
-      <SectionHeader label="Armado (ø mm / sep mm)" />
-      <p className="text-[11px] text-text-disabled mb-2">
-        Dejar ø = 0 para calcular solo As,req (modo diseño)
-      </p>
-      <SubGroupLabel label="Fuste" />
-      <RebarField label="Trasdós (vert.)"  fieldDiam="diam_fv_int" fieldSep="sep_fv_int" diam={state.diam_fv_int as number} sep={state.sep_fv_int as number} setField={setField} />
-      <RebarField label="Intradós (vert.)" fieldDiam="diam_fv_ext" fieldSep="sep_fv_ext" diam={state.diam_fv_ext as number} sep={state.sep_fv_ext as number} setField={setField} />
-      <RebarField label="Horizontal"       fieldDiam="diam_fh"     fieldSep="sep_fh"     diam={state.diam_fh     as number} sep={state.sep_fh     as number} setField={setField} />
-      <SubGroupLabel label="Zapata" />
-      <RebarField label="Superior (talón)" fieldDiam="diam_zs"     fieldSep="sep_zs"     diam={state.diam_zs     as number} sep={state.sep_zs     as number} setField={setField} />
-      <RebarField label="Inferior (punta)" fieldDiam="diam_zi"     fieldSep="sep_zi"     diam={state.diam_zi     as number} sep={state.sep_zi     as number} setField={setField} />
-      <RebarField label="Transv. inferior"  fieldDiam="diam_zt_inf" fieldSep="sep_zt_inf" diam={state.diam_zt_inf as number} sep={state.sep_zt_inf as number} setField={setField} />
-      <RebarField label="Transv. superior"  fieldDiam="diam_zt_sup" fieldSep="sep_zt_sup" diam={state.diam_zt_sup as number} sep={state.sep_zt_sup as number} setField={setField} />
+        <SubGroupLabel label="Fuste" />
+        <RebarField label="Trasdós (vert.)"  fieldDiam="diam_fv_int" fieldSep="sep_fv_int" diam={state.diam_fv_int as number} sep={state.sep_fv_int as number} setField={setField} />
+        <RebarField label="Intradós (vert.)" fieldDiam="diam_fv_ext" fieldSep="sep_fv_ext" diam={state.diam_fv_ext as number} sep={state.sep_fv_ext as number} setField={setField} />
+        <RebarField label="Horizontal"       fieldDiam="diam_fh"     fieldSep="sep_fh"     diam={state.diam_fh     as number} sep={state.sep_fh     as number} setField={setField} />
+        <SubGroupLabel label="Zapata" />
+        <RebarField label="Superior (talón)" fieldDiam="diam_zs"     fieldSep="sep_zs"     diam={state.diam_zs     as number} sep={state.sep_zs     as number} setField={setField} />
+        <RebarField label="Inferior (punta)" fieldDiam="diam_zi"     fieldSep="sep_zi"     diam={state.diam_zi     as number} sep={state.sep_zi     as number} setField={setField} />
+        <RebarField label="Transv. inferior"  fieldDiam="diam_zt_inf" fieldSep="sep_zt_inf" diam={state.diam_zt_inf as number} sep={state.sep_zt_inf as number} setField={setField} />
+        <RebarField label="Transv. superior"  fieldDiam="diam_zt_sup" fieldSep="sep_zt_sup" diam={state.diam_zt_sup as number} sep={state.sep_zt_sup as number} setField={setField} />
+      </CollapsibleSection>
 
     </div>
   );

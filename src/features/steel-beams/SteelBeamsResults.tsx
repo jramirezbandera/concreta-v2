@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { type SteelBeamResult, type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { LABELS, resultLabel } from '../../lib/text/labels';
+import { ambientStyle } from '../../components/checks';
 
 interface SteelBeamsResultsProps {
   result: SteelBeamResult;
@@ -156,7 +157,7 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
   const deflChecks      = result.checks.filter((c) => c.id === 'deflection');
 
   return (
-    <div className="flex flex-col" aria-label="Resultados">
+    <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(status)}>
 
       {/* Verdict header */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">

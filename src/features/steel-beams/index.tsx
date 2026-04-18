@@ -4,12 +4,14 @@ import { steelBeamDefaults } from '../../data/defaults';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { deriveFromLoads } from '../../lib/calculations/loadGen';
 import { exportSteelBeamsPDF } from '../../lib/pdf/steelBeams';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { SteelBeamsInputs } from './SteelBeamsInputs';
 import { SteelBeamsSVG } from './SteelBeamsSVG';
 import { SteelBeamsResults } from './SteelBeamsResults';
@@ -18,7 +20,7 @@ import { SteelBeamsDiagrams } from './SteelBeamsDiagrams';
 export function SteelBeamsModule() {
   const { state, setField, reset } = useModuleState('steel-beams', steelBeamDefaults);
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
 
   // Lcr auto-fill
   const [lcrManuallyOverridden, setLcrManuallyOverridden] = useState(false);
@@ -48,22 +50,8 @@ export function SteelBeamsModule() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, lcrManuallyOverridden, autoLcr]);
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  const handleExportPdf = async () => {
-    if (!result.valid) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportSteelBeamsPDF(effectiveInputs, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  };
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportSteelBeamsPDF(effectiveInputs, result), result.valid);
 
   // Responsive SVG sizing — measure the canvas container
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -109,6 +97,7 @@ export function SteelBeamsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       {/* Two-column layout (desktop) / Tabbed (mobile) */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -122,7 +111,7 @@ export function SteelBeamsModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <SteelBeamsInputs
               state={state}
               setField={setField}
@@ -176,28 +165,34 @@ export function SteelBeamsModule() {
           </div>
 
           {/* Results */}
-          <div className="px-6 py-5 pb-20 md:pb-5">
+          <div className="px-6 py-5">
             <SteelBeamsResults result={result} deflLimit={state.deflLimit} />
           </div>
         </div>
 
-      </div>
+        {/* Mobile: Diagramas tab — cross-section + M/V/delta stacked */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-6 canvas-dot-grid">
+            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={340} height={Math.round(340 * (280 / 420))} />
+            {loadGen && result.valid && (
+              <SteelBeamsDiagrams
+                beamType={state.beamType}
+                MEd={loadGen.MEd}
+                VEdA={loadGen.VEd}
+                VEdB={state.beamType === 'fp' ? loadGen.VEd * (3 / 5) : loadGen.VEd}
+                L={effectiveInputs.L}
+                deltaMax={result.delta_max}
+                deltaAdm={result.delta_adm}
+                deflLimit={state.deflLimit}
+                mode="screen"
+                width={340}
+                height={Math.round(340 * (280 / 400))}
+              />
+            )}
+          </div>
+        )}
 
-      {/* Mobile bottom tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10" aria-label="Secciones">
-        <button
-          onClick={() => setTab('inputs')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'inputs' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Datos
-        </button>
-        <button
-          onClick={() => setTab('results')}
-          className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === 'results' ? 'text-accent' : 'text-text-secondary'}`}
-        >
-          Resultados
-        </button>
-      </nav>
+      </div>
 
       {/* Hidden PDF clones — wrapped to prevent mobile horizontal scroll */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
@@ -229,6 +224,16 @@ export function SteelBeamsModule() {
           )}
         </div>
       </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

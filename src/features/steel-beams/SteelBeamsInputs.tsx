@@ -4,6 +4,7 @@ import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/d
 import { type LoadGenResult, getPsiRow } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface SteelBeamsInputsProps {
   state: SteelBeamInputs;
@@ -147,7 +148,7 @@ function NumField({
             const n = Number(e.target.value);
             if (!isNaN(n)) setField(field, n);
           }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -195,21 +196,13 @@ function SelectField({
           const num = Number(raw);
           setField(field, isNaN(num) || raw === '' ? raw : num);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
         ))}
       </select>
     </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
   );
 }
 
@@ -349,7 +342,7 @@ export function SteelBeamsInputs({
       </div>
 
       {/* PERFIL */}
-      <SectionHeader label="Perfil" />
+      <CollapsibleSection label="Perfil">
       <SelectField
         labelKey="profile_type"
         field="tipo"
@@ -391,7 +384,7 @@ export function SteelBeamsInputs({
               const n = Number(e.target.value);
               if (!isNaN(n) && n > 0) setField('L', Math.round(n * 1000));
             }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             aria-label={`${LABELS.L_span.sym} (${LABELS.L_span.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -399,9 +392,10 @@ export function SteelBeamsInputs({
           </span>
         </div>
       </div>
+      </CollapsibleSection>
 
       {/* CARGAS */}
-      <SectionHeader label="Cargas" />
+      <CollapsibleSection label="Cargas">
       {/* bTrib — directly below L */}
       <NumField
         labelKey="b_trib"
@@ -469,14 +463,15 @@ export function SteelBeamsInputs({
           <div>Mser = {formulas.Mser} = {derivedStr(loadGen?.Mser, 1)} kNm</div>
         </div>
       </div>
+      </CollapsibleSection>
 
       {/* PANDEO LATERAL (LTB) */}
-      <SectionHeader label="Pandeo lateral (LTB)" />
+      <CollapsibleSection label="Pandeo lateral (LTB)">
       {/* Lcr stored in mm, displayed in m */}
       <div className="flex items-center justify-between py-0.75 gap-2">
         <label
           htmlFor="sb-input-Lcr"
-          className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
+          className="text-[13px] text-text-secondary whitespace-nowrap min-w-0"
         >
           {LABELS.Lcr_LTB.sym}
           <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lcr_LTB.descShort}</span>
@@ -484,7 +479,7 @@ export function SteelBeamsInputs({
         <div className="flex items-center gap-1.5 shrink-0">
           {lcrIsAuto && (
             <span
-              className="bg-bg-elevated text-text-disabled font-mono text-[10px] px-1 py-0.5 rounded"
+              className="bg-bg-elevated text-text-disabled font-mono text-[9px] px-1.25 py-0.5 rounded"
               aria-label="Lcr calculado automáticamente"
             >
               auto
@@ -502,7 +497,7 @@ export function SteelBeamsInputs({
                 const n = Number(e.target.value);
                 if (!isNaN(n) && n > 0) onLcrChange(Math.round(n * 1000));
               }}
-              className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               aria-label={`${LABELS.Lcr_LTB.sym} (${LABELS.Lcr_LTB.unit})`}
             />
             <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -511,9 +506,10 @@ export function SteelBeamsInputs({
           </div>
         </div>
       </div>
+      </CollapsibleSection>
 
       {/* FLECHA ELS */}
-      <SectionHeader label="Flecha ELS" />
+      <CollapsibleSection label="Flecha ELS">
       <SelectField
         labelKey="elsCombo"
         field="elsCombo"
@@ -545,6 +541,7 @@ export function SteelBeamsInputs({
         setField={setField}
       />
       <InfoRow label={`${LABELS.delta_adm.sym} = L/${state.deflLimit}`} value={`${deltaAdm} mm`} />
+      </CollapsibleSection>
     </div>
   );
 }

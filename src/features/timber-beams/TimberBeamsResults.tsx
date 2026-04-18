@@ -1,5 +1,6 @@
 import { type TimberBeamResult, type TimberCheckRow, type CheckStatus } from '../../lib/calculations/timberBeams';
 import { resultLabel } from '../../lib/text/labels';
+import { ambientStyle } from '../../components/checks';
 
 interface Props {
   result: TimberBeamResult;
@@ -143,7 +144,7 @@ export function TimberBeamsResults({ result }: Props) {
   const fm_d_sys = result.fm_d_kh * result.ksys;
 
   return (
-    <div className="flex flex-col" aria-label="Resultados">
+    <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(overall)}>
 
       {/* ── Verdict header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">

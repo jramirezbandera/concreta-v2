@@ -5,14 +5,14 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;
 
 export async function exportEmpresalladoPDF(
   inp: EmpresalladoInputs,
   result: EmpresalladoResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -175,5 +175,9 @@ export async function exportEmpresalladoPDF(
   doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save('empresillado.pdf');
+  const filename = 'empresillado.pdf';
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

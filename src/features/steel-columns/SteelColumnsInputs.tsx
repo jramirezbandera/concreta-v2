@@ -3,6 +3,7 @@ import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface SteelColumnsInputsProps {
   state: SteelColumnInputs;
@@ -116,7 +117,7 @@ function NumField({
           min={min}
           step={step}
           onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) onChange(n); }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -154,7 +155,7 @@ function SelectField({
           const num = Number(raw);
           onChange(isNaN(num) || raw === '' ? raw : num);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
@@ -201,14 +202,6 @@ function BCSelector({
         );
       })}
     </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
   );
 }
 
@@ -259,7 +252,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
     <div className="flex flex-col" aria-label="Datos de entrada — Pilar de acero">
 
       {/* SECCIÓN */}
-      <SectionHeader label="Sección" />
+      <CollapsibleSection label="Sección">
       <SelectField
         labelKey="profile_type"
         id="sc-sectionType"
@@ -281,9 +274,10 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
         options={(['S275', 'S355'] as const).map((s) => ({ value: s, label: s }))}
         onChange={(v) => setField('steel', v)}
       />
+      </CollapsibleSection>
 
       {/* GEOMETRÍA */}
-      <SectionHeader label="Geometría" />
+      <CollapsibleSection label="Geometría">
 
       {/* Ly — unbraced length y-axis, displayed in m (stored internally in mm) */}
       <div className="flex items-center justify-between py-0.75 gap-2">
@@ -302,7 +296,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               const n = Number(e.target.value);
               if (!isNaN(n) && n > 0) setField('Ly', Math.round(n * 1000));
             }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             aria-label={`${LABELS.Ly_strong.sym} (${LABELS.Ly_strong.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -328,7 +322,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               const n = Number(e.target.value);
               if (!isNaN(n) && n > 0) setField('Lz', Math.round(n * 1000));
             }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             aria-label={`${LABELS.Lz_weak.sym} (${LABELS.Lz_weak.unit})`}
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -372,9 +366,10 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           </div>
         )}
       </div>
+      </CollapsibleSection>
 
       {/* CARGAS */}
-      <SectionHeader label="Cargas" />
+      <CollapsibleSection label="Cargas">
       <NumField
         labelKey="NEd"
         id="sc-Ned"
@@ -399,6 +394,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
         step={1}
         onChange={(v) => setField('Mz_Ed', v)}
       />
+      </CollapsibleSection>
     </div>
   );
 }

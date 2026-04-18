@@ -5,14 +5,14 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;
 
 export async function exportIsolatedFootingPDF(
   inp: IsolatedFootingInputs,
   result: IsolatedFootingResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const soilLabel = inp.soilType === 'cohesive' ? 'cohesivo (art. 4.3.2)' : 'granular (art. 4.3.3)';
@@ -211,5 +211,9 @@ export async function exportIsolatedFootingPDF(
   doc.text('Concreta — CTE DB-SE-C / CE (Codigo Estructural espanol)', M, PAGE_H - M);
   doc.text('Pagina 1', PAGE_W - M, PAGE_H - M, { align: 'right' });
 
-  doc.save('zapata-aislada.pdf');
+  const filename = 'zapata-aislada.pdf';
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

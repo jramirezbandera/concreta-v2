@@ -6,14 +6,14 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;  // mm margin
 
 export async function exportPileCapPDF(
   inp: PileCapInputs,
   result: PileCapResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const n       = inp.n as number;
@@ -197,5 +197,9 @@ export async function exportPileCapPDF(
   doc.text('Concreta - concreta.app | CE art. 48 / CTE DB-SE-C', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save(`concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const filename = `concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

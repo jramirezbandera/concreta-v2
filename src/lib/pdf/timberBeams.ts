@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -35,7 +35,7 @@ const DURATION_LABEL: Record<string, string> = {
 export async function exportTimberBeamsPDF(
   inp: TimberBeamInputs,
   result: TimberBeamResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -256,5 +256,9 @@ export async function exportTimberBeamsPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save('viga-madera.pdf');
+  const filename = 'viga-madera.pdf';
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

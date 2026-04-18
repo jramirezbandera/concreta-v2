@@ -16,7 +16,7 @@ import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../calculations/steelColumns';
 import { type SteelCheckStatus } from '../calculations/steelBeams';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 15;   // margin mm
 const CW = PAGE_W - 2 * M;  // content width = 180mm
@@ -80,7 +80,7 @@ function checkPageBreak(doc: jsPDF, y: number, need = 8): number {
 export async function exportSteelColumnsPDF(
   inp: SteelColumnInputs,
   result: SteelColumnResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   _pageNum = 1;
   let y = M;
@@ -404,8 +404,10 @@ export async function exportSteelColumnsPDF(
   // ── Final footer ──────────────────────────────────────────────────────────
   drawPageFooter(doc);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
-  doc.save(
-    `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`,
-  );
+  // ── Return preview ───────────────────────────────────────────────────────
+  const filename = `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

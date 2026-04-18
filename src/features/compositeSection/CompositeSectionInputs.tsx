@@ -7,6 +7,7 @@ import {
 } from '../../data/defaults';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface Props {
   state: CompositeSectionInputs;
@@ -53,7 +54,7 @@ function NumField({
             const n = parseFloat(local);
             if (isNaN(n)) setLocal(String(value));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${label} (${unit})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -98,21 +99,13 @@ function SelectField({
           const asNum = Number(raw);
           onChange(isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
     </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
   );
 }
 
@@ -223,8 +216,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
 
       {/* Profile (reinforced mode only) */}
       {mode === 'reinforced' && (
-        <>
-          <SectionHeader label="Sección base" />
+        <CollapsibleSection label="Sección base">
           <SelectField
             labelKey="profile_type"
             id="cs-tipo"
@@ -244,111 +236,112 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             options={sizeOptions}
             onChange={(v) => setField('profileSize', v as number)}
           />
-        </>
+        </CollapsibleSection>
       )}
 
       {/* Steel grade */}
-      <SectionHeader label="Material" />
-      <SelectField
-        labelKey="steel_grade"
-        id="cs-grade"
-        value={state.grade}
-        options={GRADE_OPTIONS}
-        onChange={(v) => setField('grade', v as SteelGrade)}
-      />
+      <CollapsibleSection label="Material">
+        <SelectField
+          labelKey="steel_grade"
+          id="cs-grade"
+          value={state.grade}
+          options={GRADE_OPTIONS}
+          onChange={(v) => setField('grade', v as SteelGrade)}
+        />
+      </CollapsibleSection>
 
       {/* Plates */}
-      <SectionHeader label="Chapas añadidas" />
-
-      {state.plates.length === 0 && (
-        <div className="border border-dashed border-border-main rounded px-3 py-3 mb-2 flex items-center justify-center">
-          <span className="text-[11px] text-text-disabled">Añade al menos una chapa</span>
-        </div>
-      )}
-
-      {state.plates.map((plate, idx) => (
-        <div key={plate.id} className="border border-border-sub rounded p-2 mb-2">
-          {/* Card header */}
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-semibold text-text-disabled uppercase tracking-[0.07em]">
-              Chapa {idx + 1}
-            </span>
-            <button
-              type="button"
-              onClick={() => removePlate(plate.id)}
-              aria-label={`Eliminar chapa ${idx + 1}`}
-              className="text-[14px] leading-none text-text-disabled hover:text-state-fail transition-colors px-1 -mr-0.5"
-            >
-              ×
-            </button>
+      <CollapsibleSection label="Chapas añadidas">
+        {state.plates.length === 0 && (
+          <div className="border border-dashed border-border-main rounded px-3 py-3 mb-2 flex items-center justify-center">
+            <span className="text-[11px] text-text-disabled">Añade al menos una chapa</span>
           </div>
+        )}
 
-          {/* Fields */}
-          <SelectField
-            label="Posición"
-            id={`cs-pos-${plate.id}`}
-            value={plate.posType}
-            options={posOptions}
-            onChange={(v) => updatePlate(plate.id, 'posType', v as PlateEntry['posType'])}
-          />
+        {state.plates.map((plate, idx) => (
+          <div key={plate.id} className="border border-border-sub rounded p-2 mb-2">
+            {/* Card header */}
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-semibold text-text-disabled uppercase tracking-[0.07em]">
+                Chapa {idx + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => removePlate(plate.id)}
+                aria-label={`Eliminar chapa ${idx + 1}`}
+                className="text-[14px] leading-none text-text-disabled hover:text-state-fail transition-colors px-1 -mr-0.5"
+              >
+                ×
+              </button>
+            </div>
 
-          {/* b and t — 2 col grid on mobile (md: stacked rows as normal) */}
-          <div className="md:contents grid grid-cols-2 gap-x-2">
-            <NumField
-              label="b"
-              id={`cs-b-${plate.id}`}
-              value={plate.b}
-              unit="mm"
-              onChange={(v) => updatePlate(plate.id, 'b', v)}
+            {/* Fields */}
+            <SelectField
+              label="Posición"
+              id={`cs-pos-${plate.id}`}
+              value={plate.posType}
+              options={posOptions}
+              onChange={(v) => updatePlate(plate.id, 'posType', v as PlateEntry['posType'])}
             />
-            {plate.posType !== 'left' && plate.posType !== 'right' && (
+
+            {/* b and t — 2 col grid on mobile (md: stacked rows as normal) */}
+            <div className="md:contents grid grid-cols-2 gap-x-2">
               <NumField
-                label="t"
-                id={`cs-t-${plate.id}`}
-                value={plate.t}
+                label="b"
+                id={`cs-b-${plate.id}`}
+                value={plate.b}
                 unit="mm"
-                onChange={(v) => updatePlate(plate.id, 't', v)}
+                onChange={(v) => updatePlate(plate.id, 'b', v)}
+              />
+              {plate.posType !== 'left' && plate.posType !== 'right' && (
+                <NumField
+                  label="t"
+                  id={`cs-t-${plate.id}`}
+                  value={plate.t}
+                  unit="mm"
+                  onChange={(v) => updatePlate(plate.id, 't', v)}
+                />
+              )}
+              {(plate.posType === 'left' || plate.posType === 'right') && (
+                <div className="flex items-center py-0.75 col-span-1">
+                  <span className="text-[10px] text-text-disabled italic">
+                    h = altura alma
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {plate.posType === 'custom' && (
+              <NumField
+                label="y inf."
+                id={`cs-ybot-${plate.id}`}
+                value={plate.customYBottom}
+                unit="mm"
+                onChange={(v) => updatePlate(plate.id, 'customYBottom', v)}
               />
             )}
-            {(plate.posType === 'left' || plate.posType === 'right') && (
-              <div className="flex items-center py-0.75 col-span-1">
-                <span className="text-[10px] text-text-disabled italic">
-                  h = altura alma
-                </span>
-              </div>
-            )}
           </div>
+        ))}
 
-          {plate.posType === 'custom' && (
-            <NumField
-              label="y inf."
-              id={`cs-ybot-${plate.id}`}
-              value={plate.customYBottom}
-              unit="mm"
-              onChange={(v) => updatePlate(plate.id, 'customYBottom', v)}
-            />
-          )}
-        </div>
-      ))}
-
-      {/* Add plate button */}
-      <button
-        type="button"
-        onClick={addPlate}
-        disabled={state.plates.length >= MAX_PLATES}
-        className={[
-          'w-full border border-dashed border-border-main rounded px-3 py-1.5',
-          'text-[12px] text-text-secondary hover:text-text-primary hover:border-text-disabled',
-          'transition-colors flex items-center justify-center gap-2',
-          state.plates.length >= MAX_PLATES ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer',
-        ].join(' ')}
-        aria-label="Añadir chapa"
-      >
-        <span>+ Añadir chapa</span>
-        <span className="text-[10px] text-text-disabled font-mono">
-          {state.plates.length}/{MAX_PLATES}
-        </span>
-      </button>
+        {/* Add plate button */}
+        <button
+          type="button"
+          onClick={addPlate}
+          disabled={state.plates.length >= MAX_PLATES}
+          className={[
+            'w-full border border-dashed border-border-main rounded px-3 py-1.5',
+            'text-[12px] text-text-secondary hover:text-text-primary hover:border-text-disabled',
+            'transition-colors flex items-center justify-center gap-2',
+            state.plates.length >= MAX_PLATES ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer',
+          ].join(' ')}
+          aria-label="Añadir chapa"
+        >
+          <span>+ Añadir chapa</span>
+          <span className="text-[10px] text-text-disabled font-mono">
+            {state.plates.length}/{MAX_PLATES}
+          </span>
+        </button>
+      </CollapsibleSection>
     </div>
   );
 }

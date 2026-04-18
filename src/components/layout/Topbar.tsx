@@ -1,4 +1,4 @@
-import { Link, Download, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 
 interface TopbarProps {
@@ -19,8 +19,8 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
   };
 
   return (
-    <header className="h-12 shrink-0 flex items-center justify-between px-4 bg-bg-primary border-b border-border-main">
-      <div className="flex items-center gap-3">
+    <header className="h-12 shrink-0 flex items-center justify-between px-5 bg-bg-surface border-b border-border-main">
+      <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
         {/* Hamburger — mobile only */}
         {onMenuOpen && (
           <button
@@ -31,33 +31,49 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
             <Menu size={18} aria-hidden="true" />
           </button>
         )}
-        <span className="text-base font-medium text-text-primary">
-          {moduleLabel}
-          <span className="text-text-secondary font-normal"> — {moduleGroup}</span>
-        </span>
+        {/* Breadcrumb: GROUP / Module */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[11px] font-mono text-text-disabled uppercase" style={{ letterSpacing: '0.06em' }}>
+            {moduleGroup}
+          </span>
+          <span className="text-text-disabled">/</span>
+          <span className="text-[13px] font-medium text-text-primary">
+            {moduleLabel}
+          </span>
+        </div>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
+        {/* Copy link */}
         <button
           onClick={handleCopyUrl}
           title="Copiar enlace a este cálculo"
-          className="hidden sm:flex items-center gap-1.5 px-2.5 h-7 rounded text-text-secondary hover:text-text-primary hover:bg-bg-surface transition-colors text-[11px]"
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-[12px]"
           aria-label="Copiar enlace a este cálculo"
         >
-          <Link size={13} aria-hidden="true" />
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 10a3 3 0 0 0 4 0l2-2a3 3 0 0 0-4-4l-1 1M10 6a3 3 0 0 0-4 0L4 8a3 3 0 0 0 4 4l1-1"/>
+          </svg>
           <span>Copiar enlace</span>
         </button>
+        {/* PDF export — accent styled */}
         {onExportPdf && (
           <button
             onClick={onExportPdf}
             disabled={pdfExporting}
             title="Exportar PDF"
-            className="flex items-center gap-1.5 px-2.5 h-7 rounded text-text-secondary hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 text-[11px]"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 transition-all"
+            style={{
+              border: '1px solid rgba(56,189,248,0.25)',
+              background: 'rgba(56,189,248,0.06)',
+            }}
             aria-label="Exportar PDF"
           >
             {pdfExporting ? (
-              <span className="w-3 h-3 border-2 border-text-secondary border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+              <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" aria-hidden="true" />
             ) : (
-              <Download size={13} aria-hidden="true" />
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
+                <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
+              </svg>
             )}
             <span className="hidden sm:inline">Exportar PDF</span>
           </button>

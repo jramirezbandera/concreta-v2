@@ -60,17 +60,17 @@ Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline
 
 | Token | Hex | Uso |
 |-------|-----|-----|
-| `bg-primary` | `#0f172a` | Fondo de página, inputs, área canvas SVG |
-| `bg-surface` | `#1e293b` | Paneles (sidebar, inputs, results) |
-| `bg-elevated` | `#263348` | Sufijo de unidades, hover states |
-| `bg-canvas` | `#0f172a` | Área central SVG (mismo valor, token independiente para futura evolución) |
+| `bg-primary` | `#0b1220` | Fondo de página, inputs, área canvas SVG |
+| `bg-surface` | `#111a2d` | Paneles (sidebar, inputs, results), topbar |
+| `bg-elevated` | `#1a2540` | Sufijo de unidades, hover states |
+| `bg-canvas` | `#0b1220` | Área central SVG (mismo valor, token independiente para futura evolución) |
 
 ### Bordes
 
 | Token | Hex | Uso |
 |-------|-----|-----|
-| `border-main` | `#334155` | Bordes principales (entre columnas, paneles, topbar) |
-| `border-sub` | `#253147` | Divisores de fila dentro de paneles (más suave que border-main) |
+| `border-main` | `#22304d` | Bordes principales (entre columnas, paneles, topbar) |
+| `border-sub` | `#1a2540` | Divisores de fila dentro de paneles (más suave que border-main) |
 
 ### Texto
 
@@ -94,9 +94,9 @@ Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline
 ### Reglas de color
 
 - `accent` tiene **rol dual**: elementos UI interactivos (focus, nav activo) + anotaciones SVG (eje neutro, bloque de compresión, cotas). Ambos roles representan "estado calculado vivo" — es intencional.
-- Sin gradientes decorativos. Superficies planas.
+- Sin gradientes decorativos en backgrounds de página. Excepción: gradientes funcionales de estado (ver "Ambient verdict" abajo).
 - Los colores de estado son EXCLUSIVOS para tasas de utilización. No reutilizar como decoración UI.
-- Sin violetas, sin azul-a-violeta, sin gradients en backgrounds.
+- Sin violetas, sin azul-a-violeta, sin gradients decorativos en backgrounds.
 
 ---
 
@@ -185,7 +185,8 @@ v0.1.0              ← app version: 11px font-mono text-disabled
 ```
 
 - Fondo sidebar: `bg-surface border-r border-border-main`
-- Indicador activo: punto de color + `bg-accent/5` (sin border-left, sin iconos SVG)
+- Indicador activo: punto de color + `bg-accent/5` (sin border-left)
+- Iconos SVG por módulo: 14x14, stroke-only, diferenciados por material (grano curvo para madera, puntos rebar para RC, paths I-section para acero)
 - Todos los items tienen `border-b border-border-sub`
 
 ### Input field (inline row)
@@ -201,17 +202,31 @@ fck ............... [ 25][MPa]
 - Focus: `border-accent`
 - Unidad: `bg-bg-elevated border border-l-0 border-border-main rounded-r text-[10px] font-mono text-text-disabled`
 
-### Section header (dentro de paneles)
+### Section header (dentro de paneles inputs, colapsable)
+
+Los section headers del panel de inputs son interactivos: `<button>` con chevron SVG que rota al colapsar/expandir la sección. Componente compartido: `src/components/ui/CollapsibleSection.tsx`.
 
 ```
-GEOMETRÍA
+▼ GEOMETRÍA                     ← chevron + label, clicable
 ─────────────────────────────    ← border-b border-sub
+  [contenido colapsable]
+
+► MATERIALES                    ← colapsado: chevron apunta derecha
+─────────────────────────────
 ```
 
 ```css
+/* Button wrapper */
 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled
-pt-2.25 pb-1.75 border-b border-border-sub mb-2.5
+pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0 cursor-pointer
+
+/* Chevron */
+10x10 SVG, stroke currentColor, strokeWidth 1.5
+transition-transform duration-150
+open: rotate(0deg), closed: rotate(-90deg)
 ```
+
+Todas las secciones abren por defecto (`defaultOpen = true`). El contenido se monta/desmonta (no oculto con CSS) para evitar layout shifts.
 
 #### GroupHeader con description (opcional — módulos complejos)
 
@@ -252,6 +267,32 @@ text-[10px] text-text-disabled leading-tight whitespace-pre-line
 - Aparece solo cuando no hay error activo (`{helpText && !error && ...}`)
 - Soporta saltos de línea vía `\n` en la cadena (gracias a `whitespace-pre-line`)
 - No usar para inputs con nombres autoexplicativos (b, h, fck, etc.)
+
+### Ambient verdict (panel resultados)
+
+El panel de resultados usa un gradiente funcional de estado en lugar de un borde grueso. El gradiente comunica el veredicto de forma ambiental, sin competir con el contenido.
+
+```css
+/* ambientStyle() en src/components/checks/index.tsx */
+background: linear-gradient(180deg, rgba(estado, 0.08) 0%, transparent 80px);
+border-top: 2px solid <color-estado>;
+```
+
+- `state-ok` (#22c55e): gradiente verde suave, borde verde sólido
+- `state-warn` (#f59e0b): gradiente ámbar suave, borde ámbar sólido
+- `state-fail` (#ef4444): gradiente rojo suave, borde rojo sólido
+
+Esto NO es un gradiente decorativo. Es un indicador de estado funcional. No reutilizar para otros fines.
+
+### Topbar — breadcrumb
+
+El topbar muestra la ubicación del módulo como breadcrumb:
+
+```
+HORMIGÓN / Vigas                ← group (11px mono CAPS disabled) + separator + module (13px medium primary)
+```
+
+Fondo topbar: `bg-bg-surface` (unifica visualmente con sidebar). Altura: 48px.
 
 ### Check row (4 columnas)
 
@@ -375,3 +416,9 @@ Explícitamente prohibido:
 | 2026-04-06 | ρl inline en panel inputs (punzonamiento) | Cierra el feedback loop al punto de entrada — el usuario ve el efecto sin ir a resultados |
 | 2026-04-09 | GroupHeader description (subtítulo opcional) | Módulos complejos (empresillado) necesitan contexto normativo bajo el título de grupo — patrón opcional, no obligatorio |
 | 2026-04-09 | NumberField helpText (texto de ayuda opcional) | Inputs no obvios (beta_x, Vd) necesitan explicación inline sin tooltip — whitespace-pre-line para saltos de línea |
+| 2026-04-18 | Ambient verdict (gradiente funcional de estado) | Reemplaza border-2 con gradiente ambiental — feedback visual inmediato sin competir con contenido |
+| 2026-04-18 | Collapsible input sections (chevron toggle) | Secciones de inputs colapsables — power users configuran su workspace, reduce scroll |
+| 2026-04-18 | Topbar breadcrumb (GROUP / Module) | Mejor contexto de navegación que el formato plano anterior |
+| 2026-04-18 | Sidebar icons 16x16 stroke-only | Iconos más pequeños y limpios, diferenciados por material (grano madera, rebar RC, I-section acero) |
+| 2026-04-18 | Custom scrollbar (#22304d thumb) | Scrollbar coherente con dark theme, reemplaza scrollbar nativo |
+| 2026-04-18 | Tokens de color más oscuros | bg-primary #0b1220, bg-surface #111a2d — mayor contraste y profundidad |

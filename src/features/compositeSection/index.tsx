@@ -2,11 +2,13 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcCompositeSection } from '../../lib/calculations/compositeSection';
 import { exportCompositeSectionPDF } from '../../lib/pdf/compositeSection';
 import { Topbar } from '../../components/layout/Topbar';
-import { showToast } from '../../components/ui/Toast';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { CompositeSectionInputsPanel } from './CompositeSectionInputs';
 import { CompositeSectionResults } from './CompositeSectionResults';
 import { CompositeSectionSVG } from './CompositeSectionSVG';
@@ -31,7 +33,7 @@ function loadState(): CompositeSectionInputs {
 
 export function CompositeSectionModule() {
   const { openDrawer } = useDrawer();
-  const [tab, setTab] = useState<'inputs' | 'results' | 'esquema'>('inputs');
+  const [tab, setTab] = useState<MobileTab>('inputs');
 
   const [inputs, setInputs] = useState<CompositeSectionInputs>(loadState);
 
@@ -69,22 +71,8 @@ export function CompositeSectionModule() {
 
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  const handleExportPdf = useCallback(async () => {
-    if (!result.valid) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
-    }
-    setPdfExporting(true);
-    try {
-      await exportCompositeSectionPDF(inputs, result);
-    } catch {
-      showToast('Error al generar el PDF', { autoDismiss: 4000 });
-    } finally {
-      setPdfExporting(false);
-    }
-  }, [inputs, result]);
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(() => exportCompositeSectionPDF(inputs, result), result.valid);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -104,6 +92,7 @@ export function CompositeSectionModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
@@ -116,7 +105,7 @@ export function CompositeSectionModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <CompositeSectionInputsPanel
               state={inputs}
               addPlate={addPlate}
@@ -150,40 +139,24 @@ export function CompositeSectionModule() {
           </div>
 
           {/* Results */}
-          <div className="px-2 py-3 pb-20 md:pb-5">
+          <div className="px-2 py-3">
             <CompositeSectionResults result={result} />
           </div>
         </div>
 
-        {/* Mobile: Esquema tab */}
-        {tab === 'esquema' && (
-          <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid pb-20 md:hidden flex flex-col items-center py-4 px-4 gap-4">
+        {/* Mobile: Diagramas tab */}
+        {tab === 'diagramas' && (
+          <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid md:hidden flex flex-col items-center py-4 px-4 gap-4">
             <CompositeSectionSVG
               inp={inputs}
               result={result}
-              width={Math.min(340, 340)}
+              width={340}
               mode="screen"
             />
           </div>
         )}
 
       </div>
-
-      {/* Mobile bottom tab bar */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 md:hidden flex border-t border-border-main bg-bg-surface z-10"
-        aria-label="Secciones"
-      >
-        {(['inputs', 'esquema', 'results'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === t ? 'text-accent' : 'text-text-secondary'}`}
-          >
-            {t === 'inputs' ? 'Datos' : t === 'esquema' ? 'Esquema' : 'Resultados'}
-          </button>
-        ))}
-      </nav>
 
       {/* Hidden PDF clone — off-screen, stable DOM id for svg2pdf */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
@@ -194,6 +167,16 @@ export function CompositeSectionModule() {
           <CompositeSectionSVG inp={inputs} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

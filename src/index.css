@@ -38,9 +38,20 @@
 
 /* dot-grid canvas — "mesa de trabajo del ingeniero" */
 .canvas-dot-grid {
-  background-image: radial-gradient(circle, #253147 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: radial-gradient(circle, #22304d 1px, transparent 1px);
+  background-size: 22px 22px;
 }
+
+/* check-row hover-link highlight */
+.check-row { transition: background 120ms; }
+.check-row:hover { background: rgba(56,189,248,0.04); }
+.check-row .check-left-rail {
+  position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 2px; border-radius: 1px;
+  background: transparent;
+  transition: background 120ms ease-out;
+}
+.check-row:hover .check-left-rail { background: var(--color-accent); }
 
 /* ── Landing animations ── */
 @keyframes fadeUp {
@@ -66,7 +77,12 @@
 .sr-d2  { transition-delay: 90ms;  }
 .sr-d3  { transition-delay: 180ms; }
 
-/* ── Hide scrollbars (keep scroll functionality) ── */
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar       { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #22304d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2c3d63; }
+
 .scroll-hide                    { -ms-overflow-style: none; scrollbar-width: none; }
 .scroll-hide::-webkit-scrollbar { display: none; }
 
@@ -79,11 +95,11 @@
 @theme inline {
   --font-sans: "Geist Sans", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
-  --color-bg-primary: #0f172a;
-  --color-bg-surface: #1e293b;
-  --color-bg-elevated: #263348;
-  --color-border-main: #334155;
-  --color-border-sub: #1e293b;
+  --color-bg-primary: #0b1220;
+  --color-bg-surface: #111a2d;
+  --color-bg-elevated: #1a2540;
+  --color-border-main: #22304d;
+  --color-border-sub: #1a2540;
   --color-text-primary: #f8fafc;
   --color-text-secondary: #94a3b8;
   --color-text-disabled: #475569;

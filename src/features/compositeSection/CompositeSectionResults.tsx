@@ -1,5 +1,6 @@
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
-import { CheckRowItem, GroupHeader, ValueRow } from '../../components/checks';
+import { CheckRowItem, GroupHeader, ValueRow, ambientStyle } from '../../components/checks';
+import { type CheckStatus } from '../../lib/calculations/types';
 import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
@@ -35,15 +36,6 @@ function ClassBadge({ sectionClass }: { sectionClass: 1 | 2 | 3 | 4 | null }) {
   );
 }
 
-// ── Panel border by section class ─────────────────────────────────────────────
-
-function borderClass(sectionClass: 1 | 2 | 3 | 4 | null): string {
-  if (sectionClass === null)  return 'border-state-neutral/40';
-  if (sectionClass <= 2)      return 'border-state-ok/40';
-  if (sectionClass === 3)     return 'border-state-warn/40';
-  return                             'border-state-fail/40';
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CompositeSectionResults({ result }: Props) {
@@ -65,12 +57,15 @@ export function CompositeSectionResults({ result }: Props) {
       ? 'Wpl · fy / γM0'
       : 'Wel · fy / γM0';
 
+  const ambientStatus: CheckStatus =
+    sectionClass === null ? 'ok' :
+    sectionClass <= 2     ? 'ok' :
+    sectionClass === 3    ? 'warn' : 'fail';
+
   return (
     <div
-      className={[
-        'flex flex-col rounded border px-4 py-3 m-2 transition-colors border-2',
-        borderClass(sectionClass),
-      ].join(' ')}
+      className="flex flex-col rounded px-4 py-3 m-2 transition-colors"
+      style={ambientStyle(ambientStatus)}
     >
       {/* Panel header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">

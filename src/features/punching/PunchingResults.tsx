@@ -1,5 +1,5 @@
 import { type PunchingResult } from '../../lib/calculations/punching';
-import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus } from '../../components/checks';
+import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 
 interface PunchingResultsProps {
@@ -26,10 +26,8 @@ export function PunchingResults({ result }: PunchingResultsProps) {
 
   return (
     <div
-      className={[
-        'flex flex-col overflow-y-auto rounded border px-4 py-3 m-2 transition-colors',
-        `border-2 ${BORDER_CLASSES[status]}`,
-      ].join(' ')}
+      className="flex flex-col overflow-y-auto rounded px-4 py-3 m-2 transition-colors"
+      style={ambientStyle(status)}
     >
       {/* Panel header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">

@@ -1,6 +1,6 @@
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
-import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus } from '../../components/checks';
+import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 
 interface Props {
@@ -26,14 +26,8 @@ export function IsolatedFootingResults({ inp, result }: Props) {
 
   const status = overallStatus(result.checks);
 
-  const borderCls =
-    status === 'ok'   ? 'border-state-ok/40'   :
-    status === 'warn' ? 'border-state-warn/40'  :
-    status === 'fail' ? 'border-state-fail/40'  :
-                        'border-state-neutral/40';
-
   return (
-    <div className={`flex flex-col rounded border-2 px-4 py-3 m-2 transition-colors ${borderCls}`}>
+    <div className="flex flex-col rounded px-4 py-3 m-2 transition-colors" style={ambientStyle(status)}>
 
       {/* Header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">

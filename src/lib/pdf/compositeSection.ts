@@ -9,7 +9,7 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;   // page margin mm
 
@@ -20,7 +20,7 @@ function fmt(v: number, decimals = 1): string {
 export async function exportCompositeSectionPDF(
   inp: CompositeSectionInputs,
   result: CompositeSectionResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -235,5 +235,9 @@ export async function exportCompositeSectionPDF(
   doc.text('Concreta - concreta.app | CE art. 5.2 / EN 1993-1-1 Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save(`concreta-seccion-compuesta-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const filename = `concreta-seccion-compuesta-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

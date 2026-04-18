@@ -1,6 +1,7 @@
 import { type TimberColumnInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getGammaM, getTimberGrade } from '../../data/timberGrades';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface Props {
   state: TimberColumnInputs;
@@ -9,13 +10,6 @@ interface Props {
 
 // ── Shared field components ────────────────────────────────────────────────────
 
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
-  );
-}
 
 function NumField({
   labelKey, label, sub, field, value, unit, min, step, setField, helpText,
@@ -43,7 +37,7 @@ function NumField({
             id={`tc-${field}`}
             type="number" value={value} min={min} step={step}
             onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) setField(field, n); }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
             {unitText}
@@ -85,7 +79,7 @@ function SelectField({
           const n = Number(raw);
           setField(field, isNaN(n) || raw === '' ? raw : n);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
       </select>
@@ -160,74 +154,74 @@ export function TimberColumnsInputs({ state, setField }: Props) {
   return (
     <div>
       {/* ── Sección transversal ───────────────────────────────────────────── */}
-      <SectionHeader label="Sección transversal" />
+      <CollapsibleSection label="Sección transversal">
+        <div className="flex items-center justify-between py-0.75 gap-2">
+          <label htmlFor="tc-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+            {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
+            {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
+          </label>
+          <select
+            id="tc-gradeId"
+            value={state.gradeId}
+            onChange={(e) => setField('gradeId', e.target.value)}
+            className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+          >
+            <optgroup label="Conífera aserrada">
+              {SOFTWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}
+            </optgroup>
+            <optgroup label="Frondosa aserrada">
+              {HARDWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}
+            </optgroup>
+            <optgroup label="Laminada encolada">
+              {GLULAM_IDS.map(id => <option key={id} value={id}>{id}</option>)}
+            </optgroup>
+          </select>
+        </div>
 
-      <div className="flex items-center justify-between py-0.75 gap-2">
-        <label htmlFor="tc-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-          {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
-          {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
-        </label>
-        <select
-          id="tc-gradeId"
-          value={state.gradeId}
-          onChange={(e) => setField('gradeId', e.target.value)}
-          className="w-28 shrink-0 bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
-        >
-          <optgroup label="Conífera aserrada">
-            {SOFTWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}
-          </optgroup>
-          <optgroup label="Frondosa aserrada">
-            {HARDWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}
-          </optgroup>
-          <optgroup label="Laminada encolada">
-            {GLULAM_IDS.map(id => <option key={id} value={id}>{id}</option>)}
-          </optgroup>
-        </select>
-      </div>
-
-      <NumField labelKey="b_section" field="b" value={state.b} min={40}  step={10} setField={setField} />
-      <NumField labelKey="h_section" field="h" value={state.h} min={40}  step={10} setField={setField} />
+        <NumField labelKey="b_section" field="b" value={state.b} min={40}  step={10} setField={setField} />
+        <NumField labelKey="h_section" field="h" value={state.h} min={40}  step={10} setField={setField} />
+      </CollapsibleSection>
 
       {/* ── Geometría ─────────────────────────────────────────────────────── */}
-      <SectionHeader label="Geometría" />
-
-      <NumField labelKey="L_column" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
-      <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField} />
-      <SelectField label="Apoyo eje débil"  field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField} />
+      <CollapsibleSection label="Geometría">
+        <NumField labelKey="L_column" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
+        <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField} />
+        <SelectField label="Apoyo eje débil"  field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField} />
+      </CollapsibleSection>
 
       {/* ── Solicitaciones de diseño ─────────────────────────────────────── */}
-      <SectionHeader label="Solicitaciones (mayoradas)" />
-
-      <NumField labelKey="NEd" field="Nd" value={state.Nd} min={0} step={5} setField={setField} />
-      <NumField labelKey="VEd" field="Vd" value={state.Vd} min={0} step={1} setField={setField} />
-      <NumField labelKey="MEd" field="Md" value={state.Md} min={0} step={1} setField={setField} />
-      <SelectField label="Eje de momento" field="momentAxis" value={state.momentAxis} options={MOMENT_AXIS_OPTIONS} setField={setField} />
+      <CollapsibleSection label="Solicitaciones (mayoradas)">
+        <NumField labelKey="NEd" field="Nd" value={state.Nd} min={0} step={5} setField={setField} />
+        <NumField labelKey="VEd" field="Vd" value={state.Vd} min={0} step={1} setField={setField} />
+        <NumField labelKey="MEd" field="Md" value={state.Md} min={0} step={1} setField={setField} />
+        <SelectField label="Eje de momento" field="momentAxis" value={state.momentAxis} options={MOMENT_AXIS_OPTIONS} setField={setField} />
+      </CollapsibleSection>
 
       {/* ── Condiciones de uso ────────────────────────────────────────────── */}
-      <SectionHeader label="Condiciones de uso" />
+      <CollapsibleSection label="Condiciones de uso">
+        <SelectField labelKey="serviceClass" field="serviceClass" value={state.serviceClass} options={SERVICE_CLASS_OPTIONS} setField={setField} />
+        <SelectField labelKey="loadDuration" field="loadDuration"  value={state.loadDuration}  options={LOAD_DURATION_OPTIONS}  setField={setField} />
 
-      <SelectField labelKey="serviceClass" field="serviceClass" value={state.serviceClass} options={SERVICE_CLASS_OPTIONS} setField={setField} />
-      <SelectField labelKey="loadDuration" field="loadDuration"  value={state.loadDuration}  options={LOAD_DURATION_OPTIONS}  setField={setField} />
-
-      {/* Derived material factors */}
-      <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mt-0.5 mb-0.5">
-        <InfoRow label="kmod  (Tabla 3.1)" value={kmod.toFixed(2)} />
-        <InfoRow label="γM"                value={gammaM.toFixed(2)} />
-      </div>
+        {/* Derived material factors */}
+        <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mt-0.5 mb-0.5">
+          <InfoRow label="kmod  (Tabla 3.1)" value={kmod.toFixed(2)} />
+          <InfoRow label="γM"                value={gammaM.toFixed(2)} />
+        </div>
+      </CollapsibleSection>
 
       {/* ── Resistencia al fuego ─────────────────────────────────────────── */}
-      <SectionHeader label="Resistencia al fuego" />
+      <CollapsibleSection label="Resistencia al fuego">
+        <SelectField labelKey="fireResistance" field="fireResistance" value={state.fireResistance} options={FIRE_OPTIONS} setField={setField} />
 
-      <SelectField labelKey="fireResistance" field="fireResistance" value={state.fireResistance} options={FIRE_OPTIONS} setField={setField} />
-
-      {state.fireResistance !== 'R0' && (
-        <>
-          <SelectField labelKey="exposedFaces" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
-          <NumField labelKey="eta_fi" field="etaFi" value={state.etaFi} min={0} step={0.05} setField={setField}
-            helpText={"Factor de reducción de carga en incendio.\nNd,fi = η_fi · Nd  (EN 1995-1-2 §2.4.2)\nValor típico: 0.65–0.70 (cargas uso habitual).\nUsar 1.0 si Nd ya está en combinación de incendio."}
-          />
-        </>
-      )}
+        {state.fireResistance !== 'R0' && (
+          <>
+            <SelectField labelKey="exposedFaces" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
+            <NumField labelKey="eta_fi" field="etaFi" value={state.etaFi} min={0} step={0.05} setField={setField}
+              helpText={"Factor de reducción de carga en incendio.\nNd,fi = η_fi · Nd  (EN 1995-1-2 §2.4.2)\nValor típico: 0.65–0.70 (cargas uso habitual).\nUsar 1.0 si Nd ya está en combinación de incendio."}
+            />
+          </>
+        )}
+      </CollapsibleSection>
     </div>
   );
 }

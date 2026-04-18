@@ -3,6 +3,7 @@ import { type RCBeamInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface RCBeamsInputsProps {
   state: RCBeamInputs;
@@ -34,7 +35,7 @@ function NumField({
   const resolved = labelKey
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '—' ? '' : resolved.unit;
+  const unitText = resolved.unit === '\u2014' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -64,7 +65,7 @@ function NumField({
             if (isNaN(n)) setLocalStr(String(value));
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -109,7 +110,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -118,14 +119,6 @@ function SelectField({
         ))}
       </select>
     </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
   );
 }
 
@@ -153,54 +146,57 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
     <div className="flex flex-col" aria-label="Datos de entrada">
 
       {/* Shared geometry */}
-      <SectionHeader label="Geometria" />
-      <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
-      <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
-      <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
+      <CollapsibleSection label="Geometria">
+        <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
+        <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
+        <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
+      </CollapsibleSection>
 
       {/* Shared materials */}
-      <SectionHeader label="Materiales" />
-      <SelectField
-        labelKey="fck"
-        field="fck"
-        value={state.fck as number}
-        options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
-        setField={setField}
-      />
-      <SelectField
-        labelKey="fyk"
-        field="fyk"
-        value={state.fyk as number}
-        options={[400, 500, 600].map((f) => ({ value: f, label: `${f} MPa` }))}
-        setField={setField}
-      />
-
-      {/* Shared: exposure class + load type */}
-      <SectionHeader label="Uso y exposicion (fisuracion ELS)" />
-      <SelectField
-        labelKey="exposureClass"
-        field="exposureClass"
-        value={state.exposureClass as string}
-        options={['XC1', 'XC2', 'XC3', 'XC4'].map((c) => ({ value: c, label: c }))}
-        setField={setField}
-      />
-      <SelectField
-        labelKey="loadType"
-        field="loadType"
-        value={state.loadType as string}
-        options={LOAD_TYPE_OPTIONS}
-        setField={setField}
-      />
-      {state.loadType === 'custom' && (
-        <NumField
-          label="\u03c8\u2082 personalizado"
-          field="psi2Custom"
-          value={state.psi2Custom as number}
-          unit="\u2014"
-          min={0}
+      <CollapsibleSection label="Materiales">
+        <SelectField
+          labelKey="fck"
+          field="fck"
+          value={state.fck as number}
+          options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
           setField={setField}
         />
-      )}
+        <SelectField
+          labelKey="fyk"
+          field="fyk"
+          value={state.fyk as number}
+          options={[400, 500, 600].map((f) => ({ value: f, label: `${f} MPa` }))}
+          setField={setField}
+        />
+      </CollapsibleSection>
+
+      {/* Shared: exposure class + load type */}
+      <CollapsibleSection label="Uso y exposicion (fisuracion ELS)">
+        <SelectField
+          labelKey="exposureClass"
+          field="exposureClass"
+          value={state.exposureClass as string}
+          options={['XC1', 'XC2', 'XC3', 'XC4'].map((c) => ({ value: c, label: c }))}
+          setField={setField}
+        />
+        <SelectField
+          labelKey="loadType"
+          field="loadType"
+          value={state.loadType as string}
+          options={LOAD_TYPE_OPTIONS}
+          setField={setField}
+        />
+        {state.loadType === 'custom' && (
+          <NumField
+            label="\u03c8\u2082 personalizado"
+            field="psi2Custom"
+            value={state.psi2Custom as number}
+            unit="\u2014"
+            min={0}
+            setField={setField}
+          />
+        )}
+      </CollapsibleSection>
 
       {/* Section tab selector */}
       <div className="flex mt-3 mb-0 border-b border-border-main" role="tablist" aria-label="Seccion">
@@ -233,104 +229,108 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
       </div>
 
       {/* Tension bars */}
-      <SectionHeader label={tensionLabel} />
-      <NumField
-        label="Num. barras"
-        field={tensionNField}
-        value={state[tensionNField] as number}
-        unit="ud"
-        min={1}
-        integer
-        setField={setField}
-      />
-      <SelectField
-        label="Diametro"
-        field={tensionDField}
-        value={state[tensionDField] as number}
-        options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-        setField={setField}
-      />
+      <CollapsibleSection label={tensionLabel}>
+        <NumField
+          label="Num. barras"
+          field={tensionNField}
+          value={state[tensionNField] as number}
+          unit="ud"
+          min={1}
+          integer
+          setField={setField}
+        />
+        <SelectField
+          label="Diametro"
+          field={tensionDField}
+          value={state[tensionDField] as number}
+          options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+          setField={setField}
+        />
+      </CollapsibleSection>
 
       {/* Compression bars */}
-      <SectionHeader label={comprLabel} />
-      <NumField
-        label="Num. barras"
-        field={comprNField}
-        value={state[comprNField] as number}
-        unit="ud"
-        min={1}
-        integer
-        setField={setField}
-      />
-      <SelectField
-        label="Diametro"
-        field={comprDField}
-        value={state[comprDField] as number}
-        options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-        setField={setField}
-      />
+      <CollapsibleSection label={comprLabel}>
+        <NumField
+          label="Num. barras"
+          field={comprNField}
+          value={state[comprNField] as number}
+          unit="ud"
+          min={1}
+          integer
+          setField={setField}
+        />
+        <SelectField
+          label="Diametro"
+          field={comprDField}
+          value={state[comprDField] as number}
+          options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+          setField={setField}
+        />
+      </CollapsibleSection>
 
       {/* Transverse reinforcement */}
-      <SectionHeader label="Armadura transversal" />
-      <SelectField
-        labelKey="bar_diameter_stirrup"
-        field={`${p}_stirrupDiam`}
-        value={state[`${p}_stirrupDiam`] as number}
-        options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-        setField={setField}
-      />
-      <NumField
-        label="s"
-        sub="Separación"
-        field={`${p}_stirrupSpacing`}
-        value={state[`${p}_stirrupSpacing`] as number}
-        unit="mm"
-        min={50}
-        setField={setField}
-      />
-      <NumField
-        labelKey="n_stirrup_legs"
-        field={`${p}_stirrupLegs`}
-        value={state[`${p}_stirrupLegs`] as number}
-        min={2}
-        integer
-        setField={setField}
-      />
+      <CollapsibleSection label="Armadura transversal">
+        <SelectField
+          labelKey="bar_diameter_stirrup"
+          field={`${p}_stirrupDiam`}
+          value={state[`${p}_stirrupDiam`] as number}
+          options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
+          setField={setField}
+        />
+        <NumField
+          label="s"
+          sub="Separaci\u00f3n"
+          field={`${p}_stirrupSpacing`}
+          value={state[`${p}_stirrupSpacing`] as number}
+          unit="mm"
+          min={50}
+          setField={setField}
+        />
+        <NumField
+          labelKey="n_stirrup_legs"
+          field={`${p}_stirrupLegs`}
+          value={state[`${p}_stirrupLegs`] as number}
+          min={2}
+          integer
+          setField={setField}
+        />
+      </CollapsibleSection>
 
       {/* Per-section solicitations */}
-      <SectionHeader label="Solicitaciones" />
-      <NumField
-        label={isVano ? 'Md' : '|Md|'}
-        sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
-        field={`${p}_Md`}
-        value={state[`${p}_Md`] as number}
-        unit="kNm"
-        setField={setField}
-      />
-      <NumField
-        label="VEd"
-        sub="(ELU)"
-        field={`${p}_VEd`}
-        value={state[`${p}_VEd`] as number}
-        unit="kN"
-        setField={setField}
-      />
-      <NumField
-        label="M carga permanente"
-        sub="(ELS)"
-        field={`${p}_M_G`}
-        value={state[`${p}_M_G`] as number}
-        unit="kNm"
-        setField={setField}
-      />
-      <NumField
-        label="M carga variable"
-        sub="(ELS)"
-        field={`${p}_M_Q`}
-        value={state[`${p}_M_Q`] as number}
-        unit="kNm"
-        setField={setField}
-      />
+      <CollapsibleSection label="Solicitaciones">
+        <NumField
+          label={isVano ? 'Md' : '|Md|'}
+          sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
+          field={`${p}_Md`}
+          value={state[`${p}_Md`] as number}
+          unit="kNm"
+          setField={setField}
+        />
+        <NumField
+          label="VEd"
+          sub="(ELU)"
+          field={`${p}_VEd`}
+          value={state[`${p}_VEd`] as number}
+          unit="kN"
+          setField={setField}
+        />
+        <NumField
+          label="M carga permanente"
+          sub="(ELS)"
+          field={`${p}_M_G`}
+          value={state[`${p}_M_G`] as number}
+          unit="kNm"
+          setField={setField}
+        />
+        <NumField
+          label="M carga variable"
+          sub="(ELS)"
+          field={`${p}_M_Q`}
+          value={state[`${p}_M_Q`] as number}
+          unit="kNm"
+          setField={setField}
+        />
+      </CollapsibleSection>
 
     </div>
   );

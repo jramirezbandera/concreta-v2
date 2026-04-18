@@ -12,7 +12,7 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type PunchingInputs } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -26,7 +26,7 @@ const POSITION_LABEL: Record<string, string> = {
 export async function exportPunchingPDF(
   inp: PunchingInputs,
   result: PunchingResult,
-): Promise<void> {
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -232,5 +232,9 @@ export async function exportPunchingPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save('punzonamiento.pdf');
+  const filename = 'punzonamiento.pdf';
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }

@@ -1,6 +1,7 @@
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { ANGLE_PROFILES } from '../../data/angleProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface EmpresalladoInputsProps {
   state: EmpresalladoInputs;
@@ -9,13 +10,6 @@ interface EmpresalladoInputsProps {
   sError: boolean;
 }
 
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-disabled pt-3 pb-1 border-b border-border-sub mb-2 first:pt-0">
-      {label}
-    </p>
-  );
-}
 
 interface FieldProps {
   labelKey?: LabelKey;
@@ -50,7 +44,7 @@ function NumberField({ labelKey, label, unit, value, onChange, step = 1, min = 0
       <input
         type="number"
         className={[
-          'w-full bg-bg-primary border rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors',
+          'w-full bg-bg-primary border rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
           error ? 'border-state-fail' : 'border-border-main',
         ].join(' ')}
         value={value}
@@ -78,75 +72,80 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
   return (
     <div>
       {/* ── Pilar existente ───────────────────────────────────────────── */}
-      <SectionHeader label="Pilar existente" />
-      <NumberField labelKey="bc_column" value={state.bc} step={5} min={10} onChange={(v) => set('bc', v)} />
-      <NumberField labelKey="hc_column" value={state.hc} step={5} min={10} onChange={(v) => set('hc', v)} />
-      <NumberField labelKey="L_column" value={state.L} step={0.1} min={0.5} onChange={(v) => set('L', v)} />
+      <CollapsibleSection label="Pilar existente">
+        <NumberField labelKey="bc_column" value={state.bc} step={5} min={10} onChange={(v) => set('bc', v)} />
+        <NumberField labelKey="hc_column" value={state.hc} step={5} min={10} onChange={(v) => set('hc', v)} />
+        <NumberField labelKey="L_column" value={state.L} step={0.1} min={0.5} onChange={(v) => set('L', v)} />
+      </CollapsibleSection>
 
       {/* ── Cargas de diseño ──────────────────────────────────────────── */}
-      <SectionHeader label="Cargas de diseño" />
-      <NumberField labelKey="NEd" value={state.N_Ed} step={10} min={0} onChange={(v) => set('N_Ed', v)} />
-      <NumberField labelKey="Mx_Ed_plan" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
-      <NumberField labelKey="My_Ed_plan" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
-      <NumberField
-        labelKey="VEd"
-        value={state.Vd}
-        step={1}
-        min={0}
-        helpText={"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
-        onChange={(v) => set('Vd', v)}
-      />
+      <CollapsibleSection label="Cargas de diseño">
+        <NumberField labelKey="NEd" value={state.N_Ed} step={10} min={0} onChange={(v) => set('N_Ed', v)} />
+        <NumberField labelKey="Mx_Ed_plan" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
+        <NumberField labelKey="My_Ed_plan" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
+        <NumberField
+          labelKey="VEd"
+          value={state.Vd}
+          step={1}
+          min={0}
+          helpText={"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
+          onChange={(v) => set('Vd', v)}
+        />
+      </CollapsibleSection>
 
       {/* ── Perfil L ──────────────────────────────────────────────────── */}
-      <SectionHeader label="Perfil L (angulares)" />
-      <div className="flex flex-col gap-0.5 mb-2">
-        <label className="text-[12px] text-text-secondary">Perfil</label>
-        <select
-          className="w-full bg-bg-primary border border-border-main rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors"
-          value={state.perfil}
-          onChange={(e) => set('perfil', e.target.value)}
-        >
-          {ANGLE_PROFILES.map((p) => (
-            <option key={p.key} value={p.key}>{p.label}</option>
-          ))}
-        </select>
-      </div>
-      <NumberField labelKey="fy_steel" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
+      <CollapsibleSection label="Perfil L (angulares)">
+        <div className="flex flex-col gap-0.5 mb-2">
+          <label className="text-[12px] text-text-secondary">Perfil</label>
+          <select
+            className="w-full bg-bg-primary border border-border-main rounded px-2 py-1 text-[13px] font-mono text-text-primary focus:outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+            value={state.perfil}
+            onChange={(e) => set('perfil', e.target.value)}
+          >
+            {ANGLE_PROFILES.map((p) => (
+              <option key={p.key} value={p.key}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+        <NumberField labelKey="fy_steel" value={state.fy} step={5} min={235} onChange={(v) => set('fy', v)} />
+      </CollapsibleSection>
 
       {/* ── Pandeo global ────────────────────────────────────────────── */}
-      <SectionHeader label="Pandeo global del pilar" />
-      <NumberField
-        label="Coef. pandeo eje X (beta_x)"
-        value={state.beta_x}
-        step={0.05}
-        min={0.5}
-        helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
-        onChange={(v) => set('beta_x', v)}
-      />
-      <NumberField
-        label="Coef. pandeo eje Y (beta_y)"
-        value={state.beta_y}
-        step={0.05}
-        min={0.5}
-        helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
-        onChange={(v) => set('beta_y', v)}
-      />
+      <CollapsibleSection label="Pandeo global del pilar">
+        <NumberField
+          label="Coef. pandeo eje X (beta_x)"
+          value={state.beta_x}
+          step={0.05}
+          min={0.5}
+          helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+          onChange={(v) => set('beta_x', v)}
+        />
+        <NumberField
+          label="Coef. pandeo eje Y (beta_y)"
+          value={state.beta_y}
+          step={0.05}
+          min={0.5}
+          helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+          onChange={(v) => set('beta_y', v)}
+        />
+      </CollapsibleSection>
 
       {/* ── Pletinas ──────────────────────────────────────────────────── */}
-      <SectionHeader label="Pletinas (battens)" />
-      <NumberField
-        label="Separación entre pletinas (s)"
-        unit="cm"
-        value={state.s}
-        step={5}
-        min={5}
-        error={sError}
-        errorText="s debe superar lp"
-        onChange={(v) => set('s', v)}
-      />
-      <NumberField label="Alto de pletina (lp)" unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)} />
-      <NumberField label="Ancho de pletina (bp)" unit="cm" value={state.bp} step={1} min={2} onChange={(v) => set('bp', v)} />
-      <NumberField label="Espesor de pletina (tp)" unit="mm" value={state.tp} step={1} min={4} onChange={(v) => set('tp', v)} />
+      <CollapsibleSection label="Pletinas (battens)">
+        <NumberField
+          label="Separación entre pletinas (s)"
+          unit="cm"
+          value={state.s}
+          step={5}
+          min={5}
+          error={sError}
+          errorText="s debe superar lp"
+          onChange={(v) => set('s', v)}
+        />
+        <NumberField label="Alto de pletina (lp)" unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)} />
+        <NumberField label="Ancho de pletina (bp)" unit="cm" value={state.bp} step={1} min={2} onChange={(v) => set('bp', v)} />
+        <NumberField label="Espesor de pletina (tp)" unit="mm" value={state.tp} step={1} min={4} onChange={(v) => set('tp', v)} />
+      </CollapsibleSection>
     </div>
   );
 }

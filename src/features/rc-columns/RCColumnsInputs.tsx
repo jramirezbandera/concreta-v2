@@ -3,6 +3,7 @@ import { type RCColumnInputs } from '../../data/defaults';
 import { availableFck, availableFyk } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 
 interface RCColumnsInputsProps {
   state: RCColumnInputs;
@@ -13,14 +14,6 @@ const FCK_OPTIONS = availableFck.map((v) => ({ value: v, label: `${v}` }));
 const FYK_OPTIONS = availableFyk.map((v) => ({ value: v, label: `${v}` }));
 const BAR_DIAM_OPTIONS = availableBarDiams.map((v) => ({ value: v, label: `${v}` }));
 const STIRRUP_DIAM_OPTIONS = [6, 8, 10, 12].map((v) => ({ value: v, label: `${v}` }));
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0">
-      {label}
-    </p>
-  );
-}
 
 function SubHeader({ label }: { label: string }) {
   return (
@@ -90,7 +83,7 @@ function NumberField({
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
           aria-label={unitText ? `${resolved.label} (${unitText})` : resolved.label}
-          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
+          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
         />
         {unitText && (
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
@@ -137,7 +130,7 @@ function SelectField({
         id={`select-${fieldKey}`}
         value={value}
         onChange={(e) => setField(fieldKey, Number(e.target.value))}
-        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none focus:border-accent transition-colors cursor-pointer"
+        className="shrink-0 bg-bg-primary border border-border-main rounded px-1.75 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,64 +150,69 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
 
   return (
     <div>
-      <SectionHeader label="Geometría" />
-      <NumberField labelKey="b_section"        fieldKey="b"     value={state.b}     min={100}  setField={setField} />
-      <NumberField labelKey="h_section"        fieldKey="h"     value={state.h}     min={100}  setField={setField} />
-      <NumberField labelKey="cover_mechanical" fieldKey="cover" value={state.cover} min={10}   setField={setField} />
-      <NumberField labelKey="L_column"         fieldKey="L"     value={state.L}     min={0.5} step={0.1} setField={setField} />
-      <NumberField labelKey="beta_buckling"    fieldKey="beta"  value={state.beta}  min={0.5} step={0.05} setField={setField} />
-      <div className="flex items-center justify-between py-0.75 gap-2">
-        <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">Lk = L × β</span>
-        <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{Lk} m</span>
-      </div>
+      <CollapsibleSection label="Geometría">
+        <NumberField labelKey="b_section"        fieldKey="b"     value={state.b}     min={100}  setField={setField} />
+        <NumberField labelKey="h_section"        fieldKey="h"     value={state.h}     min={100}  setField={setField} />
+        <NumberField labelKey="cover_mechanical" fieldKey="cover" value={state.cover} min={10}   setField={setField} />
+        <NumberField labelKey="L_column"         fieldKey="L"     value={state.L}     min={0.5} step={0.1} setField={setField} />
+        <NumberField labelKey="beta_buckling"    fieldKey="beta"  value={state.beta}  min={0.5} step={0.05} setField={setField} />
+        <div className="flex items-center justify-between py-0.75 gap-2">
+          <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">Lk = L × β</span>
+          <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{Lk} m</span>
+        </div>
+      </CollapsibleSection>
 
-      <SectionHeader label="Materiales" />
-      <SelectField labelKey="fck" fieldKey="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
-      <SelectField labelKey="fyk" fieldKey="fyk" value={state.fyk} options={FYK_OPTIONS} setField={setField} />
+      <CollapsibleSection label="Materiales">
+        <SelectField labelKey="fck" fieldKey="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
+        <SelectField labelKey="fyk" fieldKey="fyk" value={state.fyk} options={FYK_OPTIONS} setField={setField} />
+      </CollapsibleSection>
 
-      <SectionHeader label="Armadura longitudinal" />
-      <SelectField labelKey="bar_diameter_corner" fieldKey="cornerBarDiam" value={state.cornerBarDiam} options={BAR_DIAM_OPTIONS} setField={setField} />
+      <CollapsibleSection label="Armadura longitudinal">
+        <SelectField labelKey="bar_diameter_corner" fieldKey="cornerBarDiam" value={state.cornerBarDiam} options={BAR_DIAM_OPTIONS} setField={setField} />
 
-      <SubHeader label="Cara X  (sup. + inf.)" />
-      <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField} />
-      <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamX" value={state.barDiamX} options={BAR_DIAM_OPTIONS} setField={setField} />
+        <SubHeader label="Cara X  (sup. + inf.)" />
+        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField} />
+        <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamX" value={state.barDiamX} options={BAR_DIAM_OPTIONS} setField={setField} />
 
-      <SubHeader label="Cara Y  (laterales)" />
-      <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
-      <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} setField={setField} />
+        <SubHeader label="Cara Y  (laterales)" />
+        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
+        <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} setField={setField} />
 
-      <div className="flex items-center justify-between py-0.75 gap-2 mt-1">
-        <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">As total</span>
-        <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{As_total} mm²</span>
-      </div>
+        <div className="flex items-center justify-between py-0.75 gap-2 mt-1">
+          <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">As total</span>
+          <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{As_total} mm²</span>
+        </div>
+      </CollapsibleSection>
 
-      <SectionHeader label="Armadura transversal" />
-      <SelectField labelKey="bar_diameter_stirrup" fieldKey="stirrupDiam" value={state.stirrupDiam} options={STIRRUP_DIAM_OPTIONS} setField={setField} />
-      <NumberField label="s" sub="Separación cercos" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
+      <CollapsibleSection label="Armadura transversal">
+        <SelectField labelKey="bar_diameter_stirrup" fieldKey="stirrupDiam" value={state.stirrupDiam} options={STIRRUP_DIAM_OPTIONS} setField={setField} />
+        <NumberField label="s" sub="Separación cercos" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
+      </CollapsibleSection>
 
-      <SectionHeader label="Solicitaciones" />
-      <NumberField
-        labelKey="NEd"
-        fieldKey="Nd"
-        value={state.Nd}
-        min={1}
-        step={10}
-        setField={setField}
-      />
-      <NumberField
-        labelKey="My_Ed"
-        fieldKey="MEdy"
-        value={state.MEdy}
-        step={1}
-        setField={setField}
-      />
-      <NumberField
-        labelKey="Mz_Ed"
-        fieldKey="MEdz"
-        value={state.MEdz}
-        step={1}
-        setField={setField}
-      />
+      <CollapsibleSection label="Solicitaciones">
+        <NumberField
+          labelKey="NEd"
+          fieldKey="Nd"
+          value={state.Nd}
+          min={1}
+          step={10}
+          setField={setField}
+        />
+        <NumberField
+          labelKey="My_Ed"
+          fieldKey="MEdy"
+          value={state.MEdy}
+          step={1}
+          setField={setField}
+        />
+        <NumberField
+          labelKey="Mz_Ed"
+          fieldKey="MEdz"
+          value={state.MEdz}
+          step={1}
+          setField={setField}
+        />
+      </CollapsibleSection>
     </div>
   );
 }

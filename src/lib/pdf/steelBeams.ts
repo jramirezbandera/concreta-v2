@@ -13,7 +13,7 @@ import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculati
 import { BEAM_CASES } from '../calculations/beamCases';
 import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;   // page margin mm
 
@@ -31,7 +31,7 @@ const MSER_FORMULA: Record<BeamType, string> = {
   ff:         'wSer*L^2/12 (emp.)',
 };
 
-export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBeamResult): Promise<void> {
+export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBeamResult): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const beamCase = BEAM_CASES[inp.beamType];
@@ -280,5 +280,9 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
   doc.text('Concreta - concreta.app | CTE DB-SE-A Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  doc.save(`concreta-acero-viga-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const filename = `concreta-acero-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = doc.internal.getNumberOfPages();
+  return { blobUrl, filename, pageCount };
 }
