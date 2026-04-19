@@ -5,6 +5,7 @@
 
 import { type SteelBeamInputs } from '../../data/defaults';
 import { type SteelBeamResult } from '../../lib/calculations/steelBeams';
+import { FF_MONO } from './diagramStyle';
 
 interface SteelBeamsSVGProps {
   inp?: SteelBeamInputs;
@@ -129,11 +130,11 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           y={oy + sH / 2}
           dominantBaseline="middle"
           textAnchor="middle"
-          fontSize={8}
+          fontSize={11}
           fill={C.dimText}
           transform={`rotate(-90, ${ox - 16}, ${oy + sH / 2})`}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-          className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
           h={profile.h}
         </text>
@@ -146,24 +147,26 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           x={ox + sW / 2}
           y={oy - 14}
           textAnchor="middle"
-          fontSize={8}
+          fontSize={11}
           fill={C.dimText}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-          className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
           b={profile.b}
         </text>
 
-        {/* tf label */}
+        {/* tf label — centered on the top flange (same inside-the-section
+            pattern as tw). Keeps it clear of the rotated h dimension on the
+            left and the left-panel padding edge. */}
         <text
-          x={ox - 4}
+          x={ox + sW / 2}
           y={topFlangeY + tf / 2}
-          textAnchor="end"
+          textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={7}
+          fontSize={12}
           fill={C.dimText}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
-          className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px' } : undefined}
+          className={isPdf ? undefined : 'text-[12px] font-mono fill-text-secondary'}
         >
           tf={profile.tf}
         </text>
@@ -174,10 +177,10 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           y={oy + sH / 2}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={7}
+          fontSize={12}
           fill={C.dimText}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
-          className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px' } : undefined}
+          className={isPdf ? undefined : 'text-[12px] font-mono fill-text-secondary'}
         >
           tw={profile.tw}
         </text>
@@ -187,11 +190,11 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           x={ox + sW / 2}
           y={oy + sH + 14}
           textAnchor="middle"
-          fontSize={9}
+          fontSize={12}
           fontWeight="600"
           fill={C.dimText}
-          style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
-          className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px', fontWeight: '600' } : undefined}
+          className={isPdf ? undefined : 'text-[12px] font-semibold font-mono fill-text-secondary'}
         >
           {profile.label}
         </text>
@@ -233,11 +236,11 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
   const ptY = result.valid ? toPlotY(Math.min(result.eta_M, 1.5)) : null;
   const ptColor = result.valid ? statusColor(result.eta_MV, C) : C.pointNeutral;
 
-  const fontSize = 7;
+  const fontSize = 10;
   const labelStyle = isPdf
-    ? { fontFamily: 'monospace', fontSize: `${fontSize}px` }
+    ? { fontFamily: FF_MONO, fontSize: `${fontSize}px` }
     : undefined;
-  const labelClass = isPdf ? undefined : `text-[${fontSize}px] font-mono fill-text-disabled`;
+  const labelClass = isPdf ? undefined : 'text-[10px] font-mono fill-text-disabled';
 
   return (
     <svg
@@ -355,7 +358,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
         x={rx + plotW / 2}
         y={ry + plotH + 24}
         textAnchor="middle"
-        fontSize={7}
+        fontSize={10}
         fill={C.axisLabel}
         style={labelStyle}
         className={labelClass}
@@ -368,7 +371,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
         y={ry + plotH / 2}
         textAnchor="middle"
         dominantBaseline="middle"
-        fontSize={7}
+        fontSize={10}
         fill={C.axisLabel}
         transform={`rotate(-90, ${rx - 28}, ${ry + plotH / 2})`}
         style={labelStyle}
@@ -416,10 +419,10 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
         x={rx + plotW / 2}
         y={ry - 10}
         textAnchor="middle"
-        fontSize={8}
+        fontSize={11}
         fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}
+        style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
       >
         Interacción M-V
       </text>

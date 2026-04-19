@@ -40,8 +40,8 @@ function NumField({
   }, [value]);
 
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+      <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary truncate min-w-0" title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}>
         {resolved.label}
         {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
@@ -94,8 +94,8 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+      <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary truncate min-w-0" title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}>
         {resolved.label}
         {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
       </label>
@@ -107,7 +107,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className="min-w-0 max-w-40 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

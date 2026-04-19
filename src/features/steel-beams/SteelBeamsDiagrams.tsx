@@ -1,5 +1,10 @@
 import { type FC } from 'react';
 import { type BeamType } from '../../data/defaults';
+import {
+  FF_MONO, FS_PEAK, FS_AXIS, FS_ADM, FS_FF_SAG, DOT_R,
+  peakColor, axisColor, admColor,
+} from './diagramStyle';
+import { beamPeakGeometry, type LabelPos } from './beamPeakGeometry';
 
 interface SteelBeamsDiagramsProps {
   beamType: BeamType;
@@ -18,6 +23,8 @@ interface SteelBeamsDiagramsProps {
 export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   beamType, MEd, VEdA, VEdB, deltaMax, deltaAdm, deflLimit, mode, width, height,
 }) => {
+  // Invariant: VEdA > 0 guarantees safe VEdB/VEdA division in the fp shear-shape
+  // computation below. Callers pass VEdA=0 only when the calc failed upstream.
   if (MEd <= 0 || VEdA <= 0) return null;
 
   const isPdf = mode === 'pdf';
@@ -60,14 +67,13 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
     ? (isPdf ? '#664400' : '#f59e0b')
     : (isPdf ? '#336633' : '#22c55e');
 
-  const labelColor = isPdf ? '#555555' : '#94a3b8';
   const baseColor  = isPdf ? '#555555' : '#475569';
   const divColor   = isPdf ? '#cccccc' : '#1e293b';
-  const fillLabel  = isPdf ? '#333333' : '#f8fafc';
-  const vPosLabel  = isPdf ? '#336633' : '#22c55e';
-  const vNegLabel  = isPdf ? '#663333' : '#ef4444';
-  const admColor   = isPdf ? '#888888' : '#64748b';
-  const ff         = isPdf ? 'monospace' : undefined;
+  const vPosLabelC = isPdf ? '#336633' : '#22c55e';
+  const vNegLabelC = isPdf ? '#663333' : '#ef4444';
+  const C_PEAK = peakColor(isPdf);
+  const C_AXIS = axisColor(isPdf);
+  const C_ADM  = admColor(isPdf);
 
   // ── Support symbols ───────────────────────────────────────────────────────
 
@@ -77,7 +83,6 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   const rightTri = (by: number) =>
     `M ${bx1},${by} L ${bx1 - 4},${by + triH} L ${bx1 + 4},${by + triH} Z`;
 
-  // Fixed wall: filled rect + 2 diagonal hatch lines (standard structural notation)
   const fixedWallLeft = (by: number, h: number) => (
     <>
       <rect x={bx0 - 4} y={by - h / 2} width={4} height={h} fill={baseColor} />
@@ -98,34 +103,24 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   );
 
   // ── M diagram geometry ────────────────────────────────────────────────────
-  // Shape function per beam type (raw, normalized so |extreme| = 1.0).
-  // Positive = sagging, negative = hogging.
   const mShapeFn: (t: number) => number =
-    beamType === 'ss'         ? (t) => 4 * t * (1 - t)          :  // peak +1 at midspan
-    beamType === 'cantilever' ? (t) => -(1 - t)                  :  // -1 at root, 0 at tip
-    beamType === 'fp'         ? (t) => -1 + 5 * t - 4 * t * t   :  // -1 at x=0, zero at x=0.25L
-    /* ff */                    (t) => -1 + 6 * t - 6 * t * t;     // -1 at ends, +0.5 at midspan
+    beamType === 'ss'         ? (t) => 4 * t * (1 - t)          :
+    beamType === 'cantilever' ? (t) => -(1 - t)                  :
+    beamType === 'fp'         ? (t) => -1 + 5 * t - 4 * t * t   :
+    /* ff */                    (t) => -1 + 6 * t - 6 * t * t;
 
   const rawVals = Array.from({ length: N + 1 }, (_, i) => mShapeFn(i / N));
   const rawMin  = Math.min(...rawVals);
   const rawMax  = Math.max(...rawVals);
 
-  // Scale so the full shape range fits between label and bottom margin.
   const mAvailH = secH - labelH - chartBot;
   const mUnit   = mAvailH / Math.max(rawMax - rawMin, 0.01);
-  // Baseline y: push down enough so hogging (rawMin < 0) fits above labelH.
   const mBaseY  = M_Y0 + labelH + (rawMin < 0 ? -rawMin * mUnit : 0);
 
-  // Screen-space points
   const mRawPts: Array<[number, number]> = rawVals.map((v, i) => [
     bx0 + bw * (i / N),
     mBaseY + v * mUnit,
   ]);
-
-  // Label: place in the governing region (hogging if present, otherwise sagging).
-  const mLabelY = rawMin < 0
-    ? mBaseY + rawMin * mUnit * 0.5
-    : mBaseY + rawMax * mUnit * 0.65;
 
   const wallH = mUnit * 0.6;
 
@@ -152,7 +147,6 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       );
       break;
     }
-
     case 'cantilever': {
       mShapeEl = (
         <>
@@ -165,9 +159,7 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       );
       break;
     }
-
     case 'fp': {
-      // Zero crossing at t=0.25
       const zeroX   = bx0 + bw * 0.25;
       const hogPts  = mRawPts.filter(([x]) => x <= zeroX + 2);
       const sagPts  = mRawPts.filter(([x]) => x >= zeroX - 2);
@@ -183,9 +175,7 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       );
       break;
     }
-
     case 'ff': {
-      // Zero crossings at t = (3 ± √3)/6 ≈ 0.211 and 0.789
       const x1      = bx0 + bw * (3 - Math.sqrt(3)) / 6;
       const x2      = bx0 + bw * (3 + Math.sqrt(3)) / 6;
       const hogLPts = mRawPts.filter(([x]) => x <= x1 + 2);
@@ -210,15 +200,17 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   const vCenterY = V_Y0 + chartTopOff + chartH / 2;
   const vChartH  = chartH / 2 - 2;
 
+  // Lifted to outer scope so beamPeakGeometry receives the real heights
+  const vPosH = vChartH;
+  const vNegH =
+    beamType === 'fp'         ? vChartH * (VEdB / VEdA) :
+    beamType === 'cantilever' ? 0                       :
+                                vChartH;
+
   let vShapeEl: React.ReactNode;
-  let vLabelAX: number, vLabelAY: number;
-  let vLabelBX: number, vLabelBY: number;
-  let vLabelAColor: string, vLabelBColor: string;
-  let vLabelA: string, vLabelB: string;
 
   switch (beamType) {
     case 'ss': {
-      // Symmetric: +VEdA left of midspan, -VEdA right
       const vMidX = (bx0 + bx1) / 2;
       vShapeEl = (
         <>
@@ -233,15 +225,9 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
           <line x1={bx0} y1={vCenterY} x2={bx1} y2={vCenterY} stroke={baseColor} strokeWidth={1} />
         </>
       );
-      vLabelAX = bx0 + (vMidX - bx0) * 0.4; vLabelAY = vCenterY - vChartH * 0.45;
-      vLabelBX = vMidX + (bx1 - vMidX) * 0.6; vLabelBY = vCenterY + vChartH * 0.55;
-      vLabelAColor = vPosLabel; vLabelBColor = vNegLabel;
-      vLabelA = `+${VEdA.toFixed(1)} kN`; vLabelB = `-${VEdA.toFixed(1)} kN`;
       break;
     }
-
     case 'cantilever': {
-      // All positive: max at left (root), zero at right (tip)
       vShapeEl = (
         <>
           <path d={`M ${bx0},${vCenterY - vChartH} L ${bx1},${vCenterY} L ${bx0},${vCenterY} Z`}
@@ -251,26 +237,16 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
           <line x1={bx0} y1={vCenterY} x2={bx1} y2={vCenterY} stroke={baseColor} strokeWidth={1} />
         </>
       );
-      vLabelAX = bx0 + bw * 0.25; vLabelAY = vCenterY - vChartH * 0.55;
-      vLabelBX = bx0 + bw * 0.75; vLabelBY = vCenterY - vChartH * 0.15;
-      vLabelAColor = vPosLabel; vLabelBColor = admColor;
-      vLabelA = `+${VEdA.toFixed(1)} kN`; vLabelB = '0 kN';
       break;
     }
-
     case 'fp': {
-      // +5wL/8 at left (t=0), zero at t=5/8, -3wL/8 at right (t=1)
       const vZeroX = bx0 + bw * (5 / 8);
-      const vPosH  = vChartH;                        // left: full height (VEdA = 5wL/8)
-      const vNegH  = vChartH * (VEdB / VEdA);        // right: proportional (VEdB = 3wL/8)
       vShapeEl = (
         <>
-          {/* Positive trapezoid left */}
           <path d={`M ${bx0},${vCenterY - vPosH} L ${vZeroX},${vCenterY} L ${bx0},${vCenterY} Z`}
             fill={vPosFill} stroke="none" />
           <line x1={bx0} y1={vCenterY - vPosH} x2={vZeroX} y2={vCenterY}
             stroke={vPosStroke} strokeWidth={1.5} />
-          {/* Negative triangle right */}
           <path d={`M ${vZeroX},${vCenterY} L ${bx1},${vCenterY + vNegH} L ${bx1},${vCenterY} Z`}
             fill={vNegFill} stroke="none" />
           <line x1={vZeroX} y1={vCenterY} x2={bx1} y2={vCenterY + vNegH}
@@ -278,15 +254,9 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
           <line x1={bx0} y1={vCenterY} x2={bx1} y2={vCenterY} stroke={baseColor} strokeWidth={1} />
         </>
       );
-      vLabelAX = bx0 + (vZeroX - bx0) * 0.35; vLabelAY = vCenterY - vPosH * 0.5;
-      vLabelBX = vZeroX + (bx1 - vZeroX) * 0.6; vLabelBY = vCenterY + vNegH * 0.6;
-      vLabelAColor = vPosLabel; vLabelBColor = vNegLabel;
-      vLabelA = `+${VEdA.toFixed(1)} kN`; vLabelB = `-${VEdB.toFixed(1)} kN`;
       break;
     }
-
     case 'ff': {
-      // Same as ss: symmetric ±VEdA, zero crossing at midspan
       const vMidX = (bx0 + bx1) / 2;
       vShapeEl = (
         <>
@@ -301,10 +271,6 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
           <line x1={bx0} y1={vCenterY} x2={bx1} y2={vCenterY} stroke={baseColor} strokeWidth={1} />
         </>
       );
-      vLabelAX = bx0 + (vMidX - bx0) * 0.4; vLabelAY = vCenterY - vChartH * 0.45;
-      vLabelBX = vMidX + (bx1 - vMidX) * 0.6; vLabelBY = vCenterY + vChartH * 0.55;
-      vLabelAColor = vPosLabel; vLabelBColor = vNegLabel;
-      vLabelA = `+${VEdA.toFixed(1)} kN`; vLabelB = `-${VEdA.toFixed(1)} kN`;
       break;
     }
   }
@@ -312,13 +278,10 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   // ── δ diagram geometry ────────────────────────────────────────────────────
   const dBaseY = D_Y0 + chartTopOff;
 
-  // Deflection shape per beam type (all sagging / downward, fill below baseline)
-  // Normalized so peak = 1.0 filling chartH
   let dPts: Array<[number, number]>;
   switch (beamType) {
     case 'ss':
     case 'ff': {
-      // Symmetric parabola, peak at midspan
       dPts = [];
       for (let i = 0; i <= N; i++) {
         const t = i / N;
@@ -327,8 +290,6 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       break;
     }
     case 'cantilever': {
-      // Cubic curve, zero slope at root (left), max deflection at tip (right)
-      // Normalized cantilever UDL shape: δ(t) = (6t² - 4t³ + t⁴) / 3 at t=1 → norm to 1
       dPts = [];
       for (let i = 0; i <= N; i++) {
         const t = i / N;
@@ -338,12 +299,11 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       break;
     }
     case 'fp': {
-      // Asymmetric, max at ≈0.4215L from fixed end
-      // Approximation: cubic × asymmetric factor
-      // δ(t) ≈ t²(1-t)·(1+0.6t) normalized to peak=1 at t≈0.4215
       dPts = [];
       let dMax = 0;
-      const rawFn = (t: number) => t * t * (1 - t) * (1 + 0.6 * t);
+      // Analytical deflection shape for fixed-left / pinned-right propped
+      // cantilever under UDL: y ∝ t²(1−t)(3−2t). Peaks at t ≈ 0.5785.
+      const rawFn = (t: number) => t * t * (1 - t) * (3 - 2 * t);
       for (let i = 0; i <= N; i++) {
         dMax = Math.max(dMax, rawFn(i / N));
       }
@@ -361,8 +321,35 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
     dPts!.map(([x, y]) => `L ${x.toFixed(1)},${y.toFixed(1)}`).join(' ') +
     ` L ${bx1},${dBaseY} Z`;
 
-  const dFillLabelY = dBaseY + chartH * 0.65;
-  const mFillLabelX = (bx0 + bx1) / 2;
+  // ── Label + peak-dot geometry (shared helper) ─────────────────────────────
+  const geom = beamPeakGeometry({
+    beamType, bx0, bx1, mBaseY, mUnit, rawMin, rawMax,
+    vCenterY, vChartH, vPosH, vNegH, dBaseY, chartH,
+  });
+
+  const renderLabel = (
+    pos: LabelPos, text: string,
+    opts: { fontSize?: number; color?: string; bold?: boolean } = {},
+  ) => (
+    <text
+      x={pos.x} y={pos.y}
+      fontSize={opts.fontSize ?? FS_PEAK}
+      fontWeight={opts.bold === false ? undefined : 600}
+      fill={opts.color ?? C_PEAK}
+      textAnchor={pos.anchor}
+      dominantBaseline="middle"
+      style={{ fontFamily: FF_MONO }}
+    >
+      {text}
+    </text>
+  );
+
+  const renderDot = (p: { x: number; y: number }, color: string) => (
+    <circle cx={p.x} cy={p.y} r={DOT_R} fill={color} stroke="none" />
+  );
+
+  // ff sagging secondary value: |MEd|×0.5 (UDL assumption)
+  const ffSagValue = beamType === 'ff' ? Math.abs(MEd) * 0.5 : 0;
 
   return (
     <svg
@@ -372,50 +359,64 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       xmlns="http://www.w3.org/2000/svg"
     >
       {/* ══ M diagram ════════════════════════════════════════════════════ */}
-      <text x={bx0} y={M_Y0 + 11} fontSize={9} fill={labelColor} fontFamily={ff}>
+      <text x={bx0} y={M_Y0 + 11} fontSize={FS_AXIS} fill={C_AXIS}
+        style={{ fontFamily: FF_MONO }}>
         M (kNm)
       </text>
       {mShapeEl}
-      <text x={mFillLabelX} y={mLabelY} fontSize={8} fill={fillLabel}
-        fontFamily={ff} textAnchor="middle" dominantBaseline="middle">
-        {MEd.toFixed(1)} kNm
-      </text>
+      {renderDot(geom.mPeak, mStroke)}
+      {renderLabel(geom.mLabel, `${MEd.toFixed(1)} kNm`)}
+      {geom.mPeakSecondary && renderDot(geom.mPeakSecondary, mStroke)}
+      {geom.mLabelSecondary && renderLabel(
+        geom.mLabelSecondary,
+        `${ffSagValue.toFixed(1)} kNm`,
+        { fontSize: FS_FF_SAG, color: C_ADM, bold: false },
+      )}
 
       {/* ── Divider ──────────────────────────────────────────────────────── */}
       <line x1={bx0} y1={V_Y0 - 4} x2={bx1} y2={V_Y0 - 4}
         stroke={divColor} strokeWidth={0.5} strokeDasharray="3,3" />
 
       {/* ══ V diagram ════════════════════════════════════════════════════ */}
-      <text x={bx0} y={V_Y0 + 11} fontSize={9} fill={labelColor} fontFamily={ff}>
+      <text x={bx0} y={V_Y0 + 11} fontSize={FS_AXIS} fill={C_AXIS}
+        style={{ fontFamily: FF_MONO }}>
         V (kN)
       </text>
       {vShapeEl}
-      <text x={vLabelAX} y={vLabelAY} fontSize={8} fill={vLabelAColor}
-        fontFamily={ff} textAnchor="middle" dominantBaseline="middle">
-        {vLabelA}
-      </text>
-      <text x={vLabelBX} y={vLabelBY} fontSize={8} fill={vLabelBColor}
-        fontFamily={ff} textAnchor="middle" dominantBaseline="middle">
-        {vLabelB}
-      </text>
+      {renderDot(geom.vPosPeak, vPosStroke)}
+      {renderLabel(geom.vPosLabel, `+${VEdA.toFixed(1)} kN`, { color: vPosLabelC })}
+      {geom.vNegPeak && renderDot(geom.vNegPeak, vNegStroke)}
+      {geom.vNegLabel && renderLabel(
+        geom.vNegLabel,
+        `-${(beamType === 'fp' ? VEdB : VEdA).toFixed(1)} kN`,
+        { color: vNegLabelC },
+      )}
 
       {/* ── Divider ──────────────────────────────────────────────────────── */}
       <line x1={bx0} y1={D_Y0 - 4} x2={bx1} y2={D_Y0 - 4}
         stroke={divColor} strokeWidth={0.5} strokeDasharray="3,3" />
 
       {/* ══ δ diagram ════════════════════════════════════════════════════ */}
-      <text x={bx0} y={D_Y0 + 11} fontSize={9} fill={labelColor} fontFamily={ff}>
+      <text x={bx0} y={D_Y0 + 11} fontSize={FS_AXIS} fill={C_AXIS}
+        style={{ fontFamily: FF_MONO }}>
         δ (mm)
       </text>
       <path d={dFillPath} fill={dFill} stroke="none" />
       <polyline points={dPolyline} fill="none" stroke={dStroke} strokeWidth={1.5} />
       <line x1={bx0} y1={dBaseY} x2={bx1} y2={dBaseY} stroke={baseColor} strokeWidth={1} />
-      <text x={mFillLabelX} y={dFillLabelY} fontSize={8} fill={fillLabel}
-        fontFamily={ff} textAnchor="middle" dominantBaseline="middle">
-        {deltaMax.toFixed(1)} mm
-      </text>
-      <text x={bx1 - 2} y={D_Y0 + secH - 4} fontSize={7} fill={admColor}
-        fontFamily={ff} textAnchor="end">
+      {renderDot(geom.dPeak, dStroke)}
+      {renderLabel(geom.dLabel, `${deltaMax.toFixed(1)} mm`)}
+      {/* Cantilever δ peak is at the right end, so place the admissible note
+          at the left to avoid collision. Other beam types have the peak at or
+          near midspan, so right-aligned keeps a tidy diagonal. */}
+      <text
+        x={beamType === 'cantilever' ? bx0 + 2 : bx1 - 2}
+        y={D_Y0 + secH - 4}
+        fontSize={FS_ADM}
+        fill={C_ADM}
+        style={{ fontFamily: FF_MONO }}
+        textAnchor={beamType === 'cantilever' ? 'start' : 'end'}
+      >
         L/{deflLimit} = {deltaAdm.toFixed(1)} mm
       </text>
     </svg>
