@@ -31,8 +31,11 @@ export function SteelColumnsModule() {
 
   const zeroLoads = state.Ned === 0 && state.My_Ed === 0 && state.Mz_Ed === 0;
 
+  // PDF export stays available even when the result is invalid (e.g. Class 4,
+  // overall INCUMPLE) — the user may want a PDF to document that a profile
+  // doesn't meet EC3. Only require a result object.
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result), result.valid);
+    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result), true);
 
   // Responsive SVG sizing
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -70,12 +73,6 @@ export function SteelColumnsModule() {
         moduleGroup="Acero"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
-        pdfDisabled={!result.valid}
-        pdfDisabledReason={
-          result.sectionClass === 4
-            ? 'Sección clase 4 — sin solución en v1'
-            : 'Datos de entrada no válidos'
-        }
         onMenuOpen={openDrawer}
       />
       <MobileTabBar tab={tab} setTab={setTab} />

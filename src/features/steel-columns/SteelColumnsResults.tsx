@@ -164,9 +164,6 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
             <p className="text-[11px] text-text-secondary">
               {result.error ?? 'Las secciones clase 4 (esbeltez elevada) no están implementadas en v1. Elija un perfil más robusto.'}
             </p>
-            <p className="text-[10px] text-text-disabled mt-1.5">
-              Exportación a PDF deshabilitada.
-            </p>
           </div>
         </div>
         {result.checks.length > 0 && (

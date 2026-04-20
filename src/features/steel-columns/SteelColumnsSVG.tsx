@@ -220,8 +220,8 @@ function CHSShape({
 
   return (
     <g>
-      <title>Sección circular hueca — tubo CHS</title>
-      <desc>{`Tubo circular hueco de diámetro exterior ${D} mm`}</desc>
+      <title>Sección circular hueca</title>
+      <desc>{`Tubo circular de diámetro exterior ${D} mm`}</desc>
       <path d={ringPath} fill={C.sectionFill} stroke={C.sectionStroke}
         strokeWidth={isPdf ? 1.5 : 1} fillRule="evenodd" />
 

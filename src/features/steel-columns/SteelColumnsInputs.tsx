@@ -1,11 +1,7 @@
 import { useEffect } from 'react';
-import { type SteelColumnInputs, type ColumnBCType, type CHSProcess } from '../../data/defaults';
+import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
-import {
-  CHS_COMMERCIAL_DIAMETERS,
-  CHS_COMMERCIAL_THICKNESSES,
-} from '../../lib/sections';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { IconGridSelector, type IconGridOption } from '../../components/ui/IconGridSelector';
@@ -232,101 +228,58 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
         labelKey="profile_type"
         id="sc-sectionType"
         value={state.sectionType}
-        options={(['HEA', 'HEB', 'IPE', '2UPN', 'CHS'] as const).map((t) => ({ value: t, label: t }))}
+        options={[
+          { value: 'HEA', label: 'HEA' },
+          { value: 'HEB', label: 'HEB' },
+          { value: 'IPE', label: 'IPE' },
+          { value: '2UPN', label: '2UPN' },
+          { value: 'CHS', label: 'Circular' },
+        ]}
         onChange={(v) => setField('sectionType', v)}
       />
       {isCHS ? (
         <>
-          {/* Diameter with commercial-sizes datalist */}
+          <NumField
+            label="D"
+            sub="diámetro exterior"
+            unit="mm"
+            id="sc-chs-D"
+            value={state.chs_D}
+            min={20}
+            step={1}
+            onChange={(v) => { if (v > 0) setField('chs_D', v); }}
+          />
+          <NumField
+            label="t"
+            sub="espesor pared"
+            unit="mm"
+            id="sc-chs-t"
+            value={state.chs_t}
+            min={1}
+            step={0.1}
+            onChange={(v) => { if (v > 0) setField('chs_t', v); }}
+          />
+          <SelectField
+            label="Proceso"
+            id="sc-chs-process"
+            value={state.chs_process}
+            options={[
+              { value: 'hot-finished', label: 'Caliente (EN 10210)' },
+              { value: 'cold-formed',  label: 'Frío (EN 10219)' },
+            ]}
+            onChange={(v) => setField('chs_process', v as SteelColumnInputs['chs_process'])}
+          />
           <div className="flex items-center justify-between py-0.75 gap-2">
-            <label htmlFor="sc-chs-D" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-              D<span className="text-[11px] text-text-disabled ml-1">diámetro exterior</span>
-            </label>
-            <div className="flex shrink-0">
-              <input
-                id="sc-chs-D"
-                type="number"
-                list="chs-D-list"
-                value={state.chs_D}
-                min={20}
-                step={1}
-                onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n) && n > 0) setField('chs_D', n); }}
-                className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                aria-label="D (mm)"
-              />
-              <datalist id="chs-D-list">
-                {CHS_COMMERCIAL_DIAMETERS.map((d) => <option key={d} value={d} />)}
-              </datalist>
-              <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-                mm
-              </span>
-            </div>
+            <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+              D/t<span className="text-[11px] text-text-disabled ml-1">esbeltez</span>
+            </span>
+            <span
+              className="bg-bg-elevated text-text-disabled font-mono text-[11px] px-1.5 py-0.5 rounded tabular-nums"
+              title="EC3 §5.5 Tab 5.2: Clase 1 si D/t ≤ 50·ε², Clase 2 ≤ 70·ε², Clase 3 ≤ 90·ε²"
+            >
+              {chs_dOverT.toFixed(1)}
+            </span>
           </div>
-          {/* Wall thickness with datalist + d/t badge */}
-          <div className="flex items-center justify-between py-0.75 gap-2">
-            <label htmlFor="sc-chs-t" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-              t<span className="text-[11px] text-text-disabled ml-1">espesor pared</span>
-            </label>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span
-                className="bg-bg-elevated text-text-disabled font-mono text-[10px] px-1 py-0.5 rounded"
-                title="Esbeltez D/t — EC3 clasifica Clase 1 para D/t ≤ 50·ε², Clase 2 ≤ 70·ε², Clase 3 ≤ 90·ε²"
-              >
-                d/t={chs_dOverT.toFixed(1)}
-              </span>
-              <div className="flex">
-                <input
-                  id="sc-chs-t"
-                  type="number"
-                  list="chs-t-list"
-                  value={state.chs_t}
-                  min={1}
-                  step={0.1}
-                  onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n) && n > 0) setField('chs_t', n); }}
-                  className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  aria-label="t (mm)"
-                />
-                <datalist id="chs-t-list">
-                  {CHS_COMMERCIAL_THICKNESSES.map((t) => <option key={t} value={t} />)}
-                </datalist>
-                <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-                  mm
-                </span>
-              </div>
-            </div>
-          </div>
-          {/* Process tiles — hot-finished (EN 10210, curve a) vs cold-formed (EN 10219, curve c) */}
-          <div role="radiogroup" aria-label="Proceso de fabricación" className="flex gap-1 mt-0.5">
-            {([
-              { v: 'hot-finished', label: 'Laminado en caliente', norm: 'EN 10210', curve: 'curva a' },
-              { v: 'cold-formed',  label: 'Conformado en frío',    norm: 'EN 10219', curve: 'curva c' },
-            ] as const).map((opt) => {
-              const active = state.chs_process === opt.v;
-              return (
-                <button
-                  key={opt.v}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  title={`${opt.norm} — ${opt.curve}`}
-                  onClick={() => setField('chs_process', opt.v as CHSProcess)}
-                  className={`flex-1 rounded border px-1.5 py-1.5 text-left transition-colors
-                    ${active
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-border-main text-text-disabled hover:text-text-secondary hover:border-accent/40'}`}
-                >
-                  <div className="text-[11px] font-medium leading-tight">{opt.label}</div>
-                  <div className="text-[9px] font-mono leading-tight opacity-80">{opt.norm} · {opt.curve}</div>
-                </button>
-              );
-            })}
-          </div>
-          {state.chs_process === 'cold-formed' && (
-            <div className="mt-1 text-[10px] text-amber-400/90 leading-snug">
-              Conformado en frío: tracción en zonas de plegado reduce capacidad plástica local.
-              EC3 asigna curva c (α=0.49) por coherencia con el proceso.
-            </div>
-          )}
         </>
       ) : (
         <SelectField

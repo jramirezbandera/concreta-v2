@@ -6,12 +6,10 @@ interface TopbarProps {
   moduleGroup: string;
   onExportPdf?: () => void;
   pdfExporting?: boolean;
-  pdfDisabled?: boolean;
-  pdfDisabledReason?: string;
   onMenuOpen?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, pdfDisabled, pdfDisabledReason, onMenuOpen }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen }: TopbarProps) {
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       showToast('Enlace copiado', { autoDismiss: 2000 });
@@ -61,9 +59,9 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, pd
         {onExportPdf && (
           <button
             onClick={onExportPdf}
-            disabled={pdfExporting || pdfDisabled}
-            title={pdfDisabled ? (pdfDisabledReason ?? 'PDF no disponible') : 'Exportar PDF'}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            disabled={pdfExporting}
+            title="Exportar PDF"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 transition-all"
             style={{
               border: '1px solid rgba(56,189,248,0.25)',
               background: 'rgba(56,189,248,0.06)',

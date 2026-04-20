@@ -96,7 +96,7 @@ export class CHSAdapter implements ColumnBeamSection {
 
     const Dstr = formatDiameter(D);
     const tag = process === 'hot-finished' ? 'EN 10210' : 'EN 10219';
-    this.label = `CHS ${Dstr}×${t} (${tag})`;
+    this.label = `Ø${Dstr}×${t} (${tag})`;
   }
 
   classify(fy: number, _mode: 'compression' | 'bending' = 'compression'): number {
