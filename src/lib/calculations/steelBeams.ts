@@ -11,6 +11,7 @@
 
 import { type SteelBeamInputs } from '../../data/defaults';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
+import { ISectionAdapter } from '../sections';
 import { BEAM_CASES } from './beamCases';
 
 // CTE DB-SE-A constants
@@ -136,29 +137,23 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   if (!profile) {
     return invalidResult('Perfil no encontrado', undefined);
   }
+  // ISectionAdapter wraps the catalog record so classification / LTB /
+  // buckling curves are the same code path used by steelColumns.
+  const section = new ISectionAdapter(profile);
 
-  // 2. Convert units: cm/cm²/cm³/cm⁴/cm⁶ → mm
+  // 2. Convert units: cm/cm²/cm³/cm⁴/cm⁶ → mm (retained for shear-area
+  //    and deflection formulas that still work in raw units).
   const A_mm    = profile.A * 100;        // cm² → mm²
   const Iy_mm   = profile.Iy * 1e4;       // cm⁴ → mm⁴
-  const Iz_mm   = profile.Iz * 1e4;       // cm⁴ → mm⁴
   const Wpl_y_mm = profile.Wpl_y * 1e3;   // cm³ → mm³
   const Wel_y_mm = profile.Wel_y * 1e3;   // cm³ → mm³
-  const It_mm   = profile.It * 1e4;       // cm⁴ → mm⁴
-  const Iw_mm   = profile.Iw * 1e6;       // cm⁶ → mm⁶
 
   // 3. Steel yield strength
   const fy = inp.steel === 'S275' ? 275 : 355;
 
-  // 4. Section classification (CTE 5.5)
-  const ε = Math.sqrt(235 / fy);
-  const c_f = (profile.b - profile.tw - 2 * profile.r) / 2;
-  const c_w = profile.h - 2 * profile.tf - 2 * profile.r;
-  const ratio_f = c_f / profile.tf;
-  const ratio_w = c_w / profile.tw;
-
-  const class_f: number = ratio_f <= 9 * ε ? 1 : ratio_f <= 10 * ε ? 2 : ratio_f <= 14 * ε ? 3 : 4;
-  const class_w: number = ratio_w <= 72 * ε ? 1 : ratio_w <= 83 * ε ? 2 : ratio_w <= 124 * ε ? 3 : 4;
-  const sectionClass = Math.max(class_f, class_w) as 1 | 2 | 3 | 4;
+  // 4. Section classification (CTE 5.5) — bending mode: outstand flange +
+  //    internal web in bending (limits 72/83/124·ε).
+  const sectionClass = Math.min(4, Math.max(1, section.classify(fy, 'bending'))) as 1 | 2 | 3 | 4;
 
   // 4b. Class 4 — not supported in v1
   if (sectionClass === 4) {
@@ -209,16 +204,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   }
   const eta_MV = Mv_Rd > 0 ? inp.MEd / Mv_Rd : Infinity;
 
-  // 9. LTB (CTE 6.3.2)
+  // 9. LTB (CTE 6.3.2) — Mcr and α_LT delegated to the section adapter.
   const C1 = BEAM_CASES[inp.beamType].C1;
-  const Mcr_Nmm =
-    C1 *
-    ((Math.PI ** 2 * E * Iz_mm) / inp.Lcr ** 2) *
-    Math.sqrt(Iw_mm / Iz_mm + (inp.Lcr ** 2 * G * It_mm) / (Math.PI ** 2 * E * Iz_mm));
-  const Mcr = Mcr_Nmm / 1e6;   // kNm
+  const Mcr = section.computeMcr(inp.Lcr, C1, E, G);  // kNm
 
   const lambda_LT = Math.sqrt((W_bend * fy) / (Mcr * 1e6));
-  const αLT = profile.h / profile.b <= 2 ? 0.34 : 0.49;
+  const αLT = section.getLTBAlpha();
   const λLT_0 = 0.4;
   const β = 0.75;
 

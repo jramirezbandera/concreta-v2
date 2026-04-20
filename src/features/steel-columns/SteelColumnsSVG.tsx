@@ -7,7 +7,7 @@
 
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
-import { getProfile, buildUPNBox } from '../../data/steelProfiles';
+import { createSection } from '../../lib/sections';
 
 interface SteelColumnsSVGProps {
   inp: SteelColumnInputs;
@@ -62,6 +62,8 @@ function ISectionShape({
 
   return (
     <g>
+      <title>{`Perfil ${profile.label}`}</title>
+      <desc>{`Sección I/H de altura ${profile.h} mm y ancho ${profile.b} mm`}</desc>
       {/* Top flange */}
       <rect x={ox} y={oy} width={sW} height={tf}
         fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />
@@ -134,6 +136,8 @@ function UPNBoxShape({
 
   return (
     <g>
+      <title>{`Perfil 2UPN ${profile.size}`}</title>
+      <desc>{`Sección cajón formada por dos UPN ${profile.size} soldadas alma contra alma`}</desc>
       {/* Left UPN web */}
       <rect x={ox} y={oy} width={tw} height={sH}
         fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />
@@ -187,6 +191,68 @@ function UPNBoxShape({
         style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
         className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}>
         2UPN {profile.size}
+      </text>
+    </g>
+  );
+}
+
+function CHSShape({
+  ox, oy, sW, sH, t,
+  D, label, C, isPdf,
+}: {
+  ox: number; oy: number; sW: number; sH: number; t: number;
+  D: number; label: string;
+  C: typeof SCREEN; isPdf: boolean;
+}) {
+  // Ring rendered as an outer circle with an inner cutout (even-odd rule via
+  // two opposite-direction arcs in one path).
+  const cx = ox + sW / 2;
+  const cy = oy + sH / 2;
+  const rOuter = Math.min(sW, sH) / 2;
+  const rInner = Math.max(0, rOuter - t);
+  const ringPath =
+    `M ${cx - rOuter} ${cy} ` +
+    `a ${rOuter} ${rOuter} 0 1 0 ${2 * rOuter} 0 ` +
+    `a ${rOuter} ${rOuter} 0 1 0 ${-2 * rOuter} 0 ` +
+    `M ${cx - rInner} ${cy} ` +
+    `a ${rInner} ${rInner} 0 1 1 ${2 * rInner} 0 ` +
+    `a ${rInner} ${rInner} 0 1 1 ${-2 * rInner} 0 Z`;
+
+  return (
+    <g>
+      <title>Sección circular hueca — tubo CHS</title>
+      <desc>{`Tubo circular hueco de diámetro exterior ${D} mm`}</desc>
+      <path d={ringPath} fill={C.sectionFill} stroke={C.sectionStroke}
+        strokeWidth={isPdf ? 1.5 : 1} fillRule="evenodd" />
+
+      {/* Horizontal diameter line with tick caps */}
+      <line x1={cx - rOuter} y1={cy} x2={cx + rOuter} y2={cy}
+        stroke={C.dim} strokeWidth={0.5} strokeDasharray="2,2" />
+
+      {/* Dim D — top */}
+      <line x1={ox} y1={oy - 10} x2={ox + sW} y2={oy - 10} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox} y1={oy - 13} x2={ox} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox + sW} y1={oy - 13} x2={ox + sW} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox + sW / 2} y={oy - 14} textAnchor="middle" fontSize={8} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
+        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+        D={D}
+      </text>
+
+      {/* t callout — from wall thickness outward */}
+      <text x={cx + rOuter + 4} y={cy - 2} textAnchor="start" dominantBaseline="middle"
+        fontSize={7} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
+        className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}>
+        t
+      </text>
+
+      {/* Label */}
+      <text x={ox + sW / 2} y={oy + sH + 14} textAnchor="middle" fontSize={9} fontWeight={600}
+        fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}>
+        {label}
       </text>
     </g>
   );
@@ -398,54 +464,63 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
   const drawLW = leftW - padL.left - padL.right;
   const drawLH = height - padL.top - padL.bottom;
 
+  // Resolve section via polymorphic factory so I / 2UPN / CHS share one path.
+  const section = createSection(
+    inp.sectionType === '2UPN'
+      ? { kind: '2UPN', size: inp.size }
+      : inp.sectionType === 'CHS'
+      ? { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.chs_process }
+      : { kind: 'I', tipo: inp.sectionType, size: inp.size },
+  );
+
   let sectionShape: React.ReactNode = null;
 
-  if (inp.sectionType === '2UPN') {
-    const box = buildUPNBox(inp.size);
-    if (box) {
-      const scaleX = drawLW / box.b;
-      const scaleY = drawLH / box.h;
-      const scale = Math.min(scaleX, scaleY) * 0.88;
-      const sW = box.b * scale;
-      const sH = box.h * scale;
-      const ox = padL.left + (drawLW - sW) / 2;
-      const oy = padL.top + (drawLH - sH) / 2;
+  if (section) {
+    const scaleX = drawLW / section.b;
+    const scaleY = drawLH / section.h;
+    const scale = Math.min(scaleX, scaleY) * 0.88;
+    const sW = section.b * scale;
+    const sH = section.h * scale;
+    const ox = padL.left + (drawLW - sW) / 2;
+    const oy = padL.top + (drawLH - sH) / 2;
 
+    if (section.kind === 'CHS') {
+      sectionShape = (
+        <CHSShape
+          ox={ox} oy={oy} sW={sW} sH={sH}
+          t={section.tf * scale}
+          D={section.h}
+          label={section.label}
+          C={C} isPdf={isPdf}
+        />
+      );
+    } else if (section.kind === '2UPN') {
       sectionShape = (
         <UPNBoxShape
           ox={ox} oy={oy} sW={sW} sH={sH}
-          tf={box.tf * scale} tw={box.tw * scale}
-          profile={box} C={C} isPdf={isPdf}
-        />
-      );
-    }
-  } else {
-    const profile = getProfile(inp.sectionType as 'HEA' | 'HEB' | 'IPE', inp.size);
-    if (profile) {
-      const scaleX = drawLW / profile.b;
-      const scaleY = drawLH / profile.h;
-      const scale = Math.min(scaleX, scaleY) * 0.88;
-      const sW = profile.b * scale;
-      const sH = profile.h * scale;
-      const ox = padL.left + (drawLW - sW) / 2;
-      const oy = padL.top + (drawLH - sH) / 2;
-
-      sectionShape = (
-        <ISectionShape
-          ox={ox} oy={oy} sW={sW} sH={sH}
-          tf={profile.tf * scale} tw={profile.tw * scale}
-          profile={profile} C={C} isPdf={isPdf}
+          tf={section.tf * scale} tw={section.tw * scale}
+          profile={{ h: section.h, b: section.b, tf: section.tf, tw: section.tw, size: inp.size }}
+          C={C} isPdf={isPdf}
         />
       );
     } else {
       sectionShape = (
-        <text x={leftW / 2} y={height / 2} textAnchor="middle" dominantBaseline="middle"
-          fontSize={11} fill={C.label}
-          className={isPdf ? undefined : 'fill-text-disabled'}>
-          Perfil no disponible
-        </text>
+        <ISectionShape
+          ox={ox} oy={oy} sW={sW} sH={sH}
+          tf={section.tf * scale} tw={section.tw * scale}
+          profile={{ h: section.h, b: section.b, tf: section.tf, tw: section.tw, label: section.label }}
+          C={C} isPdf={isPdf}
+        />
       );
     }
+  } else {
+    sectionShape = (
+      <text x={leftW / 2} y={height / 2} textAnchor="middle" dominantBaseline="middle"
+        fontSize={11} fill={C.label}
+        className={isPdf ? undefined : 'fill-text-disabled'}>
+        Perfil no disponible
+      </text>
+    );
   }
 
   // ── Right panel: column geometry ──────────────────────────────────────────

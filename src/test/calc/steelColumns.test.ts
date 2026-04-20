@@ -373,3 +373,108 @@ describe('getBetaForBCType — effective length factors', () => {
   });
 });
 
+
+// ─── Suite CHS: Circular Hollow Section acceptance ────────────────────────
+// EN 10210 (hot-finished, curve a, α=0.21) and EN 10219 (cold-formed, curve c, α=0.49)
+// Analytic ground-truth computed inline — verifies the CHS adapter end-to-end.
+describe('CHS — analytic ground-truth', () => {
+  const E = 210000;
+  const gM0 = 1.05;
+  const gM1 = 1.05;
+
+  // Derived CHS 168.3 × 8 mm props (exact from ring formulas)
+  function chsProps(D: number, t: number) {
+    const d = D - 2 * t;
+    const A = Math.PI * (D * D - d * d) / 4;            // mm²
+    const I = Math.PI * (D ** 4 - d ** 4) / 64;          // mm⁴
+    const Wpl = (D ** 3 - d ** 3) / 6;                   // mm³
+    const Wel = 2 * I / D;                                // mm³
+    const i = Math.sqrt(I / A);                          // mm
+    return { A, I, Wpl, Wel, i };
+  }
+
+  function chiBuckling(lambdaBar: number, alpha: number): number {
+    if (lambdaBar <= 0.2) return 1.0;
+    const phi = 0.5 * (1 + alpha * (lambdaBar - 0.2) + lambdaBar * lambdaBar);
+    return Math.min(1.0, 1 / (phi + Math.sqrt(phi * phi - lambdaBar * lambdaBar)));
+  }
+
+  it('Case 1: CHS 168.3×8 S275 hot-finished, L=3m pp, N=400 kN pure compression', () => {
+    const D = 168.3, t = 8, fy = 275, L = 3000;
+    const { A, i } = chsProps(D, t);
+    const NRd_theory = A * fy / gM0 / 1000;              // kN
+    const lamE = Math.PI * Math.sqrt(E / fy);            // ≈ 86.81 for S275
+    const lambdaBar = (L / i) / lamE;                    // axisymmetric
+    const chi = chiBuckling(lambdaBar, 0.21);            // curve a
+    const NbRd_theory = chi * A * fy / gM1 / 1000;       // kN
+
+    const r = calcSteelColumn(inp({
+      sectionType: 'CHS', chs_D: D, chs_t: t, chs_process: 'hot-finished',
+      steel: 'S275', Ly: L, Lz: L, bcType: 'pp', beta_y: 1.0, beta_z: 1.0,
+      Ned: 400, My_Ed: 0, Mz_Ed: 0,
+    }));
+
+    expect(r.valid).toBe(true);
+    expect(r.sectionClass).toBeLessThanOrEqual(3);
+    expect(r.NRd).toBeCloseTo(NRd_theory, 3);
+    expect(r.lambda_y).toBeCloseTo(lambdaBar, 6);
+    expect(r.lambda_z).toBeCloseTo(lambdaBar, 6);    // Iy=Iz
+    expect(r.chi_y).toBeCloseTo(chi, 6);
+    expect(r.chi_z).toBeCloseTo(chi, 6);
+    expect(r.Nb_Rd_y).toBeCloseTo(NbRd_theory, 3);
+    expect(r.Nb_Rd_z).toBeCloseTo(NbRd_theory, 3);
+    expect(r.chi_LT).toBe(1.0);                      // closed → LTB not governing
+    expect(r.Mcr).toBe(0);                           // Infinity normalized to 0 at output boundary
+    expect(r.checks.some(c => c.id === 'LTB')).toBe(false); // no LTB row for CHS
+  });
+
+  it('Case 2: CHS 168.3×8 S275 cold-formed → curve c (lower χ than hot-finished)', () => {
+    const common = {
+      sectionType: 'CHS' as const, chs_D: 168.3, chs_t: 8,
+      steel: 'S275' as const, Ly: 3000, Lz: 3000,
+      bcType: 'pp' as const, beta_y: 1.0, beta_z: 1.0,
+      Ned: 400, My_Ed: 0, Mz_Ed: 0,
+    };
+    const rHot  = calcSteelColumn(inp({ ...common, chs_process: 'hot-finished' }));
+    const rCold = calcSteelColumn(inp({ ...common, chs_process: 'cold-formed'  }));
+
+    expect(rHot.valid).toBe(true);
+    expect(rCold.valid).toBe(true);
+    expect(rCold.chi_y).toBeLessThan(rHot.chi_y);                    // curve c < curve a
+    expect(rCold.Nb_Rd_y).toBeLessThan(rHot.Nb_Rd_y);
+
+    // Verify both values analytically with exact α
+    const { A, I } = chsProps(168.3, 8);
+    const i = Math.sqrt(I / A);
+    const lamE = Math.PI * Math.sqrt(E / 275);
+    const lambdaBar = (3000 / i) / lamE;
+    expect(rHot.chi_y ).toBeCloseTo(chiBuckling(lambdaBar, 0.21), 6);
+    expect(rCold.chi_y).toBeCloseTo(chiBuckling(lambdaBar, 0.49), 6);
+  });
+
+  it('Case 3: CHS 168.3×8 biaxial My+Mz collapses to M_res = √(My²+Mz²)', () => {
+    const My = 30, Mz = 40;  // kNm — pythagorean triple → M_res = 50
+    const r = calcSteelColumn(inp({
+      sectionType: 'CHS', chs_D: 168.3, chs_t: 8, chs_process: 'hot-finished',
+      steel: 'S275', Ly: 3000, Lz: 3000, bcType: 'pp', beta_y: 1.0, beta_z: 1.0,
+      Ned: 100, My_Ed: My, Mz_Ed: Mz,
+    }));
+    expect(r.valid).toBe(true);
+    expect(r.kind).toBe('CHS');
+    expect(r.M_res).toBeDefined();
+    expect(r.M_res!).toBeCloseTo(Math.sqrt(My*My + Mz*Mz), 6);  // = 50 exactly
+    expect(r.M_res!).toBeCloseTo(50, 6);
+
+    // Axisymmetric My_Rd = Mz_Rd (same Wpl_y = Wpl_z)
+    expect(r.My_Rd).toBeCloseTo(r.Mz_Rd, 6);
+
+    // Ground-truth M_Rd: for CHS Class ≤ 2, M_Rd = Wpl·fy/γM0
+    const { Wpl } = chsProps(168.3, 8);
+    const MRd_theory = Wpl * 275 / gM0 / 1e6;  // kNm
+    expect(r.My_Rd).toBeCloseTo(MRd_theory, 3);
+
+    // Single resultant check row present, no LTB for CHS
+    expect(r.checks.some(c => c.id === 'MRes')).toBe(true);
+    expect(r.checks.some(c => c.id === 'LTB')).toBe(false);
+  });
+});

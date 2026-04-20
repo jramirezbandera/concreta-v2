@@ -3,7 +3,7 @@
 // All internal calculations in mm and mm⁴. Display in cm⁴, cm³, kNm.
 
 import { type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
-import { getProfile } from '../../data/steelProfiles';
+import { makeISectionBySize } from '../sections';
 import { type CheckRow } from './types';
 
 const FY_MAP: Record<string, number> = {
@@ -230,9 +230,14 @@ function webLimitsShifted(α: number, ψ: number, eps: number): { c1: number; c2
 
 export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSectionResult {
   const fy = FY_MAP[inp.grade] ?? 275;
-  const profile = inp.mode === 'reinforced'
-    ? getProfile(inp.profileType, inp.profileSize)
+  const section = inp.mode === 'reinforced'
+    ? makeISectionBySize(inp.profileType, inp.profileSize)
     : undefined;
+  // `.profile` = the underlying SteelProfile record; kept for direct field
+  // access (h, b, tf, tw, r, A, Iy, label). SectionGeometry exposes the
+  // same fields but this module reads them so many times that aliasing
+  // keeps the diff small.
+  const profile = section?.profile;
 
   if (inp.mode === 'reinforced' && !profile) {
     return invalid(`Perfil ${inp.profileType} ${inp.profileSize} no encontrado`);

@@ -1,9 +1,14 @@
-import React, { useEffect } from 'react';
-import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
+import { useEffect } from 'react';
+import { type SteelColumnInputs, type ColumnBCType, type CHSProcess } from '../../data/defaults';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
+import {
+  CHS_COMMERCIAL_DIAMETERS,
+  CHS_COMMERCIAL_THICKNESSES,
+} from '../../lib/sections';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { IconGridSelector, type IconGridOption } from '../../components/ui/IconGridSelector';
 
 interface SteelColumnsInputsProps {
   state: SteelColumnInputs;
@@ -78,12 +83,12 @@ function SvgCustom() {
   );
 }
 
-const BC_OPTIONS: Array<{ type: ColumnBCType; label: string; Svg: () => React.ReactElement; tooltip: string }> = [
-  { type: 'pp',     label: 'Art-Art',   Svg: SvgPP,     tooltip: 'Articulado–Articulado  β=1.0' },
-  { type: 'pf',     label: 'Art-Emp',   Svg: SvgPF,     tooltip: 'Articulado–Empotrado  β=0.7' },
-  { type: 'ff',     label: 'Emp-Emp',   Svg: SvgFF,     tooltip: 'Empotrado–Empotrado  β=0.5' },
-  { type: 'fc',     label: 'Ménsula',   Svg: SvgFC,     tooltip: 'Empotrado–Libre  β=2.0' },
-  { type: 'custom', label: 'β lib.',    Svg: SvgCustom, tooltip: 'Coeficientes personalizados' },
+const BC_OPTIONS: ReadonlyArray<IconGridOption<ColumnBCType>> = [
+  { value: 'pp',     label: 'Art-Art',   Icon: SvgPP,     tooltip: 'Articulado–Articulado  β=1.0' },
+  { value: 'pf',     label: 'Art-Emp',   Icon: SvgPF,     tooltip: 'Articulado–Empotrado  β=0.7' },
+  { value: 'ff',     label: 'Emp-Emp',   Icon: SvgFF,     tooltip: 'Empotrado–Empotrado  β=0.5' },
+  { value: 'fc',     label: 'Ménsula',   Icon: SvgFC,     tooltip: 'Empotrado–Libre  β=2.0' },
+  { value: 'custom', label: 'β lib.',    Icon: SvgCustom, tooltip: 'Coeficientes personalizados' },
 ];
 
 // ── Shared field components ───────────────────────────────────────────────────
@@ -165,46 +170,6 @@ function SelectField({
   );
 }
 
-function BCSelector({
-  active, onSelect, groupLabel,
-}: {
-  active: ColumnBCType;
-  onSelect: (bc: ColumnBCType) => void;
-  groupLabel: string;
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={groupLabel}
-      className="flex rounded border border-border-main overflow-hidden mb-1"
-    >
-      {BC_OPTIONS.map(({ type, label, Svg, tooltip }) => {
-        const isActive = active === type;
-        return (
-          <button
-            key={type}
-            type="button"
-            aria-pressed={isActive}
-            aria-label={tooltip}
-            title={tooltip}
-            onClick={() => onSelect(type)}
-            onKeyDown={(e) => {
-              const idx = BC_OPTIONS.findIndex((o) => o.type === type);
-              if (e.key === 'ArrowRight') onSelect(BC_OPTIONS[(idx + 1) % BC_OPTIONS.length].type);
-              else if (e.key === 'ArrowLeft') onSelect(BC_OPTIONS[(idx - 1 + BC_OPTIONS.length) % BC_OPTIONS.length].type);
-            }}
-            className={`flex-1 flex flex-col items-center gap-1 py-2 px-0 min-h-11 transition-colors
-              ${isActive ? 'bg-accent/10 text-accent' : 'text-text-disabled hover:text-text-secondary'}`}
-          >
-            <Svg />
-            <span className="text-[10px] font-mono leading-none">{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /** Read-only beta display row (auto mode) */
 function BetaAutoRow({ label, value }: { label: string; value: number }) {
   return (
@@ -222,11 +187,16 @@ function BetaAutoRow({ label, value }: { label: string; value: number }) {
 
 export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps) {
   const isBox = state.sectionType === '2UPN';
-  const availableSizes = isBox ? getSizesUPN() : getSizesForTipo(state.sectionType as 'HEA' | 'HEB' | 'IPE');
+  const isCHS = state.sectionType === 'CHS';
+  const availableSizes = isCHS
+    ? []
+    : isBox
+    ? getSizesUPN()
+    : getSizesForTipo(state.sectionType as 'HEA' | 'HEB' | 'IPE');
 
   // When sectionType changes, snap size to first available if current is invalid
   useEffect(() => {
-    if (!availableSizes.includes(state.size)) {
+    if (!isCHS && !availableSizes.includes(state.size)) {
       setField('size', availableSizes[0] ?? 160);
     }
   }, [state.sectionType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -248,6 +218,11 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
     ? availableSizes.map((s) => ({ value: s, label: `2UPN ${s}` }))
     : availableSizes.map((s) => ({ value: s, label: `${state.sectionType} ${s}` }));
 
+  // d/t badge — CHS slenderness ratio. EC3 Class 3 limit is 90·ε² → for S275 ≈ 76.9.
+  // Informational only; the actual classification runs in the calc layer and is
+  // surfaced via the "Clasificación CLASE X" check row.
+  const chs_dOverT = isCHS && state.chs_t > 0 ? state.chs_D / state.chs_t : 0;
+
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Pilar de acero">
 
@@ -257,16 +232,111 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
         labelKey="profile_type"
         id="sc-sectionType"
         value={state.sectionType}
-        options={(['HEA', 'HEB', 'IPE', '2UPN'] as const).map((t) => ({ value: t, label: t }))}
+        options={(['HEA', 'HEB', 'IPE', '2UPN', 'CHS'] as const).map((t) => ({ value: t, label: t }))}
         onChange={(v) => setField('sectionType', v)}
       />
-      <SelectField
-        labelKey="profile_size"
-        id="sc-size"
-        value={state.size}
-        options={sizeOptions}
-        onChange={(v) => setField('size', v)}
-      />
+      {isCHS ? (
+        <>
+          {/* Diameter with commercial-sizes datalist */}
+          <div className="flex items-center justify-between py-0.75 gap-2">
+            <label htmlFor="sc-chs-D" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+              D<span className="text-[11px] text-text-disabled ml-1">diámetro exterior</span>
+            </label>
+            <div className="flex shrink-0">
+              <input
+                id="sc-chs-D"
+                type="number"
+                list="chs-D-list"
+                value={state.chs_D}
+                min={20}
+                step={1}
+                onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n) && n > 0) setField('chs_D', n); }}
+                className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                aria-label="D (mm)"
+              />
+              <datalist id="chs-D-list">
+                {CHS_COMMERCIAL_DIAMETERS.map((d) => <option key={d} value={d} />)}
+              </datalist>
+              <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+                mm
+              </span>
+            </div>
+          </div>
+          {/* Wall thickness with datalist + d/t badge */}
+          <div className="flex items-center justify-between py-0.75 gap-2">
+            <label htmlFor="sc-chs-t" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+              t<span className="text-[11px] text-text-disabled ml-1">espesor pared</span>
+            </label>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className="bg-bg-elevated text-text-disabled font-mono text-[10px] px-1 py-0.5 rounded"
+                title="Esbeltez D/t — EC3 clasifica Clase 1 para D/t ≤ 50·ε², Clase 2 ≤ 70·ε², Clase 3 ≤ 90·ε²"
+              >
+                d/t={chs_dOverT.toFixed(1)}
+              </span>
+              <div className="flex">
+                <input
+                  id="sc-chs-t"
+                  type="number"
+                  list="chs-t-list"
+                  value={state.chs_t}
+                  min={1}
+                  step={0.1}
+                  onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n) && n > 0) setField('chs_t', n); }}
+                  className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  aria-label="t (mm)"
+                />
+                <datalist id="chs-t-list">
+                  {CHS_COMMERCIAL_THICKNESSES.map((t) => <option key={t} value={t} />)}
+                </datalist>
+                <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+                  mm
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* Process tiles — hot-finished (EN 10210, curve a) vs cold-formed (EN 10219, curve c) */}
+          <div role="radiogroup" aria-label="Proceso de fabricación" className="flex gap-1 mt-0.5">
+            {([
+              { v: 'hot-finished', label: 'Laminado en caliente', norm: 'EN 10210', curve: 'curva a' },
+              { v: 'cold-formed',  label: 'Conformado en frío',    norm: 'EN 10219', curve: 'curva c' },
+            ] as const).map((opt) => {
+              const active = state.chs_process === opt.v;
+              return (
+                <button
+                  key={opt.v}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  title={`${opt.norm} — ${opt.curve}`}
+                  onClick={() => setField('chs_process', opt.v as CHSProcess)}
+                  className={`flex-1 rounded border px-1.5 py-1.5 text-left transition-colors
+                    ${active
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border-main text-text-disabled hover:text-text-secondary hover:border-accent/40'}`}
+                >
+                  <div className="text-[11px] font-medium leading-tight">{opt.label}</div>
+                  <div className="text-[9px] font-mono leading-tight opacity-80">{opt.norm} · {opt.curve}</div>
+                </button>
+              );
+            })}
+          </div>
+          {state.chs_process === 'cold-formed' && (
+            <div className="mt-1 text-[10px] text-amber-400/90 leading-snug">
+              Conformado en frío: tracción en zonas de plegado reduce capacidad plástica local.
+              EC3 asigna curva c (α=0.49) por coherencia con el proceso.
+            </div>
+          )}
+        </>
+      ) : (
+        <SelectField
+          labelKey="profile_size"
+          id="sc-size"
+          value={state.size}
+          options={sizeOptions}
+          onChange={(v) => setField('size', v)}
+        />
+      )}
       <SelectField
         labelKey="steel_grade"
         id="sc-steel"
@@ -333,7 +403,8 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
 
       {/* BC selector — shared for both axes */}
       <div className="mt-2">
-        <BCSelector
+        <IconGridSelector
+          options={BC_OPTIONS}
           active={state.bcType}
           onSelect={handleBCType}
           groupLabel="Condición de apoyo"

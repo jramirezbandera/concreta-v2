@@ -179,13 +179,21 @@ export const steelBeamDefaults: SteelBeamInputs = {
 };
 
 export type ColumnBCType = 'ff' | 'pp' | 'pf' | 'fc' | 'custom';
-export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN';
+export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN' | 'CHS';
+export type CHSProcess = 'hot-finished' | 'cold-formed';
 
 export interface SteelColumnInputs {
   [key: string]: string | number | boolean;
   sectionType: SteelColumnSectionType;
+  /** Size key — mm for HEA/HEB/IPE/2UPN. Ignored when sectionType='CHS'. */
   size: number;
   steel: 'S275' | 'S355';
+  /** CHS only — outer diameter (mm). */
+  chs_D: number;
+  /** CHS only — wall thickness (mm). */
+  chs_t: number;
+  /** CHS only — EN 10210 hot-finished (curve a) vs EN 10219 cold-formed (curve c). */
+  chs_process: CHSProcess;
   // Geometry — independent unbraced lengths per axis
   Ly: number;      // unbraced length y-y (strong axis) in mm
   Lz: number;      // unbraced length z-z (weak axis) in mm
@@ -204,6 +212,9 @@ export const steelColumnDefaults: SteelColumnInputs = {
   sectionType: 'HEB',
   size: 200,
   steel: 'S275',
+  chs_D: 168.3,
+  chs_t: 8,
+  chs_process: 'hot-finished',
   Ly: 3500,
   Lz: 3500,
   bcType: 'pp',

@@ -1,6 +1,6 @@
 import type { AnchorPlateInputs } from '../../data/defaults';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
-import { getProfile } from '../../data/steelProfiles';
+import { makeISectionBySize } from '../../lib/sections';
 
 interface Props {
   inp: AnchorPlateInputs;
@@ -53,7 +53,7 @@ const COLORS = {
 
 export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
   const C = COLORS[mode];
-  const profile = getProfile(inp.sectionType, inp.sectionSize);
+  const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
 
   // Dual-panel layout: planta (top) + alzado (bottom).
   const panelGap = 12;

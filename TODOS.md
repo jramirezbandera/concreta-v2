@@ -45,6 +45,8 @@ Pilares de madera (EC5): DONE (2026-04-10) — 80 tests: input validation (Nd/Vd
 Zapatas aisladas: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 Encepados de pilotes: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 
+Sección circular CHS (tubos) en Pilares de acero: DONE (2026-04-20) — polymorphic section adapter (`SectionGeometry` + `ColumnBeamSection`), CHS hot-finished (EN 10210 curva a) + cold-formed (EN 10219 curva c), biaxial collapse via M_res = √(My²+Mz²), closed-section LTB short-circuit (Mcr → ∞ → χ_LT = 1), Class 4 "SIN SOLUCIÓN" verdict + disabled PDF, results grouping by EC3 §, 3 CHS acceptance tests. See `src/lib/sections/chs.ts` + 3 tests in `src/test/calc/steelColumns.test.ts`. Refactored all 5 callers (steelColumns, steelBeams, compositeSection, anchorPlate, SteelColumnsSVG).
+
 Placas de anclaje (anchor-plate, eng-review + design-review 2026-04-19): PR-1 scaffold + PR-2 full planned. **BLOCKS PR-2 merge:**
 - Run 3 CYPE oracle cases (HEB-200 NEd=200/Mx=45/My=10, HEA-160 axis-aligned, IPE-300 biaxial-fuerte) — record 10-check numbers into `src/test/calc/anchorPlate.test.ts`.
 - Resolve 4 Cross-Model Findings: `pedestal_cX/cY` mapping (T-stub α vs cone Ac,N), µ per EN 1992-4 §6.2.2 (0.2 smooth / 0.4 roughened, use Nc,G not Nc), compression block model (§6.2.5 T-stub effective area vs plastic uniform block — pick one and document), stiffener check (weld+bearing vs remove the h/t limit). See design doc `Javier-forjados-design-20260419-220944.md` section "Cross-Model Findings".
@@ -75,9 +77,7 @@ Update SPECS.md to reflect this decision before public launch.
 
 ### Refactor: extract IconGridSelector<T> shared component (eng-review 2026-04-19)
 
-`src/features/steel-columns/SteelColumnsInputs.tsx:168` has a local `BCSelector` icon-grid component (radio-button grid with SVG icons, keyboard arrow navigation, `aria-pressed`). Anchor-plate PR-2 needs the same pattern for `bolt_nLayout` (4/6/8/9) and `rib_count` (0/2/4). Extract to `src/components/ui/IconGridSelector<T>` as a standalone refactor PR before anchor-plate PR-2. Generic on option value type. Snapshot-test against current steel-columns render to catch regression.
-
-**Why P2:** unblocks anchor-plate PR-2 but doesn't gate any shipped module today. Safe standalone worktree.
+**Status:** DONE (2026-04-20, bundled with CHS ship) — extracted to `src/components/ui/IconGridSelector.tsx`, generic on option value type. Steel-columns BC selector now consumes it; anchor-plate PR-2 can reuse for `bolt_nLayout` (4/6/8/9) and `rib_count` (0/2/4).
 
 ### Landing: trust signals — testimonials strip (CEO review 2026-04-10)
 

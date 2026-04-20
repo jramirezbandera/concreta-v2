@@ -14,7 +14,7 @@
 // Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γMp=1.4.
 
 import type { AnchorPlateInputs } from '../../data/defaults';
-import { getProfile } from '../../data/steelProfiles';
+import { makeISectionBySize } from '../sections';
 import {
   REBAR_AREAS,
   REBAR_GRADES,
@@ -411,8 +411,12 @@ export function tStubEffectiveArea(
   fjd_MPa: number,
   twoFlanges: boolean,
 ): { A_eff: number; c: number } {
-  const p = getProfile(inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN', inp.sectionSize);
-  if (!p) return { A_eff: inp.plate_a * inp.plate_b, c: 0 };
+  const section = makeISectionBySize(
+    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
+    inp.sectionSize,
+  );
+  if (!section) return { A_eff: inp.plate_a * inp.plate_b, c: 0 };
+  const p = section;
 
   const fyp = PLATE_FY[inp.plate_steel];
   const c_raw = inp.plate_t * Math.sqrt(fyp / (3 * Math.max(fjd_MPa, 1e-6) * 1.0));
@@ -466,7 +470,10 @@ export function checkPlateCompression(
 // Tomamos el peor (max) de los dos voladizos efectivos por tratarse del
 // panel plástico más crítico.
 export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): CheckRow {
-  const p = getProfile(inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN', inp.sectionSize);
+  const p = makeISectionBySize(
+    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
+    inp.sectionSize,
+  );
   const bf = p?.b ?? inp.plate_b * 0.6;
   const hc = p?.h ?? inp.plate_a * 0.6;
 

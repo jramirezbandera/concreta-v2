@@ -99,11 +99,23 @@ function CheckRowItem({ check, muted }: { check: SteelCheckRow; muted?: boolean 
   return <ActiveCheckRow check={check} muted={muted} />;
 }
 
-function GroupHeader({ label }: { label: string }) {
+function GroupHeader({ label, code, subtitle }: { label: string; code?: string; subtitle?: string }) {
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-1">
-      {label}
-    </p>
+    <div className="pt-2.25 pb-1.75 border-b border-border-sub mb-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-disabled">
+          {label}
+        </span>
+        {code && (
+          <span className="text-[9px] font-mono text-text-disabled tracking-tight whitespace-nowrap">
+            {code}
+          </span>
+        )}
+      </div>
+      {subtitle && (
+        <p className="text-[10px] font-mono text-text-secondary mt-0.5 leading-snug">{subtitle}</p>
+      )}
+    </div>
   );
 }
 
@@ -129,8 +141,21 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
   // Invalid result (class 4 or unknown profile)
   if (!result.valid) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-3 rounded border border-state-fail/30 bg-state-fail/5 px-3 py-3">
+      <div className="flex flex-col">
+        {/* Verdict header — SIN SOLUCIÓN */}
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+            Resultados calculados
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] bg-state-fail/10 text-state-fail"
+            role="status"
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden="true" />
+            SIN SOLUCIÓN
+          </span>
+        </div>
+        <div className="flex items-start gap-3 rounded border border-state-fail/30 bg-state-fail/5 px-3 py-3 mb-3">
           <AlertTriangle size={16} className="text-state-fail mt-0.5 shrink-0" />
           <div>
             <p className="text-[12px] text-state-fail font-semibold mb-0.5">
@@ -138,6 +163,9 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
             </p>
             <p className="text-[11px] text-text-secondary">
               {result.error ?? 'Las secciones clase 4 (esbeltez elevada) no están implementadas en v1. Elija un perfil más robusto.'}
+            </p>
+            <p className="text-[10px] text-text-disabled mt-1.5">
+              Exportación a PDF deshabilitada.
             </p>
           </div>
         </div>
@@ -151,14 +179,19 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
   }
 
   const status = overallStatus(result.checks);
-  const hasLTB = !result.isBox && result.Mcr > 0;
+  const hasLTB = !result.isBox && result.kind !== 'CHS' && isFinite(result.Mcr) && result.Mcr > 0;
 
   const sectionChecks  = result.checks.filter((c) => c.id === 'class');
-  const resistChecks   = result.checks.filter((c) => ['NRd', 'MyRd', 'MzRd'].includes(c.id));
+  const resistChecks   = result.checks.filter((c) => ['NRd', 'MyRd', 'MzRd', 'MRes'].includes(c.id));
   const bucklingChecks = result.checks.filter((c) => ['Nby', 'Nbz'].includes(c.id));
   const ltbChecks      = result.checks.filter((c) => c.id === 'LTB');
   const intChecks      = result.checks.filter((c) => ['int1', 'int2'].includes(c.id));
   const slendChecks    = result.checks.filter((c) => ['sy', 'sz'].includes(c.id));
+
+  const isCHS = result.kind === 'CHS';
+  const resistSubtitle = isCHS && result.M_res !== undefined && result.M_res > 0
+    ? `CHS axisimétrico — M_res = √(My² + Mz²) = ${result.M_res.toFixed(1)} kNm`
+    : undefined;
 
   return (
     <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(status)}>
@@ -198,31 +231,31 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
       )}
 
       {/* Section classification */}
-      <GroupHeader label="Sección" />
+      <GroupHeader label="Sección" code="EC3 §5.5" />
       {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Resistencias sección */}
-      <GroupHeader label="Resistencia sección" />
+      <GroupHeader label="Resistencia sección" code="EC3 §6.2.5" subtitle={resistSubtitle} />
       {resistChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Pandeo */}
-      <GroupHeader label="Pandeo (ELU)" />
+      <GroupHeader label="Pandeo (ELU)" code="EC3 §6.3.1" />
       {bucklingChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* LTB — only when applicable */}
       {hasLTB && (
         <>
-          <GroupHeader label="Pandeo lateral (LTB)" />
+          <GroupHeader label="Pandeo lateral (LTB)" code="EC3 §6.3.2" />
           {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
         </>
       )}
 
       {/* Interacción */}
-      <GroupHeader label="Interacción N+M" />
+      <GroupHeader label="Interacción N+M" code="EC3 §6.3.3" />
       {intChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Esbeltez */}
-      <GroupHeader label="Esbeltez" />
+      <GroupHeader label="Esbeltez" code="EAE §35.2.1" />
       {slendChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
     </div>
   );

@@ -70,6 +70,12 @@ export function SteelColumnsModule() {
         moduleGroup="Acero"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
+        pdfDisabled={!result.valid}
+        pdfDisabledReason={
+          result.sectionClass === 4
+            ? 'Sección clase 4 — sin solución en v1'
+            : 'Datos de entrada no válidos'
+        }
         onMenuOpen={openDrawer}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
