@@ -45,6 +45,12 @@ Pilares de madera (EC5): DONE (2026-04-10) — 80 tests: input validation (Nd/Vd
 Zapatas aisladas: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 Encepados de pilotes: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 
+Placas de anclaje (anchor-plate, eng-review + design-review 2026-04-19): PR-1 scaffold + PR-2 full planned. **BLOCKS PR-2 merge:**
+- Run 3 CYPE oracle cases (HEB-200 NEd=200/Mx=45/My=10, HEA-160 axis-aligned, IPE-300 biaxial-fuerte) — record 10-check numbers into `src/test/calc/anchorPlate.test.ts`.
+- Resolve 4 Cross-Model Findings: `pedestal_cX/cY` mapping (T-stub α vs cone Ac,N), µ per EN 1992-4 §6.2.2 (0.2 smooth / 0.4 roughened, use Nc,G not Nc), compression block model (§6.2.5 T-stub effective area vs plastic uniform block — pick one and document), stiffener check (weld+bearing vs remove the h/t limit). See design doc `Javier-forjados-design-20260419-220944.md` section "Cross-Model Findings".
+- Resolve 5 CRITICAL design findings (D1–D5): results grouping (4 GroupHeader sub-bands: Placa/Pernos/Anclaje-hormigón/Rigidizadores), amber `converged:false` badge (copy `· APROX (grid)` + tooltip + PDF footer), `validateAnchorPlate()` warnings channel (field-level inline + global amber strip, not toast), solver total-failure state (`· SIN SOLUCIÓN` verdict + disabled PDF), responsive collapse <1024px (SVG sticky → Results → Inputs). See design doc "Design Review Findings" section.
+- Resolve 11 IMPORTANT design findings (D6–D16): per-bolt sub-panel promotion to own CollapsibleSection, input section reorder (Perfil→Acciones→Placa→Pernos→Rigidizadores→Pedestal), pre-fill Assignment case defaults, loading state (last-valid SVG + disabled rows, no spinner), 5-second alzado tell (column silhouette + bolts down), icon-grid glyph style (schematic stroke only), compression hatching not "sombra", keyboard nav on icon-grids (radiogroup + arrows), ambient verdict aggregation rule (worst-of-10), design tokens subsection explicit, PDF per-bolt overflow >6 bolts (page 2 with alzado header repeat).
+
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
 
 ### SPECS.md known deviations — update before launch
@@ -66,6 +72,12 @@ Update SPECS.md to reflect this decision before public launch.
 ---
 
 ## P2 — Post-launch, pre-growth
+
+### Refactor: extract IconGridSelector<T> shared component (eng-review 2026-04-19)
+
+`src/features/steel-columns/SteelColumnsInputs.tsx:168` has a local `BCSelector` icon-grid component (radio-button grid with SVG icons, keyboard arrow navigation, `aria-pressed`). Anchor-plate PR-2 needs the same pattern for `bolt_nLayout` (4/6/8/9) and `rib_count` (0/2/4). Extract to `src/components/ui/IconGridSelector<T>` as a standalone refactor PR before anchor-plate PR-2. Generic on option value type. Snapshot-test against current steel-columns render to catch regression.
+
+**Why P2:** unblocks anchor-plate PR-2 but doesn't gate any shipped module today. Safe standalone worktree.
 
 ### Landing: trust signals — testimonials strip (CEO review 2026-04-10)
 
@@ -149,6 +161,9 @@ Priority: P3 — implement after talking to first users. They'll tell you what f
 - [x] `@media print` CSS rule for browser Ctrl+P — DONE (added to src/index.css 2026-03-27)
 - [ ] Content-Security-Policy headers via `vercel.json`
 - [ ] Color contrast audit — `accent` (#38bdf8) on `bg-primary` (#0f172a) at 11-12px font-mono. Check WCAG AA for small text (4.5:1 required). The ratio is ~4.9:1 so likely passes but worth confirming with a tool before public launch.
+- [ ] SVG a11y: add `<title>` and `<desc>` tags to all module diagrams (M/V/δ, I-section, punzonamiento perimeter, zapata plan, etc.). Currently screen readers get nothing from the SVG canvas. Pan-module pass after the diagram legibility work lands. Est ~15 min CC per module × 13 modules.
+- [ ] PDF font embedding QA: after the diagram legibility fix (steel-beams design doc 2026-04-19) lands, run a PDF export and verify Geist Sans/Mono actually render in the exported PDF. svg2pdf + jsPDF silently fall back to Helvetica if the font isn't registered via `doc.addFont()`. If fallback is observed, either register Geist explicitly or switch the PDF `fontFamily` to `ui-monospace, monospace` (grayscale mode already uses #333/#555/#888 so the visual impact is small). ~10 min QA.
+- [ ] `ff` sagging label ratio (design doc 2026-04-19): the hard-coded 0.5 ratio for `ff` midspan sagging is exact for a uniformly distributed load and approximate otherwise. Today `calcSteelBeam` only supports UDL. If point loads or triangular loads are ever added to the steel-beams module (or any other beam module uses the same diagram pattern), replace `MEd × 0.5` with a value derived from the actual load case. Cheap to fix at the source when it arrives.
 
 ### rcBeams: report As_req alongside bending check
 

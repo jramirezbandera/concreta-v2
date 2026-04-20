@@ -42,6 +42,17 @@ function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number
           <path d="M4 3v10M12 3v10M4 8h8"/>
         </svg>
       );
+    // Anchor plate: rectangular base plate (plan view) with 4 anchor bolts at corners
+    case 'concreta-anchor-plate':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true" className="shrink-0">
+          <rect x="2" y="3" width="12" height="10" rx="0.5"/>
+          <circle cx="4.5" cy="5.5" r="0.9" fill="currentColor" stroke="none"/>
+          <circle cx="11.5" cy="5.5" r="0.9" fill="currentColor" stroke="none"/>
+          <circle cx="4.5" cy="10.5" r="0.9" fill="currentColor" stroke="none"/>
+          <circle cx="11.5" cy="10.5" r="0.9" fill="currentColor" stroke="none"/>
+        </svg>
+      );
     // Timber beam: rectangle with curved grain lines
     case 'concreta-timber-beams':
       return (
@@ -95,6 +106,14 @@ function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true" className="shrink-0">
           <path d="M2 11h12M4 11V7h8v4M7 7V2h2v5"/>
+        </svg>
+      );
+    // Forjado: plan view of a waffle/coffered slab (3×3 grid of cassettes)
+    case 'concreta-forjados':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true" className="shrink-0">
+          <rect x="2" y="2" width="12" height="12"/>
+          <path d="M6 2v12M10 2v12M2 6h12M2 10h12"/>
         </svg>
       );
     // Empresillado: two parallel chords with horizontal battens

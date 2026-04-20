@@ -582,6 +582,108 @@ export interface TimberColumnInputs {
   etaFi: number;            // fire load reduction factor (0–1); used only when fireResistance !== 'R0'
 }
 
+// ── Forjados (reticular + losa maciza) — CE art. 21, 42, 44 ──────────────────
+
+export type ForjadosVariant = 'reticular' | 'maciza';
+export type ForjadosTipologia = '25+5' | '30+5' | '35+5' | '40+5' | '35+10' | 'custom';
+export type ForjadosTipoVano = 'biapoyado' | 'continuo-extremo' | 'continuo-interior' | 'voladizo';
+
+export interface ForjadosInputs {
+  [key: string]: string | number | boolean;
+  variant: ForjadosVariant;
+
+  // Geometría compartida
+  h:       number;  // canto total (mm)
+  cover:   number;  // recubrimiento mecánico (mm)
+
+  // Materiales
+  fck:           number;
+  fyk:           number;
+  exposureClass: string;  // XC1..XC4
+
+  // Reticular — tipología + geometría T
+  tipologia:  ForjadosTipologia;
+  hFlange:    number;         // espesor capa de compresión (mm)
+  bWeb:       number;         // ancho nervio (mm)
+  intereje:   number;         // separación entre nervios (mm)
+  spanLength: number;         // luz L (mm) — usada para b_eff
+  tipoVano:   ForjadosTipoVano;
+
+  // Armado base reticular — compartido vano/apoyo (montaje continuo del nervio)
+  base_sup_nBars:  number;  base_sup_barDiam:  number;
+  base_inf_nBars:  number;  base_inf_barDiam:  number;
+  // Refuerzos zonales reticular — adicionales a la base
+  refuerzo_vano_inf_nBars:   number;  refuerzo_vano_inf_barDiam:   number;  // extra en vano (M+)
+  refuerzo_apoyo_sup_nBars:  number;  refuerzo_apoyo_sup_barDiam:  number;  // extra en apoyo (M-)
+
+  // Parrilla base maciza — uniforme en toda la losa
+  base_sup_phi_mac: number;  base_sup_s_mac: number;
+  base_inf_phi_mac: number;  base_inf_s_mac: number;
+  // Refuerzos zonales maciza — parrillas extra superpuestas
+  refuerzo_vano_inf_phi_mac:   number;  refuerzo_vano_inf_s_mac:   number;
+  refuerzo_apoyo_sup_phi_mac:  number;  refuerzo_apoyo_sup_s_mac:  number;
+
+  // Cortante — toggle + configuración por sección
+  stirrupsEnabled:       boolean;
+  vano_stirrupDiam:      number;  vano_stirrupSpacing:  number;  vano_stirrupLegs:  number;
+  apoyo_stirrupDiam:     number;  apoyo_stirrupSpacing: number;  apoyo_stirrupLegs: number;
+
+  // Esfuerzos de cálculo
+  vano_Md:   number;  // kNm (M+ vano)
+  apoyo_Md:  number;  // kNm (|M-| apoyo)
+  VEd:       number;  // kN (cortante único)
+  // SLS (for fisuración when exposureClass !== XC1)
+  vano_M_G:  number;  vano_M_Q:  number;
+  apoyo_M_G: number;  apoyo_M_Q: number;
+  loadType:  string;   // 'residential'|'office'|'parking'|'roof'|'custom'
+  psi2Custom: number;
+}
+
+// FTUX defaults: reticular 30+5, 2Ø16 vano inf, Md+=35 kNm, M-=25 kNm, VEd=30 kN.
+// Produces CUMPLE at ~60-75% util on first open.
+export const forjadosDefaults: ForjadosInputs = {
+  variant: 'reticular',
+
+  h:       350,
+  cover:   30,
+
+  fck:           25,
+  fyk:           500,
+  exposureClass: 'XC1',
+
+  tipologia:  '30+5',
+  hFlange:    50,
+  bWeb:       120,
+  intereje:   820,
+  spanLength: 5000,
+  tipoVano:   'continuo-interior',
+
+  // Reticular: montaje 2Ø12 sup + 2Ø12 inf (base), refuerzos 2Ø16 en vano y apoyo
+  base_sup_nBars:  2, base_sup_barDiam:  12,
+  base_inf_nBars:  2, base_inf_barDiam:  12,
+  refuerzo_vano_inf_nBars:  2, refuerzo_vano_inf_barDiam:  16,
+  refuerzo_apoyo_sup_nBars: 2, refuerzo_apoyo_sup_barDiam: 16,
+
+  // Maciza: parrilla Ø10/200 ambas caras; refuerzo apoyo Ø12/200, refuerzo vano vacío
+  base_sup_phi_mac: 10, base_sup_s_mac: 200,
+  base_inf_phi_mac: 10, base_inf_s_mac: 200,
+  refuerzo_vano_inf_phi_mac:  0, refuerzo_vano_inf_s_mac:  200,
+  refuerzo_apoyo_sup_phi_mac: 12, refuerzo_apoyo_sup_s_mac: 200,
+
+  stirrupsEnabled:       false,
+  vano_stirrupDiam:      6,  vano_stirrupSpacing:  200, vano_stirrupLegs:  2,
+  apoyo_stirrupDiam:     6,  apoyo_stirrupSpacing: 150, apoyo_stirrupLegs: 2,
+
+  vano_Md:  35,
+  apoyo_Md: 25,
+  VEd:      30,
+
+  vano_M_G:  18, vano_M_Q:  10,
+  apoyo_M_G: 13, apoyo_M_Q: 7,
+  loadType:  'residential',
+  psi2Custom: 0.3,
+};
+
 // FTUX defaults: C24 160×160, L=3m, Nd=80kN wind moment → ~65% util
 export const timberColumnDefaults: TimberColumnInputs = {
   gradeId: 'C24',
@@ -599,4 +701,107 @@ export const timberColumnDefaults: TimberColumnInputs = {
   fireResistance: 'R0',
   exposedFaces: 4,
   etaFi: 0.65,
+};
+
+// ──────────────── Anchor plate (Placas de anclaje) ────────────────
+// PR-3/PR-4: rebar-based anchors (B400S/B500S), anclaje inferior y conexión
+// superior modelados como campos independientes (ortogonales).
+
+export type AnchorPlateSectionType = 'IPE' | 'HEA' | 'HEB' | 'IPN';
+export type AnchorPlateSteel = 'S235' | 'S275' | 'S355';
+export type PedestalSurface = 'smooth' | 'roughened';
+// Re-export the rebar / anchor types for consumers that previously pulled them from here.
+export type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './anchorBars';
+import type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './anchorBars';
+
+export interface AnchorPlateInputs {
+  [key: string]: string | number | boolean;
+  // Perfil (reusa del módulo steel-columns)
+  sectionType: AnchorPlateSectionType;
+  sectionSize: number;              // e.g. 200 for HEB-200
+
+  // Solicitaciones (ELU, compresión positiva)
+  NEd:   number;                      // kN — axil total ELU (combinación más desfavorable)
+  NEd_G: number;                      // kN — axil cuasi-permanente (para fricción μ·Nc,G, EN 1992-4 §6.2.2)
+  Mx:    number;                      // kNm (eje fuerte)
+  My:    number;                      // kNm (eje débil)
+  VEd:   number;                      // kN
+
+  // Placa
+  plate_a:      number;              // mm (paralela al eje fuerte)
+  plate_b:      number;              // mm (paralela al eje débil)
+  plate_t:      number;              // mm
+  plate_steel:  AnchorPlateSteel;
+
+  // Barras de anclaje (EHE-08 / EC2)
+  bar_nLayout:    4 | 6 | 8 | 9;
+  bar_diam:       RebarDiam;
+  bar_grade:      RebarGrade;
+  bar_spacing_x:  number;            // mm (eje fuerte)
+  bar_spacing_y:  number;            // mm (eje débil)
+  bar_edge_x:     number;            // mm (barra al borde de placa, eje fuerte)
+  bar_edge_y:     number;            // mm (idem, eje débil)
+  bar_hef:           number;         // mm (profundidad útil de anclaje)
+  bottom_anchorage:  BottomAnchorage; // prolongación recta / patilla / gancho / arandela+tuerca (transferencia al hormigón)
+  top_connection:    TopConnection;   // soldada / tuerca+arandela (detalle barra↔placa, sin check)
+  washer_od:         number;         // mm — diámetro exterior arandela (solo bottom_anchorage='arandela_tuerca')
+
+  // Rigidizadores
+  rib_count: 0 | 2 | 4;
+  rib_h:     number;                 // mm
+  rib_t:     number;                 // mm
+
+  // Hormigón y macizo
+  fck:            number;            // MPa
+  pedestal_cX:    number;            // mm — c1: perno al borde del macizo, eje fuerte (EN 1992-4 §7.2.1.4)
+  pedestal_cY:    number;            // mm — c2: perno al borde del macizo, eje débil
+  plate_margin_x: number;            // mm — placa al borde del macizo, eje fuerte (EC3 §6.2.5, factor α extensión)
+  plate_margin_y: number;            // mm — placa al borde del macizo, eje débil
+  surface_type:   PedestalSurface;
+
+  // Soldadura placa-pilar (informativo, no se comprueba)
+  weld_throat: number;               // mm
+}
+
+// FTUX: HEB-200, placa 400×300×20 S275, 4 barras φ20 B500S en esquinas,
+// prolongación recta, 2 rigidizadores. Axil+biaxial para ejercitar el solver.
+export const anchorPlateDefaults: AnchorPlateInputs = {
+  sectionType: 'HEB',
+  sectionSize: 200,
+
+  NEd:   200,
+  NEd_G: 120,    // p. ej. peso propio + cuasi-permanente (típico 40–70% del total ELU)
+  Mx:    45,
+  My:    10,     // PR-2: biaxial por defecto
+  VEd:   50,
+
+  plate_a:     400,
+  plate_b:     300,
+  plate_t:     20,
+  plate_steel: 'S275',
+
+  bar_nLayout:   4,
+  bar_diam:      20,
+  bar_grade:     'B500S',
+  bar_spacing_x: 300,
+  bar_spacing_y: 200,
+  bar_edge_x:    50,
+  bar_edge_y:    50,
+  bar_hef:          300,            // anclaje por adherencia (EC2 §8.4) típico 15–25·φ
+  bottom_anchorage: 'prolongacion_recta',
+  top_connection:   'soldada',
+  washer_od:        50,             // solo aplica si bottom_anchorage='arandela_tuerca'
+
+  rib_count: 2,
+  rib_h:     120,
+  rib_t:     10,
+
+  fck:             25,
+  pedestal_cX:     200,   // c1 — bolt a borde (EN 1992-4 cone)
+  pedestal_cY:     200,   // c2
+  plate_margin_x:  150,   // placa (400) + 2·150 = 700 mm pedestal — α ≈ 1.75
+  plate_margin_y:  150,
+  surface_type:    'roughened',
+
+  weld_throat: 6,
 };

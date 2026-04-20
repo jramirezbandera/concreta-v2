@@ -11,6 +11,8 @@ import {
   empresalladoDefaults,
   timberBeamDefaults,
   timberColumnDefaults,
+  forjadosDefaults,
+  anchorPlateDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -23,9 +25,11 @@ import {
   type EmpresalladoInputs,
   type TimberBeamInputs,
   type TimberColumnInputs,
+  type ForjadosInputs,
+  type AnchorPlateInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs | TimberColumnInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -94,6 +98,14 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-forjados',
+    route: '/horm/forjados',
+    label: 'Forjados',
+    group: 'Hormigón',
+    defaults: forjadosDefaults,
+    shipped: true,
+  },
+  {
     key: 'concreta-composite-section',
     route: '/acero/seccion-compuesta',
     label: 'Sección compuesta',
@@ -131,6 +143,14 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Pilares',
     group: 'Madera',
     defaults: timberColumnDefaults,
+    shipped: true,
+  },
+  {
+    key: 'concreta-anchor-plate',
+    route: '/acero/placas-de-anclaje',
+    label: 'Placas de anclaje',
+    group: 'Acero',
+    defaults: anchorPlateDefaults,
     shipped: true,
   },
 ] as const;

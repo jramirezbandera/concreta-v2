@@ -30,7 +30,7 @@ export function PdfPreviewModal({ blobUrl, pageCount, onClose, onDownload }: Pdf
       onClick={onClose}
     >
       <div
-        className="bg-bg-surface rounded-lg shadow-2xl flex flex-col max-w-6xl w-[95vw] max-h-[90vh]"
+        className="bg-bg-surface rounded-lg shadow-2xl flex flex-col max-w-6xl w-[95vw] h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

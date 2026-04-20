@@ -13,6 +13,8 @@ import { IsolatedFootingModule } from './features/isolated-footing';
 import { EmpresalladoModule } from './features/empresillado';
 import { TimberBeamsModule } from './features/timber-beams';
 import { TimberColumnsModule } from './features/timber-columns';
+import { ForjadosModule } from './features/forjados';
+import { AnchorPlateModule } from './features/anchor-plate';
 import { Landing } from './pages/Landing';
 
 const router = createBrowserRouter([
@@ -29,12 +31,14 @@ const router = createBrowserRouter([
       { path: 'acero/pilares', element: <SteelColumnsModule /> },
       { path: 'ciment/muros', element: <RetainingWallModule /> },
       { path: 'horm/punzonamiento', element: <PunchingModule /> },
+      { path: 'horm/forjados', element: <ForjadosModule /> },
       { path: 'acero/seccion-compuesta', element: <CompositeSectionModule /> },
       { path: 'ciment/encepados', element: <PileCapModule /> },
       { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
       { path: 'rehab/empresillado', element: <EmpresalladoModule /> },
       { path: 'madera/vigas', element: <TimberBeamsModule /> },
       { path: 'madera/pilares', element: <TimberColumnsModule /> },
+      { path: 'acero/placas-de-anclaje', element: <AnchorPlateModule /> },
       { path: '*', element: <NotFound /> },
     ],
   },

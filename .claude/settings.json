@@ -135,7 +135,18 @@
       "Bash(tar -tzf design2.tar.gz)",
       "Bash(tar -xzf design2.tar.gz)",
       "Bash(find c:UsersJavierDesktopprogramacionconcreta-gstack-v2src -name *omposite* -type f)",
-      "Bash(find c:UsersJavierDesktopprogramacionconcreta-gstack-v2src -name *pdf* -o -name *PDF* -o -name *modal* -o -name *Modal*)"
+      "Bash(find c:UsersJavierDesktopprogramacionconcreta-gstack-v2src -name *pdf* -o -name *PDF* -o -name *modal* -o -name *Modal*)",
+      "Bash(grep -r \"SelectField\\\\|SelectComponent\\\\|Select from\" /c/Users/Javier/Desktop/programacion/concreta-gstack-v2/src/components --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"class=.*select\\\\|classname=.*select\" /c/Users/Javier/Desktop/programacion/concreta-gstack-v2/src --include=*.tsx -i)",
+      "Bash(setopt +o nomatch)",
+      "Bash(true grep *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(bunx vite *)",
+      "Bash(bun x *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Skill(gstack-plan-design-review)",
+      "Skill(gstack-plan-design-review:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Javier\\.gstack\\projects\\concreta-gstack-v2\\ceo-plans",
