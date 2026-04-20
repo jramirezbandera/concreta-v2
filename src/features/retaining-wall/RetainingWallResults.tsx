@@ -43,8 +43,8 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
       {/* Overall verdict */}
       <div className="rounded px-4 py-3" style={ambientStyle(allStatus)}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text-secondary">
-            Muro de Contención — Resultado global
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+            Resultados calculados
           </span>
           <VerdictBadge status={allStatus} />
         </div>

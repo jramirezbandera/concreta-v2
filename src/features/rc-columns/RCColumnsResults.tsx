@@ -101,8 +101,8 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text-secondary">
-          Pilar — Flexión Esviada
+        <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+          Resultados calculados
         </span>
         <VerdictBadge status={status} />
       </div>

@@ -180,73 +180,90 @@ export async function exportAnchorPlatePDF(
   doc.text('VERIFICACIONES', M, y);
   y += 4;
 
-  const TC = {
-    desc:  M,
-    value: M + 88,
-    limit: M + 115,
-    util:  M + 142,
-    state: M + 155,
-    art:   PAGE_W - M,
-  };
+  // Layout: two logical lines per check.
+  //   line1: description (left)  ·  Ut% + state badge (right)
+  //   line2: value / limit (grey, smaller)  ·  article (right)
+  //   + utilization bar on a dedicated strip under line1.
+  const COL_DESC_W   = CW * 0.62;  // ~105 mm
+  const COL_META_W   = CW - COL_DESC_W - 2;
+  const BAR_X        = M;
+  const BAR_W        = CW;
 
   setGray(doc, 100);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
-  doc.text('Verificacion', TC.desc, y);
-  doc.text('Valor', TC.value, y);
-  doc.text('Limite', TC.limit, y);
-  doc.text('Ut%', TC.util, y);
-  doc.text('Estado', TC.state, y);
-  doc.text('Norma', TC.art, y, { align: 'right' });
+  doc.text('Verificacion', M, y);
+  doc.text('Ut% / Estado', PAGE_W - M, y, { align: 'right' });
   y += 2;
   setGray(doc, 180);
   doc.setLineWidth(0.15);
   doc.line(M, y, PAGE_W - M, y);
-  y += 3;
+  y += 3.2;
 
   for (const c of result.checks) {
-    ensure(9);
+    // Measure wrapped description height to keep row compact but legible.
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    const descLines = doc.splitTextToSize(pdfStr(c.description), COL_DESC_W) as string[];
 
+    doc.setFontSize(6);
+    const valueLimit = `${pdfStr(c.value)}  |  <= ${pdfStr(c.limit)}`;
+    const vlLines = doc.splitTextToSize(valueLimit, COL_DESC_W) as string[];
+
+    const rowH = 3.4 + descLines.length * 3 + vlLines.length * 2.8 + 2.5; // bar + padding
+    ensure(rowH + 1);
+
+    // line 1 — description (left) + Ut% / status (right)
     setGray(doc, 40);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.text(pdfStr(c.description), TC.desc, y, { maxWidth: 85 });
+    doc.text(descLines, M, y);
 
-    setGray(doc, 30);
-    doc.text(pdfStr(c.value), TC.value, y);
-    doc.text(pdfStr(c.limit), TC.limit, y);
+    const utPct = Math.min(c.utilization * 100, 999);
+    const utStr = isFinite(c.utilization) ? `${utPct.toFixed(0)}%` : '---';
+    const stLbl = STATUS_LABEL[c.status];
 
     setGray(doc, 20);
     doc.setFont('helvetica', 'bold');
-    const utPct = Math.min(c.utilization * 100, 999);
-    doc.text(isFinite(c.utilization) ? `${utPct.toFixed(0)}%` : '---', TC.util, y);
+    doc.setFontSize(7.5);
+    doc.text(utStr, PAGE_W - M - 22, y, { align: 'right' });
 
-    const stGray = c.status === 'ok' ? 50 : c.status === 'warn' ? 30 : 0;
+    const stGray = c.status === 'ok' ? 50 : c.status === 'warn' ? 35 : 0;
     setGray(doc, stGray);
-    doc.text(STATUS_LABEL[c.status], TC.state, y);
+    doc.setFontSize(7);
+    doc.text(stLbl, PAGE_W - M, y, { align: 'right' });
+
+    let cursorY = y + descLines.length * 3 + 0.8;
+
+    // line 2 — value / limit (grey) + article (right, tiny)
+    setGray(doc, 105);
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text(vlLines, M, cursorY);
 
     setGray(doc, 140);
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(5.5);
-    doc.text(pdfStr(c.article), TC.art, y, { align: 'right', maxWidth: 40 });
+    doc.text(pdfStr(c.article), PAGE_W - M, cursorY, { align: 'right', maxWidth: COL_META_W - 2 });
 
+    cursorY += vlLines.length * 2.8 + 1.2;
+
+    // utilization bar across full content width
     if (isFinite(c.utilization)) {
-      const barX = TC.value;
-      const barW = TC.state - TC.value - 2;
-      const barH = 1.4;
-      const fillW = barW * Math.min(c.utilization, 1);
-      doc.setFillColor(220, 220, 220);
-      doc.rect(barX, y + 1.5, barW, barH, 'F');
+      const barH = 1.1;
+      const fillW = BAR_W * Math.min(c.utilization, 1);
+      doc.setFillColor(225, 225, 225);
+      doc.rect(BAR_X, cursorY, BAR_W, barH, 'F');
       const g = c.status === 'ok' ? 110 : c.status === 'warn' ? 60 : 20;
       doc.setFillColor(g, g, g);
-      if (fillW > 0) doc.rect(barX, y + 1.5, fillW, barH, 'F');
+      if (fillW > 0) doc.rect(BAR_X, cursorY, fillW, barH, 'F');
+      cursorY += barH;
     }
 
-    setGray(doc, 225);
+    cursorY += 1.6;
+    setGray(doc, 228);
     doc.setLineWidth(0.08);
-    doc.line(M, y + 5.5, PAGE_W - M, y + 5.5);
-    y += 8;
+    doc.line(M, cursorY, PAGE_W - M, cursorY);
+    y = cursorY + 2.2;
   }
 
   y += 2;

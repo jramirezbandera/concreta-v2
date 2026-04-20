@@ -78,7 +78,7 @@ export function AnchorPlateResults({ result }: Props) {
     <div className="rounded border border-border-main overflow-hidden" style={ambientStyle(overallStatus)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-sub">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-widest text-text-disabled">Verdict</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Resultados calculados</span>
           <VerdictBadge status={overallStatus} />
           {solver.mode === 'biaxial-grid' && (
             <span

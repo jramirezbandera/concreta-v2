@@ -120,7 +120,7 @@ export function TimberColumnsResults({ result }: Props) {
 
       {/* Overall verdict */}
       <div className="flex items-center justify-between pb-3 border-b border-border-main">
-        <span className="text-[13px] font-semibold text-text-primary">Resultado global</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Resultados calculados</span>
         <VerdictBadge status={overall} />
       </div>
 
