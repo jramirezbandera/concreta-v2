@@ -14,6 +14,8 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -35,7 +37,10 @@ const DURATION_LABEL: Record<string, string> = {
 export async function exportTimberBeamsPDF(
   inp: TimberBeamInputs,
   result: TimberBeamResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+    formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -111,7 +116,7 @@ export async function exportTimberBeamsPDF(
   lRow(`Clase: ${inp.gradeId}`);
   lRow(`b = ${inp.b} mm`, `h = ${inp.h} mm`);
   lRow(`L = ${inp.L} m`);
-  lRow(`gk = ${inp.gk} kN/m`, `qk = ${inp.qk} kN/m`);
+  lRow(`gk = ${fmtSi(inp.gk, 'linearLoad')}`, `qk = ${fmtSi(inp.qk, 'linearLoad')}`);
   ly += 2;
 
   if (result.fireActive) {
@@ -133,7 +138,7 @@ export async function exportTimberBeamsPDF(
   rRow(`psi2 = ${result.psi2.toFixed(2)}`);
   ry += 1;
   rSecHeader('ELU / ELS');
-  rRow(`MEd = ${result.MEd.toFixed(2)} kNm`, `VEd = ${result.VEd.toFixed(2)} kN`);
+  rRow(`MEd = ${fmtSi(result.MEd, 'moment')}`, `VEd = ${fmtSi(result.VEd, 'force')}`);
   rRow(`lam_rel = ${result.lambda_rel_m.toFixed(3)}`, `kcrit = ${result.kcrit.toFixed(3)}`);
   rRow(`u_inst = ${result.u_inst.toFixed(1)} mm (L/300)`);
   rRow(`u_fin = ${result.u_fin.toFixed(1)} mm (L/250)`);

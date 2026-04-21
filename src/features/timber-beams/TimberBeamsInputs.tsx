@@ -2,6 +2,7 @@ import { type TimberBeamInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getKdef, getTimberGrade } from '../../data/timberGrades';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
   state: TimberBeamInputs;
@@ -184,8 +185,20 @@ export function TimberBeamsInputs({ state, setField }: Props) {
 
       {/* ── Cargas características ───────────────────────────────────────── */}
       <CollapsibleSection label="Cargas características">
-        <NumField labelKey="gk_distributed" field="gk" value={state.gk} min={0} step={0.5} setField={setField} />
-        <NumField labelKey="qk_distributed" field="qk" value={state.qk} min={0} step={0.5} setField={setField} />
+        <UnitNumberInput
+          labelKey="gk_distributed"
+          field="gk"
+          value={state.gk}
+          quantity="linearLoad"
+          onChange={(v) => setField('gk', v)}
+        />
+        <UnitNumberInput
+          labelKey="qk_distributed"
+          field="qk"
+          value={state.qk}
+          quantity="linearLoad"
+          onChange={(v) => setField('qk', v)}
+        />
       </CollapsibleSection>
 
       {/* ── Clase de servicio y duración ────────────────────────────────── */}

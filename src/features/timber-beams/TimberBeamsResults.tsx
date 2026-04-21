@@ -1,6 +1,9 @@
 import { type TimberBeamResult, type TimberCheckRow, type CheckStatus } from '../../lib/calculations/timberBeams';
 import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   result: TimberBeamResult;
@@ -123,6 +126,9 @@ function groupStatus(checks: TimberCheckRow[]): CheckStatus {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TimberBeamsResults({ result }: Props) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
+
   if (!result.valid) {
     return (
       <div className="flex items-start gap-2 rounded border border-state-fail/30 bg-state-fail/5 px-3 py-2 mt-4">
@@ -169,8 +175,8 @@ export function TimberBeamsResults({ result }: Props) {
       {/* ── ELU ─────────────────────────────────────────────────────────── */}
       <GroupHeader label="ELU — Estado Límite Último" status={groupStatus(eluChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-        <ValueRow label={resultLabel('MEd')} value={`${result.MEd.toFixed(2)} kNm`} />
-        <ValueRow label={resultLabel('VEd')} value={`${result.VEd.toFixed(2)} kN`}  />
+        <ValueRow label={resultLabel('MEd')} value={fmtSi(result.MEd, 'moment')} />
+        <ValueRow label={resultLabel('VEd')} value={fmtSi(result.VEd, 'force')}  />
         <ValueRow label="σm,d — tensión de flexión" value={`${result.sigma_m.toFixed(2)} N/mm²`} />
         <ValueRow label="fm,d · kh · ksys — resist. flexión efectiva  (EC5 §6.1.6)" value={`${fm_d_sys.toFixed(2)} N/mm²`} />
         <ValueRow label="τd — tensión cortante (Av = kcr·A)" value={`${result.tau_d.toFixed(2)} N/mm²`} />
@@ -202,8 +208,8 @@ export function TimberBeamsResults({ result }: Props) {
             <ValueRow label={resultLabel('d0_zeroStrength')}  value="7.0 mm" />
             <ValueRow label={resultLabel('def_penetration')}  value={`${result.def.toFixed(1)} mm`} />
             <ValueRow label="Sección residual  b_ef × h_ef"  value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
-            <ValueRow label="MEd,fi — combinación incendio (η_fi)"  value={`${result.MEd_fi.toFixed(2)} kNm`} />
-            <ValueRow label="VEd,fi — combinación incendio (η_fi)"  value={`${result.VEd_fi.toFixed(2)} kN`} />
+            <ValueRow label="MEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.MEd_fi, 'moment')} />
+            <ValueRow label="VEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.VEd_fi, 'force')} />
             <ValueRow label="fm,k — resist. flexión  (γM,fi = 1.0)" value={`${result.fm_k_fi.toFixed(2)} N/mm²`} />
             <ValueRow label="fv,k — resist. cortante  (γM,fi = 1.0)" value={`${result.fv_k_fi.toFixed(2)} N/mm²`} />
           </div>

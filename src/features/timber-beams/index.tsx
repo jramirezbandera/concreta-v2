@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcTimberBeam } from '../../lib/calculations/timberBeams';
 import { exportTimberBeamsPDF } from '../../lib/pdf/timberBeams';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,13 @@ import { TimberBeamsResults } from './TimberBeamsResults';
 export function TimberBeamsModule() {
   const { state, setField, reset } = useModuleState('timber-beams', timberBeamDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcTimberBeam(state as never), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportTimberBeamsPDF(state as never, result), result.valid);
+    usePdfPreview(() => exportTimberBeamsPDF(state as never, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);
