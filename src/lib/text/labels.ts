@@ -25,8 +25,21 @@ export type Label = {
   descLong: string;
   /** ≤ 60 chars — used as the result row label. */
   descShort: string;
-  /** Unit string, or `—` for dimensionless. */
+  /**
+   * Unit string in SI, or `—` for dimensionless. NOT a runtime fallback for
+   * components that render across the SI/técnico unit toggle — those
+   * components should pass the explicit `quantity` prop and let the unit
+   * system context resolve the suffix. The `unit` field here is text-only
+   * documentation of the canonical SI label.
+   */
   unit: string;
+  /**
+   * Quantity for SI/técnico-aware rendering. When set, components like
+   * UnitNumberInput will derive the unit suffix from the active system
+   * instead of reading `unit` verbatim. Omit for dimensionless / mixed-unit
+   * fields where conversion does not apply.
+   */
+  quantity?: import("../units/types").Quantity;
   /**
    * Norm + article + equation/table reference.
    * Required for computed outputs; omitted for user-entered inputs.
