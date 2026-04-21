@@ -5,6 +5,7 @@ import { type LoadGenResult, getPsiRow } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface SteelBeamsInputsProps {
   state: SteelBeamInputs;
@@ -404,20 +405,20 @@ export function SteelBeamsInputs({
         min={0}
         setField={setField}
       />
-      <NumField
+      <UnitNumberInput
         labelKey="gk_surface"
         field="gk"
         value={state.gk}
-        min={0}
-        setField={setField}
+        quantity="areaLoad"
+        onChange={(v) => setField('gk', v)}
       />
-      <NumField
+      <UnitNumberInput
         labelKey="qk_surface"
         field="qk"
         value={state.qk}
-        min={0}
-        setField={(field, val) => {
-          setField(field, val);
+        quantity="areaLoad"
+        onChange={(v) => {
+          setField('qk', v);
           setField('useCategory', 'custom');
         }}
       />

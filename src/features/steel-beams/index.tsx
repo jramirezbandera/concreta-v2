@@ -9,6 +9,7 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { deriveFromLoads } from '../../lib/calculations/loadGen';
 import { exportSteelBeamsPDF } from '../../lib/pdf/steelBeams';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -20,6 +21,7 @@ import { SteelBeamsDiagrams } from './SteelBeamsDiagrams';
 export function SteelBeamsModule() {
   const { state, setField, reset } = useModuleState('steel-beams', steelBeamDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // Lcr auto-fill
@@ -51,7 +53,7 @@ export function SteelBeamsModule() {
   }, [state, lcrManuallyOverridden, autoLcr]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportSteelBeamsPDF(effectiveInputs, result), result.valid);
+    usePdfPreview(() => exportSteelBeamsPDF(effectiveInputs, result, system), true);
 
   // Responsive SVG sizing — measure the canvas container
   const [canvasRef, canvasWidth] = useContainerWidth();

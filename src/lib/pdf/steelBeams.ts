@@ -12,6 +12,8 @@ import { type SteelBeamInputs, type BeamType } from '../../data/defaults';
 import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { BEAM_CASES } from '../calculations/beamCases';
 import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
+import { formatQuantity, formatNumber, getUnitLabel } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
@@ -31,7 +33,20 @@ const MSER_FORMULA: Record<BeamType, string> = {
   ff:         'wSer*L^2/12 (emp.)',
 };
 
-export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBeamResult): Promise<PdfResult> {
+export async function exportSteelBeamsPDF(
+  inp: SteelBeamInputs,
+  result: SteelBeamResult,
+  system: UnitSystem = 'si',
+): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
+    c.valueNum !== undefined && c.valueQty
+      ? formatQuantity(c.valueNum, c.valueQty, system)
+      : (c.valueStr ?? c.value ?? '');
+  const checkLimitStr = (c: { limitNum?: number; limitQty?: Quantity; limitStr?: string; limit?: string }) =>
+    c.limitNum !== undefined && c.limitQty
+      ? formatQuantity(c.limitNum, c.limitQty, system)
+      : (c.limitStr ?? c.limit ?? '');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const beamCase = BEAM_CASES[inp.beamType];
@@ -57,10 +72,12 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
     frequent:         `psi1=${psiRow.psi1.toFixed(2)}`,
     'quasi-permanent':`psi2=${psiRow.psi2.toFixed(2)}`,
   };
+  const ll = (v: number) => formatNumber(v, 'linearLoad', system);
+  const llUnit = getUnitLabel('linearLoad', system);
   const wSerFormula: Record<typeof elsCombo, string> = {
-    characteristic:   `wSer = ${fmt(Gk_line)} + ${fmt(Qk_line)} = ${fmt(wSer)} kN/m`,
-    frequent:         `wSer = ${fmt(Gk_line)} + ${psiRow.psi1.toFixed(2)}x${fmt(Qk_line)} = ${fmt(wSer)} kN/m`,
-    'quasi-permanent':`wSer = ${fmt(Gk_line)} + ${psiRow.psi2.toFixed(2)}x${fmt(Qk_line)} = ${fmt(wSer)} kN/m`,
+    characteristic:   `wSer = ${ll(Gk_line)} + ${ll(Qk_line)} = ${ll(wSer)} ${llUnit}`,
+    frequent:         `wSer = ${ll(Gk_line)} + ${psiRow.psi1.toFixed(2)}x${ll(Qk_line)} = ${ll(wSer)} ${llUnit}`,
+    'quasi-permanent':`wSer = ${ll(Gk_line)} + ${psiRow.psi2.toFixed(2)}x${ll(Qk_line)} = ${ll(wSer)} ${llUnit}`,
   };
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -142,7 +159,7 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
 
   // SOLICITACIONES ELU
   sectionHeader('SOLICITACIONES ELU');
-  twoCol(`MEd = ${fmt(inp.MEd)} kNm`, `VEd = ${fmt(inp.VEd)} kN`);
+  twoCol(`MEd = ${fmtSi(inp.MEd, 'moment')}`, `VEd = ${fmtSi(inp.VEd, 'force')}`);
   twoCol(
     `Lcr = ${(inp.Lcr / 1000).toFixed(2)} m`,
     pdfStr(`C1 = ${C1.toFixed(2)} (${beamCase.labelShort})`),
@@ -151,12 +168,12 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
 
   // GENERADOR DE CARGAS
   sectionHeader('GENERADOR DE CARGAS');
-  twoCol(`Cat.: ${inp.useCategory}`, `qk = ${fmt(inp.qk)} kN/m\xB2`);
-  twoCol(`gk = ${fmt(inp.gk)} kN/m\xB2`, `bTrib = ${fmt(inp.bTrib)} m`);
+  twoCol(`Cat.: ${inp.useCategory}`, `qk = ${fmtSi(inp.qk, 'areaLoad')}`);
+  twoCol(`gk = ${fmtSi(inp.gk, 'areaLoad')}`, `bTrib = ${fmt(inp.bTrib)} m`);
   // Line loads
-  twoCol(`Gk = ${fmt(Gk_line)} kN/m`, `Qk = ${fmt(Qk_line)} kN/m`);
+  twoCol(`Gk = ${fmtSi(Gk_line, 'linearLoad')}`, `Qk = ${fmtSi(Qk_line, 'linearLoad')}`);
   // ELU combination
-  oneCol(`wEd = 1.35x${fmt(Gk_line)} + 1.50x${fmt(Qk_line)} = ${fmt(wEd)} kN/m`);
+  oneCol(`wEd = 1.35x${ll(Gk_line)} + 1.50x${ll(Qk_line)} = ${ll(wEd)} ${llUnit}`);
   // ELS combination
   oneCol(`${wSerFormula[elsCombo]}  [ELS ${elsComboLabel[elsCombo]}, ${psiSymbol[elsCombo]}]`);
   gap();
@@ -164,16 +181,16 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
   // FLECHA ELS
   sectionHeader('FLECHA ELS');
   oneCol(`Combo: ${elsComboLabel[elsCombo]}  (${psiSymbol[elsCombo]})`);
-  oneCol(`Mser = ${MSER_FORMULA[inp.beamType]} = ${fmt(inp.Mser)} kNm`);
+  oneCol(`Mser = ${MSER_FORMULA[inp.beamType]} = ${fmtSi(inp.Mser, 'moment')}`);
   twoCol(`dadm = L/${inp.deflLimit}`, `${(inp.L / inp.deflLimit).toFixed(1)} mm`);
   gap();
 
   // RESULTADOS CLAVE
   sectionHeader('RESULTADOS CLAVE');
-  twoCol(`Mc,Rd = ${fmt(result.Mc_Rd)} kNm`, `Clase ${result.sectionClass}`);
-  twoCol(`Vc,Rd = ${fmt(result.Vc_Rd)} kN`,  `Av = ${fmt(result.Av, 0)} mm\xB2`);
-  twoCol(`Mb,Rd = ${fmt(result.Mb_Rd)} kNm`, `chiLT = ${result.chi_LT.toFixed(3)}`);
-  twoCol(`lamLT = ${result.lambda_LT.toFixed(3)}`, `Mcr = ${fmt(result.Mcr)} kNm`);
+  twoCol(`Mc,Rd = ${fmtSi(result.Mc_Rd, 'moment')}`, `Clase ${result.sectionClass}`);
+  twoCol(`Vc,Rd = ${fmtSi(result.Vc_Rd, 'force')}`,  `Av = ${fmt(result.Av, 0)} mm\xB2`);
+  twoCol(`Mb,Rd = ${fmtSi(result.Mb_Rd, 'moment')}`, `chiLT = ${result.chi_LT.toFixed(3)}`);
+  twoCol(`lamLT = ${result.lambda_LT.toFixed(3)}`, `Mcr = ${fmtSi(result.Mcr, 'moment')}`);
   twoCol(`dmax = ${fmt(result.delta_max)} mm`, `dadm = ${fmt(result.delta_adm)} mm`);
 
   // ── Results table ────────────────────────────────────────────────────────────
@@ -246,8 +263,8 @@ export async function exportSteelBeamsPDF(inp: SteelBeamInputs, result: SteelBea
       const st = chk.status as DisplayStatus;
       setGray(doc, 50);
       doc.text(pdfStr(chk.description), COL.desc, rowY);
-      doc.text(pdfStr(chk.value ?? ''), COL.value,  rowY);
-      doc.text(pdfStr(chk.limit ?? ''), COL.limit,  rowY);
+      doc.text(pdfStr(checkValueStr(chk)), COL.value,  rowY);
+      doc.text(pdfStr(checkLimitStr(chk)), COL.limit,  rowY);
       doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY);
       doc.setFont('helvetica', 'bold');
       setGray(doc, st === 'ok' ? 60 : 30);

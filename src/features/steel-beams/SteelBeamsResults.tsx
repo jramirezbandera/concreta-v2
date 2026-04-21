@@ -1,7 +1,10 @@
 import { AlertTriangle } from 'lucide-react';
 import { type SteelBeamResult, type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { LABELS, resultLabel } from '../../lib/text/labels';
-import { ambientStyle } from '../../components/checks';
+import { ambientStyle, checkValueStr, checkLimitStr } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity, UnitSystem } from '../../lib/units/types';
 
 interface SteelBeamsResultsProps {
   result: SteelBeamResult;
@@ -60,7 +63,7 @@ function NeutralCheckRow({ check }: { check: SteelCheckRow }) {
   );
 }
 
-function ActiveCheckRow({ check }: { check: SteelCheckRow }) {
+function ActiveCheckRow({ check, system }: { check: SteelCheckRow; system: UnitSystem }) {
   const status = check.status as DisplayStatus;
   const pct = Math.min(check.utilization * 100, 100);
   return (
@@ -69,10 +72,10 @@ function ActiveCheckRow({ check }: { check: SteelCheckRow }) {
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">
         <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">
-          {check.value}
+          {checkValueStr(check, system)}
         </span>
         <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">
-          {check.limit}
+          {checkLimitStr(check, system)}
         </span>
       </div>
       <div className="h-1 bg-border-main rounded-sm overflow-hidden">
@@ -93,9 +96,9 @@ function ActiveCheckRow({ check }: { check: SteelCheckRow }) {
   );
 }
 
-function CheckRowItem({ check }: { check: SteelCheckRow }) {
+function CheckRowItem({ check, system }: { check: SteelCheckRow; system: UnitSystem }) {
   if (check.neutral) return <NeutralCheckRow check={check} />;
-  return <ActiveCheckRow check={check} />;
+  return <ActiveCheckRow check={check} system={system} />;
 }
 
 function GroupHeader({ label }: { label: string }) {
@@ -116,6 +119,8 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   // Class 4 or unknown profile error
   if (!result.valid && result.governing === 'class4') {
     return (
@@ -132,7 +137,7 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
         {/* Still show classification row */}
         {result.checks.length > 0 && (
           <div>
-            {result.checks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+            {result.checks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
           </div>
         )}
       </div>
@@ -169,9 +174,9 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
 
       {/* Key values */}
       <GroupHeader label="Valores" />
-      <ValueRow label={resultLabel('Mc_Rd')}        value={`${result.Mc_Rd.toFixed(1)} kNm`} />
-      <ValueRow label={resultLabel('Vc_Rd')}        value={`${result.Vc_Rd.toFixed(1)} kN`} />
-      <ValueRow label={resultLabel('Mb_Rd')}        value={`${result.Mb_Rd.toFixed(1)} kNm`} />
+      <ValueRow label={resultLabel('Mc_Rd')}        value={fmtSi(result.Mc_Rd, 'moment')} />
+      <ValueRow label={resultLabel('Vc_Rd')}        value={fmtSi(result.Vc_Rd, 'force')} />
+      <ValueRow label={resultLabel('Mb_Rd')}        value={fmtSi(result.Mb_Rd, 'moment')} />
       <ValueRow label={resultLabel('chi_LT')}       value={result.chi_LT.toFixed(3)} />
       <ValueRow label={resultLabel('lambda_bar_LT')} value={result.lambda_LT.toFixed(3)} />
       <ValueRow label={resultLabel('delta_max')}    value={`${result.delta_max.toFixed(1)} mm`} />
@@ -179,23 +184,23 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
 
       {/* Section classification */}
       <GroupHeader label="Sección" />
-      {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
 
       {/* ELU Flexión */}
       <GroupHeader label="ELU Flexión" />
-      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
 
       {/* ELU Cortante + Interacción */}
       <GroupHeader label="ELU Cortante" />
-      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
 
       {/* Pandeo lateral */}
       <GroupHeader label="Pandeo lateral (LTB)" />
-      {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
 
       {/* ELS Flecha */}
       <GroupHeader label="ELS Flecha" />
-      {deflChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {deflChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
     </div>
   );
 }

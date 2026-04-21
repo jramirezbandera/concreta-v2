@@ -13,7 +13,7 @@ import { type SteelBeamInputs } from '../../data/defaults';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
 import { ISectionAdapter } from '../sections';
 import { BEAM_CASES } from './beamCases';
-import { type CheckRow, type CheckStatus } from './types';
+import { type CheckRow, type CheckStatus, makeCheckQty } from './types';
 
 // CTE DB-SE-A constants
 const E = 210000;   // N/mm²  — Young's modulus
@@ -235,25 +235,23 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   );
 
   checks.push(
-    check(
+    makeCheckQty(
       'bending',
       'Flexión Mc,Rd (CTE DB-SE-A §6.2.5)',
       inp.MEd,
       Mc_Rd,
-      `${inp.MEd.toFixed(1)} kNm`,
-      `${Mc_Rd.toFixed(1)} kNm`,
+      'moment',
       'CTE DB-SE-A §6.2.5 — Resistencia a flexión',
     ),
   );
 
   checks.push(
-    check(
+    makeCheckQty(
       'shear',
       'Cortante Vc,Rd (CTE DB-SE-A §6.2.6)',
       inp.VEd,
       Vc_Rd,
-      `${inp.VEd.toFixed(1)} kN`,
-      `${Vc_Rd.toFixed(1)} kN`,
+      'force',
       'CTE DB-SE-A §6.2.6 — Resistencia a cortante',
     ),
   );
@@ -262,13 +260,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   // For cantilever/fp/ff the critical section has significant shear — show the check.
   if (VEd_interaction > 0) {
     checks.push(
-      check(
+      makeCheckQty(
         'interaction',
         'Interacción M-V (CTE DB-SE-A §6.2.8)',
         inp.MEd,
         Mv_Rd,
-        `${inp.MEd.toFixed(1)} kNm`,
-        `${Mv_Rd.toFixed(1)} kNm`,
+        'moment',
         'CTE DB-SE-A §6.2.8 — Interacción cortante y flexión',
       ),
     );
@@ -288,13 +285,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   }
 
   checks.push(
-    check(
+    makeCheckQty(
       'ltb',
       'Pandeo lateral Mb,Rd (CTE DB-SE-A §6.3.2)',
       inp.MEd,
       Mb_Rd,
-      `${inp.MEd.toFixed(1)} kNm`,
-      `${Mb_Rd.toFixed(1)} kNm`,
+      'moment',
       'CTE DB-SE-A §6.3.2 — Pandeo lateral torsional (LTB)',
     ),
   );
