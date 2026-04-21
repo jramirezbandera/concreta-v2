@@ -6,6 +6,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcCompositeSection } from '../../lib/calculations/compositeSection';
 import { exportCompositeSectionPDF } from '../../lib/pdf/compositeSection';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -33,6 +34,7 @@ function loadState(): CompositeSectionInputs {
 
 export function CompositeSectionModule() {
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const [inputs, setInputs] = useState<CompositeSectionInputs>(loadState);
@@ -72,7 +74,7 @@ export function CompositeSectionModule() {
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportCompositeSectionPDF(inputs, result), result.valid);
+    usePdfPreview(() => exportCompositeSectionPDF(inputs, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0

@@ -10,6 +10,8 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { UnitSystem } from '../units/types';
 
 const M = 20;   // page margin mm
 
@@ -20,7 +22,9 @@ function fmt(v: number, decimals = 1): string {
 export async function exportCompositeSectionPDF(
   inp: CompositeSectionInputs,
   result: CompositeSectionResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtMrd = (v: number) => formatQuantity(v, 'moment', system, { precision: 1 });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -118,9 +122,9 @@ export async function exportCompositeSectionPDF(
   if (result.sectionClass === 4) {
     twoCol('MRd = N/D (Clase 4)', 'Requiere seccion eficaz EN 1993-1-5');
   } else if (result.sectionClass !== null && result.sectionClass <= 2) {
-    twoCol(`MRd = Wpl x fy / gM0`, `= ${fmt(result.Mrd_kNm)} kNm`);
+    twoCol(`MRd = Wpl x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
   } else {
-    twoCol(`MRd = Wel,min x fy / gM0`, `= ${fmt(result.Mrd_kNm)} kNm`);
+    twoCol(`MRd = Wel,min x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
   }
 
   // ── Divider before classification checks table ───────────────────────────────
@@ -190,7 +194,7 @@ export async function exportCompositeSectionPDF(
     doc.text(
       result.class4Warning
         ? 'MRd = N/D (Clase 4 — requiere seccion eficaz per EN 1993-1-5)'
-        : `MRd = ${fmt(result.Mrd_kNm)} kNm`,
+        : `MRd = ${fmtMrd(result.Mrd_kNm)}`,
       M, rowY,
     );
   } else {

@@ -2,6 +2,8 @@ import { type CompositeSectionResult } from '../../lib/calculations/compositeSec
 import { CheckRowItem, GroupHeader, ValueRow, ambientStyle } from '../../components/checks';
 import { type CheckStatus } from '../../lib/calculations/types';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
 
 interface Props {
   result: CompositeSectionResult;
@@ -39,6 +41,8 @@ function ClassBadge({ sectionClass }: { sectionClass: 1 | 2 | 3 | 4 | null }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CompositeSectionResults({ result }: Props) {
+  const { system } = useUnitSystem();
+
   if (!result.valid && result.error) {
     return (
       <div className="flex flex-col overflow-y-auto px-4 py-3">
@@ -110,7 +114,7 @@ export function CompositeSectionResults({ result }: Props) {
           <span className="text-[12px] font-mono text-state-fail tabular-nums font-semibold">N/D</span>
         ) : (
           <span className="text-[13px] font-mono text-text-primary tabular-nums font-semibold">
-            {result.Mrd_kNm.toFixed(1)} kNm
+            {formatQuantity(result.Mrd_kNm, 'moment', system, { precision: 1 })}
           </span>
         )}
       </div>
