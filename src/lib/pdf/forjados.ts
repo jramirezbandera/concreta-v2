@@ -245,8 +245,8 @@ export async function exportForjadosPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     setGray(doc, 75);
-    doc.text(pdfStr(ch.value), TC.value, rowY, { maxWidth: 25 });
-    doc.text(pdfStr(ch.limit), TC.limit, rowY, { maxWidth: 25 });
+    doc.text(pdfStr(ch.value ?? ''), TC.value, rowY, { maxWidth: 25 });
+    doc.text(pdfStr(ch.limit ?? ''), TC.limit, rowY, { maxWidth: 25 });
 
     const textG = isFail ? 60 : isWarn ? 80 : 100;
     doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');

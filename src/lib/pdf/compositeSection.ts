@@ -203,8 +203,8 @@ export async function exportCompositeSectionPDF(
       const st = chk.status;
       setGray(doc, 50);
       doc.text(pdfStr(chk.description), COL.desc, rowY);
-      doc.text(pdfStr(chk.value),        COL.value,  rowY);
-      doc.text(pdfStr(chk.limit),        COL.limit,  rowY);
+      doc.text(pdfStr(chk.value ?? ''), COL.value,  rowY);
+      doc.text(pdfStr(chk.limit ?? ''), COL.limit,  rowY);
       doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY);
       doc.setFont('helvetica', 'bold');
       setGray(doc, st === 'ok' ? 60 : 30);

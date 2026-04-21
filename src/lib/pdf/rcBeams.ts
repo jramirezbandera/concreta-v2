@@ -98,8 +98,8 @@ function drawSectionTable(
     setGray(doc, 50);
     const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
     doc.text(desc, COL.desc, y);
-    doc.text(ch.value, COL.value, y);
-    doc.text(ch.limit, COL.limit, y);
+    doc.text(ch.value ?? '', COL.value, y);
+    doc.text(ch.limit ?? '', COL.limit, y);
     const utilStr = isFinite(ch.utilization)
       ? `${(ch.utilization * 100).toFixed(0)}%`
       : '---';

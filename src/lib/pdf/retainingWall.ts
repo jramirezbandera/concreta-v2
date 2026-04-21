@@ -13,9 +13,10 @@ const M  = 18;
 
 // NOTE: retainingWall uses abbreviated 'ADVERT.' — differs from shared STATUS_LABEL
 const STATUS_LABEL: Record<CheckStatus, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERT.',
-  fail: 'INCUMPLE',
+  ok:      'CUMPLE',
+  warn:    'ADVERT.',
+  fail:    'INCUMPLE',
+  neutral: '—',
 };
 
 function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
@@ -161,8 +162,8 @@ export async function exportRetainingWallPDF(
     setGray(doc, 50);
     const desc = doc.splitTextToSize(ch.description, 70)[0] as string;
     doc.text(desc,       COL.desc,   y);
-    doc.text(ch.value,   COL.value,  y);
-    doc.text(ch.limit,   COL.limit,  y);
+    doc.text(ch.value ?? '', COL.value,  y);
+    doc.text(ch.limit ?? '', COL.limit,  y);
     const utilStr = isFinite(ch.utilization)
       ? `${(ch.utilization * 100).toFixed(0)}%`
       : '---';

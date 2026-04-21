@@ -193,8 +193,8 @@ export async function exportIsolatedFootingPDF(
     doc.text(pdfStr(ch.description), COL.desc, rowY, { maxWidth: 78 });
 
     setGray(doc, 80);
-    doc.text(pdfStr(ch.value), COL.value, rowY);
-    doc.text(pdfStr(ch.limit), COL.limit, rowY);
+    doc.text(pdfStr(ch.value ?? ''), COL.value, rowY);
+    doc.text(pdfStr(ch.limit ?? ''), COL.limit, rowY);
     setGray(doc, textG);
     doc.text(`${(ch.utilization * 100).toFixed(0)}%`, COL.util, rowY);
     doc.text(STATUS_LABEL[ch.status], COL.status, rowY);

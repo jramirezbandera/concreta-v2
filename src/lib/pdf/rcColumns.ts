@@ -179,8 +179,8 @@ export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnRe
       setGray(doc, isInfo ? 120 : 50);
       const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
       doc.text(desc, COL.desc, tableY);
-      doc.text(ch.value, COL.value, tableY);
-      doc.text(ch.limit, COL.limit, tableY);
+      doc.text(ch.value ?? '', COL.value, tableY);
+      doc.text(ch.limit ?? '', COL.limit, tableY);
       const utilStr = isInfo || !isFinite(ch.utilization) || isNaN(ch.utilization)
         ? '\u2014'
         : `${(ch.utilization * 100).toFixed(0)}%`;

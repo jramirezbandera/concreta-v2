@@ -169,8 +169,8 @@ describe('classification', () => {
     expect(heavy.valid).toBe(true);
     // The displayed web limit (`limit` field) must be strictly smaller in the
     // heavy-bottom case vs. the bare profile — tighter because α > 0.5.
-    const barelim  = bare.checks.find(c => c.id === 'cls-web')!.limit;
-    const heavylim = heavy.checks.find(c => c.id === 'cls-web')!.limit;
+    const barelim  = bare.checks.find(c => c.id === 'cls-web')!.limit ?? '';
+    const heavylim = heavy.checks.find(c => c.id === 'cls-web')!.limit ?? '';
     const parseLim = (s: string) => parseFloat(s.match(/([\d.]+)/)?.[1] ?? '0');
     expect(parseLim(heavylim)).toBeLessThan(parseLim(barelim));
   });
@@ -188,7 +188,7 @@ describe('classification', () => {
     expect(r.webClass).toBe(1);
     // Class 1 web limit for α=0.5: 72·ε
     const ε = Math.sqrt(235 / r.fy_MPa);
-    const limStr = r.checks.find(c => c.id === 'cls-web')!.limit;
+    const limStr = r.checks.find(c => c.id === 'cls-web')!.limit ?? '';
     const limVal = parseFloat(limStr.match(/([\d.]+)/)?.[1] ?? '0');
     expect(limVal).toBeCloseTo(72 * ε, 0);
   });

@@ -207,7 +207,7 @@ export async function exportAnchorPlatePDF(
     const descLines = doc.splitTextToSize(pdfStr(c.description), COL_DESC_W) as string[];
 
     doc.setFontSize(6);
-    const valueLimit = `${pdfStr(c.value)}  |  <= ${pdfStr(c.limit)}`;
+    const valueLimit = `${pdfStr(c.value ?? '')}  |  <= ${pdfStr(c.limit ?? '')}`;
     const vlLines = doc.splitTextToSize(valueLimit, COL_DESC_W) as string[];
 
     const rowH = 3.4 + descLines.length * 3 + vlLines.length * 2.8 + 2.5; // bar + padding

@@ -225,7 +225,7 @@ describe('Reinforcement limits', () => {
     expect(asMin.status).toBe('fail');
     // Extract the limit from the value/limit fields (makeCheck stringifies)
     // — parse "As,min = 420 mm²"
-    const match = asMin.value.match(/As,min\s*=\s*(\d+)/);
+    const match = (asMin.value ?? '').match(/As,min\s*=\s*(\d+)/);
     expect(match).toBeTruthy();
     const asMinParsed = Number(match![1]);
     // b·h → 420 mm²; with the buggy b·d it was ~380 mm² (for d≈452).
@@ -241,8 +241,8 @@ describe('Reinforcement limits', () => {
     const r2 = calcRCBeam({ ...base, h: 1000 });
     const asMin1 = r1.vano.checks.find((c) => c.id === 'as-min')!;
     const asMin2 = r2.vano.checks.find((c) => c.id === 'as-min')!;
-    const n1 = Number(asMin1.value.match(/As,min\s*=\s*(\d+)/)![1]);
-    const n2 = Number(asMin2.value.match(/As,min\s*=\s*(\d+)/)![1]);
+    const n1 = Number((asMin1.value ?? '').match(/As,min\s*=\s*(\d+)/)![1]);
+    const n2 = Number((asMin2.value ?? '').match(/As,min\s*=\s*(\d+)/)![1]);
     expect(n2 / n1).toBeCloseTo(2.0, 2);
   });
 

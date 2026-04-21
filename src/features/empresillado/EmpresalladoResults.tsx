@@ -9,7 +9,7 @@ interface EmpresalladoResultsProps {
   inp: EmpresalladoInputs;
 }
 
-type DisplayStatus = CheckStatus;
+type DisplayStatus = Exclude<CheckStatus, 'neutral'>;
 
 function overallStatus(result: EmpresalladoResult): DisplayStatus {
   const fails = result.checks.filter((c) => c.status === 'fail');
@@ -50,7 +50,7 @@ function VerdictBadge({ status }: { status: DisplayStatus }) {
 }
 
 function CheckRowItem({ id, description, value, limit, utilization, status }: {
-  id: string; description: string; value: string; limit: string; utilization: number; status: DisplayStatus;
+  id: string; description: string; value?: string; limit?: string; utilization: number; status: DisplayStatus;
 }) {
   const pct = Math.min(utilization * 100, 100);
   return (
@@ -61,8 +61,8 @@ function CheckRowItem({ id, description, value, limit, utilization, status }: {
     >
       <span className="text-[12px] text-text-secondary leading-snug">{description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">
-        <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">{value}</span>
-        <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">{limit}</span>
+        <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">{value ?? ''}</span>
+        <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">{limit ?? ''}</span>
       </div>
       <div className="h-1 bg-border-main rounded-sm overflow-hidden">
         <div className={`h-full rounded-sm ${BAR_CLASSES[status]}`} style={{ width: `${pct}%` }} role="presentation" />
@@ -72,6 +72,10 @@ function CheckRowItem({ id, description, value, limit, utilization, status }: {
       </span>
     </div>
   );
+}
+
+function asDisplayStatus(s: CheckStatus): DisplayStatus {
+  return s === 'neutral' ? 'ok' : s;
 }
 
 function GroupHeader({ label, description }: { label: string; description?: string }) {
@@ -150,7 +154,7 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
         value={`${contrib_N.toFixed(1)} + ${contrib_Mx.toFixed(1)} + ${contrib_My.toFixed(1)} kN`}
       />
       <ValueRow label="Axil maximo en cordon (N_chord)" value={`${result.N_chord_max.toFixed(1)} kN`} />
-      {chordCheck && <CheckRowItem {...chordCheck} description="Compresión en cordón — N_chord / N_pl,Rd (EC3 §6.4.2)" status={chordCheck.status} />}
+      {chordCheck && <CheckRowItem {...chordCheck} description="Compresión en cordón — N_chord / N_pl,Rd (EC3 §6.4.2)" status={asDisplayStatus(chordCheck.status)} />}
 
       {/* Local buckling */}
       <GroupHeader
@@ -159,7 +163,7 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
       />
       <ValueRow label="Esbeltez local (lambda_v)" value={result.lambda_v.toFixed(3)} />
       <ValueRow label="Coef. reducción local (chi_v) — curva b" value={result.chi_v.toFixed(3)} />
-      {localCheck && <CheckRowItem {...localCheck} description="Pandeo local eje v — N_chord / N_bv,Rd (EC3 §6.4 / §6.3.1)" status={localCheck.status} />}
+      {localCheck && <CheckRowItem {...localCheck} description="Pandeo local eje v — N_chord / N_bv,Rd (EC3 §6.4 / §6.3.1)" status={asDisplayStatus(localCheck.status)} />}
 
       {/* Global buckling */}
       <GroupHeader
@@ -171,7 +175,7 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
       <ValueRow label="Esbeltez efectiva corregida (lambda_eff) X / Y" value={`${result.lambda_effX.toFixed(3)} / ${result.lambda_effY.toFixed(3)}`} />
       <ValueRow label="Coef. reducción de pandeo (chi) X / Y" value={`${result.chi_X.toFixed(3)} / ${result.chi_Y.toFixed(3)}`} />
       <ValueRow label="Chi gobernante (eje más desfavorable)" value={result.chi.toFixed(3)} />
-      {globalCheck && <CheckRowItem {...globalCheck} description="Pandeo global — N_Ed / N_b,Rd (EC3 §6.4.3.1)" status={globalCheck.status} />}
+      {globalCheck && <CheckRowItem {...globalCheck} description="Pandeo global — N_Ed / N_b,Rd (EC3 §6.4.3.1)" status={asDisplayStatus(globalCheck.status)} />}
 
       {/* Pletinas */}
       <GroupHeader
@@ -180,8 +184,8 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
       />
       <ValueRow label="Cortante de diseño en pletina (V_Ed)" value={`${result.V_Ed.toFixed(2)} kN`} />
       <ValueRow label="Momento flector en pletina (M_Ed)" value={`${result.M_Ed_pl.toFixed(3)} kNm`} />
-      {pletMCheck && <CheckRowItem {...pletMCheck} description="Pletina — flexion — M_Ed / M_pl,Rd (EC3 §6.4.3.2)" status={pletMCheck.status} />}
-      {pletVCheck && <CheckRowItem {...pletVCheck} description="Pletina — cortante — V_Ed / V_Rd,pl (EC3 §6.4.3.2)" status={pletVCheck.status} />}
+      {pletMCheck && <CheckRowItem {...pletMCheck} description="Pletina — flexion — M_Ed / M_pl,Rd (EC3 §6.4.3.2)" status={asDisplayStatus(pletMCheck.status)} />}
+      {pletVCheck && <CheckRowItem {...pletVCheck} description="Pletina — cortante — V_Ed / V_Rd,pl (EC3 §6.4.3.2)" status={asDisplayStatus(pletVCheck.status)} />}
     </div>
   );
 }

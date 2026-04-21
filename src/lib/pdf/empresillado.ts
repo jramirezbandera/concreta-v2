@@ -154,8 +154,8 @@ export async function exportEmpresalladoPDF(
     doc.text(pdfStr(ch.description), COL.desc, rowY, { maxWidth: 78 });
 
     setGray(doc, 80);
-    doc.text(pdfStr(ch.value), COL.value, rowY);
-    doc.text(pdfStr(ch.limit), COL.limit, rowY);
+    doc.text(pdfStr(ch.value ?? ''), COL.value, rowY);
+    doc.text(pdfStr(ch.limit ?? ''), COL.limit, rowY);
 
     const textG = isFail ? 180 : isWarn ? 120 : 60;
     setGray(doc, textG);
