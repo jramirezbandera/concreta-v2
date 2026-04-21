@@ -14,7 +14,7 @@
 import { type RCColumnInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
-import { type CheckRow, toStatus, makeCheck } from './types';
+import { type CheckRow, toStatus, makeCheck, makeCheckQty } from './types';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -306,13 +306,12 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   }
 
   // nd-max
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'nd-max',
     'NEd \u2264 NRd,max (aplastamiento por compresi\u00f3n pura)',
     NEd_N / 1e3,
     NRd_max / 1e3,
-    `${(NEd_N / 1e3).toFixed(1)} kN`,
-    `${(NRd_max / 1e3).toFixed(1)} kN`,
+    'force',
     'CE art. 42',
   ));
 
@@ -326,13 +325,14 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   } else {
     checks.push({
-      id: 'nm-y',
-      description: `MEd,tot,y vs MRdy — ${MEd_tot_y.toFixed(1)} / ${MRdy.toFixed(1)} kNm`,
-      value: `${MEd_tot_y.toFixed(1)} kNm`,
-      limit: `${MRdy.toFixed(1)} kNm`,
-      utilization: MRdy > 0 ? MEd_tot_y / MRdy : Infinity,
+      ...makeCheckQty(
+        'nm-y',
+        'MEd,tot,y vs MRdy',
+        MEd_tot_y, MRdy,
+        'moment',
+        'CE art. 42 + 43',
+      ),
       status: MRdy > 0 && MEd_tot_y <= MRdy ? 'ok' : 'fail',
-      article: 'CE art. 42 + 43',
     });
   }
 
@@ -346,13 +346,14 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   } else {
     checks.push({
-      id: 'nm-z',
-      description: `MEd,tot,z vs MRdz — ${MEd_tot_z.toFixed(1)} / ${MRdz.toFixed(1)} kNm`,
-      value: `${MEd_tot_z.toFixed(1)} kNm`,
-      limit: `${MRdz.toFixed(1)} kNm`,
-      utilization: MRdz > 0 ? MEd_tot_z / MRdz : Infinity,
+      ...makeCheckQty(
+        'nm-z',
+        'MEd,tot,z vs MRdz',
+        MEd_tot_z, MRdz,
+        'moment',
+        'CE art. 42 + 43',
+      ),
       status: MRdz > 0 && MEd_tot_z <= MRdz ? 'ok' : 'fail',
-      article: 'CE art. 42 + 43',
     });
   }
 

@@ -1,13 +1,17 @@
 import { type RCColumnResult } from '../../lib/calculations/rcColumns';
-import { VerdictBadge, CheckRowItem, GroupHeader, overallStatus, ambientStyle } from '../../components/checks';
+import { VerdictBadge, CheckRowItem, GroupHeader, overallStatus, ambientStyle, checkValueStr } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface RCColumnsResultsProps {
   result: RCColumnResult;
 }
 
 /** Informational check row — dimmed '(info)' tag, no state color. */
-function InfoCheckRow({ check }: { check: import('../../lib/calculations/types').CheckRow }) {
+function InfoCheckRow({ check, system }: { check: import('../../lib/calculations/types').CheckRow; system: UnitSystem }) {
   const util = check.utilization;
   const barPct = isFinite(util) && !isNaN(util) ? Math.min(util * 100, 100) : 0;
   const valueStr = isNaN(util) ? '—' : isFinite(util) ? `${(util * 100).toFixed(0)}%` : '—';
@@ -16,7 +20,7 @@ function InfoCheckRow({ check }: { check: import('../../lib/calculations/types')
     <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
       <span className="text-[12px] text-text-disabled leading-snug">{check.description}</span>
       <span className="font-mono text-[11px] text-text-secondary text-right whitespace-nowrap tabular-nums">
-        {check.value}
+        {checkValueStr(check, system)}
       </span>
       <div className="h-0.75 bg-border-main rounded-sm overflow-hidden">
         <div
@@ -71,6 +75,8 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 }
 
 export function RCColumnsResults({ result }: RCColumnsResultsProps) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   if (!result.valid) {
     return (
       <div className="flex items-center justify-center h-24 rounded border border-state-fail/30 bg-state-fail/5">
@@ -135,24 +141,24 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
         hiddenZ={!showE2z}
       />
       <BiaxValueRow label="e_tot"   valueY={`${result.e_tot_y.toFixed(1)} mm`}  valueZ={`${result.e_tot_z.toFixed(1)} mm`} />
-      <BiaxValueRow label="MEd,tot" valueY={`${result.MEd_tot_y.toFixed(1)} kNm`} valueZ={`${result.MEd_tot_z.toFixed(1)} kNm`} />
+      <BiaxValueRow label="MEd,tot" valueY={fmtSi(result.MEd_tot_y, 'moment')} valueZ={fmtSi(result.MEd_tot_z, 'moment')} />
 
       {/* Shared values */}
       <div className="mt-1 pt-1 border-t border-border-sub">
         <ValueRow label="d' (arm. compresión)"         value={`${result.d_prime.toFixed(0)} mm`} />
         <ValueRow label={resultLabel('As_total')}      value={`${result.As_total.toFixed(0)} mm\u00b2`} />
-        <ValueRow label={resultLabel('NRd_max')}       value={`${result.NRd_max.toFixed(0)} kN`} />
-        <ValueRow label="MRdy / MRdz"                   value={`${result.MRdy.toFixed(1)} / ${result.MRdz.toFixed(1)} kNm`} />
+        <ValueRow label={resultLabel('NRd_max')}       value={fmtSi(result.NRd_max, 'force')} />
+        <ValueRow label="MRdy / MRdz"                   value={`${fmtSi(result.MRdy, 'moment')} / ${fmtSi(result.MRdz, 'moment')}`} />
         <ValueRow label={`ned \u2192 a  (${result.ned.toFixed(3)} \u2192 ${result.a.toFixed(2)})`} value="" />
       </div>
 
       {/* ELU Flexión Esviada */}
       <GroupHeader label="ELU Flexión Esviada" />
       {biaxialCheck && <CheckRowItem check={biaxialCheck} />}
-      {nmYCheck    && <InfoCheckRow  check={nmYCheck} />}
-      {nmZCheck    && <InfoCheckRow  check={nmZCheck} />}
-      {cond5a      && <InfoCheckRow  check={cond5a} />}
-      {cond5b      && <InfoCheckRow  check={cond5b} />}
+      {nmYCheck    && <InfoCheckRow  check={nmYCheck}  system={system} />}
+      {nmZCheck    && <InfoCheckRow  check={nmZCheck}  system={system} />}
+      {cond5a      && <InfoCheckRow  check={cond5a}    system={system} />}
+      {cond5b      && <InfoCheckRow  check={cond5b}    system={system} />}
 
       {/* Pandeo */}
       <GroupHeader label="Pandeo y segundo orden" />

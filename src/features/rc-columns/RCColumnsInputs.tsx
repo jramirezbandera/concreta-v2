@@ -4,6 +4,7 @@ import { availableFck, availableFyk } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RCColumnsInputsProps {
   state: RCColumnInputs;
@@ -190,28 +191,9 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
       </CollapsibleSection>
 
       <CollapsibleSection label="Solicitaciones">
-        <NumberField
-          labelKey="NEd"
-          fieldKey="Nd"
-          value={state.Nd}
-          min={1}
-          step={10}
-          setField={setField}
-        />
-        <NumberField
-          labelKey="My_Ed"
-          fieldKey="MEdy"
-          value={state.MEdy}
-          step={1}
-          setField={setField}
-        />
-        <NumberField
-          labelKey="Mz_Ed"
-          fieldKey="MEdz"
-          value={state.MEdz}
-          step={1}
-          setField={setField}
-        />
+        <UnitNumberInput labelKey="NEd"   field="Nd"   value={state.Nd}   quantity="force"  onChange={(v) => setField('Nd', v)} />
+        <UnitNumberInput labelKey="My_Ed" field="MEdy" value={state.MEdy} quantity="moment" onChange={(v) => setField('MEdy', v)} />
+        <UnitNumberInput labelKey="Mz_Ed" field="MEdz" value={state.MEdz} quantity="moment" onChange={(v) => setField('MEdz', v)} />
       </CollapsibleSection>
     </div>
   );

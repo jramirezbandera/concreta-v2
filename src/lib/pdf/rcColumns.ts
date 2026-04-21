@@ -5,6 +5,8 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rcColumns';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
@@ -17,7 +19,20 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.line(M, y, PAGE_W - M, y);
 }
 
-export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnResult): Promise<PdfResult> {
+export async function exportRCColumnsPDF(
+  inp: RCColumnInputs,
+  result: RCColumnResult,
+  system: UnitSystem = 'si',
+): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
+    c.valueNum !== undefined && c.valueQty
+      ? formatQuantity(c.valueNum, c.valueQty, system)
+      : (c.valueStr ?? c.value ?? '');
+  const checkLimitStr = (c: { limitNum?: number; limitQty?: Quantity; limitStr?: string; limit?: string }) =>
+    c.limitNum !== undefined && c.limitQty
+      ? formatQuantity(c.limitNum, c.limitQty, system)
+      : (c.limitStr ?? c.limit ?? '');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ─────────────────────────────────────────────────────────────────
@@ -54,10 +69,10 @@ export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnRe
     : '\u2014';
 
   const infoLines: Array<[string, string, string]> = [
-    [`b = ${inp.b} mm`,             `h = ${inp.h} mm`,          `Recub. = ${inp.cover} mm`],
-    [`fck = ${inp.fck} MPa`,        `fyk = ${inp.fyk} MPa`,     `NEd = ${inp.Nd} kN`],
-    [result.rebarSchedule,          '',                          Lk_str],
-    [`MEdy = ${inp.MEdy} kNm`,      `MEdz = ${inp.MEdz} kNm`,  lambdaStr],
+    [`b = ${inp.b} mm`,              `h = ${inp.h} mm`,           `Recub. = ${inp.cover} mm`],
+    [`fck = ${inp.fck} MPa`,         `fyk = ${inp.fyk} MPa`,      `NEd = ${fmtSi(inp.Nd, 'force')}`],
+    [result.rebarSchedule,           '',                            Lk_str],
+    [`MEdy = ${fmtSi(inp.MEdy, 'moment')}`, `MEdz = ${fmtSi(inp.MEdz, 'moment')}`, lambdaStr],
   ];
 
   for (const [c1, c2, c3] of infoLines) {
@@ -127,17 +142,17 @@ export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnRe
       `As=${result.As_total.toFixed(0)}mm\u00b2`,
       `\u03bby=${result.lambda_y.toFixed(1)}`,
       `\u03bbz=${result.lambda_z.toFixed(1)}`,
-      `NRd,max=${result.NRd_max.toFixed(0)}kN`,
+      `NRd,max=${fmtSi(result.NRd_max, 'force')}`,
     ].join('   ');
     doc.text(kv1, M, tableY);
     tableY += 4;
 
     // Key values line 2
     const kv2 = [
-      `MEd,tot,y=${result.MEd_tot_y.toFixed(1)}kNm`,
-      `MEd,tot,z=${result.MEd_tot_z.toFixed(1)}kNm`,
-      `MRdy=${result.MRdy.toFixed(1)}kNm`,
-      `MRdz=${result.MRdz.toFixed(1)}kNm`,
+      `MEd,tot,y=${fmtSi(result.MEd_tot_y, 'moment')}`,
+      `MEd,tot,z=${fmtSi(result.MEd_tot_z, 'moment')}`,
+      `MRdy=${fmtSi(result.MRdy, 'moment')}`,
+      `MRdz=${fmtSi(result.MRdz, 'moment')}`,
       `ned=${result.ned.toFixed(3)}\u2192a=${result.a.toFixed(2)}`,
       `util=${result.biaxialUtil.toFixed(3)}`,
     ].join('   ');
@@ -179,8 +194,8 @@ export async function exportRCColumnsPDF(inp: RCColumnInputs, result: RCColumnRe
       setGray(doc, isInfo ? 120 : 50);
       const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
       doc.text(desc, COL.desc, tableY);
-      doc.text(ch.value ?? '', COL.value, tableY);
-      doc.text(ch.limit ?? '', COL.limit, tableY);
+      doc.text(checkValueStr(ch), COL.value, tableY);
+      doc.text(checkLimitStr(ch), COL.limit, tableY);
       const utilStr = isInfo || !isFinite(ch.utilization) || isNaN(ch.utilization)
         ? '\u2014'
         : `${(ch.utilization * 100).toFixed(0)}%`;

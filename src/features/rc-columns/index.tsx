@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCColumn } from '../../lib/calculations/rcColumns';
 import { exportRCColumnsPDF } from '../../lib/pdf/rcColumns';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,15 @@ import { RCColumnsResults } from './RCColumnsResults';
 export function RCColumnsModule() {
   const { state, setField, reset } = useModuleState('rc-columns', rcColumnDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcRCColumn(state), [state]);
 
+  // PDF export stays available even when result is invalid — engineers may
+  // need a PDF to document a failing/non-conforming section (memory note).
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportRCColumnsPDF(state, result), result.valid);
+    usePdfPreview(() => exportRCColumnsPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const CANVAS_PAD = 32;
