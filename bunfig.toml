@@ -1,0 +1,6 @@
+[test]
+# DOM-based tests (React Testing Library, jsdom) cannot run under `bun test` —
+# they require a browser environment. They are covered by `npm run test:run`
+# (vitest with jsdom). Keeping them out of `bun test` lets the fast pre-commit
+# hook stay green while the full suite covers DOM behavior.
+pathIgnorePatterns = ["**/*.dom.test.*"]
