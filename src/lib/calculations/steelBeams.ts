@@ -13,6 +13,7 @@ import { type SteelBeamInputs } from '../../data/defaults';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
 import { ISectionAdapter } from '../sections';
 import { BEAM_CASES } from './beamCases';
+import { type CheckRow, type CheckStatus } from './types';
 
 // CTE DB-SE-A constants
 const E = 210000;   // N/mm²  — Young's modulus
@@ -20,19 +21,11 @@ const G = 81000;    // N/mm²  — Shear modulus
 const γM0 = 1.05;
 const γM1 = 1.05;
 
-export type SteelCheckStatus = 'ok' | 'warn' | 'fail' | 'neutral';
-
-export interface SteelCheckRow {
-  id: string;
-  description: string;
-  value: string;
-  limit: string;
-  utilization: number;
-  status: SteelCheckStatus;
-  article: string;
-  neutral?: boolean;  // classification row — no bar
-  tag?: string;       // e.g. 'CLASE 1'
-}
+// Re-export the unified types under the legacy steel names so the 5 existing
+// consumers (SteelBeamsResults, SteelColumnsResults, pdf/steelBeams,
+// pdf/steelColumns, calculations/steelColumns) keep working without churn.
+export type SteelCheckStatus = CheckStatus;
+export type SteelCheckRow = CheckRow;
 
 export interface SteelBeamResult {
   valid: boolean;
