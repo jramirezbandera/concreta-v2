@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
 import { exportRetainingWallPDF } from '../../lib/pdf/retainingWall';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,13 @@ import { RetainingWallResults } from './RetainingWallResults';
 export function RetainingWallModule() {
   const { state, setField, reset } = useModuleState('retaining-wall', retainingWallDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcRetainingWall(state), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportRetainingWallPDF(state, result), result.valid);
+    usePdfPreview(() => exportRetainingWallPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0

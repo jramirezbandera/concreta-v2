@@ -2,6 +2,9 @@ import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface RetainingWallResultsProps {
   result: RetainingWallResult;
@@ -9,6 +12,9 @@ interface RetainingWallResultsProps {
 }
 
 export function RetainingWallResults({ result, inp }: RetainingWallResultsProps) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
+
   if (!result.valid) {
     return (
       <div className="flex items-center justify-center h-24 rounded border border-state-fail/30 bg-state-fail/5">
@@ -86,11 +92,11 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
         {result.KAD !== undefined && (
           <ValueRow label={resultLabel('K_AE')}      value={result.KAD.toFixed(4)} />
         )}
-        <ValueRow label="EAH total"             value={`${result.EAH_total.toFixed(2)} kN/m`} />
+        <ValueRow label="EAH total"             value={fmtSi(result.EAH_total, 'linearLoad')} />
         {result.EW !== undefined && (
-          <ValueRow label="EW (hidráulica)"      value={`${result.EW.toFixed(2)} kN/m`} />
+          <ValueRow label="EW (hidráulica)"      value={fmtSi(result.EW, 'linearLoad')} />
         )}
-        <ValueRow label="ΣV"                    value={`${result.ΣV.toFixed(2)} kN/m`} />
+        <ValueRow label="ΣV"                    value={fmtSi(result.ΣV, 'linearLoad')} />
         <ValueRow label="e (excentricidad)"     value={`${result.e.toFixed(3)} m`} />
         <ValueRow label={resultLabel('sigma_max')} value={`${result.sigma_max.toFixed(1)} kPa`} />
         <ValueRow label={resultLabel('sigma_min')} value={`${result.sigma_min.toFixed(1)} kPa`} />

@@ -8,6 +8,8 @@ import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
 
 import { PAGE_W, PAGE_H, setGray, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M  = 18;
 
@@ -28,7 +30,10 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
 export async function exportRetainingWallPDF(
   inp: RetainingWallInputs,
   result: RetainingWallResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+    formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ──────────────────────────────────────────────────────────────
@@ -67,7 +72,7 @@ export async function exportRetainingWallPDF(
     [`bPunta = ${(inp.bPunta as number).toFixed(2)} m`, `bTalon = ${(inp.bTalon as number).toFixed(2)} m`, `B = ${B_m.toFixed(2)} m`],
     [`fck = ${inp.fck} N/mm\u00b2`, `fyk = ${inp.fyk} N/mm\u00b2`, `recub. = ${(inp.cover as number).toFixed(3)} m`],
     [`\u03b3s = ${inp.gammaSuelo} kN/m\u00b3`, `\u03b3sat = ${inp.gammaSat} kN/m\u00b3`, `\u03c6 = ${inp.phi}\u00b0  \u03b4 = ${inp.delta}\u00b0`],
-    [`q = ${inp.q} kN/m\u00b2`, `\u03c3adm = ${inp.sigmaAdm} kPa`, `\u03bc = ${inp.mu}`],
+    [`q = ${fmtSi(inp.q as number, 'areaLoad')}`, `\u03c3adm = ${inp.sigmaAdm} kPa`, `\u03bc = ${inp.mu}`],
     [`hw = ${(inp.hw as number).toFixed(2)} m`, `Ab = ${inp.Ab} g`, `S = ${inp.S}`],
   ];
 
@@ -110,8 +115,8 @@ export async function exportRetainingWallPDF(
   const kv: [string, string][] = [
     ['Ka (Coulomb)', result.Ka.toFixed(4)],
     ...(result.KAD !== undefined ? [['KAD (M-O)', result.KAD.toFixed(4)] as [string, string]] : []),
-    ['EAH total', `${result.EAH_total.toFixed(2)} kN/m`],
-    ['\u03a3V', `${result.ΣV.toFixed(2)} kN/m`],
+    ['EAH total', fmtSi(result.EAH_total, 'linearLoad')],
+    ['\u03a3V', fmtSi(result.ΣV, 'linearLoad')],
     ['e', `${result.e.toFixed(3)} m`],
     ['\u03c3max', `${result.sigma_max.toFixed(1)} kPa`],
     ['\u03c3min', `${result.sigma_min.toFixed(1)} kPa`],

@@ -3,6 +3,7 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RetainingWallInputsProps {
   state: RetainingWallInputs;
@@ -224,7 +225,14 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         <NumField label="γsat" sub="Suelo saturado"     field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
         <NumField labelKey="phi_soil"         field="phi"        value={state.phi        as number} setField={setField} />
         <NumField labelKey="delta_wall"       field="delta"      value={state.delta      as number} setField={setField} />
-        <NumField label="q" sub="Sobrecarga trasdós"    field="q"          value={state.q          as number} unit="kN/m²" setField={setField} />
+        <UnitNumberInput
+          label="q"
+          sub="Sobrecarga trasdós"
+          field="q"
+          value={state.q as number}
+          quantity="areaLoad"
+          onChange={(v) => setField('q', v)}
+        />
         <NumField labelKey="sigma_adm"        field="sigmaAdm"   value={state.sigmaAdm   as number} setField={setField} />
         <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
       </CollapsibleSection>
