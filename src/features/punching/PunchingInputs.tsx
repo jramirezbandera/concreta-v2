@@ -4,6 +4,7 @@ import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
@@ -301,7 +302,11 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
 
       {/* CARGA */}
       <CollapsibleSection label="Carga">
-        <NumField label={vedLabel} sub="VEd" field="VEd" value={state.VEd as number} unit="kN" setField={setField} />
+        <UnitNumberInput
+          label={vedLabel} sub="VEd" field="VEd"
+          value={state.VEd as number} quantity="force"
+          onChange={(v) => setField('VEd', v)}
+        />
         <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Esfuerzo mayorado ELU</p>
         <SelectField
           label="Posición"

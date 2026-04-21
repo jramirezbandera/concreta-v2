@@ -13,6 +13,8 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type PunchingInputs } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { UnitSystem } from '../units/types';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -26,6 +28,7 @@ const POSITION_LABEL: Record<string, string> = {
 export async function exportPunchingPDF(
   inp: PunchingInputs,
   result: PunchingResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -113,7 +116,7 @@ export async function exportPunchingPDF(
   lRow(`Posicion: ${POSITION_LABEL[inp.position] ?? inp.position}`);
   lRow(`beta = ${result.beta.toFixed(2)}`);
   ly += 1;
-  lRow(`VEd = ${inp.VEd} kN`);
+  lRow(`VEd = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
   lRow(`vEd,0 (u0) = ${result.vEd0.toFixed(3)} N/mm2`);
   lRow(`vEd (u1) = ${result.vEd.toFixed(3)} N/mm2`);
 
