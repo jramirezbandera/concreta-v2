@@ -2,6 +2,7 @@ import { type TimberColumnInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getGammaM, getTimberGrade } from '../../data/timberGrades';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
   state: TimberColumnInputs;
@@ -191,9 +192,27 @@ export function TimberColumnsInputs({ state, setField }: Props) {
 
       {/* ── Solicitaciones de diseño ─────────────────────────────────────── */}
       <CollapsibleSection label="Solicitaciones (mayoradas)">
-        <NumField labelKey="NEd" field="Nd" value={state.Nd} min={0} step={5} setField={setField} />
-        <NumField labelKey="VEd" field="Vd" value={state.Vd} min={0} step={1} setField={setField} />
-        <NumField labelKey="MEd" field="Md" value={state.Md} min={0} step={1} setField={setField} />
+        <UnitNumberInput
+          labelKey="NEd"
+          field="Nd"
+          value={state.Nd}
+          quantity="force"
+          onChange={(v) => setField('Nd', v)}
+        />
+        <UnitNumberInput
+          labelKey="VEd"
+          field="Vd"
+          value={state.Vd}
+          quantity="force"
+          onChange={(v) => setField('Vd', v)}
+        />
+        <UnitNumberInput
+          labelKey="MEd"
+          field="Md"
+          value={state.Md}
+          quantity="moment"
+          onChange={(v) => setField('Md', v)}
+        />
         <SelectField label="Eje de momento" field="momentAxis" value={state.momentAxis} options={MOMENT_AXIS_OPTIONS} setField={setField} />
       </CollapsibleSection>
 

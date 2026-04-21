@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcTimberColumn } from '../../lib/calculations/timberColumns';
 import { exportTimberColumnsPDF } from '../../lib/pdf/timberColumns';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,13 @@ import { TimberColumnsResults } from './TimberColumnsResults';
 export function TimberColumnsModule() {
   const { state, setField, reset } = useModuleState('timber-columns', timberColumnDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcTimberColumn(state as never), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportTimberColumnsPDF(state as never, result), result.valid);
+    usePdfPreview(() => exportTimberColumnsPDF(state as never, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);

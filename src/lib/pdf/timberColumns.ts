@@ -13,6 +13,8 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type TimberColumnInputs } from '../../data/defaults';
 import { type TimberColumnResult } from '../../lib/calculations/timberColumns';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -41,7 +43,10 @@ const BETA_LABEL: Record<number, string> = {
 export async function exportTimberColumnsPDF(
   inp: TimberColumnInputs,
   result: TimberColumnResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+    formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -125,8 +130,8 @@ export async function exportTimberColumnsPDF(
   lRow(betaYLabel, betaZLabel || undefined);
   ly += 2;
   lSecHeader('SOLICITACIONES DE DISENO');
-  lRow(`Nd = ${inp.Nd} kN`);
-  lRow(`Vd = ${inp.Vd} kN`, `Md = ${inp.Md} kNm`);
+  lRow(`Nd = ${fmtSi(inp.Nd, 'force')}`);
+  lRow(`Vd = ${fmtSi(inp.Vd, 'force')}`, `Md = ${fmtSi(inp.Md, 'moment')}`);
   lRow(`Eje momento: ${inp.momentAxis === 'strong' ? 'fuerte (h)' : 'debil (b)'}`);
 
   if (result.fireActive) {
