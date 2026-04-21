@@ -4,6 +4,7 @@ import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
   state:    PileCapInputs;
@@ -149,15 +150,31 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
         <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
         <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
-        <NumField label="R_adm"  sub="Cap. admisible"   field="R_adm"  value={state.R_adm as number}  unit="kN"  setField={setField} />
+        <UnitNumberInput
+          label="R_adm" sub="Cap. admisible" field="R_adm"
+          value={state.R_adm as number} quantity="force"
+          onChange={(v) => setField('R_adm', v)}
+        />
       </CollapsibleSection>
 
       {/* Loads */}
       <CollapsibleSection label="Acciones de diseño (ELU)">
-        <NumField labelKey="NEd"        field="N_Ed"   value={state.N_Ed as number}   setField={setField} />
-        <NumField labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number}  setField={setField} />
+        <UnitNumberInput
+          labelKey="NEd" field="N_Ed"
+          value={state.N_Ed as number} quantity="force"
+          onChange={(v) => setField('N_Ed', v)}
+        />
+        <UnitNumberInput
+          labelKey="Mx_Ed_plan" field="Mx_Ed"
+          value={state.Mx_Ed as number} quantity="moment"
+          onChange={(v) => setField('Mx_Ed', v)}
+        />
         {n !== 2 && (
-          <NumField labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number}  setField={setField} />
+          <UnitNumberInput
+            labelKey="My_Ed_plan" field="My_Ed"
+            value={state.My_Ed as number} quantity="moment"
+            onChange={(v) => setField('My_Ed', v)}
+          />
         )}
       </CollapsibleSection>
 

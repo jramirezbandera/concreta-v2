@@ -7,13 +7,18 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;  // mm margin
 
 export async function exportPileCapPDF(
   inp: PileCapInputs,
   result: PileCapResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 1) =>
+    formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const n       = inp.n as number;
@@ -78,8 +83,8 @@ export async function exportPileCapPDF(
   twoCol(`n = ${n} pilotes`, `d_p = ${inp.d_p} mm`);
   twoCol(`s = ${inp.s} mm`, `h = ${inp.h_enc} mm`);
   twoCol(`fck = ${inp.fck} MPa`, `fyk = ${inp.fyk} MPa`);
-  twoCol(`N_Ed = ${inp.N_Ed} kN`, `R_adm = ${inp.R_adm} kN`);
-  if (inp.Mx_Ed !== 0) twoCol(`Mx = ${inp.Mx_Ed} kNm`, `My = ${inp.My_Ed} kNm`);
+  twoCol(`N_Ed = ${fmtSi(inp.N_Ed, 'force')}`, `R_adm = ${fmtSi(inp.R_adm, 'force')}`);
+  if (inp.Mx_Ed !== 0) twoCol(`Mx = ${fmtSi(inp.Mx_Ed, 'moment', 2)}`, `My = ${fmtSi(inp.My_Ed, 'moment', 2)}`);
   gap();
 
   // GEOMETRIA ENCEPADO
@@ -92,8 +97,8 @@ export async function exportPileCapPDF(
   secHeader('BIELAS Y TIRANTES (CE art. 48)');
   twoCol(`th = ${result.theta_deg.toFixed(1)} deg`, `z_eff = ${result.z_eff.toFixed(0)} mm`);
   twoCol(`sigma_biela = ${result.sigma_strut.toFixed(2)} MPa`, `sigma_Rd = ${result.sigma_Rd_max.toFixed(2)} MPa`);
-  twoCol(`Ft,x = ${result.Ft_x.toFixed(1)} kN`,
-    result.Ft_y !== null ? `Ft,y = ${result.Ft_y.toFixed(1)} kN` : '');
+  twoCol(`Ft,x = ${fmtSi(result.Ft_x, 'force')}`,
+    result.Ft_y !== null ? `Ft,y = ${fmtSi(result.Ft_y, 'force')}` : '');
   gap();
 
   // ARMADURA TIRANTES

@@ -2,6 +2,9 @@ import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   inp:    PileCapInputs;
@@ -11,6 +14,9 @@ interface Props {
 export function PileCapResults({ inp, result }: Props) {
   const n       = inp.n as number;
   const phi_tie = inp.phi_tie as number;
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity, precision = 1) =>
+    formatQuantity(v, q, system, { precision });
 
   if (!result.valid && result.error) {
     return (
@@ -39,11 +45,11 @@ export function PileCapResults({ inp, result }: Props) {
         <ValueRow
           key={`R${i}`}
           label={`R${i + 1}`}
-          value={`${R.toFixed(1)} kN`}
+          value={fmtSi(R, 'force')}
         />
       ))}
-      <ValueRow label="R_max" value={`${result.R_max.toFixed(1)} kN`} />
-      <ValueRow label="R_min" value={`${result.R_min.toFixed(1)} kN`} />
+      <ValueRow label="R_max" value={fmtSi(result.R_max, 'force')} />
+      <ValueRow label="R_min" value={fmtSi(result.R_min, 'force')} />
 
       {/* Geometría del encepado */}
       <GroupHeader label="Geometría del encepado" />
@@ -58,9 +64,9 @@ export function PileCapResults({ inp, result }: Props) {
       <ValueRow label="θ (biela)"  value={`${result.theta_deg.toFixed(1)}°`} />
       <ValueRow label="σ_biela"    value={`${result.sigma_strut.toFixed(2)} MPa`} />
       <ValueRow label="σ_Rd,max"   value={`${result.sigma_Rd_max.toFixed(2)} MPa`} />
-      <ValueRow label="Ft,x"       value={`${result.Ft_x.toFixed(1)} kN`} />
+      <ValueRow label="Ft,x"       value={fmtSi(result.Ft_x, 'force')} />
       {result.Ft_y !== null && (
-        <ValueRow label="Ft,y" value={`${result.Ft_y.toFixed(1)} kN`} />
+        <ValueRow label="Ft,y" value={fmtSi(result.Ft_y, 'force')} />
       )}
 
       {/* Armadura tirantes */}

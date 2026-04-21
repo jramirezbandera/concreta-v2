@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPileCap } from '../../lib/calculations/pileCap';
 import { exportPileCapPDF } from '../../lib/pdf/pileCap';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,13 @@ import { PileCapSVG } from './PileCapSVG';
 export function PileCapModule() {
   const { state, setField } = useModuleState('pile-cap', pileCapDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcPileCap(state), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportPileCapPDF(state, result), result.valid);
+    usePdfPreview(() => exportPileCapPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
