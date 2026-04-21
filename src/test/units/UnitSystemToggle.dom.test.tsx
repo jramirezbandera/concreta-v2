@@ -15,8 +15,8 @@ describe("UnitSystemToggle", () => {
         <UnitSystemToggle />
       </UnitSystemProvider>
     );
-    const si = screen.getByRole("button", { name: "SI" });
-    const tec = screen.getByRole("button", { name: "Téc" });
+    const si = screen.getByRole("button", { name: "N/mm²" });
+    const tec = screen.getByRole("button", { name: "kg/cm²" });
     expect(si.getAttribute("aria-pressed")).toBe("true");
     expect(tec.getAttribute("aria-pressed")).toBe("false");
   });
@@ -27,10 +27,10 @@ describe("UnitSystemToggle", () => {
         <UnitSystemToggle />
       </UnitSystemProvider>
     );
-    const tec = screen.getByRole("button", { name: "Téc" });
+    const tec = screen.getByRole("button", { name: "kg/cm²" });
     await userEvent.setup().click(tec);
     expect(tec.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "SI" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "N/mm²" }).getAttribute("aria-pressed")).toBe("false");
     expect(window.localStorage.getItem("unitSystem")).toBe("tecnico");
   });
 
@@ -41,7 +41,7 @@ describe("UnitSystemToggle", () => {
         <UnitSystemToggle />
       </UnitSystemProvider>
     );
-    expect(screen.getByRole("button", { name: "Téc" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "SI" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "kg/cm²" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "N/mm²" }).getAttribute("aria-pressed")).toBe("false");
   });
 });
