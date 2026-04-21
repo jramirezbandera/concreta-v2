@@ -319,7 +319,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
 
   // §6.3.3 Eq 6.23 — strong axis buckling + bending on selected axis
   const axisLabel = inp.momentAxis === 'strong' ? 'eje fuerte (y)' : 'eje débil (z)';
-  const label_623 = `(σc/(kcy·fc0,d))² + σm,d/fm,d ≤ 1 — ${axisLabel}, kcy=${kc_y.toFixed(3)}`;
+  const label_623 = `σc/(kcy·fc0,d) + σm,d/fm,d ≤ 1 — ${axisLabel}, kcy=${kc_y.toFixed(3)}`;
   checks.push({
     id: 'comb-623',
     description: label_623,
@@ -332,7 +332,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   });
 
   // §6.3.3 Eq 6.24 — weak axis buckling + km·bending
-  const label_624 = `(σc/(kcz·fc0,d))² + km·σm,d/fm,d ≤ 1 — eje débil (z), kcz=${kc_z.toFixed(3)}`;
+  const label_624 = `σc/(kcz·fc0,d) + km·σm,d/fm,d ≤ 1 — eje débil (z), kcz=${kc_z.toFixed(3)}`;
   checks.push({
     id: 'comb-624',
     description: label_624,
@@ -380,7 +380,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
       ));
 
       // Fire combined 6.23
-      const label_623_fi = `(σc/(kcy,fi·fc0,k))² + σm,d/fm,k ≤ 1 — kcy,fi=${kc_y_fi.toFixed(3)}`;
+      const label_623_fi = `σc/(kcy,fi·fc0,k) + σm,d/fm,k ≤ 1 — kcy,fi=${kc_y_fi.toFixed(3)}`;
       checks.push({
         id: 'fire-comb-623',
         description: label_623_fi,
@@ -393,7 +393,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
       });
 
       // Fire combined 6.24
-      const label_624_fi = `(σc/(kcz,fi·fc0,k))² + km·σm,d/fm,k ≤ 1 — kcz,fi=${kc_z_fi.toFixed(3)}`;
+      const label_624_fi = `σc/(kcz,fi·fc0,k) + km·σm,d/fm,k ≤ 1 — kcz,fi=${kc_z_fi.toFixed(3)}`;
       checks.push({
         id: 'fire-comb-624',
         description: label_624_fi,

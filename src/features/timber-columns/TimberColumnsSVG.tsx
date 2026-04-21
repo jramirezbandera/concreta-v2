@@ -219,10 +219,6 @@ function ColumnElevation({
   const hasV = inp.Vd > 0;
   const hasM = inp.Md > 0;
 
-  // Moment diagram (triangle: 0 at bottom, max at top — typical cantilever/wind)
-  const mDiagW = hasM ? Math.min(40, panelW * 0.15) : 0;
-  const mDiagX = cx + colW / 2 + 4;
-
   // Effective length annotation (show both if different)
   const betaLabel = inp.beta_y === inp.beta_z
     ? `β=${inp.beta_y}`
@@ -277,27 +273,25 @@ function ColumnElevation({
         </g>
       )}
 
-      {/* Moment diagram (filled triangle on right of column) */}
-      {hasM && (
-        <g>
-          <polygon
-            points={`${mDiagX},${yTop} ${mDiagX + mDiagW},${yTop} ${mDiagX},${yBot}`}
-            fill={C.momentCurve} opacity={0.25}
-          />
-          <line x1={mDiagX} y1={yTop} x2={mDiagX + mDiagW} y2={yTop}
-            stroke={C.momentCurve} strokeWidth={1} />
-          <line x1={mDiagX} y1={yTop} x2={mDiagX} y2={yBot}
-            stroke={C.momentCurve} strokeWidth={1} strokeDasharray="3 2" opacity={0.5} />
-          <text x={mDiagX + mDiagW + 4} y={yTop + 9} fontSize={fs} fill={C.momentCurve}
-            fontFamily="monospace">
-            {`${inp.Md}kNm`}
-          </text>
-          <text x={mDiagX + mDiagW / 2 + 4} y={yTop - 4} fontSize={fs - 1} fill={C.momentCurve}
-            fontFamily="monospace" textAnchor="middle">
-            Md
-          </text>
-        </g>
-      )}
+      {/* Applied moment — curved arrow indicator at top of column
+          (Md is a scalar design value; no distribution assumed) */}
+      {hasM && (() => {
+        const mx = cx + colW / 2 + 10;
+        const my = yTop + 12;
+        const r  = 7;
+        return (
+          <g>
+            <path
+              d={`M ${mx - r} ${my} A ${r} ${r} 0 1 1 ${mx + r} ${my}`}
+              fill="none" stroke={C.loadArrow} strokeWidth={isPdf ? 1.5 : 1.5}
+            />
+            <ArrowHead x={mx + r} y={my} dir="down" />
+            <text x={mx + r + 6} y={my + 4} fontSize={fs} fill={C.dimText} fontFamily="monospace">
+              {`Md=${inp.Md}kNm`}
+            </text>
+          </g>
+        );
+      })()}
 
       {/* Dimension: L (left side of column) */}
       <line x1={colX - 14} y1={yTop} x2={colX - 14} y2={yBot}
