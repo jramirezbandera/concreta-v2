@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcEmpresillado } from '../../lib/calculations/empresillado';
 import { exportEmpresalladoPDF } from '../../lib/pdf/empresillado';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,13 +18,14 @@ import { EmpresalladoResults } from './EmpresalladoResults';
 export function EmpresalladoModule() {
   const { state, setField, reset } = useModuleState('empresillado', empresalladoDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcEmpresillado(state), [state]);
   const sError = state.s <= state.lp;
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportEmpresalladoPDF(state, result), result.valid);
+    usePdfPreview(() => exportEmpresalladoPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);

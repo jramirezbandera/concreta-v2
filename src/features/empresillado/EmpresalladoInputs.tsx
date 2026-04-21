@@ -2,6 +2,7 @@ import { type EmpresalladoInputs } from '../../data/defaults';
 import { ANGLE_PROFILES } from '../../data/angleProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface EmpresalladoInputsProps {
   state: EmpresalladoInputs;
@@ -80,17 +81,13 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
 
       {/* ── Cargas de diseño ──────────────────────────────────────────── */}
       <CollapsibleSection label="Cargas de diseño">
-        <NumberField labelKey="NEd" value={state.N_Ed} step={10} min={0} onChange={(v) => set('N_Ed', v)} />
-        <NumberField labelKey="Mx_Ed_plan" value={state.Mx_Ed} step={1} onChange={(v) => set('Mx_Ed', v)} />
-        <NumberField labelKey="My_Ed_plan" value={state.My_Ed} step={1} onChange={(v) => set('My_Ed', v)} />
-        <NumberField
-          labelKey="VEd"
-          value={state.Vd}
-          step={1}
-          min={0}
-          helpText={"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
-          onChange={(v) => set('Vd', v)}
-        />
+        <UnitNumberInput labelKey="NEd" field="N_Ed" value={state.N_Ed} quantity="force" onChange={(v) => set('N_Ed', v)} />
+        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)} />
+        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)} />
+        <UnitNumberInput labelKey="VEd" field="Vd" value={state.Vd} quantity="force" onChange={(v) => set('Vd', v)} />
+        <p className="text-[10px] text-text-disabled leading-tight whitespace-pre-line -mt-1 mb-2 pl-1">
+          {"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
+        </p>
       </CollapsibleSection>
 
       {/* ── Perfil L ──────────────────────────────────────────────────── */}

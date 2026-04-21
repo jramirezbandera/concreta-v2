@@ -6,13 +6,18 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 
 export async function exportEmpresalladoPDF(
   inp: EmpresalladoInputs,
   result: EmpresalladoResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 1) =>
+    formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -78,9 +83,9 @@ export async function exportEmpresalladoPDF(
 
   // LOADS
   secHeader('CARGAS ELU');
-  twoCol(`N_Ed = ${inp.N_Ed} kN`);
-  twoCol(`Mx_Ed = ${inp.Mx_Ed} kNm`, `My_Ed = ${inp.My_Ed} kNm`);
-  twoCol(`Vd = ${inp.Vd} kN`);
+  twoCol(`N_Ed = ${fmtSi(inp.N_Ed, 'force')}`);
+  twoCol(`Mx_Ed = ${fmtSi(inp.Mx_Ed, 'moment', 2)}`, `My_Ed = ${fmtSi(inp.My_Ed, 'moment', 2)}`);
+  twoCol(`Vd = ${fmtSi(inp.Vd, 'force')}`);
   gap();
 
   // PROFILE + BATTENS
@@ -93,8 +98,8 @@ export async function exportEmpresalladoPDF(
   // KEY RESULTS
   secHeader('RESULTADOS CLAVE');
   twoCol(`chi = ${result.chi.toFixed(3)}`);
-  twoCol(`N_b,Rd = ${result.N_b_Rd.toFixed(1)} kN`);
-  twoCol(`N_chord = ${result.N_chord_max.toFixed(1)} kN`);
+  twoCol(`N_b,Rd = ${fmtSi(result.N_b_Rd, 'force')}`);
+  twoCol(`N_chord = ${fmtSi(result.N_chord_max, 'force')}`);
   twoCol(`lambda_eff X/Y: ${result.lambda_effX.toFixed(3)} / ${result.lambda_effY.toFixed(3)}`);
 
   // ── Checks table ─────────────────────────────────────────────────────────────

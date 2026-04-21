@@ -9,7 +9,7 @@
 
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { getAngleProfile } from '../../data/angleProfiles';
-import { makeCheck, type CheckRow } from './types';
+import { makeCheckQty, type CheckRow } from './types';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const γM0 = 1.05;
@@ -192,46 +192,16 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
 
   // ── Check rows ────────────────────────────────────────────────────────────
   const checks: CheckRow[] = [
-    makeCheck(
-      'cordones',
-      'Cordones — compresión (N_chord / N_pl,Rd)',
-      N_chord_max, N_pl_Rd,
-      `${N_chord_max.toFixed(1)} kN`,
-      `${N_pl_Rd.toFixed(1)} kN`,
-      'EC3 §6.4.2',
-    ),
-    makeCheck(
-      'pandeo-local',
-      'Pandeo local eje v (N_chord / N_bv,Rd)',
-      N_chord_max, N_bv_Rd,
-      `${N_chord_max.toFixed(1)} kN`,
-      `${N_bv_Rd.toFixed(1)} kN`,
-      'EC3 §6.4 / §6.3.1',
-    ),
-    makeCheck(
-      'pandeo-global',
-      'Pandeo global (N_Ed / N_b,Rd)',
-      N_Ed, N_b_Rd,
-      `${N_Ed.toFixed(1)} kN`,
-      `${N_b_Rd.toFixed(1)} kN`,
-      'EC3 §6.4.3.1',
-    ),
-    makeCheck(
-      'pletina-flexion',
-      'Pletinas — flexión (η_M)',
-      M_Ed_pl, M_Rd_pl,
-      `${M_Ed_pl.toFixed(3)} kNm`,
-      `${M_Rd_pl.toFixed(3)} kNm`,
-      'EC3 §6.4.3.2',
-    ),
-    makeCheck(
-      'pletina-cortante',
-      'Pletinas — cortante (η_V)',
-      V_Ed, V_Rd_pl,
-      `${V_Ed.toFixed(2)} kN`,
-      `${V_Rd_pl.toFixed(1)} kN`,
-      'EC3 §6.4.3.2',
-    ),
+    makeCheckQty('cordones', 'Cordones — compresión (N_chord / N_pl,Rd)',
+      N_chord_max, N_pl_Rd, 'force', 'EC3 §6.4.2'),
+    makeCheckQty('pandeo-local', 'Pandeo local eje v (N_chord / N_bv,Rd)',
+      N_chord_max, N_bv_Rd, 'force', 'EC3 §6.4 / §6.3.1'),
+    makeCheckQty('pandeo-global', 'Pandeo global (N_Ed / N_b,Rd)',
+      N_Ed, N_b_Rd, 'force', 'EC3 §6.4.3.1'),
+    makeCheckQty('pletina-flexion', 'Pletinas — flexión (η_M)',
+      M_Ed_pl, M_Rd_pl, 'moment', 'EC3 §6.4.3.2'),
+    makeCheckQty('pletina-cortante', 'Pletinas — cortante (η_V)',
+      V_Ed, V_Rd_pl, 'force', 'EC3 §6.4.3.2'),
   ];
 
   const utilization = Math.max(...checks.map((c) => c.utilization));
