@@ -11,6 +11,7 @@ import {
 } from '../../data/anchorBars';
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import type { ValidationWarning } from '../../lib/calculations/anchorPlate';
 
 interface Props {
@@ -277,11 +278,11 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
       </CollapsibleSection>
 
       <CollapsibleSection label="Acciones (ELU)">
-        <NumField label="NEd"   sub="axil (+ compres.)"   field="NEd"   value={state.NEd   as number} unit="kN"  setField={setField} />
-        <NumField label="NEd,G" sub="axil cuasi-perm."    field="NEd_G" value={state.NEd_G as number} unit="kN"  setField={setField} />
-        <NumField label="Mx"    sub="(eje fuerte)"        field="Mx"    value={state.Mx    as number} unit="kNm" setField={setField} />
-        <NumField label="My"    sub="(eje débil)"         field="My"    value={state.My    as number} unit="kNm" setField={setField} />
-        <NumField label="VEd"   sub="cortante"            field="VEd"   value={state.VEd   as number} unit="kN"  setField={setField} />
+        <UnitNumberInput label="NEd"   sub="axil (+ compres.)" field="NEd"   value={state.NEd   as number} quantity="force"  onChange={(v) => setField('NEd', v)} />
+        <UnitNumberInput label="NEd,G" sub="axil cuasi-perm."  field="NEd_G" value={state.NEd_G as number} quantity="force"  onChange={(v) => setField('NEd_G', v)} />
+        <UnitNumberInput label="Mx"    sub="(eje fuerte)"      field="Mx"    value={state.Mx    as number} quantity="moment" onChange={(v) => setField('Mx', v)} />
+        <UnitNumberInput label="My"    sub="(eje débil)"       field="My"    value={state.My    as number} quantity="moment" onChange={(v) => setField('My', v)} />
+        <UnitNumberInput label="VEd"   sub="cortante"          field="VEd"   value={state.VEd   as number} quantity="force"  onChange={(v) => setField('VEd', v)} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Placa">

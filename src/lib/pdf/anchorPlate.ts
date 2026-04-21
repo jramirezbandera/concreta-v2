@@ -13,6 +13,8 @@ import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
 import type { BottomAnchorage, TopConnection } from '../../data/anchorBars';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 const CW = PAGE_W - 2 * M;
@@ -42,8 +44,10 @@ function fmt(v: number, d = 1): string {
 export async function exportAnchorPlatePDF(
   inp: AnchorPlateInputs,
   result: AnchorPlateResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system, { precision: 1 });
 
   // ── 1. Header ──────────────────────────────────────────────────────────
   setGray(doc, 0);
@@ -94,10 +98,10 @@ export async function exportAnchorPlatePDF(
 
   sectionHeader(COL_L, 'PERFIL Y ACCIONES', 'l');
   lRow('Perfil', `${inp.sectionType} ${inp.sectionSize}`);
-  lRow('NEd / NEd,G', `${fmt(inp.NEd, 1)} / ${fmt(inp.NEd_G, 1)} kN`);
-  lRow('Mx', `${fmt(inp.Mx, 1)} kNm`);
-  lRow('My', `${fmt(inp.My, 1)} kNm`);
-  lRow('VEd', `${fmt(inp.VEd, 1)} kN`);
+  lRow('NEd / NEd,G', `${fmtSi(inp.NEd, 'force')} / ${fmtSi(inp.NEd_G, 'force')}`);
+  lRow('Mx', fmtSi(inp.Mx, 'moment'));
+  lRow('My', fmtSi(inp.My, 'moment'));
+  lRow('VEd', fmtSi(inp.VEd, 'force'));
   ly += 1;
 
   sectionHeader(COL_L, 'PLACA Y RIGIDIZADORES', 'l');
@@ -279,8 +283,8 @@ export async function exportAnchorPlatePDF(
   const solver = result.solver;
   const kv: [string, string][] = [
     ['Modo solver', pdfStr(solver.mode)],
-    ['Nc (compresion)', `${fmt(solver.Nc, 1)} kN`],
-    ['Ft total (grupo)', `${fmt(solver.Ft_total, 1)} kN`],
+    ['Nc (compresion)', fmtSi(solver.Nc, 'force')],
+    ['Ft total (grupo)', fmtSi(solver.Ft_total, 'force')],
     ['Barras traccionadas', `${solver.n_t} de ${solver.bolts.length}`],
     ['Brazo palanca x_c', `${fmt(solver.x_c, 0)} mm`],
   ];
@@ -336,7 +340,7 @@ export async function exportAnchorPlatePDF(
     doc.text('Barra', BC.bar, y);
     doc.text('x [mm]', BC.x, y);
     doc.text('y [mm]', BC.ycol, y);
-    doc.text('Ft [kN]', BC.ft, y);
+    doc.text(`Ft [${system === 'si' ? 'kN' : 'Tn'}]`, BC.ft, y);
     y += 2;
     setGray(doc, 180);
     doc.setLineWidth(0.15);
@@ -354,7 +358,7 @@ export async function exportAnchorPlatePDF(
       if (b.inTension && b.Ft > 0) {
         setGray(doc, 20);
         doc.setFont('helvetica', 'bold');
-        doc.text(fmt(b.Ft, 1), BC.ft, y);
+        doc.text(formatQuantity(b.Ft, 'force', system, { precision: 1, withUnit: false }), BC.ft, y);
       } else {
         setGray(doc, 140);
         doc.setFont('helvetica', 'italic');

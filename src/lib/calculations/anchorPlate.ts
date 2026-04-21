@@ -27,6 +27,11 @@ import {
 } from '../../data/anchorBars';
 import type { CheckRow, CheckStatus } from './types';
 import { toStatus } from './types';
+import { formatQuantity } from '../units/format';
+import type { UnitSystem } from '../units/types';
+
+const fmtF = (v: number, system: UnitSystem) =>
+  formatQuantity(v, 'force', system, { precision: 1 });
 
 // ─── Partial safety factors ─────────────────────────────────────────────
 const GAMMA_C   = 1.5;
@@ -441,6 +446,7 @@ export function checkPlateCompression(
   inp: AnchorPlateInputs,
   Nc_kN: number,
   twoFlanges: boolean,
+  system: UnitSystem = 'si',
 ): CheckRow {
   const fcd   = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
@@ -452,8 +458,8 @@ export function checkPlateCompression(
   return {
     id: 'plate-compression',
     description: 'Compresión bajo placa (T-stub efectivo)',
-    value: `${Nc_kN.toFixed(1)} kN`,
-    limit: `${Nc_Rd_kN.toFixed(1)} kN (fjd=${fjd.toFixed(1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
+    value: fmtF(Nc_kN, system),
+    limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${fjd.toFixed(1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
     article: 'EC3 1-8 §6.2.5',
@@ -502,14 +508,18 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): Chec
 }
 
 // ─── Check 3 — Tracción en barras (EC2 §2.4.2.4 / EHE-08) ────────────────
-export function checkBoltTension(inp: AnchorPlateInputs, Ft_per_bar_kN: number): CheckRow {
+export function checkBoltTension(
+  inp: AnchorPlateInputs,
+  Ft_per_bar_kN: number,
+  system: UnitSystem = 'si',
+): CheckRow {
   const { As, fyd, FtRd_kN } = barStrengths(inp);
   const util = Ft_per_bar_kN / Math.max(FtRd_kN, 1e-6);
   return {
     id: 'bolt-tension',
     description: 'Tracción en barras',
-    value: `Ft=${Ft_per_bar_kN.toFixed(1)} kN`,
-    limit: `FtRd=${FtRd_kN.toFixed(1)} kN (As=${As.toFixed(0)} mm², fyd=${fyd.toFixed(0)} MPa)`,
+    value: `Ft=${fmtF(Ft_per_bar_kN, system)}`,
+    limit: `FtRd=${fmtF(FtRd_kN, system)} (As=${As.toFixed(0)} mm², fyd=${fyd.toFixed(0)} MPa)`,
     utilization: util,
     status: toStatus(util),
     article: 'EC2 §2.4.2.4',
@@ -519,7 +529,11 @@ export function checkBoltTension(inp: AnchorPlateInputs, Ft_per_bar_kN: number):
 // ─── Check 4 — Cortante en barras ────────────────────────────────────────
 // EN 1992-4 §6.2.2: fricción bajo placa usa la envolvente permanente µ·Nc,G.
 // Cortante residual se reparte entre las barras (plástico: Fv = 0.6·As·fyd).
-export function checkBoltShear(inp: AnchorPlateInputs, Nc_G_kN: number): CheckRow {
+export function checkBoltShear(
+  inp: AnchorPlateInputs,
+  Nc_G_kN: number,
+  system: UnitSystem = 'si',
+): CheckRow {
   const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
   const Vfric_kN = mu * Math.max(0, Nc_G_kN);
 
@@ -531,8 +545,8 @@ export function checkBoltShear(inp: AnchorPlateInputs, Nc_G_kN: number): CheckRo
   return {
     id: 'bolt-shear',
     description: 'Cortante en barras',
-    value: `VEd=${inp.VEd.toFixed(1)} kN`,
-    limit: `VRd=${V_Rd_total_kN.toFixed(1)} kN (μ·Nc,G=${Vfric_kN.toFixed(1)} + ${inp.bar_nLayout}·FvRd)`,
+    value: `VEd=${fmtF(inp.VEd, system)}`,
+    limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${inp.bar_nLayout}·FvRd)`,
     utilization: util,
     status: toStatus(util),
     article: 'EC2 §2.4.2.4 + EN 1992-4 §6.2.2',
@@ -545,6 +559,7 @@ export function checkBoltShear(inp: AnchorPlateInputs, Nc_G_kN: number): CheckRo
 export function checkBoltInteraction(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
 ): CheckRow {
   const { FtRd_kN, FvRd_kN } = barStrengths(inp);
 
@@ -564,7 +579,7 @@ export function checkBoltInteraction(
     id: 'bolt-interaction',
     description: 'Interacción N+V en barras',
     value: `${util_v.toFixed(2)} + ${util_t.toFixed(2)}`,
-    limit: `≤ 1.00 (FvEd=${FvEd_per_bar_kN.toFixed(1)} kN · FtEd=${FtMax_kN.toFixed(1)} kN)`,
+    limit: `≤ 1.00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
     utilization: util,
     status: toStatus(util),
     article: 'EC3 1-8 Tab 3.4',
@@ -652,6 +667,7 @@ export function checkConcreteCone(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
   Ft_total_kN: number,
+  system: UnitSystem = 'si',
 ): CheckRow {
   const tBars = bars.filter((b) => b.inTension && b.Ft > 0);
   if (tBars.length === 0 || Ft_total_kN < 1e-6) {
@@ -696,8 +712,8 @@ export function checkConcreteCone(
   return {
     id: 'concrete-cone',
     description: 'Cono de hormigón',
-    value: `Ft=${Ft_total_kN.toFixed(1)} kN`,
-    limit: `NRd,c=${NRd_c_kN.toFixed(1)} kN (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)})`,
+    value: `Ft=${fmtF(Ft_total_kN, system)}`,
+    limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'EN 1992-4 §7.2.1.4',
@@ -711,6 +727,7 @@ export function checkConcreteCone(
 export function checkPullout(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
 ): CheckRow {
   if (!needsPullout(inp.bottom_anchorage)) {
     return {
@@ -734,8 +751,8 @@ export function checkPullout(
   return {
     id: 'pullout',
     description: 'Arrancamiento (pull-out)',
-    value: `Ft=${FtMax_kN.toFixed(1)} kN`,
-    limit: `NRd,p=${NRd_p_kN.toFixed(1)} kN (Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
+    value: `Ft=${fmtF(FtMax_kN, system)}`,
+    limit: `NRd,p=${fmtF(NRd_p_kN, system)} (Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'EN 1992-4 §7.2.1.5',
@@ -747,6 +764,7 @@ export function checkSplitting(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
   Ft_total_kN: number,
+  system: UnitSystem = 'si',
 ): CheckRow {
   const tBars = bars.filter((b) => b.inTension && b.Ft > 0);
   if (tBars.length === 0 || Ft_total_kN < 1e-6) {
@@ -786,8 +804,8 @@ export function checkSplitting(
   return {
     id: 'splitting',
     description: 'Splitting / side-face blowout',
-    value: `Ft=${Ft_total_kN.toFixed(1)} kN`,
-    limit: `NRd,sp=${NRd_sp_kN.toFixed(1)} kN (c=${c_min.toFixed(0)} < ${c_cr_sp.toFixed(0)} · ψh=${psi_h.toFixed(2)})`,
+    value: `Ft=${fmtF(Ft_total_kN, system)}`,
+    limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (c=${c_min.toFixed(0)} < ${c_cr_sp.toFixed(0)} · ψh=${psi_h.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'EN 1992-4 §7.2.1.6',
@@ -795,7 +813,11 @@ export function checkSplitting(
 }
 
 // ─── Check 10 — Rigidizadores (esbeltez + soldadura) ─────────────────────
-export function checkStiffener(inp: AnchorPlateInputs, Nc_kN: number): CheckRow {
+export function checkStiffener(
+  inp: AnchorPlateInputs,
+  Nc_kN: number,
+  system: UnitSystem = 'si',
+): CheckRow {
   if (inp.rib_count === 0) {
     return {
       id: 'stiffener',
@@ -827,8 +849,8 @@ export function checkStiffener(inp: AnchorPlateInputs, Nc_kN: number): CheckRow 
   return {
     id: 'stiffener',
     description: 'Rigidizadores (esbeltez + soldadura)',
-    value: `c/t=${slend.toFixed(1)} · F_rib=${F_rib_kN.toFixed(1)} kN`,
-    limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${Fw_Rd_rib_kN.toFixed(1)} kN (${governs})`,
+    value: `c/t=${slend.toFixed(1)} · F_rib=${fmtF(F_rib_kN, system)}`,
+    limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)} (${governs})`,
     utilization: util,
     status: toStatus(util),
     article: 'EC3 1-1 §5.5 + EC3 1-8 §4.5.3',
@@ -874,7 +896,10 @@ export interface AnchorPlateResult {
   pr1Limitations: string[];
 }
 
-export function calcAnchorPlate(inp: AnchorPlateInputs): AnchorPlateResult {
+export function calcAnchorPlate(
+  inp: AnchorPlateInputs,
+  system: UnitSystem = 'si',
+): AnchorPlateResult {
   const warnings = validateAnchorPlate(inp);
   const pr1Limitations: string[] = [];
 
@@ -908,16 +933,16 @@ export function calcAnchorPlate(inp: AnchorPlateInputs): AnchorPlateResult {
   const twoFlanges = solver.mode === 'uniform-compression';
 
   const checks: CheckRow[] = [
-    checkPlateCompression(inp, solver.Nc, twoFlanges),
+    checkPlateCompression(inp, solver.Nc, twoFlanges, system),
     checkPlateBending(inp, fjd),
-    checkBoltTension(inp, Ft_per_bar),
-    checkBoltShear(inp, inp.NEd_G),
-    checkBoltInteraction(inp, solver.bolts),
+    checkBoltTension(inp, Ft_per_bar, system),
+    checkBoltShear(inp, inp.NEd_G, system),
+    checkBoltInteraction(inp, solver.bolts, system),
     checkAnchorageLength(inp, solver.bolts),
-    checkConcreteCone(inp, solver.bolts, solver.Ft_total),
-    checkPullout(inp, solver.bolts),
-    checkSplitting(inp, solver.bolts, solver.Ft_total),
-    checkStiffener(inp, solver.Nc),
+    checkConcreteCone(inp, solver.bolts, solver.Ft_total, system),
+    checkPullout(inp, solver.bolts, system),
+    checkSplitting(inp, solver.bolts, solver.Ft_total, system),
+    checkStiffener(inp, solver.Nc, system),
   ];
 
   const worstUtil = checks.length > 0 ? Math.max(...checks.map((c) => c.utilization)) : 0;

@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
 import { exportAnchorPlatePDF } from '../../lib/pdf/anchorPlate';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,13 @@ import { AnchorPlateResults } from './AnchorPlateResults';
 export function AnchorPlateModule() {
   const { state, setField, reset } = useModuleState('anchor-plate', anchorPlateDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
-  const result = useMemo(() => calcAnchorPlate(state), [state]);
+  const result = useMemo(() => calcAnchorPlate(state, system), [state, system]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportAnchorPlatePDF(state, result), result.valid);
+    usePdfPreview(() => exportAnchorPlatePDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
 

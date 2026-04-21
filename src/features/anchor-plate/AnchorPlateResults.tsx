@@ -7,6 +7,9 @@ import {
   VerdictBadge,
   ambientStyle,
 } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   result: AnchorPlateResult;
@@ -56,6 +59,8 @@ function CollapsibleGroup({
 }
 
 export function AnchorPlateResults({ result }: Props) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   if (!result.valid) {
     return (
       <div className="text-[12px] text-text-disabled italic">
@@ -137,8 +142,8 @@ export function AnchorPlateResults({ result }: Props) {
       {/* Solver summary values */}
       <GroupHeader label="Estado del nudo" />
       <ValueRow label="Modo"              value={solver.mode} />
-      <ValueRow label="Nc (compresión)"   value={`${solver.Nc.toFixed(1)} kN`} />
-      <ValueRow label="Ft total (grupo)"  value={`${solver.Ft_total.toFixed(1)} kN`} />
+      <ValueRow label="Nc (compresión)"   value={fmtSi(solver.Nc, 'force')} />
+      <ValueRow label="Ft total (grupo)"  value={fmtSi(solver.Ft_total, 'force')} />
       <ValueRow label="Barras traccionadas" value={`${solver.n_t} de ${solver.bolts.length}`} />
 
       {/* Per-bar tension sub-panel, only if any tensile bar (D6 — collapsed by default) */}
@@ -148,7 +153,7 @@ export function AnchorPlateResults({ result }: Props) {
             <ValueRow
               key={b.index}
               label={`Barra ${b.index + 1} (x=${b.x.toFixed(0)}, y=${b.y.toFixed(0)})`}
-              value={b.inTension && b.Ft > 0 ? `Ft=${b.Ft.toFixed(1)} kN` : 'N/A (comprimida)'}
+              value={b.inTension && b.Ft > 0 ? `Ft=${fmtSi(b.Ft, 'force')}` : 'N/A (comprimida)'}
             />
           ))}
         </CollapsibleGroup>
