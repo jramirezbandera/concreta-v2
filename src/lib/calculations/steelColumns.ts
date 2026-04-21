@@ -15,6 +15,7 @@ import {
   type SectionKind,
 } from '../sections';
 import { type SteelCheckRow, type SteelCheckStatus } from './steelBeams';
+import { makeCheckQty, makeCheckNeutral } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const E  = 210000;  // N/mm² — Young's modulus
@@ -55,13 +56,14 @@ export interface SteelColumnResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toStatus(util: number): SteelCheckStatus {
+function toStatus(util: number): Exclude<SteelCheckStatus, 'neutral'> {
   if (util < 0.8) return 'ok';
   if (util < 1.0) return 'warn';
   return 'fail';
 }
 
-function check(
+/** Dimensionless check — keeps legacy value/limit string path (no unit conversion). */
+function checkStr(
   id: string, description: string,
   demand: number, capacity: number,
   demandStr: string, capacityStr: string,
@@ -69,10 +71,6 @@ function check(
 ): SteelCheckRow {
   const util = capacity > 0 ? demand / capacity : Infinity;
   return { id, description, value: demandStr, limit: capacityStr, utilization: util, status: toStatus(util), article };
-}
-
-function checkNeutral(id: string, description: string, tag: string, article: string): SteelCheckRow {
-  return { id, description, value: '', limit: '', utilization: 0, status: 'neutral', article, neutral: true, tag };
 }
 
 /** Buckling reduction factor χ from EC3 Table 6.1. */
@@ -258,43 +256,38 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const checks: SteelCheckRow[] = [];
 
   // Classification
-  checks.push(checkNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE DB-SE-A 5.5.2'));
+  checks.push(makeCheckNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE DB-SE-A 5.5.2'));
 
   // Section resistances
   if (Ned > 0) {
-    checks.push(check('NRd', 'Compresión  NEd / NRd', Ned, NRd,
-      `${Ned.toFixed(0)} kN`, `${NRd.toFixed(0)} kN`, 'CE DB-SE-A 6.2.4'));
+    checks.push(makeCheckQty('NRd', 'Compresión  NEd / NRd', Ned, NRd, 'force', 'CE DB-SE-A 6.2.4'));
   }
   if (isCHS && M_res !== undefined && M_res > 0) {
     // CHS: axisymmetric → single §6.2.5 check with resultant moment M_res.
-    checks.push(check('MRes', `Flexión resultante  M_res = √(My²+Mz²) / M_Rd`,
-      M_res, My_Rd,
-      `${M_res.toFixed(1)} kNm`, `${My_Rd.toFixed(1)} kNm`,
-      'CE DB-SE-A 6.2.5'));
+    checks.push(makeCheckQty('MRes', `Flexión resultante  M_res = √(My²+Mz²) / M_Rd`,
+      M_res, My_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
   } else {
     if (My_Ed > 0) {
-      checks.push(check('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd,
-        `${My_Ed.toFixed(1)} kNm`, `${My_Rd.toFixed(1)} kNm`, 'CE DB-SE-A 6.2.5'));
+      checks.push(makeCheckQty('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
     }
     if (Mz_Ed > 0) {
-      checks.push(check('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd,
-        `${Mz_Ed.toFixed(1)} kNm`, `${Mz_Rd.toFixed(1)} kNm`, 'CE DB-SE-A 6.2.5'));
+      checks.push(makeCheckQty('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
     }
   }
 
   // Buckling
-  checks.push(check('Nby', `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
-    Ned, Nb_Rd_y, `${Ned.toFixed(0)} kN`, `${Nb_Rd_y.toFixed(0)} kN`, 'CE DB-SE-A 6.3.1'));
-  checks.push(check('Nbz', `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
-    Ned, Nb_Rd_z, `${Ned.toFixed(0)} kN`, `${Nb_Rd_z.toFixed(0)} kN`, 'CE DB-SE-A 6.3.1'));
+  checks.push(makeCheckQty('Nby', `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
+    Ned, Nb_Rd_y, 'force', 'CE DB-SE-A 6.3.1'));
+  checks.push(makeCheckQty('Nbz', `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
+    Ned, Nb_Rd_z, 'force', 'CE DB-SE-A 6.3.1'));
 
   // LTB
   if (hasLTB) {
-    checks.push(check('LTB', `Pandeo lateral  (λ̄LT=${lambda_LT.toFixed(2)}, χLT=${chi_LT.toFixed(2)})`,
-      My_Ed, Mb_Rd, `${My_Ed.toFixed(1)} kNm`, `${Mb_Rd.toFixed(1)} kNm`, 'CE DB-SE-A 6.3.2'));
+    checks.push(makeCheckQty('LTB', `Pandeo lateral  (λ̄LT=${lambda_LT.toFixed(2)}, χLT=${chi_LT.toFixed(2)})`,
+      My_Ed, Mb_Rd, 'moment', 'CE DB-SE-A 6.3.2'));
   }
 
-  // Interaction
+  // Interaction — dimensionless ratios (stay on legacy string path)
   checks.push({
     id: 'int1', description: 'Interacción N+My+Mz  (Ec. 1)',
     value: util_check1.toFixed(3), limit: '1.000',
@@ -308,11 +301,11 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     article: 'CE DB-SE-A 6.3.3',
   });
 
-  // Slenderness
-  checks.push(check('sy',
+  // Slenderness — dimensionless integer ratio
+  checks.push(checkStr('sy',
     `Esbeltez  Lk/i (eje y) = ${slend_y.toFixed(0)}`,
     slend_y, SLEND_MAX, slend_y.toFixed(0), `${SLEND_MAX}`, 'CE DB-SE-A 6.3.1.3'));
-  checks.push(check('sz',
+  checks.push(checkStr('sz',
     `Esbeltez  Lk/i (eje z) = ${slend_z.toFixed(0)}`,
     slend_z, SLEND_MAX, slend_z.toFixed(0), `${SLEND_MAX}`, 'CE DB-SE-A 6.3.1.3'));
 

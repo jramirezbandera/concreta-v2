@@ -5,6 +5,7 @@ import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { IconGridSelector, type IconGridOption } from '../../components/ui/IconGridSelector';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface SteelColumnsInputsProps {
   state: SteelColumnInputs;
@@ -394,24 +395,27 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
 
       {/* CARGAS */}
       <CollapsibleSection label="Cargas">
-      <NumField
+      <UnitNumberInput
         labelKey="NEd"
+        quantity="force"
         id="sc-Ned"
         value={state.Ned}
         min={0}
         step={10}
         onChange={(v) => setField('Ned', v)}
       />
-      <NumField
+      <UnitNumberInput
         labelKey="My_Ed"
+        quantity="moment"
         id="sc-My"
         value={state.My_Ed}
         min={0}
         step={1}
         onChange={(v) => setField('My_Ed', v)}
       />
-      <NumField
+      <UnitNumberInput
         labelKey="Mz_Ed"
+        quantity="moment"
         id="sc-Mz"
         value={state.Mz_Ed}
         min={0}

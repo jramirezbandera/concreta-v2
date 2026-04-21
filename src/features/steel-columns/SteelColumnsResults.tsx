@@ -3,6 +3,9 @@ import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
 import { type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface SteelColumnsResultsProps {
   result: SteelColumnResult | null;
@@ -60,8 +63,17 @@ function NeutralCheckRow({ check, muted }: { check: SteelCheckRow; muted?: boole
 }
 
 function ActiveCheckRow({ check, muted }: { check: SteelCheckRow; muted?: boolean }) {
+  const { system } = useUnitSystem();
   const status = check.status as DisplayStatus;
   const pct = muted ? 0 : Math.min(check.utilization * 100, 100);
+
+  const valueText = check.valueNum !== undefined && check.valueQty
+    ? formatQuantity(check.valueNum, check.valueQty, system)
+    : (check.valueStr ?? check.value ?? '');
+  const limitText = check.limitNum !== undefined && check.limitQty
+    ? formatQuantity(check.limitNum, check.limitQty, system)
+    : (check.limitStr ?? check.limit ?? '');
+
   return (
     <div
       className={`grid items-center gap-3 py-1.75 border-b border-border-sub last:border-b-0 ${muted ? 'opacity-50' : ''}`}
@@ -70,10 +82,10 @@ function ActiveCheckRow({ check, muted }: { check: SteelCheckRow; muted?: boolea
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">
         <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">
-          {check.value}
+          {valueText}
         </span>
         <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">
-          {check.limit}
+          {limitText}
         </span>
       </div>
       <div className="h-1 bg-border-main rounded-sm overflow-hidden">
@@ -129,6 +141,10 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsProps) {
+  const { system } = useUnitSystem();
+  const fmtSi = (value: number, quantity: Quantity) =>
+    formatQuantity(value, quantity, system);
+
   // No result yet
   if (!result) {
     return (
@@ -187,7 +203,7 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
 
   const isCHS = result.kind === 'CHS';
   const resistSubtitle = isCHS && result.M_res !== undefined && result.M_res > 0
-    ? `CHS axisimétrico — M_res = √(My² + Mz²) = ${result.M_res.toFixed(1)} kNm`
+    ? `CHS axisimétrico — M_res = √(My² + Mz²) = ${fmtSi(result.M_res, 'moment')}`
     : undefined;
 
   return (
@@ -210,20 +226,20 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
 
       {/* Key values */}
       <GroupHeader label="Valores" />
-      <ValueRow label={resultLabel('NRd_steel')}    value={`${result.NRd.toFixed(1)} kN`} />
-      <ValueRow label={resultLabel('MRd_y')}        value={`${result.My_Rd.toFixed(1)} kNm`} />
-      <ValueRow label={resultLabel('MRd_z')}        value={`${result.Mz_Rd.toFixed(1)} kNm`} />
-      <ValueRow label={resultLabel('Nb_Rd_y')}      value={`${result.Nb_Rd_y.toFixed(1)} kN`} />
-      <ValueRow label={resultLabel('Nb_Rd_z')}      value={`${result.Nb_Rd_z.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('NRd_steel')}    value={fmtSi(result.NRd, 'force')} />
+      <ValueRow label={resultLabel('MRd_y')}        value={fmtSi(result.My_Rd, 'moment')} />
+      <ValueRow label={resultLabel('MRd_z')}        value={fmtSi(result.Mz_Rd, 'moment')} />
+      <ValueRow label={resultLabel('Nb_Rd_y')}      value={fmtSi(result.Nb_Rd_y, 'force')} />
+      <ValueRow label={resultLabel('Nb_Rd_z')}      value={fmtSi(result.Nb_Rd_z, 'force')} />
       <ValueRow label={resultLabel('chi_y')}        value={result.chi_y.toFixed(3)} />
       <ValueRow label={resultLabel('chi_z')}        value={result.chi_z.toFixed(3)} />
       <ValueRow label={resultLabel('lambda_bar_y')} value={result.lambda_y.toFixed(3)} />
       <ValueRow label={resultLabel('lambda_bar_z')} value={result.lambda_z.toFixed(3)} />
       {hasLTB && (
         <>
-          <ValueRow label={resultLabel('Mcr')}    value={`${result.Mcr.toFixed(1)} kNm`} />
+          <ValueRow label={resultLabel('Mcr')}    value={fmtSi(result.Mcr, 'moment')} />
           <ValueRow label={resultLabel('chi_LT')} value={result.chi_LT.toFixed(3)} />
-          <ValueRow label={resultLabel('Mb_Rd')}  value={`${result.Mb_Rd.toFixed(1)} kNm`} />
+          <ValueRow label={resultLabel('Mb_Rd')}  value={fmtSi(result.Mb_Rd, 'moment')} />
         </>
       )}
 

@@ -15,6 +15,8 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../calculations/steelColumns';
 import { type SteelCheckStatus } from '../calculations/steelBeams';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
@@ -80,10 +82,27 @@ function checkPageBreak(doc: jsPDF, y: number, need = 8): number {
 export async function exportSteelColumnsPDF(
   inp: SteelColumnInputs,
   result: SteelColumnResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   _pageNum = 1;
   let y = M;
+
+  // Helper: format an SI value in the active unit system for PDF output.
+  const fmtSi = (valueSi: number, quantity: Quantity) =>
+    formatQuantity(valueSi, quantity, system);
+
+  // Helper: format a CheckRow's value/limit strings — prefers the numeric
+  // (valueNum/valueQty) path, falling back to legacy `value`/`limit` strings.
+  type CheckLike = SteelColumnResult['checks'][number];
+  const checkValueStr = (c: CheckLike): string =>
+    c.valueNum !== undefined && c.valueQty
+      ? formatQuantity(c.valueNum, c.valueQty, system)
+      : (c.valueStr ?? c.value ?? '');
+  const checkLimitStr = (c: CheckLike): string =>
+    c.limitNum !== undefined && c.limitQty
+      ? formatQuantity(c.limitNum, c.limitQty, system)
+      : (c.limitStr ?? c.limit ?? '');
 
   // ── 1. Header ──────────────────────────────────────────────────────────────
   setGray(doc, 0);
@@ -145,9 +164,9 @@ export async function exportSteelColumnsPDF(
     ['Lkz (eje debil)',  `${fmt(inp.beta_z * inp.Lz / 1000, 2)} m`],
   ];
   const rightRows: [string, string][] = [
-    ['NEd',    `${fmt(inp.Ned, 1)} kN`],
-    ['My,Ed',  `${fmt(inp.My_Ed, 1)} kNm`],
-    ['Mz,Ed',  `${fmt(inp.Mz_Ed, 1)} kNm`],
+    ['NEd',    fmtSi(inp.Ned,   'force')],
+    ['My,Ed',  fmtSi(inp.My_Ed, 'moment')],
+    ['Mz,Ed',  fmtSi(inp.Mz_Ed, 'moment')],
   ];
 
   doc.setFontSize(7.5);
@@ -268,10 +287,10 @@ export async function exportSteelColumnsPDF(
       // Value
       setGray(doc, 30);
       doc.setFont('helvetica', 'normal');
-      doc.text(pdfStr(c.value), COL.value, y);
+      doc.text(pdfStr(checkValueStr(c)), COL.value, y);
 
       // Limit
-      doc.text(pdfStr(c.limit), COL.limit, y);
+      doc.text(pdfStr(checkLimitStr(c)), COL.limit, y);
 
       // Utilization %
       setGray(doc, 20);
@@ -329,11 +348,11 @@ export async function exportSteelColumnsPDF(
 
   // Two-column layout for key values
   const kvLeft: [string, string][] = [
-    ['NRd',      `${fmt(result.NRd, 1)} kN`],
-    ['My,Rd',    `${fmt(result.My_Rd, 1)} kNm`],
-    ['Mz,Rd',    `${fmt(result.Mz_Rd, 1)} kNm`],
-    ['Nb,Rd,y',  `${fmt(result.Nb_Rd_y, 1)} kN`],
-    ['Nb,Rd,z',  `${fmt(result.Nb_Rd_z, 1)} kN`],
+    ['NRd',      fmtSi(result.NRd,     'force')],
+    ['My,Rd',    fmtSi(result.My_Rd,   'moment')],
+    ['Mz,Rd',    fmtSi(result.Mz_Rd,   'moment')],
+    ['Nb,Rd,y',  fmtSi(result.Nb_Rd_y, 'force')],
+    ['Nb,Rd,z',  fmtSi(result.Nb_Rd_z, 'force')],
   ];
   const kvRight: [string, string][] = [
     ['lam_y',  result.lambda_y.toFixed(3)],
@@ -345,8 +364,8 @@ export async function exportSteelColumnsPDF(
     kvRight.push(
       ['lam_LT', result.lambda_LT.toFixed(3)],
       ['chi_LT', result.chi_LT.toFixed(3)],
-      ['Mcr',    `${fmt(result.Mcr, 1)} kNm`],
-      ['Mb,Rd',  `${fmt(result.Mb_Rd, 1)} kNm`],
+      ['Mcr',    fmtSi(result.Mcr,   'moment')],
+      ['Mb,Rd',  fmtSi(result.Mb_Rd, 'moment')],
     );
   }
 

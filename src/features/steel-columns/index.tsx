@@ -8,6 +8,7 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { exportSteelColumnsPDF } from '../../lib/pdf/steelColumns';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -18,6 +19,7 @@ import { SteelColumnsResults } from './SteelColumnsResults';
 export function SteelColumnsModule() {
   const { state, setField, reset } = useModuleState('steel-columns', steelColumnDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // Resolve effective inputs: derive beta from shared bcType (non-custom)
@@ -35,7 +37,7 @@ export function SteelColumnsModule() {
   // overall INCUMPLE) — the user may want a PDF to document that a profile
   // doesn't meet EC3. Only require a result object.
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result), true);
+    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result, system), true);
 
   // Responsive SVG sizing
   const [canvasRef, canvasWidth] = useContainerWidth();
