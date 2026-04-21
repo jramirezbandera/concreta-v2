@@ -6,6 +6,8 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus } from '../calculations/rcBeams';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
@@ -23,7 +25,17 @@ function drawSectionTable(
   section: RCBeamSectionResult,
   title: string,
   startY: number,
+  system: UnitSystem,
 ): number {
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
+    c.valueNum !== undefined && c.valueQty
+      ? formatQuantity(c.valueNum, c.valueQty, system)
+      : (c.valueStr ?? c.value ?? '');
+  const checkLimitStr = (c: { limitNum?: number; limitQty?: Quantity; limitStr?: string; limit?: string }) =>
+    c.limitNum !== undefined && c.limitQty
+      ? formatQuantity(c.limitNum, c.limitQty, system)
+      : (c.limitStr ?? c.limit ?? '');
   let y = startY;
 
   // Section title + verdict on same line
@@ -59,8 +71,8 @@ function drawSectionTable(
     `As,t=${section.As.toFixed(0)}mm²`,
     `As,c=${section.AsComp.toFixed(0)}mm²`,
     `x=${section.x.toFixed(0)}mm`,
-    `MRd=${section.MRd.toFixed(1)}kNm`,
-    `VRd=${section.VRd.toFixed(1)}kN`,
+    `MRd=${fmtSi(section.MRd, 'moment')}`,
+    `VRd=${fmtSi(section.VRd, 'force')}`,
     `wk=${section.wk.toFixed(3)}mm`,
   ].join('   ');
   doc.text(keyVals, M, y);
@@ -98,8 +110,8 @@ function drawSectionTable(
     setGray(doc, 50);
     const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
     doc.text(desc, COL.desc, y);
-    doc.text(ch.value ?? '', COL.value, y);
-    doc.text(ch.limit ?? '', COL.limit, y);
+    doc.text(checkValueStr(ch), COL.value, y);
+    doc.text(checkLimitStr(ch), COL.limit, y);
     const utilStr = isFinite(ch.utilization)
       ? `${(ch.utilization * 100).toFixed(0)}%`
       : '---';
@@ -126,7 +138,11 @@ function drawSectionTable(
   return y + 1;
 }
 
-export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult): Promise<PdfResult> {
+export async function exportRCBeamsPDF(
+  inp: RCBeamInputs,
+  result: RCBeamResult,
+  system: UnitSystem = 'si',
+): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -219,13 +235,13 @@ export async function exportRCBeamsPDF(inp: RCBeamInputs, result: RCBeamResult):
   // ── Results tables ─────────────────────────────────────────────────────────
   let tableY = diagramBlockEnd + 5;
 
-  tableY = drawSectionTable(doc, result.vano, 'VANO (M+, barras inf. traccion)', tableY);
+  tableY = drawSectionTable(doc, result.vano, 'VANO (M+, barras inf. traccion)', tableY, system);
   tableY += 2;
 
   hline(doc, tableY - 1, 210, 0.2);
   tableY += 3;
 
-  tableY = drawSectionTable(doc, result.apoyo, 'APOYO (M\u2212, barras sup. traccion)', tableY);
+  tableY = drawSectionTable(doc, result.apoyo, 'APOYO (M\u2212, barras sup. traccion)', tableY, system);
 
   // ── Footer ─────────────────────────────────────────────────────────────────
   const footerY = PAGE_H - 10;

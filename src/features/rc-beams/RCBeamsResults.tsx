@@ -1,6 +1,9 @@
 import { type RCBeamResult, type RCBeamSectionResult } from '../../lib/calculations/rcBeams';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, BORDER_CLASSES, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface RCBeamsResultsProps {
   result: RCBeamResult;
@@ -11,10 +14,12 @@ function SectionBlock({
   title,
   section,
   isActive,
+  fmtSi,
 }: {
   title: string;
   section: RCBeamSectionResult;
   isActive: boolean;
+  fmtSi: (v: number, q: Quantity) => string;
 }) {
   if (!section.valid) {
     return (
@@ -59,8 +64,8 @@ function SectionBlock({
       <ValueRow label={resultLabel('As_tension')}     value={`${section.As.toFixed(0)} mm\u00b2`} />
       <ValueRow label={resultLabel('As_compression')} value={`${section.AsComp.toFixed(0)} mm\u00b2`} />
       <ValueRow label="x (eje neutro)"           value={`${section.x.toFixed(0)} mm`} />
-      <ValueRow label={resultLabel('MRd_rc')}         value={`${section.MRd.toFixed(1)} kNm`} />
-      <ValueRow label={resultLabel('VRd_c')}          value={`${section.VRd.toFixed(1)} kN`} />
+      <ValueRow label={resultLabel('MRd_rc')}         value={fmtSi(section.MRd, 'moment')} />
+      <ValueRow label={resultLabel('VRd_c')}          value={fmtSi(section.VRd, 'force')} />
       <ValueRow label={resultLabel('wk')}             value={`${section.wk.toFixed(3)} mm`} />
 
       {/* Check groups */}
@@ -96,6 +101,9 @@ function SectionBlock({
 }
 
 export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+
   if (!result.valid) {
     return (
       <div className="flex items-center justify-center h-24 rounded border border-state-fail/30 bg-state-fail/5">
@@ -110,11 +118,13 @@ export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
         title="Vano"
         section={result.vano}
         isActive={activeSection === 'vano'}
+        fmtSi={fmtSi}
       />
       <SectionBlock
         title="Apoyo"
         section={result.apoyo}
         isActive={activeSection === 'apoyo'}
+        fmtSi={fmtSi}
       />
     </div>
   );

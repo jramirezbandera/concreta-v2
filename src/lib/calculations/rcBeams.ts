@@ -14,7 +14,7 @@ import { type RCBeamInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
-import { type CheckRow, type CheckStatus, toStatus, makeCheck as check } from './types';
+import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty } from './types';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -127,12 +127,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   // MRd = As*fyd*(d - 0.4*x)
   const MRd = (As * fyd * (d - 0.4 * x)) / 1e6;
 
-  checks.push(check(
+  checks.push(makeCheckQty(
     'bending',
     'Momento resistente MRd >= Md',
     inp.Md, MRd,
-    `Md = ${inp.Md.toFixed(1)} kNm`,
-    `MRd = ${MRd.toFixed(1)} kNm`,
+    'moment',
     'CE art. 42',
   ));
 
@@ -205,22 +204,20 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   const VRdmax = (0.3 * (1 - inp.fck / 250) * fcd * inp.b * z) / 1000;
   const VRd = hasStirrups ? Math.min(VRds, VRdmax) : VRdc;
 
-  checks.push(check(
+  checks.push(makeCheckQty(
     'shear',
     'Cortante VEd <= VRd',
     inp.VEd, VRd,
-    `VEd = ${inp.VEd.toFixed(1)} kN`,
-    `VRd = ${VRd.toFixed(1)} kN`,
+    'force',
     'CE art. 44',
   ));
 
   if (hasStirrups) {
-    checks.push(check(
+    checks.push(makeCheckQty(
       'shear-max',
       'Aplastamiento biela comprimida VEd <= VRd,max',
       inp.VEd, VRdmax,
-      `VEd = ${inp.VEd.toFixed(1)} kN`,
-      `VRd,max = ${VRdmax.toFixed(1)} kN`,
+      'force',
       'CE art. 44',
     ));
   }

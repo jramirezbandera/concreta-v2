@@ -4,6 +4,7 @@ import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RCBeamsInputsProps {
   state: RCBeamInputs;
@@ -298,37 +299,37 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
 
       {/* Per-section solicitations */}
       <CollapsibleSection label="Solicitaciones">
-        <NumField
+        <UnitNumberInput
           label={isVano ? 'Md' : '|Md|'}
           sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
           field={`${p}_Md`}
           value={state[`${p}_Md`] as number}
-          unit="kNm"
-          setField={setField}
+          quantity="moment"
+          onChange={(v) => setField(`${p}_Md`, v)}
         />
-        <NumField
+        <UnitNumberInput
           label="VEd"
           sub="(ELU)"
           field={`${p}_VEd`}
           value={state[`${p}_VEd`] as number}
-          unit="kN"
-          setField={setField}
+          quantity="force"
+          onChange={(v) => setField(`${p}_VEd`, v)}
         />
-        <NumField
+        <UnitNumberInput
           label="M carga permanente"
           sub="(ELS)"
           field={`${p}_M_G`}
           value={state[`${p}_M_G`] as number}
-          unit="kNm"
-          setField={setField}
+          quantity="moment"
+          onChange={(v) => setField(`${p}_M_G`, v)}
         />
-        <NumField
+        <UnitNumberInput
           label="M carga variable"
           sub="(ELS)"
           field={`${p}_M_Q`}
           value={state[`${p}_M_Q`] as number}
-          unit="kNm"
-          setField={setField}
+          quantity="moment"
+          onChange={(v) => setField(`${p}_M_Q`, v)}
         />
       </CollapsibleSection>
 
