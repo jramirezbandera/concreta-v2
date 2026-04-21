@@ -15,6 +15,8 @@ import { type ForjadosInputs } from '../../data/defaults';
 import { type ForjadosResult } from '../calculations/rcSlabs';
 import { type CheckRow } from '../calculations/types';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
@@ -22,7 +24,10 @@ const CONTENT_W = PAGE_W - 2 * M;  // 170mm
 export async function exportForjadosPDF(
   inp: ForjadosInputs,
   result: ForjadosResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity, precision = 1) =>
+    formatQuantity(v, q, system, { precision });
   // Freeze state at export start — the user may mutate inputs while svg2pdf is
   // rasterizing, causing visually inconsistent output. structuredClone gives us
   // a deep snapshot of primitives (ForjadosInputs is flat key:value) and the
@@ -134,9 +139,9 @@ export async function exportForjadosPDF(
   }
   ry += 1;
   secHeader('ESFUERZOS (ELU)', 'R');
-  rRow(`Md+ vano = ${frozenInp.vano_Md} kNm`);
-  rRow(`|M-| apoyo = ${frozenInp.apoyo_Md} kNm`);
-  rRow(`VEd = ${frozenInp.VEd} kN`);
+  rRow(`Md+ vano = ${fmtSi(frozenInp.vano_Md, 'moment', 2)}`);
+  rRow(`|M-| apoyo = ${fmtSi(frozenInp.apoyo_Md, 'moment', 2)}`);
+  rRow(`VEd = ${fmtSi(frozenInp.VEd, 'force')}`);
 
   // ── Resultados (por zona) ────────────────────────────────────────────────
   const resY = Math.max(ly, ry) + 3;
@@ -153,13 +158,13 @@ export async function exportForjadosPDF(
   doc.setFontSize(7.5);
   setGray(doc, 80);
   const rY1 = resY + 9;
-  const vanoTxt = `Vano: d=${frozenResult.vano.d.toFixed(0)} As(base+ref)=${frozenResult.vano.AsBase.toFixed(0)}+${frozenResult.vano.AsRef.toFixed(0)}=${frozenResult.vano.As.toFixed(0)} MRd=${frozenResult.vano.MRd.toFixed(1)} kNm`;
-  const apoyoTxt = `Apoyo: d=${frozenResult.apoyo.d.toFixed(0)} As(base+ref)=${frozenResult.apoyo.AsBase.toFixed(0)}+${frozenResult.apoyo.AsRef.toFixed(0)}=${frozenResult.apoyo.As.toFixed(0)} MRd=${frozenResult.apoyo.MRd.toFixed(1)} kNm`;
+  const vanoTxt = `Vano: d=${frozenResult.vano.d.toFixed(0)} As(base+ref)=${frozenResult.vano.AsBase.toFixed(0)}+${frozenResult.vano.AsRef.toFixed(0)}=${frozenResult.vano.As.toFixed(0)} MRd=${fmtSi(frozenResult.vano.MRd, 'moment', 1)}`;
+  const apoyoTxt = `Apoyo: d=${frozenResult.apoyo.d.toFixed(0)} As(base+ref)=${frozenResult.apoyo.AsBase.toFixed(0)}+${frozenResult.apoyo.AsRef.toFixed(0)}=${frozenResult.apoyo.As.toFixed(0)} MRd=${fmtSi(frozenResult.apoyo.MRd, 'moment', 1)}`;
   doc.text(pdfStr(vanoTxt),  M, rY1);
   doc.text(pdfStr(apoyoTxt), M, rY1 + LH);
   const shearTxt = frozenInp.stirrupsEnabled
-    ? `Cortante: VRd,c=${frozenResult.VRdc.toFixed(1)} VRd,s=${frozenResult.VRds.toFixed(1)} VRd,max=${frozenResult.VRdmax.toFixed(1)} kN`
-    : `Cortante (sin cercos): VRd,c = ${frozenResult.VRdc.toFixed(2)} kN`;
+    ? `Cortante: VRd,c=${fmtSi(frozenResult.VRdc, 'force', 1)} VRd,s=${fmtSi(frozenResult.VRds, 'force', 1)} VRd,max=${fmtSi(frozenResult.VRdmax, 'force', 1)}`
+    : `Cortante (sin cercos): VRd,c = ${fmtSi(frozenResult.VRdc, 'force', 2)}`;
   doc.text(pdfStr(shearTxt), M, rY1 + 2 * LH);
 
   // ── Checks table ─────────────────────────────────────────────────────────

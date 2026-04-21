@@ -569,6 +569,7 @@ export const LABELS = {
       'timberColumns',
       'punching',
       'empresillado',
+      'forjados',
     ],
   },
 

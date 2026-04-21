@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcForjados } from '../../lib/calculations/rcSlabs';
 import { exportForjadosPDF } from '../../lib/pdf/forjados';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -18,13 +19,14 @@ import { ForjadosSVG } from './ForjadosSVG';
 export function ForjadosModule() {
   const { state, setField } = useModuleState('forjados', forjadosDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [section, setSection] = useState<'vano' | 'apoyo'>('vano');
 
   const result = useMemo(() => calcForjados(state), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportForjadosPDF(state, result), result.valid);
+    usePdfPreview(() => exportForjadosPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0

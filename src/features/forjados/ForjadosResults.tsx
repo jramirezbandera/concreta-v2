@@ -2,6 +2,9 @@ import { type ForjadosResult } from '../../lib/calculations/rcSlabs';
 import {
   VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle,
 } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   result: ForjadosResult;
@@ -15,6 +18,10 @@ const BRANCH_LABEL: Record<string, string> = {
 };
 
 export function ForjadosResults({ result }: Props) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+    formatQuantity(v, q, system, { precision });
+
   if (!result.valid && result.error) {
     return (
       <div className="flex flex-col overflow-y-auto px-4 py-3">
@@ -63,7 +70,7 @@ export function ForjadosResults({ result }: Props) {
       <ValueRow label="As refuerzo"    value={`${result.vano.AsRef.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As tracción (total)" value={`${result.vano.As.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="x (fibra neutra)" value={`${result.vano.x.toFixed(1)} mm`} />
-      <ValueRow label="MRd"              value={`${result.vano.MRd.toFixed(2)} kNm`} />
+      <ValueRow label="MRd"              value={fmtSi(result.vano.MRd, 'moment')} />
       <ValueRow label="Rama"             value={BRANCH_LABEL[result.vano.branch] ?? result.vano.branch} />
       {result.vano.checks.map((c) => <CheckRowItem key={`v-${c.id}`} check={c} />)}
 
@@ -75,13 +82,13 @@ export function ForjadosResults({ result }: Props) {
       <ValueRow label="As refuerzo"    value={`${result.apoyo.AsRef.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As tracción (total)" value={`${result.apoyo.As.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="x (fibra neutra)" value={`${result.apoyo.x.toFixed(1)} mm`} />
-      <ValueRow label="MRd"              value={`${result.apoyo.MRd.toFixed(2)} kNm`} />
+      <ValueRow label="MRd"              value={fmtSi(result.apoyo.MRd, 'moment')} />
       <ValueRow label="Rama"             value={BRANCH_LABEL[result.apoyo.branch] ?? result.apoyo.branch} />
       {result.apoyo.checks.map((c) => <CheckRowItem key={`a-${c.id}`} check={c} />)}
 
       {/* CORTANTE */}
       <GroupHeader label="Cortante (CE art. 44)" />
-      <ValueRow label="VRd,c (sin cercos)" value={`${result.VRdc.toFixed(2)} kN`} />
+      <ValueRow label="VRd,c (sin cercos)" value={fmtSi(result.VRdc, 'force')} />
       <div
         className="overflow-hidden transition-all duration-150"
         style={{
@@ -89,9 +96,9 @@ export function ForjadosResults({ result }: Props) {
           opacity:   result.VRds > 0 ? 1 : 0,
         }}
       >
-        <ValueRow label="VRd,s (cercos)"      value={`${result.VRds.toFixed(2)} kN`} />
-        <ValueRow label="VRd,max (aplast.)"   value={`${result.VRdmax.toFixed(2)} kN`} />
-        <ValueRow label="VRd (min VRd,s/max)" value={`${result.VRd.toFixed(2)} kN`} />
+        <ValueRow label="VRd,s (cercos)"      value={fmtSi(result.VRds, 'force')} />
+        <ValueRow label="VRd,max (aplast.)"   value={fmtSi(result.VRdmax, 'force')} />
+        <ValueRow label="VRd (min VRd,s/max)" value={fmtSi(result.VRd, 'force')} />
       </div>
       {result.shearChecks.map((c) => <CheckRowItem key={`s-${c.id}`} check={c} />)}
 

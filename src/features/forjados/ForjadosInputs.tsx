@@ -9,6 +9,7 @@ import { TIPOLOGIAS, TIPOS_VANO, getTipologia } from '../../data/forjadoTipologi
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
   state: ForjadosInputs;
@@ -456,14 +457,34 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
 
       {/* ESFUERZOS */}
       <CollapsibleSection label="Esfuerzos de cálculo">
-        <NumField label="Md+" sub="vano (ELU)" field="vano_Md"  value={state.vano_Md as number}  unit="kNm" setField={setField} />
-        <NumField label="|M−|" sub="apoyo"     field="apoyo_Md" value={state.apoyo_Md as number} unit="kNm" setField={setField} />
-        <NumField label="VEd"  sub="(ELU)"     field="VEd"      value={state.VEd as number}      unit="kN"  setField={setField} />
+        <UnitNumberInput
+          label="Md+" sub="vano (ELU)" field="vano_Md"
+          value={state.vano_Md as number} quantity="moment"
+          onChange={(v) => setField('vano_Md', v)}
+        />
+        <UnitNumberInput
+          label="|M−|" sub="apoyo" field="apoyo_Md"
+          value={state.apoyo_Md as number} quantity="moment"
+          onChange={(v) => setField('apoyo_Md', v)}
+        />
+        <UnitNumberInput
+          labelKey="VEd" field="VEd"
+          value={state.VEd as number} quantity="force"
+          onChange={(v) => setField('VEd', v)}
+        />
         <p className="text-[10px] text-text-disabled mt-2 mb-0.5">Fisuración (ELS — solo XC2+)</p>
-        <NumField label={isVano ? 'M_G vano' : 'M_G apoyo'} sub="perm."
-          field={`${section}_M_G`} value={state[`${section}_M_G`] as number} unit="kNm" setField={setField} />
-        <NumField label={isVano ? 'M_Q vano' : 'M_Q apoyo'} sub="var."
-          field={`${section}_M_Q`} value={state[`${section}_M_Q`] as number} unit="kNm" setField={setField} />
+        <UnitNumberInput
+          label={isVano ? 'M_G vano' : 'M_G apoyo'} sub="perm."
+          field={`${section}_M_G`}
+          value={state[`${section}_M_G`] as number} quantity="moment"
+          onChange={(v) => setField(`${section}_M_G`, v)}
+        />
+        <UnitNumberInput
+          label={isVano ? 'M_Q vano' : 'M_Q apoyo'} sub="var."
+          field={`${section}_M_Q`}
+          value={state[`${section}_M_Q`] as number} quantity="moment"
+          onChange={(v) => setField(`${section}_M_Q`, v)}
+        />
       </CollapsibleSection>
 
     </div>
