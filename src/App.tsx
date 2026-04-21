@@ -16,6 +16,7 @@ import { TimberColumnsModule } from './features/timber-columns';
 import { ForjadosModule } from './features/forjados';
 import { AnchorPlateModule } from './features/anchor-plate';
 import { Landing } from './pages/Landing';
+import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
 const router = createBrowserRouter([
   // Landing page
@@ -47,7 +48,9 @@ const router = createBrowserRouter([
 export function App() {
   return (
     <HelmetProvider>
-      <RouterProvider router={router} />
+      <UnitSystemProvider>
+        <RouterProvider router={router} />
+      </UnitSystemProvider>
     </HelmetProvider>
   );
 }

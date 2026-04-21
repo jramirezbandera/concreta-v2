@@ -1,5 +1,6 @@
 import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
+import { UnitSystemToggle } from '../units/UnitSystemToggle';
 
 interface TopbarProps {
   moduleLabel: string;
@@ -43,6 +44,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <UnitSystemToggle />
         {/* Copy link */}
         <button
           onClick={handleCopyUrl}
