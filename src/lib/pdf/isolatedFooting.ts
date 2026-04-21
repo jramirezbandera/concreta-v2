@@ -5,6 +5,8 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
+import { formatQuantity } from '../units/format';
+import type { Quantity, UnitSystem } from '../units/types';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;
@@ -12,7 +14,17 @@ const M = 20;
 export async function exportIsolatedFootingPDF(
   inp: IsolatedFootingInputs,
   result: IsolatedFootingResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
+    c.valueNum !== undefined && c.valueQty
+      ? formatQuantity(c.valueNum, c.valueQty, system)
+      : (c.valueStr ?? c.value ?? '');
+  const checkLimitStr = (c: { limitNum?: number; limitQty?: Quantity; limitStr?: string; limit?: string }) =>
+    c.limitNum !== undefined && c.limitQty
+      ? formatQuantity(c.limitNum, c.limitQty, system)
+      : (c.limitStr ?? c.limit ?? '');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const soilLabel = inp.soilType === 'cohesive' ? 'cohesivo (art. 4.3.2)' : 'granular (art. 4.3.3)';
@@ -90,15 +102,15 @@ export async function exportIsolatedFootingPDF(
 
   // LOADS SLS
   secHeader('CARGAS SLS (SUELO)');
-  twoCol(`N_k = ${inp.N_k} kN`, `H_k = ${inp.H_k} kN`);
-  twoCol(`Mx_k = ${inp.Mx_k} kNm`, `My_k = ${inp.My_k} kNm`);
+  twoCol(`N_k = ${fmtSi(inp.N_k as number, 'force')}`,  `H_k = ${fmtSi(inp.H_k as number, 'force')}`);
+  twoCol(`Mx_k = ${fmtSi(inp.Mx_k as number, 'moment')}`, `My_k = ${fmtSi(inp.My_k as number, 'moment')}`);
   gap();
 
   // LOADS ELU
   secHeader('CARGAS ELU (ARMADO)');
-  twoCol(`N_Ed = ${inp.N_Ed} kN`);
-  if (inp.Mx_Ed !== 0 || inp.My_Ed !== 0) {
-    twoCol(`Mx_Ed = ${inp.Mx_Ed} kNm`, `My_Ed = ${inp.My_Ed} kNm`);
+  twoCol(`N_Ed = ${fmtSi(inp.N_Ed as number, 'force')}`);
+  if ((inp.Mx_Ed as number) !== 0 || (inp.My_Ed as number) !== 0) {
+    twoCol(`Mx_Ed = ${fmtSi(inp.Mx_Ed as number, 'moment')}`, `My_Ed = ${fmtSi(inp.My_Ed as number, 'moment')}`);
   }
   gap();
 
@@ -129,11 +141,11 @@ export async function exportIsolatedFootingPDF(
   );
   if (result.is_rigid) {
     // Biela-tirante (CE art. 55.2): Td drives tie reinforcement, no punching
-    twoCol(`Td,x = ${result.Td_x.toFixed(1)} kN`, `Td,y = ${result.Td_y.toFixed(1)} kN`);
+    twoCol(`Td,x = ${fmtSi(result.Td_x, 'force')}`, `Td,y = ${fmtSi(result.Td_y, 'force')}`);
     twoCol('Punzonamiento: N/A (rigida)');
   } else {
     twoCol(`MEd,x = ${result.MEd_x.toFixed(2)} kNm/m`, `MEd,y = ${result.MEd_y.toFixed(2)} kNm/m`);
-    twoCol(`vEd,pun = ${result.vEd_punch.toFixed(3)} MPa`, `vRd,c = ${result.vRdc_punch.toFixed(3)} MPa`);
+    twoCol(`vEd,pun = ${fmtSi(result.vEd_punch, 'stress')}`, `vRd,c = ${fmtSi(result.vRdc_punch, 'stress')}`);
   }
 
   // ── Checks table ─────────────────────────────────────────────────────────────
@@ -193,8 +205,8 @@ export async function exportIsolatedFootingPDF(
     doc.text(pdfStr(ch.description), COL.desc, rowY, { maxWidth: 78 });
 
     setGray(doc, 80);
-    doc.text(pdfStr(ch.value ?? ''), COL.value, rowY);
-    doc.text(pdfStr(ch.limit ?? ''), COL.limit, rowY);
+    doc.text(pdfStr(checkValueStr(ch)), COL.value, rowY);
+    doc.text(pdfStr(checkLimitStr(ch)), COL.limit, rowY);
     setGray(doc, textG);
     doc.text(`${(ch.utilization * 100).toFixed(0)}%`, COL.util, rowY);
     doc.text(STATUS_LABEL[ch.status], COL.status, rowY);

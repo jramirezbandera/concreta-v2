@@ -8,7 +8,7 @@
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
-import { type CheckRow, makeCheck, toStatus } from './types';
+import { type CheckRow, makeCheck, makeCheckQty, toStatus } from './types';
 
 export type { CheckRow } from './types';
 
@@ -436,11 +436,11 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
 
   // Sliding (only if H_k > 0)
   if (H_k > 0) {
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'sliding',
       'Deslizamiento H_k ≤ Rd',
       H_k, Rd_slide,
-      `${H_k.toFixed(1)} kN`, `${Rd_slide.toFixed(1)} kN`,
+      'force',
       'DB-SE-C',
     ));
   }
@@ -497,20 +497,20 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
 
   // Shear x (only if critical section exists)
   if (ell_x > 0) {
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'shear-x', 'Cortante dir. x (a d del pilar)',
       VEd_x, VRd_x,
-      `${VEd_x.toFixed(1)} kN/m`, `${VRd_x.toFixed(1)} kN/m`,
+      'linearLoad',
       'CE art. 44',
     ));
   }
 
   // Shear y
   if (ell_y > 0) {
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'shear-y', 'Cortante dir. y (a d del pilar)',
       VEd_y, VRd_y,
-      `${VEd_y.toFixed(1)} kN/m`, `${VRd_y.toFixed(1)} kN/m`,
+      'linearLoad',
       'CE art. 44',
     ));
   }
@@ -520,10 +520,10 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   // perimeter at d_avg ~ h lies near or beyond the footing edge and the shear
   // flow assumed by CE art. 46 does not represent the real failure mode.
   if (!is_rigid) {
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'punching', 'Punzonamiento (a 2d del pilar)',
       vEd_punch, vRdc_punch,
-      `${vEd_punch.toFixed(3)} MPa`, `${vRdc_punch.toFixed(3)} MPa`,
+      'stress',
       'CE art. 46',
     ));
   }

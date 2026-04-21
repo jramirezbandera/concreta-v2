@@ -2,6 +2,9 @@ import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   inp:    IsolatedFootingInputs;
@@ -9,6 +12,8 @@ interface Props {
 }
 
 export function IsolatedFootingResults({ inp, result }: Props) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   const soilType = inp.soilType as string;
   const phi_x    = inp.phi_x   as number;
   const phi_y    = inp.phi_y   as number;
@@ -54,7 +59,7 @@ export function IsolatedFootingResults({ inp, result }: Props) {
       )}
       <ValueRow label="qadm"  value={`${result.qadm.toFixed(1)} kPa`} />
       {H_k > 0 && (
-        <ValueRow label="Rd,desliz" value={`${result.Rd_slide.toFixed(1)} kN`} />
+        <ValueRow label="Rd,desliz" value={fmtSi(result.Rd_slide, 'force')} />
       )}
 
       {/* ELU structural */}
@@ -70,8 +75,8 @@ export function IsolatedFootingResults({ inp, result }: Props) {
       />
       {result.is_rigid ? (
         <>
-          <ValueRow label="Td,x" value={`${result.Td_x.toFixed(1)} kN (biela-tirante)`} />
-          <ValueRow label="Td,y" value={`${result.Td_y.toFixed(1)} kN (biela-tirante)`} />
+          <ValueRow label="Td,x" value={`${fmtSi(result.Td_x, 'force')} (biela-tirante)`} />
+          <ValueRow label="Td,y" value={`${fmtSi(result.Td_y, 'force')} (biela-tirante)`} />
         </>
       ) : (
         <>
@@ -107,16 +112,16 @@ export function IsolatedFootingResults({ inp, result }: Props) {
       {/* Cortante */}
       <GroupHeader label="Cortante (CE art. 44)" />
       {result.ell_x > 0 ? (
-        <ValueRow label="VEd,x" value={`${result.VEd_x.toFixed(1)} kN/m`} />
+        <ValueRow label="VEd,x" value={fmtSi(result.VEd_x, 'linearLoad')} />
       ) : (
         <ValueRow label="Cortante x" value="N/A (pilar ≥ d)" />
       )}
       {result.ell_y > 0 ? (
-        <ValueRow label="VEd,y" value={`${result.VEd_y.toFixed(1)} kN/m`} />
+        <ValueRow label="VEd,y" value={fmtSi(result.VEd_y, 'linearLoad')} />
       ) : (
         <ValueRow label="Cortante y" value="N/A (pilar ≥ d)" />
       )}
-      <ValueRow label="vRd,c"  value={`${result.vRdc.toFixed(3)} MPa`} />
+      <ValueRow label="vRd,c"  value={fmtSi(result.vRdc, 'stress')} />
 
       {/* Punzonamiento — only for flexible footings. Rigid footings transfer
           load through compression struts and don't punch (CE art. 55.2). */}
@@ -130,8 +135,8 @@ export function IsolatedFootingResults({ inp, result }: Props) {
           <GroupHeader label="Punzonamiento (CE art. 46)" />
           <ValueRow label="d_avg"  value={`${result.d_avg.toFixed(0)} mm`} />
           <ValueRow label="u1"     value={`${result.u1.toFixed(0)} mm`} />
-          <ValueRow label="vEd"    value={`${result.vEd_punch.toFixed(3)} MPa`} />
-          <ValueRow label="vRd,c"  value={`${result.vRdc_punch.toFixed(3)} MPa`} />
+          <ValueRow label="vEd"    value={fmtSi(result.vEd_punch, 'stress')} />
+          <ValueRow label="vRd,c"  value={fmtSi(result.vRdc_punch, 'stress')} />
         </>
       )}
 

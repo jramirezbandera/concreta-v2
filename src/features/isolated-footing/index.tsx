@@ -7,6 +7,7 @@ import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcIsolatedFooting } from '../../lib/calculations/isolatedFooting';
 import { exportIsolatedFootingPDF } from '../../lib/pdf/isolatedFooting';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -17,12 +18,15 @@ import { IsolatedFootingSVG } from './IsolatedFootingSVG';
 export function IsolatedFootingModule() {
   const { state, setField } = useModuleState('isolated-footing', isolatedFootingDefaults);
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   const result = useMemo(() => calcIsolatedFooting(state), [state]);
 
+  // PDF export stays available even when result is invalid — engineers may
+  // need a PDF to document a failing/non-conforming section (memory note).
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportIsolatedFootingPDF(state, result), !result.error);
+    usePdfPreview(() => exportIsolatedFootingPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0

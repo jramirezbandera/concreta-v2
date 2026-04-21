@@ -4,6 +4,7 @@ import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
   state:    IsolatedFootingInputs;
@@ -158,17 +159,17 @@ export function IsolatedFootingInputsPanel({ state, setField }: Props) {
 
       {/* SLS loads */}
       <CollapsibleSection label="Cargas SLS (suelo)">
-        <NumField labelKey="N_k"  field="N_k"   value={state.N_k  as number} setField={setField} />
-        <NumField labelKey="Mx_k" field="Mx_k"  value={state.Mx_k as number} setField={setField} />
-        <NumField labelKey="My_k" field="My_k"  value={state.My_k as number} setField={setField} />
-        <NumField labelKey="H_k"  field="H_k"   value={state.H_k  as number} setField={setField} />
+        <UnitNumberInput labelKey="N_k"  field="N_k"   value={state.N_k  as number} quantity="force"  onChange={(v) => setField('N_k',  v)} />
+        <UnitNumberInput labelKey="Mx_k" field="Mx_k"  value={state.Mx_k as number} quantity="moment" onChange={(v) => setField('Mx_k', v)} />
+        <UnitNumberInput labelKey="My_k" field="My_k"  value={state.My_k as number} quantity="moment" onChange={(v) => setField('My_k', v)} />
+        <UnitNumberInput labelKey="H_k"  field="H_k"   value={state.H_k  as number} quantity="force"  onChange={(v) => setField('H_k',  v)} />
       </CollapsibleSection>
 
       {/* ELU loads */}
       <CollapsibleSection label="Cargas ELU (armado)">
-        <NumField labelKey="NEd"        field="N_Ed"   value={state.N_Ed  as number} setField={setField} />
-        <NumField labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number} setField={setField} />
-        <NumField labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number} setField={setField} />
+        <UnitNumberInput labelKey="NEd"        field="N_Ed"   value={state.N_Ed  as number} quantity="force"  onChange={(v) => setField('N_Ed',  v)} />
+        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed"  value={state.Mx_Ed as number} quantity="moment" onChange={(v) => setField('Mx_Ed', v)} />
+        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed"  value={state.My_Ed as number} quantity="moment" onChange={(v) => setField('My_Ed', v)} />
       </CollapsibleSection>
 
       {/* Materials */}
