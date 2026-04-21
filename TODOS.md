@@ -195,3 +195,84 @@ These should be **warn-level** (not fail-level, not hard errors) check rows in `
 **Test:** Add a suite in `empresillado.test.ts` — enter lp=1cm, s=200cm on a 30cm column, expect checks to include a warn-status row.
 
 **Depends on:** none.
+
+### units-toggle: audit shared calc files antes de ship
+
+**Status:** DEFERRED (plan-eng-review 2026-04-21). Blocks shipping `feat/units-toggle`.
+
+El design doc del toggle kg/cm² ↔ kN/m² inventarió los 14 módulos en `src/features/` pero no los archivos compartidos en `src/lib/calculations/`: `beamCases.ts`, `loadGen.ts`, `rcSlabs.ts`, `rcTSection.ts`, `steelColumnBC.ts`. Pueden contener strings hardcoded con unidades (ej. `value: "${x.toFixed(1)} kN"`) que se escaparían del barrido si nadie los revisa. Correr un grep por `'kN'|'kNm'|'N/mm'|'MPa'` en esos 5 archivos antes de mergear `feat/units-toggle`; si hay matches, migrar con el mismo patrón `CheckRow { valueNum, valueQty }`.
+
+**Where to start:** `git grep -nE '"(kN|kNm|N/mm|MPa|kg/cm)' src/lib/calculations/{beamCases,loadGen,rcSlabs,rcTSection,steelColumnBC}.ts`
+
+**Depends on:** `feat/units-toggle` branch creado.
+
+### units-toggle: PDF snapshot tests (post-V1)
+
+**Status:** DEFERRED (plan-eng-review 2026-04-21).
+
+V1 del toggle de unidades usa QA visual manual por módulo (14 PDFs × 2 sistemas = 28 snapshots que mirar a mano por release). Barato con CC+gstack construir snapshot tests de texto extraído del PDF (jsPDF permite `doc.output('text')`). No se hace en V1 para no inflar scope, pero si cada release duele re-mirar 28 PDFs, invertir en esto.
+
+**Where to start:** `src/test/pdf/` (crear), un test por módulo que genera el PDF con un input fijado, extrae el texto, compara contra un snapshot. Uno para SI, uno para técnico.
+
+**Depends on:** `feat/units-toggle` mergeado.
+
+### units-toggle: validación cualitativa con refunfuñones post-ship
+
+**Status:** DEFERRED (plan-eng-review 2026-04-21). Gate de "done real" para el feature.
+
+El design doc tiene como Success Criterion: "enseñar a 2-3 de los refunfuñones originales y medir su reacción — ¿siguen refunfuñando? ¿aparece otra fricción?". Sin ejecutar esta validación, "done" es una creencia, no un hecho. Registrar aquí para no perderlo al cerrar la PR.
+
+**Cómo medir:** contacto directo con 3 ingenieros sénior (>50 años) que ya usan Concreta. Mostrarles el toggle, dejarlos trabajar 10 min, pedir feedback literal. Éxito = ≥2/3 dejan de hacer conversiones mentales y no introducen una nueva queja estructural sobre unidades.
+
+**Depends on:** `feat/units-toggle` desplegado.
+
+### units-toggle: criterio de regresión SI — texto idéntico, no byte-idéntico
+
+**Status:** CLARIFICATION (plan-eng-review 2026-04-21, codex flag).
+
+El test plan dice "SI output byte-idéntico al pre-refactor". Codex (correctamente) señala que un PDF byte-idéntico es prácticamente imposible (jsPDF embebe timestamps, IDs internos, orden de objetos puede variar entre corridas). El criterio operativo correcto es **texto extraído idéntico + screenshot diff visual = 0 píxeles diferentes** en los 14 módulos en SI. Si el texto cambia o el visual diff > umbral, falla. No comparar bytes crudos.
+
+**Where to start:** `src/test/units/regression-si.test.ts` cuando se implemente el snapshot framework. Mientras tanto, en QA manual: comparar Results en pantalla + valores numéricos del PDF (extracción manual o `doc.output('text')`), no hashes de archivo.
+
+**Depends on:** `feat/units-toggle` en implementación.
+
+### units-toggle: labels.ts no es la fuente de verdad para quantity de inputs
+
+**Status:** CLARIFICATION (plan-eng-review 2026-04-21, codex flag).
+
+El review acordó añadir `quantity?: Quantity` al `Label` en `src/lib/text/labels.ts`. Codex avisa que esto acopla la capa de texto/i18n con la capa de unidades (un símbolo puede aparecer en contextos con magnitudes distintas — ej. 'M' como momento o como masa). La regla: **el `quantity` en `Label` es un default conveniente, no la verdad**. La verdad vive en cada call site del `<UnitNumberInput quantity="...">` y de `formatQuantity(value, quantity, system)`. Si un input usa un label cuyo `quantity` no coincide con el contexto, el call site sobrescribe explícitamente. Documentar esto en el JSDoc de `Label.quantity`.
+
+**Where to start:** cuando se añada el campo, escribir el JSDoc así: `/** Default quantity for inputs using this label. Call sites may override via explicit prop. */`.
+
+**Depends on:** `feat/units-toggle` en implementación.
+
+### units-toggle: CheckRow shape soporta valores no-numéricos vía fallback string
+
+**Status:** SPEC (plan-eng-review 2026-04-21, codex flag — decision iteration 8).
+
+El refactor del CheckRow no puede asumir que todos los checks son `{ valueNum, valueQty }`. Hay casos legítimos hoy: `'∞'` (isolatedFooting.ts:468 cuando no hay vuelco), strings tipo `'3 barras'`, ratios adimensionales, booleanos cumple/no-cumple. **Shape final:**
+
+```ts
+type CheckRow = {
+  id: string;
+  description: string;
+  // numeric+dimensional → toggle aplica
+  valueNum?: number;
+  valueQty?: Quantity;
+  limitNum?: number;
+  limitQty?: Quantity;
+  // fallback (∞, '3 barras', ratios, booleans) → renderiza tal cual
+  valueStr?: string;
+  limitStr?: string;
+  utilization: number;
+  status: CheckStatus;  // ok | warn | fail | neutral
+  article: string;
+  tag?: string;  // ex-SteelCheckRow.tag
+};
+```
+
+Renderer: si `valueNum != null && valueQty` → `formatQuantity(valueNum, valueQty, system)`. Si no → `valueStr ?? '—'`. Mismo patrón para limit. Esto cubre los 3 tipos de check sin discriminated union (más fricción para 60+ call sites).
+
+**Where to start:** `src/lib/calculations/types.ts` — refactor `CheckRow` + `makeCheck`. Añadir overloads o segundo constructor `makeCheckFromStr(id, desc, valueStr, limitStr, util, status, article)` para los casos no-numéricos.
+
+**Depends on:** `feat/units-toggle` branch creado, antes del piloto triple.
