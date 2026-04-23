@@ -457,7 +457,21 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
   // Stable IDs per render mode (allows two SVG instances on screen + PDF)
   const idSuffix = isPdf ? 'pdf' : 'screen';
   const gradId = `if-press-grad-${idSuffix}`;
+  const legendGradId = `if-press-legend-grad-${idSuffix}`;
   const hatchId = `if-soil-hatch-${idSuffix}`;
+
+  // Gradient direction from biaxial eccentricity. Points from σmin → σmax corner
+  // (low-pressure side to high-pressure side). With ex only → horizontal;
+  // with ey only → vertical; both → diagonal.
+  // NOTE: gradient uses objectBoundingBox, so the vector is in normalized rect
+  // space — visually accurate enough even when B ≠ L.
+  const e_mag = Math.hypot(result.ex_sls, result.ey_sls);
+  const vx = e_mag > 1e-9 ? result.ex_sls / e_mag : 1;
+  const vy = e_mag > 1e-9 ? result.ey_sls / e_mag : 0;
+  const gx1 = 0.5 - vx / 2;
+  const gy1 = 0.5 - vy / 2;
+  const gx2 = 0.5 + vx / 2;
+  const gy2 = 0.5 + vy / 2;
 
   const titleId = `if-svg-title-${idSuffix}`;
   const descId = `if-svg-desc-${idSuffix}`;
@@ -495,8 +509,22 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
         </desc>
 
         <defs>
-          {/* Pressure gradient (planta + leyenda) */}
-          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+          {/* Pressure gradient — planta (directional, reflects biaxial eccentricity) */}
+          <linearGradient id={gradId} x1={gx1} y1={gy1} x2={gx2} y2={gy2}>
+            {isPdf ? (
+              <>
+                <stop offset="0%"   stopColor="#cccccc" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#666666" stopOpacity="0.8" />
+              </>
+            ) : (
+              <>
+                <stop offset="0%"   stopColor="var(--color-accent,#38bdf8)"     stopOpacity="0.45" />
+                <stop offset="100%" stopColor="var(--color-state-fail,#ef4444)" stopOpacity="0.55" />
+              </>
+            )}
+          </linearGradient>
+          {/* Pressure gradient — leyenda (always horizontal) */}
+          <linearGradient id={legendGradId} x1="0" y1="0" x2="1" y2="0">
             {isPdf ? (
               <>
                 <stop offset="0%"   stopColor="#cccccc" stopOpacity="0.6" />
@@ -520,7 +548,7 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
         <Diagrama inp={inp} result={result} box={diagramaBox} c={c} isPdf={isPdf} system={system} />
 
         <GradientLegend result={result} x={legendX} y={legendY} w={width - 2 * margin}
-          c={c} isPdf={isPdf} gradId={gradId} system={system} />
+          c={c} isPdf={isPdf} gradId={legendGradId} system={system} />
       </svg>
     </div>
   );
