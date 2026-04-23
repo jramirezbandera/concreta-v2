@@ -123,9 +123,10 @@ function Planta({
       <line x1={fx + fw + 8} y1={fy} x2={fx + fw + 8} y2={fy + fh}
         stroke={c.cota} strokeWidth={0.75} />
       <text
-        x={fx + fw + 12} y={cy}
-        textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
+        x={fx + fw + 14} y={cy}
+        textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
+        transform={`rotate(-90 ${fx + fw + 14} ${cy})`}
       >{`L=${L.toFixed(2)} m`}</text>
 
       {/* Cruz centro de presiones (cuando hay eccentricidad) */}
@@ -206,15 +207,11 @@ function Seccion({
         x2={footLeftX + capW + 18} y2={groundY}
         stroke={c.groundLine} strokeWidth={1}
       />
-      <text
-        x={footLeftX - 18} y={groundY - 3}
-        textAnchor="start" fontSize={9} fontFamily="monospace" fill={c.textDis}
-      >Terreno natural</text>
 
-      {/* Pilar stub */}
+      {/* Pilar — continuo desde arriba, atraviesa el terreno hasta el trasdós de la zapata */}
       <rect
         x={cx - colW / 2} y={box.y + inset}
-        width={colW} height={stubPx + (groundY - (box.y + inset))}
+        width={colW} height={footTopY - (box.y + inset)}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
 
@@ -245,22 +242,21 @@ function Seccion({
         />
       )}
 
-      {/* Cota Df (izquierda) */}
-      <line x1={footLeftX - 10} y1={groundY} x2={footLeftX - 10} y2={footTopY}
-        stroke={c.cota} strokeWidth={0.75} />
+      {/* Cota Df — dentro del hatch, entre el trasdós izquierdo y el pilar */}
       <text
-        x={footLeftX - 14} y={groundY + dfPx / 2}
-        textAnchor="end" fontSize={10} fontFamily="monospace" fill={c.cota}
+        x={(footLeftX + (cx - colW / 2)) / 2} y={groundY + dfPx / 2}
+        textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
       >{`Df=${Df.toFixed(2)} m`}</text>
 
-      {/* Cota h (derecha) */}
+      {/* Cota h (derecha) — rotada vertical para no salir del box */}
       <line x1={footLeftX + capW + 10} y1={footTopY} x2={footLeftX + capW + 10} y2={footTopY + capH}
         stroke={c.cota} strokeWidth={0.75} />
       <text
-        x={footLeftX + capW + 14} y={footTopY + capH / 2}
-        textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
+        x={footLeftX + capW + 16} y={footTopY + capH / 2}
+        textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
+        transform={`rotate(-90 ${footLeftX + capW + 16} ${footTopY + capH / 2})`}
       >{`h=${h.toFixed(2)} m`}</text>
 
       {/* d (canto útil) — sutil, debajo del rebar */}
