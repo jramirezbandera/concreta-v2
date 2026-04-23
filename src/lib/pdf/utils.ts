@@ -70,7 +70,8 @@ export interface PdfResult {
 
 /** Standard check status labels (Spanish). */
 export const STATUS_LABEL: Record<string, string> = {
-  ok:   'CUMPLE',
-  warn: 'ADVERTENCIA',
-  fail: 'INCUMPLE',
+  ok:      'CUMPLE',
+  warn:    'ADVERTENCIA',
+  fail:    'INCUMPLE',
+  neutral: 'N/A',
 };

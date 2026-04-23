@@ -1,369 +1,435 @@
+// Isolated footing SVG — single <svg> with three <g> groups (planta, sección,
+// diagrama de presión). Layouts horizontally (≥380 wide) or vertically.
+// Pressure rendering follows result.distributionType; overturning_fail shows a
+// "VUELCO GEOMÉTRICO" stamp. Per plan §4.4.1 + DESIGN.md SVG rules.
+
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
+import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
-interface IsolatedFootingSVGProps {
+interface Props {
   inp:    IsolatedFootingInputs;
   result: IsolatedFootingResult;
   width:  number;
   mode?:  'screen' | 'pdf';
+  system?: UnitSystem;
 }
+
+interface Box { x: number; y: number; w: number; h: number }
 
 function colors(isPdf: boolean) {
   return {
-    bg:          isPdf ? '#ffffff' : 'transparent',
     footFill:    isPdf ? '#f0f0f0' : 'var(--color-bg-surface,#1e293b)',
-    footStroke:  isPdf ? '#555'    : '#475569',
-    colFill:     isPdf ? '#d8d8d8' : '#334155',
-    colStroke:   isPdf ? '#333'    : '#64748b',
-    effBorder:   isPdf ? '#888'    : '#f59e0b',
-    pressHigh:   isPdf ? '#cc0000' : '#ef4444',
-    pressLow:    isPdf ? '#0055cc' : '#38bdf8',
-    rebarStroke: isPdf ? '#228822' : '#22c55e',
-    groundLine:  isPdf ? '#886633' : '#b45309',
-    textMain:    isPdf ? '#111'    : '#f8fafc',
-    textSec:     isPdf ? '#555'    : '#94a3b8',
-    accent:      isPdf ? '#000'    : '#38bdf8',
+    footStroke:  isPdf ? '#333333' : 'var(--color-border-main,#334155)',
+    colFill:     isPdf ? '#d8d8d8' : 'var(--color-bg-elevated,#334155)',
+    colStroke:   isPdf ? '#333333' : 'var(--color-text-disabled,#475569)',
+    effDash:     isPdf ? '#666666' : 'var(--color-accent,#38bdf8)',
+    rebar:       isPdf ? '#000000' : 'var(--color-text-primary,#f8fafc)',
+    coverLine:   isPdf ? '#888888' : 'var(--color-text-disabled,#475569)',
+    groundLine:  isPdf ? '#666666' : 'var(--color-text-secondary,#94a3b8)',
+    groundHatch: isPdf ? '#999999' : 'var(--color-text-disabled,#475569)',
+    cota:        isPdf ? '#000000' : 'var(--color-accent,#38bdf8)',
+    textMain:    isPdf ? '#000000' : 'var(--color-text-primary,#f8fafc)',
+    textSec:     isPdf ? '#666666' : 'var(--color-text-secondary,#94a3b8)',
+    textDis:     isPdf ? '#999999' : 'var(--color-text-disabled,#475569)',
+    pressLow:    isPdf ? '#cccccc' : 'var(--color-accent,#38bdf8)',
+    pressHigh:   isPdf ? '#666666' : 'var(--color-state-fail,#ef4444)',
+    fail:        isPdf ? '#666666' : 'var(--color-state-fail,#ef4444)',
   };
 }
 
-// ── Plan view ─────────────────────────────────────────────────────────────────
+// ── Planta ────────────────────────────────────────────────────────────────────
 
-function PlanView({
-  inp, result, size, isPdf,
-}: { inp: IsolatedFootingInputs; result: IsolatedFootingResult; size: number; isPdf: boolean }) {
-  const c = colors(isPdf);
+function Planta({
+  inp, result, box, c, isPdf, gradId,
+}: {
+  inp: IsolatedFootingInputs; result: IsolatedFootingResult;
+  box: Box; c: ReturnType<typeof colors>; isPdf: boolean; gradId: string;
+}) {
+  const { B, L, bc, hc } = inp;
+  const { ex_sls, ey_sls, distributionType } = result;
+  const isFail = distributionType === 'overturning_fail';
 
-  const B  = inp.B  as number;
-  const L  = inp.L  as number;
-  const bc = inp.bc as number;
-  const hc = inp.hc as number;
-  const { B_eff, L_eff, sigma_max, sigma_min, ex, ey } = result;
-
-  const margin = 22;
-  const scaleX = (size - 2 * margin) / B;
-  const scaleY = (size - 2 * margin) / L;
-  const scale  = Math.min(scaleX, scaleY);
-
-  const ox = size / 2;
-  const oy = size / 2;
-
+  // Uniform scale (no distortion)
+  const inset = 18;
+  const scale = Math.min((box.w - 2 * inset) / B, (box.h - 2 * inset) / L);
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
   const halfB = (B / 2) * scale;
   const halfL = (L / 2) * scale;
+
+  // Footing rect
+  const fx = cx - halfB;
+  const fy = cy - halfL;
+  const fw = 2 * halfB;
+  const fh = 2 * halfL;
+
+  // Pilar (column) at center
   const halfBc = (bc / 2) * scale;
   const halfHc = (hc / 2) * scale;
 
-  const hasEcc = ex > 0.001 || ey > 0.001;
-  const halfBeff = (B_eff / 2) * scale;
-  const halfLeff = (L_eff / 2) * scale;
-
-  // Color stops for pressure gradient (σmin → σmax)
-  // We map the footing rectangle with a gradient indicating pressure distribution.
-  const pressRange = sigma_max - sigma_min;
-  const sigmaColor = (sigma: number) => {
-    const t = pressRange > 0 ? (sigma - sigma_min) / pressRange : 0.5;
-    const r = Math.round(56 + (239 - 56) * t);
-    const g = Math.round(189 - 100 * t);
-    const b_ch = Math.round(248 - 200 * t);
-    return `rgb(${r},${g},${b_ch})`;
-  };
-
-  // Gradient ID (unique per SVG to avoid conflicts in PDF with multiple SVGs)
-  const gradId = isPdf ? 'pf-grad-pdf' : 'pf-grad';
+  // Effective area (Meyerhof B'×L'), only if eccentricity meaningful
+  const ex = Math.abs(ex_sls);
+  const ey = Math.abs(ey_sls);
+  const Beff = Math.max(0, B - 2 * ex);
+  const Leff = Math.max(0, L - 2 * ey);
+  const hasEcc = (ex > 0.001 || ey > 0.001) && !isFail && Beff > 0 && Leff > 0;
+  const halfBeff = (Beff / 2) * scale;
+  const halfLeff = (Leff / 2) * scale;
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Vista en planta de la zapata"
-    >
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
-          {isPdf ? (
-            // PDF mode: grayscale only (DESIGN.md — PDF SVG rules)
-            <>
-              <stop offset="0%" stopColor="#cccccc" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#555555" stopOpacity="0.5" />
-            </>
-          ) : (
-            <>
-              <stop offset="0%" stopColor={sigmaColor(sigma_min)} stopOpacity="0.5" />
-              <stop offset="100%" stopColor={sigmaColor(sigma_max)} stopOpacity="0.6" />
-            </>
-          )}
-        </linearGradient>
-      </defs>
-
-      {/* Footing outline (fill + pressure gradient overlay) */}
+    <g aria-label="Planta">
+      {/* Base rect */}
       <rect
-        x={ox - halfB} y={oy - halfL}
-        width={2 * halfB} height={2 * halfL}
-        fill={c.footFill} stroke={c.footStroke} strokeWidth={1.5}
-      />
-      {/* Pressure gradient overlay */}
-      <rect
-        x={ox - halfB} y={oy - halfL}
-        width={2 * halfB} height={2 * halfL}
-        fill={`url(#${gradId})`} stroke="none"
+        x={fx} y={fy} width={fw} height={fh}
+        fill={isFail ? (isPdf ? '#eeeeee' : 'rgba(239,68,68,0.15)') : c.footFill}
+        stroke={c.footStroke} strokeWidth={1.25}
       />
 
-      {/* Effective area dashed (only if eccentricity) */}
-      {hasEcc && (
+      {/* Pressure gradient overlay (skip on fail) */}
+      {!isFail && (
         <rect
-          x={ox - halfBeff} y={oy - halfLeff}
-          width={2 * halfBeff} height={2 * halfLeff}
-          fill="none" stroke={c.effBorder} strokeWidth={1}
-          strokeDasharray="4 3"
+          x={fx} y={fy} width={fw} height={fh}
+          fill={`url(#${gradId})`} stroke="none" pointerEvents="none"
         />
       )}
 
-      {/* Column */}
+      {/* Effective area (dashed, accent) */}
+      {hasEcc && (
+        <rect
+          x={cx - halfBeff} y={cy - halfLeff}
+          width={2 * halfBeff} height={2 * halfLeff}
+          fill="none" stroke={c.effDash} strokeWidth={1.5}
+          strokeDasharray="4 2"
+        />
+      )}
+
+      {/* Pilar */}
       <rect
-        x={ox - halfBc} y={oy - halfHc}
+        x={cx - halfBc} y={cy - halfHc}
         width={2 * halfBc} height={2 * halfHc}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
 
-      {/* Dimension label B */}
+      {/* Cotas B (abajo) y L (derecha) */}
+      <line x1={fx} y1={fy + fh + 8} x2={fx + fw} y2={fy + fh + 8}
+        stroke={c.cota} strokeWidth={0.75} />
       <text
-        x={ox} y={oy - halfL - 5}
-        textAnchor="middle" fontSize={isPdf ? 7 : 8}
-        fill={c.textSec} fontFamily="monospace"
-      >
-        {`B=${B.toFixed(2)}m`}
-      </text>
+        x={cx} y={fy + fh + 18}
+        textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
+      >{`B=${B.toFixed(2)} m`}</text>
 
-      {/* Dimension label L */}
+      <line x1={fx + fw + 8} y1={fy} x2={fx + fw + 8} y2={fy + fh}
+        stroke={c.cota} strokeWidth={0.75} />
       <text
-        x={ox + halfB + 5} y={oy}
-        textAnchor="start" fontSize={isPdf ? 7 : 8}
-        fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`L=${L.toFixed(2)}m`}
-      </text>
+        x={fx + fw + 12} y={cy}
+        textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
+        dominantBaseline="middle"
+      >{`L=${L.toFixed(2)} m`}</text>
 
-      {/* σmax / σmin labels */}
-      <text
-        x={ox + halfB - 3} y={oy}
-        textAnchor="end" fontSize={isPdf ? 6 : 7}
-        fill={c.pressHigh} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`${sigma_max.toFixed(0)}kPa`}
-      </text>
-      <text
-        x={ox - halfB + 3} y={oy}
-        textAnchor="start" fontSize={isPdf ? 6 : 7}
-        fill={sigma_min < 0 ? c.accent : c.pressLow} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {sigma_min < 0 ? 'parcial' : `${sigma_min.toFixed(0)}kPa`}
-      </text>
-
-      {/* Effective area label if eccentricity */}
+      {/* Cruz centro de presiones (cuando hay eccentricidad) */}
       {hasEcc && (
-        <text
-          x={ox} y={oy + halfLeff + 10}
-          textAnchor="middle" fontSize={isPdf ? 5.5 : 6.5}
-          fill={c.effBorder} fontFamily="monospace"
-        >
-          {`B'×L'=${B_eff.toFixed(2)}×${L_eff.toFixed(2)}m`}
-        </text>
+        <g>
+          {/* Centro geométrico (gris) */}
+          <circle cx={cx} cy={cy} r={2} fill={c.textDis} />
+          {/* Centro de presiones (accent) — desplazado por (ex, ey) */}
+          <circle
+            cx={cx + ex_sls * scale} cy={cy + ey_sls * scale}
+            r={2.5} fill={c.cota}
+          />
+        </g>
       )}
-    </svg>
+
+      {/* "VUELCO GEOMÉTRICO" stamp */}
+      {isFail && (
+        <text
+          x={cx} y={cy + 4}
+          textAnchor="middle" fontSize={14} fontWeight={600} fontFamily="monospace"
+          fill={c.fail}
+        >VUELCO GEOMÉTRICO</text>
+      )}
+    </g>
   );
 }
 
-// ── Section view ──────────────────────────────────────────────────────────────
+// ── Sección ──────────────────────────────────────────────────────────────────
 
-function SectionView({
-  inp, result, width, isPdf,
-}: { inp: IsolatedFootingInputs; result: IsolatedFootingResult; width: number; isPdf: boolean }) {
-  const c = colors(isPdf);
+function Seccion({
+  inp, result, box, c, isPdf, hatchId,
+}: {
+  inp: IsolatedFootingInputs; result: IsolatedFootingResult;
+  box: Box; c: ReturnType<typeof colors>; isPdf: boolean; hatchId: string;
+}) {
+  const { B, h, bc, Df, phi_x } = inp;
+  const { distributionType, d_x } = result;
+  const isFail = distributionType === 'overturning_fail';
 
-  const B  = inp.B  as number;
-  const h  = inp.h  as number;
-  const bc = inp.bc as number;
-  const Df = inp.Df as number;
-  const phi_x = inp.phi_x as number;
-
-  const { sigma_max, sigma_min, d_x, ax } = result;
-
-  const height = Math.round(width * 0.60);
-  const margin = 20;
-  const colStubH = 60;
-  const groundLineH = 18;
-  const pressH = 40;   // px — max height of pressure diagram
-
-  const totalContentH = height - margin * 2 - colStubH - groundLineH - pressH;
-  const scale = Math.min(
-    (width - 2 * margin) / B,
-    totalContentH / h,
-  );
+  // Vertical layout: ground line at top, footing below, column stub above ground
+  const inset = 14;
+  // Total vertical content: stub (≈40px) + Df (terreno) + h (zapata)
+  const stubPx = 38;
+  const physVert = Df + h;
+  const physHoriz = B * 1.10; // a bit of breathing room beyond B
+  const scaleV = (box.h - 2 * inset - stubPx) / physVert;
+  const scaleH = (box.w - 2 * inset) / physHoriz;
+  const scale = Math.min(scaleV, scaleH);
 
   const capW = B * scale;
   const capH = h * scale;
   const colW = bc * scale;
-  const cov_px = (inp.cover as number) / 1000 * scale;
-  const phi_px = Math.min(Math.max(phi_x * scale / 1000, 3), 5);
+  const dfPx = Df * scale;
 
-  const ox = (width - capW) / 2;
-  const oy = margin + colStubH + groundLineH;   // top of footing
+  const cx = box.x + box.w / 2;
+  // Ground line y: top of footing is dfPx below; stub is above ground
+  const groundY = box.y + inset + stubPx;
+  const footTopY = groundY + dfPx;
+  const footLeftX = cx - capW / 2;
 
-  const col_cx = ox + capW / 2;
-
-  // Pressure diagram (trapezoid below footing)
-  const sigMin = Math.max(sigma_min, 0);  // no tension for diagram
-  const sigMax = sigma_max;
-  const leftH  = Math.max(sigMin / sigMax, 0) * pressH;
-  const rightH = pressH;
-
-  // Rebar y position (from cap bottom, cover_px + phi_px/2)
-  const rebar_y = oy + capH - cov_px - phi_px / 2;
-
-  // Ax annotation
-  const col_left = col_cx - (bc / 2) * scale;
+  // Cover and rebar
+  const coverPx = Math.max(2, (inp.cover / 1000) * scale);
+  const phiPx = Math.min(Math.max((phi_x / 1000) * scale, 2), 5);
+  const rebarY = footTopY + capH - coverPx - phiPx / 2;
 
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Sección transversal de la zapata"
-    >
-      {/* Ground line (dotted) at Df above footing top */}
-      <line
-        x1={ox - 10} y1={oy}
-        x2={ox + capW + 10} y2={oy}
-        stroke={c.groundLine} strokeWidth={1} strokeDasharray="5 3"
-      />
-      <text
-        x={ox - 12} y={oy}
-        textAnchor="end" fontSize={isPdf ? 6 : 7}
-        fill={c.groundLine} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`GL`}
-      </text>
-
-      {/* Df annotation (vertical) */}
-      <line
-        x1={ox + capW + 10} y1={oy - groundLineH}
-        x2={ox + capW + 10} y2={oy}
-        stroke={c.textSec} strokeWidth={0.7}
-      />
-      <text
-        x={ox + capW + 14} y={oy - groundLineH / 2}
-        fontSize={isPdf ? 5.5 : 6.5}
-        fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`Df=${Df.toFixed(2)}m`}
-      </text>
-
-      {/* Column stub */}
+    <g aria-label="Sección vertical">
+      {/* Terreno hatch (entre groundY y footTopY) */}
       <rect
-        x={col_cx - colW / 2} y={margin}
-        width={colW} height={colStubH}
+        x={footLeftX - 14} y={groundY}
+        width={capW + 28} height={dfPx}
+        fill={`url(#${hatchId})`} opacity={0.4}
+      />
+
+      {/* Línea de terreno natural */}
+      <line
+        x1={footLeftX - 18} y1={groundY}
+        x2={footLeftX + capW + 18} y2={groundY}
+        stroke={c.groundLine} strokeWidth={1}
+      />
+      <text
+        x={footLeftX - 18} y={groundY - 3}
+        textAnchor="start" fontSize={9} fontFamily="monospace" fill={c.textDis}
+      >Terreno natural</text>
+
+      {/* Pilar stub */}
+      <rect
+        x={cx - colW / 2} y={box.y + inset}
+        width={colW} height={stubPx + (groundY - (box.y + inset))}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
 
-      {/* Footing body */}
+      {/* Cuerpo zapata */}
       <rect
-        x={ox} y={oy}
+        x={footLeftX} y={footTopY}
         width={capW} height={capH}
-        fill={c.footFill} stroke={c.footStroke} strokeWidth={1.5}
+        fill={c.footFill} stroke={c.footStroke} strokeWidth={1.25}
       />
+      {isFail && (
+        <rect
+          x={footLeftX} y={footTopY} width={capW} height={capH}
+          fill={isPdf ? '#eeeeee' : 'rgba(239,68,68,0.10)'} stroke="none"
+        />
+      )}
 
-      {/* Rebar line (x bars) */}
-      <line
-        x1={ox + 4} y1={rebar_y}
-        x2={ox + capW - 4} y2={rebar_y}
-        stroke={c.rebarStroke} strokeWidth={phi_px}
-        strokeLinecap="round"
+      {/* Cover line + rebar */}
+      <rect
+        x={footLeftX + coverPx / 2} y={footTopY + coverPx / 2}
+        width={capW - coverPx} height={capH - coverPx}
+        fill="none" stroke={c.coverLine} strokeWidth={0.75} strokeDasharray="2 2"
       />
+      {!isFail && (
+        <line
+          x1={footLeftX + 4} y1={rebarY}
+          x2={footLeftX + capW - 4} y2={rebarY}
+          stroke={c.rebar} strokeWidth={phiPx} strokeLinecap="round"
+        />
+      )}
 
-      {/* d_x annotation (right side) */}
-      <line
-        x1={ox + capW + 8} y1={rebar_y}
-        x2={ox + capW + 8} y2={oy}
-        stroke={c.textSec} strokeWidth={0.7}
-      />
+      {/* Cota Df (izquierda) */}
+      <line x1={footLeftX - 10} y1={groundY} x2={footLeftX - 10} y2={footTopY}
+        stroke={c.cota} strokeWidth={0.75} />
       <text
-        x={ox + capW + 12} y={oy + (rebar_y - oy) / 2}
-        fontSize={isPdf ? 5.5 : 6.5}
-        fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`d=${d_x.toFixed(0)}`}
-      </text>
+        x={footLeftX - 14} y={groundY + dfPx / 2}
+        textAnchor="end" fontSize={10} fontFamily="monospace" fill={c.cota}
+        dominantBaseline="middle"
+      >{`Df=${Df.toFixed(2)} m`}</text>
 
-      {/* ax cantilever arrow (left side, below column) */}
+      {/* Cota h (derecha) */}
+      <line x1={footLeftX + capW + 10} y1={footTopY} x2={footLeftX + capW + 10} y2={footTopY + capH}
+        stroke={c.cota} strokeWidth={0.75} />
+      <text
+        x={footLeftX + capW + 14} y={footTopY + capH / 2}
+        textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
+        dominantBaseline="middle"
+      >{`h=${h.toFixed(2)} m`}</text>
+
+      {/* d (canto útil) — sutil, debajo del rebar */}
+      {!isFail && d_x > 0 && (
+        <text
+          x={footLeftX + capW / 2} y={rebarY - 4}
+          textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
+        >{`d=${d_x.toFixed(0)} mm`}</text>
+      )}
+    </g>
+  );
+}
+
+// ── Diagrama de presión ───────────────────────────────────────────────────────
+
+function Diagrama({
+  inp, result, box, c, isPdf, system,
+}: {
+  inp: IsolatedFootingInputs; result: IsolatedFootingResult;
+  box: Box; c: ReturnType<typeof colors>; isPdf: boolean; system: UnitSystem;
+}) {
+  const { B } = inp;
+  const { distributionType, sigma_max, sigma_min, loaded_area_fraction } = result;
+  const isFail = distributionType === 'overturning_fail';
+  const isBitri = distributionType !== 'trapezoidal' && !isFail;
+
+  // Empty state for fail
+  if (isFail) {
+    return (
+      <g aria-label="Diagrama de presión — vuelco">
+        <rect
+          x={box.x} y={box.y} width={box.w} height={box.h}
+          fill="none" stroke={c.fail} strokeWidth={1} strokeDasharray="4 3"
+          opacity={0.5}
+        />
+        <text
+          x={box.x + box.w / 2} y={box.y + box.h / 2}
+          textAnchor="middle" fontSize={11} fontFamily="monospace" fill={c.textDis}
+          dominantBaseline="middle"
+        >Diagrama no aplicable — vuelco</text>
+      </g>
+    );
+  }
+
+  const inset = 14;
+  const baseY = box.y + box.h - 28;            // baseline of pressure shape
+  const topAvailable = box.h - 28 - inset;     // available height above baseline
+  const pressMaxPx = Math.max(20, topAvailable);
+  const widthPx = box.w - 2 * inset;
+  const x0 = box.x + inset;
+  const xRight = x0 + widthPx;
+
+  // Polygon points: pressure profile (from x=0 to x=B along x-axis)
+  // For trapezoidal: σmin at left, σmax at right (full width).
+  // For bitri: σ goes from σmax at right to 0 at x = B - Lc, where Lc = loaded_area_fraction · B (uniaxial sense).
+  const sigMaxPx = pressMaxPx;
+  const sigMinPx = sigma_max > 0 ? Math.max(0, (sigma_min / sigma_max) * pressMaxPx) : 0;
+
+  let poly: string;
+  let lcLineX: number | null = null;
+
+  if (!isBitri) {
+    // Trapezoidal
+    poly = [
+      `${x0},${baseY}`,
+      `${x0},${baseY - sigMinPx}`,
+      `${xRight},${baseY - sigMaxPx}`,
+      `${xRight},${baseY}`,
+    ].join(' ');
+  } else {
+    // Bitriangular: triangle from despegue point to xRight
+    const lcFrac = Math.max(0, Math.min(1, loaded_area_fraction));
+    const lcPx = Math.max(0, lcFrac * widthPx);
+    const xLc = xRight - lcPx;
+    lcLineX = xLc;
+    poly = [
+      `${xLc},${baseY}`,
+      `${xRight},${baseY - sigMaxPx}`,
+      `${xRight},${baseY}`,
+    ].join(' ');
+  }
+
+  return (
+    <g aria-label="Diagrama de presión">
+      {/* Baseline */}
       <line
-        x1={ox} y1={oy + capH + 5}
-        x2={col_left} y2={oy + capH + 5}
-        stroke={c.textSec} strokeWidth={0.7}
-        markerEnd="none"
+        x1={x0} y1={baseY} x2={xRight} y2={baseY}
+        stroke={c.footStroke} strokeWidth={1}
       />
-      <text
-        x={(ox + col_left) / 2} y={oy + capH + 12}
-        textAnchor="middle" fontSize={isPdf ? 5.5 : 6.5}
-        fill={c.textSec} fontFamily="monospace"
-      >
-        {`ax=${(ax / 1000).toFixed(2)}m`}
-      </text>
 
-      {/* h label (left of footing) */}
-      <text
-        x={ox - 8} y={oy + capH / 2}
-        textAnchor="end" fontSize={isPdf ? 6 : 7}
-        fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
-      >
-        {`h=${h.toFixed(2)}`}
-      </text>
-
-      {/* Pressure diagram (trapezoidal below footing) */}
+      {/* Pressure shape */}
       <polygon
-        points={[
-          `${ox},${oy + capH}`,
-          `${ox},${oy + capH + leftH}`,
-          `${ox + capW},${oy + capH + rightH}`,
-          `${ox + capW},${oy + capH}`,
-        ].join(' ')}
-        fill={c.pressHigh}
-        fillOpacity={0.25}
-        stroke={c.pressHigh}
-        strokeWidth={0.8}
+        points={poly}
+        fill={isPdf ? '#888888' : 'rgba(239,68,68,0.30)'}
+        stroke={c.pressHigh} strokeWidth={0.75}
       />
-      {/* Pressure labels */}
-      <text
-        x={ox + 2} y={oy + capH + Math.max(leftH, 8) + 9}
-        fontSize={isPdf ? 5.5 : 6.5}
-        fill={c.pressLow} fontFamily="monospace"
-      >
-        {`${sigMin.toFixed(0)}kPa`}
-      </text>
-      <text
-        x={ox + capW - 2} y={oy + capH + rightH + 9}
-        textAnchor="end" fontSize={isPdf ? 5.5 : 6.5}
-        fill={c.pressHigh} fontFamily="monospace"
-      >
-        {`${sigMax.toFixed(0)}kPa`}
-      </text>
 
-      {/* B label at bottom */}
+      {/* Cota σmax (right) */}
       <text
-        x={ox + capW / 2} y={height - 4}
-        textAnchor="middle" fontSize={isPdf ? 6 : 7}
-        fill={c.textSec} fontFamily="monospace"
-      >
-        {`B=${B.toFixed(2)} m`}
-      </text>
-    </svg>
+        x={xRight} y={baseY - sigMaxPx - 4}
+        textAnchor="end" fontSize={10} fontFamily="monospace" fill={c.cota}
+      >{`σmax=${formatQuantity(sigma_max, 'soilPressure', system)}`}</text>
+
+      {/* Cota σmin (left) */}
+      {!isBitri && (
+        <text
+          x={x0} y={baseY - sigMinPx - 4}
+          textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
+        >{`σmin=${formatQuantity(sigma_min, 'soilPressure', system)}`}</text>
+      )}
+
+      {/* Línea Lc + cota (bitri) */}
+      {isBitri && lcLineX !== null && (
+        <>
+          <line
+            x1={lcLineX} y1={baseY - 3} x2={lcLineX} y2={baseY + 8}
+            stroke={c.cota} strokeWidth={0.75} strokeDasharray="3 2"
+          />
+          <text
+            x={(lcLineX + xRight) / 2} y={baseY + 18}
+            textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
+          >{`Lc=${(loaded_area_fraction * B).toFixed(2)} m`}</text>
+        </>
+      )}
+
+      {/* B-axis label (bottom) */}
+      <text
+        x={box.x + box.w / 2} y={box.y + box.h - 4}
+        textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
+      >{`bajo zapata — eje B (${B.toFixed(2)} m)`}</text>
+    </g>
+  );
+}
+
+// ── Mini-leyenda gradiente (a11y para colorblind) ─────────────────────────────
+
+function GradientLegend({
+  result, x, y, w, c, isPdf, gradId, system,
+}: {
+  result: IsolatedFootingResult;
+  x: number; y: number; w: number;
+  c: ReturnType<typeof colors>; isPdf: boolean; gradId: string; system: UnitSystem;
+}) {
+  if (result.distributionType === 'overturning_fail') return null;
+  const barW = Math.min(80, w * 0.35);
+  const barH = 6;
+  const minStr = formatQuantity(result.sigma_min, 'soilPressure', system, { withUnit: false });
+  const maxStr = formatQuantity(result.sigma_max, 'soilPressure', system);
+  return (
+    <g aria-hidden="true">
+      <rect
+        x={x} y={y} width={barW} height={barH}
+        fill={`url(#${gradId})`} stroke={c.textDis} strokeWidth={0.5}
+      />
+      <text
+        x={x + barW + 8} y={y + barH - 1}
+        fontSize={9} fontFamily="monospace" fill={c.textSec}
+      >{`σmin=${minStr}  ··  σmax=${maxStr}`}</text>
+      {/* discreet gray suffix unused, color-blind accessible via numbers above */}
+      <text x={0} y={0} fontSize={0} fill={isPdf ? '#000' : 'transparent'}>{' '}</text>
+    </g>
   );
 }
 
 // ── Wrapper ───────────────────────────────────────────────────────────────────
 
-export function IsolatedFootingSVG({ inp, result, width, mode = 'screen' }: IsolatedFootingSVGProps) {
+export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system = 'si' }: Props) {
   const isPdf = mode === 'pdf';
+  const c = colors(isPdf);
 
   if (!result.valid && result.error) {
     return (
@@ -376,24 +442,90 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen' }: Isol
     );
   }
 
-  const planSize = Math.min(width, 260);
+  const isVertical = !isPdf && width < 380;
+  const margin = 12;
+  const totalH = isVertical ? 480 : 400;
+
+  let plantaBox: Box, seccionBox: Box, diagramaBox: Box;
+  if (isVertical) {
+    plantaBox   = { x: margin, y: margin,        w: width - 2 * margin, h: 196 };
+    seccionBox  = { x: margin, y: margin + 208,  w: width - 2 * margin, h: 144 };
+    diagramaBox = { x: margin, y: margin + 364,  w: width - 2 * margin, h: 100 };
+  } else {
+    const halfW = (width - 2 * margin - 24) / 2;
+    plantaBox   = { x: margin,                 y: margin,           w: halfW, h: 220 };
+    seccionBox  = { x: margin + halfW + 24,    y: margin,           w: halfW, h: 220 };
+    diagramaBox = { x: margin, y: margin + 220 + 16, w: width - 2 * margin, h: 132 };
+  }
+
+  // Stable IDs per render mode (allows two SVG instances on screen + PDF)
+  const idSuffix = isPdf ? 'pdf' : 'screen';
+  const gradId = `if-press-grad-${idSuffix}`;
+  const hatchId = `if-soil-hatch-${idSuffix}`;
+
+  const titleId = `if-svg-title-${idSuffix}`;
+  const descId = `if-svg-desc-${idSuffix}`;
+  const distLabel = ({
+    trapezoidal:           'trapecial',
+    bitriangular_uniaxial: 'bitriangular uniaxial',
+    bitriangular_biaxial:  'bitriangular biaxial',
+    overturning_fail:      'vuelco geométrico',
+  } as const)[result.distributionType];
+
+  // Legend position (below diagrama, inside SVG)
+  const legendY = diagramaBox.y + diagramaBox.h + 14;
+  const legendX = margin;
+  const wrapH = legendY + 12;
+  const heightOut = Math.max(totalH, wrapH);
 
   return (
     <div
-      id={mode === 'pdf' ? 'isolated-footing-svg-pdf' : undefined}
-      className={mode === 'screen' ? 'canvas-dot-grid flex flex-col items-center gap-2 py-4' : undefined}
-      style={mode === 'pdf' ? { background: '#fff' } : undefined}
+      id={isPdf ? 'isolated-footing-svg-pdf' : undefined}
+      className={mode === 'screen' ? 'canvas-dot-grid' : undefined}
+      style={isPdf ? { background: '#fff' } : undefined}
     >
-      <PlanView inp={inp} result={result} size={planSize} isPdf={isPdf} />
-
-      <div
-        className={mode === 'screen' ? 'text-[10px] font-mono text-text-disabled uppercase tracking-wider' : undefined}
-        style={mode === 'pdf' ? { textAlign: 'center', fontSize: 8, color: '#999', fontFamily: 'monospace', marginTop: 4 } : undefined}
+      <svg
+        width={width}
+        height={heightOut}
+        viewBox={`0 0 ${width} ${heightOut}`}
+        xmlns="http://www.w3.org/2000/svg"
+        aria-labelledby={`${titleId} ${descId}`}
       >
-        Sección transversal
-      </div>
+        <title id={titleId}>Zapata aislada — planta, sección y diagrama de presión</title>
+        <desc id={descId}>
+          {`Planta ${inp.B}×${inp.L} m con pilar ${inp.bc}×${inp.hc} m. `}
+          {`Distribución ${distLabel}. `}
+          {`σmáx ${formatQuantity(result.sigma_max, 'soilPressure', system)}, σmín ${formatQuantity(result.sigma_min, 'soilPressure', system)}.`}
+        </desc>
 
-      <SectionView inp={inp} result={result} width={width} isPdf={isPdf} />
+        <defs>
+          {/* Pressure gradient (planta + leyenda) */}
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+            {isPdf ? (
+              <>
+                <stop offset="0%"   stopColor="#cccccc" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#666666" stopOpacity="0.8" />
+              </>
+            ) : (
+              <>
+                <stop offset="0%"   stopColor="var(--color-accent,#38bdf8)"     stopOpacity="0.45" />
+                <stop offset="100%" stopColor="var(--color-state-fail,#ef4444)" stopOpacity="0.55" />
+              </>
+            )}
+          </linearGradient>
+          {/* Soil hatch */}
+          <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke={c.groundHatch} strokeWidth="0.6" />
+          </pattern>
+        </defs>
+
+        <Planta  inp={inp} result={result} box={plantaBox}   c={c} isPdf={isPdf} gradId={gradId} />
+        <Seccion inp={inp} result={result} box={seccionBox}  c={c} isPdf={isPdf} hatchId={hatchId} />
+        <Diagrama inp={inp} result={result} box={diagramaBox} c={c} isPdf={isPdf} system={system} />
+
+        <GradientLegend result={result} x={legendX} y={legendY} w={width - 2 * margin}
+          c={c} isPdf={isPdf} gradId={gradId} system={system} />
+      </svg>
     </div>
   );
 }

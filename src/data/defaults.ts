@@ -470,68 +470,55 @@ export const footingDefaults: FootingInputs = {
   qadm: 200,
 };
 
-// ── Isolated footing (CTE DB-SE-C art. 4.3.2/4.3.3 + CE armado) ──────────────
-
-export type FootingSoilType = 'cohesive' | 'granular';
+// ── Isolated footing (CTE DB-SE-C 4.4 + CE armado) ───────────────────────────
+// User-input sigma_adm + single load set with mayoradas/sin_mayorar toggle.
+// Calc derives the other set via loadFactor (default 1.35).
 
 export interface IsolatedFootingInputs {
   [key: string]: string | number | boolean;
   // Geometry (m)
-  B:          number;  // footing width — x direction
-  L:          number;  // footing length — y direction
-  h:          number;  // footing height
-  bc:         number;  // column width x
-  hc:         number;  // column depth y
-  Df:         number;  // foundation depth from ground surface
-  cover:      number;  // mm — cover to bar centroid (bottom)
-  // SLS loads (soil checks)
-  N_k:        number;  // kN — vertical (compression +)
-  Mx_k:       number;  // kNm — moment about x axis (→ eccentricity in y)
-  My_k:       number;  // kNm — moment about y axis (→ eccentricity in x)
-  H_k:        number;  // kN — horizontal (for sliding check)
-  // ELU loads (structural checks)
-  N_Ed:       number;  // kN
-  Mx_Ed:      number;  // kNm
-  My_Ed:      number;  // kNm
+  B:                  number;  // footing width — x direction
+  L:                  number;  // footing length — y direction
+  h:                  number;  // footing height
+  bc:                 number;  // column width x
+  hc:                 number;  // column depth y
+  Df:                 number;  // foundation depth from ground surface (only for W_soil)
+  cover:              number;  // mm — cover to bar centroid (bottom)
+  // Bearing capacity (user input from geotechnical report)
+  sigma_adm:          number;  // kPa
+  // Loads — single set with toggle
+  loadsAreFactored:   boolean; // false = SLS input, true = ELU input
+  loadFactor:         number;  // global γ (default 1.35)
+  N:                  number;  // kN — vertical (compression +)
+  Mx:                 number;  // kNm — moment about x axis (→ eccentricity in y)
+  My:                 number;  // kNm — moment about y axis (→ eccentricity in x)
+  H:                  number;  // kN — horizontal (for sliding check)
   // Materials
-  fck:        number;  // MPa
-  fyk:        number;  // MPa
+  fck:                number;  // MPa
+  fyk:                number;  // MPa
   // Reinforcement (user-defined)
-  phi_x:      number;  // mm — bar diameter, x-direction (parallel to B)
-  s_x:        number;  // mm — spacing x bars
-  phi_y:      number;  // mm — bar diameter, y-direction (parallel to L)
-  s_y:        number;  // mm — spacing y bars
-  // Soil model
-  soilType:   FootingSoilType;
-  // Cohesive (art. 4.3.2 — Hansen formula)
-  c_soil:     number;  // kPa — cohesion
-  phi_soil:   number;  // ° — friction angle
-  gamma_soil: number;  // kN/m³ — unit weight of soil
-  gamma_R:    number;  // — bearing capacity resistance factor (safety factor)
-  // Granular (art. 4.3.3 — NSPT method)
-  N_spt:      number;  // — representative NSPT in influence zone
-  // Sliding
-  mu:         number;  // — friction coefficient tanδ at footing base
-  c_base:     number;  // kPa — base adhesion (= c_soil cohesive, 0 granular)
+  phi_x:              number;  // mm — bar diameter, x-direction (parallel to B)
+  s_x:                number;  // mm — spacing x bars
+  phi_y:              number;  // mm — bar diameter, y-direction (parallel to L)
+  s_y:                number;  // mm — spacing y bars
+  // Soil context (no Meyerhof — sigma_adm is user-input)
+  gamma_soil_kN_m3:   number;  // kN/m³ — unit weight of soil over footing (W_soil only)
+  mu_friction:        number;  // — friction coefficient at footing base (sliding)
 }
 
-// FTUX defaults — all checks CUMPLE at ~60-75% on first open.
-// Verified hand-calc:
-//   σmax_SLS = 300/(1.8·1.8) = 92.6 kPa
-//   qadm (c=20kPa, φ=15°, Df=0.8m) ≈ 153 kPa → util = 60.5% → OK
-//   MEd_x = 138.9·0.7²/2 = 34 kNm/m → As_req=183mm²/m < As_min=712mm²/m
-//   As_prov(Ø16@200) = 1005mm²/m → util_min=70.8% → OK
-//   Punching util ≈ 28% → OK
+// FTUX defaults — trapezoidal distribution, all checks CUMPLE at ~50-75% on first open.
+// N=300 kN sin_mayorar, σadm=200 kPa, B=L=1.8 m, h=0.6 m, Df=0.8 m, Mx=My=0.
+//   N_total = 300 + W_footing + W_soil ≈ 300 + 48.6 + 12.96 = 361.6 kN
+//   σmax = σmin = 361.6 / (1.8·1.8) = 111.6 kPa → util = 55.8% → OK (state-ok)
 export const isolatedFootingDefaults: IsolatedFootingInputs = {
   B: 1.8, L: 1.8, h: 0.6, bc: 0.4, hc: 0.4, Df: 0.8, cover: 60,
-  N_k: 300, Mx_k: 0, My_k: 0, H_k: 0,
-  N_Ed: 450, Mx_Ed: 0, My_Ed: 0,
+  sigma_adm: 200,
+  loadsAreFactored: false, loadFactor: 1.35,
+  N: 300, Mx: 0, My: 0, H: 0,
   fck: 25, fyk: 500,
   phi_x: 16, s_x: 200, phi_y: 16, s_y: 200,
-  soilType: 'cohesive',
-  c_soil: 20, phi_soil: 15, gamma_soil: 18, gamma_R: 3.0,
-  N_spt: 15,
-  mu: 0.40, c_base: 0,
+  gamma_soil_kN_m3: 18,
+  mu_friction: 0.5,
 };
 
 // ── Timber Beams (EC5 EN 1995-1-1) ───────────────────────────────────────────

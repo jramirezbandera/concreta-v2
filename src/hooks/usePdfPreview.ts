@@ -34,7 +34,8 @@ export function usePdfPreview(
       } else {
         setPdfPreview(result);
       }
-    } catch {
+    } catch (e) {
+      console.error('PDF export failed:', e);
       showToast('Error al generar el PDF', { autoDismiss: 4000 });
     } finally {
       setPdfExporting(false);

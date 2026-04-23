@@ -155,8 +155,30 @@ export const moduleRegistry: ModuleEntry[] = [
   },
 ] as const;
 
-export const SCHEMA_VERSION = '1';
-export const SCHEMA_VERSION_KEY = 'concreta-schema-version';
+// Per-module schema versions. Keys MUST match the literal passed to
+// useModuleState() in each module's index.tsx (NOT the registry `key` field).
+// Bump a single entry to wipe ONLY that module's localStorage on next load
+// (the rest preserve user state). Replaces the prior global SCHEMA_VERSION.
+export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
+  'rc-beams': '1',
+  'rc-columns': '1',
+  'steel-beams': '1',
+  'steel-columns': '1',
+  'isolated-footing': '2', // bumped: rewrite (sigma_adm input + single load set + distribution classification)
+  'retaining-wall': '1',
+  'punching': '1',
+  'forjados': '1',
+  'composite-section': '1',
+  'pile-cap': '1',
+  'empresillado': '1',
+  'timber-beams': '1',
+  'timber-columns': '1',
+  'anchor-plate': '1',
+};
+
+export function getModuleSchemaVersion(moduleKey: string): string {
+  return MODULE_SCHEMA_VERSIONS[moduleKey] ?? '1';
+}
 
 export function getModuleByRoute(route: string): ModuleEntry | undefined {
   return moduleRegistry.find((m) => m.route === route);

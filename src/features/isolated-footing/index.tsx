@@ -78,7 +78,7 @@ export function IsolatedFootingModule() {
             ref={canvasRef}
             className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
-            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
+            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" system={system} />
           </div>
 
           {/* Results */}
@@ -90,7 +90,7 @@ export function IsolatedFootingModule() {
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
           <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <IsolatedFootingSVG inp={state} result={result} width={340} mode="screen" />
+            <IsolatedFootingSVG inp={state} result={result} width={340} mode="screen" system={system} />
           </div>
         )}
 
@@ -102,7 +102,7 @@ export function IsolatedFootingModule() {
           id="isolated-footing-svg-pdf"
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
-          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} />
+          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} system={system} />
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 // PDF export for Zapata aislada module.
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm.
+// Single SVG (planta + sección + diagrama). Inputs in InputsPanel order.
 
 import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
@@ -25,15 +26,14 @@ export async function exportIsolatedFootingPDF(
     c.limitNum !== undefined && c.limitQty
       ? formatQuantity(c.limitNum, c.limitQty, system)
       : (c.limitStr ?? c.limit ?? '');
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-  const soilLabel = inp.soilType === 'cohesive' ? 'cohesivo (art. 4.3.2)' : 'granular (art. 4.3.3)';
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ──────────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   setGray(doc, 30);
-  doc.text(`Concreta - Zapata aislada - ${soilLabel}`, M, M);
+  doc.text('Concreta - Zapata aislada', M, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -44,47 +44,46 @@ export async function exportIsolatedFootingPDF(
   setGray(doc, 200);
   doc.line(M, M + 8, PAGE_W - M, M + 8);
 
-  // ── SVG (plan view — first SVG in the hidden container) ─────────────────────
+  // ── SVG (single — planta + sección + diagrama) ───────────────────────────────
   const svgContainer = document.getElementById('isolated-footing-svg-pdf');
-  const svgEls = svgContainer ? Array.from(svgContainer.querySelectorAll('svg')) : [];
-  const planSvg    = svgEls[0] as SVGSVGElement | null;
-  const sectionSvg = svgEls[1] as SVGSVGElement | null;
+  const svgEl = svgContainer ? (svgContainer.querySelector('svg') as SVGSVGElement | null) : null;
 
-  const SVG_X  = M;
-  const SVG_Y  = M + 12;
-  // Plan SVG is square (260×260 viewBox) — allocate 60×60mm to avoid wasted space.
-  // Section SVG is wide (320×192 viewBox) — allocate 80mm wide to fill the column.
-  const SVG_W1 = 60;  // plan (square)
-  const SVG_H1 = 60;
-  const SVG_W2 = 80;  // section (wider)
-  const SVG_H2 = 50;
+  const SVG_X = M;
+  const SVG_Y = M + 12;
+  const SVG_W = 80;    // viewBox 320×~426 → preserve aspect ratio
+  const SVG_H = 107;
 
-  if (planSvg) {
-    await svg2pdf(planSvg, doc, { x: SVG_X, y: SVG_Y, width: SVG_W1, height: SVG_H1 });
-  }
-  if (sectionSvg) {
-    await svg2pdf(sectionSvg, doc, { x: SVG_X, y: SVG_Y + SVG_H1 + 3, width: SVG_W2, height: SVG_H2 });
+  if (svgEl) {
+    await svg2pdf(svgEl, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
-  // ── Right column ─────────────────────────────────────────────────────────────
-  // Start at M + SVG_W2 + 7 = M+87. Use SVG_W2 as the binding width (wider of the two).
-  const COL_R  = M + SVG_W2 + 7;
-  const COL_R2 = COL_R + 50;
+  // ── Right column: inputs in panel order ──────────────────────────────────────
+  const COL_R  = M + SVG_W + 7;            // 107
+  const COL_R2 = COL_R + 38;               // 145
   const LH     = 4.5;
   let ry = M + 14;
 
-  const secHeader = (label: string) => {
+  const secHeader = (label: string, badge?: { text: string }) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     setGray(doc, 60);
     doc.text(label, COL_R, ry);
+    if (badge) {
+      // mono caps badge after the section header (per plan §4.5.1)
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(6.5);
+      setGray(doc, 102);  // #666666
+      doc.text(badge.text, COL_R + doc.getTextWidth(label) + 2, ry);
+    }
     ry += LH;
     doc.setFont('helvetica', 'normal');
     setGray(doc, 80);
   };
 
   const twoCol = (a: string, b = '') => {
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
+    setGray(doc, 80);
     doc.text(pdfStr(a), COL_R, ry);
     if (b) doc.text(pdfStr(b), COL_R2, ry);
     ry += LH;
@@ -92,64 +91,112 @@ export async function exportIsolatedFootingPDF(
 
   const gap = () => { ry += 2; };
 
-  // GEOMETRY
+  // 1. GEOMETRIA
   secHeader('GEOMETRIA');
-  twoCol(`B = ${inp.B} m`, `L = ${inp.L} m`);
-  twoCol(`h = ${inp.h} m`, `Df = ${inp.Df} m`);
-  twoCol(`bc = ${inp.bc} m`, `hc = ${inp.hc} m`);
+  twoCol(`B = ${inp.B} m`,    `L = ${inp.L} m`);
+  twoCol(`h = ${inp.h} m`,    `Df = ${inp.Df} m`);
+  twoCol(`bc = ${inp.bc} m`,  `hc = ${inp.hc} m`);
   twoCol(`recubr. = ${inp.cover} mm`);
   gap();
 
-  // LOADS SLS
-  secHeader('CARGAS SLS (SUELO)');
-  twoCol(`N_k = ${fmtSi(inp.N_k as number, 'force')}`,  `H_k = ${fmtSi(inp.H_k as number, 'force')}`);
-  twoCol(`Mx_k = ${fmtSi(inp.Mx_k as number, 'moment')}`, `My_k = ${fmtSi(inp.My_k as number, 'moment')}`);
+  // 2. TENSION ADMISIBLE
+  secHeader('TENSION ADMISIBLE');
+  twoCol(`sigma_adm = ${fmtSi(inp.sigma_adm, 'soilPressure')}`);
   gap();
 
-  // LOADS ELU
-  secHeader('CARGAS ELU (ARMADO)');
-  twoCol(`N_Ed = ${fmtSi(inp.N_Ed as number, 'force')}`);
-  if ((inp.Mx_Ed as number) !== 0 || (inp.My_Ed as number) !== 0) {
-    twoCol(`Mx_Ed = ${fmtSi(inp.Mx_Ed as number, 'moment')}`, `My_Ed = ${fmtSi(inp.My_Ed as number, 'moment')}`);
-  }
+  // 3. CARGAS — with mode badge
+  const modeBadge = inp.loadsAreFactored
+    ? `[MAYORADAS · gamma=${inp.loadFactor}]`
+    : `[SIN MAYORAR · gamma=${inp.loadFactor}]`;
+  secHeader('CARGAS', { text: modeBadge });
+  twoCol(`N = ${fmtSi(inp.N, 'force')}`,    `H = ${fmtSi(inp.H, 'force')}`);
+  twoCol(`Mx = ${fmtSi(inp.Mx, 'moment')}`, `My = ${fmtSi(inp.My, 'moment')}`);
   gap();
 
-  // SOIL
-  secHeader(`SUELO (${soilLabel.toUpperCase()})`);
-  if (inp.soilType === 'cohesive') {
-    twoCol(`c = ${inp.c_soil} kPa`, `phi = ${inp.phi_soil} deg`);
-    twoCol(`gamma = ${inp.gamma_soil} kN/m3`, `gamma_R = ${inp.gamma_R}`);
-    twoCol(`qh = ${result.qh.toFixed(1)} kPa`, `qadm = ${result.qadm.toFixed(1)} kPa`);
-  } else {
-    twoCol(`N_SPT = ${inp.N_spt}`, `B' = ${result.B_eff.toFixed(2)} m`);
-    twoCol(`qadm = ${result.qadm.toFixed(1)} kPa`);
-  }
-  twoCol(`sigma_max = ${result.sigma_max.toFixed(1)} kPa`, `sigma_eff = ${result.sigma_eff.toFixed(1)} kPa`);
-  gap();
-
-  // STRUCTURAL
-  secHeader('ARMADO');
+  // 4. MATERIALES
+  secHeader('MATERIALES');
   twoCol(`fck = ${inp.fck} MPa`, `fyk = ${inp.fyk} MPa`);
+  gap();
+
+  // 5. ARMADURA
+  secHeader('ARMADURA');
   twoCol(`Barras x: ph${inp.phi_x}@${inp.s_x}mm`, `As,x = ${result.As_prov_x.toFixed(0)} mm2/m`);
   twoCol(`Barras y: ph${inp.phi_y}@${inp.s_y}mm`, `As,y = ${result.As_prov_y.toFixed(0)} mm2/m`);
-  twoCol(`d_x = ${result.d_x.toFixed(0)} mm`, `d_y = ${result.d_y.toFixed(0)} mm`);
-  // Classification — method depends on v/h ratio (CE art. 55)
-  const v_ratio = Math.max(result.v_max_x, result.v_max_y) / (inp.h as number);
-  twoCol(
-    `Clasif: ${result.is_rigid ? 'rigida' : 'flexible'}`,
-    `v/h = ${v_ratio.toFixed(2)}`,
-  );
-  if (result.is_rigid) {
-    // Biela-tirante (CE art. 55.2): Td drives tie reinforcement, no punching
-    twoCol(`Td,x = ${fmtSi(result.Td_x, 'force')}`, `Td,y = ${fmtSi(result.Td_y, 'force')}`);
-    twoCol('Punzonamiento: N/A (rigida)');
-  } else {
-    twoCol(`MEd,x = ${result.MEd_x.toFixed(2)} kNm/m`, `MEd,y = ${result.MEd_y.toFixed(2)} kNm/m`);
-    twoCol(`vEd,pun = ${fmtSi(result.vEd_punch, 'stress')}`, `vRd,c = ${fmtSi(result.vRdc_punch, 'stress')}`);
-  }
+  gap();
+
+  // 6. SUELO
+  secHeader('SUELO');
+  twoCol(`gamma_s = ${inp.gamma_soil_kN_m3} kN/m3`, `mu = ${inp.mu_friction.toFixed(2)}`);
+
+  // ── Cargas derivadas (below SVG, full-width 2-col SLS|ELU) ───────────────────
+  const derY = SVG_Y + SVG_H + 6;
+  doc.setLineWidth(0.3);
+  setGray(doc, 180);
+  doc.line(M, derY - 2, PAGE_W - M, derY - 2);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  setGray(doc, 60);
+  doc.text('CARGAS DERIVADAS', M, derY + 3);
+
+  // Sub-headers
+  const SLS_X = M;
+  const ELU_X = M + 90;
+  const SLS_X2 = SLS_X + 35;
+  const ELU_X2 = ELU_X + 35;
+  let dy = derY + 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  setGray(doc, 100);
+  doc.text('SLS (suelo)', SLS_X, dy);
+  doc.text('ELU (armado)', ELU_X, dy);
+  dy += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  setGray(doc, 80);
+  doc.text(pdfStr(`N_sls = ${fmtSi(result.N_sls, 'force')}`),   SLS_X,  dy);
+  doc.text(pdfStr(`H_sls = ${fmtSi(result.H_sls, 'force')}`),   SLS_X2, dy);
+  doc.text(pdfStr(`N_elu = ${fmtSi(result.N_elu, 'force')}`),   ELU_X,  dy);
+  doc.text(pdfStr(`H_elu = ${fmtSi(result.H_elu, 'force')}`),   ELU_X2, dy);
+  dy += LH;
+  doc.text(pdfStr(`Mx_sls = ${fmtSi(result.Mx_sls, 'moment')}`), SLS_X,  dy);
+  doc.text(pdfStr(`My_sls = ${fmtSi(result.My_sls, 'moment')}`), SLS_X2, dy);
+  doc.text(pdfStr(`Mx_elu = ${fmtSi(result.Mx_elu, 'moment')}`), ELU_X,  dy);
+  doc.text(pdfStr(`My_elu = ${fmtSi(result.My_elu, 'moment')}`), ELU_X2, dy);
+  dy += LH;
+
+  // Distribution + tensions summary line
+  const distLabel = ({
+    trapezoidal:           'trapecial',
+    bitriangular_uniaxial: 'bitri uniaxial',
+    bitriangular_biaxial:  'bitri biaxial',
+    overturning_fail:      'vuelco geometrico',
+  } as const)[result.distributionType];
+  const sigmaMaxStr = result.sigma_max === Infinity ? '∞' : fmtSi(result.sigma_max, 'soilPressure');
+  const sigmaMinStr = result.distributionType === 'overturning_fail'
+    ? '—'
+    : result.distributionType === 'trapezoidal'
+      ? fmtSi(result.sigma_min, 'soilPressure')
+      : '0 (despegue)';
+  doc.text(pdfStr(`Distribucion: ${distLabel}`), SLS_X, dy);
+  doc.text(pdfStr(`sigma_max = ${sigmaMaxStr}`), ELU_X, dy);
+  doc.text(pdfStr(`sigma_min = ${sigmaMinStr}`), ELU_X2, dy);
+  dy += LH;
+
+  // FS row
+  const fsX = result.FS_overturn_x === Infinity ? '∞' : result.FS_overturn_x.toFixed(2);
+  const fsY = result.FS_overturn_y === Infinity ? '∞' : result.FS_overturn_y.toFixed(2);
+  const fsS = result.FS_sliding === Infinity ? '∞' : result.FS_sliding.toFixed(2);
+  doc.text(`FS_vuelco_x = ${fsX}`, SLS_X,  dy);
+  doc.text(`FS_vuelco_y = ${fsY}`, SLS_X2, dy);
+  doc.text(`FS_desliz = ${fsS}`,   ELU_X,  dy);
+  doc.text(`Clasif: ${result.isRigid ? 'rigida' : 'flexible'}`, ELU_X2, dy);
+  dy += LH;
 
   // ── Checks table ─────────────────────────────────────────────────────────────
-  const tableY = SVG_Y + SVG_H1 + SVG_H2 + 10;
+  const tableY = dy + 4;
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -208,7 +255,10 @@ export async function exportIsolatedFootingPDF(
     doc.text(pdfStr(checkValueStr(ch)), COL.value, rowY);
     doc.text(pdfStr(checkLimitStr(ch)), COL.limit, rowY);
     setGray(doc, textG);
-    doc.text(`${(ch.utilization * 100).toFixed(0)}%`, COL.util, rowY);
+    const utStr = !isFinite(ch.utilization)
+      ? '∞'
+      : `${(ch.utilization * 100).toFixed(0)}%`;
+    doc.text(utStr, COL.util, rowY);
     doc.text(STATUS_LABEL[ch.status], COL.status, rowY);
 
     setGray(doc, 220);
@@ -220,7 +270,10 @@ export async function exportIsolatedFootingPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 160);
-  doc.text('Concreta — CTE DB-SE-C / CE (Codigo Estructural espanol)', M, PAGE_H - M);
+  doc.text(
+    `Concreta — CTE DB-SE-C / CE  ·  gamma_aplicado=${inp.loadFactor} (CTE DB-SE 4.2.4)`,
+    M, PAGE_H - M,
+  );
   doc.text('Pagina 1', PAGE_W - M, PAGE_H - M, { align: 'right' });
 
   const filename = 'zapata-aislada.pdf';

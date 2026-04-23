@@ -659,6 +659,62 @@ export const LABELS = {
     modules: ['isolatedFooting'],
   },
 
+  // Generic single-set loads (toggle mayoradas/sin_mayorar in isolated-footing).
+  // The `_footing` suffix avoids collision with any future module's plain `N`.
+  N_footing: {
+    sym: 'N',
+    descLong: 'Axil aplicado en pilar',
+    descShort: 'Axil aplicado',
+    unit: 'kN',
+    quantity: 'force',
+    modules: ['isolatedFooting'],
+  },
+
+  Mx_footing: {
+    sym: 'Mx',
+    descLong: 'Momento aplicado — eje x',
+    descShort: 'Momento eje x',
+    unit: 'kNm',
+    quantity: 'moment',
+    modules: ['isolatedFooting'],
+  },
+
+  My_footing: {
+    sym: 'My',
+    descLong: 'Momento aplicado — eje y',
+    descShort: 'Momento eje y',
+    unit: 'kNm',
+    quantity: 'moment',
+    modules: ['isolatedFooting'],
+  },
+
+  H_footing: {
+    sym: 'H',
+    descLong: 'Fuerza horizontal aplicada',
+    descShort: 'Horizontal aplicada',
+    unit: 'kN',
+    quantity: 'force',
+    modules: ['isolatedFooting'],
+  },
+
+  load_factor: {
+    sym: 'γ',
+    descLong: 'Factor de mayoración aplicado a las cargas',
+    descShort: 'Factor mayoración',
+    unit: '—',
+    ref: 'CTE DB-SE §4.2.4',
+    modules: ['isolatedFooting'],
+  },
+
+  mu_friction: {
+    sym: 'μ',
+    descLong: 'Coeficiente de rozamiento suelo-base',
+    descShort: 'μ rozamiento',
+    unit: '—',
+    ref: 'CTE DB-SE-C §4.4.3',
+    modules: ['isolatedFooting'],
+  },
+
   // -------------------------------------------------------------------------
   // Section 6 — Partial safety factors
   // -------------------------------------------------------------------------
@@ -1260,15 +1316,6 @@ export const LABELS = {
     modules: ['isolatedFooting', 'retainingWall'],
   },
 
-  c_soil: {
-    sym: 'c',
-    descLong: 'Cohesión del terreno',
-    descShort: 'Cohesión',
-    unit: 'kPa',
-    ref: 'CTE DB-SE-C §4.3',
-    modules: ['isolatedFooting'],
-  },
-
   gamma_soil: {
     sym: 'γs',
     descLong: 'Peso específico del terreno',
@@ -1321,15 +1368,6 @@ export const LABELS = {
     unit: 'kPa',
     ref: 'CTE DB-SE-C §4.4 (Meyerhof)',
     modules: ['isolatedFooting', 'retainingWall'],
-  },
-
-  N_SPT: {
-    sym: 'NSPT',
-    descLong: 'Valor SPT representativo',
-    descShort: 'NSPT',
-    unit: '—',
-    ref: 'CTE DB-SE-C §3.5',
-    modules: ['isolatedFooting'],
   },
 
   // -------------------------------------------------------------------------

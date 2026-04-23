@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from '../data/moduleRegistry';
+import { getModuleSchemaVersion } from '../data/moduleRegistry';
 
 // Canonical state priority: URL query params > localStorage > hardcoded defaults
 //
@@ -25,7 +25,7 @@ function getVersionKey(moduleKey: string) {
 function readLocalStorage<T extends StateRecord>(moduleKey: string, defaults: T): T | null {
   try {
     const version = localStorage.getItem(getVersionKey(moduleKey));
-    if (version !== SCHEMA_VERSION) return null;
+    if (version !== getModuleSchemaVersion(moduleKey)) return null;
     const raw = localStorage.getItem(moduleKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<T>;
@@ -39,9 +39,7 @@ function readLocalStorage<T extends StateRecord>(moduleKey: string, defaults: T)
 function writeLocalStorage<T extends StateRecord>(moduleKey: string, state: T): void {
   try {
     localStorage.setItem(moduleKey, JSON.stringify(state));
-    localStorage.setItem(getVersionKey(moduleKey), SCHEMA_VERSION);
-    // Also write global schema version
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
+    localStorage.setItem(getVersionKey(moduleKey), getModuleSchemaVersion(moduleKey));
   } catch {
     // Storage full or private mode — silently ignore
   }

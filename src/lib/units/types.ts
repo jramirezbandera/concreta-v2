@@ -6,6 +6,7 @@ export type Quantity =
   | "linearLoad"
   | "areaLoad"
   | "stress"
+  | "soilPressure"
   | "youngModulus";
 
 export type QuantitySpec = {
