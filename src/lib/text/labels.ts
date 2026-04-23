@@ -690,8 +690,8 @@ export const LABELS = {
 
   H_footing: {
     sym: 'H',
-    descLong: 'Fuerza horizontal aplicada',
-    descShort: 'Horizontal aplicada',
+    descLong: 'Cortante aplicado en la base del pilar',
+    descShort: 'Cortante',
     unit: 'kN',
     quantity: 'force',
     modules: ['isolatedFooting'],

@@ -91,6 +91,21 @@ export function UnitNumberInput({
   const [localStr, setLocalStr] = useState(() => formatForInput(value));
 
   useEffect(() => {
+    // Skip the reformat when localStr already represents `value` — otherwise
+    // every keystroke round-trips through parent state and overwrites what the
+    // user is typing with the formatted version (e.g. "3" → "3.00"), forcing
+    // them to re-click between digits.
+    let parsed: number | null;
+    if (integer) {
+      const n = parseInt(localStr, 10);
+      parsed = isNaN(n) ? null : n;
+    } else if (quantity) {
+      parsed = parseQuantity(localStr, quantity, system);
+    } else {
+      const n = parseFloat(localStr.replace(",", "."));
+      parsed = isNaN(n) ? null : n;
+    }
+    if (parsed !== null && Math.abs(parsed - value) < 1e-9) return;
     setLocalStr(formatForInput(value));
   }, [value, system, quantity, integer, precision]);
 
