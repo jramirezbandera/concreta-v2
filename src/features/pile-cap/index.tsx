@@ -16,7 +16,7 @@ import { PileCapResults } from './PileCapResults';
 import { PileCapSVG } from './PileCapSVG';
 
 export function PileCapModule() {
-  const { state, setField } = useModuleState('pile-cap', pileCapDefaults);
+  const { state, setField, reset } = useModuleState('pile-cap', pileCapDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -59,6 +59,15 @@ export function PileCapModule() {
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <PileCapInputsPanel state={state} setField={setField} />
+          </div>
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+            <button
+              onClick={reset}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
+              type="button"
+            >
+              Restablecer valores
+            </button>
           </div>
         </div>
 

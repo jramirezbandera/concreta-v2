@@ -17,7 +17,7 @@ import { ForjadosResults } from './ForjadosResults';
 import { ForjadosSVG } from './ForjadosSVG';
 
 export function ForjadosModule() {
-  const { state, setField } = useModuleState('forjados', forjadosDefaults);
+  const { state, setField, reset } = useModuleState('forjados', forjadosDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -101,6 +101,15 @@ export function ForjadosModule() {
               setField={setField}
               onVariantSwitch={handleVariantSwitch}
             />
+          </div>
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+            <button
+              onClick={reset}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
+              type="button"
+            >
+              Restablecer valores
+            </button>
           </div>
         </div>
 

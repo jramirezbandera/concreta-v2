@@ -16,7 +16,7 @@ import { PunchingResults } from './PunchingResults';
 import { PunchingSVG } from './PunchingSVG';
 
 export function PunchingModule() {
-  const { state, setField } = useModuleState('punching', punchingDefaults);
+  const { state, setField, reset } = useModuleState('punching', punchingDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -59,6 +59,15 @@ export function PunchingModule() {
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <PunchingInputsPanel state={state} setField={setField} />
+          </div>
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+            <button
+              onClick={reset}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
+              type="button"
+            >
+              Restablecer valores
+            </button>
           </div>
         </div>
 

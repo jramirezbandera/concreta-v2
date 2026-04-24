@@ -71,6 +71,10 @@ export function CompositeSectionModule() {
     [],
   );
 
+  const reset = useCallback(() => {
+    setInputs(compositeSectionDefaults);
+  }, []);
+
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
@@ -115,6 +119,15 @@ export function CompositeSectionModule() {
               updatePlate={updatePlate}
               setField={setField}
             />
+          </div>
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+            <button
+              onClick={reset}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
+              type="button"
+            >
+              Restablecer valores
+            </button>
           </div>
         </div>
 
