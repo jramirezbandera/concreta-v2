@@ -302,8 +302,10 @@ function Diagrama({
   }
 
   const inset = 14;
-  const baseY = box.y + box.h - 28;            // baseline of pressure shape
-  const topAvailable = box.h - 28 - inset;     // available height above baseline
+  const topTitlePad = 16;                        // room for "σ bajo zapata" title
+  const bottomPad = isBitri ? 26 : 12;           // room for Lc label (bitri) or nothing
+  const baseY = box.y + box.h - bottomPad;       // baseline of pressure shape
+  const topAvailable = box.h - bottomPad - inset - topTitlePad;
   const pressMaxPx = Math.max(20, topAvailable);
   const widthPx = box.w - 2 * inset;
   const x0 = box.x + inset;
@@ -341,6 +343,12 @@ function Diagrama({
 
   return (
     <g aria-label="Diagrama de presión">
+      {/* Subtitle (top) */}
+      <text
+        x={box.x + box.w / 2} y={box.y + 10}
+        textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
+      >{`σ bajo zapata — eje B (${B.toFixed(2)} m)`}</text>
+
       {/* Baseline */}
       <line
         x1={x0} y1={baseY} x2={xRight} y2={baseY}
@@ -372,21 +380,15 @@ function Diagrama({
       {isBitri && lcLineX !== null && (
         <>
           <line
-            x1={lcLineX} y1={baseY - 3} x2={lcLineX} y2={baseY + 8}
+            x1={lcLineX} y1={baseY - 3} x2={lcLineX} y2={baseY + 6}
             stroke={c.cota} strokeWidth={0.75} strokeDasharray="3 2"
           />
           <text
-            x={(lcLineX + xRight) / 2} y={baseY + 18}
+            x={(lcLineX + xRight) / 2} y={baseY + 16}
             textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
           >{`Lc=${(loaded_area_fraction * B).toFixed(2)} m`}</text>
         </>
       )}
-
-      {/* B-axis label (bottom) */}
-      <text
-        x={box.x + box.w / 2} y={box.y + box.h - 4}
-        textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
-      >{`bajo zapata — eje B (${B.toFixed(2)} m)`}</text>
     </g>
   );
 }
@@ -439,14 +441,25 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
   }
 
   const isVertical = !isPdf && width < 380;
+  const isWide = !isPdf && width >= 760;
   const margin = 12;
-  const totalH = isVertical ? 480 : 400;
+  // In wide mode, fill the canvas container (min-h-90 = 360px) so the three
+  // panels look as large as possible.
+  const wideBoxH = 320;
+  const totalH = isVertical ? 480 : isWide ? wideBoxH + 2 * margin + 16 : 400;
 
   let plantaBox: Box, seccionBox: Box, diagramaBox: Box;
   if (isVertical) {
     plantaBox   = { x: margin, y: margin,        w: width - 2 * margin, h: 196 };
     seccionBox  = { x: margin, y: margin + 208,  w: width - 2 * margin, h: 144 };
     diagramaBox = { x: margin, y: margin + 364,  w: width - 2 * margin, h: 100 };
+  } else if (isWide) {
+    // Three panels side-by-side — uses full screen width
+    const gap = 24;
+    const thirdW = (width - 2 * margin - 2 * gap) / 3;
+    plantaBox   = { x: margin,                             y: margin, w: thirdW, h: wideBoxH };
+    seccionBox  = { x: margin + thirdW + gap,              y: margin, w: thirdW, h: wideBoxH };
+    diagramaBox = { x: margin + 2 * (thirdW + gap),        y: margin, w: thirdW, h: wideBoxH };
   } else {
     const halfW = (width - 2 * margin - 24) / 2;
     plantaBox   = { x: margin,                 y: margin,           w: halfW, h: 220 };

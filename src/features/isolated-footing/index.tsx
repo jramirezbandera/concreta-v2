@@ -16,7 +16,7 @@ import { IsolatedFootingResults } from './IsolatedFootingResults';
 import { IsolatedFootingSVG } from './IsolatedFootingSVG';
 
 export function IsolatedFootingModule() {
-  const { state, setField } = useModuleState('isolated-footing', isolatedFootingDefaults);
+  const { state, setField, reset } = useModuleState('isolated-footing', isolatedFootingDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -62,6 +62,15 @@ export function IsolatedFootingModule() {
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <IsolatedFootingInputsPanel state={state} setField={setField} />
           </div>
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+            <button
+              onClick={reset}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
+              type="button"
+            >
+              Restablecer valores
+            </button>
+          </div>
         </div>
 
         {/* Right: SVG + results */}
@@ -78,7 +87,7 @@ export function IsolatedFootingModule() {
             ref={canvasRef}
             className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
-            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" system={system} />
+            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 960)} mode="screen" system={system} />
           </div>
 
           {/* Results */}
