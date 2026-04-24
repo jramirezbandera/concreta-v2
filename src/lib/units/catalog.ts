@@ -36,12 +36,14 @@ export const CATALOG: Record<Quantity, QuantitySpec> = {
     precisionSi: 1,
     precisionTecnico: 1,
   },
-  // Soil bearing pressure — kPa, not MPa. 1 kg/cm² = 98.0665 kPa.
+  // Soil bearing pressure — stored internally in kPa, displayed in N/mm² (SI)
+  // or kg/cm² (técnico). 1 N/mm² = 1000 kPa; 1 kg/cm² = 98.0665 kPa.
   soilPressure: {
-    siUnit: "kPa",
+    siUnit: "N/mm²",
     tecnicoUnit: "kg/cm²",
+    toSi: 0.001,
     toTecnico: 1 / 98.0665,
-    precisionSi: 1,
+    precisionSi: 3,
     precisionTecnico: 2,
   },
   youngModulus: {

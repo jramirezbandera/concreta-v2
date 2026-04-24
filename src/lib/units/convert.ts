@@ -6,8 +6,9 @@ export function toDisplay(
   quantity: Quantity,
   system: UnitSystem
 ): number {
-  if (system === "si") return valueSi;
-  return valueSi * CATALOG[quantity].toTecnico;
+  const spec = CATALOG[quantity];
+  if (system === "si") return valueSi * (spec.toSi ?? 1);
+  return valueSi * spec.toTecnico;
 }
 
 export function fromDisplay(
@@ -15,6 +16,7 @@ export function fromDisplay(
   quantity: Quantity,
   system: UnitSystem
 ): number {
-  if (system === "si") return displayValue;
-  return displayValue / CATALOG[quantity].toTecnico;
+  const spec = CATALOG[quantity];
+  if (system === "si") return displayValue / (spec.toSi ?? 1);
+  return displayValue / spec.toTecnico;
 }

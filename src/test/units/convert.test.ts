@@ -5,18 +5,28 @@ import type { Quantity } from "../../lib/units/types";
 
 const QUANTITIES = Object.keys(CATALOG) as Quantity[];
 
-describe("units / convert — SI mode is identity", () => {
+describe("units / convert — SI mode applies toSi factor (default 1)", () => {
   for (const q of QUANTITIES) {
-    it(`${q}: toDisplay returns input unchanged in SI`, () => {
-      expect(toDisplay(123.456, q, "si")).toBe(123.456);
+    const toSi = CATALOG[q].toSi ?? 1;
+    it(`${q}: toDisplay multiplies by toSi in SI`, () => {
+      expect(toDisplay(123.456, q, "si")).toBeCloseTo(123.456 * toSi, 9);
       expect(toDisplay(0, q, "si")).toBe(0);
-      expect(toDisplay(-7.5, q, "si")).toBe(-7.5);
+      expect(toDisplay(-7.5, q, "si")).toBeCloseTo(-7.5 * toSi, 9);
     });
 
-    it(`${q}: fromDisplay returns input unchanged in SI`, () => {
-      expect(fromDisplay(123.456, q, "si")).toBe(123.456);
+    it(`${q}: fromDisplay divides by toSi in SI`, () => {
+      expect(fromDisplay(123.456, q, "si")).toBeCloseTo(123.456 / toSi, 9);
     });
   }
+});
+
+describe("units / convert — soilPressure display uses N/mm²", () => {
+  it("toDisplay(1000 kPa, 'si') === 1 N/mm²", () => {
+    expect(toDisplay(1000, "soilPressure", "si")).toBeCloseTo(1, 9);
+  });
+  it("fromDisplay(0.2 N/mm², 'si') === 200 kPa", () => {
+    expect(fromDisplay(0.2, "soilPressure", "si")).toBeCloseTo(200, 9);
+  });
 });
 
 describe("units / convert — técnico round-trip", () => {
