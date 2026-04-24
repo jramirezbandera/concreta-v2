@@ -14,11 +14,11 @@ export function ForjadosSVG({ inp, result, section, width, mode = 'screen' }: Pr
   const isPdf = mode === 'pdf';
 
   // Common color tokens
-  const bgFill       = isPdf ? '#ddd' : 'var(--color-bg-surface, #1e293b)';
-  const strokeBorder = isPdf ? '#333' : '#475569';   // border-main lighter
-  const strokeBar    = isPdf ? '#000' : '#f8fafc';   // text-primary
-  const strokeAccent = isPdf ? '#000' : '#38bdf8';   // accent — neutral axis + cotas
-  const textCol      = isPdf ? '#333' : '#94a3b8';
+  const bgFill       = isPdf ? '#f1f5f9' : 'var(--color-bg-surface, #1e293b)';
+  const strokeBorder = isPdf ? '#334155' : '#475569';   // border-main lighter
+  const strokeBar    = isPdf ? '#0f172a' : '#f8fafc';   // text-primary
+  const strokeAccent = isPdf ? '#0ea5e9' : '#38bdf8';   // accent — neutral axis + cotas
+  const textCol      = isPdf ? '#475569' : '#94a3b8';
 
   const PAD_X = 40;
   const PAD_Y = 30;

@@ -31,20 +31,20 @@ const SCREEN_COLORS = {
 };
 
 const PDF_COLORS = {
-  concrete:      '#000000',
-  concreteFill:  '#f0f0f0',
-  soil:          '#888888',
-  soilFill:      '#e8e8e8',
-  earthPressure: '#444444',
-  hydro:         '#888888',
-  seismic:       '#666666',
-  reaction:      '#222222',
-  passive:       '#666666',
-  weight:        '#444444',
-  dim:           '#888888',
-  nfLine:        '#888888',
-  pivot:         '#000000',
-  text:          '#666666',
+  concrete:      '#334155',
+  concreteFill:  '#f1f5f9',
+  soil:          '#78716c',
+  soilFill:      '#e7e5e4',
+  earthPressure: '#64748b',
+  hydro:         '#0ea5e9',
+  seismic:       '#f59e0b',
+  reaction:      '#22c55e',
+  passive:       '#8b5cf6',
+  weight:        '#64748b',
+  dim:           '#64748b',
+  nfLine:        '#0ea5e9',
+  pivot:         '#0ea5e9',
+  text:          '#475569',
 };
 
 function Arrow({
@@ -322,7 +322,7 @@ export function RetainingWallSVG({
         <line
           x1={x_stem_right - cover_m * scale} y1={y_top + 4}
           x2={x_stem_right - cover_m * scale} y2={y_fuste_base - 4}
-          stroke={isPdf ? '#555555' : '#38bdf8'}
+          stroke={'#38bdf8'}
           strokeWidth={sw + 0.5}
           strokeDasharray="4 3"
           opacity={0.7}
@@ -333,7 +333,7 @@ export function RetainingWallSVG({
         <line
           x1={x_stem_left + cover_m * scale} y1={y_top + 4}
           x2={x_stem_left + cover_m * scale} y2={y_fuste_base - 4}
-          stroke={isPdf ? '#555555' : '#38bdf8'}
+          stroke={'#38bdf8'}
           strokeWidth={sw + 0.5}
           strokeDasharray="4 3"
           opacity={0.5}
@@ -344,7 +344,7 @@ export function RetainingWallSVG({
         <line
           x1={x_stem_left + cover_m * scale}     y1={(y_top + y_fuste_base) / 2}
           x2={x_stem_right - cover_m * scale}    y2={(y_top + y_fuste_base) / 2}
-          stroke={isPdf ? '#555555' : '#38bdf8'}
+          stroke={'#38bdf8'}
           strokeWidth={sw}
           strokeDasharray="3 4"
           opacity={0.5}
@@ -355,7 +355,7 @@ export function RetainingWallSVG({
         <line
           x1={x_stem_right + 3}            y1={y_fuste_base + cover_m * scale}
           x2={x_heel - 3}                  y2={y_fuste_base + cover_m * scale}
-          stroke={isPdf ? '#555555' : '#38bdf8'}
+          stroke={'#38bdf8'}
           strokeWidth={sw + 0.5}
           strokeDasharray="4 3"
           opacity={0.7}
@@ -366,7 +366,7 @@ export function RetainingWallSVG({
         <line
           x1={x_toe + 3}                   y1={y_base - cover_m * scale}
           x2={x_stem_left - 3}             y2={y_base - cover_m * scale}
-          stroke={isPdf ? '#555555' : '#38bdf8'}
+          stroke={'#38bdf8'}
           strokeWidth={sw + 0.5}
           strokeDasharray="4 3"
           opacity={0.7}

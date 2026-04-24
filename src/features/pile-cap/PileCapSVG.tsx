@@ -12,17 +12,17 @@ interface PileCapSVGProps {
 function colors(isPdf: boolean) {
   return {
     bg:         isPdf ? '#ffffff' : 'transparent',
-    capFill:    isPdf ? '#f0f0f0' : 'var(--color-bg-surface,#1e293b)',
-    capStroke:  isPdf ? '#555'    : '#475569',
-    colFill:    isPdf ? '#d8d8d8' : '#334155',
-    colStroke:  isPdf ? '#333'    : '#64748b',
+    capFill:    isPdf ? '#f1f5f9' : 'var(--color-bg-surface,#1e293b)',
+    capStroke:  isPdf ? '#334155' : '#475569',
+    colFill:    isPdf ? '#cbd5e1' : '#334155',
+    colStroke:  isPdf ? '#475569' : '#64748b',
     pileFill:   isPdf ? '#ffffff' : 'var(--color-bg-primary,#0f172a)',
-    pileStroke: isPdf ? '#222'    : '#38bdf8',
-    tieStroke:  isPdf ? '#444'    : '#22c55e',
-    strutStroke:isPdf ? '#888'    : '#f59e0b',
-    textMain:   isPdf ? '#111'    : '#f8fafc',
-    textSec:    isPdf ? '#555'    : '#94a3b8',
-    accent:     isPdf ? '#000'    : '#38bdf8',
+    pileStroke: isPdf ? '#0ea5e9' : '#38bdf8',
+    tieStroke:  isPdf ? '#22c55e' : '#22c55e',
+    strutStroke:isPdf ? '#f59e0b' : '#f59e0b',
+    textMain:   isPdf ? '#0f172a' : '#f8fafc',
+    textSec:    isPdf ? '#475569' : '#94a3b8',
+    accent:     isPdf ? '#0ea5e9' : '#38bdf8',
   };
 }
 

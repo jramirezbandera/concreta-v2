@@ -31,15 +31,15 @@ const SCREEN_COLORS = {
 };
 
 const PDF_COLORS = {
-  section:     '#000000',
-  sectionFill: '#f8f8f8',
-  rebarCorner: '#333333',
-  rebarFaceX:  '#555555',
-  rebarFaceY:  '#aaaaaa',
-  stirrup:     '#666666',
-  stressBlock: '#cccccc',
-  axis:        '#000000',
-  dim:         '#999999',
+  section:     '#334155',
+  sectionFill: '#f1f5f9',
+  rebarCorner: '#0ea5e9',
+  rebarFaceX:  '#38bdf8',
+  rebarFaceY:  '#94a3b8',
+  stirrup:     '#64748b',
+  stressBlock: '#38bdf8',
+  axis:        '#0ea5e9',
+  dim:         '#64748b',
   bg:          '#ffffff',
 };
 

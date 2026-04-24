@@ -18,24 +18,41 @@ interface Props {
 
 interface Box { x: number; y: number; w: number; h: number }
 
+// svg2pdf + jsPDF Helvetica can't render σ/—/· and mangles layout around them
+// (each char rendered separately with wrong advance widths, producing letter-
+// spaced gibberish). Sanitize to Latin-1 in PDF mode only.
+function pdfText(s: string, isPdf: boolean): string {
+  if (!isPdf) return s;
+  return s
+    .replace(/σ/g, 'sigma')
+    .replace(/\u2014/g, '-')   // em dash —
+    .replace(/\u2013/g, '-')   // en dash –
+    .replace(/·/g, '.')
+    .replace(/≤/g, '<=')
+    .replace(/≥/g, '>=')
+    .replace(/²/g, '2')
+    .replace(/³/g, '3')
+    .replace(/[^\x00-\xFF]/g, '?');
+}
+
 function colors(isPdf: boolean) {
   return {
-    footFill:    isPdf ? '#f0f0f0' : 'var(--color-bg-surface,#1e293b)',
-    footStroke:  isPdf ? '#333333' : 'var(--color-border-main,#334155)',
-    colFill:     isPdf ? '#d8d8d8' : 'var(--color-bg-elevated,#334155)',
-    colStroke:   isPdf ? '#333333' : 'var(--color-text-disabled,#475569)',
-    effDash:     isPdf ? '#666666' : 'var(--color-accent,#38bdf8)',
-    rebar:       isPdf ? '#000000' : 'var(--color-text-primary,#f8fafc)',
-    coverLine:   isPdf ? '#888888' : 'var(--color-text-disabled,#475569)',
-    groundLine:  isPdf ? '#666666' : 'var(--color-text-secondary,#94a3b8)',
-    groundHatch: isPdf ? '#999999' : 'var(--color-text-disabled,#475569)',
-    cota:        isPdf ? '#000000' : 'var(--color-accent,#38bdf8)',
-    textMain:    isPdf ? '#000000' : 'var(--color-text-primary,#f8fafc)',
-    textSec:     isPdf ? '#666666' : 'var(--color-text-secondary,#94a3b8)',
-    textDis:     isPdf ? '#999999' : 'var(--color-text-disabled,#475569)',
-    pressLow:    isPdf ? '#cccccc' : 'var(--color-accent,#38bdf8)',
-    pressHigh:   isPdf ? '#666666' : 'var(--color-state-fail,#ef4444)',
-    fail:        isPdf ? '#666666' : 'var(--color-state-fail,#ef4444)',
+    footFill:    isPdf ? '#f1f5f9' : 'var(--color-bg-surface,#1e293b)',
+    footStroke:  isPdf ? '#334155' : 'var(--color-border-main,#334155)',
+    colFill:     isPdf ? '#cbd5e1' : 'var(--color-bg-elevated,#334155)',
+    colStroke:   isPdf ? '#334155' : 'var(--color-text-disabled,#475569)',
+    effDash:     isPdf ? '#0ea5e9' : 'var(--color-accent,#38bdf8)',
+    rebar:       isPdf ? '#0f172a' : 'var(--color-text-primary,#f8fafc)',
+    coverLine:   isPdf ? '#94a3b8' : 'var(--color-text-disabled,#475569)',
+    groundLine:  isPdf ? '#64748b' : 'var(--color-text-secondary,#94a3b8)',
+    groundHatch: isPdf ? '#94a3b8' : 'var(--color-text-disabled,#475569)',
+    cota:        isPdf ? '#0ea5e9' : 'var(--color-accent,#38bdf8)',
+    textMain:    isPdf ? '#0f172a' : 'var(--color-text-primary,#f8fafc)',
+    textSec:     isPdf ? '#475569' : 'var(--color-text-secondary,#94a3b8)',
+    textDis:     isPdf ? '#64748b' : 'var(--color-text-disabled,#475569)',
+    pressLow:    isPdf ? '#38bdf8' : 'var(--color-accent,#38bdf8)',
+    pressHigh:   isPdf ? '#ef4444' : 'var(--color-state-fail,#ef4444)',
+    fail:        isPdf ? '#ef4444' : 'var(--color-state-fail,#ef4444)',
   };
 }
 
@@ -347,7 +364,7 @@ function Diagrama({
       <text
         x={box.x + box.w / 2} y={box.y + 10}
         textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
-      >{`σ bajo zapata — eje B (${B.toFixed(2)} m)`}</text>
+      >{pdfText(`σ bajo zapata — eje B (${B.toFixed(2)} m)`, isPdf)}</text>
 
       {/* Baseline */}
       <line
@@ -358,7 +375,7 @@ function Diagrama({
       {/* Pressure shape */}
       <polygon
         points={poly}
-        fill={isPdf ? '#888888' : 'rgba(239,68,68,0.30)'}
+        fill={isPdf ? 'rgba(239,68,68,0.28)' : 'rgba(239,68,68,0.30)'}
         stroke={c.pressHigh} strokeWidth={0.75}
       />
 
@@ -366,14 +383,14 @@ function Diagrama({
       <text
         x={xRight} y={baseY - sigMaxPx - 4}
         textAnchor="end" fontSize={10} fontFamily="monospace" fill={c.cota}
-      >{`σmax=${formatQuantity(sigma_max, 'soilPressure', system)}`}</text>
+      >{pdfText(`σmax=${formatQuantity(sigma_max, 'soilPressure', system)}`, isPdf)}</text>
 
       {/* Cota σmin (left) */}
       {!isBitri && (
         <text
           x={x0} y={baseY - sigMinPx - 4}
           textAnchor="start" fontSize={10} fontFamily="monospace" fill={c.cota}
-        >{`σmin=${formatQuantity(sigma_min, 'soilPressure', system)}`}</text>
+        >{pdfText(`σmin=${formatQuantity(sigma_min, 'soilPressure', system)}`, isPdf)}</text>
       )}
 
       {/* Línea Lc + cota (bitri) */}
@@ -416,7 +433,7 @@ function GradientLegend({
       <text
         x={x + barW + 8} y={y + barH - 1}
         fontSize={9} fontFamily="monospace" fill={c.textSec}
-      >{`σmin=${minStr}  ··  σmax=${maxStr}`}</text>
+      >{pdfText(`σmin=${minStr}  ··  σmax=${maxStr}`, isPdf)}</text>
       {/* discreet gray suffix unused, color-blind accessible via numbers above */}
       <text x={0} y={0} fontSize={0} fill={isPdf ? '#000' : 'transparent'}>{' '}</text>
     </g>
@@ -518,7 +535,7 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
         <desc id={descId}>
           {`Planta ${inp.B}×${inp.L} m con pilar ${inp.bc}×${inp.hc} m. `}
           {`Distribución ${distLabel}. `}
-          {`σmáx ${formatQuantity(result.sigma_max, 'soilPressure', system)}, σmín ${formatQuantity(result.sigma_min, 'soilPressure', system)}.`}
+          {pdfText(`σmáx ${formatQuantity(result.sigma_max, 'soilPressure', system)}, σmín ${formatQuantity(result.sigma_min, 'soilPressure', system)}.`, isPdf)}
         </desc>
 
         <defs>
@@ -526,8 +543,8 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
           <linearGradient id={gradId} x1={gx1} y1={gy1} x2={gx2} y2={gy2}>
             {isPdf ? (
               <>
-                <stop offset="0%"   stopColor="#cccccc" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#666666" stopOpacity="0.8" />
+                <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.40" />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity="0.55" />
               </>
             ) : (
               <>
@@ -540,8 +557,8 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
           <linearGradient id={legendGradId} x1="0" y1="0" x2="1" y2="0">
             {isPdf ? (
               <>
-                <stop offset="0%"   stopColor="#cccccc" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#666666" stopOpacity="0.8" />
+                <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.40" />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity="0.55" />
               </>
             ) : (
               <>

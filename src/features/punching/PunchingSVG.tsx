@@ -53,13 +53,13 @@ function PlanView({
   const rOut_px = Math.max(rOut * scale, 0);
 
   // Color tokens
-  const colArea    = isPdf ? '#444' : 'var(--color-bg-elevated, #263348)';
-  const strokeArea = isPdf ? '#666' : 'var(--color-border-main, #334155)';
-  const strokeU1   = isPdf ? '#000' : '#38bdf8'; // accent
-  const strokeUout = isPdf ? '#666' : '#64748b'; // text-secondary
-  const strokeEdge = isPdf ? '#000' : '#ef4444'; // state-fail
-  const textCol    = isPdf ? '#333' : '#94a3b8';
-  const strokeSw   = isPdf ? '#888' : '#475569'; // stirrups: text-disabled (softer than u1)
+  const colArea    = isPdf ? '#cbd5e1'    : 'var(--color-bg-elevated, #263348)';
+  const strokeArea = isPdf ? '#334155'    : 'var(--color-border-main, #334155)';
+  const strokeU1   = isPdf ? '#0ea5e9'    : '#38bdf8'; // accent
+  const strokeUout = isPdf ? '#64748b'    : '#64748b'; // text-secondary
+  const strokeEdge = isPdf ? '#ef4444'    : '#ef4444'; // state-fail
+  const textCol    = isPdf ? '#475569'    : '#94a3b8';
+  const strokeSw   = isPdf ? '#94a3b8'    : '#475569'; // stirrups: softer than u1
 
   // Borde/esquina edge lines
   const edgeLines: React.ReactElement[] = [];
@@ -287,14 +287,14 @@ function SectionView({
   const coneOutX = colHalfW + SLAB_H_PX / 2;
 
   // Colors
-  const slabFill    = isPdf ? '#ddd' : 'var(--color-bg-surface, #1e293b)';
-  const slabStroke  = isPdf ? '#666' : 'var(--color-border-main, #334155)';
-  const colFill     = isPdf ? '#ccc' : 'var(--color-bg-elevated, #263348)';
-  const coneStroke   = isPdf ? '#666' : '#94a3b8';
-  const rebarStroke  = isPdf ? '#000' : '#f8fafc';
-  const arrowColor   = isPdf ? '#000' : '#f8fafc';
-  const accentColor  = isPdf ? '#000' : '#38bdf8';
-  const stirrupColor = isPdf ? '#888' : '#475569'; // text-disabled — softer than accent
+  const slabFill    = isPdf ? '#f1f5f9'   : 'var(--color-bg-surface, #1e293b)';
+  const slabStroke  = isPdf ? '#334155'   : 'var(--color-border-main, #334155)';
+  const colFill     = isPdf ? '#cbd5e1'   : 'var(--color-bg-elevated, #263348)';
+  const coneStroke   = isPdf ? '#64748b'  : '#94a3b8';
+  const rebarStroke  = isPdf ? '#0f172a'  : '#f8fafc';
+  const arrowColor   = isPdf ? '#0f172a'  : '#f8fafc';
+  const accentColor  = isPdf ? '#0ea5e9'  : '#38bdf8';
+  const stirrupColor = isPdf ? '#94a3b8'  : '#475569'; // softer than accent
 
   const arrowPilar = mode === 'pilar';
 

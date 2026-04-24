@@ -34,17 +34,17 @@ const SCREEN = {
 
 const PDF = {
   bg: '#ffffff',
-  sectionFill: '#f0f0f0',
-  sectionStroke: '#000000',
-  weldStroke: '#888888',
-  dim: '#666666',
-  dimText: '#444444',
-  column: '#333333',
-  buckled: '#444444',
-  support: '#333333',
-  hatch: '#666666',
-  lkLabel: '#000000',
-  label: '#666666',
+  sectionFill: '#f1f5f9',
+  sectionStroke: '#334155',
+  weldStroke: '#64748b',
+  dim: '#64748b',
+  dimText: '#475569',
+  column: '#64748b',
+  buckled: '#0ea5e9',
+  support: '#475569',
+  hatch: '#94a3b8',
+  lkLabel: '#0ea5e9',
+  label: '#475569',
 };
 
 // ─── Cross-section panel ──────────────────────────────────────────────────────

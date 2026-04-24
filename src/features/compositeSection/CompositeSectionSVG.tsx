@@ -12,14 +12,14 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
   const isPdf = mode === 'pdf';
 
   // Color tokens
-  const colProfile  = isPdf ? 'none'    : 'none';
-  const strProfile  = isPdf ? '#444'    : 'var(--color-border-main, #334155)';
-  const colPlate    = isPdf ? 'none'    : 'none';
-  const strPlate    = isPdf ? '#888'    : 'var(--color-text-primary, #f8fafc)';
-  const strAccent   = isPdf ? '#000'    : '#38bdf8';   // composite centroid
-  const strDisabled = isPdf ? '#bbb'    : '#475569';   // Steiner arms + element centroids
-  const strText     = isPdf ? '#444'    : '#94a3b8';
-  const strTextDim  = isPdf ? '#888'    : '#475569';
+  const colProfile  = isPdf ? 'none'       : 'none';
+  const strProfile  = isPdf ? '#334155'    : 'var(--color-border-main, #334155)';
+  const colPlate    = isPdf ? 'none'       : 'none';
+  const strPlate    = isPdf ? '#0f172a'    : 'var(--color-text-primary, #f8fafc)';
+  const strAccent   = isPdf ? '#0ea5e9'    : '#38bdf8';   // composite centroid
+  const strDisabled = isPdf ? '#94a3b8'    : '#475569';   // Steiner arms + element centroids
+  const strText     = isPdf ? '#475569'    : '#94a3b8';
+  const strTextDim  = isPdf ? '#64748b'    : '#475569';
 
   if (!result.valid || result.totalHeight === 0 || result.elements.length === 0) {
     const h = Math.round(width * 0.6);
