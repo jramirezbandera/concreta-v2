@@ -61,10 +61,13 @@ function NumberField({
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label
         htmlFor={`input-${fieldKey}`}
-        className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
       >
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
       </label>
       <div className="flex shrink-0">
         <input
@@ -122,10 +125,18 @@ function SelectField({
     : { label: label ?? '', sub };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`select-${fieldKey}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
-        {!labelKey && unit && <span className="text-[11px] text-text-disabled ml-1">{unit}</span>}
+      <label
+        htmlFor={`select-${fieldKey}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}${!labelKey && unit ? ' ' + unit : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
+        {!labelKey && unit && !resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{unit}</span>
+        )}
       </label>
       <select
         id={`select-${fieldKey}`}

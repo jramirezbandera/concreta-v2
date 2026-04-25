@@ -29,9 +29,15 @@ function NumField({
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`tb-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+      <label
+        htmlFor={`tb-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
       </label>
       <div className="flex shrink-0">
         <input
@@ -64,9 +70,15 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label htmlFor={`tb-sel-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+      <label
+        htmlFor={`tb-sel-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
       </label>
       <select
         id={`tb-sel-${field}`}

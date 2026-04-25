@@ -133,10 +133,13 @@ function NumField({
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label
         htmlFor={`sb-input-${field}`}
-        className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
       >
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
       </label>
       <div className="flex shrink-0">
         <input
@@ -184,10 +187,13 @@ function SelectField({
     <div className="flex items-center justify-between py-0.75 gap-2">
       <label
         htmlFor={`sb-select-${field}`}
-        className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
       >
-        {resolved.label}
-        {resolved.sub && <span className="text-[11px] text-text-disabled ml-1">{resolved.sub}</span>}
+        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
+        {resolved.sub && (
+          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
+        )}
       </label>
       <select
         id={`sb-select-${field}`}

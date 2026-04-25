@@ -58,10 +58,10 @@ export function RetainingWallModule() {
             'md:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
+          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <RetainingWallInputsPanel state={state} setField={setField} />
           </div>
-          <div className="hidden md:block px-4 py-3 border-t border-border-main shrink-0">
+          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"

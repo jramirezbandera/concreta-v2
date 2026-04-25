@@ -50,9 +50,15 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label htmlFor={`ap-${field}`} className="text-[13px] text-text-secondary truncate min-w-0" title={label}>
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+      <label
+        htmlFor={`ap-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${label}${sub ? ' ' + sub : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{label}</span>
+        {sub && (
+          <span className="text-[10px] text-text-disabled truncate">{sub}</span>
+        )}
       </label>
       <div className="flex shrink-0">
         <input
@@ -93,8 +99,12 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label htmlFor={`ap-sel-${field}`} className="text-[13px] text-text-secondary truncate min-w-0" title={label}>
-        {label}
+      <label
+        htmlFor={`ap-sel-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={label}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{label}</span>
       </label>
       <select
         id={`ap-sel-${field}`}
@@ -105,7 +115,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) ? raw : asNum);
         }}
-        className="min-w-0 max-w-40 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="min-w-0 max-w-44 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>

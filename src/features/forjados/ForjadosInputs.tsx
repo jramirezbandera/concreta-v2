@@ -35,9 +35,15 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label htmlFor={`input-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0 truncate min-w-0">
-        {label}
-        {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
+      <label
+        htmlFor={`input-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${label}${sub ? ' ' + sub : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{label}</span>
+        {sub && (
+          <span className="text-[10px] text-text-disabled truncate">{sub}</span>
+        )}
       </label>
       <div className="flex shrink-0">
         <input
@@ -83,8 +89,12 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label htmlFor={`select-${field}`} className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-        {label}
+      <label
+        htmlFor={`select-${field}`}
+        className="flex flex-col min-w-0 leading-tight"
+        title={label}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{label}</span>
       </label>
       <select
         id={`select-${field}`}
