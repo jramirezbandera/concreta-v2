@@ -2,6 +2,7 @@ import { type TimberBeamInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getKdef, getTimberGrade } from '../../data/timberGrades';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
@@ -29,16 +30,7 @@ function NumField({
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
-        htmlFor={`tb-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`tb-${field}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
           id={`tb-${field}`}
@@ -70,16 +62,7 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
-        htmlFor={`tb-sel-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`tb-sel-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`tb-sel-${field}`}
         value={value}

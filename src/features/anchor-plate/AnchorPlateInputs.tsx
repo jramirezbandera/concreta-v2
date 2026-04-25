@@ -11,6 +11,7 @@ import {
 } from '../../data/anchorBars';
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import type { ValidationWarning } from '../../lib/calculations/anchorPlate';
 
@@ -50,16 +51,7 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`ap-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${label}${sub ? ' ' + sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{label}</span>
-        {sub && (
-          <span className="text-[10px] text-text-disabled truncate">{sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`ap-${field}`} label={label} sub={sub} />
       <div className="flex shrink-0">
         <input
           id={`ap-${field}`}
@@ -99,13 +91,7 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`ap-sel-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={label}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{label}</span>
-      </label>
+      <InputLabel htmlFor={`ap-sel-${field}`} label={label} />
       <select
         id={`ap-sel-${field}`}
         value={value}

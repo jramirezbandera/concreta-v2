@@ -9,6 +9,7 @@ import { TIPOLOGIAS, TIPOS_VANO, getTipologia } from '../../data/forjadoTipologi
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface Props {
@@ -35,16 +36,7 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`input-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${label}${sub ? ' ' + sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{label}</span>
-        {sub && (
-          <span className="text-[10px] text-text-disabled truncate">{sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`input-${field}`} label={label} sub={sub} />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -89,13 +81,7 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`select-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={label}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{label}</span>
-      </label>
+      <InputLabel htmlFor={`select-${field}`} label={label} />
       <select
         id={`select-${field}`}
         value={value}

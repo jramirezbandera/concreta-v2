@@ -8,6 +8,7 @@ import {
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 
 interface Props {
   state: CompositeSectionInputs;
@@ -36,13 +37,7 @@ function NumField({
   useEffect(() => { setLocal(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
-        htmlFor={id}
-        className="text-[13px] text-text-secondary truncate min-w-0"
-        title={label}
-      >
-        {label}
-      </label>
+      <InputLabel htmlFor={id} label={label} />
       <div className="flex shrink-0">
         <input
           id={id}
@@ -91,16 +86,7 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
-        htmlFor={id}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
       <select
         id={id}
         value={value}

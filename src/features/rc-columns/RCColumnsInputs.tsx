@@ -4,6 +4,7 @@ import { availableFck, availableFyk } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RCColumnsInputsProps {
@@ -59,16 +60,7 @@ function NumberField({
 
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
-        htmlFor={`input-${fieldKey}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`input-${fieldKey}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
           id={`input-${fieldKey}`}
@@ -125,19 +117,11 @@ function SelectField({
     : { label: label ?? '', sub };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
-      <label
+      <InputLabel
         htmlFor={`select-${fieldKey}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}${!labelKey && unit ? ' ' + unit : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-        {!labelKey && unit && !resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{unit}</span>
-        )}
-      </label>
+        label={resolved.label}
+        sub={resolved.sub ?? (!labelKey && unit ? unit : undefined)}
+      />
       <select
         id={`select-${fieldKey}`}
         value={value}

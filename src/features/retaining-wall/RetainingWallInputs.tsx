@@ -3,6 +3,7 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RetainingWallInputsProps {
@@ -42,16 +43,7 @@ function NumField({
 
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`input-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -102,16 +94,7 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
-        htmlFor={`select-${field}`}
-        className="flex flex-col min-w-0 leading-tight"
-        title={`${resolved.label}${resolved.sub ? ' ' + resolved.sub : ''}`}
-      >
-        <span className="text-[13px] text-text-secondary truncate">{resolved.label}</span>
-        {resolved.sub && (
-          <span className="text-[10px] text-text-disabled truncate">{resolved.sub}</span>
-        )}
-      </label>
+      <InputLabel htmlFor={`select-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`select-${field}`}
         value={value}
