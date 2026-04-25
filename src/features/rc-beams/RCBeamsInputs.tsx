@@ -184,10 +184,10 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         />
         {state.loadType === 'custom' && (
           <NumField
-            label="\u03c8\u2082 personalizado"
+            label="ψ₂ personalizado"
             field="psi2Custom"
             value={state.psi2Custom as number}
-            unit="\u2014"
+            unit="—"
             min={0}
             setField={setField}
           />
@@ -275,7 +275,7 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         />
         <NumField
           label="s"
-          sub="Separaci\u00f3n"
+          sub="Separación"
           field={`${p}_stirrupSpacing`}
           value={state[`${p}_stirrupSpacing`] as number}
           unit="mm"
