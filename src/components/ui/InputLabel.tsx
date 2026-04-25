@@ -4,25 +4,30 @@ interface InputLabelProps {
   sub?: string;
 }
 
-// Inline when short, stacked when the combined symbol+description would
-// otherwise truncate inside the narrow inputs panel.
-const STACK_THRESHOLD = 14;
-
+// Stacked only for fck/fyk where the description (Característica hormigón /
+// Característica acero) carries semantic weight; everything else inline.
 export function InputLabel({ htmlFor, label, sub }: InputLabelProps) {
-  const combinedLen = label.length + (sub ? sub.length + 1 : 0);
-  const stack = combinedLen > STACK_THRESHOLD;
+  const stack = label === 'fck' || label === 'fyk';
+  if (stack) {
+    return (
+      <label
+        htmlFor={htmlFor}
+        className="flex flex-col min-w-0 leading-tight"
+        title={`${label}${sub ? ' ' + sub : ''}`}
+      >
+        <span className="text-[13px] text-text-secondary truncate">{label}</span>
+        {sub && <span className="text-[10px] text-text-disabled truncate">{sub}</span>}
+      </label>
+    );
+  }
   return (
     <label
       htmlFor={htmlFor}
-      className={`flex ${stack ? 'flex-col' : 'flex-row items-baseline gap-1'} min-w-0 leading-tight`}
+      className="text-[13px] text-text-secondary truncate min-w-0"
       title={`${label}${sub ? ' ' + sub : ''}`}
     >
-      <span className="text-[13px] text-text-secondary truncate">{label}</span>
-      {sub && (
-        <span className={stack ? 'text-[10px] text-text-disabled truncate' : 'text-[11px] text-text-disabled truncate'}>
-          {sub}
-        </span>
-      )}
+      {label}
+      {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
     </label>
   );
 }
