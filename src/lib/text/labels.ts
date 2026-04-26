@@ -496,7 +496,7 @@ export const LABELS = {
   Lcr_LTB: {
     sym: 'Lcr',
     descLong: 'Longitud de pandeo lateral',
-    descShort: 'Longitud pandeo lateral',
+    descShort: 'Longitud pandeo',
     unit: 'm',
     ref: 'EC3 §6.3.2.2',
     modules: ['steelBeams'],
