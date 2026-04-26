@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { evalExpr, fmt } from '../eval';
-import { useCalculator } from '../CalculatorProvider';
+import { useCalculator } from '../calculator-context';
 
 interface NumericModeProps {
   density: 'compact' | 'normal';

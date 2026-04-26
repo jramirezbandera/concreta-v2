@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FORMULAS } from '../data';
 import { fmt } from '../eval';
-import { useCalculator } from '../CalculatorProvider';
+import { useCalculator } from '../calculator-context';
 
 export function FormulaMode() {
   const [pickedId, setPickedId] = useState(FORMULAS[0].id);

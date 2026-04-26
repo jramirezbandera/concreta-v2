@@ -2,7 +2,7 @@ import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
 import { CalcButton } from '../calculator/CalcButton';
-import { useCalculator } from '../calculator/CalculatorProvider';
+import { useCalculator } from '../calculator/calculator-context';
 
 interface TopbarProps {
   moduleLabel: string;

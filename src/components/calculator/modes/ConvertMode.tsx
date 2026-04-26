@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { UNIT_GROUPS, type UnitGroupKey } from '../data';
 import { convert, fmt } from '../eval';
-import { useCalculator } from '../CalculatorProvider';
+import { useCalculator } from '../calculator-context';
 
 export function ConvertMode() {
   const [group, setGroup] = useState<UnitGroupKey>('fuerza');
