@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from 'react';
 import { Outlet, Navigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../ui/Toast';
+import { CalculatorProvider } from '../calculator/CalculatorProvider';
 
 interface DrawerContextType {
   openDrawer: () => void;
@@ -19,25 +20,27 @@ export function AppShell() {
 
   return (
     <DrawerContext.Provider value={{ openDrawer: () => setDrawerOpen(true) }}>
-      <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
+      <CalculatorProvider>
+        <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
 
-        {/* Mobile backdrop */}
-        {drawerOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-        )}
+          {/* Mobile backdrop */}
+          {drawerOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setDrawerOpen(false)}
+              aria-hidden="true"
+            />
+          )}
 
-        <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+          <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Outlet />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <Outlet />
+          </div>
+
+          <ToastContainer />
         </div>
-
-        <ToastContainer />
-      </div>
+      </CalculatorProvider>
     </DrawerContext.Provider>
   );
 }

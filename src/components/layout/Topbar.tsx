@@ -1,6 +1,8 @@
 import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
+import { CalcButton } from '../calculator/CalcButton';
+import { useCalculator } from '../calculator/CalculatorProvider';
 
 interface TopbarProps {
   moduleLabel: string;
@@ -11,6 +13,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen }: TopbarProps) {
+  const { open: openCalc } = useCalculator();
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       showToast('Enlace copiado', { autoDismiss: 2000 });
@@ -44,6 +47,8 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <CalcButton onClick={openCalc} />
+        <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         <UnitSystemToggle />
         {/* Copy link */}
         <button
