@@ -1,12 +1,24 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Calculator } from './Calculator';
 import { CalcLauncher } from './CalcLauncher';
+import { showToast } from '../ui/Toast';
+
+type EditableInput = HTMLInputElement | HTMLTextAreaElement;
+
+interface FocusedTarget {
+  element: EditableInput;
+  label: string;
+}
 
 interface CalculatorContextValue {
   open: () => void;
   close: () => void;
   toggle: () => void;
   isOpen: boolean;
+  /** The most recently focused module input (outside the calculator). */
+  focusedTarget: FocusedTarget | null;
+  /** Insert a numeric value into the focused target, falling back to the clipboard. */
+  insertValue: (value: number) => void;
 }
 
 const CalculatorContext = createContext<CalculatorContextValue>({
@@ -14,6 +26,8 @@ const CalculatorContext = createContext<CalculatorContextValue>({
   close: () => {},
   toggle: () => {},
   isOpen: false,
+  focusedTarget: null,
+  insertValue: () => {},
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -25,11 +39,52 @@ interface CalculatorProviderProps {
   children: ReactNode;
 }
 
+// Resolve a human-readable label for an input. The codebase's <InputLabel>
+// component already sets `title="<sym> <descShort>"` on its <label>, so that
+// is the cleanest source. Fallbacks: label.textContent, aria-label, placeholder.
+function resolveInputLabel(input: EditableInput): string {
+  const id = input.id;
+  if (id) {
+    let lbl: HTMLLabelElement | null = null;
+    try {
+      lbl = document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(id)}"]`);
+    } catch {
+      lbl = null;
+    }
+    if (lbl) {
+      if (lbl.title) return lbl.title.trim();
+      const t = lbl.textContent?.trim();
+      if (t) return t;
+    }
+  }
+  const aria = input.getAttribute('aria-label');
+  if (aria) return aria.trim();
+  if (input.placeholder) return input.placeholder.trim();
+  return id || 'campo';
+}
+
+// Set a value on a React-controlled input by reaching past React's bookkeeping
+// (calling the native value setter) and then dispatching the input event so
+// the component's onChange fires.
+function setReactInputValue(input: EditableInput, value: string) {
+  const proto = input instanceof HTMLTextAreaElement
+    ? HTMLTextAreaElement.prototype
+    : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+  if (!setter) return;
+  setter.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 // Mount once at the app shell. Owns open/minimized state, exposes context to
 // any child (e.g. Topbar's button), and binds the global C/Esc shortcuts.
 export function CalculatorProvider({ children }: CalculatorProviderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [focusedTarget, setFocusedTarget] = useState<FocusedTarget | null>(null);
+  // Mirror state in a ref so the insert callback always sees the latest target
+  // without forcing every consumer to re-render on every focus change.
+  const focusedRef = useRef<FocusedTarget | null>(null);
 
   const open = useCallback(() => { setIsOpen(true); setMinimized(false); }, []);
   const close = useCallback(() => { setIsOpen(false); setMinimized(false); }, []);
@@ -40,6 +95,51 @@ export function CalculatorProvider({ children }: CalculatorProviderProps) {
       setMinimized(false);
       return true;
     });
+  }, []);
+
+  // Track the last focused module input — anywhere in the document, except
+  // inside the calculator panel itself (the panel is marked with
+  // data-concreta-calc so we can exclude it).
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      const isInput = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA';
+      if (!isInput) return;
+      // Skip non-editable inputs (buttons, checkboxes, the like).
+      if (t instanceof HTMLInputElement) {
+        const type = t.type.toLowerCase();
+        if (['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'hidden'].includes(type)) {
+          return;
+        }
+      }
+      // Skip inputs inside the calculator panel.
+      if (t.closest('[data-concreta-calc]')) return;
+      const next: FocusedTarget = {
+        element: t as EditableInput,
+        label: resolveInputLabel(t as EditableInput),
+      };
+      focusedRef.current = next;
+      setFocusedTarget(next);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
+  const insertValue = useCallback((value: number) => {
+    const target = focusedRef.current;
+    if (target && target.element.isConnected) {
+      try {
+        setReactInputValue(target.element, String(value));
+        target.element.focus();
+        showToast(`Insertado en ${target.label}`, { autoDismiss: 1500 });
+        return;
+      } catch {
+        // fall through to clipboard
+      }
+    }
+    navigator.clipboard?.writeText(String(value));
+    showToast('Copiado al portapapeles', { autoDismiss: 1500 });
   }, []);
 
   // Keyboard: C toggles, Esc closes. Skip when typing in an input/textarea/select
@@ -65,7 +165,7 @@ export function CalculatorProvider({ children }: CalculatorProviderProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, minimized, close, toggle]);
 
-  const ctx: CalculatorContextValue = { open, close, toggle, isOpen };
+  const ctx: CalculatorContextValue = { open, close, toggle, isOpen, focusedTarget, insertValue };
 
   return (
     <CalculatorContext.Provider value={ctx}>

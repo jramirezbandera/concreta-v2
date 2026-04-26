@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FORMULAS } from '../data';
 import { fmt } from '../eval';
-import { showToast } from '../../ui/Toast';
+import { useCalculator } from '../CalculatorProvider';
 
 export function FormulaMode() {
   const [pickedId, setPickedId] = useState(FORMULAS[0].id);
@@ -9,6 +9,7 @@ export function FormulaMode() {
   const [inputs, setInputs] = useState<Record<string, number>>(
     () => Object.fromEntries(f.inputs.map((i) => [i.k, i.def]))
   );
+  const { focusedTarget, insertValue } = useCalculator();
 
   useEffect(() => {
     setInputs(Object.fromEntries(f.inputs.map((i) => [i.k, i.def])));
@@ -23,10 +24,9 @@ export function FormulaMode() {
     }
   })();
 
-  const copy = () => {
+  const send = () => {
     if (result == null) return;
-    navigator.clipboard?.writeText(String(result));
-    showToast('Copiado al portapapeles', { autoDismiss: 1500 });
+    insertValue(result);
   };
 
   return (
@@ -87,11 +87,12 @@ export function FormulaMode() {
       </div>
 
       <button
-        onClick={copy}
+        onClick={send}
         disabled={result == null}
-        className="w-full py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 transition-colors"
+        title={focusedTarget ? `Insertar resultado en ${focusedTarget.label}` : 'Copiar resultado al portapapeles'}
+        className="w-full py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 transition-colors truncate"
       >
-        ⧉ Copiar resultado
+        {focusedTarget ? `↳ Insertar en ${focusedTarget.label}` : '⧉ Copiar resultado'}
       </button>
     </div>
   );

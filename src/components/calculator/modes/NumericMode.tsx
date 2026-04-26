@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { evalExpr, fmt } from '../eval';
-import { showToast } from '../../ui/Toast';
+import { useCalculator } from '../CalculatorProvider';
 
 interface NumericModeProps {
   density: 'compact' | 'normal';
@@ -13,6 +13,7 @@ export function NumericMode({ density }: NumericModeProps) {
   const [history, setHistory] = useState<HistEntry[]>([]);
   const [ans, setAns] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { focusedTarget, insertValue } = useCalculator();
 
   const result = evalExpr(expr);
 
@@ -32,10 +33,9 @@ export function NumericMode({ density }: NumericModeProps) {
       setExpr(String(result.val));
     }
   };
-  const copyResult = () => {
+  const sendResult = () => {
     if (!result.ok || result.val == null) return;
-    navigator.clipboard?.writeText(String(result.val));
-    showToast('Copiado al portapapeles', { autoDismiss: 1500 });
+    insertValue(result.val);
   };
 
   const py = density === 'compact' ? 'py-2' : 'py-2.5';
@@ -131,13 +131,14 @@ export function NumericMode({ density }: NumericModeProps) {
         <button onClick={equals} className={`${opBtn} ${py} bg-accent/15 border-accent/40 text-accent hover:bg-accent/25 font-semibold`}>=</button>
       </div>
 
-      {/* Copy footer */}
+      {/* Send footer — insert into focused module input or clipboard fallback */}
       <button
-        onClick={copyResult}
+        onClick={sendResult}
         disabled={!result.ok}
-        className="w-full mt-2 py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        title={focusedTarget ? `Insertar resultado en ${focusedTarget.label}` : 'Copiar al portapapeles'}
+        className="w-full mt-2 py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors truncate"
       >
-        ⧉ Copiar al portapapeles
+        {focusedTarget ? `↳ Insertar en ${focusedTarget.label}` : '⧉ Copiar al portapapeles'}
       </button>
     </div>
   );

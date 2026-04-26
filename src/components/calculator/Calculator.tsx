@@ -145,6 +145,7 @@ export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
 
       <div
         ref={ref}
+        data-concreta-calc
         className="flex flex-col"
         style={{ ...positionStyle, ...panelStyle }}
         role="dialog"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { UNIT_GROUPS, type UnitGroupKey } from '../data';
 import { convert, fmt } from '../eval';
-import { showToast } from '../../ui/Toast';
+import { useCalculator } from '../CalculatorProvider';
 
 export function ConvertMode() {
   const [group, setGroup] = useState<UnitGroupKey>('fuerza');
@@ -9,6 +9,7 @@ export function ConvertMode() {
   const [from, setFrom] = useState(units[0]);
   const [to, setTo] = useState(units[1] || units[0]);
   const [val, setVal] = useState('1');
+  const { focusedTarget, insertValue } = useCalculator();
 
   useEffect(() => {
     const u = Object.keys(UNIT_GROUPS[group].units);
@@ -19,10 +20,9 @@ export function ConvertMode() {
   const num = parseFloat((val || '0').replace(',', '.'));
   const out = isFinite(num) ? convert(num, from, to, group) : null;
 
-  const copy = () => {
+  const send = () => {
     if (out == null) return;
-    navigator.clipboard?.writeText(String(out));
-    showToast('Copiado al portapapeles', { autoDismiss: 1500 });
+    insertValue(out);
   };
 
   return (
@@ -114,11 +114,12 @@ export function ConvertMode() {
       )}
 
       <button
-        onClick={copy}
+        onClick={send}
         disabled={out == null}
-        className="w-full py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 transition-colors"
+        title={focusedTarget ? `Insertar resultado en ${focusedTarget.label}` : 'Copiar resultado al portapapeles'}
+        className="w-full py-1.5 text-[11px] font-medium border border-border-main rounded text-text-secondary hover:text-accent hover:border-accent/40 disabled:opacity-40 transition-colors truncate"
       >
-        ⧉ Copiar resultado
+        {focusedTarget ? `↳ Insertar en ${focusedTarget.label}` : '⧉ Copiar resultado'}
       </button>
     </div>
   );
