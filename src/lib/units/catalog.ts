@@ -53,4 +53,13 @@ export const CATALOG: Record<Quantity, QuantitySpec> = {
     precisionSi: 0,
     precisionTecnico: 0,
   },
+  // Soil unit weight (peso específico). Stored in kN/m³, displayed as kN/m³ in
+  // SI or t/m³ in técnico. 1 kN/m³ ≈ 0.10197 t/m³ (typical 18 kN/m³ → 1.83 t/m³).
+  weightDensity: {
+    siUnit: "kN/m³",
+    tecnicoUnit: "t/m³",
+    toTecnico: 0.101971621,
+    precisionSi: 1,
+    precisionTecnico: 2,
+  },
 };

@@ -98,8 +98,8 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
         )}
         <ValueRow label="ΣV"                    value={fmtSi(result.ΣV, 'linearLoad')} />
         <ValueRow label="e (excentricidad)"     value={`${result.e.toFixed(3)} m`} />
-        <ValueRow label={resultLabel('sigma_max')} value={`${result.sigma_max.toFixed(1)} kPa`} />
-        <ValueRow label={resultLabel('sigma_min')} value={`${result.sigma_min.toFixed(1)} kPa`} />
+        <ValueRow label={resultLabel('sigma_max')} value={fmtSi(result.sigma_max, 'soilPressure', 3)} />
+        <ValueRow label={resultLabel('sigma_min')} value={fmtSi(result.sigma_min, 'soilPressure', 3)} />
 
         {fusteChecks.length > 0 && (
           <>

@@ -7,7 +7,8 @@ export type Quantity =
   | "areaLoad"
   | "stress"
   | "soilPressure"
-  | "youngModulus";
+  | "youngModulus"
+  | "weightDensity";
 
 export type QuantitySpec = {
   siUnit: string;

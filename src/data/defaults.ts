@@ -233,6 +233,8 @@ export interface RetainingWallInputs {
   tFuste: number;   // stem thickness (uniform)
   bPunta: number;   // toe projection
   bTalon: number;   // heel projection
+  df: number;       // depth of soil ABOVE top of footing on the front (toe) side (m)
+                    // Soil column over toe weight = γ·df·bP. Passive embedment = df + hf.
   // Materials
   fck: number;      // N/mm²
   fyk: number;      // N/mm²
@@ -245,6 +247,8 @@ export interface RetainingWallInputs {
   q: number;            // uniform surcharge on backfill (kN/m²)
   sigmaAdm: number;     // admissible bearing capacity (kPa)
   mu: number;           // base friction coefficient
+  // Passive resistance (CTE DB-SE-C §9.3.3 — user-decided inclusion)
+  usePassive: boolean;  // when true, include Ep = ½·Kp·γ·(df+hf)² in stability
   // Water table
   hasWater: boolean; // toggle: true = water table active
   hw: number;        // depth to water table from top of wall (m), used when hasWater=true
@@ -267,6 +271,7 @@ export const retainingWallDefaults: RetainingWallInputs = {
   tFuste: 0.3,
   bPunta: 0.6,
   bTalon: 1.5,
+  df: 0,
   fck: 25,
   fyk: 500,
   cover: 0.04,
@@ -277,6 +282,7 @@ export const retainingWallDefaults: RetainingWallInputs = {
   q: 0,
   sigmaAdm: 200,
   mu: 0.40,
+  usePassive: false,
   hasWater: false,
   hw: 2.0,
   Ab: 0,

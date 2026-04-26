@@ -16,7 +16,7 @@
 import { type RetainingWallInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { GAMMA_S } from '../../data/factors';
-import { makeCheck, toStatus, solveRCBending, type CheckRow } from './types';
+import { makeCheck, makeCheckQty, toStatus, solveRCBending, type CheckRow } from './types';
 import { GAMMA_G, GAMMA_Q } from './loadGen';
 
 export type { CheckRow } from './types';
@@ -35,11 +35,15 @@ export interface RetainingWallResult {
   error?: string;
   // Key values
   Ka: number;
+  Kp?: number;                // Rankine passive coefficient (only when usePassive)
   kh_derived: number;         // kh = S · Ab (derived from inputs)
   kv_derived: number;         // kv = kh / 2 (derived from inputs)
   KAD?: number;               // only when kh > 0
   EAH_total: number;          // kN/m
   EW?: number;                // kN/m (only when hw < H_total)
+  Ep?: number;                // kN/m — passive resistance (only when usePassive=true)
+  EpHeight?: number;          // m — embedment height used for Ep (= df + hf)
+  W_soil_toe: number;         // kN/m — soil weight column above toe (=γ·df·bP)
   ΣV: number;                 // kN/m
   e: number;                  // eccentricity (m)
   sigma_max: number;          // kPa
@@ -72,7 +76,7 @@ export interface RetainingWallResult {
 function invalid(error: string): RetainingWallResult {
   return {
     valid: false, error,
-    Ka: 0, kh_derived: 0, kv_derived: 0, EAH_total: 0, ΣV: 0, e: 0, sigma_max: 0, sigma_min: 0,
+    Ka: 0, kh_derived: 0, kv_derived: 0, EAH_total: 0, W_soil_toe: 0, ΣV: 0, e: 0, sigma_max: 0, sigma_min: 0,
     FS_vuelco: 0, FS_desliz: 0,
     MEd_fuste: 0, As_req_fuste: 0, As_min_fuste: 0,
     MEd_talon: 0, As_req_talon: 0, As_min_talon: 0,
@@ -90,6 +94,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   if (inp.hf <= 0)   return invalid('hf debe ser > 0');
   if (inp.tFuste <= 0) return invalid('tFuste debe ser > 0');
   if (inp.bPunta < 0 || inp.bTalon < 0) return invalid('Proyecciones de zapata no pueden ser negativas');
+  if ((inp.df as number) < 0) return invalid('Profundidad de empotramiento frontal no puede ser negativa');
 
   // ── 1. Geometry (already in m) ──────────────────────────────────────────
   const H_m    = inp.H    as number;
@@ -97,10 +102,12 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const tF_m   = inp.tFuste as number;
   const bP_m   = inp.bPunta as number;
   const bT_m   = inp.bTalon as number;
+  const df_m   = inp.df as number;
   const hw_m   = (inp.hasWater as boolean) ? (inp.hw as number) : (H_m + hf_m + 1);
 
   const H_total = H_m + hf_m;
   const B_m     = bP_m + tF_m + bT_m;
+  const dEmb    = df_m + hf_m;  // total front embedment (ground → footing base)
 
   if (B_m <= 0) return invalid('Anchura total de zapata debe ser > 0');
 
@@ -143,8 +150,13 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const Ka_denom    = cos_d * Math.pow(1 + Math.sqrt(Math.max(Ka_radicand, 0)), 2);
   const Ka          = (cos_phi * cos_phi) / Ka_denom;
 
-  // Rankine passive Kp is intentionally not computed: passive resistance is
-  // excluded from sliding FS per CTE DB-SE-C §9.3.3 (see §8 below for rationale).
+  // Rankine passive coefficient — used only when usePassive=true.
+  // CTE DB-SE-C §9.3.3 allows Ep when (a) the soil in front is guaranteed to
+  // remain in place, and (b) the wall movement to mobilize Ep is acceptable.
+  // The user explicitly opts in via the usePassive toggle.
+  const sin_phi = Math.sin(phi_r);
+  const Kp_rankine = (1 + sin_phi) / Math.max(1 - sin_phi, 1e-9);
+  const usePassive = (inp.usePassive as boolean) === true && dEmb > 0;
 
   // ── 4. Pressure zones ────────────────────────────────────────────────────
   const h_dry     = Math.min(hw_m, H_total);   // dry zone height from top (m)
@@ -187,36 +199,49 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const W_wet_heel = wet_H_heel > 0 ? inp.gammaSat * wet_H_heel * bT_m : 0;
   const W_q_heel   = inp.q * bT_m;
 
+  // Soil column above the toe (front side embedment). Treated as dry; the
+  // contribution is small relative to ΣV and depends on the user opting in
+  // by setting df > 0.
+  const W_soil_toe = inp.gammaSuelo * df_m * bP_m;
+
   const x_fuste = bP_m + tF_m / 2;
   const x_zap   = B_m / 2;
   const x_heel  = bP_m + tF_m + bT_m / 2;
+  const x_toe   = bP_m / 2;
 
   // Hydrostatic uplift on footing base when water table is within the wall height.
   // Upward pressure = γw·h_wet, uniform over B_m → acts at B/2 from toe.
   const U_uplift = GAMMA_W * h_wet * B_m;   // kN/m (upward)
 
-  const ΣV = W_fuste + W_zap + W_dry_heel + W_wet_heel + W_q_heel + EA_V_soil - U_uplift;
+  // Passive resistance on the front of the footing (only when user opts in).
+  // Ep = ½·Kp·γ·dEmb²  acts horizontally at dEmb/3 above base.
+  const Ep      = usePassive ? 0.5 * Kp_rankine * inp.gammaSuelo * dEmb * dEmb : 0;
+  const arm_Ep  = dEmb / 3;
+
+  const ΣV = W_fuste + W_zap + W_soil_toe
+           + W_dry_heel + W_wet_heel + W_q_heel
+           + EA_V_soil - U_uplift;
 
   const Mr = W_fuste * x_fuste
            + W_zap   * x_zap
+           + W_soil_toe * x_toe
            + (W_dry_heel + W_wet_heel + W_q_heel) * x_heel
            + EA_V_soil * B_m   // EA_V acts at heel face (restoring)
-           - U_uplift * (B_m / 2);  // uplift acts at B/2 — reduces restoring moment
+           - U_uplift * (B_m / 2)  // uplift acts at B/2 — reduces restoring moment
+           + Ep * arm_Ep;     // passive resistance: restoring moment about toe
 
   if (ΣV <= 0) return invalid('Empuje hidrostático mayor que el peso total — zapata levanta');
 
   // ── 8. Static stability ──────────────────────────────────────────────────
-  // Passive resistance Ep = ½·Kp·γ·hf² is intentionally NOT included in
-  // the sliding FS numerator. Per CTE DB-SE-C §9.3.3 / §4.6.2, passive
-  // pressure should not be relied on for sliding unless the soil in front
-  // of the toe is guaranteed to remain in place AND the wall movement
-  // required to mobilize Ep is acceptable. Both conditions are commonly
-  // unmet (future excavation, trench, service lines, frost, erosion), so
-  // the conservative default is to ignore Ep. This matches EC7 §9.3.2(2).
-  // Previously Ep was added at full value → FS inflated by ~10–25 % →
-  // walls could pass that shouldn't.
+  // Passive resistance Ep is opt-in via `inp.usePassive` (CTE DB-SE-C §9.3.3).
+  // When enabled, Ep contributes:
+  //   - to FS_desliz numerator: + Ep   (resists sliding directly)
+  //   - to Mr (restoring moment):  + Ep · dEmb/3   (front-face triangle resultant)
+  // The user is responsible for guaranteeing the soil in front of the toe
+  // will remain in place and that the wall movement required to mobilize Ep
+  // is acceptable. By default usePassive=false (conservative, EC7-style).
   const FS_vuelco = Mo > 0 ? Mr / Mo : Infinity;
-  const FS_desliz = EAH_total > 0 ? (ΣV * inp.mu) / EAH_total : Infinity;
+  const FS_desliz = EAH_total > 0 ? (ΣV * inp.mu + Ep) / EAH_total : Infinity;
   const e         = B_m / 2 - (Mr - Mo) / ΣV;
 
   // Footing stress (two branches)
@@ -242,14 +267,16 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   // ── 9. Build checks ──────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
 
+  const vuelcoSuffix = usePassive ? ' (con Ep)' : '';
+  const deslizSuffix = usePassive ? ' (con Ep)' : '';
   checks.push(makeCheck(
-    'vuelco', 'Estabilidad al vuelco',
+    'vuelco', `Estabilidad al vuelco${vuelcoSuffix}`,
     1.5, FS_vuelco,
     `FS = ${FS_vuelco.toFixed(2)}`, '≥ 1.50',
     'CTE DB-SE-C §4.4.1',
   ));
   checks.push(makeCheck(
-    'deslizamiento', 'Estabilidad al deslizamiento',
+    'deslizamiento', `Estabilidad al deslizamiento${deslizSuffix}`,
     1.5, FS_desliz,
     `FS = ${FS_desliz.toFixed(2)}`, '≥ 1.50',
     'CTE DB-SE-C §4.4.2',
@@ -260,11 +287,10 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     `e = ${e.toFixed(3)} m`, `B/6 = ${(B_m / 6).toFixed(3)} m`,
     'CTE DB-SE-C §4.4.3',
   ));
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'sigma-max', 'Tension maxima en zapata',
     sigma_max, inp.sigmaAdm,
-    `σmax = ${sigma_max.toFixed(1)} kPa`, `σadm = ${inp.sigmaAdm.toFixed(0)} kPa`,
-    'CTE DB-SE-C §4.4.4',
+    'soilPressure', 'CTE DB-SE-C §4.4.4',
   ));
   // sigma-min: direct check (inverted sense — capacity must be ≥ 0).
   // Also fails when e ≥ B/3 (resultant outside kern, a_eff ≤ 0).
@@ -272,8 +298,9 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   checks.push({
     id: 'sigma-min',
     description: 'Sin tension negativa en zapata (sin levantamiento)',
-    value: `σmin = ${sigma_min.toFixed(1)} kPa`,
-    limit: '≥ 0 kPa',
+    valueNum: sigma_min,
+    valueQty: 'soilPressure',
+    limitStr: '≥ 0',
     utilization: sigmaMinFail ? 1.5 : 0,
     status: sigmaMinFail ? 'fail' : 'ok',
     article: 'CTE DB-SE-C §4.4.4',
@@ -309,24 +336,28 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     const EAV_seis = EAD_soil * sin_d;
     const Mo_seis  = Mo + ΔEAD_H * 0.6 * H_total;  // Seed & Whitman (1970) / NCSP-07
 
-    const ΣV_seis  = W_fuste + W_zap + W_dry_heel + W_wet_heel + W_q_heel + EAV_seis - U_uplift;
+    const ΣV_seis  = W_fuste + W_zap + W_soil_toe
+                   + W_dry_heel + W_wet_heel + W_q_heel
+                   + EAV_seis - U_uplift;
     const Mr_seis  = W_fuste * x_fuste + W_zap * x_zap
+                   + W_soil_toe * x_toe
                    + (W_dry_heel + W_wet_heel + W_q_heel) * x_heel
                    + EAV_seis * B_m
-                   - U_uplift * (B_m / 2);
+                   - U_uplift * (B_m / 2)
+                   + Ep * arm_Ep;
 
     FS_vuelco_seis = Mo_seis > 0 ? Mr_seis / Mo_seis : Infinity;
-    // Passive Ep excluded for same reasons as static case (CTE DB-SE-C §9.3.3).
-    FS_desliz_seis = EAH_seis > 0 ? (ΣV_seis * inp.mu) / EAH_seis : Infinity;
+    // Passive Ep applied identically to static case when usePassive=true.
+    FS_desliz_seis = EAH_seis > 0 ? (ΣV_seis * inp.mu + Ep) / EAH_seis : Infinity;
 
     checks.push(makeCheck(
-      'vuelco-sismico', 'Estabilidad al vuelco (sismica)',
+      'vuelco-sismico', `Estabilidad al vuelco (sismica)${vuelcoSuffix}`,
       1.1, FS_vuelco_seis,
       `FS = ${FS_vuelco_seis.toFixed(2)}`, '≥ 1.10',
       'NCSE-02 / NCSP-07',
     ));
     checks.push(makeCheck(
-      'deslizamiento-sismico', 'Estabilidad al deslizamiento (sismico)',
+      'deslizamiento-sismico', `Estabilidad al deslizamiento (sismico)${deslizSuffix}`,
       1.1, FS_desliz_seis,
       `FS = ${FS_desliz_seis.toFixed(2)}`, '≥ 1.10',
       'NCSE-02 / NCSP-07',
@@ -605,11 +636,15 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   return {
     valid: true,
     Ka,
+    Kp: usePassive ? Kp_rankine : undefined,
     kh_derived: kh,
     kv_derived: kv,
     KAD,
     EAH_total,
     EW: h_wet > 0 ? EW : undefined,
+    Ep: usePassive ? Ep : undefined,
+    EpHeight: usePassive ? dEmb : undefined,
+    W_soil_toe,
     ΣV,
     e,
     sigma_max,

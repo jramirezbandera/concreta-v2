@@ -195,6 +195,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
         <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
         <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
+        <NumField label="df" sub="Empot. frontal (suelo s/punta)" field="df" value={state.df as number} unit="m" setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Materiales">
@@ -216,8 +217,21 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       </CollapsibleSection>
 
       <CollapsibleSection label="Terreno (trasdós)">
-        <NumField labelKey="gamma_soil"       field="gammaSuelo" value={state.gammaSuelo as number} setField={setField} />
-        <NumField label="γsat" sub="Suelo saturado"     field="gammaSat"   value={state.gammaSat   as number} unit="kN/m³" setField={setField} />
+        <UnitNumberInput
+          labelKey="gamma_soil"
+          field="gammaSuelo"
+          value={state.gammaSuelo as number}
+          quantity="weightDensity"
+          onChange={(v) => setField('gammaSuelo', v)}
+        />
+        <UnitNumberInput
+          label="γsat"
+          sub="Suelo saturado"
+          field="gammaSat"
+          value={state.gammaSat as number}
+          quantity="weightDensity"
+          onChange={(v) => setField('gammaSat', v)}
+        />
         <NumField labelKey="phi_soil"         field="phi"        value={state.phi        as number} setField={setField} />
         <NumField labelKey="delta_wall"       field="delta"      value={state.delta      as number} setField={setField} />
         <UnitNumberInput
@@ -228,7 +242,13 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
           quantity="areaLoad"
           onChange={(v) => setField('q', v)}
         />
-        <NumField labelKey="sigma_adm"        field="sigmaAdm"   value={state.sigmaAdm   as number} setField={setField} />
+        <UnitNumberInput
+          labelKey="sigma_adm"
+          field="sigmaAdm"
+          value={state.sigmaAdm as number}
+          quantity="soilPressure"
+          onChange={(v) => setField('sigmaAdm', v)}
+        />
         <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
       </CollapsibleSection>
 
@@ -257,6 +277,29 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
             setField={setField}
           />
         )}
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Empuje pasivo (CTE DB-SE-C §9.3.3)">
+        <div className="flex items-center justify-between py-0.75 gap-2">
+          <span className="text-[13px] text-text-secondary">Considerar Ep</span>
+          <button
+            type="button"
+            onClick={() => setField('usePassive', !(state.usePassive as boolean))}
+            className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+              state.usePassive
+                ? 'bg-accent/15 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-disabled border border-border-main'
+            }`}
+            aria-pressed={state.usePassive as boolean}
+          >
+            {state.usePassive ? 'Activo' : 'Ignorado'}
+          </button>
+        </div>
+        <p className="text-[11px] text-text-disabled mt-1">
+          {state.usePassive
+            ? `Ep = ½·Kp·γ·(df+hf)² aplicado en deslizamiento y vuelco (Kp Rankine).`
+            : 'Lado conservador: la resistencia pasiva no se considera.'}
+        </p>
       </CollapsibleSection>
 
       <CollapsibleSection label="Sismo (NCSE-02 / Mononobe-Okabe)">
