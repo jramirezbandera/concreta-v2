@@ -459,13 +459,7 @@ export function SteelBeamsInputs({
       <CollapsibleSection label="Pandeo lateral (LTB)">
       {/* Lcr stored in mm, displayed in m */}
       <div className="flex items-center justify-between py-0.75 gap-2">
-        <label
-          htmlFor="sb-input-Lcr"
-          className="text-[13px] text-text-secondary whitespace-nowrap min-w-0"
-        >
-          {LABELS.Lcr_LTB.sym}
-          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lcr_LTB.descShort}</span>
-        </label>
+        <InputLabel htmlFor="sb-input-Lcr" label={LABELS.Lcr_LTB.sym} sub={LABELS.Lcr_LTB.descShort} />
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`font-mono text-[9px] px-1.25 py-0.5 rounded transition-colors ${lcrIsAuto ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-disabled'}`}

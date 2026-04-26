@@ -90,7 +90,7 @@ function SelectField({
           const asNum = Number(raw);
           setField(field, isNaN(asNum) || raw === '' ? raw : asNum);
         }}
-        className="min-w-0 max-w-full truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className="min-w-0 max-w-36 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -268,7 +268,7 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
             <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Franja b = 1000 mm (por metro)</p>
           </>
         )}
-        <NumField label="Recubr." sub="mec." field="cover" value={state.cover as number} setField={setField} />
+        <NumField label="Recubrimiento" sub="mec." field="cover" value={state.cover as number} setField={setField} />
       </CollapsibleSection>
 
       {/* MATERIALES */}
