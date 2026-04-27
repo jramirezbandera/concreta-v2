@@ -496,6 +496,10 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
   // NOTE: gradient uses objectBoundingBox, so the vector is in normalized rect
   // space — visually accurate enough even when B ≠ L.
   const e_mag = Math.hypot(result.ex_sls, result.ey_sls);
+  // Uniform pressure (centered load) → no directional gradient, both stops equal.
+  const isUniformPressure =
+    e_mag < 1e-9 ||
+    Math.abs(result.sigma_max - result.sigma_min) < 1e-6;
   const vx = e_mag > 1e-9 ? result.ex_sls / e_mag : 1;
   const vy = e_mag > 1e-9 ? result.ey_sls / e_mag : 0;
   const gx1 = 0.5 - vx / 2;
@@ -541,7 +545,19 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
         <defs>
           {/* Pressure gradient — planta (directional, reflects biaxial eccentricity) */}
           <linearGradient id={gradId} x1={gx1} y1={gy1} x2={gx2} y2={gy2}>
-            {isPdf ? (
+            {isUniformPressure ? (
+              isPdf ? (
+                <>
+                  <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.35" />
+                </>
+              ) : (
+                <>
+                  <stop offset="0%"   stopColor="var(--color-accent,#38bdf8)" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="var(--color-accent,#38bdf8)" stopOpacity="0.35" />
+                </>
+              )
+            ) : isPdf ? (
               <>
                 <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.40" />
                 <stop offset="100%" stopColor="#ef4444" stopOpacity="0.55" />
