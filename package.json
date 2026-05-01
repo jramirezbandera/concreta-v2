@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.1",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Javier Ramírez Bandera",
   "scripts": {
     "prepare": "husky",
     "dev": "vite",

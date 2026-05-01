@@ -137,4 +137,9 @@ Tipografía Geist Sans / Geist Mono. Iconografía técnica fina con
 
 ## Licencia
 
-MIT — ver [LICENSE](LICENSE).
+**PolyForm Noncommercial 1.0.0** — ver [LICENSE](LICENSE).
+
+Copyright © 2026 Javier Ramírez Bandera. Uso libre para fines personales,
+académicos, organizaciones sin ánimo de lucro, instituciones públicas y
+similares. **Cualquier uso comercial requiere licencia separada.** Contacta
+con el autor para acuerdos comerciales.
