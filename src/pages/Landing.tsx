@@ -86,12 +86,29 @@ function RehabIcon() {
   );
 }
 
+function AnalysisIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* Wire-frame: 4 nodes + bars + diagonal — FEM model schematic */}
+      <line x1="4" y1="20" x2="4" y2="6" />
+      <line x1="20" y1="20" x2="20" y2="6" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="20" x2="20" y2="6" />
+      <circle cx="4" cy="6" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="20" cy="6" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="20" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="20" cy="20" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 const GROUP_ICON: Record<string, React.ReactElement> = {
   'Hormigón':       <BeamIcon />,
   'Acero':          <SteelIcon />,
   'Cimentación':    <FootingIcon />,
   'Madera':         <TimberIcon />,
   'Rehabilitación': <RehabIcon />,
+  'Análisis':       <AnalysisIcon />,
 };
 
 // ── Module descriptions ───────────────────────────────────────────────────────
@@ -109,6 +126,7 @@ const MODULE_DESC: Record<string, string> = {
   '/madera/vigas':             'Flexión, cortante y fuego R30–R120. EC5 §6.1',
   '/madera/pilares':           'Pandeo biaxial y fuego. EC5 §6.3',
   '/rehab/empresillado':       'Pilar compuesto batido. EC3 §6.4.2',
+  '/analisis/fem':             'Análisis FEM 2D: nodos, barras, M·V·N y verificación',
 };
 
 // ── Features strip data ───────────────────────────────────────────────────────

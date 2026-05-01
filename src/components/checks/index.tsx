@@ -89,7 +89,7 @@ export function VerdictBadge({ status }: { status: CheckStatus }) {
   );
 }
 
-export function CheckRowItem({ check }: { check: CheckRow }) {
+export function CheckRowItem({ check, compact = false }: { check: CheckRow; compact?: boolean }) {
   const { system } = useUnitSystem();
   const pct = isFinite(check.utilization) ? Math.min(check.utilization * 100, 100) : 100;
   const valueText = checkValueStr(check, system);
@@ -98,7 +98,7 @@ export function CheckRowItem({ check }: { check: CheckRow }) {
   // Neutral row — informational (classification, etc.) with no utilization bar.
   if (check.status === 'neutral' || check.neutral) {
     return (
-      <div className="check-row relative grid items-center gap-3.5 py-2.5 px-4 pl-5 border-b border-border-sub last:border-b-0"
+      <div className={`check-row relative grid items-center gap-3.5 py-2.5 ${compact ? 'px-3 pl-4' : 'px-4 pl-5'} border-b border-border-sub last:border-b-0`}
         style={{ gridTemplateColumns: '1fr auto 60px' }}
       >
         <span className="check-left-rail" />
@@ -116,18 +116,31 @@ export function CheckRowItem({ check }: { check: CheckRow }) {
     );
   }
 
+  // Compact mode (FEM embed): drops the horizontal utilization bar column to
+  // fit the narrower right-side panel. Layout collapses from 4 cols to 3.
+  const gridCols = compact ? '1fr auto auto' : '1fr 140px 64px 60px';
+  const padX = compact ? 'px-3 pl-4' : 'px-4 pl-5';
+  const gap  = compact ? 'gap-2' : 'gap-3.5';
+
+  // In compact mode the description is allowed to wrap onto multiple lines
+  // (the right panel is too narrow for a single-line ellipsis to be readable
+  //  — "M…" or "Ar…" vanishes the meaning entirely).
+  const descClass = compact
+    ? 'text-[12px] text-text-primary leading-snug wrap-break-word'
+    : 'text-[12px] text-text-primary overflow-hidden text-ellipsis whitespace-nowrap';
+
   return (
-    <div className="check-row relative grid items-center gap-3.5 py-2.5 px-4 pl-5 border-b border-border-sub last:border-b-0 cursor-pointer"
-      style={{ gridTemplateColumns: '1fr 140px 64px 60px' }}
+    <div className={`check-row relative grid items-start ${gap} py-2.5 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer`}
+      style={{ gridTemplateColumns: gridCols }}
     >
       <span className="check-left-rail" />
       <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-[12px] text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">{check.description}</span>
+        <span className={descClass}>{check.description}</span>
         {check.article && (
-          <span className="font-mono text-[10px] text-text-disabled">{check.article}</span>
+          <span className="font-mono text-[10px] text-text-disabled leading-snug">{check.article}</span>
         )}
       </div>
-      <span className="text-right">
+      <span className="text-right min-w-0 self-center">
         <span className="block font-mono text-[11px] text-text-secondary whitespace-nowrap tabular-nums">
           {valueText}
         </span>
@@ -137,14 +150,16 @@ export function CheckRowItem({ check }: { check: CheckRow }) {
           </span>
         )}
       </span>
-      <div className="h-1 bg-border-sub rounded-sm overflow-hidden">
-        <div
-          className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
-          style={{ width: `${pct}%` }}
-          role="presentation"
-        />
-      </div>
-      <span className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] whitespace-nowrap text-center ${STATUS_TAG_CLASSES[check.status]}`}>
+      {!compact && (
+        <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center">
+          <div
+            className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
+            style={{ width: `${pct}%` }}
+            role="presentation"
+          />
+        </div>
+      )}
+      <span className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] whitespace-nowrap text-center self-center ${STATUS_TAG_CLASSES[check.status]}`}>
         {isFinite(check.utilization) && check.utilization <= 1
           ? `${(check.utilization * 100).toFixed(0)}%`
           : STATUS_LABEL[check.status]}

@@ -116,6 +116,17 @@ function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number
           <path d="M6 2v12M10 2v12M2 6h12M2 10h12"/>
         </svg>
       );
+    // FEM 2D: 4-node frame with diagonal — wire-frame model schematic
+    case 'concreta-fem-2d':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" aria-hidden="true" className="shrink-0">
+          <path d="M3 13V4M13 13V4M3 4h10M3 13l10-9" />
+          <circle cx="3" cy="4" r="1.1" fill="currentColor" stroke="none" />
+          <circle cx="13" cy="4" r="1.1" fill="currentColor" stroke="none" />
+          <circle cx="3" cy="13" r="1.1" fill="currentColor" stroke="none" />
+          <circle cx="13" cy="13" r="1.1" fill="currentColor" stroke="none" />
+        </svg>
+      );
     // Empresillado: two parallel chords with horizontal battens
     case 'concreta-empresillado':
       return (

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/defaults';
 
-import { type LoadGenResult, getPsiRow } from '../../lib/calculations/loadGen';
+import { type LoadGenResult, getPsiRow, USE_CATEGORIES } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
@@ -19,21 +19,14 @@ interface SteelBeamsInputsProps {
   onLcrChange: (val: number) => void;
   /** Derived forces for display (null when inputs are invalid). */
   loadGen: LoadGenResult | null;
+  /** FEM embed: hide gk/qk/bTrib/bSide inputs + derivation block (forces come
+   *  from FEM envelope, not user input). */
+  hideLoads?: boolean;
+  /** FEM embed: hide beamType selector (FEM determines BCs by topology). */
+  hideBeamType?: boolean;
+  /** FEM embed: hide L input (FEM provides bar length). */
+  hideL?: boolean;
 }
-
-// CTE DB-SE-AE tabla 3.1 — use categories
-const USE_CATEGORIES = [
-  { value: 'A1', label: 'A1  Residencial privado',  qk: 2.0 },
-  { value: 'A2', label: 'A2  Trasteros',             qk: 3.0 },
-  { value: 'B',  label: 'B   Administrativa',        qk: 3.0 },
-  { value: 'C1', label: 'C1  Zonas con mesas',       qk: 3.0 },
-  { value: 'C2', label: 'C2  Asientos fijos',        qk: 4.0 },
-  { value: 'C3', label: 'C3  Sin obstáculos',        qk: 5.0 },
-  { value: 'D1', label: 'D1  Comercio local',        qk: 5.0 },
-  { value: 'E1', label: 'E1  Almacén',               qk: 7.5 },
-  { value: 'G1', label: 'G1  Cubierta accesible',    qk: 1.0 },
-  { value: 'custom', label: 'Personalizada',         qk: null },
-] as const;
 
 // ── SVG structural schematics for beam type buttons ──────────────────────────
 
@@ -240,6 +233,9 @@ export function SteelBeamsInputs({
   lcrIsAuto,
   onLcrChange,
   loadGen,
+  hideLoads = false,
+  hideBeamType = false,
+  hideL = false,
 }: SteelBeamsInputsProps) {
   const availableSizes = getSizesForTipo(state.tipo);
 
@@ -292,7 +288,8 @@ export function SteelBeamsInputs({
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Viga de acero">
 
-      {/* BEAM TYPE SELECTOR */}
+      {/* BEAM TYPE SELECTOR — hidden in FEM embed (BCs from topology) */}
+      {!hideBeamType && (
       <div
         role="radiogroup"
         aria-label="Tipo de viga"
@@ -330,6 +327,7 @@ export function SteelBeamsInputs({
           );
         })}
       </div>
+      )}
 
       {/* PERFIL */}
       <CollapsibleSection label="Perfil">
@@ -354,7 +352,8 @@ export function SteelBeamsInputs({
         options={(['S275', 'S355'] as const).map((s) => ({ value: s, label: s }))}
         setField={setField}
       />
-      {/* L — beam span, stored in mm, displayed in m */}
+      {/* L — beam span, stored in mm, displayed in m. Hidden in FEM embed (FEM provides L). */}
+      {!hideL && (
       <div className="flex items-center justify-between py-0.75 gap-2">
         <label
           htmlFor="sb-input-L"
@@ -382,9 +381,11 @@ export function SteelBeamsInputs({
           </span>
         </div>
       </div>
+      )}
       </CollapsibleSection>
 
-      {/* CARGAS */}
+      {/* CARGAS — hidden in FEM embed (forces from envelope) */}
+      {!hideLoads && (
       <CollapsibleSection label="Cargas">
       {/* bTrib — directly below L */}
       <NumField
@@ -454,6 +455,7 @@ export function SteelBeamsInputs({
         </div>
       </div>
       </CollapsibleSection>
+      )}
 
       {/* PANDEO LATERAL (LTB) */}
       <CollapsibleSection label="Pandeo lateral (LTB)">

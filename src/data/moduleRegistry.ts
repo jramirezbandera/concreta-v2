@@ -13,6 +13,7 @@ import {
   timberColumnDefaults,
   forjadosDefaults,
   anchorPlateDefaults,
+  femAnalysisDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -27,9 +28,10 @@ import {
   type TimberColumnInputs,
   type ForjadosInputs,
   type AnchorPlateInputs,
+  type FemAnalysisInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -153,6 +155,14 @@ export const moduleRegistry: ModuleEntry[] = [
     defaults: anchorPlateDefaults,
     shipped: true,
   },
+  {
+    key: 'concreta-fem-2d',
+    route: '/analisis/fem',
+    label: 'FEM 2D',
+    group: 'Análisis',
+    defaults: femAnalysisDefaults,
+    shipped: true,
+  },
 ] as const;
 
 // Per-module schema versions. Keys MUST match the literal passed to
@@ -174,6 +184,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'timber-beams': '1',
   'timber-columns': '1',
   'anchor-plate': '1',
+  'fem-2d': '1',
 };
 
 export function getModuleSchemaVersion(moduleKey: string): string {

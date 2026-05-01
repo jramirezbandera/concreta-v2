@@ -15,6 +15,7 @@ import { TimberBeamsModule } from './features/timber-beams';
 import { TimberColumnsModule } from './features/timber-columns';
 import { ForjadosModule } from './features/forjados';
 import { AnchorPlateModule } from './features/anchor-plate';
+import { FemAnalysisModule } from './features/fem-analysis';
 import { Landing } from './pages/Landing';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
       { path: 'madera/vigas', element: <TimberBeamsModule /> },
       { path: 'madera/pilares', element: <TimberColumnsModule /> },
       { path: 'acero/placas-de-anclaje', element: <AnchorPlateModule /> },
+      { path: 'analisis/fem', element: <FemAnalysisModule /> },
       { path: '*', element: <NotFound /> },
     ],
   },

@@ -9,6 +9,12 @@ import type { Quantity, UnitSystem } from '../../lib/units/types';
 interface SteelBeamsResultsProps {
   result: SteelBeamResult;
   deflLimit: number;
+  /**
+   * When true, drop the horizontal utilization bar from check rows so the
+   * results fit in the narrower FEM right-side panel without horizontal
+   * overflow. The numeric percentage tag is preserved.
+   */
+  compact?: boolean;
 }
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
@@ -63,13 +69,15 @@ function NeutralCheckRow({ check }: { check: SteelCheckRow }) {
   );
 }
 
-function ActiveCheckRow({ check, system }: { check: SteelCheckRow; system: UnitSystem }) {
+function ActiveCheckRow({ check, system, compact = false }: { check: SteelCheckRow; system: UnitSystem; compact?: boolean }) {
   const status = check.status as DisplayStatus;
   const pct = Math.min(check.utilization * 100, 100);
+  const gridCols = compact ? '1fr auto auto' : '1fr auto 112px auto';
+  const gap = compact ? 'gap-2' : 'gap-3';
   return (
-    <div className="grid grid-cols-[1fr_auto_w-28_auto] items-center gap-3 py-1.75 border-b border-border-sub last:border-b-0"
-      style={{ gridTemplateColumns: '1fr auto 112px auto' }}>
-      <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
+    <div className={`grid items-start ${gap} py-1.75 border-b border-border-sub last:border-b-0`}
+      style={{ gridTemplateColumns: gridCols }}>
+      <span className="text-[12px] text-text-secondary leading-snug wrap-break-word min-w-0">{check.description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">
         <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">
           {checkValueStr(check, system)}
@@ -78,13 +86,15 @@ function ActiveCheckRow({ check, system }: { check: SteelCheckRow; system: UnitS
           {checkLimitStr(check, system)}
         </span>
       </div>
-      <div className="h-1 bg-border-main rounded-sm overflow-hidden">
-        <div
-          className={`h-full rounded-sm ${BAR_CLASSES[status]}`}
-          style={{ width: `${pct}%` }}
-          role="presentation"
-        />
-      </div>
+      {!compact && (
+        <div className="h-1 bg-border-main rounded-sm overflow-hidden">
+          <div
+            className={`h-full rounded-sm ${BAR_CLASSES[status]}`}
+            style={{ width: `${pct}%` }}
+            role="presentation"
+          />
+        </div>
+      )}
       <span
         className={`font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] whitespace-nowrap ${STATUS_TAG_CLASSES[status]}`}
       >
@@ -96,9 +106,9 @@ function ActiveCheckRow({ check, system }: { check: SteelCheckRow; system: UnitS
   );
 }
 
-function CheckRowItem({ check, system }: { check: SteelCheckRow; system: UnitSystem }) {
+function CheckRowItem({ check, system, compact = false }: { check: SteelCheckRow; system: UnitSystem; compact?: boolean }) {
   if (check.neutral) return <NeutralCheckRow check={check} />;
-  return <ActiveCheckRow check={check} system={system} />;
+  return <ActiveCheckRow check={check} system={system} compact={compact} />;
 }
 
 function GroupHeader({ label }: { label: string }) {
@@ -118,7 +128,7 @@ function ValueRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps) {
+export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelBeamsResultsProps) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   // Class 4 or unknown profile error
@@ -137,7 +147,7 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
         {/* Still show classification row */}
         {result.checks.length > 0 && (
           <div>
-            {result.checks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+            {result.checks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
           </div>
         )}
       </div>
@@ -184,23 +194,23 @@ export function SteelBeamsResults({ result, deflLimit }: SteelBeamsResultsProps)
 
       {/* Section classification */}
       <GroupHeader label="Sección" />
-      {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+      {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
 
       {/* ELU Flexión */}
       <GroupHeader label="ELU Flexión" />
-      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
 
       {/* ELU Cortante + Interacción */}
       <GroupHeader label="ELU Cortante" />
-      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
 
       {/* Pandeo lateral */}
       <GroupHeader label="Pandeo lateral (LTB)" />
-      {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+      {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
 
       {/* ELS Flecha */}
       <GroupHeader label="ELS Flecha" />
-      {deflChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} />)}
+      {deflChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
     </div>
   );
 }

@@ -1,0 +1,221 @@
+/* FEM 2D — module-scoped styles. All class names use the `fem-` prefix
+   to avoid colliding with global Tailwind/CSS conventions. */
+
+.fem-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  transition: all 150ms;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+}
+.fem-tool-btn:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+.fem-tool-btn[data-active='true'] {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--color-accent);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.fem-ctrl-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-main);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  transition: all 150ms;
+  background: var(--color-bg-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.fem-ctrl-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+.fem-ctrl-btn--active {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.fem-seg {
+  display: inline-flex;
+  border: 1px solid var(--color-border-main);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+}
+.fem-seg-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border-main);
+  transition: all 150ms;
+  background: none;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  cursor: pointer;
+}
+.fem-seg-btn:last-child { border-right: none; }
+.fem-seg-btn:hover { color: var(--color-text-primary); }
+.fem-seg-btn[data-active='true'] {
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--color-accent);
+}
+
+.fem-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+.fem-tag-ok      { background: rgba(34,197,94,0.10);  color: var(--color-state-ok); }
+.fem-tag-warn    { background: rgba(245,158,11,0.10); color: var(--color-state-warn); }
+.fem-tag-fail    { background: rgba(239,68,68,0.10);  color: var(--color-state-fail); }
+.fem-tag-neutral { background: rgba(100,116,139,0.10);color: var(--color-state-neutral); }
+
+.fem-section-h {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-disabled);
+  padding: 9px 0 7px;
+  border-bottom: 1px solid var(--color-border-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  width: 100%;
+}
+
+.fem-nf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+.fem-nf-row label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.fem-nf-input {
+  display: flex;
+  align-items: stretch;
+  height: 24px;
+}
+.fem-nf-input input {
+  width: 60px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-main);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0 6px;
+  outline: none;
+  transition: border-color 150ms;
+  color: var(--color-text-primary);
+}
+.fem-nf-input input:focus { border-color: var(--color-accent); }
+.fem-nf-unit {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-main);
+  border-radius: 0 4px 4px 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-text-disabled);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  min-width: 32px;
+}
+
+.fem-check-row {
+  display: grid;
+  grid-template-columns: 1fr auto 44px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0 7px 10px;
+  border-bottom: 1px solid var(--color-border-sub);
+  position: relative;
+  transition: background 120ms;
+}
+.fem-check-row--clickable { cursor: pointer; }
+.fem-check-row--clickable:hover { background: rgba(56,189,248,0.04); }
+.fem-check-rail {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 120ms;
+}
+.fem-check-row--clickable:hover .fem-check-rail { background: var(--color-accent); }
+.fem-check-name { font-size: 12px; color: var(--color-text-secondary); }
+.fem-check-val  { font-family: var(--font-mono); font-size: 11px; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.fem-check-bar  { height: 3px; background: var(--color-border-main); border-radius: 1px; overflow: hidden; }
+.fem-check-bar > div { height: 100%; }
+
+.fem-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fem-modal {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-main);
+  border-radius: 6px;
+  width: 560px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.fem-ambient-ok   { background: linear-gradient(180deg, rgba(34,197,94,0.08) 0%, transparent 80px); border-top: 2px solid var(--color-state-ok); }
+.fem-ambient-warn { background: linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 80px); border-top: 2px solid var(--color-state-warn); }
+.fem-ambient-fail { background: linear-gradient(180deg, rgba(239,68,68,0.08) 0%, transparent 80px); border-top: 2px solid var(--color-state-fail); }
+
+@keyframes fem-pulse-accent {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(56,189,248,0)); }
+  50%      { filter: drop-shadow(0 0 4px rgba(56,189,248,0.7)); }
+}
+.fem-selected-pulse { animation: fem-pulse-accent 1.6s ease-in-out infinite; }
+
+.fem-landing-card:hover {
+  border-color: var(--color-accent) !important;
+  background: var(--color-bg-elevated) !important;
+}
+.fem-landing-card-blank:hover {
+  border-color: var(--color-accent) !important;
+  color: var(--color-text-secondary) !important;
+}

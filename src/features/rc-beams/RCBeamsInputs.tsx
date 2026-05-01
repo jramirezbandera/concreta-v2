@@ -12,6 +12,17 @@ interface RCBeamsInputsProps {
   section: 'vano' | 'apoyo';
   setSection: (s: 'vano' | 'apoyo') => void;
   setField: (field: string, value: RCBeamInputs[keyof RCBeamInputs]) => void;
+  /** When true, hide the "Solicitaciones" section (Md/VEd/M_G/M_Q inputs).
+   *  Used by FEM embed where forces come from the envelope, not user input. */
+  hideSolicitations?: boolean;
+  /** When true, hide the vano/apoyo tab UI at the top. Used by FEM embed where
+   *  the section toggle lives in the external <ResultsHeader>. */
+  hideSectionTabs?: boolean;
+  /** When true, render the per-section armado blocks (tracción / compresión /
+   *  armadura transversal / solicitaciones) twice — once for vano and once for
+   *  apoyo, with a labelled divider between them. Used by FEM embed so the
+   *  user sees and edits both regions without toggling. Implies hideSectionTabs. */
+  showBothArmados?: boolean;
 }
 
 function NumField({
@@ -37,7 +48,7 @@ function NumField({
   const resolved = labelKey
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '\u2014' ? '' : resolved.unit;
+  const unitText = resolved.unit === '—' ? '' : resolved.unit;
   const [localStr, setLocalStr] = useState(() => String(value));
 
   useEffect(() => {
@@ -119,24 +130,92 @@ function SelectField({
 }
 
 const LOAD_TYPE_OPTIONS = [
-  { value: 'residential', label: 'Residencial (\u03c8\u2082=0.3)' },
-  { value: 'office',      label: 'Oficinas (\u03c8\u2082=0.3)' },
-  { value: 'parking',     label: 'Garaje (\u03c8\u2082=0.6)' },
-  { value: 'roof',        label: 'Cubierta (\u03c8\u2082=0.0)' },
+  { value: 'residential', label: 'Residencial (ψ₂=0.3)' },
+  { value: 'office',      label: 'Oficinas (ψ₂=0.3)' },
+  { value: 'parking',     label: 'Garaje (ψ₂=0.6)' },
+  { value: 'roof',        label: 'Cubierta (ψ₂=0.0)' },
   { value: 'custom',      label: 'Personalizado' },
 ];
 
-export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsInputsProps) {
-  const isVano = section === 'vano';
-  const p = isVano ? 'vano' : 'apoyo';
+function PerSectionArmado({
+  state, setField, sectionKind, hideSolicitations,
+}: {
+  state: RCBeamInputs;
+  setField: RCBeamsInputsProps['setField'];
+  sectionKind: 'vano' | 'apoyo';
+  hideSolicitations: boolean;
+}) {
+  const isVano = sectionKind === 'vano';
+  const p = sectionKind;
+  const tensionLabel  = isVano ? 'Traccion (barras inf.)' : 'Traccion (barras sup.)';
+  const comprLabel    = isVano ? 'Compresion (barras sup.)' : 'Compresion (barras inf.)';
+  const tensionNField = isVano ? 'vano_bot_nBars'   : 'apoyo_top_nBars';
+  const tensionDField = isVano ? 'vano_bot_barDiam' : 'apoyo_top_barDiam';
+  const comprNField   = isVano ? 'vano_top_nBars'   : 'apoyo_bot_nBars';
+  const comprDField   = isVano ? 'vano_top_barDiam' : 'apoyo_bot_barDiam';
 
-  // Labels that depend on the zone's moment sign
-  const tensionLabel   = isVano ? 'Traccion (barras inf.)' : 'Traccion (barras sup.)';
-  const comprLabel     = isVano ? 'Compresion (barras sup.)' : 'Compresion (barras inf.)';
-  const tensionNField  = isVano ? 'vano_bot_nBars'    : 'apoyo_top_nBars';
-  const tensionDField  = isVano ? 'vano_bot_barDiam'  : 'apoyo_top_barDiam';
-  const comprNField    = isVano ? 'vano_top_nBars'    : 'apoyo_bot_nBars';
-  const comprDField    = isVano ? 'vano_top_barDiam'  : 'apoyo_bot_barDiam';
+  return (
+    <>
+      <CollapsibleSection label={tensionLabel}>
+        <NumField label="Num. barras" field={tensionNField} value={state[tensionNField] as number}
+          unit="ud" min={1} integer setField={setField} />
+        <SelectField label="Diametro" field={tensionDField} value={state[tensionDField] as number}
+          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label={comprLabel}>
+        <NumField label="Num. barras" field={comprNField} value={state[comprNField] as number}
+          unit="ud" min={1} integer setField={setField} />
+        <SelectField label="Diametro" field={comprDField} value={state[comprDField] as number}
+          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Armadura transversal">
+        <SelectField labelKey="bar_diameter_stirrup" field={`${p}_stirrupDiam`}
+          value={state[`${p}_stirrupDiam`] as number}
+          options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `φ ${d}` }))}
+          setField={setField} />
+        <NumField label="s" sub="Separación" field={`${p}_stirrupSpacing`}
+          value={state[`${p}_stirrupSpacing`] as number} unit="mm" min={50} setField={setField} />
+        <NumField labelKey="n_stirrup_legs" field={`${p}_stirrupLegs`}
+          value={state[`${p}_stirrupLegs`] as number} min={2} integer setField={setField} />
+      </CollapsibleSection>
+
+      {!hideSolicitations && (
+        <CollapsibleSection label="Solicitaciones">
+          <UnitNumberInput label={isVano ? 'Md' : '|Md|'} sub={isVano ? '(ELU, M+)' : '(ELU, M−)'}
+            field={`${p}_Md`} value={state[`${p}_Md`] as number} quantity="moment"
+            onChange={(v) => setField(`${p}_Md`, v)} />
+          <UnitNumberInput label="VEd" sub="(ELU)" field={`${p}_VEd`}
+            value={state[`${p}_VEd`] as number} quantity="force"
+            onChange={(v) => setField(`${p}_VEd`, v)} />
+          <UnitNumberInput label="M carga permanente" sub="(ELS)" field={`${p}_M_G`}
+            value={state[`${p}_M_G`] as number} quantity="moment"
+            onChange={(v) => setField(`${p}_M_G`, v)} />
+          <UnitNumberInput label="M carga variable" sub="(ELS)" field={`${p}_M_Q`}
+            value={state[`${p}_M_Q`] as number} quantity="moment"
+            onChange={(v) => setField(`${p}_M_Q`, v)} />
+        </CollapsibleSection>
+      )}
+    </>
+  );
+}
+
+function ArmadoSectionHeader({ label }: { label: string }) {
+  return (
+    <div className="mt-3 mb-1 px-1 text-[10px] font-mono uppercase tracking-[0.07em] font-semibold text-text-disabled border-b border-border-sub pb-1">
+      {label}
+    </div>
+  );
+}
+
+export function RCBeamsInputs({
+  state, section, setSection, setField,
+  hideSolicitations = false,
+  hideSectionTabs = false,
+  showBothArmados = false,
+}: RCBeamsInputsProps) {
+  const isVano = section === 'vano';
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
@@ -194,7 +273,9 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
         )}
       </CollapsibleSection>
 
-      {/* Section tab selector */}
+      {/* Section tab selector — hidden in FEM embed (toggle lives externally
+       *  or both regions are shown side-by-side via showBothArmados) */}
+      {!hideSectionTabs && !showBothArmados && (
       <div className="flex mt-3 mb-0 border-b border-border-main" role="tablist" aria-label="Seccion">
         <button
           role="tab"
@@ -223,110 +304,18 @@ export function RCBeamsInputs({ state, section, setSection, setField }: RCBeamsI
           Apoyo
         </button>
       </div>
+      )}
 
-      {/* Tension bars */}
-      <CollapsibleSection label={tensionLabel}>
-        <NumField
-          label="Num. barras"
-          field={tensionNField}
-          value={state[tensionNField] as number}
-          unit="ud"
-          min={1}
-          integer
-          setField={setField}
-        />
-        <SelectField
-          label="Diametro"
-          field={tensionDField}
-          value={state[tensionDField] as number}
-          options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-          setField={setField}
-        />
-      </CollapsibleSection>
-
-      {/* Compression bars */}
-      <CollapsibleSection label={comprLabel}>
-        <NumField
-          label="Num. barras"
-          field={comprNField}
-          value={state[comprNField] as number}
-          unit="ud"
-          min={1}
-          integer
-          setField={setField}
-        />
-        <SelectField
-          label="Diametro"
-          field={comprDField}
-          value={state[comprDField] as number}
-          options={availableBarDiams.map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-          setField={setField}
-        />
-      </CollapsibleSection>
-
-      {/* Transverse reinforcement */}
-      <CollapsibleSection label="Armadura transversal">
-        <SelectField
-          labelKey="bar_diameter_stirrup"
-          field={`${p}_stirrupDiam`}
-          value={state[`${p}_stirrupDiam`] as number}
-          options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `\u03c6 ${d}` }))}
-          setField={setField}
-        />
-        <NumField
-          label="s"
-          sub="Separación"
-          field={`${p}_stirrupSpacing`}
-          value={state[`${p}_stirrupSpacing`] as number}
-          unit="mm"
-          min={50}
-          setField={setField}
-        />
-        <NumField
-          labelKey="n_stirrup_legs"
-          field={`${p}_stirrupLegs`}
-          value={state[`${p}_stirrupLegs`] as number}
-          min={2}
-          integer
-          setField={setField}
-        />
-      </CollapsibleSection>
-
-      {/* Per-section solicitations */}
-      <CollapsibleSection label="Solicitaciones">
-        <UnitNumberInput
-          label={isVano ? 'Md' : '|Md|'}
-          sub={isVano ? '(ELU, M+)' : '(ELU, M\u2212)'}
-          field={`${p}_Md`}
-          value={state[`${p}_Md`] as number}
-          quantity="moment"
-          onChange={(v) => setField(`${p}_Md`, v)}
-        />
-        <UnitNumberInput
-          label="VEd"
-          sub="(ELU)"
-          field={`${p}_VEd`}
-          value={state[`${p}_VEd`] as number}
-          quantity="force"
-          onChange={(v) => setField(`${p}_VEd`, v)}
-        />
-        <UnitNumberInput
-          label="M carga permanente"
-          sub="(ELS)"
-          field={`${p}_M_G`}
-          value={state[`${p}_M_G`] as number}
-          quantity="moment"
-          onChange={(v) => setField(`${p}_M_G`, v)}
-        />
-        <UnitNumberInput
-          label="M carga variable"
-          sub="(ELS)"
-          field={`${p}_M_Q`}
-          value={state[`${p}_M_Q`] as number}
-          quantity="moment"
-          onChange={(v) => setField(`${p}_M_Q`, v)}
-        />
-      </CollapsibleSection>
+      {showBothArmados ? (
+        <>
+          <ArmadoSectionHeader label="Armado · Vano (M+)" />
+          <PerSectionArmado state={state} setField={setField} sectionKind="vano" hideSolicitations={hideSolicitations} />
+          <ArmadoSectionHeader label="Armado · Apoyo (M−)" />
+          <PerSectionArmado state={state} setField={setField} sectionKind="apoyo" hideSolicitations={hideSolicitations} />
+        </>
+      ) : (
+        <PerSectionArmado state={state} setField={setField} sectionKind={isVano ? 'vano' : 'apoyo'} hideSolicitations={hideSolicitations} />
+      )}
 
     </div>
   );

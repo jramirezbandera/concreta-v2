@@ -8,6 +8,18 @@ import type { Quantity } from '../../lib/units/types';
 interface RCBeamsResultsProps {
   result: RCBeamResult;
   activeSection: 'vano' | 'apoyo';
+  /**
+   * When true, render only the active section block (single-section mode used
+   * by FEM embed where the toggle lives in <ResultsHeader>). Default false:
+   * standalone module shows both blocks for visual context.
+   */
+  hideSectionTabs?: boolean;
+  /**
+   * When true, drop the horizontal utilization bar from check rows so the
+   * results fit in the narrower FEM right-side panel without horizontal
+   * overflow. The numeric percentage tag is preserved.
+   */
+  compact?: boolean;
 }
 
 function SectionBlock({
@@ -15,11 +27,13 @@ function SectionBlock({
   section,
   isActive,
   fmtSi,
+  compact = false,
 }: {
   title: string;
   section: RCBeamSectionResult;
   isActive: boolean;
   fmtSi: (v: number, q: Quantity) => string;
+  compact?: boolean;
 }) {
   if (!section.valid) {
     return (
@@ -70,20 +84,20 @@ function SectionBlock({
 
       {/* Check groups */}
       <GroupHeader label="ELU Flexion" />
-      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {bendingChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
 
       <GroupHeader label="ELU Cortante" />
-      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
 
       {spacingChecks.length > 0 && (
         <>
           <GroupHeader label="Separacion barras" />
-          {spacingChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+          {spacingChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
         </>
       )}
 
       <GroupHeader label="ELS Fisuracion" />
-      {crackingChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+      {crackingChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
 
       {/* Rebar info footer */}
       <div className="mt-3 pt-2 border-t border-border-sub space-y-1">
@@ -100,7 +114,7 @@ function SectionBlock({
   );
 }
 
-export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
+export function RCBeamsResults({ result, activeSection, hideSectionTabs = false, compact = false }: RCBeamsResultsProps) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
 
@@ -112,6 +126,17 @@ export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
     );
   }
 
+  // FEM embed mode: single-section render driven by external toggle.
+  if (hideSectionTabs) {
+    const section = activeSection === 'vano' ? result.vano : result.apoyo;
+    const title = activeSection === 'vano' ? 'Vano' : 'Apoyo';
+    return (
+      <div className="flex flex-col gap-4" aria-label="Resultados">
+        <SectionBlock title={title} section={section} isActive fmtSi={fmtSi} compact={compact} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4" aria-label="Resultados">
       <SectionBlock
@@ -119,12 +144,14 @@ export function RCBeamsResults({ result, activeSection }: RCBeamsResultsProps) {
         section={result.vano}
         isActive={activeSection === 'vano'}
         fmtSi={fmtSi}
+        compact={compact}
       />
       <SectionBlock
         title="Apoyo"
         section={result.apoyo}
         isActive={activeSection === 'apoyo'}
         fmtSi={fmtSi}
+        compact={compact}
       />
     </div>
   );

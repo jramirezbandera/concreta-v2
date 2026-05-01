@@ -4,6 +4,26 @@ import { BEAM_CASES } from './beamCases';
 export const GAMMA_G = 1.35;
 export const GAMMA_Q = 1.50;
 
+/**
+ * CTE DB-SE-AE Tabla 3.1 — use categories with characteristic Qk loads.
+ * Single source of truth for both steel-beams and FEM 2D modules.
+ * Each category links to a row of ψ factors in PSI_VALUES below (ELU/ELS).
+ */
+export const USE_CATEGORIES = [
+  { value: 'A1', label: 'A1  Residencial privado',  qk: 2.0 },
+  { value: 'A2', label: 'A2  Trasteros',             qk: 3.0 },
+  { value: 'B',  label: 'B   Administrativa',        qk: 3.0 },
+  { value: 'C1', label: 'C1  Zonas con mesas',       qk: 3.0 },
+  { value: 'C2', label: 'C2  Asientos fijos',        qk: 4.0 },
+  { value: 'C3', label: 'C3  Sin obstáculos',        qk: 5.0 },
+  { value: 'D1', label: 'D1  Comercio local',        qk: 5.0 },
+  { value: 'E1', label: 'E1  Almacén',               qk: 7.5 },
+  { value: 'G1', label: 'G1  Cubierta accesible',    qk: 1.0 },
+  { value: 'custom', label: 'Personalizada',         qk: null },
+] as const;
+
+export type UseCategoryCode = typeof USE_CATEGORIES[number]['value'];
+
 /** ψ factors per use category — CTE DB-SE-AE Tabla 4.2 */
 const PSI_VALUES: Record<string, { psi0: number; psi1: number; psi2: number }> = {
   A1:     { psi0: 0.7, psi1: 0.5, psi2: 0.3 },

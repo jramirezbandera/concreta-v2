@@ -276,3 +276,171 @@ Renderer: si `valueNum != null && valueQty` → `formatQuantity(valueNum, valueQ
 **Where to start:** `src/lib/calculations/types.ts` — refactor `CheckRow` + `makeCheck`. Añadir overloads o segundo constructor `makeCheckFromStr(id, desc, valueStr, limitStr, util, status, article)` para los casos no-numéricos.
 
 **Depends on:** `feat/units-toggle` branch creado, antes del piloto triple.
+
+---
+
+## P0 — FEM 2D V1 (post-ship trust gates)
+
+Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-design-20260428-151551.md.
+
+### V1.2 — Generalize `<ResultsUnsolvable>` to shared error-state pattern
+
+**Status:** DEFERRED. Capturado en /plan-eng-review re-pass 2026-04-29 sobre Javier-main-design-20260429-162232.md.
+
+**What:** V1.1 introduce `<ResultsUnsolvable>` local en `src/features/fem-analysis/embedded/` para renderizar el estado de modelo inestable (mecanismo, sin apoyos). El componente reutiliza `state-fail` ambient + ResultsHeader con label "INESTABLE". Cuando el segundo módulo necesite un error state análogo (ej: muros con suelo no resoluble, zapatas con cargas exóticas), se promueve a `<ErrorAmbient>` shared en `src/components/ui/`.
+
+**Why:** evitar duplicación cuando aparezca el segundo caso. Hoy YAGNI — un solo módulo lo usa.
+
+**Pros:** componente compartido para error states con ambient gradient + label override; cualquier módulo lo consume.
+
+**Cons:** generalización prematura si solo el FEM lo usa; refactor del local cuando llegue el segundo módulo.
+
+**Context:** ver design doc Javier-main-design-20260429-162232.md → §"Solver error contract (escala P2-D)" + §"Cabecera 'Verdict global del modelo'". El pattern: `<VerdictBadge>` shared + `state-fail` ambient + label override + content slot. Cuando otro módulo necesite "no se puede calcular esto" UI, se generaliza ahí.
+
+**Where to start:** examinar dos módulos candidatos (ej: muros sin geometría suelo, anclajes con momento>capacidad). Si ambos quieren el mismo patrón, refactor `<ResultsUnsolvable>` a `<ErrorAmbient>` con props `{ icon, label, errors, children }` y mover a shared.
+
+**Depends on:** V1.1 ship + segundo módulo que necesite error state similar.
+
+### V1.2 — PDF FEM unifica con `<RCBeamsResults>` layout standalone
+
+**Status:** DEFERRED. Capturado en /plan-eng-review 2026-04-29 para el design doc Javier-main-design-20260429-162232.md.
+
+**What:** `lib/pdf/femAnalysis.ts` actualmente monta su propio layout para vano/apoyo. Tras la V1.1 (panel derecho embebe `<RCBeamsResults>` real), hay drift entre la pantalla y el PDF. V1.2 unifica: cuando una barra tiene `material: 'rc'`, el PDF reutiliza el mismo flujo que `lib/pdf/rcBeams.ts` (PDF del módulo standalone Vigas HA). Análogo para steel.
+
+**Why:** consistency cruzada. La V1.1 elimina las 6 incongruencias visibles que el usuario reportó pero introduce una séptima en superficie diferida (PDF). Hoy es una incongruencia menor y delimitada (solo se ve al exportar PDF), pero un ingeniero que documente un cálculo crítico verá un layout distinto al de los módulos standalone.
+
+**Pros:** simetría total entre pantalla y PDF; reutilización del PDF de módulos standalone (mismo template, mismos estilos); cero duplicación.
+
+**Cons:** refactor del PDF builder (~150 líneas); cobertura tests PDF actual se renueva.
+
+**Context:** ver design doc Javier-main-design-20260429-162232.md → Tradeoff explícito en la sección Open Questions: V1.1 mantiene el PDF actual; V1.2 unifica.
+
+**Where to start:** examinar `lib/pdf/rcBeams.ts` (PDF Vigas HA standalone). Identificar los componentes reutilizables (header, vano-block, apoyo-block, checks-table). En `femAnalysis.ts`: para cada barra HA, llamar al sub-renderer del PDF Vigas HA en lugar del layout propio FEM. Tests del PDF FEM (`src/test/fem-analysis/femAnalysisPdf.test.ts`) actualizan assertions sobre el contenido pero no sobre el shape (sigue siendo PdfResult).
+
+**Depends on:** V1.1 ship (embed real en pantalla).
+
+### CI gate para los 7 casos canónicos del solver FEM
+
+**Status:** TODO post-V1 ship. Capturado en eng-review.
+
+**What:** configurar GitHub Actions / pipeline para ejecutar `vitest run src/test/fem-analysis/solver.test.ts` en cada PR. Cualquier divergencia >1e-6 vs solución analítica = build red, no merge.
+
+**Why:** el primer usuario beta detectó que el solver mock no era real. Los 7 casos canónicos (simple beam UDL, continuous 2/3 vanos UDL, ménsula UDL/punto, simple beam point center, Gerber con articulación interna) son la línea de defensa contra regresiones del solver real. Sin CI gate, una refactor inadvertida puede romper la solución analítica y nadie se entera hasta que un usuario lo detecta en obra.
+
+**Pros:** protege la confianza que Concreta ha construido; cualquier PR que toque solver.ts/autoDecompose.ts es validado contra física conocida.
+
+**Cons:** requiere configurar GitHub Actions (si no está ya) o equivalente.
+
+**Context:** los 7 casos están listados en design doc Success Criteria #7. Implementación de solver pasa por TDD escribiendo estos tests primero. CI gate es la cristalización de ese TDD.
+
+**Where to start:** verificar `.github/workflows/` existente; si hay `test.yml`, añadir el comando del FEM solver suite. Si no, crear flow mínimo: checkout + bun/npm install + vitest run. Tag job como "fem-solver-canonical" para visibilidad en PR checks.
+
+**Depends on:** V1 ship (solver real implementado + 7 tests verdes).
+
+### Validación empírica FEM vs CYPE (5 casos reales del usuario beta)
+
+**Status:** TODO primera semana post-V1 ship.
+
+**What:** pedirle al usuario beta 5 modelos suyos reales que ya pasaron por CYPE. Replicarlos en el FEM de Concreta. Comparar M_max, V_max, deformación, reacciones. Documentar divergencias por caso en `docs/fem-vs-cype-validation.md`.
+
+**Why:** los tests analíticos (7 canónicos) verifican corrección matemática contra solución cerrada. Los casos reales verifican que **el modelado físico** (entrada de cargas, condiciones de borde, peso propio, combinaciones) coincide con lo que un ingeniero profesional espera. Si divergimos >2% en cualquier valor, hay un bug de modelado (no de solver) y NO debemos promocionar el módulo hasta arreglarlo. Si divergimos <2%, podemos publicar la comparación como dato de confianza ("CYPE-compatible within engineering tolerance").
+
+**Pros:** trust-building crítico para el wedge "no abrir CYPE para casos triviales". Los profesionales que ya pagan CYPE solo migrarán parte de su carga si confían que los números coinciden.
+
+**Cons:** requiere coordinación con el usuario beta para los archivos CYPE; tiempo del fundador (~1 día comparando).
+
+**Context:** ver design doc Success Criteria #2 (adapter verificable) y The Assignment. Esto es el complemento práctico — los tests de adapter usan cálculo manual; este TODO es validación contra el competidor directo.
+
+**Where to start:** post-V1 ship, agendar 30 min con el usuario beta. Pedir 5 archivos `.proyectoCYPE` o screenshots de los reportes CYPE. Replicar uno por uno en Concreta FEM. Capturar diferencia en hoja de cálculo simple. Si todo cuadra, escribir blog post / sección landing page.
+
+**Depends on:** V1 ship con solver real + adapter HA + adapter Steel.
+
+### V1.5 — Rubber-band selection en canvas
+
+**Status:** DEFERRED del feedback Q5 del usuario beta (eng-review 2026-04-28).
+
+**What:** al usar la herramienta seleccionar, el usuario hace click+drag para dibujar un rectángulo de selección. Todos los nodos/barras dentro del rectángulo quedan multi-seleccionados. Permite operaciones masivas (borrar, mover, cambiar material) sin click uno a uno.
+
+**Why:** el usuario beta lo pidió explícitamente ("la herramienta seleccionar podria hacer una ventana de seleccion al pinchar y arrastrar"). Cortado de V1 por scope (no es load-bearing del wedge). Para modelos de >5 vanos con múltiples cargas, multi-select acelera el modelado significativamente.
+
+**Pros:** UX más cercana a CYPE/SAP que el usuario espera; mejora la productividad para modelos medianos.
+
+**Cons:** requiere repensar el data model de selección (single → array); todas las operaciones que asumen single selection necesitan handle multi.
+
+**Context:** ver design doc Approaches → "Atiende todo el feedback Q5 menos rubber-band selection (V1.5)". Q5 feedback verbatim en chat de office-hours 2026-04-28.
+
+**Where to start:** después de V1 ship + validación empírica. `Canvas.tsx` añadir state `selectedSet: Set<{kind, id}>`. Implementar onMouseDown→drag→onMouseUp con SVG rect. Refactor `selected` (singular) → `selectedSet` en panel.
+
+**Depends on:** V1 estable, sin bugs críticos en single-select.
+
+### V1.5 — Distinguir Q vs W vs S con ψ específicos en combinación
+
+**Status:** DEFERRED del design doc Open Questions (eng-review 2026-04-28).
+
+**What:** hoy V1 mete todas las cargas variables (Q, W, S, E) en un solo bucket con factor parcial 1.5 sobre la suma. V1.5 las separa según hipótesis: para combinación ELU determinante, aplicar ψ₀ a las acciones simultáneas no-determinantes; para ELS-frecuente aplicar ψ₁; para ELS-cuasi-permanente ψ₂. Los datos ya están en el modelo (cada Load tiene `lc: 'G'|'Q'|'W'|'S'|'E'`); falta la lógica de combinación.
+
+**Why:** la combinación ELU "1.35G + 1.5Q + 1.5·ψ₀,W·W + 1.5·ψ₀,S·S" es la correcta según CTE DB-SE. El bucket único de V1 es conservadoramente correcto (puede sobrestimar) pero no es lo que el usuario profesional espera ver. Para modelos con viento Y nieve simultáneos, la diferencia puede ser 10-20% en el valor de combinación determinante.
+
+**Pros:** comparable directamente con CYPE; cumple CTE estrictamente; necesario para ELS-cuasi-permanente para fisuración (ψ₂·Q según useCategory).
+
+**Cons:** lógica de combinación es ~150 líneas más; tests de combinación adicionales; UI para elegir hipótesis determinante.
+
+**Context:** ver design doc → Architectural decisions → Hipótesis de carga + combinaciones (ELU + ELS) → última nota: "V1 mezcla todas las variables en un solo bucket... V1.5 las separa con ψ₀, ψ₁, ψ₂ específicos por hipótesis".
+
+**Where to start:** `src/features/fem-analysis/combinations.ts` (new). Tabla CTE DB-SE de ψ₀/ψ₁/ψ₂ por categoría de uso (residencial, oficina, parking, etc.). Función `buildCombinations(loads: Load[], useCategory: string): { ELU: WeightedLoadSet[], ELSc: WeightedLoadSet, ELSf: WeightedLoadSet, ELSqp: WeightedLoadSet }`. Solver itera sobre cada combinación; envelope toma el peor.
+
+**Depends on:** V1 ship con bucket único.
+
+### V1.5 — Mobile edit mode (touch-friendly sketch tools)
+
+**Status:** DEFERRED del design review 2026-04-28.
+
+**What:** V1 ships mobile read-only ("Modo lectura — abre en escritorio para editar"). V1.5 añade edit mode touch-friendly: tap-and-hold para editar cota inline, FAB "+vano" botón grande (≥56×56px), modal touch-friendly de hinge confirm, swipe para borrar barra, pinch-to-zoom en canvas.
+
+**Why:** algunos ingenieros quieren validar rápidamente un cálculo en una visita de obra desde el móvil. Read-only solo cubre ver, no permite el ajuste rápido.
+
+**Pros:** abre uso casual mobile (visitas obra, revisiones).
+
+**Cons:** UX touch para sketch tools siempre es subpar comparado con desktop; testing en dispositivos reales caro; código de fallback duplicado (mouse vs touch handlers).
+
+**Context:** ver design doc → "Mobile + a11y" sección. V1 detecta width <768px y muestra MobileTabBar pattern + canvas read-only. V1.5 desbloquea edit features bajo flag `enableMobileEdit`.
+
+**Where to start:** `src/features/fem-analysis/components/MobileEditTools.tsx` (new). Hook `useTouch()` para detectar touchstart/touchend con threshold tap-vs-swipe. Refactor InlineEdit para abrir en bottom-sheet en mobile en vez de inline overlay (pantallas pequeñas tienen poco espacio para overlay sobre la cota).
+
+**Depends on:** V1 ship con read-only mobile estable.
+
+### V1.5 — A11y full WCAG AA + screen reader SVG diagrams
+
+**Status:** DEFERRED del design review 2026-04-28.
+
+**What:** V1 ships con a11y básica funcional (keyboard nav, ARIA landmarks, touch targets ≥44px, color contrast). V1.5 añade: structured description per bar accesible via screen reader ("Barra b1, viga HA 30×50, vano 5m, M_max 60 kN·m sagging en 2.5m, V_max 50 kN en apoyos, verdict CUMPLE η=78%"), aria-live region que anuncia cambios en tiempo real ("Verdict actualizado: REVISIÓN η=85%"), alternative text-only view del modelo entero (lista linealizada de barras + propiedades + esfuerzos), testing con NVDA/VoiceOver/JAWS, labels descriptivos en cada tool button + cada glyph SVG.
+
+**Why:** producto profesional usado por estudios de ingeniería que pueden tener ingenieros con limitaciones visuales. Cumplir WCAG AA es requisito en contratos públicos en España.
+
+**Pros:** usable por más perfiles; cumple compliance para clientes empresa pública.
+
+**Cons:** screen reader UX para SVG complejo es difícil de testear y mantener; aria-live updates pueden ser ruidosas si el solver corre en cada keystroke (mitigado por nuestro onblur/onenter strategy).
+
+**Context:** ver design doc → "Mobile + a11y" sección. V1 cubre keyboard + ARIA básica + contrast (cumple AA en lo visual). V1.5 cubre la parte temporal/dinámica del SVG.
+
+**Where to start:** auditoría manual con NVDA del módulo V1 ya shipeado. Identificar gaps reales (vs hipotéticos). `src/features/fem-analysis/a11y.ts` (new) con función `describeBar(designBar, result): string` que produce el texto natural-language. Aria-live region en `<div role="status" aria-live="polite">` en index.tsx para verdict updates.
+
+**Depends on:** V1 ship + audit con usuarios reales con limitaciones visuales (1 sesión).
+
+### V1 — Actualizar DESIGN.md v2.1 con specs descubiertas durante el FEM
+
+**Status:** TO DO en paralelo con la implementación del FEM V1 (no diferido).
+
+**What:** actualizar `DESIGN.md` durante la implementación del FEM con: (a) Excepción documentada de "state-warn permitido para cargas en SVG" (con razonamiento del Q5 feedback), (b) Spec del componente `<InlineEdit>` (font-mono 12px, focus-ring border-accent, enter/escape/blur behavior), (c) Spec del "+vano" button flotante (24×24px, accent border, posicionamiento al extremo derecho del último apoyo no-cantilever), (d) Hinge glyph spec (círculo open accent r=4 stroke 1.5 fill bg-primary, offset 12px perpendicular), (e) Token alias `state-pending = state-neutral` con badge `○ PENDIENTE` y barra dashed.
+
+**Why:** Concreta tiene un design system maduro (v2.0, 424 líneas). Los patterns descubiertos durante el FEM son reutilizables (el +vano button puede aparecer en futuras herramientas, el InlineEdit en otros módulos cuando se desbloqueen). Sin actualizar DESIGN.md, el siguiente módulo no ve estas reglas y diverge.
+
+**Pros:** cohesión continua del design system; bumped version v2.1.
+
+**Cons:** ~30 min de escritura; bumpear version requiere comunicar a otros stakeholders (si hubiera).
+
+**Context:** ver design doc → "Design specifications (post /plan-design-review)" sección. Las decisiones se tomaron durante /plan-design-review 2026-04-28.
+
+**Where to start:** al final de la implementación de cada Lane (A→D), revisar qué se aprendió y volcar a DESIGN.md. Bump version a 2.1 cuando todo el FEM V1 esté shipeado y los patterns confirmados en producción.
+
+**Depends on:** FEM V1 implementación (no es bloqueante de ship, pero sí de cierre del módulo).

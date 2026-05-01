@@ -10,17 +10,23 @@ interface TopbarProps {
   onExportPdf?: () => void;
   pdfExporting?: boolean;
   onMenuOpen?: () => void;
+  /**
+   * Override for the "Copiar enlace" button. Modules that need a richer share
+   * payload (e.g. FEM 2D encoding the model into the URL) pass their own
+   * handler. When omitted, the button copies window.location.href.
+   */
+  onCopyLink?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink }: TopbarProps) {
   const { open: openCalc } = useCalculator();
-  const handleCopyUrl = () => {
+  const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       showToast('Enlace copiado', { autoDismiss: 2000 });
     }).catch(() => {
       showToast('No se pudo copiar el enlace', { autoDismiss: 3000 });
     });
-  };
+  });
 
   return (
     <header className="h-12 shrink-0 flex items-center justify-between px-5 bg-bg-surface border-b border-border-main">
