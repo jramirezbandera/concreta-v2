@@ -159,11 +159,14 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       ].join(' ')}
       aria-label="Navegación de módulos"
     >
-      {/* Logo — glowing accent dot + brand */}
+      {/* Logo — favicon I-beam mark + brand */}
       <div className="flex items-center gap-2 px-4 h-12 border-b border-border-main">
-        <span
-          className="w-[7px] h-[7px] rounded-full bg-accent shrink-0"
-          style={{ boxShadow: '0 0 8px rgba(56,189,248,0.6)' }}
+        <img
+          src="/favicon.svg"
+          alt=""
+          width={20}
+          height={20}
+          className="shrink-0 rounded-sm"
           aria-hidden="true"
         />
         <span className="text-[15px] font-semibold text-text-primary" style={{ letterSpacing: '-0.01em' }}>Concreta</span>
