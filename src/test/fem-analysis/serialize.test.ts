@@ -149,14 +149,14 @@ describe('serialize — V1.1 migration (R8)', () => {
 describe('buildShareUrl', () => {
   it('produces a URL with ?model= query', () => {
     const m = cloneDesignPreset('beam');
-    const url = buildShareUrl(m, 'https://example.com/concreta-v2/analisis/fem');
+    const url = buildShareUrl(m, 'https://example.com/analisis/fem');
     expect(url).toContain('?model=');
-    expect(url).toMatch(/^https:\/\/example\.com\/concreta-v2\/analisis\/fem\?model=/);
+    expect(url).toMatch(/^https:\/\/example\.com\/analisis\/fem\?model=/);
   });
 
   it('appends with & when base already has query', () => {
     const m = cloneDesignPreset('beam');
-    const url = buildShareUrl(m, 'https://example.com/concreta-v2/analisis/fem?foo=1');
+    const url = buildShareUrl(m, 'https://example.com/analisis/fem?foo=1');
     expect(url).toContain('?foo=1&model=');
   });
 

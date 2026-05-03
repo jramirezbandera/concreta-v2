@@ -45,7 +45,7 @@ const router = createBrowserRouter([
       { path: '*', element: <NotFound /> },
     ],
   },
-], { basename: '/concreta-v2' });
+]);
 
 export function App() {
   return (

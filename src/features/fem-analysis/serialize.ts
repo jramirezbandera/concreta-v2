@@ -110,7 +110,7 @@ export function buildShareUrl(model: DesignModel, baseUrl?: string): string {
 }
 
 function defaultBaseUrl(): string {
-  if (typeof window === 'undefined') return '/concreta-v2/analisis/fem';
+  if (typeof window === 'undefined') return '/analisis/fem';
   const { origin, pathname } = window.location;
   return `${origin}${pathname}`;
 }
