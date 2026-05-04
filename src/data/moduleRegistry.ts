@@ -9,6 +9,7 @@ import {
   pileCapDefaults,
   isolatedFootingDefaults,
   empresalladoDefaults,
+  masonryWallsDefaults,
   timberBeamDefaults,
   timberColumnDefaults,
   forjadosDefaults,
@@ -24,6 +25,7 @@ import {
   type PileCapInputs,
   type IsolatedFootingInputs,
   type EmpresalladoInputs,
+  type MasonryWallsInputs,
   type TimberBeamInputs,
   type TimberColumnInputs,
   type ForjadosInputs,
@@ -31,7 +33,7 @@ import {
   type FemAnalysisInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -132,6 +134,14 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-masonry-walls',
+    route: '/rehab/muros-fabrica',
+    label: 'Muros de fábrica',
+    group: 'Rehabilitación',
+    defaults: masonryWallsDefaults,
+    shipped: true,
+  },
+  {
     key: 'concreta-timber-beams',
     route: '/madera/vigas',
     label: 'Vigas',
@@ -181,6 +191,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'composite-section': '1',
   'pile-cap': '1',
   'empresillado': '1',
+  'masonry-walls': '1',
   'timber-beams': '1',
   'timber-columns': '1',
   'anchor-plate': '1',

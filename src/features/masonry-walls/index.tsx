@@ -1,0 +1,236 @@
+// Masonry walls — DB-SE-F multi-floor module orchestrator.
+//
+// State model: complex nested (plantas → huecos + puntuales) lives in a
+// dedicated localStorage key, not via useModuleState (which only handles
+// flat primitives). Same approach as the FEM 2D module.
+
+import { useEffect, useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { Topbar } from '../../components/layout/Topbar';
+import { useDrawer } from '../../components/layout/AppShell';
+import {
+  calcularEdificio,
+  defaultMasonryState,
+  getCriticoEdificio,
+  newId,
+  overallStatus,
+  plantaTemplate,
+  type Hueco,
+  type MasonryWallState,
+  type Puntual,
+} from '../../lib/calculations/masonryWalls';
+import { MasonryWallsInputs } from './MasonryWallsInputs';
+import { MasonryWallsResults } from './MasonryWallsResults';
+import { MasonryWallsSVG } from './MasonryWallsSVG';
+
+const STORAGE_KEY = 'concreta-masonry-walls-model';
+const SCHEMA_VERSION_KEY = 'concreta-masonry-walls-model-version';
+const SCHEMA_VERSION = '1';
+
+function loadState(): MasonryWallState {
+  try {
+    const v = localStorage.getItem(SCHEMA_VERSION_KEY);
+    if (v !== SCHEMA_VERSION) return defaultMasonryState();
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultMasonryState();
+    const parsed = JSON.parse(raw) as MasonryWallState;
+    // sanity check
+    if (!parsed.plantas || parsed.plantas.length < 2) return defaultMasonryState();
+    return parsed;
+  } catch {
+    return defaultMasonryState();
+  }
+}
+
+function saveState(s: MasonryWallState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
+  } catch {
+    // ignore quota/serialization errors
+  }
+}
+
+export function MasonryWallsModule() {
+  const [state, setState] = useState<MasonryWallState>(() => loadState());
+  const [selectedHueco, setSelectedHueco] = useState<string | null>(null);
+  const [selectedPlantaIdx, setSelectedPlantaIdx] = useState(0);
+  const [selectedMachonKey, setSelectedMachonKey] = useState<string | null>(null);
+  const [mostrarMapa, setMostrarMapa] = useState(true);
+  const { openDrawer } = useDrawer();
+
+  // Persist with debounce so rapid edits don't thrash localStorage.
+  useEffect(() => {
+    const t = setTimeout(() => saveState(state), 300);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const plantasCalc = useMemo(() => calcularEdificio(state), [state]);
+  const overall = useMemo(() => overallStatus(plantasCalc), [plantasCalc]);
+  const critico = useMemo(() => getCriticoEdificio(plantasCalc), [plantasCalc]);
+
+  // CRUD
+  const addPlanta = () => {
+    setState((s) => {
+      const idx = s.plantas.length - 1; // insert before cubierta
+      const nueva = plantaTemplate(idx, false);
+      nueva.nombre = `Planta ${idx}`;
+      return { ...s, plantas: [...s.plantas.slice(0, idx), nueva, ...s.plantas.slice(idx)] };
+    });
+  };
+
+  const removePlanta = (idx: number) => {
+    setState((s) => {
+      if (s.plantas.length <= 2) return s; // mantener PB + cubierta
+      return { ...s, plantas: s.plantas.filter((_, i) => i !== idx) };
+    });
+    if (selectedPlantaIdx >= idx) setSelectedPlantaIdx(Math.max(0, selectedPlantaIdx - 1));
+  };
+
+  const addHueco = (plIdx: number, tipo: 'puerta' | 'ventana') => {
+    setState((s) => ({
+      ...s,
+      plantas: s.plantas.map((p, i) => {
+        if (i !== plIdx) return p;
+        const nuevo: Hueco = tipo === 'puerta'
+          ? { id: newId('h'), x: 200, y: 0,    w: 900, h: 2050, tipo: 'puerta'  }
+          : { id: newId('h'), x: 200, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
+        return { ...p, huecos: [...p.huecos, nuevo] };
+      }),
+    }));
+  };
+
+  const removeHueco = (plIdx: number, id: string) => {
+    setState((s) => ({
+      ...s,
+      plantas: s.plantas.map((p, i) =>
+        i === plIdx ? { ...p, huecos: p.huecos.filter((h) => h.id !== id) } : p,
+      ),
+    }));
+    if (selectedHueco === id) setSelectedHueco(null);
+  };
+
+  const addPuntual = (plIdx: number) => {
+    const nuevo: Puntual = { id: newId('p'), x: 1000, P_G: 15, P_Q: 5, b_apoyo: 250 };
+    setState((s) => ({
+      ...s,
+      plantas: s.plantas.map((p, i) =>
+        i === plIdx ? { ...p, puntuales: [...p.puntuales, nuevo] } : p,
+      ),
+    }));
+  };
+
+  const removePuntual = (plIdx: number, id: string) => {
+    setState((s) => ({
+      ...s,
+      plantas: s.plantas.map((p, i) =>
+        i === plIdx ? { ...p, puntuales: p.puntuales.filter((q) => q.id !== id) } : p,
+      ),
+    }));
+  };
+
+  return (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <Helmet>
+        <title>Muros de fábrica — Concreta · DB-SE-F</title>
+        <meta name="description" content="Verificación de muros de carga de fábrica multi-planta · DB-SE-F." />
+      </Helmet>
+      <Topbar
+        moduleLabel="Muros de fábrica"
+        moduleGroup="Rehabilitación"
+        onMenuOpen={openDrawer}
+      />
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Inputs (left) */}
+        <div className="w-[280px] shrink-0 border-r border-border-main bg-bg-surface overflow-y-auto overflow-x-hidden scroll-hide hidden md:block">
+          <MasonryWallsInputs
+            state={state}
+            setState={setState}
+            selectedPlantaIdx={selectedPlantaIdx}
+            selectedHueco={selectedHueco}
+            setSelectedHueco={setSelectedHueco}
+            setSelectedPlantaIdx={setSelectedPlantaIdx}
+            plantasCalc={plantasCalc}
+            onAddPlanta={addPlanta}
+            onRemovePlanta={removePlanta}
+            onAddHueco={addHueco}
+            onRemoveHueco={removeHueco}
+            onAddPuntual={addPuntual}
+            onRemovePuntual={removePuntual}
+          />
+        </div>
+
+        {/* Center canvas */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 p-4 canvas-dot-grid">
+            <MasonryWallsSVG
+              state={state}
+              plantasCalc={plantasCalc}
+              critico={critico}
+              mostrarMapa={mostrarMapa}
+              selectedHueco={selectedHueco}
+              selectedPlantaIdx={selectedPlantaIdx}
+              selectedMachonKey={selectedMachonKey}
+              onSelectHueco={(id, plIdx) => {
+                setSelectedHueco(id === selectedHueco ? null : id);
+                setSelectedPlantaIdx(plIdx);
+                setSelectedMachonKey(null);
+              }}
+              onSelectMachon={(plIdx, mid) => {
+                const k = `${plIdx}|${mid}`;
+                setSelectedMachonKey(k === selectedMachonKey ? null : k);
+                setSelectedPlantaIdx(plIdx);
+                setSelectedHueco(null);
+              }}
+              onSelectPlanta={(i) => {
+                setSelectedPlantaIdx(i);
+                setSelectedHueco(null);
+                setSelectedMachonKey(null);
+              }}
+            />
+          </div>
+
+          {/* Legend / mapa toggle */}
+          <div className="px-6 py-2 flex items-center gap-4 text-[11px] font-mono text-text-disabled border-t border-border-main bg-bg-surface flex-wrap">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.4)' }} />η&lt;80%
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(245,158,11,0.5)' }} />80–99%
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(239,68,68,0.5)' }} />η≥100%
+            </span>
+            <span className="ml-auto hidden lg:inline">Click en planta o hueco para editar</span>
+            <button
+              type="button"
+              onClick={() => setMostrarMapa(!mostrarMapa)}
+              className="px-2.5 py-1 rounded font-mono text-[11px] font-semibold transition-colors cursor-pointer border"
+              style={{
+                background: mostrarMapa ? 'rgba(56,189,248,0.18)' : 'transparent',
+                borderColor: mostrarMapa ? 'var(--color-accent)' : 'var(--color-text-disabled)',
+                color: mostrarMapa ? '#7dd3fc' : 'var(--color-text-secondary)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {mostrarMapa ? '● Mapa σ' : '○ Mapa σ'}
+            </button>
+          </div>
+        </div>
+
+        {/* Results (right) */}
+        <div className="w-[300px] shrink-0 border-l border-border-main bg-bg-surface overflow-y-auto scroll-hide hidden lg:block">
+          <MasonryWallsResults
+            state={state}
+            plantasCalc={plantasCalc}
+            critico={critico}
+            overall={overall}
+            selectedMachonKey={selectedMachonKey}
+            setSelectedMachonKey={setSelectedMachonKey}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

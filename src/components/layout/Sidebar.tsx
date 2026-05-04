@@ -135,6 +135,19 @@ function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number
           <path d="M4 4.5h8M4 8h8M4 11.5h8" strokeWidth="1.4"/>
         </svg>
       );
+    // Masonry walls: brick coursing with running bond + an opening
+    case 'concreta-masonry-walls':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="0.9" aria-hidden="true" className="shrink-0">
+          <rect x="2" y="2" width="12" height="12" />
+          {/* coursing lines */}
+          <path d="M2 5h12M2 8h12M2 11h12" />
+          {/* running bond verticals */}
+          <path d="M5 2v3M9 2v3M5 8v3M9 8v3M7 5v3M11 5v3M7 11v3M11 11v3" />
+          {/* small opening (window) */}
+          <rect x="9.5" y="9" width="3" height="2.5" fill="currentColor" stroke="none" opacity="0.55" />
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }

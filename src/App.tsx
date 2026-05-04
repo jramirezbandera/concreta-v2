@@ -11,6 +11,7 @@ import { CompositeSectionModule } from './features/compositeSection';
 import { PileCapModule } from './features/pile-cap';
 import { IsolatedFootingModule } from './features/isolated-footing';
 import { EmpresalladoModule } from './features/empresillado';
+import { MasonryWallsModule } from './features/masonry-walls';
 import { TimberBeamsModule } from './features/timber-beams';
 import { TimberColumnsModule } from './features/timber-columns';
 import { ForjadosModule } from './features/forjados';
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: 'ciment/encepados', element: <PileCapModule /> },
       { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
       { path: 'rehab/empresillado', element: <EmpresalladoModule /> },
+      { path: 'rehab/muros-fabrica', element: <MasonryWallsModule /> },
       { path: 'madera/vigas', element: <TimberBeamsModule /> },
       { path: 'madera/pilares', element: <TimberColumnsModule /> },
       { path: 'acero/placas-de-anclaje', element: <AnchorPlateModule /> },

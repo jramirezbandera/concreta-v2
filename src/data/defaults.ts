@@ -829,3 +829,17 @@ export const femAnalysisDefaults: FemAnalysisInputs = {
   showDeformed: false,
   showReactions: true,
 };
+
+// ── Masonry walls (DB-SE-F) — multi-floor wall verification ──────────────
+//
+// Same pattern as FEM: the registry only needs primitive flags; the full
+// nested model (plantas, huecos, puntuales) lives outside in its own
+// localStorage key managed by the module itself.
+export interface MasonryWallsInputs {
+  [key: string]: string | number | boolean;
+  mostrarMapa: boolean;
+}
+
+export const masonryWallsDefaults: MasonryWallsInputs = {
+  mostrarMapa: true,
+};
