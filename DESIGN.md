@@ -422,3 +422,7 @@ Explícitamente prohibido:
 | 2026-04-18 | Sidebar icons 16x16 stroke-only | Iconos más pequeños y limpios, diferenciados por material (grano madera, rebar RC, I-section acero) |
 | 2026-04-18 | Custom scrollbar (#22304d thumb) | Scrollbar coherente con dark theme, reemplaza scrollbar nativo |
 | 2026-04-18 | Tokens de color más oscuros | bg-primary #0b1220, bg-surface #111a2d — mayor contraste y profundidad |
+| 2026-05-04 | NumField acepta prop `scale` (display/storage decoupling) | Permite que el state guarde mm pero el usuario edite m/cm. Patrón nuevo en masonry-walls. Storage en mm preserva precisión y compatibilidad con motor de cálculo |
+| 2026-05-04 | Hint "Caso de ejemplo" sobre input panel | Banda discreta accent/5 + label `font-mono uppercase` cuando el state coincide con default. Se oculta al primer cambio. Onboarding sin modal |
+| 2026-05-04 | Banner de validación con bloque "Cómo arreglarlo" | Cuando los datos son inválidos, el motor devuelve `EdificioInvalid.fix?` con sugerencia concreta. Bloque accent/5 dentro del banner fail. Empatiza con usuario que no domina la norma |
+| 2026-05-04 | Warning glyph: SVG Lucide AlertTriangle (no emoji) | Coherente con la regla anti-emoji. Pattern: SVG 12x12 stroke-current dentro de bloque state-warn/5. Usado en huecos solapados |

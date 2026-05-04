@@ -480,3 +480,42 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 **Where to start:** añadir `reset()` function en `src/features/masonry-walls/index.tsx` que ejecuta `setState(defaultMasonryState())` + `localStorage.removeItem(STORAGE_KEY)` + `localStorage.removeItem(SCHEMA_VERSION_KEY)`. Botón en el footer del input panel (debajo de la última `CollapsibleSection`).
 
 **Depends on:** ninguno.
+
+### Mobile a11y sweep — todos los módulos (design-review 2026-05-04)
+
+**Status:** DEFERRED del /plan-design-review 2026-05-04 (afecta a TODOS los módulos del repo, no solo masonry-walls).
+
+**What:** Pasada coordinada de a11y mobile sobre todo el shell + módulos:
+- Touch targets ≥ 44×44 px (WCAG AA): hoy los inputs hacen ~24-28px alto, y los mini-buttons "× eliminar" ~14×11 px. Imposible de pulsar con dedo en iPad/iPhone.
+- Navegación por teclado en SVGs interactivos: machones de masonry-walls, barras de fem-analysis, perfiles de steel-beams. Hoy son `<g onClick>` sin tabIndex/onKeyDown — un usuario con teclado no puede seleccionarlos.
+- Focus visible sobre elementos custom (botones de Section header, MiniBtn, sidebar entries activos).
+
+**Why:** producto profesional usado en estudios de ingeniería. WCAG AA es requisito en contratos públicos en España. Hoy el módulo masonry-walls tiene SVG con `role=img + aria-labelledby` y title-per-machón (parche del design review), pero la navegación por teclado sigue rota. Otros módulos hermanos están peor.
+
+**Pros:** producto usable por más perfiles; elimina riesgo de exclusión por discapacidad visual o motor; cumple compliance contractual.
+
+**Cons:** romper la densidad de los inputs sólo en un módulo es inconsistente. Hay que hacerlo coordinado con DESIGN.md (subir minBtn de 24 a 28px o 32px, ajustar paddings de NumField). Riesgo: el panel de inputs crece vertical y obliga a más scroll.
+
+**Context:** ver `src/components/checks/index.tsx` (CheckRowItem `compact`), `src/features/masonry-walls/MasonryWallsInputs.tsx` (NumField + MiniBtn + SelField), `src/features/empresillado/EmpresalladoInputs.tsx` (NumberField del módulo). Decisión clave: pasar a `min-h-44` en mobile (`max-md:min-h-11`) sin tocar desktop, o uniformar a 32px global.
+
+**Where to start:** auditoría con NVDA/VoiceOver en móvil sobre el módulo más simple (rc-beams). Identificar gaps reales. Sweep de `MiniBtn`/`NumberField`/`Section` con responsive padding. Tests de Playwright con teclado-only navigation por módulo.
+
+**Depends on:** ninguno técnico; depende de prioridad relativa frente a otras features.
+
+### Masonry walls — PDF dimensions en m/cm en lugar de mm (design-review 2026-05-04)
+
+**Status:** DEFERRED del /plan-design-review 2026-05-04.
+
+**What:** El PDF de muros de fábrica (`src/lib/pdf/masonryWalls.ts`) muestra `L = 6000 mm`, `t = 240 mm`, etc. Tras el ajuste de unidades en la UI (commit `53e1a0c`), el usuario ve `L = 6.00 m`, `t = 24 cm` en pantalla. PDF debe seguir la misma convención para no confundir.
+
+**Why:** consistencia entre vista en pantalla y vista impresa. El PDF se entrega al promotor / aparejador / arquitecto técnico; ver mm cuando el técnico ha trabajado en m/cm rompe la confianza.
+
+**Pros:** consistencia UI/PDF; números más legibles para revisión externa.
+
+**Cons:** ninguno material. El motor de cálculo sigue en mm; sólo es presentación.
+
+**Context:** `src/lib/pdf/masonryWalls.ts` líneas ~85-95 (sección GEOMETRIA), ~135 (cota L). El refactor consiste en formatear con `(value/1000).toFixed(2)` para metros y `(value/10).toFixed(1)` para cm, igual que el `scale` prop del NumField.
+
+**Where to start:** un solo fichero, ~10 líneas. Lo hace cualquier sweep posterior del módulo. Test: abrir PDF y comprobar que coincide con la pantalla.
+
+**Depends on:** ninguno.

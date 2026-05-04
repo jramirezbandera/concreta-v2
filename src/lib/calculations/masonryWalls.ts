@@ -253,6 +253,10 @@ export interface EdificioInvalid {
   invalid: true;
   reason: string;
   field?: 'fk' | 't' | 'L' | 'gamma_M' | 'plantas';
+  /** Sugerencia concreta de cómo arreglar el problema. Permite que el banner
+   *  de la UI no solo diga "selecciona otra" sino "Prueba fb=10 con fm=5
+   *  (fk=4 N/mm²)". Útil para usuarios que no dominan Tabla 4.4. */
+  fix?: string;
 }
 
 export type EdificioResult =
@@ -358,6 +362,43 @@ export function getMachonesPlanta(plantaHuecos: Hueco[], L: number): MachonRaw[]
   }));
 }
 
+/**
+ * Detecta huecos solapados en una planta. El motor mergea silenciosamente
+ * intervalos solapados en `getMachonesPlanta`, lo que es estable
+ * matemáticamente pero engañoso para el usuario: ve dos huecos en el SVG y
+ * cree que son dos elementos independientes con dos dinteles, mientras que el
+ * cálculo trata su unión como un único hueco con un solo dintel.
+ *
+ * Devuelve pares de IDs de huecos que se solapan o tocan (tolerancia 1 mm).
+ * Se lee desde el panel de inputs para mostrar un warning amber.
+ */
+export function detectarHuecosSolapados(huecos: Hueco[]): { a: string; b: string }[] {
+  const pairs: { a: string; b: string }[] = [];
+  const sorted = [...huecos].sort((p, q) => p.x - q.x);
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      // Solape en X: a.x..a.x+w vs b.x..b.x+w
+      if (b.x < a.x + a.w - 1) {
+        // Si ambos son ventana, comprobar también solape en Y
+        if (a.tipo === 'ventana' && b.tipo === 'ventana') {
+          const aY1 = a.y;
+          const aY2 = a.y + a.h;
+          const bY1 = b.y;
+          const bY2 = b.y + b.h;
+          if (bY1 < aY2 - 1 && aY1 < bY2 - 1) pairs.push({ a: a.id, b: b.id });
+        } else {
+          // Cualquier puerta solapando con cualquier otro hueco siempre es
+          // problemático (la puerta va de 0 a H, ocupa toda la altura).
+          pairs.push({ a: a.id, b: b.id });
+        }
+      }
+    }
+  }
+  return pairs;
+}
+
 function mayorarLineal(pl: Planta, gG: number, gQ: number): number {
   return gG * (pl.q_G || 0) + gQ * (pl.q_Q || 0);
 }
@@ -370,24 +411,81 @@ function mayorarPuntual(p: Puntual, gG: number, gQ: number): number {
  * o Infinity downstream. El motor para aquí y la UI muestra el mensaje en
  * lugar de números sin sentido.
  */
+/**
+ * Sugiere una combinación válida de Tabla 4.4 para una pieza dada, escogiendo
+ * la celda con menor (fb·fm) entre las válidas. Devuelve null si la pieza no
+ * tiene ninguna combinación válida (caso muy raro). Usado por el banner de
+ * validación para no dejar al usuario solo ante la tabla.
+ */
+function sugerirFbFm(pieza: PiezaTipo): { fb: number; fm: number; fk: number } | null {
+  const t = TABLA_4_4[pieza];
+  if (!t) return null;
+  let best: { fb: number; fm: number; fk: number } | null = null;
+  for (const fb of FB_VALUES) {
+    const row = t.data[fb];
+    if (!row) continue;
+    for (const fmStr of Object.keys(row)) {
+      const fm = parseFloat(fmStr);
+      const fk = row[fm];
+      if (fk == null) continue;
+      if (!best || fb * fm < best.fb * best.fm) best = { fb, fm, fk };
+    }
+  }
+  return best;
+}
+
 function validateState(state: MasonryWallState, fab: FabricaResuelta): EdificioInvalid | null {
   if (state.plantas.length === 0) {
-    return { invalid: true, reason: 'Define al menos una planta.', field: 'plantas' };
+    return {
+      invalid: true,
+      reason: 'Define al menos una planta del edificio.',
+      field: 'plantas',
+      fix: 'Pulsa "+ Añadir planta" en el panel izquierdo.',
+    };
   }
   if (state.t < 50) {
-    return { invalid: true, reason: `Espesor t = ${state.t} mm < 50 mm. Comprueba la geometría.`, field: 't' };
+    return {
+      invalid: true,
+      reason: `Espesor t = ${state.t} mm < 50 mm. Demasiado fino para un muro de carga.`,
+      field: 't',
+      fix: 'Para fábrica tradicional usa t ≥ 12 cm (1 pie de ladrillo macizo es típicamente 24 cm).',
+    };
   }
   if (state.L < 200) {
-    return { invalid: true, reason: `Longitud L = ${state.L} mm < 200 mm. Comprueba la geometría.`, field: 'L' };
+    return {
+      invalid: true,
+      reason: `Longitud L = ${state.L} mm < 200 mm. Comprueba la geometría.`,
+      field: 'L',
+      fix: 'Un muro de carga de fábrica típico tiene L ≥ 1 m.',
+    };
   }
   if (state.gamma_M <= 0) {
-    return { invalid: true, reason: `γ_M = ${state.gamma_M} no es válido (debe ser > 0).`, field: 'gamma_M' };
+    return {
+      invalid: true,
+      reason: `γ_M = ${state.gamma_M} no es válido (debe ser > 0).`,
+      field: 'gamma_M',
+      fix: 'Valor por defecto: γ_M = 2.5 (categoría control normal, §4.6.7).',
+    };
   }
   if (!fab.fk || fab.fk <= 0) {
-    const why = fab.modo === 'tabla'
-      ? `Combinación pieza/fb/fm no aplicable según Tabla 4.4 (celda "—"). Selecciona otra.`
-      : `f_k = ${fab.fk ?? 0} no es válido (debe ser > 0).`;
-    return { invalid: true, reason: why, field: 'fk' };
+    if (fab.modo === 'tabla') {
+      const sugerencia = sugerirFbFm(state.pieza);
+      const fix = sugerencia
+        ? `Prueba fb = ${sugerencia.fb} N/mm² con fm = ${sugerencia.fm} N/mm² → f_k = ${sugerencia.fk} N/mm².`
+        : 'Cambia el tipo de pieza o pasa a modo "Personalizada".';
+      return {
+        invalid: true,
+        reason: `Combinación de pieza, fb y fm no aplicable según Tabla 4.4 DB-SE-F.`,
+        field: 'fk',
+        fix,
+      };
+    }
+    return {
+      invalid: true,
+      reason: `f_k = ${fab.fk ?? 0} no es válido (debe ser > 0).`,
+      field: 'fk',
+      fix: 'Introduce un valor de f_k coherente con el ensayo o la documentación de la fábrica.',
+    };
   }
   return null;
 }

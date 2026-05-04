@@ -34,7 +34,8 @@ export function MasonryWallsResults({
 }: Props) {
   // Banner de invalidación: cuando la combinación de fábrica es inviable o la
   // geometría es degenerada, lo mostramos ANTES de números para que el usuario
-  // sepa que los resultados no son fiables.
+  // sepa que los resultados no son fiables. Incluye sugerencia de fix para no
+  // dejar al usuario solo ante la Tabla 4.4 DB-SE-F.
   if (invalid) {
     return (
       <div>
@@ -48,6 +49,14 @@ export function MasonryWallsResults({
           <div className="px-4 pb-3">
             <div className="text-[15px] font-semibold text-state-fail">Datos no válidos</div>
             <div className="text-[12px] text-text-secondary mt-1 leading-snug">{invalid.reason}</div>
+            {invalid.fix && (
+              <div className="mt-2 rounded border border-accent/30 bg-accent/5 px-2 py-1.5">
+                <div className="text-[10px] font-mono uppercase text-accent mb-0.5" style={{ letterSpacing: '0.08em' }}>
+                  Cómo arreglarlo
+                </div>
+                <div className="text-[11px] text-text-secondary leading-snug">{invalid.fix}</div>
+              </div>
+            )}
           </div>
         </div>
         <div className="px-4 py-3 text-[11px] text-text-disabled leading-relaxed border-t border-border-sub">

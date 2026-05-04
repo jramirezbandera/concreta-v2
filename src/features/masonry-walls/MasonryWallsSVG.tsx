@@ -62,6 +62,10 @@ export function MasonryWallsSVG({
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 760, h: 600 });
+  // Hover state — un único id activo entre todos los machones y huecos. El
+  // estado existe para reforzar afordancia: stroke + brightness suben al pasar
+  // el ratón, comunicando clickability sin necesidad de tooltip.
+  const [hovered, setHovered] = useState<string | null>(null);
   const usingForcedSize = forceWidth != null && forceHeight != null;
 
   useEffect(() => {
@@ -137,9 +141,31 @@ export function MasonryWallsSVG({
 
   const criticalKey = critico ? `${critico.planta.index}-${critico.id}` : null;
 
+  // A11y: descripción legible para screen readers. Resume el estado del
+  // edificio (plantas, η máximo, machón crítico) para que NVDA/VoiceOver
+  // puedan anunciar el contenido del SVG sin necesidad de leer la lista de
+  // primitives geométricas.
+  const etaMaxGlobal = plantasCalc.length > 0
+    ? Math.max(...plantasCalc.flatMap((pl) => pl.machones.map((m) => m.etaMax)))
+    : 0;
+  const verdict = etaMaxGlobal >= 1 ? 'INCUMPLE' : etaMaxGlobal >= 0.8 ? 'REVISAR' : 'CUMPLE';
+  const a11yTitle = `Alzado del edificio · ${state.plantas.length} plantas · ${verdict} η=${(etaMaxGlobal * 100).toFixed(0)}%`;
+  const a11yDesc = critico
+    ? `Edificio multi-planta DB-SE-F. Plantas (de cubierta a planta baja): ${plantasCalc.slice().reverse().map((pl) => `${pl.nombre} η máx ${(Math.max(...pl.machones.map((m) => m.etaMax)) * 100).toFixed(0)}%`).join(', ')}. Machón crítico: ${critico.planta.nombre} machón ${critico.id} con η ${(critico.etaMax * 100).toFixed(0)}%.`
+    : `Edificio de ${state.plantas.length} plantas, sin machón crítico identificado.`;
+
   return (
     <div ref={wrapRef} style={{ width: '100%', height: '100%', minHeight: 360 }}>
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ display: 'block' }}
+        role="img"
+        aria-labelledby="mw-svg-title mw-svg-desc"
+      >
+        <title id="mw-svg-title">{a11yTitle}</title>
+        <desc id="mw-svg-desc">{a11yDesc}</desc>
         <defs>
           {plantasCalc.flatMap((pl, pi) => pl.machones.map((m) => {
             const tTop = (m.sigma_top || 0) / sigmaMax;
@@ -197,18 +223,24 @@ export function MasonryWallsSVG({
               {calc.machones.map((m) => {
                 const isCrit = criticalKey === `${i}-${m.id}`;
                 const isSelMachon = selectedMachonKey === `${i}|${m.id}`;
+                const isHovered = hovered === `m:${i}|${m.id}`;
                 const stroke = isSelMachon
                   ? '#7dd3fc'
                   : isCrit
                     ? '#38bdf8'
                     : (m.status === 'fail' ? '#ef4444' : m.status === 'warn' ? '#f59e0b' : 'rgba(34,197,94,0.45)');
-                const sw = isSelMachon ? 2.4 : isCrit ? 1.8 : 0.9;
+                const sw = isSelMachon ? 2.4 : isCrit ? 1.8 : isHovered ? 1.5 : 0.9;
                 return (
                   <g
                     key={m.id}
-                    style={{ cursor: 'pointer' }}
+                    role="button"
+                    aria-label={`Machón ${m.id} de ${pl.nombre}, η ${(m.etaMax * 100).toFixed(0)}% ${m.status === 'fail' ? 'incumple' : m.status === 'warn' ? 'revisar' : 'cumple'}, click para seleccionar`}
+                    style={{ cursor: 'pointer', filter: isHovered && !isSelMachon ? 'brightness(1.25)' : undefined }}
                     onClick={(e) => { e.stopPropagation(); onSelectMachon(i, m.id); }}
+                    onMouseEnter={() => setHovered(`m:${i}|${m.id}`)}
+                    onMouseLeave={() => setHovered((h) => (h === `m:${i}|${m.id}` ? null : h))}
                   >
+                    <title>{`${pl.nombre} · machón ${m.id} (${m.ancho.toFixed(0)} mm) · η = ${(m.etaMax * 100).toFixed(0)}%`}</title>
                     <rect
                       x={ox + m.x1 * s}
                       y={c.yTop}
@@ -267,18 +299,24 @@ export function MasonryWallsSVG({
                   hh = h.h * s;
                 }
                 const isSel = selectedHueco === h.id;
+                const isHov = hovered === `h:${h.id}`;
                 const dintelH = Math.max(8, Math.min(14, c.muroH * 0.05));
                 return (
                   <g
                     key={h.id}
+                    role="button"
+                    aria-label={`${esPuerta ? 'Puerta' : 'Ventana'} ${h.id.slice(-4)} de ${pl.nombre}, ${h.w} mm × ${h.h} mm, click para editar`}
                     onClick={(e) => { e.stopPropagation(); onSelectHueco(h.id, i); }}
+                    onMouseEnter={() => setHovered(`h:${h.id}`)}
+                    onMouseLeave={() => setHovered((x) => (x === `h:${h.id}` ? null : x))}
                     style={{ cursor: 'pointer' }}
                   >
+                    <title>{`${pl.nombre} · ${esPuerta ? 'puerta' : 'ventana'} ${h.id.slice(-4)} (${h.w}×${h.h} mm)`}</title>
                     <rect
                       x={hx} y={hy} width={hw} height={hh}
                       fill="#0b1220"
-                      stroke={isSel ? '#38bdf8' : '#475569'}
-                      strokeWidth={isSel ? 1.6 : 0.8}
+                      stroke={isSel ? '#38bdf8' : isHov ? 'rgba(56,189,248,0.55)' : '#475569'}
+                      strokeWidth={isSel ? 1.6 : isHov ? 1.4 : 0.8}
                     />
                     {/* DINTEL */}
                     <rect

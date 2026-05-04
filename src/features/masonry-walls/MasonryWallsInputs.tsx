@@ -10,6 +10,7 @@ import {
   FM_PARA_FB,
   resolverFabrica,
   eMin,
+  detectarHuecosSolapados,
   type MasonryWallState,
   type Hueco,
   type Puntual,
@@ -210,8 +211,26 @@ export function MasonryWallsInputs({
   const plantaCalcSel = plantasCalc[selectedPlantaIdx];
   const fmDisponibles = FM_PARA_FB[state.fb] || [];
 
+  // Hint "caso de ejemplo": cuando los parámetros globales del muro siguen en
+  // los valores por defecto (L=6m, t=24cm, 4 plantas, γM=2.5), asumimos que el
+  // usuario aún no ha tocado nada y se lo recordamos. Tocar cualquiera de
+  // estos campos oculta el hint sin necesidad de un flag persistente.
+  const isPristine =
+    state.L === 6000 &&
+    state.t === 240 &&
+    state.plantas.length === 4 &&
+    state.gamma_M === 2.5;
+
   return (
     <div className="px-4 py-3 min-w-0">
+      {isPristine && (
+        <div className="mb-2 rounded border border-accent/25 bg-accent/5 px-2 py-1.5 text-[11px] text-text-secondary leading-snug">
+          <span className="font-mono text-accent text-[10px] uppercase mr-1.5" style={{ letterSpacing: '0.07em' }}>
+            Caso de ejemplo
+          </span>
+          Edita los inputs para tu caso real. El veredicto se actualiza al instante.
+        </div>
+      )}
       {/* Fábrica · Tabla 4.4 / Personalizada */}
       <CollapsibleSection label="Fábrica" refNorma="§4.6 · Tabla 4.4">
         <div className="flex gap-1 mb-2">
@@ -406,6 +425,31 @@ export function MasonryWallsInputs({
             {plantaSel.huecos.length === 0 && (
               <div className="text-[11px] text-text-disabled py-1">Sin huecos en esta planta.</div>
             )}
+            {/* Warning si dos huecos se solapan: el motor mergea su unión en
+                un solo intervalo, así que el cálculo es estable, pero el
+                usuario no se da cuenta de que su modelo es ambiguo. */}
+            {(() => {
+              const pares = detectarHuecosSolapados(plantaSel.huecos);
+              if (pares.length === 0) return null;
+              const idShort = (id: string) => id.slice(-4);
+              return (
+                <div className="rounded border border-state-warn/60 bg-state-warn/5 px-2 py-1.5 mb-2 text-[10px] font-mono text-state-warn leading-tight flex gap-2">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5" aria-hidden="true">
+                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <div>
+                    Huecos solapados (el motor calcula su unión como un único hueco):
+                    <ul className="mt-1 ml-3 list-disc">
+                      {pares.map((p, i) => (
+                        <li key={i}>{idShort(p.a)} ↔ {idShort(p.b)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })()}
             {plantaSel.huecos.map((h) => {
               const sel = selectedHueco === h.id;
               return (

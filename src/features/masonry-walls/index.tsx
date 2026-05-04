@@ -164,10 +164,11 @@ export function MasonryWallsModule() {
       <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Inputs (left) — visible always on desktop, only when tab=inputs on mobile */}
+        {/* Inputs (left) — visible always on desktop, only when tab=inputs on mobile.
+            En tablet (md..lg) ajustamos el ancho para que caben los 3 paneles. */}
         <div className={[
           'shrink-0 border-r border-border-main bg-bg-surface overflow-y-auto overflow-x-hidden scroll-hide',
-          'md:w-[280px] md:block',
+          'md:w-[260px] md:block lg:w-[280px]',
           tab === 'inputs' ? 'flex-1' : 'hidden',
         ].join(' ')}>
           <MasonryWallsInputs
@@ -232,7 +233,7 @@ export function MasonryWallsModule() {
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(239,68,68,0.5)' }} />η≥100%
             </span>
-            <span className="ml-auto hidden lg:inline">Click en planta o hueco para editar</span>
+            <span className="ml-auto hidden lg:inline">Click en planta, hueco o machón para seleccionar</span>
             <button
               type="button"
               onClick={() => setMostrarMapa(!mostrarMapa)}
@@ -249,10 +250,12 @@ export function MasonryWallsModule() {
           </div>
         </div>
 
-        {/* Results (right) — desktop ≥lg always; mobile when tab='results' */}
+        {/* Results (right) — desktop visible desde md (250px en tablet, 300px
+            en lg+) para que iPad portrait/landscape pueda ver el veredicto.
+            Mobile <md alterna por tab. */}
         <div className={[
           'shrink-0 border-l border-border-main bg-bg-surface overflow-y-auto scroll-hide',
-          'lg:w-[300px] lg:block',
+          'md:w-[250px] md:block lg:w-[300px]',
           tab === 'results' ? 'flex-1' : 'hidden',
         ].join(' ')}>
           <MasonryWallsResults
