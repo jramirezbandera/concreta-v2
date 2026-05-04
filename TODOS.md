@@ -463,24 +463,6 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** ninguno. Trabajo aislado de ~30min CC.
 
-### Masonry walls — botón "Restablecer valores" (eng-review 2026-05-04)
-
-**Status:** DEFERRED del eng-review 2026-05-04.
-
-**What:** Añadir un botón discreto al final del panel de inputs ("Restablecer valores") que pone `state = defaultMasonryState()` y limpia las claves `concreta-masonry-walls-model{,-version}` de localStorage. Patrón de `EmpresalladoModule.tsx` (`<button onClick={reset}>Restablecer valores</button>` en el footer del input panel).
-
-**Why:** los demás módulos lo tienen y es la forma más rápida de salir de un estado problemático (combinación de Tabla 4.4 inviable, geometría degenerada que pide reset, etc.). Hoy el usuario tiene que F12 y borrar localStorage manualmente.
-
-**Pros:** UX consistente con resto del repo; safety valve si el state queda corrupto.
-
-**Cons:** ninguno. Es trivial.
-
-**Context:** trivial. ~5 min CC.
-
-**Where to start:** añadir `reset()` function en `src/features/masonry-walls/index.tsx` que ejecuta `setState(defaultMasonryState())` + `localStorage.removeItem(STORAGE_KEY)` + `localStorage.removeItem(SCHEMA_VERSION_KEY)`. Botón en el footer del input panel (debajo de la última `CollapsibleSection`).
-
-**Depends on:** ninguno.
-
 ### Mobile a11y sweep — todos los módulos (design-review 2026-05-04)
 
 **Status:** DEFERRED del /plan-design-review 2026-05-04 (afecta a TODOS los módulos del repo, no solo masonry-walls).

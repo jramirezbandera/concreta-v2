@@ -88,6 +88,21 @@ export function MasonryWallsModule() {
       !invalid,
     );
 
+  // Reset: vuelve al edificio de ejemplo y limpia la persistencia local. Útil
+  // cuando el state queda corrupto o el usuario quiere descartar todo.
+  const reset = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(SCHEMA_VERSION_KEY);
+    } catch {
+      // ignore — quota / private mode
+    }
+    setState(defaultMasonryState());
+    setSelectedHueco(null);
+    setSelectedPlantaIdx(0);
+    setSelectedMachonKey(null);
+  };
+
   // CRUD
   const addPlanta = () => {
     setState((s) => {
@@ -166,27 +181,44 @@ export function MasonryWallsModule() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Inputs (left) — patrón estándar del repo: md:w-72 + shrink-0 fija
             el ancho en desktop. max-md:flex-1 hace que ocupe pantalla en
-            móvil cuando tab='inputs'. */}
+            móvil cuando tab='inputs'. Scroll interno + footer fijo con el
+            botón "Restablecer valores" al pie (hidden en mobile, donde el
+            tab bar y el flujo de edición ya cubren ese caso). */}
         <div className={[
-          'flex flex-col min-h-0 overflow-y-auto overflow-x-hidden scroll-hide bg-bg-surface',
+          'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
           'md:w-72 md:shrink-0 md:border-r md:border-border-main md:flex',
           tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
         ].join(' ')}>
-          <MasonryWallsInputs
-            state={state}
-            setState={setState}
-            selectedPlantaIdx={selectedPlantaIdx}
-            selectedHueco={selectedHueco}
-            setSelectedHueco={setSelectedHueco}
-            setSelectedPlantaIdx={setSelectedPlantaIdx}
-            plantasCalc={plantasCalc}
-            onAddPlanta={addPlanta}
-            onRemovePlanta={removePlanta}
-            onAddHueco={addHueco}
-            onRemoveHueco={removeHueco}
-            onAddPuntual={addPuntual}
-            onRemovePuntual={removePuntual}
-          />
+          <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide">
+            <MasonryWallsInputs
+              state={state}
+              setState={setState}
+              selectedPlantaIdx={selectedPlantaIdx}
+              selectedHueco={selectedHueco}
+              setSelectedHueco={setSelectedHueco}
+              setSelectedPlantaIdx={setSelectedPlantaIdx}
+              plantasCalc={plantasCalc}
+              onAddPlanta={addPlanta}
+              onRemovePlanta={removePlanta}
+              onAddHueco={addHueco}
+              onRemoveHueco={removeHueco}
+              onAddPuntual={addPuntual}
+              onRemovePuntual={removePuntual}
+            />
+          </div>
+          <div className="hidden md:block px-4 py-2.5 border-t border-border-main shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Restablecer todos los valores al edificio de ejemplo? Se perderán los cambios.')) {
+                  reset();
+                }
+              }}
+              className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors cursor-pointer"
+            >
+              Restablecer valores
+            </button>
+          </div>
         </div>
 
         {/* Center canvas — desktop always; mobile when tab='diagramas' */}
