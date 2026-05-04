@@ -4,9 +4,15 @@ interface CollapsibleSectionProps {
   label: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  /**
+   * Optional normative reference shown right-aligned next to the section
+   * label (e.g. "DB-SE-F §5.2"). Used by modules that document the article
+   * backing each input block.
+   */
+  refNorma?: string;
 }
 
-export function CollapsibleSection({ label, children, defaultOpen = true }: CollapsibleSectionProps) {
+export function CollapsibleSection({ label, children, defaultOpen = true, refNorma }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const contentId = useId();
 
@@ -36,6 +42,7 @@ export function CollapsibleSection({ label, children, defaultOpen = true }: Coll
           </svg>
           {label}
         </span>
+        {refNorma && <span className="font-mono normal-case tracking-normal text-text-disabled">{refNorma}</span>}
       </button>
       {open && <div id={contentId} className="animate-[fadeIn_150ms_ease-out]">{children}</div>}
     </div>

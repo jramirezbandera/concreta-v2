@@ -8,6 +8,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { usePdfPreview } from '../../hooks/usePdfPreview';
 import {
   calcularEdificio,
   defaultMasonryState,
@@ -15,10 +18,13 @@ import {
   newId,
   overallStatus,
   plantaTemplate,
+  type EdificioInvalid,
   type Hueco,
   type MasonryWallState,
+  type PlantaResult,
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
+import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
 import { MasonryWallsResults } from './MasonryWallsResults';
 import { MasonryWallsSVG } from './MasonryWallsSVG';
@@ -57,6 +63,7 @@ export function MasonryWallsModule() {
   const [selectedPlantaIdx, setSelectedPlantaIdx] = useState(0);
   const [selectedMachonKey, setSelectedMachonKey] = useState<string | null>(null);
   const [mostrarMapa, setMostrarMapa] = useState(true);
+  const [tab, setTab] = useState<MobileTab>('inputs');
   const { openDrawer } = useDrawer();
 
   // Persist with debounce so rapid edits don't thrash localStorage.
@@ -65,9 +72,21 @@ export function MasonryWallsModule() {
     return () => clearTimeout(t);
   }, [state]);
 
-  const plantasCalc = useMemo(() => calcularEdificio(state), [state]);
+  // Motor devuelve discriminated union {invalid, reason} | {plantas[]}.
+  // Cuando la entrada es degenerada (combinación Tabla 4.4 inviable, t=0,
+  // L=0, etc.) la UI muestra un banner en lugar de números sin sentido.
+  const edificioResult = useMemo(() => calcularEdificio(state), [state]);
+  const invalid: EdificioInvalid | null = edificioResult.invalid ? edificioResult : null;
+  const plantasCalc: PlantaResult[] = edificioResult.invalid ? [] : edificioResult.plantas;
   const overall = useMemo(() => overallStatus(plantasCalc), [plantasCalc]);
   const critico = useMemo(() => getCriticoEdificio(plantasCalc), [plantasCalc]);
+
+  // PDF export — invalid disables the button (toast en su lugar).
+  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
+    usePdfPreview(
+      () => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid }),
+      !invalid,
+    );
 
   // CRUD
   const addPlanta = () => {
@@ -138,12 +157,19 @@ export function MasonryWallsModule() {
       <Topbar
         moduleLabel="Muros de fábrica"
         moduleGroup="Rehabilitación"
+        onExportPdf={handleExportPdf}
+        pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Inputs (left) */}
-        <div className="w-[280px] shrink-0 border-r border-border-main bg-bg-surface overflow-y-auto overflow-x-hidden scroll-hide hidden md:block">
+        {/* Inputs (left) — visible always on desktop, only when tab=inputs on mobile */}
+        <div className={[
+          'shrink-0 border-r border-border-main bg-bg-surface overflow-y-auto overflow-x-hidden scroll-hide',
+          'md:w-[280px] md:block',
+          tab === 'inputs' ? 'flex-1' : 'hidden',
+        ].join(' ')}>
           <MasonryWallsInputs
             state={state}
             setState={setState}
@@ -161,8 +187,12 @@ export function MasonryWallsModule() {
           />
         </div>
 
-        {/* Center canvas */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {/* Center canvas — desktop always; mobile when tab='diagramas' */}
+        <div className={[
+          'min-w-0 flex flex-col overflow-hidden',
+          'md:flex-1 md:flex',
+          tab === 'diagramas' ? 'flex-1 flex' : 'hidden md:flex',
+        ].join(' ')}>
           <div className="flex-1 min-h-0 p-4 canvas-dot-grid">
             <MasonryWallsSVG
               state={state}
@@ -219,18 +249,57 @@ export function MasonryWallsModule() {
           </div>
         </div>
 
-        {/* Results (right) */}
-        <div className="w-[300px] shrink-0 border-l border-border-main bg-bg-surface overflow-y-auto scroll-hide hidden lg:block">
+        {/* Results (right) — desktop ≥lg always; mobile when tab='results' */}
+        <div className={[
+          'shrink-0 border-l border-border-main bg-bg-surface overflow-y-auto scroll-hide',
+          'lg:w-[300px] lg:block',
+          tab === 'results' ? 'flex-1' : 'hidden',
+        ].join(' ')}>
           <MasonryWallsResults
             state={state}
             plantasCalc={plantasCalc}
             critico={critico}
             overall={overall}
+            invalid={invalid}
             selectedMachonKey={selectedMachonKey}
             setSelectedMachonKey={setSelectedMachonKey}
           />
         </div>
       </div>
+
+      {/* Hidden SVG for PDF export — fixed dimensions, offscreen. The PDF
+          generator queries this DOM node via id and rasterizes via svg2pdf. */}
+      <div className="overflow-hidden w-0 h-0" aria-hidden="true">
+        <div
+          id="masonry-walls-svg-pdf"
+          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+        >
+          <MasonryWallsSVG
+            state={state}
+            plantasCalc={plantasCalc}
+            critico={critico}
+            mostrarMapa
+            selectedHueco={null}
+            selectedPlantaIdx={-1}
+            selectedMachonKey={null}
+            onSelectHueco={() => undefined}
+            onSelectPlanta={() => undefined}
+            onSelectMachon={() => undefined}
+            forceWidth={760}
+            forceHeight={1020}
+          />
+        </div>
+      </div>
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

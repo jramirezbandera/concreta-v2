@@ -444,3 +444,39 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 **Where to start:** al final de la implementación de cada Lane (A→D), revisar qué se aprendió y volcar a DESIGN.md. Bump version a 2.1 cuando todo el FEM V1 esté shipeado y los patterns confirmados en producción.
 
 **Depends on:** FEM V1 implementación (no es bloqueante de ship, pero sí de cierre del módulo).
+
+### Masonry walls — share-URL serialization (eng-review 2026-05-04)
+
+**Status:** DEFERRED del eng-review 2026-05-04 (módulo Muros de fábrica, commit `5e467d5`).
+
+**What:** Implementar `buildShareUrl(state)` para el modelo de muros de fábrica, equivalente al patrón de `src/features/fem-analysis/serialize.ts` (lz-string + base64 en `?model=` query param). Hidratar desde URL al montar el módulo, con fallback a `localStorage` y luego a defaults.
+
+**Why:** todos los módulos con state stateful (rc-beams, steel-beams, fem-analysis) permiten compartir un caso de cálculo por URL. El proyectista pega un enlace en el correo al promotor / aparejador / arquitecto técnico y el destinatario abre el caso idéntico al hacer click. Hoy `masonry-walls` solo persiste en localStorage del navegador del autor — nadie más puede ver su caso.
+
+**Pros:** paridad con resto del repo; facilita revisiones cruzadas entre técnicos del mismo proyecto.
+
+**Cons:** el state nested (plantas → huecos + puntuales) genera URLs largas (~2-3 KB tras lz-string). Hay que verificar que no rompen límites de URL en redes corporativas (~8 KB típico).
+
+**Context:** ver `src/features/fem-analysis/serialize.ts` para el patrón. Schema versioning ya existe en localStorage (`SCHEMA_VERSION = '1'` en `index.tsx`); reutilizar el mismo número en la URL para detectar incompatibilidades futuras.
+
+**Where to start:** crear `src/features/masonry-walls/serialize.ts` con `encodeShareString(state)` y `decodeShareString(s)`. Modificar `loadState()` en `index.tsx` para chequear `?model=` antes de localStorage. Botón "Copiar enlace" en el Topbar (la prop `onCopyLink` ya está en el componente Topbar para otros módulos).
+
+**Depends on:** ninguno. Trabajo aislado de ~30min CC.
+
+### Masonry walls — botón "Restablecer valores" (eng-review 2026-05-04)
+
+**Status:** DEFERRED del eng-review 2026-05-04.
+
+**What:** Añadir un botón discreto al final del panel de inputs ("Restablecer valores") que pone `state = defaultMasonryState()` y limpia las claves `concreta-masonry-walls-model{,-version}` de localStorage. Patrón de `EmpresalladoModule.tsx` (`<button onClick={reset}>Restablecer valores</button>` en el footer del input panel).
+
+**Why:** los demás módulos lo tienen y es la forma más rápida de salir de un estado problemático (combinación de Tabla 4.4 inviable, geometría degenerada que pide reset, etc.). Hoy el usuario tiene que F12 y borrar localStorage manualmente.
+
+**Pros:** UX consistente con resto del repo; safety valve si el state queda corrupto.
+
+**Cons:** ninguno. Es trivial.
+
+**Context:** trivial. ~5 min CC.
+
+**Where to start:** añadir `reset()` function en `src/features/masonry-walls/index.tsx` que ejecuta `setState(defaultMasonryState())` + `localStorage.removeItem(STORAGE_KEY)` + `localStorage.removeItem(SCHEMA_VERSION_KEY)`. Botón en el footer del input panel (debajo de la última `CollapsibleSection`).
+
+**Depends on:** ninguno.

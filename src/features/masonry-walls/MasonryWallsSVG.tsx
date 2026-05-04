@@ -21,6 +21,11 @@ interface Props {
   onSelectHueco: (id: string, plIdx: number) => void;
   onSelectPlanta: (i: number) => void;
   onSelectMachon: (plIdx: number, machonId: string) => void;
+  /** Cuando se proporcionan, el SVG ignora ResizeObserver y se renderiza a
+   *  esas dimensiones fijas. Pensado para la copia oculta usada en exportación
+   *  PDF (offscreen container donde ResizeObserver no dispara fiable). */
+  forceWidth?: number;
+  forceHeight?: number;
 }
 
 // Colormap viridis-like: 0 (frío) → 1 (caliente)
@@ -53,11 +58,14 @@ export function MasonryWallsSVG({
   state, plantasCalc, critico, mostrarMapa,
   selectedHueco, selectedPlantaIdx, selectedMachonKey,
   onSelectHueco, onSelectPlanta, onSelectMachon,
+  forceWidth, forceHeight,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 760, h: 600 });
+  const usingForcedSize = forceWidth != null && forceHeight != null;
 
   useEffect(() => {
+    if (usingForcedSize) return;
     if (!wrapRef.current) return;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
@@ -67,10 +75,10 @@ export function MasonryWallsSVG({
     });
     ro.observe(wrapRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [usingForcedSize]);
 
-  const width = size.w;
-  const height = size.h;
+  const width = forceWidth ?? size.w;
+  const height = forceHeight ?? size.h;
   const padX = 56;
   const padTop = 24;
   const padBottom = 56;

@@ -2,7 +2,7 @@
 // Replica el diseño del prototipo: secciones colapsables (Fábrica, Muro
 // global, Acciones ELU, Plantas, Forjado, Cargas puntuales, Huecos) con CRUD.
 
-import { useState } from 'react';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import {
   TABLA_4_4,
   FB_VALUES,
@@ -14,39 +14,6 @@ import {
   type Puntual,
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
-
-interface SectionProps {
-  label: string;
-  refNorma?: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}
-
-function Section({ label, refNorma, defaultOpen = true, children }: SectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="mt-3 first:mt-0">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-1.5 pt-2 pb-1.5 border-b border-border-sub mb-2 cursor-pointer"
-      >
-        <svg
-          width="9" height="9" viewBox="0 0 10 10"
-          fill="none" stroke="currentColor" strokeWidth="1.5"
-          style={{ color: '#475569', transform: open ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 150ms' }}
-        >
-          <path d="M2 4l3 3 3-3" />
-        </svg>
-        <span className="text-[10px] font-semibold uppercase text-text-disabled" style={{ letterSpacing: '0.08em' }}>
-          {label}
-        </span>
-        {refNorma && <span className="ml-auto text-[10px] font-mono text-text-disabled">{refNorma}</span>}
-      </button>
-      {open && <div>{children}</div>}
-    </div>
-  );
-}
 
 interface NumFieldProps {
   label: string;
@@ -210,7 +177,7 @@ export function MasonryWallsInputs({
   return (
     <div className="px-4 py-3 min-w-0">
       {/* Fábrica · Tabla 4.4 / Personalizada */}
-      <Section label="Fábrica" refNorma="§4.6 · Tabla 4.4">
+      <CollapsibleSection label="Fábrica" refNorma="§4.6 · Tabla 4.4">
         <div className="flex gap-1 mb-2">
           {(['tabla', 'custom'] as const).map((m) => (
             <button
@@ -275,19 +242,19 @@ export function MasonryWallsInputs({
             <span>{fab.fk ? (fab.fk / state.gamma_M).toFixed(2) : '—'} N/mm²</span>
           </div>
         </div>
-      </Section>
+      </CollapsibleSection>
 
       {/* Muro global */}
-      <Section label="Muro · global" refNorma="§5.2.4">
+      <CollapsibleSection label="Muro · global" refNorma="§5.2.4">
         <NumField label="L" sub="longitud" value={state.L} unit="mm" onChange={(v) => set('L', v)} />
         <NumField label="t" sub="espesor"  value={state.t} unit="mm" onChange={(v) => set('t', v)} />
         <p className="text-[10px] text-text-disabled leading-tight pl-1 mb-1">
           e_min = max(0,05·t, 20mm) = {eMin(state.t).toFixed(0)} mm · §5.2.3
         </p>
-      </Section>
+      </CollapsibleSection>
 
       {/* Acciones */}
-      <Section label="Acciones · combinación ELU" refNorma="DB-SE §4.2.4">
+      <CollapsibleSection label="Acciones · combinación ELU" refNorma="DB-SE §4.2.4">
         <div className="rounded border border-border-main bg-bg-primary px-2 py-1.5 mb-2">
           <p className="text-[10px] text-text-secondary leading-snug font-mono">
             Cargas en <span className="text-accent">valores característicos</span> (sin mayorar).
@@ -298,10 +265,10 @@ export function MasonryWallsInputs({
         </div>
         <NumField label="γG" sub="permanente" value={state.gamma_G} unit="" onChange={(v) => set('gamma_G', v)} />
         <NumField label="γQ" sub="variable"   value={state.gamma_Q} unit="" onChange={(v) => set('gamma_Q', v)} />
-      </Section>
+      </CollapsibleSection>
 
       {/* Plantas list + CRUD */}
-      <Section label="Plantas del edificio" refNorma="§5.2">
+      <CollapsibleSection label="Plantas del edificio" refNorma="§5.2">
         <div className="flex flex-col gap-1">
           {state.plantas.map((pl, i) => {
             const cs = plantasCalc[i];
@@ -341,11 +308,11 @@ export function MasonryWallsInputs({
         >
           + Añadir planta
         </button>
-      </Section>
+      </CollapsibleSection>
 
       {plantaSel && (
         <>
-          <Section label={`Forjado · ${plantaSel.nombre}`} refNorma="§5.2.3">
+          <CollapsibleSection label={`Forjado · ${plantaSel.nombre}`} refNorma="§5.2.3">
             <NumField label="H"   sub="altura libre"  value={plantaSel.H}       unit="mm"   onChange={(v) => setPlanta(selectedPlantaIdx, 'H', v)} />
             <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     unit="kN/m" onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
             <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     unit="kN/m" onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
@@ -358,9 +325,9 @@ export function MasonryWallsInputs({
                 e_cabeza = {plantaCalcSel.e_cabeza.toFixed(0)} mm · e_pie = {plantaCalcSel.e_pie.toFixed(0)} mm
               </p>
             )}
-          </Section>
+          </CollapsibleSection>
 
-          <Section label="Cargas puntuales" refNorma="§5.4">
+          <CollapsibleSection label="Cargas puntuales" refNorma="§5.4">
             {plantaSel.puntuales.length === 0 && (
               <div className="text-[11px] text-text-disabled py-1">Sin cargas puntuales en esta planta.</div>
             )}
@@ -386,9 +353,9 @@ export function MasonryWallsInputs({
             >
               + Añadir carga
             </button>
-          </Section>
+          </CollapsibleSection>
 
-          <Section label="Huecos">
+          <CollapsibleSection label="Huecos">
             {plantaSel.huecos.length === 0 && (
               <div className="text-[11px] text-text-disabled py-1">Sin huecos en esta planta.</div>
             )}
@@ -475,7 +442,7 @@ export function MasonryWallsInputs({
                 + Puerta
               </button>
             </div>
-          </Section>
+          </CollapsibleSection>
         </>
       )}
     </div>
