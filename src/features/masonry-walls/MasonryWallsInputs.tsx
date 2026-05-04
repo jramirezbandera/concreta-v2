@@ -8,9 +8,16 @@ import {
   TABLA_4_4,
   FB_VALUES,
   FM_PARA_FB,
+  CATEGORIA_LABELS,
+  EJECUCION_LABELS,
+  GAMMA_M_TABLA,
+  findGammaMCell,
+  lookupGammaM,
   resolverFabrica,
   eMin,
   detectarHuecosSolapados,
+  type CategoriaControl,
+  type ClaseEjecucion,
   type MasonryWallState,
   type Hueco,
   type Puntual,
@@ -283,7 +290,44 @@ export function MasonryWallsInputs({
             <NumField label="γ"  sub="peso esp." value={state.gamma_custom} unit="kN/m³" onChange={(v) => set('gamma_custom', v)} />
           </>
         )}
-        <NumField label="γM" sub="seguridad" value={state.gamma_M} unit="" onChange={(v) => set('gamma_M', v)} refNorma="§4.6.7" />
+        {/* γM selector según CTE Tabla 4.8 — categoría de control × clase de
+            ejecución. La UI detecta si el γM actual coincide con una celda y
+            preselecciona; si el usuario teclea un valor distinto, modo "Pers."
+            queda activo y se preserva el valor exacto. */}
+        {(() => {
+          const cell = findGammaMCell(state.gamma_M);
+          const isCustom = cell == null;
+          return (
+            <>
+              <SelField<string>
+                label="γM categoría · ejec."
+                value={isCustom ? 'custom' : `${cell.cat}-${cell.ejec}`}
+                onChange={(v) => {
+                  if (v === 'custom') return; // user has to type a number to enter custom mode
+                  const [c, e] = (v as string).split('-') as [CategoriaControl, ClaseEjecucion];
+                  set('gamma_M', lookupGammaM(c, e));
+                }}
+                options={[
+                  ...(['I', 'II', 'III'] as CategoriaControl[]).flatMap((c) =>
+                    (['A', 'B'] as ClaseEjecucion[]).map((e) => ({
+                      value: `${c}-${e}`,
+                      label: `Cat. ${c} · ej. ${e} (γM=${GAMMA_M_TABLA[c][e]})`,
+                    })),
+                  ),
+                  { value: 'custom', label: 'Personalizado…' },
+                ]}
+                refNorma="§4.6.7 · Tabla 4.8"
+              />
+              <NumField
+                label="γM"
+                sub={cell ? `${CATEGORIA_LABELS[cell.cat].split(' — ')[0]} · ${EJECUCION_LABELS[cell.ejec].split(' — ')[0]}` : 'personalizado'}
+                value={state.gamma_M}
+                unit=""
+                onChange={(v) => set('gamma_M', v)}
+              />
+            </>
+          );
+        })()}
 
         <div className="rounded border border-border-main p-2 mt-2 mb-1 bg-bg-primary">
           <div className="flex items-center justify-between text-[10px] font-mono">

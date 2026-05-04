@@ -12,9 +12,12 @@ import {
   defaultMasonryState,
   eApoyoForjado,
   eMin,
+  findGammaMCell,
+  GAMMA_M_TABLA,
   getCriticoEdificio,
   getMachonesPlanta,
   lookupFk,
+  lookupGammaM,
   newId,
   overallStatus,
   plantaTemplate,
@@ -132,6 +135,34 @@ describe('repartoMomento', () => {
   });
   it('plantas iguales → k=0.5', () => {
     expect(repartoMomento(3000, 3000)).toBeCloseTo(0.5, 5);
+  });
+});
+
+// ─── 3.5. γM Tabla 4.8 ───────────────────────────────────────────────────
+
+describe('γM · Tabla 4.8 DB-SE-F', () => {
+  it('Cat II + Ejec B → γM=2.5 (default rehabilitación)', () => {
+    expect(lookupGammaM('II', 'B')).toBe(2.5);
+  });
+  it('Cat I + Ejec A → γM=1.7 (más favorable)', () => {
+    expect(lookupGammaM('I', 'A')).toBe(1.7);
+  });
+  it('Cat III + Ejec B → γM=3.0 (más conservador)', () => {
+    expect(lookupGammaM('III', 'B')).toBe(3.0);
+  });
+  it('GAMMA_M_TABLA cubre 6 celdas', () => {
+    let count = 0;
+    Object.values(GAMMA_M_TABLA).forEach((row) => Object.values(row).forEach(() => count++));
+    expect(count).toBe(6);
+  });
+  it('findGammaMCell encuentra γM=2.0 → Cat II ejec A', () => {
+    expect(findGammaMCell(2.0)).toEqual({ cat: 'II', ejec: 'A' });
+  });
+  it('findGammaMCell devuelve null para valor personalizado', () => {
+    expect(findGammaMCell(2.3)).toBeNull();
+  });
+  it('findGammaMCell tolera tolerancia 0.01', () => {
+    expect(findGammaMCell(2.504)).toEqual({ cat: 'II', ejec: 'B' });
   });
 });
 

@@ -111,6 +111,58 @@ export function lookupFk(pieza: PiezaTipo, fb: number, fm: number): number | nul
 
 export const GAMMA_M_DEFAULT = 2.5; // categoría control normal · §4.6.7
 
+/**
+ * CTE DB-SE-F Tabla 4.8 — Coeficientes parciales γ_M para fábricas según
+ * categoría de control de ejecución (I extenso / II normal / III reducido)
+ * y clase de ejecución (A / B):
+ *
+ *                       │  Clase A  │  Clase B
+ *   ──────────────────────┼───────────┼──────────
+ *   Categoría I  (extenso)│    1.7    │    2.2
+ *   Categoría II (normal) │    2.0    │    2.5     ← default usual rehabilitación
+ *   Categoría III (reduc.)│    2.5    │    3.0
+ *
+ * El usuario suele rehabilitar muros antiguos sin ensayos previos, lo que
+ * encaja con Categoría II + Ejecución B → γ_M = 2.5.
+ */
+export type CategoriaControl = 'I' | 'II' | 'III';
+export type ClaseEjecucion = 'A' | 'B';
+
+export const GAMMA_M_TABLA: Record<CategoriaControl, Record<ClaseEjecucion, number>> = {
+  I:   { A: 1.7, B: 2.2 },
+  II:  { A: 2.0, B: 2.5 },
+  III: { A: 2.5, B: 3.0 },
+};
+
+export const CATEGORIA_LABELS: Record<CategoriaControl, string> = {
+  I:   'I — Control extenso (ensayos)',
+  II:  'II — Control normal',
+  III: 'III — Control reducido',
+};
+
+export const EJECUCION_LABELS: Record<ClaseEjecucion, string> = {
+  A: 'A — Cualificada',
+  B: 'B — No cualificada',
+};
+
+export function lookupGammaM(cat: CategoriaControl, ejec: ClaseEjecucion): number {
+  return GAMMA_M_TABLA[cat][ejec];
+}
+
+/**
+ * Devuelve la celda de Tabla 4.8 que coincide con el γM actual, o null si
+ * el valor no está en la tabla (modo personalizado). Usado por la UI para
+ * presentar el selector pre-seleccionado en la celda correcta.
+ */
+export function findGammaMCell(gM: number): { cat: CategoriaControl; ejec: ClaseEjecucion } | null {
+  for (const cat of ['I', 'II', 'III'] as CategoriaControl[]) {
+    for (const ejec of ['A', 'B'] as ClaseEjecucion[]) {
+      if (Math.abs(GAMMA_M_TABLA[cat][ejec] - gM) < 0.01) return { cat, ejec };
+    }
+  }
+  return null;
+}
+
 // ── Tipos del modelo ──────────────────────────────────────────────────────
 
 export type FabricaModo = 'tabla' | 'custom';
