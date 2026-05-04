@@ -79,6 +79,30 @@ export function MasonryWallsSVG({
 
   const width = forceWidth ?? size.w;
   const height = forceHeight ?? size.h;
+  const monoFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
+  // Estado inválido (validation gate) → SVG placeholder en lugar de iterar
+  // sobre plantas sin calc asociado, lo que produciría TypeError. La causa
+  // típica: el usuario borra el espesor para escribir otro valor, durante un
+  // tick `state.t = 0` y el motor devuelve invalid hasta que escriba el nuevo.
+  if (plantasCalc.length !== state.plantas.length) {
+    return (
+      <div ref={wrapRef} style={{ width: '100%', height: '100%', minHeight: 360 }}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+          <text
+            x={width / 2}
+            y={height / 2}
+            textAnchor="middle"
+            fill="#475569"
+            fontSize="12"
+            fontFamily={monoFamily}
+          >
+            Datos no válidos — ajusta los inputs en el panel izquierdo
+          </text>
+        </svg>
+      </div>
+    );
+  }
   const padX = 56;
   const padTop = 24;
   const padBottom = 56;
@@ -112,7 +136,6 @@ export function MasonryWallsSVG({
   };
 
   const criticalKey = critico ? `${critico.planta.index}-${critico.id}` : null;
-  const monoFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
   return (
     <div ref={wrapRef} style={{ width: '100%', height: '100%', minHeight: 360 }}>

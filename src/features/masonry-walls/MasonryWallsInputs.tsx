@@ -2,6 +2,7 @@
 // Replica el diseño del prototipo: secciones colapsables (Fábrica, Muro
 // global, Acciones ELU, Plantas, Forjado, Cargas puntuales, Huecos) con CRUD.
 
+import { useEffect, useState } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import {
   TABLA_4_4,
@@ -18,13 +19,40 @@ import {
 interface NumFieldProps {
   label: string;
   sub?: string;
+  /** Valor en las unidades de almacenamiento del state (mm para geometría). */
   value: number;
   unit?: string;
+  /** Valor a mostrar = value · scale. Permite que el state guarde mm pero el
+   *  usuario edite metros (scale=0.001) o cm (scale=0.1). El onChange devuelve
+   *  el valor en unidades de almacenamiento (mm). Default 1 (sin conversión). */
+  scale?: number;
+  /** Decimales en el display. Default: 0 si scale=1, 2 si scale<1. */
+  decimals?: number;
   onChange: (v: number) => void;
   refNorma?: string;
 }
 
-function NumField({ label, sub, value, unit, onChange, refNorma }: NumFieldProps) {
+function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refNorma }: NumFieldProps) {
+  // Cadena local controlada (mismo patrón que empresillado): permite estados
+  // intermedios mientras el usuario escribe ("5.", "1.2"), y solo dispara
+  // onChange cuando el valor parsea limpio. onBlur canonicaliza si quedó algo
+  // inválido. useEffect sincroniza si el `value` cambia desde fuera.
+  const initial = String(value * scale);
+  const [localStr, setLocalStr] = useState<string>(initial);
+
+  useEffect(() => {
+    // Si el valor parseado coincide con el almacenado, no sobreescribir lo
+    // que el usuario está tecleando (preserva "5." y "5.0" mientras escribe).
+    const parsed = parseFloat(localStr);
+    const storedFromLocal = isNaN(parsed) ? null : parsed / scale;
+    if (storedFromLocal !== value) {
+      setLocalStr(String(value * scale));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, scale]);
+
+  void decimals;
+
   return (
     <div>
       <div className="flex items-center justify-between gap-2 py-1">
@@ -38,11 +66,19 @@ function NumField({ label, sub, value, unit, onChange, refNorma }: NumFieldProps
         <div className="flex shrink-0">
           <input
             type="text"
-            value={value}
+            inputMode="decimal"
+            value={localStr}
             onChange={(e) => {
-              const n = parseFloat(e.target.value);
-              if (!isNaN(n)) onChange(n);
-              else if (e.target.value === '' || e.target.value === '-') onChange(0);
+              const raw = e.target.value;
+              setLocalStr(raw); // siempre actualiza el display
+              const n = parseFloat(raw);
+              if (!isNaN(n)) onChange(n / scale);
+              // Si raw es '', '-', '5.' (parseFloat=5, no NaN) etc., no
+              // hacemos nada con el state mientras tanto.
+            }}
+            onBlur={() => {
+              const n = parseFloat(localStr);
+              if (isNaN(n)) setLocalStr(String(value * scale));
             }}
             className="w-16 text-right bg-bg-primary border border-border-main rounded-l px-2 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent"
           />
@@ -246,8 +282,10 @@ export function MasonryWallsInputs({
 
       {/* Muro global */}
       <CollapsibleSection label="Muro · global" refNorma="§5.2.4">
-        <NumField label="L" sub="longitud" value={state.L} unit="mm" onChange={(v) => set('L', v)} />
-        <NumField label="t" sub="espesor"  value={state.t} unit="mm" onChange={(v) => set('t', v)} />
+        <NumField label="L" sub="longitud" value={state.L} unit="m"  scale={0.001} decimals={2}
+          onChange={(v) => set('L', v)} />
+        <NumField label="t" sub="espesor"  value={state.t} unit="cm" scale={0.1}   decimals={1}
+          onChange={(v) => set('t', v)} />
         <p className="text-[10px] text-text-disabled leading-tight pl-1 mb-1">
           e_min = max(0,05·t, 20mm) = {eMin(state.t).toFixed(0)} mm · §5.2.3
         </p>
@@ -313,11 +351,16 @@ export function MasonryWallsInputs({
       {plantaSel && (
         <>
           <CollapsibleSection label={`Forjado · ${plantaSel.nombre}`} refNorma="§5.2.3">
-            <NumField label="H"   sub="altura libre"  value={plantaSel.H}       unit="mm"   onChange={(v) => setPlanta(selectedPlantaIdx, 'H', v)} />
-            <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     unit="kN/m" onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
-            <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     unit="kN/m" onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
-            <NumField label="a"   sub="apoyo"         value={plantaSel.a_apoyo} unit="mm"   onChange={(v) => setPlanta(selectedPlantaIdx, 'a_apoyo', v)} />
-            <NumField label="e_a" sub="penetración"   value={plantaSel.e_apoyo} unit="mm"   onChange={(v) => setPlanta(selectedPlantaIdx, 'e_apoyo', v)} />
+            <NumField label="H"   sub="altura libre"  value={plantaSel.H}       unit="m"    scale={0.001} decimals={2}
+              onChange={(v) => setPlanta(selectedPlantaIdx, 'H', v)} />
+            <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     unit="kN/m"
+              onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
+            <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     unit="kN/m"
+              onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
+            <NumField label="a"   sub="apoyo"         value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
+              onChange={(v) => setPlanta(selectedPlantaIdx, 'a_apoyo', v)} />
+            <NumField label="e_a" sub="penetración"   value={plantaSel.e_apoyo} unit="cm"   scale={0.1}   decimals={1}
+              onChange={(v) => setPlanta(selectedPlantaIdx, 'e_apoyo', v)} />
             {plantaCalcSel && (
               <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-1">
                 q<sub>d</sub> = {(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0)).toFixed(2)} kN/m<br />
@@ -337,10 +380,14 @@ export function MasonryWallsInputs({
                   <span className="text-[10px] font-mono text-text-disabled">P{i + 1}</span>
                   <MiniBtn variant="danger" onClick={() => onRemovePuntual(selectedPlantaIdx, p.id)}>eliminar</MiniBtn>
                 </div>
-                <NumField label="x"   sub="pos."          value={p.x}      unit="mm" onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'x', v)} />
-                <NumField label="P_G" sub="permanente Gk" value={p.P_G}    unit="kN" onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_G', v)} />
-                <NumField label="P_Q" sub="variable Qk"   value={p.P_Q}    unit="kN" onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_Q', v)} />
-                <NumField label="b"   sub="apoyo"         value={p.b_apoyo} unit="mm" onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'b_apoyo', v)} />
+                <NumField label="x"   sub="pos."          value={p.x}       unit="m"  scale={0.001} decimals={2}
+                  onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'x', v)} />
+                <NumField label="P_G" sub="permanente Gk" value={p.P_G}     unit="kN"
+                  onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_G', v)} />
+                <NumField label="P_Q" sub="variable Qk"   value={p.P_Q}     unit="kN"
+                  onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_Q', v)} />
+                <NumField label="b"   sub="apoyo"         value={p.b_apoyo} unit="cm" scale={0.1}   decimals={1}
+                  onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'b_apoyo', v)} />
                 <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5">
                   P<sub>d</sub> = {(state.gamma_G * (p.P_G || 0) + state.gamma_Q * (p.P_Q || 0)).toFixed(1)} kN
                 </p>
@@ -382,13 +429,17 @@ export function MasonryWallsInputs({
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'tipo', v as Hueco['tipo'])}
                         options={[{ value: 'puerta', label: 'Puerta' }, { value: 'ventana', label: 'Ventana' }]}
                       />
-                      <NumField label="x" sub="pos." value={h.x} unit="mm" onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'x', v)} />
+                      <NumField label="x" sub="pos." value={h.x} unit="m" scale={0.001} decimals={2}
+                        onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'x', v)} />
                       {h.tipo === 'ventana' && (
-                        <NumField label="y" sub="alféizar" value={h.y} unit="mm" onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'y', v)} />
+                        <NumField label="y" sub="alféizar" value={h.y} unit="m" scale={0.001} decimals={2}
+                          onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'y', v)} />
                       )}
-                      <NumField label="w" sub="ancho" value={h.w} unit="mm" onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'w', v)} />
+                      <NumField label="w" sub="ancho" value={h.w} unit="m" scale={0.001} decimals={2}
+                        onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'w', v)} />
                       {h.tipo === 'ventana' && (
-                        <NumField label="h" sub="alto" value={h.h} unit="mm" onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'h', v)} />
+                        <NumField label="h" sub="alto" value={h.h} unit="m" scale={0.001} decimals={2}
+                          onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'h', v)} />
                       )}
                       {/* Info del dintel */}
                       {(() => {
