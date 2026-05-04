@@ -466,20 +466,3 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** ninguno técnico; depende de prioridad relativa frente a otras features.
 
-### Masonry walls — PDF dimensions en m/cm en lugar de mm (design-review 2026-05-04)
-
-**Status:** DEFERRED del /plan-design-review 2026-05-04.
-
-**What:** El PDF de muros de fábrica (`src/lib/pdf/masonryWalls.ts`) muestra `L = 6000 mm`, `t = 240 mm`, etc. Tras el ajuste de unidades en la UI (commit `53e1a0c`), el usuario ve `L = 6.00 m`, `t = 24 cm` en pantalla. PDF debe seguir la misma convención para no confundir.
-
-**Why:** consistencia entre vista en pantalla y vista impresa. El PDF se entrega al promotor / aparejador / arquitecto técnico; ver mm cuando el técnico ha trabajado en m/cm rompe la confianza.
-
-**Pros:** consistencia UI/PDF; números más legibles para revisión externa.
-
-**Cons:** ninguno material. El motor de cálculo sigue en mm; sólo es presentación.
-
-**Context:** `src/lib/pdf/masonryWalls.ts` líneas ~85-95 (sección GEOMETRIA), ~135 (cota L). El refactor consiste en formatear con `(value/1000).toFixed(2)` para metros y `(value/10).toFixed(1)` para cm, igual que el `scale` prop del NumField.
-
-**Where to start:** un solo fichero, ~10 líneas. Lo hace cualquier sweep posterior del módulo. Test: abrir PDF y comprobar que coincide con la pantalla.
-
-**Depends on:** ninguno.

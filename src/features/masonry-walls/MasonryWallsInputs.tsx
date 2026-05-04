@@ -350,7 +350,7 @@ export function MasonryWallsInputs({
         <NumField label="t" sub="espesor"  value={state.t} unit="cm" scale={0.1}   decimals={1}
           onChange={(v) => set('t', v)} />
         <p className="text-[10px] text-text-disabled leading-tight pl-1 mb-1">
-          e_min = max(0,05·t, 20mm) = {eMin(state.t).toFixed(0)} mm · §5.2.3
+          e_min = max(0,05·t, 2 cm) = {(eMin(state.t) / 10).toFixed(1)} cm · §5.2.3
         </p>
       </CollapsibleSection>
 
@@ -432,7 +432,7 @@ export function MasonryWallsInputs({
               <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-1">
                 q<sub>d</sub> = {(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0)).toFixed(2)} kN/m<br />
                 Reparto k = {plantaCalcSel.k_reparto.toFixed(2)}<br />
-                e_cabeza = {plantaCalcSel.e_cabeza.toFixed(0)} mm · e_pie = {plantaCalcSel.e_pie.toFixed(0)} mm
+                e_cabeza = {(plantaCalcSel.e_cabeza / 10).toFixed(1)} cm · e_pie = {(plantaCalcSel.e_pie / 10).toFixed(1)} cm
               </p>
             )}
           </CollapsibleSection>
@@ -540,7 +540,7 @@ export function MasonryWallsInputs({
                         return (
                           <div className="mt-2 rounded border border-state-warn/60 p-2 bg-state-warn/5">
                             <div className="text-[10px] font-mono text-state-warn mb-1 uppercase" style={{ letterSpacing: '0.08em' }}>
-                              Dintel · luz {d.luz} mm
+                              Dintel · luz {(d.luz / 1000).toFixed(2)} m
                             </div>
                             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] font-mono">
                               <span className="text-text-secondary">q_dintel</span>
@@ -548,7 +548,7 @@ export function MasonryWallsInputs({
                               <span className="text-text-secondary">g_muro_sobre</span>
                               <span className="text-right tabular-nums">{d.g_propio.toFixed(2)} kN/m</span>
                               <span className="text-text-secondary">h_muro_sobre</span>
-                              <span className="text-right tabular-nums">{d.h_muro_sobre.toFixed(0)} mm</span>
+                              <span className="text-right tabular-nums">{(d.h_muro_sobre / 10).toFixed(1)} cm</span>
                               <span className="text-text-secondary">M_Ed</span>
                               <span className="text-right tabular-nums">{d.M_Ed.toFixed(2)} kN·m</span>
                               <span className="text-text-secondary">V_Ed</span>

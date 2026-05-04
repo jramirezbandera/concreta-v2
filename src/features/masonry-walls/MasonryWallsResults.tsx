@@ -161,7 +161,7 @@ export function MasonryWallsResults({
       {displayMachon && (
         <>
           <ValueRow label="Planta"                         value={displayMachon.planta.nombre} />
-          <ValueRow label="Machón"                         value={`${displayMachon.id} · ${displayMachon.ancho.toFixed(0)} mm`} />
+          <ValueRow label="Machón"                         value={`${displayMachon.id} · ${(displayMachon.ancho / 10).toFixed(1)} cm`} />
           <ValueRow label="N_directo · por ancho"          value={`${displayMachon.N_lineal.toFixed(1)} kN`} />
           <ValueRow label="N_dinteles · reacciones"        value={`${displayMachon.N_dinteles.toFixed(1)} kN`} />
           <ValueRow label="N_puntual · vigas"              value={`${displayMachon.N_puntual.toFixed(1)} kN`} />
@@ -172,7 +172,7 @@ export function MasonryWallsResults({
           <ValueRow label="σ pie"                          value={`${displayMachon.sigma_bottom.toFixed(2)} N/mm²`} />
           <ValueRow label="Φ · reductor"                   value={displayMachon.Phi.toFixed(3)} />
           <ValueRow label="λ · esbeltez"                   value={displayMachon.planta.lambda.toFixed(1)} />
-          <ValueRow label="e_total · exc. cálc."           value={`${displayMachon.planta.e_total.toFixed(0)} mm`} />
+          <ValueRow label="e_total · exc. cálc."           value={`${(displayMachon.planta.e_total / 10).toFixed(1)} cm`} />
         </>
       )}
 

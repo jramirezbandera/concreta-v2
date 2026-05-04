@@ -16,6 +16,11 @@ import { PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
 
 const M = 18;
 
+// Helpers de unidades — el motor guarda mm pero el PDF muestra m/cm para
+// coincidir con la UI (commits 53e1a0c y posteriores).
+const mToM = (mm: number, dp = 2) => `${(mm / 1000).toFixed(dp)} m`;
+const mToCm = (mm: number, dp = 1) => `${(mm / 10).toFixed(dp)} cm`;
+
 interface ExportArgs {
   state: MasonryWallState;
   plantasCalc: PlantaResult[];
@@ -92,9 +97,9 @@ export async function exportMasonryWallsPDF({
 
   const gap = () => { ry += 2; };
 
-  // GEOMETRIA
+  // GEOMETRIA — unidades en m/cm para coincidir con la UI
   secHeader('GEOMETRIA');
-  twoCol(`L = ${state.L} mm`, `t = ${state.t} mm`);
+  twoCol(`L = ${mToM(state.L)}`, `t = ${mToCm(state.t)}`);
   twoCol(`Plantas: ${state.plantas.length}`);
   gap();
 
@@ -132,7 +137,7 @@ export async function exportMasonryWallsPDF({
     twoCol(`Critico: ${critico.planta.nombre} / ${critico.id}`);
     twoCol(`N_Ed cab = ${critico.N_Ed.toFixed(0)} kN`, `N_Ed pie = ${critico.N_Ed_pie.toFixed(0)} kN`);
     twoCol(`N_Rd = ${critico.N_Rd.toFixed(0)} kN`, `Phi = ${critico.Phi.toFixed(3)}`);
-    twoCol(`lam = ${critico.planta.lambda.toFixed(1)}`, `e_t = ${critico.planta.e_total.toFixed(0)} mm`);
+    twoCol(`lam = ${critico.planta.lambda.toFixed(1)}`, `e_t = ${mToCm(critico.planta.e_total)}`);
   }
   gap();
 

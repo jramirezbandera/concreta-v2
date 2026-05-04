@@ -417,7 +417,7 @@ export function MasonryWallsSVG({
               <line x1={ox - 25} y1={c.yTop} x2={ox - 19} y2={c.yTop} stroke="#475569" strokeWidth="0.5" />
               <line x1={ox - 25} y1={c.yBottom} x2={ox - 19} y2={c.yBottom} stroke="#475569" strokeWidth="0.5" />
               <text x={ox - 26} y={c.yTop + c.muroH / 2 + 3} textAnchor="end" fill="#475569" fontSize="8" fontFamily={monoFamily}>
-                {pl.H}
+                {(pl.H / 1000).toFixed(2)} m
               </text>
             </g>
           );
@@ -505,7 +505,7 @@ export function MasonryWallsSVG({
         <line x1={ox} y1={cimY + 28} x2={ox} y2={cimY + 36} stroke="#475569" strokeWidth="0.6" />
         <line x1={ox + muroW} y1={cimY + 28} x2={ox + muroW} y2={cimY + 36} stroke="#475569" strokeWidth="0.6" />
         <text x={ox + muroW / 2} y={cimY + 44} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily={monoFamily}>
-          L = {state.L} mm  ·  t = {state.t} mm
+          L = {(state.L / 1000).toFixed(2)} m  ·  t = {(state.t / 10).toFixed(1)} cm
         </text>
       </svg>
     </div>
