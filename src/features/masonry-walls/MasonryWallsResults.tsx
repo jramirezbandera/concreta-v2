@@ -216,6 +216,36 @@ export function MasonryWallsResults({
         Φ = Φ_m·Φ_λ — comprobación en cabeza y pie del machón<br />
         k = 1/H_inf / (1/H_inf + 1/H_sup)
       </div>
+
+      {/* Aviso de alcance — el motor solo verifica solicitaciones VERTICALES.
+          Cargas horizontales (viento sobre fachada, sismo, empuje del terreno,
+          cortante en el plano) quedan FUERA y deben comprobarse aparte. Esto
+          es safety-critical: un usuario podría firmar una rehabilitación
+          asumiendo que ha comprobado todo el muro cuando solo ha comprobado
+          su componente axil. Visible siempre, no colapsable. */}
+      <div className="mx-4 mb-4 rounded border border-state-warn/50 bg-state-warn/5 px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <svg
+            width="14" height="14" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            className="shrink-0 mt-0.5 text-state-warn"
+            aria-hidden="true"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div className="text-[10px] leading-snug">
+            <div className="font-semibold uppercase text-state-warn mb-0.5" style={{ letterSpacing: '0.06em' }}>
+              Solo solicitaciones verticales
+            </div>
+            <div className="text-text-secondary font-mono">
+              El módulo verifica compresión excéntrica + pandeo vertical. <span className="text-state-warn">No comprueba</span> viento sobre fachada (DB-SE-AE §3.3), sismo (NCSE-02), empuje del terreno, cortante en el plano ni vuelco como conjunto.
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

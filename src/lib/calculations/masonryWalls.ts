@@ -1,21 +1,95 @@
 // Masonry walls (DB-SE-F) — motor de cálculo puro
+// =============================================================================
 //
 // Comprobación de muros de carga de fábrica en edificación rehabilitada,
 // multi-planta, considerando huecos (puertas/ventanas) con dinteles que
 // transmiten reacciones a los machones laterales.
 //
-// Comprobaciones (DB-SE-F):
+// ── Comprobaciones implementadas (CTE DB-SE-F) ──────────────────────────────
 //   §5.2    Compresión excéntrica (N_Ed ≤ N_Rd = Φ · f_d · A) — verificada
 //           en cabeza Y en pie del machón; η = max(η_cabeza, η_pie).
-//   §5.2.4  Pandeo (esbeltez λ = h_ef / t)
-//   §5.4    Concentración bajo apoyo de viga puntual (β depende de a/h)
+//   §5.2.4  Pandeo (esbeltez λ = h_ef / t, con ρ_n por planta).
+//   §5.4    Concentración bajo apoyo de viga puntual (β = 1 + 0.3·a/h, capped 1.5).
+//   §4.6.2  Resistencia característica f_k de Tabla 4.4 (pieza × fb × fm).
+//   §4.6.7  γ_M de Tabla 4.8 (categoría de control × clase de ejecución).
 //
-// Resistencia característica f_k según Tabla 4.4 (combinación pieza fb +
-// mortero fm) o introducida directamente por el usuario en modo "personalizada".
-// Resistencia de cálculo f_d = f_k / γ_M.
+// Combinación ELU (DB-SE §4.2.4 fundamental):
+//   q_d = γ_G · G_k + γ_Q · Q_k
+// El motor mayora internamente; los inputs son siempre característicos.
 //
-// Combinación ELU: q_d = γ_G · G_k + γ_Q · Q_k. El motor mayora internamente
-// y los inputs son siempre características (sin mayorar).
+// ⚠ ─── LIMITACIONES — LO QUE ESTE MOTOR NO COMPRUEBA ──────────────────────── ⚠
+//
+// Este módulo SOLO verifica solicitaciones VERTICALES (compresión axil con
+// excentricidad por descentrado del forjado). Cualquier acción que produzca
+// fuerzas horizontales sobre el muro queda FUERA DE ALCANCE de la verificación
+// y debe comprobarse por separado:
+//
+//   • VIENTO (DB-SE-AE §3.3) sobre fachada — empuje horizontal genera flexión
+//     fuera del plano del muro y, en lo alto, vuelco. No comprobado.
+//   • SISMO (NCSE-02) — fuerzas inerciales horizontales sobre la masa del muro
+//     y la masa de los forjados que apoya. No comprobado.
+//   • EMPUJE DEL TERRENO si el muro es de sótano o contención. No comprobado.
+//   • Cortante en el plano (in-plane shear) por acción horizontal del edificio
+//     transmitida a los muros de arriostramiento. No comprobado.
+//   • Vuelco / deslizamiento del muro como conjunto. No comprobado.
+//
+// El motor está pensado para muros de carga interiores en edificación
+// existente, donde la acción horizontal de viento/sismo se reparte a otros
+// elementos (muros de fachada, núcleo rígido) o se ha justificado en otro
+// documento. Si tu caso es un muro EXPUESTO al viento/sismo, NO uses solo
+// este módulo para firmar la comprobación.
+//
+// ── Simplificaciones respecto a CTE / EC6 rigurosa ──────────────────────────
+//
+// Para mantener el motor comprensible y rápido en un V1, se han adoptado
+// las siguientes simplificaciones. Todas son CONOCIDAS y razonables para el
+// rango típico de rehabilitación residencial. Casos fuera de ese rango pueden
+// requerir un cálculo más detallado.
+//
+//   S1. Φ unificado linealizado:
+//         Φ = (1 − 2·e/t) · (1 − (λ−10)/30)   para λ > 10
+//       En la fórmula simplificada CTE, λ ≤ 27 se chequea aparte y Φ se queda
+//       en (1 − 2·e/t) sin factor de pandeo. EC6 Annex G usa una expresión
+//       exponencial Φ_m = A₁·exp(−u²/2) mucho más conservadora a λ alto.
+//       Nuestra versión está entre ambas: más conservadora que la simplificada,
+//       levemente optimista respecto a la rigurosa de EC6.
+//
+//   S2. Concentración bajo apoyo (§5.4) — β depende solo de a/h:
+//         β = 1 + 0.3·(a/h)   capped en [1.0, 1.5]
+//       CTE §5.4.2 también modula por el cociente A_ef/A_b (área efectiva
+//       sobre área cargada). Nuestra fórmula puede subestimar η para apoyos
+//       pequeños sobre muros cortos. Si la viga apoya en una almohadilla
+//       muy reducida, comprueba aparte.
+//
+//   S3. ρ_n simplificado (§5.2.4):
+//         ρ_n = 0.75 (planta intermedia, doble arriostramiento)
+//         ρ_n = 1.0  (cubierta, cabeza menos restringida)
+//       No se modelan ρ₃ (reducción por huecos en muros adyacentes) ni ρ₄
+//       (rigidización por muros transversales). El usuario puede sobrescribir
+//       el ρ_n por planta si conoce las condiciones reales.
+//
+//   S4. Una sola variable Q por planta:
+//         q_d = γ_G·G_k + γ_Q·Q_k
+//       Si la planta tiene múltiples acciones variables (uso + nieve + viento
+//       sobre cubierta plana), CTE permite γ_Q,1·Q_k,1 + Σ γ_Q,i·ψ₀,i·Q_k,i.
+//       Aquí el usuario debe sumar manualmente la combinación más
+//       desfavorable en `q_Q` y `P_Q`.
+//
+//   S5. Tabla 4.4 con valores tabulados de f_k:
+//       Implementa la versión simplificada del CTE (combinaciones pieza × fb
+//       × fm). Casos no incluidos en la tabla → modo "Personalizado" con f_k
+//       directo del ensayo o de la documentación de la fábrica.
+//
+// ── Convenciones del motor ──────────────────────────────────────────────────
+//
+//   • Unidades de almacenamiento: longitudes en mm, fuerzas en kN, tensiones
+//     en N/mm². La UI puede convertir a m/cm para edición pero el state
+//     guarda mm para preservar precisión y compatibilidad.
+//   • Sentido de coordenadas: x = 0 en el extremo izquierdo del muro,
+//     x = L en el derecho. y = 0 al pie de cada planta.
+//   • Multi-planta: plantas[0] = planta baja, plantas[N-1] = cubierta.
+//     q_top[] se acumula de cubierta hacia abajo añadiendo el peso propio
+//     mayorado del muro de la planta superior en cada paso.
 
 // ── Tabla 4.4 DB-SE-F ─────────────────────────────────────────────────────
 
