@@ -164,12 +164,13 @@ export function MasonryWallsModule() {
       <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Inputs (left) — visible always on desktop, only when tab=inputs on mobile.
-            En tablet (md..lg) ajustamos el ancho para que caben los 3 paneles. */}
+        {/* Inputs (left) — patrón estándar del repo: md:w-72 + shrink-0 fija
+            el ancho en desktop. max-md:flex-1 hace que ocupe pantalla en
+            móvil cuando tab='inputs'. */}
         <div className={[
-          'shrink-0 border-r border-border-main bg-bg-surface overflow-y-auto overflow-x-hidden scroll-hide',
-          'md:w-[260px] md:block lg:w-[280px]',
-          tab === 'inputs' ? 'flex-1' : 'hidden',
+          'flex flex-col min-h-0 overflow-y-auto overflow-x-hidden scroll-hide bg-bg-surface',
+          'md:w-72 md:shrink-0 md:border-r md:border-border-main md:flex',
+          tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
         ].join(' ')}>
           <MasonryWallsInputs
             state={state}
