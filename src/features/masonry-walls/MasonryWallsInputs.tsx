@@ -328,9 +328,13 @@ export function MasonryWallsInputs({
       <CollapsibleSection label="Plantas del edificio" refNorma="§5.2">
         <div className="flex flex-col gap-1">
           {state.plantas.map((pl, i) => {
+            // Cuando el state es inválido (t=0, fk=null, etc.) plantasCalc
+            // es []. Sin guard, plantasCalc[i] es undefined y .machones peta.
             const cs = plantasCalc[i];
-            const eMax = Math.max(...cs.machones.map((m) => m.etaMax));
-            const stCol = eMax >= 1 ? 'var(--color-state-fail)' : eMax >= 0.8 ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
+            const eMax = cs ? Math.max(...cs.machones.map((m) => m.etaMax)) : 0;
+            const stCol = !cs
+              ? 'var(--color-text-disabled)'
+              : eMax >= 1 ? 'var(--color-state-fail)' : eMax >= 0.8 ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
             const isSel = selectedPlantaIdx === i;
             const esCubierta = i === state.plantas.length - 1;
             return (
@@ -348,7 +352,7 @@ export function MasonryWallsInputs({
                     {pl.nombre}
                   </span>
                   <span className="font-mono tabular-nums" style={{ color: stCol }}>
-                    {(eMax * 100).toFixed(0)}%
+                    {cs ? `${(eMax * 100).toFixed(0)}%` : '—'}
                   </span>
                 </button>
                 {!esCubierta && state.plantas.length > 2 && (
