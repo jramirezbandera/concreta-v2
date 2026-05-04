@@ -445,24 +445,6 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** FEM V1 implementación (no es bloqueante de ship, pero sí de cierre del módulo).
 
-### Masonry walls — share-URL serialization (eng-review 2026-05-04)
-
-**Status:** DEFERRED del eng-review 2026-05-04 (módulo Muros de fábrica, commit `5e467d5`).
-
-**What:** Implementar `buildShareUrl(state)` para el modelo de muros de fábrica, equivalente al patrón de `src/features/fem-analysis/serialize.ts` (lz-string + base64 en `?model=` query param). Hidratar desde URL al montar el módulo, con fallback a `localStorage` y luego a defaults.
-
-**Why:** todos los módulos con state stateful (rc-beams, steel-beams, fem-analysis) permiten compartir un caso de cálculo por URL. El proyectista pega un enlace en el correo al promotor / aparejador / arquitecto técnico y el destinatario abre el caso idéntico al hacer click. Hoy `masonry-walls` solo persiste en localStorage del navegador del autor — nadie más puede ver su caso.
-
-**Pros:** paridad con resto del repo; facilita revisiones cruzadas entre técnicos del mismo proyecto.
-
-**Cons:** el state nested (plantas → huecos + puntuales) genera URLs largas (~2-3 KB tras lz-string). Hay que verificar que no rompen límites de URL en redes corporativas (~8 KB típico).
-
-**Context:** ver `src/features/fem-analysis/serialize.ts` para el patrón. Schema versioning ya existe en localStorage (`SCHEMA_VERSION = '1'` en `index.tsx`); reutilizar el mismo número en la URL para detectar incompatibilidades futuras.
-
-**Where to start:** crear `src/features/masonry-walls/serialize.ts` con `encodeShareString(state)` y `decodeShareString(s)`. Modificar `loadState()` en `index.tsx` para chequear `?model=` antes de localStorage. Botón "Copiar enlace" en el Topbar (la prop `onCopyLink` ya está en el componente Topbar para otros módulos).
-
-**Depends on:** ninguno. Trabajo aislado de ~30min CC.
-
 ### Mobile a11y sweep — todos los módulos (design-review 2026-05-04)
 
 **Status:** DEFERRED del /plan-design-review 2026-05-04 (afecta a TODOS los módulos del repo, no solo masonry-walls).

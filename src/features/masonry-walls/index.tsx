@@ -25,6 +25,8 @@ import {
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
 import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
+import { showToast } from '../../components/ui/Toast';
+import { buildShareUrl, decodeShareString } from './serialize';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
 import { MasonryWallsResults } from './MasonryWallsResults';
 import { MasonryWallsSVG } from './MasonryWallsSVG';
@@ -34,6 +36,19 @@ const SCHEMA_VERSION_KEY = 'concreta-masonry-walls-model-version';
 const SCHEMA_VERSION = '1';
 
 function loadState(): MasonryWallState {
+  // Prioridad: URL > localStorage > default. La URL gana porque alguien que
+  // pega un enlace compartido espera ver ESE caso, no el suyo guardado.
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get('model');
+    if (encoded) {
+      const fromUrl = decodeShareString(encoded);
+      if (fromUrl) return fromUrl;
+      // Si el query param existe pero está corrupto, lo notificamos por toast
+      // (no bloqueante) y seguimos con localStorage / default.
+      showToast('Enlace inválido o corrupto — cargando estado guardado', { autoDismiss: 4000 });
+    }
+  }
   try {
     const v = localStorage.getItem(SCHEMA_VERSION_KEY);
     if (v !== SCHEMA_VERSION) return defaultMasonryState();
@@ -87,6 +102,23 @@ export function MasonryWallsModule() {
       () => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid }),
       !invalid,
     );
+
+  // Compartir enlace: serializa el state actual + lz-string + base64 y lo
+  // copia al portapapeles. El receptor pega el enlace y carga el mismo caso.
+  // Sobreescribe el handler por defecto del Topbar (que copiaría la URL
+  // pelada sin el modelo).
+  const handleCopyLink = () => {
+    try {
+      const url = buildShareUrl(state);
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Enlace copiado — el destinatario verá este edificio', { autoDismiss: 2500 });
+      }).catch(() => {
+        showToast('No se pudo copiar el enlace al portapapeles', { autoDismiss: 3500 });
+      });
+    } catch {
+      showToast('Error al generar el enlace', { autoDismiss: 3500 });
+    }
+  };
 
   // Reset: vuelve al edificio de ejemplo y limpia la persistencia local. Útil
   // cuando el state queda corrupto o el usuario quiere descartar todo.
@@ -175,6 +207,7 @@ export function MasonryWallsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={handleCopyLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

@@ -29,6 +29,11 @@ import {
   type PlantaResult,
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
+import {
+  buildShareUrl,
+  decodeShareString,
+  encodeShareString,
+} from '../../features/masonry-walls/serialize';
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
@@ -742,6 +747,61 @@ describe('overallStatus', () => {
       },
     ];
     expect(overallStatus(fake).v).toBe('ok');
+  });
+});
+
+// ─── 17.5. Share-URL serialización (lz-string + base64) ─────────────────
+
+describe('share-URL serialización', () => {
+  it('round-trip: encode → decode produce un state deep-equal al original', () => {
+    const original = defaultMasonryState();
+    const encoded = encodeShareString(original);
+    const decoded = decodeShareString(encoded);
+    expect(decoded).not.toBeNull();
+    expect(decoded).toEqual(original);
+  });
+
+  it('round-trip preserva nested arrays (huecos, puntuales por planta)', () => {
+    const s = defaultMasonryState();
+    s.plantas[0].huecos.push({ id: 'h-extra', x: 5500, y: 0, w: 400, h: 2000, tipo: 'puerta' });
+    s.plantas[0].puntuales.push({ id: 'p-extra', x: 200, P_G: 12, P_Q: 3, b_apoyo: 200 });
+    const decoded = decodeShareString(encodeShareString(s));
+    expect(decoded?.plantas[0].huecos).toHaveLength(s.plantas[0].huecos.length);
+    expect(decoded?.plantas[0].puntuales[2]).toEqual({ id: 'p-extra', x: 200, P_G: 12, P_Q: 3, b_apoyo: 200 });
+  });
+
+  it('decode devuelve null para entrada vacía', () => {
+    expect(decodeShareString('')).toBeNull();
+  });
+
+  it('decode devuelve null para entrada corrupta (no-base64)', () => {
+    expect(decodeShareString('not-a-valid-encoded-string!!!')).toBeNull();
+  });
+
+  it('decode devuelve null cuando la forma no es un MasonryWallState', () => {
+    // Codificamos un objeto válido pero con shape distinto.
+    const garbage = { hello: 'world', x: 1 };
+    const fakeJson = JSON.stringify(garbage);
+    // Importamos el lz-string indirectamente vía encodeShareString hubiera sido
+    // imposible — usamos el formato directo.
+    expect(decodeShareString(encodeShareString(garbage as never))).toBeNull();
+    expect(fakeJson.length).toBeGreaterThan(0); // sanity check
+  });
+
+  it('buildShareUrl produce ?model= con el state codificado', () => {
+    const url = buildShareUrl(defaultMasonryState(), 'https://concreta.tools/rehab/muros-fabrica');
+    expect(url).toMatch(/^https:\/\/concreta\.tools\/rehab\/muros-fabrica\?model=.+/);
+  });
+
+  it('buildShareUrl elimina query existente para no duplicar params', () => {
+    const url = buildShareUrl(defaultMasonryState(), 'https://concreta.tools/rehab/muros-fabrica?foo=1');
+    expect(url).not.toContain('foo=1');
+    expect(url).toContain('?model=');
+  });
+
+  it('compresión razonable: el state default codifica a < 2 KB', () => {
+    const encoded = encodeShareString(defaultMasonryState());
+    expect(encoded.length).toBeLessThan(2048);
   });
 });
 
