@@ -445,24 +445,4 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** FEM V1 implementación (no es bloqueante de ship, pero sí de cierre del módulo).
 
-### Mobile a11y sweep — todos los módulos (design-review 2026-05-04)
-
-**Status:** DEFERRED del /plan-design-review 2026-05-04 (afecta a TODOS los módulos del repo, no solo masonry-walls).
-
-**What:** Pasada coordinada de a11y mobile sobre todo el shell + módulos:
-- Touch targets ≥ 44×44 px (WCAG AA): hoy los inputs hacen ~24-28px alto, y los mini-buttons "× eliminar" ~14×11 px. Imposible de pulsar con dedo en iPad/iPhone.
-- Navegación por teclado en SVGs interactivos: machones de masonry-walls, barras de fem-analysis, perfiles de steel-beams. Hoy son `<g onClick>` sin tabIndex/onKeyDown — un usuario con teclado no puede seleccionarlos.
-- Focus visible sobre elementos custom (botones de Section header, MiniBtn, sidebar entries activos).
-
-**Why:** producto profesional usado en estudios de ingeniería. WCAG AA es requisito en contratos públicos en España. Hoy el módulo masonry-walls tiene SVG con `role=img + aria-labelledby` y title-per-machón (parche del design review), pero la navegación por teclado sigue rota. Otros módulos hermanos están peor.
-
-**Pros:** producto usable por más perfiles; elimina riesgo de exclusión por discapacidad visual o motor; cumple compliance contractual.
-
-**Cons:** romper la densidad de los inputs sólo en un módulo es inconsistente. Hay que hacerlo coordinado con DESIGN.md (subir minBtn de 24 a 28px o 32px, ajustar paddings de NumField). Riesgo: el panel de inputs crece vertical y obliga a más scroll.
-
-**Context:** ver `src/components/checks/index.tsx` (CheckRowItem `compact`), `src/features/masonry-walls/MasonryWallsInputs.tsx` (NumField + MiniBtn + SelField), `src/features/empresillado/EmpresalladoInputs.tsx` (NumberField del módulo). Decisión clave: pasar a `min-h-44` en mobile (`max-md:min-h-11`) sin tocar desktop, o uniformar a 32px global.
-
-**Where to start:** auditoría con NVDA/VoiceOver en móvil sobre el módulo más simple (rc-beams). Identificar gaps reales. Sweep de `MiniBtn`/`NumberField`/`Section` con responsive padding. Tests de Playwright con teclado-only navigation por módulo.
-
-**Depends on:** ninguno técnico; depende de prioridad relativa frente a otras features.
 

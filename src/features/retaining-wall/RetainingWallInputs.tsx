@@ -42,7 +42,7 @@ function NumField({
   }, [value]);
 
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
@@ -93,7 +93,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`select-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`select-${field}`}
@@ -142,7 +142,7 @@ function RebarField({
   const inactive = diam <= 0;
 
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
       <label className="text-[13px] text-text-secondary truncate shrink min-w-0">
         {label}
       </label>
@@ -253,7 +253,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       </CollapsibleSection>
 
       <CollapsibleSection label="Nivel freático">
-        <div className="flex items-center justify-between py-0.75 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
           <span className="text-[13px] text-text-secondary">Nivel freático</span>
           <button
             type="button"
@@ -280,7 +280,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       </CollapsibleSection>
 
       <CollapsibleSection label="Empuje pasivo (CTE DB-SE-C §9.3.3)">
-        <div className="flex items-center justify-between py-0.75 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
           <span className="text-[13px] text-text-secondary">Considerar Ep</span>
           <button
             type="button"

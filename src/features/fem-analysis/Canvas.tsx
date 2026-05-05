@@ -698,10 +698,20 @@ function BarRenderer({
   const isSelectTool = tool === 'select';
   return (
     <g
+      role={isSelectTool ? 'button' : undefined}
+      tabIndex={isSelectTool ? 0 : -1}
+      aria-label={isSelectTool ? `Barra ${bar.id}, η ${r ? (r.eta * 100).toFixed(0) + '%' : 'pendiente'}, pulsa Enter para seleccionar` : undefined}
       onClick={isSelectTool ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onKeyDown={isSelectTool ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        }
+      } : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      style={{ cursor: isSelectTool ? 'pointer' : 'crosshair' }}
+      style={{ cursor: isSelectTool ? 'pointer' : 'crosshair', outline: 'none' }}
     >
       <line
         x1={x1} y1={y1} x2={x2} y2={y2}

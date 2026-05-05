@@ -23,7 +23,7 @@ export function CollapsibleSection({ label, children, defaultOpen = true, refNor
         aria-expanded={open}
         aria-controls={contentId}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between w-full text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 border-b border-border-sub mb-2.5 mt-3 first:mt-0 cursor-pointer"
+        className="flex items-center justify-between w-full text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled pt-2.25 pb-1.75 max-md:min-h-11 max-md:py-3 border-b border-border-sub mb-2.5 mt-3 first:mt-0 cursor-pointer"
       >
         <span className="flex items-center gap-1.5">
           <svg

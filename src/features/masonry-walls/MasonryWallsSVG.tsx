@@ -141,6 +141,9 @@ export function MasonryWallsSVG({
 
   const criticalKey = critico ? `${critico.planta.index}-${critico.id}` : null;
 
+  // Focus ring para navegación por teclado: el usuario ve un cyan dashed
+  // outline alrededor del elemento focado. Compartido con hover state visual.
+
   // A11y: descripción legible para screen readers. Resume el estado del
   // edificio (plantas, η máximo, machón crítico) para que NVDA/VoiceOver
   // puedan anunciar el contenido del SVG sin necesidad de leer la lista de
@@ -234,9 +237,19 @@ export function MasonryWallsSVG({
                   <g
                     key={m.id}
                     role="button"
-                    aria-label={`Machón ${m.id} de ${pl.nombre}, η ${(m.etaMax * 100).toFixed(0)}% ${m.status === 'fail' ? 'incumple' : m.status === 'warn' ? 'revisar' : 'cumple'}, click para seleccionar`}
-                    style={{ cursor: 'pointer', filter: isHovered && !isSelMachon ? 'brightness(1.25)' : undefined }}
+                    tabIndex={0}
+                    aria-label={`Machón ${m.id} de ${pl.nombre}, η ${(m.etaMax * 100).toFixed(0)}% ${m.status === 'fail' ? 'incumple' : m.status === 'warn' ? 'revisar' : 'cumple'}, pulsa Enter para seleccionar`}
+                    style={{ cursor: 'pointer', filter: isHovered && !isSelMachon ? 'brightness(1.25)' : undefined, outline: 'none' }}
                     onClick={(e) => { e.stopPropagation(); onSelectMachon(i, m.id); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectMachon(i, m.id);
+                      }
+                    }}
+                    onFocus={() => setHovered(`m:${i}|${m.id}`)}
+                    onBlur={() => setHovered((h) => (h === `m:${i}|${m.id}` ? null : h))}
                     onMouseEnter={() => setHovered(`m:${i}|${m.id}`)}
                     onMouseLeave={() => setHovered((h) => (h === `m:${i}|${m.id}` ? null : h))}
                   >
@@ -305,11 +318,21 @@ export function MasonryWallsSVG({
                   <g
                     key={h.id}
                     role="button"
-                    aria-label={`${esPuerta ? 'Puerta' : 'Ventana'} ${h.id.slice(-4)} de ${pl.nombre}, ${h.w} mm × ${h.h} mm, click para editar`}
+                    tabIndex={0}
+                    aria-label={`${esPuerta ? 'Puerta' : 'Ventana'} ${h.id.slice(-4)} de ${pl.nombre}, ${h.w} mm × ${h.h} mm, pulsa Enter para editar`}
                     onClick={(e) => { e.stopPropagation(); onSelectHueco(h.id, i); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectHueco(h.id, i);
+                      }
+                    }}
+                    onFocus={() => setHovered(`h:${h.id}`)}
+                    onBlur={() => setHovered((x) => (x === `h:${h.id}` ? null : x))}
                     onMouseEnter={() => setHovered(`h:${h.id}`)}
                     onMouseLeave={() => setHovered((x) => (x === `h:${h.id}` ? null : x))}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', outline: 'none' }}
                   >
                     <title>{`${pl.nombre} · ${esPuerta ? 'puerta' : 'ventana'} ${h.id.slice(-4)} (${h.w}×${h.h} mm)`}</title>
                     <rect

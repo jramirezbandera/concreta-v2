@@ -98,7 +98,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
   // Neutral row — informational (classification, etc.) with no utilization bar.
   if (check.status === 'neutral' || check.neutral) {
     return (
-      <div className={`check-row relative grid items-center gap-3.5 py-2.5 ${compact ? 'px-3 pl-4' : 'px-4 pl-5'} border-b border-border-sub last:border-b-0`}
+      <div className={`check-row relative grid items-center gap-3.5 py-2.5 max-md:min-h-11 ${compact ? 'px-3 pl-4' : 'px-4 pl-5'} border-b border-border-sub last:border-b-0`}
         style={{ gridTemplateColumns: '1fr auto 60px' }}
       >
         <span className="check-left-rail" />
@@ -130,7 +130,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
     : 'text-[12px] text-text-primary overflow-hidden text-ellipsis whitespace-nowrap';
 
   return (
-    <div className={`check-row relative grid items-start ${gap} py-2.5 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer`}
+    <div className={`check-row relative grid items-start ${gap} py-2.5 max-md:min-h-11 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer`}
       style={{ gridTemplateColumns: gridCols }}
     >
       <span className="check-left-rail" />
@@ -178,7 +178,7 @@ export function GroupHeader({ label }: { label: string }) {
 
 export function ValueRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-1.75 px-4 border-b border-border-sub last:border-b-0">
+    <div className="flex items-center justify-between py-1.75 max-md:min-h-11 px-4 border-b border-border-sub last:border-b-0">
       <span className="text-[12px] text-text-secondary">{label}</span>
       <span className="text-[11px] font-mono text-text-primary tabular-nums">{value}</span>
     </div>

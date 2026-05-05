@@ -124,7 +124,7 @@ function NumField({
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <InputLabel htmlFor={`sb-input-${field}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
@@ -169,7 +169,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <InputLabel htmlFor={`sb-select-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`sb-select-${field}`}
@@ -191,7 +191,7 @@ function SelectField({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">{label}</span>
       <span className="text-[12px] font-mono text-text-disabled">{value}</span>
     </div>
@@ -210,7 +210,7 @@ function DerivedRow({
   unit: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
         {label}
         {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
@@ -354,7 +354,7 @@ export function SteelBeamsInputs({
       />
       {/* L — beam span, stored in mm, displayed in m. Hidden in FEM embed (FEM provides L). */}
       {!hideL && (
-      <div className="flex items-center justify-between py-0.75 gap-2">
+      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
         <label
           htmlFor="sb-input-L"
           className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
@@ -460,7 +460,7 @@ export function SteelBeamsInputs({
       {/* PANDEO LATERAL (LTB) */}
       <CollapsibleSection label="Pandeo lateral (LTB)">
       {/* Lcr stored in mm, displayed in m */}
-      <div className="flex items-center justify-between py-0.75 gap-2">
+      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
         <InputLabel htmlFor="sb-input-Lcr" label={LABELS.Lcr_LTB.sym} sub={LABELS.Lcr_LTB.descShort} />
         <div className="flex items-center gap-1.5 shrink-0">
           <span

@@ -105,7 +105,7 @@ export function CompositeSectionResults({ result }: Props) {
 
       {/* Momento resistente */}
       <GroupHeader label="Momento resistente" />
-      <div className="flex items-center justify-between py-0.75">
+      <div className="flex items-center justify-between py-0.75 max-md:min-h-11">
         <span className="text-[11px] font-mono text-text-disabled">{mrdFormula}</span>
       </div>
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">

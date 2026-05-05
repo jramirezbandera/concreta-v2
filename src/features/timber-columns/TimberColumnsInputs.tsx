@@ -28,7 +28,7 @@ function NumField({
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
-    <div className="py-0.75">
+    <div className="py-0.75 max-md:min-h-11">
       <div className="flex items-center justify-between gap-2">
         <InputLabel htmlFor={`tc-${field}`} label={resolved.label} sub={resolved.sub} />
         <div className="flex shrink-0">
@@ -65,7 +65,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <InputLabel htmlFor={`tc-sel-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`tc-sel-${field}`}
@@ -85,7 +85,7 @@ function SelectField({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
       <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">{label}</span>
       <span className="text-[12px] font-mono text-text-disabled">{value}</span>
     </div>
@@ -151,7 +151,7 @@ export function TimberColumnsInputs({ state, setField }: Props) {
     <div>
       {/* ── Sección transversal ───────────────────────────────────────────── */}
       <CollapsibleSection label="Sección transversal">
-        <div className="flex items-center justify-between py-0.75 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
           <label htmlFor="tc-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
             {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
             {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}

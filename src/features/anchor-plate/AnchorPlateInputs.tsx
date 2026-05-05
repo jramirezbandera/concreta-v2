@@ -50,7 +50,7 @@ function NumField({
   const [localStr, setLocalStr] = useState(() => String(value));
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`ap-${field}`} label={label} sub={sub} />
       <div className="flex shrink-0">
         <input
@@ -90,7 +90,7 @@ function SelectField({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`ap-sel-${field}`} label={label} />
       <select
         id={`ap-sel-${field}`}
