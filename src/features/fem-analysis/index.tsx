@@ -374,20 +374,27 @@ export function FemAnalysisModule() {
             <ToolPalette tool={tool} setTool={setTool} />
           </div>
           <div className="flex-1 relative">
-            {/* Mobile-only banner + η-pill across all tabs. */}
-            {isMobile && <ReadOnlyBanner />}
+            {/* Mobile-only chrome:
+                - EtaPill: top-right (verdict at a glance, cross-tab).
+                - ReadOnlyBanner: bottom-center (informativo, dismissible).
+                FloatingControls está oculto en mobile para evitar superposición
+                con la η-pill. La nav back-to-landing queda por la sidebar del
+                topbar — caso de uso primario en mobile es URL-share, no
+                cambiar de plantilla. */}
             {isMobile && <EtaPill result={result} onClick={() => setTab('results')} />}
+            {isMobile && <ReadOnlyBanner />}
 
-            <FloatingControls
-              onBackToLanding={backToLanding}
-              view={view}
-              setView={setView}
-              onUndo={undo}
-              onRedo={redo}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              compact={isMobile}
-            />
+            {!isMobile && (
+              <FloatingControls
+                onBackToLanding={backToLanding}
+                view={view}
+                setView={setView}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={canUndo}
+                canRedo={canRedo}
+              />
+            )}
             <Canvas
               model={model}
               setModel={setModel}

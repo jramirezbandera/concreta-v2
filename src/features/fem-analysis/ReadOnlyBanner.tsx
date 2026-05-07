@@ -33,7 +33,7 @@ export function ReadOnlyBanner() {
   return (
     <div
       role="status"
-      className="md:hidden absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100%-24px)] flex items-center gap-2 px-3 py-2 rounded bg-bg-elevated border border-border-main text-text-secondary text-[11px]"
+      className="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100%-24px)] flex items-center gap-2 px-3 py-2 rounded bg-bg-elevated border border-border-main text-text-secondary text-[11px]"
     >
       <span className="font-mono leading-snug">
         Modo consulta — abre en tablet o desktop para editar.

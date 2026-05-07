@@ -412,10 +412,11 @@ export function Canvas({
           // In read-only (mobile) the cursor stays neutral regardless of the
           // active tool — no edit affordance is shown.
           cursor: readOnly || tool === 'select' ? 'default' : 'crosshair',
-          // Prevent browser default touch gestures (pan/pinch) from fighting
-          // the canvas's own hit-test logic on mobile. `none` lets every
-          // pointer event reach the SVG handlers cleanly.
-          touchAction: 'none',
+          // `manipulation`: permite tap (selección) + scroll vertical de la
+          // página + pinch zoom del browser. Bloquea sólo el double-tap-zoom
+          // por defecto, que en un canvas de selección no aporta nada.
+          // (Previo `touch-action: none` rompía el scroll vertical en mobile.)
+          touchAction: 'manipulation',
         }}
       >
         <defs>
