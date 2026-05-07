@@ -56,17 +56,19 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <CalcButton onClick={openCalc} />
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         <UnitSystemToggle />
-        {/* Copy link */}
+        {/* Copy link — icon-only en mobile (<640px), icon+texto en sm+. Mismo
+            patrón que el botón Exportar PDF para mantener todos los affordances
+            del topbar visibles en mobile. */}
         <button
           onClick={handleCopyUrl}
           title="Copiar enlace a este cálculo"
-          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-[12px]"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-[12px]"
           aria-label="Copiar enlace a este cálculo"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
             <path d="M6 10a3 3 0 0 0 4 0l2-2a3 3 0 0 0-4-4l-1 1M10 6a3 3 0 0 0-4 0L4 8a3 3 0 0 0 4 4l1-1"/>
           </svg>
-          <span>Copiar enlace</span>
+          <span className="hidden sm:inline">Copiar enlace</span>
         </button>
         {/* PDF export — accent styled */}
         {onExportPdf && (
