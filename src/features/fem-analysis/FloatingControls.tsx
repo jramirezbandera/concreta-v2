@@ -8,9 +8,12 @@ interface Props {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** Mobile: hide undo/redo (read-only mode) and the layer/combo selectors —
+   *  keep only "Plantillas" so the user can return to the picker. */
+  compact?: boolean;
 }
 
-export function FloatingControls({ onBackToLanding, view, setView, onUndo, onRedo, canUndo, canRedo }: Props) {
+export function FloatingControls({ onBackToLanding, view, setView, onUndo, onRedo, canUndo, canRedo, compact = false }: Props) {
   const combos: { id: ViewState['combo']; label: string }[] = [
     { id: 'ELU', label: 'ELU' },
     { id: 'ELS_frec', label: 'ELS-frec' },
@@ -40,40 +43,44 @@ export function FloatingControls({ onBackToLanding, view, setView, onUndo, onRed
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button
-          className="fem-ctrl-btn"
-          onClick={onUndo}
-          disabled={!canUndo}
-          title="Deshacer (Ctrl+Z)"
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '4px 6px',
-            opacity: canUndo ? 1 : 0.35,
-            cursor: canUndo ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 5 L4 3 L4 7 Z" fill="currentColor" />
-            <path d="M4 5 L8 5 a2 2 0 0 1 0 4 L6 9" />
-          </svg>
-        </button>
-        <button
-          className="fem-ctrl-btn"
-          onClick={onRedo}
-          disabled={!canRedo}
-          title="Rehacer (Ctrl+Shift+Z)"
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '4px 6px',
-            opacity: canRedo ? 1 : 0.35,
-            cursor: canRedo ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 5 L8 3 L8 7 Z" fill="currentColor" />
-            <path d="M8 5 L4 5 a2 2 0 0 0 0 4 L6 9" />
-          </svg>
-        </button>
+        {!compact && (
+          <>
+            <button
+              className="fem-ctrl-btn"
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Deshacer (Ctrl+Z)"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '4px 6px',
+                opacity: canUndo ? 1 : 0.35,
+                cursor: canUndo ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 5 L4 3 L4 7 Z" fill="currentColor" />
+                <path d="M4 5 L8 5 a2 2 0 0 1 0 4 L6 9" />
+              </svg>
+            </button>
+            <button
+              className="fem-ctrl-btn"
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Rehacer (Ctrl+Shift+Z)"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '4px 6px',
+                opacity: canRedo ? 1 : 0.35,
+                cursor: canRedo ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 5 L8 3 L8 7 Z" fill="currentColor" />
+                <path d="M8 5 L4 5 a2 2 0 0 0 0 4 L6 9" />
+              </svg>
+            </button>
+          </>
+        )}
         <button
           className="fem-ctrl-btn"
           onClick={onBackToLanding}
@@ -90,7 +97,9 @@ export function FloatingControls({ onBackToLanding, view, setView, onUndo, onRed
         </button>
       </div>
 
-      {/* Combinación envolvente */}
+      {/* Combinación envolvente + capa selector — hidden in compact (mobile read-only).
+          Wrapped in a fragment so all three sections vanish together. */}
+      {!compact && (<>
       <div
         style={{
           display: 'flex',
@@ -178,6 +187,7 @@ export function FloatingControls({ onBackToLanding, view, setView, onUndo, onRed
           })}
         </div>
       </div>
+      </>)}
     </div>
   );
 }

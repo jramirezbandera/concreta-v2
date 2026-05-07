@@ -5,6 +5,15 @@
 // solver + adapters via the Lane B.1 bridge).
 //
 // State priority on mount: ?model= URL param > localStorage > Landing.
+//
+// Responsive layout (post mobile-adaptation plan, 2026-05-06):
+//   - Mobile (<768px): MobileTabBar (Datos / Diagramas / Resultados). Canvas
+//     runs in read-only mode (Canvas `readOnly` prop) — pan/pinch/tap-to-select
+//     work, drag-to-edit and click-to-add do not. Tool palette is hidden.
+//   - Tablet (768-1310px): inputs panel auto-collapses to a 32px side-rail by
+//     default (the `isTabletInitial` flag below) so the canvas stays dominant.
+//     User can expand inputs via the CollapseToggle.
+//   - Desktop (≥1310px): full 3-panel layout, all controls visible.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
@@ -12,13 +21,17 @@ import { useSearchParams } from 'react-router';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { showToast } from '../../components/ui/Toast';
+import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { Canvas } from './Canvas';
+import { EtaPill } from './EtaPill';
 import { FloatingControls } from './FloatingControls';
 import { InputsPanel } from './InputsPanel';
 import { Landing } from './Landing';
+import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { ResultsPanel } from './ResultsPanel';
 import { ToolPalette } from './ToolPalette';
 import { cloneDesignPreset, type DesignPresetId } from './presets';
@@ -170,13 +183,18 @@ export function FemAnalysisModule() {
     combo: 'ELU',
     deformedScale: 1,
   });
-  // Tablet auto-collapse (Codex final pass #8): below 1310px desktop layout
-  // (190 sidebar + 240 inputs + 600 canvas mín + 280 results), inputs panel
-  // collapses to 32px side-rail by default to keep the canvas dominant.
-  // Mobile <768px stays read-only (V1.0 inheritance via app shell).
+  // Layout strategy:
+  //   - Mobile  (<768px) : MobileTabBar (Datos / Diagramas / Resultados),
+  //                        canvas read-only via the `readOnly` Canvas prop.
+  //                        `inputsOpen` / `resultsOpen` are no-ops here.
+  //   - Tablet  (768-1310): inputs panel auto-collapses to a 32px side-rail
+  //                        so the canvas stays dominant; user can expand.
+  //   - Desktop (>=1310) : everything open.
   const isTabletInitial = typeof window !== 'undefined' && window.innerWidth < 1310 && window.innerWidth >= 768;
   const [inputsOpen, setInputsOpen] = useState(!isTabletInitial);
   const [resultsOpen, setResultsOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const [tab, setTab] = useState<MobileTab>('diagramas');
 
   // Vano/apoyo tab state — owned at the FEM level so <ResultsHeader> toggle
   // and the embedded <RCBeamsResults> share the same source of truth. Resets
@@ -185,6 +203,16 @@ export function FemAnalysisModule() {
   useEffect(() => {
     setActiveSection('vano');
   }, [selected?.kind === 'bar' ? selected.id : null]);
+
+  // Mobile UX: when the user taps an element in the canvas (Diagramas tab),
+  // jump to Datos tab so they immediately see the inspector. Skip the auto-jump
+  // on null selection so deselecting (tapping empty canvas) doesn't trap them.
+  useEffect(() => {
+    if (isMobile && selected && tab === 'diagramas') {
+      setTab('inputs');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.kind, selected?.kind === 'bar' ? selected.id : selected?.kind === 'node' ? selected.id : selected?.kind === 'load' ? selected.id : null]);
 
   // Strip the share param after consuming it so the URL stays clean.
   useEffect(() => {
@@ -300,22 +328,24 @@ export function FemAnalysisModule() {
         pdfExporting={pdfExporting}
         onCopyLink={handleShare}
       />
+      <MobileTabBar tab={tab} setTab={setTab} />
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
-        {/* Left: inputs (collapsible) */}
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
+        {/* Left: inputs (collapsible on tablet+, tab-controlled on mobile) */}
         <div
-          style={{
-            width: inputsOpen ? 240 : 32,
-            flexShrink: 0,
-            background: 'var(--color-bg-surface)',
-            borderRight: '1px solid var(--color-border-main)',
-            overflowY: inputsOpen ? 'auto' : 'hidden',
-            transition: 'width 200ms ease',
-            position: 'relative',
-          }}
+          className={[
+            'relative flex flex-col min-h-0 bg-bg-surface',
+            'md:border-r md:border-border-main md:shrink-0',
+            inputsOpen ? 'md:w-60' : 'md:w-8',
+            'md:transition-[width] md:duration-200',
+            inputsOpen ? 'md:overflow-y-auto' : 'md:overflow-hidden',
+            tab === 'inputs' ? 'max-md:flex-1 max-md:overflow-y-auto' : 'max-md:hidden',
+          ].join(' ')}
         >
-          <CollapseToggle open={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)} side="right" title="inputs" />
-          {inputsOpen ? (
+          <div className="hidden md:block">
+            <CollapseToggle open={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)} side="right" title="inputs" />
+          </div>
+          {(inputsOpen || isMobile) ? (
             <InputsPanel
               model={model}
               setModel={setModel}
@@ -324,18 +354,30 @@ export function FemAnalysisModule() {
               result={result}
               activeSection={activeSection}
               setActiveSection={setActiveSection}
+              readOnly={isMobile}
             />
           ) : (
             <SideRail label="Inputs" />
           )}
         </div>
 
-        {/* Center: canvas */}
-        <div style={{ flex: 1, position: 'relative', minWidth: 0, display: 'flex' }}>
-          <div style={{ padding: 8, paddingRight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Center: canvas + tool palette */}
+        <div
+          className={[
+            'flex flex-1 min-w-0 relative',
+            tab === 'diagramas' ? 'max-md:flex-1' : 'max-md:hidden',
+            'md:flex',
+          ].join(' ')}
+        >
+          {/* Tool palette — desktop / tablet only. */}
+          <div className="hidden md:flex flex-col gap-2 p-2 pr-0">
             <ToolPalette tool={tool} setTool={setTool} />
           </div>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div className="flex-1 relative">
+            {/* Mobile-only banner + η-pill across all tabs. */}
+            {isMobile && <ReadOnlyBanner />}
+            {isMobile && <EtaPill result={result} onClick={() => setTab('results')} />}
+
             <FloatingControls
               onBackToLanding={backToLanding}
               view={view}
@@ -344,6 +386,7 @@ export function FemAnalysisModule() {
               onRedo={redo}
               canUndo={canUndo}
               canRedo={canRedo}
+              compact={isMobile}
             />
             <Canvas
               model={model}
@@ -356,29 +399,28 @@ export function FemAnalysisModule() {
               hoveredBar={hoveredBar}
               setHoveredBar={setHoveredBar}
               view={view}
-              showInlineTip={!inlineTipSeen}
+              showInlineTip={!inlineTipSeen && !isMobile}
               onDismissInlineTip={dismissInlineTip}
+              readOnly={isMobile}
             />
           </div>
         </div>
 
-        {/* Right: results (collapsible) */}
+        {/* Right: results (collapsible on tablet+, tab-controlled on mobile) */}
         <div
-          style={{
-            width: resultsOpen ? 300 : 32,
-            flexShrink: 0,
-            background: 'var(--color-bg-surface)',
-            borderLeft: '1px solid var(--color-border-main)',
-            overflow: resultsOpen ? 'auto' : 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-            transition: 'width 200ms ease',
-            position: 'relative',
-          }}
+          className={[
+            'relative flex flex-col min-h-0 bg-bg-surface',
+            'md:border-l md:border-border-main md:shrink-0',
+            resultsOpen ? 'md:w-75' : 'md:w-8',
+            'md:transition-[width] md:duration-200',
+            resultsOpen ? 'md:overflow-y-auto' : 'md:overflow-hidden',
+            tab === 'results' ? 'max-md:flex-1 max-md:overflow-y-auto' : 'max-md:hidden',
+          ].join(' ')}
         >
-          <CollapseToggle open={resultsOpen} onClick={() => setResultsOpen(!resultsOpen)} side="left" title="resultados" />
-          {resultsOpen ? (
+          <div className="hidden md:block">
+            <CollapseToggle open={resultsOpen} onClick={() => setResultsOpen(!resultsOpen)} side="left" title="resultados" />
+          </div>
+          {(resultsOpen || isMobile) ? (
             <ResultsPanel
               model={model}
               result={result}

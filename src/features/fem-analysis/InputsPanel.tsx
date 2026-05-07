@@ -33,18 +33,40 @@ interface Props {
   result: SolveResult;
   activeSection: 'vano' | 'apoyo';
   setActiveSection: (s: 'vano' | 'apoyo') => void;
+  /** Mobile read-only mode: wraps everything in <fieldset disabled> so all
+   *  inputs/selects/buttons are non-interactive. Adds a richer empty state
+   *  with global verdict so the Datos tab is informative even when no
+   *  element is selected. */
+  readOnly?: boolean;
 }
 
 export function InputsPanel({
   model, setModel, selected, setSelected, result,
-  activeSection, setActiveSection,
+  activeSection, setActiveSection, readOnly = false,
 }: Props) {
   const selBar = selected?.kind === 'bar' ? model.bars.find((b) => b.id === selected.id) : undefined;
   const selNode = selected?.kind === 'node' ? model.nodes.find((n) => n.id === selected.id) : undefined;
   const selLoad = selected?.kind === 'load' ? model.loads.find((l) => l.id === selected.id) : undefined;
+  const hasSelection = !!(selBar || selNode || selLoad);
 
   return (
-    <div style={{ padding: '12px 14px' }}>
+    <fieldset
+      disabled={readOnly}
+      style={{
+        padding: '12px 14px',
+        border: 'none',
+        margin: 0,
+        // fieldset defaults to inline-grid behavior; restore block flow.
+        display: 'block',
+        // Visual cue when disabled (mobile read-only): everything dims.
+        opacity: readOnly ? 0.85 : 1,
+      }}
+    >
+      {/* Empty-state global verdict — only when nothing is selected. */}
+      {!hasSelection && readOnly && (
+        <ReadOnlyGlobalSummary result={result} model={model} />
+      )}
+
       {/* Selection panel */}
       {selBar && (
         <BarPanel
@@ -102,6 +124,68 @@ export function InputsPanel({
         ))}
       </CollapsibleSection>
 
+    </fieldset>
+  );
+}
+
+function ReadOnlyGlobalSummary({ result, model }: { result: SolveResult; model: DesignModel }) {
+  const errorCount = result.errors.length;
+  const status = result.status;
+  const eta = result.maxEta;
+
+  let badgeBg = 'var(--color-state-neutral)';
+  let badgeLabel = '—';
+  if (errorCount > 0) {
+    badgeBg = 'var(--color-state-fail)';
+    badgeLabel = `${errorCount} ${errorCount === 1 ? 'error' : 'errores'}`;
+  } else if (status === 'ok') {
+    badgeBg = 'var(--color-state-ok)';
+    badgeLabel = `η ${(eta * 100).toFixed(0)}% — CUMPLE`;
+  } else if (status === 'warn') {
+    badgeBg = 'var(--color-state-warn)';
+    badgeLabel = `η ${(eta * 100).toFixed(0)}% — ADVERT.`;
+  } else if (status === 'fail') {
+    badgeBg = 'var(--color-state-fail)';
+    badgeLabel = `η ${(eta * 100).toFixed(0)}% — INCUMPLE`;
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: '10px 12px',
+        borderRadius: 6,
+        border: '1px solid var(--color-border-main)',
+        background: 'var(--color-bg-elevated)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div
+        className="font-mono"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#fff',
+          background: badgeBg,
+          padding: '4px 8px',
+          borderRadius: 4,
+          alignSelf: 'flex-start',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {badgeLabel}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
+        Modelo con {model.bars.length} {model.bars.length === 1 ? 'barra' : 'barras'},{' '}
+        {model.nodes.length} {model.nodes.length === 1 ? 'nodo' : 'nodos'},{' '}
+        {model.supports.length} {model.supports.length === 1 ? 'apoyo' : 'apoyos'},{' '}
+        {model.loads.length} {model.loads.length === 1 ? 'carga' : 'cargas'}.
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>
+        Toca una barra, nodo o carga en Diagramas para inspeccionarla.
+      </div>
     </div>
   );
 }

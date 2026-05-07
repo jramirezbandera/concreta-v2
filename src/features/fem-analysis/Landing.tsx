@@ -23,8 +23,8 @@ export function Landing({ onPick, recientes }: Props) {
   const v1Plantillas: DesignPresetId[] = ['continuous', 'cantilever', 'beam'];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-      <div className="canvas-dot-grid" style={{ flex: 1, overflowY: 'auto', padding: '48px 56px' }}>
+    <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+      <div className="canvas-dot-grid flex-1 overflow-y-auto px-14 py-12 max-md:px-5 max-md:py-8">
         <div style={{ maxWidth: 880, margin: '0 auto' }}>
           <div style={{ marginBottom: 32 }}>
             <div className="font-mono" style={{
@@ -127,6 +127,7 @@ export function Landing({ onPick, recientes }: Props) {
                     key={r.id}
                     type="button"
                     onClick={() => onPick(r.preset)}
+                    className="max-md:min-h-11"
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       width: '100%',

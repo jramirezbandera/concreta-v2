@@ -54,11 +54,15 @@ interface Props {
   view: ViewState;
   showInlineTip: boolean;
   onDismissInlineTip: () => void;
+  /** Mobile read-only mode: disables drag-to-edit, click-to-add, inline edit,
+   *  and the +vano button. Pan/pinch zoom and tap-to-select still work. */
+  readOnly?: boolean;
 }
 
 export function Canvas({
   model, setModel, result, tool, selected, setSelected,
   hoveredBar, setHoveredBar, view, showInlineTip, onDismissInlineTip,
+  readOnly = false,
 }: Props) {
   void hoveredBar;
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -102,8 +106,9 @@ export function Canvas({
     return () => ro.disconnect();
   }, []);
 
-  // Keyboard shortcut: Suprimir/Delete removes selection.
+  // Keyboard shortcut: Suprimir/Delete removes selection. Disabled in read-only.
   useEffect(() => {
+    if (readOnly) return;
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Delete' && e.key !== 'Supr') return;
       if (!selected) return;
@@ -116,7 +121,7 @@ export function Canvas({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, model]);
+  }, [selected, model, readOnly]);
 
   function nextNodeId(): string {
     let i = 1;
@@ -169,7 +174,11 @@ export function Canvas({
     const wx = pt.wx;
     if (showInlineTip) onDismissInlineTip();
 
-    if (tool === 'select') {
+    // Read-only (mobile): only 'select' is allowed; ignore any other tool
+    // even if the user has it active from a previous desktop session.
+    const effectiveTool: ToolId = readOnly ? 'select' : tool;
+
+    if (effectiveTool === 'select') {
       const node = findNodeAt(wx);
       if (node) { setSelected({ kind: 'node', id: node.id }); return; }
       const bar = findBarAt(wx);
@@ -177,7 +186,7 @@ export function Canvas({
       setSelected(null);
       return;
     }
-    if (tool === 'node') {
+    if (effectiveTool === 'node') {
       // Insert mid-bar node on the bar at wx.
       const bar = findBarAt(wx);
       if (!bar) return;
@@ -194,13 +203,13 @@ export function Canvas({
       setModel((m) => ({ ...m, nodes: [...m.nodes, { id, x: xSnap, y: 0 }] }));
       return;
     }
-    if (tool === 'support') {
+    if (effectiveTool === 'support') {
       const node = findNodeAt(wx);
       if (!node) return;
       cycleSupport(node.id);
       return;
     }
-    if (tool === 'load') {
+    if (effectiveTool === 'load') {
       const node = findNodeAt(wx);
       if (node) {
         const id = nextLoadId();
@@ -217,7 +226,7 @@ export function Canvas({
       }
       return;
     }
-    if (tool === 'delete') {
+    if (effectiveTool === 'delete') {
       const node = findNodeAt(wx);
       if (node) { deleteNode(node.id); return; }
       const bar = findBarAt(wx);
@@ -400,7 +409,13 @@ export function Canvas({
         style={{
           display: 'block',
           width: '100%', height: '100%',
-          cursor: tool === 'select' ? 'default' : 'crosshair',
+          // In read-only (mobile) the cursor stays neutral regardless of the
+          // active tool — no edit affordance is shown.
+          cursor: readOnly || tool === 'select' ? 'default' : 'crosshair',
+          // Prevent browser default touch gestures (pan/pinch) from fighting
+          // the canvas's own hit-test logic on mobile. `none` lets every
+          // pointer event reach the SVG handlers cleanly.
+          touchAction: 'none',
         }}
       >
         <defs>
@@ -474,6 +489,7 @@ export function Canvas({
             onClick={() => setSelected({ kind: 'bar', id: bar.id })}
             onMouseEnter={() => setHoveredBar(bar.id)}
             onMouseLeave={() => setHoveredBar(null)}
+            readOnly={readOnly}
           />
         ))}
 
@@ -483,6 +499,7 @@ export function Canvas({
             model={model}
             w2s={w2s}
             onEditLength={setBarLengthEdge}
+            readOnly={readOnly}
           />
         )}
 
@@ -509,6 +526,7 @@ export function Canvas({
               stackIndex={stack.get(ld.id) ?? 0}
               onClick={() => setSelected({ kind: 'load', id: ld.id })}
               onEditValue={setLoadValue}
+              readOnly={readOnly}
             />
           ));
         })()}
@@ -525,16 +543,21 @@ export function Canvas({
         {model.nodes.map((n) => {
           const [sx, sy] = w2s(n.x, 0);
           const isSel = selected?.kind === 'node' && selected.id === n.id;
+          // Read-only always tap-to-select; in editor mode only 'select' tool.
+          const nodeIsSelect = readOnly || tool === 'select';
           return (
             <g
               key={n.id}
-              onClick={tool === 'select' ? (e) => { e.stopPropagation(); setSelected({ kind: 'node', id: n.id }); } : undefined}
-              style={{ cursor: tool === 'select' ? 'pointer' : 'crosshair' }}
+              onClick={nodeIsSelect ? (e) => { e.stopPropagation(); setSelected({ kind: 'node', id: n.id }); } : undefined}
+              style={{ cursor: nodeIsSelect ? 'pointer' : 'crosshair' }}
             >
+              {/* Invisible touch hit-area (22px radius) over the visible 5-7px node. */}
+              <circle cx={sx} cy={sy} r={22} fill="transparent" pointerEvents="all" />
               <circle
                 cx={sx} cy={sy} r={isSel ? 7 : 5}
                 fill={isSel ? 'var(--color-accent)' : 'var(--color-bg-primary)'}
                 stroke="var(--color-text-primary)" strokeWidth="1.6"
+                pointerEvents="none"
               />
               {/* Hinge glyph if any bar has internalHinges set at this node */}
               {nodeHasHinge(model, n.id) && (
@@ -552,13 +575,13 @@ export function Canvas({
           <ReactionGlyph key={i} reaction={r} w2s={w2s} />
         ))}
 
-        {/* "+vano" floating button */}
-        {model.bars.length > 0 && (
+        {/* "+vano" floating button — hidden in read-only (mobile). */}
+        {model.bars.length > 0 && !readOnly && (
           <AddVanoButton model={model} w2s={w2s} onClick={addVano} />
         )}
 
-        {/* Tool hint */}
-        <ToolHint tool={tool} />
+        {/* Tool hint — only meaningful in editor mode (desktop/tablet). */}
+        {!readOnly && <ToolHint tool={tool} />}
       </svg>
     </div>
   );
@@ -667,6 +690,7 @@ function SupportGlyph({ sx, sy, type }: { sx: number; sy: number; type: SupportT
 
 function BarRenderer({
   bar, model, result, view, selected, w2s, tool, onClick, onMouseEnter, onMouseLeave,
+  readOnly = false,
 }: {
   bar: DesignBar;
   model: DesignModel;
@@ -681,6 +705,8 @@ function BarRenderer({
   onClick: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  /** Mobile read-only — clicks always tap-to-select regardless of `tool`. */
+  readOnly?: boolean;
 }) {
   const ni = model.nodes.find((n) => n.id === bar.i);
   const nj = model.nodes.find((n) => n.id === bar.j);
@@ -695,7 +721,8 @@ function BarRenderer({
     : r && r.status === 'warn' ? 'var(--color-state-warn)'
     : r && r.status === 'pending' ? 'var(--color-text-disabled)'
     : 'var(--color-text-primary)';
-  const isSelectTool = tool === 'select';
+  // Read-only treats every interaction as tap-to-select.
+  const isSelectTool = readOnly || tool === 'select';
   return (
     <g
       role={isSelectTool ? 'button' : undefined}
@@ -713,6 +740,16 @@ function BarRenderer({
       onMouseLeave={onMouseLeave}
       style={{ cursor: isSelectTool ? 'pointer' : 'crosshair', outline: 'none' }}
     >
+      {/* Invisible hit-area: matches WCAG 2.5.5 for touch targets without
+          changing the visible 3-4px stroke. The plan called this out as
+          core (not polish) after dual-voice review. */}
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="transparent"
+        strokeWidth={24}
+        strokeLinecap="round"
+        pointerEvents="stroke"
+      />
       <line
         x1={x1} y1={y1} x2={x2} y2={y2}
         stroke={stroke}
@@ -766,11 +803,12 @@ function BarRenderer({
 }
 
 function BarDimensions({
-  model, w2s, onEditLength,
+  model, w2s, onEditLength, readOnly = false,
 }: {
   model: DesignModel;
   w2s: (x: number, y: number) => [number, number];
   onEditLength: (barId: string, newL: number) => void;
+  readOnly?: boolean;
 }) {
   const items: React.ReactNode[] = [];
   for (const bar of model.bars) {
@@ -794,6 +832,7 @@ function BarDimensions({
               decimals={2}
               unit="m"
               min={0.1}
+              disabled={readOnly}
               onCommit={(newL) => onEditLength(bar.id, newL)}
               ariaLabel={`Luz barra ${bar.id}`}
             />
@@ -826,7 +865,7 @@ function lcColor(lc: LoadCase): string {
 }
 
 function LoadGlyph({
-  load, model, w2s, selected, tool, stackIndex, onClick, onEditValue,
+  load, model, w2s, selected, tool, stackIndex, onClick, onEditValue, readOnly = false,
 }: {
   load: Load;
   model: DesignModel;
@@ -838,10 +877,12 @@ function LoadGlyph({
   stackIndex: number;
   onClick: () => void;
   onEditValue: (loadId: string, value: number) => void;
+  readOnly?: boolean;
 }) {
   const isSelected = selected?.kind === 'load' && selected.id === load.id;
   const c = isSelected ? 'var(--color-accent)' : lcColor(load.lc);
-  const isSelectTool = tool === 'select';
+  // In read-only the only meaningful tool is 'select' — clicks are tap-to-select.
+  const isSelectTool = readOnly || tool === 'select';
   const groupClick = isSelectTool ? (e: React.MouseEvent) => { e.stopPropagation(); onClick(); } : undefined;
   const groupCursor = isSelectTool ? 'pointer' : 'crosshair';
 
@@ -867,6 +908,7 @@ function LoadGlyph({
           <div>
             <InlineEdit
               value={Math.abs(Py)} unit="kN" decimals={1} min={0}
+              disabled={readOnly}
               onCommit={(v) => onEditValue(load.id, v)}
               ariaLabel={`Carga ${load.id}`}
             />
@@ -924,6 +966,7 @@ function LoadGlyph({
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <InlineEdit
                 value={load.w} unit="kN/m" decimals={1} min={0}
+                disabled={readOnly}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`UDL ${load.id}`}
               />
@@ -950,6 +993,7 @@ function LoadGlyph({
             <div>
               <InlineEdit
                 value={load.P} unit="kN" decimals={1} min={0}
+                disabled={readOnly}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`P ${load.id}`}
               />
