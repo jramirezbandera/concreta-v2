@@ -202,7 +202,10 @@ export function MasonryWallsResults({
             <span className="font-mono text-[11px]" style={{ color: isCrit ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
               {pl.nombre}
             </span>
-            <span className="text-[10px] font-mono text-text-disabled">q<sub>d</sub>={pl.q_planta.toFixed(0)} kN/m</span>
+            <span
+              className="text-[10px] font-mono text-text-disabled"
+              title="Promedio derivado de la carga distribuida en cabeza de la planta. Con cargas concentradas heredadas no es un UDL real — es la integral / L."
+            >q<sub>d</sub> prom={pl.q_planta_avg.toFixed(0)} kN/m</span>
             <span className="font-mono text-[11px] font-semibold tabular-nums" style={{ color: stCol }}>
               {(eMax * 100).toFixed(0)}%
             </span>

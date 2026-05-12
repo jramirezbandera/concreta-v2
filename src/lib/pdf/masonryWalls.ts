@@ -5,6 +5,7 @@
 import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import {
+  MASONRY_ENGINE_VERSION,
   type MasonryWallState,
   type PlantaResult,
   type CriticoResult,
@@ -44,6 +45,11 @@ export async function exportMasonryWallsPDF({
   doc.setFontSize(9);
   setGray(doc, 120);
   doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  // Engine version para trazabilidad legal: si en el futuro hay un fix de
+  // correctness, el ingeniero puede demostrar con qué motor firmó cada job.
+  doc.setFontSize(7.5);
+  setGray(doc, 150);
+  doc.text(`Motor de calculo v${MASONRY_ENGINE_VERSION}`, PAGE_W - M, M + 5, { align: 'right' });
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
@@ -148,7 +154,7 @@ export async function exportMasonryWallsPDF({
   // Header row
   const hY = ry;
   doc.text('Planta', COL_R, hY);
-  doc.text('q_d kN/m', COL_R + 22, hY);
+  doc.text('q_d prom kN/m', COL_R + 22, hY);
   doc.text('lam', COL_R + 44, hY);
   doc.text('eta max', COL_R + 60, hY);
   ry += 4;
@@ -160,7 +166,7 @@ export async function exportMasonryWallsPDF({
     const eMax = Math.max(...pl.machones.map((m) => m.etaMax));
     const status = eMax >= 1 ? 'INCUMPLE' : eMax >= 0.8 ? 'REVISAR' : 'CUMPLE';
     doc.text(pdfStr(pl.nombre), COL_R, ry);
-    doc.text(pl.q_planta.toFixed(1), COL_R + 22, ry);
+    doc.text(pl.q_planta_avg.toFixed(1), COL_R + 22, ry);
     doc.text(pl.lambda.toFixed(1), COL_R + 44, ry);
     doc.text(`${(eMax * 100).toFixed(0)}% ${status}`, COL_R + 60, ry);
     ry += 4;

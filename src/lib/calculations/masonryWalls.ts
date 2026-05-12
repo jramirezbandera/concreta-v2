@@ -1,5 +1,12 @@
 // Masonry walls (DB-SE-F) — motor de cálculo puro
 // =============================================================================
+
+/** Versión del motor de cálculo. Bump al hacer cambios que afecten resultados
+ *  numéricos (no a cosméticos del PDF). Aparece en el PDF para trazabilidad
+ *  legal — un ingeniero puede demostrar con qué versión firmó cada proyecto.
+ *  v2.0.0 = cascada de cargas concentradas multi-planta (2026-05-12). */
+export const MASONRY_ENGINE_VERSION = '2.0.0';
+
 //
 // Comprobación de muros de carga de fábrica en edificación rehabilitada,
 // multi-planta, considerando huecos (puertas/ventanas) con dinteles que
@@ -303,6 +310,48 @@ export interface FabricaResuelta {
   valida?: boolean;
 }
 
+/**
+ * Carga distribuida piecewise constant a lo largo del muro (cabeza de una planta).
+ *
+ * INVARIANTES DE UNIDADES (críticas para evitar bugs):
+ * - `x1`, `x2` en milímetros (consistente con el resto del state).
+ * - `w` en kN/m (carga lineal).
+ * - `integrateLoad(segs, a, b)` convierte mm→m internamente; devuelve kN totales.
+ *
+ * KIND DISCRIMINATOR (autoplan eng review C1):
+ * - `'distributed'`: UDL del forjado, peso propio repartido del muro. NO requiere β§5.4.
+ * - `'concentrated'`: proveniente de un puntual o reacción de dintel cascadeada
+ *   desde arriba. SÍ requiere β§5.4 en cada machón inferior que lo intercepta,
+ *   porque la concentración física existe en cada nivel hasta que dispersa.
+ * - `originX`: posición x ORIGINAL del puntual o centro de la concentración emisora.
+ *   Usado por β§5.4 para calcular `a = distancia al borde más próximo`.
+ */
+export interface LoadSegment {
+  x1: number;
+  x2: number;
+  w: number;
+  kind: 'distributed' | 'concentrated';
+  /** Solo para kind='concentrated': x original de la concentración emisora. */
+  originX?: number;
+}
+
+/** Integra una lista de segments sobre [a, b] (mm). Devuelve kN totales.
+ *  El factor /1000 convierte mm × kN/m → kN. */
+export function integrateLoad(segs: readonly LoadSegment[], a: number, b: number): number {
+  let total = 0;
+  for (const s of segs) {
+    const x1 = Math.max(s.x1, a);
+    const x2 = Math.min(s.x2, b);
+    if (x2 > x1) total += s.w * (x2 - x1) / 1000;
+  }
+  return total;
+}
+
+/** Crea un segment UDL distributed para todo el muro. */
+export function udlSegment(L: number, w: number): LoadSegment {
+  return { x1: 0, x2: L, w, kind: 'distributed' };
+}
+
 export interface MachonRaw {
   id: string;
   x1: number;
@@ -359,7 +408,13 @@ export interface PlantaResult extends Planta {
   index: number;
   machones: MachonResult[];
   dinteles: DintelResult[];
+  /** Carga lineal promedio en cabeza de la planta (kN/m), derivada de
+   *  integrar los segments sobre [0, L] / L. Antes del refactor de
+   *  LoadSegment era el q_top scalar uniforme; ahora es solo un valor
+   *  promedio derivado para mostrar y para regresión, NO es input al
+   *  cálculo del machón (que integra punto a punto). */
   q_planta: number;
+  q_planta_avg: number;
   e_apoyo: number;
   e_cabeza: number;
   e_pie: number;
@@ -525,9 +580,6 @@ export function detectarHuecosSolapados(huecos: Hueco[]): { a: string; b: string
   return pairs;
 }
 
-function mayorarLineal(pl: Planta, gG: number, gQ: number): number {
-  return gG * (pl.q_G || 0) + gQ * (pl.q_Q || 0);
-}
 function mayorarPuntual(p: Puntual, gG: number, gQ: number): number {
   return gG * (p.P_G || 0) + gQ * (p.P_Q || 0);
 }
@@ -644,14 +696,9 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
 
   const n = plantas.length;
 
-  // Pre-pasada: q_top, e_apoyo y k_reparto por planta.
-  const q_top: number[] = new Array<number>(n).fill(0);
-  for (let i = n - 1; i >= 0; i--) {
-    const arriba = i + 1 < n
-      ? q_top[i + 1] + gG * peso_propio * (t / 1000) * (plantas[i + 1].H / 1000)
-      : 0;
-    q_top[i] = arriba + mayorarLineal(plantas[i], gG, gQ);
-  }
+  // Pre-pasada: e_apoyo y k_reparto por planta (sin cambios; siguen siendo
+  // scalars). El q_top scalar fue REEMPLAZADO por un loop top-down con
+  // LoadSegment[] (autoplan eng review C1 fix).
   const e_apoyo_arr: number[] = plantas.map((pl) =>
     pl.e_apoyo > 0 ? pl.e_apoyo : eApoyoForjado(t, pl.a_apoyo),
   );
@@ -660,219 +707,306 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
     return repartoMomento(pl.H, H_sup);
   });
 
-  return {
-    invalid: false,
-    plantas: plantas.map((pl, i) => {
-      const machonesRaw = getMachonesPlanta(pl.huecos, L);
-      const q_planta = q_top[i];
-      const esCubierta = i === n - 1;
+  // ────────────────────────────────────────────────────────────────────────
+  // CASCADA TOP-DOWN con LoadSegment[]
+  // ────────────────────────────────────────────────────────────────────────
+  // En lugar del antiguo q_top[i] scalar (kN/m uniforme sobre [0,L]), cada
+  // planta recibe `loadsAtTop`: una lista de segments piecewise constant
+  // representando la carga distribuida + concentrada heredada desde arriba.
+  //
+  // Los segments emitidos por cada machón al piso inferior llevan:
+  //   - distributed: N_lineal (UDL del forjado) + peso_machon — sin β§5.4.
+  //   - concentrated: N_puntual + N_dinteles — CON β§5.4 en cada nivel inferior.
+  //
+  // Esto arregla tres bugs simultáneos:
+  //   1. Cargas puntuales de plantas superiores no propagaban — ahora sí.
+  //   2. Reacciones de dinteles arriba no propagaban — ahora sí.
+  //   3. Peso propio del muro superior se smearéaba sobre toda L incluso
+  //      encima de huecos — ahora solo aparece bajo los machones reales.
+  // ────────────────────────────────────────────────────────────────────────
 
-      // === DINTELES ===
-      const dinteles: DintelResult[] = pl.huecos.map((h) => {
-        const w_m = h.w / 1000;
-        const esPuerta = h.tipo === 'puerta';
-        const h_muro_sobre = esPuerta ? 0 : Math.max(0, pl.H - (h.y + h.h));
-        const g_propio = gG * peso_propio * (t / 1000) * (h_muro_sobre / 1000);
-        const q_dintel = q_planta + g_propio;
+  const plantasResult: PlantaResult[] = new Array<PlantaResult>(n);
+  let loadsAtTop: LoadSegment[] = []; // cubierta arranca con [], las cargas
+                                       // externas (nieve, equipos puntuales) ya
+                                       // entran vía pl.q_G/q_Q/puntuales de cubierta.
 
-        // Cargas puntuales que caen sobre el hueco con sus posiciones para
-        // distribución asimétrica de reacción (OV-6).
-        const puntualesEnHueco = pl.puntuales.filter((p) => p.x >= h.x && p.x <= h.x + h.w);
-        const P_sobre_hueco = puntualesEnHueco.reduce((s, p) => s + mayorarPuntual(p, gG, gQ), 0);
+  for (let i = n - 1; i >= 0; i--) {
+    const pl = plantas[i];
+    const machonesRaw = getMachonesPlanta(pl.huecos, L);
+    const esCubierta = i === n - 1;
 
-        // Reacciones del dintel: UDL siempre 50/50; puntuales reparto por brazo.
-        let R_izq = (q_dintel * w_m) / 2;
-        let R_dch = (q_dintel * w_m) / 2;
-        for (const p of puntualesEnHueco) {
-          const a_local = p.x - h.x;          // mm desde apoyo izq
+    // Carga total en cabeza de esta planta = lo heredado + UDL del propio forjado.
+    const floorUDL = udlSegment(L, gG * pl.q_G + gQ * pl.q_Q);
+    const topPlusFloor: LoadSegment[] = [...loadsAtTop, floorUDL];
+
+    // === DINTELES ===
+    const dinteles: DintelResult[] = pl.huecos.map((h) => {
+      // autoplan eng review H9: clamp del hueco a [0, L] para evitar N/span
+      // ficticio cuando el hueco se sale del muro (caso patológico).
+      const h_x1 = Math.max(0, h.x);
+      const h_x2 = Math.min(L, h.x + h.w);
+      const span_mm = Math.max(0, h_x2 - h_x1);
+      const w_m = span_mm / 1000;
+      const esPuerta = h.tipo === 'puerta';
+      const h_muro_sobre = esPuerta ? 0 : Math.max(0, pl.H - (h.y + h.h));
+      const g_propio = gG * peso_propio * (t / 1000) * (h_muro_sobre / 1000);
+      // q_distribuida = integral over hueco de loadsAtTop+floorUDL / w_m.
+      // Reemplaza el antiguo q_planta scalar (kN/m uniforme) por la integral
+      // real, lo cual captura cualquier discontinuidad heredada arriba.
+      const N_distribuida_sobre_hueco = integrateLoad(topPlusFloor, h_x1, h_x2);
+      const q_distribuida = w_m > 0 ? N_distribuida_sobre_hueco / w_m : 0;
+      const q_dintel = q_distribuida + g_propio;
+
+      // Cargas puntuales que caen sobre el hueco con sus posiciones para
+      // distribución asimétrica de reacción (OV-6).
+      const puntualesEnHueco = pl.puntuales.filter((p) => p.x >= h.x && p.x <= h.x + h.w);
+      const P_sobre_hueco = puntualesEnHueco.reduce((s, p) => s + mayorarPuntual(p, gG, gQ), 0);
+
+      // Reacciones del dintel: UDL siempre 50/50; puntuales reparto por brazo.
+      let R_izq = (q_dintel * w_m) / 2;
+      let R_dch = (q_dintel * w_m) / 2;
+      for (const p of puntualesEnHueco) {
+        const a_local = p.x - h.x;          // mm desde apoyo izq
+        const Pd = mayorarPuntual(p, gG, gQ);
+        const luz = h.w > 0 ? h.w : 1; // evitar /0 en huecos degenerados
+        R_izq += Pd * (h.w - a_local) / luz;
+        R_dch += Pd * a_local / luz;
+      }
+      const N_total_dintel = q_dintel * w_m + P_sobre_hueco;
+      const M_Ed = q_dintel * w_m * w_m / 8 + P_sobre_hueco * w_m / 4;
+      const V_Ed = Math.max(R_izq, R_dch);
+      return {
+        id: h.id,
+        x_centro: h.x + h.w / 2,
+        x1: h.x,
+        x2: h.x + h.w,
+        luz: h.w,
+        q_dintel,
+        g_propio,
+        h_muro_sobre,
+        N_total_dintel,
+        R_izq,
+        R_dch,
+        R_apoyo: (R_izq + R_dch) / 2,
+        M_Ed,
+        V_Ed,
+        P_sobre_hueco,
+      };
+    });
+
+    // Asignar reacciones de dinteles a los machones adyacentes.
+    // OV-2 fix: cuando el hueco toca el borde del muro (x≈0 o x+w≈L), el
+    // apoyo "huérfano" se redirige al machón válido del otro lado o al más
+    // cercano por distancia, en lugar de perderse silenciosamente.
+    const reaccionesPorMachon: Record<string, number> = {};
+    const tol = 5; // mm — tolerancia generosa para input rounding
+    const asignar = (mid: string | undefined, R: number) => {
+      if (!mid) return;
+      reaccionesPorMachon[mid] = (reaccionesPorMachon[mid] || 0) + R;
+    };
+    const machonAt = (xObjetivo: number, esApoyoIzq: boolean): MachonRaw | undefined => {
+      const exact = machonesRaw.find((mc) =>
+        Math.abs((esApoyoIzq ? mc.x2 : mc.x1) - xObjetivo) < tol,
+      );
+      if (exact) return exact;
+      if (machonesRaw.length === 0) return undefined;
+      return machonesRaw.reduce((best, mc) => {
+        const dBest = Math.min(Math.abs(best.x1 - xObjetivo), Math.abs(best.x2 - xObjetivo));
+        const dMc = Math.min(Math.abs(mc.x1 - xObjetivo), Math.abs(mc.x2 - xObjetivo));
+        return dMc < dBest ? mc : best;
+      }, machonesRaw[0]);
+    };
+    dinteles.forEach((d) => {
+      const m_izq = machonAt(d.x1, true);
+      const m_dch = machonAt(d.x2, false);
+      if (!m_izq && !m_dch) return;
+      if (!m_izq && m_dch) {
+        asignar(m_dch.id, d.R_izq + d.R_dch);
+      } else if (m_izq && !m_dch) {
+        asignar(m_izq.id, d.R_izq + d.R_dch);
+      } else {
+        asignar(m_izq!.id, d.R_izq);
+        asignar(m_dch!.id, d.R_dch);
+      }
+    });
+
+    const e_apoyo = e_apoyo_arr[i];
+    const k_reparto = k_reparto_arr[i];
+    const e_cabeza = Math.max(e_apoyo * k_reparto, e_min);
+    const e_pie = i > 0
+      ? Math.max(e_apoyo_arr[i - 1] * (1 - k_reparto_arr[i - 1]), e_min)
+      : e_min;
+    const rho_n_default = esCubierta ? 1.0 : 0.75;
+    const rho_n = pl.rho_n ?? rho_n_default;
+    const h_ef = rho_n * pl.H;
+    const lambda = h_ef / t;
+    const e_m = 0.6 * Math.max(e_cabeza, e_pie) + 0.4 * Math.min(e_cabeza, e_pie);
+    const e_a = h_ef / 450;
+    const e_total = Math.max(e_m + e_a, e_min);
+    const phi_unif = (1 - 2 * e_total / t) * (lambda > 10 ? Math.max(0, 1 - (lambda - 10) / 30) : 1.0);
+    const Phi = Math.max(0.05, phi_unif);
+
+    // === MACHONES ===
+    // autoplan eng review H4: planta sin machones (full-width hueco) es
+    // físicamente imposible. En tool con liability legal preferimos hard
+    // fail con motivo claro vs smear silencioso que devolvería η engañoso.
+    if (machonesRaw.length === 0) {
+      return {
+        invalid: true,
+        reason: `Planta ${pl.nombre} sin machones — los huecos cubren toda la longitud L=${L} mm. Físicamente imposible: el forjado superior no tiene apoyo.`,
+        field: 'plantas',
+        fix: 'Reduce el ancho de los huecos o reposiciónalos para que dejen al menos un paño de muro.',
+      };
+    }
+
+    const machones: MachonResult[] = machonesRaw.map((m, mIdx) => {
+      // autoplan eng review H2: half-open intervals [x1, x2) para evitar
+      // double-counting de puntuales en boundary entre machones adyacentes.
+      // El último machón cierra con x2 inclusivo para no perder un puntual
+      // exactamente en x=L.
+      const isLastMachon = mIdx === machonesRaw.length - 1;
+      const P_directos = pl.puntuales.filter((p) =>
+        p.x >= m.x1 && (isLastMachon ? p.x <= m.x2 : p.x < m.x2),
+      );
+      const N_lineal = integrateLoad(topPlusFloor, m.x1, m.x2);
+      const N_puntual = P_directos.reduce((s, p) => s + mayorarPuntual(p, gG, gQ), 0);
+      const N_dinteles = reaccionesPorMachon[m.id] || 0;
+      const N_Ed = N_lineal + N_puntual + N_dinteles;
+      const peso_machon = gG * peso_propio * (m.ancho / 1000) * (t / 1000) * (pl.H / 1000);
+      const N_Ed_pie = N_Ed + peso_machon;
+
+      const A = m.ancho * t;
+      const N_Rd = (Phi * f_d * A) / 1000;
+      const eta_cabeza = N_Rd > 0 ? N_Ed / N_Rd : 99;
+      const eta_pie = N_Rd > 0 ? N_Ed_pie / N_Rd : 99;
+      const eta = Math.max(eta_cabeza, eta_pie);
+      const sigma_top = (N_Ed * 1000) / A;
+      const sigma_bottom = (N_Ed_pie * 1000) / A;
+
+      // β CONCENTRACIÓN §5.4 (autoplan eng review C1):
+      // Re-evaluar β para TODA concentración que físicamente exista sobre
+      // este machón: (a) puntuales declarados en esta planta + (b) segments
+      // kind='concentrated' heredados de plantas superiores cuyo originX
+      // caiga dentro del machón.
+      let etaConc = 0;
+      if (f_d > 0) {
+        // (a) puntuales directas de esta planta
+        for (const p of P_directos) {
           const Pd = mayorarPuntual(p, gG, gQ);
-          R_izq += Pd * (h.w - a_local) / h.w;
-          R_dch += Pd * a_local / h.w;
+          // autoplan eng review H5: b_apoyo no puede exceder el ancho del
+          // machón físicamente (el bearing area está confinado al paño).
+          const b_efectivo = Math.min(p.b_apoyo, m.ancho);
+          const sigmaLoc = (Pd * 1000) / (b_efectivo * t);
+          const beta = betaConcentracion(p.x, L, pl.H);
+          const etaLocal = sigmaLoc / (beta * f_d);
+          if (etaLocal > etaConc) etaConc = etaLocal;
         }
-        const N_total_dintel = q_dintel * w_m + P_sobre_hueco;
-        const M_Ed = q_dintel * w_m * w_m / 8 + P_sobre_hueco * w_m / 4;
-        const V_Ed = Math.max(R_izq, R_dch);
-        return {
-          id: h.id,
-          x_centro: h.x + h.w / 2,
-          x1: h.x,
-          x2: h.x + h.w,
-          luz: h.w,
-          q_dintel,
-          g_propio,
-          h_muro_sobre,
-          N_total_dintel,
-          R_izq,
-          R_dch,
-          R_apoyo: (R_izq + R_dch) / 2,
-          M_Ed,
-          V_Ed,
-          P_sobre_hueco,
-        };
-      });
-
-      // Asignar reacciones de dinteles a los machones adyacentes.
-      // OV-2 fix: cuando el hueco toca el borde del muro (x≈0 o x+w≈L), el
-      // apoyo "huérfano" se redirige al machón válido del otro lado o al más
-      // cercano por distancia, en lugar de perderse silenciosamente.
-      const reaccionesPorMachon: Record<string, number> = {};
-      const tol = 5; // mm — tolerancia generosa para input rounding
-      const asignar = (mid: string | undefined, R: number) => {
-        if (!mid) return;
-        reaccionesPorMachon[mid] = (reaccionesPorMachon[mid] || 0) + R;
-      };
-      const machonAt = (xObjetivo: number, esApoyoIzq: boolean): MachonRaw | undefined => {
-        // Borde derecho de un machón coincide con apoyo izq del dintel.
-        const exact = machonesRaw.find((mc) =>
-          Math.abs((esApoyoIzq ? mc.x2 : mc.x1) - xObjetivo) < tol,
-        );
-        if (exact) return exact;
-        // Fallback: machón más cercano por distancia mínima al borde objetivo.
-        if (machonesRaw.length === 0) return undefined;
-        return machonesRaw.reduce((best, mc) => {
-          const dBest = Math.min(Math.abs(best.x1 - xObjetivo), Math.abs(best.x2 - xObjetivo));
-          const dMc = Math.min(Math.abs(mc.x1 - xObjetivo), Math.abs(mc.x2 - xObjetivo));
-          return dMc < dBest ? mc : best;
-        }, machonesRaw[0]);
-      };
-      dinteles.forEach((d) => {
-        const m_izq = machonAt(d.x1, true);
-        const m_dch = machonAt(d.x2, false);
-        if (!m_izq && !m_dch) return; // no hay machones — caso degenerado
-        if (!m_izq && m_dch) {
-          // Apoyo izquierdo huérfano (hueco en x≈0): toda la carga al derecho.
-          asignar(m_dch.id, d.R_izq + d.R_dch);
-        } else if (m_izq && !m_dch) {
-          asignar(m_izq.id, d.R_izq + d.R_dch);
-        } else {
-          asignar(m_izq!.id, d.R_izq);
-          asignar(m_dch!.id, d.R_dch);
+        // (b) concentradas heredadas
+        for (const seg of topPlusFloor) {
+          if (seg.kind !== 'concentrated' || seg.originX == null) continue;
+          if (seg.originX < m.x1 || seg.originX >= m.x2) continue;
+          const xOv1 = Math.max(seg.x1, m.x1);
+          const xOv2 = Math.min(seg.x2, m.x2);
+          if (xOv2 <= xOv1) continue;
+          const P_seg = seg.w * (xOv2 - xOv1) / 1000;
+          if (P_seg <= 0) continue;
+          const b_emisor = seg.x2 - seg.x1;
+          const b_efectivo = Math.min(b_emisor, m.ancho);
+          const sigmaLoc = (P_seg * 1000) / (b_efectivo * t);
+          const beta = betaConcentracion(seg.originX, L, pl.H);
+          const etaLocal = sigmaLoc / (beta * f_d);
+          if (etaLocal > etaConc) etaConc = etaLocal;
         }
-      });
+      }
 
-      const e_apoyo = e_apoyo_arr[i];
-      const k_reparto = k_reparto_arr[i];
-
-      // OV-4: Cubierta — sin muro encima, k_reparto=1 implica que el momento
-      // del forjado se repartiría todo a este muro. ρ_n captura el resto: con
-      // cabeza menos restringida usamos ρ_n=1.0. Mantenemos k=1 por
-      // consistencia con CTE (repartomomento entre dos muros conectados,
-      // único muro recibe el 100%).
-      const e_cabeza = Math.max(e_apoyo * k_reparto, e_min);
-
-      // OV-7: e_pie de planta `i` depende del forjado en su pie, que es el
-      // techo de planta i-1. La cuota que va al muro superior (planta i) es
-      // (1 − k_reparto[i-1]) del e_apoyo de planta i-1.
-      const e_pie = i > 0
-        ? Math.max(e_apoyo_arr[i - 1] * (1 - k_reparto_arr[i - 1]), e_min)
-        : e_min;
-
-      // OV-5: ρ_n configurable por planta. Default según topología: 0.75
-      // plantas con muro encima (doble arriostramiento), 1.0 cubierta (cabeza
-      // menos restringida).
-      const rho_n_default = esCubierta ? 1.0 : 0.75;
-      const rho_n = pl.rho_n ?? rho_n_default;
-      const h_ef = rho_n * pl.H;
-      const lambda = h_ef / t;
-
-      const e_m = 0.6 * Math.max(e_cabeza, e_pie) + 0.4 * Math.min(e_cabeza, e_pie);
-      const e_a = h_ef / 450;
-      const e_total = Math.max(e_m + e_a, e_min);
-
-      // OV-8: Φ unificado — fórmula CTE EC-6 §6.1.2.2 acoplada (no producto
-      // separable). La forma usada aquí es la versión simplificada CTE:
-      //   Φ = (1 − 2·e_total/t) · (1 − A1·(λ−10))   para λ > 10
-      //   con A1 = 1/30 (≈ pendiente de reducción por esbeltez)
-      // Es coherente con la antigua phi_e · phi_l pero el clamp se aplica al
-      // producto, no a cada factor por separado — esto evita la "doble
-      // reducción" optimista cuando ambos términos son pequeños.
-      const phi_unif = (1 - 2 * e_total / t) * (lambda > 10 ? Math.max(0, 1 - (lambda - 10) / 30) : 1.0);
-      const Phi = Math.max(0.05, phi_unif);
-
-      const machones: MachonResult[] = machonesRaw.map((m) => {
-        const N_lineal = q_planta * (m.ancho / 1000);
-        const P_directos = pl.puntuales.filter((p) => p.x >= m.x1 && p.x <= m.x2);
-        const N_puntual = P_directos.reduce((s, p) => s + mayorarPuntual(p, gG, gQ), 0);
-        const N_dinteles = reaccionesPorMachon[m.id] || 0;
-        const N_Ed = N_lineal + N_puntual + N_dinteles;
-
-        // OV-1: peso propio del muro de la planta sobre el propio machón —
-        // permanente, mayorado por γG. Se añade a N_Ed_pie para verificar la
-        // sección al pie del muro (donde típicamente es máxima).
-        const peso_machon = gG * peso_propio * (m.ancho / 1000) * (t / 1000) * (pl.H / 1000);
-        const N_Ed_pie = N_Ed + peso_machon;
-
-        const A = m.ancho * t;
-        const N_Rd = (Phi * f_d * A) / 1000;
-        const eta_cabeza = N_Rd > 0 ? N_Ed / N_Rd : 99;
-        const eta_pie = N_Rd > 0 ? N_Ed_pie / N_Rd : 99;
-        const eta = Math.max(eta_cabeza, eta_pie);
-        const sigma_top = (N_Ed * 1000) / A;
-        const sigma_bottom = (N_Ed_pie * 1000) / A;
-
-        // OV-3: β variable según posición de la carga puntual (§5.4).
-        let etaConc = 0;
-        if (P_directos.length && f_d > 0) {
-          const peor = P_directos.reduce<{ s: number; eta: number }>((acc, p) => {
-            const Pd = mayorarPuntual(p, gG, gQ);
-            const sigmaLoc = (Pd * 1000) / (p.b_apoyo * t);
-            const beta = betaConcentracion(p.x, L, pl.H);
-            const etaLocal = sigmaLoc / (beta * f_d);
-            return etaLocal > acc.eta ? { s: sigmaLoc, eta: etaLocal } : acc;
-          }, { s: 0, eta: 0 });
-          etaConc = peor.eta;
-        }
-
-        const etaMax = Math.max(eta, etaConc);
-        let status: 'ok' | 'warn' | 'fail' = 'ok';
-        if (etaMax >= 1.0) status = 'fail';
-        else if (etaMax >= 0.8) status = 'warn';
-
-        return {
-          ...m,
-          N_Ed,
-          N_Ed_pie,
-          N_lineal,
-          N_puntual,
-          N_dinteles,
-          N_Rd,
-          eta,
-          eta_cabeza,
-          eta_pie,
-          sigma_top,
-          sigma_bottom,
-          sigma: sigma_top,
-          Phi,
-          etaConc,
-          etaMax,
-          status,
-          A,
-          P_directos,
-          f_d,
-        };
-      });
+      const etaMax = Math.max(eta, etaConc);
+      let status: 'ok' | 'warn' | 'fail' = 'ok';
+      if (etaMax >= 1.0) status = 'fail';
+      else if (etaMax >= 0.8) status = 'warn';
 
       return {
-        ...pl,
-        index: i,
-        machones,
-        dinteles,
-        q_planta,
-        e_apoyo,
-        e_cabeza,
-        e_pie,
-        e_total,
-        e_min,
-        e_a,
-        k_reparto,
-        rho_n,
-        h_ef,
-        lambda,
+        ...m,
+        N_Ed,
+        N_Ed_pie,
+        N_lineal,
+        N_puntual,
+        N_dinteles,
+        N_Rd,
+        eta,
+        eta_cabeza,
+        eta_pie,
+        sigma_top,
+        sigma_bottom,
+        sigma: sigma_top,
         Phi,
+        etaConc,
+        etaMax,
+        status,
+        A,
+        P_directos,
         f_d,
       };
-    }),
-  };
+    });
+
+    // ── EMITIR loads_at_top PARA LA PLANTA INFERIOR ────────────────────────
+    // Cada machón emite hasta 2 segments al piso de abajo:
+    //   - distributed: portion lineal (N_lineal del forjado + peso_machon)
+    //                  repartida como UDL sobre [x1, x2].
+    //   - concentrated: portion concentrada (N_puntual + N_dinteles) con
+    //                   kind='concentrated' y originX = centro del machón
+    //                   emisor, para que β§5.4 se re-evalúe abajo.
+    if (i > 0) {
+      const newSegments: LoadSegment[] = [];
+      for (const m of machones) {
+        const ancho_m = m.ancho / 1000;
+        if (ancho_m <= 0) continue;
+        const peso_machon = gG * peso_propio * (m.ancho / 1000) * (t / 1000) * (pl.H / 1000);
+        const N_distribuida_emit = m.N_lineal + peso_machon;
+        const N_concentrada_emit = m.N_puntual + m.N_dinteles;
+        if (N_distribuida_emit > 1e-9) {
+          newSegments.push({
+            x1: m.x1, x2: m.x2,
+            w: N_distribuida_emit / ancho_m,
+            kind: 'distributed',
+          });
+        }
+        if (N_concentrada_emit > 1e-9) {
+          newSegments.push({
+            x1: m.x1, x2: m.x2,
+            w: N_concentrada_emit / ancho_m,
+            kind: 'concentrated',
+            originX: (m.x1 + m.x2) / 2,
+          });
+        }
+      }
+      loadsAtTop = newSegments;
+    }
+
+    // q_planta_avg (alias q_planta para back-compat): kN/m promedio.
+    const q_planta_avg = L > 0 ? integrateLoad(topPlusFloor, 0, L) / (L / 1000) : 0;
+    plantasResult[i] = {
+      ...pl,
+      index: i,
+      machones,
+      dinteles,
+      q_planta: q_planta_avg,
+      q_planta_avg,
+      e_apoyo,
+      e_cabeza,
+      e_pie,
+      e_total,
+      e_min,
+      e_a,
+      k_reparto,
+      rho_n,
+      h_ef,
+      lambda,
+      Phi,
+      f_d,
+    };
+  }
+
+  return { invalid: false, plantas: plantasResult };
 }
 
 export interface CriticoResult extends MachonResult {

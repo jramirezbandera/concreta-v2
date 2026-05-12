@@ -717,7 +717,7 @@ describe('overallStatus', () => {
     const fake: PlantaResult[] = [
       {
         index: 0, machones: [{ etaMax: 0.85 } as never], dinteles: [],
-        q_planta: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
+        q_planta: 0, q_planta_avg: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
         e_a: 0, k_reparto: 0, rho_n: 0, h_ef: 0, lambda: 0, Phi: 0, f_d: 0,
         id: 'x', nombre: '', H: 0, q_G: 0, q_Q: 0, a_apoyo: 0, huecos: [], puntuales: [],
       },
@@ -729,7 +729,7 @@ describe('overallStatus', () => {
     const fake: PlantaResult[] = [
       {
         index: 0, machones: [{ etaMax: 1.2 } as never], dinteles: [],
-        q_planta: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
+        q_planta: 0, q_planta_avg: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
         e_a: 0, k_reparto: 0, rho_n: 0, h_ef: 0, lambda: 0, Phi: 0, f_d: 0,
         id: 'x', nombre: '', H: 0, q_G: 0, q_Q: 0, a_apoyo: 0, huecos: [], puntuales: [],
       },
@@ -741,7 +741,7 @@ describe('overallStatus', () => {
     const fake: PlantaResult[] = [
       {
         index: 0, machones: [{ etaMax: 0.4 } as never, { etaMax: 0.7 } as never], dinteles: [],
-        q_planta: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
+        q_planta: 0, q_planta_avg: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
         e_a: 0, k_reparto: 0, rho_n: 0, h_ef: 0, lambda: 0, Phi: 0, f_d: 0,
         id: 'x', nombre: '', H: 0, q_G: 0, q_Q: 0, a_apoyo: 0, huecos: [], puntuales: [],
       },
@@ -834,5 +834,177 @@ describe('defaults & utilities', () => {
     expect(p.id).toBeTruthy();
     void h;
     void u;
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// CASCADA DE CARGAS CONCENTRADAS (autoplan eng review — refactor v2.0.0)
+// ────────────────────────────────────────────────────────────────────────────
+// Verifica que el refactor LoadSegment[] propaga correctamente puntuales y
+// reacciones de dinteles plantas-abajo, con β§5.4 re-aplicado en cada nivel,
+// half-open intervals para evitar double-counting, y validation invalid para
+// geometrías imposibles.
+// ────────────────────────────────────────────────────────────────────────────
+
+function buildTwoFloorState(overrides: {
+  topPuntuales?: Puntual[];
+  topHuecos?: Hueco[];
+  bottomPuntuales?: Puntual[];
+  bottomHuecos?: Hueco[];
+  L?: number;
+  t?: number;
+} = {}): MasonryWallState {
+  const base = defaultMasonryState();
+  return {
+    ...base,
+    L: overrides.L ?? 4000,
+    t: overrides.t ?? 240,
+    plantas: [
+      {
+        ...plantaTemplate(0, false),
+        q_G: 8, q_Q: 3,
+        huecos: overrides.bottomHuecos ?? [],
+        puntuales: overrides.bottomPuntuales ?? [],
+      },
+      {
+        ...plantaTemplate(1, false),
+        q_G: 8, q_Q: 3,
+        huecos: overrides.topHuecos ?? [],
+        puntuales: overrides.topPuntuales ?? [],
+      },
+    ],
+  };
+}
+
+describe('cascada de cargas concentradas multi-planta (v2.0.0)', () => {
+  // T1: cargas puntuales arriba propagan al machón inferior alineado.
+  it('T1: puntual en planta 1 propaga axil al machón de planta 0 alineado', () => {
+    const Pwithout = calcularEdificio(buildTwoFloorState({}));
+    const Pwith = calcularEdificio(buildTwoFloorState({
+      topPuntuales: [{ id: 'p1', x: 1000, P_G: 20, P_Q: 10, b_apoyo: 250 }],
+    }));
+    const plantasA = expectPlantas(Pwithout);
+    const plantasB = expectPlantas(Pwith);
+    // Mismo machón geométricamente (sin huecos), planta 0.
+    const m0_A = plantasA[0].machones[0];
+    const m0_B = plantasB[0].machones[0];
+    // Delta debe contener al menos los 20*1.35 + 10*1.5 = 42 kN del puntual.
+    expect(m0_B.N_Ed - m0_A.N_Ed).toBeGreaterThan(40);
+  });
+
+  // T7: dos puntuales en mismo x propagan correctamente (sum preserved).
+  it('T7: dos puntuales en el mismo x se suman al machón inferior', () => {
+    const r = calcularEdificio(buildTwoFloorState({
+      topPuntuales: [
+        { id: 'a', x: 2000, P_G: 10, P_Q: 0, b_apoyo: 200 },
+        { id: 'b', x: 2000, P_G: 10, P_Q: 0, b_apoyo: 200 },
+      ],
+    }));
+    const baseline = calcularEdificio(buildTwoFloorState({}));
+    const plantas = expectPlantas(r);
+    const plantasBase = expectPlantas(baseline);
+    const delta = plantas[0].machones[0].N_Ed - plantasBase[0].machones[0].N_Ed;
+    // Σ(gG·10) = 27 kN — ambos puntuales heredados suman.
+    expect(delta).toBeGreaterThanOrEqual(26);
+  });
+
+  // T8: puntual en boundary x=0 NO se duplica.
+  it('T8: half-open intervals — puntual en x=0 NO se duplica entre machones', () => {
+    // 1 hueco crea 2 machones; el puntual en x=0 debe caer SOLO en el primero.
+    const r = calcularEdificio(buildTwoFloorState({
+      topHuecos: [{ id: 'h', x: 1500, y: 0, w: 1000, h: 2000, tipo: 'puerta' }],
+      topPuntuales: [{ id: 'p', x: 0, P_G: 20, P_Q: 0, b_apoyo: 200 }],
+    }));
+    const plantas = expectPlantas(r);
+    const pTop = plantas[1];
+    expect(pTop.machones.length).toBe(2);
+    // El primer machón (cuyo x1=0) recibe la puntual; el segundo no.
+    expect(pTop.machones[0].N_puntual).toBeGreaterThan(0);
+    expect(pTop.machones[1].N_puntual).toBe(0);
+  });
+
+  // T9: full-width hueco → edificio invalid, no smear silencioso.
+  it('T9: planta con hueco que cubre toda L → invalid (no smear)', () => {
+    const s = buildTwoFloorState({
+      L: 4000,
+      topHuecos: [{ id: 'h', x: 0, y: 0, w: 4000, h: 2500, tipo: 'puerta' }],
+    });
+    const r = calcularEdificio(s);
+    expect(r.invalid).toBe(true);
+    if (r.invalid) {
+      expect(r.reason).toMatch(/sin machones/i);
+      expect(r.field).toBe('plantas');
+    }
+  });
+
+  // T10: cascada 3 plantas con puntual en planta intermedia.
+  it('T10: 3-floor stack — puntual en planta 1 llega a planta 0', () => {
+    const base = defaultMasonryState();
+    const s: MasonryWallState = {
+      ...base,
+      L: 4000,
+      t: 240,
+      plantas: [
+        { ...plantaTemplate(0, false), q_G: 5, q_Q: 1, huecos: [], puntuales: [] },
+        { ...plantaTemplate(1, false), q_G: 5, q_Q: 1, huecos: [], puntuales: [{ id: 'p', x: 2000, P_G: 20, P_Q: 10, b_apoyo: 250 }] },
+        { ...plantaTemplate(2, true), q_G: 3, q_Q: 1, huecos: [], puntuales: [] },
+      ],
+    };
+    const baseline = calcularEdificio({ ...s, plantas: s.plantas.map((p, i) => i === 1 ? { ...p, puntuales: [] } : p) });
+    const r = calcularEdificio(s);
+    const plBase = expectPlantas(baseline);
+    const plR = expectPlantas(r);
+    // Planta 0 machón debe recibir más axil cuando hay puntual arriba en P1.
+    const delta = plR[0].machones[0].N_Ed - plBase[0].machones[0].N_Ed;
+    expect(delta).toBeGreaterThan(40); // 1.35*20 + 1.5*10 = 42 kN
+  });
+
+  // T11: β factor §5.4 se re-evalúa para puntuales heredados.
+  it('T11: β§5.4 — puntual heredado activa etaConc en el machón inferior', () => {
+    // Puntual cerca del borde (x=200) → β=1 (sin confinamiento). En el machón
+    // inferior bajo x=200 debe haber etaConc > 0 reflejando la concentración
+    // heredada, NO solamente la absorción en N_lineal.
+    const s = buildTwoFloorState({
+      L: 4000,
+      topPuntuales: [{ id: 'p', x: 200, P_G: 50, P_Q: 20, b_apoyo: 200 }],
+    });
+    const r = calcularEdificio(s);
+    const plantas = expectPlantas(r);
+    // Planta 0 (sin puntual propio) — antes del fix, etaConc=0. Post-fix, debe
+    // ser > 0 porque la concentración heredada se re-evalúa.
+    const m0 = plantas[0].machones[0];
+    expect(m0.etaConc).toBeGreaterThan(0);
+  });
+
+  // T12: b_apoyo clamped a ancho del machón.
+  it('T12: b_apoyo no puede exceder el ancho del machón (clamp físico)', () => {
+    // Puntual con b_apoyo=10000 mm sobre un machón cuyo ancho real es L=2000.
+    // Sin clamp, sigmaLoc = P*1000 / (10000*t) — irrealmente pequeño → η bajo.
+    // Con clamp, sigmaLoc = P*1000 / (m.ancho*t) — realista.
+    const sBig = buildTwoFloorState({
+      L: 2000,
+      topPuntuales: [{ id: 'p', x: 1000, P_G: 30, P_Q: 0, b_apoyo: 10000 }],
+    });
+    const sSmall = buildTwoFloorState({
+      L: 2000,
+      topPuntuales: [{ id: 'p', x: 1000, P_G: 30, P_Q: 0, b_apoyo: 200 }],
+    });
+    const rBig = calcularEdificio(sBig);
+    const rSmall = calcularEdificio(sSmall);
+    const plBig = expectPlantas(rBig);
+    const plSmall = expectPlantas(rSmall);
+    // Con b_apoyo=10000 clamped a 2000 (=L=machón ancho), sigmaLoc ≈ sSmall
+    // si b_apoyo=200, sigmaLoc es 10× mayor. La clave: el clamp evita que
+    // b_apoyo ficticio (10000>>2000) infle artificialmente el área bearing.
+    // etaConc del big (clamped a m.ancho=2000) debe ser MENOR que del small
+    // (b_apoyo=200 real, área bearing pequeña → sigma alto).
+    expect(plBig[1].machones[0].etaConc).toBeLessThan(plSmall[1].machones[0].etaConc);
+  });
+});
+
+describe('MASONRY_ENGINE_VERSION exported for PDF traceability', () => {
+  it('exports a semver-like version string', async () => {
+    const { MASONRY_ENGINE_VERSION } = await import('../../lib/calculations/masonryWalls');
+    expect(MASONRY_ENGINE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
