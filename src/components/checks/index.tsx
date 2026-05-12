@@ -176,11 +176,20 @@ export function GroupHeader({ label }: { label: string }) {
   );
 }
 
-export function ValueRow({ label, value }: { label: string; value: string }) {
+export function ValueRow({ label, value, dimmed }: { label: string; value: string; dimmed?: boolean }) {
+  // `dimmed`: for sub-rows that explain the row above (breakdown style).
+  // Smaller font, paler colors, lighter border. Keeps the visual hierarchy
+  // clear so a glance shows totals first, breakdowns second.
+  const labelClass = dimmed
+    ? 'text-[11px] text-text-disabled'
+    : 'text-[12px] text-text-secondary';
+  const valueClass = dimmed
+    ? 'text-[10px] font-mono text-text-disabled tabular-nums'
+    : 'text-[11px] font-mono text-text-primary tabular-nums';
   return (
     <div className="flex items-center justify-between py-1.75 max-md:min-h-11 px-4 border-b border-border-sub last:border-b-0">
-      <span className="text-[12px] text-text-secondary">{label}</span>
-      <span className="text-[11px] font-mono text-text-primary tabular-nums">{value}</span>
+      <span className={labelClass}>{label}</span>
+      <span className={valueClass}>{value}</span>
     </div>
   );
 }

@@ -163,6 +163,20 @@ export function MasonryWallsResults({
           <ValueRow label="Planta"                         value={displayMachon.planta.nombre} />
           <ValueRow label="Machón"                         value={`${displayMachon.id} · ${(displayMachon.ancho / 10).toFixed(1)} cm`} />
           <ValueRow label="N_directo · por ancho"          value={`${displayMachon.N_lineal.toFixed(1)} kN`} />
+          {/* Desglose del N_directo: cuánto viene heredado del muro superior
+              (cascada multi-planta) vs el forjado propio de esta planta.
+              Permite auditar visualmente que la transmisión inter-planta es
+              correcta. Indented + dimmed para no romper la jerarquía visual. */}
+          <ValueRow
+            label="├ heredado planta superior"
+            value={`${displayMachon.N_heredado.toFixed(1)} kN`}
+            dimmed
+          />
+          <ValueRow
+            label="└ forjado propio (q_d × ancho)"
+            value={`${displayMachon.N_lineal_forjado.toFixed(1)} kN`}
+            dimmed
+          />
           <ValueRow label="N_dinteles · reacciones"        value={`${displayMachon.N_dinteles.toFixed(1)} kN`} />
           <ValueRow label="N_puntual · vigas"              value={`${displayMachon.N_puntual.toFixed(1)} kN`} />
           <ValueRow label="N_Ed cabeza · axil cálculo"     value={`${displayMachon.N_Ed.toFixed(1)} kN`} />

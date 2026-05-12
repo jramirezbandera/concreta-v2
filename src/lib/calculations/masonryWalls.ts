@@ -362,7 +362,15 @@ export interface MachonRaw {
 export interface MachonResult extends MachonRaw {
   N_Ed: number;        // axil cálculo (mayorado) en cabeza, kN
   N_Ed_pie: number;    // axil en pie = N_Ed + peso propio del muro de la planta (γG mayorado)
-  N_lineal: number;    // contribución lineal directa (sobre el ancho del propio machón)
+  N_lineal: number;    // total cabeza distribuida = heredada + forjado propio
+  /** Cabeza distribuida heredada del muro superior (cascada).
+   *  Cubre tanto cargas distribuidas heredadas (q_G/q_Q superior + peso propio
+   *  superior repartido en machones superiores) como concentradas heredadas
+   *  (puntuales+dinteles arriba propagados como segments concentrated). */
+  N_heredado: number;
+  /** Cabeza distribuida que aporta el propio forjado de esta planta:
+   *  (γG·q_G + γQ·q_Q) × ancho_machon. Es el "input local" sin nada heredado. */
+  N_lineal_forjado: number;
   N_puntual: number;   // contribución de cargas puntuales sobre el machón
   N_dinteles: number;  // contribución de reacciones de dinteles vecinos (con asimetría P)
   N_Rd: number;        // axil resistente, kN
@@ -868,7 +876,12 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       const P_directos = pl.puntuales.filter((p) =>
         p.x >= m.x1 && (isLastMachon ? p.x <= m.x2 : p.x < m.x2),
       );
-      const N_lineal = integrateLoad(topPlusFloor, m.x1, m.x2);
+      // Breakdown: heredado (loadsAtTop solo) + forjado propio (floorUDL solo).
+      // El total es la integral combinada — mantiene la invariante
+      // N_lineal === N_heredado + N_lineal_forjado.
+      const N_heredado = integrateLoad(loadsAtTop, m.x1, m.x2);
+      const N_lineal_forjado = integrateLoad([floorUDL], m.x1, m.x2);
+      const N_lineal = N_heredado + N_lineal_forjado;
       const N_puntual = P_directos.reduce((s, p) => s + mayorarPuntual(p, gG, gQ), 0);
       const N_dinteles = reaccionesPorMachon[m.id] || 0;
       const N_Ed = N_lineal + N_puntual + N_dinteles;
@@ -929,6 +942,8 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
         N_Ed,
         N_Ed_pie,
         N_lineal,
+        N_heredado,
+        N_lineal_forjado,
         N_puntual,
         N_dinteles,
         N_Rd,

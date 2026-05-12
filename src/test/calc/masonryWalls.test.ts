@@ -1002,6 +1002,58 @@ describe('cascada de cargas concentradas multi-planta (v2.0.0)', () => {
   });
 });
 
+describe('N_breakdown visibility: heredado + forjado propio', () => {
+  it('invariante: N_lineal === N_heredado + N_lineal_forjado para todos los machones', () => {
+    const state = defaultMasonryState();
+    // Forzar cubierta pesada para amplificar herencia.
+    state.plantas[state.plantas.length - 1].q_G = 50;
+    const r = calcularEdificio(state);
+    const plantas = expectPlantas(r);
+    plantas.forEach((pl) => pl.machones.forEach((m) => {
+      expect(m.N_heredado + m.N_lineal_forjado).toBeCloseTo(m.N_lineal, 4);
+    }));
+  });
+
+  it('N_heredado de cubierta = 0 (no hay nada encima)', () => {
+    const state = defaultMasonryState();
+    const r = calcularEdificio(state);
+    const plantas = expectPlantas(r);
+    const cubierta = plantas[plantas.length - 1];
+    cubierta.machones.forEach((m) => {
+      expect(m.N_heredado).toBe(0);
+    });
+  });
+
+  it('N_heredado crece de cubierta hacia planta baja (cascada acumula)', () => {
+    const state = defaultMasonryState();
+    state.plantas[state.plantas.length - 1].q_G = 50;
+    const r = calcularEdificio(state);
+    const plantas = expectPlantas(r);
+    // M1 (siempre el primer machón) recibe progresivamente más herencia.
+    // PB > P1 > P2 > Cubierta(=0).
+    const heredadoM1 = plantas.map((pl) => pl.machones[0].N_heredado);
+    expect(heredadoM1[0]).toBeGreaterThan(heredadoM1[1]);
+    expect(heredadoM1[1]).toBeGreaterThan(heredadoM1[2]);
+    expect(heredadoM1[2]).toBeGreaterThan(heredadoM1[3]);
+    expect(heredadoM1[3]).toBe(0);
+  });
+
+  it('N_lineal_forjado de una planta = (γG·q_G + γQ·q_Q) × ancho_m', () => {
+    const state = defaultMasonryState();
+    const r = calcularEdificio(state);
+    const plantas = expectPlantas(r);
+    const gG = state.gamma_G;
+    const gQ = state.gamma_Q;
+    plantas.forEach((pl) => {
+      const q_d_propio = gG * pl.q_G + gQ * pl.q_Q;
+      pl.machones.forEach((m) => {
+        const expected = q_d_propio * (m.ancho / 1000);
+        expect(m.N_lineal_forjado).toBeCloseTo(expected, 4);
+      });
+    });
+  });
+});
+
 describe('MASONRY_ENGINE_VERSION exported for PDF traceability', () => {
   it('exports a semver-like version string', async () => {
     const { MASONRY_ENGINE_VERSION } = await import('../../lib/calculations/masonryWalls');
