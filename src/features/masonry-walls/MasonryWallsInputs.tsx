@@ -380,7 +380,6 @@ export function MasonryWallsInputs({
               ? 'var(--color-text-disabled)'
               : eMax >= 1 ? 'var(--color-state-fail)' : eMax >= 0.8 ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
             const isSel = selectedPlantaIdx === i;
-            const esCubierta = i === state.plantas.length - 1;
             return (
               <div key={pl.id} className="flex items-center gap-1">
                 <button
@@ -399,7 +398,7 @@ export function MasonryWallsInputs({
                     {cs ? `${(eMax * 100).toFixed(0)}%` : '—'}
                   </span>
                 </button>
-                {!esCubierta && state.plantas.length > 2 && (
+                {state.plantas.length > 1 && (
                   <MiniBtn variant="danger" onClick={() => onRemovePlanta(i)} title="Eliminar planta">×</MiniBtn>
                 )}
               </div>

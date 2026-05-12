@@ -56,7 +56,9 @@ function loadState(): MasonryWallState {
     if (!raw) return defaultMasonryState();
     const parsed = JSON.parse(raw) as MasonryWallState;
     // sanity check
-    if (!parsed.plantas || parsed.plantas.length < 2) return defaultMasonryState();
+    // El motor acepta n>=1. Antes restringiamos a >=2 por defecto cosmético
+    // pero un muro de una sola altura es valido (edificio una planta).
+    if (!parsed.plantas || parsed.plantas.length < 1) return defaultMasonryState();
     return parsed;
   } catch {
     return defaultMasonryState();
@@ -147,7 +149,10 @@ export function MasonryWallsModule() {
 
   const removePlanta = (idx: number) => {
     setState((s) => {
-      if (s.plantas.length <= 2) return s; // mantener PB + cubierta
+      // Minimo 1 planta. El motor (validateState) acepta n=1 — la planta
+      // restante se trata como "cubierta" (topmost, rho_n=1.0, e_pie=e_min),
+      // que es correcto fisicamente para un edificio de una sola altura.
+      if (s.plantas.length <= 1) return s;
       return { ...s, plantas: s.plantas.filter((_, i) => i !== idx) };
     });
     if (selectedPlantaIdx >= idx) setSelectedPlantaIdx(Math.max(0, selectedPlantaIdx - 1));

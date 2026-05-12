@@ -1002,6 +1002,61 @@ describe('cascada de cargas concentradas multi-planta (v2.0.0)', () => {
   });
 });
 
+describe('single-planta (n=1) support — edificio de una sola altura', () => {
+  // El usuario tiene un caso real: un muro de carga de una sola altura
+  // (rural, garaje, pared de jardín soportando una cubierta). Antes la UI
+  // forzaba mínimo 2 plantas pero el motor siempre soportó n=1.
+  it('motor acepta n=1 (calcula η correctamente)', () => {
+    const base = defaultMasonryState();
+    const s: MasonryWallState = {
+      ...base,
+      plantas: [{
+        ...plantaTemplate(0, true), // la única planta es "topmost" por definición
+        q_G: 8, q_Q: 3,
+        huecos: [], puntuales: [],
+      }],
+    };
+    const r = calcularEdificio(s);
+    expect(r.invalid).toBe(false);
+    if (r.invalid) return;
+    expect(r.plantas.length).toBe(1);
+    const pl = r.plantas[0];
+    // No hay nada heredado (sin planta superior)
+    pl.machones.forEach((m) => expect(m.N_heredado).toBe(0));
+    // η finito y positivo
+    expect(pl.machones[0].etaMax).toBeGreaterThan(0);
+    expect(pl.machones[0].etaMax).toBeLessThan(10);
+    // ρ_n = 1.0 (cabeza libre, sin muro encima)
+    expect(pl.rho_n).toBe(1.0);
+    // e_pie = e_min (sin forjado debajo)
+    expect(pl.e_pie).toBe(pl.e_min);
+  });
+
+  it('n=1 con un hueco: dintel + machones funcionan', () => {
+    const base = defaultMasonryState();
+    const s: MasonryWallState = {
+      ...base,
+      L: 4000,
+      plantas: [{
+        ...plantaTemplate(0, true),
+        q_G: 8, q_Q: 3,
+        huecos: [{ id: 'h1', x: 1500, y: 1000, w: 1000, h: 1500, tipo: 'ventana' }],
+        puntuales: [],
+      }],
+    };
+    const r = calcularEdificio(s);
+    expect(r.invalid).toBe(false);
+    if (r.invalid) return;
+    const pl = r.plantas[0];
+    // 1 hueco → 2 machones (izq y dch del hueco)
+    expect(pl.machones.length).toBe(2);
+    expect(pl.dinteles.length).toBe(1);
+    // Las reacciones del dintel se asignan a ambos machones
+    expect(pl.machones[0].N_dinteles).toBeGreaterThan(0);
+    expect(pl.machones[1].N_dinteles).toBeGreaterThan(0);
+  });
+});
+
 describe('N_breakdown visibility: heredado + forjado propio', () => {
   it('invariante: N_lineal === N_heredado + N_lineal_forjado para todos los machones', () => {
     const state = defaultMasonryState();
