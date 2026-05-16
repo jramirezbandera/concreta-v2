@@ -30,11 +30,18 @@ describe('exportRCBeamsPDF — Chunk 5 simple-mode branch', () => {
     expect(pdf.blobUrl).toMatch(/^blob:/);
   });
 
-  it("mode='portico' (default): filename NO contiene 'simple'", async () => {
-    const result = calcRCBeam(rcBeamDefaults);
-    const pdf = await exportRCBeamsPDF(rcBeamDefaults, result, 'si');
+  it("mode='portico' (explícito): filename NO contiene 'simple'", async () => {
+    const inp: RCBeamInputs = { ...rcBeamDefaults, mode: 'portico' };
+    const result = calcRCBeam(inp);
+    const pdf = await exportRCBeamsPDF(inp, result, 'si');
     expect(pdf.filename).not.toMatch(/simple/);
     expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("default rcBeamDefaults: filename SÍ contiene 'simple' (default actual)", async () => {
+    const result = calcRCBeam(rcBeamDefaults);
+    const pdf = await exportRCBeamsPDF(rcBeamDefaults, result, 'si');
+    expect(pdf.filename).toMatch(/simple/);
   });
 
   it("mode='simple' con HSC (fck=70): export funciona sin crash", async () => {

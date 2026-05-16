@@ -221,30 +221,18 @@ export function RCBeamsInputs({
   showModeToggle = true,
 }: RCBeamsInputsProps) {
   const isVano = section === 'vano';
-  // localStorage backcompat: states antiguos sin `mode` → default 'portico'.
-  const mode: 'portico' | 'simple' = state.mode === 'simple' ? 'simple' : 'portico';
+  // localStorage backcompat: states antiguos sin `mode` → default 'simple'
+  // (modo por defecto del módulo desde el rediseño 2026-05).
+  const mode: 'portico' | 'simple' = state.mode === 'portico' ? 'portico' : 'simple';
   const isSimpleMode = mode === 'simple';
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
 
-      {/* Mode toggle — solo en standalone (no en FEM embed) */}
+      {/* Mode toggle — solo en standalone (no en FEM embed).
+       *  Orden: Sección simple (default) izquierda, Pórtico derecha. */}
       {showModeToggle && (
         <div className="flex gap-1 mb-3" role="tablist" aria-label="Modo de calculo">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!isSimpleMode}
-            onClick={() => setField('mode', 'portico')}
-            className={[
-              'flex-1 py-2 px-3 text-[12px] font-medium rounded transition-colors',
-              !isSimpleMode
-                ? 'bg-accent/10 text-accent border border-accent/40'
-                : 'bg-bg-elevated text-text-secondary border border-border-main hover:text-text-primary',
-            ].join(' ')}
-          >
-            Pórtico
-          </button>
           <button
             type="button"
             role="tab"
@@ -258,6 +246,20 @@ export function RCBeamsInputs({
             ].join(' ')}
           >
             Sección simple
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSimpleMode}
+            onClick={() => setField('mode', 'portico')}
+            className={[
+              'flex-1 py-2 px-3 text-[12px] font-medium rounded transition-colors',
+              !isSimpleMode
+                ? 'bg-accent/10 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-secondary border border-border-main hover:text-text-primary',
+            ].join(' ')}
+          >
+            Pórtico
           </button>
         </div>
       )}

@@ -3,15 +3,15 @@
 
 export interface RCBeamInputs {
   [key: string]: string | number | boolean;
-  /** UI mode: 'portico' renderiza VANO + APOYO lado a lado (default,
-   *  back-compat). 'simple' renderiza una sola sección + 3 SVGs
-   *  (deformación / sección / fuerzas) resuelta al momento Md.
+  /** UI mode: 'simple' renderiza una sola sección + 3 SVGs (deformación /
+   *  sección / fuerzas) resuelta al momento Md — modo por defecto.
+   *  'portico' renderiza VANO + APOYO lado a lado (pórtico clásico).
    *  El motor calcRCBeam es agnóstico a este campo.
    *  Required en la interface; el consumer (RCBeamsInputs / rc-beams index)
-   *  defensiva con `state.mode === 'simple' ? 'simple' : 'portico'` cubre
+   *  defensiva con `state.mode === 'portico' ? 'portico' : 'simple'` cubre
    *  los casos de localStorage state antiguo donde el campo puede llegar
    *  como undefined a runtime aunque TS lo tipa como required. */
-  mode: 'portico' | 'simple';
+  mode: 'simple' | 'portico';
   // Shared geometry + materials
   b: number;              // width (mm)
   h: number;              // total depth (mm)
@@ -114,7 +114,7 @@ export interface FootingInputs {
 }
 
 export const rcBeamDefaults: RCBeamInputs = {
-  mode: 'portico',
+  mode: 'simple',
   b: 300,
   h: 500,
   cover: 30,

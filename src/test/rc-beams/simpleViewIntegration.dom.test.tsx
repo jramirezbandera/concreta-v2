@@ -1,6 +1,7 @@
 // rc-beams Chunk 4 — simple-mode integration into the module shell.
 //
-// - mode=simple monta RCBeamSimpleView con 3 SVGs + header MRd/Md + narrativa
+// - mode=simple (DEFAULT desde 2026-05) monta RCBeamSimpleView con 3 SVGs +
+//   header MRd/Md + narrativa
 // - mode=portico mantiene la vista clásica (2 SVGs vano+apoyo)
 // - mode=simple oculta el tab 'Diagramas' del MobileTabBar
 
@@ -12,8 +13,26 @@ import { RCBeamsModule } from '../../features/rc-beams';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { rcBeamDefaults } from '../../data/defaults';
 
-function renderModule() {
-  // Forzamos un estado limpio para evitar contaminación entre tests.
+function renderModulePortico() {
+  // Forzamos estado explícito mode='portico' para evitar contaminación.
+  window.localStorage.setItem(
+    'rc-beams',
+    JSON.stringify({ ...rcBeamDefaults, mode: 'portico' }),
+  );
+  window.localStorage.setItem('rc-beams-version', '1');
+  return render(
+    <HelmetProvider>
+      <MemoryRouter>
+        <UnitSystemProvider>
+          <RCBeamsModule />
+        </UnitSystemProvider>
+      </MemoryRouter>
+    </HelmetProvider>,
+  );
+}
+
+function renderModuleDefault() {
+  // Default state (sin forzar mode): debe usar el default de rcBeamDefaults ('simple').
   window.localStorage.setItem('rc-beams', JSON.stringify(rcBeamDefaults));
   window.localStorage.setItem('rc-beams-version', '1');
   return render(
@@ -45,8 +64,16 @@ function renderModuleSimple() {
 }
 
 describe('RCBeamsModule — Chunk 4 simple-mode integration', () => {
-  it('mode=portico (default): monta vista clásica con vano+apoyo SVGs', () => {
-    const { container } = renderModule();
+  it('default (mode=simple): monta RCBeamSimpleView, NO monta VANO+APOYO clásico', () => {
+    const { container } = renderModuleDefault();
+    // El nuevo default 'simple' muestra header MRd/Md, no las cabeceras VANO/APOYO
+    expect(container.textContent).toMatch(/Md \(solicitud\)/i);
+    expect(container.textContent).not.toContain('VANO — M+');
+    expect(container.textContent).not.toContain('APOYO — M−');
+  });
+
+  it('mode=portico (explícito): monta vista clásica con vano+apoyo SVGs', () => {
+    const { container } = renderModulePortico();
     // Busca "VANO — M+" en algún span del canvas SVG
     expect(container.textContent).toContain('VANO');
     expect(container.textContent).toContain('APOYO');
@@ -92,8 +119,8 @@ describe('RCBeamsModule — Chunk 4 simple-mode integration', () => {
     expect(screen.queryByRole('button', { name: /^diagramas$/i })).toBeNull();
   });
 
-  it('mode=portico: muestra los 3 tabs incluyendo Diagramas', () => {
-    renderModule();
+  it('mode=portico (explícito): muestra los 3 tabs incluyendo Diagramas', () => {
+    renderModulePortico();
     expect(screen.getByRole('button', { name: /datos/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /diagramas/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /resultados/i })).toBeInTheDocument();

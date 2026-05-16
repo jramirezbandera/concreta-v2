@@ -29,11 +29,11 @@ function renderInputs(state: RCBeamInputs, props: Partial<React.ComponentProps<t
   return { ...utils, setField, setSection };
 }
 
-describe('RCBeamsInputs — mode toggle (Chunk 2)', () => {
-  it('default standalone: muestra toggle Pórtico/Sección simple', () => {
+describe('RCBeamsInputs — mode toggle (Chunk 2, default=simple desde 2026-05)', () => {
+  it('default standalone: muestra toggle Sección simple / Pórtico', () => {
     renderInputs(rcBeamDefaults);
-    expect(screen.getByRole('tab', { name: /pórtico/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /sección simple/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /pórtico/i })).toBeInTheDocument();
   });
 
   it('showModeToggle={false}: NO renderiza el toggle (FEM embed pattern)', () => {
@@ -42,45 +42,51 @@ describe('RCBeamsInputs — mode toggle (Chunk 2)', () => {
     expect(screen.queryByRole('tab', { name: /sección simple/i })).toBeNull();
   });
 
-  it("click 'Sección simple' llama setField('mode', 'simple')", () => {
+  it("click 'Pórtico' llama setField('mode', 'portico')", () => {
     const { setField } = renderInputs(rcBeamDefaults);
+    fireEvent.click(screen.getByRole('tab', { name: /pórtico/i }));
+    expect(setField).toHaveBeenCalledWith('mode', 'portico');
+  });
+
+  it("click 'Sección simple' llama setField('mode', 'simple')", () => {
+    const { setField } = renderInputs({ ...rcBeamDefaults, mode: 'portico' });
     fireEvent.click(screen.getByRole('tab', { name: /sección simple/i }));
     expect(setField).toHaveBeenCalledWith('mode', 'simple');
   });
 
-  it('mode=simple: oculta los section tabs vano/apoyo', () => {
-    const simple: RCBeamInputs = { ...rcBeamDefaults, mode: 'simple' };
-    renderInputs(simple);
+  it('default (mode=simple): oculta los section tabs vano/apoyo', () => {
+    renderInputs(rcBeamDefaults);
     // Los tabs son botones role=tab dentro de un tablist aria-label="Seccion"
     expect(screen.queryByRole('tab', { name: /^vano$/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /^apoyo$/i })).toBeNull();
   });
 
-  it('mode=portico: muestra section tabs vano/apoyo (back-compat)', () => {
-    renderInputs(rcBeamDefaults);
+  it('mode=portico (explícito): muestra section tabs vano/apoyo', () => {
+    renderInputs({ ...rcBeamDefaults, mode: 'portico' });
     expect(screen.getByRole('tab', { name: /^vano$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^apoyo$/i })).toBeInTheDocument();
   });
 
-  // Back-compat: localStorage states antiguos (sin mode) deben tratarse como
-  // 'portico'. Aquí simulamos castando a unknown para bypassar TS y simular
-  // un state legacy.
-  it("back-compat: state legacy sin 'mode' se trata como portico", () => {
+  // Back-compat: localStorage states antiguos (sin mode) → tratarse como
+  // 'simple' (el nuevo default). Castamos a unknown para simular un state
+  // legacy sin TypeScript-error.
+  it("back-compat: state legacy sin 'mode' se trata como simple (nuevo default)", () => {
     const legacy = { ...rcBeamDefaults } as Partial<RCBeamInputs>;
     delete legacy.mode;
     renderInputs(legacy as RCBeamInputs);
-    // Ambos tabs visibles (modo portico)
-    expect(screen.getByRole('tab', { name: /^vano$/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^apoyo$/i })).toBeInTheDocument();
-    // Mode toggle también visible
-    expect(screen.getByRole('tab', { name: /pórtico/i })).toBeInTheDocument();
+    // Modo simple → no section tabs
+    expect(screen.queryByRole('tab', { name: /^vano$/i })).toBeNull();
+    expect(screen.queryByRole('tab', { name: /^apoyo$/i })).toBeNull();
+    // Mode toggle visible con Sección simple seleccionado
+    expect(screen.getByRole('tab', { name: /sección simple/i })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it("back-compat: state con mode inválido ('foo' hand-edited URL) → portico", () => {
+  it("back-compat: state con mode inválido ('foo' hand-edited URL) → simple", () => {
     const bad = { ...rcBeamDefaults } as RCBeamInputs;
     (bad as { mode: string }).mode = 'foo' as 'portico' | 'simple';
     renderInputs(bad);
-    expect(screen.getByRole('tab', { name: /^vano$/i })).toBeInTheDocument();
+    // No section tabs (=simple)
+    expect(screen.queryByRole('tab', { name: /^vano$/i })).toBeNull();
   });
 });
 
