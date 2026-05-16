@@ -2,23 +2,21 @@
 //
 // 1-section focused layout para el modo 'simple' del módulo rc-beams.
 // Layout:
-//   ┌─ Header: MRd vs Md prominente + utilización + verdict ─────┐
-//   │  STRAIN SVG    │   SECTION SVG    │   FORCES SVG          │
-//   │  ──────────────────────────────────────────────────────   │
-//   │  Narrativa (1 frase auto-interpretativa)                  │
-//   │  Checks (ELU flexion / cortante / ELS fisuración)         │
-//   └────────────────────────────────────────────────────────────┘
+//   ┌─ Header mínimo: % capacidad + verdict badge ────────────────┐
+//   │  STRAIN SVG    │   SECTION SVG    │   FORCES SVG            │
+//   │  ──────────────────────────────────────────────────────────│
+//   │  Narrativa (1 frase auto-interpretativa)                    │
+//   │  Checks (ELU flexion / cortante / ELS fisuración)            │
+//   └──────────────────────────────────────────────────────────────┘
 //
 // El motor de fondo es solveSectionAtMoment (Chunk 1), que resuelve la
 // sección al Md del usuario con parábola-rectángulo (CE 21.3.3). MRd
-// viene de calcRCBeam (capacidad última) para comparar.
+// viene de calcRCBeam (capacidad última) para el cálculo de utilización.
 
 import { useMemo } from 'react';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, pickSectionInputs } from '../../lib/calculations/rcBeams';
 import { solveSectionAtMoment } from '../../lib/calculations/rcBeamsSection';
-import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { RCBeamStrainSVG } from './RCBeamStrainSVG';
 import { RCBeamForcesSVG } from './RCBeamForcesSVG';
@@ -35,7 +33,6 @@ interface RCBeamSimpleViewProps {
 const STACK_THRESHOLD = 720; // ancho mínimo para 3-SVG en fila
 
 export function RCBeamSimpleView({ state, result }: RCBeamSimpleViewProps) {
-  const { system } = useUnitSystem();
   const [canvasRef, canvasWidth] = useContainerWidth();
 
   // Resolver sección al Md del usuario (sagging-only V1 → kind='vano').
@@ -46,9 +43,7 @@ export function RCBeamSimpleView({ state, result }: RCBeamSimpleViewProps) {
 
   const h = state.h as number;
   const MRd = result.vano?.MRd ?? 0;
-  const Md = sectionResult.Md;
-  const utilization = MRd > 0 ? (Md / MRd) * 100 : 0;
-  const resists = Md <= MRd && !sectionResult.exceededCapacity;
+  const utilization = MRd > 0 ? (sectionResult.Md / MRd) * 100 : 0;
   const verdictStatus = utilization >= 100 ? 'fail' : utilization >= 80 ? 'warn' : 'ok';
 
   // Tamaño SVG responsive.
@@ -67,61 +62,22 @@ export function RCBeamSimpleView({ state, result }: RCBeamSimpleViewProps) {
 
   return (
     <div className="flex flex-col">
-      {/* HEADER: MRd vs Md prominente */}
-      <div className="px-6 py-4 border-b border-border-main bg-bg-surface/30">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-baseline gap-6 flex-wrap">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-text-secondary font-mono uppercase tracking-[0.08em]">
-                Md (solicitud)
-              </span>
-              <span className="text-2xl font-semibold text-text-primary font-mono">
-                {formatQuantity(Md, 'moment', system)}
-              </span>
-            </div>
-            <div className="text-text-disabled text-xl">/</div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-text-secondary font-mono uppercase tracking-[0.08em]">
-                MRd (capacidad)
-              </span>
-              <span className="text-2xl font-semibold text-text-primary font-mono">
-                {formatQuantity(MRd, 'moment', system)}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <VerdictBadge status={verdictStatus} />
-            <span
-              className={[
-                'text-[11px] font-mono font-semibold',
-                verdictStatus === 'fail'
-                  ? 'text-state-fail'
-                  : verdictStatus === 'warn'
-                    ? 'text-state-warn'
-                    : 'text-state-ok',
-              ].join(' ')}
-            >
-              {utilization.toFixed(0)}% capacidad
-            </span>
-            <span className="text-[11px] text-text-secondary">
-              {resists ? 'Sección resiste el momento aplicado' : 'Sección NO resiste el momento'}
-            </span>
-          </div>
-        </div>
-        {/* Barra de utilización */}
-        <div className="mt-3 h-1.5 rounded-full bg-bg-primary border border-border-main overflow-hidden">
-          <div
-            className={[
-              'h-full transition-all',
-              verdictStatus === 'fail'
-                ? 'bg-state-fail'
-                : verdictStatus === 'warn'
-                  ? 'bg-state-warn'
-                  : 'bg-state-ok',
-            ].join(' ')}
-            style={{ width: `${Math.min(100, utilization)}%` }}
-          />
-        </div>
+      {/* HEADER mínimo: sólo verdict badge + % capacidad. La info Md/MRd
+       *  detallada vive en el panel de resultados de abajo (no duplicar). */}
+      <div className="px-6 py-2.5 border-b border-border-main flex items-center justify-end gap-3">
+        <span
+          className={[
+            'text-[11px] font-mono font-semibold',
+            verdictStatus === 'fail'
+              ? 'text-state-fail'
+              : verdictStatus === 'warn'
+                ? 'text-state-warn'
+                : 'text-state-ok',
+          ].join(' ')}
+        >
+          {utilization.toFixed(0)}% capacidad
+        </span>
+        <VerdictBadge status={verdictStatus} />
       </div>
 
       {/* 3-SVG canvas */}

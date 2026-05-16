@@ -66,8 +66,9 @@ function renderModuleSimple() {
 describe('RCBeamsModule — Chunk 4 simple-mode integration', () => {
   it('default (mode=simple): monta RCBeamSimpleView, NO monta VANO+APOYO clásico', () => {
     const { container } = renderModuleDefault();
-    // El nuevo default 'simple' muestra header MRd/Md, no las cabeceras VANO/APOYO
-    expect(container.textContent).toMatch(/Md \(solicitud\)/i);
+    // El nuevo default 'simple' muestra header mínimo con % capacidad, no las
+    // cabeceras VANO/APOYO del modo pórtico clásico.
+    expect(container.textContent).toMatch(/% capacidad/i);
     expect(container.textContent).not.toContain('VANO — M+');
     expect(container.textContent).not.toContain('APOYO — M−');
   });
@@ -79,12 +80,10 @@ describe('RCBeamsModule — Chunk 4 simple-mode integration', () => {
     expect(container.textContent).toContain('APOYO');
   });
 
-  it('mode=simple: monta RCBeamSimpleView con header MRd/Md', () => {
+  it('mode=simple: monta RCBeamSimpleView con header mínimo (% capacidad)', () => {
     const { container } = renderModuleSimple();
-    // Header del simple-view muestra "Md (solicitud)" + "MRd (capacidad)"
-    expect(container.textContent).toMatch(/Md \(solicitud\)/i);
-    expect(container.textContent).toMatch(/MRd \(capacidad\)/i);
-    // Y el % capacidad
+    // Header minimalista: sólo verdict badge + % capacidad. Los valores
+    // numéricos detallados de Md/MRd viven en el panel de resultados de abajo.
     expect(container.textContent).toMatch(/% capacidad/i);
   });
 
