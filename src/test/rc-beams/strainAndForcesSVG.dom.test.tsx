@@ -70,13 +70,13 @@ describe('RCBeamStrainSVG (Chunk 3)', () => {
 describe('RCBeamForcesSVG (Chunk 3)', () => {
   it('renderiza con forces del solver', () => {
     const r = solveSectionAtMoment(baseInputs(), 80);
-    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} />);
+    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} fck={30} />);
     expect(container.querySelector('svg')).not.toBeNull();
   });
 
   it("aria-label menciona F_c, F_s', F_s", () => {
     const r = solveSectionAtMoment(baseInputs(), 80);
-    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} />);
+    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} fck={30} />);
     const label = container.querySelector('svg')?.getAttribute('aria-label') ?? '';
     expect(label).toMatch(/F_c/);
     expect(label).toMatch(/F_s/);
@@ -84,7 +84,7 @@ describe('RCBeamForcesSVG (Chunk 3)', () => {
 
   it("AsComp=0: no renderiza flecha F_s' (omitido cuando |F_s_comp| < 1e-3)", () => {
     const r = solveSectionAtMoment(baseInputs({ nBarsComp: 0, barDiamComp: 12 }), 60);
-    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} />);
+    const { container } = renderInProvider(<RCBeamForcesSVG sectionResult={r} h={500} fck={30} />);
     // No estrictamente fácil de testear el "no renderizado" del ForceArrow específico;
     // pero el aria-label sigue mencionando F_s' como string en el label completo.
     expect(container.querySelector('svg')).not.toBeNull();

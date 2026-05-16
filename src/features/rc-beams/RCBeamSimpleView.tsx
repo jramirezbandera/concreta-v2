@@ -164,6 +164,7 @@ export function RCBeamSimpleView({ state, result }: RCBeamSimpleViewProps) {
           <RCBeamForcesSVG
             sectionResult={sectionResult}
             h={h}
+            fck={state.fck as number}
             mode="screen"
             width={svgW}
             height={svgH}

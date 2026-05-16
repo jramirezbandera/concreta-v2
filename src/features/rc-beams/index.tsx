@@ -211,7 +211,7 @@ export function RCBeamsModule() {
                 id="rc-beams-svg-pdf-forces"
                 style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
               >
-                <RCBeamForcesSVG sectionResult={sectionResult} h={h} mode="pdf" width={300} height={370} />
+                <RCBeamForcesSVG sectionResult={sectionResult} h={h} fck={state.fck as number} mode="pdf" width={300} height={370} />
               </div>
             </>
           );
