@@ -99,7 +99,7 @@ describe('buildSectionNarrative (Chunk 3 — auto-narrative)', () => {
       epsilon_top: 0, epsilon_s_comp: 0, epsilon_s_tens: 0, epsilon_bot: 0,
       F_concrete: 0, F_s_comp: 0, F_s_tens: 0,
       sigma_s_comp: 0, sigma_s_tens: 0,
-      steelYielded_tens: false, steelYielded_comp: false, concreteCrushed: false,
+      steelYielded_tens: false, steelYielded_comp: false, concreteCrushed: false, steelRuptured: false,
       z_concrete: 0, z_s_comp: 0, z_s_tens: 0,
     };
     expect(buildSectionNarrative(r, 100)).toMatch(/descargada/i);
@@ -119,7 +119,7 @@ describe('buildSectionNarrative (Chunk 3 — auto-narrative)', () => {
       epsilon_top: -0.0015, epsilon_s_comp: -0.0003, epsilon_s_tens: 0.0095, epsilon_bot: 0.011,
       F_concrete: -98, F_s_comp: -3, F_s_tens: 98,
       sigma_s_comp: -60, sigma_s_tens: 434,
-      steelYielded_tens: true, steelYielded_comp: false, concreteCrushed: false,
+      steelYielded_tens: true, steelYielded_comp: false, concreteCrushed: false, steelRuptured: false,
       z_concrete: 24, z_s_comp: 50, z_s_tens: 456,
     };
     expect(buildSectionNarrative(r, 35)).toMatch(/yielded/i);
@@ -132,7 +132,7 @@ describe('buildSectionNarrative (Chunk 3 — auto-narrative)', () => {
       epsilon_top: -0.0035, epsilon_s_comp: -0.0028, epsilon_s_tens: 0.012, epsilon_bot: 0.014,
       F_concrete: -500, F_s_comp: -100, F_s_tens: 600,
       sigma_s_comp: -434, sigma_s_tens: 434,
-      steelYielded_tens: true, steelYielded_comp: true, concreteCrushed: true,
+      steelYielded_tens: true, steelYielded_comp: true, concreteCrushed: true, steelRuptured: false,
       z_concrete: 40, z_s_comp: 50, z_s_tens: 450,
     };
     const narr = buildSectionNarrative(r, 150);

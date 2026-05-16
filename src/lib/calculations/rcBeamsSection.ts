@@ -30,7 +30,7 @@
 // (cuando As' yields en intermedio κ). Pre-sampling 20 puntos detecta y
 // usa fallback de búsqueda local.
 
-import { Es, getConcrete, getFyd, type ConcreteGrade } from '../../data/materials';
+import { Es, getConcrete, getFyd, getEpsUd, type ConcreteGrade } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import type { SectionInputs } from './rcBeams';
 
@@ -63,6 +63,8 @@ export interface SectionAtMomentResult {
   steelYielded_tens: boolean;
   steelYielded_comp: boolean;
   concreteCrushed: boolean;
+  /** ε_s_tens alcanza ε_ud → fallo por rotura del acero (pivot A en ELU). */
+  steelRuptured: boolean;
   // Lever arms (mm from top)
   z_concrete: number;
   z_s_comp: number;
@@ -185,6 +187,10 @@ function buildResult(
   const z_c = Math.abs(F_c) > 1e-9 ? Math.abs(M_c_top * 1000 / F_c) : x / 2;
 
   const eps_yd = fyd / Es;
+  // eps_ud no se importa aquí (fyk no está disponible en buildResult). El flag
+  // steelRuptured se rellena correctamente en solveAtULU; en cracked normal,
+  // si ε_s > ε_ud algo está mal — usamos 0.010 como threshold conservativo.
+  const STEEL_RUPTURE_THRESHOLD = 0.010;
   return {
     mode: 'cracked',
     M: M_kNm,
@@ -203,6 +209,7 @@ function buildResult(
     steelYielded_tens: Math.abs(eps_s_tens) > eps_yd,
     steelYielded_comp: Math.abs(eps_s_comp) > eps_yd,
     concreteCrushed: Math.abs(eps_top) >= mat.eps_cu - 1e-9,
+    steelRuptured: eps_s_tens >= STEEL_RUPTURE_THRESHOLD - 1e-9,
     z_concrete: z_c,
     z_s_comp: r_s,
     z_s_tens: d,
@@ -292,28 +299,65 @@ export function solveSectionAtMoment(inp: SectionInputs, M_kNm: number): Section
   return result;
 }
 
-/** Solves at ULU (ε_top = -ε_cu, concrete crushing). Returns κ_MRd + state. */
+/**
+ * Solves at ULU usando el "diagrama de pivotes" CE 21.3.4.
+ *
+ * Detección automática del pivote limitante:
+ *   - Pivot B (concrete-controlled): ε_top = -ε_cu fixed. Si la x resultante
+ *     produce ε_s_tens ≤ ε_ud, la sección falla por aplastamiento → pivot B.
+ *   - Pivot A (steel-controlled): ε_s_tens = ε_ud fixed at y=d. Si pivot B
+ *     produce ε_s_tens > ε_ud, la sección habría roto antes por el acero.
+ *     Re-resolver con ε_s_tens = ε_ud (sec. infra-armada típica).
+ *
+ * Esto evita el bug visual donde ε_bot mostraba valores físicamente
+ * imposibles (30‰+) en secciones tension-controlled.
+ */
 function solveAtULU(inp: SectionInputs, mat: ConcreteGrade): SectionAtMomentResult & { M_kNm: number; kappa: number } {
-  // ε_top = -ε_cu fixed. Find x by ΣF = 0.
-  let xLo = 1, xHi = inp.h - 1;
-  let x = (xLo + xHi) / 2;
   const fyd = getFyd(inp.fyk);
+  const eps_ud = getEpsUd(inp.fyk);
   const d = inp.h - inp.cover - inp.stirrupDiam - inp.barDiam / 2;
   const r_s = inp.cover + inp.stirrupDiam + inp.barDiamComp / 2;
   const As = inp.nBars * getBarArea(inp.barDiam);
   const AsComp = inp.nBarsComp * getBarArea(inp.barDiamComp);
 
+  // 1) Intento pivot B: ε_top = -ε_cu fijo, x libre por equilibrio.
+  let xLo = 1, xHi = inp.h - 1;
+  let x = (xLo + xHi) / 2;
   for (let i = 0; i < 80; i++) {
     x = (xLo + xHi) / 2;
     const kappa = mat.eps_cu / x;
     const F = sumForces(kappa, x, inp.b, mat, fyd, d, r_s, As, AsComp);
     if (Math.abs(F) < 0.01) break;
-    // F > 0 = net tension → necesita más hormigón comprimido → aumentar x
     if (F > 0) xLo = x; else xHi = x;
   }
-  const kappa = mat.eps_cu / x;
-  const state = solveSectionState(inp, kappa);
-  return { ...state, M_kNm: state.M_kNm, kappa };
+  const kappa_B = mat.eps_cu / x;
+  const eps_s_at_B = kappa_B * (d - x);
+
+  // Si en pivot B el acero NO ha roto (ε_s ≤ ε_ud), pivot B es el ELU real.
+  if (eps_s_at_B <= eps_ud + 1e-9) {
+    // buildResult directo con (κ_B, x_B) para preservar exactamente el pivote.
+    // No usar solveSectionState que re-bisecciona x.
+    const state = buildResult(kappa_B, x, inp.b, inp.h, mat, fyd, d, r_s, As, AsComp);
+    return { ...state, M_kNm: state.M_kNm, kappa: kappa_B };
+  }
+
+  // 2) Pivot A: ε_s_tens = ε_ud fijo en y=d → κ = ε_ud / (d - x). x libre.
+  // ε_top = -κ·x = -ε_ud · x / (d - x). Crece con x, max |ε_top| < ε_cu.
+  xLo = 1; xHi = inp.h - 1;
+  let x_A = (xLo + xHi) / 2;
+  for (let i = 0; i < 80; i++) {
+    x_A = (xLo + xHi) / 2;
+    if (x_A >= d) { xHi = x_A; continue; } // singularidad d-x=0
+    const kappa = eps_ud / (d - x_A);
+    const F = sumForces(kappa, x_A, inp.b, mat, fyd, d, r_s, As, AsComp);
+    if (Math.abs(F) < 0.01) break;
+    if (F > 0) xLo = x_A; else xHi = x_A;
+  }
+  const kappa_A = eps_ud / (d - x_A);
+  // buildResult directo con (κ_A, x_A) — solveSectionState re-bisectaría x
+  // con κ fijo, lo cual rompería la condición pivote A (ε_s = ε_ud).
+  const state = buildResult(kappa_A, x_A, inp.b, inp.h, mat, fyd, d, r_s, As, AsComp);
+  return { ...state, M_kNm: state.M_kNm, kappa: kappa_A };
 }
 
 // ─── Mcrit + uncracked closed-form (sub-cracking) ─────────────────────────
@@ -378,6 +422,7 @@ function solveUncrackedSection(
     steelYielded_tens: Math.abs(eps_s_tens) > fyd / Es,
     steelYielded_comp: Math.abs(eps_s_comp) > fyd / Es,
     concreteCrushed: false,
+    steelRuptured: false,
     z_concrete: x / 2,
     z_s_comp: r_s,
     z_s_tens: d,
@@ -396,6 +441,7 @@ function zeroResult(inp: SectionInputs, mat: ConcreteGrade, M_kNm: number): Sect
     F_concrete: 0, F_s_comp: 0, F_s_tens: 0,
     sigma_s_comp: 0, sigma_s_tens: 0,
     steelYielded_tens: false, steelYielded_comp: false, concreteCrushed: false,
+    steelRuptured: false,
     z_concrete: 0, z_s_comp: r_s, z_s_tens: d,
   };
 }

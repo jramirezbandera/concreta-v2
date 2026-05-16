@@ -12,7 +12,14 @@ export function buildSectionNarrative(r: SectionAtMomentResult, MRd: number): st
     return 'Sección descargada. Strains y fuerzas movilizadas son cero.';
   }
   if (r.mode === 'over-capacity') {
-    return `Md supera MRd: la sección NO resiste el momento aplicado. Diagrama muestra el estado al límite (ε hormigón = ε_cu, concreto crushed).`;
+    // Identificar pivote limitante CE 21.3.4 (steel vs concrete).
+    if (r.steelRuptured && !r.concreteCrushed) {
+      return `Md supera MRd: la sección NO resiste el momento aplicado. Fallo por ROTURA DEL ACERO (ε_s = ε_ud); pivote A — sección infra-armada.`;
+    }
+    if (r.concreteCrushed && !r.steelRuptured) {
+      return `Md supera MRd: la sección NO resiste el momento aplicado. Fallo por APLASTAMIENTO DEL HORMIGÓN (ε_top = ε_cu); pivote B — sección sobre-armada.`;
+    }
+    return `Md supera MRd: la sección NO resiste el momento aplicado. Estado al límite simultáneo (ε_top = ε_cu y ε_s = ε_ud); pivote balanceado.`;
   }
   if (r.mode === 'uncracked') {
     return 'Sección NO fisurada. Md < Mcrit: el hormigón sigue trabajando elásticamente, fibra neutra al centroide bruto (h/2).';

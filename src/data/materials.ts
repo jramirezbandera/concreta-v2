@@ -55,3 +55,17 @@ export const availableFyk = [400, 500, 600];
 export function getFyd(fyk: number): number {
   return fyk / 1.15;
 }
+
+/**
+ * Strain de cálculo último del acero ε_ud para el "diagrama de pivotes" CE 21.3.4.
+ * Conservativo: B500S → ε_uk = 0.05 (mínimo CE Art. 32.2). ε_ud = ε_uk · 0.9 / γs
+ * pero el valor práctico ampliamente adoptado en diseño es ε_ud = 0.010 (1%)
+ * para acero de ductilidad normal (B/SD500S sin etiqueta de alta ductilidad).
+ *
+ * Pivot A (tension-controlled): ε_s_tens = ε_ud → x ≤ x_lim.
+ * Pivot B (compression-controlled): ε_top = -ε_cu → x > x_lim.
+ * x_lim/d = ε_cu / (ε_cu + ε_ud), define la frontera entre ambos regímenes.
+ */
+export function getEpsUd(_fyk: number): number {
+  return 0.010; // 10‰, B500S/SD500S default conservativo
+}

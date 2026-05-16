@@ -56,15 +56,41 @@ describe('solveSectionAtMoment — edge cases', () => {
     expect(() => solveSectionAtMoment(inp, -50)).toThrow(/no soportado/i);
   });
 
-  it('Md > MRd returns over-capacity state at ULU', () => {
+  it('Md > MRd devuelve over-capacity state al ELU (pivote tension- o compression-controlled)', () => {
     const inp = baseInputs({ Md: 100 });
-    // Try with absurdly high M (way above MRd~150 kNm para esta sección).
+    // Try with absurdly high M (way above MRd ~146 kNm para 4Ø16/b=300/h=500).
     const r = solveSectionAtMoment(inp, 999);
     expect(r.exceededCapacity).toBe(true);
     expect(r.mode).toBe('over-capacity');
     expect(r.Md).toBe(999);
-    // El concrete está crushed al ULU
+    // CE pivot diagram: la sección falla por UNO de los dos modos.
+    // 4Ø16 es tension-controlled (x/d ≈ 0.24 < x_lim/d ≈ 0.26) → steel ruptures.
+    // Sea cual sea el pivote, al menos uno de los flags debe estar activo.
+    expect(r.steelRuptured || r.concreteCrushed).toBe(true);
+  });
+
+  it('Sección infra-armada (pocas barras): over-capacity → pivot A (steel ruptures, concrete NO crushed)', () => {
+    // 2Ø16 = 402 mm² es claramente tension-controlled.
+    const inp = baseInputs({ Md: 100, nBars: 2, barDiam: 16 });
+    const r = solveSectionAtMoment(inp, 999);
+    expect(r.mode).toBe('over-capacity');
+    expect(r.steelRuptured).toBe(true);
+    expect(r.concreteCrushed).toBe(false);
+    // ε_s_tens debe estar EXACTAMENTE en ε_ud, no por encima (pivote A).
+    expect(r.epsilon_s_tens).toBeCloseTo(0.010, 4);
+    // ε_top debe quedar POR DEBAJO de ε_cu (concreto no llegó a crushed).
+    expect(Math.abs(r.epsilon_top)).toBeLessThan(0.0035);
+  });
+
+  it('Sección sobre-armada: over-capacity → pivot B (concrete crushed, steel NO ruptured)', () => {
+    // Muchas barras grandes → over-reinforced, compression-controlled.
+    const inp = baseInputs({ Md: 100, nBars: 8, barDiam: 25, nBarsComp: 0 });
+    const r = solveSectionAtMoment(inp, 999);
+    expect(r.mode).toBe('over-capacity');
     expect(r.concreteCrushed).toBe(true);
+    expect(r.steelRuptured).toBe(false);
+    // ε_top = -ε_cu fijo (pivote B).
+    expect(r.epsilon_top).toBeCloseTo(-0.0035, 4);
   });
 
   it('uncracked branch when Md < Mcrit', () => {
