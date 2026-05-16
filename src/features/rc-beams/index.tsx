@@ -14,6 +14,7 @@ import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { RCBeamsInputs } from './RCBeamsInputs';
 import { RCBeamsSVG } from './RCBeamsSVG';
 import { RCBeamsResults } from './RCBeamsResults';
+import { RCBeamSimpleView } from './RCBeamSimpleView';
 
 export function RCBeamsModule() {
   const { state, setField, reset } = useModuleState('rc-beams', rcBeamDefaults);
@@ -21,6 +22,7 @@ export function RCBeamsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [section, setSection] = useState<'vano' | 'apoyo'>('vano');
+  const isSimple = state.mode === 'simple';
 
   const result = useMemo(() => calcRCBeam(state), [state]);
 
@@ -60,7 +62,11 @@ export function RCBeamsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
       />
-      <MobileTabBar tab={tab} setTab={setTab} />
+      <MobileTabBar
+        tab={isSimple && tab === 'diagramas' ? 'results' : tab}
+        setTab={setTab}
+        hide={isSimple ? ['diagramas'] : undefined}
+      />
 
       {/* Two-column (desktop) / Tabbed (mobile) */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -102,50 +108,56 @@ export function RCBeamsModule() {
             'md:block',
           ].join(' ')}
         >
-          {/* SVG canvas — desktop only, two sections side by side */}
-          <div
-            ref={canvasRef}
-            className={[
-              'hidden md:flex border-b border-border-main canvas-dot-grid py-4 px-4',
-              isStacked ? 'flex-col items-center gap-3' : 'flex-row items-start justify-center gap-4',
-            ].join(' ')}
-          >
-            {result.vano && (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
-                <RCBeamsSVG
-                  inp={state}
-                  result={result}
-                  momentSign="positive"
-                  mode="screen"
-                  width={rcSvgW}
-                  height={rcSvgH}
-                />
+          {isSimple ? (
+            <RCBeamSimpleView state={state} result={result} />
+          ) : (
+            <>
+              {/* SVG canvas — desktop only, two sections side by side */}
+              <div
+                ref={canvasRef}
+                className={[
+                  'hidden md:flex border-b border-border-main canvas-dot-grid py-4 px-4',
+                  isStacked ? 'flex-col items-center gap-3' : 'flex-row items-start justify-center gap-4',
+                ].join(' ')}
+              >
+                {result.vano && (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
+                    <RCBeamsSVG
+                      inp={state}
+                      result={result}
+                      momentSign="positive"
+                      mode="screen"
+                      width={rcSvgW}
+                      height={rcSvgH}
+                    />
+                  </div>
+                )}
+                {result.apoyo && (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
+                    <RCBeamsSVG
+                      inp={state}
+                      result={result}
+                      momentSign="negative"
+                      mode="screen"
+                      width={rcSvgW}
+                      height={rcSvgH}
+                    />
+                  </div>
+                )}
               </div>
-            )}
-            {result.apoyo && (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
-                <RCBeamsSVG
-                  inp={state}
-                  result={result}
-                  momentSign="negative"
-                  mode="screen"
-                  width={rcSvgW}
-                  height={rcSvgH}
-                />
-              </div>
-            )}
-          </div>
 
-          {/* Results */}
-          <div className="px-6 py-5">
-            <RCBeamsResults result={result} activeSection={section} />
-          </div>
+              {/* Results */}
+              <div className="px-6 py-5">
+                <RCBeamsResults result={result} activeSection={section} />
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Mobile: Diagramas tab */}
-        {tab === 'diagramas' && (
+        {/* Mobile: Diagramas tab — portico only (simple mode lives in main panel) */}
+        {tab === 'diagramas' && !isSimple && (
           <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             {result.vano && (
               <div className="flex flex-col items-center gap-1">
