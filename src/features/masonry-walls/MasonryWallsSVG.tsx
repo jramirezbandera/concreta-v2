@@ -7,6 +7,8 @@ import type {
   PlantaResult,
   CriticoResult,
 } from '../../lib/calculations/masonryWalls';
+import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 const FORJADO_H = 16;
 
@@ -60,6 +62,7 @@ export function MasonryWallsSVG({
   onSelectHueco, onSelectPlanta, onSelectMachon,
   forceWidth, forceHeight,
 }: Props) {
+  const { system } = useUnitSystem();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 760, h: 600 });
   // Hover state — un único id activo entre todos los machones y huecos. El
@@ -218,7 +221,7 @@ export function MasonryWallsSVG({
                   {esCubierta ? 'CUBIERTA' : `FORJADO ${i + 1}`}
                 </text>
                 <text x={ox + muroW + 18} y={c.yForjadoTop + 11} fill="#38bdf8" fontSize="9" fontFamily={monoFamily}>
-                  G={pl.q_G ?? 0} Q={pl.q_Q ?? 0} kN/m
+                  G={formatNumber(pl.q_G ?? 0, 'linearLoad', system)} Q={formatNumber(pl.q_Q ?? 0, 'linearLoad', system)} {getUnitLabel('linearLoad', system)}
                 </text>
               </g>
 
@@ -408,7 +411,7 @@ export function MasonryWallsSVG({
                       fontSize="8"
                       fontFamily={monoFamily}
                     >
-                      R={d.R_apoyo.toFixed(1)}
+                      R={formatNumber(d.R_apoyo, 'force', system)}
                     </text>
                   </g>
                 );
@@ -494,7 +497,7 @@ export function MasonryWallsSVG({
                 </linearGradient>
               </defs>
               <text x={cbX + cbW / 2} y={cbY - 8} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily={monoFamily} fontWeight="600">σ</text>
-              <text x={cbX + cbW / 2} y={cbY + cbH + 18} textAnchor="middle" fill="#475569" fontSize="8" fontFamily={monoFamily}>N/mm²</text>
+              <text x={cbX + cbW / 2} y={cbY + cbH + 18} textAnchor="middle" fill="#475569" fontSize="8" fontFamily={monoFamily}>{getUnitLabel('stress', system)}</text>
               <rect x={cbX} y={cbY} width={cbW} height={cbH} fill="url(#cb-grad-mw)" stroke="#22304d" strokeWidth="0.6" />
               {[1, 0.75, 0.5, 0.25, 0].map((t) => {
                 const yy = cbY + cbH * (1 - t);
@@ -502,7 +505,7 @@ export function MasonryWallsSVG({
                   <g key={t}>
                     <line x1={cbX + cbW} y1={yy} x2={cbX + cbW + 4} y2={yy} stroke="#475569" strokeWidth="0.6" />
                     <text x={cbX + cbW + 6} y={yy + 3} fill="#94a3b8" fontSize="9" fontFamily={monoFamily}>
-                      {(sigmaMax * t).toFixed(2)}
+                      {formatNumber(sigmaMax * t, 'stress', system)}
                     </text>
                   </g>
                 );

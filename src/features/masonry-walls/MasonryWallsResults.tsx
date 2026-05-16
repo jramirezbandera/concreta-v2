@@ -17,6 +17,8 @@ import type {
   OverallStatus,
   PlantaResult,
 } from '../../lib/calculations/masonryWalls';
+import { formatQuantity } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface Props {
   state: MasonryWallState;
@@ -32,6 +34,7 @@ export function MasonryWallsResults({
   state, plantasCalc, critico, overall, invalid,
   selectedMachonKey, setSelectedMachonKey,
 }: Props) {
+  const { system } = useUnitSystem();
   // Banner de invalidación: cuando la combinación de fábrica es inviable o la
   // geometría es degenerada, lo mostramos ANTES de números para que el usuario
   // sepa que los resultados no son fiables. Incluye sugerencia de fix para no
@@ -87,8 +90,8 @@ export function MasonryWallsResults({
       id: 'compresion-excentrica',
       description: 'Compresión excéntrica',
       article: 'DB-SE-F §5.2',
-      value: `${displayMachon.N_Ed.toFixed(0)} kN`,
-      limit: `${displayMachon.N_Rd.toFixed(0)} kN`,
+      value: formatQuantity(displayMachon.N_Ed, 'force', system),
+      limit: formatQuantity(displayMachon.N_Rd, 'force', system),
       utilization: displayMachon.eta,
       status: toStatus(displayMachon.eta),
     },
@@ -162,28 +165,28 @@ export function MasonryWallsResults({
         <>
           <ValueRow label="Planta"                         value={displayMachon.planta.nombre} />
           <ValueRow label="Machón"                         value={`${displayMachon.id} · ${(displayMachon.ancho / 10).toFixed(1)} cm`} />
-          <ValueRow label="N_directo · por ancho"          value={`${displayMachon.N_lineal.toFixed(1)} kN`} />
+          <ValueRow label="N_directo · por ancho"          value={formatQuantity(displayMachon.N_lineal, 'force', system)} />
           {/* Desglose del N_directo: cuánto viene heredado del muro superior
               (cascada multi-planta) vs el forjado propio de esta planta.
               Permite auditar visualmente que la transmisión inter-planta es
               correcta. Indented + dimmed para no romper la jerarquía visual. */}
           <ValueRow
             label="├ heredado planta superior"
-            value={`${displayMachon.N_heredado.toFixed(1)} kN`}
+            value={formatQuantity(displayMachon.N_heredado, 'force', system)}
             dimmed
           />
           <ValueRow
             label="└ forjado propio (q_d × ancho)"
-            value={`${displayMachon.N_lineal_forjado.toFixed(1)} kN`}
+            value={formatQuantity(displayMachon.N_lineal_forjado, 'force', system)}
             dimmed
           />
-          <ValueRow label="N_dinteles · reacciones"        value={`${displayMachon.N_dinteles.toFixed(1)} kN`} />
-          <ValueRow label="N_puntual · vigas"              value={`${displayMachon.N_puntual.toFixed(1)} kN`} />
-          <ValueRow label="N_Ed cabeza · axil cálculo"     value={`${displayMachon.N_Ed.toFixed(1)} kN`} />
-          <ValueRow label="N_Ed pie · cabeza+ pp muro"     value={`${displayMachon.N_Ed_pie.toFixed(1)} kN`} />
-          <ValueRow label="N_Rd · resistencia"             value={`${displayMachon.N_Rd.toFixed(1)} kN`} />
-          <ValueRow label="σ cabeza"                       value={`${displayMachon.sigma_top.toFixed(2)} N/mm²`} />
-          <ValueRow label="σ pie"                          value={`${displayMachon.sigma_bottom.toFixed(2)} N/mm²`} />
+          <ValueRow label="N_dinteles · reacciones"        value={formatQuantity(displayMachon.N_dinteles, 'force', system)} />
+          <ValueRow label="N_puntual · vigas"              value={formatQuantity(displayMachon.N_puntual, 'force', system)} />
+          <ValueRow label="N_Ed cabeza · axil cálculo"     value={formatQuantity(displayMachon.N_Ed, 'force', system)} />
+          <ValueRow label="N_Ed pie · cabeza+ pp muro"     value={formatQuantity(displayMachon.N_Ed_pie, 'force', system)} />
+          <ValueRow label="N_Rd · resistencia"             value={formatQuantity(displayMachon.N_Rd, 'force', system)} />
+          <ValueRow label="σ cabeza"                       value={formatQuantity(displayMachon.sigma_top, 'stress', system)} />
+          <ValueRow label="σ pie"                          value={formatQuantity(displayMachon.sigma_bottom, 'stress', system)} />
           <ValueRow label="Φ · reductor"                   value={displayMachon.Phi.toFixed(3)} />
           <ValueRow label="λ · esbeltez"                   value={displayMachon.planta.lambda.toFixed(1)} />
           <ValueRow label="e_total · exc. cálc."           value={`${(displayMachon.planta.e_total / 10).toFixed(1)} cm`} />
@@ -219,7 +222,7 @@ export function MasonryWallsResults({
             <span
               className="text-[10px] font-mono text-text-disabled"
               title="Promedio derivado de la carga distribuida en cabeza de la planta. Con cargas concentradas heredadas no es un UDL real — es la integral / L."
-            >q<sub>d</sub> prom={pl.q_planta_avg.toFixed(0)} kN/m</span>
+            >q<sub>d</sub> prom={formatQuantity(pl.q_planta_avg, 'linearLoad', system)}</span>
             <span className="font-mono text-[11px] font-semibold tabular-nums" style={{ color: stCol }}>
               {(eMax * 100).toFixed(0)}%
             </span>

@@ -19,30 +19,44 @@
 // via a tolerant parser. Rejects non-numeric input by reverting on commit.
 
 import { useEffect, useRef, useState } from 'react';
+import { fromDisplay, toDisplay } from '../../../lib/units/convert';
+import { getPrecision, getUnitLabel } from '../../../lib/units/format';
+import type { Quantity } from '../../../lib/units/types';
+import { useUnitSystem } from '../../../lib/units/useUnitSystem';
 
 interface Props {
+  /** SIempre el valor canónico SI cuando `quantity` está set. Sin quantity,
+   *  value pasa por la representación que decida el caller (geometría
+   *  pre-escalada, etc.). */
   value: number;
-  /** Decimals shown in display mode; stored value is full precision. */
+  /** Decimals shown in display mode. Cuando `quantity` está set y no se
+   *  fuerza decimals, se usa el del catálogo según el sistema activo. */
   decimals?: number;
-  /** Min allowed value. Values below revert. */
+  /** Min allowed value, IN SI cuando `quantity` está set. Se compara después
+   *  de fromDisplay(parsed) para evitar bugs cuando el usuario teclea en
+   *  técnico (kg/cm²) — bug C1 spec review. */
   min?: number;
-  /** Max allowed value. Values above revert. */
   max?: number;
-  /** Optional unit suffix shown after the value in display mode (e.g. 'm', 'kN/m'). */
+  /** Unit suffix mostrado en display mode. Si `quantity` está set, esta prop
+   *  se ignora y el label viene del catálogo según el sistema activo. */
   unit?: string;
   /** Display class for the value text. Default: font-mono text-text-primary. */
   className?: string;
   /** When true, value is non-editable (read-only display). */
   disabled?: boolean;
-  /** Called on commit. */
+  /** Called on commit. Devuelve el valor en SI cuando `quantity` está set. */
   onCommit: (next: number) => void;
   /** Optional aria-label for accessibility. */
   ariaLabel?: string;
+  /** Cuando se pasa, InlineEdit hace auto-conversión SI↔técnico según el
+   *  toggle global del usuario. El valor de entrada y salida es siempre SI;
+   *  el display y el parse se hacen en el sistema activo. */
+  quantity?: Quantity;
 }
 
 export function InlineEdit({
   value,
-  decimals = 2,
+  decimals,
   min,
   max,
   unit,
@@ -50,16 +64,27 @@ export function InlineEdit({
   disabled,
   onCommit,
   ariaLabel,
+  quantity,
 }: Props) {
+  const { system } = useUnitSystem();
+  // Resolved unit label: si quantity está set, viene del catálogo según el
+  // sistema activo. Si no, se respeta la prop `unit` legacy.
+  const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
+  // Resolved decimals: catálogo por sistema cuando quantity set; default 2.
+  const resolvedDecimals = decimals ?? (quantity ? getPrecision(quantity, system) : 2);
+  // Display value: SI value convertido al sistema activo cuando quantity set.
+  const displayValue = quantity ? toDisplay(value, quantity, system) : value;
+
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(formatDraft(value, decimals));
+  const [draft, setDraft] = useState(formatDraft(displayValue, resolvedDecimals));
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Re-sync the draft when value changes externally (e.g. solver result
-  // updates a derived value via a different path) and we are not editing.
+  // Re-sync the draft when value, system or decimals change externally
+  // (system toggle reformats display; solver result updates value; etc.) and
+  // we are not editing — preservar what user is typing.
   useEffect(() => {
-    if (!editing) setDraft(formatDraft(value, decimals));
-  }, [value, decimals, editing]);
+    if (!editing) setDraft(formatDraft(displayValue, resolvedDecimals));
+  }, [displayValue, resolvedDecimals, editing]);
 
   function activate() {
     if (disabled) return;
@@ -75,26 +100,29 @@ export function InlineEdit({
     const parsed = parseLocaleNumber(draft);
     if (parsed == null || !Number.isFinite(parsed)) {
       // Revert on invalid input.
-      setDraft(formatDraft(value, decimals));
+      setDraft(formatDraft(displayValue, resolvedDecimals));
       setEditing(false);
       return;
     }
-    if (min != null && parsed < min) {
-      setDraft(formatDraft(value, decimals));
+    // Cuando quantity set, el usuario teclea en el sistema activo (ej.
+    // kg/cm²). Convertir a SI ANTES de comparar min/max — fix subagent C1.
+    const parsedSi = quantity ? fromDisplay(parsed, quantity, system) : parsed;
+    if (min != null && parsedSi < min) {
+      setDraft(formatDraft(displayValue, resolvedDecimals));
       setEditing(false);
       return;
     }
-    if (max != null && parsed > max) {
-      setDraft(formatDraft(value, decimals));
+    if (max != null && parsedSi > max) {
+      setDraft(formatDraft(displayValue, resolvedDecimals));
       setEditing(false);
       return;
     }
-    if (parsed !== value) onCommit(parsed);
+    if (parsedSi !== value) onCommit(parsedSi);
     setEditing(false);
   }
 
   function cancel() {
-    setDraft(formatDraft(value, decimals));
+    setDraft(formatDraft(displayValue, resolvedDecimals));
     setEditing(false);
   }
 
@@ -139,7 +167,7 @@ export function InlineEdit({
             fontVariantNumeric: 'tabular-nums',
           }}
         />
-        {unit && (
+        {resolvedUnit && (
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -147,7 +175,7 @@ export function InlineEdit({
               color: 'var(--color-text-disabled)',
             }}
           >
-            {unit}
+            {resolvedUnit}
           </span>
         )}
       </span>
@@ -159,7 +187,7 @@ export function InlineEdit({
       type="button"
       onClick={activate}
       disabled={disabled}
-      aria-label={ariaLabel ?? `Editar (actual: ${formatDraft(value, decimals)}${unit ? ' ' + unit : ''})`}
+      aria-label={ariaLabel ?? `Editar (actual: ${formatDraft(displayValue, resolvedDecimals)}${resolvedUnit ? ' ' + resolvedUnit : ''})`}
       className={className}
       style={{
         background: 'transparent',
@@ -180,8 +208,8 @@ export function InlineEdit({
         e.currentTarget.style.background = 'transparent';
       }}
     >
-      {formatDraft(value, decimals)}
-      {unit && (
+      {formatDraft(displayValue, resolvedDecimals)}
+      {resolvedUnit && (
         <span
           style={{
             marginLeft: 2,
@@ -189,7 +217,7 @@ export function InlineEdit({
             color: 'var(--color-text-disabled)',
           }}
         >
-          {unit}
+          {resolvedUnit}
         </span>
       )}
     </button>

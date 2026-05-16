@@ -23,41 +23,57 @@ import {
   type Puntual,
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
+import { fromDisplay, toDisplay } from '../../lib/units/convert';
+import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface NumFieldProps {
   label: string;
   sub?: string;
-  /** Valor en las unidades de almacenamiento del state (mm para geometría). */
+  /** Valor en las unidades de almacenamiento del state (mm para geometría,
+   *  SI para cantidades físicas cuando `quantity` está set). */
   value: number;
   unit?: string;
-  /** Valor a mostrar = value · scale. Permite que el state guarde mm pero el
-   *  usuario edite metros (scale=0.001) o cm (scale=0.1). El onChange devuelve
-   *  el valor en unidades de almacenamiento (mm). Default 1 (sin conversión). */
+  /** Storage scaling: value · scale = display value. Permite mm storage →
+   *  m/cm display (scale=0.001 / 0.1). Mutuamente exclusivo con `quantity`. */
   scale?: number;
   /** Decimales en el display. Default: 0 si scale=1, 2 si scale<1. */
   decimals?: number;
   onChange: (v: number) => void;
   refNorma?: string;
+  /** Cuando set, auto-conversión SI↔técnico via catálogo. value y onChange
+   *  son siempre SI. Mutuamente exclusivo con `scale` (storage scaling). */
+  quantity?: Quantity;
 }
 
-function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refNorma }: NumFieldProps) {
+function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refNorma, quantity }: NumFieldProps) {
+  const { system } = useUnitSystem();
+  // Display value y unit dependen de qué modo aplica:
+  //   - quantity: auto SI↔técnico vía catálogo (ignora scale, unit).
+  //   - scale: storage-scaling (legacy para mm→m/cm).
+  const displayValue = quantity ? toDisplay(value, quantity, system) : value * scale;
+  const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
+
   // Cadena local controlada (mismo patrón que empresillado): permite estados
   // intermedios mientras el usuario escribe ("5.", "1.2"), y solo dispara
   // onChange cuando el valor parsea limpio. onBlur canonicaliza si quedó algo
-  // inválido. useEffect sincroniza si el `value` cambia desde fuera.
-  const initial = String(value * scale);
+  // inválido. useEffect sincroniza si el `value` o `system` cambia desde fuera.
+  const initial = String(displayValue);
   const [localStr, setLocalStr] = useState<string>(initial);
 
   useEffect(() => {
     // Si el valor parseado coincide con el almacenado, no sobreescribir lo
     // que el usuario está tecleando (preserva "5." y "5.0" mientras escribe).
     const parsed = parseFloat(localStr);
-    const storedFromLocal = isNaN(parsed) ? null : parsed / scale;
+    const storedFromLocal = isNaN(parsed)
+      ? null
+      : (quantity ? fromDisplay(parsed, quantity, system) : parsed / scale);
     if (storedFromLocal !== value) {
-      setLocalStr(String(value * scale));
+      setLocalStr(String(displayValue));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, scale]);
+  }, [value, scale, system, quantity]);
 
   void decimals;
 
@@ -78,20 +94,21 @@ function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refN
             value={localStr}
             onChange={(e) => {
               const raw = e.target.value;
-              setLocalStr(raw); // siempre actualiza el display
+              setLocalStr(raw);
               const n = parseFloat(raw);
-              if (!isNaN(n)) onChange(n / scale);
-              // Si raw es '', '-', '5.' (parseFloat=5, no NaN) etc., no
-              // hacemos nada con el state mientras tanto.
+              if (!isNaN(n)) {
+                const si = quantity ? fromDisplay(n, quantity, system) : n / scale;
+                onChange(si);
+              }
             }}
             onBlur={() => {
               const n = parseFloat(localStr);
-              if (isNaN(n)) setLocalStr(String(value * scale));
+              if (isNaN(n)) setLocalStr(String(displayValue));
             }}
             className="w-16 text-right bg-bg-primary border border-border-main rounded-l px-2 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent"
           />
           <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.5 py-1 text-[10px] font-mono text-text-disabled flex items-center">
-            {unit}
+            {resolvedUnit}
           </span>
         </div>
       </div>
@@ -181,6 +198,7 @@ export function MasonryWallsInputs({
   onAddHueco, onRemoveHueco,
   onAddPuntual, onRemovePuntual,
 }: Props) {
+  const { system } = useUnitSystem();
   const set = <K extends keyof MasonryWallState>(k: K, v: MasonryWallState[K]) =>
     setState((s) => ({ ...s, [k]: v }));
 
@@ -286,8 +304,8 @@ export function MasonryWallsInputs({
           </>
         ) : (
           <>
-            <NumField label="fk" sub="caract." value={state.fk_custom} unit="N/mm²" onChange={(v) => set('fk_custom', v)} />
-            <NumField label="γ"  sub="peso esp." value={state.gamma_custom} unit="kN/m³" onChange={(v) => set('gamma_custom', v)} />
+            <NumField label="fk" sub="caract." value={state.fk_custom} quantity="stress" onChange={(v) => set('fk_custom', v)} />
+            <NumField label="γ"  sub="peso esp." value={state.gamma_custom} quantity="weightDensity" onChange={(v) => set('gamma_custom', v)} />
           </>
         )}
         {/* γM selector según CTE Tabla 4.8 — categoría de control × clase de
@@ -333,12 +351,12 @@ export function MasonryWallsInputs({
           <div className="flex items-center justify-between text-[10px] font-mono">
             <span className="text-text-disabled">fk</span>
             <span style={{ color: fab.fk ? 'var(--color-text-primary)' : 'var(--color-state-fail)' }}>
-              {fab.fk ? `${fab.fk} N/mm²` : 'no aplicable'}
+              {fab.fk ? formatQuantity(fab.fk, 'stress', system) : 'no aplicable'}
             </span>
           </div>
           <div className="flex items-center justify-between text-[10px] font-mono">
             <span className="text-text-disabled">f_d = fk/γM</span>
-            <span>{fab.fk ? (fab.fk / state.gamma_M).toFixed(2) : '—'} N/mm²</span>
+            <span>{fab.fk ? formatQuantity(fab.fk / state.gamma_M, 'stress', system) : '—'}</span>
           </div>
         </div>
       </CollapsibleSection>
@@ -419,9 +437,9 @@ export function MasonryWallsInputs({
           <CollapsibleSection label={`Forjado · ${plantaSel.nombre}`} refNorma="§5.2.3">
             <NumField label="H"   sub="altura libre"  value={plantaSel.H}       unit="m"    scale={0.001} decimals={2}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'H', v)} />
-            <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     unit="kN/m"
+            <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     quantity="linearLoad"
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
-            <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     unit="kN/m"
+            <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     quantity="linearLoad"
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
             <NumField label="a"   sub="apoyo"         value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'a_apoyo', v)} />
@@ -429,7 +447,7 @@ export function MasonryWallsInputs({
               onChange={(v) => setPlanta(selectedPlantaIdx, 'e_apoyo', v)} />
             {plantaCalcSel && (
               <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-1">
-                q<sub>d</sub> = {(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0)).toFixed(2)} kN/m<br />
+                q<sub>d</sub> = {formatQuantity(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0), 'linearLoad', system)}<br />
                 Reparto k = {plantaCalcSel.k_reparto.toFixed(2)}<br />
                 e_cabeza = {(plantaCalcSel.e_cabeza / 10).toFixed(1)} cm · e_pie = {(plantaCalcSel.e_pie / 10).toFixed(1)} cm
               </p>
@@ -448,14 +466,14 @@ export function MasonryWallsInputs({
                 </div>
                 <NumField label="x"   sub="pos."          value={p.x}       unit="m"  scale={0.001} decimals={2}
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'x', v)} />
-                <NumField label="P_G" sub="permanente Gk" value={p.P_G}     unit="kN"
+                <NumField label="P_G" sub="permanente Gk" value={p.P_G}     quantity="force"
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_G', v)} />
-                <NumField label="P_Q" sub="variable Qk"   value={p.P_Q}     unit="kN"
+                <NumField label="P_Q" sub="variable Qk"   value={p.P_Q}     quantity="force"
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_Q', v)} />
                 <NumField label="b"   sub="apoyo"         value={p.b_apoyo} unit="cm" scale={0.1}   decimals={1}
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'b_apoyo', v)} />
                 <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5">
-                  P<sub>d</sub> = {(state.gamma_G * (p.P_G || 0) + state.gamma_Q * (p.P_Q || 0)).toFixed(1)} kN
+                  P<sub>d</sub> = {formatQuantity(state.gamma_G * (p.P_G || 0) + state.gamma_Q * (p.P_Q || 0), 'force', system)}
                 </p>
               </div>
             ))}
@@ -543,18 +561,18 @@ export function MasonryWallsInputs({
                             </div>
                             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] font-mono">
                               <span className="text-text-secondary">q_dintel</span>
-                              <span className="text-right tabular-nums">{d.q_dintel.toFixed(1)} kN/m</span>
+                              <span className="text-right tabular-nums">{formatQuantity(d.q_dintel, 'linearLoad', system)}</span>
                               <span className="text-text-secondary">g_muro_sobre</span>
-                              <span className="text-right tabular-nums">{d.g_propio.toFixed(2)} kN/m</span>
+                              <span className="text-right tabular-nums">{formatQuantity(d.g_propio, 'linearLoad', system)}</span>
                               <span className="text-text-secondary">h_muro_sobre</span>
                               <span className="text-right tabular-nums">{(d.h_muro_sobre / 10).toFixed(1)} cm</span>
                               <span className="text-text-secondary">M_Ed</span>
-                              <span className="text-right tabular-nums">{d.M_Ed.toFixed(2)} kN·m</span>
+                              <span className="text-right tabular-nums">{formatQuantity(d.M_Ed, 'moment', system)}</span>
                               <span className="text-text-secondary">V_Ed</span>
-                              <span className="text-right tabular-nums">{d.V_Ed.toFixed(1)} kN</span>
+                              <span className="text-right tabular-nums">{formatQuantity(d.V_Ed, 'force', system)}</span>
                               <span className="text-text-secondary">R apoyo</span>
                               <span className="text-right tabular-nums" style={{ color: 'var(--color-state-warn)' }}>
-                                {d.R_apoyo.toFixed(1)} kN
+                                {formatQuantity(d.R_apoyo, 'force', system)}
                               </span>
                             </div>
                             <p className="text-[9px] text-text-disabled mt-1.5 leading-tight">

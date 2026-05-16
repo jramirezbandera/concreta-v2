@@ -19,6 +19,8 @@
 import jsPDF from 'jspdf';
 import { MAT } from '../../features/fem-analysis/presets';
 import type { DesignBar, DesignModel, SolveResult } from '../../features/fem-analysis/types';
+import { formatQuantity, getUnitLabel } from '../units/format';
+import type { UnitSystem } from '../units/types';
 import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 18;                 // page margin (mm)
@@ -52,7 +54,7 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
 
 // ── Cover page ──────────────────────────────────────────────────────────────
 
-function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult): number {
+function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: UnitSystem): number {
   let y = M;
 
   // Title
@@ -164,8 +166,8 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult): number 
   doc.text('Material',  COL.mat, y);
   doc.text('Seccion',   COL.sec, y);
   doc.text('L (m)',     COL.L, y);
-  doc.text('|M| (kNm)', COL.Mmax, y);
-  doc.text('|V| (kN)',  COL.Vmax, y);
+  doc.text(`|M| (${getUnitLabel('moment', system)})`, COL.Mmax, y);
+  doc.text(`|V| (${getUnitLabel('force', system)})`,  COL.Vmax, y);
   doc.text('eta',       COL.eta, y);
   doc.text('Estado',    COL.status, y);
   y += 1.5;
@@ -182,8 +184,8 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult): number 
     doc.text(bar.material === 'rc' ? 'HA' : 'Acero', COL.mat, y);
     doc.text(sectionLabel(bar), COL.sec, y);
     doc.text(r ? r.L.toFixed(2) : '-', COL.L, y);
-    doc.text(r ? Math.abs(r.Mmax).toFixed(1) : '-', COL.Mmax, y);
-    doc.text(r ? Math.abs(r.Vmax).toFixed(1) : '-', COL.Vmax, y);
+    doc.text(r ? formatQuantity(Math.abs(r.Mmax), 'moment', system, { withUnit: false }) : '-', COL.Mmax, y);
+    doc.text(r ? formatQuantity(Math.abs(r.Vmax), 'force', system, { withUnit: false }) : '-', COL.Vmax, y);
     doc.text(r && r.status !== 'pending' ? `${(r.eta * 100).toFixed(0)}%` : '-', COL.eta, y);
     setGray(doc, statusGrayFor(r?.status));
     doc.setFont('helvetica', 'bold');
@@ -197,14 +199,14 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult): number 
   y += 6;
 
   // Geometry schematic
-  y = drawGeometrySchematic(doc, model, y);
+  y = drawGeometrySchematic(doc, model, y, system);
 
   return y;
 }
 
 // ── Geometry schematic ─────────────────────────────────────────────────────
 
-function drawGeometrySchematic(doc: jsPDF, model: DesignModel, startY: number): number {
+function drawGeometrySchematic(doc: jsPDF, model: DesignModel, startY: number, system: UnitSystem): number {
   let y = startY;
   if (model.bars.length === 0 || model.nodes.length === 0) return y;
 
@@ -287,7 +289,7 @@ function drawGeometrySchematic(doc: jsPDF, model: DesignModel, startY: number): 
         doc.line(ax, arrowY, ax, stripY - 0.5);
       }
       doc.setFontSize(5.5);
-      doc.text(`${ld.w} kN/m [${ld.lc}]`, (xLow + xHigh) / 2, arrowY - 1, { align: 'center' });
+      doc.text(`${formatQuantity(ld.w, 'linearLoad', system)} [${ld.lc}]`, (xLow + xHigh) / 2, arrowY - 1, { align: 'center' });
     }
   }
 
@@ -318,6 +320,7 @@ function drawBarSection(
   bar: DesignBar,
   result: SolveResult,
   startY: number,
+  system: UnitSystem,
 ): number {
   let y = ensureSpace(doc, startY, 60);
 
@@ -401,7 +404,7 @@ function drawBarSection(
     doc.setFontSize(7);
     setGray(doc, 100);
     doc.text(
-      `L = ${r.L.toFixed(2)} m    |M_max| = ${Math.abs(r.Mmax).toFixed(1)} kNm    |V_max| = ${Math.abs(r.Vmax).toFixed(1)} kN    |N_max| = ${Math.abs(r.Nmax).toFixed(1)} kN`,
+      `L = ${r.L.toFixed(2)} m    |M_max| = ${formatQuantity(Math.abs(r.Mmax), 'moment', system)}    |V_max| = ${formatQuantity(Math.abs(r.Vmax), 'force', system)}    |N_max| = ${formatQuantity(Math.abs(r.Nmax), 'force', system)}`,
       M, y,
     );
     y += 5;
@@ -473,17 +476,18 @@ function drawBarSection(
 export async function exportFemAnalysisPDF(
   model: DesignModel,
   result: SolveResult,
+  system: UnitSystem = 'si',
 ): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // Cover page.
-  drawCover(doc, model, result);
+  drawCover(doc, model, result, system);
 
   // One section per bar — start each on a new page when the bar's spec
   // would overflow current page; otherwise continue on current.
   for (const bar of model.bars) {
     doc.addPage();
-    drawBarSection(doc, bar, result, M + 6);
+    drawBarSection(doc, bar, result, M + 6, system);
   }
 
   // Footers (after all pages exist so totalPages is correct).

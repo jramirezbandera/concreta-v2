@@ -13,6 +13,8 @@ import {
   type EdificioInvalid,
   resolverFabrica,
 } from '../calculations/masonryWalls';
+import { formatQuantity, getUnitLabel } from '../units/format';
+import type { UnitSystem } from '../units/types';
 import { PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
 
 const M = 18;
@@ -28,10 +30,15 @@ interface ExportArgs {
   critico: CriticoResult | null;
   overall: OverallStatus;
   invalid: EdificioInvalid | null;
+  /** Sistema de unidades activo (SI = N/mm², kN, kN/m... | técnico =
+   *  kg/cm², Tn, kg/m). El PDF refleja el sistema del usuario al exportar
+   *  para mantener consistencia con la UI on-screen (trazabilidad legal
+   *  + evita confusion del ingeniero firmante). */
+  system: UnitSystem;
 }
 
 export async function exportMasonryWallsPDF({
-  state, plantasCalc, critico, overall, invalid,
+  state, plantasCalc, critico, overall, invalid, system,
 }: ExportArgs): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -114,13 +121,13 @@ export async function exportMasonryWallsPDF({
   const fab = resolverFabrica(state);
   twoCol(`Modo: ${fab.label}`);
   if (fab.modo === 'tabla') {
-    twoCol(`fb = ${state.fb} N/mm2`, `fm = ${state.fm} N/mm2`);
+    twoCol(`fb = ${state.fb} N/mm2`, `fm = ${state.fm} N/mm2`); // Tabla 4.4 DB-SE-F: valores tabulados en N/mm2 (norma)
   }
   if (fab.fk) {
-    twoCol(`fk = ${fab.fk} N/mm2`, `gM = ${state.gamma_M}`);
-    twoCol(`fd = ${(fab.fk / state.gamma_M).toFixed(2)} N/mm2`);
+    twoCol(`fk = ${pdfStr(formatQuantity(fab.fk, 'stress', system))}`, `gM = ${state.gamma_M}`);
+    twoCol(`fd = ${pdfStr(formatQuantity(fab.fk / state.gamma_M, 'stress', system))}`);
   }
-  twoCol(`gam = ${fab.gamma} kN/m3`);
+  twoCol(`gam = ${pdfStr(formatQuantity(fab.gamma, 'weightDensity', system))}`);
   gap();
 
   // ACCIONES
@@ -141,8 +148,8 @@ export async function exportMasonryWallsPDF({
   setGray(doc, 100);
   if (critico) {
     twoCol(`Critico: ${critico.planta.nombre} / ${critico.id}`);
-    twoCol(`N_Ed cab = ${critico.N_Ed.toFixed(0)} kN`, `N_Ed pie = ${critico.N_Ed_pie.toFixed(0)} kN`);
-    twoCol(`N_Rd = ${critico.N_Rd.toFixed(0)} kN`, `Phi = ${critico.Phi.toFixed(3)}`);
+    twoCol(`N_Ed cab = ${pdfStr(formatQuantity(critico.N_Ed, 'force', system))}`, `N_Ed pie = ${pdfStr(formatQuantity(critico.N_Ed_pie, 'force', system))}`);
+    twoCol(`N_Rd = ${pdfStr(formatQuantity(critico.N_Rd, 'force', system))}`, `Phi = ${critico.Phi.toFixed(3)}`);
     twoCol(`lam = ${critico.planta.lambda.toFixed(1)}`, `e_t = ${mToCm(critico.planta.e_total)}`);
   }
   gap();
@@ -154,7 +161,7 @@ export async function exportMasonryWallsPDF({
   // Header row
   const hY = ry;
   doc.text('Planta', COL_R, hY);
-  doc.text('q_d prom kN/m', COL_R + 22, hY);
+  doc.text(`q_d prom ${pdfStr(getUnitLabel('linearLoad', system))}`, COL_R + 22, hY);
   doc.text('lam', COL_R + 44, hY);
   doc.text('eta max', COL_R + 60, hY);
   ry += 4;
@@ -166,7 +173,8 @@ export async function exportMasonryWallsPDF({
     const eMax = Math.max(...pl.machones.map((m) => m.etaMax));
     const status = eMax >= 1 ? 'INCUMPLE' : eMax >= 0.8 ? 'REVISAR' : 'CUMPLE';
     doc.text(pdfStr(pl.nombre), COL_R, ry);
-    doc.text(pl.q_planta_avg.toFixed(1), COL_R + 22, ry);
+    // formatNumber sin label (la cabecera de columna ya tiene la unidad)
+    doc.text(pdfStr(formatQuantity(pl.q_planta_avg, 'linearLoad', system, { withUnit: false })), COL_R + 22, ry);
     doc.text(pl.lambda.toFixed(1), COL_R + 44, ry);
     doc.text(`${(eMax * 100).toFixed(0)}% ${status}`, COL_R + 60, ry);
     ry += 4;
@@ -203,7 +211,7 @@ export async function exportMasonryWallsPDF({
     checkRow(
       'Compresion excentrica',
       'DB-SE-F §5.2',
-      `${critico.N_Ed.toFixed(0)} / ${critico.N_Rd.toFixed(0)} kN`,
+      `${pdfStr(formatQuantity(critico.N_Ed, 'force', system, { withUnit: false }))} / ${pdfStr(formatQuantity(critico.N_Rd, 'force', system))}`,
       critico.eta,
     );
     checkRow(

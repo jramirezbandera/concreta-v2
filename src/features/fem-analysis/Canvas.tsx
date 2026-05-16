@@ -19,6 +19,8 @@
 // ELU samples produced by the bridge (`solveDesignModel`).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatQuantity } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { InlineEdit } from './components/InlineEdit';
 import { canEditBarLength, canInsertNode } from './invariants';
 import {
@@ -908,7 +910,7 @@ function LoadGlyph({
         <foreignObject x={sx + 4} y={(tailY + tipY) / 2 - 10} width={70} height={20}>
           <div>
             <InlineEdit
-              value={Math.abs(Py)} unit="kN" decimals={1} min={0}
+              value={Math.abs(Py)} quantity="force" min={0}
               disabled={readOnly}
               onCommit={(v) => onEditValue(load.id, v)}
               ariaLabel={`Carga ${load.id}`}
@@ -966,7 +968,7 @@ function LoadGlyph({
           <foreignObject x={xMid - 40} y={yMid - 8} width={90} height={20}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <InlineEdit
-                value={load.w} unit="kN/m" decimals={1} min={0}
+                value={load.w} quantity="linearLoad" min={0}
                 disabled={readOnly}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`UDL ${load.id}`}
@@ -993,7 +995,7 @@ function LoadGlyph({
           <foreignObject x={px + 4} y={(tailY + tipY) / 2 - 10} width={70} height={20}>
             <div>
               <InlineEdit
-                value={load.P} unit="kN" decimals={1} min={0}
+                value={load.P} quantity="force" min={0}
                 disabled={readOnly}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`P ${load.id}`}
@@ -1013,6 +1015,7 @@ function ReactionGlyph({
   reaction: SolveResult['reactions'][number];
   w2s: (x: number, y: number) => [number, number];
 }) {
+  const { system } = useUnitSystem();
   const c = 'var(--color-accent)';
   const [sx, sy] = w2s(reaction.x, 0);
   if (Math.abs(reaction.Ry) < 0.1) return null;
@@ -1024,7 +1027,7 @@ function ReactionGlyph({
     <g opacity="0.85">
       <line x1={sx} y1={y0} x2={sx} y2={y1} stroke={c} strokeWidth="1.4" markerEnd="url(#fem-arr-react)" />
       <text x={sx - 6} y={y0 + (dir > 0 ? -4 : 14)} textAnchor="end" fontFamily="var(--font-mono)" fontSize="10" fill={c}>
-        R={Math.abs(reaction.Ry).toFixed(1)} kN
+        R={formatQuantity(Math.abs(reaction.Ry), 'force', system)}
       </text>
     </g>
   );
@@ -1066,6 +1069,7 @@ function BarDiagrams({
   globalPeakM: number;
   globalPeakV: number;
 }) {
+  const { system } = useUnitSystem();
   if (!samples || samples.xs.length < 2) return null;
   const ni = model.nodes.find((n) => n.id === bar.i);
   const nj = model.nodes.find((n) => n.id === bar.j);
@@ -1104,7 +1108,7 @@ function BarDiagrams({
             <g key={idx}>
               <circle cx={px} cy={yPx} r="2.5" fill="var(--color-accent)" />
               <text x={px + 4} y={yPx + labelDy} fontFamily="var(--font-mono)" fontSize="9" fill="var(--color-accent)">
-                M={v.toFixed(1)} kN·m
+                M={formatQuantity(v, 'moment', system)}
               </text>
             </g>
           );
@@ -1145,7 +1149,7 @@ function BarDiagrams({
             <g key={idx}>
               <circle cx={px} cy={yPx} r="2.5" fill="#a78bfa" />
               <text x={px + 4} y={yPx + labelDy} fontFamily="var(--font-mono)" fontSize="9" fill="#a78bfa">
-                V={v.toFixed(1)} kN
+                V={formatQuantity(v, 'force', system)}
               </text>
             </g>
           );

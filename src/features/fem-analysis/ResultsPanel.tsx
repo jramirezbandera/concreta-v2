@@ -11,6 +11,8 @@
 // already conceptually in the module's results UI.
 
 import { ambientStyle } from '../../components/checks';
+import { formatQuantity } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { ResultsHeader } from './embedded/ResultsHeader';
 import { ResultsUnsolvable } from './embedded/ResultsUnsolvable';
 import { RcBarResults } from './embedded/RcBarResults';
@@ -97,6 +99,7 @@ function ModelSummary({
   setSelected: (s: Selected) => void;
   combo: 'ELU' | 'ELS_c' | 'ELS_frec' | 'ELS_cp';
 }) {
+  const { system } = useUnitSystem();
   // V1.1 R9: reactions list reflects the combo selector. Falls back to summed
   // `reactions` if the new envelope structure isn't present.
   const reactionsForCombo =
@@ -190,7 +193,7 @@ function ModelSummary({
             >
               <span style={{ color: 'var(--color-text-secondary)' }}>{r.node}</span>
               <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>
-                Ry={r.Ry.toFixed(1)} kN{r.Mr ? ` · M=${r.Mr.toFixed(1)} kN·m` : ''}
+                Ry={formatQuantity(r.Ry, 'force', system)}{r.Mr ? ` · M=${formatQuantity(r.Mr, 'moment', system)}` : ''}
               </span>
             </div>
           ))}

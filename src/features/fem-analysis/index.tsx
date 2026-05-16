@@ -25,6 +25,7 @@ import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { Canvas } from './Canvas';
 import { EtaPill } from './EtaPill';
@@ -135,6 +136,7 @@ function pushRecent(preset: DesignPresetId, eta: number) {
 
 export function FemAnalysisModule() {
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
   const [searchParams, setSearchParams] = useSearchParams();
   const tipSeenRef = useRef<boolean>(false);
 
@@ -282,7 +284,7 @@ export function FemAnalysisModule() {
   // PDF export — always available per project memory rule "PDF export never disabled".
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
     usePdfPreview(
-      () => exportFemAnalysisPDF(model!, result),
+      () => exportFemAnalysisPDF(model!, result, system),
       true,
     );
 

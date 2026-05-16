@@ -1,8 +1,19 @@
 // FEM 2D — InlineEdit primitive test suite
 
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render as rtlRender, screen, type RenderOptions } from '@testing-library/react';
 import { InlineEdit } from '../../features/fem-analysis/components/InlineEdit';
+import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
+
+// InlineEdit ahora usa useUnitSystem internamente (para soportar el toggle
+// SI↔técnico vía prop `quantity`). Los tests legacy de la versión "unit prop
+// only" siguen funcionando porque resolvedUnit cae a la prop legacy cuando
+// no hay quantity. Pero el hook necesita el provider.
+const render = (ui: React.ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, {
+    wrapper: ({ children }) => <UnitSystemProvider>{children}</UnitSystemProvider>,
+    ...options,
+  });
 
 describe('InlineEdit — display mode', () => {
   it('renders the value with default 2 decimals', () => {

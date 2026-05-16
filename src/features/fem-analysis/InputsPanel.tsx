@@ -11,6 +11,10 @@
 
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { USE_CATEGORIES } from '../../lib/calculations/loadGen';
+import { fromDisplay, toDisplay } from '../../lib/units/convert';
+import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { RcBarInputs } from './embedded/RcBarInputs';
 import { SteelBarInputs } from './embedded/SteelBarInputs';
 import { DEFAULT_APOYO_ARMADO, DEFAULT_VANO_ARMADO } from './presets';
@@ -381,9 +385,9 @@ function LoadPanel({
       )}
       {load.kind === 'point-node' && (
         <>
-          <NumField label="Px" value={load.Px ?? 0} unit="kN" step={1}
+          <NumField label="Px" value={load.Px ?? 0} quantity="force" step={1}
             onChange={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Px: v } : l)} />
-          <NumField label="Py" value={load.Py ?? 0} unit="kN" step={1}
+          <NumField label="Py" value={load.Py ?? 0} quantity="force" step={1}
             onChange={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Py: v } : l)} />
           <div style={{ fontSize: 10, color: 'var(--color-text-disabled)', fontStyle: 'italic', padding: '2px 0 0', lineHeight: 1.4 }}>
             Py: positivo hacia abajo (gravedad), negativo hacia arriba.
@@ -391,12 +395,12 @@ function LoadPanel({
         </>
       )}
       {load.kind === 'udl' && (
-        <NumField label="q" value={load.w} unit="kN/m" step={1} min={0}
+        <NumField label="q" value={load.w} quantity="linearLoad" step={1} min={0}
           onChange={(v) => patch((l) => l.kind === 'udl' ? { ...l, w: v } : l)} />
       )}
       {load.kind === 'point-bar' && (
         <>
-          <NumField label="P" value={load.P} unit="kN" step={1} min={0}
+          <NumField label="P" value={load.P} quantity="force" step={1} min={0}
             onChange={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, P: v } : l)} />
           <NumField label="pos" value={load.pos} step={0.05} min={0} max={1}
             onChange={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, pos: v } : l)} />
@@ -414,10 +418,13 @@ function LoadRow({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const { system } = useUnitSystem();
   const target = load.kind === 'point-node' ? `nodo ${load.node}` : `barra ${load.bar}`;
-  const summary = load.kind === 'point-node' ? `Py=${load.Py ?? 0} kN`
-    : load.kind === 'udl' ? `q=${load.w} kN/m`
-    : `P=${load.P} kN`;
+  const summary = load.kind === 'point-node'
+    ? `Py=${formatQuantity(load.Py ?? 0, 'force', system)}`
+    : load.kind === 'udl'
+      ? `q=${formatQuantity(load.w, 'linearLoad', system)}`
+      : `P=${formatQuantity(load.P, 'force', system)}`;
   return (
     <div
       role="button"
@@ -479,35 +486,46 @@ function Row({ label, value, children }: { label: string; value?: string; childr
 }
 
 function NumField({
-  label, value, unit, onChange, step = 1, min, max,
+  label, value, unit, onChange, step = 1, min, max, quantity,
 }: {
   label: string;
+  /** SI value when `quantity` is set, otherwise raw. */
   value: number;
   unit?: string;
+  /** Returns SI value when `quantity` set, otherwise raw. */
   onChange: (v: number) => void;
   step?: number;
   min?: number;
   max?: number;
+  /** When set, NumField auto-converts SI↔display según el toggle global y
+   *  el catálogo (kN↔Tn, kN/m↔kg/m, N/mm²↔kg/cm², etc.). */
+  quantity?: Quantity;
 }) {
+  const { system } = useUnitSystem();
+  const displayValue = quantity ? toDisplay(value, quantity, system) : value;
+  const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
   return (
     <Row label={label}>
       <div style={{ display: 'flex', alignItems: 'stretch', height: 24 }}>
         <input
           type="number"
-          value={Number.isFinite(value) ? value : 0}
+          value={Number.isFinite(displayValue) ? displayValue : 0}
           step={step}
           min={min}
           max={max}
           onChange={(e) => {
             const v = parseFloat(e.target.value);
-            if (Number.isFinite(v)) onChange(v);
+            if (!Number.isFinite(v)) return;
+            // Si quantity, el usuario teclea en display units; convertir a SI.
+            const si = quantity ? fromDisplay(v, quantity, system) : v;
+            onChange(si);
           }}
           style={{
             width: 60,
             background: 'var(--color-bg-primary)',
             border: '1px solid var(--color-border-main)',
-            borderRight: unit ? 'none' : '1px solid var(--color-border-main)',
-            borderRadius: unit ? '4px 0 0 4px' : 4,
+            borderRight: resolvedUnit ? 'none' : '1px solid var(--color-border-main)',
+            borderRadius: resolvedUnit ? '4px 0 0 4px' : 4,
             textAlign: 'right',
             fontFamily: 'var(--font-mono)',
             fontSize: 12,
@@ -516,7 +534,7 @@ function NumField({
             color: 'var(--color-text-primary)',
           }}
         />
-        {unit && (
+        {resolvedUnit && (
           <span style={{
             background: 'var(--color-bg-elevated)',
             border: '1px solid var(--color-border-main)',
@@ -528,7 +546,7 @@ function NumField({
             padding: '0 6px',
             minWidth: 32,
           }}>
-            {unit}
+            {resolvedUnit}
           </span>
         )}
       </div>

@@ -25,6 +25,7 @@ import {
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
 import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { showToast } from '../../components/ui/Toast';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
@@ -82,6 +83,7 @@ export function MasonryWallsModule() {
   const [mostrarMapa, setMostrarMapa] = useState(true);
   const [tab, setTab] = useState<MobileTab>('inputs');
   const { openDrawer } = useDrawer();
+  const { system } = useUnitSystem();
 
   // Persist with debounce so rapid edits don't thrash localStorage.
   useEffect(() => {
@@ -101,7 +103,7 @@ export function MasonryWallsModule() {
   // PDF export — invalid disables the button (toast en su lugar).
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
     usePdfPreview(
-      () => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid }),
+      () => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid, system }),
       !invalid,
     );
 
