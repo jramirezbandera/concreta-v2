@@ -237,6 +237,9 @@ function buildRcBeamInputs(
   const psi2Custom = isCteCategory ? getPsiRow(section.loadType).psi2 : 0.3;
 
   return {
+    // FEM siempre opera en semántica 'portico' (pre-fija aunque calcRCBeam
+    // es mode-agnostic — el FEM no consume `mode`).
+    mode: 'portico',
     b: cmToMm(section.b),
     h: cmToMm(section.h),
     cover: section.cover,

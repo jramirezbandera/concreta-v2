@@ -42,6 +42,7 @@ export function RcBarInputs({ bar, setModel, activeSection, setActiveSection, ba
     const Mmax = barResult ? Math.max(...barResult.M.map(Math.abs), 0) : 0;
     const Vmax = barResult ? Math.max(...barResult.V.map(Math.abs), 0) : 0;
     return {
+      mode: 'portico',  // FEM siempre opera en semántica pórtico (vano + apoyo).
       b: sec.b * 10,                 // cm → mm
       h: sec.h * 10,                 // cm → mm
       cover: sec.cover,              // already mm
@@ -117,6 +118,7 @@ export function RcBarInputs({ bar, setModel, activeSection, setActiveSection, ba
       hideSolicitations
       hideSectionTabs
       showBothArmados
+      showModeToggle={false}
     />
   );
 }

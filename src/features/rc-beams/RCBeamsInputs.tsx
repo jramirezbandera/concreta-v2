@@ -23,6 +23,10 @@ interface RCBeamsInputsProps {
    *  apoyo, with a labelled divider between them. Used by FEM embed so the
    *  user sees and edits both regions without toggling. Implies hideSectionTabs. */
   showBothArmados?: boolean;
+  /** When true, render the 'Pórtico / Sección simple' mode toggle at the top.
+   *  Default true en standalone, false en FEM embed (donde el modo simple
+   *  no aplica — FEM siempre opera con la cascada de envolvente). */
+  showModeToggle?: boolean;
 }
 
 function NumField({
@@ -214,11 +218,49 @@ export function RCBeamsInputs({
   hideSolicitations = false,
   hideSectionTabs = false,
   showBothArmados = false,
+  showModeToggle = true,
 }: RCBeamsInputsProps) {
   const isVano = section === 'vano';
+  // localStorage backcompat: states antiguos sin `mode` → default 'portico'.
+  const mode: 'portico' | 'simple' = state.mode === 'simple' ? 'simple' : 'portico';
+  const isSimpleMode = mode === 'simple';
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
+
+      {/* Mode toggle — solo en standalone (no en FEM embed) */}
+      {showModeToggle && (
+        <div className="flex gap-1 mb-3" role="tablist" aria-label="Modo de calculo">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSimpleMode}
+            onClick={() => setField('mode', 'portico')}
+            className={[
+              'flex-1 py-2 px-3 text-[12px] font-medium rounded transition-colors',
+              !isSimpleMode
+                ? 'bg-accent/10 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-secondary border border-border-main hover:text-text-primary',
+            ].join(' ')}
+          >
+            Pórtico
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isSimpleMode}
+            onClick={() => setField('mode', 'simple')}
+            className={[
+              'flex-1 py-2 px-3 text-[12px] font-medium rounded transition-colors',
+              isSimpleMode
+                ? 'bg-accent/10 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-secondary border border-border-main hover:text-text-primary',
+            ].join(' ')}
+          >
+            Sección simple
+          </button>
+        </div>
+      )}
 
       {/* Shared geometry */}
       <CollapsibleSection label="Geometria">
@@ -274,8 +316,10 @@ export function RCBeamsInputs({
       </CollapsibleSection>
 
       {/* Section tab selector — hidden in FEM embed (toggle lives externally
-       *  or both regions are shown side-by-side via showBothArmados) */}
-      {!hideSectionTabs && !showBothArmados && (
+       *  or both regions are shown side-by-side via showBothArmados).
+       *  TAMBIÉN hidden en modo 'simple' donde solo hay 1 sección y vano es
+       *  el único set editable. */}
+      {!hideSectionTabs && !showBothArmados && !isSimpleMode && (
       <div className="flex mt-3 mb-0 border-b border-border-main" role="tablist" aria-label="Seccion">
         <button
           role="tab"
@@ -313,6 +357,9 @@ export function RCBeamsInputs({
           <ArmadoSectionHeader label="Armado · Apoyo (M−)" />
           <PerSectionArmado state={state} setField={setField} sectionKind="apoyo" hideSolicitations={hideSolicitations} />
         </>
+      ) : isSimpleMode ? (
+        // Modo simple: usar 'vano' como "la sección" (sagging-only V1). Sin label.
+        <PerSectionArmado state={state} setField={setField} sectionKind="vano" hideSolicitations={hideSolicitations} />
       ) : (
         <PerSectionArmado state={state} setField={setField} sectionKind={isVano ? 'vano' : 'apoyo'} hideSolicitations={hideSolicitations} />
       )}
