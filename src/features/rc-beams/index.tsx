@@ -15,6 +15,10 @@ import { RCBeamsInputs } from './RCBeamsInputs';
 import { RCBeamsSVG } from './RCBeamsSVG';
 import { RCBeamsResults } from './RCBeamsResults';
 import { RCBeamSimpleView } from './RCBeamSimpleView';
+import { RCBeamStrainSVG } from './RCBeamStrainSVG';
+import { RCBeamForcesSVG } from './RCBeamForcesSVG';
+import { pickSectionInputs } from '../../lib/calculations/rcBeams';
+import { solveSectionAtMoment } from '../../lib/calculations/rcBeamsSection';
 
 export function RCBeamsModule() {
   const { state, setField, reset } = useModuleState('rc-beams', rcBeamDefaults);
@@ -176,7 +180,7 @@ export function RCBeamsModule() {
 
       </div>
 
-      {/* Hidden PDF clones — vano (M+) and apoyo (M-) */}
+      {/* Hidden PDF clones — vano (M+) and apoyo (M-) for portico mode */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
         <div
           id="rc-beams-svg-pdf-vano"
@@ -190,6 +194,28 @@ export function RCBeamsModule() {
         >
           <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="pdf" width={300} height={370} />
         </div>
+        {/* Simple-mode PDF clones — strain | section | forces */}
+        {isSimple && (() => {
+          const secInp = pickSectionInputs(state, 'vano');
+          const sectionResult = solveSectionAtMoment(secInp, secInp.Md);
+          const h = state.h as number;
+          return (
+            <>
+              <div
+                id="rc-beams-svg-pdf-strain"
+                style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+              >
+                <RCBeamStrainSVG sectionResult={sectionResult} h={h} mode="pdf" width={300} height={370} />
+              </div>
+              <div
+                id="rc-beams-svg-pdf-forces"
+                style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+              >
+                <RCBeamForcesSVG sectionResult={sectionResult} h={h} mode="pdf" width={300} height={370} />
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {pdfPreview && (

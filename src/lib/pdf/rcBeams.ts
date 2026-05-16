@@ -5,7 +5,9 @@
 import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type RCBeamInputs } from '../../data/defaults';
-import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus } from '../calculations/rcBeams';
+import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus, pickSectionInputs } from '../calculations/rcBeams';
+import { solveSectionAtMoment } from '../calculations/rcBeamsSection';
+import { buildSectionNarrative } from '../../features/rc-beams/rcBeamNarrative';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -143,6 +145,11 @@ export async function exportRCBeamsPDF(
   result: RCBeamResult,
   system: UnitSystem = 'si',
 ): Promise<PdfResult> {
+  // Simple-mode PDF: 3-SVG layout focused on una sola sección + narrativa.
+  if (inp.mode === 'simple') {
+    return exportRCBeamsSimplePDF(inp, result, system);
+  }
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -252,6 +259,198 @@ export async function exportRCBeamsPDF(
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = `concreta-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pageCount = (doc.internal as any).getNumberOfPages();
+  return { blobUrl, filename, pageCount };
+}
+
+// ── Simple mode PDF (3 SVGs + section state data + narrative) ───────────────
+async function exportRCBeamsSimplePDF(
+  inp: RCBeamInputs,
+  result: RCBeamResult,
+  system: UnitSystem,
+): Promise<PdfResult> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+
+  // Resolver la sección al Md (mismo motor que el viewer).
+  const secInp = pickSectionInputs(inp, 'vano');
+  const sectionResult = solveSectionAtMoment(secInp, secInp.Md);
+  const MRd = result.vano?.MRd ?? 0;
+  const Md = sectionResult.Md;
+  const utilization = MRd > 0 ? (Md / MRd) * 100 : 0;
+  const resists = Md <= MRd && !sectionResult.exceededCapacity;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  setGray(doc, 30);
+  doc.text('Concreta — Sección de Viga (modo simple)', M, M);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  setGray(doc, 120);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+
+  hline(doc, M + 8, 200, 0.3);
+
+  // ── Verdict block — Md vs MRd, prominent ───────────────────────────────────
+  let y = M + 13;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  setGray(doc, 30);
+  doc.text(
+    `Md = ${fmtSi(Md, 'moment')}   /   MRd = ${fmtSi(MRd, 'moment')}   →   ${utilization.toFixed(0)}% capacidad   ·   ${resists ? 'RESISTE' : 'NO RESISTE'}`,
+    M,
+    y,
+  );
+  y += 6;
+
+  // ── Section inputs summary ────────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  setGray(doc, 60);
+  doc.text('GEOMETRIA Y ARMADO', M, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  setGray(doc, 80);
+  const lineH = 4;
+  const COL2X = M + 58;
+  const COL3X = M + 116;
+  const infoLines: Array<[string, string, string]> = [
+    [`b = ${inp.b} mm`, `h = ${inp.h} mm`, `Recub. = ${inp.cover} mm`],
+    [`fck = ${inp.fck} MPa`, `fyk = ${inp.fyk} MPa`, `Exp.: ${inp.exposureClass}`],
+    [
+      `Tracción: ${inp.vano_bot_nBars}Ø${inp.vano_bot_barDiam}`,
+      `Compresión: ${inp.vano_top_nBars}Ø${inp.vano_top_barDiam}`,
+      `Estr.: Ø${inp.vano_stirrupDiam}/c${inp.vano_stirrupSpacing} (${inp.vano_stirrupLegs}R)`,
+    ],
+  ];
+  for (const [c1, c2, c3] of infoLines) {
+    doc.text(c1, M, y);
+    doc.text(c2, COL2X, y);
+    doc.text(c3, COL3X, y);
+    y += lineH;
+  }
+  hline(doc, y, 210, 0.2);
+  y += 4;
+
+  // ── 3 SVGs en fila ────────────────────────────────────────────────────────
+  const SVG_GAP = 4;
+  const SVG_W = (CW - 2 * SVG_GAP) / 3; // ~54mm cada uno
+  const SVG_H = 60;
+  const xStrain = M;
+  const xSection = M + SVG_W + SVG_GAP;
+  const xForces = M + 2 * (SVG_W + SVG_GAP);
+
+  const svgStrain  = document.getElementById('rc-beams-svg-pdf-strain')?.querySelector('svg')  as SVGSVGElement | null;
+  const svgSection = document.getElementById('rc-beams-svg-pdf-vano')?.querySelector('svg')    as SVGSVGElement | null;
+  const svgForces  = document.getElementById('rc-beams-svg-pdf-forces')?.querySelector('svg')  as SVGSVGElement | null;
+
+  if (svgStrain) {
+    try {
+      await svg2pdf(svgStrain, doc, { x: xStrain, y, width: SVG_W, height: SVG_H });
+    } catch { console.warn('rc-beams PDF simple: failed to render STRAIN SVG'); }
+  }
+  if (svgSection) {
+    try {
+      await svg2pdf(svgSection, doc, { x: xSection, y, width: SVG_W, height: SVG_H });
+    } catch { console.warn('rc-beams PDF simple: failed to render SECTION SVG'); }
+  }
+  if (svgForces) {
+    try {
+      await svg2pdf(svgForces, doc, { x: xForces, y, width: SVG_W, height: SVG_H });
+    } catch { console.warn('rc-beams PDF simple: failed to render FORCES SVG'); }
+  }
+
+  const captionY = y + SVG_H + 3;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  setGray(doc, 120);
+  doc.text('Deformación (ε)', xStrain, captionY);
+  doc.text('Sección', xSection, captionY);
+  doc.text('Fuerzas movilizadas', xForces, captionY);
+
+  y = captionY + 5;
+  hline(doc, y, 200, 0.25);
+  y += 4;
+
+  // ── Section state data row ─────────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  setGray(doc, 60);
+  doc.text('ESTADO DE LA SECCIÓN AL Md', M, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  setGray(doc, 80);
+
+  const epsTopP = (sectionResult.epsilon_top * 1000).toFixed(2);
+  const epsBotP = (sectionResult.epsilon_bot * 1000).toFixed(2);
+  const epsSP   = (sectionResult.epsilon_s_tens * 1000).toFixed(2);
+  const epsSCP  = (sectionResult.epsilon_s_comp * 1000).toFixed(2);
+
+  const stateLines: Array<[string, string, string]> = [
+    [
+      `x (eje neutro) = ${sectionResult.x.toFixed(0)} mm`,
+      `d (canto util) = ${sectionResult.d.toFixed(0)} mm`,
+      `Modo: ${sectionResult.mode}`,
+    ],
+    [
+      `ε_top = ${epsTopP}‰`,
+      `ε_bot = ${epsBotP}‰`,
+      `ε_s (tracc) = ${epsSP}‰    ε_s' (comp) = ${epsSCP}‰`,
+    ],
+    [
+      `F_c = ${fmtSi(Math.abs(sectionResult.F_concrete), 'force')}`,
+      `F_s' = ${fmtSi(Math.abs(sectionResult.F_s_comp), 'force')}`,
+      `F_s = ${fmtSi(Math.abs(sectionResult.F_s_tens), 'force')}`,
+    ],
+    [
+      `σ_s (tracc) = ${sectionResult.sigma_s_tens.toFixed(0)} MPa`,
+      `σ_s' (comp) = ${sectionResult.sigma_s_comp.toFixed(0)} MPa`,
+      `${sectionResult.steelYielded_tens ? 'Acero tracción yielded' : ''}${sectionResult.concreteCrushed ? ' · Hormigón crushed' : ''}`,
+    ],
+  ];
+  for (const [c1, c2, c3] of stateLines) {
+    doc.text(c1, M, y);
+    doc.text(c2, COL2X, y);
+    doc.text(c3, COL3X, y);
+    y += lineH;
+  }
+
+  hline(doc, y, 210, 0.2);
+  y += 4;
+
+  // ── Narrative ─────────────────────────────────────────────────────────────
+  const narrative = buildSectionNarrative(sectionResult, MRd);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  setGray(doc, 60);
+  const wrapped = doc.splitTextToSize(narrative, CW);
+  for (const line of wrapped) {
+    if (y > PAGE_H - M - 15) break;
+    doc.text(line, M, y);
+    y += 4;
+  }
+  y += 2;
+  hline(doc, y, 210, 0.2);
+  y += 4;
+
+  // ── ELU/ELS checks ────────────────────────────────────────────────────────
+  drawSectionTable(doc, result.vano, 'Sección — verificaciones ELU/ELS (CE)', y, system);
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  const footerY = PAGE_H - 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  setGray(doc, 150);
+  doc.text('Concreta — concreta.app | Codigo Estructural (CE) Espana · CE 21.3.3 (parábola-rectángulo)', M, footerY);
+  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
+
+  const filename = `concreta-viga-simple-${new Date().toISOString().slice(0, 10)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as any).getNumberOfPages();
