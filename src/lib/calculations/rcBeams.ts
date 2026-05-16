@@ -60,7 +60,7 @@ const PSI2_MAP: Record<string, number> = {
 };
 
 
-interface SectionInputs {
+export interface SectionInputs {
   b: number;
   h: number;
   cover: number;
@@ -78,6 +78,49 @@ interface SectionInputs {
   barDiamComp: number;    // compression bar diameter
   stirrupSpacing: number;
   bondClass: 'good' | 'poor';
+}
+
+/**
+ * Extracts SectionInputs (used by both calcRCBeam and solveSectionAtMoment)
+ * from RCBeamInputs for the given section kind. M+ uses vano fields with
+ * bottom-reinforcement-as-tension; M− uses apoyo fields with top-as-tension.
+ *
+ * Mode 'simple' V1: sagging only → use 'vano' kind (bottom = tension, top = compression).
+ */
+export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): SectionInputs {
+  // El index signature de RCBeamInputs `string|number|boolean` requiere casts
+  // explícitos. Los campos declarados como `number` en la interface SÍ son
+  // numéricos en runtime; el cast es solo para TypeScript.
+  const num = (v: string | number | boolean): number => v as number;
+  const str = (v: string | number | boolean): string => v as string;
+  const isVano = kind === 'vano';
+  return {
+    b: num(state.b),
+    h: num(state.h),
+    cover: num(state.cover),
+    stirrupDiam: num(isVano ? state.vano_stirrupDiam : state.apoyo_stirrupDiam),
+    stirrupLegs: num(isVano ? state.vano_stirrupLegs : state.apoyo_stirrupLegs),
+    fck: num(state.fck),
+    fyk: num(state.fyk),
+    exposureClass: str(state.exposureClass),
+    Md: num(isVano ? state.vano_Md : state.apoyo_Md),
+    VEd: num(isVano ? state.vano_VEd : state.apoyo_VEd),
+    Ms: psi2Quasi(state) * num(isVano
+      ? (num(state.vano_M_G) + num(state.vano_M_Q))
+      : (num(state.apoyo_M_G) + num(state.apoyo_M_Q))),
+    nBars: num(isVano ? state.vano_bot_nBars : state.apoyo_top_nBars),
+    barDiam: num(isVano ? state.vano_bot_barDiam : state.apoyo_top_barDiam),
+    nBarsComp: num(isVano ? state.vano_top_nBars : state.apoyo_bot_nBars),
+    barDiamComp: num(isVano ? state.vano_top_barDiam : state.apoyo_bot_barDiam),
+    stirrupSpacing: num(isVano ? state.vano_stirrupSpacing : state.apoyo_stirrupSpacing),
+    bondClass: (state.bondClass === 'poor' ? 'poor' : 'good'),
+  };
+}
+
+function psi2Quasi(state: RCBeamInputs): number {
+  const lt = state.loadType as string;
+  if (lt === 'custom') return state.psi2Custom as number;
+  return PSI2_MAP[lt] ?? 0.3;
 }
 
 function invalidSection(error: string): RCBeamSectionResult {

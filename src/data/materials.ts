@@ -4,21 +4,31 @@ export interface ConcreteGrade {
   fcd: number;   // MPa (αcc·fck/γc, αcc=1.0, γc=1.5)
   fctm: number;  // MPa mean tensile strength
   Ecm: number;   // GPa  secant modulus
+  /** Strain at parabola plateau (CE 21.3.3, ε_c2). Default 0.002 for fck≤50.
+   *  HSC: 0.002 + 0.000085·(fck-50)^0.53. */
+  eps_c2: number;
+  /** Ultimate concrete strain (CE 21.3.3, ε_cu2). Default 0.0035 for fck≤50.
+   *  HSC: 0.0026 + 0.035·((90-fck)/100)^4. */
+  eps_cu: number;
+  /** Parabola exponent (CE 21.3.3). Default 2 for fck≤50.
+   *  HSC: 1.4 + 23.4·((90-fck)/100)^4. */
+  n: number;
 }
 
 // fctm = 0.30 * fck^(2/3) for fck <= 50 MPa
 // fctm = 2.12 * ln(1 + (fcm/10)) for fck > 50 MPa, fcm = fck + 8
 // Ecm = 22000 * ((fck+8)/10)^0.3  MPa → stored as GPa
+// CE 21.3.3 ε_c2/ε_cu/n for fck≤50: 0.002 / 0.0035 / 2
 const concrete: ConcreteGrade[] = [
-  { fck: 12, fcd: 8.0,  fctm: 1.57, Ecm: 27.1 },
-  { fck: 16, fcd: 10.7, fctm: 1.90, Ecm: 29.0 },
-  { fck: 20, fcd: 13.3, fctm: 2.21, Ecm: 30.0 },
-  { fck: 25, fcd: 16.7, fctm: 2.56, Ecm: 31.5 },
-  { fck: 30, fcd: 20.0, fctm: 2.90, Ecm: 32.8 },
-  { fck: 35, fcd: 23.3, fctm: 3.21, Ecm: 34.1 },
-  { fck: 40, fcd: 26.7, fctm: 3.51, Ecm: 35.2 },
-  { fck: 45, fcd: 30.0, fctm: 3.80, Ecm: 36.3 },
-  { fck: 50, fcd: 33.3, fctm: 4.07, Ecm: 37.3 },
+  { fck: 12, fcd: 8.0,  fctm: 1.57, Ecm: 27.1, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 16, fcd: 10.7, fctm: 1.90, Ecm: 29.0, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 20, fcd: 13.3, fctm: 2.21, Ecm: 30.0, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 25, fcd: 16.7, fctm: 2.56, Ecm: 31.5, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 30, fcd: 20.0, fctm: 2.90, Ecm: 32.8, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 35, fcd: 23.3, fctm: 3.21, Ecm: 34.1, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 40, fcd: 26.7, fctm: 3.51, Ecm: 35.2, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 45, fcd: 30.0, fctm: 3.80, Ecm: 36.3, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 50, fcd: 33.3, fctm: 4.07, Ecm: 37.3, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
 ];
 
 export const availableFck = concrete.map((c) => c.fck);
@@ -31,7 +41,11 @@ export function getConcrete(fck: number): ConcreteGrade {
     ? 0.3 * Math.pow(fck, 2 / 3)
     : 2.12 * Math.log(1 + (fck + 8) / 10);
   const Ecm = (22000 * Math.pow((fck + 8) / 10, 0.3)) / 1000; // GPa
-  return { fck, fcd: fck / 1.5, fctm, Ecm };
+  // CE 21.3.3 parábola constants: para fck > 50 cambian.
+  const eps_c2  = fck <= 50 ? 0.002  : 0.002 + 0.000085 * Math.pow(Math.max(0, fck - 50), 0.53);
+  const eps_cu  = fck <= 50 ? 0.0035 : 0.0026 + 0.035 * Math.pow(Math.max(0, 90 - fck) / 100, 4);
+  const n       = fck <= 50 ? 2      : 1.4 + 23.4 * Math.pow(Math.max(0, 90 - fck) / 100, 4);
+  return { fck, fcd: fck / 1.5, fctm, Ecm, eps_c2, eps_cu, n };
 }
 
 // Steel reinforcement
