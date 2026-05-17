@@ -454,7 +454,9 @@
   .ap-body {
     flex: 1;
     display: grid;
-    grid-template-columns: 142px 168px 1fr 184px;
+    /* Canvas (1fr) is the SVG — "el protagonista". Trim the fixed columns so it
+       reads as the widest area, mirroring the real app, not a starved sliver. */
+    grid-template-columns: 132px 162px 1fr 168px;
     min-height: 0;
   }
   .ap-sidebar {
