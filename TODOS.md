@@ -6,21 +6,22 @@ Items deferred from the CEO review and design doc. Work these before public laun
 
 ### Monetization model decision
 
-**Status:** DEFERRED (CEO review 2026-03-27)
+**Status:** DECIDED — Subscription (landing redesign, 2026-05-17)
 
-Options to evaluate:
-- **Free / OSS** — builds community, no revenue. Best if goal is platform adoption.
-- **Freemium** — PDF export behind paywall? Core calcs free, premium output.
-- **Subscription** — 10-20€/mo. Recurring revenue, low friction, industry norm.
-- **One-time purchase** — 50-100€. Engineers prefer owning tools.
+Chosen: **subscription**. Three tiers, advertised on the redesigned landing page
+(`src/pages/landing/sections.tsx`, `PricingSection`):
+- **Libre** — 0 €/mes. Vigas HA y vigas acero, cálculo ilimitado, sin exportación PDF.
+- **Pro** — 19 €/mes. Todos los módulos, exportación PDF, marca propia.
+- **Studio** — 49 €/mes. Hasta 5 técnicos.
 
-Decision affects: branding, landing page copy, whether to gate any features, pricing page.
+Original options considered: Free/OSS, Freemium, Subscription, One-time purchase.
 
-**Architecture note:** the MVP shell has no monetization assumptions baked in.
-Do not add feature flags or gating logic until this decision is made.
-
-**How to decide:** talk to 5 structural engineers. Ask what they pay for CYPE or similar.
-The answer is usually a monthly subscription in the 30-80€ range — which makes 10-20€ look cheap.
+**Still pending (implementation, not decision):** the app shell has no monetization
+logic yet. Gating (auth, plan checks, PDF export by tier) is a separate work item —
+the landing only commits the model publicly, it does not implement it. When that work
+starts, note the existing feedback that PDF export must never be disabled based on
+*result validity* (a failing profile still needs its PDF); tier-based gating is a
+different axis and is fine.
 
 ### Calc validation strategy
 
@@ -94,6 +95,29 @@ between `<div className="h-px bg-border-main" />` (after Features) and the Modul
 **Why P2:** Can't add fake testimonials. Landing is accurate today. Trust signals matter
 most when competing for engineers who heard about Concreta from a colleague — they'll check
 the landing before trying it.
+
+### Landing: blog subpages — make post cards lead somewhere (design review 2026-05-17)
+
+**What:** the landing's blog section (`src/pages/landing/sections.tsx`, `BlogSection`) shows 3
+post cards with hover-lift and a `→` arrow — they look clickable but their `href` is `#blog`,
+so clicking just scrolls to the section the card already lives in. Either build the blog
+subpages (`blog.html` + `blog-post.html` from the design handoff bundle, markdown-driven) or
+strip the clickable affordances (hover-lift, arrow, pointer cursor) until they exist.
+
+**Why:** a card that invites a click and does nothing erodes trust. The design handoff
+included a full markdown-driven blog system (`posts/*.md` + `index.json`) that was descoped
+when only `index.html` was implemented.
+
+**Pros:** real blog drives SEO + the "interpretación normativa" content angle from the design
+chat; closes a visible dead-end on the landing.
+
+**Cons:** the markdown blog system is a meaningful chunk of work (fetch + frontmatter parser +
+`marked.js` render + TOC). Stripping the affordances is ~5 min but leaves the landing thinner.
+
+**Context:** design review 2026-05-17. Handoff bundle `concreta-relanding` has the full blog
+implementation (`blog.html`, `blog-post.html`, `posts/`) ready to port.
+
+**Depends on:** nothing — self-contained.
 
 ### Retaining wall: NCSP-07 S·Ab cap warning (eng-review 2026-04-01)
 
