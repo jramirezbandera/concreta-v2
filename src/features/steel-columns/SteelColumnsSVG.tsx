@@ -534,10 +534,6 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
       aria-label="Sección transversal y geometría del pilar"
       style={{ background: C.bg }}
     >
-      {/* Divider */}
-      <line x1={leftW} y1={8} x2={leftW} y2={height - 8}
-        stroke={isPdf ? '#dddddd' : '#253147'} strokeWidth={1} />
-
       {/* Left panel: cross-section */}
       {sectionShape}
 
