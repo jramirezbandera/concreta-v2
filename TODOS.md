@@ -446,3 +446,31 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 **Depends on:** FEM V1 implementación (no es bloqueante de ship, pero sí de cierre del módulo).
 
 
+
+### V1 — FUERZAS movilizadas (rc-beams): replantear la escala del diagrama
+
+**Status:** TO DO — design debt, no bloqueante.
+
+**What:** rediseñar la escala/layout del SVG `RCBeamForcesSVG`. Hoy las fuerzas se
+dibujan en su altura de fibra física real: la cabeza de compresión queda comprimida
+en la franja superior (~40px) con 4 etiquetas amontonadas (F_c, σ_top, y=0, F_s')
+mientras el centro del diagrama queda vacío.
+
+**Why:** la franja superior está congestionada y el centro desaprovechado. Es legible
+pero no respira. El diagrama es protagonista (DESIGN.md) y merece holgura.
+
+**Pros:** descongestiona el área más densa; aprovecha el espacio muerto central.
+
+**Cons:** no es mover una etiqueta — es repensar la escala vertical del diagrama;
+`RCBeamForcesSVG` ya está muy iterado, riesgo de regresión. Hacerlo como rediseño
+con verificación visual before/after, no como parche.
+
+**Context:** detectado en /design-review 2026-05-17 (FINDING-002, deferred). Las
+otras dos etiquetas de esa sesión (cota h recortada, eje ε‰ flotante) sí se
+corrigieron — commits a7f231f y 083c413.
+
+**Where to start:** `src/features/rc-beams/RCBeamForcesSVG.tsx`. Considerar
+desacoplar la escala visual de la altura física, o una escala partida que dé aire
+a la cabeza de compresión sin perder la lectura de posiciones de fibra.
+
+**Depends on:** nada. Independiente.
