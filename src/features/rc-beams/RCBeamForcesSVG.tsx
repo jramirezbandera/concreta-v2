@@ -14,9 +14,12 @@
 //         y se curva al acercarse a la fibra neutra (parte baja = parábola).
 //       · Flecha F_s' en y=r_s (acero comprimido) apuntando HACIA la sección.
 //   - Lado DERECHO   → tracción:
-//       · Flecha F_s en y=d apuntando hacia AFUERA de la sección.
+//       · Flecha F_s en y=d. Apunta HACIA la sección (←), sentido OPUESTO a
+//         las flechas de compresión (→). Compresión y tracción forman el par
+//         de fuerzas resistente: dibujarlas con distinto sentido deja claro
+//         de un vistazo qué fibra comprime y cuál tracciona.
 //
-// Convención cartesiana: compresión negativa (←), tracción positiva (→).
+// Convención de signos (magnitudes): compresión negativa, tracción positiva.
 //
 // Etiquetas SIEMPRE inside-bounds (anchor=start desde el borde izquierdo del
 // envelope, no end-anchor que clipea fuera del SVG).
@@ -325,13 +328,15 @@ interface TensArrowProps {
 }
 
 function TensArrow({ y, xSection, length, color, markerId, label, labelColor, maxRightX }: TensArrowProps) {
-  const xStart = xSection + 2;
-  const xEnd = xSection + length + 2;
-  // Etiqueta encima de la punta de la flecha, anchor=end para no salirse.
-  const labelX = Math.min(maxRightX, xEnd);
+  const xNear = xSection + 2;             // extremo junto a la sección
+  const xFar = xSection + length + 2;     // extremo lejano
+  // La flecha de tracción apunta HACIA la sección (←): cuerpo a la derecha,
+  // punta en xNear. Sentido opuesto a las de compresión (→) → el par de
+  // fuerzas resistente se lee de un vistazo.
+  const labelX = Math.min(maxRightX, xFar);
   return (
     <>
-      <line x1={xStart} y1={y} x2={xEnd} y2={y} stroke={color} strokeWidth="1.5" markerEnd={`url(#${markerId})`} />
+      <line x1={xFar} y1={y} x2={xNear} y2={y} stroke={color} strokeWidth="1.5" markerEnd={`url(#${markerId})`} />
       <text x={labelX} y={y - 4} fill={labelColor} fontSize="10" fontFamily="var(--font-mono)" fontWeight="600" textAnchor="end">
         {label}
       </text>
