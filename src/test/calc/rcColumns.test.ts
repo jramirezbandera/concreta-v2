@@ -545,3 +545,94 @@ describe('RC Columns — Biaxial bending (new)', () => {
     expect(r.valid).toBe(false);
   });
 });
+
+// ── N-M interaction diagram ──────────────────────────────────────────────────
+import { buildColumnInteraction } from '../../lib/calculations/rcColumns';
+
+describe('RC Columns — N-M interaction diagram', () => {
+  it('valid for defaults, both axes present', () => {
+    const r = calcRCColumn(inp());
+    const d = buildColumnInteraction(inp(), r);
+    expect(d.valid).toBe(true);
+    expect(d.y).not.toBeNull();
+    expect(d.z).not.toBeNull();
+  });
+
+  it('reinforced envelope has monotonic non-decreasing N (no spurious tail)', () => {
+    const r = calcRCColumn(inp());
+    const N = buildColumnInteraction(inp(), r).y!.reinforced.map((p) => p.N);
+    expect(N.length).toBeGreaterThan(3);
+    for (let i = 1; i < N.length; i++) {
+      expect(N[i]).toBeGreaterThan(N[i - 1] - 1e-6);
+    }
+  });
+
+  it('tension nose ≈ −As·fyd, M = 0', () => {
+    const r = calcRCColumn(inp());
+    const d = buildColumnInteraction(inp(), r);
+    const expectedN = -r.As_total * (500 / 1.15) / 1e3;
+    expect(d.y!.reinforced[0].N).toBeCloseTo(expectedN, 0);
+    expect(d.y!.reinforced[0].M).toBeCloseTo(0, 5);
+  });
+
+  it('reinforced curve closes at the pure-compression point (NRd_max, 0)', () => {
+    const r = calcRCColumn(inp());
+    const last = buildColumnInteraction(inp(), r).y!.reinforced.at(-1)!;
+    expect(last.N).toBeCloseTo(r.NRd_max, 0);
+    expect(last.M).toBeCloseTo(0, 5);
+  });
+
+  it('plain envelope never exceeds reinforced (steel only adds capacity)', () => {
+    const r = calcRCColumn(inp());
+    const ax = buildColumnInteraction(inp(), r).y!;
+    const reinf = ax.reinforced;
+    const interpM = (N: number): number | null => {
+      if (N < reinf[0].N || N > reinf[reinf.length - 1].N) return null;
+      for (let i = 0; i < reinf.length - 1; i++) {
+        const a = reinf[i], c = reinf[i + 1];
+        if (N >= a.N && N <= c.N) {
+          const f = c.N - a.N < 1e-9 ? 0 : (N - a.N) / (c.N - a.N);
+          return a.M + f * (c.M - a.M);
+        }
+      }
+      return null;
+    };
+    for (const p of ax.plain) {
+      const rm = interpM(p.N);
+      if (rm === null) continue;
+      expect(p.M).toBeLessThanOrEqual(rm + 1.0); // 1 kN·m interp tolerance
+    }
+  });
+
+  it('applied marker = (Nd, MEd_tot) for the axis', () => {
+    const r = calcRCColumn(inp());
+    const d = buildColumnInteraction(inp(), r);
+    expect(d.y!.applied.N).toBe(500);
+    expect(d.y!.applied.M).toBeCloseTo(r.MEd_tot_y, 3);
+    expect(d.z!.applied.M).toBeCloseTo(r.MEd_tot_z, 3);
+  });
+
+  it('exactly one axis is flagged governing', () => {
+    const r = calcRCColumn(inp());
+    const d = buildColumnInteraction(inp(), r);
+    expect((d.y!.governing ? 1 : 0) + (d.z!.governing ? 1 : 0)).toBe(1);
+  });
+
+  it('overloaded column → marker outside the envelope', () => {
+    const r = calcRCColumn(inp({ MEdy: 500 }));
+    const d = buildColumnInteraction(inp({ MEdy: 500 }), r);
+    expect(d.y!.inside).toBe(false);
+  });
+
+  it('lightly loaded column → marker inside the envelope', () => {
+    const r = calcRCColumn(inp({ MEdy: 1, Nd: 200 }));
+    const d = buildColumnInteraction(inp({ MEdy: 1, Nd: 200 }), r);
+    expect(d.y!.inside).toBe(true);
+  });
+
+  it('invalid section → interaction invalid', () => {
+    const r = calcRCColumn(inp({ cornerBarDiam: 4 }));
+    const d = buildColumnInteraction(inp({ cornerBarDiam: 4 }), r);
+    expect(d.valid).toBe(false);
+  });
+});

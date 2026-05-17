@@ -134,12 +134,78 @@ function interpExponent(ned: number): number {
   return 2.0; // clamped — ned can exceed 1.0 in gap zone (NRd_Whitney > NRd_max)
 }
 
+// ── Section model — geometry + materials + bar groups + axial capacities ────
+// Construcción de barsY/barsZ + NRd_max/NRd_Whitney extraída como helper
+// compartido por calcRCColumn y buildColumnInteraction: una sola fuente para
+// el modelo de sección, sin forkear el motor (autoplan eng review 2026-05-17).
+interface SectionModel {
+  mat: ReturnType<typeof getConcrete>;
+  fcd: number;
+  fyd: number;
+  As_total: number;
+  d_prime: number;
+  d_y: number;
+  d_z: number;
+  barsY: BarGroup[];
+  barsZ: BarGroup[];
+  NRd_max: number;      // N — compresión pura, área neta (CE art. 39)
+  NRd_Whitney: number;  // N — bloque de Whitney a canto completo
+}
+
+function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string } {
+  const { b, h, cover, cornerBarDiam, nBarsX, barDiamX, nBarsY, barDiamY,
+          stirrupDiam, fck, fyk } = inp;
+
+  if (cornerBarDiam < 6) return { error: 'Diámetro de barra esquina debe ser ≥ 6 mm' };
+  if (nBarsX < 0 || nBarsY < 0) return { error: 'El número de barras intermedias no puede ser negativo' };
+
+  const mat = getConcrete(fck);
+  const fcd = mat.fcd;
+  const fyd = getFyd(fyk);
+
+  const cornerArea = getBarArea(cornerBarDiam);
+  const areaX = getBarArea(barDiamX);
+  const areaY = getBarArea(barDiamY);
+  const As_total = 4 * cornerArea + 2 * nBarsX * areaX + 2 * nBarsY * areaY;
+
+  const d_prime = cover + stirrupDiam + cornerBarDiam / 2;
+  const d_y = h - cover - stirrupDiam - cornerBarDiam / 2; // y-axis, depth = h
+  const d_z = b - cover - stirrupDiam - cornerBarDiam / 2; // z-axis, depth = b
+
+  if (d_y <= d_prime) return { error: 'Canto insuficiente para el diámetro de barra esquina' };
+  if (d_z <= d_prime) return { error: 'Ancho insuficiente para el diámetro de barra esquina' };
+
+  // Y-axis: depth = h, width = b. Caras primarias sup/inf; barras laterales izq/der.
+  const As_top = 2 * cornerArea + nBarsX * areaX;
+  const barsY: BarGroup[] = [
+    { y: d_prime, area: As_top },
+    { y: d_y, area: As_top },
+  ];
+  for (let i = 1; i <= nBarsY; i++) {
+    barsY.push({ y: d_prime + i * (h - 2 * d_prime) / (nBarsY + 1), area: 2 * areaY });
+  }
+
+  // Z-axis: depth = b, width = h. Caras primarias izq/der; barras laterales sup/inf.
+  const As_left = 2 * cornerArea + nBarsY * areaY;
+  const barsZ: BarGroup[] = [
+    { y: d_prime, area: As_left },
+    { y: d_z, area: As_left },
+  ];
+  for (let i = 1; i <= nBarsX; i++) {
+    barsZ.push({ y: d_prime + i * (b - 2 * d_prime) / (nBarsX + 1), area: 2 * areaX });
+  }
+
+  const NRd_max = fcd * (b * h - As_total) + fyd * As_total;
+  const NRd_Whitney = fcd * 0.8 * b * h + As_total * fyd;
+
+  return { mat, fcd, fyd, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max, NRd_Whitney };
+}
+
 export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const {
     b, h, cover,
     cornerBarDiam, nBarsX, barDiamX, nBarsY, barDiamY,
     stirrupDiam, stirrupSpacing,
-    fck, fyk,
     Nd, MEdy, MEdz,
     L, beta,
   } = inp;
@@ -161,50 +227,12 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
 
   // ── Input validation ───────────────────────────────────────────────────────
   if (Nd < 1) return invalid('NEd debe ser \u2265 1 kN (m\u00f3dulo para flexocompresi\u00f3n)');
-  if (cornerBarDiam < 6) return invalid('Di\u00e1metro de barra esquina debe ser \u2265 6 mm');
-  if (nBarsX < 0 || nBarsY < 0) return invalid('El n\u00famero de barras intermedias no puede ser negativo');
 
-  const mat = getConcrete(fck);
-  const fcd = mat.fcd;
-  const fyd = getFyd(fyk);
-
-  // ── Step 1: Derived geometry ───────────────────────────────────────────────
-  const cornerArea = getBarArea(cornerBarDiam);
-  const areaX      = getBarArea(barDiamX);
-  const areaY      = getBarArea(barDiamY);
-  const As_total   = 4 * cornerArea + 2 * nBarsX * areaX + 2 * nBarsY * areaY;
-
-  const d_prime = cover + stirrupDiam + cornerBarDiam / 2;
-  const d_y     = h - cover - stirrupDiam - cornerBarDiam / 2; // y-axis, depth = h
-  const d_z     = b - cover - stirrupDiam - cornerBarDiam / 2; // z-axis, depth = b
-
-  if (d_y <= d_prime) return invalid('Canto insuficiente para el di\u00e1metro de barra esquina');
-  if (d_z <= d_prime) return invalid('Ancho insuficiente para el di\u00e1metro de barra esquina');
-
-  // ── Step 2: Bar position arrays ────────────────────────────────────────────
-  // Y-axis: neutral axis horizontal, depth = h, width = b
-  // Primary faces: top (compression) + bottom (tension). Side bars = left/right face (nBarsY).
-  const As_top = 2 * cornerArea + nBarsX * areaX;
-  const barsY: BarGroup[] = [
-    { y: d_prime, area: As_top },
-    { y: d_y,     area: As_top },
-  ];
-  for (let i = 1; i <= nBarsY; i++) {
-    const yi = d_prime + i * (h - 2 * d_prime) / (nBarsY + 1);
-    barsY.push({ y: yi, area: 2 * areaY });
-  }
-
-  // Z-axis: neutral axis vertical, depth = b, width = h
-  // Primary faces: left + right. Side bars = top/bottom face (nBarsX).
-  const As_left = 2 * cornerArea + nBarsY * areaY;
-  const barsZ: BarGroup[] = [
-    { y: d_prime, area: As_left },
-    { y: d_z,     area: As_left },
-  ];
-  for (let i = 1; i <= nBarsX; i++) {
-    const zi = d_prime + i * (b - 2 * d_prime) / (nBarsX + 1);
-    barsZ.push({ y: zi, area: 2 * areaX });
-  }
+  const sm = buildSectionModel(inp);
+  if ('error' in sm) return invalid(sm.error);
+  const {
+    mat, fcd, fyd, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max, NRd_Whitney,
+  } = sm;
 
   // ── Step 3: Slenderness per axis ───────────────────────────────────────────
   const lambda_y = Lk_mm / (h / Math.sqrt(12));  // strong axis (iy = h/√12)
@@ -228,10 +256,6 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const e2_z = lambda_z > 25 ? curv_z * Lk_mm * Lk_mm / 10 : 0;
   const e_tot_z = e1_z + e_imp_z + e2_z;
   const MEd_tot_z = NEd_N * e_tot_z / 1e6;  // kNm
-
-  // ── Step 5: Pure compression capacity + Whitney guard ─────────────────────
-  const NRd_max     = fcd * (b * h - As_total) + fyd * As_total;  // N (net area, CE art. 39)
-  const NRd_Whitney = fcd * 0.8 * b * h + As_total * fyd;         // N (Whitney block at full depth)
 
   // ── Step 6: N-M interaction for both axes ─────────────────────────────────
   const axisY = computeAxis(NEd_N, h, b, barsY, fcd, fyd, NRd_max, NRd_Whitney);
@@ -541,4 +565,125 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     rebarSchedule, lapLength,
     checks,
   };
+}
+
+// === N-M interaction diagram (capacity envelope) ============================
+// Sweeps the calcNM primitive over neutral-axis depth x to trace the column's
+// N-M capacity envelope. Consumed by RCColumnInteractionSVG.
+
+export interface InteractionPoint {
+  N: number;  // axial force (kN, compression positive)
+  M: number;  // bending moment (kN.m)
+}
+
+export interface AxisInteraction {
+  axis: 'y' | 'z';
+  reinforced: InteractionPoint[];  // envelope with the actual rebar
+  plain: InteractionPoint[];       // envelope of the plain concrete section
+  applied: InteractionPoint;       // (NEd, MEd_tot) for this axis
+  inside: boolean;                 // applied point within the reinforced envelope
+  utilization: number;             // applied.M / capacity-M at applied.N
+  governing: boolean;              // the higher-utilization axis
+}
+
+export interface ColumnInteractionResult {
+  valid: boolean;
+  y: AxisInteraction | null;
+  z: AxisInteraction | null;
+}
+
+// Traces one N-M capacity envelope by sweeping the neutral-axis depth x.
+//
+// calcNM(x) is monotonic non-decreasing in N but plateaus once the concrete
+// block clamps at x=depth and every bar saturates at fyd: beyond that point N
+// is flat while M keeps changing, which would draw a spurious vertical tail.
+// We trim the curve where N stops increasing and (reinforced only) append the
+// true pure-compression point (NRd_max, 0) -- the swept curve only reaches
+// NRd_Whitney, which carries a residual 0.8-block eccentricity.
+//
+// Sampling is non-uniform (x ~ t^2) so the high-curvature tension nose near
+// x->0 is well resolved. Only the M >= 0 quadrant is drawn.
+function sweepEnvelope(
+  depth: number, width: number, bars: BarGroup[],
+  fcd: number, fyd: number, compressionN: number,
+): InteractionPoint[] {
+  const pts: InteractionPoint[] = [];
+  const AsTot = bars.reduce((sum, bar) => sum + bar.area, 0);
+
+  // Pure-tension endpoint: all steel yielded in tension, concrete cracked out.
+  if (AsTot > 0) pts.push({ N: -AsTot * fyd / 1e3, M: 0 });
+
+  const N_SAMPLES = 80;
+  const xMax = 1.6 * depth;
+  let prevN = -Infinity;
+  let started = false;
+  for (let i = 1; i <= N_SAMPLES; i++) {
+    const t = i / N_SAMPLES;
+    const x = t * t * xMax + depth / 4000;   // non-uniform: dense near x->0
+    const { NRd, MRd } = calcNM(x, width, depth, bars, fcd, fyd);
+    const N = NRd / 1e3;
+    const M = MRd / 1e6;
+    if (started && N <= prevN + 1e-6) break;  // trim flat / non-monotone tail
+    if (M < 0) {
+      if (started) break;
+      continue;
+    }
+    pts.push({ N, M });
+    prevN = N;
+    started = true;
+  }
+
+  // Pure-compression endpoint, M=0 — closes the curve on the N axis.
+  // Reinforced: NRd_max (net area + steel). Plain: fcd·area (gross concrete).
+  pts.push({ N: compressionN / 1e3, M: 0 });
+  return pts;
+}
+
+// M capacity of an envelope at axial N (linear interpolation). null if N out of range.
+function envelopeCapacityM(curve: InteractionPoint[], N: number): number | null {
+  if (curve.length < 2) return null;
+  if (N < curve[0].N || N > curve[curve.length - 1].N) return null;
+  for (let i = 0; i < curve.length - 1; i++) {
+    const a = curve[i];
+    const c = curve[i + 1];
+    if (N >= a.N && N <= c.N) {
+      if (c.N - a.N < 1e-9) return Math.max(a.M, c.M);
+      const f = (N - a.N) / (c.N - a.N);
+      return a.M + f * (c.M - a.M);
+    }
+  }
+  return null;
+}
+
+// Builds both N-M interaction diagrams (y and z axes) for a column.
+// `inside` is derived from the drawn curve itself (interpolating the reinforced
+// envelope at N = NEd), never from the engine N-M check, so the marker can
+// never contradict the curve.
+export function buildColumnInteraction(
+  inp: RCColumnInputs, result: RCColumnResult,
+): ColumnInteractionResult {
+  const sm = buildSectionModel(inp);
+  if ('error' in sm || !result.valid) return { valid: false, y: null, z: null };
+  const { fcd, fyd, barsY, barsZ, NRd_max } = sm;
+
+  const buildAxis = (
+    axis: 'y' | 'z', depth: number, width: number,
+    bars: BarGroup[], MEd_tot: number,
+  ): AxisInteraction => {
+    const reinforced = sweepEnvelope(depth, width, bars, fcd, fyd, NRd_max);
+    // Plain concrete: pure-compression capacity is fcd·(gross area) = fcd·depth·width.
+    const plain = sweepEnvelope(depth, width, [], fcd, fyd, fcd * depth * width);
+    const applied: InteractionPoint = { N: inp.Nd, M: MEd_tot };
+    const Mcap = envelopeCapacityM(reinforced, applied.N);
+    const inside = Mcap !== null && applied.M <= Mcap + 1e-9;
+    const utilization = Mcap !== null && Mcap > 1e-9 ? applied.M / Mcap : Infinity;
+    return { axis, reinforced, plain, applied, inside, utilization, governing: false };
+  };
+
+  const y = buildAxis('y', inp.h, inp.b, barsY, result.MEd_tot_y);
+  const z = buildAxis('z', inp.b, inp.h, barsZ, result.MEd_tot_z);
+  if (y.utilization >= z.utilization) y.governing = true;
+  else z.governing = true;
+
+  return { valid: true, y, z };
 }

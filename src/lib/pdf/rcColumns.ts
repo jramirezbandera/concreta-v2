@@ -106,7 +106,27 @@ export async function exportRCColumnsPDF(
   setGray(doc, 120);
   doc.text('Secci\u00f3n transversal \u2014 compresi\u00f3n cara superior (MEdy+ positivo)', M + CW / 2, captionY, { align: 'center' });
 
-  const diagramBlockEnd = captionY + 5;
+  // ── Interaction diagrams (N-M, both axes) ──────────────────────────────────
+  let diagramBlockEnd: number;
+  const elIntY = document.getElementById('rc-columns-interaction-y-pdf')?.querySelector('svg') as SVGSVGElement | null;
+  const elIntZ = document.getElementById('rc-columns-interaction-z-pdf')?.querySelector('svg') as SVGSVGElement | null;
+  if (elIntY && elIntZ) {
+    const diagY = captionY + 6;
+    const DIAG_W = CW * 0.46;
+    const DIAG_H = 60;
+    const diagGap = CW * 0.04;
+    const diagXy = M + (CW - 2 * DIAG_W - diagGap) / 2;
+    try { await svg2pdf(elIntY, doc, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    try { await svg2pdf(elIntZ, doc, { x: diagXy + DIAG_W + diagGap, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    const interCaptionY = diagY + DIAG_H + 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    setGray(doc, 120);
+    doc.text('Diagramas de interacción N-M — capacidad con armado / sin armar', M + CW / 2, interCaptionY, { align: 'center' });
+    diagramBlockEnd = interCaptionY + 5;
+  } else {
+    diagramBlockEnd = captionY + 5;
+  }
   hline(doc, diagramBlockEnd, 200, 0.25);
 
   // ── Results section ────────────────────────────────────────────────────────
