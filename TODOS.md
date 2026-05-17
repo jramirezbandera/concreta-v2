@@ -474,3 +474,42 @@ desacoplar la escala visual de la altura física, o una escala partida que dé a
 a la cabeza de compresión sin perder la lectura de posiciones de fibra.
 
 **Depends on:** nada. Independiente.
+
+### V2 — Pilares: superficie de interacción 3D biaxial
+
+**Status:** TO DO — diferido por /autoplan (revisión CEO, 2026-05-17).
+
+**What:** sobre el diagrama N-M 2D por eje (V1), añadir la superficie de interacción
+3D N-My-Mz completa del pilar, o al menos un mapa de utilización biaxial a N_Ed fijo.
+
+**Why:** el pilar es biaxial; los dos diagramas 2D (y, z) de V1 son cortes. La
+superficie 3D es la representación honesta de la capacidad. CYPE/Tricalc la tienen.
+
+**Pros:** representación completa; cierra la brecha de paridad con la competencia.
+
+**Cons:** render 3D no trivial; V1 (dos cortes 2D + utilización biaxial numérica) ya
+cubre el 90% del valor. Posible sobre-ingeniería si V1 satisface.
+
+**Context:** /autoplan 2026-05-17, Approach C del design doc, diferido P3.
+
+**Depends on:** V1 (diagrama N-M 2D) shipeado.
+
+### V2 — Pilares: cockpit de rediseño (guía de armado)
+
+**Status:** TO DO — diferido por /autoplan (revisión CEO Codex, 2026-05-17).
+
+**What:** cuando un pilar no cumple, sugerir el cambio concreto: "falla por 18%,
+gobierna eje z — añade 2Ø16 en caras Y, o aumenta b 50 mm". Convertir el módulo de
+verificador a asistente de diseño.
+
+**Why:** el trabajo real del ingeniero no es "ver la curva" sino "qué cambio". Es el
+salto de paridad (igualar a CYPE) a diferenciación.
+
+**Pros:** cierra el job-to-be-done; diferenciador real frente a la competencia.
+
+**Cons:** expansión de alcance grande, fuera del blast radius del diagrama N-M;
+requiere un motor de búsqueda/optimización de armado nuevo.
+
+**Context:** /autoplan 2026-05-17, propuesta de la voz Codex CEO, diferida P3.
+
+**Depends on:** diagrama N-M V1; idealmente la superficie 3D también.
