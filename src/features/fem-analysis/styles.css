@@ -1,4 +1,4 @@
-/* FEM 2D — module-scoped styles. All class names use the `fem-` prefix
+/* FEM 1D — module-scoped styles. All class names use the `fem-` prefix
    to avoid colliding with global Tailwind/CSS conventions. */
 
 .fem-tool-btn {

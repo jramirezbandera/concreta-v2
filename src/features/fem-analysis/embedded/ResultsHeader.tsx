@@ -1,4 +1,4 @@
-// FEM 2D — ResultsHeader (Lane R6 V1.1)
+// FEM 1D — ResultsHeader (Lane R6 V1.1)
 //
 // One-row inline header at the top of the right results panel.
 //   Modelo · ● CUMPLE 87%                      (no bar selected)

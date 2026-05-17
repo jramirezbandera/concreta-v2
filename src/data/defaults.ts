@@ -820,7 +820,7 @@ export const anchorPlateDefaults: AnchorPlateInputs = {
   weld_throat: 6,
 };
 
-// ── FEM 2D analysis ──────────────────────────────────────────────────────────
+// ── FEM 1D analysis ──────────────────────────────────────────────────────────
 // Lightweight registry-only defaults: the FEM module manages its rich nested
 // model (nodes, bars, supports, loads) via its own localStorage key and does
 // not use useModuleState. These primitive flags exist only so the registry

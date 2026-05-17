@@ -1,4 +1,4 @@
-// FEM 2D — Steel beam adapter
+// FEM 1D — Steel beam adapter
 //
 // Bridges the FEM solver output to the existing calcSteelBeam check engine.
 // Per the design doc, steel section is uniform along the bar, so we use a

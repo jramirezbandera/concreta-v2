@@ -2,7 +2,7 @@
 //
 // State model: complex nested (plantas → huecos + puntuales) lives in a
 // dedicated localStorage key, not via useModuleState (which only handles
-// flat primitives). Same approach as the FEM 2D module.
+// flat primitives). Same approach as the FEM 1D module.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';

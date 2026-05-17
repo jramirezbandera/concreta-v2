@@ -1,4 +1,4 @@
-// FEM 2D — PDF export smoke test
+// FEM 1D — PDF export smoke test
 //
 // Verifies that the PDF export function:
 //   1. Returns a valid PdfResult shape (blobUrl, filename, pageCount).

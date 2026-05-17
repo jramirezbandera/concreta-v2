@@ -303,7 +303,7 @@ Renderer: si `valueNum != null && valueQty` → `formatQuantity(valueNum, valueQ
 
 ---
 
-## P0 — FEM 2D V1 (post-ship trust gates)
+## P0 — FEM 1D V1 (post-ship trust gates)
 
 Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-design-20260428-151551.md.
 

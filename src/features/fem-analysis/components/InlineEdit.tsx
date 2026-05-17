@@ -1,4 +1,4 @@
-// FEM 2D — InlineEdit primitive
+// FEM 1D — InlineEdit primitive
 //
 // A minimal click-to-edit input rendered inside the SVG canvas (or panel) for
 // editing dimensions, load values, and similar single-number fields.

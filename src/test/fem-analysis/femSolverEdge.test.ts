@@ -1,4 +1,4 @@
-// FEM 2D — solver edge case + numerical-stability tests
+// FEM 1D — solver edge case + numerical-stability tests
 //
 // These tests cover the cases Codex flagged in the eng-review outside-voice
 // challenge: degenerate inputs, near-singular matrices, mixed EI orders of

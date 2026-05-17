@@ -1,4 +1,4 @@
-// PDF export for FEM 2D module
+// PDF export for FEM 1D module
 //
 // Multi-bar layout (per design review Pass 7):
 //   Page 1 — Cover
@@ -39,7 +39,7 @@ function drawFooter(doc: jsPDF, totalPages: number) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text('Concreta — concreta.app | FEM 2D | CE 2021 + CTE DB-SE-A', M, FOOTER_Y);
+  doc.text('Concreta — concreta.app | FEM 1D | CE 2021 + CTE DB-SE-A', M, FOOTER_Y);
   doc.text(`Pagina ${cur} / ${totalPages}`, PAGE_W - M, FOOTER_Y, { align: 'right' });
 }
 
@@ -61,7 +61,7 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   setGray(doc, 30);
-  doc.text('Concreta — Análisis FEM 2D', M, y);
+  doc.text('Concreta — Análisis FEM 1D', M, y);
   y += 6;
 
   // Date + preset

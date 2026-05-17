@@ -1,4 +1,4 @@
-// FEM 2D — ResultsPanel (Lane R6 V1.1)
+// FEM 1D — ResultsPanel (Lane R6 V1.1)
 //
 // Right-column orchestrator. Mounts:
 //   - <ResultsHeader> always on top (h-9 inline header — DESIGN.md compliant)

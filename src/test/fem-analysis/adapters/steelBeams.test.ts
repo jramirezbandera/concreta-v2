@@ -1,4 +1,4 @@
-// FEM 2D — steelBeams adapter test suite
+// FEM 1D — steelBeams adapter test suite
 
 import { describe, expect, it } from 'vitest';
 import { adaptSteelBar, deriveBeamType } from '../../../features/fem-analysis/adapters/steelBeams';

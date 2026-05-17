@@ -1,4 +1,4 @@
-// FEM 2D — rcBeams adapter test suite
+// FEM 1D — rcBeams adapter test suite
 //
 // Validates that:
 //   1. The adapter returns 'pending' when armado is missing.

@@ -168,7 +168,7 @@ export const moduleRegistry: ModuleEntry[] = [
   {
     key: 'concreta-fem-2d',
     route: '/analisis/fem',
-    label: 'FEM 2D',
+    label: 'FEM 1D',
     group: 'Análisis',
     defaults: femAnalysisDefaults,
     shipped: true,

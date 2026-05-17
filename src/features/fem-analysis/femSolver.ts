@@ -1,4 +1,4 @@
-// FEM 2D — Euler-Bernoulli direct-stiffness solver
+// FEM 1D — Euler-Bernoulli direct-stiffness solver
 //
 // Consumes an AnalysisModel produced by autoDecompose and returns per-element
 // sampled M(x), V(x), w(x) plus support reactions, for every load case in the

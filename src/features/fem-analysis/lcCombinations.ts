@@ -1,4 +1,4 @@
-// FEM 2D — LC-level combinations helper (Lane R9)
+// FEM 1D — LC-level combinations helper (Lane R9)
 //
 // V1.1 builds CTE Tabla 4.2 multi-principal combinations at the *LC* (load-case)
 // granularity, not per-load. The solver produces per-LC samples (G/Q/W/S/E

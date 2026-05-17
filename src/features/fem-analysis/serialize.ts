@@ -1,4 +1,4 @@
-// FEM 2D — model serialization for share-URL
+// FEM 1D — model serialization for share-URL
 //
 // Encodes a DesignModel as a URL-safe base64 string compressed with lz-string.
 // Used by the "Compartir modelo" button (Pass 5 design decision) to produce

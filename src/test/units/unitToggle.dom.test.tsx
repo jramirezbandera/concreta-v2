@@ -1,4 +1,4 @@
-// Unit toggle integration tests for masonry-walls + FEM 2D modules.
+// Unit toggle integration tests for masonry-walls + FEM 1D modules.
 //
 // Verifica que tras el refactor v1.0 del toggle SI↔técnico:
 //   1. InlineEdit (FEM Canvas) convierte SI↔display + parse-back correcto.

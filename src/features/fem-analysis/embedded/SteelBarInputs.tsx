@@ -1,4 +1,4 @@
-// FEM 2D — SteelBarInputs wrapper (Lane R5 V1.1)
+// FEM 1D — SteelBarInputs wrapper (Lane R5 V1.1)
 //
 // Projects DesignBar.steelSelection + bar geometry (L from FEM) into the shape
 // expected by <SteelBeamsInputs hideLoads hideBeamType hideL>. The FEM envelope

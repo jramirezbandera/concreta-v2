@@ -1,4 +1,4 @@
-// FEM 2D — InlineEdit primitive test suite
+// FEM 1D — InlineEdit primitive test suite
 
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render as rtlRender, screen, type RenderOptions } from '@testing-library/react';

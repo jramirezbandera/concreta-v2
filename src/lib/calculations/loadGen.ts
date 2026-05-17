@@ -6,7 +6,7 @@ export const GAMMA_Q = 1.50;
 
 /**
  * CTE DB-SE-AE Tabla 3.1 — use categories with characteristic Qk loads.
- * Single source of truth for both steel-beams and FEM 2D modules.
+ * Single source of truth for both steel-beams and FEM 1D modules.
  * Each category links to a row of ψ factors in PSI_VALUES below (ELU/ELS).
  */
 export const USE_CATEGORIES = [

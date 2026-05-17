@@ -1,4 +1,4 @@
-// FEM 2D — types
+// FEM 1D — types
 //
 // Two-model split (per /plan-eng-review + /plan-design-review decisions):
 //

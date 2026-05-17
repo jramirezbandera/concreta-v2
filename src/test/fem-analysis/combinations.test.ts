@@ -1,4 +1,4 @@
-// FEM 2D — combinations.ts unit tests
+// FEM 1D — combinations.ts unit tests
 //
 // Validates CTE DB-SE Tabla 4.2 combination construction:
 //   - Multi-principal ELU iterates each variable as dominant

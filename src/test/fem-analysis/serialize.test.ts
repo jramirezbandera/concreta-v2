@@ -1,4 +1,4 @@
-// FEM 2D — share-URL serialization round-trip tests
+// FEM 1D — share-URL serialization round-trip tests
 
 import { describe, expect, it } from 'vitest';
 import { buildShareUrl, decodeShareString, encodeShareString } from '../../features/fem-analysis/serialize';

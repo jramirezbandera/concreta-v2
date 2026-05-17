@@ -1,4 +1,4 @@
-// FEM 2D — autoDecompose test suite
+// FEM 1D — autoDecompose test suite
 //
 // Validates that DesignModel → AnalysisModel decomposition produces:
 // - Correct element count per scenario

@@ -1,4 +1,4 @@
-// FEM 2D — pipeline bridge
+// FEM 1D — pipeline bridge
 //
 // Single entry point that takes a DesignModel and returns a SolveResult ready
 // for the UI. Composes the four foundational pieces from Lane A:

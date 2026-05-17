@@ -1,4 +1,4 @@
-// FEM 2D — end-to-end integration smoke tests
+// FEM 1D — end-to-end integration smoke tests
 //
 // Mounts the full FemAnalysisModule with the app providers it depends on
 // (Router for useSearchParams, DrawerContext for useDrawer, HelmetProvider

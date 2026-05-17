@@ -1,4 +1,4 @@
-// FEM 2D — Canvas (strip-layout V1)
+// FEM 1D — Canvas (strip-layout V1)
 //
 // Renders the DesignModel as a horizontal beam strip (y=0 forced, all bars
 // collinear). Picks the SolveResult per-bar samples for live diagrams and

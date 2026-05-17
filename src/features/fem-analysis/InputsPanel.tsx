@@ -1,4 +1,4 @@
-// FEM 2D — InputsPanel
+// FEM 1D — InputsPanel
 //
 // Four panel states by selection (per design review Pass 1):
 //   - null (no selection)   → "Modelo global": geometry counts, combo, share button

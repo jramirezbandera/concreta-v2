@@ -289,7 +289,7 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
   {
     id: 'fem',
     group: 'ANÁLISIS',
-    name: 'FEM 2D',
+    name: 'FEM 1D',
     ref: 'CTE comb.',
     short: 'Vigas continuas, envolventes ELU/ELS, embeds reales.',
     route: '/analisis/fem',

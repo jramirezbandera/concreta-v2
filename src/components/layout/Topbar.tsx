@@ -12,7 +12,7 @@ interface TopbarProps {
   onMenuOpen?: () => void;
   /**
    * Override for the "Copiar enlace" button. Modules that need a richer share
-   * payload (e.g. FEM 2D encoding the model into the URL) pass their own
+   * payload (e.g. FEM 1D encoding the model into the URL) pass their own
    * handler. When omitted, the button copies window.location.href.
    */
   onCopyLink?: () => void;

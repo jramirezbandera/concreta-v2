@@ -502,7 +502,7 @@ const POSTS = [
   },
   {
     slug: 'changelog-v0-4',
-    title: 'v0.4 — Empresillado, placas de anclaje y nuevo motor FEM 2D',
+    title: 'v0.4 — Empresillado, placas de anclaje y nuevo motor FEM 1D',
     date: '2026-04-22',
     category: 'CHANGELOG',
     read: '4 min',

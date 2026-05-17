@@ -1,4 +1,4 @@
-// FEM 2D — module orchestrator
+// FEM 1D — module orchestrator
 //
 // Owns the DesignModel state, persistence (localStorage + URL share param),
 // and wires the canvas + panels to the new solveDesignModel pipeline (Lane A
@@ -307,10 +307,10 @@ export function FemAnalysisModule() {
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <Helmet>
-          <title>FEM 2D — Concreta</title>
-          <meta name="description" content="Análisis FEM 2D — viga continua y ménsula con comprobación HA + Acero según normativa española." />
+          <title>FEM 1D — Concreta</title>
+          <meta name="description" content="Análisis FEM 1D — viga continua y ménsula con comprobación HA + Acero según normativa española." />
         </Helmet>
-        <Topbar moduleLabel="FEM 2D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
+        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
         <Landing onPick={pickPreset} recientes={loadRecent()} />
       </div>
     );
@@ -319,11 +319,11 @@ export function FemAnalysisModule() {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <Helmet>
-        <title>FEM 2D — Concreta</title>
-        <meta name="description" content="Análisis FEM 2D real — viga continua y ménsula con comprobación HA + Acero según normativa española." />
+        <title>FEM 1D — Concreta</title>
+        <meta name="description" content="Análisis FEM 1D real — viga continua y ménsula con comprobación HA + Acero según normativa española." />
       </Helmet>
       <Topbar
-        moduleLabel="FEM 2D"
+        moduleLabel="FEM 1D"
         moduleGroup="Análisis"
         onMenuOpen={openDrawer}
         onExportPdf={handleExportPdf}

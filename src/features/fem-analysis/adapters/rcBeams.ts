@@ -1,4 +1,4 @@
-// FEM 2D — RC beam adapter
+// FEM 1D — RC beam adapter
 //
 // Bridges the FEM solver output to the existing calcRCBeam check engine.
 // For each design bar with material='rc', this adapter:

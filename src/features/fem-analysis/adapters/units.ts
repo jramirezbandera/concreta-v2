@@ -1,4 +1,4 @@
-// FEM 2D — unit conversion utilities
+// FEM 1D — unit conversion utilities
 //
 // Centralized cm ↔ mm conversion for the adapters that map FEM model
 // quantities to the existing Concreta calc-engine input shapes.

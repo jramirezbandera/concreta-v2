@@ -1,4 +1,4 @@
-// FEM 2D — RcBarResults wrapper (Lane R6 V1.1)
+// FEM 1D — RcBarResults wrapper (Lane R6 V1.1)
 //
 // Renders <RCBeamsResults hideSectionTabs> with the preserved RCBeamResult
 // (full output of calcRCBeam) from solveDesignModel. activeSection is owned by

@@ -1,4 +1,4 @@
-// FEM 2D — model invariants
+// FEM 1D — model invariants
 //
 // Edit-time validators that prevent the solver from running on degenerate
 // or physically impossible models. Driven by the Codex outside-voice review

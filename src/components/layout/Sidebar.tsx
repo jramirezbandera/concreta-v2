@@ -116,7 +116,7 @@ function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number
           <path d="M6 2v12M10 2v12M2 6h12M2 10h12"/>
         </svg>
       );
-    // FEM 2D: 4-node frame with diagonal — wire-frame model schematic
+    // FEM 1D: 4-node frame with diagonal — wire-frame model schematic
     case 'concreta-fem-2d':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" aria-hidden="true" className="shrink-0">

@@ -256,7 +256,7 @@ const SIDEBAR_NAV = [
   { group: 'ACERO', items: ['Vigas', 'Pilares', 'Empresillado', 'Anclaje'] },
   { group: 'CIMENTACIÓN', items: ['Zapatas', 'Encepados', 'Muros'] },
   { group: 'MADERA', items: ['Vigas', 'Pilares'] },
-  { group: 'ANÁLISIS', items: ['FEM 2D'] },
+  { group: 'ANÁLISIS', items: ['FEM 1D'] },
 ];
 
 interface AppPreviewProps {

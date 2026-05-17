@@ -1,4 +1,4 @@
-// FEM 2D — solver canonical analytical test suite
+// FEM 1D — solver canonical analytical test suite
 //
 // Validates the Euler-Bernoulli direct-stiffness solver against 7 closed-form
 // cases listed in the design doc Success Criteria #7. Each case has a known

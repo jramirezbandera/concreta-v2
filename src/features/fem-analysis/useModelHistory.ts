@@ -1,4 +1,4 @@
-// Undo/redo history for the FEM 2D DesignModel.
+// Undo/redo history for the FEM 1D DesignModel.
 //
 // API mirrors the existing { model, setModel } pair so callers don't change
 // shape. Three exits beyond the basic setter:

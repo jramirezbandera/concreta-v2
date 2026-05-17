@@ -1,4 +1,4 @@
-// FEM 2D — SteelBarResults wrapper (Lane R6 V1.1)
+// FEM 1D — SteelBarResults wrapper (Lane R6 V1.1)
 //
 // Renders <SteelBeamsResults> with the preserved SteelBeamResult from
 // solveDesignModel.

@@ -1,4 +1,4 @@
-// FEM 2D — ResultsUnsolvable (Lane R6 V1.1, Codex catch P2-D)
+// FEM 1D — ResultsUnsolvable (Lane R6 V1.1, Codex catch P2-D)
 //
 // Rendered in the right results panel when validation produces severity:'fail'
 // errors (NO_SUPPORTS, INSUFFICIENT_REACTIONS, FLOATING_BARS, BIARTICULATED_BAR).

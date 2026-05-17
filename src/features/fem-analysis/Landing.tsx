@@ -1,4 +1,4 @@
-// FEM 2D — Landing
+// FEM 1D — Landing
 //
 // First screen the user sees when they enter /analisis/fem with no model in
 // localStorage. Per design review Pass 1: 2 plantilla cards centered (Viga
@@ -31,7 +31,7 @@ export function Landing({ onPick, recientes }: Props) {
               fontSize: 11, color: 'var(--color-text-disabled)',
               letterSpacing: '0.15em', textTransform: 'uppercase',
             }}>
-              Análisis · FEM 2D
+              Análisis · FEM 1D
             </div>
             <h1 style={{
               fontSize: 28, fontWeight: 600,

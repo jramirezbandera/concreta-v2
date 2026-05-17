@@ -1,4 +1,4 @@
-// FEM 2D — autoDecompose
+// FEM 1D — autoDecompose
 //
 // Translates the user-facing DesignModel (one bar per vano, hinges as flags
 // on the bar endpoints, partial UDLs, point-on-bar loads, mid-bar nodes the

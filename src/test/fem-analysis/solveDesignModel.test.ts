@@ -1,4 +1,4 @@
-// FEM 2D — solveDesignModel pipeline test
+// FEM 1D — solveDesignModel pipeline test
 //
 // Smoke-tests the end-to-end DesignModel → SolveResult bridge. Detailed math
 // is covered by autoDecompose, femSolver, and adapter unit tests. This file

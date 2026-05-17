@@ -1,4 +1,4 @@
-// FEM 2D — mobile read-only enforcement tests
+// FEM 1D — mobile read-only enforcement tests
 //
 // Plan: ~/.gstack/projects/jramirezbandera-concreta-v2/Javier-main-design-20260506-230443.md
 //

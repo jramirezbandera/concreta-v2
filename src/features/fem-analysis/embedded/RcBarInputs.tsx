@@ -1,4 +1,4 @@
-// FEM 2D — RcBarInputs wrapper (Lane R5 V1.1)
+// FEM 1D — RcBarInputs wrapper (Lane R5 V1.1)
 //
 // Projects DesignBar.rcSection + vano_armado + apoyo_armado into the shape
 // expected by <RCBeamsInputs hideSolicitations hideSectionTabs>. The wrapper:

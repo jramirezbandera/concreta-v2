@@ -1,4 +1,4 @@
-// FEM 2D — invariants test suite
+// FEM 1D — invariants test suite
 //
 // Validates the model-validity guards that prevent the solver from running
 // on degenerate input (zero-length elements, hinge-on-support, etc.).

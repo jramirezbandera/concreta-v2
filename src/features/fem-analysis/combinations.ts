@@ -1,4 +1,4 @@
-// FEM 2D — Combinations module (CTE DB-SE Tabla 4.2)
+// FEM 1D — Combinations module (CTE DB-SE Tabla 4.2)
 //
 // Produces weighted load combinations for ELU, ELS-frecuente and ELS-cuasiperm
 // from a list of FEM loads. Each combination is a `WeightedSet` mapping loadId

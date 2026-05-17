@@ -44,7 +44,7 @@ mesa para cálculos del día a día.
 - **Vigas** y **pilares** — clases resistentes europeas, comprobaciones EC5
   como referencia técnica auxiliar.
 
-### Análisis FEM 2D
+### Análisis FEM 1D
 Análisis matricial de vigas continuas con:
 - Combinaciones multiprincipal CTE (ELU, ELS-c, ELS-frec, ELS-cp).
 - Envolventes M, V, deformada por combinación.
@@ -69,7 +69,7 @@ src/
 ├── features/             # Un módulo de cálculo por carpeta
 │   ├── rc-beams/         # Vigas HA (UI + SVG + resultados)
 │   ├── steel-beams/      # Vigas acero
-│   ├── fem-analysis/     # FEM 2D + envolventes + adaptadores
+│   ├── fem-analysis/     # FEM 1D + envolventes + adaptadores
 │   └── ...
 ├── lib/
 │   ├── calculations/     # Motor de cálculo puro (sin React)
