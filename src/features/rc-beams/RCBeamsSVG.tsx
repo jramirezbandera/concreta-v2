@@ -313,9 +313,13 @@ function DimLine({
         <>
           <line x1={x1 - 3} y1={y1} x2={x1 + 3} y2={y1} stroke={color} strokeWidth={0.75} />
           <line x1={x2 - 3} y1={y2} x2={x2 + 3} y2={y2} stroke={color} strokeWidth={0.75} />
+          {/* Etiqueta rotada -90° paralela a la línea de cota: una etiqueta
+              horizontal ("h = 500 mm") se sale del borde derecho del SVG y se
+              recorta a "h = 50". Rotada ocupa ~11px de ancho y siempre cabe. */}
           <text
-            x={x1 + 4} y={my}
-            textAnchor="start" dominantBaseline="middle"
+            x={x1 + 10} y={my}
+            textAnchor="middle" dominantBaseline="middle"
+            transform={`rotate(-90 ${x1 + 10} ${my})`}
             fontSize={fontSize} fill={color}
             style={isPdf ? { fontFamily: 'monospace', fontSize: `${fontSize}px`, fill: color } : undefined}
             className={isPdf ? undefined : 'text-[9px] font-mono fill-text-secondary'}
