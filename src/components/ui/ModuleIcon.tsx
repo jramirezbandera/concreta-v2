@@ -5,26 +5,28 @@
 export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?: number }) {
   const s = size;
   switch (moduleKey) {
-    // RC beam: solid rectangle + rebar dots (visible longitudinal reinforcement)
+    // RC beam: section rectangle with 2 top (compression) + 3 bottom (tension)
+    // bars — the bottom-heavy layout is the beam signature
     case 'concreta-rc-beams':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true" className="shrink-0">
-          <rect x="2" y="5" width="12" height="6" rx="0.5"/>
-          <circle cx="4.2" cy="6.8" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="11.8" cy="6.8" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="4.2" cy="9.2" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="11.8" cy="9.2" r="0.7" fill="currentColor" stroke="none"/>
+          <rect x="2" y="4" width="12" height="8" rx="0.5"/>
+          <circle cx="6" cy="6.2" r="0.62" fill="currentColor" stroke="none"/>
+          <circle cx="10" cy="6.2" r="0.62" fill="currentColor" stroke="none"/>
+          <circle cx="4.6" cy="9.9" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="8" cy="9.9" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="11.4" cy="9.9" r="0.8" fill="currentColor" stroke="none"/>
         </svg>
       );
-    // RC column: square cross-section with corner rebar dots
+    // RC column: square cross-section with one rebar bar at each corner
     case 'concreta-rc-columns':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true" className="shrink-0">
-          <rect x="5" y="2" width="6" height="12" rx="0.5"/>
-          <circle cx="6.8" cy="4.2" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="9.2" cy="4.2" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="6.8" cy="11.8" r="0.7" fill="currentColor" stroke="none"/>
-          <circle cx="9.2" cy="11.8" r="0.7" fill="currentColor" stroke="none"/>
+          <rect x="3.5" y="3.5" width="9" height="9" rx="0.5"/>
+          <circle cx="5.7" cy="5.7" r="0.85" fill="currentColor" stroke="none"/>
+          <circle cx="10.3" cy="5.7" r="0.85" fill="currentColor" stroke="none"/>
+          <circle cx="5.7" cy="10.3" r="0.85" fill="currentColor" stroke="none"/>
+          <circle cx="10.3" cy="10.3" r="0.85" fill="currentColor" stroke="none"/>
         </svg>
       );
     // Steel beam: clean I-section (two flanges + web) horizontal
