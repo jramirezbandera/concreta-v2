@@ -17,7 +17,7 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Normativa', to: '/normativa' },
   { label: 'Precio', to: '/#pricing' },
   { label: 'Blog', to: '/#blog' },
-  { label: 'About', to: '/#about-teaser' },
+  { label: 'About', to: '/about' },
 ];
 
 export function LandingNav() {
@@ -27,8 +27,8 @@ export function LandingNav() {
   // Close the mobile menu on any navigation (route or hash change).
   useEffect(() => { setMenuOpen(false); }, [location.key]);
 
-  // Only "Normativa" is a real route; section links never show as active.
-  const active = (to: string) => to === '/normativa' && location.pathname === '/normativa';
+  // Route links (no hash) show as active on their page; section links never do.
+  const active = (to: string) => !to.includes('#') && location.pathname === to;
 
   return (
     <header className="nav">

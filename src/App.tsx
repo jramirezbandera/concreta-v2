@@ -19,13 +19,15 @@ import { AnchorPlateModule } from './features/anchor-plate';
 import { FemAnalysisModule } from './features/fem-analysis';
 import { Landing } from './pages/Landing';
 import { Normativa } from './pages/Normativa';
+import { About } from './pages/About';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
 const router = createBrowserRouter([
   // Landing page
   { path: '/', element: <Landing /> },
-  // Normativa subpage
+  // Marketing subpages
   { path: '/normativa', element: <Normativa /> },
+  { path: '/about', element: <About /> },
 
   // App shell (pathless layout wrapper)
   {

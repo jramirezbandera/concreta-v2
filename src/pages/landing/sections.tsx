@@ -585,9 +585,9 @@ export function AboutSection() {
               Concreta nace para resolver el cálculo del día a día que el
               software grande hace lento y el Excel hace inseguro.
             </p>
-            <a href="https://alteestudio.com" className="btn" target="_blank" rel="noreferrer">
+            <Link to="/about" className="btn">
               Sobre Concreta y Javier <span className="arr">→</span>
-            </a>
+            </Link>
           </div>
           <div className="about-card">
             <div className="about-avatar dot-grid">

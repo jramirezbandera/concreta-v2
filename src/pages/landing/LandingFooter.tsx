@@ -37,7 +37,7 @@ export function LandingFooter() {
           <div>
             <h6>Compañía</h6>
             <ul>
-              <li><Link to="/#about-teaser">Sobre Concreta</Link></li>
+              <li><Link to="/about">Sobre Concreta</Link></li>
               <li><Link to="/#filosofia">Manifiesto</Link></li>
               <li><a href="mailto:hola@concreta.tools">Contacto</a></li>
             </ul>

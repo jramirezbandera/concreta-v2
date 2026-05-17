@@ -273,6 +273,165 @@
     flex: 0 0 12px;
   }
 
+  /* ── Generic card (about page) ── */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+  }
+  .card-pad { padding: 24px; }
+
+  /* ── About — section rhythm ── */
+  .about-section { margin-bottom: 72px; }
+  .about-section:last-child { margin-bottom: 0; }
+
+  /* La historia — prose + principles card */
+  .about-story {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+    max-width: 1100px;
+  }
+  .about-story p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin: 0 0 16px;
+  }
+  .about-story p:last-child { margin-bottom: 0; }
+  .about-principles { padding: 28px; }
+  .about-principles-h {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-disabled);
+    margin-bottom: 16px;
+  }
+  .about-principles-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .about-principles-list li {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .about-principles-list li::before {
+    content: "→";
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 11px;
+    flex: 0 0 12px;
+  }
+  .about-principles-list strong { color: var(--text-primary); font-weight: 600; }
+  .about-principles-list span { color: var(--text-secondary); }
+
+  /* El manifiesto */
+  .manifesto-list {
+    list-style: none;
+    padding: 0;
+    margin: 32px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--border-main);
+  }
+  .manifesto-item {
+    display: grid;
+    grid-template-columns: 116px 1fr;
+    gap: 24px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .manifesto-n { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: 0.04em; }
+  .manifesto-t { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 8px; }
+  .manifesto-d { font-size: 14px; color: var(--text-secondary); line-height: 1.6; max-width: 64ch; margin: 0; }
+
+  /* El autor */
+  .author-block {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 48px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 40px;
+    margin-top: 32px;
+  }
+  .author-side { display: flex; flex-direction: column; gap: 18px; }
+  .author-avatar {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .author-avatar .mono { font-size: 64px; color: var(--text-secondary); letter-spacing: 0.04em; }
+  .author-name { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 6px; }
+  .author-role { font-size: 10px; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 4px; }
+  .author-location { font-size: 10px; letter-spacing: 0.08em; }
+  .author-links {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-sub);
+  }
+  .author-link {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 12px;
+    font-size: 12px;
+    padding: 4px 0;
+    color: var(--text-secondary);
+    align-items: center;
+    transition: color 150ms ease-in-out;
+  }
+  .author-link:hover { color: var(--accent); }
+  .author-link > :first-child { font-size: 10px; letter-spacing: 0.06em; }
+  .author-intro {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin: 0 0 28px;
+  }
+  .author-cv-h {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-disabled);
+    margin: 0 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .cv-item { padding: 16px 0; border-bottom: 1px solid var(--border-sub); }
+  .cv-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .cv-org { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 2px; }
+  .cv-role { font-size: 10px; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 8px; }
+  .cv-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.55; margin: 0; max-width: 64ch; }
+
+  /* Licencia y valores */
+  .about-values { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .about-value-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .about-value-title { font-size: 17px; font-weight: 600; margin: 0 0 8px; }
+  .about-value-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+
   /* ── Responsive ── */
   @media (max-width: 1000px) {
     .norm-layout { grid-template-columns: 1fr; gap: 0; }
@@ -280,10 +439,17 @@
     .norm-articles { grid-template-columns: 1fr; }
     .norm-article:nth-child(2n) { border-left: none; }
     .mod-doc-grid { grid-template-columns: 1fr; gap: 24px; }
+    .about-story { grid-template-columns: 1fr; gap: 28px; }
+    .about-values { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 900px) {
+    .author-block { grid-template-columns: 1fr; padding: 28px; }
+    .author-avatar { max-width: 200px; }
   }
   @media (max-width: 720px) {
     .subpage-hero { padding: 64px 0 40px; }
     .norm-article { grid-template-columns: 64px 1fr; }
     .norm-art-mod { display: none; }
+    .manifesto-item { grid-template-columns: 1fr; gap: 8px; }
   }
 }
