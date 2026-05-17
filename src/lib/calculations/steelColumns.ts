@@ -24,6 +24,18 @@ const γM0 = 1.05;
 const γM1 = 1.05;
 
 // ─── Result type ──────────────────────────────────────────────────────────────
+/** One EC3 6.3.3 interaction inequality, linear in (My,Mz) at fixed N: cy·My + cz·Mz ≤ rhs. */
+export interface InteractionLine { cy: number; cz: number; rhs: number; }
+
+export interface SteelInteraction {
+  line1: InteractionLine;   // EC3 6.61
+  line2: InteractionLine;   // EC3 6.62
+  My_cap: number;           // section bending resistance cap, kN·m
+  Mz_cap: number;
+  applied: { My: number; Mz: number };  // design moments (kN·m)
+  inside: boolean;          // applied point within the biaxial envelope
+}
+
 export interface SteelColumnResult {
   valid: boolean;
   error?: string;
@@ -51,6 +63,8 @@ export interface SteelColumnResult {
   util_check1: number;
   util_check2: number;
   utilization: number;
+  /** My-Mz biaxial interaction contour data — undefined for CHS (deferred). */
+  interaction?: SteelInteraction;
   checks: SteelCheckRow[];
 }
 
@@ -313,6 +327,19 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   // feature hooks (e.g. utilization warnings) without re-reading from `section`.
   void h; void b;
 
+  // Biaxial interaction contour (My-Mz). EC3 6.61/6.62 are linear in (My,Mz)
+  // at fixed N → the safe region is a polygon (rectangle of section caps clipped
+  // by the two interaction lines). CHS collapses biaxial moment to a resultant
+  // (a different shape) — deferred.
+  const interaction: SteelInteraction | undefined = isCHS ? undefined : {
+    line1: { cy: kyy / denom_My, cz: kyz / denom_Mz, rhs: 1 - Ned / denom_N_y },
+    line2: { cy: kzy / denom_My, cz: kzz / denom_Mz, rhs: 1 - Ned / denom_N_z },
+    My_cap: My_Rd,
+    Mz_cap: Mz_Rd,
+    applied: { My: My_int, Mz: Mz_int },
+    inside: util_check1 <= 1 + 1e-9 && util_check2 <= 1 + 1e-9,
+  };
+
   return {
     valid: true,
     sectionClass, kind, isBox,
@@ -324,6 +351,53 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     M_res,
     util_check1, util_check2,
     utilization,
+    interaction,
     checks,
   };
+}
+
+// === My-Mz interaction polygon =================================================
+// The biaxial safe region: the rectangle [0,My_cap] x [0,Mz_cap] clipped by the
+// two EC3 6.61/6.62 interaction lines. Returns the convex polygon vertices
+// (kN.m). Empty array when the axial load alone exhausts capacity.
+
+/** Sutherland-Hodgman clip — keep the half-plane cy*My + cz*Mz <= rhs. */
+function clipHalfPlane(
+  poly: { My: number; Mz: number }[], ln: InteractionLine,
+): { My: number; Mz: number }[] {
+  if (poly.length === 0) return poly;
+  const out: { My: number; Mz: number }[] = [];
+  const val = (p: { My: number; Mz: number }) => ln.cy * p.My + ln.cz * p.Mz - ln.rhs;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const c = poly[(i + 1) % poly.length];
+    const va = val(a);
+    const vc = val(c);
+    const aIn = va <= 1e-9;
+    const cIn = vc <= 1e-9;
+    if (aIn) out.push(a);
+    if (aIn !== cIn) {
+      const t = va / (va - vc);
+      out.push({ My: a.My + t * (c.My - a.My), Mz: a.Mz + t * (c.Mz - a.Mz) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Builds the My-Mz biaxial interaction contour as a convex polygon.
+ * Returns [] when the column fails on axial load alone (empty safe region).
+ */
+export function buildSteelInteractionPolygon(
+  it: SteelInteraction,
+): { My: number; Mz: number }[] {
+  let poly: { My: number; Mz: number }[] = [
+    { My: 0, Mz: 0 },
+    { My: it.My_cap, Mz: 0 },
+    { My: it.My_cap, Mz: it.Mz_cap },
+    { My: 0, Mz: it.Mz_cap },
+  ];
+  poly = clipHalfPlane(poly, it.line1);
+  poly = clipHalfPlane(poly, it.line2);
+  return poly.length >= 3 ? poly : [];
 }

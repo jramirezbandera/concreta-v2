@@ -14,6 +14,7 @@ import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { SteelColumnsInputs } from './SteelColumnsInputs';
 import { SteelColumnsSVG } from './SteelColumnsSVG';
+import { SteelColumnInteractionSVG } from './SteelColumnInteractionSVG';
 import { SteelColumnsResults } from './SteelColumnsResults';
 
 export function SteelColumnsModule() {
@@ -63,6 +64,8 @@ export function SteelColumnsModule() {
   // Single SVG with both panels side-by-side, fixed total width
   const totalSvgW = isStacked ? svgW : Math.min(FIXED_SVG_W + FIXED_DIAG_W, svgW);
   const svgH = Math.round(totalSvgW * 0.7); // taller to give column geometry more room
+  // Contorno de interacción biaxial — SVG cuadrado bajo la sección.
+  const interW = canvasWidth ? Math.min(360, Math.max(240, canvasWidth - CANVAS_PAD)) : 320;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -114,10 +117,10 @@ export function SteelColumnsModule() {
             'md:block',
           ].join(' ')}
         >
-          {/* SVG canvas — desktop only */}
+          {/* SVG canvas — desktop only: sección + contorno de interacción biaxial */}
           <div
             ref={canvasRef}
-            className="hidden md:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4"
+            className="hidden md:flex flex-col border-b border-border-main canvas-dot-grid items-center justify-center gap-4 py-6 px-4"
           >
             <SteelColumnsSVG
               inp={effectiveInputs}
@@ -126,6 +129,14 @@ export function SteelColumnsModule() {
               width={totalSvgW}
               height={svgH}
             />
+            {result.interaction && (
+              <SteelColumnInteractionSVG
+                data={result.interaction}
+                mode="screen"
+                width={interW}
+                height={interW}
+              />
+            )}
           </div>
 
           {/* Results */}
@@ -138,12 +149,15 @@ export function SteelColumnsModule() {
         {tab === 'diagramas' && (
           <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <SteelColumnsSVG inp={effectiveInputs} result={result} mode="screen" width={340} height={Math.round(340 * 0.7)} />
+            {result.interaction && (
+              <SteelColumnInteractionSVG data={result.interaction} mode="screen" width={320} height={320} />
+            )}
           </div>
         )}
 
       </div>
 
-      {/* Hidden PDF clone — off-screen */}
+      {/* Hidden PDF clones — off-screen */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
         <div
           id="steel-columns-svg-pdf"
@@ -157,6 +171,14 @@ export function SteelColumnsModule() {
             height={190}
           />
         </div>
+        {result.interaction && (
+          <div
+            id="steel-columns-interaction-pdf"
+            style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+          >
+            <SteelColumnInteractionSVG data={result.interaction} mode="pdf" width={300} height={300} />
+          </div>
+        )}
       </div>
 
       {pdfPreview && (

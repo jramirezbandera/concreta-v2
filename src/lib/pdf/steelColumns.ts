@@ -229,6 +229,24 @@ export async function exportSteelColumnsPDF(
     y += 4;
   }
 
+  // ── 3b. My-Mz biaxial interaction contour ─────────────────────────────────
+  const interEl = document.getElementById('steel-columns-interaction-pdf')?.querySelector('svg') as SVGSVGElement | null;
+  if (interEl) {
+    const DIAG = CW * 0.5;
+    y = checkPageBreak(doc, y, DIAG + 10);
+    try {
+      await svg2pdf(interEl, doc, { x: M + (CW - DIAG) / 2, y, width: DIAG, height: DIAG });
+      y += DIAG + 2;
+    } catch {
+      // svg2pdf failed — skip silently
+    }
+    setGray(doc, 140);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text('Contorno de interaccion biaxial My-Mz (EC3 6.3.3)', PAGE_W / 2, y, { align: 'center' });
+    y += 4;
+  }
+
   setGray(doc, 200);
   doc.setLineWidth(0.2);
   doc.line(M, y, PAGE_W - M, y);

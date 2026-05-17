@@ -478,3 +478,61 @@ describe('CHS — analytic ground-truth', () => {
     expect(r.checks.some(c => c.id === 'LTB')).toBe(false);
   });
 });
+
+// ─── Suite: My-Mz biaxial interaction contour ──────────────────────────────
+import { buildSteelInteractionPolygon } from '../../lib/calculations/steelColumns';
+
+describe('My-Mz interaction contour', () => {
+  it('default (HEB200) exposes interaction data', () => {
+    const r = calcSteelColumn(inp());
+    expect(r.interaction).toBeDefined();
+    expect(r.interaction!.My_cap).toBeGreaterThan(0);
+    expect(r.interaction!.Mz_cap).toBeGreaterThan(0);
+  });
+
+  it('polygon is a closed region (≥ 3 vertices) in the first quadrant', () => {
+    const r = calcSteelColumn(inp());
+    const poly = buildSteelInteractionPolygon(r.interaction!);
+    expect(poly.length).toBeGreaterThanOrEqual(3);
+    for (const p of poly) {
+      expect(p.My).toBeGreaterThanOrEqual(-1e-6);
+      expect(p.Mz).toBeGreaterThanOrEqual(-1e-6);
+    }
+  });
+
+  it('applied point = design moments (My_Ed, Mz_Ed)', () => {
+    const r = calcSteelColumn(inp({ My_Ed: 50, Mz_Ed: 8 }));
+    expect(r.interaction!.applied.My).toBeCloseTo(50, 3);
+    expect(r.interaction!.applied.Mz).toBeCloseTo(8, 3);
+  });
+
+  it('inside flag agrees with the engine biaxial verdict (single source)', () => {
+    const r = calcSteelColumn(inp());
+    const verdict = r.util_check1 <= 1 + 1e-9 && r.util_check2 <= 1 + 1e-9;
+    expect(r.interaction!.inside).toBe(verdict);
+  });
+
+  it('lightly loaded column → applied point inside the envelope', () => {
+    const r = calcSteelColumn(inp({ Ned: 100, My_Ed: 10, Mz_Ed: 2 }));
+    expect(r.interaction!.inside).toBe(true);
+  });
+
+  it('overloaded column → applied point outside the envelope', () => {
+    const r = calcSteelColumn(inp({ My_Ed: 400, Mz_Ed: 150 }));
+    expect(r.interaction!.inside).toBe(false);
+  });
+
+  it('axial alone exhausting capacity → empty polygon', () => {
+    const r = calcSteelColumn(inp({ Ned: 5000, My_Ed: 1, Mz_Ed: 1 }));
+    if (r.interaction) {
+      // rhs of an interaction line goes ≤ 0 → no safe (My,Mz) region
+      const poly = buildSteelInteractionPolygon(r.interaction);
+      expect(poly.length).toBe(0);
+    }
+  });
+
+  it('CHS section → interaction deferred (undefined)', () => {
+    const r = calcSteelColumn(inp({ sectionType: 'CHS' }));
+    if (r.valid) expect(r.interaction).toBeUndefined();
+  });
+});
