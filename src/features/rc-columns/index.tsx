@@ -35,13 +35,25 @@ export function RCColumnsModule() {
   const [canvasRef, canvasWidth] = useContainerWidth();
   const CANVAS_PAD = 32;
   const MAX_SVG_H  = 300;  // cap height so canvas doesn't dominate — matches RC beams
+  // Layout del canvas:
+  //  · pantalla ancha (sobremesa): sección + 2 diagramas en UNA fila
+  //  · pantalla estrecha (portátil): sección arriba, 2 diagramas debajo
+  // El breakpoint se autoajusta: fila única sólo si cada SVG recibe ≥ 300px.
+  const GAP = 12;
+  const wideRow = !!canvasWidth && (canvasWidth - CANVAS_PAD - 2 * GAP) / 3 >= 300;
+
+  // Estrecho: sección a su ancho, los 2 diagramas comparten fila.
   const svgW = canvasWidth ? Math.max(180, Math.min(320, canvasWidth - CANVAS_PAD)) : 260;
   const svgH = Math.min(MAX_SVG_H, Math.round(svgW * 1.15));
-  // Diagramas de interacción: dos en una fila, cuadrados.
   const diagW = canvasWidth
-    ? Math.max(200, Math.min(320, Math.floor((canvasWidth - CANVAS_PAD - 12) / 2)))
+    ? Math.max(200, Math.min(340, Math.floor((canvasWidth - CANVAS_PAD - GAP) / 2)))
     : 280;
-  const diagH = diagW;
+
+  // Ancho: los 3 SVGs comparten fila a tamaño uniforme.
+  const triW = canvasWidth
+    ? Math.max(300, Math.min(360, Math.floor((canvasWidth - CANVAS_PAD - 2 * GAP) / 3)))
+    : 320;
+  const triSecH = Math.min(MAX_SVG_H, Math.round(triW * 1.15));
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -91,22 +103,31 @@ export function RCColumnsModule() {
             'md:block',
           ].join(' ')}
         >
-          {/* SVG canvas — sección + diagramas de interacción N-M */}
+          {/* SVG canvas — sección + diagramas de interacción N-M.
+              Ancho: los 3 en una fila. Estrecho: sección arriba, diagramas debajo. */}
           <div
             ref={canvasRef}
-            className="hidden md:flex flex-col items-center gap-4 border-b border-border-main canvas-dot-grid py-4 px-4"
+            className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
           >
-            <RCColumnsSVG
-              inp={state}
-              result={result}
-              mode="screen"
-              width={svgW}
-              height={svgH}
-            />
-            {interaction.valid && interaction.y && interaction.z && (
+            {wideRow ? (
               <div className="flex flex-row items-start justify-center gap-3">
-                <RCColumnInteractionSVG data={interaction.y} mode="screen" width={diagW} height={diagH} />
-                <RCColumnInteractionSVG data={interaction.z} mode="screen" width={diagW} height={diagH} />
+                <RCColumnsSVG inp={state} result={result} mode="screen" width={triW} height={triSecH} />
+                {interaction.valid && interaction.y && interaction.z && (
+                  <>
+                    <RCColumnInteractionSVG data={interaction.y} mode="screen" width={triW} height={triW} />
+                    <RCColumnInteractionSVG data={interaction.z} mode="screen" width={triW} height={triW} />
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <RCColumnsSVG inp={state} result={result} mode="screen" width={svgW} height={svgH} />
+                {interaction.valid && interaction.y && interaction.z && (
+                  <div className="flex flex-row items-start justify-center gap-3">
+                    <RCColumnInteractionSVG data={interaction.y} mode="screen" width={diagW} height={diagW} />
+                    <RCColumnInteractionSVG data={interaction.z} mode="screen" width={diagW} height={diagW} />
+                  </div>
+                )}
               </div>
             )}
           </div>
