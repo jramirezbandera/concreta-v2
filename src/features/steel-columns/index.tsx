@@ -46,26 +46,17 @@ export function SteelColumnsModule() {
   const FIXED_SVG_W   = 360;  // cross-section (1:1)
   const FIXED_DIAG_W  = 260;  // geometry panel (portrait)
   const CANVAS_PAD    = 32;
-  const GAP           = 32;
-  const TOTAL_FIXED   = FIXED_SVG_W + GAP + FIXED_DIAG_W + CANVAS_PAD;
-  const STACK_THRESHOLD = 700;
-  const isStacked = (canvasWidth ?? 0) < STACK_THRESHOLD;
+  const ROW_GAP       = 24;
 
-  let svgW = FIXED_SVG_W;
-
-  if (isStacked && canvasWidth !== undefined && canvasWidth > 0) {
-    const available = canvasWidth - CANVAS_PAD;
-    svgW = Math.min(FIXED_SVG_W + FIXED_DIAG_W, Math.max(200, available));
-  } else if (!isStacked && canvasWidth !== undefined && canvasWidth > 0 && canvasWidth < TOTAL_FIXED) {
-    const available = canvasWidth - CANVAS_PAD - GAP;
-    svgW = Math.max(200, Math.round(available));
-  }
-
-  // Single SVG with both panels side-by-side, fixed total width
-  const totalSvgW = isStacked ? svgW : Math.min(FIXED_SVG_W + FIXED_DIAG_W, svgW);
+  // Sección+geometría y contorno de interacción comparten UNA fila en tablet y
+  // sobremesa — se reparten el ancho del canvas. flex-wrap reapila sólo si el
+  // ancho fuese realmente insuficiente.
+  const rowAvail = Math.max(320, (canvasWidth ?? 1100) - CANVAS_PAD - ROW_GAP);
+  const interW = Math.round(Math.max(220, Math.min(340, rowAvail * 0.34)));
+  const totalSvgW = Math.round(
+    Math.max(280, Math.min(FIXED_SVG_W + FIXED_DIAG_W, rowAvail - interW)),
+  );
   const svgH = Math.round(totalSvgW * 0.7); // taller to give column geometry more room
-  // Contorno de interacción biaxial — SVG cuadrado bajo la sección.
-  const interW = canvasWidth ? Math.min(360, Math.max(240, canvasWidth - CANVAS_PAD)) : 320;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -117,10 +108,10 @@ export function SteelColumnsModule() {
             'md:block',
           ].join(' ')}
         >
-          {/* SVG canvas — desktop only: sección + contorno de interacción biaxial */}
+          {/* SVG canvas — desktop/tablet: sección + contorno en una fila */}
           <div
             ref={canvasRef}
-            className="hidden md:flex flex-col border-b border-border-main canvas-dot-grid items-center justify-center gap-4 py-6 px-4"
+            className="hidden md:flex flex-row flex-wrap border-b border-border-main canvas-dot-grid items-center justify-center gap-6 py-6 px-4"
           >
             <SteelColumnsSVG
               inp={effectiveInputs}
