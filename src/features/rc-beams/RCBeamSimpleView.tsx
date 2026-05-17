@@ -44,7 +44,16 @@ export function RCBeamSimpleView({ state, result }: RCBeamSimpleViewProps) {
   const h = state.h as number;
   const MRd = result.vano?.MRd ?? 0;
   const utilization = MRd > 0 ? (sectionResult.Md / MRd) * 100 : 0;
-  const verdictStatus = utilization >= 100 ? 'fail' : utilization >= 80 ? 'warn' : 'ok';
+  // El badge refleja el verdict GLOBAL de la sección: el peor entre la
+  // utilización a flexión y todos los checks (cortante, fisuración, armaduras
+  // mín/máx, separación de barras…). Si solo mirásemos la flexión, el header
+  // diría CUMPLE mientras un check de abajo está en INCUMPLE.
+  const flexStatus: 'ok' | 'warn' | 'fail' =
+    utilization >= 100 ? 'fail' : utilization >= 80 ? 'warn' : 'ok';
+  const checks = result.vano?.checks ?? [];
+  const hasFail = flexStatus === 'fail' || checks.some((c) => c.status === 'fail');
+  const hasWarn = flexStatus === 'warn' || checks.some((c) => c.status === 'warn');
+  const verdictStatus: 'ok' | 'warn' | 'fail' = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
 
   // Tamaño SVG responsive.
   const isStacked = (canvasWidth ?? 0) < STACK_THRESHOLD;

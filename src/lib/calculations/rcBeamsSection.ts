@@ -312,7 +312,7 @@ export function solveSectionAtMoment(inp: SectionInputs, M_kNm: number): Section
  * Esto evita el bug visual donde ε_bot mostraba valores físicamente
  * imposibles (30‰+) en secciones tension-controlled.
  */
-function solveAtULU(inp: SectionInputs, mat: ConcreteGrade): SectionAtMomentResult & { M_kNm: number; kappa: number } {
+export function solveAtULU(inp: SectionInputs, mat: ConcreteGrade): SectionAtMomentResult & { M_kNm: number; kappa: number } {
   const fyd = getFyd(inp.fyk);
   const eps_ud = getEpsUd(inp.fyk);
   const d = inp.h - inp.cover - inp.stirrupDiam - inp.barDiam / 2;

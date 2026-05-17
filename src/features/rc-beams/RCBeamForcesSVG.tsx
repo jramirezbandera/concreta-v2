@@ -123,10 +123,12 @@ export function RCBeamForcesSVG({
       const xLeft = xSection - sigmaScale(sigma);
       points.push([xLeft, yAt(y)]);
     }
+    // Polígono cerrado: esquina sup-der → borde derecho (sección) baja a la
+    // fibra neutra → curva σ_c(y) sube hasta la esquina sup-izq → Z cierra el
+    // borde superior. Sin diagonales espurias.
     const startTop = `M ${xSection.toFixed(2)} ${yAt(0).toFixed(2)}`;
     const pointsPath = points.map(([px, py]) => `L ${px.toFixed(2)} ${py.toFixed(2)}`).join(' ');
-    const closeBottom = `L ${xSection.toFixed(2)} ${yAt(x).toFixed(2)} Z`;
-    stressBlockPath = `${startTop} ${pointsPath} ${closeBottom}`;
+    stressBlockPath = `${startTop} ${pointsPath} Z`;
   }
 
   // ¿Dibujamos envelope? Sólo si la cabeza de compresión existe (x>0).

@@ -34,10 +34,13 @@ describe('FTUX defaults', () => {
     expect(r.vano.AsComp).toBeCloseTo(226.2, 0);
   });
 
-  it('vano: x in 85-90 mm range', () => {
+  it('vano: x ~84-86 mm (true ULU neutral axis, strain compatibility)', () => {
+    // x es el eje neutro real al ELU resuelto por solveAtULU (parábola-
+    // rectángulo + pivotes), no la profundidad del bloque rectangular de
+    // Whitney. Para esta sección infra-armada ≈ 84.5 mm.
     const r = calcRCBeam(base);
-    expect(r.vano.x).toBeGreaterThan(85);
-    expect(r.vano.x).toBeLessThan(90);
+    expect(r.vano.x).toBeGreaterThan(82);
+    expect(r.vano.x).toBeLessThan(88);
   });
 
   it('vano: MRd approx 147 kNm', () => {
@@ -189,6 +192,46 @@ describe('Over-reinforcement', () => {
     const bo = r.vano.checks.find((c) => c.id === 'bending-over');
     expect(bo).toBeDefined();
     expect(bo!.status).toBe('warn');
+  });
+
+  // REGRESIÓN: la fórmula de Whitney As·fyd/(0.8·b·fcd) asumía acero
+  // plastificado. En secciones sobrearmadas el acero NO plastifica, x divergía
+  // (→ ∞) y MRd salía NEGATIVO. El bug pasó verde porque ningún test
+  // comprobaba MRd en el caso sobrearmado. solveAtULU resuelve por
+  // compatibilidad de deformaciones (pivote en el hormigón) → MRd siempre
+  // físico y positivo.
+  it('over-reinforced: MRd positivo y finito (no negativo, no NaN)', () => {
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 10, vano_bot_barDiam: 32 });
+    expect(Number.isFinite(r.vano.MRd)).toBe(true);
+    expect(r.vano.MRd).toBeGreaterThan(0);
+  });
+
+  it('over-reinforced extremo: 99Ø25 en b=200 → MRd positivo y acotado', () => {
+    // Caso del bug reportado: armado físicamente imposible (99 barras Ø25 en
+    // 200 mm de ancho). El motor no debe devolver MRd negativo ni desbordar.
+    const r = calcRCBeam({
+      ...base, b: 200, h: 400, fck: 12,
+      vano_bot_nBars: 99, vano_bot_barDiam: 25,
+    });
+    expect(Number.isFinite(r.vano.MRd)).toBe(true);
+    expect(r.vano.MRd).toBeGreaterThan(0);
+    // Cota física: ni la sección bruta a fcd uniforme supera ~fcd·b·h·d.
+    expect(r.vano.MRd).toBeLessThan((12 / 1.5) * 200 * 400 * r.vano.d / 1e6);
+    // x (eje neutro) acotado dentro del canto — no el x=16.500 mm de Whitney.
+    expect(r.vano.x).toBeLessThan(400);
+    expect(r.vano.x).toBeGreaterThan(0);
+  });
+
+  it('over-reinforced: el check de flexión usa el MRd correcto (no fail espurio)', () => {
+    // Con MRd negativo, makeCheckQty daba utilización ∞ → fail falso. Con MRd
+    // positivo, un Md moderado da utilización finita y razonable.
+    const r = calcRCBeam({
+      ...base, b: 200, h: 400, fck: 12, vano_Md: 50,
+      vano_bot_nBars: 99, vano_bot_barDiam: 25,
+    });
+    const bending = r.vano.checks.find((c) => c.id === 'bending')!;
+    expect(Number.isFinite(bending.utilization)).toBe(true);
+    expect(bending.utilization).toBeGreaterThan(0);
   });
 });
 

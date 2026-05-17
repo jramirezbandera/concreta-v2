@@ -15,6 +15,7 @@ import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty } from './types';
+import { solveAtULU } from './rcBeamsSection';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -159,16 +160,22 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   const checks: CheckRow[] = [];
 
   // BENDING (CE art. 42) ────────────────────────────────────────────────
-  // Rectangular stress block (Whitney): 0.8*x*b*fcd = As*fyd
-  const x = (As * fyd) / (0.8 * inp.b * fcd);
-
   // Over-reinforcement limit: x <= xLimit = ecu3/(ecu3+eyd) * d
   const ecu3 = 0.0035;
   const eyd = fyd / Es;
   const xLimit = (ecu3 / (ecu3 + eyd)) * d;
 
-  // MRd = As*fyd*(d - 0.4*x)
-  const MRd = (As * fyd * (d - 0.4 * x)) / 1e6;
+  // MRd y x salen del solver de compatibilidad de deformaciones — parábola-
+  // rectángulo CE 21.3.3 + diagrama de pivotes CE 21.3.4 (solveAtULU). Es la
+  // ÚNICA fuente de verdad para la capacidad última: el mismo motor que
+  // alimenta los diagramas de fuerzas de la vista simple, así que header y
+  // dibujo nunca discrepan. Resuelve correctamente secciones infra- y
+  // sobre-armadas (en éstas el acero no plastifica) e incluye la contribución
+  // del acero comprimido. Sustituye al bloque de Whitney As·fyd/(0.8·b·fcd),
+  // que para secciones sobrearmadas divergía (x → ∞, MRd negativo).
+  const ulu = solveAtULU(inp, mat);
+  const x = ulu.x;
+  const MRd = ulu.M_kNm;
 
   checks.push(makeCheckQty(
     'bending',

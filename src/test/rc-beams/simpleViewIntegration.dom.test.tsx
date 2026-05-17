@@ -10,6 +10,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
 import { RCBeamsModule } from '../../features/rc-beams';
+import { RCBeamSimpleView } from '../../features/rc-beams/RCBeamSimpleView';
+import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { rcBeamDefaults } from '../../data/defaults';
 
@@ -123,5 +125,39 @@ describe('RCBeamsModule — Chunk 4 simple-mode integration', () => {
     expect(screen.getByRole('button', { name: /datos/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /diagramas/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /resultados/i })).toBeInTheDocument();
+  });
+});
+
+// ── Verdict badge del header — agrega TODOS los checks ────────────────────────
+describe('RCBeamSimpleView — verdict del header', () => {
+  // REGRESIÓN: el badge del header se calculaba solo con la utilización a
+  // flexión, así que decía CUMPLE mientras un check de abajo (armadura máxima,
+  // separación de barras…) estaba en INCUMPLE. Ahora agrega el peor estado.
+  it('badge = INCUMPLE cuando falla un check NO de flexión (sección sobrearmada)', () => {
+    const state = {
+      ...rcBeamDefaults, mode: 'simple' as const, b: 200, h: 400, fck: 12,
+      vano_Md: 30, vano_bot_nBars: 99, vano_bot_barDiam: 25,
+    };
+    const result = calcRCBeam(state);
+    render(
+      <UnitSystemProvider>
+        <RCBeamSimpleView state={state} result={result} />
+      </UnitSystemProvider>,
+    );
+    // El primer badge (role=status) es el del header = verdict global.
+    const badges = screen.getAllByRole('status');
+    expect(badges[0].textContent).toContain('INCUMPLE');
+  });
+
+  it('badge = CUMPLE cuando todos los checks pasan (sección por defecto)', () => {
+    const state = { ...rcBeamDefaults, mode: 'simple' as const };
+    const result = calcRCBeam(state);
+    render(
+      <UnitSystemProvider>
+        <RCBeamSimpleView state={state} result={result} />
+      </UnitSystemProvider>,
+    );
+    const badges = screen.getAllByRole('status');
+    expect(badges[0].textContent).toContain('CUMPLE');
   });
 });
