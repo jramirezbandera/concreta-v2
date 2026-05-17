@@ -1418,7 +1418,9 @@
 
   /* ── Responsive ── */
   @media (max-width: 1100px) {
-    .hero-inner-split { grid-template-columns: 1fr; gap: 40px; }
+    /* minmax(0,1fr) — without the 0 floor, the track grows to the app-preview's
+       ~540px min-content and drags the hero copy off-screen on phones. */
+    .hero-inner-split { grid-template-columns: minmax(0, 1fr); gap: 40px; }
     .mod-grid { grid-template-columns: repeat(2, 1fr); }
     .principles { grid-template-columns: repeat(2, 1fr); }
     .principle:nth-child(2n) { border-right: none; }
@@ -1438,6 +1440,11 @@
     .nav-right { display: none; }
     .nav-burger { display: flex; }
     .nav-mobile-menu { display: flex; }
+    /* The app-preview is a 4-column desktop UI — illegible scaled into a phone.
+       Hide it (and its now-orphaned carousel tabs); the copy + CTAs carry the
+       hero, and the Módulos section below proves the product on mobile. */
+    .hero-preview { display: none; }
+    .hero-carousel-tabs { display: none; }
     .mod-grid { grid-template-columns: 1fr; }
     .principles { grid-template-columns: 1fr; }
     .principle { border-right: none; border-bottom: 1px solid var(--border-sub); }
