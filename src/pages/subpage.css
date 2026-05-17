@@ -1,0 +1,289 @@
+/* subpage.css — styles for the /normativa subpage.
+   Ported from the Claude Design handoff (subpage.css). Scoped under
+   `.landing-root`; relies on landing.css for tokens, nav, footer, buttons. */
+
+.landing-root {
+  /* ── Subpage hero ── */
+  .subpage-hero {
+    padding: 96px 0 56px;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .subpage-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, #1a2540 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(180deg, transparent 0%, black 30%, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 30%, black 80%, transparent 100%);
+    pointer-events: none;
+    opacity: 0.45;
+  }
+  .subpage-hero-inner { position: relative; }
+  .subpage-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-disabled);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .subpage-eyebrow::before { content: ""; width: 18px; height: 1px; background: var(--accent); }
+  .subpage-title {
+    font-size: clamp(36px, 4.8vw, 56px);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin: 0 0 18px;
+    text-wrap: balance;
+    max-width: 18ch;
+  }
+  .subpage-lede {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 60ch;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .subpage-body { padding: 56px 0 32px; }
+
+  /* ── Two-column layout: sticky TOC + content ── */
+  .norm-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  .norm-toc {
+    position: sticky;
+    top: calc(var(--nav-h) + 24px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .norm-toc-h {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-disabled);
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .norm-toc a {
+    display: block;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-left: 1px solid var(--border-sub);
+    border-radius: 0 3px 3px 0;
+    transition: color 150ms ease-in-out, border-color 150ms ease-in-out, background 150ms ease-in-out;
+  }
+  .norm-toc a:hover {
+    color: var(--text-primary);
+    border-left-color: var(--accent);
+    background: var(--bg-surface);
+  }
+
+  /* ── Legend ── */
+  .norm-legend {
+    display: flex;
+    gap: 18px;
+    padding: 16px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  .norm-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  /* ── Norm block ── */
+  .norm-block {
+    margin-bottom: 48px;
+    scroll-margin-top: calc(var(--nav-h) + 16px);
+  }
+  .norm-block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-main);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .norm-block-title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .norm-block-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .norm-block-meta { display: flex; align-items: baseline; gap: 14px; }
+  .norm-block-status { font-family: var(--font-mono); font-size: 11px; }
+  .norm-block-reviewed {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-disabled);
+    letter-spacing: 0.04em;
+  }
+  .norm-intro {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0 0 20px;
+    max-width: 80ch;
+  }
+  .norm-intro strong { color: var(--text-primary); font-weight: 600; }
+
+  .norm-articles {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .norm-article {
+    display: grid;
+    grid-template-columns: 80px 1fr 70px;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-sub);
+    font-size: 13px;
+    align-items: center;
+  }
+  .norm-article:nth-child(2n) { border-left: 1px solid var(--border-sub); }
+  .norm-art-code { font-family: var(--font-mono); color: var(--accent); font-size: 11px; }
+  .norm-art-desc { color: var(--text-secondary); line-height: 1.4; }
+  .norm-art-mod { font-family: var(--font-mono); font-size: 10px; color: var(--text-disabled); text-align: right; }
+
+  /* ── Section sub-heading ── */
+  .subsec-title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+  }
+  .subsec-lede {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0 0 24px;
+    max-width: 60ch;
+  }
+  .norm-section { scroll-margin-top: calc(var(--nav-h) + 16px); }
+
+  /* ── Disclaimer ── */
+  .norm-disclaimer {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-left: 2px solid var(--state-warn);
+    border-radius: 4px;
+    padding: 24px;
+    margin-top: 32px;
+  }
+  .norm-disclaimer-h {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--state-warn);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .norm-disclaimer p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 80ch;
+  }
+
+  /* ── Per-module technical docs ── */
+  .mod-docs { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+  .mod-doc {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 24px 28px;
+  }
+  .mod-doc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .mod-doc-title { font-size: 18px; font-weight: 600; letter-spacing: -0.015em; margin: 0; }
+  .mod-doc-ref { font-size: 11px; letter-spacing: 0.04em; }
+  .mod-doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .mod-doc-h {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-disabled);
+    margin-bottom: 12px;
+  }
+  .mod-doc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mod-doc-list li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .mod-doc-list li::before {
+    content: "→";
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 11px;
+    flex: 0 0 12px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 1000px) {
+    .norm-layout { grid-template-columns: 1fr; gap: 0; }
+    .norm-toc { display: none; }
+    .norm-articles { grid-template-columns: 1fr; }
+    .norm-article:nth-child(2n) { border-left: none; }
+    .mod-doc-grid { grid-template-columns: 1fr; gap: 24px; }
+  }
+  @media (max-width: 720px) {
+    .subpage-hero { padding: 64px 0 40px; }
+    .norm-article { grid-template-columns: 64px 1fr; }
+    .norm-art-mod { display: none; }
+  }
+}

@@ -18,19 +18,12 @@ import {
   AboutSection,
   ClosingCTA,
 } from './landing/sections';
-import { APP_ROUTE } from './landing/constants';
+import { LandingNav } from './landing/LandingNav';
+import { LandingFooter } from './landing/LandingFooter';
+import { ScrollToHash } from './landing/ScrollToHash';
 import './landing.css';
 
 // ── Hero building blocks ───────────────────────────────────────────────────────
-const NAV_LINKS: readonly [string, string][] = [
-  ['#modulos', 'Módulos'],
-  ['#filosofia', 'Filosofía'],
-  ['#normativa', 'Normativa'],
-  ['#pricing', 'Precio'],
-  ['#blog', 'Blog'],
-  ['#about-teaser', 'About'],
-];
-
 const HERO_TAGLINE = 'El cálculo estructural que no te frena.';
 const HERO_SUB =
   'Concreta es la herramienta de cálculo estructural pensada por arquitectos e ingenieros calculistas españoles: comprobaciones normativas rápidas, trazables y defendibles ante visado y obra.';
@@ -47,10 +40,10 @@ function HeroEyebrow() {
 function HeroCTAs() {
   return (
     <div className="hero-cta">
-      <a href="#pricing" className="btn btn-primary btn-lg">
+      <Link to="/#pricing" className="btn btn-primary btn-lg">
         Suscribirse <span className="arr">→</span>
-      </a>
-      <a href="#modulos" className="btn btn-lg">Ver módulos</a>
+      </Link>
+      <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>
     </div>
   );
 }
@@ -148,9 +141,6 @@ function HeroCarousel() {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export function Landing() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = () => setMenuOpen(false);
-
   return (
     <div className="landing-root">
       <Helmet>
@@ -161,63 +151,12 @@ export function Landing() {
         />
       </Helmet>
 
-      {/* Top nav */}
-      <header className="nav">
-        <div className="container nav-inner">
-          <a href="#top" className="brand">
-            <span className="brand-dot" />
-            <span>Concreta</span>
-          </a>
-          <nav className="nav-links">
-            {NAV_LINKS.map(([href, label]) => (
-              <a key={href} href={href}>{label}</a>
-            ))}
-          </nav>
-          <div className="nav-right">
-            <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
-            <a href="#pricing" className="btn btn-primary">
-              Suscribirse <span className="arr">→</span>
-            </a>
-          </div>
-          <button
-            type="button"
-            className="nav-burger"
-            aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              {menuOpen ? (
-                <>
-                  <line x1="5" y1="5" x2="19" y2="19" />
-                  <line x1="19" y1="5" x2="5" y2="19" />
-                </>
-              ) : (
-                <>
-                  <line x1="3" y1="7" x2="21" y2="7" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="17" x2="21" y2="17" />
-                </>
-              )}
-            </svg>
-          </button>
-        </div>
-        {menuOpen && (
-          <nav className="nav-mobile-menu">
-            {NAV_LINKS.map(([href, label]) => (
-              <a key={href} href={href} onClick={closeMenu}>{label}</a>
-            ))}
-            <div className="nav-mobile-actions">
-              <Link to={APP_ROUTE} className="btn btn-ghost" onClick={closeMenu}>Acceder</Link>
-              <a href="#pricing" className="btn btn-primary" onClick={closeMenu}>
-                Suscribirse <span className="arr">→</span>
-              </a>
-            </div>
-          </nav>
-        )}
-      </header>
+      {/* Scrolls to /#section targets on client navigation */}
+      <ScrollToHash />
 
-      <main id="top">
+      <LandingNav />
+
+      <main>
         <HeroCarousel />
         <ModulesSection />
         <OutputSection />
@@ -230,51 +169,7 @@ export function Landing() {
         <ClosingCTA />
       </main>
 
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-inner">
-            <div>
-              <div className="brand" style={{ marginBottom: 12 }}>
-                <span className="brand-dot" />
-                <span>Concreta</span>
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: '32ch', margin: 0, lineHeight: 1.55 }}>
-                Cálculo estructural para el día a día. Sin backend. Sin
-                cuentas. Tus datos son tuyos.
-              </p>
-            </div>
-            <div>
-              <h6>Producto</h6>
-              <ul>
-                <li><a href="#modulos">Módulos</a></li>
-                <li><a href="#pricing">Precio</a></li>
-                <li><a href="#normativa">Normativa</a></li>
-                <li><a href="#recursos">Demo</a></li>
-              </ul>
-            </div>
-            <div>
-              <h6>Recursos</h6>
-              <ul>
-                <li><a href="#blog">Blog</a></li>
-                <li><a href="#normativa">Documentación</a></li>
-                <li><a href="#recursos">Changelog</a></li>
-              </ul>
-            </div>
-            <div>
-              <h6>Compañía</h6>
-              <ul>
-                <li><a href="#about-teaser">Sobre Concreta</a></li>
-                <li><a href="#filosofia">Manifiesto</a></li>
-                <li><a href="mailto:hola@concreta.tools">Contacto</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <span>© 2026 Concreta · Javier Ramírez Bandera</span>
-            <span>v0.4.2 · concreta.tools</span>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }

@@ -18,11 +18,14 @@ import { ForjadosModule } from './features/forjados';
 import { AnchorPlateModule } from './features/anchor-plate';
 import { FemAnalysisModule } from './features/fem-analysis';
 import { Landing } from './pages/Landing';
+import { Normativa } from './pages/Normativa';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
 const router = createBrowserRouter([
   // Landing page
   { path: '/', element: <Landing /> },
+  // Normativa subpage
+  { path: '/normativa', element: <Normativa /> },
 
   // App shell (pathless layout wrapper)
   {

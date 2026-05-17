@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { AppPreview } from './AppPreview';
 import { MODULE_LIBRARY, type ModuleEntry } from './modules';
+import { NORM_SUMMARY } from './normativaData';
 import { APP_ROUTE } from './constants';
 
 // ── MÓDULOS — full library grid ────────────────────────────────────────────────
@@ -284,15 +285,6 @@ export function PhilosophySection() {
 }
 
 // ── NORMATIVA ──────────────────────────────────────────────────────────────────
-const NORMS = [
-  { code: 'CE', full: 'Código Estructural', year: '2021', mods: ['Hormigón', 'Cimentación'], status: 'ok' as const },
-  { code: 'CTE DB-SE', full: 'Bases de cálculo', year: '2019', mods: ['Combinaciones'], status: 'ok' as const },
-  { code: 'CTE DB-SE-A', full: 'Acero estructural', year: '2008', mods: ['Vigas y pilares acero'], status: 'ok' as const },
-  { code: 'CTE DB-SE-C', full: 'Cimentaciones', year: '2008', mods: ['Zapatas · Muros'], status: 'ok' as const },
-  { code: 'CTE DB-SE-M', full: 'Estructuras de madera', year: '2008', mods: ['Madera'], status: 'ok' as const },
-  { code: 'EC2 · EC3 · EC5', full: 'Apoyo técnico secundario', year: '—', mods: ['Cuando la norma nacional remite'], status: 'warn' as const },
-];
-
 export function NormativaSection() {
   return (
     <section className="section" id="normativa">
@@ -305,7 +297,8 @@ export function NormativaSection() {
           <p className="section-lede">
             CE y CTE como base resolutiva. Cada comprobación cita el artículo
             y enlaza a la documentación técnica del módulo: fórmulas, usos y
-            limitaciones.
+            limitaciones.{' '}
+            <Link to="/normativa" className="link-arrow">Detalle completo →</Link>
           </p>
         </div>
 
@@ -317,7 +310,7 @@ export function NormativaSection() {
             <span>Módulos</span>
             <span style={{ textAlign: 'right' }}>Estado</span>
           </div>
-          {NORMS.map((n) => (
+          {NORM_SUMMARY.map((n) => (
             <div className="norm-row" key={n.code}>
               <span className="mono norm-code">{n.code}</span>
               <span>{n.full}</span>
