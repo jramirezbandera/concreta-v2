@@ -179,9 +179,12 @@ export function RCBeamStrainSVG({
         ALTURA FIBRA (mm)
       </text>
 
-      {/* X-axis label (‰) */}
+      {/* X-axis label (‰) — esquina inferior-izquierda, al pie del eje de
+          deformación. Centrado verticalmente a la derecha flotaba en espacio
+          muerto y parecía un segundo eje Y; al pie a la derecha chocaba con el
+          valor de la fibra inferior. La esquina inf-izq está libre. */}
       <text
-        x={width - padRight + 2} y={padTop + plotH / 2 + 3}
+        x={padLeft} y={padTop + plotH + 18}
         fill={C.axisLabel} fontSize="9"
         fontFamily="var(--font-mono)"
         textAnchor="start"
