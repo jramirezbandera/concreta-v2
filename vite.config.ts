@@ -17,6 +17,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,woff2,png,svg,ico}"],
         runtimeCaching: [], // all assets are precached; no runtime rules needed
+        // Concreta is offline-first: the whole app bundle must be precached.
+        // The main chunk is >2 MiB (default limit), so raise the cap.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       manifest: {
         name: "Concreta",

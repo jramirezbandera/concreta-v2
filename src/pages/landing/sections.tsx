@@ -5,6 +5,8 @@ import { Link } from 'react-router';
 import { AppPreview } from './AppPreview';
 import { MODULE_LIBRARY, type ModuleEntry } from './modules';
 import { NORM_SUMMARY } from './normativaData';
+import { ALL_POSTS } from '../blog/posts';
+import { PostCard } from '../blog/PostCard';
 import { APP_ROUTE } from './constants';
 
 // ── MÓDULOS — full library grid ────────────────────────────────────────────────
@@ -440,7 +442,8 @@ export function PricingSection() {
           </div>
           <p className="section-lede">
             Sin trials que caducan en mal momento. Sin «contacta con ventas».
-            Cancela en un clic.
+            Cancela en un clic.{' '}
+            <Link to="/pricing" className="link-arrow">Comparativa y FAQ →</Link>
           </p>
         </div>
 
@@ -462,7 +465,7 @@ export function PricingSection() {
                   </li>
                 ))}
               </ul>
-              <Link to={APP_ROUTE} className={`btn ${p.highlight ? 'btn-primary' : ''} plan-cta`}>
+              <Link to="/pricing" className={`btn ${p.highlight ? 'btn-primary' : ''} plan-cta`}>
                 {p.cta} <span className="arr">→</span>
               </Link>
             </div>
@@ -474,50 +477,8 @@ export function PricingSection() {
 }
 
 // ── BLOG ───────────────────────────────────────────────────────────────────────
-const POSTS = [
-  {
-    slug: 'punzonamiento-u1-a-2d',
-    title: 'Punzonamiento en placas: u1 a 2d, bordes y huecos',
-    date: '2026-05-08',
-    category: 'TUTORIAL',
-    read: '12 min',
-    norm: 'CE art.45',
-    excerpt: 'Repasamos el perímetro crítico u1 a 2d del CE art.45 y resolvemos tres casos prácticos donde el ingeniero novel se equivoca: bordes, esquinas y huecos próximos al pilar.',
-  },
-  {
-    slug: 'cuantias-minimas-ce',
-    title: 'Cuantías mínimas en vigas HA según CE: cuándo aplica la 0,04 fcm/fyk',
-    date: '2026-04-28',
-    category: 'NORMATIVA',
-    read: '8 min',
-    norm: 'CE art.55',
-    excerpt: 'El nuevo Código Estructural reorganiza las cuantías mínimas. Repaso de los tres casos prácticos en los que la fórmula del CE cambia el armado mínimo respecto a la EHE-08.',
-  },
-  {
-    slug: 'changelog-v0-4',
-    title: 'v0.4 — Empresillado, placas de anclaje y nuevo motor FEM 1D',
-    date: '2026-04-22',
-    category: 'CHANGELOG',
-    read: '4 min',
-    norm: '—',
-    excerpt: 'Tres módulos nuevos, un rediseño del panel de inputs colapsable y soporte para entradas en m, cm o mm sin perder precisión.',
-  },
-];
-
-const CAT_COLORS: Record<string, string> = {
-  TUTORIAL: 'var(--accent)',
-  NORMATIVA: 'var(--state-warn)',
-  CHANGELOG: 'var(--state-ok)',
-  PRODUCTO: 'var(--text-secondary)',
-};
-const CAT_BG: Record<string, string> = {
-  TUTORIAL: 'rgba(56, 189, 248, .10)',
-  NORMATIVA: 'rgba(245, 158, 11, .10)',
-  CHANGELOG: 'rgba(34, 197, 94, .10)',
-  PRODUCTO: 'rgba(148, 163, 184, .10)',
-};
-
 export function BlogSection() {
+  const featured = ALL_POSTS.slice(0, 3);
   return (
     <section className="section" id="blog">
       <div className="container">
@@ -528,41 +489,13 @@ export function BlogSection() {
           </div>
           <p className="section-lede">
             Interpretaciones normativas, tutoriales con casos reales y registro
-            de cambios. Escrito por gente que calcula.
+            de cambios. Escrito por gente que calcula.{' '}
+            <Link to="/blog" className="link-arrow">Todos los artículos →</Link>
           </p>
         </div>
 
         <div className="posts">
-          {POSTS.map((p) => (
-            <a className="post" key={p.slug} href="#blog">
-              <div className="post-thumb">
-                <div className="post-thumb-fallback mono">
-                  <span className="dim">{p.category}</span>
-                  <span className="dim">{p.norm}</span>
-                </div>
-              </div>
-              <div className="post-body">
-                <div className="post-meta mono">
-                  <span
-                    className="tag"
-                    style={{
-                      color: CAT_COLORS[p.category] || 'var(--accent)',
-                      background: CAT_BG[p.category] || 'rgba(56,189,248,.10)',
-                    }}
-                  >
-                    {p.category}
-                  </span>
-                  <span className="dim">{p.date}</span>
-                </div>
-                <h3 className="post-title">{p.title}</h3>
-                <p className="post-excerpt">{p.excerpt}</p>
-                <div className="post-foot mono">
-                  <span className="dim">{p.read} · leer</span>
-                  <span className="post-arr">→</span>
-                </div>
-              </div>
-            </a>
-          ))}
+          {featured.map((p) => <PostCard post={p} key={p.slug} />)}
         </div>
       </div>
     </section>
@@ -629,10 +562,10 @@ export function ClosingCTA() {
             tarjeta de crédito. Cancela cuando quieras.
           </p>
           <div className="closing-cta">
-            <Link to={APP_ROUTE} className="btn btn-primary btn-lg">
+            <Link to="/pricing" className="btn btn-primary btn-lg">
               Suscribirse <span className="arr">→</span>
             </Link>
-            <a href="#pricing" className="btn btn-lg">Ver planes</a>
+            <Link to={APP_ROUTE} className="btn btn-lg">Abrir Concreta</Link>
           </div>
         </div>
       </div>

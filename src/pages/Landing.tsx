@@ -40,7 +40,7 @@ function HeroEyebrow() {
 function HeroCTAs() {
   return (
     <div className="hero-cta">
-      <Link to="/#pricing" className="btn btn-primary btn-lg">
+      <Link to="/pricing" className="btn btn-primary btn-lg">
         Suscribirse <span className="arr">→</span>
       </Link>
       <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>

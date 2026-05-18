@@ -21,7 +21,7 @@ export function LandingFooter() {
             <h6>Producto</h6>
             <ul>
               <li><Link to="/#modulos">Módulos</Link></li>
-              <li><Link to="/#pricing">Precio</Link></li>
+              <li><Link to="/pricing">Precio</Link></li>
               <li><Link to="/normativa">Normativa</Link></li>
               <li><Link to="/#recursos">Demo</Link></li>
             </ul>
@@ -29,7 +29,7 @@ export function LandingFooter() {
           <div>
             <h6>Recursos</h6>
             <ul>
-              <li><Link to="/#blog">Blog</Link></li>
+              <li><Link to="/blog">Blog</Link></li>
               <li><Link to="/normativa">Documentación</Link></li>
               <li><Link to="/#recursos">Changelog</Link></li>
             </ul>

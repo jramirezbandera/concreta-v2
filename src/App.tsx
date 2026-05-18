@@ -20,6 +20,9 @@ import { FemAnalysisModule } from './features/fem-analysis';
 import { Landing } from './pages/Landing';
 import { Normativa } from './pages/Normativa';
 import { About } from './pages/About';
+import { Pricing } from './pages/Pricing';
+import { Blog } from './pages/Blog';
+import { BlogPost } from './pages/BlogPost';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
 const router = createBrowserRouter([
@@ -28,6 +31,9 @@ const router = createBrowserRouter([
   // Marketing subpages
   { path: '/normativa', element: <Normativa /> },
   { path: '/about', element: <About /> },
+  { path: '/pricing', element: <Pricing /> },
+  { path: '/blog', element: <Blog /> },
+  { path: '/blog/:slug', element: <BlogPost /> },
 
   // App shell (pathless layout wrapper)
   {

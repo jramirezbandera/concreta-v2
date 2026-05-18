@@ -15,8 +15,8 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Módulos', to: '/#modulos' },
   { label: 'Filosofía', to: '/#filosofia' },
   { label: 'Normativa', to: '/normativa' },
-  { label: 'Precio', to: '/#pricing' },
-  { label: 'Blog', to: '/#blog' },
+  { label: 'Precio', to: '/pricing' },
+  { label: 'Blog', to: '/blog' },
   { label: 'About', to: '/about' },
 ];
 
@@ -27,8 +27,11 @@ export function LandingNav() {
   // Close the mobile menu on any navigation (route or hash change).
   useEffect(() => { setMenuOpen(false); }, [location.key]);
 
-  // Route links (no hash) show as active on their page; section links never do.
-  const active = (to: string) => !to.includes('#') && location.pathname === to;
+  // Route links (no hash) show as active on their page (and child routes,
+  // e.g. Blog stays active on /blog/:slug); section links never do.
+  const active = (to: string) =>
+    !to.includes('#') &&
+    (location.pathname === to || location.pathname.startsWith(`${to}/`));
 
   return (
     <header className="nav">
@@ -51,7 +54,7 @@ export function LandingNav() {
         </nav>
         <div className="nav-right">
           <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
-          <Link to="/#pricing" className="btn btn-primary">
+          <Link to="/pricing" className="btn btn-primary">
             Suscribirse <span className="arr">→</span>
           </Link>
         </div>
@@ -92,7 +95,7 @@ export function LandingNav() {
           ))}
           <div className="nav-mobile-actions">
             <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
-            <Link to="/#pricing" className="btn btn-primary">
+            <Link to="/pricing" className="btn btn-primary">
               Suscribirse <span className="arr">→</span>
             </Link>
           </div>
