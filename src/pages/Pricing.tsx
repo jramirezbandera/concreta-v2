@@ -196,24 +196,26 @@ export function Pricing() {
 
           <h2 className="subsec-title">Comparativa completa</h2>
           <p className="subsec-lede">Lo mismo en formato denso para revisar a un golpe.</p>
-          <table className="compare-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50%' }}>Funcionalidad</th>
-                <th>Libre</th>
-                <th>Pro</th>
-                <th>Studio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.map((row) => (
-                <tr key={row.feat}>
-                  <td className="feat">{row.feat}</td>
-                  {row.cells.map((c, i) => <CompareCell cell={c} key={i} />)}
+          <div className="table-scroll">
+            <table className="compare-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '50%' }}>Funcionalidad</th>
+                  <th>Libre</th>
+                  <th>Pro</th>
+                  <th>Studio</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {COMPARE.map((row) => (
+                  <tr key={row.feat}>
+                    <td className="feat">{row.feat}</td>
+                    {row.cells.map((c, i) => <CompareCell cell={c} key={i} />)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <h2 className="subsec-title subsec-title-spaced">Preguntas frecuentes</h2>
           <div className="faq">

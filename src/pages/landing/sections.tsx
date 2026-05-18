@@ -251,32 +251,34 @@ export function PhilosophySection() {
             </p>
           </div>
 
-          <table className="vs-table">
-            <thead>
-              <tr>
-                <th aria-hidden="true" />
-                <th className="vs-mine">
-                  <span className="brand-dot" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 6 }} />
-                  Concreta
-                </th>
-                <th>CYPE</th>
-                <th>SkyCiv</th>
-                <th>ClearCalcs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE_ROWS.map(([feat, ...vals], i) => (
-                <tr key={i}>
-                  <td className="vs-feat">{feat}</td>
-                  {vals.map((v, j) => (
-                    <td key={j} className={`vs-cell ${j === 0 ? 'vs-mine' : ''}`}>
-                      {v ? <span className="vs-check">✓</span> : <span className="vs-dash">—</span>}
-                    </td>
-                  ))}
+          <div className="table-scroll">
+            <table className="vs-table">
+              <thead>
+                <tr>
+                  <th aria-hidden="true" />
+                  <th className="vs-mine">
+                    <span className="brand-dot" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 6 }} />
+                    Concreta
+                  </th>
+                  <th>CYPE</th>
+                  <th>SkyCiv</th>
+                  <th>ClearCalcs</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {COMPARE_ROWS.map(([feat, ...vals], i) => (
+                  <tr key={i}>
+                    <td className="vs-feat">{feat}</td>
+                    {vals.map((v, j) => (
+                      <td key={j} className={`vs-cell ${j === 0 ? 'vs-mine' : ''}`}>
+                        {v ? <span className="vs-check">✓</span> : <span className="vs-dash">—</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="vs-note mono dim">
             / honesta: usamos las suites grandes para los proyectos que las requieren. Pero no las usamos para una zapata aislada de un anejo.
           </p>

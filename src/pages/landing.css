@@ -1023,8 +1023,12 @@
     max-width: 56ch;
     grid-column: 2;
   }
+  /* Wide data tables scroll horizontally inside this wrapper instead of
+     clipping off-screen on narrow viewports. */
+  .table-scroll { overflow-x: auto; }
   .vs-table {
     width: 100%;
+    min-width: 520px;
     border-collapse: collapse;
     border: 1px solid var(--border-main);
     border-radius: 4px;
