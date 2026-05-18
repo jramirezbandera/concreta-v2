@@ -45,7 +45,7 @@ export function LandingFooter() {
         </div>
         <div className="footer-bottom">
           <span>© 2026 Concreta · Javier Ramírez Bandera</span>
-          <span>v0.4.2 · concreta.tools</span>
+          <span>v0.1.1 · concreta.tools</span>
         </div>
       </div>
     </footer>

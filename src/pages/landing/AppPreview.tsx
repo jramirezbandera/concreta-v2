@@ -316,7 +316,7 @@ export function AppPreview({ moduleId = 'rc-beams', accent = 'var(--accent)' }: 
               })}
             </div>
           ))}
-          <div className="ap-sb-version">v0.4.2</div>
+          <div className="ap-sb-version">v0.1.1</div>
         </aside>
 
         {/* inputs */}

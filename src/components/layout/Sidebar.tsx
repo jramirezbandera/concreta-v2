@@ -106,7 +106,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Footer: version + search */}
       <div className="px-4 py-2 border-t border-border-main flex items-center justify-between">
-        <span className="text-[10px] text-text-disabled font-mono">v0.2.0</span>
+        <span className="text-[10px] text-text-disabled font-mono">v0.1.1</span>
         <button title="Búsqueda" className="text-text-disabled hover:text-text-secondary transition-colors" aria-label="Búsqueda">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
             <circle cx="7" cy="7" r="4"/><path d="M10 10l3 3" strokeLinecap="round"/>
