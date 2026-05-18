@@ -143,15 +143,15 @@ export function RetainingWallModule() {
         <div
           className={[
             'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
-            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main',
+            tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <RetainingWallInputsPanel state={state} setField={setField} />
           </div>
-          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -166,13 +166,13 @@ export function RetainingWallModule() {
         <div
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
-            'md:flex-1',
+            'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
-            'md:block',
+            'lg:block',
           ].join(' ')}
         >
           {/* View tabs + summary strip header (desktop only) */}
-          <div className="hidden md:flex items-center bg-bg-surface border-b border-border-main">
+          <div className="hidden lg:flex items-center bg-bg-surface border-b border-border-main">
             {VIEW_TABS.map((t) => (
               <ViewTabButton
                 key={t.id}
@@ -193,7 +193,7 @@ export function RetainingWallModule() {
           {/* SVG canvas */}
           <div
             ref={canvasRef}
-            className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
+            className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
           >
             <RetainingWallSVG
               inp={state}
@@ -213,7 +213,7 @@ export function RetainingWallModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col py-3 gap-3">
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col py-3 gap-3">
             {/* Compact view tabs */}
             <div className="flex items-stretch bg-bg-surface border-y border-border-main">
               {VIEW_TABS.map((t) => (

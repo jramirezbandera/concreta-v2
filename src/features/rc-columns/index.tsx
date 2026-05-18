@@ -75,15 +75,15 @@ export function RCColumnsModule() {
         <div
           className={[
             'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
-            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main',
+            tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <RCColumnsInputs state={state} setField={setField} />
           </div>
-          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -98,16 +98,16 @@ export function RCColumnsModule() {
         <div
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
-            'md:flex-1',
+            'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
-            'md:block',
+            'lg:block',
           ].join(' ')}
         >
           {/* SVG canvas — sección + diagramas de interacción N-M.
               Ancho: los 3 en una fila. Estrecho: sección arriba, diagramas debajo. */}
           <div
             ref={canvasRef}
-            className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
+            className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
           >
             {wideRow ? (
               <div className="flex flex-row items-start justify-center gap-3">
@@ -139,7 +139,7 @@ export function RCColumnsModule() {
         </div>
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <RCColumnsSVG inp={state} result={result} mode="screen" width={340} height={Math.round(340 * 1.15)} />
             {interaction.valid && interaction.y && interaction.z && (
               <>

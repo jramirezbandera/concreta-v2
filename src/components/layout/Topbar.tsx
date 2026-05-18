@@ -35,7 +35,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         {onMenuOpen && (
           <button
             onClick={onMenuOpen}
-            className="md:hidden p-3 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
+            className="lg:hidden p-3 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
             aria-label="Abrir menú"
           >
             <Menu size={18} aria-hidden="true" />

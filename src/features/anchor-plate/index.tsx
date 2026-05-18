@@ -58,15 +58,15 @@ export function AnchorPlateModule() {
         <div
           className={[
             'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
-            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main',
+            tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
             <AnchorPlateInputsPanel state={state} setField={setField} warnings={result.warnings} />
           </div>
-          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -81,14 +81,14 @@ export function AnchorPlateModule() {
         <div
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
-            'md:flex-1',
+            'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
-            'md:block',
+            'lg:block',
           ].join(' ')}
         >
           <div
             ref={canvasRef}
-            className="hidden md:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4"
+            className="hidden lg:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4"
           >
             <AnchorPlateSVG
               inp={state}
@@ -106,7 +106,7 @@ export function AnchorPlateModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <AnchorPlateSVG
               inp={state}
               result={result}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const MOBILE_QUERY = '(max-width: 767px)';
+const MOBILE_QUERY = '(max-width: 1023px)';
 
 function getInitial(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;

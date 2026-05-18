@@ -219,15 +219,15 @@ export function MasonryWallsModule() {
       <MobileTabBar tab={tab} setTab={setTab} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Inputs (left) — patrón estándar del repo: md:w-72 + shrink-0 fija
-            el ancho en desktop. max-md:flex-1 hace que ocupe pantalla en
+        {/* Inputs (left) — patrón estándar del repo: lg:w-72 + shrink-0 fija
+            el ancho en desktop. max-lg:flex-1 hace que ocupe pantalla en
             móvil cuando tab='inputs'. Scroll interno + footer fijo con el
             botón "Restablecer valores" al pie (hidden en mobile, donde el
             tab bar y el flujo de edición ya cubren ese caso). */}
         <div className={[
           'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-          'md:w-72 md:shrink-0 md:border-r md:border-border-main md:flex',
-          tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
+          'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main lg:flex',
+          tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
         ].join(' ')}>
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide">
             <MasonryWallsInputs
@@ -246,7 +246,7 @@ export function MasonryWallsModule() {
               onRemovePuntual={removePuntual}
             />
           </div>
-          <div className="hidden md:block px-4 py-2.5 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-4 py-2.5 border-t border-border-main shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -264,8 +264,8 @@ export function MasonryWallsModule() {
         {/* Center canvas — desktop always; mobile when tab='diagramas' */}
         <div className={[
           'min-w-0 flex flex-col overflow-hidden',
-          'md:flex-1 md:flex',
-          tab === 'diagramas' ? 'flex-1 flex' : 'hidden md:flex',
+          'lg:flex-1 lg:flex',
+          tab === 'diagramas' ? 'flex-1 flex' : 'hidden lg:flex',
         ].join(' ')}>
           <div className="flex-1 min-h-0 p-4 canvas-dot-grid">
             <MasonryWallsSVG
@@ -323,12 +323,11 @@ export function MasonryWallsModule() {
           </div>
         </div>
 
-        {/* Results (right) — desktop visible desde md (250px en tablet, 300px
-            en lg+) para que iPad portrait/landscape pueda ver el veredicto.
-            Mobile <md alterna por tab. */}
+        {/* Results (right) — fija 300px en el layout de escritorio (lg+).
+            Por debajo de lg el layout de tabs alterna inputs/diagramas/results. */}
         <div className={[
           'shrink-0 border-l border-border-main bg-bg-surface overflow-y-auto scroll-hide',
-          'md:w-[250px] md:block lg:w-[300px]',
+          'lg:w-75 lg:block',
           tab === 'results' ? 'flex-1' : 'hidden',
         ].join(' ')}>
           <MasonryWallsResults

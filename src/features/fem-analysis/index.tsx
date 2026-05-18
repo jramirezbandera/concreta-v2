@@ -337,14 +337,14 @@ export function FemAnalysisModule() {
         <div
           className={[
             'relative flex flex-col min-h-0 bg-bg-surface',
-            'md:border-r md:border-border-main md:shrink-0',
-            inputsOpen ? 'md:w-60' : 'md:w-8',
-            'md:transition-[width] md:duration-200',
-            inputsOpen ? 'md:overflow-y-auto' : 'md:overflow-hidden',
-            tab === 'inputs' ? 'max-md:flex-1 max-md:overflow-y-auto' : 'max-md:hidden',
+            'lg:border-r lg:border-border-main lg:shrink-0',
+            inputsOpen ? 'lg:w-60' : 'lg:w-8',
+            'lg:transition-[width] lg:duration-200',
+            inputsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
+            tab === 'inputs' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
           ].join(' ')}
         >
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <CollapseToggle open={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)} side="right" title="inputs" />
           </div>
           {(inputsOpen || isMobile) ? (
@@ -367,12 +367,12 @@ export function FemAnalysisModule() {
         <div
           className={[
             'flex flex-1 min-w-0 relative',
-            tab === 'diagramas' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            tab === 'diagramas' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           {/* Tool palette — desktop / tablet only. */}
-          <div className="hidden md:flex flex-col gap-2 p-2 pr-0">
+          <div className="hidden lg:flex flex-col gap-2 p-2 pr-0">
             <ToolPalette tool={tool} setTool={setTool} />
           </div>
           <div className="flex-1 relative">
@@ -419,14 +419,14 @@ export function FemAnalysisModule() {
         <div
           className={[
             'relative flex flex-col min-h-0 bg-bg-surface',
-            'md:border-l md:border-border-main md:shrink-0',
-            resultsOpen ? 'md:w-75' : 'md:w-8',
-            'md:transition-[width] md:duration-200',
-            resultsOpen ? 'md:overflow-y-auto' : 'md:overflow-hidden',
-            tab === 'results' ? 'max-md:flex-1 max-md:overflow-y-auto' : 'max-md:hidden',
+            'lg:border-l lg:border-border-main lg:shrink-0',
+            resultsOpen ? 'lg:w-75' : 'lg:w-8',
+            'lg:transition-[width] lg:duration-200',
+            resultsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
+            tab === 'results' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
           ].join(' ')}
         >
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <CollapseToggle open={resultsOpen} onClick={() => setResultsOpen(!resultsOpen)} side="left" title="resultados" />
           </div>
           {(resultsOpen || isMobile) ? (

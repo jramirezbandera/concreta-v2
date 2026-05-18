@@ -52,15 +52,15 @@ export function PileCapModule() {
         <div
           className={[
             'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
-            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main',
+            tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
             <PileCapInputsPanel state={state} setField={setField} />
           </div>
-          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -75,15 +75,15 @@ export function PileCapModule() {
         <div
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
-            'md:flex-1',
+            'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
-            'md:block',
+            'lg:block',
           ].join(' ')}
         >
           {/* SVG canvas — desktop */}
           <div
             ref={canvasRef}
-            className="hidden md:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
+            className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
             <PileCapSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
           </div>
@@ -96,7 +96,7 @@ export function PileCapModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <PileCapSVG inp={state} result={result} width={340} mode="screen" />
           </div>
         )}

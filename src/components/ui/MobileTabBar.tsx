@@ -22,7 +22,7 @@ export function MobileTabBar({ tab, setTab, hide }: MobileTabBarProps) {
 
   return (
     <nav
-      className="md:hidden flex border-b border-border-main bg-bg-surface shrink-0"
+      className="lg:hidden flex border-b border-border-main bg-bg-surface shrink-0"
       aria-label="Secciones"
     >
       {tabs.map((t) => (

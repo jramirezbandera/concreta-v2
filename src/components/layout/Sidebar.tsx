@@ -16,9 +16,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       className={[
         'w-[204px] shrink-0 h-full bg-bg-surface border-r border-border-main flex flex-col',
         // Mobile: fixed overlay drawer with slide transition
-        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50',
-        'max-md:transition-transform max-md:duration-200 max-md:ease-in-out',
-        isOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
+        'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50',
+        'max-lg:transition-transform max-lg:duration-200 max-lg:ease-in-out',
+        isOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',
       ].join(' ')}
       aria-label="Navegación de módulos"
     >
@@ -37,7 +37,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="ml-auto md:hidden p-3 -mr-2 text-text-disabled hover:text-text-secondary transition-colors"
+            className="ml-auto lg:hidden p-3 -mr-2 text-text-disabled hover:text-text-secondary transition-colors"
             aria-label="Cerrar menú"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

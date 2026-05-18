@@ -79,9 +79,9 @@ export function RCBeamsModule() {
         <div
           className={[
             'flex flex-col min-h-0 overflow-hidden bg-bg-surface',
-            'md:w-72 md:shrink-0 md:border-r md:border-border-main',
-            tab === 'inputs' ? 'max-md:flex-1' : 'max-md:hidden',
-            'md:flex',
+            'lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main',
+            tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
+            'lg:flex',
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
@@ -92,7 +92,7 @@ export function RCBeamsModule() {
               setField={setField}
             />
           </div>
-          <div className="hidden md:block px-5 py-3 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               onClick={reset}
               className="text-[11px] text-text-disabled hover:text-text-secondary transition-colors"
@@ -107,9 +107,9 @@ export function RCBeamsModule() {
         <div
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
-            'md:flex-1',
+            'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
-            'md:block',
+            'lg:block',
           ].join(' ')}
         >
           {isSimple ? (
@@ -120,7 +120,7 @@ export function RCBeamsModule() {
               <div
                 ref={canvasRef}
                 className={[
-                  'hidden md:flex border-b border-border-main canvas-dot-grid py-4 px-4',
+                  'hidden lg:flex border-b border-border-main canvas-dot-grid py-4 px-4',
                   isStacked ? 'flex-col items-center gap-3' : 'flex-row items-start justify-center gap-4',
                 ].join(' ')}
               >
@@ -162,7 +162,7 @@ export function RCBeamsModule() {
 
         {/* Mobile: Diagramas tab — portico only (simple mode lives in main panel) */}
         {tab === 'diagramas' && !isSimple && (
-          <div className="flex-1 overflow-y-auto scroll-hide md:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             {result.vano && (
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
