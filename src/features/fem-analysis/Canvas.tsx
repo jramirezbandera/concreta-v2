@@ -384,7 +384,9 @@ export function Canvas({
       {showInlineTip && model.bars.length > 0 && (
         <div
           style={{
-            position: 'absolute', top: 12, left: 56, zIndex: 9,
+            // Abajo-centrado: la esquina superior-izquierda ya la ocupa el
+            // ToolHint persistente; apilarlos los solapaba.
+            position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9,
             background: 'var(--color-bg-elevated)',
             border: '1px solid var(--color-border-main)',
             borderRadius: 4,
@@ -392,6 +394,7 @@ export function Canvas({
             fontSize: 11, color: 'var(--color-text-secondary)',
             fontFamily: 'var(--font-mono)',
             display: 'flex', alignItems: 'center', gap: 8,
+            whiteSpace: 'nowrap', maxWidth: 'calc(100% - 24px)',
           }}
         >
           <span>Tip: haz clic en cualquier valor (cota o carga) para editarlo</span>
