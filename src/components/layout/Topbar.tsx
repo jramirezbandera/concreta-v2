@@ -43,11 +43,11 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         )}
         {/* Breadcrumb: GROUP / Module */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[11px] font-mono text-text-disabled uppercase" style={{ letterSpacing: '0.06em' }}>
+          <span className="text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
             {moduleGroup}
           </span>
-          <span className="text-text-disabled">/</span>
-          <span className="text-[13px] font-medium text-text-primary">
+          <span className="text-text-disabled shrink-0">/</span>
+          <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
             {moduleLabel}
           </span>
         </div>
@@ -56,9 +56,10 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <CalcButton onClick={openCalc} />
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         <UnitSystemToggle />
-        {/* Copy link — icon-only en mobile (<640px), icon+texto en sm+. Mismo
-            patrón que el botón Exportar PDF para mantener todos los affordances
-            del topbar visibles en mobile. */}
+        {/* Copy link — icon-only por debajo de lg (layout de tabs, topbar
+            compacto), icon+texto en escritorio. Mismo patrón que Exportar PDF;
+            mantiene sitio para el breadcrumb cuando el menú hamburguesa ocupa
+            espacio en tablet. */}
         <button
           onClick={handleCopyUrl}
           title="Copiar enlace a este cálculo"
@@ -68,7 +69,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
             <path d="M6 10a3 3 0 0 0 4 0l2-2a3 3 0 0 0-4-4l-1 1M10 6a3 3 0 0 0-4 0L4 8a3 3 0 0 0 4 4l1-1"/>
           </svg>
-          <span className="hidden sm:inline">Copiar enlace</span>
+          <span className="hidden lg:inline">Copiar enlace</span>
         </button>
         {/* PDF export — accent styled */}
         {onExportPdf && (
@@ -90,7 +91,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
                 <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
               </svg>
             )}
-            <span className="hidden sm:inline">Exportar PDF</span>
+            <span className="hidden lg:inline">Exportar PDF</span>
           </button>
         )}
       </div>
