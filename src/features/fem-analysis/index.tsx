@@ -340,8 +340,13 @@ export function FemAnalysisModule() {
             'lg:border-r lg:border-border-main lg:shrink-0',
             inputsOpen ? 'lg:w-60' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
-            inputsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
-            tab === 'inputs' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
+            // overflow-x-hidden: el panel mide 240px (más estrecho que el de
+            // los módulos estándar); al embeber inputs diseñados para 288px
+            // hay un bleed de pocos px que el navegador promueve a barra
+            // horizontal (CSS spec: si overflow-y es auto y overflow-x es
+            // visible, x pasa a auto). Forzamos x:hidden para evitarla.
+            inputsOpen ? 'lg:overflow-y-auto lg:overflow-x-hidden' : 'lg:overflow-hidden',
+            tab === 'inputs' ? 'max-lg:flex-1 max-lg:overflow-y-auto max-lg:overflow-x-hidden' : 'max-lg:hidden',
           ].join(' ')}
         >
           <div className="hidden lg:block">
@@ -422,8 +427,11 @@ export function FemAnalysisModule() {
             'lg:border-l lg:border-border-main lg:shrink-0',
             resultsOpen ? 'lg:w-75' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
-            resultsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
-            tab === 'results' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
+            // Mismo motivo que el panel de inputs: evitamos el scroll
+            // horizontal accidental que el navegador genera al promover
+            // overflow-x a auto cuando solo se fija overflow-y.
+            resultsOpen ? 'lg:overflow-y-auto lg:overflow-x-hidden' : 'lg:overflow-hidden',
+            tab === 'results' ? 'max-lg:flex-1 max-lg:overflow-y-auto max-lg:overflow-x-hidden' : 'max-lg:hidden',
           ].join(' ')}
         >
           <div className="hidden lg:block">
