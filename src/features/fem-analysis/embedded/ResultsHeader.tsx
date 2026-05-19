@@ -48,9 +48,11 @@ export function ResultsHeader({ result, selectedBar, activeSection, setActiveSec
     <div
       role="region"
       aria-label="Resultado del modelo"
+      // pl-8 en lg: deja sitio al CollapseToggle (absolute, left:6, 20px) que
+      // solo se monta en escritorio; sin él el toggle taparía la "M" de "Modelo".
+      className="px-4 lg:pl-8"
       style={{
         height: 36,
-        padding: '0 16px',
         background: 'var(--color-bg-surface)',
         borderBottom: '1px solid var(--color-border-main)',
         display: 'flex',
