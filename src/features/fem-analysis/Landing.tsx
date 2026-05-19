@@ -24,8 +24,8 @@ export function Landing({ onPick, recientes }: Props) {
 
   return (
     <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-      <div className="canvas-dot-grid flex-1 overflow-y-auto px-14 py-12 max-md:px-5 max-md:py-8">
-        <div style={{ maxWidth: 880, margin: '0 auto' }}>
+      <div className="canvas-dot-grid flex flex-col flex-1 overflow-y-auto px-14 py-12 max-md:px-5 max-md:py-8">
+        <div style={{ maxWidth: 880, width: '100%', margin: 'auto' }}>
           <div style={{ marginBottom: 32 }}>
             <div className="font-mono" style={{
               fontSize: 11, color: 'var(--color-text-disabled)',

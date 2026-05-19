@@ -82,7 +82,10 @@ export function Canvas({
   }, [model.nodes]);
 
   const padding = 60;
-  const yStrip = size.h * 0.55; // strip line slightly below center to leave room for diagrams above
+  // Banda de la viga centrada en el canvas. Los diagramas M/V/δ son compactos
+  // y se autoescalan alrededor de la banda, así que no hacen falta reservar
+  // franjas asimétricas: centrar encuadra el modelo y elimina el hueco muerto.
+  const yStrip = size.h * 0.5;
   const dataW = bounds.maxX - bounds.minX;
   const scaleX = (size.w - 2 * padding) / Math.max(1, dataW);
   // For y we use a fixed pixel scaling for diagrams that's independent of bar length.
