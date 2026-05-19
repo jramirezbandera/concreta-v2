@@ -32,7 +32,7 @@ function NumField({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
         <InputLabel htmlFor={`if-${field}`} label={resolved.label} sub={resolved.sub} />
         <div className="flex shrink-0">
           <input
@@ -82,7 +82,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={`if-sel-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`if-sel-${field}`}
