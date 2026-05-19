@@ -64,7 +64,9 @@ export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
 
   if (!open) return null;
 
-  const isMobile = vw < 1024;
+  // Sheet mode (pegada abajo, ancho completo) solo en móvil (<768).
+  // En tablet/escritorio la calculadora es un panel flotante arrastrable.
+  const isMobile = vw < 768;
   const isSmallDisplay = vw <= 1280 || window.innerHeight <= 720;
 
   const onDragStart = (e: React.MouseEvent | React.TouchEvent) => {
