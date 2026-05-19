@@ -107,7 +107,7 @@ function NumField({
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
@@ -142,7 +142,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
       <select
         id={id}
@@ -165,7 +165,7 @@ function SelectField({
 /** Read-only beta display row (auto mode) */
 function BetaAutoRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">{label}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="font-mono text-[12px] text-text-primary tabular-nums">{value.toFixed(2)}</span>
@@ -265,7 +265,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
             ]}
             onChange={(v) => setField('chs_process', v as SteelColumnInputs['chs_process'])}
           />
-          <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+          <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
             <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
               D/t<span className="text-[11px] text-text-disabled ml-1">esbeltez</span>
             </span>
@@ -299,7 +299,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       <CollapsibleSection label="Geometría">
 
       {/* Ly — unbraced length y-axis, displayed in m (stored internally in mm) */}
-      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
         <label htmlFor="sc-Ly" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
           {LABELS.Ly_strong.sym}
           <span className="text-[11px] text-text-disabled ml-1">{LABELS.Ly_strong.descShort}</span>
@@ -325,7 +325,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       </div>
 
       {/* Lz — unbraced length z-axis, displayed in m (stored internally in mm) */}
-      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
         <label htmlFor="sc-Lz" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
           {LABELS.Lz_weak.sym}
           <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lz_weak.descShort}</span>

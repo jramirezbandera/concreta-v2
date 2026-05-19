@@ -35,7 +35,7 @@ function NumField({
   const [localStr, setLocalStr] = useState(() => String(value));
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`input-${field}`} label={label} sub={sub} />
       <div className="flex shrink-0">
         <input
@@ -80,7 +80,7 @@ function SelectField({
   setField: Props['setField'];
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`select-${field}`} label={label} />
       <select
         id={`select-${field}`}
@@ -104,7 +104,7 @@ function ToggleButton({
   label, active, onClick,
 }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11">
       <span className="text-[13px] text-text-secondary">{label}</span>
       <button
         type="button"

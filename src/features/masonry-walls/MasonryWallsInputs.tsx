@@ -79,7 +79,7 @@ function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refN
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 py-1 max-md:min-h-11">
+      <div className="flex items-center justify-between gap-2 py-1 max-lg:min-h-11">
         <div className="min-w-0 flex flex-col">
           <span className="text-[12px] text-text-secondary truncate" title={sub}>
             <span className="font-mono">{label}</span>
@@ -127,7 +127,7 @@ interface SelFieldProps<T extends string | number> {
 function SelField<T extends string | number>({ label, value, options, onChange, refNorma }: SelFieldProps<T>) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 py-1 max-md:min-h-11 min-w-0">
+      <div className="flex items-center justify-between gap-2 py-1 max-lg:min-h-11 min-w-0">
         <span className="text-[12px] text-text-secondary truncate min-w-0">{label}</span>
         <select
           value={String(value)}
@@ -166,7 +166,7 @@ function MiniBtn({ children, onClick, variant = 'default', title }: MiniBtnProps
       type="button"
       onClick={onClick}
       title={title}
-      className={`text-[10px] font-mono px-1.5 py-0.5 max-md:min-h-11 max-md:min-w-11 max-md:px-3 max-md:flex max-md:items-center max-md:justify-center rounded leading-none border transition-colors cursor-pointer ${styles[variant]}`}
+      className={`text-[10px] font-mono px-1.5 py-0.5 max-lg:min-h-11 max-lg:min-w-11 max-lg:px-3 max-lg:flex max-lg:items-center max-lg:justify-center rounded leading-none border transition-colors cursor-pointer ${styles[variant]}`}
     >
       {children}
     </button>

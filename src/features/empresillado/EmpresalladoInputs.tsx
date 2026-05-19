@@ -42,7 +42,7 @@ function NumberField({ labelKey, label, sub, unit, value, onChange, error, error
 
   return (
     <div>
-      <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
+      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
         <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
         <div className="flex shrink-0">
           <input
@@ -99,7 +99,7 @@ function SelectField({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 min-w-0">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={id} label={label} />
       <select
         id={id}

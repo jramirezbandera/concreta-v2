@@ -59,7 +59,7 @@ function NumberField({
   }, [value]);
 
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={`input-${fieldKey}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
@@ -116,7 +116,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub };
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel
         htmlFor={`select-${fieldKey}`}
         label={resolved.label}
@@ -152,7 +152,7 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
         <NumberField labelKey="cover_mechanical" fieldKey="cover" value={state.cover} min={10}   setField={setField} />
         <NumberField labelKey="L_column"         fieldKey="L"     value={state.L}     min={0.5} step={0.1} setField={setField} />
         <NumberField labelKey="beta_buckling"    fieldKey="beta"  value={state.beta}  min={0.5} step={0.05} setField={setField} />
-        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
           <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">Lk = L × β</span>
           <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{Lk} m</span>
         </div>
@@ -174,7 +174,7 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
         <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
         <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} setField={setField} />
 
-        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2 mt-1">
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
           <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">As total</span>
           <span className="font-mono text-[12px] text-text-secondary tabular-nums shrink-0">{As_total} mm²</span>
         </div>

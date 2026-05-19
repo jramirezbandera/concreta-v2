@@ -29,7 +29,7 @@ function NumField({
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={`tb-${field}`} label={resolved.label} sub={resolved.sub} />
       <div className="flex shrink-0">
         <input
@@ -61,7 +61,7 @@ function SelectField({
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={`tb-sel-${field}`} label={resolved.label} sub={resolved.sub} />
       <select
         id={`tb-sel-${field}`}
@@ -81,7 +81,7 @@ function SelectField({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">{label}</span>
       <span className="text-[12px] font-mono text-text-disabled">{value}</span>
     </div>
@@ -146,7 +146,7 @@ export function TimberBeamsInputs({ state, setField }: Props) {
     <div>
       {/* ── Sección transversal ──────────────────────────────────────────── */}
       <CollapsibleSection label="Sección transversal">
-        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
           <label htmlFor="tb-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
             {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
             {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
@@ -214,7 +214,7 @@ export function TimberBeamsInputs({ state, setField }: Props) {
         </div>
 
         {/* isSystem — boolean, handled inline to avoid type coercion */}
-        <div className="flex items-center justify-between py-0.75 max-md:min-h-11 gap-2">
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
           <label htmlFor="tb-isSystem" className="text-[13px] text-text-secondary min-w-0 truncate">
             Sistema resistente
           </label>
