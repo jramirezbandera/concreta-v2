@@ -20,6 +20,7 @@
 //   7. Calls calcSteelBeam and returns the result.
 
 import { calcSteelBeam, type SteelBeamResult, type SteelCheckRow } from '../../../lib/calculations/steelBeams';
+import { toStatus } from '../../../lib/calculations/types';
 import type { SteelBeamInputs } from '../../../data/defaults';
 import { buildLcCombinations, type LcFactors } from '../lcCombinations';
 import type {
@@ -91,6 +92,10 @@ export function adaptSteelBar(
     : sel.elsCombo === 'frequent'      ? combos.ELS_frec
                                        : combos.ELS_c;  // 'characteristic' default
   const Mser_worst = worstMserAcrossCombos(elements, elsCombosToUse);
+  // FEM 1D — use the real Hermite-interpolated δ from the solver (m → mm).
+  // The legacy closed-form δ = k·Mser·L²/(EI) assumes an isolated single-span
+  // beam under uniform load; for a continuous chain it overestimates badly.
+  const delta_real_mm = worstAbsDeltaAcrossCombos(elements, elsCombosToUse) * 1000;
 
   // Iterate ELU sub-combinations, aggregate worst-η per check id.
   let aggregatedChecks: SteelCheckRow[] = [];
@@ -123,7 +128,8 @@ export function adaptSteelBar(
   }
 
   if (!allValid && lastResult) {
-    return { status: 'ok', envelope: worstEnvelope, inputs: lastInputs!, result: lastResult };
+    const patched = applyFemDeflection(lastResult, delta_real_mm, sel.deflLimit);
+    return { status: 'ok', envelope: worstEnvelope, inputs: lastInputs!, result: patched };
   }
 
   // Synthesize the final SteelBeamResult with aggregated worst checks.
@@ -135,7 +141,66 @@ export function adaptSteelBar(
     status: 'ok',
     envelope: worstEnvelope,
     inputs: lastInputs ?? buildSteelBeamInputs(sel, beamType, worstEnvelope),
-    result: finalResult,
+    result: applyFemDeflection(finalResult, delta_real_mm, sel.deflLimit),
+  };
+}
+
+/**
+ * Replace the closed-form deflection check on a SteelBeamResult with the real
+ * FEM-computed δ (in mm). The legacy formula δ = k·Mser·L²/(EI) assumes an
+ * isolated single-span beam under uniform load — wrong for continuous chains
+ * and for non-uniform load patterns. This keeps the result panel aligned with
+ * the deflection curve the canvas already draws.
+ *
+ * Updates: delta_max, eta_delta, the 'deflection' check row, the `governing`
+ * field and the global `utilization` (in case flecha no longer / newly governs).
+ */
+function applyFemDeflection(
+  r: SteelBeamResult,
+  delta_real_mm: number,
+  deflLimit: number,
+): SteelBeamResult {
+  if (!r.valid) return r;
+  const delta_adm = deflLimit > 0 ? (r.delta_adm > 0 ? r.delta_adm : 0) : 0;
+  // delta_adm already populated by calcSteelBeam as L/deflLimit; keep it.
+  const adm = delta_adm > 0 ? delta_adm : r.delta_adm;
+  const eta_delta = adm > 0 ? delta_real_mm / adm : Infinity;
+
+  const newChecks: SteelCheckRow[] = (r.checks ?? []).map((c) => {
+    if (c.id !== 'deflection') return c;
+    return {
+      ...c,
+      value: `${delta_real_mm.toFixed(1)} mm`,
+      limit: `L/${deflLimit} = ${adm.toFixed(1)} mm`,
+      utilization: eta_delta,
+      status: toStatus(eta_delta),
+    };
+  });
+
+  // Recompute governing/utilization across the same five η used by calcSteelBeam.
+  const etas = {
+    bending: r.eta_M,
+    shear: r.eta_V,
+    interaction: r.eta_MV,
+    ltb: r.eta_LTB,
+    deflection: eta_delta,
+  } as const;
+  let governing: SteelBeamResult['governing'] = r.governing;
+  let utilization = 0;
+  for (const [k, v] of Object.entries(etas)) {
+    if (v > utilization) {
+      utilization = v;
+      governing = k as keyof typeof etas;
+    }
+  }
+
+  return {
+    ...r,
+    delta_max: delta_real_mm,
+    eta_delta,
+    checks: newChecks,
+    governing,
+    utilization,
   };
 }
 
@@ -201,6 +266,34 @@ function worstMserAcrossCombos(
           M += factor * (e.samples.M[lc]?.[i] ?? 0);
         }
         if (Math.abs(M) > best) best = Math.abs(M);
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Worst-case |δ_ELS| (in meters) across multiple ELS sub-combinations, using
+ * the FEM solver's Hermite-interpolated per-LC deflection samples (`w[lc]`).
+ * Mirrors the per-sample superposition used by `solveDesignModel.buildBarEnvelope`
+ * — same numbers the canvas plots — but rolled up to a single peak magnitude.
+ */
+function worstAbsDeltaAcrossCombos(
+  elements: SolverElementResult[],
+  combos: LcFactors[],
+): number {
+  let best = 0;
+  for (const factors of combos) {
+    for (const e of elements) {
+      const xs = e.samples.xs;
+      for (let i = 0; i < xs.length; i++) {
+        let d = 0;
+        for (const lc of Object.keys(e.samples.w) as LoadCase[]) {
+          const factor = factors[lc] ?? 0;
+          if (factor === 0) continue;
+          d += factor * (e.samples.w[lc]?.[i] ?? 0);
+        }
+        if (Math.abs(d) > best) best = Math.abs(d);
       }
     }
   }

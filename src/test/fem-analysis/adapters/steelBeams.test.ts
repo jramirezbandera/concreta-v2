@@ -302,3 +302,79 @@ describe('steelBeams adapter — multi-principal ELU iteration (Codex catch #4)'
     expect(uniq.size).toBe(ids.length); // mergeWorstChecks must dedupe
   });
 });
+
+// ── Deflection — must come from the FEM solver, not the closed form ─────────
+
+describe('steelBeams adapter — δmax uses real FEM displacement', () => {
+  // Walk the FEM solver's per-LC samples the same way the canvas does and
+  // return the peak |δ| across all ELS-characteristic combos (kN/m·m → m).
+  function peakFemDeltaMm(elements: ReturnType<typeof solveAnalysisModel>['elements'], barId: string): number {
+    let best = 0;
+    for (const e of elements) {
+      if (e.designBarId !== barId) continue;
+      for (const lc of Object.keys(e.samples.w)) {
+        for (const v of e.samples.w[lc]) {
+          if (Math.abs(v) > best) best = Math.abs(v);
+        }
+      }
+    }
+    return best * 1000;
+  }
+
+  it('SS UDL: surfaces the FEM-sampled peak |δ|, not the closed-form δ = k·Mser·L²/(EI)', () => {
+    const L = 6;
+    const q = 25;
+    const bar = steelBar('b1', 'n1', 'n2');
+    const model: DesignModel = {
+      presetCode: 'beam', combo: 'ELU', selfWeight: false,
+      nodes: [node('n1', 0), node('n2', L)],
+      bars: [bar],
+      supports: [{ node: 'n1', type: 'pinned' }, { node: 'n2', type: 'roller' }],
+      loads: [{ id: 'l1', kind: 'udl', lc: 'G', bar: 'b1', w: q, dir: '-y' }],
+    };
+    const result = solveAnalysisModel(autoDecompose(model));
+    const adapt = adaptSteelBar(bar, result.elements, model);
+    const femDeltaMm = peakFemDeltaMm(result.elements, 'b1');
+
+    expect(femDeltaMm).toBeGreaterThan(0);
+    expect(adapt.result.delta_max).toBeCloseTo(femDeltaMm, 4);
+  });
+
+  it('2-span continuous: result.delta_max << what an isolated ff bar predicts (the old bug)', () => {
+    // Continuous-beam δ is far smaller than the closed-form for an isolated
+    // ff bar fed the same Mser. Before the fix the adapter showed the
+    // closed-form, which was off by 2-3× — that's what the user reported.
+    const L = 5;
+    const q = 30;
+    const b1 = steelBar('b1', 'n1', 'n2');
+    const b2 = steelBar('b2', 'n2', 'n3');
+    const model: DesignModel = {
+      presetCode: 'continuous', combo: 'ELU', selfWeight: false,
+      nodes: [node('n1', 0), node('n2', L), node('n3', 2 * L)],
+      bars: [b1, b2],
+      supports: [
+        { node: 'n1', type: 'pinned' },
+        { node: 'n2', type: 'roller' },
+        { node: 'n3', type: 'roller' },
+      ],
+      loads: [
+        { id: 'l1', kind: 'udl', lc: 'G', bar: 'b1', w: q, dir: '-y' },
+        { id: 'l2', kind: 'udl', lc: 'G', bar: 'b2', w: q, dir: '-y' },
+      ],
+    };
+    const result = solveAnalysisModel(autoDecompose(model));
+    const adapt = adaptSteelBar(b1, result.elements, model);
+    const femDeltaMm = peakFemDeltaMm(result.elements, 'b1');
+
+    expect(adapt.result.delta_max).toBeCloseTo(femDeltaMm, 4);
+
+    // The deflection check row must show the same number we surfaced as delta_max.
+    const deflRow = adapt.result.checks.find((c) => c.id === 'deflection');
+    expect(deflRow).toBeDefined();
+    expect(deflRow!.value).toBe(`${adapt.result.delta_max.toFixed(1)} mm`);
+    expect(deflRow!.utilization).toBeCloseTo(
+      adapt.result.delta_max / adapt.result.delta_adm,
+      4,
+    );
+  });
+});
