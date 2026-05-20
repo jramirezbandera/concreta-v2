@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { usePdfPreview } from '../../hooks/usePdfPreview';
@@ -87,10 +86,6 @@ export function CompositeSectionModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Sección compuesta — Concreta</title>
-        <meta name="description" content="Steiner, clase de sección y módulo plástico Wpl por bandas. EC3." />
-      </Helmet>
       <Topbar
         moduleLabel="Sección compuesta"
         moduleGroup="Acero"

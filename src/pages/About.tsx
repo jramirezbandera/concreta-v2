@@ -1,7 +1,6 @@
 // About — dedicated /about route. The story behind Concreta, the manifesto,
 // and the author. Ported from the Claude Design handoff (about.html).
 
-import { Helmet } from 'react-helmet-async';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import './landing.css';
@@ -76,13 +75,6 @@ const CV: { org: string; role: string; desc: string }[] = [
 export function About() {
   return (
     <div className="landing-root">
-      <Helmet>
-        <title>Sobre Concreta — Filosofía y autor</title>
-        <meta
-          name="description"
-          content="La filosofía detrás de Concreta, la historia de por qué nació y quién está detrás de cada commit. Una mesa de trabajo para el calculista, no un dashboard."
-        />
-      </Helmet>
 
       <LandingNav />
 

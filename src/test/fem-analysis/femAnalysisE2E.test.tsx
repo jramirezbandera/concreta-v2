@@ -146,13 +146,14 @@ describe('FemAnalysisModule — verdict aggregation', () => {
     expect(screen.getAllByText(verdictRegex).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('models with no supports → fail status visible', () => {
+  it('models with no supports → fail status visible', async () => {
     const model = cloneDesignPreset('beam');
     model.supports = [];
     window.localStorage.setItem('concreta-fem-2d-design', JSON.stringify(model));
     renderModule();
-    // The errors banner renders the NO_SUPPORTS message (may appear in inputs
-    // panel + results panel; we just need at least one).
-    expect(screen.getAllByText(/no hay apoyos definidos/i).length).toBeGreaterThanOrEqual(1);
+    // Solver loads lazily — the NO_SUPPORTS error message only renders after
+    // the solver chunk import() resolves and runs. findAllByText waits for it.
+    const errors = await screen.findAllByText(/no hay apoyos definidos/i);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
   });
 });

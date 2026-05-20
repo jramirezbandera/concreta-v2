@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { punchingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -33,10 +32,6 @@ export function PunchingModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Punzonamiento en losa — Concreta</title>
-        <meta name="description" content="Comprobación de punzonamiento en losa maciza, perímetros críticos. Código Estructural art. 6.4." />
-      </Helmet>
       <Topbar
         moduleLabel="Punzonamiento"
         moduleGroup="Hormigón"

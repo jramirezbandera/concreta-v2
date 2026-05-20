@@ -2,7 +2,6 @@
 // category filter. Ported from the Claude Design handoff (blog.html).
 
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { PostCard } from './blog/PostCard';
@@ -28,13 +27,6 @@ export function Blog() {
 
   return (
     <div className="landing-root">
-      <Helmet>
-        <title>Blog — Concreta</title>
-        <meta
-          name="description"
-          content="Notas técnicas y de producto: interpretaciones normativas del CE y el CTE, tutoriales con casos reales y registro de cambios. Escrito por gente que calcula."
-        />
-      </Helmet>
 
       <LandingNav />
 

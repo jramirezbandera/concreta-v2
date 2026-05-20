@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { rcColumnDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -57,10 +56,6 @@ export function RCColumnsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Pilares de hormigón armado — Concreta</title>
-        <meta name="description" content="Compresión y pandeo biaxial en pilares de HA. Código Estructural art. 35." />
-      </Helmet>
       <Topbar
         moduleLabel="Pilares"
         moduleGroup="Hormigón Armado"

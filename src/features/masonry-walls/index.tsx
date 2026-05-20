@@ -5,7 +5,6 @@
 // flat primitives). Same approach as the FEM 1D module.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -204,10 +203,6 @@ export function MasonryWallsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Muros de fábrica — Concreta · DB-SE-F</title>
-        <meta name="description" content="Verificación de muros de carga de fábrica multi-planta · DB-SE-F." />
-      </Helmet>
       <Topbar
         moduleLabel="Muros de fábrica"
         moduleGroup="Rehabilitación"

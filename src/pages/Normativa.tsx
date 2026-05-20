@@ -2,7 +2,6 @@
 // structural codes Concreta implements, plus per-module coverage docs.
 // Ported from the Claude Design handoff (normativa.html).
 
-import { Helmet } from 'react-helmet-async';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { NORM_BLOCKS, MODULE_DOCS, NORM_LEGEND } from './landing/normativaData';
@@ -17,13 +16,6 @@ const TOC = [
 export function Normativa() {
   return (
     <div className="landing-root">
-      <Helmet>
-        <title>Normativa — Concreta</title>
-        <meta
-          name="description"
-          content="Mapa norma a norma del Código Estructural y el CTE que implementa Concreta: qué artículo cubre cada módulo, qué está vivo y qué queda en roadmap."
-        />
-      </Helmet>
 
       <LandingNav />
 

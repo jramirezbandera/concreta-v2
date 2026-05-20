@@ -1,8 +1,10 @@
-import { createContext, useContext, useState } from 'react';
-import { Outlet, Navigate } from 'react-router';
+import { Suspense, createContext, useContext, useState } from 'react';
+import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../ui/Toast';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
+import { RouteFallback } from './RouteFallback';
+import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 
 interface DrawerContextType {
   openDrawer: () => void;
@@ -35,7 +37,11 @@ export function AppShell() {
           <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <Outlet />
+            <ChunkErrorBoundary>
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
+            </ChunkErrorBoundary>
           </div>
 
           <ToastContainer />
@@ -43,8 +49,4 @@ export function AppShell() {
       </CalculatorProvider>
     </DrawerContext.Provider>
   );
-}
-
-export function NotFound() {
-  return <Navigate to="/horm/vigas" replace />;
 }

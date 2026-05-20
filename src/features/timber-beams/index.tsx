@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { timberBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -32,10 +31,6 @@ export function TimberBeamsModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Vigas de madera — Concreta</title>
-        <meta name="description" content="Flexión, cortante y resistencia al fuego R30–R120 en vigas de madera. EC5 EN 1995-1-1 §6.1." />
-      </Helmet>
       <Topbar
         moduleLabel="Vigas de madera"
         moduleGroup="Madera"

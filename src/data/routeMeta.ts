@@ -12,8 +12,24 @@ export const BASE_URL = 'https://concreta.app';
 
 export const routeMeta: Record<string, RouteMeta> = {
   '/': {
-    title: 'Concreta — Cálculo estructural online',
-    description: 'Hormigón, acero, cimentaciones y madera según normativa española. Código Estructural y CTE. Sin instalación, directo al navegador.',
+    title: 'Concreta — Cálculo estructural para el día a día',
+    description: 'Herramienta web de cálculo estructural para arquitectos e ingenieros. Normativa española (CE, CTE). PWA local, sin backend, sin cuentas.',
+  },
+  '/normativa': {
+    title: 'Normativa — Concreta',
+    description: 'Mapa norma a norma del Código Estructural y el CTE que implementa Concreta: qué artículo cubre cada módulo, qué está vivo y qué queda en roadmap.',
+  },
+  '/about': {
+    title: 'Sobre Concreta — Filosofía y autor',
+    description: 'La filosofía detrás de Concreta, la historia de por qué nació y quién está detrás de cada commit. Una mesa de trabajo para el calculista, no un dashboard.',
+  },
+  '/pricing': {
+    title: 'Precio — Concreta',
+    description: 'Suscripción mensual a Concreta: plan Libre, Pro (19 €/mes) y Studio. Sin sorpresas, sin «contacta con ventas». Comparativa completa y preguntas frecuentes.',
+  },
+  '/blog': {
+    title: 'Blog — Concreta',
+    description: 'Notas técnicas y de producto: interpretaciones normativas del CE y el CTE, tutoriales con casos reales y registro de cambios. Escrito por gente que calcula.',
   },
   '/horm/vigas': {
     title: 'Vigas de hormigón armado — Concreta',
@@ -27,6 +43,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Punzonamiento en losa — Concreta',
     description: 'Comprobación de punzonamiento en losa maciza, perímetros críticos. Código Estructural art. 6.4.',
   },
+  '/horm/forjados': {
+    title: 'Forjados (reticular / maciza) — Concreta',
+    description: 'Comprobación de forjados reticular y losa maciza en una dirección. Flexión (sección T), cortante y fisuración. Código Estructural art. 21, 42, 44, 49.',
+  },
   '/acero/vigas': {
     title: 'Vigas de acero — Concreta',
     description: 'Flexión, pandeo lateral-torsional y deflexión en vigas de acero laminado. EC3 §6.2–6.3.',
@@ -38,6 +58,10 @@ export const routeMeta: Record<string, RouteMeta> = {
   '/acero/seccion-compuesta': {
     title: 'Sección compuesta — Concreta',
     description: 'Steiner, clase de sección y módulo plástico Wpl por bandas. EC3.',
+  },
+  '/acero/placas-de-anclaje': {
+    title: 'Placas de anclaje — Concreta',
+    description: 'Placas de anclaje atornilladas. EC3 §6.2.5 (T-stub), EN 1992-4 (pernos).',
   },
   '/ciment/zapatas': {
     title: 'Zapatas aisladas — Concreta',
@@ -63,4 +87,14 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Pilar empresillado — Concreta',
     description: 'Pilar compuesto batido (empresillado). EC3 §6.4.2.',
   },
+  '/rehab/muros-fabrica': {
+    title: 'Muros de fábrica — Concreta · DB-SE-F',
+    description: 'Verificación de muros de carga de fábrica multi-planta · DB-SE-F.',
+  },
+  '/analisis/fem': {
+    title: 'FEM 1D — Concreta',
+    description: 'Análisis FEM 1D real — viga continua y ménsula con comprobación HA + Acero según normativa española.',
+  },
 };
+
+export const DEFAULT_META: RouteMeta = routeMeta['/'];

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { anchorPlateDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -37,13 +36,6 @@ export function AnchorPlateModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Placas de anclaje — Concreta</title>
-        <meta
-          name="description"
-          content="Placas de anclaje atornilladas. EC3 §6.2.5 (T-stub), EN 1992-4 (pernos)."
-        />
-      </Helmet>
       <Topbar
         moduleLabel="Placas de anclaje"
         moduleGroup="Acero"

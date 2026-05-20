@@ -1,61 +1,139 @@
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
-import { AppShell, NotFound } from './components/layout/AppShell';
-import { RCBeamsModule } from './features/rc-beams';
-import { RCColumnsModule } from './features/rc-columns';
-import { SteelBeamsModule } from './features/steel-beams';
-import { SteelColumnsModule } from './features/steel-columns';
-import { RetainingWallModule } from './features/retaining-wall';
-import { PunchingModule } from './features/punching';
-import { CompositeSectionModule } from './features/compositeSection';
-import { PileCapModule } from './features/pile-cap';
-import { IsolatedFootingModule } from './features/isolated-footing';
-import { EmpresalladoModule } from './features/empresillado';
-import { MasonryWallsModule } from './features/masonry-walls';
-import { TimberBeamsModule } from './features/timber-beams';
-import { TimberColumnsModule } from './features/timber-columns';
-import { ForjadosModule } from './features/forjados';
-import { AnchorPlateModule } from './features/anchor-plate';
-import { FemAnalysisModule } from './features/fem-analysis';
+import { AppShell } from './components/layout/AppShell';
 import { Landing } from './pages/Landing';
-import { Normativa } from './pages/Normativa';
-import { About } from './pages/About';
-import { Pricing } from './pages/Pricing';
-import { Blog } from './pages/Blog';
-import { BlogPost } from './pages/BlogPost';
+import { RouteFallback } from './components/layout/RouteFallback';
+import { RouteHelmet } from './components/layout/RouteHelmet';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
-const router = createBrowserRouter([
-  // Landing page
-  { path: '/', element: <Landing /> },
-  // Marketing subpages
-  { path: '/normativa', element: <Normativa /> },
-  { path: '/about', element: <About /> },
-  { path: '/pricing', element: <Pricing /> },
-  { path: '/blog', element: <Blog /> },
-  { path: '/blog/:slug', element: <BlogPost /> },
+// Route configs use react-router v7's `lazy` so chunk loading integrates with
+// the data router's pending-state machine. `HydrateFallback` paints during the
+// initial chunk fetch (cold deep-link). The AppShell-level <Suspense> covers
+// in-app navigation between already-mounted calculator routes.
+//
+// Landing stays eager — it's the LCP-critical marketing entry point.
+//
+// RootLayout renders <RouteHelmet /> above <Outlet />, so the document title
+// and description update synchronously on navigation BEFORE the lazy chunk
+// lands. Without this, the previous route's <Helmet> stays painted for the
+// chunk-load window.
 
-  // App shell (pathless layout wrapper)
+function RootLayout() {
+  return (
+    <>
+      <RouteHelmet />
+      <Outlet />
+    </>
+  );
+}
+
+const lazyComponent = <T,>(loader: () => Promise<Record<string, T>>, name: string) =>
+  () => loader().then((m) => ({ Component: m[name] as React.ComponentType }));
+
+const router = createBrowserRouter([
   {
-    element: <AppShell />,
+    element: <RootLayout />,
+    HydrateFallback: RouteFallback,
     children: [
-      { path: 'horm/vigas', element: <RCBeamsModule /> },
-      { path: 'horm/pilares', element: <RCColumnsModule /> },
-      { path: 'acero/vigas', element: <SteelBeamsModule /> },
-      { path: 'acero/pilares', element: <SteelColumnsModule /> },
-      { path: 'ciment/muros', element: <RetainingWallModule /> },
-      { path: 'horm/punzonamiento', element: <PunchingModule /> },
-      { path: 'horm/forjados', element: <ForjadosModule /> },
-      { path: 'acero/seccion-compuesta', element: <CompositeSectionModule /> },
-      { path: 'ciment/encepados', element: <PileCapModule /> },
-      { path: 'ciment/zapatas', element: <IsolatedFootingModule /> },
-      { path: 'rehab/empresillado', element: <EmpresalladoModule /> },
-      { path: 'rehab/muros-fabrica', element: <MasonryWallsModule /> },
-      { path: 'madera/vigas', element: <TimberBeamsModule /> },
-      { path: 'madera/pilares', element: <TimberColumnsModule /> },
-      { path: 'acero/placas-de-anclaje', element: <AnchorPlateModule /> },
-      { path: 'analisis/fem', element: <FemAnalysisModule /> },
-      { path: '*', element: <NotFound /> },
+      { path: '/', element: <Landing /> },
+
+      // Marketing subpages — lazy.
+      {
+        path: '/normativa',
+        lazy: lazyComponent(() => import('./pages/Normativa'), 'Normativa'),
+      },
+      {
+        path: '/about',
+        lazy: lazyComponent(() => import('./pages/About'), 'About'),
+      },
+      {
+        path: '/pricing',
+        lazy: lazyComponent(() => import('./pages/Pricing'), 'Pricing'),
+      },
+      {
+        path: '/blog',
+        lazy: lazyComponent(() => import('./pages/Blog'), 'Blog'),
+      },
+      {
+        path: '/blog/:slug',
+        lazy: lazyComponent(() => import('./pages/BlogPost'), 'BlogPost'),
+      },
+
+      // App shell (pathless layout wrapper). Sidebar stays mounted while
+      // calculator chunks load inside AppShell's internal <Suspense>.
+      {
+        element: <AppShell />,
+        children: [
+          {
+            path: 'horm/vigas',
+            lazy: lazyComponent(() => import('./features/rc-beams'), 'RCBeamsModule'),
+          },
+          {
+            path: 'horm/pilares',
+            lazy: lazyComponent(() => import('./features/rc-columns'), 'RCColumnsModule'),
+          },
+          {
+            path: 'horm/punzonamiento',
+            lazy: lazyComponent(() => import('./features/punching'), 'PunchingModule'),
+          },
+          {
+            path: 'horm/forjados',
+            lazy: lazyComponent(() => import('./features/forjados'), 'ForjadosModule'),
+          },
+          {
+            path: 'acero/vigas',
+            lazy: lazyComponent(() => import('./features/steel-beams'), 'SteelBeamsModule'),
+          },
+          {
+            path: 'acero/pilares',
+            lazy: lazyComponent(() => import('./features/steel-columns'), 'SteelColumnsModule'),
+          },
+          {
+            path: 'acero/seccion-compuesta',
+            lazy: lazyComponent(() => import('./features/compositeSection'), 'CompositeSectionModule'),
+          },
+          {
+            path: 'acero/placas-de-anclaje',
+            lazy: lazyComponent(() => import('./features/anchor-plate'), 'AnchorPlateModule'),
+          },
+          {
+            path: 'ciment/muros',
+            lazy: lazyComponent(() => import('./features/retaining-wall'), 'RetainingWallModule'),
+          },
+          {
+            path: 'ciment/encepados',
+            lazy: lazyComponent(() => import('./features/pile-cap'), 'PileCapModule'),
+          },
+          {
+            path: 'ciment/zapatas',
+            lazy: lazyComponent(() => import('./features/isolated-footing'), 'IsolatedFootingModule'),
+          },
+          {
+            path: 'rehab/empresillado',
+            lazy: lazyComponent(() => import('./features/empresillado'), 'EmpresalladoModule'),
+          },
+          {
+            path: 'rehab/muros-fabrica',
+            lazy: lazyComponent(() => import('./features/masonry-walls'), 'MasonryWallsModule'),
+          },
+          {
+            path: 'madera/vigas',
+            lazy: lazyComponent(() => import('./features/timber-beams'), 'TimberBeamsModule'),
+          },
+          {
+            path: 'madera/pilares',
+            lazy: lazyComponent(() => import('./features/timber-columns'), 'TimberColumnsModule'),
+          },
+          {
+            path: 'analisis/fem',
+            lazy: lazyComponent(() => import('./features/fem-analysis'), 'FemAnalysisModule'),
+          },
+        ],
+      },
+
+      // Catch-all redirect. Hoisted out of AppShell children so a 404 doesn't
+      // bootstrap the entire sidebar tree just to redirect.
+      { path: '*', element: <Navigate to="/horm/vigas" replace /> },
     ],
   },
 ]);

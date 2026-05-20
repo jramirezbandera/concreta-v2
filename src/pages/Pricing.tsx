@@ -1,7 +1,6 @@
 // Pricing — dedicated /pricing route. Plans, comparison table and FAQ.
 // Ported from the Claude Design handoff (pricing.html).
 
-import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
@@ -149,13 +148,6 @@ function CompareCell({ cell }: { cell: Cell }) {
 export function Pricing() {
   return (
     <div className="landing-root">
-      <Helmet>
-        <title>Precio — Concreta</title>
-        <meta
-          name="description"
-          content="Suscripción mensual a Concreta: plan Libre, Pro (19 €/mes) y Studio. Sin sorpresas, sin «contacta con ventas». Comparativa completa y preguntas frecuentes."
-        />
-      </Helmet>
 
       <LandingNav />
 

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { isolatedFootingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -35,10 +34,6 @@ export function IsolatedFootingModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Zapatas aisladas — Concreta</title>
-        <meta name="description" content="Cálculo de zapata aislada: presiones, armadura y comprobaciones. CTE DB-SE-C art. 4.3." />
-      </Helmet>
       <Topbar
         moduleLabel="Zapatas"
         moduleGroup="Cimentación"

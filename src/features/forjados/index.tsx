@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { forjadosDefaults, type ForjadosVariant } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -67,13 +66,6 @@ export function ForjadosModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Forjados (reticular / maciza) — Concreta</title>
-        <meta
-          name="description"
-          content="Comprobación de forjados reticular y losa maciza en una dirección. Flexión (sección T), cortante y fisuración. Código Estructural art. 21, 42, 44, 49."
-        />
-      </Helmet>
       <Topbar
         moduleLabel="Forjados"
         moduleGroup="Hormigón"

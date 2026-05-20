@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { retainingWallDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -124,10 +123,6 @@ export function RetainingWallModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Muros de contención — Concreta</title>
-        <meta name="description" content="Muro de hormigón armado con nivel freático. Código Estructural art. 9." />
-      </Helmet>
       <Topbar
         moduleLabel="Muros"
         moduleGroup="Cimentación"

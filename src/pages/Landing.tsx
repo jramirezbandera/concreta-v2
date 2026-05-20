@@ -5,7 +5,6 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { Helmet } from 'react-helmet-async';
 import { AppPreview, MODULE_CONFIG } from './landing/AppPreview';
 import {
   ModulesSection,
@@ -143,13 +142,6 @@ function HeroCarousel() {
 export function Landing() {
   return (
     <div className="landing-root">
-      <Helmet>
-        <title>Concreta — Cálculo estructural para el día a día</title>
-        <meta
-          name="description"
-          content="Herramienta web de cálculo estructural para arquitectos e ingenieros. Normativa española (CE, CTE). PWA local, sin backend, sin cuentas."
-        />
-      </Helmet>
 
       {/* Scrolls to /#section targets on client navigation */}
       <ScrollToHash />

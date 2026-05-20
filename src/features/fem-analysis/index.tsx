@@ -15,8 +15,7 @@
 //     User can expand inputs via the CollapseToggle.
 //   - Desktop (≥1310px): full 3-panel layout, all controls visible.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -36,7 +35,7 @@ import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { ResultsPanel } from './ResultsPanel';
 import { ToolPalette } from './ToolPalette';
 import { cloneDesignPreset, type DesignPresetId } from './presets';
-import { solveDesignModel } from './solveDesignModel';
+import { useLazyDesignSolver } from './useLazyDesignSolver';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { useModelHistory } from './useModelHistory';
 import type { DesignModel, Selected, ToolId, ViewState } from './types';
@@ -276,15 +275,21 @@ export function FemAnalysisModule() {
     setSelected(null);
   }
 
-  const result = useMemo(
-    () => (model ? solveDesignModel(model) : { status: 'neutral' as const, maxEta: 0, perBar: {}, reactions: [], errors: [], elements: [] }),
-    [model],
-  );
+  // Solver loads lazily — see useLazyDesignSolver for rationale. `result`
+  // returns `status: 'pending'` while the solver chunk is in flight, then
+  // re-runs synchronously on every model change once loaded.
+  const { result, ensureSolver } = useLazyDesignSolver(model);
 
   // PDF export — always available per project memory rule "PDF export never disabled".
+  // If the solver chunk isn't loaded yet, await it inside the click handler so
+  // the button stays clickable from first paint.
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
     usePdfPreview(
-      () => exportFemAnalysisPDF(model!, result, system),
+      async () => {
+        const solver = await ensureSolver();
+        const r = model ? solver(model) : result;
+        return exportFemAnalysisPDF(model!, r, system);
+      },
       true,
     );
 
@@ -306,10 +311,6 @@ export function FemAnalysisModule() {
   if (!model) {
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <Helmet>
-          <title>FEM 1D — Concreta</title>
-          <meta name="description" content="Análisis FEM 1D — viga continua y ménsula con comprobación HA + Acero según normativa española." />
-        </Helmet>
         <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
         <Landing onPick={pickPreset} recientes={loadRecent()} />
       </div>
@@ -318,10 +319,6 @@ export function FemAnalysisModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>FEM 1D — Concreta</title>
-        <meta name="description" content="Análisis FEM 1D real — viga continua y ménsula con comprobación HA + Acero según normativa española." />
-      </Helmet>
       <Topbar
         moduleLabel="FEM 1D"
         moduleGroup="Análisis"

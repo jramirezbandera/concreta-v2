@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { empresalladoDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -33,10 +32,6 @@ export function EmpresalladoModule() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <Helmet>
-        <title>Pilar empresillado — Concreta</title>
-        <meta name="description" content="Pilar compuesto batido (empresillado). EC3 §6.4.2." />
-      </Helmet>
       <Topbar
         moduleLabel="Empresillado"
         moduleGroup="Rehabilitación"
