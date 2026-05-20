@@ -191,9 +191,9 @@ function SelectField({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <span className="text-[13px] text-text-disabled whitespace-nowrap shrink-0">{label}</span>
-      <span className="text-[12px] font-mono text-text-disabled">{value}</span>
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <span className="text-[13px] text-text-disabled truncate min-w-0" title={label}>{label}</span>
+      <span className="text-[12px] font-mono text-text-disabled shrink-0">{value}</span>
     </div>
   );
 }
@@ -209,9 +209,16 @@ function DerivedRow({
   value: string;
   unit: string;
 }) {
+  // Label side truncates; the value+badge side keeps its full width. Without
+  // `min-w-0 truncate` the label refuses to shrink and the whole row overflows
+  // the 240-px FEM left panel (Mser + descShort + value + 'derivado' badge
+  // adds up to ~223 px in a ~211-px effective width).
   return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <span
+        className="text-[13px] text-text-secondary truncate min-w-0"
+        title={sub ? `${label} ${sub}` : label}
+      >
         {label}
         {sub && <span className="text-[11px] text-text-disabled ml-1">{sub}</span>}
       </span>
