@@ -18,7 +18,7 @@
 // Diagrams are read from `result.perBar[id]` which already holds combined
 // ELU samples produced by the bridge (`solveDesignModel`).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { InlineEdit } from './components/InlineEdit';
@@ -82,15 +82,35 @@ export function Canvas({
   }, [model.nodes]);
 
   const padding = 60;
-  // Banda de la viga centrada en el canvas. Los diagramas M/V/δ son compactos
-  // y se autoescalan alrededor de la banda, así que no hacen falta reservar
-  // franjas asimétricas: centrar encuadra el modelo y elimina el hueco muerto.
-  const yStrip = size.h * 0.5;
+  // Banda de la viga: arrancamos centrada y `yStripOffset` la corrige tras el
+  // primer render midiendo el bbox real del contenido estructural (loads +
+  // supports + dims + diagramas). Si los apoyos/cotas pesan más que las
+  // cargas, el strip se sube unos pocos px para que el modelo quede visualmente
+  // centrado en el canvas — los diagramas M/V/δ se autoescalan alrededor.
+  const [yStripOffset, setYStripOffset] = useState(0);
+  const yStrip = size.h * 0.5 + yStripOffset;
   const dataW = bounds.maxX - bounds.minX;
   const scaleX = (size.w - 2 * padding) / Math.max(1, dataW);
   // For y we use a fixed pixel scaling for diagrams that's independent of bar length.
   const scaleY = 1;
   const offX = padding - bounds.minX * scaleX;
+  const contentRef = useRef<SVGGElement | null>(null);
+
+  // Re-center the strip so the structural content's vertical bbox lands on the
+  // canvas center. Converges in two paint cycles (initial render with offset=0
+  // gives us the natural bbox, then one shift centers it).
+  useLayoutEffect(() => {
+    const g = contentRef.current;
+    if (!g) return;
+    let bbox: DOMRect | { y: number; height: number };
+    try { bbox = g.getBBox(); } catch { return; }
+    if (bbox.height <= 0) return;
+    const contentCenter = bbox.y + bbox.height / 2;
+    const desiredShift = size.h / 2 - contentCenter;
+    if (Math.abs(desiredShift) > 0.5) {
+      setYStripOffset((prev) => prev + desiredShift);
+    }
+  }, [size.h, model.nodes, model.bars, model.supports, model.loads, view.layer, view.combo, view.deformedScale]);
 
   const w2s = useCallback(
     (x: number, y: number): [number, number] => [x * scaleX + offX, yStrip - y * scaleY],
@@ -441,6 +461,12 @@ export function Canvas({
 
         <GroundLine yStrip={yStrip} size={size} />
 
+        {/* Structural content group — measured post-render to center the strip.
+            Excludes the GroundLine (background), the +vano floating button
+            (extends past the model on purpose) and the ToolHint overlay so the
+            measurement only reflects what the user reads as "the drawing". */}
+        <g ref={contentRef}>
+
         {/* Diagrams — global normalization across bars (Issue 3 fix: avoids the
             visual jumps at supports caused by per-bar normalization). */}
         {(() => {
@@ -584,7 +610,11 @@ export function Canvas({
           <ReactionGlyph key={i} reaction={r} w2s={w2s} />
         ))}
 
-        {/* "+vano" floating button — hidden in read-only (mobile). */}
+        </g>{/* /structural content */}
+
+        {/* "+vano" floating button — hidden in read-only (mobile). Outside the
+            measured group so the empty space it forces past the last node
+            doesn't pull the model off-center. */}
         {model.bars.length > 0 && !readOnly && (
           <AddVanoButton model={model} w2s={w2s} onClick={addVano} />
         )}
