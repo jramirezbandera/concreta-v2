@@ -94,7 +94,9 @@ describe('cross-page navigation', () => {
       'href',
       '/normativa',
     );
-  });
+    // 15s: first render of <Landing /> in this file; transform contention can
+    // exceed the 5s default under full-suite parallel load.
+  }, 15000);
 
   it('ScrollToHash scrolls to a /#section target on the landing', async () => {
     (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();

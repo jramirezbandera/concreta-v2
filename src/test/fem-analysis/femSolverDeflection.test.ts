@@ -59,8 +59,9 @@ describe('FEM regression: flecha sensata para vano mixto acero+HA', () => {
     expect(b1.envelope).toBeDefined();
 
     const allDeltas: { combo: string; max: number }[] = [];
-    for (const combo of Object.keys(b1.envelope!) as Array<keyof typeof b1.envelope>) {
-      const env = b1.envelope![combo];
+    const envelope = b1.envelope!;
+    for (const combo of Object.keys(envelope) as Array<keyof typeof envelope>) {
+      const env = envelope[combo];
       if (!env?.delta) continue;
       const peak = Math.max(...env.delta.map(Math.abs));
       allDeltas.push({ combo, max: peak });

@@ -53,5 +53,7 @@ describe('About page', () => {
     expect(
       screen.getByRole('link', { name: /Sobre Concreta y Javier/i }),
     ).toHaveAttribute('href', '/about');
-  });
+    // 15s: this is the first render of <Landing /> in this file; under
+    // parallel-load it can blow past the 5s default while modules transform.
+  }, 15000);
 });
