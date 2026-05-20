@@ -62,6 +62,14 @@ export function InputsPanel({
         margin: 0,
         // fieldset defaults to inline-grid behavior; restore block flow.
         display: 'block',
+        // <fieldset> tiene `min-width: min-content` por defecto del navegador,
+        // así que NO se encoge a su contenedor: si cualquier hijo tiene un
+        // min-content más ancho que el panel (240px), el fieldset desborda
+        // (≈3px aquí) y dispara la barra de scroll horizontal. Forzar
+        // minWidth:0 hace que sí respete el ancho del padre.
+        minWidth: 0,
+        width: '100%',
+        boxSizing: 'border-box',
         // Visual cue when disabled (mobile read-only): everything dims.
         opacity: readOnly ? 0.85 : 1,
       }}
