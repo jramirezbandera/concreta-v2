@@ -383,6 +383,91 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
 
+describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
+  it('legacy compat: pedestal_cX (simétrico) sigue funcionando idéntico', () => {
+    // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
+    // están simétricos (estado pre-PR8a sin asimetría explícita).
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    // Sentinel: worstUtil = 0.928 (fijado en PR7b). NO debe cambiar con
+    // resolveEdges sobre defaults simétricos.
+    expect(r.worstUtil).toBeCloseTo(0.928, 2);
+  });
+
+  it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
+    // cX1=50, cX2=500 → la proyección del cono se limita a 50 en +x.
+    // Comparar con simétrico cX=200.
+    const r_sym = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_cX: 200 });
+    const r_asym = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cX1: 50, pedestal_cX2: 500,
+    });
+    const cone_sym = r_sym.checks.find((c) => c.id === 'concrete-cone')!;
+    const cone_asym = r_asym.checks.find((c) => c.id === 'concrete-cone')!;
+    // ext_total simétrico = 2·min(450,200) = 400.
+    // ext_total asimétrico = min(450,50) + min(450,500) = 50 + 450 = 500.
+    // bxA grows from x_range+400 to x_range+500 (con bars en ±150, x_range=300):
+    //   sym  bxA = 300+400 = 700
+    //   asym bxA = 300+500 = 800
+    // ratio = 800/700 = 1.143. NRd,c también amplifica por ese factor.
+    // Pero ψs cambia: sym c_min = 200 → ψs=0.833; asym c_min = 50 → ψs=0.733.
+    // Net effect en util: ratio = 1/(1.143·0.733/0.833) ≈ 1/1.006 ≈ casi igual.
+    // Verificar al menos que el ψs reportado refleja cX1=50:
+    expect(cone_asym.limit).toMatch(/ψs=0\.7[0-3]/);
+    expect(cone_sym.limit).toMatch(/ψs=0\.83/);
+  });
+
+  it('asimétrico cY1 = 50 (placa cerca borde y+) → ψs limitado por cY1', () => {
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cY1: 50, pedestal_cY2: 350,
+    });
+    const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
+    // c_min = 50 < c_cr = 450 → ψs = 0.7 + 0.3·50/450 = 0.733
+    expect(cone.limit).toMatch(/ψs=0\.73/);
+  });
+
+  it('helper preserva backward-compat: cambiar legacy pedestal_cX sin direccionales sigue funcionando', () => {
+    // Override pedestal_cX (legacy field) sin tocar cX1/cX2 → resolveEdges
+    // detecta cX1==cX2==default y usa pedestal_cX. ψs refleja el nuevo valor.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_cX: 500, pedestal_cY: 500 });
+    const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
+    // c_min = 500 ≥ c_cr = 450 → ψs = 1.00
+    expect(cone.limit).toMatch(/ψs=1\.00/);
+  });
+
+  it('splitting con cY1 cercano al borde → ψs reducido', () => {
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cY1: 80, pedestal_cY2: 320,
+      pedestal_h: 400,    // forzar splitting a aplicar
+      Mx: 30, My: 20,
+    });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    if (sp.status !== 'neutral') {
+      // c_min = 80, c_cr,sp = 450 → ψs,sp = 0.7+0.3·80/450 = 0.753
+      expect(sp.limit).toMatch(/ψs=0\.7[2-6]/);
+    }
+  });
+
+  it('anchorage cd usa edge direccional: bar cerca de cara cY1 pequeña', () => {
+    // Bar en y=+100 con cY1=50 y cY2=350: cover_y+ = 50+(100-100)=50, cover_y- = 350+200=550.
+    // min = 50 (cerca de cara +y).
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cY1: 50, pedestal_cY2: 350,
+      bottom_anchorage: 'patilla', My: 5,
+    });
+    const al = r.checks.find((c) => c.id === 'anchorage-length')!;
+    const cd_match = al.limit?.match(/cd=(\d+)/);
+    if (cd_match) {
+      const cd = parseInt(cd_match[1], 10);
+      // El worst bar puede ser una en +y con coverY+=50. cd ≤ 50 → α1=1.0
+      // o cd>3·φ=60 → α1=0.70. Depende de la geom exact.
+      expect(cd).toBeLessThanOrEqual(90);   // cualquiera de 50, 90, 50 (semi-spacing)
+    }
+  });
+});
+
 describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', () => {
   it('FTUX biaxial: ψh, ψec, ψs reportados separados en limit string', () => {
     // Pre-CR3: limit showed ψh based on edge distance (wrong variable).

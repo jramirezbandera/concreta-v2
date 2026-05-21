@@ -61,6 +61,29 @@ const BETA_W: Record<'S235' | 'S275' | 'S355', number> = {
   S355: 0.90,
 };
 
+// ─── Direccional edges (H15, PR8a) ──────────────────────────────────────
+//
+// El input legacy `pedestal_cX`/`pedestal_cY` asume distancias simétricas
+// (mismo recubrimiento en +x y −x). PR8a añadió `pedestal_cX1/cX2/cY1/cY2`
+// para permitir el caso direccional (e.g., placa de fachada cerca de un
+// borde). La regla de resolución preserva backward-compat:
+//   - Si los pares direccionales son simétricos (cX1==cX2 y cY1==cY2), se
+//     toma el valor legacy `pedestal_cX`/`pedestal_cY`. Esto cubre estado
+//     persistido pre-PR0 (donde sólo se actualizó `pedestal_cX` y los
+//     direccionales quedaron en el default sembrado).
+//   - Si el usuario configuró asimetría (cX1≠cX2 o cY1≠cY2), se usan los
+//     valores direccionales.
+function resolveEdges(inp: AnchorPlateInputs) {
+  const symX = inp.pedestal_cX1 === inp.pedestal_cX2;
+  const symY = inp.pedestal_cY1 === inp.pedestal_cY2;
+  return {
+    cX1: symX ? inp.pedestal_cX : inp.pedestal_cX1,
+    cX2: symX ? inp.pedestal_cX : inp.pedestal_cX2,
+    cY1: symY ? inp.pedestal_cY : inp.pedestal_cY1,
+    cY2: symY ? inp.pedestal_cY : inp.pedestal_cY2,
+  };
+}
+
 // ─── Rebar design strengths per bar (helper) ─────────────────────────────
 function barStrengths(inp: AnchorPlateInputs) {
   const { As }  = REBAR_AREAS[inp.bar_diam as RebarDiam];
@@ -773,6 +796,9 @@ export function checkBoltShear(
   const Fv_Rd_total_kN = FvRd_per_bar_kN * nBars;
 
   const V_Rd_total_kN = Vfric_kN + Fv_Rd_total_kN;
+  // PR8a — el cortante se trata como magnitud escalar aquí. La descomposición
+  // direccional Vx/Vy se usa en checkConcreteEdgeBreakout (PR8b) donde la
+  // dirección de carga afecta a c1 y al α de breakout.
   const util = inp.VEd / Math.max(V_Rd_total_kN, 1e-6);
   return {
     id: 'bolt-shear',
@@ -798,7 +824,7 @@ export function checkBoltInteraction(
   const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
   const Vfric_kN = mu * Math.max(0, inp.NEd_G);
   const Vbars_kN = Math.max(0, inp.VEd - Vfric_kN);
-  const FvEd_per_bar_kN = Vbars_kN / Math.max(1, inp.bar_nLayout);
+  const FvEd_per_bar_kN = Vbars_kN / Math.max(1, bars.length);
 
   let FtMax_kN = 0;
   for (const b of bars) if (b.inTension && b.Ft > FtMax_kN) FtMax_kN = b.Ft;
@@ -858,10 +884,20 @@ export function checkAnchorageLength(
   // que se reduce a pedestal_cX para |b.x| = corner_x y crece para interiores.
   const cornerX = inp.plate_a / 2 - inp.bar_edge_x;
   const cornerY = inp.plate_b / 2 - inp.bar_edge_y;
+  const edges = resolveEdges(inp);
 
   function cdForBar(b: AnchorBarPosition): number {
-    const coverX = inp.pedestal_cX + (cornerX - Math.abs(b.x));
-    const coverY = inp.pedestal_cY + (cornerY - Math.abs(b.y));
+    // H15 (PR8a) — recubrimiento direccional por cara del pedestal.
+    // Para una barra en b.x, las dos distancias a las caras x del pedestal son:
+    //   distancia al borde +x: cX1 + (cornerX − b.x)
+    //   distancia al borde -x: cX2 + (cornerX + b.x)
+    // El recubrimiento relevante por eje es el min de las dos caras.
+    const coverXp = edges.cX1 + (cornerX - b.x);
+    const coverXm = edges.cX2 + (cornerX + b.x);
+    const coverYp = edges.cY1 + (cornerY - b.y);
+    const coverYm = edges.cY2 + (cornerY + b.y);
+    const coverX = Math.min(coverXp, coverXm);
+    const coverY = Math.min(coverYp, coverYm);
     // Distancia real a la barra vecina más cercana en cada eje.
     let nearestX = Infinity;
     let nearestY = Infinity;
@@ -954,13 +990,23 @@ export function checkConcreteCone(
     if (b.y < y_min) y_min = b.y;
     if (b.y > y_max) y_max = b.y;
   }
-  const extX = Math.min(c_cr, inp.pedestal_cX);
-  const extY = Math.min(c_cr, inp.pedestal_cY);
-  const bxA = (x_max - x_min) + 2 * extX;
-  const byA = (y_max - y_min) + 2 * extY;
+  // H15 (PR8a) — proyección direccional del cono: cada lado del bounding box
+  // del grupo tensionado se extiende por el min(c_cr, distancia direccional
+  // al borde correspondiente). Para pedestal simétrico (legacy pedestal_cX/cY)
+  // el resultado coincide con el modelo anterior (extX·2). Para pedestal
+  // asimétrico (placa de fachada cerca de un borde), el grupo se proyecta
+  // correctamente por cada cara.
+  const edges = resolveEdges(inp);
+  const extXp = Math.min(c_cr, edges.cX1);
+  const extXm = Math.min(c_cr, edges.cX2);
+  const extYp = Math.min(c_cr, edges.cY1);
+  const extYm = Math.min(c_cr, edges.cY2);
+  const bxA = (x_max - x_min) + extXp + extXm;
+  const byA = (y_max - y_min) + extYp + extYm;
   const Ac_N = bxA * byA;
 
-  const c_min = Math.min(inp.pedestal_cX, inp.pedestal_cY);
+  // ψs por mínima distancia direccional al borde (cualquiera de las 4 caras).
+  const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
   const psi_s = c_min >= c_cr ? 1.0 : 0.7 + (0.3 * c_min) / c_cr;
 
   const NRd_c_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_s;
@@ -1062,8 +1108,10 @@ export function checkSplitting(
   const c_cr_sp = 1.5 * hef;
   const s_cr_sp = 3 * hef;
   const h_pedestal = inp.pedestal_h;
-  const c_min = Math.min(inp.pedestal_cX, inp.pedestal_cY);
-  const c_max = Math.max(inp.pedestal_cX, inp.pedestal_cY);
+  // H15 (PR8a) — direccional sobre las 4 caras (resolveEdges para legacy compat).
+  const edges = resolveEdges(inp);
+  const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
+  const c_max = Math.max(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
 
   if (c_min >= c_cr_sp && h_pedestal >= 2 * hef) {
     return {
@@ -1109,10 +1157,13 @@ export function checkSplitting(
     if (b.y < y_min) y_min = b.y;
     if (b.y > y_max) y_max = b.y;
   }
-  const extX = Math.min(c_cr_sp, inp.pedestal_cX);
-  const extY = Math.min(c_cr_sp, inp.pedestal_cY);
-  const bxA = (x_max - x_min) + 2 * extX;
-  const byA = (y_max - y_min) + 2 * extY;
+  // H15 (PR8a) — proyección direccional, lado a lado.
+  const extXp_sp = Math.min(c_cr_sp, edges.cX1);
+  const extXm_sp = Math.min(c_cr_sp, edges.cX2);
+  const extYp_sp = Math.min(c_cr_sp, edges.cY1);
+  const extYm_sp = Math.min(c_cr_sp, edges.cY2);
+  const bxA = (x_max - x_min) + extXp_sp + extXm_sp;
+  const byA = (y_max - y_min) + extYp_sp + extYm_sp;
   const Ac_N = bxA * byA;
 
   // ★ NO multiplicar por tBars.length — espurio, ya capturado en Ac/Ac0.
