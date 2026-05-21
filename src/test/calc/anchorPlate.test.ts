@@ -341,15 +341,7 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
   });
 });
 
-// ─── CYPE-MET oracle placeholders ────────────────────────────────────────
-// TODO(PR-4): once manual CYPE-MET runs are captured for these configs,
-// replace `it.skip` with real assertions (±5 % tolerance on Nc, Ft_total,
-// NRd,c, NRd,p, worstUtil). Target reference: CYPE Ingenieros Metal 3D
-// "Placa base en metal" module, same geometry + same partial factors.
-describe.skip('anchor plate — CYPE-MET oracle cross-check (PR-4)', () => {
-  it('FTUX default vs CYPE-MET: worstUtil within ±5 %', () => { /* TODO */ });
-  it('pure compression vs CYPE-MET: Nc within ±1 %', () => { /* TODO */ });
-  it('biaxial 6-bar vs CYPE-MET: Ft_total within ±5 %', () => { /* TODO */ });
-  it('edge-near splitting vs CYPE-MET: NRd,sp within ±10 %', () => { /* TODO */ });
-  it('patilla anchorage length vs CYPE-MET: lb,rqd within ±5 %', () => { /* TODO */ });
-});
+// Manual hand-calc oracle suite (5 configs A-E) was extracted to
+// src/test/calc/anchorPlateOracle.test.ts in PR1 of the audit-driven refactor.
+// Each config is activated as the corresponding fix PR lands. See that file
+// for the full normative derivations.

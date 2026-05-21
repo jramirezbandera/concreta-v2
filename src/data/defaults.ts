@@ -739,7 +739,9 @@ export interface AnchorPlateInputs {
   NEd_G: number;                      // kN — axil cuasi-permanente (para fricción μ·Nc,G, EN 1992-4 §6.2.2)
   Mx:    number;                      // kNm (eje fuerte)
   My:    number;                      // kNm (eje débil)
-  VEd:   number;                      // kN
+  VEd:   number;                      // kN — magnitud cortante. Legacy. Vx/Vy lo reemplazan progresivamente (PR0/PR8a).
+  Vx:    number;                      // kN — cortante eje fuerte (introducido en PR0, default = VEd, usado a partir de PR8a)
+  Vy:    number;                      // kN — cortante eje débil (introducido en PR0, default = 0)
 
   // Placa
   plate_a:      number;              // mm (paralela al eje fuerte)
@@ -767,8 +769,13 @@ export interface AnchorPlateInputs {
 
   // Hormigón y macizo
   fck:            number;            // MPa
-  pedestal_cX:    number;            // mm — c1: perno al borde del macizo, eje fuerte (EN 1992-4 §7.2.1.4)
-  pedestal_cY:    number;            // mm — c2: perno al borde del macizo, eje débil
+  pedestal_cX:    number;            // mm — c1: perno al borde del macizo, eje fuerte (EN 1992-4 §7.2.1.4). Legacy: se mantiene como semilla de cX1/cX2 hasta PR8a.
+  pedestal_cY:    number;            // mm — c2: perno al borde del macizo, eje débil. Legacy: idem.
+  pedestal_cX1:   number;            // mm — distancia direccional al borde en +x (PR0, default = pedestal_cX). Usado por checks direccionales a partir de PR8a.
+  pedestal_cX2:   number;            // mm — idem a −x.
+  pedestal_cY1:   number;            // mm — idem a +y.
+  pedestal_cY2:   number;            // mm — idem a −y.
+  pedestal_h:     number;            // mm — canto del macizo, necesario para splitting ψh,sp (PR0, default 1000; usado por PR6).
   plate_margin_x: number;            // mm — placa al borde del macizo, eje fuerte (EC3 §6.2.5, factor α extensión)
   plate_margin_y: number;            // mm — placa al borde del macizo, eje débil
   surface_type:   PedestalSurface;
@@ -811,12 +818,19 @@ export const anchorPlateDefaults: AnchorPlateInputs = {
   rib_t:     10,
 
   fck:             25,
-  pedestal_cX:     200,   // c1 — bolt a borde (EN 1992-4 cone)
-  pedestal_cY:     200,   // c2
+  pedestal_cX:     200,   // c1 — bolt a borde (EN 1992-4 cone) (legacy, seeds direccionales)
+  pedestal_cY:     200,   // c2 (legacy, seeds direccionales)
+  pedestal_cX1:    200,   // direccional +x (PR0)
+  pedestal_cX2:    200,   // direccional −x (PR0)
+  pedestal_cY1:    200,   // direccional +y (PR0)
+  pedestal_cY2:    200,   // direccional −y (PR0)
+  pedestal_h:     1000,   // mm canto macizo — default conservador (PR0, usado por splitting PR6)
   plate_margin_x:  150,   // placa (400) + 2·150 = 700 mm pedestal — α ≈ 1.75
   plate_margin_y:  150,
   surface_type:    'roughened',
 
+  Vx: 50,                 // = VEd inicialmente (PR0); decompone Vy a partir de PR8a
+  Vy: 0,
   weld_throat: 6,
 };
 

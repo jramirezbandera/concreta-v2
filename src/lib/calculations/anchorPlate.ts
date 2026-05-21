@@ -180,6 +180,14 @@ export interface SolverResult {
   phi_NA?: number;             // rad — NA angle from +x
   d_NA?: number;               // mm — NA normal offset from plate centroid
   block?: Pt[];                // compression polygon (plate-local mm)
+  /** PR0 — equilibrium residuals exposed for property tests (PR7a/b).
+   *  Current solvers populate these with zeros for the axis-aligned closed-form
+   *  path and with the actual grid-search residual for the biaxial path. */
+  residuals: {
+    SN_kN: number;             // ΣF axial residual (kN)
+    SMx_kNm: number;           // ΣMx residual (kNm)
+    SMy_kNm: number;           // ΣMy residual (kNm)
+  };
 }
 
 // ─── Axis-aligned superposition solver (pure-Mx fast path) ───────────────
@@ -203,6 +211,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       mode: 'uniform-compression',
       converged: true,
       note: 'Compresión uniforme bajo placa (|e| ≤ a/6)',
+      residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
     };
   }
 
@@ -232,6 +241,9 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     mode: 'partial-lift',
     converged: true,
     note: 'Tracción parcial — bloque plástico rectangular (EC3 §6.2.5 simplif.)',
+    // Closed-form path: ΣN exact by construction. ΣM residual N/A here
+    // (no equilibrium iteration); will be properly computed in PR7a.
+    residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
   };
 }
 
@@ -386,6 +398,14 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     phi_NA: best.phi,
     d_NA: best.d,
     block: best.block,
+    // Biaxial grid path: split the scalar moment residual into Mx and My
+    // components for downstream property tests (PR7b). The axial residual
+    // is zero by construction (Nc = NEd + Ft_total enforced in the loop).
+    residuals: {
+      SN_kN: 0,
+      SMx_kNm: best.Mx_int_kNm - Mx,
+      SMy_kNm: best.My_int_kNm - My,
+    },
   };
 }
 
@@ -913,6 +933,7 @@ export function calcAnchorPlate(
         bolts: emptyBars,
         Nc: 0, Ft_total: 0, n_t: 0, x_c: 0, lifted: false,
         mode: 'uniform-compression', converged: true, note: 'Sin solicitación',
+        residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
       },
       checks: [],
       worstUtil: 0,

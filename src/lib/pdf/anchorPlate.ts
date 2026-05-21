@@ -411,18 +411,29 @@ export async function exportAnchorPlatePDF(
   y += 10;
 
   // ── Footer on every page ──────────────────────────────────────────────
-  const footerY = PAGE_H - 10;
+  // PR0 — disclaimer "metodo en revision" while CR1/CR2/CR3/CR6 calc fixes
+  // are still pending. Removed in PR9 once the calculation engine is
+  // defensible against CE Anejo 11/18 and the article citations have been
+  // remapped from EHE-08/EC3/EN1992-4 to CE.
+  const footerY = PAGE_H - 14;
   const pageCount = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    setGray(doc, 110);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.text(
+      'Metodo de calculo en revision - referencias normativas se actualizaran al Codigo Estructural (RD 470/2021) tras validacion de formulas.',
+      M, footerY,
+    );
     setGray(doc, 150);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.text(
       'Concreta - concreta.app  |  EC3 1-8 §6.2.5, EN 1992-4  |  gM0=1.05, gM2=1.25, gC=1.50',
-      M, footerY,
+      M, footerY + 4,
     );
-    doc.text(`Pag. ${i} / ${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
+    doc.text(`Pag. ${i} / ${pageCount}`, PAGE_W - M, footerY + 4, { align: 'right' });
   }
 
   const filename = `concreta-placa-anclaje-${inp.sectionType}${inp.sectionSize}-${inp.plate_a}x${inp.plate_b}.pdf`;
