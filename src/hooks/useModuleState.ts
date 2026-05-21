@@ -9,11 +9,14 @@ import { getModuleSchemaVersion } from '../data/moduleRegistry';
 //   300ms — localStorage + URL writes (handled here)
 
 type Primitive = string | number | boolean;
-type StateRecord = Record<string, Primitive>;
+// Loose internal record type used for dynamic key access in URL/storage helpers.
+// The public hook takes a concrete `T` (each module's *Inputs interface) without
+// requiring an index signature — the cast is contained to the dynamic-key paths.
+type PrimitiveRecord = Record<string, Primitive>;
 
-interface UseModuleStateReturn<T extends StateRecord> {
+interface UseModuleStateReturn<T> {
   state: T;
-  setField: (field: keyof T, value: T[keyof T]) => void;
+  setField: <K extends keyof T>(field: K, value: T[K]) => void;
   reset: () => void;
 }
 
@@ -22,7 +25,7 @@ function getVersionKey(moduleKey: string) {
   return `${moduleKey}-version`;
 }
 
-function readLocalStorage<T extends StateRecord>(moduleKey: string, defaults: T): T | null {
+function readLocalStorage<T>(moduleKey: string, defaults: T): T | null {
   try {
     const version = localStorage.getItem(getVersionKey(moduleKey));
     if (version !== getModuleSchemaVersion(moduleKey)) return null;
@@ -36,7 +39,7 @@ function readLocalStorage<T extends StateRecord>(moduleKey: string, defaults: T)
   }
 }
 
-function writeLocalStorage<T extends StateRecord>(moduleKey: string, state: T): void {
+function writeLocalStorage<T>(moduleKey: string, state: T): void {
   try {
     localStorage.setItem(moduleKey, JSON.stringify(state));
     localStorage.setItem(getVersionKey(moduleKey), getModuleSchemaVersion(moduleKey));
@@ -55,39 +58,34 @@ function clearLocalStorage(moduleKey: string): void {
 }
 
 // Parse URL params into state, coercing types from defaults
-function parseUrlParams<T extends StateRecord>(
-  params: URLSearchParams,
-  defaults: T,
-): Partial<T> {
-  const result: Partial<T> = {};
+function parseUrlParams<T>(params: URLSearchParams, defaults: T): Partial<T> {
+  const defaultsRec = defaults as unknown as PrimitiveRecord;
+  const result: PrimitiveRecord = {};
   for (const [key, raw] of params.entries()) {
-    if (!(key in defaults)) continue;
-    const defaultVal = defaults[key as keyof T];
+    if (!(key in defaultsRec)) continue;
+    const defaultVal = defaultsRec[key];
     if (typeof defaultVal === 'number') {
       const n = Number(raw);
-      if (!isNaN(n)) (result as StateRecord)[key] = n;
+      if (!isNaN(n)) result[key] = n;
     } else if (typeof defaultVal === 'boolean') {
-      (result as StateRecord)[key] = raw === 'true';
+      result[key] = raw === 'true';
     } else {
-      (result as StateRecord)[key] = raw;
+      result[key] = raw;
     }
   }
-  return result;
+  return result as Partial<T>;
 }
 
 // Serialize full state to URL-safe params for complete state persistence (shareable URLs)
-function toUrlParams<T extends StateRecord>(state: T): Record<string, string> {
+function toUrlParams<T>(state: T): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [key, val] of Object.entries(state)) {
+  for (const [key, val] of Object.entries(state as unknown as PrimitiveRecord)) {
     out[key] = String(val);
   }
   return out;
 }
 
-export function useModuleState<T extends StateRecord>(
-  moduleKey: string,
-  defaults: T,
-): UseModuleStateReturn<T> {
+export function useModuleState<T>(moduleKey: string, defaults: T): UseModuleStateReturn<T> {
   const [searchParams, setSearchParams] = useSearchParams();
   const writeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -119,7 +117,7 @@ export function useModuleState<T extends StateRecord>(
   );
 
   const setField = useCallback(
-    (field: keyof T, value: T[keyof T]) => {
+    <K extends keyof T>(field: K, value: T[K]) => {
       setState((prev) => {
         const next = { ...prev, [field]: value };
         schedulePersist(next);

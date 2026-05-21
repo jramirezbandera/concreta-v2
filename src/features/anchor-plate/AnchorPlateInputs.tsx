@@ -17,7 +17,7 @@ import type { ValidationWarning } from '../../lib/calculations/anchorPlate';
 
 interface Props {
   state: Inputs;
-  setField: (field: string, value: Inputs[keyof Inputs]) => void;
+  setField: <K extends keyof Inputs>(field: K, value: Inputs[K]) => void;
   warnings?: ValidationWarning[];
 }
 
@@ -41,7 +41,7 @@ function NumField({
 }: {
   label: string;
   sub?: string;
-  field: string;
+  field: keyof Inputs;
   value: number;
   unit: string;
   integer?: boolean;
@@ -83,7 +83,7 @@ function SelectField({
   label, field, value, options, setField, disabled,
 }: {
   label: string;
-  field: string;
+  field: keyof Inputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
@@ -99,7 +99,8 @@ function SelectField({
         onChange={(e) => {
           const raw = e.target.value;
           const asNum = Number(raw);
-          setField(field, isNaN(asNum) ? raw : asNum);
+          // Cast: option values are controlled by the caller and match Inputs[field]'s union.
+          setField(field, (isNaN(asNum) ? raw : asNum) as Inputs[typeof field]);
         }}
         className="min-w-0 max-w-44 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >

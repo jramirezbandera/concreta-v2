@@ -114,13 +114,16 @@ export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): 
     nBarsComp: num(isVano ? state.vano_top_nBars : state.apoyo_bot_nBars),
     barDiamComp: num(isVano ? state.vano_top_barDiam : state.apoyo_bot_barDiam),
     stirrupSpacing: num(isVano ? state.vano_stirrupSpacing : state.apoyo_stirrupSpacing),
-    bondClass: (state.bondClass === 'poor' ? 'poor' : 'good'),
+    // bondClass: hardcoded 'good' until an input control is added. Prior code read
+    // state.bondClass, which never existed on RCBeamInputs — comparison was always
+    // false and the ternary defaulted to 'good'. Preserving that runtime behavior.
+    bondClass: 'good',
   };
 }
 
 function psi2Quasi(state: RCBeamInputs): number {
-  const lt = state.loadType as string;
-  if (lt === 'custom') return state.psi2Custom as number;
+  const lt = state.loadType;
+  if (lt === 'custom') return state.psi2Custom;
   return PSI2_MAP[lt] ?? 0.3;
 }
 

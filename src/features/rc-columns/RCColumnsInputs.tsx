@@ -9,7 +9,7 @@ import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface RCColumnsInputsProps {
   state: RCColumnInputs;
-  setField: (key: string, value: number | string) => void;
+  setField: <K extends keyof RCColumnInputs>(key: K, value: RCColumnInputs[K]) => void;
 }
 
 const FCK_OPTIONS = availableFck.map((v) => ({ value: v, label: `${v}` }));
@@ -40,13 +40,13 @@ function NumberField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
-  fieldKey: string;
+  fieldKey: keyof RCColumnInputs;
   value: number;
   unit?: string;
   min?: number;
   step?: number;
   integer?: boolean;
-  setField: (key: string, value: number | string) => void;
+  setField: <K extends keyof RCColumnInputs>(key: K, value: RCColumnInputs[K]) => void;
 }) {
   const resolved = labelKey
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
@@ -104,11 +104,11 @@ function SelectField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
-  fieldKey: string;
+  fieldKey: keyof RCColumnInputs;
   value: number;
   options: Array<{ value: number; label: string }>;
   unit?: string;
-  setField: (key: string, value: number | string) => void;
+  setField: <K extends keyof RCColumnInputs>(key: K, value: RCColumnInputs[K]) => void;
 }) {
   const resolved = labelKey
     ? LABELS[labelKey].sym

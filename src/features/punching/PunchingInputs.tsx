@@ -9,7 +9,7 @@ import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
-  setField: (field: string, value: PunchingInputs[keyof PunchingInputs]) => void;
+  setField: <K extends keyof PunchingInputs>(field: K, value: PunchingInputs[K]) => void;
 }
 
 function NumField({
@@ -24,7 +24,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
-  field: string;
+  field: keyof PunchingInputs;
   value: number;
   unit?: string;
   setField: PunchingInputsProps['setField'];
@@ -78,7 +78,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
-  field: string;
+  field: keyof PunchingInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: PunchingInputsProps['setField'];
@@ -97,7 +97,8 @@ function SelectField({
         onChange={(e) => {
           const raw = e.target.value;
           const asNum = Number(raw);
-          setField(field, isNaN(asNum) ? raw : asNum);
+          // Cast: option values are controlled by the caller and match Inputs[field]'s union.
+          setField(field, (isNaN(asNum) ? raw : asNum) as PunchingInputs[typeof field]);
         }}
         className="shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >

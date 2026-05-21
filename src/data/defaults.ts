@@ -2,7 +2,6 @@
 // Override order: URL query params > localStorage > these defaults.
 
 export interface RCBeamInputs {
-  [key: string]: string | number | boolean;
   /** UI mode: 'simple' renderiza una sola sección + 3 SVGs (deformación /
    *  sección / fuerzas) resuelta al momento Md — modo por defecto.
    *  'portico' renderiza VANO + APOYO lado a lado (pórtico clásico).
@@ -48,7 +47,6 @@ export interface RCBeamInputs {
 }
 
 export interface RCColumnInputs {
-  [key: string]: string | number | boolean;
   b: number;
   h: number;
   cover: number;
@@ -74,7 +72,6 @@ export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
 export type ElsCombo = 'characteristic' | 'frequent' | 'quasi-permanent';
 
 export interface SteelBeamInputs {
-  [key: string]: string | number | boolean;
   tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN';
   size: number;
   steel: 'S275' | 'S355';
@@ -193,7 +190,6 @@ export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN' | 'CHS';
 export type CHSProcess = 'hot-finished' | 'cold-formed';
 
 export interface SteelColumnInputs {
-  [key: string]: string | number | boolean;
   sectionType: SteelColumnSectionType;
   /** Size key — mm for HEA/HEB/IPE/2UPN. Ignored when sectionType='CHS'. */
   size: number;
@@ -236,7 +232,6 @@ export const steelColumnDefaults: SteelColumnInputs = {
 };
 
 export interface RetainingWallInputs {
-  [key: string]: string | number | boolean;
   // Geometry (m)
   H: number;        // clear stem height above footing top
   hf: number;       // footing thickness
@@ -313,7 +308,6 @@ export type PunchingMode = 'pilar' | 'carga-puntual';
 export type PunchingPosition = 'interior' | 'borde' | 'esquina';
 
 export interface PunchingInputs {
-  [key: string]: string | number | boolean;
   mode:          PunchingMode;      // 'pilar' | 'carga-puntual'
   cx:            number;            // mm — column/area dim x (or Ø if circular)
   cy:            number;            // mm — column/area dim y (= cx if circular)
@@ -390,7 +384,6 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
 // ── Pile caps — Encepados de micropilotes (CE art. 48 / CTE DB-SE-C §5.1.4) ──
 
 export interface PileCapInputs {
-  [key: string]: string | number | boolean;
   n:        number;  // 2 | 3 | 4 — number of micropiles
   d_p:      number;  // mm — pile diameter
   s:        number;  // mm — pile spacing c/c
@@ -429,7 +422,6 @@ export const pileCapDefaults: PileCapInputs = {
 // ── Empresillado — RC column jacketed with 4 equal-leg L-angles (EC3 §6.4) ──
 
 export interface EmpresalladoInputs {
-  [key: string]: string | number | boolean;
   // Existing column geometry
   bc: number;       // column width parallel to x-axis (cm)
   hc: number;       // column depth parallel to y-axis (cm)
@@ -491,7 +483,6 @@ export const footingDefaults: FootingInputs = {
 // Calc derives the other set via loadFactor (default 1.35).
 
 export interface IsolatedFootingInputs {
-  [key: string]: string | number | boolean;
   // Geometry (m)
   B:                  number;  // footing width — x direction
   L:                  number;  // footing length — y direction
@@ -540,7 +531,6 @@ export const isolatedFootingDefaults: IsolatedFootingInputs = {
 // ── Timber Beams (EC5 EN 1995-1-1) ───────────────────────────────────────────
 
 export interface TimberBeamInputs {
-  [key: string]: string | number | boolean;
   gradeId: string;       // 'C24', 'GL28h', etc.
   b: number;             // mm — section width
   h: number;             // mm — section height (h ≥ b)
@@ -578,7 +568,6 @@ export const timberBeamDefaults: TimberBeamInputs = {
 // ── Timber Columns (EC5 EN 1995-1-1 §6.3) ────────────────────────────────────
 
 export interface TimberColumnInputs {
-  [key: string]: string | number | boolean;
   gradeId: string;          // 'C24', 'GL28h', etc.
   b: number;                // mm — section width
   h: number;                // mm — section height
@@ -603,7 +592,6 @@ export type ForjadosTipologia = '25+5' | '30+5' | '35+5' | '40+5' | '35+10' | 'c
 export type ForjadosTipoVano = 'biapoyado' | 'continuo-extremo' | 'continuo-interior' | 'voladizo';
 
 export interface ForjadosInputs {
-  [key: string]: string | number | boolean;
   variant: ForjadosVariant;
 
   // Geometría compartida
@@ -729,7 +717,6 @@ export type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './an
 import type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './anchorBars';
 
 export interface AnchorPlateInputs {
-  [key: string]: string | number | boolean;
   // Perfil (reusa del módulo steel-columns)
   sectionType: AnchorPlateSectionType;
   sectionSize: number;              // e.g. 200 for HEB-200
@@ -842,7 +829,6 @@ export const anchorPlateDefaults: AnchorPlateInputs = {
 // not use useModuleState. These primitive flags exist only so the registry
 // shape stays uniform.
 export interface FemAnalysisInputs {
-  [key: string]: string | number | boolean;
   combo: string;       // 'ELU' | 'ELS-c' | 'ELS-f'
   selfWeight: boolean;
   showDeformed: boolean;
@@ -862,7 +848,6 @@ export const femAnalysisDefaults: FemAnalysisInputs = {
 // nested model (plantas, huecos, puntuales) lives outside in its own
 // localStorage key managed by the module itself.
 export interface MasonryWallsInputs {
-  [key: string]: string | number | boolean;
   mostrarMapa: boolean;
 }
 

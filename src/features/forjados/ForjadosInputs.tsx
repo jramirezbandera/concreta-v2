@@ -16,7 +16,7 @@ interface Props {
   state: ForjadosInputs;
   section: 'vano' | 'apoyo';
   setSection: (s: 'vano' | 'apoyo') => void;
-  setField: (field: string, value: ForjadosInputs[keyof ForjadosInputs]) => void;
+  setField: <K extends keyof ForjadosInputs>(field: K, value: ForjadosInputs[K]) => void;
   onVariantSwitch: (next: ForjadosVariant) => void;
 }
 
@@ -25,7 +25,7 @@ function NumField({
 }: {
   label: string;
   sub?: string;
-  field: string;
+  field: keyof ForjadosInputs;
   value: number;
   unit?: string;
   readOnly?: boolean;
@@ -74,7 +74,7 @@ function SelectField({
   label, field, value, options, setField,
 }: {
   label: string;
-  field: string;
+  field: keyof ForjadosInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
@@ -88,7 +88,8 @@ function SelectField({
         onChange={(e) => {
           const raw = e.target.value;
           const asNum = Number(raw);
-          setField(field, isNaN(asNum) || raw === '' ? raw : asNum);
+          // Cast: option values are controlled by the caller and match Inputs[field]'s union.
+          setField(field, (isNaN(asNum) || raw === '' ? raw : asNum) as ForjadosInputs[typeof field]);
         }}
         className="min-w-0 max-w-36 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
@@ -190,7 +191,7 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
   const geomLocked = isReticular && tipologia !== 'custom';
 
   const handleTipologia = (key: string) => {
-    setField('tipologia', key);
+    setField('tipologia', key as ForjadosTipologia);
     if (key !== 'custom') {
       const t = getTipologia(key as ForjadosTipologia);
       if (t) {

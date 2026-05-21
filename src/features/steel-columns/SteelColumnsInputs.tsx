@@ -231,7 +231,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           { value: '2UPN', label: '2UPN' },
           { value: 'CHS', label: 'Circular' },
         ]}
-        onChange={(v) => setField('sectionType', v)}
+        onChange={(v) => setField('sectionType', v as SteelColumnInputs['sectionType'])}
       />
       {isCHS ? (
         <>
@@ -283,7 +283,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           id="sc-size"
           value={state.size}
           options={sizeOptions}
-          onChange={(v) => setField('size', v)}
+          onChange={(v) => setField('size', v as SteelColumnInputs['size'])}
         />
       )}
       <SelectField
@@ -291,7 +291,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
         id="sc-steel"
         value={state.steel}
         options={(['S275', 'S355'] as const).map((s) => ({ value: s, label: s }))}
-        onChange={(v) => setField('steel', v)}
+        onChange={(v) => setField('steel', v as SteelColumnInputs['steel'])}
       />
       </CollapsibleSection>
 

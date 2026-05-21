@@ -11,7 +11,7 @@ interface RCBeamsInputsProps {
   state: RCBeamInputs;
   section: 'vano' | 'apoyo';
   setSection: (s: 'vano' | 'apoyo') => void;
-  setField: (field: string, value: RCBeamInputs[keyof RCBeamInputs]) => void;
+  setField: <K extends keyof RCBeamInputs>(field: K, value: RCBeamInputs[K]) => void;
   /** When true, hide the "Solicitaciones" section (Md/VEd/M_G/M_Q inputs).
    *  Used by FEM embed where forces come from the envelope, not user input. */
   hideSolicitations?: boolean;
@@ -42,7 +42,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
-  field: string;
+  field: keyof RCBeamInputs;
   value: number;
   unit?: string;
   min?: number;
@@ -100,7 +100,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
-  field: string;
+  field: keyof RCBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: RCBeamsInputsProps['setField'];
@@ -119,7 +119,8 @@ function SelectField({
         onChange={(e) => {
           const raw = e.target.value;
           const asNum = Number(raw);
-          setField(field, isNaN(asNum) ? raw : asNum);
+          // Cast: option values are controlled by the caller and match Inputs[field]'s union.
+          setField(field, (isNaN(asNum) ? raw : asNum) as RCBeamInputs[typeof field]);
         }}
         className="min-w-0 max-w-36 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
       >
