@@ -969,10 +969,16 @@ export function alphaExtension(inp: AnchorPlateInputs): number {
 }
 
 // ─── T-stub effective area (EC3 1-8 §6.2.5(3)–(5)) ───────────────────────
+// M2 (Phase 6): previously the caller passed `twoFlanges = solver.mode ===
+// 'uniform-compression'`, halving Aeff under partial-lift. That conservatism
+// had no normative basis — for I/H sections both flanges always contribute
+// in the compression zone, regardless of whether the column is fully
+// compressed or partially lifted. EC3 1-8 §6.2.5 considers two T-stubs for
+// I/H profiles. Aeff is still capped to the plate footprint, which bounds
+// the case where the compression zone happens to be narrow.
 export function tStubEffectiveArea(
   inp: AnchorPlateInputs,
   fjd_MPa: number,
-  twoFlanges: boolean,
 ): { A_eff: number; c: number } {
   const section = makeISectionBySize(
     inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
@@ -999,7 +1005,8 @@ export function tStubEffectiveArea(
   const hw_ext = Math.max(0, p.h - 2 * p.tf - 2 * c);
   const A_web = tw_ext * hw_ext;
 
-  const A_eff = twoFlanges ? 2 * A_flange + A_web : A_flange + A_web / 2;
+  // Two T-stubs (top + bottom flange) + web, capped by plate footprint.
+  const A_eff = 2 * A_flange + A_web;
   return { A_eff: Math.min(A_eff, inp.plate_a * inp.plate_b), c };
 }
 
@@ -1007,14 +1014,13 @@ export function tStubEffectiveArea(
 export function checkPlateCompression(
   inp: AnchorPlateInputs,
   Nc_kN: number,
-  twoFlanges: boolean,
   system: UnitSystem = 'si',
 ): CheckRow {
   const fcd   = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
   const fjd   = BETA_J * alpha * fcd;
 
-  const { A_eff, c } = tStubEffectiveArea(inp, fjd, twoFlanges);
+  const { A_eff, c } = tStubEffectiveArea(inp, fjd);
   const Nc_Rd_kN = (fjd * A_eff) / 1000;
   const util = Nc_kN / Math.max(Nc_Rd_kN, 1e-6);
   return {
@@ -1906,8 +1912,6 @@ export function calcAnchorPlate(
   // compression polygon without recomputing.
   solver.fjd_MPa = fjd;
 
-  const twoFlanges = solver.mode === 'uniform-compression';
-
   // H6 (Phase 3): la fricción usa la compresión real bajo placa bajo combo
   // cuasi-permanente (Nc,G), no el axil total NEd_G. Si hay momento permanente
   // suficiente para producir tracción, Nc,G = NEd,G + Ft,G > NEd,G y la
@@ -1923,7 +1927,7 @@ export function calcAnchorPlate(
   }
 
   const checks: CheckRow[] = [
-    checkPlateCompression(inp, solver.Nc, twoFlanges, system),
+    checkPlateCompression(inp, solver.Nc, system),
     checkPlateBending(inp, fjd),
     checkBoltTension(inp, Ft_per_bar, system),
     checkBoltShear(inp, solver.bolts, Nc_G_kN, system),
