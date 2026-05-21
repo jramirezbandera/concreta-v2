@@ -213,6 +213,34 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           </g>
         )}
 
+        {/* Rigidizadores (planta) */}
+        {inp.rib_count >= 2 && profile && (() => {
+          const ribL = inp.rib_h * scalePlanta;
+          const ribT = inp.rib_t * scalePlanta;
+          const profH_px = profile.h * scalePlanta;
+          const profB_px = profile.b * scalePlanta;
+          return (
+            <g>
+              <rect x={pCx - profH_px / 2 - ribT} y={pCy - ribL / 2}
+                    width={ribT} height={ribL}
+                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              <rect x={pCx + profH_px / 2} y={pCy - ribL / 2}
+                    width={ribT} height={ribL}
+                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              {inp.rib_count === 4 && (
+                <>
+                  <rect x={pCx - ribL / 2} y={pCy - profB_px / 2 - ribT}
+                        width={ribL} height={ribT}
+                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+                  <rect x={pCx - ribL / 2} y={pCy + profB_px / 2}
+                        width={ribL} height={ribT}
+                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+                </>
+              )}
+            </g>
+          );
+        })()}
+
         {/* Barras (planta: círculo según diámetro real) */}
         {result.solver.bolts.map((b) => {
           const bx = pCx + b.x * scalePlanta;
@@ -297,12 +325,25 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
         {inp.rib_count >= 2 && profile && (() => {
           const ribH = inp.rib_h * scaleAlzado;
           const ribT = inp.rib_t * scaleAlzado;
+          const profH_px = profile.h * scaleAlzado;
           const profB_px = profile.b * scaleAlzado;
           const ribY = plateYrect - ribH;
           return (
             <g>
-              <rect x={aCx - profB_px / 2 - ribT / 2} y={ribY} width={ribT} height={ribH} fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={aCx + profB_px / 2 - ribT / 2} y={ribY} width={ribT} height={ribH} fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              <rect x={aCx - profH_px / 2 - ribT} y={ribY} width={ribT} height={ribH}
+                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              <rect x={aCx + profH_px / 2} y={ribY} width={ribT} height={ribH}
+                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              {inp.rib_count === 4 && (
+                <g opacity={0.55}>
+                  <rect x={aCx - profB_px / 4} y={ribY} width={ribT} height={ribH}
+                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1}
+                        strokeDasharray="2 2" />
+                  <rect x={aCx + profB_px / 4 - ribT} y={ribY} width={ribT} height={ribH}
+                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1}
+                        strokeDasharray="2 2" />
+                </g>
+              )}
             </g>
           );
         })()}
