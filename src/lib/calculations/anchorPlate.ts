@@ -385,29 +385,10 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
   const { FtRd_kN: FtRd_per_bar_kN } = barStrengths(inp);
   const bars0 = generateLayout(inp);
 
-  function projBounds(cos: number, sin: number) {
-    let dMin = Infinity, dMax = -Infinity;
-    for (const c of rect) {
-      const p = c.x * cos + c.y * sin;
-      if (p < dMin) dMin = p;
-      if (p > dMax) dMax = p;
-    }
-    return { dMin, dMax };
-  }
-
-  function findD(cos: number, sin: number, A_target: number): number {
-    const { dMin, dMax } = projBounds(cos, sin);
-    if (A_target >= fullA) return dMin - 1;
-    if (A_target <= 0) return dMax + 1;
-    let lo = dMin, hi = dMax;
-    for (let k = 0; k < 50; k++) {
-      const mid = (lo + hi) / 2;
-      const poly = clipPolygonToHalfPlane(rect, cos, sin, mid);
-      const A = polygonAreaCentroid(poly).A;
-      if (A > A_target) lo = mid; else hi = mid;
-    }
-    return (lo + hi) / 2;
-  }
+  // PR7b — projBounds y findD se removieron: el solver ahora bisecta d
+  // directamente en evaluate() para satisfacer ΣM_proj_int = ΣM_proj_ext,
+  // no via objetivo de área.
+  void fullA;
 
   interface Evaluation {
     phi: number;
@@ -420,53 +401,154 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     block: Pt[];
   }
 
-  function evaluate(phi: number): Evaluation {
-    const cos = Math.cos(phi), sin = Math.sin(phi);
-    const bars = bars0.map((b) => ({ ...b, Ft: 0, inTension: false }));
+  // CR1 (PR7b) — distribución lineal de Ft proporcional al signed distance
+  // al eje neutro, capada a FtRd. Reemplaza el clamp plástico previo
+  // (bars[i].Ft = FtRd_per_bar_kN) que sobreestimaba la tracción y forzaba
+  // a checkBoltTension a util ≡ 1.00 en todo caso biaxial.
+  //
+  // Modelo (CE Anejo 18 §6.2.5 plástico):
+  //   - Eje neutro: línea x·cos(φ) + y·sin(φ) = d. Barras con p_i := x_i·cos +
+  //     y_i·sin < d están traccionadas.
+  //   - Ft_i = min(α · sd_i, FtRd), donde sd_i = d − p_i ≥ 0 y α [N/mm] es
+  //     la pendiente de la distribución.
+  //   - α viene determinado por ΣN: α = (fjd·A(d) − NEd)/S(d), capado a
+  //     α_cap = FtRd/max_sd. Si α < 0 o α > α_cap, ΣN se viola y la
+  //     búsqueda externa de φ lo recoge en el residual.
+  //
+  // Para cada φ: bisecar d que satisfaga la proyección del momento sobre la
+  // dirección (cos, sin), es decir, (Mx_int − Mx)·cos + (My_int − My)·sin = 0.
+  // El grid search externo sobre φ minimiza el componente perpendicular.
+  // Esta estructura evita los dos fixed-points espurios (saturado vs lineal)
+  // que aparecían cuando sólo se enforzaba ΣN.
+  const FtRd_N = FtRd_per_bar_kN * 1000;
 
-    let tensionMask = bars.map((b) => b.x * cos + b.y * sin < 0);
-    let d = 0;
-    for (let iter = 0; iter < 10; iter++) {
-      const nT = tensionMask.filter(Boolean).length;
-      const Ft_total_kN = nT * FtRd_per_bar_kN;
-      const Nc_kN = NEd + Ft_total_kN;
-      const A_target = (Math.max(0, Nc_kN) * 1000) / fjd;
-      d = findD(cos, sin, A_target);
-
-      const newMask = bars.map((b) => b.x * cos + b.y * sin < d);
-      const stable = tensionMask.every((t, i) => t === newMask[i]);
-      tensionMask = newMask;
-      if (stable) break;
+  function evaluateAtPhiD(_phi: number, d: number, cos: number, sin: number, p: number[]) {
+    let S = 0, max_sd = 0;
+    for (let i = 0; i < p.length; i++) {
+      if (p[i] < d) {
+        const sd = d - p[i];
+        S += sd;
+        if (sd > max_sd) max_sd = sd;
+      }
     }
-
     const block = clipPolygonToHalfPlane(rect, cos, sin, d);
     const { A: A_block, X: Xc, Y: Yc } = polygonAreaCentroid(block);
-    const Nc_kN = (fjd * A_block) / 1000;
+    const Nc_N = fjd * A_block;
+    const alpha_uncapped = S > 0 ? (Nc_N - NEd * 1000) / S : 0;
+    const alpha_cap = max_sd > 0 ? FtRd_N / max_sd : Infinity;
+    const alpha_eff = Math.max(0, Math.min(alpha_uncapped, alpha_cap));
 
     let Ft_total_kN = 0;
     let bar_Mx_kNmm = 0, bar_My_kNmm = 0;
-    for (let i = 0; i < bars.length; i++) {
-      if (tensionMask[i]) {
-        bars[i].inTension = true;
-        bars[i].Ft = FtRd_per_bar_kN;
-        Ft_total_kN += FtRd_per_bar_kN;
-        bar_Mx_kNmm += FtRd_per_bar_kN * bars[i].x;
-        bar_My_kNmm += FtRd_per_bar_kN * bars[i].y;
+    for (let i = 0; i < bars0.length; i++) {
+      if (p[i] < d) {
+        const sd = d - p[i];
+        const Ft_N = Math.min(alpha_eff * sd, FtRd_N);
+        const Ft_kN = Math.max(0, Ft_N / 1000);
+        Ft_total_kN += Ft_kN;
+        bar_Mx_kNmm += Ft_kN * bars0[i].x;
+        bar_My_kNmm += Ft_kN * bars0[i].y;
       }
     }
 
-    const Mx_int_kNmm = Nc_kN * Xc - bar_Mx_kNmm;
-    const My_int_kNmm = Nc_kN * Yc - bar_My_kNmm;
+    const Nc_kN = Nc_N / 1000;
+    const Mx_int_kNm = (Nc_kN * Xc - bar_Mx_kNmm) / 1000;
+    const My_int_kNm = (Nc_kN * Yc - bar_My_kNmm) / 1000;
+    return { A_block, Nc_kN, Ft_total_kN, alpha_eff, Mx_int_kNm, My_int_kNm, block, Xc, Yc };
+  }
+
+  function evaluate(phi: number): Evaluation {
+    const cos = Math.cos(phi), sin = Math.sin(phi);
+    const bars = bars0.map((b) => ({ ...b, Ft: 0, inTension: false }));
+    const p = bars0.map((b) => b.x * cos + b.y * sin);
+
+    // d range: proyecciones de las esquinas del rect sobre (cos, sin).
+    let dMinR = Infinity, dMaxR = -Infinity;
+    for (const c of rect) {
+      const proj = c.x * cos + c.y * sin;
+      if (proj < dMinR) dMinR = proj;
+      if (proj > dMaxR) dMaxR = proj;
+    }
+
+    // Bisección en d para satisfacer ΣM_proj_int = ΣM_proj_ext (proyección
+    // sobre cos, sin). Mx_int(d) NO es monótona: alcanza 0 en ambos extremos
+    // (sin bloque y bloque-uniforme-centrado) y un peak intermedio, por lo
+    // que existen DOS roots (estado low-tension y estado high-tension /
+    // saturado). Preferimos el low-tension scanando desde dMaxR (alto-d,
+    // poco bloque) hacia dMinR; el primer cambio de signo es el solucion
+    // realista para cargas moderadas. Si no hay cambio de signo (carga
+    // excede capacidad), tomamos el d con menor |f|.
+    const f = (d: number) => {
+      const r = evaluateAtPhiD(phi, d, cos, sin, p);
+      return (r.Mx_int_kNm - Mx) * cos + (r.My_int_kNm - My) * sin;
+    };
+
+    const N_SCAN = 60;
+    const scanStep = (dMaxR - dMinR) / N_SCAN;
+    let dBest: number | undefined;
+    let fBestAbs = Infinity;
+    let dFallback = dMaxR;
+    let dPrev = dMaxR + 0.5;
+    let fPrev = f(dPrev);
+    for (let j = 0; j <= N_SCAN; j++) {
+      const dCurr = dMaxR + 0.5 - (j + 1) * scanStep;
+      const fCurr = f(dCurr);
+      if (Math.abs(fCurr) < fBestAbs) { fBestAbs = Math.abs(fCurr); dFallback = dCurr; }
+      if (fPrev * fCurr < 0) {
+        // Primer cambio de signo encontrado escaneando de alto a bajo d.
+        let dLo_b = dCurr, dHi_b = dPrev;
+        let fLo_b = fCurr;
+        let dMid = (dLo_b + dHi_b) / 2;
+        for (let bi = 0; bi < 50; bi++) {
+          dMid = (dLo_b + dHi_b) / 2;
+          const fMid = f(dMid);
+          if (Math.abs(fMid) < 0.005 || Math.abs(dHi_b - dLo_b) < 0.01) break;
+          if (fLo_b * fMid < 0) { dHi_b = dMid; }
+          else { dLo_b = dMid; fLo_b = fMid; }
+        }
+        dBest = dMid;
+        break;
+      }
+      dPrev = dCurr;
+      fPrev = fCurr;
+    }
+    if (dBest === undefined) {
+      // Sin sign change — sección saturada o carga excede capacidad.
+      dBest = dFallback;
+    }
+
+    // Evaluación final + asignación de Ft a las barras
+    const r = evaluateAtPhiD(phi, dBest, cos, sin, p);
+    let S = 0, max_sd = 0;
+    for (let i = 0; i < bars.length; i++) {
+      if (p[i] < dBest) {
+        const sd = dBest - p[i];
+        S += sd;
+        if (sd > max_sd) max_sd = sd;
+      }
+    }
+    const alpha_eff = r.alpha_eff;
+    for (let i = 0; i < bars.length; i++) {
+      if (p[i] < dBest) {
+        const sd = dBest - p[i];
+        const Ft_N = Math.min(alpha_eff * sd, FtRd_N);
+        bars[i].Ft = Math.max(0, Ft_N / 1000);
+        bars[i].inTension = bars[i].Ft > 1e-6;
+      } else {
+        bars[i].Ft = 0;
+        bars[i].inTension = false;
+      }
+    }
 
     return {
       phi,
-      d,
+      d: dBest,
       bars,
-      Nc_kN,
-      Ft_total_kN,
-      Mx_int_kNm: Mx_int_kNmm / 1000,
-      My_int_kNm: My_int_kNmm / 1000,
-      block,
+      Nc_kN: r.Nc_kN,
+      Ft_total_kN: r.Ft_total_kN,
+      Mx_int_kNm: r.Mx_int_kNm,
+      My_int_kNm: r.My_int_kNm,
+      block: r.block,
     };
   }
 

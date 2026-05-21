@@ -383,6 +383,76 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
 
+describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
+  it('FTUX biaxial (Mx=45, My=10) ya NO satura — Ft_total moderado', () => {
+    // Pre-CR1: solver clava Ft = FtRd en cada barra tensa → Ft_total = n·FtRd
+    // = 4·136.6 = 546 kN, cono al 7×.
+    // Post-CR1: distribución lineal proporcional al signed dist al NA, capada
+    // a FtRd. Hand calc: phi ≈ 12.5°, Ft_total ≈ 27-35 kN.
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    expect(r.solver.mode).toBe('biaxial-plastic');
+    expect(r.solver.converged).toBe(true);
+    expect(r.solver.Ft_total).toBeGreaterThan(20);
+    expect(r.solver.Ft_total).toBeLessThan(50);
+  });
+
+  it('FTUX biaxial NA orientado al momento externo (phi ≈ atan(My/Mx))', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const phi_expected = Math.atan2(anchorPlateDefaults.My, anchorPlateDefaults.Mx);
+    expect(r.solver.phi_NA).toBeCloseTo(phi_expected, 1);   // ±0.05 rad ≈ 3°
+  });
+
+  it('FTUX biaxial residuos de momento ≈ 0 (equilibrio exacto)', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    expect(Math.abs(r.solver.residuals.SMx_kNm)).toBeLessThan(0.01);
+    expect(Math.abs(r.solver.residuals.SMy_kNm)).toBeLessThan(0.01);
+  });
+
+  it('cargas bajas → Ft_total bajo (no saturado, bolt-tension util < 1)', () => {
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 10, My: 2 });
+    const bt = r.checks.find((c) => c.id === 'bolt-tension')!;
+    expect(bt.utilization).toBeLessThan(0.5);
+    // El bug pre-CR1 daba util ≡ 1.00 incluso en cargas bajas.
+  });
+
+  it('cargas altas → al menos una barra al cap FtRd', () => {
+    // Mx muy alto fuerza saturación al menos en la barra más extrema.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 250, My: 0 });
+    const maxFt = Math.max(...r.solver.bolts.map((b) => b.Ft));
+    // FtRd = 314.16·434.78/1000 ≈ 136.59 kN. Esperar al menos 90% si carga
+    // alta. (No siempre llega exactamente a 136.59 por la convergencia
+    // de bisección.)
+    expect(maxFt).toBeGreaterThan(120);
+  });
+
+  it('distribución lineal: Ft proporcional al signed distance al NA', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const tBars = r.solver.bolts.filter((b) => b.inTension);
+    if (tBars.length < 2) return;
+    // Para cada par de barras tensas, Ft_i / sd_i debe ser ~constante.
+    const cos = Math.cos(r.solver.phi_NA!);
+    const sin = Math.sin(r.solver.phi_NA!);
+    const d = r.solver.d_NA!;
+    const ratios = tBars.map((b) => b.Ft / (d - (b.x * cos + b.y * sin)));
+    const min = Math.min(...ratios);
+    const max = Math.max(...ratios);
+    // ratios deben ser todos iguales (α común), excepto si hay cap.
+    // Aquí asumimos no cap → ratios ~iguales con tolerancia 1%.
+    if (max < 130 / Math.max(...tBars.map((b) => d - (b.x * cos + b.y * sin))) * 1.05) {
+      // No saturation → ratios uniform
+      expect(max / min).toBeLessThan(1.01);
+    }
+  });
+
+  it('My=0 caso degenerado → axis-aligned y matches PR7a', () => {
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, My: 0 });
+    // Dispatcher rutea a solveAxisAligned4 para nLayout=4 + My=0 (PR5).
+    expect(['partial-lift', 'uniform-compression']).toContain(r.solver.mode);
+    // Ft_total debe coincidir con PR7a (~26.89 kN)
+    expect(r.solver.Ft_total).toBeCloseTo(26.89, 1);
+  });
+});
+
 describe('PR7a — CR2 partial-lift saturated + equilibrium', () => {
   it('Mx muy alto saturando barras → mode partial-lift-saturated, converged=false', () => {
     // Aumentar Mx para que Ft_per_bar > FtRd (=136.6 kN).

@@ -123,17 +123,23 @@ describe('PR0 — SolverResult.residuals exposed', () => {
 });
 
 describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
-  it('default FTUX worstUtil sentinel — PR0 must NOT change numerical output', () => {
-    // Pin the (currently buggy) FTUX worstUtil so we catch any accidental
-    // numerical drift introduced by the PR0 refactor. The actual value will
-    // change in PR7b once CR1 is fixed; this sentinel must be updated then.
-    // Pre-PR0 sentinel: worstUtil = 7.1106602594455 (concrete-cone, driven
-    // by CR1 — biaxial solver clamps Ft to n·FtRd = 4·136.6 kN regardless
-    // of the actual external moment).
+  it('default FTUX worstUtil sentinel (post-CR1 biaxial linear distribution)', () => {
+    // Pin the FTUX worstUtil to catch unintended numerical drift.
+    //
+    // Timeline:
+    //   - Pre-PR7b (bug): worstUtil = 7.1107, driven by concrete-cone with
+    //     biaxial solver clamping Ft to n·FtRd = 4·136.6 = 546.4 kN regardless
+    //     of external moment (CR1).
+    //   - Post-PR7b: worstUtil ≈ 0.928, driven by plate-bending (which depends
+    //     on fjd·c²/2 vs t²·fyd/4, independent of solver Ft). Biaxial now
+    //     converges at φ≈12.4° (atan(My/Mx)) with Ft_total≈31.8 kN, cone
+    //     util ≈ 0.55.
+    //   - Future drift: CR3 splitting rewrite (PR6) may change worstUtil
+    //     slightly if splitting becomes governing for FTUX. Re-pin then.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(10);
-    expect(r.worstUtil).toBeCloseTo(7.1107, 3);
+    expect(r.worstUtil).toBeCloseTo(0.928, 2);
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {
