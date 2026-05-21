@@ -305,7 +305,10 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
   const sgn  = Math.sign(inp.Mx) || 1;
 
   const a = inp.plate_a / 1000;
-  const e = MxEd / Math.max(NEd, 1e-6);
+  // M7 (Phase 6): the dispatcher at solveAnchorPlate gates entry to this
+  // function on `NEd >= EPS_N_kN` (= 0.1 kN), so the previous
+  // `Math.max(NEd, 1e-6)` defense never bound. NEd is positive here.
+  const e = MxEd / NEd;
 
   if (NEd > 0 && e <= a / 6 + 1e-9) {
     return {
@@ -1110,7 +1113,8 @@ export function checkBoltTension(
   system: UnitSystem = 'si',
 ): CheckRow {
   const { As, fyd, FtRd_kN } = barStrengths(inp);
-  const util = Ft_per_bar_kN / Math.max(FtRd_kN, 1e-6);
+  // FtRd_kN > 0 always: bar_diam is the RebarDiam enum {8..32}, all > 0.
+  const util = Ft_per_bar_kN / FtRd_kN;
   return {
     id: 'bolt-tension',
     description: 'Tracción en barras',
@@ -1148,7 +1152,8 @@ export function checkBoltShear(
   // PR8a — el cortante se trata como magnitud escalar aquí. La descomposición
   // direccional Vx/Vy se usa en checkConcreteEdgeBreakout (PR8b) donde la
   // dirección de carga afecta a c1 y al α de breakout.
-  const util = inp.VEd / Math.max(V_Rd_total_kN, 1e-6);
+  // V_Rd_total > 0 always: nBars ≥ 4 (bar_nLayout enum) and FvRd > 0.
+  const util = inp.VEd / V_Rd_total_kN;
   return {
     id: 'bolt-shear',
     description: 'Cortante en barras',
@@ -1198,8 +1203,9 @@ export function checkBoltInteraction(
   let FtMax_kN = 0;
   for (const b of bars) if (b.inTension && b.Ft > FtMax_kN) FtMax_kN = b.Ft;
 
-  const ratio_n = FtMax_kN / Math.max(FtRd_kN, 1e-6);
-  const ratio_v = FvEd_per_bar_kN / Math.max(FvRd_kN, 1e-6);
+  // FtRd_kN and FvRd_kN both > 0: RebarDiam enum guarantees positive bar area.
+  const ratio_n = FtMax_kN / FtRd_kN;
+  const ratio_v = FvEd_per_bar_kN / FvRd_kN;
   // Forma cuadrática EN 1992-4 §7.2.3 ductile: (N/NRd)² + (V/VRd)² ≤ 1.
   const util = ratio_n * ratio_n + ratio_v * ratio_v;
 
