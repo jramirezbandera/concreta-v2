@@ -20,7 +20,7 @@
 //     Eurocódigo de referencia secundaria: EC2.
 //   - Anejo 22 — Esbeltez de placa en compresión (rigidizadores §5.5).
 //
-// Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γMp=1.4.
+// Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γinst=1.0.
 
 import type { AnchorPlateInputs } from '../../data/defaults';
 import { makeISectionBySize } from '../sections';
@@ -47,8 +47,12 @@ const GAMMA_C   = 1.5;
 const GAMMA_S   = 1.15;  // EC2 §2.4.2.4 — reinforcement
 const GAMMA_M0  = 1.05;
 const GAMMA_M2  = 1.25;
-const GAMMA_MC  = 1.5;   // EN 1992-4 Tab 4.1 — concrete cone / splitting
-const GAMMA_MP  = 1.4;   // EN 1992-4 Tab 4.1 — pullout (bearing head)
+const GAMMA_MC  = 1.5;   // EN 1992-4 Tab 4.1 — concrete cone / splitting / pull-out
+// Pull-out coefficient k2 per EN 1992-4 §7.2.1.5(1) / CE Anejo 11:
+//   k2 = 7.5 (cracked concrete, default)
+//   k2 = 10.5 (uncracked concrete, ψc,N = 1.4 applied at member level)
+const PULLOUT_K2_CRACKED   = 7.5;
+const PULLOUT_K2_UNCRACKED = 10.5;
 
 const BETA_J    = 2 / 3;  // EC3 1-8 §6.2.5 grout joint factor
 
@@ -863,8 +867,12 @@ export function tStubEffectiveArea(
   if (!section) return { A_eff: inp.plate_a * inp.plate_b, c: 0 };
   const p = section;
 
+  // EC3 1-8 §6.2.5(4) Eq 6.5: c = t · √(fyd / (3·fjd))
+  // donde fyd = fyp / γM0 (resistencia de cálculo de la placa). El código
+  // previo usaba fyp (característica), sobreestimando Aeff ≈ 2.4%.
   const fyp = PLATE_FY[inp.plate_steel];
-  const c_raw = inp.plate_t * Math.sqrt(fyp / (3 * Math.max(fjd_MPa, 1e-6) * 1.0));
+  const fyd_plate = fyp / GAMMA_M0;
+  const c_raw = inp.plate_t * Math.sqrt(fyd_plate / (3 * Math.max(fjd_MPa, 1e-6)));
   const c_max_strong = (inp.plate_a - p.h) / 2;
   const c_max_weak   = (inp.plate_b - p.b) / 2;
   const c = Math.max(0, Math.min(c_raw, c_max_strong, c_max_weak));
@@ -1254,18 +1262,24 @@ export function checkPullout(
     };
   }
 
+  // EN 1992-4 §7.2.1.5(1):  NRk,p = k2 · Ah · fck
+  //   k2 = 7.5  (cracked concrete)
+  //   k2 = 10.5 (uncracked concrete)
+  // NRd,p = NRk,p / γMc, con γMc = γc · γinst = 1.5 (γinst=1.0 cast-in).
+  const k2 = inp.concrete_cracked ? PULLOUT_K2_CRACKED : PULLOUT_K2_UNCRACKED;
   const Ah_mm2 = washerBearingArea(inp.bar_diam, inp.washer_od);
-  const NRd_p_kN = (6 * Ah_mm2 * inp.fck) / GAMMA_MP / 1000;
+  const NRd_p_kN = (k2 * Ah_mm2 * inp.fck) / GAMMA_MC / 1000;
 
   let FtMax_kN = 0;
   for (const b of bars) if (b.inTension && b.Ft > FtMax_kN) FtMax_kN = b.Ft;
 
+  const crackTag = inp.concrete_cracked ? 'fisurado' : 'no fisurado';
   const util = FtMax_kN / Math.max(NRd_p_kN, 1e-6);
   return {
     id: 'pullout',
     description: 'Arrancamiento (pull-out)',
     value: `Ft=${fmtF(FtMax_kN, system)}`,
-    limit: `NRd,p=${fmtF(NRd_p_kN, system)} (Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
+    limit: `NRd,p=${fmtF(NRd_p_kN, system)} (k2=${k2}, ${crackTag}, Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.1.5',

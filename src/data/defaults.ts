@@ -776,6 +776,7 @@ export interface AnchorPlateInputs {
   pedestal_cY1:   number;            // mm — idem a +y.
   pedestal_cY2:   number;            // mm — idem a −y.
   pedestal_h:     number;            // mm — canto del macizo, necesario para splitting ψh,sp (PR0, default 1000; usado por PR6).
+  concrete_cracked: boolean;         // EN 1992-4 §7.2.1.5: k2=7.5 fisurado (default, conservador) ó 10.5 no fisurado. Afecta pull-out y, en futuro, factor ψc,N del cono.
   plate_margin_x: number;            // mm — placa al borde del macizo, eje fuerte (EC3 §6.2.5, factor α extensión)
   plate_margin_y: number;            // mm — placa al borde del macizo, eje débil
   surface_type:   PedestalSurface;
@@ -825,6 +826,7 @@ export const anchorPlateDefaults: AnchorPlateInputs = {
   pedestal_cY1:    200,   // direccional +y (PR0)
   pedestal_cY2:    200,   // direccional −y (PR0)
   pedestal_h:     1000,   // mm canto macizo — default conservador (PR0, usado por splitting PR6)
+  concrete_cracked: true, // default conservador EN 1992-4 §7.2.1.5
   plate_margin_x:  150,   // placa (400) + 2·150 = 700 mm pedestal — α ≈ 1.75
   plate_margin_y:  150,
   surface_type:    'roughened',

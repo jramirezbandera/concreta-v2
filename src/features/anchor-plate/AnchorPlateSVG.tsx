@@ -289,11 +289,12 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           strokeDasharray="4 3"
           strokeWidth={1}
         />
-        {/* Hormigón hatch */}
-        <pattern id="hatch-concrete" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        {/* Hormigón hatch — id is suffixed by mode so the screen SVG and the
+            hidden PDF SVG can coexist in the DOM without url(#…) colliding (M23). */}
+        <pattern id={`hatch-concrete-${mode}`} patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" stroke={C.pedestal_stroke} strokeWidth="0.5" />
         </pattern>
-        <rect x={pedestalAlzadoX} y={pedestalAlzadoY} width={pedestalAlzadoW} height={pedestalAlzadoH} fill="url(#hatch-concrete)" />
+        <rect x={pedestalAlzadoX} y={pedestalAlzadoY} width={pedestalAlzadoW} height={pedestalAlzadoH} fill={`url(#hatch-concrete-${mode})`} />
 
         {/* Column profile silhouette (D10 — 5-second visual tell) */}
         {profile && (() => {

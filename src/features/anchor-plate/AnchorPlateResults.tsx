@@ -58,6 +58,21 @@ function CollapsibleGroup({
   );
 }
 
+// H11 — short labels for the verdict pill so users see WHICH check governs
+// without having to scan the full list. Keep short enough to fit inline.
+const CHECK_SHORT_LABEL: Record<string, string> = {
+  'plate-compression': 'compresión placa',
+  'plate-bending':     'flexión placa',
+  'bolt-tension':      'tracción barra',
+  'bolt-shear':        'cortante barra',
+  'bolt-interaction':  'interacción N+V',
+  'anchorage-length':  'longitud anclaje',
+  'concrete-cone':     'cono hormigón',
+  'pullout':           'pull-out',
+  'splitting':         'splitting',
+  'stiffener':         'rigidizador',
+};
+
 export function AnchorPlateResults({ result }: Props) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
@@ -70,6 +85,19 @@ export function AnchorPlateResults({ result }: Props) {
   }
 
   const { checks, solver, worstUtil, overallStatus, warnings, pr1Limitations } = result;
+
+  // H11 — identify the governing check (the one whose util equals worstUtil),
+  // restricted to checks that are actually applicable ('neutral' = no aplica).
+  // Ties broken by first occurrence, which matches the calc/order.
+  const governingCheck = checks
+    .filter((c) => c.status !== 'neutral' && isFinite(c.utilization))
+    .reduce<typeof checks[number] | null>(
+      (best, c) => (best === null || c.utilization > best.utilization ? c : best),
+      null,
+    );
+  const governingLabel = governingCheck
+    ? CHECK_SHORT_LABEL[governingCheck.id] ?? governingCheck.id
+    : null;
 
   // D1 — group checks into 4 sub-bands (design review finding)
   const plateChecks   = checks.filter((c) => c.id === 'plate-compression' || c.id === 'plate-bending');
@@ -96,6 +124,9 @@ export function AnchorPlateResults({ result }: Props) {
         </div>
         <span className="font-mono text-[11px] text-text-secondary tabular-nums">
           util. máx. {isFinite(worstUtil) ? `${(worstUtil * 100).toFixed(0)}%` : '∞'}
+          {governingLabel && (
+            <span className="ml-1 text-text-disabled normal-case"> · {governingLabel}</span>
+          )}
         </span>
       </div>
 

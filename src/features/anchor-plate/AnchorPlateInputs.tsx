@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type AnchorPlateInputs as Inputs } from '../../data/defaults';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import {
@@ -112,9 +112,13 @@ function SelectField({
 }
 
 // ── Icon-grid (D11): schematic stroke-only, accent on active ──────────────
+// M27: WAI-ARIA radiogroup pattern — roving tabIndex (only the active option
+// is tabbable), Space/Enter activates, ArrowKeys move + focus + select with
+// preventDefault so the page does not scroll.
 interface IconGridOption<T extends number> {
   value: T;
   label: string;
+  ariaLabel?: string;
   glyph: React.ReactNode;
 }
 
@@ -127,6 +131,16 @@ function IconGrid<T extends number>({
   onSelect: (v: T) => void;
   disabled?: boolean;
 }) {
+  const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const moveTo = (newIdx: number) => {
+    const opt = options[newIdx];
+    onSelect(opt.value);
+    // Defer focus to next tick so React has re-rendered with tabIndex=0
+    // on the newly selected button before we focus it.
+    queueMicrotask(() => buttonsRef.current[newIdx]?.focus());
+  };
+
   return (
     <div
       role="radiogroup"
@@ -138,15 +152,31 @@ function IconGrid<T extends number>({
         return (
           <button
             key={o.value}
+            ref={(el) => { buttonsRef.current[idx] = el; }}
             type="button"
             role="radio"
             aria-checked={isActive}
-            aria-label={o.label}
-            title={o.label}
+            aria-label={o.ariaLabel ?? o.label}
+            title={o.ariaLabel ?? o.label}
+            tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect(o.value)}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowRight') onSelect(options[(idx + 1) % options.length].value);
-              else if (e.key === 'ArrowLeft') onSelect(options[(idx - 1 + options.length) % options.length].value);
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                moveTo((idx + 1) % options.length);
+              } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                moveTo((idx - 1 + options.length) % options.length);
+              } else if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                onSelect(o.value);
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                moveTo(0);
+              } else if (e.key === 'End') {
+                e.preventDefault();
+                moveTo(options.length - 1);
+              }
             }}
             className={`flex-1 flex flex-col items-center gap-1 py-2 px-0 min-h-11 transition-colors cursor-pointer
               ${isActive ? 'bg-accent/5 text-accent' : 'text-text-disabled hover:text-text-secondary'}`}
@@ -370,10 +400,10 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             onSelect={(v) => setField('bar_nLayout', v)}
             disabled={false}
             options={[
-              { value: 4, label: '4',  glyph: <BoltGlyph4 /> },
-              { value: 6, label: '6',  glyph: <BoltGlyph6 /> },
-              { value: 8, label: '8',  glyph: <BoltGlyph8 /> },
-              { value: 9, label: '9',  glyph: <BoltGlyph9 /> },
+              { value: 4, label: '4', ariaLabel: '4 barras, 2 por lado', glyph: <BoltGlyph4 /> },
+              { value: 6, label: '6', ariaLabel: '6 barras, 3 por lado mayor', glyph: <BoltGlyph6 /> },
+              { value: 8, label: '8', ariaLabel: '8 barras en perímetro',     glyph: <BoltGlyph8 /> },
+              { value: 9, label: '9', ariaLabel: '9 barras en perímetro 3×3', glyph: <BoltGlyph9 /> },
             ]}
           />
         </div>
@@ -437,9 +467,9 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             active={state.rib_count as 0 | 2 | 4}
             onSelect={(v) => setField('rib_count', v)}
             options={[
-              { value: 0, label: '0', glyph: <RibGlyph0 /> },
-              { value: 2, label: '2', glyph: <RibGlyph2 /> },
-              { value: 4, label: '4', glyph: <RibGlyph4 /> },
+              { value: 0, label: '0', ariaLabel: 'Sin rigidizadores',                       glyph: <RibGlyph0 /> },
+              { value: 2, label: '2', ariaLabel: '2 rigidizadores en eje fuerte',           glyph: <RibGlyph2 /> },
+              { value: 4, label: '4', ariaLabel: '4 rigidizadores (2 en cada eje)',         glyph: <RibGlyph4 /> },
             ]}
           />
         </div>

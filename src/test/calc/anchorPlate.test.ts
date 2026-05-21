@@ -328,9 +328,10 @@ describe('check 8 — pullout (EN 1992-4 §7.2.1.5)', () => {
     const po = r.checks.find((c) => c.id === 'pullout')!;
     expect(po.utilization).toBe(0);
   });
-  it('arandela_tuerca → NRd,p = 6·Ah·fck/γMp computed', () => {
+  it('arandela_tuerca cracked (default) → NRd,p = 7.5·Ah·fck/γMc', () => {
+    // EN 1992-4 §7.2.1.5: k2=7.5 fisurado, γMc=1.5.
     // φ20 + OD 50: Ah = (50² - 20²)·π/4 = 2100·π/4 ≈ 1649.3 mm²
-    // NRd,p = 6·1649.3·25/1.4/1000 ≈ 176.7 kN
+    // NRd,p = 7.5·1649.3·25/1.5/1000 ≈ 206.2 kN
     const r = calcAnchorPlate({
       ...base,
       bottom_anchorage: 'arandela_tuerca',
@@ -338,7 +339,23 @@ describe('check 8 — pullout (EN 1992-4 §7.2.1.5)', () => {
       NEd: 100, NEd_G: 50, Mx: 40, My: 0,
     });
     const po = r.checks.find((c) => c.id === 'pullout')!;
-    expect(po.limit).toContain('NRd,p=176.7');
+    expect(po.limit).toContain('NRd,p=206.2');
+    expect(po.limit).toContain('k2=7.5');
+    expect(po.limit).toContain('fisurado');
+  });
+  it('arandela_tuerca uncracked → NRd,p = 10.5·Ah·fck/γMc (≈+40%)', () => {
+    // k2=10.5 no fisurado: NRd,p = 10.5·1649.3·25/1.5/1000 ≈ 288.6 kN.
+    const r = calcAnchorPlate({
+      ...base,
+      bottom_anchorage: 'arandela_tuerca',
+      washer_od: 50,
+      concrete_cracked: false,
+      NEd: 100, NEd_G: 50, Mx: 40, My: 0,
+    });
+    const po = r.checks.find((c) => c.id === 'pullout')!;
+    expect(po.limit).toContain('NRd,p=288.6');
+    expect(po.limit).toContain('k2=10.5');
+    expect(po.limit).toContain('no fisurado');
   });
 });
 

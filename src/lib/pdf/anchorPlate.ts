@@ -131,12 +131,24 @@ export async function exportAnchorPlatePDF(
 
   let y = Math.max(ly, ry) + 2;
 
+  // Page-break helper (hoisted above SVG so we can ensure() the diagram fits).
+  const footerMargin = 16;
+  const ensure = (need: number) => {
+    if (y + need > PAGE_H - footerMargin) {
+      doc.addPage();
+      y = M;
+    }
+  };
+
   setGray(doc, 200);
   doc.setLineWidth(0.2);
   doc.line(M, y, PAGE_W - M, y);
   y += 4;
 
   // ── 3. SVG diagram ─────────────────────────────────────────────────────
+  // H16 (Phase 2): el diagrama ocupa ~186 mm con la escala actual; en hojas
+  // densas chocaba con el footer. Reservamos el bloque entero (SVG + caption
+  // + divisor) y forzamos nueva página si no cabe.
   const svgContainer = document.getElementById('anchor-plate-svg-pdf');
   const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
 
@@ -145,6 +157,9 @@ export async function exportAnchorPlatePDF(
     const SVG_NATIVE_H = 460;
     const scale = CW / SVG_NATIVE_W;
     const rendH = SVG_NATIVE_H * scale;
+    const CAPTION_H = 4;
+    const DIVIDER_H = 4;
+    ensure(rendH + 2 + CAPTION_H + DIVIDER_H);
     try {
       await svg2pdf(svgEl, doc, { x: M, y, width: CW, height: rendH });
       y += rendH + 2;
@@ -159,22 +174,13 @@ export async function exportAnchorPlatePDF(
       `Planta + alzado  |  Modo solver: ${pdfStr(result.solver.mode)}`,
       PAGE_W / 2, y, { align: 'center' },
     );
-    y += 4;
+    y += CAPTION_H;
   }
 
   setGray(doc, 200);
   doc.setLineWidth(0.2);
   doc.line(M, y, PAGE_W - M, y);
   y += 4;
-
-  // Page-break helper
-  const footerMargin = 16;
-  const ensure = (need: number) => {
-    if (y + need > PAGE_H - footerMargin) {
-      doc.addPage();
-      y = M;
-    }
-  };
 
   // ── 4. Checks table ────────────────────────────────────────────────────
   ensure(10);
@@ -404,8 +410,16 @@ export async function exportAnchorPlatePDF(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   const utMax = result.worstUtil * 100;
+  // H11 — name the governing check so reviewers see which limit drives util.
+  const governing = result.checks
+    .filter((c) => c.status !== 'neutral' && isFinite(c.utilization))
+    .reduce<typeof result.checks[number] | null>(
+      (best, c) => (best === null || c.utilization > best.utilization ? c : best),
+      null,
+    );
+  const govSuffix = governing ? `  (rige: ${pdfStr(governing.id)})` : '';
   doc.text(
-    `VEREDICTO GLOBAL: ${STATUS_LABEL[st]}  (utilizacion max: ${isFinite(utMax) ? utMax.toFixed(1) : '---'}%)`,
+    `VEREDICTO GLOBAL: ${STATUS_LABEL[st]}  (utilizacion max: ${isFinite(utMax) ? utMax.toFixed(1) : '---'}%)${govSuffix}`,
     PAGE_W / 2, y + 1.5, { align: 'center' },
   );
   y += 10;
