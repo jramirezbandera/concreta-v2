@@ -61,7 +61,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/acero/placas-de-anclaje': {
     title: 'Placas de anclaje — Concreta',
-    description: 'Cálculo de placa base de acero con barras corrugadas embebidas (B400S/B500S) ancladas en hormigón. Comprobaciones de fluencia, cono de hormigón, splitting y longitud de anclaje según CTE DB-SE-A y Eurocódigos.',
+    description: 'Cálculo de placa base de acero con barras corrugadas embebidas (B400S/B500S) ancladas en hormigón. Comprobaciones de fluencia, cono, splitting, edge breakout, pry-out y longitud de anclaje según Código Estructural (RD 470/2021) — Anejo 18 (placa base), Anejo 11 (anclajes en hormigón), Anejo 19 (longitud de anclaje).',
   },
   '/ciment/zapatas': {
     title: 'Zapatas aisladas — Concreta',

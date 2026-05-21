@@ -527,7 +527,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     const r = calcAnchorPlate(anchorPlateDefaults);
     const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
     expect(bi.value).toMatch(/\(\d+\.\d{2}\)² \+ \(\d+\.\d{2}\)²/);
-    expect(bi.article).toBe('EN 1992-4 §7.2.3');
+    expect(bi.article).toBe('CE Anejo 11 §7.2.3');
   });
 
   it('Vx/Vy direccional: si Vx=0, Vy=50, edge breakout proyecta a borde y', () => {

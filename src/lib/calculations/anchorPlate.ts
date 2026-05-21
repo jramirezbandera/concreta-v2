@@ -1,7 +1,7 @@
-// Anchor-plate calculations — PR-3 (rebar model).
+// Anchor-plate calculations — placas con barras corrugadas embebidas.
 //
-// Modelo: barras corrugadas EHE-08 / EC2 ancladas en hormigón. Dos detalles
-// ortogonales:
+// Modelo: barras corrugadas B400S/B500S ancladas en hormigón estructural.
+// Dos detalles ortogonales:
 //   · bottom_anchorage (extremo embebido — transfiere tracción al hormigón):
 //     prolongacion_recta | patilla | gancho | arandela_tuerca.
 //   · top_connection (unión barra↔placa — detalle constructivo, sin check):
@@ -10,7 +10,16 @@
 // (grout), sujeta a la cabeza del macizo por el grupo de barras traccionadas
 // y por compresión directa del mortero.
 //
-// Norma: CTE DB-SE-A + EC3 parte 1-8 + EN 1992-4 + EC2 §8.4 + EHE-08.
+// Norma de referencia: Código Estructural (RD 470/2021), España. Anejos
+// aplicables:
+//   - Anejo 18 — Uniones en estructuras de acero (placa base, T-stub,
+//     rigidizadores). Eurocódigo de referencia secundaria: EC3 1-8.
+//   - Anejo 11 — Anclajes en hormigón (cono, pull-out, splitting, modos
+//     de fallo en cortante). Eurocódigo de referencia secundaria: EN 1992-4.
+//   - Anejo 19 — Hormigón estructural (longitud de anclaje §49.5, fctd).
+//     Eurocódigo de referencia secundaria: EC2.
+//   - Anejo 22 — Esbeltez de placa en compresión (rigidizadores §5.5).
+//
 // Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γMp=1.4.
 
 import type { AnchorPlateInputs } from '../../data/defaults';
@@ -893,7 +902,7 @@ export function checkPlateCompression(
     limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${fjd.toFixed(1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC3 1-8 §6.2.5',
+    article: 'CE Anejo 18 §6.2.5',
   };
 }
 
@@ -934,7 +943,7 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): Chec
     limit: `mRd=${(m_Rd_Nmm_per_mm / 1000).toFixed(2)} kNm/m (c=${c_eff.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC3 1-8 §6.2.5',
+    article: 'CE Anejo 18 §6.2.5',
   };
 }
 
@@ -953,7 +962,7 @@ export function checkBoltTension(
     limit: `FtRd=${fmtF(FtRd_kN, system)} (As=${As.toFixed(0)} mm², fyd=${fyd.toFixed(0)} MPa)`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC2 §2.4.2.4',
+    article: 'CE Anejo 19 §49.5',
   };
 }
 
@@ -991,7 +1000,7 @@ export function checkBoltShear(
     limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${nBars}·FvRd)`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC2 §2.4.2.4 + EN 1992-4 §6.2.2',
+    article: 'CE Anejo 11 §6.2.2',
   };
 }
 
@@ -1041,7 +1050,7 @@ export function checkBoltInteraction(
     limit: `≤ 1.00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.3',
+    article: 'CE Anejo 11 §7.2.3',
   };
 }
 
@@ -1064,7 +1073,7 @@ export function checkAnchorageLength(
       limit: 'Regido por check 8 (pull-out EN 1992-4 §7.2.1.5)',
       utilization: 0,
       status: 'neutral',
-      article: 'EC2 §8.4',
+      article: 'CE Anejo 19 §49.5',
     };
   }
 
@@ -1140,7 +1149,7 @@ export function checkAnchorageLength(
       limit: `hef=${inp.bar_hef.toFixed(0)} mm`,
       utilization: 0,
       status: 'neutral',
-      article: 'EC2 §8.4',
+      article: 'CE Anejo 19 §49.5',
     };
   }
 
@@ -1152,7 +1161,7 @@ export function checkAnchorageLength(
     limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC2 §8.4',
+    article: 'CE Anejo 19 §49.5',
   };
 }
 
@@ -1172,7 +1181,7 @@ export function checkConcreteCone(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.1.4',
+      article: 'CE Anejo 11 §7.2.1.4',
     };
   }
 
@@ -1220,7 +1229,7 @@ export function checkConcreteCone(
     limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.1.4',
+    article: 'CE Anejo 11 §7.2.1.4',
   };
 }
 
@@ -1241,7 +1250,7 @@ export function checkPullout(
       limit: 'Regido por check 6 (EC2 §8.4)',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.1.5',
+      article: 'CE Anejo 11 §7.2.1.5',
     };
   }
 
@@ -1259,7 +1268,7 @@ export function checkPullout(
     limit: `NRd,p=${fmtF(NRd_p_kN, system)} (Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.1.5',
+    article: 'CE Anejo 11 §7.2.1.5',
   };
 }
 
@@ -1301,7 +1310,7 @@ export function checkSplitting(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.1.6',
+      article: 'CE Anejo 11 §7.2.1.6',
     };
   }
 
@@ -1322,7 +1331,7 @@ export function checkSplitting(
       limit: 'No crítico',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.1.6',
+      article: 'CE Anejo 11 §7.2.1.6',
     };
   }
 
@@ -1378,7 +1387,7 @@ export function checkSplitting(
     limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (ψh=${psi_h_sp.toFixed(2)} · ψec=${psi_ec_sp.toFixed(2)} · ψs=${psi_s_sp.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.1.6',
+    article: 'CE Anejo 11 §7.2.1.6',
   };
 }
 
@@ -1396,7 +1405,7 @@ export function checkStiffener(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'EC3 1-1 §5.5 + EC3 1-8 §4.5.3',
+      article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5',
     };
   }
 
@@ -1423,7 +1432,7 @@ export function checkStiffener(
     limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)} (${governs})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC3 1-1 §5.5 + EC3 1-8 §4.5.3',
+    article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5',
   };
 }
 
@@ -1459,7 +1468,7 @@ export function checkConcreteEdgeBreakout(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.2.4',
+      article: 'CE Anejo 11 §7.2.2.4',
     };
   }
 
@@ -1523,7 +1532,7 @@ export function checkConcreteEdgeBreakout(
     limit: `VRd,c=${fmtF(VRd_kN, system)} (c1=${c1.toFixed(0)} · ψs=${psi_s.toFixed(2)} · ψh=${psi_h.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.2.4',
+    article: 'CE Anejo 11 §7.2.2.4',
   };
 }
 
@@ -1553,7 +1562,7 @@ export function checkConcretePryout(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.2.3',
+      article: 'CE Anejo 11 §7.2.2.3',
     };
   }
 
@@ -1594,7 +1603,7 @@ export function checkConcretePryout(
     limit: `VRd,cp=${fmtF(VRd_cp_kN, system)} (k=${k_pryout.toFixed(1)} · NRd,c=${fmtF(NRd_c_kN, system)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EN 1992-4 §7.2.2.3',
+    article: 'CE Anejo 11 §7.2.2.3',
   };
 }
 
@@ -1621,7 +1630,7 @@ export function checkConcreteBreakoutV(
       limit: 'No aplica',
       utilization: 0,
       status: 'neutral',
-      article: 'EN 1992-4 §7.2.2.5',
+      article: 'CE Anejo 11 §7.2.2.5',
     };
   }
   // hef < 60: aplicar el modo. Para PR8b, fall-back conservador usando
@@ -1631,7 +1640,7 @@ export function checkConcreteBreakoutV(
     ...eb,
     id: 'concrete-breakout-v',
     description: 'Rotura por breakout en cortante (hef somero)',
-    article: 'EN 1992-4 §7.2.2.5',
+    article: 'CE Anejo 11 §7.2.2.5',
   };
 }
 
