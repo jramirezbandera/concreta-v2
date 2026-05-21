@@ -61,7 +61,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/acero/placas-de-anclaje': {
     title: 'Placas de anclaje — Concreta',
-    description: 'Placas de anclaje atornilladas. EC3 §6.2.5 (T-stub), EN 1992-4 (pernos).',
+    description: 'Cálculo de placa base de acero con barras corrugadas embebidas (B400S/B500S) ancladas en hormigón. Comprobaciones de fluencia, cono de hormigón, splitting y longitud de anclaje según CTE DB-SE-A y Eurocódigos.',
   },
   '/ciment/zapatas': {
     title: 'Zapatas aisladas — Concreta',

@@ -53,7 +53,7 @@ export async function exportAnchorPlatePDF(
   setGray(doc, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('Concreta - Placa de anclaje (EC3 §6.2.5 / EN 1992-4)', M, M);
+  doc.text('Concreta - Placa de anclaje con barras corrugadas (EC3 §6.2.5 / EN 1992-4)', M, M);
 
   setGray(doc, 130);
   doc.setFont('helvetica', 'normal');
