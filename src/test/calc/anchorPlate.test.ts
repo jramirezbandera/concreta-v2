@@ -264,9 +264,29 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
     expect(anS.utilization).toBeCloseTo(anT.utilization, 9);
     expect(soldada.worstUtil).toBeCloseTo(tuerca.worstUtil, 9);
   });
-  it('separación entre barras apretada baja cd y anula la reducción', () => {
-    // bar_spacing_x=70 → (70-20)/2=25 gobierna cd=25 < 60 → α1=1.0.
+  it('H14 (PR5): bar_spacing_x input es ignorado en layout 4-corner (posiciones desde bar_edge_x)', () => {
+    // Pre-H14: el código usaba inp.bar_spacing_x para calcular cd, así que
+    // pasar 70 reducía cd a 25 < 60 → α1=1.0 (lo que validaba el bug).
+    // Post-H14: cd se deriva de las coordenadas reales de generateLayout.
+    // En 4-corner las barras están en ±(plate_a/2 − bar_edge_x), 300 mm aparte,
+    // así que pasar bar_spacing_x=70 NO cambia nada — α1 sigue siendo 0.70.
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'patilla', bar_spacing_x: 70 });
+    const an = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(an.value).toContain('α1=0.70');
+  });
+  it('H14 (PR5): layout 9 con plate pequeña → barras vecinas próximas → cd pequeño → α1=1.00', () => {
+    // 9-grid 3×3 en placa 300×300 con bar_edge=40 → xs en {−110, 0, +110}.
+    // La barra central tiene vecinas a 110 mm → halfSpacing = (110−20)/2 = 45 < 60 → α1=1.0.
+    // Esto sólo funciona porque generateLayout produce el spacing real (post-H14),
+    // no inp.bar_spacing_x.
+    const r = calcAnchorPlate({
+      ...base,
+      bottom_anchorage: 'patilla',
+      bar_nLayout: 9,
+      plate_a: 300, plate_b: 300,
+      bar_edge_x: 40, bar_edge_y: 40,
+      My: 5,   // pequeño momento biaxial para que algunas barras estén traccionadas
+    });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
     expect(an.value).toContain('α1=1.00');
   });
@@ -345,6 +365,68 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // src/test/calc/anchorPlateOracle.test.ts in PR1 of the audit-driven refactor.
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
+
+describe('PR5 — CR4 dispatcher rutea nLayout>4 a biaxial bajo Mx puro', () => {
+  it('nLayout=6 + My=0 → solver biaxial, modela 6 barras', () => {
+    // Pre-CR4: dispatcher rutea a solveAxisAligned4 (sólo 4 esquinas, ignora central).
+    // Post-CR4: rutea a biaxial siempre que nLayout > 4.
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 6, My: 0 });
+    expect(r.solver.bolts).toHaveLength(6);
+    expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
+  });
+  it('nLayout=8 + My=0 → solver biaxial, modela 8 barras', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 8, My: 0 });
+    expect(r.solver.bolts).toHaveLength(8);
+    expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
+  });
+  it('nLayout=9 + My=0 → solver biaxial, modela 9 barras', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 0 });
+    expect(r.solver.bolts).toHaveLength(9);
+    expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
+  });
+  it('nLayout=4 + My=0 SIGUE en axis-aligned (happy path conservado)', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 4, My: 0 });
+    expect(r.solver.bolts).toHaveLength(4);
+    expect(['uniform-compression', 'partial-lift']).toContain(r.solver.mode);
+  });
+  it('nLayout=4 + uniform-compression sigue uniform-compression', () => {
+    const r = calcAnchorPlate({ ...base, NEd: 500, Mx: 0, My: 0 });
+    expect(r.solver.mode).toBe('uniform-compression');
+  });
+});
+
+describe('PR5 — H10 checkBoltShear usa bars.length real (no inp.bar_nLayout)', () => {
+  it('nLayout=6 → cortante repartido entre 6 barras (no 4)', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 6, My: 0, VEd: 100 });
+    const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
+    expect(bs.limit).toContain('6·FvRd');
+  });
+  it('nLayout=9 → cortante repartido entre 9 barras', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 5, VEd: 100 });
+    const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
+    expect(bs.limit).toContain('9·FvRd');
+  });
+});
+
+describe('PR5 — H14 anchorage cd derivado de coordenadas reales', () => {
+  it('cd reportado en el limit string (cuando hay tracción)', () => {
+    const r = calcAnchorPlate({ ...base, bottom_anchorage: 'patilla' });
+    const an = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(an.limit).toMatch(/cd=\d+ mm/);
+  });
+  it('barra interior tiene coverX mayor que barra de esquina', () => {
+    // En layout 9, las barras del centro (0,0), (0,±yMax), (±xMax,0) tienen
+    // mayor recubrimiento horizontal o vertical que las esquinas. El check
+    // reporta el peor, que sigue siendo una esquina con cd = pedestal_cX.
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 5 });
+    const an = r.checks.find((c) => c.id === 'anchorage-length')!;
+    // Si la peor barra es una esquina, cd ≤ pedestal_cX (200).
+    const cdMatch = an.limit?.match(/cd=(\d+) mm/);
+    expect(cdMatch).not.toBeNull();
+    const cd = parseInt(cdMatch![1], 10);
+    expect(cd).toBeLessThanOrEqual(200);
+  });
+});
 
 describe('PR3 — skipped checks render as neutral (H8)', () => {
   it('pullout con prolongacion_recta → status=neutral', () => {

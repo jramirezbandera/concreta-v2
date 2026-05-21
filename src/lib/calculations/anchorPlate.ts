@@ -419,7 +419,12 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
   const nearPureCompression = M_ext < 0.01 * NEd_safe * inp.plate_a / 6 / 1000;
   const pureAxis = absMy < 1e-6;
 
-  if (pureAxis || nearPureCompression) return solveAxisAligned4(inp);
+  // CR4 — solveAxisAligned4 only models 4 corner bars (via fourCornerLayout).
+  // For nLayout ∈ {6, 8, 9} we must route to solveBiaxial even under pure Mx
+  // so the intermediate bars are not silently ignored.
+  if ((pureAxis || nearPureCompression) && inp.bar_nLayout === 4) {
+    return solveAxisAligned4(inp);
+  }
   return solveBiaxial(inp);
 }
 
@@ -549,8 +554,15 @@ export function checkBoltTension(
 // ─── Check 4 — Cortante en barras ────────────────────────────────────────
 // EN 1992-4 §6.2.2: fricción bajo placa usa la envolvente permanente µ·Nc,G.
 // Cortante residual se reparte entre las barras (plástico: Fv = 0.6·As·fyd).
+//
+// H10 (PR5) — usar bars.length (lo que el solver modeló) en vez de
+// inp.bar_nLayout (lo que el usuario declaró). Aunque CR4 ya garantiza que
+// el dispatcher genera el layout real, este paso protege contra divergencias
+// futuras donde el solver decida ignorar barras (e.g., barras fuera del
+// pedestal en geometrías inválidas).
 export function checkBoltShear(
   inp: AnchorPlateInputs,
+  bars: AnchorBarPosition[],
   Nc_G_kN: number,
   system: UnitSystem = 'si',
 ): CheckRow {
@@ -558,7 +570,8 @@ export function checkBoltShear(
   const Vfric_kN = mu * Math.max(0, Nc_G_kN);
 
   const { FvRd_kN: FvRd_per_bar_kN } = barStrengths(inp);
-  const Fv_Rd_total_kN = FvRd_per_bar_kN * inp.bar_nLayout;
+  const nBars = bars.length;
+  const Fv_Rd_total_kN = FvRd_per_bar_kN * nBars;
 
   const V_Rd_total_kN = Vfric_kN + Fv_Rd_total_kN;
   const util = inp.VEd / Math.max(V_Rd_total_kN, 1e-6);
@@ -566,7 +579,7 @@ export function checkBoltShear(
     id: 'bolt-shear',
     description: 'Cortante en barras',
     value: `VEd=${fmtF(inp.VEd, system)}`,
-    limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${inp.bar_nLayout}·FvRd)`,
+    limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${nBars}·FvRd)`,
     utilization: util,
     status: toStatus(util),
     article: 'EC2 §2.4.2.4 + EN 1992-4 §6.2.2',
@@ -634,27 +647,52 @@ export function checkAnchorageLength(
   const { fyd, FtRd_kN } = barStrengths(inp);
   const FtRd_N = FtRd_kN * 1000;
 
-  // cd por EC2 Fig. 8.3: menor de recubrimiento lateral y semi-separación entre barras.
-  // En placa de anclaje la barra se ancla verticalmente, así que las cotas
-  // perpendiculares son pedestal_cX / pedestal_cY (al borde) y bar_spacing_x/y
-  // (a la barra vecina).
-  const cd = Math.min(
-    inp.pedestal_cX,
-    inp.pedestal_cY,
-    (inp.bar_spacing_x - inp.bar_diam) / 2,
-    (inp.bar_spacing_y - inp.bar_diam) / 2,
-  );
-  const alpha1 = anchorageAlpha1(inp.bottom_anchorage, cd, inp.bar_diam);
+  // H14 (PR5) — cd debe derivarse de las coordenadas reales de cada barra
+  // generadas por el solver, no de bar_spacing_x/y (input del usuario que
+  // puede divergir del layout 6/8/9 efectivo). Por EC2 Fig. 8.3 cd es el
+  // mínimo de:
+  //   · recubrimiento lateral al borde de hormigón en cada eje
+  //   · semi-separación clara a la barra vecina más cercana en cada eje
+  // pedestal_cX/cY es la distancia barra-corner→borde del pedestal (más
+  // expuesta). Para barras interiores, el recubrimiento es mayor:
+  //   coverX = pedestal_cX + ((plate_a/2 − bar_edge_x) − |b.x|)
+  // que se reduce a pedestal_cX para |b.x| = corner_x y crece para interiores.
+  const cornerX = inp.plate_a / 2 - inp.bar_edge_x;
+  const cornerY = inp.plate_b / 2 - inp.bar_edge_y;
+
+  function cdForBar(b: AnchorBarPosition): number {
+    const coverX = inp.pedestal_cX + (cornerX - Math.abs(b.x));
+    const coverY = inp.pedestal_cY + (cornerY - Math.abs(b.y));
+    // Distancia real a la barra vecina más cercana en cada eje.
+    let nearestX = Infinity;
+    let nearestY = Infinity;
+    for (const o of bars) {
+      if (o === b) continue;
+      const dx = Math.abs(o.x - b.x);
+      const dy = Math.abs(o.y - b.y);
+      if (dx > 0 && dx < nearestX) nearestX = dx;
+      if (dy > 0 && dy < nearestY) nearestY = dy;
+    }
+    const halfSpacingX = (nearestX - inp.bar_diam) / 2;
+    const halfSpacingY = (nearestY - inp.bar_diam) / 2;
+    return Math.min(coverX, coverY, halfSpacingX, halfSpacingY);
+  }
 
   let lb_rqd_max = 0;
   let worstIdx = -1;
+  let worstAlpha1 = 1.0;
+  let worstCd = Infinity;
   for (const b of bars) {
     if (!b.inTension || b.Ft <= 0) continue;
+    const cd_bar = cdForBar(b);
+    const alpha1 = anchorageAlpha1(inp.bottom_anchorage, cd_bar, inp.bar_diam);
     const Ft_N  = b.Ft * 1000;
     const lb_rqd = alpha1 * (inp.bar_diam / 4) * (fyd / fbd) * (Ft_N / FtRd_N);
     if (lb_rqd > lb_rqd_max) {
       lb_rqd_max = lb_rqd;
       worstIdx = b.index;
+      worstAlpha1 = alpha1;
+      worstCd = cd_bar;
     }
   }
 
@@ -674,8 +712,8 @@ export function checkAnchorageLength(
   return {
     id: 'anchorage-length',
     description: 'Longitud de anclaje',
-    value: `lb,rqd=${lb_rqd_max.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${alpha1.toFixed(2)})`,
-    limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${cd.toFixed(0)} mm)`,
+    value: `lb,rqd=${lb_rqd_max.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)})`,
+    limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'EC2 §8.4',
@@ -957,7 +995,7 @@ export function calcAnchorPlate(
     checkPlateCompression(inp, solver.Nc, twoFlanges, system),
     checkPlateBending(inp, fjd),
     checkBoltTension(inp, Ft_per_bar, system),
-    checkBoltShear(inp, inp.NEd_G, system),
+    checkBoltShear(inp, solver.bolts, inp.NEd_G, system),
     checkBoltInteraction(inp, solver.bolts, system),
     checkAnchorageLength(inp, solver.bolts),
     checkConcreteCone(inp, solver.bolts, solver.Ft_total, system),
