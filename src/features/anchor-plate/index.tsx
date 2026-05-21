@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { anchorPlateDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -20,10 +20,16 @@ export function AnchorPlateModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
-  const result = useMemo(() => calcAnchorPlate(state, system), [state, system]);
+  // M6 (Phase 2 Tier 3): el solver biaxial puede ejecutar ~25-50k clips
+  // poligonales (multi-seed M22 incluido). Recomputar en cada keystroke
+  // bloquea el input en móvil. useDeferredValue marca la recomputación como
+  // baja prioridad: React aplaza el render hasta que el input está idle.
+  // El PDF recibe deferredState/result para que ambos estén siempre en sync.
+  const deferredState = useDeferredValue(state);
+  const result = useMemo(() => calcAnchorPlate(deferredState, system), [deferredState, system]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportAnchorPlatePDF(state, result, system), true);
+    usePdfPreview(() => exportAnchorPlatePDF(deferredState, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
 
@@ -83,7 +89,7 @@ export function AnchorPlateModule() {
             className="hidden lg:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4"
           >
             <AnchorPlateSVG
-              inp={state}
+              inp={deferredState}
               result={result}
               mode="screen"
               width={svgW}
@@ -100,7 +106,7 @@ export function AnchorPlateModule() {
         {tab === 'diagramas' && (
           <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <AnchorPlateSVG
-              inp={state}
+              inp={deferredState}
               result={result}
               mode="screen"
               width={320}
@@ -117,7 +123,7 @@ export function AnchorPlateModule() {
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
           <AnchorPlateSVG
-            inp={state}
+            inp={deferredState}
             result={result}
             mode="pdf"
             width={420}

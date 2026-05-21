@@ -200,6 +200,15 @@ export function generateLayout(inp: AnchorPlateInputs): AnchorBarPosition[] {
 interface Pt { x: number; y: number; }
 
 function clipPolygonToHalfPlane(poly: Pt[], cos: number, sin: number, d: number): Pt[] {
+  // M21 (Phase 2 Tier 3): tolerancia en vértices on-plane.
+  // El código previo usaba `fp >= 0` estricto; cuando una arista del
+  // rectángulo de la placa empieza exactamente en el plano de corte
+  // (caso frecuente: el eje neutro pasa por una barra o por un borde),
+  // generaba vértices duplicados / aristas zero-length que aparecían como
+  // "jitter" del mask en `solveBiaxial`. Tratamos `|f| ≤ EPS` como on-plane
+  // y deduplicamos vértices contiguos.
+  const EPS = 1e-6;        // mm — bien por debajo de precisión física
+  const DEDUP_EPS = 1e-4;  // mm — < 0.1 µm, sólo elimina exactamente repetidos
   const out: Pt[] = [];
   const n = poly.length;
   if (n === 0) return out;
@@ -208,15 +217,34 @@ function clipPolygonToHalfPlane(poly: Pt[], cos: number, sin: number, d: number)
     const q = poly[(i + 1) % n];
     const fp = p.x * cos + p.y * sin - d;
     const fq = q.x * cos + q.y * sin - d;
-    const pIn = fp >= 0;
-    const qIn = fq >= 0;
+    const pIn = fp > -EPS;
+    const qIn = fq > -EPS;
     if (pIn) out.push(p);
-    if (pIn !== qIn) {
+    // Sólo emitir la intersección si la arista realmente cruza el plano.
+    // Si p o q están on-plane dentro de la tolerancia, ya están / estarán
+    // en `out` sin necesidad de un punto extra.
+    if (pIn !== qIn && Math.abs(fp) > EPS && Math.abs(fq) > EPS) {
       const t = fp / (fp - fq);
       out.push({ x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) });
     }
   }
-  return out;
+  // Dedup vértices contiguos idénticos (incluyendo wrap-around).
+  if (out.length < 2) return out;
+  const cleaned: Pt[] = [];
+  for (const v of out) {
+    const last = cleaned[cleaned.length - 1];
+    if (!last || Math.abs(v.x - last.x) > DEDUP_EPS || Math.abs(v.y - last.y) > DEDUP_EPS) {
+      cleaned.push(v);
+    }
+  }
+  if (cleaned.length >= 2) {
+    const first = cleaned[0];
+    const last = cleaned[cleaned.length - 1];
+    if (Math.abs(first.x - last.x) < DEDUP_EPS && Math.abs(first.y - last.y) < DEDUP_EPS) {
+      cleaned.pop();
+    }
+  }
+  return cleaned;
 }
 
 function polygonAreaCentroid(poly: Pt[]): { A: number; X: number; Y: number } {
@@ -532,6 +560,12 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
   }
 
   function evaluate(phi: number): Evaluation {
+    // M4 (Phase 2 Tier 3): la máscara de barras tensas se deriva de forma
+    // determinista de (p[i] < d) en cada evaluación — NO hay iteración de
+    // tipo fixed-point que pueda oscilar período-2 (el patrón que el
+    // findings doc reportaba contra el biaxial pre-PR7b ya no aplica).
+    // La búsqueda externa (phi-grid + step-halving) sí podría oscilar,
+    // pero el cap de 40 iters + `step < 1e-5` exit garantiza terminación.
     const cos = Math.cos(phi), sin = Math.sin(phi);
     const bars = bars0.map((b) => ({ ...b, Ft: 0, inTension: false }));
     const p = bars0.map((b) => b.x * cos + b.y * sin);
@@ -632,26 +666,61 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     evals.push(evaluate((i * 2 * Math.PI) / N_GRID));
   }
   const residual = (e: Evaluation) => Math.hypot(e.Mx_int_kNm - Mx, e.My_int_kNm - My);
-  let best = evals[0];
+
+  // M22 (Phase 2 Tier 3): multi-seed restart. Para cargas simétricas
+  // (Mx ≈ My, perfil cuadrado, grupo de barras simétrico) existen varias
+  // cuencas locales casi-equivalentes en el espacio φ. La búsqueda single-
+  // seed previa podía quedarse en un mínimo local; tomamos los K=3 mejores
+  // candidatos del grid coarse, separados ≥ 30° entre sí, y refinamos cada
+  // uno independientemente. Después escogemos el mejor global.
+  const K_SEEDS = 3;
+  const MIN_GAP = (30 * Math.PI) / 180;
+  const sortedEvals = [...evals].sort((a, b) => residual(a) - residual(b));
+  const seeds: Evaluation[] = [];
+  for (const cand of sortedEvals) {
+    const tooClose = seeds.some((s) => {
+      let dphi = Math.abs(cand.phi - s.phi);
+      if (dphi > Math.PI) dphi = 2 * Math.PI - dphi;
+      return dphi < MIN_GAP;
+    });
+    if (!tooClose) seeds.push(cand);
+    if (seeds.length >= K_SEEDS) break;
+  }
+  // Padding por si hay menos de K candidatos angularmente diversos.
+  for (const cand of sortedEvals) {
+    if (seeds.length >= K_SEEDS) break;
+    if (!seeds.includes(cand)) seeds.push(cand);
+  }
+
+  function refineFrom(seed: Evaluation): { best: Evaluation; bestR: number } {
+    let local = seed;
+    let localR = residual(local);
+    let step = (2 * Math.PI) / N_GRID;
+    for (let k = 0; k < 40; k++) {
+      const cL = evaluate(local.phi - step);
+      const cR = evaluate(local.phi + step);
+      const rL = residual(cL), rR = residual(cR);
+      if (rL < localR) { local = cL; localR = rL; }
+      else if (rR < localR) { local = cR; localR = rR; }
+      else step /= 2;
+      if (step < 1e-5) break;
+    }
+    return { best: local, bestR: localR };
+  }
+
+  let best = seeds[0];
   let bestR = residual(best);
-  for (const e of evals) {
-    const r = residual(e);
-    if (r < bestR) { best = e; bestR = r; }
+  for (const seed of seeds) {
+    const ref = refineFrom(seed);
+    if (ref.bestR < bestR) { best = ref.best; bestR = ref.bestR; }
   }
 
-  let step = (2 * Math.PI) / N_GRID;
-  for (let k = 0; k < 40; k++) {
-    const cL = evaluate(best.phi - step);
-    const cR = evaluate(best.phi + step);
-    const rL = residual(cL), rR = residual(cR);
-    if (rL < bestR) { best = cL; bestR = rL; }
-    else if (rR < bestR) { best = cR; bestR = rR; }
-    else step /= 2;
-    if (step < 1e-5) break;
-  }
-
+  // M5 (Phase 2 Tier 3): tolerancia apretada de max(0.5, 2%·M_ext) a
+  // max(0.1, 0.5%·M_ext). Para M_ext=50 kNm el residuo permitido pasa de
+  // 1.0 kNm a 0.25 kNm (≈5 kN de Ft "perdido" en lugar de ≈20 kN). Sin
+  // este apriete el worst-util podía estar 5-10% fuera del óptimo.
   const M_ext_mag = Math.hypot(Mx, My);
-  const tol = Math.max(0.5, 0.02 * M_ext_mag);
+  const tol = Math.max(0.1, 0.005 * M_ext_mag);
   const converged = bestR <= tol;
 
   const n_t = best.bars.filter((b) => b.inTension).length;
