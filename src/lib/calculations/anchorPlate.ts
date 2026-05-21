@@ -969,13 +969,23 @@ export function alphaExtension(inp: AnchorPlateInputs): number {
 }
 
 // ─── T-stub effective area (EC3 1-8 §6.2.5(3)–(5)) ───────────────────────
-// M2 (Phase 6): previously the caller passed `twoFlanges = solver.mode ===
-// 'uniform-compression'`, halving Aeff under partial-lift. That conservatism
-// had no normative basis — for I/H sections both flanges always contribute
-// in the compression zone, regardless of whether the column is fully
-// compressed or partially lifted. EC3 1-8 §6.2.5 considers two T-stubs for
-// I/H profiles. Aeff is still capped to the plate footprint, which bounds
-// the case where the compression zone happens to be narrow.
+// M20 (Phase 6): geometry via axis-aligned rectangle clip + inclusion-
+// exclusion union, replacing the previous scalar `c = min(c_raw, c_max_strong,
+// c_max_weak)` cap. The old cap suppressed bearing spread on the LOOSE axis
+// whenever the TIGHT axis was constrained, even though the spread on each
+// axis is independent. Now `c` is the uncapped Eq. 6.5 spread distance, and
+// the plate boundary is enforced geometrically per direction.
+//
+// Coordinates (centered I-section, strong axis = x along profile depth h):
+//   Top flange:  x ∈ [h/2 - tf, h/2],        y ∈ [-b/2, b/2]
+//   Bot flange:  x ∈ [-h/2, -h/2 + tf],      y ∈ [-b/2, b/2]
+//   Web:         x ∈ [-h/2 + tf, h/2 - tf],  y ∈ [-tw/2, tw/2]
+//
+// Each rectangle is expanded by c in all four directions (Minkowski sum with
+// a 2c square), clipped to the plate ±plate_a/2 × ±plate_b/2, and combined:
+//   A_eff = A_top + A_bot + A_web - (A_top ∩ A_web) - (A_bot ∩ A_web) - (A_top ∩ A_bot)
+// All intersections are axis-aligned rectangles, so plate clipping commutes
+// with intersection. M2 (always-two-flanges) is preserved.
 export function tStubEffectiveArea(
   inp: AnchorPlateInputs,
   fjd_MPa: number,
@@ -988,26 +998,44 @@ export function tStubEffectiveArea(
   const p = section;
 
   // EC3 1-8 §6.2.5(4) Eq 6.5: c = t · √(fyd / (3·fjd))
-  // donde fyd = fyp / γM0 (resistencia de cálculo de la placa). El código
-  // previo usaba fyp (característica), sobreestimando Aeff ≈ 2.4%.
+  // donde fyd = fyp / γM0 (resistencia de cálculo de la placa).
   const fyp = PLATE_FY[inp.plate_steel];
   const fyd_plate = fyp / GAMMA_M0;
-  const c_raw = inp.plate_t * Math.sqrt(fyd_plate / (3 * Math.max(fjd_MPa, 1e-6)));
-  const c_max_strong = (inp.plate_a - p.h) / 2;
-  const c_max_weak   = (inp.plate_b - p.b) / 2;
-  const c = Math.max(0, Math.min(c_raw, c_max_strong, c_max_weak));
+  const c = inp.plate_t * Math.sqrt(fyd_plate / (3 * Math.max(fjd_MPa, 1e-6)));
 
-  const bf_ext = Math.min(p.b + 2 * c, inp.plate_b);
-  const tf_ext = p.tf + 2 * c;
-  const A_flange = bf_ext * tf_ext;
+  const pa2 = inp.plate_a / 2;
+  const pb2 = inp.plate_b / 2;
 
-  const tw_ext = p.tw + 2 * c;
-  const hw_ext = Math.max(0, p.h - 2 * p.tf - 2 * c);
-  const A_web = tw_ext * hw_ext;
+  // Axis-aligned rectangle clipped to the plate, area only.
+  const clipArea = (x1: number, x2: number, y1: number, y2: number): number => {
+    const dx = Math.min(pa2, x2) - Math.max(-pa2, x1);
+    const dy = Math.min(pb2, y2) - Math.max(-pb2, y1);
+    return Math.max(0, dx) * Math.max(0, dy);
+  };
 
-  // Two T-stubs (top + bottom flange) + web, capped by plate footprint.
-  const A_eff = 2 * A_flange + A_web;
-  return { A_eff: Math.min(A_eff, inp.plate_a * inp.plate_b), c };
+  const h_2  = p.h / 2;
+  const b_2  = p.b / 2;
+  const tw_2 = p.tw / 2;
+
+  // Expanded source rectangles.
+  const A_top  = clipArea(h_2 - p.tf - c,  h_2 + c,            -b_2  - c, b_2  + c);
+  const A_bot  = clipArea(-h_2 - c,        -h_2 + p.tf + c,    -b_2  - c, b_2  + c);
+  const A_web  = clipArea(-h_2 + p.tf - c, h_2 - p.tf + c,     -tw_2 - c, tw_2 + c);
+
+  // Pairwise intersections of the expanded source rectangles.
+  const A_top_web = clipArea(h_2 - p.tf - c,  h_2 - p.tf + c,  -tw_2 - c, tw_2 + c);
+  const A_bot_web = clipArea(-h_2 + p.tf - c, -h_2 + p.tf + c, -tw_2 - c, tw_2 + c);
+  // Top ∩ Bot is nonzero only when 2c > h - 2tf (very thick sections); the
+  // intersection rectangle's x-bounds are max/min of each flange's expanded
+  // x-range, which already collapses to zero when the ranges don't overlap.
+  const A_top_bot = clipArea(
+    Math.max(h_2 - p.tf - c, -h_2 - c),
+    Math.min(h_2 + c, -h_2 + p.tf + c),
+    -b_2 - c, b_2 + c,
+  );
+
+  const A_eff = A_top + A_bot + A_web - A_top_web - A_bot_web - A_top_bot;
+  return { A_eff: Math.max(0, Math.min(A_eff, inp.plate_a * inp.plate_b)), c };
 }
 
 // ─── Check 1 — Compresión bajo placa (T-stub efectivo) ───────────────────
