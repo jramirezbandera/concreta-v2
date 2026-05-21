@@ -291,6 +291,10 @@ export interface SolverResult {
     SMx_kNm: number;           // ΣMx residual (kNm)
     SMy_kNm: number;           // ΣMy residual (kNm)
   };
+  /** L10 (Phase 5) — fjd usado por el solver (MPa). Permite a la UI mostrar
+   *  el valor dentro del polígono de compresión sin recomputarlo. Es derivable
+   *  como BETA_J · Kj · fcd, pero exponerlo evita drift y simplifica el SVG. */
+  fjd_MPa?: number;
 }
 
 // ─── Axis-aligned superposition solver (pure-Mx fast path) ───────────────
@@ -903,10 +907,16 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
   const absMy = Math.abs(inp.My);
   const absMx = Math.abs(inp.Mx);
   const M_ext = Math.hypot(absMx, absMy);
-  const NEd_safe = Math.max(inp.NEd, 1e-6);
-
-  const nearPureCompression = M_ext < 0.01 * NEd_safe * inp.plate_a / 6 / 1000;
-  const pureAxis = absMy < 1e-6;
+  // H12 (Phase 5) — el umbral previo `Math.max(NEd, 1e-6)` permitía rutear
+  // a axis-aligned con NEd≈0 + cualquier M pequeño, produciendo geometrías
+  // con e enorme. Exigimos NEd ≥ EPS_N (= 0.1 kN, por debajo de cualquier
+  // axil real estructural) antes de considerar la ruta axis-aligned;
+  // NEd<EPS_N con momento se trata como biaxial general (NEd<0 ya rutea a
+  // pure-tension más arriba).
+  const EPS_N_kN = 0.1;
+  const nearPureCompression =
+    inp.NEd >= EPS_N_kN && M_ext < 0.01 * inp.NEd * inp.plate_a / 6 / 1000;
+  const pureAxis = absMy < 1e-6 && inp.NEd >= EPS_N_kN;
 
   // CR4 — solveAxisAligned4 only models 4 corner bars (via fourCornerLayout).
   // For nLayout ∈ {6, 8, 9} we must route to solveBiaxial even under pure Mx
@@ -1892,6 +1902,9 @@ export function calcAnchorPlate(
   const fcd = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
   const fjd = BETA_J * alpha * fcd;
+  // L10 (Phase 5) — expose fjd on the result so the SVG can label the
+  // compression polygon without recomputing.
+  solver.fjd_MPa = fjd;
 
   const twoFlanges = solver.mode === 'uniform-compression';
 

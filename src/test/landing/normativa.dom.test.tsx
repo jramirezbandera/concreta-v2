@@ -50,6 +50,10 @@ describe('Normativa page', () => {
     expect(screen.getAllByText(/revisado · 05\/2026/).length).toBeGreaterThan(0);
   });
 
+  // Timeout extendido: este test hace DOS renderRoutes() (mount+unmount+mount)
+  // y bajo carga paralela el default 5s era insuficiente — passing aislado
+  // (~5s) pero flaky en `bun run vitest run` completo (la transform es ~150×
+  // más lenta cuando corre junto al resto de la suite).
   it('marks "Normativa" active on /normativa but not on /', () => {
     const { unmount } = renderRoutes('/normativa');
     const normativaLinks = screen.getAllByRole('link', { name: 'Normativa' });
@@ -61,7 +65,7 @@ describe('Normativa page', () => {
       .queryAllByRole('link')
       .filter((a) => a.getAttribute('aria-current') === 'page');
     expect(active).toHaveLength(0);
-  });
+  }, 15000);
 });
 
 describe('LandingNav', () => {

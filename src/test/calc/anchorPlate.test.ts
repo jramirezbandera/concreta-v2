@@ -972,3 +972,88 @@ describe('PR3 — validation fail forces overallStatus=fail (H13)', () => {
     // overallStatus debe ser lo que toStatus(worstUtil) devuelva (no forzado)
   });
 });
+
+// L3 + L13 (Phase 5) — tests para casos límite que la auditoría reportó como
+// no cubiertos: NEd<0 con momento, layout 8 con Mx puro (debe rutear a
+// biaxial), geometría inválida (bar_edge > plate_a/2), y concrete shear
+// modes con cargas a borde.
+describe('L3 — NEd<0 con momento (mástil + biaxial)', () => {
+  it('NEd=-30, Mx=10, My=5 → pure-tension, todas las barras pueden tomar Ft', () => {
+    const r = calcAnchorPlate({ ...base, NEd: -30, NEd_G: 0, Mx: 10, My: 5, VEd: 0 });
+    expect(r.solver.mode).toBe('pure-tension');
+    expect(r.solver.Nc).toBe(0);                // no compression block
+    expect(r.solver.Ft_total).toBeGreaterThan(0);
+    // Σ Ft debe equilibrar al menos el axil tensil aplicado (-NEd=30 kN).
+    expect(r.solver.Ft_total).toBeGreaterThanOrEqual(29);
+  });
+});
+
+describe('L3 — layout 8 con Mx puro (CR4: NO debe ir a axis-aligned-4)', () => {
+  it('rutea a biaxial y modela las 8 barras (no 4)', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 8, My: 0, Mx: 80, VEd: 0 });
+    expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
+    expect(r.solver.bolts).toHaveLength(8);
+  });
+});
+
+describe('L3 — geometría inválida bar_edge > plate_a/2', () => {
+  it('no crashea, solver devuelve resultado con warnings', () => {
+    // bar_edge_x=250 con plate_a=400 → la barra cae fuera de la placa.
+    const r = calcAnchorPlate({ ...base, bar_edge_x: 250 });
+    // El cálculo no debe lanzar; el resultado debe seguir siendo finito.
+    expect(isFinite(r.worstUtil)).toBe(true);
+    // generateLayout colocará las barras en posiciones físicamente raras,
+    // pero el solver no debe propagar NaN.
+    for (const b of r.solver.bolts) {
+      expect(isFinite(b.x)).toBe(true);
+      expect(isFinite(b.Ft)).toBe(true);
+    }
+  });
+});
+
+describe('L13 — concrete shear modes con cargas a borde', () => {
+  it('Vx grande + cX1 corto → checkConcreteEdgeBreakout reporta util > 0', () => {
+    const r = calcAnchorPlate({
+      ...base,
+      Vx: 200, Vy: 0, VEd: 200,
+      pedestal_cX1: 50, pedestal_cX2: 500, pedestal_cY1: 200, pedestal_cY2: 200,
+    });
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    expect(eb.utilization).toBeGreaterThan(0);
+    expect(eb.status).not.toBe('neutral');
+  });
+  it('Sin cortante → edge-breakout y pry-out son neutral', () => {
+    const r = calcAnchorPlate({ ...base, Vx: 0, Vy: 0, VEd: 0 });
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    const py = r.checks.find((c) => c.id === 'concrete-pryout')!;
+    expect(eb.status).toBe('neutral');
+    expect(py.status).toBe('neutral');
+  });
+});
+
+describe('H12 (Phase 5) — dispatcher NEd<EPS_N rutea a biaxial (no axis-aligned)', () => {
+  it('NEd=0.01 (≈0) + Mx=5: NO degenera con e enorme', () => {
+    // Pre-H12: NEd_safe = max(0.01, 1e-6) = 0.01 → nearPureCompression
+    //          comparaba M_ext (5) < 0.01·0.01·400/6/1000 ≈ 6.7e-6 → false
+    //          OK. Pero NEd=0 con cualquier M lo rompía. Ahora exige NEd ≥ 0.1.
+    const r = calcAnchorPlate({ ...base, NEd: 0.01, Mx: 5, My: 1 });
+    expect(['biaxial-plastic', 'biaxial-grid', 'pure-tension']).toContain(r.solver.mode);
+    expect(isFinite(r.worstUtil)).toBe(true);
+  });
+});
+
+describe('H7 (Phase 5) — alzado: layout 9 expone ×N en columnas', () => {
+  it('result.solver.bolts.length === 9 (no se han ocultado)', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, Mx: 30, My: 5 });
+    expect(r.solver.bolts).toHaveLength(9);
+    // Sanity: agrupando por x_round, deben quedar 3 columnas con 3 barras
+    // cada una (el SVG mostrará "×3"). Validamos el grupo aquí.
+    const byX = new Map<number, number>();
+    for (const b of r.solver.bolts) {
+      const k = Math.round(b.x);
+      byX.set(k, (byX.get(k) ?? 0) + 1);
+    }
+    expect(byX.size).toBe(3);
+    for (const n of byX.values()) expect(n).toBe(3);
+  });
+});

@@ -176,9 +176,17 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
         {/* Compression zone — biaxial: real polygon from solver (plate-local mm).
             Axis-aligned: simple rectangular approximation (no solver polygon). */}
         {result.valid && result.solver.lifted && result.solver.block && result.solver.block.length >= 3 && (() => {
-          const pts = result.solver.block!
+          const block = result.solver.block!;
+          const pts = block
             .map((p) => `${pCx + p.x * scalePlanta},${pCy + p.y * scalePlanta}`)
             .join(' ');
+          // L10 (Phase 5) — centroide del polígono para etiquetar fjd dentro.
+          let cx_mm = 0, cy_mm = 0;
+          for (const p of block) { cx_mm += p.x; cy_mm += p.y; }
+          cx_mm /= block.length;
+          cy_mm /= block.length;
+          const lblX = pCx + cx_mm * scalePlanta;
+          const lblY = pCy + cy_mm * scalePlanta;
           return (
             <>
               <polygon
@@ -190,6 +198,20 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
               />
               {mode === 'pdf' && (
                 <polygon points={pts} fill={`url(#hatch-compression-${mode})`} stroke="none" />
+              )}
+              {result.solver.fjd_MPa !== undefined && (
+                <text
+                  x={lblX}
+                  y={lblY}
+                  fill={C.compression_stroke}
+                  fontSize={9}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  opacity={0.95}
+                  style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : '#0f172a', strokeWidth: 2 }}
+                >
+                  {`fjd=${result.solver.fjd_MPa.toFixed(1)} MPa`}
+                </text>
               )}
             </>
           );
@@ -460,12 +482,28 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
               patilla            → doblado 90° al final.
               gancho             → doblado ≥135° al final.
               arandela_tuerca    → arandela + tuerca al fondo (pullout). */}
-        {result.solver.bolts
-          .filter((b, i, arr) => arr.findIndex((bb) => bb.x === b.x) === i)
-          .map((b) => {
-            const bx = aCx + b.x * scaleAlzado;
+        {/* H7 (Phase 5): agrupar barras por x — en el alzado las que comparten
+            posición se solapan. Antes el filter por `arr.findIndex` mostraba
+            sólo la primera de cada columna; para layout 9 el usuario veía 3
+            barras donde el solver tiene 9. Ahora se renderiza una represen-
+            tante por columna (la tensa si la hay, para que el color refleje
+            el peor caso) y un sufijo "×N" cuando N > 1. */}
+        {(() => {
+          const byX = new Map<number, typeof result.solver.bolts>();
+          for (const b of result.solver.bolts) {
+            const key = Math.round(b.x);    // robustez frente a float drift
+            const arr = byX.get(key) ?? [];
+            arr.push(b);
+            byX.set(key, arr);
+          }
+          return Array.from(byX.entries());
+        })()
+          .map(([xKey, group]) => {
+            const rep = group.find((b) => b.inTension && b.Ft > 0) ?? group[0];
+            const count = group.length;
+            const bx = aCx + rep.x * scaleAlzado;
             const barR = Math.max(2, (inp.bar_diam / 2) * scaleAlzado);
-            const filled = b.inTension && b.Ft > 0;
+            const filled = rep.inTension && rep.Ft > 0;
             const barTopY = plateYrect + aPlateT / 2;
             const barBotY = barTopY + hefVisPx;
             const strokeCol = filled ? C.bolt_t : C.bolt_stroke;
@@ -475,7 +513,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
             const headAboveY = plateYrect - 4;
 
             return (
-              <g key={`alz-${b.index}`}>
+              <g key={`alz-col-${xKey}`}>
                 {/* Shaft de la barra (línea gruesa según diámetro) */}
                 <line
                   x1={bx} y1={barTopY}
@@ -561,6 +599,19 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
                   );
                 })()}
                 {/* prolongacion_recta: barra recta, sin remate en el fondo */}
+
+                {/* H7 — sufijo "×N" cuando hay más de una barra en la columna */}
+                {count > 1 && (
+                  <text
+                    x={bx + barR + 3}
+                    y={barTopY + 8}
+                    fill={C.text}
+                    fontSize={8}
+                    opacity={0.7}
+                  >
+                    ×{count}
+                  </text>
+                )}
               </g>
             );
           })}

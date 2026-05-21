@@ -10,7 +10,7 @@
 import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
-import type { BottomAnchorage, TopConnection } from '../../data/anchorBars';
+import { BOTTOM_ANCHORAGE_LABEL, TOP_CONNECTION_LABEL } from '../../data/anchorBars';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
 import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
@@ -19,17 +19,10 @@ import type { Quantity, UnitSystem } from '../units/types';
 const M = 20;
 const CW = PAGE_W - 2 * M;
 
-const BOTTOM_LABEL: Record<BottomAnchorage, string> = {
-  prolongacion_recta: 'Prolongacion recta',
-  patilla:            'Patilla 90 deg',
-  gancho:             'Gancho >= 135 deg',
-  arandela_tuerca:    'Arandela + tuerca (cabeza)',
-};
-
-const TOP_LABEL: Record<TopConnection, string> = {
-  soldada:         'Soldada a placa',
-  tuerca_arandela: 'Tuerca + arandela',
-};
+// L2 (Phase 5): los labels de anclaje inferior y unión a placa vivían
+// duplicados aquí ("Patilla 90 deg") y en anchorBars.ts ("Patilla 90°"),
+// con drift entre UI y PDF. Ahora son single-source desde anchorBars; el
+// boundary unicode→ASCII se aplica vía pdfStr() en cada uso.
 
 const SURF_LABEL: Record<PedestalSurface, string> = {
   smooth:    'Lisa (mu = 0.20)',
@@ -136,8 +129,8 @@ export async function exportAnchorPlatePDF(
   rRow('Separacion x / y', `${inp.bar_spacing_x} / ${inp.bar_spacing_y} mm`);
   rRow('Borde x / y', `${inp.bar_edge_x} / ${inp.bar_edge_y} mm`);
   rRow('Empotramiento hef', `${inp.bar_hef} mm`);
-  rRow('Anclaje inferior', pdfStr(BOTTOM_LABEL[inp.bottom_anchorage]));
-  rRow('Union a placa',    pdfStr(TOP_LABEL[inp.top_connection]));
+  rRow('Anclaje inferior', pdfStr(BOTTOM_ANCHORAGE_LABEL[inp.bottom_anchorage]));
+  rRow('Union a placa',    pdfStr(TOP_CONNECTION_LABEL[inp.top_connection]));
   if (inp.bottom_anchorage === 'arandela_tuerca') {
     rRow('OD arandela', `${inp.washer_od} mm`);
   }
