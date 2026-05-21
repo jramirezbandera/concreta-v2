@@ -89,35 +89,31 @@ export interface SectionInputs {
  * Mode 'simple' V1: sagging only → use 'vano' kind (bottom = tension, top = compression).
  */
 export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): SectionInputs {
-  // El index signature de RCBeamInputs `string|number|boolean` requiere casts
-  // explícitos. Los campos declarados como `number` en la interface SÍ son
-  // numéricos en runtime; el cast es solo para TypeScript.
-  const num = (v: string | number | boolean): number => v as number;
-  const str = (v: string | number | boolean): string => v as string;
   const isVano = kind === 'vano';
   return {
-    b: num(state.b),
-    h: num(state.h),
-    cover: num(state.cover),
-    stirrupDiam: num(isVano ? state.vano_stirrupDiam : state.apoyo_stirrupDiam),
-    stirrupLegs: num(isVano ? state.vano_stirrupLegs : state.apoyo_stirrupLegs),
-    fck: num(state.fck),
-    fyk: num(state.fyk),
-    exposureClass: str(state.exposureClass),
-    Md: num(isVano ? state.vano_Md : state.apoyo_Md),
-    VEd: num(isVano ? state.vano_VEd : state.apoyo_VEd),
-    Ms: psi2Quasi(state) * num(isVano
-      ? (num(state.vano_M_G) + num(state.vano_M_Q))
-      : (num(state.apoyo_M_G) + num(state.apoyo_M_Q))),
-    nBars: num(isVano ? state.vano_bot_nBars : state.apoyo_top_nBars),
-    barDiam: num(isVano ? state.vano_bot_barDiam : state.apoyo_top_barDiam),
-    nBarsComp: num(isVano ? state.vano_top_nBars : state.apoyo_bot_nBars),
-    barDiamComp: num(isVano ? state.vano_top_barDiam : state.apoyo_bot_barDiam),
-    stirrupSpacing: num(isVano ? state.vano_stirrupSpacing : state.apoyo_stirrupSpacing),
-    // bondClass: hardcoded 'good' until an input control is added. Prior code read
-    // state.bondClass, which never existed on RCBeamInputs — comparison was always
-    // false and the ternary defaulted to 'good'. Preserving that runtime behavior.
-    bondClass: 'good',
+    b: state.b,
+    h: state.h,
+    cover: state.cover,
+    stirrupDiam: isVano ? state.vano_stirrupDiam : state.apoyo_stirrupDiam,
+    stirrupLegs: isVano ? state.vano_stirrupLegs : state.apoyo_stirrupLegs,
+    fck: state.fck,
+    fyk: state.fyk,
+    exposureClass: state.exposureClass,
+    Md: isVano ? state.vano_Md : state.apoyo_Md,
+    VEd: isVano ? state.vano_VEd : state.apoyo_VEd,
+    Ms: psi2Quasi(state) * (isVano
+      ? (state.vano_M_G + state.vano_M_Q)
+      : (state.apoyo_M_G + state.apoyo_M_Q)),
+    nBars: isVano ? state.vano_bot_nBars : state.apoyo_top_nBars,
+    barDiam: isVano ? state.vano_bot_barDiam : state.apoyo_top_barDiam,
+    nBarsComp: isVano ? state.vano_top_nBars : state.apoyo_bot_nBars,
+    barDiamComp: isVano ? state.vano_top_barDiam : state.apoyo_bot_barDiam,
+    stirrupSpacing: isVano ? state.vano_stirrupSpacing : state.apoyo_stirrupSpacing,
+    // CE Anejo 19 §69.5.1.2: bondClass depends on bar POSITION, not user choice.
+    // Vano tension bars are at the bottom (favorable position → 'good'); apoyo
+    // tension bars are at the top (unfavorable for h > 250 mm → 'poor').
+    // Matches the hardcoded values in calcRCBeam at the two calcSection sites.
+    bondClass: isVano ? 'good' : 'poor',
   };
 }
 
