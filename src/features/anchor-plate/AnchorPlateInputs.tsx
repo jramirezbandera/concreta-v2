@@ -238,6 +238,29 @@ function RibGlyph4() {
   );
 }
 
+// ── Advanced toggle: directional edges + Vx/Vy ────────────────────────────
+//
+// Plegado por defecto. Cuando OFF, las ediciones a cX/cY (legacy) sincronizan
+// los 4 direccionales cX1=cX2=cX y cY1=cY2=cY (mantiene comportamiento
+// pre-PR8a). Cuando ON, los 4 direccionales son editables independientemente
+// para casos asimétricos (placa de fachada cerca de un solo borde).
+//
+// Mismo patrón para VEd ↔ Vx/Vy en la sección de acciones.
+function ExpandToggle({ open, onToggle, label }: { open: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center gap-1 py-1.5 text-[10px] uppercase tracking-widest text-text-disabled hover:text-text-secondary transition-colors"
+    >
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="transition-transform duration-150" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} aria-hidden="true">
+        <path d="M3 4l2 2 2-2" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   // Snap size to first available if sectionType changes and current is invalid
@@ -250,6 +273,38 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   }, [state.sectionType]);
 
   const sizeOpts = availableSizes.map((s) => ({ value: s, label: `${state.sectionType} ${s}` }));
+
+  // Detect asymmetric state on mount: if cX1 ≠ cX2 or cY1 ≠ cY2, expand by default.
+  const initialEdgesAsym =
+    state.pedestal_cX1 !== state.pedestal_cX2 ||
+    state.pedestal_cY1 !== state.pedestal_cY2;
+  const [edgesDirectional, setEdgesDirectional] = useState(initialEdgesAsym);
+  const initialShearAsym = (state.Vy as number) !== 0;
+  const [shearDirectional, setShearDirectional] = useState(initialShearAsym);
+
+  // Wrapper: legacy cX edit syncs cX1=cX2=cX cuando toggle está OFF.
+  const setLegacyCX = (v: number) => {
+    setField('pedestal_cX', v);
+    if (!edgesDirectional) {
+      setField('pedestal_cX1', v);
+      setField('pedestal_cX2', v);
+    }
+  };
+  const setLegacyCY = (v: number) => {
+    setField('pedestal_cY', v);
+    if (!edgesDirectional) {
+      setField('pedestal_cY1', v);
+      setField('pedestal_cY2', v);
+    }
+  };
+  // VEd → Vx/Vy: cuando toggle OFF, edit VEd sincroniza Vx=VEd, Vy=0.
+  const setLegacyVEd = (v: number) => {
+    setField('VEd', v);
+    if (!shearDirectional) {
+      setField('Vx', v);
+      setField('Vy', 0);
+    }
+  };
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada">
@@ -278,7 +333,18 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         <UnitNumberInput label="NEd,G" sub="axil cuasi-perm."  field="NEd_G" value={state.NEd_G as number} quantity="force"  onChange={(v) => setField('NEd_G', v)} />
         <UnitNumberInput label="Mx"    sub="(eje fuerte)"      field="Mx"    value={state.Mx    as number} quantity="moment" onChange={(v) => setField('Mx', v)} />
         <UnitNumberInput label="My"    sub="(eje débil)"       field="My"    value={state.My    as number} quantity="moment" onChange={(v) => setField('My', v)} />
-        <UnitNumberInput label="VEd"   sub="cortante"          field="VEd"   value={state.VEd   as number} quantity="force"  onChange={(v) => setField('VEd', v)} />
+        <UnitNumberInput label="VEd"   sub={shearDirectional ? 'magnitud' : 'cortante'} field="VEd" value={state.VEd as number} quantity="force" onChange={(v) => setLegacyVEd(v)} />
+        <ExpandToggle
+          open={shearDirectional}
+          onToggle={() => setShearDirectional((o) => !o)}
+          label={shearDirectional ? 'Cortante direccional (Vx, Vy)' : 'Cortante direccional ▸'}
+        />
+        {shearDirectional && (
+          <>
+            <UnitNumberInput label="Vx" sub="eje fuerte" field="Vx" value={state.Vx as number} quantity="force" onChange={(v) => setField('Vx', v)} />
+            <UnitNumberInput label="Vy" sub="eje débil"  field="Vy" value={state.Vy as number} quantity="force" onChange={(v) => setField('Vy', v)} />
+          </>
+        )}
       </CollapsibleSection>
 
       <CollapsibleSection label="Placa">
@@ -389,8 +455,22 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
           setField={setField}
         />
-        <NumField label="cX"  sub="barra→borde (c1)" field="pedestal_cX"    value={state.pedestal_cX    as number} unit="mm" integer setField={setField} />
-        <NumField label="cY"  sub="barra→borde (c2)" field="pedestal_cY"    value={state.pedestal_cY    as number} unit="mm" integer setField={setField} />
+        <NumField label="h"   sub="canto macizo" field="pedestal_h" value={state.pedestal_h as number} unit="mm" integer setField={setField} />
+        <NumField label="cX"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c1)'} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
+        <NumField label="cY"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c2)'} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
+        <ExpandToggle
+          open={edgesDirectional}
+          onToggle={() => setEdgesDirectional((o) => !o)}
+          label={edgesDirectional ? 'Bordes direccionales por cara (asimétrico)' : 'Bordes direccionales por cara ▸'}
+        />
+        {edgesDirectional && (
+          <>
+            <NumField label="cX1" sub="cara +x"  field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={setField} />
+            <NumField label="cX2" sub="cara −x"  field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={setField} />
+            <NumField label="cY1" sub="cara +y"  field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={setField} />
+            <NumField label="cY2" sub="cara −y"  field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={setField} />
+          </>
+        )}
         <NumField label="mX"  sub="placa→borde (α)"  field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={setField} />
         <NumField label="mY"  sub="placa→borde (α)"  field="plate_margin_y" value={state.plate_margin_y as number} unit="mm" integer setField={setField} />
         <SelectField
