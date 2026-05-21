@@ -384,6 +384,91 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
 
+describe('PR10 — H4 NEd<0 pure-tension branch', () => {
+  it('Tracción axial pura (M=0) → distribución uniforme entre todas las barras', () => {
+    // NEd=-100 kN, 4 barras → Ft_per_bar = 25 kN exacto.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -100, Mx: 0, My: 0 });
+    expect(r.solver.mode).toBe('pure-tension' as never);
+    expect(r.solver.Nc).toBe(0);
+    expect(r.solver.Ft_total).toBeCloseTo(100, 1);
+    expect(r.solver.n_t).toBe(4);
+    expect(r.solver.converged).toBe(true);
+    for (const b of r.solver.bolts) {
+      expect(b.Ft).toBeCloseTo(25, 1);
+    }
+  });
+
+  it('Mástil con momento (NEd<0, Mx≠0, My≠0): clamp Ft<0 a 0 en barra diagonal opuesta', () => {
+    // NEd=-50, Mx=8, My=8 → distribución lineal a+b·x+c·y daría compresión
+    // en la barra (-x, -y) diagonal opuesta al pico. Se clava a 0.
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      sectionType: 'HEA' as const, sectionSize: 160,
+      plate_a: 300, plate_b: 300, plate_t: 15, plate_steel: 'S235' as const,
+      bar_nLayout: 4 as const, bar_diam: 16 as const,
+      bar_edge_x: 40, bar_edge_y: 40, bar_hef: 300,
+      bottom_anchorage: 'patilla' as const, rib_count: 0 as const,
+      fck: 25,
+      pedestal_cX: 150, pedestal_cY: 150,
+      pedestal_cX1: 150, pedestal_cX2: 150, pedestal_cY1: 150, pedestal_cY2: 150,
+      pedestal_h: 500, plate_margin_x: 100, plate_margin_y: 100,
+      NEd: -50, NEd_G: 0, Mx: 8, My: 8, VEd: 15, Vx: 15, Vy: 0,
+    });
+    expect(r.solver.mode).toBe('pure-tension' as never);
+    expect(r.solver.Nc).toBe(0);
+    // Bar 0 at (-110,-110) clamped to 0; bar 3 at (+110,+110) is peak.
+    const bar0 = r.solver.bolts.find((b) => b.x < 0 && b.y < 0)!;
+    const bar3 = r.solver.bolts.find((b) => b.x > 0 && b.y > 0)!;
+    expect(bar0.Ft).toBe(0);
+    expect(bar0.inTension).toBe(false);
+    expect(bar3.Ft).toBeGreaterThan(30);
+    // 3 barras traccionadas (bar 0 clamped a 0)
+    expect(r.solver.n_t).toBe(3);
+  });
+
+  it('NEd<0: cono / splitting siguen aplicando sobre barras traccionadas', () => {
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      sectionType: 'HEA' as const, sectionSize: 160,
+      plate_a: 300, plate_b: 300, plate_t: 15, plate_steel: 'S235' as const,
+      bar_nLayout: 4 as const, bar_diam: 16 as const,
+      bar_edge_x: 40, bar_edge_y: 40, bar_hef: 300,
+      bottom_anchorage: 'patilla' as const, rib_count: 0 as const,
+      fck: 25,
+      pedestal_cX: 150, pedestal_cY: 150,
+      pedestal_cX1: 150, pedestal_cX2: 150, pedestal_cY1: 150, pedestal_cY2: 150,
+      pedestal_h: 500, plate_margin_x: 100, plate_margin_y: 100,
+      NEd: -50, NEd_G: 0, Mx: 8, My: 8, VEd: 15, Vx: 15, Vy: 0,
+    });
+    const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
+    const splitting = r.checks.find((c) => c.id === 'splitting')!;
+    // Para esta config, ambos deben fallar (geometría apretada para tracción pura).
+    expect(cone.utilization).toBeGreaterThan(1.0);
+    expect(splitting.utilization).toBeGreaterThan(1.0);
+    expect(r.overallStatus).toBe('fail');
+  });
+
+  it('NEd<0 dispatcher: rutea a solvePureTension (no a partial-lift-saturated)', () => {
+    // PR10 mejora la H4: antes (PR7a fallback) el dispatcher mandaba NEd<0 a
+    // solveAxisAligned4 que degradaba a 'partial-lift-saturated'. Ahora el
+    // dispatcher detecta NEd<0 al inicio y rutea a solvePureTension.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -10, Mx: 5, My: 0 });
+    expect(r.solver.mode).toBe('pure-tension' as never);
+  });
+
+  it('NEd<0 con momento grande: alcanza saturación si requiere Ft > FtRd', () => {
+    // FtRd_per_bar φ20 B500S = 136.6 kN. NEd=-200 kN para 4 barras = 50 kN avg,
+    // bien por debajo. Pero un Mx muy grande podría saturar una barra.
+    // Mx = 200 kNm con bars en (±150, ±100): cada barra +x recibe ~b·150·2 contrib.
+    // Para saturar (Ft_max=136.6): a + b·150 + c·100 = 136.6
+    // Con a=50 (uniform), b=Mx·1000/Σx²=200000/(4·150²)=2.22 → b·150=333. Demasiado.
+    // Eso da 50+333+0 = 383 → satura. ★
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -200, Mx: 200, My: 0 });
+    expect(r.solver.mode).toBe('pure-tension' as never);
+    expect(r.solver.note).toMatch(/saturada/i);
+  });
+});
+
 describe('PR8b — CR6 concrete shear modes', () => {
   it('checks count subió de 10 → 13 con los 3 nuevos modos', () => {
     const r = calcAnchorPlate(anchorPlateDefaults);

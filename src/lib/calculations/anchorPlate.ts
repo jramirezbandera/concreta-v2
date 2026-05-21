@@ -234,7 +234,8 @@ export interface SolverResult {
     | 'partial-lift-saturated'
     | 'axis-aligned-4'
     | 'biaxial-plastic'
-    | 'biaxial-grid';
+    | 'biaxial-grid'
+    | 'pure-tension';
   converged: boolean;
   note: string;
   phi_NA?: number;             // rad — NA angle from +x
@@ -668,7 +669,154 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
 }
 
 // ─── Dispatcher ──────────────────────────────────────────────────────────
+// ─── Pure-tension solver (H4, PR10) ──────────────────────────────────────
+//
+// Cuando NEd < 0 (tracción axial pura — mástiles, marquesinas, anclajes
+// verticales descendentes), no existe bloque de compresión bajo placa.
+// Todas las barras pueden estar traccionadas; el momento crea una
+// distribución asimétrica.
+//
+// Modelo: distribución lineal `Ft_i = a + b·x_i + c·y_i` por barra,
+// resolviendo el sistema 3×3:
+//   Σ Ft = a·n + b·ΣX + c·ΣY = −NEd      (ΣN, NEd<0 → positivo |NEd|)
+//   Σ Ft·x = a·ΣX + b·ΣX² + c·ΣXY = Mx   (Mx en kN·mm)
+//   Σ Ft·y = a·ΣY + b·ΣXY + c·ΣY² = My
+//
+// Cap por barra: Ft_i ≤ FtRd. Si la fórmula da Ft_i < 0 (compresión en barra
+// sin contacto con hormigón), se clava a 0 (la barra simplemente no carga).
+//
+// PR10 minimum: single-shot solve + clamp + reporta residuals. Iterar
+// excluyendo barras-a-0 y re-solver es polish futuro.
+export function solvePureTension(inp: AnchorPlateInputs): SolverResult {
+  const bars = generateLayout(inp);
+  const NEd = inp.NEd;     // negativo
+  const Mx = inp.Mx;
+  const My = inp.My;
+  const n = bars.length;
+
+  if (n === 0) {
+    return {
+      bolts: bars, Nc: 0, Ft_total: 0, n_t: 0, x_c: 0, lifted: true,
+      mode: 'pure-tension', converged: false,
+      note: 'Sin barras',
+      residuals: { SN_kN: -NEd, SMx_kNm: Mx, SMy_kNm: My },
+    };
+  }
+
+  // Momentos geométricos del grupo (respecto al centroide = origen).
+  let sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0, sumXY = 0;
+  for (const b of bars) {
+    sumX += b.x;
+    sumY += b.y;
+    sumX2 += b.x * b.x;
+    sumY2 += b.y * b.y;
+    sumXY += b.x * b.y;
+  }
+
+  // Sistema lineal 3×3 — solve via Cramer's rule.
+  const A: [number, number, number][] = [
+    [n, sumX, sumY],
+    [sumX, sumX2, sumXY],
+    [sumY, sumXY, sumY2],
+  ];
+  const RHS: [number, number, number] = [-NEd, Mx * 1000, My * 1000];
+
+  const det3 = (m: [number, number, number][]): number =>
+    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+    - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+    + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+  const D = det3(A);
+  let a = 0, b = 0, c = 0;
+  if (Math.abs(D) > 1e-6) {
+    const A1: [number, number, number][] = [
+      [RHS[0], A[0][1], A[0][2]],
+      [RHS[1], A[1][1], A[1][2]],
+      [RHS[2], A[2][1], A[2][2]],
+    ];
+    const A2: [number, number, number][] = [
+      [A[0][0], RHS[0], A[0][2]],
+      [A[1][0], RHS[1], A[1][2]],
+      [A[2][0], RHS[2], A[2][2]],
+    ];
+    const A3: [number, number, number][] = [
+      [A[0][0], A[0][1], RHS[0]],
+      [A[1][0], A[1][1], RHS[1]],
+      [A[2][0], A[2][1], RHS[2]],
+    ];
+    a = det3(A1) / D;
+    b = det3(A2) / D;
+    c = det3(A3) / D;
+  } else {
+    // Matriz singular (e.g., todas las barras en una línea). Fallback uniforme.
+    a = -NEd / n;
+    b = 0;
+    c = 0;
+  }
+
+  // Asignar Ft por barra (clamp ≥ 0 + cap FtRd).
+  const { FtRd_kN } = barStrengths(inp);
+  let saturated = false;
+  let Ft_total = 0;
+  let bar_Mx_kNmm = 0, bar_My_kNmm = 0;
+  for (const bar of bars) {
+    const Ft_raw = a + b * bar.x + c * bar.y;
+    if (Ft_raw <= 0) {
+      bar.Ft = 0;
+      bar.inTension = false;
+    } else {
+      const Ft_capped = Math.min(Ft_raw, FtRd_kN);
+      if (Ft_raw > FtRd_kN) saturated = true;
+      bar.Ft = Ft_capped;
+      bar.inTension = true;
+      Ft_total += Ft_capped;
+      bar_Mx_kNmm += Ft_capped * bar.x;
+      bar_My_kNmm += Ft_capped * bar.y;
+    }
+  }
+
+  // Residuals tras clamp (no exact si alguna barra fue a 0):
+  const SN_residual_kN = (-NEd) - Ft_total;
+  const SMx_residual_kNm = Mx - bar_Mx_kNmm / 1000;
+  const SMy_residual_kNm = My - bar_My_kNmm / 1000;
+
+  // Converged si todos los residuos son ~0 (lineal puro, sin barras compresas).
+  const M_ext_mag = Math.hypot(Mx, My);
+  const tol_M = Math.max(0.5, 0.02 * M_ext_mag);
+  const converged = Math.abs(SN_residual_kN) < 0.5
+    && Math.abs(SMx_residual_kNm) < tol_M
+    && Math.abs(SMy_residual_kNm) < tol_M
+    && !saturated;
+
+  return {
+    bolts: bars,
+    Nc: 0,
+    Ft_total,
+    n_t: bars.filter((b) => b.inTension).length,
+    x_c: 0,
+    lifted: true,
+    mode: 'pure-tension',
+    converged,
+    note: saturated
+      ? `Tracción pura saturada — barra al cap FtRd=${FtRd_kN.toFixed(1)} kN`
+      : (converged
+        ? 'Tracción pura — distribución lineal sin bloque de compresión'
+        : 'Tracción pura con barras descomprimidas — residuos no nulos (refinar PR futura)'),
+    residuals: {
+      SN_kN: SN_residual_kN,
+      SMx_kNm: SMx_residual_kNm,
+      SMy_kNm: SMy_residual_kNm,
+    },
+  };
+}
+
 export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
+  // H4 (PR10) — NEd<0 (tracción axial pura) rutea al solver dedicado en
+  // lugar de degradar a 'partial-lift-saturated' (PR7a fallback).
+  if (inp.NEd < 0) {
+    return solvePureTension(inp);
+  }
+
   const absMy = Math.abs(inp.My);
   const absMx = Math.abs(inp.Mx);
   const M_ext = Math.hypot(absMx, absMy);
