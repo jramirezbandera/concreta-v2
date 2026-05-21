@@ -383,6 +383,76 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
 
+describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', () => {
+  it('FTUX biaxial: ψh, ψec, ψs reportados separados en limit string', () => {
+    // Pre-CR3: limit showed ψh based on edge distance (wrong variable).
+    // Post-CR3: separa ψh,sp (por h_pedestal), ψec,sp (por excentricidad grupo),
+    // ψs,sp (por edge).
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    expect(sp.limit).toMatch(/ψh=\d/);
+    expect(sp.limit).toMatch(/ψec=\d/);
+    expect(sp.limit).toMatch(/ψs=\d/);
+  });
+
+  it('ψh,sp por canto del macizo (no por edge): h grande → ψh > 1 (amplifica)', () => {
+    // Pedestal profundo (h=2000 > 2·hef=600), edge moderado (200) → ψh > 1 (cap-binding)
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 2000 });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    expect(sp.limit).toMatch(/ψh=1\.[2-9]\d/);   // amplificación visible
+  });
+
+  it('ψh,sp cap inferior = 1: macizo poco profundo no reduce por debajo de 1', () => {
+    // h_pedestal=400 < 2·hef=600 → (h/2hef)^(2/3) = 0.86, pero max(1, ...) = 1.0
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 400 });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    expect(sp.limit).toContain('ψh=1.00');
+  });
+
+  it('h_pedestal ≥ 2·hef y c_min ≥ c_cr,sp → no crítico (neutral)', () => {
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cX: 500, pedestal_cY: 500, pedestal_h: 1000,
+    });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    expect(sp.limit).toBe('No crítico');
+    expect(sp.status).toBe('neutral');
+    expect(sp.utilization).toBe(0);
+  });
+
+  it('NRd,sp NO multiplica por n_t (espurio): cambiar n_t a misma carga no escala n veces', () => {
+    // Comparar layout 4-corner vs 9-grid con misma fck/hef/geometría placa:
+    // bajo CR3-fixed, NRd,sp depende sólo de geometría (Ac/Ac0·ψ's), no de
+    // tBars.length. Si la geometría del grupo es similar, NRd,sp no debe
+    // diferir por el factor n_t.
+    const r4 = calcAnchorPlate({ ...anchorPlateDefaults, bar_nLayout: 4, My: 10 });
+    const r9 = calcAnchorPlate({ ...anchorPlateDefaults, bar_nLayout: 9, My: 10 });
+    const sp4 = r4.checks.find((c) => c.id === 'splitting')!;
+    const sp9 = r9.checks.find((c) => c.id === 'splitting')!;
+    // Pre-CR3: NRd_sp_9 ≈ NRd_sp_4 · 9/4 = 2.25× (espurio).
+    // Post-CR3: NRd_sp depende solo de Ac (geometría del grupo tensionado).
+    // Ratio esperado: <1.5 (sólo por diferencia geométrica del grupo, no por count).
+    const limit4_match = sp4.limit?.match(/NRd,sp=([\d.]+)/);
+    const limit9_match = sp9.limit?.match(/NRd,sp=([\d.]+)/);
+    if (limit4_match && limit9_match) {
+      const r = parseFloat(limit9_match[1]) / parseFloat(limit4_match[1]);
+      expect(r).toBeLessThan(1.6);    // pre-CR3 daría >2.0
+    }
+  });
+
+  it('ψec,sp < 1 cuando el grupo traccionado es excéntrico', () => {
+    // FTUX con Mx grande crea grupo tensionado excéntrico.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 80 });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    const psi_ec_match = sp.limit?.match(/ψec=([\d.]+)/);
+    if (psi_ec_match) {
+      const psi_ec = parseFloat(psi_ec_match[1]);
+      expect(psi_ec).toBeLessThan(1.0);
+      expect(psi_ec).toBeGreaterThan(0.0);
+    }
+  });
+});
+
 describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
   it('FTUX biaxial (Mx=45, My=10) ya NO satura — Ft_total moderado', () => {
     // Pre-CR1: solver clava Ft = FtRd en cada barra tensa → Ft_total = n·FtRd

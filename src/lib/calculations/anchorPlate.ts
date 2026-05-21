@@ -1017,6 +1017,28 @@ export function checkPullout(
 }
 
 // ─── Check 9 — Splitting / side-face blowout (EN 1992-4 §7.2.1.6) ────────
+//
+// CR3 (PR6) — corregido respecto a la versión previa que tenía 3 bugs:
+//   1. ψh usaba √(c_min/c_cr,sp), donde c_min es DISTANCIA AL BORDE.
+//      EN 1992-4 §7.2.1.6 lo define como (h/(2·hef))^(2/3), donde h es
+//      el CANTO DEL MACIZO. Variable equivocada.
+//   2. El sentido invertido: ψh,sp DEBE AMPLIFICAR (≥1) para macizos
+//      poco profundos; el código viejo la usaba como reducción.
+//   3. Multiplicaba NRd,sp por tBars.length — espurio, EN 1992-4 no lo
+//      incluye; el escalado por grupo ya está en Ac/Ac0.
+//
+// Modelo CE Anejo 11 §7.2.1.6 (≈ EN 1992-4 §7.2.1.6):
+//   NRd,sp = N0Rd,c · (Ac,N/Ac,N0) · ψh,sp · ψec,sp · ψs,sp
+// donde:
+//   ψh,sp = max(1, min((h/(2·hef))^(2/3), (2·c_max/hef)^(2/3)))
+//     - amplifica capacidad para macizos h > 2·hef
+//     - bounded por la geometría 2·c_max/hef
+//   ψec,sp = 1 / (1 + 2·e/s_cr,sp), e = excentricidad del grupo tensionado
+//   ψs,sp = 0.7 + 0.3·c_min/c_cr,sp  (igual que ψs,N del cono)
+//   c_cr,sp = 1.5·hef,  s_cr,sp = 3·hef
+//
+// El check es REDUNDANTE con el cono cuando c_min ≥ c_cr,sp Y h ≥ 2·hef
+// (EN 1992-4 §7.2.1.6(2)(a)) → reporta neutral.
 export function checkSplitting(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
@@ -1038,13 +1060,16 @@ export function checkSplitting(
 
   const hef = inp.bar_hef;
   const c_cr_sp = 1.5 * hef;
+  const s_cr_sp = 3 * hef;
+  const h_pedestal = inp.pedestal_h;
   const c_min = Math.min(inp.pedestal_cX, inp.pedestal_cY);
+  const c_max = Math.max(inp.pedestal_cX, inp.pedestal_cY);
 
-  if (c_min >= c_cr_sp) {
+  if (c_min >= c_cr_sp && h_pedestal >= 2 * hef) {
     return {
       id: 'splitting',
       description: 'Splitting / side-face blowout',
-      value: `c=${c_min.toFixed(0)} ≥ c_cr,sp=${c_cr_sp.toFixed(0)} mm`,
+      value: `c_min=${c_min.toFixed(0)}≥${c_cr_sp.toFixed(0)} mm · h=${h_pedestal.toFixed(0)}≥${(2 * hef).toFixed(0)} mm`,
       limit: 'No crítico',
       utilization: 0,
       status: 'neutral',
@@ -1052,17 +1077,53 @@ export function checkSplitting(
     };
   }
 
+  // ψh,sp por canto del macizo (NO por distancia al borde — fix CR3)
+  const psi_h_raw = Math.pow(h_pedestal / (2 * hef), 2 / 3);
+  const psi_h_bound = Math.pow((2 * c_max) / hef, 2 / 3);
+  const psi_h_sp = Math.max(1.0, Math.min(psi_h_raw, psi_h_bound));
+
+  // ψec,sp por excentricidad del grupo tensionado
+  const sumFt = tBars.reduce((s, b) => s + b.Ft, 0);
+  let eX = 0, eY = 0;
+  if (sumFt > 0) {
+    eX = tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt;
+    eY = tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt;
+  }
+  const eN = Math.hypot(eX, eY);
+  const psi_ec_sp = 1 / (1 + 2 * eN / s_cr_sp);
+
+  // ψs,sp por edge (igual estructura que ψs,N del cono)
+  const psi_s_sp = c_min >= c_cr_sp ? 1.0 : 0.7 + 0.3 * c_min / c_cr_sp;
+
+  // N0Rd,c base (cracked concrete)
   const k1 = 7.7;
   const N0_Rd_c_kN = (k1 * Math.sqrt(inp.fck) * Math.pow(hef, 1.5)) / GAMMA_MC / 1000;
-  const psi_h = Math.sqrt(c_min / c_cr_sp);
-  const NRd_sp_kN = N0_Rd_c_kN * tBars.length * psi_h;
+
+  // Ac,N / Ac,N0 — geometría del grupo (proyección de conos con extensiones).
+  // Usa la misma lógica que checkConcreteCone para coherencia.
+  const Ac_N0 = s_cr_sp * s_cr_sp;   // (3·hef)² = s_cr,N²
+  let x_min = Infinity, x_max = -Infinity, y_min = Infinity, y_max = -Infinity;
+  for (const b of tBars) {
+    if (b.x < x_min) x_min = b.x;
+    if (b.x > x_max) x_max = b.x;
+    if (b.y < y_min) y_min = b.y;
+    if (b.y > y_max) y_max = b.y;
+  }
+  const extX = Math.min(c_cr_sp, inp.pedestal_cX);
+  const extY = Math.min(c_cr_sp, inp.pedestal_cY);
+  const bxA = (x_max - x_min) + 2 * extX;
+  const byA = (y_max - y_min) + 2 * extY;
+  const Ac_N = bxA * byA;
+
+  // ★ NO multiplicar por tBars.length — espurio, ya capturado en Ac/Ac0.
+  const NRd_sp_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_h_sp * psi_ec_sp * psi_s_sp;
 
   const util = Ft_total_kN / Math.max(NRd_sp_kN, 1e-6);
   return {
     id: 'splitting',
     description: 'Splitting / side-face blowout',
     value: `Ft=${fmtF(Ft_total_kN, system)}`,
-    limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (c=${c_min.toFixed(0)} < ${c_cr_sp.toFixed(0)} · ψh=${psi_h.toFixed(2)})`,
+    limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (ψh=${psi_h_sp.toFixed(2)} · ψec=${psi_ec_sp.toFixed(2)} · ψs=${psi_s_sp.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'EN 1992-4 §7.2.1.6',
