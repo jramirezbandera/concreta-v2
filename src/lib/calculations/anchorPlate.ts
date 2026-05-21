@@ -624,7 +624,7 @@ export function checkAnchorageLength(
       value: 'No aplica (carga por arandela)',
       limit: 'Regido por check 8 (pull-out EN 1992-4 §7.2.1.5)',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EC2 §8.4',
     };
   }
@@ -665,7 +665,7 @@ export function checkAnchorageLength(
       value: 'Todas las barras comprimidas',
       limit: `hef=${inp.bar_hef.toFixed(0)} mm`,
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EC2 §8.4',
     };
   }
@@ -697,7 +697,7 @@ export function checkConcreteCone(
       value: 'Sin tracción en barras',
       limit: '—',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EN 1992-4 §7.2.1.4',
     };
   }
@@ -756,7 +756,7 @@ export function checkPullout(
       value: 'No aplica (anclaje por adherencia)',
       limit: 'Regido por check 6 (EC2 §8.4)',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EN 1992-4 §7.2.1.5',
     };
   }
@@ -794,7 +794,7 @@ export function checkSplitting(
       value: 'Sin tracción en barras',
       limit: '—',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EN 1992-4 §7.2.1.6',
     };
   }
@@ -810,7 +810,7 @@ export function checkSplitting(
       value: `c=${c_min.toFixed(0)} ≥ c_cr,sp=${c_cr_sp.toFixed(0)} mm`,
       limit: 'No crítico',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EN 1992-4 §7.2.1.6',
     };
   }
@@ -845,7 +845,7 @@ export function checkStiffener(
       value: 'Sin rigidizadores',
       limit: '—',
       utilization: 0,
-      status: 'ok',
+      status: 'neutral',
       article: 'EC3 1-1 §5.5 + EC3 1-8 §4.5.3',
     };
   }
@@ -967,7 +967,8 @@ export function calcAnchorPlate(
   ];
 
   const worstUtil = checks.length > 0 ? Math.max(...checks.map((c) => c.utilization)) : 0;
-  const overallStatus = toStatus(worstUtil);
+  const hasFailValidation = warnings.some((w) => w.severity === 'fail');
+  const overallStatus: CheckStatus = hasFailValidation ? 'fail' : toStatus(worstUtil);
 
   return { inp, solver, checks, worstUtil, overallStatus, warnings, valid: true, pr1Limitations };
 }

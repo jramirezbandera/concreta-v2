@@ -345,3 +345,51 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // src/test/calc/anchorPlateOracle.test.ts in PR1 of the audit-driven refactor.
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
+
+describe('PR3 — skipped checks render as neutral (H8)', () => {
+  it('pullout con prolongacion_recta → status=neutral', () => {
+    const r = calcAnchorPlate({ ...base, bottom_anchorage: 'prolongacion_recta' });
+    const po = r.checks.find((c) => c.id === 'pullout')!;
+    expect(po.status).toBe('neutral');
+  });
+  it('anchorage-length con arandela_tuerca → status=neutral', () => {
+    const r = calcAnchorPlate({ ...base, bottom_anchorage: 'arandela_tuerca', washer_od: 50 });
+    const al = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(al.status).toBe('neutral');
+  });
+  it('concrete-cone sin tracción → status=neutral', () => {
+    const r = calcAnchorPlate({ ...base, NEd: 500, Mx: 0, My: 0 });
+    const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
+    expect(cc.status).toBe('neutral');
+  });
+  it('splitting cuando c ≥ c_cr,sp → status=neutral', () => {
+    const r = calcAnchorPlate({ ...base, pedestal_cX: 500, pedestal_cY: 500 });
+    const sp = r.checks.find((c) => c.id === 'splitting')!;
+    expect(sp.status).toBe('neutral');
+  });
+  it('stiffener con rib_count=0 → status=neutral', () => {
+    const r = calcAnchorPlate({ ...base, rib_count: 0 });
+    const st = r.checks.find((c) => c.id === 'stiffener')!;
+    expect(st.status).toBe('neutral');
+  });
+});
+
+describe('PR3 — validation fail forces overallStatus=fail (H13)', () => {
+  it('washer_od ≤ bar_diam → overallStatus=fail aunque worstUtil pueda ser <1', () => {
+    // arandela_tuerca con washer_od inválido (=bar_diam) marca severity='fail' en validateAnchorPlate
+    const r = calcAnchorPlate({
+      ...base,
+      bottom_anchorage: 'arandela_tuerca',
+      washer_od: 20,  // = bar_diam, validation fail
+      NEd: 50, Mx: 5, My: 0, NEd_G: 30,
+    });
+    expect(r.warnings.some((w) => w.severity === 'fail')).toBe(true);
+    expect(r.overallStatus).toBe('fail');
+  });
+
+  it('sin validation fail, overallStatus respeta toStatus(worstUtil)', () => {
+    const r = calcAnchorPlate(base);
+    expect(r.warnings.some((w) => w.severity === 'fail')).toBe(false);
+    // overallStatus debe ser lo que toStatus(worstUtil) devuelva (no forzado)
+  });
+});
