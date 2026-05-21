@@ -138,7 +138,7 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     slightly if splitting becomes governing for FTUX. Re-pin then.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
-    expect(r.checks).toHaveLength(10);
+    expect(r.checks).toHaveLength(13);    // PR8b: 10 → 13 (concrete shear modes)
     expect(r.worstUtil).toBeCloseTo(0.928, 2);
   });
 

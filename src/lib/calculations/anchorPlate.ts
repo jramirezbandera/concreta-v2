@@ -84,6 +84,42 @@ function resolveEdges(inp: AnchorPlateInputs) {
   };
 }
 
+// ─── Direccional shear (CR6, PR8b) ──────────────────────────────────────
+//
+// Para edge breakout y otros modos de fallo en cortante hace falta saber
+// la DIRECCIÓN del cortante. Si el usuario sólo configuró el legacy `VEd`
+// (defaults siembran Vx=VEd, Vy=0), interpretamos como cortante a lo largo
+// del eje fuerte (+x). Si configuró Vx/Vy direccional, esos prevalen.
+// Devuelve magnitud, dirección (rad), y la pareja (c1, c2) de la cara más
+// expuesta + perpendicular.
+function resolveShear(inp: AnchorPlateInputs) {
+  const Vx_raw = inp.Vx;
+  const Vy_raw = inp.Vy;
+  // Si Vx/Vy difieren no-trivialmente de (VEd, 0), el usuario los configuró.
+  // En otro caso (defaults o legacy), usar VEd como Vx escalar.
+  const Vx = (Math.abs(Vx_raw - inp.VEd) < 1e-9 && Math.abs(Vy_raw) < 1e-9)
+    ? inp.VEd : Vx_raw;
+  const Vy = (Math.abs(Vx_raw - inp.VEd) < 1e-9 && Math.abs(Vy_raw) < 1e-9)
+    ? 0 : Vy_raw;
+  const Vmag = Math.hypot(Vx, Vy);
+  const Vangle_rad = Vmag > 1e-9 ? Math.atan2(Vy, Vx) : 0;
+  const edges = resolveEdges(inp);
+
+  // Cara más expuesta en dirección de carga: si Vx>0 carga hacia +x, c1=cX1.
+  // Para ángulos intermedios proyectar: tomar la cara dominante.
+  const cos = Math.cos(Vangle_rad);
+  const sin = Math.sin(Vangle_rad);
+  let c1: number, c2: number;
+  if (Math.abs(cos) >= Math.abs(sin)) {
+    c1 = cos >= 0 ? edges.cX1 : edges.cX2;
+    c2 = Math.min(edges.cY1, edges.cY2);
+  } else {
+    c1 = sin >= 0 ? edges.cY1 : edges.cY2;
+    c2 = Math.min(edges.cX1, edges.cX2);
+  }
+  return { Vx, Vy, Vmag, Vangle_rad, c1, c2 };
+}
+
 // ─── Rebar design strengths per bar (helper) ─────────────────────────────
 function barStrengths(inp: AnchorPlateInputs) {
   const { As }  = REBAR_AREAS[inp.bar_diam as RebarDiam];
@@ -811,9 +847,25 @@ export function checkBoltShear(
   };
 }
 
-// ─── Check 5 — Interacción N+V en barras (forma EC3 Tab 3.4) ─────────────
-// Para barras dúctiles de armadura usamos la misma forma de interacción que
-// para pernos: (Fv/FvRd) + (Ft/(1.4·FtRd)) ≤ 1.0, con FtRd/FvRd basados en fyd.
+// ─── Check 5 — Interacción N+V en anclajes (CR6, PR8b) ──────────────────
+//
+// EN 1992-4 §7.2.3 / CE Anejo 11 §7.2.3 — interacción para anclajes en
+// hormigón. La forma EC3 1-8 Tab 3.4 (Fv/FvRd + Ft/(1.4·FtRd) ≤ 1.0) es
+// para PERNOS pre-tensados y NO aplica a barras corrugadas en hormigón.
+//
+// Para fallo dúctil (acero gobierna, modo de fallo es plastificación de
+// la barra) — caso típico de barras corrugadas con anclaje adecuado:
+//   (Nsd/NRd,s)² + (Vsd/VRd,s)² ≤ 1.0
+//
+// Donde:
+//   NRd,s = FtRd_per_bar (capacidad de acero — barra fluye)
+//   VRd,s = FvRd_per_bar  (capacidad de cortante de acero — plástico)
+//   Nsd, Vsd: la solicitación máxima por barra
+//
+// Esta forma cuadrática (exponente 2) es menos conservadora que la lineal
+// EC3 y refleja correctamente el comportamiento dúctil. Para fallo frágil
+// (concrete gobierna), la norma usa exponente 1 — no implementado aquí,
+// queda como TODO si se detecta hef muy somero o concrete-edge gobernando.
 export function checkBoltInteraction(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
@@ -829,18 +881,19 @@ export function checkBoltInteraction(
   let FtMax_kN = 0;
   for (const b of bars) if (b.inTension && b.Ft > FtMax_kN) FtMax_kN = b.Ft;
 
-  const util_v = FvEd_per_bar_kN / Math.max(FvRd_kN, 1e-6);
-  const util_t = FtMax_kN / (1.4 * Math.max(FtRd_kN, 1e-6));
-  const util = util_v + util_t;
+  const ratio_n = FtMax_kN / Math.max(FtRd_kN, 1e-6);
+  const ratio_v = FvEd_per_bar_kN / Math.max(FvRd_kN, 1e-6);
+  // Forma cuadrática EN 1992-4 §7.2.3 ductile: (N/NRd)² + (V/VRd)² ≤ 1.
+  const util = ratio_n * ratio_n + ratio_v * ratio_v;
 
   return {
     id: 'bolt-interaction',
-    description: 'Interacción N+V en barras',
-    value: `${util_v.toFixed(2)} + ${util_t.toFixed(2)}`,
+    description: 'Interacción N+V en barras (dúctil)',
+    value: `(${ratio_n.toFixed(2)})² + (${ratio_v.toFixed(2)})²`,
     limit: `≤ 1.00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'EC3 1-8 Tab 3.4',
+    article: 'EN 1992-4 §7.2.3',
   };
 }
 
@@ -1226,6 +1279,214 @@ export function checkStiffener(
   };
 }
 
+// ─── Check 11 — Concrete edge breakout en cortante (CR6, PR8b) ──────────
+//
+// EN 1992-4 §7.2.2.4 / CE Anejo 11 §7.2.2.4. Pre-PR8b este modo no se
+// modelaba: checkBoltShear sólo cubría steel shear + fricción. Para placas
+// cerca de un borde y cortante perpendicular, este modo gobierna.
+//
+// Modelo (cast-in barras corrugadas, cracked concrete):
+//   V0Rk,c = k1 · (lf/dnom)^β · dnom^α · √fck · c1^1.5
+//     con k1 = 1.6, α = 0.5, β = 0.2, lf = min(hef, 8·dnom) (limitada per EN)
+//   VRk,c = V0Rk,c · (Ac,V/Ac,V0) · ψs,V · ψh,V · ψec,V · ψα,V · ψre,V
+//   VRd,c = VRk,c / γMc
+//
+// Simplificaciones (notadas en comments para futura iteración):
+//   - ψec,V = 1 (excentricidad del grupo en V — refinable)
+//   - ψα,V = 1 (carga normal al borde — refinable cuando Vx/Vy direccional)
+//   - ψre,V = 1 (sin armadura transversal de refuerzo en el borde)
+//   - Ac,V proyección simplificada: bounding-box del grupo + extensión 1.5·c1
+//     en dirección perpendicular a la carga, clipped por c_h en el lado lejano.
+export function checkConcreteEdgeBreakout(
+  inp: AnchorPlateInputs,
+  bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
+): CheckRow {
+  const shear = resolveShear(inp);
+  if (shear.Vmag < 1e-6) {
+    return {
+      id: 'concrete-edge-breakout',
+      description: 'Rotura del hormigón en cortante (edge breakout)',
+      value: 'Sin cortante',
+      limit: '—',
+      utilization: 0,
+      status: 'neutral',
+      article: 'EN 1992-4 §7.2.2.4',
+    };
+  }
+
+  const dnom = inp.bar_diam;
+  const hef = inp.bar_hef;
+  const fck = inp.fck;
+  const { c1, c2, Vmag, Vangle_rad } = shear;
+
+  // V0Rk,c — anchor único en hormigón sin restricciones, carga normal a un borde a c1
+  const k1 = 1.6;
+  const alpha_exp = 0.5;
+  const beta_exp = 0.2;
+  const lf = Math.min(hef, 8 * dnom);
+  const V0Rk_N = k1
+    * Math.pow(lf / dnom, beta_exp)
+    * Math.pow(dnom, alpha_exp)
+    * Math.sqrt(fck)
+    * Math.pow(c1, 1.5);
+
+  // Ac,V0 (reference area: anchor a c1, half-cone in plane)
+  const Ac_V0 = 4.5 * c1 * c1;
+
+  // Ac,V — proyección del cono del grupo. Extender bounding-box del grupo
+  // por 1.5·c1 en dir perpendicular a la carga; profundidad de cono = 1.5·c1.
+  const cos = Math.cos(Vangle_rad);
+  const sin = Math.sin(Vangle_rad);
+  let perp_min = Infinity, perp_max = -Infinity;
+  for (const b of bars) {
+    const perp = -b.x * sin + b.y * cos;
+    if (perp < perp_min) perp_min = perp;
+    if (perp > perp_max) perp_max = perp;
+  }
+  const groupPerpWidth = bars.length > 0 ? (perp_max - perp_min) : 0;
+  // Width perpendicular: extendido por 1.5·c1 en ambos lados, clipped por
+  // la dimensión efectiva del macizo (c2 + simétrico).
+  const widthPerp = Math.min(groupPerpWidth + 3 * c1, 2 * c2 + groupPerpWidth);
+  // Depth in line with load: 1.5·c1 (single anchor) o más si grupo profundo,
+  // limited by available depth before crossing back edge.
+  const depthInLoad = 1.5 * c1;
+  const Ac_V = widthPerp * depthInLoad;
+
+  // ψ factors
+  const psi_s = c2 >= 1.5 * c1 ? 1.0 : 0.7 + 0.3 * c2 / (1.5 * c1);
+  const h_ped = inp.pedestal_h;
+  const psi_h = h_ped >= 1.5 * c1 ? 1.0 : Math.sqrt((1.5 * c1) / Math.max(h_ped, 1));
+  // PR8b TODO: ψec,V por excentricidad del grupo de barras en cortante
+  //           ψα,V por ángulo de carga ≠ normal al borde
+  //           ψre,V por armadura transversal en el borde
+  const psi_ec = 1.0;
+  const psi_alpha = 1.0;
+  const psi_re = 1.0;
+
+  const VRk_N = V0Rk_N * (Ac_V / Ac_V0) * psi_s * psi_h * psi_ec * psi_alpha * psi_re;
+  const VRd_kN = VRk_N / GAMMA_MC / 1000;
+
+  const util = Vmag / Math.max(VRd_kN, 1e-6);
+  return {
+    id: 'concrete-edge-breakout',
+    description: 'Rotura del hormigón en cortante (edge breakout)',
+    value: `VEd=${fmtF(Vmag, system)}`,
+    limit: `VRd,c=${fmtF(VRd_kN, system)} (c1=${c1.toFixed(0)} · ψs=${psi_s.toFixed(2)} · ψh=${psi_h.toFixed(2)})`,
+    utilization: util,
+    status: toStatus(util),
+    article: 'EN 1992-4 §7.2.2.4',
+  };
+}
+
+// ─── Check 12 — Concrete pry-out en cortante (CR6, PR8b) ────────────────
+//
+// EN 1992-4 §7.2.2.3 / CE Anejo 11 §7.2.2.3. Fallo por cortante que
+// arranca un cono de hormigón hacia atrás (lejos del borde cargado).
+// Aplica cuando los anclajes están lejos del borde (caso "interior") y
+// el cortante puede levantar el hormigón en el extremo embebido.
+//
+//   VRd,cp = k · NRd,c
+//   donde k = 1 si hef < 60 mm, k = 2 si hef ≥ 60 mm
+//
+// NRd,c es la capacidad de cono para el grupo completo de anclajes en
+// la geometría dada (no sólo los traccionados).
+export function checkConcretePryout(
+  inp: AnchorPlateInputs,
+  bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
+): CheckRow {
+  const shear = resolveShear(inp);
+  if (shear.Vmag < 1e-6) {
+    return {
+      id: 'concrete-pryout',
+      description: 'Rotura por pry-out (efecto palanca)',
+      value: 'Sin cortante',
+      limit: '—',
+      utilization: 0,
+      status: 'neutral',
+      article: 'EN 1992-4 §7.2.2.3',
+    };
+  }
+
+  const hef = inp.bar_hef;
+  const k_pryout = hef >= 60 ? 2.0 : 1.0;
+
+  // NRd,c sobre el grupo completo (todas las barras del layout, no sólo
+  // las traccionadas), pues en pry-out el cortante distribuye entre todas.
+  const k1 = 7.7;
+  const N0_Rd_c_kN = (k1 * Math.sqrt(inp.fck) * Math.pow(hef, 1.5)) / GAMMA_MC / 1000;
+  const Ac_N0 = (3 * hef) ** 2;
+  const c_cr = 1.5 * hef;
+  const edges = resolveEdges(inp);
+  let x_min = Infinity, x_max = -Infinity, y_min = Infinity, y_max = -Infinity;
+  for (const b of bars) {
+    if (b.x < x_min) x_min = b.x;
+    if (b.x > x_max) x_max = b.x;
+    if (b.y < y_min) y_min = b.y;
+    if (b.y > y_max) y_max = b.y;
+  }
+  const extXp = Math.min(c_cr, edges.cX1);
+  const extXm = Math.min(c_cr, edges.cX2);
+  const extYp = Math.min(c_cr, edges.cY1);
+  const extYm = Math.min(c_cr, edges.cY2);
+  const bxA = (x_max - x_min) + extXp + extXm;
+  const byA = (y_max - y_min) + extYp + extYm;
+  const Ac_N = bxA * byA;
+  const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
+  const psi_s = c_min >= c_cr ? 1.0 : 0.7 + 0.3 * c_min / c_cr;
+  const NRd_c_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_s;
+
+  const VRd_cp_kN = k_pryout * NRd_c_kN;
+  const util = shear.Vmag / Math.max(VRd_cp_kN, 1e-6);
+  return {
+    id: 'concrete-pryout',
+    description: 'Rotura por pry-out (efecto palanca)',
+    value: `VEd=${fmtF(shear.Vmag, system)}`,
+    limit: `VRd,cp=${fmtF(VRd_cp_kN, system)} (k=${k_pryout.toFixed(1)} · NRd,c=${fmtF(NRd_c_kN, system)})`,
+    utilization: util,
+    status: toStatus(util),
+    article: 'EN 1992-4 §7.2.2.3',
+  };
+}
+
+// ─── Check 13 — Concrete shear breakout (CR6, PR8b) ─────────────────────
+//
+// EN 1992-4 §7.2.2.5. Sólo aplica cuando hef < 60 mm (anclaje muy somero).
+// Para barras corrugadas típicas (hef ≥ 150 mm), este modo NO gobierna y
+// reporta neutral.
+//
+// Para hef pequeño: VRd,c semejante a edge breakout pero con factores
+// específicos. Implementación completa diferida — la condición de
+// aplicabilidad es la que mata el modo en la inmensa mayoría de casos.
+export function checkConcreteBreakoutV(
+  inp: AnchorPlateInputs,
+  _bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
+): CheckRow {
+  const hef = inp.bar_hef;
+  if (hef >= 60) {
+    return {
+      id: 'concrete-breakout-v',
+      description: 'Rotura por breakout en cortante (hef somero)',
+      value: `hef=${hef.toFixed(0)} ≥ 60 mm`,
+      limit: 'No aplica',
+      utilization: 0,
+      status: 'neutral',
+      article: 'EN 1992-4 §7.2.2.5',
+    };
+  }
+  // hef < 60: aplicar el modo. Para PR8b, fall-back conservador usando
+  // edge breakout como proxy (el modo somero es más restrictivo).
+  const eb = checkConcreteEdgeBreakout(inp, _bars, system);
+  return {
+    ...eb,
+    id: 'concrete-breakout-v',
+    description: 'Rotura por breakout en cortante (hef somero)',
+    article: 'EN 1992-4 §7.2.2.5',
+  };
+}
+
 // ─── Validation warnings ─────────────────────────────────────────────────
 export interface ValidationWarning {
   field: string;
@@ -1310,6 +1571,9 @@ export function calcAnchorPlate(
     checkBoltInteraction(inp, solver.bolts, system),
     checkAnchorageLength(inp, solver.bolts),
     checkConcreteCone(inp, solver.bolts, solver.Ft_total, system),
+    checkConcreteEdgeBreakout(inp, solver.bolts, system),    // PR8b CR6
+    checkConcretePryout(inp, solver.bolts, system),          // PR8b CR6
+    checkConcreteBreakoutV(inp, solver.bolts, system),       // PR8b CR6
     checkPullout(inp, solver.bolts, system),
     checkSplitting(inp, solver.bolts, solver.Ft_total, system),
     checkStiffener(inp, solver.Nc, system),

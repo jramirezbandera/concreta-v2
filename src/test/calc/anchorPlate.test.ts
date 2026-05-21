@@ -88,14 +88,15 @@ describe('anchor plate — partial lift (|e| > a/6)', () => {
 describe('anchor plate — result shape', () => {
   const r = calcAnchorPlate(base);
 
-  it('valid case returns 10 checks', () => {
-    expect(r.checks).toHaveLength(10);
+  it('valid case returns 13 checks (10 originales + 3 concrete-shear de PR8b)', () => {
+    expect(r.checks).toHaveLength(13);
   });
   it('all checks carry a real id and article', () => {
     const expectedIds = [
       'plate-compression', 'plate-bending', 'bolt-tension', 'bolt-shear',
-      'bolt-interaction', 'anchorage-length', 'concrete-cone', 'pullout',
-      'splitting', 'stiffener',
+      'bolt-interaction', 'anchorage-length', 'concrete-cone',
+      'concrete-edge-breakout', 'concrete-pryout', 'concrete-breakout-v',  // PR8b CR6
+      'pullout', 'splitting', 'stiffener',
     ];
     for (const id of expectedIds) {
       const c = r.checks.find((x) => x.id === id);
@@ -382,6 +383,83 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // src/test/calc/anchorPlateOracle.test.ts in PR1 of the audit-driven refactor.
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
+
+describe('PR8b — CR6 concrete shear modes', () => {
+  it('checks count subió de 10 → 13 con los 3 nuevos modos', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    expect(r.checks).toHaveLength(13);
+    expect(r.checks.find((c) => c.id === 'concrete-edge-breakout')).toBeDefined();
+    expect(r.checks.find((c) => c.id === 'concrete-pryout')).toBeDefined();
+    expect(r.checks.find((c) => c.id === 'concrete-breakout-v')).toBeDefined();
+  });
+
+  it('FTUX (centered, hef=300): edge breakout no domina (cono y splitting governing)', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    expect(eb.utilization).toBeGreaterThan(0);
+    expect(eb.utilization).toBeLessThan(1.0);
+  });
+
+  it('Placa de fachada (cerca de borde): edge breakout activa fail', () => {
+    // Pre-PR8b: checkBoltShear sólo cubría friction + steel shear → no captaba
+    // el fallo del hormigón. Con c=80 y VEd alto, edge breakout debería fallar.
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      pedestal_cX: 80, pedestal_cY: 80,
+      VEd: 100,
+    });
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    expect(eb.utilization).toBeGreaterThan(1.0);
+    expect(eb.status).toBe('fail');
+  });
+
+  it('Pry-out usa k=2 cuando hef ≥ 60mm (caso típico)', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const po = r.checks.find((c) => c.id === 'concrete-pryout')!;
+    expect(po.limit).toContain('k=2.0');
+  });
+
+  it('Breakout-V reporta neutral para hef ≥ 60mm (no aplica)', () => {
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const bo = r.checks.find((c) => c.id === 'concrete-breakout-v')!;
+    expect(bo.status).toBe('neutral');
+    expect(bo.limit).toBe('No aplica');
+  });
+
+  it('sin cortante (Vx=Vy=VEd=0) → todos los modos de hormigón en V neutral', () => {
+    // resolveShear da prioridad a Vx/Vy si difieren de VEd: para "sin cortante"
+    // hay que setear los tres a 0 explícitamente.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, VEd: 0, Vx: 0, Vy: 0 });
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    const po = r.checks.find((c) => c.id === 'concrete-pryout')!;
+    expect(eb.status).toBe('neutral');
+    expect(po.status).toBe('neutral');
+  });
+
+  it('N+V interaction usa EN 1992-4 §7.2.3 (exponente 2, dúctil)', () => {
+    // (N/NRd)² + (V/VRd)² ≤ 1.0 — forma cuadrática (no la lineal EC3 Tab 3.4).
+    // value string debe contener (ratio)² + (ratio)² format.
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
+    expect(bi.value).toMatch(/\(\d+\.\d{2}\)² \+ \(\d+\.\d{2}\)²/);
+    expect(bi.article).toBe('EN 1992-4 §7.2.3');
+  });
+
+  it('Vx/Vy direccional: si Vx=0, Vy=50, edge breakout proyecta a borde y', () => {
+    // Con Vy=50 y Vx=0 (declarando Vy explícito), c1 = cY1 (no cX1).
+    // Verificar que el limit string refleja c1 = cY direccional.
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      VEd: 0,                // legacy desactivado
+      Vx: 0, Vy: 50,
+      pedestal_cX: 500, pedestal_cY: 100,
+      pedestal_cX1: 500, pedestal_cX2: 500,
+      pedestal_cY1: 100, pedestal_cY2: 100,
+    });
+    const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    expect(eb.limit).toContain('c1=100');
+  });
+});
 
 describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
   it('legacy compat: pedestal_cX (simétrico) sigue funcionando idéntico', () => {
