@@ -1138,12 +1138,16 @@ export function checkBoltShear(
 export function checkBoltInteraction(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
+  Nc_G_kN: number,
   system: UnitSystem = 'si',
 ): CheckRow {
   const { FtRd_kN, FvRd_kN } = barStrengths(inp);
 
+  // H6 (Phase 3): la fricción se basa en la compresión real bajo placa
+  // bajo combinación cuasi-permanente (Nc,G del solver-G), no en el axil
+  // total NEd_G. Cuando hay tracción permanente, Nc,G = NEd,G + Ft,G > NEd,G.
   const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
-  const Vfric_kN = mu * Math.max(0, inp.NEd_G);
+  const Vfric_kN = mu * Math.max(0, Nc_G_kN);
   const Vbars_kN = Math.max(0, inp.VEd - Vfric_kN);
   const FvEd_per_bar_kN = Vbars_kN / Math.max(1, bars.length);
 
@@ -1826,10 +1830,26 @@ export function validateAnchorPlate(inp: AnchorPlateInputs): ValidationWarning[]
   if (inp.bottom_anchorage === 'arandela_tuerca' && inp.washer_od <= inp.bar_diam) {
     w.push({ field: 'washer_od', message: 'OD arandela ≤ φ barra (sin área de apoyo)', severity: 'fail' });
   }
+  // M17 (Phase 3): fck mínimo según CE Anejo 19. fck < 20 N/mm² no aplica
+  // como hormigón estructural; entre 20 y 25 admisible pero por debajo del
+  // mínimo recomendado para elementos cimentación.
+  if (inp.fck < 20) {
+    w.push({ field: 'fck', message: 'fck < 20 N/mm² fuera de rango estructural (CE Anejo 19)', severity: 'fail' });
+  } else if (inp.fck < 25) {
+    w.push({ field: 'fck', message: 'fck < 25 N/mm² por debajo del mínimo recomendado para cimentación', severity: 'warn' });
+  }
+  // L4 (Phase 3): weld_throat mínimo práctico. EN 1993-1-8 §4.5.2 y DB-SE-A
+  // recomiendan a ≥ 3 mm; con a = 0 (input degenerado) checkStiffener
+  // dividiría por 0 produciendo util infinita y veredicto fail engañoso.
+  if (inp.rib_count > 0 && inp.weld_throat < 3) {
+    w.push({ field: 'weld_throat', message: 'Garganta de soldadura < 3 mm (mínimo práctico EN 1993-1-8 §4.5.2)', severity: 'fail' });
+  }
   return w;
 }
 
 // ─── Main entry point ────────────────────────────────────────────────────
+// L1 (Phase 3): pr1Limitations eliminado — siempre era [] desde PR8b y la
+// UI/PDF lo renderizaban condicionalmente como dead code.
 export interface AnchorPlateResult {
   inp: AnchorPlateInputs;
   solver: SolverResult;
@@ -1838,7 +1858,6 @@ export interface AnchorPlateResult {
   overallStatus: CheckStatus;
   warnings: ValidationWarning[];
   valid: boolean;
-  pr1Limitations: string[];
 }
 
 export function calcAnchorPlate(
@@ -1846,7 +1865,6 @@ export function calcAnchorPlate(
   system: UnitSystem = 'si',
 ): AnchorPlateResult {
   const warnings = validateAnchorPlate(inp);
-  const pr1Limitations: string[] = [];
 
   const valid = !(inp.NEd === 0 && inp.Mx === 0 && inp.My === 0);
 
@@ -1865,7 +1883,6 @@ export function calcAnchorPlate(
       overallStatus: 'ok',
       warnings,
       valid: false,
-      pr1Limitations,
     };
   }
 
@@ -1878,12 +1895,26 @@ export function calcAnchorPlate(
 
   const twoFlanges = solver.mode === 'uniform-compression';
 
+  // H6 (Phase 3): la fricción usa la compresión real bajo placa bajo combo
+  // cuasi-permanente (Nc,G), no el axil total NEd_G. Si hay momento permanente
+  // suficiente para producir tracción, Nc,G = NEd,G + Ft,G > NEd,G y la
+  // fricción real es mayor. Solo se ejecuta un segundo solver si NEd_G > 0;
+  // para NEd_G ≤ 0 no hay compresión bajo placa → fricción nula.
+  // Limitación: el módulo no expone Mx_G/My_G separados — usamos los mismos
+  // Mx/My de la combinación gobernante (la práctica común). Si se introduce
+  // envolvente de combinaciones (M15 futuro) habrá que separarlos.
+  let Nc_G_kN = 0;
+  if (inp.NEd_G > 0) {
+    const solverG = solveAnchorPlate({ ...inp, NEd: inp.NEd_G });
+    Nc_G_kN = solverG.Nc;
+  }
+
   const checks: CheckRow[] = [
     checkPlateCompression(inp, solver.Nc, twoFlanges, system),
     checkPlateBending(inp, fjd),
     checkBoltTension(inp, Ft_per_bar, system),
-    checkBoltShear(inp, solver.bolts, inp.NEd_G, system),
-    checkBoltInteraction(inp, solver.bolts, system),
+    checkBoltShear(inp, solver.bolts, Nc_G_kN, system),
+    checkBoltInteraction(inp, solver.bolts, Nc_G_kN, system),
     checkAnchorageLength(inp, solver.bolts),
     checkConcreteCone(inp, solver.bolts, solver.Ft_total, system),
     checkConcreteEdgeBreakout(inp, solver.bolts, system),    // PR8b CR6
@@ -1898,5 +1929,5 @@ export function calcAnchorPlate(
   const hasFailValidation = warnings.some((w) => w.severity === 'fail');
   const overallStatus: CheckStatus = hasFailValidation ? 'fail' : toStatus(worstUtil);
 
-  return { inp, solver, checks, worstUtil, overallStatus, warnings, valid: true, pr1Limitations };
+  return { inp, solver, checks, worstUtil, overallStatus, warnings, valid: true };
 }

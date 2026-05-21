@@ -36,6 +36,18 @@ const SURF_LABEL: Record<PedestalSurface, string> = {
   roughened: 'Rugosa (mu = 0.40)',
 };
 
+// M11 (Phase 3) — etiquetas humanas del modo del solver. ASCII para PDF.
+const SOLVER_MODE_LABEL_PDF: Record<string, string> = {
+  'uniform-compression':    'Compresion uniforme',
+  'partial-lift':           'Traccion parcial (plastico)',
+  'partial-lift-saturated': 'Traccion parcial - seccion agotada',
+  'biaxial-plastic':        'Biaxial plastico',
+  'biaxial-grid':           'Biaxial aproximado (grid-search)',
+  'pure-tension':           'Traccion pura (sin compresion)',
+};
+const labelSolverMode = (mode: string): string =>
+  SOLVER_MODE_LABEL_PDF[mode] ?? mode;
+
 function fmt(v: number, d = 1): string {
   if (!isFinite(v)) return '---';
   return v.toFixed(d);
@@ -59,6 +71,14 @@ export async function exportAnchorPlatePDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  // H17 (Phase 3) — distinción explícita verificación vs dimensionado.
+  // El módulo verifica una solución introducida por el usuario; no la
+  // dimensiona. Sin esta nota el lector puede leer los resultados como
+  // un diseño optimizado.
+  doc.text(
+    'Verificacion de la solucion introducida por el usuario - no dimensiona.',
+    PAGE_W - M, M + 5, { align: 'right' },
+  );
 
   setGray(doc, 200);
   doc.setLineWidth(0.3);
@@ -171,7 +191,7 @@ export async function exportAnchorPlatePDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.text(
-      `Planta + alzado  |  Modo solver: ${pdfStr(result.solver.mode)}`,
+      `Planta + alzado  |  Modo solver: ${pdfStr(labelSolverMode(result.solver.mode))}`,
       PAGE_W / 2, y, { align: 'center' },
     );
     y += CAPTION_H;
@@ -288,7 +308,7 @@ export async function exportAnchorPlatePDF(
 
   const solver = result.solver;
   const kv: [string, string][] = [
-    ['Modo solver', pdfStr(solver.mode)],
+    ['Modo solver', pdfStr(labelSolverMode(solver.mode))],
     ['Nc (compresion)', fmtSi(solver.Nc, 'force')],
     ['Ft total (grupo)', fmtSi(solver.Ft_total, 'force')],
     ['Barras traccionadas', `${solver.n_t} de ${solver.bolts.length}`],
@@ -378,22 +398,6 @@ export async function exportAnchorPlatePDF(
     doc.setFont('helvetica', 'normal');
   }
 
-  // Simplificaciones vigentes
-  if (result.pr1Limitations.length > 0) {
-    y += 2;
-    ensure(8 + result.pr1Limitations.length * 4);
-    setGray(doc, 110);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.text('SIMPLIFICACIONES', M, y);
-    y += 3.5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    for (const note of result.pr1Limitations) {
-      doc.text(pdfStr(`- ${note}`), M, y);
-      y += 3.5;
-    }
-  }
 
   // ── 6. Verdict banner ─────────────────────────────────────────────────
   y += 4;
@@ -429,6 +433,10 @@ export async function exportAnchorPlatePDF(
   // estan corregidos (CR1/CR2/CR3/CR6) y las citaciones normativas remapeadas
   // a Codigo Estructural (RD 470/2021). El PDF puede firmarse como memoria
   // de calculo defendible bajo normativa espanola vigente.
+  //
+  // H18 (Phase 3) — disclaimer de combinacion unica. El modulo solo verifica
+  // una combinacion ELU por sesion; la envolvente queda como responsabilidad
+  // del proyectista hasta que se introduzca M15.
   const footerY = PAGE_H - 10;
   const pageCount = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
@@ -440,6 +448,14 @@ export async function exportAnchorPlatePDF(
       'Concreta - concreta.app  |  CE Anejo 18 (placa base) + Anejo 11 (anclajes) + Anejo 19 (hormigon)  |  gM0=1.05, gMc=1.50',
       M, footerY,
     );
+    setGray(doc, 150);
+    doc.setFontSize(6);
+    doc.text(
+      'Resultado para 1 combinacion ELU - el proyectista debe verificar la envolvente completa.',
+      M, footerY - 3,
+    );
+    setGray(doc, 150);
+    doc.setFontSize(7);
     doc.text(`Pag. ${i} / ${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
   }
 

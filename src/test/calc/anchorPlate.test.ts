@@ -111,12 +111,11 @@ describe('anchor plate — result shape', () => {
     const expected = Math.max(...r.checks.map((c) => c.utilization));
     expect(r.worstUtil).toBeCloseTo(expected, 6);
   });
-  it('limitations empty for default (nLayout=4, rib_count=2)', () => {
-    expect(r.pr1Limitations).toHaveLength(0);
-  });
-  it('limitations empty for rib_count=4 (refinado por eje, ya no se marca)', () => {
-    const r4 = calcAnchorPlate({ ...base, rib_count: 4 });
-    expect(r4.pr1Limitations).toHaveLength(0);
+  // L1 (Phase 3): pr1Limitations eliminado — siempre estuvo vacío desde PR8b
+  // y la UI/PDF lo renderizaba condicionalmente como dead code. Confirma que
+  // el campo ya no forma parte de AnchorPlateResult.
+  it('AnchorPlateResult ya no expone pr1Limitations (L1)', () => {
+    expect((r as unknown as Record<string, unknown>).pr1Limitations).toBeUndefined();
   });
 });
 
@@ -177,7 +176,6 @@ describe('anchor plate — biaxial solver', () => {
   it('supports 6-bar layout without fallback', () => {
     const r6 = calcAnchorPlate({ ...biax, bar_nLayout: 6 });
     expect(r6.solver.bolts).toHaveLength(6);
-    expect(r6.pr1Limitations.some((s) => s.includes('layout'))).toBe(false);
   });
   it('supports 8-bar layout', () => {
     const r8 = calcAnchorPlate({ ...biax, bar_nLayout: 8 });

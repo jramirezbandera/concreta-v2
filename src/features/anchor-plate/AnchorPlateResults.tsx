@@ -58,6 +58,18 @@ function CollapsibleGroup({
   );
 }
 
+// M11 (Phase 3) — solver mode labels en español, mostrados al usuario.
+// Los strings internos ('biaxial-plastic', 'partial-lift-saturated', ...)
+// son identificadores técnicos; el usuario merece una descripción.
+const SOLVER_MODE_LABEL: Record<string, string> = {
+  'uniform-compression':    'Compresión uniforme',
+  'partial-lift':           'Tracción parcial (plástico)',
+  'partial-lift-saturated': 'Tracción parcial — sección agotada',
+  'biaxial-plastic':        'Biaxial plástico',
+  'biaxial-grid':           'Biaxial aproximado (grid-search)',
+  'pure-tension':           'Tracción pura (sin compresión)',
+};
+
 // H11 — short labels for the verdict pill so users see WHICH check governs
 // without having to scan the full list. Keep short enough to fit inline.
 const CHECK_SHORT_LABEL: Record<string, string> = {
@@ -84,7 +96,7 @@ export function AnchorPlateResults({ result }: Props) {
     );
   }
 
-  const { checks, solver, worstUtil, overallStatus, warnings, pr1Limitations } = result;
+  const { checks, solver, worstUtil, overallStatus, warnings } = result;
 
   // H11 — identify the governing check (the one whose util equals worstUtil),
   // restricted to checks that are actually applicable ('neutral' = no aplica).
@@ -130,18 +142,6 @@ export function AnchorPlateResults({ result }: Props) {
         </span>
       </div>
 
-      {/* Scope limitations (simplificaciones vigentes) */}
-      {pr1Limitations.length > 0 && (
-        <div className="px-4 py-2 bg-state-warn/10 border-b border-state-warn/30">
-          <p className="text-[10px] uppercase tracking-widest text-state-warn font-mono mb-1">Simplificaciones</p>
-          <ul className="text-[11px] text-text-secondary space-y-0.5">
-            {pr1Limitations.map((note, i) => (
-              <li key={i}>· {note}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Validation warnings (D3 — amber strip under header) */}
       {warnings.length > 0 && (
         <div className="px-4 py-2 bg-state-warn/10 border-b border-state-warn/30">
@@ -172,7 +172,7 @@ export function AnchorPlateResults({ result }: Props) {
 
       {/* Solver summary values */}
       <GroupHeader label="Estado del nudo" />
-      <ValueRow label="Modo"              value={solver.mode} />
+      <ValueRow label="Modo"              value={SOLVER_MODE_LABEL[solver.mode] ?? solver.mode} />
       <ValueRow label="Nc (compresión)"   value={fmtSi(solver.Nc, 'force')} />
       <ValueRow label="Ft total (grupo)"  value={fmtSi(solver.Ft_total, 'force')} />
       <ValueRow label="Barras traccionadas" value={`${solver.n_t} de ${solver.bolts.length}`} />
