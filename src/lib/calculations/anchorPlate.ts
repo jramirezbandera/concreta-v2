@@ -29,6 +29,7 @@ import {
   REBAR_GRADES,
   washerBearingArea,
   anchorageAlpha1,
+  anchorageAlpha2,
   needsBondAnchorage,
   needsPullout,
   type RebarDiam,
@@ -847,11 +848,45 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
   return solveBiaxial(inp);
 }
 
-// ─── α extension factor (EC3 1-8 §6.2.5(4)) ──────────────────────────────
+// ─── Kj joint concentration factor (EC3 1-8 §6.2.5(4)) ──────────────────
+// H2 (Phase 2 Tier 2) — sustituye la aproximación lineal previa
+// (α = min(1+2·ed, 1+2·el)) por la fórmula real:
+//   Kj = √((a1·b1) / (a·b))   con 1 ≤ Kj ≤ 3
+// donde a1, b1 son las dimensiones efectivas del área de apoyo en la
+// cimentación, capadas por:
+//   a1 ≤ min(a + 2·ar, 5·a, a + h, 5·b1)
+//   b1 ≤ min(b + 2·br, 5·b, b + h, 5·a1)
+//   a1 ≥ a; b1 ≥ b
+// ar, br = sobrante del macizo en cada eje (= plate_margin_x/y);
+// h     = canto del macizo (pedestal_h).
+// La aproximación previa subestimaba Kj hasta ≈30% en geometrías reales
+// (Codex Eng F5). Cross-coupling 5·a1/5·b1 se resuelve con una pasada de
+// refinamiento (suficiente — en la práctica los cross-caps rara vez vinculan).
+export function bearingConcentration(inp: AnchorPlateInputs): {
+  Kj: number; a1: number; b1: number;
+} {
+  const a = inp.plate_a;
+  const b = inp.plate_b;
+  const ar = inp.plate_margin_x;
+  const br = inp.plate_margin_y;
+  const h = inp.pedestal_h;
+
+  // Provisional a1/b1 ignorando el cross-cap.
+  const a1_prov = Math.max(a, Math.min(a + 2 * ar, 5 * a, a + h));
+  const b1_prov = Math.max(b, Math.min(b + 2 * br, 5 * b, b + h));
+  // Aplicar el cross-cap con los provisionales.
+  const a1 = Math.max(a, Math.min(a1_prov, 5 * b1_prov));
+  const b1 = Math.max(b, Math.min(b1_prov, 5 * a1));
+
+  const Kj_raw = Math.sqrt((a1 * b1) / (a * b));
+  const Kj = Math.min(3, Math.max(1, Kj_raw));
+  return { Kj, a1, b1 };
+}
+
+// alias retenido para call-sites previos; firma idéntica a la implementación
+// previa (devuelve un escalar multiplicador para fjd = βj · α · fcd).
 export function alphaExtension(inp: AnchorPlateInputs): number {
-  const ed = inp.plate_margin_x / inp.plate_a;
-  const el = inp.plate_margin_y / inp.plate_b;
-  return Math.min(3, Math.max(1, Math.min(1 + 2 * ed, 1 + 2 * el)));
+  return bearingConcentration(inp).Kj;
 }
 
 // ─── T-stub effective area (EC3 1-8 §6.2.5(3)–(5)) ───────────────────────
@@ -1134,17 +1169,27 @@ export function checkAnchorageLength(
   let lb_rqd_max = 0;
   let worstIdx = -1;
   let worstAlpha1 = 1.0;
+  let worstAlpha2 = 1.0;
   let worstCd = Infinity;
+  // H3 (Phase 2 Tier 2) — lb,d = α1·α2·α3·α4·α5·lb,rqd (CE Anejo 19 §49.5).
+  // Implementados: α1 (forma extremo) y α2 (recubrimiento, continuo). α3
+  // (transversal no soldada), α4 (transversal soldada) y α5 (presión
+  // transversal) quedan a 1.0 — no exponemos armadura transversal ni
+  // presión de confinamiento como inputs del módulo.
+  // Restricción EC2 §8.4.4(1): α2·α3·α5 ≥ 0.7 — satisfecha porque
+  // anchorageAlpha2 está acotada a 0.7.
   for (const b of bars) {
     if (!b.inTension || b.Ft <= 0) continue;
     const cd_bar = cdForBar(b);
     const alpha1 = anchorageAlpha1(inp.bottom_anchorage, cd_bar, inp.bar_diam);
+    const alpha2 = anchorageAlpha2(cd_bar, inp.bar_diam);
     const Ft_N  = b.Ft * 1000;
-    const lb_rqd = alpha1 * (inp.bar_diam / 4) * (fyd / fbd) * (Ft_N / FtRd_N);
+    const lb_rqd = alpha1 * alpha2 * (inp.bar_diam / 4) * (fyd / fbd) * (Ft_N / FtRd_N);
     if (lb_rqd > lb_rqd_max) {
       lb_rqd_max = lb_rqd;
       worstIdx = b.index;
       worstAlpha1 = alpha1;
+      worstAlpha2 = alpha2;
       worstCd = cd_bar;
     }
   }
@@ -1165,7 +1210,7 @@ export function checkAnchorageLength(
   return {
     id: 'anchorage-length',
     description: 'Longitud de anclaje',
-    value: `lb,rqd=${lb_rqd_max.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)})`,
+    value: `lb,rqd=${lb_rqd_max.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)}, α2=${worstAlpha2.toFixed(2)})`,
     limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
@@ -1196,7 +1241,9 @@ export function checkConcreteCone(
   const hef  = inp.bar_hef;
   const s_cr = 3 * hef;
   const c_cr = 1.5 * hef;
-  const k1   = 7.7;  // hormigón fisurado
+  // EN 1992-4 §7.2.1.4: k1 = 7.7 (cracked) / 11.0 (uncracked). El input
+  // concrete_cracked (M19) controla el modo; default fisurado conservador.
+  const k1 = inp.concrete_cracked ? 7.7 : 11.0;
 
   const N0_Rd_c_kN = (k1 * Math.sqrt(inp.fck) * Math.pow(hef, 1.5)) / GAMMA_MC / 1000;
   const Ac_N0 = s_cr * s_cr;
@@ -1227,14 +1274,42 @@ export function checkConcreteCone(
   const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
   const psi_s = c_min >= c_cr ? 1.0 : 0.7 + (0.3 * c_min) / c_cr;
 
-  const NRd_c_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_s;
+  // H1 (Phase 2 Tier 2) — factores ψec,N + ψre,N (+ ψM,N reservado).
+  // Patrón replicado de checkSplitting (PR6).
+  //
+  // ψec,N por excentricidad del grupo tensionado (EN 1992-4 §7.2.1.4(6) /
+  // CE Anejo 11). Mismo cálculo que ψec,sp: centroide ponderado por Ft.
+  const sumFt = tBars.reduce((s, b) => s + b.Ft, 0);
+  let eX = 0, eY = 0;
+  if (sumFt > 0) {
+    eX = tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt;
+    eY = tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt;
+  }
+  const eN = Math.hypot(eX, eY);
+  const psi_ec_N = 1 / (1 + 2 * eN / s_cr);
+
+  // ψre,N por shell spalling (EN 1992-4 §7.2.1.4(8), Eq 7.7):
+  //   ψre,N = 0.5 + hef/(200 mm) ≤ 1.0
+  // Aplica cuando NO hay armadura transversal específica que controle el
+  // shell spalling. Como el módulo no expone armadura transversal del macizo
+  // como input, asumimos el caso conservador (ausencia). Para hef ≥ 100 mm
+  // (caso típico, incluido FTUX hef=300) → ψre,N = 1.0.
+  const psi_re_N = Math.min(1.0, 0.5 + hef / 200);
+
+  // ψM,N (compresión adyacente, EN 1992-4 §7.2.1.4(11)) es BENEFICIOSO (≥1)
+  // pero requiere el brazo entre tracción y compresión del solver y solo
+  // aplica con bloque de compresión. Mantenido a 1.0 conservadoramente
+  // hasta que se exponga el lever arm correcto. TODO Phase 3.
+  const psi_M_N = 1.0;
+
+  const NRd_c_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_s * psi_ec_N * psi_re_N * psi_M_N;
   const util = Ft_total_kN / Math.max(NRd_c_kN, 1e-6);
 
   return {
     id: 'concrete-cone',
     description: 'Cono de hormigón',
     value: `Ft=${fmtF(Ft_total_kN, system)}`,
-    limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)})`,
+    limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)} · ψec=${psi_ec_N.toFixed(2)} · ψre=${psi_re_N.toFixed(2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.1.4',

@@ -103,6 +103,20 @@ export function anchorageAlpha1(kind: BottomAnchorage, cd: number, diam: number)
   }
 }
 
+/** Anchorage length factor α2 per CE Anejo 19 §49.5 / EC2 §8.4.4 Tab 8.2.
+ *  Reducción continua por recubrimiento:
+ *    α2 = 1 − 0.15·(cd − φ)/φ,   con 0.7 ≤ α2 ≤ 1.0
+ *  · cd = φ          → α2 = 1.00 (sin reducción)
+ *  · cd = 3·φ        → α2 = 0.70 (cap inferior)
+ *  · cd entre medias → reducción lineal
+ *  Más recubrimiento = mejor confinamiento = menos longitud de anclaje
+ *  necesaria. La pieza H3 de la auditoría: el código previo solo aplicaba
+ *  α1, dejando α2-α5 implícitamente a 1.0 (conservador pero divergente). */
+export function anchorageAlpha2(cd: number, diam: number): number {
+  const ratio = (cd - diam) / Math.max(diam, 1e-6);
+  return Math.max(0.7, Math.min(1.0, 1 - 0.15 * ratio));
+}
+
 /** Does this bottom anchorage transfer load by bond (needs lbd per CE Anejo 19 §49.5)? */
 export function needsBondAnchorage(kind: BottomAnchorage): boolean {
   return kind === 'prolongacion_recta' || kind === 'patilla' || kind === 'gancho';

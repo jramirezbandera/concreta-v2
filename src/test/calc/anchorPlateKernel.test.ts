@@ -134,12 +134,15 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     on fjd·c²/2 vs t²·fyd/4, independent of solver Ft). Biaxial now
     //     converges at φ≈12.4° (atan(My/Mx)) with Ft_total≈31.8 kN, cone
     //     util ≈ 0.55.
+    //   - Post-H2 (Phase 2 Tier 2): Kj real (EC3 1-8 §6.2.5(4)) sube de
+    //     1.75 → 1.8708, fjd de 19.444 → 20.787 MPa (+6.91%). Plate-bending
+    //     util escala linealmente con fjd → worstUtil 0.928·1.0691 ≈ 0.992.
     //   - Future drift: CR3 splitting rewrite (PR6) may change worstUtil
     //     slightly if splitting becomes governing for FTUX. Re-pin then.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(13);    // PR8b: 10 → 13 (concrete shear modes)
-    expect(r.worstUtil).toBeCloseTo(0.928, 2);
+    expect(r.worstUtil).toBeCloseTo(0.992, 2);
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {

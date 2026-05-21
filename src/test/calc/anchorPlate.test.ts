@@ -51,31 +51,34 @@ describe('anchor plate — partial lift (|e| > a/6)', () => {
   // Hand calc (FTUX defaults, My=0):
   //   L_t = a − bar_edge_x = 350 mm   (distance from tension bar to compressed edge)
   //   L_n = a/2 − bar_edge_x = 150 mm  (distance from section centroid to tension bar)
-  //   α extension = min(3, max(1, min(1+2·150/400, 1+2·150/300))) = 1.75
-  //   fjd = (2/3)·1.75·(25/1.5) = 19.444 MPa
-  //   A_c = fjd · plate_b = 19.444 · 300 = 5833.3 N/mm
+  //   Kj (EC3 1-8 §6.2.5(4) post-H2): pedestal_h=1000, ar=br=150
+  //     a1 = min(400+2·150, 5·400, 400+1000) = min(700, 2000, 1400) = 700
+  //     b1 = min(300+2·150, 5·300, 300+1000) = min(600, 1500, 1300) = 600
+  //     Kj = √((700·600)/(400·300)) = √3.5 = 1.8708
+  //   fjd = (2/3)·1.8708·(25/1.5) = 20.787 MPa
+  //   A_c = fjd · plate_b = 20.787 · 300 = 6236.0 N/mm
   //   disc = L_t² − 2·(M + NEd·L_n)/A_c
-  //        = 350² − 2·(45·10⁶ + 200·10³·150)/5833.3
-  //        = 122500 − 25714.3 = 96785.7
-  //   y_c = L_t − √disc = 350 − 311.10 = 38.90 mm
-  //   Ft_total = A_c·y_c − NEd_N = 5833.3·38.90 − 200000 = 26893 N ≈ 26.89 kN
-  //   Nc = NEd + Ft_total ≈ 226.89 kN
-  //   Ft_per_bar = 26.89/2 ≈ 13.45 kN  (FtRd_per_bar=136.6 → NO saturado)
+  //        = 350² − 2·(45·10⁶ + 200·10³·150)/6236.0
+  //        = 122500 − 24054.7 = 98445.3
+  //   y_c = L_t − √disc = 350 − 313.76 = 36.24 mm
+  //   Ft_total = A_c·y_c − NEd_N = 6236.0·36.24 − 200000 = 25985 N ≈ 25.98 kN
+  //   Nc = NEd + Ft_total ≈ 225.98 kN
+  //   Ft_per_bar = 25.98/2 ≈ 12.99 kN  (FtRd_per_bar=136.6 → NO saturado)
   const sol = solveAxisAligned4(base);
 
   it('mode = partial-lift', () => expect(sol.mode).toBe('partial-lift'));
   it('two bars in tension', () => expect(sol.n_t).toBe(2));
-  it('Ft_total matches plastic block equilibrium (~26.89 kN)', () => {
-    expect(sol.Ft_total).toBeCloseTo(26.89, 1);
+  it('Ft_total matches plastic block equilibrium (~25.98 kN)', () => {
+    expect(sol.Ft_total).toBeCloseTo(25.98, 1);
   });
   it('Nc = NEd + Ft_total', () => {
-    expect(sol.Nc).toBeCloseTo(226.89, 1);
+    expect(sol.Nc).toBeCloseTo(225.98, 1);
   });
   it('lifted flag is true', () => expect(sol.lifted).toBe(true));
   it('Ft distributed equally across tensioned corner pair', () => {
     const tensioned = sol.bolts.filter((b) => b.inTension);
     expect(tensioned).toHaveLength(2);
-    for (const b of tensioned) expect(b.Ft).toBeCloseTo(13.45, 1);
+    for (const b of tensioned) expect(b.Ft).toBeCloseTo(12.99, 1);
   });
   it('equilibrium ΣN exact (residuals.SN_kN ≈ 0)', () => {
     expect(Math.abs(sol.residuals.SN_kN)).toBeLessThan(0.01);
@@ -261,6 +264,25 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'prolongacion_recta' });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
     expect(an.value).toContain('α1=1.00');
+  });
+  // H3 (Phase 2 Tier 2): α2 continuo por recubrimiento.
+  // α2 = 1 − 0.15·(cd − φ)/φ,  bounded 0.7 ≤ α2 ≤ 1.0.
+  it('H3 α2: FTUX defaults (cd≈90, φ=20) → α2=0.70 (cap inferior)', () => {
+    // FTUX cd ≈ 90 mm; (90−20)/20 = 3.5 → α2 = 1 − 0.525 = 0.475, cap a 0.70.
+    const r = calcAnchorPlate(base);
+    const an = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(an.value).toMatch(/α2=0\.70/);
+  });
+  it('H3 α2: cd ≤ φ (recubrimiento ajustado) → α2=1.00 (sin reducción)', () => {
+    // pedestal_cX=10, bar_edge_x=80 → cornerX = 200-80 = 120, coverX(corner)
+    // = 10 + (120-120) = 10 < φ → α2 = clamp(1+0.075, 0.7, 1.0) = 1.00.
+    const r = calcAnchorPlate({
+      ...base,
+      bar_edge_x: 80, bar_edge_y: 80,
+      pedestal_cX: 10, pedestal_cY: 10,
+    });
+    const an = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(an.value).toMatch(/α2=1\.00/);
   });
   it('top_connection no afecta al check (ortogonal): soldada vs tuerca_arandela dan mismo α1 y utilización', () => {
     // Con prolongacion_recta en el fondo, cambiar top_connection no debe tocar
@@ -568,9 +590,9 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
     const r = calcAnchorPlate(anchorPlateDefaults);
-    // Sentinel: worstUtil = 0.928 (fijado en PR7b). NO debe cambiar con
+    // Sentinel: worstUtil = 0.992 (post-H2 Kj real). NO debe cambiar con
     // resolveEdges sobre defaults simétricos.
-    expect(r.worstUtil).toBeCloseTo(0.928, 2);
+    expect(r.worstUtil).toBeCloseTo(0.992, 2);
   });
 
   it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
@@ -783,8 +805,8 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
     const r = calcAnchorPlate({ ...anchorPlateDefaults, My: 0 });
     // Dispatcher rutea a solveAxisAligned4 para nLayout=4 + My=0 (PR5).
     expect(['partial-lift', 'uniform-compression']).toContain(r.solver.mode);
-    // Ft_total debe coincidir con PR7a (~26.89 kN)
-    expect(r.solver.Ft_total).toBeCloseTo(26.89, 1);
+    // Ft_total debe coincidir con PR7a (~25.98 kN, post-H2 Kj real)
+    expect(r.solver.Ft_total).toBeCloseTo(25.98, 1);
   });
 });
 
