@@ -172,6 +172,7 @@ export interface SolverResult {
   mode:
     | 'uniform-compression'
     | 'partial-lift'
+    | 'partial-lift-saturated'
     | 'axis-aligned-4'
     | 'biaxial-plastic'
     | 'biaxial-grid';
@@ -215,20 +216,136 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     };
   }
 
-  const x_t = inp.plate_a / 2 - inp.bar_edge_x;
-  const x_n = inp.plate_a / 2 - inp.bar_edge_x / 3;
-  const x_c = x_t + x_n;
+  // CR2 (PR7a) — Partial-lift via rectangular plastic block equilibrium
+  // (CE Anejo 18 §6.2.5 / EC3 1-8 §6.2.5).
+  //
+  // Compression block: depth y_c from the compressed plate edge, width
+  // b_eq = plate_b (T-stub-effective width refinement deferred to a later
+  // PR — current value is conservative-by-extent, anti-conservative-by-
+  // saturation). Tension side: 2 corner bars at distance L_n from section
+  // centroid.
+  //
+  // Equilibrium (taking moments about the tension bar line):
+  //   ΣN = 0:  fjd·b_eq·y_c − Ft_total = NEd                          (1)
+  //   ΣM = 0:  fjd·b_eq·y_c·(L_t − y_c/2) = |M| + NEd·L_n             (2)
+  // where  L_t = a − bar_edge_x  (distance from tension bar to compressed edge)
+  //        L_n = a/2 − bar_edge_x  (distance from section centroid to tension bar)
+  //
+  // Solving (2) for y_c gives the quadratic
+  //   y_c² − 2·L_t·y_c + 2·(M + NEd·L_n)/A_c = 0,  A_c = fjd·b_eq
+  // with the physical root y_c = L_t − √(L_t² − 2·(M + NEd·L_n)/A_c).
+  //
+  // If disc < 0 or y_c is outside [0, a], the section cannot satisfy
+  // equilibrium with this load combination → mode 'partial-lift-saturated'
+  // (caught by checkBoltTension downstream which will return util ≥ 1).
+  //
+  // NEd ≤ 0 (pure tension) is bug H4 — proper handling lands in PR10.
+  // Until then the quadratic typically returns disc < 0 for those cases
+  // and we degrade to saturated.
 
-  const M_kNmm  = MxEd * 1000;
-  const Ft_total = Math.max(0, (M_kNmm - NEd * x_n) / x_c);
-  const Nc       = NEd + Ft_total;
+  const NEd_N = NEd * 1000;
+  const M_Nmm = MxEd * 1e6;
+  const L_t = inp.plate_a - inp.bar_edge_x;
+  const L_n = inp.plate_a / 2 - inp.bar_edge_x;
+  const b_eq = inp.plate_b;
+
+  const fcd_local = inp.fck / GAMMA_C;
+  const alpha_local = alphaExtension(inp);
+  const fjd_local = BETA_J * alpha_local * fcd_local;
+  const A_c = fjd_local * b_eq;
+
+  const disc = L_t * L_t - 2 * (M_Nmm + NEd_N * L_n) / A_c;
 
   const tensionSide = sgn > 0 ? -1 : +1;
+  const { FtRd_kN } = barStrengths(inp);
+
+  if (disc < 0 || NEd <= 0) {
+    // No solución física (incluido NEd<0 que es H4 — TODO PR10).
+    // Forzar Ft per bar = FtRd como techo y reportar saturado.
+    const Ft_total_sat = 2 * FtRd_kN;
+    const Nc_sat = NEd + Ft_total_sat;
+    for (const b of bars) {
+      if (Math.sign(b.x) === tensionSide) {
+        b.inTension = true;
+        b.Ft = FtRd_kN;
+      }
+    }
+    return {
+      bolts: bars,
+      Nc: Nc_sat,
+      Ft_total: Ft_total_sat,
+      n_t: 2,
+      x_c: L_n + (inp.plate_a / 2),     // arm degenerate
+      lifted: true,
+      mode: 'partial-lift-saturated',
+      converged: false,
+      note: NEd <= 0
+        ? 'NEd≤0 no soportado en solver axial — pendiente PR10 (H4)'
+        : 'Sección insuficiente — sin equilibrio plástico para esta combinación',
+      residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
+    };
+  }
+
+  const y_c = L_t - Math.sqrt(disc);
+
+  if (y_c <= 0 || y_c > inp.plate_a) {
+    // y_c físicamente inválido → degradar a saturated.
+    const Ft_total_sat = 2 * FtRd_kN;
+    const Nc_sat = NEd + Ft_total_sat;
+    for (const b of bars) {
+      if (Math.sign(b.x) === tensionSide) {
+        b.inTension = true;
+        b.Ft = FtRd_kN;
+      }
+    }
+    return {
+      bolts: bars,
+      Nc: Nc_sat,
+      Ft_total: Ft_total_sat,
+      n_t: 2,
+      x_c: 0,
+      lifted: true,
+      mode: 'partial-lift-saturated',
+      converged: false,
+      note: `Profundidad bloque y_c=${y_c.toFixed(1)} mm fuera de rango físico`,
+      residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
+    };
+  }
+
+  const Ft_total_N = A_c * y_c - NEd_N;
+  const Ft_total_raw = Math.max(0, Ft_total_N / 1000);
+  const Ft_per_bar = Ft_total_raw / 2;
+
+  // Si Ft por barra excede FtRd, el equilibrio asumido no se puede sostener
+  // físicamente (las barras plastifican antes). Reportar saturado.
+  const saturated = Ft_per_bar > FtRd_kN;
+  const Ft_total = saturated ? 2 * FtRd_kN : Ft_total_raw;
+  const Nc = NEd + Ft_total;
+  const Ft_assigned = saturated ? FtRd_kN : Ft_per_bar;
+
   for (const b of bars) {
     if (Math.sign(b.x) === tensionSide) {
       b.inTension = true;
-      b.Ft = Ft_total / 2;
+      b.Ft = Ft_assigned;
     }
+  }
+
+  // Brazo del bloque desde el centroide de la sección (positivo hacia
+  // el lado comprimido). Para residuals SMx: si saturated, el momento
+  // que la sección puede sostener es menor que el aplicado.
+  const x_n_lever = inp.plate_a / 2 - y_c / 2;
+  const x_c_total = L_n + x_n_lever;
+
+  // Residual de momento (en saturated). En no-saturated el equilibrio
+  // es exacto por construcción de la cuadrática.
+  let SMx_residual_kNm = 0;
+  if (saturated) {
+    // El y_c usado arriba ya no satisface la cuadrática original. Recomputar
+    // y_c a partir de Nc saturado:
+    const y_c_sat = (Nc * 1000) / A_c;
+    const x_n_sat = inp.plate_a / 2 - y_c_sat / 2;
+    const M_int_Nmm = Nc * 1000 * x_n_sat + Ft_total * 1000 * L_n;
+    SMx_residual_kNm = MxEd - M_int_Nmm / 1e6;
   }
 
   return {
@@ -236,14 +353,14 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     Nc,
     Ft_total,
     n_t: 2,
-    x_c,
+    x_c: x_c_total,
     lifted: true,
-    mode: 'partial-lift',
-    converged: true,
-    note: 'Tracción parcial — bloque plástico rectangular (EC3 §6.2.5 simplif.)',
-    // Closed-form path: ΣN exact by construction. ΣM residual N/A here
-    // (no equilibrium iteration); will be properly computed in PR7a.
-    residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
+    mode: saturated ? 'partial-lift-saturated' : 'partial-lift',
+    converged: !saturated,
+    note: saturated
+      ? `Tracción agotada — Ft/barra ${Ft_per_bar.toFixed(1)} kN > FtRd ${FtRd_kN.toFixed(1)} kN`
+      : 'Tracción parcial — bloque plástico rectangular (CE Anejo 18 §6.2.5)',
+    residuals: { SN_kN: 0, SMx_kNm: SMx_residual_kNm, SMy_kNm: 0 },
   };
 }
 

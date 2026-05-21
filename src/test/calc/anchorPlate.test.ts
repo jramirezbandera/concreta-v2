@@ -42,29 +42,46 @@ describe('anchor plate — eccentricity within kernel (|e| ≤ a/6)', () => {
 });
 
 describe('anchor plate — partial lift (|e| > a/6)', () => {
-  // defaults: NEd=200, Mx=45 → e = 225 mm > a/6 (66.7).
-  // Closed form (geométrica, no capada por FtRd):
-  //   x_t = a/2 - edge_x        = 200 - 50         = 150 mm
-  //   x_n = a/2 - edge_x/3      = 200 - 50/3       ≈ 183.33 mm
-  //   x_c = x_t + x_n           ≈ 333.33 mm
-  //   M_kNmm = 45 · 1000 = 45000
-  //   Ft_total = (45000 − 200·183.33) / 333.33 ≈ 25.0 kN
-  //   Nc = 200 + 25 = 225 kN
+  // CR2 fix (PR7a): partial-lift via rectangular plastic block equilibrium
+  // (CE Anejo 18 §6.2.5). Replaces the ad-hoc lever arm `x_n = a/2 − bar_edge_x/3`
+  // that had no normative basis.
+  //
+  // defaults: NEd=200, Mx=45 → e = 225 mm > a/6 (66.7) → partial-lift path.
+  //
+  // Hand calc (FTUX defaults, My=0):
+  //   L_t = a − bar_edge_x = 350 mm   (distance from tension bar to compressed edge)
+  //   L_n = a/2 − bar_edge_x = 150 mm  (distance from section centroid to tension bar)
+  //   α extension = min(3, max(1, min(1+2·150/400, 1+2·150/300))) = 1.75
+  //   fjd = (2/3)·1.75·(25/1.5) = 19.444 MPa
+  //   A_c = fjd · plate_b = 19.444 · 300 = 5833.3 N/mm
+  //   disc = L_t² − 2·(M + NEd·L_n)/A_c
+  //        = 350² − 2·(45·10⁶ + 200·10³·150)/5833.3
+  //        = 122500 − 25714.3 = 96785.7
+  //   y_c = L_t − √disc = 350 − 311.10 = 38.90 mm
+  //   Ft_total = A_c·y_c − NEd_N = 5833.3·38.90 − 200000 = 26893 N ≈ 26.89 kN
+  //   Nc = NEd + Ft_total ≈ 226.89 kN
+  //   Ft_per_bar = 26.89/2 ≈ 13.45 kN  (FtRd_per_bar=136.6 → NO saturado)
   const sol = solveAxisAligned4(base);
 
   it('mode = partial-lift', () => expect(sol.mode).toBe('partial-lift'));
   it('two bars in tension', () => expect(sol.n_t).toBe(2));
-  it('Ft_total matches closed form (~25 kN)', () => {
-    expect(sol.Ft_total).toBeCloseTo(25.0, 1);
+  it('Ft_total matches plastic block equilibrium (~26.89 kN)', () => {
+    expect(sol.Ft_total).toBeCloseTo(26.89, 1);
   });
   it('Nc = NEd + Ft_total', () => {
-    expect(sol.Nc).toBeCloseTo(225.0, 1);
+    expect(sol.Nc).toBeCloseTo(226.89, 1);
   });
   it('lifted flag is true', () => expect(sol.lifted).toBe(true));
   it('Ft distributed equally across tensioned corner pair', () => {
     const tensioned = sol.bolts.filter((b) => b.inTension);
     expect(tensioned).toHaveLength(2);
-    for (const b of tensioned) expect(b.Ft).toBeCloseTo(12.5, 1);
+    for (const b of tensioned) expect(b.Ft).toBeCloseTo(13.45, 1);
+  });
+  it('equilibrium ΣN exact (residuals.SN_kN ≈ 0)', () => {
+    expect(Math.abs(sol.residuals.SN_kN)).toBeLessThan(0.01);
+  });
+  it('equilibrium ΣM exact (residuals.SMx_kNm ≈ 0 when not saturated)', () => {
+    expect(Math.abs(sol.residuals.SMx_kNm)).toBeLessThan(0.01);
   });
 });
 
@@ -365,6 +382,61 @@ describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
 // src/test/calc/anchorPlateOracle.test.ts in PR1 of the audit-driven refactor.
 // Each config is activated as the corresponding fix PR lands. See that file
 // for the full normative derivations.
+
+describe('PR7a — CR2 partial-lift saturated + equilibrium', () => {
+  it('Mx muy alto saturando barras → mode partial-lift-saturated, converged=false', () => {
+    // Aumentar Mx para que Ft_per_bar > FtRd (=136.6 kN).
+    // Para FTUX, Ft_total = A_c·y_c − NEd. Saturado cuando Ft_per_bar > 136.6 → Ft_total > 273.
+    // Aumentar Mx hasta forzar eso. Con NEd=200 y demás defaults:
+    //   y_c desde Ft_total=273: A_c·y_c = NEd + Ft_total = 473 kN → y_c = 473000/5833 ≈ 81.1 mm.
+    //   Recuperar M desde y_c: M = A_c·y_c·(L_t - y_c/2) - NEd·L_n
+    //                          = 5833·81·(350-40.5) - 200000·150
+    //                          = 5833·81·309.5 - 3e7 = 146.3·10^6 - 30·10^6 = 116.3·10^6 Nmm = 116 kNm
+    // Mx > 116 kNm → saturado. Probar con Mx=200.
+    const sol = solveAxisAligned4({ ...base, Mx: 200 });
+    expect(sol.mode).toBe('partial-lift-saturated');
+    expect(sol.converged).toBe(false);
+    expect(sol.note).toContain('Tracción agotada');
+  });
+  it('saturated case: Ft_per_bar = FtRd exactly', () => {
+    const sol = solveAxisAligned4({ ...base, Mx: 200 });
+    const tensioned = sol.bolts.filter((b) => b.inTension);
+    expect(tensioned.length).toBeGreaterThan(0);
+    // FtRd para φ20 B500S = 314.16·434.78/1000 = 136.59 kN
+    for (const b of tensioned) {
+      expect(b.Ft).toBeCloseTo(136.59, 1);
+    }
+  });
+  it('saturated case: SMx residual ≠ 0 (no equilibrio físico)', () => {
+    const sol = solveAxisAligned4({ ...base, Mx: 200 });
+    // Cuando satura, el momento residual es la cantidad que la sección
+    // NO puede sostener. Debe ser no-trivial.
+    expect(Math.abs(sol.residuals.SMx_kNm)).toBeGreaterThan(10);
+  });
+  it('NEd≤0 → mode saturated con nota de H4/PR10 (degradación graceful)', () => {
+    // H4 (NEd<0 pure tension) es PR10. Hasta entonces solveAxisAligned4 degrada
+    // a saturated explícitamente en lugar de devolver basura silenciosa.
+    const sol = solveAxisAligned4({ ...base, NEd: -50, Mx: 20 });
+    expect(sol.mode).toBe('partial-lift-saturated');
+    expect(sol.converged).toBe(false);
+    expect(sol.note).toContain('PR10');
+  });
+  it('property: aumentar Mx (sin saturar) aumenta Ft_total monotónicamente', () => {
+    const r1 = solveAxisAligned4({ ...base, Mx: 30 });
+    const r2 = solveAxisAligned4({ ...base, Mx: 60 });
+    const r3 = solveAxisAligned4({ ...base, Mx: 90 });
+    expect(r2.Ft_total).toBeGreaterThan(r1.Ft_total);
+    expect(r3.Ft_total).toBeGreaterThan(r2.Ft_total);
+    // None saturated for these values (Ft_total < 273 for all 3)
+    expect(r3.mode).toBe('partial-lift');
+  });
+  it('property: aumentar NEd reduce Ft_total (compresión externa equilibra el momento)', () => {
+    const r_lowN = solveAxisAligned4({ ...base, NEd: 100, Mx: 45 });
+    const r_highN = solveAxisAligned4({ ...base, NEd: 400, Mx: 45 });
+    // Más compresión axial → menos tracción necesaria en las barras.
+    expect(r_highN.Ft_total).toBeLessThan(r_lowN.Ft_total);
+  });
+});
 
 describe('PR5 — CR4 dispatcher rutea nLayout>4 a biaxial bajo Mx puro', () => {
   it('nLayout=6 + My=0 → solver biaxial, modela 6 barras', () => {
