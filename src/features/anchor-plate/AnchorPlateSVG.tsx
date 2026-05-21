@@ -27,6 +27,7 @@ const COLORS = {
     pedestal_stroke: '#475569',
     compression:  'rgba(56,189,248,0.15)',
     compression_stroke: '#38bdf8',
+    neutral_axis: '#cbd5e1',   // M9: distinto del compression_stroke (#38bdf8)
     cone_stroke:  '#94a3b8',
     text:         '#f8fafc',
     dim:          '#64748b',
@@ -43,17 +44,29 @@ const COLORS = {
     rib_hatch:    '#64748b',
     pedestal:     '#ffffff',
     pedestal_stroke: '#475569',
-    compression:  'rgba(14,165,233,0.15)',
+    // M12 (Phase 4): opacidad subida (0.15 → 0.35) para que el bloque
+    // comprimido siga siendo legible en impresión B&W. Combinado con M26
+    // (hatching pattern superpuesto) la zona se distingue sin color.
+    compression:  'rgba(14,165,233,0.35)',
     compression_stroke: '#0ea5e9',
+    neutral_axis: '#475569',   // M9: distinto del compression_stroke (#0ea5e9)
     cone_stroke:  '#64748b',
     text:         '#0f172a',
     dim:          '#64748b',
   },
 };
 
+// L15 (Phase 4) — IDs estables para aria-labelledby. El sufijo `mode`
+// evita colisión entre el SVG de pantalla y el oculto del PDF.
+let svgInstanceCounter = 0;
+
 export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
   const C = COLORS[mode];
   const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
+  // ID determinista a partir de `mode` para que no genere mismatch SSR/CSR.
+  const titleId = `anchor-plate-svg-title-${mode}`;
+  const descId  = `anchor-plate-svg-desc-${mode}`;
+  void svgInstanceCounter;
 
   // Dual-panel layout: planta (top) + alzado (bottom).
   const panelGap = 12;
@@ -111,10 +124,19 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
+      aria-labelledby={`${titleId} ${descId}`}
       style={{ fontFamily: 'var(--font-mono, monospace)' }}
     >
-      <title>Placa de anclaje — planta y alzado</title>
-      <desc>{`${inp.sectionType} ${inp.sectionSize}, placa ${inp.plate_a}×${inp.plate_b}×${inp.plate_t} mm, ${inp.bar_nLayout} barras Ø${inp.bar_diam} ${inp.bar_grade}`}</desc>
+      <title id={titleId}>Placa de anclaje — planta y alzado</title>
+      <desc id={descId}>
+        {`${inp.sectionType} ${inp.sectionSize}, placa ${inp.plate_a}×${inp.plate_b}×${inp.plate_t} mm, `}
+        {`${inp.bar_nLayout} barras Ø${inp.bar_diam} ${inp.bar_grade}. `}
+        {result.valid
+          ? `Modo solver: ${result.solver.mode}, ${result.solver.n_t} barras traccionadas. `
+              + `Veredicto global: ${result.overallStatus.toUpperCase()} `
+              + `(utilización máxima ${isFinite(result.worstUtil) ? (result.worstUtil * 100).toFixed(0) + '%' : '∞'}).`
+          : 'Sin solicitación introducida.'}
+      </desc>
 
       {/* ═══════════ PLANTA ═══════════ */}
       <g>
@@ -141,6 +163,16 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           strokeWidth={1.5}
         />
 
+        {/* M26 (Phase 4) — pattern de hatching para la zona comprimida (PDF).
+            En B&W el fill por color no se distingue del fondo; superponemos
+            líneas diagonales para que la zona sea identificable sin color.
+            En pantalla se omite (el dark theme ya tiene contraste). */}
+        {mode === 'pdf' && (
+          <pattern id={`hatch-compression-${mode}`} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="5" stroke={C.compression_stroke} strokeWidth="0.6" opacity="0.7" />
+          </pattern>
+        )}
+
         {/* Compression zone — biaxial: real polygon from solver (plate-local mm).
             Axis-aligned: simple rectangular approximation (no solver polygon). */}
         {result.valid && result.solver.lifted && result.solver.block && result.solver.block.length >= 3 && (() => {
@@ -148,13 +180,18 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
             .map((p) => `${pCx + p.x * scalePlanta},${pCy + p.y * scalePlanta}`)
             .join(' ');
           return (
-            <polygon
-              points={pts}
-              fill={C.compression}
-              stroke={C.compression_stroke}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-            />
+            <>
+              <polygon
+                points={pts}
+                fill={C.compression}
+                stroke={C.compression_stroke}
+                strokeWidth={1}
+                strokeDasharray="2 2"
+              />
+              {mode === 'pdf' && (
+                <polygon points={pts} fill={`url(#hatch-compression-${mode})`} stroke="none" />
+              )}
+            </>
           );
         })()}
         {result.valid && result.solver.lifted && !result.solver.block && (() => {
@@ -163,20 +200,29 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           const blockW = plateW * 0.35;
           const blockX = mxSign > 0 ? pCx + plateW / 2 - blockW : pCx - plateW / 2;
           return (
-            <rect
-              x={blockX}
-              y={pCy - plateH / 2}
-              width={blockW}
-              height={plateH}
-              fill={C.compression}
-              stroke={C.compression_stroke}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-            />
+            <>
+              <rect
+                x={blockX}
+                y={pCy - plateH / 2}
+                width={blockW}
+                height={plateH}
+                fill={C.compression}
+                stroke={C.compression_stroke}
+                strokeWidth={1}
+                strokeDasharray="2 2"
+              />
+              {mode === 'pdf' && (
+                <rect x={blockX} y={pCy - plateH / 2} width={blockW} height={plateH}
+                      fill={`url(#hatch-compression-${mode})`} stroke="none" />
+              )}
+            </>
           );
         })()}
 
-        {/* Neutral axis line (biaxial only — phi_NA + d_NA in plate coords) */}
+        {/* Neutral axis line (biaxial only — phi_NA + d_NA in plate coords).
+            M9 (Phase 4) — color distinto del compression_stroke (que era
+            cyan-dashed igual al borde del polígono comprimido) + label con
+            el ángulo φ. */}
         {result.valid && result.solver.phi_NA !== undefined && result.solver.d_NA !== undefined && (() => {
           const phi = result.solver.phi_NA!;
           const d = result.solver.d_NA!;
@@ -187,17 +233,37 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           const y0 = d * sin + L * cos;
           const x1 = d * cos + L * sin;
           const y1 = d * sin - L * cos;
+          // Label position: extremo +sin de la línea, ligeramente hacia afuera.
+          const labelMm = 1.05 * (inp.plate_a / 2);
+          const lbx = pCx + (d * cos + labelMm * sin) * scalePlanta;
+          const lby = pCy + (d * sin - labelMm * cos) * scalePlanta;
+          // φ normalizado a [-90°, +90°] para legibilidad ingenieril.
+          let phi_deg = (phi * 180) / Math.PI;
+          while (phi_deg > 90) phi_deg -= 180;
+          while (phi_deg < -90) phi_deg += 180;
           return (
-            <line
-              x1={pCx + x0 * scalePlanta}
-              y1={pCy + y0 * scalePlanta}
-              x2={pCx + x1 * scalePlanta}
-              y2={pCy + y1 * scalePlanta}
-              stroke={C.compression_stroke}
-              strokeWidth={1.5}
-              strokeDasharray="6 3"
-              opacity={0.8}
-            />
+            <g>
+              <line
+                x1={pCx + x0 * scalePlanta}
+                y1={pCy + y0 * scalePlanta}
+                x2={pCx + x1 * scalePlanta}
+                y2={pCy + y1 * scalePlanta}
+                stroke={C.neutral_axis}
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                opacity={0.85}
+              />
+              <text
+                x={lbx}
+                y={lby}
+                fill={C.neutral_axis}
+                fontSize={9}
+                textAnchor="middle"
+                dominantBaseline="middle"
+              >
+                {`EN (φ=${phi_deg.toFixed(0)}°)`}
+              </text>
+            </g>
           );
         })()}
 
@@ -264,11 +330,36 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
         <text x={12} y={16} fill={C.text} fontSize={10} opacity={0.7}>
           Planta
         </text>
-        {/* Dimensions a × b */}
-        <text x={pCx} y={pCy - plateH / 2 - 4} fill={C.dim} fontSize={9} textAnchor="middle">
+        {/* M14 (Phase 4) — flecha de convención de signos Mx: indica el lado
+            que tracciona bajo +Mx. Sin esto el usuario no sabe qué lado del
+            grupo se levanta al cambiar el signo. */}
+        <g opacity={0.75} fill={C.text}>
+          <line x1={width - 18} y1={panelH - 16} x2={width - 4} y2={panelH - 16}
+                stroke={C.text} strokeWidth={0.8} opacity={0.5} />
+          <path d={`M ${width - 4} ${panelH - 16} l -4 -2 l 0 4 z`} fill={C.text} opacity={0.5} />
+          <text x={width - 6} y={panelH - 4} fontSize={8} textAnchor="end" opacity={0.6}>
+            +Mx tracciona −x
+          </text>
+        </g>
+        {/* L7 (Phase 4) — witness lines (líneas de extensión) en las cotas
+            a y b: arranque de tick sobre el borde de la placa hacia la cota,
+            haciéndolas verdaderas anotaciones de plano y no texto suelto. */}
+        {/* Cota a (paralela al eje x) */}
+        <g stroke={C.dim} strokeWidth={0.5}>
+          <line x1={pCx - plateW / 2} y1={pCy - plateH / 2} x2={pCx - plateW / 2} y2={pCy - plateH / 2 - 10} />
+          <line x1={pCx + plateW / 2} y1={pCy - plateH / 2} x2={pCx + plateW / 2} y2={pCy - plateH / 2 - 10} />
+          <line x1={pCx - plateW / 2} y1={pCy - plateH / 2 - 7} x2={pCx + plateW / 2} y2={pCy - plateH / 2 - 7} />
+        </g>
+        <text x={pCx} y={pCy - plateH / 2 - 11} fill={C.dim} fontSize={9} textAnchor="middle">
           a = {inp.plate_a}
         </text>
-        <text x={pCx + plateW / 2 + 4} y={pCy} fill={C.dim} fontSize={9} textAnchor="start">
+        {/* Cota b (paralela al eje y) */}
+        <g stroke={C.dim} strokeWidth={0.5}>
+          <line x1={pCx + plateW / 2} y1={pCy - plateH / 2} x2={pCx + plateW / 2 + 10} y2={pCy - plateH / 2} />
+          <line x1={pCx + plateW / 2} y1={pCy + plateH / 2} x2={pCx + plateW / 2 + 10} y2={pCy + plateH / 2} />
+          <line x1={pCx + plateW / 2 + 7} y1={pCy - plateH / 2} x2={pCx + plateW / 2 + 7} y2={pCy + plateH / 2} />
+        </g>
+        <text x={pCx + plateW / 2 + 11} y={pCy} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle">
           b = {inp.plate_b}
         </text>
       </g>
@@ -474,16 +565,47 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
             );
           })}
 
-        {/* Panel title + hef dim */}
+        {/* Panel title + hef/t dimensions */}
         <text x={12} y={panelH + panelGap + 16} fill={C.text} fontSize={10} opacity={0.7}>
           Alzado
         </text>
-        <text x={aCx + aPlateW / 2 + 4} y={plateYrect + aPlateT / 2 + hefVisPx / 2} fill={C.dim} fontSize={9} textAnchor="start">
-          hef = {inp.bar_hef}
-        </text>
-        <text x={aCx - aPlateW / 2 - 4} y={plateYrect + aPlateT / 2 + 3} fill={C.dim} fontSize={9} textAnchor="end">
-          t = {inp.plate_t}
-        </text>
+        {/* L7 (Phase 4) — cota hef: witness lines desde la cara inf. de la
+            placa y el extremo de la barra hacia la línea de cota. */}
+        {(() => {
+          const dimX = aCx + pedestalAlzadoW / 2 + 10;
+          const yTop = plateYrect + aPlateT;
+          const yBot = plateYrect + aPlateT + hefVisPx;
+          return (
+            <g>
+              <g stroke={C.dim} strokeWidth={0.5}>
+                <line x1={aCx + pedestalAlzadoW / 2} y1={yTop} x2={dimX + 3} y2={yTop} />
+                <line x1={aCx + pedestalAlzadoW / 2} y1={yBot} x2={dimX + 3} y2={yBot} />
+                <line x1={dimX} y1={yTop} x2={dimX} y2={yBot} />
+              </g>
+              <text x={dimX + 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle">
+                hef = {inp.bar_hef}
+              </text>
+            </g>
+          );
+        })()}
+        {/* L7 — cota t (espesor placa): witness lines a la izquierda. */}
+        {(() => {
+          const dimX = aCx - pedestalAlzadoW / 2 - 10;
+          const yTop = plateYrect;
+          const yBot = plateYrect + aPlateT;
+          return (
+            <g>
+              <g stroke={C.dim} strokeWidth={0.5}>
+                <line x1={aCx - aPlateW / 2} y1={yTop} x2={dimX - 3} y2={yTop} />
+                <line x1={aCx - aPlateW / 2} y1={yBot} x2={dimX - 3} y2={yBot} />
+                <line x1={dimX} y1={yTop} x2={dimX} y2={yBot} />
+              </g>
+              <text x={dimX - 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="end" dominantBaseline="middle">
+                t = {inp.plate_t}
+              </text>
+            </g>
+          );
+        })()}
       </g>
     </svg>
   );

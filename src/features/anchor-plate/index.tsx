@@ -32,19 +32,32 @@ export function AnchorPlateModule() {
     usePdfPreview(() => exportAnchorPlatePDF(deferredState, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
 
-  const FIXED_SVG_W = 420;
+  // M24 (Phase 4): cap desktop subido de 420 → 720 px. La placa es el "trust
+  // anchor" del módulo y la tabla de resultados pesaba más en pantalla.
+  // 720 sigue siendo conservador vs el sibling isolated-footing (960).
+  const FIXED_SVG_W = 720;
   const CANVAS_PAD = 32;
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.min(FIXED_SVG_W, Math.max(260, canvasWidth - CANVAS_PAD))
     : FIXED_SVG_W;
   const svgH = Math.round(svgW * 1.1);
 
+  // M13 (Phase 4): mobile responsive. Antes width=320 hardcoded → en layouts
+  // 8/9 los círculos de barras caían a 3-4 px. Usamos el ancho real del
+  // contenedor con cap 480 (típico phone landscape) y min 280.
+  const MOBILE_PAD = 24;
+  const mobileSvgW = mobileCanvasWidth !== undefined && mobileCanvasWidth > 0
+    ? Math.min(480, Math.max(280, mobileCanvasWidth - MOBILE_PAD))
+    : 320;
+  const mobileSvgH = Math.round(mobileSvgW * 1.1);
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <Topbar
         moduleLabel="Placas de anclaje"
-        moduleGroup="Acero"
+        moduleGroup="Acero + cimentación"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
@@ -104,13 +117,16 @@ export function AnchorPlateModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div
+            ref={mobileCanvasRef}
+            className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid"
+          >
             <AnchorPlateSVG
               inp={deferredState}
               result={result}
               mode="screen"
-              width={320}
-              height={Math.round(320 * 1.1)}
+              width={mobileSvgW}
+              height={mobileSvgH}
             />
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useState, useId, type ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
 import {
   CheckRowItem,
@@ -88,10 +89,35 @@ const CHECK_SHORT_LABEL: Record<string, string> = {
 export function AnchorPlateResults({ result }: Props) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  // M10 (Phase 4) — empty state alineado con steel-columns: pill SIN DATOS +
+  // tarjeta de explicación en lugar de una línea italic que el usuario puede
+  // confundir con "sin tracción".
   if (!result.valid) {
     return (
-      <div className="text-[12px] text-text-disabled italic">
-        Sin solicitación — introduce NEd, Mx o My para calcular.
+      <div className="flex flex-col">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+            Resultados calculados
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] bg-state-neutral/10 text-state-neutral"
+            role="status"
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden="true" />
+            SIN DATOS
+          </span>
+        </div>
+        <div className="flex items-start gap-3 rounded border border-border-main bg-bg-elevated/40 px-3 py-3">
+          <AlertTriangle size={16} className="text-text-secondary mt-0.5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="text-[12px] text-text-primary font-semibold mb-0.5">
+              Sin solicitación
+            </p>
+            <p className="text-[11px] text-text-secondary">
+              Introduce un esfuerzo en el panel izquierdo (NEd, Mx, My o VEd) para activar el cálculo.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -184,7 +184,16 @@ export async function exportAnchorPlatePDF(
       await svg2pdf(svgEl, doc, { x: M, y, width: CW, height: rendH });
       y += rendH + 2;
     } catch {
-      // silently skip diagram
+      // L6 (Phase 4): si el render del SVG falla, en lugar de un hueco
+      // silencioso (donde aparecía la leyenda flotando sobre nada), pinta
+      // un placeholder visible para que el lector sepa que falta el diagrama.
+      setGray(doc, 235);
+      doc.rect(M, y, CW, 40, 'F');
+      setGray(doc, 120);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.text('Diagrama no disponible en esta versión del PDF', PAGE_W / 2, y + 22, { align: 'center' });
+      y += 42;
     }
 
     setGray(doc, 140);
