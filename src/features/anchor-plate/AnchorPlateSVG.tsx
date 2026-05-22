@@ -318,40 +318,39 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
         )}
 
         {/* Rigidizadores (planta).
-            checkPlateBending convention (anchorPlate.ts):
-              rib_count=2: 2 nervios paralelos al eje fuerte, a ambos lados de
-                           las alas → uno en cada voladizo de plate_a, centrado
-                           en y, extendido en x desde el ala hasta el borde de
-                           la placa (longitud = c_strong = (plate_a − h)/2).
-              rib_count=4: 2 adicionales paralelos al eje débil → uno en cada
-                           voladizo de plate_b, centrado en x, extendido en y
-                           (longitud = c_weak = (plate_b − b)/2).
-            Aquí dibujamos el FOOTPRINT del nervio en planta: largo × espesor.
+            Convención real (matches RibGlyph2/RibGlyph4 icons): hay 2 nervios
+            POR DIRECCIÓN, soldados al exterior de cada ala / extremo del perfil.
+              rib_count=2: 2 nervios paralelos al eje fuerte → uno pegado al
+                           exterior de cada ala del perfil (y = −profB/2 y
+                           y = +profB/2). Cada nervio cruza el voladizo del eje
+                           fuerte (extendido en X de borde a borde de la placa).
+              rib_count=4: + 2 nervios paralelos al eje débil → uno pegado al
+                           extremo de cada ala (x = ±profH/2), extendido en Y
+                           de borde a borde de la placa. Total 4 nervios.
             rib_h (altura vertical) NO se muestra en planta — solo en alzado. */}
         {inp.rib_count >= 2 && profile && (() => {
           const ribT = inp.rib_t * scalePlanta;
           const profH_px = profile.h * scalePlanta;
           const profB_px = profile.b * scalePlanta;
-          // Voladizos en píxeles, desde el ala hasta el borde de la placa.
-          const cStrongPx = Math.max(0, (plateW - profH_px) / 2);
-          const cWeakPx   = Math.max(0, (plateH - profB_px) / 2);
           return (
             <g>
-              {/* Nervios paralelos al eje fuerte (en los voladizos x). */}
-              <rect x={pCx - plateW / 2} y={pCy - ribT / 2}
-                    width={cStrongPx} height={ribT}
+              {/* 2 nervios paralelos al eje fuerte, pegados a la cara externa
+                  de cada ala (uno en y = −profB/2 − ribT, otro en y = +profB/2). */}
+              <rect x={pCx - plateW / 2} y={pCy - profB_px / 2 - ribT}
+                    width={plateW} height={ribT}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={pCx + profH_px / 2} y={pCy - ribT / 2}
-                    width={cStrongPx} height={ribT}
+              <rect x={pCx - plateW / 2} y={pCy + profB_px / 2}
+                    width={plateW} height={ribT}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
               {inp.rib_count === 4 && (
                 <>
-                  {/* Nervios paralelos al eje débil (en los voladizos y). */}
-                  <rect x={pCx - ribT / 2} y={pCy - plateH / 2}
-                        width={ribT} height={cWeakPx}
+                  {/* 2 nervios paralelos al eje débil, pegados al extremo de
+                      cada ala (uno en x = −profH/2 − ribT, otro en x = +profH/2). */}
+                  <rect x={pCx - profH_px / 2 - ribT} y={pCy - plateH / 2}
+                        width={ribT} height={plateH}
                         fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-                  <rect x={pCx - ribT / 2} y={pCy + profB_px / 2}
-                        width={ribT} height={cWeakPx}
+                  <rect x={pCx + profH_px / 2} y={pCy - plateH / 2}
+                        width={ribT} height={plateH}
                         fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
                 </>
               )}

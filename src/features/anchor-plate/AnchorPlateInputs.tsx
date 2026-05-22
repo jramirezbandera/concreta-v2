@@ -238,10 +238,12 @@ function BoltGlyph6() {
   );
 }
 function BoltGlyph8() {
+  // 4 puntos por fila × 2 filas. Rectángulo de x=4 a x=28 (ancho 24).
+  // Para márgenes simétricos: spacing 6 → x = 7, 13, 19, 25.
   return (
     <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
       <rect x="4" y="6" width="24" height="20" rx="1.5" />
-      {[8, 14, 20, 26].flatMap((x) => [
+      {[7, 13, 19, 25].flatMap((x) => [
         <circle key={`t${x}`} cx={x} cy="11" r="1.3" />,
         <circle key={`b${x}`} cx={x} cy="21" r="1.3" />,
       ])}
