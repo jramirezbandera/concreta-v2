@@ -89,21 +89,42 @@ function SelectField({
   setField: Props['setField'];
   disabled?: boolean;
 }) {
+  // When label OR the longest option label would not fit alongside the
+  // narrow inputs column (≈ 280px), stack vertically so both stay readable.
+  // Threshold tuned to the panel width: label > 10 chars or any option > 18.
+  const longestOpt = options.reduce((m, o) => Math.max(m, o.label.length), 0);
+  const stack = label.length > 10 || longestOpt > 18;
+
+  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const raw = e.target.value;
+    const asNum = Number(raw);
+    // Cast: option values are controlled by the caller and match Inputs[field]'s union.
+    setField(field, (isNaN(asNum) ? raw : asNum) as Inputs[typeof field]);
+  };
+
+  const selectCls = "bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+  if (stack) {
+    return (
+      <div className="flex flex-col gap-1 py-0.75 max-lg:min-h-11 min-w-0">
+        <label htmlFor={`ap-sel-${field}`} className="text-[13px] text-text-secondary leading-tight">
+          {label}
+        </label>
+        <select id={`ap-sel-${field}`} value={value} disabled={disabled} onChange={onChange}
+          className={`w-full min-w-0 ${selectCls}`}>
+          {options.map((o) => (
+            <option key={String(o.value)} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`ap-sel-${field}`} label={label} />
-      <select
-        id={`ap-sel-${field}`}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => {
-          const raw = e.target.value;
-          const asNum = Number(raw);
-          // Cast: option values are controlled by the caller and match Inputs[field]'s union.
-          setField(field, (isNaN(asNum) ? raw : asNum) as Inputs[typeof field]);
-        }}
-        className="min-w-0 max-w-44 truncate bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] text-text-primary font-mono outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
+      <select id={`ap-sel-${field}`} value={value} disabled={disabled} onChange={onChange}
+        className={`min-w-0 max-w-44 truncate ${selectCls}`}>
         {options.map((o) => (
           <option key={String(o.value)} value={o.value}>{o.label}</option>
         ))}
