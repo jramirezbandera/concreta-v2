@@ -187,10 +187,20 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
             .map((p) => `${pCx + p.x * scalePlanta},${pCy + p.y * scalePlanta}`)
             .join(' ');
           // L10 (Phase 5) — centroide del polígono para etiquetar fjd dentro.
-          let cx_mm = 0, cy_mm = 0;
-          for (const p of block) { cx_mm += p.x; cy_mm += p.y; }
+          let cx_mm = 0;
+          let y_min = Infinity, y_max = -Infinity;
+          for (const p of block) {
+            cx_mm += p.x;
+            y_min = Math.min(y_min, p.y);
+            y_max = Math.max(y_max, p.y);
+          }
           cx_mm /= block.length;
-          cy_mm /= block.length;
+          // F5 (design-review): situar el label en el tercio superior del bbox
+          // del polígono en lugar del centroide vertical. Cuando el polígono
+          // cubre toda la altura de la placa (mid-y = pCy), el centroide
+          // coincidía con la cota lateral "b = ..." (también en pCy) y los
+          // textos se solapaban.
+          const cy_mm = y_min + (y_max - y_min) * 0.3;
           const lblX = pCx + cx_mm * scalePlanta;
           const lblY = pCy + cy_mm * scalePlanta;
           return (
