@@ -121,21 +121,27 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
 
   // Compact mode (FEM embed): drops the horizontal utilization bar column to
   // fit the narrower right-side panel. Layout collapses from 4 cols to 3.
-  const gridCols = compact ? '1fr auto auto' : '1fr 140px 64px 60px';
-  const padX = compact ? 'px-3 pl-4' : 'px-4 pl-5';
-  const gap  = compact ? 'gap-2' : 'gap-3.5';
+  //
+  // Non-compact mode is responsive: 4 cols on desktop (lg+), 3 cols on
+  // mobile/tablet (the bar hides). The previous static 4-col grid left
+  // ~50px for the description on a 375px viewport, making the check name
+  // disappear entirely. Below lg we adopt the compact-style proportions.
+  const padX = compact ? 'px-3 pl-4' : 'px-4 pl-5 max-lg:px-3 max-lg:pl-4';
+  const gap  = compact ? 'gap-2' : 'gap-3.5 max-lg:gap-2';
 
-  // In compact mode the description is allowed to wrap onto multiple lines
-  // (the right panel is too narrow for a single-line ellipsis to be readable
-  //  — "M…" or "Ar…" vanishes the meaning entirely).
+  const gridColsClass = compact
+    ? '[grid-template-columns:1fr_auto_auto]'
+    : 'lg:[grid-template-columns:1fr_140px_64px_60px] [grid-template-columns:1fr_minmax(0,1fr)_auto]';
+
+  // In compact mode (and below lg) the description is allowed to wrap so the
+  // check name is always readable. On desktop we keep single-line ellipsis
+  // to preserve density.
   const descClass = compact
     ? 'text-[12px] text-text-primary leading-snug wrap-break-word'
-    : 'text-[12px] text-text-primary overflow-hidden text-ellipsis whitespace-nowrap';
+    : 'text-[12px] text-text-primary leading-snug wrap-break-word lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap';
 
   return (
-    <div className={`check-row relative grid items-start ${gap} py-2.5 max-md:min-h-11 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer`}
-      style={{ gridTemplateColumns: gridCols }}
-    >
+    <div className={`check-row relative grid items-start ${gap} py-2.5 max-md:min-h-11 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer ${gridColsClass}`}>
       <span className="check-left-rail" />
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className={descClass}>{check.description}</span>
@@ -154,7 +160,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
         )}
       </span>
       {!compact && (
-        <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center">
+        <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center max-lg:hidden">
           <div
             className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
             style={{ width: `${pct}%` }}
