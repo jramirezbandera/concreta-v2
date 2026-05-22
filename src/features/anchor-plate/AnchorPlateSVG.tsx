@@ -98,7 +98,13 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
   // ─── ALZADO (bottom) ─────────────────────────────────────────────────────
   const alzadoPad = 24;
   const alzadoTopGap = 8;
-  const colH = 60;                              // visible column stub above plate
+  // Visible column stub above plate. Must extend above the stiffeners so they
+  // never visually float above the column — otherwise rib_h > 60 (the previous
+  // fixed default) would render the rigidizador taller than the column.
+  const colStubMin = 60;
+  const colH = inp.rib_count > 0
+    ? Math.max(colStubMin, inp.rib_h + 20)
+    : colStubMin;
   const hef_visible = inp.bar_hef;
   const alzadoNaturalH = colH + inp.plate_t + hef_visible + 20;  // mm equivalent
   const alzadoNaturalW = pedestalW;
@@ -301,27 +307,41 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           </g>
         )}
 
-        {/* Rigidizadores (planta) */}
+        {/* Rigidizadores (planta).
+            checkPlateBending convention (anchorPlate.ts):
+              rib_count=2: 2 nervios paralelos al eje fuerte, a ambos lados de
+                           las alas → uno en cada voladizo de plate_a, centrado
+                           en y, extendido en x desde el ala hasta el borde de
+                           la placa (longitud = c_strong = (plate_a − h)/2).
+              rib_count=4: 2 adicionales paralelos al eje débil → uno en cada
+                           voladizo de plate_b, centrado en x, extendido en y
+                           (longitud = c_weak = (plate_b − b)/2).
+            Aquí dibujamos el FOOTPRINT del nervio en planta: largo × espesor.
+            rib_h (altura vertical) NO se muestra en planta — solo en alzado. */}
         {inp.rib_count >= 2 && profile && (() => {
-          const ribL = inp.rib_h * scalePlanta;
           const ribT = inp.rib_t * scalePlanta;
           const profH_px = profile.h * scalePlanta;
           const profB_px = profile.b * scalePlanta;
+          // Voladizos en píxeles, desde el ala hasta el borde de la placa.
+          const cStrongPx = Math.max(0, (plateW - profH_px) / 2);
+          const cWeakPx   = Math.max(0, (plateH - profB_px) / 2);
           return (
             <g>
-              <rect x={pCx - profH_px / 2 - ribT} y={pCy - ribL / 2}
-                    width={ribT} height={ribL}
+              {/* Nervios paralelos al eje fuerte (en los voladizos x). */}
+              <rect x={pCx - plateW / 2} y={pCy - ribT / 2}
+                    width={cStrongPx} height={ribT}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={pCx + profH_px / 2} y={pCy - ribL / 2}
-                    width={ribT} height={ribL}
+              <rect x={pCx + profH_px / 2} y={pCy - ribT / 2}
+                    width={cStrongPx} height={ribT}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
               {inp.rib_count === 4 && (
                 <>
-                  <rect x={pCx - ribL / 2} y={pCy - profB_px / 2 - ribT}
-                        width={ribL} height={ribT}
+                  {/* Nervios paralelos al eje débil (en los voladizos y). */}
+                  <rect x={pCx - ribT / 2} y={pCy - plateH / 2}
+                        width={ribT} height={cWeakPx}
                         fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-                  <rect x={pCx - ribL / 2} y={pCy + profB_px / 2}
-                        width={ribL} height={ribT}
+                  <rect x={pCx - ribT / 2} y={pCy + profB_px / 2}
+                        width={ribT} height={cWeakPx}
                         fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
                 </>
               )}
@@ -435,29 +455,27 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           );
         })()}
 
-        {/* Rigidizadores (alzado: rectangles on either side of profile) */}
+        {/* Rigidizadores (alzado).
+            En el alzado vemos el plano X-Z, donde X = eje fuerte (plate_a) y
+            Z = vertical. Los nervios paralelos al eje fuerte (rib_count ≥ 2)
+            tienen su SILUETA completa visible: ancho = c_strong (extensión en
+            x desde el ala hasta el borde de la placa), alto = rib_h.
+            Los nervios paralelos al eje débil (rib_count == 4) son perpen-
+            diculares al plano del alzado — su silueta se solapa con el alma
+            del perfil. Para no clutter visual, no se dibujan aquí. */}
         {inp.rib_count >= 2 && profile && (() => {
           const ribH = inp.rib_h * scaleAlzado;
-          const ribT = inp.rib_t * scaleAlzado;
           const profH_px = profile.h * scaleAlzado;
-          const profB_px = profile.b * scaleAlzado;
+          const cStrongPx = Math.max(0, (aPlateW - profH_px) / 2);
           const ribY = plateYrect - ribH;
           return (
             <g>
-              <rect x={aCx - profH_px / 2 - ribT} y={ribY} width={ribT} height={ribH}
+              <rect x={aCx - aPlateW / 2} y={ribY}
+                    width={cStrongPx} height={ribH}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={aCx + profH_px / 2} y={ribY} width={ribT} height={ribH}
+              <rect x={aCx + profH_px / 2} y={ribY}
+                    width={cStrongPx} height={ribH}
                     fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              {inp.rib_count === 4 && (
-                <g opacity={0.55}>
-                  <rect x={aCx - profB_px / 4} y={ribY} width={ribT} height={ribH}
-                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1}
-                        strokeDasharray="2 2" />
-                  <rect x={aCx + profB_px / 4 - ribT} y={ribY} width={ribT} height={ribH}
-                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1}
-                        strokeDasharray="2 2" />
-                </g>
-              )}
             </g>
           );
         })()}
