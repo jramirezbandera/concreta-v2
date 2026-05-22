@@ -97,9 +97,10 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
 
   // Neutral row — informational (classification, etc.) with no utilization bar.
   if (check.status === 'neutral' || check.neutral) {
+    const tagText = check.tag ?? valueText ?? '—';
     return (
       <div className={`check-row relative grid items-center gap-3.5 py-2.5 max-md:min-h-11 ${compact ? 'px-3 pl-4' : 'px-4 pl-5'} border-b border-border-sub last:border-b-0`}
-        style={{ gridTemplateColumns: '1fr auto 60px' }}
+        style={{ gridTemplateColumns: '1fr minmax(60px, max-content)' }}
       >
         <span className="check-left-rail" />
         <div className="flex flex-col gap-0.5 min-w-0">
@@ -108,9 +109,11 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
             <span className="font-mono text-[10px] text-text-disabled">{check.article}</span>
           )}
         </div>
-        <span />
-        <span className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] whitespace-nowrap text-center ${STATUS_TAG_CLASSES.neutral}`}>
-          {check.tag ?? valueText ?? '—'}
+        <span
+          className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] text-center ${STATUS_TAG_CLASSES.neutral}`}
+          title={tagText}
+        >
+          {tagText}
         </span>
       </div>
     );
@@ -140,12 +143,12 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
           <span className="font-mono text-[10px] text-text-disabled leading-snug">{check.article}</span>
         )}
       </div>
-      <span className="text-right min-w-0 self-center">
-        <span className="block font-mono text-[11px] text-text-secondary whitespace-nowrap tabular-nums">
+      <span className="text-right min-w-0 self-center overflow-hidden">
+        <span className="block font-mono text-[11px] text-text-secondary tabular-nums wrap-break-word leading-snug" title={valueText}>
           {valueText}
         </span>
         {limitText && (
-          <span className="block font-mono text-[10px] text-text-disabled whitespace-nowrap tabular-nums">
+          <span className="block font-mono text-[10px] text-text-disabled tabular-nums wrap-break-word leading-snug" title={limitText}>
             {limitText}
           </span>
         )}
