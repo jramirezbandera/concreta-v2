@@ -174,6 +174,21 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Dn = inp.drillDiameter;                       // m — Ø perforación
   const perimeter = Math.PI * Dn;                     // m
 
+  // El perfil de suelo debe cubrir TODA la longitud del micropilote. Antes
+  // findLayerAt extendía el último estrato al infinito cuando el suelo
+  // definido era más corto que L, produciendo un cálculo silenciosamente
+  // sin definir. Aquí lo bloqueamos: el usuario debe declarar capas que
+  // sumen al menos L. Epsilon 1 mm absorbe ruido de coma flotante.
+  const soilDepth = soil.reduce((s, l) => s + l.thickness, 0);
+  if (soilDepth + 1e-3 < L) {
+    const missing = L - soilDepth;
+    return invalid(
+      `El perfil de suelo (${soilDepth.toFixed(2)} m) no cubre la longitud del ` +
+      `micropilote (${L.toFixed(2)} m). Faltan ${missing.toFixed(2)} m: añade ` +
+      `un estrato o aumenta el espesor del último.`,
+    );
+  }
+
   // Profundidad del nivel freático MEDIDA DESDE LA CABEZA (positiva hacia
   // abajo). Negativa o muy grande ⇒ no hay agua dentro del pilote.
   const zHeadAbs   = -inp.topElevation;               // m, depth de la cabeza desde rasante (sólo para SegmentResult.zAbs)

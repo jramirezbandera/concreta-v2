@@ -716,3 +716,47 @@ describe('Motor: selección de W según sectionClass', () => {
     expect(r4.sectionClass).toBe(4);
   });
 });
+
+// ── Guard: perfil de suelo más corto que L ───────────────────────────────────
+describe('Perfil de suelo más corto que L', () => {
+  it('invalida cuando la suma de espesores < L del micropilote', () => {
+    // L = 16 m para FTUX. Truncamos el perfil a 10 m total: 2.30 + 9.20 = 11.50,
+    // recortamos el segundo estrato para sumar exactamente 10 m.
+    const truncated = [
+      { ...baseSoil[0] },                          // 2.30 m
+      { ...baseSoil[1], thickness: 7.70 },         // hasta 10.00 m
+    ];
+    const r = calcMicropiles(baseInp, truncated);
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/perfil de suelo/i);
+    expect(r.error).toMatch(/no cubre/);
+    expect(r.error).toMatch(/Faltan/);
+  });
+
+  it('mensaje de error reporta los metros que faltan', () => {
+    const truncated = [{ ...baseSoil[0], thickness: 5.00 }];
+    const r = calcMicropiles(baseInp, truncated);   // L = 16, suelo = 5, faltan 11
+    expect(r.error).toMatch(/11\.00 m/);
+  });
+
+  it('admite suelo exactamente igual a L (frontera, sin epsilon)', () => {
+    // L = 16; cubrimos con una sola capa de 16 m. findLayerAt sigue
+    // funcionando para el último segmento (cae en la rama de fallback,
+    // que devuelve el último estrato — correcto cuando el suelo cubre L).
+    const exact = [{ ...baseSoil[0], thickness: 16.00 }];
+    const r = calcMicropiles(baseInp, exact);
+    expect(r.valid).toBe(true);
+  });
+
+  it('admite suelo mayor que L (caso normal — FTUX suma ≈79 m, L=16)', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.valid).toBe(true);
+  });
+
+  it('epsilon 1mm absorbe error de coma flotante', () => {
+    // Suelo = L − 0.0005 m (medio mm corto): aceptado.
+    const almost = [{ ...baseSoil[0], thickness: 16.0 - 0.0005 }];
+    const r = calcMicropiles(baseInp, almost);
+    expect(r.valid).toBe(true);
+  });
+});
