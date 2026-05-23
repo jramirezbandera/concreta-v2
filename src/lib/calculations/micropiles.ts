@@ -121,6 +121,13 @@ export interface MicropilesResult {
   settlementGranular: number;
   settlementCohesive: number;
 
+  // Disposición en planta (Guía Fomento Fig. 3.6 + §3.10 + Tabla 3.10).
+  // Concreta calcula un solo pilote; estos números son orientativos para
+  // que el proyectista sepa a qué separación colocar los demás.
+  spacingMin: number;          // m — 2D, separación mínima recomendada
+  spacingMaxRec: number;       // m — min(5D, 1 m), máximo recomendado en encepado
+  spacingForNoGroup: number;   // m — 4D, por encima del cual Tabla 3.10 no rige
+
   // Comprobaciones (CheckRow[] con artículos normativos)
   checks: CheckRow[];
 }
@@ -136,6 +143,7 @@ function invalid(error: string): MicropilesResult {
     Le: 0, Lef: 0, Mpl_rd: 0, Vpl_rd: 0, im: 0, iv: 0,
     sectionClass: 4,            // sin cálculo: conservador (no plastificación)
     settlementGranular: 0, settlementCohesive: 0,
+    spacingMin: 0, spacingMaxRec: 0, spacingForNoGroup: 0,
     checks: [],
   };
 }
@@ -237,13 +245,18 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     const delta    = (2 / 3) * phi;
     const tanDelta = Math.tan((delta * Math.PI) / 180);
 
-    // rfc teórica (kN/m²)
-    // TODO D1-bis: el modelo actual respeta layer.c también en granulares,
-    // por consistencia con el Excel FTUX (estrato 4 "granular" con c=280
-    // kPa, probable cementación). Físicamente un granular puro tiene c=0.
-    // Si en el futuro se decide ignorar c en granulares, recalibrar el
-    // test FTUX (Rfc_teórica caería ~200 kN por los 6 últimos segmentos).
-    let rfcTheo = layer.c / Fc + (sigmaHe * tanDelta) / Fphi;
+    // rfc teórica (kN/m²) — Guía Fomento §3.4.
+    // c' SOLO contribuye en cohesivos. En granulares la cohesión efectiva
+    // es cero por definición (un suelo con c≠0 y phi≠0 no es granular puro,
+    // es un suelo cementado o un cohesivo-friccional que debería declararse
+    // como cohesivo con phi y c). Si el usuario mete c en un granular, lo
+    // ignoramos: la UI ya oculta el campo c′ en granulares (decisión de
+    // producto previa), pero defensivamente aquí también lo anulamos para
+    // que un layer cargado desde localStorage corrupto no contamine el
+    // cálculo. Decisión 2026-05-23: fidelidad a la norma > compat con el
+    // Excel de referencia (donde un estrato "granular" tenía c=280 kPa).
+    const cEffective = layer.type === 'granular' ? 0 : layer.c;
+    let rfcTheo = cEffective / Fc + (sigmaHe * tanDelta) / Fphi;
     if (layer.type === 'cohesive' && layer.su > 0) {
       rfcTheo = Math.min(rfcTheo, layer.su / Fcu);
     }
@@ -446,6 +459,18 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // edométrico explícito. Se elimina el "*1000/1000" muerto del código.
   const settlementCohesive = (0.6 * inp.designLoad) / Math.max(1, L * Fc);
 
+  // ── 7.bis Disposición en planta — Guía Fomento Fig. 3.6 + §3.10 ─────────
+  // El módulo calcula un pilote individual; estas tres distancias orientan
+  // al proyectista sobre cómo colocar el resto sin entrar en efecto grupo:
+  //   · 2D  — mínimo absoluto entre ejes en encepado/viga de atado.
+  //   · min(5D, 1 m) — máximo recomendado en la misma figura 3.6.
+  //   · 4D  — frontera superior del rango 3D-4D donde aplica el coef. g
+  //           de Tabla 3.10. Por encima de 4D la práctica habitual es no
+  //           aplicar reducción (Concreta no computa el grupo).
+  const spacingMin        = 2 * Dn;
+  const spacingMaxRec     = Math.min(5 * Dn, 1);
+  const spacingForNoGroup = 4 * Dn;
+
   // ── 8. Construcción de CheckRow[] con artículos normativos ──────────────
   const checks: CheckRow[] = [];
 
@@ -546,6 +571,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     Le, Lef, Mpl_rd, Vpl_rd, im, iv,
     sectionClass,
     settlementGranular, settlementCohesive,
+    spacingMin, spacingMaxRec, spacingForNoGroup,
     checks,
   };
 }

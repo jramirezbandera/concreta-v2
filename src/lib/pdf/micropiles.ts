@@ -141,6 +141,42 @@ export async function exportMicropilesPDF(
   hline(doc, y + 1, 180, 0.2);
   y += 4;
 
+  // ── Disposición en planta (Guía Fomento §3.10 + Fig. 3.6) ─────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  setGray(doc, 60);
+  doc.text('DISPOSICION EN PLANTA', M, y);
+  y += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  setGray(doc, 70);
+  const spacingKv: [string, string][] = [
+    ['Sep. mínima (2D)',              `${(result.spacingMin * 100).toFixed(2)} cm`],
+    ['Sep. máx. recomendada (5D, 1m)', `${(result.spacingMaxRec * 100).toFixed(2)} cm`],
+    ['Sin efecto grupo (S >= 4D)',    `${(result.spacingForNoGroup * 100).toFixed(2)} cm`],
+  ];
+  for (const [label, val] of spacingKv) {
+    doc.text(pdfStr(`${label}:`), M + 2, y);
+    doc.text(pdfStr(val), M + 55, y);
+    y += 3.2;
+  }
+
+  doc.setFontSize(6);
+  setGray(doc, 110);
+  const noteLines = [
+    pdfStr(`Concreta calcula un pilote individual. Si en el encepado hay mas de uno, mantener S >= ${(result.spacingForNoGroup * 100).toFixed(0)} cm`),
+    pdfStr('entre ejes para evitar el coeficiente g de la Tabla 3.10 (rango 3D-4D). Para S menor, el calculo individual'),
+    pdfStr('queda del lado de la inseguridad y procede minorar la capacidad del grupo (Concreta no lo computa).'),
+  ];
+  for (const line of noteLines) {
+    doc.text(line, M + 2, y);
+    y += 2.8;
+  }
+
+  hline(doc, y + 1, 180, 0.2);
+  y += 4;
+
   // ── Tabla de comprobaciones ─────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);

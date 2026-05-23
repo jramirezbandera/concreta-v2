@@ -81,9 +81,10 @@ describe('MicropilesSVG', () => {
       />,
     );
     const text = container.textContent ?? '';
-    // ih FTUX ≈ 0.47, ic ≈ 0.51 — la vista semáforos formatea con punto
-    // decimal (es número adimensional, no magnitud física con unidad).
-    expect(text).toMatch(/0\.47/);
+    // ih FTUX ≈ 0.71 (post D1-bis: Rfc cae a ~496 → 350/496 ≈ 0.71),
+    // ic ≈ 0.51 (estructural, no afectado por D1-bis). Formato con
+    // punto decimal — adimensionales no llevan unidad ni coma local.
+    expect(text).toMatch(/0\.71/);
     expect(text).toMatch(/0\.51/);
     // Y debe nombrar las dos comprobaciones, no solo los números.
     expect(text).toMatch(/Hundimiento por fuste/);

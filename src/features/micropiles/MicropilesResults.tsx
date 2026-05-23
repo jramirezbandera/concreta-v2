@@ -106,6 +106,22 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
           .map((c) => <CheckRowItem key={c.id} check={c} />)}
       </div>
 
+      {/* Disposición en planta (informativo — Concreta calcula un solo pilote) */}
+      <div className="rounded border border-border-main px-4 py-3">
+        <GroupHeader label="Disposición en planta" />
+        <ValueRow label={`Separación mínima (2D)`}        value={`${fmt2(result.spacingMin * 100)} cm`} />
+        <ValueRow label={`Separación máxima (min 5D, 1 m)`} value={`${fmt2(result.spacingMaxRec * 100)} cm`} />
+        <ValueRow label={`Sin efecto grupo (S ≥ 4D)`}     value={`${fmt2(result.spacingForNoGroup * 100)} cm`} />
+        <p className="text-[11px] text-text-secondary mt-2 leading-relaxed">
+          Concreta calcula un pilote individual. Si en el encepado hay más de
+          uno, mantén separación entre ejes <span className="text-text-primary font-mono">S ≥ {fmt2(result.spacingForNoGroup * 100)} cm</span>
+          {' '}para evitar el coeficiente <span className="font-mono">g</span> de la Tabla 3.10 (S = 3D-4D).
+          {' '}Para S menor que ese valor el cálculo individual queda del lado de la inseguridad
+          y habría que minorar la capacidad del grupo (no implementado).
+        </p>
+        <p className="text-[10px] text-text-disabled mt-1">Guía Fomento §3.10 / Fig. 3.6 / Tabla 3.10</p>
+      </div>
+
     </div>
   );
 }

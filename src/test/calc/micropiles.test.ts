@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
-import { micropilesDefaults, micropilesSoilDefaults } from '../../data/defaults';
+import { micropilesDefaults, micropilesSoilDefaults, type SoilLayer } from '../../data/defaults';
 import { MICROPILE_TUBES, getTube, getTubeAreaGross, getTubeAreaNet } from '../../data/micropileTubes';
 import {
   weldThroatMin, interpolateF, interpolateMe, classifyCircularHollow,
@@ -46,12 +46,26 @@ describe('FTUX defaults', () => {
     }
   });
 
-  it('Rfc_theoretical matches corrected reference 739.30 kN (post-fix C2, ±0.5 kN)', () => {
-    // Excel original daba 738.66 kN; el motor corregido (u = γw·max(0, zBot−zWater)
-    // en vez del contador discreto que sobre-estimaba u en el segmento de cruce)
-    // da 739.30 kN. La diferencia (+0.09%) es la corrección del bug.
+  it('Rfc_theoretical FTUX ≈ 496.28 kN (post D1-bis: c=0 en granulares)', () => {
+    // Historia del número:
+    //   Excel original: 738.66 kN (contador discreto de u sobre-estimaba).
+    //   Fix C2 (u por σ' efectiva continua): 739.30 kN.
+    //   Fix D1-bis (c=0 en granulares por norma): 496.28 kN. El estrato 4
+    //     del FTUX se declaraba "granular" con c=280 kPa (Excel-isn't), lo
+    //     que metía ~243 kN ficticios en los últimos 2 m del pilote en E4.
+    //     Ignorar c en granulares es lo que pide la mecánica del suelo:
+    //     un granular puro tiene c'=0 por definición.
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.RfcTheoretical).toBeCloseTo(739.30, 0);
+    expect(r.RfcTheoretical).toBeCloseTo(496.28, 0);
+  });
+
+  it('ih FTUX ≈ 0.71 (Nc,d=350 / RfcAdopted=496)', () => {
+    // ih sube de ~0.47 (pre D1-bis) a ~0.71 — el pilote sigue cumpliendo
+    // por amplio margen, pero el margen real es bastante menor que el
+    // que daba el Excel cementado.
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.ih).toBeCloseTo(0.71, 1);
+    expect(r.ih).toBeLessThan(1);   // sigue siendo CUMPLE
   });
 
   it('Rfc_empirical matches Excel reference 675.17 kN exactly (±0.5%)', () => {
@@ -444,6 +458,78 @@ describe('Fu en tracción (fix C3)', () => {
     // Fu=1.0 en el default → el valor Excel se mantiene.
     const r = calcMicropiles({ ...baseInp, connection: 'no-loss' }, baseSoil);
     expect(r.Tc_rd).toBeCloseTo(952.95, 1);
+  });
+});
+
+// ── Spacing guidance — Guía Fomento Fig. 3.6 + §3.10 ─────────────────────────
+describe('Separación entre micropilotes (Fig. 3.6 + Tabla 3.10)', () => {
+  it('spacingMin = 2·Dn', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.spacingMin).toBeCloseTo(2 * baseInp.drillDiameter, 6);
+  });
+
+  it('spacingMaxRec = min(5·Dn, 1 m) — FTUX Dn=0.185 → 5D=0.925 < 1, gana 5D', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.spacingMaxRec).toBeCloseTo(5 * baseInp.drillDiameter, 6);
+    expect(r.spacingMaxRec).toBeCloseTo(0.925, 3);
+  });
+
+  it('spacingMaxRec se acota a 1 m cuando Dn es grande', () => {
+    // Dn = 0.30 m → 5D = 1.5 m, debe acotarse a 1 m.
+    const r = calcMicropiles({ ...baseInp, drillDiameter: 0.30 }, baseSoil);
+    expect(r.spacingMaxRec).toBe(1);
+  });
+
+  it('spacingForNoGroup = 4·Dn (frontera superior del rango Tabla 3.10)', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.spacingForNoGroup).toBeCloseTo(4 * baseInp.drillDiameter, 6);
+    expect(r.spacingForNoGroup).toBeCloseTo(0.74, 3);
+  });
+
+  it('los tres valores son monotónicamente crecientes (min < noGroup ≤ maxRec)', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.spacingMin).toBeLessThan(r.spacingForNoGroup);
+    expect(r.spacingForNoGroup).toBeLessThanOrEqual(r.spacingMaxRec);
+  });
+});
+
+// ── D1-bis — c=0 forzado en granulares ───────────────────────────────────────
+describe('Cohesión en granulares (D1-bis)', () => {
+  it('un granular con c=280 da el MISMO Rfc_theoretical que el mismo granular con c=0', () => {
+    // Pilote 1 m corto que cabe íntegro en el primer estrato (granular).
+    const inp = { ...baseInp, topElevation: 0, toeElevation: -1, waterTableElevation: -10 };
+    const soilWithC: SoilLayer[] = [
+      { id: 1, type: 'granular', thickness: 5, gamma: 20, c: 280, phi: 28, Nspt: 30, su: 0, rflim: 0.20 },
+    ];
+    const soilNoC: SoilLayer[] = [
+      { ...soilWithC[0], c: 0 },
+    ];
+    const a = calcMicropiles(inp, soilWithC);
+    const b = calcMicropiles(inp, soilNoC);
+    expect(a.RfcTheoretical).toBeCloseTo(b.RfcTheoretical, 6);
+  });
+
+  it('un cohesivo con c=280 SÍ contribuye (no degenera el caso cohesivo)', () => {
+    const inp = { ...baseInp, topElevation: 0, toeElevation: -1, waterTableElevation: -10 };
+    const soilHighC: SoilLayer[] = [
+      { id: 1, type: 'cohesive', thickness: 5, gamma: 20, c: 280, phi: 28, Nspt: 30, su: 1000, rflim: 0.20 },
+    ];
+    const soilZeroC: SoilLayer[] = [
+      { ...soilHighC[0], c: 0 },
+    ];
+    const a = calcMicropiles(inp, soilHighC);
+    const b = calcMicropiles(inp, soilZeroC);
+    // En cohesivos sí se respeta layer.c (acotado por su/Fcu si su>0).
+    expect(a.RfcTheoretical).toBeGreaterThan(b.RfcTheoretical);
+  });
+
+  it('FTUX: el estrato 4 con c=280 NO añade los ~243 kN ficticios del Excel', () => {
+    // Reproducción específica del bug que motivó D1-bis: si c contribuyera
+    // en granulares, Rfc_theo subiría a ~740. Como ignoramos c, queda en
+    // ~496. Margen [350, 700] solo se cumple si c=0 en granulares.
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.RfcTheoretical).toBeGreaterThan(350);
+    expect(r.RfcTheoretical).toBeLessThan(700);
   });
 });
 
