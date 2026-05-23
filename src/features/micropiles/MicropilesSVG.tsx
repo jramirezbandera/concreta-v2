@@ -16,6 +16,13 @@ interface MicropilesSVGProps {
   mode?: 'screen' | 'pdf';
 }
 
+interface StratumBand {
+  /** Color superior del gradiente vertical (la cara que mira a la rasante). */
+  fill1: string;
+  /** Color inferior (la cara más profunda). */
+  fill2: string;
+}
+
 interface Palette {
   bg:            string;
   bgPanel:       string;
@@ -24,12 +31,15 @@ interface Palette {
   textDim:       string;
   textMuted:     string;
   axis:          string;
-  granular1:     string;
-  granular2:     string;
+  /** Color del patrón de puntos para estratos GRANULARES (sobre cualquier banda). */
   granularDot:   string;
-  cohesive1:     string;
-  cohesive2:     string;
+  /** Color del patrón de líneas para estratos COHESIVOS (sobre cualquier banda). */
   cohesiveLine:  string;
+  /** Paleta cíclica de bandas: cada estrato toma `strataBands[i % len]`. La
+   *  rotación por POSICIÓN (no por tipo) garantiza que dos granulares
+   *  consecutivos se distinguen a la vista; el tipo se sigue leyendo por
+   *  la textura (puntos vs líneas). */
+  strataBands:   StratumBand[];
   water:         string;
   steel:         string;
   steelEdge:     string;
@@ -52,12 +62,16 @@ const SCREEN: Palette = {
   textDim:      '#94a3b8',
   textMuted:    '#475569',
   axis:         '#3a4a6e',
-  granular1:    '#4a3522',
-  granular2:    '#2a1d12',
-  granularDot:  '#a8825a',
-  cohesive1:    '#3a2a18',
-  cohesive2:    '#231809',
-  cohesiveLine: '#8a6a44',
+  granularDot:  '#e0c089',          // claro sobre cualquier banda — punteado de arena
+  cohesiveLine: '#d8b886',          // claro sobre cualquier banda — laminación cohesiva
+  strataBands: [
+    { fill1: '#7a5a35', fill2: '#4f3a20' },   // L1 tan / arena clara
+    { fill1: '#5d5a2c', fill2: '#3d3a1c' },   // L2 oliva — fuerte contraste con L1
+    { fill1: '#8a4628', fill2: '#5e2f1a' },   // L3 terracota
+    { fill1: '#4a3528', fill2: '#2c1f16' },   // L4 marrón profundo
+    { fill1: '#6a5c2e', fill2: '#46401e' },   // L5 dorado mate
+    { fill1: '#7d3f25', fill2: '#542811' },   // L6 caoba
+  ],
   water:        '#7dd3fc',
   steel:        '#cbd5e1',
   steelEdge:    '#475569',
@@ -80,12 +94,16 @@ const PDF: Palette = {
   textDim:      '#475569',
   textMuted:    '#94a3b8',
   axis:         '#64748b',
-  granular1:    '#d6c1a0',
-  granular2:    '#b89876',
-  granularDot:  '#8b6e3a',
-  cohesive1:    '#bda88c',
-  cohesive2:    '#a08a6d',
-  cohesiveLine: '#5d4630',
+  granularDot:  '#5c4520',          // oscuro sobre paleta clara
+  cohesiveLine: '#3d2e1a',
+  strataBands: [
+    { fill1: '#e0c89a', fill2: '#b89968' },   // L1 sand
+    { fill1: '#c4bb88', fill2: '#9a9162' },   // L2 olive sand
+    { fill1: '#d49774', fill2: '#a96b48' },   // L3 terracotta
+    { fill1: '#b09480', fill2: '#84685a' },   // L4 brown clay
+    { fill1: '#cdb872', fill2: '#a39150' },   // L5 ochre
+    { fill1: '#c08868', fill2: '#946248' },   // L6 russet
+  ],
   water:        '#0ea5e9',
   steel:        '#475569',
   steelEdge:    '#1f2937',
@@ -160,14 +178,18 @@ function PerfilView({
       {/* Eje y de cotas */}
       <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + plotH} stroke={p.axis} strokeWidth={0.7} />
 
-      {/* Estratos como bandas con texturas */}
+      {/* Estratos como bandas con texturas.
+          Color por POSICIÓN (rotación en p.strataBands), textura por TIPO
+          (puntos=granular, líneas=cohesivo). Así dos estratos consecutivos
+          del mismo tipo no se confunden visualmente — el problema previo. */}
       {layerBands.map((b, i) => {
         const y0 = yOfDepth(b.z0);
         const y1 = yOfDepth(b.z1);
         const isGran = b.layer.type === 'granular';
-        const fill1 = isGran ? p.granular1 : p.cohesive1;
-        const fill2 = isGran ? p.granular2 : p.cohesive2;
-        const dotColor = isGran ? p.granularDot : p.cohesiveLine;
+        const band = p.strataBands[i % p.strataBands.length];
+        const fill1 = band.fill1;
+        const fill2 = band.fill2;
+        const texColor = isGran ? p.granularDot : p.cohesiveLine;
         return (
           <g key={b.layer.id}>
             <defs>
@@ -178,24 +200,32 @@ function PerfilView({
               <pattern id={`tex-${i}`} patternUnits="userSpaceOnUse" width={isGran ? 8 : 12} height={isGran ? 8 : 12} patternTransform="rotate(0)">
                 {isGran ? (
                   <>
-                    <circle cx="2" cy="2" r="0.6" fill={dotColor} opacity="0.55" />
-                    <circle cx="6" cy="5" r="0.5" fill={dotColor} opacity="0.45" />
-                    <circle cx="4" cy="7" r="0.4" fill={dotColor} opacity="0.35" />
+                    <circle cx="2" cy="2" r="0.7" fill={texColor} opacity="0.55" />
+                    <circle cx="6" cy="5" r="0.6" fill={texColor} opacity="0.45" />
+                    <circle cx="4" cy="7" r="0.5" fill={texColor} opacity="0.35" />
                   </>
                 ) : (
-                  <line x1="0" y1="3" x2="12" y2="3" stroke={dotColor} strokeWidth="0.4" opacity="0.45" />
+                  <>
+                    <line x1="0" y1="3"  x2="12" y2="3"  stroke={texColor} strokeWidth="0.5" opacity="0.55" />
+                    <line x1="0" y1="8"  x2="12" y2="8"  stroke={texColor} strokeWidth="0.4" opacity="0.40" />
+                  </>
                 )}
               </pattern>
             </defs>
             <rect x={M.left} y={y0} width={plotW} height={y1 - y0} fill={`url(#strata-${i})`} />
             <rect x={M.left} y={y0} width={plotW} height={y1 - y0} fill={`url(#tex-${i})`} />
-            {/* Línea de transición */}
-            <line x1={M.left} y1={y0} x2={M.left + plotW} y2={y0} stroke={p.border} strokeWidth={0.4} opacity={0.6} />
+            {/* Línea de transición — más contraste que antes para que la
+                frontera entre dos bandas adyacentes se vea sin esfuerzo. */}
+            <line x1={M.left} y1={y0} x2={M.left + plotW} y2={y0} stroke="#f8fafc" strokeWidth={0.6} opacity={0.35} />
 
-            {/* Tag de propiedades a la derecha */}
+            {/* Tag de propiedades a la derecha — borde del color de la banda
+                para anclar visualmente "qué estrato es este tag". */}
             <g transform={`translate(${M.left + plotW + 6}, ${(y0 + y1) / 2 - 24})`}>
-              <rect x={0} y={0} width={120} height={48} rx={3} fill={p.bgPanel} stroke={isGran ? p.granularDot : p.cohesiveLine} strokeWidth={0.6} opacity={0.95} />
-              <text x={6} y={10} fontSize={8.5} fontFamily="ui-monospace, monospace" fill={p.text} fontWeight={600}>
+              <rect x={0} y={0} width={120} height={48} rx={3} fill={p.bgPanel} stroke={fill1} strokeWidth={1.2} opacity={0.98} />
+              {/* Swatch chip a la izquierda del título: doble pista visual
+                  (color de banda + textura del tipo). */}
+              <rect x={6} y={3.5} width={8} height={8} fill={fill1} stroke={texColor} strokeWidth={0.6} />
+              <text x={18} y={10.5} fontSize={8.5} fontFamily="ui-monospace, monospace" fill={p.text} fontWeight={600}>
                 E{b.layer.id} · {isGran ? 'Granular' : 'Cohesivo'}
               </text>
               <text x={6} y={21} fontSize={8} fontFamily="ui-monospace, monospace" fill={p.textDim}>
