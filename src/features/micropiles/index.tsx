@@ -13,8 +13,7 @@ import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { MicropilesInputsPanel } from './MicropilesInputsPanel';
 import { MicropilesSVG, type MicropilesView } from './MicropilesSVG';
 import { MicropilesResults } from './MicropilesResults';
-
-const SOIL_STORAGE_KEY = 'concreta-micropiles-soil';
+import { loadSoil, saveSoil } from './soilStorage';
 
 const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string }[] = [
   { id: 'profile',    num: '1', label: 'Perfil',     color: '#a8825a' },
@@ -86,18 +85,6 @@ function SummaryStrip({ ih, ic, im, iv }: { ih: number; ic: number; im: number; 
   );
 }
 
-// ── Soil storage helpers (array → useState + localStorage, sin useModuleState) ─
-
-function loadSoil(): SoilLayer[] {
-  try {
-    const raw = localStorage.getItem(SOIL_STORAGE_KEY);
-    if (!raw) return micropilesSoilDefaults.map((l) => ({ ...l }));
-    const parsed = JSON.parse(raw) as SoilLayer[];
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-  } catch { /* ignore */ }
-  return micropilesSoilDefaults.map((l) => ({ ...l }));
-}
-
 export function MicropilesModule() {
   const { state, setField, reset } = useModuleState<MicropilesInputs>('micropiles', micropilesDefaults);
   const { openDrawer } = useDrawer();
@@ -105,9 +92,7 @@ export function MicropilesModule() {
   const [view, setView] = useState<MicropilesView>('profile');
   const [soil, setSoil] = useState<SoilLayer[]>(loadSoil);
 
-  useEffect(() => {
-    try { localStorage.setItem(SOIL_STORAGE_KEY, JSON.stringify(soil)); } catch { /* ignore */ }
-  }, [soil]);
+  useEffect(() => { saveSoil(soil); }, [soil]);
 
   const addLayer = useCallback(() => {
     setSoil((prev) => {
