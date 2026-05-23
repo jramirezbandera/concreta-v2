@@ -134,9 +134,10 @@ export function MasonryWallsSVG({
     yBottom = yForjadoTop;
   });
 
-  const allSigmas = plantasCalc.flatMap((p) => p.machones.flatMap((m) => [m.sigma_top || 0, m.sigma_bottom || 0]));
-  const sigmaMax = Math.max(0.001, ...allSigmas);
-
+  // Heatmap por UTILIZACIÓN (η) en lugar de tensión (σ). El usuario lee el
+  // mismo dato dos veces (color + número impreso encima del machón), lo que
+  // refuerza el mensaje y evita la cognitive load de mapear "esto está rojo
+  // porque σ=1.6 MPa cerca de f_d" — basta con "esto está rojo porque η=91%".
   const fillFor = (m: { id: string }, pi: number) => {
     if (!mostrarMapa) return '#1a2540';
     return `url(#sg-${pi}-${m.id})`;
@@ -174,8 +175,12 @@ export function MasonryWallsSVG({
         <desc id="mw-svg-desc">{a11yDesc}</desc>
         <defs>
           {plantasCalc.flatMap((pl, pi) => pl.machones.map((m) => {
-            const tTop = (m.sigma_top || 0) / sigmaMax;
-            const tBot = (m.sigma_bottom || 0) / sigmaMax;
+            // Gradiente vertical de η: cabeza arriba (η_cabeza) y pie abajo
+            // (η_pie). Clamp a [0,1] — un machón con η>1 (INCUMPLE) satura
+            // en rojo en el extremo correspondiente; el número impreso ya
+            // indica el valor exacto. La saturación SÍ comunica gravedad.
+            const tTop = Math.max(0, Math.min(1, m.eta_cabeza));
+            const tBot = Math.max(0, Math.min(1, m.eta_pie));
             return (
               <linearGradient key={`${pi}-${m.id}`} id={`sg-${pi}-${m.id}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={heatColor(tTop)} stopOpacity="0.85" />
@@ -479,14 +484,21 @@ export function MasonryWallsSVG({
           );
         })}
 
-        {/* Colorbar de tensiones */}
+        {/* Colorbar de utilización (η). Anclado al borde derecho del SVG con
+            sus tick labels DENTRO (entre wall y bar) para no comerse contenido
+            fuera del viewport — antes flotaba en el medio y pisaba las
+            etiquetas de planta y de forjado. */}
         {mostrarMapa && (() => {
-          const cbX = ox + muroW + 90;
+          const cbW = 10;
+          const cbX = width - 18 - cbW;        // pegado al margen derecho
           const cbY = padTop + 20;
-          const cbW = 14;
           const cbH = Math.min(280, height - padTop - padBottom - 60);
           const stops = [0, 0.25, 0.5, 0.75, 1];
-          const f_d = plantasCalc[0]?.machones?.[0]?.f_d || 0;
+          // Umbrales semánticos del módulo: warn ≥ 0.8, fail ≥ 1.0.
+          const thresholds: Array<{ t: number; label: string; color: string }> = [
+            { t: 0.80, label: '80%', color: '#f59e0b' },
+            { t: 1.00, label: '100%', color: '#ef4444' },
+          ];
           return (
             <g>
               <defs>
@@ -496,32 +508,33 @@ export function MasonryWallsSVG({
                   ))}
                 </linearGradient>
               </defs>
-              <text x={cbX + cbW / 2} y={cbY - 8} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily={monoFamily} fontWeight="600">σ</text>
-              <text x={cbX + cbW / 2} y={cbY + cbH + 18} textAnchor="middle" fill="#475569" fontSize="8" fontFamily={monoFamily}>{getUnitLabel('stress', system)}</text>
+              <text x={cbX + cbW / 2} y={cbY - 8} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily={monoFamily} fontWeight="600">η</text>
+              <text x={cbX + cbW / 2} y={cbY + cbH + 18} textAnchor="middle" fill="#475569" fontSize="8" fontFamily={monoFamily}>util.</text>
               <rect x={cbX} y={cbY} width={cbW} height={cbH} fill="url(#cb-grad-mw)" stroke="#22304d" strokeWidth="0.6" />
+              {/* Tick labels a la IZQUIERDA del bar (entre bar y wall) para
+                  no salirse del viewport por la derecha. */}
               {[1, 0.75, 0.5, 0.25, 0].map((t) => {
                 const yy = cbY + cbH * (1 - t);
                 return (
                   <g key={t}>
-                    <line x1={cbX + cbW} y1={yy} x2={cbX + cbW + 4} y2={yy} stroke="#475569" strokeWidth="0.6" />
-                    <text x={cbX + cbW + 6} y={yy + 3} fill="#94a3b8" fontSize="9" fontFamily={monoFamily}>
-                      {formatNumber(sigmaMax * t, 'stress', system)}
+                    <line x1={cbX - 4} y1={yy} x2={cbX} y2={yy} stroke="#475569" strokeWidth="0.6" />
+                    <text x={cbX - 6} y={yy + 3} textAnchor="end" fill="#94a3b8" fontSize="9" fontFamily={monoFamily}>
+                      {`${Math.round(t * 100)}%`}
                     </text>
                   </g>
                 );
               })}
-              {f_d > 0 && f_d < sigmaMax * 1.5 && (() => {
-                const tt = Math.min(1, f_d / sigmaMax);
-                const yy = cbY + cbH * (1 - tt);
+              {/* Umbrales 80% (warn) y 100% (fail) — marcadores horizontales
+                  sobre el bar, mismo color que el estado en los machones. */}
+              {thresholds.map(({ t, label, color }) => {
+                const yy = cbY + cbH * (1 - t);
                 return (
-                  <g>
-                    <line x1={cbX - 6} y1={yy} x2={cbX} y2={yy} stroke="#ef4444" strokeWidth="1.4" />
-                    <text x={cbX - 8} y={yy + 3} textAnchor="end" fill="#ef4444" fontSize="8" fontFamily={monoFamily}>
-                      f_d
-                    </text>
+                  <g key={label}>
+                    <line x1={cbX} y1={yy} x2={cbX + cbW} y2={yy} stroke={color} strokeWidth="1.6" />
+                    <line x1={cbX + cbW} y1={yy} x2={cbX + cbW + 3} y2={yy} stroke={color} strokeWidth="1.6" />
                   </g>
                 );
-              })()}
+              })}
             </g>
           );
         })()}

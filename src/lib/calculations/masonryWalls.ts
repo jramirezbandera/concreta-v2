@@ -298,6 +298,17 @@ export interface MasonryWallState {
   L: number;       // mm — longitud del muro
   t: number;       // mm — espesor
   plantas: Planta[];
+  /**
+   * Metadatos del proyecto para la cabecera y firma del PDF. Opcionales — el
+   * PDF imprime "Sin especificar" cuando faltan, lo que hace visible la
+   * ausencia (un building official rechaza un PDF sin proyecto/autor). UI de
+   * inputs queda como follow-up; este campo permite que el state ya soporte
+   * los datos cuando se rellenen.
+   */
+  proyecto?: string;
+  expediente?: string;
+  autor?: string;
+  fechaProyecto?: string;
 }
 
 export interface FabricaResuelta {
