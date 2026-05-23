@@ -23,8 +23,37 @@ interface MicropilesInputsPanelProps {
 
 // ── Primitives reused locally (same pattern as RetainingWallInputs) ──────────
 
+/**
+ * Límites por campo. Antes la UI aceptaba φ=200, γ=−1, baseShear=−5, etc.
+ * El motor solo validaba 3 cosas (γ>0, thickness>0, drillDiameter>0,
+ * designLoad≥0) y dejaba pasar el resto. Aquí declaramos rangos físicamente
+ * razonables — el blur fuerza al usuario al rango y mientras teclea fuera
+ * de rango el campo se vuelve rojo y se muestra el límite violado.
+ *
+ * Md y Vd se introducen como magnitud (siempre ≥0); el motor los suma
+ * directamente en MEd_raw, así que un valor negativo desbalancea el modelo.
+ *
+ * Hay campos sin clamp (cota cabeza/apoyo/NF): aceptan cualquier número
+ * porque pueden ser negativos (bajo rasante) o positivos. La relación
+ * topEl > toeEl la sigue validando el motor.
+ */
+const LIMITS = {
+  drillDiameter:        { min: 0.05, max: 0.60 },     // m — perforación realista
+  injectionPressure:    { min: 0,    max: 3000 },     // kPa
+  designLoad:           { min: 0,    max: 100000 },   // kN
+  steelGrade:           { min: 100,  max: 2000 },     // N/mm²
+  CR:                   { min: 0.5,  max: 30 },       // factor pandeo
+  structuralCover:      { min: 0,    max: 200 },      // mm
+  baseMoment:           { min: 0,    max: 100000 },   // kNm — magnitud
+  baseShear:            { min: 0,    max: 100000 },   // kN  — magnitud
+  soilModulusTop:       { min: 0,    max: 1e8 },      // kN/m²
+  soilModulusEmbed:     { min: 1,    max: 1e8 },      // kN/m² — denominador en Le
+} as const;
+
+export const MICROPILES_INPUT_LIMITS = LIMITS;
+
 function NumField({
-  label, sub, field, value, unit, integer = false, setField,
+  label, sub, field, value, unit, integer = false, min, max, setField,
 }: {
   label: string;
   sub?: string;
@@ -32,39 +61,70 @@ function NumField({
   value: number;
   unit?: string;
   integer?: boolean;
+  min?: number;
+  max?: number;
   setField: MicropilesInputsPanelProps['setField'];
 }) {
   const [localStr, setLocalStr] = useState(() => String(value));
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   const unitText = unit === '—' ? '' : unit ?? '';
 
+  const parsed = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+  const isParsed = !isNaN(parsed);
+  const belowMin = isParsed && min !== undefined && parsed < min;
+  const aboveMax = isParsed && max !== undefined && parsed > max;
+  const outOfRange = belowMin || aboveMax;
+  const errMsg = belowMin ? `min: ${min}` : aboveMax ? `max: ${max}` : null;
+
   return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`input-${String(field)}`} label={label} sub={sub} />
-      <div className="flex shrink-0">
-        <input
-          id={`input-${String(field)}`}
-          type="text"
-          inputMode={integer ? 'numeric' : 'decimal'}
-          value={localStr}
-          onChange={(e) => {
-            const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
-            setLocalStr(raw);
-            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(field, n as MicropilesInputs[typeof field]);
-          }}
-          onBlur={() => {
-            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
-            else if (integer) setLocalStr(String(Math.round(n)));
-          }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
-          aria-label={`${label} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
+    <div className="flex flex-col py-0.75">
+      <div className="flex items-center justify-between max-lg:min-h-11 gap-2 min-w-0">
+        <InputLabel htmlFor={`input-${String(field)}`} label={label} sub={sub} />
+        <div className="flex shrink-0">
+          <input
+            id={`input-${String(field)}`}
+            type="text"
+            inputMode={integer ? 'numeric' : 'decimal'}
+            value={localStr}
+            aria-invalid={outOfRange || undefined}
+            onChange={(e) => {
+              const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
+              setLocalStr(raw);
+              const n = integer ? parseInt(raw, 10) : parseFloat(raw);
+              // Solo propaga si el valor parseado está EN rango — fuera de
+              // rango se queda en el local, pinta error y espera al blur.
+              if (!isNaN(n) && (min === undefined || n >= min) && (max === undefined || n <= max)) {
+                setField(field, n as MicropilesInputs[typeof field]);
+              }
+            }}
+            onBlur={() => {
+              let n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+              if (isNaN(n)) { setLocalStr(String(value)); return; }
+              if (min !== undefined && n < min) n = min;
+              if (max !== undefined && n > max) n = max;
+              if (integer) n = Math.round(n);
+              setLocalStr(String(n));
+              setField(field, n as MicropilesInputs[typeof field]);
+            }}
+            className={[
+              'w-15 text-right rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
+              outOfRange
+                ? 'bg-bg-primary border border-state-fail focus:bg-bg-elevated'
+                : 'bg-bg-primary border border-border-main hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated',
+            ].join(' ')}
+            aria-label={`${label} (${unitText})`}
+          />
+          <span className={[
+            'border border-l-0 rounded-r px-1.25 py-1 text-[10px] font-mono whitespace-nowrap flex items-center',
+            outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
+          ].join(' ')}>
+            {unitText}
+          </span>
+        </div>
       </div>
+      {errMsg && (
+        <div className="text-[10px] font-mono text-state-fail text-right pr-1">{errMsg}</div>
+      )}
     </div>
   );
 }
@@ -171,13 +231,13 @@ export function MicropilesInputsPanel({
       <CollapsibleSection label="Geometría del micropilote" refNorma="Guía Fomento cap. 3.2">
         <NumField label="Cota cabeza" sub="z₀" field="topElevation" value={state.topElevation} unit="m" setField={setField} />
         <NumField label="Cota apoyo"  sub="zL" field="toeElevation" value={state.toeElevation} unit="m" setField={setField} />
-        <NumField label="Dn"          sub="Ø perforación" field="drillDiameter" value={state.drillDiameter} unit="m" setField={setField} />
+        <NumField label="Dn"          sub="Ø perforación" field="drillDiameter" value={state.drillDiameter} unit="m" {...LIMITS.drillDiameter} setField={setField} />
         <NumField label="NF"          sub="cota nivel freático" field="waterTableElevation" value={state.waterTableElevation} unit="m" setField={setField} />
-        <NumField label="p,inj"       sub="presión inyección" field="injectionPressure" value={state.injectionPressure} unit="kPa" integer setField={setField} />
+        <NumField label="p,inj"       sub="presión inyección" field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
-        <NumField label="Nc,d" sub="por pilote individual" field="designLoad" value={state.designLoad} unit="kN" integer setField={setField} />
+        <NumField label="Nc,d" sub="por pilote individual" field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
         <Segmented<EffortType>
           label="Esfuerzo"
           value={state.effort}
@@ -226,7 +286,7 @@ export function MicropilesInputsPanel({
           options={MICROPILE_TUBES.map((t) => ({ value: t.label, label: t.label }))}
           setField={setField}
         />
-        <NumField label="fy" sub="acero" field="steelGrade" value={state.steelGrade} unit="N/mm²" integer setField={setField} />
+        <NumField label="fy" sub="acero" field="steelGrade" value={state.steelGrade} unit="N/mm²" integer {...LIMITS.steelGrade} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Ejecución y entorno" refNorma="Guía Fomento Tablas 3.5/3.6/A-5.1">
@@ -279,15 +339,15 @@ export function MicropilesInputsPanel({
           ]}
           onChange={(v) => setField('duration', v)}
         />
-        <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" setField={setField} />
-        <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" setField={setField} />
+        <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
+        <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" {...LIMITS.structuralCover} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">
-        <NumField label="Md" sub="momento cabeza" field="baseMoment" value={state.baseMoment} unit="kNm" setField={setField} />
-        <NumField label="Vd" sub="cortante cabeza" field="baseShear"  value={state.baseShear}  unit="kN"  setField={setField} />
-        <NumField label="E₀" sub="módulo cabeza"  field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer setField={setField} />
-        <NumField label="EL" sub="módulo empotr." field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer setField={setField} />
+        <NumField label="Md" sub="momento cabeza" field="baseMoment" value={state.baseMoment} unit="kNm" {...LIMITS.baseMoment} setField={setField} />
+        <NumField label="Vd" sub="cortante cabeza" field="baseShear"  value={state.baseShear}  unit="kN"  {...LIMITS.baseShear}  setField={setField} />
+        <NumField label="E₀" sub="módulo cabeza"  field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer {...LIMITS.soilModulusTop}   setField={setField} />
+        <NumField label="EL" sub="módulo empotr." field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer {...LIMITS.soilModulusEmbed} setField={setField} />
         {/* f (empotramiento ficticio) ahora se interpola desde E₀/EL — Tabla 3.8. */}
       </CollapsibleSection>
 

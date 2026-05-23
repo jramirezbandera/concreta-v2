@@ -10,44 +10,91 @@ interface SoilStrataEditorProps {
   onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
 }
 
+/**
+ * Rangos físicos por propiedad del estrato. Antes la UI aceptaba γ=−1,
+ * φ=200°, rflim=−2, etc. — el motor solo validaba thickness>0 y γ>0 y
+ * dejaba pasar el resto. Aquí se acotan al rango razonable (CTE DB-SE-C
+ * y experiencia geotécnica) y el blur fuerza al usuario al rango.
+ */
+export const SOIL_LIMITS = {
+  thickness: { min: 0.05, max: 200  },     // m
+  gamma:     { min: 10,   max: 26   },     // kN/m³
+  c:         { min: 0,    max: 1000 },     // kPa
+  phi:       { min: 0,    max: 50   },     // °
+  Nspt:      { min: 0,    max: 200  },     // golpes/30cm
+  su:        { min: 0,    max: 1000 },     // kN/m²
+  rflim:     { min: 0,    max: 5    },     // MPa
+} as const;
+
 interface FieldProps {
   label: string;
   value: number;
   unit?: string;
+  min?: number;
+  max?: number;
   onChange: (n: number) => void;
 }
 
-function MiniNumField({ label, value, unit, onChange }: FieldProps) {
+function MiniNumField({ label, value, unit, min, max, onChange }: FieldProps) {
   const [local, setLocal] = useState(String(value));
   // Resync cuando el valor externo cambia (añadir/quitar estratos reordena
   // las cards y antes el local stale enmascaraba el valor real hasta el blur).
   useEffect(() => { setLocal(String(value)); }, [value]);
+
+  const parsed = parseFloat(local);
+  const isParsed = !isNaN(parsed);
+  const belowMin = isParsed && min !== undefined && parsed < min;
+  const aboveMax = isParsed && max !== undefined && parsed > max;
+  const outOfRange = belowMin || aboveMax;
+  const errMsg = belowMin ? `min: ${min}` : aboveMax ? `max: ${max}` : null;
+
   return (
-    <label className="flex items-center justify-between gap-1.5 min-w-0">
-      <span className="text-[11px] text-text-secondary truncate">{label}</span>
-      <span className="flex shrink-0">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={local}
-          onChange={(e) => {
-            setLocal(e.target.value);
-            const n = parseFloat(e.target.value);
-            if (!isNaN(n)) onChange(n);
-          }}
-          onBlur={() => {
-            const n = parseFloat(local);
-            if (isNaN(n)) setLocal(String(value));
-          }}
-          className="w-13 text-right bg-bg-primary border border-border-main rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors"
-        />
-        {unit && (
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1 py-1 text-[9.5px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {unit}
-          </span>
-        )}
-      </span>
-    </label>
+    <div className="flex flex-col">
+      <label className="flex items-center justify-between gap-1.5 min-w-0">
+        <span className="text-[11px] text-text-secondary truncate">{label}</span>
+        <span className="flex shrink-0">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={local}
+            aria-invalid={outOfRange || undefined}
+            onChange={(e) => {
+              setLocal(e.target.value);
+              const n = parseFloat(e.target.value);
+              // Solo propaga si está en rango; fuera de rango queda en local.
+              if (!isNaN(n) && (min === undefined || n >= min) && (max === undefined || n <= max)) {
+                onChange(n);
+              }
+            }}
+            onBlur={() => {
+              let n = parseFloat(local);
+              if (isNaN(n)) { setLocal(String(value)); return; }
+              if (min !== undefined && n < min) n = min;
+              if (max !== undefined && n > max) n = max;
+              setLocal(String(n));
+              onChange(n);
+            }}
+            className={[
+              'w-13 text-right rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none transition-colors',
+              outOfRange
+                ? 'bg-bg-primary border border-state-fail'
+                : 'bg-bg-primary border border-border-main hover:border-accent/40 focus:border-accent',
+            ].join(' ')}
+          />
+          {unit && (
+            <span className={[
+              'border border-l-0 rounded-r px-1 py-1 text-[9.5px] font-mono whitespace-nowrap flex items-center',
+              outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
+            ].join(' ')}>
+              {unit}
+            </span>
+          )}
+        </span>
+      </label>
+      {errMsg && (
+        <div className="text-[9.5px] font-mono text-state-fail text-right pr-1">{errMsg}</div>
+      )}
+    </div>
   );
 }
 
@@ -117,19 +164,19 @@ function StrataCard({
               <option value="cohesive">Cohesivo</option>
             </select>
           </label>
-          <MiniNumField label="Pot."   unit="m"     value={layer.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
-          <MiniNumField label="γ"      unit="kN/m³" value={layer.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
+          <MiniNumField label="Pot."   unit="m"     value={layer.thickness} {...SOIL_LIMITS.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
+          <MiniNumField label="γ"      unit="kN/m³" value={layer.gamma}     {...SOIL_LIMITS.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
           {/* c′ solo se muestra en cohesivos — en granulares la cohesión efectiva
               es cero por definición y mostrarlo confundía al usuario. */}
           {layer.type === 'cohesive' && (
-            <MiniNumField label="c′"   unit="kPa"   value={layer.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
+            <MiniNumField label="c′"   unit="kPa"   value={layer.c}         {...SOIL_LIMITS.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
           )}
-          <MiniNumField label="φ"      unit="°"     value={layer.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
-          <MiniNumField label="NSPT"               value={layer.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
+          <MiniNumField label="φ"      unit="°"     value={layer.phi}       {...SOIL_LIMITS.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
+          <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
           {layer.type === 'cohesive' && (
-            <MiniNumField label="su" unit="kN/m²" value={layer.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
+            <MiniNumField label="su" unit="kN/m²" value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
-          <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+          <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
         </div>
       )}
     </div>
