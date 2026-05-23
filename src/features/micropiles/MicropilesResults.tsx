@@ -44,7 +44,7 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
         <GroupHeader label="Geometría" />
         <ValueRow label="L (longitud bajo encepado)" value={`${fmt2(result.length)} m`} />
         <ValueRow label="Discretización" value={`${result.nSegments} × ${fmt2(result.segmentLength)} m`} />
-        <ValueRow label="Dn (perforación)" value={`${fmt3(inp.drillDiameter)} m`} />
+        <ValueRow label="Dn (perforación)" value={`${inp.drillDiameter.toFixed(0)} mm`} />
       </div>
 
       {/* Hundimiento por fuste */}

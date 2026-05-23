@@ -179,9 +179,11 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // ── 1. Geometría del fuste ───────────────────────────────────────────────
   // Convención v4: profundidad positiva = bajo rasante. L es la distancia
   // entre la cabeza y el apoyo, siempre positiva.
+  // Convención v5: inp.drillDiameter llega en mm; el resto del motor
+  // sigue trabajando en m, así que convertimos en la frontera.
   const L  = inp.toeDepth - inp.topDepth;             // m — longitud bajo cabezal
   const dz = L / N_SEGMENTS;                          // m — espesor segmento
-  const Dn = inp.drillDiameter;                       // m — Ø perforación
+  const Dn = inp.drillDiameter / 1000;                // m — Ø perforación
   const perimeter = Math.PI * Dn;                     // m
 
   // El perfil de suelo debe cubrir TODA la longitud del micropilote. Antes
@@ -309,7 +311,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // dentro de la lechada estructural. Debe cumplirse d_struct ≤ Dn
   // (perforación) para que el bulbo quepa físicamente dentro del barreno.
   const dTotal   = de + 2 * inp.structuralCover;             // mm
-  const dPerfMm  = inp.drillDiameter * 1000;                 // mm
+  const dPerfMm  = inp.drillDiameter;                        // mm (v5: ya en mm)
   if (dTotal > dPerfMm + 1e-3) {
     return invalid(
       `El bulbo estructural (${dTotal.toFixed(1)} mm) excede el diámetro de perforación ` +

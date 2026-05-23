@@ -203,7 +203,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',
-  'micropiles': '4',          // v4 (2026-05-24): cota → profundidad (positiva ↓), renombra top/toe/waterTable Elevation→Depth (Excel-style negativos era contraintuitivo en cimentación)
+  'micropiles': '5',          // v5 (2026-05-24): drillDiameter pasa de m a mm (UI más natural: 185 mm vs 0,185 m). v4: cota→profundidad positiva.
   'empresillado': '1',
   'masonry-walls': '1',
   'timber-beams': '1',

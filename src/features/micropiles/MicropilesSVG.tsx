@@ -296,7 +296,7 @@ function PerfilView({
 
       {/* Título global */}
       <text x={M.left} y={M.top - 10} fontSize={10.5} fill={p.text} fontFamily="ui-monospace, monospace">
-        Micropilote Ø{(inp.drillDiameter * 1000).toFixed(0)} mm · L = {fmt2(zToe - zHead)} m bajo encepado
+        Micropilote Ø{inp.drillDiameter.toFixed(0)} mm · L = {fmt2(zToe - zHead)} m bajo encepado
       </text>
     </g>
   );

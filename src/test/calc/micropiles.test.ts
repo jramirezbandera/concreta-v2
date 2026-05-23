@@ -381,7 +381,7 @@ describe('Edge cases', () => {
   });
 
   it('invalid input — negative drillDiameter → invalid', () => {
-    const r = calcMicropiles({ ...baseInp, drillDiameter: -0.1 }, baseSoil);
+    const r = calcMicropiles({ ...baseInp, drillDiameter: -100 }, baseSoil);   // mm
     expect(r.valid).toBe(false);
   });
 
@@ -402,15 +402,15 @@ describe('Edge cases', () => {
 // ── Fix C1 — bulbo estructural ≤ perforación ─────────────────────────────────
 describe('Validación d_struct ≤ Dn (fix C1)', () => {
   it('rechaza configuración con d_struct > Dn perforación', () => {
-    // Ø88,9 + 2·45,55 = 180 mm. Si Dn = 0,15 m = 150 mm → debe invalidar.
-    const r = calcMicropiles({ ...baseInp, drillDiameter: 0.15 }, baseSoil);
+    // Ø88,9 + 2·45,55 = 180 mm. Si Dn = 150 mm → debe invalidar.
+    const r = calcMicropiles({ ...baseInp, drillDiameter: 150 }, baseSoil);
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/bulbo estructural/);
   });
 
   it('acepta Dn justo igual al bulbo estructural', () => {
     // Ø88,9 + 2·45,55 = 180 mm exacto.
-    const r = calcMicropiles({ ...baseInp, drillDiameter: 0.180 }, baseSoil);
+    const r = calcMicropiles({ ...baseInp, drillDiameter: 180 }, baseSoil);
     expect(r.valid).toBe(true);
   });
 });
@@ -465,26 +465,29 @@ describe('Fu en tracción (fix C3)', () => {
 
 // ── Spacing guidance — Guía Fomento Fig. 3.6 + §3.10 ─────────────────────────
 describe('Separación entre micropilotes (Fig. 3.6 + Tabla 3.10)', () => {
-  it('spacingMin = 2·Dn', () => {
+  // baseInp.drillDiameter está ahora en mm (v5); spacingMin/Max/NoGroup en m.
+  // Por eso multiplicamos por Dn/1000 cuando comparamos contra el campo.
+  it('spacingMin = 2·Dn — FTUX Dn=185 mm → 0.37 m', () => {
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.spacingMin).toBeCloseTo(2 * baseInp.drillDiameter, 6);
+    expect(r.spacingMin).toBeCloseTo(2 * baseInp.drillDiameter / 1000, 6);
+    expect(r.spacingMin).toBeCloseTo(0.37, 3);
   });
 
-  it('spacingMaxRec = min(5·Dn, 1 m) — FTUX Dn=0.185 → 5D=0.925 < 1, gana 5D', () => {
+  it('spacingMaxRec = min(5·Dn, 1 m) — FTUX 5D=0.925 m < 1, gana 5D', () => {
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.spacingMaxRec).toBeCloseTo(5 * baseInp.drillDiameter, 6);
+    expect(r.spacingMaxRec).toBeCloseTo(5 * baseInp.drillDiameter / 1000, 6);
     expect(r.spacingMaxRec).toBeCloseTo(0.925, 3);
   });
 
   it('spacingMaxRec se acota a 1 m cuando Dn es grande', () => {
-    // Dn = 0.30 m → 5D = 1.5 m, debe acotarse a 1 m.
-    const r = calcMicropiles({ ...baseInp, drillDiameter: 0.30 }, baseSoil);
+    // Dn = 300 mm → 5D = 1.5 m, debe acotarse a 1 m.
+    const r = calcMicropiles({ ...baseInp, drillDiameter: 300 }, baseSoil);
     expect(r.spacingMaxRec).toBe(1);
   });
 
   it('spacingForNoGroup = 4·Dn (frontera superior del rango Tabla 3.10)', () => {
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.spacingForNoGroup).toBeCloseTo(4 * baseInp.drillDiameter, 6);
+    expect(r.spacingForNoGroup).toBeCloseTo(4 * baseInp.drillDiameter / 1000, 6);
     expect(r.spacingForNoGroup).toBeCloseTo(0.74, 3);
   });
 
@@ -549,8 +552,8 @@ describe('Cobertura post-auditoría', () => {
   it('drillDiameter SÍ afecta al fuste (perímetro)', () => {
     // Aunque dTotal está acotado por structuralCover, perimeter = π·Dn sí
     // depende de Dn → cambiar Dn debe cambiar Rfc.
-    const a = calcMicropiles({ ...baseInp, drillDiameter: 0.185 }, baseSoil);
-    const b = calcMicropiles({ ...baseInp, drillDiameter: 0.220 }, baseSoil);
+    const a = calcMicropiles({ ...baseInp, drillDiameter: 185 }, baseSoil);
+    const b = calcMicropiles({ ...baseInp, drillDiameter: 220 }, baseSoil);
     expect(b.RfcTheoretical).toBeGreaterThan(a.RfcTheoretical);
   });
 

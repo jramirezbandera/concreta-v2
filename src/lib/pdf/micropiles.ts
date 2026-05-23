@@ -64,7 +64,7 @@ export async function exportMicropilesPDF(
   const L = inp.toeDepth - inp.topDepth;
   const pairs: Array<[string, string]> = [
     [`z cabeza = ${inp.topDepth.toFixed(2)} m`,               `z apoyo = ${inp.toeDepth.toFixed(2)} m`],
-    [`L = ${L.toFixed(2)} m`,                                 `Dn = ${(inp.drillDiameter * 1000).toFixed(0)} mm`],
+    [`L = ${L.toFixed(2)} m`,                                 `Dn = ${inp.drillDiameter.toFixed(0)} mm`],
     [`NF z = ${inp.waterTableDepth.toFixed(2)} m`,            `p,inj = ${inp.injectionPressure.toFixed(0)} kPa`],
     [`Nc,d = ${inp.designLoad.toFixed(0)} kN`,                `Esfuerzo: ${inp.effort}`],
     [`Método: ${inp.method}`,                                 `Estratos: ${soil.length}`],

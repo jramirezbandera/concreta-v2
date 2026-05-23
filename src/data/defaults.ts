@@ -895,7 +895,7 @@ export interface MicropilesInputs {
   // en una herramienta de cimentación.
   topDepth:           number;   // m (profundidad cabeza, positiva = bajo rasante)
   toeDepth:           number;   // m (profundidad apoyo, > topDepth)
-  drillDiameter:      number;   // m — Dn (perforación)
+  drillDiameter:      number;   // mm — Dn (perforación). Cambio v4→v5: antes en m
   waterTableDepth:    number;   // m — profundidad NF (positiva bajo rasante). Si < topDepth, NF sobre la cabeza
   injectionPressure:  number;   // kPa
   // Carga y modo
@@ -930,7 +930,7 @@ export interface MicropilesInputs {
 export const micropilesDefaults: MicropilesInputs = {
   topDepth:           1.0,
   toeDepth:           17.0,
-  drillDiameter:      0.185,
+  drillDiameter:      185,           // mm (era 0.185 m)
   waterTableDepth:    7.5,
   injectionPressure:  300,
   designLoad:         350,

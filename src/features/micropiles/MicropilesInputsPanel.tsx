@@ -38,7 +38,7 @@ interface MicropilesInputsPanelProps {
  * topEl > toeEl la sigue validando el motor.
  */
 const LIMITS = {
-  drillDiameter:        { min: 0.05, max: 0.60 },     // m — perforación realista
+  drillDiameter:        { min: 50,   max: 600 },      // mm — perforación realista (v5)
   injectionPressure:    { min: 0,    max: 3000 },     // kPa
   designLoad:           { min: 0,    max: 100000 },   // kN
   steelGrade:           { min: 100,  max: 2000 },     // N/mm²
@@ -231,7 +231,7 @@ export function MicropilesInputsPanel({
       <CollapsibleSection label="Geometría del micropilote" refNorma="Guía Fomento cap. 3.2">
         <NumField label="z cabeza"    sub="prof. bajo rasante" field="topDepth"        value={state.topDepth}        unit="m" setField={setField} />
         <NumField label="z apoyo"     sub="prof. bajo rasante" field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
-        <NumField label="Dn"          sub="Ø perforación"      field="drillDiameter"   value={state.drillDiameter}   unit="m" {...LIMITS.drillDiameter} setField={setField} />
+        <NumField label="Dn"          sub="Ø perforación"      field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
         <NumField label="z NF"        sub="prof. nivel freático" field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
         <NumField label="p,inj"       sub="presión inyección"  field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
       </CollapsibleSection>
