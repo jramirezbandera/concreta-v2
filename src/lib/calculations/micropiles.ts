@@ -166,8 +166,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   if (!Array.isArray(soil) || soil.length === 0) {
     return invalid('Se requiere al menos un estrato de terreno.');
   }
-  if (inp.topElevation <= inp.toeElevation) {
-    return invalid('La cota de apoyo debe estar por debajo de la cabeza.');
+  if (inp.toeDepth <= inp.topDepth) {
+    return invalid('La profundidad del apoyo debe ser mayor que la de la cabeza.');
   }
   if (inp.drillDiameter <= 0) return invalid('Diámetro de perforación debe ser > 0.');
   if (inp.designLoad < 0)     return invalid('Carga Nc,d no puede ser negativa.');
@@ -177,7 +177,9 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   }
 
   // ── 1. Geometría del fuste ───────────────────────────────────────────────
-  const L  = inp.topElevation - inp.toeElevation;     // m — longitud bajo cabezal
+  // Convención v4: profundidad positiva = bajo rasante. L es la distancia
+  // entre la cabeza y el apoyo, siempre positiva.
+  const L  = inp.toeDepth - inp.topDepth;             // m — longitud bajo cabezal
   const dz = L / N_SEGMENTS;                          // m — espesor segmento
   const Dn = inp.drillDiameter;                       // m — Ø perforación
   const perimeter = Math.PI * Dn;                     // m
@@ -198,10 +200,11 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   }
 
   // Profundidad del nivel freático MEDIDA DESDE LA CABEZA (positiva hacia
-  // abajo). Negativa o muy grande ⇒ no hay agua dentro del pilote.
-  const zHeadAbs   = -inp.topElevation;               // m, depth de la cabeza desde rasante (sólo para SegmentResult.zAbs)
-  const zWaterHead = inp.topElevation - inp.waterTableElevation;
-  //                 = (-1) - (-7.5) = 6.5 m  para FTUX
+  // abajo). Negativa ⇒ NF sobre la cabeza (todo el pilote bajo agua). Mayor
+  // que L ⇒ NF bajo el apoyo (todo el pilote seco).
+  const zHeadAbs   = inp.topDepth;                          // m, profundidad de la cabeza desde rasante
+  const zWaterHead = inp.waterTableDepth - inp.topDepth;
+  //                 = 7.5 - 1 = 6.5 m  para FTUX (NF a 6.5 m bajo la cabeza)
 
   // ── 2. Factores normativos ───────────────────────────────────────────────
   const { Fc, Fphi } = FACTORS_BY_APPLICATION[inp.application];

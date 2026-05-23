@@ -76,7 +76,7 @@ describe('exportMicropilesPDF', () => {
     // Política de Concreta: el PDF NUNCA se gatea por validez del result.
     // El usuario puede necesitar el PDF para documentar un perfil
     // problemático. El motor refleja el estado real en el cuerpo del doc.
-    const badInp = { ...micropilesDefaults, toeElevation: micropilesDefaults.topElevation };
+    const badInp = { ...micropilesDefaults, toeDepth: micropilesDefaults.topDepth };
     const result = calcMicropiles(badInp, micropilesSoilDefaults);
     expect(result.valid).toBe(false);
 

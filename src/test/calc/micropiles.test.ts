@@ -355,9 +355,10 @@ describe('Edge cases', () => {
     expect(r.it).toBeUndefined();
   });
 
-  it('water table above pile head leaves all segments unsaturated', () => {
-    // NF a -0.5 (encima de la cabeza -1.0) → debería computar pero sin agua dentro del pilote
-    const r = calcMicropiles({ ...baseInp, waterTableElevation: -0.5 }, baseSoil);
+  it('water table above pile head computes (NF sobre cabeza, todo el fuste sumergido)', () => {
+    // waterTableDepth = 0.5 m → menor que topDepth=1.0 m → NF queda 0.5 m
+    // SOBRE la cabeza del pilote, todo el fuste tiene presencia de agua.
+    const r = calcMicropiles({ ...baseInp, waterTableDepth: 0.5 }, baseSoil);
     expect(r.valid).toBe(true);
   });
 
@@ -369,7 +370,8 @@ describe('Edge cases', () => {
   });
 
   it('invalid input — toe above head → invalid', () => {
-    const r = calcMicropiles({ ...baseInp, toeElevation: -0.5 }, baseSoil);
+    // toeDepth=0.5 m < topDepth=1 m → apoyo POR ENCIMA de la cabeza.
+    const r = calcMicropiles({ ...baseInp, toeDepth: 0.5 }, baseSoil);
     expect(r.valid).toBe(false);
   });
 
@@ -416,15 +418,15 @@ describe('Validación d_struct ≤ Dn (fix C1)', () => {
 // ── Fix C2 — semántica del nivel freático ────────────────────────────────────
 describe('NF — semántica única u = γw·max(0, zBot−zWater) (fix C2)', () => {
   it('NF sobre la cabeza satura todo el fuste con u > 0 desde el primer segmento', () => {
-    // waterTableElevation = -0.5 (encima de topElevation = -1).
-    // zWaterHead = -1 − (-0.5) = -0.5 m → max(0, zBot − (-0.5)) = zBot + 0.5 > 0
+    // waterTableDepth = 0.5 m (sobre topDepth = 1 m).
+    // zWaterHead = 0.5 − 1 = −0.5 m → max(0, zBot − (−0.5)) = zBot + 0.5 > 0
     // para cualquier segmento. Resultado: Rfc menor que con NF dentro del pilote.
     const dryHigh = calcMicropiles(
-      { ...baseInp, waterTableElevation: -200 },                // NF imposiblemente bajo
+      { ...baseInp, waterTableDepth: 200 },                     // NF imposiblemente bajo
       baseSoil,
     );
     const submerged = calcMicropiles(
-      { ...baseInp, waterTableElevation: -0.5 },                // NF sobre la cabeza
+      { ...baseInp, waterTableDepth: 0.5 },                     // NF sobre la cabeza
       baseSoil,
     );
     expect(submerged.valid).toBe(true);
@@ -434,7 +436,7 @@ describe('NF — semántica única u = γw·max(0, zBot−zWater) (fix C2)', () 
 
   it('NF bajo el apoyo deja u = 0 en todos los segmentos', () => {
     const r = calcMicropiles(
-      { ...baseInp, waterTableElevation: -50 },                 // muy por debajo del apoyo
+      { ...baseInp, waterTableDepth: 50 },                      // muy por debajo del apoyo
       baseSoil,
     );
     expect(r.valid).toBe(true);
@@ -497,7 +499,7 @@ describe('Separación entre micropilotes (Fig. 3.6 + Tabla 3.10)', () => {
 describe('Cohesión en granulares (D1-bis)', () => {
   it('un granular con c=280 da el MISMO Rfc_theoretical que el mismo granular con c=0', () => {
     // Pilote 1 m corto que cabe íntegro en el primer estrato (granular).
-    const inp = { ...baseInp, topElevation: 0, toeElevation: -1, waterTableElevation: -10 };
+    const inp = { ...baseInp, topDepth: 0, toeDepth: 1, waterTableDepth: 10 };
     const soilWithC: SoilLayer[] = [
       { id: 1, type: 'granular', thickness: 5, gamma: 20, c: 280, phi: 28, Nspt: 30, su: 0, rflim: 0.20 },
     ];
@@ -510,7 +512,7 @@ describe('Cohesión en granulares (D1-bis)', () => {
   });
 
   it('un cohesivo con c=280 SÍ contribuye (no degenera el caso cohesivo)', () => {
-    const inp = { ...baseInp, topElevation: 0, toeElevation: -1, waterTableElevation: -10 };
+    const inp = { ...baseInp, topDepth: 0, toeDepth: 1, waterTableDepth: 10 };
     const soilHighC: SoilLayer[] = [
       { id: 1, type: 'cohesive', thickness: 5, gamma: 20, c: 280, phi: 28, Nspt: 30, su: 1000, rflim: 0.20 },
     ];

@@ -133,9 +133,11 @@ function PerfilView({
   const plotW = Math.max(60, width  - M.left - M.right);
   const plotH = Math.max(80, height - M.top  - M.bottom);
 
-  // Profundidad máxima a representar (absoluta desde rasante).
-  const zHead = -inp.topElevation;
-  const zToe  = -inp.toeElevation;
+  // Profundidad máxima a representar (absoluta desde rasante, positiva ↓).
+  // Convención v4: topDepth/toeDepth ya son profundidades positivas, sin
+  // necesidad de negarlas como con la antigua cota.
+  const zHead = inp.topDepth;
+  const zToe  = inp.toeDepth;
   const zMax  = Math.max(zToe + 2, 4);
   const yOfDepth = (z: number) => M.top + (z / zMax) * plotH;
 
@@ -163,15 +165,19 @@ function PerfilView({
   const capW        = pileW * 2.6;
   const capH        = 10;
 
-  // Nivel freático
-  const showWater = inp.waterTableElevation < inp.topElevation && inp.waterTableElevation > inp.toeElevation - 20;
-  const yWater    = showWater ? yOfDepth(-inp.waterTableElevation) : null;
+  // Nivel freático — mostrar la línea sólo si cae dentro del rango visible:
+  // entre la cabeza y 20 m por debajo del apoyo. waterTableDepth menor que
+  // topDepth = NF sobre la cabeza (no se dibuja, todo el pilote sumergido).
+  const showWater = inp.waterTableDepth > inp.topDepth && inp.waterTableDepth < inp.toeDepth + 20;
+  const yWater    = showWater ? yOfDepth(inp.waterTableDepth) : null;
 
-  // Cotas: cabeza, NF, transiciones de estrato dentro del pilote, apoyo
+  // Etiquetas de profundidad: cabeza, NF (si aplica), apoyo. Convención v4:
+  // se muestran como profundidades positivas con signo "z=" para no inducir
+  // a leerlas como cotas topográficas.
   const tickDepths: { z: number; label: string }[] = [];
-  tickDepths.push({ z: zHead, label: `${fmt1(inp.topElevation)} m` });
-  if (showWater) tickDepths.push({ z: -inp.waterTableElevation, label: `NF ${fmt1(inp.waterTableElevation)} m` });
-  tickDepths.push({ z: zToe, label: `${fmt1(inp.toeElevation)} m` });
+  tickDepths.push({ z: zHead, label: `z=${fmt1(inp.topDepth)} m` });
+  if (showWater) tickDepths.push({ z: inp.waterTableDepth, label: `NF z=${fmt1(inp.waterTableDepth)} m` });
+  tickDepths.push({ z: zToe, label: `z=${fmt1(inp.toeDepth)} m` });
 
   return (
     <g>

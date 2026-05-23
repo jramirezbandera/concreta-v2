@@ -61,11 +61,11 @@ export async function exportMicropilesPDF(
 
   const col1 = M;
   const col2 = M + 40;
-  const L = inp.topElevation - inp.toeElevation;
+  const L = inp.toeDepth - inp.topDepth;
   const pairs: Array<[string, string]> = [
-    [`z cabeza = ${inp.topElevation.toFixed(2)} m`,           `z apoyo = ${inp.toeElevation.toFixed(2)} m`],
+    [`z cabeza = ${inp.topDepth.toFixed(2)} m`,               `z apoyo = ${inp.toeDepth.toFixed(2)} m`],
     [`L = ${L.toFixed(2)} m`,                                 `Dn = ${(inp.drillDiameter * 1000).toFixed(0)} mm`],
-    [`NF = ${inp.waterTableElevation.toFixed(2)} m`,          `p,inj = ${inp.injectionPressure.toFixed(0)} kPa`],
+    [`NF z = ${inp.waterTableDepth.toFixed(2)} m`,            `p,inj = ${inp.injectionPressure.toFixed(0)} kPa`],
     [`Nc,d = ${inp.designLoad.toFixed(0)} kN`,                `Esfuerzo: ${inp.effort}`],
     [`Método: ${inp.method}`,                                 `Estratos: ${soil.length}`],
     [pdfStr(`Hormigón HA-${inp.concreteGrade}`),              pdfStr(`Tubo: ${inp.tube}`)],

@@ -886,11 +886,17 @@ export interface SoilLayer {
 }
 
 export interface MicropilesInputs {
-  // Geometría
-  topElevation:       number;   // m (cota cabeza, negativa = bajo rasante)
-  toeElevation:       number;   // m (cota apoyo de cálculo, negativa)
+  // Geometría — convención: profundidad medida DESDE LA RASANTE, positiva
+  // hacia abajo (convención geotécnica). Una cabeza enterrada 1 m tiene
+  // topDepth = 1. Si por algún motivo la cabeza queda sobre rasante (poste),
+  // topDepth puede ser negativa, pero NO es el caso típico de cimentación.
+  // Cambio v3 → v4 (2026-05-24): antes se usaba cota (positiva = arriba);
+  // el usuario tenía que meter números negativos para todo, contraintuitivo
+  // en una herramienta de cimentación.
+  topDepth:           number;   // m (profundidad cabeza, positiva = bajo rasante)
+  toeDepth:           number;   // m (profundidad apoyo, > topDepth)
   drillDiameter:      number;   // m — Dn (perforación)
-  waterTableElevation:number;   // m, cota del NF (negativa bajo rasante; >= topElevation = sin agua)
+  waterTableDepth:    number;   // m — profundidad NF (positiva bajo rasante). Si < topDepth, NF sobre la cabeza
   injectionPressure:  number;   // kPa
   // Carga y modo
   designLoad:         number;   // kN — Nc,d
@@ -922,10 +928,10 @@ export interface MicropilesInputs {
 }
 
 export const micropilesDefaults: MicropilesInputs = {
-  topElevation:      -1.0,
-  toeElevation:      -17.0,
+  topDepth:           1.0,
+  toeDepth:           17.0,
   drillDiameter:      0.185,
-  waterTableElevation: -7.5,
+  waterTableDepth:    7.5,
   injectionPressure:  300,
   designLoad:         350,
   effort:             'compression',

@@ -120,7 +120,7 @@ describe('MicropilesSVG', () => {
     // explotaría medio render. Construimos un invalid via L=0 (cota
     // apoyo ≥ cabeza).
     const invalidResult = calcMicropiles(
-      { ...micropilesDefaults, toeElevation: 0, topElevation: 0 },
+      { ...micropilesDefaults, toeDepth: 0, topDepth: 0 },
       micropilesSoilDefaults,
     );
     expect(invalidResult.valid).toBe(false);

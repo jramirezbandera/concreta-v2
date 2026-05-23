@@ -203,7 +203,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',
-  'micropiles': '3',          // v3 (2026-05-23): elimina f_lef (ahora interpolado desde Tabla 3.8), añade designLifeYears (Tabla 2.4 vida útil)
+  'micropiles': '4',          // v4 (2026-05-24): cota → profundidad (positiva ↓), renombra top/toe/waterTable Elevation→Depth (Excel-style negativos era contraintuitivo en cimentación)
   'empresillado': '1',
   'masonry-walls': '1',
   'timber-beams': '1',
