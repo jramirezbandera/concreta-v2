@@ -8,7 +8,7 @@ import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
 
 const M = 20;
 
@@ -225,23 +225,33 @@ export async function exportIsolatedFootingPDF(
 
   let rowY = tableY + 9;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  setGray(doc, 100);
-  doc.text('Verificacion', COL.desc,   rowY);
-  doc.text('Valor',        COL.value,  rowY);
-  doc.text('Limite',       COL.limit,  rowY);
-  doc.text('Ut%',          COL.util,   rowY);
-  doc.text('Estado',       COL.status, rowY);
-  rowY += 2;
+  // Re-drawable column header — invoked on each page so a continuation page
+  // still labels its columns. Returns the y to continue from. (Used by
+  // ensureSpace as onNewPage callback below — replaces the previous silent
+  // `if (rowY > PAGE_H - M - 10) break;` which dropped checks on overflow.)
+  const drawChecksHeader = (atY: number): number => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    setGray(doc, 100);
+    doc.text('Verificacion', COL.desc,   atY);
+    doc.text('Valor',        COL.value,  atY);
+    doc.text('Limite',       COL.limit,  atY);
+    doc.text('Ut%',          COL.util,   atY);
+    doc.text('Estado',       COL.status, atY);
+    const lineY = atY + 2;
+    doc.setLineWidth(0.2);
+    setGray(doc, 160);
+    doc.line(M, lineY, PAGE_W - M, lineY);
+    return lineY + 5;
+  };
 
-  doc.setLineWidth(0.2);
-  setGray(doc, 160);
-  doc.line(M, rowY, PAGE_W - M, rowY);
-  rowY += 5;
+  rowY = drawChecksHeader(rowY);
 
   for (const ch of result.checks) {
-    if (rowY > PAGE_H - M - 10) break;
+    // Predictive page break: each row is ~7mm tall (text + separator). On
+    // overflow, addPage + redraw header. NEVER silently break out of the loop:
+    // a signed legal document must document every check.
+    rowY = ensureSpace(doc, rowY, 7, M, drawChecksHeader);
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
     const textG  = isFail ? 180 : isWarn ? 120 : 60;
@@ -279,6 +289,6 @@ export async function exportIsolatedFootingPDF(
   const filename = 'zapata-aislada.pdf';
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = doc.getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

@@ -6,7 +6,7 @@ import jsPDF from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -143,30 +143,34 @@ export async function exportPileCapPDF(
 
   let rowY = tableY + 9;
 
-  // Header row
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  setGray(doc, 100);
-  doc.text('Verificacion', COL.desc,   rowY);
-  doc.text('Valor',        COL.value,  rowY);
-  doc.text('Limite',       COL.limit,  rowY);
-  doc.text('Ut%',          COL.util,   rowY);
-  doc.text('Estado',       COL.status, rowY);
-  rowY += 2;
+  // Re-drawable column header — repeated on each continuation page so the
+  // reader sees Valor/Limite/Ut%/Estado labels above continuation rows.
+  // (Previously the page break only ran addPage without redrawing, leaving
+  // anonymous columns on page 2+.)
+  const drawChecksHeader = (atY: number): number => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    setGray(doc, 100);
+    doc.text('Verificacion', COL.desc,   atY);
+    doc.text('Valor',        COL.value,  atY);
+    doc.text('Limite',       COL.limit,  atY);
+    doc.text('Ut%',          COL.util,   atY);
+    doc.text('Estado',       COL.status, atY);
+    const lineY = atY + 2;
+    doc.setLineWidth(0.2);
+    setGray(doc, 160);
+    doc.line(M, lineY, PAGE_W - M, lineY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    return lineY + 5;
+  };
 
-  doc.setLineWidth(0.2);
-  setGray(doc, 160);
-  doc.line(M, rowY, PAGE_W - M, rowY);
-  rowY += 5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  rowY = drawChecksHeader(rowY);
 
   for (const chk of result.checks) {
-    if (rowY > PAGE_H - M - 14) {
-      doc.addPage();
-      rowY = M + 10;
-    }
+    // Each row is description (4mm) + article (3mm) + separator (4mm) ≈ 11mm.
+    // Predictive break with header repeat — never lose a check on overflow.
+    rowY = ensureSpace(doc, rowY, 11, M, drawChecksHeader);
 
     const st = chk.status;
     setGray(doc, 50);
@@ -194,17 +198,23 @@ export async function exportPileCapPDF(
     rowY += 4;
   }
 
-  // ── Footer ─────────────────────────────────────────────────────────────────
+  // ── Footer (every page) ─────────────────────────────────────────────────────
+  // Previously hardcoded "Pagina 1" + only rendered on the active page after
+  // pagination, so continuation pages had no footer AND the last page lied
+  // about being page 1. Now: render on every page with correct N/M.
+  const pageCount = doc.getNumberOfPages();
   const footerY = PAGE_H - 10;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  setGray(doc, 150);
-  doc.text('Concreta - concreta.app | CE art. 48 / CTE DB-SE-C', M, footerY);
-  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 150);
+    doc.text('Concreta - concreta.app | CE art. 48 / CTE DB-SE-C', M, footerY);
+    doc.text(`Pagina ${i}/${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
+  }
 
   const filename = `concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }
