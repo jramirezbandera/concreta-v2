@@ -112,13 +112,22 @@ function StrataCard({
     layer.type === 'granular' ? { dot: '#a8825a', label: 'Granular' }
                               : { dot: '#8a6a44', label: 'Cohesivo' };
 
+  // Header como div con role="button" — antes era <button> y dentro metía
+  // otro <button> (la papelera), HTML inválido que React loguea como warning
+  // en cada render. Cambio mínimo: div toggleable con keydown Enter/Space,
+  // la papelera se queda como <button> dentro porque ya no anida buttons.
+  const toggle = () => setOpen((o) => !o);
   return (
     <div className="rounded border border-border-main bg-bg-primary/40">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between w-full px-2.5 py-2 text-left cursor-pointer"
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        }}
+        className="flex items-center justify-between w-full px-2.5 py-2 text-left cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-accent"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: palette.dot }} />
@@ -149,7 +158,7 @@ function StrataCard({
             style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
           />
         </span>
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-border-sub px-2.5 py-2 grid grid-cols-1 gap-1.5">
