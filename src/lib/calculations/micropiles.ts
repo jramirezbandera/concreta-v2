@@ -27,10 +27,12 @@ import {
   FR_BY_DURATION,
   FU_BY_CONNECTION,
   MU_BY_EFFORT,
+  classifyCircularHollow,
   getCorrosionRe,
   interpolateF,
   interpolateMe,
   weldThroatMin,
+  type SectionClass,
 } from '../../data/micropileLookups';
 import { MICROPILE_TUBES } from '../../data/micropileTubes';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
@@ -108,10 +110,12 @@ export interface MicropilesResult {
   // Empujes horizontales (Guía 3.7)
   Le: number;                       // m — longitud elástica
   Lef: number;                      // m — longitud ficticia empotramiento
-  Mpl_rd: number;                   // kNm — momento plástico resistente
+  Mpl_rd: number;                   // kNm — momento plástico/elástico resistente
   Vpl_rd: number;                   // kN — cortante plástico resistente
   im: number;                       // utilización flexión
   iv: number;                       // utilización cortante
+  /** Clasificación de la sección tubular post-corrosión (EC3 Tabla 5.2). */
+  sectionClass: SectionClass;
 
   // Asientos estimados (mm)
   settlementGranular: number;
@@ -130,6 +134,7 @@ function invalid(error: string): MicropilesResult {
     Fc_h: 0, Fa_h: 0, R: 0, Fe: 0, Nc_rd: 0, Tc_rd: 0, ic: 0,
     he: 0, hp: 0, bc: 0, t_chapa: 0, eg: 0, eg_min: 0,
     Le: 0, Lef: 0, Mpl_rd: 0, Vpl_rd: 0, im: 0, iv: 0,
+    sectionClass: 4,            // sin cálculo: conservador (no plastificación)
     settlementGranular: 0, settlementCohesive: 0,
     checks: [],
   };
@@ -365,13 +370,28 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Lef = 1.2 * f_coef * Le;                                            // m
 
   // Mpl,rd y Vpl,rd — sección tubular sin reducción por axil (simplificado).
-  // TODO E3: no se clasifica la sección (EC3 Tabla 5.2). Para clase 1/2 vale
-  // Wpl; para clase 3 Wel; para clase 4 Weff (< Wel). Math.max es seguro
-  // para clase 1/2/3 pero NO para clase 4. Tubos PIRESA típicos cumplen
-  // clase 1/2 con d/(t·ε²) ≤ 50 — verificable, pendiente.
+  // Clasificación EC3-1-1 Tabla 5.2 sobre la sección POST-CORROSIÓN: el Ø
+  // exterior pasa de de a deNet = de − 2·re y la pared efectiva de e a
+  // (deNet − di)/2 = e − re. Es la geometría que resiste al final de la
+  // vida útil de proyecto.
+  //   Clase 1/2 → W = Wpl (plastificación completa permitida).
+  //   Clase 3   → W = Wel (límite elástico).
+  //   Clase 4   → invalid: la sección abolla localmente antes de fy y
+  //               Concreta no implementa Aeff/Weff (EC3 §6.2.9.2).
+  const eEff = (deNet - di) / 2;
+  const sectionClass = classifyCircularHollow(deNet, eEff, fy);
+  if (sectionClass === 4) {
+    const ratio = eEff > 0 ? deNet / eEff : Infinity;
+    const limit3 = 90 * (235 / fy);
+    return invalid(
+      `Sección clase 4 (EC3-1-1 Tabla 5.2): d/t = ${ratio.toFixed(1)} > ` +
+      `90·ε² = ${limit3.toFixed(1)} con fy = ${fy} N/mm². Selecciona un tubo ` +
+      `con mayor espesor de pared o un acero de menor fy.`,
+    );
+  }
   const Wpl = (Math.pow(deNet, 3) - Math.pow(di, 3)) / 6;                   // mm³ aprox.
   const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * Math.max(1, deNet));
-  const W = Math.max(Wel, Wpl);
+  const W = sectionClass <= 2 ? Wpl : Wel;
   const Mpl_rd = (W * (fy / 1.1)) / 1e6;                                    // kNm
 
   // Av tubular ≈ 2·A/π (EC3 §6.2.6 sección hueca circular)
@@ -509,6 +529,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     Fc_h, Fa_h, R, Fe, Nc_rd, Tc_rd, ic, it,
     he, hp, bc, t_chapa, eg, eg_min,
     Le, Lef, Mpl_rd, Vpl_rd, im, iv,
+    sectionClass,
     settlementGranular, settlementCohesive,
     checks,
   };

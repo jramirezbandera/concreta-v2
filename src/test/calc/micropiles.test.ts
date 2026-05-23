@@ -8,7 +8,7 @@ import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { micropilesDefaults, micropilesSoilDefaults } from '../../data/defaults';
 import { MICROPILE_TUBES, getTube, getTubeAreaGross, getTubeAreaNet } from '../../data/micropileTubes';
 import {
-  weldThroatMin, interpolateF, interpolateMe,
+  weldThroatMin, interpolateF, interpolateMe, classifyCircularHollow,
   RE_BY_CORROSION_MATRIX, getCorrosionRe,
 } from '../../data/micropileLookups';
 
@@ -608,5 +608,111 @@ describe('Matriz corrosión completa (Guía Fomento Tabla 2.4)', () => {
       const lives = Object.keys(RE_BY_CORROSION_MATRIX[env as keyof typeof RE_BY_CORROSION_MATRIX]);
       expect(lives).toHaveLength(5);
     }
+  });
+});
+
+// ── EC3-1-1 Tabla 5.2 — clasificación de sección hueca circular ──────────────
+describe('classifyCircularHollow (EC3-1-1 Tabla 5.2)', () => {
+  // Límites en función de fy: d/t ≤ 50·ε² / 70·ε² / 90·ε² con ε² = 235/fy.
+  // Para S235 (fy=235) → ε²=1 → 50/70/90 directos. Es la rejilla más simple.
+  describe('fy = 235 N/mm² (ε² = 1)', () => {
+    it('d/t = 49 → clase 1', () => {
+      expect(classifyCircularHollow(490, 10, 235)).toBe(1);
+    });
+    it('d/t = 50 (frontera 1/2) → clase 1 (inclusiva)', () => {
+      expect(classifyCircularHollow(500, 10, 235)).toBe(1);
+    });
+    it('d/t = 60 → clase 2', () => {
+      expect(classifyCircularHollow(600, 10, 235)).toBe(2);
+    });
+    it('d/t = 80 → clase 3', () => {
+      expect(classifyCircularHollow(800, 10, 235)).toBe(3);
+    });
+    it('d/t = 91 → clase 4', () => {
+      expect(classifyCircularHollow(910, 10, 235)).toBe(4);
+    });
+  });
+
+  describe('fy = 551 N/mm² (S550 — acero PIRESA por defecto, ε² ≈ 0.4265)', () => {
+    // Límites: 21.3 / 29.9 / 38.4
+    it('Ø88,9 × 9 → d/t ≈ 9.88 → clase 1', () => {
+      expect(classifyCircularHollow(88.9, 9, 551)).toBe(1);
+    });
+    it('Ø114,3 × 7 (peor caso PIRESA) → d/t ≈ 16.3 → clase 1', () => {
+      expect(classifyCircularHollow(114.3, 7, 551)).toBe(1);
+    });
+    it('cubre todo el catálogo PIRESA: todos los tubos son clase 1 con S550', () => {
+      for (const tube of MICROPILE_TUBES) {
+        expect(classifyCircularHollow(tube.de, tube.e, 551), tube.label).toBe(1);
+      }
+    });
+    it('d/t = 25 → clase 2 (entre 21.3 y 29.9)', () => {
+      expect(classifyCircularHollow(250, 10, 551)).toBe(2);
+    });
+    it('d/t = 35 → clase 3 (entre 29.9 y 38.4)', () => {
+      expect(classifyCircularHollow(350, 10, 551)).toBe(3);
+    });
+    it('d/t = 50 → clase 4', () => {
+      expect(classifyCircularHollow(500, 10, 551)).toBe(4);
+    });
+  });
+
+  it('entradas degeneradas devuelven clase 4 (conservador → motor invalida)', () => {
+    expect(classifyCircularHollow(0,  10, 235)).toBe(4);
+    expect(classifyCircularHollow(10, 0,  235)).toBe(4);
+    expect(classifyCircularHollow(10, 10, 0)).toBe(4);
+    expect(classifyCircularHollow(-1, 10, 235)).toBe(4);
+  });
+});
+
+// ── EC3 Tabla 5.2 — comportamiento del motor según clase ─────────────────────
+describe('Motor: selección de W según sectionClass', () => {
+  it('FTUX → sectionClass = 1 (Ø88,9×9 / S550)', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.sectionClass).toBe(1);
+  });
+
+  it('clase 1/2: motor usa Wpl (Mpl_rd FTUX ≈ 26.56 kNm)', () => {
+    const r = calcMicropiles(baseInp, baseSoil);
+    // El test de regresión existente (línea 85) ya cubre el número exacto;
+    // aquí confirmamos que viene del path Wpl: Wpl > Wel para tubular
+    // hueca, así que un cálculo con Wel daría un Mpl_rd menor.
+    expect(r.sectionClass).toBeLessThanOrEqual(2);
+    expect(r.Mpl_rd).toBeCloseTo(26.56, 1);
+  });
+
+  it('clase 3: motor degrada a Wel (Mpl_rd < el calculado con Wpl)', () => {
+    // Forzamos clase 3 subiendo fy: con Ø88,9×9 d/t ≈ 9.88, necesitamos
+    // fy alto para que el límite 50·ε² caiga por debajo de 9.88. Con
+    // fy = 2000: ε² = 0.1175 → límites 5.88/8.23/10.58 → 9.88 ⇒ clase 3.
+    const r3 = calcMicropiles({ ...baseInp, steelGrade: 2000 }, baseSoil);
+    expect(r3.valid).toBe(true);
+    expect(r3.sectionClass).toBe(3);
+    // Reconstruimos Wpl y Wel desde la geometría post-corrosión que reporta
+    // el motor (re=0.60 mm con env=natural-undisturbed / vida=50 años),
+    // confirmando que Mpl_rd usa Wel y no Wpl.
+    const deNet = 88.9 - 2 * r3.re;
+    const di = r3.di;
+    const Wpl = (Math.pow(deNet, 3) - Math.pow(di, 3)) / 6;
+    const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * deNet);
+    const Mpl_with_Wpl = (Wpl * (2000 / 1.1)) / 1e6;
+    const Mpl_with_Wel = (Wel * (2000 / 1.1)) / 1e6;
+    expect(r3.Mpl_rd).toBeCloseTo(Mpl_with_Wel, 2);
+    expect(r3.Mpl_rd).toBeLessThan(Mpl_with_Wpl);
+  });
+
+  it('clase 4: motor invalida con mensaje EC3 Tabla 5.2', () => {
+    // fy = 3000 fuerza d/t > 90·ε²: ε² = 0.0783 → límite clase 3 = 7.05;
+    // Ø88,9×9 d/t ≈ 9.88 > 7.05 ⇒ clase 4.
+    const r4 = calcMicropiles({ ...baseInp, steelGrade: 3000 }, baseSoil);
+    expect(r4.valid).toBe(false);
+    expect(r4.error).toMatch(/[Cc]lase 4/);
+    expect(r4.error).toMatch(/Tabla 5\.2/);
+    expect(r4.error).toMatch(/d\/t/);
+  });
+
+  it('clase 4 invalid expone sectionClass = 4 en el result', () => {
+    const r4 = calcMicropiles({ ...baseInp, steelGrade: 3000 }, baseSoil);
+    expect(r4.sectionClass).toBe(4);
   });
 });

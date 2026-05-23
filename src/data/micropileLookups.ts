@@ -220,3 +220,39 @@ export function interpolateMe(LoverLe: number): number {
   if (LoverLe <= 2) return 0.60 + (0.70 - 0.60) * (LoverLe - 1);
   return 0.70 + (0.85 - 0.70) * ((LoverLe - 2) / (7 - 2));
 }
+
+export type SectionClass = 1 | 2 | 3 | 4;
+
+/**
+ * Clasificación de sección hueca circular según EN 1993-1-1 Tabla 5.2
+ * (perfiles huecos a flexión y/o compresión).
+ *
+ *   d/t ≤ 50·ε²   →  Clase 1
+ *   d/t ≤ 70·ε²   →  Clase 2
+ *   d/t ≤ 90·ε²   →  Clase 3
+ *   d/t > 90·ε²   →  Clase 4   (abolladura local antes de fy)
+ *
+ * con ε² = 235/fy (fy en N/mm²).
+ *
+ * El motor de Concreta llama a esta función sobre la sección POST-CORROSIÓN
+ * (Ø exterior reducido por re, espesor de pared reducido por re), porque es
+ * la geometría que resiste tras la vida útil de proyecto.
+ *
+ * Tubos PIRESA con S550 caen siempre en clase 1 (d/t ≤ 16 ≪ 21,3 = 50·ε²),
+ * pero la clasificación es obligatoria por norma — y un futuro tubo de
+ * mayor diámetro o un acero más resistente podría degradar la sección.
+ *
+ * Para clase 4 EC3 §6.2.9.2 exige sección efectiva (Aeff/Weff). Concreta
+ * no la implementa: cuando esta función devuelve 4, el motor invalida con
+ * mensaje en lugar de calcular con Wel o Wpl.
+ */
+export function classifyCircularHollow(de: number, t: number, fy: number): SectionClass {
+  // Entradas degeneradas → clase 4 conservador para que el motor invalide.
+  if (!(de > 0 && t > 0 && fy > 0)) return 4;
+  const eps2 = 235 / fy;
+  const ratio = de / t;
+  if (ratio <= 50 * eps2) return 1;
+  if (ratio <= 70 * eps2) return 2;
+  if (ratio <= 90 * eps2) return 3;
+  return 4;
+}
