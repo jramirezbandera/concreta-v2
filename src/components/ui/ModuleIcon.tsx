@@ -137,6 +137,23 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M4 4.5h8M4 8h8M4 11.5h8" strokeWidth="1.4"/>
         </svg>
       );
+    // Micropiles: small cap (encepado) + slender deep shaft going into ground
+    // with lateral hatch — the "deep + slender" identity differentiates it
+    // from pile-cap (which shows multiple piles flaring out from a cap).
+    case 'concreta-micropiles':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" aria-hidden="true" className="shrink-0">
+          {/* Encepado (cap) */}
+          <rect x="3.5" y="2" width="9" height="2.5" rx="0.3"/>
+          {/* Tube + grout: twin slender vertical lines */}
+          <path d="M7.3 4.5v9 M8.7 4.5v9" strokeWidth="0.9"/>
+          {/* Tip / bulb of injection at the base */}
+          <path d="M6 13.5h4"/>
+          {/* Ground hatching on both sides */}
+          <path d="M2 6.5l1.4 -1.4 M2 9l1.4 -1.4 M2 11.5l1.4 -1.4" strokeWidth="0.6" strokeOpacity="0.55"/>
+          <path d="M14 6.5l-1.4 -1.4 M14 9l-1.4 -1.4 M14 11.5l-1.4 -1.4" strokeWidth="0.6" strokeOpacity="0.55"/>
+        </svg>
+      );
     // Masonry walls: brick coursing with running bond + an opening
     case 'concreta-masonry-walls':
       return (

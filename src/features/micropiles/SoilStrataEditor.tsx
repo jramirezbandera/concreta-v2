@@ -1,0 +1,161 @@
+import { useEffect, useState } from 'react';
+import { Trash2, ChevronDown } from 'lucide-react';
+import { type SoilLayer } from '../../data/defaults';
+import { type SoilType } from '../../data/micropileLookups';
+
+interface SoilStrataEditorProps {
+  soil: SoilLayer[];
+  onAdd: () => void;
+  onRemove: (id: number) => void;
+  onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+}
+
+interface FieldProps {
+  label: string;
+  value: number;
+  unit?: string;
+  onChange: (n: number) => void;
+}
+
+function MiniNumField({ label, value, unit, onChange }: FieldProps) {
+  const [local, setLocal] = useState(String(value));
+  // Resync cuando el valor externo cambia (añadir/quitar estratos reordena
+  // las cards y antes el local stale enmascaraba el valor real hasta el blur).
+  useEffect(() => { setLocal(String(value)); }, [value]);
+  return (
+    <label className="flex items-center justify-between gap-1.5 min-w-0">
+      <span className="text-[11px] text-text-secondary truncate">{label}</span>
+      <span className="flex shrink-0">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={local}
+          onChange={(e) => {
+            setLocal(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (!isNaN(n)) onChange(n);
+          }}
+          onBlur={() => {
+            const n = parseFloat(local);
+            if (isNaN(n)) setLocal(String(value));
+          }}
+          className="w-13 text-right bg-bg-primary border border-border-main rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors"
+        />
+        {unit && (
+          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1 py-1 text-[9.5px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+            {unit}
+          </span>
+        )}
+      </span>
+    </label>
+  );
+}
+
+function StrataCard({
+  layer, index, total, onRemove, onUpdate,
+}: {
+  layer: SoilLayer;
+  index: number;
+  total: number;
+  onRemove: (id: number) => void;
+  onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const palette =
+    layer.type === 'granular' ? { dot: '#a8825a', label: 'Granular' }
+                              : { dot: '#8a6a44', label: 'Cohesivo' };
+
+  return (
+    <div className="rounded border border-border-main bg-bg-primary/40">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-between w-full px-2.5 py-2 text-left cursor-pointer"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: palette.dot }} />
+          <span className="text-[11.5px] text-text-primary font-medium truncate">
+            E{layer.id} — {palette.label}
+          </span>
+          <span className="text-[10px] text-text-disabled font-mono whitespace-nowrap">
+            {layer.thickness.toFixed(2)} m
+          </span>
+        </span>
+        <span className="flex items-center gap-1 shrink-0">
+          {total > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(layer.id);
+              }}
+              className="p-1 text-text-disabled hover:text-state-fail transition-colors"
+              aria-label={`Eliminar estrato ${index + 1}`}
+            >
+              <Trash2 size={11} />
+            </button>
+          )}
+          <ChevronDown
+            size={12}
+            className="text-text-disabled transition-transform"
+            style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-border-sub px-2.5 py-2 grid grid-cols-1 gap-1.5">
+          <label className="flex items-center justify-between gap-1.5 min-w-0">
+            <span className="text-[11px] text-text-secondary">Tipo</span>
+            <select
+              value={layer.type}
+              onChange={(e) => onUpdate(layer.id, 'type', e.target.value as SoilType)}
+              className="bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none focus:border-accent transition-colors"
+            >
+              <option value="granular">Granular</option>
+              <option value="cohesive">Cohesivo</option>
+            </select>
+          </label>
+          <MiniNumField label="Pot."   unit="m"     value={layer.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
+          <MiniNumField label="γ"      unit="kN/m³" value={layer.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
+          {/* c′ solo se muestra en cohesivos — en granulares la cohesión efectiva
+              es cero por definición y mostrarlo confundía al usuario. */}
+          {layer.type === 'cohesive' && (
+            <MiniNumField label="c′"   unit="kPa"   value={layer.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
+          )}
+          <MiniNumField label="φ"      unit="°"     value={layer.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
+          <MiniNumField label="NSPT"               value={layer.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
+          {layer.type === 'cohesive' && (
+            <MiniNumField label="su" unit="kN/m²" value={layer.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
+          )}
+          <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate }: SoilStrataEditorProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      {soil.map((layer, i) => (
+        <StrataCard
+          key={layer.id}
+          layer={layer}
+          index={i}
+          total={soil.length}
+          onRemove={onRemove}
+          onUpdate={onUpdate}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="text-[11px] text-accent/80 hover:text-accent transition-colors text-left py-1 px-2"
+      >
+        + Añadir estrato
+      </button>
+    </div>
+  );
+}

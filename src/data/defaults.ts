@@ -1,6 +1,17 @@
 // FTUX defaults — all produce CUMPLE at ~65-80% utilization on first open.
 // Override order: URL query params > localStorage > these defaults.
 
+import type {
+  ApplicationType,
+  ConnectionType,
+  CorrosionEnv,
+  DesignLifeYears,
+  Duration,
+  EffortType,
+  ExecutionType,
+  SoilType,
+} from './micropileLookups';
+
 export interface RCBeamInputs {
   /** UI mode: 'simple' renderiza una sola sección + 3 SVGs (deformación /
    *  sección / fuerzas) resuelta al momento Md — modo por defecto.
@@ -854,3 +865,95 @@ export interface MasonryWallsInputs {
 export const masonryWallsDefaults: MasonryWallsInputs = {
   mostrarMapa: true,
 };
+
+// ── Micropilotes (Guía Fomento 2005) ─────────────────────────────────────────
+// Igual que compositeSection / FEM / masonry: la lista de estratos vive en
+// localStorage del propio módulo (concreta-micropiles), no en useModuleState.
+// Los campos aquí son los escalares serializables; el SoilLayer[] se inyecta
+// por el orquestador y `micropilesDefaults` lo trae embebido como ground truth
+// para los tests de FTUX (mismos números que la hoja Excel de referencia).
+
+export interface SoilLayer {
+  id: number;
+  thickness: number;       // m  — espesor del estrato
+  type: SoilType;
+  gamma: number;           // kN/m³ — peso específico
+  c: number;               // kPa  — cohesión efectiva c'
+  phi: number;             // °    — ángulo de rozamiento interno
+  Nspt: number;            // golpes/30cm — solo a título informativo
+  su: number;              // kN/m² — resistencia al corte sin drenaje (cohesivos)
+  rflim: number;           // MPa  — fricción límite empírica
+}
+
+export interface MicropilesInputs {
+  // Geometría
+  topElevation:       number;   // m (cota cabeza, negativa = bajo rasante)
+  toeElevation:       number;   // m (cota apoyo de cálculo, negativa)
+  drillDiameter:      number;   // m — Dn (perforación)
+  waterTableElevation:number;   // m, cota del NF (negativa bajo rasante; >= topElevation = sin agua)
+  injectionPressure:  number;   // kPa
+  // Carga y modo
+  designLoad:         number;   // kN — Nc,d
+  effort:             EffortType;
+  method:             'theoretical' | 'empirical';
+  // Materiales
+  concreteGrade:      number;   // fck en MPa (HA-25/30/35 ⇒ 25/30/35)
+  tube:               string;   // label del catálogo PIRESA (ver micropileTubes.ts)
+  steelGrade:         number;   // N/mm² — fy
+  // Ejecución / entorno
+  execution:          ExecutionType;
+  corrosionEnv:       CorrosionEnv;
+  designLifeYears:    DesignLifeYears;   // Guía Tabla 2.4 — vida útil de proyecto
+  connection:         ConnectionType;
+  application:        ApplicationType;
+  duration:           Duration;
+  // Pandeo (Guía 3.6) — parametrizable con default
+  CR:                 number;   // factor de pandeo (default 7.5 → R≈0.87)
+  // Diámetro estructural del bulbo de hormigón (Guía 3.6): d_struct = de + 2·r.
+  // r es el recubrimiento efectivo del tubo dentro de la lechada (≠ perforación).
+  // El Excel de referencia usa 45,55 mm para Ø88,9 (d_struct = 180 mm).
+  structuralCover:    number;   // mm
+  // Empujes horizontales (opcionales). f (longitud ficticia) se INTERPOLA
+  // ahora desde E₀/EL (Guía Tabla 3.8), por eso no es input.
+  baseMoment:         number;   // kNm — Md
+  baseShear:          number;   // kN  — Vd
+  soilModulusTop:     number;   // kN/m² — E₀
+  soilModulusEmbed:   number;   // kN/m² — EL
+}
+
+export const micropilesDefaults: MicropilesInputs = {
+  topElevation:      -1.0,
+  toeElevation:      -17.0,
+  drillDiameter:      0.185,
+  waterTableElevation: -7.5,
+  injectionPressure:  300,
+  designLoad:         350,
+  effort:             'compression',
+  method:             'theoretical',
+  concreteGrade:      30,
+  tube:               'Ø88,9 × 9 mm',
+  steelGrade:         551,
+  execution:          'wt-below-no-casing-no-mud',
+  corrosionEnv:       'natural-undisturbed',
+  designLifeYears:    50,                    // estándar EHE/CTE
+  connection:         'no-loss',
+  application:        'new',
+  duration:           'long',
+  CR:                 7.5,
+  structuralCover:    45.55,
+  baseMoment:         0,
+  baseShear:          0,
+  soilModulusTop:     9000,
+  soilModulusEmbed:   500000,
+};
+
+/**
+ * Estratos por defecto — caso FTUX del Excel: 4 capas, ~16 m totales,
+ * resultado esperado Rfc_teórico ≈ 738.66 kN, Rfc_empírico ≈ 675.17 kN.
+ */
+export const micropilesSoilDefaults: SoilLayer[] = [
+  { id: 1, type: 'granular', thickness:  2.30, gamma: 19, c:   0, phi: 20, Nspt:  0, su:   0, rflim: 0.00 },
+  { id: 2, type: 'cohesive', thickness:  9.20, gamma: 20, c:   0, phi: 22, Nspt: 20, su:   0, rflim: 0.08 },
+  { id: 3, type: 'cohesive', thickness:  2.50, gamma: 20, c: 184, phi: 28, Nspt: 35, su:   0, rflim: 0.25 },
+  { id: 4, type: 'granular', thickness: 65.00, gamma: 20, c: 280, phi: 28, Nspt: 37, su:   0, rflim: 0.25 },
+];

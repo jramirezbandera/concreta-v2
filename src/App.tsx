@@ -105,6 +105,10 @@ const router = createBrowserRouter([
             lazy: lazyComponent(() => import('./features/pile-cap'), 'PileCapModule'),
           },
           {
+            path: 'ciment/micropilotes',
+            lazy: lazyComponent(() => import('./features/micropiles'), 'MicropilesModule'),
+          },
+          {
             path: 'ciment/zapatas',
             lazy: lazyComponent(() => import('./features/isolated-footing'), 'IsolatedFootingModule'),
           },

@@ -15,6 +15,7 @@ import {
   forjadosDefaults,
   anchorPlateDefaults,
   femAnalysisDefaults,
+  micropilesDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -31,9 +32,10 @@ import {
   type ForjadosInputs,
   type AnchorPlateInputs,
   type FemAnalysisInputs,
+  type MicropilesInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -126,6 +128,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-micropiles',
+    route: '/ciment/micropilotes',
+    label: 'Micropilotes',
+    group: 'Cimentación',
+    defaults: micropilesDefaults,
+    // Auditoría 2026-05-23: validado contra Guía Fomento 2005 oficial
+    // (Tablas 2.4, 3.5, 3.7, 3.8, 3.9, A-5.1). 70+ tests verbatim. TODO
+    // pendiente menor: clasificación de sección EC3 Tabla 5.2 (E3).
+    shipped: true,
+  },
+  {
     key: 'concreta-empresillado',
     route: '/rehab/empresillado',
     label: 'Empresillado',
@@ -190,6 +203,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',
+  'micropiles': '3',          // v3 (2026-05-23): elimina f_lef (ahora interpolado desde Tabla 3.8), añade designLifeYears (Tabla 2.4 vida útil)
   'empresillado': '1',
   'masonry-walls': '1',
   'timber-beams': '1',

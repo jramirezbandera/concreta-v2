@@ -1,0 +1,296 @@
+import { useState, useEffect } from 'react';
+import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
+import {
+  EXECUTION_OPTIONS, CORROSION_OPTIONS, DESIGN_LIFE_OPTIONS,
+  type ExecutionType, type CorrosionEnv, type ApplicationType,
+  type ConnectionType, type Duration, type EffortType, type SoilType,
+  type DesignLifeYears,
+} from '../../data/micropileLookups';
+import { MICROPILE_TUBES } from '../../data/micropileTubes';
+import { availableFck } from '../../data/materials';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
+import { SoilStrataEditor } from './SoilStrataEditor';
+
+interface MicropilesInputsPanelProps {
+  state: MicropilesInputs;
+  setField: <K extends keyof MicropilesInputs>(field: K, value: MicropilesInputs[K]) => void;
+  soil: SoilLayer[];
+  addLayer: () => void;
+  removeLayer: (id: number) => void;
+  updateLayer: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+}
+
+// ── Primitives reused locally (same pattern as RetainingWallInputs) ──────────
+
+function NumField({
+  label, sub, field, value, unit, integer = false, setField,
+}: {
+  label: string;
+  sub?: string;
+  field: keyof MicropilesInputs;
+  value: number;
+  unit?: string;
+  integer?: boolean;
+  setField: MicropilesInputsPanelProps['setField'];
+}) {
+  const [localStr, setLocalStr] = useState(() => String(value));
+  useEffect(() => { setLocalStr(String(value)); }, [value]);
+  const unitText = unit === '—' ? '' : unit ?? '';
+
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <InputLabel htmlFor={`input-${String(field)}`} label={label} sub={sub} />
+      <div className="flex shrink-0">
+        <input
+          id={`input-${String(field)}`}
+          type="text"
+          inputMode={integer ? 'numeric' : 'decimal'}
+          value={localStr}
+          onChange={(e) => {
+            const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
+            setLocalStr(raw);
+            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
+            if (!isNaN(n)) setField(field, n as MicropilesInputs[typeof field]);
+          }}
+          onBlur={() => {
+            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+            if (isNaN(n)) setLocalStr(String(value));
+            else if (integer) setLocalStr(String(Math.round(n)));
+          }}
+          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
+          aria-label={`${label} (${unitText})`}
+        />
+        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+          {unitText}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SelectField<V extends string | number>({
+  label, sub, field, value, options, setField,
+}: {
+  label: string;
+  sub?: string;
+  field: keyof MicropilesInputs;
+  value: V;
+  options: Array<{ value: V; label: string }>;
+  setField: MicropilesInputsPanelProps['setField'];
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} />
+      <select
+        id={`select-${String(field)}`}
+        value={value}
+        onChange={(e) => {
+          const raw = e.target.value;
+          const opt = options.find((o) => String(o.value) === raw);
+          if (opt) setField(field, opt.value as MicropilesInputs[typeof field]);
+        }}
+        className="shrink-0 max-w-[180px] bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors"
+      >
+        {options.map((o) => (
+          <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Segmented<V extends string>({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: V;
+  options: Array<{ value: V; label: string }>;
+  onChange: (v: V) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <span className="text-[13px] text-text-secondary truncate">{label}</span>
+      <div className="inline-flex shrink-0 rounded border border-border-main overflow-hidden">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={[
+              'px-2 py-1 text-[11px] font-mono transition-colors',
+              value === opt.value
+                ? 'bg-accent/15 text-accent'
+                : 'bg-bg-primary text-text-disabled hover:text-text-primary hover:bg-bg-elevated',
+            ].join(' ')}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RadioInline<V extends string>({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: V;
+  options: Array<{ value: V; label: string }>;
+  onChange: (v: V) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+      <span className="text-[13px] text-text-secondary truncate">{label}</span>
+      <div className="flex items-center gap-3 shrink-0">
+        {options.map((opt) => (
+          <label key={opt.value} className="flex items-center gap-1 cursor-pointer">
+            <input
+              type="radio"
+              checked={value === opt.value}
+              onChange={() => onChange(opt.value)}
+              className="accent-accent"
+            />
+            <span className="text-[11px] text-text-primary">{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Inputs panel ─────────────────────────────────────────────────────────────
+
+export function MicropilesInputsPanel({
+  state, setField, soil, addLayer, removeLayer, updateLayer,
+}: MicropilesInputsPanelProps) {
+  return (
+    <div className="flex flex-col gap-1">
+
+      <CollapsibleSection label="Geometría del micropilote" refNorma="Guía Fomento cap. 3.2">
+        <NumField label="Cota cabeza" sub="z₀" field="topElevation" value={state.topElevation} unit="m" setField={setField} />
+        <NumField label="Cota apoyo"  sub="zL" field="toeElevation" value={state.toeElevation} unit="m" setField={setField} />
+        <NumField label="Dn"          sub="Ø perforación" field="drillDiameter" value={state.drillDiameter} unit="m" setField={setField} />
+        <NumField label="NF"          sub="cota nivel freático" field="waterTableElevation" value={state.waterTableElevation} unit="m" setField={setField} />
+        <NumField label="p,inj"       sub="presión inyección" field="injectionPressure" value={state.injectionPressure} unit="kPa" integer setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
+        <NumField label="Nc,d" sub="por pilote individual" field="designLoad" value={state.designLoad} unit="kN" integer setField={setField} />
+        <Segmented<EffortType>
+          label="Esfuerzo"
+          value={state.effort}
+          options={[
+            { value: 'compression',          label: 'C'   },
+            { value: 'tension',              label: 'T'   },
+            { value: 'compression+tension',  label: 'C+T' },
+          ]}
+          onChange={(v) => setField('effort', v)}
+        />
+        <RadioInline<'theoretical' | 'empirical'>
+          label="Método"
+          value={state.method}
+          options={[
+            { value: 'theoretical', label: 'Teórico'   },
+            { value: 'empirical',   label: 'Empírico'  },
+          ]}
+          onChange={(v) => setField('method', v)}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Estratos del terreno" refNorma="Guía Fomento cap. 3.4">
+        <SoilStrataEditor
+          soil={soil}
+          onAdd={addLayer}
+          onRemove={removeLayer}
+          onUpdate={updateLayer}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Materiales" refNorma="EHE-08 / Guía Fomento §3.6">
+        <SelectField<number>
+          label="Hormigón"
+          field="concreteGrade"
+          value={state.concreteGrade}
+          options={availableFck
+            .filter((f) => f >= 25 && f <= 35)
+            .map((f) => ({ value: f, label: `HA-${f}` }))}
+          setField={setField}
+        />
+        <SelectField<string>
+          label="Tubo armadura"
+          sub="PIRESA"
+          field="tube"
+          value={state.tube}
+          options={MICROPILE_TUBES.map((t) => ({ value: t.label, label: t.label }))}
+          setField={setField}
+        />
+        <NumField label="fy" sub="acero" field="steelGrade" value={state.steelGrade} unit="N/mm²" integer setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Ejecución y entorno" refNorma="Guía Fomento Tablas 3.5/3.6/A-5.1">
+        <SelectField<ExecutionType>
+          label="Ejecución"
+          field="execution"
+          value={state.execution}
+          options={EXECUTION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          setField={setField}
+        />
+        <SelectField<CorrosionEnv>
+          label="Corrosión"
+          field="corrosionEnv"
+          value={state.corrosionEnv}
+          options={CORROSION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          setField={setField}
+        />
+        <SelectField<DesignLifeYears>
+          label="Vida útil"
+          sub="Tabla 2.4"
+          field="designLifeYears"
+          value={state.designLifeYears}
+          options={DESIGN_LIFE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          setField={setField}
+        />
+        <RadioInline<ConnectionType>
+          label="Unión"
+          value={state.connection}
+          options={[
+            { value: 'no-loss', label: 'Sin pérdida' },
+            { value: 'other',   label: 'Otros' },
+          ]}
+          onChange={(v) => setField('connection', v)}
+        />
+        <RadioInline<ApplicationType>
+          label="Aplicación"
+          value={state.application}
+          options={[
+            { value: 'new',      label: 'Nueva' },
+            { value: 'existing', label: 'Existente' },
+          ]}
+          onChange={(v) => setField('application', v)}
+        />
+        <RadioInline<Duration>
+          label="Duración"
+          value={state.duration}
+          options={[
+            { value: 'short', label: '≤ 6m' },
+            { value: 'long',  label: '> 6m' },
+          ]}
+          onChange={(v) => setField('duration', v)}
+        />
+        <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" setField={setField} />
+        <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">
+        <NumField label="Md" sub="momento cabeza" field="baseMoment" value={state.baseMoment} unit="kNm" setField={setField} />
+        <NumField label="Vd" sub="cortante cabeza" field="baseShear"  value={state.baseShear}  unit="kN"  setField={setField} />
+        <NumField label="E₀" sub="módulo cabeza"  field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer setField={setField} />
+        <NumField label="EL" sub="módulo empotr." field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer setField={setField} />
+        {/* f (empotramiento ficticio) ahora se interpola desde E₀/EL — Tabla 3.8. */}
+      </CollapsibleSection>
+
+    </div>
+  );
+}

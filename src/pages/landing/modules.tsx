@@ -114,6 +114,15 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     icon: <ModuleIcon moduleKey="concreta-pile-cap" size={ICON_SIZE} />,
   },
   {
+    id: 'micropiles',
+    group: 'CIMENTACIÓN',
+    name: 'Micropilotes',
+    ref: 'Guía Fomento',
+    short: 'Hundimiento por fuste, tope estructural, asientos, conexión con encepado.',
+    route: '/ciment/micropilotes',
+    icon: <ModuleIcon moduleKey="concreta-micropiles" size={ICON_SIZE} />,
+  },
+  {
     id: 'walls',
     group: 'CIMENTACIÓN',
     name: 'Muros de contención',
