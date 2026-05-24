@@ -176,10 +176,12 @@ function PerfilView({
 
   // Etiquetas de profundidad: cabeza, NF (si aplica), apoyo. Convención v4:
   // se muestran como profundidades positivas con signo "z=" para no inducir
-  // a leerlas como cotas topográficas.
-  const tickDepths: { z: number; label: string }[] = [];
+  // a leerlas como cotas topográficas. La NF se marca como `kind: 'water'`
+  // para que su tick se renderice desplazado y no se pise con el triángulo
+  // azul indicador del nivel freático (apex en M.left-6).
+  const tickDepths: { z: number; label: string; kind?: 'water' }[] = [];
   tickDepths.push({ z: zHead, label: `z=${fmt1(inp.topDepth)} m` });
-  if (showWater) tickDepths.push({ z: inp.waterTableDepth, label: `NF z=${fmt1(inp.waterTableDepth)} m` });
+  if (showWater) tickDepths.push({ z: inp.waterTableDepth, label: `NF z=${fmt1(inp.waterTableDepth)} m`, kind: 'water' });
   tickDepths.push({ z: zToe, label: `z=${fmt1(inp.toeDepth)} m` });
 
   return (
@@ -284,13 +286,17 @@ function PerfilView({
       {/* Cota apoyo punteada */}
       <line x1={M.left} y1={pileYBot} x2={M.left + plotW} y2={pileYBot} stroke={p.loadLine} strokeWidth={0.5} strokeDasharray="2 2" opacity={0.65} />
 
-      {/* Ticks de cota */}
+      {/* Ticks de cota — NF se baja unas líneas para no chocar con el
+          triángulo del nivel freático (apex en (M.left-6, yWater)). */}
       {tickDepths.map((t, idx) => {
         const y = yOfDepth(t.z);
+        const isWater = t.kind === 'water';
+        const textY = isWater ? y + 14 : y + 3;
+        const textColor = isWater ? p.water : p.textDim;
         return (
           <g key={`tick-${idx}`}>
             <line x1={M.left - 4} y1={y} x2={M.left} y2={y} stroke={p.axis} strokeWidth={0.5} />
-            <text x={M.left - 6} y={y + 3} fontSize={9} textAnchor="end" fill={p.textDim} fontFamily="ui-monospace, monospace">
+            <text x={M.left - 6} y={textY} fontSize={9} textAnchor="end" fill={textColor} fontFamily="ui-monospace, monospace">
               {t.label}
             </text>
           </g>
