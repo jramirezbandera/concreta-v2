@@ -2,15 +2,6 @@
 // Tabla de referencia comercial española; el plan de armado debe seleccionar
 // uno de estos calibres. Valores: de (Ø exterior, mm) y e (espesor pared, mm).
 
-/**
- * Recubrimiento mínimo entre la pared del tubo de armadura y la pared del
- * barreno de perforación (Guía Fomento §3.6.2). El bulbo de lechada debe
- * tener al menos este espesor para envolver el tubo de forma efectiva y
- * proteger contra corrosión. Por debajo, se considera defecto constructivo.
- * Vale tanto para el catálogo PIRESA como para tubos personalizados.
- */
-export const MIN_STRUCTURAL_COVER_MM = 25;
-
 export interface MicropileTube {
   /** Diámetro exterior nominal (mm). */
   de: number;

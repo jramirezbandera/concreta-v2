@@ -28,6 +28,12 @@ export type Duration         = 'short' | 'long';
 export type EffortType       = 'compression' | 'tension' | 'compression+tension';
 export type ConnectionType   = 'no-loss' | 'other';
 export type SoilType         = 'granular' | 'cohesive';
+/**
+ * Material inyectado dentro del barreno. Guía Fomento §2.3.2 distingue
+ * entre lechada (cement grout, fluido) y mortero (cement mortar, con árido
+ * fino), con recubrimientos mínimos distintos (Tabla 2.3).
+ */
+export type GroutType        = 'lechada' | 'mortero';
 
 // DesignLifeYears — columnas oficiales de la matriz de corrosión Tabla 2.4.
 export type DesignLifeYears  = 5 | 25 | 50 | 75 | 100;
@@ -256,3 +262,37 @@ export function classifyCircularHollow(de: number, t: number, fy: number): Secti
   if (ratio <= 90 * eps2) return 3;
   return 4;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Guía Fomento §2.3.2 — Tabla 2.3. RECUBRIMIENTOS MÍNIMOS r (mm)
+// ─────────────────────────────────────────────────────────────────────────────
+//                    LECHADA   MORTERO
+//   Compresión          20       30
+//   Tracción            25       35
+//
+// El recubrimiento es la distancia entre la armadura tubular y la pared del
+// barreno (Dp − de)/2. La Guía exige que SIEMPRE se cumpla, incluso en
+// secciones de empalme. Para compresión+tracción usamos el más restrictivo
+// (= tracción) por seguridad.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Recubrimiento mínimo r (mm) entre armadura tubular y pared del barreno
+ * (Guía Fomento Tabla 2.3). Dos variables: tipo de inyectado y esfuerzo
+ * dominante.
+ *
+ * Para esfuerzo `compression+tension` se usa el valor de tracción (más
+ * restrictivo), igual que para las tablas de Fu/Fr en otros lookups.
+ */
+export function getMinStructuralCover(grout: GroutType, effort: EffortType): number {
+  const isTraction = effort !== 'compression';   // tension OR compression+tension
+  if (grout === 'mortero') {
+    return isTraction ? 35 : 30;
+  }
+  return isTraction ? 25 : 20;
+}
+
+export const GROUT_OPTIONS: OptionDef<GroutType>[] = [
+  { key: 'lechada', label: 'Lechada (cement grout)' },
+  { key: 'mortero', label: 'Mortero (cement mortar)' },
+];

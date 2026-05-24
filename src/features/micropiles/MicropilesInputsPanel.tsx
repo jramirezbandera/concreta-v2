@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import {
-  EXECUTION_OPTIONS, CORROSION_OPTIONS, DESIGN_LIFE_OPTIONS,
+  EXECUTION_OPTIONS, CORROSION_OPTIONS, DESIGN_LIFE_OPTIONS, GROUT_OPTIONS,
+  getMinStructuralCover,
   type ExecutionType, type CorrosionEnv, type ApplicationType,
   type ConnectionType, type Duration, type EffortType, type SoilType,
-  type DesignLifeYears,
+  type DesignLifeYears, type GroutType,
 } from '../../data/micropileLookups';
-import { MICROPILE_TUBES, MIN_STRUCTURAL_COVER_MM } from '../../data/micropileTubes';
+import { MICROPILE_TUBES } from '../../data/micropileTubes';
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -253,6 +254,14 @@ export function MicropilesInputsPanel({
             .map((f) => ({ value: f, label: `HA-${f}` }))}
           setField={setField}
         />
+        <SelectField<GroutType>
+          label="Inyectado"
+          sub="lechada / mortero"
+          field="groutType"
+          value={state.groutType}
+          options={GROUT_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          setField={setField}
+        />
         <SelectField<string>
           label="Tubo armadura"
           sub={state.tube === 'custom' ? 'personalizado' : 'PIRESA'}
@@ -269,11 +278,11 @@ export function MicropilesInputsPanel({
         {state.tube === 'custom' && (
           <>
             {/* Guardrail: el max del Ø ext se acota DINÁMICAMENTE al diámetro
-                de perforación menos dos veces el recubrimiento mínimo. Así el
-                usuario nunca puede teclear un tubo que físicamente no quepa
-                con un recubrimiento normativo. El min del LIMITS sigue
-                aplicando (30 mm). El motor además valida por si el state
-                queda inconsistente (Dn cambiado tras fijar de). */}
+                de perforación menos dos veces el recubrimiento mínimo Tabla
+                2.3 — que depende del inyectado y del esfuerzo. Si el usuario
+                cambia inyectado de lechada a mortero o efectua tracción, el
+                max baja automáticamente. El motor además valida por si el
+                state queda inconsistente (Dn cambiado tras fijar de). */}
             <NumField
               label="Ø ext"
               sub="tubo personalizado"
@@ -283,7 +292,10 @@ export function MicropilesInputsPanel({
               min={LIMITS.customTubeDe.min}
               max={Math.max(
                 LIMITS.customTubeDe.min,
-                Math.min(LIMITS.customTubeDe.max, state.drillDiameter - 2 * MIN_STRUCTURAL_COVER_MM),
+                Math.min(
+                  LIMITS.customTubeDe.max,
+                  state.drillDiameter - 2 * getMinStructuralCover(state.groutType, state.effort),
+                ),
               )}
               setField={setField}
             />

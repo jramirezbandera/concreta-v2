@@ -29,12 +29,13 @@ import {
   MU_BY_EFFORT,
   classifyCircularHollow,
   getCorrosionRe,
+  getMinStructuralCover,
   interpolateF,
   interpolateMe,
   weldThroatMin,
   type SectionClass,
 } from '../../data/micropileLookups';
-import { MIN_STRUCTURAL_COVER_MM, resolveTubeGeometry } from '../../data/micropileTubes';
+import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 export type { CheckRow } from './types';
@@ -327,18 +328,19 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const e  = tubeGeom.e;
   const di = tubeGeom.di;
 
-  // Recubrimiento mínimo (Guía Fomento §3.6.2). Antes solo se comprobaba
-  // que el bulbo cabe (dTotal ≤ Dn), pero NO que sobre suficiente espesor
-  // de lechada alrededor del tubo. Caso patológico: Dn=185 con tubo
-  // de=170 deja solo (185-170)/2 = 7,5 mm de hueco — geométricamente cabe,
-  // normativamente es defecto. La validación es independiente del
-  // structuralCover que entre el usuario: lo que importa es el hueco
-  // físico (Dn − de)/2.
+  // Recubrimiento mínimo Tabla 2.3 (Guía Fomento §2.3.2). Antes solo se
+  // comprobaba que el bulbo cabe (dTotal ≤ Dn), pero NO que sobre
+  // suficiente espesor de lechada alrededor del tubo. El valor depende del
+  // tipo de inyectado (lechada/mortero) y del esfuerzo (compresión/tracción).
+  // Tracción exige más recubrimiento porque la armadura está más expuesta a
+  // tensiones que abren fisuras en la lechada — la oxidación entra más fácil.
+  const minCoverRequired = getMinStructuralCover(inp.groutType, inp.effort);
   const geomCoverAvailable = (inp.drillDiameter - de) / 2;
-  if (geomCoverAvailable < MIN_STRUCTURAL_COVER_MM - 1e-3) {
+  if (geomCoverAvailable < minCoverRequired - 1e-3) {
     return invalid(
       `Recubrimiento entre tubo y pared del barreno = ${geomCoverAvailable.toFixed(1)} mm ` +
-      `< ${MIN_STRUCTURAL_COVER_MM} mm mínimo (Guía Fomento §3.6.2). ` +
+      `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${inp.groutType} + ` +
+      `${inp.effort === 'compression' ? 'compresión' : 'tracción'}). ` +
       `Reduce Ø tubo o aumenta Dn (perforación).`,
     );
   }

@@ -4,6 +4,7 @@
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../../lib/calculations/micropiles';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
+import { getMinStructuralCover } from '../../data/micropileLookups';
 
 export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
 
@@ -482,10 +483,13 @@ function TopSectionView({
   const rBulb = (dBulb / 2) * scale;
   const rExt  = (dExt  / 2) * scale;
   const rInt  = (dInt  / 2) * scale;
-  // Recubrimiento real disponible: (Dn − de) / 2. Si < 25 mm (mínimo Guía),
-  // el dibujo lo muestra con un anillo en rojo para feedback inmediato.
+  // Recubrimiento real disponible: (Dn − de) / 2. El mínimo normativo
+  // depende del inyectado y del esfuerzo (Guía Fomento Tabla 2.3): lechada
+  // compresión 20 mm, lechada tracción 25, mortero compresión 30, mortero
+  // tracción 35. Si está por debajo, el SVG marca el barreno en rojo.
+  const minCoverRequired = getMinStructuralCover(inp.groutType, inp.effort);
   const geomCover = (dDn - dExt) / 2;
-  const coverShort = geomCover < 25;
+  const coverShort = geomCover < minCoverRequired;
 
   return (
     <g>
@@ -538,7 +542,7 @@ function TopSectionView({
         {([
           ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${inp.concreteGrade} N/mm²)`, false],
           ['Acero',     `fy = ${inp.steelGrade} N/mm²`, false],
-          ['rec.',      `${fmt2(geomCover)} mm${coverShort ? ' (<25)' : ''}`, coverShort],
+          ['rec.',      `${fmt2(geomCover)} / ${minCoverRequired} mm mín.`, coverShort],
           ['As,y',      `${fmt2(result.As_y)} mm²`, false],
           ['As,d',      `${fmt2(result.As_d)} mm²`, false],
           ['re',        `${fmt2(result.re)} mm`, false],

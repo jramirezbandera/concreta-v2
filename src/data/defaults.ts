@@ -902,6 +902,9 @@ export interface MicropilesInputs {
   designLoad:         number;   // kN — Nc,d
   effort:             EffortType;
   method:             'theoretical' | 'empirical';
+  /** Material inyectado (lechada/mortero) — Guía Fomento §2.3.2. Determina,
+   *  junto con `effort`, el recubrimiento mínimo r de la Tabla 2.3. */
+  groutType:          'lechada' | 'mortero';
   // Materiales
   concreteGrade:      number;   // fck en MPa (HA-25/30/35 ⇒ 25/30/35)
   /** Label del catálogo PIRESA (ver micropileTubes.ts) o sentinel 'custom'
@@ -942,6 +945,7 @@ export const micropilesDefaults: MicropilesInputs = {
   designLoad:         350,
   effort:             'compression',
   method:             'theoretical',
+  groutType:          'lechada',                  // default Guía Fomento (Piresa)
   concreteGrade:      30,
   tube:               'Ø88,9 × 9 mm',
   customTubeDe:       88.9,    // arranca igual al default catálogo

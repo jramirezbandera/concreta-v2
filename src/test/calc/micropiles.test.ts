@@ -641,23 +641,22 @@ describe('Tubo personalizado (custom)', () => {
     expect(r.error).toMatch(/Tabla A-5\.1/);
   });
 
-  it('tube="custom" con de muy cercano a Dn → invalid por recubrimiento <25 mm', () => {
-    // Dn=185, de=170 → (185-170)/2 = 7,5 mm de hueco. La validación del
-    // recubrimiento mínimo Guía Fomento §3.6.2 lo rechaza ANTES de cualquier
-    // otra comprobación. Caso real del usuario: pidió "guardrails" para
-    // este escenario.
+  it('tube="custom" con de muy cercano a Dn → invalid por recubrimiento <20 mm', () => {
+    // Default (lechada + compresión) → r_min = 20 mm (Tabla 2.3).
+    // Dn=185, de=170 → (185-170)/2 = 7,5 mm. Caso real del usuario.
     const r = calcMicropiles(
       { ...baseInp, tube: 'custom', customTubeDe: 170, customTubeE: 9 },
       baseSoil,
     );
     expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/Recubrimiento.*7\.5 mm.*25 mm/);
+    expect(r.error).toMatch(/Recubrimiento.*7\.5 mm.*20 mm/);
+    expect(r.error).toMatch(/lechada/);
+    expect(r.error).toMatch(/compresión/);
   });
 
   it('catálogo: tubo grande con Dn pequeño también falla el recubrimiento mínimo', () => {
-    // El check de recubrimiento aplica a TUBOS DE CATÁLOGO también, no solo
-    // a custom. Si el usuario baja Dn a 100 mm y elige el Ø139,7 mm,
-    // (100-139,7)/2 < 0 — invalida.
+    // El check aplica a TUBOS DE CATÁLOGO también. Dn=100 mm + Ø139,7 mm
+    // → recubrimiento negativo → invalida.
     const r = calcMicropiles(
       { ...baseInp, drillDiameter: 100, tube: 'Ø139,7 × 9 mm' },
       baseSoil,
@@ -665,24 +664,96 @@ describe('Tubo personalizado (custom)', () => {
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/Recubrimiento|barreno/);
   });
+});
 
-  it('catálogo: borderline de recubrimiento — Ø139,7 con Dn=190 cumple (rec=25,15 mm)', () => {
-    // 190-139,7 = 50,3 → /2 = 25,15 mm ≥ 25 → pasa el check, aunque por
-    // poco. Comprobamos que el límite es estricto al milímetro.
-    const r = calcMicropiles(
-      { ...baseInp, drillDiameter: 190, tube: 'Ø139,7 × 9 mm', structuralCover: 25 },
+// ── Tabla 2.3 Guía Fomento — Recubrimiento mínimo por inyectado × esfuerzo ───
+describe('Tabla 2.3 — recubrimiento mínimo dinámico', () => {
+  it('lechada + compresión exige r ≥ 20 mm', () => {
+    // (Dn − de)/2 = 20 mm justo → pasa. Dn=125, de=85 (custom Ø85×6).
+    const ok = calcMicropiles(
+      { ...baseInp, drillDiameter: 125, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15 },
       baseSoil,
     );
-    expect(r.valid).toBe(true);
+    expect(ok.valid).toBe(true);
+
+    // 19,5 mm < 20 → falla.
+    const fail = calcMicropiles(
+      { ...baseInp, drillDiameter: 124, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15 },
+      baseSoil,
+    );
+    expect(fail.valid).toBe(false);
+    expect(fail.error).toMatch(/20 mm.*lechada.*compresión/);
   });
 
-  it('catálogo: borderline INFERIOR — Ø139,7 con Dn=189 falla (rec=24,65 mm)', () => {
-    const r = calcMicropiles(
-      { ...baseInp, drillDiameter: 189, tube: 'Ø139,7 × 9 mm', structuralCover: 24 },
+  it('lechada + tracción exige r ≥ 25 mm', () => {
+    // Para que solo cambie el check del recubrimiento, fijamos drillDiameter
+    // y customTubeDe para que (Dn−de)/2 = 24,5 mm. Compresión pasa (≥20),
+    // tracción NO pasa (<25). Es el corazón de la Tabla 2.3.
+    const Dn = 134;
+    const de = 85;
+    // (134-85)/2 = 24,5 mm
+
+    const okCompresion = calcMicropiles(
+      { ...baseInp, drillDiameter: Dn, tube: 'custom', customTubeDe: de, customTubeE: 6, structuralCover: 15, effort: 'compression' },
       baseSoil,
     );
-    expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/Recubrimiento/);
+    expect(okCompresion.valid).toBe(true);
+
+    const failTraccion = calcMicropiles(
+      { ...baseInp, drillDiameter: Dn, tube: 'custom', customTubeDe: de, customTubeE: 6, structuralCover: 15, effort: 'tension' },
+      baseSoil,
+    );
+    expect(failTraccion.valid).toBe(false);
+    expect(failTraccion.error).toMatch(/25 mm.*lechada.*tracción/);
+  });
+
+  it('mortero + compresión exige r ≥ 30 mm', () => {
+    // (Dn−de)/2 = 29,5 mm. Lechada+compresión pasa (≥20). Mortero+compresión NO (<30).
+    const ok = calcMicropiles(
+      { ...baseInp, drillDiameter: 144, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, groutType: 'lechada' },
+      baseSoil,
+    );
+    expect(ok.valid).toBe(true);
+
+    const fail = calcMicropiles(
+      { ...baseInp, drillDiameter: 144, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, groutType: 'mortero' },
+      baseSoil,
+    );
+    expect(fail.valid).toBe(false);
+    expect(fail.error).toMatch(/30 mm.*mortero.*compresión/);
+  });
+
+  it('mortero + tracción exige r ≥ 35 mm (el más restrictivo de la Tabla 2.3)', () => {
+    // (Dn−de)/2 = 34,5 mm → pasa mortero+compresión (≥30), falla mortero+tracción (<35).
+    const ok = calcMicropiles(
+      { ...baseInp, drillDiameter: 154, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, groutType: 'mortero', effort: 'compression' },
+      baseSoil,
+    );
+    expect(ok.valid).toBe(true);
+
+    const fail = calcMicropiles(
+      { ...baseInp, drillDiameter: 154, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, groutType: 'mortero', effort: 'tension' },
+      baseSoil,
+    );
+    expect(fail.valid).toBe(false);
+    expect(fail.error).toMatch(/35 mm.*mortero.*tracción/);
+  });
+
+  it('compression+tension usa el límite de TRACCIÓN (el más restrictivo)', () => {
+    // Lechada: tracción exige 25 mm, compresión 20. C+T debe usar 25.
+    // (Dn−de)/2 = 22 mm → pasa compresión, falla c+t.
+    const okCompresion = calcMicropiles(
+      { ...baseInp, drillDiameter: 129, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, effort: 'compression' },
+      baseSoil,
+    );
+    expect(okCompresion.valid).toBe(true);
+
+    const failCT = calcMicropiles(
+      { ...baseInp, drillDiameter: 129, tube: 'custom', customTubeDe: 85, customTubeE: 6, structuralCover: 15, effort: 'compression+tension' },
+      baseSoil,
+    );
+    expect(failCT.valid).toBe(false);
+    expect(failCT.error).toMatch(/25 mm/);
   });
 
   it('tube="custom" delgado puede caer en clase 4 → invalid con mensaje específico', () => {
