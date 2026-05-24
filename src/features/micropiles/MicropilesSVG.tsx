@@ -158,16 +158,19 @@ function PerfilView({
     }, [])
     .filter((b) => b.z0 < zMax);
 
-  // Pilote: rectángulo vertical centrado.
+  // Pilote: rectángulo vertical centrado. No es escala real (a esa proporción
+  // — D≈200mm / L≈15m — el pilote sería invisible) pero se mantiene fino para
+  // que el lector reconozca un MICROpilote, no un pilote convencional.
   const pileXCenter = M.left + plotW * 0.42;
-  const pileW       = Math.max(8, plotW * 0.045);
+  const pileW       = Math.max(4, plotW * 0.022);
   const pileXL      = pileXCenter - pileW / 2;
   const pileYTop    = yOfDepth(zHead);
   const pileYBot    = yOfDepth(zToe);
   // Encepado: rectángulo ancho sobre la cabeza del pilote — debe leerse
-  // como conexión estructural, no como tapón fino. Antes capH=10px era
-  // apenas perceptible en pantalla.
-  const capW        = pileW * 3.2;
+  // como conexión estructural, no como tapón fino. Ancho absoluto en lugar
+  // de relativo al pilote (ahora muy fino) para que la conexión siga siendo
+  // visualmente dominante.
+  const capW        = Math.max(40, plotW * 0.12);
   const capH        = 16;
 
   // Nivel freático — mostrar la línea sólo si cae dentro del rango visible:
