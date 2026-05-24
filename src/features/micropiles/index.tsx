@@ -10,10 +10,12 @@ import { exportMicropilesPDF } from '../../lib/pdf/micropiles';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { MicropilesInputsPanel } from './MicropilesInputsPanel';
 import { MicropilesSVG, type MicropilesView } from './MicropilesSVG';
 import { MicropilesResults } from './MicropilesResults';
 import { loadSoil, saveSoil } from './soilStorage';
+import { buildShareUrl, readSoilFromUrl } from './serialize';
 
 const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string }[] = [
   { id: 'profile',    num: '1', label: 'Perfil',     color: '#a8825a' },
@@ -90,7 +92,11 @@ export function MicropilesModule() {
   const { openDrawer } = useDrawer();
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [view, setView] = useState<MicropilesView>('profile');
-  const [soil, setSoil] = useState<SoilLayer[]>(loadSoil);
+  // Share-URL: si la URL trae `?soil=<lz-string>`, el destinatario hereda los
+  // estratos del emisor. El param es efímero — useModuleState lo barre al
+  // primer setSearchParams, pero el estado ya está cargado y persiste en
+  // localStorage del destinatario. Si no hay param, fallback al loader local.
+  const [soil, setSoil] = useState<SoilLayer[]>(() => readSoilFromUrl() ?? loadSoil());
 
   useEffect(() => { saveSoil(soil); }, [soil]);
 
@@ -124,6 +130,23 @@ export function MicropilesModule() {
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
     usePdfPreview(() => exportMicropilesPDF(state, soil, result), true);
 
+  // Share enlace: a diferencia del default del Topbar (que solo copia
+  // window.location.href, perdiendo el array soil), aquí construimos la URL
+  // con `?soil=<lz-string>` para que el destinatario vea EXACTAMENTE el
+  // mismo cálculo. Patrón idéntico a masonry-walls/fem-analysis.
+  const handleCopyLink = useCallback(() => {
+    try {
+      const url = buildShareUrl(soil);
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Enlace copiado — incluye estratos', { autoDismiss: 2500 });
+      }).catch(() => {
+        showToast('No se pudo copiar el enlace', { autoDismiss: 3500 });
+      });
+    } catch {
+      showToast('Error al generar el enlace', { autoDismiss: 3500 });
+    }
+  }, [soil]);
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(280, canvasWidth - 32)
@@ -138,6 +161,7 @@ export function MicropilesModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={handleCopyLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
