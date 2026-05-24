@@ -39,9 +39,12 @@ import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 export type { CheckRow } from './types';
 
-const GAMMA_W = 10;        // kN/m³ — peso específico del agua
-const N_SEGMENTS = 50;     // discretización del fuste
-const E_STEEL_MPA = 210_000;  // MPa — módulo elástico del acero (≈ 210 GPa)
+const GAMMA_W = 10;             // kN/m³ — peso específico del agua
+const GAMMA_CONCRETE = 25;      // kN/m³ — peso específico del hormigón/lechada
+const N_SEGMENTS = 50;          // discretización del fuste
+const E_STEEL_MPA = 210_000;    // MPa — módulo elástico del acero (≈ 210 GPa)
+const ALPHA_CC = 0.85;          // factor de larga duración del hormigón (EHE/EC2)
+const FYD_CAP_GUIA = 400;       // MPa — tope fyd para Fa,h (Guía Fomento §3.6.2)
 
 export interface SegmentResult {
   /** Profundidad absoluta del centroide (m, positiva hacia abajo). */
@@ -334,11 +337,11 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const fy       = inp.steelGrade;               // N/mm² = MPa
   const fcd      = fck / 1.5;                    // MPa
   const fyd_raw  = fy / 1.1;                     // MPa (sin tope para Tc,rd)
-  const fyd_cap  = Math.min(fyd_raw, 400);       // MPa (Guía 3.6.2 limita Fa,h a 400)
+  const fyd_cap  = Math.min(fyd_raw, FYD_CAP_GUIA);    // MPa (Guía 3.6.2 limita Fa,h a 400)
 
   // Aportes (kN). Nota: As tiene mm², fcd MPa = N/mm² → divide /1000 para kN.
-  const A_concrete = (Math.PI / 4) * dTotal * dTotal - As_y;     // mm²
-  const Fc_h       = (0.85 * A_concrete * fcd) / 1000;           // kN
+  const A_concrete = (Math.PI / 4) * dTotal * dTotal - As_y;          // mm²
+  const Fc_h       = (ALPHA_CC * A_concrete * fcd) / 1000;            // kN
   const Fa_h       = (As_d * fyd_cap * Fu) / 1000;               // kN
 
   // Pandeo (Guía Tabla 3.6 / cap. 3.6.2) — R = 1.07 − 0.027·CR ≤ 1
@@ -368,7 +371,12 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   let pulloutCapacity: number | undefined;
   if (includeTension) {
     const mu = MU_BY_EFFORT[inp.effort];
-    const Wcrete = Math.PI * (Dn / 2) * (Dn / 2) * L * 25;     // kN — peso lechada
+    // Peso de la lechada: usa el bulbo ESTRUCTURAL (dTotal), no el barreno (Dn).
+    // Lo que cuelga del fuste y aporta peso muerto al arranque es el cilindro de
+    // hormigón confinado dentro del tubo + recubrimiento, no el aire entre el
+    // bulbo y la pared del barreno. Antes con Dn sobreestimaba ~5,6% en FTUX.
+    const dTotalM = dTotal / 1000;                                    // mm → m
+    const Wcrete  = Math.PI * (dTotalM / 2) * (dTotalM / 2) * L * GAMMA_CONCRETE;
     pulloutCapacity = mu * RfcAdopted + Wcrete / 1.2;
   }
 
@@ -422,8 +430,10 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
       `con mayor espesor de pared o un acero de menor fy.`,
     );
   }
+  // Wel/Wpl son válidos porque `2*re >= e` ya invalida antes (no llegamos
+  // aquí con deNet ≤ 0). Sin guardas redundantes.
   const Wpl = (Math.pow(deNet, 3) - Math.pow(di, 3)) / 6;                   // mm³ aprox.
-  const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * Math.max(1, deNet));
+  const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * deNet);
   const W = sectionClass <= 2 ? Wpl : Wel;
   const Mpl_rd = (W * (fy / 1.1)) / 1e6;                                    // kNm
 
@@ -457,11 +467,9 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // Granular: ((9·Nd/Rfc) − 2) · Dn · 1000 / 90  [mm]; 0 si Nd << Rfc
   const granRatio = RfcAdopted > 0 ? (9 * inp.designLoad) / RfcAdopted - 2 : 0;
   const settlementGranular = Math.max(0, granRatio) * Dn * 1000 / 90;
-  // Cohesivo: 0.6 · Nd / (L · Fc)  [unidad: kN/m = kPa·m ÷ m → adimensional
-  // dividido]. Se interpreta como una estimación EMPÍRICA aproximada en mm
-  // sin justificación formal en la Guía Fomento — pendiente de revisión.
-  // TODO: confirmar fórmula y unidades vs Guía §3.5 o reemplazar por método
-  // edométrico explícito. Se elimina el "*1000/1000" muerto del código.
+  // Cohesivo: 0.6 · Nd / (L · Fc)  [estimación empírica sin justificación
+  // formal en la Guía Fomento]. Pendiente de revisión P1 — ver TODOS.md
+  // "Hand-calc validation Micropilotes" + "Fórmula settlementCohesive".
   const settlementCohesive = (0.6 * inp.designLoad) / Math.max(1, L * Fc);
 
   // ── 7.bis Disposición en planta — Guía Fomento Fig. 3.6 + §3.10 ─────────

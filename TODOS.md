@@ -45,6 +45,7 @@ Pilares de madera (EC5): DONE (2026-04-10) — 80 tests: input validation (Nd/Vd
 
 Zapatas aisladas: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
 Encepados de pilotes: DONE — tests + PDF export shipped. Hand-calc validation pending before shipping.
+Micropilotes (eng-review 2026-05-24): DONE — 115 tests (101 motor + 14 deeplink serialize + DOM + PDF + soilStorage). Hand-calc validation pending before shipping: trabajar un ejemplo de la Guía Fomento cap. 3.4-3.7 (idealmente del Anejo C si existe) a mano y verificar Rfc, Nc_rd, Mpl_rd, Lef vs `calcMicropiles()`. También revisar fórmula `settlementCohesive = 0.6·Nd/(L·Fc)` en `src/lib/calculations/micropiles.ts` línea 463: no tiene justificación normativa explícita, candidata a sustituir por método edométrico § correspondiente o documentar el origen empírico.
 
 Sección circular CHS (tubos) en Pilares de acero: DONE (2026-04-20) — polymorphic section adapter (`SectionGeometry` + `ColumnBeamSection`), CHS hot-finished (EN 10210 curva a) + cold-formed (EN 10219 curva c), biaxial collapse via M_res = √(My²+Mz²), closed-section LTB short-circuit (Mcr → ∞ → χ_LT = 1), Class 4 "SIN SOLUCIÓN" verdict + disabled PDF, results grouping by EC3 §, 3 CHS acceptance tests. See `src/lib/sections/chs.ts` + 3 tests in `src/test/calc/steelColumns.test.ts`. Refactored all 5 callers (steelColumns, steelBeams, compositeSection, anchorPlate, SteelColumnsSVG).
 
