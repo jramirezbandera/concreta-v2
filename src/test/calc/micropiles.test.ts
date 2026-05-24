@@ -641,6 +641,50 @@ describe('Tubo personalizado (custom)', () => {
     expect(r.error).toMatch(/Tabla A-5\.1/);
   });
 
+  it('tube="custom" con de muy cercano a Dn → invalid por recubrimiento <25 mm', () => {
+    // Dn=185, de=170 → (185-170)/2 = 7,5 mm de hueco. La validación del
+    // recubrimiento mínimo Guía Fomento §3.6.2 lo rechaza ANTES de cualquier
+    // otra comprobación. Caso real del usuario: pidió "guardrails" para
+    // este escenario.
+    const r = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 170, customTubeE: 9 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Recubrimiento.*7\.5 mm.*25 mm/);
+  });
+
+  it('catálogo: tubo grande con Dn pequeño también falla el recubrimiento mínimo', () => {
+    // El check de recubrimiento aplica a TUBOS DE CATÁLOGO también, no solo
+    // a custom. Si el usuario baja Dn a 100 mm y elige el Ø139,7 mm,
+    // (100-139,7)/2 < 0 — invalida.
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 100, tube: 'Ø139,7 × 9 mm' },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Recubrimiento|barreno/);
+  });
+
+  it('catálogo: borderline de recubrimiento — Ø139,7 con Dn=190 cumple (rec=25,15 mm)', () => {
+    // 190-139,7 = 50,3 → /2 = 25,15 mm ≥ 25 → pasa el check, aunque por
+    // poco. Comprobamos que el límite es estricto al milímetro.
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 190, tube: 'Ø139,7 × 9 mm', structuralCover: 25 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('catálogo: borderline INFERIOR — Ø139,7 con Dn=189 falla (rec=24,65 mm)', () => {
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 189, tube: 'Ø139,7 × 9 mm', structuralCover: 24 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Recubrimiento/);
+  });
+
   it('tube="custom" delgado puede caer en clase 4 → invalid con mensaje específico', () => {
     // de=300, e=4 → tras corrosión re≈0,6 mm: deNet=298,8, eEff=3,4 mm,
     // d/t≈87,9. Para fy=355 el límite clase 3 es 90·ε²=90·(235/355)≈59,6

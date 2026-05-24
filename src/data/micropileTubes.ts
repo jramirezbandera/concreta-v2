@@ -2,6 +2,15 @@
 // Tabla de referencia comercial española; el plan de armado debe seleccionar
 // uno de estos calibres. Valores: de (Ø exterior, mm) y e (espesor pared, mm).
 
+/**
+ * Recubrimiento mínimo entre la pared del tubo de armadura y la pared del
+ * barreno de perforación (Guía Fomento §3.6.2). El bulbo de lechada debe
+ * tener al menos este espesor para envolver el tubo de forma efectiva y
+ * proteger contra corrosión. Por debajo, se considera defecto constructivo.
+ * Vale tanto para el catálogo PIRESA como para tubos personalizados.
+ */
+export const MIN_STRUCTURAL_COVER_MM = 25;
+
 export interface MicropileTube {
   /** Diámetro exterior nominal (mm). */
   de: number;
@@ -27,6 +36,38 @@ export const MICROPILE_TUBES: MicropileTube[] = [
 export function getTube(label: string): MicropileTube {
   const found = MICROPILE_TUBES.find((t) => t.label === label);
   return found ?? MICROPILE_TUBES[3];   // default Ø88,9 × 9
+}
+
+/**
+ * Resuelve la geometría del tubo desde el estado del módulo. Devuelve null
+ * si los inputs no producen un tubo físicamente válido — el caller decide
+ * cómo presentar el error (motor invalida con mensaje, SVG renderiza un
+ * placeholder).
+ *
+ * Resolución dual:
+ *   · tube === 'custom'  → usa customTubeDe + customTubeE (validados)
+ *   · otro valor          → busca en MICROPILE_TUBES por label
+ *
+ * Esta función centraliza la lógica para que MOTOR y SVG la consuman
+ * sin duplicar (antes el SVG dependía de result.de/result.di y se quedaba
+ * en 0 cuando el cálculo invalidaba, dejando la sección del tope vacía).
+ */
+export function resolveTubeGeometry(inp: {
+  tube: string;
+  customTubeDe: number;
+  customTubeE: number;
+}): { de: number; e: number; di: number } | null {
+  if (inp.tube === 'custom') {
+    const de = inp.customTubeDe;
+    const e  = inp.customTubeE;
+    if (!isFinite(de) || !isFinite(e)) return null;
+    if (de <= 0 || e <= 0) return null;
+    if (2 * e >= de) return null;
+    return { de, e, di: de - 2 * e };
+  }
+  const tube = MICROPILE_TUBES.find((t) => t.label === inp.tube);
+  if (!tube) return null;
+  return { de: tube.de, e: tube.e, di: tube.de - 2 * tube.e };
 }
 
 /** Área bruta sin corrosión (mm²) = π·(de² − di²)/4 con di = de − 2·e. */

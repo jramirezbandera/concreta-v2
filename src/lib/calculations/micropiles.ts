@@ -34,7 +34,7 @@ import {
   weldThroatMin,
   type SectionClass,
 } from '../../data/micropileLookups';
-import { MICROPILE_TUBES } from '../../data/micropileTubes';
+import { MIN_STRUCTURAL_COVER_MM, resolveTubeGeometry } from '../../data/micropileTubes';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 export type { CheckRow } from './types';
@@ -299,37 +299,49 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const ih             = RfcAdopted > 0 ? inp.designLoad / RfcAdopted : Infinity;
 
   // ── 4. Tope estructural (Guía cap. 3.6) ──────────────────────────────────
-  // Resolver tubo: catálogo PIRESA O custom (de, e introducidos por el
-  // usuario). El sentinel inp.tube === 'custom' activa el segundo modo;
-  // cualquier otro valor exige que esté en el catálogo. Estado persistido
-  // con un label obsoleto del catálogo → invalid() en lugar de fallback
-  // silencioso a Ø88,9 × 9 mm.
-  let de: number;
-  let e:  number;
-  if (inp.tube === 'custom') {
-    if (!isFinite(inp.customTubeDe) || inp.customTubeDe <= 0) {
-      return invalid('Tubo personalizado: Ø exterior debe ser un número > 0.');
-    }
-    if (!isFinite(inp.customTubeE) || inp.customTubeE <= 0) {
-      return invalid('Tubo personalizado: espesor debe ser un número > 0.');
-    }
-    if (2 * inp.customTubeE >= inp.customTubeDe) {
+  // Resolver tubo: catálogo PIRESA o custom. resolveTubeGeometry centraliza
+  // la lógica para que MOTOR y SVG no diverjan. Si devuelve null:
+  //   · custom con valores no finitos o negativos
+  //   · custom con 2·e ≥ de (sin hueco)
+  //   · label que no está en el catálogo (estado persistido obsoleto)
+  // Distinguimos los mensajes según el sentinel para que el usuario sepa
+  // qué pasa exactamente.
+  const tubeGeom = resolveTubeGeometry(inp);
+  if (!tubeGeom) {
+    if (inp.tube === 'custom') {
+      if (!isFinite(inp.customTubeDe) || inp.customTubeDe <= 0) {
+        return invalid('Tubo personalizado: Ø exterior debe ser un número > 0.');
+      }
+      if (!isFinite(inp.customTubeE) || inp.customTubeE <= 0) {
+        return invalid('Tubo personalizado: espesor debe ser un número > 0.');
+      }
+      // Único caso que queda: 2·e ≥ de
       return invalid(
         `Tubo personalizado: espesor 2·e=${(2 * inp.customTubeE).toFixed(1)} mm ` +
         `≥ Ø ext=${inp.customTubeDe.toFixed(1)} mm. El tubo no tiene hueco interior.`,
       );
     }
-    de = inp.customTubeDe;
-    e  = inp.customTubeE;
-  } else {
-    const tube = MICROPILE_TUBES.find((t) => t.label === inp.tube);
-    if (!tube) {
-      return invalid(`Tubo "${inp.tube}" no encontrado en el catálogo PIRESA.`);
-    }
-    de = tube.de;
-    e  = tube.e;
+    return invalid(`Tubo "${inp.tube}" no encontrado en el catálogo PIRESA.`);
   }
-  const di       = de - 2 * e;                               // mm
+  const de = tubeGeom.de;
+  const e  = tubeGeom.e;
+  const di = tubeGeom.di;
+
+  // Recubrimiento mínimo (Guía Fomento §3.6.2). Antes solo se comprobaba
+  // que el bulbo cabe (dTotal ≤ Dn), pero NO que sobre suficiente espesor
+  // de lechada alrededor del tubo. Caso patológico: Dn=185 con tubo
+  // de=170 deja solo (185-170)/2 = 7,5 mm de hueco — geométricamente cabe,
+  // normativamente es defecto. La validación es independiente del
+  // structuralCover que entre el usuario: lo que importa es el hueco
+  // físico (Dn − de)/2.
+  const geomCoverAvailable = (inp.drillDiameter - de) / 2;
+  if (geomCoverAvailable < MIN_STRUCTURAL_COVER_MM - 1e-3) {
+    return invalid(
+      `Recubrimiento entre tubo y pared del barreno = ${geomCoverAvailable.toFixed(1)} mm ` +
+      `< ${MIN_STRUCTURAL_COVER_MM} mm mínimo (Guía Fomento §3.6.2). ` +
+      `Reduce Ø tubo o aumenta Dn (perforación).`,
+    );
+  }
   // Diámetro estructural del bulbo de hormigón (Guía 3.6.2):
   // d_struct = de + 2·r, donde r es el recubrimiento efectivo del tubo
   // dentro de la lechada estructural. Debe cumplirse d_struct ≤ Dn

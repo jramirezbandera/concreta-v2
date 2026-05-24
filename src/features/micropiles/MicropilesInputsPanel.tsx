@@ -6,7 +6,7 @@ import {
   type ConnectionType, type Duration, type EffortType, type SoilType,
   type DesignLifeYears,
 } from '../../data/micropileLookups';
-import { MICROPILE_TUBES } from '../../data/micropileTubes';
+import { MICROPILE_TUBES, MIN_STRUCTURAL_COVER_MM } from '../../data/micropileTubes';
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -268,13 +268,23 @@ export function MicropilesInputsPanel({
         />
         {state.tube === 'custom' && (
           <>
+            {/* Guardrail: el max del Ø ext se acota DINÁMICAMENTE al diámetro
+                de perforación menos dos veces el recubrimiento mínimo. Así el
+                usuario nunca puede teclear un tubo que físicamente no quepa
+                con un recubrimiento normativo. El min del LIMITS sigue
+                aplicando (30 mm). El motor además valida por si el state
+                queda inconsistente (Dn cambiado tras fijar de). */}
             <NumField
               label="Ø ext"
               sub="tubo personalizado"
               field="customTubeDe"
               value={state.customTubeDe}
               unit="mm"
-              {...LIMITS.customTubeDe}
+              min={LIMITS.customTubeDe.min}
+              max={Math.max(
+                LIMITS.customTubeDe.min,
+                Math.min(LIMITS.customTubeDe.max, state.drillDiameter - 2 * MIN_STRUCTURAL_COVER_MM),
+              )}
               setField={setField}
             />
             <NumField

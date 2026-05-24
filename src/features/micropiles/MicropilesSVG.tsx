@@ -3,6 +3,7 @@
 
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../../lib/calculations/micropiles';
+import { resolveTubeGeometry } from '../../data/micropileTubes';
 
 export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
 
@@ -442,25 +443,49 @@ function TopSectionView({
   // panel-tabla que ocupa la mitad derecha del SVG.
   const cx = width * 0.36;
   const cy = height / 2;
-  // Diámetros en mm — escalar respecto al radio disponible. El círculo más
-  // grande es la PERFORACIÓN real (Dn input); dentro de ella se aloja el
-  // bulbo estructural (dTotal = de + 2·recubrimiento), que típicamente es
-  // 3-10 mm menor que Dn. Antes solo se dibujaba dTotal y se etiquetaba "Ø",
-  // lo que confundía al usuario: tecleaba Dn=185 pero veía "Ø180" sin contexto.
   // Limitar Rmax al hueco disponible a la izquierda menos la anchura
   // estimada de los labels (~72px "Ø999,9 perf." + leader 36px + holgura).
   const leftRoom  = cx - 116;
   const Rmax  = Math.min(width * 0.28, height * 0.42, Math.max(60, leftRoom));
   const dDn   = inp.drillDiameter;  // mm — perforación real (input)
-  const dBulb = result.dTotal;      // mm — bulbo estructural
-  const dExt  = result.de;          // mm — diámetro exterior tubo
-  const dInt  = result.di;          // mm — diámetro interior tubo
+
+  // Geometría del tubo: derivada de inputs (catálogo o custom). NO usamos
+  // result.de/di/dTotal porque result devuelve 0 cuando el motor invalida
+  // (p.ej. tubo > perforación, sección clase 4...) — la sección quedaba en
+  // blanco y el usuario no veía qué tubo había puesto. Renderizando desde
+  // inputs el dibujo siempre refleja lo que el usuario configuró.
+  const tubeGeom = resolveTubeGeometry(inp);
+
+  // Si el tubo no se puede resolver (custom con valores incoherentes),
+  // dibujamos solo el barreno con un mensaje. Sigue siendo informativo
+  // y no se rompe en cero como antes.
+  if (!tubeGeom) {
+    const Rdraw = Math.min(width * 0.28, height * 0.42);
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={Rdraw} fill={p.concrete} opacity={0.6} />
+        <circle cx={cx} cy={cy} r={Rdraw} fill="none" stroke={p.steelEdge} strokeWidth={0.6} strokeDasharray="3 2" />
+        <line x1={cx - Rdraw} y1={cy} x2={cx - Rdraw - 36} y2={cy} stroke={p.text} strokeWidth={0.4} />
+        <text x={cx - Rdraw - 38} y={cy + 3} fontSize={9} textAnchor="end" fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dDn)} perf.</text>
+        <text x={cx} y={cy - 4} fontSize={10} textAnchor="middle" fill={p.fail} fontFamily="ui-monospace, monospace">Tubo no válido</text>
+        <text x={cx} y={cy + 10} fontSize={8} textAnchor="middle" fill={p.textDim} fontFamily="ui-monospace, monospace">revisa Ø ext y espesor</text>
+      </g>
+    );
+  }
+
+  const dExt  = tubeGeom.de;                                  // mm
+  const dInt  = tubeGeom.di;                                  // mm
+  const dBulb = dExt + 2 * inp.structuralCover;               // mm — geometría directa
   const scale = Rmax / (dDn / 2);
 
   const rDn   = (dDn   / 2) * scale;
   const rBulb = (dBulb / 2) * scale;
   const rExt  = (dExt  / 2) * scale;
   const rInt  = (dInt  / 2) * scale;
+  // Recubrimiento real disponible: (Dn − de) / 2. Si < 25 mm (mínimo Guía),
+  // el dibujo lo muestra con un anillo en rojo para feedback inmediato.
+  const geomCover = (dDn - dExt) / 2;
+  const coverShort = geomCover < 25;
 
   return (
     <g>
@@ -473,7 +498,10 @@ function TopSectionView({
       </defs>
       <circle cx={cx} cy={cy} r={rDn}   fill={p.concrete} />
       <circle cx={cx} cy={cy} r={rDn}   fill="url(#agreg)" />
-      <circle cx={cx} cy={cy} r={rDn}   fill="none" stroke={p.steelEdge} strokeWidth={0.6} />
+      {/* Cuando el recubrimiento (Dn-de)/2 < 25 mm, marcamos el borde del
+          barreno en rojo para señalar el defecto sin necesidad de leer el
+          mensaje de error del panel de resultados. */}
+      <circle cx={cx} cy={cy} r={rDn}   fill="none" stroke={coverShort ? p.fail : p.steelEdge} strokeWidth={coverShort ? 1.2 : 0.6} />
       {/* Bulbo estructural (dTotal) — anillo discreto sólo si difiere de Dn */}
       {rBulb < rDn - 0.5 && (
         <circle cx={cx} cy={cy} r={rBulb} fill="none" stroke={p.text} strokeWidth={0.4} strokeDasharray="2 2" opacity={0.6} />
@@ -500,24 +528,28 @@ function TopSectionView({
       <line x1={cx} y1={cy + rInt} x2={cx} y2={cy + Rmax * 0.8} stroke={p.text} strokeWidth={0.4} strokeDasharray="2 2" />
       <text x={cx + 4} y={cy + Rmax * 0.8 + 10} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dInt)} int.</text>
 
-      {/* Tabla a la derecha */}
-      <g transform={`translate(${width * 0.65}, ${cy - 90})`}>
-        <rect x={-6} y={-12} width={Math.max(150, width * 0.32)} height={188} rx={3} fill={p.bgPanel} stroke={p.border} strokeWidth={0.5} />
+      {/* Tabla a la derecha. La fila `rec.` (recubrimiento geométrico)
+          se pinta en rojo cuando es < 25 mm — feedback inmediato para que
+          el usuario sepa por qué el motor invalida si elige un tubo grande
+          para un Dn pequeño. */}
+      <g transform={`translate(${width * 0.65}, ${cy - 99})`}>
+        <rect x={-6} y={-12} width={Math.max(150, width * 0.32)} height={206} rx={3} fill={p.bgPanel} stroke={p.border} strokeWidth={0.5} />
         <text x={0} y={2} fontSize={9.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>Sección del tope</text>
-        {[
-          ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${inp.concreteGrade} N/mm²)`],
-          ['Acero',     `fy = ${inp.steelGrade} N/mm²`],
-          ['As,y',      `${fmt2(result.As_y)} mm²`],
-          ['As,d',      `${fmt2(result.As_d)} mm²`],
-          ['re',        `${fmt2(result.re)} mm`],
-          ['Fc,h',      `${fmt2(result.Fc_h)} kN`],
-          ['Fa,h',      `${fmt2(result.Fa_h)} kN`],
-          ['R',         `${fmt2(result.R)}`],
-          ['Fe',        `${fmt2(result.Fe)}`],
-        ].map(([k, v], i) => (
+        {([
+          ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${inp.concreteGrade} N/mm²)`, false],
+          ['Acero',     `fy = ${inp.steelGrade} N/mm²`, false],
+          ['rec.',      `${fmt2(geomCover)} mm${coverShort ? ' (<25)' : ''}`, coverShort],
+          ['As,y',      `${fmt2(result.As_y)} mm²`, false],
+          ['As,d',      `${fmt2(result.As_d)} mm²`, false],
+          ['re',        `${fmt2(result.re)} mm`, false],
+          ['Fc,h',      `${fmt2(result.Fc_h)} kN`, false],
+          ['Fa,h',      `${fmt2(result.Fa_h)} kN`, false],
+          ['R',         `${fmt2(result.R)}`, false],
+          ['Fe',        `${fmt2(result.Fe)}`, false],
+        ] as Array<[string, string, boolean]>).map(([k, v, isFail], i) => (
           <g key={k} transform={`translate(0, ${18 + i * 18})`}>
-            <text x={0}    y={0} fontSize={8.5} fill={p.textDim} fontFamily="ui-monospace, monospace">{k}</text>
-            <text x={Math.max(150, width * 0.32) - 12} y={0} textAnchor="end" fontSize={8.5} fill={p.text} fontFamily="ui-monospace, monospace">{v}</text>
+            <text x={0}    y={0} fontSize={8.5} fill={isFail ? p.fail : p.textDim} fontFamily="ui-monospace, monospace">{k}</text>
+            <text x={Math.max(150, width * 0.32) - 12} y={0} textAnchor="end" fontSize={8.5} fill={isFail ? p.fail : p.text} fontFamily="ui-monospace, monospace">{v}</text>
           </g>
         ))}
       </g>
