@@ -19,12 +19,14 @@ mesa para cálculos del día a día.
 ## Módulos disponibles
 
 ### Hormigón armado
+
 - **Vigas** — flexión, cortante, fisuración (ELS), armado mínimo/máximo.
 - **Pilares** — flexocompresión, pandeo, cuantías geométricas.
 - **Punzonamiento** — comprobación CE para placas/forjados sobre soporte.
 - **Forjados** — comprobaciones por tipologías predefinidas.
 
 ### Acero estructural
+
 - **Vigas** — flexión, cortante, interacción M-V, pandeo lateral (LTB),
   flecha (ELS), clasificación de sección, generador de cargas por categoría
   de uso (CTE Tabla 3.1).
@@ -35,6 +37,7 @@ mesa para cálculos del día a día.
   hormigón soporte (cono, splitting, edge breakout, pry-out).
 
 ### Cimentación
+
 - **Zapatas aisladas** — tensiones de suelo, excentricidades, vuelco,
   deslizamiento, flexión por caras, punzonamiento, armado base.
 - **Encepados** — encepados de pilotes (modelo bielas y tirantes).
@@ -51,16 +54,20 @@ mesa para cálculos del día a día.
   asiento estimado y separación entre pilotes (Tabla 3.10).
 
 ### Rehabilitación
+
 - **Empresillado** — pilares compuestos batidos según EC3 §6.4.2.
 - **Muros de fábrica** — verificación multi-planta de muros de carga de
   fábrica (CTE DB-SE-F), con huecos, cargas puntuales, plantas y machones.
 
 ### Madera
+
 - **Vigas** y **pilares** — clases resistentes europeas, comprobaciones EC5
   con resistencia al fuego R30-R120.
 
 ### Análisis FEM 1D
+
 Análisis matricial de vigas continuas con:
+
 - Combinaciones multiprincipal CTE (ELU, ELS-c, ELS-frec, ELS-cp).
 - Envolventes M, V, deformada por combinación.
 - Reacciones por combinación con superposición lineal.
