@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router';
 
 import { moduleRegistry } from '../../data/moduleRegistry';
+import { getRouteLoader } from '../../data/routeLoaders';
+import { useRoutePrefetch } from '../../hooks/useRoutePrefetch';
 import { ModuleIcon } from '../ui/ModuleIcon';
 
 const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
@@ -11,6 +13,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+  const { prefetch } = useRoutePrefetch();
+
+  const handlePrefetch = (route: string, shipped: boolean) => {
+    if (!shipped) return;
+    const loader = getRouteLoader(route);
+    if (loader) prefetch(route, loader);
+  };
+
   return (
     <nav
       className={[
@@ -75,6 +85,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   }
                   style={({ isActive }) => isActive ? { background: 'rgba(56,189,248,0.06)' } : undefined}
                   title={!mod.shipped ? 'Próximamente' : undefined}
+                  onMouseEnter={() => handlePrefetch(mod.route, mod.shipped)}
+                  onFocus={() => handlePrefetch(mod.route, mod.shipped)}
                   onClick={(e) => {
                     if (!mod.shipped) { e.preventDefault(); return; }
                     onClose?.();

@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { Landing } from './pages/Landing';
 import { RouteFallback } from './components/layout/RouteFallback';
 import { RouteHelmet } from './components/layout/RouteHelmet';
+import { RouteProgressBar } from './components/layout/RouteProgressBar';
 import { ChunkErrorElement } from './components/layout/ChunkErrorElement';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
@@ -17,7 +18,8 @@ import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 // RootLayout renders <RouteHelmet /> above <Outlet />, so the document title
 // and description update synchronously on navigation BEFORE the lazy chunk
 // lands. Without this, the previous route's <Helmet> stays painted for the
-// chunk-load window.
+// chunk-load window. RouteProgressBar lives here so it can react to ANY lazy
+// navigation in the tree.
 //
 // errorElement at root catches `route.lazy()` rejections (stale chunk URLs
 // after a deploy). The mount-time ChunkErrorBoundary in AppShell only catches
@@ -28,6 +30,7 @@ function RootLayout() {
   return (
     <>
       <RouteHelmet />
+      <RouteProgressBar />
       <Outlet />
     </>
   );
