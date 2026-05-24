@@ -98,7 +98,6 @@
       "Bash(node -e \":*)",
       "Bash(./setup)",
       "Bash(npm list:*)",
-      "Bash(npm install:*)",
       "Bash(for f:*)",
       "Bash(do)",
       "Bash(echo \"=== $f ===\")",

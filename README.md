@@ -130,7 +130,7 @@ sólo se ocupan de inputs, SVG y resultados.
 ## Desarrollo
 
 ```bash
-# Instalar dependencias (Bun preferido; npm también funciona)
+# Instalar dependencias (Concreta usa Bun como único gestor de paquetes)
 bun install
 
 # Servidor de desarrollo (Vite + HMR)

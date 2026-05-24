@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Concreta uses bun as the sole package manager. Block other lockfiles
+# from being committed so accidental `npm install` / `yarn install` /
+# `pnpm install` runs do not contaminate the repo.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
