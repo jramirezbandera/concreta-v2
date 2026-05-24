@@ -426,44 +426,68 @@ function RfcCurveView({
 function TopSectionView({
   inp, result, p, width, height,
 }: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number }) {
+  // Centro del círculo desplazado para dejar hueco a las cotas (Ø perforación,
+  // Ø bulbo) que se dibujan a la IZQUIERDA del círculo — así no chocan con el
+  // panel-tabla que ocupa la mitad derecha del SVG.
   const cx = width * 0.36;
   const cy = height / 2;
-  // Diámetros en mm — escalar respecto al radio disponible.
-  const Rmax = Math.min(width * 0.28, height * 0.42);
-  const dPerf = result.dTotal;   // mm
-  const dExt  = result.de;       // mm
-  const dInt  = result.di;       // mm
-  const scale = Rmax / (dPerf / 2);
+  // Diámetros en mm — escalar respecto al radio disponible. El círculo más
+  // grande es la PERFORACIÓN real (Dn input); dentro de ella se aloja el
+  // bulbo estructural (dTotal = de + 2·recubrimiento), que típicamente es
+  // 3-10 mm menor que Dn. Antes solo se dibujaba dTotal y se etiquetaba "Ø",
+  // lo que confundía al usuario: tecleaba Dn=185 pero veía "Ø180" sin contexto.
+  // Limitar Rmax al hueco disponible a la izquierda menos la anchura
+  // estimada de los labels (~72px "Ø999,9 perf." + leader 36px + holgura).
+  const leftRoom  = cx - 116;
+  const Rmax  = Math.min(width * 0.28, height * 0.42, Math.max(60, leftRoom));
+  const dDn   = inp.drillDiameter;  // mm — perforación real (input)
+  const dBulb = result.dTotal;      // mm — bulbo estructural
+  const dExt  = result.de;          // mm — diámetro exterior tubo
+  const dInt  = result.di;          // mm — diámetro interior tubo
+  const scale = Rmax / (dDn / 2);
 
-  const rPerf = (dPerf / 2) * scale;
+  const rDn   = (dDn   / 2) * scale;
+  const rBulb = (dBulb / 2) * scale;
   const rExt  = (dExt  / 2) * scale;
   const rInt  = (dInt  / 2) * scale;
 
   return (
     <g>
-      {/* Perforación exterior con textura de árido */}
+      {/* Perforación exterior con textura de árido (Dn) */}
       <defs>
         <pattern id="agreg" patternUnits="userSpaceOnUse" width="6" height="6">
           <circle cx="1.5" cy="2" r="0.7" fill={p.steelEdge} opacity="0.45" />
           <circle cx="4.5" cy="4" r="0.5" fill={p.steelEdge} opacity="0.3" />
         </pattern>
       </defs>
-      <circle cx={cx} cy={cy} r={rPerf} fill={p.concrete} />
-      <circle cx={cx} cy={cy} r={rPerf} fill="url(#agreg)" />
-      <circle cx={cx} cy={cy} r={rPerf} fill="none" stroke={p.steelEdge} strokeWidth={0.6} />
+      <circle cx={cx} cy={cy} r={rDn}   fill={p.concrete} />
+      <circle cx={cx} cy={cy} r={rDn}   fill="url(#agreg)" />
+      <circle cx={cx} cy={cy} r={rDn}   fill="none" stroke={p.steelEdge} strokeWidth={0.6} />
+      {/* Bulbo estructural (dTotal) — anillo discreto sólo si difiere de Dn */}
+      {rBulb < rDn - 0.5 && (
+        <circle cx={cx} cy={cy} r={rBulb} fill="none" stroke={p.text} strokeWidth={0.4} strokeDasharray="2 2" opacity={0.6} />
+      )}
       {/* Acero tubular (anillo) */}
       <circle cx={cx} cy={cy} r={rExt} fill={p.steel} stroke={p.steelEdge} strokeWidth={0.7} />
       <circle cx={cx} cy={cy} r={rInt} fill={p.bgPanel} stroke={p.steelEdge} strokeWidth={0.5} />
 
-      {/* Cotas radiales */}
-      <line x1={cx + rPerf} y1={cy} x2={cx + rPerf + 28} y2={cy} stroke={p.text} strokeWidth={0.4} />
-      <text x={cx + rPerf + 30} y={cy + 3} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dPerf)}</text>
+      {/* Cotas radiales — Ø perforación y Ø bulbo a la IZQUIERDA, evitando
+          la tabla. Tubo y hueco interior arriba/abajo, donde no chocan. */}
+      <line x1={cx - rDn} y1={cy} x2={cx - rDn - 36} y2={cy} stroke={p.text} strokeWidth={0.4} />
+      <text x={cx - rDn - 38} y={cy + 3} fontSize={9} textAnchor="end" fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dDn)} perf.</text>
+
+      {rBulb < rDn - 0.5 && (
+        <>
+          <line x1={cx - rBulb} y1={cy + 12} x2={cx - rBulb - 22} y2={cy + 12} stroke={p.textDim} strokeWidth={0.4} strokeDasharray="2 2" />
+          <text x={cx - rBulb - 24} y={cy + 15} fontSize={8.5} textAnchor="end" fill={p.textDim} fontFamily="ui-monospace, monospace">Ø{fmt1(dBulb)} bulbo</text>
+        </>
+      )}
 
       <line x1={cx} y1={cy - rExt} x2={cx} y2={cy - Rmax - 8} stroke={p.text} strokeWidth={0.4} />
-      <text x={cx + 4} y={cy - Rmax - 10} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dExt)}</text>
+      <text x={cx + 4} y={cy - Rmax - 10} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dExt)} tubo</text>
 
       <line x1={cx} y1={cy + rInt} x2={cx} y2={cy + Rmax * 0.8} stroke={p.text} strokeWidth={0.4} strokeDasharray="2 2" />
-      <text x={cx + 4} y={cy + Rmax * 0.8 + 10} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dInt)}</text>
+      <text x={cx + 4} y={cy + Rmax * 0.8 + 10} fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Ø{fmt1(dInt)} int.</text>
 
       {/* Tabla a la derecha */}
       <g transform={`translate(${width * 0.65}, ${cy - 90})`}>
