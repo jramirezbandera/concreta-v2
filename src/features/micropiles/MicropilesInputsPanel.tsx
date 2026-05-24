@@ -133,7 +133,7 @@ function NumField({
 }
 
 function SelectField<V extends string | number>({
-  label, sub, field, value, options, setField,
+  label, sub, field, value, options, setField, stacked = false,
 }: {
   label: string;
   sub?: string;
@@ -141,19 +141,44 @@ function SelectField<V extends string | number>({
   value: V;
   options: Array<{ value: V; label: string }>;
   setField: MicropilesInputsPanelProps['setField'];
+  /** Si true, label arriba y select a todo el ancho debajo. Usar cuando
+   *  las opciones del select son demasiado largas para caber en la mitad
+   *  derecha sin truncar la label izquierda (Ejecución, Corrosión, etc.). */
+  stacked?: boolean;
 }) {
+  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const raw = e.target.value;
+    const opt = options.find((o) => String(o.value) === raw);
+    if (opt) setField(field, opt.value as MicropilesInputs[typeof field]);
+  };
+  const selectClassBase = 'bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors';
+
+  if (stacked) {
+    return (
+      <div className="flex flex-col py-0.75 gap-1 min-w-0">
+        <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} />
+        <select
+          id={`select-${String(field)}`}
+          value={value}
+          onChange={onChange}
+          className={`${selectClassBase} w-full`}
+        >
+          {options.map((o) => (
+            <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} />
       <select
         id={`select-${String(field)}`}
         value={value}
-        onChange={(e) => {
-          const raw = e.target.value;
-          const opt = options.find((o) => String(o.value) === raw);
-          if (opt) setField(field, opt.value as MicropilesInputs[typeof field]);
-        }}
-        className="shrink-0 max-w-[180px] bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors"
+        onChange={onChange}
+        className={`${selectClassBase} shrink-0 max-w-45`}
       >
         {options.map((o) => (
           <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
@@ -241,6 +266,7 @@ export function MicropilesInputsPanel({
           value={state.execution}
           options={EXECUTION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
           setField={setField}
+          stacked
         />
         <SelectField<CorrosionEnv>
           label="Corrosión"
@@ -248,6 +274,7 @@ export function MicropilesInputsPanel({
           value={state.corrosionEnv}
           options={CORROSION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
           setField={setField}
+          stacked
         />
         <SelectField<DesignLifeYears>
           label="Vida útil"
@@ -256,6 +283,7 @@ export function MicropilesInputsPanel({
           value={state.designLifeYears}
           options={DESIGN_LIFE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
           setField={setField}
+          stacked
         />
         <SelectField<ConnectionType>
           label="Unión"
@@ -276,6 +304,7 @@ export function MicropilesInputsPanel({
             { value: 'existing', label: 'Cimentación existente' },
           ]}
           setField={setField}
+          stacked
         />
         <SelectField<Duration>
           label="Duración"
@@ -286,6 +315,7 @@ export function MicropilesInputsPanel({
             { value: 'long',  label: '> 6 meses (permanente)' },
           ]}
           setField={setField}
+          stacked
         />
         <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
         <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" {...LIMITS.structuralCover} setField={setField} />
