@@ -162,8 +162,11 @@ function PerfilView({
   const pileXL      = pileXCenter - pileW / 2;
   const pileYTop    = yOfDepth(zHead);
   const pileYBot    = yOfDepth(zToe);
-  const capW        = pileW * 2.6;
-  const capH        = 10;
+  // Encepado: rectángulo ancho sobre la cabeza del pilote — debe leerse
+  // como conexión estructural, no como tapón fino. Antes capH=10px era
+  // apenas perceptible en pantalla.
+  const capW        = pileW * 3.2;
+  const capH        = 16;
 
   // Nivel freático — mostrar la línea sólo si cae dentro del rango visible:
   // entre la cabeza y 20 m por debajo del apoyo. waterTableDepth menor que
