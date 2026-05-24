@@ -35,7 +35,7 @@ import {
   weldThroatMin,
   type SectionClass,
 } from '../../data/micropileLookups';
-import { resolveTubeGeometry } from '../../data/micropileTubes';
+import { CUSTOM_TUBE_SENTINEL, resolveTubeGeometry } from '../../data/micropileTubes';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 export type { CheckRow } from './types';
@@ -309,7 +309,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // qué pasa exactamente.
   const tubeGeom = resolveTubeGeometry(inp);
   if (!tubeGeom) {
-    if (inp.tube === 'custom') {
+    if (inp.tube === CUSTOM_TUBE_SENTINEL) {
       if (!isFinite(inp.customTubeDe) || inp.customTubeDe <= 0) {
         return invalid('Tubo personalizado: Ø exterior debe ser un número > 0.');
       }
@@ -328,20 +328,33 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const e  = tubeGeom.e;
   const di = tubeGeom.di;
 
-  // Recubrimiento mínimo Tabla 2.3 (Guía Fomento §2.3.2). Antes solo se
-  // comprobaba que el bulbo cabe (dTotal ≤ Dn), pero NO que sobre
-  // suficiente espesor de lechada alrededor del tubo. El valor depende del
-  // tipo de inyectado (lechada/mortero) y del esfuerzo (compresión/tracción).
-  // Tracción exige más recubrimiento porque la armadura está más expuesta a
-  // tensiones que abren fisuras en la lechada — la oxidación entra más fácil.
+  // Recubrimiento mínimo Tabla 2.3 (Guía Fomento §2.3.2). Dos checks
+  // independientes que la Guía exige conjuntamente:
+  //   (1) HAY SITIO geométrico: (Dn - de)/2 ≥ r_min
+  //   (2) El cover que el usuario va a MATERIALIZAR es ≥ r_min:
+  //       inp.structuralCover ≥ r_min
+  // Antes solo se hacía (1) → un usuario podía tener Dn=185, tube=Ø88,9×9,
+  // teclear structuralCover=5 y obtener CUMPLE silenciosamente con un
+  // recubrimiento real de 5 mm (norma exige 20 mm para lechada+comp).
+  // Tracción exige más recubrimiento porque la armadura está más expuesta
+  // a tensiones que abren fisuras en la lechada.
   const minCoverRequired = getMinStructuralCover(inp.groutType, inp.effort);
+  const groutLabel = `${inp.groutType} + ${inp.effort === 'compression' ? 'compresión' : 'tracción'}`;
+
   const geomCoverAvailable = (inp.drillDiameter - de) / 2;
   if (geomCoverAvailable < minCoverRequired - 1e-3) {
     return invalid(
       `Recubrimiento entre tubo y pared del barreno = ${geomCoverAvailable.toFixed(1)} mm ` +
-      `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${inp.groutType} + ` +
-      `${inp.effort === 'compression' ? 'compresión' : 'tracción'}). ` +
+      `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${groutLabel}). ` +
       `Reduce Ø tubo o aumenta Dn (perforación).`,
+    );
+  }
+
+  if (inp.structuralCover < minCoverRequired - 1e-3) {
+    return invalid(
+      `Recubrimiento materializado r = ${inp.structuralCover.toFixed(1)} mm ` +
+      `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${groutLabel}). ` +
+      `Aumenta el campo "r" en Ejecución y entorno al valor mínimo normativo.`,
     );
   }
   // Diámetro estructural del bulbo de hormigón (Guía 3.6.2):

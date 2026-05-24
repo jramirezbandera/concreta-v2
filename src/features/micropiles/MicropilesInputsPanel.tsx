@@ -7,7 +7,7 @@ import {
   type ConnectionType, type Duration, type EffortType, type SoilType,
   type DesignLifeYears, type GroutType,
 } from '../../data/micropileLookups';
-import { MICROPILE_TUBES } from '../../data/micropileTubes';
+import { MICROPILE_TUBES, CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes';
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -264,18 +264,18 @@ export function MicropilesInputsPanel({
         />
         <SelectField<string>
           label="Tubo armadura"
-          sub={state.tube === 'custom' ? 'personalizado' : 'PIRESA'}
+          sub={state.tube === CUSTOM_TUBE_SENTINEL ? 'personalizado' : 'PIRESA'}
           field="tube"
           value={state.tube}
           options={[
             ...MICROPILE_TUBES.map((t) => ({ value: t.label, label: t.label })),
             // Sentinel value 'custom' — el motor lo reconoce y usa customTubeDe/E.
-            { value: 'custom', label: '— Personalizado…' },
+            { value: CUSTOM_TUBE_SENTINEL, label: '— Personalizado…' },
           ]}
           setField={setField}
           stacked
         />
-        {state.tube === 'custom' && (
+        {state.tube === CUSTOM_TUBE_SENTINEL && (
           <>
             {/* Guardrail: el max del Ø ext se acota DINÁMICAMENTE al diámetro
                 de perforación menos dos veces el recubrimiento mínimo Tabla
@@ -372,7 +372,21 @@ export function MicropilesInputsPanel({
           stacked
         />
         <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
-        <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" {...LIMITS.structuralCover} setField={setField} />
+        {/* Clamp dinámico de r: el min es el recubrimiento mínimo Tabla 2.3
+            según inyectado y esfuerzo actuales. Si pasas de lechada+comp
+            (20 mm) a mortero+tracción (35 mm), el min sube y el blur de
+            este campo lo clampa al nuevo valor. Evita el silent failure
+            de un usuario que teclea r=5 (que la norma rechaza). */}
+        <NumField
+          label="r"
+          sub="recubr. estructural"
+          field="structuralCover"
+          value={state.structuralCover}
+          unit="mm"
+          min={getMinStructuralCover(state.groutType, state.effort)}
+          max={LIMITS.structuralCover.max}
+          setField={setField}
+        />
       </CollapsibleSection>
 
       <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">

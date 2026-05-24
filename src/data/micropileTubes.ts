@@ -2,6 +2,14 @@
 // Tabla de referencia comercial española; el plan de armado debe seleccionar
 // uno de estos calibres. Valores: de (Ø exterior, mm) y e (espesor pared, mm).
 
+/**
+ * Sentinel para el campo `tube` que activa el modo personalizado (de + e
+ * tecleados por el usuario en vez de buscados en el catálogo). Extraído como
+ * constante para que motor, panel de inputs, SVG y helper no diverjan en el
+ * literal — si se renombra a 'user-defined' o similar, se cambia aquí solo.
+ */
+export const CUSTOM_TUBE_SENTINEL = 'custom';
+
 export interface MicropileTube {
   /** Diámetro exterior nominal (mm). */
   de: number;
@@ -48,7 +56,7 @@ export function resolveTubeGeometry(inp: {
   customTubeDe: number;
   customTubeE: number;
 }): { de: number; e: number; di: number } | null {
-  if (inp.tube === 'custom') {
+  if (inp.tube === CUSTOM_TUBE_SENTINEL) {
     const de = inp.customTubeDe;
     const e  = inp.customTubeE;
     if (!isFinite(de) || !isFinite(e)) return null;
