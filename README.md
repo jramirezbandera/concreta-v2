@@ -28,10 +28,11 @@ mesa para cálculos del día a día.
 - **Vigas** — flexión, cortante, interacción M-V, pandeo lateral (LTB),
   flecha (ELS), clasificación de sección, generador de cargas por categoría
   de uso (CTE Tabla 3.1).
-- **Pilares** — pandeo por eje, capacidad a compresión, esbeltez.
-- **Sección compuesta** — perfiles armados.
-- **Empresillado** — pilares empresillados.
-- **Placas de anclaje** — comprobación de placa, pernos y hormigón soporte.
+- **Pilares** — pandeo por eje, capacidad a compresión, esbeltez. Soporta
+  perfiles laminados (I/H), tubulares cuadrados/rectangulares y CHS.
+- **Sección compuesta** — perfiles armados (I + chapas).
+- **Placas de anclaje** — comprobación de placa, pernos embebidos y
+  hormigón soporte (cono, splitting, edge breakout, pry-out).
 
 ### Cimentación
 - **Zapatas aisladas** — tensiones de suelo, excentricidades, vuelco,
@@ -39,10 +40,24 @@ mesa para cálculos del día a día.
 - **Encepados** — encepados de pilotes (modelo bielas y tirantes).
 - **Muros de contención** — empuje de tierras, vuelco, deslizamiento,
   capacidad portante, flexión, armado del fuste y la zapata.
+- **Micropilotes** — Guía Fomento 2005 + EC3 §6.2. Catálogo PIRESA o tubo
+  personalizado (Ø ext + espesor), perfil de estratos editable
+  (granular/cohesivo), nivel freático, inyectado lechada/mortero. Cuatro
+  vistas SVG (perfil del terreno, curva Rfc acumulada, sección del tope,
+  semáforos). Comprobaciones: hundimiento por fuste (teórico y empírico),
+  tope estructural a compresión y tracción, flexión-cortante con
+  empotramiento ficticio, garganta de soldadura (Tabla A-5.1),
+  recubrimiento mínimo dinámico (Tabla 2.3 según inyectado y esfuerzo),
+  asiento estimado y separación entre pilotes (Tabla 3.10).
+
+### Rehabilitación
+- **Empresillado** — pilares compuestos batidos según EC3 §6.4.2.
+- **Muros de fábrica** — verificación multi-planta de muros de carga de
+  fábrica (CTE DB-SE-F), con huecos, cargas puntuales, plantas y machones.
 
 ### Madera
 - **Vigas** y **pilares** — clases resistentes europeas, comprobaciones EC5
-  como referencia técnica auxiliar.
+  con resistencia al fuego R30-R120.
 
 ### Análisis FEM 1D
 Análisis matricial de vigas continuas con:
@@ -60,7 +75,7 @@ Análisis matricial de vigas continuas con:
 - **jsPDF + svg2pdf.js** — exportación PDF en cliente con SVG vectorial.
 - **lz-string** — compresión de estado para enlaces compartibles.
 - **vite-plugin-pwa** — PWA estática, instalable, sin backend.
-- **Vitest** + **Testing Library** — 1.196 tests verdes en 36 suites.
+- **Vitest** + **Testing Library** — 1.729 tests verdes en 63 suites.
 
 ## Arquitectura
 
@@ -94,8 +109,11 @@ sólo se ocupan de inputs, SVG y resultados.
 - **SVG en vivo** — secciones, perfiles, geometrías se redibujan en cada
   cambio de input.
 - **Exportación PDF** vectorial con la misma representación que en pantalla.
-- **Enlaces compartibles** — `Copiar enlace` serializa el estado completo del
-  cálculo en la URL. Pegarlo en otro navegador reproduce el caso.
+- **Enlaces compartibles** — `Copiar enlace` serializa el estado completo
+  del cálculo en la URL. Pegarlo en otro navegador reproduce el caso.
+  Estados complejos (perfil de estratos en micropilotes, edificio
+  multi-planta en muros de fábrica, modelo FEM 1D) se comprimen con
+  lz-string para que las URLs queden bajo el límite seguro.
 - **Persistencia local** por módulo en `localStorage` con versionado de
   esquema.
 - **Calculadora global** (`Ctrl/Cmd+C` o icono en topbar) — modo numérico,
