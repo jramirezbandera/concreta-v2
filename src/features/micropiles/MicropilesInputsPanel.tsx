@@ -115,7 +115,10 @@ function NumField({
             aria-label={`${label} (${unitText})`}
           />
           <span className={[
-            'border border-l-0 rounded-r px-1.25 py-1 text-[10px] font-mono whitespace-nowrap flex items-center',
+            // min-w-11 (44px) fija el ancho del chip aunque la unidad sea "°"
+            // o esté vacía, para que el borde derecho de toda la columna de
+            // inputs caiga en la misma vertical en TODAS las filas.
+            'border border-l-0 rounded-r px-1.25 py-1 text-[10px] font-mono whitespace-nowrap inline-flex items-center justify-center min-w-11',
             outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
           ].join(' ')}>
             {unitText}
@@ -160,66 +163,6 @@ function SelectField<V extends string | number>({
   );
 }
 
-function Segmented<V extends string>({
-  label, value, options, onChange,
-}: {
-  label: string;
-  value: V;
-  options: Array<{ value: V; label: string }>;
-  onChange: (v: V) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <span className="text-[13px] text-text-secondary truncate">{label}</span>
-      <div className="inline-flex shrink-0 rounded border border-border-main overflow-hidden">
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={[
-              'px-2 py-1 text-[11px] font-mono transition-colors',
-              value === opt.value
-                ? 'bg-accent/15 text-accent'
-                : 'bg-bg-primary text-text-disabled hover:text-text-primary hover:bg-bg-elevated',
-            ].join(' ')}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RadioInline<V extends string>({
-  label, value, options, onChange,
-}: {
-  label: string;
-  value: V;
-  options: Array<{ value: V; label: string }>;
-  onChange: (v: V) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <span className="text-[13px] text-text-secondary truncate">{label}</span>
-      <div className="flex items-center gap-3 shrink-0">
-        {options.map((opt) => (
-          <label key={opt.value} className="flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              checked={value === opt.value}
-              onChange={() => onChange(opt.value)}
-              className="accent-accent"
-            />
-            <span className="text-[11px] text-text-primary">{opt.label}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Inputs panel ─────────────────────────────────────────────────────────────
 
 export function MicropilesInputsPanel({
@@ -238,24 +181,26 @@ export function MicropilesInputsPanel({
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
         <NumField label="Nc,d" sub="por pilote individual" field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
-        <Segmented<EffortType>
+        <SelectField<EffortType>
           label="Esfuerzo"
+          field="effort"
           value={state.effort}
           options={[
-            { value: 'compression',          label: 'C'   },
-            { value: 'tension',              label: 'T'   },
-            { value: 'compression+tension',  label: 'C+T' },
+            { value: 'compression',         label: 'Compresión' },
+            { value: 'tension',             label: 'Tracción' },
+            { value: 'compression+tension', label: 'Compresión + tracción' },
           ]}
-          onChange={(v) => setField('effort', v)}
+          setField={setField}
         />
-        <RadioInline<'theoretical' | 'empirical'>
+        <SelectField<'theoretical' | 'empirical'>
           label="Método"
+          field="method"
           value={state.method}
           options={[
-            { value: 'theoretical', label: 'Teórico'   },
-            { value: 'empirical',   label: 'Empírico'  },
+            { value: 'theoretical', label: 'Teórico'  },
+            { value: 'empirical',   label: 'Empírico' },
           ]}
-          onChange={(v) => setField('method', v)}
+          setField={setField}
         />
       </CollapsibleSection>
 
@@ -312,32 +257,35 @@ export function MicropilesInputsPanel({
           options={DESIGN_LIFE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
           setField={setField}
         />
-        <RadioInline<ConnectionType>
+        <SelectField<ConnectionType>
           label="Unión"
+          field="connection"
           value={state.connection}
           options={[
             { value: 'no-loss', label: 'Sin pérdida' },
             { value: 'other',   label: 'Otros' },
           ]}
-          onChange={(v) => setField('connection', v)}
+          setField={setField}
         />
-        <RadioInline<ApplicationType>
+        <SelectField<ApplicationType>
           label="Aplicación"
+          field="application"
           value={state.application}
           options={[
-            { value: 'new',      label: 'Nueva' },
-            { value: 'existing', label: 'Existente' },
+            { value: 'new',      label: 'Nueva construcción' },
+            { value: 'existing', label: 'Cimentación existente' },
           ]}
-          onChange={(v) => setField('application', v)}
+          setField={setField}
         />
-        <RadioInline<Duration>
+        <SelectField<Duration>
           label="Duración"
+          field="duration"
           value={state.duration}
           options={[
-            { value: 'short', label: '≤ 6m' },
-            { value: 'long',  label: '> 6m' },
+            { value: 'short', label: '≤ 6 meses (provisional)' },
+            { value: 'long',  label: '> 6 meses (permanente)' },
           ]}
-          onChange={(v) => setField('duration', v)}
+          setField={setField}
         />
         <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
         <NumField label="r" sub="recubr. estructural" field="structuralCover" value={state.structuralCover} unit="mm" {...LIMITS.structuralCover} setField={setField} />

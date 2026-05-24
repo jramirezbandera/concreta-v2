@@ -81,14 +81,17 @@ function MiniNumField({ label, value, unit, min, max, onChange }: FieldProps) {
                 : 'bg-bg-primary border border-border-main hover:border-accent/40 focus:border-accent',
             ].join(' ')}
           />
-          {unit && (
-            <span className={[
-              'border border-l-0 rounded-r px-1 py-1 text-[9.5px] font-mono whitespace-nowrap flex items-center',
-              outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
-            ].join(' ')}>
-              {unit}
-            </span>
-          )}
+          {/* Chip de unidad: SIEMPRE se renderiza, también cuando no hay
+              unidad (NSPT), porque el ancho fijo (min-w-10 = 40 px) es lo
+              que alinea verticalmente todos los inputs de los estratos.
+              Antes con `{unit && ...}`, NSPT se quedaba sin chip y su input
+              "saltaba" hacia la derecha rompiendo la columna. */}
+          <span className={[
+            'border border-l-0 rounded-r px-1 py-1 text-[9.5px] font-mono whitespace-nowrap inline-flex items-center justify-center min-w-10',
+            outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
+          ].join(' ')}>
+            {unit ?? ''}
+          </span>
         </span>
       </label>
       {errMsg && (
