@@ -241,7 +241,7 @@ export function MasonryWallsModule() {
               onRemovePuntual={removePuntual}
             />
           </div>
-          <div className="hidden lg:block px-4 py-2.5 border-t border-border-main shrink-0">
+          <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
               type="button"
               onClick={() => {
