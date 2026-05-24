@@ -10,7 +10,7 @@
 //   · Soil con 1 estrato y soil con muchos estratos no rompe la salida.
 
 import { describe, expect, it, beforeAll } from 'vitest';
-import { exportMicropilesPDF } from '../../lib/pdf/micropiles';
+import { exportMicropilesPDF, tubeLabelForPdf } from '../../lib/pdf/micropiles';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { micropilesDefaults, micropilesSoilDefaults, type SoilLayer } from '../../data/defaults';
 
@@ -95,5 +95,40 @@ describe('exportMicropilesPDF', () => {
     expect(pdf.blobUrl.length).toBeGreaterThan(0);
     expect(typeof pdf.filename).toBe('string');
     expect(pdf.filename.length).toBeGreaterThan(0);
+  });
+
+  // ── REGRESIÓN H1 (eng review 2026-05-24) ─────────────────────────────────
+  // El PDF mostraba literal "Tubo: custom" cuando el usuario tenía un tubo
+  // personalizado, perdiendo la información del armado real en el entregable.
+  describe('tubeLabelForPdf — render del tubo en el PDF', () => {
+    it('catálogo PIRESA: muestra el label tal cual', () => {
+      const label = tubeLabelForPdf(micropilesDefaults);
+      expect(label).toBe('Ø88,9 × 9 mm');
+    });
+
+    it('tube="custom" sintetiza "Øde × e mm (personalizado)" — regresión H1', () => {
+      const inp = {
+        ...micropilesDefaults,
+        tube: 'custom' as const,
+        customTubeDe: 120,
+        customTubeE: 10,
+      };
+      const label = tubeLabelForPdf(inp);
+      // Locale es-ES → coma decimal en de.
+      expect(label).toBe('Ø120,0 × 10 mm (personalizado)');
+      // Y NO el literal "custom" — la regresión.
+      expect(label).not.toContain('custom"');
+      expect(label).not.toMatch(/^custom$/);
+    });
+
+    it('tube="custom" con decimales en espesor — e=9,5 mm se renderiza con coma', () => {
+      const inp = {
+        ...micropilesDefaults,
+        tube: 'custom' as const,
+        customTubeDe: 88.9,
+        customTubeE: 9.5,
+      };
+      expect(tubeLabelForPdf(inp)).toBe('Ø88,9 × 9,5 mm (personalizado)');
+    });
   });
 });

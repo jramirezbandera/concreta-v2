@@ -7,8 +7,26 @@ import { svg2pdf } from 'svg2pdf.js';
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../calculations/micropiles';
 import type { CheckStatus } from '../calculations/types';
+import { CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes';
 
 import { PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
+
+/**
+ * Renderiza la línea "Tubo: ..." del PDF. Si es del catálogo, usa el label
+ * (Ø88,9 × 9 mm). Si es custom, sintetiza la descripción con los valores
+ * tecleados — antes mostraba literal "custom" y el técnico se quedaba sin
+ * datos del armado en el PDF entregable.
+ *
+ * Exportado SOLO para tests. No usar fuera de pdf/micropiles.ts.
+ */
+export function tubeLabelForPdf(inp: MicropilesInputs): string {
+  if (inp.tube === CUSTOM_TUBE_SENTINEL) {
+    const de = inp.customTubeDe.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const e  = inp.customTubeE.toLocaleString('es-ES',  { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    return `Ø${de} × ${e} mm (personalizado)`;
+  }
+  return inp.tube;
+}
 
 const M = 18;
 
@@ -68,7 +86,7 @@ export async function exportMicropilesPDF(
     [`NF z = ${inp.waterTableDepth.toFixed(2)} m`,            `p,inj = ${inp.injectionPressure.toFixed(0)} kPa`],
     [`Nc,d = ${inp.designLoad.toFixed(0)} kN`,                `Esfuerzo: ${inp.effort}`],
     [`Método: ${inp.method}`,                                 `Estratos: ${soil.length}`],
-    [pdfStr(`Hormigón HA-${inp.concreteGrade}`),              pdfStr(`Tubo: ${inp.tube}`)],
+    [pdfStr(`Hormigón HA-${inp.concreteGrade}`),              pdfStr(`Tubo: ${tubeLabelForPdf(inp)}`)],
     [pdfStr(`fy = ${inp.steelGrade} N/mm²`),                  `CR = ${inp.CR.toFixed(2)}`],
     [`Ejecución: Fe=${result.Fe.toFixed(2)}`,                 `Corrosión: re=${result.re.toFixed(2)} mm`],
     [pdfStr(`Aplicación: ${inp.application === 'new' ? 'nueva' : 'existente'}`),
