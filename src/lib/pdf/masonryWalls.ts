@@ -547,7 +547,7 @@ function drawGovernanteBlock(
   m: MachonResult,
   state: MasonryWallState,
   fab: ReturnType<typeof resolverFabrica>,
-  system: UnitSystem,
+  _system: UnitSystem,    // mantenido en la firma por paridad con resto de helpers; no se usa dentro
   startY: number,
 ): number {
   let y = startY;
@@ -649,7 +649,7 @@ function drawGovernanteBlock(
 function drawAppendixPlanta(
   doc: jsPDF,
   pl: PlantaResult,
-  state: MasonryWallState,
+  _state: MasonryWallState,    // paridad con drawGovernanteBlock; no se usa dentro
   system: UnitSystem,
   startY: number,
 ): void {

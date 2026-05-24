@@ -32,7 +32,7 @@ export type SoilType         = 'granular' | 'cohesive';
 // DesignLifeYears — columnas oficiales de la matriz de corrosión Tabla 2.4.
 export type DesignLifeYears  = 5 | 25 | 50 | 75 | 100;
 
-export interface OptionDef<K extends string> {
+export interface OptionDef<K extends string | number> {
   key: K;
   label: string;
 }
