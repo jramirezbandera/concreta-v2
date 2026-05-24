@@ -138,4 +138,73 @@ describe('MicropilesSVG', () => {
       }, `crash en vista ${view} con result inválido`).not.toThrow();
     }
   });
+
+  // ── T4: SVG fallback "Tubo no válido" ──────────────────────────────────
+  // Cuando el tubo personalizado tiene valores incoherentes (NaN, 2e≥de),
+  // resolveTubeGeometry devuelve null y TopSectionView debe pintar el
+  // placeholder, no quedarse en blanco. Es la garantía de que el usuario
+  // siempre VE algo, no un círculo gris vacío sin explicación.
+  describe('TopSectionView fallback con tubo inválido', () => {
+    it('tube=custom con 2·e ≥ de → SVG renderiza "Tubo no válido"', () => {
+      const inp = {
+        ...micropilesDefaults,
+        tube: 'custom' as const,
+        customTubeDe: 50,
+        customTubeE: 25,    // 2·25 = 50 = de, sin hueco interior
+      };
+      const result = calcMicropiles(inp, micropilesSoilDefaults);
+      expect(result.valid).toBe(false);
+
+      const { container } = render(
+        <MicropilesSVG
+          inp={inp}
+          soil={micropilesSoilDefaults}
+          result={result}
+          view="topSection"
+        />,
+      );
+      const text = container.textContent ?? '';
+      expect(text).toContain('Tubo no válido');
+      // Y aun así muestra Dn (la perforación es input directo, no derivada).
+      expect(text).toMatch(/Ø.*perf/);
+    });
+
+    it('tube=custom con customTubeDe=0 → "Tubo no válido"', () => {
+      const inp = {
+        ...micropilesDefaults,
+        tube: 'custom' as const,
+        customTubeDe: 0,
+        customTubeE: 9,
+      };
+      const result = calcMicropiles(inp, micropilesSoilDefaults);
+      const { container } = render(
+        <MicropilesSVG inp={inp} soil={micropilesSoilDefaults} result={result} view="topSection" />,
+      );
+      expect(container.textContent ?? '').toContain('Tubo no válido');
+    });
+  });
+
+  // ── T3: TopSectionView con tubo custom válido ──────────────────────────
+  // Renderiza el tubo derivado de inputs (NO de result.de/di), garantía
+  // de que el SVG funciona aunque el motor invalide por otra causa.
+  it('TopSectionView dibuja el tubo personalizado con sus dimensiones', () => {
+    const inp = {
+      ...micropilesDefaults,
+      drillDiameter: 220,
+      tube: 'custom' as const,
+      customTubeDe: 120,
+      customTubeE: 10,
+    };
+    const result = calcMicropiles(inp, micropilesSoilDefaults);
+    expect(result.valid).toBe(true);
+
+    const { container } = render(
+      <MicropilesSVG inp={inp} soil={micropilesSoilDefaults} result={result} view="topSection" />,
+    );
+    const text = container.textContent ?? '';
+    // Las cotas Ø se etiquetan con coma decimal (locale es-ES).
+    expect(text).toMatch(/Ø220,0 perf/);     // Dn = drillDiameter
+    expect(text).toMatch(/Ø120,0 tubo/);     // de del custom
+    expect(text).toMatch(/Ø100,0 int/);      // di = de - 2e = 100
+  });
 });
