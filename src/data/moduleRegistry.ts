@@ -203,7 +203,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',
-  'micropiles': '5',          // v5 (2026-05-24): drillDiameter pasa de m a mm (UI más natural: 185 mm vs 0,185 m). v4: cota→profundidad positiva.
+  'micropiles': '6',          // v6 (2026-05-24): añade tube='custom' + customTubeDe/customTubeE para tubos fuera de catálogo PIRESA. v5: drillDiameter en mm. v4: cota→profundidad positiva.
   'empresillado': '1',
   'masonry-walls': '1',
   'timber-beams': '1',

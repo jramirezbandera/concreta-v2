@@ -48,6 +48,11 @@ const LIMITS = {
   baseShear:            { min: 0,    max: 100000 },   // kN  — magnitud
   soilModulusTop:       { min: 0,    max: 1e8 },      // kN/m²
   soilModulusEmbed:     { min: 1,    max: 1e8 },      // kN/m² — denominador en Le
+  // Tubo personalizado: rangos físicos. de cubre tubos comerciales habituales
+  // de micropilotes (30-300 mm). e cubre Tabla A-5.1 garganta soldadura
+  // (3-20 mm). El motor además exige 2·e < de.
+  customTubeDe:         { min: 30,   max: 300 },      // mm
+  customTubeE:          { min: 3,    max: 20 },       // mm
 } as const;
 
 export const MICROPILES_INPUT_LIMITS = LIMITS;
@@ -250,12 +255,39 @@ export function MicropilesInputsPanel({
         />
         <SelectField<string>
           label="Tubo armadura"
-          sub="PIRESA"
+          sub={state.tube === 'custom' ? 'personalizado' : 'PIRESA'}
           field="tube"
           value={state.tube}
-          options={MICROPILE_TUBES.map((t) => ({ value: t.label, label: t.label }))}
+          options={[
+            ...MICROPILE_TUBES.map((t) => ({ value: t.label, label: t.label })),
+            // Sentinel value 'custom' — el motor lo reconoce y usa customTubeDe/E.
+            { value: 'custom', label: '— Personalizado…' },
+          ]}
           setField={setField}
+          stacked
         />
+        {state.tube === 'custom' && (
+          <>
+            <NumField
+              label="Ø ext"
+              sub="tubo personalizado"
+              field="customTubeDe"
+              value={state.customTubeDe}
+              unit="mm"
+              {...LIMITS.customTubeDe}
+              setField={setField}
+            />
+            <NumField
+              label="Espesor"
+              sub="tubo personalizado"
+              field="customTubeE"
+              value={state.customTubeE}
+              unit="mm"
+              {...LIMITS.customTubeE}
+              setField={setField}
+            />
+          </>
+        )}
         <NumField label="fy" sub="acero" field="steelGrade" value={state.steelGrade} unit="N/mm²" integer {...LIMITS.steelGrade} setField={setField} />
       </CollapsibleSection>
 

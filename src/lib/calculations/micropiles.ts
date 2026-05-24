@@ -299,15 +299,36 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const ih             = RfcAdopted > 0 ? inp.designLoad / RfcAdopted : Infinity;
 
   // ── 4. Tope estructural (Guía cap. 3.6) ──────────────────────────────────
-  // Validación explícita del tubo: si el label no está en el catálogo PIRESA
-  // (p.ej., estado persistido en localStorage con versión antigua), invalidar
-  // en vez de hacer fallback silencioso a Ø88,9 × 9 mm.
-  const tube = MICROPILE_TUBES.find((t) => t.label === inp.tube);
-  if (!tube) {
-    return invalid(`Tubo "${inp.tube}" no encontrado en el catálogo PIRESA.`);
+  // Resolver tubo: catálogo PIRESA O custom (de, e introducidos por el
+  // usuario). El sentinel inp.tube === 'custom' activa el segundo modo;
+  // cualquier otro valor exige que esté en el catálogo. Estado persistido
+  // con un label obsoleto del catálogo → invalid() en lugar de fallback
+  // silencioso a Ø88,9 × 9 mm.
+  let de: number;
+  let e:  number;
+  if (inp.tube === 'custom') {
+    if (!isFinite(inp.customTubeDe) || inp.customTubeDe <= 0) {
+      return invalid('Tubo personalizado: Ø exterior debe ser un número > 0.');
+    }
+    if (!isFinite(inp.customTubeE) || inp.customTubeE <= 0) {
+      return invalid('Tubo personalizado: espesor debe ser un número > 0.');
+    }
+    if (2 * inp.customTubeE >= inp.customTubeDe) {
+      return invalid(
+        `Tubo personalizado: espesor 2·e=${(2 * inp.customTubeE).toFixed(1)} mm ` +
+        `≥ Ø ext=${inp.customTubeDe.toFixed(1)} mm. El tubo no tiene hueco interior.`,
+      );
+    }
+    de = inp.customTubeDe;
+    e  = inp.customTubeE;
+  } else {
+    const tube = MICROPILE_TUBES.find((t) => t.label === inp.tube);
+    if (!tube) {
+      return invalid(`Tubo "${inp.tube}" no encontrado en el catálogo PIRESA.`);
+    }
+    de = tube.de;
+    e  = tube.e;
   }
-  const de       = tube.de;                                  // mm
-  const e        = tube.e;                                   // mm
   const di       = de - 2 * e;                               // mm
   // Diámetro estructural del bulbo de hormigón (Guía 3.6.2):
   // d_struct = de + 2·r, donde r es el recubrimiento efectivo del tubo

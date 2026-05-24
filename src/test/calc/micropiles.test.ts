@@ -547,6 +547,114 @@ describe('Validación del tubo (fix E1)', () => {
   });
 });
 
+// ── Tubo personalizado (feature 2026-05-24) ──────────────────────────────────
+describe('Tubo personalizado (custom)', () => {
+  it('tube="custom" con de=88.9, e=9 coincide con el del catálogo "Ø88,9 × 9 mm"', () => {
+    // Si el usuario teclea los mismos valores que el del catálogo, el resultado
+    // debe ser idéntico (mismo de, mismo e, mismo As, mismo Nc_rd).
+    const fromCatalog = calcMicropiles(baseInp, baseSoil);
+    const fromCustom  = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 88.9, customTubeE: 9 },
+      baseSoil,
+    );
+    expect(fromCustom.valid).toBe(true);
+    expect(fromCustom.de).toBeCloseTo(fromCatalog.de, 6);
+    expect(fromCustom.di).toBeCloseTo(fromCatalog.di, 6);
+    expect(fromCustom.As_y).toBeCloseTo(fromCatalog.As_y, 6);
+    expect(fromCustom.Nc_rd).toBeCloseTo(fromCatalog.Nc_rd, 6);
+    expect(fromCustom.ih).toBeCloseTo(fromCatalog.ih, 6);
+  });
+
+  it('tube="custom" con de=120, e=10 produce un cálculo válido distinto del catálogo', () => {
+    // Tubo NO presente en PIRESA — solo accesible vía custom. Subimos
+    // drillDiameter para que el bulbo (de + 2·structuralCover) quepa.
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 220, tube: 'custom', customTubeDe: 120, customTubeE: 10 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(true);
+    expect(r.de).toBe(120);
+    expect(r.di).toBe(100);
+    // As_y = π/4 · (120² − 100²) = π/4 · 4400 ≈ 3455.75 mm²
+    expect(r.As_y).toBeCloseTo((Math.PI / 4) * (120 * 120 - 100 * 100), 2);
+  });
+
+  it('tube="custom" con de=0 → invalid', () => {
+    const r = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 0, customTubeE: 9 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Ø exterior debe ser/);
+  });
+
+  it('tube="custom" con e=0 → invalid', () => {
+    const r = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 100, customTubeE: 0 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/espesor debe ser/);
+  });
+
+  it('tube="custom" con 2·e ≥ de → invalid (sin hueco interior)', () => {
+    // de=50, e=25 → 2·e=50 = de, sin pared.
+    const r = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 50, customTubeE: 25 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/no tiene hueco interior/);
+  });
+
+  it('tube="custom" con NaN/Infinity → invalid', () => {
+    const r1 = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: NaN, customTubeE: 9 },
+      baseSoil,
+    );
+    expect(r1.valid).toBe(false);
+
+    const r2 = calcMicropiles(
+      { ...baseInp, tube: 'custom', customTubeDe: 100, customTubeE: Infinity },
+      baseSoil,
+    );
+    expect(r2.valid).toBe(false);
+  });
+
+  it('tube="custom" con e=4 mm pasa por la Tabla A-5.1 (rango 3 < t ≤ 20)', () => {
+    // weldThroatMin solo acepta el rango 3 < t ≤ 20 (estricto en 3). Con e=4
+    // comprobamos el caso justo encima del límite. Subimos Dn y reducimos
+    // structuralCover para que el bulbo (de + 2r) quepa en el barreno.
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 200, structuralCover: 10, tube: 'custom', customTubeDe: 100, customTubeE: 4 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('tube="custom" con e=2.9 mm (fuera de Tabla A-5.1) → invalid weldThroat', () => {
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 200, structuralCover: 10, tube: 'custom', customTubeDe: 100, customTubeE: 2.9 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Tabla A-5\.1/);
+  });
+
+  it('tube="custom" delgado puede caer en clase 4 → invalid con mensaje específico', () => {
+    // de=300, e=4 → tras corrosión re≈0,6 mm: deNet=298,8, eEff=3,4 mm,
+    // d/t≈87,9. Para fy=355 el límite clase 3 es 90·ε²=90·(235/355)≈59,6
+    // → clase 4 → invalid. Dn y structuralCover ajustados para que el
+    // bulbo (de + 2r = 320) quepa en el barreno (400).
+    const r = calcMicropiles(
+      { ...baseInp, drillDiameter: 400, structuralCover: 10, tube: 'custom', customTubeDe: 300, customTubeE: 4, steelGrade: 355 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/clase 4/);
+  });
+});
+
 // ── Cobertura adicional — bug crítico señalado por Codex ─────────────────────
 describe('Cobertura post-auditoría', () => {
   it('drillDiameter SÍ afecta al fuste (perímetro)', () => {

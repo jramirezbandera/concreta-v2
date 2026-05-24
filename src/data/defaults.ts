@@ -904,7 +904,13 @@ export interface MicropilesInputs {
   method:             'theoretical' | 'empirical';
   // Materiales
   concreteGrade:      number;   // fck en MPa (HA-25/30/35 ⇒ 25/30/35)
-  tube:               string;   // label del catálogo PIRESA (ver micropileTubes.ts)
+  /** Label del catálogo PIRESA (ver micropileTubes.ts) o sentinel 'custom'
+   *  para usar customTubeDe/customTubeE. El motor resuelve uno u otro. */
+  tube:               string;
+  /** Diámetro exterior personalizado (mm) — solo se usa si tube === 'custom'. */
+  customTubeDe:       number;
+  /** Espesor de pared personalizado (mm) — solo se usa si tube === 'custom'. */
+  customTubeE:        number;
   steelGrade:         number;   // N/mm² — fy
   // Ejecución / entorno
   execution:          ExecutionType;
@@ -938,6 +944,8 @@ export const micropilesDefaults: MicropilesInputs = {
   method:             'theoretical',
   concreteGrade:      30,
   tube:               'Ø88,9 × 9 mm',
+  customTubeDe:       88.9,    // arranca igual al default catálogo
+  customTubeE:        9,
   steelGrade:         551,
   execution:          'wt-below-no-casing-no-mud',
   corrosionEnv:       'natural-undisturbed',
