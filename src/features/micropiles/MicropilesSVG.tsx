@@ -471,7 +471,7 @@ function TopSectionView({
         <text x={0} y={2} fontSize={9.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>Sección del tope</text>
         {[
           ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${inp.concreteGrade} N/mm²)`],
-          ['Acero',     `S${inp.steelGrade} (fy = ${inp.steelGrade} N/mm²)`],
+          ['Acero',     `fy = ${inp.steelGrade} N/mm²`],
           ['As,y',      `${fmt2(result.As_y)} mm²`],
           ['As,d',      `${fmt2(result.As_d)} mm²`],
           ['re',        `${fmt2(result.re)} mm`],
