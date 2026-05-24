@@ -309,7 +309,9 @@ function PerfilView({
 function RfcCurveView({
   inp, result, p, width, height,
 }: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number }) {
-  const M = { top: 30, right: 30, bottom: 30, left: 56 };
+  // Margen izquierdo ampliado 56→68 para que el label vertical "z (m)"
+  // entre dentro del SVG sin recortarse contra el borde del canvas.
+  const M = { top: 30, right: 30, bottom: 30, left: 68 };
   const plotW = Math.max(60, width  - M.left - M.right);
   const plotH = Math.max(80, height - M.top  - M.bottom);
 
@@ -379,7 +381,7 @@ function RfcCurveView({
           {z.toFixed(1)}
         </text>
       ))}
-      <text x={12} y={M.top + plotH / 2} transform={`rotate(-90, 12, ${M.top + plotH / 2})`} textAnchor="middle" fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">z (m)</text>
+      <text x={18} y={M.top + plotH / 2} transform={`rotate(-90, 18, ${M.top + plotH / 2})`} textAnchor="middle" fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">z (m)</text>
 
       {/* Curva teórica */}
       <path d={theoPath} fill="none" stroke={p.curveTheo} strokeWidth={1.5} />
