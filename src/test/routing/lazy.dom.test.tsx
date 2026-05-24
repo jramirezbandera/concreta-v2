@@ -113,6 +113,64 @@ describe('route-level lazy splitting', () => {
   });
 });
 
+describe('route.lazy rejection recovery', () => {
+  // ChunkErrorBoundary wraps <Outlet /> inside AppShell, but route.lazy
+  // failures fire BEFORE the new route element mounts — so that boundary
+  // never sees them. The router needs errorElement at a parent route to
+  // catch the rejected promise and trigger reload.
+
+  it('route.lazy rejection triggers the route errorElement (which can reload)', async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    function ChunkErrorElement(): React.ReactElement {
+      // Simulates the new errorElement we'll add to handle route.lazy rejections.
+      // In production this triggers reload() the same way ChunkErrorBoundary does.
+      if (typeof window !== 'undefined') window.location.reload();
+      return <div data-testid="chunk-error">Recargando…</div>;
+    }
+
+    const rejectingLoader = () => {
+      const err = new Error('Failed to fetch dynamically imported module: /assets/foo.js');
+      err.name = 'ChunkLoadError';
+      return Promise.reject(err);
+    };
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          HydrateFallback: RouteFallback,
+          errorElement: <ChunkErrorElement />,
+          children: [
+            {
+              path: 'horm/vigas',
+              lazy: rejectingLoader,
+            },
+          ],
+        },
+      ],
+      { initialEntries: ['/horm/vigas'] },
+    );
+
+    render(
+      <Wrapper>
+        <RouterProvider router={router} />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId('chunk-error');
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    consoleError.mockRestore();
+  });
+});
+
 describe('ChunkErrorBoundary non-chunk errors', () => {
   it('does NOT reload on unrelated runtime errors (lets them propagate)', () => {
     const reload = vi.fn();

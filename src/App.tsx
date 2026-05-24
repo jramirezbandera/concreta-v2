@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { Landing } from './pages/Landing';
 import { RouteFallback } from './components/layout/RouteFallback';
 import { RouteHelmet } from './components/layout/RouteHelmet';
+import { ChunkErrorElement } from './components/layout/ChunkErrorElement';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 
 // Route configs use react-router v7's `lazy` so chunk loading integrates with
@@ -17,6 +18,11 @@ import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 // and description update synchronously on navigation BEFORE the lazy chunk
 // lands. Without this, the previous route's <Helmet> stays painted for the
 // chunk-load window.
+//
+// errorElement at root catches `route.lazy()` rejections (stale chunk URLs
+// after a deploy). The mount-time ChunkErrorBoundary in AppShell only catches
+// render-time errors AFTER the new route mounts — lazy rejections fire before
+// that boundary exists in the new tree.
 
 function RootLayout() {
   return (
@@ -34,6 +40,7 @@ const router = createBrowserRouter([
   {
     element: <RootLayout />,
     HydrateFallback: RouteFallback,
+    errorElement: <ChunkErrorElement />,
     children: [
       { path: '/', element: <Landing /> },
 
