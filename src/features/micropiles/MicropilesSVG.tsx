@@ -554,7 +554,14 @@ function SemaphoresView({
   const rows = Math.ceil(cards.length / cols);
   const pad  = 10;
   const cellW = (width  - pad * (cols + 1)) / cols;
-  const cellH = (height - pad * (rows + 1)) / rows;
+  // Antes la altura de cada celda se calculaba para llenar todo el canvas,
+  // dando cards de ~245px con el contenido (titulo + valor + barra + nota)
+  // ocupando solo ~100px y dejando huecos vacíos enormes. Se acota la
+  // altura a 132px y se centra el grid verticalmente.
+  const naturalCellH = (height - pad * (rows + 1)) / rows;
+  const cellH = Math.min(132, naturalCellH);
+  const gridH = pad + rows * (cellH + pad);
+  const yOffset = Math.max(0, (height - gridH) / 2);
 
   return (
     <g>
@@ -562,7 +569,7 @@ function SemaphoresView({
         const r = Math.floor(i / cols);
         const c = i % cols;
         const x = pad + c * (cellW + pad);
-        const y = pad + r * (cellH + pad);
+        const y = yOffset + pad + r * (cellH + pad);
         const util = Math.min(1, Math.max(0, card.util));
         // util ≤ 0 (p.ej., im=iv=0 sin empujes aplicados) cuenta como "CUMPLE"
         // — coherente con la tira de utilizaciones del header (UtilStat).
@@ -583,14 +590,16 @@ function SemaphoresView({
             <rect x={0} y={0} width={cellW} height={cellH} rx={5} fill={`url(#amb-${card.id})`} />
             <line x1={0} y1={0} x2={cellW} y2={0} stroke={stateColor} strokeWidth={2} />
 
-            <text x={12} y={20} fontSize={10.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>{card.title}</text>
-            <text x={12} y={cellH * 0.55} fontSize={20} fill={stateColor} fontFamily="ui-monospace, monospace" fontWeight={700}>{valueText}</text>
+            {/* Posiciones absolutas para que el contenido se vea compacto
+                en cualquier cellH dentro del rango razonable (110-140). */}
+            <text x={12} y={20}  fontSize={10.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>{card.title}</text>
+            <text x={12} y={62}  fontSize={20}   fill={stateColor} fontFamily="ui-monospace, monospace" fontWeight={700}>{valueText}</text>
 
             {/* Barra de utilización */}
-            <rect x={12} y={cellH * 0.65} width={cellW - 24} height={5} rx={2} fill={p.border} opacity={0.5} />
-            <rect x={12} y={cellH * 0.65} width={(cellW - 24) * util} height={5} rx={2} fill={stateColor} />
+            <rect x={12} y={78} width={cellW - 24} height={5} rx={2} fill={p.border} opacity={0.5} />
+            <rect x={12} y={78} width={(cellW - 24) * util} height={5} rx={2} fill={stateColor} />
 
-            <text x={12} y={cellH - 10} fontSize={8.5} fill={p.textDim} fontFamily="ui-monospace, monospace">{card.article}</text>
+            <text x={12} y={cellH - 12} fontSize={8.5} fill={p.textDim} fontFamily="ui-monospace, monospace">{card.article}</text>
           </g>
         );
       })}
