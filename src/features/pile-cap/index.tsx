@@ -34,7 +34,7 @@ export function PileCapModule() {
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <Topbar
         moduleLabel="Encepados"
-        moduleGroup="Hormigón"
+        moduleGroup="Cimentación"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
