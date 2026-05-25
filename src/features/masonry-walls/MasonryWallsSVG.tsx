@@ -121,7 +121,15 @@ export function MasonryWallsSVG({
       </div>
     );
   }
-  const padX = 56;
+  // padX = 90: holgura para los labels laterales del SVG.
+  //  · Izquierda  → "FORJADO N" / "CUBIERTA" en x=ox-18 con text-anchor=end.
+  //                 "CUBIERTA" mide ≈54 px → ox debe ser ≥ 72 px para no
+  //                 cortarse contra el borde izquierdo del SVG.
+  //  · Derecha    → labels "Planta N" + "η=X%" + colorbar lateral
+  //                 (cbX = width-28). Con padX=90 quedan ≈14 px de gap
+  //                 entre el final del muro y el inicio de los tick labels
+  //                 del colorbar — suficiente sin amontonar.
+  const padX = 90;
   const padTop = 24;
   const padBottom = 56;
   const innerW = width - padX * 2;
@@ -242,7 +250,14 @@ export function MasonryWallsSVG({
                 <text x={ox - 18} y={c.yForjadoTop + 11} textAnchor="end" fill="#94a3b8" fontSize="9" fontFamily={monoFamily}>
                   {esCubierta ? 'CUBIERTA' : `FORJADO ${i + 1}`}
                 </text>
-                <text x={ox + muroW + 18} y={c.yForjadoTop + 11} fill="#38bdf8" fontSize="9" fontFamily={monoFamily}>
+                {/* G=… Q=… anclado al borde derecho del forjado, alineado al
+                    final. Antes flotaba fuera del muro (x=ox+muroW+18) y
+                    chocaba con el colorbar lateral cuando muroW era ancho;
+                    ahora vive sobre la franja del forjado y solo desaparece
+                    si el muro es físicamente más estrecho que el texto, en
+                    cuyo caso un overflow visual es preferible a un solape
+                    con el colorbar. */}
+                <text x={ox + muroW - 6} y={c.yForjadoTop + 11} textAnchor="end" fill="#38bdf8" fontSize="9" fontFamily={monoFamily}>
                   G={formatNumber(pl.q_G ?? 0, 'linearLoad', system)} Q={formatNumber(pl.q_Q ?? 0, 'linearLoad', system)} {getUnitLabel('linearLoad', system)}
                 </text>
               </g>
