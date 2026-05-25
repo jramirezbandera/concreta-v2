@@ -424,15 +424,20 @@ export function MasonryWallsModule() {
               <div
                 role="region"
                 aria-label="Aviso de caso de ejemplo"
-                className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-accent/40 bg-bg-surface/95 px-3 py-2"
+                className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-x-3 md:gap-y-2 rounded border border-accent/40 bg-bg-surface/95 px-3 py-2"
               >
+                {/* Mobile: stack vertical (label → copy → botones).
+                    Desktop (md+): row con flex-wrap; label izquierda, copy
+                    flexible al centro, botones a la derecha. El switch evita
+                    que el copy se rompa palabra a palabra en viewports
+                    estrechos. */}
                 <span
                   className="text-[10px] font-mono uppercase text-accent shrink-0"
                   style={{ letterSpacing: '0.07em' }}
                 >
                   Bienvenido
                 </span>
-                <p className="text-[12px] text-text-secondary leading-snug flex-1 min-w-0">
+                <p className="text-[12px] text-text-secondary leading-snug md:flex-1 md:min-w-0">
                   Carga un caso de ejemplo (4 plantas con huecos y cargas
                   puntuales) o parte de Planta 1 sin huecos y modela el tuyo.
                 </p>
@@ -440,14 +445,14 @@ export function MasonryWallsModule() {
                   <button
                     type="button"
                     onClick={acceptExample}
-                    className="text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-accent text-accent bg-accent/10 hover:bg-accent/15 transition-colors"
+                    className="flex-1 md:flex-none text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-accent text-accent bg-accent/10 hover:bg-accent/15 transition-colors"
                   >
                     Ver ejemplo
                   </button>
                   <button
                     type="button"
                     onClick={dismissExample}
-                    className="text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-border-main text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
+                    className="flex-1 md:flex-none text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-border-main text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
                   >
                     Descartar
                   </button>
