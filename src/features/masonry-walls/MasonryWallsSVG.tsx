@@ -214,7 +214,13 @@ export function MasonryWallsSVG({
         {state.plantas.map((pl, i) => {
           const c = plantaCoords[i];
           const calc = plantasCalc[i];
-          const esCubierta = i === state.plantas.length - 1;
+          // "Cubierta" nominal: convención visual del módulo (renumberPlantas).
+          // Solo cuando hay al menos 2 plantas existe una nominal "Cubierta";
+          // con N=1 la única planta es "Planta 1" en el panel y el forjado de
+          // arriba se etiqueta "FORJADO 1" en el SVG, no "CUBIERTA".
+          // (La noción física de cubierta — ρ_n=1.0 cuando no hay muro encima
+          //  — vive en el motor de cálculo y no se ve aquí.)
+          const esCubierta = i === state.plantas.length - 1 && state.plantas.length >= 2;
           const isSelectedPl = selectedPlantaIdx === i;
           const etaMaxPlanta = Math.max(...calc.machones.map((m) => m.etaMax));
           const colorPlanta = etaMaxPlanta >= 1 ? '#ef4444' : etaMaxPlanta >= 0.8 ? '#f59e0b' : '#22c55e';
