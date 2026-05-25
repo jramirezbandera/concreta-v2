@@ -1,0 +1,277 @@
+/* output.css — "Exportar y compartir" section (PDF preview card + share-link demo).
+   Consumed by ./Output.tsx (which contains both OutputSection and the
+   ShareLinkPreview helper). */
+
+.landing-root {
+  .output-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .output-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .output-card-body {
+    padding: 32px 32px 24px;
+  }
+  .output-eyebrow {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.08);
+    padding: 4px 8px;
+    border-radius: 3px;
+    margin-bottom: 18px;
+  }
+  .output-card-title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .output-card-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+  .output-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .output-bullets li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    line-height: 1.45;
+  }
+  .output-bullets li::before {
+    content: "→";
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 11px;
+    flex: 0 0 12px;
+  }
+  .output-bullets li strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .pdf-preview {
+    padding: 28px 36px 36px;
+    background: var(--bg-canvas);
+    border-top: 1px solid var(--border-sub);
+    display: flex;
+    justify-content: center;
+    perspective: 1400px;
+  }
+  .pdf-img {
+    width: 100%;
+    max-width: 340px;
+    height: auto;
+    display: block;
+    border-radius: 2px;
+    background: #fafaf7;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04),
+      0 28px 64px -28px rgba(0, 0, 0, 0.8),
+      0 12px 28px -12px rgba(0, 0, 0, 0.5);
+    transform: rotateX(2deg) rotateY(-3deg);
+    transition: transform 350ms ease-out;
+  }
+  .output-card:hover .pdf-img {
+    transform: rotateX(0deg) rotateY(0deg) scale(1.02);
+  }
+
+  .link-preview {
+    padding: 24px 32px 32px;
+    background: var(--bg-canvas);
+    border-top: 1px solid var(--border-sub);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .link-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .link-browser {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .link-browser-chrome {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .link-browser-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-disabled);
+  }
+  .link-browser-dot.dot-r {
+    background: #ef4444;
+  }
+  .link-browser-dot.dot-y {
+    background: #f59e0b;
+  }
+  .link-browser-dot.dot-g {
+    background: #22c55e;
+  }
+  .link-browser-tabs {
+    margin-left: 16px;
+    font-size: 10px;
+    color: var(--text-disabled);
+    background: var(--bg-surface);
+    padding: 4px 12px;
+    border-radius: 3px 3px 0 0;
+    border: 1px solid var(--border-sub);
+    border-bottom: none;
+    position: relative;
+    top: 5px;
+  }
+  .link-browser-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    background: var(--bg-surface);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .link-lock {
+    font-size: 10px;
+    opacity: 0.6;
+  }
+  .link-bar-host {
+    color: var(--text-primary);
+  }
+  .link-bar-path {
+    color: var(--text-secondary);
+  }
+  .link-bar-hash {
+    color: var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .link-copy-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-main);
+    border-radius: 3px;
+    padding: 4px 10px;
+    transition: all 150ms;
+  }
+  .link-copy-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .link-flow {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 4px 0;
+  }
+  .link-flow-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .link-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .link-avatar .mono {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .link-flow-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .link-flow-role {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+  .link-flow-pipe {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .link-flow-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--accent) 30%,
+      var(--accent) 70%,
+      transparent 100%
+    );
+    opacity: 0.4;
+  }
+  .link-flow-tag {
+    position: relative;
+    background: var(--bg-canvas);
+    padding: 3px 8px;
+    font-size: 9.5px;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    border: 1px solid var(--border-main);
+    border-radius: 3px;
+    z-index: 1;
+  }
+  .link-flow-arrow {
+    position: relative;
+    color: var(--accent);
+    font-size: 13px;
+    z-index: 1;
+    background: var(--bg-canvas);
+    padding: 0 6px;
+    animation: lp-arrow 1800ms ease-in-out infinite;
+  }
+}

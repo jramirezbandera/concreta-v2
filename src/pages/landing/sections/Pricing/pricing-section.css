@@ -1,0 +1,106 @@
+/* pricing-section.css — 3-column plan grid on the landing page.
+   Consumed by ./PricingSection.tsx.
+   NOTE: classes here (.plans, .plan, .plan-*) are the landing teaser only.
+   The full /pricing page uses .pricing-grid, .compare-table, .faq etc.
+   defined in subpage.css. */
+
+.landing-root {
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .plan {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 32px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: border-color 150ms;
+  }
+  .plan-hi {
+    border-color: var(--accent);
+    background: linear-gradient(
+      180deg,
+      rgba(56, 189, 248, 0.04) 0%,
+      var(--bg-surface) 60%
+    );
+  }
+  .plan-badge {
+    position: absolute;
+    top: -10px;
+    left: 28px;
+    background: var(--accent);
+    color: #021726;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+  .plan-name {
+    font-size: 14px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+  .plan-blurb {
+    font-size: 14px;
+    color: var(--text-disabled);
+  }
+  .plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border-sub);
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .plan-price-v {
+    font-size: 44px;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+  }
+  .plan-price-v::before {
+    content: "€";
+    font-size: 22px;
+    vertical-align: top;
+    opacity: 0.6;
+    margin-right: 2px;
+  }
+  .plan-price-u {
+    font-size: 12px;
+    color: var(--text-disabled);
+    font-family: var(--font-mono);
+  }
+  .plan-features {
+    list-style: none;
+    padding: 4px 0 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  .plan-features li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 10px;
+    line-height: 1.4;
+  }
+  .plan-check {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    flex: 0 0 14px;
+  }
+  .plan-cta {
+    margin-top: 4px;
+    justify-content: center;
+  }
+}

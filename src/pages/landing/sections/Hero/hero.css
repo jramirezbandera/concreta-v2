@@ -1,0 +1,204 @@
+/* hero.css — landing hero (eyebrow + title + sub + CTAs + meta + preview frame
+   + the module carousel tabs and animations).
+   Consumed by ./Hero.tsx (which is mounted directly by Landing.tsx). */
+
+.landing-root {
+  .hero {
+    position: relative;
+    padding: var(--hero-pad) 0 var(--sec-pad);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, #1a2540 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(
+      180deg,
+      transparent 0%,
+      black 12%,
+      black 60%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      transparent 0%,
+      black 12%,
+      black 60%,
+      transparent 100%
+    );
+    pointer-events: none;
+    opacity: 0.55;
+  }
+  .hero-inner-split {
+    display: grid;
+    grid-template-columns: minmax(420px, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: center;
+    position: relative;
+  }
+  .hero-copy {
+    max-width: 560px;
+  }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    margin-bottom: 28px;
+  }
+  .hero-eyebrow-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .hero-title {
+    font-size: clamp(40px, 5.6vw, 68px);
+    font-weight: 600;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 0 0 22px;
+    text-wrap: balance;
+  }
+  .hero-sub {
+    font-size: 17px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0 0 32px;
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+  .hero-cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+  .hero-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border-sub);
+    padding-top: 24px;
+  }
+  .hero-meta-item {
+    padding: 0 16px;
+    border-right: 1px solid var(--border-sub);
+  }
+  .hero-meta-item:first-child {
+    padding-left: 0;
+  }
+  .hero-meta-item:last-child {
+    padding-right: 0;
+    border-right: none;
+  }
+  .hero-meta-v {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 2px;
+  }
+  .hero-meta-l {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-disabled);
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Hero preview frame */
+  .hero-preview {
+    position: relative;
+  }
+  .hero-preview-frame {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.02) inset,
+      0 24px 60px -20px rgba(0, 0, 0, 0.6),
+      0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  }
+  .hero-preview-caption {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Module carousel — tabs under the hero copy */
+  .hero-carousel-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 32px 0 32px;
+    border-top: 1px solid var(--border-sub);
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .hero-carousel-tab {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-sub);
+    text-align: left;
+    cursor: pointer;
+    position: relative;
+    font-family: inherit;
+    color: var(--text-secondary);
+    transition: color 150ms ease-in-out;
+  }
+  .hero-carousel-tab:last-child {
+    border-bottom: none;
+  }
+  .hero-carousel-tab:hover {
+    color: var(--text-primary);
+  }
+  .hero-carousel-tab.active {
+    color: var(--text-primary);
+  }
+  .hero-carousel-tab .ht-num {
+    color: var(--text-disabled);
+    font-size: 11px;
+  }
+  .hero-carousel-tab.active .ht-num {
+    color: var(--accent);
+  }
+  .hero-carousel-tab .ht-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .hero-carousel-tab .ht-group {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+  .ht-progress {
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 100%;
+    height: 1px;
+    background: var(--accent);
+    transform-origin: left;
+    animation: lp-ht-progress 4s linear forwards;
+  }
+  .hero-preview-carousel .hero-preview-frame {
+    animation: lp-carousel-in 350ms ease-out;
+  }
+}

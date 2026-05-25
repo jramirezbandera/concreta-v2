@@ -1,0 +1,79 @@
+/* about-section.css — "Quién" teaser section on the landing page (author card).
+   Consumed by ./AboutSection.tsx.
+   NOTE: classes here (.about-wrap, .about-card, .about-avatar, etc.) are
+   distinct from the fuller /about page's classes in subpage.css. */
+
+.landing-root {
+  .about-wrap {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+  .about-copy .section-eyebrow {
+    margin-bottom: 14px;
+  }
+  .about-text {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 24px;
+    max-width: 52ch;
+  }
+  .about-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 28px;
+    display: flex;
+    gap: 22px;
+    align-items: flex-start;
+  }
+  .about-avatar {
+    width: 84px;
+    height: 84px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 84px;
+  }
+  .about-avatar .mono {
+    font-size: 22px;
+    letter-spacing: 0.04em;
+  }
+  .about-info {
+    flex: 1;
+  }
+  .about-name {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .about-role {
+    font-size: 10px;
+    color: var(--text-disabled);
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+  .about-bio {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0 0 14px;
+  }
+  .about-links {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+  }
+  .about-links a {
+    transition: color 150ms;
+  }
+  .about-links a:hover {
+    color: var(--accent);
+  }
+}

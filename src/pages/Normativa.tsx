@@ -5,7 +5,7 @@
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { NORM_BLOCKS, MODULE_DOCS, NORM_LEGEND } from './landing/normativaData';
-import './landing.css';
+import './marketing.css';
 import './subpage.css';
 
 const TOC = [

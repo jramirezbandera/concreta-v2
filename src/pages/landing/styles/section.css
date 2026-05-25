@@ -1,0 +1,27 @@
+/* section.css — generic .section wrapper + .section-head grid + .link-arrow.
+   Layout primitives shared by every marketing section. */
+
+.landing-root {
+  .section {
+    padding: var(--sec-pad) 0;
+    border-top: 1px solid var(--border-sub);
+    /* anchored jumps land below the sticky nav, not behind it */
+    scroll-margin-top: calc(var(--nav-h) + 8px);
+  }
+  .section-head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: end;
+    margin-bottom: 48px;
+  }
+  .link-arrow {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .link-arrow:hover {
+    color: var(--accent-hover);
+  }
+}

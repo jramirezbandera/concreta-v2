@@ -1,0 +1,92 @@
+/* post-card.css — visual styles for the <PostCard> component.
+   PostCard is shared by:
+     - landing/sections/Blog/BlogSection.tsx (featured posts row)
+     - pages/Blog.tsx (full listing under .posts-grid in subpage.css)
+     - pages/BlogPost.tsx (related posts under .post-related)
+   These rules used to live in landing.css's BLOG section.
+   Scoped under .landing-root to match the original cascade. */
+
+.landing-root {
+  .post {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition:
+      border-color 150ms,
+      transform 150ms;
+  }
+  .post:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .post-thumb {
+    aspect-ratio: 16 / 9;
+    background: var(--bg-canvas);
+    border-bottom: 1px solid var(--border-sub);
+    position: relative;
+    overflow: hidden;
+  }
+  .post-thumb-fallback {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  .post-thumb-fallback::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, #1a2540 1px, transparent 1px);
+    background-size: 16px 16px;
+    opacity: 0.6;
+    z-index: -1;
+  }
+  .post-body {
+    padding: 18px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+  }
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+  }
+  .post-title {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .post-excerpt {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+    flex: 1;
+  }
+  .post-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    border-top: 1px solid var(--border-sub);
+    padding-top: 12px;
+  }
+  .post-arr {
+    font-size: 14px;
+    color: var(--accent);
+  }
+}

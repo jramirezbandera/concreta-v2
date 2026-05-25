@@ -3,6 +3,7 @@
 
 import { Link } from 'react-router';
 import { CAT_COLORS, CAT_BG, type Post } from './posts';
+import './post-card.css';
 
 export function PostCard({ post }: { post: Post }) {
   return (

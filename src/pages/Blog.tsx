@@ -6,7 +6,7 @@ import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { PostCard } from './blog/PostCard';
 import { ALL_POSTS } from './blog/posts';
-import './landing.css';
+import './marketing.css';
 import './subpage.css';
 
 export function Blog() {

@@ -1,0 +1,146 @@
+/* philosophy.css — "Filosofía" section (5 principles + competitor compare table).
+   Consumed by ./Philosophy.tsx. */
+
+.landing-root {
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+  }
+  .principle {
+    padding: 28px 24px;
+    border-right: 1px solid var(--border-sub);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .principle:first-child {
+    padding-left: 0;
+  }
+  .principle:last-child {
+    padding-right: 0;
+    border-right: none;
+  }
+  .principle-n {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .principle-t {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .principle-d {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .philo-compare {
+    margin-top: 64px;
+    padding-top: 56px;
+    border-top: 1px solid var(--border-sub);
+  }
+  .philo-compare-intro {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: end;
+    margin-bottom: 32px;
+  }
+  .philo-compare-title {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0;
+    text-wrap: balance;
+    grid-column: 1;
+  }
+  .philo-compare-lede {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 56ch;
+    grid-column: 2;
+  }
+  /* Wide data tables scroll horizontally inside this wrapper instead of
+     clipping off-screen on narrow viewports. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  .vs-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 13px;
+    background: var(--bg-surface);
+  }
+  .vs-table th,
+  .vs-table td {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-sub);
+    text-align: center;
+    vertical-align: middle;
+  }
+  .vs-table thead th {
+    background: var(--bg-elevated);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-disabled);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .vs-table thead .vs-mine {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .vs-table .vs-feat {
+    text-align: left;
+    color: var(--text-secondary);
+    width: 40%;
+  }
+  .vs-cell {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-disabled);
+  }
+  .vs-mine.vs-cell {
+    background: rgba(56, 189, 248, 0.04);
+  }
+  .vs-check {
+    color: var(--accent);
+  }
+  .vs-mine .vs-check {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .vs-dash {
+    color: var(--text-disabled);
+  }
+  .vs-table tr:last-child td {
+    border-bottom: none;
+  }
+  .vs-table tr:hover td:not(.vs-feat) {
+    background: var(--bg-elevated);
+  }
+  .vs-table tr:hover .vs-mine {
+    background: rgba(56, 189, 248, 0.08);
+  }
+  .vs-note {
+    margin: 16px 0 0;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+}

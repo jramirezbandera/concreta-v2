@@ -1,0 +1,146 @@
+/* responsive.css — all @media queries for the marketing site.
+   MUST be imported LAST in marketing.css barrel so the cascade overrides
+   earlier sections correctly. Includes:
+     - <=1100px : tablet collapse
+     - <=720px  : mobile, hamburger, hide hero preview
+     - >=1500px : QHD/2K container widening
+     - >=1800px : zoom 1.1
+     - >=2400px : zoom 1.2 (2K)
+     - >=3000px : zoom 1.3 (4K)
+     - prefers-reduced-motion : silence auto-motion */
+
+.landing-root {
+  @media (max-width: 1100px) {
+    /* minmax(0,1fr) — without the 0 floor, the track grows to the app-preview's
+       ~540px min-content and drags the hero copy off-screen on phones. */
+    .hero-inner-split {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+    }
+    .mod-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .principles {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .principle:nth-child(2n) {
+      border-right: none;
+    }
+    .philo-compare-intro {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .philo-compare-lede {
+      grid-column: 1;
+    }
+    .demo-docs-grid {
+      grid-template-columns: 1fr;
+    }
+    .output-grid {
+      grid-template-columns: 1fr;
+    }
+    .posts,
+    .plans {
+      grid-template-columns: 1fr;
+    }
+    .about-wrap {
+      grid-template-columns: 1fr;
+    }
+    .norm-row {
+      grid-template-columns: 80px 1fr 60px;
+    }
+    .norm-row > :nth-child(4),
+    .norm-row > :nth-child(5) {
+      display: none;
+    }
+    .section-head {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+  @media (max-width: 720px) {
+    .container {
+      padding: 0 20px;
+    }
+    .nav-links {
+      display: none;
+    }
+    .nav-right {
+      display: none;
+    }
+    .nav-burger {
+      display: flex;
+    }
+    .nav-mobile-menu {
+      display: flex;
+    }
+    /* The app-preview is a 4-column desktop UI — illegible scaled into a phone.
+       Hide it (and its now-orphaned carousel tabs); the copy + CTAs carry the
+       hero, and the Módulos section below proves the product on mobile. */
+    .hero-preview {
+      display: none;
+    }
+    .hero-carousel-tabs {
+      display: none;
+    }
+    .mod-grid {
+      grid-template-columns: 1fr;
+    }
+    .principles {
+      grid-template-columns: 1fr;
+    }
+    .principle {
+      border-right: none;
+      border-bottom: 1px solid var(--border-sub);
+    }
+    .principle:last-child {
+      border-bottom: none;
+    }
+    .footer-inner {
+      grid-template-columns: 1fr 1fr;
+    }
+    .footer-bottom {
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+  }
+
+  /* ── Large-screen scaling ────────────────────────────────────────────────
+     En QHD/2K (1440p ≈ 2560 px de ancho) y superiores, --container-max:
+     1240px deja >600px de hueco a cada lado y todo el texto/spacing (en px
+     duros, no rem) se ve diminuto.
+     Solución por tramos:
+       1500px+: solo ensancha el container (sin escalar tipografía).
+       1800px+: ensancha más + zoom 1.1 para escalar font/spacing por
+                igual sin reescribir cientos de valores en px.
+       2400px+: tier 1440p/2K.
+       3000px+: tier 4K.
+     `zoom` está soportado en Chrome/Edge/Safari/Firefox 126+; en navegadores
+     más antiguos degrada al container ensanchado sin escalar. */
+  @media (min-width: 1500px) {
+    --container-max: 1380px;
+  }
+  @media (min-width: 1800px) {
+    --container-max: 1480px;
+    zoom: 1.1;
+  }
+  @media (min-width: 2400px) {
+    --container-max: 1600px;
+    zoom: 1.2;
+  }
+  @media (min-width: 3000px) {
+    --container-max: 1760px;
+    zoom: 1.3;
+  }
+
+  /* Reduced motion — silence auto-motion for vestibular-sensitive users.
+     The carousel still advances on click/tab; it just stops moving on its own. */
+  @media (prefers-reduced-motion: reduce) {
+    .ht-progress,
+    .hero-preview-carousel .hero-preview-frame,
+    .link-flow-arrow {
+      animation: none;
+    }
+  }
+}

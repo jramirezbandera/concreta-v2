@@ -1,0 +1,25 @@
+/* marketing.css — shared marketing-site stylesheet.
+   Imported by Landing, Pricing, Normativa, Blog, BlogPost, About.
+   Owns: design tokens, base resets, .container, nav, footer, buttons,
+   section helpers (.section-eyebrow/title/lede/mono/tag), generic
+   .section/.section-head, and all responsive @media breakpoints.
+
+   Section-specific styles (Hero, Modules, Output, Philosophy, etc.) live
+   next to the component that uses them in landing/sections/<Name>/.
+
+   IMPORTANT — cascade order: components import their own CSS at the top
+   of their .tsx file, which means each section's CSS is loaded BEFORE
+   this barrel when bundling. That's intentional — the barrel ends with
+   responsive.css, which targets section selectors (.hero-inner-split,
+   .mod-grid, etc.) and MUST come last to override them at media
+   breakpoints. Do not reorder. */
+
+@import "./landing/styles/animations.css";
+@import "./landing/styles/tokens.css";
+@import "./landing/styles/base.css";
+@import "./landing/styles/nav.css";
+@import "./landing/styles/buttons.css";
+@import "./landing/styles/section-helpers.css";
+@import "./landing/styles/footer.css";
+@import "./landing/styles/section.css";
+@import "./landing/styles/responsive.css"; /* MUST stay last — cascade order */

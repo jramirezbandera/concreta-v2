@@ -10,7 +10,7 @@ import { LandingFooter } from './landing/LandingFooter';
 import { PostCard } from './blog/PostCard';
 import { ALL_POSTS, getPost, CAT_COLORS, CAT_BG } from './blog/posts';
 import { renderMarkdown, formatDate, getInitials } from './blog/markdown';
-import './landing.css';
+import './marketing.css';
 import './subpage.css';
 import './blog-post.css';
 

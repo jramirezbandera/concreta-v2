@@ -1,0 +1,11 @@
+/* blog-section.css — featured posts row on the landing page (3-column grid).
+   The <PostCard> styles live next to the PostCard component in blog/post-card.css.
+   This file only defines the .posts grid container. */
+
+.landing-root {
+  .posts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}

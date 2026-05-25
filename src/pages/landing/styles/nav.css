@@ -1,0 +1,111 @@
+/* nav.css — sticky marketing-site nav + mobile menu/hamburger.
+   Consumed by src/pages/landing/LandingNav.tsx. */
+
+.landing-root {
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--nav-h);
+    background: rgba(11, 18, 32, 0.82);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border-bottom: 1px solid var(--border-main);
+  }
+  .nav-inner {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .brand-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 1px;
+    flex: 0 0 8px;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .nav-links a {
+    padding: 6px 10px;
+    border-radius: 4px;
+    transition:
+      color 150ms ease-in-out,
+      background 150ms ease-in-out;
+  }
+  .nav-links a:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  /* Mobile menu — hamburger shown below 720px (see responsive.css) */
+  .nav-burger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 32px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    color: var(--text-primary);
+    transition:
+      border-color 150ms ease-in-out,
+      color 150ms ease-in-out;
+  }
+  .nav-burger:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .nav-mobile-menu {
+    display: none;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-main);
+    padding: 8px 0 16px;
+  }
+  .nav-mobile-menu > a {
+    padding: 12px 32px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-sub);
+    transition:
+      color 150ms ease-in-out,
+      background 150ms ease-in-out;
+  }
+  .nav-mobile-menu > a:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+  }
+  .nav-mobile-actions {
+    display: flex;
+    gap: 8px;
+    padding: 16px 32px 0;
+  }
+  .nav-mobile-actions .btn {
+    flex: 1;
+    height: 40px;
+    justify-content: center;
+  }
+}

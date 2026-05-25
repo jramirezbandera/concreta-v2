@@ -3,7 +3,7 @@
 
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
-import './landing.css';
+import './marketing.css';
 import './subpage.css';
 
 const DESIGN_PRINCIPLES: [string, string][] = [

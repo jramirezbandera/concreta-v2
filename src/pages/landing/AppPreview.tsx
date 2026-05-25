@@ -3,6 +3,7 @@
 // inputs, canvas SVG, checks). Used inside the hero carousel and the demo card.
 
 import { Fragment } from 'react';
+import './app-preview.css';
 
 type CheckState = 'ok' | 'warn' | 'fail';
 type Check = [name: string, ref: string, eta: number, state: CheckState];

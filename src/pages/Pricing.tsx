@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { APP_ROUTE } from './landing/constants';
-import './landing.css';
+import './marketing.css';
 import './subpage.css';
 
 interface Plan {

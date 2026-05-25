@@ -1,0 +1,283 @@
+/* app-preview.css — mini replica of the Concreta app UI, rendered inside the
+   hero preview frame and the demo card.
+   Consumed by ./AppPreview.tsx. */
+
+.landing-root {
+  .app-preview {
+    display: flex;
+    flex-direction: column;
+    height: 540px;
+    font-size: 11px;
+  }
+  .ap-topbar {
+    height: 36px;
+    display: grid;
+    grid-template-columns: 200px 1fr auto;
+    align-items: center;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-main);
+    padding: 0 12px;
+    gap: 16px;
+  }
+  .ap-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .ap-brand-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+  .ap-brand-name {
+    letter-spacing: -0.01em;
+  }
+  .ap-bread {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+  .ap-bread-group {
+    font-family: var(--font-mono);
+    color: var(--text-disabled);
+    letter-spacing: 0.05em;
+  }
+  .ap-bread-sep {
+    color: var(--text-disabled);
+  }
+  .ap-bread-mod {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 12px;
+  }
+  .ap-tools {
+    display: flex;
+    gap: 6px;
+  }
+  .ap-tool {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-disabled);
+    padding: 2px 6px;
+    border: 1px solid var(--border-main);
+    border-radius: 3px;
+  }
+  .ap-body {
+    flex: 1;
+    display: grid;
+    /* Canvas (1fr) is the SVG — "el protagonista". Trim the fixed columns so it
+       reads as the widest area, mirroring the real app, not a starved sliver. */
+    grid-template-columns: 132px 162px 1fr 168px;
+    min-height: 0;
+  }
+  .ap-sidebar {
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-main);
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .ap-sb-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .ap-sb-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+    letter-spacing: 0.08em;
+    padding: 6px 6px 3px;
+    border-bottom: 1px solid var(--border-sub);
+    margin-bottom: 2px;
+  }
+  .ap-sb-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-radius: 2px;
+  }
+  .ap-sb-item.active {
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.06);
+  }
+  .ap-sb-dot {
+    width: 4px;
+    height: 4px;
+    background: var(--text-disabled);
+    border-radius: 50%;
+    flex: 0 0 4px;
+  }
+  .ap-sb-item.active .ap-sb-dot {
+    background: var(--accent);
+  }
+  .ap-sb-version {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+  }
+  .ap-inputs {
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-main);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ap-section-h {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 8px 0 6px;
+    margin-top: 4px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .ap-section-h:first-child {
+    margin-top: 0;
+  }
+  .ap-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: 11px;
+  }
+  .ap-input-lbl {
+    color: var(--text-secondary);
+  }
+  .ap-input-val {
+    display: flex;
+    align-items: stretch;
+  }
+  .ap-input-v {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-main);
+    padding: 2px 6px;
+    border-radius: 3px 0 0 3px;
+    text-align: right;
+    min-width: 36px;
+    color: var(--text-primary);
+  }
+  .ap-input-u {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-main);
+    border-left: none;
+    padding: 2px 6px;
+    border-radius: 0 3px 3px 0;
+    color: var(--text-disabled);
+  }
+  .ap-input-row:has(.ap-input-v):not(:has(.ap-input-u)) .ap-input-v {
+    border-radius: 3px;
+  }
+  .ap-canvas {
+    background: var(--bg-canvas);
+    padding: 16px;
+    position: relative;
+  }
+  .ap-canvas-svg {
+    width: 100%;
+    height: 100%;
+  }
+  .ap-results {
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-main);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ap-res-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .ap-res-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+    letter-spacing: 0.08em;
+  }
+  .ap-res-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.04em;
+  }
+  .ap-res-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+  .ap-check {
+    display: grid;
+    grid-template-columns: 1fr 50px auto;
+    gap: 8px;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .ap-check:last-of-type {
+    border-bottom: none;
+  }
+  .ap-check-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.15;
+  }
+  .ap-check-ref {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+    margin-top: 1px;
+  }
+  .ap-check-bar {
+    height: 3px;
+    background: var(--border-main);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .ap-check-bar-fill {
+    height: 100%;
+    transition: width 200ms ease-in-out;
+  }
+  .ap-check-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+  .ap-res-foot {
+    margin-top: auto;
+    padding-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-disabled);
+    border-top: 1px solid var(--border-sub);
+  }
+}

@@ -1,0 +1,37 @@
+/* tokens.css — Concreta marketing-site design tokens + .landing-root root rules.
+   All tokens are CSS custom properties scoped under .landing-root so they
+   never leak into the app shell. */
+
+.landing-root {
+  --accent: #38bdf8;
+  --accent-hover: #0ea5e9;
+  --bg-primary: #0b1220;
+  --bg-surface: #111a2d;
+  --bg-elevated: #1a2540;
+  --bg-canvas: #0b1220;
+  --border-main: #22304d;
+  --border-sub: #1a2540;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-disabled: #475569;
+  --state-ok: #22c55e;
+  --state-warn: #f59e0b;
+  --state-fail: #ef4444;
+  --font-sans: "Geist Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --container-max: 1240px;
+  --nav-h: 56px;
+  --sec-pad: 84px;
+  --hero-pad: 112px;
+
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
