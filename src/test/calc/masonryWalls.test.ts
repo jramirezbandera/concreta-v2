@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   betaConcentracion,
+  blankMasonryState,
   calcularEdificio,
   defaultMasonryState,
   eApoyoForjado,
@@ -16,11 +17,14 @@ import {
   GAMMA_M_TABLA,
   getCriticoEdificio,
   getMachonesPlanta,
+  isBlankMasonryState,
   lookupFk,
   lookupGammaM,
   newId,
+  normalizeMasonryState,
   overallStatus,
   plantaTemplate,
+  renumberPlantas,
   repartoMomento,
   resolverFabrica,
   type Hueco,
@@ -521,13 +525,47 @@ describe('calcularEdificio — asimetría P sobre dintel (OV-6)', () => {
 // ─── 13. Puerta vs ventana ───────────────────────────────────────────────
 
 describe('calcularEdificio — puerta vs ventana', () => {
-  it('puerta: h_muro_sobre = 0 (la puerta llega al forjado)', () => {
+  it('puerta: h_muro_sobre = H − h (franja de muro entre dintel y forjado)', () => {
+    // Antes la puerta se modelaba como si llegase al forjado superior
+    // (h_muro_sobre = 0), pero físicamente una puerta de 2,10 m en una
+    // planta de 3 m deja 90 cm de fábrica sobre el dintel que éste debe
+    // soportar. Misma fórmula que ventana, con y=0 implícito.
     const s = statePB({
       plantas: [
         {
           ...plantaTemplate(0, false),
           H: 3000,
-          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 2050, tipo: 'puerta' }],
+          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 2100, tipo: 'puerta' }],
+          puntuales: [],
+        },
+        { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
+      ],
+    });
+    const r = calcularEdificio(s);
+    const plantas = expectPlantas(r);
+    const dintel = plantas[0].dinteles[0];
+    expect(dintel.h_muro_sobre).toBe(900); // 3000 - (0 + 2100)
+    // El peso propio se traslada al dintel proporcionalmente.
+    expect(dintel.g_propio).toBeGreaterThan(0);
+    // …y desde el dintel a las reacciones de los apoyos. Si un bug en el
+    // futuro calcula g_propio pero no lo suma a q_dintel, este test cae:
+    // R_izq + R_dch debe ser, al menos, g_propio · luz (más la integral
+    // de las cargas heredadas, que es ≥ 0).
+    expect(dintel.R_izq + dintel.R_dch).toBeGreaterThan(dintel.g_propio * (dintel.luz / 1000));
+  });
+
+  it('puerta degenerada h > H → motor produce h_muro_sobre=0 (clamp implícito)', () => {
+    // El clamp de la UI evita que el usuario tipee h > H, pero un share-link
+    // malicioso o una edición directa del JSON podría llegar al motor con
+    // h=4000 sobre una planta de H=3000. El motor no error-ea: aplica
+    // `max(0, H - (y + h))` y deja h_muro_sobre=0. Comportamiento documentado:
+    // físicamente equivale a una puerta de altura plena.
+    const s = statePB({
+      plantas: [
+        {
+          ...plantaTemplate(0, false),
+          H: 3000,
+          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 4000, tipo: 'puerta' }],
           puntuales: [],
         },
         { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
@@ -536,6 +574,29 @@ describe('calcularEdificio — puerta vs ventana', () => {
     const r = calcularEdificio(s);
     const plantas = expectPlantas(r);
     expect(plantas[0].dinteles[0].h_muro_sobre).toBe(0);
+    expect(plantas[0].dinteles[0].g_propio).toBe(0);
+  });
+
+  it('puerta de altura = H → h_muro_sobre = 0 (caso límite, sigue funcionando)', () => {
+    // Si el usuario fija una puerta que ocupa toda la altura libre de la
+    // planta (escenario poco habitual pero legítimo), la franja superior
+    // desaparece y g_propio cae a 0 — la fórmula es monótona, no hay
+    // discontinuidad respecto al modelo anterior.
+    const s = statePB({
+      plantas: [
+        {
+          ...plantaTemplate(0, false),
+          H: 3000,
+          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 3000, tipo: 'puerta' }],
+          puntuales: [],
+        },
+        { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
+      ],
+    });
+    const r = calcularEdificio(s);
+    const plantas = expectPlantas(r);
+    expect(plantas[0].dinteles[0].h_muro_sobre).toBe(0);
+    expect(plantas[0].dinteles[0].g_propio).toBe(0);
   });
 
   it('ventana: h_muro_sobre = H − (y+h)', () => {
@@ -816,6 +877,111 @@ describe('defaults & utilities', () => {
     const cubierta = plantaTemplate(3, true);
     expect(cubierta.nombre).toBe('Cubierta');
     expect(cubierta.huecos).toHaveLength(0);
+  });
+
+  it('plantaTemplate numera desde Planta 1 (idx+1) cuando no es cubierta', () => {
+    // Convención del módulo: la planta inferior siempre es "Planta 1" (apoyada
+    // sobre la cimentación, que no es un input). Las intermedias se numeran
+    // hacia arriba desde la base.
+    expect(plantaTemplate(0, false).nombre).toBe('Planta 1');
+    expect(plantaTemplate(1, false).nombre).toBe('Planta 2');
+    expect(plantaTemplate(2, false).nombre).toBe('Planta 3');
+  });
+
+  it('renumberPlantas sincroniza nombres con la posición', () => {
+    // 4 plantas heterogéneas con nombres "sucios" o desordenados — la función
+    // debe regenerar la convención canónica: bottom=Planta 1, top=Cubierta,
+    // intermedias=Planta {idx+1}.
+    const mess: Planta[] = [
+      { ...plantaTemplate(0, false), nombre: 'algo' },
+      { ...plantaTemplate(1, false), nombre: 'otra cosa' },
+      { ...plantaTemplate(2, false), nombre: 'Cubierta' }, // intermedia mal llamada
+      { ...plantaTemplate(3, true),  nombre: 'Planta 4' }, // topmost mal llamada
+    ];
+    const renamed = renumberPlantas(mess);
+    expect(renamed.map((p) => p.nombre)).toEqual([
+      'Planta 1',
+      'Planta 2',
+      'Planta 3',
+      'Cubierta',
+    ]);
+    // Identidad: el resto de campos no cambia.
+    expect(renamed[0].id).toBe(mess[0].id);
+    expect(renamed[1].H).toBe(mess[1].H);
+  });
+
+  it('renumberPlantas con N=1 → "Planta 1" (no "Cubierta")', () => {
+    // El usuario empieza con una sola planta apoyada en la cimentación. No
+    // hay aún una cubierta nominal — añadir una segunda planta es lo que
+    // crea el rol "Cubierta".
+    const arr: Planta[] = [{ ...plantaTemplate(0, false), nombre: 'X' }];
+    expect(renumberPlantas(arr)[0].nombre).toBe('Planta 1');
+  });
+
+  it('renumberPlantas con N=2 → ["Planta 1", "Cubierta"]', () => {
+    const arr: Planta[] = [
+      { ...plantaTemplate(0, false), nombre: 'X' },
+      { ...plantaTemplate(1, false), nombre: 'Y' },
+    ];
+    expect(renumberPlantas(arr).map((p) => p.nombre)).toEqual(['Planta 1', 'Cubierta']);
+  });
+
+  it('blankMasonryState arranca con una sola planta sin huecos ni puntuales', () => {
+    const s = blankMasonryState();
+    expect(s.plantas).toHaveLength(1);
+    expect(s.plantas[0].nombre).toBe('Planta 1');
+    expect(s.plantas[0].huecos).toHaveLength(0);
+    expect(s.plantas[0].puntuales).toHaveLength(0);
+    // El motor también lo acepta como entrada válida.
+    expect(calcularEdificio(s).invalid).toBe(false);
+  });
+
+  it('isBlankMasonryState detecta la forma canónica de blankMasonryState', () => {
+    // El welcome prompt depende de esta función; si diverge de `blankMasonryState`
+    // el aviso deja de aparecer al primer load (o aparece sobre un edificio
+    // en curso). Test triple: forma blank, hueco añadido, planta extra.
+    expect(isBlankMasonryState(blankMasonryState())).toBe(true);
+
+    // Con un hueco: ya no es blank.
+    const conHueco = blankMasonryState();
+    conHueco.plantas[0] = {
+      ...conHueco.plantas[0],
+      huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 2100, tipo: 'puerta' }],
+    };
+    expect(isBlankMasonryState(conHueco)).toBe(false);
+
+    // Con un puntual: tampoco.
+    const conPuntual = blankMasonryState();
+    conPuntual.plantas[0] = {
+      ...conPuntual.plantas[0],
+      puntuales: [{ id: 'p1', x: 1000, P_G: 10, P_Q: 5, b_apoyo: 250 }],
+    };
+    expect(isBlankMasonryState(conPuntual)).toBe(false);
+
+    // Con dos plantas: no blank.
+    expect(isBlankMasonryState(defaultMasonryState())).toBe(false);
+  });
+
+  it('normalizeMasonryState renombra "Planta baja" legacy a "Planta 1"', () => {
+    // Estados pre-feature traían [Planta baja, Planta 1, Planta 2, Cubierta].
+    // La normalización reescribe los nombres a la convención nueva sin
+    // tocar el resto del state (ids, cargas, huecos, etc.).
+    const legacy: MasonryWallState = {
+      ...defaultMasonryState(),
+      plantas: [
+        { ...plantaTemplate(0, false), nombre: 'Planta baja' },
+        { ...plantaTemplate(1, false), nombre: 'Planta 1' },
+        { ...plantaTemplate(2, false), nombre: 'Planta 2' },
+        { ...plantaTemplate(3, true),  nombre: 'Cubierta' },
+      ],
+    };
+    const { state } = normalizeMasonryState(legacy);
+    expect(state.plantas.map((p) => p.nombre)).toEqual([
+      'Planta 1',
+      'Planta 2',
+      'Planta 3',
+      'Cubierta',
+    ]);
   });
 
   it('newId genera ids únicos con prefijo', () => {

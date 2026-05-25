@@ -413,26 +413,10 @@ export function MasonryWallsInputs({
   const plantaCalcSel = plantasCalc[selectedPlantaIdx];
   const fmDisponibles = FM_PARA_FB[state.fb] || [];
 
-  // Hint "caso de ejemplo": cuando los parámetros globales del muro siguen en
-  // los valores por defecto (L=6m, t=24cm, 4 plantas, γM=2.5), asumimos que el
-  // usuario aún no ha tocado nada y se lo recordamos. Tocar cualquiera de
-  // estos campos oculta el hint sin necesidad de un flag persistente.
-  const isPristine =
-    state.L === 6000 &&
-    state.t === 240 &&
-    state.plantas.length === 4 &&
-    state.gamma_M === 2.5;
-
   return (
     <div className="px-4 py-3 min-w-0">
-      {isPristine && (
-        <div className="mb-2 rounded border border-accent/25 bg-accent/5 px-2 py-1.5 text-[11px] text-text-secondary leading-snug">
-          <span className="font-mono text-accent text-[10px] uppercase mr-1.5" style={{ letterSpacing: '0.07em' }}>
-            Caso de ejemplo
-          </span>
-          Edita los inputs para tu caso real. El veredicto se actualiza al instante.
-        </div>
-      )}
+      {/* El aviso "¿Quieres ver un caso de ejemplo?" vive sobre el lienzo en
+          MasonryWallsModule — no se duplica aquí. */}
       {/* Fábrica · Tabla 4.4 / Personalizada (Anejo C eq. C.1 / fk directo).
           refNorma dinámica según el modo activo — la sección "miente" si
           dice "Tabla 4.4" cuando estamos en Anejo C. */}
@@ -624,7 +608,9 @@ export function MasonryWallsInputs({
                     {cs ? `${(eMax * 100).toFixed(0)}%` : '—'}
                   </span>
                 </button>
-                {state.plantas.length > 1 && (
+                {state.plantas.length > 1 && i !== 0 && (
+                  // Planta 1 (idx=0) nunca se borra: representa el muro
+                  // apoyado en la cimentación y es el suelo mínimo del modelo.
                   <MiniBtn variant="danger" onClick={() => onRemovePlanta(i)} title="Eliminar planta">×</MiniBtn>
                 )}
               </div>
@@ -649,10 +635,17 @@ export function MasonryWallsInputs({
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
             <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     quantity="linearLoad"
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
-            <NumField label="a"   sub="apoyo"         value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
+            <NumField label="a"   sub="entrega forjado" value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'a_apoyo', v)} />
-            <NumField label="e_a" sub="penetración"   value={plantaSel.e_apoyo} unit="cm"   scale={0.1}   decimals={1}
+            <NumField label="e_a" sub="excentr. apoyo"  value={plantaSel.e_apoyo} unit="cm"   scale={0.1}   decimals={1}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'e_apoyo', v)} />
+            {/* Glosa de la geometría del apoyo — las dos magnitudes describen
+                cosas distintas y la antigua etiqueta "penetración" para e_a
+                inducía a error (medía excentricidad, no profundidad). */}
+            <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5 mb-1">
+              <span className="font-mono text-text-secondary">a</span> · longitud que el forjado entra en el espesor del muro.<br />
+              <span className="font-mono text-text-secondary">e_a</span> · excentricidad de la reacción del forjado respecto al eje del muro. Con e_a=0 se calcula como t/2 − a/3 (§5.2.3).
+            </p>
             {plantaCalcSel && (
               <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-1">
                 q<sub>d</sub> = {formatQuantity(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0), 'linearLoad', system)}<br />
@@ -750,13 +743,43 @@ export function MasonryWallsInputs({
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'x', v)} />
                       {h.tipo === 'ventana' && (
                         <NumField label="y" sub="alféizar" value={h.y} unit="m" scale={0.001} decimals={2}
-                          onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'y', v)} />
+                          // El alféizar nunca puede salirse de la planta: y se
+                          // limita superiormente a H - h para que el hueco
+                          // siempre quede dentro del muro.
+                          onChange={(v) => setHueco(
+                            selectedPlantaIdx, h.id, 'y',
+                            Math.max(0, Math.min(v, plantaSel.H - h.h)),
+                          )} />
                       )}
                       <NumField label="w" sub="ancho" value={h.w} unit="m" scale={0.001} decimals={2}
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'w', v)} />
-                      {h.tipo === 'ventana' && (
-                        <NumField label="h" sub="alto" value={h.h} unit="m" scale={0.001} decimals={2}
-                          onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'h', v)} />
+                      <NumField
+                        label="h"
+                        sub={h.tipo === 'puerta' ? 'alto (hasta dintel)' : 'alto'}
+                        value={h.h}
+                        unit="m"
+                        scale={0.001}
+                        decimals={2}
+                        // Máximo = altura libre de la planta − alféizar (para
+                        // puertas, alféizar=0 y el tope es H directamente).
+                        // Evita huecos que se salen del muro, que confundirían
+                        // al motor (h_muro_sobre = 0 silencioso) y al usuario.
+                        onChange={(v) => setHueco(
+                          selectedPlantaIdx, h.id, 'h',
+                          Math.max(0, Math.min(v, plantaSel.H - h.y)),
+                        )}
+                      />
+                      {/* Hint del límite superior — visible siempre para que el
+                          "snap-back" cuando el usuario tipea por encima de H−y
+                          no sorprenda. Consistente con el hint del muro sobre
+                          la puerta de más abajo. */}
+                      <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5 mb-1">
+                        h máx = H − y = {((plantaSel.H - h.y) / 10).toFixed(1)} cm
+                      </p>
+                      {h.tipo === 'puerta' && plantaSel.H - h.h > 0 && (
+                        <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5">
+                          Muro sobre la puerta: {((plantaSel.H - h.h) / 10).toFixed(1)} cm · cargado al dintel
+                        </p>
                       )}
                       {/* Info del dintel */}
                       {(() => {

@@ -28,6 +28,11 @@ interface Props {
    *  PDF (offscreen container donde ResizeObserver no dispara fiable). */
   forceWidth?: number;
   forceHeight?: number;
+  /** Cuando true, ajusta colores diseñados para fondo oscuro del lienzo a un
+   *  fondo blanco de papel: los huecos pasan de azul casi negro a gris claro
+   *  para no aparecer como manchones negros sobre el PDF. El layout y el
+   *  resto de colores (mapa de calor, dinteles, etiquetas) se mantienen. */
+  forPdf?: boolean;
 }
 
 // Colormap viridis-like: 0 (frío) → 1 (caliente)
@@ -60,8 +65,14 @@ export function MasonryWallsSVG({
   state, plantasCalc, critico, mostrarMapa,
   selectedHueco, selectedPlantaIdx, selectedMachonKey,
   onSelectHueco, onSelectPlanta, onSelectMachon,
-  forceWidth, forceHeight,
+  forceWidth, forceHeight, forPdf = false,
 }: Props) {
+  // Color de relleno del hueco: en el lienzo (fondo oscuro) usamos un azul casi
+  // negro que se confunde con el fondo y refuerza visualmente la "ausencia de
+  // muro". En PDF (fondo blanco) ese mismo color se lee como un agujero negro
+  // que choca con el resto de la lámina; cambiamos a un gris claro para que el
+  // hueco se distinga del muro sin gritarle al lector.
+  const huecoFill = forPdf ? '#e5e7eb' : '#0b1220';
   const { system } = useUnitSystem();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 760, h: 600 });
@@ -240,7 +251,11 @@ export function MasonryWallsSVG({
                   : isCrit
                     ? '#38bdf8'
                     : (m.status === 'fail' ? '#ef4444' : m.status === 'warn' ? '#f59e0b' : 'rgba(34,197,94,0.45)');
-                const sw = isSelMachon ? 2.4 : isCrit ? 1.8 : isHovered ? 1.5 : 0.9;
+                // Borde más grueso cuando status != ok: con el % de utilización
+                // siempre en blanco, el borde es la señal categórica principal
+                // del estado del machón. fail > warn > ok (default).
+                const statusSw = m.status === 'fail' ? 1.8 : m.status === 'warn' ? 1.4 : 0.9;
+                const sw = isSelMachon ? 2.4 : isCrit ? 1.8 : isHovered ? Math.max(1.5, statusSw) : statusSw;
                 return (
                   <g
                     key={m.id}
@@ -286,14 +301,20 @@ export function MasonryWallsSVG({
                       />
                     )}
                     {m.ancho * s > 26 && c.muroH > 28 && (
+                      // Texto del % de utilización siempre en blanco. El
+                      // código cromático del estado vive en el heatmap del
+                      // propio machón, en su borde y en la etiqueta lateral
+                      // de la planta — el texto interior solo tiene que ser
+                      // legible. Sin contorno: el peso 700 sobre la
+                      // saturación del heatmap basta para leerse.
                       <text
                         x={ox + (m.x1 + m.ancho / 2) * s}
                         y={c.yTop + c.muroH / 2 + 3}
                         textAnchor="middle"
-                        fill={m.status === 'fail' ? '#ef4444' : m.status === 'warn' ? '#f59e0b' : '#22c55e'}
+                        fill="#f8fafc"
                         fontSize="9"
                         fontFamily={monoFamily}
-                        fontWeight="600"
+                        fontWeight="700"
                       >
                         {(m.etaMax * 100).toFixed(0)}%
                       </text>
@@ -305,20 +326,16 @@ export function MasonryWallsSVG({
               {/* Contorno muro */}
               <rect x={ox} y={c.yTop} width={muroW} height={c.muroH} fill="none" stroke="#22304d" strokeWidth="1" pointerEvents="none" />
 
-              {/* Huecos: puerta llega al forjado, ventana respeta alféizar. */}
+              {/* Huecos: puerta y ventana respetan altura y alféizar. La puerta
+                  arranca siempre desde el suelo (y=0); la ventana respeta su
+                  alféizar (y > 0). En ambos casos el dintel puede tener muro
+                  encima (modelado vía h_muro_sobre = max(0, H - (y + h))). */}
               {pl.huecos.map((h) => {
                 const esPuerta = h.tipo === 'puerta';
                 const hx = ox + h.x * s;
                 const hw = h.w * s;
-                let hy: number;
-                let hh: number;
-                if (esPuerta) {
-                  hy = c.yTop;
-                  hh = c.muroH;
-                } else {
-                  hy = c.yBottom - (h.y + h.h) * s;
-                  hh = h.h * s;
-                }
+                const hy = c.yBottom - (h.y + h.h) * s;
+                const hh = h.h * s;
                 const isSel = selectedHueco === h.id;
                 const isHov = hovered === `h:${h.id}`;
                 const dintelH = Math.max(8, Math.min(14, c.muroH * 0.05));
@@ -345,7 +362,7 @@ export function MasonryWallsSVG({
                     <title>{`${pl.nombre} · ${esPuerta ? 'puerta' : 'ventana'} ${h.id.slice(-4)} (${h.w}×${h.h} mm)`}</title>
                     <rect
                       x={hx} y={hy} width={hw} height={hh}
-                      fill="#0b1220"
+                      fill={huecoFill}
                       stroke={isSel ? '#38bdf8' : isHov ? 'rgba(56,189,248,0.55)' : '#475569'}
                       strokeWidth={isSel ? 1.6 : isHov ? 1.4 : 0.8}
                     />
@@ -400,10 +417,9 @@ export function MasonryWallsSVG({
               {calc.dinteles.map((d) => {
                 const huecoDef = pl.huecos.find((h) => h.id === d.id);
                 if (!huecoDef) return null;
-                const esPuerta = huecoDef.tipo === 'puerta';
-                const yRef = esPuerta
-                  ? c.yTop
-                  : c.yBottom - (huecoDef.y + huecoDef.h) * s;
+                // Misma referencia para puerta y ventana: el dintel está en
+                // el borde superior del hueco (y + h desde la base de planta).
+                const yRef = c.yBottom - (huecoDef.y + huecoDef.h) * s;
                 const xL = ox + d.x1 * s;
                 const xR = ox + d.x2 * s;
                 return (

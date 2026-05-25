@@ -404,9 +404,12 @@ export type CustomMethod = 'anejoC' | 'manual';
 export interface Hueco {
   id: string;
   x: number;       // mm desde el origen
-  y: number;       // mm desde la base de la planta (alféizar). Ignorado si tipo='puerta'
-  w: number;       // mm
-  h: number;       // mm. Si tipo='puerta', el hueco va de 0 a h (llega al forjado)
+  y: number;       // mm desde la base de la planta (alféizar). Para puertas, siempre 0.
+  w: number;       // mm — ancho del hueco
+  h: number;       // mm — altura del hueco. Para puertas, altura del hueco desde el suelo.
+                   // El motor calcula el muro sobre el hueco como max(0, pl.H - (y + h))
+                   // para AMBOS tipos: una puerta de 2,10 m en una planta de 3 m deja
+                   // 0,90 m de muro encima que el dintel debe soportar (DB-SE-F §5.4).
   tipo: 'puerta' | 'ventana';
 }
 
@@ -424,7 +427,7 @@ export interface Planta {
   H: number;        // mm — altura libre del muro
   q_G: number;      // kN/m — carga lineal del forjado, característica permanente
   q_Q: number;      // kN/m — carga lineal del forjado, característica variable
-  e_apoyo: number;  // mm — penetración de apoyo del forjado
+  e_apoyo: number;  // mm — excentricidad de la reacción del forjado respecto al eje del muro (DB-SE-F §5.2.3). Con e_apoyo ≤ 0 el motor la deriva de t y a_apoyo como t/2 − a/3.
   a_apoyo: number;  // mm — longitud del apoyo del forjado
   /** Coeficiente de altura efectiva ρ_n (DB-SE-F §5.2.4). Opcional; default
    *  según topología: 0.75 plantas con muro encima (doble arriostramiento),
@@ -954,8 +957,13 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       const h_x2 = Math.min(L, h.x + h.w);
       const span_mm = Math.max(0, h_x2 - h_x1);
       const w_m = span_mm / 1000;
-      const esPuerta = h.tipo === 'puerta';
-      const h_muro_sobre = esPuerta ? 0 : Math.max(0, pl.H - (h.y + h.h));
+      // Muro sobre el hueco: misma fórmula para puerta y ventana. Antes las
+      // puertas se trataban como si llegasen al forjado (h_muro_sobre=0), lo
+      // cual ignoraba el peso de la franja de fábrica entre el dintel y el
+      // forjado superior. Con `h` editable también para puertas (default
+      // 2100 mm) esa franja queda bien modelada y el dintel recibe el peso
+      // propio correspondiente.
+      const h_muro_sobre = Math.max(0, pl.H - (h.y + h.h));
       const g_propio = gG * peso_propio * (t / 1000) * (h_muro_sobre / 1000);
       // q_distribuida = integral over hueco de loadsAtTop+floorUDL / w_m.
       // Reemplaza el antiguo q_planta scalar (kN/m uniforme) por la integral
@@ -1261,7 +1269,12 @@ function uid(prefix: string): string {
 export function plantaTemplate(idx: number, esCubierta = false): Planta {
   return {
     id: uid('pl'),
-    nombre: esCubierta ? 'Cubierta' : (idx === 0 ? 'Planta baja' : `Planta ${idx}`),
+    // Convención: planta inferior (idx=0) = "Planta 1" (la cimentación, suelo,
+    // no es un input). Cubierta siempre topmost. Plantas intermedias se
+    // numeran desde la base (idx+1). `renumberPlantas` re-sincroniza el campo
+    // cuando se inserta/borra una planta para que la numeración nunca quede
+    // huérfana de su posición en el array.
+    nombre: esCubierta ? 'Cubierta' : `Planta ${idx + 1}`,
     H: 3000,
     q_G: esCubierta ? 5 : 8,
     q_Q: esCubierta ? 1 : 3,
@@ -1270,7 +1283,7 @@ export function plantaTemplate(idx: number, esCubierta = false): Planta {
     huecos: idx === 0
       ? [
           { id: uid('h'), x: 800,  y: 1900, w: 900,  h: 1100, tipo: 'ventana' },
-          { id: uid('h'), x: 2500, y: 0,    w: 900,  h: 2050, tipo: 'puerta' },
+          { id: uid('h'), x: 2500, y: 0,    w: 900,  h: 2100, tipo: 'puerta' },
           { id: uid('h'), x: 4400, y: 1900, w: 1000, h: 1100, tipo: 'ventana' },
         ]
       : esCubierta
@@ -1287,6 +1300,76 @@ export function plantaTemplate(idx: number, esCubierta = false): Planta {
         ]
       : [],
   };
+}
+
+/**
+ * Re-sincroniza el campo `nombre` de cada planta con su posición en el array.
+ * Convención del módulo:
+ *   - Bottom (idx=0): "Planta 1" — siempre presente (no borrable; representa
+ *     la planta más baja apoyada sobre la cimentación).
+ *   - Top (idx=N-1, con N>=2): "Cubierta" — el último siempre es cubierta.
+ *   - Intermedias: "Planta {idx+1}".
+ *   - Con N=1, la única planta es "Planta 1" (no hay Cubierta nominal
+ *     aún; el motor la trata como topmost con ρ_n=1.0 igualmente).
+ *
+ * Llamar tras cada inserción/borrado de planta en el state. No muta el array
+ * de entrada — devuelve uno nuevo con los `nombre` recalculados.
+ *
+ * NOTA — futura UI de renombrar plantas: si en algún momento se permite que
+ * el usuario asigne un nombre custom (p.ej. "Sótano comercial"), `renumberPlantas`
+ * tiene que desactivarse en ese estado o introducir un flag `pl.nombre_custom`
+ * para que esta función no pise el dato del usuario. Hoy se llama dentro de
+ * `normalizeMasonryState`, así que cualquier share-URL con nombre custom se
+ * normalizaría silenciosamente — bloquear esa funcionalidad sin tocar antes
+ * esta convención.
+ */
+export function renumberPlantas(plantas: Planta[]): Planta[] {
+  const N = plantas.length;
+  return plantas.map((p, i) => {
+    let nombre: string;
+    if (N >= 2 && i === N - 1) nombre = 'Cubierta';
+    else nombre = `Planta ${i + 1}`;
+    return p.nombre === nombre ? p : { ...p, nombre };
+  });
+}
+
+/**
+ * Estado mínimo del módulo: una sola planta sin huecos ni puntuales sobre la
+ * cimentación. Sustituye al edificio de 4 plantas como punto de partida cuando
+ * el usuario abre el módulo por primera vez — el "edificio de ejemplo" se
+ * carga bajo demanda vía el aviso del lienzo.
+ */
+export function blankMasonryState(): MasonryWallState {
+  const base = defaultMasonryState();
+  const planta: Planta = {
+    id: uid('pl'),
+    nombre: 'Planta 1',
+    H: 3000,
+    q_G: 8,
+    q_Q: 3,
+    e_apoyo: 60,
+    a_apoyo: 120,
+    huecos: [],
+    puntuales: [],
+  };
+  return { ...base, plantas: [planta] };
+}
+
+/**
+ * Detecta si un state coincide con la forma canónica devuelta por
+ * `blankMasonryState`: una única planta, sin huecos ni puntuales. La UI usa
+ * esta función para decidir si el welcome prompt todavía tiene sentido (no
+ * queremos taparle el lienzo a alguien que ya está modelando un edificio).
+ *
+ * Mantener sincronizada con `blankMasonryState`: si la forma del blank cambia,
+ * la detección tiene que cambiar a la vez.
+ */
+export function isBlankMasonryState(state: MasonryWallState): boolean {
+  return (
+    state.plantas.length === 1 &&
+    state.plantas[0].huecos.length === 0 &&
+    state.plantas[0].puntuales.length === 0
+  );
 }
 
 export function defaultMasonryState(): MasonryWallState {
@@ -1311,12 +1394,12 @@ export function defaultMasonryState(): MasonryWallState {
     gamma_Q: 1.50,
     L: 6000,
     t: 240,
-    plantas: [
+    plantas: renumberPlantas([
       plantaTemplate(0, false),
       plantaTemplate(1, false),
       plantaTemplate(2, false),
       plantaTemplate(3, true),
-    ],
+    ]),
   };
 }
 
@@ -1376,6 +1459,10 @@ export function normalizeMasonryState(
         ? r.gamma_custom_edited
         : true, // legacy: γ_custom es un valor del usuario, no lo pisemos
   };
+  // Re-sincroniza nombres de planta con su posición. Estados legacy traían
+  // "Planta baja" + "Planta 1..N" + "Cubierta"; la convención nueva es
+  // "Planta 1" en idx=0, "Planta 2..N-1" intermedias, "Cubierta" topmost.
+  merged.plantas = renumberPlantas(merged.plantas);
   return {
     state: merged,
     migratedLegacy: isLegacyCustom || tipoCorrupt,

@@ -64,6 +64,47 @@ One remaining override from the CEO review that SPECS.md still reflects incorrec
 
 Update SPECS.md to reflect this decision before public launch.
 
+### Muros de ladrillo — items diferidos del eng-review 2026-05-25
+
+**Status:** DEFERRED (pre-release; sin usuarios reales aún)
+
+1. **Release-blocker — engine version bump + migración legacy.** El cambio del 2026-05-25
+   unificó la semántica de `h_muro_sobre` para puertas y ventanas: ahora una puerta de
+   2,10 m en una planta de 3 m carga al dintel con 90 cm de fábrica adicional. Antes el
+   motor ignoraba ese peso (`h_muro_sobre=0`). `MASONRY_ENGINE_VERSION` sigue en `'2.0.0'`
+   pese al cambio de resultados. Antes del primer release público de Muros:
+   - Bumpear a `'2.1.0'`.
+   - En `normalizeMasonryState`, detectar puertas legacy con `h=2050` (default del
+     plantaTemplate antiguo) y disparar toast informativo "Modelo de puerta actualizado —
+     revisa η antes de firmar".
+   - Decidir si el `SCHEMA_VERSION` de localStorage también se bumpea (force-reset) o
+     solo el motor (re-cálculo silencioso).
+
+2. **Custom names de plantas vs `renumberPlantas` automático.** Hoy `renumberPlantas` corre
+   dentro de `normalizeMasonryState` y reescribe nombres ("Sótano comercial" → "Planta 2").
+   La UI no permite renombrar plantas, así que es inerte. Si en algún momento se añade UI
+   de renombrar, hay que:
+   - Introducir flag `pl.nombre_custom: boolean` o equivalente.
+   - Hacer que `renumberPlantas` respete plantas con `nombre_custom=true`.
+   - O desactivar el renumber automático en `normalizeMasonryState` y solo aplicarlo
+     en CRUD (add/remove).
+   Comentario inline en `renumberPlantas` ya lo advierte.
+
+3. **Hand-calc validation pendiente** (consistente con todos los demás módulos del repo).
+   Validar a mano un caso completo de DB-SE-F con multi-planta + huecos + cargas puntuales
+   (e.g. edificio de rehabilitación residencial de 3 plantas) y diff contra
+   `calcularEdificio()`. Verificar especialmente:
+   - Cascada top-down de cargas distribuidas + concentradas (`LoadSegment[]`).
+   - β§5.4 re-evaluado en cada nivel para concentradas heredadas.
+   - Reparto asimétrico de reacciones de dintel con puntual descentrada.
+   - `h_muro_sobre` y `g_propio` con la nueva semántica de puerta.
+
+4. **Tests de componente (React Testing Library) para UI flows.** Hoy 0% cobertura UI:
+   welcome prompt (visible/persistido), CRUD plantas (addPlanta N=0/1/N≥2, removePlanta
+   idx=0 no-op), clamps de hueco y/h con snap-back, auto-select del nuevo hueco.
+   Requiere setup compartido para montar `MasonryWallsModule` con localStorage mockeado.
+   Diferir a una pasada coordinada de tests de componente para todos los módulos.
+
 ### sw.js Cache-Control header
 
 **Status:** DEFERRED

@@ -11,13 +11,16 @@ import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { usePdfPreview } from '../../hooks/usePdfPreview';
 import {
+  blankMasonryState,
   calcularEdificio,
   defaultMasonryState,
   getCriticoEdificio,
+  isBlankMasonryState,
   newId,
   normalizeMasonryState,
   overallStatus,
   plantaTemplate,
+  renumberPlantas,
   type EdificioInvalid,
   type Hueco,
   type MasonryWallState,
@@ -35,6 +38,9 @@ import { MasonryWallsSVG } from './MasonryWallsSVG';
 const STORAGE_KEY = 'concreta-masonry-walls-model';
 const SCHEMA_VERSION_KEY = 'concreta-masonry-walls-model-version';
 const SCHEMA_VERSION = '1';
+// Persistencia del aviso "¿Quieres ver un caso de ejemplo?" — una vez aceptado
+// o descartado, el globo no vuelve a aparecer (ni al recargar).
+const EXAMPLE_PROMPT_DISMISSED_KEY = 'concreta-masonry-walls-example-prompt-dismissed';
 
 interface LoadResult {
   state: MasonryWallState;
@@ -45,8 +51,11 @@ interface LoadResult {
 }
 
 function loadState(): LoadResult {
-  // Prioridad: URL > localStorage > default. La URL gana porque alguien que
+  // Prioridad: URL > localStorage > blank. La URL gana porque alguien que
   // pega un enlace compartido espera ver ESE caso, no el suyo guardado.
+  // En ausencia de URL/localStorage el módulo arranca con el caso blank
+  // (una sola planta sin huecos) — el "edificio de ejemplo" se carga bajo
+  // demanda vía el aviso del lienzo, no como punto de partida obligatorio.
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const encoded = params.get('model');
@@ -54,7 +63,7 @@ function loadState(): LoadResult {
       const fromUrl = decodeShareStringWithMeta(encoded);
       if (fromUrl) return fromUrl;
       // Si el query param existe pero está corrupto, lo notificamos por toast
-      // (no bloqueante) y seguimos con localStorage / default. NO usamos
+      // (no bloqueante) y seguimos con localStorage / blank. NO usamos
       // showToast aquí (es initializer); en su lugar dejamos un marcador y
       // el useEffect lo dispara una vez.
       pendingInvalidLinkToast = true;
@@ -62,18 +71,18 @@ function loadState(): LoadResult {
   }
   try {
     const v = localStorage.getItem(SCHEMA_VERSION_KEY);
-    if (v !== SCHEMA_VERSION) return { state: defaultMasonryState(), migratedLegacy: false };
+    if (v !== SCHEMA_VERSION) return { state: blankMasonryState(), migratedLegacy: false };
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { state: defaultMasonryState(), migratedLegacy: false };
+    if (!raw) return { state: blankMasonryState(), migratedLegacy: false };
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return { state: defaultMasonryState(), migratedLegacy: false };
+    if (!parsed || typeof parsed !== 'object') return { state: blankMasonryState(), migratedLegacy: false };
     const arr = (parsed as { plantas?: unknown }).plantas;
     // El motor acepta n>=1. Antes restringiamos a >=2 por defecto cosmético
     // pero un muro de una sola altura es valido (edificio una planta).
-    if (!Array.isArray(arr) || arr.length < 1) return { state: defaultMasonryState(), migratedLegacy: false };
+    if (!Array.isArray(arr) || arr.length < 1) return { state: blankMasonryState(), migratedLegacy: false };
     return normalizeMasonryState(parsed);
   } catch {
-    return { state: defaultMasonryState(), migratedLegacy: false };
+    return { state: blankMasonryState(), migratedLegacy: false };
   }
 }
 
@@ -102,7 +111,27 @@ export function MasonryWallsModule() {
   const [selectedPlantaIdx, setSelectedPlantaIdx] = useState(0);
   const [selectedMachonKey, setSelectedMachonKey] = useState<string | null>(null);
   const [mostrarMapa, setMostrarMapa] = useState(true);
-  const [tab, setTab] = useState<MobileTab>('inputs');
+  // El aviso de bienvenida vive sobre el lienzo (tab='diagramas' en mobile).
+  // Si el usuario abre el módulo por primera vez quedaría en 'inputs' por
+  // defecto y no vería el CTA hasta cambiar de pestaña. Arrancamos en
+  // 'diagramas' SOLO cuando el aviso todavía procede (blank + no dismissed).
+  const initialPromptDismissed = (() => {
+    try {
+      return localStorage.getItem(EXAMPLE_PROMPT_DISMISSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  })();
+  const initialIsBlank = isBlankMasonryState(initial.state);
+  const [tab, setTab] = useState<MobileTab>(
+    initialIsBlank && !initialPromptDismissed ? 'diagramas' : 'inputs',
+  );
+  // Aviso "¿Quieres ver un caso de ejemplo?" — solo en la primera visita al
+  // módulo. Una vez aceptado o descartado, se guarda el flag y no vuelve a
+  // aparecer aunque el estado vuelva a quedar en blanco. El globo nunca debe
+  // interrumpir un trabajo en curso, así que arranca oculto si ya hay un
+  // edificio cargado desde URL/localStorage (estado no-blank).
+  const [examplePromptDismissed, setExamplePromptDismissed] = useState<boolean>(initialPromptDismissed);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
 
@@ -123,6 +152,12 @@ export function MasonryWallsModule() {
     const t = setTimeout(() => saveState(state), 300);
     return () => clearTimeout(t);
   }, [state]);
+
+  // El aviso del ejemplo solo procede si el edificio sigue en su forma canónica
+  // blank (1 planta, 0 huecos, 0 puntuales) — no queremos taparle el lienzo a
+  // alguien que ya está modelando un edificio. La detección vive con
+  // `blankMasonryState` en el calc engine para que ambas no diverjan.
+  const showExamplePrompt = isBlankMasonryState(state) && !examplePromptDismissed;
 
   // Motor devuelve discriminated union {invalid, reason} | {plantas[]}.
   // Cuando la entrada es degenerada (combinación Tabla 4.4 inviable, t=0,
@@ -157,8 +192,18 @@ export function MasonryWallsModule() {
     }
   };
 
-  // Reset: vuelve al edificio de ejemplo y limpia la persistencia local. Útil
-  // cuando el state queda corrupto o el usuario quiere descartar todo.
+  // Limpia los tres selectores. Lo usamos cada vez que el state cambia de
+  // edificio (reset, cargar ejemplo) porque la selección anterior — hueco,
+  // machón, planta no-cero — apunta a entidades que ya no existen.
+  const resetSelectionState = () => {
+    setSelectedHueco(null);
+    setSelectedPlantaIdx(0);
+    setSelectedMachonKey(null);
+  };
+
+  // Reset: vuelve al estado en blanco (1 planta, sin huecos) y limpia la
+  // persistencia local. El edificio de ejemplo no se considera el "punto cero"
+  // del módulo: se carga bajo demanda vía el aviso del lienzo.
   const reset = () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -166,44 +211,89 @@ export function MasonryWallsModule() {
     } catch {
       // ignore — quota / private mode
     }
+    setState(blankMasonryState());
+    resetSelectionState();
+  };
+
+  // Acepta el aviso: carga el edificio de ejemplo (4 plantas con huecos y
+  // cargas puntuales) y persiste la decisión para no volver a preguntar.
+  const acceptExample = () => {
     setState(defaultMasonryState());
-    setSelectedHueco(null);
-    setSelectedPlantaIdx(0);
-    setSelectedMachonKey(null);
+    resetSelectionState();
+    try {
+      localStorage.setItem(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setExamplePromptDismissed(true);
+  };
+
+  // Descarta el aviso sin cargar el ejemplo — el usuario prefiere partir del
+  // estado en blanco. En mobile, tras descartar el lienzo queda con un muro
+  // vacío sin pistas; lleva al usuario directamente al panel de inputs donde
+  // está el "+ Añadir planta" / "+ Hueco" para que el siguiente paso sea
+  // obvio. En desktop no afecta (ambos paneles siempre visibles).
+  const dismissExample = () => {
+    try {
+      localStorage.setItem(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setExamplePromptDismissed(true);
+    setTab('inputs');
   };
 
   // CRUD
   const addPlanta = () => {
     setState((s) => {
-      const idx = s.plantas.length - 1; // insert before cubierta
-      const nueva = plantaTemplate(idx, false);
-      nueva.nombre = `Planta ${idx}`;
-      return { ...s, plantas: [...s.plantas.slice(0, idx), nueva, ...s.plantas.slice(idx)] };
+      // N=1: la planta existente queda como "Planta 1" abajo, y la nueva
+      // (vacía, sin huecos ni puntuales) se añade encima como "Cubierta".
+      // N>=2: se inserta una nueva planta intermedia justo debajo de la
+      // cubierta — la cubierta mantiene su identidad y sus cargas; el
+      // renombrado lo aplica renumberPlantas tras la inserción.
+      if (s.plantas.length === 0) {
+        return { ...s, plantas: renumberPlantas([plantaTemplate(0, false)]) };
+      }
+      if (s.plantas.length === 1) {
+        const nueva = plantaTemplate(1, true);
+        return { ...s, plantas: renumberPlantas([...s.plantas, nueva]) };
+      }
+      const cubIdx = s.plantas.length - 1;
+      const nueva = plantaTemplate(cubIdx, false);
+      const plantas = [...s.plantas.slice(0, cubIdx), nueva, ...s.plantas.slice(cubIdx)];
+      return { ...s, plantas: renumberPlantas(plantas) };
     });
   };
 
   const removePlanta = (idx: number) => {
+    // La planta inferior (idx=0) no se puede borrar: representa siempre el
+    // muro apoyado en la cimentación. El motor también acepta n=1 — la planta
+    // restante se trata como "cubierta" (topmost, rho_n=1.0, e_pie=e_min).
+    if (idx === 0) return;
     setState((s) => {
-      // Minimo 1 planta. El motor (validateState) acepta n=1 — la planta
-      // restante se trata como "cubierta" (topmost, rho_n=1.0, e_pie=e_min),
-      // que es correcto fisicamente para un edificio de una sola altura.
       if (s.plantas.length <= 1) return s;
-      return { ...s, plantas: s.plantas.filter((_, i) => i !== idx) };
+      const plantas = s.plantas.filter((_, i) => i !== idx);
+      return { ...s, plantas: renumberPlantas(plantas) };
     });
     if (selectedPlantaIdx >= idx) setSelectedPlantaIdx(Math.max(0, selectedPlantaIdx - 1));
   };
 
   const addHueco = (plIdx: number, tipo: 'puerta' | 'ventana') => {
+    // Generamos el id fuera del setState callback para poder seleccionar el
+    // nuevo hueco inmediatamente — así su panel de edición se abre solo,
+    // sin obligar al usuario a clicar otra vez para empezar a editarlo.
+    const nuevo: Hueco = tipo === 'puerta'
+      ? { id: newId('h'), x: 200, y: 0,    w: 900, h: 2100, tipo: 'puerta'  }
+      : { id: newId('h'), x: 200, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
     setState((s) => ({
       ...s,
-      plantas: s.plantas.map((p, i) => {
-        if (i !== plIdx) return p;
-        const nuevo: Hueco = tipo === 'puerta'
-          ? { id: newId('h'), x: 200, y: 0,    w: 900, h: 2050, tipo: 'puerta'  }
-          : { id: newId('h'), x: 200, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
-        return { ...p, huecos: [...p.huecos, nuevo] };
-      }),
+      plantas: s.plantas.map((p, i) =>
+        i === plIdx ? { ...p, huecos: [...p.huecos, nuevo] } : p,
+      ),
     }));
+    setSelectedPlantaIdx(plIdx);
+    setSelectedHueco(nuevo.id);
+    setSelectedMachonKey(null);
   };
 
   const removeHueco = (plIdx: number, id: string) => {
@@ -279,7 +369,7 @@ export function MasonryWallsModule() {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('Restablecer todos los valores al edificio de ejemplo? Se perderán los cambios.')) {
+                if (window.confirm('Restablecer todos los valores al estado inicial (Planta 1 sin huecos)? Se perderán los cambios.')) {
                   reset();
                 }
               }}
@@ -296,7 +386,7 @@ export function MasonryWallsModule() {
           'lg:flex-1 lg:flex',
           tab === 'diagramas' ? 'flex-1 flex' : 'hidden lg:flex',
         ].join(' ')}>
-          <div className="flex-1 min-h-0 p-4 canvas-dot-grid">
+          <div className="relative flex-1 min-h-0 p-4 canvas-dot-grid">
             <MasonryWallsSVG
               state={state}
               plantasCalc={plantasCalc}
@@ -322,6 +412,48 @@ export function MasonryWallsModule() {
                 setSelectedMachonKey(null);
               }}
             />
+            {showExamplePrompt && (
+              // Banda de bienvenida sobre la parte superior del lienzo. Se
+              // muestra solo cuando el edificio sigue en su forma blank
+              // canónica (Planta 1 sin huecos ni puntuales) y el usuario no
+              // lo ha descartado antes. Patrón coherente con el banner
+              // LIMITACIONES y el banner "Cómo arreglarlo" — banda no-modal
+              // dentro del flujo, sin sombras decorativas ni `rounded-lg`.
+              // El lienzo es la "mesa de trabajo" (DESIGN.md): nada flota
+              // sobre él sin razón funcional.
+              <div
+                role="region"
+                aria-label="Aviso de caso de ejemplo"
+                className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-accent/40 bg-bg-surface/95 px-3 py-2"
+              >
+                <span
+                  className="text-[10px] font-mono uppercase text-accent shrink-0"
+                  style={{ letterSpacing: '0.07em' }}
+                >
+                  Bienvenido
+                </span>
+                <p className="text-[12px] text-text-secondary leading-snug flex-1 min-w-0">
+                  Carga un caso de ejemplo (4 plantas con huecos y cargas
+                  puntuales) o parte de Planta 1 sin huecos y modela el tuyo.
+                </p>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={acceptExample}
+                    className="text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-accent text-accent bg-accent/10 hover:bg-accent/15 transition-colors"
+                  >
+                    Ver ejemplo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissExample}
+                    className="text-[11px] font-mono py-1 px-2.5 rounded cursor-pointer border border-border-main text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Legend / mapa toggle */}
@@ -391,6 +523,7 @@ export function MasonryWallsModule() {
             onSelectMachon={() => undefined}
             forceWidth={760}
             forceHeight={1020}
+            forPdf
           />
         </div>
       </div>
