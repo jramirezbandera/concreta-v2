@@ -15,6 +15,7 @@ import {
   defaultMasonryState,
   getCriticoEdificio,
   newId,
+  normalizeMasonryState,
   overallStatus,
   plantaTemplate,
   type EdificioInvalid,
@@ -26,7 +27,7 @@ import {
 import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { showToast } from '../../components/ui/Toast';
-import { buildShareUrl, decodeShareString } from './serialize';
+import { buildShareUrl, decodeShareStringWithMeta } from './serialize';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
 import { MasonryWallsResults } from './MasonryWallsResults';
 import { MasonryWallsSVG } from './MasonryWallsSVG';
@@ -35,35 +36,52 @@ const STORAGE_KEY = 'concreta-masonry-walls-model';
 const SCHEMA_VERSION_KEY = 'concreta-masonry-walls-model-version';
 const SCHEMA_VERSION = '1';
 
-function loadState(): MasonryWallState {
+interface LoadResult {
+  state: MasonryWallState;
+  /** True cuando se ha cargado un estado pre-feature Anejo C (sin campos
+   *  customMethod / anejoC_*) y se ha normalizado al modo 'manual'. La UI
+   *  enseña un toast informativo una sola vez en montaje. */
+  migratedLegacy: boolean;
+}
+
+function loadState(): LoadResult {
   // Prioridad: URL > localStorage > default. La URL gana porque alguien que
   // pega un enlace compartido espera ver ESE caso, no el suyo guardado.
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const encoded = params.get('model');
     if (encoded) {
-      const fromUrl = decodeShareString(encoded);
+      const fromUrl = decodeShareStringWithMeta(encoded);
       if (fromUrl) return fromUrl;
       // Si el query param existe pero está corrupto, lo notificamos por toast
-      // (no bloqueante) y seguimos con localStorage / default.
-      showToast('Enlace inválido o corrupto — cargando estado guardado', { autoDismiss: 4000 });
+      // (no bloqueante) y seguimos con localStorage / default. NO usamos
+      // showToast aquí (es initializer); en su lugar dejamos un marcador y
+      // el useEffect lo dispara una vez.
+      pendingInvalidLinkToast = true;
     }
   }
   try {
     const v = localStorage.getItem(SCHEMA_VERSION_KEY);
-    if (v !== SCHEMA_VERSION) return defaultMasonryState();
+    if (v !== SCHEMA_VERSION) return { state: defaultMasonryState(), migratedLegacy: false };
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultMasonryState();
-    const parsed = JSON.parse(raw) as MasonryWallState;
-    // sanity check
+    if (!raw) return { state: defaultMasonryState(), migratedLegacy: false };
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return { state: defaultMasonryState(), migratedLegacy: false };
+    const arr = (parsed as { plantas?: unknown }).plantas;
     // El motor acepta n>=1. Antes restringiamos a >=2 por defecto cosmético
     // pero un muro de una sola altura es valido (edificio una planta).
-    if (!parsed.plantas || parsed.plantas.length < 1) return defaultMasonryState();
-    return parsed;
+    if (!Array.isArray(arr) || arr.length < 1) return { state: defaultMasonryState(), migratedLegacy: false };
+    return normalizeMasonryState(parsed);
   } catch {
-    return defaultMasonryState();
+    return { state: defaultMasonryState(), migratedLegacy: false };
   }
 }
+
+// Marcadores module-scope para toast-en-mount. NO son state: queremos que se
+// disparen una sola vez por carga de página, no por re-render. React Strict
+// Mode dispara `useState` initializers dos veces en dev pero el useEffect
+// que los consume solo corre una vez por mount.
+let pendingInvalidLinkToast = false;
 
 function saveState(s: MasonryWallState) {
   try {
@@ -75,7 +93,11 @@ function saveState(s: MasonryWallState) {
 }
 
 export function MasonryWallsModule() {
-  const [state, setState] = useState<MasonryWallState>(() => loadState());
+  // loadState devuelve { state, migratedLegacy }. Inicializamos con un objeto
+  // que captura ambos para poder disparar el toast desde useEffect (no desde
+  // el initializer, que React Strict Mode invoca dos veces en dev).
+  const initial = useState<LoadResult>(() => loadState())[0];
+  const [state, setState] = useState<MasonryWallState>(initial.state);
   const [selectedHueco, setSelectedHueco] = useState<string | null>(null);
   const [selectedPlantaIdx, setSelectedPlantaIdx] = useState(0);
   const [selectedMachonKey, setSelectedMachonKey] = useState<string | null>(null);
@@ -83,6 +105,18 @@ export function MasonryWallsModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
+
+  // Toasts diferidos del initializer: una sola vez por mount.
+  useEffect(() => {
+    if (pendingInvalidLinkToast) {
+      pendingInvalidLinkToast = false;
+      showToast('Enlace inválido o corrupto — cargando estado guardado', { autoDismiss: 4000 });
+    }
+    if (initial.migratedLegacy) {
+      showToast('Caso anterior cargado como Personalizada · fk directo', { autoDismiss: 4000 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist with debounce so rapid edits don't thrash localStorage.
   useEffect(() => {

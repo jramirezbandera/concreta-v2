@@ -4,6 +4,10 @@
 //   Page 1  — Cover & Verdict: header+metadata, SVG planta crítica, veredicto,
 //             matriz η por planta×machón, TOC, banner LIMITACIONES.
 //   Page 2  — Datos de partida: geometría, fábrica, acciones, plantas declaradas.
+//   Page 2b — (CONDICIONAL) Resistencia característica fk · Anejo C eq. C.1.
+//             Solo cuando state.fabricaModo === 'custom' &&
+//             state.customMethod === 'anejoC'. Trazabilidad legal first-class:
+//             K + fb + fm + cap aplicado + fórmula con sustitución de números.
 //   Page 3  — Casos gobernantes: 1 machón por planta con derivación LITERAL
 //             (substitución de números — estilo CYPE — para que el reviewer
 //             pueda re-derivar con calculadora a mano).
@@ -30,6 +34,8 @@ import {
   type DintelResult,
   type Puntual,
   resolverFabrica,
+  calcFkAnejoC,
+  TIPO_MURO_LABELS,
   findGammaMCell,
   CATEGORIA_LABELS,
   EJECUCION_LABELS,
@@ -228,6 +234,21 @@ export async function exportMasonryWallsPDF({
   toc.push({ label: 'Datos de partida', page: doc.getNumberOfPages() });
   const { contentY: pg2y } = drawHeader(doc, headerMeta, M);
   drawDataPartida(doc, state, plantasCalc, fab, gammaCell, system, pg2y);
+
+  // ── Página opcional: trazabilidad fk · Anejo C eq. C.1 ──────────────────
+  // Solo se inserta cuando estamos en Personalizada · Anejo C. Trazabilidad
+  // legal first-class: K + fb + fm introducido + fm aplicado (si capped) +
+  // fórmula explícita con sustitución de números. Permite al ingeniero
+  // firmar el documento citando exactamente la subcláusula normativa.
+  if (state.fabricaModo === 'custom' && state.customMethod === 'anejoC') {
+    doc.addPage('a4', 'portrait');
+    toc.push({
+      label: 'Resistencia caracteristica fk · Anejo C',
+      page: doc.getNumberOfPages(),
+    });
+    const { contentY: pgFkY } = drawHeader(doc, headerMeta, M);
+    drawAnejoCBlock(doc, state, pgFkY);
+  }
 
   // ── Página 3+: Casos gobernantes ─────────────────────────────────────────
   doc.addPage('a4', 'portrait');
@@ -506,6 +527,120 @@ function drawDataPartida(
     rows: plantasCalc.slice().reverse(),
     M,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Página opcional · Trazabilidad fk · DB SE-F Anejo C eq. C.1
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Renderizada SOLO cuando `state.fabricaModo === 'custom'` y
+// `state.customMethod === 'anejoC'`. La trazabilidad expone la subcláusula
+// normativa (C.1, juntas ordinarias, mortero ordinario), el K aplicado, los
+// inputs fb/fm introducidos por el usuario, el fm efectivo tras la nota al
+// pie de C.1 (cap), y la fórmula con sustitución de números — para que el
+// firmante o un building official pueda re-derivar el fk a mano.
+
+function drawAnejoCBlock(
+  doc: jsPDF,
+  state: MasonryWallState,
+  startY: number,
+): void {
+  let y = startY;
+  const r = calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  setGray(doc, 30);
+  doc.text(
+    pdfStr('Resistencia caracteristica fk · DB SE-F Anejo C eq. C.1'),
+    M,
+    y,
+  );
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  setGray(doc, 90);
+  doc.text(
+    pdfStr('Juntas ordinarias (mortero ordinario). Subclausula C.1 unica soportada en esta version del modulo.'),
+    M,
+    y,
+  );
+  y += 8;
+
+  // Marco visual: caja con borde fino que contiene la derivación literal.
+  const boxX = M;
+  const boxW = PAGE_W - 2 * M;
+  const boxY = y;
+  const lineH = 5;
+  const rowsBase = 4; // tipo+K, fb·fm, fórmula, resultado
+  const rows = rowsBase + (r.capped ? 1 : 0);
+  const boxH = 8 + rows * lineH + 4;
+
+  setGray(doc, 200);
+  doc.setLineWidth(0.3);
+  doc.rect(boxX, boxY, boxW, boxH);
+
+  // Padding interno
+  y = boxY + 6;
+  const colX = boxX + 4;
+
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(9);
+  setGray(doc, 30);
+
+  // Row 1: tipo de muro + K
+  doc.text(
+    pdfStr(
+      `Tipo de muro: ${TIPO_MURO_LABELS[state.anejoC_tipoMuro]} · K = ${r.K.toFixed(2)}`,
+    ),
+    colX,
+    y,
+  );
+  y += lineH;
+
+  // Row 2: fb / fm introducidos
+  doc.text(
+    pdfStr(
+      `fb (pieza) = ${state.anejoC_fb} N/mm² · fm (mortero introducido) = ${state.anejoC_fm} N/mm²`,
+    ),
+    colX,
+    y,
+  );
+  y += lineH;
+
+  // Row 3 (opcional): cap aplicado
+  if (r.capped) {
+    setGray(doc, 60);
+    doc.text(
+      pdfStr(
+        `fm aplicado en calculo: ${r.fmApplied.toFixed(2)} N/mm² · nota C.1: min(20; 0,75·fb)`,
+      ),
+      colX,
+      y,
+    );
+    setGray(doc, 30);
+    y += lineH;
+  }
+
+  // Row 4: fórmula con sustitución literal
+  doc.text(
+    pdfStr(
+      `fk = K · fb^0,65 · fm^0,25 = ${r.K.toFixed(2)} · ${state.anejoC_fb}^0,65 · ${r.fmApplied.toFixed(2)}^0,25`,
+    ),
+    colX,
+    y,
+  );
+  y += lineH;
+
+  // Row 5: resultado final (negrita, ligeramente más grande)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  setGray(doc, 30);
+  const fkStr = r.fk != null ? `${r.fk.toFixed(3)} N/mm²` : 'no aplicable';
+  doc.text(pdfStr(`→ fk = ${fkStr}`), colX, y);
+
+  // Voids el TS lint
+  void ensureSpace;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

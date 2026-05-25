@@ -180,4 +180,77 @@ describe('exportMasonryWallsPDF', () => {
     const expectedAppendix = state.plantas.length;
     expect(pdf.pageCount).toBe(3 + expectedAppendix + 1);
   });
+
+  // ── Anejo C eq. C.1 trazabilidad — Página opcional condicional ───────────
+
+  it('Anejo C mode: inserta una página adicional entre Datos y Gobernantes', async () => {
+    const baseline = defaultMasonryState();
+    const cBaseline = compute(baseline);
+    const pdfBaseline = await exportMasonryWallsPDF({ state: baseline, ...cBaseline, system: 'si' });
+
+    const anejoC: MasonryWallState = {
+      ...baseline,
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'una_hoja_perforado',
+      anejoC_fb: 10,
+      anejoC_fm: 5,
+      gamma_custom: 15,
+    };
+    const cAnejoC = compute(anejoC);
+    const pdfAnejoC = await exportMasonryWallsPDF({ state: anejoC, ...cAnejoC, system: 'si' });
+
+    expect(pdfAnejoC.pageCount).toBe(pdfBaseline.pageCount + 1);
+  });
+
+  it('fk directo mode: NO inserta página de Anejo C (idéntico al baseline tabla)', async () => {
+    const baseline = defaultMasonryState();
+    const cBaseline = compute(baseline);
+    const pdfBaseline = await exportMasonryWallsPDF({ state: baseline, ...cBaseline, system: 'si' });
+
+    const manual: MasonryWallState = {
+      ...baseline,
+      fabricaModo: 'custom',
+      customMethod: 'manual',
+      fk_custom: 4.5,
+      gamma_custom: 18,
+    };
+    const cManual = compute(manual);
+    const pdfManual = await exportMasonryWallsPDF({ state: manual, ...cManual, system: 'si' });
+
+    expect(pdfManual.pageCount).toBe(pdfBaseline.pageCount);
+  });
+
+  it('Anejo C con fm capped (fb=10, fm=25) → sigue exportando, +1 página vs baseline', async () => {
+    const baseline = defaultMasonryState();
+    const pdfBaseline = await exportMasonryWallsPDF({ state: baseline, ...compute(baseline), system: 'si' });
+
+    const capped: MasonryWallState = {
+      ...baseline,
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'una_hoja_perforado',
+      anejoC_fb: 10,
+      anejoC_fm: 25, // capped a 7.5 por nota C.1
+      gamma_custom: 15,
+    };
+    const pdfCapped = await exportMasonryWallsPDF({ state: capped, ...compute(capped), system: 'si' });
+
+    expect(pdfCapped.pageCount).toBe(pdfBaseline.pageCount + 1);
+  });
+
+  it('Anejo C invalid (fb=0) → 1 página, no inserta página Anejo C (short-circuit invalid)', async () => {
+    const invalid: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'una_hoja_perforado',
+      anejoC_fb: 0,
+      anejoC_fm: 5,
+    };
+    const c = compute(invalid);
+    expect(c.invalid).not.toBeNull();
+    const pdf = await exportMasonryWallsPDF({ state: invalid, ...c, system: 'si' });
+    expect(pdf.pageCount).toBe(1);
+  });
 });

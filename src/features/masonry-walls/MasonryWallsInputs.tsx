@@ -11,6 +11,11 @@ import {
   CATEGORIA_LABELS,
   EJECUCION_LABELS,
   GAMMA_M_TABLA,
+  GAMMA_ESTIMADO,
+  K_ANEJO_C,
+  TIPO_MURO_LABELS,
+  TIPO_MURO_LABELS_SHORT,
+  calcFkAnejoC,
   findGammaMCell,
   lookupGammaM,
   resolverFabrica,
@@ -18,7 +23,9 @@ import {
   detectarHuecosSolapados,
   type CategoriaControl,
   type ClaseEjecucion,
+  type CustomMethod,
   type MasonryWallState,
+  type TipoMuroAnejoC,
   type Hueco,
   type Puntual,
   type PlantaResult,
@@ -173,6 +180,176 @@ function MiniBtn({ children, onClick, variant = 'default', title }: MiniBtnProps
   );
 }
 
+/**
+ * Bloque "Personalizada" del modo Fábrica. Contiene sub-toggle (Anejo C
+ * eq. C.1 / fk directo), inputs del Anejo C cuando aplica, warning de cap
+ * fm, footnote de alcance, y γ_custom con auto-fill desde tipoMuro.
+ *
+ * Se extrae como componente porque el bloque tiene su propia lógica de
+ * orquestación (auto-γ + edited flag) que ensucia el componente padre.
+ */
+function CustomFabricaBlock({
+  state,
+  setState,
+}: {
+  state: MasonryWallState;
+  setState: React.Dispatch<React.SetStateAction<MasonryWallState>>;
+}) {
+  const setMethod = (m: CustomMethod) =>
+    setState((s) => ({ ...s, customMethod: m }));
+
+  // Auto-γ: cambiar tipoMuro debería rellenar γ_custom con el estimado de
+  // GAMMA_ESTIMADO[tipo], PERO solo si el usuario no ha tocado γ manualmente.
+  // El flag gamma_custom_edited persiste la "intención" del usuario; el
+  // cambio de tipoMuro lo resetea (asume que el usuario quiere re-estimar).
+  const setTipoMuro = (t: TipoMuroAnejoC) =>
+    setState((s) => ({
+      ...s,
+      anejoC_tipoMuro: t,
+      gamma_custom: s.gamma_custom_edited ? s.gamma_custom : GAMMA_ESTIMADO[t],
+      gamma_custom_edited: false, // un cambio de tipo "borrón y cuenta nueva"
+    }));
+
+  const setGammaCustom = (v: number) =>
+    setState((s) => ({
+      ...s,
+      gamma_custom: v,
+      gamma_custom_edited: true, // marca que el valor es decisión del usuario
+    }));
+
+  const r = calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm);
+  const K = K_ANEJO_C[state.anejoC_tipoMuro];
+
+  return (
+    <>
+      {/* Sub-toggle con el mismo estilo de pill que el toggle Tabla/Personalizada
+          de arriba (preferencia del usuario sobre el subordinado del autoplan). */}
+      <div className="text-[10px] font-mono text-text-disabled uppercase mb-1" style={{ letterSpacing: '0.06em' }}>
+        Método fk
+      </div>
+      <div className="flex gap-1 mb-2">
+        {(['anejoC', 'manual'] as const).map((m) => {
+          const active = state.customMethod === m;
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMethod(m)}
+              className="flex-1 text-[11px] py-1 rounded font-mono cursor-pointer border transition-colors"
+              style={{
+                color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                background: active ? 'rgba(56,189,248,0.08)' : 'transparent',
+                borderColor: active ? 'var(--color-accent)' : 'var(--color-border-main)',
+              }}
+              aria-pressed={active}
+            >
+              {m === 'anejoC' ? 'Anejo C eq. C.1' : 'fk directo'}
+            </button>
+          );
+        })}
+      </div>
+
+      {state.customMethod === 'anejoC' ? (
+        <>
+          <div className="text-[10px] font-mono text-text-disabled uppercase mt-2 mb-1" style={{ letterSpacing: '0.06em' }}>
+            Datos Anejo C
+          </div>
+          <SelField
+            label="Tipo de muro"
+            value={state.anejoC_tipoMuro}
+            onChange={(v) => setTipoMuro(v as TipoMuroAnejoC)}
+            options={(Object.keys(TIPO_MURO_LABELS_SHORT) as TipoMuroAnejoC[]).map((k) => ({
+              value: k,
+              label: TIPO_MURO_LABELS_SHORT[k],
+            }))}
+            refNorma="Anejo C · valores de K"
+          />
+          <p className="text-[10px] font-mono text-text-disabled pl-1 mb-1">
+            K = {K.toFixed(2)} · {TIPO_MURO_LABELS[state.anejoC_tipoMuro]}
+          </p>
+          <NumField
+            label="fb"
+            sub="pieza"
+            value={state.anejoC_fb}
+            quantity="stress"
+            onChange={(v) => setState((s) => ({ ...s, anejoC_fb: v }))}
+          />
+          <NumField
+            label="fm"
+            sub="mortero"
+            value={state.anejoC_fm}
+            quantity="stress"
+            onChange={(v) => setState((s) => ({ ...s, anejoC_fm: v }))}
+          />
+          {r.capped && (
+            // state-warn (no state-fail) — el cap no es input inválido, es
+            // la nota al pie de eq. C.1 limitando un fm físicamente irrazonable.
+            <div className="rounded border border-state-warn/30 bg-state-warn/5 px-2 py-1.5 mb-2 text-[10px] font-mono text-state-warn leading-tight flex gap-2">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 mt-0.5"
+                aria-hidden="true"
+              >
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>
+                fm limitado a {r.fmApplied.toFixed(2)} N/mm² · nota C.1:
+                min(20; 0,75·fb)
+              </span>
+            </div>
+          )}
+          <p className="text-[10px] text-text-disabled leading-tight mt-1 mb-1">
+            Solo C.1 · juntas ordinarias. C.2/C.3, llagas a hueso y tendeles
+            huecos no incluidos en esta versión.
+          </p>
+          <NumField
+            label="γ"
+            sub={state.gamma_custom_edited ? 'peso esp.' : 'estimado por tipo · editable'}
+            value={state.gamma_custom}
+            quantity="weightDensity"
+            onChange={setGammaCustom}
+          />
+        </>
+      ) : (
+        <>
+          <NumField
+            label="fk"
+            sub="caract."
+            value={state.fk_custom}
+            quantity="stress"
+            onChange={(v) => set('fk_custom', v, setState)}
+          />
+          <NumField
+            label="γ"
+            sub="peso esp."
+            value={state.gamma_custom}
+            quantity="weightDensity"
+            onChange={setGammaCustom}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+// Helper local para fk_custom — evita capturar `set` del componente padre.
+function set<K extends keyof MasonryWallState>(
+  k: K,
+  v: MasonryWallState[K],
+  setState: React.Dispatch<React.SetStateAction<MasonryWallState>>,
+) {
+  setState((s) => ({ ...s, [k]: v }));
+}
+
 interface Props {
   state: MasonryWallState;
   setState: React.Dispatch<React.SetStateAction<MasonryWallState>>;
@@ -256,8 +433,19 @@ export function MasonryWallsInputs({
           Edita los inputs para tu caso real. El veredicto se actualiza al instante.
         </div>
       )}
-      {/* Fábrica · Tabla 4.4 / Personalizada */}
-      <CollapsibleSection label="Fábrica" refNorma="§4.6 · Tabla 4.4">
+      {/* Fábrica · Tabla 4.4 / Personalizada (Anejo C eq. C.1 / fk directo).
+          refNorma dinámica según el modo activo — la sección "miente" si
+          dice "Tabla 4.4" cuando estamos en Anejo C. */}
+      <CollapsibleSection
+        label="Fábrica"
+        refNorma={
+          state.fabricaModo === 'tabla'
+            ? '§4.6 · Tabla 4.4'
+            : state.customMethod === 'anejoC'
+              ? '§4.6 · Anejo C eq. C.1'
+              : '§4.6 · Personalizada'
+        }
+      >
         <div className="flex gap-1 mb-2">
           {(['tabla', 'custom'] as const).map((m) => (
             <button
@@ -303,10 +491,7 @@ export function MasonryWallsInputs({
             />
           </>
         ) : (
-          <>
-            <NumField label="fk" sub="caract." value={state.fk_custom} quantity="stress" onChange={(v) => set('fk_custom', v)} />
-            <NumField label="γ"  sub="peso esp." value={state.gamma_custom} quantity="weightDensity" onChange={(v) => set('gamma_custom', v)} />
-          </>
+          <CustomFabricaBlock state={state} setState={setState} />
         )}
         {/* γM selector según CTE Tabla 4.8 — categoría de control × clase de
             ejecución. La UI detecta si el γM actual coincide con una celda y
@@ -349,10 +534,33 @@ export function MasonryWallsInputs({
 
         <div className="rounded border border-border-main p-2 mt-2 mb-1 bg-bg-primary">
           <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-text-disabled">fk</span>
-            <span style={{ color: fab.fk ? 'var(--color-text-primary)' : 'var(--color-state-fail)' }}>
-              {fab.fk ? formatQuantity(fab.fk, 'stress', system) : 'no aplicable'}
+            <span className="text-text-disabled">
+              fk
+              {/* Discriminator: deja claro qué método produjo este fk. */}
+              {state.fabricaModo === 'tabla'
+                ? ' · Tabla 4.4'
+                : state.customMethod === 'anejoC'
+                  ? ' · Anejo C eq. C.1'
+                  : ' · directo'}
             </span>
+            {fab.fk ? (
+              <span style={{ color: 'var(--color-text-primary)' }}>
+                {formatQuantity(fab.fk, 'stress', system)}
+              </span>
+            ) : (
+              // En modo Anejo C con fb/fm parciales o blank, el estado natural
+              // es "pendiente" — text-disabled, no rojo. Rojo (state-fail)
+              // queda reservado para Tabla 4.4 sin combinación válida.
+              <span style={{
+                color: state.fabricaModo === 'custom' && state.customMethod === 'anejoC'
+                  ? 'var(--color-text-disabled)'
+                  : 'var(--color-state-fail)',
+              }}>
+                {state.fabricaModo === 'custom' && state.customMethod === 'anejoC'
+                  ? 'fk pendiente'
+                  : 'no aplicable'}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between text-[10px] font-mono">
             <span className="text-text-disabled">f_d = fk/γM</span>

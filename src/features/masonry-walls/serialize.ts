@@ -14,7 +14,7 @@
 // Patrón idéntico al de fem-analysis/serialize.ts.
 
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
-import type { MasonryWallState } from '../../lib/calculations/masonryWalls';
+import { normalizeMasonryState, type MasonryWallState } from '../../lib/calculations/masonryWalls';
 
 /**
  * Codifica un MasonryWallState como cadena URL-safe comprimida. La salida
@@ -35,13 +35,25 @@ export function encodeShareString(state: MasonryWallState): string {
  * hace el motor en `calcularEdificio` vía la validation gate.
  */
 export function decodeShareString(encoded: string): MasonryWallState | null {
+  const r = decodeShareStringWithMeta(encoded);
+  return r ? r.state : null;
+}
+
+/**
+ * Variante de `decodeShareString` que devuelve metadatos de la normalización
+ * (si el state era legacy y se ha migrado). La UI usa esta variante para
+ * mostrar un toast una sola vez cuando carga un caso pre-feature Anejo C.
+ */
+export function decodeShareStringWithMeta(
+  encoded: string,
+): { state: MasonryWallState; migratedLegacy: boolean } | null {
   if (!encoded) return null;
   try {
     const json = decompressFromEncodedURIComponent(encoded);
     if (!json) return null;
     const parsed = JSON.parse(json) as unknown;
     if (!isValidState(parsed)) return null;
-    return parsed as MasonryWallState;
+    return normalizeMasonryState(parsed);
   } catch {
     return null;
   }

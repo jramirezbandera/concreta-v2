@@ -1115,3 +1115,264 @@ describe('MASONRY_ENGINE_VERSION exported for PDF traceability', () => {
     expect(MASONRY_ENGINE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
+
+// ─── Anejo C eq. C.1 (juntas ordinarias) ──────────────────────────────────
+
+describe('calcFkAnejoC — DB-SE-F Anejo C eq. C.1', () => {
+  it('K table coincide con los 7 tipos de muro del Anejo C', async () => {
+    const { K_ANEJO_C } = await import('../../lib/calculations/masonryWalls');
+    expect(K_ANEJO_C.una_hoja_macizo).toBe(0.60);
+    expect(K_ANEJO_C.una_hoja_perforado).toBe(0.55);
+    expect(K_ANEJO_C.una_hoja_aligerado).toBe(0.50);
+    expect(K_ANEJO_C.una_hoja_hueco).toBe(0.40);
+    expect(K_ANEJO_C.dos_hojas_macizo).toBe(0.50);
+    expect(K_ANEJO_C.dos_hojas_perforado).toBe(0.45);
+    expect(K_ANEJO_C.dos_hojas_aligerado).toBe(0.40);
+  });
+
+  it('caso referencia (perforado una hoja, fb=10, fm=5) → fk = 3.674 ± 0.005 N/mm²', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    // Hand calc: 0.55 · 10^0.65 · 5^0.25 = 0.55 · 4.46683 · 1.49535 = 3.674
+    const r = calcFkAnejoC('una_hoja_perforado', 10, 5);
+    expect(r.fk).not.toBeNull();
+    expect(r.fk!).toBeGreaterThan(3.669);
+    expect(r.fk!).toBeLessThan(3.679);
+    expect(r.K).toBe(0.55);
+    expect(r.fmInput).toBe(5);
+    expect(r.fmApplied).toBe(5);
+    expect(r.capped).toBe(false);
+  });
+
+  it('cap por 0.75·fb (fb=10, fm=25) → fm_aplicado=7.5, capped=true', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', 10, 25);
+    expect(r.fmApplied).toBe(7.5);
+    expect(r.capped).toBe(true);
+    // fk = 0.55 · 10^0.65 · 7.5^0.25 ≈ 4.069
+    expect(r.fk!).toBeGreaterThan(4.06);
+    expect(r.fk!).toBeLessThan(4.08);
+  });
+
+  it('cap por 20 (fb=100, fm=30) → fm_aplicado=20, capped=true', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', 100, 30);
+    expect(r.fmApplied).toBe(20); // 0.75·100=75 > 20, gana el 20
+    expect(r.capped).toBe(true);
+  });
+
+  it('fb < FB_MIN (0.5) → fk = null', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', 0.0001, 5);
+    expect(r.fk).toBeNull();
+    expect(r.reason).toContain('fb');
+  });
+
+  it('fm < FM_MIN (0.5) → fk = null', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', 10, 0);
+    expect(r.fk).toBeNull();
+    expect(r.reason).toContain('fm');
+  });
+
+  it('fb = NaN → fk = null', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', NaN, 5);
+    expect(r.fk).toBeNull();
+  });
+
+  it('fb = -5 → fk = null', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', -5, 5);
+    expect(r.fk).toBeNull();
+  });
+
+  it('fb = Infinity → fk = null', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    const r = calcFkAnejoC('una_hoja_perforado', Infinity, 5);
+    expect(r.fk).toBeNull();
+  });
+
+  it('tipoMuro corrupto → fk = null + reason', async () => {
+    const { calcFkAnejoC } = await import('../../lib/calculations/masonryWalls');
+    // @ts-expect-error inducimos un valor fuera del union
+    const r = calcFkAnejoC('zzz_no_existe', 10, 5);
+    expect(r.fk).toBeNull();
+    expect(r.reason).toContain('Tipo de muro');
+  });
+});
+
+describe('resolverFabrica — sub-modo custom (anejoC vs manual)', () => {
+  it('modo custom · anejoC → fk vía Anejo C eq. C.1 y ref menciona Anejo C', () => {
+    const s: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'una_hoja_perforado',
+      anejoC_fb: 10,
+      anejoC_fm: 5,
+      gamma_custom: 15,
+    };
+    const fab = resolverFabrica(s);
+    expect(fab.modo).toBe('custom');
+    expect(fab.fk).not.toBeNull();
+    expect(fab.fk!).toBeGreaterThan(3.66);
+    expect(fab.fk!).toBeLessThan(3.68);
+    expect(fab.gamma).toBe(15); // γ siempre viene de gamma_custom
+    expect(fab.ref).toContain('Anejo C');
+  });
+
+  it('modo custom · manual → respeta fk_custom (path legacy)', () => {
+    const s: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'manual',
+      fk_custom: 7.5,
+      gamma_custom: 16,
+    };
+    const fab = resolverFabrica(s);
+    expect(fab.fk).toBe(7.5);
+    expect(fab.gamma).toBe(16);
+    expect(fab.ref).toContain('directo');
+  });
+
+  it('modo custom · customMethod undefined → fallback a manual (defensivo)', () => {
+    const s = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom' as const,
+      fk_custom: 4.2,
+    };
+    // Forzamos customMethod a undefined simulando state legacy mal-normalizado.
+    delete (s as Partial<MasonryWallState>).customMethod;
+    const fab = resolverFabrica(s as MasonryWallState);
+    expect(fab.fk).toBe(4.2); // usa fk_custom, NO calcula Anejo C
+  });
+
+  it('validateState Anejo C con fb=0 → invalid con field=fk y reason de Anejo C', () => {
+    const s: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_fb: 0,
+      anejoC_fm: 5,
+    };
+    const r = calcularEdificio(s);
+    expect(r.invalid).toBe(true);
+    if (r.invalid) {
+      expect(r.field).toBe('fk');
+      expect(r.reason).toContain('Anejo C');
+    }
+  });
+});
+
+describe('normalizeMasonryState — backward-compat de localStorage y share URLs', () => {
+  it('estado legacy custom (sin customMethod) → migrado a manual, preserva fk_custom', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const legacy = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom' as const,
+      fk_custom: 4.13,
+      gamma_custom: 18,
+    };
+    delete (legacy as Partial<MasonryWallState>).customMethod;
+    delete (legacy as Partial<MasonryWallState>).anejoC_tipoMuro;
+    delete (legacy as Partial<MasonryWallState>).anejoC_fb;
+    delete (legacy as Partial<MasonryWallState>).anejoC_fm;
+    delete (legacy as Partial<MasonryWallState>).gamma_custom_edited;
+    const { state, migratedLegacy } = normalizeMasonryState(legacy);
+    expect(state.customMethod).toBe('manual'); // P4: legacy NUNCA → anejoC
+    expect(state.fk_custom).toBe(4.13);
+    expect(state.gamma_custom).toBe(18);
+    expect(migratedLegacy).toBe(true);
+  });
+
+  it('estado fresco completo (con todos los campos) → no marca migratedLegacy', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const fresh = defaultMasonryState();
+    const { state, migratedLegacy } = normalizeMasonryState(fresh);
+    expect(state).toEqual(fresh);
+    expect(migratedLegacy).toBe(false);
+  });
+
+  it('estado custom · anejoC moderno round-trips sin migración', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const modern: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'dos_hojas_perforado',
+      anejoC_fb: 15,
+      anejoC_fm: 7.5,
+    };
+    const { state, migratedLegacy } = normalizeMasonryState(modern);
+    expect(state.customMethod).toBe('anejoC');
+    expect(state.anejoC_tipoMuro).toBe('dos_hojas_perforado');
+    expect(state.anejoC_fb).toBe(15);
+    expect(migratedLegacy).toBe(false);
+  });
+
+  it('anejoC_tipoMuro corrupto → defaultea una_hoja_macizo y marca migratedLegacy', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const corrupt = {
+      ...defaultMasonryState(),
+      anejoC_tipoMuro: 'inventado_que_no_existe',
+    };
+    const { state, migratedLegacy } = normalizeMasonryState(corrupt);
+    expect(state.anejoC_tipoMuro).toBe('una_hoja_macizo');
+    expect(migratedLegacy).toBe(true);
+  });
+
+  it('raw inválido (null / no-object) → devuelve defaults sin marcar migratedLegacy', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    // defaultMasonryState() genera IDs aleatorios, así que no es deep-equal-able;
+    // comprobamos los campos top-level relevantes en su lugar.
+    const a = normalizeMasonryState(null);
+    expect(a.state.fabricaModo).toBe('tabla');
+    expect(a.state.customMethod).toBe('manual');
+    expect(a.state.anejoC_tipoMuro).toBe('una_hoja_macizo');
+    expect(a.state.plantas.length).toBe(4);
+    expect(a.migratedLegacy).toBe(false);
+    const b = normalizeMasonryState('string-no-objeto');
+    expect(b.state.fabricaModo).toBe('tabla');
+    expect(b.state.customMethod).toBe('manual');
+    expect(b.migratedLegacy).toBe(false);
+  });
+
+  it('defaultMasonryState arranca con customMethod=manual (preserva comportamiento pre-feature)', () => {
+    expect(defaultMasonryState().customMethod).toBe('manual');
+    expect(defaultMasonryState().gamma_custom_edited).toBe(false);
+  });
+
+  it('share-URL legacy decodifica con customMethod=manual', () => {
+    // Construimos un state legacy y lo encode-amos. Como encodeShareString
+    // toma un MasonryWallState ya completo, simulamos legacy borrando los
+    // campos antes de stringify directamente.
+    const legacy = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom' as const,
+      fk_custom: 6.0,
+    };
+    delete (legacy as Partial<MasonryWallState>).customMethod;
+    delete (legacy as Partial<MasonryWallState>).anejoC_tipoMuro;
+    // encodeShareString JSON.stringify-a sin validar; OK para la simulación.
+    const encoded = encodeShareString(legacy as MasonryWallState);
+    const decoded = decodeShareString(encoded);
+    expect(decoded).not.toBeNull();
+    expect(decoded!.customMethod).toBe('manual');
+    expect(decoded!.fk_custom).toBe(6.0);
+  });
+
+  it('share-URL moderno con Anejo C round-trips deep-equal', () => {
+    const modern: MasonryWallState = {
+      ...defaultMasonryState(),
+      fabricaModo: 'custom',
+      customMethod: 'anejoC',
+      anejoC_tipoMuro: 'una_hoja_aligerado',
+      anejoC_fb: 12,
+      anejoC_fm: 6,
+    };
+    const url = buildShareUrl(modern, 'http://localhost/m');
+    const encoded = url.split('?model=')[1];
+    const decoded = decodeShareString(encoded);
+    expect(decoded).toEqual(modern);
+  });
+});

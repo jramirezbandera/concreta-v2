@@ -100,6 +100,9 @@ export const MASONRY_ENGINE_VERSION = '2.0.0';
 
 // ── Tabla 4.4 DB-SE-F ─────────────────────────────────────────────────────
 
+// TODO(taxonomy-unify): si un tercer caso de uso necesita la dimensión
+// topológica (una hoja / dos hojas) que añade Anejo C, refactorizar
+// PiezaTipo + TipoMuroAnejoC a un PiezaDef único con campo `topologia`.
 export type PiezaTipo =
   | 'macizo_junta_delgada'
   | 'macizo'
@@ -190,6 +193,151 @@ export function lookupFk(pieza: PiezaTipo, fb: number, fm: number): number | nul
   return v == null ? null : v;
 }
 
+// ── Anejo C DB-SE-F · ecuación C.1 (mortero ordinario, juntas extendidas) ──
+//
+// Cuando una combinación pieza × fb × fm no está en Tabla 4.4, el Anejo C
+// permite calcular fk directamente con:
+//
+//   fk = K · fb^0.65 · fm^0.25      (eq. C.1, juntas ordinarias)
+//
+// con las restricciones de la nota al pie:
+//   • fm ≤ 20 N/mm²
+//   • fm ≤ 0.75 · fb
+//
+// V1 cubre SOLO C.1 (mortero ordinario, juntas extendidas a todo el grueso).
+// C.2 (juntas delgadas), C.3 (mortero ligero), llagas a hueso y tendeles
+// huecos quedan fuera de alcance — etiquetar literalmente en UI y PDF.
+//
+// TODO(taxonomy-unify): TipoMuroAnejoC y PiezaTipo (Tabla 4.4) mantienen
+// dos taxonomías paralelas porque Anejo C añade topología (una hoja / dos
+// hojas) que Tabla 4.4 no usa. Si llega un tercer caso de uso que necesite
+// ambas dimensiones, refactorizar a un PiezaDef único con campo `topologia`.
+
+export type TipoMuroAnejoC =
+  | 'una_hoja_macizo'
+  | 'una_hoja_perforado'
+  | 'una_hoja_aligerado'
+  | 'una_hoja_hueco'
+  | 'dos_hojas_macizo'
+  | 'dos_hojas_perforado'
+  | 'dos_hojas_aligerado';
+
+/** Valores de K del Anejo C tabla, sección "juntas ordinarias" (mortero ordinario). */
+export const K_ANEJO_C: Record<TipoMuroAnejoC, number> = {
+  una_hoja_macizo:     0.60,
+  una_hoja_perforado:  0.55,
+  una_hoja_aligerado:  0.50,
+  una_hoja_hueco:      0.40,
+  dos_hojas_macizo:    0.50,
+  dos_hojas_perforado: 0.45,
+  dos_hojas_aligerado: 0.40,
+};
+
+/** Etiquetas completas (para tooltip / PDF / trazabilidad legal). */
+export const TIPO_MURO_LABELS: Record<TipoMuroAnejoC, string> = {
+  una_hoja_macizo:     'Una hoja · piezas macizas (grueso = tizón/soga)',
+  una_hoja_perforado:  'Una hoja · piezas perforadas',
+  una_hoja_aligerado:  'Una hoja · piezas aligeradas',
+  una_hoja_hueco:      'Una hoja · piezas huecas',
+  dos_hojas_macizo:    'Dos hojas o con suturas · piezas macizas',
+  dos_hojas_perforado: 'Dos hojas o con suturas · piezas perforadas',
+  dos_hojas_aligerado: 'Dos hojas o con suturas · piezas aligeradas',
+};
+
+/** Etiquetas cortas para el desplegable (panel de inputs estrecho, 280px). */
+export const TIPO_MURO_LABELS_SHORT: Record<TipoMuroAnejoC, string> = {
+  una_hoja_macizo:     'Una hoja · macizo',
+  una_hoja_perforado:  'Una hoja · perforado',
+  una_hoja_aligerado:  'Una hoja · aligerado',
+  una_hoja_hueco:      'Una hoja · hueco',
+  dos_hojas_macizo:    'Dos hojas · macizo',
+  dos_hojas_perforado: 'Dos hojas · perforado',
+  dos_hojas_aligerado: 'Dos hojas · aligerado',
+};
+
+/** Peso específico estimado kN/m³ por topología — auto-fill de γ_custom al
+ *  cambiar tipoMuro en modo Anejo C (a menos que gamma_custom_edited=true). */
+export const GAMMA_ESTIMADO: Record<TipoMuroAnejoC, number> = {
+  una_hoja_macizo:     18,
+  una_hoja_perforado:  15,
+  una_hoja_aligerado:  14,
+  una_hoja_hueco:      12,
+  dos_hojas_macizo:    18,
+  dos_hojas_perforado: 15,
+  dos_hojas_aligerado: 14,
+};
+
+/** Límite mínimo de fb y fm para que eq. C.1 sea aplicable. Por debajo, los
+ *  números se vuelven sin sentido físico (fb < piezas más débiles de Tabla
+ *  4.4 = 5, fm < morteros más débiles tabulados = 2.5). Floor en 0.5 evita
+ *  fk≈0.00027 por inputs tipo fb=0.0001 → η explota a 99999%. */
+export const FB_MIN_ANEJO_C = 0.5;
+export const FM_MIN_ANEJO_C = 0.5;
+
+export interface AnejoCResult {
+  /** null si los inputs están fuera de rango o no son finitos. */
+  fk: number | null;
+  /** K aplicado para esta combinación de tipo de muro. */
+  K: number;
+  /** fm introducido por el usuario (sin aplicar el cap). */
+  fmInput: number;
+  /** fm efectivo en el cálculo tras aplicar `min(20, 0.75·fb)`. */
+  fmApplied: number;
+  /** true si `fmApplied < fmInput` (warning visible en UI + PDF). */
+  capped: boolean;
+  /** Motivo de invalidez cuando `fk === null`. */
+  reason?: string;
+}
+
+/**
+ * Calcula fk según DB-SE-F Anejo C eq. C.1 (mortero ordinario, juntas
+ * extendidas a todo el grueso). Devuelve un resultado estructurado para que
+ * la UI, el PDF y la validación lean la misma fuente.
+ */
+export function calcFkAnejoC(
+  tipoMuro: TipoMuroAnejoC,
+  fb: number,
+  fm: number,
+): AnejoCResult {
+  const K = K_ANEJO_C[tipoMuro];
+  if (K == null) {
+    return {
+      fk: null,
+      K: 0,
+      fmInput: fm,
+      fmApplied: 0,
+      capped: false,
+      reason: 'Tipo de muro no válido para Anejo C.',
+    };
+  }
+  if (!Number.isFinite(fb) || fb < FB_MIN_ANEJO_C) {
+    return {
+      fk: null,
+      K,
+      fmInput: fm,
+      fmApplied: 0,
+      capped: false,
+      reason: `fb fuera de rango Anejo C (mín. ${FB_MIN_ANEJO_C} N/mm²).`,
+    };
+  }
+  if (!Number.isFinite(fm) || fm < FM_MIN_ANEJO_C) {
+    return {
+      fk: null,
+      K,
+      fmInput: fm,
+      fmApplied: 0,
+      capped: false,
+      reason: `fm fuera de rango Anejo C (mín. ${FM_MIN_ANEJO_C} N/mm²).`,
+    };
+  }
+  // Cap eq. C.1: fm ≤ min(20, 0.75·fb). Calculado tras la guard de fb > 0.
+  const fmMax = Math.min(20, 0.75 * fb);
+  const fmApplied = Math.min(fm, fmMax);
+  const capped = fm > fmMax;
+  const fk = K * Math.pow(fb, 0.65) * Math.pow(fmApplied, 0.25);
+  return { fk, K, fmInput: fm, fmApplied, capped };
+}
+
 export const GAMMA_M_DEFAULT = 2.5; // categoría control normal · §4.6.7
 
 /**
@@ -248,6 +396,11 @@ export function findGammaMCell(gM: number): { cat: CategoriaControl; ejec: Clase
 
 export type FabricaModo = 'tabla' | 'custom';
 
+/** Sub-modo dentro de 'custom' (Personalizada):
+ *  - 'anejoC': fk calculado vía Anejo C eq. C.1 con tipo_muro + fb + fm.
+ *  - 'manual': fk introducido directamente por el usuario (legacy + escape hatch). */
+export type CustomMethod = 'anejoC' | 'manual';
+
 export interface Hueco {
   id: string;
   x: number;       // mm desde el origen
@@ -287,9 +440,19 @@ export interface MasonryWallState {
   pieza: PiezaTipo;
   fb: number;
   fm: number;
-  // Modo custom
+  // Modo custom — sub-modo (eq. C.1 vs fk directo)
+  customMethod: CustomMethod;
+  // Modo custom · anejoC (eq. C.1)
+  anejoC_tipoMuro: TipoMuroAnejoC;
+  anejoC_fb: number;
+  anejoC_fm: number;
+  // Modo custom · manual (legacy + escape hatch)
   fk_custom: number;
   gamma_custom: number;
+  /** True cuando el usuario ha tocado γ_custom manualmente. Evita que el
+   *  auto-fill por tipoMuro pise un valor intencional. Se resetea cuando el
+   *  usuario cambia tipoMuro en modo anejoC. */
+  gamma_custom_edited: boolean;
   gamma_M: number;
   // Coeficientes parciales acciones (DB-SE 4.2.4)
   gamma_G: number;
@@ -467,13 +630,29 @@ export type EdificioResult =
 
 export function resolverFabrica(state: MasonryWallState): FabricaResuelta {
   if (state.fabricaModo === 'custom') {
+    // Defensivo: si el state está mal-normalizado y customMethod es undefined,
+    // tratamos como 'manual' para preservar fk_custom (legacy P4: nunca pasar
+    // silenciosamente al modo Anejo C).
+    const method = state.customMethod === 'anejoC' ? 'anejoC' : 'manual';
+    if (method === 'anejoC') {
+      const r = calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm);
+      return {
+        modo: 'custom',
+        label: 'Personalizada',
+        fk: r.fk,
+        gamma: state.gamma_custom,
+        gamma_M: state.gamma_M,
+        ref: `Anejo C eq. C.1 · ${TIPO_MURO_LABELS[state.anejoC_tipoMuro]}`,
+        valida: r.fk != null,
+      };
+    }
     return {
       modo: 'custom',
       label: 'Personalizada',
       fk: state.fk_custom,
       gamma: state.gamma_custom,
       gamma_M: state.gamma_M,
-      ref: 'Personalizada',
+      ref: 'Personalizada (fk directo)',
     };
   }
   const t = TABLA_4_4[state.pieza];
@@ -675,6 +854,15 @@ function validateState(state: MasonryWallState, fab: FabricaResuelta): EdificioI
         reason: `Combinación de pieza, fb y fm no aplicable según Tabla 4.4 DB-SE-F.`,
         field: 'fk',
         fix,
+      };
+    }
+    if (fab.modo === 'custom' && state.customMethod === 'anejoC') {
+      const r = calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm);
+      return {
+        invalid: true,
+        reason: r.reason ?? 'fk no calculable por Anejo C eq. C.1 con los inputs actuales.',
+        field: 'fk',
+        fix: 'Comprueba fb (pieza) y fm (mortero) — Anejo C requiere valores ≥ 0,5 N/mm².',
       };
     }
     return {
@@ -1107,8 +1295,17 @@ export function defaultMasonryState(): MasonryWallState {
     pieza: 'macizo',
     fb: 10,
     fm: 5,
+    // Default a 'manual' preserva el comportamiento de fk_custom=5.0 que
+    // tenían los estados pre-feature. El sub-toggle de la UI puede mostrarse
+    // visualmente en 'Anejo C eq. C.1' para nuevos usuarios que entren a
+    // Personalizada, sin cambiar el campo del state hasta que pulsen.
+    customMethod: 'manual',
+    anejoC_tipoMuro: 'una_hoja_macizo',
+    anejoC_fb: 10,
+    anejoC_fm: 5,
     fk_custom: 5.0,
     gamma_custom: 18,
+    gamma_custom_edited: false,
     gamma_M: GAMMA_M_DEFAULT,
     gamma_G: 1.35,
     gamma_Q: 1.50,
@@ -1120,6 +1317,68 @@ export function defaultMasonryState(): MasonryWallState {
       plantaTemplate(2, false),
       plantaTemplate(3, true),
     ],
+  };
+}
+
+/**
+ * Normaliza un MasonryWallState venido de localStorage o de share-URL,
+ * rellenando los campos nuevos del feature Anejo C con defaults seguros
+ * cuando faltan (estados pre-feature).
+ *
+ * Crítico (P4 del autoplan, confirmado por Codex + Claude): un estado legacy
+ * con `fabricaModo='custom'` SIN `customMethod` se interpreta como `'manual'`
+ * — NUNCA se promociona silenciosamente a `'anejoC'` (sería un liability bug:
+ * la URL compartida significa algo distinto que cuando se generó).
+ *
+ * Devuelve `migratedLegacy=true` cuando algún campo nuevo se ha defaulteado
+ * sobre un estado con `fabricaModo='custom'` — usado por la UI para mostrar
+ * un toast informativo una sola vez.
+ */
+export function normalizeMasonryState(
+  raw: unknown,
+): { state: MasonryWallState; migratedLegacy: boolean } {
+  const defaults = defaultMasonryState();
+  if (!raw || typeof raw !== 'object') {
+    return { state: defaults, migratedLegacy: false };
+  }
+  const r = raw as Record<string, unknown>;
+  const isLegacyCustom =
+    r.fabricaModo === 'custom' &&
+    (r.customMethod === undefined ||
+      (r.customMethod !== 'anejoC' && r.customMethod !== 'manual'));
+  // Validar enum de tipo de muro Anejo C — si viene corrupto, defaultear y
+  // marcar como legacy para que el toast advierta del cambio.
+  const tipoIn = r.anejoC_tipoMuro;
+  const tipoValid =
+    typeof tipoIn === 'string' && tipoIn in K_ANEJO_C
+      ? (tipoIn as TipoMuroAnejoC)
+      : null;
+  const tipoCorrupt = tipoIn !== undefined && tipoValid == null;
+  const merged: MasonryWallState = {
+    ...defaults,
+    ...(r as Partial<MasonryWallState>),
+    // Overrides explícitos: los campos del feature Anejo C, no los del raw.
+    customMethod:
+      r.customMethod === 'anejoC' || r.customMethod === 'manual'
+        ? r.customMethod
+        : 'manual', // legacy custom siempre cae en 'manual' (P4)
+    anejoC_tipoMuro: tipoValid ?? defaults.anejoC_tipoMuro,
+    anejoC_fb:
+      typeof r.anejoC_fb === 'number' && Number.isFinite(r.anejoC_fb)
+        ? r.anejoC_fb
+        : defaults.anejoC_fb,
+    anejoC_fm:
+      typeof r.anejoC_fm === 'number' && Number.isFinite(r.anejoC_fm)
+        ? r.anejoC_fm
+        : defaults.anejoC_fm,
+    gamma_custom_edited:
+      typeof r.gamma_custom_edited === 'boolean'
+        ? r.gamma_custom_edited
+        : true, // legacy: γ_custom es un valor del usuario, no lo pisemos
+  };
+  return {
+    state: merged,
+    migratedLegacy: isLegacyCustom || tipoCorrupt,
   };
 }
 
