@@ -17,11 +17,14 @@ import { MicropilesResults } from './MicropilesResults';
 import { loadSoil, saveSoil } from './soilStorage';
 import { buildShareUrl, readSoilFromUrl } from './serialize';
 
+// Pestañas de vista. "Semáforos" se retiró (2026-06-02): sus utilizaciones
+// ih/ic/im/iv ya están en el topbar (IH/IC/IM/IV) y en las comprobaciones del
+// panel de resultados — info redundante en pantalla. La vista sigue existiendo
+// en MicropilesSVG para el PDF, donde no hay topbar.
 const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string }[] = [
   { id: 'profile',    num: '1', label: 'Perfil',     color: '#a8825a' },
   { id: 'rfcCurve',   num: '2', label: 'Rfc curva',  color: '#38bdf8' },
   { id: 'topSection', num: '3', label: 'Sección tope', color: '#f8fafc' },
-  { id: 'semaphores', num: '4', label: 'Semáforos',  color: '#22c55e' },
 ];
 
 function ViewTabButton({
