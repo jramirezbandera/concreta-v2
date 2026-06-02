@@ -87,7 +87,7 @@ export async function exportMicropilesPDF(
     [`Nc,d = ${inp.designLoad.toFixed(0)} kN`,                `Esfuerzo: ${inp.effort}`],
     [`Método: ${inp.method}`,                                 `Estratos: ${soil.length}`],
     [pdfStr(`Hormigón HA-${inp.concreteGrade}`),              pdfStr(`Tubo: ${tubeLabelForPdf(inp)}`)],
-    [pdfStr(`fy = ${inp.steelGrade} N/mm²`),                  `CR = ${inp.CR.toFixed(2)}`],
+    [pdfStr(`fy = ${inp.steelGrade} N/mm²`),                  `CR = ${result.crAdopted.toFixed(2)} (${inp.crManualOverride ? 'manual' : 'auto'})`],
     [`Ejecución: Fe=${result.Fe.toFixed(2)}`,                 `Corrosión: re=${result.re.toFixed(2)} mm`],
     [pdfStr(`Aplicación: ${inp.application === 'new' ? 'nueva' : 'existente'}`),
      pdfStr(`Duración: ${inp.duration === 'short' ? '≤6m' : '>6m'}`)],
@@ -144,6 +144,7 @@ export async function exportMicropilesPDF(
     ['Fa,h',           `${result.Fa_h.toFixed(2)} kN`],
     ['Nc,rd',          `${result.Nc_rd.toFixed(2)} kN`],
     ['Tc,rd',          `${result.Tc_rd.toFixed(2)} kN`],
+    ['CR pandeo',      `${result.crAdopted.toFixed(2)} (${inp.crManualOverride ? 'manual' : 'auto'})`],
     ['R pandeo',       result.R.toFixed(3)],
     ['Le / Lef',       `${result.Le.toFixed(2)} / ${result.Lef.toFixed(2)} m`],
     ['Mpl,rd',         `${result.Mpl_rd.toFixed(2)} kNm`],
@@ -155,6 +156,47 @@ export async function exportMicropilesPDF(
     doc.text(pdfStr(val), M + 55, y);
     y += 3.2;
   }
+
+  hline(doc, y + 1, 180, 0.2);
+  y += 4;
+
+  // ── Pandeo (Guía Fomento §3.6.1 / Tabla 3.6) ──────────────────────────
+  // El documento entregable debe llevar las salvedades del cálculo de pandeo
+  // (fuera de tabla, terreno inestable, dato correlacionado), no solo el R.
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  setGray(doc, 60);
+  doc.text('PANDEO (R = 1.07 - 0.027·CR)', M, y);
+  y += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  setGray(doc, 70);
+  doc.text(pdfStr(`CR adoptado: ${result.crAdopted.toFixed(2)} (${inp.crManualOverride ? 'manual' : 'auto'})  ·  R = ${result.R.toFixed(3)}`), M + 2, y);
+  y += 3.2;
+  if (result.crGoverning) {
+    doc.text(pdfStr(`Gobierna: ${result.crGoverning}`), M + 2, y);
+    y += 3.2;
+  }
+  if (result.R <= 0) {
+    setGray(doc, 150);  // rojo no disponible en escala gris: se marca con texto
+    doc.text(pdfStr('AVISO: tope estructural nulo por pandeo (CR >= 40).'), M + 2, y);
+    setGray(doc, 70);
+    y += 3.2;
+  }
+  // Hipótesis: los avisos ('warn') se prefijan con [!] para destacarlos en el
+  // documento; las notas informativas van en gris más claro.
+  for (const h of result.crHypotheses) {
+    const isWarn = h.level === 'warn';
+    setGray(doc, isWarn ? 60 : 120);
+    const prefix = isWarn ? '[!] ' : '- ';
+    const wrapped = doc.splitTextToSize(pdfStr(prefix + h.text), 172) as string[];
+    for (const line of wrapped) {
+      doc.text(line, M + 2, y);
+      y += 2.8;
+    }
+  }
+  setGray(doc, 70);
 
   hline(doc, y + 1, 180, 0.2);
   y += 4;

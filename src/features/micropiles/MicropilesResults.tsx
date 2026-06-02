@@ -22,7 +22,7 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
   const allStatus = overallStatus(result.checks);
 
   const shaftChecks   = result.checks.filter((c) => ['hund-theoretical', 'hund-empirical'].includes(c.id));
-  const topChecks     = result.checks.filter((c) => ['tope-compression', 'tope-tension', 'pullout'].includes(c.id));
+  const topChecks     = result.checks.filter((c) => ['tope-compression', 'tope-tension', 'pullout', 'buckling'].includes(c.id));
   const bendingShear  = result.checks.filter((c) => ['bending', 'shear'].includes(c.id));
   const otherChecks   = result.checks.filter((c) => ['welding-throat', 'settlement-granular'].includes(c.id));
 
@@ -64,7 +64,30 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
         <ValueRow label="As,d (efectiva)"       value={`${fmt2(result.As_d)} mm² (re=${fmt2(result.re)} mm)`} />
         <ValueRow label="Fc,h (hormigón)"       value={`${fmt2(result.Fc_h)} kN`} />
         <ValueRow label="Fa,h (acero)"          value={`${fmt2(result.Fa_h)} kN`} />
+        <ValueRow
+          label="CR (pandeo)"
+          value={`${fmt2(result.crAdopted)} · ${inp.crManualOverride ? 'manual' : 'auto'}`}
+        />
         <ValueRow label="R (pandeo)"            value={fmt3(result.R)} />
+        {result.crGoverning && (
+          <ValueRow label="Gobierna" value={result.crGoverning} />
+        )}
+        {result.crHypotheses.length > 0 && (
+          // Severidad: los avisos (fuera de tabla, inestable, correlación) en
+          // ámbar para que el proyectista no se los pierda; las notas normales
+          // en text-secondary (legible, no el text-disabled de chrome). Diseño
+          // review 2026-06-02 — extensión intencional del color de estado a avisos.
+          <ul className="mt-1 mb-2 flex flex-col gap-1">
+            {result.crHypotheses.map((h, i) => (
+              <li
+                key={i}
+                className={`text-[10px] leading-snug ${h.level === 'warn' ? 'text-state-warn' : 'text-text-secondary'}`}
+              >
+                {h.level === 'warn' ? '⚠ ' : ''}{h.text}
+              </li>
+            ))}
+          </ul>
+        )}
         <ValueRow label="Fe (ejecución)"        value={fmt2(result.Fe)} />
         <ValueRow label="Nc,rd"                 value={`${fmt2(result.Nc_rd)} kN`} />
         {inp.effort !== 'compression' && (

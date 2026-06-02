@@ -87,7 +87,7 @@ Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline
 | `accent` | `#38bdf8` | Focus ring, nav activo, anotaciones SVG (eje neutro, líneas de cota) |
 | `accent-hover` | `#0ea5e9` | Hover sobre elementos accent |
 | `state-ok` | `#22c55e` | η < 80% |
-| `state-warn` | `#f59e0b` | 80% ≤ η < 100% |
+| `state-warn` | `#f59e0b` | 80% ≤ η < 100% · **avisos advisory** (ver abajo) |
 | `state-fail` | `#ef4444` | η ≥ 100% |
 | `state-neutral` | `#64748b` | Sin datos / estado inicial |
 
@@ -95,7 +95,9 @@ Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline
 
 - `accent` tiene **rol dual**: elementos UI interactivos (focus, nav activo) + anotaciones SVG (eje neutro, bloque de compresión, cotas). Ambos roles representan "estado calculado vivo" — es intencional.
 - Sin gradientes decorativos en backgrounds de página. Excepción: gradientes funcionales de estado (ver "Ambient verdict" abajo).
-- Los colores de estado son EXCLUSIVOS para tasas de utilización. No reutilizar como decoración UI.
+- Los colores de estado son para **comunicar estado al usuario**, nunca decoración UI. Dos usos válidos:
+  1. **Tasas de utilización** (η): verde/ámbar/rojo según el rango.
+  2. **Avisos advisory** (`state-warn` ámbar, prefijo `⚠`): salvedades del cálculo que el proyectista DEBE revisar pero que no son una tasa de utilización — p.ej. hipótesis "fuera de tabla", dato correlacionado, terreno inestable (módulo Micropilotes, pandeo Guía 3.6.1). El resto de notas informativas van en `text-secondary`, no en color de estado. Extensión introducida en design review 2026-06-02.
 - Sin violetas, sin azul-a-violeta, sin gradients decorativos en backgrounds.
 
 ---

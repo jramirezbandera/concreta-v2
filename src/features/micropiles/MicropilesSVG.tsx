@@ -143,16 +143,15 @@ function PerfilView({
   const zMax  = Math.max(zToe + 2, 4);
   const yOfDepth = (z: number) => M.top + (z / zMax) * plotH;
 
-  // Estratos: espesores medidos desde la CABEZA. Para el dibujo extendemos
-  // el primer estrato hasta la rasante (z=0) para evitar un hueco visual
-  // entre superficie y cabezal — coincide con el dibujo de la Guía Fomento.
+  // Estratos: espesores medidos DESDE LA RASANTE (convención del geotécnico).
+  // Cada estrato i ocupa [Σtₖ₍ₖ<ᵢ₎, Σtₖ₍ₖ≤ᵢ₎] medido desde z=0 (superficie).
+  // El primer estrato arranca en la rasante de forma natural — antes lo
+  // estirábamos para tapar el hueco, ahora no hace falta porque la primera
+  // capa ya cubre cota 0 → t₁ por definición.
   const layerBands = soil
     .reduce<{ layer: SoilLayer; z0: number; z1: number }[]>((acc, layer) => {
       const z0 = acc.length === 0 ? 0 : acc[acc.length - 1].z1;
-      const z1Candidate = acc.length === 0
-        ? zHead + layer.thickness          // primer estrato: rasante → cabeza+T1
-        : z0 + layer.thickness;
-      const z1 = Math.min(zMax, z1Candidate);
+      const z1 = Math.min(zMax, z0 + layer.thickness);
       acc.push({ layer, z0, z1 });
       return acc;
     }, [])

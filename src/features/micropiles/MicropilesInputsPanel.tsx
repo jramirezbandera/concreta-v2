@@ -20,6 +20,8 @@ interface MicropilesInputsPanelProps {
   addLayer: () => void;
   removeLayer: (id: number) => void;
   updateLayer: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+  /** CR de pandeo auto-calculado por el solver (para mostrarlo en modo auto). */
+  autoCR?: number;
 }
 
 // ── Primitives reused locally (same pattern as RetainingWallInputs) ──────────
@@ -197,17 +199,17 @@ function SelectField<V extends string | number>({
 // ── Inputs panel ─────────────────────────────────────────────────────────────
 
 export function MicropilesInputsPanel({
-  state, setField, soil, addLayer, removeLayer, updateLayer,
+  state, setField, soil, addLayer, removeLayer, updateLayer, autoCR,
 }: MicropilesInputsPanelProps) {
   return (
     <div className="flex flex-col gap-1">
 
       <CollapsibleSection label="Geometría del micropilote" refNorma="Guía Fomento cap. 3.2">
-        <NumField label="z cabeza"    sub="prof. bajo rasante" field="topDepth"        value={state.topDepth}        unit="m" setField={setField} />
-        <NumField label="z apoyo"     sub="prof. bajo rasante" field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
-        <NumField label="Dn"          sub="Ø perforación"      field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
-        <NumField label="z NF"        sub="prof. nivel freático" field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
-        <NumField label="p,inj"       sub="presión inyección"  field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
+        <NumField label="z cabeza"    sub="bajo rasante"     field="topDepth"        value={state.topDepth}        unit="m" setField={setField} />
+        <NumField label="z apoyo"     sub="bajo rasante"     field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
+        <NumField label="Dn"          sub="Ø perforación"    field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
+        <NumField label="z NF"        sub="nivel freático"   field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
+        <NumField label="p,inj"       sub="presión"          field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
@@ -219,7 +221,7 @@ export function MicropilesInputsPanel({
           options={[
             { value: 'compression',         label: 'Compresión' },
             { value: 'tension',             label: 'Tracción' },
-            { value: 'compression+tension', label: 'Compresión + tracción' },
+            { value: 'compression+tension', label: 'Compr. + tracc.' },
           ]}
           setField={setField}
         />
@@ -255,8 +257,8 @@ export function MicropilesInputsPanel({
           setField={setField}
         />
         <SelectField<GroutType>
-          label="Inyectado"
-          sub="lechada / mortero"
+          label="Inyección"
+          sub="relleno del barreno"
           field="groutType"
           value={state.groutType}
           options={GROUT_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
@@ -371,7 +373,38 @@ export function MicropilesInputsPanel({
           setField={setField}
           stacked
         />
-        <NumField label="CR" sub="pandeo" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
+        {/* Pandeo (Guía 3.6.1): el CR se auto-calcula de la estratigrafía+
+            geometría. El override "Manual" deja teclearlo a mano como antes. */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+          <InputLabel htmlFor="select-crMode" label="CR pandeo" sub="Guía 3.6.1" />
+          <select
+            id="select-crMode"
+            value={state.crManualOverride ? 'manual' : 'auto'}
+            onChange={(e) => setField('crManualOverride', e.target.value === 'manual')}
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+          >
+            <option value="auto">Auto</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+        {state.crManualOverride ? (
+          <NumField label="CR" sub="valor manual" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
+        ) : (
+          // Valor de solo lectura: no es un control de formulario, así que NO se
+          // usa <label htmlFor> (no asocia con un <span> para lectores de
+          // pantalla). Span etiquetado con aria-label en su lugar.
+          <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+            <span className="text-[13px] text-text-secondary truncate min-w-0">
+              CR<span className="text-[11px] text-text-disabled ml-1">auto-calculado</span>
+            </span>
+            <span
+              aria-label="CR de pandeo auto-calculado"
+              className="shrink-0 max-w-45 text-[12px] font-mono text-text-secondary px-2 py-1"
+            >
+              {autoCR !== undefined ? autoCR.toFixed(2) : '—'}
+            </span>
+          </div>
+        )}
         {/* Clamp dinámico de r: el min es el recubrimiento mínimo Tabla 2.3
             según inyectado y esfuerzo actuales. Si pasas de lechada+comp
             (20 mm) a mortero+tracción (35 mm), el min sube y el blur de

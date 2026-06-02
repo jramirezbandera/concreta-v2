@@ -12,7 +12,11 @@ import {
   RE_BY_CORROSION_MATRIX, getCorrosionRe,
 } from '../../data/micropileLookups';
 
-const baseInp  = { ...micropilesDefaults };
+// FTUX replica la hoja Excel de referencia, que usó CR=7,5 introducido a mano.
+// Por eso el baseline se fija en override MANUAL: así los números Excel
+// (Nc_rd=686,67 kN, etc.) se mantienen al margen del auto-cálculo de pandeo,
+// que para este suelo (E1 granular Nspt=0 → arena floja) adoptaría CR=8.
+const baseInp  = { ...micropilesDefaults, crManualOverride: true, CR: 7.5 };
 const baseSoil = micropilesSoilDefaults.map((l) => ({ ...l }));
 
 // ── FTUX defaults ─────────────────────────────────────────────────────────────
@@ -220,6 +224,174 @@ describe('Tope estructural', () => {
     expect(calcMicropiles({ ...baseInp, execution: 'with-mud' },                  baseSoil).Fe).toBe(1.15);
     expect(calcMicropiles({ ...baseInp, execution: 'casing-recoverable' },        baseSoil).Fe).toBe(1.05);
     expect(calcMicropiles({ ...baseInp, execution: 'casing-lost' },               baseSoil).Fe).toBe(1.00);
+  });
+});
+
+// ── Pandeo: auto-cálculo del CR (Guía 3.6.1 / Tabla 3.6) ──────────────────────
+describe('Pandeo — CR auto-calculado', () => {
+  // Caso de aceptación: E1 granular N=5 (floja), E2 granular N=11 (media),
+  // E3 cohesivo su=184 (firme). Ø180, NF a z=3,0 m, cabeza a 1 m.
+  const accSoil: SoilLayer[] = [
+    { id: 1, type: 'granular', thickness:  3.0, gamma: 19, c: 0, phi: 28, Nspt:  5, su:   0, rflim: 0.05 },
+    { id: 2, type: 'granular', thickness:  6.0, gamma: 20, c: 0, phi: 30, Nspt: 11, su:   0, rflim: 0.10 },
+    { id: 3, type: 'cohesive', thickness: 10.0, gamma: 20, c: 0, phi: 26, Nspt: 35, su: 184, rflim: 0.20 },
+  ];
+  const accInp = {
+    ...micropilesDefaults,
+    crManualOverride: false, drillDiameter: 180, waterTableDepth: 3.0,
+    topDepth: 1.0, toeDepth: 15.0,
+  };
+
+  it('E1 (arena floja) gobierna con CR=8 → R≈0.854', () => {
+    const r = calcMicropiles(accInp, accSoil);
+    expect(r.crAdopted).toBeCloseTo(8, 3);
+    expect(r.R).toBeCloseTo(1.07 - 0.027 * 8, 4);   // 0.854
+    expect(r.crGoverning).toContain('E1');
+    const outOfTable = r.crHypotheses.find((h) => /fuera de tabla/i.test(h.text));
+    expect(outOfTable).toBeDefined();
+    expect(outOfTable?.level).toBe('warn');   // avisos van en severidad 'warn' (UI ámbar)
+  });
+
+  it('E2 (granular media, bajo NF, sin Cu) no penaliza por sí solo (R=1)', () => {
+    const only = [{ ...accSoil[1], id: 1, thickness: 20 }];
+    const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, only);
+    expect(r.crAdopted).toBe(0);
+    expect(r.R).toBe(1);
+  });
+
+  it('E3 (cohesivo firme su>50) no penaliza (R=1)', () => {
+    const only = [{ ...accSoil[2], id: 1, thickness: 20 }];
+    const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, only);
+    expect(r.crAdopted).toBe(0);
+    expect(r.R).toBe(1);
+  });
+
+  it('granular media penaliza si está permanentemente sobre el NF', () => {
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 20, gamma: 19, c: 0, phi: 30, Nspt: 11, su: 0, rflim: 0.1 }];
+    // NF profundo → todo el tramo sobre NF → activa la fila media (CR 8…7).
+    const r = calcMicropiles({ ...accInp, waterTableDepth: 30, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeGreaterThan(7);
+    expect(r.crAdopted).toBeLessThanOrEqual(8);
+    expect(r.R).toBeLessThan(1);
+  });
+
+  it('granular media con Cu≥2 penaliza aunque esté bajo NF', () => {
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 20, gamma: 19, c: 0, phi: 30, Nspt: 11, su: 0, rflim: 0.1, Cu: 3 }];
+    const r = calcMicropiles({ ...accInp, waterTableDepth: 0, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeGreaterThan(0);
+    expect(r.R).toBeLessThan(1);
+  });
+
+  it('arena floja saturada (bajo NF, Cu<2) → terreno inestable CR=ΣH/D_R', () => {
+    // Tramo floja íntegro bajo NF (NF en superficie) → inestable. H≈9.5 m,
+    // D_R = de (Ø88,9 default) → CR = H/D_R muy alto → R acotado a 0.
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 20, gamma: 19, c: 0, phi: 28, Nspt: 5, su: 0, rflim: 0.05 }];
+    const r = calcMicropiles({ ...accInp, drillDiameter: 200, waterTableDepth: 0, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crGoverning.toLowerCase()).toContain('inestable');
+    expect(r.R).toBe(0);   // doble cota inferior
+  });
+
+  it('arena floja que CRUZA el NF → la parte saturada cuenta como inestable', () => {
+    // Codex #1: capa floja 0–10 m, NF a 4 m. La porción saturada (6 m bajo NF)
+    // debe ir a H/D_R (inestable), no quedarse en CR=8 a todo el espesor.
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 20, gamma: 19, c: 0, phi: 28, Nspt: 5, su: 0, rflim: 0.05 }];
+    const r = calcMicropiles({ ...accInp, waterTableDepth: 4, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crGoverning.toLowerCase()).toContain('inestable');
+    expect(r.crAdopted).toBeGreaterThan(8);                 // no se quedó en la banda CR=8
+    expect(r.crHypotheses.some((h) => /saturada.*bajo NF/i.test(h.text))).toBe(true);
+  });
+
+  it('R=0 (CR≥40) marca el check de pandeo como fail (tope nulo)', () => {
+    const r = calcMicropiles({ ...baseInp, crManualOverride: true, CR: 45 }, baseSoil);
+    expect(r.R).toBe(0);
+    const buckling = r.checks.find((c) => c.id === 'buckling');
+    expect(buckling?.status).toBe('fail');
+  });
+
+  it('cohesivo blando sin su usa correlación su≈6·N', () => {
+    // N=5 → su≈30 kPa → consistencia media (25–50) → penaliza con CR 8…7.
+    const soil = [{ id: 1, type: 'cohesive' as const, thickness: 20, gamma: 19, c: 0, phi: 24, Nspt: 5, su: 0, rflim: 0.1 }];
+    const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeGreaterThan(0);
+    expect(r.crHypotheses.some((h) => /correlación|correlacion/i.test(h.text))).toBe(true);
+  });
+
+  it('cabeza sobre rasante (topDepth<0) → tramo libre CR=ΣH/D_R', () => {
+    // Micropilote que sobresale 2 m del terreno; resto en granular denso
+    // (competente) → solo el tramo libre gobierna. D_R = de (Ø88,9 default).
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 15, gamma: 20, c: 0, phi: 34, Nspt: 35, su: 0, rflim: 0.2 }];
+    const r = calcMicropiles({ ...accInp, topDepth: -2, toeDepth: 8, waterTableDepth: 20 }, soil);
+    expect(r.crGoverning.toLowerCase()).toContain('libre');
+    expect(r.crAdopted).toBeCloseTo(2 / (88.9 / 1000), 1);   // ≈22.5
+    expect(r.R).toBeGreaterThan(0);
+    expect(r.R).toBeLessThan(1);
+  });
+
+  it('cohesivo blando (15≤su≤25) → CR 12…8 interpolado', () => {
+    const soil = [{ id: 1, type: 'cohesive' as const, thickness: 15, gamma: 19, c: 0, phi: 24, Nspt: 0, su: 20, rflim: 0.1 }];
+    const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeCloseTo(10, 3);                  // lerp(20,15,25,12,8)=10
+    expect(r.R).toBeCloseTo(1.07 - 0.027 * 10, 4);           // 0.80
+  });
+
+  it('cohesivo muy blando (su<15) → fuera de tabla, CR=12', () => {
+    const soil = [{ id: 1, type: 'cohesive' as const, thickness: 15, gamma: 19, c: 0, phi: 22, Nspt: 0, su: 10, rflim: 0.1 }];
+    const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeCloseTo(12, 3);
+    expect(r.crHypotheses.some((h) => /fuera de tabla/i.test(h.text))).toBe(true);
+  });
+
+  it('override manual ignora el auto-cálculo', () => {
+    const r = calcMicropiles({ ...accInp, crManualOverride: true, CR: 3 }, accSoil);
+    expect(r.crAdopted).toBe(3);
+    expect(r.R).toBeCloseTo(1.07 - 0.027 * 3, 4);
+  });
+});
+
+// ── Pandeo — ORACLE Tabla 3.6 (cálculo a mano) ────────────────────────────────
+// Estos valores NO se re-derivan de la fórmula en el test: son el resultado de
+// aplicar A MANO las bandas e interpolaciones de la Tabla 3.6 (Guía Fomento
+// §3.6.1) a cada perfil, y se fijan como constantes oracle. Si la lógica de
+// clasificación/interpolación/selección del motor deriva, estos literales
+// rompen. (No es un ejemplo numérico publicado de la Guía — es la aritmética
+// de la tabla resuelta a mano, eng review 2026-06-02.)
+describe('Pandeo — oracle Tabla 3.6 (hand-calc)', () => {
+  const inpBase = {
+    ...micropilesDefaults,
+    crManualOverride: false, drillDiameter: 180,
+    topDepth: 0.5, toeDepth: 10,
+  };
+
+  it('A · cohesivo medio su=40 → CR=7.40, R=0.8702', () => {
+    // medio (25–50): CR = 8 − (40−25)/25·(8−7) = 8 − 0.60 = 7.40
+    // R = 1.07 − 0.027·7.40 = 0.8702
+    const soil = [{ id: 1, type: 'cohesive' as const, thickness: 15, gamma: 19, c: 0, phi: 25, Nspt: 0, su: 40, rflim: 0.1 }];
+    const r = calcMicropiles(inpBase, soil);
+    expect(r.crAdopted).toBeCloseTo(7.40, 2);
+    expect(r.R).toBeCloseTo(0.8702, 4);
+  });
+
+  it('B · granular media N=20 sobre NF → I_D=0.50, CR=7.50, R=0.8675', () => {
+    // I_D = 0.35 + (20−10)/20·0.30 = 0.50
+    // CR = 8 − (0.50−0.35)/0.30·(8−7) = 7.50 ; R = 1.07 − 0.027·7.50 = 0.8675
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 15, gamma: 19, c: 0, phi: 32, Nspt: 20, su: 0, rflim: 0.1 }];
+    const r = calcMicropiles({ ...inpBase, waterTableDepth: 30 }, soil); // NF profundo → todo sobre NF
+    expect(r.crAdopted).toBeCloseTo(7.50, 2);
+    expect(r.R).toBeCloseTo(0.8675, 4);
+  });
+
+  it('C · E1 cohesivo su=18 vs E2 granular N=25: gobierna E1, CR=10.80, R=0.7784', () => {
+    // E1 blando (15–25): CR = 12 − (18−15)/10·(12−8) = 10.80
+    // E2 media sobre NF: I_D = 0.35+(25−10)/20·0.30 = 0.575 → CR = 8 − (0.575−0.35)/0.30 = 7.25
+    // peor = E1 (10.80) ; R = 1.07 − 0.027·10.80 = 0.7784
+    const soil = [
+      { id: 1, type: 'cohesive' as const, thickness:  6, gamma: 19, c: 0, phi: 24, Nspt: 0,  su: 18, rflim: 0.1 },
+      { id: 2, type: 'granular' as const, thickness: 15, gamma: 20, c: 0, phi: 32, Nspt: 25, su: 0,  rflim: 0.2 },
+    ];
+    const r = calcMicropiles({ ...inpBase, toeDepth: 18, waterTableDepth: 30 }, soil);
+    expect(r.crGoverning).toContain('E1');
+    expect(r.crAdopted).toBeCloseTo(10.80, 2);
+    expect(r.R).toBeCloseTo(0.7784, 4);
   });
 });
 
@@ -1050,45 +1222,44 @@ describe('Motor: selección de W según sectionClass', () => {
   });
 });
 
-// ── Guard: perfil de suelo más corto que L ───────────────────────────────────
-describe('Perfil de suelo más corto que L', () => {
-  it('invalida cuando la suma de espesores < L del micropilote', () => {
-    // L = 16 m para FTUX. Truncamos el perfil a 10 m total: 2.30 + 9.20 = 11.50,
-    // recortamos el segundo estrato para sumar exactamente 10 m.
+// ── Guard: perfil de suelo no llega al apoyo ─────────────────────────────────
+describe('Perfil de suelo no llega al apoyo', () => {
+  it('invalida cuando la suma de espesores < toeDepth', () => {
+    // toeDepth = 17 m para FTUX. Truncamos el perfil a 10 m total.
     const truncated = [
-      { ...baseSoil[0] },                          // 2.30 m
-      { ...baseSoil[1], thickness: 7.70 },         // hasta 10.00 m
+      { ...baseSoil[0], thickness: 3.30 },         // E1: 3.30 m (rasante → 3.30)
+      { ...baseSoil[1], thickness: 6.70 },         // E2: hasta 10.00 m
     ];
     const r = calcMicropiles(baseInp, truncated);
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/perfil de suelo/i);
-    expect(r.error).toMatch(/no cubre/);
+    expect(r.error).toMatch(/no llega/);
     expect(r.error).toMatch(/Faltan/);
   });
 
   it('mensaje de error reporta los metros que faltan', () => {
     const truncated = [{ ...baseSoil[0], thickness: 5.00 }];
-    const r = calcMicropiles(baseInp, truncated);   // L = 16, suelo = 5, faltan 11
-    expect(r.error).toMatch(/11\.00 m/);
+    const r = calcMicropiles(baseInp, truncated);   // toeDepth = 17, suelo = 5, faltan 12
+    expect(r.error).toMatch(/12\.00 m/);
   });
 
-  it('admite suelo exactamente igual a L (frontera, sin epsilon)', () => {
-    // L = 16; cubrimos con una sola capa de 16 m. findLayerAt sigue
+  it('admite suelo exactamente igual a toeDepth (frontera, sin epsilon)', () => {
+    // toeDepth = 17; cubrimos con una sola capa de 17 m. findLayerAt sigue
     // funcionando para el último segmento (cae en la rama de fallback,
-    // que devuelve el último estrato — correcto cuando el suelo cubre L).
-    const exact = [{ ...baseSoil[0], thickness: 16.00 }];
+    // que devuelve el último estrato — correcto cuando el suelo cubre toeDepth).
+    const exact = [{ ...baseSoil[0], thickness: 17.00 }];
     const r = calcMicropiles(baseInp, exact);
     expect(r.valid).toBe(true);
   });
 
-  it('admite suelo mayor que L (caso normal — FTUX suma ≈79 m, L=16)', () => {
+  it('admite suelo mayor que toeDepth (caso normal — FTUX suma ≈80 m, toeDepth=17)', () => {
     const r = calcMicropiles(baseInp, baseSoil);
     expect(r.valid).toBe(true);
   });
 
   it('epsilon 1mm absorbe error de coma flotante', () => {
-    // Suelo = L − 0.0005 m (medio mm corto): aceptado.
-    const almost = [{ ...baseSoil[0], thickness: 16.0 - 0.0005 }];
+    // Suelo = toeDepth − 0.0005 m (medio mm corto): aceptado.
+    const almost = [{ ...baseSoil[0], thickness: 17.0 - 0.0005 }];
     const r = calcMicropiles(baseInp, almost);
     expect(r.valid).toBe(true);
   });

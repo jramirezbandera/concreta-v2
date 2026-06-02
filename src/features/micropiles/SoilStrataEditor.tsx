@@ -24,6 +24,7 @@ export const SOIL_LIMITS = {
   Nspt:      { min: 0,    max: 200  },     // golpes/30cm
   su:        { min: 0,    max: 1000 },     // kN/m²
   rflim:     { min: 0,    max: 5    },     // MPa
+  Cu:        { min: 1,    max: 50   },     // D60/D10 (coef. uniformidad, granulares)
 } as const;
 
 interface FieldProps {
@@ -102,11 +103,13 @@ function MiniNumField({ label, value, unit, min, max, onChange }: FieldProps) {
 }
 
 function StrataCard({
-  layer, index, total, onRemove, onUpdate,
+  layer, index, total, depthTop, onRemove, onUpdate,
 }: {
   layer: SoilLayer;
   index: number;
   total: number;
+  /** Profundidad absoluta del techo del estrato (m desde rasante). */
+  depthTop: number;
   onRemove: (id: number) => void;
   onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
 }) {
@@ -137,8 +140,12 @@ function StrataCard({
           <span className="text-[11.5px] text-text-primary font-medium truncate">
             E{layer.id} — {palette.label}
           </span>
+          {/* Profundidad ABSOLUTA desde rasante (z=0 superficie del terreno).
+              Antes solo se mostraba el espesor — el usuario no veía a qué cota
+              acababa el estrato y no se daba cuenta de que la cota se mide
+              desde la rasante, no desde la cabeza del pilote. */}
           <span className="text-[10px] text-text-disabled font-mono whitespace-nowrap">
-            {layer.thickness.toFixed(2)} m
+            {depthTop.toFixed(2)}–{(depthTop + layer.thickness).toFixed(2)} m
           </span>
         </span>
         <span className="flex items-center gap-1 shrink-0">
@@ -188,6 +195,13 @@ function StrataCard({
           {layer.type === 'cohesive' && (
             <MiniNumField label="su" unit="kN/m²" value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
+          {/* Cu = D60/D10 — solo granulares. Condiciona el pandeo (Tabla 3.6):
+              en arena de compacidad media activa la comprobación si Cu≥2, y en
+              arena floja saturada Cu<2 la clasifica como terreno inestable.
+              Vacío (0) ⇒ se trata como Cu<2 (sin dato granulométrico). */}
+          {layer.type === 'granular' && (
+            <MiniNumField label="Cu" value={layer.Cu ?? 0} {...SOIL_LIMITS.Cu} onChange={(n) => onUpdate(layer.id, 'Cu', n)} />
+          )}
           <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
         </div>
       )}
@@ -196,14 +210,29 @@ function StrataCard({
 }
 
 export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate }: SoilStrataEditorProps) {
+  // Profundidad del techo de cada estrato (acumulada DESDE LA RASANTE).
+  // Se pasa a cada card para que el header muestre el rango absoluto
+  // [techo–base] del estrato, no solo su espesor.
+  let depthAcc = 0;
+  const depthTops = soil.map((l) => {
+    const top = depthAcc;
+    depthAcc += l.thickness;
+    return top;
+  });
+
   return (
     <div className="flex flex-col gap-2">
+      <p className="text-[10px] text-text-disabled leading-snug px-0.5">
+        Profundidades medidas desde la rasante (z=0 = superficie del terreno),
+        tal y como las da el estudio geotécnico.
+      </p>
       {soil.map((layer, i) => (
         <StrataCard
           key={layer.id}
           layer={layer}
           index={i}
           total={soil.length}
+          depthTop={depthTops[i]}
           onRemove={onRemove}
           onUpdate={onUpdate}
         />

@@ -883,6 +883,9 @@ export interface SoilLayer {
   Nspt: number;            // golpes/30cm — solo a título informativo
   su: number;              // kN/m² — resistencia al corte sin drenaje (cohesivos)
   rflim: number;           // MPa  — fricción límite empírica
+  /** Coeficiente de uniformidad Cu = D60/D10 (solo granulares). Opcional:
+   *  ausente o 0 ⇒ se trata como Cu<2 a efectos del pandeo (Tabla 3.6). */
+  Cu?: number;
 }
 
 export interface MicropilesInputs {
@@ -922,8 +925,13 @@ export interface MicropilesInputs {
   connection:         ConnectionType;
   application:        ApplicationType;
   duration:           Duration;
-  // Pandeo (Guía 3.6) — parametrizable con default
-  CR:                 number;   // factor de pandeo (default 7.5 → R≈0.87)
+  // Pandeo (Guía 3.6) — CR se auto-calcula de la estratigrafía+geometría
+  // (ver micropilesBuckling.ts). `crManualOverride` permite fijarlo a mano:
+  //   false (default) ⇒ el solver determina CR; `CR` se ignora salvo como
+  //                     valor inicial/eco editable.
+  //   true            ⇒ se usa `CR` tal cual lo teclea el usuario.
+  crManualOverride:   boolean;
+  CR:                 number;   // factor de pandeo manual (R = 1.07 − 0.027·CR)
   // Diámetro estructural del bulbo de hormigón (Guía 3.6): d_struct = de + 2·r.
   // r es el recubrimiento efectivo del tubo dentro de la lechada (≠ perforación).
   // El Excel de referencia usa 45,55 mm para Ø88,9 (d_struct = 180 mm).
@@ -957,6 +965,7 @@ export const micropilesDefaults: MicropilesInputs = {
   connection:         'no-loss',
   application:        'new',
   duration:           'long',
+  crManualOverride:   false,                  // auto por defecto (Guía 3.6.1)
   CR:                 7.5,
   structuralCover:    45.55,
   baseMoment:         0,
@@ -966,11 +975,23 @@ export const micropilesDefaults: MicropilesInputs = {
 };
 
 /**
- * Estratos por defecto — caso FTUX del Excel: 4 capas, ~16 m totales,
- * resultado esperado Rfc_teórico ≈ 738.66 kN, Rfc_empírico ≈ 675.17 kN.
+ * Estratos por defecto — caso FTUX del Excel.
+ *
+ * Convención v6: los espesores se miden DESDE LA RASANTE (z=0 en superficie),
+ * tal y como los entrega el geotécnico. Con topDepth=1 m, el primer estrato
+ * cubre 0→3.30 m (1 m por encima de la cabeza + 2.30 m bajo cabeza), que es
+ * el tramo de fuste que aporta rozamiento en E1. Para que el pilote "vea"
+ * idénticos estratos que en v5 (y los resultados FTUX se mantengan):
+ *   E1: 3.30 m (1.00 sobre cabeza + 2.30 fuste)
+ *   E2: 9.20 m
+ *   E3: 2.50 m
+ *   E4: 65.00 m
+ * Suma ≈ 80 m, cubre holgadamente toeDepth=17 m.
+ *
+ * Resultado esperado Rfc_teórico ≈ 496.28 kN, Rfc_empírico ≈ 675.17 kN.
  */
 export const micropilesSoilDefaults: SoilLayer[] = [
-  { id: 1, type: 'granular', thickness:  2.30, gamma: 19, c:   0, phi: 20, Nspt:  0, su:   0, rflim: 0.00 },
+  { id: 1, type: 'granular', thickness:  3.30, gamma: 19, c:   0, phi: 20, Nspt:  0, su:   0, rflim: 0.00 },
   { id: 2, type: 'cohesive', thickness:  9.20, gamma: 20, c:   0, phi: 22, Nspt: 20, su:   0, rflim: 0.08 },
   { id: 3, type: 'cohesive', thickness:  2.50, gamma: 20, c: 184, phi: 28, Nspt: 35, su:   0, rflim: 0.25 },
   { id: 4, type: 'granular', thickness: 65.00, gamma: 20, c: 280, phi: 28, Nspt: 37, su:   0, rflim: 0.25 },

@@ -293,6 +293,6 @@ export function getMinStructuralCover(grout: GroutType, effort: EffortType): num
 }
 
 export const GROUT_OPTIONS: OptionDef<GroutType>[] = [
-  { key: 'lechada', label: 'Lechada (cement grout)' },
-  { key: 'mortero', label: 'Mortero (cement mortar)' },
+  { key: 'lechada', label: 'Lechada' },
+  { key: 'mortero', label: 'Mortero' },
 ];

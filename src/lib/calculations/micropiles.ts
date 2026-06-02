@@ -2,10 +2,13 @@
 // All shaft + structural checks. Single-pile design.
 //
 // Discretización: 50 segmentos uniformes a lo largo de la longitud L.
-// Estratos: espesores secuenciales medidos DESDE LA CABEZA del micropilote
-//   (z=0 en la cabeza, positivo hacia abajo). El suelo por encima del cabezal
-//   no se integra: σv arranca en 0 en la cabeza (replica el comportamiento
-//   de la hoja de referencia Excel: σv = 0 en M14 ≡ cabeza).
+// Estratos: espesores secuenciales medidos DESDE LA RASANTE (z=0 en la
+//   superficie del terreno, positivo hacia abajo). Esta es la convención
+//   que usa el estudio geotécnico, así que el usuario teclea el perfil tal
+//   y como se lo entregan. El motor descarta el tramo de suelo por encima
+//   de la cabeza (no aporta rozamiento al fuste) y σv arranca en 0 EN LA
+//   CABEZA — replica la hoja Excel de referencia, que ignora el aporte de
+//   sobrecarga del suelo no movilizado por el pilote.
 // Localizador de estrato: usa el FONDO del segmento (no el centroide) — así
 //   se reproduce la discretización exacta de la hoja Excel: cuando un
 //   segmento cruza una frontera de estrato, sus propiedades se asignan al
@@ -36,6 +39,7 @@ import {
   type SectionClass,
 } from '../../data/micropileLookups';
 import { CUSTOM_TUBE_SENTINEL, resolveTubeGeometry } from '../../data/micropileTubes';
+import { computeBucklingCR, type BucklingNote } from './micropilesBuckling';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 export type { CheckRow } from './types';
@@ -97,6 +101,9 @@ export interface MicropilesResult {
   Fc_h: number;                     // kN — aporte hormigón
   Fa_h: number;                     // kN — aporte acero
   R: number;                        // factor de pandeo
+  crAdopted: number;                // CR de pandeo adoptado (auto o manual)
+  crGoverning: string;              // estrato/tramo que gobierna el CR
+  crHypotheses: BucklingNote[];     // hipótesis/notas del cálculo de pandeo (con severidad)
   Fe: number;                       // factor de ejecución
   Nc_rd: number;                    // kN — capacidad a compresión
   Tc_rd: number;                    // kN — capacidad a tracción
@@ -142,7 +149,8 @@ function invalid(error: string): MicropilesResult {
     length: 0, nSegments: 0, segmentLength: 0, segments: [],
     RfcTheoretical: 0, RfcEmpirical: 0, RfcAdopted: 0, ih: 0,
     dTotal: 0, de: 0, di: 0, re: 0, As_y: 0, As_d: 0,
-    Fc_h: 0, Fa_h: 0, R: 0, Fe: 0, Nc_rd: 0, Tc_rd: 0, ic: 0,
+    Fc_h: 0, Fa_h: 0, R: 0, crAdopted: 0, crGoverning: '', crHypotheses: [],
+    Fe: 0, Nc_rd: 0, Tc_rd: 0, ic: 0,
     he: 0, hp: 0, bc: 0, t_chapa: 0, eg: 0, eg_min: 0,
     Le: 0, Lef: 0, Mpl_rd: 0, Vpl_rd: 0, im: 0, iv: 0,
     sectionClass: 4,            // sin cálculo: conservador (no plastificación)
@@ -153,14 +161,17 @@ function invalid(error: string): MicropilesResult {
 }
 
 /**
- * Encuentra el estrato activo a una profundidad medida DESDE LA CABEZA.
- * Si la profundidad excede la suma de espesores, devuelve el último estrato.
+ * Encuentra el estrato activo a una profundidad ABSOLUTA medida desde la
+ * rasante (z=0 = superficie del terreno). Convención v6: el perfil del
+ * geotécnico se introduce sin recortar el tramo sobre la cabeza, así que
+ * el localizador acumula espesores desde la superficie. Si la profundidad
+ * excede la suma de espesores, devuelve el último estrato.
  */
-function findLayerAt(layers: SoilLayer[], zFromHead: number): { layer: SoilLayer; index: number } {
+function findLayerAt(layers: SoilLayer[], zAbs: number): { layer: SoilLayer; index: number } {
   let acc = 0;
   for (let i = 0; i < layers.length; i++) {
     acc += layers[i].thickness;
-    if (zFromHead < acc) return { layer: layers[i], index: i };
+    if (zAbs < acc) return { layer: layers[i], index: i };
   }
   return { layer: layers[layers.length - 1], index: layers.length - 1 };
 }
@@ -190,18 +201,18 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Dn = inp.drillDiameter / 1000;                // m — Ø perforación
   const perimeter = Math.PI * Dn;                     // m
 
-  // El perfil de suelo debe cubrir TODA la longitud del micropilote. Antes
-  // findLayerAt extendía el último estrato al infinito cuando el suelo
-  // definido era más corto que L, produciendo un cálculo silenciosamente
-  // sin definir. Aquí lo bloqueamos: el usuario debe declarar capas que
-  // sumen al menos L. Epsilon 1 mm absorbe ruido de coma flotante.
+  // El perfil de suelo debe cubrir DESDE LA RASANTE HASTA EL APOYO del
+  // pilote. Antes findLayerAt extendía el último estrato al infinito cuando
+  // el suelo definido era más corto, produciendo un cálculo silenciosamente
+  // sin definir. Aquí lo bloqueamos: la suma de espesores debe alcanzar al
+  // menos toeDepth. Epsilon 1 mm absorbe ruido de coma flotante.
   const soilDepth = soil.reduce((s, l) => s + l.thickness, 0);
-  if (soilDepth + 1e-3 < L) {
-    const missing = L - soilDepth;
+  if (soilDepth + 1e-3 < inp.toeDepth) {
+    const missing = inp.toeDepth - soilDepth;
     return invalid(
-      `El perfil de suelo (${soilDepth.toFixed(2)} m) no cubre la longitud del ` +
-      `micropilote (${L.toFixed(2)} m). Faltan ${missing.toFixed(2)} m: añade ` +
-      `un estrato o aumenta el espesor del último.`,
+      `El perfil de suelo (${soilDepth.toFixed(2)} m) no llega hasta el apoyo ` +
+      `del micropilote (${inp.toeDepth.toFixed(2)} m). Faltan ${missing.toFixed(2)} m: ` +
+      `añade un estrato o aumenta el espesor del último.`,
     );
   }
 
@@ -230,8 +241,9 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   let sigmaV            = 0;
 
   for (let i = 0; i < N_SEGMENTS; i++) {
-    const zBotSeg = (i + 1) * dz;           // depth from cabeza, bottom of segment
-    const { layer, index } = findLayerAt(soil, zBotSeg);
+    const zBotSeg = (i + 1) * dz;             // profundidad desde la cabeza
+    const zBotAbs = zHeadAbs + zBotSeg;       // profundidad absoluta desde rasante
+    const { layer, index } = findLayerAt(soil, zBotAbs);
 
     // σv total: integra siempre con γ del estrato.
     sigmaV += layer.gamma * dz;
@@ -392,8 +404,18 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Fc_h       = (ALPHA_CC * A_concrete * fcd) / 1000;            // kN
   const Fa_h       = (As_d * fyd_cap * Fu) / 1000;               // kN
 
-  // Pandeo (Guía Tabla 3.6 / cap. 3.6.2) — R = 1.07 − 0.027·CR ≤ 1
-  const R  = Math.min(1, 1.07 - 0.027 * inp.CR);
+  // Pandeo (Guía Tabla 3.6 / cap. 3.6.1) — R = 1.07 − 0.027·CR, doble cota 0≤R≤1.
+  // CR auto a partir de la estratigrafía+geometría (micropilesBuckling.ts), salvo
+  // que el usuario active el override manual y teclee CR a mano.
+  const buckling   = computeBucklingCR(inp, soil, de);
+  const crAdopted  = inp.crManualOverride ? inp.CR : buckling.crAuto;
+  const crGoverning = inp.crManualOverride
+    ? 'override manual'
+    : buckling.governing;
+  const crHypotheses: BucklingNote[] = inp.crManualOverride
+    ? [{ text: 'CR fijado manualmente (override): el auto-cálculo por estratos está desactivado.', level: 'info' }]
+    : buckling.hypotheses;
+  const R  = Math.max(0, Math.min(1, 1.07 - 0.027 * crAdopted));
 
   // Capacidades (kN)
   const Nc_rd = ((Fc_h + Fa_h) * R) / (1.2 * Fe);
@@ -557,6 +579,24 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     'Guía Fomento eq. 3.5',
   ));
 
+  // Pandeo — veredicto explícito. R=0 (CR≥40) es BLOQUEANTE: el tope estructural
+  // se anula. 0<R<1 es informativo (la reducción ya está incorporada en Nc_rd).
+  checks.push({
+    id: 'buckling',
+    description: R <= 0
+      ? 'Tope estructural nulo por pandeo (CR ≥ 40)'
+      : R < 1
+        ? `Pandeo: tope estructural reducido por R = ${R.toFixed(3)}`
+        : 'Pandeo: sin penalización (R = 1)',
+    value: `R = ${R.toFixed(3)}`,
+    limit: `CR = ${crAdopted.toFixed(2)} (${crGoverning})`,
+    utilization: R <= 0 ? Infinity : 0,
+    status: R <= 0 ? 'fail' : 'neutral',
+    neutral: R > 0,
+    tag: `CR=${crAdopted.toFixed(2)}`,
+    article: 'Guía Fomento §3.6.1 / Tabla 3.6',
+  });
+
   // Tracción (cuando aplica)
   if (includeTension) {
     checks.push(makeCheckQty(
@@ -627,7 +667,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     length: L, nSegments: N_SEGMENTS, segmentLength: dz, segments,
     RfcTheoretical, RfcEmpirical, RfcAdopted, ih, pulloutCapacity,
     dTotal, de, di, re, As_y, As_d,
-    Fc_h, Fa_h, R, Fe, Nc_rd, Tc_rd, ic, it,
+    Fc_h, Fa_h, R, crAdopted, crGoverning, crHypotheses, Fe, Nc_rd, Tc_rd, ic, it,
     he, hp, bc, t_chapa, eg, eg_min,
     Le, Lef, Mpl_rd, Vpl_rd, im, iv,
     sectionClass,

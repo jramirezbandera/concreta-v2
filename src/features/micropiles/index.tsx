@@ -184,6 +184,7 @@ export function MicropilesModule() {
               addLayer={addLayer}
               removeLayer={removeLayer}
               updateLayer={updateLayer}
+              autoCR={result.crAdopted}
             />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">

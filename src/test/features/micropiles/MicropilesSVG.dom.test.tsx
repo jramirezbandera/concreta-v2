@@ -81,11 +81,13 @@ describe('MicropilesSVG', () => {
       />,
     );
     const text = container.textContent ?? '';
-    // ih FTUX ≈ 0.71 (post D1-bis: Rfc cae a ~496 → 350/496 ≈ 0.71),
-    // ic ≈ 0.51 (estructural, no afectado por D1-bis). Formato con
+    // ih FTUX ≈ 0.71 (post D1-bis: Rfc cae a ~496 → 350/496 ≈ 0.71).
+    // ic ≈ 0.52: con el pandeo AUTO (default), el suelo por defecto tiene
+    // E1 granular Nspt=0 → arena floja → CR=8 (R=0.854), algo más severo que
+    // el antiguo CR=7,5 manual (R=0.8675), de ahí 0.51→0.52. Formato con
     // punto decimal — adimensionales no llevan unidad ni coma local.
     expect(text).toMatch(/0\.71/);
-    expect(text).toMatch(/0\.51/);
+    expect(text).toMatch(/0\.52/);
     // Y debe nombrar las dos comprobaciones, no solo los números.
     expect(text).toMatch(/Hundimiento por fuste/);
     expect(text).toMatch(/Tope compresión/);
