@@ -413,14 +413,14 @@ export function MicropilesInputsPanel({
             (recubr. mínimo Tabla 2.3 según inyectado+esfuerzo) sigue aplicando
             en manual; en auto el motor valida que (Dn−de)/2 ≥ r_min. */}
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-          <InputLabel htmlFor="select-coverMode" label="r recubrimiento" sub="Guía 3.6.2" />
+          <InputLabel htmlFor="select-coverMode" label="r recubr." sub="Guía 3.6.2" />
           <select
             id="select-coverMode"
             value={state.coverManualOverride ? 'manual' : 'auto'}
             onChange={(e) => setField('coverManualOverride', e.target.value === 'manual')}
             className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
           >
-            <option value="auto">Auto (= barreno)</option>
+            <option value="auto">Auto</option>
             <option value="manual">Manual</option>
           </select>
         </div>
