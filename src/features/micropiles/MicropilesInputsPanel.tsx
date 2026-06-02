@@ -22,6 +22,8 @@ interface MicropilesInputsPanelProps {
   updateLayer: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
   /** CR de pandeo auto-calculado por el solver (para mostrarlo en modo auto). */
   autoCR?: number;
+  /** Recubrimiento r auto-calculado (= (Dn−de)/2) para mostrarlo en modo auto. */
+  autoCover?: number;
 }
 
 // ── Primitives reused locally (same pattern as RetainingWallInputs) ──────────
@@ -199,7 +201,7 @@ function SelectField<V extends string | number>({
 // ── Inputs panel ─────────────────────────────────────────────────────────────
 
 export function MicropilesInputsPanel({
-  state, setField, soil, addLayer, removeLayer, updateLayer, autoCR,
+  state, setField, soil, addLayer, removeLayer, updateLayer, autoCR, autoCover,
 }: MicropilesInputsPanelProps) {
   return (
     <div className="flex flex-col gap-1">
@@ -213,7 +215,7 @@ export function MicropilesInputsPanel({
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
-        <NumField label="Nc,d" sub="por pilote individual" field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
+        <NumField label="Nc,d" sub="por pilote" field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
         <SelectField<EffortType>
           label="Esfuerzo"
           field="effort"
@@ -405,21 +407,47 @@ export function MicropilesInputsPanel({
             </span>
           </div>
         )}
-        {/* Clamp dinámico de r: el min es el recubrimiento mínimo Tabla 2.3
-            según inyectado y esfuerzo actuales. Si pasas de lechada+comp
-            (20 mm) a mortero+tracción (35 mm), el min sube y el blur de
-            este campo lo clampa al nuevo valor. Evita el silent failure
-            de un usuario que teclea r=5 (que la norma rechaza). */}
-        <NumField
-          label="r"
-          sub="recubr. estructural"
-          field="structuralCover"
-          value={state.structuralCover}
-          unit="mm"
-          min={getMinStructuralCover(state.groutType, state.effort)}
-          max={LIMITS.structuralCover.max}
-          setField={setField}
-        />
+        {/* Recubrimiento estructural r (Guía 3.6.2): por defecto AUTO ⇒ la
+            lechada llena el barreno, r=(Dn−de)/2 y d_struct=Dn. El override
+            "Manual" deja teclear un bulbo reducido. El clamp dinámico del min
+            (recubr. mínimo Tabla 2.3 según inyectado+esfuerzo) sigue aplicando
+            en manual; en auto el motor valida que (Dn−de)/2 ≥ r_min. */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+          <InputLabel htmlFor="select-coverMode" label="r recubrimiento" sub="Guía 3.6.2" />
+          <select
+            id="select-coverMode"
+            value={state.coverManualOverride ? 'manual' : 'auto'}
+            onChange={(e) => setField('coverManualOverride', e.target.value === 'manual')}
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+          >
+            <option value="auto">Auto (= barreno)</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+        {state.coverManualOverride ? (
+          <NumField
+            label="r"
+            sub="valor manual"
+            field="structuralCover"
+            value={state.structuralCover}
+            unit="mm"
+            min={getMinStructuralCover(state.groutType, state.effort)}
+            max={LIMITS.structuralCover.max}
+            setField={setField}
+          />
+        ) : (
+          <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+            <span className="text-[13px] text-text-secondary truncate min-w-0">
+              r<span className="text-[11px] text-text-disabled ml-1">(Dn−de)/2</span>
+            </span>
+            <span
+              aria-label="Recubrimiento estructural auto-calculado"
+              className="shrink-0 max-w-45 text-[12px] font-mono text-text-secondary px-2 py-1"
+            >
+              {autoCover !== undefined ? `${autoCover.toFixed(2)} mm` : '—'}
+            </span>
+          </div>
+        )}
       </CollapsibleSection>
 
       <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">

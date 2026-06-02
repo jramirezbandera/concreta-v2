@@ -59,7 +59,11 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
       {/* Tope estructural */}
       <div className="rounded border border-border-main px-4 py-3">
         <GroupHeader label="Tope estructural" />
-        <ValueRow label="d total (perforación)" value={`${fmt2(result.dTotal)} mm`} />
+        <ValueRow label="d total (bulbo)"       value={`${fmt2(result.dTotal)} mm`} />
+        <ValueRow
+          label="r (recubrimiento)"
+          value={`${fmt2(result.coverAdopted)} mm · ${inp.coverManualOverride ? 'manual' : 'auto'}`}
+        />
         <ValueRow label="As,y (bruta)"          value={`${fmt2(result.As_y)} mm²`} />
         <ValueRow label="As,d (efectiva)"       value={`${fmt2(result.As_d)} mm² (re=${fmt2(result.re)} mm)`} />
         <ValueRow label="Fc,h (hormigón)"       value={`${fmt2(result.Fc_h)} kN`} />

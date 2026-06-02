@@ -932,6 +932,11 @@ export interface MicropilesInputs {
   //   true            ⇒ se usa `CR` tal cual lo teclea el usuario.
   crManualOverride:   boolean;
   CR:                 number;   // factor de pandeo manual (R = 1.07 − 0.027·CR)
+  // Recubrimiento estructural r del tubo dentro de la lechada (Guía 3.6.2).
+  //   false (default) ⇒ auto: la lechada llena el barreno, r = (Dn−de)/2 ⇒
+  //                     d_struct = Dn. `structuralCover` se ignora salvo eco.
+  //   true            ⇒ se usa `structuralCover` tal cual (override manual).
+  coverManualOverride: boolean;
   // Diámetro estructural del bulbo de hormigón (Guía 3.6): d_struct = de + 2·r.
   // r es el recubrimiento efectivo del tubo dentro de la lechada (≠ perforación).
   // El Excel de referencia usa 45,55 mm para Ø88,9 (d_struct = 180 mm).
@@ -967,6 +972,7 @@ export const micropilesDefaults: MicropilesInputs = {
   duration:           'long',
   crManualOverride:   false,                  // auto por defecto (Guía 3.6.1)
   CR:                 7.5,
+  coverManualOverride: false,                 // auto: r = (Dn−de)/2 ⇒ d_struct = Dn
   structuralCover:    45.55,
   baseMoment:         0,
   baseShear:          0,

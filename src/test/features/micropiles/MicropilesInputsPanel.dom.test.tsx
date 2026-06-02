@@ -124,9 +124,11 @@ describe('MicropilesInputsPanel — tubo personalizado', () => {
   });
 
   // ── Guardrail del structuralCover (Issue 2): min = r_min Tabla 2.3 ─────
+  // El campo r editable solo aparece en modo MANUAL (coverManualOverride=true);
+  // por defecto es auto (= barreno) y se muestra de solo lectura.
   describe('structuralCover min dinámico (Issue 2 fix)', () => {
     it('lechada + compresión → r mínimo 20 mm', () => {
-      const { container } = renderPanel();
+      const { container } = renderPanel({ state: { coverManualOverride: true } });
       const input = container.querySelector('input#input-structuralCover') as HTMLInputElement;
       expect(input).not.toBeNull();
       // 15 mm < 20 → out of range.
@@ -139,7 +141,7 @@ describe('MicropilesInputsPanel — tubo personalizado', () => {
 
     it('mortero + tracción → r mínimo sube a 35 mm', () => {
       const { container } = renderPanel({
-        state: { groutType: 'mortero', effort: 'tension' },
+        state: { coverManualOverride: true, groutType: 'mortero', effort: 'tension' },
       });
       const input = container.querySelector('input#input-structuralCover') as HTMLInputElement;
       // 30 mm que antes pasaba con mortero+comp, ahora fuera de rango.

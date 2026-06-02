@@ -138,6 +138,7 @@ export async function exportMicropilesPDF(
     ['Rfc,d teórico',  `${result.RfcTheoretical.toFixed(2)} kN`],
     ['Rfc,d empírico', `${result.RfcEmpirical.toFixed(2)} kN`],
     ['Rfc,d adoptado', `${result.RfcAdopted.toFixed(2)} kN`],
+    ['d bulbo / r',    `${result.dTotal.toFixed(1)} / ${result.coverAdopted.toFixed(1)} mm (${inp.coverManualOverride ? 'manual' : 'auto'})`],
     ['As,y',           `${result.As_y.toFixed(2)} mm²`],
     ['As,d',           `${result.As_d.toFixed(2)} mm²`],
     ['Fc,h',           `${result.Fc_h.toFixed(2)} kN`],

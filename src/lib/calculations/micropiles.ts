@@ -95,6 +95,7 @@ export interface MicropilesResult {
   dTotal: number;                   // mm — diámetro de perforación equivalente
   de: number;                       // mm — diámetro exterior tubo
   di: number;                       // mm — diámetro interior tubo
+  coverAdopted: number;             // mm — recubrimiento estructural r adoptado (auto o manual)
   re: number;                       // mm — pérdida por corrosión radial
   As_y: number;                     // mm² — sección bruta
   As_d: number;                     // mm² — sección efectiva minorada
@@ -148,7 +149,7 @@ function invalid(error: string): MicropilesResult {
     valid: false, error,
     length: 0, nSegments: 0, segmentLength: 0, segments: [],
     RfcTheoretical: 0, RfcEmpirical: 0, RfcAdopted: 0, ih: 0,
-    dTotal: 0, de: 0, di: 0, re: 0, As_y: 0, As_d: 0,
+    dTotal: 0, de: 0, di: 0, coverAdopted: 0, re: 0, As_y: 0, As_d: 0,
     Fc_h: 0, Fa_h: 0, R: 0, crAdopted: 0, crGoverning: '', crHypotheses: [],
     Fe: 0, Nc_rd: 0, Tc_rd: 0, ic: 0,
     he: 0, hp: 0, bc: 0, t_chapa: 0, eg: 0, eg_min: 0,
@@ -362,18 +363,22 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     );
   }
 
-  if (inp.structuralCover < minCoverRequired - 1e-3) {
+  // Recubrimiento adoptado: AUTO ⇒ la lechada llena el barreno, r = (Dn−de)/2
+  // ⇒ d_struct = Dn (Guía 3.6.2: el bulbo estructural es la perforación).
+  // MANUAL ⇒ el valor tecleado (permite un bulbo estructural reducido).
+  const coverAdopted = inp.coverManualOverride ? inp.structuralCover : geomCoverAvailable;
+
+  if (coverAdopted < minCoverRequired - 1e-3) {
     return invalid(
-      `Recubrimiento materializado r = ${inp.structuralCover.toFixed(1)} mm ` +
+      `Recubrimiento materializado r = ${coverAdopted.toFixed(1)} mm ` +
       `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${groutLabel}). ` +
       `Aumenta el campo "r" en Ejecución y entorno al valor mínimo normativo.`,
     );
   }
   // Diámetro estructural del bulbo de hormigón (Guía 3.6.2):
-  // d_struct = de + 2·r, donde r es el recubrimiento efectivo del tubo
-  // dentro de la lechada estructural. Debe cumplirse d_struct ≤ Dn
-  // (perforación) para que el bulbo quepa físicamente dentro del barreno.
-  const dTotal   = de + 2 * inp.structuralCover;             // mm
+  // d_struct = de + 2·r. En auto r=(Dn−de)/2 ⇒ d_struct = Dn exactamente.
+  // Debe cumplirse d_struct ≤ Dn para que el bulbo quepa en el barreno.
+  const dTotal   = de + 2 * coverAdopted;                    // mm
   const dPerfMm  = inp.drillDiameter;                        // mm (v5: ya en mm)
   if (dTotal > dPerfMm + 1e-3) {
     return invalid(
@@ -666,7 +671,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     valid: true,
     length: L, nSegments: N_SEGMENTS, segmentLength: dz, segments,
     RfcTheoretical, RfcEmpirical, RfcAdopted, ih, pulloutCapacity,
-    dTotal, de, di, re, As_y, As_d,
+    dTotal, de, di, coverAdopted, re, As_y, As_d,
     Fc_h, Fa_h, R, crAdopted, crGoverning, crHypotheses, Fe, Nc_rd, Tc_rd, ic, it,
     he, hp, bc, t_chapa, eg, eg_min,
     Le, Lef, Mpl_rd, Vpl_rd, im, iv,

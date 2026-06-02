@@ -12,11 +12,16 @@ import {
   RE_BY_CORROSION_MATRIX, getCorrosionRe,
 } from '../../data/micropileLookups';
 
-// FTUX replica la hoja Excel de referencia, que usó CR=7,5 introducido a mano.
-// Por eso el baseline se fija en override MANUAL: así los números Excel
-// (Nc_rd=686,67 kN, etc.) se mantienen al margen del auto-cálculo de pandeo,
-// que para este suelo (E1 granular Nspt=0 → arena floja) adoptaría CR=8.
-const baseInp  = { ...micropilesDefaults, crManualOverride: true, CR: 7.5 };
+// FTUX replica la hoja Excel de referencia, que usó CR=7,5 y recubrimiento
+// r=45,55 mm (d_struct=180) introducidos a mano. Por eso el baseline fija
+// AMBOS overrides en MANUAL: así los números Excel (Nc_rd=686,67 kN, Fc_h=394,19,
+// d_struct=180, etc.) se mantienen al margen de los auto-cálculos (pandeo CR=8
+// y recubrimiento (Dn−de)/2 ⇒ d_struct=Dn), que tienen sus propios tests.
+const baseInp  = {
+  ...micropilesDefaults,
+  crManualOverride: true, CR: 7.5,
+  coverManualOverride: true, structuralCover: 45.55,
+};
 const baseSoil = micropilesSoilDefaults.map((l) => ({ ...l }));
 
 // ── FTUX defaults ─────────────────────────────────────────────────────────────
@@ -392,6 +397,40 @@ describe('Pandeo — oracle Tabla 3.6 (hand-calc)', () => {
     expect(r.crGoverning).toContain('E1');
     expect(r.crAdopted).toBeCloseTo(10.80, 2);
     expect(r.R).toBeCloseTo(0.7784, 4);
+  });
+});
+
+// ── Recubrimiento estructural: auto (d_struct=Dn) vs manual ───────────────────
+describe('Recubrimiento estructural — auto vs override', () => {
+  const tubeDe = 88.9;   // Ø88,9 default → de=88.9 mm
+
+  it('auto: r = (Dn−de)/2 ⇒ d_struct = Dn exactamente', () => {
+    const r = calcMicropiles(
+      { ...micropilesDefaults, crManualOverride: true, CR: 7.5, coverManualOverride: false, drillDiameter: 185 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(true);
+    expect(r.coverAdopted).toBeCloseTo((185 - tubeDe) / 2, 2);  // 48.05
+    expect(r.dTotal).toBeCloseTo(185, 2);                        // bulbo = barreno
+  });
+
+  it('override manual usa el r tecleado (d_struct = de + 2r)', () => {
+    const r = calcMicropiles(
+      { ...micropilesDefaults, crManualOverride: true, CR: 7.5, coverManualOverride: true, structuralCover: 45.55, drillDiameter: 185 },
+      baseSoil,
+    );
+    expect(r.coverAdopted).toBeCloseTo(45.55, 2);
+    expect(r.dTotal).toBeCloseTo(180, 2);   // replica el Excel (d_struct=180<185)
+  });
+
+  it('auto con barreno demasiado pequeño (< r_min) → invalida', () => {
+    // Dn=110, de=88.9 → (110−88.9)/2 = 10.55 mm < 20 (lechada+compresión).
+    const r = calcMicropiles(
+      { ...micropilesDefaults, coverManualOverride: false, drillDiameter: 110 },
+      baseSoil,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/recubrimiento/i);
   });
 });
 

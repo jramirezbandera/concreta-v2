@@ -203,7 +203,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',
-  'micropiles': '8',          // v8 (2026-06-02): pandeo CR auto-calculado (crManualOverride) + Cu por estrato granular. v7: groutType (lechada/mortero) para recubrimiento mínimo Tabla 2.3 Guía Fomento. v6: tubo personalizado. v5: drillDiameter en mm. v4: cota→profundidad positiva.
+  'micropiles': '9',          // v9 (2026-06-02): recubrimiento r auto (coverManualOverride → d_struct=Dn). v8: pandeo CR auto-calculado (crManualOverride) + Cu por estrato granular. v7: groutType (lechada/mortero) para recubrimiento mínimo Tabla 2.3 Guía Fomento. v6: tubo personalizado. v5: drillDiameter en mm. v4: cota→profundidad positiva.
   'empresillado': '1',
   'masonry-walls': '1',
   'timber-beams': '1',
