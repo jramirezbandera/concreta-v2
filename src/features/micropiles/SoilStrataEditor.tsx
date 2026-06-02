@@ -24,7 +24,7 @@ export const SOIL_LIMITS = {
   Nspt:      { min: 0,    max: 200  },     // golpes/30cm
   su:        { min: 0,    max: 1000 },     // kN/m²
   rflim:     { min: 0,    max: 5    },     // MPa
-  Cu:        { min: 1,    max: 50   },     // D60/D10 (coef. uniformidad, granulares)
+  Cu:        { min: 0,    max: 50   },     // D60/D10 — opcional; 0 = sin dato (→<2)
 } as const;
 
 interface FieldProps {
@@ -33,10 +33,12 @@ interface FieldProps {
   unit?: string;
   min?: number;
   max?: number;
+  /** Tooltip en la etiqueta (campos no obvios: Cu, rfℓim…). */
+  hint?: string;
   onChange: (n: number) => void;
 }
 
-function MiniNumField({ label, value, unit, min, max, onChange }: FieldProps) {
+function MiniNumField({ label, value, unit, min, max, hint, onChange }: FieldProps) {
   const [local, setLocal] = useState(String(value));
   // Resync cuando el valor externo cambia (añadir/quitar estratos reordena
   // las cards y antes el local stale enmascaraba el valor real hasta el blur).
@@ -52,7 +54,12 @@ function MiniNumField({ label, value, unit, min, max, onChange }: FieldProps) {
   return (
     <div className="flex flex-col">
       <label className="flex items-center justify-between gap-1.5 min-w-0">
-        <span className="text-[11px] text-text-secondary truncate">{label}</span>
+        <span
+          className={`text-[11px] text-text-secondary truncate ${hint ? 'underline decoration-dotted decoration-text-disabled underline-offset-2 cursor-help' : ''}`}
+          title={hint}
+        >
+          {label}
+        </span>
         <span className="flex shrink-0">
           <input
             type="text"
@@ -200,7 +207,13 @@ function StrataCard({
               arena floja saturada Cu<2 la clasifica como terreno inestable.
               Vacío (0) ⇒ se trata como Cu<2 (sin dato granulométrico). */}
           {layer.type === 'granular' && (
-            <MiniNumField label="Cu" value={layer.Cu ?? 0} {...SOIL_LIMITS.Cu} onChange={(n) => onUpdate(layer.id, 'Cu', n)} />
+            <MiniNumField
+              label="Cu (opc.)"
+              value={layer.Cu ?? 0}
+              hint="Coef. uniformidad D60/D10 (opcional). Vacío o 0 ⇒ se asume Cu<2. Solo afecta al pandeo en arenas (Guía 3.6.1)."
+              {...SOIL_LIMITS.Cu}
+              onChange={(n) => onUpdate(layer.id, 'Cu', n)}
+            />
           )}
           <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
         </div>
