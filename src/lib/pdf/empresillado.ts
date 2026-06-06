@@ -2,10 +2,9 @@
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm, single page.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -46,7 +45,7 @@ export async function exportEmpresalladoPDF(
   const SVG_H = 90;   // mm — matches 600×480 hidden SVG aspect (wider elevation view)
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
   // ── Right column: inputs ─────────────────────────────────────────────────────

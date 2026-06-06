@@ -9,10 +9,9 @@
 //   5. Footer
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type PunchingInputs } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -57,11 +56,11 @@ export async function exportPunchingPDF(
   const SECT_H  = Math.round(HALF_W * 0.5);
 
   if (svgEls[0]) {
-    await svg2pdf(svgEls[0], doc, { x: M, y: SVG_Y, width: HALF_W, height: PLAN_H });
+    await embedSvgAsImage(doc, svgEls[0], { x: M, y: SVG_Y, width: HALF_W, height: PLAN_H });
   }
   if (svgEls[1]) {
     const sectY = SVG_Y + (PLAN_H - SECT_H) / 2;  // vertically centered
-    await svg2pdf(svgEls[1], doc, { x: M + HALF_W + 4, y: sectY, width: HALF_W, height: SECT_H });
+    await embedSvgAsImage(doc, svgEls[1], { x: M + HALF_W + 4, y: sectY, width: HALF_W, height: SECT_H });
   }
 
   // ── Inputs — 2 columns ───────────────────────────────────────────────────────

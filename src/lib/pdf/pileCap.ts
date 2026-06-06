@@ -3,10 +3,9 @@
 // jsPDF built-in fonts (Helvetica) only cover latin-1; replace non-latin chars.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -50,7 +49,7 @@ export async function exportPileCapPDF(
   const svgY  = M + 12;
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
   }
 
   // ── Right column: inputs + key results ─────────────────────────────────────

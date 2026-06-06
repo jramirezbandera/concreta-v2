@@ -11,14 +11,13 @@
 // Greek letters (λ, χ, β) and special chars must be substituted with ASCII.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../calculations/steelColumns';
 import { type SteelCheckStatus } from '../calculations/steelBeams';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 15;   // margin mm
 const CW = PAGE_W - 2 * M;  // content width = 180mm
@@ -212,7 +211,7 @@ export async function exportSteelColumnsPDF(
     y = checkPageBreak(doc, y, rendH + 10);
 
     try {
-      await svg2pdf(svgEl, doc, { x: M, y, width: CW, height: rendH });
+      await embedSvgAsImage(doc, svgEl, { x: M, y, width: CW, height: rendH });
       y += rendH + 2;
     } catch {
       // svg2pdf failed — skip diagram silently
@@ -235,7 +234,7 @@ export async function exportSteelColumnsPDF(
     const DIAG = CW * 0.5;
     y = checkPageBreak(doc, y, DIAG + 10);
     try {
-      await svg2pdf(interEl, doc, { x: M + (CW - DIAG) / 2, y, width: DIAG, height: DIAG });
+      await embedSvgAsImage(doc, interEl, { x: M + (CW - DIAG) / 2, y, width: DIAG, height: DIAG });
       y += DIAG + 2;
     } catch {
       // svg2pdf failed — skip silently

@@ -10,11 +10,10 @@
 //   6. Footer
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type ForjadosInputs } from '../../data/defaults';
 import { type ForjadosResult } from '../calculations/rcSlabs';
 import { type CheckRow } from '../calculations/types';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -60,7 +59,7 @@ export async function exportForjadosPDF(
   const SVG_Y = M + 12;
   const SVG_H = 65;
   if (svgEls[0]) {
-    await svg2pdf(svgEls[0], doc, { x: M, y: SVG_Y, width: CONTENT_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEls[0], { x: M, y: SVG_Y, width: CONTENT_W, height: SVG_H });
   }
 
   // ── Inputs — 2 columns ───────────────────────────────────────────────────

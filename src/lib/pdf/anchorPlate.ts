@@ -8,11 +8,10 @@
 //   6. Verdict banner + footer
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
 import { BOTTOM_ANCHORAGE_LABEL, TOP_CONNECTION_LABEL } from '../../data/anchorBars';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -174,7 +173,7 @@ export async function exportAnchorPlatePDF(
     const DIVIDER_H = 4;
     ensure(rendH + 2 + CAPTION_H + DIVIDER_H);
     try {
-      await svg2pdf(svgEl, doc, { x: M, y, width: CW, height: rendH });
+      await embedSvgAsImage(doc, svgEl, { x: M, y, width: CW, height: rendH });
       y += rendH + 2;
     } catch {
       // L6 (Phase 4): si el render del SVG falla, en lugar de un hueco

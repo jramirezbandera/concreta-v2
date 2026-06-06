@@ -6,10 +6,9 @@
 // Superscripts (⁴, ³, ²) and mid-dots must be substituted before passing to doc.text().
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -56,7 +55,7 @@ export async function exportCompositeSectionPDF(
   const svgY  = M + 12;
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
   }
 
   // ── Right column: inputs + key section properties ───────────────────────────

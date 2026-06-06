@@ -2,12 +2,11 @@
 // A4 portrait — input summary, SVG section diagram, check table.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -100,7 +99,7 @@ export async function exportRetainingWallPDF(
       const svgW = svgZoneW;
       const svgH = svgW * (430 / 380);
       try {
-        await svg2pdf(svgNode, doc, { x: svgZoneX, y: startY, width: svgW, height: svgH });
+        await embedSvgAsImage(doc, svgNode, { x: svgZoneX, y: startY, width: svgW, height: svgH });
         svgEndY = startY + svgH;
       } catch {
         // SVG render failed — continue without diagram
@@ -231,7 +230,7 @@ export async function exportRetainingWallPDF(
     const dW = PAGE_W - 2 * M;
     const dH = dW * aspect;
     try {
-      await svg2pdf(node, doc, { x: M, y: M + 14, width: dW, height: dH });
+      await embedSvgAsImage(doc, node, { x: M, y: M + 14, width: dW, height: dH });
     } catch {
       // SVG render failed — leave page blank rather than crashing the export
     }

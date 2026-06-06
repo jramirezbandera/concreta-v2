@@ -3,7 +3,6 @@
 // Page: A4 portrait, margins 20mm, grayscale section diagram + two results tables.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus, pickSectionInputs } from '../calculations/rcBeams';
 import { solveSectionAtMoment } from '../calculations/rcBeamsSection';
@@ -11,7 +10,7 @@ import { buildSectionNarrative } from '../../features/rc-beams/rcBeamNarrative';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 20;          // margin
 const CW = PAGE_W - 2 * M;  // content width = 170mm
@@ -214,14 +213,14 @@ export async function exportRCBeamsPDF(
 
   if (svgVano) {
     try {
-      await svg2pdf(svgVano, doc, { x: xVano, y: svgY, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgVano, { x: xVano, y: svgY, width: SVG_W, height: SVG_H });
     } catch {
       console.warn('rc-beams PDF: failed to render VANO SVG');
     }
   }
   if (svgApoyo) {
     try {
-      await svg2pdf(svgApoyo, doc, { x: xApoyo, y: svgY, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgApoyo, { x: xApoyo, y: svgY, width: SVG_W, height: SVG_H });
     } catch {
       console.warn('rc-beams PDF: failed to render APOYO SVG');
     }
@@ -351,17 +350,17 @@ async function exportRCBeamsSimplePDF(
 
   if (svgStrain) {
     try {
-      await svg2pdf(svgStrain, doc, { x: xStrain, y, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgStrain, { x: xStrain, y, width: SVG_W, height: SVG_H });
     } catch { console.warn('rc-beams PDF simple: failed to render STRAIN SVG'); }
   }
   if (svgSection) {
     try {
-      await svg2pdf(svgSection, doc, { x: xSection, y, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgSection, { x: xSection, y, width: SVG_W, height: SVG_H });
     } catch { console.warn('rc-beams PDF simple: failed to render SECTION SVG'); }
   }
   if (svgForces) {
     try {
-      await svg2pdf(svgForces, doc, { x: xForces, y, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgForces, { x: xForces, y, width: SVG_W, height: SVG_H });
     } catch { console.warn('rc-beams PDF simple: failed to render FORCES SVG'); }
   }
 

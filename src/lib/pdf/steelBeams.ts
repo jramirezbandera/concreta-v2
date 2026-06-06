@@ -7,7 +7,6 @@
 // with ASCII equivalents before passing to doc.text().
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type SteelBeamInputs, type BeamType } from '../../data/defaults';
 import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { BEAM_CASES } from '../calculations/beamCases';
@@ -15,7 +14,7 @@ import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 import { formatQuantity, formatNumber, getUnitLabel } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 
 const M = 20;   // page margin mm
 
@@ -105,7 +104,7 @@ export async function exportSteelBeamsPDF(
   const svgY  = M + 12;
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
   }
 
   // ── SVG: M/V/δ diagrams ──────────────────────────────────────────────────────
@@ -115,7 +114,7 @@ export async function exportSteelBeamsPDF(
   if (diagSvg) {
     const DIAG_W = 90;
     const DIAG_H = 48;   // 420:220 at 90mm → 47mm
-    await svg2pdf(diagSvg, doc, { x: M, y: svgY + SVG_H + 3, width: DIAG_W, height: DIAG_H });
+    await embedSvgAsImage(doc, diagSvg, { x: M, y: svgY + SVG_H + 3, width: DIAG_W, height: DIAG_H });
     diagramsH = DIAG_H + 3;
   }
 

@@ -10,10 +10,9 @@
 //   6. Footer
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -67,7 +66,7 @@ export async function exportTimberBeamsPDF(
   const SVG_H  = Math.round(SVG_W * 200 / 760);     // ~44mm (exact aspect of 760×200)
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: M, y: SVG_Y, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: M, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
   // ── Inputs — 2 columns (85mm each) ──────────────────────────────────────────

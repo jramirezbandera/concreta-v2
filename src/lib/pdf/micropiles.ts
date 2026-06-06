@@ -3,13 +3,12 @@
 // + tabla de comprobaciones.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../calculations/micropiles';
 import type { CheckStatus } from '../calculations/types';
 import { CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes';
 
-import { PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
 
 /**
  * Renderiza la línea "Tubo: ..." del PDF. Si es del catálogo, usa el label
@@ -111,7 +110,7 @@ export async function exportMicropilesPDF(
       const sW = svgZoneW;
       const sH = sW * (460 / 500);
       try {
-        await svg2pdf(node, doc, { x: svgZoneX, y: startY, width: sW, height: sH });
+        await embedSvgAsImage(doc, node, { x: svgZoneX, y: startY, width: sW, height: sH });
         svgEndY = startY + sH;
       } catch {
         // continue without diagram
@@ -322,7 +321,7 @@ export async function exportMicropilesPDF(
     const dW = PAGE_W - 2 * M;
     const dH = dW * aspect;
     try {
-      await svg2pdf(node, doc, { x: M, y: M + 14, width: dW, height: dH });
+      await embedSvgAsImage(doc, node, { x: M, y: M + 14, width: dW, height: dH });
     } catch {
       // continue
     }

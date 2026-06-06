@@ -3,12 +3,11 @@
 // Single SVG (planta + sección + diagrama). Inputs in InputsPanel order.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
-import { PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
 
 const M = 20;
 
@@ -54,7 +53,7 @@ export async function exportIsolatedFootingPDF(
   const SVG_H = 107;
 
   if (svgEl) {
-    await svg2pdf(svgEl, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
+    await embedSvgAsImage(doc, svgEl, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
   // ── Right column: inputs in panel order ──────────────────────────────────────

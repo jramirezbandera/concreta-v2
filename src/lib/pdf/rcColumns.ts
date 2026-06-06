@@ -2,13 +2,12 @@
 // A4 portrait, margins 20mm.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rcColumns';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
 const M  = 20;
 const CW = PAGE_W - 2 * M;
@@ -94,7 +93,7 @@ export async function exportRCColumnsPDF(
   const svgEl = document.getElementById('rc-columns-svg-pdf')?.querySelector('svg') as SVGSVGElement | null;
   if (svgEl) {
     try {
-      await svg2pdf(svgEl, doc, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
+      await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
     } catch {
       console.warn('rc-columns PDF: failed to render SVG');
     }
@@ -116,8 +115,8 @@ export async function exportRCColumnsPDF(
     const DIAG_H = 60;
     const diagGap = CW * 0.04;
     const diagXy = M + (CW - 2 * DIAG_W - diagGap) / 2;
-    try { await svg2pdf(elIntY, doc, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
-    try { await svg2pdf(elIntZ, doc, { x: diagXy + DIAG_W + diagGap, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    try { await embedSvgAsImage(doc, elIntY, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    try { await embedSvgAsImage(doc, elIntZ, { x: diagXy + DIAG_W + diagGap, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
     const interCaptionY = diagY + DIAG_H + 3;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
