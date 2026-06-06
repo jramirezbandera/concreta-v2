@@ -22,7 +22,6 @@
 //   I3. Estado `invalid` → 1 página con banner, metadata y footer intactos.
 
 import jsPDF from 'jspdf';
-import { svg2pdf } from 'svg2pdf.js';
 import {
   MASONRY_ENGINE_VERSION,
   type MasonryWallState,
@@ -51,6 +50,7 @@ import {
   drawHeader,
   drawFootersAllPages,
   drawTable,
+  embedSvgAsImage,
   inputsFingerprint,
   FOOTER_RESERVE,
   type TableCol,
@@ -147,9 +147,12 @@ export async function exportMasonryWallsPDF({
   const SVG_X = M;
   const SVG_Y = contentY;
   if (svgEl) {
-    // svg2pdf se ejecuta sobre la página activa — la 1 en este momento. Antes
-    // de cualquier addPage() para no embeber en página equivocada.
-    await svg2pdf(svgEl, doc, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
+    // Se incrusta sobre la página activa (la 1) antes de cualquier addPage().
+    // Rasterizado a PNG en vez de svg2pdf: los degradados/opacidad del SVG
+    // generaban un stream que Acrobat rechazaba ("error en esta página").
+    // Ver embedSvgAsImage en utils.ts. Canary: muros primero; el resto de
+    // módulos siguen con svg2pdf hasta confirmar en Acrobat.
+    await embedSvgAsImage(doc, svgEl, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
   // Veredicto (col derecha)

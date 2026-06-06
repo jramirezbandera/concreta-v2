@@ -445,3 +445,81 @@ function canonicalStringify(value: unknown): string {
   const keys = Object.keys(obj).sort();
   return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonicalStringify(obj[k])).join(',') + '}';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SVG → PNG embed (Acrobat-safe)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// svg2pdf.js@2.7 traduce los degradados (linearGradient + stop-opacity) y la
+// opacidad de grupo de nuestros SVG a diccionarios de shading/pattern y
+// soft-mask (ExtGState) que PDF.js tolera pero Acrobat rechaza ("Hay un error
+// en esta página"). Imprimir a la impresora "Adobe PDF" desde Chrome re-parsea
+// el stream y falla igual.
+//
+// Solución: rasterizar el SVG a PNG en un canvas y meterlo como imagen
+// (XObject) con addImage — un PNG lo lee CUALQUIER visor. Pierde nitidez
+// vectorial (es un diagrama pequeño; a 3x apenas se nota) a cambio de
+// compatibilidad total. Misma firma async que svg2pdf para sustitución directa.
+
+const SVG_RASTER_SCALE = 3;            // sobre-muestreo para nitidez
+const PX_PER_MM = 96 / 25.4;           // 96 dpi
+
+interface EmbedBox { x: number; y: number; width: number; height: number; }
+
+/**
+ * Rasteriza `svgEl` a PNG y lo incrusta en `doc` dentro de la caja (mm) dada.
+ * Devuelve true si se incrustó, false si falló (el llamador continúa sin
+ * diagrama — un PDF sin la figura es mejor que un PDF que Acrobat no abre).
+ *
+ * Debe ejecutarse en navegador (usa Image/canvas); en jsdom los módulos ya
+ * saltan el embed porque el elemento SVG no existe en el DOM de test.
+ */
+export async function embedSvgAsImage(
+  doc: jsPDF,
+  svgEl: SVGSVGElement,
+  box: EmbedBox,
+): Promise<boolean> {
+  try {
+    // Clon para no mutar el SVG vivo; xmlns explícito para que el data-URL
+    // renderice fuera del DOM.
+    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const pxW = Math.max(1, Math.round(box.width * PX_PER_MM * SVG_RASTER_SCALE));
+    const pxH = Math.max(1, Math.round(box.height * PX_PER_MM * SVG_RASTER_SCALE));
+    // width/height explícitos en px: con viewBox presente, el navegador escala
+    // el contenido a esta caja (preserveAspectRatio por defecto).
+    clone.setAttribute('width', String(pxW));
+    clone.setAttribute('height', String(pxH));
+
+    const svgText = new XMLSerializer().serializeToString(clone);
+    const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+
+    const img = new Image();
+    img.width = pxW;
+    img.height = pxH;
+    img.src = svgUrl;
+    // decode() resuelve cuando la imagen está lista para dibujar; fallback a
+    // onload por si decode no está disponible.
+    if (typeof img.decode === 'function') {
+      await img.decode();
+    } else {
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error('svg image load failed'));
+      });
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pxW;
+    canvas.height = pxH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.drawImage(img, 0, 0, pxW, pxH);
+    const png = canvas.toDataURL('image/png');
+
+    doc.addImage(png, 'PNG', box.x, box.y, box.width, box.height);
+    return true;
+  } catch {
+    return false;
+  }
+}
