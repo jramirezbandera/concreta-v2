@@ -579,3 +579,113 @@ requiere un motor de búsqueda/optimización de armado nuevo.
 **Context:** /autoplan 2026-05-17, propuesta de la voz Codex CEO, diferida P3.
 
 **Depends on:** diagrama N-M V1; idealmente la superficie 3D también.
+
+---
+
+## Crucetas (punzonamiento — pilar metálico) — diferidos de v1
+
+Origen: /office-hours + /plan-eng-review + voz externa Codex (2026-06-06).
+Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/Javier-main-design-20260606-162704.md`.
+Todos dependen de v1 (modo `pilar-cruceta`, interior + zapata) shipeado y validado.
+
+### Crucetas V2.next — borde / esquina + forjado (con distancia al borde)
+
+**Status:** REVERTIDO (2026-06-07 eng-review, voz externa Codex). Se implementó una primera
+versión (`crossControlPerimeter` por posición + UI + SVG) pero el **eng-review la revirtió del
+producto** por un fallo de seguridad: la forma cerrada borde/esquina **quita el brazo del borde
+libre pero NO trunca el offset 2d de los brazos que quedan ni `uTip`**, y no hay input de
+distancia al borde. Para un pilar de borde real (borde libre a < 2d de un brazo paralelo) eso
+**sobreestima u1/uTip y subestima vEd → inseguro**. `calcCruceta` ahora rechaza posición ≠
+interior y sustrato ≠ zapata. La forma cerrada sigue en `crossControlPerimeter` (con tests
+unitarios) **solo como semilla**, marcada `⚠️ NOT PRODUCTION`, no cableada al producto.
+
+**Qué hace falta para hacerlo BIEN (spec del modelo de borde):**
+- Input(s) de **distancia del pilar al borde libre** (uno para borde, dos para esquina).
+- **Truncar** `u1`, `uCore` y especialmente `uTip` en el borde libre (el offset 2d que cae fuera
+  del hormigón no cuenta). Recortar el arco real, no una fracción fija 1/½/¼.
+- Coherencia con la convención de `punching.ts` (2cx+cy para borde): fijar la orientación de la
+  placa respecto al borde (plateA ∥ borde) y verificar que no cambia el signo de seguridad en
+  placas alargadas (Codex).
+- **Kj sin concentración hacia lados libres** (margen real = 0 en el borde): no usar zapata
+  centrada para `ar/br`.
+- Checks propios de **forjado/losa de transferencia**: flexión local, armado sup/inf real según
+  signo del momento, anclaje junto al borde, punzonamiento con armadura si existe.
+- **Hand-calc** contra un ejemplo CE/EC2 de pilar de borde antes de re-exponer en UI.
+
+**What (original):** extender el modo crucetas a posiciones borde (3 brazos) y esquina (2 brazos)
+y al sustrato forjado/losa de transferencia. **Depends on:** spike aislado de la geometría
+truncada (design doc Open Q #4 ya lo marcaba como la pieza más arriesgada).
+
+**Why:** v1 solo cubre interior+zapata para reducir superficie de riesgo en una primera release
+de cálculo de seguridad. Borde/esquina y forjado son casos reales frecuentes.
+
+**Pros:** cubre el grueso de los casos de obra. **Cons:** la geometría cerrada del perímetro
+por posición es donde puede esconderse un error; validar cada una a mano.
+
+**Depends on:** v1 + caso patrón validado. `crossControlPerimeter` ya diseñado para n_arms.
+
+### Crucetas V2 — modelo detallado de soldadura
+
+**What:** soldadura con excentricidad, torsión, longitudes de retorno y verificación de que el
+ala/alma del pilar entrega la fuerza a cada UPN (Codex #12).
+
+**Why:** v1 hace un check básico de garganta (CTE DB-SE-A 8.6). El detalle real es más exigente.
+
+**Pros:** seguridad del nudo. **Cons:** modelo de línea de soldadura no trivial.
+
+### Crucetas V2 — introducción de carga pilar→cruceta + checks locales
+
+**What:** plastificación/abolladura local de ala/alma de la placa, crippling, weld tear-out,
+camino de carga del pilar a las crucetas (Codex #13).
+
+**Why:** con placa de testa el camino es pilar→placa→crucetas; los fallos locales en ese camino
+no están cubiertos en v1. **Cons:** varios estados límite locales nuevos.
+
+### Crucetas V2 — interfaz grout / placa de nivelación
+
+**What:** modelar la interfaz de apoyo (grout, mortero, placa de nivelación, rugosidad) y βj por
+tipo de interfaz (Codex #17).
+
+**Why:** v1 asume acero-hormigón directo o lecho de mortero (βj=2/3). El detalle constructivo
+real varía f_jd. **Cons:** más inputs de detalle.
+
+### Crucetas V2 — solver de distribución de presión (quitar capacity-stacking)
+
+**What:** resolver/acotar la distribución real de presión bajo la cruz en vez de consumir el
+bloque f_jd a tope simultáneamente en flexión, cortante, soldadura, aplastamiento y punzonamiento
+(Codex #8).
+
+**Why:** v1 acota conservadoramente (capacity stacking); un solver de equilibrio daría crucetas
+más económicas. **Cons:** complejidad alta; solo merece la pena si v1 sale muy conservador.
+
+### Crucetas V2 — α (Kj concentración EC3) > 1
+
+**Status:** DONE solo INTERIOR+ZAPATA (2026-06-06, eng-review 2026-06-07) — `concentrationKj(a,b,
+ar,br,h)` extraído a `ec3BasePlate.ts` (fuente única; `anchorPlate.bearingConcentration` delega,
+math idéntica, regresión verde). En `cruceta.ts`, `solveAlpha` itera Ac0↔b_eff↔L_eff (área
+cargada = cuadrado equivalente √Acruz, caps EC3 incl. cono a₁≤a₀+H) hasta |Δf_jd|<0.1% o 5 iter.
+Toggle opt-in `useConcentration` (default off), solo zapata interior. Results/PDF muestran Kj.
+Tests: off→Kj=1, on→1<Kj≤3 sube f_jd/Vcap, zapata enorme→Kj=3, iteración determinista.
+
+**Caveats pendientes (Codex 2026-06-07, hacer antes de ship público):**
+- El cuadrado equivalente √Acruz idealiza una cruz (no compacta) como rectángulo EC3. Es
+  mildly-conservador para interior (√Acruz>placa → Kj menor) pero **no contrastado a mano** —
+  hand-calc de Kj interior antes de ship.
+- Cuando llegue borde/esquina (V2.next): **NO aplicar concentración hacia lados libres** (margen
+  real = 0). Hoy ya está bloqueado porque borde/esquina están revertidos.
+
+**What (original):** usar el factor de concentración real Kj=√(Ac1/Ac0) (reusar
+`bearingConcentration` de anchorPlate) en vez de α=1.
+
+### Crucetas V2 — distancias mínimas (borde de zapata, huecos, recubrimiento)
+
+**What:** checks de proximidad a borde de zapata, huecos, discontinuidades de armado, y
+dimensiones finitas de la cimentación (Codex #11).
+
+**Why:** v1 es interior y asume zapata suficientemente grande. **Cons:** más geometría de contexto.
+
+### Crucetas V2 — pilares 2UPN / CHS
+
+**What:** soportar pilares de sección 2UPN cajón y CHS (huella no rectangular para soldar 4 brazos).
+
+**Why:** v1 solo HEB/HEA/IPE. **Cons:** geometría de soldadura y huella no triviales.

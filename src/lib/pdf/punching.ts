@@ -104,42 +104,80 @@ export async function exportPunchingPDF(
     ry += LH;
   };
 
-  // Left: geometry + loads
-  lSecHeader('GEOMETRIA Y CARGAS');
-  if (inp.isCircular) {
-    lRow(`Soporte circular: D = ${inp.cx} mm`);
-  } else {
-    lRow(`Soporte: cx = ${inp.cx} mm`, `cy = ${inp.cy} mm`);
-  }
-  lRow(`Canto eficaz: d = ${inp.d} mm`);
-  lRow(`Posicion: ${POSITION_LABEL[inp.position] ?? inp.position}`);
-  lRow(`beta = ${result.beta.toFixed(2)}`);
-  ly += 1;
-  lRow(`VEd = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
-  lRow(`vEd,0 (u0) = ${result.vEd0.toFixed(3)} N/mm2`);
-  lRow(`vEd (u1) = ${result.vEd.toFixed(3)} N/mm2`);
+  const cru = result.cruceta;
+  if (cru) {
+    // ── Cruceta mode ──────────────────────────────────────────────────────────
+    // Left: pilar + placa + cruceta + carga
+    lSecHeader('PILAR Y PLACA');
+    lRow(`Pilar: ${inp.colType} ${inp.colSize}`, `Pos: ${POSITION_LABEL[inp.position] ?? inp.position}`);
+    lRow(`Placa: ${inp.plateA}x${inp.plateB}x${inp.plateT} mm`);
+    lRow(`Sustrato: ${inp.substrate === 'forjado' ? 'Forjado' : 'Zapata'}`, `beta = ${cru.beta.toFixed(2)}`);
+    ly += 1;
+    lSecHeader('CRUCETA');
+    lRow(`UPN ${cru.upnSize} (${cru.steelGrade}), Clase ${cru.upnClass}`);
+    lRow(`L_eff = ${cru.Leff.toFixed(0)} mm`, `b_eff = ${cru.bEff.toFixed(0)} mm`);
+    lRow(`L_eff,max = ${cru.LeffMax.toFixed(0)} mm`);
+    lRow(`Garganta a = ${inp.weldThroat} mm`);
+    ly += 1;
+    lSecHeader('CARGA');
+    lRow(`N (axil ELU) = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
+    lRow(`N de calculo = ${cru.Vdesign.toFixed(0)} kN${cru.reliefApplied ? ' (terreno)' : ''}`);
 
-  // Right: materials + armadura + resultados
-  rSecHeader('MATERIALES');
-  rRow(`fck = ${inp.fck} N/mm2`, `fyk = ${inp.fyk} N/mm2`);
-  ry += 1;
-  rSecHeader('ARMADURA FLEXION');
-  rRow(`ph sup: ph${inp.barDiamSup}/${inp.sSup} mm`);
-  rRow(`ph inf: ph${inp.barDiamInf}/${inp.sInf} mm`);
-  rRow(`rhoL = ${(result.rhoL * 100).toFixed(3)} %`);
-  ry += 1;
-  rSecHeader('PERIMETROS CRITICOS');
-  rRow(`u0 = ${result.u0.toFixed(0)} mm`);
-  rRow(`u1 = ${result.u1.toFixed(0)} mm`);
-  rRow(`uout = ${result.uout.toFixed(0)} mm`);
-  rRow(`rout = ${result.rOut.toFixed(0)} mm`);
-  ry += 1;
-  rSecHeader('RESISTENCIAS');
-  rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm·mm`);
-  rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm·mm`);
-  if (inp.hasShearReinf && result.vRdcs !== undefined) {
-    rRow(`vRd,cs = ${result.vRdcs.toFixed(3)} N/mm·mm`);
-    rRow(`ph${inp.swDiam} x ${inp.swLegs} ram., sr = ${inp.sr} mm`);
+    // Right: losa + perimetros + resistencias
+    rSecHeader('LOSA / ZAPATA');
+    rRow(`d = ${inp.d} mm`);
+    rRow(`fck = ${inp.fck} N/mm2`, `fyk = ${inp.fyk} N/mm2`);
+    rRow(`ph sup: ph${inp.barDiamSup}/${inp.sSup} mm`);
+    rRow(`rhoL = ${(result.rhoL * 100).toFixed(3)} %`);
+    ry += 1;
+    rSecHeader('PERIMETROS CRITICOS');
+    rRow(`u0 (placa) = ${cru.u0.toFixed(0)} mm`);
+    rRow(`u1 (cruz) = ${cru.u1.toFixed(0)} mm`);
+    rRow(`u_core = ${cru.uCore.toFixed(0)} mm`, `u_tip = ${cru.uTip.toFixed(0)} mm`);
+    ry += 1;
+    rSecHeader('RESISTENCIAS');
+    rRow(`f_jd = ${cru.fjd.toFixed(2)} N/mm2`, cru.Kj > 1.0001 ? `Kj = ${cru.Kj.toFixed(2)}` : 'Kj = 1');
+    rRow(`Cap. reparto = ${cru.Vcap.toFixed(0)} kN`);
+    rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm2`, `vEd = ${result.vEd.toFixed(3)}`);
+    rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm2`);
+  } else {
+    // Left: geometry + loads
+    lSecHeader('GEOMETRIA Y CARGAS');
+    if (inp.isCircular) {
+      lRow(`Soporte circular: D = ${inp.cx} mm`);
+    } else {
+      lRow(`Soporte: cx = ${inp.cx} mm`, `cy = ${inp.cy} mm`);
+    }
+    lRow(`Canto eficaz: d = ${inp.d} mm`);
+    lRow(`Posicion: ${POSITION_LABEL[inp.position] ?? inp.position}`);
+    lRow(`beta = ${result.beta.toFixed(2)}`);
+    ly += 1;
+    lRow(`VEd = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
+    lRow(`vEd,0 (u0) = ${result.vEd0.toFixed(3)} N/mm2`);
+    lRow(`vEd (u1) = ${result.vEd.toFixed(3)} N/mm2`);
+
+    // Right: materials + armadura + resultados
+    rSecHeader('MATERIALES');
+    rRow(`fck = ${inp.fck} N/mm2`, `fyk = ${inp.fyk} N/mm2`);
+    ry += 1;
+    rSecHeader('ARMADURA FLEXION');
+    rRow(`ph sup: ph${inp.barDiamSup}/${inp.sSup} mm`);
+    rRow(`ph inf: ph${inp.barDiamInf}/${inp.sInf} mm`);
+    rRow(`rhoL = ${(result.rhoL * 100).toFixed(3)} %`);
+    ry += 1;
+    rSecHeader('PERIMETROS CRITICOS');
+    rRow(`u0 = ${result.u0.toFixed(0)} mm`);
+    rRow(`u1 = ${result.u1.toFixed(0)} mm`);
+    rRow(`uout = ${result.uout.toFixed(0)} mm`);
+    rRow(`rout = ${result.rOut.toFixed(0)} mm`);
+    ry += 1;
+    rSecHeader('RESISTENCIAS');
+    rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm·mm`);
+    rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm·mm`);
+    if (inp.hasShearReinf && result.vRdcs !== undefined) {
+      rRow(`vRd,cs = ${result.vRdcs.toFixed(3)} N/mm·mm`);
+      rRow(`ph${inp.swDiam} x ${inp.swLegs} ram., sr = ${inp.sr} mm`);
+    }
   }
 
   // ── Checks table ─────────────────────────────────────────────────────────────

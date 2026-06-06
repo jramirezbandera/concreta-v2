@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { type PunchingInputs, type PunchingMode, type PunchingPosition } from '../../data/defaults';
+import { type PunchingInputs, type PunchingMode, type PunchingPosition, type CrucetaColType, type CrucetaSteel } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
+import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -182,10 +183,35 @@ function SvgCargaPuntual() {
   );
 }
 
+function SvgCruceta() {
+  return (
+    <svg width="28" height="14" viewBox="0 0 28 14" aria-hidden="true">
+      {/* cruciform plan: central plate + 4 arms */}
+      <rect x="11" y="5" width="6" height="4" fill="none" stroke="currentColor" strokeWidth="1.1" />
+      <line x1="1"  y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="17" y1="7" x2="27" y2="7" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="14" y1="1" x2="14" y2="5" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="14" y1="9" x2="14" y2="13" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 const MODES: Array<{ value: PunchingMode; label: string; Svg: () => React.ReactElement }> = [
   { value: 'pilar',         label: 'Pilar',         Svg: SvgPilar },
   { value: 'carga-puntual', label: 'Carga puntual', Svg: SvgCargaPuntual },
+  { value: 'pilar-cruceta', label: 'Cruceta',       Svg: SvgCruceta },
 ];
+
+const COL_TYPE_OPTIONS: Array<{ value: CrucetaColType; label: string }> = [
+  { value: 'HEB', label: 'HEB' },
+  { value: 'HEA', label: 'HEA' },
+  { value: 'IPE', label: 'IPE' },
+];
+const STEEL_GRADE_OPTIONS: Array<{ value: CrucetaSteel; label: string }> = [
+  { value: 'S275', label: 'S275' },
+  { value: 'S355', label: 'S355' },
+];
+const UPN_SIZE_OPTIONS = getSizesUPN().map((v) => ({ value: v, label: `UPN ${v}` }));
 
 const POSITION_OPTIONS: Array<{ value: PunchingPosition; label: string }> = [
   { value: 'interior', label: 'Interior' },
@@ -197,6 +223,82 @@ const FCK_OPTIONS  = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
 const BAR_DIAM_OPTIONS = availableBarDiams.map((v) => ({ value: v, label: `Ø ${v}` }));
 const SW_DIAM_OPTIONS  = [6, 8, 10, 12].map((v) => ({ value: v, label: `Ø ${v}` }));
 const SW_LEGS_OPTIONS  = [2, 3, 4, 5, 6].map((v) => ({ value: v, label: `${v}` }));
+
+// ── Cruceta-mode inputs (mode='pilar-cruceta') ────────────────────────────────
+function CrucetaInputs({ state, setField }: PunchingInputsProps) {
+  const colSizeOptions = getSizesForTipo(state.colType).map((v) => ({
+    value: v, label: `${state.colType} ${v}`,
+  }));
+  // V2 scope: only INTERIOR + ZAPATA are validated as safe (borde/esquina + forjado
+  // reverted 2026-06-07 eng-review). No position/substrate selectors exposed.
+  const soilOpen = state.soilRelief;
+  const concOpen = state.useConcentration;
+  return (
+    <div className="flex flex-col" aria-label="Datos de entrada — Crucetas">
+      <CollapsibleSection label="Pilar y placa de testa">
+        <SelectField label="Perfil pilar" field="colType"  value={state.colType}  options={COL_TYPE_OPTIONS} setField={setField} />
+        <SelectField label="Tamaño"       field="colSize"  value={state.colSize}  options={colSizeOptions}   setField={setField} />
+        <NumField    label="Placa ancho"  sub="a" field="plateA" value={state.plateA} unit="mm" setField={setField} />
+        <NumField    label="Placa largo"  sub="b" field="plateB" value={state.plateB} unit="mm" setField={setField} />
+        <NumField    label="Placa espesor" sub="t" field="plateT" value={state.plateT} unit="mm" setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Cruceta UPN">
+        <SelectField label="Perfil UPN" field="upnSize"    value={state.upnSize}    options={UPN_SIZE_OPTIONS}    setField={setField} />
+        <SelectField label="Acero"      field="steelGrade" value={state.steelGrade} options={STEEL_GRADE_OPTIONS} setField={setField} />
+        <NumField    label="Longitud brazo" sub="0 = auto" field="armLength"  value={state.armLength}  unit="mm" setField={setField} />
+        <NumField    label="Garganta soldadura" sub="a"    field="weldThroat" value={state.weldThroat} unit="mm" setField={setField} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Zapata">
+        <NumField    label="Canto útil zapata" sub="d" field="d" value={state.d} unit="mm" setField={setField} />
+        <SelectField labelKey="fck"         field="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
+        <NumField    labelKey="fyk"         field="fyk" value={state.fyk} setField={setField} />
+        <SelectField label="Ø armado tracción" field="barDiamSup" value={state.barDiamSup} options={BAR_DIAM_OPTIONS} setField={setField} />
+        <NumField    label="Separación"     sub="s" field="sSup" value={state.sSup} unit="mm" setField={setField} />
+        <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Mallazo en la cara traccionada (inferior de la zapata).</p>
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Carga">
+        <UnitNumberInput
+          label="Axil N" sub="VEd" field="VEd"
+          value={state.VEd} quantity="force"
+          onChange={(v) => setField('VEd', v)}
+        />
+        <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Axil mayorado ELU</p>
+
+        <ToggleButton
+          label="Descontar presión terreno"
+          active={soilOpen}
+          onClick={() => setField('soilRelief', !state.soilRelief)}
+        />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: soilOpen ? '160px' : '0px', opacity: soilOpen ? 1 : 0 }}
+        >
+          <NumField label="Zapata ancho"  sub="B"  field="footB"        value={state.footB}        unit="mm"   setField={setField} />
+          <NumField label="Zapata largo"  sub="L"  field="footL"        value={state.footL}        unit="mm"   setField={setField} />
+          <NumField label="Presión terreno" sub="σt" field="soilPressure" value={state.soilPressure} unit="kN/m²" setField={setField} />
+        </div>
+
+        <ToggleButton
+          label="Concentración EC3 (Kj > 1)"
+          active={concOpen}
+          onClick={() => setField('useConcentration', !state.useConcentration)}
+        />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: concOpen ? '120px' : '0px', opacity: concOpen ? 1 : 0 }}
+        >
+          <p className="text-[10px] text-text-disabled mb-1">Sube f_jd por área parcialmente cargada (EC3 §6.2.5). Requiere planta y canto de zapata.</p>
+          <NumField label="Zapata ancho" sub="B" field="footB" value={state.footB} unit="mm" setField={setField} />
+          <NumField label="Zapata largo" sub="L" field="footL" value={state.footL} unit="mm" setField={setField} />
+          <NumField label="Canto zapata" sub="H" field="footH" value={state.footH} unit="mm" setField={setField} />
+        </div>
+      </CollapsibleSection>
+    </div>
+  );
+}
 
 export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
   const mode     = state.mode as PunchingMode;
@@ -247,6 +349,9 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
         })}
       </div>
 
+      {mode === 'pilar-cruceta' && <CrucetaInputs state={state} setField={setField} />}
+
+      {mode !== 'pilar-cruceta' && (<>
       {/* GEOMETRÍA */}
       <CollapsibleSection label="Geometría">
         <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
@@ -330,6 +435,7 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
           <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
         </div>
       </CollapsibleSection>
+      </>)}
     </div>
   );
 }

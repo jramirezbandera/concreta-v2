@@ -6,6 +6,12 @@ interface PunchingResultsProps {
   result: PunchingResult;
 }
 
+const POSITION_LABEL: Record<string, string> = {
+  interior: 'Interior',
+  borde:    'Borde',
+  esquina:  'Esquina',
+};
+
 export function PunchingResults({ result }: PunchingResultsProps) {
   if (!result.valid && result.error) {
     return (
@@ -13,6 +19,49 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <div className="rounded border border-state-fail/40 px-4 py-3">
           <p className="text-[12px] text-state-fail">{result.error}</p>
         </div>
+      </div>
+    );
+  }
+
+  // ── Cruceta mode — dedicated layout ─────────────────────────────────────────
+  if (result.cruceta) {
+    const c = result.cruceta;
+    const status = overallStatus(result.checks);
+    return (
+      <div
+        className="flex flex-col overflow-y-auto rounded px-4 py-3 m-2 transition-colors"
+        style={ambientStyle(status)}
+      >
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+            Resultados — crucetas UPN
+          </span>
+          <VerdictBadge status={status} />
+        </div>
+
+        <GroupHeader label="Cruceta" />
+        <ValueRow label="Posición"             value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
+        <ValueRow label="Perfil UPN"           value={`UPN ${c.upnSize} (${c.steelGrade})`} />
+        <ValueRow label="Clase sección"        value={`Clase ${c.upnClass}`} />
+        <ValueRow label="Longitud brazo L_eff" value={`${c.Leff.toFixed(0)} mm`} />
+        <ValueRow label="L_eff,máx (perfil)"   value={`${c.LeffMax.toFixed(0)} mm`} />
+        <ValueRow label="Ancho contacto b_eff" value={`${c.bEff.toFixed(0)} mm`} />
+        <ValueRow label="M_Rd cruceta"         value={`${c.MRd.toFixed(1)} kN·m`} />
+
+        <GroupHeader label="Parámetros" />
+        <ValueRow label="f_jd (aplastamiento)" value={`${c.fjd.toFixed(2)} N/mm²`} />
+        {c.Kj > 1.0001 && (
+          <ValueRow label="Kj (concentración)" value={c.Kj.toFixed(2)} />
+        )}
+        <ValueRow label="N de cálculo"         value={`${c.Vdesign.toFixed(0)} kN${c.reliefApplied ? ' (con terreno)' : ''}`} />
+        <ValueRow label="Capacidad reparto"    value={`${c.Vcap.toFixed(0)} kN`} />
+        <ValueRow label="u0 (placa)"           value={`${c.u0.toFixed(0)} mm`} />
+        <ValueRow label="u1 (cruz)"            value={`${c.u1.toFixed(0)} mm`} />
+        <ValueRow label="vRd,c"                value={`${result.vRdc.toFixed(3)} N/mm²`} />
+        <ValueRow label="vEd (en u1)"          value={`${result.vEd.toFixed(3)} N/mm²`} />
+
+        <GroupHeader label="Verificación" />
+        {result.checks.map((ch) => <CheckRowItem key={ch.id} check={ch} />)}
       </div>
     );
   }
@@ -49,21 +98,21 @@ export function PunchingResults({ result }: PunchingResultsProps) {
       {result.rhoLClamped && (
         <ValueRow label="ρl,min (CE art. 9.1)"       value={result.rhoLMin.toFixed(4)} />
       )}
-      <ValueRow label="vmin"                         value={`${result.vMin.toFixed(3)} MPa`} />
-      <ValueRow label="vEd,0 (en u0)"                value={`${result.vEd0.toFixed(3)} MPa`} />
-      <ValueRow label={resultLabel('vEd_punching')}  value={`${result.vEd.toFixed(3)} MPa`} />
+      <ValueRow label="vmin"                         value={`${result.vMin.toFixed(3)} N/mm²`} />
+      <ValueRow label="vEd,0 (en u0)"                value={`${result.vEd0.toFixed(3)} N/mm²`} />
+      <ValueRow label={resultLabel('vEd_punching')}  value={`${result.vEd.toFixed(3)} N/mm²`} />
 
       {/* Resistencias */}
       <GroupHeader label="Resistencias" />
-      <ValueRow label={resultLabel('vRd_c_punching')} value={`${result.vRdc.toFixed(3)} MPa`} />
-      <ValueRow label={resultLabel('vRd_max')}        value={`${result.vRdmax.toFixed(3)} MPa`} />
+      <ValueRow label={resultLabel('vRd_c_punching')} value={`${result.vRdc.toFixed(3)} N/mm²`} />
+      <ValueRow label={resultLabel('vRd_max')}        value={`${result.vRdmax.toFixed(3)} N/mm²`} />
       <div
         className="overflow-hidden transition-all duration-150"
         style={{ maxHeight: result.vRdcs !== undefined ? '80px' : '0px', opacity: result.vRdcs !== undefined ? 1 : 0 }}
       >
         <ValueRow label="Asw por fila"                value={`${result.aswPerRow.toFixed(0)} mm²`} />
         {result.vRdcs !== undefined && (
-          <ValueRow label={resultLabel('vRd_cs')}     value={`${result.vRdcs.toFixed(3)} MPa`} />
+          <ValueRow label={resultLabel('vRd_cs')}     value={`${result.vRdcs.toFixed(3)} N/mm²`} />
         )}
       </div>
       <ValueRow label="uout"                          value={`${result.uout.toFixed(0)} mm`} />

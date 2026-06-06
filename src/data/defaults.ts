@@ -315,11 +315,15 @@ export const retainingWallDefaults: RetainingWallInputs = {
 
 // ── Punching shear (CE art. 6.4) ─────────────────────────────────────────────
 
-export type PunchingMode = 'pilar' | 'carga-puntual';
+export type PunchingMode = 'pilar' | 'carga-puntual' | 'pilar-cruceta';
 export type PunchingPosition = 'interior' | 'borde' | 'esquina';
+// Cruceta v1: only HEB/HEA/IPE columns (rectangular footprint) + zapata substrate.
+export type CrucetaColType = 'HEB' | 'HEA' | 'IPE';
+export type CrucetaSteel = 'S275' | 'S355';
+export type CrucetaSubstrate = 'zapata' | 'forjado';
 
 export interface PunchingInputs {
-  mode:          PunchingMode;      // 'pilar' | 'carga-puntual'
+  mode:          PunchingMode;      // 'pilar' | 'carga-puntual' | 'pilar-cruceta'
   cx:            number;            // mm — column/area dim x (or Ø if circular)
   cy:            number;            // mm — column/area dim y (= cx if circular)
   isCircular:    boolean;           // only active when position='interior'
@@ -330,13 +334,30 @@ export interface PunchingInputs {
   sSup:          number;            // mm — top face bar spacing
   barDiamInf:    number;            // mm — bottom face rebar diameter
   sInf:          number;            // mm — bottom face bar spacing
-  VEd:           number;            // kN — design force ELU
+  VEd:           number;            // kN — design force ELU (= axil N for cruceta)
   position:      PunchingPosition;  // 'interior' | 'borde' | 'esquina'
   hasShearReinf: boolean;
   swDiam:        number;            // mm — stirrup bar diameter
   swLegs:        number;            // number of stirrup legs per stirrup group
   sr:            number;            // mm — radial spacing between stirrup rows
   fywk:          number;            // MPa — stirrup characteristic strength
+  // ── Cruceta mode (mode='pilar-cruceta') ──────────────────────────────────
+  colType:       CrucetaColType;    // steel column profile family
+  colSize:       number;            // profile size key (e.g. 200 for HEB 200)
+  plateA:        number;            // mm — end plate dim x (bears on concrete)
+  plateB:        number;            // mm — end plate dim y
+  plateT:        number;            // mm — end plate thickness
+  steelGrade:    CrucetaSteel;      // cruceta + plate steel grade
+  upnSize:       number;            // chosen UPN profile size key
+  armLength:     number;            // mm — manual arm length; 0 = auto (use L_eff,max)
+  weldThroat:    number;            // mm — fillet weld throat a
+  substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (v2: both)
+  soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
+  footB:         number;            // mm — footing plan dim x (soilRelief / Kj)
+  footL:         number;            // mm — footing plan dim y (soilRelief / Kj)
+  footH:         number;            // mm — footing depth (Kj concentration cone)
+  soilPressure:  number;            // kN/m² — design soil pressure (soilRelief)
+  useConcentration: boolean;        // EC3 Kj>1 bearing concentration (zapata, v2)
 }
 
 export const punchingDefaults: PunchingInputs = {
@@ -358,6 +379,24 @@ export const punchingDefaults: PunchingInputs = {
   swLegs:        2,
   sr:            100,    // mm — radial spacing between stirrup rows
   fywk:          500,
+  // Cruceta defaults — HEB 200 + plate 300×300×20, zapata d=400, N high enough
+  // that the bare plate punches and the cruceta is actually needed.
+  colType:       'HEB',
+  colSize:       200,
+  plateA:        300,
+  plateB:        300,
+  plateT:        20,
+  steelGrade:    'S275',
+  upnSize:       160,
+  armLength:     0,      // auto
+  weldThroat:    6,
+  substrate:     'zapata',
+  soilRelief:    false,
+  footB:         2000,
+  footL:         2000,
+  footH:         600,    // mm — typical footing depth (Kj cone cap)
+  soilPressure:  150,
+  useConcentration: false,
 };
 
 // ── Composite steel section (Steiner + EC3 classification) ───────────────────

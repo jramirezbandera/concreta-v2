@@ -1,5 +1,6 @@
 import { type PunchingInputs, type PunchingMode, type PunchingPosition } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
+import { getProfile } from '../../data/steelProfiles';
 
 interface PunchingSVGProps {
   inp: PunchingInputs;
@@ -455,10 +456,155 @@ function SectionView({
   );
 }
 
+// ── Cruceta plan view (steel column + UPN crucetas welded to each face) ────────
+function CrossPlanView({
+  inp, result, size, svgMode,
+}: {
+  inp: PunchingInputs;
+  result: PunchingResult;
+  size: number;
+  svgMode: 'screen' | 'pdf';
+}) {
+  const isPdf = svgMode === 'pdf';
+  const c = result.cruceta;
+  const plateA = inp.plateA as number;
+  const plateB = inp.plateB as number;
+  const d = inp.d as number;
+  const Leff = c?.Leff ?? 0;
+  const r = 2 * d;
+
+  // Column profile geometry (plan = I/H cross-section): depth h along y, width b along x.
+  const prof = getProfile(inp.colType, inp.colSize);
+  const ph = prof?.h ?? plateB;   // mm — section depth (y)
+  const pb_ = prof?.b ?? plateA;  // mm — flange width (x)
+  const ptf = prof?.tf ?? 12;     // mm — flange thickness
+  const ptw = prof?.tw ?? 8;      // mm — web thickness
+
+  // Detail view: fit the STEEL (plate + profile + crucetas) prominently. For real
+  // cases 2d and L_eff are each larger than the column, so a true-scale u1 would
+  // dwarf the column; u1 is therefore drawn as a schematic context boundary near
+  // the canvas edge (its true value is in the results / label). The steel and its
+  // parts are to scale among themselves.
+  void r;
+  const steelHalfX = Math.max(plateA / 2, pb_ / 2 + Leff);
+  const steelHalfY = Math.max(plateB / 2, ph / 2 + Leff);
+  const steelHalf = Math.max(steelHalfX, steelHalfY);
+  const scale = ((size / 2) * 0.70) / Math.max(steelHalf, 1);
+  const ox = size / 2;
+  const oy = size / 2;
+  const px = (mm: number) => mm * scale;
+
+  // Column profile = the prominent element (light). Crucetas = secondary (darker).
+  const colArea    = isPdf ? '#94a3b8' : '#cbd5e1';   // profile fill
+  const strokeArea = isPdf ? '#1e293b' : '#475569';   // profile outline
+  const armFill    = isPdf ? '#e2e8f0' : '#334155';   // cruceta fill
+  const armStroke  = isPdf ? '#64748b' : '#94a3b8';   // cruceta outline / channel hint
+  const weldCol    = isPdf ? '#0ea5e9' : '#38bdf8';
+  const plateStroke = isPdf ? '#94a3b8' : '#475569';
+  const strokeU1   = isPdf ? '#0ea5e9' : '#38bdf8';
+  const textCol    = isPdf ? '#475569' : '#94a3b8';
+
+  // px geometry
+  const hb = px(pb_) / 2;   // half flange width (x)
+  const hh = px(ph) / 2;    // half depth (y)
+  const tf = px(ptf);
+  const tw = px(ptw) / 2;   // half web thickness
+  const le = px(Leff);
+  const paH = px(plateA) / 2;
+  const pbH = px(plateB) / 2;
+
+  // u1 schematic boundary (NOT to scale — see note above)
+  const u1Inset = 7;
+
+  // A UPN cruceta drawn as a filled arm welded to a face, with a UPN channel hint
+  // (back line near the column + open outer end) and a highlighted weld line.
+  // dir: 'up'|'down'|'left'|'right' — outward direction from the column face.
+  const cruceta = (dir: 'up' | 'down' | 'left' | 'right'): React.ReactElement | null => {
+    if (le <= 0) return null;
+    if (dir === 'up' || dir === 'down') {
+      const yFace = dir === 'up' ? oy - hh : oy + hh;       // flange outer face
+      const yTip  = dir === 'up' ? yFace - le : yFace + le;
+      const w = hb * 0.9;                                    // half-span across the flange
+      const y0 = Math.min(yFace, yTip);
+      return (
+        <g key={dir}>
+          <rect x={ox - w} y={y0} width={2 * w} height={le} fill={armFill} stroke={armStroke} strokeWidth={1} />
+          {/* UPN channel hint: two flange lines along the arm length */}
+          <line x1={ox - w * 0.55} y1={y0} x2={ox - w * 0.55} y2={y0 + le} stroke={armStroke} strokeWidth={0.6} />
+          <line x1={ox + w * 0.55} y1={y0} x2={ox + w * 0.55} y2={y0 + le} stroke={armStroke} strokeWidth={0.6} />
+          <line x1={ox - w} y1={yFace} x2={ox + w} y2={yFace} stroke={weldCol} strokeWidth={2} />
+        </g>
+      );
+    }
+    const xFace = dir === 'left' ? ox - hb : ox + hb;        // flange-tip face
+    const xTip  = dir === 'left' ? xFace - le : xFace + le;
+    const w = hh * 0.9;                                       // half-span across the depth (both tips)
+    const x0 = Math.min(xFace, xTip);
+    return (
+      <g key={dir}>
+        <rect x={x0} y={oy - w} width={le} height={2 * w} fill={armFill} stroke={armStroke} strokeWidth={1} />
+        {/* UPN channel hint: two flange lines along the arm length */}
+        <line x1={x0} y1={oy - w * 0.55} x2={x0 + le} y2={oy - w * 0.55} stroke={armStroke} strokeWidth={0.6} />
+        <line x1={x0} y1={oy + w * 0.55} x2={x0 + le} y2={oy + w * 0.55} stroke={armStroke} strokeWidth={0.6} />
+        <line x1={xFace} y1={oy - w} x2={xFace} y2={oy + w} stroke={weldCol} strokeWidth={2} />
+      </g>
+    );
+  };
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Vista en planta — pilar con crucetas">
+      {!isPdf && <rect width={size} height={size} fill="var(--color-bg-canvas, #0f172a)" />}
+
+      {/* u1 perimeter — schematic context boundary (NOT to scale) */}
+      <rect
+        x={u1Inset} y={u1Inset}
+        width={size - 2 * u1Inset} height={size - 2 * u1Inset}
+        rx={18} ry={18}
+        fill="none" stroke={strokeU1} strokeWidth={1.5} strokeDasharray="5 3"
+      />
+
+      {/* end plate (bears on concrete) — faint outline */}
+      <rect
+        x={ox - paH} y={oy - pbH} width={paH * 2} height={pbH * 2}
+        fill="none" stroke={plateStroke} strokeWidth={1} strokeDasharray="3 2"
+      />
+
+      {/* crucetas welded to the 4 faces (interior only — borde/esquina reverted) */}
+      {(['up', 'down', 'left', 'right'] as const).map((dir) => cruceta(dir))}
+
+      {/* column profile (I/H section in plan) */}
+      <g fill={colArea} stroke={strokeArea} strokeWidth={1}>
+        <rect x={ox - hb} y={oy - hh}      width={hb * 2} height={tf} />            {/* top flange */}
+        <rect x={ox - hb} y={oy + hh - tf} width={hb * 2} height={tf} />            {/* bottom flange */}
+        <rect x={ox - tw} y={oy - hh + tf} width={tw * 2} height={hh * 2 - 2 * tf} /> {/* web */}
+      </g>
+
+      {/* labels */}
+      <text x={size - u1Inset - 16} y={u1Inset + 13} fontSize={10} fontFamily="monospace" fill={strokeU1}>u1</text>
+      {Leff > 0 && (
+        <text x={ox + hb + le / 2} y={oy - 4} fontSize={9} fontFamily="monospace" textAnchor="middle" fill={textCol}>
+          L_eff
+        </text>
+      )}
+      <text x={ox} y={size - u1Inset - 6} fontSize={8} fontFamily="monospace" textAnchor="middle" fill={textCol}>
+        {inp.colType} {inp.colSize} · u1 esquemático (no a escala)
+      </text>
+    </svg>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export function PunchingSVG({ inp, result, width, mode = 'screen' }: PunchingSVGProps) {
   const planSize   = Math.min(width, 360);
   const sectionH   = Math.round(planSize * 0.5);
+
+  if ((inp.mode as PunchingMode) === 'pilar-cruceta') {
+    return (
+      <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
+        <CrossPlanView inp={inp} result={result} size={planSize} svgMode={mode} />
+      </div>
+    );
+  }
 
   return (
     <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>

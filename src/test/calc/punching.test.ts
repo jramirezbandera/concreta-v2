@@ -393,3 +393,20 @@ describe('invalid inputs', () => {
     expect(calcPunching({ ...base, hasShearReinf: true, swDiam: 0, swLegs: 2, sr: 100, fywk: 500 }).valid).toBe(false);
   });
 });
+
+// ── Cruceta mode delegation (eng-review Approach B) ───────────────────────────
+describe('cruceta mode delegation', () => {
+  it("mode='pilar-cruceta' produces a cruceta detail", () => {
+    const r = calcPunching({ ...base, mode: 'pilar-cruceta' });
+    expect(r.cruceta).toBeDefined();
+  });
+  it('existing pilar mode is unaffected (no cruceta detail)', () => {
+    const r = calcPunching({ ...base, mode: 'pilar' });
+    expect(r.cruceta).toBeUndefined();
+    expect(r.valid).toBe(true);
+  });
+  it('existing carga-puntual mode is unaffected', () => {
+    const r = calcPunching({ ...base, mode: 'carga-puntual' });
+    expect(r.cruceta).toBeUndefined();
+  });
+});

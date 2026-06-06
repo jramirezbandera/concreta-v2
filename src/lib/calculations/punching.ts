@@ -7,12 +7,56 @@
 // CE art. 6.4.5 — vRd,max (absolute max) and vRd,cs (with stirrups, α=90°)
 // CE art. 9.1   — ρl,min (minimum flexural reinforcement)
 
-import { type PunchingInputs } from '../../data/defaults';
+import { type PunchingInputs, type CrucetaSteel, type PunchingPosition } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, toStatus, makeCheck } from './types';
+import { calcCruceta } from './cruceta';
 
 export type { CheckRow } from './types';
+
+// ── Position helpers (CE art. 6.4) — single source for punching + cruceta ─────
+/** β eccentricity factor by column position (CE art. 6.4.3, simplified). */
+export function betaForPosition(position: PunchingPosition): number {
+  return position === 'borde' ? 1.4 : position === 'esquina' ? 1.5 : 1.0;
+}
+/** Number of loaded sides / cruceta arms by position (interior 4, borde 3, esquina 2). */
+export function sidesForPosition(position: PunchingPosition): number {
+  return position === 'interior' ? 4 : position === 'borde' ? 3 : 2;
+}
+
+/**
+ * Cruceta-mode result detail (mode='pilar-cruceta'). Nested optional sub-object
+ * on PunchingResult so existing pilar/carga-puntual consumers are untouched
+ * (eng-review decision 3A). All forces kN, lengths mm, stresses MPa.
+ */
+export interface CrucetaDetail {
+  upnSize:      number;
+  steelGrade:   CrucetaSteel;
+  upnClass:     1 | 2 | 3 | 4;
+  fjd:          number;   // MPa — concrete bearing strength βj·α·fcd
+  Kj:           number;   // — bearing concentration factor α=Kj (1 in v1 / forjado)
+  bEff:         number;   // mm — effective contact width of one arm
+  cf:           number;   // mm — flange effective overhang
+  MRd:          number;   // kN·m — UPN plastic/elastic bending resistance
+  LeffMax:      number;   // mm — max effective reach of the chosen UPN
+  Leff:         number;   // mm — effective arm length used (min of Larm, LeffMax)
+  Larm:         number;   // mm — geometric arm length (auto = LeffMax)
+  Vdesign:      number;   // kN — design load after soil relief
+  Vcap:         number;   // kN — bearing capacity of plate + arms
+  Varm:         number;   // kN — load delivered by one arm
+  Vcore:        number;   // kN — plate-borne residual load
+  u0:           number;   // mm — plate-face perimeter (crushing)
+  u1:           number;   // mm — enlarged cross control perimeter at 2d
+  uCore:        number;   // mm — bare-plate control perimeter (local)
+  uTip:         number;   // mm — per-arm tip control perimeter (local)
+  Au1:          number;   // mm² — area for soil relief (conservative)
+  nArms:        number;
+  beta:         number;
+  position:     PunchingPosition;
+  reliefApplied: boolean;
+  suggestedUpn: number | null; // smallest passing UPN if chosen fails; else null
+}
 
 export interface PunchingResult {
   valid:        boolean;
@@ -37,6 +81,8 @@ export interface PunchingResult {
   asInf:        number;   // mm²/mm — bottom face As per unit width
   aswPerRow:    number;   // mm² — stirrup area at one radial row (derived)
   checks:       CheckRow[];
+  /** Cruceta-mode detail — only present when mode='pilar-cruceta'. */
+  cruceta?:     CrucetaDetail;
 }
 
 const EMPTY_RESULT: PunchingResult = {
@@ -51,6 +97,9 @@ function invalid(msg: string): PunchingResult {
 }
 
 export function calcPunching(inp: PunchingInputs): PunchingResult {
+  // Cruceta mode delegates to its own calculator (eng-review Approach B).
+  if (inp.mode === 'pilar-cruceta') return calcCruceta(inp);
+
   // ── Input validation ─────────────────────────────────────────────────────
   if (inp.d <= 0)  return invalid('d debe ser > 0');
   if (inp.VEd <= 0) return invalid('VEd debe ser > 0');
@@ -74,12 +123,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   const useCircular = inp.isCircular && inp.position === 'interior';
 
   // ── β — eccentricity factor (CE art. 6.4.3, simplified) ──────────────────
-  const betaMap: Record<string, number> = {
-    interior: 1.0,
-    borde:    1.4,
-    esquina:  1.5,
-  };
-  const beta = betaMap[inp.position] ?? 1.0;
+  const beta = betaForPosition(inp.position);
 
   // ── Critical perimeter u1 (CE art. 6.4.2) ────────────────────────────────
   // Convention for borde/esquina:
@@ -173,7 +217,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // ── Shear reinforcement — tipo viga, α=90° ────────────────────────────────
   // At each radial row: n_sides stirrups (one per column face side), each with
   // swLegs legs → Asw = n_sides × swLegs × As_sw
-  const nSides = inp.position === 'interior' ? 4 : inp.position === 'borde' ? 3 : 2;
+  const nSides = sidesForPosition(inp.position);
   const aswPerRow = nSides * inp.swLegs * getBarArea(inp.swDiam); // mm²
 
   // ── vRd,cs — resistance with shear reinforcement (CE art. 6.4.5) ─────────

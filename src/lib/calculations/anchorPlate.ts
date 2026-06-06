@@ -37,6 +37,7 @@ import {
 } from '../../data/anchorBars';
 import type { CheckRow, CheckStatus } from './types';
 import { toStatus } from './types';
+import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -55,7 +56,7 @@ const GAMMA_MC  = 1.5;   // EN 1992-4 Tab 4.1 — concrete cone / splitting / pu
 const PULLOUT_K2_CRACKED   = 7.5;
 const PULLOUT_K2_UNCRACKED = 10.5;
 
-const BETA_J    = 2 / 3;  // EC3 1-8 §6.2.5 grout joint factor
+// BETA_J (EC3 1-8 §6.2.5 grout joint factor) now lives in ./ec3BasePlate
 
 // ─── Steel strengths per plate grade ─────────────────────────────────────
 const PLATE_FY: Record<'S235' | 'S275' | 'S355', number> = {
@@ -360,7 +361,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
 
   const fcd_local = inp.fck / GAMMA_C;
   const alpha_local = alphaExtension(inp);
-  const fjd_local = BETA_J * alpha_local * fcd_local;
+  const fjd_local = ec3Fjd(fcd_local, alpha_local);
   const A_c = fjd_local * b_eq;
 
   const disc = L_t * L_t - 2 * (M_Nmm + NEd_N * L_n) / A_c;
@@ -480,7 +481,7 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
 
   const fcd = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
-  const fjd = BETA_J * alpha * fcd;
+  const fjd = ec3Fjd(fcd, alpha);
 
   const a = inp.plate_a, b = inp.plate_b;
   const rect: Pt[] = [
@@ -947,22 +948,11 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
 export function bearingConcentration(inp: AnchorPlateInputs): {
   Kj: number; a1: number; b1: number;
 } {
-  const a = inp.plate_a;
-  const b = inp.plate_b;
-  const ar = inp.plate_margin_x;
-  const br = inp.plate_margin_y;
-  const h = inp.pedestal_h;
-
-  // Provisional a1/b1 ignorando el cross-cap.
-  const a1_prov = Math.max(a, Math.min(a + 2 * ar, 5 * a, a + h));
-  const b1_prov = Math.max(b, Math.min(b + 2 * br, 5 * b, b + h));
-  // Aplicar el cross-cap con los provisionales.
-  const a1 = Math.max(a, Math.min(a1_prov, 5 * b1_prov));
-  const b1 = Math.max(b, Math.min(b1_prov, 5 * a1));
-
-  const Kj_raw = Math.sqrt((a1 * b1) / (a * b));
-  const Kj = Math.min(3, Math.max(1, Kj_raw));
-  return { Kj, a1, b1 };
+  // Fórmula EC3 §6.2.5(4) ahora vive en ./ec3BasePlate (única fuente de verdad
+  // compartida con cruceta.ts). Math idéntica — sin drift de constantes.
+  return concentrationKj(
+    inp.plate_a, inp.plate_b, inp.plate_margin_x, inp.plate_margin_y, inp.pedestal_h,
+  );
 }
 
 // alias retenido para call-sites previos; firma idéntica a la implementación
@@ -1004,7 +994,7 @@ export function tStubEffectiveArea(
   // donde fyd = fyp / γM0 (resistencia de cálculo de la placa).
   const fyp = PLATE_FY[inp.plate_steel];
   const fyd_plate = fyp / GAMMA_M0;
-  const c = inp.plate_t * Math.sqrt(fyd_plate / (3 * Math.max(fjd_MPa, 1e-6)));
+  const c = effectiveOverhang(inp.plate_t, fyd_plate, fjd_MPa);
 
   const pa2 = inp.plate_a / 2;
   const pb2 = inp.plate_b / 2;
@@ -1049,7 +1039,7 @@ export function checkPlateCompression(
 ): CheckRow {
   const fcd   = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
-  const fjd   = BETA_J * alpha * fcd;
+  const fjd   = ec3Fjd(fcd, alpha);
 
   const { A_eff, c } = tStubEffectiveArea(inp, fjd);
   const Nc_Rd_kN = (fjd * A_eff) / 1000;
@@ -1941,7 +1931,7 @@ export function calcAnchorPlate(
 
   const fcd = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
-  const fjd = BETA_J * alpha * fcd;
+  const fjd = ec3Fjd(fcd, alpha);
   // L10 (Phase 5) — expose fjd on the result so the SVG can label the
   // compression polygon without recomputing.
   solver.fjd_MPa = fjd;
