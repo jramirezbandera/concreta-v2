@@ -40,10 +40,10 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         </div>
 
         <p className="text-[10px] text-state-warn mb-2 leading-snug">
-          ⚠ Modelo interino: cruz embebida con apoyo a fcd (sin confinamiento &gt;fcd por §6.7).
-          El anclaje (soldadura pasante) y el atado (reparto sup) se cubren con el detalle si se
-          marcan en "Detalle de armado". El cortante de interfaz en el plano de la cruz (delaminación)
-          sigue sin cláusula que lo calcule: verificar a mano.
+          ⚠ Modelo interino: cruz embebida. El apoyo del núcleo usa fcd salvo que actives la espiral
+          de confinamiento (§6.7). El anclaje (soldadura pasante) y el atado (reparto sup) se cubren
+          con el detalle si se marcan en "Detalle de armado". El cortante de interfaz en el plano de
+          la cruz (delaminación) sigue sin cláusula que lo calcule: verificar a mano.
         </p>
 
         <GroupHeader label="Cruceta" />

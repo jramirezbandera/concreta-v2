@@ -182,6 +182,34 @@ describe('tabla canto→UPN (guía del detalle, solo forjado)', () => {
   });
 });
 
+// ── Espiral de confinamiento §6.7 (sube V_cap, no toca punzonamiento) ─────────
+describe('confinamiento §6.7 por espiral (solo apoyo del núcleo)', () => {
+  it('la espiral sube V_cap pero NO cambia geometría ni punzonamiento', () => {
+    const off = calcCruceta(base).cruceta!;
+    const on = calcCruceta({ ...base, hasSpiral: true, spiralD: 500 });
+    expect(on.cruceta!.Vcap).toBeGreaterThan(off.Vcap);  // más capacidad de apoyo
+    expect(on.cruceta!.bEff).toBeCloseTo(off.bEff, 6);   // geometría intacta (conservadora)
+    expect(on.cruceta!.u1).toBeCloseTo(off.u1, 6);
+    expect(on.vEd).toBeCloseTo(calcCruceta(base).vEd, 6); // punzonamiento intacto
+  });
+
+  it('f_Rdu se capa en 3·fcd (espiral muy grande)', () => {
+    const r = calcCruceta({ ...base, hasSpiral: true, spiralD: 5000 });
+    const row = r.checks.find((c) => c.id === 'cru-confine')!;
+    expect(row.value).toContain('50.1'); // 3·fcd = 3·16.7
+  });
+
+  it('espiral menor que la placa no reduce el apoyo (clamp ≥ fcd)', () => {
+    const r = calcCruceta({ ...base, hasSpiral: true, spiralD: 100 });
+    // Vcap idéntico al caso sin espiral (f_núcleo = fcd, sin penalización)
+    expect(r.cruceta!.Vcap).toBeCloseTo(calcCruceta(base).cruceta!.Vcap, 0);
+  });
+
+  it('sin espiral no aparece la fila de confinamiento', () => {
+    expect(calcCruceta(base).checks.some((c) => c.id === 'cru-confine')).toBe(false);
+  });
+});
+
 // ── Longitud del brazo: regla constructiva (luz/8, ≥50cm) capada por el acero ──
 describe('longitud del brazo (detalle tipo: luz/8, ≥50cm)', () => {
   it('la longitud auto la manda la luz (luz/8), no el acero, si éste alcanza', () => {

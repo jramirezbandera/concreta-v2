@@ -181,6 +181,7 @@ interface Ctx {
   substrate: CrucetaSubstrate;
   armThrough: boolean;                          // cruceta pasante soldada al pilar
   hasRepartoSup: boolean; hasRepartoInf: boolean; // armadura de reparto del detalle
+  hasSpiral: boolean; spiralD: number;          // confinamiento §6.7 del núcleo
   edgeY: number; edgeX: number;                 // mm — free-edge clear distances
   // Punching shear reinforcement (forjado only — thin transfer slab).
   hasShearReinf: boolean;
@@ -231,6 +232,14 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   const g = deriveGeom(upn, c);
   const { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Lconstr, LeffHard, Larm, Leff, Acruz } = g;
   const fCap = (2 / 3) * c.fcd;                   // MPa — bearing capacity floor (conservative)
+  // §6.7 confinamiento del NÚCLEO por espiral: sube el apoyo del núcleo (placa/pilar)
+  // a f_Rdu = fcd·√(Ac1/Ac0) ∈ [fcd, 3·fcd]. SOLO afecta a la capacidad de apoyo
+  // (V_cap del núcleo); NO toca la geometría (bEff usa fcd, conservador) ni el
+  // punzonamiento (mecanismo distinto). Off → f_núcleo = fCap (idéntico a antes).
+  const fRdu = c.hasSpiral
+    ? Math.min(3 * c.fcd, Math.max(c.fcd, c.fcd * Math.sqrt((Math.PI * c.spiralD ** 2 / 4) / c.A_col)))
+    : c.fcd;
+  const fCapCore = (2 / 3) * fRdu;               // MPa — apoyo del núcleo (confinado)
   const MRd = MRd_Nmm / 1e6;                     // kN·m
 
   const { u0, u1, uCore, uTip } = crossPerimetersClipped(
@@ -246,7 +255,8 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   // f_geom = fcd (conservative L_eff). Decoupled on purpose: each f is taken in
   // its own safe direction (lower f → less capacity; higher f → shorter arm).
   // DEMAND uses the actual uniform bearing σ_act = V/A_cruz (≤ f_cap while V ≤ V_cap).
-  const Vcap_N = fCap * Acruz;                                // N
+  // V_cap = apoyo de los brazos (fcd) + apoyo del núcleo (confinado si hay espiral).
+  const Vcap_N = fCap * (Acruz - c.A_col) + fCapCore * c.A_col; // N
   const sigAct = c.V_N / Acruz;                               // MPa, demand pressure
   const Varm_N = sigAct * bEff * Leff;                        // N, one arm's share
   const Vcore_N = sigAct * c.A_col;                           // N, plate's share
@@ -300,6 +310,16 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     `${(c.V_N / 1000).toFixed(0)} kN`, `${(Vcap_N / 1000).toFixed(0)} kN`,
     'CE Anejo 18 §6.2.5',
   ));
+
+  // Confinamiento §6.7 (informativo): f_Rdu del núcleo cuando hay espiral.
+  if (c.hasSpiral) {
+    checks.push({
+      id: 'cru-confine', description: 'Confinamiento del núcleo por espiral (apoyo §6.7)',
+      value: `f_Rdu = ${fRdu.toFixed(1)} N/mm²`, limit: `≤ 3·fcd = ${(3 * c.fcd).toFixed(1)} N/mm²`,
+      utilization: 0, status: 'neutral', neutral: true, article: 'EC2 §6.7',
+      tag: `×${(fRdu / c.fcd).toFixed(2)} fcd`,
+    });
+  }
 
   // Global punching at u1. With shear reinforcement (forjado), vEd ≤ vRd,c becomes
   // informational ("¿requiere cercos?") and vEd ≤ vRd,cs is the governing gate.
@@ -544,6 +564,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     armLength: inp.armLength, spanL: inp.spanL, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
     substrate: inp.substrate, edgeY: inp.edgeY, edgeX: inp.edgeX,
     armThrough: inp.armThrough, hasRepartoSup: inp.hasRepartoSup, hasRepartoInf: inp.hasRepartoInf,
+    hasSpiral: inp.hasSpiral, spiralD: inp.spiralD,
     hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
     sr: inp.sr, fywk: inp.fywk,
   };

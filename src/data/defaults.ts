@@ -358,6 +358,8 @@ export interface PunchingInputs {
   armThrough:    boolean;           // cruceta pasante soldada al pilar (vs solo embebida)
   hasRepartoSup: boolean;           // armadura de reparto superior dispuesta (atado)
   hasRepartoInf: boolean;           // armadura de reparto inferior dispuesta
+  hasSpiral:     boolean;           // espiral de confinamiento en la zona del pilar (§6.7)
+  spiralD:       number;            // mm — Ø del núcleo confinado por la espiral
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
   soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
@@ -401,6 +403,8 @@ export const punchingDefaults: PunchingInputs = {
   armThrough:    true,   // detalle tipo: pasante soldada al pilar
   hasRepartoSup: true,   // detalle tipo: reparto sup 2Ø10
   hasRepartoInf: true,   // detalle tipo: reparto inf 1Ø8
+  hasSpiral:     false,  // confinamiento §6.7 opcional (off por defecto, conservador)
+  spiralD:       500,    // mm — núcleo confinado (> placa para que confine)
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
   edgeX:         500,
   soilRelief:    false,

@@ -343,6 +343,21 @@ function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArm
           {isZapata ? 'Mallazo en la cara traccionada (inferior de la zapata).'
                     : 'Mallazo en la cara traccionada (según signo del momento sobre el pilar).'}
         </p>
+        <ToggleButton
+          label="Espiral de confinamiento (§6.7)"
+          active={state.hasSpiral}
+          onClick={() => setField('hasSpiral', !state.hasSpiral)}
+        />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: state.hasSpiral ? '90px' : '0px', opacity: state.hasSpiral ? 1 : 0 }}
+        >
+          <p className="text-[10px] text-text-disabled mb-1">
+            Sube el apoyo del núcleo a f_Rdu = fcd·√(Ac1/Ac0) ≤ 3·fcd. Solo capacidad de apoyo
+            (V_cap); no toca el punzonamiento.
+          </p>
+          <NumField label="Ø núcleo confinado" sub="Dn" field="spiralD" value={state.spiralD} unit="mm" setField={setField} />
+        </div>
       </CollapsibleSection>
 
       {isForjado && (
