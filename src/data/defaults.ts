@@ -350,6 +350,7 @@ export interface PunchingInputs {
   steelGrade:    CrucetaSteel;      // cruceta + plate steel grade
   upnSize:       number;            // chosen UPN profile size key
   armLength:     number;            // mm — manual arm length; 0 = auto (use L_eff,max)
+  spanL:         number;            // mm — luz del vano (detalle tipo: brazo ≥ luz/8, ≥50cm)
   weldThroat:    number;            // mm — fillet weld throat a
   substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (v2: both)
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
@@ -389,6 +390,7 @@ export const punchingDefaults: PunchingInputs = {
   steelGrade:    'S275',
   upnSize:       160,
   armLength:     0,      // auto
+  spanL:         5000,   // mm — luz típica → luz/8 = 625mm (> 50cm mínimo)
   weldThroat:    6,
   substrate:     'zapata',
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)

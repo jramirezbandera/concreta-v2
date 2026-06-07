@@ -137,8 +137,8 @@ describe('bearing embebido confinado (interino)', () => {
     expect(c.bEff).toBeLessThan(65);
   });
 
-  it('aviso "cruceta poco efectiva" cuando L_eff,máx < 200mm (acero débil para la carga)', () => {
-    // UPN80 muy cargado (N900) → alcance del acero ≈162mm < 200 → warn.
+  it('aviso "perfil corto" cuando el acero no alcanza la longitud del detalle (luz/8)', () => {
+    // UPN80 muy cargado (N900) → el acero solo llega ~190mm, por debajo de luz/8 → warn.
     const small = calcCruceta({ ...base, upnSize: 80, VEd: 900 });
     const wSmall = small.checks.find((c) => c.id === 'cru-arm-min');
     expect(wSmall, 'UPN80 N900 debería avisar').toBeDefined();
@@ -148,22 +148,27 @@ describe('bearing embebido confinado (interino)', () => {
   });
 });
 
-// ── Alcance del shearhead (steelReach): cap de carga baja + monotonía ──────────
-describe('alcance del shearhead (L_eff por resistencia del acero)', () => {
-  it('carga baja + perfil grande → L_eff,máx topa en el cap (1500mm)', () => {
-    // UPN300 con N50: el acero aguanta de sobra a cualquier longitud útil, así que
-    // el alcance se acota en MAX_AUTO_ARM en vez de dispararse.
-    const r = calcCruceta({ ...base, upnSize: 300, VEd: 50 });
-    expect(r.cruceta!.LeffMax).toBeCloseTo(1500, 0);
-    expect(r.cruceta!.Leff).toBeCloseTo(1500, 0); // auto → Leff = LeffMax
+// ── Longitud del brazo: regla constructiva (luz/8, ≥50cm) capada por el acero ──
+describe('longitud del brazo (detalle tipo: luz/8, ≥50cm)', () => {
+  it('la longitud auto la manda la luz (luz/8), no el acero, si éste alcanza', () => {
+    // UPN300 con N50: el acero llega lejísimos, pero se construye luz/8 = 625mm.
+    const r = calcCruceta({ ...base, upnSize: 300, VEd: 50, spanL: 5000 });
+    expect(r.cruceta!.LeffMax).toBeCloseTo(625, 0); // = luz/8
+    expect(r.cruceta!.Leff).toBeCloseTo(r.cruceta!.LeffMax, 6); // auto → Leff = auto
   });
 
-  it('L_eff,máx decrece monótonamente al aumentar el axil (premisa de la bisección)', () => {
-    // Más carga → el acero gobierna antes → alcance más corto. Estrictamente
-    // decreciente mientras no se toque el cap.
-    const reaches = [100, 300, 600, 900, 1500].map(
+  it('suelo de 50cm cuando luz/8 < 500mm (luz pequeña)', () => {
+    const r = calcCruceta({ ...base, upnSize: 300, VEd: 50, spanL: 2000 }); // luz/8=250
+    expect(r.cruceta!.LeffMax).toBeCloseTo(500, 0); // suelo constructivo
+  });
+
+  it('en sobrecarga el acero capa la longitud por debajo de la constructiva (decreciente)', () => {
+    // Cargas altas: L_hard < luz/8 → la auto sigue al acero y decrece con el axil
+    // (premisa monótona de la bisección de steelReach).
+    const reaches = [1000, 1300, 1600, 2000, 2500].map(
       (VEd) => calcCruceta({ ...base, upnSize: 160, VEd }).cruceta!.LeffMax,
     );
+    expect(reaches[0]).toBeLessThan(625); // ya por debajo de la constructiva
     for (let i = 1; i < reaches.length; i++) {
       expect(reaches[i]).toBeLessThan(reaches[i - 1]);
     }
@@ -202,18 +207,17 @@ describe('FTUX defaults (HEB200, plate 300×300×20, UPN160, S275, d200, N300)',
   it('bEff ≈ 55.5 mm (tw+2·cf gobierna con f=fcd)', () => expect(c.bEff).toBeCloseTo(55.5, 1));
   it('cf ≈ 24.0 mm', () => expect(c.cf).toBeCloseTo(24.0, 1));
   it('M_Rd ≈ 38.76 kN·m (Wpl·fy/γM0)', () => expect(c.MRd).toBeCloseTo(38.76, 1));
-  // L_eff por mecanismo de shearhead: el brazo reparte hasta que su acero
-  // (soldadura, al 75% en auto) gobierna → más largo que el límite de placa base.
-  it('L_eff,max ≈ 735 mm (alcance limitado por el acero, no por placa)', () => {
-    expect(c.LeffMax).toBeGreaterThan(720);
-    expect(c.LeffMax).toBeLessThan(750);
+  // Longitud del brazo por el DETALLE TIPO: luz/8 = 5000/8 = 625mm (el acero llega
+  // más lejos, así que manda la regla constructiva, no la resistencia).
+  it('L_brazo auto ≈ 625 mm (= luz/8, detalle tipo)', () => {
+    expect(c.LeffMax).toBeCloseTo(625, 0);
   });
   it('Leff = LeffMax in auto mode', () => expect(c.Leff).toBeCloseTo(c.LeffMax, 6));
-  it('u1 ≈ 8878 mm (offset 2d del shearhead)', () => {
-    expect(c.u1).toBeGreaterThan(8800);
-    expect(c.u1).toBeLessThan(8950);
+  it('u1 ≈ 8000 mm (offset 2d del shearhead sobre brazo de 625)', () => {
+    expect(c.u1).toBeGreaterThan(7900);
+    expect(c.u1).toBeLessThan(8100);
   });
-  it('Vcap ≈ 2819 kN (f_cap = 2/3·fcd · Acruz)', () => expect(c.Vcap).toBeCloseTo(2819, -1));
+  it('Vcap ≈ 2547 kN (f_cap = 2/3·fcd · Acruz)', () => expect(c.Vcap).toBeCloseTo(2547, -1));
   it('no suggestion when chosen passes', () => expect(c.suggestedUpn).toBeNull());
   it('exposes cruceta detail only in this mode', () => expect(r.cruceta).toBeDefined());
 });
@@ -230,7 +234,7 @@ describe('failure surfaces', () => {
 // ── Profile suggestion (respect choice, recommend) ────────────────────────────
 describe('profile escalation suggestion', () => {
   it('chosen UPN fails → suggests a larger passing profile (no auto-switch)', () => {
-    const r = calcCruceta({ ...base, VEd: 700, upnSize: 160 });
+    const r = calcCruceta({ ...base, VEd: 750, upnSize: 160 });
     expect(r.valid).toBe(false);
     expect(r.cruceta!.upnSize).toBe(160);            // choice unchanged
     expect(r.cruceta!.suggestedUpn).not.toBeNull();
@@ -238,8 +242,8 @@ describe('profile escalation suggestion', () => {
   });
 
   it('suggested profile actually passes', () => {
-    const r = calcCruceta({ ...base, VEd: 700, upnSize: 160 });
-    const sized = calcCruceta({ ...base, VEd: 700, upnSize: r.cruceta!.suggestedUpn! });
+    const r = calcCruceta({ ...base, VEd: 750, upnSize: 160 });
+    const sized = calcCruceta({ ...base, VEd: 750, upnSize: r.cruceta!.suggestedUpn! });
     expect(sized.valid).toBe(true);
   });
 

@@ -43,18 +43,17 @@ export { sidesForPosition } from './punching';
 const GAMMA_M0 = 1.05;
 const GAMMA_M2 = 1.25;
 
-// Longitud de brazo mínima RECOMENDADA (constructiva, NO normativa — no existe
-// mínimo en EC2/CE ni en ACI 318-19, que retiró las provisiones de shearhead).
-// Por debajo de esto la cruceta reparte muy poco: el aviso empuja a subir de
-// perfil. Editable según criterio de oficina. L_eff,máx ya es el máximo efectivo;
-// este umbral NO lo aumenta, solo avisa.
-const MIN_RECOMMENDED_ARM = 200; // mm
+// Longitud de brazo del DETALLE TIPO (pilar metálico embebido en forjado): la
+// cruceta se construye a L ≥ luz/8 y ≥ 50 cm, a centro de canto. Es una regla
+// CONSTRUCTIVA probada (no hay mínimo normativo: EC2 no tiene shearhead y ACI
+// 318-19 lo retiró). La longitud la manda la construcción, no la optimización del
+// acero; el acero solo pone el techo (L_eff,duro, donde el brazo partiría).
+const MIN_CONSTRUCTIVE_ARM = 500; // mm — ≥50 cm del detalle tipo
+const SPAN_ARM_FRACTION = 8;      // L ≥ luz/8
 
-// Shearhead L_eff: el brazo embebido reparte (empuja la sección crítica afuera)
-// MIENTRAS el acero aguante. En auto se dimensiona a STEEL_TARGET_AUTO de la
-// utilización gobernante (flexión/soldadura/cortante), dejando margen; el cap duro
-// (manual) es util=1.0. MAX_AUTO_ARM acota cargas muy bajas.
-const STEEL_TARGET_AUTO = 0.75;
+// Alcance del acero (shearhead): el brazo reparte MIENTRAS el acero aguante. El cap
+// duro (util=1.0) es donde el brazo partiría por flexión/soldadura/cortante.
+// MAX_AUTO_ARM acota la bisección con cargas muy bajas.
 const MAX_AUTO_ARM = 1500; // mm
 
 // Resistencias de acero de UN brazo, independientes de la longitud: garganta de
@@ -161,6 +160,7 @@ interface Ctx {
   V_N: number;            // design load (N) after relief
   reliefApplied: boolean;
   armLength: number;      // user manual arm length (0 = auto)
+  spanL: number;          // mm — luz del vano (regla constructiva luz/8)
   weldThroat: number;     // mm
   steelGrade: CrucetaSteel;
   substrate: CrucetaSubstrate;
@@ -192,15 +192,19 @@ function deriveGeom(upn: UPNProfile, c: Ctx) {
   // Wpl if class ≤ 2, else Wel (cm³ → mm³)
   const W = (upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000; // mm³
   const MRd_Nmm = (W * c.fy) / GAMMA_M0;           // N·mm
-  // L_eff por mecanismo de cabeza de cortante: el brazo reparte hasta que SU ACERO
-  // gobierna (flexión/soldadura/cortante), no por rigidez de placa base. Auto →
-  // dimensionado a STEEL_TARGET_AUTO; cap manual → util=1.0 (más allá el acero parte).
-  const LeffMax = steelReach(upn, c, bEff, MRd_Nmm, STEEL_TARGET_AUTO);
+  // Longitud del brazo: la manda el DETALLE TIPO (constructiva), no el acero.
+  //   L_constr = máx(luz/8, 50cm)  ← lo que se construye
+  //   L_hard   = alcance donde el acero partiría (util=1.0)  ← techo físico
+  //   auto     = mín(L_constr, L_hard)   (si el acero no llega, se capa y se avisa)
   const LeffHard = steelReach(upn, c, bEff, MRd_Nmm, 1.0);
-  const Larm = c.armLength > 0 ? c.armLength : LeffMax;
+  const Lconstr = Math.max(MIN_CONSTRUCTIVE_ARM, c.spanL / SPAN_ARM_FRACTION);
+  const Lauto = Math.min(Lconstr, LeffHard);
+  const Larm = c.armLength > 0 ? c.armLength : Lauto;
   const Leff = Math.min(Larm, LeffHard);
   const Acruz = c.plateA * c.plateB + c.nArms * bEff * Leff; // mm² — loaded area
-  return { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz };
+  // LeffMax = longitud auto (constructiva, capada). Lconstr/LeffHard se exponen para
+  // el aviso "perfil corto para la luz" (L_hard < L_constr → no alcanza el detalle).
+  return { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax: Lauto, Lconstr, LeffHard, Larm, Leff, Acruz };
 }
 
 function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
@@ -208,7 +212,7 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   if (!upn) return null;
 
   const g = deriveGeom(upn, c);
-  const { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz } = g;
+  const { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Lconstr, LeffHard, Larm, Leff, Acruz } = g;
   const fCap = (2 / 3) * c.fcd;                   // MPa — bearing capacity floor (conservative)
   const MRd = MRd_Nmm / 1e6;                     // kN·m
 
@@ -345,14 +349,15 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     weldRes, fvwd, `${weldRes.toFixed(1)} N/mm²`, `${fvwd.toFixed(1)} N/mm²`, 'CE DB-SE-A 8.6.2',
   ));
 
-  // Aviso constructivo: L_eff,máx por debajo del mínimo recomendado → la cruceta
-  // reparte poco; subir de perfil. Amber (no bloquea). No hay mínimo normativo.
-  if (LeffMax < MIN_RECOMMENDED_ARM) {
+  // Aviso constructivo: el acero NO alcanza la longitud del detalle tipo (luz/8,
+  // ≥50cm) → el brazo se capa antes y reparte menos de lo que tocaría; subir perfil
+  // (ver tabla canto→UPN). Amber (no bloquea). No hay mínimo normativo.
+  if (LeffHard < Lconstr) {
     checks.push({
       id: 'cru-arm-min',
-      description: 'L_eff,máx < mínimo recomendado (cruceta poco efectiva — subir perfil)',
-      value: `${LeffMax.toFixed(0)} mm`, limit: `${MIN_RECOMMENDED_ARM} mm`,
-      utilization: 0.9, status: 'warn', article: 'recomendación constructiva',
+      description: 'El acero no alcanza la longitud del detalle (luz/8, ≥50cm) — subir perfil',
+      value: `${LeffHard.toFixed(0)} mm`, limit: `${Lconstr.toFixed(0)} mm`,
+      utilization: 0.9, status: 'warn', article: 'detalle tipo / recomendación',
     });
   }
 
@@ -464,7 +469,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     fcd, vRdc, vRdmax, fy, fu, betaW, d, beta, nArms, position: inp.position,
     plateA: inp.plateA, plateB: inp.plateB, A_col,
     V_N: inp.VEd * 1000, reliefApplied: false,
-    armLength: inp.armLength, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
+    armLength: inp.armLength, spanL: inp.spanL, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
     substrate: inp.substrate, edgeY: inp.edgeY, edgeX: inp.edgeX,
     hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
     sr: inp.sr, fywk: inp.fywk,

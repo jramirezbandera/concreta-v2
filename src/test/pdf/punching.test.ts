@@ -32,7 +32,7 @@ describe('exportPunchingPDF — modo cruceta', () => {
   it('perfil UPN que FALLA sigue exportando sin tirar (PDF nunca deshabilitado)', async () => {
     // Política Concreta: el PDF nunca se gatea por validez. El usuario puede
     // necesitar documentar un caso no apto; el motor refleja el estado real.
-    const inp = { ...cru, VEd: 700, upnSize: 160 };
+    const inp = { ...cru, VEd: 900, upnSize: 160 };
     const result = calcPunching(inp);
     expect(result.valid).toBe(false);
 

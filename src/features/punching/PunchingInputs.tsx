@@ -323,6 +323,7 @@ function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArm
       <CollapsibleSection label="Cruceta UPN">
         <SelectField label="Perfil UPN" field="upnSize"    value={state.upnSize}    options={UPN_SIZE_OPTIONS}    setField={setField} />
         <SelectField label="Acero"      field="steelGrade" value={state.steelGrade} options={STEEL_GRADE_OPTIONS} setField={setField} />
+        <NumField    label="Luz del vano"  sub="luz" field="spanL" value={state.spanL} unit="mm" setField={setField} />
         <ArmLengthField
           display={armLengthDisplay ?? state.armLength}
           isAuto={armLengthAuto ?? true}

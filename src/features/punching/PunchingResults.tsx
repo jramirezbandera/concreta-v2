@@ -50,7 +50,7 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <ValueRow label="Perfil de la cruceta"             value={`UPN ${c.upnSize} (${c.steelGrade})`} />
         <ValueRow label="Clase de sección (EC3)"           value={`Clase ${c.upnClass}`} />
         <ValueRow label="L_eff — longitud eficaz del brazo" value={`${c.Leff.toFixed(0)} mm`} />
-        <ValueRow label="L_eff,máx — alcance del perfil"   value={`${c.LeffMax.toFixed(0)} mm`} />
+        <ValueRow label="L_brazo (auto) — luz/8, ≥50cm"    value={`${c.LeffMax.toFixed(0)} mm`} />
         <ValueRow label="b_eff — ancho de contacto eficaz" value={`${c.bEff.toFixed(0)} mm`} />
         <ValueRow label="M_Rd — momento resistente cruceta" value={`${c.MRd.toFixed(1)} kN·m`} />
 

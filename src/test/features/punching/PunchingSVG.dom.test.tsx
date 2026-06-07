@@ -69,7 +69,7 @@ describe('PunchingSVG — modo cruceta', () => {
 
   it('NO crashea con un perfil que falla (result valid=false)', () => {
     // El usuario puede tener un UPN insuficiente: el SVG debe seguir dibujando.
-    const inp = { ...cru, VEd: 700, upnSize: 160 };
+    const inp = { ...cru, VEd: 900, upnSize: 160 };
     const result = calcPunching(inp);
     expect(result.valid).toBe(false);
     expect(() => render(<PunchingSVG inp={inp} result={result} width={360} />)).not.toThrow();
