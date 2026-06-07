@@ -86,7 +86,7 @@ function ArmLengthField({
   useEffect(() => { setLocalStr(String(display)); }, [display]);
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor="input-armLength" label="Longitud brazo" sub="L_eff" />
+      <InputLabel htmlFor="input-armLength" label="Longitud brazo" />
       <div className="flex items-center shrink-0 gap-1.5">
         <button
           type="button"
@@ -374,15 +374,18 @@ function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArm
 
         {isForjado && (<>
           <ToggleButton
-            label="Armadura de punzonamiento (cercos)"
+            label="Armadura de punzonamiento de la losa (anillos)"
             active={swOpen}
             onClick={() => setField('hasShearReinf', !state.hasShearReinf)}
           />
           <div
             className="overflow-hidden transition-all duration-150"
-            style={{ maxHeight: swOpen ? '200px' : '0px', opacity: swOpen ? 1 : 0 }}
+            style={{ maxHeight: swOpen ? '220px' : '0px', opacity: swOpen ? 1 : 0 }}
           >
-            <p className="text-[10px] text-text-disabled mb-1">vRd,cs (CE 6.4.5) cuando el hormigón solo no llega en una losa fina.</p>
+            <p className="text-[10px] text-text-disabled mb-1">
+              Cercos/studs en anillos en la LOSA alrededor de la cruz (cosen el cono a 2d) → vRd,cs (CE 6.4.5).
+              NO son los cercos de confinamiento entre las UPN (eso sube f por §6.7, no modelado aún).
+            </p>
             <SelectField label="Ø cerco"    field="swDiam" value={state.swDiam} options={SW_DIAM_OPTIONS} setField={setField} />
             <SelectField label="Nº ramas"   field="swLegs" value={state.swLegs} options={SW_LEGS_OPTIONS} setField={setField} />
             <NumField    label="Sep. radial" sub="sr" field="sr"   value={state.sr}   unit="mm" setField={setField} />

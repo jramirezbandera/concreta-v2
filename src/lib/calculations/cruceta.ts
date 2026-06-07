@@ -50,6 +50,68 @@ const GAMMA_M2 = 1.25;
 // este umbral NO lo aumenta, solo avisa.
 const MIN_RECOMMENDED_ARM = 200; // mm
 
+// Shearhead L_eff: el brazo embebido reparte (empuja la sección crítica afuera)
+// MIENTRAS el acero aguante. En auto se dimensiona a STEEL_TARGET_AUTO de la
+// utilización gobernante (flexión/soldadura/cortante), dejando margen; el cap duro
+// (manual) es util=1.0. MAX_AUTO_ARM acota cargas muy bajas.
+const STEEL_TARGET_AUTO = 0.75;
+const MAX_AUTO_ARM = 1500; // mm
+
+// Resistencias de acero de UN brazo, independientes de la longitud: garganta de
+// soldadura (Aw área, Ww módulo de la línea de soldadura, f_vw,d) y cortante
+// plástico del alma Vpl,Rd. ÚNICA FUENTE de estas fórmulas: la usan tanto la
+// búsqueda de alcance (steelReach) como las filas de verificación (evalProfile),
+// para que el límite que persigue el L_eff y el que muestra el check no deriven.
+interface ArmSteel {
+  Aw: number;     // mm² — área de garganta (dos cordones a lo largo del canto)
+  Ww: number;     // mm³ — módulo a flexión de la línea de soldadura
+  fvwd: number;   // MPa — resistencia de cálculo del cordón (CE DB-SE-A 8.6.2)
+  VplRd: number;  // N — cortante plástico del alma del UPN
+}
+function armSteel(upn: UPNProfile, c: Ctx): ArmSteel {
+  const lw = 2 * upn.h, a = c.weldThroat;       // mm — dos cordones (conservador)
+  return {
+    Aw: Math.max(a * lw, 1e-6),
+    Ww: Math.max((a * lw * lw) / 6, 1e-6),
+    fvwd: c.fu / (Math.sqrt(3) * c.betaW * GAMMA_M2),
+    VplRd: (upn.h * upn.tw * c.fy) / (Math.sqrt(3) * GAMMA_M0),
+  };
+}
+
+/**
+ * Utilización GOBERNANTE del acero de un brazo bajo apoyo uniforme σ sobre un
+ * alcance L: máx(flexión M_Rd, soldadura f_vw,d, cortante Vpl,Rd). Crece monótona
+ * con L (premisa de la bisección en steelReach). Fórmula única compartida con las
+ * filas de verificación de evalProfile.
+ */
+function steelUtil(s: ArmSteel, MRd_Nmm: number, bEff: number, sig: number, L: number): number {
+  const MEd = (sig * bEff * L * L) / 2;
+  const Varm = sig * bEff * L;
+  const bend = MEd / MRd_Nmm;
+  const weld = Math.sqrt((MEd / s.Ww) ** 2 + (Varm / s.Aw) ** 2) / s.fvwd;
+  const shear = Varm / s.VplRd;
+  return Math.max(bend, weld, shear);
+}
+
+/**
+ * Alcance eficaz del brazo limitado por la RESISTENCIA DEL ACERO (mecanismo de
+ * cabeza de cortante): el cono no se forma a través del acero intacto, así que el
+ * brazo extiende la sección crítica hasta donde su propia resistencia (flexión
+ * M_Rd, soldadura f_vw,d, cortante Vpl,Rd) bajo la carga real lo permite. Devuelve
+ * la longitud L donde la utilización gobernante del acero = `target`. Bisección
+ * (la util crece monótona con L). ⚠ Usa σ_act uniforme e IGNORA el anclaje del
+ * brazo (fila amber) — la fuerza real que cruza el cono es el hand-calc §6.7.
+ */
+function steelReach(upn: UPNProfile, c: Ctx, bEff: number, MRd_Nmm: number, target: number): number {
+  const s = armSteel(upn, c);
+  const util = (L: number): number =>
+    steelUtil(s, MRd_Nmm, bEff, c.V_N / (c.A_col + c.nArms * bEff * L), L); // σ_act = V/A
+  if (util(MAX_AUTO_ARM) <= target) return MAX_AUTO_ARM;
+  let lo = 1, hi = MAX_AUTO_ARM;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (util(m) < target) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+
 // Steel strengths by grade (EN 10025).
 const STEEL_FY: Record<CrucetaSteel, number> = { S275: 275, S355: 355 };
 const STEEL_FU: Record<CrucetaSteel, number> = { S275: 430, S355: 490 };
@@ -110,16 +172,16 @@ interface Ctx {
 
 /**
  * Geometry of the EMBEDDED confined cross (interim conservative model, 2026-06-07,
- * post /office-hours redesign). The real detail is a UPN cross embedded mid-depth,
- * delivering N to the surrounding concrete by CONFINED bearing (EC2 §6.7), NOT a
- * base plate bearing on top. INTERIM, conservative, pending the engineer's hand-calc:
- *  • f_geom = fcd for c_f / b_eff / L_eff. Higher than the old 2/3·fcd → SHORTER
- *    L_eff → smaller u1 → higher vEd (conservative on punching; fixes the unsafe
- *    f→L_eff coupling the eng-review found).
- *  • NO confinement claimed above fcd (Ac1=Ac0) → f constant → no iteration, no
- *    solver, and the §6.7 splitting reinforcement check is not needed yet.
- *  • V_cap uses f_cap = 2/3·fcd (capacity floor, conservative) — see evalProfile.
- * PENDING engineer validation: Ac1/confinement >fcd, anchorage, cover, delamination.
+ * post /office-hours redesign). The real detail is a UPN cross embedded mid-depth
+ * acting as a SHEARHEAD: the punching cone cannot form through the intact steel, so
+ * the arm pushes the critical section outward. INTERIM, pending the engineer's hand-calc:
+ *  • f_geom = fcd for c_f / b_eff and V_cap (f_cap = 2/3·fcd, conservative). NO
+ *    confinement claimed above fcd (Ac1=Ac0) → f constant, no iteration.
+ *  • L_eff = SHEARHEAD reach: the arm spreads until its OWN steel (bending/weld/
+ *    shear) governs (steelReach), not a base-plate rigidity limit. ⚠ Uses uniform
+ *    σ_act and ignores arm anchorage (amber row) — the cone-crossing force is the §6.7.
+ * PENDING engineer validation: Ac1/confinement >fcd, anchorage, cone force, cover,
+ * delamination.
  */
 function deriveGeom(upn: UPNProfile, c: Ctx) {
   const fGeom = c.fcd;                             // MPa — fcd (no confinement >fcd)
@@ -130,10 +192,13 @@ function deriveGeom(upn: UPNProfile, c: Ctx) {
   // Wpl if class ≤ 2, else Wel (cm³ → mm³)
   const W = (upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000; // mm³
   const MRd_Nmm = (W * c.fy) / GAMMA_M0;           // N·mm
-  // Effective reach: M = f·bEff·L²/2 ≤ MRd  →  Lmax = √(2·MRd/(f·bEff))
-  const LeffMax = Math.sqrt((2 * MRd_Nmm) / (fGeom * bEff));
+  // L_eff por mecanismo de cabeza de cortante: el brazo reparte hasta que SU ACERO
+  // gobierna (flexión/soldadura/cortante), no por rigidez de placa base. Auto →
+  // dimensionado a STEEL_TARGET_AUTO; cap manual → util=1.0 (más allá el acero parte).
+  const LeffMax = steelReach(upn, c, bEff, MRd_Nmm, STEEL_TARGET_AUTO);
+  const LeffHard = steelReach(upn, c, bEff, MRd_Nmm, 1.0);
   const Larm = c.armLength > 0 ? c.armLength : LeffMax;
-  const Leff = Math.min(Larm, LeffMax);
+  const Leff = Math.min(Larm, LeffHard);
   const Acruz = c.plateA * c.plateB + c.nArms * bEff * Leff; // mm² — loaded area
   return { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz };
 }
@@ -171,22 +236,20 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   const vEdCore = (c.beta * Vcore_N) / (uCore * c.d);         // MPa, local core
   const vEdTip  = (c.beta * Varm_N) / (uTip * c.d);           // MPa, arm tip
 
-  // UPN bending / shear — actual demand pressure σ_act
+  // UPN bending / shear / weld — actual demand pressure σ_act. Mismas resistencias
+  // (armSteel) que persigue steelReach: una sola fuente, sin deriva entre el L_eff
+  // y el check que se muestra.
+  const s = armSteel(upn, c);
   const MEd_Nmm = (sigAct * bEff * Leff * Leff) / 2;          // N·mm at root
   const MEd = MEd_Nmm / 1e6;                                  // kN·m
-  const Av = upn.h * upn.tw;                                  // mm², web shear area
-  const VplRd_N = (Av * c.fy) / (Math.sqrt(3) * GAMMA_M0);    // N
+  const VplRd_N = s.VplRd;                                    // N, web plastic shear
   const VEd_arm = Varm_N;                                     // N (= bearing reaction)
 
   // Weld (simplified, CTE DB-SE-A 8.6.2 directional resultant ≤ fvw,d)
-  const lw = 2 * upn.h;                                       // mm, two runs along depth (conservative)
-  const a = c.weldThroat;
-  const Aw = a * lw;                                          // mm²
-  const Ww = (a * lw * lw) / 6;                               // mm³, line weld bending modulus
-  const tauW = VEd_arm / Math.max(Aw, 1e-6);                  // MPa
-  const sigW = MEd_Nmm / Math.max(Ww, 1e-6);                  // MPa
+  const tauW = VEd_arm / s.Aw;                                // MPa
+  const sigW = MEd_Nmm / s.Ww;                                // MPa
   const weldRes = Math.sqrt(sigW * sigW + tauW * tauW);       // MPa
-  const fvwd = c.fu / (Math.sqrt(3) * c.betaW * GAMMA_M2);    // MPa
+  const fvwd = s.fvwd;                                        // MPa
 
   // Punching shear reinforcement (forjado only — thin transfer slab, CE 6.4.5).
   // vRd,cs(u) = 0.75·vRd,c + 1.5·(d/sr)·Asw·fywd,ef/(u·d). Asw per radial row taken

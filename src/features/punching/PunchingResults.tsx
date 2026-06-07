@@ -40,8 +40,9 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         </div>
 
         <p className="text-[10px] text-state-warn mb-2 leading-snug">
-          ⚠ Modelo interino: cruz embebida confinada (apoyo a fcd, sin confinamiento &gt;fcd).
-          Anclaje, recubrimiento y delaminación pendientes de verificación a mano.
+          ⚠ Modelo interino: cruz embebida con apoyo a fcd (sin confinamiento &gt;fcd). Los cercos de
+          confinamiento entre las UPN subirían f por EC2 §6.7 — aún NO modelado (pendiente de hand-calc).
+          Anclaje, recubrimiento y delaminación: verificar a mano.
         </p>
 
         <GroupHeader label="Cruceta" />
