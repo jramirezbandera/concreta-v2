@@ -240,8 +240,8 @@ describe('longitud del brazo (detalle tipo: luz/8, ≥50cm)', () => {
 // ── Filas honestas de estados límite pendientes (amber, no verde) ─────────────
 describe('estados límite del embebido pendientes', () => {
   const r = calcCruceta(base);
-  it('anclaje/recubrimiento/delaminación presentes como warn (verificar a mano)', () => {
-    for (const id of ['cru-anchor', 'cru-cover', 'cru-delam']) {
+  it('anclaje/recubrimiento presentes como warn en zapata (verificar a mano)', () => {
+    for (const id of ['cru-anchor', 'cru-cover']) {
       const ch = r.checks.find((c) => c.id === id);
       expect(ch, id).toBeDefined();
       expect(ch!.status).toBe('warn');
@@ -281,13 +281,52 @@ describe('detalle tipo: anclaje/atado dejan de ser "verificar a mano" (forjado)'
     expect(stat(calcCruceta({ ...f, hasRepartoSup: false }), 'cru-cover')).toBe('warn');
   });
 
-  it('la delaminación (cortante de interfaz) sigue en amber: no hay cláusula que la calcule', () => {
-    expect(stat(calcCruceta(f), 'cru-delam')).toBe('warn');
+  it('en zapata anclaje y atado siguen como verificación a mano (el detalle es de forjado)', () => {
+    const r = calcCruceta(base);
+    for (const id of ['cru-anchor', 'cru-cover']) expect(stat(r, id)).toBe('warn');
+  });
+});
+
+// ── Delaminación: cortante de interfaz §6.2.5 cosido por cercos entre crucetas ─
+describe('delaminación (cortante de interfaz, EC2 §6.2.5)', () => {
+  const f = { ...base, substrate: 'forjado' as const };
+  const delam = (r: ReturnType<typeof calcCruceta>) => r.checks.find((c) => c.id === 'cru-delam')!;
+
+  it('es un check real (vEdi ≤ vRdi), ya no "verificar a mano"', () => {
+    const c = delam(calcCruceta(f));
+    expect(c.value).toContain('N/mm²');
+    expect(c.article).toContain('6.2.5');
+    expect(['ok', 'warn', 'fail']).toContain(c.status);
   });
 
-  it('en zapata los tres siguen como verificación a mano (el detalle es de forjado)', () => {
-    const r = calcCruceta(base);
-    for (const id of ['cru-anchor', 'cru-cover', 'cru-delam']) expect(stat(r, id)).toBe('warn');
+  it('con los cercos del detalle (Ø8@150) cumple con holgura', () => {
+    const c = delam(calcCruceta(f));
+    expect(c.status).toBe('ok');
+    expect(c.utilization).toBeLessThan(0.5);
+  });
+
+  it('los cercos suben la resistencia (cohesión del hormigón + fricción del acero)', () => {
+    const sin = delam(calcCruceta({ ...f, hasConfTies: false })).utilization;
+    const con = delam(calcCruceta(f)).utilization;
+    expect(con).toBeLessThan(sin); // más cosido → menos utilización
+  });
+
+  it('sin cercos y con axil alto, la delaminación FALLA (bloquea la validez)', () => {
+    const r = calcCruceta({ ...f, hasConfTies: false, VEd: 600 });
+    expect(delam(r).status).toBe('fail');
+    expect(r.valid).toBe(false);
+  });
+
+  it('reforzar los cercos (Ø10@100) rescata ese caso', () => {
+    const r = calcCruceta({ ...f, confTieD: 10, confTieS: 100, VEd: 600 });
+    expect(delam(r).status).toBe('ok');
+  });
+
+  it('vRdi se capa por bielas (0.5·ν·fcd) con muchísimo cosido', () => {
+    const c = delam(calcCruceta({ ...f, confTieD: 25, confTieS: 50 }));
+    const cap = 0.5 * (0.6 * (1 - base.fck / 250)) * 16.7; // ≈4.5
+    const vRdi = parseFloat(String(c.limit));
+    expect(vRdi).toBeLessThanOrEqual(cap + 0.01);
   });
 });
 

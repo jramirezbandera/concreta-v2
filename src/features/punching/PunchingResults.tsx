@@ -39,11 +39,11 @@ export function PunchingResults({ result }: PunchingResultsProps) {
           <VerdictBadge status={status} />
         </div>
 
-        <p className="text-[10px] text-state-warn mb-2 leading-snug">
-          ⚠ Modelo interino: cruz embebida. El apoyo del núcleo usa fcd salvo que actives la espiral
-          de confinamiento (§6.7). El anclaje (soldadura pasante) y el atado (reparto sup) se cubren
-          con el detalle si se marcan en "Detalle de armado". El cortante de interfaz en el plano de
-          la cruz (delaminación) sigue sin cláusula que lo calcule: verificar a mano.
+        <p className="text-[10px] text-text-secondary mb-2 leading-snug">
+          Cruz embebida (cabeza de cortante). Apoyo del núcleo a fcd, o a f_Rdu con espiral (§6.7).
+          Anclaje por soldadura pasante y atado por reparto superior: cubiertos si se marcan en
+          "Detalle de armado". Delaminación cosida por los cercos entre crucetas (cortante de
+          interfaz §6.2.5).
         </p>
 
         <GroupHeader label="Cruceta" />

@@ -358,6 +358,22 @@ function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArm
           </p>
           <NumField label="Ø núcleo confinado" sub="Dn" field="spiralD" value={state.spiralD} unit="mm" setField={setField} />
         </div>
+        <ToggleButton
+          label="Cercos de cosido entre crucetas"
+          active={state.hasConfTies}
+          onClick={() => setField('hasConfTies', !state.hasConfTies)}
+        />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: state.hasConfTies ? '110px' : '0px', opacity: state.hasConfTies ? 1 : 0 }}
+        >
+          <p className="text-[10px] text-text-disabled mb-1">
+            Cosen el plano horizontal a la cota de la cruz (delaminación, cortante de interfaz §6.2.5).
+            NO son los anillos de punzonamiento de la losa.
+          </p>
+          <SelectField label="Ø cerco cosido" field="confTieD" value={state.confTieD} options={SW_DIAM_OPTIONS} setField={setField} />
+          <NumField    label="Separación" sub="s" field="confTieS" value={state.confTieS} unit="mm" setField={setField} />
+        </div>
       </CollapsibleSection>
 
       {isForjado && (

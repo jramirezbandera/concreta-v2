@@ -168,6 +168,7 @@ interface ProfileEval {
 
 interface Ctx {
   fcd: number; vRdc: number; vRdmax: number;
+  fctd: number; nu: number;        // tracción de cálculo + ν (cosido interfaz §6.2.5)
   fy: number; fu: number; betaW: number;
   d: number; beta: number; nArms: number;
   position: PunchingPosition;
@@ -182,6 +183,8 @@ interface Ctx {
   armThrough: boolean;                          // cruceta pasante soldada al pilar
   hasRepartoSup: boolean; hasRepartoInf: boolean; // armadura de reparto del detalle
   hasSpiral: boolean; spiralD: number;          // confinamiento §6.7 del núcleo
+  hasConfTies: boolean; confTieD: number; confTieS: number; // cercos de cosido (delaminación)
+  fyk: number;                                  // MPa — límite elástico del cosido
   edgeY: number; edgeX: number;                 // mm — free-edge clear distances
   // Punching shear reinforcement (forjado only — thin transfer slab).
   hasShearReinf: boolean;
@@ -459,13 +462,24 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     ? byDetail('cru-cover', 'Atado superior por armadura de reparto (sup) dispuesta', 'detalle tipo')
     : pending('cru-cover', 'Recubrimiento/atado superior sobre la cruz', 'EC2 §6.4'));
 
-  // Delaminación (cortante de interfaz en el plano de la cruz): NO se calcula aquí
-  // (sin cláusula de norma para shearhead). Queda como verificación a mano; el texto
-  // recuerda que los cercos entre crucetas y los repartos cosen el plano.
-  checks.push(pending('cru-delam',
-    fj ? 'Cortante de interfaz en el plano de la cruz (cosido por cercos/repartos)'
-       : 'Plano horizontal a la cota de la cruz',
-    'cortante interfaz'));
+  // Delaminación = cortante de interfaz (EC2 §6.2.5) en el plano horizontal a la
+  // cota de la cruz, cosido por los cercos verticales entre crucetas.
+  //   demanda:     v_Edi = β·V_Ed / (z·u1),  z = 0.9·d  (tensión sobre el plano)
+  //   resistencia: v_Rdi = c·f_ctd + ρ·f_yd·μ ≤ 0.5·ν·f_cd,  c=0.20 μ=0.6 (liso)
+  //   ρ = (2 ramas · A_cerco) / (s_cerco · b_eff)   (cosido transversal en el brazo)
+  const DELAM_C = 0.20, DELAM_MU = 0.6;          // §6.2.5 clase "lisa" (conservadora)
+  const zLever = 0.9 * c.d;                       // mm — brazo mecánico
+  const vEdi = (c.beta * c.V_N) / (zLever * u1);  // MPa
+  const rhoTie = c.hasConfTies
+    ? (2 * getBarArea(c.confTieD)) / (c.confTieS * bEff)
+    : 0;
+  const fydTie = c.fyk / 1.15;                    // MPa
+  const vRdiCap = 0.5 * c.nu * c.fcd;             // MPa — tope por bielas
+  const vRdi = Math.min(DELAM_C * c.fctd + rhoTie * fydTie * DELAM_MU, vRdiCap);
+  checks.push(makeCheck(
+    'cru-delam', 'vEdi ≤ vRdi (delaminación: cortante de interfaz en el plano de la cruz)',
+    vEdi, vRdi, `${vEdi.toFixed(3)} N/mm²`, `${vRdi.toFixed(3)} N/mm²`, 'EC2 §6.2.5',
+  ));
 
   // Concerns específicos del BORDE LIBRE en losa de transferencia (forjado +
   // borde/esquina): el motor de perímetro ya trunca el contorno, pero el anclaje
@@ -557,14 +571,16 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   // A_u1 conservative = cross contact area (smaller than the true enclosed area
   // → less relief → safe). Computed per-profile below; here use a first estimate
   // with the chosen profile's geometry by running the eval once.
+  const fctd = (0.7 * mat.fctm) / 1.5;           // MPa — f_ctk,0.05/γc (cosido §6.2.5)
   const baseCtx: Ctx = {
-    fcd, vRdc, vRdmax, fy, fu, betaW, d, beta, nArms, position: inp.position,
+    fcd, vRdc, vRdmax, fctd, nu, fy, fu, betaW, d, beta, nArms, position: inp.position,
     plateA: inp.plateA, plateB: inp.plateB, A_col,
     V_N: inp.VEd * 1000, reliefApplied: false,
     armLength: inp.armLength, spanL: inp.spanL, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
     substrate: inp.substrate, edgeY: inp.edgeY, edgeX: inp.edgeX,
     armThrough: inp.armThrough, hasRepartoSup: inp.hasRepartoSup, hasRepartoInf: inp.hasRepartoInf,
     hasSpiral: inp.hasSpiral, spiralD: inp.spiralD,
+    hasConfTies: inp.hasConfTies, confTieD: inp.confTieD, confTieS: inp.confTieS, fyk: inp.fyk,
     hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
     sr: inp.sr, fywk: inp.fywk,
   };

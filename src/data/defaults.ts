@@ -360,6 +360,9 @@ export interface PunchingInputs {
   hasRepartoInf: boolean;           // armadura de reparto inferior dispuesta
   hasSpiral:     boolean;           // espiral de confinamiento en la zona del pilar (§6.7)
   spiralD:       number;            // mm — Ø del núcleo confinado por la espiral
+  hasConfTies:   boolean;           // cercos de cosido entre crucetas (plano de delaminación)
+  confTieD:      number;            // mm — Ø del cerco de cosido
+  confTieS:      number;            // mm — separación del cerco a lo largo del brazo
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
   soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
@@ -405,6 +408,9 @@ export const punchingDefaults: PunchingInputs = {
   hasRepartoInf: true,   // detalle tipo: reparto inf 1Ø8
   hasSpiral:     false,  // confinamiento §6.7 opcional (off por defecto, conservador)
   spiralD:       500,    // mm — núcleo confinado (> placa para que confine)
+  hasConfTies:   true,   // detalle tipo: cercos de cosido entre crucetas
+  confTieD:      8,      // mm — Ø cerco de cosido
+  confTieS:      150,    // mm — separación del cerco
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
   edgeX:         500,
   soilRelief:    false,

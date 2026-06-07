@@ -118,8 +118,8 @@ export async function exportPunchingPDF(
     }
     ly += 1;
     lSecHeader('CRUCETA');
-    lRow(`Modelo interino: cruz embebida (apoyo fcd).`);
-    lRow(`Anclaje/recubr./delaminacion: verificar a mano.`);
+    lRow(`Cruz embebida (cabeza de cortante). Apoyo nucleo fcd/f_Rdu.`);
+    lRow(`Anclaje soldadura, atado reparto, delaminacion §6.2.5.`);
     lRow(`UPN ${cru.upnSize} (${cru.steelGrade}), Clase ${cru.upnClass}`);
     lRow(`L_eff = ${cru.Leff.toFixed(0)} mm`, `b_eff = ${cru.bEff.toFixed(0)} mm`);
     lRow(`L_brazo auto = ${cru.LeffMax.toFixed(0)} mm (luz/8, >=50cm)`);
