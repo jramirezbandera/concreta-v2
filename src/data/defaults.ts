@@ -355,11 +355,9 @@ export interface PunchingInputs {
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
   soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
-  footB:         number;            // mm — footing plan dim x (soilRelief / Kj)
-  footL:         number;            // mm — footing plan dim y (soilRelief / Kj)
-  footH:         number;            // mm — footing depth (Kj concentration cone)
+  footB:         number;            // mm — footing plan dim x (soilRelief)
+  footL:         number;            // mm — footing plan dim y (soilRelief)
   soilPressure:  number;            // kN/m² — design soil pressure (soilRelief)
-  useConcentration: boolean;        // EC3 Kj>1 bearing concentration (zapata, v2)
 }
 
 export const punchingDefaults: PunchingInputs = {
@@ -398,9 +396,7 @@ export const punchingDefaults: PunchingInputs = {
   soilRelief:    false,
   footB:         2000,
   footL:         2000,
-  footH:         600,    // mm — typical footing depth (Kj cone cap)
   soilPressure:  150,
-  useConcentration: false,
 };
 
 // ── Composite steel section (Steiner + EC3 classification) ───────────────────

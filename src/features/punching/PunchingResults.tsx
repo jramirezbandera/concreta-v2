@@ -39,6 +39,11 @@ export function PunchingResults({ result }: PunchingResultsProps) {
           <VerdictBadge status={status} />
         </div>
 
+        <p className="text-[10px] text-state-warn mb-2 leading-snug">
+          ⚠ Modelo interino: cruz embebida confinada (apoyo a fcd, sin confinamiento &gt;fcd).
+          Anclaje, recubrimiento y delaminación pendientes de verificación a mano.
+        </p>
+
         <GroupHeader label="Cruceta" />
         <ValueRow label="Posición"             value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
         <ValueRow label="Perfil UPN"           value={`UPN ${c.upnSize} (${c.steelGrade})`} />
@@ -49,10 +54,7 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <ValueRow label="M_Rd cruceta"         value={`${c.MRd.toFixed(1)} kN·m`} />
 
         <GroupHeader label="Parámetros" />
-        <ValueRow label="f_jd (aplastamiento)" value={`${c.fjd.toFixed(2)} N/mm²`} />
-        {c.Kj > 1.0001 && (
-          <ValueRow label="Kj (concentración)" value={c.Kj.toFixed(2)} />
-        )}
+        <ValueRow label="f apoyo (= fcd)"      value={`${c.fjd.toFixed(2)} N/mm²`} />
         <ValueRow label="N de cálculo"         value={`${c.Vdesign.toFixed(0)} kN${c.reliefApplied ? ' (con terreno)' : ''}`} />
         <ValueRow label="Capacidad reparto"    value={`${c.Vcap.toFixed(0)} kN`} />
         <ValueRow label="u0 (placa)"           value={`${c.u0.toFixed(0)} mm`} />

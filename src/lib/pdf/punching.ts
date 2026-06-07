@@ -118,6 +118,8 @@ export async function exportPunchingPDF(
     }
     ly += 1;
     lSecHeader('CRUCETA');
+    lRow(`Modelo interino: cruz embebida (apoyo fcd).`);
+    lRow(`Anclaje/recubr./delaminacion: verificar a mano.`);
     lRow(`UPN ${cru.upnSize} (${cru.steelGrade}), Clase ${cru.upnClass}`);
     lRow(`L_eff = ${cru.Leff.toFixed(0)} mm`, `b_eff = ${cru.bEff.toFixed(0)} mm`);
     lRow(`L_eff,max = ${cru.LeffMax.toFixed(0)} mm`);
@@ -140,7 +142,7 @@ export async function exportPunchingPDF(
     rRow(`u_core = ${cru.uCore.toFixed(0)} mm`, `u_tip = ${cru.uTip.toFixed(0)} mm`);
     ry += 1;
     rSecHeader('RESISTENCIAS');
-    rRow(`f_jd = ${cru.fjd.toFixed(2)} N/mm2`, cru.Kj > 1.0001 ? `Kj = ${cru.Kj.toFixed(2)}` : 'Kj = 1');
+    rRow(`f apoyo = ${cru.fjd.toFixed(2)} N/mm2 (=fcd)`);
     rRow(`Cap. reparto = ${cru.Vcap.toFixed(0)} kN`);
     rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm2`, `vEd = ${result.vEd.toFixed(3)}`);
     if (result.vRdcs !== undefined) {

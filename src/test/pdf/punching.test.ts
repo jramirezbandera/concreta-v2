@@ -59,11 +59,12 @@ describe('exportPunchingPDF — modo cruceta', () => {
     expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
   });
 
-  it('concentración EC3 (Kj>1) exporta la fila Kj', async () => {
-    const inp = { ...cru, useConcentration: true };
-    const result = calcPunching(inp);
-    expect(result.cruceta!.Kj).toBeGreaterThan(1);
-    const pdf = await exportPunchingPDF(inp, result);
+  it('modelo embebido interino (filas verificar-a-mano) exporta sin romper', async () => {
+    const result = calcPunching(cru);
+    // f apoyo = fcd (sin Kj) y filas pendientes en amber.
+    expect(result.cruceta!.Kj).toBe(1);
+    expect(result.checks.some((c) => c.id === 'cru-anchor' && c.status === 'warn')).toBe(true);
+    const pdf = await exportPunchingPDF(cru, result);
     expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
   });
 

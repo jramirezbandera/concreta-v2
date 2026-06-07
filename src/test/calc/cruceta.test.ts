@@ -93,44 +93,42 @@ describe('forjado', () => {
   });
 });
 
-// ── V2 #6 — α (Kj) bearing concentration ──────────────────────────────────────
-describe('concentración EC3 Kj (V2 #6)', () => {
-  it('por defecto α=Kj=1 (sin concentración)', () => {
-    const r = calcCruceta(base);
-    expect(r.cruceta!.Kj).toBeCloseTo(1, 6);
-  });
+// ── Modelo de bearing EMBEBIDO (interino conservador, 2026-06-07) ──────────────
+// El rediseño post-/office-hours: cruz embebida confinada, no placa que apoya.
+// f_geom = fcd (no 2/3·fcd) → L_eff más corto → más conservador en punzonamiento.
+// V_cap = 2/3·fcd·Acruz (capacidad conservadora). Sin Kj, sin iteración.
+describe('bearing embebido confinado (interino)', () => {
+  const c = calcCruceta(base).cruceta!;
+  const fcd = c.fjd; // f apoyo reportado = fcd
 
-  it('activada en zapata: Kj>1, ≤3, sube f_jd y Vcap', () => {
-    const off = calcCruceta(base).cruceta!;
-    const on = calcCruceta({ ...base, useConcentration: true }).cruceta!;
-    expect(on.Kj).toBeGreaterThan(1);
-    expect(on.Kj).toBeLessThanOrEqual(3);
-    expect(on.fjd).toBeGreaterThan(off.fjd);
-    expect(on.Vcap).toBeGreaterThan(off.Vcap);
+  it('f apoyo = fcd (≈16.7), no 2/3·fcd (11.13) ni Kj', () => {
+    expect(c.fjd).toBeCloseTo(16.7, 1);
+    expect(c.Kj).toBe(1);
   });
-
-  it('f_jd escala linealmente con Kj (off·Kj = on)', () => {
-    // off.fjd = βj·1·fcd ; on.fjd = βj·Kj·fcd  →  on.fjd / off.fjd = Kj.
-    const off = calcCruceta(base).cruceta!;
-    const on = calcCruceta({ ...base, useConcentration: true }).cruceta!;
-    expect(on.fjd / off.fjd).toBeCloseTo(on.Kj, 4);
+  it('V_cap usa f_cap = 2/3·fcd (capacidad conservadora)', () => {
+    const Acruz = 300 * 300 + 4 * c.bEff * c.Leff;          // mm²
+    expect(c.Vcap).toBeCloseTo((2 / 3) * fcd * Acruz / 1000, 0); // kN
   });
-
-  it('zapata enorme → Kj saturado a 3 (cap EC3)', () => {
-    const on = calcCruceta({ ...base, useConcentration: true, footB: 60000, footL: 60000, footH: 60000 }).cruceta!;
-    expect(on.Kj).toBeCloseTo(3, 6);
+  it('bEff lo gobierna tw+2·cf (no el ancho del ala) con f=fcd', () => {
+    expect(c.bEff).toBeLessThan(65);
   });
+});
 
-  it('la iteración Ac0↔fjd es determinista y consistente (f_jd = βj·Kj·fcd al converger)', () => {
-    // El cap de 5 iteraciones no debe dejar fjd y Kj descuadrados: al salir,
-    // el fjd reportado debe seguir siendo exactamente βj·Kj·fcd_local.
-    const r = calcCruceta({ ...base, useConcentration: true });
-    const c = r.cruceta!;
-    const fcdLocal = c.fjd / ((2 / 3) * c.Kj);   // implícito
-    expect(c.fjd).toBeCloseTo((2 / 3) * c.Kj * fcdLocal, 9);
-    // Determinismo: misma entrada → mismo Kj.
-    const r2 = calcCruceta({ ...base, useConcentration: true });
-    expect(r2.cruceta!.Kj).toBe(c.Kj);
+// ── Filas honestas de estados límite pendientes (amber, no verde) ─────────────
+describe('estados límite del embebido pendientes', () => {
+  const r = calcCruceta(base);
+  it('anclaje/recubrimiento/delaminación presentes como warn (verificar a mano)', () => {
+    for (const id of ['cru-anchor', 'cru-cover', 'cru-delam']) {
+      const ch = r.checks.find((c) => c.id === id);
+      expect(ch, id).toBeDefined();
+      expect(ch!.status).toBe('warn');
+    }
+  });
+  it('el verdict global no sale verde limpio (hay warn pendiente)', () => {
+    expect(r.checks.some((c) => c.status === 'warn')).toBe(true);
+  });
+  it('los pendientes NO son fail (avisan, no bloquean el resto)', () => {
+    expect(r.valid).toBe(true);
   });
 });
 
@@ -140,22 +138,22 @@ describe('FTUX defaults (HEB200, plate 300×300×20, UPN160, S275, d200, N300)',
   const r = calcCruceta(base);
   const c = r.cruceta!;
 
-  it('result is valid', () => expect(r.valid).toBe(true));
+  it('result is valid (los pendientes son warn, no fail)', () => expect(r.valid).toBe(true));
   it('no check fails', () => expect(r.checks.every((ch) => ch.status !== 'fail')).toBe(true));
   it('UPN class 1', () => expect(c.upnClass).toBe(1));
-  it('fjd ≈ 11.13 MPa (2/3·16.7)', () => expect(c.fjd).toBeCloseTo(11.13, 1));
-  it('bEff = 65 mm (flange width governs)', () => expect(c.bEff).toBeCloseTo(65, 1));
-  it('cf ≈ 29.4 mm', () => expect(c.cf).toBeCloseTo(29.4, 1));
+  // Modelo embebido: f apoyo = fcd (no 2/3·fcd) → bEff/Leff/u1 más conservadores.
+  it('fjd ≈ 16.70 N/mm² (= fcd, cruz embebida)', () => expect(c.fjd).toBeCloseTo(16.70, 1));
+  it('bEff ≈ 55.5 mm (tw+2·cf gobierna con f=fcd)', () => expect(c.bEff).toBeCloseTo(55.5, 1));
+  it('cf ≈ 24.0 mm', () => expect(c.cf).toBeCloseTo(24.0, 1));
   it('M_Rd ≈ 38.76 kN·m (Wpl·fy/γM0)', () => expect(c.MRd).toBeCloseTo(38.76, 1));
-  it('L_eff,max ≈ 327.3 mm', () => expect(c.LeffMax).toBeCloseTo(327.3, 1));
+  it('L_eff,max ≈ 289.2 mm (< 327 del modelo viejo → conservador)', () => expect(c.LeffMax).toBeCloseTo(289.2, 1));
   it('Leff = LeffMax in auto mode', () => expect(c.Leff).toBeCloseTo(c.LeffMax, 6));
-  // u1 = true 2d-offset of the cross (numerical engine). The old closed form gave
-  // 6331 — ~12% too long → unconservative; the validated engine gives ~5641.
-  it('u1 ≈ 5641 mm (offset 2d real, < fórmula vieja 6331)', () => {
-    expect(c.u1).toBeGreaterThan(5630);
-    expect(c.u1).toBeLessThan(5652);
+  // u1 más corto que el modelo previo (5641) → más conservador (vEd mayor).
+  it('u1 ≈ 5315 mm (< 5641 previo < 6331 fórmula vieja)', () => {
+    expect(c.u1).toBeGreaterThan(5300);
+    expect(c.u1).toBeLessThan(5330);
   });
-  it('Vcap ≈ 1949 kN', () => expect(c.Vcap).toBeCloseTo(1949, 0));
+  it('Vcap ≈ 1717 kN (f_cap = 2/3·fcd)', () => expect(c.Vcap).toBeCloseTo(1717, 0));
   it('no suggestion when chosen passes', () => expect(c.suggestedUpn).toBeNull());
   it('exposes cruceta detail only in this mode', () => expect(r.cruceta).toBeDefined());
 });
@@ -226,7 +224,6 @@ describe('input validation', () => {
     ['weldThroat ≤ 0', { weldThroat: 0 }],
     ['unknown UPN', { upnSize: 999 }],
     ['soilRelief without footing dims', { soilRelief: true, footB: 0 }],
-    ['useConcentration without footing dims', { useConcentration: true, footB: 0 }],
   ];
   for (const [label, patch] of cases) {
     it(`rejects ${label}`, () => {

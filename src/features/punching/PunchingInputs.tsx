@@ -238,7 +238,6 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
   const isZapata = state.substrate === 'zapata';
   const isForjado = !isZapata;
   const soilOpen = isZapata && state.soilRelief;
-  const concOpen = isZapata && state.position === 'interior' && state.useConcentration;
   const swOpen = isForjado && state.hasShearReinf;
   const isEdge = isZapata && state.position !== 'interior';
   const isCorner = isZapata && state.position === 'esquina';
@@ -313,22 +312,9 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
           <NumField label="Presión terreno" sub="σt" field="soilPressure" value={state.soilPressure} unit="kN/m²" setField={setField} />
         </div>
 
-        {isZapata && state.position === 'interior' && (<>
-          <ToggleButton
-            label="Concentración EC3 (Kj > 1)"
-            active={concOpen}
-            onClick={() => setField('useConcentration', !state.useConcentration)}
-          />
-          <div
-            className="overflow-hidden transition-all duration-150"
-            style={{ maxHeight: concOpen ? '120px' : '0px', opacity: concOpen ? 1 : 0 }}
-          >
-            <p className="text-[10px] text-text-disabled mb-1">Sube f_jd por área parcialmente cargada (EC3 §6.2.5). Solo interior; requiere planta y canto de zapata.</p>
-            <NumField label="Zapata ancho" sub="B" field="footB" value={state.footB} unit="mm" setField={setField} />
-            <NumField label="Zapata largo" sub="L" field="footL" value={state.footL} unit="mm" setField={setField} />
-            <NumField label="Canto zapata" sub="H" field="footH" value={state.footH} unit="mm" setField={setField} />
-          </div>
-        </>)}
+        {/* Concentración Kj (EC3 placa) retirada: el rediseño 2026-06-07 modela la
+            cruz EMBEBIDA confinada, no una placa que apoya. El confinamiento >fcd
+            (área parcialmente cargada §6.7) queda pendiente del hand-calc. */}
 
         {isForjado && (<>
           <ToggleButton

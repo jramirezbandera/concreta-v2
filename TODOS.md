@@ -588,6 +588,56 @@ Origen: /office-hours + /plan-eng-review + voz externa Codex (2026-06-06).
 Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/Javier-main-design-20260606-162704.md`.
 Todos dependen de v1 (modo `pilar-cruceta`, interior + zapata) shipeado y validado.
 
+### ⚠️ Crucetas — REDISEÑO de mecanismo: el modelo shipeado es el EQUIVOCADO
+
+**Status:** MODELO INTERINO CONSERVADOR IMPLEMENTADO sin hand-calc (2026-06-07, decisión del
+usuario de saltarse el árbitro). DISEÑO APROBADO; quedan gates pendientes del hand-calc.
+
+**Implementado (interino, conservador):** se sustituyó el bearing de placa (EC3 §6.2.5) por un
+modelo de **cruz embebida confinada**: `f_geom = fcd` para c_f/b_eff/L_eff (sube desde el 2/3·fcd
+viejo → L_eff más corto → u1 menor → vEd mayor → arregla el acople inseguro; FTUX u1 5315 < 5641
+previo < 6331 original), y `f_cap = 2/3·fcd` para V_cap (capacidad conservadora). Sin confinamiento
+>fcd (Ac1=Ac0) → sin iteración, sin solver, sin zunchado necesario. `Kj`/concentración RETIRADO de
+cruceta (anchorPlate intacto). Los 3 estados límite que NO se pueden justificar sin el detalle
+(**anclaje, recubrimiento, delaminación**) se muestran como filas **amber "VERIFICAR A MANO"** (no
+verde que miente) → el verdict global nunca sale verde limpio. Aviso "modelo interino" en Results y
+PDF. 1890 tests verdes.
+
+**PENDIENTE del hand-calc (NO implementado):** el confinamiento real >fcd (§6.7 con `Ac1` propio +
+zunchado, daría crucetas más económicas), y los modelos reales de anclaje (conectores/tope),
+recubrimiento y delaminación. Hasta entonces el módulo es conservador pero incompleto (3 checks en
+amber). Ver design doc `Javier-main-design-20260607-112434.md` (7 gates).
+
+**El problema:** todo lo shipeado del modo cruceta (commits `c0d5051`, `a21fe08`, `18e9889`)
+modela una **placa de testa que apoya sobre el hormigón** (EC3 §6.2.5: `f_jd=2/3·fcd`, vuelo
+eficaz, `V_cap`, `Kj`). Pero la construcción REAL del usuario es una **cruz UPN EMBEBIDA a media
+altura** (zapata Y forjado), con recubrimiento arriba y hormigón entre las alas → es una **cabeza
+de cortante (shearhead) con apoyo confinado (EC2 §6.7)**, no una placa que apoya. Los números de
+bearing/V_cap shipeados NO son el mecanismo del usuario. **Inseguro por una vía concreta:** `f_jd`
+bajo → `L_eff` largo → `u1` grande → `vEd` infraestimado.
+
+**Qué se salva:** `crossPerimetersClipped` (geometría del perímetro, validado), `vEd`/`vRd,c`,
+checks de acero UPN, soldadura.
+
+**Plan aprobado (Approach A):** sustituir `f_jd` placa por `confinedBearing()` propio (EC2 §6.7,
+`f=fcd·√(Ac1/Ac0)≤3·fcd`, función SEPARADA — no mutar el `concentrationKj` de anchorPlate),
+recalcular `L_eff`, y añadir 5 estados límite nuevos: **zunchado/hendimiento §6.7**, **anclaje de
+brazos** (conectores/tope — una UPN embebida no tiene `lbd` de barra), **recubrimiento superior**,
+**delaminación horizontal** a la cota de la cruz, y re-derivar el **modelo de demanda** si el
+embebido cambia la distribución de presión. Solver `f_bear` acoplado: forma cerrada si existe, si
+no amortiguado/bisección con **fail-safe hacia el `vEd` más alto**.
+
+**Design doc:** `Javier-main-design-20260607-112434.md` (APPROVED, 8/10 tras 2 rondas adversariales,
+7 gates bloqueantes). Supersede a `Crucetas V2.next` (que era el modelo de placa).
+
+**Gate de implementación:** el ingeniero debe resolver a mano un caso embebido completo (confinado
+§6.7 + zunchado + anclaje + punzonamiento) como oráculo ANTES de codear — la spec-review encontró
+errores de matemática en el propio diseño. Luego implementar + recalibrar FTUX (2ª vez) + regresión
+de `crossPerimeter`/acero/`anchorPlate` verde.
+
+**Interino:** el modo cruceta de placa sigue vivo en main (pre-release, sin usuarios). Al retomar,
+poner etiqueta/guard "modelo en revisión" para que nadie firme un PDF del mecanismo equivocado.
+
 ### Crucetas — borde / esquina (zapata) + fix de seguridad del perímetro interior
 
 **Status:** DONE borde+esquina sobre ZAPATA (2026-06-07). Tras revertir la 1ª versión insegura, se

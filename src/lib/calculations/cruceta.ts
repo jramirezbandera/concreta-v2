@@ -33,7 +33,7 @@ import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { getUPN, getSizesUPN, type UPNProfile } from '../../data/steelProfiles';
 import { type CheckRow, makeCheck, makeCheckNeutral } from './types';
-import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
+import { effectiveOverhang } from './ec3BasePlate';
 import { crossPerimetersClipped } from './crossPerimeter';
 import { type PunchingResult, type CrucetaDetail, betaForPosition, sidesForPosition } from './punching';
 
@@ -94,70 +94,50 @@ interface Ctx {
   armLength: number;      // user manual arm length (0 = auto)
   weldThroat: number;     // mm
   steelGrade: CrucetaSteel;
-  // α (Kj) concentration (Crucetas V2 #6) — only for interior zapata.
-  useConcentration: boolean;
   substrate: CrucetaSubstrate;
-  footB: number; footL: number; footH: number; // mm — footing plan + depth
   edgeY: number; edgeX: number;                 // mm — free-edge clear distances
   // Punching shear reinforcement (forjado only — thin transfer slab).
   hasShearReinf: boolean;
   swDiam: number; swLegs: number; sr: number; fywk: number;
 }
 
-/** Geometry derived from one bearing concentration α (closed-form, no perimeter). */
-function deriveGeom(upn: UPNProfile, c: Ctx, alpha: number) {
-  const fjd = ec3Fjd(c.fcd, alpha);              // MPa
-  const fyd = c.fy / GAMMA_M0;                    // MPa
-  const cf = effectiveOverhang(upn.tf, fyd, fjd);
-  const bEff = Math.min(upn.b, upn.tw + 2 * cf);  // mm
+/**
+ * Geometry of the EMBEDDED confined cross (interim conservative model, 2026-06-07,
+ * post /office-hours redesign). The real detail is a UPN cross embedded mid-depth,
+ * delivering N to the surrounding concrete by CONFINED bearing (EC2 §6.7), NOT a
+ * base plate bearing on top. INTERIM, conservative, pending the engineer's hand-calc:
+ *  • f_geom = fcd for c_f / b_eff / L_eff. Higher than the old 2/3·fcd → SHORTER
+ *    L_eff → smaller u1 → higher vEd (conservative on punching; fixes the unsafe
+ *    f→L_eff coupling the eng-review found).
+ *  • NO confinement claimed above fcd (Ac1=Ac0) → f constant → no iteration, no
+ *    solver, and the §6.7 splitting reinforcement check is not needed yet.
+ *  • V_cap uses f_cap = 2/3·fcd (capacity floor, conservative) — see evalProfile.
+ * PENDING engineer validation: Ac1/confinement >fcd, anchorage, cover, delamination.
+ */
+function deriveGeom(upn: UPNProfile, c: Ctx) {
+  const fGeom = c.fcd;                             // MPa — fcd (no confinement >fcd)
+  const fyd = c.fy / GAMMA_M0;                     // MPa
+  const cf = effectiveOverhang(upn.tf, fyd, fGeom);
+  const bEff = Math.min(upn.b, upn.tw + 2 * cf);   // mm
   const upnClass = classifyUPN(upn, c.fy);
   // Wpl if class ≤ 2, else Wel (cm³ → mm³)
   const W = (upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000; // mm³
-  const MRd_Nmm = (W * c.fy) / GAMMA_M0;          // N·mm
-  // Effective reach: M = fjd·bEff·L²/2 ≤ MRd  →  Lmax = √(2·MRd/(fjd·bEff))
-  const LeffMax = Math.sqrt((2 * MRd_Nmm) / (fjd * bEff));
+  const MRd_Nmm = (W * c.fy) / GAMMA_M0;           // N·mm
+  // Effective reach: M = f·bEff·L²/2 ≤ MRd  →  Lmax = √(2·MRd/(f·bEff))
+  const LeffMax = Math.sqrt((2 * MRd_Nmm) / (fGeom * bEff));
   const Larm = c.armLength > 0 ? c.armLength : LeffMax;
   const Leff = Math.min(Larm, LeffMax);
   const Acruz = c.plateA * c.plateB + c.nArms * bEff * Leff; // mm² — loaded area
-  return { fjd, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz };
-}
-
-/**
- * Bearing concentration α = Kj (EC3 §6.2.5(4)), Crucetas V2 #6. Only applied for
- * a zapata with footing dims (we know the spread area); for forjado we keep α=1
- * (no reliable surrounding-concrete extent → conservative). The cross footprint
- * Acruz couples to α through f_jd→b_eff→L_eff, so we iterate (design doc: |Δf_jd|
- * < 0.1% or 5 iters). The loaded area is taken as an equivalent square √Acruz.
- */
-function solveAlpha(upn: UPNProfile, c: Ctx): { alpha: number; Kj: number } {
-  // Kj only for INTERIOR zapata: at a free edge the concrete margin is zero on
-  // that side, so EC3 concentration toward it is not valid (Codex 2026-06-07).
-  if (!c.useConcentration || c.substrate !== 'zapata' || c.position !== 'interior'
-      || c.footB <= 0 || c.footL <= 0) {
-    return { alpha: 1, Kj: 1 };
-  }
-  let alpha = 1;
-  let geom = deriveGeom(upn, c, alpha);
-  for (let i = 0; i < 5; i++) {
-    const a0 = Math.sqrt(geom.Acruz);                  // equivalent loaded square
-    const ar = Math.max(0, (c.footB - a0) / 2);
-    const br = Math.max(0, (c.footL - a0) / 2);
-    const { Kj } = concentrationKj(a0, a0, ar, br, c.footH);
-    const next = deriveGeom(upn, c, Kj);
-    const dfjd = Math.abs(next.fjd - geom.fjd) / Math.max(geom.fjd, 1e-9);
-    alpha = Kj; geom = next;
-    if (dfjd < 0.001) break;
-  }
-  return { alpha, Kj: alpha };
+  return { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz };
 }
 
 function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   const upn = getUPN(upnSize);
   if (!upn) return null;
 
-  const { alpha, Kj } = solveAlpha(upn, c);
-  const g = deriveGeom(upn, c, alpha);
-  const { fjd, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz } = g;
+  const g = deriveGeom(upn, c);
+  const { fGeom, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz } = g;
+  const fCap = (2 / 3) * c.fcd;                   // MPa — bearing capacity floor (conservative)
   const MRd = MRd_Nmm / 1e6;                     // kN·m
 
   const { u0, u1, uCore, uTip } = crossPerimetersClipped(
@@ -169,11 +149,11 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   );
 
   // ── Capacity vs demand ─────────────────────────────────────────────────────
-  // f_jd is the bearing CAPACITY ceiling: it bounds L_eff,max (above) and V_cap.
-  // The DEMAND uses the actual uniform bearing σ_act = V/A_cruz (≤ f_jd while
-  // V ≤ V_cap). Using one demand pressure everywhere avoids capacity-stacking
-  // (Codex #8): each surface sees its real share of V, not the full f_jd block.
-  const Vcap_N = fjd * Acruz;                                 // N
+  // V_cap uses f_cap = 2/3·fcd (conservative capacity floor); the geometry used
+  // f_geom = fcd (conservative L_eff). Decoupled on purpose: each f is taken in
+  // its own safe direction (lower f → less capacity; higher f → shorter arm).
+  // DEMAND uses the actual uniform bearing σ_act = V/A_cruz (≤ f_cap while V ≤ V_cap).
+  const Vcap_N = fCap * Acruz;                                // N
   const sigAct = c.V_N / Acruz;                               // MPa, demand pressure
   const Varm_N = sigAct * bEff * Leff;                        // N, one arm's share
   const Vcore_N = sigAct * c.A_col;                           // N, plate's share
@@ -295,13 +275,27 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     weldRes, fvwd, `${weldRes.toFixed(1)} N/mm²`, `${fvwd.toFixed(1)} N/mm²`, 'CE DB-SE-A 8.6.2',
   ));
 
+  // ── Estados límite del detalle EMBEBIDO pendientes de validación ──────────────
+  // El modelo interino (cruz embebida confinada) NO comprueba todavía estos tres
+  // estados límite, que requieren el detalle constructivo y el hand-calc del
+  // ingeniero. Se muestran como filas HONESTAS "verificar a mano" en AMBER (warn),
+  // para que el verdict global NO salga verde mientras estén sin verificar. No es
+  // un check verde que miente. Ver design doc 20260607-112434.
+  const pending = (id: string, description: string, article: string): CheckRow => ({
+    id, description, value: 'VERIFICAR A MANO', limit: 'pendiente',
+    utilization: 0.99, status: 'warn', article,
+  });
+  checks.push(pending('cru-anchor', 'Anclaje de brazos embebidos', 'EC2 §8 / conectores'));
+  checks.push(pending('cru-cover', 'Recubrimiento superior sobre la cruz', 'EC2 §6.4'));
+  checks.push(pending('cru-delam', 'Plano horizontal a la cota de la cruz', 'cortante interfaz'));
+
   // Class 4 not supported → force fail
   const classOk = upnClass <= 3;
   const passes = classOk && checks.every((ch) => ch.status !== 'fail');
 
   const detail: Omit<CrucetaDetail, 'suggestedUpn'> = {
     upnSize, steelGrade: c.steelGrade, upnClass,
-    fjd, Kj, bEff, cf, MRd, LeffMax, Leff, Larm,
+    fjd: fGeom, Kj: 1, bEff, cf, MRd, LeffMax, Leff, Larm,
     Vdesign: c.V_N / 1000, Vcap: Vcap_N / 1000, Varm: Varm_N / 1000, Vcore: Vcore_N / 1000,
     u0, u1, uCore, uTip, Au1: Acruz, nArms: c.nArms, beta: c.beta,
     position: c.position, reliefApplied: c.reliefApplied,
@@ -343,9 +337,6 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   if (inp.soilRelief && (inp.footB <= 0 || inp.footL <= 0)) {
     return invalid('Dimensiones de zapata deben ser > 0 para descontar terreno');
   }
-  if (inp.useConcentration && (inp.footB <= 0 || inp.footL <= 0)) {
-    return invalid('Dimensiones de zapata deben ser > 0 para el factor de concentración');
-  }
 
   const mat = getConcrete(inp.fck);
   const fcd = mat.fcd;
@@ -386,9 +377,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     plateA: inp.plateA, plateB: inp.plateB, A_col,
     V_N: inp.VEd * 1000, reliefApplied: false,
     armLength: inp.armLength, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
-    useConcentration: inp.useConcentration, substrate: inp.substrate,
-    footB: inp.footB, footL: inp.footL, footH: inp.footH,
-    edgeY: inp.edgeY, edgeX: inp.edgeX,
+    substrate: inp.substrate, edgeY: inp.edgeY, edgeX: inp.edgeX,
     hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
     sr: inp.sr, fywk: inp.fywk,
   };
