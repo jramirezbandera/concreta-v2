@@ -148,6 +148,40 @@ describe('bearing embebido confinado (interino)', () => {
   });
 });
 
+// ── Tabla canto→UPN del detalle tipo (solo forjado) ───────────────────────────
+describe('tabla canto→UPN (guía del detalle, solo forjado)', () => {
+  const f = { ...base, substrate: 'forjado' as const };
+
+  it('forjado muestra la fila de guía de tabla (neutral)', () => {
+    const t = calcCruceta({ ...f, d: 200, upnSize: 160 }).checks.find((c) => c.id === 'cru-table');
+    expect(t).toBeDefined();
+    expect(t!.status).toBe('neutral');
+  });
+
+  it('zapata NO muestra la tabla (el detalle es de forjado)', () => {
+    expect(calcCruceta(base).checks.some((c) => c.id === 'cru-table')).toBe(false);
+  });
+
+  it('avisa si el perfil queda por debajo de la tabla (canto 30cm → UPN140)', () => {
+    const w = calcCruceta({ ...f, d: 260, upnSize: 100 }).checks.find((c) => c.id === 'cru-table-low');
+    expect(w, 'UPN100 en canto 30cm debería avisar').toBeDefined();
+    expect(w!.status).toBe('warn');
+  });
+
+  it('avisa si el UPN no cabe a media altura del canto (perfil alto, canto fino)', () => {
+    const w = calcCruceta({ ...f, d: 160, upnSize: 160 }).checks.find((c) => c.id === 'cru-fit');
+    expect(w, 'UPN160 en canto ~20cm no cabe').toBeDefined();
+    expect(w!.status).toBe('warn');
+  });
+
+  it('la guía/aviso NO bloquea la validez (es recomendación, no check duro)', () => {
+    // perfil bajo tabla pero que cumple resistencia → sigue valid
+    const r = calcCruceta({ ...f, d: 260, upnSize: 100, VEd: 150 });
+    expect(r.checks.some((c) => c.id === 'cru-table-low')).toBe(true);
+    expect(r.checks.find((c) => c.id === 'cru-table-low')!.status).not.toBe('fail');
+  });
+});
+
 // ── Longitud del brazo: regla constructiva (luz/8, ≥50cm) capada por el acero ──
 describe('longitud del brazo (detalle tipo: luz/8, ≥50cm)', () => {
   it('la longitud auto la manda la luz (luz/8), no el acero, si éste alcanza', () => {

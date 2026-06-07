@@ -51,6 +51,21 @@ const GAMMA_M2 = 1.25;
 const MIN_CONSTRUCTIVE_ARM = 500; // mm — ≥50 cm del detalle tipo
 const SPAN_ARM_FRACTION = 8;      // L ≥ luz/8
 
+// Tabla del detalle tipo (forjado): canto del forjado (mm) → UPN recomendado. El
+// canto se estima desde el canto útil d con un recubrimiento mecánico nominal.
+// Es GUÍA (no normativa): avisa si el perfil queda por debajo de la tabla o si no
+// cabe a media altura del canto.
+const CANTO_UPN_TABLE: ReadonlyArray<readonly [number, number]> = [
+  [220, 100], [250, 120], [300, 140], [350, 160],
+];
+const TABLE_COVER = 40;      // mm — d → canto (recubrimiento mecánico nominal)
+const FIT_CLEARANCE = 25;    // mm — holgura mínima del UPN a cada cara del canto
+function recommendedUPNForCanto(cantoMm: number): number {
+  let upn = CANTO_UPN_TABLE[0][1];
+  for (const [canto, size] of CANTO_UPN_TABLE) if (cantoMm >= canto) upn = size;
+  return upn;
+}
+
 // Alcance del acero (shearhead): el brazo reparte MIENTRAS el acero aguante. El cap
 // duro (util=1.0) es donde el brazo partiría por flexión/soldadura/cortante.
 // MAX_AUTO_ARM acota la bisección con cargas muy bajas.
@@ -359,6 +374,33 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
       value: `${LeffHard.toFixed(0)} mm`, limit: `${Lconstr.toFixed(0)} mm`,
       utilization: 0.9, status: 'warn', article: 'detalle tipo / recomendación',
     });
+  }
+
+  // Tabla canto→UPN del detalle tipo (solo forjado): guía + aviso de coherencia.
+  // canto ≈ d + recubrimiento; recomienda el UPN tabulado y avisa si el elegido
+  // queda por debajo de la tabla o no cabe a media altura del canto.
+  if (c.substrate === 'forjado') {
+    const canto = c.d + TABLE_COVER;
+    const rec = recommendedUPNForCanto(canto);
+    checks.push({
+      id: 'cru-table', description: 'Tabla del detalle (canto → UPN recomendado)',
+      value: `UPN ${upnSize}`, limit: `≥ UPN ${rec} (canto ≈ ${(canto / 10).toFixed(0)} cm)`,
+      utilization: 0, status: 'neutral', neutral: true, article: 'detalle tipo', tag: `UPN ${rec}`,
+    });
+    if (upnSize < rec) {
+      checks.push({
+        id: 'cru-table-low', description: 'Perfil por debajo de la tabla para este canto — revisar',
+        value: `UPN ${upnSize}`, limit: `UPN ${rec}`,
+        utilization: 0.9, status: 'warn', article: 'detalle tipo',
+      });
+    }
+    if (upn.h + 2 * FIT_CLEARANCE > canto) {
+      checks.push({
+        id: 'cru-fit', description: 'El UPN no cabe a media altura del canto (h + holgura > canto)',
+        value: `h ${upn.h} mm`, limit: `canto ${canto.toFixed(0)} mm`,
+        utilization: 1.0, status: 'warn', article: 'geometría',
+      });
+    }
   }
 
   // ── Estados límite del detalle EMBEBIDO pendientes de validación ──────────────
