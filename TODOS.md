@@ -669,8 +669,10 @@ se aplica a punz + núcleo + extremo (cada uno con su perímetro), no a aplastam
 sustrato + toggle cercos (Ø/ramas/sr/fywk); Results/PDF muestran vRd,cs.
 
 **Pendiente de este ítem:**
-- **Forjado borde/esquina**: gated (forjado solo interior por ahora). Añade anclaje de armadura
-  junto al borde y torsión (Codex) — diferido.
+- **Forjado borde/esquina**: HABILITADO (2026-06-07, interino conservador). El motor de perímetro
+  trunca el borde libre + β(1.4/1.5) + cercos. Los concerns de borde de losa (anclaje junto al
+  borde libre, torsión) se marcan como filas amber `cru-edge-anchor`/`cru-edge-torsion` "verificar
+  a mano" (solo forjado + borde/esquina). Modelos reales de esos checks → pendientes del hand-calc.
 - **Flexión local de la losa** de transferencia: fuera del alcance de este módulo (lo verifica el
   diseñador de la losa); el módulo dimensiona crucetas + punzonamiento, no el armado a flexión.
 - **Hand-calc** de un caso de borde CE/EC2 a mano como árbitro antes de ship público (el motor está

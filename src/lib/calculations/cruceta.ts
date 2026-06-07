@@ -43,6 +43,13 @@ export { sidesForPosition } from './punching';
 const GAMMA_M0 = 1.05;
 const GAMMA_M2 = 1.25;
 
+// Longitud de brazo mínima RECOMENDADA (constructiva, NO normativa — no existe
+// mínimo en EC2/CE ni en ACI 318-19, que retiró las provisiones de shearhead).
+// Por debajo de esto la cruceta reparte muy poco: el aviso empuja a subir de
+// perfil. Editable según criterio de oficina. L_eff,máx ya es el máximo efectivo;
+// este umbral NO lo aumenta, solo avisa.
+const MIN_RECOMMENDED_ARM = 200; // mm
+
 // Steel strengths by grade (EN 10025).
 const STEEL_FY: Record<CrucetaSteel, number> = { S275: 275, S355: 355 };
 const STEEL_FU: Record<CrucetaSteel, number> = { S275: 430, S355: 490 };
@@ -275,6 +282,17 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     weldRes, fvwd, `${weldRes.toFixed(1)} N/mm²`, `${fvwd.toFixed(1)} N/mm²`, 'CE DB-SE-A 8.6.2',
   ));
 
+  // Aviso constructivo: L_eff,máx por debajo del mínimo recomendado → la cruceta
+  // reparte poco; subir de perfil. Amber (no bloquea). No hay mínimo normativo.
+  if (LeffMax < MIN_RECOMMENDED_ARM) {
+    checks.push({
+      id: 'cru-arm-min',
+      description: 'L_eff,máx < mínimo recomendado (cruceta poco efectiva — subir perfil)',
+      value: `${LeffMax.toFixed(0)} mm`, limit: `${MIN_RECOMMENDED_ARM} mm`,
+      utilization: 0.9, status: 'warn', article: 'recomendación constructiva',
+    });
+  }
+
   // ── Estados límite del detalle EMBEBIDO pendientes de validación ──────────────
   // El modelo interino (cruz embebida confinada) NO comprueba todavía estos tres
   // estados límite, que requieren el detalle constructivo y el hand-calc del
@@ -288,6 +306,15 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   checks.push(pending('cru-anchor', 'Anclaje de brazos embebidos', 'EC2 §8 / conectores'));
   checks.push(pending('cru-cover', 'Recubrimiento superior sobre la cruz', 'EC2 §6.4'));
   checks.push(pending('cru-delam', 'Plano horizontal a la cota de la cruz', 'cortante interfaz'));
+
+  // Concerns específicos del BORDE LIBRE en losa de transferencia (forjado +
+  // borde/esquina): el motor de perímetro ya trunca el contorno, pero el anclaje
+  // de la armadura junto al borde y la torsión del borde libre requieren el
+  // detalle (Codex). Se marcan en amber solo en ese caso.
+  if (c.substrate === 'forjado' && c.position !== 'interior') {
+    checks.push(pending('cru-edge-anchor', 'Anclaje de armadura junto al borde libre', 'EC2 §8 / §9'));
+    checks.push(pending('cru-edge-torsion', 'Torsión en el borde libre de la losa', 'EC2 §6.3'));
+  }
 
   // Class 4 not supported → force fail
   const classOk = upnClass <= 3;
@@ -322,12 +349,10 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   if (inp.plateT <= 0) return invalid('Espesor de placa debe ser > 0');
   if (inp.weldThroat <= 0) return invalid('Garganta de soldadura debe ser > 0');
   if (!getUPN(inp.upnSize)) return invalid(`Perfil UPN ${inp.upnSize} no encontrado`);
-  // Interior + borde + esquina use the truncated numerical perimeter engine.
-  // Zapata: all positions. Forjado (thin transfer slab): interior only in v1 —
-  // borde/esquina forjado adds edge anchoring/torsion checks (deferred, TODOS).
-  if (inp.substrate === 'forjado' && inp.position !== 'interior') {
-    return invalid('Crucetas forjado: solo posición interior (borde/esquina en desarrollo)');
-  }
+  // Interior + borde + esquina (zapata y forjado) usan el motor de perímetro
+  // truncado. Forjado borde/esquina añade concerns de borde de losa (anclaje
+  // junto al borde libre, torsión) que se marcan como filas amber "verificar a
+  // mano" (modelo interino — ver TODOS / design doc 20260607).
   if (inp.position !== 'interior' && inp.edgeY <= 0) {
     return invalid('Distancia al borde libre debe ser > 0');
   }

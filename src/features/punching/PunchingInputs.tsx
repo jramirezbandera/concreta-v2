@@ -11,6 +11,11 @@ import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 interface PunchingInputsProps {
   state: PunchingInputs;
   setField: <K extends keyof PunchingInputs>(field: K, value: PunchingInputs[K]) => void;
+  // Cruceta arm-length auto-fill (wired from index.tsx; mirrors steel-beams Lcr).
+  armLengthDisplay?: number;   // L_eff,max when auto, manual value when overridden
+  armLengthAuto?: boolean;     // true = auto-filled (badge active)
+  onArmLengthChange?: (val: number) => void;
+  onArmLengthAuto?: () => void; // re-enable auto
 }
 
 function NumField({
@@ -64,6 +69,52 @@ function NumField({
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
           {unitText}
         </span>
+      </div>
+    </div>
+  );
+}
+
+// Arm length with auto-fill: badge shows "auto" (accent) when the field holds the
+// computed L_eff,max; editing switches to manual. Clicking the badge re-enables auto.
+function ArmLengthField({
+  display, isAuto, onChange, onAuto,
+}: {
+  display: number; isAuto: boolean;
+  onChange: (val: number) => void; onAuto: () => void;
+}) {
+  const [localStr, setLocalStr] = useState(() => String(display));
+  useEffect(() => { setLocalStr(String(display)); }, [display]);
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+      <InputLabel htmlFor="input-armLength" label="Longitud brazo" sub="L_eff" />
+      <div className="flex items-center shrink-0 gap-1.5">
+        <button
+          type="button"
+          onClick={onAuto}
+          disabled={isAuto}
+          className={`font-mono text-[9px] px-1.25 py-0.5 rounded transition-colors ${isAuto ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-disabled hover:text-accent cursor-pointer'}`}
+          aria-label={isAuto ? 'Longitud calculada automáticamente' : 'Volver a auto'}
+          title={isAuto ? 'L_eff,máx calculado' : 'Click para volver a auto'}
+        >
+          auto
+        </button>
+        <div className="flex">
+          <input
+            id="input-armLength"
+            type="text"
+            inputMode="decimal"
+            value={localStr}
+            onChange={(e) => {
+              setLocalStr(e.target.value);
+              const n = parseFloat(e.target.value);
+              if (!isNaN(n) && n > 0) onChange(Math.round(n));
+            }}
+            onBlur={() => { const n = parseFloat(localStr); if (isNaN(n) || n <= 0) setLocalStr(String(display)); }}
+            className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
+            aria-label="Longitud del brazo (mm)"
+          />
+          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">mm</span>
+        </div>
       </div>
     </div>
   );
@@ -229,35 +280,35 @@ const SW_DIAM_OPTIONS  = [6, 8, 10, 12].map((v) => ({ value: v, label: `Ø ${v}`
 const SW_LEGS_OPTIONS  = [2, 3, 4, 5, 6].map((v) => ({ value: v, label: `${v}` }));
 
 // ── Cruceta-mode inputs (mode='pilar-cruceta') ────────────────────────────────
-function CrucetaInputs({ state, setField }: PunchingInputsProps) {
+function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArmLengthChange, onArmLengthAuto }: PunchingInputsProps) {
   const colSizeOptions = getSizesForTipo(state.colType).map((v) => ({
     value: v, label: `${state.colType} ${v}`,
   }));
-  // Zapata: interior/borde/esquina + terreno + Kj. Forjado: interior only +
-  // punching shear reinforcement (thin transfer slab). Truncated perimeter engine.
+  // Zapata y forjado admiten interior/borde/esquina (motor de perímetro truncado).
+  // Forjado: armadura de punzonamiento (losa fina); borde/esquina añade concerns
+  // de borde de losa marcados en amber en los resultados.
   const isZapata = state.substrate === 'zapata';
   const isForjado = !isZapata;
   const soilOpen = isZapata && state.soilRelief;
   const swOpen = isForjado && state.hasShearReinf;
-  const isEdge = isZapata && state.position !== 'interior';
-  const isCorner = isZapata && state.position === 'esquina';
+  const isEdge = state.position !== 'interior';
+  const isCorner = state.position === 'esquina';
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Crucetas">
       <CollapsibleSection label="Configuración">
         <SelectField label="Sustrato" field="substrate" value={state.substrate} options={SUBSTRATE_OPTIONS} setField={setField} />
         <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField} />
-        {isForjado && state.position !== 'interior' && (
-          <p className="text-[10px] text-state-warn -mt-0.5 mb-1">Forjado: solo posición interior por ahora.</p>
-        )}
         <div
           className="overflow-hidden transition-all duration-150"
-          style={{ maxHeight: isEdge ? '120px' : '0px', opacity: isEdge ? 1 : 0 }}
+          style={{ maxHeight: isEdge ? '140px' : '0px', opacity: isEdge ? 1 : 0 }}
         >
           <NumField label="Dist. al borde libre" sub="ay" field="edgeY" value={state.edgeY} unit="mm" setField={setField} />
           {isCorner && (
             <NumField label="Dist. al 2º borde" sub="ax" field="edgeX" value={state.edgeX} unit="mm" setField={setField} />
           )}
-          <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Distancia libre de la cara de la placa al borde de la zapata.</p>
+          <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">
+            Distancia libre de la cara de la placa al borde libre{isForjado ? ' de la losa' : ' de la zapata'}.
+          </p>
         </div>
       </CollapsibleSection>
 
@@ -272,7 +323,12 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
       <CollapsibleSection label="Cruceta UPN">
         <SelectField label="Perfil UPN" field="upnSize"    value={state.upnSize}    options={UPN_SIZE_OPTIONS}    setField={setField} />
         <SelectField label="Acero"      field="steelGrade" value={state.steelGrade} options={STEEL_GRADE_OPTIONS} setField={setField} />
-        <NumField    label="Longitud brazo" sub="0 = auto" field="armLength"  value={state.armLength}  unit="mm" setField={setField} />
+        <ArmLengthField
+          display={armLengthDisplay ?? state.armLength}
+          isAuto={armLengthAuto ?? true}
+          onChange={(v) => (onArmLengthChange ? onArmLengthChange(v) : setField('armLength', v))}
+          onAuto={() => (onArmLengthAuto ? onArmLengthAuto() : setField('armLength', 0))}
+        />
         <NumField    label="Garganta soldadura" sub="a"    field="weldThroat" value={state.weldThroat} unit="mm" setField={setField} />
       </CollapsibleSection>
 
@@ -338,7 +394,7 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
   );
 }
 
-export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
+export function PunchingInputsPanel({ state, setField, armLengthDisplay, armLengthAuto, onArmLengthChange, onArmLengthAuto }: PunchingInputsProps) {
   const mode     = state.mode as PunchingMode;
   const position = state.position as PunchingPosition;
   const isCircularDisabled = position !== 'interior';
@@ -387,7 +443,13 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
         })}
       </div>
 
-      {mode === 'pilar-cruceta' && <CrucetaInputs state={state} setField={setField} />}
+      {mode === 'pilar-cruceta' && (
+        <CrucetaInputs
+          state={state} setField={setField}
+          armLengthDisplay={armLengthDisplay} armLengthAuto={armLengthAuto}
+          onArmLengthChange={onArmLengthChange} onArmLengthAuto={onArmLengthAuto}
+        />
+      )}
 
       {mode !== 'pilar-cruceta' && (<>
       {/* GEOMETRÍA */}

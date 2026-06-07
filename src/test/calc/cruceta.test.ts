@@ -58,9 +58,33 @@ describe('forjado', () => {
     expect(r.cruceta!.Kj).toBeCloseTo(1, 6);
   });
 
-  it('forjado borde/esquina rechazado (solo interior v1)', () => {
-    expect(calcCruceta({ ...forj, position: 'borde', edgeY: 500 }).valid).toBe(false);
-    expect(calcCruceta({ ...forj, position: 'esquina', edgeY: 500, edgeX: 500 }).error).toMatch(/interior/i);
+  it('forjado borde válido con distancia al borde + concerns de borde en amber', () => {
+    const r = calcCruceta({ ...forj, position: 'borde', edgeY: 500, VEd: 120 });
+    expect(r.valid).toBe(true);
+    expect(r.cruceta!.nArms).toBe(3);
+    // concerns específicos del borde de losa, en amber (verificar a mano)
+    for (const id of ['cru-edge-anchor', 'cru-edge-torsion']) {
+      const ch = r.checks.find((c) => c.id === id);
+      expect(ch, id).toBeDefined();
+      expect(ch!.status).toBe('warn');
+    }
+  });
+
+  it('forjado esquina válido con dos distancias', () => {
+    const r = calcCruceta({ ...forj, position: 'esquina', edgeY: 500, edgeX: 500, VEd: 70 });
+    expect(r.valid).toBe(true);
+    expect(r.cruceta!.nArms).toBe(2);
+  });
+
+  it('forjado borde sin distancia al borde se rechaza', () => {
+    expect(calcCruceta({ ...forj, position: 'borde', edgeY: 0 }).valid).toBe(false);
+  });
+
+  it('los concerns de borde NO aparecen en forjado interior ni en zapata borde', () => {
+    const fi = calcCruceta(forj);
+    const zb = calcCruceta({ ...base, position: 'borde', edgeY: 500, VEd: 150 });
+    expect(fi.checks.some((c) => c.id === 'cru-edge-torsion')).toBe(false);
+    expect(zb.checks.some((c) => c.id === 'cru-edge-torsion')).toBe(false);
   });
 
   it('forjado ignora el descuento de terreno', () => {
@@ -111,6 +135,17 @@ describe('bearing embebido confinado (interino)', () => {
   });
   it('bEff lo gobierna tw+2·cf (no el ancho del ala) con f=fcd', () => {
     expect(c.bEff).toBeLessThan(65);
+  });
+
+  it('aviso "cruceta poco efectiva" cuando L_eff,máx < 200mm (perfil pequeño)', () => {
+    // UPN80 → L_eff,máx ≈ 157mm < 200 → warn; UPN200 → ≈ 359mm → sin aviso.
+    const small = calcCruceta({ ...base, upnSize: 80 });
+    const wSmall = small.checks.find((c) => c.id === 'cru-arm-min');
+    expect(wSmall, 'UPN80 debería avisar').toBeDefined();
+    expect(wSmall!.status).toBe('warn');
+
+    const big = calcCruceta({ ...base, upnSize: 200 });
+    expect(big.checks.some((c) => c.id === 'cru-arm-min')).toBe(false);
   });
 });
 
