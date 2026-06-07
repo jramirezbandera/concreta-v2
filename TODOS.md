@@ -588,41 +588,35 @@ Origen: /office-hours + /plan-eng-review + voz externa Codex (2026-06-06).
 Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/Javier-main-design-20260606-162704.md`.
 Todos dependen de v1 (modo `pilar-cruceta`, interior + zapata) shipeado y validado.
 
-### Crucetas V2.next — borde / esquina + forjado (con distancia al borde)
+### Crucetas — borde / esquina (zapata) + fix de seguridad del perímetro interior
 
-**Status:** REVERTIDO (2026-06-07 eng-review, voz externa Codex). Se implementó una primera
-versión (`crossControlPerimeter` por posición + UI + SVG) pero el **eng-review la revirtió del
-producto** por un fallo de seguridad: la forma cerrada borde/esquina **quita el brazo del borde
-libre pero NO trunca el offset 2d de los brazos que quedan ni `uTip`**, y no hay input de
-distancia al borde. Para un pilar de borde real (borde libre a < 2d de un brazo paralelo) eso
-**sobreestima u1/uTip y subestima vEd → inseguro**. `calcCruceta` ahora rechaza posición ≠
-interior y sustrato ≠ zapata. La forma cerrada sigue en `crossControlPerimeter` (con tests
-unitarios) **solo como semilla**, marcada `⚠️ NOT PRODUCTION`, no cableada al producto.
+**Status:** DONE borde+esquina sobre ZAPATA (2026-06-07). Tras revertir la 1ª versión insegura, se
+hizo un **spike aislado** de la geometría: `src/lib/calculations/crossPerimeter.ts` —
+`crossPerimetersClipped`, motor **numérico** que dilata la cruz 2d y **trunca el perímetro en la
+línea del borde libre** (decisión: input de distancia libre placa→borde; brazo hacia el borde se
+quita; resto de perímetros recortados). Validado en `crossPerimeter.test.ts` contra hand-calcs
+(rectángulo redondeado exacto 2(w+h)+2πr, unión solapada, recorte por semiplano) + propiedades de
+seguridad (acercar el borde recorta u1; interior>borde>esquina; uTip/u0 se recortan).
 
-**Qué hace falta para hacerlo BIEN (spec del modelo de borde):**
-- Input(s) de **distancia del pilar al borde libre** (uno para borde, dos para esquina).
-- **Truncar** `u1`, `uCore` y especialmente `uTip` en el borde libre (el offset 2d que cae fuera
-  del hormigón no cuenta). Recortar el arco real, no una fracción fija 1/½/¼.
-- Coherencia con la convención de `punching.ts` (2cx+cy para borde): fijar la orientación de la
-  placa respecto al borde (plateA ∥ borde) y verificar que no cambia el signo de seguridad en
-  placas alargadas (Codex).
-- **Kj sin concentración hacia lados libres** (margen real = 0 en el borde): no usar zapata
-  centrada para `ar/br`.
-- Checks propios de **forjado/losa de transferencia**: flexión local, armado sup/inf real según
-  signo del momento, anclaje junto al borde, punzonamiento con armadura si existe.
-- **Hand-calc** contra un ejemplo CE/EC2 de pilar de borde antes de re-exponer en UI.
+**Bonus crítico — fix de seguridad en el INTERIOR ya shipeado (commit c0d5051):** el spike destapó
+que la fórmula cerrada anterior de `crossControlPerimeter` **sobreestimaba u1 ~12%** (contaba `2·L`
+por brazo cuando, con r=2d>L, la dilatación de la placa se traga la raíz de los brazos: la cruz no
+es convexa) → vEd subestimado → **interior era no conservador**. El motor numérico da el u1 correcto
+(5641 vs 6331 en FTUX). `calcCruceta` usa ahora el motor para interior+borde+esquina. Tests FTUX
+recalibrados al valor correcto (norma > número viejo).
 
-**What (original):** extender el modo crucetas a posiciones borde (3 brazos) y esquina (2 brazos)
-y al sustrato forjado/losa de transferencia. **Depends on:** spike aislado de la geometría
-truncada (design doc Open Q #4 ya lo marcaba como la pieza más arriesgada).
+- β por posición (1.0/1.4/1.5); brazos 4/3/2 vía `sidesForPosition`.
+- **Kj concentración solo INTERIOR** (margen de hormigón = 0 en un borde libre — Codex).
+- UI: selector posición + distancia(s) al borde; SVG dibuja brazos por posición + línea de borde
+  libre; PDF muestra posición + distancia. Perf: 1.4 ms recálculo normal, 10 ms peor caso (scan gama).
 
-**Why:** v1 solo cubre interior+zapata para reducir superficie de riesgo en una primera release
-de cálculo de seguridad. Borde/esquina y forjado son casos reales frecuentes.
-
-**Pros:** cubre el grueso de los casos de obra. **Cons:** la geometría cerrada del perímetro
-por posición es donde puede esconderse un error; validar cada una a mano.
-
-**Depends on:** v1 + caso patrón validado. `crossControlPerimeter` ya diseñado para n_arms.
+**Pendiente de este ítem:**
+- **Forjado/losa de transferencia** sigue gated (`calcCruceta` rechaza sustrato≠zapata): necesita
+  checks propios (cara traccionada según signo del momento, flexión local, anclaje junto al borde,
+  punzonamiento con armadura). El motor de perímetro ya le valdría; faltan los estados límite.
+- **Hand-calc** de un caso de borde CE/EC2 a mano como árbitro antes de ship público (el motor está
+  validado contra hand-calcs geométricos, falta el árbitro normativo completo de un pilar de borde).
+- Convención plateA ∥ borde asumida; documentar/avisar para placas muy alargadas.
 
 ### Crucetas V2 — modelo detallado de soldadura
 

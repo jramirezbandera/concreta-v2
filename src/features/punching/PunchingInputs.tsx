@@ -229,12 +229,28 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
   const colSizeOptions = getSizesForTipo(state.colType).map((v) => ({
     value: v, label: `${state.colType} ${v}`,
   }));
-  // V2 scope: only INTERIOR + ZAPATA are validated as safe (borde/esquina + forjado
-  // reverted 2026-06-07 eng-review). No position/substrate selectors exposed.
+  // Interior + borde + esquina (truncated perimeter engine). Forjado still gated.
+  // Kj concentration is interior-only (no spread toward a free edge).
   const soilOpen = state.soilRelief;
-  const concOpen = state.useConcentration;
+  const concOpen = state.position === 'interior' && state.useConcentration;
+  const isEdge = state.position !== 'interior';
+  const isCorner = state.position === 'esquina';
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Crucetas">
+      <CollapsibleSection label="Configuración">
+        <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField} />
+        <div
+          className="overflow-hidden transition-all duration-150"
+          style={{ maxHeight: isEdge ? '120px' : '0px', opacity: isEdge ? 1 : 0 }}
+        >
+          <NumField label="Dist. al borde libre" sub="ay" field="edgeY" value={state.edgeY} unit="mm" setField={setField} />
+          {isCorner && (
+            <NumField label="Dist. al 2º borde" sub="ax" field="edgeX" value={state.edgeX} unit="mm" setField={setField} />
+          )}
+          <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Distancia libre de la cara de la placa al borde de la zapata.</p>
+        </div>
+      </CollapsibleSection>
+
       <CollapsibleSection label="Pilar y placa de testa">
         <SelectField label="Perfil pilar" field="colType"  value={state.colType}  options={COL_TYPE_OPTIONS} setField={setField} />
         <SelectField label="Tamaño"       field="colSize"  value={state.colSize}  options={colSizeOptions}   setField={setField} />
@@ -281,20 +297,22 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
           <NumField label="Presión terreno" sub="σt" field="soilPressure" value={state.soilPressure} unit="kN/m²" setField={setField} />
         </div>
 
-        <ToggleButton
-          label="Concentración EC3 (Kj > 1)"
-          active={concOpen}
-          onClick={() => setField('useConcentration', !state.useConcentration)}
-        />
-        <div
-          className="overflow-hidden transition-all duration-150"
-          style={{ maxHeight: concOpen ? '120px' : '0px', opacity: concOpen ? 1 : 0 }}
-        >
-          <p className="text-[10px] text-text-disabled mb-1">Sube f_jd por área parcialmente cargada (EC3 §6.2.5). Requiere planta y canto de zapata.</p>
-          <NumField label="Zapata ancho" sub="B" field="footB" value={state.footB} unit="mm" setField={setField} />
-          <NumField label="Zapata largo" sub="L" field="footL" value={state.footL} unit="mm" setField={setField} />
-          <NumField label="Canto zapata" sub="H" field="footH" value={state.footH} unit="mm" setField={setField} />
-        </div>
+        {state.position === 'interior' && (<>
+          <ToggleButton
+            label="Concentración EC3 (Kj > 1)"
+            active={concOpen}
+            onClick={() => setField('useConcentration', !state.useConcentration)}
+          />
+          <div
+            className="overflow-hidden transition-all duration-150"
+            style={{ maxHeight: concOpen ? '120px' : '0px', opacity: concOpen ? 1 : 0 }}
+          >
+            <p className="text-[10px] text-text-disabled mb-1">Sube f_jd por área parcialmente cargada (EC3 §6.2.5). Solo interior; requiere planta y canto de zapata.</p>
+            <NumField label="Zapata ancho" sub="B" field="footB" value={state.footB} unit="mm" setField={setField} />
+            <NumField label="Zapata largo" sub="L" field="footL" value={state.footL} unit="mm" setField={setField} />
+            <NumField label="Canto zapata" sub="H" field="footH" value={state.footH} unit="mm" setField={setField} />
+          </div>
+        </>)}
       </CollapsibleSection>
     </div>
   );

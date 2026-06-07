@@ -352,6 +352,8 @@ export interface PunchingInputs {
   armLength:     number;            // mm — manual arm length; 0 = auto (use L_eff,max)
   weldThroat:    number;            // mm — fillet weld throat a
   substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (v2: both)
+  edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
+  edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
   soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
   footB:         number;            // mm — footing plan dim x (soilRelief / Kj)
   footL:         number;            // mm — footing plan dim y (soilRelief / Kj)
@@ -391,6 +393,8 @@ export const punchingDefaults: PunchingInputs = {
   armLength:     0,      // auto
   weldThroat:    6,
   substrate:     'zapata',
+  edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
+  edgeX:         500,
   soilRelief:    false,
   footB:         2000,
   footL:         2000,

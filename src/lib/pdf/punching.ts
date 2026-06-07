@@ -112,6 +112,10 @@ export async function exportPunchingPDF(
     lRow(`Pilar: ${inp.colType} ${inp.colSize}`, `Pos: ${POSITION_LABEL[inp.position] ?? inp.position}`);
     lRow(`Placa: ${inp.plateA}x${inp.plateB}x${inp.plateT} mm`);
     lRow(`Sustrato: ${inp.substrate === 'forjado' ? 'Forjado' : 'Zapata'}`, `beta = ${cru.beta.toFixed(2)}`);
+    if (inp.position !== 'interior') {
+      const edge = inp.position === 'esquina' ? `ay=${inp.edgeY} ax=${inp.edgeX} mm` : `ay=${inp.edgeY} mm`;
+      lRow(`Dist. borde libre: ${edge}`);
+    }
     ly += 1;
     lSecHeader('CRUCETA');
     lRow(`UPN ${cru.upnSize} (${cru.steelGrade}), Clase ${cru.upnClass}`);

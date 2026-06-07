@@ -569,8 +569,28 @@ function CrossPlanView({
         fill="none" stroke={plateStroke} strokeWidth={1} strokeDasharray="3 2"
       />
 
-      {/* crucetas welded to the 4 faces (interior only — borde/esquina reverted) */}
-      {(['up', 'down', 'left', 'right'] as const).map((dir) => cruceta(dir))}
+      {/* crucetas welded to the present faces — a free edge drops the arm toward
+          it: borde drops −y (down), esquina drops −y and −x (down + left). */}
+      {(['up', 'down', 'left', 'right'] as const)
+        .filter((dir) => {
+          if (inp.position === 'borde')   return dir !== 'down';
+          if (inp.position === 'esquina') return dir !== 'down' && dir !== 'left';
+          return true;
+        })
+        .map((dir) => cruceta(dir))}
+
+      {/* free-edge line(s) where the concrete ends (perimeter is truncated here) */}
+      {inp.position !== 'interior' && (
+        <>
+          <line x1={u1Inset} y1={oy + pbH + px(inp.edgeY)} x2={size - u1Inset} y2={oy + pbH + px(inp.edgeY)}
+            stroke={textCol} strokeWidth={1.5} strokeDasharray="6 3" />
+          <text x={size - u1Inset - 4} y={oy + pbH + px(inp.edgeY) - 4} fontSize={8} fontFamily="monospace" textAnchor="end" fill={textCol}>borde libre</text>
+        </>
+      )}
+      {inp.position === 'esquina' && (
+        <line x1={ox - paH - px(inp.edgeX)} y1={u1Inset} x2={ox - paH - px(inp.edgeX)} y2={size - u1Inset}
+          stroke={textCol} strokeWidth={1.5} strokeDasharray="6 3" />
+      )}
 
       {/* column profile (I/H section in plan) */}
       <g fill={colArea} stroke={strokeArea} strokeWidth={1}>

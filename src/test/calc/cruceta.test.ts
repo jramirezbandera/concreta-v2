@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcCruceta, crossControlPerimeter, sidesForPosition } from '../../lib/calculations/cruceta';
+import { calcCruceta, sidesForPosition } from '../../lib/calculations/cruceta';
 import { punchingDefaults, type PunchingInputs } from '../../data/defaults';
 
 const base: PunchingInputs = { ...punchingDefaults, mode: 'pilar-cruceta' };
@@ -13,73 +13,38 @@ describe('sidesForPosition', () => {
   });
 });
 
-// ── crossControlPerimeter (hand-verified, interior) ───────────────────────────
-describe('crossControlPerimeter', () => {
-  it('interior plate 300×300, bEff 65, Leff 327.3, d 200', () => {
-    const p = crossControlPerimeter(300, 300, 65, 327.3, 200, 4);
-    expect(p.u0).toBeCloseTo(1200, 1);
-    expect(p.uCore).toBeCloseTo(3713.27, 1);   // 1200 + 2π·400
-    expect(p.u1).toBeCloseTo(6331.67, 1);       // 1200 + 8·327.3 + 2π·400
-    expect(p.uTip).toBeCloseTo(1976.24, 1);     // 2·327.3 + 65 + π·400
-    expect(p.Acruz).toBeCloseTo(175098, 0);     // 300² + 4·65·327.3
-  });
+// Control-perimeter geometry is tested in crossPerimeter.test.ts (the validated
+// numerical engine). Here we only test calcCruceta's use of it.
 
-  it('straight part grows by 2·nArms·Leff', () => {
-    const a = crossControlPerimeter(300, 300, 65, 100, 200, 4);
-    const b = crossControlPerimeter(300, 300, 65, 200, 200, 4);
-    expect(b.u1 - a.u1).toBeCloseTo(2 * 4 * 100, 6);
+// ── Posición borde/esquina (V2.next, motor de perímetro truncado) ─────────────
+describe('borde / esquina con distancia al borde', () => {
+  it('borde válido con N moderado y distancia al borde', () => {
+    const r = calcCruceta({ ...base, position: 'borde', edgeY: 500, VEd: 150 });
+    expect(r.valid).toBe(true);
+    expect(r.cruceta!.nArms).toBe(3);
+    expect(r.cruceta!.beta).toBeCloseTo(1.4, 6);
   });
-
-  it('degenerate Leff=0 collapses u1 to bare-plate uCore', () => {
-    const p = crossControlPerimeter(300, 300, 65, 0, 200, 4);
-    expect(p.u1).toBeCloseTo(p.uCore, 6);
-    expect(p.Acruz).toBeCloseTo(90000, 6);
+  it('esquina válida con N bajo y dos distancias', () => {
+    const r = calcCruceta({ ...base, position: 'esquina', edgeY: 500, edgeX: 500, VEd: 80 });
+    expect(r.valid).toBe(true);
+    expect(r.cruceta!.nArms).toBe(2);
+    expect(r.cruceta!.beta).toBeCloseTo(1.5, 6);
   });
-
-  // V2 #1 — borde (3 brazos) y esquina (2 brazos), hand-verified.
-  it('borde: 3 brazos, plate 300×300, bEff 65, Leff 327.3, d 200', () => {
-    const p = crossControlPerimeter(300, 300, 65, 327.3, 200, 3, 'borde');
-    expect(p.u0).toBeCloseTo(900, 1);          // A + 2B
-    expect(p.uCore).toBeCloseTo(2156.64, 1);    // 900 + π·400 (½ arc)
-    expect(p.u1).toBeCloseTo(4120.44, 1);       // 900 + 6·327.3 + π·400
-    expect(p.uTip).toBeCloseTo(1976.24, 1);     // arm strip (position-independent)
-    expect(p.Acruz).toBeCloseTo(153823.5, 0);   // 300² + 3·65·327.3
+  it('acercar el borde RECORTA u1 (más cerca → menor → vEd mayor)', () => {
+    const near = calcCruceta({ ...base, position: 'borde', edgeY: 50, VEd: 150 }).cruceta!.u1;
+    const far  = calcCruceta({ ...base, position: 'borde', edgeY: 5000, VEd: 150 }).cruceta!.u1;
+    expect(near).toBeLessThan(far);
   });
-
-  it('esquina: 2 brazos, plate 300×300, bEff 65, Leff 327.3, d 200', () => {
-    const p = crossControlPerimeter(300, 300, 65, 327.3, 200, 2, 'esquina');
-    expect(p.u0).toBeCloseTo(600, 1);           // A + B
-    expect(p.uCore).toBeCloseTo(1228.32, 1);     // 600 + ½π·400 (¼ arc)
-    expect(p.u1).toBeCloseTo(2537.52, 1);        // 600 + 4·327.3 + ½π·400
-    expect(p.Acruz).toBeCloseTo(132549, 0);      // 300² + 2·65·327.3
-  });
-
-  it('u1 shrinks interior > borde > esquina (fewer arms + free edges)', () => {
-    const i = crossControlPerimeter(300, 300, 65, 327.3, 200, 4, 'interior');
-    const b = crossControlPerimeter(300, 300, 65, 327.3, 200, 3, 'borde');
-    const e = crossControlPerimeter(300, 300, 65, 327.3, 200, 2, 'esquina');
-    expect(i.u1).toBeGreaterThan(b.u1);
-    expect(b.u1).toBeGreaterThan(e.u1);
-  });
-});
-
-// ── Scope gate: borde/esquina/forjado REVERTIDOS (eng-review 2026-06-07) ───────
-// El perímetro borde/esquina no trunca el offset 2d ni uTip en el borde libre
-// (Codex): puede subestimar vEd → inseguro. calcCruceta los rechaza hasta que
-// llegue el modelo de borde con distancia al borde. La forma cerrada del helper
-// sigue testeada arriba como semilla del modelo futuro (no va al producto).
-describe('scope gate interior+zapata (V2.next pendiente)', () => {
-  it('rechaza posición borde', () => {
-    const r = calcCruceta({ ...base, position: 'borde' });
+  it('rechaza borde sin distancia al borde (edgeY ≤ 0)', () => {
+    const r = calcCruceta({ ...base, position: 'borde', edgeY: 0 });
     expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/interior/i);
+    expect(r.error).toMatch(/borde/i);
   });
-  it('rechaza posición esquina', () => {
-    const r = calcCruceta({ ...base, position: 'esquina' });
+  it('rechaza esquina sin 2ª distancia (edgeX ≤ 0)', () => {
+    const r = calcCruceta({ ...base, position: 'esquina', edgeY: 500, edgeX: 0 });
     expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/interior/i);
   });
-  it('rechaza sustrato forjado', () => {
+  it('rechaza sustrato forjado (en desarrollo)', () => {
     const r = calcCruceta({ ...base, substrate: 'forjado' });
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/zapata/i);
@@ -142,7 +107,12 @@ describe('FTUX defaults (HEB200, plate 300×300×20, UPN160, S275, d200, N300)',
   it('M_Rd ≈ 38.76 kN·m (Wpl·fy/γM0)', () => expect(c.MRd).toBeCloseTo(38.76, 1));
   it('L_eff,max ≈ 327.3 mm', () => expect(c.LeffMax).toBeCloseTo(327.3, 1));
   it('Leff = LeffMax in auto mode', () => expect(c.Leff).toBeCloseTo(c.LeffMax, 6));
-  it('u1 ≈ 6331.7 mm', () => expect(c.u1).toBeCloseTo(6331.7, 1));
+  // u1 = true 2d-offset of the cross (numerical engine). The old closed form gave
+  // 6331 — ~12% too long → unconservative; the validated engine gives ~5641.
+  it('u1 ≈ 5641 mm (offset 2d real, < fórmula vieja 6331)', () => {
+    expect(c.u1).toBeGreaterThan(5630);
+    expect(c.u1).toBeLessThan(5652);
+  });
   it('Vcap ≈ 1949 kN', () => expect(c.Vcap).toBeCloseTo(1949, 0));
   it('no suggestion when chosen passes', () => expect(c.suggestedUpn).toBeNull());
   it('exposes cruceta detail only in this mode', () => expect(r.cruceta).toBeDefined());

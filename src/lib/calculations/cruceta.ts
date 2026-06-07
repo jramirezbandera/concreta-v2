@@ -33,6 +33,7 @@ import { getConcrete } from '../../data/materials';
 import { getUPN, getSizesUPN, type UPNProfile } from '../../data/steelProfiles';
 import { type CheckRow, makeCheck, makeCheckNeutral } from './types';
 import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
+import { crossPerimetersClipped } from './crossPerimeter';
 import { type PunchingResult, type CrucetaDetail, betaForPosition, sidesForPosition } from './punching';
 
 // Re-export so existing importers (and tests) keep resolving from cruceta.
@@ -47,77 +48,10 @@ const STEEL_FU: Record<CrucetaSteel, number> = { S275: 430, S355: 490 };
 // EC3-1-8 Tab 4.1 weld correlation factor βw.
 const BETA_W: Record<CrucetaSteel, number> = { S275: 0.85, S355: 0.90 };
 
-// ─── Cross control perimeters (closed-form, position-aware) ───────────────────
-export interface CrossPerimeters {
-  u0:    number;   // mm — plate-face perimeter (crushing)
-  u1:    number;   // mm — enlarged cross control perimeter at 2d
-  uCore: number;   // mm — bare-plate control perimeter at 2d
-  uTip:  number;   // mm — per-arm tip control perimeter at 2d
-  Acruz: number;   // mm² — cross contact area (plate + arms), used for relief
-}
-
-/**
- * Plate straight perimeter facing the slab, by position. A free edge drops the
- * plate edge facing it (and its arm). Convention (mirrors punching.ts):
- *   plateA ∥ free edge, plateB ⊥ free edge (toward the slab interior).
- *   • interior: all 4 edges       → 2(A+B)
- *   • borde:    drop one A-edge    → A + 2B
- *   • esquina:  drop one A + one B → A + B
- * Dropping edges shortens every perimeter → higher vEd → conservative (safe).
- */
-function plateStraightPerim(plateA: number, plateB: number, position: PunchingPosition): number {
-  if (position === 'borde')   return plateA + 2 * plateB;
-  if (position === 'esquina') return plateA + plateB;
-  return 2 * (plateA + plateB); // interior
-}
-
-/** Fraction of the full 2d round-off present, by position (mirrors punching.ts
- *  arc reduction: interior 4πd, borde 2πd, esquina πd → 1, ½, ¼ of 2π·(2d)). */
-function arcFraction(position: PunchingPosition): number {
-  if (position === 'borde')   return 0.5;
-  if (position === 'esquina') return 0.25;
-  return 1; // interior
-}
-
-/**
- * Closed-form control perimeters for a cruciform (eng-review 2A; v2 extends to
- * borde/esquina — Crucetas V2 #1).
- *
- * The exact Minkowski 2d-offset of the plus-shaped outline has an arc term that
- * ranges from 2π·(2d) (notches fully fused — typical, large 2d) up to 10π·(2d)
- * (notches fully open — long arms / small 2d). We use the LOWER bound 2π·(2d)
- * for interior, scaled by arcFraction at a free edge: it is EXACT in the fused
- * regime and CONSERVATIVE (shorter u1 → higher vEd) in the open regime. The
- * straight part plateStraight + 2·nArms·Leff is exact in both regimes.
- *
- *   u1    = plateStraight + 2·nArms·Leff + 2π·(2d)·arcFrac
- *   u0    = plateStraight                              (plate face, no offset)
- *   uCore = plateStraight + 2π·(2d)·arcFrac            (bare plate at 2d)
- *   uTip  = 2·Leff + bEff + π·(2d)        (one arm strip: 2 sides + end + round)
- *
- * ⚠️ NOT PRODUCTION for borde/esquina (reverted 2026-06-07 eng-review, Codex):
- * dropping an arm shortens u1, BUT this form does NOT truncate the 2d offset of
- * the REMAINING arms (or uTip) at the free edge, and there is no edge-distance
- * input — so for a real edge column (free edge within 2d of a parallel arm) it
- * OVERSTATES u1/uTip and UNDERSTATES vEd (unsafe). calcCruceta therefore rejects
- * non-interior. The borde/esquina branches are kept here only as the seed for the
- * future edge model (TODOS "Crucetas V2.next — borde/esquina con distancia al
- * borde + perímetros truncados"). Interior is exact/unaffected.
- */
-export function crossControlPerimeter(
-  plateA: number, plateB: number, bEff: number, Leff: number,
-  d: number, nArms: number, position: PunchingPosition = 'interior',
-): CrossPerimeters {
-  const r = 2 * d;
-  const straight = plateStraightPerim(plateA, plateB, position);
-  const arc = 2 * Math.PI * r * arcFraction(position);
-  const u0 = straight;
-  const uCore = straight + arc;
-  const u1 = straight + 2 * nArms * Leff + arc;
-  const uTip = 2 * Leff + bEff + Math.PI * r;
-  const Acruz = plateA * plateB + nArms * bEff * Leff;
-  return { u0, u1, uCore, uTip, Acruz };
-}
+// Control perimeters now come from ./crossPerimeter (crossPerimetersClipped) — a
+// validated numerical engine that truncates the 2d offset at the free edge. It
+// replaced an earlier closed form that overstated u1 for the non-convex cross
+// (dilation swallows the arm roots) → unconservative; see eng-review 2026-06-07.
 
 // ─── UPN section classification (EC3 §5.5 Tabla 5.2, simplified) ───────────────
 /** Class of a UPN channel in major-axis bending. Conservative outstand/web check. */
@@ -157,10 +91,11 @@ interface Ctx {
   armLength: number;      // user manual arm length (0 = auto)
   weldThroat: number;     // mm
   steelGrade: CrucetaSteel;
-  // α (Kj) concentration (Crucetas V2 #6) — only for zapata with footing dims.
+  // α (Kj) concentration (Crucetas V2 #6) — only for interior zapata.
   useConcentration: boolean;
   substrate: CrucetaSubstrate;
   footB: number; footL: number; footH: number; // mm — footing plan + depth
+  edgeY: number; edgeX: number;                 // mm — free-edge clear distances
 }
 
 /** Geometry derived from one bearing concentration α (closed-form, no perimeter). */
@@ -189,7 +124,10 @@ function deriveGeom(upn: UPNProfile, c: Ctx, alpha: number) {
  * < 0.1% or 5 iters). The loaded area is taken as an equivalent square √Acruz.
  */
 function solveAlpha(upn: UPNProfile, c: Ctx): { alpha: number; Kj: number } {
-  if (!c.useConcentration || c.substrate !== 'zapata' || c.footB <= 0 || c.footL <= 0) {
+  // Kj only for INTERIOR zapata: at a free edge the concrete margin is zero on
+  // that side, so EC3 concentration toward it is not valid (Codex 2026-06-07).
+  if (!c.useConcentration || c.substrate !== 'zapata' || c.position !== 'interior'
+      || c.footB <= 0 || c.footL <= 0) {
     return { alpha: 1, Kj: 1 };
   }
   let alpha = 1;
@@ -216,8 +154,12 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   const { fjd, cf, bEff, upnClass, MRd_Nmm, LeffMax, Larm, Leff, Acruz } = g;
   const MRd = MRd_Nmm / 1e6;                     // kN·m
 
-  const { u0, u1, uCore, uTip } = crossControlPerimeter(
-    c.plateA, c.plateB, bEff, Leff, c.d, c.nArms, c.position,
+  const { u0, u1, uCore, uTip } = crossPerimetersClipped(
+    {
+      plateA: c.plateA, plateB: c.plateB, bEff, Leff,
+      position: c.position, edgeY: c.edgeY, edgeX: c.edgeX,
+    },
+    c.d,
   );
 
   // ── Capacity vs demand ─────────────────────────────────────────────────────
@@ -342,17 +284,17 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   if (inp.plateT <= 0) return invalid('Espesor de placa debe ser > 0');
   if (inp.weldThroat <= 0) return invalid('Garganta de soldadura debe ser > 0');
   if (!getUPN(inp.upnSize)) return invalid(`Perfil UPN ${inp.upnSize} no encontrado`);
-  // Scope gate: only INTERIOR + ZAPATA are validated as safe. Borde/esquina and
-  // forjado were reverted after the 2026-06-07 eng-review (Codex outside voice):
-  // the cross control perimeter does NOT truncate the 2d offset / uTip at the free
-  // edge and has no edge-distance input, so it can underestimate vEd for a real
-  // edge column (unsafe). The closed form lives in crossControlPerimeter for the
-  // future edge model, but is NOT wired to the product. See TODOS "Crucetas V2.next".
-  if (inp.position !== 'interior') {
-    return invalid('Crucetas: solo posición interior está validada (borde/esquina en desarrollo)');
-  }
+  // Interior + borde + esquina use the truncated numerical perimeter engine
+  // (crossPerimetersClipped), validated 2026-06-07. Forjado stays gated: it needs
+  // its own slab checks (tension face by moment sign, local bending) — TODOS.
   if (inp.substrate !== 'zapata') {
     return invalid('Crucetas: solo sustrato zapata está validado (forjado en desarrollo)');
+  }
+  if (inp.position !== 'interior' && inp.edgeY <= 0) {
+    return invalid('Distancia al borde libre debe ser > 0');
+  }
+  if (inp.position === 'esquina' && inp.edgeX <= 0) {
+    return invalid('Distancia al 2º borde libre debe ser > 0 (esquina)');
   }
   if (inp.soilRelief && (inp.footB <= 0 || inp.footL <= 0)) {
     return invalid('Dimensiones de zapata deben ser > 0 para descontar terreno');
@@ -402,6 +344,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     armLength: inp.armLength, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
     useConcentration: inp.useConcentration, substrate: inp.substrate,
     footB: inp.footB, footL: inp.footL, footH: inp.footH,
+    edgeY: inp.edgeY, edgeX: inp.edgeX,
   };
 
   // Resolve soil relief using the chosen profile's cross area.
