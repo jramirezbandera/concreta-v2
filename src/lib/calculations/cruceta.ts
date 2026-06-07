@@ -179,6 +179,8 @@ interface Ctx {
   weldThroat: number;     // mm
   steelGrade: CrucetaSteel;
   substrate: CrucetaSubstrate;
+  armThrough: boolean;                          // cruceta pasante soldada al pilar
+  hasRepartoSup: boolean; hasRepartoInf: boolean; // armadura de reparto del detalle
   edgeY: number; edgeX: number;                 // mm — free-edge clear distances
   // Punching shear reinforcement (forjado only — thin transfer slab).
   hasShearReinf: boolean;
@@ -358,9 +360,13 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     `${(VEd_arm / 1000).toFixed(0)} kN`, `${(VplRd_N / 1000).toFixed(0)} kN`, 'CE DB-SE-A 6.2.4',
   ));
 
-  // Weld
+  // Weld — en forjado es la conexión cruceta-PILAR (pasante, cubrejuntas); en zapata
+  // es la cruceta-placa. Misma geometría/demanda; el rótulo lo aclara.
+  const weldDesc = c.substrate === 'forjado'
+    ? 'τ_w ≤ f_vw,d (soldadura cruceta-pilar, conexión pasante)'
+    : 'τ_w ≤ f_vw,d (soldadura cruceta-placa, simplificado)';
   checks.push(makeCheck(
-    'cru-weld', 'τ_w ≤ f_vw,d (soldadura cruceta-placa, simplificado)',
+    'cru-weld', weldDesc,
     weldRes, fvwd, `${weldRes.toFixed(1)} N/mm²`, `${fvwd.toFixed(1)} N/mm²`, 'CE DB-SE-A 8.6.2',
   ));
 
@@ -413,9 +419,33 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     id, description, value: 'VERIFICAR A MANO', limit: 'pendiente',
     utilization: 0.99, status: 'warn', article,
   });
-  checks.push(pending('cru-anchor', 'Anclaje de brazos embebidos', 'EC2 §8 / conectores'));
-  checks.push(pending('cru-cover', 'Recubrimiento superior sobre la cruz', 'EC2 §6.4'));
-  checks.push(pending('cru-delam', 'Plano horizontal a la cota de la cruz', 'cortante interfaz'));
+  // Fila neutral "resuelto por el detalle": deja de ser verificación a mano cuando
+  // el esquema estándar aporta el mecanismo (no es un check verde de resistencia,
+  // es un estado límite cubierto por disposición constructiva del detalle tipo).
+  const byDetail = (id: string, description: string, article: string): CheckRow => ({
+    id, description, value: 'según detalle', limit: '—',
+    utilization: 0, status: 'neutral', neutral: true, article,
+  });
+  const fj = c.substrate === 'forjado';
+
+  // Anclaje: en forjado pasante el camino de carga es la soldadura cruceta-pilar
+  // (cru-weld, ya comprobada). Sin pasante → "soldar el pilar" o verificar a mano.
+  checks.push(fj && c.armThrough
+    ? byDetail('cru-anchor', 'Anclaje: cruceta pasante soldada al pilar (ver soldadura)', 'CE DB-SE-A 8.6')
+    : pending('cru-anchor', 'Anclaje de brazos embebidos', 'EC2 §8 / conectores'));
+
+  // Atado/recubrimiento superior: lo aporta la armadura de reparto superior del detalle.
+  checks.push(fj && c.hasRepartoSup
+    ? byDetail('cru-cover', 'Atado superior por armadura de reparto (sup) dispuesta', 'detalle tipo')
+    : pending('cru-cover', 'Recubrimiento/atado superior sobre la cruz', 'EC2 §6.4'));
+
+  // Delaminación (cortante de interfaz en el plano de la cruz): NO se calcula aquí
+  // (sin cláusula de norma para shearhead). Queda como verificación a mano; el texto
+  // recuerda que los cercos entre crucetas y los repartos cosen el plano.
+  checks.push(pending('cru-delam',
+    fj ? 'Cortante de interfaz en el plano de la cruz (cosido por cercos/repartos)'
+       : 'Plano horizontal a la cota de la cruz',
+    'cortante interfaz'));
 
   // Concerns específicos del BORDE LIBRE en losa de transferencia (forjado +
   // borde/esquina): el motor de perímetro ya trunca el contorno, pero el anclaje
@@ -513,6 +543,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     V_N: inp.VEd * 1000, reliefApplied: false,
     armLength: inp.armLength, spanL: inp.spanL, weldThroat: inp.weldThroat, steelGrade: inp.steelGrade,
     substrate: inp.substrate, edgeY: inp.edgeY, edgeX: inp.edgeX,
+    armThrough: inp.armThrough, hasRepartoSup: inp.hasRepartoSup, hasRepartoInf: inp.hasRepartoInf,
     hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
     sr: inp.sr, fywk: inp.fywk,
   };

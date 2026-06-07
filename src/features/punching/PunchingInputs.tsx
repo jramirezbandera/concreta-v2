@@ -345,6 +345,30 @@ function CrucetaInputs({ state, setField, armLengthDisplay, armLengthAuto, onArm
         </p>
       </CollapsibleSection>
 
+      {isForjado && (
+        <CollapsibleSection label="Detalle de armado">
+          <p className="text-[10px] text-text-disabled mb-1.5">
+            Esquema estándar: marca lo que dispones para que esos estados límite dejen de ser
+            "verificar a mano".
+          </p>
+          <ToggleButton
+            label="Cruceta pasante soldada al pilar"
+            active={state.armThrough}
+            onClick={() => setField('armThrough', !state.armThrough)}
+          />
+          <ToggleButton
+            label="Armadura de reparto superior (atado)"
+            active={state.hasRepartoSup}
+            onClick={() => setField('hasRepartoSup', !state.hasRepartoSup)}
+          />
+          <ToggleButton
+            label="Armadura de reparto inferior"
+            active={state.hasRepartoInf}
+            onClick={() => setField('hasRepartoInf', !state.hasRepartoInf)}
+          />
+        </CollapsibleSection>
+      )}
+
       <CollapsibleSection label="Carga">
         <UnitNumberInput
           label="Axil N" sub="VEd" field="VEd"

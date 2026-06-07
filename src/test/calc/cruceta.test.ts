@@ -228,6 +228,41 @@ describe('estados límite del embebido pendientes', () => {
 });
 
 
+// ── Estados límite resueltos por el detalle tipo (forjado) ────────────────────
+describe('detalle tipo: anclaje/atado dejan de ser "verificar a mano" (forjado)', () => {
+  const f = { ...base, substrate: 'forjado' as const };
+  const stat = (r: ReturnType<typeof calcCruceta>, id: string) =>
+    r.checks.find((c) => c.id === id)?.status;
+
+  it('con el detalle completo: anclaje y atado pasan a neutral (por detalle)', () => {
+    const r = calcCruceta(f); // armThrough/repartos = true por defecto
+    expect(stat(r, 'cru-anchor')).toBe('neutral');
+    expect(stat(r, 'cru-cover')).toBe('neutral');
+  });
+
+  it('la soldadura se rotula como conexión cruceta-pilar en forjado', () => {
+    const w = calcCruceta(f).checks.find((c) => c.id === 'cru-weld');
+    expect(w!.description).toMatch(/pilar/i);
+  });
+
+  it('sin pasante (armThrough=false) el anclaje vuelve a verificar a mano', () => {
+    expect(stat(calcCruceta({ ...f, armThrough: false }), 'cru-anchor')).toBe('warn');
+  });
+
+  it('sin reparto superior el atado vuelve a verificar a mano', () => {
+    expect(stat(calcCruceta({ ...f, hasRepartoSup: false }), 'cru-cover')).toBe('warn');
+  });
+
+  it('la delaminación (cortante de interfaz) sigue en amber: no hay cláusula que la calcule', () => {
+    expect(stat(calcCruceta(f), 'cru-delam')).toBe('warn');
+  });
+
+  it('en zapata los tres siguen como verificación a mano (el detalle es de forjado)', () => {
+    const r = calcCruceta(base);
+    for (const id of ['cru-anchor', 'cru-cover', 'cru-delam']) expect(stat(r, id)).toBe('warn');
+  });
+});
+
 // ── FTUX defaults / benchmark ─────────────────────────────────────────────────
 describe('FTUX defaults (HEB200, plate 300×300×20, UPN160, S275, d200, N300)', () => {
   const r = calcCruceta(base);

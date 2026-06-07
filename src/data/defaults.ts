@@ -353,6 +353,11 @@ export interface PunchingInputs {
   spanL:         number;            // mm — luz del vano (detalle tipo: brazo ≥ luz/8, ≥50cm)
   weldThroat:    number;            // mm — fillet weld throat a
   substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (v2: both)
+  // Detalle tipo (forjado): camino de carga y armadura de reparto del esquema
+  // estándar. Controlan qué estados límite dejan de ser "verificar a mano".
+  armThrough:    boolean;           // cruceta pasante soldada al pilar (vs solo embebida)
+  hasRepartoSup: boolean;           // armadura de reparto superior dispuesta (atado)
+  hasRepartoInf: boolean;           // armadura de reparto inferior dispuesta
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
   soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
@@ -393,6 +398,9 @@ export const punchingDefaults: PunchingInputs = {
   spanL:         5000,   // mm — luz típica → luz/8 = 625mm (> 50cm mínimo)
   weldThroat:    6,
   substrate:     'zapata',
+  armThrough:    true,   // detalle tipo: pasante soldada al pilar
+  hasRepartoSup: true,   // detalle tipo: reparto sup 2Ø10
+  hasRepartoInf: true,   // detalle tipo: reparto inf 1Ø8
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
   edgeX:         500,
   soilRelief:    false,
