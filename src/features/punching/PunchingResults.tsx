@@ -45,25 +45,25 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         </p>
 
         <GroupHeader label="Cruceta" />
-        <ValueRow label="Posición"             value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
-        <ValueRow label="Perfil UPN"           value={`UPN ${c.upnSize} (${c.steelGrade})`} />
-        <ValueRow label="Clase sección"        value={`Clase ${c.upnClass}`} />
-        <ValueRow label="Longitud brazo L_eff" value={`${c.Leff.toFixed(0)} mm`} />
-        <ValueRow label="L_eff,máx (perfil)"   value={`${c.LeffMax.toFixed(0)} mm`} />
-        <ValueRow label="Ancho contacto b_eff" value={`${c.bEff.toFixed(0)} mm`} />
-        <ValueRow label="M_Rd cruceta"         value={`${c.MRd.toFixed(1)} kN·m`} />
+        <ValueRow label="Posición del pilar"               value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
+        <ValueRow label="Perfil de la cruceta"             value={`UPN ${c.upnSize} (${c.steelGrade})`} />
+        <ValueRow label="Clase de sección (EC3)"           value={`Clase ${c.upnClass}`} />
+        <ValueRow label="L_eff — longitud eficaz del brazo" value={`${c.Leff.toFixed(0)} mm`} />
+        <ValueRow label="L_eff,máx — alcance del perfil"   value={`${c.LeffMax.toFixed(0)} mm`} />
+        <ValueRow label="b_eff — ancho de contacto eficaz" value={`${c.bEff.toFixed(0)} mm`} />
+        <ValueRow label="M_Rd — momento resistente cruceta" value={`${c.MRd.toFixed(1)} kN·m`} />
 
         <GroupHeader label="Parámetros" />
-        <ValueRow label="f apoyo (= fcd)"      value={`${c.fjd.toFixed(2)} N/mm²`} />
-        <ValueRow label="N de cálculo"         value={`${c.Vdesign.toFixed(0)} kN${c.reliefApplied ? ' (con terreno)' : ''}`} />
-        <ValueRow label="Capacidad reparto"    value={`${c.Vcap.toFixed(0)} kN`} />
-        <ValueRow label="u0 (placa)"           value={`${c.u0.toFixed(0)} mm`} />
-        <ValueRow label="u1 (cruz)"            value={`${c.u1.toFixed(0)} mm`} />
-        <ValueRow label="vRd,c"                value={`${result.vRdc.toFixed(3)} N/mm²`} />
+        <ValueRow label="f apoyo — tensión de apoyo (= fcd)" value={`${c.fjd.toFixed(2)} N/mm²`} />
+        <ValueRow label="N — axil de cálculo"              value={`${c.Vdesign.toFixed(0)} kN${c.reliefApplied ? ' (con descuento de terreno)' : ''}`} />
+        <ValueRow label="V_cap — capacidad de reparto"     value={`${c.Vcap.toFixed(0)} kN`} />
+        <ValueRow label="u0 — perímetro de la placa"       value={`${c.u0.toFixed(0)} mm`} />
+        <ValueRow label="u1 — perímetro de control (cruz)" value={`${c.u1.toFixed(0)} mm`} />
+        <ValueRow label="vRd,c — resistencia sin cercos"   value={`${result.vRdc.toFixed(3)} N/mm²`} />
         {result.vRdcs !== undefined && (
-          <ValueRow label="vRd,cs (con cercos)" value={`${result.vRdcs.toFixed(3)} N/mm²`} />
+          <ValueRow label="vRd,cs — resistencia con cercos" value={`${result.vRdcs.toFixed(3)} N/mm²`} />
         )}
-        <ValueRow label="vEd (en u1)"          value={`${result.vEd.toFixed(3)} N/mm²`} />
+        <ValueRow label="vEd — tensión actuante en u1"     value={`${result.vEd.toFixed(3)} N/mm²`} />
 
         <GroupHeader label="Verificación" />
         {result.checks.map((ch) => <CheckRowItem key={ch.id} check={ch} />)}
@@ -94,17 +94,17 @@ export function PunchingResults({ result }: PunchingResultsProps) {
       {/* Parámetros */}
       <GroupHeader label="Parámetros" />
       <ValueRow label={resultLabel('beta_punching')} value={result.beta.toFixed(2)} />
-      <ValueRow label="u0 (cara del pilar)"          value={`${result.u0.toFixed(0)} mm`} />
+      <ValueRow label="u0 — perímetro en cara del pilar" value={`${result.u0.toFixed(0)} mm`} />
       <ValueRow label={resultLabel('u1_perimeter')}  value={`${result.u1.toFixed(0)} mm`} />
-      <ValueRow label="k (factor tamaño)"            value={result.k.toFixed(3)} />
-      <ValueRow label="As sup"                       value={`${(result.asSup * 1000).toFixed(0)} mm²/m`} />
-      <ValueRow label="As inf"                       value={`${(result.asInf * 1000).toFixed(0)} mm²/m`} />
-      <ValueRow label="ρl (efectivo)"                value={result.rhoL.toFixed(4)} />
+      <ValueRow label="k — factor de tamaño"         value={result.k.toFixed(3)} />
+      <ValueRow label="As,sup — armado cara superior" value={`${(result.asSup * 1000).toFixed(0)} mm²/m`} />
+      <ValueRow label="As,inf — armado cara inferior" value={`${(result.asInf * 1000).toFixed(0)} mm²/m`} />
+      <ValueRow label="ρl — cuantía geométrica efectiva" value={result.rhoL.toFixed(4)} />
       {result.rhoLClamped && (
-        <ValueRow label="ρl,min (CE art. 9.1)"       value={result.rhoLMin.toFixed(4)} />
+        <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={result.rhoLMin.toFixed(4)} />
       )}
-      <ValueRow label="vmin"                         value={`${result.vMin.toFixed(3)} N/mm²`} />
-      <ValueRow label="vEd,0 (en u0)"                value={`${result.vEd0.toFixed(3)} N/mm²`} />
+      <ValueRow label="vmín — resistencia mínima"    value={`${result.vMin.toFixed(3)} N/mm²`} />
+      <ValueRow label="vEd,0 — tensión en cara del pilar" value={`${result.vEd0.toFixed(3)} N/mm²`} />
       <ValueRow label={resultLabel('vEd_punching')}  value={`${result.vEd.toFixed(3)} N/mm²`} />
 
       {/* Resistencias */}
@@ -115,12 +115,12 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         className="overflow-hidden transition-all duration-150"
         style={{ maxHeight: result.vRdcs !== undefined ? '80px' : '0px', opacity: result.vRdcs !== undefined ? 1 : 0 }}
       >
-        <ValueRow label="Asw por fila"                value={`${result.aswPerRow.toFixed(0)} mm²`} />
+        <ValueRow label="Asw — armado de cercos por fila" value={`${result.aswPerRow.toFixed(0)} mm²`} />
         {result.vRdcs !== undefined && (
           <ValueRow label={resultLabel('vRd_cs')}     value={`${result.vRdcs.toFixed(3)} N/mm²`} />
         )}
       </div>
-      <ValueRow label="uout"                          value={`${result.uout.toFixed(0)} mm`} />
+      <ValueRow label="uout — perímetro sin cercos necesarios" value={`${result.uout.toFixed(0)} mm`} />
 
       {/* Verificación */}
       <GroupHeader label="Verificación" />
