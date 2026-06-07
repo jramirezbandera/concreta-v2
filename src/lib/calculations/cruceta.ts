@@ -30,6 +30,7 @@ import {
   type PunchingPosition,
 } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
+import { getBarArea } from '../../data/rebar';
 import { getUPN, getSizesUPN, type UPNProfile } from '../../data/steelProfiles';
 import { type CheckRow, makeCheck, makeCheckNeutral } from './types';
 import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
@@ -75,6 +76,8 @@ interface ProfileEval {
   checks: CheckRow[];
   vRdc: number;
   vRdmax: number;
+  vRdcs?: number;       // forjado with shear reinforcement
+  aswPerRow: number;    // mm² — stirrup area per radial row (0 if no reinf)
   vEd: number;   // at u1
   vEd0: number;  // at u0
   passes: boolean;
@@ -96,6 +99,9 @@ interface Ctx {
   substrate: CrucetaSubstrate;
   footB: number; footL: number; footH: number; // mm — footing plan + depth
   edgeY: number; edgeX: number;                 // mm — free-edge clear distances
+  // Punching shear reinforcement (forjado only — thin transfer slab).
+  hasShearReinf: boolean;
+  swDiam: number; swLegs: number; sr: number; fywk: number;
 }
 
 /** Geometry derived from one bearing concentration α (closed-form, no perimeter). */
@@ -195,6 +201,22 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
   const weldRes = Math.sqrt(sigW * sigW + tauW * tauW);       // MPa
   const fvwd = c.fu / (Math.sqrt(3) * c.betaW * GAMMA_M2);    // MPa
 
+  // Punching shear reinforcement (forjado only — thin transfer slab, CE 6.4.5).
+  // vRd,cs(u) = 0.75·vRd,c + 1.5·(d/sr)·Asw·fywd,ef/(u·d). Asw per radial row taken
+  // as nArms·swLegs·As_bar (one stirrup group per arm — simplification, mirrors
+  // the plain punching mode). Stirrups in the slab cross every punching surface,
+  // so the credit applies to the global u1, the core and the tip (each with its
+  // own perimeter); crushing (u0, vRd,max) and bearing (V_cap) get no credit.
+  const reinf = c.substrate === 'forjado' && c.hasShearReinf;
+  let aswPerRow = 0;
+  let limitFor = (_u: number): number => c.vRdc;
+  if (reinf) {
+    aswPerRow = c.nArms * c.swLegs * getBarArea(c.swDiam);    // mm²
+    const fywdEf = Math.min(250 + 0.25 * c.d, c.fywk / 1.15); // MPa
+    limitFor = (u: number) => 0.75 * c.vRdc + (1.5 * (c.d / c.sr) * aswPerRow * fywdEf) / (u * c.d);
+  }
+  const vRdcs: number | undefined = reinf ? limitFor(u1) : undefined;
+
   const checks: CheckRow[] = [];
 
   // Section class (informational)
@@ -208,23 +230,45 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     'CE Anejo 18 §6.2.5',
   ));
 
-  // Global punching at u1
-  checks.push(makeCheck(
-    'cru-punz', 'vEd ≤ vRd,c (punzonamiento, perímetro cruz u1)',
-    vEd, c.vRdc, `${vEd.toFixed(3)} N/mm²`, `${c.vRdc.toFixed(3)} N/mm²`, 'CE art. 6.4.4',
-  ));
+  // Global punching at u1. With shear reinforcement (forjado), vEd ≤ vRd,c becomes
+  // informational ("¿requiere cercos?") and vEd ≤ vRd,cs is the governing gate.
+  if (reinf && vRdcs !== undefined) {
+    checks.push({
+      id: 'cru-punz', description: 'vEd vs vRd,c (¿requiere cercos?)',
+      value: `${vEd.toFixed(3)} N/mm²`, limit: `${c.vRdc.toFixed(3)} N/mm²`,
+      utilization: c.vRdc > 0 ? vEd / c.vRdc : Infinity, status: 'neutral', neutral: true,
+      article: 'CE art. 6.4.4', tag: vEd > c.vRdc ? 'CON CERCOS' : 'SIN CERCOS',
+    });
+    checks.push(makeCheck(
+      'cru-punz-cs', 'vEd ≤ vRd,cs (punzonamiento con cercos, u1)',
+      vEd, vRdcs, `${vEd.toFixed(3)} N/mm²`, `${vRdcs.toFixed(3)} N/mm²`, 'CE art. 6.4.5',
+    ));
+  } else {
+    checks.push(makeCheck(
+      'cru-punz', 'vEd ≤ vRd,c (punzonamiento, perímetro cruz u1)',
+      vEd, c.vRdc, `${vEd.toFixed(3)} N/mm²`, `${c.vRdc.toFixed(3)} N/mm²`, 'CE art. 6.4.4',
+    ));
+  }
 
-  // Local core punching
-  checks.push(makeCheck(
-    'cru-core', 'vEd,core ≤ vRd,c (núcleo de la placa)',
-    vEdCore, c.vRdc, `${vEdCore.toFixed(3)} N/mm²`, `${c.vRdc.toFixed(3)} N/mm²`, 'CE art. 6.4.4',
-  ));
+  // Local core punching (reinforcement credit when forjado+cercos)
+  {
+    const lim = limitFor(uCore);
+    checks.push(makeCheck(
+      'cru-core', `vEd,core ≤ ${reinf ? 'vRd,cs' : 'vRd,c'} (núcleo de la placa)`,
+      vEdCore, lim, `${vEdCore.toFixed(3)} N/mm²`, `${lim.toFixed(3)} N/mm²`,
+      reinf ? 'CE art. 6.4.5' : 'CE art. 6.4.4',
+    ));
+  }
 
-  // Per-arm tip punching
-  checks.push(makeCheck(
-    'cru-tip', 'vEd,tip ≤ vRd,c (extremo de brazo)',
-    vEdTip, c.vRdc, `${vEdTip.toFixed(3)} N/mm²`, `${c.vRdc.toFixed(3)} N/mm²`, 'CE art. 6.4.4',
-  ));
+  // Per-arm tip punching (reinforcement credit when forjado+cercos)
+  {
+    const lim = limitFor(uTip);
+    checks.push(makeCheck(
+      'cru-tip', `vEd,tip ≤ ${reinf ? 'vRd,cs' : 'vRd,c'} (extremo de brazo)`,
+      vEdTip, lim, `${vEdTip.toFixed(3)} N/mm²`, `${lim.toFixed(3)} N/mm²`,
+      reinf ? 'CE art. 6.4.5' : 'CE art. 6.4.4',
+    ));
+  }
 
   // Plate-face crushing
   checks.push(makeCheck(
@@ -263,7 +307,7 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
     position: c.position, reliefApplied: c.reliefApplied,
   };
 
-  return { detail, checks, vRdc: c.vRdc, vRdmax: c.vRdmax, vEd, vEd0, passes };
+  return { detail, checks, vRdc: c.vRdc, vRdmax: c.vRdmax, vRdcs, aswPerRow, vEd, vEd0, passes };
 }
 
 // ─── Public entry ─────────────────────────────────────────────────────────────
@@ -284,11 +328,11 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   if (inp.plateT <= 0) return invalid('Espesor de placa debe ser > 0');
   if (inp.weldThroat <= 0) return invalid('Garganta de soldadura debe ser > 0');
   if (!getUPN(inp.upnSize)) return invalid(`Perfil UPN ${inp.upnSize} no encontrado`);
-  // Interior + borde + esquina use the truncated numerical perimeter engine
-  // (crossPerimetersClipped), validated 2026-06-07. Forjado stays gated: it needs
-  // its own slab checks (tension face by moment sign, local bending) — TODOS.
-  if (inp.substrate !== 'zapata') {
-    return invalid('Crucetas: solo sustrato zapata está validado (forjado en desarrollo)');
+  // Interior + borde + esquina use the truncated numerical perimeter engine.
+  // Zapata: all positions. Forjado (thin transfer slab): interior only in v1 —
+  // borde/esquina forjado adds edge anchoring/torsion checks (deferred, TODOS).
+  if (inp.substrate === 'forjado' && inp.position !== 'interior') {
+    return invalid('Crucetas forjado: solo posición interior (borde/esquina en desarrollo)');
   }
   if (inp.position !== 'interior' && inp.edgeY <= 0) {
     return invalid('Distancia al borde libre debe ser > 0');
@@ -345,6 +389,8 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     useConcentration: inp.useConcentration, substrate: inp.substrate,
     footB: inp.footB, footL: inp.footL, footH: inp.footH,
     edgeY: inp.edgeY, edgeX: inp.edgeX,
+    hasShearReinf: inp.hasShearReinf, swDiam: inp.swDiam, swLegs: inp.swLegs,
+    sr: inp.sr, fywk: inp.fywk,
   };
 
   // Resolve soil relief using the chosen profile's cross area.
@@ -411,13 +457,14 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     vMin,
     vRdc,
     vRdmax,
+    vRdcs: chosen.vRdcs,
     vEd: chosen.vEd,
     vEd0: chosen.vEd0,
     uout: 0,
     rOut: 0,
     asSup: asTension,
     asInf: 0,
-    aswPerRow: 0,
+    aswPerRow: chosen.aswPerRow,
     checks,
     cruceta,
   };

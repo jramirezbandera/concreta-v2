@@ -610,13 +610,24 @@ recalibrados al valor correcto (norma > número viejo).
 - UI: selector posición + distancia(s) al borde; SVG dibuja brazos por posición + línea de borde
   libre; PDF muestra posición + distancia. Perf: 1.4 ms recálculo normal, 10 ms peor caso (scan gama).
 
+**Forjado interior — DONE (2026-06-07):** `calcCruceta` acepta sustrato forjado en posición
+interior. Carga = N completo (sin terreno), Kj=1 (sin concentración). **Armadura de punzonamiento**
+(cercos) reusando `vRd,cs` (CE 6.4.5): cuando el hormigón solo no llega en una losa fina, el check
+`cru-punz` pasa a informativo ("¿requiere cercos?") y `vEd ≤ vRd,cs` gobierna; el crédito de cercos
+se aplica a punz + núcleo + extremo (cada uno con su perímetro), no a aplastamiento/capacidad.
+`Asw = nArms·swLegs·As_bar` por fila radial (simplificación, espejo del modo plano). UI: selector
+sustrato + toggle cercos (Ø/ramas/sr/fywk); Results/PDF muestran vRd,cs.
+
 **Pendiente de este ítem:**
-- **Forjado/losa de transferencia** sigue gated (`calcCruceta` rechaza sustrato≠zapata): necesita
-  checks propios (cara traccionada según signo del momento, flexión local, anclaje junto al borde,
-  punzonamiento con armadura). El motor de perímetro ya le valdría; faltan los estados límite.
+- **Forjado borde/esquina**: gated (forjado solo interior por ahora). Añade anclaje de armadura
+  junto al borde y torsión (Codex) — diferido.
+- **Flexión local de la losa** de transferencia: fuera del alcance de este módulo (lo verifica el
+  diseñador de la losa); el módulo dimensiona crucetas + punzonamiento, no el armado a flexión.
 - **Hand-calc** de un caso de borde CE/EC2 a mano como árbitro antes de ship público (el motor está
   validado contra hand-calcs geométricos, falta el árbitro normativo completo de un pilar de borde).
 - Convención plateA ∥ borde asumida; documentar/avisar para placas muy alargadas.
+- `Asw` del cruciforme es una simplificación (nArms·ramas); validar el reparto real de cercos
+  alrededor de la cruz si un usuario lo cuestiona.
 
 ### Crucetas V2 — modelo detallado de soldadura
 

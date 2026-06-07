@@ -44,10 +44,52 @@ describe('borde / esquina con distancia al borde', () => {
     const r = calcCruceta({ ...base, position: 'esquina', edgeY: 500, edgeX: 0 });
     expect(r.valid).toBe(false);
   });
-  it('rechaza sustrato forjado (en desarrollo)', () => {
-    const r = calcCruceta({ ...base, substrate: 'forjado' });
-    expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/zapata/i);
+});
+
+// ── Forjado / losa de transferencia (interior, armadura de punzonamiento) ──────
+describe('forjado', () => {
+  const forj = { ...base, substrate: 'forjado' as const };
+
+  it('forjado interior válido; carga = N completo (sin terreno), Kj=1', () => {
+    const r = calcCruceta(forj);
+    expect(r.valid).toBe(true);
+    expect(r.cruceta!.Vdesign).toBeCloseTo(base.VEd, 6);
+    expect(r.cruceta!.reliefApplied).toBe(false);
+    expect(r.cruceta!.Kj).toBeCloseTo(1, 6);
+  });
+
+  it('forjado borde/esquina rechazado (solo interior v1)', () => {
+    expect(calcCruceta({ ...forj, position: 'borde', edgeY: 500 }).valid).toBe(false);
+    expect(calcCruceta({ ...forj, position: 'esquina', edgeY: 500, edgeX: 500 }).error).toMatch(/interior/i);
+  });
+
+  it('forjado ignora el descuento de terreno', () => {
+    const r = calcCruceta({ ...forj, soilRelief: true, soilPressure: 200 });
+    expect(r.cruceta!.reliefApplied).toBe(false);
+    expect(r.cruceta!.Vdesign).toBeCloseTo(base.VEd, 6);
+  });
+
+  it('losa fina que no cumple con hormigón → cumple con cercos (vRd,cs gobierna)', () => {
+    // d pequeño + N alto: el punzonamiento solo-hormigón no llega.
+    const thin = { ...forj, d: 100, VEd: 360 };
+    const sin = calcCruceta(thin);
+    expect(sin.valid).toBe(false);
+    expect(sin.checks.find((c) => c.id === 'cru-punz')!.status).toBe('fail');
+
+    const con = calcCruceta({ ...thin, hasShearReinf: true, swDiam: 12, swLegs: 4, sr: 75, fywk: 500 });
+    // cru-punz pasa a informativo; cru-punz-cs es el gate y debe existir.
+    expect(con.checks.find((c) => c.id === 'cru-punz')!.status).toBe('neutral');
+    expect(con.checks.find((c) => c.id === 'cru-punz-cs')).toBeDefined();
+    expect(con.vRdcs!).toBeGreaterThan(con.vRdc); // los cercos suben la resistencia
+    // con cercos suficientes, punzonamiento global + núcleo dejan de fallar.
+    expect(con.checks.find((c) => c.id === 'cru-punz-cs')!.status).not.toBe('fail');
+    expect(con.checks.find((c) => c.id === 'cru-core')!.status).not.toBe('fail');
+  });
+
+  it('zapata NO expone cercos aunque hasShearReinf=true (solo forjado)', () => {
+    const r = calcCruceta({ ...base, substrate: 'zapata', hasShearReinf: true, swDiam: 10, swLegs: 4, sr: 80 });
+    expect(r.checks.find((c) => c.id === 'cru-punz-cs')).toBeUndefined();
+    expect(r.vRdcs).toBeUndefined();
   });
 });
 

@@ -58,6 +58,9 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <ValueRow label="u0 (placa)"           value={`${c.u0.toFixed(0)} mm`} />
         <ValueRow label="u1 (cruz)"            value={`${c.u1.toFixed(0)} mm`} />
         <ValueRow label="vRd,c"                value={`${result.vRdc.toFixed(3)} N/mm²`} />
+        {result.vRdcs !== undefined && (
+          <ValueRow label="vRd,cs (con cercos)" value={`${result.vRdcs.toFixed(3)} N/mm²`} />
+        )}
         <ValueRow label="vEd (en u1)"          value={`${result.vEd.toFixed(3)} N/mm²`} />
 
         <GroupHeader label="Verificación" />

@@ -143,6 +143,9 @@ export async function exportPunchingPDF(
     rRow(`f_jd = ${cru.fjd.toFixed(2)} N/mm2`, cru.Kj > 1.0001 ? `Kj = ${cru.Kj.toFixed(2)}` : 'Kj = 1');
     rRow(`Cap. reparto = ${cru.Vcap.toFixed(0)} kN`);
     rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm2`, `vEd = ${result.vEd.toFixed(3)}`);
+    if (result.vRdcs !== undefined) {
+      rRow(`vRd,cs = ${result.vRdcs.toFixed(3)} N/mm2`, `ph${inp.swDiam} x${inp.swLegs}, sr=${inp.sr}`);
+    }
     rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm2`);
   } else {
     // Left: geometry + loads

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { type PunchingInputs, type PunchingMode, type PunchingPosition, type CrucetaColType, type CrucetaSteel } from '../../data/defaults';
+import { type PunchingInputs, type PunchingMode, type PunchingPosition, type CrucetaColType, type CrucetaSteel, type CrucetaSubstrate } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
@@ -211,6 +211,10 @@ const STEEL_GRADE_OPTIONS: Array<{ value: CrucetaSteel; label: string }> = [
   { value: 'S275', label: 'S275' },
   { value: 'S355', label: 'S355' },
 ];
+const SUBSTRATE_OPTIONS: Array<{ value: CrucetaSubstrate; label: string }> = [
+  { value: 'zapata',  label: 'Zapata' },
+  { value: 'forjado', label: 'Forjado' },
+];
 const UPN_SIZE_OPTIONS = getSizesUPN().map((v) => ({ value: v, label: `UPN ${v}` }));
 
 const POSITION_OPTIONS: Array<{ value: PunchingPosition; label: string }> = [
@@ -229,16 +233,23 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
   const colSizeOptions = getSizesForTipo(state.colType).map((v) => ({
     value: v, label: `${state.colType} ${v}`,
   }));
-  // Interior + borde + esquina (truncated perimeter engine). Forjado still gated.
-  // Kj concentration is interior-only (no spread toward a free edge).
-  const soilOpen = state.soilRelief;
-  const concOpen = state.position === 'interior' && state.useConcentration;
-  const isEdge = state.position !== 'interior';
-  const isCorner = state.position === 'esquina';
+  // Zapata: interior/borde/esquina + terreno + Kj. Forjado: interior only +
+  // punching shear reinforcement (thin transfer slab). Truncated perimeter engine.
+  const isZapata = state.substrate === 'zapata';
+  const isForjado = !isZapata;
+  const soilOpen = isZapata && state.soilRelief;
+  const concOpen = isZapata && state.position === 'interior' && state.useConcentration;
+  const swOpen = isForjado && state.hasShearReinf;
+  const isEdge = isZapata && state.position !== 'interior';
+  const isCorner = isZapata && state.position === 'esquina';
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Crucetas">
       <CollapsibleSection label="Configuración">
+        <SelectField label="Sustrato" field="substrate" value={state.substrate} options={SUBSTRATE_OPTIONS} setField={setField} />
         <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField} />
+        {isForjado && state.position !== 'interior' && (
+          <p className="text-[10px] text-state-warn -mt-0.5 mb-1">Forjado: solo posición interior por ahora.</p>
+        )}
         <div
           className="overflow-hidden transition-all duration-150"
           style={{ maxHeight: isEdge ? '120px' : '0px', opacity: isEdge ? 1 : 0 }}
@@ -266,13 +277,16 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
         <NumField    label="Garganta soldadura" sub="a"    field="weldThroat" value={state.weldThroat} unit="mm" setField={setField} />
       </CollapsibleSection>
 
-      <CollapsibleSection label="Zapata">
-        <NumField    label="Canto útil zapata" sub="d" field="d" value={state.d} unit="mm" setField={setField} />
+      <CollapsibleSection label={isZapata ? 'Zapata' : 'Losa de transferencia'}>
+        <NumField    label={isZapata ? 'Canto útil zapata' : 'Canto útil losa'} sub="d" field="d" value={state.d} unit="mm" setField={setField} />
         <SelectField labelKey="fck"         field="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
         <NumField    labelKey="fyk"         field="fyk" value={state.fyk} setField={setField} />
         <SelectField label="Ø armado tracción" field="barDiamSup" value={state.barDiamSup} options={BAR_DIAM_OPTIONS} setField={setField} />
         <NumField    label="Separación"     sub="s" field="sSup" value={state.sSup} unit="mm" setField={setField} />
-        <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Mallazo en la cara traccionada (inferior de la zapata).</p>
+        <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">
+          {isZapata ? 'Mallazo en la cara traccionada (inferior de la zapata).'
+                    : 'Mallazo en la cara traccionada (según signo del momento sobre el pilar).'}
+        </p>
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga">
@@ -283,11 +297,13 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
         />
         <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Axil mayorado ELU</p>
 
-        <ToggleButton
-          label="Descontar presión terreno"
-          active={soilOpen}
-          onClick={() => setField('soilRelief', !state.soilRelief)}
-        />
+        {isZapata && (
+          <ToggleButton
+            label="Descontar presión terreno"
+            active={soilOpen}
+            onClick={() => setField('soilRelief', !state.soilRelief)}
+          />
+        )}
         <div
           className="overflow-hidden transition-all duration-150"
           style={{ maxHeight: soilOpen ? '160px' : '0px', opacity: soilOpen ? 1 : 0 }}
@@ -297,7 +313,7 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
           <NumField label="Presión terreno" sub="σt" field="soilPressure" value={state.soilPressure} unit="kN/m²" setField={setField} />
         </div>
 
-        {state.position === 'interior' && (<>
+        {isZapata && state.position === 'interior' && (<>
           <ToggleButton
             label="Concentración EC3 (Kj > 1)"
             active={concOpen}
@@ -311,6 +327,24 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
             <NumField label="Zapata ancho" sub="B" field="footB" value={state.footB} unit="mm" setField={setField} />
             <NumField label="Zapata largo" sub="L" field="footL" value={state.footL} unit="mm" setField={setField} />
             <NumField label="Canto zapata" sub="H" field="footH" value={state.footH} unit="mm" setField={setField} />
+          </div>
+        </>)}
+
+        {isForjado && (<>
+          <ToggleButton
+            label="Armadura de punzonamiento (cercos)"
+            active={swOpen}
+            onClick={() => setField('hasShearReinf', !state.hasShearReinf)}
+          />
+          <div
+            className="overflow-hidden transition-all duration-150"
+            style={{ maxHeight: swOpen ? '200px' : '0px', opacity: swOpen ? 1 : 0 }}
+          >
+            <p className="text-[10px] text-text-disabled mb-1">vRd,cs (CE 6.4.5) cuando el hormigón solo no llega en una losa fina.</p>
+            <SelectField label="Ø cerco"    field="swDiam" value={state.swDiam} options={SW_DIAM_OPTIONS} setField={setField} />
+            <SelectField label="Nº ramas"   field="swLegs" value={state.swLegs} options={SW_LEGS_OPTIONS} setField={setField} />
+            <NumField    label="Sep. radial" sub="sr" field="sr"   value={state.sr}   unit="mm" setField={setField} />
+            <NumField    label="fywk"        field="fywk" value={state.fywk} unit="MPa" setField={setField} />
           </div>
         </>)}
       </CollapsibleSection>
