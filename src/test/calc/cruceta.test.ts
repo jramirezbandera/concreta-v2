@@ -311,6 +311,17 @@ describe('delaminación (cortante de interfaz, EC2 §6.2.5)', () => {
     expect(con).toBeLessThan(sin); // más cosido → menos utilización
   });
 
+  it('la demanda se referencia a u0 (cara de placa), no a u1 (vEdi = β·V/(0.9d·u0))', () => {
+    const r = calcCruceta(f);
+    const c = r.cruceta!;
+    const vEdiExpected = (c.beta * f.VEd * 1000) / (0.9 * f.d * c.u0);
+    const vEdiShown = parseFloat(String(delam(r).value));
+    expect(vEdiShown).toBeCloseTo(vEdiExpected, 2);
+    // y NO el valor (mucho menor) que daría u1
+    const vEdiU1 = (c.beta * f.VEd * 1000) / (0.9 * f.d * c.u1);
+    expect(vEdiShown).toBeGreaterThan(vEdiU1 * 2);
+  });
+
   it('sin cercos y con axil alto, la delaminación FALLA (bloquea la validez)', () => {
     const r = calcCruceta({ ...f, hasConfTies: false, VEd: 600 });
     expect(delam(r).status).toBe('fail');
@@ -369,8 +380,11 @@ describe('failure surfaces', () => {
 
 // ── Profile suggestion (respect choice, recommend) ────────────────────────────
 describe('profile escalation suggestion', () => {
+  // Cercos fuertes para que la delaminación (que depende de la placa, no del perfil)
+  // no sea la que gobierna y se aísle el efecto de subir de perfil (punzonamiento).
+  const esc = { ...base, VEd: 750, upnSize: 160, confTieD: 12, confTieS: 75 };
   it('chosen UPN fails → suggests a larger passing profile (no auto-switch)', () => {
-    const r = calcCruceta({ ...base, VEd: 750, upnSize: 160 });
+    const r = calcCruceta(esc);
     expect(r.valid).toBe(false);
     expect(r.cruceta!.upnSize).toBe(160);            // choice unchanged
     expect(r.cruceta!.suggestedUpn).not.toBeNull();
@@ -378,8 +392,8 @@ describe('profile escalation suggestion', () => {
   });
 
   it('suggested profile actually passes', () => {
-    const r = calcCruceta({ ...base, VEd: 750, upnSize: 160 });
-    const sized = calcCruceta({ ...base, VEd: 750, upnSize: r.cruceta!.suggestedUpn! });
+    const r = calcCruceta(esc);
+    const sized = calcCruceta({ ...esc, upnSize: r.cruceta!.suggestedUpn! });
     expect(sized.valid).toBe(true);
   });
 

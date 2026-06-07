@@ -464,12 +464,15 @@ function evalProfile(upnSize: number, c: Ctx): ProfileEval | null {
 
   // Delaminación = cortante de interfaz (EC2 §6.2.5) en el plano horizontal a la
   // cota de la cruz, cosido por los cercos verticales entre crucetas.
-  //   demanda:     v_Edi = β·V_Ed / (z·u1),  z = 0.9·d  (tensión sobre el plano)
+  //   demanda:     v_Edi = β·V_Ed / (z·u0),  z = 0.9·d  (tensión sobre el plano)
   //   resistencia: v_Rdi = c·f_ctd + ρ·f_yd·μ ≤ 0.5·ν·f_cd,  c=0.20 μ=0.6 (liso)
   //   ρ = (2 ramas · A_cerco) / (s_cerco · b_eff)   (cosido transversal en el brazo)
+  // Se referencia a u0 (cara de la placa): el cortante horizontal es máximo donde
+  // la carga se concentra antes de repartirse, no en el perímetro de control a 2d
+  // (eng-review 2026-06-07: u1 minimizaba la demanda 6.7×).
   const DELAM_C = 0.20, DELAM_MU = 0.6;          // §6.2.5 clase "lisa" (conservadora)
   const zLever = 0.9 * c.d;                       // mm — brazo mecánico
-  const vEdi = (c.beta * c.V_N) / (zLever * u1);  // MPa
+  const vEdi = (c.beta * c.V_N) / (zLever * u0);  // MPa
   const rhoTie = c.hasConfTies
     ? (2 * getBarArea(c.confTieD)) / (c.confTieS * bEff)
     : 0;
