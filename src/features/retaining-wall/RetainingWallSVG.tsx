@@ -47,31 +47,34 @@ interface Palette {
   pivot:         string;
 }
 
+// Screen palette via theme tokens (it follows light/dark). Structural roles use
+// chrome/chart/state tokens whose light values match this file's PDF_PALETTE;
+// soil/earth use --color-geo-* (light = white-paper tones from the PDF palette).
 const SCREEN_PALETTE: Palette = {
-  chipBg:        '#0b1220',
-  chipBorder:    '#22304d',
-  label:         '#cbd5e1',
-  text:          '#94a3b8',
-  dim:           '#475569',
-  concreteFill:  '#1a2540',
-  concreteEdge:  '#3a4a6e',
-  soilFillTop:   '#4a3522',
-  soilFillBot:   '#2a1d12',
-  soilLine:      '#a8825a',
-  soilDot:       '#7a5a3a',
-  ground:        '#8a6a44',
-  earth:         '#a8a29e',
-  water:         '#7dd3fc',
-  seismic:       '#fcd34d',
-  weight:        '#cbd5e1',
-  reaction:      '#22c55e',
-  passive:       '#a78bfa',
-  surcharge:     '#f59e0b',
-  rebar:         '#f8fafc',
-  rebarSecondary:'#94a3b8',
-  rebarTransv:   '#fbbf24',
-  rebarGhost:    '#22304d',
-  pivot:         '#38bdf8',
+  chipBg:        'var(--color-bg-primary)',
+  chipBorder:    'var(--color-border-main)',
+  label:         'var(--color-chart-label)',
+  text:          'var(--color-chart-dim-text)',
+  dim:           'var(--color-chart-rebar-dim)',
+  concreteFill:  'var(--color-bg-elevated)',
+  concreteEdge:  'var(--color-chart-section)',
+  soilFillTop:   'var(--color-geo-soil-top)',
+  soilFillBot:   'var(--color-geo-soil-bot)',
+  soilLine:      'var(--color-geo-soil-line)',
+  soilDot:       'var(--color-geo-soil-dot)',
+  ground:        'var(--color-geo-ground)',
+  earth:         'var(--color-geo-earth)',
+  water:         'var(--color-accent)',
+  seismic:       'var(--color-state-warn)',
+  weight:        'var(--color-text-secondary)',
+  reaction:      'var(--color-state-ok)',
+  passive:       'var(--color-chart-envelope)',
+  surcharge:     'var(--color-state-warn)',
+  rebar:         'var(--color-text-primary)',
+  rebarSecondary:'var(--color-chart-dim-text)',
+  rebarTransv:   'var(--color-state-warn)',
+  rebarGhost:    'var(--color-border-main)',
+  pivot:         'var(--color-accent)',
 };
 
 const PDF_PALETTE: Palette = {

@@ -19,6 +19,7 @@ import { DrawerContext } from '../../components/layout/AppShell';
 import { FemAnalysisModule } from '../../features/fem-analysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { UnitSystemProvider } from '../../lib/units';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 interface MockMQL {
   matches: boolean;
@@ -52,13 +53,15 @@ function installMatchMedia(mobile: boolean) {
 function renderModule(initialEntries: string[] = ['/analisis/fem']) {
   return render(
     <HelmetProvider>
-      <UnitSystemProvider>
-        <MemoryRouter initialEntries={initialEntries}>
-          <DrawerContext.Provider value={{ openDrawer: () => {} }}>
-            <FemAnalysisModule />
-          </DrawerContext.Provider>
-        </MemoryRouter>
-      </UnitSystemProvider>
+      <ThemeProvider>
+        <UnitSystemProvider>
+          <MemoryRouter initialEntries={initialEntries}>
+            <DrawerContext.Provider value={{ openDrawer: () => {} }}>
+              <FemAnalysisModule />
+            </DrawerContext.Provider>
+          </MemoryRouter>
+        </UnitSystemProvider>
+      </ThemeProvider>
     </HelmetProvider>,
   );
 }

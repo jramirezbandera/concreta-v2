@@ -39,16 +39,17 @@ interface RCBeamForcesSVGProps {
   height?: number;
 }
 
+// Screen palette via theme tokens (dark values match the old literals exactly).
 const SCREEN_COLORS = {
-  section: '#334155',
-  envelope: '#475569',     // dashed envelope outline
-  compArrow: '#38bdf8',
-  compFill: 'rgba(56,189,248,0.35)',
-  compStroke: '#38bdf8',
-  tensArrow: '#22c55e',
-  axis: '#475569',
-  label: '#e2e8f0',
-  labelDim: '#94a3b8',
+  section: 'var(--color-chart-section)',                              // #334155
+  envelope: 'var(--color-chart-rebar-dim)',                          // #475569
+  compArrow: 'var(--color-accent)',                                  // #38bdf8
+  compFill: 'color-mix(in srgb, var(--color-accent) 35%, transparent)',
+  compStroke: 'var(--color-accent)',                                 // #38bdf8
+  tensArrow: 'var(--color-state-ok)',                                // #22c55e
+  axis: 'var(--color-chart-rebar-dim)',                              // #475569
+  label: 'var(--color-chart-label)',                                 // #e2e8f0
+  labelDim: 'var(--color-chart-dim-text)',                           // #94a3b8
   bg: 'transparent',
 };
 

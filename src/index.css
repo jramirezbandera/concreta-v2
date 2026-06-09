@@ -38,13 +38,13 @@
 
 /* dot-grid canvas — "mesa de trabajo del ingeniero" */
 .canvas-dot-grid {
-  background-image: radial-gradient(circle, #22304d 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--color-dot-grid) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 
 /* check-row hover-link highlight */
 .check-row { transition: background 120ms; }
-.check-row:hover { background: rgba(56,189,248,0.04); }
+.check-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
 .check-row .check-left-rail {
   position: absolute; left: 0; top: 4px; bottom: 4px;
   width: 2px; border-radius: 1px;
@@ -87,12 +87,12 @@
 /* ── Scrollbar styling ── */
 ::-webkit-scrollbar       { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #22304d; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #2c3d63; }
+::-webkit-scrollbar-thumb { background: var(--color-border-main); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-disabled); }
 
-.scroll-hide                    { scrollbar-width: thin; scrollbar-color: #22304d transparent; }
+.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-border-main) transparent; }
 .scroll-hide::-webkit-scrollbar { width: 6px; }
-.scroll-hide::-webkit-scrollbar-thumb { background: #22304d; border-radius: 3px; }
+.scroll-hide::-webkit-scrollbar-thumb { background: var(--color-border-main); border-radius: 3px; }
 .scroll-hide::-webkit-scrollbar-track { background: transparent; }
 
 @media print {
@@ -101,9 +101,61 @@
   * { color-scheme: light !important; }
 }
 
-@theme inline {
+/* ── Theme tokens ──
+   `@theme` (NOT `inline`) so utilities emit var(--color-*) and conmutan por tema.
+   Light values are the default (here); dark overrides live in html[data-theme="dark"]
+   below. Chart-* tokens drive the SVG screen palette (PDF stays grayscale, untouched). */
+@theme {
   --font-sans: "Geist Sans", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Light (default) */
+  --color-bg-primary: #ffffff;
+  --color-bg-surface: #f8fafc;
+  --color-bg-elevated: #f1f5f9;
+  --color-border-main: #cbd5e1;
+  --color-border-sub: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-disabled: #94a3b8;
+  --color-accent: #0284c7;
+  --color-accent-hover: #0369a1;
+  --color-state-ok: #15803d;
+  --color-state-warn: #b45309;
+  --color-state-fail: #dc2626;
+  --color-state-neutral: #64748b;
+
+  /* SVG chart palette (light) */
+  --color-chart-section: #475569;
+  --color-chart-section-fill: #f1f5f9;
+  --color-chart-rebar: #0284c7;
+  --color-chart-rebar-dim: #94a3b8;
+  --color-chart-stirrup: #64748b;
+  --color-chart-stress: #0284c7;
+  --color-chart-axis: #0284c7;
+  --color-chart-dim: #64748b;
+  --color-chart-dim-text: #475569;
+  --color-chart-envelope: #7c3aed;
+  --color-chart-label: #0f172a;        /* bright annotation label */
+  --color-chart-rebar-faint: #64748b;  /* secondary/side bars (slate-500, AA-ish on white) */
+  --color-dot-grid: #e2e8f0;
+
+  /* Geotechnical material fills (light = white-paper tones). Shared by
+     retaining-wall / micropiles soil rendering. */
+  --color-geo-soil-top: #d6c1a0;
+  --color-geo-soil-bot: #b89876;
+  --color-geo-soil-line: #8b6e3a;
+  --color-geo-soil-dot: #7a5a3a;
+  --color-geo-ground: #5d4630;
+  --color-geo-earth: #6b7280;
+}
+
+:root { color-scheme: light; }
+
+/* Dark — the "firma". Higher specificity than :root so it always wins. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
   --color-bg-primary: #0b1220;
   --color-bg-surface: #111a2d;
   --color-bg-elevated: #1a2540;
@@ -118,4 +170,25 @@
   --color-state-warn: #f59e0b;
   --color-state-fail: #ef4444;
   --color-state-neutral: #64748b;
+
+  --color-chart-section: #334155;
+  --color-chart-section-fill: #1e293b;
+  --color-chart-rebar: #38bdf8;
+  --color-chart-rebar-dim: #475569;
+  --color-chart-stirrup: #94a3b8;
+  --color-chart-stress: #38bdf8;
+  --color-chart-axis: #38bdf8;
+  --color-chart-dim: #94a3b8;
+  --color-chart-dim-text: #94a3b8;
+  --color-chart-envelope: #a78bfa;
+  --color-chart-label: #e2e8f0;
+  --color-chart-rebar-faint: #64748b;
+  --color-dot-grid: #253147;
+
+  --color-geo-soil-top: #4a3522;
+  --color-geo-soil-bot: #2a1d12;
+  --color-geo-soil-line: #a8825a;
+  --color-geo-soil-dot: #7a5a3a;
+  --color-geo-ground: #8a6a44;
+  --color-geo-earth: #a8a29e;
 }

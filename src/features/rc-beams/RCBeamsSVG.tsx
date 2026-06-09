@@ -18,16 +18,19 @@ interface RCBeamsSVGProps {
   height?: number;
 }
 
+// Screen palette references theme tokens (var) so it follows light/dark.
+// Dark values of these chart-* tokens match the previous literals exactly →
+// no dark regression. The PDF palette below stays literal grayscale.
 const SCREEN_COLORS = {
-  section:      '#334155',
-  sectionFill:  '#1e293b',
-  rebarActive:  '#38bdf8',  // accent — active section bars
-  rebarDim:     '#475569',  // dimmed — inactive section bars
-  stirrup:      '#94a3b8',
-  axis:         '#38bdf8',
-  stressBlock:  '#38bdf8',
-  dim:          '#94a3b8',
-  dimText:      '#94a3b8',
+  section:      'var(--color-chart-section)',       // #334155 (dark)
+  sectionFill:  'var(--color-chart-section-fill)',  // #1e293b
+  rebarActive:  'var(--color-chart-rebar)',         // #38bdf8
+  rebarDim:     'var(--color-chart-rebar-dim)',     // #475569
+  stirrup:      'var(--color-chart-stirrup)',       // #94a3b8
+  axis:         'var(--color-chart-axis)',          // #38bdf8
+  stressBlock:  'var(--color-chart-stress)',        // #38bdf8
+  dim:          'var(--color-chart-dim)',           // #94a3b8
+  dimText:      'var(--color-chart-dim-text)',       // #94a3b8
   bg:           'transparent',
 };
 

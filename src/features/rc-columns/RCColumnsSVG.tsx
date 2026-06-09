@@ -17,16 +17,17 @@ interface RCColumnsSVGProps {
   height?: number;
 }
 
+// Screen palette via theme tokens (dark values match the old literals exactly).
 const SCREEN_COLORS = {
-  section:     '#334155',
-  sectionFill: '#1e293b',
-  rebarCorner: '#38bdf8',   // accent — corner bars
-  rebarFaceX:  '#38bdf8',   // top/bottom face bars (same accent, slightly smaller)
-  rebarFaceY:  '#64748b',   // left/right face bars (dimmed — side bars for y-axis)
-  stirrup:     '#94a3b8',
-  stressBlock: '#38bdf8',
-  axis:        '#38bdf8',
-  dim:         '#94a3b8',
+  section:     'var(--color-chart-section)',       // #334155
+  sectionFill: 'var(--color-chart-section-fill)',  // #1e293b
+  rebarCorner: 'var(--color-chart-rebar)',         // #38bdf8 — corner bars
+  rebarFaceX:  'var(--color-chart-rebar)',         // #38bdf8 — top/bottom face bars
+  rebarFaceY:  'var(--color-chart-rebar-faint)',   // #64748b — side bars (dimmed)
+  stirrup:     'var(--color-chart-stirrup)',       // #94a3b8
+  stressBlock: 'var(--color-chart-stress)',        // #38bdf8
+  axis:        'var(--color-chart-axis)',          // #38bdf8
+  dim:         'var(--color-chart-dim)',           // #94a3b8
   bg:          'transparent',
 };
 

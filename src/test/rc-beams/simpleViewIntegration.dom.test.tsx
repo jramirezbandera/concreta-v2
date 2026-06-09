@@ -13,6 +13,7 @@ import { RCBeamsModule } from '../../features/rc-beams';
 import { RCBeamSimpleView } from '../../features/rc-beams/RCBeamSimpleView';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { rcBeamDefaults } from '../../data/defaults';
 
 function renderModulePortico() {
@@ -25,9 +26,11 @@ function renderModulePortico() {
   return render(
     <HelmetProvider>
       <MemoryRouter>
-        <UnitSystemProvider>
-          <RCBeamsModule />
-        </UnitSystemProvider>
+        <ThemeProvider>
+          <UnitSystemProvider>
+            <RCBeamsModule />
+          </UnitSystemProvider>
+        </ThemeProvider>
       </MemoryRouter>
     </HelmetProvider>,
   );
@@ -40,9 +43,11 @@ function renderModuleDefault() {
   return render(
     <HelmetProvider>
       <MemoryRouter>
-        <UnitSystemProvider>
-          <RCBeamsModule />
-        </UnitSystemProvider>
+        <ThemeProvider>
+          <UnitSystemProvider>
+            <RCBeamsModule />
+          </UnitSystemProvider>
+        </ThemeProvider>
       </MemoryRouter>
     </HelmetProvider>,
   );
@@ -57,9 +62,11 @@ function renderModuleSimple() {
   return render(
     <HelmetProvider>
       <MemoryRouter>
-        <UnitSystemProvider>
-          <RCBeamsModule />
-        </UnitSystemProvider>
+        <ThemeProvider>
+          <UnitSystemProvider>
+            <RCBeamsModule />
+          </UnitSystemProvider>
+        </ThemeProvider>
       </MemoryRouter>
     </HelmetProvider>,
   );

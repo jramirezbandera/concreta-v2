@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
+import { ThemeToggle } from '../theme/ThemeToggle';
 import { CalcButton } from '../calculator/CalcButton';
 import { useCalculator } from '../calculator/calculator-context';
 
@@ -56,6 +57,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <CalcButton onClick={openCalc} />
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         <UnitSystemToggle />
+        <ThemeToggle />
         {/* Copy link — icon-only por debajo de lg (layout de tabs, topbar
             compacto), icon+texto en escritorio. Mismo patrón que Exportar PDF;
             mantiene sitio para el breadcrumb cuando el menú hamburguesa ocupa

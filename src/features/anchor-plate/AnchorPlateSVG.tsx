@@ -13,24 +13,25 @@ interface Props {
 // Colors chosen to match the steel-columns module:
 //  screen = accent on dark bg; pdf = black strokes on white.
 const COLORS = {
+  // Screen palette via theme tokens (dark ≈ old literals; profile→bg, na→label).
   screen: {
-    plate:        '#334155',
-    plate_stroke: '#38bdf8',
-    profile:      '#0f172a',
-    profile_stroke: '#64748b',
-    bolt_c:       '#1e293b',
-    bolt_t:       '#ef4444',
-    bolt_stroke:  '#94a3b8',
-    rib:          '#475569',
-    rib_hatch:    '#64748b',
-    pedestal:     '#1e293b',
-    pedestal_stroke: '#475569',
-    compression:  'rgba(56,189,248,0.15)',
-    compression_stroke: '#38bdf8',
-    neutral_axis: '#cbd5e1',   // M9: distinto del compression_stroke (#38bdf8)
-    cone_stroke:  '#94a3b8',
-    text:         '#f8fafc',
-    dim:          '#64748b',
+    plate:        'var(--color-chart-section)',
+    plate_stroke: 'var(--color-accent)',
+    profile:      'var(--color-bg-primary)',
+    profile_stroke: 'var(--color-chart-rebar-faint)',
+    bolt_c:       'var(--color-chart-section-fill)',
+    bolt_t:       'var(--color-state-fail)',
+    bolt_stroke:  'var(--color-chart-stirrup)',
+    rib:          'var(--color-chart-rebar-dim)',
+    rib_hatch:    'var(--color-chart-rebar-faint)',
+    pedestal:     'var(--color-chart-section-fill)',
+    pedestal_stroke: 'var(--color-chart-rebar-dim)',
+    compression:  'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+    compression_stroke: 'var(--color-accent)',
+    neutral_axis: 'var(--color-chart-label)',   // M9: distinto del compression_stroke
+    cone_stroke:  'var(--color-chart-stirrup)',
+    text:         'var(--color-text-primary)',
+    dim:          'var(--color-chart-rebar-faint)',
   },
   pdf: {
     plate:        '#f1f5f9',

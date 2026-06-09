@@ -9,9 +9,9 @@ Status: APPROVED
 
 **"Mesa de trabajo del ingeniero"** — instrumento de precisión técnica, no dashboard SaaS.
 
-Toda la competencia (SkyCiv, ClearCalcs, CYPE, Viktor) imita el SaaS genérico de fondo claro para parecer "moderna". El resultado: todas son indistinguibles. Concreta va en la dirección opuesta: dark, precisa, densa, técnica.
+La diferenciación de Concreta no es el color del fondo — es la **densidad, la precisión y el SVG vivo como protagonista**. La competencia (SkyCiv, ClearCalcs, CYPE, Viktor) parece SaaS genérico no por ser clara, sino por ser blanda: tarjetas decorativas, espacio muerto, chrome de marketing. Concreta es lo contrario en cualquier tema: densa, técnica, sin adorno.
 
-El dark theme no es una elección estética — **es una declaración de propósito**. El único software de cálculo estructural que parece hecho para ingenieros, no para marketers.
+Concreta soporta **tema claro y oscuro**. El claro es el **por defecto** (consciente del sistema operativo en la primera visita): los ingenieros trabajan en oficinas iluminadas, junto a AutoCAD/CYPE que también son claros, y los testers lo pidieron explícitamente. El oscuro es la **firma** de la casa — para trabajo enfocado o con poca luz, y la identidad con la que nació el producto. Ambos temas deben sentirse igual de intencionales: lo que no negociamos es la densidad ni la legibilidad del cálculo, no el color de fondo. *(Revisión de identidad: design review 2026-06-09 — antes el oscuro era "declaración de propósito" y único tema; reencuadrado al añadir el modo claro por defecto.)*
 
 **El SVG es el protagonista. Todo lo demás es chrome.**
 
@@ -54,7 +54,11 @@ El dark theme no es una elección estética — **es una declaración de propós
 
 ## Paleta de color
 
-Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline`):
+Definida como tokens CSS en `src/index.css` (Tailwind v4 `@theme`, **sin `inline`**
+para que las utilidades emitan `var(--color-*)` y conmuten por tema). Valores claros
+en `:root` (por defecto), valores oscuros bajo `html[data-theme="dark"]`. Las tablas
+de abajo listan los valores **oscuros** (la firma); la columna "Claro" da el valor del
+tema por defecto.
 
 ### Superficies
 
@@ -90,6 +94,35 @@ Definida como tokens CSS directos en `src/index.css` (Tailwind v4 `@theme inline
 | `state-warn` | `#f59e0b` | 80% ≤ η < 100% · **avisos advisory** (ver abajo) |
 | `state-fail` | `#ef4444` | η ≥ 100% |
 | `state-neutral` | `#64748b` | Sin datos / estado inicial |
+
+### Tema claro (por defecto) — valores
+
+Valores contrastados para fondo blanco (texto ≥ AA). Definidos en `:root`; el oscuro
+los sobrescribe bajo `html[data-theme="dark"]`.
+
+| Token | Claro | Notas |
+|-------|-------|-------|
+| `bg-primary` | `#ffffff` | página, inputs, canvas |
+| `bg-surface` | `#f8fafc` | paneles, results |
+| `bg-elevated` | `#f1f5f9` | hover, sufijos |
+| `border-main` | `#cbd5e1` | bordes principales |
+| `border-sub` | `#e2e8f0` | divisores de fila |
+| `text-primary` | `#0f172a` | valores, títulos |
+| `text-secondary` | `#475569` | etiquetas, nav |
+| `text-disabled` | `#94a3b8` | inactivos |
+| `accent` / `-hover` | `#0284c7` / `#0369a1` | sky-600/700 — AA en blanco; mantiene el **rol dual** (UI + anotación SVG) en un solo token |
+| `state-ok` | `#15803d` | green-700 para texto/veredicto; green-600 en rellenos grandes |
+| `state-warn` | `#b45309` | amber-700 |
+| `state-fail` | `#dc2626` | red-600 |
+| `state-neutral` | `#64748b` | igual en ambos (pasa AA en los dos) |
+| dot-grid | `#e2e8f0` | slate-200 (vs `#253147` oscuro) |
+| envelope FEM | violet-600/700 | el `#a78bfa` oscuro se oscurece en claro |
+
+**`color-scheme: light`** se declara en `:root` (y `dark` bajo `[data-theme="dark"]`)
+para que inputs numéricos, `<select>` y scrollbars nativos usen el chrome correcto.
+**Bandas de veredicto ambient**: en claro, borde `2px` del color de estado + tinte
+suave `~8%` sobre blanco (no el gradiente de superficie oscura). **PDF no cambia**:
+sigue en escala de grises (ver §PDF), desacoplado del tema de UI.
 
 ### Reglas de color
 
@@ -429,3 +462,4 @@ Explícitamente prohibido:
 | 2026-05-25 | Welcome banner sobre lienzo (banda no-modal) | Cuando el state es blank canónico (1 planta, sin huecos ni puntuales) y el usuario no ha descartado, banda horizontal `absolute top-4 left-4 right-4` sobre el lienzo con `bg-bg-surface/95 border-accent/40 rounded` (NO `rounded-lg`), label `font-mono uppercase` accent, una línea de copy + 2 botones inline ("Ver ejemplo" / "Descartar"). Persiste el descarte en localStorage. En mobile, default tab='diagramas' cuando el banner procede para que el CTA sea visible al primer load. Patrón válido para invitar a una acción opcional sin interrumpir el flujo |
 | 2026-05-04 | Banner de validación con bloque "Cómo arreglarlo" | Cuando los datos son inválidos, el motor devuelve `EdificioInvalid.fix?` con sugerencia concreta. Bloque accent/5 dentro del banner fail. Empatiza con usuario que no domina la norma |
 | 2026-05-04 | Warning glyph: SVG Lucide AlertTriangle (no emoji) | Coherente con la regla anti-emoji. Pattern: SVG 12x12 stroke-current dentro de bloque state-warn/5. Usado en huecos solapados |
+| 2026-06-09 | **Modo claro + claro por defecto** (OS-aware) | Testers lo pidieron como predeterminado. Tokens conmutables (`@theme` sin `inline`, `:root` claro + `html[data-theme="dark"]`). Toggle sol/luna 2-estados en topbar (espeja UnitSystemToggle). `color-scheme` por tema. PDF intacto (grises). Reencuadre del Design Thesis: la diferenciación es densidad/precisión/SVG, no el fondo oscuro; el oscuro pasa de "único tema / declaración de propósito" a "firma" opcional |

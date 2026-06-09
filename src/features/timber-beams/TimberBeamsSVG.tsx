@@ -15,23 +15,25 @@ interface TimberBeamsSVGProps {
   height: number;
 }
 
+// Structural roles via theme tokens; wood/char are material colors (read on both
+// themes) so they stay literal — same principle as the PDF grayscale exception.
 const SCREEN = {
   bg: 'transparent',
-  sectionFill: '#1e293b',
-  sectionStroke: '#475569',
+  sectionFill: 'var(--color-chart-section-fill)',
+  sectionStroke: 'var(--color-chart-rebar-dim)',
   charFill: '#dc2626',
   charStroke: '#ef4444',
   residualFill: '#c8966c',
   residualStroke: '#d4a06e',
-  dim: '#64748b',
-  dimText: '#94a3b8',
-  loadArrow: '#f59e0b',
+  dim: 'var(--color-chart-rebar-faint)',
+  dimText: 'var(--color-chart-dim-text)',
+  loadArrow: 'var(--color-state-warn)',
   beam: '#c8966c',
   beamStroke: '#d4a06e',
-  deflected: '#38bdf8',
-  support: '#94a3b8',
-  hatch: '#475569',
-  label: '#64748b',
+  deflected: 'var(--color-accent)',
+  support: 'var(--color-chart-stirrup)',
+  hatch: 'var(--color-chart-rebar-dim)',
+  label: 'var(--color-chart-rebar-faint)',
 };
 
 const PDF = {

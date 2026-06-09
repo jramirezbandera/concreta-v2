@@ -24,17 +24,20 @@ import { FemAnalysisModule } from '../../features/fem-analysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { encodeShareString } from '../../features/fem-analysis/serialize';
 import { UnitSystemProvider } from '../../lib/units';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 function renderModule(initialEntries: string[] = ['/analisis/fem']) {
   return render(
     <HelmetProvider>
-      <UnitSystemProvider>
-        <MemoryRouter initialEntries={initialEntries}>
-          <DrawerContext.Provider value={{ openDrawer: () => {} }}>
-            <FemAnalysisModule />
-          </DrawerContext.Provider>
-        </MemoryRouter>
-      </UnitSystemProvider>
+      <ThemeProvider>
+        <UnitSystemProvider>
+          <MemoryRouter initialEntries={initialEntries}>
+            <DrawerContext.Provider value={{ openDrawer: () => {} }}>
+              <FemAnalysisModule />
+            </DrawerContext.Provider>
+          </MemoryRouter>
+        </UnitSystemProvider>
+      </ThemeProvider>
     </HelmetProvider>,
   );
 }

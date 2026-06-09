@@ -24,17 +24,18 @@ interface RCBeamStrainSVGProps {
   height?: number;
 }
 
+// Screen palette via theme tokens (dark values match the old literals exactly).
 const SCREEN_COLORS = {
-  axis: '#475569',
-  axisLabel: '#94a3b8',
-  strainLine: '#38bdf8',
-  strainFill: 'rgba(56,189,248,0.10)',
-  marker: '#38bdf8',
-  marker_yieldTens: '#22c55e',
-  marker_yieldComp: '#f59e0b',
-  marker_crushed: '#ef4444',
-  label: '#e2e8f0',
-  labelDim: '#94a3b8',
+  axis: 'var(--color-chart-rebar-dim)',                              // #475569
+  axisLabel: 'var(--color-chart-dim-text)',                          // #94a3b8
+  strainLine: 'var(--color-accent)',                                 // #38bdf8
+  strainFill: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+  marker: 'var(--color-accent)',                                     // #38bdf8
+  marker_yieldTens: 'var(--color-state-ok)',                         // #22c55e
+  marker_yieldComp: 'var(--color-state-warn)',                       // #f59e0b
+  marker_crushed: 'var(--color-state-fail)',                         // #ef4444
+  label: 'var(--color-chart-label)',                                 // #e2e8f0
+  labelDim: 'var(--color-chart-dim-text)',                           // #94a3b8
   bg: 'transparent',
 };
 

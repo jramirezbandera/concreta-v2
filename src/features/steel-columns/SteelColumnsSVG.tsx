@@ -17,19 +17,20 @@ interface SteelColumnsSVGProps {
   height: number;
 }
 
+// Screen palette via theme tokens (dark ≈ old literals; sectionFill #263348→#1e293b).
 const SCREEN = {
   bg: 'transparent',
-  sectionFill: '#263348',
-  sectionStroke: '#334155',
-  weldStroke: '#475569',
-  dim: '#94a3b8',
-  dimText: '#94a3b8',
-  column: '#94a3b8',
-  buckled: '#38bdf8',
-  support: '#94a3b8',
-  hatch: '#475569',
-  lkLabel: '#38bdf8',
-  label: '#64748b',
+  sectionFill: 'var(--color-chart-section-fill)',
+  sectionStroke: 'var(--color-chart-section)',
+  weldStroke: 'var(--color-chart-rebar-dim)',
+  dim: 'var(--color-chart-dim)',
+  dimText: 'var(--color-chart-dim-text)',
+  column: 'var(--color-chart-stirrup)',
+  buckled: 'var(--color-accent)',
+  support: 'var(--color-chart-stirrup)',
+  hatch: 'var(--color-chart-rebar-dim)',
+  lkLabel: 'var(--color-accent)',
+  label: 'var(--color-chart-rebar-faint)',
 };
 
 const PDF = {

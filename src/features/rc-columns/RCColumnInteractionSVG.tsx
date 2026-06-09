@@ -20,11 +20,12 @@ interface RCColumnInteractionSVGProps {
   height?: number;
 }
 
+// Screen palette via theme tokens (dark values match the old literals).
 const SCREEN = {
-  axis: '#475569', grid: '#22304d', zero: '#64748b',
-  reinforced: '#38bdf8', plain: '#64748b',
-  label: '#e2e8f0', labelDim: '#94a3b8',
-  ok: '#22c55e', fail: '#ef4444',
+  axis: 'var(--color-chart-rebar-dim)', grid: 'var(--color-border-main)', zero: 'var(--color-chart-rebar-faint)',
+  reinforced: 'var(--color-accent)', plain: 'var(--color-chart-rebar-faint)',
+  label: 'var(--color-chart-label)', labelDim: 'var(--color-chart-dim-text)',
+  ok: 'var(--color-state-ok)', fail: 'var(--color-state-fail)',
   bg: 'transparent',
 };
 const PDF = {

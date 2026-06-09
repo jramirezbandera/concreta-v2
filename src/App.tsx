@@ -7,6 +7,7 @@ import { RouteHelmet } from './components/layout/RouteHelmet';
 import { RouteProgressBar } from './components/layout/RouteProgressBar';
 import { ChunkErrorElement } from './components/layout/ChunkErrorElement';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
+import { ThemeProvider } from './lib/theme/ThemeProvider';
 
 // Route configs use react-router v7's `lazy` so chunk loading integrates with
 // the data router's pending-state machine. `HydrateFallback` paints during the
@@ -155,9 +156,11 @@ const router = createBrowserRouter([
 export function App() {
   return (
     <HelmetProvider>
-      <UnitSystemProvider>
-        <RouterProvider router={router} />
-      </UnitSystemProvider>
+      <ThemeProvider>
+        <UnitSystemProvider>
+          <RouterProvider router={router} />
+        </UnitSystemProvider>
+      </ThemeProvider>
     </HelmetProvider>
   );
 }

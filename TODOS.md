@@ -829,3 +829,25 @@ de anclaje/flexión del perfil paralelo (longitud de desarrollo embebida) antes 
 **Where to start:** modelo de anclaje del brazo de borde (EC2 §8) + su flexión como miembro
 paralelo; solo entonces reincorporar su huella a `buildCross` con la longitud eficaz real.
 **Depends on:** TODO de anclaje de brazos embebidos (design doc).
+
+### Modo claro — tematizar la landing page
+
+**Status:** DIFERIDO (eng-review modo claro, 2026-06-09) — la app entera responde al
+tema, pero `src/pages/landing/` se queda siempre-oscura en esta PR.
+
+**What:** portar el sistema de tokens propio de la landing (`.landing-root` en
+`src/pages/landing/styles/tokens.css`, ~24 hex en 7 archivos CSS) al esquema
+`[data-theme]` para que la página de marketing también responda al modo claro.
+
+**Why:** consistencia de extremo a extremo. Con el claro como modo por defecto, un
+usuario nuevo aterriza en una home oscura y entra a una app clara — salto visual.
+
+**Pros:** coherencia visual. **Cons:** superficie extra; un hero oscuro es una decisión
+de marketing legítima que muchas herramientas mantienen a propósito. No urgente.
+
+**Where to start:** la landing usa nombres de variable distintos (`--accent`,
+`--bg-primary`…), no los tokens `--color-*` del shell. Reescribir `tokens.css` para que
+`.landing-root` consuma `[data-theme]` o duplicar el bloque bajo `html[data-theme="dark"]`.
+Revisitar después de que el modo claro de la app haya reposado con testers.
+
+**Depends on:** que el modo claro de la app esté mergeado y validado (esta PR).
