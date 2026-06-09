@@ -87,12 +87,12 @@
 /* ── Scrollbar styling ── */
 ::-webkit-scrollbar       { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-text-disabled); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-hover); }
 
-.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-text-disabled) transparent; }
+.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-scrollbar) transparent; }
 .scroll-hide::-webkit-scrollbar { width: 6px; }
-.scroll-hide::-webkit-scrollbar-thumb { background: var(--color-text-disabled); border-radius: 3px; }
+.scroll-hide::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 3px; }
 .scroll-hide::-webkit-scrollbar-track { background: transparent; }
 
 @media print {
@@ -164,6 +164,8 @@
   --color-fem-w: #2563eb;  /* viento (wind) */
   --color-fem-s: #475569;  /* nieve (snow) */
   --color-fem-e: #dc2626;  /* sismo (seismic) */
+  --color-scrollbar: #94a3b8;       /* slate-400 — visible but not heavy on white */
+  --color-scrollbar-hover: #64748b;
 }
 
 :root { color-scheme: light; }
@@ -221,4 +223,6 @@ html[data-theme="dark"] {
   --color-fem-w: #60a5fa;
   --color-fem-s: #cbd5e1;
   --color-fem-e: #f87171;
+  --color-scrollbar: #22304d;
+  --color-scrollbar-hover: #2c3d63;
 }
