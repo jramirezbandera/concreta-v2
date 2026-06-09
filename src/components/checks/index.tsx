@@ -34,11 +34,14 @@ export const BORDER_CLASSES: Record<CheckStatus, string> = {
   neutral: 'border-state-neutral/40',
 };
 
+// Theme-aware via tokens (screen only — ambientStyle). Dark values match the old
+// literals exactly; light gets the AA-tuned state variants. color-mix reproduces
+// the old rgba tints from whatever the token resolves to.
 export const STATUS_COLORS: Record<CheckStatus, { fg: string; bg: string; border: string }> = {
-  ok:      { fg: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.3)' },
-  warn:    { fg: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)' },
-  fail:    { fg: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.3)' },
-  neutral: { fg: '#64748b', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.3)' },
+  ok:      { fg: 'var(--color-state-ok)',      bg: 'color-mix(in srgb, var(--color-state-ok) 8%, transparent)',      border: 'color-mix(in srgb, var(--color-state-ok) 30%, transparent)' },
+  warn:    { fg: 'var(--color-state-warn)',    bg: 'color-mix(in srgb, var(--color-state-warn) 8%, transparent)',    border: 'color-mix(in srgb, var(--color-state-warn) 30%, transparent)' },
+  fail:    { fg: 'var(--color-state-fail)',    bg: 'color-mix(in srgb, var(--color-state-fail) 8%, transparent)',    border: 'color-mix(in srgb, var(--color-state-fail) 30%, transparent)' },
+  neutral: { fg: 'var(--color-state-neutral)', bg: 'color-mix(in srgb, var(--color-state-neutral) 8%, transparent)', border: 'color-mix(in srgb, var(--color-state-neutral) 30%, transparent)' },
 };
 
 /**
