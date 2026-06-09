@@ -139,6 +139,7 @@
   --color-chart-envelope: #7c3aed;
   --color-chart-label: #0f172a;        /* bright annotation label */
   --color-chart-rebar-faint: #64748b;  /* secondary/side bars (slate-500, AA-ish on white) */
+  --color-chart-profile: #cbd5e1;      /* steel profile fill — visible grey ON a light plate */
   --color-dot-grid: #e2e8f0;
 
   /* Geotechnical material fills (light = white-paper tones). Shared by
@@ -202,6 +203,7 @@ html[data-theme="dark"] {
   --color-chart-envelope: #a78bfa;
   --color-chart-label: #e2e8f0;
   --color-chart-rebar-faint: #64748b;
+  --color-chart-profile: #0b1220;      /* recessed dark profile on the dark plate */
   --color-dot-grid: #253147;
 
   --color-geo-soil-top: #4a3522;

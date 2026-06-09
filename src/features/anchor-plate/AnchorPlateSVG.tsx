@@ -17,8 +17,8 @@ const COLORS = {
   screen: {
     plate:        'var(--color-chart-section-fill)',
     plate_stroke: 'var(--color-accent)',
-    profile:      'var(--color-bg-primary)',
-    profile_stroke: 'var(--color-chart-rebar-faint)',
+    profile:      'var(--color-chart-profile)',
+    profile_stroke: 'var(--color-chart-rebar-dim)',
     bolt_c:       'var(--color-chart-section-fill)',
     bolt_t:       'var(--color-state-fail)',
     bolt_stroke:  'var(--color-chart-stirrup)',
