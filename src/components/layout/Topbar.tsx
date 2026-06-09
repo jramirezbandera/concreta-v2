@@ -81,8 +81,8 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
             title="Exportar PDF"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 transition-all"
             style={{
-              border: '1px solid rgba(56,189,248,0.25)',
-              background: 'rgba(56,189,248,0.06)',
+              border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+              background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
             }}
             aria-label="Exportar PDF"
           >
