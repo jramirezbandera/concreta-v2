@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NumericMode } from './modes/NumericMode';
 import { ConvertMode } from './modes/ConvertMode';
 import { FormulaMode } from './modes/FormulaMode';
+import { useTheme } from '../../lib/theme/useTheme';
 
 type Mode = 'num' | 'conv' | 'form';
 
@@ -14,6 +15,7 @@ interface CalculatorProps {
 const DOCK_X_MARGIN = 16;
 
 export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
+  const isDark = useTheme().theme === 'dark';
   const [mode, setMode] = useState<Mode>('num');
   const [vw, setVw] = useState(() => window.innerWidth);
   const [pos, setPos] = useState(() => ({ x: DOCK_X_MARGIN, y: 64 }));
@@ -119,17 +121,29 @@ export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
         borderRadius: radius,
       };
 
-  // Premium skin (selected default per design save state)
-  const panelStyle: React.CSSProperties = {
-    background: 'linear-gradient(180deg, #1a1f28, #11151c)',
-    border: '1px solid rgba(255,255,255,0.06)',
-    boxShadow: '0 30px 80px -16px rgba(0,0,0,0.9), 0 0 0 1px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset',
-    zIndex: 60,
-  };
+  // Premium dark skin in dark mode; a clean light surface in light mode so the
+  // calculator matches the app theme (text-* tokens stay readable on the panel).
+  const panelStyle: React.CSSProperties = isDark
+    ? {
+        background: 'linear-gradient(180deg, #1a1f28, #11151c)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 30px 80px -16px rgba(0,0,0,0.9), 0 0 0 1px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset',
+        zIndex: 60,
+      }
+    : {
+        background: 'var(--color-bg-surface)',
+        border: '1px solid var(--color-border-main)',
+        boxShadow: '0 30px 80px -16px rgba(15,23,42,0.25), 0 0 0 1px rgba(15,23,42,0.05)',
+        zIndex: 60,
+      };
 
   const headerStyle: React.CSSProperties = {
-    background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0))',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    background: isDark
+      ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0))'
+      : 'var(--color-bg-elevated)',
+    borderBottom: isDark
+      ? '1px solid rgba(255,255,255,0.05)'
+      : '1px solid var(--color-border-sub)',
     ...(isMobile ? {} : { borderTopLeftRadius: radius, borderTopRightRadius: radius }),
   };
 
@@ -161,7 +175,7 @@ export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
             onTouchMove={onSheetTouchMove}
             onTouchEnd={onSheetTouchEnd}
           >
-            <span className="block w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.18)' }} />
+            <span className="block w-10 h-1 rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.18)' : 'var(--color-border-main)' }} />
           </div>
         )}
 
