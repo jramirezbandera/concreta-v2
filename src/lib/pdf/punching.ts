@@ -20,8 +20,8 @@ const CONTENT_W = PAGE_W - 2 * M;  // 170mm
 
 const POSITION_LABEL: Record<string, string> = {
   interior: 'Interior',
-  edge:     'Borde',
-  corner:   'Esquina',
+  borde:    'Borde',
+  esquina:  'Esquina',
 };
 
 export async function exportPunchingPDF(
@@ -46,21 +46,17 @@ export async function exportPunchingPDF(
   setGray(doc, 200);
   doc.line(M, M + 8, PAGE_W - M, M + 8);
 
-  // ── SVG: plan view (left) + section view (right) ────────────────────────────
+  // ── SVG: single plan view, centred ──────────────────────────────────────────
   const svgContainer = document.getElementById('punching-svg-pdf');
   const svgEls = svgContainer ? Array.from(svgContainer.querySelectorAll('svg')) as SVGSVGElement[] : [];
 
-  const SVG_Y   = M + 12;
-  const HALF_W  = (CONTENT_W - 4) / 2;   // ~83mm each, 4mm gap
-  const PLAN_H  = HALF_W;                 // plan is square
-  const SECT_H  = Math.round(HALF_W * 0.5);
+  const SVG_Y  = M + 12;
+  const PLAN_H = 85;                         // mm — square plan
+  const PLAN_W = PLAN_H;
+  const PLAN_X = M + (CONTENT_W - PLAN_W) / 2; // centred
 
   if (svgEls[0]) {
-    await embedSvgAsImage(doc, svgEls[0], { x: M, y: SVG_Y, width: HALF_W, height: PLAN_H });
-  }
-  if (svgEls[1]) {
-    const sectY = SVG_Y + (PLAN_H - SECT_H) / 2;  // vertically centered
-    await embedSvgAsImage(doc, svgEls[1], { x: M + HALF_W + 4, y: sectY, width: HALF_W, height: SECT_H });
+    await embedSvgAsImage(doc, svgEls[0], { x: PLAN_X, y: SVG_Y, width: PLAN_W, height: PLAN_H });
   }
 
   // ── Inputs — 2 columns ───────────────────────────────────────────────────────
@@ -111,23 +107,21 @@ export async function exportPunchingPDF(
     lSecHeader('PILAR Y PLACA');
     lRow(`Pilar: ${inp.colType} ${inp.colSize}`, `Pos: ${POSITION_LABEL[inp.position] ?? inp.position}`);
     lRow(`Placa: ${inp.plateA}x${inp.plateB}x${inp.plateT} mm`);
-    lRow(`Sustrato: ${inp.substrate === 'forjado' ? 'Forjado' : 'Zapata'}`, `beta = ${cru.beta.toFixed(2)}`);
+    lRow(`beta = ${cru.beta.toFixed(2)}`);
     if (inp.position !== 'interior') {
       const edge = inp.position === 'esquina' ? `ay=${inp.edgeY} ax=${inp.edgeX} mm` : `ay=${inp.edgeY} mm`;
       lRow(`Dist. borde libre: ${edge}`);
     }
     ly += 1;
     lSecHeader('CRUCETA');
-    lRow(`Cruz embebida (cabeza de cortante). Apoyo nucleo fcd/f_Rdu.`);
-    lRow(`Anclaje soldadura, atado reparto, delaminacion §6.2.5.`);
+    lRow(`Punzonamiento conservador de la PLACA. El reparto de la`);
+    lRow(`cruceta (alarga u1) lo verifica el ingeniero a mano.`);
     lRow(`UPN ${cru.upnSize} (${cru.steelGrade}), Clase ${cru.upnClass}`);
-    lRow(`L_eff = ${cru.Leff.toFixed(0)} mm`, `b_eff = ${cru.bEff.toFixed(0)} mm`);
-    lRow(`L_brazo auto = ${cru.LeffMax.toFixed(0)} mm (luz/8, >=50cm)`);
+    lRow(`M_Rd = ${cru.MRd.toFixed(1)} kN.m`, `Vpl,Rd = ${cru.VplRd.toFixed(0)} kN`);
     lRow(`Garganta a = ${inp.weldThroat} mm`);
     ly += 1;
     lSecHeader('CARGA');
     lRow(`N (axil ELU) = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
-    lRow(`N de calculo = ${cru.Vdesign.toFixed(0)} kN${cru.reliefApplied ? ' (terreno)' : ''}`);
 
     // Right: losa + perimetros + resistencias
     rSecHeader('LOSA / ZAPATA');
@@ -136,19 +130,14 @@ export async function exportPunchingPDF(
     rRow(`ph sup: ph${inp.barDiamSup}/${inp.sSup} mm`);
     rRow(`rhoL = ${(result.rhoL * 100).toFixed(3)} %`);
     ry += 1;
-    rSecHeader('PERIMETROS CRITICOS');
+    rSecHeader('PERIMETROS CRITICOS (PLACA)');
     rRow(`u0 (placa) = ${cru.u0.toFixed(0)} mm`);
-    rRow(`u1 (cruz) = ${cru.u1.toFixed(0)} mm`);
-    rRow(`u_core = ${cru.uCore.toFixed(0)} mm`, `u_tip = ${cru.uTip.toFixed(0)} mm`);
+    rRow(`u1 (placa, 2d) = ${cru.u1.toFixed(0)} mm`);
     ry += 1;
     rSecHeader('RESISTENCIAS');
-    rRow(`f apoyo = ${cru.fjd.toFixed(2)} N/mm2 (=fcd)`);
-    rRow(`Cap. reparto = ${cru.Vcap.toFixed(0)} kN`);
-    rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm2`, `vEd = ${result.vEd.toFixed(3)}`);
-    if (result.vRdcs !== undefined) {
-      rRow(`vRd,cs = ${result.vRdcs.toFixed(3)} N/mm2`, `ph${inp.swDiam} x${inp.swLegs}, sr=${inp.sr}`);
-    }
-    rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm2`);
+    rRow(`vRd,c = ${formatQuantity(result.vRdc, 'stress', system)}`, `vEd = ${formatQuantity(result.vEd, 'stress', system)}`);
+    rRow(`vRd,max = ${formatQuantity(result.vRdmax, 'stress', system)}`, `vEd,0 = ${formatQuantity(result.vEd0, 'stress', system)}`);
+    rRow(`u1/vEd: sin reparto de cruceta (conservador)`);
   } else {
     // Left: geometry + loads
     lSecHeader('GEOMETRIA Y CARGAS');
@@ -162,8 +151,8 @@ export async function exportPunchingPDF(
     lRow(`beta = ${result.beta.toFixed(2)}`);
     ly += 1;
     lRow(`VEd = ${formatQuantity(inp.VEd, 'force', system, { precision: 1 })}`);
-    lRow(`vEd,0 (u0) = ${result.vEd0.toFixed(3)} N/mm2`);
-    lRow(`vEd (u1) = ${result.vEd.toFixed(3)} N/mm2`);
+    lRow(`vEd,0 (u0) = ${formatQuantity(result.vEd0, 'stress', system)}`);
+    lRow(`vEd (u1) = ${formatQuantity(result.vEd, 'stress', system)}`);
 
     // Right: materials + armadura + resultados
     rSecHeader('MATERIALES');
@@ -181,10 +170,10 @@ export async function exportPunchingPDF(
     rRow(`rout = ${result.rOut.toFixed(0)} mm`);
     ry += 1;
     rSecHeader('RESISTENCIAS');
-    rRow(`vRd,c = ${result.vRdc.toFixed(3)} N/mm·mm`);
-    rRow(`vRd,max = ${result.vRdmax.toFixed(3)} N/mm·mm`);
+    rRow(`vRd,c = ${formatQuantity(result.vRdc, 'stress', system)}`);
+    rRow(`vRd,max = ${formatQuantity(result.vRdmax, 'stress', system)}`);
     if (inp.hasShearReinf && result.vRdcs !== undefined) {
-      rRow(`vRd,cs = ${result.vRdcs.toFixed(3)} N/mm·mm`);
+      rRow(`vRd,cs = ${formatQuantity(result.vRdcs, 'stress', system)}`);
       rRow(`ph${inp.swDiam} x ${inp.swLegs} ram., sr = ${inp.sr} mm`);
     }
   }

@@ -10,7 +10,7 @@
 import { type PunchingInputs, type CrucetaSteel, type PunchingPosition } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
-import { type CheckRow, toStatus, makeCheck } from './types';
+import { type CheckRow, toStatus, makeCheckQty } from './types';
 import { calcCruceta } from './cruceta';
 
 export type { CheckRow } from './types';
@@ -30,32 +30,23 @@ export function sidesForPosition(position: PunchingPosition): number {
  * on PunchingResult so existing pilar/carga-puntual consumers are untouched
  * (eng-review decision 3A). All forces kN, lengths mm, stresses MPa.
  */
+/**
+ * Cruceta-mode detail — RECORTADO 2026-06-09 a "compañero de hand-calc". Solo lo que
+ * la herramienta defiende: el perfil UPN (clase + capacidades, informativo) y los
+ * perímetros de la PLACA (de calcPunching). El reparto/alcance lo verifica el ingeniero
+ * a mano (ver cruceta.ts). Todo lo del antiguo diseñador automático se eliminó.
+ */
 export interface CrucetaDetail {
-  upnSize:      number;
-  steelGrade:   CrucetaSteel;
-  upnClass:     1 | 2 | 3 | 4;
-  fjd:          number;   // MPa — concrete bearing strength βj·α·fcd
-  Kj:           number;   // — bearing concentration factor α=Kj (1 in v1 / forjado)
-  bEff:         number;   // mm — effective contact width of one arm
-  cf:           number;   // mm — flange effective overhang
-  MRd:          number;   // kN·m — UPN plastic/elastic bending resistance
-  LeffMax:      number;   // mm — max effective reach of the chosen UPN
-  Leff:         number;   // mm — effective arm length used (min of Larm, LeffMax)
-  Larm:         number;   // mm — geometric arm length (auto = LeffMax)
-  Vdesign:      number;   // kN — design load after soil relief
-  Vcap:         number;   // kN — bearing capacity of plate + arms
-  Varm:         number;   // kN — load delivered by one arm
-  Vcore:        number;   // kN — plate-borne residual load
-  u0:           number;   // mm — plate-face perimeter (crushing)
-  u1:           number;   // mm — enlarged cross control perimeter at 2d
-  uCore:        number;   // mm — bare-plate control perimeter (local)
-  uTip:         number;   // mm — per-arm tip control perimeter (local)
-  Au1:          number;   // mm² — area for soil relief (conservative)
-  nArms:        number;
-  beta:         number;
-  position:     PunchingPosition;
-  reliefApplied: boolean;
-  suggestedUpn: number | null; // smallest passing UPN if chosen fails; else null
+  upnSize:    number;
+  steelGrade: CrucetaSteel;
+  upnClass:   1 | 2 | 3 | 4;
+  MRd:        number;   // kN·m — UPN bending resistance (informativo para el hand-calc)
+  VplRd:      number;   // kN — UPN plastic shear resistance (informativo)
+  u0:         number;   // mm — plate-face perimeter (crushing), de calcPunching
+  u1:         number;   // mm — plate control perimeter at 2d, de calcPunching
+  beta:       number;
+  position:   PunchingPosition;
+  nArms:      number;   // brazos del detalle (interior 4 / borde 3 / esquina 2) — display
 }
 
 export interface PunchingResult {
@@ -273,34 +264,27 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   }
 
   // punz-ved-max: vEd0 ≤ vRd,max at column-face perimeter u0 (CE art. 6.4.5(3))
-  checks.push(makeCheck(
+  // Tensiones por la Quantity 'stress' → se muestran en N/mm² y convierten con el
+  // toggle N/mm²↔kg/cm² (consistente con el resto de la app).
+  checks.push(makeCheckQty(
     'punz-ved-max',
     'vEd,0 ≤ vRd,max (en u0, cara del pilar)',
-    vEd0, vRdmax,
-    `${vEd0.toFixed(3)} MPa`,
-    `${vRdmax.toFixed(3)} MPa`,
-    'CE art. 6.4.5(3)',
+    vEd0, vRdmax, 'stress', 'CE art. 6.4.5(3)',
   ));
 
   // punz-ved-vrdc: vEd ≤ vRd,c (without shear reinf)
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'punz-ved-vrdc',
     'vEd ≤ vRd,c (sin armado)',
-    vEd, vRdc,
-    `${vEd.toFixed(3)} MPa`,
-    `${vRdc.toFixed(3)} MPa`,
-    'CE art. 6.4.4',
+    vEd, vRdc, 'stress', 'CE art. 6.4.4',
   ));
 
   // punz-ved-vrdcs: vEd ≤ vRd,cs (with stirrups) — only if hasShearReinf
   if (inp.hasShearReinf && vRdcs !== undefined) {
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'punz-ved-vrdcs',
       'vEd ≤ vRd,cs (con cercos)',
-      vEd, vRdcs,
-      `${vEd.toFixed(3)} MPa`,
-      `${vRdcs.toFixed(3)} MPa`,
-      'CE art. 6.4.5',
+      vEd, vRdcs, 'stress', 'CE art. 6.4.5',
     ));
   }
 

@@ -42,30 +42,15 @@ describe('exportPunchingPDF — modo cruceta', () => {
     });
   });
 
-  it('gama agotada (suggestedUpn=null) también exporta', async () => {
-    const inp = { ...cru, VEd: 2500 };
-    const result = calcPunching(inp);
-    expect(result.valid).toBe(false);
-    expect(result.cruceta!.suggestedUpn).toBeNull();
-
-    const pdf = await exportPunchingPDF(inp, result);
-    expect(pdf.blobUrl).toMatch(/^blob:/);
-  });
-
-  it('con descuento de terreno activado no rompe el PDF', async () => {
-    const inp = { ...cru, soilRelief: true, soilPressure: 150 };
-    const result = calcPunching(inp);
-    const pdf = await exportPunchingPDF(inp, result);
-    expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
-  });
-
-  it('modelo embebido interino (filas verificar-a-mano) exporta sin romper', async () => {
-    const result = calcPunching(cru);
-    // f apoyo = fcd (sin Kj) y filas pendientes en amber.
-    expect(result.cruceta!.Kj).toBe(1);
-    expect(result.checks.some((c) => c.id === 'cru-anchor' && c.status === 'warn')).toBe(true);
-    const pdf = await exportPunchingPDF(cru, result);
-    expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+  it('borde y esquina exportan (cabida del ala + perímetros de placa)', async () => {
+    for (const inp of [
+      { ...cru, position: 'borde' as const, edgeY: 500 },
+      { ...cru, position: 'esquina' as const, edgeY: 500, edgeX: 500 },
+    ]) {
+      const result = calcPunching(inp);
+      const pdf = await exportPunchingPDF(inp, result);
+      expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it('modos pilar y carga-puntual siguen exportando (no regresión)', async () => {

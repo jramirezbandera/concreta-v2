@@ -1,6 +1,8 @@
 import { type PunchingResult } from '../../lib/calculations/punching';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
 
 interface PunchingResultsProps {
   result: PunchingResult;
@@ -13,6 +15,10 @@ const POSITION_LABEL: Record<string, string> = {
 };
 
 export function PunchingResults({ result }: PunchingResultsProps) {
+  const { system } = useUnitSystem();
+  // Tensiones en el sistema activo (N/mm² ↔ kg/cm²) — consistente con el toggle global.
+  const fmtStress = (v: number) => formatQuantity(v, 'stress', system);
+
   if (!result.valid && result.error) {
     return (
       <div className="flex flex-col overflow-y-auto px-4 py-3">
@@ -40,32 +46,24 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         </div>
 
         <p className="text-[10px] text-text-secondary mb-2 leading-snug">
-          Cruz embebida (cabeza de cortante). Apoyo del núcleo a fcd, o a f_Rdu con espiral (§6.7).
-          Anclaje por soldadura pasante y atado por reparto superior: cubiertos si se marcan en
-          "Detalle de armado". Delaminación cosida por los cercos entre crucetas (cortante de
-          interfaz §6.2.5).
+          Punzonamiento <strong>conservador de la placa</strong> (placa = área cargada) + datos del
+          UPN. El <strong>reparto de la cruceta</strong> (que alarga u1 y baja vEd) lo verifica el
+          ingeniero <strong>a mano</strong>: el u1/vEd de aquí es el límite inferior sin reparto.
         </p>
 
         <GroupHeader label="Cruceta" />
         <ValueRow label="Posición del pilar"               value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
         <ValueRow label="Perfil de la cruceta"             value={`UPN ${c.upnSize} (${c.steelGrade})`} />
         <ValueRow label="Clase de sección (EC3)"           value={`Clase ${c.upnClass}`} />
-        <ValueRow label="L_eff — longitud eficaz del brazo" value={`${c.Leff.toFixed(0)} mm`} />
-        <ValueRow label="L_brazo (auto) — luz/8, ≥50cm"    value={`${c.LeffMax.toFixed(0)} mm`} />
-        <ValueRow label="b_eff — ancho de contacto eficaz" value={`${c.bEff.toFixed(0)} mm`} />
-        <ValueRow label="M_Rd — momento resistente cruceta" value={`${c.MRd.toFixed(1)} kN·m`} />
+        <ValueRow label="M_Rd — momento resistente UPN (info)" value={`${c.MRd.toFixed(1)} kN·m`} />
+        <ValueRow label="Vpl,Rd — cortante plástico UPN (info)" value={`${c.VplRd.toFixed(0)} kN`} />
 
-        <GroupHeader label="Parámetros" />
-        <ValueRow label="f apoyo — tensión de apoyo (= fcd)" value={`${c.fjd.toFixed(2)} N/mm²`} />
-        <ValueRow label="N — axil de cálculo"              value={`${c.Vdesign.toFixed(0)} kN${c.reliefApplied ? ' (con descuento de terreno)' : ''}`} />
-        <ValueRow label="V_cap — capacidad de reparto"     value={`${c.Vcap.toFixed(0)} kN`} />
-        <ValueRow label="u0 — perímetro de la placa"       value={`${c.u0.toFixed(0)} mm`} />
-        <ValueRow label="u1 — perímetro de control (cruz)" value={`${c.u1.toFixed(0)} mm`} />
-        <ValueRow label="vRd,c — resistencia sin cercos"   value={`${result.vRdc.toFixed(3)} N/mm²`} />
-        {result.vRdcs !== undefined && (
-          <ValueRow label="vRd,cs — resistencia con cercos" value={`${result.vRdcs.toFixed(3)} N/mm²`} />
-        )}
-        <ValueRow label="vEd — tensión actuante en u1"     value={`${result.vEd.toFixed(3)} N/mm²`} />
+        <GroupHeader label="Punzonamiento de la placa" />
+        <ValueRow label="u0 — perímetro en cara de placa"  value={`${c.u0.toFixed(0)} mm`} />
+        <ValueRow label="u1 — perímetro de control (placa, 2d)" value={`${c.u1.toFixed(0)} mm`} />
+        <ValueRow label="vRd,c — resistencia"              value={fmtStress(result.vRdc)} />
+        <ValueRow label="vEd — actuante en u1 (sin reparto)" value={fmtStress(result.vEd)} />
+        <ValueRow label="vRd,max — aplastamiento"          value={fmtStress(result.vRdmax)} />
 
         <GroupHeader label="Verificación" />
         {result.checks.map((ch) => <CheckRowItem key={ch.id} check={ch} />)}
@@ -105,21 +103,21 @@ export function PunchingResults({ result }: PunchingResultsProps) {
       {result.rhoLClamped && (
         <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={result.rhoLMin.toFixed(4)} />
       )}
-      <ValueRow label="vmín — resistencia mínima"    value={`${result.vMin.toFixed(3)} N/mm²`} />
-      <ValueRow label="vEd,0 — tensión en cara del pilar" value={`${result.vEd0.toFixed(3)} N/mm²`} />
-      <ValueRow label={resultLabel('vEd_punching')}  value={`${result.vEd.toFixed(3)} N/mm²`} />
+      <ValueRow label="vmín — resistencia mínima"    value={fmtStress(result.vMin)} />
+      <ValueRow label="vEd,0 — tensión en cara del pilar" value={fmtStress(result.vEd0)} />
+      <ValueRow label={resultLabel('vEd_punching')}  value={fmtStress(result.vEd)} />
 
       {/* Resistencias */}
       <GroupHeader label="Resistencias" />
-      <ValueRow label={resultLabel('vRd_c_punching')} value={`${result.vRdc.toFixed(3)} N/mm²`} />
-      <ValueRow label={resultLabel('vRd_max')}        value={`${result.vRdmax.toFixed(3)} N/mm²`} />
+      <ValueRow label={resultLabel('vRd_c_punching')} value={fmtStress(result.vRdc)} />
+      <ValueRow label={resultLabel('vRd_max')}        value={fmtStress(result.vRdmax)} />
       <div
         className="overflow-hidden transition-all duration-150"
         style={{ maxHeight: result.vRdcs !== undefined ? '80px' : '0px', opacity: result.vRdcs !== undefined ? 1 : 0 }}
       >
         <ValueRow label="Asw — armado de cercos por fila" value={`${result.aswPerRow.toFixed(0)} mm²`} />
         {result.vRdcs !== undefined && (
-          <ValueRow label={resultLabel('vRd_cs')}     value={`${result.vRdcs.toFixed(3)} N/mm²`} />
+          <ValueRow label={resultLabel('vRd_cs')}     value={fmtStress(result.vRdcs)} />
         )}
       </div>
       <ValueRow label="uout — perímetro sin cercos necesarios" value={`${result.uout.toFixed(0)} mm`} />

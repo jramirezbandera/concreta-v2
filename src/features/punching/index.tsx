@@ -20,25 +20,10 @@ export function PunchingModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
-  // Arm length auto-fill (cruceta): auto by default — the field shows the computed
-  // L_eff,max; editing it switches to manual override (mirrors steel-beams Lcr).
-  const [armManual, setArmManual] = useState(false);
-  const calcState = useMemo(
-    () => (armManual ? state : { ...state, armLength: 0 }),
-    [state, armManual],
-  );
-  const result = useMemo(() => calcPunching(calcState), [calcState]);
-
-  const autoLeffMax = result.cruceta?.LeffMax ?? 0;
-  const displayArmLength = armManual ? state.armLength : Math.round(autoLeffMax);
-  const handleArmLengthChange = (val: number) => {
-    setField('armLength', val);
-    setArmManual(Math.abs(val - autoLeffMax) > 2);
-  };
-  const handleArmLengthAuto = () => { setArmManual(false); setField('armLength', 0); };
+  const result = useMemo(() => calcPunching(state), [state]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportPunchingPDF(calcState, result, system), true);
+    usePdfPreview(() => exportPunchingPDF(state, result, system), true);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -68,14 +53,7 @@ export function PunchingModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
-            <PunchingInputsPanel
-              state={state}
-              setField={setField}
-              armLengthDisplay={displayArmLength}
-              armLengthAuto={!armManual}
-              onArmLengthChange={handleArmLengthChange}
-              onArmLengthAuto={handleArmLengthAuto}
-            />
+            <PunchingInputsPanel state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
@@ -102,7 +80,7 @@ export function PunchingModule() {
             ref={canvasRef}
             className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
           >
-            <PunchingSVG inp={calcState} result={result} width={Math.min(svgW, 440)} mode="screen" />
+            <PunchingSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
           </div>
 
           {/* Results */}
@@ -114,7 +92,7 @@ export function PunchingModule() {
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
           <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid lg:hidden flex flex-col items-center py-4 px-4 gap-4">
-            <PunchingSVG inp={calcState} result={result} width={340} mode="screen" />
+            <PunchingSVG inp={state} result={result} width={340} mode="screen" />
           </div>
         )}
 
@@ -126,7 +104,7 @@ export function PunchingModule() {
           id="punching-svg-pdf"
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
-          <PunchingSVG inp={calcState} result={result} width={440} mode="pdf" />
+          <PunchingSVG inp={state} result={result} width={440} mode="pdf" />
         </div>
       </div>
 

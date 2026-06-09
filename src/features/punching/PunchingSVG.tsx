@@ -10,6 +10,11 @@ interface PunchingSVGProps {
 }
 
 // ── Plan view (top) ───────────────────────────────────────────────────────────
+// Single, to-scale plan of the punching problem. The critical perimeter u1 is the
+// real 2d offset of the loaded area, truncated at the free edge(s) exactly as the
+// CE art. 6.4 formulas assume for each position (interior / borde / esquina). The
+// punching collar (column → u1) is tinted with the overall verdict colour so the
+// drawing itself reads as a pass/fail checker.
 function PlanView({
   inp,
   result,
@@ -29,448 +34,228 @@ function PlanView({
   const position = inp.position as PunchingPosition;
   const useCircular = (inp.isCircular as boolean) && position === 'interior';
   const hasShearReinf = inp.hasShearReinf as boolean;
+  const isLoad = (inp.mode as PunchingMode) === 'carga-puntual';
 
-  // Scale: fit the uout circle + column + margin
-  const rOut = result.rOut;
-  const maxRadius = Math.max(rOut + cx / 2 + cy / 2, 2 * d + cx / 2 + cy / 2) * 1.25;
-  const scale = (size / 2 - 20) / maxRadius; // px per mm
+  // Column half-extents (mm). For circular, cx is the diameter.
+  const hx = (useCircular ? cx : cx) / 2;
+  const hy = (useCircular ? cx : cy) / 2;
+  const t1 = 2 * d;                         // u1 sits 2d from the loaded-area face
 
-  // Center of plan view
-  const ox = size / 2;
-  let oy = size / 2;
-  // For borde/esquina, shift origin toward interior so edge lines show
-  if (position === 'borde')   oy = size * 0.7;
-  if (position === 'esquina') oy = size * 0.75;
+  // Overall verdict → tint of the punching collar (visual checker).
+  const overall: 'ok' | 'warn' | 'fail' =
+    result.checks.some((c) => c.status === 'fail') ? 'fail'
+    : result.checks.some((c) => c.status === 'warn') ? 'warn'
+    : 'ok';
 
-  // Critical perimeter at 2d from column face
-  const r_u1_rect_x = cx / 2 + 2 * d;
-  const r_u1_rect_y = cy / 2 + 2 * d;
+  // uout — offset distance beyond which no shear reinforcement is needed. Drawn
+  // only with shear reinforcement and when it falls outside u1. tOut is recovered
+  // from the perimeter length (straight part + 2π·t); for borde/esquina this is a
+  // visual approximation, the exact value lives in the results.
+  let drawUout = false;
+  let tOut = 0;
+  if (hasShearReinf && result.uout > 0 && hx > 0) {
+    const straight = useCircular ? Math.PI * cx : 2 * (cx + cy);
+    const t = (result.uout - straight) / (2 * Math.PI);
+    if (t > t1 * 1.05) { drawUout = true; tOut = t; }
+  }
+  const tMax = Math.max(t1, drawUout ? tOut : 0);
 
-  // Loaded area dimensions in px
-  const hcx = (cx / 2) * scale;
-  const hcy = (cy / 2) * scale;
-  const r_u1_px_x = r_u1_rect_x * scale;
-  const r_u1_px_y = r_u1_rect_y * scale;
-  const rOut_px = Math.max(rOut * scale, 0);
+  // Free edges by position. Convention: cy ⟂ free edge (interior toward −y);
+  // esquina adds a second free edge on +x.
+  const freeBottom = position !== 'interior';
+  const freeRight  = position === 'esquina';
 
-  // Color tokens
-  const colArea    = isPdf ? '#cbd5e1'    : 'var(--color-bg-elevated, #263348)';
-  const strokeArea = isPdf ? '#334155'    : 'var(--color-border-main, #334155)';
-  const strokeU1   = isPdf ? '#0ea5e9'    : '#38bdf8'; // accent
-  const strokeUout = isPdf ? '#64748b'    : '#64748b'; // text-secondary
-  const strokeEdge = isPdf ? '#ef4444'    : '#ef4444'; // state-fail
-  const textCol    = isPdf ? '#475569'    : '#94a3b8';
-  const strokeSw   = isPdf ? '#94a3b8'    : '#475569'; // stirrups: softer than u1
+  // World bounding box (column-local, mm). Free sides don't extend (truncated).
+  const xMin = -(hx + tMax);
+  const xMax =  (hx + (freeRight  ? 0 : tMax));
+  const yMin = -(hy + tMax);
+  const yMax =  (hy + (freeBottom ? 0 : tMax));
+  const worldW = Math.max(xMax - xMin, 1);
+  const worldH = Math.max(yMax - yMin, 1);
+  const cxW = (xMin + xMax) / 2;
+  const cyW = (yMin + yMax) / 2;
 
-  // Borde/esquina edge lines
-  const edgeLines: React.ReactElement[] = [];
-  if (position === 'borde' || position === 'esquina') {
-    edgeLines.push(
-      <line key="edge-top" x1={0} y1={oy} x2={size} y2={oy}
-        stroke={strokeEdge} strokeWidth={1.5} strokeDasharray="5 3" />
+  const MARGIN = 30;
+  const scale = (size - 2 * MARGIN) / Math.max(worldW, worldH);
+  const px = (x: number) => size / 2 + (x - cxW) * scale;
+  const py = (y: number) => size / 2 + (y - cyW) * scale;
+  const clamp = (v: number) => Math.max(8, Math.min(size - 8, v));
+
+  // Colours
+  const colCanvas  = 'var(--color-bg-canvas, #0f172a)';
+  const colSlab    = isPdf ? '#f8fafc' : 'var(--color-bg-surface, #1e293b)';
+  const colArea    = isPdf ? '#cbd5e1' : 'var(--color-bg-elevated, #263348)';
+  const strokeArea = isPdf ? '#334155' : 'var(--color-border-main, #475569)';
+  const strokeU1   = isPdf ? '#0ea5e9' : '#38bdf8';
+  const strokeUout = isPdf ? '#64748b' : '#64748b';
+  const strokeEdge = isPdf ? '#475569' : '#64748b';
+  const textCol    = isPdf ? '#475569' : '#94a3b8';
+  const strokeSw   = isPdf ? '#94a3b8' : '#64748b';
+  const tintCol    = overall === 'fail' ? '#ef4444' : overall === 'warn' ? '#f59e0b' : '#22c55e';
+
+  // Shear-reinforcement perimeters (rings) + studs on the loaded spokes.
+  const ringDists: number[] = [];
+  if (hasShearReinf && sr > 0 && d > 0) {
+    const dmax = drawUout ? tOut : 1.5 * d;
+    for (let t = 0.5 * d; t <= dmax + 1e-6 && ringDists.length < 6; t += sr) ringDists.push(t);
+  }
+  const spokes = (['up', 'left', 'right', 'down'] as const).filter((dir) => {
+    if (dir === 'down')  return !freeBottom;
+    if (dir === 'right') return !freeRight;
+    return true;
+  });
+  const studXY = (dir: (typeof spokes)[number], t: number): [number, number] => {
+    if (dir === 'up')    return [px(0), py(-(hy + t))];
+    if (dir === 'down')  return [px(0), py( (hy + t))];
+    if (dir === 'left')  return [px(-(hx + t)), py(0)];
+    return [px((hx + t)), py(0)];
+  };
+
+  // Concrete region clip — truncates u1/uout/rings exactly at the free edge(s).
+  const clipId = `punch-slab-${position}`;
+  const clipRect =
+    position === 'esquina' ? { x: 0, y: 0, w: px(hx), h: py(hy) }
+    : position === 'borde' ? { x: 0, y: 0, w: size, h: py(hy) }
+    : { x: 0, y: 0, w: size, h: size };
+
+  // Rounded-rect (rectangular) or circle (circular) offset at distance t.
+  const offsetShape = (
+    t: number,
+    opts: { stroke?: string; sw?: number; dash?: string; fill?: string; fillOpacity?: number; key?: string },
+  ) => {
+    const { stroke = 'none', sw = 0, dash, fill = 'none', fillOpacity, key } = opts;
+    return useCircular ? (
+      <circle key={key} cx={px(0)} cy={py(0)} r={(hx + t) * scale}
+        fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />
+    ) : (
+      <rect key={key}
+        x={px(-(hx + t))} y={py(-(hy + t))}
+        width={(2 * hx + 2 * t) * scale} height={(2 * hy + 2 * t) * scale}
+        rx={t * scale} ry={t * scale}
+        fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />
     );
-  }
-  if (position === 'esquina') {
-    edgeLines.push(
-      <line key="edge-left" x1={ox} y1={0} x2={ox} y2={size}
-        stroke={strokeEdge} strokeWidth={1.5} strokeDasharray="5 3" />
-    );
-  }
+  };
 
-  // u1 perimeter shape
-  const u1EllipseRx = r_u1_px_x;
-  const u1EllipseRy = r_u1_px_y;
-
-  // uout circle
-  const showUout = rOut_px > 0 && rOut_px > hcx;
-
-  // Stirrup grid lines (plan view, tipo viga, when hasShearReinf)
-  const stirrupLines: React.ReactElement[] = [];
-  if (hasShearReinf && sr > 0) {
-    const srPx = sr * scale;
-    const nRows = Math.min(Math.max(Math.floor(1.5 * d / sr), 1), 5);
-
-    for (let n = 1; n <= nRows; n++) {
-      const xOff = hcx + n * srPx;
-      const yOff = hcy + n * srPx;
-
-      // X-direction stirrups: vertical tick marks at ±xOff, spanning ±hcy
-      // Right side (always)
-      stirrupLines.push(
-        <line key={`sx-r-${n}`}
-          x1={ox + xOff} y1={oy - hcy}
-          x2={ox + xOff} y2={oy + hcy}
-          stroke={strokeSw} strokeWidth={1.5} strokeLinecap="round"
-        />
-      );
-      // Left side (not for esquina)
-      if (position !== 'esquina') {
-        stirrupLines.push(
-          <line key={`sx-l-${n}`}
-            x1={ox - xOff} y1={oy - hcy}
-            x2={ox - xOff} y2={oy + hcy}
-            stroke={strokeSw} strokeWidth={1.5} strokeLinecap="round"
-          />
-        );
-      }
-
-      // Y-direction stirrups: horizontal tick marks at ±yOff, spanning ±hcx
-      // Bottom side (always — toward slab interior)
-      stirrupLines.push(
-        <line key={`sy-b-${n}`}
-          x1={ox - hcx} y1={oy + yOff}
-          x2={ox + hcx} y2={oy + yOff}
-          stroke={strokeSw} strokeWidth={1.5} strokeLinecap="round"
-        />
-      );
-      // Top side (only for interior)
-      if (position === 'interior') {
-        stirrupLines.push(
-          <line key={`sy-t-${n}`}
-            x1={ox - hcx} y1={oy - yOff}
-            x2={ox + hcx} y2={oy - yOff}
-            stroke={strokeSw} strokeWidth={1.5} strokeLinecap="round"
-          />
-        );
-      }
-    }
-  }
+  // 2d cota: prefer the right side; if it's a free edge (esquina), use the top.
+  const cota = freeRight
+    ? { x1: px(0), y1: py(-hy), x2: px(0), y2: py(-(hy + t1)),
+        tx: px(0) - 11, ty: (py(-hy) + py(-(hy + t1))) / 2 }
+    : { x1: px(hx), y1: py(0), x2: px(hx + t1), y2: py(0),
+        tx: (px(hx) + px(hx + t1)) / 2, ty: py(0) - 5 };
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      aria-label="Vista en planta — punzonamiento"
-    >
-      {/* Background */}
-      {!isPdf && (
-        <rect width={size} height={size} fill="var(--color-bg-canvas, #0f172a)" />
-      )}
-
-      {/* Edge lines (borde/esquina) */}
-      {edgeLines}
-
-      {/* uout perimeter */}
-      {showUout && (
-        <ellipse
-          cx={ox} cy={oy}
-          rx={rOut_px} ry={rOut_px}
-          fill="none"
-          stroke={strokeUout}
-          strokeWidth={1}
-          strokeDasharray="4 3"
-        />
-      )}
-
-      {/* u1 perimeter */}
-      {useCircular ? (
-        <ellipse
-          cx={ox} cy={oy}
-          rx={u1EllipseRx} ry={u1EllipseRx}
-          fill="none"
-          stroke={strokeU1}
-          strokeWidth={1.5}
-        />
-      ) : (
-        <rect
-          x={ox - u1EllipseRx} y={oy - u1EllipseRy}
-          width={u1EllipseRx * 2} height={u1EllipseRy * 2}
-          rx={2 * d * scale}
-          fill="none"
-          stroke={strokeU1}
-          strokeWidth={1.5}
-        />
-      )}
-
-      {/* Stirrup grid (plan view tipo viga) */}
-      {stirrupLines}
-
-      {/* Loaded area */}
-      {useCircular ? (
-        <ellipse
-          cx={ox} cy={oy}
-          rx={hcx} ry={hcx}
-          fill={colArea}
-          stroke={strokeArea}
-          strokeWidth={1}
-        />
-      ) : (
-        <rect
-          x={ox - hcx} y={oy - hcy}
-          width={hcx * 2} height={hcy * 2}
-          fill={colArea}
-          stroke={strokeArea}
-          strokeWidth={1}
-        />
-      )}
-
-      {/* Label: u1 */}
-      <text
-        x={ox + u1EllipseRx + 4}
-        y={oy - 4}
-        fontSize={10}
-        fontFamily="monospace"
-        fill={strokeU1}
-      >
-        u1
-      </text>
-
-      {/* Label: uout */}
-      {showUout && (
-        <text
-          x={ox + rOut_px + 4}
-          y={oy + 12}
-          fontSize={10}
-          fontFamily="monospace"
-          fill={textCol}
-        >
-          uout
-        </text>
-      )}
-
-      {/* Cota: 2d annotation */}
-      <line
-        x1={ox + hcx} y1={oy}
-        x2={ox + u1EllipseRx} y2={oy}
-        stroke={strokeU1}
-        strokeWidth={0.75}
-        markerEnd="url(#arrow-u1)"
-      />
-      <text
-        x={ox + hcx + (u1EllipseRx - hcx) / 2}
-        y={oy - 5}
-        fontSize={9}
-        fontFamily="monospace"
-        textAnchor="middle"
-        fill={strokeU1}
-      >
-        2d
-      </text>
-
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Vista en planta — punzonamiento">
       <defs>
+        <clipPath id={clipId}>
+          <rect x={clipRect.x} y={clipRect.y} width={clipRect.w} height={clipRect.h} />
+        </clipPath>
         <marker id="arrow-u1" markerWidth={6} markerHeight={6} refX={3} refY={3} orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill={strokeU1} />
         </marker>
+        {/* Diagonal hatch for the point-load contact area (vs the solid column) */}
+        <pattern id="punch-load-hatch" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width={6} height={6} fill={colArea} />
+          <line x1={0} y1={0} x2={0} y2={6} stroke={strokeArea} strokeWidth={0.8} />
+        </pattern>
       </defs>
-    </svg>
-  );
-}
 
-// ── Section view (bottom) ─────────────────────────────────────────────────────
-function SectionView({
-  inp,
-  width,
-  height,
-  svgMode,
-}: {
-  inp: PunchingInputs;
-  width: number;
-  height: number;
-  svgMode: 'screen' | 'pdf';
-}) {
-  const isPdf  = svgMode === 'pdf';
-  const cx     = inp.cx as number;
-  const d      = inp.d as number;
-  const sr     = inp.sr as number;
-  const mode   = inp.mode as PunchingMode;
+      {!isPdf && <rect width={size} height={size} fill={colCanvas} />}
 
-  const SLAB_H_PX   = height * 0.35;
-  const SLAB_TOP    = height * 0.25;
-  const SLAB_BOT    = SLAB_TOP + SLAB_H_PX;
-  const CENTER_X    = width / 2;
-  const PILLAR_H    = height * 0.35;
+      {/* Slab + perimeters, clipped to the concrete region (truncates at free edges) */}
+      <g clipPath={`url(#${clipId})`}>
+        {/* Concrete slab */}
+        <rect x={0} y={0} width={size} height={size} fill={colSlab} />
 
-  const maxColPx = width * 0.25;
-  const colScale = maxColPx / Math.max(cx, 300);
-  const colHalfW = Math.max((cx / 2) * colScale, 20);
+        {/* Punching collar (column → u1) tinted with the verdict */}
+        {offsetShape(t1, { fill: tintCol, fillOpacity: isPdf ? 0.12 : 0.16, key: 'tint' })}
 
-  const coneOutX = colHalfW + SLAB_H_PX / 2;
+        {/* uout perimeter — limit of required shear reinforcement */}
+        {drawUout && offsetShape(tOut, { stroke: strokeUout, sw: 1, dash: '4 3', key: 'uout' })}
 
-  // Colors
-  const slabFill    = isPdf ? '#f1f5f9'   : 'var(--color-bg-surface, #1e293b)';
-  const slabStroke  = isPdf ? '#334155'   : 'var(--color-border-main, #334155)';
-  const colFill     = isPdf ? '#cbd5e1'   : 'var(--color-bg-elevated, #263348)';
-  const coneStroke   = isPdf ? '#64748b'  : '#94a3b8';
-  const rebarStroke  = isPdf ? '#0f172a'  : '#f8fafc';
-  const arrowColor   = isPdf ? '#0f172a'  : '#f8fafc';
-  const accentColor  = isPdf ? '#0ea5e9'  : '#38bdf8';
-  const stirrupColor = isPdf ? '#94a3b8'  : '#475569'; // softer than accent
+        {/* shear-reinforcement perimeters (rings) */}
+        {ringDists.map((t, i) => offsetShape(t, { stroke: strokeSw, sw: 0.8, dash: '2 2', key: `ring-${i}` }))}
 
-  const arrowPilar = mode === 'pilar';
+        {/* u1 critical perimeter */}
+        {offsetShape(t1, { stroke: strokeU1, sw: 1.6, key: 'u1' })}
 
-  // Stirrups: beam-type at sr spacing, up to 1.5d from column face
-  const hasShearReinf = inp.hasShearReinf as boolean;
-  const position = inp.position as PunchingPosition;
-  // Section view: cx is parallel to free edge for borde/esquina
-  // "Right" side in section = away from free edge (interior direction in cx axis)
-  // For borde/esquina: free edge is on the right (+x) in plan; suppress right stirrups.
-  // For interior: both sides.
-  const showRightStirrup = position === 'interior';
-  const showLeftStirrup  = position !== 'esquina';
-  const stirrupRects: React.ReactElement[] = [];
-  if (hasShearReinf && sr > 0) {
-    const srPx = Math.max(sr * colScale, 6);
-    const nStirrups = Math.min(Math.max(Math.floor(1.5 * d / sr), 1), 4);
-    for (let i = 1; i <= nStirrups; i++) {
-      const offset = colHalfW + i * srPx;
-      if (showRightStirrup) {
-        stirrupRects.push(
-          <rect key={`sw-r-${i}`}
-            x={CENTER_X + offset - 3}
-            y={SLAB_TOP + SLAB_H_PX * 0.12}
-            width={6}
-            height={SLAB_H_PX * 0.76}
-            fill="none"
-            stroke={stirrupColor}
-            strokeWidth={1.2}
-          />
-        );
-      }
-      if (showLeftStirrup) {
-        stirrupRects.push(
-          <rect key={`sw-l-${i}`}
-            x={CENTER_X - offset - 3}
-            y={SLAB_TOP + SLAB_H_PX * 0.12}
-            width={6}
-            height={SLAB_H_PX * 0.76}
-            fill="none"
-            stroke={stirrupColor}
-            strokeWidth={1.2}
-          />
-        );
-      }
-    }
-  }
+        {/* studs on the loaded spokes */}
+        {ringDists.map((t, ti) =>
+          spokes.map((dir) => {
+            const [sxp, syp] = studXY(dir, t);
+            return <circle key={`stud-${dir}-${ti}`} cx={sxp} cy={syp} r={2.2} fill={strokeSw} />;
+          }),
+        )}
+      </g>
 
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      aria-label="Sección transversal — punzonamiento"
-    >
-      {!isPdf && (
-        <rect width={width} height={height} fill="var(--color-bg-canvas, #0f172a)" />
-      )}
-
-      {/* Column (pilar mode) below slab */}
-      {mode === 'pilar' && (
-        <rect
-          x={CENTER_X - colHalfW}
-          y={SLAB_BOT}
-          width={colHalfW * 2}
-          height={PILLAR_H}
-          fill={colFill}
-          stroke={slabStroke}
-          strokeWidth={1}
-        />
-      )}
-
-      {/* Slab */}
-      <rect
-        x={0}
-        y={SLAB_TOP}
-        width={width}
-        height={SLAB_H_PX}
-        fill={slabFill}
-        stroke={slabStroke}
-        strokeWidth={1}
-      />
-
-      {/* Loaded area top (carga-puntual mode) */}
-      {mode === 'carga-puntual' && (
-        <rect
-          x={CENTER_X - colHalfW}
-          y={SLAB_TOP - PILLAR_H * 0.4}
-          width={colHalfW * 2}
-          height={PILLAR_H * 0.4}
-          fill={colFill}
-          stroke={slabStroke}
-          strokeWidth={1}
-        />
-      )}
-
-      {/* Punching cone lines */}
-      <line
-        x1={CENTER_X - colHalfW} y1={SLAB_TOP}
-        x2={CENTER_X - coneOutX} y2={SLAB_BOT}
-        stroke={coneStroke} strokeWidth={1}
-      />
-      <line
-        x1={CENTER_X + colHalfW} y1={SLAB_TOP}
-        x2={CENTER_X + coneOutX} y2={SLAB_BOT}
-        stroke={coneStroke} strokeWidth={1}
-      />
-
-      {/* Stirrups (beam-type, tipo viga) */}
-      {stirrupRects}
-
-      {/* Flexural bars */}
-      {[...Array(5)].map((_, i) => {
-        const bx = CENTER_X - 2 * colHalfW + i * colHalfW;
-        const by = arrowPilar ? SLAB_BOT - 6 : SLAB_TOP + 6;
-        return (
-          <circle key={i} cx={bx} cy={by} r={3} fill="none" stroke={rebarStroke} strokeWidth={1} />
-        );
-      })}
-
-      {/* VEd arrow */}
-      {arrowPilar ? (
-        <>
-          <line
-            x1={CENTER_X} y1={SLAB_BOT + PILLAR_H * 0.7}
-            x2={CENTER_X} y2={SLAB_BOT + 4}
-            stroke={arrowColor} strokeWidth={1.5} markerEnd="url(#arrow-ved)"
-          />
-          <text x={CENTER_X + 8} y={SLAB_BOT + PILLAR_H * 0.55}
-            fontSize={10} fontFamily="monospace" fill={arrowColor}>VEd</text>
-        </>
+      {/* Loaded area (opaque, on top): solid = column (pilar), hatch + load glyph =
+          point-load contact area (carga puntual, no column). */}
+      {useCircular ? (
+        <circle cx={px(0)} cy={py(0)} r={hx * scale}
+          fill={isLoad ? 'url(#punch-load-hatch)' : colArea} stroke={strokeArea} strokeWidth={1} />
       ) : (
-        <>
-          <line
-            x1={CENTER_X} y1={SLAB_TOP - PILLAR_H * 0.55}
-            x2={CENTER_X} y2={SLAB_TOP - PILLAR_H * 0.05}
-            stroke={arrowColor} strokeWidth={1.5} markerEnd="url(#arrow-ved)"
-          />
-          <text x={CENTER_X + 8} y={SLAB_TOP - PILLAR_H * 0.35}
-            fontSize={10} fontFamily="monospace" fill={arrowColor}>VEd</text>
-        </>
+        <rect x={px(-hx)} y={py(-hy)} width={2 * hx * scale} height={2 * hy * scale}
+          fill={isLoad ? 'url(#punch-load-hatch)' : colArea} stroke={strokeArea} strokeWidth={1} />
+      )}
+      {isLoad && (
+        <g stroke={isPdf ? '#334155' : '#e2e8f0'} fill={isPdf ? '#334155' : '#e2e8f0'}>
+          <circle cx={px(0)} cy={py(0)} r={7} fill="none" strokeWidth={1.3} />
+          <circle cx={px(0)} cy={py(0)} r={2.4} strokeWidth={0} />
+        </g>
       )}
 
-      {/* d annotation */}
-      <line
-        x1={width * 0.88} y1={arrowPilar ? SLAB_BOT - 6 : SLAB_TOP + 6}
-        x2={width * 0.88} y2={arrowPilar ? SLAB_TOP : SLAB_BOT}
-        stroke={accentColor} strokeWidth={0.75}
-      />
-      <text x={width * 0.88 + 4} y={(SLAB_TOP + SLAB_BOT) / 2 + 4}
-        fontSize={10} fontFamily="monospace" fill={accentColor}>d</text>
+      {/* Free-edge line(s) — slab boundary */}
+      {freeBottom && (
+        <line x1={0} y1={py(hy)} x2={position === 'esquina' ? px(hx) : size} y2={py(hy)}
+          stroke={strokeEdge} strokeWidth={2} />
+      )}
+      {freeRight && (
+        <line x1={px(hx)} y1={0} x2={px(hx)} y2={py(hy)} stroke={strokeEdge} strokeWidth={2} />
+      )}
 
-      <defs>
-        <marker id="arrow-ved" markerWidth={6} markerHeight={6} refX={3} refY={6} orient="auto">
-          <path d="M0,0 L3,6 L6,0 z" fill={arrowColor} />
-        </marker>
-      </defs>
+      {/* 2d cota */}
+      <line x1={cota.x1} y1={cota.y1} x2={cota.x2} y2={cota.y2}
+        stroke={strokeU1} strokeWidth={0.75} markerEnd="url(#arrow-u1)" />
+      <text x={cota.tx} y={cota.ty} fontSize={9} fontFamily="monospace" textAnchor="middle" fill={strokeU1}>2d</text>
+
+      {/* Labels */}
+      <text x={clamp(px(0))} y={clamp(py(-(hy + t1)) - 5)} fontSize={11} fontFamily="monospace"
+        textAnchor="middle" fill={strokeU1}>u1</text>
+      {drawUout && (
+        <text x={clamp(px(0) + 18)} y={clamp(py(-(hy + tOut)) - 4)} fontSize={9} fontFamily="monospace"
+          textAnchor="middle" fill={textCol}>uout</text>
+      )}
+      {freeBottom && (
+        <text x={position === 'esquina' ? clamp(px(hx) / 2) : size / 2} y={clamp(py(hy) + 13)}
+          fontSize={9} fontFamily="monospace" textAnchor="middle" fill={textCol}>borde libre</text>
+      )}
+      {freeRight && (() => {
+        const rx = clamp(px(hx) + 11);
+        const ry = clamp(py(hy) / 2);
+        return (
+          <text x={rx} y={ry} fontSize={9} fontFamily="monospace" textAnchor="middle"
+            fill={textCol} transform={`rotate(-90 ${rx} ${ry})`}>borde libre</text>
+        );
+      })()}
     </svg>
   );
 }
 
 // ── Cruceta plan view (steel column + UPN crucetas welded to each face) ────────
 function CrossPlanView({
-  inp, result, size, svgMode,
+  inp, size, svgMode,
 }: {
   inp: PunchingInputs;
-  result: PunchingResult;
   size: number;
   svgMode: 'screen' | 'pdf';
 }) {
   const isPdf = svgMode === 'pdf';
-  const c = result.cruceta;
   const plateA = inp.plateA as number;
   const plateB = inp.plateB as number;
   const d = inp.d as number;
-  const Leff = c?.Leff ?? 0;
+  // Longitud de brazo ESQUEMÁTICA (el dibujo es "no a escala"): el modelo de reparto
+  // se eliminó (recorte 2026-06-09), así que la cruz se dibuja con un brazo proporcional
+  // a la placa solo para ilustrar el detalle. El reparto real lo verifica el ingeniero.
+  const Leff = Math.max(plateA, plateB) * 1.4;
   const r = 2 * d;
 
   // Column profile geometry (plan = I/H cross-section): depth h along y, width b along x.
@@ -486,12 +271,44 @@ function CrossPlanView({
   // the canvas edge (its true value is in the results / label). The steel and its
   // parts are to scale among themselves.
   void r;
-  const steelHalfX = Math.max(plateA / 2, pb_ / 2 + Leff);
-  const steelHalfY = Math.max(plateB / 2, ph / 2 + Leff);
-  const steelHalf = Math.max(steelHalfX, steelHalfY);
-  const scale = ((size / 2) * 0.70) / Math.max(steelHalf, 1);
-  const ox = size / 2;
-  const oy = size / 2;
+  // Arm presence by position (interior 4, borde drops down, esquina drops down+left).
+  const leftPresent = inp.position !== 'esquina';
+  const downPresent = inp.position === 'interior';
+  const bodyX = Math.max(pb_ / 2, plateA / 2);
+  const bodyY = Math.max(ph / 2, plateB / 2);
+  const armV = ph / 2 + Leff;   // vertical arm reach from plate centre
+  const armH = pb_ / 2 + Leff;  // horizontal arm reach
+  const Ru = Math.max(bodyY, armV);                       // up arm (always)
+  const Rr = Math.max(bodyX, armH);                       // right arm (always)
+  const Rl = leftPresent ? Math.max(bodyX, armH) : bodyX; // left arm (not esquina)
+  const Rd = downPresent ? Math.max(bodyY, armV) : bodyY; // down arm (interior only)
+
+  // Layout: interior is centred. Borde/esquina anchor the steel against the free
+  // edge(s) near the canvas border and scale to fill the slab side, so the
+  // concrete-less void beyond the edge is a thin strip, not half the canvas
+  // (matches the pilar / carga-puntual plan views).
+  let scale: number, ox: number, oy: number;
+  if (inp.position === 'interior') {
+    const maxReach = Math.max(Ru, Rr, Rl, Rd, 1);
+    scale = ((size / 2) * 0.70) / maxReach;
+    ox = size / 2;
+    oy = size / 2;
+  } else {
+    const BOT = 26, LFT = 26, TM = 16, SM = 16;
+    const FE_Y = size - BOT;     // bottom free edge near the canvas border
+    const FE_X = LFT;            // left free edge (esquina)
+    const offY = plateB / 2 + (inp.edgeY as number); // plate centre → bottom edge
+    const offX = plateA / 2 + (inp.edgeX as number); // plate centre → left edge
+    const cands = [(FE_Y - TM) / (offY + Ru)];       // fit the up arm under the top
+    if (inp.position === 'borde') {
+      cands.push((size / 2 - SM) / Math.max(Rr, 1), (size / 2 - SM) / Math.max(Rl, 1));
+    } else {
+      cands.push((size - SM - FE_X) / (offX + Rr));   // fit the right arm
+    }
+    scale = Math.max(0.02, Math.min(...cands));
+    oy = FE_Y - offY * scale;
+    ox = inp.position === 'esquina' ? FE_X + offX * scale : size / 2;
+  }
   const px = (mm: number) => mm * scale;
 
   // Column profile = the prominent element (light). Crucetas = secondary (darker).
@@ -512,41 +329,58 @@ function CrossPlanView({
   const le = px(Leff);
   const paH = px(plateA) / 2;
   const pbH = px(plateB) / 2;
+  const chT = Math.max(Math.min(hb, hh) * 0.85, 14);  // UPN channel footprint width
 
   // u1 schematic boundary (NOT to scale — see note above)
   const u1Inset = 7;
 
-  // A UPN cruceta drawn as a filled arm welded to a face, with a UPN channel hint
-  // (back line near the column + open outer end) and a highlighted weld line.
-  // dir: 'up'|'down'|'left'|'right' — outward direction from the column face.
-  const cruceta = (dir: 'up' | 'down' | 'left' | 'right'): React.ReactElement | null => {
+  // Free-edge positions (to scale, relative to the plate). The schematic u1
+  // boundary is truncated at these edges — the concrete control perimeter stops
+  // at the slab edge, same as the pilar / carga-puntual plan views.
+  const horizEdgeY = Math.max(0, Math.min(size, oy + pbH + px(inp.edgeY)));
+  const vertEdgeX  = Math.max(0, Math.min(size, ox - paH - px(inp.edgeX)));
+  const slabClipId = `cruz-slab-${inp.position}`;
+  const slabClip =
+    inp.position === 'esquina' ? { x: vertEdgeX, y: 0, w: size - vertEdgeX, h: horizEdgeY }
+    : inp.position === 'borde' ? { x: 0, y: 0, w: size, h: horizEdgeY }
+    : { x: 0, y: 0, w: size, h: size };
+
+  // A UPN cruceta drawn as a channel that runs TANGENT to a profile face, parallel
+  // to it, passing by the column on both ends and projecting L_eff beyond. It is
+  // welded LONGITUDINALLY along the contact with the face (never butting head-on)
+  // and stays entirely OUTSIDE the profile. dir = which face it hugs.
+  const channel = (dir: 'up' | 'down' | 'left' | 'right'): React.ReactElement | null => {
     if (le <= 0) return null;
     if (dir === 'up' || dir === 'down') {
-      const yFace = dir === 'up' ? oy - hh : oy + hh;       // flange outer face
-      const yTip  = dir === 'up' ? yFace - le : yFace + le;
-      const w = hb * 0.9;                                    // half-span across the flange
-      const y0 = Math.min(yFace, yTip);
+      // horizontal channel tangent to the flange face, passing left & right
+      const face = dir === 'up' ? oy - hh : oy + hh;       // flange face (weld line)
+      const yt   = dir === 'up' ? face - chT : face;       // channel band
+      const x1 = ox - hb - le, x2 = ox + hb + le;
       return (
         <g key={dir}>
-          <rect x={ox - w} y={y0} width={2 * w} height={le} fill={armFill} stroke={armStroke} strokeWidth={1} />
-          {/* UPN channel hint: two flange lines along the arm length */}
-          <line x1={ox - w * 0.55} y1={y0} x2={ox - w * 0.55} y2={y0 + le} stroke={armStroke} strokeWidth={0.6} />
-          <line x1={ox + w * 0.55} y1={y0} x2={ox + w * 0.55} y2={y0 + le} stroke={armStroke} strokeWidth={0.6} />
-          <line x1={ox - w} y1={yFace} x2={ox + w} y2={yFace} stroke={weldCol} strokeWidth={2} />
+          <rect x={x1} y={yt} width={x2 - x1} height={chT} fill={armFill} stroke={armStroke} strokeWidth={1} />
+          {/* UPN = canal en C: una sola línea (el alma/dorso) en el lado interior, hacia el pilar */}
+          <line x1={x1} y1={dir === 'up' ? face - chT * 0.28 : face + chT * 0.28}
+                x2={x2} y2={dir === 'up' ? face - chT * 0.28 : face + chT * 0.28}
+                stroke={armStroke} strokeWidth={0.7} />
+          {/* longitudinal weld along the face contact */}
+          <line x1={ox - hb} y1={face} x2={ox + hb} y2={face} stroke={weldCol} strokeWidth={2} />
         </g>
       );
     }
-    const xFace = dir === 'left' ? ox - hb : ox + hb;        // flange-tip face
-    const xTip  = dir === 'left' ? xFace - le : xFace + le;
-    const w = hh * 0.9;                                       // half-span across the depth (both tips)
-    const x0 = Math.min(xFace, xTip);
+    // vertical channel tangent to the side face (flange tips), passing up & down
+    const face = dir === 'left' ? ox - hb : ox + hb;       // side face (weld line)
+    const xt   = dir === 'left' ? face - chT : face;       // channel band
+    const y1 = oy - hh - le, y2 = oy + hh + le;
     return (
       <g key={dir}>
-        <rect x={x0} y={oy - w} width={le} height={2 * w} fill={armFill} stroke={armStroke} strokeWidth={1} />
-        {/* UPN channel hint: two flange lines along the arm length */}
-        <line x1={x0} y1={oy - w * 0.55} x2={x0 + le} y2={oy - w * 0.55} stroke={armStroke} strokeWidth={0.6} />
-        <line x1={x0} y1={oy + w * 0.55} x2={x0 + le} y2={oy + w * 0.55} stroke={armStroke} strokeWidth={0.6} />
-        <line x1={xFace} y1={oy - w} x2={xFace} y2={oy + w} stroke={weldCol} strokeWidth={2} />
+        <rect x={xt} y={y1} width={chT} height={y2 - y1} fill={armFill} stroke={armStroke} strokeWidth={1} />
+        {/* UPN = canal en C: una sola línea (el alma/dorso) en el lado interior, hacia el pilar */}
+        <line x1={dir === 'left' ? face - chT * 0.28 : face + chT * 0.28} y1={y1}
+              x2={dir === 'left' ? face - chT * 0.28 : face + chT * 0.28} y2={y2}
+              stroke={armStroke} strokeWidth={0.7} />
+        {/* longitudinal weld along the face contact */}
+        <line x1={face} y1={oy - hh} x2={face} y2={oy + hh} stroke={weldCol} strokeWidth={2} />
       </g>
     );
   };
@@ -555,12 +389,19 @@ function CrossPlanView({
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Vista en planta — pilar con crucetas">
       {!isPdf && <rect width={size} height={size} fill="var(--color-bg-canvas, #0f172a)" />}
 
-      {/* u1 perimeter — schematic context boundary (NOT to scale) */}
+      <defs>
+        <clipPath id={slabClipId}>
+          <rect x={slabClip.x} y={slabClip.y} width={slabClip.w} height={slabClip.h} />
+        </clipPath>
+      </defs>
+
+      {/* u1 perimeter — schematic boundary (NOT to scale), truncated at free edge(s) */}
       <rect
         x={u1Inset} y={u1Inset}
         width={size - 2 * u1Inset} height={size - 2 * u1Inset}
         rx={18} ry={18}
         fill="none" stroke={strokeU1} strokeWidth={1.5} strokeDasharray="5 3"
+        clipPath={`url(#${slabClipId})`}
       />
 
       {/* end plate (bears on concrete) — faint outline */}
@@ -569,26 +410,16 @@ function CrossPlanView({
         fill="none" stroke={plateStroke} strokeWidth={1} strokeDasharray="3 2"
       />
 
-      {/* crucetas welded to the present faces — a free edge drops the arm toward
-          it: borde drops −y (down), esquina drops −y and −x (down + left). */}
-      {(['up', 'down', 'left', 'right'] as const)
-        .filter((dir) => {
-          if (inp.position === 'borde')   return dir !== 'down';
-          if (inp.position === 'esquina') return dir !== 'down' && dir !== 'left';
-          return true;
-        })
-        .map((dir) => cruceta(dir))}
-
       {/* free-edge line(s) where the concrete ends (perimeter is truncated here) */}
       {inp.position !== 'interior' && (
         <>
-          <line x1={u1Inset} y1={oy + pbH + px(inp.edgeY)} x2={size - u1Inset} y2={oy + pbH + px(inp.edgeY)}
+          <line x1={u1Inset} y1={horizEdgeY} x2={size - u1Inset} y2={horizEdgeY}
             stroke={textCol} strokeWidth={1.5} strokeDasharray="6 3" />
-          <text x={size - u1Inset - 4} y={oy + pbH + px(inp.edgeY) - 4} fontSize={8} fontFamily="monospace" textAnchor="end" fill={textCol}>borde libre</text>
+          <text x={size - u1Inset - 4} y={horizEdgeY - 4} fontSize={8} fontFamily="monospace" textAnchor="end" fill={textCol}>borde libre</text>
         </>
       )}
       {inp.position === 'esquina' && (
-        <line x1={ox - paH - px(inp.edgeX)} y1={u1Inset} x2={ox - paH - px(inp.edgeX)} y2={size - u1Inset}
+        <line x1={vertEdgeX} y1={u1Inset} x2={vertEdgeX} y2={size - u1Inset}
           stroke={textCol} strokeWidth={1.5} strokeDasharray="6 3" />
       )}
 
@@ -599,15 +430,20 @@ function CrossPlanView({
         <rect x={ox - tw} y={oy - hh + tf} width={tw * 2} height={hh * 2 - 2 * tf} /> {/* web */}
       </g>
 
-      {/* labels */}
+      {/* UPN crucetas — one channel tangent to each column face, welded
+          longitudinally and passing the column on both ends (full length L_eff).
+          The edge-facing channel(s) are the "crucetas de borde": they hug the
+          column just like the interior arms (NOT stuck to the free edge), so all
+          four are drawn for every position. Truncated only at the slab free edge. */}
+      <g clipPath={`url(#${slabClipId})`}>
+        {(['up', 'down', 'left', 'right'] as const).map((dir) => channel(dir))}
+      </g>
+
+      {/* labels — sin "L_eff" (el reparto se eliminó; el brazo dibujado es esquemático,
+          no una longitud eficaz calculada). El pie ya identifica el perfil y el "no a escala". */}
       <text x={size - u1Inset - 16} y={u1Inset + 13} fontSize={10} fontFamily="monospace" fill={strokeU1}>u1</text>
-      {Leff > 0 && (
-        <text x={ox + hb + le / 2} y={oy - 4} fontSize={9} fontFamily="monospace" textAnchor="middle" fill={textCol}>
-          L_eff
-        </text>
-      )}
       <text x={ox} y={size - u1Inset - 6} fontSize={8} fontFamily="monospace" textAnchor="middle" fill={textCol}>
-        {inp.colType} {inp.colSize} · u1 esquemático (no a escala)
+        {inp.colType} {inp.colSize} · cruceta UPN {inp.upnSize} · esquemático (no a escala)
       </text>
     </svg>
   );
@@ -615,21 +451,19 @@ function CrossPlanView({
 
 // ── Main export ───────────────────────────────────────────────────────────────
 export function PunchingSVG({ inp, result, width, mode = 'screen' }: PunchingSVGProps) {
-  const planSize   = Math.min(width, 360);
-  const sectionH   = Math.round(planSize * 0.5);
+  const planSize = Math.min(width, 360);
 
   if ((inp.mode as PunchingMode) === 'pilar-cruceta') {
     return (
       <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
-        <CrossPlanView inp={inp} result={result} size={planSize} svgMode={mode} />
+        <CrossPlanView inp={inp} size={planSize} svgMode={mode} />
       </div>
     );
   }
 
   return (
     <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
-      <PlanView    inp={inp} result={result} size={planSize}   svgMode={mode} />
-      <SectionView inp={inp} width={planSize} height={sectionH} svgMode={mode} />
+      <PlanView inp={inp} result={result} size={planSize} svgMode={mode} />
     </div>
   );
 }

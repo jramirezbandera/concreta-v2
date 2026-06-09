@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { calcPunching } from '../../lib/calculations/punching';
 import { punchingDefaults } from '../../data/defaults';
+import { formatQuantity } from '../../lib/units/format';
 
 const base = { ...punchingDefaults };
 // base: cx=300, cy=300, d=200, fck=25, fyk=500
@@ -119,9 +120,33 @@ describe('u0 / vEd,0', () => {
   it('punz-ved-max check uses vEd0 (not vEd)', () => {
     const r = calcPunching(base);
     const c = r.checks.find((c) => c.id === 'punz-ved-max')!;
-    // "value" field of the check should show vEd0, not vEd
-    expect(c.value).toContain(r.vEd0.toFixed(3));
-    expect(c.value).not.toContain(r.vEd.toFixed(3));
+    // Tensión por Quantity 'stress' (valueNum SI = N/mm², toggle-aware): debe ser vEd0.
+    expect(c.valueQty).toBe('stress');
+    expect(c.valueNum).toBeCloseTo(r.vEd0, 6);
+    expect(c.valueNum).not.toBeCloseTo(r.vEd, 6);
+  });
+});
+
+// ── Unidades de tensión: toggle N/mm² ↔ kg/cm² (lo pidió el usuario, 2026-06-09) ──
+// Las tensiones del punzonamiento van por la Quantity 'stress', así que las filas de
+// verificación CONVIERTEN con el sistema activo (igual que el resto de la app). Blinda
+// el cableado punzonamiento→stress: un cambio futuro que vuelva a hardcodear "MPa" o que
+// rompa la Quantity lo caza este test.
+describe('unidades de tensión (toggle N/mm² ↔ kg/cm²)', () => {
+  it('los checks de tensión usan la Quantity stress y convierten con el toggle', () => {
+    const r = calcPunching(base);
+    for (const id of ['punz-ved-max', 'punz-ved-vrdc']) {
+      const c = r.checks.find((c) => c.id === id)!;
+      expect(c.valueQty, id).toBe('stress');
+      const si  = formatQuantity(c.valueNum!, 'stress', 'si');
+      const tec = formatQuantity(c.valueNum!, 'stress', 'tecnico');
+      expect(si,  `${id} SI`).toContain('N/mm²');
+      expect(tec, `${id} técnico`).toContain('kg/cm²');
+      // mismo valor físico ≈ ×10.2 (loose por el redondeo a 1 decimal del catálogo)
+      const ratio = parseFloat(tec) / parseFloat(si);
+      expect(ratio, `${id} ratio`).toBeGreaterThan(8);
+      expect(ratio, `${id} ratio`).toBeLessThan(12);
+    }
   });
 });
 

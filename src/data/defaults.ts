@@ -344,31 +344,17 @@ export interface PunchingInputs {
   // ── Cruceta mode (mode='pilar-cruceta') ──────────────────────────────────
   colType:       CrucetaColType;    // steel column profile family
   colSize:       number;            // profile size key (e.g. 200 for HEB 200)
-  plateA:        number;            // mm — end plate dim x (bears on concrete)
+  // Modo RECORTADO a "compañero de hand-calc" (2026-06-09): solo punzonamiento
+  // conservador de la placa + datos del UPN. El reparto lo verifica el ingeniero.
+  plateA:        number;            // mm — end plate dim x (área cargada)
   plateB:        number;            // mm — end plate dim y
-  plateT:        number;            // mm — end plate thickness
-  steelGrade:    CrucetaSteel;      // cruceta + plate steel grade
+  plateT:        number;            // mm — end plate thickness (informativo)
+  steelGrade:    CrucetaSteel;      // cruceta steel grade (clase/capacidades UPN)
   upnSize:       number;            // chosen UPN profile size key
-  armLength:     number;            // mm — manual arm length; 0 = auto (use L_eff,max)
-  spanL:         number;            // mm — luz del vano (detalle tipo: brazo ≥ luz/8, ≥50cm)
-  weldThroat:    number;            // mm — fillet weld throat a
-  substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (v2: both)
-  // Detalle tipo (forjado): camino de carga y armadura de reparto del esquema
-  // estándar. Controlan qué estados límite dejan de ser "verificar a mano".
-  armThrough:    boolean;           // cruceta pasante soldada al pilar (vs solo embebida)
-  hasRepartoSup: boolean;           // armadura de reparto superior dispuesta (atado)
-  hasRepartoInf: boolean;           // armadura de reparto inferior dispuesta
-  hasSpiral:     boolean;           // espiral de confinamiento en la zona del pilar (§6.7)
-  spiralD:       number;            // mm — Ø del núcleo confinado por la espiral
-  hasConfTies:   boolean;           // cercos de cosido entre crucetas (plano de delaminación)
-  confTieD:      number;            // mm — Ø del cerco de cosido
-  confTieS:      number;            // mm — separación del cerco a lo largo del brazo
+  weldThroat:    number;            // mm — fillet weld throat a (informativo)
+  substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (etiqueta)
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
-  soilRelief:    boolean;           // subtract soil pressure within u1 (zapata)
-  footB:         number;            // mm — footing plan dim x (soilRelief)
-  footL:         number;            // mm — footing plan dim y (soilRelief)
-  soilPressure:  number;            // kN/m² — design soil pressure (soilRelief)
 }
 
 export const punchingDefaults: PunchingInputs = {
@@ -399,24 +385,10 @@ export const punchingDefaults: PunchingInputs = {
   plateT:        20,
   steelGrade:    'S275',
   upnSize:       160,
-  armLength:     0,      // auto
-  spanL:         5000,   // mm — luz típica → luz/8 = 625mm (> 50cm mínimo)
   weldThroat:    6,
   substrate:     'zapata',
-  armThrough:    true,   // detalle tipo: pasante soldada al pilar
-  hasRepartoSup: true,   // detalle tipo: reparto sup 2Ø10
-  hasRepartoInf: true,   // detalle tipo: reparto inf 1Ø8
-  hasSpiral:     false,  // confinamiento §6.7 opcional (off por defecto, conservador)
-  spiralD:       500,    // mm — núcleo confinado (> placa para que confine)
-  hasConfTies:   true,   // detalle tipo: cercos de cosido entre crucetas
-  confTieD:      8,      // mm — Ø cerco de cosido
-  confTieS:      150,    // mm — separación del cerco
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
   edgeX:         500,
-  soilRelief:    false,
-  footB:         2000,
-  footL:         2000,
-  soilPressure:  150,
 };
 
 // ── Composite steel section (Steiner + EC3 classification) ───────────────────

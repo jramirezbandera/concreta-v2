@@ -199,7 +199,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'steel-columns': '1',
   'isolated-footing': '2', // bumped: rewrite (sigma_adm input + single load set + distribution classification)
   'retaining-wall': '1',
-  'punching': '1',
+  'punching': '2', // bumped 2026-06-09: modo cruceta recortado a "compañero de hand-calc" (~14 inputs eliminados)
   'forjados': '1',
   'composite-section': '1',
   'pile-cap': '1',

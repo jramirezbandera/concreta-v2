@@ -746,3 +746,86 @@ dimensiones finitas de la cimentación (Codex #11).
 **What:** soportar pilares de sección 2UPN cajón y CHS (huella no rectangular para soldar 4 brazos).
 
 **Why:** v1 solo HEB/HEA/IPE. **Cons:** geometría de soldadura y huella no triviales.
+
+### Crucetas (recortado) — afinados menores del eng-review 2026-06-09
+
+Modo cruceta ya recortado a "compañero de hand-calc" (build + tests verde). El eng-review
+dejó dos afinados de baja prioridad (no bloquean):
+- **β para la placa**: `calcCruceta` reusa `betaForPosition` (borde 1.4 / esquina 1.5), que es
+  el modelo de excentricidad de un PILAR con momento, no de una placa de testa. Es conservador
+  (β≥1) y se imprime como dato — verificar/justificar el mapeo o anotar que es aproximación.
+- **Validación geométrica**: no se comprueba que `plateA/plateB ≥ huella del HEB` (una placa más
+  pequeña que el perfil que soporta es imposible y daría u0/u1 demasiado pequeños). Añadir un
+  guard de cabida placa≥pilar.
+
+### ⛔ Crucetas — TODOS los items de abajo DESCARTADOS (2026-06-09)
+
+El modo `pilar-cruceta` se RECORTÓ a "compañero de hand-calc" (design doc
+Javier-main-design-20260609-092620): se eliminó el diseñador automático (reparto shearhead,
+§6.7 confinado, anclaje, descuento de terreno, crédito de borde — cruceta.ts 796→156 LOC, 27→4
+checks propios). Ahora solo hace punzonamiento conservador de la PLACA (reusa `calcPunching`) +
+datos del UPN; el reparto lo verifica el ingeniero a mano. **Los TODOs de cruceta de abajo
+(anclaje, reparto de borde, doble conteo, rethink del alcance, V2 2UPN/CHS, distancias mínimas, Kj
+interior) quedan SIN VIGENCIA** — eran del modelo automático que ya no existe.
+
+### Crucetas — área cargada exacta cuando bEff > lado de placa (doble conteo)
+
+**Status:** GUARD añadido (fail `cru-geom-overhang`, 2026-06-08) — falta el cálculo exacto.
+
+**What:** `Acruz = plateA·plateB + nArms·bEff·Leff` (`cruceta.ts deriveGeom`) asume que los
+brazos NO se solapan con la placa ni entre sí. Si `bEff > min(plateA, plateB)`, el
+medio-ancho del brazo monta sobre la placa / sobre el brazo perpendicular → el área se
+cuenta DOBLE.
+
+**Why:** Acruz inflado → `Vcap` inflado, `σ_act`/demanda menores, y más descuento de
+terreno (relief usa `Au1 = Acruz`). Todo en dirección **no conservadora**. Verificado por
+la voz externa (review 2026-06-08): placa 200×100 con `bEff=160` → 30000 mm² doble.
+
+**Current state:** se bloquea (fail) con el check `cru-geom-overhang` (`bEff ≤ min(plateA,
+plateB)`), así el caso inseguro no pasa silenciosamente. Pendiente: calcular el área de
+UNIÓN real (no la suma de rects) para soportar `bEff > lado` sin bloquear.
+
+**Where to start:** sustituir la suma cerrada por el área de la unión de rects (reutilizar
+el muestreo de `unionOffsetPerimeter` con r=0, o inclusión-exclusión). Quitar el guard
+cuando el área sea exacta. **Depends on:** nada; aislado al modo `pilar-cruceta`.
+
+### Crucetas — RETHINK del alcance acreditado (L_dev tiene inversión de signo) [CRÍTICO]
+
+**Status:** EN REVISIÓN (eng-review + voz externa, 2026-06-08) — fila `cru-dev` en amber, no
+gatea pero marca el verdict como provisional. Implementado pero NO de fiar hasta resolver.
+
+**What:** el cap de alcance acreditado usa `L_dev = pico·F_ala/(2·fcd·b1)` (longitud de
+desarrollo del hand-calc). La voz externa independiente demostró una **inversión de signo**:
+`L_dev` está en posición de crédito, así que hormigón más débil (fcd↓), más carga (F_ala↑) y UPN
+menor (b1↓) dan un alcance MÁS LARGO → u1 mayor → vEd menor → **dirección insegura**. Reductio:
+hormigón infinitamente débil → reparto infinito. El FTUX parece conservador por accidente numérico.
+
+**Why:** el alcance de una cabeza de cortante debe regirse por la FUERZA QUE EL BRAZO ENTREGA al
+cono (decrece al debilitarse el apoyo), no por una longitud de desarrollo (que crece). `min(LeffBend,
+L_dev)` puede elegir el menos seguro de los dos. Afecta a `u1`, `Acruz`, `σ_act`, `Vcap`, relief.
+
+**Where to start:** reformular `L_cred` como un cap de fuerza entregada / momento del brazo que
+DECREZCA con la capacidad de apoyo. Revisar a la vez: `F_ala` (V/2 es el menos conservador aquí, no
+el más — debería ser ~V/(2·nArms)); `PEAK_ROOT`·`DEV_BEARING_FACTOR` se cancelan (=1, calibración
+oculta); unificar `cru-cap` (2/3·fcd·Acruz) con el modelo de apoyo §6.7 que usa el alcance (hoy se
+contradicen). Probable vuelta a `/office-hours` + hand-calc del alcance-como-fuerza.
+
+**Depends on:** este es el núcleo del modelo de anclaje; bloquea cualquier confianza en los números
+de cruceta acreditada. `cru-split` ya gatea (licita el keying 2·fcd con el tirante).
+
+### Crucetas — acreditar el reparto de la cruceta de borde (anclaje verificado)
+
+**Status:** decidido NO acreditar en v1 (2026-06-08) — la cruceta de borde se dibuja y se
+comprueba su cabida (`cru-edge-fit`) pero su reparto NO baja `vEd`.
+
+**What:** dar crédito de reparto al UPN paralelo al borde libre (entraría en `u1`/`Acruz`).
+
+**Why:** un spike lo modeló a longitud completa (= `L_eff` radial) y la voz externa demostró
+que acreditar un alcance **no verificado** es no conservador: en bordes alejados sube `u1` y
+baja `vEd` 5-8% en el check que manda (acoplamiento "más alcance → u1 mayor → vEd menor →
+inseguro" del design doc), y aumenta el descuento de terreno. **Cons:** requiere el modelo
+de anclaje/flexión del perfil paralelo (longitud de desarrollo embebida) antes de creditarlo.
+
+**Where to start:** modelo de anclaje del brazo de borde (EC2 §8) + su flexión como miembro
+paralelo; solo entonces reincorporar su huella a `buildCross` con la longitud eficaz real.
+**Depends on:** TODO de anclaje de brazos embebidos (design doc).
