@@ -78,7 +78,7 @@ const SCREEN: Palette = {
     { fill1: 'var(--color-geo-s6a)', fill2: 'var(--color-geo-s6b)' },
   ],
   water:        'var(--color-accent)',
-  steel:        'var(--color-chart-label)',
+  steel:        'var(--color-text-secondary)',
   steelEdge:    'var(--color-chart-rebar-dim)',
   concrete:     '#6b7280',
   cap:          'var(--color-bg-elevated)',
