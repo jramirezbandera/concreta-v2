@@ -212,7 +212,7 @@ interface FiberMarkerProps {
 function FiberMarker({ cx, cy, labelX, labelY, value, color, labelColor, align }: FiberMarkerProps) {
   return (
     <>
-      <circle cx={cx} cy={cy} r="3" fill={color} stroke="#0f172a" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r="3" fill={color} stroke="var(--color-bg-primary)" strokeWidth="1" />
       <text
         x={labelX} y={labelY}
         fill={labelColor} fontSize="10"

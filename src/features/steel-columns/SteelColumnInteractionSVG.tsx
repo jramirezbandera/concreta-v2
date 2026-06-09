@@ -122,7 +122,7 @@ export function SteelColumnInteractionSVG({
         <circle cx={mx} cy={my} r="7" fill="none" stroke={C.fail} strokeWidth="1.2" />
       )}
       <circle cx={mx} cy={my} r="3.5" fill={markerColor}
-        stroke={mode === 'pdf' ? '#ffffff' : '#0b1220'} strokeWidth="1" />
+        stroke={mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)'} strokeWidth="1" />
       <text x={mx + 9} y={my - 5} fill={C.label} fontSize="9" fontWeight="600"
         fontFamily="var(--font-mono)" textAnchor="start">
         ({applied.My.toFixed(1)}; {applied.Mz.toFixed(1)})
