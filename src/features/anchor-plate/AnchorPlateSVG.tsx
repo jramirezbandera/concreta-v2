@@ -321,15 +321,19 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           );
         })()}
 
-        {/* Profile footprint (I-section) centered on plate */}
+        {/* Profile footprint (I-section) centered on plate.
+            Depth h runs along eje fuerte (X, plate a) → web HORIZONTAL spanning h,
+            flanges VERTICAL (width b) at the two depth ends x = ±h/2.
+            (Previously flanges were drawn horizontal spanning h, conflating h↔b:
+            invisible for HEB where h=b, but wrong for IPN/IPE.) */}
         {profile && (
           <g>
-            {/* Top flange */}
-            <rect x={pCx - profH / 2} y={pCy - profB / 2}       width={profH} height={profTf} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-            {/* Bottom flange */}
-            <rect x={pCx - profH / 2} y={pCy + profB / 2 - profTf} width={profH} height={profTf} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-            {/* Web */}
-            <rect x={pCx - profTw / 2} y={pCy - profB / 2 + profTf} width={profTw} height={profB - 2 * profTf} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+            {/* Left flange (depth end x = −h/2) */}
+            <rect x={pCx - profH / 2}            y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+            {/* Right flange (depth end x = +h/2) */}
+            <rect x={pCx + profH / 2 - profTf}   y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+            {/* Web (spans the depth h between flanges) */}
+            <rect x={pCx - profH / 2 + profTf}   y={pCy - profTw / 2} width={profH - 2 * profTf} height={profTw} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
           </g>
         )}
 
