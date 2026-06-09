@@ -15,20 +15,22 @@ interface SteelBeamsSVGProps {
   height: number;
 }
 
+// Screen palette via theme tokens (dark ≈ old literals; sectionFill #263348→#1e293b).
+// PDF palette below stays literal grayscale.
 const SCREEN = {
   bg: 'transparent',
-  sectionFill: '#263348',
-  sectionStroke: '#334155',
-  dim: '#94a3b8',
-  dimText: '#94a3b8',
-  axis: '#334155',
-  axisLabel: '#64748b',
-  envelope: '#38bdf8',
-  pointOk: '#22c55e',
-  pointWarn: '#f59e0b',
-  pointFail: '#ef4444',
-  pointNeutral: '#64748b',
-  gridLine: '#1e293b',
+  sectionFill: 'var(--color-chart-section-fill)',
+  sectionStroke: 'var(--color-chart-section)',
+  dim: 'var(--color-chart-dim)',
+  dimText: 'var(--color-chart-dim-text)',
+  axis: 'var(--color-chart-section)',
+  axisLabel: 'var(--color-chart-rebar-faint)',
+  envelope: 'var(--color-accent)',
+  pointOk: 'var(--color-state-ok)',
+  pointWarn: 'var(--color-state-warn)',
+  pointFail: 'var(--color-state-fail)',
+  pointNeutral: 'var(--color-state-neutral)',
+  gridLine: 'var(--color-chart-section-fill)',
 };
 
 const PDF = {
