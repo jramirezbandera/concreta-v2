@@ -895,10 +895,10 @@ function BarDimensions({
 function lcColor(lc: LoadCase): string {
   switch (lc) {
     case 'G': return 'var(--color-state-warn)';
-    case 'Q': return '#4ade80';
-    case 'W': return '#60a5fa';
-    case 'S': return '#cbd5e1';
-    case 'E': return '#f87171';
+    case 'Q': return 'var(--color-fem-q)';
+    case 'W': return 'var(--color-fem-w)';
+    case 'S': return 'var(--color-fem-s)';
+    case 'E': return 'var(--color-fem-e)';
     default:  return 'var(--color-state-warn)';
   }
 }
@@ -1173,9 +1173,9 @@ function BarDiagrams({
     const peakIndices = findLocalExtrema(Varr, globalPeakV, 0.15);
     elems.push(
       <g key="V" opacity="0.85" style={{ transition: 'opacity 150ms ease-in-out' }}>
-        <path d={fillPath} fill="#a78bfa" fillOpacity="0.08" stroke="none" />
-        <path d={curveSegs} fill="none" stroke="#a78bfa" strokeWidth="1.4" />
-        <path d={closingPath} fill="none" stroke="#a78bfa" strokeWidth="1.4" />
+        <path d={fillPath} fill={'var(--color-chart-envelope)'} fillOpacity="0.08" stroke="none" />
+        <path d={curveSegs} fill="none" stroke={'var(--color-chart-envelope)'} strokeWidth="1.4" />
+        <path d={closingPath} fill="none" stroke={'var(--color-chart-envelope)'} strokeWidth="1.4" />
         {peakIndices.map((idx) => {
           const v = Varr[idx];
           const [px, py] = w2s(xLow + xs[idx], 0);
@@ -1183,8 +1183,8 @@ function BarDiagrams({
           const labelDy = v >= 0 ? -3 : 11;
           return (
             <g key={idx}>
-              <circle cx={px} cy={yPx} r="2.5" fill="#a78bfa" />
-              <text x={px + 4} y={yPx + labelDy} fontFamily="var(--font-mono)" fontSize="9" fill="#a78bfa">
+              <circle cx={px} cy={yPx} r="2.5" fill={'var(--color-chart-envelope)'} />
+              <text x={px + 4} y={yPx + labelDy} fontFamily="var(--font-mono)" fontSize="9" fill={'var(--color-chart-envelope)'}>
                 V={formatQuantity(v, 'force', system)}
               </text>
             </g>
