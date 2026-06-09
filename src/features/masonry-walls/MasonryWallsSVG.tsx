@@ -76,7 +76,7 @@ export function MasonryWallsSVG({
   // muro". En PDF (fondo blanco) ese mismo color se lee como un agujero negro
   // que choca con el resto de la lámina; cambiamos a un gris claro para que el
   // hueco se distinga del muro sin gritarle al lector.
-  const huecoFill = forPdf ? '#e5e7eb' : '#0b1220';
+  const huecoFill = forPdf ? '#e5e7eb' : 'var(--color-bg-canvas)';
   // Screen colors follow the theme via var(); PDF keeps the exact previous
   // literals so print output is byte-identical (no PDF regression).
   const cAccent     = forPdf ? '#38bdf8'             : 'var(--color-accent)';
