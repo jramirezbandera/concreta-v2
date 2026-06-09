@@ -225,7 +225,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity={0.95}
-                  style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : '#0f172a', strokeWidth: 2 }}
+                  style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)', strokeWidth: 2 }}
                 >
                   {`fjd=${result.solver.fjd_MPa.toFixed(1)} MPa`}
                 </text>
@@ -282,6 +282,20 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
           while (phi_deg < -90) phi_deg += 180;
           return (
             <g>
+              {/* Clip the NA line to the plate rect — the parametric segment is
+                  extended by a full plate-diagonal each way, so for an off-center
+                  NA (biaxial) most of it lies outside the plate and would overflow
+                  the panel as a long diagonal. */}
+              <defs>
+                <clipPath id={`na-clip-${mode}`}>
+                  <rect
+                    x={pCx - plateW / 2}
+                    y={pCy - plateH / 2}
+                    width={plateW}
+                    height={plateH}
+                  />
+                </clipPath>
+              </defs>
               <line
                 x1={pCx + x0 * scalePlanta}
                 y1={pCy + y0 * scalePlanta}
@@ -291,6 +305,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
                 opacity={0.85}
+                clipPath={`url(#na-clip-${mode})`}
               />
               <text
                 x={lbx}
