@@ -148,6 +148,15 @@
   --color-geo-soil-dot: #7a5a3a;
   --color-geo-ground: #5d4630;
   --color-geo-earth: #6b7280;
+  /* micropiles soil profile (light = white-paper tones from its PDF palette) */
+  --color-geo-granular-dot: #5c4520;
+  --color-geo-cohesive-line: #3d2e1a;
+  --color-geo-s1a: #e0c89a; --color-geo-s1b: #b89968;
+  --color-geo-s2a: #c4bb88; --color-geo-s2b: #9a9162;
+  --color-geo-s3a: #d49774; --color-geo-s3b: #a96b48;
+  --color-geo-s4a: #b09480; --color-geo-s4b: #84685a;
+  --color-geo-s5a: #cdb872; --color-geo-s5b: #a39150;
+  --color-geo-s6a: #c08868; --color-geo-s6b: #946248;
 }
 
 :root { color-scheme: light; }
@@ -191,4 +200,12 @@ html[data-theme="dark"] {
   --color-geo-soil-dot: #7a5a3a;
   --color-geo-ground: #8a6a44;
   --color-geo-earth: #a8a29e;
+  --color-geo-granular-dot: #e0c089;
+  --color-geo-cohesive-line: #d8b886;
+  --color-geo-s1a: #7a5a35; --color-geo-s1b: #4f3a20;
+  --color-geo-s2a: #5d5a2c; --color-geo-s2b: #3d3a1c;
+  --color-geo-s3a: #8a4628; --color-geo-s3b: #5e2f1a;
+  --color-geo-s4a: #4a3528; --color-geo-s4b: #2c1f16;
+  --color-geo-s5a: #6a5c2e; --color-geo-s5b: #46401e;
+  --color-geo-s6a: #7d3f25; --color-geo-s6b: #542811;
 }

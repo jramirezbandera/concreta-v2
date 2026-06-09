@@ -56,36 +56,39 @@ interface Palette {
   neutral:       string;
 }
 
+// Screen palette via theme tokens (follows light/dark). Soil strata + granular/
+// cohesive use --color-geo-* (light = white-paper tones from PDF below). Concrete
+// grey reads on both themes → literal. PDF palette stays literal (print).
 const SCREEN: Palette = {
   bg:           'transparent',
-  bgPanel:      '#0b1220',
-  border:       '#22304d',
-  text:         '#cbd5e1',
-  textDim:      '#94a3b8',
-  textMuted:    '#475569',
-  axis:         '#3a4a6e',
-  granularDot:  '#e0c089',          // claro sobre cualquier banda — punteado de arena
-  cohesiveLine: '#d8b886',          // claro sobre cualquier banda — laminación cohesiva
+  bgPanel:      'var(--color-bg-primary)',
+  border:       'var(--color-border-main)',
+  text:         'var(--color-chart-label)',
+  textDim:      'var(--color-chart-dim-text)',
+  textMuted:    'var(--color-chart-rebar-dim)',
+  axis:         'var(--color-chart-section)',
+  granularDot:  'var(--color-geo-granular-dot)',
+  cohesiveLine: 'var(--color-geo-cohesive-line)',
   strataBands: [
-    { fill1: '#7a5a35', fill2: '#4f3a20' },   // L1 tan / arena clara
-    { fill1: '#5d5a2c', fill2: '#3d3a1c' },   // L2 oliva — fuerte contraste con L1
-    { fill1: '#8a4628', fill2: '#5e2f1a' },   // L3 terracota
-    { fill1: '#4a3528', fill2: '#2c1f16' },   // L4 marrón profundo
-    { fill1: '#6a5c2e', fill2: '#46401e' },   // L5 dorado mate
-    { fill1: '#7d3f25', fill2: '#542811' },   // L6 caoba
+    { fill1: 'var(--color-geo-s1a)', fill2: 'var(--color-geo-s1b)' },
+    { fill1: 'var(--color-geo-s2a)', fill2: 'var(--color-geo-s2b)' },
+    { fill1: 'var(--color-geo-s3a)', fill2: 'var(--color-geo-s3b)' },
+    { fill1: 'var(--color-geo-s4a)', fill2: 'var(--color-geo-s4b)' },
+    { fill1: 'var(--color-geo-s5a)', fill2: 'var(--color-geo-s5b)' },
+    { fill1: 'var(--color-geo-s6a)', fill2: 'var(--color-geo-s6b)' },
   ],
-  water:        '#7dd3fc',
-  steel:        '#cbd5e1',
-  steelEdge:    '#475569',
+  water:        'var(--color-accent)',
+  steel:        'var(--color-chart-label)',
+  steelEdge:    'var(--color-chart-rebar-dim)',
   concrete:     '#6b7280',
-  cap:          '#1a2540',
-  curveTheo:    '#38bdf8',
-  curveEmp:     '#94a3b8',
-  loadLine:     '#ef4444',
-  ok:           '#22c55e',
-  warn:         '#f59e0b',
-  fail:         '#ef4444',
-  neutral:      '#64748b',
+  cap:          'var(--color-bg-elevated)',
+  curveTheo:    'var(--color-accent)',
+  curveEmp:     'var(--color-chart-dim-text)',
+  loadLine:     'var(--color-state-fail)',
+  ok:           'var(--color-state-ok)',
+  warn:         'var(--color-state-warn)',
+  fail:         'var(--color-state-fail)',
+  neutral:      'var(--color-state-neutral)',
 };
 
 const PDF: Palette = {

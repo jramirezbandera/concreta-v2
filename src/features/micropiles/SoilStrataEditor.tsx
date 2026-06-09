@@ -122,8 +122,8 @@ function StrataCard({
 }) {
   const [open, setOpen] = useState(true);
   const palette =
-    layer.type === 'granular' ? { dot: '#a8825a', label: 'Granular' }
-                              : { dot: '#8a6a44', label: 'Cohesivo' };
+    layer.type === 'granular' ? { dot: 'var(--color-geo-soil-line)', label: 'Granular' }
+                              : { dot: 'var(--color-geo-ground)', label: 'Cohesivo' };
 
   // Header como div con role="button" — antes era <button> y dentro metía
   // otro <button> (la papelera), HTML inválido que React loguea como warning

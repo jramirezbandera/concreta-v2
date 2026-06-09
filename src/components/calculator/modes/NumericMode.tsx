@@ -62,7 +62,7 @@ export function NumericMode({ density }: NumericModeProps) {
         />
         <div
           className="text-right font-mono text-[12px] mt-1 min-h-[16px]"
-          style={{ color: result.ok ? '#38bdf8' : (expr ? '#ef4444' : '#475569') }}
+          style={{ color: result.ok ? 'var(--color-accent)' : (expr ? 'var(--color-state-fail)' : 'var(--color-text-disabled)') }}
         >
           {expr ? (result.ok ? `= ${fmt(result.val)}` : result.err) : (ans != null ? `ANS = ${fmt(ans)}` : '—')}
         </div>
