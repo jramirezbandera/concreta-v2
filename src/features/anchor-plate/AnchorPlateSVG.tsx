@@ -15,7 +15,7 @@ interface Props {
 const COLORS = {
   // Screen palette via theme tokens (dark ≈ old literals; profile→bg, na→label).
   screen: {
-    plate:        'var(--color-chart-section)',
+    plate:        'var(--color-chart-section-fill)',
     plate_stroke: 'var(--color-accent)',
     profile:      'var(--color-bg-primary)',
     profile_stroke: 'var(--color-chart-rebar-faint)',

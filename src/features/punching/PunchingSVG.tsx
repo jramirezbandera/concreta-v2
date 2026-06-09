@@ -197,7 +197,7 @@ function PlanView({
           fill={isLoad ? 'url(#punch-load-hatch)' : colArea} stroke={strokeArea} strokeWidth={1} />
       )}
       {isLoad && (
-        <g stroke={isPdf ? '#334155' : '#e2e8f0'} fill={isPdf ? '#334155' : '#e2e8f0'}>
+        <g stroke={isPdf ? '#334155' : 'var(--color-chart-dim-text)'} fill={isPdf ? '#334155' : 'var(--color-chart-dim-text)'}>
           <circle cx={px(0)} cy={py(0)} r={7} fill="none" strokeWidth={1.3} />
           <circle cx={px(0)} cy={py(0)} r={2.4} strokeWidth={0} />
         </g>
@@ -311,14 +311,15 @@ function CrossPlanView({
   }
   const px = (mm: number) => mm * scale;
 
-  // Column profile = the prominent element (light). Crucetas = secondary (darker).
-  const colArea    = isPdf ? '#94a3b8' : '#cbd5e1';   // profile fill
-  const strokeArea = isPdf ? '#1e293b' : '#475569';   // profile outline
-  const armFill    = isPdf ? '#e2e8f0' : '#334155';   // cruceta fill
-  const armStroke  = isPdf ? '#64748b' : '#94a3b8';   // cruceta outline / channel hint
-  const weldCol    = isPdf ? '#0ea5e9' : '#38bdf8';
-  const plateStroke = isPdf ? '#94a3b8' : '#475569';
-  const strokeU1   = isPdf ? '#0ea5e9' : '#38bdf8';
+  // Column profile = container (light fill + outline). Crucetas = the subject
+  // (mid-grey, clearly visible). Screen via theme tokens; PDF literal.
+  const colArea    = isPdf ? '#94a3b8' : 'var(--color-bg-elevated)';     // profile fill
+  const strokeArea = isPdf ? '#1e293b' : 'var(--color-chart-section)';   // profile outline
+  const armFill    = isPdf ? '#e2e8f0' : 'var(--color-chart-rebar-faint)'; // cruceta fill
+  const armStroke  = isPdf ? '#64748b' : 'var(--color-chart-dim-text)';  // cruceta outline
+  const weldCol    = isPdf ? '#0ea5e9' : 'var(--color-accent)';
+  const plateStroke = isPdf ? '#94a3b8' : 'var(--color-chart-rebar-dim)';
+  const strokeU1   = isPdf ? '#0ea5e9' : 'var(--color-accent)';
   const textCol    = isPdf ? '#475569' : '#94a3b8';
 
   // px geometry

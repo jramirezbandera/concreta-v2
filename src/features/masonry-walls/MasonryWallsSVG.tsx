@@ -38,8 +38,12 @@ interface Props {
 // Colormap viridis-like: 0 (frío) → 1 (caliente)
 function heatColor(t: number): string {
   const x = Math.max(0, Math.min(1, t));
+  // Theme-independent η scale (low=cool/light → high=red). The low anchor is a
+  // light-medium blue (not near-black navy) so low-η cells read on BOTH the
+  // white light canvas and the dark canvas. heatColor is module-level and can't
+  // react to theme toggle, so a balanced ramp is the robust choice.
   const stops = [
-    { t: 0.00, c: [10, 20, 50] },
+    { t: 0.00, c: [130, 180, 225] },
     { t: 0.25, c: [56, 130, 200] },
     { t: 0.50, c: [80, 200, 180] },
     { t: 0.75, c: [245, 200, 60] },

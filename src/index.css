@@ -113,6 +113,7 @@
   --color-bg-primary: #ffffff;
   --color-bg-surface: #f8fafc;
   --color-bg-elevated: #f1f5f9;
+  --color-bg-canvas: #ffffff;
   --color-border-main: #cbd5e1;
   --color-border-sub: #e2e8f0;
   --color-text-primary: #0f172a;
@@ -174,6 +175,7 @@ html[data-theme="dark"] {
   --color-bg-primary: #0b1220;
   --color-bg-surface: #111a2d;
   --color-bg-elevated: #1a2540;
+  --color-bg-canvas: #0b1220;
   --color-border-main: #22304d;
   --color-border-sub: #1a2540;
   --color-text-primary: #f8fafc;

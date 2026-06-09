@@ -33,18 +33,19 @@ function colors(mode: SvgMode) {
       stateNeutral: '#6b7280',
     };
   }
+  // Screen palette via theme tokens (follows light/dark). PDF branch above stays literal.
   return {
     bg: 'transparent',
-    surface: '#1e293b',
-    border: '#334155',
-    accent: '#38bdf8',
-    textPrimary: '#f8fafc',
-    textSecondary: '#94a3b8',
-    textDisabled: '#475569',
-    stateOk: '#22c55e',
-    stateWarn: '#f59e0b',
-    stateFail: '#ef4444',
-    stateNeutral: '#64748b',
+    surface: 'var(--color-chart-section-fill)',
+    border: 'var(--color-chart-section)',
+    accent: 'var(--color-accent)',
+    textPrimary: 'var(--color-text-primary)',
+    textSecondary: 'var(--color-text-secondary)',
+    textDisabled: 'var(--color-text-disabled)',
+    stateOk: 'var(--color-state-ok)',
+    stateWarn: 'var(--color-state-warn)',
+    stateFail: 'var(--color-state-fail)',
+    stateNeutral: 'var(--color-state-neutral)',
   };
 }
 
