@@ -44,7 +44,7 @@
 
 /* check-row hover-link highlight */
 .check-row { transition: background 120ms; }
-.check-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+.check-row:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
 .check-row .check-left-rail {
   position: absolute; left: 0; top: 4px; bottom: 4px;
   width: 2px; border-radius: 1px;
@@ -87,12 +87,12 @@
 /* ── Scrollbar styling ── */
 ::-webkit-scrollbar       { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border-main); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-disabled); }
+::-webkit-scrollbar-thumb { background: var(--color-text-disabled); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
 
-.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-border-main) transparent; }
+.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-text-disabled) transparent; }
 .scroll-hide::-webkit-scrollbar { width: 6px; }
-.scroll-hide::-webkit-scrollbar-thumb { background: var(--color-border-main); border-radius: 3px; }
+.scroll-hide::-webkit-scrollbar-thumb { background: var(--color-text-disabled); border-radius: 3px; }
 .scroll-hide::-webkit-scrollbar-track { background: transparent; }
 
 @media print {
