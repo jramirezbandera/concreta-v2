@@ -11,18 +11,19 @@ interface PileCapSVGProps {
 // Color tokens — screen vs pdf
 function colors(isPdf: boolean) {
   return {
+    // Screen via theme tokens (follows light/dark). PDF branch literal, untouched.
     bg:         isPdf ? '#ffffff' : 'transparent',
-    capFill:    isPdf ? '#f1f5f9' : 'var(--color-bg-surface,#1e293b)',
-    capStroke:  isPdf ? '#334155' : '#475569',
-    colFill:    isPdf ? '#cbd5e1' : '#334155',
-    colStroke:  isPdf ? '#475569' : '#64748b',
-    pileFill:   isPdf ? '#ffffff' : 'var(--color-bg-primary,#0f172a)',
-    pileStroke: isPdf ? '#0ea5e9' : '#38bdf8',
-    tieStroke:  isPdf ? '#22c55e' : '#22c55e',
-    strutStroke:isPdf ? '#f59e0b' : '#f59e0b',
-    textMain:   isPdf ? '#0f172a' : '#f8fafc',
-    textSec:    isPdf ? '#475569' : '#94a3b8',
-    accent:     isPdf ? '#0ea5e9' : '#38bdf8',
+    capFill:    isPdf ? '#f1f5f9' : 'var(--color-bg-surface)',
+    capStroke:  isPdf ? '#334155' : 'var(--color-chart-rebar-dim)',
+    colFill:    isPdf ? '#cbd5e1' : 'var(--color-chart-section-fill)',
+    colStroke:  isPdf ? '#475569' : 'var(--color-chart-rebar-faint)',
+    pileFill:   isPdf ? '#ffffff' : 'var(--color-bg-primary)',
+    pileStroke: isPdf ? '#0ea5e9' : 'var(--color-accent)',
+    tieStroke:  isPdf ? '#22c55e' : 'var(--color-state-ok)',
+    strutStroke:isPdf ? '#f59e0b' : 'var(--color-state-warn)',
+    textMain:   isPdf ? '#0f172a' : 'var(--color-text-primary)',
+    textSec:    isPdf ? '#475569' : 'var(--color-text-secondary)',
+    accent:     isPdf ? '#0ea5e9' : 'var(--color-accent)',
   };
 }
 
