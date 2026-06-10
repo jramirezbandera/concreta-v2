@@ -240,8 +240,15 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   // The user is responsible for guaranteeing the soil in front of the toe
   // will remain in place and that the wall movement required to mobilize Ep
   // is acceptable. By default usePassive=false (conservative, EC7-style).
-  const FS_vuelco = Mo > 0 ? Mr / Mo : Infinity;
-  const FS_desliz = EAH_total > 0 ? (ΣV * inp.mu + Ep) / EAH_total : Infinity;
+  //
+  // Sobrecarga variable q (CTE DB-SE §4.2 / EC7): con efecto FAVORABLE se toma
+  // γQ,fav = 0 — q puede actuar tras el muro (generando empuje EA_q) sin estar
+  // presente sobre el talón. W_q_heel se EXCLUYE de las verificaciones de
+  // estabilidad; se mantiene en ΣV/Mr para tensiones de zapata (desfavorable).
+  const ΣV_estab = ΣV - W_q_heel;
+  const Mr_estab = Mr - W_q_heel * x_heel;
+  const FS_vuelco = Mo > 0 ? Mr_estab / Mo : Infinity;
+  const FS_desliz = EAH_total > 0 ? (ΣV_estab * inp.mu + Ep) / EAH_total : Infinity;
   const e         = B_m / 2 - (Mr - Mo) / ΣV;
 
   // Footing stress (two branches)
@@ -269,11 +276,13 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
 
   const vuelcoSuffix = usePassive ? ' (con Ep)' : '';
   const deslizSuffix = usePassive ? ' (con Ep)' : '';
+  // CTE DB-SE-C Tabla 2.1: vuelco con γE,desestab = 1.8 y γE,estab = 0.9
+  // → FS global equivalente = 1.8/0.9 = 2.0 (el 1.5 es el γR de deslizamiento).
   checks.push(makeCheck(
     'vuelco', `Estabilidad al vuelco${vuelcoSuffix}`,
-    1.5, FS_vuelco,
-    `FS = ${FS_vuelco.toFixed(2)}`, '≥ 1.50',
-    'CTE DB-SE-C §4.4.1',
+    2.0, FS_vuelco,
+    `FS = ${FS_vuelco.toFixed(2)}`, '≥ 2.00',
+    'CTE DB-SE-C Tabla 2.1',
   ));
   checks.push(makeCheck(
     'deslizamiento', `Estabilidad al deslizamiento${deslizSuffix}`,
@@ -354,13 +363,14 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
                    + M_inercia;
 
     // Componente vertical sísmica: pesos estabilizadores reducidos con (1−kv).
+    // W_q_heel excluido: acción variable favorable → γQ,fav = 0 (igual que
+    // en la estabilidad estática).
     const fv = 1 - kv;
     const ΣV_seis  = (W_fuste + W_zap + W_soil_toe + W_dry_heel + W_wet_heel) * fv
-                   + W_q_heel + EAV_seis - U_uplift;
+                   + EAV_seis - U_uplift;
     const Mr_seis  = (W_fuste * x_fuste + W_zap * x_zap
                    + W_soil_toe * x_toe
                    + (W_dry_heel + W_wet_heel) * x_heel) * fv
-                   + W_q_heel * x_heel
                    + EAV_seis * B_m
                    - U_uplift * (B_m / 2)
                    + Ep * arm_Ep;

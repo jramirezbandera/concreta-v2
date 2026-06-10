@@ -115,9 +115,20 @@ describe('stability static', () => {
     expect(v?.status).toBe('fail');
   });
 
-  it('FS_vuelco ≥ 1.5 with default geometry', () => {
+  it('FS_vuelco ≥ 2.0 with default geometry (CTE Tabla 2.1: 1.8/0.9)', () => {
     const r = calcRetainingWall(base);
-    expect(r.FS_vuelco).toBeGreaterThanOrEqual(1.5);
+    expect(r.FS_vuelco).toBeGreaterThanOrEqual(2.0);
+  });
+
+  it('vuelco threshold is 2.0, not 1.5 (fix auditoría #21)', () => {
+    // CTE DB-SE-C Tabla 2.1: γE,desestab=1.8 / γE,estab=0.9 → FS equiv = 2.0.
+    // bTalon=0.55 → FS_vuelco ≈ 1.88: cumplía el umbral erróneo 1.5,
+    // incumple el normativo 2.0 → debe fallar.
+    const r = calcRetainingWall({ ...base, bTalon: 0.55 });
+    expect(r.FS_vuelco).toBeGreaterThan(1.5);
+    expect(r.FS_vuelco).toBeLessThan(2.0);
+    const v = r.checks.find((c) => c.id === 'vuelco');
+    expect(v?.status).toBe('fail');
   });
 
   it('FS_desliz ≥ 1.5 with default geometry', () => {
@@ -134,6 +145,23 @@ describe('stability static', () => {
     // Rebuild it from exposed quantities and compare exactly.
     const expected = (r.ΣV * base.mu) / r.EAH_total;
     expect(r.FS_desliz).toBeCloseTo(expected, 6);
+  });
+
+  it('q no estabiliza: FS_desliz excluye W_q_heel (fix auditoría #22)', () => {
+    // CTE DB-SE §4.2 / EC7: acción variable favorable → γQ,fav = 0. La
+    // sobrecarga genera empuje EA_q (desestabiliza) pero no puede contarse
+    // como peso estabilizador sobre el talón. Con q=10, bT=1.5 → W_q_heel=15.
+    const r = calcRetainingWall({ ...base, q: 10 });
+    const W_q_heel = 10 * 1.5;
+    const expected = ((r.ΣV - W_q_heel) * base.mu) / r.EAH_total;
+    expect(r.FS_desliz).toBeCloseTo(expected, 6);
+  });
+
+  it('q > 0 reduce siempre FS_vuelco y FS_desliz (solo desestabiliza)', () => {
+    const r0 = calcRetainingWall({ ...base, q: 0 });
+    const rq = calcRetainingWall({ ...base, q: 10 });
+    expect(rq.FS_vuelco).toBeLessThan(r0.FS_vuelco);
+    expect(rq.FS_desliz).toBeLessThan(r0.FS_desliz);
   });
 
   it('FS_desliz scales linearly with mu when Ep is excluded', () => {
