@@ -75,6 +75,9 @@ export interface RCColumnInputs {
   MEdz: number;  // design moment about z-axis (kNm), uses b dimension
   L: number;     // real column length (m)
   beta: number;  // effective length factor β — Lk = L × β
+  /** Coeficiente de fluencia efectivo φef para Kφ (CE Anejo 19 expr. 5.37).
+   *  Típico en edificación ≈ 2.0. Opcional: estados guardados antiguos no lo traen. */
+  phiEf?: number;
 }
 
 export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
@@ -175,6 +178,7 @@ export const rcColumnDefaults: RCColumnInputs = {
   MEdz: 10,
   L: 3.5,
   beta: 1,
+  phiEf: 2.0,
 };
 
 export const steelBeamDefaults: SteelBeamInputs = {

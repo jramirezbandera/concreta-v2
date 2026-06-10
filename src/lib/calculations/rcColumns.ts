@@ -106,9 +106,17 @@ function computeAxis(
     return { MRd_Nmm: 0, x_star: depth, ndMaxFailed: true };
   }
   if (NEd_N >= NRd_Whitney) {
-    // Gap zone: binary search cannot converge — use x = depth (full compression state)
-    const { MRd } = calcNM(depth, width, depth, bars, fcd, fyd);
-    return { MRd_Nmm: MRd, x_star: depth, ndMaxFailed: false };
+    // Gap zone (NRd_Whitney ≤ NEd < NRd_max) — la rama de pivote C (εc2 a
+    // 3h/7, CE Anejo 19 art. 6.1) no está modelada en calcNM: el barrido
+    // Whitney se agota en ~NRd_Whitney con un momento residual M_plateau y
+    // la capacidad real decae hasta (NRd_max, M=0). Interpolación lineal
+    // entre ambos puntos — la misma aproximación que envelopeCapacityM usa
+    // para el diagrama N-M — en lugar de congelar el MRd del estado Whitney
+    // (que corresponde a un axil MENOR que el aplicado: no conservador).
+    const plateau = calcNM(2 * depth, width, depth, bars, fcd, fyd);
+    const span = NRd_max - NRd_Whitney;
+    const f = span > 1e-9 ? Math.min(1, Math.max(0, (NRd_max - NEd_N) / span)) : 0;
+    return { MRd_Nmm: plateau.MRd * f, x_star: depth, ndMaxFailed: false };
   }
   // Normal range: binary search in [1, 2*depth]
   let xLo = 1;
@@ -131,7 +139,7 @@ function interpExponent(ned: number): number {
   if (ned <= 0.1) return 1.0;
   if (ned <= 0.7) return 1.0 + (ned - 0.1) / 0.6 * 0.5;  // 1.0 → 1.5
   if (ned <= 1.0) return 1.5 + (ned - 0.7) / 0.3 * 0.5;  // 1.5 → 2.0
-  return 2.0; // clamped — ned can exceed 1.0 in gap zone (NRd_Whitney > NRd_max)
+  return 2.0; // clamp defensivo (NRd_Whitney < NRd_max siempre; ned < 1 en zona gap)
 }
 
 // ── Section model — geometry + materials + bar groups + axial capacities ────
@@ -241,10 +249,18 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   // ── Step 4: Second-order eccentricities (CE art. 43.5.3) ──────────────────
   const NEd_N = Nd * 1e3;  // N
 
+  // Método de curvatura nominal: 1/r = Kr·Kφ·(1/r0) con 1/r0 = εyd/(0.45·d)
+  // (CE Anejo 19 art. 5.8.8.3). Kr = 1 (lado seguro). Kφ = 1 + β·φef ≥ 1
+  // (expr. 5.37, β = 0.35 + fck/200 − λ/150) corrige por fluencia — omitirlo
+  // subestima e2 un 20-40% en el rango 25 < λ ≲ 70 donde el 2º orden gobierna.
+  const phiEf = inp.phiEf ?? 2.0;
+  const Kphi_y = Math.max(1, 1 + (0.35 + inp.fck / 200 - lambda_y / 150) * phiEf);
+  const Kphi_z = Math.max(1, 1 + (0.35 + inp.fck / 200 - lambda_z / 150) * phiEf);
+
   const e0y = Math.abs(MEdy) * 1e6 / NEd_N;
   const e1_y = Math.max(e0y, Math.max(h / 30, 20));
   const e_imp_y = Lk_mm / 400;
-  const curv_y = fyd / (Es * 0.45 * d_y);
+  const curv_y = Kphi_y * fyd / (Es * 0.45 * d_y);
   const e2_y = lambda_y > 25 ? curv_y * Lk_mm * Lk_mm / 10 : 0;
   const e_tot_y = e1_y + e_imp_y + e2_y;
   const MEd_tot_y = NEd_N * e_tot_y / 1e6;  // kNm
@@ -252,7 +268,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const e0z = Math.abs(MEdz) * 1e6 / NEd_N;
   const e1_z = Math.max(e0z, Math.max(b / 30, 20));
   const e_imp_z = Lk_mm / 400;
-  const curv_z = fyd / (Es * 0.45 * d_z);
+  const curv_z = Kphi_z * fyd / (Es * 0.45 * d_z);
   const e2_z = lambda_z > 25 ? curv_z * Lk_mm * Lk_mm / 10 : 0;
   const e_tot_z = e1_z + e_imp_z + e2_z;
   const MEd_tot_z = NEd_N * e_tot_z / 1e6;  // kNm
@@ -292,10 +308,19 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   if (nBarsY > 0) rebarSchedule += ` + ${2 * nBarsY}\u00d8${barDiamY}y`;
   rebarSchedule += ` (\u00d8${stirrupDiam}/c${stirrupSpacing})`;
 
+  // Longitud de solape (CE Anejo 19 arts. 8.4.2 + 8.7.3):
+  //   fctd = αct·fctk,0.05/γc = 0.7·fctm/1.5
+  //   fbd = 2.25·η1·η2·fctd (η1 = 1.0: barras verticales de pilar, buena adherencia)
+  //   l0 = α6·lb,rqd con α6 = 1.5 (100% de barras solapadas en la misma sección)
+  //   l0,min = max(0.3·α6·lb,rqd, 15Ø, 200)
   const fctm = mat.fctm;
-  const fbd_poor = 2.25 * 0.7 * fctm;
-  const lb_rqd = (cornerBarDiam / 4) * (fyd / fbd_poor);
-  const lapLength = Math.ceil(Math.max(lb_rqd, 15 * cornerBarDiam, 200) / 5) * 5;
+  const fctd = (0.7 * fctm) / 1.5;
+  const fbd = 2.25 * fctd;
+  const lb_rqd = (cornerBarDiam / 4) * (fyd / fbd);
+  const alpha6 = 1.5;
+  const l0 = alpha6 * lb_rqd;
+  const l0_min = Math.max(0.3 * l0, 15 * cornerBarDiam, 200);
+  const lapLength = Math.ceil(Math.max(l0, l0_min) / 5) * 5;
 
   // ── Checks ─────────────────────────────────────────────────────────────────
   type CheckStatus = 'ok' | 'warn' | 'fail';

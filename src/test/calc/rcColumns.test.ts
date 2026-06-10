@@ -217,6 +217,62 @@ describe('RC Columns — NEd > NRd,max fails', () => {
     const nd = r.checks.find((c) => c.id === 'nd-max');
     expect(nd?.status).not.toBe('fail');
   });
+
+  it('gap zone: MRd interpola hacia (NRd_max, 0) — oracle manual (fix auditoría #16)', () => {
+    // 300×300 C25 4Ø16, Nd=1700 kN (NRd_Whitney ≈ 1552 < NEd < NRd_max ≈ 1839):
+    //   M_plateau (x=2h: bloque 0.8·fcd·b·h + acero) ≈ 37.4 kNm
+    //   f = (1839.3−1700)/(1839.3−1552.1) = 0.485 → MRd ≈ 18.2 kNm
+    // Pre-fix se congelaba el MRd del estado Whitney (~50 kNm, que corresponde
+    // a un axil MENOR que el aplicado) y el check daba verde a un pilar que falla.
+    const r = calcRCColumn(inp({ Nd: 1700, L: 1.5 }));
+    expect(r.valid).toBe(true);
+    expect(r.MRdy).toBeCloseTo(18.2, 0);
+    expect(r.MRdy).toBeLessThan(25);            // capacidad real interpolada
+    expect(r.biaxialUtil).toBeGreaterThan(1.0); // MEd_tot_y ≈ 40 kNm > MRd → falla
+  });
+
+  it('gap zone: MRd → 0 cuando NEd → NRd_max (monótono decreciente)', () => {
+    const r1 = calcRCColumn(inp({ Nd: 1600, L: 1.5 }));
+    const r2 = calcRCColumn(inp({ Nd: 1750, L: 1.5 }));
+    const r3 = calcRCColumn(inp({ Nd: 1830, L: 1.5 }));
+    expect(r2.MRdy).toBeLessThan(r1.MRdy);
+    expect(r3.MRdy).toBeLessThan(r2.MRdy);
+    expect(r3.MRdy).toBeLessThan(5);  // casi compresión pura → M ≈ 0
+  });
+});
+
+// ── Fixes auditoría #17 (Kφ fluencia) y #18 (solape) ─────────────────────────
+
+describe('RC Columns — Kφ y solape (fixes auditoría #17/#18)', () => {
+  it('e2 con Kφ = 1+β·φef — oracle manual (defaults, φef=2)', () => {
+    // λ = 40.41, fck=25 → β = 0.35 + 0.125 − 40.41/150 = 0.2056
+    // Kφ = 1 + 0.2056·2 = 1.411
+    // 1/r0 = 434.78/(200000·0.45·256) = 1.887e-5 → 1/r = 2.663e-5
+    // e2 = (1/r)·3500²/10 = 32.6 mm (sin Kφ era 23.1: −29% inseguro)
+    const r = calcRCColumn(inp());
+    expect(r.e2_y).toBeCloseTo(32.6, 1);
+  });
+
+  it('φef = 0 recupera la curvatura base (Kφ = 1)', () => {
+    const r = calcRCColumn(inp({ phiEf: 0 }));
+    expect(r.e2_y).toBeCloseTo(23.1, 1);
+  });
+
+  it('Kφ clampa a 1 para esbelteces altas (β ≤ 0)', () => {
+    // λ ≈ 80.8 (L=7m) → β = 0.475 − 0.539 < 0 → Kφ = 1: e2 igual con/sin φef.
+    const rA = calcRCColumn(inp({ L: 7.0, phiEf: 2.0 }));
+    const rB = calcRCColumn(inp({ L: 7.0, phiEf: 0 }));
+    expect(rA.e2_y).toBeCloseTo(rB.e2_y, 4);
+  });
+
+  it('solape l0 = α6·lb,rqd con fctd = 0.7·fctm/γc — oracle manual', () => {
+    // Ø16 B500S C25: fctd = 0.7·2.56/1.5 = 1.195 → fbd = 2.69 N/mm²
+    // lb,rqd = (16/4)·(434.78/2.69) = 647 mm; l0 = 1.5·647 = 970 → 975 (paso 5)
+    // Pre-fix: fbd = 2.25·0.7·fctm (sin γc) y sin α6 → 435 mm (×2.2 corto,
+    // valor que iba directo a planos).
+    const r = calcRCColumn(inp());
+    expect(r.lapLength).toBe(975);
+  });
 });
 
 // ── N-M interaction fails ────────────────────────────────────────────────────
