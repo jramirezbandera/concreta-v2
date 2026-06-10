@@ -139,10 +139,15 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     util escala linealmente con fjd → worstUtil 0.928·1.0691 ≈ 0.992.
     //   - Future drift: CR3 splitting rewrite (PR6) may change worstUtil
     //     slightly if splitting becomes governing for FTUX. Re-pin then.
+    //   - Post-auditoría #1 (edge breakout EN 1992-4 Eq 7.40): la fórmula
+    //     k1=1.6 con exponentes fijos tipo ACI sobreestimaba VRd,c ×3.5.
+    //     Con la Eq (7.40) correcta (k9=1.7 fisurado, exponentes variables)
+    //     VRd,c = 25.97 kN < VEd = 50 kN → edge breakout pasa a gobernar:
+    //     worstUtil = 50/25.97 = 1.925 (oracle manual en anchorPlate.test.ts).
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(13);    // PR8b: 10 → 13 (concrete shear modes)
-    expect(r.worstUtil).toBeCloseTo(0.992, 2);
+    expect(r.worstUtil).toBeCloseTo(1.925, 2);
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {

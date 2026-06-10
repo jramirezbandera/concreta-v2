@@ -1644,9 +1644,11 @@ export function checkStiffener(
 // modelaba: checkBoltShear sólo cubría steel shear + fricción. Para placas
 // cerca de un borde y cortante perpendicular, este modo gobierna.
 //
-// Modelo (cast-in barras corrugadas, cracked concrete):
-//   V0Rk,c = k1 · (lf/dnom)^β · dnom^α · √fck · c1^1.5
-//     con k1 = 1.6, α = 0.5, β = 0.2, lf = min(hef, 8·dnom) (limitada per EN)
+// Modelo (cast-in barras corrugadas), EN 1992-4:2018 Eq (7.40):
+//   V0Rk,c = k9 · dnom^α · lf^β · √fck · c1^1.5
+//     con k9 = 1.7 (fisurado) / 2.4 (no fisurado),
+//     α = 0.1·(lf/c1)^0.5, β = 0.1·(dnom/c1)^0.2 (exponentes VARIABLES),
+//     lf = min(hef, 8·dnom) (limitada per EN)
 //   VRk,c = V0Rk,c · (Ac,V/Ac,V0) · ψs,V · ψh,V · ψec,V · ψα,V · ψre,V
 //   VRd,c = VRk,c / γMc
 //
@@ -1679,14 +1681,15 @@ export function checkConcreteEdgeBreakout(
   const fck = inp.fck;
   const { c1, c2, Vmag, Vangle_rad } = shear;
 
-  // V0Rk,c — anchor único en hormigón sin restricciones, carga normal a un borde a c1
-  const k1 = 1.6;
-  const alpha_exp = 0.5;
-  const beta_exp = 0.2;
+  // V0Rk,c — anchor único en hormigón sin restricciones, carga normal a un
+  // borde a c1. EN 1992-4:2018 Eq (7.40), exponentes variables.
+  const k9 = inp.concrete_cracked ? 1.7 : 2.4;
   const lf = Math.min(hef, 8 * dnom);
-  const V0Rk_N = k1
-    * Math.pow(lf / dnom, beta_exp)
+  const alpha_exp = 0.1 * Math.pow(lf / c1, 0.5);
+  const beta_exp = 0.1 * Math.pow(dnom / c1, 0.2);
+  const V0Rk_N = k9
     * Math.pow(dnom, alpha_exp)
+    * Math.pow(lf, beta_exp)
     * Math.sqrt(fck)
     * Math.pow(c1, 1.5);
 

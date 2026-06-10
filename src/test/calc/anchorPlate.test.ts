@@ -515,11 +515,21 @@ describe('PR8b — CR6 concrete shear modes', () => {
     expect(r.checks.find((c) => c.id === 'concrete-breakout-v')).toBeDefined();
   });
 
-  it('FTUX (centered, hef=300): edge breakout no domina (cono y splitting governing)', () => {
+  it('FTUX: edge breakout EN 1992-4 Eq (7.40) — oracle manual (fix auditoría #1)', () => {
+    // Hand-calc EN 1992-4:2018 Eq (7.40), hormigón fisurado (k9=1.7):
+    //   dnom=20, hef=300 → lf = min(300, 8·20) = 160 mm; c1=200; fck=25
+    //   α = 0.1·(lf/c1)^0.5 = 0.1·(160/200)^0.5 = 0.08944
+    //   β = 0.1·(dnom/c1)^0.2 = 0.1·(20/200)^0.2 = 0.06310
+    //   V0Rk = 1.7 · 20^0.08944 · 160^0.06310 · √25 · 200^1.5
+    //        = 1.7 · 1.3073 · 1.3774 · 5 · 2828.43 = 43 290 N
+    //   Ac,V/Ac,V0 = 1.0 (widthPerp = 2·c2 + gw = 600 = 3·c1), ψs = 0.90, ψh = 1.0
+    //   VRd,c = 43.29 · 0.90 / 1.5 = 25.97 kN → util = 50/25.97 = 1.925 → FAIL
+    // Pre-fix, la fórmula k1=1.6 con exponentes fijos tipo ACI daba
+    // VRd,c ≈ 92 kN (×3.5 sobreestimado) y este caso salía verde.
     const r = calcAnchorPlate(anchorPlateDefaults);
     const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
-    expect(eb.utilization).toBeGreaterThan(0);
-    expect(eb.utilization).toBeLessThan(1.0);
+    expect(eb.utilization).toBeCloseTo(1.925, 2);
+    expect(eb.status).toBe('fail');
   });
 
   it('Placa de fachada (cerca de borde): edge breakout activa fail', () => {
@@ -588,9 +598,10 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
     const r = calcAnchorPlate(anchorPlateDefaults);
-    // Sentinel: worstUtil = 0.992 (post-H2 Kj real). NO debe cambiar con
-    // resolveEdges sobre defaults simétricos.
-    expect(r.worstUtil).toBeCloseTo(0.992, 2);
+    // Sentinel: worstUtil = 1.925 (post-fix auditoría #1: edge breakout
+    // EN 1992-4 Eq 7.40 gobierna el FTUX; antes 0.992 con plate-bending).
+    // NO debe cambiar con resolveEdges sobre defaults simétricos.
+    expect(r.worstUtil).toBeCloseTo(1.925, 2);
   });
 
   it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
