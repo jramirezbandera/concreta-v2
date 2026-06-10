@@ -1096,6 +1096,88 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): Chec
   };
 }
 
+// ─── Check 2b — Flexión de la placa en el lado de TRACCIÓN (T-stub) ──────
+// CE Anejo 18 / EC3 1-8 §6.2.4 Tabla 6.2: el lado traccionado de la placa
+// debe comprobarse como T-stub equivalente con tres modos de fallo:
+//   modo 1: plastificación completa de la placa     FT,1,Rd = 4·Mpl,Rd/m
+//   modo 2: placa + barra con efecto palanca        FT,2,Rd = (2·Mpl,Rd + n·FtRd)/(m+n)
+//   modo 3: rotura de la barra                       FT,3,Rd = FtRd
+// con Mpl,Rd = 0.25·leff·t²·fyd y leff = min(patrón circular 2πm,
+// no circular 4m + 1.25e). Modelo POR BARRA sobre la barra traccionada más
+// cargada (simplificación conservadora frente a patrones de grupo):
+//   m = distancia de la barra a la cara del perfil más próxima (ala/canto)
+//   e = distancia de la barra al borde de placa en esa dirección
+//   n = min(e, 1.25·m) (palanca)
+// Pre-fix solo se comprobaba el voladizo COMPRIMIDO (checkPlateBending) y el
+// modo 3 (checkBoltTension): una placa delgada con barras gruesas pasaba
+// todos los checks mientras fallaba por plastificación alrededor de las
+// barras traccionadas.
+export function checkPlateTensionTStub(
+  inp: AnchorPlateInputs,
+  bars: AnchorBarPosition[],
+  system: UnitSystem = 'si',
+): CheckRow {
+  const neutral = (note: string): CheckRow => ({
+    id: 'plate-tension-tstub',
+    description: 'Flexión de placa lado tracción (T-stub)',
+    value: note,
+    limit: '—',
+    utilization: 0,
+    status: 'neutral',
+    article: 'CE Anejo 18 §6.2.4',
+  });
+
+  const tBars = bars.filter((b) => b.inTension && b.Ft > 0);
+  if (tBars.length === 0) return neutral('Sin barras traccionadas');
+
+  // Barra crítica: la de mayor tracción.
+  let crit = tBars[0];
+  for (const b of tBars) if (b.Ft > crit.Ft) crit = b;
+
+  const p = makeISectionBySize(
+    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
+    inp.sectionSize,
+  );
+  const bf = p?.b ?? inp.plate_b * 0.6;
+  const hc = p?.h ?? inp.plate_a * 0.6;
+
+  // m por dirección: distancia de la barra a la cara del perfil (>0 si la
+  // barra queda fuera de la huella del perfil en esa dirección).
+  const m_x = Math.abs(crit.x) - hc / 2;
+  const m_y = Math.abs(crit.y) - bf / 2;
+  const e_x = inp.plate_a / 2 - Math.abs(crit.x);
+  const e_y = inp.plate_b / 2 - Math.abs(crit.y);
+
+  // Dirección gobernante: la de menor m positivo (línea de rotura más corta).
+  let m: number, e: number;
+  if (m_x > 0 && (m_y <= 0 || m_x <= m_y)) { m = m_x; e = e_x; }
+  else if (m_y > 0) { m = m_y; e = e_y; }
+  else return neutral('Barra bajo la huella del perfil');
+
+  const { FtRd_kN } = barStrengths(inp);
+  const fyd_plate = PLATE_FY[inp.plate_steel] / GAMMA_M0;
+  const leff = Math.min(2 * Math.PI * m, 4 * m + 1.25 * e);
+  const Mpl_Nmm = 0.25 * leff * inp.plate_t * inp.plate_t * fyd_plate;
+  const n_lever = Math.min(e, 1.25 * m);
+
+  const FT1_kN = (4 * Mpl_Nmm / m) / 1000;
+  const FT2_kN = (2 * Mpl_Nmm + n_lever * FtRd_kN * 1000) / (m + n_lever) / 1000;
+  const FT3_kN = FtRd_kN;
+  const FTRd_kN = Math.min(FT1_kN, FT2_kN, FT3_kN);
+  const mode = FTRd_kN === FT1_kN ? 1 : FTRd_kN === FT2_kN ? 2 : 3;
+
+  const util = crit.Ft / Math.max(FTRd_kN, 1e-6);
+  return {
+    id: 'plate-tension-tstub',
+    description: 'Flexión de placa lado tracción (T-stub)',
+    value: `Ft=${fmtF(crit.Ft, system)}`,
+    limit: `FT,Rd=${fmtF(FTRd_kN, system)} (modo ${mode} · m=${m.toFixed(0)} · leff=${leff.toFixed(0)})`,
+    utilization: util,
+    status: toStatus(util),
+    article: 'CE Anejo 18 §6.2.4',
+  };
+}
+
 // ─── Check 3 — Tracción en barras (EC2 §2.4.2.4 / EHE-08) ────────────────
 export function checkBoltTension(
   inp: AnchorPlateInputs,
@@ -1139,15 +1221,17 @@ export function checkBoltShear(
   const Fv_Rd_total_kN = FvRd_per_bar_kN * nBars;
 
   const V_Rd_total_kN = Vfric_kN + Fv_Rd_total_kN;
-  // PR8a — el cortante se trata como magnitud escalar aquí. La descomposición
-  // direccional Vx/Vy se usa en checkConcreteEdgeBreakout (PR8b) donde la
-  // dirección de carga afecta a c1 y al α de breakout.
+  // El cortante de acero se evalúa con la MAGNITUD |V| = hypot(Vx, Vy) vía
+  // resolveShear (prioriza Vx/Vy direccionales sobre el legacy VEd), igual
+  // que los modos de hormigón en cortante. Antes usaba inp.VEd crudo: con
+  // cortante direccional (VEd=0, Vy≠0) el check salía 0 — verde indebido.
   // V_Rd_total > 0 always: nBars ≥ 4 (bar_nLayout enum) and FvRd > 0.
-  const util = inp.VEd / V_Rd_total_kN;
+  const { Vmag } = resolveShear(inp);
+  const util = Vmag / V_Rd_total_kN;
   return {
     id: 'bolt-shear',
     description: 'Cortante en barras',
-    value: `VEd=${fmtF(inp.VEd, system)}`,
+    value: `VEd=${fmtF(Vmag, system)}`,
     limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${nBars}·FvRd)`,
     utilization: util,
     status: toStatus(util),
@@ -1187,7 +1271,9 @@ export function checkBoltInteraction(
   // total NEd_G. Cuando hay tracción permanente, Nc,G = NEd,G + Ft,G > NEd,G.
   const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
   const Vfric_kN = mu * Math.max(0, Nc_G_kN);
-  const Vbars_kN = Math.max(0, inp.VEd - Vfric_kN);
+  // |V| via resolveShear (consistente con checkBoltShear y modos de hormigón).
+  const { Vmag } = resolveShear(inp);
+  const Vbars_kN = Math.max(0, Vmag - Vfric_kN);
   const FvEd_per_bar_kN = Vbars_kN / Math.max(1, bars.length);
 
   let FtMax_kN = 0;
@@ -1710,9 +1796,11 @@ export function checkConcreteEdgeBreakout(
   // Width perpendicular: extendido por 1.5·c1 en ambos lados, clipped por
   // la dimensión efectiva del macizo (c2 + simétrico).
   const widthPerp = Math.min(groupPerpWidth + 3 * c1, 2 * c2 + groupPerpWidth);
-  // Depth in line with load: 1.5·c1 (single anchor) o más si grupo profundo,
-  // limited by available depth before crossing back edge.
-  const depthInLoad = 1.5 * c1;
+  // Depth in line with load: min(1.5·c1, h) — EN 1992-4 Fig. 7.10: la
+  // proyección Ac,V se recorta por el canto del macizo. El par área-recortada
+  // + ψh,V ≥ 1 reproduce la norma; sin el recorte, ψh,V amplificaba sobre un
+  // área ya no recortada (doble error ×(1.5c1/h) en macizos delgados).
+  const depthInLoad = Math.min(1.5 * c1, inp.pedestal_h);
   const Ac_V = widthPerp * depthInLoad;
 
   // ψ factors
@@ -1890,6 +1978,51 @@ export function validateAnchorPlate(inp: AnchorPlateInputs): ValidationWarning[]
   return w;
 }
 
+// ─── Check 14 — Interacción N+V para modos de fallo del HORMIGÓN ─────────
+// EN 1992-4 §7.2.3.2 / CE Anejo 11 §7.2.3 (Tab 7.3): cuando gobiernan modos
+// de hormigón, además de las comprobaciones individuales se exige
+//   (NEd/NRd,c)^1.5 + (VEd/VRd,c)^1.5 ≤ 1.0
+// combinando las utilizaciones PÉSIMAS de los modos de hormigón en tracción
+// (cono, splitting, pull-out) y en cortante (edge breakout, pry-out,
+// breakout-v). Dos modos al 0.85 individual dan 2·0.85^1.5 = 1.57 → FALLO,
+// pese a estar ambos en verde por separado. Pre-fix solo existía la
+// interacción dúctil de acero (checkBoltInteraction).
+export function checkConcreteNVInteraction(
+  checks: CheckRow[],
+  _system: UnitSystem = 'si',
+): CheckRow {
+  const N_MODES = ['concrete-cone', 'splitting', 'pullout'];
+  const V_MODES = ['concrete-edge-breakout', 'concrete-pryout', 'concrete-breakout-v'];
+  const worst = (ids: string[]) => checks
+    .filter((c) => ids.includes(c.id) && c.status !== 'neutral')
+    .reduce((mx, c) => Math.max(mx, c.utilization), 0);
+  const utilN = worst(N_MODES);
+  const utilV = worst(V_MODES);
+
+  if (utilN < 1e-9 || utilV < 1e-9) {
+    return {
+      id: 'concrete-interaction',
+      description: 'Interacción N+V hormigón',
+      value: 'Sin concurrencia N+V',
+      limit: '—',
+      utilization: 0,
+      status: 'neutral',
+      article: 'CE Anejo 11 §7.2.3',
+    };
+  }
+
+  const util = Math.pow(utilN, 1.5) + Math.pow(utilV, 1.5);
+  return {
+    id: 'concrete-interaction',
+    description: 'Interacción N+V hormigón',
+    value: `(${utilN.toFixed(2)})^1.5 + (${utilV.toFixed(2)})^1.5`,
+    limit: '≤ 1.00 (modos pésimos N y V)',
+    utilization: util,
+    status: toStatus(util),
+    article: 'CE Anejo 11 §7.2.3',
+  };
+}
+
 // ─── Main entry point ────────────────────────────────────────────────────
 // L1 (Phase 3): pr1Limitations eliminado — siempre era [] desde PR8b y la
 // UI/PDF lo renderizaban condicionalmente como dead code.
@@ -1909,7 +2042,13 @@ export function calcAnchorPlate(
 ): AnchorPlateResult {
   const warnings = validateAnchorPlate(inp);
 
-  const valid = !(inp.NEd === 0 && inp.Mx === 0 && inp.My === 0);
+  // La validez incluye el CORTANTE: una placa con solo V (arriostramiento
+  // horizontal, cruces de San Andrés a zócalo) debe comprobarse. Pre-fix,
+  // N=M=0 con V≠0 devolvía checks=[] y overallStatus 'ok' (verde sin haber
+  // comprobado cortante de acero, fricción, edge breakout ni pry-out).
+  const hasAxialOrMoment = !(inp.NEd === 0 && inp.Mx === 0 && inp.My === 0);
+  const { Vmag: Vmag_check } = resolveShear(inp);
+  const valid = hasAxialOrMoment || Vmag_check > 1e-9;
 
   if (!valid) {
     const emptyBars = fourCornerLayout(inp.plate_a, inp.plate_b, inp.bar_edge_x, inp.bar_edge_y);
@@ -1926,6 +2065,34 @@ export function calcAnchorPlate(
       overallStatus: 'ok',
       warnings,
       valid: false,
+    };
+  }
+
+  if (!hasAxialOrMoment) {
+    // ── Cortante puro (N = M = 0, V ≠ 0): Nc = 0 → sin fricción, Ft = 0.
+    // Se ejecutan los checks de cortante (acero + hormigón); los de
+    // tracción/compresión/flexión de placa no aplican.
+    const bars = generateLayout(inp);
+    const solver: SolverResult = {
+      bolts: bars,
+      Nc: 0, Ft_total: 0, n_t: 0, x_c: 0, lifted: false,
+      mode: 'uniform-compression', converged: true,
+      note: 'Cortante puro (N = M = 0)',
+      residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
+    };
+    const checks: CheckRow[] = [
+      checkBoltShear(inp, bars, 0, system),
+      checkBoltInteraction(inp, bars, 0, system),
+      checkConcreteEdgeBreakout(inp, bars, system),
+      checkConcretePryout(inp, bars, system),
+      checkConcreteBreakoutV(inp, bars, system),
+    ];
+    const worstUtil = Math.max(...checks.map((c) => c.utilization));
+    const hasFailValidation = warnings.some((w) => w.severity === 'fail');
+    return {
+      inp, solver, checks, worstUtil,
+      overallStatus: hasFailValidation ? 'fail' : toStatus(worstUtil),
+      warnings, valid: true,
     };
   }
 
@@ -1956,6 +2123,7 @@ export function calcAnchorPlate(
   const checks: CheckRow[] = [
     checkPlateCompression(inp, solver.Nc, system),
     checkPlateBending(inp, fjd),
+    checkPlateTensionTStub(inp, solver.bolts, system),       // AUDIT-9 T-stub tracción
     checkBoltTension(inp, Ft_per_bar, system),
     checkBoltShear(inp, solver.bolts, Nc_G_kN, system),
     checkBoltInteraction(inp, solver.bolts, Nc_G_kN, system),
@@ -1968,6 +2136,7 @@ export function calcAnchorPlate(
     checkSplitting(inp, solver.bolts, solver.Ft_total, system),
     checkStiffener(inp, solver.Nc, system),
   ];
+  checks.push(checkConcreteNVInteraction(checks, system));   // AUDIT-8 N+V hormigón
 
   const worstUtil = checks.length > 0 ? Math.max(...checks.map((c) => c.utilization)) : 0;
   const hasFailValidation = warnings.some((w) => w.severity === 'fail');

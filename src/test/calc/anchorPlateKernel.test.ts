@@ -114,7 +114,8 @@ describe('PR0 — SolverResult.residuals exposed', () => {
   });
 
   it('empty case (no loads): residuals all zero', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: 0, Mx: 0, My: 0 });
+    // Post-fix auditoría #7: V también cuenta para la validez → anular Vx/Vy/VEd.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: 0, Mx: 0, My: 0, VEd: 0, Vx: 0, Vy: 0 });
     expect(r.valid).toBe(false);
     expect(r.solver.residuals.SN_kN).toBe(0);
     expect(r.solver.residuals.SMx_kNm).toBe(0);
@@ -144,10 +145,13 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     Con la Eq (7.40) correcta (k9=1.7 fisurado, exponentes variables)
     //     VRd,c = 25.97 kN < VEd = 50 kN → edge breakout pasa a gobernar:
     //     worstUtil = 50/25.97 = 1.925 (oracle manual en anchorPlate.test.ts).
+    //   - Post-auditoría #8 (interacción N+V hormigón, EN 1992-4 §7.2.3.2):
+    //     nuevo check combinando los modos pésimos: 0.692^1.5 + 1.925^1.5
+    //     = 3.246 → gobierna el FTUX. Checks 13 → 15 (+T-stub tracción #9).
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
-    expect(r.checks).toHaveLength(13);    // PR8b: 10 → 13 (concrete shear modes)
-    expect(r.worstUtil).toBeCloseTo(1.925, 2);
+    expect(r.checks).toHaveLength(15);    // PR8b: 13 · auditoría #8/#9: +2
+    expect(r.worstUtil).toBeCloseTo(3.246, 2);
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {

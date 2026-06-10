@@ -12,10 +12,24 @@ const base = { ...anchorPlateDefaults, My: 0 };
 //       NEd=200 kN, Mx=45 kNm, My=0, VEd=50 kN, fck=25 MPa, prolongación recta.
 
 describe('anchor plate — zero loads', () => {
-  it('result invalid when NEd=Mx=My=0', () => {
-    const r = calcAnchorPlate({ ...base, NEd: 0, Mx: 0, My: 0 });
+  it('result invalid only when NEd=Mx=My=0 AND V=0 (fix auditoría #7)', () => {
+    const r = calcAnchorPlate({ ...base, NEd: 0, Mx: 0, My: 0, VEd: 0, Vx: 0, Vy: 0 });
     expect(r.valid).toBe(false);
     expect(r.checks).toHaveLength(0);
+  });
+
+  it('cortante puro (N=M=0, V≠0) ejecuta los checks de cortante (fix auditoría #7)', () => {
+    // Caso real: placa de arriostramiento horizontal (cruz de San Andrés a
+    // zócalo). Pre-fix devolvía checks=[], worstUtil=0 y overallStatus 'ok'
+    // — verde sin haber comprobado cortante de acero ni edge breakout.
+    const r = calcAnchorPlate({ ...base, NEd: 0, Mx: 0, My: 0 });  // VEd=50 (defaults)
+    expect(r.valid).toBe(true);
+    const ids = r.checks.map((c) => c.id);
+    expect(ids).toContain('bolt-shear');
+    expect(ids).toContain('concrete-edge-breakout');
+    expect(ids).toContain('concrete-pryout');
+    expect(r.worstUtil).toBeCloseTo(1.925, 2);  // edge breakout gobierna
+    expect(r.overallStatus).toBe('fail');
   });
 });
 
@@ -91,15 +105,15 @@ describe('anchor plate — partial lift (|e| > a/6)', () => {
 describe('anchor plate — result shape', () => {
   const r = calcAnchorPlate(base);
 
-  it('valid case returns 13 checks (10 originales + 3 concrete-shear de PR8b)', () => {
-    expect(r.checks).toHaveLength(13);
+  it('valid case returns 15 checks (13 + T-stub tracción + interacción N+V hormigón)', () => {
+    expect(r.checks).toHaveLength(15);
   });
   it('all checks carry a real id and article', () => {
     const expectedIds = [
-      'plate-compression', 'plate-bending', 'bolt-tension', 'bolt-shear',
-      'bolt-interaction', 'anchorage-length', 'concrete-cone',
+      'plate-compression', 'plate-bending', 'plate-tension-tstub', 'bolt-tension',
+      'bolt-shear', 'bolt-interaction', 'anchorage-length', 'concrete-cone',
       'concrete-edge-breakout', 'concrete-pryout', 'concrete-breakout-v',  // PR8b CR6
-      'pullout', 'splitting', 'stiffener',
+      'pullout', 'splitting', 'stiffener', 'concrete-interaction',
     ];
     for (const id of expectedIds) {
       const c = r.checks.find((x) => x.id === id);
@@ -203,7 +217,9 @@ describe('check 5 — bar N+V interaction (EC3 1-8 Tab 3.4 adaptado a fyd)', () 
   it('shear-dominant: high VEd with low NEd_G pushes bars hard in shear', () => {
     // VEd=320, NEd_G=10, μ=0.4 → Vfric = 4 kN → cortante/barra = (320-4)/4 = 79 kN.
     // FvRd por barra (φ20 B500S) = 0.6·314.16·434.78/1000 ≈ 81.94 kN → util_v ≈ 0.96.
-    const r = calcAnchorPlate({ ...base, NEd: 100, NEd_G: 10, Mx: 0, My: 0, VEd: 320 });
+    // Post-fix #6 los checks de acero usan resolveShear (Vx/Vy prevalecen):
+    // sincronizamos Vx=VEd como hace la UI con el toggle direccional OFF.
+    const r = calcAnchorPlate({ ...base, NEd: 100, NEd_G: 10, Mx: 0, My: 0, VEd: 320, Vx: 320, Vy: 0 });
     const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
     expect(bi.utilization).toBeGreaterThan(0.9);
   });
@@ -507,12 +523,14 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
 });
 
 describe('PR8b — CR6 concrete shear modes', () => {
-  it('checks count subió de 10 → 13 con los 3 nuevos modos', () => {
+  it('checks count: 15 (PR8b +3 concrete-shear; auditoría +T-stub +interacción N+V)', () => {
     const r = calcAnchorPlate(anchorPlateDefaults);
-    expect(r.checks).toHaveLength(13);
+    expect(r.checks).toHaveLength(15);
     expect(r.checks.find((c) => c.id === 'concrete-edge-breakout')).toBeDefined();
     expect(r.checks.find((c) => c.id === 'concrete-pryout')).toBeDefined();
     expect(r.checks.find((c) => c.id === 'concrete-breakout-v')).toBeDefined();
+    expect(r.checks.find((c) => c.id === 'plate-tension-tstub')).toBeDefined();
+    expect(r.checks.find((c) => c.id === 'concrete-interaction')).toBeDefined();
   });
 
   it('FTUX: edge breakout EN 1992-4 Eq (7.40) — oracle manual (fix auditoría #1)', () => {
@@ -530,6 +548,63 @@ describe('PR8b — CR6 concrete shear modes', () => {
     const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
     expect(eb.utilization).toBeCloseTo(1.925, 2);
     expect(eb.status).toBe('fail');
+  });
+
+  it('macizo delgado: Ac,V recortado por h → factor neto √(h/1.5c1) (fix auditoría #5)', () => {
+    // EN 1992-4 Fig. 7.10: con h < 1.5·c1 la proyección Ac,V se recorta a
+    // altura h y ψh,V = √(1.5c1/h) ≥ 1 la compensa: neto = √(h/1.5c1) < 1.
+    // Pre-fix no se recortaba el área Y se aplicaba ψh → error ×(1.5c1/h).
+    // h = 150 = 0.75·c1: util debe crecer ×1/√(150/300) = ×1.414.
+    const r1 = calcAnchorPlate(anchorPlateDefaults);                          // h=1000 ≥ 300
+    const r2 = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 150 });  // h < 1.5·c1
+    const eb1 = r1.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    const eb2 = r2.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+    expect(eb2.utilization).toBeCloseTo(eb1.utilization / Math.sqrt(150 / 300), 2);
+  });
+
+  it('bolt-shear y bolt-interaction usan |V| = hypot(Vx,Vy) (fix auditoría #6)', () => {
+    // Cortante direccional (VEd legacy = 0, Vy = 50): los checks de ACERO
+    // evaluaban inp.VEd = 0 → utilización 0, verde con las barras cargadas.
+    const r = calcAnchorPlate({
+      ...anchorPlateDefaults,
+      VEd: 0, Vx: 0, Vy: 50,
+    });
+    const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
+    expect(bs.utilization).toBeGreaterThan(0);
+    expect(bs.value).toContain('50');
+  });
+
+  it('interacción N+V hormigón: utilN^1.5 + utilV^1.5 — oracle (fix auditoría #8)', () => {
+    // FTUX: utilN = cono 0.692, utilV = edge breakout 1.925
+    // → 0.692^1.5 + 1.925^1.5 = 0.576 + 2.671 = 3.246 (EN 1992-4 §7.2.3.2).
+    // Dos modos al 0.85 individual darían 1.57 > 1: la norma exige este
+    // check aunque los modos individuales estén en verde.
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
+    expect(ci.utilization).toBeCloseTo(3.246, 2);
+    expect(ci.status).toBe('fail');
+  });
+
+  it('interacción N+V hormigón neutral sin concurrencia (V=0)', () => {
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, VEd: 0, Vx: 0, Vy: 0 });
+    const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
+    expect(ci.status).toBe('neutral');
+  });
+
+  it('T-stub tracción: t=20 gobierna modo 3; t=10 cae a modo 1/2 (fix auditoría #9)', () => {
+    // FTUX (φ20 B500S, m=50, e=50): leff = min(2π·50, 4·50+1.25·50) = 262.5.
+    // t=20 → Mpl = 0.25·262.5·400·261.9 = 6.87e6 Nmm → FT1 = 550 kN,
+    //        FT2 = 205.8 kN, FT3 = 136.6 kN → modo 3 (barra) gobierna.
+    // t=10 → Mpl/4 → FT1 = 137.5, FT2 = 102.7 < FT3 → modo 2 (placa+palanca):
+    //        la placa delgada pierde capacidad ANTES que la barra — el caso
+    //        que pre-fix pasaba todos los checks.
+    const r20 = calcAnchorPlate(anchorPlateDefaults);
+    const r10 = calcAnchorPlate({ ...anchorPlateDefaults, plate_t: 10 });
+    const ts20 = r20.checks.find((c) => c.id === 'plate-tension-tstub')!;
+    const ts10 = r10.checks.find((c) => c.id === 'plate-tension-tstub')!;
+    expect(ts20.limit).toContain('modo 3');
+    expect(ts10.limit).toMatch(/modo [12]/);
+    expect(ts10.utilization).toBeGreaterThan(ts20.utilization);
   });
 
   it('Placa de fachada (cerca de borde): edge breakout activa fail', () => {
@@ -598,10 +673,11 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
     const r = calcAnchorPlate(anchorPlateDefaults);
-    // Sentinel: worstUtil = 1.925 (post-fix auditoría #1: edge breakout
-    // EN 1992-4 Eq 7.40 gobierna el FTUX; antes 0.992 con plate-bending).
+    // Sentinel: worstUtil = 3.246 (post-fix auditoría #8: la interacción
+    // N+V de hormigón gobierna el FTUX: 0.692^1.5 + 1.925^1.5 = 3.246;
+    // antes 1.925 con edge breakout solo, y 0.992 pre-auditoría).
     // NO debe cambiar con resolveEdges sobre defaults simétricos.
-    expect(r.worstUtil).toBeCloseTo(1.925, 2);
+    expect(r.worstUtil).toBeCloseTo(3.246, 2);
   });
 
   it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
