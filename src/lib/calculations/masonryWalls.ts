@@ -692,17 +692,23 @@ export function repartoMomento(H_inf: number, H_sup: number): number {
  *
  *   β = 1 + 0.3 · (a / h)   acotado entre [1.0, 1.5]
  *
- * donde `a` es la distancia desde el centro del apoyo al borde más próximo
- * del muro y `h` es la altura del muro (proxy razonable de la "profundidad
- * disponible" para la difusión de tensiones). Una carga centrada da β
- * próximo al máximo; una carga al borde del muro da β=1 (sin confinamiento).
+ * donde `a` es la distancia desde el BORDE del área cargada al borde libre
+ * más próximo del MACHÓN [x1, x2] (no del muro completo: los huecos crean
+ * bordes libres intermedios sin confinamiento lateral, igual que el extremo
+ * del muro — EC6 §6.1.3 / DB-SE-F §5.4) y `h` es la altura del muro (proxy
+ * de la profundidad disponible para la difusión de tensiones). Una carga
+ * centrada en un machón ancho da β próximo al máximo; una carga junto a un
+ * hueco o al extremo da β = 1 (sin confinamiento).
  *
- * Esto reemplaza el β=1.5 hardcoded anterior, que era el caso más favorable
- * y subestimaba sistemáticamente η_concentración para cargas cercanas al
- * borde o al hueco.
+ * Esto reemplaza la versión anterior que medía al extremo del MURO completo
+ * ignorando huecos: una viga apoyada junto a una puerta recibía β ≈ 1.25
+ * cuando el borde libre estaba a milímetros (β real ≈ 1.0) — etaConc
+ * subestimado hasta un 33% en el escenario exacto que motiva §5.4.
  */
-export function betaConcentracion(x_carga: number, L_muro: number, H_planta: number): number {
-  const a = Math.min(x_carga, Math.max(0, L_muro - x_carga));
+export function betaConcentracion(
+  x_carga: number, x1: number, x2: number, H_planta: number, b_apoyo = 0,
+): number {
+  const a = Math.max(0, Math.min(x_carga - x1, x2 - x_carga) - b_apoyo / 2);
   const ratio = H_planta > 0 ? a / H_planta : 0;
   return Math.max(1.0, Math.min(1.5, 1 + 0.3 * ratio));
 }
@@ -1117,7 +1123,7 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
           // machón físicamente (el bearing area está confinado al paño).
           const b_efectivo = Math.min(p.b_apoyo, m.ancho);
           const sigmaLoc = (Pd * 1000) / (b_efectivo * t);
-          const beta = betaConcentracion(p.x, L, pl.H);
+          const beta = betaConcentracion(p.x, m.x1, m.x2, pl.H, b_efectivo);
           const etaLocal = sigmaLoc / (beta * f_d);
           if (etaLocal > etaConc) etaConc = etaLocal;
         }
@@ -1133,15 +1139,17 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
           const b_emisor = seg.x2 - seg.x1;
           const b_efectivo = Math.min(b_emisor, m.ancho);
           const sigmaLoc = (P_seg * 1000) / (b_efectivo * t);
-          const beta = betaConcentracion(seg.originX, L, pl.H);
+          const beta = betaConcentracion(seg.originX, m.x1, m.x2, pl.H, b_efectivo);
           const etaLocal = sigmaLoc / (beta * f_d);
           if (etaLocal > etaConc) etaConc = etaLocal;
         }
       }
 
       const etaMax = Math.max(eta, etaConc);
+      // λ ≤ 27 (DB-SE-F §5.2.4 / EC6 §5.5.1.4): límite ABSOLUTO de esbeltez,
+      // independiente del axil. Por encima el muro no es apto aunque η < 1.
       let status: 'ok' | 'warn' | 'fail' = 'ok';
-      if (etaMax >= 1.0) status = 'fail';
+      if (etaMax >= 1.0 || lambda > 27) status = 'fail';
       else if (etaMax >= 0.8) status = 'warn';
 
       return {
@@ -1254,8 +1262,13 @@ export interface OverallStatus {
 
 export function overallStatus(plantasCalc: PlantaResult[]): OverallStatus {
   let max = 0;
-  plantasCalc.forEach((pl) => pl.machones.forEach((m) => { if (m.etaMax > max) max = m.etaMax; }));
-  if (max >= 1.0) return { v: 'fail', label: 'INCUMPLE', eta: max };
+  let slendernessFail = false;
+  plantasCalc.forEach((pl) => {
+    // λ > 27 (DB-SE-F §5.2.4): el edificio INCUMPLE aunque todos los η < 1.
+    if (pl.lambda > 27) slendernessFail = true;
+    pl.machones.forEach((m) => { if (m.etaMax > max) max = m.etaMax; });
+  });
+  if (max >= 1.0 || slendernessFail) return { v: 'fail', label: 'INCUMPLE', eta: max };
   if (max >= 0.8) return { v: 'warn', label: 'REVISAR', eta: max };
   return { v: 'ok', label: 'CUMPLE', eta: max };
 }

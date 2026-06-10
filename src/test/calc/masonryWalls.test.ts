@@ -178,18 +178,67 @@ describe('γM · Tabla 4.8 DB-SE-F', () => {
 // ─── 4. betaConcentracion (§5.4 — variable por posición) ─────────────────
 
 describe('betaConcentracion', () => {
-  it('carga centrada en muro largo → β próximo a 1.5 (tope)', () => {
-    expect(betaConcentracion(3000, 6000, 3000)).toBe(1.3); // a/h = 3000/3000 = 1, β = 1+0.3 = 1.3
+  // Firma post-fix auditoría #12: (x_carga, x1, x2, H, b_apoyo=0) — `a` se mide
+  // al borde libre más próximo del MACHÓN (los huecos crean bordes libres).
+  it('carga centrada en machón de muro completo → β = 1.3', () => {
+    expect(betaConcentracion(3000, 0, 6000, 3000)).toBe(1.3); // a/h = 3000/3000 = 1
   });
   it('carga al borde del muro → β=1 (sin confinamiento)', () => {
-    expect(betaConcentracion(0, 6000, 3000)).toBe(1.0);
+    expect(betaConcentracion(0, 0, 6000, 3000)).toBe(1.0);
   });
   it('carga muy lejana del borde con muro alto → β capped a 1.5', () => {
-    // a = min(x, L-x) = 5000, h = 1000 → a/h = 5, 1+0.3·5=2.5 → cap 1.5
-    expect(betaConcentracion(5000, 10000, 1000)).toBe(1.5);
+    // a = min(x−x1, x2−x) = 5000, h = 1000 → a/h = 5, 1+0.3·5=2.5 → cap 1.5
+    expect(betaConcentracion(5000, 0, 10000, 1000)).toBe(1.5);
   });
   it('H=0 → β=1 (degenerate guard)', () => {
-    expect(betaConcentracion(3000, 6000, 0)).toBe(1.0);
+    expect(betaConcentracion(3000, 0, 6000, 0)).toBe(1.0);
+  });
+  it('carga junto a un hueco → β ≈ 1 aunque esté lejos del extremo del muro (fix #12)', () => {
+    // Machón [1700, 2500] (entre ventana y puerta), carga en x=2450 con apoyo 250:
+    // a = min(2450−1700, 2500−2450) − 125 = 0 → β = 1.0.
+    // Pre-fix se medía al extremo del MURO: a = min(2450, L−2450) = 2450 → β ≈ 1.25
+    // (capacidad local sobreestimada ~25% junto al borde libre del hueco).
+    expect(betaConcentracion(2450, 1700, 2500, 3000, 250)).toBe(1.0);
+  });
+  it('descuenta b_apoyo/2: el confinamiento se mide al borde del área cargada', () => {
+    // x=2000 en machón [1700, 2500], b=200: a = min(300, 500) − 100 = 200
+    // β = 1 + 0.3·200/3000 = 1.02
+    expect(betaConcentracion(2000, 1700, 2500, 3000, 200)).toBeCloseTo(1.02, 5);
+  });
+});
+
+// ─── 4b. Límite de esbeltez λ ≤ 27 (fix auditoría #11) ───────────────────
+
+describe('límite de esbeltez λ ≤ 27 (DB-SE-F §5.2.4 / EC6 §5.5.1.4)', () => {
+  it('λ > 27 → la planta falla y el edificio INCUMPLE aunque η < 1', () => {
+    // t=140 mm, cubierta H=4000 (ρ_n=1.0) → λ = 4000/140 = 28.6 > 27, con
+    // cargas ligeras para que η = 0.85 < 1. Límite ABSOLUTO de aplicabilidad,
+    // independiente del axil: antes el motor solo degradaba Φ con λ y este
+    // muro salía REVISAR (warn) cuando la norma lo prohíbe directamente.
+    const base = defaultMasonryState();
+    const st = {
+      ...base, t: 140,
+      plantas: [
+        { ...base.plantas[0], huecos: [], puntuales: [], H: 3000, q_G: 2, q_Q: 0.5 },
+        { ...base.plantas[base.plantas.length - 1], huecos: [], puntuales: [], H: 4000, q_G: 1, q_Q: 0.3 },
+      ],
+    };
+    const plantas = expectPlantas(calcularEdificio(st));
+    const cubierta = plantas[plantas.length - 1];
+    expect(cubierta.lambda).toBeGreaterThan(27);
+    for (const m of cubierta.machones) {
+      expect(m.etaMax).toBeLessThan(1);   // η no es el problema…
+      expect(m.status).toBe('fail');      // …pero la esbeltez sí
+    }
+    expect(overallStatus(plantas).v).toBe('fail');
+    expect(overallStatus(plantas).label).toBe('INCUMPLE');
+  });
+
+  it('λ ≤ 27 no dispara el fail por esbeltez', () => {
+    const st = statePB({ t: 240 });   // λ = 3000/240·ρ_n ≤ 12.5
+    const plantas = expectPlantas(calcularEdificio(st));
+    for (const pl of plantas) expect(pl.lambda).toBeLessThanOrEqual(27);
+    expect(overallStatus(plantas).v).not.toBe('fail');
   });
 });
 
