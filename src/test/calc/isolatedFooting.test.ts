@@ -179,6 +179,28 @@ describe('Rigid / flexible classification', () => {
   });
 });
 
+// ── 7b. Shear oracle (fix auditoría #2: VRd = vRdc·d, no vRdc·1000) ─────────
+
+describe('Shear VRd oracle — CE art. 44', () => {
+  it('flexible B=L=3, h=0.4: VRd_x = vRdc·d_x ≈ 140.8 kN/m (oracle manual)', () => {
+    // Hand-calc:
+    //   N_elu = 300·1.35 = 405 kN; ex=ey=0 → σ_Ed = 405/(3·3) = 45 kPa
+    //   d_x = 400 − 50 − 16/2 = 342 mm
+    //   ell_x = (3000−300)/2 − 342 = 1008 mm → VEd_x = 45·1.008 = 45.36 kN/m
+    //   As_prov = (201.06/200)·1000 = 1005.3 mm²/m → ρl = 0.00294
+    //   k = 1 + √(200/342) = 1.765
+    //   vRdc = max(0.12·1.765·(100·0.00294·25)^⅓, 0.035·1.765^1.5·√25)
+    //        = max(0.412, 0.410) = 0.412 N/mm²
+    //   VRd_x = 0.412·342 = 140.8 kN/m → util = 45.36/140.8 = 0.322
+    // Pre-fix, VRd = vRdc·1000 = 412 kN/m (×2.9 sobreestimado, como si d=1000).
+    const r = calcIsolatedFooting({ ...base, B: 3.0, L: 3.0, h: 0.4, bc: 0.3, hc: 0.3, cover: 50, Df: 0.6 });
+    const cx = r.checks.find((c) => c.id === 'cortante-x')!;
+    expect(cx.valueNum).toBeCloseTo(45.36, 2);
+    expect(cx.limitNum).toBeCloseTo(140.8, 0);
+    expect(cx.utilization).toBeCloseTo(0.322, 2);
+  });
+});
+
 // ── 8. Validation — invalid inputs ──────────────────────────────────────────
 
 describe('Validation', () => {

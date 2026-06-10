@@ -456,8 +456,9 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     (0.18 / 1.5) * k_sh_y * Math.pow(100 * rhoL_y * inp.fck, 1 / 3),
     0.035 * Math.pow(k_sh_y, 1.5) * Math.sqrt(inp.fck),
   );
-  const VRd_x = vRdc_x * 1000;
-  const VRd_y = vRdc_y * 1000;
+  // VRd por metro de ancho = vRdc [N/mm²] · d [mm] → kN/m
+  const VRd_x = vRdc_x * d_x;
+  const VRd_y = vRdc_y * d_y;
 
   // ── Punching (CE art. 46, β=1.0) ──────────────────────────────────────────
   const d_avg = (d_x + d_y) / 2;
