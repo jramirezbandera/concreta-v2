@@ -473,8 +473,10 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const eg      = Math.max(eg_min, Math.round(0.7 * t_chapa));
 
   // ── 6. Empujes horizontales (Guía 3.7) ───────────────────────────────────
-  // Ia: momento de inercia del tubo (m⁴). Ea: módulo del acero (kN/m²).
-  const Ia = (Math.PI / 4) * (Math.pow(de, 4) - Math.pow(di, 4)) / 1e12;    // m⁴
+  // Ia: momento de inercia del tubo (m⁴) — sección anular I = π/64·(de⁴−di⁴),
+  // con el Ø exterior POST-CORROSIÓN (deNet), consistente con Wel/Wpl.
+  // Ea: módulo del acero (kN/m²).
+  const Ia = (Math.PI / 64) * (Math.pow(deNet, 4) - Math.pow(di, 4)) / 1e12; // m⁴
   const Ea = E_STEEL_MPA * 1000;                                            // kN/m² (210e6)
   const EL = Math.max(1, inp.soilModulusEmbed);
   const E0 = Math.max(0, inp.soilModulusTop);
@@ -533,9 +535,17 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const rho = VEd > 0.5 * Vpl_rd
     ? Math.pow(2 * VEd / Math.max(1, Vpl_rd) - 1, 2)
     : 0;
-  const Mpl_rdm = Mpl_rd * (1 - rho);
 
-  const im = Mpl_rdm > 0 ? MEd / Mpl_rdm : 0;
+  // Interacción M-N (EC3 §6.2.9): el axil concomitante NEd = designLoad reduce
+  // el momento resistente del tubo. n = NEd/Npl,Rd (sección post-corrosión).
+  //   CHS clase 1/2 → MN,Rd = Mpl,Rd·(1 − n^1.7) (aprox. aceptada para tubos)
+  //   Clase 3       → criterio elástico lineal: MN,Rd = Mel,Rd·(1 − n)
+  const Npl_rd = (As_d * fyd_raw) / 1000;                                   // kN
+  const nAx = Npl_rd > 0 ? Math.min(1, Math.max(0, inp.designLoad) / Npl_rd) : 0;
+  const kMN = sectionClass <= 2 ? 1 - Math.pow(nAx, 1.7) : 1 - nAx;
+  const Mpl_rdm = Mpl_rd * (1 - rho) * Math.max(0, kMN);
+
+  const im = Mpl_rdm > 0 ? MEd / Mpl_rdm : (MEd > 0 ? Infinity : 0);
   const iv = Vpl_rd > 0 ? VEd / Vpl_rd : 0;
 
   // ── 7. Asientos estimados ────────────────────────────────────────────────
@@ -631,7 +641,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     limit:  `${Mpl_rdm.toFixed(2)} kNm`,
     utilization: bendingUtil,
     status: toStatus(bendingUtil),
-    article: 'EC3 §6.2.5 / Guía §3.7 (Tablas 3.8/3.9)',
+    article: 'EC3 §6.2.5 + §6.2.9 / Guía §3.7 (Tablas 3.8/3.9)',
   });
   checks.push({
     id: 'shear',

@@ -257,11 +257,32 @@ describe('Pandeo — CR auto-calculado', () => {
     expect(outOfTable?.level).toBe('warn');   // avisos van en severidad 'warn' (UI ámbar)
   });
 
-  it('E2 (granular media, bajo NF, sin Cu) no penaliza por sí solo (R=1)', () => {
+  it('E2 (granular media que CRUZA el NF) penaliza por su porción seca (fix auditoría #14)', () => {
+    // NF a 3.0 m, tramo 0.5-10 m → 2.5 m de la capa media están permanentemente
+    // sobre el NF: la fila «granulares de compacidad media sobre el NF» de la
+    // Tabla 3.6 aplica (antes fullyAboveNF exigía capa íntegra y daba R=1).
+    // N=11 → I_D = 0.365 → CR = 7.95 → R = 1.07 − 0.027·7.95 = 0.8554
     const only = [{ ...accSoil[1], id: 1, thickness: 20 }];
     const r = calcMicropiles({ ...accInp, topDepth: 0.5, toeDepth: 10 }, only);
+    expect(r.crAdopted).toBeCloseTo(7.95, 2);
+    expect(r.R).toBeCloseTo(1.07 - 0.027 * 7.95, 4);
+  });
+
+  it('granular media íntegra bajo NF con Cu<2 sigue sin penalizar (R=1)', () => {
+    // NF en superficie → ninguna porción seca → sin condición activadora.
+    const only = [{ ...accSoil[1], id: 1, thickness: 20 }];
+    const r = calcMicropiles({ ...accInp, waterTableDepth: 0, topDepth: 0.5, toeDepth: 10 }, only);
     expect(r.crAdopted).toBe(0);
     expect(r.R).toBe(1);
+  });
+
+  it('oracle: arena media N=20, NF a mitad de capa → CR=7.50, R=0.8675', () => {
+    // I_D = lerp(20; 10→30; 0.35→0.65) = 0.50 → CR = lerp(0.50) = 7.50
+    // R = 1.07 − 0.027·7.50 = 0.8675 (Tabla 3.6 Guía Fomento)
+    const soil = [{ id: 1, type: 'granular' as const, thickness: 20, gamma: 20, c: 0, phi: 30, Nspt: 20, su: 0, rflim: 0.1 }];
+    const r = calcMicropiles({ ...accInp, waterTableDepth: 5, topDepth: 0.5, toeDepth: 10 }, soil);
+    expect(r.crAdopted).toBeCloseTo(7.50, 3);
+    expect(r.R).toBeCloseTo(0.8675, 4);
   });
 
   it('E3 (cohesivo firme su>50) no penaliza (R=1)', () => {
@@ -514,6 +535,29 @@ describe('Empujes horizontales', () => {
     expect(r.Le).toBeGreaterThan(0);
     expect(r.Lef).toBeGreaterThan(0);
     expect(r.Lef).toBeGreaterThan(r.Le);   // f_lef · 1.2 > 1
+  });
+
+  it('Le con I = π/64·(deNet⁴−di⁴) — oracle manual (fix auditoría #13)', () => {
+    // Ø88.9×9, re=0.60 → deNet=87.7, di=70.9:
+    //   Ia = π/64·(87.7⁴−70.9⁴) = 1.6635e6 mm⁴ = 1.6635e-6 m⁴
+    //   Le = (3·Ea·Ia/EL)^0.25 = (3·210e6·1.6635e-6/500000)^0.25 = 0.214 m
+    // Pre-fix con π/4 (inercia ×16): Le = 0.438 m — el doble exacto (16^0.25=2),
+    // reportado al proyectista como longitud de empotramiento ficticio errónea.
+    const r = calcMicropiles(baseInp, baseSoil);
+    expect(r.Le).toBeCloseTo(0.214, 3);
+  });
+
+  it('interacción M-N: MN,Rd = Mpl,Rd·(1−n^1.7) — oracle manual (fix auditoría #15)', () => {
+    // FTUX Ø88.9×9 S550: Npl,Rd = As_d·(fy/1.1) = 2092.7·500.9/1000 = 1048.2 kN
+    // n = 350/1048.2 = 0.334 → 1−n^1.7 = 0.845
+    // Mpl,Rd (sin axil) = 26.56 kNm → MN,Rd = 22.44 kNm (EC3 §6.2.9, CHS clase 1/2)
+    // Pre-fix el check de flexión usaba Mpl,Rd sin reducir por el axil concomitante.
+    const rN = calcMicropiles({ ...baseInp, baseShear: 50, baseMoment: 100 }, baseSoil);
+    const r0 = calcMicropiles({ ...baseInp, baseShear: 50, baseMoment: 100, designLoad: 0.001 }, baseSoil);
+    const bN = rN.checks.find((c) => c.id === 'bending')!;
+    const b0 = r0.checks.find((c) => c.id === 'bending')!;
+    expect(b0.limit).toContain('26.56');   // n ≈ 0 → sin reducción
+    expect(bN.limit).toContain('22.44');   // n = 0.334 → ×0.845
   });
 
   // ── Fix C4 — MEd = (M₀ + V·Lef) · me en el empotramiento ficticio ────────

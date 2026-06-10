@@ -126,20 +126,27 @@ export function computeBucklingCR(
       if (N >= 30) {
         // Densa / muy densa — competente, no penaliza.
       } else if (N >= 10) {
-        // Compacidad media (0,35 < I_D < 0,65): penaliza SOLO si está
-        // permanentemente sobre el NF o si Cu ≥ 2 (Tabla 3.6, fila granular media).
-        if (fullyAboveNF || cuGe2) {
+        // Compacidad media (0,35 < I_D < 0,65): la fila de la Tabla 3.6
+        // («granulares de compacidad media sobre el nivel freático») penaliza
+        // la porción permanentemente sobre el NF — o toda la capa si Cu ≥ 2.
+        // Se PARTE el tramo por el NF igual que la rama floja: una capa que
+        // CRUZA el freático penaliza por su porción seca (antes, fullyAboveNF
+        // exigía el tramo ÍNTEGRO sobre el NF y la capa cruzante quedaba sin
+        // candidato → R=1, no conservador). La porción saturada con Cu<2
+        // queda sin tabular (solo la floja saturada es inestable).
+        const hDry = Math.max(0, Math.min(segBase, nfDepth) - segTop); // m sobre NF
+        if (hDry > 1e-6 || cuGe2) {
           const ID = lerp(N, 10, 30, 0.35, 0.65);     // I_D estimado por NSPT
           const cr = lerp(ID, 0.35, 0.65, 8, 7);       // más flojo → CR mayor
           candidates.push({ cr, source: `${tag} granular media` });
           info(
             `${tag}: granular media (N=${N}, I_D≈${f2(ID)}, ${nfNote}, ${cuNote}) → CR=${f2(cr)} ` +
-            `(interp. 8…7 por I_D; activa por ${fullyAboveNF ? 'estar sobre NF' : 'Cu≥2'}).`,
+            `(interp. 8…7 por I_D; activa por ${cuGe2 ? 'Cu≥2' : `${f2(hDry)} m sobre NF`}).`,
           );
         } else {
           info(
             `${tag}: granular media (N=${N}, ${nfNote}, ${cuNote}) → no penaliza ` +
-            `(bajo NF y Cu<2; sin condición activadora).`,
+            `(íntegra bajo NF y Cu<2; sin condición activadora).`,
           );
         }
       } else {
