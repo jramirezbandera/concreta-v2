@@ -106,6 +106,28 @@ describe('Distribution classification', () => {
     expect(r.distributionType).toBe('overturning_fail');
     expect(r.sigma_max).toBe(Infinity);
   });
+
+  it('núcleo rómbico: ex=B/8, ey=L/8 → contacto parcial biaxial (fix auditoría #10)', () => {
+    // ex/B + ey/L = 0.25 > 1/6: σmin lineal = σc·(1−0.75−0.75) < 0 → hay
+    // despegue real aunque ex ≤ B/6 y ey ≤ L/6 por separado. La condición
+    // rectangular clasificaba trapezoidal y el clamp σmin=0 ocultaba el
+    // despegue con σmax subestimada (lineal 277.7 < real 284.0 kPa aquí,
+    // y la diferencia crece al alejarse del rombo).
+    const r = calcIsolatedFooting({ ...base, Mx: 81, My: 81 });
+    expect(r.distributionType).toBe('bitriangular_biaxial');
+    expect(r.loaded_area_fraction).toBeLessThan(1);
+    const Ntot = r.N_sls + r.W_footing + r.W_soil;
+    const sigma_c = Ntot / (1.8 * 1.8);
+    const lineal = sigma_c * (1 + 6 * r.ex_sls / 1.8 + 6 * r.ey_sls / 1.8);
+    expect(r.sigma_max).toBeGreaterThan(lineal);
+  });
+
+  it('dentro del rombo (ex/B + ey/L ≤ 1/6) sigue trapezoidal con σmin ≥ 0 real', () => {
+    const r = calcIsolatedFooting({ ...base, Mx: 25, My: 25 });
+    expect(r.distributionType).toBe('trapezoidal');
+    expect(r.ex_sls / 1.8 + r.ey_sls / 1.8).toBeLessThanOrEqual(1 / 6);
+    expect(r.sigma_min).toBeGreaterThanOrEqual(0);
+  });
 });
 
 // ── 5. Stress closed-forms ───────────────────────────────────────────────────

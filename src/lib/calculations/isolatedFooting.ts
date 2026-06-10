@@ -129,14 +129,20 @@ function deriveLoads(inp: IsolatedFootingInputs) {
   };
 }
 
-// ── Classify distribution from ex, ey vs B/6, L/6 ────────────────────────────
+// ── Classify distribution from ex, ey vs núcleo central ─────────────────────
+// El núcleo central de un rectángulo es un ROMBO: hay contacto pleno solo si
+// ex/B + ey/L ≤ 1/6 (se deduce de σmin = N/A·(1 − 6ex/B − 6ey/L) ≥ 0). La
+// condición rectangular (ex ≤ B/6 Y ey ≤ L/6) clasificaba como trapezoidal
+// casos biaxiales con despegue real (p.ej. ex=B/8, ey=L/8), subestimando σmax.
+// Fuera del rombo: Meyerhof uniaxial solo si la excentricidad secundaria es
+// despreciable; con ambas no nulas, contacto parcial general (Newton-Raphson).
 function classifyDistribution(ex: number, ey: number, B: number, L: number): DistributionType {
   if (ex >= B / 2 || ey >= L / 2) return 'overturning_fail';
-  const overX = ex > B / 6;
-  const overY = ey > L / 6;
-  if (!overX && !overY) return 'trapezoidal';
-  if (overX && overY)   return 'bitriangular_biaxial';
-  return 'bitriangular_uniaxial';
+  const exRel = ex / B;
+  const eyRel = ey / L;
+  if (exRel + eyRel <= 1 / 6) return 'trapezoidal';
+  if (Math.min(exRel, eyRel) < 1e-3) return 'bitriangular_uniaxial';
+  return 'bitriangular_biaxial';
 }
 
 // ── Newton-Raphson for biaxial bitriangular ──────────────────────────────────
