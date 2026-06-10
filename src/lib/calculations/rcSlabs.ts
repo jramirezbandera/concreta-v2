@@ -33,7 +33,8 @@ export function computeAnchorage(
   cara: 'inf' | 'sup',
   h:    number,   // mm
 ): AnchorageInfo {
-  const fctd = fctm / 1.5;
+  // fctd = αct·fctk,0.05/γc con fctk,0.05 = 0.7·fctm (CE Anejo 19 §3.1.6 + Tabla 3.1)
+  const fctd = (0.7 * fctm) / 1.5;
   const position: 'I' | 'II' = cara === 'inf' || h <= 300 ? 'I' : 'II';
   const eta1 = position === 'I' ? 1.0 : 0.7;
   const eta2 = 1.0;   // Ø ≤ 32 mm

@@ -30,6 +30,20 @@ describe('solveRectangular (Whitney block)', () => {
     const expected = (As * fyd * (310 - 0.4 * x)) / 1e6;
     expect(MRd).toBeCloseTo(expected, 4);
   });
+
+  it('sobrearmada (x > x,lim): MRd limitado al bloque en x,lim (fix auditoría #20)', () => {
+    // Oracle manual — b=120, d=260, C25 (fcd=16.667), B500S (fyd=434.78), As=800:
+    //   x = 800·434.78/(0.8·120·16.667) = 217.4 mm
+    //   x,lim = εcu3/(εcu3+εyd)·d = 0.0035/(0.0035+0.0021739)·260 = 160.4 mm
+    //   x > x,lim → el acero NO plastifica; la hipótesis fyd daba 60.2 kNm.
+    //   MRd,lim = 0.8·160.4·120·16.667·(260−0.4·160.4)/1e6 = 50.26 kNm
+    //   (el real con compatibilidad σs<fyd ≈ 53 — el clamp queda del lado seguro)
+    const fcd = 25 / 1.5;
+    const fyd = 500 / 1.15;
+    const { x, MRd } = solveRectangular(120, 260, 800, fcd, fyd);
+    expect(x).toBeCloseTo(217.4, 1);
+    expect(MRd).toBeCloseTo(50.26, 1);
+  });
 });
 
 // ── Pure math: computeBEff ──────────────────────────────────────────────────
@@ -77,10 +91,13 @@ describe('solveTSection', () => {
     expect(r.x).toBeGreaterThan(50);
   });
 
-  it('t-real MRd = web + flange contributions', () => {
-    const As = 20 * getBarArea(20);
+  it('t-real MRd = web + flange contributions (caso dúctil, x < x,lim)', () => {
+    // As moderada para que el alma quede en rama dúctil: 6Ø20 = 1885 mm²
+    // → xWeb ≈ 147 mm < x,lim ≈ 191 mm (la hipótesis fyd es válida).
+    const As = 6 * getBarArea(20);
     const bEff = 820, bWeb = 120, hFlange = 50, d = 310;
     const r = solveTSection(bEff, bWeb, hFlange, d, As, fcd, fyd);
+    expect(r.branch).toBe('t-real');
     // Recompute manually
     const Asf = ((bEff - bWeb) * hFlange * fcd) / fyd;
     const AsWeb = As - Asf;
@@ -88,6 +105,20 @@ describe('solveTSection', () => {
     const MRdWeb = (AsWeb * fyd * (d - 0.4 * xWeb)) / 1e6;
     const MRdFlange = (Asf * fyd * (d - hFlange / 2)) / 1e6;
     expect(r.MRd).toBeCloseTo(MRdWeb + MRdFlange, 2);
+  });
+
+  it('t-real sobrearmada: alma limitada al bloque en x,lim (fix auditoría #20)', () => {
+    // 20Ø20 = 6283 mm² → xWeb ≈ 1340 mm ≫ x,lim ≈ 191 mm: la hipótesis fyd
+    // daba MRd inflado; ahora el alma aporta como máximo el bloque en x,lim.
+    const As = 20 * getBarArea(20);
+    const bEff = 820, bWeb = 120, hFlange = 50, d = 310;
+    const r = solveTSection(bEff, bWeb, hFlange, d, As, fcd, fyd);
+    const Es = 200000, ecu3 = 0.0035;
+    const xl = (ecu3 / (ecu3 + fyd / Es)) * d;
+    const Asf = ((bEff - bWeb) * hFlange * fcd) / fyd;
+    const MRdWebLim = (0.8 * xl * bWeb * fcd * (d - 0.4 * xl)) / 1e6;
+    const MRdFlange = (Asf * fyd * (d - hFlange / 2)) / 1e6;
+    expect(r.MRd).toBeCloseTo(MRdWebLim + MRdFlange, 2);
   });
 
   it('Asf ≥ As fallback → rect-bEff', () => {
@@ -369,18 +400,21 @@ describe('tipo vano L0 factor', () => {
 
 // ── Anclaje (CE art. 69.5.1.1) ──────────────────────────────────────────────
 describe('computeAnchorage (CE art. 69.5.1.1)', () => {
-  it('lb_rqd = (Ø/4)·(fyd/fbd) for Pos I', () => {
-    // Ø16, fck=25 → fctm≈2.6, fctd=fctm/1.5
+  it('lb_rqd = (Ø/4)·(fyd/fbd) for Pos I — fctd con 0.7·fctm/γc (fix auditoría #19)', () => {
+    // Ø16, fck=25 → fctm≈2.6
+    // fctd = αct·fctk,0.05/γc = 0.7·fctm/1.5 (CE Anejo 19 §3.1.6 + Tabla 3.1)
     // Pos I (inf, h=350) → η1=1, fbd = 2.25·1·1·fctd
-    // fyd = 500/1.15
+    // fyd = 500/1.15. Para C25: fctd = 0.7·2.56/1.5 = 1.20 MPa → fbd = 2.69
+    // → lb_rqd = 4·434.78/2.69 ≈ 646 mm (la fórmula sin 0.7 daba ≈ 453, 30% corta)
     const mat = getConcrete(25);
     const fyd = getFyd(500);
-    const fctd = mat.fctm / 1.5;
+    const fctd = (0.7 * mat.fctm) / 1.5;
     const fbd  = 2.25 * 1.0 * 1.0 * fctd;
     const expected = (16 / 4) * (fyd / fbd);
     const a = computeAnchorage(16, mat.fctm, fyd, 'inf', 350);
     expect(a.position).toBe('I');
     expect(a.lb_rqd).toBeCloseTo(expected, 2);
+    expect(a.lb_rqd).toBeGreaterThan(600);   // C25/Ø16/B500S Pos I ≈ 646 mm
   });
 
   it('Pos II when cara=sup AND h > 300', () => {
