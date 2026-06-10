@@ -596,7 +596,10 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     const z = 0.9 * dShear;
     const cotTheta = 2.5;
     VRds   = (Asw * z * fyd * cotTheta) / 1000;
-    VRdmax = (0.3 * (1 - fck / 250) * fcd * bShear * z) / 1000;
+    // CE Anejo 19 §6.2.3(3): VRd,max = ν1·fcd·b·z/(cotθ+tanθ), con el MISMO θ
+    // que VRd,s. Para cotθ=2.5 → divisor 2.9 (no el 0.3·… de θ=45°).
+    const nu1 = 0.6 * (1 - fck / 250);
+    VRdmax = (nu1 * fcd * bShear * z / (cotTheta + 1 / cotTheta)) / 1000;
     VRd    = Math.min(VRds, VRdmax);
 
     shearChecks.push(check(

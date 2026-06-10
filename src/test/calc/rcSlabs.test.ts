@@ -224,6 +224,21 @@ describe('cortante', () => {
     expect(r.VRdmax).toBeGreaterThan(0);
   });
 
+  it('VRd,max consistente con cotθ=2.5 — oracle manual (fix auditoría #3)', () => {
+    // CE Anejo 19 §6.2.3(3): VRd,max = ν1·fcd·bw·z/(cotθ+tanθ), con el MISMO
+    // θ que VRd,s. Hand-calc (defaults reticular + cercos apoyo Ø6c/150 2 ramas):
+    //   dShear = 350 − 30 − 6 − 16/2 = 306 mm → z = 0.9·306 = 275.4 mm
+    //   VRds = (2·28.3/150)·275.4·434.78·2.5/1000 = 112.95 kN
+    //   ν1 = 0.6·(1 − 25/250) = 0.54; cotθ + tanθ = 2.5 + 0.4 = 2.9
+    //   VRdmax = 0.54·16.7·120·275.4/2.9/1000 = 102.77 kN
+    // Pre-fix usaba el coeficiente 0.3 de θ=45° con cotθ=2.5 en VRds:
+    // VRdmax = 0.3·0.9·16.7·120·275.4/1000 = 148.9 kN (×1.45 sobreestimado).
+    const r = calcForjados({ ...base, stirrupsEnabled: true });
+    expect(r.VRds).toBeCloseTo(112.95, 1);
+    expect(r.VRdmax).toBeCloseTo(102.77, 1);
+    expect(r.VRdmax).toBeLessThan(r.VRds);   // con cotθ=2.5 la biela gobierna aquí
+  });
+
   it('high VEd triggers fail when no stirrups', () => {
     const r = calcForjados({ ...base, stirrupsEnabled: false, VEd: 500 });
     const shear = r.shearChecks.find((c) => c.id === 'shear');
