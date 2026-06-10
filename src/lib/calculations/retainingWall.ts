@@ -334,21 +334,41 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     const ΔEAD_H   = EAD_soil * cos_d - EA_H_soil;
     const EAH_seis = EAD_soil * cos_d + EW;
     const EAV_seis = EAD_soil * sin_d;
-    const Mo_seis  = Mo + ΔEAD_H * 0.6 * H_total;  // Seed & Whitman (1970) / NCSP-07
 
-    const ΣV_seis  = W_fuste + W_zap + W_soil_toe
-                   + W_dry_heel + W_wet_heel + W_q_heel
-                   + EAV_seis - U_uplift;
-    const Mr_seis  = W_fuste * x_fuste + W_zap * x_zap
+    // Fuerzas de inercia del muro y del terreno solidario (EC8-5 §7.3.2.2 /
+    // NCSP-07): Fh,i = kh·W_i en el c.d.g. de cada masa. El bloque de suelo
+    // sobre el talón forma parte de la masa del muro (plano virtual por el
+    // talón). La sobrecarga q no es masa del muro → sin inercia.
+    const z_fuste    = hf_m + H_m / 2;
+    const z_zap      = hf_m / 2;
+    const z_soil_toe = hf_m + df_m / 2;
+    const z_wet_heel = hf_m + wet_H_heel / 2;
+    const z_dry_heel = hf_m + wet_H_heel + min_hw_H / 2;
+
+    const F_inercia  = kh * (W_fuste + W_zap + W_soil_toe + W_dry_heel + W_wet_heel);
+    const M_inercia  = kh * (W_fuste * z_fuste + W_zap * z_zap
+                     + W_soil_toe * z_soil_toe
+                     + W_dry_heel * z_dry_heel + W_wet_heel * z_wet_heel);
+
+    const Mo_seis  = Mo + ΔEAD_H * 0.6 * H_total  // Seed & Whitman (1970) / NCSP-07
+                   + M_inercia;
+
+    // Componente vertical sísmica: pesos estabilizadores reducidos con (1−kv).
+    const fv = 1 - kv;
+    const ΣV_seis  = (W_fuste + W_zap + W_soil_toe + W_dry_heel + W_wet_heel) * fv
+                   + W_q_heel + EAV_seis - U_uplift;
+    const Mr_seis  = (W_fuste * x_fuste + W_zap * x_zap
                    + W_soil_toe * x_toe
-                   + (W_dry_heel + W_wet_heel + W_q_heel) * x_heel
+                   + (W_dry_heel + W_wet_heel) * x_heel) * fv
+                   + W_q_heel * x_heel
                    + EAV_seis * B_m
                    - U_uplift * (B_m / 2)
                    + Ep * arm_Ep;
 
     FS_vuelco_seis = Mo_seis > 0 ? Mr_seis / Mo_seis : Infinity;
     // Passive Ep applied identically to static case when usePassive=true.
-    FS_desliz_seis = EAH_seis > 0 ? (ΣV_seis * inp.mu + Ep) / EAH_seis : Infinity;
+    const H_desliz_seis = EAH_seis + F_inercia;
+    FS_desliz_seis = H_desliz_seis > 0 ? (ΣV_seis * inp.mu + Ep) / H_desliz_seis : Infinity;
 
     checks.push(makeCheck(
       'vuelco-sismico', `Estabilidad al vuelco (sismica)${vuelcoSuffix}`,

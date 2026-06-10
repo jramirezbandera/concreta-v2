@@ -285,6 +285,29 @@ describe('Mononobe-Okabe seismic', () => {
     expect(rWithQ.valid).toBe(true);
     expect(rNoQ.valid).toBe(true);
   });
+
+  it('inercia del muro kh·W + (1−kv) — oracle manual (fix auditoría #4)', () => {
+    // EC8-5 §7.3.2.2 / NCSP-07. Hand-calc con defaults + Ab=0.1, S=1.0:
+    //   kh = 0.1, kv = 0.05. Geometría: H=3, hf=0.5, tF=0.3, bP=0.6, bT=1.5.
+    //   Pesos: W_fuste = 25·0.3·3 = 22.5; W_zap = 25·2.4·0.5 = 30;
+    //          W_heel = 18·3·1.5 = 81 → ΣW = 133.5 kN/m
+    //   F_inercia = kh·ΣW = 13.35 kN/m
+    //   M_inercia = 0.1·(22.5·2.0 + 30·0.25 + 81·2.0) = 21.45 kNm/m
+    //   M-O: θ = atan(0.1/0.95) = 6.01°; φ=30, δ=10 → KAD = 0.3952
+    //   EAD = 0.5·0.3952·18·3.5²·(1−0.05) = 41.39 → EAH = 40.76, EAV = 7.19
+    //   Mo_seis = 39.07 + (40.76−33.49)·0.6·3.5 + 21.45 = 75.79
+    //   ΣV_seis = 133.5·0.95 + 7.19 = 134.01
+    //   Mr_seis = (22.5·0.75 + 30·1.2 + 81·1.65)·0.95 + 7.19·2.4 = 194.45
+    //   FS_vuelco = 194.45/75.79 = 2.565
+    //   FS_desliz = 134.01·0.4/(40.76 + 13.35) = 0.991 → FALLA (< 1.10)
+    // Pre-fix (sin kh·W y sin 1−kv): FS_desliz_seis = 1.38 → verde indebido.
+    const r = calcRetainingWall({ ...base, Ab: 0.1, S: 1.0 });
+    expect(r.KAD!).toBeCloseTo(0.3952, 3);
+    expect(r.FS_vuelco_seis!).toBeCloseTo(2.565, 2);
+    expect(r.FS_desliz_seis!).toBeCloseTo(0.991, 2);
+    const desliz = r.checks.find((c) => c.id === 'deslizamiento-sismico')!;
+    expect(desliz.status).toBe('fail');
+  });
 });
 
 // ── Structural ────────────────────────────────────────────────────────────────
