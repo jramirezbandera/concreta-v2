@@ -90,6 +90,10 @@ export interface SectionInputs {
  */
 export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): SectionInputs {
   const isVano = kind === 'vano';
+  // Los momentos se introducen como magnitudes (|M-| en apoyo). Se normaliza
+  // el signo con Math.abs() — un M- tecleado con su signo natural no debe
+  // desactivar checks en silencio ni romper solveSectionAtMoment (throw con
+  // Md<0 durante el render del modo simple). Fix auditoría #60.
   return {
     b: state.b,
     h: state.h,
@@ -99,11 +103,13 @@ export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): 
     fck: state.fck,
     fyk: state.fyk,
     exposureClass: state.exposureClass,
-    Md: isVano ? state.vano_Md : state.apoyo_Md,
-    VEd: isVano ? state.vano_VEd : state.apoyo_VEd,
-    Ms: psi2Quasi(state) * (isVano
-      ? (state.vano_M_G + state.vano_M_Q)
-      : (state.apoyo_M_G + state.apoyo_M_Q)),
+    Md: Math.abs(isVano ? state.vano_Md : state.apoyo_Md),
+    VEd: Math.abs(isVano ? state.vano_VEd : state.apoyo_VEd),
+    // Cuasipermanente = M_G + psi2·M_Q (NO psi2·(M_G+M_Q); fix auditoría #71),
+    // idéntica a la de calcRCBeam.
+    Ms: Math.abs(isVano
+      ? (state.vano_M_G + psi2Quasi(state) * state.vano_M_Q)
+      : (state.apoyo_M_G + psi2Quasi(state) * state.apoyo_M_Q)),
     nBars: isVano ? state.vano_bot_nBars : state.apoyo_top_nBars,
     barDiam: isVano ? state.vano_bot_barDiam : state.apoyo_top_barDiam,
     nBarsComp: isVano ? state.vano_top_nBars : state.apoyo_bot_nBars,
@@ -243,14 +249,20 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   // SHEAR (CE art. 44) ──────────────────────────────────────────────────
   const k = Math.min(1 + Math.sqrt(200 / d), 2.0);
   const rhoL = Math.min(As / (inp.b * d), 0.02);
-  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(rhoL * inp.fck, 1 / 3) * inp.b * d) / 1000;
+  // (100·rho_l·fck)^(1/3) — el 100 es parte de la formula EC2 6.2.a
+  // (fix auditoría #68; mismo fix que rcSlabs #38).
+  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(100 * rhoL * inp.fck, 1 / 3) * inp.b * d) / 1000;
   const VRdc2 = ((0.051 / GAMMA_C) * Math.pow(k, 1.5) * Math.sqrt(inp.fck) * inp.b * d) / 1000;
   const VRdc = Math.max(VRdc1, VRdc2);
 
   const z = 0.9 * d;
   const cotTheta = 2.5;
   const VRds = (Asw * z * fyd * cotTheta) / 1000;
-  const VRdmax = (0.3 * (1 - inp.fck / 250) * fcd * inp.b * z) / 1000;
+  // VRd,max con el MISMO θ que VRd,s (CE Anejo 19 §6.2.3(3)): para cotθ=2.5
+  // el divisor es (cotθ+tanθ)=2.9, no el 0.3·fcd·b·z de θ=45° (fix auditoría
+  // #59; mismo fix que rcSlabs #3).
+  const nu1 = 0.6 * (1 - inp.fck / 250);
+  const VRdmax = (nu1 * fcd * inp.b * z / (cotTheta + 1 / cotTheta)) / 1000;
   const VRd = hasStirrups ? Math.min(VRds, VRdmax) : VRdc;
 
   checks.push(makeCheckQty(
@@ -308,17 +320,35 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     ));
 
     // TRANSVERSE STIRRUP LEG SPACING (CE Anejo 19 art. 9.2.2(8)) ─────────
-    const innerWidth = inp.b - 2 * inp.cover - 2 * inp.stirrupDiam;
-    const s_t = innerWidth / (inp.stirrupLegs - 1);
-    const s_t_max = Math.min(0.75 * d, 600);
-    checks.push(check(
-      'stirrup-legs-spacing',
-      'Separacion transversal de ramas de cercos',
-      s_t, s_t_max,
-      `s_t = ${s_t.toFixed(0)} mm`,
-      `s_t,max = ${s_t_max.toFixed(0)} mm`,
-      'CE Anejo 19 art. 9.2.2(8)',
-    ));
+    // stirrupLegs >= 2 garantizado por la UI; el guard evita la division por
+    // cero (s_t = Infinity) si llega un 1 por via programatica (auditoría #64).
+    if (inp.stirrupLegs >= 2) {
+      const innerWidth = inp.b - 2 * inp.cover - 2 * inp.stirrupDiam;
+      const s_t = innerWidth / (inp.stirrupLegs - 1);
+      const s_t_max = Math.min(0.75 * d, 600);
+      checks.push(check(
+        'stirrup-legs-spacing',
+        'Separacion transversal de ramas de cercos',
+        s_t, s_t_max,
+        `s_t = ${s_t.toFixed(0)} mm`,
+        `s_t,max = ${s_t_max.toFixed(0)} mm`,
+        'CE Anejo 19 art. 9.2.2(8)',
+      ));
+    }
+  } else {
+    // Sin cercos: en vigas la armadura transversal minima es OBLIGATORIA
+    // (CE Anejo 19 §9.2.2(4)-(5)) — no es una configuracion verificable.
+    // Fila fail explicita en vez de silencio (fix auditoría #69).
+    const rhoWMin = (0.08 * Math.sqrt(inp.fck)) / inp.fyk;
+    checks.push({
+      id: 'rho-w-min',
+      description: 'Cuantia minima de armadura transversal (obligatoria en vigas)',
+      value: 'ρw = 0 (sin cercos)',
+      limit: `ρw,min = ${rhoWMin.toFixed(5)}`,
+      utilization: Infinity,
+      status: 'fail',
+      article: 'CE Anejo 19 art. 9.2.2',
+    });
   }
 
   // BAR SPACING (CE art. 69.4) ──────────────────────────────────────────
@@ -396,8 +426,20 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       (inp.h / 2) * inp.b,
     );
     const rhoEff = As / AcEff;
-    // sr,max = 3.4*c + 0.425*k1*k2*(phi/rhoEff), k1=0.8 k2=0.5
-    const srMax = 3.4 * inp.cover + 0.425 * 0.8 * 0.5 * (inp.barDiam / rhoEff);
+    // sr,max = 3.4*c + 0.425*k1*k2*(phi/rhoEff), k1=0.8 k2=0.5.
+    // c = recubrimiento de la armadura LONGITUDINAL (cover + estribo), no el
+    // recubrimiento nominal al estribo (EC2 7.3.4; fix auditoría #66).
+    const cLong = inp.cover + inp.stirrupDiam;
+    let srMax = 3.4 * cLong + 0.425 * 0.8 * 0.5 * (inp.barDiam / rhoEff);
+    // Limite de validez EC2 7.3.4(3): la formula solo vale si la separacion
+    // entre ejes de barras <= 5(c + phi/2); si no, sr,max = 1.3(h - x)
+    // (fix auditoría #70). nBars=1 → separacion no definida → rama conservadora.
+    const barSpacingAxis = inp.nBars > 1
+      ? (inp.b - 2 * cLong - inp.barDiam) / (inp.nBars - 1)
+      : Infinity;
+    if (barSpacingAxis > 5 * (cLong + inp.barDiam / 2)) {
+      srMax = 1.3 * (inp.h - xCr);
+    }
     const kt = 0.4;
     const esmEcm1 = (sigmaS - kt * (mat.fctm / rhoEff) * (1 + n * rhoEff)) / Es;
     const esmEcm2 = (0.6 * sigmaS) / Es;
@@ -415,9 +457,19 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     'CE art. 49.2.4',
   ));
 
-  // LAP LENGTH (CE art. 69.5.2) ──────────────────────────────────────────
-  const lapFactor = inp.bondClass === 'good' ? 60 : 84;
-  const lapLength = lapFactor * inp.barDiam;
+  // LAP LENGTH (CE Anejo 19 §8.7.3 / EC2) ────────────────────────────────
+  // l0 = α6·lb,rqd ≥ l0,min con lb,rqd = (φ/4)·(σsd/fbd), σsd = fyd,
+  // fbd = 2.25·η1·η2·fctd, fctd = 0.7·fctm/γc, α6 = 1.5 (100% solapado),
+  // l0,min = max(0.3·α6·lb,rqd; 15φ; 200 mm).
+  // Antes: 60φ/84φ fijos, calibrados solo para C25+B500 — quedaban cortos
+  // para fck<25 o B600 (fix auditoría #65).
+  const eta1 = inp.bondClass === 'good' ? 1.0 : 0.7;
+  const eta2 = inp.barDiam <= 32 ? 1.0 : (132 - inp.barDiam) / 100;
+  const fctd = (0.7 * mat.fctm) / GAMMA_C;
+  const fbd = 2.25 * eta1 * eta2 * fctd;
+  const alpha6 = 1.5;
+  const lbRqd = (inp.barDiam / 4) * (fyd / fbd);
+  const lapLength = Math.max(alpha6 * lbRqd, 15 * inp.barDiam, 200);
 
   // REBAR SCHEDULE ───────────────────────────────────────────────────────
   const rebarSchedule =
@@ -456,8 +508,12 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     ? (inp.psi2Custom as number)
     : (PSI2_MAP[inp.loadType as string] ?? 0.3);
 
-  const vanoMs  = (inp.vano_M_G  as number) + psi2 * (inp.vano_M_Q  as number);
-  const apoyoMs = (inp.apoyo_M_G as number) + psi2 * (inp.apoyo_M_Q as number);
+  // Los momentos se introducen como magnitudes (|M-| en apoyo). Math.abs()
+  // evita que un valor negativo (M- con su signo natural) desactive en
+  // silencio la fisuración (Ms>0) o dé utilización negativa → verde en
+  // flexión (fix auditoría #60; mismo patrón que rcSlabs #53).
+  const vanoMs  = Math.abs((inp.vano_M_G  as number) + psi2 * (inp.vano_M_Q  as number));
+  const apoyoMs = Math.abs((inp.apoyo_M_G as number) + psi2 * (inp.apoyo_M_Q as number));
 
   const vano = calcSection({
     b:              inp.b as number,
@@ -468,8 +524,8 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     fck:            inp.fck as number,
     fyk:            inp.fyk as number,
     exposureClass:  inp.exposureClass as string,
-    Md:             inp.vano_Md as number,
-    VEd:            inp.vano_VEd as number,
+    Md:             Math.abs(inp.vano_Md as number),
+    VEd:            Math.abs(inp.vano_VEd as number),
     Ms:             vanoMs,
     nBars:          inp.vano_bot_nBars as number,
     barDiam:        inp.vano_bot_barDiam as number,
@@ -488,8 +544,8 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     fck:            inp.fck as number,
     fyk:            inp.fyk as number,
     exposureClass:  inp.exposureClass as string,
-    Md:             inp.apoyo_Md as number,
-    VEd:            inp.apoyo_VEd as number,
+    Md:             Math.abs(inp.apoyo_Md as number),
+    VEd:            Math.abs(inp.apoyo_VEd as number),
     Ms:             apoyoMs,
     nBars:          inp.apoyo_top_nBars as number,
     barDiam:        inp.apoyo_top_barDiam as number,

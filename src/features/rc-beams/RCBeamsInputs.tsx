@@ -36,6 +36,7 @@ function NumField({
   field,
   value,
   unit,
+  min,
   integer = false,
   setField,
 }: {
@@ -59,6 +60,12 @@ function NumField({
     setLocalStr(String(value));
   }, [value]);
 
+  // min se aplica como clamp real (fix auditoría #64: antes el prop existía
+  // en el tipo pero nunca se destructuraba — spacing=0, legs=1, etc. eran
+  // tecleables y degeneraban el motor). Durante el tecleo se acepta el valor
+  // crudo para no pelearse con estados intermedios; el clamp llega en blur.
+  const clamp = (n: number) => (min !== undefined ? Math.max(min, n) : n);
+
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
@@ -72,12 +79,16 @@ function NumField({
             const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
             setLocalStr(raw);
             const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(field, n);
+            if (!isNaN(n)) setField(field, clamp(n));
           }}
           onBlur={() => {
             const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
             if (isNaN(n)) setLocalStr(String(value));
-            else if (integer) setLocalStr(String(Math.round(n)));
+            else {
+              const c = clamp(integer ? Math.round(n) : n);
+              setLocalStr(String(c));
+              if (c !== n) setField(field, c);
+            }
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}

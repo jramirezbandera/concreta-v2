@@ -4,7 +4,7 @@
 //         cracking, lap lengths, rebar schedule format, comp bar As,min, s_max stirrup check
 
 import { describe, expect, it } from 'vitest';
-import { calcRCBeam } from '../../lib/calculations/rcBeams';
+import { calcRCBeam, pickSectionInputs } from '../../lib/calculations/rcBeams';
 import { rcBeamDefaults } from '../../data/defaults';
 
 // Shared base fixture — all tests clone and override as needed
@@ -337,9 +337,13 @@ describe('rho-w-min check', () => {
     expect(r.vano.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('warn');
   });
 
-  it('no stirrups -> no rho-w-min row', () => {
+  it('no stirrups -> rho-w-min fail (cuantia minima obligatoria en vigas, fix auditoría #69)', () => {
+    // CE Anejo 19 §9.2.2(4)-(5): la armadura transversal minima es obligatoria
+    // en vigas — sin cercos no es una configuracion verificable en verde.
     const r = calcRCBeam({ ...base, vano_stirrupSpacing: 0 });
-    expect(r.vano.checks.map((c) => c.id)).not.toContain('rho-w-min');
+    const c = r.vano.checks.find((ch) => ch.id === 'rho-w-min')!;
+    expect(c).toBeDefined();
+    expect(c.status).toBe('fail');
   });
 });
 
@@ -426,19 +430,37 @@ describe('Cracking check', () => {
 });
 
 // ── Lap lengths ───────────────────────────────────────────────────────────────
-describe('Lap lengths (CE art. 69.5.2)', () => {
-  it('vano (buena adherencia): lapLength = 60 * barDiam', () => {
-    expect(calcRCBeam(base).vano.lapLength).toBe(60 * 16);
+// l0 = α6·lb,rqd con lb,rqd = (φ/4)·(fyd/fbd), fbd = 2.25·η1·0.7·fctm/1.5,
+// α6 = 1.5 (fix auditoría #65: antes 60φ/84φ fijos, solo validos C25+B500).
+describe('Lap lengths (CE Anejo 19 §8.7.3)', () => {
+  it('vano C25+B500 φ16 (buena adherencia): l0 ≈ 970 mm (~60.7φ)', () => {
+    // fctd = 0.7·2.56/1.5 = 1.195; fbd = 2.688; lb,rqd = 4·(434.78/2.688) = 647
+    expect(calcRCBeam(base).vano.lapLength).toBeCloseTo(970.5, 0);
   });
 
-  it('apoyo (adherencia deficiente): lapLength = 84 * barDiam', () => {
-    expect(calcRCBeam(base).apoyo.lapLength).toBe(84 * 16);
+  it('apoyo C25+B500 φ16 (adherencia deficiente): l0 ≈ 1386 mm (~86.7φ)', () => {
+    // fbd = 2.688·0.7 = 1.882; lb,rqd = 4·(434.78/1.882) = 924
+    expect(calcRCBeam(base).apoyo.lapLength).toBeCloseTo(1386.4, 0);
   });
 
   it('different tension barDiam -> different lapLength per section', () => {
     const r = calcRCBeam({ ...base, vano_bot_barDiam: 20, apoyo_top_barDiam: 12 });
-    expect(r.vano.lapLength).toBe(60 * 20);
-    expect(r.apoyo.lapLength).toBe(84 * 12);
+    expect(r.vano.lapLength).toBeCloseTo(1213.1, 0);   // 5·161.75·1.5
+    expect(r.apoyo.lapLength).toBeCloseTo(1039.8, 0);  // 3·231.07·1.5
+  });
+
+  it('fck<25 alarga el solape (antes 60φ fijo lo dejaba corto)', () => {
+    const c25 = calcRCBeam(base).vano.lapLength;
+    const c20 = calcRCBeam({ ...base, fck: 20 }).vano.lapLength;
+    expect(c20).toBeGreaterThan(c25);
+    // C20: fctm=2.21 → fbd=2.32 → lb,rqd=749 → l0 = 1124 mm (~70.3φ)
+    expect(c20).toBeCloseTo(1124.2, 0);
+  });
+
+  it('B600 alarga el solape respecto a B500', () => {
+    const b500 = calcRCBeam(base).vano.lapLength;
+    const b600 = calcRCBeam({ ...base, fyk: 600 }).vano.lapLength;
+    expect(b600 / b500).toBeCloseTo(600 / 500, 2);
   });
 });
 
@@ -593,5 +615,95 @@ describe('stirrup-legs-spacing (CE Anejo 19 art. 9.2.2(8))', () => {
   it('check id present in apoyo checks', () => {
     const r = calcRCBeam(base);
     expect(r.apoyo.checks.find((c) => c.id === 'stirrup-legs-spacing')).toBeDefined();
+  });
+});
+
+// ── Fixes auditoría adenda (hallazgos #59-71) ────────────────────────────────
+describe('Auditoría #59: VRd,max consistente con cotθ=2.5', () => {
+  it('VRdmax = ν1·fcd·b·z/(cotθ+tanθ) ≈ 381 kN en defaults (antes 553 kN con 0.3·fcd·b·z)', () => {
+    // b=300, d=454, z=408.6, C25: ν1=0.54, fcd=16.7
+    // VRdmax = 0.54·16.7·300·408.6/2.9/1000 = 381.2 kN
+    const r = calcRCBeam(base);
+    expect(r.vano.VRdmax).toBeCloseTo(381.2, 0);
+  });
+
+  it('VRdmax < valor inflado de θ=45° con cotθ=2.5 (ratio 1.45)', () => {
+    const r = calcRCBeam(base);
+    const inflado = (0.3 * (1 - 25 / 250) * 16.7 * 300 * 0.9 * 454) / 1000;
+    expect(inflado / r.vano.VRdmax).toBeCloseTo(1.45, 2);
+  });
+});
+
+describe('Auditoría #68: VRd,c con el factor 100', () => {
+  it('sin cercos: VRdc ≈ 66.7 kN en defaults (antes 49.7 kN del suelo vmin)', () => {
+    // k=1.664, ρl=804.4/(300·454)=0.0059: VRdc1=0.12·k·(100·ρl·25)^(1/3)·b·d
+    const r = calcRCBeam({ ...base, vano_stirrupSpacing: 0 });
+    expect(r.vano.VRdc).toBeCloseTo(66.7, 0);
+  });
+});
+
+describe('Auditoría #60: momentos negativos normalizados', () => {
+  it('apoyo_Md=-65 da la misma utilización de flexión que +65', () => {
+    const pos = calcRCBeam(base);
+    const neg = calcRCBeam({ ...base, apoyo_Md: -base.apoyo_Md });
+    const uPos = pos.apoyo.checks.find((c) => c.id === 'bending')!.utilization;
+    const uNeg = neg.apoyo.checks.find((c) => c.id === 'bending')!.utilization;
+    expect(uNeg).toBeCloseTo(uPos, 6);
+    expect(uNeg).toBeGreaterThan(0);
+  });
+
+  it('M_G/M_Q negativos no desactivan la fisuración (wk > 0)', () => {
+    const neg = calcRCBeam({ ...base, vano_M_G: -base.vano_M_G, vano_M_Q: -base.vano_M_Q });
+    const pos = calcRCBeam(base);
+    expect(neg.vano.wk).toBeCloseTo(pos.vano.wk, 6);
+    expect(neg.vano.wk).toBeGreaterThan(0);
+  });
+
+  it('VEd negativo da la misma utilización de cortante', () => {
+    const pos = calcRCBeam(base);
+    const neg = calcRCBeam({ ...base, vano_VEd: -base.vano_VEd });
+    expect(neg.vano.checks.find((c) => c.id === 'shear')!.utilization)
+      .toBeCloseTo(pos.vano.checks.find((c) => c.id === 'shear')!.utilization, 6);
+  });
+});
+
+describe('Auditoría #66/#70: sr,max con c a barra longitudinal y límite de validez', () => {
+  it('defaults: wk > 0 y finito (rama fórmula, separación 53mm < 5(c+φ/2))', () => {
+    const r = calcRCBeam(base);
+    expect(r.vano.wk).toBeGreaterThan(0);
+    expect(Number.isFinite(r.vano.wk)).toBe(true);
+  });
+
+  it('barras muy separadas (2Ø20 en b=400): rama sr,max=1.3(h−x) sin NaN', () => {
+    // separación ejes = 400−2·38−20 = 304 > 5·(38+10) = 240 → rama 1.3(h−x)
+    const r = calcRCBeam({ ...base, b: 400, vano_bot_nBars: 2, vano_bot_barDiam: 20 });
+    expect(r.vano.wk).toBeGreaterThan(0);
+    expect(Number.isFinite(r.vano.wk)).toBe(true);
+  });
+
+  it('barra única: rama conservadora 1.3(h−x) sin NaN', () => {
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 1, vano_bot_barDiam: 25 });
+    expect(Number.isFinite(r.vano.wk)).toBe(true);
+  });
+});
+
+describe('Auditoría #71: pickSectionInputs coherente con calcRCBeam', () => {
+  it('Ms = M_G + ψ2·M_Q (no ψ2·(M_G+M_Q))', () => {
+    // residential ψ2=0.3: Ms = 45 + 0.3·20 = 51 (la fórmula errónea daba 19.5)
+    const s = pickSectionInputs(base, 'vano');
+    expect(s.Ms).toBeCloseTo(45 + 0.3 * 20, 6);
+  });
+
+  it('Md negativo llega normalizado (no rompe solveSectionAtMoment)', () => {
+    const s = pickSectionInputs({ ...base, apoyo_Md: -65 }, 'apoyo');
+    expect(s.Md).toBe(65);
+  });
+});
+
+describe('Auditoría #64: stirrupLegs degenerado no produce Infinity', () => {
+  it('stirrupLegs=1 (vía programática): no hay fila stirrup-legs-spacing', () => {
+    const r = calcRCBeam({ ...base, vano_stirrupLegs: 1 });
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('stirrup-legs-spacing');
+    expect(r.vano.valid).toBe(true);
   });
 });
