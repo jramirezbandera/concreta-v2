@@ -324,8 +324,8 @@ describe('rho-w-min check', () => {
   });
 
   it('rhoW < rhoWMin -> rho-w-min fail', () => {
-    // rhoWMin = 0.072*sqrt(25)/500 = 0.00072
-    // f6/c1000: rhoW = 2*28.3/(1000*300) = 0.000189 < 0.00072
+    // rhoWMin = 0.08*sqrt(25)/500 = 0.0008 (fix auditoría #54)
+    // f6/c1000: rhoW = 2*28.3/(1000*300) = 0.000189 < 0.0008
     const r = calcRCBeam({ ...base, vano_stirrupDiam: 6, vano_stirrupSpacing: 1000 });
     expect(r.vano.checks.find((c) => c.id === 'rho-w-min')!.status).toBe('fail');
   });
@@ -407,9 +407,10 @@ describe('Cracking check', () => {
     expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'cracking')!.status).toBe('ok');
   });
 
-  it('XC1 wkMax = 0.4, XC4 wkMax = 0.2', () => {
+  it('XC1 wkMax = 0.4, XC4 wkMax = 0.3 (fix auditoría #55)', () => {
+    // CE Anejo 19 Tabla 7.1N: XC2-XC4 → 0.3 mm; el 0.2 es para cloruros (XD/XS).
     expect(calcRCBeam({ ...base, exposureClass: 'XC1' }).vano.wkMax).toBe(0.4);
-    expect(calcRCBeam({ ...base, exposureClass: 'XC4' }).vano.wkMax).toBe(0.2);
+    expect(calcRCBeam({ ...base, exposureClass: 'XC4' }).vano.wkMax).toBe(0.3);
   });
 
   it('Ms=0 -> wk=0', () => {
@@ -419,7 +420,7 @@ describe('Cracking check', () => {
 
   it('large Ms + XC4 -> cracking fail', () => {
     const r = calcRCBeam({ ...base, exposureClass: 'XC4', vano_M_G: 100, vano_M_Q: 50, loadType: 'parking' });
-    expect(r.vano.wk).toBeGreaterThan(0.2);
+    expect(r.vano.wk).toBeGreaterThan(0.3);   // límite XC4 = 0.3 mm
     expect(r.vano.checks.find((c) => c.id === 'cracking')!.status).toBe('fail');
   });
 });

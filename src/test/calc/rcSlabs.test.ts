@@ -333,6 +333,23 @@ describe('As,min losa maciza vs nervio (CE Anejo 19 §9.2.1.1)', () => {
   });
 });
 
+// ── Normalización de signo de momentos (fix auditoría #53) ──────────────────
+describe('momentos de apoyo con signo negativo (|M-|)', () => {
+  it('apoyo_Md negativo se normaliza: flexión y fisuración como con |M|', () => {
+    // Pre-fix: apoyo_Md<0 daba utilización negativa → verde incondicional y
+    // (con XC2+) omitía el check de fisuración silenciosamente.
+    const pos = calcForjados({ ...base, exposureClass: 'XC2', apoyo_Md: 25, apoyo_M_G: 18, apoyo_M_Q: 10 });
+    const neg = calcForjados({ ...base, exposureClass: 'XC2', apoyo_Md: -25, apoyo_M_G: -18, apoyo_M_Q: -10 });
+    const bPos = pos.apoyo.checks.find((c) => c.id === 'bending')!;
+    const bNeg = neg.apoyo.checks.find((c) => c.id === 'bending')!;
+    expect(bNeg.utilization).toBeCloseTo(bPos.utilization, 6);
+    expect(bNeg.utilization).toBeGreaterThan(0);
+    // La fisuración no desaparece con el signo negativo.
+    expect(neg.apoyo.checks.some((c) => c.id === 'cracking')).toBe(true);
+    expect(neg.apoyo.wk).toBeCloseTo(pos.apoyo.wk, 6);
+  });
+});
+
 // ── Cuantías ──────────────────────────────────────────────────────────────────
 describe('cuantías mín/máx', () => {
   it('As,min check present in both zones', () => {

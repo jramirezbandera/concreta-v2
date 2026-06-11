@@ -339,10 +339,18 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   const fyk     = inp.fyk as number;
   const exposureClass = inp.exposureClass as string;
 
+  // Los momentos se introducen como magnitudes (|M-| en apoyo). Se normaliza
+  // el signo con Math.abs() para que un valor negativo (M- con su signo
+  // natural, alcanzable vía URL/llamada programática) no desactive en
+  // silencio la fisuración (Ms>0) ni dé utilización negativa → verde en
+  // flexión (fix auditoría #53).
+  const vano_Md  = Math.abs(inp.vano_Md  as number);
+  const apoyo_Md = Math.abs(inp.apoyo_Md as number);
+
   // SLS Ms per zone (for wk when XC2+)
   const psi2 = inp.loadType === 'custom' ? (inp.psi2Custom as number) : (PSI2_MAP[inp.loadType as string] ?? 0.3);
-  const vanoMs  = (inp.vano_M_G  as number) + psi2 * (inp.vano_M_Q  as number);
-  const apoyoMs = (inp.apoyo_M_G as number) + psi2 * (inp.apoyo_M_Q as number);
+  const vanoMs  = Math.abs((inp.vano_M_G  as number) + psi2 * (inp.vano_M_Q  as number));
+  const apoyoMs = Math.abs((inp.apoyo_M_G as number) + psi2 * (inp.apoyo_M_Q as number));
 
   // Material
   const mat = getConcrete(fck);
@@ -549,16 +557,16 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   vano.checks.unshift(check(
     'bending',
     variant === 'reticular' ? 'Momento vano MRd ≥ Md (sección T)' : 'Momento vano MRd ≥ Md',
-    inp.vano_Md as number, vano.MRd,
-    `Md = ${(inp.vano_Md as number).toFixed(1)} kNm`,
+    vano_Md, vano.MRd,
+    `Md = ${vano_Md.toFixed(1)} kNm`,
     `MRd = ${vano.MRd.toFixed(1)} kNm`,
     'CE art. 42',
   ));
   apoyo.checks.unshift(check(
     'bending',
     variant === 'reticular' ? 'Momento apoyo MRd ≥ |M-| (b_w)' : 'Momento apoyo MRd ≥ |M-|',
-    inp.apoyo_Md as number, apoyo.MRd,
-    `|M-| = ${(inp.apoyo_Md as number).toFixed(1)} kNm`,
+    apoyo_Md, apoyo.MRd,
+    `|M-| = ${apoyo_Md.toFixed(1)} kNm`,
     `MRd = ${apoyo.MRd.toFixed(1)} kNm`,
     'CE art. 42',
   ));
@@ -634,7 +642,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     ));
 
     // ρw,min
-    const rhoWMin = (0.072 * Math.sqrt(fck)) / fyk;
+    // CE Anejo 19 / EC2 §9.2.2 ec. (9.5N): ρw,min = 0.08·√fck/fyk
+    const rhoWMin = (0.08 * Math.sqrt(fck)) / fyk;
     const rhoW = Asw_total / (stirrupSpacing * bShear);
     const rhoWUtil = rhoWMin / rhoW;
     let rhoWStatus: CheckStatus;

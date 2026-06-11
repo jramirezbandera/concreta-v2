@@ -271,9 +271,9 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     ));
   }
 
-  // rho_w,min (CE art. 44.2.3.2.2) ──────────────────────────────────────
+  // rho_w,min (CE Anejo 19 / EC2 §9.2.2 ec. 9.5N: 0.08·√fck/fyk) ─────────
   if (hasStirrups) {
-    const rhoWMin = (0.072 * Math.sqrt(inp.fck)) / inp.fyk;
+    const rhoWMin = (0.08 * Math.sqrt(inp.fck)) / inp.fyk;
     const rhoW = Asw_total / (inp.stirrupSpacing * inp.b);
     const rhoWUtil = rhoWMin / rhoW; // < 1 = rhoW >= rhoWMin = ok
 
