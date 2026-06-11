@@ -156,16 +156,38 @@ describe('RC Columns — Slender column (lambda > 25)', () => {
     expect(r.MEd_tot_y).toBeGreaterThan(D.MEdy);
   });
 
-  it('lambda_y = 25 boundary: e2_y = 0 (exactly short)', () => {
+  it('λ = 25 con axil bajo (λ_lim capado a 25): e2_y = 0 (fix auditoría #35)', () => {
+    // λ_lim = 20·0.7·1.1·0.7/√n = 10.78/√n (CE Anejo 19 expr. 5.13N), capado
+    // al 25 histórico. Con Nd=200 → n=0.133 → λ_lim = 29.5 → cap 25: el corte
+    // antiguo sigue valiendo SOLO con axil bajo.
     const Lk_boundary = (25 * (300 / Math.sqrt(12))) / 1000;
-    const r = calcRCColumn(inp({ L: Lk_boundary, beta: 1 }));
+    const r = calcRCColumn(inp({ L: Lk_boundary, beta: 1, Nd: 200 }));
     expect(r.e2_y).toBe(0);
+  });
+
+  it('λ = 22 con axil alto: e2 ya no se desprecia (fix auditoría #35)', () => {
+    // Nd=750 → n = 750/(300·300·16.7e-3) = 0.499 → λ_lim = 10.78/√0.499 = 15.3.
+    // λ=22 > λ_lim: la norma exige e2 (el corte fijo en 25 lo ponía a cero).
+    const Lk = (22 * (300 / Math.sqrt(12))) / 1000;
+    const r = calcRCColumn(inp({ L: Lk, beta: 1, Nd: 750 }));
+    expect(r.lambda_y).toBeCloseTo(22, 1);
+    expect(r.e2_y).toBeGreaterThan(0);
   });
 
   it('second-order e2_y increases with Lk for slender columns', () => {
     const r1 = calcRCColumn(inp({ L: 4, beta: 1 }));
     const r2 = calcRCColumn(inp({ L: 7, beta: 1 }));
     expect(r2.e2_y).toBeGreaterThan(r1.e2_y);
+  });
+
+  it('separación máx. de cercos usa Ømin longitudinal (fix auditoría #36)', () => {
+    // Esquinas Ø25 + intermedias Ø12: el cerco arriostra la barra MÁS FINA →
+    // sMax = min(12·12, min(b,h), 300) = 144 mm. Pre-fix usaba el Ø de
+    // esquina (12·25 → cap 300) y s=250 con intermedias Ø12 pasaba en verde.
+    const r = calcRCColumn(inp({ cornerBarDiam: 25, nBarsX: 2, barDiamX: 12, stirrupSpacing: 250 }));
+    const c = r.checks.find((ch) => ch.id === 'stirrup-spacing')!;
+    expect(c.limit).toContain('144');
+    expect(c.status).toBe('fail');
   });
 });
 

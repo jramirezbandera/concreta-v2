@@ -257,11 +257,21 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const Kphi_y = Math.max(1, 1 + (0.35 + inp.fck / 200 - lambda_y / 150) * phiEf);
   const Kphi_z = Math.max(1, 1 + (0.35 + inp.fck / 200 - lambda_z / 150) * phiEf);
 
+  // Umbral para despreciar el 2º orden: λ_lim = 20·A·B·C/√n (CE Anejo 19
+  // expr. 5.13N; con los defaults A=0.7, B=1.1, C=0.7 → 10.78/√n) capado al
+  // 25 anterior. El corte fijo en 25 solo es seguro con n ≤ ~0.19: con axil
+  // alto la norma exige considerar e2 desde esbelteces menores.
+  const n_ax = NEd_N / (b * h * fcd);
+  const lambda_lim = Math.min(
+    (20 * 0.7 * 1.1 * 0.7) / Math.sqrt(Math.max(n_ax, 1e-9)),
+    25,
+  );
+
   const e0y = Math.abs(MEdy) * 1e6 / NEd_N;
   const e1_y = Math.max(e0y, Math.max(h / 30, 20));
   const e_imp_y = Lk_mm / 400;
   const curv_y = Kphi_y * fyd / (Es * 0.45 * d_y);
-  const e2_y = lambda_y > 25 ? curv_y * Lk_mm * Lk_mm / 10 : 0;
+  const e2_y = lambda_y > lambda_lim ? curv_y * Lk_mm * Lk_mm / 10 : 0;
   const e_tot_y = e1_y + e_imp_y + e2_y;
   const MEd_tot_y = NEd_N * e_tot_y / 1e6;  // kNm
 
@@ -269,7 +279,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const e1_z = Math.max(e0z, Math.max(b / 30, 20));
   const e_imp_z = Lk_mm / 400;
   const curv_z = Kphi_z * fyd / (Es * 0.45 * d_z);
-  const e2_z = lambda_z > 25 ? curv_z * Lk_mm * Lk_mm / 10 : 0;
+  const e2_z = lambda_z > lambda_lim ? curv_z * Lk_mm * Lk_mm / 10 : 0;
   const e_tot_z = e1_z + e_imp_z + e2_z;
   const MEd_tot_z = NEd_N * e_tot_z / 1e6;  // kNm
 
@@ -561,9 +571,17 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // stirrup-spacing: ≤ min(12·φ_corner, min(b,h), 300mm) — CE art. 69.4.3
+  // stirrup-spacing: ≤ min(12·φ_min, min(b,h), 300mm) — CE Anejo 19 art. 9.5.3
+  // El cerco arriostra la barra longitudinal MÁS FINA (la más propensa a
+  // pandear): el límite usa el Ø mínimo presente, no el de esquina. Con
+  // esquinas Ø25 e intermedias Ø12, 12·Ømin = 144 mm, no 300.
   {
-    const sMax = Math.min(12 * cornerBarDiam, Math.min(b, h), 300);
+    const minLongDiam = Math.min(
+      cornerBarDiam,
+      ...(nBarsX > 0 ? [barDiamX] : []),
+      ...(nBarsY > 0 ? [barDiamY] : []),
+    );
+    const sMax = Math.min(12 * minLongDiam, Math.min(b, h), 300);
     const status: CheckStatus = stirrupSpacing <= sMax ? 'ok' : 'fail';
     checks.push({
       id: 'stirrup-spacing',
