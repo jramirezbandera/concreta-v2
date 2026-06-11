@@ -203,7 +203,13 @@ function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string 
     barsZ.push({ y: d_prime + i * (b - 2 * d_prime) / (nBarsX + 1), area: 2 * areaX });
   }
 
-  const NRd_max = fcd * (b * h - As_total) + fyd * As_total;
+  // En compresión centrada εc se limita a εc2 = 0.002 (pivote C): la tensión
+  // del acero no puede superar Es·0.002 = 400 N/mm² (f_yc,d). Para B500S
+  // (fyd=434.8) usar fyd sobreestimaba NRd_max ~2% del lado inseguro;
+  // coherente ahora con el check as-min-mech (CE Anejo 19 §6.1 / EHE art.40.2).
+  const fyc_d_max = Math.min(fyd, 400);
+  const NRd_max = fcd * (b * h - As_total) + fyc_d_max * As_total;
+  // NRd_Whitney sí usa fyd: a x = canto completo las barras superan εyd.
   const NRd_Whitney = fcd * 0.8 * b * h + As_total * fyd;
 
   return { mat, fcd, fyd, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max, NRd_Whitney };
@@ -459,14 +465,17 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   }
 
   // as-min geom (CE art. 42.3.1 — cuantía geométrica)
-  const As_min = 0.003 * b * h;
+  // Cuant\u00eda geom\u00e9trica m\u00ednima 0.002\u00b7Ac (CE Anejo 19 art. 9.5.2 / EC2 \u00a79.5.2).
+  // El 0.003 anterior no correspond\u00eda a ninguna referencia; la rama mec\u00e1nica
+  // (0.10\u00b7NEd/f_yc,d) cubre la necesidad estructural por separado.
+  const As_min = 0.002 * b * h;
   checks.push(makeCheck(
     'as-min',
-    'Armadura m\u00ednima geom.: As \u2265 0.003\u00b7b\u00b7h',
+    'Armadura m\u00ednima geom.: As \u2265 0.002\u00b7b\u00b7h',
     As_min, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3.1',
+    'CE Anejo 19 art. 9.5.2',
   ));
 
   // as-min mech (CE art. 42.3.1 — cuantía mecánica dependiente de carga)

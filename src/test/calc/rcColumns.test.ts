@@ -225,10 +225,12 @@ describe('RC Columns — NEd > NRd,max fails', () => {
     expect(bc?.status).toBe('fail');
   });
 
-  it('NRd_max uses net concrete area: fcd*(b*h-As) + fyd*As', () => {
+  it('NRd_max usa f_yc,d = min(fyd, 400) en compresión pura (fix auditoría #51)', () => {
+    // En compresión centrada εc ≤ εc2=0.002 → σs ≤ 400 N/mm². Para B500S
+    // (fyd=434.8): NRd_max = 16.67·89196 + 400·804 = 1811 kN (con fyd era 1836,
+    // ~1.5% del lado inseguro). Coherente con el cap del check as-min-mech.
     const r = calcRCColumn(inp());
-    expect(r.NRd_max).toBeGreaterThan(1800);
-    expect(r.NRd_max).toBeLessThan(1850);
+    expect(r.NRd_max).toBeCloseTo(1811, 0);
   });
 
   it('binary search succeeds for NEd in Whitney gap zone (no NaN)', () => {
@@ -241,14 +243,14 @@ describe('RC Columns — NEd > NRd,max fails', () => {
   });
 
   it('gap zone: MRd interpola hacia (NRd_max, 0) — oracle manual (fix auditoría #16)', () => {
-    // 300×300 C25 4Ø16, Nd=1700 kN (NRd_Whitney ≈ 1552 < NEd < NRd_max ≈ 1839):
+    // 300×300 C25 4Ø16, Nd=1700 kN (NRd_Whitney ≈ 1552 < NEd < NRd_max ≈ 1811):
     //   M_plateau (x=2h: bloque 0.8·fcd·b·h + acero) ≈ 37.4 kNm
-    //   f = (1839.3−1700)/(1839.3−1552.1) = 0.485 → MRd ≈ 18.2 kNm
+    //   f = (1811−1700)/(1811−1552) = 0.43 → MRd ≈ 16.1 kNm
     // Pre-fix se congelaba el MRd del estado Whitney (~50 kNm, que corresponde
     // a un axil MENOR que el aplicado) y el check daba verde a un pilar que falla.
     const r = calcRCColumn(inp({ Nd: 1700, L: 1.5 }));
     expect(r.valid).toBe(true);
-    expect(r.MRdy).toBeCloseTo(18.2, 0);
+    expect(r.MRdy).toBeCloseTo(16.1, 0);
     expect(r.MRdy).toBeLessThan(25);            // capacidad real interpolada
     expect(r.biaxialUtil).toBeGreaterThan(1.0); // MEd_tot_y ≈ 40 kNm > MRd → falla
   });
@@ -318,12 +320,13 @@ describe('RC Columns — N-M interaction fails', () => {
 // ── Reinforcement limit checks ───────────────────────────────────────────────
 
 describe('RC Columns — Reinforcement limit checks', () => {
-  it('as-min fails when As < 0.003·b·h', () => {
-    // 4×Ø6 = 4*28.3=113 mm² < 270 mm²
+  it('as-min fails when As < 0.002·b·h (fix auditoría #52)', () => {
+    // CE Anejo 19 art. 9.5.2 → 0.002·Ac = 180 mm²; 4×Ø6 = 113 mm² < 180 → fail.
     const r = calcRCColumn(inp({ cornerBarDiam: 6 }));
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'as-min');
     expect(ch?.status).toBe('fail');
+    expect(ch?.limit).toContain('180');
   });
 
   it('as-max fails when As > 0.04·b·h', () => {
