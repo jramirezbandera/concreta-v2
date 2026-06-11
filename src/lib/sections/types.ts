@@ -118,8 +118,11 @@ export interface ColumnBeamSection extends SectionGeometry {
    * @param C1  — moment distribution factor (1.0 for uniform moment)
    * @param E   — Young's modulus in MPa
    * @param G   — Shear modulus in MPa
+   * @param C2  — load-height factor (optional; 0 = load at shear centre)
+   * @param zg  — load application height above shear centre in mm (optional;
+   *              +h/2 = top flange, destabilizing for gravity loads)
    */
-  computeMcr(Lcr: number, C1: number, E: number, G: number): number;
+  computeMcr(Lcr: number, C1: number, E: number, G: number, C2?: number, zg?: number): number;
 
   /**
    * Hook for the caller to transform biaxial (My_Ed, Mz_Ed) into the form

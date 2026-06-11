@@ -34,7 +34,9 @@ const PSI_VALUES: Record<string, { psi0: number; psi1: number; psi2: number }> =
   C3:     { psi0: 0.7, psi1: 0.7, psi2: 0.6 },
   D1:     { psi0: 0.7, psi1: 0.7, psi2: 0.6 },
   E1:     { psi0: 1.0, psi1: 0.9, psi2: 0.8 },
-  G1:     { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
+  // Categoría G (cubiertas accesibles únicamente para conservación):
+  // CTE DB-SE Tabla 4.2 → ψ0 = ψ1 = ψ2 = 0 (auditoría #74).
+  G1:     { psi0: 0.0, psi1: 0.0, psi2: 0.0 },
   custom: { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
 };
 

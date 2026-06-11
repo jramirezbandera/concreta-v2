@@ -72,18 +72,31 @@ describe('calcSteelBeam — IPE300/S275 defaults ss (CUMPLE)', () => {
       });
   });
 
-  it('all check articles reference CTE', () => {
+  it('all check articles reference CTE or CE Anejo 22 (LTB cita el método implementado, fix #73)', () => {
     result.checks.forEach((c) => {
-      expect(c.article).toMatch(/CTE/);
+      expect(c.article).toMatch(/CTE|CE Anejo 22/);
     });
   });
 
-  it('all utilizations < 1.0 (all CUMPLE)', () => {
+  it('todos los checks salvo LTB < 1.0; LTB ≈ 1.12 con MEd=80 (Mcr corregido por carga desestabilizante, fix #61)', () => {
+    // Con el término C2·zg (carga en ala superior) el IPE300 sin arriostrar en
+    // 6 m ya no aguanta MEd=80: Mcr=78.9, λ=1.479, χ=0.436, Mb_Rd=71.8 kNm.
+    // El FTUX real en pantalla deriva MEd=58.7 de las cargas → η_LTB=0.82 (warn).
     result.checks
-      .filter((c) => !c.neutral)
+      .filter((c) => !c.neutral && c.id !== 'ltb')
       .forEach((c) => {
         expect(c.utilization).toBeLessThan(1.0);
       });
+    const ltb = result.checks.find((c) => c.id === 'ltb')!;
+    expect(ltb.utilization).toBeCloseTo(1.115, 2);
+  });
+
+  it('FTUX en pantalla (MEd derivado de cargas = 58.7 kNm): LTB warn pero CUMPLE', () => {
+    const r = calcSteelBeam({ ...steelBeamDefaults, MEd: 58.7, VEd: 39.2, Mser: 40.5 });
+    const ltb = r.checks.find((c) => c.id === 'ltb')!;
+    expect(ltb.utilization).toBeLessThan(1.0);
+    expect(ltb.utilization).toBeGreaterThan(0.8);
+    expect(r.utilization).toBeLessThan(1.0);
   });
 });
 
@@ -403,9 +416,75 @@ describe('calcSteelBeam — Lcr > L warning', () => {
     expect(warnRow.tag).toBe('REVISAR');
   });
 
-  it('lcr-warning row references CTE DB-SE-A 6.3.2', () => {
+  it('lcr-warning row references §6.3.2', () => {
     const warnRow = result.checks.find((c) => c.id === 'lcr-warning')!;
     expect(warnRow.article).toMatch(/6\.3\.2/);
+  });
+});
+
+// ─── Fixes auditoría adenda (hallazgos #61-63, #72-74) ──────────────────────
+describe('Auditoría #61: Mcr con término de altura de carga C2·zg', () => {
+  // IPE300/S275, ss, Lcr=5000, C1=1.13, C2=0.454, zg=h/2=150:
+  //   factor1 = π²·210000·6.04e6/25e6 = 500744 N
+  //   term2 = 1.259e11/6.04e6 + 25e6·81000·2.01e5/(π²·210000·6.04e6) = 53358 mm²
+  //   C2·zg = 68.1 → Mcr = 1.13·500744·(√(53358+4638) − 68.1)/1e6 = 97.7 kNm
+  //   (la fórmula clásica sin zg daba 130.7 kNm — sobreestimación del 34%)
+  const result = calcSteelBeam({ ...steelBeamDefaults, Lcr: 5000 });
+
+  it('Mcr ≈ 97.7 kNm (carga desestabilizante en ala superior)', () => {
+    expect(result.Mcr).toBeCloseTo(97.7, 0);
+  });
+
+  it('Mcr menor que la fórmula clásica de centro de cortantes (130.7 kNm)', () => {
+    expect(result.Mcr).toBeLessThan(130.7);
+  });
+});
+
+describe('Auditoría #62: fy reducido para tf > 16 mm', () => {
+  it('IPE600/S275 (tf=19): Mc_Rd con fy=265 ≈ 886 kNm (no 953 con 275)', () => {
+    // Wpl_y = 3512 cm³: 3512e3·265/1.05/1e6 = 886.4 kNm
+    const r = calcSteelBeam({ ...steelBeamDefaults, tipo: 'IPE', size: 600, MEd: 400, VEd: 100, Mser: 200 });
+    expect(r.Mc_Rd).toBeCloseTo(886.4, 0);
+  });
+
+  it('IPE300 (tf=10.7 ≤ 16): fy nominal intacto, Mc_Rd ≈ 164.5 kNm', () => {
+    const r = calcSteelBeam(steelBeamDefaults);
+    expect(r.Mc_Rd).toBeCloseTo(164.5, 0);
+  });
+});
+
+describe('Auditoría #63: tope χLT ≤ 1/λ̄LT²', () => {
+  it('esbeltez alta (Lcr=14000): χLT no supera el límite elástico 1/λ̄²', () => {
+    const r = calcSteelBeam({ ...steelBeamDefaults, Lcr: 14000, L: 14000, MEd: 30, Mser: 15 });
+    expect(r.lambda_LT).toBeGreaterThan(1.5);
+    expect(r.chi_LT).toBeLessThanOrEqual(1 / r.lambda_LT ** 2 + 1e-9);
+  });
+});
+
+describe('Auditoría #72: interacción M-V en clase 3', () => {
+  // HEA300/S355: ala c/(tf·ε) = 118.75/(14·0.8136) = 10.43 > 10 → clase 3.
+  // VEd_interaction > 0.5·Vc_Rd → límite elástico reducido (1−ρ)fy en el alma.
+  const r = calcSteelBeam({
+    ...steelBeamDefaults,
+    beamType: 'cantilever',
+    tipo: 'HEA',
+    size: 300,
+    steel: 'S355',
+    MEd: 200,
+    VEd: 500,
+    VEd_interaction: 500,
+    Mser: 100,
+    L: 3000,
+    Lcr: 6000,
+  });
+
+  it('HEA300/S355 es clase 3', () => {
+    expect(r.sectionClass).toBe(3);
+  });
+
+  it('rho > 0 y Mv_Rd < Mc_Rd (antes clase 3 no reducía)', () => {
+    expect(r.rho).toBeGreaterThan(0);
+    expect(r.Mv_Rd).toBeLessThan(r.Mc_Rd);
   });
 });
 

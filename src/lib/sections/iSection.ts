@@ -98,8 +98,12 @@ export class ISectionAdapter implements ColumnBeamSection {
     return this.h / this.b <= 2 ? 0.34 : 0.49;
   }
 
-  computeMcr(Lcr: number, C1: number, E: number, G: number): number {
-    // EC3 Eq. F.2 — classical LTB formula for doubly-symmetric sections.
+  computeMcr(Lcr: number, C1: number, E: number, G: number, C2 = 0, zg = 0): number {
+    // EC3 Eq. F.2 — LTB formula for doubly-symmetric sections, with the
+    // load-height term C2·zg (auditoría #61): for transverse loads applied
+    // above the shear centre (zg > 0, e.g. gravity UDL on the top flange,
+    // destabilizing) Mcr = C1·(π²EIz/L²)·[√(Iw/Iz + L²GIt/(π²EIz) + (C2·zg)²) − C2·zg].
+    // With C2=0 or zg=0 it reduces to the classical shear-centre formula.
     const Iz_mm4 = this.Iz * 1e4;
     const It_mm4 = this.It * 1e4;
     const Iw_mm6 = this.Iw * 1e6;
@@ -107,7 +111,8 @@ export class ISectionAdapter implements ColumnBeamSection {
     const factor1 = (Math.PI * Math.PI * E * Iz_mm4) / (L * L);  // N
     const term2 = Iw_mm6 / Iz_mm4 + (L * L * G * It_mm4) / (Math.PI * Math.PI * E * Iz_mm4);
     if (!(term2 > 0) || !isFinite(term2)) return Infinity;
-    return (C1 * factor1 * Math.sqrt(term2)) / 1e6; // N·mm → kNm
+    const czg = C2 * zg;  // mm
+    return (C1 * factor1 * (Math.sqrt(term2 + czg * czg) - czg)) / 1e6; // N·mm → kNm
   }
 
   reduceDesignMoments(My: number, Mz: number): ReducedMoments {

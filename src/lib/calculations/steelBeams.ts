@@ -6,7 +6,7 @@
 //   CTE DB-SE-A 6.2.5  — Bending resistance
 //   CTE DB-SE-A 6.2.6  — Shear resistance
 //   CTE DB-SE-A 6.2.8  — M-V interaction
-//   CTE DB-SE-A 6.3.2  — Lateral-torsional buckling (LTB)
+//   CE Anejo 22 (EC3) 6.3.2.3 — Lateral-torsional buckling (rolled sections)
 //   CTE DB-SE   4.3.3  — Deflection (SLS)
 
 import { type SteelBeamInputs } from '../../data/defaults';
@@ -141,8 +141,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const Wpl_y_mm = profile.Wpl_y * 1e3;   // cm³ → mm³
   const Wel_y_mm = profile.Wel_y * 1e3;   // cm³ → mm³
 
-  // 3. Steel yield strength
-  const fy = inp.steel === 'S275' ? 275 : 355;
+  // 3. Steel yield strength — reduced for thick flanges (CTE DB-SE-A Tabla 4.1
+  //    / EN 10025-2: 16 < t ≤ 40 mm → S275: 265, S355: 345). El catálogo incluye
+  //    ~14 perfiles con tf > 16 (IPE550/600, HEB240-400, HEA360/400, IPN≥340);
+  //    usar el fy nominal sobreestimaba todas las resistencias 3-4% (auditoría #62).
+  const fy_nominal = inp.steel === 'S275' ? 275 : 355;
+  const fy = profile.tf > 16 ? fy_nominal - 10 : fy_nominal;
 
   // 4. Section classification (CTE 5.5) — bending mode: outstand flange +
   //    internal web in bending (limits 72/83/124·ε).
@@ -188,18 +192,30 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
 
   if (VEd_interaction / Vc_Rd > 0.5) {
     rho = Math.pow(2 * VEd_interaction / Vc_Rd - 1, 2);
+    const hw = profile.h - 2 * profile.tf;
     if (sectionClass <= 2) {
-      const Aw = profile.tw * (profile.h - 2 * profile.tf);
+      const Aw = profile.tw * hw;
       const Wpl_y_red = Wpl_y_mm - (rho * Aw * Aw) / (4 * profile.tw);
       Mv_Rd = (Wpl_y_red * fy) / γM0 / 1e6;
+    } else {
+      // Class 3 (auditoría #72): EC3/CTE 6.2.8(3) — limite elastico reducido
+      // (1−ρ)·fy en el area de cortante (alma). Criterio elastico de primera
+      // plastificacion: el alma alcanza (1−ρ)·fy en y=hw/2 → la capacidad es
+      // min(Wel·fy, (1−ρ)·fy·Iy/(hw/2)).
+      const M_web_limited = ((1 - rho) * fy * Iy_mm) / (hw / 2) / γM0 / 1e6;
+      Mv_Rd = Math.min(Mc_Rd, M_web_limited);
     }
-    // Class 3: no reduction — Mv_Rd = Mc_Rd
   }
   const eta_MV = Mv_Rd > 0 ? inp.MEd / Mv_Rd : Infinity;
 
-  // 9. LTB (CTE 6.3.2) — Mcr and α_LT delegated to the section adapter.
+  // 9. LTB (CE Anejo 22 / EC3 §6.3.2.3, caso laminados) — Mcr y α_LT delegados
+  //    al section adapter. Mcr incluye el término de altura de aplicación de
+  //    la carga C2·zg con zg=+h/2 (UDL gravitatoria en ala superior,
+  //    desestabilizante — auditoría #61).
   const C1 = BEAM_CASES[inp.beamType].C1;
-  const Mcr = section.computeMcr(inp.Lcr, C1, E, G);  // kNm
+  const C2 = BEAM_CASES[inp.beamType].C2;
+  const zg = profile.h / 2;  // mm — carga en ala superior
+  const Mcr = section.computeMcr(inp.Lcr, C1, E, G, C2, zg);  // kNm
 
   const lambda_LT = Math.sqrt((W_bend * fy) / (Mcr * 1e6));
   const αLT = section.getLTBAlpha();
@@ -210,7 +226,9 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   if (lambda_LT > λLT_0) {
     const Φ_LT = 0.5 * (1 + αLT * (lambda_LT - λLT_0) + β * lambda_LT ** 2);
     const disc = Math.max(0, Φ_LT ** 2 - β * lambda_LT ** 2);
-    chi_LT = Math.min(1.0, 1.0 / (Φ_LT + Math.sqrt(disc)));
+    // Tope adicional χLT ≤ 1/λ̄² de la ec. 6.57 (auditoría #63): con β=0.75 la
+    // fórmula puede superar el límite elástico Mcr (χ > 1/λ̄² ⇒ Mb,Rd > Mcr).
+    chi_LT = Math.min(1.0, 1.0 / lambda_LT ** 2, 1.0 / (Φ_LT + Math.sqrt(disc)));
   }
 
   const Mb_Rd = (chi_LT * W_bend * fy) / γM1 / 1e6;   // kNm
@@ -279,19 +297,22 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
         'lcr-warning',
         `Lcr (${(inp.Lcr / 1000).toFixed(2)} m) > L (${(inp.L / 1000).toFixed(2)} m) — verificar longitud de pandeo`,
         'REVISAR',
-        'CTE DB-SE-A §6.3.2 — Pandeo lateral torsional',
+        'CE Anejo 22 (EC3) §6.3.2 — Pandeo lateral torsional',
       ),
     );
   }
 
+  // Cita el método realmente implementado: caso laminados de EC3/CE Anejo 22
+  // §6.3.2.3 (λLT,0=0.4, β=0.75, curvas Tabla 6.5), no el método general del
+  // CTE DB-SE-A §6.3.2 (λLT,0=0.2, β=1), que daría χLT menores (auditoría #73).
   checks.push(
     makeCheckQty(
       'ltb',
-      'Pandeo lateral Mb,Rd (CTE DB-SE-A §6.3.2)',
+      'Pandeo lateral Mb,Rd (CE Anejo 22 §6.3.2.3)',
       inp.MEd,
       Mb_Rd,
       'moment',
-      'CTE DB-SE-A §6.3.2 — Pandeo lateral torsional (LTB)',
+      'CE Anejo 22 (EC3) §6.3.2.3 — Pandeo lateral torsional (LTB), secciones laminadas',
     ),
   );
 

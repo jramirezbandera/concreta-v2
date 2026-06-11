@@ -24,6 +24,16 @@ export interface BeamCaseSpec {
   Lcr_factor: number;
   /** LTB equivalent uniform moment factor C₁. Cantilever: 1.0 (conservative); others: 1.13 (UDL). */
   C1: number;
+  /**
+   * LTB load-height factor C₂ (EC3 Eq. F.2 / NCCI SN003): the module's loads
+   * are gravity UDL physically applied on the TOP flange (zg=+h/2,
+   * destabilizing), so Mcr must include the −C2·zg reduction (auditoría #61).
+   * UDL fork-supported: C2=0.454 (used for ss; reused for fp/ff as the
+   * conservative pairing of their C1=1.13 simplification). Cantilever: F.2
+   * with Lcr=2L is itself an approximation; C2=0.45 keeps the destabilizing
+   * penalty in the conservative direction.
+   */
+  C2: number;
 }
 
 export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
@@ -41,6 +51,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     k_defl:          5 / 48,
     Lcr_factor:      1.0,
     C1:              1.13,
+    C2:              0.454,
   },
 
   // ── Cantilever (ménsula — fixed at left, free right) ─────────────────────
@@ -59,6 +70,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     k_defl:          1 / 4,
     Lcr_factor:      2.0,
     C1:              1.0,
+    C2:              0.45,
   },
 
   // ── Fixed-Pinned (articulada–empotrada — fixed at left, pin right) ───────
@@ -79,6 +91,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     k_defl:          8 / 185.185,   // ≈ 0.04320
     Lcr_factor:      1.0,
     C1:              1.13,
+    C2:              0.454,
   },
 
   // ── Fixed-Fixed (biempotrada) ─────────────────────────────────────────────
@@ -97,5 +110,6 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     k_defl:          1 / 32,
     Lcr_factor:      1.0,
     C1:              1.13,
+    C2:              0.454,
   },
 };

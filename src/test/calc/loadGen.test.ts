@@ -158,3 +158,20 @@ describe('deriveFromLoads — edge cases', () => {
     expect(GAMMA_Q).toBe(1.50);
   });
 });
+
+// ── Fix auditoría #74: ψ de categoría G (cubierta solo conservación) = 0 ─────
+describe('Auditoría #74: G1 psi factors', () => {
+  it('CTE DB-SE Tabla 4.2: categoría G → ψ1 = ψ2 = 0', () => {
+    const qp = deriveFromLoads({ ...base, useCategory: 'G1', elsCombo: 'quasi-permanent' });
+    // wSer cuasipermanente = Gk + 0·Qk = Gk_line
+    expect(qp.psi).toBe(0);
+    expect(qp.wSer).toBeCloseTo(qp.Gk_line, 6);
+    const freq = deriveFromLoads({ ...base, useCategory: 'G1', elsCombo: 'frequent' });
+    expect(freq.psi).toBe(0);
+  });
+
+  it('combinación característica sigue usando ψ=1', () => {
+    const ch = deriveFromLoads({ ...base, useCategory: 'G1', elsCombo: 'characteristic' });
+    expect(ch.psi).toBe(1.0);
+  });
+});
