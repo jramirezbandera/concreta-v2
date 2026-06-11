@@ -166,14 +166,29 @@ describe('Stability', () => {
     expect(r.checks.find((c) => c.id === 'overturn-y')).toBeUndefined();
   });
 
-  it('FS_overturn_x = M_stab / M_dest with M_dest = |My_elu| + |H_elu|·h', () => {
+  it('vuelco EQU: M_stab incluye N, características y FS ≥ 2.0 (fix auditoría #29)', () => {
+    // CTE DB-SE-C Tabla 2.1 (EQU): γ_dst=1.8 / γ_stb=0.9 sobre CARACTERÍSTICAS
+    // → FS equivalente 2.0. El axil N es la principal acción estabilizadora.
+    // Pre-fix: M_stab = (W_f+W_s)·B/2 = 53.7 kNm sin N, M_dest con γ_ELU=1.35
+    // y además FS ≥ 1.5 (γ acumulado ≈ 2.0 con N a factor 0): My=30 kNm con
+    // la resultante DENTRO del núcleo central marcaba fallo de vuelco.
     const r = calcIsolatedFooting({ ...base, My: 100 });
-    // M_stab_x = (W_footing + W_soil) · B/2 = (48.6 + 11.088) · 0.9 = 53.72 kNm
-    // M_dest_x = |My_elu| = 100·1.35 = 135 kNm
-    expect(r.M_stab_x).toBeCloseTo((r.W_footing + r.W_soil) * 0.9, 2);
-    expect(r.M_dest_x).toBeCloseTo(135, 2);
-    expect(r.FS_overturn_x).toBeCloseTo(r.M_stab_x / 135, 3);
-    expect(r.checks.find((c) => c.id === 'overturn-x')).toBeDefined();
+    // M_stab_x = (N_k + W_f + W_s)·B/2 = (300+48.6+11.088)·0.9 = 323.7 kNm
+    expect(r.M_stab_x).toBeCloseTo((r.N_sls + r.W_footing + r.W_soil) * 0.9, 2);
+    // M_dest_x = |My_k| = 100 kNm (características, no ELU)
+    expect(r.M_dest_x).toBeCloseTo(100, 2);
+    expect(r.FS_overturn_x).toBeCloseTo(323.7 / 100, 2);
+    const ov = r.checks.find((c) => c.id === 'overturn-x')!;
+    expect(ov.status).toBe('ok');   // FS = 3.24 ≥ 2.0
+  });
+
+  it('vuelco EQU: My moderado con N ya no marca falso fallo (fix auditoría #29)', () => {
+    // Pre-fix My=40 → M_dest_elu=54 > M_stab=53.7·1/1.5: FAIL pese a
+    // ex = 0.111 m ≪ B/6 = 0.3 (zapata físicamente estable).
+    const r = calcIsolatedFooting({ ...base, My: 40 });
+    const ov = r.checks.find((c) => c.id === 'overturn-x')!;
+    expect(r.ex_sls).toBeLessThan(1.8 / 6);
+    expect(ov.status).toBe('ok');
   });
 
   it('FS_sliding = μ·(N_elu + W_footing + W_soil) / |H_elu|', () => {
@@ -198,6 +213,55 @@ describe('Rigid / flexible classification', () => {
     const r = calcIsolatedFooting({ ...base, B: 3.0, L: 3.0, h: 0.4, bc: 0.3, hc: 0.3, cover: 50, Df: 0.6 });
     expect(r.isRigid).toBe(false);
     expect(r.v_max).toBeGreaterThan(2 * 0.4);
+  });
+});
+
+// ── 7a. Punzonamiento y anclaje (fixes auditoría #30 y #31) ─────────────────
+
+describe('Punzonamiento EC2 §6.4 (fix auditoría #30)', () => {
+  const flex = { ...base, B: 3.0, L: 3.0, h: 0.4, bc: 0.3, hc: 0.3, cover: 50, Df: 0.6 };
+
+  it('β > 1 con momentos: vEd crece (antes β=1.0 fijo)', () => {
+    const r0 = calcIsolatedFooting(flex);
+    const rM = calcIsolatedFooting({ ...flex, My: 60 });
+    expect(rM.vEd_punch).toBeGreaterThan(r0.vEd_punch);
+  });
+
+  it('VEd,red deduce la reacción del terreno dentro de u1 (EC2 §6.4.4(2))', () => {
+    // Sin deducción: vEd = 405·1000/(u1·d) = 0.291 MPa; con ΔVEd = σ·A_u1
+    // (A_u1 ≈ 1.4 m² de 9 m² → −14%·...) → 0.167 MPa.
+    const r = calcIsolatedFooting(flex);
+    expect(r.vEd_punch).toBeCloseTo(0.167, 2);
+  });
+
+  it('vRd,max en u0 (EC2 §6.4.5(3)) — oracle manual', () => {
+    // ν = 0.6·(1−25/250) = 0.54 → vRd,max = 0.5·0.54·16.7 = 4.51 N/mm²
+    // vEd,u0 = N_elu·1000/(u0·d) = 405000/(1200·334) = 1.01 N/mm²
+    const r = calcIsolatedFooting(flex);
+    const c = r.checks.find((ch) => ch.id === 'punzonamiento-max')!;
+    expect(c.limitNum).toBeCloseTo(4.51, 2);
+    expect(c.valueNum).toBeCloseTo(1.01, 2);
+    expect(c.status).toBe('ok');
+  });
+});
+
+describe('Anclaje de la armadura (fix auditoría #31)', () => {
+  it('zapata rígida: lbd escalado por As,req/As,prov vs vuelo disponible — oracle', () => {
+    // φ16 C25 B500S: fbd = 2.25·0.7·2.56/1.5 = 2.69 → lb(fyd) = 647 mm
+    // σsd ∝ As_adopted/As_prov ≈ 0.705 → lbd = 456 mm; disponible = 700−60 = 640.
+    const r = calcIsolatedFooting(base);
+    const c = r.checks.find((ch) => ch.id === 'anclaje-x')!;
+    expect(c.value).toContain('456');
+    expect(c.limit).toContain('640');
+    expect(c.status).toBe('ok');
+  });
+
+  it('vuelo corto: recta no cabe → warn "detallar con patilla"; ni patilla → fail', () => {
+    // B=1.2 → vuelo = 400, disponible = 340 < lbd≈456·(escala): forzar carga
+    // alta para σsd≈fyd. Con patilla (0.7·lbd) puede caber → warn.
+    const r = calcIsolatedFooting({ ...base, B: 1.2, L: 1.2, N: 600 });
+    const c = r.checks.find((ch) => ch.id === 'anclaje-x')!;
+    expect(['warn', 'fail']).toContain(c.status);
   });
 });
 

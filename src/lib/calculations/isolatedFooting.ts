@@ -82,7 +82,7 @@ export interface IsolatedFootingResult {
 }
 
 const GAMMA_C_RC = 25;       // kN/m³ — reinforced concrete unit weight
-const FS_VUELCO_MIN = 1.5;   // CTE DB-SE-C §4.4.2
+const FS_VUELCO_MIN = 2.0;   // CTE DB-SE-C Tabla 2.1 (EQU): 1.8/0.9 sobre características
 const FS_SLIDE_MIN = 1.5;    // CTE DB-SE-C §4.4.3
 const NR_MAX_ITER = 50;
 const NR_TOL = 0.005;        // dimensionless residuals (/N) tolerance
@@ -369,13 +369,18 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const bearing_util = stress.sigma_max === Infinity ? Infinity : stress.sigma_max / inp.sigma_adm;
   const bearing_status: 'ok' | 'warn' | 'fail' = toStatus(bearing_util);
 
-  // ── ELU overturning (weights stabilize, M_elu + H_elu·h destabilize) ──────
+  // ── EQU overturning (CTE DB-SE-C Tabla 2.1) ──────────────────────────────
+  // Acciones CARACTERÍSTICAS con γ_dst = 1.8 / γ_stb = 0.9 → FS equivalente
+  // sobre características = 2.0. El axil N es la PRINCIPAL acción
+  // estabilizadora de una zapata (antes se omitía y además se acumulaba
+  // γ_ELU=1.35 × FS=1.5 ≈ 2.0 sobre el desestabilizador: falsos fallos de
+  // vuelco con la resultante dentro del núcleo central).
   // Convention: FS_overturn_x = tipping in x direction (about y-axis edge),
-  //   destabilizing = |My_elu| + |H_elu|·h, arm = B/2.
-  const M_dest_x = Math.abs(My_elu) + Math.abs(H_elu) * h;
-  const M_dest_y = Math.abs(Mx_elu) + Math.abs(H_elu) * h;
-  const M_stab_x = (W_footing + W_soil) * (B / 2);
-  const M_stab_y = (W_footing + W_soil) * (L / 2);
+  //   destabilizing = |My_k| + |H_k|·h, arm = B/2.
+  const M_dest_x = Math.abs(My_sls) + Math.abs(H_sls) * h;
+  const M_dest_y = Math.abs(Mx_sls) + Math.abs(H_sls) * h;
+  const M_stab_x = (N_sls + W_footing + W_soil) * (B / 2);
+  const M_stab_y = (N_sls + W_footing + W_soil) * (L / 2);
   const FS_overturn_x = M_dest_x > 0 ? M_stab_x / M_dest_x : Infinity;
   const FS_overturn_y = M_dest_y > 0 ? M_stab_y / M_dest_y : Infinity;
 
@@ -466,16 +471,66 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const VRd_x = vRdc_x * d_x;
   const VRd_y = vRdc_y * d_y;
 
-  // ── Punching (CE art. 46, β=1.0) ──────────────────────────────────────────
+  // ── Punching (CE art. 46 / EC2 §6.4) ──────────────────────────────────────
   const d_avg = (d_x + d_y) / 2;
   const u1_rect = 2 * (bc * 1000 + hc * 1000) + 2 * Math.PI * 2 * d_avg;
-  const vEd_punch = (1.0 * N_elu * 1000) / (u1_rect * d_avg);   // MPa
+  // β por transferencia de momento (EC2 §6.4.3(6), pilar interior, biaxial):
+  // β = 1 + 1.8·√[(ex/by)² + (ey/bz)²] con by/bz dims del perímetro de
+  // control. Antes β=1.0 fijo aunque el motor admite Mx/My (vEd subestimado).
+  const by_p = bc * 1000 + 4 * d_avg;
+  const bz_p = hc * 1000 + 4 * d_avg;
+  const beta_punch = 1 + 1.8 * Math.sqrt(
+    Math.pow((ex_Ed * 1000) / by_p, 2) + Math.pow((ey_Ed * 1000) / bz_p, 2),
+  );
+  // VEd,red: deducción de la reacción del terreno dentro de u1 (EC2 §6.4.4(2))
+  const d_avg_m = d_avg / 1000;
+  const A_u1 = bc * hc + 2 * (bc + hc) * 2 * d_avg_m + Math.PI * Math.pow(2 * d_avg_m, 2);
+  const VEd_red_punch = Math.max(0, N_elu - sigma_Ed_uniform * A_u1);
+  const vEd_punch = (beta_punch * VEd_red_punch * 1000) / (u1_rect * d_avg);   // MPa
   const k_p = Math.min(1 + Math.sqrt(200 / d_avg), 2.0);
   const rhoL_avg = Math.min((As_prov_x + As_prov_y) / 2 / (1000 * d_avg), 0.02);
   const vRdc_punch = Math.max(
     (0.18 / 1.5) * k_p * Math.pow(100 * rhoL_avg * inp.fck, 1 / 3),
     0.035 * Math.pow(k_p, 1.5) * Math.sqrt(inp.fck),
   );
+  // vEd ≤ vRd,max en el perímetro del pilar u0 (EC2 §6.4.5(3)) — obligatoria;
+  // VEd completo (sin deducción) en u0: conservador.
+  const u0_punch = 2 * (bc + hc) * 1000;
+  const nu_punch = 0.6 * (1 - inp.fck / 250);
+  const vRd_max_punch = 0.5 * nu_punch * fcd;
+  const vEd_u0_punch = (beta_punch * N_elu * 1000) / (u0_punch * d_avg);
+
+  // ── Anclaje de la armadura (EHE 58.4 / CE Anejo 19 §9.8.2) ────────────────
+  // lbd = (φ/4)·(σsd/fbd) con σsd proporcional a As,req/As,prov, suelo
+  // lb,min = max(0.3·lb(fyd), 10φ, 100). Longitud disponible: vuelo − cover
+  // lateral. Sin input de patilla: si la recta no cabe pero la patilla sí
+  // (α1 = 0.7) → warn 'detallar con patilla'; si ni con patilla → fail.
+  const fctd_anch = (0.7 * fctm) / 1.5;
+  const fbd_anch = 2.25 * fctd_anch;   // η1 = 1.0 (posición I, parrilla inferior)
+  const anchorageRow = (
+    id: string, descr: string, phi: number,
+    As_need: number, As_prov: number, vuelo_mm: number,
+  ): CheckRow => {
+    const sigma_sd = fyd * Math.min(1, As_need / Math.max(As_prov, 1e-9));
+    const lb_full = (phi / 4) * (fyd / fbd_anch);
+    const lbd = Math.max((phi / 4) * (sigma_sd / fbd_anch), 0.3 * lb_full, 10 * phi, 100);
+    const disponible = Math.max(vuelo_mm - cover, 1);
+    const util = lbd / disponible;
+    const fitsHook = 0.7 * lbd <= disponible;   // patilla: α1 = 0.7
+    const status: 'ok' | 'warn' | 'fail' =
+      util <= 1 ? toStatus(util) : fitsHook ? 'warn' : 'fail';
+    return {
+      id,
+      description: util > 1 && fitsHook
+        ? `${descr} — recta no cabe: detallar con patilla`
+        : descr,
+      value: `lbd = ${lbd.toFixed(0)} mm`,
+      limit: `disp. = ${disponible.toFixed(0)} mm`,
+      utilization: util,
+      status,
+      article: 'EHE 58.4 / CE Anejo 19 §9.8.2',
+    };
+  };
 
   // ── Build checks[] ────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -505,7 +560,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const u_x = FS_VUELCO_MIN / FS_overturn_x;
     checks.push({
       id: 'overturn-x',
-      description: 'Vuelco dir. x (FS ≥ 1.5)',
+      description: 'Vuelco dir. x (FS ≥ 2.0)',
       value: `FS = ${FS_overturn_x.toFixed(2)}`,
       limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
       utilization: u_x,
@@ -517,7 +572,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const u_y = FS_VUELCO_MIN / FS_overturn_y;
     checks.push({
       id: 'overturn-y',
-      description: 'Vuelco dir. y (FS ≥ 1.5)',
+      description: 'Vuelco dir. y (FS ≥ 2.0)',
       value: `FS = ${FS_overturn_y.toFixed(2)}`,
       limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
       utilization: u_y,
@@ -555,6 +610,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     checks.push(makeCheckNeutral('cortante-y', 'Cortante dir. y', 'rígida — N/A', 'CE art. 44'));
     // Punching neutral
     checks.push(makeCheckNeutral('punzonamiento', 'Punzonamiento', 'rígida — N/A', 'CE art. 46'));
+    checks.push(makeCheckNeutral('punzonamiento-max', 'Punzonamiento vRd,max (u0)', 'rígida — N/A', 'EC2 §6.4.5(3)'));
   } else {
     // Strut-tie neutral
     checks.push(makeCheckNeutral('biela-tirante-x', 'Armadura dir. x (biela-tirante)', 'flexible — N/A', 'CE art. 55.2'));
@@ -575,7 +631,12 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     }
     // Punching active
     checks.push(makeCheckQty('punzonamiento', 'Punzonamiento (a 2d del pilar)', vEd_punch, vRdc_punch, 'stress', 'CE art. 46'));
+    checks.push(makeCheckQty('punzonamiento-max', 'Punzonamiento vRd,max (perímetro u0)', vEd_u0_punch, vRd_max_punch, 'stress', 'EC2 §6.4.5(3)'));
   }
+
+  // Anclaje de la armadura (always active — exigido en rígida y flexible)
+  checks.push(anchorageRow('anclaje-x', 'Anclaje armadura dir. x', inp.phi_x, As_adopted_x, As_prov_x, ax));
+  checks.push(anchorageRow('anclaje-y', 'Anclaje armadura dir. y', inp.phi_y, As_adopted_y, As_prov_y, ay));
 
   // Cuantía mínima x/y (always active)
   checks.push(makeCheck(
