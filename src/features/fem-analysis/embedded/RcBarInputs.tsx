@@ -53,6 +53,9 @@ export function RcBarInputs({ bar, setModel, activeSection, setActiveSection, ba
       // via PSI2_MAP fallback. Adapter translates via psi2Custom for FEM context.
       loadType: sec.loadType,
       psi2Custom: 0.3,
+      // L=0: la esbeltez L/d no aplica en el embed FEM (flecha real del solver).
+      L: 0,
+      structSystem: 'ss',
 
       vano_Md: Mmax,
       vano_VEd: Vmax,

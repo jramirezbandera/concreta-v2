@@ -707,3 +707,50 @@ describe('Auditoría #64: stirrupLegs degenerado no produce Infinity', () => {
     expect(r.vano.valid).toBe(true);
   });
 });
+
+// ── Esbeltez L/d (CE Anejo 19 §7.4.2) — fix auditoría #67 ────────────────────
+describe('Auditoría #67: esbeltez L/d (flecha sin cálculo directo)', () => {
+  it('defaults (L=6000, biapoyada): λ,lim ≈ 20.1, L/d = 13.2 → ok (util ≈ 0.66)', () => {
+    // ρ=804.4/136200=0.00591 > ρ0=0.005 → expr. 7.16b:
+    // λ = 11 + 1.5·5·0.005/0.004245 + (5/12)·√(0.001661/0.005) = 20.07
+    const r = calcRCBeam(base);
+    const c = r.vano.checks.find((ch) => ch.id === 'slenderness-ld')!;
+    expect(c).toBeDefined();
+    expect(c.status).toBe('ok');
+    expect(c.utilization).toBeCloseTo(0.658, 2);
+  });
+
+  it('la fila vive en vano (comprobación de pieza), no en apoyo', () => {
+    const r = calcRCBeam(base);
+    expect(r.apoyo.checks.map((c) => c.id)).not.toContain('slenderness-ld');
+  });
+
+  it('L=0 → sin fila (estados antiguos / comprobación desactivada)', () => {
+    const r = calcRCBeam({ ...base, L: 0 });
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('slenderness-ld');
+  });
+
+  it('ménsula (K=0.4): λ,lim ≈ 8.0 → fail con L=6000', () => {
+    const r = calcRCBeam({ ...base, structSystem: 'cantilever' });
+    const c = r.vano.checks.find((ch) => ch.id === 'slenderness-ld')!;
+    expect(c.status).toBe('fail');
+    expect(c.utilization).toBeCloseTo(1.646, 2);
+  });
+
+  it('cuantía baja (ρ ≤ ρ0): rama 7.16a con λ,lim alto → ok', () => {
+    // 2Ø12: ρ=226.2/(300·456)=0.00165 ≤ 0.005 → λ ≈ 79 (sin clamps raros)
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 2, vano_bot_barDiam: 12 });
+    const c = r.vano.checks.find((ch) => ch.id === 'slenderness-ld')!;
+    expect(c.status).toBe('ok');
+    expect(Number.isFinite(c.utilization)).toBe(true);
+  });
+
+  it('L > 7 m aplica el factor 7/L (tabiquería frágil, conservador)', () => {
+    const r6 = calcRCBeam(base);
+    const r9 = calcRCBeam({ ...base, L: 9000 });
+    const u6 = r6.vano.checks.find((c) => c.id === 'slenderness-ld')!.utilization;
+    const u9 = r9.vano.checks.find((c) => c.id === 'slenderness-ld')!.utilization;
+    // Sin el factor 7/L el crecimiento sería lineal (×1.5); con él, ×1.5·(9/7)
+    expect(u9 / u6).toBeCloseTo((9000 / 6000) * (9000 / 7000), 2);
+  });
+});

@@ -281,6 +281,21 @@ export function RCBeamsInputs({
         <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
         <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
+        {/* Luz + sistema para la esbeltez L/d (CE Anejo 19 §7.4.2). L=0 desactiva. */}
+        <NumField label="L" sub="luz (esbeltez L/d)" field="L"
+          value={state.L as number} unit="mm" min={0} setField={setField} />
+        <SelectField
+          label="Sistema"
+          field="structSystem"
+          value={(state.structSystem as string) ?? 'ss'}
+          options={[
+            { value: 'ss',         label: 'Biapoyada (K=1.0)' },
+            { value: 'end',        label: 'Vano extremo (K=1.3)' },
+            { value: 'interior',   label: 'Vano interior (K=1.5)' },
+            { value: 'cantilever', label: 'Ménsula (K=0.4)' },
+          ]}
+          setField={setField}
+        />
       </CollapsibleSection>
 
       {/* Shared materials */}

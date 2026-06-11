@@ -31,6 +31,12 @@ export interface RCBeamInputs {
   exposureClass: string;  // XC1–XC4
   loadType: string;       // 'residential'|'office'|'parking'|'roof'|'custom'
   psi2Custom: number;     // psi2 value when loadType='custom'
+  /** Luz del vano (mm) para la comprobación de esbeltez L/d sin cálculo
+   *  directo de flecha (CE Anejo 19 §7.4.2). 0 = no comprobar. */
+  L: number;
+  /** Sistema estructural — K de la Tabla 7.4N: biapoyada 1.0, vano extremo
+   *  de continua 1.3, vano interior 1.5, ménsula 0.4. */
+  structSystem: 'ss' | 'end' | 'interior' | 'cantilever';
   // Vano (midspan) — positive bending M+
   vano_Md: number;               // design moment (kNm)
   vano_VEd: number;              // design shear (kN)
@@ -134,6 +140,8 @@ export const rcBeamDefaults: RCBeamInputs = {
   exposureClass: 'XC1',
   loadType: 'residential',
   psi2Custom: 0.3,
+  L: 6000,
+  structSystem: 'ss',
   // Vano — tension bottom d=500-30-8-8=454mm, compression top 2Ø12
   vano_Md: 85,
   vano_VEd: 65,

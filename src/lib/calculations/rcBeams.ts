@@ -555,5 +555,43 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     bondClass:      'poor',
   });
 
+  // DEFLECTION — esbeltez L/d sin cálculo directo (CE Anejo 19 §7.4.2,
+  // fix auditoría #67). Comprobación de pieza (no de sección): se evalúa con
+  // la armadura de VANO (centro de luz) y se emite en vano.checks. L=0 = no
+  // comprobar (estados antiguos sin el campo). El factor 310/σs se aproxima
+  // por 500/fyk (As,prov = As,req, lado seguro), y para L > 7 m se aplica
+  // 7/L (vigas que soportan tabiquería frágil — conservador por defecto).
+  const L = Math.abs((inp.L as number) ?? 0);
+  if (L > 0 && vano.valid) {
+    const K_MAP: Record<string, number> = { ss: 1.0, end: 1.3, interior: 1.5, cantilever: 0.4 };
+    const K = K_MAP[inp.structSystem as string] ?? 1.0;
+    const fck = inp.fck as number;
+    const sqrtFck = Math.sqrt(fck);
+    const b = inp.b as number;
+    const rho0 = 1e-3 * sqrtFck;
+    const rho  = vano.As / (b * vano.d);
+    const rhoP = vano.AsComp / (b * vano.d);
+    let lambdaLim: number;
+    if (rho <= rho0) {
+      // Expr. 7.16a
+      lambdaLim = K * (11 + 1.5 * sqrtFck * (rho0 / rho) + 3.2 * sqrtFck * Math.pow(rho0 / rho - 1, 1.5));
+    } else {
+      // Expr. 7.16b
+      lambdaLim = K * (11 + 1.5 * sqrtFck * rho0 / (rho - rhoP) + (sqrtFck / 12) * Math.sqrt(rhoP / rho0));
+    }
+    lambdaLim *= 500 / (inp.fyk as number);   // ≈ 310/σs con As,prov = As,req
+    lambdaLim *= Math.min(1, 7000 / L);       // luces > 7 m con tabiquería
+    const ld = L / vano.d;
+    vano.checks.push({
+      id: 'slenderness-ld',
+      description: 'Esbeltez L/d (flecha sin calculo directo)',
+      value: `L/d = ${ld.toFixed(1)}`,
+      limit: `λ,lim = ${lambdaLim.toFixed(1)}`,
+      utilization: ld / lambdaLim,
+      status: toStatus(ld / lambdaLim),
+      article: 'CE Anejo 19 art. 7.4.2',
+    });
+  }
+
   return { valid: true, vano, apoyo };
 }

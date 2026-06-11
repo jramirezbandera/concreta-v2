@@ -249,6 +249,11 @@ function buildRcBeamInputs(
     loadType: engineLoadType,
     psi2Custom,
 
+    // L=0 desactiva la esbeltez L/d del motor de sección: el FEM calcula la
+    // flecha real de la barra (no aplica el método simplificado 7.4.2).
+    L: 0,
+    structSystem: 'ss',
+
     // Vano — sagging region. Signed Md preserved (calcRCBeam uses absolute value internally).
     vano_Md: Math.abs(env.vano_Md_ELU),
     vano_VEd: env.vano_VEd_ELU,
