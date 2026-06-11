@@ -178,32 +178,43 @@ describe('γM · Tabla 4.8 DB-SE-F', () => {
 // ─── 4. betaConcentracion (§5.4 — variable por posición) ─────────────────
 
 describe('betaConcentracion', () => {
-  // Firma post-fix auditoría #12: (x_carga, x1, x2, H, b_apoyo=0) — `a` se mide
-  // al borde libre más próximo del MACHÓN (los huecos crean bordes libres).
-  it('carga centrada en machón de muro completo → β = 1.3', () => {
-    expect(betaConcentracion(3000, 0, 6000, 3000)).toBe(1.3); // a/h = 3000/3000 = 1
+  // Post-fixes #12 y #32: fórmula completa DB-SE-F §5.4.2 / EC6 eq. (6.10):
+  //   β = (1 + 0.3·a1/hc)·(1.5 − 1.1·Ab/Aef), 1 ≤ β ≤ min(1.25 + a1/(2hc), 1.5)
+  // con a1 al borde del área cargada respecto al borde libre del MACHÓN y
+  // Aef = lef·t por difusión a 60° hasta media altura.
+  it('carga puntual centrada (Ab→0): β = cap 1.5', () => {
+    // a1=3000, h=3000 → (1+0.3)·1.5 = 1.95 → cap min(1.25+0.5, 1.5) = 1.5
+    expect(betaConcentracion(3000, 0, 6000, 3000)).toBe(1.5);
   });
-  it('carga al borde del muro → β=1 (sin confinamiento)', () => {
-    expect(betaConcentracion(0, 0, 6000, 3000)).toBe(1.0);
-  });
-  it('carga muy lejana del borde con muro alto → β capped a 1.5', () => {
-    // a = min(x−x1, x2−x) = 5000, h = 1000 → a/h = 5, 1+0.3·5=2.5 → cap 1.5
-    expect(betaConcentracion(5000, 0, 10000, 1000)).toBe(1.5);
+  it('carga puntual al borde (a1=0): cap normativo 1.25', () => {
+    // EC6: β ≤ 1.25 + a1/(2hc) → 1.25 en el borde (el factor de área puntual
+    // 1.5 queda recortado por el cap).
+    expect(betaConcentracion(0, 0, 6000, 3000)).toBe(1.25);
   });
   it('H=0 → β=1 (degenerate guard)', () => {
     expect(betaConcentracion(3000, 0, 6000, 0)).toBe(1.0);
   });
-  it('carga junto a un hueco → β ≈ 1 aunque esté lejos del extremo del muro (fix #12)', () => {
-    // Machón [1700, 2500] (entre ventana y puerta), carga en x=2450 con apoyo 250:
-    // a = min(2450−1700, 2500−2450) − 125 = 0 → β = 1.0.
-    // Pre-fix se medía al extremo del MURO: a = min(2450, L−2450) = 2450 → β ≈ 1.25
-    // (capacidad local sobreestimada ~25% junto al borde libre del hueco).
-    expect(betaConcentracion(2450, 1700, 2500, 3000, 250)).toBe(1.0);
+  it('carga junto a un hueco con apoyo real: cap 1.25 y factor de área (fix #12/#32)', () => {
+    // Machón [1700, 2500], x=2450, b=250: a1 = max(0, 50−125) = 0 → cap 1.25.
+    // lef = max(250, min(750, 991) + min(50, 991)) = 800 → Ab/Aef = 0.3125
+    // β = 1·(1.5 − 1.1·0.3125) = 1.156 < cap. Pre-#12 se medía al extremo del
+    // MURO (a=2450 → β=1.25 con la fórmula corta): sobreestimaba el
+    // confinamiento junto al borde libre del hueco.
+    expect(betaConcentracion(2450, 1700, 2500, 3000, 250)).toBeCloseTo(1.1563, 3);
   });
-  it('descuenta b_apoyo/2: el confinamiento se mide al borde del área cargada', () => {
-    // x=2000 en machón [1700, 2500], b=200: a = min(300, 500) − 100 = 200
-    // β = 1 + 0.3·200/3000 = 1.02
-    expect(betaConcentracion(2000, 1700, 2500, 3000, 200)).toBeCloseTo(1.02, 5);
+  it('apoyo ancho centrado: el factor (1.5 − 1.1·Ab/Aef) penaliza (fix #32)', () => {
+    // Machón [0, 2000], x=1000, b=1000, h=2700: spread=779.5 →
+    // lef = min(1000, 500+779.5) + min(1000, 1279.5) = 2000 → Ab/Aef = 0.5
+    // a1 = min(1000,1000)−500 = 500 → factor1 = 1+0.3·500/2700 = 1.0556
+    // β = 1.0556·(1.5−0.55) = 1.003 — la versión corta daba 1.056 sin
+    // penalizar el apoyo grande (lado inseguro, régimen Ab/Aef alto).
+    expect(betaConcentracion(1000, 0, 2000, 2700, 1000)).toBeCloseTo(1.003, 2);
+  });
+  it('descuenta b_apoyo/2: a1 se mide al borde del área cargada', () => {
+    // x=2000 en machón [1700, 2500], b=200: a1 = min(300, 500) − 100 = 200
+    // factor1 = 1+0.3·200/3000 = 1.02; lef = min(300,966)+min(500,966) = 800
+    // β = 1.02·(1.5−1.1·0.25) = 1.2495 < cap 1.2833
+    expect(betaConcentracion(2000, 1700, 2500, 3000, 200)).toBeCloseTo(1.2495, 3);
   });
 });
 
@@ -782,8 +793,10 @@ describe('calcularEdificio — Φ unificado (OV-8)', () => {
     expect(r.plantas[0].Phi).toBeLessThan(0.5);
   });
 
-  it('Φ tiene clamp inferior 0.05', () => {
-    // forjar caso extremo: e enorme + λ enorme. El clamp de seguridad evita 0.
+  it('e ≥ t/2 (resultante fuera de la sección) → Φ = 0 y fail (fix auditoría #34)', () => {
+    // e≈t/2 + λ enorme → (1 − 2·e/t) ≤ 0: capacidad NULA (DB-SE-F §5.2.4 /
+    // EC6 §6.1.2.2). Pre-fix el clamp Φ=0.05 otorgaba un 5% residual ficticio
+    // y un muro poco cargado salía CUMPLE en un estado físicamente inestable.
     const s: MasonryWallState = {
       ...defaultMasonryState(),
       t: 80,
@@ -794,7 +807,44 @@ describe('calcularEdificio — Φ unificado (OV-8)', () => {
     };
     const r = calcularEdificio(s);
     if (r.invalid) return;
-    expect(r.plantas[0].Phi).toBeGreaterThanOrEqual(0.05);
+    expect(r.plantas[0].Phi).toBe(0);
+    for (const m of r.plantas[0].machones) expect(m.status).toBe('fail');
+    expect(overallStatus(r.plantas).v).toBe('fail');
+  });
+
+  it('Φ mantiene el clamp 0.05 solo como guard numérico (phi_unif > 0)', () => {
+    // Caso con phi_unif positivo pero pequeño: el suelo 0.05 sigue operando.
+    const s = statePB({ t: 240 });
+    const r = calcularEdificio(s);
+    const plantas = expectPlantas(r);
+    plantas.forEach((pl) => expect(pl.Phi).toBeGreaterThanOrEqual(0.05));
+  });
+});
+
+// ─── 16b. Antepecho bajo ventanas (fix auditoría #33) ────────────────────
+
+describe('peso del antepecho bajo ventanas', () => {
+  it('ventana vs puerta con mismo borde superior: la diferencia es el antepecho', () => {
+    // Planta superior con ventana (y=1000, h=1300) vs puerta (y=0, h=2300):
+    // mismo borde superior (y+h=2300) → mismo dintel, mismos machones. La
+    // ÚNICA diferencia física es el antepecho de 1 m bajo la ventana, que
+    // apoya en la planta inferior: γG·pp·t·1.0·1.0 ≈ 4-8 kN. Pre-fix ese
+    // peso desaparecía del modelo y ambos casos daban N idéntico.
+    const base = defaultMasonryState();
+    const ventana = { id: 'h-v', x: 2000, y: 1000, w: 1000, h: 1300, tipo: 'ventana' as const };
+    const puerta  = { id: 'h-p', x: 2000, y: 0,    w: 1000, h: 2300, tipo: 'puerta'  as const };
+    const mk = (hueco: typeof ventana | typeof puerta) => ({
+      ...base,
+      plantas: [
+        { ...base.plantas[0], huecos: [], puntuales: [] },
+        { ...base.plantas[base.plantas.length - 1], huecos: [hueco], puntuales: [] },
+      ],
+    });
+    const N = (st: ReturnType<typeof mk>) =>
+      expectPlantas(calcularEdificio(st))[0].machones.reduce((s, m) => s + m.N_Ed, 0);
+    const dif = N(mk(ventana)) - N(mk(puerta));
+    expect(dif).toBeGreaterThan(2);   // antepecho presente (γG·pp·t·y·w)
+    expect(dif).toBeLessThan(15);     // y solo el antepecho
   });
 });
 

@@ -708,9 +708,25 @@ export function repartoMomento(H_inf: number, H_sup: number): number {
 export function betaConcentracion(
   x_carga: number, x1: number, x2: number, H_planta: number, b_apoyo = 0,
 ): number {
-  const a = Math.max(0, Math.min(x_carga - x1, x2 - x_carga) - b_apoyo / 2);
-  const ratio = H_planta > 0 ? a / H_planta : 0;
-  return Math.max(1.0, Math.min(1.5, 1 + 0.3 * ratio));
+  if (H_planta <= 0) return 1.0;   // guard degenerado: sin altura no hay difusión
+  const a1 = Math.max(0, Math.min(x_carga - x1, x2 - x_carga) - b_apoyo / 2);
+  const ratio = H_planta > 0 ? a1 / H_planta : 0;
+
+  // Fórmula completa DB-SE-F §5.4.2 / EC6 §6.1.3 eq. (6.10):
+  //   β = (1 + 0.3·a1/hc) · (1.5 − 1.1·Ab/Aef)
+  //   con 1.0 ≤ β ≤ min(1.25 + a1/(2·hc), 1.5)
+  // Aef = lef·t con lef por difusión a 60° desde el área cargada hasta media
+  // altura, recortada por los bordes libres del machón. El factor de área
+  // penaliza apoyos GRANDES respecto a la difusión disponible (Ab/Aef alto
+  // → β→1), el régimen que la versión anterior (solo 1+0.3·a/h) ignoraba.
+  const spread = 0.2887 * H_planta;   // (hc/2)/tan(60°) por lado
+  const lef_izq = Math.min(x_carga - x1, b_apoyo / 2 + spread);
+  const lef_dch = Math.min(x2 - x_carga, b_apoyo / 2 + spread);
+  const lef = Math.max(b_apoyo, lef_izq + lef_dch);   // nunca menor que el apoyo
+  const areaFactor = b_apoyo > 0 && lef > 0 ? 1.5 - 1.1 * (b_apoyo / lef) : 1.5;
+
+  const capNorm = Math.min(1.25 + (H_planta > 0 ? a1 / (2 * H_planta) : 0), 1.5);
+  return Math.max(1.0, Math.min(capNorm, (1 + 0.3 * ratio) * areaFactor));
 }
 
 /**
@@ -1065,7 +1081,11 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
     const e_a = h_ef / 450;
     const e_total = Math.max(e_m + e_a, e_min);
     const phi_unif = (1 - 2 * e_total / t) * (lambda > 10 ? Math.max(0, 1 - (lambda - 10) / 30) : 1.0);
-    const Phi = Math.max(0.05, phi_unif);
+    // Si (1 − 2·e/t) ≤ 0 la resultante cae FUERA de la sección: capacidad
+    // nula (DB-SE-F §5.2.4 / EC6 §6.1.2.2), no un 5% residual ficticio. El
+    // clamp 0.05 queda solo como guard numérico para phi_unif positivo
+    // minúsculo. Con Φ=0, N_Rd=0 → η=99 → fail explícito.
+    const Phi = phi_unif > 0 ? Math.max(0.05, phi_unif) : 0;
 
     // === MACHONES ===
     // autoplan eng review H4: planta sin machones (full-width hueco) es
@@ -1208,6 +1228,21 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
             originX: (m.x1 + m.x2) / 2,
           });
         }
+      }
+      // Antepecho bajo ventanas (fix auditoría #33): la franja de fábrica
+      // entre el suelo y el alféizar (altura h.y, ancho del hueco) no carga
+      // al dintel ni a los machones de su planta — apoya directamente sobre
+      // la planta inferior. Antes desaparecía del modelo (~3.9 kN por
+      // ventana típica y planta, acumulativo hacia abajo, lado inseguro).
+      for (const hk of pl.huecos) {
+        const hx1 = Math.max(0, hk.x);
+        const hx2 = Math.min(L, hk.x + hk.w);
+        if (hx2 <= hx1 || hk.y <= 0) continue;
+        newSegments.push({
+          x1: hx1, x2: hx2,
+          w: gG * peso_propio * (t / 1000) * (hk.y / 1000),
+          kind: 'distributed',
+        });
       }
       loadsAtTop = newSegments;
     }
