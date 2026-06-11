@@ -1213,7 +1213,12 @@ export function checkBoltShear(
   Nc_G_kN: number,
   system: UnitSystem = 'si',
 ): CheckRow {
-  const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
+  // Cf,d = 0.20 (EC3 1-8 §6.2.2(6) / CE Anejo 18): la placa asienta SIEMPRE
+  // sobre mortero de nivelación (grout) y el plano que gobierna es
+  // placa-mortero; el 0.4 'rugoso' anterior carecía de respaldo normativo
+  // para esta junta (rugosizar el pedestal bajo el grout no la mejora).
+  // Otros valores requieren ensayo. surface_type ya no modula la fricción.
+  const mu = 0.2;
   const Vfric_kN = mu * Math.max(0, Nc_G_kN);
 
   const { FvRd_kN: FvRd_per_bar_kN } = barStrengths(inp);
@@ -1269,7 +1274,8 @@ export function checkBoltInteraction(
   // H6 (Phase 3): la fricción se basa en la compresión real bajo placa
   // bajo combinación cuasi-permanente (Nc,G del solver-G), no en el axil
   // total NEd_G. Cuando hay tracción permanente, Nc,G = NEd,G + Ft,G > NEd,G.
-  const mu = inp.surface_type === 'roughened' ? 0.4 : 0.2;
+  // Cf,d = 0.20 (EC3 1-8 §6.2.2(6), junta placa-grout) — ver checkBoltShear.
+  const mu = 0.2;
   const Vfric_kN = mu * Math.max(0, Nc_G_kN);
   // |V| via resolveShear (consistente con checkBoltShear y modos de hormigón).
   const { Vmag } = resolveShear(inp);
@@ -1405,11 +1411,18 @@ export function checkAnchorageLength(
     };
   }
 
-  const util = lb_rqd_max / Math.max(inp.bar_hef, 1e-6);
+  // Suelo normativo lb,min = max(0.3·lb,rqd(fyd); 10φ; 100 mm) — EC2 §8.4.4(1)
+  // / CE Anejo 19 §49.5. Sin él, con Ft pequeño lb,rqd tiende a milímetros y
+  // el check salía verde aunque hef < 10φ.
+  const lb_rqd_full = (inp.bar_diam / 4) * (fyd / fbd);
+  const lb_min = Math.max(0.3 * lb_rqd_full, 10 * inp.bar_diam, 100);
+  const lbd = Math.max(lb_rqd_max, lb_min);
+
+  const util = lbd / Math.max(inp.bar_hef, 1e-6);
   return {
     id: 'anchorage-length',
     description: 'Longitud de anclaje',
-    value: `lb,rqd=${lb_rqd_max.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)}, α2=${worstAlpha2.toFixed(2)})`,
+    value: `lbd=${lbd.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)}, α2=${worstAlpha2.toFixed(2)}, lb,min=${lb_min.toFixed(0)})`,
     limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
@@ -1477,15 +1490,21 @@ export function checkConcreteCone(
   // Patrón replicado de checkSplitting (PR6).
   //
   // ψec,N por excentricidad del grupo tensionado (EN 1992-4 §7.2.1.4(6) /
-  // CE Anejo 11). Mismo cálculo que ψec,sp: centroide ponderado por Ft.
+  // CE Anejo 11). eN se mide del centroide ponderado por Ft al BARICENTRO
+  // GEOMÉTRICO del grupo traccionado (EN 1992-4 §7.2.1.4(6) / Fig. 7.6), no
+  // al centro de la placa: con 2 barras igualmente cargadas en x=−150 el eN
+  // correcto es 0 (la versión anterior daba 150 → ψec=0.75, 25% de cono
+  // perdido en el caso típico de momento uniaxial). Por componente
+  // (ψec,x·ψec,y), no como módulo combinado.
   const sumFt = tBars.reduce((s, b) => s + b.Ft, 0);
   let eX = 0, eY = 0;
-  if (sumFt > 0) {
-    eX = tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt;
-    eY = tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt;
+  if (sumFt > 0 && tBars.length > 0) {
+    const gx = tBars.reduce((s, b) => s + b.x, 0) / tBars.length;
+    const gy = tBars.reduce((s, b) => s + b.y, 0) / tBars.length;
+    eX = Math.abs(tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt - gx);
+    eY = Math.abs(tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt - gy);
   }
-  const eN = Math.hypot(eX, eY);
-  const psi_ec_N = 1 / (1 + 2 * eN / s_cr);
+  const psi_ec_N = (1 / (1 + 2 * eX / s_cr)) * (1 / (1 + 2 * eY / s_cr));
 
   // ψre,N por shell spalling (EN 1992-4 §7.2.1.4(8), Eq 7.7):
   //   ψre,N = 0.5 + hef/(200 mm) ≤ 1.0
@@ -1623,20 +1642,27 @@ export function checkSplitting(
     };
   }
 
-  // ψh,sp por canto del macizo (NO por distancia al borde — fix CR3)
+  // ψh,sp por canto del macizo (NO por distancia al borde — fix CR3).
+  // Para h < 2·hef el término (h/2hef)^(2/3) < 1 REDUCE la capacidad (el
+  // valor de referencia asume desarrollo completo en profundidad): el floor
+  // a 1.0 anterior anulaba la penalización justo en el régimen por el que
+  // el check se activa (macizos someros, el caso splitting-crítico). Cota
+  // superior 2 para macizos muy profundos.
   const psi_h_raw = Math.pow(h_pedestal / (2 * hef), 2 / 3);
   const psi_h_bound = Math.pow((2 * c_max) / hef, 2 / 3);
-  const psi_h_sp = Math.max(1.0, Math.min(psi_h_raw, psi_h_bound));
+  const psi_h_sp = Math.min(psi_h_raw, Math.max(1.0, psi_h_bound), 2.0);
 
-  // ψec,sp por excentricidad del grupo tensionado
+  // ψec,sp por excentricidad del grupo tensionado — respecto al baricentro
+  // geométrico del grupo, por componente (igual que ψec,N del cono).
   const sumFt = tBars.reduce((s, b) => s + b.Ft, 0);
   let eX = 0, eY = 0;
-  if (sumFt > 0) {
-    eX = tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt;
-    eY = tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt;
+  if (sumFt > 0 && tBars.length > 0) {
+    const gx = tBars.reduce((s, b) => s + b.x, 0) / tBars.length;
+    const gy = tBars.reduce((s, b) => s + b.y, 0) / tBars.length;
+    eX = Math.abs(tBars.reduce((s, b) => s + b.Ft * b.x, 0) / sumFt - gx);
+    eY = Math.abs(tBars.reduce((s, b) => s + b.Ft * b.y, 0) / sumFt - gy);
   }
-  const eN = Math.hypot(eX, eY);
-  const psi_ec_sp = 1 / (1 + 2 * eN / s_cr_sp);
+  const psi_ec_sp = (1 / (1 + 2 * eX / s_cr_sp)) * (1 / (1 + 2 * eY / s_cr_sp));
 
   // ψs,sp por edge (igual estructura que ψs,N del cono)
   const psi_s_sp = c_min >= c_cr_sp ? 1.0 : 0.7 + 0.3 * c_min / c_cr_sp;
@@ -2097,7 +2123,13 @@ export function calcAnchorPlate(
   }
 
   const solver = solveAnchorPlate(inp);
-  const Ft_per_bar = solver.n_t > 0 ? solver.Ft_total / solver.n_t : 0;
+  // Tracción de la barra PÉSIMA, no la media (EN 1992-4: se verifica el
+  // anclaje más desfavorable). El solver asigna Ft lineal con la distancia
+  // al eje neutro: la barra extrema supera a la media hasta en un 50%, y el
+  // check dedicado con Ft_total/n_t enmascaraba la banda warn 0.80-0.89.
+  const Ft_per_bar = solver.bolts.reduce(
+    (mx, b) => (b.inTension && b.Ft > mx ? b.Ft : mx), 0,
+  );
 
   const fcd = inp.fck / GAMMA_C;
   const alpha = alphaExtension(inp);
@@ -2137,6 +2169,23 @@ export function calcAnchorPlate(
     checkStiffener(inp, solver.Nc, system),
   ];
   checks.push(checkConcreteNVInteraction(checks, system));   // AUDIT-8 N+V hormigón
+
+  // Solver no convergido (residuo > tolerancia sin saturación): los Ft
+  // asignados SUBESTIMAN la demanda real (el momento no equilibrado se
+  // descarta) y los checks pueden salir verdes. types.ts documenta la
+  // decisión de modelarlo como fail + nota — ahora implementada: el estado
+  // APROX nunca puede quedar en verde.
+  if (!solver.converged) {
+    checks.push({
+      id: 'solver-equilibrium',
+      description: 'Equilibrio no garantizado — solver no convergido (APROX)',
+      value: solver.note ?? 'residuo > tolerancia',
+      limit: 'equilibrio requerido',
+      utilization: 1.0,
+      status: 'fail',
+      article: 'Concreta — integridad numérica',
+    });
+  }
 
   const worstUtil = checks.length > 0 ? Math.max(...checks.map((c) => c.utilization)) : 0;
   const hasFailValidation = warnings.some((w) => w.severity === 'fail');

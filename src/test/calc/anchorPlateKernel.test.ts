@@ -148,10 +148,12 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //   - Post-auditoría #8 (interacción N+V hormigón, EN 1992-4 §7.2.3.2):
     //     nuevo check combinando los modos pésimos: 0.692^1.5 + 1.925^1.5
     //     = 3.246 → gobierna el FTUX. Checks 13 → 15 (+T-stub tracción #9).
+    //   - Post-auditoría #25 (ψec al baricentro del grupo, por componente):
+    //     cono 0.692 → 0.663 → interacción = 0.663^1.5 + 1.925^1.5 = 3.211.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(15);    // PR8b: 13 · auditoría #8/#9: +2
-    expect(r.worstUtil).toBeCloseTo(3.246, 2);
+    expect(r.worstUtil).toBeCloseTo(3.211, 2);
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {

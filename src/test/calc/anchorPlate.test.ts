@@ -575,13 +575,13 @@ describe('PR8b — CR6 concrete shear modes', () => {
   });
 
   it('interacción N+V hormigón: utilN^1.5 + utilV^1.5 — oracle (fix auditoría #8)', () => {
-    // FTUX: utilN = cono 0.692, utilV = edge breakout 1.925
-    // → 0.692^1.5 + 1.925^1.5 = 0.576 + 2.671 = 3.246 (EN 1992-4 §7.2.3.2).
-    // Dos modos al 0.85 individual darían 1.57 > 1: la norma exige este
-    // check aunque los modos individuales estén en verde.
+    // FTUX (post-#25, ψec por componente al baricentro): utilN = cono 0.663,
+    // utilV = edge breakout 1.925 → 0.663^1.5 + 1.925^1.5 = 0.540 + 2.671
+    // = 3.211 (EN 1992-4 §7.2.3.2). Dos modos al 0.85 individual darían
+    // 1.57 > 1: la norma exige este check aunque ambos estén en verde.
     const r = calcAnchorPlate(anchorPlateDefaults);
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
-    expect(ci.utilization).toBeCloseTo(3.246, 2);
+    expect(ci.utilization).toBeCloseTo(3.211, 2);
     expect(ci.status).toBe('fail');
   });
 
@@ -589,6 +589,36 @@ describe('PR8b — CR6 concrete shear modes', () => {
     const r = calcAnchorPlate({ ...anchorPlateDefaults, VEd: 0, Vx: 0, Vy: 0 });
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
     expect(ci.status).toBe('neutral');
+  });
+
+  it('bolt-tension comprueba la barra PÉSIMA, no la media (fix auditoría #23)', () => {
+    // FTUX biaxial: FtMax = 15.5 kN vs media 10.2 kN. El check de tracción y
+    // el T-stub deben coincidir en la barra pésima.
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const bt = r.checks.find((c) => c.id === 'bolt-tension')!;
+    const ts = r.checks.find((c) => c.id === 'plate-tension-tstub')!;
+    expect(bt.utilization).toBeCloseTo(ts.utilization, 3);  // misma Ft crítica
+    expect(bt.utilization).toBeCloseTo(0.114, 2);           // 15.5/136.6
+  });
+
+  it('fricción con Cf,d = 0.20 (EC3 1-8 §6.2.2(6)) — fix auditoría #26', () => {
+    // Junta placa-grout: el 0.4 "rugoso" carecía de respaldo y era el default.
+    // FTUX: Nc,G = 195 kN → μ·Nc,G = 39.0 kN (antes 78.0).
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
+    expect(bs.limit).toContain('39.0');
+  });
+
+  it('anclaje con suelo lb,min = max(0.3·lb(fyd), 10φ, 100) — fix auditoría #27', () => {
+    // FTUX φ20: lb(fyd) = 5·434.78/2.69 = 808 → lb,min = max(242, 200, 100)
+    // = 242 mm → util = 242/300 = 0.81 (antes, con Ft baja, lb,rqd→mm y verde).
+    const r = calcAnchorPlate(anchorPlateDefaults);
+    const al = r.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(al.utilization).toBeCloseTo(0.807, 2);
+    // hef escaso con barras casi descargadas ya no pasa: hef=180 < 10φ=200.
+    const r2 = calcAnchorPlate({ ...anchorPlateDefaults, bar_hef: 180 });
+    const al2 = r2.checks.find((c) => c.id === 'anchorage-length')!;
+    expect(al2.utilization).toBeGreaterThan(1);
   });
 
   it('T-stub tracción: t=20 gobierna modo 3; t=10 cae a modo 1/2 (fix auditoría #9)', () => {
@@ -673,11 +703,11 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
     const r = calcAnchorPlate(anchorPlateDefaults);
-    // Sentinel: worstUtil = 3.246 (post-fix auditoría #8: la interacción
-    // N+V de hormigón gobierna el FTUX: 0.692^1.5 + 1.925^1.5 = 3.246;
-    // antes 1.925 con edge breakout solo, y 0.992 pre-auditoría).
+    // Sentinel: worstUtil = 3.211 (post-fixes #8 y #25: interacción N+V con
+    // cono ψec al baricentro: 0.663^1.5 + 1.925^1.5 = 3.211; antes 3.246,
+    // 1.925 con edge breakout solo, y 0.992 pre-auditoría).
     // NO debe cambiar con resolveEdges sobre defaults simétricos.
-    expect(r.worstUtil).toBeCloseTo(3.246, 2);
+    expect(r.worstUtil).toBeCloseTo(3.211, 2);
   });
 
   it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
@@ -774,11 +804,14 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     expect(sp.limit).toMatch(/ψh=1\.[2-9]\d/);   // amplificación visible
   });
 
-  it('ψh,sp cap inferior = 1: macizo poco profundo no reduce por debajo de 1', () => {
-    // h_pedestal=400 < 2·hef=600 → (h/2hef)^(2/3) = 0.86, pero max(1, ...) = 1.0
+  it('ψh,sp < 1 con macizo somero: la reducción por canto aplica (fix auditoría #24)', () => {
+    // h_pedestal=400 < 2·hef=600 → ψh,sp = (400/600)^(2/3) = 0.763. El floor
+    // a 1.0 anterior anulaba la penalización JUSTO en el régimen por el que
+    // el check se activa (encepados/macizos someros, el caso splitting-crítico):
+    // con h=hef la capacidad quedaba ×1.6 sobreestimada.
     const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 400 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
-    expect(sp.limit).toContain('ψh=1.00');
+    expect(sp.limit).toContain('ψh=0.76');
   });
 
   it('h_pedestal ≥ 2·hef y c_min ≥ c_cr,sp → no crítico (neutral)', () => {
