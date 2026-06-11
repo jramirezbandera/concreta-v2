@@ -1123,8 +1123,13 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
 
       const A = m.ancho * t;
       const N_Rd = (Phi * f_d * A) / 1000;
-      const eta_cabeza = N_Rd > 0 ? N_Ed / N_Rd : 99;
-      const eta_pie = N_Rd > 0 ? N_Ed_pie / N_Rd : 99;
+      // Axil de TRACCIÓN (N_Ed < 0): la fábrica no tiene capacidad a tracción
+      // y DB-SE-F §5.2 no contempla axil negativo. η negativo daría 'ok'
+      // (verde); se fuerza el sentinel 99 → fail (fix auditoría #46).
+      const etaAxil = (N: number): number =>
+        N < 0 ? 99 : (N_Rd > 0 ? N / N_Rd : 99);
+      const eta_cabeza = etaAxil(N_Ed);
+      const eta_pie = etaAxil(N_Ed_pie);
       const eta = Math.max(eta_cabeza, eta_pie);
       const sigma_top = (N_Ed * 1000) / A;
       const sigma_bottom = (N_Ed_pie * 1000) / A;

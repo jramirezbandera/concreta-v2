@@ -819,6 +819,28 @@ describe('calcularEdificio — Φ unificado (OV-8)', () => {
     const plantas = expectPlantas(r);
     plantas.forEach((pl) => expect(pl.Phi).toBeGreaterThanOrEqual(0.05));
   });
+
+  it('axil de tracción (N_Ed < 0) → fail, no CUMPLE (fix auditoría #46)', () => {
+    // La fábrica no resiste tracción (DB-SE-F §5.2). Cargas negativas (input
+    // erróneo o URL manipulada) daban η<0 → status 'ok' verde. Cubierta con
+    // q muy negativa → N_Ed < 0 en su machón → fail y edificio INCUMPLE.
+    const base = defaultMasonryState();
+    const top = base.plantas.length - 1;
+    const st = {
+      ...base,
+      plantas: base.plantas.map((p, i) =>
+        i === top
+          ? { ...p, q_G: -20, q_Q: -10, huecos: [], puntuales: [] }
+          : { ...p, huecos: [], puntuales: [] }),
+    };
+    const plantas = expectPlantas(calcularEdificio(st));
+    const cubierta = plantas[top];
+    expect(cubierta.machones.some((m) => m.N_Ed < 0)).toBe(true);
+    for (const m of cubierta.machones) {
+      if (m.N_Ed < 0) expect(m.status).toBe('fail');
+    }
+    expect(overallStatus(plantas).v).toBe('fail');
+  });
 });
 
 // ─── 16b. Antepecho bajo ventanas (fix auditoría #33) ────────────────────
