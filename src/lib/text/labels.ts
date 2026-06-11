@@ -261,7 +261,10 @@ export const LABELS = {
 
   cover_mechanical: {
     sym: 'r',
-    descLong: 'Recubrimiento mecánico (al eje de la barra)',
+    // Recubrimiento GEOMÉTRICO (a cara de barra): los motores computan
+    // d = h − cover − φ/2. La etiqueta anterior decía "al eje de la barra"
+    // (recubrimiento mecánico), incoherente con el cálculo (fix auditoría #45).
+    descLong: 'Recubrimiento geométrico (a cara de barra)',
     descShort: 'Recubrimiento',
     unit: 'mm',
     ref: 'CE art. 37.2.4',

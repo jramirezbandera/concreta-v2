@@ -536,7 +536,7 @@ export interface IsolatedFootingInputs {
   bc:                 number;  // column width x
   hc:                 number;  // column depth y
   Df:                 number;  // foundation depth from ground surface (only for W_soil)
-  cover:              number;  // mm — cover to bar centroid (bottom)
+  cover:              number;  // mm — recubrimiento geométrico (a cara de barra); d = h − cover − φ/2
   // Bearing capacity (user input from geotechnical report)
   sigma_adm:          number;  // kPa
   // Loads — single set with toggle

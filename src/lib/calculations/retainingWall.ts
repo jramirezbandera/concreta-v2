@@ -345,7 +345,6 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
 
   if (kh > 0) {
     const theta    = Math.atan(kh / (1 - kv));
-    const phi_eff  = Math.max(phi_r - theta, 0);
     seismicUnstable = phi_r - theta < 0;
 
     // KAD para un ángulo sísmico θ dado (M-O, EC8 Anejo E / NCSP-07): el
