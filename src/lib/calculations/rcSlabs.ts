@@ -164,13 +164,26 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
     });
   }
 
-  // MIN REINFORCEMENT tension (CE art. 42.3.2 / 42.3.5) ──────────────────
-  // Use b (flexión width) × h — for reticular vano this is b_eff; for apoyo it is b_w;
-  // for maciza 1000. This matches CE Tabla 42.3.5 (sección que resiste).
-  const bRef = inp.variant === 'reticular' && inp.zone === 'vano' ? inp.bWeb : inp.b;
-  const AsMinGeom = 0.0028 * bRef * inp.h;
-  const AsMinMec  = (0.04 * bRef * inp.h * fcd) / fyd;
-  const AsMin     = Math.max(AsMinGeom, AsMinMec);
+  // MIN REINFORCEMENT tension ─────────────────────────────────────────────
+  // Width: reticular usa siempre b_w (nervio = viga); maciza 1000.
+  const bRef = inp.variant === 'reticular' ? inp.bWeb : inp.b;
+  // Cuantía mínima por variante (fix auditoría #39):
+  //  - reticular (nervio = viga): 2.8‰·bw·h (EHE Tabla 42.3.5, viga B500)
+  //    + mínimo mecánico 0.04·Ac·fcd/fyd (EHE art. 42.3.2).
+  //  - maciza (LOSA): la cuantía de viga 2.8‰·b·h era 2-3× lo normativo y
+  //    daba falsos FAIL en losas conformes. Vía CE Anejo 19 §9.3.1.1 →
+  //    §9.2.1.1: As,min = max(0.26·fctm/fyk·b·d, 0.0013·b·d).
+  let AsMin: number;
+  if (inp.variant === 'maciza') {
+    AsMin = Math.max(
+      (0.26 * mat.fctm / inp.fyk) * bRef * inp.d,
+      0.0013 * bRef * inp.d,
+    );
+  } else {
+    const AsMinGeom = 0.0028 * bRef * inp.h;
+    const AsMinMec  = (0.04 * bRef * inp.h * fcd) / fyd;
+    AsMin = Math.max(AsMinGeom, AsMinMec);
+  }
 
   checks.push(check(
     'as-min',
@@ -577,7 +590,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   const AsShear = Math.min(AsVano, AsApoyo);  // conservative: lower rhoL
   const k = Math.min(1 + Math.sqrt(200 / dShear), 2.0);
   const rhoL = Math.min(AsShear / (bShear * dShear), 0.02);
-  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(rhoL * fck, 1 / 3) * bShear * dShear) / 1000;
+  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(100 * rhoL * fck, 1 / 3) * bShear * dShear) / 1000;
   const VRdc2 = ((0.051 / GAMMA_C) * Math.pow(k, 1.5) * Math.sqrt(fck) * bShear * dShear) / 1000;
   const VRdc = Math.max(VRdc1, VRdc2);
 
@@ -658,8 +671,43 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     ));
   }
 
+  // ── Esbeltez L/d — exención del cálculo de flecha (fix auditoría #37) ──
+  // CE Anejo 19 §7.4.2 (EC2 Tabla 7.4N / EHE 50.2.2.1): si L/d ≤ (L/d)lim el
+  // ELS de deformación se da por satisfecho sin calcular la flecha. Si se
+  // excede, el motor NO calcula flecha (roadmap art. 50) → se emite 'warn'
+  // explícito en lugar del silencio anterior (la flecha suele gobernar el
+  // canto en forjados).
+  const K_LD: Record<string, number> = {
+    biapoyado: 1.0, 'continuo-extremo': 1.3, 'continuo-interior': 1.5, voladizo: 0.4,
+  };
+  const K_ld_base = K_LD[inp.tipoVano as string] ?? 1.0;
+  // Sección en T con b_eff/b_w > 3 → ×0.8 (EC2 §7.4.2(2))
+  const K_ld = variant === 'reticular' && bWeb > 0 && bEff / bWeb > 3
+    ? K_ld_base * 0.8 : K_ld_base;
+  const rho_ld = AsVano / (bFlexVano * dVano);
+  const rho0 = Math.sqrt(fck) * 1e-3;
+  const sqfck = Math.sqrt(fck);
+  const span_ld = inp.spanLength as number;
+  const ld_lim = (rho_ld <= rho0
+    ? K_ld * (11 + 1.5 * sqfck * rho0 / rho_ld + 3.2 * sqfck * Math.pow(rho0 / rho_ld - 1, 1.5))
+    : K_ld * (11 + 1.5 * sqfck * rho0 / rho_ld)   // ρ' = 0 (sin compresión computada)
+  ) * (span_ld > 7000 ? 7000 / span_ld : 1);
+  const ld_actual = span_ld / dVano;
+  const ld_util = ld_lim > 0 ? ld_actual / ld_lim : 0;
+
   // ── Info-only checks (non-blocking) ───────────────────────────────────
   const infoChecks: CheckRow[] = [];
+  infoChecks.push({
+    id: 'esbeltez-flecha',
+    description: ld_util <= 1
+      ? 'Esbeltez L/d — exento de comprobar flecha'
+      : 'Esbeltez L/d excede la exención — comprobar flecha aparte',
+    value: `L/d = ${ld_actual.toFixed(1)}`,
+    limit: `(L/d)lim = ${ld_lim.toFixed(1)} (K=${K_ld.toFixed(2)})`,
+    utilization: ld_util,
+    status: ld_util <= 1 ? 'ok' : 'warn',
+    article: 'CE Anejo 19 §7.4.2',
+  });
   if (variant === 'maciza') {
     // Armadura de reparto (CE art. 42.3.6) ≥ 20% armadura principal
     const AsMainPerM = AsVano; // mm²/m

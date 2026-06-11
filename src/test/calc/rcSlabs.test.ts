@@ -275,6 +275,62 @@ describe('cortante', () => {
     const shear = r.shearChecks.find((c) => c.id === 'shear');
     expect(shear?.status).toBe('fail');
   });
+
+  it('VRd,c con factor 100 en (100·ρl·fck)^⅓ — oracle manual (fix auditoría #38)', () => {
+    // Defaults reticular sin cercos: d=312, b=120, As=628 mm² → ρ=0.0168
+    //   VRdc1 = 0.12·k·(100·0.0168·25)^⅓·120·312 con k=1+√(200/312)=1.80
+    //   = 0.12·1.80·3.47·37440/1000 ≈ 28.1 kN
+    // Pre-fix sin el 100: VRdc1 ≈ 6 kN y gobernaba νmin ≈ 15.4 kN — capacidad
+    // sin cercos infravalorada ×1.8 (falsos FAIL en forjados correctos).
+    const r = calcForjados({ ...base, stirrupsEnabled: false });
+    expect(r.VRdc).toBeCloseTo(28.1, 0);
+  });
+});
+
+// ── Esbeltez L/d — exención de flecha (fix auditoría #37) ───────────────────
+describe('esbeltez L/d (CE Anejo 19 §7.4.2)', () => {
+  it('defaults reticular: L/d = 16.0 ≤ lim 41.0 → exento (oracle manual)', () => {
+    // d = 350−30−16/2 = 312 (sin cercos); L/d = 5000/312 = 16.0
+    // ρ = 628/(700·312) = 0.00288; ρ0 = √25·10⁻³ = 0.005 → rama ρ ≤ ρ0
+    // K = 1.5 (continuo-interior) ·0.8 (T con bEff/bw = 700/120 > 3) = 1.2
+    // lim = 1.2·(11 + 1.5·5·1.739 + 3.2·5·0.739^1.5) = 41.0
+    const r = calcForjados({ ...base, stirrupsEnabled: false });
+    const ld = r.infoChecks.find((c) => c.id === 'esbeltez-flecha')!;
+    expect(ld.status).toBe('ok');
+    expect(ld.value).toContain('16.0');
+    expect(ld.limit).toContain('41.0');
+  });
+
+  it('vano largo y canto escaso → warn "comprobar flecha aparte"', () => {
+    // L=9 m con h=300: L/d sube y el límite baja (×7/L para L>7m).
+    const r = calcForjados({ ...base, spanLength: 9000, h: 300, stirrupsEnabled: false });
+    const ld = r.infoChecks.find((c) => c.id === 'esbeltez-flecha')!;
+    expect(ld.utilization).toBeGreaterThan(1);
+    expect(ld.status).toBe('warn');
+    expect(ld.description).toContain('comprobar flecha aparte');
+  });
+});
+
+// ── As,min por variante (fix auditoría #39) ─────────────────────────────────
+describe('As,min losa maciza vs nervio (CE Anejo 19 §9.2.1.1)', () => {
+  it('maciza: As,min = max(0.26·fctm/fyk·b·d, 0.0013·b·d) — oracle manual', () => {
+    // h=350, Ø10 → d=315; C25 (fctm=2.56), B500:
+    //   0.26·2.56/500·1000·315 = 419 mm²/m (gobierna sobre 0.0013·b·d = 410)
+    // Pre-fix se exigía la cuantía de VIGA 2.8‰·b·h = 980 mm²/m (2.3× lo
+    // normativo): cualquier parrilla de losa razonable marcaba FAIL.
+    const r = calcForjados({ ...base, variant: 'maciza' });
+    const asmin = r.vano.checks.find((c) => c.id === 'as-min')!;
+    expect(asmin.value).toContain('419');
+    // Ø10/200 = 393 mm²/m queda marginal bajo CE (util 1.07), no 2.49 como antes.
+    expect(asmin.utilization).toBeCloseTo(419 / 393, 1);
+  });
+
+  it('reticular mantiene 2.8‰·bw·h (nervio = viga)', () => {
+    const r = calcForjados(base);
+    const asmin = r.vano.checks.find((c) => c.id === 'as-min')!;
+    // 0.0028·120·350 = 118 mm² (gobierna sobre el mín. mecánico ≈ 65 mm²)
+    expect(asmin.value).toContain('118');
+  });
 });
 
 // ── Cuantías ──────────────────────────────────────────────────────────────────
