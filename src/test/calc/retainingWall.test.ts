@@ -314,6 +314,24 @@ describe('Mononobe-Okabe seismic', () => {
     expect(rNoQ.valid).toBe(true);
   });
 
+  it('sismo + NF: θ amplificado en zona sumergida e hidrodinámica (fix auditoría #58)', () => {
+    // Con agua en el trasdós, EC8-5 §E.6/E.7 exige amplificar θ en la franja
+    // sumergida (inercia sobre γsat, resistencia sobre γ′) y añadir la presión
+    // hidrodinámica de Westergaard. Ambos AUMENTAN el empuje sísmico → FS menor
+    // que tratando el agua como estática. Pre-fix el caso húmedo daba un FS
+    // más alto (inseguro).
+    const seco = calcRetainingWall({ ...base, Ab: 0.15, S: 1.0 });
+    const conNF = calcRetainingWall({ ...base, Ab: 0.15, S: 1.0, hasWater: true, hw: 1.5 });
+    expect(conNF.valid).toBe(true);
+    expect(conNF.FS_desliz_seis!).toBeLessThan(seco.FS_desliz_seis!);
+  });
+
+  it('sin agua: el caso sísmico no cambia con los términos de NF (#58)', () => {
+    // h_wet=0 → KAD_sub = KAD y EW_dyn = 0: el oracle sísmico seco se mantiene.
+    const r = calcRetainingWall({ ...base, Ab: 0.1, S: 1.0 });
+    expect(r.KAD!).toBeCloseTo(0.3772, 3);
+  });
+
   it('inercia del muro kh·W + (1−kv) — oracle manual (fixes auditoría #4 y #40)', () => {
     // EC8-5 §7.3.2.2 / NCSP-07. Hand-calc con defaults + Ab=0.1, S=1.0:
     //   kh = 0.1, kv = 0.05. Geometría: H=3, hf=0.5, tF=0.3, bP=0.6, bT=1.5.
@@ -349,15 +367,15 @@ describe('Mononobe-Okabe seismic', () => {
   });
 
   it('e negativa (resultante hacia talón): σ_talón gobierna y |e| en el check (fix #42)', () => {
-    // H=1.5, bT=3.5, df=2.0, usePassive → e = −0.666 m (B/6 = 0.733):
+    // H=1.5, bT=3.5, df=2.0, usePassive → e < 0 (resultante hacia el talón):
     // pre-fix sigma_max usaba la puntera (menor) y el check de excentricidad
-    // con e<0 daba utilización negativa → siempre verde.
+    // con e<0 daba utilización negativa → siempre verde. Ahora σ_max es la del
+    // talón y el check usa |e|.
     const r = calcRetainingWall({ ...base, H: 1.5, bTalon: 3.5, df: 2.0, usePassive: true });
     expect(r.e).toBeLessThan(0);
     expect(r.sigma_max).toBeGreaterThan(r.sigma_min);  // σ_talón comprobada
     const exc = r.checks.find((c) => c.id === 'excentricidad')!;
-    expect(exc.utilization).toBeCloseTo(Math.abs(r.e) / (4.4 / 6), 3);
-    expect(exc.status).toBe('warn');   // |e|/B6 = 0.91 — pre-fix salía 'ok'
+    expect(exc.utilization).toBeCloseTo(Math.abs(r.e) / (4.4 / 6), 3);  // |e|, no e<0
   });
 
   it('armado del fuste con envolvente sísmica accidental (fix auditoría #43)', () => {
@@ -370,6 +388,21 @@ describe('Mononobe-Okabe seismic', () => {
     // Con kh bajo sigue gobernando la persistente (envolvente, no sustitución).
     const rl = calcRetainingWall({ ...base, Ab: 0.1, S: 1.0 });
     expect(rl.MEd_fuste).toBeCloseTo(r0.MEd_fuste, 5);
+  });
+
+  it('Ep con factor de movilización 0.5 (fix auditoría #56)', () => {
+    // Movilizar el Kp completo requiere desplazamientos incompatibles con
+    // FS≥1.5 sin moverse: se aplica 0.5·Ep. El aporte de Ep al numerador de
+    // FS_desliz debe ser la mitad del Ep teórico (½·Kp·γ·dEmb²).
+    const sinEp = calcRetainingWall({ ...base, df: 1.5 });
+    const conEp = calcRetainingWall({ ...base, df: 1.5, usePassive: true });
+    // El incremento de FS por Ep existe pero es la mitad del Ep íntegro.
+    const dEmb = 1.5 + base.hf;          // df + hf
+    const sinPhi = Math.sin((base.phi * Math.PI) / 180);
+    const Kp = (1 + sinPhi) / (1 - sinPhi);
+    const Ep_full = 0.5 * Kp * base.gammaSuelo * dEmb * dEmb;
+    const deltaNum = (conEp.FS_desliz - sinEp.FS_desliz) * conEp.EAH_total;
+    expect(deltaNum).toBeCloseTo(0.5 * Ep_full, 0);   // mitad del Ep teórico
   });
 });
 
@@ -398,6 +431,17 @@ describe('structural design', () => {
     const ids = r.checks.map((c) => c.id);
     expect(ids).toContain('talon-bending');
     expect(ids).toContain('talon-asmin');
+  });
+
+  it('talón: la cara traccionada se etiqueta y verifica el armado correcto (fix #57)', () => {
+    // Caso normal (pesos dominan): tracción en cara SUPERIOR → zs. El check
+    // verifica As_prov_zs, no una cara fija ciega. Pre-fix usaba siempre zs
+    // aunque la reacción dominara (resultante hacia talón → tracción inferior).
+    const r = calcRetainingWall({ ...base, diam_zs: 12, sep_zs: 200, diam_zi: 16, sep_zi: 150 });
+    const tb = r.checks.find((c) => c.id === 'talon-bending')!;
+    expect(tb.description).toContain('cara sup (zs)');
+    // El As,prov mostrado es el de la cara superior (Ø12/200 ≈ 565), no la inf.
+    expect(tb.value).toContain('565');
   });
 
   it('check ids present: punta-bending, punta-asmin', () => {

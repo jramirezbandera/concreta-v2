@@ -215,7 +215,14 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
 
   // Passive resistance on the front of the footing (only when user opts in).
   // Ep = ½·Kp·γ·dEmb²  acts horizontally at dEmb/3 above base.
-  const Ep      = usePassive ? 0.5 * Kp_rankine * inp.gammaSuelo * dEmb * dEmb : 0;
+  // Factor de movilización 0.5 (fix auditoría #56): movilizar el Kp completo
+  // requiere desplazamientos del 2-6% de dEmb, incompatibles con un muro que
+  // cumple sin moverse. CTE DB-SE-C §6.3.2 / EC7 §9.5.3 exigen considerar
+  // esa compatibilidad; la práctica estándar aplica Ep/2 (o limitar a K0).
+  const PASSIVE_MOBILIZATION = 0.5;
+  const Ep      = usePassive
+    ? PASSIVE_MOBILIZATION * 0.5 * Kp_rankine * inp.gammaSuelo * dEmb * dEmb
+    : 0;
   const arm_Ep  = dEmb / 3;
 
   const ΣV = W_fuste + W_zap + W_soil_toe
@@ -341,24 +348,39 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     const phi_eff  = Math.max(phi_r - theta, 0);
     seismicUnstable = phi_r - theta < 0;
 
-    const cos_pe  = Math.cos(phi_eff);
-    const cos_dt  = Math.cos(delta_r + theta);
-    const cos_t   = Math.cos(theta);
-    // M-O (EC8 Anejo E / NCSP-07): el radicando es sin(φ+δ)·sin(φ−θ)/cos(δ+θ)
-    // — solo el segundo seno y el coseno rotan con θ, el primero lleva φ+δ.
-    const rad_arg = Math.sin(phi_r + delta_r) * Math.sin(phi_eff) / Math.max(cos_dt, 1e-9);
-    const KAD_denom = cos_t * cos_dt * Math.pow(1 + Math.sqrt(Math.max(rad_arg, 0)), 2);
-    KAD = (cos_pe * cos_pe) / Math.max(KAD_denom, 1e-12);
+    // KAD para un ángulo sísmico θ dado (M-O, EC8 Anejo E / NCSP-07): el
+    // radicando es sin(φ+δ)·sin(φ−θ)/cos(δ+θ) — solo el segundo seno y el
+    // coseno rotan con θ, el primero lleva φ+δ.
+    const kadOf = (th: number): number => {
+      const phi_e = Math.max(phi_r - th, 0);
+      const cdt = Math.cos(delta_r + th);
+      const rad = Math.sin(phi_r + delta_r) * Math.sin(phi_e) / Math.max(cdt, 1e-9);
+      const denom = Math.cos(th) * cdt * Math.pow(1 + Math.sqrt(Math.max(rad, 0)), 2);
+      return (Math.cos(phi_e) * Math.cos(phi_e)) / Math.max(denom, 1e-12);
+    };
+    // Zona sumergida (EC8-5 Anejo E §E.6): la inercia actúa sobre γsat pero la
+    // resistencia sobre γ′ → ángulo sísmico amplificado θ' = atan[(γsat/γ′)·
+    // kh/(1−kv)]. El motor aplicaba el θ seco a todo el relleno (subestimaba
+    // θ ~×2 en la franja húmeda, lado inseguro). Fix auditoría #58.
+    const theta_sub = h_wet > 0
+      ? Math.atan((inp.gammaSat / Math.max(gamma_sub, 1e-9)) * kh / (1 - kv))
+      : theta;
+    KAD = kadOf(theta);            // KAD seco (reportado)
+    const KAD_sub = kadOf(theta_sub);
 
     const EAD_soil = (
         0.5 * KAD * inp.gammaSuelo * h_dry * h_dry
       + KAD * inp.q * H_total
       + KAD * inp.gammaSuelo * h_dry * h_wet
-      + 0.5 * KAD * gamma_sub * h_wet * h_wet
+      + 0.5 * KAD_sub * gamma_sub * h_wet * h_wet
     ) * (1 - kv);
 
+    // Presión hidrodinámica sobre el agua libre del trasdós (Westergaard,
+    // suelo permeable, EC8-5 §E.7): ΔEW = 7/12·kh·γw·h_wet², a 0.4·h_wet.
+    const EW_dyn = (7 / 12) * kh * GAMMA_W * h_wet * h_wet;
+
     const ΔEAD_H   = EAD_soil * cos_d - EA_H_soil;
-    const EAH_seis = EAD_soil * cos_d + EW;
+    const EAH_seis = EAD_soil * cos_d + EW + EW_dyn;
     const EAV_seis = EAD_soil * sin_d;
 
     // Fuerzas de inercia del muro y del terreno solidario (EC8-5 §7.3.2.2 /
@@ -576,7 +598,16 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const M_talon_up   = bT_m * bT_m * (sigma_A_heel + 2 * sigma_B_heel) / 6;
       const q_heel_down  = (W_dry_heel + W_wet_heel + W_q_heel) / bT_m + GAMMA_C_RC * hf_m;
       const M_talon_down = q_heel_down * bT_m * bT_m / 2;
-      MEd_talon = GAMMA_G * Math.abs(M_talon_up - M_talon_down);
+      // Se conserva el SIGNO del neto (fix auditoría #57): si los pesos
+      // dominan (down > up) la tracción está en la cara SUPERIOR (zs, caso
+      // habitual); si la reacción del terreno domina (up > down, posible con
+      // resultante hacia el talón / e<0) la tracción pasa a la cara INFERIOR
+      // (zi) y debe verificarse contra ese armado, igual que ya hace la punta.
+      const M_talon_net = M_talon_down - M_talon_up;   // >0 → tracción superior
+      const talonTensionTop = M_talon_net >= 0;
+      const As_prov_talon = talonTensionTop ? As_prov_zs : As_prov_zi;
+      const talonFace = talonTensionTop ? 'sup (zs)' : 'inf (zi)';
+      MEd_talon = GAMMA_G * Math.abs(M_talon_net);
 
       const d_t    = d_talon_mm;
       const m_t    = MEd_talon > 0 ? (MEd_talon * 1e6) / (b_w * d_t * d_t * fcd) : 0;
@@ -587,18 +618,18 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       // Transverse inf minimum: engineering criterion (no normative reference for footing)
       As_min_trans_zap_inf = Math.max(0.30 * As_t, MIN_TRANS_ABS);
 
-      if (As_prov_zs > 0) {
+      if (As_prov_talon > 0) {
         checks.push(makeCheck(
-          'talon-bending', 'Armado longitudinal talón ≥ As,req (flexión)',
-          As_req_talon, As_prov_zs,
-          `As,prov = ${As_prov_zs.toFixed(0)} mm²/m`,
+          'talon-bending', `Armado longitudinal talón ≥ As,req (flexión, cara ${talonFace})`,
+          As_req_talon, As_prov_talon,
+          `As,prov = ${As_prov_talon.toFixed(0)} mm²/m`,
           `As,req = ${As_req_talon.toFixed(0)} mm²/m`,
           'CE art. 18.2',
         ));
         checks.push(makeCheck(
           'talon-asmin', 'Armadura minima talón ≥ As,min (flexión CE art. 9.1)',
-          As_min_talon, As_prov_zs,
-          `As,prov = ${As_prov_zs.toFixed(0)} mm²/m`,
+          As_min_talon, As_prov_talon,
+          `As,prov = ${As_prov_talon.toFixed(0)} mm²/m`,
           `As,min = ${As_min_talon.toFixed(0)} mm²/m`,
           'CE art. 9.1',
         ));
