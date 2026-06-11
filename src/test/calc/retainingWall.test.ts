@@ -314,27 +314,62 @@ describe('Mononobe-Okabe seismic', () => {
     expect(rNoQ.valid).toBe(true);
   });
 
-  it('inercia del muro kh·W + (1−kv) — oracle manual (fix auditoría #4)', () => {
+  it('inercia del muro kh·W + (1−kv) — oracle manual (fixes auditoría #4 y #40)', () => {
     // EC8-5 §7.3.2.2 / NCSP-07. Hand-calc con defaults + Ab=0.1, S=1.0:
     //   kh = 0.1, kv = 0.05. Geometría: H=3, hf=0.5, tF=0.3, bP=0.6, bT=1.5.
     //   Pesos: W_fuste = 25·0.3·3 = 22.5; W_zap = 25·2.4·0.5 = 30;
     //          W_heel = 18·3·1.5 = 81 → ΣW = 133.5 kN/m
     //   F_inercia = kh·ΣW = 13.35 kN/m
     //   M_inercia = 0.1·(22.5·2.0 + 30·0.25 + 81·2.0) = 21.45 kNm/m
-    //   M-O: θ = atan(0.1/0.95) = 6.01°; φ=30, δ=10 → KAD = 0.3952
-    //   EAD = 0.5·0.3952·18·3.5²·(1−0.05) = 41.39 → EAH = 40.76, EAV = 7.19
-    //   Mo_seis = 39.07 + (40.76−33.49)·0.6·3.5 + 21.45 = 75.79
-    //   ΣV_seis = 133.5·0.95 + 7.19 = 134.01
-    //   Mr_seis = (22.5·0.75 + 30·1.2 + 81·1.65)·0.95 + 7.19·2.4 = 194.45
-    //   FS_vuelco = 194.45/75.79 = 2.565
-    //   FS_desliz = 134.01·0.4/(40.76 + 13.35) = 0.991 → FALLA (< 1.10)
-    // Pre-fix (sin kh·W y sin 1−kv): FS_desliz_seis = 1.38 → verde indebido.
+    //   M-O correcta (#40): radicando sin(φ+δ)·sin(φ−θ)/cos(δ+θ):
+    //   θ = atan(0.1/0.95) = 6.01° → KAD = 0.8346/2.2129 = 0.3772
+    //   (la fórmula errónea con sin(φ−θ+δ) daba 0.3952, ~5% conservador)
+    //   EAD = 0.5·0.3772·18·3.5²·0.95 = 39.50 → EAH = 38.90, EAV = 6.86
+    //   Mo_seis = 39.07 + (38.90−33.49)·0.6·3.5 + 21.45 = 71.88
+    //   ΣV_seis = 133.5·0.95 + 6.86 = 133.69
+    //   Mr_seis = (22.5·0.75 + 30·1.2 + 81·1.65)·0.95 + 6.86·2.4 = 193.66
+    //   FS_vuelco = 193.66/71.88 = 2.694
+    //   FS_desliz = 133.69·0.4/(38.90 + 13.35) = 1.023 → FALLA (< 1.10)
+    // Pre-fix #4 (sin kh·W y sin 1−kv): FS_desliz_seis = 1.38 → verde indebido.
     const r = calcRetainingWall({ ...base, Ab: 0.1, S: 1.0 });
-    expect(r.KAD!).toBeCloseTo(0.3952, 3);
-    expect(r.FS_vuelco_seis!).toBeCloseTo(2.565, 2);
-    expect(r.FS_desliz_seis!).toBeCloseTo(0.991, 2);
+    expect(r.KAD!).toBeCloseTo(0.3772, 3);
+    expect(r.FS_vuelco_seis!).toBeCloseTo(2.694, 2);
+    expect(r.FS_desliz_seis!).toBeCloseTo(1.023, 2);
     const desliz = r.checks.find((c) => c.id === 'deslizamiento-sismico')!;
     expect(desliz.status).toBe('fail');
+  });
+
+  it('VRd,c del fuste con factor 100 — oracle manual (fix auditoría #41)', () => {
+    // Ø16/200 (As=1005 mm²/m), d=246, C25: ρ=0.00409, k=1.902
+    //   VRdc1 = 0.12·1.902·(100·0.00409·25)^⅓·246 = 0.12·1.902·2.170·246 = 121.8 kN/m
+    //   (sin el 100: 26.2 → gobernaba νmin=109.7, ~10% infravalorado aquí)
+    const r = calcRetainingWall({ ...base, diam_fv_int: 16, sep_fv_int: 200 });
+    const c = r.checks.find((ch) => ch.id === 'fuste-shear')!;
+    expect(c.limit).toContain('121.8');
+  });
+
+  it('e negativa (resultante hacia talón): σ_talón gobierna y |e| en el check (fix #42)', () => {
+    // H=1.5, bT=3.5, df=2.0, usePassive → e = −0.666 m (B/6 = 0.733):
+    // pre-fix sigma_max usaba la puntera (menor) y el check de excentricidad
+    // con e<0 daba utilización negativa → siempre verde.
+    const r = calcRetainingWall({ ...base, H: 1.5, bTalon: 3.5, df: 2.0, usePassive: true });
+    expect(r.e).toBeLessThan(0);
+    expect(r.sigma_max).toBeGreaterThan(r.sigma_min);  // σ_talón comprobada
+    const exc = r.checks.find((c) => c.id === 'excentricidad')!;
+    expect(exc.utilization).toBeCloseTo(Math.abs(r.e) / (4.4 / 6), 3);
+    expect(exc.status).toBe('warn');   // |e|/B6 = 0.91 — pre-fix salía 'ok'
+  });
+
+  it('armado del fuste con envolvente sísmica accidental (fix auditoría #43)', () => {
+    // Con kh alto, el empuje M-O con γ=1.0 supera al estático mayorado:
+    // Ab=0.15 → KAD=0.4215, MEd_fuste 33.2 → 36.3 kNm/m (gobierna sísmico).
+    const r0 = calcRetainingWall(base);
+    const rs = calcRetainingWall({ ...base, Ab: 0.15, S: 1.0 });
+    expect(rs.MEd_fuste).toBeGreaterThan(r0.MEd_fuste);
+    expect(rs.MEd_fuste).toBeCloseTo(36.30, 1);
+    // Con kh bajo sigue gobernando la persistente (envolvente, no sustitución).
+    const rl = calcRetainingWall({ ...base, Ab: 0.1, S: 1.0 });
+    expect(rl.MEd_fuste).toBeCloseTo(r0.MEd_fuste, 5);
   });
 });
 

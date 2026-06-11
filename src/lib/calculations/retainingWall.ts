@@ -251,25 +251,40 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const FS_desliz = EAH_total > 0 ? (ΣV_estab * inp.mu + Ep) / EAH_total : Infinity;
   const e         = B_m / 2 - (Mr - Mo) / ΣV;
 
-  // Footing stress (two branches)
-  let sigma_max: number;
-  let sigma_min: number;
-  let a_eff: number;
+  // Footing stress — e CON SIGNO (e > 0: resultante hacia la puntera;
+  // e < 0: hacia el talón, posible con talón grande/sobrecarga alta/empuje
+  // pequeño o pasivo activado). La presión máxima puede estar en CUALQUIERA
+  // de los dos bordes; se comprueba la mayor y se detecta despegue en ambos.
+  const eAbs = Math.abs(e);
+  let sigma_toe: number;   // presión en puntera (x=0)
+  let sigma_heel: number;  // presión en talón (x=B)
+  let a_eff: number;       // longitud de contacto
+  let x_contact0 = 0;      // inicio del contacto desde puntera
+  let x_contact1 = B_m;    // fin del contacto
 
-  if (e <= B_m / 6) {
+  if (eAbs <= B_m / 6) {
     // Trapezoidal — resultant inside middle third
-    a_eff     = B_m;
-    sigma_max = (ΣV / B_m) * (1 + 6 * e / B_m);
-    sigma_min = (ΣV / B_m) * (1 - 6 * e / B_m);
+    a_eff      = B_m;
+    sigma_toe  = (ΣV / B_m) * (1 + 6 * e / B_m);
+    sigma_heel = (ΣV / B_m) * (1 - 6 * e / B_m);
   } else {
-    // Triangular — resultant outside middle third
-    a_eff     = 3 * (B_m / 2 - e);
-    sigma_max = a_eff > 0 ? 2 * ΣV / a_eff : Infinity;
-    sigma_min = 0;
+    // Triangular — resultant outside middle third (despegue en el borde opuesto)
+    a_eff = 3 * (B_m / 2 - eAbs);
+    const sigma_peak = a_eff > 0 ? 2 * ΣV / a_eff : Infinity;
+    if (e >= 0) {
+      sigma_toe = sigma_peak; sigma_heel = 0;
+      x_contact1 = a_eff;
+    } else {
+      sigma_heel = sigma_peak; sigma_toe = 0;
+      x_contact0 = B_m - a_eff;
+    }
   }
 
-  // Guard: e ≥ B/3 → a_eff ≤ 0 → skip structural
-  const exceedsBoundary = e >= B_m / 3;
+  const sigma_max = Math.max(sigma_toe, sigma_heel);
+  const sigma_min = eAbs <= B_m / 6 ? Math.min(sigma_toe, sigma_heel) : 0;
+
+  // Guard: |e| ≥ B/3 → a_eff ≤ 0 → skip structural
+  const exceedsBoundary = eAbs >= B_m / 3;
 
   // ── 9. Build checks ──────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -291,8 +306,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     'CTE DB-SE-C §4.4.2',
   ));
   checks.push(makeCheck(
-    'excentricidad', 'Resultante en tercer medio (e ≤ B/6)',
-    e, B_m / 6,
+    'excentricidad', 'Resultante en tercer medio (|e| ≤ B/6)',
+    eAbs, B_m / 6,
     `e = ${e.toFixed(3)} m`, `B/6 = ${(B_m / 6).toFixed(3)} m`,
     'CTE DB-SE-C §4.4.3',
   ));
@@ -329,7 +344,9 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     const cos_pe  = Math.cos(phi_eff);
     const cos_dt  = Math.cos(delta_r + theta);
     const cos_t   = Math.cos(theta);
-    const rad_arg = Math.sin(phi_eff + delta_r) * Math.sin(phi_eff) / Math.max(cos_dt, 1e-9);
+    // M-O (EC8 Anejo E / NCSP-07): el radicando es sin(φ+δ)·sin(φ−θ)/cos(δ+θ)
+    // — solo el segundo seno y el coseno rotan con θ, el primero lleva φ+δ.
+    const rad_arg = Math.sin(phi_r + delta_r) * Math.sin(phi_eff) / Math.max(cos_dt, 1e-9);
     const KAD_denom = cos_t * cos_dt * Math.pow(1 + Math.sqrt(Math.max(rad_arg, 0)), 2);
     KAD = (cos_pe * cos_pe) / Math.max(KAD_denom, 1e-12);
 
@@ -414,28 +431,49 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   if (!exceedsBoundary) {
     const b_w = 1000;  // per unit width (mm)
 
-    // Footing stress at any x measured from toe tip (m), clamped to 0
-    const sigmaAt = (x_m: number): number =>
-      Math.max(sigma_max - (sigma_max - sigma_min) * x_m / a_eff, 0);
+    // Footing stress at any x measured from toe tip (m). Interpola dentro
+    // del intervalo de contacto [x_contact0, x_contact1] (que puede empezar
+    // en la puntera o en el talón según el signo de e); fuera → 0.
+    const sigmaAt = (x_m: number): number => {
+      if (x_m < x_contact0 || x_m > x_contact1) return 0;
+      const t = (x_m - x_contact0) / Math.max(x_contact1 - x_contact0, 1e-9);
+      return Math.max(sigma_toe + (sigma_heel - sigma_toe) * t, 0);
+    };
 
     // ── Fuste (stem cantilever, fixed at footing top, height H_m) ──────────
     const h_d  = Math.min(hw_m, H_m);
     const h_ws = Math.max(H_m - hw_m, 0);
 
-    // q is a variable action (γQ=1.5); soil self-weight terms use γG=1.35
-    MEd_fuste = GAMMA_G * (
-        0.5 * Ka * inp.gammaSuelo * h_d * h_d * (h_d / 3 + h_ws) * cos_d
-      + Ka * inp.gammaSuelo * h_d * h_ws * (h_ws / 2) * cos_d
-      + 0.5 * Ka * gamma_sub * h_ws * h_ws * (h_ws / 3) * cos_d
-      + 0.5 * GAMMA_W * h_ws * h_ws * (h_ws / 3)
-    ) + GAMMA_Q * Ka * inp.q * H_m * (H_m / 2) * cos_d;
+    // Componentes característicos del empuje sobre el fuste (γ=1.0)
+    const E_dry_k  = 0.5 * Ka * inp.gammaSuelo * h_d * h_d * cos_d;
+    const E_rect_k = Ka * inp.gammaSuelo * h_d * h_ws * cos_d;
+    const E_tri_k  = 0.5 * Ka * gamma_sub * h_ws * h_ws * cos_d;
+    const E_w_k    = 0.5 * GAMMA_W * h_ws * h_ws;
+    const E_q_k    = Ka * inp.q * H_m * cos_d;
+    const M_dry_k  = E_dry_k * (h_d / 3 + h_ws);
+    const M_rect_k = E_rect_k * (h_ws / 2);
+    const M_tri_k  = E_tri_k * (h_ws / 3);
+    const M_w_k    = E_w_k * (h_ws / 3);
+    const M_q_k    = E_q_k * (H_m / 2);
 
-    const VEd_fuste = GAMMA_G * (
-        0.5 * Ka * inp.gammaSuelo * h_d * h_d * cos_d
-      + Ka * inp.gammaSuelo * h_d * h_ws * cos_d
-      + 0.5 * Ka * gamma_sub * h_ws * h_ws * cos_d
-      + 0.5 * GAMMA_W * h_ws * h_ws
-    ) + GAMMA_Q * Ka * inp.q * H_m * cos_d;
+    // q is a variable action (γQ=1.5); soil self-weight terms use γG=1.35
+    MEd_fuste = GAMMA_G * (M_dry_k + M_rect_k + M_tri_k + M_w_k) + GAMMA_Q * M_q_k;
+    let VEd_fuste = GAMMA_G * (E_dry_k + E_rect_k + E_tri_k + E_w_k) + GAMMA_Q * E_q_k;
+
+    // Situación accidental sísmica (NCSE-02/NCSP-07, γ=1.0): empuje M-O con
+    // KAD·(1−kv) — la componente estática mantiene su distribución y el
+    // incremento ΔE se aplica a 0.6·H (Seed & Whitman). Envolvente con la
+    // combinación persistente: el armado mostrado debe cubrir ambas.
+    if (kh > 0 && KAD !== undefined) {
+      const ratioMO  = (KAD * (1 - kv)) / Math.max(Ka, 1e-9);
+      const E_soil_k = E_dry_k + E_rect_k + E_tri_k + E_q_k;
+      const M_soil_k = M_dry_k + M_rect_k + M_tri_k + M_q_k;
+      const dE       = Math.max(0, (ratioMO - 1) * E_soil_k);
+      const M_seis   = M_soil_k + dE * 0.6 * H_m + M_w_k;
+      const V_seis   = E_soil_k + dE + E_w_k;
+      if (M_seis > MEd_fuste) MEd_fuste = M_seis;
+      if (V_seis > VEd_fuste) VEd_fuste = V_seis;
+    }
 
     const d_f    = d_fuste_mm;
     const m_f    = MEd_fuste > 0 ? (MEd_fuste * 1e6) / (b_w * d_f * d_f * fcd) : 0;
@@ -457,7 +495,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       As_prov_fv_int > 0 ? As_prov_fv_int / (b_w * d_f) : As_f / (b_w * d_f),
       0.02,
     );
-    const VRdc1_f = (0.18 / 1.5) * k_f * Math.pow(rho_f * inp.fck, 1 / 3) * b_w * d_f / 1000;
+    const VRdc1_f = (0.18 / 1.5) * k_f * Math.pow(100 * rho_f * inp.fck, 1 / 3) * b_w * d_f / 1000;
     const VRdc2_f = (0.051 / 1.5) * Math.pow(k_f, 1.5) * Math.sqrt(inp.fck) * b_w * d_f / 1000;
     const VRd_c_f = Math.max(VRdc1_f, VRdc2_f);
 
