@@ -1480,7 +1480,12 @@ export function checkConcreteCone(
   const extYm = Math.min(c_cr, edges.cY2);
   const bxA = (x_max - x_min) + extXp + extXm;
   const byA = (y_max - y_min) + extYp + extYm;
-  const Ac_N = bxA * byA;
+  // Cap Ac,N ≤ n_t·Ac,N0 (EN 1992-4 §7.2.1.4 / Fig. 7.4): si la separación
+  // entre barras supera s_cr,N = 3·hef los conos no se solapan y el área de
+  // grupo no puede exceder la suma de conos individuales. Sin este tope el
+  // bounding box daba NRd,c de grupo > Σ conos (lado inseguro) con hef cortos
+  // y placas anchas (fix auditoría #44).
+  const Ac_N = Math.min(bxA * byA, tBars.length * Ac_N0);
 
   // ψs por mínima distancia direccional al borde (cualquiera de las 4 caras).
   const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
@@ -1688,7 +1693,8 @@ export function checkSplitting(
   const extYm_sp = Math.min(c_cr_sp, edges.cY2);
   const bxA = (x_max - x_min) + extXp_sp + extXm_sp;
   const byA = (y_max - y_min) + extYp_sp + extYm_sp;
-  const Ac_N = bxA * byA;
+  // Cap Ac,N ≤ n_t·Ac,N0 (fix auditoría #44, ver checkConcreteCone).
+  const Ac_N = Math.min(bxA * byA, tBars.length * Ac_N0);
 
   // ★ NO multiplicar por tBars.length — espurio, ya capturado en Ac/Ac0.
   const NRd_sp_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_h_sp * psi_ec_sp * psi_s_sp;
@@ -1908,7 +1914,9 @@ export function checkConcretePryout(
   const extYm = Math.min(c_cr, edges.cY2);
   const bxA = (x_max - x_min) + extXp + extXm;
   const byA = (y_max - y_min) + extYp + extYm;
-  const Ac_N = bxA * byA;
+  // Cap Ac,N ≤ n·Ac,N0 (fix auditoría #44; en pry-out participan todas las
+  // barras, n = bars.length).
+  const Ac_N = Math.min(bxA * byA, bars.length * Ac_N0);
   const c_min = Math.min(edges.cX1, edges.cX2, edges.cY1, edges.cY2);
   const psi_s = c_min >= c_cr ? 1.0 : 0.7 + 0.3 * c_min / c_cr;
   const NRd_c_kN = N0_Rd_c_kN * (Ac_N / Ac_N0) * psi_s;

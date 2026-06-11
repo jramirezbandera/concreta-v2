@@ -232,6 +232,19 @@ describe('check 5 — bar N+V interaction (EC3 1-8 Tab 3.4 adaptado a fyd)', () 
 });
 
 describe('check 7 — concrete cone (EN 1992-4 §7.2.1.4)', () => {
+  it('Ac,N capado a n_t·Ac,N0 con separación > s_cr,N (fix auditoría #44)', () => {
+    // hef=100 → s_cr,N = 3·100 = 300 mm. Placa 700×700, 2 barras traccionadas
+    // (Mx puro) separadas > 300 mm: los conos no se solapan → Ac,N no puede
+    // exceder 2·Ac,N0. Sin el cap el bounding box daba Ac/Ac0 > 2 (inseguro).
+    const r = calcAnchorPlate({
+      ...base, bar_hef: 100, bar_diam: 12,
+      plate_a: 700, plate_b: 700, bar_edge_x: 50, bar_edge_y: 50,
+      NEd: 50, Mx: 80, My: 0,
+    });
+    const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
+    expect(cc.limit).toContain('Ac/Ac0=2.00');
+  });
+
   it('deep hef + large edge distance → comfortable capacity', () => {
     const r = calcAnchorPlate({ ...base, bar_hef: 300, pedestal_cX: 500, pedestal_cY: 500 });
     const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
