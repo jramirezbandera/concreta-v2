@@ -146,14 +146,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
         <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
         <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
-        <UnitNumberInput
-          label="R_adm" sub="Cap. admisible" field="R_adm"
-          value={state.R_adm as number} quantity="force"
-          onChange={(v) => setField('R_adm', v)}
-        />
       </CollapsibleSection>
 
-      {/* Loads */}
+      {/* Loads — Mx y My SIEMPRE visibles (fix auditoría #76: con n=2 el campo
+        * My quedaba oculto pero el valor persistido seguía alterando las
+        * reacciones; y Mx oculto impedía poner a cero el momento que el motor
+        * rechaza para n=2). R_adm vive aquí: es la resistencia de cálculo del
+        * pilote frente a la demanda ELU (fix auditoría #84). */}
       <CollapsibleSection label="Acciones de diseño (ELU)">
         <UnitNumberInput
           labelKey="NEd" field="N_Ed"
@@ -165,13 +164,16 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           value={state.Mx_Ed as number} quantity="moment"
           onChange={(v) => setField('Mx_Ed', v)}
         />
-        {n !== 2 && (
-          <UnitNumberInput
-            labelKey="My_Ed_plan" field="My_Ed"
-            value={state.My_Ed as number} quantity="moment"
-            onChange={(v) => setField('My_Ed', v)}
-          />
-        )}
+        <UnitNumberInput
+          labelKey="My_Ed_plan" field="My_Ed"
+          value={state.My_Ed as number} quantity="moment"
+          onChange={(v) => setField('My_Ed', v)}
+        />
+        <UnitNumberInput
+          label="R_c,Rd" sub="Resist. cálculo pilote" field="R_adm"
+          value={state.R_adm as number} quantity="force"
+          onChange={(v) => setField('R_adm', v)}
+        />
       </CollapsibleSection>
 
       {/* Materials */}

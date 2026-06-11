@@ -1,9 +1,25 @@
-// Pile cap (encepado de micropilotes) — CE art. 48 / CTE DB-SE-C §5.1.4
+// Pile cap (encepado de micropilotes) — CE art. 48 / EHE-08 art. 58.4.1 / CTE DB-SE-C §5.1.4
 // n = 2, 3, or 4 micropiles. Strut-and-tie method (bielas y tirantes).
 // All units: mm, MPa, kN unless noted.
 //
-// CE art. 48   — strut-and-tie model, strut angle limits
-// CE art. 48.3 — nodal zone capacity (C-C-T node, k=0.60)
+// Modelo adoptado (fix auditoría adenda 2, #75-87): EHE-08 58.4.1.2 explícito —
+//   - brazo mecánico z = 0.85·d (nodo de compresión dentro del pilar, no en la
+//     fibra superior) y brazo horizontal desde el punto a 0.25·a del eje del
+//     pilar (v + 0.25a), por dirección (#78)
+//   - tirantes EN BANDA sobre los pilotes (ancho d_p + 2·cover), no repartidos
+//     en todo el ancho del encepado (#80, #86)
+//   - fyd de tirantes capado a 400 N/mm² (EHE 58.4.1.1, control de fisuración
+//     del tirante) (#85)
+//   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
+//   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
+//     desarrollable en rama horizontal + rama vertical (#75)
+//   - armadura secundaria de encepado rígido (EHE 58.4.1.4): superior ≥ 10%
+//     de la inferior y retícula h+v ≥ 4‰ (#79)
+//
+// CE art. 48 / EHE-08 art. 58 — strut-and-tie model, strut angle limits
+// CE Anejo 19 §6.5.2 — strut crushing 0.60·ν'·fcd (lado seguro frente al nodo
+//   C-C-T de §6.5.4, k2=0.85·ν'·fcd) — ver check 'strut-capacity'
+// CE Anejo 19 §6.5.4 — nodo C-C-C bajo el pilar (k1=1.0·ν'·fcd)
 // CE art. 69   — anchorage length
 // CE art. 9.1  — minimum reinforcement
 // CE art. 42.3 — maximum bar spacing
@@ -45,9 +61,14 @@ export interface PileCapResult {
   s_min: number;
   h_min: number;
 
+  // Self-weight [kN] — characteristic, included in reactions with γG=1.35
+  W_cap: number;
+
   // Strut geometry
-  z_eff: number;      // effective depth to tie centroid [mm]
-  a_crit: number;     // horizontal distance to critical pile [mm]
+  d_eff: number;      // effective depth to tie centroid [mm]
+  z_eff: number;      // mechanical lever arm = 0.85·d_eff [mm]
+  a_crit: number;     // horizontal distance pile↔column AXIS [mm]
+  a_eff: number;      // horizontal arm pile↔column quarter point [mm]
   theta_deg: number;  // strut angle from horizontal [°]
 
   // Strut force and capacity
@@ -55,6 +76,18 @@ export interface PileCapResult {
   A_node: number;        // circular pile cross-section area [mm²]
   sigma_strut: number;   // [MPa]
   sigma_Rd_max: number;  // [MPa]
+
+  // Column node (C-C-C, CE Anejo 19 §6.5.4)
+  sigma_col: number;     // [MPa]
+  sigma_Rd_col: number;  // [MPa]
+
+  // Secondary reinforcement (EHE-08 58.4.1.4)
+  As_top_req: number;    // top steel ≥ 10% of bottom [mm²]
+  As_grid_v: number;     // vertical grid (cercos) [mm²/m]
+  As_grid_h: number;     // horizontal grid [mm²/m]
+
+  // Tie band width over piles [mm]
+  w_band: number;
 
   // Tie forces [kN]
   Ft_x: number;
@@ -90,8 +123,12 @@ const EMPTY: PileCapResult = {
   valid: false,
   pilePos: [], reactions: [], R_max: 0, R_min: 0,
   L_x: 0, L_y: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
-  z_eff: 0, a_crit: 0, theta_deg: 0,
+  W_cap: 0,
+  d_eff: 0, z_eff: 0, a_crit: 0, a_eff: 0, theta_deg: 0,
   Fs_max: 0, A_node: 0, sigma_strut: 0, sigma_Rd_max: 0,
+  sigma_col: 0, sigma_Rd_col: 0,
+  As_top_req: 0, As_grid_v: 0, As_grid_h: 0,
+  w_band: 0,
   Ft_x: 0, Ft_y: null,
   fyd: 0,
   As_tie_x: 0, As_tie_y: null,
@@ -139,7 +176,11 @@ function getPilePositions(n: number, s: number): PilePos[] {
 function getCapDimensions(
   n: number, s: number, d_p: number, b_col: number, h_col: number,
 ): { L_x: number; L_y: number; e_borde: number } {
-  const e = Math.max(1.5 * d_p, 300);  // edge distance (= e_min)
+  // Edge distance: regla práctica española (EHE 58.8.2-tradición) eje de
+  // pilote a borde ≥ d_p/2 + 250 mm — antes max(1.5·d_p, 300) quedaba corto
+  // para d_p < 250, reduciendo confinamiento del nodo y anclaje horizontal
+  // (fix auditoría #87).
+  const e = Math.max(d_p / 2 + 250, 1.5 * d_p, 300);  // edge distance (= e_min)
 
   if (n === 2) {
     // Piles aligned in x; cap y based on column width
@@ -204,17 +245,24 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const mat  = getConcrete(fck);
   const fctm = mat.fctm;     // MPa
   const fcd  = mat.fcd;      // MPa
-  const fyd  = fyk / GAMMA_S; // MPa
+  // fyd de tirantes capado a 400 N/mm² — EHE-08 58.4.1.1, control de
+  // fisuración del tirante en cimentaciones B&T (fix auditoría #85).
+  const fyd  = Math.min(fyk / GAMMA_S, 400); // MPa
 
-  // ── Pile positions ────────────────────────────────────────────────────────
+  // ── Pile positions & cap dimensions ──────────────────────────────────────
   const pilePos = getPilePositions(n, s);
+  const { L_x, L_y, e_borde } = getCapDimensions(n, s, d_p, b_col, h_col);
+  const e_min = e_borde;  // same formula, always equal
 
   // ── Navier reactions ──────────────────────────────────────────────────────
+  // Incluyen el peso propio del encepado (25 kN/m³, mayorado γG=1.35) —
+  // omitirlo dejaba R_max un ~14% corto con defaults (fix auditoría #77).
+  const W_cap = 25e-9 * L_x * L_y * h_enc;  // kN (característico)
   const sumXi2 = pilePos.reduce((acc, p) => acc + p.x * p.x, 0);  // mm²
   const sumYi2 = pilePos.reduce((acc, p) => acc + p.y * p.y, 0);
 
   const reactions = pilePos.map((p) => {
-    let R = N_Ed / n;
+    let R = (N_Ed + 1.35 * W_cap) / n;
     if (sumYi2 > 0) R += (Mx_Ed * 1000 * p.y) / sumYi2;
     if (sumXi2 > 0) R += (My_Ed * 1000 * p.x) / sumXi2;
     return R;
@@ -223,77 +271,94 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const R_max = Math.max(...reactions);
   const R_min = Math.min(...reactions);
 
-  // ── Cap dimensions ────────────────────────────────────────────────────────
-  const { L_x, L_y, e_borde } = getCapDimensions(n, s, d_p, b_col, h_col);
-  const e_min = e_borde;  // same formula, always equal
-
   // ── Geometric checks limits ───────────────────────────────────────────────
   const s_min = Math.max(3 * d_p, 750);
   const h_min = Math.max(400, 2 * d_p + cover + phi_tie);
 
-  // ── Strut-and-tie geometry ────────────────────────────────────────────────
-  const z_eff = h_enc - cover - phi_tie / 2;  // cover = bottom cover to tie centroid
-  if (z_eff <= 0) return invalid('z_eff ≤ 0: canto o recubrimiento incompatible');
+  // ── Strut-and-tie geometry (EHE-08 58.4.1.2) ─────────────────────────────
+  // Brazo mecánico z = 0.85·d (el nodo de compresión está dentro del pilar,
+  // no en la fibra superior) y brazo horizontal desde el punto a 0.25·a del
+  // eje del pilar — fix auditoría #78 (antes z = d completo y brazo al
+  // centroide del pilar, error de signo variable −8%/+2%).
+  const d_eff = h_enc - cover - phi_tie / 2;  // cover = bottom cover to tie centroid
+  if (d_eff <= 0) return invalid('d_eff ≤ 0: canto o recubrimiento incompatible');
+  const z_eff = 0.85 * d_eff;
 
-  // Horizontal distance from column centroid to CRITICAL pile (R_max)
+  // Horizontal distance from column AXIS to CRITICAL pile (R_max)
   const critIdx = reactions.indexOf(R_max);
   const critPile = pilePos[critIdx];
   const a_crit = Math.sqrt(critPile.x * critPile.x + critPile.y * critPile.y);
 
-  // For n=2: a_crit = s/2 (always, pile is exactly in x)
-  // For n=3: all piles equidistant (s/√3), a_crit = s/√3
-  // For n=4: diagonal distance = s/√2
+  // For n=2: a_crit = s/2 · For n=3: s/√3 (all equidistant) · For n=4: s/√2
+  // a_eff: descontando 0.25·a_col en la dirección radial de la biela. Para
+  // n=3/4 (dirección radial oblicua) se usa min(b_col, h_col): descontar de
+  // menos agranda a_eff → θ más tendida y Fs mayor (lado seguro). El clamp
+  // evita degenerar con pilares enormes respecto a s.
+  const col_radial = n === 2 ? b_col : Math.min(b_col, h_col);
+  const a_eff = Math.max(a_crit - 0.25 * col_radial, 50);
 
-  const theta_rad = Math.atan2(z_eff, a_crit);
+  const theta_rad = Math.atan2(z_eff, a_eff);
   const theta_deg = theta_rad * (180 / Math.PI);
 
-  // ── Strut force & capacity (CE art. 48.3) ────────────────────────────────
+  // ── Strut force & capacity ────────────────────────────────────────────────
+  // σRd,max = 0.60·ν'·fcd es la BIELA fisurada de CE Anejo 19 §6.5.2 — lado
+  // seguro frente al nodo C-C-T de §6.5.4 (k2 = 0.85·ν'·fcd). La etiqueta
+  // anterior («C-C-T node, k=0.60») citaba mal la norma (fix auditoría #83).
   const Fs_max = R_max / Math.sin(theta_rad);          // [kN]
   const A_node = Math.PI * d_p * d_p / 4;             // circular micropile cross-section [mm²]
   const sigma_strut = (Fs_max * 1000) / A_node;       // [MPa]
-  const sigma_Rd_max = 0.60 * (1 - fck / 250) * fcd; // [MPa] — C-C-T node, k=0.60
+  const nu_prime = 1 - fck / 250;
+  const sigma_Rd_max = 0.60 * nu_prime * fcd;         // [MPa] — biela §6.5.2 (lado seguro)
 
-  // ── Tie forces ────────────────────────────────────────────────────────────
+  // Nodo C-C-C bajo el pilar (CE Anejo 19 §6.5.4, k1 = 1.0·ν'·fcd) — antes
+  // sin comprobar; alcanzable como pésimo con pilar pequeño muy cargado y
+  // micropilotes grandes (fix auditoría #83).
+  const sigma_col = (N_Ed * 1000) / (b_col * h_col);  // [MPa]
+  const sigma_Rd_col = 1.0 * nu_prime * fcd;          // [MPa]
+
+  // ── Tie forces — EN BANDA sobre pilotes (EHE-08 58.4.1.2) ────────────────
+  // Cada banda se arma para su pilote más cargado: Td = R_max·brazo/z.
   let Ft_x: number;
   let Ft_y: number | null = null;
 
   if (n === 2) {
-    Ft_x = R_max * (s / 2) / z_eff;
+    // 58.4.1.2.1.1: Td = R·(v + 0.25a)/z, brazo = s/2 − 0.25·b_col
+    Ft_x = R_max * Math.max(s / 2 - 0.25 * b_col, 50) / z_eff;
   } else if (n === 3) {
-    // Conservative: Ft = R_max * a_crit / z_eff (each pile → centroid)
-    Ft_x = R_max * a_crit / z_eff;
+    // Tirantes EN LOS LADOS del triángulo (coherente con el SVG y con un
+    // armado físicamente válido — fix auditoría #80; antes se despiezaba
+    // todo en X y el tirante del pilote superior quedaba sin barras).
+    // Descomposición exacta del radial en los dos lados concurrentes:
+    // T_lado = T_radial/(2·cos30°) = T_radial/√3, con margen 1.18 alineado
+    // con el 0.68 de la práctica EHE/Calavera (1.18/√3 = 0.681).
+    Ft_x = 0.681 * R_max * a_eff / z_eff;   // per side (3 lados iguales)
   } else {
-    // n === 4: piles at (±a, ±a), a = s/2
-    const a = s / 2;
-    // Tie-x (x-direction): max(sum reactions on x+ side, x- side)
-    const R_x_plus  = reactions[1] + reactions[3]; // piles 2,4 (x=+a)
-    const R_x_minus = reactions[0] + reactions[2]; // piles 1,3 (x=-a)
-    Ft_x = Math.max(R_x_plus, R_x_minus) * a / z_eff;
-    // Tie-y (y-direction): max(sum reactions on y+ side, y- side)
-    const R_y_plus  = reactions[2] + reactions[3]; // piles 3,4 (y=+a)
-    const R_y_minus = reactions[0] + reactions[1]; // piles 1,2 (y=-a)
-    Ft_y = Math.max(R_y_plus, R_y_minus) * a / z_eff;
+    // n === 4 (58.4.1.2.1.2): bandas sobre cada fila de pilotes, por
+    // dirección; cada banda se arma para su pilote más cargado.
+    Ft_x = R_max * Math.max(s / 2 - 0.25 * b_col, 50) / z_eff;  // per band ∥ x
+    Ft_y = R_max * Math.max(s / 2 - 0.25 * h_col, 50) / z_eff;  // per band ∥ y
   }
 
-  // ── Tie reinforcement ─────────────────────────────────────────────────────
+  // ── Tie reinforcement — EN BANDA sobre los pilotes ────────────────────────
+  // EHE 58.4.1.1: la armadura principal se concentra en bandas cuyo ancho es
+  // el diámetro del pilote más dos veces la distancia de su cara superior al
+  // c.d.g. de la armadura (≈ cover con pilote enrasado): w_band = d_p + 2·cover
+  // (fix auditoría #86 — antes se repartía en todo el ancho del encepado).
   const A_phi = getBarArea(phi_tie);   // mm² per bar
   const s_max = Math.min(250, 15 * phi_tie);
+  const s_bar_min = Math.max(20, phi_tie);  // CE art. 69.4 (árido fino supuesto)
+  const w_band = Math.min(d_p + 2 * cover, Math.min(L_x, L_y) - 2 * cover);
 
-  // Width b for As_min per direction
-  const b_x = (n === 2 || n === 3) ? L_y : L_y;  // perp. to tie-x
-  const b_y = L_x;                                 // perp. to tie-y (n=4 only)
+  // Width b for As_min per direction (sección completa — mínimo geométrico)
+  const b_x = L_y;   // perp. to tie-x
+  const b_y = L_x;   // perp. to tie-y (n=4 only)
 
   const As_tie_x = Ft_x * 1000 / fyd;
-  const As_min_x = calcAsMin(fctm, fyk, b_x, z_eff);
+  const As_min_x = calcAsMin(fctm, fyk, b_x, d_eff);
   const As_adopted_x = Math.max(As_tie_x, As_min_x);
   const n_bars_x = Math.ceil(As_adopted_x / A_phi);
   const As_prov_x = n_bars_x * A_phi;
-
-  // Bar spacing (x tie)
-  const b_tie_x = (n === 2 || n === 3) ? L_y : L_y;
-  const s_bar_x = n_bars_x > 1
-    ? (b_tie_x - 2 * cover) / (n_bars_x - 1)
-    : 999;  // single bar: flag as warn
+  const s_bar_x = n_bars_x > 1 ? w_band / (n_bars_x - 1) : 999;  // single bar: flag as warn
 
   let As_tie_y: number | null = null;
   let As_min_y: number | null = null;
@@ -304,22 +369,37 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
 
   if (n === 4 && Ft_y !== null) {
     As_tie_y = Ft_y * 1000 / fyd;
-    As_min_y = calcAsMin(fctm, fyk, b_y, z_eff);
+    As_min_y = calcAsMin(fctm, fyk, b_y, d_eff);
     As_adopted_y = Math.max(As_tie_y, As_min_y);
     n_bars_y = Math.ceil(As_adopted_y / A_phi);
     As_prov_y = n_bars_y * A_phi;
-    s_bar_y = n_bars_y > 1
-      ? (b_y - 2 * cover) / (n_bars_y - 1)
-      : 999;
+    s_bar_y = n_bars_y > 1 ? w_band / (n_bars_y - 1) : 999;
   }
 
-  // ── Anchorage (CE art. 69) ────────────────────────────────────────────────
-  const fctd = fctm / 1.5;
-  const fbd  = 2.25 * fctd;                              // good bond, straight bars
+  // ── Anchorage (CE art. 69 / Anejo 19 §8.4) — fix auditoría #75 ───────────
+  // fctd con el 0.7 de fctk,0.05 (antes fctm/1.5: fbd inflado ×1.43) y
+  // demanda = lbd de la barra DOBLADA (patilla vertical, α1=0.7, supone
+  // c_d ≥ 3φ — cumplido con cover ≥ 3φ habitual), reducida por
+  // As_adoptada/As_prov, no el mínimo absoluto 0.3·lb que hacía el check
+  // estructuralmente incapaz de fallar. Longitud disponible = rama
+  // horizontal (e_borde − cover, desde el eje del pilote al inicio del
+  // doblado) + rama vertical (h − cover − c_top).
+  const fctd = (0.7 * fctm) / 1.5;
+  const fbd  = 2.25 * fctd;                              // good bond
   const lb   = (phi_tie / 4) * (fyd / fbd);             // basic anchorage length [mm]
-  const lb_net = Math.max(0.3 * lb, 10 * phi_tie, 100); // minimum net anchorage [mm]
+  const alpha1 = 0.7;                                    // barra doblada (patilla)
+  const As_ratio = Math.min(As_adopted_x / As_prov_x, 1);
+  const lb_net = Math.max(alpha1 * lb * As_ratio, 0.3 * lb, 10 * phi_tie, 100); // lbd requerida [mm]
   const c_top = Math.max(40, phi_tie);
-  const lb_avail = h_enc - cover - c_top;               // available length [mm]
+  const lb_avail = (e_borde - cover) + (h_enc - cover - c_top); // horizontal + vertical [mm]
+
+  // ── Armadura secundaria (EHE-08 58.4.1.4) — fix auditoría #79 ────────────
+  // a) superior ≥ 10% de la capacidad de la inferior; b) retícula horizontal
+  // y vertical con cuantía ≥ 4‰ del área de la sección perpendicular, con
+  // ancho de referencia ≤ h/2.
+  const As_top_req = 0.1 * As_prov_x;
+  const As_grid_v = 4 * Math.min(L_y, h_enc / 2);  // mm²/m (0.004·w_ref·1000mm/m)
+  const As_grid_h = 4 * Math.min(h_enc, L_y / 2);  // mm²/m
 
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -354,14 +434,16 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     '—',
   ));
 
-  // 4. Tension pile (conditional warn — micropiles can resist tension)
+  // 4. Tension pile (conditional warn — micropiles can resist tension).
+  //    Sin ratio numérico: R_adm es capacidad a COMPRESIÓN y usarla como
+  //    denominador de una tracción era engañoso (fix auditoría #84).
   if (R_min < 0) {
     checks.push({
       id: 'pile-react-tension',
-      description: 'Pilote a tracción — verificar R_trac con proveedor',
+      description: 'Pilote a tracción — verificar R_t,Rd con proveedor',
       value: `${R_min.toFixed(1)} kN`,
-      limit: '0 kN',
-      utilization: Math.abs(R_min) / R_adm,
+      limit: 'R_t,Rd (no introducida)',
+      utilization: 0,
       status: 'warn',
       article: '—',
     });
@@ -406,34 +488,40 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
 
   // 7. Tie reinforcement x
   {
+    // Utilización = demanda del tirante vs acero dispuesto (fix auditoría #82:
+    // antes comparaba As_min vs As_prov, siempre verde por construcción y sin
+    // que As_tie apareciera en ningún check). As_min sigue garantizado porque
+    // n_bars sale de max(As_tie, As_min).
     const checkId = n === 3 ? 'tie-steel-3p' : 'tie-steel-x';
     const checkDesc = n === 3
-      ? 'Armadura tirante (n=3, conserv.)'
-      : 'Armadura tirante dirección x';
+      ? 'Armadura tirante por lado (n=3)'
+      : 'Armadura tirante dirección x (banda)';
     checks.push(makeCheck(
       checkId,
       checkDesc,
-      As_min_x, As_prov_x,
-      `${As_min_x.toFixed(0)} mm²`,
+      As_tie_x, As_prov_x,
+      `${As_tie_x.toFixed(0)} mm²`,
       `${As_prov_x.toFixed(0)} mm²`,
-      'CE art. 9.1',
+      'EHE-08 art. 58.4.1.2 / CE art. 9.1',
     ));
   }
 
   // 8. Tie reinforcement y (n=4 only)
-  if (n === 4 && As_min_y !== null && As_prov_y !== null) {
+  if (n === 4 && As_tie_y !== null && As_prov_y !== null) {
     checks.push(makeCheck(
       'tie-steel-y',
-      'Armadura tirante dirección y',
-      As_min_y, As_prov_y,
-      `${As_min_y.toFixed(0)} mm²`,
+      'Armadura tirante dirección y (banda)',
+      As_tie_y, As_prov_y,
+      `${As_tie_y.toFixed(0)} mm²`,
       `${As_prov_y.toFixed(0)} mm²`,
-      'CE art. 9.1',
+      'EHE-08 art. 58.4.1.2 / CE art. 9.1',
     ));
   }
 
-  // 9. Bar spacing
+  // 9. Bar spacing — máxima y MÍNIMA (congestión, fix auditoría #82), peor
+  //    dirección cuando n=4.
   {
+    const s_bar_worst = s_bar_y !== null ? Math.min(s_bar_x, s_bar_y) : s_bar_x;
     if (n_bars_x === 1) {
       checks.push({
         id: 'bar-spacing',
@@ -447,24 +535,55 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     } else {
       checks.push(makeCheck(
         'bar-spacing',
-        'Separación barras tirante s_bar',
-        s_bar_x, s_max,
-        `${s_bar_x.toFixed(0)} mm`,
+        'Separación barras tirante s_bar (banda)',
+        s_bar_worst, s_max,
+        `${s_bar_worst.toFixed(0)} mm`,
         `${s_max.toFixed(0)} mm`,
         'CE art. 42.3',
+      ));
+      checks.push(makeCheck(
+        'bar-spacing-min',
+        'Separación mínima entre barras (congestión)',
+        s_bar_min, s_bar_worst,
+        `${s_bar_min.toFixed(0)} mm`,
+        `${s_bar_worst.toFixed(0)} mm`,
+        'CE art. 69.4',
       ));
     }
   }
 
-  // 10. Anchorage
+  // 10. Anchorage — demanda lbd (patilla α1=0.7) vs horizontal + rama vertical
   checks.push(makeCheck(
     'anchorage',
-    'Longitud de anclaje',
+    'Longitud de anclaje tirante (lbd patilla)',
     lb_net, lb_avail,
     `${lb_net.toFixed(0)} mm`,
     `${lb_avail.toFixed(0)} mm`,
-    'CE art. 69',
+    'CE art. 69 / Anejo 19 §8.4',
   ));
+
+  // 11. Column node C-C-C (CE Anejo 19 §6.5.4, k1 = 1.0) — fix auditoría #83
+  checks.push(makeCheck(
+    'node-column',
+    'Tensión nodal bajo pilar (nodo C-C-C)',
+    sigma_col, sigma_Rd_col,
+    `${sigma_col.toFixed(2)} MPa`,
+    `${sigma_Rd_col.toFixed(2)} MPa`,
+    'CE Anejo 19 §6.5.4',
+  ));
+
+  // 12. Armadura secundaria requerida (informativa) — fix auditoría #79
+  checks.push({
+    id: 'secondary-rebar',
+    description: `Armadura secundaria: superior ≥ ${As_top_req.toFixed(0)} mm² (10% inf.); retícula h+v ≥ 4‰ (V ${As_grid_v.toFixed(0)} mm²/m, H ${As_grid_h.toFixed(0)} mm²/m)`,
+    value: '',
+    limit: '',
+    utilization: 0,
+    status: 'neutral',
+    article: 'EHE-08 art. 58.4.1.4',
+    neutral: true,
+    tag: 'REQUERIDA',
+  });
 
   return {
     valid: true,
@@ -472,8 +591,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     reactions,
     R_max, R_min,
     L_x, L_y, e_borde, e_min, s_min, h_min,
-    z_eff, a_crit, theta_deg,
+    W_cap,
+    d_eff, z_eff, a_crit, a_eff, theta_deg,
     Fs_max, A_node, sigma_strut, sigma_Rd_max,
+    sigma_col, sigma_Rd_col,
+    As_top_req, As_grid_v, As_grid_h,
+    w_band,
     Ft_x, Ft_y,
     fyd,
     As_tie_x, As_tie_y,

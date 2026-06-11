@@ -105,7 +105,7 @@ export function PileCapResults({ inp, result }: Props) {
       {/* Anclaje */}
       <GroupHeader label="Anclaje (CE art. 69)" />
       <ValueRow label="lb,básica" value={`${result.lb.toFixed(0)} mm`} />
-      <ValueRow label="lb,neta"   value={`${result.lb_net.toFixed(0)} mm`} />
+      <ValueRow label="lb,req"     value={`${result.lb_net.toFixed(0)} mm`} />
       <ValueRow label="lb,disp"   value={`${result.lb_avail.toFixed(0)} mm`} />
 
       {/* Verificaciones */}

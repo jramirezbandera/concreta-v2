@@ -109,7 +109,7 @@ export async function exportPileCapPDF(
       : '',
   );
   twoCol(`s_bar,x = ${result.s_bar_x.toFixed(0)} mm`, `s_max = ${result.s_max.toFixed(0)} mm`);
-  twoCol(`lb,neta = ${result.lb_net.toFixed(0)} mm`, `lb,disp = ${result.lb_avail.toFixed(0)} mm`);
+  twoCol(`lb,req = ${result.lb_net.toFixed(0)} mm`, `lb,disp = ${result.lb_avail.toFixed(0)} mm`);
 
   // ── Divider + checks table ──────────────────────────────────────────────────
   const tableY = svgY + SVG_H + 6;

@@ -455,10 +455,12 @@ export interface PileCapInputs {
 }
 
 // FTUX defaults: all checks CUMPLE at ~60-75% utilization on first open.
-// Verified hand-calc: σ_strut=6.2MPa vs σ_Rd=9.0MPa → 69%; lb_net≈108mm vs lb_avail≈720mm → 15%.
+// Verified hand-calc (modelo EHE 58.4.1.2, fix adenda 2): W_cap=43.0 kN →
+// R_max=179.0 kN (72% de R_adm); θ=51.3°; σ_strut=6.04 vs σ_Rd=9.02 → 67%;
+// tirante 359/1131 mm² → 32%; anclaje lb,req≈303 vs 1000 mm → 30%.
 export const pileCapDefaults: PileCapInputs = {
   n:       2,
-  d_p:     200,
+  d_p:     220,
   s:       1200,
   h_enc:   800,
   b_col:   400,
