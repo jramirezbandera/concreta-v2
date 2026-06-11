@@ -1,22 +1,28 @@
-// Pile cap (encepado de micropilotes) — CE art. 48 / EHE-08 art. 58.4.1 / CTE DB-SE-C §5.1.4
+// Pile cap (encepado de micropilotes) — Código Estructural (CE) / CTE DB-SE-C §5.1.4
 // n = 2, 3, or 4 micropiles. Strut-and-tie method (bielas y tirantes).
 // All units: mm, MPa, kN unless noted.
 //
-// Modelo adoptado (fix auditoría adenda 2, #75-87): EHE-08 58.4.1.2 explícito —
-//   - brazo mecánico z = 0.85·d (nodo de compresión dentro del pilar, no en la
-//     fibra superior) y brazo horizontal desde el punto a 0.25·a del eje del
-//     pilar (v + 0.25a), por dirección (#78)
+// NORMA DE APLICACIÓN: Código Estructural (RD 470/2021) + Anejo 19 (EC2).
+// La EHE-08 está DEROGADA: se cita solo como origen de la geometría de modelo
+// consolidada en la práctica española, nunca como exigencia.
+//
+// Modelo adoptado (fix auditoría adenda 2, #75-87) — B&T conforme a CE Anejo
+// 19 §6.5, con la geometría de la práctica consolidada (ex-EHE 58.4.1.2):
+//   - brazo mecánico z = 0.85·d (el nodo de compresión está dentro del pilar,
+//     no en la fibra superior) y brazo horizontal desde el punto a 0.25·a del
+//     eje del pilar (v + 0.25a), por dirección (#78)
 //   - tirantes EN BANDA sobre los pilotes (ancho d_p + 2·cover), no repartidos
 //     en todo el ancho del encepado (#80, #86)
-//   - fyd de tirantes capado a 400 N/mm² (EHE 58.4.1.1, control de fisuración
-//     del tirante) (#85)
+//   - fyd de tirantes = fyk/γs SIN tope de 400 N/mm² — el tope era de
+//     EHE 58.4.1.1 y el CE Anejo 19 §6.5.3 no lo recoge (#85)
 //   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
 //   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
-//     desarrollable en rama horizontal + rama vertical (#75)
-//   - armadura secundaria de encepado rígido (EHE 58.4.1.4): superior ≥ 10%
-//     de la inferior y retícula h+v ≥ 4‰ (#79)
+//     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4) (#75)
+//   - armadura secundaria (superior ≥ 10% de la inferior, retícula h+v ≥ 4‰):
+//     RECOMENDACIÓN de buena práctica (ex-EHE 58.4.1.4); CE Anejo 19 §9.8.1
+//     no la exige con carácter general (#79)
 //
-// CE art. 48 / EHE-08 art. 58 — strut-and-tie model, strut angle limits
+// CE art. 48 / Anejo 19 §6.5 — strut-and-tie model, strut angle limits
 // CE Anejo 19 §6.5.2 — strut crushing 0.60·ν'·fcd (lado seguro frente al nodo
 //   C-C-T de §6.5.4, k2=0.85·ν'·fcd) — ver check 'strut-capacity'
 // CE Anejo 19 §6.5.4 — nodo C-C-C bajo el pilar (k1=1.0·ν'·fcd)
@@ -81,7 +87,7 @@ export interface PileCapResult {
   sigma_col: number;     // [MPa]
   sigma_Rd_col: number;  // [MPa]
 
-  // Secondary reinforcement (EHE-08 58.4.1.4)
+  // Secondary reinforcement — recomendación de práctica (ex-EHE 58.4.1.4)
   As_top_req: number;    // top steel ≥ 10% of bottom [mm²]
   As_grid_v: number;     // vertical grid (cercos) [mm²/m]
   As_grid_h: number;     // horizontal grid [mm²/m]
@@ -176,7 +182,7 @@ function getPilePositions(n: number, s: number): PilePos[] {
 function getCapDimensions(
   n: number, s: number, d_p: number, b_col: number, h_col: number,
 ): { L_x: number; L_y: number; e_borde: number } {
-  // Edge distance: regla práctica española (EHE 58.8.2-tradición) eje de
+  // Edge distance: regla de buena práctica española (tradición ex-EHE 58.8.2) eje de
   // pilote a borde ≥ d_p/2 + 250 mm — antes max(1.5·d_p, 300) quedaba corto
   // para d_p < 250, reduciendo confinamiento del nodo y anclaje horizontal
   // (fix auditoría #87).
@@ -245,9 +251,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const mat  = getConcrete(fck);
   const fctm = mat.fctm;     // MPa
   const fcd  = mat.fcd;      // MPa
-  // fyd de tirantes capado a 400 N/mm² — EHE-08 58.4.1.1, control de
-  // fisuración del tirante en cimentaciones B&T (fix auditoría #85).
-  const fyd  = Math.min(fyk / GAMMA_S, 400); // MPa
+  // fyd de tirantes = fyk/γs (CE Anejo 19 §6.5.3). El tope de 400 N/mm² era
+  // de la EHE-08 58.4.1.1 (derogada) y el CE no lo recoge (#85).
+  const fyd  = fyk / GAMMA_S; // MPa
 
   // ── Pile positions & cap dimensions ──────────────────────────────────────
   const pilePos = getPilePositions(n, s);
@@ -275,7 +281,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const s_min = Math.max(3 * d_p, 750);
   const h_min = Math.max(400, 2 * d_p + cover + phi_tie);
 
-  // ── Strut-and-tie geometry (EHE-08 58.4.1.2) ─────────────────────────────
+  // ── Strut-and-tie geometry (CE Anejo 19 §6.5; geometría ex-EHE 58.4.1.2) ──
   // Brazo mecánico z = 0.85·d (el nodo de compresión está dentro del pilar,
   // no en la fibra superior) y brazo horizontal desde el punto a 0.25·a del
   // eje del pilar — fix auditoría #78 (antes z = d completo y brazo al
@@ -316,7 +322,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const sigma_col = (N_Ed * 1000) / (b_col * h_col);  // [MPa]
   const sigma_Rd_col = 1.0 * nu_prime * fcd;          // [MPa]
 
-  // ── Tie forces — EN BANDA sobre pilotes (EHE-08 58.4.1.2) ────────────────
+  // ── Tie forces — EN BANDA sobre pilotes (CE Anejo 19 §6.5.3; ex-EHE 58.4.1.2)
   // Cada banda se arma para su pilote más cargado: Td = R_max·brazo/z.
   let Ft_x: number;
   let Ft_y: number | null = null;
@@ -340,7 +346,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   }
 
   // ── Tie reinforcement — EN BANDA sobre los pilotes ────────────────────────
-  // EHE 58.4.1.1: la armadura principal se concentra en bandas cuyo ancho es
+  // Práctica consolidada (ex-EHE 58.4.1.1): la armadura principal va en bandas de ancho
   // el diámetro del pilote más dos veces la distancia de su cara superior al
   // c.d.g. de la armadura (≈ cover con pilote enrasado): w_band = d_p + 2·cover
   // (fix auditoría #86 — antes se repartía en todo el ancho del encepado).
@@ -393,7 +399,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const c_top = Math.max(40, phi_tie);
   const lb_avail = (e_borde - cover) + (h_enc - cover - c_top); // horizontal + vertical [mm]
 
-  // ── Armadura secundaria (EHE-08 58.4.1.4) — fix auditoría #79 ────────────
+  // ── Armadura secundaria recomendada (ex-EHE 58.4.1.4) — fix auditoría #79 ──
   // a) superior ≥ 10% de la capacidad de la inferior; b) retícula horizontal
   // y vertical con cuantía ≥ 4‰ del área de la sección perpendicular, con
   // ancho de referencia ≤ h/2.
@@ -472,7 +478,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       limit: '26.5° – 63.5°',
       utilization: theta_util,
       status: theta_status,
-      article: 'CE art. 48 / EHE-08 art. 58',
+      article: 'CE art. 48 / Anejo 19 §6.5',
     });
   }
 
@@ -502,7 +508,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       As_tie_x, As_prov_x,
       `${As_tie_x.toFixed(0)} mm²`,
       `${As_prov_x.toFixed(0)} mm²`,
-      'EHE-08 art. 58.4.1.2 / CE art. 9.1',
+      'CE Anejo 19 §6.5.3 / art. 9.1',
     ));
   }
 
@@ -514,7 +520,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       As_tie_y, As_prov_y,
       `${As_tie_y.toFixed(0)} mm²`,
       `${As_prov_y.toFixed(0)} mm²`,
-      'EHE-08 art. 58.4.1.2 / CE art. 9.1',
+      'CE Anejo 19 §6.5.3 / art. 9.1',
     ));
   }
 
@@ -572,17 +578,19 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CE Anejo 19 §6.5.4',
   ));
 
-  // 12. Armadura secundaria requerida (informativa) — fix auditoría #79
+  // 12. Armadura secundaria (informativa) — fix auditoría #79. Bajo CE es
+  //     RECOMENDACIÓN de buena práctica (CE Anejo 19 §9.8.1 no la exige con
+  //     carácter general); los valores siguen la tradición ex-EHE 58.4.1.4.
   checks.push({
     id: 'secondary-rebar',
-    description: `Armadura secundaria: superior ≥ ${As_top_req.toFixed(0)} mm² (10% inf.); retícula h+v ≥ 4‰ (V ${As_grid_v.toFixed(0)} mm²/m, H ${As_grid_h.toFixed(0)} mm²/m)`,
+    description: `Armadura secundaria recomendada: superior ≥ ${As_top_req.toFixed(0)} mm² (10% inf.); retícula h+v ≥ 4‰ (V ${As_grid_v.toFixed(0)} mm²/m, H ${As_grid_h.toFixed(0)} mm²/m)`,
     value: '',
     limit: '',
     utilization: 0,
     status: 'neutral',
-    article: 'EHE-08 art. 58.4.1.4',
+    article: 'CE Anejo 19 §9.8.1 (práctica ex-EHE 58.4.1.4)',
     neutral: true,
-    tag: 'REQUERIDA',
+    tag: 'RECOMENDADA',
   });
 
   return {

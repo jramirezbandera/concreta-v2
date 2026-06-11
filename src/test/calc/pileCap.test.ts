@@ -1,10 +1,10 @@
 // Pile cap (encepado de micropilotes) test suite — creada con los fixes de la
 // auditoría adenda 2 (#75-87); antes este motor NO tenía ningún test (#81).
 //
-// Oracles calculados a mano con el modelo EHE-08 58.4.1.2 adoptado:
-//   z = 0.85·d, brazo horizontal v + 0.25a, tirantes en banda sobre pilotes,
-//   fyd ≤ 400, peso propio 25 kN/m³ con γG=1.35, anclaje fctd = 0.7·fctm/1.5
-//   con demanda lbd de patilla (α1=0.7).
+// Oracles calculados a mano con el modelo B&T de CE Anejo 19 §6.5 (geometría
+// de práctica consolidada ex-EHE): z = 0.85·d, brazo v + 0.25a, bandas sobre
+// pilotes, fyd = fyk/γs (SIN tope 400 — EHE derogada), peso propio 25 kN/m³
+// con γG=1.35, anclaje fctd = 0.7·fctm/1.5 y demanda lbd de patilla (α1=0.7).
 //
 // Defaults (n=2, d_p=220, s=1200, h=800, col 400×400, C25, B500, c=60, φ12,
 // N=300, R_adm=250):
@@ -13,9 +13,9 @@
 //   d = 800−60−6 = 734 → z = 623.9 ; a_eff = 600−100 = 500 → θ = 51.3°
 //   Fs = 179.03/sin51.3° = 229.4 kN ; A_node = π·110² = 38013 mm²
 //   σ_strut = 6.04 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
-//   Ft = 179.03·500/623.9 = 143.5 kN → As_tie = 358.7 mm² (fyd=400)
+//   Ft = 179.03·500/623.9 = 143.5 kN → As_tie = 330.0 mm² (fyd=434.78)
 //   As_min = 0.26·(2.56/500)·1120·734 = 1094 mm² → 10Ø12 = 1131 mm²
-//   lb = 3·400/2.688 = 446.4 ; lb,req = 0.7·446.4·(1094/1131) = 302.4 mm
+//   lb = 3·434.78/2.688 = 485.2 ; lb,req = 0.7·485.2·(1094/1131) = 328.7 mm
 //   lb,disp = (360−60) + (800−60−40) = 1000 mm
 
 import { describe, expect, it } from 'vitest';
@@ -45,11 +45,11 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.R_max).toBeCloseTo((base.N_Ed + 1.35 * r.W_cap) / 2, 3);
   });
 
-  it('fyd capado a 400 N/mm² con B500 (fix #85)', () => {
-    expect(r.fyd).toBe(400);
+  it('fyd = fyk/γs = 434.8 (CE Anejo 19 — sin el tope 400 de la EHE derogada, #85)', () => {
+    expect(r.fyd).toBeCloseTo(500 / 1.15, 2);
   });
 
-  it('brazos EHE: d_eff=734, z=0.85·d=623.9, a_eff=500 (fix #78)', () => {
+  it('brazos del modelo B&T: d_eff=734, z=0.85·d=623.9, a_eff=500 (fix #78)', () => {
     expect(r.d_eff).toBe(734);
     expect(r.z_eff).toBeCloseTo(623.9, 1);
     expect(r.a_eff).toBe(500);
@@ -71,9 +71,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'node-column')!.status).toBe('ok');
   });
 
-  it('tirante: Ft ≈ 143.5 kN, As_tie ≈ 359 mm², 10Ø12 = 1131 mm²', () => {
+  it('tirante: Ft ≈ 143.5 kN, As_tie ≈ 330 mm², 10Ø12 = 1131 mm²', () => {
     expect(r.Ft_x).toBeCloseTo(143.5, 1);
-    expect(r.As_tie_x).toBeCloseTo(358.7, 1);
+    expect(r.As_tie_x).toBeCloseTo(330.0, 1);
     expect(r.As_min_x).toBeCloseTo(1094.3, 0);
     expect(r.n_bars_x).toBe(10);
     expect(r.As_prov_x).toBeCloseTo(1131, 0);
@@ -81,7 +81,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
 
   it('check de tirante usa la DEMANDA As_tie, no As_min (fix #82)', () => {
     const c = r.checks.find((ch) => ch.id === 'tie-steel-x')!;
-    expect(c.utilization).toBeCloseTo(358.7 / 1131, 2);
+    expect(c.utilization).toBeCloseTo(330.0 / 1131, 2);
     expect(c.status).toBe('ok');
   });
 
@@ -90,9 +90,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.s_bar_x).toBeCloseTo(340 / 9, 1);
   });
 
-  it('anclaje: lb ≈ 446.4 (fctd con 0.7), lb,req ≈ 302.4, lb,disp = 1000 (fix #75)', () => {
-    expect(r.lb).toBeCloseTo(446.4, 1);
-    expect(r.lb_net).toBeCloseTo(302.4, 1);
+  it('anclaje: lb ≈ 485.2 (fctd con 0.7), lb,req ≈ 328.7, lb,disp = 1000 (fix #75)', () => {
+    expect(r.lb).toBeCloseTo(485.2, 1);
+    expect(r.lb_net).toBeCloseTo(328.7, 1);
     expect(r.lb_avail).toBe(1000);
   });
 
@@ -100,7 +100,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.lb_net).toBeGreaterThan(0.5 * r.lb);
   });
 
-  it('armadura secundaria requerida (fix #79): sup ≥ 10% inf, retícula 4‰', () => {
+  it('armadura secundaria recomendada (fix #79, práctica ex-EHE): sup ≥ 10% inf, retícula 4‰', () => {
     expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);
     expect(r.As_grid_v).toBeCloseTo(4 * Math.min(1120, 400), 1);  // 1600 mm²/m
     expect(r.As_grid_h).toBeCloseTo(4 * Math.min(800, 560), 1);   // 2240 mm²/m
@@ -241,7 +241,7 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     expect(r.Ft_x).toBeCloseTo(0.681 * r.R_max * r.a_eff / r.z_eff, 2);
   });
 
-  it('fyk=400 → fyd = 347.8 (el tope 400 solo recorta B500/B600)', () => {
+  it('fyk=400 → fyd = 347.8 (fyd = fyk/γs para cualquier grado)', () => {
     expect(calcPileCap({ ...base, fyk: 400 }).fyd).toBeCloseTo(400 / 1.15, 2);
   });
 
