@@ -233,13 +233,27 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const re  = getCorrosionRe(inp.corrosionEnv, inp.designLifeYears);   // mm (Tabla 2.4)
 
   // ── 3. Discretización + integración shaft friction ───────────────────────
-  // Iteración exacta de la hoja Excel: σv arranca en 0 en la cabeza (z=0) y
-  // se integra a lo largo del pilote. Cada segmento usa las propiedades del
-  // estrato en su FONDO (z = i·dz, no en el centroide).
+  // σv' real según Guía §3.4: la tensión vertical total se integra desde la
+  // RASANTE, incluyendo la sobrecarga del terreno entre rasante y cabeza
+  // (antes σv arrancaba en 0 EN LA CABEZA, réplica del Excel — conservador
+  // pero distorsionaba σh'/Rfc por estrato y mezclaba referencias con u, que
+  // sí parte del NF real; fix auditoría #47). Cada segmento usa las
+  // propiedades del estrato en su FONDO (z = i·dz, no en el centroide).
   const segments: SegmentResult[] = [];
   let RfcTheoreticalAcc = 0;
   let RfcEmpiricalAcc   = 0;
-  let sigmaV            = 0;
+  // Sobrecarga total del terreno entre rasante (z=0) y cabeza (zHeadAbs).
+  let sigmaV = 0;
+  {
+    let depthCursor = 0;
+    for (const layer of soil) {
+      const layerBase = depthCursor + layer.thickness;
+      const overlap = Math.min(layerBase, zHeadAbs) - depthCursor;
+      if (overlap > 0) sigmaV += layer.gamma * overlap;
+      depthCursor = layerBase;
+      if (depthCursor >= zHeadAbs) break;
+    }
+  }
 
   for (let i = 0; i < N_SEGMENTS; i++) {
     const zBotSeg = (i + 1) * dz;             // profundidad desde la cabeza
@@ -451,7 +465,13 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     // hormigón confinado dentro del tubo + recubrimiento, no el aire entre el
     // bulbo y la pared del barreno. Antes con Dn sobreestimaba ~5,6% en FTUX.
     const dTotalM = dTotal / 1000;                                    // mm → m
-    const Wcrete  = Math.PI * (dTotalM / 2) * (dTotalM / 2) * L * GAMMA_CONCRETE;
+    const Acrete  = Math.PI * (dTotalM / 2) * (dTotalM / 2);          // m²
+    // Peso muerto estabilizador con empuje hidrostático bajo el NF (fix
+    // auditoría #48): γ=25 kN/m³ sobre el NF, γ'=γ−γw≈15 bajo el NF (EC7 UPL
+    // / CTE DB-SE-C). zWaterHead = profundidad del NF medida desde la cabeza.
+    const L_sub = Math.max(0, L - Math.max(0, zWaterHead));           // m bajo NF
+    const L_dry = L - L_sub;
+    const Wcrete  = Acrete * (L_dry * GAMMA_CONCRETE + L_sub * (GAMMA_CONCRETE - GAMMA_W));
     pulloutCapacity = mu * RfcAdopted + Wcrete / 1.2;
   }
 
@@ -478,7 +498,13 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // Ea: módulo del acero (kN/m²).
   const Ia = (Math.PI / 64) * (Math.pow(deNet, 4) - Math.pow(di, 4)) / 1e12; // m⁴
   const Ea = E_STEEL_MPA * 1000;                                            // kN/m² (210e6)
-  const EL = Math.max(1, inp.soilModulusEmbed);
+  // El módulo del terreno en empotramiento debe ser > 0: un valor 0/negativo
+  // produciría un Le enorme en silencio. Se invalida en vez de clampar a 1
+  // (fix auditoría #50).
+  if ((inp.soilModulusEmbed as number) <= 0) {
+    return invalid('El módulo de balasto/terreno en empotramiento (EL) debe ser > 0.');
+  }
+  const EL = inp.soilModulusEmbed as number;
   const E0 = Math.max(0, inp.soilModulusTop);
   const Le = Math.pow((3 * Ea * Ia) / EL, 0.25);                            // m
   // f = coef. del empotramiento ficticio, Guía Tabla 3.8 (pág. 38),
@@ -512,10 +538,14 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Wpl = (Math.pow(deNet, 3) - Math.pow(di, 3)) / 6;                   // mm³ aprox.
   const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * deNet);
   const W = sectionClass <= 2 ? Wpl : Wel;
-  const Mpl_rd = (W * (fy / 1.1)) / 1e6;                                    // kNm
+  // γa = 1.10 de la Guía Fomento §3.7 para el tubo (más conservador que el
+  // γM0=1.05 de EC3 §6.2.5/6.2.6; se adopta la Guía por trazabilidad — el
+  // article de los checks cita ambas fuentes).
+  const GAMMA_A = 1.1;
+  const Mpl_rd = (W * (fy / GAMMA_A)) / 1e6;                                // kNm
 
-  // Av tubular ≈ 2·A/π (EC3 §6.2.6 sección hueca circular)
-  const Vpl_rd = ((2 * As_d / Math.PI) * (fy / Math.sqrt(3))) / 1.1 / 1000; // kN
+  // Av tubular ≈ 2·A/π (EC3 §6.2.6 sección hueca circular), γa = 1.10 (Guía)
+  const Vpl_rd = ((2 * As_d / Math.PI) * (fy / Math.sqrt(3))) / GAMMA_A / 1000; // kN
 
   // Empujes horizontales — modelo de ménsula equivalente (Guía §3.7, pág. 40).
   // El pilote se idealiza como una ménsula vertical de longitud Lef empotrada
@@ -532,8 +562,11 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const MEd = MEd_raw * me_coef;
 
   // Interacción M-V: si VEd > 0.5·Vpl,rd, el momento plástico se reduce por ρ.
+  // Se usa Vpl_rd real (>0 garantizado por las validaciones de geometría) en
+  // lugar de Math.max(1, Vpl_rd): el clamp anterior anulaba la reducción para
+  // tubos diminutos, incoherente con la condición de activación (fix #50).
   const rho = VEd > 0.5 * Vpl_rd
-    ? Math.pow(2 * VEd / Math.max(1, Vpl_rd) - 1, 2)
+    ? Math.pow(2 * VEd / Vpl_rd - 1, 2)
     : 0;
 
   // Interacción M-N (EC3 §6.2.9): el axil concomitante NEd = designLoad reduce
@@ -650,7 +683,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     limit: `${Vpl_rd.toFixed(2)} kN`,
     utilization: iv,
     status: toStatus(iv),
-    article: 'EC3 §6.2.6',
+    article: 'EC3 §6.2.6 / Guía §3.7 (γa=1.10)',
   });
 
   // Garganta de soldadura — neutral (no es utilización lineal)

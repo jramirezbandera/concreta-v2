@@ -81,12 +81,12 @@ describe('MicropilesSVG', () => {
       />,
     );
     const text = container.textContent ?? '';
-    // ih FTUX ≈ 0.71 (post D1-bis: Rfc cae a ~496 → 350/496 ≈ 0.71).
+    // ih FTUX ≈ 0.68 (post #47: Rfc ~516 → 350/516 ≈ 0.68).
     // ic ≈ 0.51 con los defaults AUTO: pandeo CR=8 (E1 arena floja, R=0.854) y
     // recubrimiento auto r=(Dn−de)/2 ⇒ d_struct=Dn=185 (bulbo = barreno), que
     // sube Fc,h y por tanto Nc,rd respecto al d_struct=180 del Excel manual.
     // Formato con punto decimal — adimensionales no llevan unidad ni coma local.
-    expect(text).toMatch(/0\.71/);
+    expect(text).toMatch(/0\.68/);
     expect(text).toMatch(/0\.51/);
     // Y debe nombrar las dos comprobaciones, no solo los números.
     expect(text).toMatch(/Hundimiento por fuste/);

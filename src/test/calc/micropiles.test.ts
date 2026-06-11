@@ -55,25 +55,23 @@ describe('FTUX defaults', () => {
     }
   });
 
-  it('Rfc_theoretical FTUX ≈ 496.28 kN (post D1-bis: c=0 en granulares)', () => {
+  it('Rfc_theoretical FTUX ≈ 515.98 kN (post #47: σv con sobrecarga desde rasante)', () => {
     // Historia del número:
     //   Excel original: 738.66 kN (contador discreto de u sobre-estimaba).
     //   Fix C2 (u por σ' efectiva continua): 739.30 kN.
     //   Fix D1-bis (c=0 en granulares por norma): 496.28 kN. El estrato 4
     //     del FTUX se declaraba "granular" con c=280 kPa (Excel-isn't), lo
     //     que metía ~243 kN ficticios en los últimos 2 m del pilote en E4.
-    //     Ignorar c en granulares es lo que pide la mecánica del suelo:
-    //     un granular puro tiene c'=0 por definición.
+    //   Fix auditoría #47 (σv' real desde rasante, Guía §3.4): 515.98 kN.
+    //     Antes σv arrancaba en 0 EN LA CABEZA (réplica Excel, conservador);
+    //     ahora incluye la sobrecarga γ1·topDepth = 19·1 = 19 kPa (~+4%).
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.RfcTheoretical).toBeCloseTo(496.28, 0);
+    expect(r.RfcTheoretical).toBeCloseTo(515.98, 0);
   });
 
-  it('ih FTUX ≈ 0.71 (Nc,d=350 / RfcAdopted=496)', () => {
-    // ih sube de ~0.47 (pre D1-bis) a ~0.71 — el pilote sigue cumpliendo
-    // por amplio margen, pero el margen real es bastante menor que el
-    // que daba el Excel cementado.
+  it('ih FTUX ≈ 0.68 (Nc,d=350 / RfcAdopted=516)', () => {
     const r = calcMicropiles(baseInp, baseSoil);
-    expect(r.ih).toBeCloseTo(0.71, 1);
+    expect(r.ih).toBeCloseTo(0.68, 1);
     expect(r.ih).toBeLessThan(1);   // sigue siendo CUMPLE
   });
 
@@ -628,6 +626,28 @@ describe('Edge cases', () => {
     // toeDepth=0.5 m < topDepth=1 m → apoyo POR ENCIMA de la cabeza.
     const r = calcMicropiles({ ...baseInp, toeDepth: 0.5 }, baseSoil);
     expect(r.valid).toBe(false);
+  });
+
+  it('soilModulusEmbed ≤ 0 → invalid (fix auditoría #50)', () => {
+    // Antes Math.max(1, EL) clampaba en silencio y producía un Le enorme.
+    expect(calcMicropiles({ ...baseInp, soilModulusEmbed: 0 }, baseSoil).valid).toBe(false);
+    expect(calcMicropiles({ ...baseInp, soilModulusEmbed: -100 }, baseSoil).valid).toBe(false);
+  });
+
+  it('peso de lechada con empuje hidrostático bajo el NF (fix auditoría #48)', () => {
+    // Con NF alto, el tramo sumergido del bulbo pesa γ'≈15 (no 25): la
+    // capacidad de arranque baja respecto a un pilote seco equivalente.
+    const seco = calcMicropiles(
+      { ...baseInp, effort: 'tension', waterTableDepth: 50 }, baseSoil,
+    );
+    const sumergido = calcMicropiles(
+      { ...baseInp, effort: 'tension', waterTableDepth: 1 }, baseSoil,
+    );
+    expect(seco.pulloutCapacity).toBeDefined();
+    expect(sumergido.pulloutCapacity).toBeDefined();
+    // El peso muerto sumergido es menor → pullout menor (μ·Rfc también cambia,
+    // pero el término Wcrete pierde (25−15)/25 = 40% bajo el NF).
+    expect(sumergido.pulloutCapacity!).toBeLessThan(seco.pulloutCapacity!);
   });
 
   it('invalid input — empty soil → invalid', () => {
