@@ -99,7 +99,7 @@ export class CHSAdapter implements ColumnBeamSection {
     this.label = `Ø${Dstr}×${t} (${tag})`;
   }
 
-  classify(fy: number, _mode: 'compression' | 'bending' = 'compression'): number {
+  classify(fy: number, _mode: 'compression' | 'bending' | 'combined' = 'compression'): number {
     // EC3 §5.5 Tabla 5.2 — tubular: D/t limits use ε² = 235/fy.
     //   Class 1: D/t ≤ 50·ε²
     //   Class 2: D/t ≤ 70·ε²

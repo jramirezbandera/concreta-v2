@@ -7,6 +7,8 @@ import type {
   ColumnBeamSection,
   CrossSectionPrimitives,
   ReducedMoments,
+  ClassifyMode,
+  CombinedClassifyOpts,
 } from './types';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
 
@@ -69,13 +71,34 @@ export class ISectionAdapter implements ColumnBeamSection {
     this.r = profile.r;
   }
 
-  classify(fy: number, mode: 'compression' | 'bending' = 'compression'): number {
+  classify(fy: number, mode: ClassifyMode = 'compression', opts?: CombinedClassifyOpts): number {
     const eps = Math.sqrt(235 / fy);
     const c_f = (this.b - this.tw - 2 * this.r) / 2;
     const c_w = this.h - 2 * this.tf - 2 * this.r;
+    // Flange: pure-compression outstand limits — conservative for any moment sign.
     const classF = classifyElement(c_f / (this.tf * eps), FLANGE_COMP_LIMITS);
-    const webLimits = mode === 'bending' ? WEB_BEND_LIMITS : WEB_COMP_LIMITS;
-    const classW = classifyElement(c_w / (this.tw * eps), webLimits);
+
+    let classW: number;
+    if (mode === 'combined' && opts) {
+      // EC3 Tab 5.2 «parts in bending and compression» (auditoría #91):
+      // límites del alma con la distribución REAL N+M — α plástica para
+      // clase 1/2, ψ elástica para clase 3. Con α=1/ψ=1 se reduce a los
+      // límites de compresión pura (33/38/42); con α=0.5/ψ=−1, a flexión
+      // pura (72/83/124). Evita rechazar como clase 4 perfiles que solo lo
+      // serían en compresión pura (p.ej. todos los IPE≥300 en S355).
+      const a = Math.min(1, Math.max(0, opts.alphaWeb));
+      const psi = Math.min(1, Math.max(-3, opts.psiWeb));
+      const lim1 = a > 0.5 ? (396 * eps) / (13 * a - 1) : (36 * eps) / Math.max(a, 1e-6);
+      const lim2 = a > 0.5 ? (456 * eps) / (13 * a - 1) : (41.5 * eps) / Math.max(a, 1e-6);
+      const lim3 = psi > -1
+        ? (42 * eps) / (0.67 + 0.33 * psi)
+        : 62 * eps * (1 - psi) * Math.sqrt(-psi);
+      const ct = c_w / this.tw;
+      classW = ct <= lim1 ? 1 : ct <= lim2 ? 2 : ct <= lim3 ? 3 : 4;
+    } else {
+      const webLimits = mode === 'bending' ? WEB_BEND_LIMITS : WEB_COMP_LIMITS;
+      classW = classifyElement(c_w / (this.tw * eps), webLimits);
+    }
     return Math.max(classF, classW);
   }
 

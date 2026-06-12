@@ -1,4 +1,5 @@
-// Steel Column calculations — CTE DB-SE-A / EC3
+// Steel Column calculations — CE Anejo 22 (EC3); CTE DB-SE-A solo para la
+// recomendación de esbeltez. Flexocompresión §6.3.3 con Método 2 (Anejo B).
 // Units: mm for section dims, N/mm² for stress, kN for forces, kNm for moments.
 // Section properties follow ArcelorMittal convention:
 //   A in cm²  |  I in cm⁴  |  W in cm³  |  Iw in cm⁶  |  dims in mm
@@ -128,13 +129,22 @@ function descriptorKind(inp: SteelColumnInputs): SectionKind {
 // ─── Main calculator ──────────────────────────────────────────────────────────
 
 export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
-  const { steel, Ly, Lz, beta_y, beta_z, Ned, My_Ed, Mz_Ed } = inp;
+  const { steel, Ly, Lz, beta_y, beta_z, Ned } = inp;
+  // Momentos normalizados con |·|: un negativo inyectado (URL compartible /
+  // localStorage; el teclado los rechaza vía parseQuantity) desactivaba en
+  // silencio flexión, LTB e interacción (fix auditoría #92).
+  const My_Ed = Math.abs(inp.My_Ed);
+  const Mz_Ed = Math.abs(inp.Mz_Ed);
   const kind = descriptorKind(inp);
 
   // 1. Validate inputs
   if (Ly <= 0) return invalidResult('Ly debe ser mayor que 0', 1, kind);
   if (Lz <= 0) return invalidResult('Lz debe ser mayor que 0', 1, kind);
   if (Ned < 0) return invalidResult('Ned no puede ser negativo', 1, kind);
+  // β ≤ 0 inyectable por URL anulaba el pandeo (Lk ≤ 0 → χ = 1); la UI
+  // clampa a 0.1 pero la validación pertenece al motor (fix auditoría #93).
+  if (beta_y <= 0) return invalidResult('β_y debe ser mayor que 0', 1, kind);
+  if (beta_z <= 0) return invalidResult('β_z debe ser mayor que 0', 1, kind);
 
   // 2. Resolve polymorphic section
   const section: ColumnBeamSection | undefined = createSection(buildDescriptor(inp));
@@ -151,14 +161,40 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const { h, b, A, Iy, Iz, Wpl_y, Wel_y, Wpl_z, Wel_z, It: _It, Iw: _Iw } = section;
   void _It; void _Iw; // consumed by section.computeMcr
 
-  // 3. Material strength
-  const fy = steel === 'S355' ? 355 : 275;  // N/mm²
+  // 3. Material strength — reduced for thick walls (CE Anejo 22 / EN 10025-2,
+  //    EN 10210: 16 < t ≤ 40 mm → S275: 265, S355: 345). Afecta HEB240-400,
+  //    HEA360/400, IPE550/600, 2UPN320/400 y CHS de pared gruesa (fix
+  //    auditoría #89; mismo fix que steelBeams #62).
+  const fy_nominal = steel === 'S355' ? 355 : 275;  // N/mm²
+  const fy = section.tf > 16 ? fy_nominal - 10 : fy_nominal;
 
-  // 4. Section classification (EC3 §5.5 Tabla 5.2) — compression mode
-  const sectionClass = Math.min(4, Math.max(1, section.classify(fy, 'compression'))) as 1 | 2 | 3 | 4;
+  // 4. Section classification (EC3 §5.5 Tabla 5.2). Para secciones en I el
+  //    alma se clasifica con la distribución REAL N+My (α plástica, ψ
+  //    elástica) en vez de compresión pura — antes todos los IPE ≥300 en
+  //    S355 quedaban rechazados como clase 4 aunque con flexión dominante
+  //    son clase 1-2 (fix auditoría #91). CHS/2UPN mantienen su clasificación
+  //    propia (límites independientes del eje / conservadora).
+  let rawClass: number;
+  if (kind === 'I') {
+    const A_mm2 = section.A * 100;          // cm² → mm²
+    const Wel_mm3 = section.Wel_y * 1000;   // cm³ → mm³
+    const c_w = section.h - 2 * section.tf - 2 * section.r;
+    const N_N = Ned * 1000;
+    const M_Nmm = My_Ed * 1e6;
+    // α: fracción comprimida del alma en distribución plástica
+    const alphaWeb = Math.min(1, Math.max(0, 0.5 * (1 + N_N / (c_w * section.tw * fy))));
+    // ψ: ratio de tensiones elásticas en los extremos del alma
+    const sigTop = N_N / A_mm2 + M_Nmm / Wel_mm3;
+    const sigBot = N_N / A_mm2 - M_Nmm / Wel_mm3;
+    const psiWeb = sigTop > 0 ? sigBot / sigTop : 1;
+    rawClass = section.classify(fy, 'combined', { alphaWeb, psiWeb });
+  } else {
+    rawClass = section.classify(fy, 'compression');
+  }
+  const sectionClass = Math.min(4, Math.max(1, rawClass)) as 1 | 2 | 3 | 4;
 
   if (sectionClass === 4) {
-    return invalidResult('Sección Clase 4 — no soportado en v1', 4, kind);
+    return invalidResult('Sección Clase 4 bajo la distribución N+M aplicada — no soportado en v1 (reducir Ned o aumentar perfil)', 4, kind);
   }
 
   // 5. Section moduli and characteristic resistances
@@ -200,7 +236,14 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   // 9. Lateral-torsional buckling
   //   - I-section (open): classical EC3 Eq. F.2 with Iz/It/Iw
   //   - 2UPN box / CHS : Mcr = ∞ → λ̄_LT = 0 → χ_LT = 1
-  const Mcr_raw = My_Ed > 0 ? section.computeMcr(Ly, 1.0, E, G) : Infinity;
+  //   Longitud de LTB = Lz (distancia entre arriostramientos LATERALES, los
+  //   que fijan el ala comprimida), no la Ly del eje fuerte: con Lz>Ly el
+  //   Mcr quedaba hasta ×2.6 inflado (fix auditoría #90). C1=1.0 (momento
+  //   uniforme, caso pésimo) y zg=0 son correctos aquí: el módulo solo
+  //   recibe momentos de extremo, sin carga transversal — la asimetría con
+  //   steelBeams (que sí usa C2·zg para UDL en ala superior) es deliberada
+  //   (auditoría #98).
+  const Mcr_raw = My_Ed > 0 ? section.computeMcr(Lz, 1.0, E, G) : Infinity;
   const Mcr = Mcr_raw;  // may be Infinity (closed sections) — handled below
 
   let lambda_LT = 0;
@@ -211,6 +254,11 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     lambda_LT = Math.sqrt(My_Rk / Mcr);
     const alpha_LT = section.getLTBAlpha();
     if (isFinite(alpha_LT)) {
+      // χLT con el método GENERAL de §6.3.2.2 (meseta 0.2, β=1 — vía
+      // bucklingChi) pero con las curvas α de la Tabla 6.5 (caso laminados):
+      // mezcla DOBLEMENTE conservadora frente al caso laminados completo que
+      // usa steelBeams (λLT,0=0.4, β=0.75, tope 1/λ̄²). Elección deliberada
+      // del lado seguro para pilares; documentada en auditoría #95.
       chi_LT = bucklingChi(lambda_LT, alpha_LT);
       Mb_Rd  = chi_LT * My_Rk / γM1;
     }
@@ -224,20 +272,41 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const Mz_int = reduced.Mz;
   const M_res = reduced.M_res;
 
-  // 11. Interaction factors — Method 2, Annex B EC3 Tabla B.1 (I/H Class 1&2)
-  //     Cmy = Cmz = 1.0 (conservative, uniform moment)
+  // 11. Interaction factors — Method 2, Annex B EC3 (Cmy = Cmz = CmLT = 1.0,
+  //     conservative, uniform moment). Se usan los k de clase 1-2 también
+  //     para clase 3 (son mayores → lado seguro, auditoría #97).
   //   kyy = Cmy · [1 + (λ̄y − 0.2)·ny],  capped at Cmy · (1 + 0.8·ny)
-  //   kzz = Cmz · [1 + (2·λ̄z − 0.6)·nz], capped at Cmz · (1 + 1.4·nz)
+  //   kzz (I/H):       Cmz · [1 + (2·λ̄z − 0.6)·nz], capped at Cmz · (1 + 1.4·nz)
+  //   kzz (CHS/2UPN):  Tabla B.1 fila tubos = misma forma que kyy
+  //                    (fix auditoría #96 — la fila I/H era conservadora aquí)
   const n_y = Ned / (chi_y * NRk / γM1);
   const n_z = Ned / (chi_z * NRk / γM1);
 
   const mu_y = Math.min(Math.max(lambda_y - 0.2, 0), 0.8);
-  const mu_z = Math.min(Math.max(2 * lambda_z - 0.6, 0), 1.4);
+  const mu_z = (isCHS || isBox)
+    ? Math.min(Math.max(lambda_z - 0.2, 0), 0.8)
+    : Math.min(Math.max(2 * lambda_z - 0.6, 0), 1.4);
 
   const kyy = 1 + mu_y * n_y;
   const kzz = 1 + mu_z * n_z;
   const kyz = 0.6 * kzz;
-  const kzy = 0.6 * kyy;
+
+  // kzy: Tabla B.1 (0.6·kyy) SOLO para miembros no susceptibles a deformación
+  // por torsión (tubos, cajones, o I sin LTB). Para I abierta con My>0 y LTB
+  // aplica la Tabla B.2: kzy = 1 − 0.1·λ̄z·nz/(CmLT−0.25), con suelo
+  // 1 − 0.1·nz/(CmLT−0.25) y rama λ̄z<0.4. Antes se usaba siempre 0.6·kyy y el
+  // término de My en la ec. 2 quedaba hasta ×1.57 corto — verde cuando
+  // debería fallar (fix auditoría #88).
+  let kzy: number;
+  if (hasLTB) {
+    const CmLT = 1.0;
+    const red = 0.1 / (CmLT - 0.25);  // = 0.1333 con CmLT=1
+    kzy = lambda_z < 0.4
+      ? Math.min(0.6 + lambda_z, 1 - red * lambda_z * n_z)
+      : Math.max(1 - red * lambda_z * n_z, 1 - red * n_z);
+  } else {
+    kzy = 0.6 * kyy;
+  }
 
   // 12. Interaction checks 6.3.3
   const denom_N_y  = chi_y  * NRk / γM1;
@@ -253,15 +322,16 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     + (My_int > 0 ? kzy * My_int / denom_My : 0)
     + (Mz_int > 0 ? kzz * Mz_int / denom_Mz : 0);
 
-  // 13. Slenderness limits (Lk/i ≤ 200)
-  const slend_y = i_y > 0 ? Lk_y / i_y : Infinity;
-  const slend_z = i_z > 0 ? Lk_z / i_z : Infinity;
-  const SLEND_MAX = 200;
+  // 13. Slenderness limit — esbeltez REDUCIDA λ̄ ≤ 2.0 (criterio de elementos
+  //     principales, CTE DB-SE-A; bajo CE Anejo 22 es recomendación). El
+  //     antiguo Lk/i ≤ 200 equivalía a λ̄ = 2.30 (S275) / 2.62 (S355): más
+  //     laxo y dependiente del acero (fix auditoría #94).
+  const SLEND_MAX = 2.0;
 
   // Governing utilization
   const utilization = Math.max(
     util_check1, util_check2,
-    slend_y / SLEND_MAX, slend_z / SLEND_MAX,
+    lambda_y / SLEND_MAX, lambda_z / SLEND_MAX,
     Ned > 0 ? Ned / Nb_Rd_y : 0,
     Ned > 0 ? Ned / Nb_Rd_z : 0,
   );
@@ -270,35 +340,35 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const checks: SteelCheckRow[] = [];
 
   // Classification
-  checks.push(makeCheckNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE DB-SE-A 5.5.2'));
+  checks.push(makeCheckNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE Anejo 22 (EC3) §5.5.2'));
 
   // Section resistances
   if (Ned > 0) {
-    checks.push(makeCheckQty('NRd', 'Compresión  NEd / NRd', Ned, NRd, 'force', 'CE DB-SE-A 6.2.4'));
+    checks.push(makeCheckQty('NRd', 'Compresión  NEd / NRd', Ned, NRd, 'force', 'CE Anejo 22 (EC3) §6.2.4'));
   }
   if (isCHS && M_res !== undefined && M_res > 0) {
     // CHS: axisymmetric → single §6.2.5 check with resultant moment M_res.
     checks.push(makeCheckQty('MRes', `Flexión resultante  M_res = √(My²+Mz²) / M_Rd`,
-      M_res, My_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
+      M_res, My_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
   } else {
     if (My_Ed > 0) {
-      checks.push(makeCheckQty('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
+      checks.push(makeCheckQty('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
     }
     if (Mz_Ed > 0) {
-      checks.push(makeCheckQty('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd, 'moment', 'CE DB-SE-A 6.2.5'));
+      checks.push(makeCheckQty('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
     }
   }
 
   // Buckling
   checks.push(makeCheckQty('Nby', `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
-    Ned, Nb_Rd_y, 'force', 'CE DB-SE-A 6.3.1'));
+    Ned, Nb_Rd_y, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
   checks.push(makeCheckQty('Nbz', `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
-    Ned, Nb_Rd_z, 'force', 'CE DB-SE-A 6.3.1'));
+    Ned, Nb_Rd_z, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
 
   // LTB
   if (hasLTB) {
     checks.push(makeCheckQty('LTB', `Pandeo lateral  (λ̄LT=${lambda_LT.toFixed(2)}, χLT=${chi_LT.toFixed(2)})`,
-      My_Ed, Mb_Rd, 'moment', 'CE DB-SE-A 6.3.2'));
+      My_Ed, Mb_Rd, 'moment', 'CE Anejo 22 (EC3) §6.3.2'));
   }
 
   // Interaction — dimensionless ratios (stay on legacy string path)
@@ -306,22 +376,22 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     id: 'int1', description: 'Interacción N+My+Mz  (Ec. 1)',
     value: util_check1.toFixed(3), limit: '1.000',
     utilization: util_check1, status: toStatus(util_check1),
-    article: 'CE DB-SE-A 6.3.3',
+    article: 'CE Anejo 22 (EC3) §6.3.3',
   });
   checks.push({
     id: 'int2', description: 'Interacción N+My+Mz  (Ec. 2)',
     value: util_check2.toFixed(3), limit: '1.000',
     utilization: util_check2, status: toStatus(util_check2),
-    article: 'CE DB-SE-A 6.3.3',
+    article: 'CE Anejo 22 (EC3) §6.3.3',
   });
 
-  // Slenderness — dimensionless integer ratio
+  // Slenderness — dimensionless reduced slenderness ratio
   checks.push(checkStr('sy',
-    `Esbeltez  Lk/i (eje y) = ${slend_y.toFixed(0)}`,
-    slend_y, SLEND_MAX, slend_y.toFixed(0), `${SLEND_MAX}`, 'CE DB-SE-A 6.3.1.3'));
+    `Esbeltez reducida  λ̄ (eje y) = ${lambda_y.toFixed(2)}`,
+    lambda_y, SLEND_MAX, lambda_y.toFixed(2), `${SLEND_MAX.toFixed(1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
   checks.push(checkStr('sz',
-    `Esbeltez  Lk/i (eje z) = ${slend_z.toFixed(0)}`,
-    slend_z, SLEND_MAX, slend_z.toFixed(0), `${SLEND_MAX}`, 'CE DB-SE-A 6.3.1.3'));
+    `Esbeltez reducida  λ̄ (eje z) = ${lambda_z.toFixed(2)}`,
+    lambda_z, SLEND_MAX, lambda_z.toFixed(2), `${SLEND_MAX.toFixed(1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
 
   // Silence unused geometry readouts (h, b) — kept destructured for future
   // feature hooks (e.g. utilization warnings) without re-reading from `section`.

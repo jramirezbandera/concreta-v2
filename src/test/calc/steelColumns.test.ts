@@ -155,10 +155,10 @@ describe('Boundary conditions — β and Lk', () => {
     const r = calcSteelColumn(inp({ beta_y: 0.5, beta_z: 1.0 }));
     expect(r.lambda_y).not.toBeCloseTo(r.lambda_z, 3);
   });
-  it('custom beta_y=0 guard — Ly=Lz=100 β=0 should not crash (β=0 means Lk=0, χ=1)', () => {
+  it('beta ≤ 0 → invalid (fix auditoría #93: β=0 anulaba el pandeo con χ=1)', () => {
     const r = calcSteelColumn(inp({ Ly: 100, Lz: 100, beta_y: 0, beta_z: 0 }));
-    expect(r.valid).toBe(true);
-    expect(r.chi_y).toBeCloseTo(1.0, 3);
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/β/);
   });
 });
 
@@ -291,8 +291,8 @@ describe('Interaction 6.3.3', () => {
   });
 });
 
-// ─── Suite 9: Slenderness limits ─────────────────────────────────────────
-describe('Slenderness Lk/i ≤ 200', () => {
+// ─── Suite 9: Slenderness limits (λ̄ ≤ 2.0, fix auditoría #94) ────────────
+describe('Slenderness λ̄ ≤ 2.0', () => {
   it('Normal column: slenderness checks ok (status ok)', () => {
     const r = calcSteelColumn(inp());
     const sy = r.checks.find(c => c.id === 'sy')!;
@@ -300,11 +300,118 @@ describe('Slenderness Lk/i ≤ 200', () => {
     expect(sy.status).toBe('ok');
     expect(sz.status).toBe('ok');
   });
-  it('Very slender column (fc, long) → slenderness warn or fail', () => {
-    // HEB200, Ly=Lz=10000mm, fc (β=2.0) → Lk=20000mm, i_z≈50mm → λ=400 > 200
+  it('Very slender column (fc, long) → slenderness fail', () => {
+    // HEB200, Ly=Lz=10000mm, fc (β=2.0) → Lk=20000mm, λ̄z≈4.5 > 2.0
     const r = calcSteelColumn(inp({ Ly: 10000, Lz: 10000, beta_y: 2.0, beta_z: 2.0 }));
     const sz = r.checks.find(c => c.id === 'sz')!;
     expect(['warn', 'fail']).toContain(sz.status);
+  });
+  it('utilización del check = λ̄/2.0 (antes Lk/i/200, λ̄ equiv. 2.30-2.62)', () => {
+    const r = calcSteelColumn(inp());
+    const sz = r.checks.find(c => c.id === 'sz')!;
+    expect(sz.utilization).toBeCloseTo(r.lambda_z / 2.0, 6);
+  });
+});
+
+// ─── Fixes auditoría adenda 3 (hallazgos #88-93) ──────────────────────────
+describe('Auditoría #88: kzy de Tabla B.2 cuando hay LTB', () => {
+  // IPE300/S275 pp 3500, Ned=200, My=80 (oracle verificado a mano y por el
+  // agente adversarial): λ̄z=1.203, χz=0.476, n_z=0.298, Mcr=196.0,
+  // χLT=0.636, Mb,Rd=104.65. Con la Tabla B.1 (kzy=0.6·kyy=0.61) la ec. 2
+  // daba 0.765 (verde); con la B.2 (kzy=0.960) da 1.032 → FAIL.
+  const r = calcSteelColumn(inp({
+    sectionType: 'IPE', size: 300, steel: 'S275',
+    Ly: 3500, Lz: 3500, beta_y: 1, beta_z: 1,
+    Ned: 200, My_Ed: 80, Mz_Ed: 0,
+  }));
+
+  it('ec. 2 ≈ 1.03 → fail (antes 0.77 verde)', () => {
+    expect(r.util_check2).toBeCloseTo(1.032, 2);
+    expect(r.checks.find(c => c.id === 'int2')!.status).toBe('fail');
+  });
+
+  it('kzy reconstruido del check ≈ 0.960 (suelo 1 − 0.133·nz de la B.2)', () => {
+    const n_z = 200 / (r.chi_z * r.NRd);
+    const Mb = r.chi_LT * r.My_Rd;
+    const kzyFromCheck = (r.util_check2 - n_z) * Mb / 80;
+    expect(kzyFromCheck).toBeCloseTo(0.960, 2);
+  });
+
+  it('sin LTB (My=0 con Mz): kzy sigue siendo 0.6·kyy (Tabla B.1)', () => {
+    const r2 = calcSteelColumn(inp({
+      sectionType: 'IPE', size: 300, steel: 'S275',
+      Ly: 3500, Lz: 3500, Ned: 200, My_Ed: 0, Mz_Ed: 20,
+    }));
+    // My=0 → término kzy ausente; comprobamos solo que no revienta y check2
+    // = n_z + kzz·Mz/Mz_Rd (sin contribución My)
+    expect(r2.valid).toBe(true);
+    expect(r2.checks.some(c => c.id === 'LTB')).toBe(false);
+  });
+});
+
+describe('Auditoría #89: fy reducido para t > 16 mm', () => {
+  it('HEB300/S275 (tf=19): NRd con fy=265', () => {
+    // A=149 cm²: NRd = 149·265·0.1/1.05 = 3760.5 kN
+    const r = calcSteelColumn(inp({ sectionType: 'HEB', size: 300, Ned: 1000 }));
+    expect(r.NRd).toBeCloseTo(3760.5, 0);
+  });
+
+  it('HEB200 (tf=15 ≤ 16): fy nominal intacto', () => {
+    // A=78.1 cm²: NRd = 78.1·275·0.1/1.05 = 2045.5 kN
+    const r = calcSteelColumn(inp());
+    expect(r.NRd).toBeCloseTo(2045.5, 0);
+  });
+});
+
+describe('Auditoría #90: longitud de LTB = Lz (arriostramientos laterales)', () => {
+  it('IPE300, Ly=3500/Lz=7000: Mcr ≈ 74.3 kNm (antes usaba Ly → 196.0)', () => {
+    const r = calcSteelColumn(inp({
+      sectionType: 'IPE', size: 300, steel: 'S275',
+      Ly: 3500, Lz: 7000, Ned: 50, My_Ed: 30, Mz_Ed: 0,
+    }));
+    expect(r.Mcr).toBeCloseTo(74.3, 0);
+  });
+
+  it('Lz=Ly=3500: Mcr ≈ 196.0 kNm (sin cambio en el caso simétrico)', () => {
+    const r = calcSteelColumn(inp({
+      sectionType: 'IPE', size: 300, steel: 'S275',
+      Ly: 3500, Lz: 3500, Ned: 50, My_Ed: 30, Mz_Ed: 0,
+    }));
+    expect(r.Mcr).toBeCloseTo(196.0, 0);
+  });
+});
+
+describe('Auditoría #91: clasificación del alma con la distribución real N+M', () => {
+  it('IPE300/S355 con poco axil y M dominante: VÁLIDO, clase ≤ 2 (antes clase 4 rechazado)', () => {
+    const r = calcSteelColumn(inp({
+      sectionType: 'IPE', size: 300, steel: 'S355',
+      Ned: 50, My_Ed: 60, Mz_Ed: 0,
+    }));
+    expect(r.valid).toBe(true);
+    expect(r.sectionClass).toBeLessThanOrEqual(2);
+  });
+
+  it('IPE300/S355 en compresión pura fuerte: sigue siendo clase 4 → invalid', () => {
+    const r = calcSteelColumn(inp({
+      sectionType: 'IPE', size: 300, steel: 'S355',
+      Ned: 2000, My_Ed: 0, Mz_Ed: 0,
+    }));
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/Clase 4/);
+  });
+
+  it('HEB200/S275 defaults: sigue clase 1 (alma poco esbelta, sin cambio)', () => {
+    expect(calcSteelColumn(inp()).sectionClass).toBe(1);
+  });
+});
+
+describe('Auditoría #92: momentos negativos normalizados', () => {
+  it('My_Ed=-50 da el mismo resultado que +50 (antes desactivaba flexión/LTB)', () => {
+    const pos = calcSteelColumn(inp({ My_Ed: 50 }));
+    const neg = calcSteelColumn(inp({ My_Ed: -50 }));
+    expect(neg.util_check1).toBeCloseTo(pos.util_check1, 6);
+    expect(neg.util_check2).toBeCloseTo(pos.util_check2, 6);
+    expect(neg.checks.some(c => c.id === 'LTB')).toBe(true);
   });
 });
 

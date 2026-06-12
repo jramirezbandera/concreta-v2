@@ -84,15 +84,27 @@ export interface ReducedMoments {
  * needs only geometry (composite / anchor-plate) stays decoupled from these
  * methods.
  */
+/** Web stress distribution for `classify(mode='combined')` (EC3 Tab 5.2). */
+export interface CombinedClassifyOpts {
+  /** Plastic compressed fraction of the web depth α ∈ [0,1] (class 1/2 limits). */
+  alphaWeb: number;
+  /** Elastic stress ratio ψ = σ_min/σ_max at web ends (class 3 limit). */
+  psiWeb: number;
+}
+
+export type ClassifyMode = 'compression' | 'bending' | 'combined';
+
 export interface ColumnBeamSection extends SectionGeometry {
   /**
    * EC3 §5.5 Table 5.2 classification. Returns 1..4. Input is the yield
    * strength fy in MPa (the method already applies ε = √(235/fy)). The
    * optional `mode` selects web limits: `compression` uses 33/38/42·ε;
-   * `bending` uses 72/83/124·ε. CHS ignores the mode (D/t limits are
-   * axis-independent). Defaults to `compression` for column use.
+   * `bending` uses 72/83/124·ε; `combined` (auditoría #91) interpola con la
+   * distribución real N+M del alma vía α (plástica) y ψ (elástica) de
+   * `opts`. CHS ignores the mode (D/t limits are axis-independent).
+   * Defaults to `compression` for column use.
    */
-  classify(fy: number, mode?: 'compression' | 'bending'): number;
+  classify(fy: number, mode?: ClassifyMode, opts?: CombinedClassifyOpts): number;
 
   /**
    * Flexural buckling imperfection factors α per EC3 §6.3.1.2 Tab 6.1/6.2.

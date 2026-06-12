@@ -61,7 +61,7 @@ export class UPNBoxAdapter implements ColumnBeamSection {
     this.r = 0;
   }
 
-  classify(fy: number, _mode: 'compression' | 'bending' = 'compression'): number {
+  classify(fy: number, _mode: 'compression' | 'bending' | 'combined' = 'compression'): number {
     // Box elements are INTERNAL (both faces welded) except the UPN flange tips.
     // Conservative approach (matches existing steelColumns.ts):
     //   - treat both web c/t and flange c/t against INTERNAL limits
