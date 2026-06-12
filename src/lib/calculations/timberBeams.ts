@@ -4,7 +4,8 @@
 //
 // Checks:
 //   ELU: Bending (§6.1.6), Shear (§6.1.7), LTB (§6.3.3)
-//   ELS: Deflection instantánea (L/300), final (L/250), activa (L/350) §7.2 + NA
+//   ELS: CTE DB-SE 4.3.3 — integridad (activa, L/500-300 según tabiquería),
+//        confort (sobrecarga inst., L/350), apariencia (final, L/300)
 //   Fuego: Sección reducida (§4.2.2, EN 1995-1-2)
 
 import { type TimberBeamInputs } from '../../data/defaults';
@@ -71,13 +72,17 @@ export interface TimberBeamResult {
   sigma_m_crit: number;
   lambda_rel_m: number;
   kcrit: number;
-  // ELS deflections (mm)
-  u_inst: number;
-  u_fin: number;
-  u_active: number;
+  // ELS deflections (mm) — CTE DB-SE 4.3.3
+  u_inst: number;        // instantánea total G+Q (informativa)
+  u_fin: number;         // final total (apariencia, comb. característica)
+  u_active: number;      // ACTIVA = u_G·kdef + u_Q·(1+ψ2·kdef) (integridad)
+  u_confort: number;     // instantánea de la sobrecarga (confort)
   u_inst_lim: number;
   u_fin_lim: number;
   u_active_lim: number;
+  u_confort_lim: number;
+  // ELU combination bookkeeping
+  permGoverns: boolean;  // la combinación solo-permanente gobierna (EC5 §3.1.3(2))
   // Fire
   fireActive: boolean;
   t_fire: number;           // min
@@ -90,8 +95,10 @@ export interface TimberBeamResult {
   VEd_fi: number;           // kN
   sigma_m_fi: number;       // N/mm²
   tau_fi: number;           // N/mm²
-  fm_k_fi: number;          // N/mm² = fm_k (γM,fi = 1.0)
-  fv_k_fi: number;          // N/mm²
+  kfi: number;              // 1.25 aserrada / 1.15 glulam (EN 1995-1-2 §2.3)
+  kcrit_fi: number;         // LTB en fuego (1.0 si arriostrada / 3 caras)
+  fm_k_fi: number;          // N/mm² = kfi·fm_k (γM,fi = 1.0)
+  fv_k_fi: number;          // N/mm² = kfi·fv_k
   // Results
   checks: TimberCheckRow[];
 }
@@ -133,11 +140,12 @@ function invalidResult(error: string): TimberBeamResult {
     fm_d: 0, fm_d_kh: 0, fv_d: 0,
     MEd: 0, VEd: 0, sigma_m: 0, tau_d: 0,
     sigma_m_crit: 0, lambda_rel_m: 0, kcrit: 0,
-    u_inst: 0, u_fin: 0, u_active: 0,
-    u_inst_lim: 0, u_fin_lim: 0, u_active_lim: 0,
+    u_inst: 0, u_fin: 0, u_active: 0, u_confort: 0,
+    u_inst_lim: 0, u_fin_lim: 0, u_active_lim: 0, u_confort_lim: 0,
+    permGoverns: false,
     fireActive: false, t_fire: 0, betaN: 0, dchar: 0, def: 0,
     b_ef: 0, h_ef: 0, MEd_fi: 0, VEd_fi: 0,
-    sigma_m_fi: 0, tau_fi: 0, fm_k_fi: 0, fv_k_fi: 0,
+    sigma_m_fi: 0, tau_fi: 0, kfi: 0, kcrit_fi: 1, fm_k_fi: 0, fv_k_fi: 0,
     checks: [],
   };
 }
@@ -154,10 +162,22 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const bc = inp.beamType;
 
   // ── Material parameters ────────────────────────────────────────────────────
-  const kmod   = getKmod(inp.loadDuration as LoadDurationClass, inp.serviceClass as ServiceClass);
+  const kmod_user = getKmod(inp.loadDuration as LoadDurationClass, inp.serviceClass as ServiceClass);
   const kdef   = getKdef(grade.type, inp.serviceClass as ServiceClass);
   const gammaM = getGammaM(grade.type);
   const psi2   = inp.loadType === 'custom' ? inp.psi2Custom : (PSI2_TABLE[inp.loadType] ?? 0.30);
+
+  // ── ELU — combinaciones (EC5 §3.1.3(2), fix auditoría #113) ───────────────
+  // Cada combinación se verifica con el kmod de su acción más corta. Además
+  // de la combinación G+Q del usuario hay que comprobar la SOLO-PERMANENTE
+  // (1.35·gk con kmod permanente): gobierna cuando qk < ~0.3·gk. Como demanda
+  // ∝ w y capacidad ∝ kmod, gobierna la combinación con mayor w/kmod.
+  const kmod_perm = getKmod('permanent', inp.serviceClass as ServiceClass);
+  const w_main = γG * inp.gk + γQ * inp.qk;   // kN/m
+  const w_perm = γG * inp.gk;                  // kN/m
+  const permGoverns = w_perm / kmod_perm > w_main / kmod_user;
+  const w_elu = permGoverns ? w_perm : w_main;
+  const kmod  = permGoverns ? kmod_perm : kmod_user;
 
   const fm_d = kmod * grade.fm_k / gammaM;   // N/mm²  (without kh — kept for reference)
   const fv_d = kmod * grade.fv_k / gammaM;   // N/mm²
@@ -167,8 +187,6 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const W = b * h * h / 6;           // mm³
   const I = b * h * h * h / 12;      // mm⁴
 
-  // ── ELU — combined design load ────────────────────────────────────────────
-  const w_elu = γG * inp.gk + γQ * inp.qk;   // kN/m
   const L_m   = L;                            // m (already)
   const MEd   = BEAM_CASES[bc].MEd(w_elu, L_m);   // kNm
   const VEd   = BEAM_CASES[bc].VEd(w_elu, L_m);   // kN
@@ -206,9 +224,13 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const tau_d = 1.5 * VEd * 1e3 / A_ef;   // N/mm²
 
   // ── ELU — LTB (EC5 §6.3.3) — rectangular section ─────────────────────────
-  // Effective length Lef: conservative values per EC5 Table 6.1
-  const Lef_m = bc === 'cantilever' ? 2.0 * L_m : L_m;   // m
-  const Lef   = Lef_m * 1000;                              // mm
+  // Lef per EC5 Tabla 6.1 CON la corrección de carga en el borde COMPRIMIDO
+  // (+2h, el caso físico habitual de UDL sobre el cordón superior): ss/ff/fp
+  // UDL → 0.9·L + 2h; ménsula UDL → 0.5·L + 2h. Antes se usaba 1.0·L sin +2h
+  // (no conservador para L < 20h) y 2.0·L en ménsula sin respaldo en la tabla
+  // (fix auditoría #112).
+  const lefFactor = bc === 'cantilever' ? 0.5 : 0.9;
+  const Lef = lefFactor * L_m * 1000 + 2 * h;   // mm
 
   // Critical bending stress (rectangular section, major axis bending):
   // σm,crit = 0.78 × b² × E0,05 / (h × Lef)
@@ -229,38 +251,54 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
 
   const fm_d_eff = kcrit * fm_d_sys;   // effective bending strength after LTB (kh + ksys + kcrit)
 
-  // ── ELS — Deflections (EC5 §7.2 + Spanish NA) ────────────────────────────
-  // Formula contract per BEAM_CASES.k_defl (see beamCases.ts):
-  //   δ = k_defl · Mser · L² / (E · I)
-  // where Mser is the characteristic (unfactored) bending moment from the
-  // service load, and k_defl encodes the beam-case integration constant.
-  // For ss this gives δ = (5/48)·(wL²/8)·L²/EI = 5wL⁴/(384·EI). ✓
+  // ── ELS — Flechas (CTE DB-SE 4.3.3 — fixes auditoría #109, #110, #114) ───
+  // Flexión: δ = k_defl · Mser · L² / (E·I)  (contrato BEAM_CASES.k_defl).
+  // Cortante: δs = k_shear · w · L² / (G·A) con κ=1.2 incluido — en madera
+  // E/G ≈ 16 y vale un 6-10% de la flecha (antes omitida, #114).
   const E_mm2 = grade.E0_mean * 1000;   // N/mm²
+  const G_mm2 = grade.G_mean * 1000;    // N/mm²
   const L_mm  = L_m * 1000;             // mm
 
-  const k_defl = BEAM_CASES[bc].k_defl;
+  const k_defl  = BEAM_CASES[bc].k_defl;
+  const k_shear = BEAM_CASES[bc].k_shear;
 
   // Service-level (characteristic) moments from gk and qk separately
   const Mser_G = BEAM_CASES[bc].MEd(inp.gk, L_m);   // kNm
   const Mser_Q = BEAM_CASES[bc].MEd(inp.qk, L_m);   // kNm
 
-  // Instantaneous deflections — Mser kNm × 1e6 → Nmm; result in mm
-  const u_inst_G2 = k_defl * Mser_G * 1e6 * L_mm ** 2 / (E_mm2 * I);
-  const u_inst_Q  = k_defl * Mser_Q * 1e6 * L_mm ** 2 / (E_mm2 * I);
+  // Instantaneous deflections (flexión + cortante) — w kN/m = N/mm
+  const u_inst_G2 = k_defl * Mser_G * 1e6 * L_mm ** 2 / (E_mm2 * I)
+                  + k_shear * inp.gk * L_mm ** 2 / (G_mm2 * A);
+  const u_inst_Q  = k_defl * Mser_Q * 1e6 * L_mm ** 2 / (E_mm2 * I)
+                  + k_shear * inp.qk * L_mm ** 2 / (G_mm2 * A);
   const u_inst    = u_inst_G2 + u_inst_Q;
 
-  // Long-term (final) deflections
+  // Final total (combinación característica con fluencia EC5 §2.2.3)
   const u_fin_G = u_inst_G2 * (1 + kdef);
   const u_fin_Q = u_inst_Q  * (1 + psi2 * kdef);
   const u_fin   = u_fin_G + u_fin_Q;
 
-  // Active deflection (variable part only, long-term) — governs over tabiquería
-  const u_active = u_inst_Q * (1 + psi2 * kdef);
+  // INTEGRIDAD — flecha ACTIVA: la producida después de construir los
+  // elementos frágiles = u_fin − u_inst,G = u_G·kdef + u_Q·(1+ψ2·kdef).
+  // Antes se omitía la fluencia diferida de G (u_G·kdef — hasta el 83% del
+  // valor con kdef=2.0), fix auditoría #109.
+  const u_active = u_inst_G2 * kdef + u_inst_Q * (1 + psi2 * kdef);
 
-  // Admissible limits — Spanish NA NA.7.2.2
-  const u_inst_lim   = L_mm / 300;
-  const u_fin_lim    = L_mm / 250;
-  const u_active_lim = L_mm / 350;
+  // CONFORT — sobrecarga característica, solo flecha instantánea
+  const u_confort = u_inst_Q;
+
+  // Límites CTE DB-SE 4.3.3 (fix #110 — antes límites mezclados citando un
+  // «NA España» inexistente): integridad según tabiquería (L/500 frágiles,
+  // L/400 ordinarios, L/300 sin tabiques); confort L/350; apariencia L/300
+  // (el check de apariencia usa u_fin de la combinación característica,
+  // ligeramente conservador frente a la casi permanente del CTE).
+  const integDenom = inp.partitionType === 'fragile' ? 500
+                   : inp.partitionType === 'none'    ? 300
+                   : 400;
+  const u_active_lim  = L_mm / integDenom;
+  const u_confort_lim = L_mm / 350;
+  const u_fin_lim     = L_mm / 300;
+  const u_inst_lim    = L_mm / 300;   // informativo (no es check CTE)
 
   // ── FIRE — EN 1995-1-2 (sección reducida) ────────────────────────────────
   const fireActive = inp.fireResistance !== 'R0';
@@ -284,19 +322,48 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const MEd_fi = fireActive ? BEAM_CASES[bc].MEd(w_fi, L_m) : 0;
   const VEd_fi = fireActive ? BEAM_CASES[bc].VEd(w_fi, L_m) : 0;
 
-  // Fire design strengths: kmod,fi = 1.0, γM,fi = 1.0
-  const fm_k_fi = grade.fm_k;
-  const fv_k_fi = grade.fv_k;
+  // Fire design strengths: fd,fi = kfi·fk (percentil 20%) con kmod,fi = 1.0 y
+  // γM,fi = 1.0 — EN 1995-1-2 §2.3/Tabla 2.1: kfi = 1.25 aserrada / 1.15
+  // glulam. Antes se usaba fk directamente (−13/−20% de capacidad sin
+  // documentar), fix auditoría #117.
+  const kfi = grade.type === 'glulam' ? 1.15 : 1.25;
+  const fm_k_fi = kfi * grade.fm_k;
+  const fv_k_fi = kfi * grade.fv_k;
 
   const A_fi_ef    = kcr * A_fi;   // effective shear area in fire section
   const sigma_m_fi = (fireActive && W_fi > 0)     ? MEd_fi * 1e6 / W_fi : 0;
   const tau_fi     = (fireActive && A_fi_ef > 0)  ? 1.5 * VEd_fi * 1e3 / A_fi_ef : 0;
+
+  // LTB en situación de incendio (fix auditoría #111): la sección residual es
+  // muy esbelta (R60 con defaults: 40×345, h/b≈8.6). Con 3 caras expuestas se
+  // presume tablero superior que arriostra el borde comprimido (kcrit,fi=1);
+  // con 4 caras expuestas no hay arriostramiento y §6.3.3 aplica con la
+  // geometría residual.
+  let kcrit_fi = 1.0;
+  if (fireActive && inp.exposedFaces === 4 && b_ef > 0 && h_ef > 0) {
+    const sigma_m_crit_fi = 0.78 * b_ef * b_ef * E0_05_Nmm2 / (h_ef * Lef);
+    const lambda_rel_fi = Math.sqrt(fm_k_fi / sigma_m_crit_fi);
+    kcrit_fi = lambda_rel_fi <= 0.75 ? 1.0
+             : lambda_rel_fi <= 1.40 ? 1.56 - 0.75 * lambda_rel_fi
+             : 1.0 / (lambda_rel_fi * lambda_rel_fi);
+  }
 
   // ── Build check rows ───────────────────────────────────────────────────────
   const checks: TimberCheckRow[] = [];
 
   // — ELU header —
   checks.push(mkNeutral('elu-header', 'ELU — Estado Límite Último', 'EC5 §6', 'EN 1995-1-1 §6', 'elu'));
+
+  // Combinación que gobierna (fix #113)
+  if (permGoverns) {
+    checks.push(mkNeutral(
+      'elu-perm-combo',
+      `Gobierna la combinación solo-permanente: 1.35·gk con kmod=${kmod.toFixed(2)} (EC5 §3.1.3(2))`,
+      'G SOLO',
+      'EN 1995-1-1 §3.1.3(2)',
+      'elu',
+    ));
+  }
 
   // Bending (uses fm_d_sys = ksys × kmod×kh×fm_k/γM)
   const khLabel   = kh   > 1.0 ? `·kh=${kh.toFixed(3)}`   : '';
@@ -338,36 +405,40 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     group: 'elu',
   });
 
-  // — ELS header —
-  checks.push(mkNeutral('els-header', 'ELS — Estado Límite de Servicio', 'EC5 §7.2', 'EN 1995-1-1 §7.2 + NA España', 'els'));
+  // — ELS header — límites del CTE DB-SE 4.3.3 (fix #110: España no tiene
+  // Anejo Nacional publicado a EC5; las flechas van por DB-SE)
+  checks.push(mkNeutral('els-header', 'ELS — Estado Límite de Servicio', 'CTE DB-SE 4.3.3', 'CTE DB-SE 4.3.3 + EC5 §7.2 (fluencia)', 'els'));
+
+  const partLabel = inp.partitionType === 'fragile' ? 'tabiques frágiles'
+                  : inp.partitionType === 'none'    ? 'sin tabiques'
+                  : 'tabiques ordinarios';
+  checks.push(mkCheck(
+    'defl-active',
+    `Integridad — flecha activa (u_G·kdef + u_Q·(1+ψ2·kdef)) ≤ L/${integDenom} (${partLabel})`,
+    u_active, u_active_lim,
+    `${u_active.toFixed(1)} mm`,
+    `${u_active_lim.toFixed(1)} mm  (L/${integDenom})`,
+    'CTE DB-SE 4.3.3.1.a — integridad de elementos constructivos',
+    'els',
+  ));
 
   checks.push(mkCheck(
-    'defl-inst',
-    `Flecha instantánea u_inst ≤ L/300`,
-    u_inst, u_inst_lim,
-    `${u_inst.toFixed(1)} mm`,
-    `${u_inst_lim.toFixed(1)} mm  (L/300)`,
-    'EN 1995-1-1 §7.2 / NA España NA.7.2.2',
+    'defl-confort',
+    `Confort — sobrecarga instantánea u_Q ≤ L/350`,
+    u_confort, u_confort_lim,
+    `${u_confort.toFixed(1)} mm`,
+    `${u_confort_lim.toFixed(1)} mm  (L/350)`,
+    'CTE DB-SE 4.3.3.1.b — confort de usuarios',
     'els',
   ));
 
   checks.push(mkCheck(
     'defl-fin',
-    `Flecha final u_fin ≤ L/250`,
+    `Apariencia — flecha final u_fin ≤ L/300`,
     u_fin, u_fin_lim,
     `${u_fin.toFixed(1)} mm`,
-    `${u_fin_lim.toFixed(1)} mm  (L/250)`,
-    'EN 1995-1-1 §7.2 / NA España NA.7.2.2',
-    'els',
-  ));
-
-  checks.push(mkCheck(
-    'defl-active',
-    `Flecha activa u_active ≤ L/350`,
-    u_active, u_active_lim,
-    `${u_active.toFixed(1)} mm`,
-    `${u_active_lim.toFixed(1)} mm  (L/350)`,
-    'EN 1995-1-1 §7.2(2) / NA España — flecha activa (tabiquería)',
+    `${u_fin_lim.toFixed(1)} mm  (L/300)`,
+    'CTE DB-SE 4.3.3.1.c — apariencia (comb. característica con fluencia, lado seguro)',
     'els',
   ));
 
@@ -384,23 +455,38 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     if (W_fi > 0) {
       checks.push(mkCheck(
         'fire-bending',
-        `Incendio — Flexión σm,fi ≤ fm,k`,
+        `Incendio — Flexión σm,fi ≤ kfi·fm,k (kfi=${kfi.toFixed(2)})`,
         sigma_m_fi, fm_k_fi,
         `${sigma_m_fi.toFixed(2)} N/mm²`,
         `${fm_k_fi.toFixed(2)} N/mm²`,
-        'EN 1995-1-2 §4.2.2 — Flexión en incendio (γM,fi=1.0)',
+        'EN 1995-1-2 §4.2.2 + §2.3 — Flexión en incendio (f20 = kfi·fk, γM,fi=1.0)',
         'fire',
       ));
 
       checks.push(mkCheck(
         'fire-shear',
-        `Incendio — Cortante τfi ≤ fv,k`,
+        `Incendio — Cortante τfi ≤ kfi·fv,k`,
         tau_fi, fv_k_fi,
         `${tau_fi.toFixed(2)} N/mm²`,
         `${fv_k_fi.toFixed(2)} N/mm²`,
-        'EN 1995-1-2 §4.2.2 — Cortante en incendio (γM,fi=1.0)',
+        'EN 1995-1-2 §4.2.2 + §2.3 — Cortante en incendio (γM,fi=1.0)',
         'fire',
       ));
+
+      // LTB en fuego — solo con 4 caras expuestas (sin tablero que arriostre);
+      // la sección residual es muy esbelta (fix auditoría #111)
+      if (inp.exposedFaces === 4) {
+        const fm_fi_eff = kcrit_fi * fm_k_fi;
+        checks.push(mkCheck(
+          'fire-ltb',
+          `Incendio — Pandeo lateral σm,fi ≤ kcrit,fi·kfi·fm,k (kcrit,fi=${kcrit_fi.toFixed(2)}, sección residual ${b_ef.toFixed(0)}×${h_ef.toFixed(0)})`,
+          sigma_m_fi, fm_fi_eff,
+          `${sigma_m_fi.toFixed(2)} N/mm²`,
+          `${fm_fi_eff.toFixed(2)} N/mm²`,
+          'EN 1995-1-2 §4.2.2 + EN 1995-1-1 §6.3.3 — LTB de la sección residual (4 caras, sin arriostrar)',
+          'fire',
+        ));
+      }
     } else {
       checks.push(mkNeutral(
         'fire-section-lost',
@@ -412,6 +498,16 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     }
   }
 
+  // Límites declarados del módulo (fix auditoría #115/#116): visibles en UI
+  // y PDF para que el gap de alcance no sea silencioso.
+  checks.push(mkNeutral(
+    'scope-note',
+    'No incluido: compresión perpendicular en apoyos (EC5 §6.1.5) ni vibración de forjados (§7.3) — verificar aparte si aplican',
+    'LÍMITES',
+    'EN 1995-1-1 §6.1.5 / §7.3',
+    'els',
+  ));
+
   return {
     valid: true,
     kmod, kdef, gammaM, psi2, kh, kcr, ksys,
@@ -419,13 +515,14 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     MEd, VEd,
     sigma_m, tau_d,
     sigma_m_crit, lambda_rel_m, kcrit,
-    u_inst, u_fin, u_active,
-    u_inst_lim, u_fin_lim, u_active_lim,
+    u_inst, u_fin, u_active, u_confort,
+    u_inst_lim, u_fin_lim, u_active_lim, u_confort_lim,
+    permGoverns,
     fireActive, t_fire, betaN, dchar, def,
     b_ef, h_ef,
     MEd_fi, VEd_fi,
     sigma_m_fi, tau_fi,
-    fm_k_fi, fv_k_fi,
+    kfi, kcrit_fi, fm_k_fi, fv_k_fi,
     checks,
   };
 }

@@ -19,22 +19,18 @@
 //           = 0.78×166 500 000/2 000 000 = 0.78×83.25 = 64.935 N/mm²
 //   λrel,m = sqrt(24/64.935) = sqrt(0.3695) = 0.608 → ≤0.75 → kcrit=1.0
 //
-// ELS (formula contract: δ = k_defl · Mser · L² / EI; for ss → 5wL⁴/(384·EI)):
-//   I = 150×400³/12 = 800 000 000 mm⁴
-//   E0_mean = 11.0 kN/mm² → 11 000 N/mm²
-//   EI = 11000 × 8e8 = 8.8e12 N·mm²
-//   Mser_G = 2×5²/8 = 6.25 kNm = 6.25e6 Nmm
-//   Mser_Q = 3×5²/8 = 9.375 kNm = 9.375e6 Nmm
-//   k_defl (ss) = 5/48
-//   u_inst_G = (5/48) × 6.25e6 × 5000² / 8.8e12
-//            = (5/48) × 6.25e6 × 2.5e7 / 8.8e12
-//            = (5/48) × 17.756 = 1.850 mm
-//   u_inst_Q = (5/48) × 9.375e6 × 2.5e7 / 8.8e12
-//            = (5/48) × 26.634 = 2.774 mm
-//   u_inst   = 1.850 + 2.774 = 4.624 mm  → L/300 = 16.67 mm → OK
-//   u_fin    = 1.850×(1+0.60) + 2.774×(1+0.30×0.60)
-//            = 2.960 + 3.273 = 6.234 mm → L/250 = 20.00 mm → OK
-//   u_active = 2.774 × 1.18 = 3.273 mm    → L/350 = 14.29 mm → OK
+// ELS (CTE DB-SE 4.3.3, fixes auditoría #109/#110/#114 — flexión + CORTANTE):
+//   I = 8e8 mm⁴; EI = 8.8e12; A = 60 000 mm²; G = 0.69 kN/mm² → GA = 4.14e7
+//   Flexión: u_G,b = (5/48)·6.25e6·2.5e7/8.8e12 = 1.850 mm; u_Q,b = 2.774 mm
+//   Cortante (k_shear=0.15): u_G,s = 0.15·2·2.5e7/4.14e7 = 0.181 mm; u_Q,s = 0.272 mm
+//   u_inst_G = 2.031 ; u_inst_Q = 3.046 ; u_inst = 5.08 mm
+//   u_fin    = 2.031×1.60 + 3.046×1.18 = 6.84 mm  → L/300 = 16.67 OK (apariencia)
+//   u_ACTIVA = 2.031×0.60 + 3.046×1.18 = 4.81 mm  → L/400 = 12.50 OK (integridad,
+//              tabiques ordinarios; ANTES se omitía u_G·kdef y daba 3.27)
+//   u_confort = 3.046 mm → L/350 = 14.29 OK
+//
+// LTB con Lef de Tabla 6.1 (fix #112): Lef = 0.9·5000 + 2·400 = 5300 mm
+//   σm,crit = 0.78×150²×7400/(400×5300) = 61.3 N/mm² ; λrel = 0.626 → kcrit = 1
 
 import { describe, expect, it } from 'vitest';
 import { calcTimberBeam } from '../../lib/calculations/timberBeams';
@@ -55,6 +51,7 @@ const baseInp: TimberBeamInputs = {
   fireResistance: 'R0',
   exposedFaces: 3,
   isSystem: false,
+  partitionType: 'ordinary',
 };
 
 describe('calcTimberBeam — C24 150×400 ss L=5m', () => {
@@ -143,20 +140,20 @@ describe('calcTimberBeam — C24 150×400 ss L=5m', () => {
     expect(shear?.status).toBe('ok');
   });
 
-  it('LTB: λrel,m ≈ 0.608 → kcrit = 1.0', () => {
+  it('LTB: λrel,m ≈ 0.626 (Lef=0.9L+2h) → kcrit = 1.0', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.lambda_rel_m).toBeCloseTo(0.608, 1);
+    expect(r.lambda_rel_m).toBeCloseTo(0.626, 1);
     expect(r.kcrit).toBeCloseTo(1.0, 4);
   });
 
-  it('LTB σm,crit ≈ 64.9 N/mm²', () => {
+  it('LTB σm,crit ≈ 61.3 N/mm² (Lef=5300, fix #112)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.sigma_m_crit).toBeCloseTo(64.9, 0);
+    expect(r.sigma_m_crit).toBeCloseTo(61.3, 0);
   });
 
-  it('ELS: u_inst ≈ 4.62 mm (5wL⁴/384EI)', () => {
+  it('ELS: u_inst ≈ 5.08 mm (flexión + cortante, fix #114)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_inst).toBeCloseTo(4.62, 1);
+    expect(r.u_inst).toBeCloseTo(5.08, 1);
   });
 
   it('ELS: u_inst_lim = L/300 = 16.67 mm', () => {
@@ -164,19 +161,19 @@ describe('calcTimberBeam — C24 150×400 ss L=5m', () => {
     expect(r.u_inst_lim).toBeCloseTo(5000 / 300, 1);
   });
 
-  it('ELS: u_fin ≈ 6.23 mm', () => {
+  it('ELS: u_fin ≈ 6.84 mm', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_fin).toBeCloseTo(6.23, 1);
+    expect(r.u_fin).toBeCloseTo(6.84, 1);
   });
 
-  it('ELS: u_active ≈ 3.27 mm', () => {
+  it('ELS: u_activa ≈ 4.81 mm con fluencia de G (fix #109; antes 3.27)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.u_active).toBeCloseTo(3.27, 1);
+    expect(r.u_active).toBeCloseTo(4.81, 1);
   });
 
   it('deflection checks PASS for base case (normal loads)', () => {
     const r = calcTimberBeam(baseInp);
-    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('ok');
+    expect(r.checks.find(c => c.id === 'defl-confort')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('ok');
   });
@@ -238,9 +235,9 @@ describe('calcTimberBeam — fire resistance', () => {
     expect(r.checks.find(c => c.id === 'fire-bending')).toBeTruthy();
   });
 
-  it('fire bending uses fm,k as limit (γM,fi=1.0)', () => {
+  it('fire bending uses kfi·fm,k as limit (fix #117)', () => {
     const r = calcTimberBeam(fireInp);
-    expect(r.fm_k_fi).toBeCloseTo(24, 4);  // fm_k of C24
+    expect(r.fm_k_fi).toBeCloseTo(30, 4);  // kfi·fm_k = 1.25×24 (fix #117)
   });
 });
 
@@ -360,7 +357,7 @@ describe('calcTimberBeam — FTUX defaults produce valid result', () => {
     expect(r.checks.find(c => c.id === 'bending')).toBeTruthy();
     expect(r.checks.find(c => c.id === 'shear')).toBeTruthy();
     expect(r.checks.find(c => c.id === 'ltb')).toBeTruthy();
-    expect(r.checks.find(c => c.id === 'defl-inst')).toBeTruthy();
+    expect(r.checks.find(c => c.id === 'defl-confort')).toBeTruthy();
     expect(r.checks.find(c => c.id === 'defl-fin')).toBeTruthy();
     expect(r.checks.find(c => c.id === 'defl-active')).toBeTruthy();
   });
@@ -472,7 +469,7 @@ describe('calcTimberBeam — ELS all checks OK', () => {
   it('lightly loaded beam: all deflection checks pass', () => {
     // C24 150×500, L=4m, gk=0.5, qk=0.5 → very light → all ELS ok
     const r = calcTimberBeam({ ...baseInp, h: 500, L: 4, gk: 0.5, qk: 0.5 });
-    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('ok');
+    expect(r.checks.find(c => c.id === 'defl-confort')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('ok');
     expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('ok');
   });
@@ -487,8 +484,8 @@ describe('calcTimberBeam — ELS deflection FAIL path', () => {
     // u_fin    ≈ 65.44 mm  > L/250 = 36.0  → FAIL
     // u_active ≈ 34.37 mm  > L/350 = 25.71 → FAIL
     const r = calcTimberBeam({ ...baseInp, L: 9 });
-    expect(r.u_inst).toBeCloseTo(48.55, 0);
-    expect(r.checks.find(c => c.id === 'defl-inst')?.status).toBe('fail');
+    expect(r.u_inst).toBeCloseTo(50.0, 0);
+    expect(r.checks.find(c => c.id === 'defl-confort')?.status).toBe('fail');
     expect(r.checks.find(c => c.id === 'defl-fin')?.status).toBe('fail');
     expect(r.checks.find(c => c.id === 'defl-active')?.status).toBe('fail');
   });
@@ -504,5 +501,94 @@ describe('calcTimberBeam — fire section fully charred', () => {
     expect(lost).toBeTruthy();
     expect(lost?.neutral).toBe(true);
     expect(r.checks.find(c => c.id === 'fire-bending')).toBeUndefined();
+  });
+});
+
+// ── Fixes auditoría adenda 5 (hallazgos #108-118) ─────────────────────────────
+describe('Auditoría #108: GL32h reemplaza a la inexistente GL36h', () => {
+  it('GL36h ya no existe en el catálogo', () => {
+    expect(calcTimberBeam({ ...baseInp, gradeId: 'GL36h' }).valid).toBe(false);
+  });
+
+  it('GL32h existe con fm_k=32 (EN 14080:2013)', () => {
+    const r = calcTimberBeam({ ...baseInp, gradeId: 'GL32h' });
+    expect(r.valid).toBe(true);
+    // fm_d = kmod·kh·... — comprobamos vía fm_d (sin kh): 0.80×32/1.25 = 20.48
+    expect(r.fm_d).toBeCloseTo(0.80 * 32 / 1.25, 2);
+  });
+});
+
+describe('Auditoría #109/#110: integridad según tabiquería', () => {
+  it('límite integridad por partitionType: frágil L/500, ordinaria L/400, sin L/300', () => {
+    expect(calcTimberBeam({ ...baseInp, partitionType: 'fragile' }).u_active_lim).toBeCloseTo(5000 / 500, 2);
+    expect(calcTimberBeam({ ...baseInp, partitionType: 'ordinary' }).u_active_lim).toBeCloseTo(5000 / 400, 2);
+    expect(calcTimberBeam({ ...baseInp, partitionType: 'none' }).u_active_lim).toBeCloseTo(5000 / 300, 2);
+  });
+
+  it('SC3 (kdef=2.0): la fluencia de G domina la activa (antes omitida)', () => {
+    const r = calcTimberBeam({ ...baseInp, serviceClass: 3 });
+    // u_act = u_G·2.0 + u_Q·(1+0.3·2.0) — el término de G ya no se pierde
+    const expected = 2.0307 * 2.0 + 3.0461 * 1.6;
+    expect(r.u_active).toBeCloseTo(expected, 1);
+  });
+
+  it('confort = sobrecarga instantánea ≤ L/350', () => {
+    const r = calcTimberBeam(baseInp);
+    expect(r.u_confort).toBeCloseTo(3.05, 1);
+    expect(r.u_confort_lim).toBeCloseTo(5000 / 350, 2);
+  });
+});
+
+describe('Auditoría #113: combinación solo-permanente', () => {
+  it('qk pequeño frente a gk: gobierna 1.35·gk con kmod=0.60', () => {
+    // w_perm/kmod_perm = 1.35·5/0.6 = 11.25 > w_main/kmod = (6.75+0.3)/0.8 = 8.8
+    const r = calcTimberBeam({ ...baseInp, gk: 5.0, qk: 0.2 });
+    expect(r.permGoverns).toBe(true);
+    expect(r.kmod).toBeCloseTo(0.60, 4);
+    expect(r.MEd).toBeCloseTo(1.35 * 5.0 * 25 / 8, 2);
+    expect(r.checks.some(c => c.id === 'elu-perm-combo')).toBe(true);
+  });
+
+  it('caso base (qk > 0.3·gk): gobierna la combinación G+Q del usuario', () => {
+    const r = calcTimberBeam(baseInp);
+    expect(r.permGoverns).toBe(false);
+    expect(r.kmod).toBeCloseTo(0.80, 4);
+  });
+});
+
+describe('Auditoría #111/#117: fuego — kfi y LTB de la sección residual', () => {
+  it('kfi = 1.25 aserrada / 1.15 glulam', () => {
+    expect(calcTimberBeam({ ...baseInp, fireResistance: 'R60' }).kfi).toBeCloseTo(1.25, 3);
+    expect(calcTimberBeam({ ...baseInp, gradeId: 'GL28h', fireResistance: 'R60' }).kfi).toBeCloseTo(1.15, 3);
+  });
+
+  it('4 caras expuestas: fila fire-ltb con kcrit_fi < 1 (sección residual esbelta)', () => {
+    const r = calcTimberBeam({ ...baseInp, fireResistance: 'R60', exposedFaces: 4 });
+    // Residual 40×290: σm,crit,fi = 0.78·40²·7400/(290·5300) ≈ 6.0 → λ≈2.2 → kcrit≈0.2
+    expect(r.kcrit_fi).toBeLessThan(0.5);
+    const row = r.checks.find(c => c.id === 'fire-ltb');
+    expect(row).toBeTruthy();
+    expect(row!.status).toBe('fail');
+  });
+
+  it('3 caras (tablero arriostra): sin fila fire-ltb y kcrit_fi = 1', () => {
+    const r = calcTimberBeam({ ...baseInp, fireResistance: 'R60', exposedFaces: 3 });
+    expect(r.kcrit_fi).toBe(1.0);
+    expect(r.checks.find(c => c.id === 'fire-ltb')).toBeUndefined();
+  });
+});
+
+describe('Auditoría #115/#116: límites de alcance declarados', () => {
+  it('fila scope-note presente (kc,90 y vibración no incluidos)', () => {
+    const r = calcTimberBeam(baseInp);
+    const row = r.checks.find(c => c.id === 'scope-note');
+    expect(row).toBeTruthy();
+    expect(row!.neutral).toBe(true);
+  });
+});
+
+describe('Auditoría #118: C22 fc0_k = 20 (EN 338:2016)', () => {
+  it('C22 sigue siendo válida en vigas (fc0 no afecta)', () => {
+    expect(calcTimberBeam({ ...baseInp, gradeId: 'C22' }).valid).toBe(true);
   });
 });

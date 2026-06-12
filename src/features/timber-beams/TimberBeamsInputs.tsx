@@ -201,6 +201,15 @@ export function TimberBeamsInputs({ state, setField }: Props) {
         <SelectField labelKey="serviceClass" field="serviceClass" value={state.serviceClass} options={SERVICE_CLASS_OPTIONS} setField={setField} />
         <SelectField labelKey="loadDuration" field="loadDuration" value={state.loadDuration} options={LOAD_DURATION_OPTIONS} setField={setField} />
         <SelectField labelKey="loadType"     field="loadType"     value={state.loadType}     options={LOAD_TYPE_OPTIONS}     setField={setField} />
+        {/* Tabiquería → límite de integridad CTE DB-SE 4.3.3 (fix auditoría #110) */}
+        <SelectField label="Tabiquería" field="partitionType"
+          value={(state.partitionType as string) ?? 'ordinary'}
+          options={[
+            { value: 'fragile',  label: 'Frágil (L/500)' },
+            { value: 'ordinary', label: 'Ordinaria (L/400)' },
+            { value: 'none',     label: 'Sin tabiques (L/300)' },
+          ]}
+          setField={setField} />
 
         {state.loadType === 'custom' && (
           <NumField label="ψ₂ personalizado" field="psi2Custom" value={state.psi2Custom} unit="" min={0} step={0.05} setField={setField} />

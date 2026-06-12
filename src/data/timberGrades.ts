@@ -44,7 +44,8 @@ const SOFTWOOD_SAWN: TimberGrade[] = [
     E0_mean: 9.0,  E0_05: 6.0,  E90_mean: 0.30, G_mean: 0.56,
     rho_k: 320, rho_mean: 380 },
   { id: 'C22', label: 'C22', type: 'sawn', subtype: 'softwood',
-    fm_k: 22,   ft0_k: 13.0, ft90_k: 0.4, fc0_k: 19,   fc90_k: 2.4, fv_k: 3.8,
+    // fc0_k 19→20: EN 338:2016 (fix auditoría #118)
+    fm_k: 22,   ft0_k: 13.0, ft90_k: 0.4, fc0_k: 20,   fc90_k: 2.4, fv_k: 3.8,
     E0_mean: 10.0, E0_05: 6.7,  E90_mean: 0.33, G_mean: 0.63,
     rho_k: 340, rho_mean: 410 },
   { id: 'C24', label: 'C24', type: 'sawn', subtype: 'softwood',
@@ -111,8 +112,11 @@ const GLULAM: TimberGrade[] = [
     fm_k: 30.0, ft0_k: 24.0, ft90_k: 0.50, fc0_k: 30.0, fc90_k: 2.5, fv_k: 3.5,
     E0_mean: 13.6, E0_05: 11.3, E90_mean: 0.30, G_mean: 0.65,
     rho_k: 430, rho_mean: 480 },
-  { id: 'GL36h', label: 'GL36h', type: 'glulam', subtype: 'softwood',
-    fm_k: 36.0, ft0_k: 25.6, ft90_k: 0.50, fc0_k: 32.0, fc90_k: 2.5, fv_k: 3.5,
+  // Fix auditoría #108: la antigua entrada 'GL36h' no existe en EN 14080:2013
+  // (la gama termina en GL32h) — sus propiedades eran exactamente las de GL32h
+  // pero con fm_k=36 (+12.5% no conservador). Renombrada con fm_k correcto.
+  { id: 'GL32h', label: 'GL32h', type: 'glulam', subtype: 'softwood',
+    fm_k: 32.0, ft0_k: 25.6, ft90_k: 0.50, fc0_k: 32.0, fc90_k: 2.5, fv_k: 3.5,
     E0_mean: 14.2, E0_05: 11.8, E90_mean: 0.30, G_mean: 0.65,
     rho_k: 440, rho_mean: 490 },
 ];

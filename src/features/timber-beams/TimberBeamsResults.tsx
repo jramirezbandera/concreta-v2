@@ -187,14 +187,12 @@ export function TimberBeamsResults({ result }: Props) {
       <CheckRows checks={eluChecks} />
 
       {/* ── ELS ─────────────────────────────────────────────────────────── */}
-      <GroupHeader label="ELS — Deformaciones  (EC5 §7.2 / NA España)" status={groupStatus(elsChecks)} />
+      <GroupHeader label="ELS — Deformaciones  (CTE DB-SE 4.3.3)" status={groupStatus(elsChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-        <ValueRow label={resultLabel('u_inst')}    value={`${result.u_inst.toFixed(1)} mm`} />
-        <ValueRow label="Límite instantánea  (L/300)"  value={`${result.u_inst_lim.toFixed(1)} mm`} />
-        <ValueRow label={resultLabel('u_fin')}     value={`${result.u_fin.toFixed(1)} mm`} />
-        <ValueRow label="Límite final  (L/250)"        value={`${result.u_fin_lim.toFixed(1)} mm`} />
-        <ValueRow label={resultLabel('u_active')}  value={`${result.u_active.toFixed(1)} mm`} />
-        <ValueRow label="Límite activa  (L/350)"       value={`${result.u_active_lim.toFixed(1)} mm`} />
+        <ValueRow label="Activa (integridad)"  value={`${result.u_active.toFixed(1)} mm  ≤ ${result.u_active_lim.toFixed(1)}`} />
+        <ValueRow label="Sobrecarga (confort)" value={`${result.u_confort.toFixed(1)} mm  ≤ ${result.u_confort_lim.toFixed(1)} (L/350)`} />
+        <ValueRow label="Final (apariencia)"   value={`${result.u_fin.toFixed(1)} mm  ≤ ${result.u_fin_lim.toFixed(1)} (L/300)`} />
+        <ValueRow label="Instantánea total (informativa)" value={`${result.u_inst.toFixed(1)} mm`} />
       </div>
       <CheckRows checks={elsChecks} />
 

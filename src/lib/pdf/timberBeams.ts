@@ -139,9 +139,9 @@ export async function exportTimberBeamsPDF(
   rSecHeader('ELU / ELS');
   rRow(`MEd = ${fmtSi(result.MEd, 'moment')}`, `VEd = ${fmtSi(result.VEd, 'force')}`);
   rRow(`lam_rel = ${result.lambda_rel_m.toFixed(3)}`, `kcrit = ${result.kcrit.toFixed(3)}`);
-  rRow(`u_inst = ${result.u_inst.toFixed(1)} mm (L/300)`);
-  rRow(`u_fin = ${result.u_fin.toFixed(1)} mm (L/250)`);
-  rRow(`u_act = ${result.u_active.toFixed(1)} mm (L/350)`);
+  rRow(`u_act (integridad) = ${result.u_active.toFixed(1)} mm <= ${result.u_active_lim.toFixed(1)}`);
+  rRow(`u_Q (confort) = ${result.u_confort.toFixed(1)} mm <= ${result.u_confort_lim.toFixed(1)} (L/350)`);
+  rRow(`u_fin (apariencia) = ${result.u_fin.toFixed(1)} mm <= ${result.u_fin_lim.toFixed(1)} (L/300)`);
 
   // ── Checks table ─────────────────────────────────────────────────────────────
   // Start below whichever column ended lower

@@ -34,6 +34,14 @@ export interface BeamCaseSpec {
    * penalty in the conservative direction.
    */
   C2: number;
+  /**
+   * Shear-deflection coefficient: δ_shear = k_shear · w · L² / (G · A_v=A/1.2)
+   * con κ=1.2 (rectangular) YA incluido: δs = κ·ΔM/(G·A) evaluada en el punto
+   * de flecha máxima. ss/ff: 1.2·(wL²/8)/wL² = 0.15; fp: 1.2·0.175 ≈ 0.21;
+   * ménsula: 1.2·(wL²/2)/wL² = 0.6. Usado por timberBeams (E/G≈16, ~6-10% de
+   * la flecha — auditoría #114); despreciable en acero (E/G≈2.6).
+   */
+  k_shear: number;
 }
 
 export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
@@ -52,6 +60,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     Lcr_factor:      1.0,
     C1:              1.13,
     C2:              0.454,
+    k_shear:         0.15,
   },
 
   // ── Cantilever (ménsula — fixed at left, free right) ─────────────────────
@@ -71,6 +80,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     Lcr_factor:      2.0,
     C1:              1.0,
     C2:              0.45,
+    k_shear:         0.6,
   },
 
   // ── Fixed-Pinned (articulada–empotrada — fixed at left, pin right) ───────
@@ -92,6 +102,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     Lcr_factor:      1.0,
     C1:              1.13,
     C2:              0.454,
+    k_shear:         0.21,
   },
 
   // ── Fixed-Fixed (biempotrada) ─────────────────────────────────────────────
@@ -111,5 +122,6 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
     Lcr_factor:      1.0,
     C1:              1.13,
     C2:              0.454,
+    k_shear:         0.15,
   },
 };

@@ -602,6 +602,9 @@ export interface TimberBeamInputs {
   fireResistance: string;  // FireResistance
   exposedFaces: number;    // 3 | 4
   isSystem: boolean;       // EC5 §6.6 — ksys=1.10 when part of load-sharing system
+  /** Tabiquería soportada — fija el límite de INTEGRIDAD (flecha activa) de
+   *  CTE DB-SE 4.3.3.1: frágiles L/500, ordinarios L/400, sin tabiques L/300. */
+  partitionType: 'fragile' | 'ordinary' | 'none';
 }
 
 // FTUX defaults: C24 150×400, L=5m biart., g=2kN/m q=3kN/m → ~70% util
@@ -620,6 +623,7 @@ export const timberBeamDefaults: TimberBeamInputs = {
   fireResistance: 'R0',
   exposedFaces: 3,
   isSystem: false,
+  partitionType: 'ordinary',
 };
 
 // ── Timber Columns (EC5 EN 1995-1-1 §6.3) ────────────────────────────────────
