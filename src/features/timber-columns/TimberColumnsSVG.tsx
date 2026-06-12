@@ -84,7 +84,10 @@ function CrossSection({
   const rOx = ox + (sW - b_ef_px) / 2;
   const rOy = inp.exposedFaces === 4
     ? oy + (sH - h_ef_px) / 2
-    : oy; // 3 faces: top not protected → residual aligns at top
+    : oy; // 3 caras: la cara superior queda PROTEGIDA (adosada al muro) y no
+          // carboniza — la sección residual conserva el borde superior y pierde
+          // def por abajo (fix #124: el comentario anterior estaba invertido).
+          // El motor añade la excentricidad def/2 del centroide (#119).
 
   const fs  = isPdf ? 8 : 9;
   const fsS = isPdf ? 7 : 8;

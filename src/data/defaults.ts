@@ -748,6 +748,9 @@ export const forjadosDefaults: ForjadosInputs = {
 };
 
 // FTUX defaults: C24 160×160, L=3m, Nd=80kN wind moment → ~65% util
+// FTUX recalibrado (fix auditoría #121): con Md=8 el comb-623 daba 1.187 —
+// INCUMPLE en rojo al primer open (el fix de la forma lineal de 6.23 nunca
+// recalibró la demo). Con Md=3: comb-623 ≈ 0.69, comb-624 ≈ 0.60 → verde ~70%.
 export const timberColumnDefaults: TimberColumnInputs = {
   gradeId: 'C24',
   b: 160,
@@ -757,7 +760,7 @@ export const timberColumnDefaults: TimberColumnInputs = {
   beta_z: 1.0,
   Nd: 80,
   Vd: 5,
-  Md: 8,
+  Md: 3,
   momentAxis: 'strong',
   serviceClass: 1,
   loadDuration: 'medium',

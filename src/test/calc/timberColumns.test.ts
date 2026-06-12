@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { calcTimberColumn } from '../../lib/calculations/timberColumns';
 import { timberColumnDefaults } from '../../data/defaults';
 
+
 // ── Reference base input ──────────────────────────────────────────────────────
 const BASE = {
   ...timberColumnDefaults,
@@ -535,14 +536,14 @@ describe('fire edge cases', () => {
     expect(r.sigma_c_fi).toBeGreaterThan(r.sigma_c);
   });
 
-  it('pure axial fire (Md=0) — util_623_fi = σc/(kcy,fi·fc0,k) — linear EC5 §6.3.2(3)', () => {
+  it('pure axial fire (Md=0) — util_623_fi = σc/(kcy,fi·kfi·fc0,k) — linear EC5 §6.3.2(3)', () => {
     const r = calcTimberColumn({ ...BASE, fireResistance: 'R60', exposedFaces: 4, etaFi: 0.65, Md: 0, Vd: 0 });
     expect(r.valid).toBe(true);
     expect(r.checks.find(c => c.id === 'fire-comb-623')).toBeDefined();
     // With Md=0: util_623_fi = σc_fi/(kcy_fi·fc0,k)  [linear, not squared]
     // fc0_k recovered as fc0_d * gammaM / kmod = (kmod·fc0_k/gammaM)·gammaM/kmod = fc0_k
     const fc0_k = r.fc0_d * r.gammaM / r.kmod;
-    const expectedUtil = r.sigma_c_fi / (r.kc_y_fi * fc0_k);
+    const expectedUtil = r.sigma_c_fi / (r.kc_y_fi * r.kfi * fc0_k);  // fd,fi = kfi·fk (fix #122)
     expect(r.checks.find(c => c.id === 'fire-comb-623')!.utilization).toBeCloseTo(expectedUtil, 3);
   });
 });
@@ -557,5 +558,86 @@ describe('glulam grade', () => {
   it('gammaM=1.25 for GL28h', () => {
     const r = calcTimberColumn({ ...BASE, gradeId: 'GL28h' });
     expect(r.gammaM).toBeCloseTo(1.25, 5);
+  });
+});
+
+// ── Fixes auditoría adenda 6 (hallazgos #119-124) ─────────────────────────────
+
+
+describe('Auditoría #121: FTUX defaults en verde', () => {
+  it('todos los checks no neutrales en ok/warn (antes comb-623 = 1.187 INCUMPLE)', () => {
+    const r = calcTimberColumn(timberColumnDefaults);
+    expect(r.valid).toBe(true);
+    r.checks.filter(c => !c.neutral).forEach(c => {
+      expect(c.status === 'ok' || c.status === 'warn').toBe(true);
+    });
+    expect(r.util_623).toBeLessThan(0.8);
+  });
+});
+
+describe('Auditoría #119: excentricidad de la sección residual (3 caras)', () => {
+  it('240×240 C24, Nd=300, R60, 3 caras: 6.24,fi con ΔM incluido ≈ 0.92 warn (con kfi #122; sin kfi daria 1.07 fail; antes de ambos fixes, 0.86 engañoso)', () => {
+    const r = calcTimberColumn({
+      ...timberColumnDefaults,
+      b: 240, h: 240, Nd: 300, Vd: 5, Md: 3,
+      fireResistance: 'R60', exposedFaces: 3, etaFi: 0.65,
+    });
+    const fi624 = r.checks.find(c => c.id === 'fire-comb-624')!;
+    expect(fi624.utilization).toBeCloseTo(0.916, 2);
+    expect(fi624.status).toBe('warn');
+  });
+
+  it('4 caras (sección simétrica): sin excentricidad añadida', () => {
+    const r3 = calcTimberColumn({ ...timberColumnDefaults, Md: 0, fireResistance: 'R30', exposedFaces: 3 });
+    const r4 = calcTimberColumn({ ...timberColumnDefaults, Md: 0, fireResistance: 'R30', exposedFaces: 4 });
+    // Con 4 caras y Md=0 no hay término de flexión en fuego; con 3 caras sí (ΔM)
+    expect(r4.sigma_m_fi).toBe(0);
+    const fi623_3 = r3.checks.find(c => c.id === 'fire-comb-623')!;
+    const term_c_3 = r3.sigma_c_fi / (r3.kc_y_fi * r3.kfi * 21);
+    expect(fi623_3.utilization).toBeGreaterThan(term_c_3 + 1e-6);  // hay ΔM
+  });
+});
+
+describe('Auditoría #120: ec. 6.35 (vuelco lateral + compresión)', () => {
+  it('100×300 C24, L=6m, Nd=5, Md=20 fuerte: 6.35 ≈ 1.15 FAIL (antes máx 0.93 PASS)', () => {
+    const r = calcTimberColumn({
+      ...timberColumnDefaults,
+      b: 100, h: 300, L: 6, Nd: 5, Vd: 2, Md: 20, momentAxis: 'strong',
+    });
+    expect(r.kcrit_m).toBeCloseTo(0.911, 2);
+    const c635 = r.checks.find(c => c.id === 'comb-635')!;
+    expect(c635.utilization).toBeCloseTo(1.15, 1);
+    expect(c635.status).toBe('fail');
+  });
+
+  it('sección cuadrada compacta: kcrit=1 y la 6.35 no gobierna', () => {
+    const r = calcTimberColumn(timberColumnDefaults);
+    expect(r.kcrit_m).toBeCloseTo(1.0, 3);
+    expect(r.util_635).toBeLessThan(Math.max(r.util_623, r.util_624) + 1e-9);
+  });
+
+  it('momento en eje débil: sin fila 6.35 (no hay vuelco)', () => {
+    const r = calcTimberColumn({ ...timberColumnDefaults, momentAxis: 'weak' });
+    expect(r.checks.find(c => c.id === 'comb-635')).toBeUndefined();
+  });
+});
+
+describe('Auditoría #122: kfi en fuego', () => {
+  it('kfi = 1.25 aserrada / 1.15 glulam (consistente con timberBeams #117)', () => {
+    expect(calcTimberColumn({ ...timberColumnDefaults, fireResistance: 'R30' }).kfi).toBeCloseTo(1.25, 3);
+    expect(calcTimberColumn({ ...timberColumnDefaults, gradeId: 'GL24h', fireResistance: 'R30' }).kfi).toBeCloseTo(1.15, 3);
+  });
+});
+
+describe('Auditoría #123/#124: nota de combinación y etiquetas por eje', () => {
+  it('fila kmod-note presente (combinación solo-permanente no automatizable)', () => {
+    const r = calcTimberColumn(timberColumnDefaults);
+    expect(r.checks.some(c => c.id === 'kmod-note')).toBe(true);
+  });
+
+  it('eje débil: la 6.23 muestra km·σm y la 6.24 σm completo (antes en espejo)', () => {
+    const r = calcTimberColumn({ ...timberColumnDefaults, momentAxis: 'weak' });
+    expect(r.checks.find(c => c.id === 'comb-623')!.description).toContain('km·σm');
+    expect(r.checks.find(c => c.id === 'comb-624')!.description).not.toContain('km·σm');
   });
 });

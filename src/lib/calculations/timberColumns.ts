@@ -68,6 +68,9 @@ export interface TimberColumnResult {
   // Utilizations for individual checks
   util_623: number;
   util_624: number;
+  util_635: number;  // vuelco lateral + compresión (solo M eje fuerte)
+  kcrit_m: number;   // factor de vuelco del pilar (ec. 6.35)
+  kfi: number;       // 1.25 aserrada / 1.15 glulam (fuego)
   // Fire
   fireActive: boolean;
   t_fire: number;
@@ -124,7 +127,7 @@ function invalidResult(error: string): TimberColumnResult {
     lambda_y: 0, lambda_z: 0, lambda_rel_y: 0, lambda_rel_z: 0,
     kc_y: 0, kc_z: 0,
     sigma_c: 0, sigma_m: 0, tau_d: 0,
-    util_623: 0, util_624: 0,
+    util_623: 0, util_624: 0, util_635: 0, kcrit_m: 1, kfi: 0,
     fireActive: false, t_fire: 0, betaN: 0, dchar: 0, def: 0,
     b_ef: 0, h_ef: 0, kc_y_fi: 0, kc_z_fi: 0,
     sigma_c_fi: 0, sigma_m_fi: 0, tau_fi: 0,
@@ -246,6 +249,24 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const util_623 = term_c_y + term_m_y + km * term_m_z;
   const util_624 = term_c_z + km * term_m_y + term_m_z;
 
+  // ── EC5 §6.3.3(4) ec. (6.35) — vuelco lateral + compresión (fix #120) ─────
+  // Para flexión sobre el eje FUERTE con compresión: (σm/(kcrit·fm))² +
+  // σc/(kc,z·fc0) ≤ 1. Gobierna con h≫b (pilares de viento) y también con
+  // kcrit=1 cuando σm/fm > km. Longitud de vuelco = Lef_z (arriostramientos
+  // laterales del eje débil; momento ~constante → sin corrección +2h).
+  const calcKcrit = (sigma_crit: number): number => {
+    const lr = Math.sqrt(grade.fm_k / sigma_crit);
+    return lr <= 0.75 ? 1.0 : lr <= 1.40 ? 1.56 - 0.75 * lr : 1.0 / (lr * lr);
+  };
+  let kcrit_m = 1.0;
+  let util_635 = 0;
+  if (inp.momentAxis === 'strong' && Md > 0) {
+    const sigma_m_crit = 0.78 * b * b * E0_05_Nmm2 / (h * Math.max(Lef_z, 1));
+    kcrit_m = calcKcrit(sigma_m_crit);
+    const m_ratio = fm_d > 0 ? sigma_m_y / (kcrit_m * fm_d) : 0;
+    util_635 = m_ratio * m_ratio + term_c_z;
+  }
+
   // ── FIRE — EN 1995-1-2 ────────────────────────────────────────────────────
   const fireActive = inp.fireResistance !== 'R0';
   const t_fire = fireActive ? parseInt(inp.fireResistance.slice(1), 10) : 0;
@@ -258,10 +279,14 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     ? calcResidualSection(b, h, def, inp.exposedFaces)
     : { b_ef: b, h_ef: h };
 
-  // Fire design strengths: kmod,fi = 1.0, γM,fi = 1.0
-  const fc0_d_fi = grade.fc0_k;
-  const fm_d_fi  = grade.fm_k;
-  const fv_d_fi  = grade.fv_k;
+  // Fire design strengths: fd,fi = kfi·fk (percentil 20%, EN 1995-1-2 §2.3:
+  // kfi = 1.25 aserrada / 1.15 glulam) con kmod,fi = γM,fi = 1.0 — fix #122,
+  // consistente con timberBeams #117. λrel,fi NO cambia: f20 = kfi·fk y
+  // E20 = kfi·E0,05 → el cociente cancela el kfi.
+  const kfi = grade.type === 'glulam' ? 1.15 : 1.25;
+  const fc0_d_fi = kfi * grade.fc0_k;
+  const fm_d_fi  = kfi * grade.fm_k;
+  const fv_d_fi  = kfi * grade.fv_k;
 
   // Residual section properties
   const A_fi  = b_ef * h_ef;
@@ -290,7 +315,15 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const A_ef_fi    = kcr * A_fi;
   const tau_fi     = A_ef_fi > 0 && Vd_fi > 0 ? 1.5 * Vd_fi * 1e3 / A_ef_fi : 0;
 
-  const sigma_m_y_fi = inp.momentAxis === 'strong' ? sigma_m_fi : 0;
+  // Excentricidad de la sección residual ASIMÉTRICA (fix auditoría #119):
+  // con 3 caras expuestas h se reduce por un solo lado y el centroide
+  // residual se desplaza def/2 respecto al eje original del pilar — el axil
+  // genera un momento adicional ΔM = Nd,fi·def/2 sobre el eje fuerte que
+  // antes se omitía (FAIL ocultos demostrados en la auditoría).
+  const e_fi = (fireActive && inp.exposedFaces === 3) ? def / 2 : 0;
+  const sigma_m_ecc_fi = (Wy_fi > 0 && Nd_fi > 0) ? Nd_fi * 1e3 * e_fi / Wy_fi : 0;
+
+  const sigma_m_y_fi = (inp.momentAxis === 'strong' ? sigma_m_fi : 0) + sigma_m_ecc_fi;
   const sigma_m_z_fi = inp.momentAxis === 'weak'   ? sigma_m_fi : 0;
 
   const term_c_y_fi  = fc0_d_fi > 0 && kc_y_fi > 0 ? sigma_c_fi / (kc_y_fi * fc0_d_fi) : 0;
@@ -317,9 +350,14 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     'elu',
   ));
 
-  // §6.3.3 Eq 6.23 — strong axis buckling + bending on selected axis
-  const axisLabel = inp.momentAxis === 'strong' ? 'eje fuerte (y)' : 'eje débil (z)';
-  const label_623 = `σc/(kcy·fc0,d) + σm,d/fm,d ≤ 1 — ${axisLabel}, kcy=${kc_y.toFixed(3)}`;
+  // §6.3.3 Eq 6.23/6.24 — etiquetas según el eje del momento (fix #124: con
+  // eje débil la 6.23 lleva km·σm y la 6.24 lleva σm completo — antes las
+  // etiquetas estaban en espejo; las utilizaciones siempre fueron correctas).
+  const isStrong = inp.momentAxis === 'strong';
+  const axisLabel = isStrong ? 'eje fuerte (y)' : 'eje débil (z)';
+  const mTerm623 = isStrong ? 'σm,d/fm,d' : 'km·σm,d/fm,d';
+  const mTerm624 = isStrong ? 'km·σm,d/fm,d' : 'σm,d/fm,d';
+  const label_623 = `σc/(kcy·fc0,d) + ${mTerm623} ≤ 1 — M en ${axisLabel}, kcy=${kc_y.toFixed(3)}`;
   checks.push({
     id: 'comb-623',
     description: label_623,
@@ -331,8 +369,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     group: 'elu',
   });
 
-  // §6.3.3 Eq 6.24 — weak axis buckling + km·bending
-  const label_624 = `σc/(kcz·fc0,d) + km·σm,d/fm,d ≤ 1 — eje débil (z), kcz=${kc_z.toFixed(3)}`;
+  const label_624 = `σc/(kcz·fc0,d) + ${mTerm624} ≤ 1 — kcz=${kc_z.toFixed(3)}`;
   checks.push({
     id: 'comb-624',
     description: label_624,
@@ -340,9 +377,33 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     limit: '1.000',
     utilization: util_624,
     status: toStatus(util_624),
-    article: 'EN 1995-1-1 §6.3.3 Eq. 6.24 — Pandeo eje débil + km·flexión (km=0.7)',
+    article: 'EN 1995-1-1 §6.3.3 Eq. 6.24 — Pandeo eje débil + flexión (km=0.7)',
     group: 'elu',
   });
+
+  // §6.3.3(4) Eq 6.35 — vuelco lateral + compresión (fix #120)
+  if (isStrong && Md > 0) {
+    checks.push({
+      id: 'comb-635',
+      description: `(σm/(kcrit·fm,d))² + σc/(kcz·fc0,d) ≤ 1 — kcrit=${kcrit_m.toFixed(3)}`,
+      value: util_635.toFixed(3),
+      limit: '1.000',
+      utilization: util_635,
+      status: toStatus(util_635),
+      article: 'EN 1995-1-1 §6.3.3(4) Eq. 6.35 — Vuelco lateral + compresión',
+      group: 'elu',
+    });
+  }
+
+  // Nota de alcance (fix #123): inputs ya mayorados → la combinación
+  // solo-permanente no es comprobable automáticamente aquí.
+  checks.push(mkNeutral(
+    'kmod-note',
+    'Nd/Vd/Md ya mayorados con un único kmod: verificar aparte la combinación solo-permanente (kmod=0.60) si la carga variable es pequeña',
+    'NOTA',
+    'EN 1995-1-1 §3.1.3(2)',
+    'elu',
+  ));
 
   // ── Fire checks ───────────────────────────────────────────────────────────
   if (fireActive) {
@@ -413,7 +474,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     A, iy, iz, betaC, Lef, Lef_y, Lef_z,
     lambda_y, lambda_z, lambda_rel_y, lambda_rel_z,
     kc_y, kc_z, sigma_c, sigma_m, tau_d,
-    util_623, util_624,
+    util_623, util_624, util_635, kcrit_m, kfi,
     fireActive, t_fire, betaN, dchar, def,
     b_ef, h_ef, kc_y_fi, kc_z_fi,
     sigma_c_fi, sigma_m_fi, tau_fi,
