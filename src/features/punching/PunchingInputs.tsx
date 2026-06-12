@@ -368,6 +368,11 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
 
       {/* ARMADO DE FLEXIÓN */}
       <CollapsibleSection label="Armado de flexión">
+        {/* Supuesto del motor (auditoría #135): ρl = √(ρx·ρy) colapsa a ρ
+          * solo si la malla es igual en ambas direcciones ortogonales. */}
+        <p className="text-[10px] text-text-disabled mb-1.5 leading-tight">
+          Malla supuesta IGUAL en ambas direcciones (ρl = √(ρx·ρy) = ρ)
+        </p>
         <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
         <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
         <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />

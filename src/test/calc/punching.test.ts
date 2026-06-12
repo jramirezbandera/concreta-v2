@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { calcPunching } from '../../lib/calculations/punching';
+import { getUPN } from '../../data/steelProfiles';
 import { punchingDefaults } from '../../data/defaults';
 import { formatQuantity } from '../../lib/units/format';
 
@@ -19,7 +20,7 @@ describe('FTUX defaults', () => {
     const r = calcPunching(base);
     for (const c of r.checks) expect(c.status).not.toBe('fail');
   });
-  it('beta=1.0 for interior', () => expect(calcPunching(base).beta).toBe(1.0));
+  it('beta=1.15 for interior pilar (fix #132 — Anejo 19 fig. 6.21N)', () => expect(calcPunching(base).beta).toBe(1.15));
   it('rhoLClamped=false (Ø12@150 > rhoLMin)', () => expect(calcPunching(base).rhoLClamped).toBe(false));
 });
 
@@ -60,7 +61,10 @@ describe('u1 perimeter', () => {
 
 // ── β eccentricity factor ─────────────────────────────────────────────────────
 describe('beta', () => {
-  it('interior β=1.0', () => expect(calcPunching(base).beta).toBe(1.0));
+  it('interior pilar β=1.15 (fix #132); carga-puntual β=1.0', () => {
+    expect(calcPunching(base).beta).toBe(1.15);
+    expect(calcPunching({ ...base, mode: 'carga-puntual' }).beta).toBe(1.0);
+  });
   it('borde β=1.4',    () => expect(calcPunching({ ...base, position: 'borde' }).beta).toBe(1.4));
   it('esquina β=1.5',  () => expect(calcPunching({ ...base, position: 'esquina' }).beta).toBe(1.5));
 });
@@ -70,7 +74,7 @@ describe('vEd', () => {
   it('interior: β·VEd·1000/(u1·d)', () => {
     const r = calcPunching(base);
     const u1 = 2 * (300 + 300) + 4 * Math.PI * 200;
-    const expected = 1.0 * 300 * 1000 / (u1 * 200);
+    const expected = 1.15 * base.VEd * 1000 / (u1 * 200);
     expect(r.vEd).toBeCloseTo(expected, 4);
   });
 
@@ -107,7 +111,7 @@ describe('u0 / vEd,0', () => {
 
   it('vEd0 = β·VEd·1000/(u0·d) — column-face stress', () => {
     const r = calcPunching(base);
-    const expected = 1.0 * 300 * 1000 / (r.u0 * 200);
+    const expected = 1.15 * base.VEd * 1000 / (r.u0 * 200);
     expect(r.vEd0).toBeCloseTo(expected, 4);
   });
 
@@ -389,7 +393,7 @@ describe('checks', () => {
 describe('uout', () => {
   it('uout = β·VEd·1000/(vRdc·d)', () => {
     const r        = calcPunching(base);
-    const expected = 1.0 * 300 * 1000 / (r.vRdc * 200);
+    const expected = 1.15 * base.VEd * 1000 / (r.vRdc * 200);
     expect(r.uout).toBeCloseTo(expected, 0);
   });
 
@@ -433,5 +437,84 @@ describe('cruceta mode delegation', () => {
   it('existing carga-puntual mode is unaffected', () => {
     const r = calcPunching({ ...base, mode: 'carga-puntual' });
     expect(r.cruceta).toBeUndefined();
+  });
+});
+
+// ── Fixes auditoría adenda 8 (hallazgos #132-138) ─────────────────────────────
+describe('Auditoría #132: β=1.15 interior con transferencia de momento', () => {
+  it('FTUX recalibrado (VEd=260): vRd,c ~79% verde con el β correcto', () => {
+    const r = calcPunching(base);
+    const row = r.checks.find((c) => c.id === 'punz-ved-vrdc')!;
+    expect(row.utilization).toBeGreaterThan(0.7);
+    expect(row.utilization).toBeLessThan(0.8);
+    expect(r.valid).toBe(true);
+  });
+
+  it('nota de validez del β simplificado presente (#138)', () => {
+    const r = calcPunching(base);
+    const note = r.checks.find((c) => c.id === 'punz-beta-note')!;
+    expect(note).toBeTruthy();
+    expect(note.neutral).toBe(true);
+  });
+});
+
+describe('Auditoría #133: degateo de vRd,c con cercos', () => {
+  // vEd > vRd,c pero vRd,cs cubre: antes valid=false (INCUMPLE falso)
+  const withStirrups = calcPunching({
+    ...base, VEd: 400, hasShearReinf: true, swDiam: 8, swLegs: 2, sr: 100,
+  });
+
+  it('vRd,c en warn (informativo), no fail', () => {
+    const row = withStirrups.checks.find((c) => c.id === 'punz-ved-vrdc')!;
+    expect(row.status).toBe('warn');
+    expect(row.description).toMatch(/cercos toman el exceso/);
+  });
+
+  it('vRd,cs pasa y el resultado es VÁLIDO (antes INCUMPLE falso)', () => {
+    const cs = withStirrups.checks.find((c) => c.id === 'punz-ved-vrdcs')!;
+    expect(cs.status).not.toBe('fail');
+    expect(withStirrups.valid).toBe(true);
+  });
+
+  it('sin cercos, vRd,c sigue vinculando (fail si vEd > vRd,c)', () => {
+    const r = calcPunching({ ...base, VEd: 400, hasShearReinf: false });
+    expect(r.checks.find((c) => c.id === 'punz-ved-vrdc')!.status).toBe('fail');
+    expect(r.valid).toBe(false);
+  });
+
+  it('nota de disposición presente con cercos (#134)', () => {
+    const note = withStirrups.checks.find((c) => c.id === 'punz-layout-note')!;
+    expect(note).toBeTruthy();
+    expect(note.neutral).toBe(true);
+    expect(note.description).toMatch(/uout/);
+  });
+});
+
+describe('Auditoría #136: ρl real en la fórmula (sin suelo en ρmin)', () => {
+  it('armado bajo mínimos: vRd,c usa el ρ real (gobernado por vmin) y la fila avisa con util real', () => {
+    // Ø6@300 → ρ ≈ 0.0283/300/200... muy bajo → vRd,c = vmin
+    const r = calcPunching({ ...base, barDiamSup: 6, sSup: 300 });
+    expect(r.rhoLClamped).toBe(true);
+    expect(r.vRdc).toBeCloseTo(r.vMin, 6);
+    const row = r.checks.find((c) => c.id === 'punz-rho-min')!;
+    expect(row.status).toBe('warn');
+    expect(row.utilization).toBeGreaterThan(1);  // ρmin/ρ real, no 0.85 fabricado
+  });
+});
+
+describe('Auditoría #137: fy de UPN por espesor en cruceta', () => {
+  it('UPN400 (tf=18): MRd con fy=265 exacto del catálogo (fix #137)', () => {
+    const r = calcPunching({ ...base, mode: 'pilar-cruceta', upnSize: 400, d: 400, VEd: 800 });
+    expect(r.cruceta).toBeDefined();
+    const upn = getUPN(400)!;
+    const W = (r.cruceta!.upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000;
+    expect(r.cruceta!.MRd).toBeCloseTo(W * 265 / 1.05 / 1e6, 3);
+  });
+
+  it('UPN160 (tf=10.5): fy nominal intacto', () => {
+    const r = calcPunching({ ...base, mode: 'pilar-cruceta', upnSize: 160, d: 400, VEd: 800 });
+    const upn = getUPN(160)!;
+    const W = (r.cruceta!.upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000;
+    expect(r.cruceta!.MRd).toBeCloseTo(W * 275 / 1.05 / 1e6, 3);
   });
 });

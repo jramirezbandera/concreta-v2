@@ -16,9 +16,19 @@ import { calcCruceta } from './cruceta';
 export type { CheckRow } from './types';
 
 // ── Position helpers (CE art. 6.4) — single source for punching + cruceta ─────
-/** β eccentricity factor by column position (CE art. 6.4.3, simplified). */
-export function betaForPosition(position: PunchingPosition): number {
-  return position === 'borde' ? 1.4 : position === 'esquina' ? 1.5 : 1.0;
+/**
+ * β eccentricity factor by column position (CE Anejo 19 / EC2 fig. 6.21N,
+ * simplified — válido para estructuras arriostradas con luces adyacentes que
+ * no difieren más del 25%).
+ *
+ * Fix auditoría #132: interior era 1.0 — el simplificado del Anejo 19 es
+ * **1.15** cuando hay transferencia de momento (pilar). 1.0 solo es
+ * defendible para carga puntual sin momento (mode='carga-puntual').
+ */
+export function betaForPosition(position: PunchingPosition, momentTransfer = true): number {
+  if (position === 'borde') return 1.4;
+  if (position === 'esquina') return 1.5;
+  return momentTransfer ? 1.15 : 1.0;
 }
 /** Number of loaded sides / cruceta arms by position (interior 4, borde 3, esquina 2). */
 export function sidesForPosition(position: PunchingPosition): number {
@@ -114,7 +124,8 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   const useCircular = inp.isCircular && inp.position === 'interior';
 
   // ── β — eccentricity factor (CE art. 6.4.3, simplified) ──────────────────
-  const beta = betaForPosition(inp.position);
+  // 'pilar' transfiere momento → 1.15 interior; 'carga-puntual' no → 1.0
+  const beta = betaForPosition(inp.position, inp.mode !== 'carga-puntual');
 
   // ── Critical perimeter u1 (CE art. 6.4.2) ────────────────────────────────
   // Convention for borde/esquina:
@@ -185,14 +196,18 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   const asTension = inp.mode === 'pilar' ? asSup : asInf;
 
   // ── ρl — effective flexural ratio ─────────────────────────────────────────
-  // ρl = As_tension / d (dimensionless)
+  // ρl = As_tension / d (dimensionless). Supuesto: malla IGUAL en ambas
+  // direcciones ortogonales (ρl = √(ρx·ρy) colapsa a ρ) — documentado en UI.
   const rhoLRaw = asTension / d;
-  const rhoLClamped_upper = Math.min(rhoLRaw, 0.02); // CE 6.4.4: ρl ≤ 0.02
 
   // ρl,min per CE art. 9.1: max(0.26·fctm/fyk, 0.0013)
   const rhoLMin = Math.max(0.26 * fctm / inp.fyk, 0.0013);
-  const rhoLClamped = rhoLClamped_upper < rhoLMin;
-  const rhoL = Math.max(rhoLClamped_upper, rhoLMin);
+  const rhoLClamped = rhoLRaw < rhoLMin;
+  // Fix auditoría #136: la fórmula usa el ρl REAL (cap 0.02), sin suelo en
+  // ρl,min — elevar al mínimo inflaba vRd,c con armado bajo mínimos (vmin lo
+  // enmascaraba casi siempre, pero la dirección era anti-conservadora).
+  // ρl,min queda como check aparte (warn).
+  const rhoL = Math.min(rhoLRaw, 0.02);
 
   // ── vmin ─────────────────────────────────────────────────────────────────
   const vMin = 0.035 * Math.pow(k, 1.5) * Math.sqrt(inp.fck); // MPa
@@ -233,16 +248,16 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // punz-rho-min: ρl ≥ ρl,min
   // Always show; status=warn when clamp was applied (user's rho < min)
   {
-    const rhoDisplay = rhoLRaw; // before upper cap and min clamp
-    const util = rhoLMin > 0 ? rhoDisplay / rhoLMin : 1;
-    const status = rhoLClamped ? 'warn' : toStatus(util >= 1 ? 0 : util);
+    // Fix #136: utilización REAL ρmin/ρ (antes 0.85 hardcodeada al clampar)
+    const rhoDisplay = rhoLRaw;
+    const util = rhoDisplay > 0 ? rhoLMin / rhoDisplay : Infinity;
     checks.push({
       id:          'punz-rho-min',
       description: 'ρl ≥ ρl,min',
       value:       `ρl = ${rhoDisplay.toFixed(4)}`,
       limit:       `ρl,min = ${rhoLMin.toFixed(4)}`,
-      utilization: rhoLClamped ? 0.85 : Math.min(util, 1),
-      status,
+      utilization: util,
+      status:      rhoLClamped ? 'warn' : toStatus(util),
       article:     'CE art. 9.1',
     });
   }
@@ -272,12 +287,23 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     vEd0, vRdmax, 'stress', 'CE art. 6.4.5(3)',
   ));
 
-  // punz-ved-vrdc: vEd ≤ vRd,c (without shear reinf)
-  checks.push(makeCheckQty(
-    'punz-ved-vrdc',
-    'vEd ≤ vRd,c (sin armado)',
-    vEd, vRdc, 'stress', 'CE art. 6.4.4',
-  ));
+  // punz-ved-vrdc: vEd ≤ vRd,c. SIN cercos es vinculante; CON cercos pasa a
+  // informativo (fail→warn): vEd > vRd,c es exactamente la situación que
+  // motiva los cercos y el binding es vRd,cs + vRd,max (fix auditoría #133 —
+  // antes invalidaba el resultado justo cuando los cercos eran necesarios;
+  // mismo degateo que ya hacía cruceta.ts con esta fila).
+  {
+    const row = makeCheckQty(
+      'punz-ved-vrdc',
+      'vEd ≤ vRd,c (sin armado)',
+      vEd, vRdc, 'stress', 'CE art. 6.4.4',
+    );
+    if (inp.hasShearReinf && row.status === 'fail') {
+      row.status = 'warn';
+      row.description = 'vEd > vRd,c — los cercos toman el exceso (vinculan vRd,cs y vRd,max)';
+    }
+    checks.push(row);
+  }
 
   // punz-ved-vrdcs: vEd ≤ vRd,cs (with stirrups) — only if hasShearReinf
   if (inp.hasShearReinf && vRdcs !== undefined) {
@@ -286,7 +312,34 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
       'vEd ≤ vRd,cs (con cercos)',
       vEd, vRdcs, 'stress', 'CE art. 6.4.5',
     ));
+
+    // Nota de DISPOSICIÓN (fix auditoría #134): la ec. 6.52 presupone el
+    // detalle correcto, que este motor no comprueba (no se pide nº de filas).
+    checks.push({
+      id: 'punz-layout-note',
+      description: `Disposición a verificar a mano: perímetro exterior de cercos hasta uout−1.5d (uout=${uout.toFixed(0)} mm), 1ª fila a 0.3-0.5·d de la cara, separación tangencial ≤1.5d (en u1) / 2d (fuera), Asw,min §9.4.3`,
+      value: '',
+      limit: '',
+      utilization: 0,
+      status: 'neutral',
+      article: 'CE Anejo 19 §6.4.5(4) / §9.4.3',
+      neutral: true,
+      tag: 'DETALLE',
+    });
   }
+
+  // Validez del β simplificado (fix auditoría #138/#132)
+  checks.push({
+    id: 'punz-beta-note',
+    description: `β=${beta.toFixed(2)} simplificado — válido para estructura arriostrada con luces adyacentes que no difieren >25%; si no, calcular β con la transferencia de momento real`,
+    value: '',
+    limit: '',
+    utilization: 0,
+    status: 'neutral',
+    article: 'CE Anejo 19 §6.4.3 (fig. 6.21N)',
+    neutral: true,
+    tag: 'HIPÓTESIS',
+  });
 
   const valid = checks.every((c) => c.status !== 'fail');
 

@@ -89,7 +89,9 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   if (base.error) return base; // propaga un error de validación de la placa (d, fck, armado…)
 
   // ── UPN (EC3) — informativo para el hand-calc del reparto ────────────────────
-  const fy = STEEL_FY[inp.steelGrade];
+  // fy reducido para tf > 16 mm (UPN320 tf=17.5, UPN400 tf=18 — fix #137)
+  const fy_base = STEEL_FY[inp.steelGrade];
+  const fy = upn.tf > 16 ? fy_base - 10 : fy_base;
   const upnClass = classifyUPN(upn, fy);
   const W = (upnClass <= 2 ? upn.Wpl_y : upn.Wel_y) * 1000;          // mm³
   const MRd = (W * fy) / GAMMA_M0 / 1e6;                            // kN·m
@@ -121,7 +123,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     value: `Clase ${upnClass}`, limit: '≤ 3',
     utilization: upnClass <= 3 ? upnClass / 4 : 1,
     status: upnClass <= 3 ? 'ok' : 'fail',
-    article: 'CE DB-SE-A 5.5',
+    article: 'CE Anejo 22 (EC3) §5.5',
   });
 
   // Capacidades del UPN — informativo (el ingeniero comprueba el reparto/flexión a mano).
@@ -129,7 +131,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     'cru-upn-cap',
     'Capacidades del UPN (dato para el hand-calc del reparto)',
     `M_Rd ${MRd.toFixed(1)} kN·m · Vpl,Rd ${VplRd.toFixed(0)} kN`,
-    'CE DB-SE-A 6.2',
+    'CE Anejo 22 (EC3) §6.2',
   ));
 
   // Cabida del ala en el hueco libre al borde (geometría, vinculante).

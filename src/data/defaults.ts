@@ -332,7 +332,6 @@ export type PunchingPosition = 'interior' | 'borde' | 'esquina';
 // Cruceta v1: only HEB/HEA/IPE columns (rectangular footprint) + zapata substrate.
 export type CrucetaColType = 'HEB' | 'HEA' | 'IPE';
 export type CrucetaSteel = 'S275' | 'S355';
-export type CrucetaSubstrate = 'zapata' | 'forjado';
 
 export interface PunchingInputs {
   mode:          PunchingMode;      // 'pilar' | 'carga-puntual' | 'pilar-cruceta'
@@ -364,7 +363,6 @@ export interface PunchingInputs {
   steelGrade:    CrucetaSteel;      // cruceta steel grade (clase/capacidades UPN)
   upnSize:       number;            // chosen UPN profile size key
   weldThroat:    number;            // mm — fillet weld throat a (informativo)
-  substrate:     CrucetaSubstrate;  // 'zapata' | 'forjado' (etiqueta)
   edgeY:         number;            // mm — clear dist plate face → free edge (borde/esquina)
   edgeX:         number;            // mm — clear dist 2nd free edge (esquina only)
 }
@@ -381,7 +379,7 @@ export const punchingDefaults: PunchingInputs = {
   sSup:          150,
   barDiamInf:    12,
   sInf:          150,
-  VEd:           300,    // kN — produces ~80% util on vRd,c at FTUX
+  VEd:           260,    // kN — ~79% util en vRd,c con β=1.15 (fix #132; antes 300 con β=1.0)
   position:      'interior',
   hasShearReinf: false,
   swDiam:        8,      // mm — typical stirrup diameter
@@ -398,7 +396,6 @@ export const punchingDefaults: PunchingInputs = {
   steelGrade:    'S275',
   upnSize:       160,
   weldThroat:    6,
-  substrate:     'zapata',
   edgeY:         500,    // mm — clear dist to free edge (used in borde/esquina)
   edgeX:         500,
 };
