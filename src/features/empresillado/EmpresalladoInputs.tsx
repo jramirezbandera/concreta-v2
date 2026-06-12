@@ -28,7 +28,7 @@ interface FieldProps {
   id: string;
 }
 
-function NumberField({ labelKey, label, sub, unit, value, onChange, error, errorText, helpText, id }: FieldProps) {
+function NumberField({ labelKey, label, sub, unit, value, onChange, min, error, errorText, helpText, id }: FieldProps) {
   const resolved = labelKey
     ? {
         label: LABELS[labelKey].sym || LABELS[labelKey].descShort,
@@ -39,6 +39,11 @@ function NumberField({ labelKey, label, sub, unit, value, onChange, error, error
 
   const [localStr, setLocalStr] = useState(() => String(value));
   useEffect(() => { setLocalStr(String(value)); }, [value]);
+
+  // min aplicado como clamp real (fix auditoría #127: antes el prop existía
+  // pero nunca se aplicaba — bc=−30 o L=−3 entraban por teclado y daban
+  // resultados «válidos» en verde). El motor valida además positividad.
+  const clamp = (n: number) => (min !== undefined ? Math.max(min, n) : n);
 
   return (
     <div>
@@ -53,11 +58,12 @@ function NumberField({ labelKey, label, sub, unit, value, onChange, error, error
             onChange={(e) => {
               setLocalStr(e.target.value);
               const n = parseFloat(e.target.value);
-              if (!isNaN(n)) onChange(n);
+              if (!isNaN(n)) onChange(clamp(n));
             }}
             onBlur={() => {
               const n = parseFloat(localStr);
               if (isNaN(n)) setLocalStr(String(value));
+              else if (clamp(n) !== n) { setLocalStr(String(clamp(n))); onChange(clamp(n)); }
             }}
             className={[
               'w-15 text-right bg-bg-primary border rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
@@ -160,7 +166,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           value={state.beta_x}
           step={0.05}
           min={0.5}
-          helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+          helpText={"Condición de contorno del pilar en el marco estructural.\nEl pandeo local del cordón usa lk = s entre presillas (lado seguro, fix #130).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
           onChange={(v) => set('beta_x', v)}
         />
         <NumberField
@@ -170,7 +176,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           value={state.beta_y}
           step={0.05}
           min={0.5}
-          helpText={"Condición de contorno del pilar en el marco estructural.\nLas pletinas soldadas tienen lk = 0.5·s fijo (biempotradas).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
+          helpText={"Condición de contorno del pilar en el marco estructural.\nEl pandeo local del cordón usa lk = s entre presillas (lado seguro, fix #130).\n· Empotrado-empotrado: 0.5\n· Articulado-empotrado: 0.7\n· Articulado-articulado: 1.0"}
           onChange={(v) => set('beta_y', v)}
         />
       </CollapsibleSection>

@@ -492,7 +492,7 @@ export interface EmpresalladoInputs {
   perfil: string;   // AngleProfile key, e.g. 'L100x10'
   fy: number;       // steel yield strength (MPa), typically 275 or 355
   // Global buckling length factors (frame boundary conditions, independent of batten fixity)
-  // Batten plates use fixed lk_local = 0.5×s (welded = fixed-fixed, per EC3 §6.4.2.1 Table 6.8)
+  // Chord local buckling uses lk = s (c/c between battens, conservative — see engine; fix #130)
   beta_x: number;   // global buckling factor x-axis (0.5=fixed-fixed, 0.7=pin-fixed, 1.0=pin-pin)
   beta_y: number;   // global buckling factor y-axis
   // Batten plates (pletinas)

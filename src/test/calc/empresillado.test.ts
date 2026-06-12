@@ -49,9 +49,14 @@ describe('FTUX defaults — L100x10, bc=hc=30cm, L=3.0m', () => {
 describe('Chord force — N only (Mx=My=0)', () => {
   const r = calcEmpresillado(inp({ N_Ed: 500, Mx_Ed: 0, My_Ed: 0 }));
 
-  it('N_chord_max = N_Ed / 4 exactly when Mx=My=0', () => {
+  it('N_chord_max = N/4 + término de e0=L/500 amplificado (fix #125 — antes era exactamente N/4)', () => {
     expect(r.valid).toBe(true);
-    expect(r.N_chord_max).toBeCloseTo(500 / 4, 6);
+    const fX = (100 * r.A_ang * (r.hy / 2)) / r.I_X;  // kN por kNm
+    const fY = (100 * r.A_ang * (r.hx / 2)) / r.I_Y;
+    const expected = 500 / 4 + r.MEd_IIX * fX + r.MEd_IIY * fY;
+    expect(r.N_chord_max).toBeCloseTo(expected, 4);
+    expect(r.N_chord_max).toBeCloseTo(133.4, 1);  // oracle verificado a mano
+    expect(r.N_chord_max).toBeGreaterThan(500 / 4);
   });
 });
 
@@ -62,9 +67,14 @@ describe('Chord force — N + Mx + My, square column', () => {
 
   it('is valid', () => expect(r.valid).toBe(true));
 
-  it('N_chord_max formula: N/4 + |Mx|/(2·hy) + |My|/(2·hx)', () => {
-    const expected = N / 4 + (Mx * 100) / (2 * r.hy) + (My * 100) / (2 * r.hx);
+  it('N_chord_max = N/4 + MEd_II·A·d/I por eje (ec. 6.69 exacta, fix #125)', () => {
+    const fX = (100 * r.A_ang * (r.hy / 2)) / r.I_X;
+    const fY = (100 * r.A_ang * (r.hx / 2)) / r.I_Y;
+    const expected = N / 4 + r.MEd_IIX * fX + r.MEd_IIY * fY;
     expect(r.N_chord_max).toBeCloseTo(expected, 4);
+    // y supera al primer orden antiguo (e0 + amplificación)
+    const firstOrder = N / 4 + (Mx * 100) / (2 * r.hy) + (My * 100) / (2 * r.hx);
+    expect(r.N_chord_max).toBeGreaterThan(firstOrder);
   });
 
   it('N_chord_max > N/4 when moments are non-zero', () => {
@@ -148,7 +158,7 @@ describe('Monotone: doubling batten spacing increases λ̄_eff and decreases χ'
 // ─── Suite 8: Fail state — extreme slenderness ────────────────────────────────
 describe('Fail state: large N_Ed on slender column', () => {
   // Long column L=8.0m, large load N=2000kN, small L60×5 angle
-  const r = calcEmpresillado(inp({ L: 8.0, N_Ed: 2000, Mx_Ed: 0, My_Ed: 0, perfil: 'L60x5' }));
+  const r = calcEmpresillado(inp({ L: 8.0, N_Ed: 1200, Mx_Ed: 0, My_Ed: 0, perfil: 'L60x5' }));
 
   it('is valid (no crash)', () => expect(r.valid).toBe(true));
 
@@ -164,20 +174,18 @@ describe('Fail state: large N_Ed on slender column', () => {
 
 // ─── Suite 9: Pletina formulas (EC3 §6.4.3.1–2, biempotradas) ────────────────
 describe('Pletina — EC3 biempotradas formulas', () => {
-  it('Vd=0: V_Ed = N_Ed/500 (notional shear floor, EC3 §6.4.3.1)', () => {
+  it('Vd=0: V_Ed = π·MEd_II/L (cortante de 2.º orden, fix #125 — antes N/500 = 1 kN, 25× corto)', () => {
     const r = calcEmpresillado(inp({ N_Ed: 500, Vd: 0 }));
     expect(r.valid).toBe(true);
-    expect(r.V_Ed).toBeCloseTo(500 / 500, 6);  // = 1.0 kN
+    const expected = Math.PI * Math.max(r.MEd_IIX, r.MEd_IIY) / 3.0;
+    expect(r.V_Ed).toBeCloseTo(expected, 4);
+    expect(r.V_Ed).toBeGreaterThan(20);
   });
 
-  it('Vd > N_Ed/500: V_Ed = Vd (actual shear governs)', () => {
-    const r = calcEmpresillado(inp({ N_Ed: 500, Vd: 5 }));
-    expect(r.V_Ed).toBeCloseTo(5, 6);  // 5 > 1.0
-  });
-
-  it('Vd < N_Ed/500: V_Ed = N_Ed/500 (floor governs)', () => {
-    const r = calcEmpresillado(inp({ N_Ed: 500, Vd: 0.5 }));
-    expect(r.V_Ed).toBeCloseTo(1.0, 6);  // 1.0 > 0.5
+  it('Vd se SUMA al cortante de imperfección (no envolvente, fix #125/A3)', () => {
+    const r0 = calcEmpresillado(inp({ Vd: 0 }));
+    const r5 = calcEmpresillado(inp({ Vd: 5 }));
+    expect(r5.V_Ed).toBeCloseTo(r0.V_Ed + 5, 4);
   });
 
   it('M_Ed_pl = V_Ed · s / 4 (biempotrado, EC3 §6.4.3.2)', () => {
@@ -259,5 +267,79 @@ describe('L100x10 profile spot-check', () => {
 
   it('chord force with default loads > N/4 due to moments', () => {
     expect(r.N_chord_max).toBeGreaterThan(inp().N_Ed / 4);
+  });
+});
+
+// ── Fixes auditoría adenda 7 (hallazgos #125-130) ─────────────────────────────
+describe('Auditoría #125: oracles de segundo orden (defaults)', () => {
+  const r = calcEmpresillado(inp());
+
+  it('MEd_IIX ≈ 23.7 kNm (Ncr≈57.5e3, Sv≈23.3e3, denom≈0.970)', () => {
+    expect(r.Ncr_X).toBeCloseTo(57535, -2);
+    expect(r.Sv_X).toBeCloseTo(23336, -2);
+    expect(r.MEd_IIX).toBeCloseTo(23.71, 1);
+  });
+
+  it('V_Ed ≈ 24.8 kN (antes 1.0 kN con el suelo N/500)', () => {
+    expect(r.V_Ed).toBeCloseTo(24.83, 1);
+  });
+
+  it('FTUX sigue en verde: gobierna el cordón con Vierendeel ≈ 0.55', () => {
+    expect(r.checks.filter((c) => c.status === 'fail')).toHaveLength(0);
+    expect(r.utilization).toBeCloseTo(0.545, 1);
+    const gov = r.checks.find((c) => c.id === 'cordon-interaccion')!;
+    expect(gov.utilization).toBeCloseTo(r.utilization, 6);
+  });
+
+  it('flip demostrado en la auditoría: Mx=58 → pletina-flexión FAIL (antes todo verde al 42%)', () => {
+    const rf = calcEmpresillado(inp({ Mx_Ed: 58 }));
+    const row = rf.checks.find((c) => c.id === 'pletina-flexion')!;
+    expect(row.utilization).toBeGreaterThan(1.0);
+    expect(row.status).toBe('fail');
+  });
+});
+
+describe('Auditoría #126: flexión Vierendeel del cordón', () => {
+  it('fila cordon-interaccion presente con M_ch = VEd·s/8', () => {
+    const r = calcEmpresillado(inp());
+    expect(r.M_ch).toBeCloseTo(r.V_Ed * 0.4 / 8, 4);
+    expect(r.checks.some((c) => c.id === 'cordon-interaccion')).toBe(true);
+    expect(r.M_el_Rd).toBeCloseTo(6.61, 1);  // Wel(L100x10)·fy/γM0
+  });
+});
+
+describe('Auditoría #128: cortante interno de la presilla T=(VEd/2)·s/h0', () => {
+  it('defaults: T ≈ 0.56·V_Ed (antes se comparaba V total — conservador aquí)', () => {
+    const r = calcEmpresillado(inp());
+    expect(r.T_pl).toBeCloseTo((r.V_Ed / 2) * (40 / r.hy), 3);
+  });
+
+  it('cruce alcanzable s > 2·h0: T supera al V total (antes no conservador)', () => {
+    const r = calcEmpresillado(inp({ s: 80, lp: 10, hc: 15 }));
+    expect(r.valid).toBe(true);
+    expect(r.T_pl).toBeGreaterThan(r.V_Ed);
+  });
+});
+
+describe('Auditoría #127/#129: validación y alcance', () => {
+  it('geometrías no positivas → invalid (antes verdes)', () => {
+    expect(calcEmpresillado(inp({ bc: -30 })).valid).toBe(false);
+    expect(calcEmpresillado(inp({ L: -3 })).valid).toBe(false);
+    expect(calcEmpresillado(inp({ tp: 0 })).valid).toBe(false);
+    expect(calcEmpresillado(inp({ N_Ed: -500 })).valid).toBe(false);
+  });
+
+  it('separación de presillas: fila s ≤ 50·i_v (fail con s excesivo)', () => {
+    const ok = calcEmpresillado(inp());
+    expect(ok.checks.find((c) => c.id === 'sep-presillas')!.status).toBe('ok');
+    const bad = calcEmpresillado(inp({ s: 120, lp: 12 }));
+    expect(bad.checks.find((c) => c.id === 'sep-presillas')!.status).toBe('fail');
+  });
+
+  it('scope-note presente (pilar RC despreciado, soldadura no comprobada)', () => {
+    const r = calcEmpresillado(inp());
+    const row = r.checks.find((c) => c.id === 'scope-note')!;
+    expect(row).toBeTruthy();
+    expect(row.neutral).toBe(true);
   });
 });
