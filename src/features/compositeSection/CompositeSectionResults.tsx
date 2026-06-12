@@ -54,14 +54,17 @@ export function CompositeSectionResults({ result }: Props) {
   }
 
   const { sectionClass } = result;
-  const isClass4 = sectionClass === 4;
+  // class4Warning cubre también la clase 4 de chapas en modo custom
+  // (sectionClass=null) — fix auditoría #101.
+  const isClass4 = result.class4Warning;
   const mrdFormula = isClass4
     ? 'Weff · fy / γM0 (EN 1993-1-5)'
-    : (sectionClass === null || sectionClass <= 2)
+    : sectionClass !== null && sectionClass <= 2
       ? 'Wpl · fy / γM0'
-      : 'Wel · fy / γM0';
+      : 'Wel · fy / γM0';   // clase 3 y modo custom (elástico)
 
   const ambientStatus: CheckStatus =
+    isClass4              ? 'fail' :
     sectionClass === null ? 'ok' :
     sectionClass <= 2     ? 'ok' :
     sectionClass === 3    ? 'warn' : 'fail';
@@ -95,10 +98,12 @@ export function CompositeSectionResults({ result }: Props) {
       <ValueRow label="Wpl"              value={`${result.Wpl_cm3.toFixed(0)} cm³`} />
       <ValueRow label="α (Wpl / Wel,min)" value={result.shapeFactor.toFixed(3)} />
 
-      {/* Clasificación — only in reinforced mode */}
-      {sectionClass !== null && result.checks.length > 0 && (
+      {/* Clasificación — reinforced completa; custom orientativa por chapas */}
+      {result.checks.length > 0 && (
         <>
-          <GroupHeader label="Clasificación CE art. 5.2" />
+          <GroupHeader label={sectionClass !== null
+            ? 'Clasificación CE art. 5.2'
+            : 'Clasificación orientativa (chapas)'} />
           {result.checks.map((c) => <CheckRowItem key={c.id} check={c} />)}
         </>
       )}

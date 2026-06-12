@@ -6,11 +6,23 @@ import { type CompositeSectionInputs, type PlateEntry } from '../../data/default
 import { makeISectionBySize } from '../sections';
 import { type CheckRow } from './types';
 
+// fy por grado y espesor (CTE DB-SE-A Tabla 4.1 / EN 10025-2). El fy de la
+// sección es el del elemento más DESFAVORABLE (t_max entre tf del perfil y
+// espesor de chapas) — antes el mapa era plano y platabandas de 20-25 mm o
+// perfiles con tf>16 usaban el fy nominal (fix auditoría #99, mismo patrón
+// que #62/#89 en steelBeams/steelColumns).
 const FY_MAP: Record<string, number> = {
   S235: 235,
   S275: 275,
   S355: 355,
-  S450: 440, // EN 1993-1-1 Table 3.1: fy = 440 MPa for t ≤ 16mm
+  S450: 440, // EN 1993-1-1 Table 3.1 (t ≤ 16mm)
+};
+// 16 < t ≤ 40 mm
+const FY_MAP_THICK: Record<string, number> = {
+  S235: 225,
+  S275: 265,
+  S355: 345,
+  S450: 410, // CTE DB-SE-A Tabla 4.1
 };
 const GAMMA_M0 = 1.05;
 
@@ -100,6 +112,8 @@ function classUtil(ratio: number, cls: 1 | 2 | 3 | 4, limits: [number, number, n
 // WEB_LIMITS removed: web is classified via webLimitsShifted() which accounts
 // for shifted plastic NA (α) and elastic stress ratio (ψ) — see below.
 const FLG_LIMITS: [number, number, number] = [9, 10, 14];
+// Internal compressed element (EC3 Tab 5.2, parts supported on both edges)
+const INT_LIMITS: [number, number, number] = [33, 38, 42];
 
 // ── PNA via horizontal strip method ──────────────────────────────────────────
 // Strip elements use the ACTUAL section geometry (profile decomposed into 3
@@ -226,10 +240,51 @@ function webLimitsShifted(α: number, ψ: number, eps: number): { c1: number; c2
   return { c1, c2, c3 };
 }
 
+// ── Classification of loose plates (lateral / custom-position) ──────────────
+// Clasificación ORIENTATIVA de chapas comprimidas como elemento INTERNO
+// (apoyado en ambos bordes) con la α/ψ de su posición: c = dimensión mayor,
+// t = menor. Verticales: gradiente de flexión (reproduce los límites de
+// alma); horizontales comprimidas: α=1/ψ=1 → 33/38/42·ε. El supuesto
+// «interno» puede ser optimista para vuelos libres en modo custom — la fila
+// lo documenta. Cierra el hueco de clase 4 silenciosa (fixes #101, #103).
+function classifyLoosePlate(
+  yBot: number, h: number, w: number,
+  yc: number, y_pna: number, eps: number,
+): { cls: 1 | 2 | 3 | 4; ratio: number; lim: number } | null {
+  const yTop = yBot + h;
+  const sigTop = yTop - yc;            // compresión positiva (M+)
+  if (sigTop <= 0) return null;        // chapa íntegramente en tracción
+  let c: number, t: number, alpha: number, psi: number;
+  if (h >= w) {
+    // Vertical: gradiente de flexión a lo largo de su altura
+    c = h; t = w;
+    alpha = Math.min(Math.max((yTop - Math.max(y_pna, yBot)) / Math.max(h, 1), 0), 1);
+    psi = (yBot - yc) / sigTop;
+  } else {
+    // Horizontal: panel a cota ~constante — comprimida uniforme (lado seguro)
+    c = w; t = h;
+    alpha = 1;
+    psi = 1;
+  }
+  const lims = webLimitsShifted(alpha, Math.min(psi, 1), eps);
+  const ratio = c / Math.max(t, 1e-6);
+  const cls: 1 | 2 | 3 | 4 = ratio <= lims.c1 ? 1 : ratio <= lims.c2 ? 2 : ratio <= lims.c3 ? 3 : 4;
+  const lim = cls === 1 ? lims.c1 : cls === 2 ? lims.c2 : lims.c3;
+  return { cls, ratio, lim };
+}
+
+// ── Overlap detection (#105) ─────────────────────────────────────────────────
+interface Rect { x0: number; x1: number; y0: number; y1: number }
+
+function rectOverlapArea(a: Rect, b: Rect): number {
+  const dx = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+  const dy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+  return dx > 0 && dy > 0 ? dx * dy : 0;
+}
+
 // ── main calc ─────────────────────────────────────────────────────────────────
 
 export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSectionResult {
-  const fy = FY_MAP[inp.grade] ?? 275;
   const section = inp.mode === 'reinforced'
     ? makeISectionBySize(inp.profileType, inp.profileSize)
     : undefined;
@@ -258,9 +313,22 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     if (p.b <= 0 || p.t <= 0) return invalid('Dimensiones de chapa inválidas (b > 0, t > 0)');
   }
 
+  // fy del elemento más desfavorable: t>16 → fila gruesa (fix auditoría #99).
+  // Para laterales el espesor del elemento es b (extensión horizontal).
+  const t_max = Math.max(
+    profile?.tf ?? 0,
+    0,
+    ...inp.plates.map((p) => (p.posType === 'left' || p.posType === 'right') ? p.b : p.t),
+  );
+  const fy = t_max > 16
+    ? (FY_MAP_THICK[inp.grade] ?? 265)
+    : (FY_MAP[inp.grade] ?? 275);
+
   // ── resolve plate positions ─────────────────────────────────────────────────
   const h_base = profile?.h ?? 0;
-  const web_h = profile ? Math.max(profile.h - 2 * profile.tf, 1) : 0;
+  // Laterales: altura libre SIN los acuerdos (antes h−2tf pisaba la zona de
+  // r y duplicaba ~1 cm² por chapa — fix auditoría #106).
+  const web_h = profile ? Math.max(profile.h - 2 * profile.tf - 2 * profile.r, 1) : 0;
 
   let topStack = h_base;
   let bottomStack = 0;
@@ -294,8 +362,10 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
         break;
       case 'left':
       case 'right':
-        // Plate runs full web clear height; b = horizontal extent from web face
-        yBottom = profile!.tf;
+        // Plate runs the web clear height BETWEEN fillets; b = horizontal
+        // extent from web face (fix #106: antes arrancaba en tf y solapaba
+        // los acuerdos).
+        yBottom = profile!.tf + profile!.r;
         height = web_h;
         width = plate.b;
         break;
@@ -436,14 +506,43 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     flangeBotRatio = c_f_bot / profile.tf;
     flangeBotClass = classifyElement(flangeBotRatio, FLG_LIMITS, epsilon);
 
-    // Top flange: use first top cover plate if present, else same as bottom
+    // Top flange — platabandas clasificadas respecto a sus APOYOS REALES
+    // (soldaduras al ala/chapa inferior), no como voladas desde el alma
+    // (fix auditoría #100: (b−tw)/2 daba clase 4 y Mrd=N/D a chapas anchas
+    // y delgadas perfectamente válidas). Cada chapa apilada se comprueba
+    // (fix #104: antes solo la más ancha):
+    //   - vuelo = max(0, (b − b_soporte)/2) con límites de vuelo 9/10/14
+    //   - panel interno = min(b, b_soporte) con límites internos 33/38/42
     const topPlates = resolvedPlates.filter((rp) => rp.plate.posType === 'top');
+    let ftLimGov: number | null = null;   // límite (en unidades de ratio) del subelemento que gobierna
+    let ftUtilGov: number | null = null;
     if (topPlates.length > 0) {
-      // Use the widest top plate (most critical outstand)
-      const widestTop = topPlates.reduce((a, b) => a.plate.b >= b.plate.b ? a : b);
-      const c_f_top = (widestTop.plate.b - profile.tw) / 2;
-      flangeTopRatio = c_f_top / widestTop.plate.t;
-      flangeTopClass = classifyElement(flangeTopRatio, FLG_LIMITS, epsilon);
+      let supportWidth = profile.b;
+      let worst: { cls: 1 | 2 | 3 | 4; ratio: number; util: number; lim: number } | null = null;
+      for (const rp of topPlates) {
+        const b_p = rp.plate.b;
+        const t_p = rp.plate.t;
+        const outRatio = Math.max(0, (b_p - supportWidth) / 2) / t_p;
+        const outCls = classifyElement(outRatio, FLG_LIMITS, epsilon);
+        const outUtil = classUtil(outRatio, outCls, FLG_LIMITS, epsilon);
+        const outLim = FLG_LIMITS[Math.min(outCls - 1, 2)] * epsilon;
+        const intRatio = Math.min(b_p, supportWidth) / t_p;
+        const intCls = classifyElement(intRatio, INT_LIMITS, epsilon);
+        const intUtil = classUtil(intRatio, intCls, INT_LIMITS, epsilon);
+        const intLim = INT_LIMITS[Math.min(intCls - 1, 2)] * epsilon;
+        const plateWorst = (outCls > intCls || (outCls === intCls && outUtil >= intUtil))
+          ? { cls: outCls, ratio: outRatio, util: outUtil, lim: outLim }
+          : { cls: intCls, ratio: intRatio, util: intUtil, lim: intLim };
+        if (!worst || plateWorst.cls > worst.cls
+          || (plateWorst.cls === worst.cls && plateWorst.util > worst.util)) {
+          worst = plateWorst;
+        }
+        supportWidth = b_p;
+      }
+      flangeTopRatio = worst!.ratio;
+      flangeTopClass = worst!.cls;
+      ftLimGov = worst!.lim;
+      ftUtilGov = worst!.util;
     } else {
       flangeTopRatio = flangeBotRatio;
       flangeTopClass = flangeBotClass;
@@ -451,13 +550,9 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
 
     sectionClass = Math.max(webClass, flangeTopClass, flangeBotClass) as 1 | 2 | 3 | 4;
 
-    // Build check rows
-    // Use α- and ψ-shifted limits for the web (accounts for cover-plate
-    // asymmetry — see webLimitsShifted above).
+    // Build check rows — α/ψ-shifted limits for the web (see webLimitsShifted).
+    // (#107: webLimVal/webLimRef eran expresiones duplicadas — unificadas.)
     const webLimVal = webClass === 1 ? webLimC1
-                    : webClass === 2 ? webLimC2
-                    : webLimC3;
-    const webLimRef = webClass === 1 ? webLimC1
                     : webClass === 2 ? webLimC2
                     : webLimC3;
     checks.push({
@@ -465,18 +560,19 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       description: 'Alma',
       value: `${webRatio.toFixed(1)}`,
       limit: `≤ ${webLimVal.toFixed(1)} (Cl.${webClass})`,
-      utilization: Math.min(webRatio / Math.max(webLimRef, 1e-6), 2),
+      utilization: Math.min(webRatio / Math.max(webLimVal, 1e-6), 2),
       status: webClass <= 2 ? 'ok' : webClass === 3 ? 'warn' : 'fail',
       article: 'CE art. 5.2 T.5.2',
     });
 
-    const ftLimVal = FLG_LIMITS[Math.min(flangeTopClass - 1, 2)] * epsilon;
+    const ftLimVal = ftLimGov ?? FLG_LIMITS[Math.min(flangeTopClass - 1, 2)] * epsilon;
+    const ftUtil = ftUtilGov ?? classUtil(flangeTopRatio, flangeTopClass, FLG_LIMITS, epsilon);
     checks.push({
       id: 'cls-flange-top',
-      description: 'Ala superior',
+      description: topPlates.length > 0 ? 'Ala superior (platabanda)' : 'Ala superior',
       value: `${flangeTopRatio.toFixed(1)}`,
       limit: `≤ ${ftLimVal.toFixed(1)} (Cl.${flangeTopClass})`,
-      utilization: classUtil(flangeTopRatio, flangeTopClass, FLG_LIMITS, epsilon),
+      utilization: ftUtil,
       status: flangeTopClass <= 2 ? 'ok' : flangeTopClass === 3 ? 'warn' : 'fail',
       article: 'CE art. 5.2 T.5.2',
     });
@@ -493,24 +589,109 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     });
   }
 
+  // ── Clasificación de chapas sueltas (laterales y posición custom) ─────────
+  // Cierra el hueco de clase 4 silenciosa (fixes auditoría #101, #103): en
+  // modo custom se comprueban TODAS las chapas; en reinforced, las que no
+  // cubre el modelo alma/alas (custom/left/right). Clasificación orientativa
+  // como elemento interno con la α/ψ de su posición (ver classifyLoosePlate).
+  const epsLoose = Math.sqrt(235 / fy);
+  let loosePlateClass4 = false;
+  {
+    const candidates = elements.filter((e) => !e.isProfile && (
+      inp.mode === 'custom'
+      || e.posType === 'custom' || e.posType === 'left' || e.posType === 'right'
+    ));
+    let i = 0;
+    for (const el of candidates) {
+      i += 1;
+      const res = classifyLoosePlate(el.yBottom_mm, el.height_mm, el.width_mm, yc, y_pna_mm, epsLoose);
+      if (!res) continue;  // íntegramente en tracción → sin pandeo local
+      if (res.cls === 4) loosePlateClass4 = true;
+      if (sectionClass !== null) {
+        sectionClass = Math.max(sectionClass, res.cls) as 1 | 2 | 3 | 4;
+      }
+      checks.push({
+        id: `cls-plate-${i}`,
+        description: `Chapa ${el.label} (interno supuesto)`,
+        value: res.ratio.toFixed(1),
+        limit: `≤ ${res.lim.toFixed(1)} (Cl.${res.cls})`,
+        utilization: Math.min(res.ratio / Math.max(res.lim, 1e-6), 2),
+        status: res.cls <= 2 ? 'ok' : res.cls === 3 ? 'warn' : 'fail',
+        article: 'CE Anejo 22 T.5.2 (orientativo)',
+      });
+    }
+  }
+
+  // ── Detección de solapes (#105) ────────────────────────────────────────────
+  // Una chapa incrustada en el perfil (o dos coincidentes) duplicaba área e
+  // inercia sin aviso. El perfil se descompone en sus 3 rectángulos; los
+  // contactos cara-a-cara legítimos tienen área de solape nula.
+  {
+    const rects: Rect[] = [];
+    for (const e of elements) {
+      if (e.isProfile && e.profileTf_mm && e.profileTw_mm) {
+        const b = e.width_mm, hh = e.height_mm, tf = e.profileTf_mm, tw = e.profileTw_mm, y0 = e.yBottom_mm;
+        rects.push({ x0: -b / 2, x1: b / 2, y0, y1: y0 + tf });
+        rects.push({ x0: -tw / 2, x1: tw / 2, y0: y0 + tf, y1: y0 + hh - tf });
+        rects.push({ x0: -b / 2, x1: b / 2, y0: y0 + hh - tf, y1: y0 + hh });
+      } else {
+        rects.push({
+          x0: e.xCenter_mm - e.width_mm / 2, x1: e.xCenter_mm + e.width_mm / 2,
+          y0: e.yBottom_mm, y1: e.yBottom_mm + e.height_mm,
+        });
+      }
+    }
+    let overlapArea = 0;
+    for (let a = 0; a < rects.length; a++) {
+      for (let b = a + 1; b < rects.length; b++) {
+        overlapArea += rectOverlapArea(rects[a], rects[b]);
+      }
+    }
+    if (overlapArea > 1) {
+      checks.push({
+        id: 'overlap',
+        description: 'Solape geométrico entre elementos — área e inercia contadas dos veces',
+        value: `${(overlapArea / 100).toFixed(1)} cm²`,
+        limit: '0 cm²',
+        utilization: 1,
+        status: 'warn',
+        article: '—',
+      });
+    }
+  }
+
+  // ── Nota de convención de signo (#102) ─────────────────────────────────────
+  // La clasificación α/ψ asume compresión en la fibra SUPERIOR; bajo flexión
+  // negativa la clase (y el Mrd de clase 3/4) puede ser peor (hasta −27% en
+  // el caso verificado).
+  checks.push({
+    id: 'sign-note',
+    description: 'Clase y Mrd válidos para flexión positiva (compresión en fibra superior)',
+    value: '',
+    limit: '',
+    utilization: 0,
+    status: 'neutral',
+    article: 'CE Anejo 22 §5.5',
+    neutral: true,
+    tag: 'M+',
+  });
+
   // ── Mmax,Rd ────────────────────────────────────────────────────────────────
-  // Custom mode (null) has no profile and we cannot classify arbitrary plate
-  // assemblies as web/flange elements. Using Wpl unconditionally would assume
-  // the section can reach its plastic moment — that is only true for
-  // Class 1/2, which we have not verified. Fall back to Wel_min (elastic
-  // bending) in custom mode to stay on the safe side.
-  const class4Warning = sectionClass === 4;
+  // Modo custom: la clasificación es parcial (elementos internos supuestos),
+  // así que NO se sube a Wpl — se mantiene Wel_min (elástico). Pero la clase 4
+  // detectada en cualquier chapa sí invalida también el módulo elástico
+  // (EN 1993-1-5 exige sección eficaz, no implementada) → Mrd = 0 con warning
+  // (fix auditoría #101: antes un alma 400×3 S355 daba Mrd elástico completo).
+  const class4Warning = sectionClass === 4 || loosePlateClass4;
   let Mrd_Nmm: number;
-  if (sectionClass === 1 || sectionClass === 2) {
-    Mrd_Nmm = Wpl_mm3 * fy / GAMMA_M0;
-  } else if (sectionClass === 3) {
-    Mrd_Nmm = Wel_min * fy / GAMMA_M0;
-  } else if (sectionClass === null) {
-    // Custom mode — classification unavailable → use elastic modulus.
-    Mrd_Nmm = Wel_min * fy / GAMMA_M0;
-  } else {
-    // Class 4: effective section (EN 1993-1-5) not implemented — cannot report Mrd
+  if (class4Warning) {
+    // Clase 4: sección eficaz (EN 1993-1-5) no implementada — no se reporta Mrd
     Mrd_Nmm = 0;
+  } else if (sectionClass === 1 || sectionClass === 2) {
+    Mrd_Nmm = Wpl_mm3 * fy / GAMMA_M0;
+  } else {
+    // Clase 3 y modo custom (clasificación parcial) → módulo elástico
+    Mrd_Nmm = Wel_min * fy / GAMMA_M0;
   }
 
   return {

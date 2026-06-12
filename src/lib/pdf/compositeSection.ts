@@ -116,9 +116,10 @@ export async function exportCompositeSectionPDF(
     gap();
   }
 
-  // MOMENTO RESISTENTE
+  // MOMENTO RESISTENTE — class4Warning cubre tambien la clase 4 de chapas
+  // en modo custom (fix auditoria #101)
   sectionHeader('MOMENTO RESISTENTE');
-  if (result.sectionClass === 4) {
+  if (result.class4Warning) {
     twoCol('MRd = N/D (Clase 4)', 'Requiere seccion eficaz EN 1993-1-5');
   } else if (result.sectionClass !== null && result.sectionClass <= 2) {
     twoCol(`MRd = Wpl x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
@@ -143,7 +144,7 @@ export async function exportCompositeSectionPDF(
   const hasWarn = result.checks.some((c) => c.status === 'warn');
   const overall = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
 
-  if (result.sectionClass !== null && result.checks.length > 0) {
+  if (result.checks.length > 0) {
     doc.setFontSize(11);
     setGray(doc, 30);
     doc.text(STATUS_LABEL[overall], PAGE_W - M, tableY + 3, { align: 'right' });

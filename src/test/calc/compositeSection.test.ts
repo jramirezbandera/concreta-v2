@@ -132,7 +132,7 @@ describe('classification', () => {
     expect(r.webClass).toBe(1);
   });
 
-  it('custom mode → sectionClass = null (no classification)', () => {
+  it('custom mode → sectionClass = null, pero con clasificación orientativa por chapas (fix #101)', () => {
     const inp: CompositeSectionInputs = {
       ...base,
       mode: 'custom',
@@ -140,7 +140,9 @@ describe('classification', () => {
     };
     const r = calcCompositeSection(inp);
     expect(r.sectionClass).toBeNull();
-    expect(r.checks).toHaveLength(0);
+    // Antes checks=[]; ahora cada chapa comprimida tiene fila + nota M+
+    expect(r.checks.some((c) => c.id === 'cls-plate-1')).toBe(true);
+    expect(r.checks.some((c) => c.id === 'sign-note')).toBe(true);
   });
 
   it('class 3 section detected (c/tw > 72ε but ≤ 124ε)', () => {
@@ -348,11 +350,12 @@ describe('validation guards', () => {
 
 // ── Left + right plates (reinforced mode) ────────────────────────────────────
 describe('left/right plates in reinforced mode', () => {
-  // IPE 300: A=53.8cm², h=300mm, tf=10.7mm, tw=7.1mm
-  // Each lateral plate: b=10mm, height=web_h=278.6mm → area=27.86cm²
-  // Total A = 53.8 + 2×27.86 = 109.52cm²
-  // Symmetric → yc = 150mm exactly
-  // Wpl verified by strip method: 990.5 cm³
+  // IPE 300: A=53.8cm², h=300mm, tf=10.7mm, tw=7.1mm, r=15mm
+  // Fix #106: la chapa lateral ocupa la altura libre ENTRE acuerdos
+  // (h−2tf−2r = 248.6mm), no h−2tf — antes pisaba la zona de r.
+  // Each lateral plate: b=10mm, height=248.6mm → area=24.86cm²
+  // Total A = 53.8 + 2×24.86 = 103.5cm²; symmetric → yc = 150mm
+  // Wpl by strips: IPE (602.1) + 2 laterales (2×10×124.3²·... = 309.0) = 911.1 cm³
   const leftRight: CompositeSectionInputs = {
     ...base,
     plates: [
@@ -365,9 +368,9 @@ describe('left/right plates in reinforced mode', () => {
     expect(calcCompositeSection(leftRight).valid).toBe(true);
   });
 
-  it('A_cm2 ≈ 109.5 (IPE300 + 2 web plates)', () => {
+  it('A_cm2 ≈ 103.5 (IPE300 + 2 chapas entre acuerdos, fix #106)', () => {
     const r = calcCompositeSection(leftRight);
-    expect(r.A_cm2).toBeCloseTo(109.5, 0);
+    expect(r.A_cm2).toBeCloseTo(103.5, 0);
   });
 
   it('yc = 150 mm (symmetric section)', () => {
@@ -375,14 +378,21 @@ describe('left/right plates in reinforced mode', () => {
     expect(r.yc_mm).toBeCloseTo(150, 0.5);
   });
 
-  it('Wpl_cm3 ≈ 990.5 (strip method including web plates)', () => {
+  it('Wpl_cm3 ≈ 911.1 (strip method, laterales entre acuerdos)', () => {
     const r = calcCompositeSection(leftRight);
-    expect(r.Wpl_cm3).toBeCloseTo(990.5, 0);
+    expect(r.Wpl_cm3).toBeCloseTo(911.1, 0);
   });
 
   it('Wpl > Wel_min (shape factor > 1)', () => {
     const r = calcCompositeSection(leftRight);
     expect(r.Wpl_cm3).toBeGreaterThan(r.Wel_min_cm3);
+  });
+
+  it('laterales clasificadas (fila cls-plate, fix #103) — clase 1 con b=10', () => {
+    const r = calcCompositeSection(leftRight);
+    const rows = r.checks.filter((c) => c.id.startsWith('cls-plate'));
+    expect(rows.length).toBe(2);
+    rows.forEach((c) => expect(c.status).toBe('ok'));
   });
 });
 
@@ -402,5 +412,136 @@ describe('custom y-position plates', () => {
     const r = calcCompositeSection(inp);
     expect(r.valid).toBe(true);
     expect(r.yc_mm).toBeCloseTo(150, 0.5);
+  });
+});
+
+// ── Fixes auditoría adenda 4 (hallazgos #99-106) ──────────────────────────────
+describe('Auditoría #99: fy por espesor', () => {
+  it('platabanda t=20 > 16 → fy = 265 (S275)', () => {
+    const r = calcCompositeSection({
+      ...base,
+      plates: [{ id: 'p1', b: 200, t: 20, posType: 'top', customYBottom: 0 }],
+    });
+    expect(r.fy_MPa).toBe(265);
+  });
+
+  it('IPE600 desnudo S355 (tf=19) → fy = 345', () => {
+    const r = calcCompositeSection({
+      ...base, profileSize: 600, grade: 'S355', plates: [],
+    });
+    expect(r.fy_MPa).toBe(345);
+  });
+
+  it('FTUX (tf=10.7, t=15 ≤ 16): fy nominal 275 intacto', () => {
+    expect(calcCompositeSection(base).fy_MPa).toBe(275);
+  });
+
+  it('lateral: el espesor del elemento es b — b=18 → fy = 265', () => {
+    const r = calcCompositeSection({
+      ...base,
+      plates: [{ id: 'pl', b: 18, t: 10, posType: 'left', customYBottom: 0 }],
+    });
+    expect(r.fy_MPa).toBe(265);
+  });
+});
+
+describe('Auditoría #100: vuelo de platabanda desde sus apoyos reales', () => {
+  it('IPE300 + 300×12 S355: clase 1 y Mrd > 0 (antes clase 4 → Mrd = N/D)', () => {
+    // Vuelo real (300−150)/2/12 = 6.25 ≤ 9·0.814 = 7.33 → clase 1
+    // Panel interno 150/12 = 12.5 ≤ 33·0.814 = 26.9 → clase 1
+    const r = calcCompositeSection({
+      ...base, grade: 'S355',
+      plates: [{ id: 'p1', b: 300, t: 12, posType: 'top', customYBottom: 0 }],
+    });
+    expect(r.valid).toBe(true);
+    expect(r.flangeTopClass).toBe(1);
+    expect(r.Mrd_kNm).toBeGreaterThan(0);
+  });
+
+  it('chapa más estrecha que el ala: panel interno entre soldaduras', () => {
+    // 100×6 sobre IPE300 (b=150): vuelo 0; interno 100/6 = 16.7 < 30.5 → clase 1
+    const r = calcCompositeSection({
+      ...base,
+      plates: [{ id: 'p1', b: 100, t: 6, posType: 'top', customYBottom: 0 }],
+    });
+    expect(r.flangeTopClass).toBe(1);
+  });
+});
+
+describe('Auditoría #104: todas las platabandas apiladas se clasifican', () => {
+  it('150×4 sobre 200×15: la segunda chapa gobierna (interno 37.5 → clase 3)', () => {
+    // Chapa 2: vuelo max(0,(150−200)/2)=0; interno min(150,200)/4 = 37.5
+    // 35.1 < 37.5 ≤ 42·0.924 = 38.8 → clase 3 (antes solo se miraba la más ancha → clase 1)
+    const r = calcCompositeSection({
+      ...base,
+      plates: [
+        { id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 },
+        { id: 'p2', b: 150, t: 4,  posType: 'top', customYBottom: 0 },
+      ],
+    });
+    expect(r.flangeTopClass).toBe(3);
+    expect(r.sectionClass).toBe(3);
+  });
+});
+
+describe('Auditoría #101: clase 4 detectada en modo custom', () => {
+  it('alma soldada 400×3 S355: class4Warning y Mrd = 0 (antes Mrd elástico 431 kNm)', () => {
+    const r = calcCompositeSection({
+      ...base,
+      mode: 'custom',
+      grade: 'S355',
+      plates: [{ id: 'pw', b: 3, t: 400, posType: 'custom', customYBottom: 0 }],
+    });
+    // c/t = 400/3 = 133 > 124·ε = 101 → clase 4
+    expect(r.valid).toBe(true);
+    expect(r.class4Warning).toBe(true);
+    expect(r.Mrd_kNm).toBe(0);
+    expect(r.checks.find((c) => c.id === 'cls-plate-1')!.status).toBe('fail');
+  });
+
+  it('chapas compactas en custom: Mrd sigue siendo elástico (Wel, sin upgrade a Wpl)', () => {
+    const r = calcCompositeSection({
+      ...base,
+      mode: 'custom',
+      plates: [{ id: 'pc', b: 200, t: 300, posType: 'top', customYBottom: 0 }],
+    });
+    expect(r.class4Warning).toBe(false);
+    const expected = r.Wel_min_cm3 * 1000 * r.fy_MPa / 1.05 / 1e6;
+    expect(r.Mrd_kNm).toBeCloseTo(expected, 1);
+  });
+});
+
+describe('Auditoría #102: nota de convención M+', () => {
+  it('fila sign-note neutral presente en ambos modos', () => {
+    expect(calcCompositeSection(base).checks.some((c) => c.id === 'sign-note')).toBe(true);
+    const custom = calcCompositeSection({
+      ...base, mode: 'custom',
+      plates: [{ id: 'pc', b: 200, t: 300, posType: 'top', customYBottom: 0 }],
+    });
+    expect(custom.checks.some((c) => c.id === 'sign-note')).toBe(true);
+  });
+});
+
+describe('Auditoría #105: detección de solapes', () => {
+  it('chapa custom incrustada en el perfil → fila overlap warn', () => {
+    const r = calcCompositeSection({
+      ...base,
+      plates: [{ id: 'px', b: 150, t: 100, posType: 'custom', customYBottom: 100 }],
+    });
+    const row = r.checks.find((c) => c.id === 'overlap');
+    expect(row).toBeDefined();
+    expect(row!.status).toBe('warn');
+  });
+
+  it('configuraciones legítimas (contacto cara a cara) sin fila overlap', () => {
+    expect(calcCompositeSection(base).checks.some((c) => c.id === 'overlap')).toBe(false);
+    const laterals = calcCompositeSection({
+      ...base,
+      plates: [
+        { id: 'pl', b: 10, t: 10, posType: 'left',  customYBottom: 0 },
+        { id: 'pr', b: 10, t: 10, posType: 'right', customYBottom: 0 },
+      ],
+    });
+    expect(laterals.checks.some((c) => c.id === 'overlap')).toBe(false);
   });
 });
