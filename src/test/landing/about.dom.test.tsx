@@ -9,6 +9,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
 import { Landing } from '../../pages/Landing';
 import { About } from '../../pages/About';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -24,7 +25,9 @@ function renderRoutes(initial: string) {
   );
   return render(
     <HelmetProvider>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
     </HelmetProvider>,
   );
 }

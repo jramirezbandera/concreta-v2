@@ -109,7 +109,7 @@
   }
   .ap-sb-item.active {
     color: var(--accent);
-    background: rgba(56, 189, 248, 0.06);
+    background: var(--color-tint-accent);
   }
   .ap-sb-dot {
     width: 4px;

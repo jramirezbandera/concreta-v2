@@ -3,20 +3,32 @@
    never leak into the app shell. */
 
 .landing-root {
-  --accent: #38bdf8;
-  --accent-hover: #0ea5e9;
-  --bg-primary: #0b1220;
-  --bg-surface: #111a2d;
-  --bg-elevated: #1a2540;
-  --bg-canvas: #0b1220;
-  --border-main: #22304d;
-  --border-sub: #1a2540;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-disabled: #475569;
-  --state-ok: #22c55e;
-  --state-warn: #f59e0b;
-  --state-fail: #ef4444;
+  /* Color tokens alias the global @theme tokens so the marketing site themes
+     with [data-theme] exactly like the app. Light values live in index.css
+     :root/@theme; dark values in html[data-theme="dark"]. The landing-only
+     chrome tokens (nav/shadows/glow) get their dark values in the block below. */
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --bg-primary: var(--color-bg-primary);
+  --bg-surface: var(--color-bg-surface);
+  --bg-elevated: var(--color-bg-elevated);
+  --bg-canvas: var(--color-bg-canvas);
+  --border-main: var(--color-border-main);
+  --border-sub: var(--color-border-sub);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-disabled: var(--color-text-disabled);
+  --state-ok: var(--color-state-ok);
+  --state-warn: var(--color-state-warn);
+  --state-fail: var(--color-state-fail);
+
+  /* Marketing chrome — landing-only, theme-aware (dark values in the block below) */
+  --nav-bg: rgba(255, 255, 255, 0.82);
+  --shadow-frame: 0 1px 2px rgba(15, 23, 42, 0.05), 0 12px 32px -16px rgba(15, 23, 42, 0.18);
+  --shadow-pdf: 0 2px 6px rgba(15, 23, 42, 0.08), 0 18px 40px -20px rgba(15, 23, 42, 0.25);
+  --glow-dot: none;
+  --glow-play: 0 10px 28px -10px color-mix(in srgb, var(--accent) 35%, transparent);
+
   --font-sans: "Geist Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --container-max: 1240px;
@@ -34,4 +46,19 @@
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark — landing-only chrome overrides (the "firma"). The color tokens above
+   already flip via the global html[data-theme="dark"] block in index.css. */
+html[data-theme="dark"] .landing-root {
+  --nav-bg: rgba(11, 18, 32, 0.82);
+  --shadow-frame:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 24px 60px -20px rgba(0, 0, 0, 0.6),
+    0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  --shadow-pdf:
+    0 28px 64px -28px rgba(0, 0, 0, 0.8),
+    0 12px 28px -12px rgba(0, 0, 0, 0.5);
+  --glow-dot: 0 0 8px var(--accent);
+  --glow-play: 0 12px 32px rgba(56, 189, 248, 0.35);
 }

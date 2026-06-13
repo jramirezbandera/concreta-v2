@@ -12,6 +12,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { Landing } from '../../pages/Landing';
 import { Normativa } from '../../pages/Normativa';
 import { LandingNav } from '../../pages/landing/LandingNav';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 beforeAll(() => {
   // jsdom has no layout — scrollIntoView is unimplemented.
@@ -28,7 +29,9 @@ function renderRoutes(initial: string) {
   );
   return render(
     <HelmetProvider>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
     </HelmetProvider>,
   );
 }
@@ -71,23 +74,49 @@ describe('Normativa page', () => {
 describe('LandingNav', () => {
   it('section links use the /#anchor form so they work from any route', () => {
     render(
-      <MemoryRouter initialEntries={['/normativa']}>
-        <LandingNav />
-      </MemoryRouter>,
+      <ThemeProvider>
+        <MemoryRouter initialEntries={['/normativa']}>
+          <LandingNav />
+        </MemoryRouter>
+      </ThemeProvider>,
     );
     expect(screen.getByRole('link', { name: 'Módulos' })).toHaveAttribute('href', '/#modulos');
   });
 
   it('mobile menu opens and closes', () => {
     render(
-      <MemoryRouter>
-        <LandingNav />
-      </MemoryRouter>,
+      <ThemeProvider>
+        <MemoryRouter>
+          <LandingNav />
+        </MemoryRouter>
+      </ThemeProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: /Abrir menú/i }));
     expect(screen.getByRole('button', { name: /Cerrar menú/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Cerrar menú/i }));
     expect(screen.getByRole('button', { name: /Abrir menú/i })).toBeInTheDocument();
+  });
+
+  // T7: the theme toggle lives in the nav (added with the light-default
+  // migration), so every marketing page can switch theme. It needs a
+  // ThemeProvider — the regression that wrapping the renders above guards.
+  it('renders a working theme toggle and flips theme on click', () => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <LandingNav />
+        </MemoryRouter>
+      </ThemeProvider>,
+    );
+    // Two-state sun/moon button: default light → label offers switch to "oscuro".
+    const toggle = screen.getByRole('button', { name: /Cambiar a tema oscuro/i });
+    expect(toggle).toBeInTheDocument();
+    fireEvent.click(toggle);
+    // After toggling, the control now offers the reverse switch and persists.
+    expect(screen.getByRole('button', { name: /Cambiar a tema claro/i })).toBeInTheDocument();
+    expect(window.localStorage.getItem('concreta-theme')).toBe('dark');
   });
 });
 

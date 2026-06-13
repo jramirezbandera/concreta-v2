@@ -13,6 +13,7 @@ import { Pricing } from '../../pages/Pricing';
 import { Blog } from '../../pages/Blog';
 import { BlogPost } from '../../pages/BlogPost';
 import { ALL_POSTS } from '../../pages/blog/posts';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -29,7 +30,9 @@ function renderAt(initial: string) {
   );
   return render(
     <HelmetProvider>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
     </HelmetProvider>,
   );
 }

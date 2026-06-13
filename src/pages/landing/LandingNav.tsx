@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { APP_ROUTE } from './constants';
+import { ThemeToggle } from '../../components/theme/ThemeToggle';
 
 interface NavLink {
   label: string;
@@ -53,6 +54,7 @@ export function LandingNav() {
           ))}
         </nav>
         <div className="nav-right">
+          <ThemeToggle />
           <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
           <Link to="/pricing" className="btn btn-primary">
             Suscribirse <span className="arr">→</span>
@@ -94,6 +96,7 @@ export function LandingNav() {
             </Link>
           ))}
           <div className="nav-mobile-actions">
+            <ThemeToggle />
             <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
             <Link to="/pricing" className="btn btn-primary">
               Suscribirse <span className="arr">→</span>

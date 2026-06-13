@@ -12,7 +12,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(circle, #1a2540 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--color-dot-grid) 1px, transparent 1px);
     background-size: 32px 32px;
     mask-image: linear-gradient(
       180deg,
@@ -60,7 +60,7 @@
     height: 6px;
     background: var(--accent);
     border-radius: 50%;
-    box-shadow: 0 0 8px var(--accent);
+    box-shadow: var(--glow-dot);
   }
   .hero-title {
     font-size: clamp(40px, 5.6vw, 68px);
@@ -126,10 +126,7 @@
     border: 1px solid var(--border-main);
     border-radius: 6px;
     overflow: hidden;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.02) inset,
-      0 24px 60px -20px rgba(0, 0, 0, 0.6),
-      0 8px 24px -12px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-frame);
   }
   .hero-preview-caption {
     margin-top: 10px;

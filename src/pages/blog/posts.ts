@@ -66,8 +66,8 @@ export const CAT_COLORS: Record<string, string> = {
   PRODUCTO: 'var(--text-secondary)',
 };
 export const CAT_BG: Record<string, string> = {
-  TUTORIAL: 'rgba(56, 189, 248, .10)',
-  NORMATIVA: 'rgba(245, 158, 11, .10)',
-  CHANGELOG: 'rgba(34, 197, 94, .10)',
-  PRODUCTO: 'rgba(148, 163, 184, .10)',
+  TUTORIAL: 'var(--color-tint-accent)',
+  NORMATIVA: 'var(--color-tint-warn)',
+  CHANGELOG: 'var(--color-tint-ok)',
+  PRODUCTO: 'var(--color-tint-neutral)',
 };

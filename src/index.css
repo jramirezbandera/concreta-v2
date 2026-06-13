@@ -121,6 +121,12 @@
   --color-text-disabled: #64748b;  /* slate-500 ~4.8:1 on white — labels/refs/helptext stay AA */
   --color-accent: #0284c7;
   --color-accent-hover: #0369a1;
+  /* Primary-button surface, decoupled from the link accent so button text stays
+     AA in light: white on #0369a1 ≈ 5.7:1; white on the link accent #0284c7 is
+     only ~4.1:1 (fails). Dark keeps the bright accent with near-black text. */
+  --color-btn-primary-bg: #0369a1;
+  --color-btn-primary-bg-hover: #075985;
+  --color-btn-primary-fg: #ffffff;
   --color-state-ok: #15803d;
   --color-state-warn: #b45309;
   --color-state-fail: #dc2626;
@@ -169,7 +175,17 @@
   --color-scrollbar-hover: #64748b;
 }
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  /* Translucent tints — resolved from the themed accent/state at use time, so
+     they track light/dark automatically with no dark override. */
+  --color-tint-accent: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --color-tint-accent-soft: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  --color-tint-ok: color-mix(in srgb, var(--color-state-ok) 10%, transparent);
+  --color-tint-warn: color-mix(in srgb, var(--color-state-warn) 10%, transparent);
+  --color-tint-fail: color-mix(in srgb, var(--color-state-fail) 10%, transparent);
+  --color-tint-neutral: color-mix(in srgb, var(--color-state-neutral) 10%, transparent);
+}
 
 /* Dark — the "firma". Higher specificity than :root so it always wins. */
 html[data-theme="dark"] {
@@ -186,6 +202,9 @@ html[data-theme="dark"] {
   --color-text-disabled: #475569;
   --color-accent: #38bdf8;
   --color-accent-hover: #0ea5e9;
+  --color-btn-primary-bg: #38bdf8;
+  --color-btn-primary-bg-hover: #0ea5e9;
+  --color-btn-primary-fg: #052238;
   --color-state-ok: #22c55e;
   --color-state-warn: #f59e0b;
   --color-state-fail: #ef4444;

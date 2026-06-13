@@ -21,7 +21,7 @@
 
   /* Dot-grid signature */
   .dot-grid {
-    background-image: radial-gradient(circle, #253147 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--color-dot-grid) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 

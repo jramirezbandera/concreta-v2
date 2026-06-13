@@ -10,6 +10,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
 import { moduleRegistry } from '../../data/moduleRegistry';
 import { Landing } from '../../pages/Landing';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 describe('landing module grid', () => {
   const registryRoutes = new Set(moduleRegistry.map((m) => m.route));
@@ -38,9 +39,11 @@ describe('<Landing/>', () => {
   it('renders without throwing', () => {
     render(
       <HelmetProvider>
-        <MemoryRouter>
-          <Landing />
-        </MemoryRouter>
+        <ThemeProvider>
+          <MemoryRouter>
+            <Landing />
+          </MemoryRouter>
+        </ThemeProvider>
       </HelmetProvider>,
     );
     // hero tagline is present

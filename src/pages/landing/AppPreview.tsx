@@ -274,9 +274,9 @@ export function AppPreview({ moduleId = 'rc-beams', accent = 'var(--accent)' }: 
   const state: CheckState = eta < 80 ? 'ok' : eta < 100 ? 'warn' : 'fail';
   const stateColor = state === 'ok' ? 'var(--state-ok)' : state === 'warn' ? 'var(--state-warn)' : 'var(--state-fail)';
   const stateBg =
-    state === 'ok' ? 'rgba(34,197,94,.10)' :
-    state === 'warn' ? 'rgba(245,158,11,.10)' :
-    'rgba(239,68,68,.10)';
+    state === 'ok' ? 'var(--color-tint-ok)' :
+    state === 'warn' ? 'var(--color-tint-warn)' :
+    'var(--color-tint-fail)';
 
   const activeGroup = cfg.sidebarGroup || cfg.group;
 
@@ -360,7 +360,7 @@ export function AppPreview({ moduleId = 'rc-beams', accent = 'var(--accent)' }: 
           </div>
           {checks.map(([name, ref, chkEta, st], i) => {
             const c = st === 'ok' ? 'var(--state-ok)' : st === 'warn' ? 'var(--state-warn)' : 'var(--state-fail)';
-            const stBg = st === 'ok' ? 'rgba(34,197,94,.10)' : st === 'warn' ? 'rgba(245,158,11,.10)' : 'rgba(239,68,68,.10)';
+            const stBg = st === 'ok' ? 'var(--color-tint-ok)' : st === 'warn' ? 'var(--color-tint-warn)' : 'var(--color-tint-fail)';
             return (
               <div className="ap-check" key={i}>
                 <div className="ap-check-name">

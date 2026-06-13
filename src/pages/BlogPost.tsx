@@ -114,7 +114,7 @@ export function BlogPost() {
                       className="tag"
                       style={{
                         color: CAT_COLORS[post.category] || 'var(--accent)',
-                        background: CAT_BG[post.category] || 'rgba(56,189,248,.10)',
+                        background: CAT_BG[post.category] || 'var(--color-tint-accent)',
                       }}
                     >
                       {post.category}
