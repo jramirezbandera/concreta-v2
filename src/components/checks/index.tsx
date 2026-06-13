@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- this barrel intentionally co-locates check helpers/constants with the check components; HMR full-reload is acceptable. */
 // Shared result display primitives for calculation modules.
 // These components are typed to CheckStatus / CheckRow from src/lib/calculations/types.ts.
 

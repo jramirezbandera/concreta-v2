@@ -439,7 +439,7 @@ export async function exportAnchorPlatePDF(
   // una combinacion ELU por sesion; la envolvente queda como responsabilidad
   // del proyectista hasta que se introduzca M15.
   const footerY = PAGE_H - 10;
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     setGray(doc, 150);

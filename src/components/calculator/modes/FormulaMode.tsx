@@ -12,6 +12,7 @@ export function FormulaMode() {
   const { focusedTarget, insertValue } = useCalculator();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset inputs to defaults when the selected formula changes (derived-from-prop reset)
     setInputs(Object.fromEntries(f.inputs.map((i) => [i.k, i.def])));
   }, [pickedId, f.inputs]);
 

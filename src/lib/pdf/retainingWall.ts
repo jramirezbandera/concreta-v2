@@ -237,7 +237,7 @@ export async function exportRetainingWallPDF(
   }
 
   // ── Footer (every page) ──────────────────────────────────────────────────
-  const totalPages = (doc.internal as any).getNumberOfPages();
+  const totalPages = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
     doc.setFont('helvetica', 'normal');
@@ -249,6 +249,6 @@ export async function exportRetainingWallPDF(
   const filename = 'muro-contencion.pdf';
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

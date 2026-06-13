@@ -280,7 +280,6 @@ export function solveSectionAtMoment(inp: SectionInputs, M_kNm: number): Section
     }
     kappaLo = samples[idx].kappa;
     kappaHi = samples[Math.min(idx + 1, samples.length - 1)].kappa;
-    // eslint-disable-next-line no-console
     console.warn('solveSectionAtMoment: M(κ) no monotónica — bracketing local entre samples',
                  { M_kNm, idx, kappaLo, kappaHi });
   }

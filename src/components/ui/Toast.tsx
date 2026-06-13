@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- co-locates the toast hook/helpers with the Toast component; HMR full-reload is acceptable. */
 import { useEffect, useRef, useState } from 'react';
 
 export interface ToastData {

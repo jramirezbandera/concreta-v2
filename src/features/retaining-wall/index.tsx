@@ -55,11 +55,10 @@ function ViewTabButton({
   );
 }
 
-function SummaryStrip({
-  fsd, fsv, sigmaMaxKpa, okD, okV, okS,
-}: { fsd: number; fsv: number; sigmaMaxKpa: number; okD: boolean; okV: boolean; okS: boolean }) {
-  const { system } = useUnitSystem();
-  const Stat = ({ ok, label, value, unit }: { ok: boolean; label: string; value: string; unit?: string }) => (
+// Stateless stat cell — hoisted to module scope (prop-only, no closure) so it
+// keeps a stable component identity across SummaryStrip re-renders.
+function Stat({ ok, label, value, unit }: { ok: boolean; label: string; value: string; unit?: string }) {
+  return (
     <div className="flex flex-col items-end leading-none">
       <span className="text-[9px] uppercase tracking-[0.08em] text-text-disabled font-mono">{label}</span>
       <span
@@ -73,6 +72,12 @@ function SummaryStrip({
       </span>
     </div>
   );
+}
+
+function SummaryStrip({
+  fsd, fsv, sigmaMaxKpa, okD, okV, okS,
+}: { fsd: number; fsv: number; sigmaMaxKpa: number; okD: boolean; okV: boolean; okS: boolean }) {
+  const { system } = useUnitSystem();
   return (
     <div className="flex items-center gap-5">
       <Stat ok={okD} label="Deslizamiento" value={isFinite(fsd) ? fsd.toFixed(2) : '∞'} />

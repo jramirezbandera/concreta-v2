@@ -59,7 +59,7 @@ const COLORS = {
 
 // L15 (Phase 4) — IDs estables para aria-labelledby. El sufijo `mode`
 // evita colisión entre el SVG de pantalla y el oculto del PDF.
-let svgInstanceCounter = 0;
+const svgInstanceCounter = 0;
 
 export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
   const C = COLORS[mode];

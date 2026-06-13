@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/static-components -- the support/arrowhead sub-components are local presentational helpers that close over draw geometry and hold no state; per-render identity is harmless. */
 // Timber Columns SVG — two panels:
 //   Left:  column elevation with load arrows (N, V, M), support symbols, dimensions
 //   Right: cross-section (b×h rectangle, fire residual section overlay)

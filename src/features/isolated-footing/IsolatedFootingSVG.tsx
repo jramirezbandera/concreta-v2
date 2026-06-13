@@ -32,6 +32,7 @@ function pdfText(s: string, isPdf: boolean): string {
     .replace(/≥/g, '>=')
     .replace(/²/g, '2')
     .replace(/³/g, '3')
+    // eslint-disable-next-line no-control-regex -- intentional: strip to the Latin-1 range jsPDF core fonts support
     .replace(/[^\x00-\xFF]/g, '?');
 }
 

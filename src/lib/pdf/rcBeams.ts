@@ -260,7 +260,7 @@ export async function exportRCBeamsPDF(
   const filename = `concreta-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }
 
@@ -452,6 +452,6 @@ async function exportRCBeamsSimplePDF(
   const filename = `concreta-viga-simple-${new Date().toISOString().slice(0, 10)}.pdf`;
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

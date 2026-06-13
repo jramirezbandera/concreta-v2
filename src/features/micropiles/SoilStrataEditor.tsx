@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- co-locates a small helper export with the editor component; HMR full-reload is acceptable. */
 import { useEffect, useState } from 'react';
 import { Trash2, ChevronDown } from 'lucide-react';
 import { type SoilLayer } from '../../data/defaults';
@@ -226,12 +227,10 @@ export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate }: SoilStrata
   // Profundidad del techo de cada estrato (acumulada DESDE LA RASANTE).
   // Se pasa a cada card para que el header muestre el rango absoluto
   // [techo–base] del estrato, no solo su espesor.
-  let depthAcc = 0;
-  const depthTops = soil.map((l) => {
-    const top = depthAcc;
-    depthAcc += l.thickness;
-    return top;
-  });
+  // Prefix sum without render-time mutation: top of stratum i = Σ thickness[0..i-1].
+  const depthTops = soil.map((_l, i) =>
+    soil.slice(0, i).reduce((acc, s) => acc + s.thickness, 0),
+  );
 
   return (
     <div className="flex flex-col gap-2">

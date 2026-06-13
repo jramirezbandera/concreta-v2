@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/static-components -- the support/marker sub-components are local presentational helpers that close over draw geometry and hold no state; per-render identity is harmless. */
 // Steel Columns SVG — two panels:
 //   Left:  cross-section (I-section or 2UPN box)
 //   Right: column geometry diagram (BC symbols + buckled shape + Lk labels)

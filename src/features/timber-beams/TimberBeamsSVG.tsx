@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/static-components -- the support sub-components are local presentational helpers that close over draw geometry and hold no state; per-render identity is harmless. */
 // Timber Beams SVG — two panels:
 //   Left:  cross-section (rectangle b×h, with fire residual section overlay)
 //   Right: beam elevation + loads + deflected shape

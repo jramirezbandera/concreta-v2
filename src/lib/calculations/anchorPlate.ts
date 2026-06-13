@@ -635,11 +635,10 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
 
     // Evaluación final + asignación de Ft a las barras
     const r = evaluateAtPhiD(phi, dBest, cos, sin, p);
-    let S = 0, max_sd = 0;
+    let max_sd = 0;
     for (let i = 0; i < bars.length; i++) {
       if (p[i] < dBest) {
         const sd = dBest - p[i];
-        S += sd;
         if (sd > max_sd) max_sd = sd;
       }
     }

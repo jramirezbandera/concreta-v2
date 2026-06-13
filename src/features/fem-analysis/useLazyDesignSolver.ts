@@ -50,6 +50,7 @@ export interface LazyDesignSolver {
 export function useLazyDesignSolver(model: DesignModel | null): LazyDesignSolver {
   const [solver, setSolver] = useState<SolverFn | null>(null);
   const solverRef = useRef<SolverFn | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- keep a ref to the latest solver for use inside stable callbacks
   solverRef.current = solver;
 
   useEffect(() => {

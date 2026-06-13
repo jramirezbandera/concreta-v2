@@ -14,6 +14,7 @@ export function useIsMobile(): boolean {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mql = window.matchMedia(MOBILE_QUERY);
     const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial matchMedia sync (covers a change between first render and effect)
     setIsMobile(mql.matches);
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);

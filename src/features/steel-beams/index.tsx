@@ -26,6 +26,7 @@ export function SteelBeamsModule() {
   // Lcr auto-fill
   const [lcrManuallyOverridden, setLcrManuallyOverridden] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual-override flag when the beam type/length changes (derived-from-prop reset)
     setLcrManuallyOverridden(false);
   }, [state.beamType, state.L]);
 
@@ -48,7 +49,6 @@ export function SteelBeamsModule() {
       Lcr:             lcrManuallyOverridden ? state.Lcr : autoLcr,
     };
     return [eff, lg, calcSteelBeam(eff)] as const;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, lcrManuallyOverridden, autoLcr]);
 
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =

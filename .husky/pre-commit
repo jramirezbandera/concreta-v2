@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-bun run test:run
+bun run lint && bun run test:run

@@ -39,6 +39,7 @@ export function useModelHistory(initial: DesignModel | null): ModelHistoryApi {
   }));
 
   const stateRef = useRef(state);
+  // eslint-disable-next-line react-hooks/refs -- keep a ref to the latest state for use inside stable callbacks
   stateRef.current = state;
 
   const setModel = useCallback((updater: (m: DesignModel) => DesignModel) => {

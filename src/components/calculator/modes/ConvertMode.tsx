@@ -13,6 +13,7 @@ export function ConvertMode() {
 
   useEffect(() => {
     const u = Object.keys(UNIT_GROUPS[group].units);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the from/to units when the selected group changes (derived-from-prop reset)
     setFrom(u[0]);
     setTo(u[1] || u[0]);
   }, [group]);

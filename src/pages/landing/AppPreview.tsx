@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- co-locates MODULE_CONFIG with the AppPreview component used across the hero/demo; HMR full-reload is acceptable. */
 // AppPreview — parameterized mini replica of the Concreta UI.
 // Pass `moduleId` to switch which module is shown (breadcrumb, sidebar active,
 // inputs, canvas SVG, checks). Used inside the hero carousel and the demo card.

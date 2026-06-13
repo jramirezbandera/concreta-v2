@@ -26,6 +26,7 @@ export function LandingNav() {
   const location = useLocation();
 
   // Close the mobile menu on any navigation (route or hash change).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- close the menu in response to a route/hash change
   useEffect(() => { setMenuOpen(false); }, [location.key]);
 
   // Route links (no hash) show as active on their page (and child routes,

@@ -280,7 +280,6 @@ export async function exportForjadosPDF(
   const filename = isReticular ? 'forjado-reticular.pdf' : 'losa-maciza.pdf';
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

@@ -38,6 +38,7 @@ export function Calculator({ open, onClose, onMinimize }: CalculatorProps) {
   useEffect(() => {
     const h = Math.min(540, window.innerHeight - 80);
     const maxY = Math.max(64, window.innerHeight - h - DOCK_X_MARGIN);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reposition the dock when the viewport width changes (sync layout to window size)
     setPos({ x: DOCK_X_MARGIN, y: maxY });
   }, [vw]);
 

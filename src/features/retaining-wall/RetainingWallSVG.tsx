@@ -149,6 +149,7 @@ function svgText(s: string, isPdf: boolean): string {
     .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ñ/g, 'n')
     .replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I').replace(/Ó/g, 'O').replace(/Ú/g, 'U').replace(/Ñ/g, 'N')
     .replace(/[\u2014\u2013]/g, '-')
+    // eslint-disable-next-line no-control-regex -- intentional: strip to the ASCII range jsPDF core fonts support
     .replace(/[^\x00-\x7F]/g, '?');
 }
 

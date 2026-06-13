@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- standard Context+Provider pattern co-locates the context with the provider component; HMR full-reload is acceptable. */
 import {
   createContext,
   useCallback,

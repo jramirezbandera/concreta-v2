@@ -83,6 +83,7 @@ export function InlineEdit({
   // (system toggle reformats display; solver result updates value; etc.) and
   // we are not editing — preservar what user is typing.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-sync the draft from displayValue while the user is not actively editing
     if (!editing) setDraft(formatDraft(displayValue, resolvedDecimals));
   }, [displayValue, resolvedDecimals, editing]);
 

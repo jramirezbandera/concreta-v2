@@ -10,6 +10,7 @@ interface DrawerContextType {
   openDrawer: () => void;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- context co-located with the AppShell provider; HMR full-reload is acceptable
 export const DrawerContext = createContext<DrawerContextType>({ openDrawer: () => {} });
 
 // eslint-disable-next-line react-refresh/only-export-components

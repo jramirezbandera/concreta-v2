@@ -263,6 +263,6 @@ export async function exportTimberBeamsPDF(
   const filename = 'viga-madera.pdf';
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const pageCount = (doc.internal as any).getNumberOfPages();
+  const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
   return { blobUrl, filename, pageCount };
 }

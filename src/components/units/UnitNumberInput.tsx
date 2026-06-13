@@ -106,6 +106,7 @@ export function UnitNumberInput({
       parsed = isNaN(n) ? null : n;
     }
     if (parsed !== null && Math.abs(parsed - value) < 1e-9) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-sync the input string when the external value/unit changes
     setLocalStr(formatForInput(value));
   }, [value, system, quantity, integer, precision]);
 
