@@ -28,11 +28,14 @@
     letter-spacing: -0.01em;
   }
   .brand-dot {
-    width: 8px;
-    height: 8px;
-    background: var(--accent);
-    border-radius: 1px;
-    flex: 0 0 8px;
+    width: 18px;
+    height: 18px;
+    background-image: url(/favicon.svg);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    border-radius: 3px;
+    flex: 0 0 18px;
   }
   .nav-links {
     display: flex;
