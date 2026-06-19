@@ -29,6 +29,7 @@ function NumberField({
   labelKey,
   label,
   sub,
+  help,
   fieldKey,
   value,
   unit,
@@ -40,6 +41,7 @@ function NumberField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   fieldKey: keyof RCColumnInputs;
   value: number;
   unit?: string;
@@ -60,7 +62,13 @@ function NumberField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`input-${fieldKey}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`input-${fieldKey}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`input-${fieldKey}`}
@@ -95,6 +103,7 @@ function SelectField({
   labelKey,
   label,
   sub,
+  help,
   fieldKey,
   value,
   options,
@@ -104,6 +113,7 @@ function SelectField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   fieldKey: keyof RCColumnInputs;
   value: number;
   options: Array<{ value: number; label: string }>;
@@ -119,8 +129,10 @@ function SelectField({
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel
         htmlFor={`select-${fieldKey}`}
-        label={resolved.label}
-        sub={resolved.sub ?? (!labelKey && unit ? unit : undefined)}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : (resolved.sub ?? (unit ? unit : undefined))}
+        help={help}
       />
       <select
         id={`select-${fieldKey}`}
@@ -167,11 +179,13 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
         <SelectField labelKey="bar_diameter_corner" fieldKey="cornerBarDiam" value={state.cornerBarDiam} options={BAR_DIAM_OPTIONS} setField={setField} />
 
         <SubHeader label="Cara X  (sup. + inf.)" />
-        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField} />
+        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsX" value={state.nBarsX} unit="ud" min={0} integer setField={setField}
+          help="Número de barras intermedias por cara en la dirección X (sin contar las 4 de esquina)." />
         <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamX" value={state.barDiamX} options={BAR_DIAM_OPTIONS} setField={setField} />
 
         <SubHeader label="Cara Y  (laterales)" />
-        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField} />
+        <NumberField label="n" sub="Nº barras por cara" fieldKey="nBarsY" value={state.nBarsY} unit="ud" min={0} integer setField={setField}
+          help="Número de barras intermedias por cara en la dirección Y (laterales, sin contar las 4 de esquina)." />
         <SelectField labelKey="bar_diameter_intermediate" fieldKey="barDiamY" value={state.barDiamY} options={BAR_DIAM_OPTIONS} setField={setField} />
 
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
@@ -182,13 +196,17 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
 
       <CollapsibleSection label="Armadura transversal">
         <SelectField labelKey="bar_diameter_stirrup" fieldKey="stirrupDiam" value={state.stirrupDiam} options={STIRRUP_DIAM_OPTIONS} setField={setField} />
-        <NumberField label="s" sub="Separación cercos" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField} />
+        <NumberField label="s" sub="Separación cercos" fieldKey="stirrupSpacing" value={state.stirrupSpacing} unit="mm" min={50} setField={setField}
+          help="Separación longitudinal entre cercos. Limita el pandeo de las barras comprimidas y aporta confinamiento al núcleo." />
       </CollapsibleSection>
 
       <CollapsibleSection label="Solicitaciones">
-        <UnitNumberInput labelKey="NEd"   field="Nd"   value={state.Nd}   quantity="force"  onChange={(v) => setField('Nd', v)} />
-        <UnitNumberInput labelKey="My_Ed" field="MEdy" value={state.MEdy} quantity="moment" onChange={(v) => setField('MEdy', v)} />
-        <UnitNumberInput labelKey="Mz_Ed" field="MEdz" value={state.MEdz} quantity="moment" onChange={(v) => setField('MEdz', v)} />
+        <UnitNumberInput labelKey="NEd"   field="Nd"   value={state.Nd}   quantity="force"  onChange={(v) => setField('Nd', v)}
+          help="Axil de cálculo de compresión (ELU) sobre el pilar." />
+        <UnitNumberInput labelKey="My_Ed" field="MEdy" value={state.MEdy} quantity="moment" onChange={(v) => setField('MEdy', v)}
+          help="Momento de cálculo (ELU) según el eje fuerte (y) del pilar." />
+        <UnitNumberInput labelKey="Mz_Ed" field="MEdz" value={state.MEdz} quantity="moment" onChange={(v) => setField('MEdz', v)}
+          help="Momento de cálculo (ELU) según el eje débil (z) del pilar." />
       </CollapsibleSection>
     </div>
   );

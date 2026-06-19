@@ -152,6 +152,7 @@ export const LABELS = {
     descLong: 'Altura libre del pilar',
     descShort: 'Altura',
     unit: 'm',
+    help: 'Altura libre del pilar entre coacciones. Con β define la longitud de pandeo Lk = β·L.',
     modules: ['rcColumns', 'timberColumns', 'empresillado'],
   },
 
@@ -959,6 +960,7 @@ export const LABELS = {
     descShort: 'β pandeo',
     unit: '—',
     ref: 'CE art. 43.1.2 Tabla 43.1.2 / EC3 §6.3.1.3',
+    help: 'Factor de longitud de pandeo según las coacciones de los extremos (biempotrado 0.5, biarticulado 1.0, ménsula 2.0). Define Lk = β·L.',
     modules: ['rcColumns', 'steelColumns', 'timberColumns', 'empresillado'],
   },
 
@@ -1162,6 +1164,7 @@ export const LABELS = {
     descLong: 'Diámetro de la barra de esquina',
     descShort: 'Ø esquina',
     unit: 'mm',
+    help: 'Diámetro de las 4 barras de esquina del pilar.',
     modules: ['rcColumns'],
   },
 
@@ -1170,6 +1173,7 @@ export const LABELS = {
     descLong: 'Diámetro de la barra intermedia',
     descShort: 'Ø intermedia',
     unit: 'mm',
+    help: 'Diámetro de las barras intermedias de la cara (las que van entre las de esquina).',
     modules: ['rcColumns'],
   },
 
