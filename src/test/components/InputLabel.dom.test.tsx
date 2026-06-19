@@ -32,8 +32,8 @@ describe('InputLabel — catalog resolution via labelKey', () => {
   });
 
   it('keeps the native title and shows no icon when there is no help', () => {
-    const { container } = render(<InputLabel htmlFor="x" labelKey="b_section" />);
-    // b_section currently has no help
+    const { container } = render(<InputLabel htmlFor="x" labelKey="n_bars" />);
+    // n_bars currently has no help
     expect(screen.queryByRole('button')).toBeNull();
     const label = container.querySelector('label');
     expect(label).toHaveAttribute('title');

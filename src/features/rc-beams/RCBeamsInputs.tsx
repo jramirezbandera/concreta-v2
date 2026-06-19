@@ -33,6 +33,7 @@ function NumField({
   labelKey,
   label,
   sub,
+  help,
   field,
   value,
   unit,
@@ -43,6 +44,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   field: keyof RCBeamInputs;
   value: number;
   unit?: string;
@@ -68,7 +70,13 @@ function NumField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`input-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -104,6 +112,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  help,
   field,
   value,
   options,
@@ -111,6 +120,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  help?: string;
   field: keyof RCBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -123,7 +133,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`select-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`select-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`select-${field}`}
         value={value}
@@ -174,16 +190,20 @@ function PerSectionArmado({
     <>
       <CollapsibleSection label={tensionLabel}>
         <NumField label="Num. barras" field={tensionNField} value={state[tensionNField] as number}
-          unit="ud" min={1} integer setField={setField} />
+          unit="ud" min={1} integer setField={setField}
+          help="Número de barras longitudinales de esta cara. Con el diámetro define el área de armadura As." />
         <SelectField label="Diametro" field={tensionDField} value={state[tensionDField] as number}
-          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField} />
+          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField}
+          help="Diámetro de las barras longitudinales de esta cara." />
       </CollapsibleSection>
 
       <CollapsibleSection label={comprLabel}>
         <NumField label="Num. barras" field={comprNField} value={state[comprNField] as number}
-          unit="ud" min={1} integer setField={setField} />
+          unit="ud" min={1} integer setField={setField}
+          help="Número de barras longitudinales de esta cara. Con el diámetro define el área de armadura As." />
         <SelectField label="Diametro" field={comprDField} value={state[comprDField] as number}
-          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField} />
+          options={availableBarDiams.map((d) => ({ value: d, label: `φ ${d}` }))} setField={setField}
+          help="Diámetro de las barras longitudinales de esta cara." />
       </CollapsibleSection>
 
       <CollapsibleSection label="Armadura transversal">
@@ -192,7 +212,8 @@ function PerSectionArmado({
           options={availableBarDiams.filter((d) => d <= 16).map((d) => ({ value: d, label: `φ ${d}` }))}
           setField={setField} />
         <NumField label="s" sub="Separación" field={`${p}_stirrupSpacing`}
-          value={state[`${p}_stirrupSpacing`] as number} unit="mm" min={50} setField={setField} />
+          value={state[`${p}_stirrupSpacing`] as number} unit="mm" min={50} setField={setField}
+          help="Separación longitudinal entre cercos. A menor separación, mayor capacidad a cortante." />
         <NumField labelKey="n_stirrup_legs" field={`${p}_stirrupLegs`}
           value={state[`${p}_stirrupLegs`] as number} min={2} integer setField={setField} />
       </CollapsibleSection>
@@ -201,16 +222,20 @@ function PerSectionArmado({
         <CollapsibleSection label="Solicitaciones">
           <UnitNumberInput label={isVano ? 'Md' : '|Md|'} sub={isVano ? '(ELU, M+)' : '(ELU, M−)'}
             field={`${p}_Md`} value={state[`${p}_Md`] as number} quantity="moment"
-            onChange={(v) => setField(`${p}_Md`, v)} />
+            onChange={(v) => setField(`${p}_Md`, v)}
+            help="Momento flector de cálculo (ELU) en la sección. Determina la armadura longitudinal necesaria." />
           <UnitNumberInput label="VEd" sub="(ELU)" field={`${p}_VEd`}
             value={state[`${p}_VEd`] as number} quantity="force"
-            onChange={(v) => setField(`${p}_VEd`, v)} />
+            onChange={(v) => setField(`${p}_VEd`, v)}
+            help="Cortante de cálculo (ELU) en la sección. Gobierna la armadura transversal (cercos)." />
           <UnitNumberInput label="M carga permanente" sub="(ELS)" field={`${p}_M_G`}
             value={state[`${p}_M_G`] as number} quantity="moment"
-            onChange={(v) => setField(`${p}_M_G`, v)} />
+            onChange={(v) => setField(`${p}_M_G`, v)}
+            help="Momento de servicio (ELS) por cargas permanentes. Entra en la comprobación de fisuración." />
           <UnitNumberInput label="M carga variable" sub="(ELS)" field={`${p}_M_Q`}
             value={state[`${p}_M_Q`] as number} quantity="moment"
-            onChange={(v) => setField(`${p}_M_Q`, v)} />
+            onChange={(v) => setField(`${p}_M_Q`, v)}
+            help="Momento de servicio (ELS) por la sobrecarga variable. Se pondera con ψ en fisuración." />
         </CollapsibleSection>
       )}
     </>
@@ -283,9 +308,11 @@ export function RCBeamsInputs({
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
         {/* Luz + sistema para la esbeltez L/d (CE Anejo 19 §7.4.2). L=0 desactiva. */}
         <NumField label="L" sub="luz (esbeltez L/d)" field="L"
-          value={state.L as number} unit="mm" min={0} setField={setField} />
+          value={state.L as number} unit="mm" min={0} setField={setField}
+          help="Luz de cálculo para el control de flecha por esbeltez (L/d, CE Anejo 19 §7.4.2). Déjala en 0 para desactivar esta comprobación." />
         <SelectField
           label="Sistema"
+          help="Condición de apoyo que fija el coeficiente K del límite de esbeltez L/d: biapoyada 1.0, vano extremo 1.3, vano interior 1.5, ménsula 0.4."
           field="structSystem"
           value={(state.structSystem as string) ?? 'ss'}
           options={[
@@ -327,6 +354,7 @@ export function RCBeamsInputs({
         />
         <SelectField
           labelKey="loadType"
+          help="Categoría de uso del CTE. En hormigón fija el coeficiente ψ₂ de combinación cuasipermanente para la comprobación de fisuración (ELS)."
           field="loadType"
           value={state.loadType as string}
           options={LOAD_TYPE_OPTIONS}
@@ -340,6 +368,7 @@ export function RCBeamsInputs({
             unit="—"
             min={0}
             setField={setField}
+            help="Coeficiente de combinación cuasipermanente ψ₂ a medida. Pondera la sobrecarga en el ELS de fisuración."
           />
         )}
       </CollapsibleSection>

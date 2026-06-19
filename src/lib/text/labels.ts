@@ -91,6 +91,7 @@ export const LABELS = {
     descLong: 'Ancho de la sección',
     descShort: 'Ancho',
     unit: 'mm',
+    help: 'Ancho de la sección transversal. En hormigón delimita la zona comprimida y condiciona la separación de las barras.',
     modules: [
       'rcBeams',
       'rcColumns',
@@ -108,6 +109,7 @@ export const LABELS = {
     descLong: 'Canto de la sección',
     descShort: 'Canto',
     unit: 'mm',
+    help: 'Altura total (canto) de la sección. Con el recubrimiento determina el canto útil d.',
     modules: [
       'rcBeams',
       'rcColumns',
@@ -278,6 +280,7 @@ export const LABELS = {
     descShort: 'Recubrimiento',
     unit: 'mm',
     ref: 'CE art. 37.2.4',
+    help: 'Distancia desde la cara de hormigón hasta la barra. Protege frente a corrosión y fija el canto útil (d = h − r − Ø/2); depende de la clase de exposición.',
     modules: ['rcBeams', 'rcColumns', 'isolatedFooting', 'pileCap', 'punching'],
   },
 
@@ -300,6 +303,7 @@ export const LABELS = {
     descShort: 'Característica hormigón',
     unit: 'N/mm²',
     ref: 'CE art. 39.2 Tabla 39.2',
+    help: 'Resistencia característica a compresión del hormigón a 28 días (HA-25 → 25 N/mm²). De ella deriva fcd = fck/γc.',
     modules: [
       'rcBeams',
       'rcColumns',
@@ -316,6 +320,7 @@ export const LABELS = {
     descShort: 'Característica acero',
     unit: 'N/mm²',
     ref: 'CE art. 32.2 Tabla 32.2.a',
+    help: 'Límite elástico característico del acero de armar (B400S → 400; B500S → 500 N/mm²). De él deriva fyd = fyk/γs.',
     modules: [
       'rcBeams',
       'rcColumns',
@@ -350,6 +355,7 @@ export const LABELS = {
     descShort: 'Clase exposición',
     unit: '—',
     ref: 'CE art. 27 Tabla 27',
+    help: 'Clase de exposición ambiental (CE Tabla 27). Fija el recubrimiento mínimo y el límite de abertura de fisura wmax en la comprobación de fisuración.',
     modules: ['rcBeams', 'rcColumns'],
   },
 
@@ -1172,6 +1178,7 @@ export const LABELS = {
     descLong: 'Diámetro del cerco',
     descShort: 'Ø cerco',
     unit: 'mm',
+    help: 'Diámetro de la barra del cerco. Con la separación y el número de ramas define la armadura transversal a cortante.',
     modules: ['rcBeams', 'rcColumns', 'punching'],
   },
 
@@ -1243,6 +1250,7 @@ export const LABELS = {
     descLong: 'Número de ramas del cerco',
     descShort: 'Nº ramas',
     unit: 'ud',
+    help: 'Número de ramas del cerco que cruzan el plano de cortante (2 para un cerco simple cerrado). Multiplica el área a cortante.',
     modules: ['rcBeams', 'punching'],
   },
 
