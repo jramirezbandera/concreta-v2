@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import {
   TABLA_4_4,
   FB_VALUES,
@@ -35,9 +36,42 @@ import { formatQuantity, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
+// Textos de ayuda (tooltips ⓘ). Módulo con UI propia (sin InputLabel): los
+// textos viven aquí. Coexisten con los <p> inline más detallados (D1A).
+const HELP = {
+  pieza: 'Tipo de pieza de fábrica (ladrillo, bloque…). Con fb y fm fija fk (Tabla 4.4).',
+  fb: 'Resistencia normalizada a compresión de la pieza.',
+  fm: 'Resistencia a compresión del mortero.',
+  tipoMuro: 'Tipo de muro para el coeficiente K del Anejo C (eq. C.1).',
+  fkDirecto: 'Resistencia característica a compresión de la fábrica, introducida directamente.',
+  gammaFab: 'Peso específico de la fábrica.',
+  gammaMSel: 'Coeficiente parcial γM (Tabla 4.8) según categoría de control y clase de ejecución.',
+  gammaM: 'Coeficiente parcial de seguridad del material; f_d = fk/γM.',
+  L: 'Longitud total del muro.',
+  t: 'Espesor del muro. Define la excentricidad mínima e_min y la esbeltez.',
+  gammaG: 'Coeficiente de mayoración de las cargas permanentes (ELU).',
+  gammaQ: 'Coeficiente de mayoración de las cargas variables (ELU).',
+  H: 'Altura libre de la planta entre forjados.',
+  qG: 'Carga permanente lineal del forjado, valor característico (sin mayorar).',
+  qQ: 'Sobrecarga lineal del forjado, valor característico (sin mayorar).',
+  a: 'Longitud que el forjado entra en el espesor del muro.',
+  ea: 'Excentricidad de la reacción del forjado respecto al eje del muro.',
+  px: 'Posición de la carga puntual a lo largo del muro.',
+  pG: 'Carga puntual permanente, valor característico.',
+  pQ: 'Carga puntual variable, valor característico.',
+  pb: 'Longitud de apoyo de la carga puntual.',
+  hTipo: 'Tipo de hueco: puerta o ventana.',
+  hx: 'Posición horizontal del hueco a lo largo del muro.',
+  hy: 'Altura del alféizar (cota de la base de la ventana).',
+  hw: 'Ancho del hueco.',
+  hh: 'Alto del hueco (hasta el dintel).',
+} as const;
+
 interface NumFieldProps {
   label: string;
   sub?: string;
+  /** Tooltip ⓘ breve junto al label. Coexiste con `title={sub}` y notas inline. */
+  help?: string;
   /** Valor en las unidades de almacenamiento del state (mm para geometría,
    *  SI para cantidades físicas cuando `quantity` está set). */
   value: number;
@@ -54,7 +88,7 @@ interface NumFieldProps {
   quantity?: Quantity;
 }
 
-function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refNorma, quantity }: NumFieldProps) {
+function NumField({ label, sub, help, value, unit, scale = 1, decimals, onChange, refNorma, quantity }: NumFieldProps) {
   const { system } = useUnitSystem();
   // Display value y unit dependen de qué modo aplica:
   //   - quantity: auto SI↔técnico vía catálogo (ignora scale, unit).
@@ -88,9 +122,12 @@ function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refN
     <div>
       <div className="flex items-center justify-between gap-2 py-1 max-lg:min-h-11">
         <div className="min-w-0 flex flex-col">
-          <span className="text-[12px] text-text-secondary truncate" title={sub}>
-            <span className="font-mono">{label}</span>
-            {sub && <span className="text-text-disabled"> · {sub}</span>}
+          <span className="flex items-center gap-1 min-w-0">
+            <span className="text-[12px] text-text-secondary truncate" title={sub}>
+              <span className="font-mono">{label}</span>
+              {sub && <span className="text-text-disabled"> · {sub}</span>}
+            </span>
+            {help && <HelpTooltip text={help} fieldLabel={label} />}
           </span>
           {refNorma && <span className="text-[10px] font-mono text-text-disabled">{refNorma}</span>}
         </div>
@@ -125,17 +162,21 @@ function NumField({ label, sub, value, unit, scale = 1, decimals, onChange, refN
 
 interface SelFieldProps<T extends string | number> {
   label: string;
+  help?: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
   refNorma?: string;
 }
 
-function SelField<T extends string | number>({ label, value, options, onChange, refNorma }: SelFieldProps<T>) {
+function SelField<T extends string | number>({ label, help, value, options, onChange, refNorma }: SelFieldProps<T>) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 py-1 max-lg:min-h-11 min-w-0">
-        <span className="text-[12px] text-text-secondary truncate min-w-0">{label}</span>
+        <span className="flex items-center gap-1 min-w-0">
+          <span className="text-[12px] text-text-secondary truncate min-w-0">{label}</span>
+          {help && <HelpTooltip text={help} fieldLabel={label} />}
+        </span>
         <select
           value={String(value)}
           onChange={(e) => {
@@ -256,6 +297,7 @@ function CustomFabricaBlock({
           </div>
           <SelField
             label="Tipo de muro"
+            help={HELP.tipoMuro}
             value={state.anejoC_tipoMuro}
             onChange={(v) => setTipoMuro(v as TipoMuroAnejoC)}
             options={(Object.keys(TIPO_MURO_LABELS_SHORT) as TipoMuroAnejoC[]).map((k) => ({
@@ -270,6 +312,7 @@ function CustomFabricaBlock({
           <NumField
             label="fb"
             sub="pieza"
+            help={HELP.fb}
             value={state.anejoC_fb}
             quantity="stress"
             onChange={(v) => setState((s) => ({ ...s, anejoC_fb: v }))}
@@ -277,6 +320,7 @@ function CustomFabricaBlock({
           <NumField
             label="fm"
             sub="mortero"
+            help={HELP.fm}
             value={state.anejoC_fm}
             quantity="stress"
             onChange={(v) => setState((s) => ({ ...s, anejoC_fm: v }))}
@@ -314,6 +358,7 @@ function CustomFabricaBlock({
           <NumField
             label="γ"
             sub={state.gamma_custom_edited ? 'peso esp.' : 'estimado por tipo · editable'}
+            help={HELP.gammaFab}
             value={state.gamma_custom}
             quantity="weightDensity"
             onChange={setGammaCustom}
@@ -324,6 +369,7 @@ function CustomFabricaBlock({
           <NumField
             label="fk"
             sub="caract."
+            help={HELP.fkDirecto}
             value={state.fk_custom}
             quantity="stress"
             onChange={(v) => set('fk_custom', v, setState)}
@@ -331,6 +377,7 @@ function CustomFabricaBlock({
           <NumField
             label="γ"
             sub="peso esp."
+            help={HELP.gammaFab}
             value={state.gamma_custom}
             quantity="weightDensity"
             onChange={setGammaCustom}
@@ -452,12 +499,14 @@ export function MasonryWallsInputs({
           <>
             <SelField
               label="Pieza"
+              help={HELP.pieza}
               value={state.pieza}
               onChange={(v) => set('pieza', v as MasonryWallState['pieza'])}
               options={Object.entries(TABLA_4_4).map(([k, v]) => ({ value: k as MasonryWallState['pieza'], label: v.label }))}
             />
             <SelField
               label="fb (pieza)"
+              help={HELP.fb}
               value={state.fb}
               onChange={(v) => {
                 const fbN = Number(v);
@@ -469,6 +518,7 @@ export function MasonryWallsInputs({
             />
             <SelField
               label="fm (mortero)"
+              help={HELP.fm}
               value={state.fm}
               onChange={(v) => set('fm', Number(v))}
               options={fmDisponibles.map((v) => ({ value: v, label: `${v} N/mm²` }))}
@@ -488,6 +538,7 @@ export function MasonryWallsInputs({
             <>
               <SelField<string>
                 label="γM categoría · ejec."
+                help={HELP.gammaMSel}
                 value={isCustom ? 'custom' : `${cell.cat}-${cell.ejec}`}
                 onChange={(v) => {
                   if (v === 'custom') return; // user has to type a number to enter custom mode
@@ -508,6 +559,7 @@ export function MasonryWallsInputs({
               <NumField
                 label="γM"
                 sub={cell ? `${CATEGORIA_LABELS[cell.cat].split(' — ')[0]} · ${EJECUCION_LABELS[cell.ejec].split(' — ')[0]}` : 'personalizado'}
+                help={HELP.gammaM}
                 value={state.gamma_M}
                 unit=""
                 onChange={(v) => set('gamma_M', v)}
@@ -555,9 +607,9 @@ export function MasonryWallsInputs({
 
       {/* Muro global */}
       <CollapsibleSection label="Muro · global" refNorma="§5.2.4">
-        <NumField label="L" sub="longitud" value={state.L} unit="m"  scale={0.001} decimals={2}
+        <NumField label="L" sub="longitud" help={HELP.L} value={state.L} unit="m"  scale={0.001} decimals={2}
           onChange={(v) => set('L', v)} />
-        <NumField label="t" sub="espesor"  value={state.t} unit="cm" scale={0.1}   decimals={1}
+        <NumField label="t" sub="espesor"  help={HELP.t} value={state.t} unit="cm" scale={0.1}   decimals={1}
           onChange={(v) => set('t', v)} />
         <p className="text-[10px] text-text-disabled leading-tight pl-1 mb-1">
           e_min = max(0,05·t, 2 cm) = {(eMin(state.t) / 10).toFixed(1)} cm · §5.2.3
@@ -574,8 +626,8 @@ export function MasonryWallsInputs({
             q<sub>d</sub> = γ<sub>G</sub>·G<sub>k</sub> + γ<sub>Q</sub>·Q<sub>k</sub>
           </p>
         </div>
-        <NumField label="γG" sub="permanente" value={state.gamma_G} unit="" onChange={(v) => set('gamma_G', v)} />
-        <NumField label="γQ" sub="variable"   value={state.gamma_Q} unit="" onChange={(v) => set('gamma_Q', v)} />
+        <NumField label="γG" sub="permanente" help={HELP.gammaG} value={state.gamma_G} unit="" onChange={(v) => set('gamma_G', v)} />
+        <NumField label="γQ" sub="variable"   help={HELP.gammaQ} value={state.gamma_Q} unit="" onChange={(v) => set('gamma_Q', v)} />
       </CollapsibleSection>
 
       {/* Plantas list + CRUD */}
@@ -629,15 +681,15 @@ export function MasonryWallsInputs({
       {plantaSel && (
         <>
           <CollapsibleSection label={`Forjado · ${plantaSel.nombre}`} refNorma="§5.2.3">
-            <NumField label="H"   sub="altura libre"  value={plantaSel.H}       unit="m"    scale={0.001} decimals={2}
+            <NumField label="H"   sub="altura libre"  help={HELP.H}  value={plantaSel.H}       unit="m"    scale={0.001} decimals={2}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'H', v)} />
-            <NumField label="q_G" sub="permanente Gk" value={plantaSel.q_G}     quantity="linearLoad"
+            <NumField label="q_G" sub="permanente Gk" help={HELP.qG} value={plantaSel.q_G}     quantity="linearLoad"
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_G', v)} />
-            <NumField label="q_Q" sub="variable Qk"   value={plantaSel.q_Q}     quantity="linearLoad"
+            <NumField label="q_Q" sub="variable Qk"   help={HELP.qQ} value={plantaSel.q_Q}     quantity="linearLoad"
               onChange={(v) => setPlanta(selectedPlantaIdx, 'q_Q', v)} />
-            <NumField label="a"   sub="entrega forjado" value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
+            <NumField label="a"   sub="entrega forjado" help={HELP.a}  value={plantaSel.a_apoyo} unit="cm"   scale={0.1}   decimals={1}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'a_apoyo', v)} />
-            <NumField label="e_a" sub="excentr. apoyo"  value={plantaSel.e_apoyo} unit="cm"   scale={0.1}   decimals={1}
+            <NumField label="e_a" sub="excentr. apoyo"  help={HELP.ea} value={plantaSel.e_apoyo} unit="cm"   scale={0.1}   decimals={1}
               onChange={(v) => setPlanta(selectedPlantaIdx, 'e_apoyo', v)} />
             {/* Glosa de la geometría del apoyo — las dos magnitudes describen
                 cosas distintas y la antigua etiqueta "penetración" para e_a
@@ -665,13 +717,13 @@ export function MasonryWallsInputs({
                   <span className="text-[10px] font-mono text-text-disabled">P{i + 1}</span>
                   <MiniBtn variant="danger" onClick={() => onRemovePuntual(selectedPlantaIdx, p.id)}>eliminar</MiniBtn>
                 </div>
-                <NumField label="x"   sub="pos."          value={p.x}       unit="m"  scale={0.001} decimals={2}
+                <NumField label="x"   sub="pos."          help={HELP.px} value={p.x}       unit="m"  scale={0.001} decimals={2}
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'x', v)} />
-                <NumField label="P_G" sub="permanente Gk" value={p.P_G}     quantity="force"
+                <NumField label="P_G" sub="permanente Gk" help={HELP.pG} value={p.P_G}     quantity="force"
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_G', v)} />
-                <NumField label="P_Q" sub="variable Qk"   value={p.P_Q}     quantity="force"
+                <NumField label="P_Q" sub="variable Qk"   help={HELP.pQ} value={p.P_Q}     quantity="force"
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'P_Q', v)} />
-                <NumField label="b"   sub="apoyo"         value={p.b_apoyo} unit="cm" scale={0.1}   decimals={1}
+                <NumField label="b"   sub="apoyo"         help={HELP.pb} value={p.b_apoyo} unit="cm" scale={0.1}   decimals={1}
                   onChange={(v) => setPuntual(selectedPlantaIdx, p.id, 'b_apoyo', v)} />
                 <p className="text-[10px] text-text-disabled leading-tight pl-1 mt-0.5">
                   P<sub>d</sub> = {formatQuantity(state.gamma_G * (p.P_G || 0) + state.gamma_Q * (p.P_Q || 0), 'force', system)}
@@ -735,14 +787,15 @@ export function MasonryWallsInputs({
                     <div className="border-l border-accent pl-2">
                       <SelField
                         label="Tipo"
+                        help={HELP.hTipo}
                         value={h.tipo}
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'tipo', v as Hueco['tipo'])}
                         options={[{ value: 'puerta', label: 'Puerta' }, { value: 'ventana', label: 'Ventana' }]}
                       />
-                      <NumField label="x" sub="pos." value={h.x} unit="m" scale={0.001} decimals={2}
+                      <NumField label="x" sub="pos." help={HELP.hx} value={h.x} unit="m" scale={0.001} decimals={2}
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'x', v)} />
                       {h.tipo === 'ventana' && (
-                        <NumField label="y" sub="alféizar" value={h.y} unit="m" scale={0.001} decimals={2}
+                        <NumField label="y" sub="alféizar" help={HELP.hy} value={h.y} unit="m" scale={0.001} decimals={2}
                           // El alféizar nunca puede salirse de la planta: y se
                           // limita superiormente a H - h para que el hueco
                           // siempre quede dentro del muro.
@@ -751,11 +804,12 @@ export function MasonryWallsInputs({
                             Math.max(0, Math.min(v, plantaSel.H - h.h)),
                           )} />
                       )}
-                      <NumField label="w" sub="ancho" value={h.w} unit="m" scale={0.001} decimals={2}
+                      <NumField label="w" sub="ancho" help={HELP.hw} value={h.w} unit="m" scale={0.001} decimals={2}
                         onChange={(v) => setHueco(selectedPlantaIdx, h.id, 'w', v)} />
                       <NumField
                         label="h"
                         sub={h.tipo === 'puerta' ? 'alto (hasta dintel)' : 'alto'}
+                        help={HELP.hh}
                         value={h.h}
                         unit="m"
                         scale={0.001}
