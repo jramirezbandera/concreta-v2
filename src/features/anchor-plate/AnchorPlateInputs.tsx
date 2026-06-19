@@ -37,10 +37,11 @@ function FieldWarn({ field, warnings }: { field: string; warnings?: ValidationWa
 
 // ── Atomic fields (local, to match the RC-beams NumField ergonomics) ──────
 function NumField({
-  label, sub, field, value, unit, integer = false, setField,
+  label, sub, help, field, value, unit, integer = false, setField,
 }: {
   label: string;
   sub?: string;
+  help?: string;
   field: keyof Inputs;
   value: number;
   unit: string;
@@ -51,7 +52,7 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`ap-${field}`} label={label} sub={sub} />
+      <InputLabel htmlFor={`ap-${field}`} label={label} sub={sub} help={help} />
       <div className="flex shrink-0">
         <input
           id={`ap-${field}`}
@@ -80,9 +81,10 @@ function NumField({
 }
 
 function SelectField({
-  label, field, value, options, setField, disabled,
+  label, help, field, value, options, setField, disabled,
 }: {
   label: string;
+  help?: string;
   field: keyof Inputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -107,9 +109,7 @@ function SelectField({
   if (stack) {
     return (
       <div className="flex flex-col gap-1 py-0.75 max-lg:min-h-11 min-w-0">
-        <label htmlFor={`ap-sel-${field}`} className="text-[13px] text-text-secondary leading-tight">
-          {label}
-        </label>
+        <InputLabel htmlFor={`ap-sel-${field}`} label={label} help={help} />
         <select id={`ap-sel-${field}`} value={value} disabled={disabled} onChange={onChange}
           className={`w-full min-w-0 ${selectCls}`}>
           {options.map((o) => (
@@ -122,7 +122,7 @@ function SelectField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`ap-sel-${field}`} label={label} />
+      <InputLabel htmlFor={`ap-sel-${field}`} label={label} help={help} />
       <select id={`ap-sel-${field}`} value={value} disabled={disabled} onChange={onChange}
         className={`min-w-0 max-w-44 truncate ${selectCls}`}>
         {options.map((o) => (
@@ -315,6 +315,47 @@ function ExpandToggle({ open, onToggle, label }: { open: boolean; onToggle: () =
   );
 }
 
+// Textos de ayuda (tooltips ⓘ). Módulo todo override: textos locales.
+const HELP = {
+  sectionType: 'Serie del perfil metálico del soporte.',
+  sectionSize: 'Designación del perfil dentro de la serie.',
+  NEd: 'Axil de cálculo (ELU). Positivo en compresión.',
+  NEdG: 'Axil cuasipermanente (parte sostenida de la carga), para fluencia/aplastamiento del hormigón.',
+  Mx: 'Momento de cálculo (ELU) respecto al eje fuerte.',
+  My: 'Momento de cálculo (ELU) respecto al eje débil.',
+  VEd: 'Cortante de cálculo (ELU) en la base del soporte.',
+  Vx: 'Componente del cortante en el eje fuerte.',
+  Vy: 'Componente del cortante en el eje débil.',
+  plateA: 'Dimensión de la placa en el eje fuerte.',
+  plateB: 'Dimensión de la placa en el eje débil.',
+  plateT: 'Espesor de la placa de anclaje.',
+  plateSteel: 'Grado del acero de la placa.',
+  barDiam: 'Diámetro de las barras de anclaje.',
+  barGrade: 'Grado del acero de las barras de anclaje.',
+  sx: 'Separación entre barras en el eje fuerte.',
+  sy: 'Separación entre barras en el eje débil.',
+  ex: 'Distancia de las barras al borde de la placa (eje fuerte).',
+  ey: 'Distancia de las barras al borde de la placa (eje débil).',
+  hef: 'Profundidad efectiva de anclaje de la barra en el hormigón.',
+  bottomAnchorage: 'Dispositivo de anclaje en el extremo inferior de la barra (gancho, patilla, arandela+tuerca…).',
+  topConnection: 'Forma de conexión de la barra con la placa.',
+  washerOd: 'Diámetro exterior de la arandela bajo tuerca.',
+  ribH: 'Altura del rigidizador (cartela).',
+  ribT: 'Espesor del rigidizador.',
+  fck: 'Resistencia característica del hormigón del pedestal.',
+  pedestalH: 'Canto del macizo de hormigón bajo la placa.',
+  cX: 'Distancia de la barra al borde del pedestal en el eje X.',
+  cY: 'Distancia de la barra al borde del pedestal en el eje Y.',
+  cX1: 'Distancia barra→borde en la cara +x.',
+  cX2: 'Distancia barra→borde en la cara −x.',
+  cY1: 'Distancia barra→borde en la cara +y.',
+  cY2: 'Distancia barra→borde en la cara −y.',
+  mX: 'Distancia del borde de la placa al borde del pedestal (eje X); define el área de reparto.',
+  mY: 'Distancia del borde de la placa al borde del pedestal (eje Y); define el área de reparto.',
+  surface: 'Acabado de la interfaz placa-hormigón: lisa (µ=0.2) o rugosa (µ=0.4).',
+  weld: 'Garganta del cordón de soldadura perfil-placa (informativo).',
+} as const;
+
 // ── Main ──────────────────────────────────────────────────────────────────
 export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   // Snap size to first available if sectionType changes and current is invalid
@@ -368,6 +409,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
       <CollapsibleSection label="Perfil">
         <SelectField
           label="Tipo"
+          help={HELP.sectionType}
           field="sectionType"
           value={state.sectionType as string}
           options={(['IPE', 'HEA', 'HEB', 'IPN'] as const).map((t) => ({ value: t, label: t }))}
@@ -375,6 +417,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         <SelectField
           label="Dimensión"
+          help={HELP.sectionSize}
           field="sectionSize"
           value={state.sectionSize as number}
           options={sizeOpts}
@@ -383,11 +426,11 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
       </CollapsibleSection>
 
       <CollapsibleSection label="Acciones (ELU)">
-        <UnitNumberInput label="NEd"   sub="axil (+ compres.)" field="NEd"   value={state.NEd   as number} quantity="force"  onChange={(v) => setField('NEd', v)} />
-        <UnitNumberInput label="NEd,G" sub="axil cuasi-perm."  field="NEd_G" value={state.NEd_G as number} quantity="force"  onChange={(v) => setField('NEd_G', v)} />
-        <UnitNumberInput label="Mx"    sub="(eje fuerte)"      field="Mx"    value={state.Mx    as number} quantity="moment" onChange={(v) => setField('Mx', v)} />
-        <UnitNumberInput label="My"    sub="(eje débil)"       field="My"    value={state.My    as number} quantity="moment" onChange={(v) => setField('My', v)} />
-        <UnitNumberInput label="VEd"   sub={shearDirectional ? 'magnitud' : 'cortante'} field="VEd" value={state.VEd as number} quantity="force" onChange={(v) => setLegacyVEd(v)} />
+        <UnitNumberInput label="NEd"   sub="axil (+ compres.)" help={HELP.NEd}  field="NEd"   value={state.NEd   as number} quantity="force"  onChange={(v) => setField('NEd', v)} />
+        <UnitNumberInput label="NEd,G" sub="axil cuasi-perm."  help={HELP.NEdG} field="NEd_G" value={state.NEd_G as number} quantity="force"  onChange={(v) => setField('NEd_G', v)} />
+        <UnitNumberInput label="Mx"    sub="(eje fuerte)"      help={HELP.Mx}   field="Mx"    value={state.Mx    as number} quantity="moment" onChange={(v) => setField('Mx', v)} />
+        <UnitNumberInput label="My"    sub="(eje débil)"       help={HELP.My}   field="My"    value={state.My    as number} quantity="moment" onChange={(v) => setField('My', v)} />
+        <UnitNumberInput label="VEd"   sub={shearDirectional ? 'magnitud' : 'cortante'} help={HELP.VEd} field="VEd" value={state.VEd as number} quantity="force" onChange={(v) => setLegacyVEd(v)} />
         <ExpandToggle
           open={shearDirectional}
           onToggle={() => setShearDirectional((o) => !o)}
@@ -395,19 +438,20 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         {shearDirectional && (
           <>
-            <UnitNumberInput label="Vx" sub="eje fuerte" field="Vx" value={state.Vx as number} quantity="force" onChange={(v) => setField('Vx', v)} />
-            <UnitNumberInput label="Vy" sub="eje débil"  field="Vy" value={state.Vy as number} quantity="force" onChange={(v) => setField('Vy', v)} />
+            <UnitNumberInput label="Vx" sub="eje fuerte" help={HELP.Vx} field="Vx" value={state.Vx as number} quantity="force" onChange={(v) => setField('Vx', v)} />
+            <UnitNumberInput label="Vy" sub="eje débil"  help={HELP.Vy} field="Vy" value={state.Vy as number} quantity="force" onChange={(v) => setField('Vy', v)} />
           </>
         )}
       </CollapsibleSection>
 
       <CollapsibleSection label="Placa">
-        <NumField label="a"  sub="eje fuerte" field="plate_a" value={state.plate_a as number} unit="mm" integer setField={setField} />
-        <NumField label="b"  sub="eje débil"  field="plate_b" value={state.plate_b as number} unit="mm" integer setField={setField} />
-        <NumField label="t"  sub="espesor"    field="plate_t" value={state.plate_t as number} unit="mm" integer setField={setField} />
+        <NumField label="a"  sub="eje fuerte" help={HELP.plateA} field="plate_a" value={state.plate_a as number} unit="mm" integer setField={setField} />
+        <NumField label="b"  sub="eje débil"  help={HELP.plateB} field="plate_b" value={state.plate_b as number} unit="mm" integer setField={setField} />
+        <NumField label="t"  sub="espesor"    help={HELP.plateT} field="plate_t" value={state.plate_t as number} unit="mm" integer setField={setField} />
         <FieldWarn field="plate_t" warnings={warnings} />
         <SelectField
           label="Acero"
+          help={HELP.plateSteel}
           field="plate_steel"
           value={state.plate_steel as string}
           options={['S235', 'S275', 'S355'].map((s) => ({ value: s, label: s }))}
@@ -433,6 +477,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         </div>
         <SelectField
           label="Diámetro"
+          help={HELP.barDiam}
           field="bar_diam"
           value={state.bar_diam as number}
           options={AVAILABLE_REBAR_DIAMS.map((d) => ({ value: d, label: `Ø${d}` }))}
@@ -440,21 +485,23 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         <SelectField
           label="Acero"
+          help={HELP.barGrade}
           field="bar_grade"
           value={state.bar_grade as string}
           options={AVAILABLE_REBAR_GRADES.map((g) => ({ value: g, label: g }))}
           setField={setField}
         />
-        <NumField label="sx" sub="sep. eje fuerte" field="bar_spacing_x" value={state.bar_spacing_x as number} unit="mm" integer setField={setField} />
-        <NumField label="sy" sub="sep. eje débil"  field="bar_spacing_y" value={state.bar_spacing_y as number} unit="mm" integer setField={setField} />
-        <NumField label="ex" sub="dist. borde placa" field="bar_edge_x" value={state.bar_edge_x as number} unit="mm" integer setField={setField} />
+        <NumField label="sx" sub="sep. eje fuerte" help={HELP.sx} field="bar_spacing_x" value={state.bar_spacing_x as number} unit="mm" integer setField={setField} />
+        <NumField label="sy" sub="sep. eje débil"  help={HELP.sy} field="bar_spacing_y" value={state.bar_spacing_y as number} unit="mm" integer setField={setField} />
+        <NumField label="ex" sub="dist. borde placa" help={HELP.ex} field="bar_edge_x" value={state.bar_edge_x as number} unit="mm" integer setField={setField} />
         <FieldWarn field="bar_edge_x" warnings={warnings} />
-        <NumField label="ey" sub="dist. borde placa" field="bar_edge_y" value={state.bar_edge_y as number} unit="mm" integer setField={setField} />
+        <NumField label="ey" sub="dist. borde placa" help={HELP.ey} field="bar_edge_y" value={state.bar_edge_y as number} unit="mm" integer setField={setField} />
         <FieldWarn field="bar_edge_y" warnings={warnings} />
-        <NumField label="hef" sub="prof. anclaje" field="bar_hef" value={state.bar_hef as number} unit="mm" integer setField={setField} />
+        <NumField label="hef" sub="prof. anclaje" help={HELP.hef} field="bar_hef" value={state.bar_hef as number} unit="mm" integer setField={setField} />
         <FieldWarn field="bar_hef" warnings={warnings} />
         <SelectField
           label="Anclaje inferior"
+          help={HELP.bottomAnchorage}
           field="bottom_anchorage"
           value={state.bottom_anchorage as string}
           options={AVAILABLE_BOTTOM_ANCHORAGES.map((t) => ({ value: t, label: BOTTOM_ANCHORAGE_LABEL[t] }))}
@@ -462,6 +509,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         <SelectField
           label="Unión a placa"
+          help={HELP.topConnection}
           field="top_connection"
           value={state.top_connection as string}
           options={AVAILABLE_TOP_CONNECTIONS.map((t) => ({ value: t, label: TOP_CONNECTION_LABEL[t] }))}
@@ -472,6 +520,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             <NumField
               label="OD arandela"
               sub="diámetro exterior"
+              help={HELP.washerOd}
               field="washer_od"
               value={state.washer_od as number}
               unit="mm"
@@ -497,21 +546,22 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             ]}
           />
         </div>
-        <NumField label="h"  sub="altura" field="rib_h" value={state.rib_h as number} unit="mm" integer setField={setField} />
-        <NumField label="t"  sub="espesor" field="rib_t" value={state.rib_t as number} unit="mm" integer setField={setField} />
+        <NumField label="h"  sub="altura" help={HELP.ribH} field="rib_h" value={state.rib_h as number} unit="mm" integer setField={setField} />
+        <NumField label="t"  sub="espesor" help={HELP.ribT} field="rib_t" value={state.rib_t as number} unit="mm" integer setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Pedestal (hormigón)">
         <SelectField
           label="fck"
+          help={HELP.fck}
           field="fck"
           value={state.fck as number}
           options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
           setField={setField}
         />
-        <NumField label="h"   sub="canto macizo" field="pedestal_h" value={state.pedestal_h as number} unit="mm" integer setField={setField} />
-        <NumField label="cX"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c1)'} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
-        <NumField label="cY"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c2)'} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
+        <NumField label="h"   sub="canto macizo" help={HELP.pedestalH} field="pedestal_h" value={state.pedestal_h as number} unit="mm" integer setField={setField} />
+        <NumField label="cX"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c1)'} help={HELP.cX} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
+        <NumField label="cY"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c2)'} help={HELP.cY} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
         <ExpandToggle
           open={edgesDirectional}
           onToggle={() => setEdgesDirectional((o) => !o)}
@@ -519,16 +569,17 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         {edgesDirectional && (
           <>
-            <NumField label="cX1" sub="cara +x"  field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={setField} />
-            <NumField label="cX2" sub="cara −x"  field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={setField} />
-            <NumField label="cY1" sub="cara +y"  field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={setField} />
-            <NumField label="cY2" sub="cara −y"  field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={setField} />
+            <NumField label="cX1" sub="cara +x"  help={HELP.cX1} field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={setField} />
+            <NumField label="cX2" sub="cara −x"  help={HELP.cX2} field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={setField} />
+            <NumField label="cY1" sub="cara +y"  help={HELP.cY1} field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={setField} />
+            <NumField label="cY2" sub="cara −y"  help={HELP.cY2} field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={setField} />
           </>
         )}
-        <NumField label="mX"  sub="placa→borde (α)"  field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={setField} />
-        <NumField label="mY"  sub="placa→borde (α)"  field="plate_margin_y" value={state.plate_margin_y as number} unit="mm" integer setField={setField} />
+        <NumField label="mX"  sub="placa→borde (α)"  help={HELP.mX} field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={setField} />
+        <NumField label="mY"  sub="placa→borde (α)"  help={HELP.mY} field="plate_margin_y" value={state.plate_margin_y as number} unit="mm" integer setField={setField} />
         <SelectField
           label="Superficie"
+          help={HELP.surface}
           field="surface_type"
           value={state.surface_type as string}
           options={[
@@ -537,7 +588,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           ]}
           setField={setField}
         />
-        <NumField label="aw" sub="garganta (info)" field="weld_throat" value={state.weld_throat as number} unit="mm" integer setField={setField} />
+        <NumField label="aw" sub="garganta (info)" help={HELP.weld} field="weld_throat" value={state.weld_throat as number} unit="mm" integer setField={setField} />
       </CollapsibleSection>
 
     </div>
