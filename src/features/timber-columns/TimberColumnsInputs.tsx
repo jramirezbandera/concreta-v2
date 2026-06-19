@@ -14,10 +14,12 @@ interface Props {
 
 
 function NumField({
-  labelKey, label, sub, field, value, unit, min, step, setField, helpText,
+  labelKey, label, sub, help, field, value, unit, min, step, setField, helpText,
 }: {
   labelKey?: LabelKey;
   label?: string; sub?: string;
+  /** Tooltip ⓘ breve junto al label. Distinto de `helpText` (párrafo inline persistente). */
+  help?: string;
   field: keyof TimberColumnInputs; value: number; unit?: string;
   min?: number; step?: number;
   setField: Props['setField'];
@@ -30,7 +32,13 @@ function NumField({
   return (
     <div className="py-0.75 max-lg:min-h-11">
       <div className="flex items-center justify-between gap-2">
-        <InputLabel htmlFor={`tc-${field}`} label={resolved.label} sub={resolved.sub} />
+        <InputLabel
+          htmlFor={`tc-${field}`}
+          labelKey={labelKey}
+          label={labelKey ? undefined : resolved.label}
+          sub={labelKey ? undefined : resolved.sub}
+          help={help}
+        />
         <div className="flex shrink-0">
           <input
             id={`tc-${field}`}
@@ -51,9 +59,9 @@ function NumField({
 }
 
 function SelectField({
-  labelKey, label, field, value, options, setField,
+  labelKey, label, help, field, value, options, setField,
 }: {
-  labelKey?: LabelKey; label?: string;
+  labelKey?: LabelKey; label?: string; help?: string;
   field: keyof TimberColumnInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -66,7 +74,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`tc-sel-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`tc-sel-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`tc-sel-${field}`}
         value={value}
@@ -152,10 +166,7 @@ export function TimberColumnsInputs({ state, setField }: Props) {
       {/* ── Sección transversal ───────────────────────────────────────────── */}
       <CollapsibleSection label="Sección transversal">
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-          <label htmlFor="tc-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-            {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
-            {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
-          </label>
+          <InputLabel htmlFor="tc-gradeId" labelKey="grade_timber" className="whitespace-nowrap shrink-0" />
           <select
             id="tc-gradeId"
             value={state.gradeId}
@@ -181,14 +192,17 @@ export function TimberColumnsInputs({ state, setField }: Props) {
       {/* ── Geometría ─────────────────────────────────────────────────────── */}
       <CollapsibleSection label="Geometría">
         <NumField labelKey="L_column" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
-        <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField} />
-        <SelectField label="Apoyo eje débil"  field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField} />
+        <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField}
+          help="Condición de apoyo en el plano del eje fuerte (y). Fija βy y la longitud de pandeo Lk,y = βy·L." />
+        <SelectField label="Apoyo eje débil"  field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField}
+          help="Condición de apoyo en el plano del eje débil (z). Fija βz y la longitud de pandeo Lk,z = βz·L." />
       </CollapsibleSection>
 
       {/* ── Solicitaciones de diseño ─────────────────────────────────────── */}
       <CollapsibleSection label="Solicitaciones (mayoradas)">
         <UnitNumberInput
           labelKey="NEd"
+          help="Axil de compresión de cálculo (ELU) sobre el pilar."
           field="Nd"
           value={state.Nd}
           quantity="force"
@@ -196,6 +210,7 @@ export function TimberColumnsInputs({ state, setField }: Props) {
         />
         <UnitNumberInput
           labelKey="VEd"
+          help="Cortante de cálculo (ELU) sobre el pilar."
           field="Vd"
           value={state.Vd}
           quantity="force"
@@ -203,12 +218,14 @@ export function TimberColumnsInputs({ state, setField }: Props) {
         />
         <UnitNumberInput
           labelKey="MEd"
+          help="Momento flector de cálculo (ELU). Se combina con el axil en la comprobación de flexocompresión."
           field="Md"
           value={state.Md}
           quantity="moment"
           onChange={(v) => setField('Md', v)}
         />
-        <SelectField label="Eje de momento" field="momentAxis" value={state.momentAxis} options={MOMENT_AXIS_OPTIONS} setField={setField} />
+        <SelectField label="Eje de momento" field="momentAxis" value={state.momentAxis} options={MOMENT_AXIS_OPTIONS} setField={setField}
+          help="Eje en torno al que actúa el momento: fuerte (h, canto mayor) o débil (b, ancho menor)." />
       </CollapsibleSection>
 
       {/* ── Condiciones de uso ────────────────────────────────────────────── */}
