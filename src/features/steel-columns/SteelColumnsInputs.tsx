@@ -404,7 +404,6 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       <CollapsibleSection label="Cargas">
       <UnitNumberInput
         labelKey="NEd"
-        help="Axil de compresión de cálculo (ELU) sobre el pilar."
         quantity="force"
         id="sc-Ned"
         value={state.Ned}
@@ -414,7 +413,6 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       />
       <UnitNumberInput
         labelKey="My_Ed"
-        help="Momento de cálculo (ELU) respecto al eje fuerte (y)."
         quantity="moment"
         id="sc-My"
         value={state.My_Ed}
@@ -424,7 +422,6 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       />
       <UnitNumberInput
         labelKey="Mz_Ed"
-        help="Momento de cálculo (ELU) respecto al eje débil (z)."
         quantity="moment"
         id="sc-Mz"
         value={state.Mz_Ed}

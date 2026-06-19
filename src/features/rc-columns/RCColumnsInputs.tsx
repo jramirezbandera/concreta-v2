@@ -201,12 +201,9 @@ export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
       </CollapsibleSection>
 
       <CollapsibleSection label="Solicitaciones">
-        <UnitNumberInput labelKey="NEd"   field="Nd"   value={state.Nd}   quantity="force"  onChange={(v) => setField('Nd', v)}
-          help="Axil de cálculo de compresión (ELU) sobre el pilar." />
-        <UnitNumberInput labelKey="My_Ed" field="MEdy" value={state.MEdy} quantity="moment" onChange={(v) => setField('MEdy', v)}
-          help="Momento de cálculo (ELU) según el eje fuerte (y) del pilar." />
-        <UnitNumberInput labelKey="Mz_Ed" field="MEdz" value={state.MEdz} quantity="moment" onChange={(v) => setField('MEdz', v)}
-          help="Momento de cálculo (ELU) según el eje débil (z) del pilar." />
+        <UnitNumberInput labelKey="NEd"   field="Nd"   value={state.Nd}   quantity="force"  onChange={(v) => setField('Nd', v)} />
+        <UnitNumberInput labelKey="My_Ed" field="MEdy" value={state.MEdy} quantity="moment" onChange={(v) => setField('MEdy', v)} />
+        <UnitNumberInput labelKey="Mz_Ed" field="MEdz" value={state.MEdz} quantity="moment" onChange={(v) => setField('MEdz', v)} />
       </CollapsibleSection>
     </div>
   );

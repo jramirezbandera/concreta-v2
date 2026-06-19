@@ -590,6 +590,7 @@ export const LABELS = {
     unit: 'kN',
     quantity: 'force',
     ref: 'CTE DB-SE §4.2.1',
+    help: 'Axil de compresión de cálculo en estado límite último (ELU).',
     modules: [
       'rcColumns',
       'steelColumns',
@@ -635,6 +636,7 @@ export const LABELS = {
     unit: 'kNm',
     quantity: 'moment',
     ref: 'CTE DB-SE §4.2.1',
+    help: 'Momento flector de cálculo (ELU) respecto al eje fuerte (y).',
     modules: ['rcColumns', 'steelColumns'],
   },
 
@@ -645,6 +647,7 @@ export const LABELS = {
     unit: 'kNm',
     quantity: 'moment',
     ref: 'CTE DB-SE §4.2.1',
+    help: 'Momento flector de cálculo (ELU) respecto al eje débil (z).',
     modules: ['rcColumns', 'steelColumns'],
   },
 
@@ -655,6 +658,7 @@ export const LABELS = {
     unit: 'kNm',
     quantity: 'moment',
     ref: 'CE art. 42',
+    help: 'Momento de cálculo (ELU) en planta alrededor del eje x.',
     modules: ['isolatedFooting', 'pileCap', 'empresillado'],
   },
 
@@ -665,6 +669,7 @@ export const LABELS = {
     unit: 'kNm',
     quantity: 'moment',
     ref: 'CE art. 42',
+    help: 'Momento de cálculo (ELU) en planta alrededor del eje y.',
     modules: ['isolatedFooting', 'pileCap', 'empresillado'],
   },
 

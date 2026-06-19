@@ -202,7 +202,6 @@ export function TimberColumnsInputs({ state, setField }: Props) {
       <CollapsibleSection label="Solicitaciones (mayoradas)">
         <UnitNumberInput
           labelKey="NEd"
-          help="Axil de compresión de cálculo (ELU) sobre el pilar."
           field="Nd"
           value={state.Nd}
           quantity="force"

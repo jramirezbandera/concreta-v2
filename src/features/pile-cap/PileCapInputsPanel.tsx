@@ -170,19 +170,16 @@ export function PileCapInputsPanel({ state, setField }: Props) {
       <CollapsibleSection label="Acciones de diseño (ELU)">
         <UnitNumberInput
           labelKey="NEd" field="N_Ed"
-          help="Axil vertical de cálculo (ELU) transmitido por el pilar al encepado."
           value={state.N_Ed as number} quantity="force"
           onChange={(v) => setField('N_Ed', v)}
         />
         <UnitNumberInput
           labelKey="Mx_Ed_plan" field="Mx_Ed"
-          help="Momento de cálculo (ELU) en planta alrededor del eje x. Reparte la reacción entre pilotes."
           value={state.Mx_Ed as number} quantity="moment"
           onChange={(v) => setField('Mx_Ed', v)}
         />
         <UnitNumberInput
           labelKey="My_Ed_plan" field="My_Ed"
-          help="Momento de cálculo (ELU) en planta alrededor del eje y. Reparte la reacción entre pilotes."
           value={state.My_Ed as number} quantity="moment"
           onChange={(v) => setField('My_Ed', v)}
         />

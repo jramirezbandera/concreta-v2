@@ -146,12 +146,9 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
 
       {/* ── Cargas de diseño ──────────────────────────────────────────── */}
       <CollapsibleSection label="Cargas de diseño">
-        <UnitNumberInput labelKey="NEd"        field="N_Ed"  value={state.N_Ed}  quantity="force"  onChange={(v) => set('N_Ed', v)}
-          help="Axil de compresión de cálculo (ELU) sobre el pilar reforzado." />
-        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)}
-          help="Momento de cálculo (ELU) alrededor del eje x del pilar." />
-        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)}
-          help="Momento de cálculo (ELU) alrededor del eje y del pilar." />
+        <UnitNumberInput labelKey="NEd"        field="N_Ed"  value={state.N_Ed}  quantity="force"  onChange={(v) => set('N_Ed', v)} />
+        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)} />
+        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)} />
         <UnitNumberInput labelKey="VEd"        field="Vd"    value={state.Vd}    quantity="force"  onChange={(v) => set('Vd', v)}
           help="Cortante de cálculo (ELU). Si es menor que N_Ed/500 se aplica el mínimo normativo (EC3 §6.4.3.1)." />
         <p className="text-[10px] text-text-disabled leading-tight whitespace-pre-line pl-1 mb-1">
