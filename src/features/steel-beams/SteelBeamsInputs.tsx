@@ -102,6 +102,7 @@ function NumField({
   labelKey,
   label,
   sub,
+  help,
   unit,
   field,
   value,
@@ -112,6 +113,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   unit?: string;
   field: keyof SteelBeamInputs;
   value: number;
@@ -119,13 +121,19 @@ function NumField({
   step?: number;
   setField: SteelBeamsInputsProps['setField'];
 }) {
-  const resolved = labelKey
-    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
-    : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '—' ? '' : resolved.unit;
+  const rawUnit = labelKey ? LABELS[labelKey].unit : (unit ?? '');
+  const unitText = rawUnit === '—' ? '' : rawUnit;
+  const ariaName = labelKey ? (LABELS[labelKey].sym || LABELS[labelKey].descShort) : (label ?? '');
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`sb-input-${field}`} label={resolved.label} sub={resolved.sub} />
+      {/* InputLabel resuelve sym/descShort/help/ref del catálogo vía labelKey. */}
+      <InputLabel
+        htmlFor={`sb-input-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : label}
+        sub={labelKey ? undefined : sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`sb-input-${field}`}
@@ -138,7 +146,7 @@ function NumField({
             if (!isNaN(n)) setField(field, n);
           }}
           className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${resolved.label} (${unitText})`}
+          aria-label={`${ariaName} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
           {unitText}
@@ -151,6 +159,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  help,
   field,
   value,
   options,
@@ -158,19 +167,21 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  help?: string;
   field: keyof SteelBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: SteelBeamsInputsProps['setField'];
 }) {
-  const resolved = labelKey
-    ? LABELS[labelKey].sym
-      ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
-      : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
-    : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`sb-select-${field}`} label={resolved.label} sub={resolved.sub} />
+      {/* InputLabel maneja el caso sym==='' (label = descShort) y el icono ⓘ. */}
+      <InputLabel
+        htmlFor={`sb-select-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : label}
+        help={help}
+      />
       <select
         id={`sb-select-${field}`}
         value={value}
@@ -362,13 +373,7 @@ export function SteelBeamsInputs({
       {/* L — beam span, stored in mm, displayed in m. Hidden in FEM embed (FEM provides L). */}
       {!hideL && (
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <label
-          htmlFor="sb-input-L"
-          className="text-[13px] text-text-secondary whitespace-nowrap shrink-0"
-        >
-          {LABELS.L_span.sym}
-          <span className="text-[11px] text-text-disabled ml-1">{LABELS.L_span.descShort}</span>
-        </label>
+        <InputLabel htmlFor="sb-input-L" labelKey="L_span" className="whitespace-nowrap shrink-0" />
         <div className="flex shrink-0">
           <input
             id="sb-input-L"
@@ -468,7 +473,9 @@ export function SteelBeamsInputs({
       <CollapsibleSection label="Pandeo lateral (LTB)">
       {/* Lcr stored in mm, displayed in m */}
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <InputLabel htmlFor="sb-input-Lcr" label={LABELS.Lcr_LTB.sym} sub={LABELS.Lcr_LTB.descShort} />
+        {/* help override dinámico: el texto de Lcr depende del tipo de viga
+            (regla 5A — call site sobreescribe el default del catálogo). */}
+        <InputLabel htmlFor="sb-input-Lcr" labelKey="Lcr_LTB" help={lcrTooltip[state.beamType]} />
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`font-mono text-[9px] px-1.25 py-0.5 rounded transition-colors ${lcrIsAuto ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-disabled'}`}
@@ -483,7 +490,6 @@ export function SteelBeamsInputs({
               value={+(displayLcr / 1000).toFixed(2)}
               min={0.1}
               step={0.1}
-              title={lcrTooltip[state.beamType]}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 if (!isNaN(n) && n > 0) onLcrChange(Math.round(n * 1000));

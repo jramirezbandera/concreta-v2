@@ -171,6 +171,35 @@ describe("UnitNumberInput — system switch", () => {
   });
 });
 
+describe("UnitNumberInput — help icon delegation (regression)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("renders the ⓘ icon when the catalog labelKey has help, and keeps the input", () => {
+    render(
+      <UnitSystemProvider>
+        <UnitNumberInput
+          id="gk"
+          labelKey="gk_surface"
+          value={1}
+          quantity="areaLoad"
+          onChange={() => {}}
+        />
+      </UnitSystemProvider>
+    );
+    // gk_surface has help → icon appears; sym 'g' label still renders
+    expect(screen.getByRole("button", { name: /Ayuda/ })).toBeInTheDocument();
+    expect(screen.getByText("g")).toBeInTheDocument();
+  });
+
+  it("shows no icon for an override label without help", () => {
+    renderInput(80, () => {}, { label: "N" });
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText("N")).toBeInTheDocument();
+  });
+});
+
 describe("UnitNumberInput — onBlur normalization", () => {
   beforeEach(() => {
     window.localStorage.clear();

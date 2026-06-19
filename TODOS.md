@@ -851,3 +851,34 @@ de marketing legítima que muchas herramientas mantienen a propósito. No urgent
 Revisitar después de que el modo claro de la app haya reposado con testers.
 
 **Depends on:** que el modo claro de la app esté mergeado y validado (esta PR).
+
+---
+
+## Tooltips de ayuda por campo (eng-review 2026-06-19)
+
+Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/Javier-main-design-20260619-222124.md` (APPROVED, eng-review CLEARED).
+
+### HelpTooltip — soporte táctil (tap-toggle + dismiss)
+
+**Status:** DEFERRED (eng-review 2026-06-19, premisa 4).
+
+**What:** añadir tap-toggle + dismiss (tap fuera / Escape) al `HelpTooltip` para
+móvil/tablet.
+
+**Why:** V1 del tooltip es hover+focus. En táctil no hay hover, y el icono es un
+`<button>` que no responde al tap → semántica engañosa (Codex #10 del review). El
+primitivo V1 se diseña dejándole sitio (estado open controlado, dismiss ya implementado
+para Escape/scroll).
+
+**Pros:** cubre el uso en visita de obra desde el móvil; coherencia de la semántica
+`<button>`. **Cons:** UX táctil de tooltips siempre es algo subpar; testing en
+dispositivo real.
+
+**Context:** ver design doc → decisión 5A/refinamientos + "NOT in scope". El tooltip
+ya cierra con Escape y scroll; falta el toggle por tap y el dismiss por tap-fuera.
+
+**Where to start:** `src/components/ui/HelpTooltip.tsx` — añadir `onClick` toggle al
+icono (ya `<button>`) + listener `pointerdown` en document para cerrar al tocar fuera,
+bajo detección táctil o sin más (el toggle por click no estorba en desktop).
+
+**Depends on:** HelpTooltip V1 shipeado.

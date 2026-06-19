@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LABELS, type LabelKey } from "../../lib/text/labels";
+import { InputLabel } from "../ui/InputLabel";
 import {
   formatNumber,
   getPrecision,
@@ -34,6 +35,11 @@ type UnitNumberInputProps = {
   label?: string;
   /** Override the resolved sub (descShort). */
   sub?: string;
+  /**
+   * Help text → renders the ⓘ tooltip next to the label. Overrides
+   * `LABELS[labelKey].help` (catalog default). Omit for no tooltip.
+   */
+  help?: string;
   /** Override the unit suffix shown to the right of the input. */
   unit?: string;
 
@@ -62,6 +68,7 @@ export function UnitNumberInput({
   labelKey,
   label,
   sub,
+  help,
   unit,
   quantity,
   precision,
@@ -72,7 +79,6 @@ export function UnitNumberInput({
   const { system } = useUnitSystem();
 
   const resolvedLabel = labelKey ? LABELS[labelKey].sym : (label ?? "");
-  const resolvedSub = labelKey ? LABELS[labelKey].descShort : sub;
   const resolvedUnit = quantity
     ? getUnitLabel(quantity, system)
     : (labelKey ? LABELS[labelKey].unit : (unit ?? ""));
@@ -114,16 +120,16 @@ export function UnitNumberInput({
 
   return (
     <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-      <label
+      {/* Label delegado a InputLabel (único primitivo catalog-aware): resuelve
+          sym/descShort/help/ref del catálogo y pinta el icono ⓘ cuando hay help.
+          Un `label` explícito es override → no se pasa labelKey para que gane. */}
+      <InputLabel
         htmlFor={inputId}
-        className="text-[13px] text-text-secondary truncate min-w-0"
-        title={`${resolvedLabel}${resolvedSub ? " " + resolvedSub : ""}`}
-      >
-        {resolvedLabel}
-        {resolvedSub && (
-          <span className="text-[11px] text-text-disabled ml-1">{resolvedSub}</span>
-        )}
-      </label>
+        labelKey={label !== undefined ? undefined : labelKey}
+        label={label}
+        sub={label !== undefined ? sub : undefined}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={inputId}

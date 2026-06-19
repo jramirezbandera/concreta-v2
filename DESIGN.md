@@ -303,6 +303,48 @@ text-[10px] text-text-disabled leading-tight whitespace-pre-line
 - Soporta saltos de línea vía `\n` en la cadena (gracias a `whitespace-pre-line`)
 - No usar para inputs con nombres autoexplicativos (b, h, fck, etc.)
 
+### HelpTooltip — ayuda contextual por campo (icono ⓘ)
+
+Para el "qué es esto" breve de CUALQUIER campo de entrada. Un icono ⓘ junto al
+label que, al hover o foco, muestra una explicación en un portal a `body` (no se
+recorta en paneles con scroll). Componente compartido: `src/components/ui/HelpTooltip.tsx`.
+
+```
+Ancho b ⓘ ........... [300][mm]
+        └ hover/focus
+   ┌──────────────────────┐
+   │ Ancho de la sección.  │
+   │ EC3 §6.2.5            │ ← ref (2ª línea, mono dim)
+   └──────────────────────┘
+```
+
+```css
+/* Icono */
+lucide Info, size 13, strokeWidth 1.75, stroke-only (NUNCA en círculo de color)
+text-text-secondary → hover/focus text-accent
+<button> con padding p-1 -m-1 → hit area ≥24px (glyph 13px)
+
+/* Tooltip (portal, position:fixed) */
+bg-bg-surface border border-border-main rounded   /* 4px — SIN sombra */
+px-2.5 py-1.5 text-[12px] leading-snug text-text-primary  max-w 260px
+```
+
+- **Elevación sin sombra**: el sistema no usa sombras; el tooltip se separa del
+  panel por superficie (`bg-surface`) + borde, como el resto de la app.
+- **Posicionado**: medir-luego-posicionar (`useLayoutEffect`), flip arriba/abajo +
+  clamp horizontal al viewport. Cierra con Escape, scroll (capture) y resize.
+- **A11y**: `aria-label="Ayuda: {campo}"`, `aria-describedby` atado solo mientras
+  está abierto. Solo hover/foco — el tap táctil es mejora posterior (TODOS.md).
+- **Contenido**: `LABELS[labelKey].help` (default del catálogo) + `ref` como 2ª
+  línea; el call site puede sobreescribir `help` (ayuda dinámica, p. ej. Lcr por
+  tipo de viga). Resuelto vía `InputLabel` (único primitivo catalog-aware).
+
+**Tooltip vs helpText inline — cuándo cada uno:**
+- **HelpTooltip (ⓘ)**: ayuda breve "qué es esto" para cualquier campo. Mantiene la
+  densidad (solo un icono). Es el mecanismo por defecto.
+- **NumberField helpText (inline)**: explicación normativa multilínea PERSISTENTE
+  que el proyectista debe ver sin interactuar (coeficientes no obvios: beta_x, Vd).
+
 ### Ambient verdict (panel resultados)
 
 El panel de resultados usa un gradiente funcional de estado en lugar de un borde grueso. El gradiente comunica el veredicto de forma ambiental, sin competir con el contenido.
@@ -463,3 +505,4 @@ Explícitamente prohibido:
 | 2026-05-04 | Banner de validación con bloque "Cómo arreglarlo" | Cuando los datos son inválidos, el motor devuelve `EdificioInvalid.fix?` con sugerencia concreta. Bloque accent/5 dentro del banner fail. Empatiza con usuario que no domina la norma |
 | 2026-05-04 | Warning glyph: SVG Lucide AlertTriangle (no emoji) | Coherente con la regla anti-emoji. Pattern: SVG 12x12 stroke-current dentro de bloque state-warn/5. Usado en huecos solapados |
 | 2026-06-09 | **Modo claro + claro por defecto** (OS-aware) | Testers lo pidieron como predeterminado. Tokens conmutables (`@theme` sin `inline`, `:root` claro + `html[data-theme="dark"]`). Toggle sol/luna 2-estados en topbar (espeja UnitSystemToggle). `color-scheme` por tema. PDF intacto (grises). Reencuadre del Design Thesis: la diferenciación es densidad/precisión/SVG, no el fondo oscuro; el oscuro pasa de "único tema / declaración de propósito" a "firma" opcional |
+| 2026-06-19 | **HelpTooltip (ⓘ) + reencuadre de la regla de ayuda** | Ayuda contextual por campo vía icono ⓘ (hover/foco, portal sin recorte, sin sombra). Reencuadra la decisión 2026-04-09: el tooltip es para ayuda BREVE "qué es esto" de cualquier campo (mantiene densidad); el `helpText` inline se reserva a explicación normativa multilínea persistente (beta_x, Vd) — ya NO es "sin tooltip", coexisten por tipo de ayuda. Contenido en `LABELS.help` (default) con override por call site. Eng+design review 2026-06-19 |

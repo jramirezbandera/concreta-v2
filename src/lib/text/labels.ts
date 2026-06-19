@@ -45,6 +45,15 @@ export type Label = {
    * Required for computed outputs; omitted for user-entered inputs.
    */
   ref?: string;
+  /**
+   * Texto de ayuda contextual (1-3 frases): qué es el campo y, si aplica, qué
+   * norma/criterio lo gobierna. Opcional — si falta, no se pinta el icono ⓘ.
+   * Es el DEFAULT del catálogo: un call site puede sobreescribirlo con un texto
+   * específico de su módulo (regla "catálogo = default, call site = verdad",
+   * igual que `quantity`). Para ayuda breve "qué es esto"; la explicación
+   * normativa multilínea persistente sigue en NumberField helpText inline.
+   */
+  help?: string;
   /** Which module files use this entry (audit aid, not runtime). */
   modules: readonly string[];
 };
@@ -132,6 +141,7 @@ export const LABELS = {
     descLong: 'Luz entre apoyos',
     descShort: 'Luz',
     unit: 'm',
+    help: 'Luz libre entre ejes de apoyo de la viga. Gobierna el momento flector y la flecha.',
     modules: ['rcBeams', 'steelBeams', 'timberBeams'],
   },
 
@@ -362,6 +372,7 @@ export const LABELS = {
     descShort: 'Acero',
     unit: '—',
     ref: 'EC3 §3.2.1 Tabla 3.1',
+    help: 'Grado del acero: fija el límite elástico fy. S275 → fy = 275 N/mm²; S355 → fy = 355 N/mm² (para t ≤ 40 mm).',
     modules: ['steelBeams', 'steelColumns', 'compositeSection'],
   },
 
@@ -370,6 +381,7 @@ export const LABELS = {
     descLong: 'Tipo de perfil metálico',
     descShort: 'Tipo',
     unit: '—',
+    help: 'Serie del perfil laminado. IPE/IPN para vigas (canto > ancho); HEA/HEB para soportes o vigas con más ala.',
     modules: ['steelBeams', 'steelColumns', 'compositeSection'],
   },
 
@@ -378,6 +390,7 @@ export const LABELS = {
     descLong: 'Designación del perfil',
     descShort: 'Tamaño',
     unit: '—',
+    help: 'Designación dentro de la serie (p. ej. IPE 300). Determina A, Iy, Wpl y el resto de propiedades de sección.',
     modules: ['steelBeams', 'steelColumns', 'compositeSection'],
   },
 
@@ -467,6 +480,7 @@ export const LABELS = {
     descShort: 'Permanente adicional',
     unit: 'kN/m²',
     ref: 'CTE DB-SE-AE §2',
+    help: 'Carga permanente de superficie adicional al peso propio del perfil (solados, tabiquería repartida, instalaciones).',
     modules: ['steelBeams'],
   },
 
@@ -476,6 +490,7 @@ export const LABELS = {
     descShort: 'Sobrecarga de uso',
     unit: 'kN/m²',
     ref: 'CTE DB-SE-AE §3 Tabla 3.1',
+    help: 'Sobrecarga de uso según la categoría del local. Si la editas a mano, la categoría pasa a "personalizado".',
     modules: ['steelBeams'],
   },
 
@@ -484,6 +499,7 @@ export const LABELS = {
     descLong: 'Ancho tributario',
     descShort: 'Ancho tributario',
     unit: 'm',
+    help: 'Ancho de forjado que descarga sobre esta viga. Multiplica las cargas de superficie (g, q) para obtener la carga lineal.',
     modules: ['steelBeams'],
   },
 
@@ -493,6 +509,7 @@ export const LABELS = {
     descShort: 'Categoría',
     unit: '—',
     ref: 'CTE DB-SE-AE §3 Tabla 3.1',
+    help: 'Categoría de uso del CTE: fija la sobrecarga q y los coeficientes ψ de combinación de acciones.',
     modules: ['rcBeams', 'steelBeams', 'timberBeams'],
   },
 
@@ -502,6 +519,7 @@ export const LABELS = {
     descShort: 'Longitud pandeo',
     unit: 'm',
     ref: 'EC3 §6.3.2.2',
+    help: 'Distancia entre puntos de arriostramiento del ala comprimida. Gobierna el pandeo lateral-torsional (vuelco). Por defecto = L; redúcela si hay arriostramientos intermedios.',
     modules: ['steelBeams'],
   },
 
@@ -520,6 +538,7 @@ export const LABELS = {
     descShort: 'Combinación ELS',
     unit: '—',
     ref: 'CTE DB-SE §4.3.3',
+    help: 'Combinación de acciones para la flecha: Característica (ψ=1), Frecuente (ψ₁) o Cuasi-permanente (ψ₂).',
     modules: ['steelBeams'],
   },
 
