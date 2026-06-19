@@ -15,6 +15,7 @@ function NumField({
   labelKey,
   label,
   sub,
+  help,
   field,
   value,
   unit,
@@ -24,6 +25,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   field: keyof RetainingWallInputs;
   value: number;
   unit?: string;
@@ -43,7 +45,13 @@ function NumField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`input-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -75,6 +83,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  help,
   field,
   value,
   options,
@@ -82,6 +91,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  help?: string;
   field: keyof RetainingWallInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -94,7 +104,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`select-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`select-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`select-${field}`}
         value={value}
@@ -193,10 +209,14 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       <CollapsibleSection label="Geometría">
         <NumField labelKey="H_wall"       field="H"      value={state.H as number}      setField={setField} />
         <NumField labelKey="hf_footing"   field="hf"     value={state.hf as number}     setField={setField} />
-        <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField} />
-        <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField} />
-        <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField} />
-        <NumField label="df" sub="Empot. frontal (suelo s/punta)" field="df" value={state.df as number} unit="m" setField={setField} />
+        <NumField label="t" sub="Espesor fuste"        field="tFuste" value={state.tFuste as number}  unit="m" setField={setField}
+          help="Espesor del fuste del muro en su base." />
+        <NumField label="bP" sub="Punta zapata"        field="bPunta" value={state.bPunta as number}  unit="m" setField={setField}
+          help="Vuelo de la zapata hacia el intradós (delante del fuste)." />
+        <NumField label="bT" sub="Talón zapata"        field="bTalon" value={state.bTalon as number}  unit="m" setField={setField}
+          help="Vuelo de la zapata hacia el trasdós (bajo el relleno)." />
+        <NumField label="df" sub="Empot. frontal (suelo s/punta)" field="df" value={state.df as number} unit="m" setField={setField}
+          help="Profundidad de suelo sobre la punta (empotramiento frontal). Habilita el empuje pasivo si se considera." />
       </CollapsibleSection>
 
       <CollapsibleSection label="Materiales">
@@ -220,6 +240,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
       <CollapsibleSection label="Terreno (trasdós)">
         <UnitNumberInput
           labelKey="gamma_soil"
+          help="Peso específico del terreno del trasdós. Determina el empuje activo sobre el muro."
           field="gammaSuelo"
           value={state.gammaSuelo as number}
           quantity="weightDensity"
@@ -228,6 +249,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         <UnitNumberInput
           label="γsat"
           sub="Suelo saturado"
+          help="Peso específico saturado del terreno, usado por debajo del nivel freático."
           field="gammaSat"
           value={state.gammaSat as number}
           quantity="weightDensity"
@@ -238,6 +260,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         <UnitNumberInput
           label="q"
           sub="Sobrecarga trasdós"
+          help="Sobrecarga uniforme sobre el terreno del trasdós. Añade empuje horizontal sobre el muro."
           field="q"
           value={state.q as number}
           quantity="areaLoad"
@@ -245,6 +268,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         />
         <UnitNumberInput
           labelKey="sigma_adm"
+          help="Tensión admisible del terreno bajo la zapata. La tensión máxima en la base no debe superarla."
           field="sigmaAdm"
           value={state.sigmaAdm as number}
           quantity="soilPressure"
@@ -272,6 +296,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
         {state.hasWater && (
           <NumField
             label="Prof. NF (desde cor.)"
+            help="Profundidad del nivel freático medida desde la coronación del muro."
             field="hw"
             value={state.hw as number}
             unit="m"

@@ -272,6 +272,7 @@ export const LABELS = {
     descLong: 'Altura del fuste',
     descShort: 'Altura fuste',
     unit: 'm',
+    help: 'Altura del fuste del muro (alzado), desde la cara superior de la zapata hasta la coronación.',
     modules: ['retainingWall'],
   },
 
@@ -280,6 +281,7 @@ export const LABELS = {
     descLong: 'Canto de la zapata corrida',
     descShort: 'Canto zapata',
     unit: 'm',
+    help: 'Canto (espesor) de la zapata corrida del muro.',
     modules: ['retainingWall'],
   },
 
@@ -302,6 +304,7 @@ export const LABELS = {
     descShort: 'Recubrimiento',
     unit: 'm',
     ref: 'CE art. 37.2.4',
+    help: 'Recubrimiento geométrico hasta la superficie de la barra. Depende de la clase de exposición ambiental.',
     modules: ['retainingWall'],
   },
 
@@ -1378,6 +1381,7 @@ export const LABELS = {
     descShort: 'Rozamiento interno',
     unit: '°',
     ref: 'CTE DB-SE-C §4.3',
+    help: 'Ángulo de rozamiento interno del terreno del trasdós. Gobierna el coeficiente de empuje activo Ka.',
     modules: ['isolatedFooting', 'retainingWall'],
   },
 
@@ -1396,6 +1400,7 @@ export const LABELS = {
     descShort: 'μ rozamiento',
     unit: '—',
     ref: 'CTE DB-SE-C §4.4.3',
+    help: 'Coeficiente de rozamiento entre la base de la zapata y el terreno. Define la resistencia a deslizamiento.',
     modules: ['isolatedFooting', 'retainingWall'],
   },
 
@@ -1405,6 +1410,7 @@ export const LABELS = {
     descShort: 'δ rozam. pared',
     unit: '°',
     ref: 'CTE DB-SE-C §7.3',
+    help: 'Ángulo de rozamiento entre el terreno y el trasdós del muro. Reduce e inclina el empuje activo.',
     modules: ['retainingWall'],
   },
 
@@ -1445,6 +1451,7 @@ export const LABELS = {
     descShort: 'Aceleración básica',
     unit: 'g',
     ref: 'NCSP-07 §2',
+    help: 'Aceleración sísmica básica ab (NCSE-02). Pon 0 para no considerar acción sísmica.',
     modules: ['retainingWall'],
   },
 
@@ -1454,6 +1461,7 @@ export const LABELS = {
     descShort: 'Amplificación suelo',
     unit: '—',
     ref: 'NCSP-07 §2.2',
+    help: 'Coeficiente de amplificación del suelo. Con ab define el coeficiente sísmico horizontal kh.',
     modules: ['retainingWall'],
   },
 
