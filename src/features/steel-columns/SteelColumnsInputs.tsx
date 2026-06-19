@@ -92,12 +92,13 @@ const BC_OPTIONS: ReadonlyArray<IconGridOption<ColumnBCType>> = [
 // ── Shared field components ───────────────────────────────────────────────────
 
 function NumField({
-  labelKey, label, sub, id, value, unit, min, step, onChange,
+  labelKey, label, sub, help, id, value, unit, min, step, onChange,
 }: {
   // Pull label/sub/unit from the LABELS catalog when a key is given.
   labelKey?: LabelKey;
   // Escape hatch for one-off fields not in the catalog.
   label?: string; sub?: string; unit?: string;
+  help?: string;
   id: string; value: number;
   min?: number; step?: number;
   onChange: (v: number) => void;
@@ -108,7 +109,13 @@ function NumField({
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={id}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={id}
@@ -129,9 +136,9 @@ function NumField({
 }
 
 function SelectField({
-  labelKey, label, id, value, options, onChange,
+  labelKey, label, help, id, value, options, onChange,
 }: {
-  labelKey?: LabelKey; label?: string;
+  labelKey?: LabelKey; label?: string; help?: string;
   id: string; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   onChange: (v: string | number) => void;
@@ -143,7 +150,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={id}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={id}
         value={value}
@@ -238,6 +251,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           <NumField
             label="D"
             sub="diámetro exterior"
+            help="Diámetro exterior del tubo circular (CHS)."
             unit="mm"
             id="sc-chs-D"
             value={state.chs_D}
@@ -248,6 +262,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           <NumField
             label="t"
             sub="espesor pared"
+            help="Espesor de la pared del tubo. Con D define la clase de sección y la esbeltez D/t."
             unit="mm"
             id="sc-chs-t"
             value={state.chs_t}
@@ -257,6 +272,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           />
           <SelectField
             label="Proceso"
+            help="Proceso de fabricación del tubo: acabado en caliente (EN 10210) o conformado en frío (EN 10219); determina la curva de pandeo."
             id="sc-chs-process"
             value={state.chs_process}
             options={[
@@ -300,10 +316,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
 
       {/* Ly — unbraced length y-axis, displayed in m (stored internally in mm) */}
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <label htmlFor="sc-Ly" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-          {LABELS.Ly_strong.sym}
-          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Ly_strong.descShort}</span>
-        </label>
+        <InputLabel htmlFor="sc-Ly" labelKey="Ly_strong" className="whitespace-nowrap shrink-0" />
         <div className="flex shrink-0">
           <input
             id="sc-Ly"
@@ -326,10 +339,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
 
       {/* Lz — unbraced length z-axis, displayed in m (stored internally in mm) */}
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <label htmlFor="sc-Lz" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-          {LABELS.Lz_weak.sym}
-          <span className="text-[11px] text-text-disabled ml-1">{LABELS.Lz_weak.descShort}</span>
-        </label>
+        <InputLabel htmlFor="sc-Lz" labelKey="Lz_weak" className="whitespace-nowrap shrink-0" />
         <div className="flex shrink-0">
           <input
             id="sc-Lz"
@@ -367,6 +377,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           <div className="flex flex-col gap-0">
             <NumField
               label="βy"
+              help="Factor de longitud de pandeo del eje fuerte (y). Lcr,y = βy·Ly."
               id="sc-beta-y"
               value={state.beta_y}
               unit="—"
@@ -376,6 +387,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
             />
             <NumField
               label="βz"
+              help="Factor de longitud de pandeo del eje débil (z). Lcr,z = βz·Lz."
               id="sc-beta-z"
               value={state.beta_z}
               unit="—"
@@ -392,6 +404,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       <CollapsibleSection label="Cargas">
       <UnitNumberInput
         labelKey="NEd"
+        help="Axil de compresión de cálculo (ELU) sobre el pilar."
         quantity="force"
         id="sc-Ned"
         value={state.Ned}
@@ -401,6 +414,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       />
       <UnitNumberInput
         labelKey="My_Ed"
+        help="Momento de cálculo (ELU) respecto al eje fuerte (y)."
         quantity="moment"
         id="sc-My"
         value={state.My_Ed}
@@ -410,6 +424,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       />
       <UnitNumberInput
         labelKey="Mz_Ed"
+        help="Momento de cálculo (ELU) respecto al eje débil (z)."
         quantity="moment"
         id="sc-Mz"
         value={state.Mz_Ed}

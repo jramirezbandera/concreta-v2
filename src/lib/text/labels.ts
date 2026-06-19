@@ -162,6 +162,7 @@ export const LABELS = {
     descShort: 'Libre eje y',
     unit: 'm',
     ref: 'EC3 §6.3.1.3',
+    help: 'Longitud libre de pandeo respecto al eje fuerte (y): distancia entre coacciones que impiden el desplazamiento en ese plano.',
     modules: ['steelColumns', 'timberColumns'],
   },
 
@@ -171,6 +172,7 @@ export const LABELS = {
     descShort: 'Libre eje z',
     unit: 'm',
     ref: 'EC3 §6.3.1.3',
+    help: 'Longitud libre de pandeo respecto al eje débil (z). Suele gobernar el pandeo por ser el eje de menor inercia.',
     modules: ['steelColumns', 'timberColumns'],
   },
 
