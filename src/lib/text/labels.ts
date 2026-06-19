@@ -126,6 +126,7 @@ export const LABELS = {
     descShort: 'Canto útil',
     unit: 'mm',
     ref: 'CE art. 40.3.2',
+    help: 'Canto útil: distancia desde la fibra más comprimida al centro de la armadura de tracción.',
     modules: ['rcBeams', 'rcColumns', 'punching'],
   },
 

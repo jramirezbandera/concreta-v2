@@ -6,6 +6,7 @@ import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
+import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 
 interface PunchingInputsProps {
@@ -17,6 +18,7 @@ function NumField({
   labelKey,
   label,
   sub,
+  help,
   field,
   value,
   unit,
@@ -25,6 +27,7 @@ function NumField({
   labelKey?: LabelKey;
   label?: string;
   sub?: string;
+  help?: string;
   field: keyof PunchingInputs;
   value: number;
   unit?: string;
@@ -42,7 +45,13 @@ function NumField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`input-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`input-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -72,6 +81,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  help,
   field,
   value,
   options,
@@ -79,6 +89,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  help?: string;
   field: keyof PunchingInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -91,7 +102,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`select-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`select-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`select-${field}`}
         value={value}
@@ -116,12 +133,14 @@ function SelectField({
 
 function ToggleButton({
   label,
+  help,
   active,
   disabled,
   disabledTitle,
   onClick,
 }: {
   label: string;
+  help?: string;
   active: boolean;
   disabled?: boolean;
   disabledTitle?: string;
@@ -132,7 +151,10 @@ function ToggleButton({
       className="flex items-center justify-between py-0.75 max-lg:min-h-11"
       title={disabled ? disabledTitle : undefined}
     >
-      <span className="text-[13px] text-text-secondary">{label}</span>
+      <span className="flex items-center gap-1 min-w-0">
+        <span className="text-[13px] text-text-secondary">{label}</span>
+        {help && <HelpTooltip text={help} fieldLabel={label} />}
+      </span>
       <button
         type="button"
         role="switch"
@@ -238,14 +260,17 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
       </p>
 
       <CollapsibleSection label="Configuración">
-        <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField} />
+        <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField}
+          help="Posición del soporte en la losa (interior, borde o esquina). Fija el coeficiente β de excentricidad y el perímetro crítico." />
         <div
           className="overflow-hidden transition-all duration-150"
           style={{ maxHeight: isEdge ? '140px' : '0px', opacity: isEdge ? 1 : 0 }}
         >
-          <NumField label="Dist. al borde libre" sub="ay" field="edgeY" value={state.edgeY} unit="mm" setField={setField} />
+          <NumField label="Dist. al borde libre" sub="ay" field="edgeY" value={state.edgeY} unit="mm" setField={setField}
+            help="Distancia libre desde la cara de la placa al borde libre de la losa." />
           {isCorner && (
-            <NumField label="Dist. al 2º borde" sub="ax" field="edgeX" value={state.edgeX} unit="mm" setField={setField} />
+            <NumField label="Dist. al 2º borde" sub="ax" field="edgeX" value={state.edgeX} unit="mm" setField={setField}
+              help="Distancia al segundo borde libre (solo en posición de esquina)." />
           )}
           <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">
             Distancia libre de la cara de la placa al borde libre.
@@ -254,27 +279,37 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
       </CollapsibleSection>
 
       <CollapsibleSection label="Pilar y placa de testa">
-        <SelectField label="Perfil pilar" field="colType"  value={state.colType}  options={COL_TYPE_OPTIONS} setField={setField} />
-        <SelectField label="Tamaño"       field="colSize"  value={state.colSize}  options={colSizeOptions}   setField={setField} />
-        <NumField    label="Placa ancho"  sub="a" field="plateA" value={state.plateA} unit="mm" setField={setField} />
-        <NumField    label="Placa largo"  sub="b" field="plateB" value={state.plateB} unit="mm" setField={setField} />
+        <SelectField label="Perfil pilar" field="colType"  value={state.colType}  options={COL_TYPE_OPTIONS} setField={setField}
+          help="Serie del perfil del pilar metálico que apoya en la cruceta." />
+        <SelectField label="Tamaño"       field="colSize"  value={state.colSize}  options={colSizeOptions}   setField={setField}
+          help="Designación del perfil del pilar dentro de la serie." />
+        <NumField    label="Placa ancho"  sub="a" field="plateA" value={state.plateA} unit="mm" setField={setField}
+          help="Ancho de la placa de testa que reparte la carga del pilar sobre la cruceta." />
+        <NumField    label="Placa largo"  sub="b" field="plateB" value={state.plateB} unit="mm" setField={setField}
+          help="Largo de la placa de testa." />
       </CollapsibleSection>
 
       <CollapsibleSection label="Cruceta UPN">
-        <SelectField label="Perfil UPN" field="upnSize"    value={state.upnSize}    options={UPN_SIZE_OPTIONS}    setField={setField} />
-        <SelectField label="Acero"      field="steelGrade" value={state.steelGrade} options={STEEL_GRADE_OPTIONS} setField={setField} />
-        <NumField    label="Garganta soldadura" sub="a"    field="weldThroat" value={state.weldThroat} unit="mm" setField={setField} />
+        <SelectField label="Perfil UPN" field="upnSize"    value={state.upnSize}    options={UPN_SIZE_OPTIONS}    setField={setField}
+          help="Perfil UPN de los brazos de la cruceta." />
+        <SelectField label="Acero"      field="steelGrade" value={state.steelGrade} options={STEEL_GRADE_OPTIONS} setField={setField}
+          help="Grado del acero de la cruceta; fija el límite elástico fy." />
+        <NumField    label="Garganta soldadura" sub="a"    field="weldThroat" value={state.weldThroat} unit="mm" setField={setField}
+          help="Espesor de garganta del cordón de soldadura que une la cruceta." />
         <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">
           Se informan clase y capacidades (M_Rd, Vpl,Rd) del UPN para tu hand-calc del reparto.
         </p>
       </CollapsibleSection>
 
       <CollapsibleSection label="Hormigón">
-        <NumField    label="Canto útil" sub="d" field="d" value={state.d} unit="mm" setField={setField} />
+        <NumField    label="Canto útil" sub="d" field="d" value={state.d} unit="mm" setField={setField}
+          help="Canto útil de la losa: distancia de la fibra comprimida al centro de la armadura de tracción." />
         <SelectField labelKey="fck"     field="fck" value={state.fck} options={FCK_OPTIONS} setField={setField} />
         <NumField    labelKey="fyk"     field="fyk" value={state.fyk} setField={setField} />
-        <SelectField label="Ø armado tracción" field="barDiamSup" value={state.barDiamSup} options={BAR_DIAM_OPTIONS} setField={setField} />
-        <NumField    label="Separación" sub="s" field="sSup" value={state.sSup} unit="mm" setField={setField} />
+        <SelectField label="Ø armado tracción" field="barDiamSup" value={state.barDiamSup} options={BAR_DIAM_OPTIONS} setField={setField}
+          help="Diámetro del mallazo en la cara traccionada de la losa." />
+        <NumField    label="Separación" sub="s" field="sSup" value={state.sSup} unit="mm" setField={setField}
+          help="Separación del mallazo en la cara traccionada; con el diámetro define la cuantía ρl." />
         <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">
           Mallazo en la cara traccionada (para vRd,c del punzonamiento de la placa).
         </p>
@@ -283,6 +318,7 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
       <CollapsibleSection label="Carga">
         <UnitNumberInput
           label="Axil N" sub="VEd" field="VEd"
+          help="Axil de cálculo (ELU) transmitido por el pilar a la cruceta."
           value={state.VEd} quantity="force"
           onChange={(v) => setField('VEd', v)}
         />
@@ -348,10 +384,13 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
       {mode !== 'pilar-cruceta' && (<>
       {/* GEOMETRÍA */}
       <CollapsibleSection label="Geometría">
-        <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField} />
-        <NumField label={cyLabel} sub="Cy" field="cy" value={state.cy as number} unit="mm" setField={setField} />
+        <NumField label={cxLabel} sub="Cx" field="cx" value={state.cx as number} unit="mm" setField={setField}
+          help="Dimensión del pilar (o del área cargada) en dirección x. Define el perímetro del soporte." />
+        <NumField label={cyLabel} sub="Cy" field="cy" value={state.cy as number} unit="mm" setField={setField}
+          help="Dimensión del pilar (o del área cargada) en dirección y. Define el perímetro del soporte." />
         <ToggleButton
           label="Circular"
+          help="Marca si el soporte es de sección circular en lugar de rectangular (solo posición interior)."
           active={state.isCircular as boolean}
           disabled={isCircularDisabled}
           disabledTitle="Solo para posición interior"
@@ -374,11 +413,15 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
           Malla supuesta IGUAL en ambas direcciones (ρl = √(ρx·ρy) = ρ)
         </p>
         <p className="text-[10px] text-text-disabled mb-1.5">Cara superior</p>
-        <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-        <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField} />
+        <SelectField label="Diámetro" field="barDiamSup" value={state.barDiamSup as number} options={BAR_DIAM_OPTIONS} setField={setField}
+          help="Diámetro de las barras de la malla de flexión en la cara superior." />
+        <NumField label="Separación" sub="S" field="sSup" value={state.sSup as number} unit="mm" setField={setField}
+          help="Separación entre barras de la malla superior; con el diámetro define la cuantía ρl." />
         <p className="text-[10px] text-text-disabled mt-2 mb-1.5">Cara inferior</p>
-        <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField} />
-        <NumField label="Separación" sub="S" field="sInf" value={state.sInf as number} unit="mm" setField={setField} />
+        <SelectField label="Diámetro" field="barDiamInf" value={state.barDiamInf as number} options={BAR_DIAM_OPTIONS} setField={setField}
+          help="Diámetro de las barras de la malla de flexión en la cara inferior." />
+        <NumField label="Separación" sub="S" field="sInf" value={state.sInf as number} unit="mm" setField={setField}
+          help="Separación entre barras de la malla inferior; con el diámetro define la cuantía ρl." />
         {/* Derived ρl feedback — tension face */}
         {(() => {
           const isSup = mode === 'pilar';
@@ -404,12 +447,14 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
       <CollapsibleSection label="Carga">
         <UnitNumberInput
           label={vedLabel} sub="VEd" field="VEd"
+          help="Esfuerzo de punzonamiento de cálculo (ELU): reacción del pilar o carga puntual sobre la losa."
           value={state.VEd as number} quantity="force"
           onChange={(v) => setField('VEd', v)}
         />
         <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Esfuerzo mayorado ELU</p>
         <SelectField
           label="Posición"
+          help="Posición del soporte en la losa (interior, borde o esquina). Fija el coeficiente β de excentricidad y el perímetro crítico."
           field="position"
           value={state.position as string}
           options={POSITION_OPTIONS}
@@ -421,6 +466,7 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
       <CollapsibleSection label="Armado de punzonamiento">
         <ToggleButton
           label="Con cercos tipo viga"
+          help="Activa la armadura transversal de punzonamiento (cercos) cuando vEd supera vRd,c."
           active={state.hasShearReinf as boolean}
           onClick={() => setField('hasShearReinf', !(state.hasShearReinf as boolean))}
         />
@@ -428,10 +474,14 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
           className="overflow-hidden transition-all duration-150"
           style={{ maxHeight: (state.hasShearReinf as boolean) ? '200px' : '0px', opacity: (state.hasShearReinf as boolean) ? 1 : 0 }}
         >
-          <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField} />
-          <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField} />
-          <NumField    label="Separación" sub="Sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField} />
-          <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField} />
+          <SelectField label="Ø cerco"   field="swDiam"  value={state.swDiam as number}  options={SW_DIAM_OPTIONS}  setField={setField}
+            help="Diámetro de las barras del cerco de punzonamiento." />
+          <SelectField label="Nº ramas"  field="swLegs"  value={state.swLegs as number}  options={SW_LEGS_OPTIONS}  setField={setField}
+            help="Número de ramas de cerco cortadas por el perímetro de control." />
+          <NumField    label="Separación" sub="Sr"        field="sr"     value={state.sr as number}     unit="mm"  setField={setField}
+            help="Separación radial entre perímetros sucesivos de cercos." />
+          <NumField    label="fywk"                       field="fywk"   value={state.fywk as number}   unit="MPa" setField={setField}
+            help="Límite elástico característico del acero de los cercos de punzonamiento." />
         </div>
       </CollapsibleSection>
       </>)}
