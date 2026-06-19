@@ -188,6 +188,7 @@ export const LABELS = {
     descLong: 'Ancho de la zapata (lado x)',
     descShort: 'Ancho zapata',
     unit: 'm',
+    help: 'Dimensión de la zapata en planta según el eje x (paralela al ancho del pilar).',
     modules: ['isolatedFooting'],
   },
 
@@ -196,6 +197,7 @@ export const LABELS = {
     descLong: 'Largo de la zapata (lado y)',
     descShort: 'Largo zapata',
     unit: 'm',
+    help: 'Dimensión de la zapata en planta según el eje y (paralela al canto del pilar).',
     modules: ['isolatedFooting'],
   },
 
@@ -204,6 +206,7 @@ export const LABELS = {
     descLong: 'Canto de la zapata',
     descShort: 'Canto zapata',
     unit: 'm',
+    help: 'Espesor (canto) de la zapata. Gobierna la resistencia a punzonamiento y a cortante, y el canto útil de la armadura.',
     modules: ['isolatedFooting'],
   },
 
@@ -696,6 +699,7 @@ export const LABELS = {
     descShort: 'Axil aplicado',
     unit: 'kN',
     quantity: 'force',
+    help: 'Axil vertical en la base del pilar. Sin mayorar es de servicio (ELS); mayorado es de cálculo (ELU), según el selector de cargas.',
     modules: ['isolatedFooting'],
   },
 
@@ -705,6 +709,7 @@ export const LABELS = {
     descShort: 'Momento eje x',
     unit: 'kNm',
     quantity: 'moment',
+    help: 'Momento en la base del pilar alrededor del eje x. Produce excentricidad y reparto no uniforme de tensiones en el terreno.',
     modules: ['isolatedFooting'],
   },
 
@@ -714,6 +719,7 @@ export const LABELS = {
     descShort: 'Momento eje y',
     unit: 'kNm',
     quantity: 'moment',
+    help: 'Momento en la base del pilar alrededor del eje y. Produce excentricidad y reparto no uniforme de tensiones en el terreno.',
     modules: ['isolatedFooting'],
   },
 
@@ -723,6 +729,7 @@ export const LABELS = {
     descShort: 'Cortante',
     unit: 'kN',
     quantity: 'force',
+    help: 'Fuerza horizontal en la base del pilar. Interviene en la comprobación a deslizamiento de la zapata.',
     modules: ['isolatedFooting'],
   },
 
@@ -732,6 +739,7 @@ export const LABELS = {
     descShort: 'Factor mayoración',
     unit: '—',
     ref: 'CTE DB-SE §4.2.4',
+    help: 'Coeficiente de mayoración γ que convierte entre cargas de servicio (ELS) y de cálculo (ELU). Se aplica o se desmayora según el tipo de carga introducido.',
     modules: ['isolatedFooting'],
   },
 
@@ -741,6 +749,7 @@ export const LABELS = {
     descShort: 'μ rozamiento',
     unit: '—',
     ref: 'CTE DB-SE-C §4.4.3',
+    help: 'Coeficiente de rozamiento entre la base de la zapata y el terreno. Define la resistencia a deslizamiento.',
     modules: ['isolatedFooting'],
   },
 
@@ -1199,6 +1208,7 @@ export const LABELS = {
     descLong: 'Diámetro de la barra (dirección x)',
     descShort: 'Ø x',
     unit: 'mm',
+    help: 'Diámetro de las barras de la parrilla inferior en dirección x.',
     modules: ['isolatedFooting'],
   },
 
@@ -1207,6 +1217,7 @@ export const LABELS = {
     descLong: 'Diámetro de la barra (dirección y)',
     descShort: 'Ø y',
     unit: 'mm',
+    help: 'Diámetro de las barras de la parrilla inferior en dirección y.',
     modules: ['isolatedFooting'],
   },
 

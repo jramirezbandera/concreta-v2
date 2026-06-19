@@ -15,11 +15,13 @@ interface Props {
 // ── NumField ──────────────────────────────────────────────────────────────────
 
 function NumField({
-  labelKey, label, sub, field, value, unit, helpText, setField,
+  labelKey, label, sub, help, field, value, unit, helpText, setField,
 }: {
   labelKey?: LabelKey;
   label?: string; sub?: string; field: keyof IsolatedFootingInputs;
   value: number; unit?: string;
+  /** Tooltip ⓘ breve junto al label. Distinto de `helpText` (párrafo inline persistente). */
+  help?: string;
   helpText?: string;
   setField: Props['setField'];
 }) {
@@ -33,7 +35,13 @@ function NumField({
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <InputLabel htmlFor={`if-${field}`} label={resolved.label} sub={resolved.sub} />
+        <InputLabel
+          htmlFor={`if-${field}`}
+          labelKey={labelKey}
+          label={labelKey ? undefined : resolved.label}
+          sub={labelKey ? undefined : resolved.sub}
+          help={help}
+        />
         <div className="flex shrink-0">
           <input
             id={`if-${field}`}
@@ -69,10 +77,10 @@ function NumField({
 // ── SelectField ───────────────────────────────────────────────────────────────
 
 function SelectField({
-  labelKey, label, field, value, options, setField,
+  labelKey, label, help, field, value, options, setField,
 }: {
   labelKey?: LabelKey;
-  label?: string; field: keyof IsolatedFootingInputs; value: string | number;
+  label?: string; help?: string; field: keyof IsolatedFootingInputs; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
 }) {
@@ -83,7 +91,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`if-sel-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`if-sel-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`if-sel-${field}`}
         value={value}
@@ -126,8 +140,10 @@ export function IsolatedFootingInputsPanel({ state, setField }: Props) {
         <NumField labelKey="B_footing"   field="B"     value={state.B}  setField={setField} />
         <NumField labelKey="L_footing"   field="L"     value={state.L}  setField={setField} />
         <NumField labelKey="h_footing"   field="h"     value={state.h}  setField={setField} />
-        <NumField label="bc"    sub="Pilar ancho x"  field="bc"    value={state.bc}  unit="m"  setField={setField} />
-        <NumField label="hc"    sub="Pilar canto y"  field="hc"    value={state.hc}  unit="m"  setField={setField} />
+        <NumField label="bc"    sub="Pilar ancho x"  field="bc"    value={state.bc}  unit="m"  setField={setField}
+          help="Ancho del pilar (dirección x). Define el perímetro crítico de punzonamiento." />
+        <NumField label="hc"    sub="Pilar canto y"  field="hc"    value={state.hc}  unit="m"  setField={setField}
+          help="Canto del pilar (dirección y). Define el perímetro crítico de punzonamiento." />
         <NumField labelKey="Df_embedment" field="Df"   value={state.Df}  helpText={dfHelpText} setField={setField} />
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover} setField={setField} />
       </CollapsibleSection>
@@ -138,6 +154,7 @@ export function IsolatedFootingInputsPanel({ state, setField }: Props) {
           labelKey="sigma_adm" field="sigma_adm"
           value={state.sigma_adm} quantity="soilPressure"
           onChange={(v) => setField('sigma_adm', v)}
+          help="Tensión admisible del terreno. La tensión transmitida por la zapata no debe superarla."
         />
       </CollapsibleSection>
 
@@ -192,14 +209,17 @@ export function IsolatedFootingInputsPanel({ state, setField }: Props) {
       {/* 5. Armadura */}
       <CollapsibleSection label="Armadura">
         <SelectField labelKey="bar_diameter_x" field="phi_x" value={state.phi_x} options={barOptions} setField={setField} />
-        <NumField    label="s_x"  sub="Sep. barras x" field="s_x" value={state.s_x} unit="mm" setField={setField} />
+        <NumField    label="s_x"  sub="Sep. barras x" field="s_x" value={state.s_x} unit="mm" setField={setField}
+          help="Separación entre ejes de las barras en dirección x." />
         <SelectField labelKey="bar_diameter_y" field="phi_y" value={state.phi_y} options={barOptions} setField={setField} />
-        <NumField    label="s_y"  sub="Sep. barras y" field="s_y" value={state.s_y} unit="mm" setField={setField} />
+        <NumField    label="s_y"  sub="Sep. barras y" field="s_y" value={state.s_y} unit="mm" setField={setField}
+          help="Separación entre ejes de las barras en dirección y." />
       </CollapsibleSection>
 
       {/* 6. Suelo */}
       <CollapsibleSection label="Suelo">
-        <NumField labelKey="gamma_soil"  field="gamma_soil_kN_m3" value={state.gamma_soil_kN_m3} setField={setField} />
+        <NumField labelKey="gamma_soil"  field="gamma_soil_kN_m3" value={state.gamma_soil_kN_m3} setField={setField}
+          help="Peso específico del terreno sobre la zapata. Determina el peso de tierras que estabiliza frente a vuelco y deslizamiento." />
         <NumField labelKey="mu_friction" field="mu_friction"      value={state.mu_friction}      setField={setField} />
       </CollapsibleSection>
     </div>
