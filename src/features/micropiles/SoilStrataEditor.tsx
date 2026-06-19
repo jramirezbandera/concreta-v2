@@ -191,7 +191,7 @@ function StrataCard({
               <option value="cohesive">Cohesivo</option>
             </select>
           </label>
-          <MiniNumField label="Pot."   unit="m"     value={layer.thickness} {...SOIL_LIMITS.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
+          <MiniNumField label="Pot."   unit="m"     hint="Potencia (espesor) del estrato." value={layer.thickness} {...SOIL_LIMITS.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
           <MiniNumField label="γ"      unit="kN/m³" value={layer.gamma}     {...SOIL_LIMITS.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
           {/* c′ solo se muestra en cohesivos — en granulares la cohesión efectiva
               es cero por definición y mostrarlo confundía al usuario. */}
@@ -201,7 +201,7 @@ function StrataCard({
           <MiniNumField label="φ"      unit="°"     value={layer.phi}       {...SOIL_LIMITS.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
           <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
           {layer.type === 'cohesive' && (
-            <MiniNumField label="su" unit="kN/m²" value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
+            <MiniNumField label="su" unit="kN/m²" hint="Resistencia al corte sin drenaje del terreno cohesivo." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
           {/* Cu = D60/D10 — solo granulares. Condiciona el pandeo (Tabla 3.6):
               en arena de compacidad media activa la comprobación si Cu≥2, y en
@@ -216,7 +216,7 @@ function StrataCard({
               onChange={(n) => onUpdate(layer.id, 'Cu', n)}
             />
           )}
-          <MiniNumField label="rfℓim" unit="MPa"   value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+          <MiniNumField label="rfℓim" unit="MPa"   hint="Rozamiento límite por fuste (resistencia unitaria del terreno en el contacto con el micropilote)." value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
         </div>
       )}
     </div>

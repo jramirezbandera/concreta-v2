@@ -62,11 +62,45 @@ const LIMITS = {
 
 export const MICROPILES_INPUT_LIMITS = LIMITS;
 
+// Textos de ayuda (tooltips ⓘ). Módulo todo override (sin labelKey): los
+// textos viven aquí en vez de en el catálogo pan-módulo.
+const HELP = {
+  topDepth: 'Cota de la cabeza del micropilote bajo la rasante del terreno.',
+  toeDepth: 'Cota de la punta (apoyo) bajo rasante. Con la cabeza define la longitud.',
+  drillDiameter: 'Diámetro de perforación del barreno.',
+  waterTable: 'Profundidad del nivel freático bajo rasante.',
+  injPressure: 'Presión de inyección de la lechada o mortero.',
+  designLoad: 'Carga axil de cálculo por micropilote.',
+  effort: 'Esfuerzo axil predominante: compresión, tracción o ambos.',
+  method: 'Estimación de la resistencia por fuste: teórico (parámetros) o empírico (tablas).',
+  concrete: 'Tipo de hormigón/lechada estructural del micropilote.',
+  grout: 'Relleno del barreno (lechada o mortero); afecta al recubrimiento mínimo.',
+  tube: 'Tubo de acero de armadura (catálogo PIRESA o personalizado).',
+  tubeDe: 'Diámetro exterior del tubo personalizado.',
+  tubeE: 'Espesor de pared del tubo personalizado.',
+  fy: 'Límite elástico del acero del tubo de armadura.',
+  execution: 'Tipo de ejecución (Tabla 3.5): afecta a los coeficientes de seguridad del fuste.',
+  corrosion: 'Agresividad del entorno: fija la pérdida de espesor por corrosión del tubo.',
+  designLife: 'Vida útil de proyecto (Tabla 2.4): con el entorno fija el sobreespesor por corrosión.',
+  connection: 'Unión cabeza-estructura: con o sin pérdida de capacidad.',
+  application: 'Nueva construcción o recalce de cimentación existente.',
+  duration: 'Duración de la obra: provisional (≤ 6 meses) o permanente.',
+  crMode: 'Coeficiente de pandeo CR (Guía 3.6.1): Auto lo calcula de la estratigrafía; Manual permite teclearlo.',
+  crManual: 'Valor manual del coeficiente de pandeo CR.',
+  coverMode: 'Recubrimiento estructural r (Guía 3.6.2): Auto = (Dn − de)/2; Manual permite un bulbo reducido.',
+  coverManual: 'Valor manual del recubrimiento estructural.',
+  baseMoment: 'Momento en cabeza del micropilote (magnitud, siempre ≥ 0).',
+  baseShear: 'Cortante en cabeza del micropilote (magnitud, siempre ≥ 0).',
+  soilModTop: 'Módulo de balasto del terreno en cabeza.',
+  soilModEmbed: 'Módulo de balasto en la zona de empotramiento.',
+} as const;
+
 function NumField({
-  label, sub, field, value, unit, integer = false, min, max, setField,
+  label, sub, help, field, value, unit, integer = false, min, max, setField,
 }: {
   label: string;
   sub?: string;
+  help?: string;
   field: keyof MicropilesInputs;
   value: number;
   unit?: string;
@@ -89,7 +123,7 @@ function NumField({
   return (
     <div className="flex flex-col py-0.75">
       <div className="flex items-center justify-between max-lg:min-h-11 gap-2 min-w-0">
-        <InputLabel htmlFor={`input-${String(field)}`} label={label} sub={sub} />
+        <InputLabel htmlFor={`input-${String(field)}`} label={label} sub={sub} help={help} />
         <div className="flex shrink-0">
           <input
             id={`input-${String(field)}`}
@@ -143,10 +177,11 @@ function NumField({
 }
 
 function SelectField<V extends string | number>({
-  label, sub, field, value, options, setField, stacked = false,
+  label, sub, help, field, value, options, setField, stacked = false,
 }: {
   label: string;
   sub?: string;
+  help?: string;
   field: keyof MicropilesInputs;
   value: V;
   options: Array<{ value: V; label: string }>;
@@ -166,7 +201,7 @@ function SelectField<V extends string | number>({
   if (stacked) {
     return (
       <div className="flex flex-col py-0.75 gap-1 min-w-0">
-        <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} />
+        <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} help={help} />
         <select
           id={`select-${String(field)}`}
           value={value}
@@ -183,7 +218,7 @@ function SelectField<V extends string | number>({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} />
+      <InputLabel htmlFor={`select-${String(field)}`} label={label} sub={sub} help={help} />
       <select
         id={`select-${String(field)}`}
         value={value}
@@ -207,17 +242,18 @@ export function MicropilesInputsPanel({
     <div className="flex flex-col gap-1">
 
       <CollapsibleSection label="Geometría del micropilote" refNorma="Guía Fomento cap. 3.2">
-        <NumField label="z cabeza"    sub="bajo rasante"     field="topDepth"        value={state.topDepth}        unit="m" setField={setField} />
-        <NumField label="z apoyo"     sub="bajo rasante"     field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
-        <NumField label="Dn"          sub="Ø perforación"    field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
-        <NumField label="z NF"        sub="nivel freático"   field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
-        <NumField label="p,inj"       sub="presión"          field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
+        <NumField label="z cabeza"    sub="bajo rasante"     help={HELP.topDepth}     field="topDepth"        value={state.topDepth}        unit="m" setField={setField} />
+        <NumField label="z apoyo"     sub="bajo rasante"     help={HELP.toeDepth}     field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
+        <NumField label="Dn"          sub="Ø perforación"    help={HELP.drillDiameter} field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
+        <NumField label="z NF"        sub="nivel freático"   help={HELP.waterTable}   field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
+        <NumField label="p,inj"       sub="presión"          help={HELP.injPressure}  field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
-        <NumField label="Nc,d" sub="por pilote" field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
+        <NumField label="Nc,d" sub="por pilote" help={HELP.designLoad} field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
         <SelectField<EffortType>
           label="Esfuerzo"
+          help={HELP.effort}
           field="effort"
           value={state.effort}
           options={[
@@ -229,6 +265,7 @@ export function MicropilesInputsPanel({
         />
         <SelectField<'theoretical' | 'empirical'>
           label="Método"
+          help={HELP.method}
           field="method"
           value={state.method}
           options={[
@@ -251,6 +288,7 @@ export function MicropilesInputsPanel({
       <CollapsibleSection label="Materiales" refNorma="EHE-08 / Guía Fomento §3.6">
         <SelectField<number>
           label="Hormigón"
+          help={HELP.concrete}
           field="concreteGrade"
           value={state.concreteGrade}
           options={availableFck
@@ -261,6 +299,7 @@ export function MicropilesInputsPanel({
         <SelectField<GroutType>
           label="Inyección"
           sub="relleno del barreno"
+          help={HELP.grout}
           field="groutType"
           value={state.groutType}
           options={GROUT_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
@@ -269,6 +308,7 @@ export function MicropilesInputsPanel({
         <SelectField<string>
           label="Tubo armadura"
           sub={state.tube === CUSTOM_TUBE_SENTINEL ? 'personalizado' : 'PIRESA'}
+          help={HELP.tube}
           field="tube"
           value={state.tube}
           options={[
@@ -290,6 +330,7 @@ export function MicropilesInputsPanel({
             <NumField
               label="Ø ext"
               sub="tubo personalizado"
+              help={HELP.tubeDe}
               field="customTubeDe"
               value={state.customTubeDe}
               unit="mm"
@@ -306,6 +347,7 @@ export function MicropilesInputsPanel({
             <NumField
               label="Espesor"
               sub="tubo personalizado"
+              help={HELP.tubeE}
               field="customTubeE"
               value={state.customTubeE}
               unit="mm"
@@ -314,12 +356,13 @@ export function MicropilesInputsPanel({
             />
           </>
         )}
-        <NumField label="fy" sub="acero" field="steelGrade" value={state.steelGrade} unit="N/mm²" integer {...LIMITS.steelGrade} setField={setField} />
+        <NumField label="fy" sub="acero" help={HELP.fy} field="steelGrade" value={state.steelGrade} unit="N/mm²" integer {...LIMITS.steelGrade} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Ejecución y entorno" refNorma="Guía Fomento Tablas 3.5/3.6/A-5.1">
         <SelectField<ExecutionType>
           label="Ejecución"
+          help={HELP.execution}
           field="execution"
           value={state.execution}
           options={EXECUTION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
@@ -328,6 +371,7 @@ export function MicropilesInputsPanel({
         />
         <SelectField<CorrosionEnv>
           label="Corrosión"
+          help={HELP.corrosion}
           field="corrosionEnv"
           value={state.corrosionEnv}
           options={CORROSION_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
@@ -337,6 +381,7 @@ export function MicropilesInputsPanel({
         <SelectField<DesignLifeYears>
           label="Vida útil"
           sub="Tabla 2.4"
+          help={HELP.designLife}
           field="designLifeYears"
           value={state.designLifeYears}
           options={DESIGN_LIFE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
@@ -345,6 +390,7 @@ export function MicropilesInputsPanel({
         />
         <SelectField<ConnectionType>
           label="Unión"
+          help={HELP.connection}
           field="connection"
           value={state.connection}
           options={[
@@ -355,6 +401,7 @@ export function MicropilesInputsPanel({
         />
         <SelectField<ApplicationType>
           label="Aplicación"
+          help={HELP.application}
           field="application"
           value={state.application}
           options={[
@@ -366,6 +413,7 @@ export function MicropilesInputsPanel({
         />
         <SelectField<Duration>
           label="Duración"
+          help={HELP.duration}
           field="duration"
           value={state.duration}
           options={[
@@ -378,7 +426,7 @@ export function MicropilesInputsPanel({
         {/* Pandeo (Guía 3.6.1): el CR se auto-calcula de la estratigrafía+
             geometría. El override "Manual" deja teclearlo a mano como antes. */}
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-          <InputLabel htmlFor="select-crMode" label="CR pandeo" sub="Guía 3.6.1" />
+          <InputLabel htmlFor="select-crMode" label="CR pandeo" sub="Guía 3.6.1" help={HELP.crMode} />
           <select
             id="select-crMode"
             value={state.crManualOverride ? 'manual' : 'auto'}
@@ -390,7 +438,7 @@ export function MicropilesInputsPanel({
           </select>
         </div>
         {state.crManualOverride ? (
-          <NumField label="CR" sub="valor manual" field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
+          <NumField label="CR" sub="valor manual" help={HELP.crManual} field="CR" value={state.CR} unit="—" {...LIMITS.CR} setField={setField} />
         ) : (
           // Valor de solo lectura: no es un control de formulario, así que NO se
           // usa <label htmlFor> (no asocia con un <span> para lectores de
@@ -413,7 +461,7 @@ export function MicropilesInputsPanel({
             (recubr. mínimo Tabla 2.3 según inyectado+esfuerzo) sigue aplicando
             en manual; en auto el motor valida que (Dn−de)/2 ≥ r_min. */}
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-          <InputLabel htmlFor="select-coverMode" label="r recubr." sub="Guía 3.6.2" />
+          <InputLabel htmlFor="select-coverMode" label="r recubr." sub="Guía 3.6.2" help={HELP.coverMode} />
           <select
             id="select-coverMode"
             value={state.coverManualOverride ? 'manual' : 'auto'}
@@ -428,6 +476,7 @@ export function MicropilesInputsPanel({
           <NumField
             label="r"
             sub="valor manual"
+            help={HELP.coverManual}
             field="structuralCover"
             value={state.structuralCover}
             unit="mm"
@@ -451,10 +500,10 @@ export function MicropilesInputsPanel({
       </CollapsibleSection>
 
       <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">
-        <NumField label="Md" sub="momento cabeza" field="baseMoment" value={state.baseMoment} unit="kNm" {...LIMITS.baseMoment} setField={setField} />
-        <NumField label="Vd" sub="cortante cabeza" field="baseShear"  value={state.baseShear}  unit="kN"  {...LIMITS.baseShear}  setField={setField} />
-        <NumField label="E₀" sub="módulo cabeza"  field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer {...LIMITS.soilModulusTop}   setField={setField} />
-        <NumField label="EL" sub="módulo empotr." field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer {...LIMITS.soilModulusEmbed} setField={setField} />
+        <NumField label="Md" sub="momento cabeza" help={HELP.baseMoment} field="baseMoment" value={state.baseMoment} unit="kNm" {...LIMITS.baseMoment} setField={setField} />
+        <NumField label="Vd" sub="cortante cabeza" help={HELP.baseShear} field="baseShear"  value={state.baseShear}  unit="kN"  {...LIMITS.baseShear}  setField={setField} />
+        <NumField label="E₀" sub="módulo cabeza"  help={HELP.soilModTop}   field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer {...LIMITS.soilModulusTop}   setField={setField} />
+        <NumField label="EL" sub="módulo empotr." help={HELP.soilModEmbed} field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer {...LIMITS.soilModulusEmbed} setField={setField} />
         {/* f (empotramiento ficticio) ahora se interpola desde E₀/EL — Tabla 3.8. */}
       </CollapsibleSection>
 
