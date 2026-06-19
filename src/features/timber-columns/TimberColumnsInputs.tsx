@@ -209,7 +209,6 @@ export function TimberColumnsInputs({ state, setField }: Props) {
         />
         <UnitNumberInput
           labelKey="VEd"
-          help="Cortante de cálculo (ELU) sobre el pilar."
           field="Vd"
           value={state.Vd}
           quantity="force"

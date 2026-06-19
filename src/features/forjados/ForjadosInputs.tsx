@@ -21,10 +21,11 @@ interface Props {
 }
 
 function NumField({
-  label, sub, field, value, unit = 'mm', readOnly = false, integer = false, setField,
+  label, sub, help, field, value, unit = 'mm', readOnly = false, integer = false, setField,
 }: {
   label: string;
   sub?: string;
+  help?: string;
   field: keyof ForjadosInputs;
   value: number;
   unit?: string;
@@ -36,7 +37,7 @@ function NumField({
   useEffect(() => { setLocalStr(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`input-${field}`} label={label} sub={sub} />
+      <InputLabel htmlFor={`input-${field}`} label={label} sub={sub} help={help} />
       <div className="flex shrink-0">
         <input
           id={`input-${field}`}
@@ -71,9 +72,10 @@ function NumField({
 }
 
 function SelectField({
-  label, field, value, options, setField,
+  label, help, field, value, options, setField,
 }: {
   label: string;
+  help?: string;
   field: keyof ForjadosInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -81,7 +83,7 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={`select-${field}`} label={label} />
+      <InputLabel htmlFor={`select-${field}`} label={label} help={help} />
       <select
         id={`select-${field}`}
         value={value}
@@ -183,6 +185,38 @@ const TIPO_VANO_OPTIONS: Array<{ value: ForjadosTipoVano; label: string }> = TIP
   value: t.key, label: TIPO_VANO_SHORT[t.key] ?? t.label,
 }));
 
+// Textos de ayuda (tooltips ⓘ). El módulo es todo override (NumField/SelectField
+// sin labelKey), así que los textos viven aquí en vez de en el catálogo.
+const HELP = {
+  tipologia: 'Tipología del forjado reticular. Al elegir una, se autocompletan h, h_f, b_w e intereje.',
+  hRet: 'Canto total del forjado, incluida la capa de compresión.',
+  hf: 'Espesor de la capa de compresión superior.',
+  bw: 'Ancho del nervio (alma) entre casetones.',
+  intereje: 'Distancia entre ejes de nervios.',
+  L: 'Luz de cálculo del vano en la dirección analizada.',
+  tipoVano: 'Condición de continuidad del vano. Fija el coeficiente de luz para la flecha y el reparto de momentos.',
+  hMac: 'Canto total de la losa maciza.',
+  cover: 'Recubrimiento de la armadura; con el canto define el canto útil d.',
+  fck: 'Resistencia característica del hormigón (HA-25 → 25 N/mm²).',
+  fyk: 'Límite elástico del acero de armar (B500S → 500 N/mm²).',
+  exp: 'Clase de exposición ambiental: fija el recubrimiento mínimo y el control de fisuración.',
+  nbarsBase: 'Número de barras del montaje base por nervio.',
+  diamBase: 'Diámetro de las barras del montaje base.',
+  phiMacBase: 'Diámetro de las barras de la parrilla base.',
+  sMacBase: 'Separación entre barras de la parrilla base.',
+  nbarsRef: 'Número de barras de refuerzo, adicional a la base.',
+  diamRef: 'Diámetro de las barras de refuerzo.',
+  phiMacRef: 'Diámetro del refuerzo adicional (— si no hace falta).',
+  sMacRef: 'Separación del refuerzo adicional.',
+  swDiam: 'Diámetro de la barra del cerco.',
+  swS: 'Separación longitudinal entre cercos.',
+  swLegs: 'Número de ramas del cerco cortadas por el plano de cortante.',
+  mdVano: 'Momento flector positivo de cálculo (ELU) en el vano.',
+  mdApoyo: 'Momento flector negativo de cálculo (ELU) en el apoyo.',
+  mg: 'Momento de servicio (ELS) por cargas permanentes, para la fisuración.',
+  mq: 'Momento de servicio (ELS) por la sobrecarga, para la fisuración.',
+} as const;
+
 export function ForjadosInputsPanel({ state, section, setSection, setField, onVariantSwitch }: Props) {
   const variant = state.variant as ForjadosVariant;
   const isReticular = variant === 'reticular';
@@ -250,33 +284,34 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
           <>
             <SelectField
               label="Tipología"
+              help={HELP.tipologia}
               field="tipologia"
               value={tipologia}
               options={TIPOLOGIA_OPTIONS}
               setField={(_, v) => handleTipologia(String(v))}
             />
-            <NumField label="h"   sub="canto"       field="h"        value={state.h as number}        readOnly={geomLocked} setField={setField} />
-            <NumField label="h_f" sub="capa compr." field="hFlange"  value={state.hFlange as number}  readOnly={geomLocked} setField={setField} />
-            <NumField label="b_w" sub="nervio"      field="bWeb"     value={state.bWeb as number}     readOnly={geomLocked} setField={setField} />
-            <NumField label="Intereje"              field="intereje" value={state.intereje as number} readOnly={geomLocked} setField={setField} />
-            <NumField label="L"   sub="luz"         field="spanLength" value={state.spanLength as number} setField={setField} />
-            <SelectField label="Tipo vano" field="tipoVano" value={state.tipoVano as string} options={TIPO_VANO_OPTIONS} setField={setField} />
+            <NumField label="h"   sub="canto"       help={HELP.hRet}     field="h"        value={state.h as number}        readOnly={geomLocked} setField={setField} />
+            <NumField label="h_f" sub="capa compr." help={HELP.hf}       field="hFlange"  value={state.hFlange as number}  readOnly={geomLocked} setField={setField} />
+            <NumField label="b_w" sub="nervio"      help={HELP.bw}       field="bWeb"     value={state.bWeb as number}     readOnly={geomLocked} setField={setField} />
+            <NumField label="Intereje"              help={HELP.intereje} field="intereje" value={state.intereje as number} readOnly={geomLocked} setField={setField} />
+            <NumField label="L"   sub="luz"         help={HELP.L}        field="spanLength" value={state.spanLength as number} setField={setField} />
+            <SelectField label="Tipo vano" help={HELP.tipoVano} field="tipoVano" value={state.tipoVano as string} options={TIPO_VANO_OPTIONS} setField={setField} />
           </>
         )}
         {!isReticular && (
           <>
-            <NumField label="h"           field="h"     value={state.h as number}     setField={setField} />
+            <NumField label="h"           help={HELP.hMac} field="h"     value={state.h as number}     setField={setField} />
             <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Franja b = 1000 mm (por metro)</p>
           </>
         )}
-        <NumField label="Recubrimiento" sub="mec." field="cover" value={state.cover as number} setField={setField} />
+        <NumField label="Recubrimiento" sub="mec." help={HELP.cover} field="cover" value={state.cover as number} setField={setField} />
       </CollapsibleSection>
 
       {/* MATERIALES */}
       <CollapsibleSection label="Materiales">
-        <SelectField label="fck"     field="fck"           value={state.fck as number}        options={FCK_OPTIONS} setField={setField} />
-        <SelectField label="fyk"     field="fyk"           value={state.fyk as number}        options={FYK_OPTIONS} setField={setField} />
-        <SelectField label="Exposición" field="exposureClass" value={state.exposureClass as string} options={EXP_OPTIONS} setField={setField} />
+        <SelectField label="fck"     help={HELP.fck} field="fck"           value={state.fck as number}        options={FCK_OPTIONS} setField={setField} />
+        <SelectField label="fyk"     help={HELP.fyk} field="fyk"           value={state.fyk as number}        options={FYK_OPTIONS} setField={setField} />
+        <SelectField label="Exposición" help={HELP.exp} field="exposureClass" value={state.exposureClass as string} options={EXP_OPTIONS} setField={setField} />
       </CollapsibleSection>
 
       {/* SECTION TAB SELECTOR */}
@@ -329,23 +364,23 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
           <>
             <p className="text-[10px] text-text-disabled mt-1 mb-0.5">Cara superior</p>
             <NumField
-              label="Nº barras" field="base_sup_nBars"
+              label="Nº barras" help={HELP.nbarsBase} field="base_sup_nBars"
               value={state.base_sup_nBars as number}
               unit="ud" integer setField={setField}
             />
             <SelectField
-              label="Diámetro" field="base_sup_barDiam"
+              label="Diámetro" help={HELP.diamBase} field="base_sup_barDiam"
               value={state.base_sup_barDiam as number}
               options={BAR_OPTIONS} setField={setField}
             />
             <p className="text-[10px] text-text-disabled mt-2 mb-0.5">Cara inferior</p>
             <NumField
-              label="Nº barras" field="base_inf_nBars"
+              label="Nº barras" help={HELP.nbarsBase} field="base_inf_nBars"
               value={state.base_inf_nBars as number}
               unit="ud" integer setField={setField}
             />
             <SelectField
-              label="Diámetro" field="base_inf_barDiam"
+              label="Diámetro" help={HELP.diamBase} field="base_inf_barDiam"
               value={state.base_inf_barDiam as number}
               options={BAR_OPTIONS} setField={setField}
             />
@@ -354,23 +389,23 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
           <>
             <p className="text-[10px] text-text-disabled mt-1 mb-0.5">Cara superior</p>
             <SelectField
-              label="Ø" field="base_sup_phi_mac"
+              label="Ø" help={HELP.phiMacBase} field="base_sup_phi_mac"
               value={state.base_sup_phi_mac as number}
               options={MAC_PHI_OPTIONS} setField={setField}
             />
             <NumField
-              label="Separ." sub="s" field="base_sup_s_mac"
+              label="Separ." sub="s" help={HELP.sMacBase} field="base_sup_s_mac"
               value={state.base_sup_s_mac as number}
               setField={setField}
             />
             <p className="text-[10px] text-text-disabled mt-2 mb-0.5">Cara inferior</p>
             <SelectField
-              label="Ø" field="base_inf_phi_mac"
+              label="Ø" help={HELP.phiMacBase} field="base_inf_phi_mac"
               value={state.base_inf_phi_mac as number}
               options={MAC_PHI_OPTIONS} setField={setField}
             />
             <NumField
-              label="Separ." sub="s" field="base_inf_s_mac"
+              label="Separ." sub="s" help={HELP.sMacBase} field="base_inf_s_mac"
               value={state.base_inf_s_mac as number}
               setField={setField}
             />
@@ -388,13 +423,13 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
         {isReticular ? (
           <>
             <NumField
-              label="Nº barras"
+              label="Nº barras" help={HELP.nbarsRef}
               field={isVano ? 'refuerzo_vano_inf_nBars' : 'refuerzo_apoyo_sup_nBars'}
               value={state[isVano ? 'refuerzo_vano_inf_nBars' : 'refuerzo_apoyo_sup_nBars'] as number}
               unit="ud" integer setField={setField}
             />
             <SelectField
-              label="Diámetro"
+              label="Diámetro" help={HELP.diamRef}
               field={isVano ? 'refuerzo_vano_inf_barDiam' : 'refuerzo_apoyo_sup_barDiam'}
               value={state[isVano ? 'refuerzo_vano_inf_barDiam' : 'refuerzo_apoyo_sup_barDiam'] as number}
               options={BAR_OPTIONS} setField={setField}
@@ -403,13 +438,13 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
         ) : (
           <>
             <SelectField
-              label="Ø"
+              label="Ø" help={HELP.phiMacRef}
               field={isVano ? 'refuerzo_vano_inf_phi_mac' : 'refuerzo_apoyo_sup_phi_mac'}
               value={state[isVano ? 'refuerzo_vano_inf_phi_mac' : 'refuerzo_apoyo_sup_phi_mac'] as number}
               options={[{ value: 0, label: '—' }, ...MAC_PHI_OPTIONS]} setField={setField}
             />
             <NumField
-              label="Separ." sub="s"
+              label="Separ." sub="s" help={HELP.sMacRef}
               field={isVano ? 'refuerzo_vano_inf_s_mac' : 'refuerzo_apoyo_sup_s_mac'}
               value={state[isVano ? 'refuerzo_vano_inf_s_mac' : 'refuerzo_apoyo_sup_s_mac'] as number}
               setField={setField}
@@ -436,16 +471,16 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
             {isVano ? 'Vano' : 'Apoyo'}
           </p>
           <SelectField
-            label="Ø cerco" field={`${section}_stirrupDiam`}
+            label="Ø cerco" help={HELP.swDiam} field={`${section}_stirrupDiam`}
             value={state[`${section}_stirrupDiam`] as number}
             options={SW_DIAM_OPTIONS} setField={setField}
           />
           <NumField
-            label="Separ." sub="s" field={`${section}_stirrupSpacing`}
+            label="Separ." sub="s" help={HELP.swS} field={`${section}_stirrupSpacing`}
             value={state[`${section}_stirrupSpacing`] as number} setField={setField}
           />
           <SelectField
-            label="Ramas" field={`${section}_stirrupLegs`}
+            label="Ramas" help={HELP.swLegs} field={`${section}_stirrupLegs`}
             value={state[`${section}_stirrupLegs`] as number}
             options={SW_LEGS_OPTIONS} setField={setField}
           />
@@ -455,12 +490,12 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
       {/* ESFUERZOS */}
       <CollapsibleSection label="Esfuerzos de cálculo">
         <UnitNumberInput
-          label="Md+" sub="vano (ELU)" field="vano_Md"
+          label="Md+" sub="vano (ELU)" help={HELP.mdVano} field="vano_Md"
           value={state.vano_Md as number} quantity="moment"
           onChange={(v) => setField('vano_Md', v)}
         />
         <UnitNumberInput
-          label="|M−|" sub="apoyo" field="apoyo_Md"
+          label="|M−|" sub="apoyo" help={HELP.mdApoyo} field="apoyo_Md"
           value={state.apoyo_Md as number} quantity="moment"
           onChange={(v) => setField('apoyo_Md', v)}
         />
@@ -471,13 +506,13 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
         />
         <p className="text-[10px] text-text-disabled mt-2 mb-0.5">Fisuración (ELS — solo XC2+)</p>
         <UnitNumberInput
-          label={isVano ? 'M_G vano' : 'M_G apoyo'} sub="perm."
+          label={isVano ? 'M_G vano' : 'M_G apoyo'} sub="perm." help={HELP.mg}
           field={`${section}_M_G`}
           value={state[`${section}_M_G`] as number} quantity="moment"
           onChange={(v) => setField(`${section}_M_G`, v)}
         />
         <UnitNumberInput
-          label={isVano ? 'M_Q vano' : 'M_Q apoyo'} sub="var."
+          label={isVano ? 'M_Q vano' : 'M_Q apoyo'} sub="var." help={HELP.mq}
           field={`${section}_M_Q`}
           value={state[`${section}_M_Q`] as number} quantity="moment"
           onChange={(v) => setField(`${section}_M_Q`, v)}

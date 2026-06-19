@@ -612,6 +612,7 @@ export const LABELS = {
     unit: 'kN',
     quantity: 'force',
     ref: 'CTE DB-SE §4.2.1',
+    help: 'Cortante de cálculo en estado límite último (ELU).',
     modules: [
       'rcBeams',
       'steelBeams',
