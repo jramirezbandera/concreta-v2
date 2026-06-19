@@ -242,6 +242,7 @@ export const LABELS = {
     descLong: 'Ancho del pilar (lado x)',
     descShort: 'Ancho pilar',
     unit: 'mm',
+    help: 'Ancho del pilar que apoya sobre el encepado (dirección x).',
     modules: ['pileCap'],
   },
 
@@ -250,6 +251,7 @@ export const LABELS = {
     descLong: 'Canto del pilar (lado y)',
     descShort: 'Canto pilar',
     unit: 'mm',
+    help: 'Canto del pilar que apoya sobre el encepado (dirección y).',
     modules: ['pileCap'],
   },
 
@@ -258,6 +260,7 @@ export const LABELS = {
     descLong: 'Canto del encepado',
     descShort: 'Canto encepado',
     unit: 'mm',
+    help: 'Canto (altura) del encepado. Gobierna el modelo de bielas y tirantes y la resistencia a cortante.',
     modules: ['pileCap'],
   },
 
@@ -1207,6 +1210,7 @@ export const LABELS = {
     descLong: 'Diámetro del tirante',
     descShort: 'Ø tirante',
     unit: 'mm',
+    help: 'Diámetro de las barras del tirante inferior que cose los pilotes (modelo de bielas y tirantes).',
     modules: ['pileCap'],
   },
 

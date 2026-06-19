@@ -15,10 +15,10 @@ interface Props {
 // ── NumField ──────────────────────────────────────────────────────────────────
 
 function NumField({
-  labelKey, label, sub, field, value, unit, setField,
+  labelKey, label, sub, help, field, value, unit, setField,
 }: {
   labelKey?: LabelKey;
-  label?: string; sub?: string; field: keyof PileCapInputs;
+  label?: string; sub?: string; help?: string; field: keyof PileCapInputs;
   value: number; unit?: string; setField: Props['setField'];
 }) {
   const resolved = labelKey
@@ -31,7 +31,13 @@ function NumField({
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`pc-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`pc-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`pc-${field}`}
@@ -61,10 +67,10 @@ function NumField({
 // ── SelectField ───────────────────────────────────────────────────────────────
 
 function SelectField({
-  labelKey, label, field, value, options, setField,
+  labelKey, label, help, field, value, options, setField,
 }: {
   labelKey?: LabelKey;
-  label?: string; field: keyof PileCapInputs; value: string | number;
+  label?: string; help?: string; field: keyof PileCapInputs; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
 }) {
@@ -75,7 +81,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`pc-sel-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`pc-sel-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`pc-sel-${field}`}
         value={value}
@@ -141,8 +153,10 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
       {/* Geometry */}
       <CollapsibleSection label="Geometría">
-        <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField} />
-        <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField} />
+        <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField}
+          help="Diámetro del pilote. Define la geometría del grupo y la posición de los nudos del modelo." />
+        <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField}
+          help="Separación entre ejes de pilotes (centro a centro). Determina el brazo del tirante." />
         <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
         <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
         <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
@@ -156,21 +170,25 @@ export function PileCapInputsPanel({ state, setField }: Props) {
       <CollapsibleSection label="Acciones de diseño (ELU)">
         <UnitNumberInput
           labelKey="NEd" field="N_Ed"
+          help="Axil vertical de cálculo (ELU) transmitido por el pilar al encepado."
           value={state.N_Ed as number} quantity="force"
           onChange={(v) => setField('N_Ed', v)}
         />
         <UnitNumberInput
           labelKey="Mx_Ed_plan" field="Mx_Ed"
+          help="Momento de cálculo (ELU) en planta alrededor del eje x. Reparte la reacción entre pilotes."
           value={state.Mx_Ed as number} quantity="moment"
           onChange={(v) => setField('Mx_Ed', v)}
         />
         <UnitNumberInput
           labelKey="My_Ed_plan" field="My_Ed"
+          help="Momento de cálculo (ELU) en planta alrededor del eje y. Reparte la reacción entre pilotes."
           value={state.My_Ed as number} quantity="moment"
           onChange={(v) => setField('My_Ed', v)}
         />
         <UnitNumberInput
           label="R_c,Rd" sub="Resist. cálculo pilote" field="R_adm"
+          help="Resistencia de cálculo a compresión de un pilote (ELU). La reacción de cada pilote no debe superarla."
           value={state.R_adm as number} quantity="force"
           onChange={(v) => setField('R_adm', v)}
         />
