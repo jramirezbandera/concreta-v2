@@ -416,6 +416,7 @@ export const LABELS = {
     descShort: 'Clase',
     unit: '—',
     ref: 'EN 338 (madera aserrada) / EN 14080 (laminada encolada)',
+    help: 'Clase resistente de la madera (EN 338 aserrada / EN 14080 laminada). Fija las resistencias características fm,k, fv,k y el módulo elástico.',
     modules: ['timberBeams', 'timberColumns'],
   },
 
@@ -425,6 +426,7 @@ export const LABELS = {
     descShort: 'Clase servicio',
     unit: '—',
     ref: 'EC5 §2.3.1.3',
+    help: 'Clase de servicio (EC5): define el contenido de humedad de la madera y, con la duración de carga, los factores kmod y kdef.',
     modules: ['timberBeams', 'timberColumns'],
   },
 
@@ -434,6 +436,7 @@ export const LABELS = {
     descShort: 'Duración',
     unit: '—',
     ref: 'EC5 §2.3.1.2 Tabla 2.1',
+    help: 'Clase de duración de la carga predominante (EC5). Con la clase de servicio fija kmod (resistencia) y kdef (fluencia).',
     modules: ['timberBeams', 'timberColumns'],
   },
 
@@ -474,6 +477,7 @@ export const LABELS = {
     descShort: 'Permanente',
     unit: 'kN/m',
     ref: 'CTE DB-SE-AE §2',
+    help: 'Carga permanente lineal característica sobre la viga (peso propio + cargas fijas). Valor sin mayorar (ELS).',
     modules: ['rcBeams', 'timberBeams'],
   },
 
@@ -483,6 +487,7 @@ export const LABELS = {
     descShort: 'Variable',
     unit: 'kN/m',
     ref: 'CTE DB-SE-AE §3 Tabla 3.1',
+    help: 'Sobrecarga de uso lineal característica sobre la viga. Valor sin mayorar (ELS); se combina según la categoría de uso.',
     modules: ['rcBeams', 'timberBeams'],
   },
 
@@ -1543,6 +1548,7 @@ export const LABELS = {
     descShort: 'R (min)',
     unit: 'min',
     ref: 'CTE DB-SI §6 / EC5 §4.2',
+    help: 'Tiempo de resistencia al fuego requerido (R, en minutos). Determina la profundidad carbonizada y la sección residual.',
     modules: ['timberBeams', 'timberColumns'],
   },
 
@@ -1552,6 +1558,7 @@ export const LABELS = {
     descShort: 'Caras expuestas',
     unit: '—',
     ref: 'EC5 §4.2.2',
+    help: 'Número de caras de la pieza expuestas al fuego. Define por dónde avanza la carbonización.',
     modules: ['timberBeams', 'timberColumns'],
   },
 

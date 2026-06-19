@@ -14,12 +14,13 @@ interface Props {
 
 
 function NumField({
-  labelKey, label, sub, unit, field, value, min, step, setField,
+  labelKey, label, sub, help, unit, field, value, min, step, setField,
 }: {
   // Pull label/sub/unit from the LABELS catalog when a key is given.
   labelKey?: LabelKey;
   // Escape hatch for one-off fields not in the catalog (e.g. psi2Custom).
   label?: string; sub?: string; unit?: string;
+  help?: string;
   field: keyof TimberBeamInputs; value: number;
   min?: number; step?: number;
   setField: Props['setField'];
@@ -30,7 +31,13 @@ function NumField({
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`tb-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`tb-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <div className="flex shrink-0">
         <input
           id={`tb-${field}`}
@@ -47,9 +54,9 @@ function NumField({
 }
 
 function SelectField({
-  labelKey, label, field, value, options, setField,
+  labelKey, label, help, field, value, options, setField,
 }: {
-  labelKey?: LabelKey; label?: string;
+  labelKey?: LabelKey; label?: string; help?: string;
   field: keyof TimberBeamInputs;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -62,7 +69,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={`tb-sel-${field}`} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={`tb-sel-${field}`}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={`tb-sel-${field}`}
         value={value}
@@ -147,10 +160,7 @@ export function TimberBeamsInputs({ state, setField }: Props) {
       {/* ── Sección transversal ──────────────────────────────────────────── */}
       <CollapsibleSection label="Sección transversal">
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-          <label htmlFor="tb-gradeId" className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">
-            {LABELS.grade_timber.sym || LABELS.grade_timber.descShort}
-            {LABELS.grade_timber.sym && <span className="text-[11px] text-text-disabled ml-1">{LABELS.grade_timber.descShort}</span>}
-          </label>
+          <InputLabel htmlFor="tb-gradeId" labelKey="grade_timber" className="whitespace-nowrap shrink-0" />
           <select
             id="tb-gradeId"
             value={state.gradeId}
@@ -200,9 +210,11 @@ export function TimberBeamsInputs({ state, setField }: Props) {
       <CollapsibleSection label="Condiciones de uso">
         <SelectField labelKey="serviceClass" field="serviceClass" value={state.serviceClass} options={SERVICE_CLASS_OPTIONS} setField={setField} />
         <SelectField labelKey="loadDuration" field="loadDuration" value={state.loadDuration} options={LOAD_DURATION_OPTIONS} setField={setField} />
-        <SelectField labelKey="loadType"     field="loadType"     value={state.loadType}     options={LOAD_TYPE_OPTIONS}     setField={setField} />
+        <SelectField labelKey="loadType"     field="loadType"     value={state.loadType}     options={LOAD_TYPE_OPTIONS}     setField={setField}
+          help="Categoría de uso del CTE. Fija el coeficiente ψ₂ usado en la flecha activa (combinación cuasipermanente)." />
         {/* Tabiquería → límite de integridad CTE DB-SE 4.3.3 (fix auditoría #110) */}
         <SelectField label="Tabiquería" field="partitionType"
+          help="Tipo de tabiquería soportada: fija el límite de flecha activa por integridad (frágil L/500, ordinaria L/400, sin tabiques L/300)."
           value={(state.partitionType as string) ?? 'ordinary'}
           options={[
             { value: 'fragile',  label: 'Frágil (L/500)' },
@@ -212,7 +224,8 @@ export function TimberBeamsInputs({ state, setField }: Props) {
           setField={setField} />
 
         {state.loadType === 'custom' && (
-          <NumField label="ψ₂ personalizado" field="psi2Custom" value={state.psi2Custom} unit="" min={0} step={0.05} setField={setField} />
+          <NumField label="ψ₂ personalizado" field="psi2Custom" value={state.psi2Custom} unit="" min={0} step={0.05} setField={setField}
+            help="Coeficiente de combinación cuasipermanente ψ₂ a medida, para la flecha activa." />
         )}
 
         {/* Derived material factors — read-only */}
@@ -224,9 +237,11 @@ export function TimberBeamsInputs({ state, setField }: Props) {
 
         {/* isSystem — boolean, handled inline to avoid type coercion */}
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-          <label htmlFor="tb-isSystem" className="text-[13px] text-text-secondary min-w-0 truncate">
-            Sistema resistente
-          </label>
+          <InputLabel
+            htmlFor="tb-isSystem"
+            label="Sistema resistente"
+            help="Si las vigas comparten carga mediante un tablero o forjado solidario, se aplica ksys = 1.10, que aumenta la resistencia."
+          />
           <select
             id="tb-isSystem"
             value={String(state.isSystem)}
