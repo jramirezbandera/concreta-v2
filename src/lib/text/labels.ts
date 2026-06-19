@@ -226,6 +226,7 @@ export const LABELS = {
     descLong: 'Ancho del pilar (lado x)',
     descShort: 'Ancho pilar',
     unit: 'cm',
+    help: 'Ancho de la sección del pilar existente (dirección x).',
     modules: ['isolatedFooting', 'empresillado'],
   },
 
@@ -234,6 +235,7 @@ export const LABELS = {
     descLong: 'Canto del pilar (lado y)',
     descShort: 'Canto pilar',
     unit: 'cm',
+    help: 'Canto de la sección del pilar existente (dirección y).',
     modules: ['isolatedFooting', 'empresillado'],
   },
 
@@ -378,6 +380,7 @@ export const LABELS = {
     descShort: 'Límite elástico',
     unit: 'N/mm²',
     ref: 'EN 10025 / EC3 §3.2.1 Tabla 3.1',
+    help: 'Límite elástico del acero estructural (S235 → 235; S275 → 275; S355 → 355 N/mm²).',
     modules: ['steelBeams', 'steelColumns', 'compositeSection', 'empresillado'],
   },
 

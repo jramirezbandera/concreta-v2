@@ -24,11 +24,13 @@ interface FieldProps {
   min?: number;
   error?: boolean;
   errorText?: string;
+  /** Tooltip ⓘ breve junto al label. Distinto de `helpText` (párrafo inline persistente). */
+  help?: string;
   helpText?: string;
   id: string;
 }
 
-function NumberField({ labelKey, label, sub, unit, value, onChange, min, error, errorText, helpText, id }: FieldProps) {
+function NumberField({ labelKey, label, sub, help, unit, value, onChange, min, error, errorText, helpText, id }: FieldProps) {
   const resolved = labelKey
     ? {
         label: LABELS[labelKey].sym || LABELS[labelKey].descShort,
@@ -48,7 +50,13 @@ function NumberField({ labelKey, label, sub, unit, value, onChange, min, error, 
   return (
     <div>
       <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-        <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
+        <InputLabel
+          htmlFor={id}
+          labelKey={labelKey}
+          label={labelKey ? undefined : resolved.label}
+          sub={labelKey ? undefined : resolved.sub}
+          help={help}
+        />
         <div className="flex shrink-0">
           <input
             id={id}
@@ -93,12 +101,14 @@ function NumberField({ labelKey, label, sub, unit, value, onChange, min, error, 
 
 function SelectField({
   label,
+  help,
   id,
   value,
   options,
   onChange,
 }: {
   label: string;
+  help?: string;
   id: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -106,7 +116,7 @@ function SelectField({
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-      <InputLabel htmlFor={id} label={label} />
+      <InputLabel htmlFor={id} label={label} help={help} />
       <select
         id={id}
         value={value}
@@ -136,10 +146,14 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
 
       {/* ── Cargas de diseño ──────────────────────────────────────────── */}
       <CollapsibleSection label="Cargas de diseño">
-        <UnitNumberInput labelKey="NEd"        field="N_Ed"  value={state.N_Ed}  quantity="force"  onChange={(v) => set('N_Ed', v)} />
-        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)} />
-        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)} />
-        <UnitNumberInput labelKey="VEd"        field="Vd"    value={state.Vd}    quantity="force"  onChange={(v) => set('Vd', v)} />
+        <UnitNumberInput labelKey="NEd"        field="N_Ed"  value={state.N_Ed}  quantity="force"  onChange={(v) => set('N_Ed', v)}
+          help="Axil de compresión de cálculo (ELU) sobre el pilar reforzado." />
+        <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)}
+          help="Momento de cálculo (ELU) alrededor del eje x del pilar." />
+        <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)}
+          help="Momento de cálculo (ELU) alrededor del eje y del pilar." />
+        <UnitNumberInput labelKey="VEd"        field="Vd"    value={state.Vd}    quantity="force"  onChange={(v) => set('Vd', v)}
+          help="Cortante de cálculo (ELU). Si es menor que N_Ed/500 se aplica el mínimo normativo (EC3 §6.4.3.1)." />
         <p className="text-[10px] text-text-disabled leading-tight whitespace-pre-line pl-1 mb-1">
           {"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
         </p>
@@ -149,6 +163,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
       <CollapsibleSection label="Perfil L (angulares)">
         <SelectField
           label="Perfil"
+          help="Angular (perfil L) que forma cada cordón del empresillado. Define el área y la inercia de los cordones."
           id="emp-perfil"
           value={state.perfil}
           options={ANGLE_PROFILES.map((p) => ({ value: p.key, label: p.label }))}
@@ -187,6 +202,7 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           id="emp-s"
           label="s"
           sub="Separación pletinas"
+          help="Separación longitudinal entre ejes de pletinas (presillas). Debe superar el alto de pletina lp; fija la esbeltez local del cordón."
           unit="cm"
           value={state.s}
           step={5}
@@ -195,9 +211,12 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
           errorText="s debe superar lp"
           onChange={(v) => set('s', v)}
         />
-        <NumberField id="emp-lp" label="lp" sub="Alto pletina"     unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)} />
-        <NumberField id="emp-bp" label="bp" sub="Ancho pletina"    unit="cm" value={state.bp} step={1} min={2} onChange={(v) => set('bp', v)} />
-        <NumberField id="emp-tp" label="tp" sub="Espesor pletina"  unit="mm" value={state.tp} step={1} min={4} onChange={(v) => set('tp', v)} />
+        <NumberField id="emp-lp" label="lp" sub="Alto pletina"     unit="cm" value={state.lp} step={1} min={1} onChange={(v) => set('lp', v)}
+          help="Dimensión de la pletina (presilla) en la dirección del eje del pilar." />
+        <NumberField id="emp-bp" label="bp" sub="Ancho pletina"    unit="cm" value={state.bp} step={1} min={2} onChange={(v) => set('bp', v)}
+          help="Ancho de la pletina (presilla), perpendicular al eje del pilar." />
+        <NumberField id="emp-tp" label="tp" sub="Espesor pletina"  unit="mm" value={state.tp} step={1} min={4} onChange={(v) => set('tp', v)}
+          help="Espesor de la pletina (presilla)." />
       </CollapsibleSection>
     </div>
   );
