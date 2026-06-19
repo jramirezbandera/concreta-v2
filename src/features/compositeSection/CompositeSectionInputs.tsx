@@ -22,12 +22,14 @@ interface Props {
 
 function NumField({
   label,
+  help,
   value,
   unit,
   onChange,
   id,
 }: {
   label: string;
+  help?: string;
   value: number;
   unit: string;
   onChange: (v: number) => void;
@@ -37,7 +39,7 @@ function NumField({
   useEffect(() => { setLocal(String(value)); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={id} label={label} />
+      <InputLabel htmlFor={id} label={label} help={help} />
       <div className="flex shrink-0">
         <input
           id={id}
@@ -67,6 +69,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  help,
   id,
   value,
   options,
@@ -74,6 +77,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  help?: string;
   id: string;
   value: string | number;
   options: Array<{ value: string | number; label: string }>;
@@ -86,7 +90,13 @@ function SelectField({
     : { label: label ?? '', sub: undefined as string | undefined };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={id} label={resolved.label} sub={resolved.sub} />
+      <InputLabel
+        htmlFor={id}
+        labelKey={labelKey}
+        label={labelKey ? undefined : resolved.label}
+        sub={labelKey ? undefined : resolved.sub}
+        help={help}
+      />
       <select
         id={id}
         value={value}
@@ -274,6 +284,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             {/* Fields */}
             <SelectField
               label="Posición"
+              help="Posición de la chapa respecto al perfil: ala superior/inferior, lateral o personalizada (cota libre)."
               id={`cs-pos-${plate.id}`}
               value={plate.posType}
               options={posOptions}
@@ -284,6 +295,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             <div className="md:contents grid grid-cols-2 gap-x-2">
               <NumField
                 label="b"
+                help="Ancho de la chapa (dimensión horizontal)."
                 id={`cs-b-${plate.id}`}
                 value={plate.b}
                 unit="mm"
@@ -292,6 +304,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
               {plate.posType !== 'left' && plate.posType !== 'right' && (
                 <NumField
                   label="t"
+                  help="Espesor de la chapa."
                   id={`cs-t-${plate.id}`}
                   value={plate.t}
                   unit="mm"
@@ -310,6 +323,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             {plate.posType === 'custom' && (
               <NumField
                 label="y inf."
+                help="Cota de la cara inferior de la chapa medida desde la base de la sección (posición personalizada)."
                 id={`cs-ybot-${plate.id}`}
                 value={plate.customYBottom}
                 unit="mm"
