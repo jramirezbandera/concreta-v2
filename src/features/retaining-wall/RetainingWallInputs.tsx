@@ -19,6 +19,7 @@ function NumField({
   field,
   value,
   unit,
+  scale = 1,
   integer = false,
   setField,
 }: {
@@ -28,20 +29,30 @@ function NumField({
   help?: string;
   field: keyof RetainingWallInputs;
   value: number;
+  /** Override de la unidad mostrada (gana sobre la del catálogo). */
   unit?: string;
+  /** Storage scaling: value almacenado · scale = valor mostrado. Permite
+   *  mostrar el recubrimiento (almacenado en m) en cm con scale=100. El motor
+   *  sigue leyendo el valor almacenado en m. */
+  scale?: number;
   min?: number;
   integer?: boolean;
   setField: RetainingWallInputsProps['setField'];
 }) {
+  // `unit` (override de call-site) gana sobre la unidad del catálogo.
   const resolved = labelKey
-    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
+    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: unit ?? LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
+  // Valor mostrado = valor almacenado · scale. Se redondea solo cuando hay
+  // escala (≠1) para evitar ruido de coma flotante (0.04·100 = 4.0000…01).
+  const displayValue = scale === 1 ? value : Number((value * scale).toFixed(6));
+  const [localStr, setLocalStr] = useState(() => String(displayValue));
 
   useEffect(() => {
-    setLocalStr(String(value));
-  }, [value]);
+    setLocalStr(String(displayValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, scale]);
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
@@ -62,11 +73,11 @@ function NumField({
             const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
             setLocalStr(raw);
             const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(field, n);
+            if (!isNaN(n)) setField(field, n / scale);
           }}
           onBlur={() => {
             const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
+            if (isNaN(n)) setLocalStr(String(displayValue));
             else if (integer) setLocalStr(String(Math.round(n)));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
@@ -234,7 +245,8 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
           options={[400, 500, 600].map((f) => ({ value: f, label: `${f} N/mm²` }))}
           setField={setField}
         />
-        <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} setField={setField} />
+        {/* Almacenado en m (lo que lee el motor); mostrado en cm para legibilidad. */}
+        <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} unit="cm" scale={100} setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Terreno (trasdós)">
