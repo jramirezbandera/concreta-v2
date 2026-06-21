@@ -205,7 +205,7 @@ function TitleChip({
 }: { label: string; dotColor: string; w?: number; P: Palette }) {
   return (
     <g>
-      <rect x={14} y={14} width={w} height={20} rx={3} fill={P.chipBg === '#0b1220' ? '#111a2d' : '#f8fafc'} stroke={P.chipBorder} />
+      <rect x={14} y={14} width={w} height={20} rx={3} fill={P.chipBg} stroke={P.chipBorder} />
       <circle cx={24} cy={24} r={3} fill={dotColor} />
       <text x={32} y={27.5} fontSize={10} fontFamily="'Geist Sans', sans-serif"
         fontWeight={600} fill={P.label} letterSpacing="0.05em">{label}</text>
