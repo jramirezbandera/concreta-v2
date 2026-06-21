@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { type RCBeamInputs } from '../../data/defaults';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
@@ -39,6 +39,7 @@ function NumField({
   unit,
   min,
   integer = false,
+  scale = 1,
   setField,
 }: {
   labelKey?: LabelKey;
@@ -50,17 +51,27 @@ function NumField({
   unit?: string;
   min?: number;
   integer?: boolean;
+  /** Factor entre el valor almacenado y el mostrado (almacenado = mostrado × scale).
+   *  Ej.: L se guarda en mm pero se edita en m → scale=1000. value/min siguen en
+   *  unidades de almacenamiento; sólo la caja de texto trabaja en unidades de display. */
+  scale?: number;
   setField: RCBeamsInputsProps['setField'];
 }) {
   const resolved = labelKey
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
+  const toDisplay = (v: number) => (scale === 1 ? v : v / scale);
+  const [localStr, setLocalStr] = useState(() => String(toDisplay(value)));
 
-  useEffect(() => {
-    setLocalStr(String(value));
-  }, [value]);
+  // Resync la caja con el valor externo cuando cambia (reset, cambio de unidad,
+  // edición externa). Patrón de ajuste-en-render de React en vez de setState en
+  // useEffect: misma semántica, sin re-render en cascada tras el paint.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setLocalStr(String(toDisplay(value)));
+  }
 
   // min se aplica como clamp real (fix auditoría #64: antes el prop existía
   // en el tipo pero nunca se destructuraba — spacing=0, legs=1, etc. eran
@@ -87,15 +98,15 @@ function NumField({
             const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
             setLocalStr(raw);
             const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(field, clamp(n));
+            if (!isNaN(n)) setField(field, clamp(n * scale));
           }}
           onBlur={() => {
             const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
+            if (isNaN(n)) setLocalStr(String(toDisplay(value)));
             else {
-              const c = clamp(integer ? Math.round(n) : n);
-              setLocalStr(String(c));
-              if (c !== n) setField(field, c);
+              const stored = clamp(integer ? Math.round(n * scale) : n * scale);
+              setLocalStr(String(toDisplay(stored)));
+              if (stored !== n * scale) setField(field, stored);
             }
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
@@ -308,7 +319,7 @@ export function RCBeamsInputs({
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
         {/* Luz + sistema para la esbeltez L/d (CE Anejo 19 §7.4.2). L=0 desactiva. */}
         <NumField label="L" sub="luz (esbeltez L/d)" field="L"
-          value={state.L as number} unit="mm" min={0} setField={setField}
+          value={state.L as number} unit="m" min={0} scale={1000} setField={setField}
           help="Luz de cálculo para el control de flecha por esbeltez (L/d, CE Anejo 19 §7.4.2). Déjala en 0 para desactivar esta comprobación." />
         <SelectField
           label="Sistema"
