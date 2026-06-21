@@ -52,9 +52,22 @@ function readInitialTheme(): Theme {
 
 function applyTheme(theme: Theme): void {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = theme;
+  const root = document.documentElement;
+  // Suppress transitions for the duration of the flip so light↔dark changes
+  // atomically (see html.theme-switching in index.css) instead of tearing.
+  root.classList.add("theme-switching");
+  root.dataset.theme = theme;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", META_COLOR[theme]);
+  // Re-enable transitions once the new palette has painted (double rAF: a
+  // single frame can race the paint and still tear). Guard for jsdom/SSR.
+  if (typeof window !== "undefined" && window.requestAnimationFrame) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => root.classList.remove("theme-switching"));
+    });
+  } else {
+    root.classList.remove("theme-switching");
+  }
 }
 
 export type ThemeContextValue = {

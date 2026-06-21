@@ -36,6 +36,18 @@
   font-display: swap;
 }
 
+/* Theme toggle: suppress every transition during the flip so light↔dark
+   changes atomically instead of tearing. Scattered `transition-colors`
+   (added for hover/focus) would otherwise animate while plain elements snap.
+   The class lives for ~1 frame during the switch — interaction transitions
+   are untouched. */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
 /* dot-grid canvas — "mesa de trabajo del ingeniero" */
 .canvas-dot-grid {
   background-image: radial-gradient(circle, var(--color-dot-grid) 1px, transparent 1px);
