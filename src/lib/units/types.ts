@@ -8,7 +8,9 @@ export type Quantity =
   | "stress"
   | "soilPressure"
   | "youngModulus"
-  | "weightDensity";
+  | "weightDensity"
+  | "cohesion"
+  | "angle";
 
 export type QuantitySpec = {
   siUnit: string;

@@ -7,6 +7,12 @@ import { VitePWA } from "vite-plugin-pwa";
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  // Web Workers en módulo ES (Vite 8 nativo) — lo usa el worker de Pyodide del
+  // módulo de taludes (geotech/pyslope.worker.ts), primer worker del repo.
+  worker: { format: "es" },
+  // Pyodide se autohospeda en public/pyodide/ y el worker lo importa por URL no
+  // literal (no como dependencia npm) — excluirlo del pre-bundle de Vite.
+  optimizeDeps: { exclude: ["pyodide"] },
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),
@@ -16,7 +22,24 @@ export default defineConfig({
       devOptions: { enabled: false }, // preserve Vite HMR in dev
       workbox: {
         globPatterns: ["**/*.{js,css,html,woff2,png,svg,ico}"],
-        runtimeCaching: [], // all assets are precached; no runtime rules needed
+        // Pyodide (~16 MB) NO entra en el precache: el módulo de taludes está
+        // dev-gated (shipped:false) y no debe inflar la PWA de producción
+        // (eng-review §9.4 #9). Se cachea EN RUNTIME (CacheFirst) cuando un
+        // usuario con el flag activo carga el módulo → offline tras el 1er uso.
+        // El nombre de caché va versionado al nº de Pyodide para invalidar tras
+        // bump (§9.2 #2). Precache total + caché versionada → Phase 2 (shipped).
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/pyodide/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "pyodide-runtime-v314_0_0",
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: true,
+            },
+          },
+        ],
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
@@ -44,8 +67,33 @@ export default defineConfig({
     }),
   ],
   test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-    globals: true,
+    // Dos proyectos: la suite normal corre en jsdom (UI + cálculos puros); el
+    // golden de PySlope corre en node (Pyodide NO arranca en jsdom). `bun run
+    // test:run` ejecuta ambos. Eng-review §9.2 #4 / §3.5.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "jsdom",
+          setupFiles: ["./src/test/setup.ts"],
+          globals: true,
+          include: ["src/**/*.{test,spec}.{ts,tsx}"],
+          exclude: ["**/*.golden.test.ts", "**/node_modules/**"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "golden",
+          environment: "node",
+          globals: true,
+          include: ["src/**/*.golden.test.ts"],
+          // Pyodide cold-start + carga de numpy + cómputo: dar margen amplio.
+          testTimeout: 120_000,
+          hookTimeout: 120_000,
+        },
+      },
+    ],
   },
 });

@@ -1052,3 +1052,58 @@ export const micropilesSoilDefaults: SoilLayer[] = [
   { id: 3, type: 'cohesive', thickness:  2.50, gamma: 20, c: 184, phi: 28, Nspt: 35, su:   0, rflim: 0.25 },
   { id: 4, type: 'granular', thickness: 65.00, gamma: 20, c: 280, phi: 28, Nspt: 37, su:   0, rflim: 0.25 },
 ];
+
+// ── Geotecnia · Estabilidad de taludes (PySlope/Pyodide) ──────────────────────
+// Phase 1 "corte vertical". El estado es un BLOB JSON anidado (estratos + cargas)
+// persistido en localStorage del propio módulo (no useModuleState plano) — decisión
+// eng-review §9.3 T3. Reutiliza SoilLayer (arriba) para los estratos: en taludes solo
+// importan gamma (γ), c (c', kPa) y phi (φ', º); thickness define depth_to_bottom
+// acumulado desde la coronación. Nspt/su/rflim/Cu se ignoran en el motor de taludes.
+
+/** Sobrecarga en coronación. `udl` = carga uniforme (kPa) sobre una banda; `line`
+ *  = carga lineal (kN/m) en un punto. `offset` (m) se mide desde la coronación del
+ *  talud hacia el trasdós (sentido del límite izquierdo de análisis). `length` (m)
+ *  solo aplica a `udl`: 0/ausente ⇒ banda hasta el límite de análisis. */
+export interface SlopeLoad {
+  id: number;
+  kind: 'udl' | 'line';
+  magnitude: number;        // kPa (udl) | kN/m (line)
+  offset: number;           // m desde la coronación
+  length?: number;          // m (solo udl)
+}
+
+export interface SlopeInputs {
+  // Geometría — talud simple (height + angle). PySlope: Slope(height, angle).
+  height: number;           // H (m) — altura del talud
+  angle: number;            // β (º) — inclinación de la cara del talud
+  // Nivel freático — cota medida desde la coronación, positiva hacia abajo.
+  // null = sin nivel freático (análisis seco).
+  waterTableDepth: number | null;   // m
+  // Estratigrafía horizontal (de arriba hacia abajo). Reusa SoilLayer.
+  strata: SoilLayer[];
+  // Sobrecargas en coronación.
+  loads: SlopeLoad[];
+  // Método y malla de búsqueda (limitado por PySlope: Bishop / Fellenius).
+  method: 'bishop' | 'fellenius';
+  slices: number;           // nº de dovelas (10–200) — def. 25
+  iterations: number;       // nº de círculos de búsqueda — def. 1000
+  // Situación de proyecto — fija los límites normativos de los checks.
+  situation: 'persistent' | 'transient' | 'extraordinary';
+}
+
+/** FTUX: talud cohesivo-friccional moderado, sin NF ni sobrecargas → FoS holgado
+ *  (CUMPLE) en la primera apertura. Mesh determinista 1000/25 (idéntica al golden,
+ *  ver geotech/golden). Los valores numéricos se afinan al traer el motor (T2.1). */
+export const slopeDefaults: SlopeInputs = {
+  height: 5,
+  angle: 30,
+  waterTableDepth: null,
+  strata: [
+    { id: 1, type: 'cohesive', thickness: 20, gamma: 19, c: 10, phi: 28, Nspt: 0, su: 0, rflim: 0 },
+  ],
+  loads: [],
+  method: 'bishop',
+  slices: 25,
+  iterations: 1000,
+  situation: 'persistent',
+};

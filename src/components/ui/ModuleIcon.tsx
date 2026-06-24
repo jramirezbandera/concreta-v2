@@ -164,6 +164,17 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <rect x="9.5" y="9" width="3" height="2.5" fill="currentColor" stroke="none" opacity="0.55"/>
         </svg>
       );
+    // Slope stability: ground profile (flat crest → inclined face → flat toe)
+    // plus a faint arc suggesting the circular slip surface (Bishop).
+    case 'concreta-slope-stability':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Perfil del terreno: coronación → cara inclinada → pie */}
+          <path d="M2 4h5l5 6h2"/>
+          {/* Superficie de rotura circular (Bishop), tenue */}
+          <path d="M4 4a8 8 0 0 0 9 9" strokeWidth="0.75" strokeOpacity="0.55" strokeDasharray="2 1.5"/>
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }

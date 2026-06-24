@@ -1442,6 +1442,80 @@ export const LABELS = {
     modules: ['isolatedFooting', 'retainingWall'],
   },
 
+  // ---- Estabilidad de taludes (Bishop simplificado · CTE DB-SE-C cap. 7) ----
+
+  H: {
+    sym: 'H',
+    descLong: 'Altura del talud',
+    descShort: 'Altura talud',
+    unit: 'm',
+    help: 'Desnivel vertical entre la coronación y el pie del talud. Gobierna el tamaño de la masa potencialmente inestable.',
+    modules: ['slopeStability'],
+  },
+
+  beta: {
+    sym: 'β',
+    descLong: 'Ángulo del talud',
+    descShort: 'Inclinación talud',
+    unit: '°',
+    quantity: 'angle',
+    help: 'Inclinación de la cara del talud respecto a la horizontal. A mayor β, menor factor de seguridad.',
+    modules: ['slopeStability'],
+  },
+
+  c_slope: {
+    sym: "c'",
+    descLong: 'Cohesión efectiva',
+    descShort: 'Cohesión efectiva',
+    unit: 'kPa',
+    quantity: 'cohesion',
+    ref: 'CTE DB-SE-C §4.2.3 / UNE-EN 1997-1',
+    help: 'Cohesión efectiva del terreno (parámetros drenados c\', φ\'). En análisis sin drenaje se sustituye por la resistencia al corte cu (φu = 0).',
+    modules: ['slopeStability'],
+  },
+
+  phi_slope: {
+    sym: "φ'",
+    descLong: 'Ángulo de rozamiento interno efectivo',
+    descShort: 'Rozamiento interno',
+    unit: '°',
+    quantity: 'angle',
+    ref: 'CTE DB-SE-C §4.2.3 / UNE-EN 1997-1',
+    help: 'Ángulo de rozamiento interno efectivo del terreno. Con c\' define la resistencia al corte disponible en la superficie de rotura.',
+    modules: ['slopeStability'],
+  },
+
+  gamma_slope: {
+    sym: 'γ',
+    descLong: 'Peso específico del terreno',
+    descShort: 'Peso específico',
+    unit: 'kN/m³',
+    quantity: 'weightDensity',
+    ref: 'CTE DB-SE-C §4.3',
+    help: 'Peso específico aparente del terreno. Determina el peso de las dovelas y, con ello, la componente que moviliza el deslizamiento.',
+    modules: ['slopeStability'],
+  },
+
+  nf_slope: {
+    sym: 'NF',
+    descLong: 'Profundidad del nivel freático',
+    descShort: 'Nivel freático',
+    unit: 'm',
+    ref: 'CTE DB-SE-C §4.4',
+    help: 'Profundidad del nivel freático medida desde la coronación (positiva hacia abajo). Eleva la presión intersticial y reduce el factor de seguridad. Vacío = análisis seco.',
+    modules: ['slopeStability'],
+  },
+
+  fos: {
+    sym: 'FoS',
+    descLong: 'Factor de seguridad frente al deslizamiento',
+    descShort: 'Factor de seguridad',
+    unit: '—',
+    ref: 'CTE DB-SE-C art. 7.2.2.1',
+    help: 'Factor de seguridad global F = resistencia al corte disponible / tensión de corte movilizada en la superficie de rotura crítica. Límite γR = 1,5 (persistente/transitoria) · 1,1 (extraordinaria).',
+    modules: ['slopeStability'],
+  },
+
   // -------------------------------------------------------------------------
   // Section 12 — Seismic (NCSP-07)
   // -------------------------------------------------------------------------

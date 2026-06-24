@@ -1,0 +1,17 @@
+{
+  "package": "pyslope",
+  "version": "1.4.0",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2022, Jesse Bonanno",
+  "source": "https://files.pythonhosted.org/packages/3c/7d/729870e4e677c982a05ac5d7c9e02d767240f208b2048620c80e271ce9ce/pyslope-1.4.0-py3-none-any.whl",
+  "kept": [
+    "pyslope.py",
+    "data_validation.py",
+    "utilities.py",
+    "__init__.py"
+  ],
+  "patch": "Replaced __init__.py to drop the versioneer `_version` import (git/subprocess unavailable in Pyodide); version hardcoded.",
+  "runtime": "numpy-only via sys.modules stubs for tqdm/colour/plotly (see stubs.py) — pyslope sources are otherwise unmodified.",
+  "patchHash": "15b26b96da4203fdb805cb6616732d833f1fa5153be1a4256819207f11e30f8d",
+  "generatedBy": "scripts/vendor-pyslope.mjs"
+}

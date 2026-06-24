@@ -62,4 +62,27 @@ export const CATALOG: Record<Quantity, QuantitySpec> = {
     precisionSi: 1,
     precisionTecnico: 2,
   },
+  // Cohesión efectiva c' (taludes/geotecnia). Almacenada en kPa; se muestra en
+  // kPa (SI) o kg/cm² en técnico. 1 kg/cm² = 98.0665 kPa. A diferencia de
+  // soilPressure (que se muestra en N/mm²), la cohesión es un valor pequeño que
+  // se lee mejor en kPa, por eso tiene su propia entrada en lugar de reusar
+  // soilPressure.
+  cohesion: {
+    siUnit: "kPa",
+    tecnicoUnit: "kg/cm²",
+    toTecnico: 1 / 98.0665,
+    precisionSi: 1,
+    precisionTecnico: 2,
+  },
+  // Ángulo (rozamiento interno φ', inclinación del talud β). Adimensional en la
+  // práctica: idéntico en SI y en técnico, en grados sexagesimales — no hay
+  // conversión (factor 1). Se cataloga para que el sufijo «°» salga del sistema
+  // de unidades como cualquier otra magnitud.
+  angle: {
+    siUnit: "°",
+    tecnicoUnit: "°",
+    toTecnico: 1,
+    precisionSi: 1,
+    precisionTecnico: 1,
+  },
 };

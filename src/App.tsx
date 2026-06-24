@@ -143,6 +143,20 @@ const router = createBrowserRouter([
             path: 'analisis/fem',
             lazy: lazyComponent(() => import('./features/fem-analysis'), 'FemAnalysisModule'),
           },
+          // Geotecnia / Taludes — Phase 1 (shipped:false). La ruta SOLO se
+          // registra en dev: en producción el import() queda en código muerto
+          // (import.meta.env.DEV → false) y el worker + assets de Pyodide NO
+          // entran en el bundle/precache mientras el módulo no esté shipped
+          // (eng-review §9.4 #9). El placeholder "Próximamente" del sidebar
+          // (registro shipped:false) es la cara pública.
+          ...(import.meta.env.DEV
+            ? [
+                {
+                  path: 'geotec/taludes',
+                  lazy: lazyComponent(() => import('./features/slope-stability'), 'SlopeStabilityModule'),
+                },
+              ]
+            : []),
         ],
       },
 

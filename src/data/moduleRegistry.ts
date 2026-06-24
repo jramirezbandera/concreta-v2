@@ -16,6 +16,7 @@ import {
   anchorPlateDefaults,
   femAnalysisDefaults,
   micropilesDefaults,
+  slopeDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -33,9 +34,10 @@ import {
   type AnchorPlateInputs,
   type FemAnalysisInputs,
   type MicropilesInputs,
+  type SlopeInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs | SlopeInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -186,6 +188,17 @@ export const moduleRegistry: ModuleEntry[] = [
     defaults: femAnalysisDefaults,
     shipped: true,
   },
+  {
+    key: 'concreta-slope-stability',
+    route: '/geotec/taludes',
+    label: 'Taludes',
+    group: 'Geotecnia',
+    // SlopeInputs anida estratos/cargas (SoilLayer[]/SlopeLoad[]); como con
+    // compositeSection, el `as const` del array no infiere bien la unión, así
+    // que se castea igual que en la entrada de sección compuesta (~línea 119).
+    defaults: slopeDefaults as unknown as ModuleInputs,
+    shipped: false,
+  },
 ] as const;
 
 // Per-module schema versions. Keys MUST match the literal passed to
@@ -210,6 +223,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'timber-columns': '1',
   'anchor-plate': '1',
   'fem-2d': '1',
+  'slope-stability': '1',
 };
 
 export function getModuleSchemaVersion(moduleKey: string): string {

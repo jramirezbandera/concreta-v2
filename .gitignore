@@ -33,3 +33,7 @@ pnpm-lock.yaml
 
 # Design exploration prototypes (not part of the app)
 design-preview*.html
+
+# Pyodide self-hosted runtime (~16 MB) — generado por scripts/fetch-pyodide-assets.mjs
+# en predev/prebuild. No se versiona; se regenera desde node_modules/pyodide + CDN.
+public/pyodide/

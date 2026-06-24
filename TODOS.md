@@ -882,3 +882,35 @@ icono (ya `<button>`) + listener `pointerdown` en document para cerrar al tocar 
 bajo detección táctil o sin más (el toggle por click no estorba en desktop).
 
 **Depends on:** HelpTooltip V1 shipeado.
+
+## Nuevos módulos
+
+### Geotecnia — Estabilidad de taludes (PySlope + Pyodide)
+
+**Status:** PHASE 0 SPIKE = GO (2026-06-24). Plan + eng review + design review hechos.
+Spike Node + navegador validados: PySlope en Pyodide self-hosted offline (numpy-only,
+pyslope vendorizado), FoS reproducible (1.5438), cold-start navegador 2.9s, cómputo 0.55s.
+Siguiente: Phase 1 (corte vertical). Detalle en docs §11.
+
+**What:** nueva categoría **Geotecnia** con un módulo de estabilidad de taludes que
+ejecuta la librería Python **PySlope** (método de dovelas, Bishop circular) en el
+navegador vía **Pyodide** (Web Worker, lazy). Plan completo + resultado de la revisión
+de ingeniería en [docs/geotecnia-taludes-pyslope.md](docs/geotecnia-taludes-pyslope.md).
+
+**Fases (decididas en /plan-eng-review):**
+- **Phase 0 — Spike go/no-go** (desechable): Pyodide+PySlope arranca offline, numpy
+  carga local, FoS coincide con la referencia validada, mapeo de inputs correcto,
+  tiempos por debajo del umbral, dovelas reales expuestas. Puerta antes de tocar la app.
+- **Phase 1 — Corte vertical** (`shipped:false`): motor async (worker+Comlink+cancelación
+  terminate-and-recreate) + plumbing de registro + inputs + 1 SVG sección + 2 checks core
+  (CTE 7.2.2.1 + EC7-DA3, re-corriendo PySlope por check) + PDF + disclaimer de alcance +
+  persistencia JSON anidada. Vendor PySlope (MIT) con script re-parche + golden FoS test.
+- **Phase 2 — Completar**: malla de centros, tabla 7 checks, sísmico (posible fork-level),
+  enlaces lz-string, landing, smoke Playwright offline, flip `shipped:true`.
+
+**NOT in scope:** superficies no circulares, Spencer/Janbu, bermas/excavación/estratos no
+horizontales (fuera del modelo PySlope), taludes en roca.
+
+**Where to start:** Phase 0 spike (T1 en §9.9 del doc). Versión Pyodide fijada: `314.0.0`.
+
+**Depends on:** validación normativa (cotejar EC7/ROM/Anejo Nacional) antes de `shipped:true`.

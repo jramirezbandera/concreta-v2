@@ -1,0 +1,22 @@
+Concreta — third-party notices
+================================
+
+PySlope
+-------
+This product vendors source files from PySlope (1.4.0), a 2D slope
+stability library, executed in-browser via Pyodide.
+
+  Homepage:  https://github.com/JesseBonanno/PySlope
+  License:   MIT
+  Copyright (c) 2022, Jesse Bonanno
+
+Vendored files (src/lib/calculations/geotech/vendor/pyslope/):
+  pyslope.py, data_validation.py, utilities.py  — unmodified
+  __init__.py                                   — patched (see pyslope.manifest.json)
+
+Vendor tree SHA-256: 15b26b96da4203fdb805cb6616732d833f1fa5153be1a4256819207f11e30f8d
+
+The plotting paths (plotly/tqdm/colour) are never executed: Concreta consumes
+only the numeric results and renders its own SVG. Those imports are satisfied by
+lightweight stubs at runtime (numpy-only). The full MIT license text is preserved
+in vendor/pyslope/LICENSE.txt.
