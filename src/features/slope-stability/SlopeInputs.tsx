@@ -278,18 +278,18 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
       {/* 2 — Nivel freático */}
       <CollapsibleSection label="Nivel freático" refNorma="CTE DB-SE-C §4.4">
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
-          <span className="text-[13px] text-text-secondary truncate min-w-0">Sin nivel freático</span>
+          <span className="text-[13px] text-text-secondary truncate min-w-0">Nivel freático</span>
           <button
             type="button"
             onClick={toggleWater}
-            aria-pressed={!hasWater}
+            aria-pressed={hasWater}
             className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 ${
-              !hasWater
+              hasWater
                 ? 'bg-accent/15 text-accent border border-accent/40'
                 : 'bg-bg-elevated text-text-disabled border border-border-main'
             }`}
           >
-            {!hasWater ? 'Seco' : 'Con NF'}
+            {hasWater ? 'Con NF' : 'Seco'}
           </button>
         </div>
         {hasWater && (
@@ -347,26 +347,26 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
 
       {/* 5 — Método y malla */}
       <CollapsibleSection label="Método" refNorma="CTE DB-SE-C art. 7.2.2.1">
-        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+        <div className="flex flex-col gap-1 py-0.75 min-w-0">
           <InputLabel htmlFor="select-slope-method" label="Método" help={HELP.method} />
           <select
             id="select-slope-method"
             value={value.method}
             onChange={(e) => set('method', e.target.value as SlopeInputs['method'])}
-            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors w-full"
           >
             <option value="bishop">Bishop simplificado</option>
             <option value="fellenius">Fellenius (ordinario)</option>
           </select>
         </div>
 
-        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+        <div className="flex flex-col gap-1 py-0.75 min-w-0">
           <InputLabel htmlFor="select-slope-precision" label="Precisión" sub="malla" help={HELP.precision} />
           <select
             id="select-slope-precision"
             value={isFine ? 'fine' : 'fast'}
             onChange={(e) => applyMesh(e.target.value as keyof typeof MESH_PRESETS)}
-            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors w-full"
           >
             <option value="fine">Fina (25/1000)</option>
             <option value="fast">Rápida (15/500)</option>
@@ -403,13 +403,13 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
           Dovelas {SLICES_MIN}–{SLICES_MAX} · círculos {ITER_MIN}–{ITER_MAX}.
         </p>
 
-        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+        <div className="flex flex-col gap-1 py-0.75 min-w-0">
           <InputLabel htmlFor="select-slope-situation" label="Situación" help={HELP.situation} />
           <select
             id="select-slope-situation"
             value={value.situation}
             onChange={(e) => set('situation', e.target.value as SlopeInputs['situation'])}
-            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors w-full"
           >
             {SITUATION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -421,13 +421,13 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
             sobre la resistencia) vs estabilidad global de cimentación (Tabla 2.1,
             terreno minorado γM). Selecciona qué checks/límites aplican tras Calcular.
             Texto/tooltip del catálogo LABELS (slope_context). */}
-        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+        <div className="flex flex-col gap-1 py-0.75 min-w-0">
           <InputLabel htmlFor="select-slope-context" labelKey="slope_context" />
           <select
             id="select-slope-context"
             value={value.context}
             onChange={(e) => set('context', e.target.value as SlopeInputs['context'])}
-            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors w-full"
           >
             {CONTEXT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>

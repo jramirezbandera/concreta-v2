@@ -1056,9 +1056,11 @@ export const micropilesSoilDefaults: SoilLayer[] = [
 // ── Geotecnia · Estabilidad de taludes (PySlope/Pyodide) ──────────────────────
 // Phase 1 "corte vertical". El estado es un BLOB JSON anidado (estratos + cargas)
 // persistido en localStorage del propio módulo (no useModuleState plano) — decisión
-// eng-review §9.3 T3. Reutiliza SoilLayer (arriba) para los estratos: en taludes solo
-// importan gamma (γ), c (c', kPa) y phi (φ', º); thickness define depth_to_bottom
-// acumulado desde la coronación. Nspt/su/rflim/Cu se ignoran en el motor de taludes.
+// eng-review §9.3 T3. Reutiliza SoilLayer (arriba) para los estratos: en taludes
+// importan gamma (γ), c (c', kPa) y phi (φ', º) en cada corrida; thickness define
+// depth_to_bottom acumulado desde la coronación. su (kN/m²) se usa solo en el check
+// sin drenaje (slope.ts: estratos con su>0 → φ=0, c=su). Nspt/rflim/Cu se ignoran en
+// el motor de taludes (campos específicos de micropilotes).
 
 /** Sobrecarga en coronación. `udl` = carga uniforme (kPa) sobre una banda; `line`
  *  = carga lineal (kN/m) en un punto. `offset` (m) se mide desde la coronación del

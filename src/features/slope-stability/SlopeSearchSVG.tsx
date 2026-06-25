@@ -218,13 +218,35 @@ function sampleCircles(circles: SlopeCircleFoS[]): { shown: SlopeCircleFoS[]; sa
   return { shown: head.concat(tail), sampled: true };
 }
 
-// Puntos FÍSICOS del arco inferior de un círculo de prueba (cx,cy,r) entre sus
-// cortes con la rasante. Intersecta el círculo con la polilínea del terreno y
-// muestrea el arco inferior (lo que cae bajo el talud). Devuelve [] si no corta en
-// dos puntos válidos. Compartido por el pintado del arco y por el cálculo del
-// encuadre (min-y REALMENTE dibujado, no el fondo del círculo completo).
+// Y del terreno en una x dada. El perfil es una polilínea single-valued en x y
+// ascendente (frame PySlope: coronación → pie, ver pyslopeAnalyze.ts). Devuelve null
+// si x cae fuera del dominio del perfil (ahí, sobre el arco, no hay suelo → aire).
+function groundYAt(x: number, ground: SlopePoint[]): number | null {
+  if (x < ground[0].x - 1e-9 || x > ground[ground.length - 1].x + 1e-9) return null;
+  for (let i = 0; i < ground.length - 1; i++) {
+    const a = ground[i];
+    const b = ground[i + 1];
+    if (x >= a.x - 1e-9 && x <= b.x + 1e-9) {
+      const dx = b.x - a.x;
+      if (dx < 1e-9) return Math.max(a.y, b.y);
+      return a.y + ((x - a.x) / dx) * (b.y - a.y);
+    }
+  }
+  return null;
+}
+
+// Puntos FÍSICOS de la SUPERFICIE DE DESLIZAMIENTO de un círculo de prueba (cx,cy,r):
+// el tramo del arco inferior que cae REALMENTE bajo la rasante (donde hay suelo
+// encima). Solo eso desliza; el resto de la circunferencia es construcción geométrica
+// (aire) y no se dibuja. Entre dos cortes consecutivos con el terreno el arco inferior
+// queda entero enterrado o entero al aire (solo cruza la rasante en los cortes), así
+// que clasificamos cada tramo por su punto medio y nos quedamos con el ENTERRADO más
+// ancho — el mismo criterio entrada/salida que usa PySlope para las dovelas. Esto
+// evita los "trozos en el aire" que salían al tomar el min/max global de cortes cuando
+// un círculo corta el perfil en >2 puntos. Devuelve [] si no hay tramo enterrado.
+// Compartido por el pintado del arco y por el encuadre (min-y REALMENTE dibujado).
 function searchArcSamples(c: SlopeCircleFoS, ground: SlopePoint[]): SlopePoint[] {
-  // Intersecciones círculo↔segmentos del perfil. Recoge parámetros x de corte.
+  // Intersecciones círculo↔segmentos del perfil. Recoge las x de corte.
   const xs: number[] = [];
   for (let i = 0; i < ground.length - 1; i++) {
     const a = ground[i];
@@ -245,22 +267,45 @@ function searchArcSamples(c: SlopeCircleFoS, ground: SlopePoint[]): SlopePoint[]
     }
   }
   if (xs.length < 2) return [];
-  const xa = Math.min(...xs);
-  const xb = Math.max(...xs);
-  // Ángulos al centro de los cortes; muestreamos el arco INFERIOR (y < cy).
-  const angAt = (x: number) => {
-    const cl = Math.max(-1, Math.min(1, (x - c.cx) / c.r));
-    // y bajo el centro → tomamos el ramal inferior (asin negativo).
-    return Math.atan2(-Math.sqrt(Math.max(0, 1 - cl * cl)), cl);
+  // Ordena y deduplica cortes casi coincidentes (tangencias / vértices del perfil).
+  xs.sort((p, q) => p - q);
+  const cuts: number[] = [xs[0]];
+  for (let i = 1; i < xs.length; i++) {
+    if (xs[i] - cuts[cuts.length - 1] > 1e-6 * Math.max(1, c.r)) cuts.push(xs[i]);
+  }
+  if (cuts.length < 2) return [];
+
+  // Rama INFERIOR del círculo (y < cy): la cara por la que desliza el suelo.
+  const arcY = (x: number) => {
+    const d = c.r * c.r - (x - c.cx) * (x - c.cx);
+    return c.cy - Math.sqrt(Math.max(0, d));
   };
-  const a0 = angAt(xa);
-  const a1 = angAt(xb);
-  const steps = 16;
+
+  // Tramo enterrado (arco bajo el terreno) más ancho = superficie de deslizamiento.
+  let xa = NaN;
+  let xb = NaN;
+  let bestW = 0;
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const lo = cuts[i];
+    const hi = cuts[i + 1];
+    const mid = (lo + hi) / 2;
+    const gy = groundYAt(mid, ground);
+    if (gy === null) continue;                       // fuera del perfil → aire
+    if (arcY(mid) <= gy + 1e-9 && hi - lo > bestW) { // arco bajo rasante → enterrado
+      bestW = hi - lo;
+      xa = lo;
+      xb = hi;
+    }
+  }
+  if (!(bestW > 0)) return [];
+
+  // Muestreo en x sobre el tramo enterrado; extremos EXACTOS en la rasante (entrada/
+  // salida). En x evitamos el envoltorio de ángulos del arco inferior.
+  const steps = 24;
   const pts: SlopePoint[] = [];
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const ang = a0 + (a1 - a0) * t;
-    pts.push({ x: c.cx + c.r * Math.cos(ang), y: c.cy + c.r * Math.sin(ang) });
+    const x = xa + ((xb - xa) * i) / steps;
+    pts.push({ x, y: arcY(x) });
   }
   return pts;
 }
