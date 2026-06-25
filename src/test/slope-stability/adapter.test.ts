@@ -165,6 +165,16 @@ describe("calcSlope — adaptador Phase 2 (worker mockeado)", () => {
     expect(neutralRuns).toHaveLength(1);
   });
 
+  it("propaga el método seleccionado (fellenius) al motor en todas las corridas", async () => {
+    await calcSlope({ ...slopeDefaults, method: "fellenius" });
+    // El adaptador serializa los inputs tal cual → `method` viaja a cada corrida
+    // (base + DA3), de modo que todas las comprobaciones usan el método elegido.
+    expect(runInputs.length).toBeGreaterThan(0);
+    for (const inp of runInputs) {
+      expect(inp.method).toBe("fellenius");
+    }
+  });
+
   it("rellena la meta de trazabilidad (versión motor + hashes)", async () => {
     const res = await calcSlope(slopeDefaults);
     expect(res.engine.pyslopeVersion).toBe(manifestVersion);

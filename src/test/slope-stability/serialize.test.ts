@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { buildShareUrl, decodeShareString, encodeShareString } from "../../features/slope-stability/serialize";
 import { slopeDefaults, type SlopeInputs } from "../../data/defaults";
 
-// Modelo rico: NF, dos estratos, dos cargas, contexto global, situación transitoria.
+// Modelo rico: NF, dos estratos, dos cargas, contexto global, situación transitoria,
+// método Fellenius (valor no-default → ejercita el round-trip del campo `method`).
 const rich: SlopeInputs = {
   height: 8,
   angle: 45,
@@ -19,7 +20,7 @@ const rich: SlopeInputs = {
     { id: 1, kind: "udl", magnitude: 10, offset: 0, length: 5 },
     { id: 2, kind: "line", magnitude: 50, offset: 2 },
   ],
-  method: "bishop",
+  method: "fellenius",
   slices: 50,
   iterations: 2000,
   situation: "transient",
@@ -40,6 +41,7 @@ describe("slope serialize — round-trip", () => {
     expect(decoded!.strata).toHaveLength(2);
     expect(decoded!.loads).toHaveLength(2);
     expect(decoded!.context).toBe("global-foundation");
+    expect(decoded!.method).toBe("fellenius");
     expect(decoded!.strata[0].su).toBe(35);
     expect(decoded!.loads[1]).toEqual(rich.loads[1]);
   });
@@ -59,6 +61,15 @@ describe("slope serialize — round-trip", () => {
     expect(decoded).not.toBeNull();
     // El campo faltante cae al default ('excavation') en lugar de undefined.
     expect(decoded!.context).toBe(slopeDefaults.context);
+  });
+
+  it("merge tolera enlaces previos sin `method` → cae a 'bishop'", () => {
+    // Simula un enlace anterior a Fellenius: SlopeInputs sin el campo `method`.
+    const { method: _omitted, ...legacy } = slopeDefaults;
+    const encoded = encodeShareString(legacy as unknown as SlopeInputs);
+    const decoded = decodeShareString(encoded);
+    expect(decoded).not.toBeNull();
+    expect(decoded!.method).toBe("bishop");
   });
 });
 

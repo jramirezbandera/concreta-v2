@@ -34,20 +34,43 @@ s.update_analysis_options(slices=25, iterations=1000)
 s.analyse_slope()
 `;
 
-/** FoS de referencia (Node == navegador == micropip). NO tocar sin bumpear vendor. */
+/** Mismo caso README sobre un Slope fresco (`sf`) corrido con el método ordinario
+ *  (Fellenius). No reusa `s` para no mutar el estado que verifican los tests Bishop. */
+const FELLENIUS_CASE_PY = `
+sf = Slope(height=3, angle=30, length=None)
+sf.set_materials(Material(unit_weight=20, friction_angle=45, cohesion=2, depth_to_bottom=2), Material(20, 30, 2, 5))
+sf.set_udls(Udl(magnitude=100, offset=2, length=1), Udl(magnitude=20))
+sf.set_lls(LineLoad(magnitude=10, offset=3))
+sf.set_water_table(4)
+sf.set_analysis_limits(sf.get_top_coordinates()[0] - 5, sf.get_bottom_coordinates()[0] + 5)
+sf.update_analysis_options(slices=25, iterations=1000)
+sf.analyse_slope(method='ordinary')
+`;
+
+/** FoS de referencia Bishop (Node == navegador == micropip). NO tocar sin bumpear
+ *  vendor. El parche de dispatch de método dejó el camino de Bishop intacto. */
 const GOLDEN_FOS = 1.5437888294282975;
+
+/**
+ * FoS de referencia Fellenius (método ordinario / sueco de dovelas) para el MISMO
+ * caso README con `s.analyse_slope(method='ordinary')`. Más conservador que Bishop
+ * (sin equilibrio iterativo) → siempre < GOLDEN_FOS. Capturado en la misma corrida
+ * determinista 1000/25. NO tocar sin bumpear vendor.
+ */
+const GOLDEN_FOS_FELLENIUS = 1.2261248218518626;
 
 /** Nº de dovelas fijado en el caso (s.update_analysis_options(slices=25,...)). */
 const SLICES = 25;
 
 /**
- * Hash del árbol vendorizado tras el fork de exposición por dovela (T1.1, Phase 2).
- * Se regenera con `node scripts/vendor-pyslope.mjs`. Si el vendor deriva, este
- * valor cambia y el golden falla (puerta de trazabilidad del PDF). El parche es
- * SOLO-exposición: el FoS sigue siendo GOLDEN_FOS exacto.
+ * Hash del árbol vendorizado tras el fork de exposición por dovela (T1.1) + el
+ * parche de dispatch de método (Bishop/Fellenius). Se regenera con
+ * `node scripts/vendor-pyslope.mjs`. Si el vendor deriva, este valor cambia y el
+ * golden falla (puerta de trazabilidad del PDF). El dispatch deja Bishop intacto:
+ * el FoS de Bishop sigue siendo GOLDEN_FOS exacto.
  */
 const GOLDEN_PATCH_HASH =
-  "c24c40118950344d932d42676ae9c39afa0bb6585059b0eace09a845317472f6";
+  "1213ecdac7bd58276e334ceeb980bb6ea393dc9a857930e2e9028a1374dd3a2b";
 
 describe("PySlope golden — runtime numpy-only", () => {
   let py: PyodideInterface;
@@ -75,11 +98,49 @@ describe("PySlope golden — runtime numpy-only", () => {
     }
     py.runPython(`import sys; sys.path.insert(0, ${JSON.stringify(PYSLOPE_FS_ROOT)})`);
     py.runPython(README_CASE_PY);
+    py.runPython(FELLENIUS_CASE_PY);
   });
 
   it("reproduce el FoS de referencia con malla 1000/25", () => {
     const fos = py.runPython("float(s.get_min_FOS())") as number;
     expect(fos).toBeCloseTo(GOLDEN_FOS, 6);
+  });
+
+  it("reproduce el FoS de referencia Fellenius (método ordinario) y es < Bishop", () => {
+    const fos = py.runPython("float(sf.get_min_FOS())") as number;
+    expect(fos).toBeCloseTo(GOLDEN_FOS_FELLENIUS, 6);
+    expect(fos).toBeLessThan(GOLDEN_FOS); // el ordinario es más conservador
+  });
+
+  it("física por dovela de Fellenius: contrato completo + u re-escalada a la base inclinada", () => {
+    // method='ordinary' → U integrada sobre la base INCLINADA (slice_width/cosα),
+    // que es la que entró en el FoS de Fellenius. method='bishop' → base horizontal.
+    const ord = JSON.parse(
+      py.runPython("import json; json.dumps(sf.get_critical_slice_data(method='ordinary'))") as string,
+    ) as Record<string, number[]>;
+    const bish = JSON.parse(
+      py.runPython("json.dumps(sf.get_critical_slice_data(method='bishop'))") as string,
+    ) as Record<string, number[]>;
+
+    const keys = ["x", "width", "alpha", "weight", "u", "cohesion", "tan_phi"];
+    for (const k of keys) {
+      expect(Array.isArray(ord[k]), `${k} es array`).toBe(true);
+      expect(ord[k].length, `${k}.length == nº dovelas`).toBe(SLICES);
+      expect(ord[k].every((v) => Number.isFinite(v)), `${k} solo números finitos`).toBe(true);
+    }
+
+    // El caso README tiene NF (set_water_table(4)). Relación exacta por dovela:
+    // u_ordinary[i] == u_bishop[i] / cos(α[i]). W y α son agnósticos del método.
+    expect(ord.weight).toEqual(bish.weight);
+    expect(ord.alpha).toEqual(bish.alpha);
+    let strictlyGreater = 0;
+    for (let i = 0; i < SLICES; i++) {
+      expect(ord.u[i]).toBeCloseTo(bish.u[i] / Math.cos(ord.alpha[i]), 6);
+      if (ord.u[i] > bish.u[i] + 1e-9) strictlyGreater++;
+    }
+    // Hay dovelas con agua e inclinación → al menos una diverge (si no, el fix
+    // sería un no-op vacío y la regresión de Finding A no quedaría cubierta).
+    expect(strictlyGreater).toBeGreaterThan(0);
   });
 
   it("expone geometría limpia del círculo crítico", () => {

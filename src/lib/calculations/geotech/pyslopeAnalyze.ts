@@ -19,6 +19,9 @@ def _analyze(inputs_json, opts_json):
     lf = float(opts.get('loadFactor', 1.0))
     slices = int(opts.get('slices', 25))
     iterations = int(opts.get('iterations', 1000))
+    # Método de dovelas: el alias Concreta 'fellenius' → 'ordinary' (nombre interno
+    # de PySlope). 'bishop' (default) deja el camino de Bishop intacto.
+    method = 'ordinary' if inp.get('method') == 'fellenius' else 'bishop'
 
     s = Slope(height=float(inp['height']), angle=float(inp['angle']), length=None)
 
@@ -54,7 +57,7 @@ def _analyze(inputs_json, opts_json):
     right = s.get_bottom_coordinates()[0] + 5
     s.set_analysis_limits(left, right)
     s.update_analysis_options(slices=slices, iterations=iterations)
-    s.analyse_slope()
+    s.analyse_slope(method=method)
 
     fos = float(s.get_min_FOS())
     cx, cy, r = (float(v) for v in s.get_min_FOS_circle())
@@ -100,7 +103,7 @@ def _analyze(inputs_json, opts_json):
 
     if hasattr(s, 'get_critical_slice_data'):
         try:
-            phys = s.get_critical_slice_data()
+            phys = s.get_critical_slice_data(method=method)
             if hasattr(phys, 'to_py'):
                 phys = phys.to_py()
             alpha = _flist(phys, 'alpha')

@@ -1229,7 +1229,7 @@ class Slope:
         # reset results
         self._reset_results()
 
-    def analyse_slope(self, max_fos=None):
+    def analyse_slope(self, max_fos=None, method="bishop"):
         """Analyse many possible failure planes for a slope OR
         indivually added failure planes if added to slope."""
 
@@ -1242,8 +1242,16 @@ class Slope:
             self._set_entry_exit_planes()
 
         # go through each assumed plane and calculate the FOS
+        # PATCH (Concreta): dispatch by method so the ordinary method of slices
+        # (Fellenius) is selectable alongside Bishop. Bishop's path is unchanged
+        # (default), so the golden FoS is identical. NOT seismic.
+        _fos_fn = (
+            self._analyse_circular_failure_ordinary
+            if method == "ordinary"
+            else self._analyse_circular_failure_bishop
+        )
         for i, search in enumerate(tqdm(self._search)):
-            self._search[i]["FOS"] = self._analyse_circular_failure_bishop(
+            self._search[i]["FOS"] = _fos_fn(
                 c_x=search["c_x"],
                 c_y=search["c_y"],
                 radius=search["radius"],
@@ -1796,8 +1804,14 @@ class Slope:
             "tan_phi": tan_phi,
         }
 
-    def get_critical_slice_data(self):
+    def get_critical_slice_data(self, method="bishop"):
         """PATCH (Concreta): per-slice physics for the critical circle.
+
+        ``method`` ("bishop" | "ordinary") selects the uplift convention so the
+        reported per-slice U matches the force balance that produced the FoS:
+        Bishop integrates uplift over the horizontal slice_width, the ordinary
+        method (Fellenius) over the inclined base length (slice_width / cos_alpha).
+        Pass the SAME method used in ``analyse_slope``.
 
         Returns the parallel per-slice arrays (geometry, weight, pore pressure
         and material properties) of the circular slip plane with the minimum
@@ -1867,12 +1881,20 @@ class Slope:
 
         n = self._slices
         width = slices["slice_width"]
+        # PATCH (Concreta): _compute_slice_arrays returns U in Bishop's convention
+        # (uplift over the horizontal slice_width). The ordinary method (Fellenius)
+        # integrates uplift over the INCLINED base length (slice_width / cos_alpha),
+        # i.e. U_ordinary = U_bishop / cos_alpha (the only term that differs). Rescale
+        # so the reported per-slice U equals the one that entered the Fellenius FoS
+        # (defensibility: the dovela table mirrors the computed run, not another
+        # method). Bishop ("bishop", default) is returned unchanged → golden intact.
+        u = slices["U"] / slices["cos_alpha"] if method == "ordinary" else slices["U"]
         return {
             "x": slices["slice_x"].tolist(),
             "width": [float(width)] * n,
             "alpha": slices["alpha"].tolist(),
             "weight": slices["W"].tolist(),
-            "u": slices["U"].tolist(),
+            "u": u.tolist(),
             "cohesion": slices["cohesion"].tolist(),
             "tan_phi": slices["tan_phi"].tolist(),
         }

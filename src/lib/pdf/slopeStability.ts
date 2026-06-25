@@ -43,6 +43,7 @@ import {
   type TableCol,
 } from "./utils";
 import type { CheckRow } from "../../lib/calculations/types";
+import { slopeMethodLabel } from "../text/labels";
 
 const M = 20;
 
@@ -57,8 +58,8 @@ const CONTEXT_LABEL: Record<SlopeInputs["context"], string> = {
   "global-foundation": "Estabilidad global de cimentacion",
 };
 
-const DISCLAIMER =
-  "Predimensionamiento — método Bishop simplificado (superficie circular). " +
+const disclaimer = (method: string): string =>
+  `Predimensionamiento — método ${slopeMethodLabel(method)} (superficie circular). ` +
   "Sin métodos no-circulares ni Spencer/Janbu. El análisis sísmico pseudo-estático " +
   "queda pendiente (Phase 3) y figura como verificación informativa. " +
   "No sustituye un estudio geotécnico.";
@@ -97,7 +98,7 @@ export async function exportSlopeStabilityPDF(
       `CTE DB-SE-C art. 7.2.2.1 · UNE-EN 1997-1 (EC7 DA3)  ·  ` +
         `${CONTEXT_LABEL[inp.context]} · ${SITUATION_LABEL[inp.situation]}  ·  ` +
         `Motor: PySlope ${result.engine.pyslopeVersion} · Pyodide ${result.engine.pyodideVersion} · ` +
-        `parche ${result.engine.patchHash.slice(0, 8)} · malla ${result.engine.mesh.iterations}/${result.engine.mesh.slices} (Bishop)`,
+        `parche ${result.engine.patchHash.slice(0, 8)} · malla ${result.engine.mesh.iterations}/${result.engine.mesh.slices} (${slopeMethodLabel(result.run.method)})`,
     ),
     M,
     contentY,
@@ -349,7 +350,7 @@ export async function exportSlopeStabilityPDF(
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7);
   setGray(doc, 120);
-  doc.text(pdfStr(DISCLAIMER), M, by, { maxWidth: PAGE_W - 2 * M });
+  doc.text(pdfStr(disclaimer(result.run.method)), M, by, { maxWidth: PAGE_W - 2 * M });
 
   // ── Footers en todas las páginas (versión motor en cada una) ─────────────────
   drawFootersAllPages(doc, { engineVersion }, M);

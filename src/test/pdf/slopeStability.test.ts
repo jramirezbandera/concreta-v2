@@ -85,6 +85,19 @@ describe("exportSlopeStabilityPDF", () => {
     });
   });
 
+  it("corrida con método Fellenius exporta sin crash (disclaimer/traza dinámicos)", async () => {
+    const result = await calcSlope({ ...slopeDefaults, method: "fellenius" });
+    // El motor mockeado emite method según corra; forzamos la corrida mostrada a
+    // Fellenius para ejercitar el etiquetado dinámico del PDF (slopeMethodLabel).
+    const fellenius = { ...result, run: { ...result.run, method: "fellenius" } };
+    const pdf = await exportSlopeStabilityPDF(
+      { ...slopeDefaults, method: "fellenius" },
+      fellenius,
+    );
+    expect(pdf.blobUrl).toMatch(/^blob:/);
+    expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+  });
+
   it("run SIN dovelas (slices vacío) omite la tabla de dovelas sin tirar", async () => {
     const result = await calcSlope(slopeDefaults);
     const emptySlices = { ...result, run: { ...result.run, slices: [] } };

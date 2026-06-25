@@ -35,6 +35,7 @@ interface Run {
   failureProfile: { x: number; y: number }[];
   groundProfile: { x: number; y: number }[];
   slicesN: number;
+  method: string;
   searchCircles: { cx: number; cy: number; r: number; fos: number }[];
 }
 
@@ -87,6 +88,26 @@ describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
     const da3 = analyze({ gammaC: 1.25, gammaPhi: 1.25, loadFactor: 1.3 });
     expect(da3.fos).toBeLessThan(base.fos);
     expect(da3.fos).toBeGreaterThan(0);
+  });
+
+  // Cierra el seam T1.2 (eng-review): el mapeo Concreta 'fellenius' → PySlope
+  // 'ordinary' SOLO se ejercita aquí, a través del MISMO _analyze que llama el
+  // worker. Los otros golden corren analyse_slope(method='ordinary') directo
+  // (saltándose el mapeo) y el adapter test mockea el worker (Python no corre).
+  // Un mapeo roto pasaría todos los demás tests y Fellenius caería a Bishop en
+  // silencio. Defaults neutros (sin minorar) → comparación limpia.
+  it("method='fellenius' se mapea a 'ordinary' end-to-end → FoS < Bishop", () => {
+    const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
+    const optsJson = JSON.stringify({ slices: 25, iterations: ITERATIONS, gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+    const bishop = JSON.parse(fn(JSON.stringify({ ...slopeDefaults, method: "bishop" }), optsJson)) as Run;
+    const fellenius = JSON.parse(fn(JSON.stringify({ ...slopeDefaults, method: "fellenius" }), optsJson)) as Run;
+    expect(Number.isFinite(fellenius.fos)).toBe(true);
+    expect(fellenius.fos).toBeGreaterThan(0);
+    // El método ordinario es más conservador → FoS estrictamente menor que Bishop.
+    expect(fellenius.fos).toBeLessThan(bishop.fos);
+    // El run refleja el método Concreta seleccionado (eco del input, no 'ordinary').
+    expect(fellenius.method).toBe("fellenius");
+    expect(bishop.method).toBe("bishop");
   });
 
   it("emite searchCircles: malla de centros con FoS finito (≈ iterations)", () => {

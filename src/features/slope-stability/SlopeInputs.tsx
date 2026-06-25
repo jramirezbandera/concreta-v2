@@ -47,7 +47,7 @@ const MESH_PRESETS = {
 const HELP = {
   noWater: 'Análisis seco: sin nivel freático, sin presión intersticial.',
   load: 'Sobrecargas aplicadas en la coronación del talud (trasdós).',
-  method: 'Método de dovelas. Bishop simplificado es el operativo en esta fase.',
+  method: 'Método de dovelas para el equilibrio. Bishop simplificado (iterativo, satisface equilibrio de momentos) o Fellenius/ordinario (directo, más conservador). Con nivel freático o presiones intersticiales altas Fellenius puede subestimar el FoS de forma marcada (no solo "algo menor"); para verificación con agua se prefiere Bishop.',
   slices: 'Número de dovelas en que se discretiza la masa deslizante (10–200).',
   iterations: 'Número de círculos de rotura tanteados en la búsqueda (500–5000).',
   precision: 'Malla fina (25 dovelas / 1000 círculos) o rápida (orientativa).',
@@ -186,7 +186,20 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
   const updateLayer = (id: number, field: keyof SoilLayer, v: number | SoilType) => {
     set(
       'strata',
-      value.strata.map((s) => (s.id === id ? { ...s, [field]: v } : s)),
+      value.strata.map((s) => {
+        if (s.id !== id) return s;
+        const next = { ...s, [field]: v };
+        // Al pasar a granular, la cohesión efectiva (c′) y la resistencia sin
+        // drenaje (su) son nulas por definición. Se fuerzan a 0 para que no
+        // quede un valor oculto alimentando el motor: la UI no muestra c′/su en
+        // granular, pero PySlope lee `c` de TODOS los estratos y el check sin
+        // drenaje se dispara con cualquier su>0, sin mirar el tipo.
+        if (field === 'type' && v === 'granular') {
+          next.c = 0;
+          next.su = 0;
+        }
+        return next;
+      }),
     );
   };
 
@@ -342,9 +355,8 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
             onChange={(e) => set('method', e.target.value as SlopeInputs['method'])}
             className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
           >
-            <option value="bishop">Bishop</option>
-            {/* PySlope solo expone Bishop en Phase 1 — Fellenius queda anunciado. */}
-            <option value="fellenius" disabled>Fellenius (próximamente)</option>
+            <option value="bishop">Bishop simplificado</option>
+            <option value="fellenius">Fellenius (ordinario)</option>
           </select>
         </div>
 

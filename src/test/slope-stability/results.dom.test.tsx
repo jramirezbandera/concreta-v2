@@ -67,11 +67,14 @@ const solver: SlopeSolver = {
   ensureResult: async () => mockResult,
 };
 
-function renderResults() {
+function renderResults(
+  solverOverride: SlopeSolver = solver,
+  method: "bishop" | "fellenius" = "bishop",
+) {
   return render(
     <ThemeProvider>
       <UnitSystemProvider>
-        <SlopeResults solver={solver} situation="persistent" />
+        <SlopeResults solver={solverOverride} situation="persistent" method={method} />
       </UnitSystemProvider>
     </ThemeProvider>,
   );
@@ -98,6 +101,20 @@ describe("SlopeResults — tabla de checks agrupada + tabla de dovelas (T3.3)", 
     // "1.54" aparece en el FoS destacado y también en filas de check → varios.
     expect(screen.getAllByText("1.54").length).toBeGreaterThan(0);
     expect(screen.getByText(/PySlope 0\.9\.0/)).toBeInTheDocument();
+  });
+
+  it("muestra el método de la corrida en el disclaimer (Bishop por defecto)", () => {
+    renderResults();
+    expect(screen.getByText(/Bishop simplificado · circular/i)).toBeInTheDocument();
+  });
+
+  it("refleja Fellenius en el disclaimer cuando la corrida usó el método ordinario", () => {
+    const felleniusSolver: SlopeSolver = {
+      ...solver,
+      result: { ...mockResult, run: { ...mockResult.run, method: "fellenius" } },
+    };
+    renderResults(felleniusSolver, "fellenius");
+    expect(screen.getByText(/Fellenius \(ordinario\) · circular/i)).toBeInTheDocument();
   });
 
   it("la tabla de dovelas colapsa por defecto y expande con W/α/u", () => {

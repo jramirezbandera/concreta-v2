@@ -177,7 +177,7 @@ export function SlopeStabilityModule() {
             tab === "results" ? "flex-1" : "hidden",
           ].join(" ")}
         >
-          <SlopeResults solver={solver} situation={state.situation} />
+          <SlopeResults solver={solver} situation={state.situation} method={state.method} />
         </div>
       </div>
 

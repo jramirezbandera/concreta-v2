@@ -30,7 +30,7 @@ Decisiones arquitectónicas fijadas en esta investigación:
 | **Patrón de cálculo** | Imitar `useLazyDesignSolver` de FEM 1D (motor **async** con estado `pending`) | Es el único precedente async del repo; resuelve PDF-await y lazy de 2º nivel |
 | **Recálculo** | **Botón "Calcular" explícito**, NO recálculo en vivo | El round-trip a Pyodide cuesta cientos de ms–segundos. Rompe el patrón "en vivo" del resto |
 | **Resultados** | El motor devuelve `CheckRow[]` con η = `límite/FoS` | Reutiliza toda la UI de checks sin escribir render nuevo |
-| **Método de cálculo** | **Bishop simplificado** (único expuesto). Fellenius = exponer en el fork. **Spencer/Janbu NO disponibles** | Limitación real de PySlope, a comunicar en la UI |
+| **Método de cálculo** | **Bishop simplificado** (default) y **Fellenius/Ordinario** — ambos conectados vía dispatch en `analyse_slope(method=…)` (parche del vendor). **Spencer/Janbu NO disponibles** | Fellenius ya seleccionable en la UI; Spencer/Janbu son limitación real de PySlope |
 | **Sísmico** | Implementar pseudo-estático **por encima** de PySlope | El motor no lo trae de fábrica |
 | **Estado inicial del módulo** | `shipped: false` ("Próximamente") hasta validar normativa | Mismo proceder que micropilotes |
 
@@ -44,9 +44,9 @@ PySlope es estabilidad de taludes 2D por **equilibrio límite, método de dovela
 El motor real expuesto es **Bishop simplificado** (circular, iterativo,
 `tolerance=0.005`, `max_iterations=15`).
 
-- `_analyse_circular_failure_bishop(...)` → **Bishop simplificado** (único en la API pública).
-- `_analyse_circular_failure_ordinary(...)` → **Fellenius/Ordinario**, existe pero **no es invocable públicamente** (se usa como semilla de Bishop). Exponerlo es un one-liner en el fork.
-- **No** implementa Spencer ni Janbu. **No** hay parámetro `method=` en `analyse_slope()`.
+- `_analyse_circular_failure_bishop(...)` → **Bishop simplificado**.
+- `_analyse_circular_failure_ordinary(...)` → **Fellenius/Ordinario**. Originalmente solo se usaba como semilla de Bishop; el parche del vendor (`scripts/vendor-pyslope.mjs`) añadió un parámetro `method=` a `analyse_slope()` que despacha a este método cuando `method='ordinary'`. Ambos comparten contrato (devuelven `float` FoS) y `get_critical_slice_data()` es agnóstico del método.
+- **No** implementa Spencer ni Janbu. `analyse_slope(method=…)` admite solo `"bishop"` (default) | `"ordinary"`.
 - **Búsqueda de la superficie crítica**: malla de círculos en `self._search`, ordenada por FoS ascendente → `[0]` es el círculo crítico.
 - Parámetros: `slices` (10–500, def. 25/50), `iterations` (nº de círculos, 500–100.000, def. 1000/2000), `tolerance`, `max_iterations`.
 - Validado por el autor contra **Slide v6.0** y **Hyrcan v1.75**.
@@ -448,8 +448,8 @@ freático · Sobrecargas (q, +línea) · **Estratos** (reutilizar `SoilStrataEdi
 de micropilotes: filas con `MiniNumField`, `Trash2`, `+ Añadir`, `SOIL_LIMITS`
 que clampan en blur y marcan `aria-invalid`) · Método.
 
-> ⚠️ **Selector de método limitado por PySlope**: ofrecer **Bishop** (default) y
-> **Fellenius** (si se expone en el fork). **NO ofrecer Spencer/Janbu** — no
+> ⚠️ **Selector de método limitado por PySlope**: ofrece **Bishop** (default) y
+> **Fellenius** (ambos conectados). **NO ofrecer Spencer/Janbu** — no
 > existen. Además `nº dovelas` (10–200) e `iteraciones`.
 
 Validación: rangos por campo + invariantes (Σespesores ≥ H, NF dentro del talud,
@@ -861,7 +861,7 @@ de §2.2/§2.4 que usa la forma JS con objeto está **mal** — usar la forma Py
 - **Expuesto limpio:** `get_min_FOS()`, `get_min_FOS_circle()` → `(c_x, c_y, radius)`, `get_min_FOS_end_points()`, y `s._search` (975 círculos: `{l_c, r_c, c_x, c_y, radius, FOS}`).
 - **`s._slices` es un `int` (=25), el CONTEO de dovelas, NO los objetos dovela.** La física por dovela (peso, u, α) **no se retiene** en una estructura pública.
 - **Implicación:** las **líneas verticales de dovelas** son geometría pura (exactas desde cx,cy,r + endpoints + conteo) → dibujables sin física. Una **tabla por dovela** (peso/u/α) requiere que el **fork vendorizado** haga que `_analyse_circular_failure_bishop` devuelva los arrays por dovela (cambio pequeño, controlamos el código). Refina DT/T9 y Codex #8.
-- **Fellenius confirmado presente** (`_analyse_circular_failure_ordinary`) — exponerlo en el fork es un one-liner.
+- **Fellenius conectado** (`_analyse_circular_failure_ordinary`) vía el parámetro `method=` añadido a `analyse_slope()` en el parche del vendor. Golden de referencia (caso README, 1000/25): Bishop 1.5437888, Fellenius 1.2261248.
 - **tqdm leakea** a stdout (`for i, search in enumerate(tqdm(self._search))`) → el parche `disable=True` (T4) es necesario.
 
 ### 11.4 Pase en navegador — Phase 0 CERRADA ✅

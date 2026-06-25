@@ -200,6 +200,20 @@ describe("SlopeStabilityModule — smoke de integración (T4.3, solver mockeado)
     expect(within(mesh).getByText(/3 círculos/i)).toBeInTheDocument();
   });
 
+  it("3b · el selector de método ofrece Fellenius (ordinario) habilitado y seleccionable", () => {
+    const { container } = renderModule();
+    const select = container.querySelector("#select-slope-method") as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    // La opción Fellenius existe y ya NO está deshabilitada.
+    const fellenius = within(select).getByRole("option", {
+      name: /Fellenius \(ordinario\)/i,
+    }) as HTMLOptionElement;
+    expect(fellenius.disabled).toBe(false);
+    // Seleccionarla actualiza el valor del control.
+    fireEvent.change(select, { target: { value: "fellenius" } });
+    expect(select.value).toBe("fellenius");
+  });
+
   it("4 · Copiar enlace escribe una URL con ?model= en el portapapeles", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

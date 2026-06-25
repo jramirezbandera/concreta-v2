@@ -25,6 +25,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import type { CheckRow } from '../../lib/calculations/types';
 import type { SlopeSlice } from '../../lib/calculations/geotech/types';
+import { slopeMethodLabel } from '../../lib/text/labels';
 import type { SlopeSolver } from './useSlopeSolver';
 import type { SlopeInputs } from '../../data/defaults';
 
@@ -32,6 +33,9 @@ interface SlopeResultsProps {
   solver: SlopeSolver;
   /** Situación de proyecto — fija el límite de FoS y su etiqueta. */
   situation: SlopeInputs['situation'];
+  /** Método de dovelas seleccionado — etiqueta del estado "Calculando…" antes
+   *  de que haya un primer resultado. El estado "listo" usa `result.run.method`. */
+  method: SlopeInputs['method'];
 }
 
 // Límite de factor de seguridad por situación — CTE DB-SE-C art. 7.2.2.1 (γR):
@@ -50,8 +54,9 @@ const SITUATION_LABEL: Record<SlopeInputs['situation'], string> = {
 
 // Texto largo del disclaimer — compartido conceptualmente con el PDF (design-review D4).
 // Menciona el sísmico pendiente (decisión §5.7 #1 / D4): Phase 2 lo deja como fila neutra.
-const DISCLAIMER_FULL =
-  'Método Bishop simplificado (superficie circular). Sin métodos no-circulares ni ' +
+// El método (Bishop/Fellenius) es dinámico según la corrida mostrada.
+const disclaimerFull = (method: string): string =>
+  `Método ${slopeMethodLabel(method)} (superficie circular). Sin métodos no-circulares ni ` +
   'Spencer/Janbu. Análisis sísmico pseudo-estático pendiente (Phase 3). ' +
   'Predimensionamiento — no sustituye un estudio geotécnico.';
 
@@ -150,7 +155,7 @@ function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
   );
 }
 
-export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Element {
+export function SlopeResults({ solver, situation, method }: SlopeResultsProps): JSX.Element {
   const { engineState, result, error, isStale, calculate, cancel } = solver;
 
   const isBusy = engineState === 'loading' || engineState === 'computing';
@@ -183,7 +188,7 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
               <Loader2 size={15} className="animate-spin" aria-hidden="true" />
               {engineState === 'loading'
                 ? 'Cargando motor geotécnico…'
-                : `Calculando… Bishop · ${result?.run.slicesN ?? ''} dovelas`}
+                : `Calculando… ${slopeMethodLabel(method)} · ${result?.run.slicesN ?? ''} dovelas`}
             </>
           ) : (
             'Calcular'
@@ -304,9 +309,9 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
             {/* Disclaimer permanente del método (neutro) + ayuda larga. */}
             <div className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border-sub">
               <span className="text-[11px] text-text-secondary">
-                Bishop circular · predimensionamiento
+                {slopeMethodLabel(result.run.method)} · circular · predimensionamiento
               </span>
-              <HelpTooltip text={DISCLAIMER_FULL} fieldLabel="Alcance del método" />
+              <HelpTooltip text={disclaimerFull(result.run.method)} fieldLabel="Alcance del método" />
             </div>
 
             {/* Traza del motor (discreta) — versiones para defensibilidad. */}

@@ -1854,3 +1854,13 @@ export function formatRebarSchedule(
 ): string {
   return `Ø${diameter_mm} c/${spacing_mm} (${Math.round(As_mm2_per_m)} mm²/m)`;
 }
+
+/**
+ * Etiqueta legible del método de dovelas de un análisis de talud. Fuente única
+ * para la UI (SlopeResults) y el PDF (slopeStability). El valor llega como string
+ * (`SlopeRun.method` o `SlopeInputs.method`); cualquier valor desconocido cae a
+ * Bishop (el método por defecto).
+ */
+export function slopeMethodLabel(method: string): string {
+  return method === 'fellenius' ? 'Fellenius (ordinario)' : 'Bishop simplificado';
+}

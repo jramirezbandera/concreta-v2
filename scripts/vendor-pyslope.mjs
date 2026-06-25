@@ -391,8 +391,14 @@ const NEW_METHODS = `            prev_FS = FS
             "tan_phi": tan_phi,
         }
 
-    def get_critical_slice_data(self):
+    def get_critical_slice_data(self, method="bishop"):
         """PATCH (Concreta): per-slice physics for the critical circle.
+
+        \`\`method\`\` ("bishop" | "ordinary") selects the uplift convention so the
+        reported per-slice U matches the force balance that produced the FoS:
+        Bishop integrates uplift over the horizontal slice_width, the ordinary
+        method (Fellenius) over the inclined base length (slice_width / cos_alpha).
+        Pass the SAME method used in \`\`analyse_slope\`\`.
 
         Returns the parallel per-slice arrays (geometry, weight, pore pressure
         and material properties) of the circular slip plane with the minimum
@@ -462,17 +468,60 @@ const NEW_METHODS = `            prev_FS = FS
 
         n = self._slices
         width = slices["slice_width"]
+        # PATCH (Concreta): _compute_slice_arrays returns U in Bishop's convention
+        # (uplift over the horizontal slice_width). The ordinary method (Fellenius)
+        # integrates uplift over the INCLINED base length (slice_width / cos_alpha),
+        # i.e. U_ordinary = U_bishop / cos_alpha (the only term that differs). Rescale
+        # so the reported per-slice U equals the one that entered the Fellenius FoS
+        # (defensibility: the dovela table mirrors the computed run, not another
+        # method). Bishop ("bishop", default) is returned unchanged → golden intact.
+        u = slices["U"] / slices["cos_alpha"] if method == "ordinary" else slices["U"]
         return {
             "x": slices["slice_x"].tolist(),
             "width": [float(width)] * n,
             "alpha": slices["alpha"].tolist(),
             "weight": slices["W"].tolist(),
-            "u": slices["U"].tolist(),
+            "u": u.tolist(),
             "cohesion": slices["cohesion"].tolist(),
             "tan_phi": slices["tan_phi"].tolist(),
         }
 
     def analyse_dynamic(self, critical_fos=1.3):`;
+
+// --- PATCH (Concreta): selección de método de cálculo (Bishop / Fellenius) ---
+// `analyse_slope` del wheel llama SIEMPRE a `_analyse_circular_failure_bishop`.
+// PySlope ya implementa el método ordinario (Fellenius) en
+// `_analyse_circular_failure_ordinary` (mismo contrato: devuelve float FoS), pero
+// no es seleccionable. Añadimos un parámetro `method` ("bishop" | "ordinary") y
+// despachamos por él. El camino de Bishop queda INTACTO → el golden FoS no cambia.
+
+// (4) Firma de analyse_slope (texto pristino del wheel) → con parámetro `method`.
+const ANALYSE_SLOPE_SIGNATURE = `    def analyse_slope(self, max_fos=None):`;
+const ANALYSE_SLOPE_SIGNATURE_PATCHED = `    def analyse_slope(self, max_fos=None, method="bishop"):`;
+
+// (5) Bucle de cálculo del FoS (texto pristino) → dispatch por método.
+const ANALYSE_SLOPE_LOOP = `        # go through each assumed plane and calculate the FOS
+        for i, search in enumerate(tqdm(self._search)):
+            self._search[i]["FOS"] = self._analyse_circular_failure_bishop(
+                c_x=search["c_x"],
+                c_y=search["c_y"],
+                radius=search["radius"],
+            )`;
+const ANALYSE_SLOPE_LOOP_PATCHED = `        # go through each assumed plane and calculate the FOS
+        # PATCH (Concreta): dispatch by method so the ordinary method of slices
+        # (Fellenius) is selectable alongside Bishop. Bishop's path is unchanged
+        # (default), so the golden FoS is identical. NOT seismic.
+        _fos_fn = (
+            self._analyse_circular_failure_ordinary
+            if method == "ordinary"
+            else self._analyse_circular_failure_bishop
+        )
+        for i, search in enumerate(tqdm(self._search)):
+            self._search[i]["FOS"] = _fos_fn(
+                c_x=search["c_x"],
+                c_y=search["c_y"],
+                radius=search["radius"],
+            )`;
 
 /**
  * Aplica el parche de exposición por dovela al fuente pristino de pyslope.py.
@@ -495,6 +544,10 @@ function patchPyslopeSource(src) {
   const helperCall = toEol(BISHOP_HELPER_CALL);
   const tailAnchor = toEol(BISHOP_TAIL_ANCHOR);
   const newMethods = toEol(NEW_METHODS);
+  const slopeSig = toEol(ANALYSE_SLOPE_SIGNATURE);
+  const slopeSigPatched = toEol(ANALYSE_SLOPE_SIGNATURE_PATCHED);
+  const slopeLoop = toEol(ANALYSE_SLOPE_LOOP);
+  const slopeLoopPatched = toEol(ANALYSE_SLOPE_LOOP_PATCHED);
 
   if (!src.includes(inlineGeom)) {
     throw new Error(
@@ -506,8 +559,20 @@ function patchPyslopeSource(src) {
       "patch pyslope.py: no se encontró el ancla de fin de Bishop / analyse_dynamic (¿cambió el wheel?)",
     );
   }
+  if (!src.includes(slopeSig)) {
+    throw new Error(
+      "patch pyslope.py: no se encontró la firma de analyse_slope (¿cambió el wheel?)",
+    );
+  }
+  if (!src.includes(slopeLoop)) {
+    throw new Error(
+      "patch pyslope.py: no se encontró el bucle de cálculo de FoS en analyse_slope (¿cambió el wheel?)",
+    );
+  }
   let out = src.replace(inlineGeom, helperCall);
   out = out.replace(tailAnchor, newMethods);
+  out = out.replace(slopeSig, slopeSigPatched);
+  out = out.replace(slopeLoop, slopeLoopPatched);
   return out;
 }
 
@@ -582,7 +647,7 @@ async function main() {
       copyright: "Copyright (c) 2022, Jesse Bonanno",
       source: url,
       kept: [...KEEP, "__init__.py"],
-      patch: "(1) Replaced __init__.py to drop the versioneer `_version` import (git/subprocess unavailable in Pyodide); version hardcoded. (2) pyslope.py: extracted the per-slice geometry/forces block from `_analyse_circular_failure_bishop` into a private `_compute_slice_arrays` helper (FoS maths unchanged) and added a public `get_critical_slice_data()` that re-derives per-slice physics (x, width, alpha, W, U, cohesion, tan_phi) for the critical circle reusing the exact same maths. Exposure-only, no FoS change, no seismic.",
+      patch: "(1) Replaced __init__.py to drop the versioneer `_version` import (git/subprocess unavailable in Pyodide); version hardcoded. (2) pyslope.py: extracted the per-slice geometry/forces block from `_analyse_circular_failure_bishop` into a private `_compute_slice_arrays` helper (FoS maths unchanged) and added a public `get_critical_slice_data(method)` that re-derives per-slice physics (x, width, alpha, W, U, cohesion, tan_phi) for the critical circle reusing the exact same maths; `method` selects the uplift convention (Bishop: horizontal slice_width; ordinary/Fellenius: inclined base length = slice_width/cos_alpha) so the reported per-slice U matches the FoS that produced it. Exposure-only, no FoS change, no seismic. (3) pyslope.py: added a `method` parameter to `analyse_slope` (\"bishop\" default | \"ordinary\") dispatching the search to `_analyse_circular_failure_ordinary` (Fellenius) or `_analyse_circular_failure_bishop`. Bishop's path is unchanged (default) so the golden FoS is identical; selection-only, no seismic.",
       runtime: "numpy-only via sys.modules stubs for tqdm/colour/plotly (see stubs.py). pyslope.py carries the exposure-only per-slice patch (see `patch`); the FoS maths is unchanged. data_validation.py/utilities.py are unmodified.",
       patchHash,
       generatedBy: "scripts/vendor-pyslope.mjs",
@@ -602,8 +667,9 @@ stability library, executed in-browser via Pyodide.
   ${manifest.copyright}
 
 Vendored files (src/lib/calculations/geotech/vendor/pyslope/):
-  pyslope.py, data_validation.py, utilities.py  — unmodified
-  __init__.py                                   — patched (see pyslope.manifest.json)
+  data_validation.py, utilities.py  — unmodified
+  pyslope.py                        — patched (see pyslope.manifest.json)
+  __init__.py                       — patched (see pyslope.manifest.json)
 
 Vendor tree SHA-256: ${patchHash}
 

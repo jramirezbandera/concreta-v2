@@ -11,10 +11,11 @@ stability library, executed in-browser via Pyodide.
   Copyright (c) 2022, Jesse Bonanno
 
 Vendored files (src/lib/calculations/geotech/vendor/pyslope/):
-  pyslope.py, data_validation.py, utilities.py  — unmodified
-  __init__.py                                   — patched (see pyslope.manifest.json)
+  data_validation.py, utilities.py  — unmodified
+  pyslope.py                        — patched (see pyslope.manifest.json)
+  __init__.py                       — patched (see pyslope.manifest.json)
 
-Vendor tree SHA-256: c24c40118950344d932d42676ae9c39afa0bb6585059b0eace09a845317472f6
+Vendor tree SHA-256: 1213ecdac7bd58276e334ceeb980bb6ea393dc9a857930e2e9028a1374dd3a2b
 
 The plotting paths (plotly/tqdm/colour) are never executed: Concreta consumes
 only the numeric results and renders its own SVG. Those imports are satisfied by
