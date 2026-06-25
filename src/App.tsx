@@ -143,20 +143,16 @@ const router = createBrowserRouter([
             path: 'analisis/fem',
             lazy: lazyComponent(() => import('./features/fem-analysis'), 'FemAnalysisModule'),
           },
-          // Geotecnia / Taludes — Phase 1 (shipped:false). La ruta SOLO se
-          // registra en dev: en producción el import() queda en código muerto
-          // (import.meta.env.DEV → false) y el worker + assets de Pyodide NO
-          // entran en el bundle/precache mientras el módulo no esté shipped
-          // (eng-review §9.4 #9). El placeholder "Próximamente" del sidebar
-          // (registro shipped:false) es la cara pública.
-          ...(import.meta.env.DEV
-            ? [
-                {
-                  path: 'geotec/taludes',
-                  lazy: lazyComponent(() => import('./features/slope-stability'), 'SlopeStabilityModule'),
-                },
-              ]
-            : []),
+          // Geotecnia / Taludes — Phase 2 (shipped:true). Ruta de producción:
+          // se registra SIEMPRE (ya no dev-gated). El chunk de slope-stability +
+          // su worker entran en el bundle, pero los assets de Pyodide (~16 MB)
+          // siguen FUERA del precache de la PWA — se sirven runtime CacheFirst
+          // (ver vite.config.ts, runtimeCaching /pyodide/) para no inflar el
+          // precache de producción (eng-review §9.4 #9).
+          {
+            path: 'geotec/taludes',
+            lazy: lazyComponent(() => import('./features/slope-stability'), 'SlopeStabilityModule'),
+          },
         ],
       },
 

@@ -1,20 +1,39 @@
 // PDF export del módulo de Estabilidad de taludes (Geotecnia).
-// jsPDF — A4 retrato, márgenes 20 mm. Figura rasterizada (embedSvgAsImage) porque
-// los estratos usan gradiente+opacidad y svg2pdf vectorial rompe Acrobat.
+// jsPDF — A4 retrato, márgenes 20 mm. Figuras rasterizadas (embedSvgAsImage)
+// porque los estratos y el mapa de FoS usan gradiente+opacidad y svg2pdf vectorial
+// rompe Acrobat.
 //
 // Trazabilidad legal (eng-review §9.2 #3): versión del motor (PySlope+Pyodide) +
 // hash del parche del vendor + hash de los inputs van en cabecera y en TODOS los
 // footers (drawFootersAllPages). El botón PDF nunca se deshabilita → el llamador
 // hace `await ensureResult()` antes de exportar.
+//
+// Estructura del documento (orden):
+//   1. Cabecera (título + fecha + motor v + inputs hash) + línea de trazabilidad
+//      (normativa + contexto + situación + motor/parche/malla).
+//   2. Figura 1 — sección (clon #slope-stability-svg-pdf) + columna de inputs
+//      (geometría, agua/situación, contexto, cargas).
+//   3. Tabla de estratos.
+//   4. Resultados clave (FoS crítico, centro O, radio R).
+//   5. Figura 2 — malla de centros / mapa de FoS (clon #slope-search-svg-pdf).
+//      Defensiva: si el clon no existe (T4.1 aún no montado o sin resultado),
+//      se omite SIN romper el resto del PDF.
+//   6. Tabla de verificaciones completa (result.checks, paginada por fila; la
+//      fila sísmica neutra se muestra "N/A" sin η% numérico).
+//   7. Tabla de física por dovela (nº · x · b · W · α · u) desde result.run.slices;
+//      campos ausentes → "—" (no se reconstruye física en JS).
+//   8. Disclaimer de alcance (incl. sísmico pendiente · Phase 3).
+//   9. Footers en todas las páginas.
 
 import jsPDF from "jspdf";
 import type { SlopeInputs } from "../../data/defaults";
-import type { SlopeResult } from "../../lib/calculations/geotech/types";
+import type { SlopeResult, SlopeSlice } from "../../lib/calculations/geotech/types";
 import type { UnitSystem } from "../units/types";
 import {
   drawHeader,
   drawFootersAllPages,
   drawTable,
+  ensureSpace,
   embedSvgAsImage,
   setGray,
   pdfStr,
@@ -33,9 +52,21 @@ const SITUATION_LABEL: Record<SlopeInputs["situation"], string> = {
   extraordinary: "Extraordinaria",
 };
 
+const CONTEXT_LABEL: Record<SlopeInputs["context"], string> = {
+  excavation: "Talud de excavacion",
+  "global-foundation": "Estabilidad global de cimentacion",
+};
+
 const DISCLAIMER =
   "Predimensionamiento — método Bishop simplificado (superficie circular). " +
-  "Sin métodos no-circulares ni Spencer/Janbu. No sustituye un estudio geotécnico.";
+  "Sin métodos no-circulares ni Spencer/Janbu. El análisis sísmico pseudo-estático " +
+  "queda pendiente (Phase 3) y figura como verificación informativa. " +
+  "No sustituye un estudio geotécnico.";
+
+/** Físca por dovela: campo numérico → texto, ausente → "—" (no se reconstruye en JS). */
+function num(v: number | undefined, digits: number): string {
+  return v === undefined || !isFinite(v) ? "—" : v.toFixed(digits);
+}
 
 export async function exportSlopeStabilityPDF(
   inp: SlopeInputs,
@@ -57,13 +88,14 @@ export async function exportSlopeStabilityPDF(
     M,
   );
 
-  // Línea de trazabilidad: normativa + motor + parche + malla.
+  // Línea de trazabilidad: normativa + contexto/situación + motor + parche + malla.
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   setGray(doc, 110);
   doc.text(
     pdfStr(
       `CTE DB-SE-C art. 7.2.2.1 · UNE-EN 1997-1 (EC7 DA3)  ·  ` +
+        `${CONTEXT_LABEL[inp.context]} · ${SITUATION_LABEL[inp.situation]}  ·  ` +
         `Motor: PySlope ${result.engine.pyslopeVersion} · Pyodide ${result.engine.pyodideVersion} · ` +
         `parche ${result.engine.patchHash.slice(0, 8)} · malla ${result.engine.mesh.iterations}/${result.engine.mesh.slices} (Bishop)`,
     ),
@@ -71,15 +103,17 @@ export async function exportSlopeStabilityPDF(
     contentY,
   );
 
-  // ── Figura: SVG sección rasterizado (clon oculto del shell) ──────────────────
-  const svgContainer = document.getElementById("slope-stability-svg-pdf");
-  const svgEl = svgContainer ? (svgContainer.querySelector("svg") as SVGSVGElement | null) : null;
+  // ── Figura 1: SVG sección rasterizado (clon oculto del shell) ────────────────
+  const sectionContainer = document.getElementById("slope-stability-svg-pdf");
+  const sectionSvg = sectionContainer
+    ? (sectionContainer.querySelector("svg") as SVGSVGElement | null)
+    : null;
   const SVG_X = M;
   const SVG_Y = contentY + 4;
   const SVG_W = 120;
   const SVG_H = 72;
-  if (svgEl) {
-    await embedSvgAsImage(doc, svgEl, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
+  if (sectionSvg) {
+    await embedSvgAsImage(doc, sectionSvg, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
   // ── Columna derecha: datos de entrada ────────────────────────────────────────
@@ -114,6 +148,10 @@ export async function exportSlopeStabilityPDF(
   line(SITUATION_LABEL[inp.situation]);
   gap();
 
+  secHeader("CONTEXTO");
+  line(CONTEXT_LABEL[inp.context]);
+  gap();
+
   secHeader("CARGAS");
   if (inp.loads.length === 0) {
     line("Sin sobrecargas");
@@ -121,7 +159,7 @@ export async function exportSlopeStabilityPDF(
     for (const ld of inp.loads) {
       line(
         ld.kind === "udl"
-          ? `UDL ${ld.magnitude} kPa @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
+          ? `UDL ${ld.magnitude} kN/m2 @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
           : `Lineal ${ld.magnitude} kN/m @ ${ld.offset} m`,
       );
     }
@@ -176,7 +214,33 @@ export async function exportSlopeStabilityPDF(
   doc.text(pdfStr(`Radio R = ${r.toFixed(2)} m`), M + 140, by);
   by += LH + 2;
 
+  // ── Figura 2: malla de centros / mapa de FoS (clon #slope-search-svg-pdf) ─────
+  // El clon lo monta T4.1; si no existe (todavía no montado, sin resultado, o
+  // jsdom de test), se omite la subsección entera sin romper el resto del PDF.
+  const searchContainer = document.getElementById("slope-search-svg-pdf");
+  const searchSvg = searchContainer
+    ? (searchContainer.querySelector("svg") as SVGSVGElement | null)
+    : null;
+  if (searchSvg) {
+    const MAP_W = 120;
+    const MAP_H = 72;
+    // El bloque (cabecera + figura) es atómico: si no cabe, salta de página.
+    by = ensureSpace(doc, by, MAP_H + 12, M);
+    doc.setLineWidth(0.3);
+    setGray(doc, 180);
+    doc.line(M, by - 2, PAGE_W - M, by - 2);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    setGray(doc, 60);
+    doc.text(pdfStr("MALLA DE CENTROS / MAPA DE FoS"), M, by + 3);
+    by += 6;
+    await embedSvgAsImage(doc, searchSvg, { x: M, y: by, width: MAP_W, height: MAP_H });
+    by += MAP_H + 4;
+  }
+
   // ── Tabla de verificaciones ──────────────────────────────────────────────────
+  by += 4;
+  by = ensureSpace(doc, by, 14, M);
   doc.setLineWidth(0.3);
   setGray(doc, 180);
   doc.line(M, by - 2, PAGE_W - M, by - 2);
@@ -184,6 +248,7 @@ export async function exportSlopeStabilityPDF(
   doc.setFontSize(8);
   setGray(doc, 60);
   doc.text("VERIFICACIONES", M, by + 3);
+  // Estado global: las filas neutras (sísmico diferido) no degradan el veredicto.
   const overall = result.checks.some((c) => c.status === "fail")
     ? "fail"
     : result.checks.some((c) => c.status === "warn")
@@ -195,23 +260,92 @@ export async function exportSlopeStabilityPDF(
   by += 8;
 
   const checkCols: TableCol<CheckRow>[] = [
-    { key: "description", label: "Verificacion", w: 62, render: (c) => c.description },
+    {
+      key: "description",
+      label: "Verificacion",
+      w: 62,
+      render: (c) => (c.tag ? `${c.description} [${c.tag}]` : c.description),
+    },
     { key: "article", label: "Articulo", w: 40, render: (c) => c.article },
-    { key: "value", label: "FoS", w: 16, align: "right", render: (c) => c.valueStr ?? c.value ?? "" },
-    { key: "limit", label: "Limite", w: 18, align: "right", render: (c) => c.limitStr ?? c.limit ?? "" },
+    {
+      key: "value",
+      label: "FoS",
+      w: 16,
+      align: "right",
+      // La fila neutra (sísmico) no trae FoS numérico → en blanco.
+      render: (c) => (c.neutral ? "" : c.valueStr ?? c.value ?? ""),
+    },
+    {
+      key: "limit",
+      label: "Limite",
+      w: 18,
+      align: "right",
+      render: (c) => (c.neutral ? "" : c.limitStr ?? c.limit ?? ""),
+    },
     {
       key: "util",
       label: "Ut%",
       w: 14,
       align: "right",
-      render: (c) => (!isFinite(c.utilization) ? "inf" : `${(c.utilization * 100).toFixed(0)}%`),
+      // Neutra → "—" (sin η% numérico, plan T4.2 #2); resto → % de utilización.
+      render: (c) =>
+        c.neutral ? "—" : !isFinite(c.utilization) ? "inf" : `${(c.utilization * 100).toFixed(0)}%`,
     },
     { key: "status", label: "Estado", w: 20, align: "right", render: (c) => STATUS_LABEL[c.status] },
   ];
   by = drawTable(doc, { x: M, y: by, M, cols: checkCols, rows: result.checks });
 
+  // ── Tabla de física por dovela ───────────────────────────────────────────────
+  // Geometría/física EXACTA emitida por el worker (result.run.slices); nunca se
+  // reconstruye en JS. b = xR − xL; α de rad a grados. Campos ausentes → "—".
+  const slices = result.run.slices ?? [];
+  if (slices.length > 0) {
+    by += 4;
+    by = ensureSpace(doc, by, 14, M);
+    doc.setLineWidth(0.3);
+    setGray(doc, 180);
+    doc.line(M, by - 2, PAGE_W - M, by - 2);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    setGray(doc, 60);
+    doc.text(pdfStr("DOVELAS (circulo critico)"), M, by + 3);
+    by += 8;
+
+    const sliceCols: TableCol<{ s: SlopeSlice; n: number }>[] = [
+      { key: "n", label: "n", w: 14, align: "right", render: (r) => String(r.n) },
+      { key: "x", label: "x (m)", w: 30, align: "right", render: (r) => r.s.x.toFixed(2) },
+      {
+        key: "b",
+        label: "b (m)",
+        w: 30,
+        align: "right",
+        render: (r) => (r.s.xR - r.s.xL).toFixed(2),
+      },
+      { key: "W", label: "W (kN)", w: 32, align: "right", render: (r) => num(r.s.weight, 1) },
+      {
+        key: "alpha",
+        label: "alpha (deg)",
+        w: 32,
+        align: "right",
+        render: (r) =>
+          r.s.alpha === undefined || !isFinite(r.s.alpha)
+            ? "—"
+            : ((r.s.alpha * 180) / Math.PI).toFixed(1),
+      },
+      { key: "u", label: "u (kPa)", w: 32, align: "right", render: (r) => num(r.s.u, 1) },
+    ];
+    by = drawTable(doc, {
+      x: M,
+      y: by,
+      M,
+      cols: sliceCols,
+      rows: slices.map((s, i) => ({ s, n: i + 1 })),
+    });
+  }
+
   // ── Disclaimer de alcance ────────────────────────────────────────────────────
   by += 4;
+  by = ensureSpace(doc, by, 14, M);
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7);
   setGray(doc, 120);

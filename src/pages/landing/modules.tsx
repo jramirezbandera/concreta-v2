@@ -182,4 +182,15 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/analisis/fem',
     icon: <ModuleIcon moduleKey="concreta-fem-2d" size={ICON_SIZE} />,
   },
+
+  // ── GEOTECNIA
+  {
+    id: 'slope-stability',
+    group: 'GEOTECNIA',
+    name: 'Taludes',
+    ref: 'CTE DB-SE-C art. 7.2.2.1',
+    short: 'Estabilidad de taludes por Bishop simplificado · factor de seguridad.',
+    route: '/geotec/taludes',
+    icon: <ModuleIcon moduleKey="concreta-slope-stability" size={ICON_SIZE} />,
+  },
 ];

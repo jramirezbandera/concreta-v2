@@ -37,6 +37,18 @@ s.analyse_slope()
 /** FoS de referencia (Node == navegador == micropip). NO tocar sin bumpear vendor. */
 const GOLDEN_FOS = 1.5437888294282975;
 
+/** Nº de dovelas fijado en el caso (s.update_analysis_options(slices=25,...)). */
+const SLICES = 25;
+
+/**
+ * Hash del árbol vendorizado tras el fork de exposición por dovela (T1.1, Phase 2).
+ * Se regenera con `node scripts/vendor-pyslope.mjs`. Si el vendor deriva, este
+ * valor cambia y el golden falla (puerta de trazabilidad del PDF). El parche es
+ * SOLO-exposición: el FoS sigue siendo GOLDEN_FOS exacto.
+ */
+const GOLDEN_PATCH_HASH =
+  "c24c40118950344d932d42676ae9c39afa0bb6585059b0eace09a845317472f6";
+
 describe("PySlope golden — runtime numpy-only", () => {
   let py: PyodideInterface;
 
@@ -83,11 +95,34 @@ describe("PySlope golden — runtime numpy-only", () => {
     expect(n).toBe(2);
   });
 
-  it("el manifest del vendor declara la versión y el hash fijados", () => {
+  it("expone la física por dovela del círculo crítico (fork T1.1, sin sísmico)", () => {
+    const data = py.runPython(
+      "import json; json.dumps(s.get_critical_slice_data())",
+    ) as string;
+    const slices = JSON.parse(data) as Record<string, number[]>;
+    const keys = ["x", "width", "alpha", "weight", "u", "cohesion", "tan_phi"];
+    for (const k of keys) {
+      expect(Array.isArray(slices[k]), `${k} es array`).toBe(true);
+      expect(slices[k].length, `${k}.length == nº dovelas`).toBe(SLICES);
+      expect(
+        slices[k].every((v) => Number.isFinite(v)),
+        `${k} solo números finitos`,
+      ).toBe(true);
+    }
+    // sanity física básica: anchos positivos iguales, pesos positivos,
+    // u >= 0, tan_phi > 0 (el caso del README tiene φ' > 0 en ambos estratos).
+    expect(slices.width.every((b) => b > 0)).toBe(true);
+    expect(slices.weight.every((w) => w > 0)).toBe(true);
+    expect(slices.u.every((u) => u >= 0)).toBe(true);
+    expect(slices.tan_phi.every((t) => t > 0)).toBe(true);
+  });
+
+  it("el manifest del vendor declara la versión y el hash del fork", () => {
     const manifest = JSON.parse(
       readFileSync(join(process.cwd(), "src/lib/calculations/geotech/vendor/pyslope.manifest.json"), "utf8"),
     );
     expect(manifest.version).toBe("1.4.0");
     expect(manifest.patchHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.patchHash).toBe(GOLDEN_PATCH_HASH);
   });
 });

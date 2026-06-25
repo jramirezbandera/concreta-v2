@@ -1573,17 +1573,95 @@ class Slope:
             return None
         prev_FS = FS
 
+        # --- Per-slice geometry, forces and material properties ---
+        # PATCH (Concreta): extracted to a private helper so the per-slice
+        # physics can be re-derived for the critical circle (see
+        # get_critical_slice_data) reusing the EXACT same maths. Bishop's
+        # force balance below is unchanged → the FoS is identical.
+        slices = self._compute_slice_arrays(
+            c_x,
+            c_y,
+            radius,
+            intersections[0][0],
+            intersections[1][0],
+        )
+        if slices is None:
+            return None
+
+        slice_width = slices["slice_width"]
+        cos_alpha = slices["cos_alpha"]
+        sin_alpha = slices["sin_alpha"]
+        W = slices["W"]
+        U = slices["U"]
+        cohesion = slices["cohesion"]
+        tan_phi = slices["tan_phi"]
+
+        # --- Iterative Bishop solution ---
+        for _ in range(self._max_iterations):
+            if prev_FS is None:
+                return None
+
+            denom = cos_alpha + (sin_alpha * tan_phi / prev_FS)
+            if np.any(denom == 0):
+                return None
+
+            resisting = np.sum(
+                (cohesion * slice_width + (W - U) * tan_phi) / denom
+            )
+            driving = np.sum(W * sin_alpha)
+
+            if driving <= 0 or resisting < 0:
+                return None
+
+            FS = resisting / driving
+            if abs(FS - prev_FS) < self._tolerance:
+                return float(FS)
+            prev_FS = FS
+
+        return float(prev_FS)
+
+    def _compute_slice_arrays(
+        self,
+        c_x: float,
+        c_y: float,
+        radius: float,
+        left_x: float,
+        right_x: float,
+    ):
+        """PATCH (Concreta): per-slice geometry/forces for a circular slip plane.
+
+        Extracted verbatim from ``_analyse_circular_failure_bishop`` so the same
+        maths can be reused both by Bishop's force balance and by
+        ``get_critical_slice_data``. NOT seismic. Returns ``None`` for the same
+        degenerate cases Bishop rejected (slice outside the arc, vertical base,
+        no materials) so the FoS search behaves identically.
+
+        Parameters
+        ----------
+        c_x, c_y, radius : float
+            circle centre and radius
+        left_x, right_x : float
+            x of the left/right intersection of the arc with the ground
+
+        Returns
+        -------
+        dict or None
+            dict with parallel per-slice arrays (length = number of slices):
+            ``slice_x``, ``slice_width``, ``alpha``, ``cos_alpha``,
+            ``sin_alpha``, ``W``, ``U``, ``cohesion``, ``tan_phi``.
+        """
+
         # --- Slice geometry setup ---
         num_slices = self._slices
-        total_width = intersections[1][0] - intersections[0][0]
+        total_width = right_x - left_x
         slice_width = total_width / num_slices
         half_slice = slice_width / 2
         radius_sq = radius**2
 
         # Slice centre x-coordinates
         slice_x = np.linspace(
-            intersections[0][0] + half_slice,
-            intersections[1][0] - half_slice,
+            left_x + half_slice,
+            right_x - half_slice,
             num_slices,
         )
 
@@ -1706,29 +1784,98 @@ class Slope:
                 tan_phi[mask] = mat.tan_friction_angle
                 assigned[mask] = True
 
-        # --- Iterative Bishop solution ---
-        for _ in range(self._max_iterations):
-            if prev_FS is None:
-                return None
+        return {
+            "slice_x": slice_x,
+            "slice_width": slice_width,
+            "alpha": alpha,
+            "cos_alpha": cos_alpha,
+            "sin_alpha": sin_alpha,
+            "W": W,
+            "U": U,
+            "cohesion": cohesion,
+            "tan_phi": tan_phi,
+        }
 
-            denom = cos_alpha + (sin_alpha * tan_phi / prev_FS)
-            if np.any(denom == 0):
-                return None
+    def get_critical_slice_data(self):
+        """PATCH (Concreta): per-slice physics for the critical circle.
 
-            resisting = np.sum(
-                (cohesion * slice_width + (W - U) * tan_phi) / denom
-            )
-            driving = np.sum(W * sin_alpha)
+        Returns the parallel per-slice arrays (geometry, weight, pore pressure
+        and material properties) of the circular slip plane with the minimum
+        factor of safety. These are the values Bishop already computes
+        internally and discards; here they are re-derived ONCE for the critical
+        circle reusing the exact same maths (``_compute_slice_arrays``), so the
+        FoS is unaffected. NOT seismic.
 
-            if driving <= 0 or resisting < 0:
-                return None
+        Must be called after ``analyse_slope()``.
 
-            FS = resisting / driving
-            if abs(FS - prev_FS) < self._tolerance:
-                return float(FS)
-            prev_FS = FS
+        Returns
+        -------
+        dict
+            dict of parallel lists, each of length = number of slices::
 
-        return float(prev_FS)
+                {
+                    "x":        [...],  # slice centre x (m)
+                    "width":    [...],  # slice width b (m)
+                    "alpha":    [...],  # base inclination (rad)
+                    "weight":   [...],  # slice weight W (kN)
+                    "u":        [...],  # pore pressure resultant U on base (kN)
+                    "cohesion": [...],  # base material cohesion c (kPa)
+                    "tan_phi":  [...],  # base material tan(phi)
+                }
+
+            Returns lists of empty arrays if the slope has not been analysed
+            (no critical circle available).
+        """
+        empty = {
+            "x": [],
+            "width": [],
+            "alpha": [],
+            "weight": [],
+            "u": [],
+            "cohesion": [],
+            "tan_phi": [],
+        }
+
+        # analyse_slope() not run (or no valid circle found)
+        if not self._search:
+            return empty
+
+        c_x = self._search[0]["c_x"]
+        c_y = self._search[0]["c_y"]
+        radius = self._search[0]["radius"]
+
+        # Recompute the arc/ground intersections EXACTLY as Bishop did during
+        # analyse_slope (which was called without explicit left/right), so the
+        # per-slice grid here is bit-identical to the one used for the FoS.
+        intersections = self._get_circle_external_intersection(
+            c_x,
+            c_y,
+            radius,
+        )
+        if len(set(intersections)) < 2:
+            return empty
+
+        slices = self._compute_slice_arrays(
+            c_x,
+            c_y,
+            radius,
+            intersections[0][0],
+            intersections[1][0],
+        )
+        if slices is None:
+            return empty
+
+        n = self._slices
+        width = slices["slice_width"]
+        return {
+            "x": slices["slice_x"].tolist(),
+            "width": [float(width)] * n,
+            "alpha": slices["alpha"].tolist(),
+            "weight": slices["W"].tolist(),
+            "u": slices["U"].tolist(),
+            "cohesion": slices["cohesion"].tolist(),
+            "tan_phi": slices["tan_phi"].tolist(),
+        }
 
     def analyse_dynamic(self, critical_fos=1.3):
         """Analyse slope and offset dynamic loads until critical FOS is achieved

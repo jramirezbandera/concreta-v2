@@ -197,7 +197,7 @@ export const moduleRegistry: ModuleEntry[] = [
     // compositeSection, el `as const` del array no infiere bien la unión, así
     // que se castea igual que en la entrada de sección compuesta (~línea 119).
     defaults: slopeDefaults as unknown as ModuleInputs,
-    shipped: false,
+    shipped: true,
   },
 ] as const;
 
@@ -223,7 +223,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'timber-columns': '1',
   'anchor-plate': '1',
   'fem-2d': '1',
-  'slope-stability': '1',
+  'slope-stability': '2', // bumped Phase 2 (2026-06-24): SlopeInputs ganó `context` (excavation|global-foundation); el bump descarta el localStorage de Phase 1 en la próxima carga.
 };
 
 export function getModuleSchemaVersion(moduleKey: string): string {

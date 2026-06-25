@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { getModuleByRoute, MODULE_SCHEMA_VERSIONS } from "../../data/moduleRegistry";
 
 describe("slope-stability — registro del módulo", () => {
-  it("registra Taludes en la categoría Geotecnia, no shipped (Phase 1)", () => {
+  it("registra Taludes en la categoría Geotecnia, shipped (Phase 2)", () => {
     const entry = getModuleByRoute("/geotec/taludes");
     expect(entry).toBeDefined();
     expect(entry?.key).toBe("concreta-slope-stability");
     expect(entry?.label).toBe("Taludes");
     expect(entry?.group).toBe("Geotecnia");
-    expect(entry?.shipped).toBe(false);
+    expect(entry?.shipped).toBe(true);
   });
 
   it("declara una versión de esquema para la persistencia", () => {

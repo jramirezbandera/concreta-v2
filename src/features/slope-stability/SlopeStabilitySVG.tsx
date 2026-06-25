@@ -247,11 +247,16 @@ export function SlopeStabilitySVG({
   let xMin = Math.min(...gxs);
   let xMax = Math.max(...gxs);
   const yTopPhys = Math.max(...gys, H);
-  // Si hay círculo, asegurar que su parte baja entra en el encuadre.
+  // Borde inferior = apex REAL del arco de rotura dibujado (failureProfile), no el
+  // fondo del círculo completo c.cy - c.r: ese reservaba una franja de terreno bajo
+  // el talud que nunca se dibuja (la mayoría de la circunferencia) y aplastaba la
+  // sección. El centro O y los radios se pintan encima; si caen fuera, se recortan.
   let yBotPhys = Math.min(...gys, 0);
   if (result) {
     const c = result.run.circle;
-    yBotPhys = Math.min(yBotPhys, c.cy - c.r);
+    const fp = result.run.failureProfile;
+    const arcMinY = fp.length ? Math.min(...fp.map((p) => p.y)) : c.cy - c.r;
+    yBotPhys = Math.min(yBotPhys, arcMinY);
     xMin = Math.min(xMin, result.run.limits.left);
     xMax = Math.max(xMax, result.run.limits.right);
   }
@@ -473,17 +478,22 @@ export function SlopeStabilitySVG({
         );
       })()}
 
-      {/* Sobrecargas en coronación (UDL = banda con flechas + chip kPa; line = flecha gruesa + chip kN/m) */}
+      {/* Sobrecargas en coronación (UDL = banda con flechas + chip kN/m²; line = flecha gruesa + chip kN/m) */}
       {inputs.loads.map((load: SlopeLoad) => {
         // offset se mide desde la coronación (x del arranque de la cara) hacia el trasdós
         // (sentido del límite izquierdo de análisis), es decir x decreciente.
         const xCrestTop = ground.length >= 2 ? ground[1].x : margin;
+        // Borde IZQUIERDO del terreno dibujado: la sobrecarga vive sobre la coronación,
+        // no sobre el padding del encuadre. Clampar aquí evita que la banda/flechas se
+        // pinten fuera de la silueta del terreno (a la izquierda del talud).
+        const xTerrainLeft = ground.length ? ground[0].x : xMin;
         const x0 = xCrestTop - load.offset;
         const yTopLoad = sy(crestY);
         if (load.kind === 'udl') {
-          // Banda: de x0 hacia la izquierda `length` (0/ausente → hasta el límite izq).
-          const len = load.length && load.length > 0 ? load.length : x0 - xMin;
-          const xa = sx(Math.max(xMin, x0 - len));
+          // Banda: de x0 hacia la izquierda `length` (0/ausente → toda la coronación
+          // hasta el borde izquierdo del terreno, no el límite con padding del encuadre).
+          const len = load.length && load.length > 0 ? load.length : x0 - xTerrainLeft;
+          const xa = sx(Math.max(xTerrainLeft, x0 - len));
           const xb = sx(x0);
           const yBand = yTopLoad - 30;
           const n = Math.max(2, Math.min(7, Math.round(Math.abs(xb - xa) / 22)));
@@ -499,7 +509,7 @@ export function SlopeStabilitySVG({
               })}
               <text x={(xa + xb) / 2} y={yBand - 4} fontSize={9.5} fill={P.load}
                 textAnchor="middle" fontFamily={FONT_MONO}>
-                {svgText(`q = ${fmt1(load.magnitude)} kPa`, isPdf)}
+                {svgText(`q = ${fmt1(load.magnitude)} kN/m²`, isPdf)}
               </text>
             </g>
           );

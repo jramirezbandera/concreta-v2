@@ -9,6 +9,10 @@ interface SoilStrataEditorProps {
   onAdd: () => void;
   onRemove: (id: number) => void;
   onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+  /** Campos de estrato a OCULTAR en este contexto (default: ninguno). Taludes
+   *  pasa ['Nspt','rflim','Cu'] — su motor solo usa γ/c'/φ y su; los demás son
+   *  específicos de micropilotes y mostrarlos siempre a 0 confunde. */
+  hiddenFields?: ReadonlyArray<keyof SoilLayer>;
 }
 
 /**
@@ -111,7 +115,7 @@ function MiniNumField({ label, value, unit, min, max, hint, onChange }: FieldPro
 }
 
 function StrataCard({
-  layer, index, total, depthTop, onRemove, onUpdate,
+  layer, index, total, depthTop, onRemove, onUpdate, hiddenFields,
 }: {
   layer: SoilLayer;
   index: number;
@@ -120,8 +124,10 @@ function StrataCard({
   depthTop: number;
   onRemove: (id: number) => void;
   onUpdate: (id: number, field: keyof SoilLayer, value: number | SoilType) => void;
+  hiddenFields?: ReadonlyArray<keyof SoilLayer>;
 }) {
   const [open, setOpen] = useState(true);
+  const hide = (f: keyof SoilLayer) => hiddenFields?.includes(f) ?? false;
   const palette =
     layer.type === 'granular' ? { dot: 'var(--color-geo-soil-line)', label: 'Granular' }
                               : { dot: 'var(--color-geo-ground)', label: 'Cohesivo' };
@@ -199,7 +205,9 @@ function StrataCard({
             <MiniNumField label="c′"   unit="kPa"   value={layer.c}         {...SOIL_LIMITS.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
           )}
           <MiniNumField label="φ"      unit="°"     value={layer.phi}       {...SOIL_LIMITS.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
-          <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
+          {!hide('Nspt') && (
+            <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
+          )}
           {layer.type === 'cohesive' && (
             <MiniNumField label="su" unit="kN/m²" hint="Resistencia al corte sin drenaje del terreno cohesivo." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
@@ -207,7 +215,7 @@ function StrataCard({
               en arena de compacidad media activa la comprobación si Cu≥2, y en
               arena floja saturada Cu<2 la clasifica como terreno inestable.
               Vacío (0) ⇒ se trata como Cu<2 (sin dato granulométrico). */}
-          {layer.type === 'granular' && (
+          {layer.type === 'granular' && !hide('Cu') && (
             <MiniNumField
               label="Cu (opc.)"
               value={layer.Cu ?? 0}
@@ -216,14 +224,16 @@ function StrataCard({
               onChange={(n) => onUpdate(layer.id, 'Cu', n)}
             />
           )}
-          <MiniNumField label="rfℓim" unit="MPa"   hint="Rozamiento límite por fuste (resistencia unitaria del terreno en el contacto con el micropilote)." value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+          {!hide('rflim') && (
+            <MiniNumField label="rfℓim" unit="MPa"   hint="Rozamiento límite por fuste (resistencia unitaria del terreno en el contacto con el micropilote)." value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate }: SoilStrataEditorProps) {
+export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate, hiddenFields }: SoilStrataEditorProps) {
   // Profundidad del techo de cada estrato (acumulada DESDE LA RASANTE).
   // Se pasa a cada card para que el header muestre el rango absoluto
   // [techo–base] del estrato, no solo su espesor.
@@ -247,6 +257,7 @@ export function SoilStrataEditor({ soil, onAdd, onRemove, onUpdate }: SoilStrata
           depthTop={depthTops[i]}
           onRemove={onRemove}
           onUpdate={onUpdate}
+          hiddenFields={hiddenFields}
         />
       ))}
       <button

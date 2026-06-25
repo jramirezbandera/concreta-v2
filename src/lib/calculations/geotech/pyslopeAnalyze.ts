@@ -84,8 +84,65 @@ def _analyze(inputs_json, opts_json):
                    'yTop': float(yt) if yt is not None else float(cy),
                    'yBase': arc_y(xc)})
 
+    # Física por dovela del círculo crítico (fork T1.1): arrays paralelos
+    # {x, width, alpha(rad), weight(kN), u(kPa), cohesion(kPa), tan_phi}. Se
+    # mapean sobre las dovelas geométricas ya emitidas SIN tocar su geometría.
+    # Defensivo: si el fork aún no expone get_critical_slice_data, se omite la
+    # física (las dovelas quedan solo-geometría) y la corrida sigue válida.
+    def _flist(d, key):
+        v = d.get(key)
+        if v is None:
+            return None
+        try:
+            return [float(x) for x in v]
+        except (TypeError, ValueError):
+            return None
+
+    if hasattr(s, 'get_critical_slice_data'):
+        try:
+            phys = s.get_critical_slice_data()
+            if hasattr(phys, 'to_py'):
+                phys = phys.to_py()
+            alpha = _flist(phys, 'alpha')
+            weight = _flist(phys, 'weight')
+            u = _flist(phys, 'u')
+            # Mapeo posicional: el array i-ésimo del círculo crítico corresponde
+            # a la dovela i-ésima. Solo se rellena lo que exista y cuadre en nº.
+            for i, sd in enumerate(sl):
+                if alpha is not None and i < len(alpha):
+                    sd['alpha'] = alpha[i]
+                if weight is not None and i < len(weight):
+                    sd['weight'] = weight[i]
+                if u is not None and i < len(u):
+                    sd['u'] = u[i]
+        except Exception:
+            # Cualquier fallo del fork no debe tumbar la geometría/contrato base.
+            pass
+
     M = 48
     arc = [{'x': lx + (rx - lx) * i / M, 'y': arc_y(lx + (rx - lx) * i / M)} for i in range(M + 1)]
+
+    # searchCircles (sin fork): todos los círculos de prueba con su FoS, para la
+    # vista 2 (malla de centros / mapa de FoS, §10.8). s._search es una lista de
+    # dicts {l_c,r_c,c_x,c_y,radius,FOS} (ya ordenada por FoS ascendente). Se
+    # descartan los FoS no finitos (None/inf/NaN) que no quedaron filtrados.
+    search_circles = []
+    for sc in getattr(s, '_search', []) or []:
+        try:
+            f = sc.get('FOS')
+            if f is None:
+                continue
+            f = float(f)
+            if not math.isfinite(f):
+                continue
+            search_circles.append({
+                'cx': float(sc['c_x']),
+                'cy': float(sc['c_y']),
+                'r': float(sc['radius']),
+                'fos': f,
+            })
+        except (TypeError, ValueError, KeyError):
+            continue
 
     return json.dumps({
         'fos': fos,
@@ -98,5 +155,6 @@ def _analyze(inputs_json, opts_json):
         'limits': {'left': float(left), 'right': float(right)},
         'slicesN': slices,
         'method': inp.get('method', 'bishop'),
+        'searchCircles': search_circles,
     })
 `;

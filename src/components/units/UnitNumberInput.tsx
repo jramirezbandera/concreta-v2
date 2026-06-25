@@ -54,10 +54,19 @@ type UnitNumberInputProps = {
 
   /** Restrict to integers (parseInt / numeric inputMode). */
   integer?: boolean;
-  /** Min value (DOM hint only — no enforcement on blur). */
+  /** Min value. DOM hint always; enforced on blur only when `clamp` is set. */
   min?: number;
+  /** Max value. DOM hint always; enforced on blur only when `clamp` is set. */
+  max?: number;
   /** Step value (DOM hint only). */
   step?: number;
+  /**
+   * Coerce the value into [min, max] on blur — emits the corrected value via
+   * onChange and reformats the field so what's shown is what's used. Opt-in:
+   * without it, min/max stay decorative DOM hints (the historical behavior).
+   * Use for bounded knobs like the search-mesh fields (dovelas / círculos).
+   */
+  clamp?: boolean;
 };
 
 export function UnitNumberInput({
@@ -74,9 +83,20 @@ export function UnitNumberInput({
   precision,
   integer = false,
   min,
+  max,
   step,
+  clamp = false,
 }: UnitNumberInputProps) {
   const { system } = useUnitSystem();
+
+  // Coerce into [min, max]. Only invoked from blur when `clamp` is set, so the
+  // value never gets snapped mid-typing (which would fight the user).
+  const clampToRange = (n: number): number => {
+    let c = n;
+    if (min !== undefined) c = Math.max(min, c);
+    if (max !== undefined) c = Math.min(max, c);
+    return c;
+  };
 
   const resolvedLabel = labelKey ? LABELS[labelKey].sym : (label ?? "");
   const resolvedUnit = quantity
@@ -137,6 +157,7 @@ export function UnitNumberInput({
           inputMode={integer ? "numeric" : "decimal"}
           value={localStr}
           min={min}
+          max={max}
           step={step}
           onChange={(e) => {
             const raw = integer
@@ -160,19 +181,28 @@ export function UnitNumberInput({
           onBlur={() => {
             if (integer) {
               const n = parseInt(localStr, 10);
-              if (isNaN(n)) setLocalStr(formatForInput(value));
-              else setLocalStr(String(Math.round(n)));
+              if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }
+              const next = clamp ? clampToRange(Math.round(n)) : Math.round(n);
+              if (clamp && next !== value) onChange(next);
+              setLocalStr(String(next));
               return;
             }
             if (quantity) {
               const si = parseQuantity(localStr, quantity, system);
-              if (si === null) setLocalStr(formatForInput(value));
-              else setLocalStr(formatForInput(si));
+              if (si === null) { setLocalStr(formatForInput(value)); return; }
+              const next = clamp ? clampToRange(si) : si;
+              if (clamp && next !== value) onChange(next);
+              setLocalStr(formatForInput(next));
               return;
             }
             const normalized = localStr.replace(",", ".");
             const n = parseFloat(normalized);
-            if (isNaN(n)) setLocalStr(formatForInput(value));
+            if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }
+            if (clamp) {
+              const next = clampToRange(n);
+              if (next !== value) onChange(next);
+              setLocalStr(formatForInput(next));
+            }
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           aria-label={`${resolvedLabel} (${unitText})`}

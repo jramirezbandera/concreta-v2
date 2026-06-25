@@ -22,12 +22,15 @@ export default defineConfig({
       devOptions: { enabled: false }, // preserve Vite HMR in dev
       workbox: {
         globPatterns: ["**/*.{js,css,html,woff2,png,svg,ico}"],
-        // Pyodide (~16 MB) NO entra en el precache: el módulo de taludes está
-        // dev-gated (shipped:false) y no debe inflar la PWA de producción
-        // (eng-review §9.4 #9). Se cachea EN RUNTIME (CacheFirst) cuando un
-        // usuario con el flag activo carga el módulo → offline tras el 1er uso.
-        // El nombre de caché va versionado al nº de Pyodide para invalidar tras
-        // bump (§9.2 #2). Precache total + caché versionada → Phase 2 (shipped).
+        // Pyodide (~16 MB) NO entra en el precache, AUNQUE el módulo de taludes
+        // ya esté shipped:true (Phase 2). Dos barreras lo garantizan: (1) sus
+        // assets son .mjs/.wasm/.whl/.zip/.json — ninguna extensión está en el
+        // globPatterns de arriba; (2) maximumFileSizeToCacheInBytes = 4 MiB, por
+        // debajo del .wasm de ~9,6 MB. Se cachea EN RUNTIME (CacheFirst, regla
+        // /pyodide/ de abajo) la primera vez que un usuario abre /geotec/taludes
+        // → offline tras el 1er uso, sin inflar el precache de producción
+        // (eng-review §9.4 #9). El nombre de caché va versionado al nº de Pyodide
+        // para invalidar tras bump (§9.2 #2).
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/pyodide/"),

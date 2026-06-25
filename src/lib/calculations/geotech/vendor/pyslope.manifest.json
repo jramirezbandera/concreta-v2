@@ -10,8 +10,8 @@
     "utilities.py",
     "__init__.py"
   ],
-  "patch": "Replaced __init__.py to drop the versioneer `_version` import (git/subprocess unavailable in Pyodide); version hardcoded.",
-  "runtime": "numpy-only via sys.modules stubs for tqdm/colour/plotly (see stubs.py) — pyslope sources are otherwise unmodified.",
-  "patchHash": "15b26b96da4203fdb805cb6616732d833f1fa5153be1a4256819207f11e30f8d",
+  "patch": "(1) Replaced __init__.py to drop the versioneer `_version` import (git/subprocess unavailable in Pyodide); version hardcoded. (2) pyslope.py: extracted the per-slice geometry/forces block from `_analyse_circular_failure_bishop` into a private `_compute_slice_arrays` helper (FoS maths unchanged) and added a public `get_critical_slice_data()` that re-derives per-slice physics (x, width, alpha, W, U, cohesion, tan_phi) for the critical circle reusing the exact same maths. Exposure-only, no FoS change, no seismic.",
+  "runtime": "numpy-only via sys.modules stubs for tqdm/colour/plotly (see stubs.py). pyslope.py carries the exposure-only per-slice patch (see `patch`); the FoS maths is unchanged. data_validation.py/utilities.py are unmodified.",
+  "patchHash": "c24c40118950344d932d42676ae9c39afa0bb6585059b0eace09a845317472f6",
   "generatedBy": "scripts/vendor-pyslope.mjs"
 }

@@ -1516,6 +1516,100 @@ export const LABELS = {
     modules: ['slopeStability'],
   },
 
+  // ---- Contexto normativo (selector de comprobaciones) ----
+
+  slope_context: {
+    sym: 'Contexto',
+    descLong: 'Contexto normativo del análisis',
+    descShort: 'Contexto normativo',
+    unit: '—',
+    ref: 'CTE DB-SE-C art. 7.2.2.1 / Tabla 2.1',
+    help: 'Selecciona qué comprobaciones y límites aplican. «Talud de excavación» (art. 7.2.2.1) aplica γR = 1,5 directo sobre la resistencia (FoS global ≥ 1,5). «Estabilidad global de cimentación» (Tabla 2.1) minora el terreno con γM = 1,8 y exige FoS_d ≥ 1,0. Ambos contextos comparten EC7-DA3, ROM/Carreteras y, si hay estratos con cu, la comprobación sin drenaje.',
+    modules: ['slopeStability'],
+  },
+
+  slope_context_excavation: {
+    sym: '',
+    descLong: 'Talud de excavación',
+    descShort: 'Talud de excavación',
+    unit: '—',
+    ref: 'CTE DB-SE-C art. 7.2.2.1',
+    help: 'Talud de excavación: el coeficiente de seguridad γR = 1,5 (persistente/transitoria) · 1,1 (extraordinaria) se aplica directamente sobre la resistencia, de modo que el límite es un FoS global.',
+    modules: ['slopeStability'],
+  },
+
+  slope_context_global_foundation: {
+    sym: '',
+    descLong: 'Estabilidad global de cimentación',
+    descShort: 'Estabilidad global cimentación',
+    unit: '—',
+    ref: 'CTE DB-SE-C Tabla 2.1',
+    help: 'Estabilidad global de la cimentación: el terreno se minora con γM = 1,8 (persistente/transitoria) · 1,2 (extraordinaria) y se exige FoS_d ≥ 1,0 (γR = γE = γF = 1).',
+    modules: ['slopeStability'],
+  },
+
+  // ---- Comprobaciones de estabilidad de taludes (Phase 2) ----
+
+  fos_global_foundation: {
+    sym: 'FoS_d',
+    descLong: 'Estabilidad global de cimentación (terreno minorado)',
+    descShort: 'Estabilidad global cimentación',
+    unit: '—',
+    ref: 'CTE DB-SE-C Tabla 2.1',
+    help: 'Estabilidad global de la cimentación por minoración del terreno: se re-ejecuta el cálculo con c\'/1,8 y atan(tanφ\'/1,8) (persistente/transitoria) y se exige FoS_d ≥ 1,0. Equivalente a exigir un FoS global de 1,8 sin minorar.',
+    modules: ['slopeStability'],
+  },
+
+  fos_da3: {
+    sym: 'FoS_d',
+    descLong: 'Verificación EC7 — Enfoque de Proyecto 3 (DA3)',
+    descShort: 'EC7-DA3',
+    unit: '—',
+    ref: 'UNE-EN 1997-1 Anexo A (A2+M2+R3)',
+    help: 'Eurocódigo 7, DA3: el terreno drenado se minora con γφ\' = γc\' = 1,25 (set M2), las acciones variables se mayoran ×1,3 y γR = 1,0, exigiendo FoS_d ≥ 1,0. El caso sin drenaje (γcu = 1,40) NO se evalúa aquí; lo cubre la comprobación sin drenaje (CTE DB-SE-C apdo. 4.2.3.1).',
+    modules: ['slopeStability'],
+  },
+
+  fos_rom: {
+    sym: 'FoS',
+    descLong: 'Factor de seguridad — carreteras/ROM (situación permanente)',
+    descShort: 'ROM/Carreteras permanente',
+    unit: '—',
+    ref: 'Guía de Cimentaciones de Carreteras (CEDEX) / ROM 0.5-05',
+    help: 'Factor de seguridad global en situación permanente según la Guía de Cimentaciones de Carreteras (CEDEX): FoS ≥ 1,5 (ROM 0.5-05: ≥ 1,4).',
+    modules: ['slopeStability'],
+  },
+
+  fos_transient: {
+    sym: 'FoS',
+    descLong: 'Factor de seguridad — situación transitoria (construcción)',
+    descShort: 'Situación transitoria',
+    unit: '—',
+    ref: 'Guía de Cimentaciones de Carreteras (CEDEX) / ROM 0.5-05',
+    help: 'Factor de seguridad global en situación transitoria (fase de construcción) según la Guía de Cimentaciones de Carreteras (CEDEX) / ROM 0.5-05: FoS ≥ 1,3.',
+    modules: ['slopeStability'],
+  },
+
+  fos_undrained: {
+    sym: 'FoS_u',
+    descLong: 'Estabilidad sin drenaje (corto plazo)',
+    descShort: 'Sin drenaje (corto plazo)',
+    unit: '—',
+    ref: 'CTE DB-SE-C 4.2.3.1',
+    help: 'Análisis a corto plazo en suelos cohesivos saturados, en tensiones totales con φu = 0 y c = cu (resistencia al corte sin drenaje). Solo se evalúa si existen estratos con cu > 0. El límite es el de la situación de proyecto.',
+    modules: ['slopeStability'],
+  },
+
+  fos_seismic_deferred: {
+    sym: 'FoS_sismo',
+    descLong: 'Factor de seguridad sísmico pseudo-estático',
+    descShort: 'Sísmico (pseudo-estático)',
+    unit: '—',
+    ref: 'NCSE-02 + ROM 0.5-05 / Guía de Cimentaciones de Carreteras (CEDEX), accidental',
+    help: 'Análisis sísmico pseudo-estático (kh = ac/g): requiere Phase 3. Se muestra como fila informativa sin ejecutar el motor; el balance de fuerzas sísmico aún no está implementado.',
+    modules: ['slopeStability'],
+  },
+
   // -------------------------------------------------------------------------
   // Section 12 — Seismic (NCSP-07)
   // -------------------------------------------------------------------------

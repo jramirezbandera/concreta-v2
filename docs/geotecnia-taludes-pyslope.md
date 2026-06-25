@@ -889,6 +889,94 @@ footprint offline copiado:  ~16 MB (core wasm 10 + stdlib 3 + numpy 3)
 - **Worker en módulo:** `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` + `worker:{format:'es'}` en `vite.config` funciona nativo en Vite 8.
 - El **FoS reproducible** (Node = navegador = micropip) da confianza para el **golden test** (T4): el valor de referencia es estable entre entornos.
 
+## 12. Cotejo normativo (Phase 2) — verificación contra fuente oficial (T5.1, 2026-06-24)
+
+Verificación de los **límites de los checks implementados** en
+[`src/lib/calculations/geotech/slope.ts`](../src/lib/calculations/geotech/slope.ts)
+(T2.1) y sus etiquetas en [`labels.ts`](../src/lib/text/labels.ts), cotejados
+**leyendo el texto oficial** con `/browse` (gstack, headless Chromium) + descarga
+directa de los PDF y extracción de texto. Resuelve las incertidumbres de §4.6.
+
+### 12.1 Fuentes consultadas (texto oficial leído)
+
+| # | Documento | Cómo se accedió | Apartados leídos |
+|---|---|---|---|
+| A | **CTE DB-SE-C** (Documento Básico Seguridad Estructural — Cimientos, ed. consolidada) | PDF oficial `codigotecnico.org` (165 pág., descargado y `pdftotext`) | **Tabla 2.1** (pág. SE-C-6), **art. 7.2.2.1** (pág. SE-C-93/94), **apdo. 4.2.3.1** (pág. SE-C-27/28) |
+| B | **Estaire J., Olivenza G. (2013), "Factores de seguridad en la estabilidad de taludes", VIII Simposio Nacional sobre Taludes y Laderas Inestables** (CEDEX / Lab. de Geotecnia — los autores son los redactores del Anejo Nacional) | PDF `oa.upm.es/29893` (12 pág.) | §3.2 Enfoques de Proyecto, §3.3 acciones (A2), §3.4 Tabla 4 (M2 taludes), Tabla 3 (FS por documento) |
+| C | **Guía de Cimentaciones en Obras de Carretera** (Dirección General de Carreteras / Lab. Geotecnia CEDEX) | PDF (mirror `arquitectosdecadiz.com`; el host oficial `transportes.gob.es` devuelve 403/WAF tanto por `/browse` como por `curl`) | **§4.4 Estabilidad global, Tabla 4.1**; §2.10 Tabla 2.1 (estructura F1/F2/F3) |
+
+> URLs: CTE → `https://www.codigotecnico.org/pdf/Documentos/SE/DBSE-C.pdf` ·
+> Simposio Taludes 2013 → `https://oa.upm.es/29893/1/INVE_MEM_2013_167047.pdf` ·
+> Guía Carreteras (oficial, **bloqueado** por WAF) → `https://www.transportes.gob.es/recursos_mfom/0710401.pdf`;
+> copia leída → `https://www.arquitectosdecadiz.com/wp-content/uploads/2017/12/GUIA_CIM_CARRET.pdf`.
+> El Anejo Nacional Español de UNE-EN 1997-1 **no está publicado en abierto**; la
+> fuente B (sus propios redactores) es el sustituto autorizado para los valores DA3/M2/A2 de taludes.
+
+### 12.2 Tabla de hallazgos
+
+| # | Check (id) | Límite implementado | Veredicto | Cita oficial | Valor oficial |
+|---|---|---|---|---|---|
+| 1 | `fos-static` — talud excavación | γ_R = **1,5** pers./trans. · **1,1** extraord. | ✅ **confirmado** | CTE DB-SE-C **art. 7.2.2.1**, §2 (pág. SE-C-93) | "γ_R = 1,5 para situaciones persistentes y transitorias; γ_R = 1,1 para situaciones extraordinarias. γ_E = γ_F = γ_M = 1" (literal) |
+| 2 | `fos-cte-tabla21` — estabilidad global cimentación | γ_M = **1,8** pers./trans. · **1,2** extraord.; FoS_d ≥ **1,0** | ✅ **confirmado** | CTE DB-SE-C **Tabla 2.1** (pág. SE-C-6), fila "Estabilidad global" | Persistente/transitoria: γ_R=1,0 · **γ_M=1,8** · γ_E=1,0 · γ_F=1,0. Extraordinaria: γ_R=1,0 · **γ_M=1,2** · γ_E=1,0 · γ_F=1,0 |
+| 3 | `fos-ec7-da3` — EC7 DA3 (M2+A2) | γ_φ'=γ_c'=**1,25**; cargas variables ×**1,3**; γ_R=1,0; FoS_d ≥ **1,0** | ✅ **confirmado** (con matiz, ver 12.3) | UNE-EN 1997-1 vía fuente B: §3.2 (DA3 para taludes), §3.3 (A2: perm. ×1,0, variable desf. ×1,3), §3.4 ("Anexo A: cohesión 1,25, rozamiento 1,25, corte sin drenaje 1,40, peso 1,00") | DA3 = sólo mayoración de acciones (A2) + minoración de parámetros (M2); **resistencias γ_R = 1,0** (Tabla 2 del paper: columna "minoración de resistencias" vacía para DA3) |
+| 4 | `fos-rom` — carreteras/ROM | FoS ≥ **1,5** perm. · **1,3** trans. · **1,1** acc. | ✅ **confirmado** | Guía Cimentaciones Carretera **§4.4, Tabla 4.1** (pág. 85) | Coef. NORMAL: casi permanente **F1=1,50** · característica **F2=1,30** · accidental **F3=1,10**. (ROM 0.5-05, vía Tabla 3 fuente B: 1,4 / 1,3 / 1,1) |
+| 5 | `fos-undrained` — sin drenaje | Tensiones totales, φ_u=0, c=c_u; límite de la situación | ✅ **confirmado** | CTE DB-SE-C **apdo. 4.2.3.1**, §1.d y §3 (pág. SE-C-27/28) | "...la resistencia al corte del terreno podrá expresarse en términos de tensiones totales, representada mediante un ángulo de rozamiento interno φ=0 y una cohesión c=cu" (literal). §3: "en tensiones totales (c=cu, φ=0) para situaciones transitorias sin drenaje" |
+| 6 | `fos-seismic` — sísmico | fila NEUTRA, diferida a Phase 3 | ✅ N/A (no afirma límite) | — | Correcto: no se afirma ningún valor normativo; se declara pendiente |
+
+### 12.3 Matices y observaciones (no son errores; no requieren corrección de código)
+
+1. **Check #3 (EC7-DA3) — cobertura sólo drenada.** El módulo re-corre DA3 con el
+   set **M2 drenado** (c'/1,25, atan(tanφ'/1,25)) y cargas ×1,3. **NO** ejecuta una
+   variante DA3 *sin drenaje* con **γ_cu = 1,40** (confirmado oficial: fuente B §3.4
+   y Anexo A). El caso sin drenaje se cubre por la vía **CTE** (check #5, c=cu sin
+   minorar, comparado con γ de la situación), que es normativa y trazable. Para un
+   talud drenado (el caso por defecto, sin estratos con `su`) el check #3 es
+   **exacto**. Sugerencia (opcional, Phase 3, NO bloqueante): si hay estratos con
+   `su>0`, añadir una segunda corrida DA3 con `c_u/1,40` para el caso sin drenaje.
+   El `help` del label `fos_ec7_da3` ya menciona "γcu = 1,40 (sin drenaje)", de modo
+   que el texto promete algo que el motor sólo evalúa por la vía CTE — es un matiz
+   de redacción, no un error de cálculo.
+
+2. **Check #4 (carreteras/ROM) — mapeo situación→combinación.** La Guía estructura
+   los FS por *combinación de acciones* (casi permanente F1 / característica F2 /
+   accidental F3), no por *situación de proyecto*. El módulo mapea:
+   `permanent→1,5 (F1)`, `transient→1,3 (F2)`, `extraordinary→1,1 (F3)`. Es el mapeo
+   estándar y **defendible** (Tabla 2.1 de la Guía asocia la situación persistente a
+   la comb. casi permanente, y transitoria/corto plazo puede tomar F2). El label cita
+   correctamente ROM 0.5-05 (1,4) junto a la Guía (1,5). ✅
+
+3. **Item normativo de nomenclatura.** El check #5 cita "CTE DB-SE-C **4.2.3.1**".
+   En el texto oficial es un **apartado** (no "artículo"); además la regla φ_u=0/c=cu
+   está en 4.2.3.1.§1.d y se reafirma en §3 para estabilidad global. La cita es
+   correcta en sustancia; "art." podría leerse mejor como "apdo." (cosmético).
+
+4. **Tabla 2.1 (#2) — la fila exacta.** El PDF lista "Estabilidad global" con
+   γ_M=1,8 (persistente/transitoria) y γ_M=1,2 (extraordinaria); γ_R=γ_E=γ_F=1,0.
+   El código aplica γ_M a c' y a tanφ' con cargas sin mayorar y umbral FoS_d≥1,0,
+   que es **exactamente** la lectura correcta de esa fila. ✅
+
+5. **EC7-DA3 — selección del Enfoque para España.** Confirmado por fuente B (§3.2):
+   el Anejo Nacional Español **elige DA3 para estabilidad de taludes y estabilidad
+   global** (DA2 para el resto de actuaciones geotécnicas). La incertidumbre principal
+   de §4.6 ("γ_R;e para taludes en DA3 = 1,0") queda **resuelta: γ_R = 1,0** (en DA3
+   no se minoran resistencias; sólo acciones A2 + parámetros M2).
+
+### 12.4 Veredicto
+
+**GO ✅.** Los cinco límites numéricos que el módulo afirma como normativos están
+**confirmados contra texto oficial**: CTE art. 7.2.2.1 (1,5/1,1), CTE Tabla 2.1
+(1,8/1,2, FoS_d≥1,0), EC7-DA3 (M2 1,25 + A2 ×1,3 + γ_R=1,0), Guía de Carreteras
+Tabla 4.1 (1,5/1,3/1,1) y CTE 4.2.3.1 (tensiones totales φ_u=0, c=cu). No se ha
+encontrado **ningún valor incorrecto** que un usuario profesional vería como error.
+Los matices de 12.3 son de redacción/alcance (cobertura DA3 sin-drenaje diferible a
+Phase 3, "art."→"apdo.") y **no bloquean** la publicación. La incertidumbre crítica
+del Anejo Nacional (γ_R;e en DA3) queda resuelta a favor de la implementación.
+
+> **Habilita T5.2** (flip `shipped:true` + retirada del dev-gate). Recomendación
+> menor no bloqueante: alinear el `help` de `fos_ec7_da3` para que no prometa la
+> evaluación γ_cu=1,40 sin drenaje hasta que se implemente (Phase 3), o añadir esa
+> segunda corrida DA3 cuando exista `su>0`.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |

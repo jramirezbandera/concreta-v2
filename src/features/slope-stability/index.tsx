@@ -4,23 +4,68 @@ import { usePdfPreview } from "../../hooks/usePdfPreview";
 import { useDrawer } from "../../components/layout/AppShell";
 import { useUnitSystem } from "../../lib/units/useUnitSystem";
 import { Topbar } from "../../components/layout/Topbar";
+import { showToast } from "../../components/ui/Toast";
 import { PdfPreviewModal } from "../../components/ui/PdfPreviewModal";
 import { MobileTabBar, type MobileTab } from "../../components/ui/MobileTabBar";
 import { validateSlope } from "../../lib/calculations/geotech/validate";
 import { exportSlopeStabilityPDF } from "../../lib/pdf/slopeStability";
-import { useSlopeState } from "./useSlopeState";
+import { useSlopeState, buildShareUrl } from "./useSlopeState";
 import { useSlopeSolver } from "./useSlopeSolver";
 import { SlopeInputs } from "./SlopeInputs";
 import { SlopeStabilitySVG } from "./SlopeStabilitySVG";
+import { SlopeSearchSVG } from "./SlopeSearchSVG";
 import { SlopeResults } from "./SlopeResults";
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+// Conmutador de vistas del lienzo central. Dos vistas:
+//   section  → SlopeStabilitySVG (vista 1: sección + círculo crítico)
+//   search   → SlopeSearchSVG    (vista 2: malla de centros / mapa de FoS)
+// Segmentado simple con tokens (sin rounded-lg/full): divisores border-r y la
+// pestaña activa en bg-bg-primary, como el resto de conmutadores del producto
+// (retaining-wall/micropiles) pero sin chrome de badge de color.
+type SlopeView = "section" | "search";
+
+// "Malla FoS" (no "Diagramas") evita la colisión con el tab "Diagramas" del
+// MobileTabBar (Datos/Diagramas/Resultados): en móvil ambos quedaban apilados y
+// ambiguos. "Malla FoS" describe la vista 2 (malla de centros / mapa de FoS).
+const VIEW_TABS: { id: SlopeView; label: string }[] = [
+  { id: "section", label: "Sección" },
+  { id: "search", label: "Malla FoS" },
+];
+
+function ViewTabButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        "px-3 py-2 border-r border-border-main text-[11.5px] font-medium tracking-tight whitespace-nowrap transition-colors",
+        active
+          ? "bg-bg-primary text-text-primary"
+          : "bg-bg-surface text-text-secondary hover:bg-bg-elevated/70 hover:text-text-primary",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
 
 export function SlopeStabilityModule() {
   const { state, setState, reset } = useSlopeState();
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>("inputs");
+  const [view, setView] = useState<SlopeView>("section");
 
   const validation = validateSlope(state);
   const solver = useSlopeSolver(state, validation.valid);
@@ -37,10 +82,24 @@ export function SlopeStabilityModule() {
     true,
   );
 
+  // Enlace compartible: codifica los inputs anidados (estratos/cargas/contexto)
+  // en ?model= vía lz-string y lo copia al portapapeles. Mismo patrón que FEM
+  // (fem-analysis/index.tsx handleShare). La hidratación desde ?model= ya la
+  // hace useSlopeState al montar — aquí solo emitimos el enlace.
+  function handleShare() {
+    const url = buildShareUrl(state);
+    navigator.clipboard.writeText(url).then(
+      () => showToast("Enlace del modelo copiado al portapapeles", { autoDismiss: 2500 }),
+      () => showToast("No se pudo copiar el enlace", { autoDismiss: 3000 }),
+    );
+  }
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const CANVAS_PAD = 32;
   const svgW = canvasWidth && canvasWidth > 0 ? Math.max(280, canvasWidth - CANVAS_PAD) : 520;
   const svgH = Math.round(svgW * 0.62);
+
+  const run = solver.result?.run ?? null;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -49,6 +108,7 @@ export function SlopeStabilityModule() {
         moduleGroup="Geotecnia"
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
+        onCopyLink={handleShare}
         onMenuOpen={openDrawer}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
@@ -76,16 +136,37 @@ export function SlopeStabilityModule() {
           </div>
         </div>
 
-        {/* Centro: lienzo SVG (dot-grid) */}
+        {/* Centro: conmutador de vistas + lienzo SVG (dot-grid) */}
         <div
-          ref={canvasRef}
           className={[
-            "canvas-dot-grid min-w-0 items-center justify-center overflow-auto p-6",
+            "min-w-0 flex-col overflow-hidden",
             "lg:flex lg:flex-1",
             tab === "diagramas" ? "flex flex-1" : "hidden",
           ].join(" ")}
         >
-          <SlopeStabilitySVG inputs={state} result={solver.result} width={svgW} height={svgH} mode="screen" />
+          {/* Conmutador Sección / Diagramas */}
+          <div className="flex shrink-0 items-center border-b border-border-main bg-bg-surface">
+            {VIEW_TABS.map((t) => (
+              <ViewTabButton
+                key={t.id}
+                active={view === t.id}
+                label={t.label}
+                onClick={() => setView(t.id)}
+              />
+            ))}
+          </div>
+
+          {/* Lienzo */}
+          <div
+            ref={canvasRef}
+            className="canvas-dot-grid flex min-h-0 flex-1 items-center justify-center overflow-auto p-6"
+          >
+            {view === "section" ? (
+              <SlopeStabilitySVG inputs={state} result={solver.result} width={svgW} height={svgH} mode="screen" />
+            ) : (
+              <SlopeSearchSVG inp={state} run={run} width={svgW} height={svgH} mode="screen" />
+            )}
+          </div>
         </div>
 
         {/* Derecha: resultados + Calcular */}
@@ -100,10 +181,15 @@ export function SlopeStabilityModule() {
         </div>
       </div>
 
-      {/* Clon oculto para el PDF (mode='pdf', escala de grises) */}
+      {/* Clones ocultos para el PDF (mode='pdf', escala de grises). Ambas vistas
+          se montan SIEMPRE — independiente de la pestaña activa — para que el
+          export PDF (T4.2) pueda rasterizar las dos figuras sin swap de estado. */}
       <div className="h-0 w-0 overflow-hidden" aria-hidden="true">
         <div id="slope-stability-svg-pdf" style={{ position: "absolute", left: "-9999px", top: 0 }}>
           <SlopeStabilitySVG inputs={state} result={solver.result} width={640} height={400} mode="pdf" />
+        </div>
+        <div id="slope-search-svg-pdf" style={{ position: "absolute", left: "-9999px", top: 0 }}>
+          <SlopeSearchSVG inp={state} run={run} width={640} height={400} mode="pdf" />
         </div>
       </div>
 

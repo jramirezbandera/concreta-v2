@@ -7,15 +7,16 @@
 // Mesa de trabajo del ingeniero (DESIGN.md): denso, técnico, sin adorno. Reusa
 // los primitivos pan-módulo (CollapsibleSection / UnitNumberInput / InputLabel /
 // HelpTooltip) y el editor de estratos de micropilotes (SoilStrataEditor) — los
-// taludes comparten el modelo SoilLayer. Las columnas micropilote-específicas
-// (Nspt/su/rfℓim/Cu) se aceptan tal cual en Phase 1: el motor de taludes solo
-// lee γ, c' y φ', el resto se ignora.
+// taludes comparten el modelo SoilLayer. El motor de taludes solo usa γ, c' y φ'
+// (+ su para el check sin drenaje); las columnas micropilote-específicas
+// (Nspt/rfℓim/Cu) se OCULTAN vía hiddenFields (Phase 2) para no mostrar siempre 0.
 
 import type { JSX } from 'react';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import type { SlopeInputs, SlopeLoad, SoilLayer } from '../../data/defaults';
 import type { SoilType } from '../../data/micropileLookups';
 import type { SlopeValidation } from '../../lib/calculations/geotech/validate';
+import { LABELS } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -59,6 +60,13 @@ const SITUATION_OPTIONS: Array<{ value: SlopeInputs['situation']; label: string 
   { value: 'extraordinary', label: 'Extraordinaria (γR = 1,1)' },
 ];
 
+// Contexto normativo (doc §4.2): selecciona qué checks/límites aplican. Los textos
+// vienen del catálogo LABELS (Phase 1) para no duplicar vocabulario normativo.
+const CONTEXT_OPTIONS: Array<{ value: SlopeInputs['context']; label: string }> = [
+  { value: 'excavation', label: LABELS.slope_context_excavation.descLong },
+  { value: 'global-foundation', label: LABELS.slope_context_global_foundation.descLong },
+];
+
 // ── Fila de sobrecarga ───────────────────────────────────────────────────────
 
 function LoadRow({
@@ -85,7 +93,7 @@ function LoadRow({
             aria-label={`Tipo de sobrecarga ${index + 1}`}
             className="bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none focus:border-accent transition-colors min-w-0"
           >
-            <option value="udl">UDL (kPa)</option>
+            <option value="udl">UDL (kN/m²)</option>
             <option value="line">Lineal (kN/m)</option>
           </select>
         </label>
@@ -101,7 +109,7 @@ function LoadRow({
       <UnitNumberInput
         label="q"
         sub="magnitud"
-        unit={isUdl ? 'kPa' : 'kN/m'}
+        unit={isUdl ? 'kN/m²' : 'kN/m'}
         help={isUdl ? 'Carga uniforme repartida sobre la banda.' : 'Carga lineal en el punto indicado.'}
         value={load.magnitude}
         onChange={(n) => onUpdate({ magnitude: n })}
@@ -207,7 +215,10 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
   };
 
   return (
-    <div className="flex flex-col gap-1 lg:w-72">
+    // Sin lg:w-72 aquí: la columna externa (index.tsx) ya es lg:w-72 con px-4;
+    // re-forzar 288px dentro de un contenedor de 256px desbordaba en horizontal
+    // (refs de cabecera y selects se salían bajo el canvas). Llena el contenedor.
+    <div className="flex flex-col gap-1">
 
       {/* Banner de validación (DESIGN.md 2026-05-04). No-modal, sobre el panel,
           con bloque "Cómo arreglarlo" en accent/5. */}
@@ -314,6 +325,10 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
           onAdd={addLayer}
           onRemove={removeLayer}
           onUpdate={updateLayer}
+          // El motor de taludes solo lee γ, c' y φ' (+ su para el check sin
+          // drenaje). NSPT/rfℓim/Cu son específicos de micropilotes → se ocultan
+          // para no mostrar campos irrelevantes siempre a 0.
+          hiddenFields={['Nspt', 'rflim', 'Cu']}
         />
       </CollapsibleSection>
 
@@ -354,6 +369,8 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
           onChange={(n) => set('slices', n)}
           integer
           min={SLICES_MIN}
+          max={SLICES_MAX}
+          clamp
           step={5}
           unit="ud"
         />
@@ -365,6 +382,8 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
           onChange={(n) => set('iterations', n)}
           integer
           min={ITER_MIN}
+          max={ITER_MAX}
+          clamp
           step={100}
           unit="ud"
         />
@@ -384,6 +403,34 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* Contexto normativo (doc §4.2): talud de excavación (art. 7.2.2.1, γR
+            sobre la resistencia) vs estabilidad global de cimentación (Tabla 2.1,
+            terreno minorado γM). Selecciona qué checks/límites aplican tras Calcular.
+            Texto/tooltip del catálogo LABELS (slope_context). */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
+          <InputLabel htmlFor="select-slope-context" labelKey="slope_context" />
+          <select
+            id="select-slope-context"
+            value={value.context}
+            onChange={(e) => set('context', e.target.value as SlopeInputs['context'])}
+            className="bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors shrink-0 max-w-45"
+          >
+            {CONTEXT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Aviso de alcance (DESIGN.md D4): el sísmico pseudo-estático llega en
+            Phase 3. Hint discreto NO interactivo (no es un control) que fija la
+            expectativa; conserva el tooltip del catálogo (fos_seismic_deferred). */}
+        <div className="flex items-center justify-between py-0.75 gap-2 min-w-0 opacity-60">
+          <InputLabel label="Sísmico" sub="pseudo-estático" help={LABELS.fos_seismic_deferred.help} />
+          <span className="text-[11px] font-mono text-text-disabled border border-border-main rounded px-2 py-1 shrink-0">
+            Próximamente · Phase 3
+          </span>
         </div>
       </CollapsibleSection>
 

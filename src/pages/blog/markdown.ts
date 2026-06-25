@@ -14,8 +14,12 @@ export function slugify(s: string): string {
     .replace(/^-|-$/g, '');
 }
 
-/** Split `---\nYAML\n---\nbody`. Minimal YAML: `key: value`, double-quoted strings. */
+/** Split `---\nYAML\n---\nbody`. Minimal YAML: `key: value`, double-quoted strings.
+ *  Normaliza CRLF→LF primero: los `.md` autorados en Windows traen `\r\n`, y el
+ *  `\r` final rompía el regex por-línea (`(.*)$` no consume `\r`), dejando el meta
+ *  vacío → títulos = slug y categoría = default. */
 export function parseFrontmatter(src: string): { meta: Record<string, string>; body: string } {
+  src = src.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const m = src.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!m) return { meta: {}, body: src };
   const meta: Record<string, string> = {};

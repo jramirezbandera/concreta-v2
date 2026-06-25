@@ -1089,6 +1089,10 @@ export interface SlopeInputs {
   iterations: number;       // nº de círculos de búsqueda — def. 1000
   // Situación de proyecto — fija los límites normativos de los checks.
   situation: 'persistent' | 'transient' | 'extraordinary';
+  // Contexto normativo — selecciona qué comprobaciones/límites aplican (doc §4.2):
+  //  'excavation'        = talud de excavación (CTE DB-SE-C art. 7.2.2.1, γ_R=1,5)
+  //  'global-foundation' = estabilidad global de cimentación (CTE DB-SE-C Tabla 2.1, γ_M=1,8)
+  context: 'excavation' | 'global-foundation';
 }
 
 /** FTUX: talud cohesivo-friccional moderado, sin NF ni sobrecargas → FoS holgado
@@ -1106,4 +1110,5 @@ export const slopeDefaults: SlopeInputs = {
   slices: 25,
   iterations: 1000,
   situation: 'persistent',
+  context: 'excavation',
 };

@@ -18,10 +18,13 @@
 import type { JSX } from 'react';
 import { Loader2, Check, TriangleAlert, X } from 'lucide-react';
 import {
-  CheckRowItem, VerdictBadge,
+  CheckRowItem, VerdictBadge, GroupHeader,
   overallStatus, ambientStyle,
 } from '../../components/checks';
+import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
+import type { CheckRow } from '../../lib/calculations/types';
+import type { SlopeSlice } from '../../lib/calculations/geotech/types';
 import type { SlopeSolver } from './useSlopeSolver';
 import type { SlopeInputs } from '../../data/defaults';
 
@@ -46,9 +49,106 @@ const SITUATION_LABEL: Record<SlopeInputs['situation'], string> = {
 };
 
 // Texto largo del disclaimer — compartido conceptualmente con el PDF (design-review D4).
+// Menciona el sísmico pendiente (decisión §5.7 #1 / D4): Phase 2 lo deja como fila neutra.
 const DISCLAIMER_FULL =
   'Método Bishop simplificado (superficie circular). Sin métodos no-circulares ni ' +
-  'Spencer/Janbu. Predimensionamiento — no sustituye un estudio geotécnico.';
+  'Spencer/Janbu. Análisis sísmico pseudo-estático pendiente (Phase 3). ' +
+  'Predimensionamiento — no sustituye un estudio geotécnico.';
+
+// ── Agrupación de checks por bloque normativo ─────────────────────────────────
+// La tabla de checks (Fase 2) trae hasta ~6 entradas de distintos cuerpos
+// normativos. Las agrupamos bajo un GroupHeader clasificando por el `id` del
+// check (estable, lo fija el adaptador slope.ts T2.1) con respaldo en el
+// `article` por si cambia un id. NO re-corre nada: solo reparte las filas.
+type CheckGroupKey = 'cte' | 'ec7' | 'rom' | 'seismic' | 'other';
+
+const GROUP_ORDER: CheckGroupKey[] = ['cte', 'ec7', 'rom', 'seismic', 'other'];
+
+const GROUP_LABEL: Record<CheckGroupKey, string> = {
+  cte:     'CTE DB-SE-C',
+  ec7:     'Eurocódigo 7',
+  rom:     'ROM / Carreteras',
+  seismic: 'Sísmico',
+  other:   'Otras comprobaciones',
+};
+
+/** Clasifica un check en su bloque normativo. Prioriza el `id` (estable) y cae al
+ *  `article` (string libre) para tolerar checks futuros sin re-tocar este mapa. */
+function classifyCheck(check: CheckRow): CheckGroupKey {
+  const id = check.id;
+  if (id === 'fos-static' || id === 'fos-cte-tabla21' || id === 'fos-undrained') return 'cte';
+  if (id === 'fos-ec7-da3') return 'ec7';
+  if (id === 'fos-rom') return 'rom';
+  if (id === 'fos-seismic') return 'seismic';
+
+  // Respaldo por artículo (orden importa: el sísmico es neutro y específico).
+  const art = check.article ?? '';
+  if (check.status === 'neutral' || /NCSE|sísmic|sismic/i.test(art)) return 'seismic';
+  if (/UNE-EN|EC7|DA3|Eurocódigo|Eurocodigo/i.test(art)) return 'ec7';
+  if (/ROM|carretera/i.test(art)) return 'rom';
+  if (/CTE/i.test(art)) return 'cte';
+  return 'other';
+}
+
+/** Agrupa los checks en bloques normativos preservando el orden de aparición
+ *  dentro de cada bloque. Devuelve solo los bloques con al menos un check. */
+function groupChecks(checks: CheckRow[]): { key: CheckGroupKey; rows: CheckRow[] }[] {
+  const buckets = new Map<CheckGroupKey, CheckRow[]>();
+  for (const c of checks) {
+    const k = classifyCheck(c);
+    const arr = buckets.get(k);
+    if (arr) arr.push(c);
+    else buckets.set(k, [c]);
+  }
+  return GROUP_ORDER
+    .filter((k) => buckets.has(k))
+    .map((k) => ({ key: k, rows: buckets.get(k)! }));
+}
+
+// ── Tabla de dovelas ──────────────────────────────────────────────────────────
+const RAD_TO_DEG = 180 / Math.PI;
+
+/** Formatea un campo opcional de física por dovela. Si el worker no lo emitió
+ *  (decisión #2: nunca reconstruir física en JS) mostramos "—". */
+function fmtSlice(value: number | undefined, digits: number, scale = 1): string {
+  return value === undefined || !isFinite(value)
+    ? '—'
+    : (value * scale).toFixed(digits);
+}
+
+/** Tabla compacta de física por dovela — solo lee `run.slices` (worker). Estilo
+ *  mono/tabular-nums sin saturar; cabecera sticky discreta. Columnas:
+ *  nº · x (m) · b (m) · W (kN) · α (º) · u (kPa). El ancho b = xR − xL es geometría. */
+function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
+  return (
+    <div className="max-h-72 overflow-y-auto">
+      <table className="w-full border-collapse font-mono text-[10px] tabular-nums">
+        <thead>
+          <tr className="text-text-disabled">
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">nº</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">x (m)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">b (m)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">W (kN)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">α (º)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">u (kPa)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {slices.map((s, i) => (
+            <tr key={i} className="text-text-secondary border-b border-border-sub last:border-b-0">
+              <td className="text-right text-text-disabled px-2 py-1">{i + 1}</td>
+              <td className="text-right px-2 py-1">{fmtSlice(s.x, 2)}</td>
+              <td className="text-right px-2 py-1">{fmtSlice(s.xR - s.xL, 2)}</td>
+              <td className="text-right px-2 py-1">{fmtSlice(s.weight, 1)}</td>
+              <td className="text-right px-2 py-1">{fmtSlice(s.alpha, 1, RAD_TO_DEG)}</td>
+              <td className="text-right px-2 py-1">{fmtSlice(s.u, 1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Element {
   const { engineState, result, error, isStale, calculate, cancel } = solver;
@@ -175,10 +275,31 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
               </span>
             </div>
 
-            {/* Comprobaciones normativas (CTE 7.2.2.1 + EC7-DA3). */}
-            {result.checks.map((c) => (
-              <CheckRowItem key={c.id} check={c} />
+            {/* Comprobaciones normativas, agrupadas por bloque normativo
+                (CTE DB-SE-C / Eurocódigo 7 / ROM-Carreteras / Sísmico). La fila
+                sísmica es neutra: CheckRowItem la pinta gris, sin barra η%. */}
+            {groupChecks(result.checks).map(({ key, rows }) => (
+              <div key={key}>
+                <GroupHeader label={GROUP_LABEL[key]} />
+                {rows.map((c) => (
+                  // compact: el panel de resultados (~w-80) no admite el grid de
+                  // 4 columnas (1fr 140 64 60) → la descripción se colapsaba a 0px
+                  // y el artículo se envolvía. compact usa 1fr/auto/auto (sin barra
+                  // de 64px ni columna de valor de 140px), dejando sitio al texto.
+                  <CheckRowItem key={c.id} check={c} compact />
+                ))}
+              </div>
             ))}
+
+            {/* Tabla de dovelas — física del círculo crítico EMITIDA por el worker
+                (decisión #2: no se reconstruye en JS). Colapsada por defecto. */}
+            {result.run.slices.length > 0 && (
+              <div className="px-4 pt-1 pb-1.5 border-t border-border-sub">
+                <CollapsibleSection label="Tabla de dovelas" defaultOpen={false}>
+                  <SlicesTable slices={result.run.slices} />
+                </CollapsibleSection>
+              </div>
+            )}
 
             {/* Disclaimer permanente del método (neutro) + ayuda larga. */}
             <div className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border-sub">

@@ -23,23 +23,35 @@ export interface SlopeCircle {
   r: number;
 }
 
+/** Un círculo de prueba de la malla de búsqueda con su FoS — uno por iteración
+ *  (≈ `iterations`). Lo emite el worker desde `s._search` (sin fork) y lo dibuja
+ *  la vista 2 (malla de centros / mapa de FoS, §10.8). */
+export interface SlopeCircleFoS {
+  cx: number;
+  cy: number;
+  r: number;
+  fos: number;
+}
+
 export interface SlopePoint {
   x: number;
   y: number;
 }
 
 /** Una dovela. Geometría EXACTA emitida por el worker desde (cx,cy,r) + perfil del
- *  terreno + nº de dovelas. La física por dovela (peso/u/α) NO la retiene PySlope
- *  en una estructura pública (§11.3) → opcional, fuera de Phase 1. */
+ *  terreno + nº de dovelas. La física por dovela (peso/u/α) la expone el fork T1.1
+ *  vía `s.get_critical_slice_data()` (arrays paralelos del círculo crítico) y la
+ *  rellena el script de orquestación (T1.2). Opcional porque PySlope sin fork no
+ *  la retiene en estructura pública (§11.3); presente cuando el fork ha aterrizado. */
 export interface SlopeSlice {
   x: number;        // centro x de la dovela (m)
   xL: number;       // límite izquierdo (m)
   xR: number;       // límite derecho (m)
   yTop: number;     // cota del terreno sobre la dovela (m)
   yBase: number;    // cota de la superficie de rotura bajo la dovela (m)
-  alpha?: number;   // inclinación de la base (rad) — no expuesto en Phase 1
-  weight?: number;  // kN — no expuesto en Phase 1
-  u?: number;       // kPa — no expuesto en Phase 1
+  alpha?: number;   // inclinación de la base (rad) — física del círculo crítico (T1.1)
+  weight?: number;  // peso de la dovela (kN) — física del círculo crítico (T1.1)
+  u?: number;       // presión intersticial en la base (kPa) — física del círculo crítico (T1.1)
 }
 
 /** Resultado geométrico de UNA corrida de PySlope. Lo consume el SVG (vista 1). */
@@ -54,6 +66,9 @@ export interface SlopeRun {
   limits: { left: number; right: number };  // set_analysis_limits (m)
   slicesN: number;
   method: string;                // 'bishop' | 'fellenius'
+  /** Todos los círculos de prueba de la malla de búsqueda con su FoS (≈ iterations).
+   *  Lo dibuja la vista 2 (malla de centros / mapa de FoS). */
+  searchCircles: SlopeCircleFoS[];
 }
 
 /** Trazabilidad del cálculo — va a la cabecera y footers del PDF (§9.2 #3). */

@@ -228,3 +228,67 @@ describe("UnitNumberInput — onBlur normalization", () => {
     expect(input.value).toBe("12.35");
   });
 });
+
+describe("UnitNumberInput — clamp on blur (opt-in)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  function renderClampInt(
+    value: number,
+    onChange: (n: number) => void,
+    extra: Partial<React.ComponentProps<typeof UnitNumberInput>> = {}
+  ) {
+    return render(
+      <UnitSystemProvider>
+        <UnitNumberInput
+          id="nd"
+          label="nd"
+          value={value}
+          integer
+          clamp
+          min={10}
+          max={200}
+          onChange={onChange}
+          {...extra}
+        />
+      </UnitSystemProvider>
+    );
+  }
+
+  it("snaps a below-min integer up to min on blur and emits the corrected value", async () => {
+    let captured = -1;
+    renderClampInt(15, (n) => { captured = n; });
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("nd ()") as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, "1");
+    await user.tab();
+    expect(captured).toBe(10);
+    expect(input.value).toBe("10");
+  });
+
+  it("snaps an above-max integer down to max on blur", async () => {
+    let captured = -1;
+    renderClampInt(500, (n) => { captured = n; }, { min: 500, max: 5000 });
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("nd ()") as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, "9000");
+    await user.tab();
+    expect(captured).toBe(5000);
+    expect(input.value).toBe("5000");
+  });
+
+  it("leaves an in-range value untouched on blur", async () => {
+    let captured = -1;
+    renderClampInt(15, (n) => { captured = n; });
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("nd ()") as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, "120");
+    await user.tab();
+    expect(captured).toBe(120);
+    expect(input.value).toBe("120");
+  });
+});
