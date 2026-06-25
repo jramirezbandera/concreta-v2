@@ -1804,14 +1804,8 @@ class Slope:
             "tan_phi": tan_phi,
         }
 
-    def get_critical_slice_data(self, method="bishop"):
+    def get_critical_slice_data(self):
         """PATCH (Concreta): per-slice physics for the critical circle.
-
-        ``method`` ("bishop" | "ordinary") selects the uplift convention so the
-        reported per-slice U matches the force balance that produced the FoS:
-        Bishop integrates uplift over the horizontal slice_width, the ordinary
-        method (Fellenius) over the inclined base length (slice_width / cos_alpha).
-        Pass the SAME method used in ``analyse_slope``.
 
         Returns the parallel per-slice arrays (geometry, weight, pore pressure
         and material properties) of the circular slip plane with the minimum
@@ -1832,7 +1826,7 @@ class Slope:
                     "width":    [...],  # slice width b (m)
                     "alpha":    [...],  # base inclination (rad)
                     "weight":   [...],  # slice weight W (kN)
-                    "u":        [...],  # pore pressure resultant U on base (kN)
+                    "u":        [...],  # pore pressure u on base (kPa) = gw*hw*cos^2(slope)
                     "cohesion": [...],  # base material cohesion c (kPa)
                     "tan_phi":  [...],  # base material tan(phi)
                 }
@@ -1881,14 +1875,16 @@ class Slope:
 
         n = self._slices
         width = slices["slice_width"]
-        # PATCH (Concreta): _compute_slice_arrays returns U in Bishop's convention
-        # (uplift over the horizontal slice_width). The ordinary method (Fellenius)
-        # integrates uplift over the INCLINED base length (slice_width / cos_alpha),
-        # i.e. U_ordinary = U_bishop / cos_alpha (the only term that differs). Rescale
-        # so the reported per-slice U equals the one that entered the Fellenius FoS
-        # (defensibility: the dovela table mirrors the computed run, not another
-        # method). Bishop ("bishop", default) is returned unchanged → golden intact.
-        u = slices["U"] / slices["cos_alpha"] if method == "ordinary" else slices["U"]
+        # PATCH (Concreta): report the per-slice pore PRESSURE u (kPa), not the
+        # uplift force. _compute_slice_arrays returns U = head*gw*slice_width*H
+        # (H = cos(slope)**2 under the default auto seepage model), so
+        # u = U / slice_width = head*gw*H = gw*hw*cos^2(slope): the textbook pore
+        # pressure for steady seepage parallel to the slope. It is the SAME pressure
+        # both force balances use (Bishop and the ordinary method differ only in the
+        # base length they multiply it by), hence method-independent, and intensive
+        # (does not scale with slice count). Matches the SlopeSlice contract
+        # ("presión intersticial en la base, kPa") and the "u (kPa)" column label.
+        u = slices["U"] / width
         return {
             "x": slices["slice_x"].tolist(),
             "width": [float(width)] * n,

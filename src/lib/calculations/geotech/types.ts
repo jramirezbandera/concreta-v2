@@ -51,7 +51,7 @@ export interface SlopeSlice {
   yBase: number;    // cota de la superficie de rotura bajo la dovela (m)
   alpha?: number;   // inclinación de la base (rad) — física del círculo crítico (T1.1)
   weight?: number;  // peso de la dovela (kN) — física del círculo crítico (T1.1)
-  u?: number;       // presión intersticial en la base (kPa) — física del círculo crítico (T1.1)
+  u?: number;       // presión intersticial en la base (kPa) = γw·hw·cos²(talud) — método-indep. (T1.1)
 }
 
 /** Resultado geométrico de UNA corrida de PySlope. Lo consume el SVG (vista 1). */

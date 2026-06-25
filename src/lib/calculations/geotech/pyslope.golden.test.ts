@@ -70,7 +70,7 @@ const SLICES = 25;
  * el FoS de Bishop sigue siendo GOLDEN_FOS exacto.
  */
 const GOLDEN_PATCH_HASH =
-  "1213ecdac7bd58276e334ceeb980bb6ea393dc9a857930e2e9028a1374dd3a2b";
+  "d5b91642583cd46bd4a9d7a4ba88e569f0b66d1f30fcf85bf781d3a50a2d2374";
 
 describe("PySlope golden — runtime numpy-only", () => {
   let py: PyodideInterface;
@@ -112,35 +112,48 @@ describe("PySlope golden — runtime numpy-only", () => {
     expect(fos).toBeLessThan(GOLDEN_FOS); // el ordinario es más conservador
   });
 
-  it("física por dovela de Fellenius: contrato completo + u re-escalada a la base inclinada", () => {
-    // method='ordinary' → U integrada sobre la base INCLINADA (slice_width/cosα),
-    // que es la que entró en el FoS de Fellenius. method='bishop' → base horizontal.
-    const ord = JSON.parse(
-      py.runPython("import json; json.dumps(sf.get_critical_slice_data(method='ordinary'))") as string,
+  it("física por dovela de Fellenius: contrato completo + u es PRESIÓN (kPa), no fuerza", () => {
+    const sd = JSON.parse(
+      py.runPython("import json; json.dumps(sf.get_critical_slice_data())") as string,
     ) as Record<string, number[]>;
-    const bish = JSON.parse(
-      py.runPython("json.dumps(sf.get_critical_slice_data(method='bishop'))") as string,
-    ) as Record<string, number[]>;
-
     const keys = ["x", "width", "alpha", "weight", "u", "cohesion", "tan_phi"];
     for (const k of keys) {
-      expect(Array.isArray(ord[k]), `${k} es array`).toBe(true);
-      expect(ord[k].length, `${k}.length == nº dovelas`).toBe(SLICES);
-      expect(ord[k].every((v) => Number.isFinite(v)), `${k} solo números finitos`).toBe(true);
+      expect(Array.isArray(sd[k]), `${k} es array`).toBe(true);
+      expect(sd[k].length, `${k}.length == nº dovelas`).toBe(SLICES);
+      expect(sd[k].every((v) => Number.isFinite(v)), `${k} solo números finitos`).toBe(true);
     }
+    // El caso README tiene NF (set_water_table(4)) → hay dovelas con u>0.
+    expect(sd.u.every((u) => u >= 0)).toBe(true);
+    expect(Math.max(...sd.u)).toBeGreaterThan(0);
 
-    // El caso README tiene NF (set_water_table(4)). Relación exacta por dovela:
-    // u_ordinary[i] == u_bishop[i] / cos(α[i]). W y α son agnósticos del método.
-    expect(ord.weight).toEqual(bish.weight);
-    expect(ord.alpha).toEqual(bish.alpha);
-    let strictlyGreater = 0;
-    for (let i = 0; i < SLICES; i++) {
-      expect(ord.u[i]).toBeCloseTo(bish.u[i] / Math.cos(ord.alpha[i]), 6);
-      if (ord.u[i] > bish.u[i] + 1e-9) strictlyGreater++;
-    }
-    // Hay dovelas con agua e inclinación → al menos una diverge (si no, el fix
-    // sería un no-op vacío y la regresión de Finding A no quedaría cubierta).
-    expect(strictlyGreater).toBeGreaterThan(0);
+    // Finding B: u es PRESIÓN intersticial (kPa), no la resultante de empuje U (kN).
+    // Una presión es INTENSIVA: no escala con el ancho de dovela. Una fuerza
+    // U = u·b sí (∝ slice_width → se ~halva al duplicar dovelas). Corremos el mismo
+    // talud con 25 y 50 dovelas y comparamos el pico de u: si es presión apenas
+    // cambia; si fuera fuerza, max(u₅₀) ≈ 0,5·max(u₂₅).
+    const peakU = (n: number): number => {
+      py.runPython(`
+sb = Slope(height=3, angle=30, length=None)
+sb.set_materials(Material(unit_weight=20, friction_angle=45, cohesion=2, depth_to_bottom=2), Material(20, 30, 2, 5))
+sb.set_udls(Udl(magnitude=100, offset=2, length=1), Udl(magnitude=20))
+sb.set_lls(LineLoad(magnitude=10, offset=3))
+sb.set_water_table(4)
+sb.set_analysis_limits(sb.get_top_coordinates()[0] - 5, sb.get_bottom_coordinates()[0] + 5)
+sb.update_analysis_options(slices=${n}, iterations=1000)
+sb.analyse_slope(method='ordinary')
+`);
+      const d = JSON.parse(py.runPython("json.dumps(sb.get_critical_slice_data())") as string) as Record<string, number[]>;
+      return Math.max(...d.u);
+    };
+    const peak25 = peakU(25);
+    const peak50 = peakU(50);
+    expect(peak25).toBeGreaterThan(0);
+    // Discriminador presión vs fuerza: una fuerza U=u·b (∝ slice_width) daría
+    // peak50 ≈ 0,5·peak25 al duplicar dovelas. Una presión es INTENSIVA: el pico se
+    // mantiene o sube (más dovelas resuelven mejor el punto de máxima carga). Exigir
+    // > 0,75·peak25 excluye con claridad el 0,5 de una fuerza; cota superior holgada.
+    expect(peak50).toBeGreaterThan(0.75 * peak25);
+    expect(peak50).toBeLessThan(3 * peak25);
   });
 
   it("expone geometría limpia del círculo crítico", () => {

@@ -15,7 +15,7 @@ Vendored files (src/lib/calculations/geotech/vendor/pyslope/):
   pyslope.py                        — patched (see pyslope.manifest.json)
   __init__.py                       — patched (see pyslope.manifest.json)
 
-Vendor tree SHA-256: 1213ecdac7bd58276e334ceeb980bb6ea393dc9a857930e2e9028a1374dd3a2b
+Vendor tree SHA-256: d5b91642583cd46bd4a9d7a4ba88e569f0b66d1f30fcf85bf781d3a50a2d2374
 
 The plotting paths (plotly/tqdm/colour) are never executed: Concreta consumes
 only the numeric results and renders its own SVG. Those imports are satisfied by

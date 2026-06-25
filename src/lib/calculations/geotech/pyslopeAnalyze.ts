@@ -103,7 +103,7 @@ def _analyze(inputs_json, opts_json):
 
     if hasattr(s, 'get_critical_slice_data'):
         try:
-            phys = s.get_critical_slice_data(method=method)
+            phys = s.get_critical_slice_data()
             if hasattr(phys, 'to_py'):
                 phys = phys.to_py()
             alpha = _flist(phys, 'alpha')
