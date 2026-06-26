@@ -29,7 +29,7 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, within, fireEvent, cleanup, act } from "@testing-library/react";
 import { UnitSystemProvider } from "../../lib/units/UnitSystemProvider";
 import { ThemeProvider } from "../../lib/theme/ThemeProvider";
 import type { SlopeResult } from "../../lib/calculations/geotech/types";
@@ -81,19 +81,24 @@ const MOCK_RESULT: SlopeResult = {
   },
 };
 
-// ── Mock del solver: hook React con estado real. `calculate()` pasa de
-//    idle/null → ready/MOCK_RESULT, disparando un re-render del módulo. No toca
-//    getPySlope/worker: Pyodide jamás arranca en jsdom. ─────────────────────────
+// ── Mock del solver: hook React con estado real por FASE. `calculate()` pasa a
+//    'ready'/MOCK_RESULT; un test puede forzar 'loading' vía `solverControl.setPhase`
+//    (expuesto por vi.hoisted) para ejercitar el overlay del lienzo. No toca
+//    getPySlope/worker: Pyodide jamás arranca en jsdom. `engineReady:true` (motor
+//    fingido caliente) → sin chip "Preparando motor" en el smoke. ───────────────
+const solverControl = vi.hoisted(() => ({ setPhase: null as null | ((p: string) => void) }));
 vi.mock("../../features/slope-stability/useSlopeSolver", () => ({
   useSlopeSolver: () => {
-    const [ready, setReady] = React.useState(false);
+    const [phase, setPhase] = React.useState("idle");
+    solverControl.setPhase = setPhase;
     return {
-      engineState: ready ? "ready" : "idle",
-      result: ready ? MOCK_RESULT : null,
+      engineState: phase,
+      result: phase === "ready" ? MOCK_RESULT : null,
       error: null,
       isStale: false,
-      calculate: () => setReady(true),
-      cancel: () => setReady(false),
+      engineReady: true,
+      calculate: () => setPhase("ready"),
+      cancel: () => setPhase("idle"),
       ensureResult: async () => MOCK_RESULT,
     };
   },
@@ -212,6 +217,15 @@ describe("SlopeStabilityModule — smoke de integración (T4.3, solver mockeado)
     // Seleccionarla actualiza el valor del control.
     fireEvent.change(select, { target: { value: "fellenius" } });
     expect(select.value).toBe("fellenius");
+  });
+
+  it("3c · estado 'loading' pinta el overlay de carga sobre el lienzo central", () => {
+    const { container } = renderModule();
+    // Fuerza el motor a 'loading' (cold-start) vía el control del mock.
+    act(() => solverControl.setPhase?.("loading"));
+    const canvas = within(screenCanvas(container));
+    // El overlay (aria-hidden) del lienzo muestra el texto del helper centralizado.
+    expect(canvas.getByText("Cargando motor de cálculo…")).toBeInTheDocument();
   });
 
   it("4 · Copiar enlace escribe una URL con ?model= en el portapapeles", async () => {

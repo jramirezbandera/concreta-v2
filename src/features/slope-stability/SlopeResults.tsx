@@ -25,7 +25,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import type { CheckRow } from '../../lib/calculations/types';
 import type { SlopeSlice } from '../../lib/calculations/geotech/types';
-import { slopeMethodLabel } from '../../lib/text/labels';
+import { slopeMethodLabel, engineStatusText } from '../../lib/text/labels';
 import type { SlopeSolver } from './useSlopeSolver';
 import type { SlopeInputs } from '../../data/defaults';
 
@@ -33,9 +33,6 @@ interface SlopeResultsProps {
   solver: SlopeSolver;
   /** Situación de proyecto — fija el límite de FoS y su etiqueta. */
   situation: SlopeInputs['situation'];
-  /** Método de dovelas seleccionado — etiqueta del estado "Calculando…" antes
-   *  de que haya un primer resultado. El estado "listo" usa `result.run.method`. */
-  method: SlopeInputs['method'];
 }
 
 // Límite de factor de seguridad por situación — CTE DB-SE-C art. 7.2.2.1 (γR):
@@ -155,22 +152,15 @@ function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
   );
 }
 
-export function SlopeResults({ solver, situation, method }: SlopeResultsProps): JSX.Element {
-  const { engineState, result, error, isStale, calculate, cancel } = solver;
+export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Element {
+  const { engineState, result, error, isStale, engineReady, calculate, cancel } = solver;
 
   const isBusy = engineState === 'loading' || engineState === 'computing';
   const limit = FOS_LIMIT[situation];
-
-  // Región aria-live: un único string que resume el estado del motor.
-  let liveMessage = '';
-  if (engineState === 'loading') liveMessage = 'Cargando motor geotécnico…';
-  else if (engineState === 'computing') liveMessage = 'Calculando factor de seguridad…';
-  else if (engineState === 'error') liveMessage = `Error de cálculo: ${error ?? ''}`;
-  else if (result) {
-    liveMessage = isStale
-      ? `Resultados desactualizados. Último FoS ${result.fos.toFixed(2)}.`
-      : `Cálculo listo. Factor de seguridad ${result.fos.toFixed(2)}.`;
-  }
+  // El anuncio aria-live vive en el shell del módulo (index.tsx), siempre montado
+  // — en móvil este panel puede ir display:none según la pestaña.
+  // Precalentando en segundo plano: motor aún no listo, sin corrida ni resultado.
+  const warming = engineState === 'idle' && !engineReady && result === null;
 
   return (
     <div className="flex flex-col px-2 py-3 gap-3">
@@ -186,9 +176,7 @@ export function SlopeResults({ solver, situation, method }: SlopeResultsProps): 
           {isBusy ? (
             <>
               <Loader2 size={15} className="animate-spin" aria-hidden="true" />
-              {engineState === 'loading'
-                ? 'Cargando motor geotécnico…'
-                : `Calculando… ${slopeMethodLabel(method)} · ${result?.run.slicesN ?? ''} dovelas`}
+              {engineStatusText(engineState as 'loading' | 'computing').title}
             </>
           ) : (
             'Calcular'
@@ -214,12 +202,35 @@ export function SlopeResults({ solver, situation, method }: SlopeResultsProps): 
             Resultados desactualizados
           </span>
         )}
+
+        {/* Chip sutil: el motor se precalienta en segundo plano (al abrir el
+            módulo). El botón Calcular sigue habilitado; si se pulsa antes de
+            terminar, se ve el overlay de carga. */}
+        {warming && (
+          <span className="inline-flex items-center gap-1.5 self-start text-[11px] text-text-secondary">
+            <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+            Preparando motor…
+          </span>
+        )}
       </div>
 
-      {/* ── Región aria-live (anuncio del estado del motor) ──────────────── */}
-      <div className="sr-only" aria-live="polite" role="status">
-        {liveMessage}
-      </div>
+      {/* ── Carga del motor (cold-start o corrida): tarjeta prominente en el
+          cuerpo, no solo en el botón — cubre el caso móvil (pestaña Resultados). */}
+      {isBusy && (
+        <div className="mx-2 rounded border border-accent/30 bg-accent/5 px-4 py-3 flex items-start gap-2.5">
+          <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-accent" aria-hidden="true" />
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[12px] font-medium text-accent leading-relaxed">
+              {engineStatusText(engineState as 'loading' | 'computing').title}
+            </p>
+            {engineStatusText(engineState as 'loading' | 'computing').subtitle && (
+              <p className="text-[11px] text-text-secondary leading-relaxed">
+                {engineStatusText(engineState as 'loading' | 'computing').subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Pre-cálculo: sin resultado y sin corrida en curso ────────────── */}
       {result === null && engineState !== 'error' && !isBusy && (

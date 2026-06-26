@@ -1864,3 +1864,21 @@ export function formatRebarSchedule(
 export function slopeMethodLabel(method: string): string {
   return method === 'fellenius' ? 'Fellenius (ordinario)' : 'Bishop simplificado';
 }
+
+/**
+ * Texto del estado de carga del motor de taludes (Pyodide/PySlope). Fuente ÚNICA
+ * del copy, reutilizada por el botón Calcular, el overlay del lienzo y la tarjeta
+ * del panel (DRY — que las 3 superficies no se desincronicen). `loading` = primer
+ * arranque en frío de Pyodide (lento); `computing` = una corrida ya con el motor
+ * caliente. El `subtitle` (solo en loading) tranquiliza sobre la 1ª descarga.
+ */
+export function engineStatusText(
+  state: 'loading' | 'computing',
+): { title: string; subtitle?: string } {
+  return state === 'loading'
+    ? {
+        title: 'Cargando motor de cálculo…',
+        subtitle: 'La primera vez tarda unos segundos. No cierres la pestaña.',
+      }
+    : { title: 'Calculando factor de seguridad…' };
+}

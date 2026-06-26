@@ -62,19 +62,17 @@ const solver: SlopeSolver = {
   result: mockResult,
   error: null,
   isStale: false,
+  engineReady: true,
   calculate: () => {},
   cancel: () => {},
   ensureResult: async () => mockResult,
 };
 
-function renderResults(
-  solverOverride: SlopeSolver = solver,
-  method: "bishop" | "fellenius" = "bishop",
-) {
+function renderResults(solverOverride: SlopeSolver = solver) {
   return render(
     <ThemeProvider>
       <UnitSystemProvider>
-        <SlopeResults solver={solverOverride} situation="persistent" method={method} />
+        <SlopeResults solver={solverOverride} situation="persistent" />
       </UnitSystemProvider>
     </ThemeProvider>,
   );
@@ -113,8 +111,56 @@ describe("SlopeResults — tabla de checks agrupada + tabla de dovelas (T3.3)", 
       ...solver,
       result: { ...mockResult, run: { ...mockResult.run, method: "fellenius" } },
     };
-    renderResults(felleniusSolver, "fellenius");
+    renderResults(felleniusSolver);
     expect(screen.getByText(/Fellenius \(ordinario\) · circular/i)).toBeInTheDocument();
+  });
+
+  it("muestra la tarjeta de carga prominente mientras el motor arranca (loading)", () => {
+    const loadingSolver: SlopeSolver = {
+      ...solver,
+      engineState: "loading",
+      result: null,
+      engineReady: false,
+    };
+    renderResults(loadingSolver);
+    // El título sale en el botón Y en la tarjeta del cuerpo.
+    expect(screen.getAllByText("Cargando motor de cálculo…").length).toBeGreaterThanOrEqual(2);
+    // El subtexto es exclusivo de la tarjeta → prueba la tarjeta prominente.
+    expect(screen.getByText(/La primera vez tarda unos segundos/i)).toBeInTheDocument();
+  });
+
+  it("muestra la tarjeta de cálculo durante una corrida (computing)", () => {
+    const computingSolver: SlopeSolver = {
+      ...solver,
+      engineState: "computing",
+      result: null,
+      engineReady: true,
+    };
+    renderResults(computingSolver);
+    // Título en el botón Y en la tarjeta del cuerpo.
+    expect(screen.getAllByText("Calculando factor de seguridad…").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("muestra el chip 'Preparando motor…' mientras precalienta en segundo plano", () => {
+    const warmingSolver: SlopeSolver = {
+      ...solver,
+      engineState: "idle",
+      result: null,
+      engineReady: false,
+    };
+    renderResults(warmingSolver);
+    expect(screen.getByText(/Preparando motor…/i)).toBeInTheDocument();
+  });
+
+  it("NO muestra el chip de precarga cuando el motor ya está listo", () => {
+    const readyIdleSolver: SlopeSolver = {
+      ...solver,
+      engineState: "idle",
+      result: null,
+      engineReady: true,
+    };
+    renderResults(readyIdleSolver);
+    expect(screen.queryByText(/Preparando motor…/i)).not.toBeInTheDocument();
   });
 
   it("la tabla de dovelas colapsa por defecto y expande con W/α/u", () => {
