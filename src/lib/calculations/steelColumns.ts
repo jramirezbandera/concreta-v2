@@ -16,7 +16,7 @@ import {
   type SectionKind,
 } from '../sections';
 import { type SteelCheckRow, type SteelCheckStatus } from './steelBeams';
-import { makeCheckQty, makeCheckNeutral } from './types';
+import { makeCheckQty, makeCheckNeutral, WARN_UTIL } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const E  = 210000;  // N/mm² — Young's modulus
@@ -72,7 +72,7 @@ export interface SteelColumnResult {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toStatus(util: number): Exclude<SteelCheckStatus, 'neutral'> {
-  if (util < 0.8) return 'ok';
+  if (util < WARN_UTIL) return 'ok';
   if (util < 1.0) return 'warn';
   return 'fail';
 }

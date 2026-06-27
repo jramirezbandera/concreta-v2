@@ -12,7 +12,7 @@
 
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { getAngleProfile } from '../../data/angleProfiles';
-import { makeCheckQty, type CheckRow } from './types';
+import { makeCheckQty, toStatus, type CheckRow } from './types';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const γM0 = 1.05;
@@ -286,7 +286,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
       value: util_chord_int.toFixed(3),
       limit: '1.000',
       utilization: util_chord_int,
-      status: util_chord_int < 0.8 ? 'ok' : util_chord_int < 1.0 ? 'warn' : 'fail',
+      status: toStatus(util_chord_int),
       article: 'EC3 §6.4.3.1(1) — Cordón a axil + momento local',
     },
     makeCheckQty('pandeo-global', 'Pandeo global (N_Ed / N_b,Rd)',
@@ -301,7 +301,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
       value: `s = ${s_cm.toFixed(0)} cm`,
       limit: `≤ ${(50 * iv).toFixed(0)} cm`,
       utilization: s_cm / (50 * iv),
-      status: s_cm / (50 * iv) < 0.8 ? 'ok' : s_cm / (50 * iv) < 1.0 ? 'warn' : 'fail',
+      status: toStatus(s_cm / (50 * iv)),
       article: 'Práctica EA/CTE — limitación de esbeltez local',
     },
     {

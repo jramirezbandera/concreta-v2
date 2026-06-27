@@ -53,8 +53,8 @@ Base:
 - accent-hover: #0ea5e9
 
 Semantic state colors (add to Tailwind CSS v4):
-- state-ok:      #22c55e  (green-500 — utilization < 80%)
-- state-warn:    #f59e0b  (amber-500 — utilization 80–99%)
+- state-ok:      #22c55e  (green-500 — utilization < 95%)
+- state-warn:    #f59e0b  (amber-500 — utilization 95–99%)
 - state-fail:    #ef4444  (red-500   — utilization ≥ 100%)
 - state-neutral: #64748b  (slate-500 — no data state)
 

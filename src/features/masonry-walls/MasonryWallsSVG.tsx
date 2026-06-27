@@ -8,6 +8,7 @@ import type {
   CriticoResult,
 } from '../../lib/calculations/masonryWalls';
 import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 const FORJADO_H = 16;
@@ -194,7 +195,7 @@ export function MasonryWallsSVG({
   const etaMaxGlobal = plantasCalc.length > 0
     ? Math.max(...plantasCalc.flatMap((pl) => pl.machones.map((m) => m.etaMax)))
     : 0;
-  const verdict = etaMaxGlobal >= 1 ? 'INCUMPLE' : etaMaxGlobal >= 0.8 ? 'REVISAR' : 'CUMPLE';
+  const verdict = etaMaxGlobal >= 1 ? 'INCUMPLE' : etaMaxGlobal >= WARN_UTIL ? 'REVISAR' : 'CUMPLE';
   const a11yTitle = `Alzado del edificio · ${state.plantas.length} plantas · ${verdict} η=${(etaMaxGlobal * 100).toFixed(0)}%`;
   const a11yDesc = critico
     ? `Edificio multi-planta DB-SE-F. Plantas (de cubierta a planta baja): ${plantasCalc.slice().reverse().map((pl) => `${pl.nombre} η máx ${(Math.max(...pl.machones.map((m) => m.etaMax)) * 100).toFixed(0)}%`).join(', ')}. Machón crítico: ${critico.planta.nombre} machón ${critico.id} con η ${(critico.etaMax * 100).toFixed(0)}%.`
@@ -251,7 +252,7 @@ export function MasonryWallsSVG({
           const esCubierta = i === state.plantas.length - 1 && state.plantas.length >= 2;
           const isSelectedPl = selectedPlantaIdx === i;
           const etaMaxPlanta = Math.max(...calc.machones.map((m) => m.etaMax));
-          const colorPlanta = etaMaxPlanta >= 1 ? cFail : etaMaxPlanta >= 0.8 ? cWarn : cOk;
+          const colorPlanta = etaMaxPlanta >= 1 ? cFail : etaMaxPlanta >= WARN_UTIL ? cWarn : cOk;
 
           return (
             <g key={pl.id}>
@@ -554,9 +555,9 @@ export function MasonryWallsSVG({
           const cbY = padTop + 20;
           const cbH = Math.min(280, height - padTop - padBottom - 60);
           const stops = [0, 0.25, 0.5, 0.75, 1];
-          // Umbrales semánticos del módulo: warn ≥ 0.8, fail ≥ 1.0.
+          // Umbrales semánticos del módulo: warn ≥ 0.95, fail ≥ 1.0.
           const thresholds: Array<{ t: number; label: string; color: string }> = [
-            { t: 0.80, label: '80%', color: cWarn },
+            { t: 0.95, label: '95%', color: cWarn },
             { t: 1.00, label: '100%', color: cFail },
           ];
           return (
@@ -584,7 +585,7 @@ export function MasonryWallsSVG({
                   </g>
                 );
               })}
-              {/* Umbrales 80% (warn) y 100% (fail) — marcadores horizontales
+              {/* Umbrales 95% (warn) y 100% (fail) — marcadores horizontales
                   sobre el bar, mismo color que el estado en los machones. */}
               {thresholds.map(({ t, label, color }) => {
                 const yy = cbY + cbH * (1 - t);

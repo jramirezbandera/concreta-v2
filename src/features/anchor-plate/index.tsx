@@ -15,7 +15,7 @@ import { AnchorPlateSVG } from './AnchorPlateSVG';
 import { AnchorPlateResults } from './AnchorPlateResults';
 
 export function AnchorPlateModule() {
-  const { state, setField, reset } = useModuleState('anchor-plate', anchorPlateDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('anchor-plate', anchorPlateDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -61,6 +61,7 @@ export function AnchorPlateModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

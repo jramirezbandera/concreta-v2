@@ -15,7 +15,7 @@ import { PunchingResults } from './PunchingResults';
 import { PunchingSVG } from './PunchingSVG';
 
 export function PunchingModule() {
-  const { state, setField, reset } = useModuleState('punching', punchingDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('punching', punchingDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -38,6 +38,7 @@ export function PunchingModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

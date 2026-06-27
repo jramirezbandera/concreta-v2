@@ -895,10 +895,10 @@ describe('overallStatus', () => {
     expect(overallStatus([])).toEqual({ v: 'ok', label: 'CUMPLE', eta: 0 });
   });
 
-  it('umbral 0.8 → REVISAR', () => {
+  it('umbral 0.95 → REVISAR', () => {
     const fake: PlantaResult[] = [
       {
-        index: 0, machones: [{ etaMax: 0.85 } as never], dinteles: [],
+        index: 0, machones: [{ etaMax: 0.97 } as never], dinteles: [],
         q_planta: 0, q_planta_avg: 0, e_apoyo: 0, e_cabeza: 0, e_pie: 0, e_total: 0, e_min: 0,
         e_a: 0, k_reparto: 0, rho_n: 0, h_ef: 0, lambda: 0, Phi: 0, f_d: 0,
         id: 'x', nombre: '', H: 0, q_G: 0, q_Q: 0, a_apoyo: 0, huecos: [], puntuales: [],

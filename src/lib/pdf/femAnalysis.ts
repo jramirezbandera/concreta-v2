@@ -20,6 +20,7 @@ import jsPDF from 'jspdf';
 import { MAT } from '../../features/fem-analysis/presets';
 import type { DesignBar, DesignModel, SolveResult } from '../../features/fem-analysis/types';
 import { formatQuantity, getUnitLabel } from '../units/format';
+import { toStatus } from '../calculations/types';
 import type { UnitSystem } from '../units/types';
 import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, type PdfResult } from './utils';
 
@@ -442,8 +443,7 @@ function drawBarSection(
       doc.text(valStr, COL.value, y);
       const utilStr = isFinite(c.eta) ? `${(c.eta * 100).toFixed(0)}%` : '---';
       doc.text(utilStr, COL.util, y);
-      const status: 'ok' | 'warn' | 'fail' =
-        c.eta >= 1 ? 'fail' : c.eta >= 0.8 ? 'warn' : 'ok';
+      const status: 'ok' | 'warn' | 'fail' = toStatus(c.eta);
       setGray(doc, status === 'ok' ? 70 : 30);
       doc.setFont('helvetica', 'bold');
       doc.text(STATUS_LABEL[status], COL.status, y);

@@ -28,6 +28,7 @@ import type {
   ReactionsByCombo,
   SolveResult,
 } from './types';
+import { toStatus } from '../../lib/calculations/types';
 
 const ELU_GAMMA_G = 1.35;
 const ELU_GAMMA_VAR = 1.5;
@@ -235,7 +236,7 @@ export function solveDesignModel(model: DesignModel): SolveResult {
                 ref: c.article ?? '',
               });
             }
-            status = eta >= 1 ? 'fail' : eta >= 0.8 ? 'warn' : 'ok';
+            status = toStatus(eta);
           }
         } else if (bar.material === 'steel' && bar.steelSelection) {
           const adapted = adaptSteelBar(bar, solved.elements, model);
@@ -252,7 +253,7 @@ export function solveDesignModel(model: DesignModel): SolveResult {
                 ref: c.article ?? '',
               });
             }
-            status = eta >= 1 ? 'fail' : eta >= 0.8 ? 'warn' : 'ok';
+            status = toStatus(eta);
           } else {
             status = 'pending';
           }
@@ -308,7 +309,7 @@ export function solveDesignModel(model: DesignModel): SolveResult {
   if (hasFail) topStatus = 'fail';
   else if (model.bars.length === 0) topStatus = 'neutral';
   else if (allPending) topStatus = 'pending';
-  else topStatus = maxEta >= 1 ? 'fail' : maxEta >= 0.8 ? 'warn' : 'ok';
+  else topStatus = toStatus(maxEta);
 
   return {
     elements: solved.elements,

@@ -95,7 +95,7 @@ function SummaryStrip({
 }
 
 export function RetainingWallModule() {
-  const { state, setField, reset } = useModuleState('retaining-wall', retainingWallDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('retaining-wall', retainingWallDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -134,6 +134,7 @@ export function RetainingWallModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

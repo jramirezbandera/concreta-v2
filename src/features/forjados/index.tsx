@@ -16,7 +16,7 @@ import { ForjadosResults } from './ForjadosResults';
 import { ForjadosSVG } from './ForjadosSVG';
 
 export function ForjadosModule() {
-  const { state, setField, reset } = useModuleState('forjados', forjadosDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('forjados', forjadosDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -72,6 +72,7 @@ export function ForjadosModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

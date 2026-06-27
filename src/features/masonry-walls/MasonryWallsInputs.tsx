@@ -3,6 +3,7 @@
 // global, Acciones ELU, Plantas, Forjado, Cargas puntuales, Huecos) con CRUD.
 
 import { useEffect, useState } from 'react';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import {
@@ -640,7 +641,7 @@ export function MasonryWallsInputs({
             const eMax = cs ? Math.max(...cs.machones.map((m) => m.etaMax)) : 0;
             const stCol = !cs
               ? 'var(--color-text-disabled)'
-              : eMax >= 1 ? 'var(--color-state-fail)' : eMax >= 0.8 ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
+              : eMax >= 1 ? 'var(--color-state-fail)' : eMax >= WARN_UTIL ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
             const isSel = selectedPlantaIdx === i;
             return (
               <div key={pl.id} className="flex items-center gap-1">

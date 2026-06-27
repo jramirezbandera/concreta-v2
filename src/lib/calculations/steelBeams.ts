@@ -13,7 +13,7 @@ import { type SteelBeamInputs } from '../../data/defaults';
 import { getProfile, type SteelProfile } from '../../data/steelProfiles';
 import { ISectionAdapter } from '../sections';
 import { BEAM_CASES } from './beamCases';
-import { type CheckRow, type CheckStatus, makeCheckQty } from './types';
+import { type CheckRow, type CheckStatus, makeCheckQty, WARN_UTIL } from './types';
 
 // CTE DB-SE-A constants
 const E = 210000;   // N/mm²  — Young's modulus
@@ -61,7 +61,7 @@ export interface SteelBeamResult {
 }
 
 function toStatus(util: number): SteelCheckStatus {
-  if (util < 0.8) return 'ok';
+  if (util < WARN_UTIL) return 'ok';
   if (util < 1.0) return 'warn';
   return 'fail';
 }

@@ -10,6 +10,7 @@
 //   Fuego: Reduced section (EN 1995-1-2 §4.2.2), checks on residual section
 
 import { type TimberColumnInputs } from '../../data/defaults';
+import { WARN_UTIL } from './types';
 import {
   getTimberGrade,
   getKmod,
@@ -89,7 +90,7 @@ export interface TimberColumnResult {
 }
 
 function toStatus(util: number): CheckStatus {
-  if (util < 0.8) return 'ok';
+  if (util < WARN_UTIL) return 'ok';
   if (util < 1.0) return 'warn';
   return 'fail';
 }

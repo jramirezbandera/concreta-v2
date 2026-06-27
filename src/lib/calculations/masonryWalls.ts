@@ -7,6 +7,8 @@
  *  v2.0.0 = cascada de cargas concentradas multi-planta (2026-05-12). */
 export const MASONRY_ENGINE_VERSION = '2.0.0';
 
+import { WARN_UTIL } from './types';
+
 //
 // Comprobación de muros de carga de fábrica en edificación rehabilitada,
 // multi-planta, considerando huecos (puertas/ventanas) con dinteles que
@@ -1175,7 +1177,7 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       // independiente del axil. Por encima el muro no es apto aunque η < 1.
       let status: 'ok' | 'warn' | 'fail' = 'ok';
       if (etaMax >= 1.0 || lambda > 27) status = 'fail';
-      else if (etaMax >= 0.8) status = 'warn';
+      else if (etaMax >= WARN_UTIL) status = 'warn';
 
       return {
         ...m,
@@ -1309,7 +1311,7 @@ export function overallStatus(plantasCalc: PlantaResult[]): OverallStatus {
     pl.machones.forEach((m) => { if (m.etaMax > max) max = m.etaMax; });
   });
   if (max >= 1.0 || slendernessFail) return { v: 'fail', label: 'INCUMPLE', eta: max };
-  if (max >= 0.8) return { v: 'warn', label: 'REVISAR', eta: max };
+  if (max >= WARN_UTIL) return { v: 'warn', label: 'REVISAR', eta: max };
   return { v: 'ok', label: 'CUMPLE', eta: max };
 }
 

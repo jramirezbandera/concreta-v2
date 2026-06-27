@@ -6,6 +6,7 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { usePdfPreview } from '../../hooks/usePdfPreview';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { exportMicropilesPDF } from '../../lib/pdf/micropiles';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
@@ -64,7 +65,7 @@ function ViewTabButton({
 function UtilStat({ label, util }: { label: string; util: number }) {
   const color =
     util >= 1.0 ? 'text-state-fail' :
-    util >= 0.8 ? 'text-state-warn' :
+    util >= WARN_UTIL ? 'text-state-warn' :
                   'text-state-ok';
   return (
     <div className="flex flex-col items-end leading-none">
@@ -91,14 +92,15 @@ function SummaryStrip({ ih, ic, im, iv }: { ih: number; ic: number; im: number; 
 }
 
 export function MicropilesModule() {
-  const { state, setField, reset } = useModuleState<MicropilesInputs>('micropiles', micropilesDefaults);
+  const { state, setField, reset, getShareUrl } = useModuleState<MicropilesInputs>('micropiles', micropilesDefaults);
   const { openDrawer } = useDrawer();
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [view, setView] = useState<MicropilesView>('profile');
   // Share-URL: si la URL trae `?soil=<lz-string>`, el destinatario hereda los
-  // estratos del emisor. El param es efímero — useModuleState lo barre al
-  // primer setSearchParams, pero el estado ya está cargado y persiste en
-  // localStorage del destinatario. Si no hay param, fallback al loader local.
+  // estratos del emisor. Se lee aquí (initializer) ANTES de que useModuleState
+  // limpie la URL en su efecto de montaje, así que el estado queda cargado y
+  // persiste en localStorage del destinatario. Si no hay param, fallback al
+  // loader local.
   const [soil, setSoil] = useState<SoilLayer[]>(() => readSoilFromUrl() ?? loadSoil());
 
   useEffect(() => { saveSoil(soil); }, [soil]);
@@ -133,13 +135,15 @@ export function MicropilesModule() {
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
     usePdfPreview(() => exportMicropilesPDF(state, soil, result), true);
 
-  // Share enlace: a diferencia del default del Topbar (que solo copia
-  // window.location.href, perdiendo el array soil), aquí construimos la URL
-  // con `?soil=<lz-string>` para que el destinatario vea EXACTAMENTE el
-  // mismo cálculo. Patrón idéntico a masonry-walls/fem-analysis.
+  // Share enlace: construimos el enlace bajo demanda combinando los inputs
+  // escalares (getShareUrl, desde el estado EN MEMORIA de useModuleState) con
+  // el array soil comprimido (`?soil=<lz-string>`). Así el destinatario ve
+  // EXACTAMENTE el mismo cálculo — escalares y estratos — sin depender de lo
+  // que haya en la barra de direcciones. Patrón build-on-demand igual que el
+  // resto de módulos.
   const handleCopyLink = useCallback(() => {
     try {
-      const url = buildShareUrl(soil);
+      const url = buildShareUrl(soil, getShareUrl());
       navigator.clipboard.writeText(url).then(() => {
         showToast('Enlace copiado — incluye estratos', { autoDismiss: 2500 });
       }).catch(() => {
@@ -148,7 +152,7 @@ export function MicropilesModule() {
     } catch {
       showToast('Error al generar el enlace', { autoDismiss: 3500 });
     }
-  }, [soil]);
+  }, [soil, getShareUrl]);
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0

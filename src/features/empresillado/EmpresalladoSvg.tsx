@@ -4,6 +4,7 @@
 
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { getAngleProfile } from '../../data/angleProfiles';
 
 export type SvgMode = 'screen' | 'pdf';
@@ -50,7 +51,7 @@ function colors(mode: SvgMode) {
 }
 
 function statusColor(util: number, c: ReturnType<typeof colors>): string {
-  if (util < 0.8) return c.stateOk;
+  if (util < WARN_UTIL) return c.stateOk;
   if (util < 1.0) return c.stateWarn;
   return c.stateFail;
 }

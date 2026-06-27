@@ -3,6 +3,7 @@
 // simply-supported approximation. NOT a real FEM solver.
 import { MAT, isRc, isSteel } from './presets';
 import type { Bar, BarCheck, BarResult, FemModel, Node, ReactionResult, SolveResult } from './types';
+import { toStatus } from '../../lib/calculations/types';
 
 function findNode(model: FemModel, id: string): Node | undefined {
   return model.nodes.find((n) => n.id === id);
@@ -236,9 +237,7 @@ function checkBar(bar: Bar, diag: ReturnType<typeof sampleDiagrams>): { eta: num
   }
 
   const eta = checks.reduce((m, c) => Math.max(m, c.eta), 0);
-  let status: BarResult['status'] = 'ok';
-  if (eta >= 1) status = 'fail';
-  else if (eta >= 0.8) status = 'warn';
+  const status: BarResult['status'] = toStatus(eta);
   return { eta, status, checks };
 }
 
@@ -329,13 +328,15 @@ export function solveModel(model: FemModel): SolveResult {
   let maxEta = 0;
   for (const id in perBar) maxEta = Math.max(maxEta, perBar[id].eta);
   const hasFail = errors.some((e) => e.severity === 'fail');
-  const status: SolveResult['status'] = hasFail ? 'fail' : maxEta >= 1 ? 'fail' : maxEta >= 0.8 ? 'warn' : 'ok';
+  const status: SolveResult['status'] = hasFail ? 'fail' : toStatus(maxEta);
   return { perBar, reactions, errors, maxEta, status };
 }
 
 export function etaColor(eta: number): string {
-  if (eta >= 1) return 'var(--color-state-fail)';
-  if (eta >= 0.8) return 'var(--color-state-warn)';
-  if (eta > 0) return 'var(--color-state-ok)';
-  return 'var(--color-text-primary)';
+  if (eta <= 0) return 'var(--color-text-primary)';
+  switch (toStatus(eta)) {
+    case 'fail': return 'var(--color-state-fail)';
+    case 'warn': return 'var(--color-state-warn)';
+    default:     return 'var(--color-state-ok)';
+  }
 }

@@ -90,8 +90,8 @@ tema por defecto.
 |-------|-----|---------------|
 | `accent` | `#38bdf8` | Focus ring, nav activo, anotaciones SVG (eje neutro, líneas de cota) |
 | `accent-hover` | `#0ea5e9` | Hover sobre elementos accent |
-| `state-ok` | `#22c55e` | η < 80% |
-| `state-warn` | `#f59e0b` | 80% ≤ η < 100% · **avisos advisory** (ver abajo) |
+| `state-ok` | `#22c55e` | η < 95% |
+| `state-warn` | `#f59e0b` | 95% ≤ η < 100% · **avisos advisory** (ver abajo) |
 | `state-fail` | `#ef4444` | η ≥ 100% |
 | `state-neutral` | `#64748b` | Sin datos / estado inicial |
 

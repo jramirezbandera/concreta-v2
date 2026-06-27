@@ -18,7 +18,7 @@ import { SteelBeamsResults } from './SteelBeamsResults';
 import { SteelBeamsDiagrams } from './SteelBeamsDiagrams';
 
 export function SteelBeamsModule() {
-  const { state, setField, reset } = useModuleState('steel-beams', steelBeamDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('steel-beams', steelBeamDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -93,6 +93,7 @@ export function SteelBeamsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

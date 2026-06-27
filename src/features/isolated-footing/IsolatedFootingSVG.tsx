@@ -526,7 +526,6 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
   return (
     <div
       id={isPdf ? 'isolated-footing-svg-pdf' : undefined}
-      className={mode === 'screen' ? 'canvas-dot-grid' : undefined}
       style={isPdf ? { background: '#fff' } : undefined}
     >
       <svg

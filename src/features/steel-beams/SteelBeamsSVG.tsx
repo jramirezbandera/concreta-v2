@@ -5,6 +5,7 @@
 
 import { type SteelBeamInputs } from '../../data/defaults';
 import { type SteelBeamResult } from '../../lib/calculations/steelBeams';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { FF_MONO } from './diagramStyle';
 
 interface SteelBeamsSVGProps {
@@ -50,7 +51,7 @@ const PDF = {
 };
 
 function statusColor(eta: number, colors: typeof SCREEN): string {
-  if (eta < 0.8) return colors.pointOk;
+  if (eta < WARN_UTIL) return colors.pointOk;
   if (eta < 1.0) return colors.pointWarn;
   return colors.pointFail;
 }

@@ -17,7 +17,7 @@ import { SteelColumnInteractionSVG } from './SteelColumnInteractionSVG';
 import { SteelColumnsResults } from './SteelColumnsResults';
 
 export function SteelColumnsModule() {
-  const { state, setField, reset } = useModuleState('steel-columns', steelColumnDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('steel-columns', steelColumnDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -65,6 +65,7 @@ export function SteelColumnsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

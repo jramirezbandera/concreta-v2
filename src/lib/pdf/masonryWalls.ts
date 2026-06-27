@@ -22,6 +22,7 @@
 //   I3. Estado `invalid` → 1 página con banner, metadata y footer intactos.
 
 import jsPDF from 'jspdf';
+import { WARN_UTIL } from '../calculations/types';
 import {
   MASONRY_ENGINE_VERSION,
   type MasonryWallState,
@@ -65,11 +66,11 @@ const mToCm = (mm: number, dp = 1) => `${(mm / 10).toFixed(dp)} cm`;
 const num = (v: number, dp = 1) => v.toFixed(dp);
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const statusLabel = (eta: number): 'CUMPLE' | 'REVISAR' | 'INCUMPLE' =>
-  eta >= 1 ? 'INCUMPLE' : eta >= 0.8 ? 'REVISAR' : 'CUMPLE';
+  eta >= 1 ? 'INCUMPLE' : eta >= WARN_UTIL ? 'REVISAR' : 'CUMPLE';
 const statusGray = (eta: number): number =>
-  eta >= 1 ? 30 : eta >= 0.8 ? 60 : 60;
+  eta >= 1 ? 30 : 60;
 const statusRGB = (eta: number): [number, number, number] =>
-  eta >= 1 ? [239, 68, 68] : eta >= 0.8 ? [245, 158, 11] : [34, 197, 94];
+  eta >= 1 ? [239, 68, 68] : eta >= WARN_UTIL ? [245, 158, 11] : [34, 197, 94];
 
 interface ExportArgs {
   state: MasonryWallState;

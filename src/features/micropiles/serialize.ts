@@ -62,10 +62,25 @@ export function readSoilFromUrl(): SoilLayer[] | null {
 }
 
 /**
- * Construye una URL completa con los inputs actuales (ya en window.location)
- * + el soil comprimido. El destinatario verá EXACTAMENTE el mismo cálculo.
+ * Construye una URL completa con los inputs escalares + el soil comprimido.
+ * El destinatario verá EXACTAMENTE el mismo cálculo.
+ *
+ * Con `baseUrl` (uso normal): el módulo pasa el enlace ya construido desde el
+ * estado escalar EN MEMORIA (useModuleState.getShareUrl) y aquí sólo añadimos
+ * `?soil=`. Así escalares + estratos viajan juntos sin depender de
+ * window.location.search (que queda limpia durante el uso). Esto evita el bug
+ * en que, tras la primera edición del destinatario, el enlace re-compartido
+ * perdía los estratos.
+ *
+ * Sin `baseUrl`: fallback que lee window.location (conserva params escalares
+ * que ya estuvieran en la barra). Lo usan los tests de serialización.
  */
-export function buildShareUrl(soil: SoilLayer[]): string {
+export function buildShareUrl(soil: SoilLayer[], baseUrl?: string): string {
+  if (baseUrl) {
+    const u = new URL(baseUrl);
+    u.searchParams.set(SOIL_URL_PARAM, encodeSoil(soil));
+    return u.toString();
+  }
   if (typeof window === 'undefined') return '/ciment/micropilotes';
   const { origin, pathname, search } = window.location;
   const params = new URLSearchParams(search);

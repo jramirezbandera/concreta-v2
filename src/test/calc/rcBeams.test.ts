@@ -162,13 +162,13 @@ describe('psi2 / loadType', () => {
 
 // ── Bending check thresholds ──────────────────────────────────────────────────
 describe('Bending check thresholds', () => {
-  it('Md < 0.8*MRd -> bending ok', () => {
+  it('Md < 0.95*MRd -> bending ok', () => {
     const r = calcRCBeam(base); // Md=85, MRd~147 -> util~0.58
     expect(r.vano.checks.find((c) => c.id === 'bending')!.status).toBe('ok');
   });
 
-  it('0.8*MRd <= Md < MRd -> bending warn', () => {
-    const r = calcRCBeam({ ...base, vano_Md: 130 }); // MRd~147, util~0.88
+  it('0.95*MRd <= Md < MRd -> bending warn', () => {
+    const r = calcRCBeam({ ...base, vano_Md: 144 }); // MRd~147, util~0.97 (≥ WARN_UTIL=0.95)
     expect(r.vano.checks.find((c) => c.id === 'bending')!.status).toBe('warn');
   });
 

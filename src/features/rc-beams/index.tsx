@@ -20,7 +20,7 @@ import { pickSectionInputs } from '../../lib/calculations/rcBeams';
 import { solveSectionAtMoment } from '../../lib/calculations/rcBeamsSection';
 
 export function RCBeamsModule() {
-  const { state, setField, reset } = useModuleState('rc-beams', rcBeamDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('rc-beams', rcBeamDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -60,6 +60,7 @@ export function RCBeamsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar
         tab={isSimple && tab === 'diagramas' ? 'results' : tab}

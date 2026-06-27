@@ -104,7 +104,7 @@ export function ForjadosSVG({ inp, result, section, width, mode = 'screen' }: Pr
     // Nervio only in reticular needs to be clipped to (h - hFlange) below the ala
     // Shape: top rect = ala (bEff × hFlange), below = nervio (bWeb × (h-hFlange))
     return (
-      <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
+      <div>
         <svg
           width={width}
           height={svgH}
@@ -266,7 +266,7 @@ export function ForjadosSVG({ inp, result, section, width, mode = 'screen' }: Pr
   const refBars  = spreadBars(nRef);
 
   return (
-    <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
+    <div>
       <svg
         width={width}
         height={svgH}

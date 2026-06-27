@@ -2,6 +2,7 @@
 // + per-floor summary. Uses the shared check primitives from
 // src/components/checks so styling stays consistent across modules.
 
+import { WARN_UTIL } from '../../lib/calculations/types';
 import {
   ambientStyle,
   CheckRowItem,
@@ -205,7 +206,7 @@ export function MasonryWallsResults({
         const eMax = Math.max(...pl.machones.map((m) => m.etaMax));
         const stCol = eMax >= 1
           ? 'var(--color-state-fail)'
-          : eMax >= 0.8 ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
+          : eMax >= WARN_UTIL ? 'var(--color-state-warn)' : 'var(--color-state-ok)';
         const isCrit = critico && critico.planta.index === pl.index;
         return (
           <div

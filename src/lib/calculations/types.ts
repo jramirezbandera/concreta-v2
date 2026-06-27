@@ -57,8 +57,23 @@ export interface CheckRow {
   tag?: string;
 }
 
+/**
+ * Utilization thresholds — single source of truth for the whole app.
+ *
+ *   util < WARN_UTIL          -> 'ok'   (cumple holgado, verde)
+ *   WARN_UTIL <= util < 1.0   -> 'warn' (cumple al borde, ámbar; <5% de margen)
+ *   util >= 1.0               -> 'fail' (incumple, rojo)
+ *
+ * WARN_UTIL was 0.8, but 80% de utilización es buen diseño, no un aviso: el
+ * ámbar saltaba en casi todos los números y se leía como fallo. Subido a 0.95
+ * para que el aviso solo aparezca cuando el margen es realmente escaso.
+ * Tanto la clasificación por check (toStatus) como los veredictos/colores de
+ * la UI, el PDF y los SVG derivan de esta constante.
+ */
+export const WARN_UTIL = 0.95;
+
 export function toStatus(util: number): Exclude<CheckStatus, "neutral"> {
-  if (util < 0.8) return "ok";
+  if (util < WARN_UTIL) return "ok";
   if (util < 1.0) return "warn";
   return "fail";
 }

@@ -576,7 +576,7 @@ describe('Auditoría #121: FTUX defaults en verde', () => {
 });
 
 describe('Auditoría #119: excentricidad de la sección residual (3 caras)', () => {
-  it('240×240 C24, Nd=300, R60, 3 caras: 6.24,fi con ΔM incluido ≈ 0.92 warn (con kfi #122; sin kfi daria 1.07 fail; antes de ambos fixes, 0.86 engañoso)', () => {
+  it('240×240 C24, Nd=300, R60, 3 caras: 6.24,fi con ΔM incluido ≈ 0.92 → ok bajo WARN_UTIL=0.95 (con kfi #122; sin kfi daria 1.07 fail; antes de ambos fixes, 0.86 engañoso)', () => {
     const r = calcTimberColumn({
       ...timberColumnDefaults,
       b: 240, h: 240, Nd: 300, Vd: 5, Md: 3,
@@ -584,7 +584,7 @@ describe('Auditoría #119: excentricidad de la sección residual (3 caras)', () 
     });
     const fi624 = r.checks.find(c => c.id === 'fire-comb-624')!;
     expect(fi624.utilization).toBeCloseTo(0.916, 2);
-    expect(fi624.status).toBe('warn');
+    expect(fi624.status).toBe('ok'); // η=0.916 < 0.95 (WARN_UTIL) → cumple con ~8% de margen
   });
 
   it('4 caras (sección simétrica): sin excentricidad añadida', () => {

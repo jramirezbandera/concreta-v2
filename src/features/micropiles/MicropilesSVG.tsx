@@ -3,6 +3,7 @@
 
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../../lib/calculations/micropiles';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { getMinStructuralCover } from '../../data/micropileLookups';
 
@@ -616,7 +617,7 @@ function SemaphoresView({
         // — coherente con la tira de utilizaciones del header (UtilStat).
         const stateColor =
           card.util >= 1.0 ? p.fail :
-          card.util >= 0.8 ? p.warn :
+          card.util >= WARN_UTIL ? p.warn :
                              p.ok;
         const valueText = card.override ?? util.toFixed(2);
         return (

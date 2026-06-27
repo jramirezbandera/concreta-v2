@@ -15,7 +15,7 @@ import { PileCapResults } from './PileCapResults';
 import { PileCapSVG } from './PileCapSVG';
 
 export function PileCapModule() {
-  const { state, setField, reset } = useModuleState('pile-cap', pileCapDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('pile-cap', pileCapDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -38,6 +38,7 @@ export function PileCapModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

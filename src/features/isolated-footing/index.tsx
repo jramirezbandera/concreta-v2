@@ -15,7 +15,7 @@ import { IsolatedFootingResults } from './IsolatedFootingResults';
 import { IsolatedFootingSVG } from './IsolatedFootingSVG';
 
 export function IsolatedFootingModule() {
-  const { state, setField, reset } = useModuleState('isolated-footing', isolatedFootingDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('isolated-footing', isolatedFootingDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -40,6 +40,7 @@ export function IsolatedFootingModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

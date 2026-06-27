@@ -16,7 +16,7 @@ import { RCColumnInteractionSVG } from './RCColumnInteractionSVG';
 import { RCColumnsResults } from './RCColumnsResults';
 
 export function RCColumnsModule() {
-  const { state, setField, reset } = useModuleState('rc-columns', rcColumnDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('rc-columns', rcColumnDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -62,6 +62,7 @@ export function RCColumnsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

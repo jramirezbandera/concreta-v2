@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import { type BeamType } from '../../data/defaults';
+import { WARN_UTIL } from '../../lib/calculations/types';
 import {
   FF_MONO, FS_PEAK, FS_AXIS, FS_ADM, FS_FF_SAG, DOT_R,
   peakColor, axisColor, admColor,
@@ -55,7 +56,7 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   const vNegFill   = isPdf ? 'rgba(239,68,68,0.12)'  : 'rgba(239,68,68,0.2)';
   const vNegStroke = isPdf ? '#663333'               : '#ef4444';
 
-  const dStatus = deltaMax > deltaAdm ? 'fail' : deltaMax / deltaAdm > 0.8 ? 'warn' : 'ok';
+  const dStatus = deltaMax > deltaAdm ? 'fail' : deltaMax / deltaAdm >= WARN_UTIL ? 'warn' : 'ok';
   const dFill = dStatus === 'fail'
     ? (isPdf ? 'rgba(239,68,68,0.12)'  : 'rgba(239,68,68,0.2)')
     : dStatus === 'warn'

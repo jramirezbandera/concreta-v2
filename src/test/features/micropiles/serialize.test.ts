@@ -134,3 +134,35 @@ describe('REGRESIÓN A1 — round-trip URL → cálculo idéntico', () => {
     expect(received).toEqual(customSoil);
   });
 });
+
+describe('buildShareUrl — baseUrl (escalares en memoria + soil)', () => {
+  // Bajo el modelo build-on-demand el módulo pasa el enlace ya construido desde
+  // los escalares en memoria (useModuleState.getShareUrl) y buildShareUrl sólo
+  // añade ?soil=. Así escalares + estratos viajan juntos sin depender de la
+  // barra de direcciones (que queda limpia durante el uso).
+  it('combina los escalares del baseUrl con ?soil=<encoded>', () => {
+    const base = 'http://localhost/ciment/micropilotes?topDepth=2&toeDepth=18';
+    const u = new URL(buildShareUrl(customSoil, base));
+    expect(u.searchParams.get('topDepth')).toBe('2');
+    expect(u.searchParams.get('toeDepth')).toBe('18');
+    expect(decodeSoil(u.searchParams.get(SOIL_URL_PARAM))).toEqual(customSoil);
+  });
+
+  it('no depende de window.location: con la barra limpia, el soil viaja igual', () => {
+    window.history.replaceState({}, '', '/ciment/micropilotes'); // barra sin params
+    const base = 'http://localhost/ciment/micropilotes?tube=custom&customTubeDe=120';
+    const u = new URL(buildShareUrl(customSoil, base));
+    expect(u.searchParams.get('tube')).toBe('custom');
+    expect(u.searchParams.get('customTubeDe')).toBe('120');
+    expect(decodeSoil(u.searchParams.get(SOIL_URL_PARAM))).toEqual(customSoil);
+  });
+
+  it('REGRESIÓN: tras editar el destinatario, el re-compartir conserva los estratos', () => {
+    // El destinatario tiene la barra limpia y edita un escalar → getShareUrl le
+    // da `?topDepth=3` desde el estado en memoria; buildShareUrl añade el soil.
+    const baseTrasEditar = 'http://localhost/ciment/micropilotes?topDepth=3';
+    const u = new URL(buildShareUrl(customSoil, baseTrasEditar));
+    expect(u.searchParams.get('topDepth')).toBe('3');
+    expect(decodeSoil(u.searchParams.get(SOIL_URL_PARAM))).toEqual(customSoil);
+  });
+});

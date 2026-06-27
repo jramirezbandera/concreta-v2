@@ -152,8 +152,8 @@ bun run format
 Tema oscuro `slate-950` por defecto. Acento `sky-400` reservado a elementos
 interactivos (foco, navegación activa). Estados semánticos:
 
-- `state-ok` (verde) — utilización < 80 %
-- `state-warn` (ámbar) — utilización 80-99 %
+- `state-ok` (verde) — utilización < 95 %
+- `state-warn` (ámbar) — utilización 95-99 %
 - `state-fail` (rojo) — utilización ≥ 100 %
 - `state-neutral` (gris) — sin datos
 

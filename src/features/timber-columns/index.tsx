@@ -15,7 +15,7 @@ import { TimberColumnsSVG } from './TimberColumnsSVG';
 import { TimberColumnsResults } from './TimberColumnsResults';
 
 export function TimberColumnsModule() {
-  const { state, setField, reset } = useModuleState('timber-columns', timberColumnDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('timber-columns', timberColumnDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -37,6 +37,7 @@ export function TimberColumnsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

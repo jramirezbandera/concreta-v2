@@ -9,9 +9,11 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { CompositeSectionInputsPanel } from './CompositeSectionInputs';
 import { CompositeSectionResults } from './CompositeSectionResults';
 import { CompositeSectionSVG } from './CompositeSectionSVG';
+import { buildShareUrl, readModelFromUrl } from './serialize';
 
 const STORAGE_KEY = 'concreta-composite-section';
 
@@ -24,6 +26,10 @@ function newPlate(existing: PlateEntry[]): PlateEntry {
 }
 
 function loadState(): CompositeSectionInputs {
+  // Prioridad: URL (?model=) > localStorage > defaults. Quien pega un enlace
+  // compartido espera ver ESE caso, no el suyo guardado.
+  const fromUrl = readModelFromUrl();
+  if (fromUrl) return fromUrl;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as CompositeSectionInputs;
@@ -40,6 +46,29 @@ export function CompositeSectionModule() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
+  }, [inputs]);
+
+  // Consumido el enlace entrante (?model=), lo limpiamos de la barra de
+  // direcciones — paridad con el resto de módulos: URL limpia durante el uso,
+  // enlace reconstruido bajo demanda en "Copiar enlace".
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('model')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  // Build-on-demand: el enlace codifica el estado EN MEMORIA (incluye plates[])
+  // como `?model=<lz-string>`, así el destinatario ve EXACTAMENTE el mismo caso.
+  const copyShareLink = useCallback(() => {
+    try {
+      const url = buildShareUrl(inputs);
+      navigator.clipboard.writeText(url).then(
+        () => showToast('Enlace copiado', { autoDismiss: 2000 }),
+        () => showToast('No se pudo copiar el enlace', { autoDismiss: 3000 }),
+      );
+    } catch {
+      showToast('Error al generar el enlace', { autoDismiss: 3000 });
+    }
   }, [inputs]);
 
   const addPlate = useCallback(() => {
@@ -92,6 +121,7 @@ export function CompositeSectionModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

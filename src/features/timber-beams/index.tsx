@@ -15,7 +15,7 @@ import { TimberBeamsSVG } from './TimberBeamsSVG';
 import { TimberBeamsResults } from './TimberBeamsResults';
 
 export function TimberBeamsModule() {
-  const { state, setField, reset } = useModuleState('timber-beams', timberBeamDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('timber-beams', timberBeamDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -37,6 +37,7 @@ export function TimberBeamsModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

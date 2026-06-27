@@ -456,14 +456,14 @@ export function PunchingSVG({ inp, result, width, mode = 'screen' }: PunchingSVG
 
   if ((inp.mode as PunchingMode) === 'pilar-cruceta') {
     return (
-      <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
+      <div>
         <CrossPlanView inp={inp} size={planSize} svgMode={mode} />
       </div>
     );
   }
 
   return (
-    <div className={mode === 'screen' ? 'canvas-dot-grid' : undefined}>
+    <div>
       <PlanView inp={inp} result={result} size={planSize} svgMode={mode} />
     </div>
   );

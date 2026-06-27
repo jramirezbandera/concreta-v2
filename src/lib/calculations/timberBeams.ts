@@ -9,6 +9,7 @@
 //   Fuego: Sección reducida (§4.2.2, EN 1995-1-2)
 
 import { type TimberBeamInputs } from '../../data/defaults';
+import { WARN_UTIL } from './types';
 import {
   getTimberGrade,
   getKmod,
@@ -104,7 +105,7 @@ export interface TimberBeamResult {
 }
 
 function toStatus(util: number): CheckStatus {
-  if (util < 0.8) return 'ok';
+  if (util < WARN_UTIL) return 'ok';
   if (util < 1.0) return 'warn';
   return 'fail';
 }

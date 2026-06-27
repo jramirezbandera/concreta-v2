@@ -332,7 +332,7 @@ export function PileCapSVG({ inp, result, width, mode = 'screen' }: PileCapSVGPr
   return (
     <div
       id={mode === 'pdf' ? 'pile-cap-svg-pdf' : undefined}
-      className={mode === 'screen' ? 'canvas-dot-grid flex flex-col items-center gap-2 py-4' : undefined}
+      className={mode === 'screen' ? 'flex flex-col items-center gap-2 py-4' : undefined}
       style={mode === 'pdf' ? { background: '#fff' } : undefined}
     >
       {/* Plan view */}

@@ -10,7 +10,7 @@
 import { type PunchingInputs, type CrucetaSteel, type PunchingPosition } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
-import { type CheckRow, toStatus, makeCheckQty } from './types';
+import { type CheckRow, toStatus, makeCheckQty, WARN_UTIL } from './types';
 import { calcCruceta } from './cruceta';
 
 export type { CheckRow } from './types';
@@ -266,7 +266,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   if (inp.hasShearReinf) {
     const srMax = 0.75 * d;
     const util = inp.sr / srMax; // ≤1 = ok, >1 = violation
-    const srStatus: CheckRow['status'] = util > 1 ? 'fail' : util > 0.9 ? 'warn' : 'ok';
+    const srStatus: CheckRow['status'] = util > 1 ? 'fail' : util >= WARN_UTIL ? 'warn' : 'ok';
     checks.push({
       id:          'punz-sr-max',
       description: 'sr ≤ 0.75·d (separación radial)',

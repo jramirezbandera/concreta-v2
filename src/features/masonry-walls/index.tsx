@@ -144,6 +144,12 @@ export function MasonryWallsModule() {
     if (initial.migratedLegacy) {
       showToast('Caso anterior cargado como Personalizada · fk directo', { autoDismiss: 4000 });
     }
+    // Consumido el `?model=` entrante, lo limpiamos de la barra de direcciones
+    // (paridad con FEM/Taludes: URL limpia durante el uso, enlace reconstruido
+    // bajo demanda al pulsar "Copiar enlace").
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('model')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -464,10 +470,10 @@ export function MasonryWallsModule() {
           {/* Legend / mapa toggle */}
           <div className="px-6 py-2 flex items-center gap-4 text-[11px] font-mono text-text-disabled border-t border-border-main bg-bg-surface flex-wrap">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.4)' }} />η&lt;80%
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.4)' }} />η&lt;95%
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(245,158,11,0.5)' }} />80–99%
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(245,158,11,0.5)' }} />95–99%
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(239,68,68,0.5)' }} />η≥100%

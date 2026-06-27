@@ -15,7 +15,7 @@ import { EmpresalladoSvg } from './EmpresalladoSvg';
 import { EmpresalladoResults } from './EmpresalladoResults';
 
 export function EmpresalladoModule() {
-  const { state, setField, reset } = useModuleState('empresillado', empresalladoDefaults);
+  const { state, setField, reset, copyShareLink } = useModuleState('empresillado', empresalladoDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
@@ -38,6 +38,7 @@ export function EmpresalladoModule() {
         onExportPdf={handleExportPdf}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
+        onCopyLink={copyShareLink}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
