@@ -470,13 +470,13 @@ export function MasonryWallsModule() {
           {/* Legend / mapa toggle */}
           <div className="px-6 py-2 flex items-center gap-4 text-[11px] font-mono text-text-disabled border-t border-border-main bg-bg-surface flex-wrap">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.4)' }} />η&lt;95%
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'color-mix(in srgb, var(--color-state-ok) 40%, transparent)' }} />η&lt;95%
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(245,158,11,0.5)' }} />95–99%
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'color-mix(in srgb, var(--color-state-warn) 50%, transparent)' }} />95–99%
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(239,68,68,0.5)' }} />η≥100%
+              <span className="w-2 h-2 rounded-sm" style={{ background: 'color-mix(in srgb, var(--color-state-fail) 50%, transparent)' }} />η≥100%
             </span>
             <span className="ml-auto hidden lg:inline">Click en planta, hueco o machón para seleccionar</span>
             <button
@@ -484,9 +484,9 @@ export function MasonryWallsModule() {
               onClick={() => setMostrarMapa(!mostrarMapa)}
               className="px-2.5 py-1 rounded font-mono text-[11px] font-semibold transition-colors cursor-pointer border"
               style={{
-                background: mostrarMapa ? 'rgba(56,189,248,0.18)' : 'transparent',
+                background: mostrarMapa ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
                 borderColor: mostrarMapa ? 'var(--color-accent)' : 'var(--color-text-disabled)',
-                color: mostrarMapa ? '#7dd3fc' : 'var(--color-text-secondary)',
+                color: mostrarMapa ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                 letterSpacing: '0.04em',
               }}
             >

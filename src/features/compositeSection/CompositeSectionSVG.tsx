@@ -16,10 +16,10 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
   const strProfile  = isPdf ? '#334155'    : 'var(--color-border-main, #334155)';
   const colPlate    = isPdf ? 'none'       : 'none';
   const strPlate    = isPdf ? '#0f172a'    : 'var(--color-text-primary, #f8fafc)';
-  const strAccent   = isPdf ? '#0ea5e9'    : '#38bdf8';   // composite centroid
-  const strDisabled = isPdf ? '#94a3b8'    : '#475569';   // Steiner arms + element centroids
-  const strText     = isPdf ? '#475569'    : '#94a3b8';
-  const strTextDim  = isPdf ? '#64748b'    : '#475569';
+  const strAccent   = isPdf ? '#0ea5e9'    : 'var(--color-accent)';          // composite centroid
+  const strDisabled = isPdf ? '#94a3b8'    : 'var(--color-text-disabled)';   // Steiner arms + element centroids
+  const strText     = isPdf ? '#475569'    : 'var(--color-text-secondary)';
+  const strTextDim  = isPdf ? '#64748b'    : 'var(--color-text-disabled)';
 
   if (!result.valid || result.totalHeight === 0 || result.elements.length === 0) {
     const h = Math.round(width * 0.6);

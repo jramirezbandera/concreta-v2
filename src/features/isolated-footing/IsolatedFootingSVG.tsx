@@ -101,7 +101,7 @@ function Planta({
       {/* Base rect */}
       <rect
         x={fx} y={fy} width={fw} height={fh}
-        fill={isFail ? (isPdf ? '#eeeeee' : 'rgba(239,68,68,0.15)') : c.footFill}
+        fill={isFail ? (isPdf ? '#eeeeee' : 'color-mix(in srgb, var(--color-state-fail) 15%, transparent)') : c.footFill}
         stroke={c.footStroke} strokeWidth={1.25}
       />
 
@@ -242,7 +242,7 @@ function Seccion({
       {isFail && (
         <rect
           x={footLeftX} y={footTopY} width={capW} height={capH}
-          fill={isPdf ? '#eeeeee' : 'rgba(239,68,68,0.10)'} stroke="none"
+          fill={isPdf ? '#eeeeee' : 'color-mix(in srgb, var(--color-state-fail) 10%, transparent)'} stroke="none"
         />
       )}
 
@@ -376,7 +376,7 @@ function Diagrama({
       {/* Pressure shape */}
       <polygon
         points={poly}
-        fill={isPdf ? 'rgba(239,68,68,0.28)' : 'rgba(239,68,68,0.30)'}
+        fill={isPdf ? 'rgba(239,68,68,0.28)' : 'color-mix(in srgb, var(--color-state-fail) 30%, transparent)'}
         stroke={c.pressHigh} strokeWidth={0.75}
       />
 

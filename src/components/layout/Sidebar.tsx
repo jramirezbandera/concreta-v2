@@ -83,7 +83,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         : 'text-text-disabled cursor-default pointer-events-none',
                     ].join(' ')
                   }
-                  style={({ isActive }) => isActive ? { background: 'rgba(56,189,248,0.06)' } : undefined}
+                  style={({ isActive }) => isActive ? { background: 'var(--color-tint-accent)' } : undefined}
                   title={!mod.shipped ? 'Próximamente' : undefined}
                   onMouseEnter={() => handlePrefetch(mod.route, mod.shipped)}
                   onFocus={() => handlePrefetch(mod.route, mod.shipped)}

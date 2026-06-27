@@ -12,7 +12,7 @@ export function CalcButton({ onClick }: CalcButtonProps) {
         title="Calculadora"
         aria-label="Abrir calculadora"
         className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded text-accent hover:bg-bg-elevated transition-colors"
-        style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.25)' }}
+        style={{ background: 'var(--color-tint-accent)', border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)' }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25">
           <rect x="3" y="2" width="10" height="12" rx="0.5" />

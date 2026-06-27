@@ -26,12 +26,12 @@ type VerdictDisplay = {
 
 function verdictForStatus(status: BarResult['status'] | SolveResult['status']): VerdictDisplay {
   switch (status) {
-    case 'ok':      return { label: 'CUMPLE',    symbol: '●', bg: 'rgba(34,197,94,0.10)',  fg: 'var(--color-state-ok)' };
-    case 'warn':    return { label: 'REVISIÓN',  symbol: '●', bg: 'rgba(245,158,11,0.10)', fg: 'var(--color-state-warn)' };
-    case 'fail':    return { label: 'INCUMPLE',  symbol: '●', bg: 'rgba(239,68,68,0.10)',  fg: 'var(--color-state-fail)' };
-    case 'pending': return { label: 'PENDIENTE', symbol: '○', bg: 'rgba(100,116,139,0.10)', fg: 'var(--color-state-neutral)' };
+    case 'ok':      return { label: 'CUMPLE',    symbol: '●', bg: 'var(--color-tint-ok)',      fg: 'var(--color-state-ok)' };
+    case 'warn':    return { label: 'REVISIÓN',  symbol: '●', bg: 'var(--color-tint-warn)',    fg: 'var(--color-state-warn)' };
+    case 'fail':    return { label: 'INCUMPLE',  symbol: '●', bg: 'var(--color-tint-fail)',    fg: 'var(--color-state-fail)' };
+    case 'pending': return { label: 'PENDIENTE', symbol: '○', bg: 'var(--color-tint-neutral)', fg: 'var(--color-state-neutral)' };
     case 'neutral':
-    default:        return { label: '—',         symbol: '●', bg: 'rgba(100,116,139,0.10)', fg: 'var(--color-state-neutral)' };
+    default:        return { label: '—',         symbol: '●', bg: 'var(--color-tint-neutral)', fg: 'var(--color-state-neutral)' };
   }
 }
 
@@ -112,7 +112,7 @@ export function ResultsHeader({ result, selectedBar, activeSection, setActiveSec
                   fontSize: 10,
                   padding: '2px 8px',
                   borderRadius: 4,
-                  background: active ? 'rgba(56,189,248,0.15)' : 'transparent',
+                  background: active ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)' : 'transparent',
                   color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                   border: 'none',
                   cursor: 'pointer',

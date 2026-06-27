@@ -85,7 +85,7 @@ export function ConvertMode() {
       <div className="flex gap-1 mb-3">
         <div
           className="flex-1 min-w-0 bg-bg-primary border border-accent/40 rounded px-2 py-1.5 font-mono text-[13px] text-right text-accent tabular-nums truncate"
-          style={{ background: 'rgba(56,189,248,0.04)' }}
+          style={{ background: 'var(--color-tint-accent-soft)' }}
         >
           {out != null ? fmt(out) : '—'}
         </div>

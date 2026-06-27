@@ -79,7 +79,7 @@ export function FormulaMode() {
       {/* Result */}
       <div
         className="flex items-center justify-between border border-accent/40 rounded px-3 py-2 mb-2"
-        style={{ background: 'rgba(56,189,248,0.04)' }}
+        style={{ background: 'var(--color-tint-accent-soft)' }}
       >
         <span className="text-[11px] font-mono text-accent uppercase tracking-[0.07em]">Resultado</span>
         <span className="font-mono text-[15px] text-accent tabular-nums font-medium">

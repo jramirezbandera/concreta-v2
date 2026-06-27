@@ -23,7 +23,7 @@ export function ResultsUnsolvable({ errors }: Props) {
       style={{
         padding: '24px 16px',
         flex: 1,
-        background: 'linear-gradient(180deg, rgba(239,68,68,0.08) 0%, transparent 80px)',
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-state-fail) 8%, transparent) 0%, transparent 80px)',
         borderTop: '2px solid var(--color-state-fail)',
         overflowY: 'auto',
       }}

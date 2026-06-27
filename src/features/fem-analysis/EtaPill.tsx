@@ -19,6 +19,9 @@ export function EtaPill({ result, onClick }: Props) {
   const eta = result.maxEta;
 
   let bg: string;
+  // Dark ink on the bright ok/warn/fail fills (white was only ~2.2:1 on green/amber).
+  // The dim neutral slate keeps white text.
+  let fg = 'text-bg-primary';
   let label: string;
   if (errorCount > 0) {
     bg = 'bg-state-fail';
@@ -34,6 +37,7 @@ export function EtaPill({ result, onClick }: Props) {
     label = `η ${(eta * 100).toFixed(0)}%`;
   } else {
     bg = 'bg-state-neutral';
+    fg = 'text-white';
     label = '—';
   }
 
@@ -41,7 +45,7 @@ export function EtaPill({ result, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className={`md:hidden absolute top-3 right-3 z-10 ${bg} text-white font-mono text-[11px] font-semibold px-3 py-2 rounded shadow-md min-h-11 min-w-11 flex items-center justify-center`}
+      className={`md:hidden absolute top-3 right-3 z-10 ${bg} ${fg} font-mono text-[11px] font-semibold px-3 py-2 rounded shadow-md min-h-11 min-w-11 flex items-center justify-center`}
       aria-label={`Ver resultados — ${label}`}
     >
       {label}

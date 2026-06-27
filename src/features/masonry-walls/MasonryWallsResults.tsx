@@ -214,7 +214,7 @@ export function MasonryWallsResults({
             className="grid items-center gap-2 px-4 py-1.5 border-b border-border-sub"
             style={{
               gridTemplateColumns: '1fr auto auto',
-              background: isCrit ? 'rgba(56,189,248,0.04)' : 'transparent',
+              background: isCrit ? 'var(--color-tint-accent-soft)' : 'transparent',
             }}
           >
             <span className="font-mono text-[11px]" style={{ color: isCrit ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>

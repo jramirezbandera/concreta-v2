@@ -111,7 +111,7 @@ export function InputsPanel({
             onClick={() => setModel((m) => ({ ...m, selfWeight: !m.selfWeight }))}
             style={{
               padding: '2px 8px', fontSize: 10, borderRadius: 4,
-              background: model.selfWeight ? 'rgba(56,189,248,0.1)' : 'var(--color-bg-elevated)',
+              background: model.selfWeight ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'var(--color-bg-elevated)',
               color: model.selfWeight ? 'var(--color-accent)' : 'var(--color-text-secondary)',
               border: '1px solid ' + (model.selfWeight ? 'var(--color-accent)' : 'var(--color-border-main)'),
               fontFamily: 'var(--font-mono)', cursor: 'pointer',
@@ -146,18 +146,25 @@ function ReadOnlyGlobalSummary({ result, model }: { result: SolveResult; model: 
   const eta = result.maxEta;
 
   let badgeBg = 'var(--color-state-neutral)';
+  // Dark ink on the bright ok/warn/fail fills (white was ~2.2:1 on green/amber);
+  // the dim neutral slate keeps white.
+  let badgeFg = '#fff';
   let badgeLabel = '—';
   if (errorCount > 0) {
     badgeBg = 'var(--color-state-fail)';
+    badgeFg = 'var(--color-bg-primary)';
     badgeLabel = `${errorCount} ${errorCount === 1 ? 'error' : 'errores'}`;
   } else if (status === 'ok') {
     badgeBg = 'var(--color-state-ok)';
+    badgeFg = 'var(--color-bg-primary)';
     badgeLabel = `η ${(eta * 100).toFixed(0)}% — CUMPLE`;
   } else if (status === 'warn') {
     badgeBg = 'var(--color-state-warn)';
+    badgeFg = 'var(--color-bg-primary)';
     badgeLabel = `η ${(eta * 100).toFixed(0)}% — ADVERT.`;
   } else if (status === 'fail') {
     badgeBg = 'var(--color-state-fail)';
+    badgeFg = 'var(--color-bg-primary)';
     badgeLabel = `η ${(eta * 100).toFixed(0)}% — INCUMPLE`;
   }
 
@@ -179,7 +186,7 @@ function ReadOnlyGlobalSummary({ result, model }: { result: SolveResult; model: 
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: '#fff',
+          color: badgeFg,
           background: badgeBg,
           padding: '4px 8px',
           borderRadius: 4,
@@ -446,7 +453,7 @@ function LoadRow({
       }}
       aria-selected={isSelected}
       style={{
-        background: isSelected ? 'rgba(56,189,248,0.05)' : 'var(--color-bg-primary)',
+        background: isSelected ? 'color-mix(in srgb, var(--color-accent) 5%, transparent)' : 'var(--color-bg-primary)',
         border: '1px solid var(--color-border-sub)',
         borderLeft: isSelected ? '2px solid var(--color-accent)' : '2px solid transparent',
         borderRadius: 4,
@@ -568,7 +575,7 @@ function pillStyle(active: boolean): React.CSSProperties {
     fontSize: 11,
     fontFamily: 'var(--font-mono)',
     borderRadius: 3,
-    background: active ? 'rgba(56,189,248,0.12)' : 'var(--color-bg-elevated)',
+    background: active ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'var(--color-bg-elevated)',
     color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
     border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-border-main)'),
     cursor: 'pointer',

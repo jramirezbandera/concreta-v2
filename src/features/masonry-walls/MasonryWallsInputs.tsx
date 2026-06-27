@@ -280,7 +280,7 @@ function CustomFabricaBlock({
               className="flex-1 text-[11px] py-1 rounded font-mono cursor-pointer border transition-colors"
               style={{
                 color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                background: active ? 'rgba(56,189,248,0.08)' : 'transparent',
+                background: active ? 'var(--color-tint-accent)' : 'transparent',
                 borderColor: active ? 'var(--color-accent)' : 'var(--color-border-main)',
               }}
               aria-pressed={active}
@@ -487,7 +487,7 @@ export function MasonryWallsInputs({
               className="flex-1 text-[11px] py-1 rounded font-mono cursor-pointer border transition-colors"
               style={{
                 color: state.fabricaModo === m ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                background: state.fabricaModo === m ? 'rgba(56,189,248,0.08)' : 'transparent',
+                background: state.fabricaModo === m ? 'var(--color-tint-accent)' : 'transparent',
                 borderColor: state.fabricaModo === m ? 'var(--color-accent)' : 'var(--color-border-main)',
               }}
             >
@@ -650,7 +650,7 @@ export function MasonryWallsInputs({
                   onClick={() => { setSelectedPlantaIdx(i); setSelectedHueco(null); }}
                   className="flex-1 flex items-center justify-between rounded px-2 py-1.5 text-[11px] cursor-pointer border transition-colors"
                   style={{
-                    background: isSel ? 'rgba(56,189,248,0.08)' : 'transparent',
+                    background: isSel ? 'var(--color-tint-accent)' : 'transparent',
                     borderColor: isSel ? 'var(--color-accent)' : 'var(--color-border-main)',
                   }}
                 >

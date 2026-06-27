@@ -15,7 +15,7 @@ const STORAGE_KEY = "concreta-theme";
 // Drives <meta name="theme-color"> (mobile browser chrome).
 const META_COLOR: Record<Theme, string> = {
   light: "#ffffff",
-  dark: "#0b1220",
+  dark: "#0f172a",
 };
 
 function isTheme(v: unknown): v is Theme {

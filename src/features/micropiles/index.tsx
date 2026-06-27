@@ -43,9 +43,9 @@ function ViewTabButton({
       <span
         className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono font-semibold transition-colors"
         style={{
-          background: active ? `${color}22` : '#1f2c47',
-          color:      active ? color : '#cbd5e1',
-          border:     `1px solid ${active ? `${color}66` : '#3a4a6e'}`,
+          background: active ? `${color}22` : 'var(--color-bg-elevated)',
+          color:      active ? color : 'var(--color-text-secondary)',
+          border:     `1px solid ${active ? `${color}66` : 'var(--color-border-main)'}`,
         }}
       >
         {num}

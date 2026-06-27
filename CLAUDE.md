@@ -55,7 +55,7 @@ Base:
 Semantic state colors (add to Tailwind CSS v4):
 - state-ok:      #22c55e  (green-500 — utilization < 95%)
 - state-warn:    #f59e0b  (amber-500 — utilization 95–99%)
-- state-fail:    #ef4444  (red-500   — utilization ≥ 100%)
+- state-fail:    #f56565  (red-450   — utilization ≥ 100%; lifted from #ef4444 so fail text clears AA ~4.8:1 on the slate panel)
 - state-neutral: #64748b  (slate-500 — no data state)
 
 ## Typography

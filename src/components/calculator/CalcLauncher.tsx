@@ -15,7 +15,7 @@ export function CalcLauncher({ onClick }: CalcLauncherProps) {
     >
       <span
         className="w-1.5 h-1.5 rounded-full bg-accent"
-        style={{ boxShadow: '0 0 6px rgba(56,189,248,0.6)' }}
+        style={{ boxShadow: '0 0 6px color-mix(in srgb, var(--color-accent) 60%, transparent)' }}
       />
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" className="text-text-secondary group-hover:text-accent transition-colors">
         <rect x="3" y="2" width="10" height="12" rx="0.5" />

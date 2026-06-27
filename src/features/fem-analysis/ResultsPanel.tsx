@@ -146,7 +146,7 @@ function ModelSummary({
                 display: 'flex', alignItems: 'center', gap: 8,
                 transition: 'background-color 150ms ease-in-out',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(56,189,248,0.05)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--color-accent) 5%, transparent)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />

@@ -86,12 +86,16 @@ function PlanView({
   const colSlab    = isPdf ? '#f8fafc' : 'var(--color-bg-surface, #1e293b)';
   const colArea    = isPdf ? '#cbd5e1' : 'var(--color-bg-elevated, #263348)';
   const strokeArea = isPdf ? '#334155' : 'var(--color-border-main, #475569)';
-  const strokeU1   = isPdf ? '#0ea5e9' : '#38bdf8';
-  const strokeUout = isPdf ? '#64748b' : '#64748b';
-  const strokeEdge = isPdf ? '#475569' : '#64748b';
-  const textCol    = isPdf ? '#475569' : '#94a3b8';
-  const strokeSw   = isPdf ? '#94a3b8' : '#64748b';
-  const tintCol    = overall === 'fail' ? '#ef4444' : overall === 'warn' ? '#f59e0b' : '#22c55e';
+  const strokeU1   = isPdf ? '#0ea5e9' : 'var(--color-accent)';
+  const strokeUout = isPdf ? '#64748b' : 'var(--color-state-neutral)';
+  const strokeEdge = isPdf ? '#475569' : 'var(--color-state-neutral)';
+  const textCol    = isPdf ? '#475569' : 'var(--color-text-secondary)';
+  const strokeSw   = isPdf ? '#94a3b8' : 'var(--color-state-neutral)';
+  const tintCol    = overall === 'fail'
+    ? (isPdf ? '#ef4444' : 'var(--color-state-fail)')
+    : overall === 'warn'
+    ? (isPdf ? '#f59e0b' : 'var(--color-state-warn)')
+    : (isPdf ? '#22c55e' : 'var(--color-state-ok)');
 
   // Shear-reinforcement perimeters (rings) + studs on the loaded spokes.
   const ringDists: number[] = [];

@@ -49,29 +49,29 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   const chartH      = secH - chartTopOff - chartBot;
 
   // ── Colors ───────────────────────────────────────────────────────────────
-  const mFill      = isPdf ? 'rgba(56,189,248,0.12)' : 'rgba(56,189,248,0.2)';
-  const mStroke    = isPdf ? '#336699'               : '#38bdf8';
-  const vPosFill   = isPdf ? 'rgba(34,197,94,0.12)'  : 'rgba(34,197,94,0.2)';
-  const vPosStroke = isPdf ? '#336633'               : '#22c55e';
-  const vNegFill   = isPdf ? 'rgba(239,68,68,0.12)'  : 'rgba(239,68,68,0.2)';
-  const vNegStroke = isPdf ? '#663333'               : '#ef4444';
+  const mFill      = isPdf ? 'rgba(56,189,248,0.12)' : 'color-mix(in srgb, var(--color-accent) 20%, transparent)';
+  const mStroke    = isPdf ? '#336699'               : 'var(--color-accent)';
+  const vPosFill   = isPdf ? 'rgba(34,197,94,0.12)'  : 'color-mix(in srgb, var(--color-state-ok) 20%, transparent)';
+  const vPosStroke = isPdf ? '#336633'               : 'var(--color-state-ok)';
+  const vNegFill   = isPdf ? 'rgba(239,68,68,0.12)'  : 'color-mix(in srgb, var(--color-state-fail) 20%, transparent)';
+  const vNegStroke = isPdf ? '#663333'               : 'var(--color-state-fail)';
 
   const dStatus = deltaMax > deltaAdm ? 'fail' : deltaMax / deltaAdm >= WARN_UTIL ? 'warn' : 'ok';
   const dFill = dStatus === 'fail'
-    ? (isPdf ? 'rgba(239,68,68,0.12)'  : 'rgba(239,68,68,0.2)')
+    ? (isPdf ? 'rgba(239,68,68,0.12)'  : 'color-mix(in srgb, var(--color-state-fail) 20%, transparent)')
     : dStatus === 'warn'
-    ? (isPdf ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.2)')
-    : (isPdf ? 'rgba(34,197,94,0.12)'  : 'rgba(34,197,94,0.2)');
+    ? (isPdf ? 'rgba(245,158,11,0.12)' : 'color-mix(in srgb, var(--color-state-warn) 20%, transparent)')
+    : (isPdf ? 'rgba(34,197,94,0.12)'  : 'color-mix(in srgb, var(--color-state-ok) 20%, transparent)');
   const dStroke = dStatus === 'fail'
-    ? (isPdf ? '#663333' : '#ef4444')
+    ? (isPdf ? '#663333' : 'var(--color-state-fail)')
     : dStatus === 'warn'
-    ? (isPdf ? '#664400' : '#f59e0b')
-    : (isPdf ? '#336633' : '#22c55e');
+    ? (isPdf ? '#664400' : 'var(--color-state-warn)')
+    : (isPdf ? '#336633' : 'var(--color-state-ok)');
 
-  const baseColor  = isPdf ? '#555555' : '#475569';
-  const divColor   = isPdf ? '#cccccc' : '#1e293b';
-  const vPosLabelC = isPdf ? '#336633' : '#22c55e';
-  const vNegLabelC = isPdf ? '#663333' : '#ef4444';
+  const baseColor  = isPdf ? '#555555' : 'var(--color-chart-dim)';
+  const divColor   = isPdf ? '#cccccc' : 'var(--color-border-sub)';
+  const vPosLabelC = isPdf ? '#336633' : 'var(--color-state-ok)';
+  const vNegLabelC = isPdf ? '#663333' : 'var(--color-state-fail)';
   const C_PEAK = peakColor(isPdf);
   const C_AXIS = axisColor(isPdf);
   const C_ADM  = admColor(isPdf);

@@ -661,7 +661,7 @@ function ErrorBanner({ msg }: { msg: string }) {
     <div
       style={{
         position: 'absolute', bottom: 12, left: 12, zIndex: 9,
-        background: 'rgba(239,68,68,0.12)',
+        background: 'color-mix(in srgb, var(--color-state-fail) 12%, transparent)',
         border: '1px solid var(--color-state-fail)',
         padding: '8px 12px', borderRadius: 4, maxWidth: 380,
         display: 'flex', gap: 8, alignItems: 'flex-start',

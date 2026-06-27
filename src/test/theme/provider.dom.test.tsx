@@ -112,7 +112,7 @@ describe("theme / provider", () => {
     act(() => {
       screen.getByText("set dark").click();
     });
-    expect(meta.getAttribute("content")).toBe("#0b1220");
+    expect(meta.getAttribute("content")).toBe("#0f172a");
     act(() => {
       screen.getByText("set light").click();
     });
