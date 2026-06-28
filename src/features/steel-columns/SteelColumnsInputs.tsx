@@ -4,90 +4,15 @@ import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
-import { IconGridSelector, type IconGridOption } from '../../components/ui/IconGridSelector';
+import { IconGridSelector } from '../../components/ui/IconGridSelector';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { BC_OPTIONS } from './columnBCOptions';
 
 interface SteelColumnsInputsProps {
   state: SteelColumnInputs;
   setField: (field: keyof SteelColumnInputs, value: SteelColumnInputs[keyof SteelColumnInputs]) => void;
 }
-
-// ── Boundary condition SVG buttons (10×28px vertical viewBox) ─────────────────
-
-function SvgPP() {
-  return (
-    <svg width="10" height="28" viewBox="0 0 10 28" aria-hidden="true">
-      <line x1="5" y1="5" x2="5" y2="23" stroke="currentColor" strokeWidth="1.5" />
-      {/* Top pin — apex touches column at y=5, base opens upward to y=2 */}
-      <polygon points="5,5 2,2 8,2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      {/* Bottom pin — apex touches column at y=23, base opens downward to y=26 */}
-      <polygon points="5,23 2,26 8,26" fill="none" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
-function SvgPF() {
-  return (
-    <svg width="10" height="28" viewBox="0 0 10 28" aria-hidden="true">
-      <line x1="5" y1="5" x2="5" y2="23" stroke="currentColor" strokeWidth="1.5" />
-      {/* Top pin — apex touches column at y=5, base opens upward to y=2 */}
-      <polygon points="5,5 2,2 8,2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      {/* Bottom wall hatch */}
-      <rect x="0" y="23" width="10" height="5" fill="currentColor" opacity="0.35" />
-      <line x1="0" y1="23" x2="5" y2="28" stroke="currentColor" strokeWidth="0.75" />
-      <line x1="5" y1="23" x2="10" y2="28" stroke="currentColor" strokeWidth="0.75" />
-    </svg>
-  );
-}
-
-function SvgFF() {
-  return (
-    <svg width="10" height="28" viewBox="0 0 10 28" aria-hidden="true">
-      {/* Top wall hatch */}
-      <rect x="0" y="0" width="10" height="5" fill="currentColor" opacity="0.35" />
-      <line x1="0" y1="2" x2="5" y2="5" stroke="currentColor" strokeWidth="0.75" />
-      <line x1="5" y1="2" x2="10" y2="5" stroke="currentColor" strokeWidth="0.75" />
-      <line x1="5" y1="5" x2="5" y2="23" stroke="currentColor" strokeWidth="1.5" />
-      {/* Bottom wall hatch */}
-      <rect x="0" y="23" width="10" height="5" fill="currentColor" opacity="0.35" />
-      <line x1="0" y1="23" x2="5" y2="28" stroke="currentColor" strokeWidth="0.75" />
-      <line x1="5" y1="23" x2="10" y2="28" stroke="currentColor" strokeWidth="0.75" />
-    </svg>
-  );
-}
-
-function SvgFC() {
-  return (
-    <svg width="10" height="28" viewBox="0 0 10 28" aria-hidden="true">
-      {/* Top free end — open circle */}
-      <circle cx="5" cy="3" r="2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <line x1="5" y1="5" x2="5" y2="23" stroke="currentColor" strokeWidth="1.5" />
-      {/* Bottom wall hatch (fixed base) */}
-      <rect x="0" y="23" width="10" height="5" fill="currentColor" opacity="0.35" />
-      <line x1="0" y1="23" x2="5" y2="28" stroke="currentColor" strokeWidth="0.75" />
-      <line x1="5" y1="23" x2="10" y2="28" stroke="currentColor" strokeWidth="0.75" />
-    </svg>
-  );
-}
-
-function SvgCustom() {
-  return (
-    <svg width="10" height="28" viewBox="0 0 10 28" aria-hidden="true">
-      <circle cx="5" cy="3" r="2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <line x1="5" y1="5" x2="5" y2="23" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3,2" />
-      <circle cx="5" cy="25" r="2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
-const BC_OPTIONS: ReadonlyArray<IconGridOption<ColumnBCType>> = [
-  { value: 'pp',     label: 'Art-Art',   Icon: SvgPP,     tooltip: 'Articulado–Articulado  β=1.0' },
-  { value: 'pf',     label: 'Art-Emp',   Icon: SvgPF,     tooltip: 'Articulado–Empotrado  β=0.7' },
-  { value: 'ff',     label: 'Emp-Emp',   Icon: SvgFF,     tooltip: 'Empotrado–Empotrado  β=0.5' },
-  { value: 'fc',     label: 'Ménsula',   Icon: SvgFC,     tooltip: 'Empotrado–Libre  β=2.0' },
-  { value: 'custom', label: 'β lib.',    Icon: SvgCustom, tooltip: 'Coeficientes personalizados' },
-];
 
 // ── Shared field components ───────────────────────────────────────────────────
 

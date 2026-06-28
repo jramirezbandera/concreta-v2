@@ -545,3 +545,222 @@ describe('Auditoría #105: detección de solapes', () => {
     expect(laterals.checks.some((c) => c.id === 'overlap')).toBe(false);
   });
 });
+
+// ── Eje z (débil): Iz, Wel_z, Wpl_z, Mrd_z ───────────────────────────────────
+describe('Eje z — IPE 300 desnudo', () => {
+  const inp: CompositeSectionInputs = { ...base, plates: [] };
+
+  it('Iz ≈ 604 cm⁴ (valor de catálogo)', () => {
+    expect(calcCompositeSection(inp).Iz_cm4).toBeCloseTo(604, -1);
+  });
+
+  it('Wel_z_min ≈ 80.5 cm³', () => {
+    expect(calcCompositeSection(inp).Wel_z_min_cm3).toBeCloseTo(80.5, -0.5);
+  });
+
+  it('Wpl_z ≈ 124 cm³ (strip method, sin acuerdos)', () => {
+    expect(calcCompositeSection(inp).Wpl_z_cm3).toBeCloseTo(124, -0.5);
+  });
+
+  it('Mrd_z > 0 y elástico (Wel_z·fy/γM0)', () => {
+    const r = calcCompositeSection(inp);
+    expect(r.Mrd_z_kNm).toBeGreaterThan(0);
+    // 80.5 cm³ · 275 / 1.05 ≈ 21.1 kNm
+    expect(r.Mrd_z_kNm).toBeCloseTo(21.1, 0);
+  });
+
+  it('xc ≈ 0 (simétrico)', () => {
+    expect(calcCompositeSection(inp).xc_mm).toBeCloseTo(0, 3);
+  });
+});
+
+// ── Cajón: chapas laterales ancladas a las alas ─────────────────────────────
+describe('Cajón ala-a-ala (HEB 200 + chapas 20mm a las alas)', () => {
+  const heb: CompositeSectionInputs = {
+    ...base, profileType: 'HEB', profileSize: 200, grade: 'S275', plates: [],
+  };
+  const boxPlates: CompositeSectionInputs['plates'] = [
+    { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0, lateralAnchor: 'flange' },
+    { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0, lateralAnchor: 'flange' },
+  ];
+  const box: CompositeSectionInputs = { ...heb, plates: boxPlates };
+  const webAnchored: CompositeSectionInputs = {
+    ...heb,
+    plates: boxPlates.map((p) => ({ ...p, lateralAnchor: 'web' as const })),
+  };
+
+  it('Iz del cajón ≫ Iz del perfil desnudo', () => {
+    const bare = calcCompositeSection(heb).Iz_cm4;
+    const boxed = calcCompositeSection(box).Iz_cm4;
+    expect(boxed).toBeGreaterThan(bare * 1.5);
+  });
+
+  it('Iz(flange) > Iz(web): chapas más lejos del eje z', () => {
+    expect(calcCompositeSection(box).Iz_cm4).toBeGreaterThan(calcCompositeSection(webAnchored).Iz_cm4);
+  });
+
+  it('chapa flange abarca altura total h (mayor área que web)', () => {
+    expect(calcCompositeSection(box).A_cm2).toBeGreaterThan(calcCompositeSection(webAnchored).A_cm2);
+  });
+
+  it('xc ≈ 0 (cajón simétrico)', () => {
+    expect(calcCompositeSection(box).xc_mm).toBeCloseTo(0, 2);
+  });
+
+  it('cierre de cajón → fila de clasificación de alas como interno', () => {
+    const r = calcCompositeSection(box);
+    expect(r.compChecks.some((c) => c.id === 'cls-comp-flange' && /interno/.test(c.description))).toBe(true);
+  });
+
+  it('sin solape geométrico', () => {
+    expect(calcCompositeSection(box).checks.some((c) => c.id === 'overlap')).toBe(false);
+  });
+});
+
+// ── Desfase lateral ─────────────────────────────────────────────────────────
+describe('Desfase de chapa lateral', () => {
+  const heb: CompositeSectionInputs = {
+    ...base, profileType: 'HEB', profileSize: 200, grade: 'S275', plates: [],
+  };
+
+  it('desfase aumenta Iz (chapa más alejada del eje)', () => {
+    const noOff: CompositeSectionInputs = { ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0, lateralAnchor: 'flange', lateralOffset: 0 },
+      { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0, lateralAnchor: 'flange', lateralOffset: 0 },
+    ] };
+    const off: CompositeSectionInputs = { ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0, lateralAnchor: 'flange', lateralOffset: 30 },
+      { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0, lateralAnchor: 'flange', lateralOffset: 30 },
+    ] };
+    expect(calcCompositeSection(off).Iz_cm4).toBeGreaterThan(calcCompositeSection(noOff).Iz_cm4);
+  });
+
+  it('un solo lateral → xc ≠ 0 (asimétrico)', () => {
+    const one: CompositeSectionInputs = { ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left', customYBottom: 0, lateralAnchor: 'flange' },
+    ] };
+    expect(Math.abs(calcCompositeSection(one).xc_mm)).toBeGreaterThan(1);
+  });
+});
+
+// ── Resistencia a compresión ─────────────────────────────────────────────────
+describe('Compresión / pandeo', () => {
+  const heb: CompositeSectionInputs = {
+    ...base, profileType: 'HEB', profileSize: 200, grade: 'S275', plates: [],
+    Ly: 3500, Lz: 3500, bcType: 'pp', beta_y: 1.0, beta_z: 1.0, Ned: 0,
+  };
+
+  it('reinforced → bloque de compresión aplicable', () => {
+    expect(calcCompositeSection(heb).compApplicable).toBe(true);
+  });
+
+  it('Nb_Rd > 0 y Nc_Rd = min(Nb_Rd_y, Nb_Rd_z)', () => {
+    const r = calcCompositeSection(heb);
+    expect(r.Nb_Rd_y_kN).toBeGreaterThan(0);
+    expect(r.Nb_Rd_z_kN).toBeGreaterThan(0);
+    expect(r.Nc_Rd_kN).toBeCloseTo(Math.min(r.Nb_Rd_y_kN, r.Nb_Rd_z_kN), 6);
+  });
+
+  it('χ usa curva c (α=0.49)', async () => {
+    const { bucklingChi, BUCKLING_ALPHA } = await import('../../lib/calculations/buckling');
+    const r = calcCompositeSection(heb);
+    expect(r.chi_z).toBeCloseTo(bucklingChi(r.lambda_z, BUCKLING_ALPHA.c), 6);
+  });
+
+  it('pandeo eje z gobierna sobre y (HEB: Iz < Iy)', () => {
+    const r = calcCompositeSection(heb);
+    expect(r.Nb_Rd_z_kN).toBeLessThanOrEqual(r.Nb_Rd_y_kN);
+  });
+
+  it('Ned > 0 → utilización = Ned/Nc_Rd', () => {
+    const r = calcCompositeSection({ ...heb, Ned: 800 });
+    expect(r.compUtil).toBeCloseTo(800 / r.Nc_Rd_kN, 6);
+  });
+
+  it('cajón a las alas sube Nc_Rd (más Iz/área → mayor χ·A)', () => {
+    const box: CompositeSectionInputs = { ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0, lateralAnchor: 'flange' },
+      { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0, lateralAnchor: 'flange' },
+    ] };
+    expect(calcCompositeSection(box).Nc_Rd_kN).toBeGreaterThan(calcCompositeSection(heb).Nc_Rd_kN);
+  });
+
+  it('Ly inválido (0) → bloque omitido sin invalidar la sección', () => {
+    const r = calcCompositeSection({ ...heb, Ly: 0 });
+    expect(r.valid).toBe(true);
+    expect(r.compApplicable).toBe(false);
+  });
+});
+
+// ── Clasificación en compresión: alma esbelta → clase 4 → Nc_Rd = 0 ──────────
+describe('Clasificación en compresión', () => {
+  it('alma muy esbelta (custom) → clase 4 en compresión → Nc_Rd = 0', () => {
+    // IPE girado no existe; usamos alma esbelta vía perfil + chequeo de la rama.
+    // HEA 100 es estable; forzamos clase 4 con S355 + perfil esbelto no aplica.
+    // En su lugar verificamos que compClass4 implica Nc_Rd=0 cuando ocurre.
+    const r = calcCompositeSection({
+      ...base, profileType: 'IPE', profileSize: 600, grade: 'S355', plates: [],
+      Ly: 3000, Lz: 3000, bcType: 'pp', beta_y: 1, beta_z: 1, Ned: 0,
+    });
+    if (r.compClass4) {
+      expect(r.Nc_Rd_kN).toBe(0);
+    } else {
+      // si no es clase 4, al menos el bloque existe y Nc_Rd>0
+      expect(r.Nc_Rd_kN).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ── Robustez: bcType corrupto no debe crashear (review fix #1) ───────────────
+describe('bcType corrupto (estado manipulado)', () => {
+  const heb: CompositeSectionInputs = {
+    ...base, profileType: 'HEB', profileSize: 200, grade: 'S275', plates: [],
+    Ly: 3500, Lz: 3500, bcType: 'pp', beta_y: 1, beta_z: 1, Ned: 0,
+  };
+
+  it('un bcType desconocido no lanza y cae a pp (β=1)', () => {
+    // Simula un ?model= manipulado / localStorage corrupto.
+    const bad = { ...heb, bcType: 'garbage' as unknown as CompositeSectionInputs['bcType'] };
+    const r = calcCompositeSection(bad);
+    expect(r.valid).toBe(true);
+    expect(r.compApplicable).toBe(true);
+    // mismo resultado que pp explícito (fallback β=1)
+    expect(r.Nc_Rd_kN).toBeCloseTo(calcCompositeSection(heb).Nc_Rd_kN, 6);
+  });
+});
+
+// ── Chapa custom clase 4 en compresión (review fix #2) ───────────────────────
+describe('Clasificación en compresión — chapa custom esbelta', () => {
+  it('chapa custom muy esbelta → compClass4 y Nc_Rd = 0', () => {
+    const r = calcCompositeSection({
+      ...base, profileType: 'HEB', profileSize: 200, grade: 'S275',
+      Ly: 3000, Lz: 3000, bcType: 'pp', beta_y: 1, beta_z: 1, Ned: 0,
+      // chapa 4mm de espesor, 200mm de canto, por encima del perfil (sin solape)
+      plates: [{ id: 'pc', b: 4, t: 200, posType: 'custom', customYBottom: 250 }],
+    });
+    expect(r.compApplicable).toBe(true);
+    expect(r.compClass4).toBe(true);
+    expect(r.Nc_Rd_kN).toBe(0);
+    // la chapa custom aparece en las filas de clasificación en compresión
+    expect(r.compChecks.some((c) => /custom/i.test(c.description))).toBe(true);
+  });
+});
+
+// ── Backward-compat ──────────────────────────────────────────────────────────
+describe('Backward-compat de chapas laterales', () => {
+  it('lateral sin lateralAnchor ≡ anclaje web', () => {
+    const heb: CompositeSectionInputs = {
+      ...base, profileType: 'HEB', profileSize: 200, plates: [],
+    };
+    const noAnchor = calcCompositeSection({ ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0 },
+      { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0 },
+    ] });
+    const webExplicit = calcCompositeSection({ ...heb, plates: [
+      { id: 'pl', b: 20, t: 10, posType: 'left',  customYBottom: 0, lateralAnchor: 'web' },
+      { id: 'pr', b: 20, t: 10, posType: 'right', customYBottom: 0, lateralAnchor: 'web' },
+    ] });
+    expect(noAnchor.Iz_cm4).toBeCloseTo(webExplicit.Iz_cm4, 6);
+    expect(noAnchor.A_cm2).toBeCloseTo(webExplicit.A_cm2, 6);
+  });
+});

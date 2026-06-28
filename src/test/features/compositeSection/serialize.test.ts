@@ -20,7 +20,14 @@ const custom: CompositeSectionInputs = {
   plates: [
     { id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 },
     { id: 'p2', b: 180, t: 12, posType: 'custom', customYBottom: 45 },
+    { id: 'p3', b: 20, t: 10, posType: 'left', customYBottom: 0, lateralAnchor: 'flange', lateralOffset: 5 },
   ],
+  Ly: 4000,
+  Lz: 3000,
+  bcType: 'pf',
+  beta_y: 0.7,
+  beta_z: 0.7,
+  Ned: 600,
 };
 
 describe('encodeShareString / decodeShareString — round-trip', () => {

@@ -14,5 +14,8 @@ export function getBetaForBCType(
   beta_z_custom: number,
 ): { beta_y: number; beta_z: number } {
   if (bcType === 'custom') return { beta_y: beta_y_custom, beta_z: beta_z_custom };
-  return BC_BETA[bcType];
+  // Fallback a 'pp' (β=1.0) ante un bcType desconocido (estado corrupto de
+  // localStorage / enlace ?model= manipulado): `BC_BETA[bcType]` sería
+  // undefined y desestructurarlo en el caller reventaría con TypeError.
+  return BC_BETA[bcType] ?? BC_BETA.pp;
 }

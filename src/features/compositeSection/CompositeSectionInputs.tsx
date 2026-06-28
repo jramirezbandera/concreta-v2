@@ -4,11 +4,15 @@ import {
   type CompositeSectionMode,
   type PlateEntry,
   type SteelGrade,
+  type ColumnBCType,
 } from '../../data/defaults';
 import { getSizesForTipo } from '../../data/steelProfiles';
+import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
+import { IconGridSelector } from '../../components/ui/IconGridSelector';
+import { BC_OPTIONS } from '../steel-columns/columnBCOptions';
 
 interface Props {
   state: CompositeSectionInputs;
@@ -184,6 +188,7 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
   const mode = state.mode;
   const sizeOptions = getSizesForTipo(state.profileType).map((s) => ({ value: s, label: String(s) }));
   const posOptions = mode === 'reinforced' ? POS_OPTIONS_REINFORCED : POS_OPTIONS_CUSTOM;
+  const derivedBeta = getBetaForBCType(state.bcType, state.beta_y, state.beta_z);
 
   return (
     <div className="flex flex-col" aria-label="Datos de entrada — Sección compuesta">
@@ -295,7 +300,9 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             <div className="md:contents grid grid-cols-2 gap-x-2">
               <NumField
                 label="b"
-                help="Ancho de la chapa (dimensión horizontal)."
+                help={(plate.posType === 'left' || plate.posType === 'right')
+                  ? 'Espesor de la chapa lateral (dimensión horizontal).'
+                  : 'Ancho de la chapa (dimensión horizontal).'}
                 id={`cs-b-${plate.id}`}
                 value={plate.b}
                 unit="mm"
@@ -314,11 +321,36 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
               {(plate.posType === 'left' || plate.posType === 'right') && (
                 <div className="flex items-center py-0.75 col-span-1">
                   <span className="text-[10px] text-text-disabled italic">
-                    h = altura alma
+                    {(plate.lateralAnchor ?? 'web') === 'flange' ? 'h = altura total' : 'h = altura alma'}
                   </span>
                 </div>
               )}
             </div>
+
+            {/* Lateral plates — anchor (web/flange) + fine offset */}
+            {(plate.posType === 'left' || plate.posType === 'right') && (
+              <>
+                <SelectField
+                  label="Anclaje"
+                  help="'Al alma': pegada al alma, altura libre entre acuerdos. 'A las alas': soldada a la punta de las alas, altura total h → forma un cajón (mayor inercia Iz)."
+                  id={`cs-anchor-${plate.id}`}
+                  value={plate.lateralAnchor ?? 'web'}
+                  options={[
+                    { value: 'web',    label: 'Al alma' },
+                    { value: 'flange', label: 'A las alas' },
+                  ]}
+                  onChange={(v) => updatePlate(plate.id, 'lateralAnchor', v as 'web' | 'flange')}
+                />
+                <NumField
+                  label="Desfase"
+                  help="Desplazamiento fino de la chapa hacia afuera desde el anclaje (mm). 0 = pegada al anclaje."
+                  id={`cs-off-${plate.id}`}
+                  value={plate.lateralOffset ?? 0}
+                  unit="mm"
+                  onChange={(v) => updatePlate(plate.id, 'lateralOffset', v)}
+                />
+              </>
+            )}
 
             {plate.posType === 'custom' && (
               <NumField
@@ -352,6 +384,75 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
           </span>
         </button>
       </CollapsibleSection>
+
+      {/* Compresión / Pandeo — solo modo reinforced */}
+      {mode === 'reinforced' && (
+        <CollapsibleSection label="Compresión / Pandeo">
+          <NumField
+            label="Ly"
+            help="Longitud libre de pandeo respecto al eje fuerte (y), en metros."
+            id="cs-Ly"
+            value={+(state.Ly / 1000).toFixed(2)}
+            unit="m"
+            onChange={(v) => { if (v > 0) setField('Ly', Math.round(v * 1000)); }}
+          />
+          <NumField
+            label="Lz"
+            help="Longitud libre de pandeo respecto al eje débil (z), en metros."
+            id="cs-Lz"
+            value={+(state.Lz / 1000).toFixed(2)}
+            unit="m"
+            onChange={(v) => { if (v > 0) setField('Lz', Math.round(v * 1000)); }}
+          />
+
+          <div className="mt-2">
+            <IconGridSelector
+              options={BC_OPTIONS}
+              active={state.bcType}
+              onSelect={(bc) => setField('bcType', bc as ColumnBCType)}
+              groupLabel="Condición de apoyo"
+            />
+            {state.bcType !== 'custom' ? (
+              <div className="flex justify-between px-1 pt-1.5">
+                <span className="text-[10px] font-mono text-text-disabled">
+                  βy = {derivedBeta.beta_y.toFixed(2)}
+                </span>
+                <span className="text-[10px] font-mono text-text-disabled">
+                  βz = {derivedBeta.beta_z.toFixed(2)}
+                </span>
+              </div>
+            ) : (
+              <>
+                <NumField
+                  label="βy"
+                  help="Factor de longitud de pandeo del eje fuerte (y). Lcr,y = βy·Ly."
+                  id="cs-beta-y"
+                  value={state.beta_y}
+                  unit="—"
+                  onChange={(v) => setField('beta_y', Math.max(0.1, v))}
+                />
+                <NumField
+                  label="βz"
+                  help="Factor de longitud de pandeo del eje débil (z). Lcr,z = βz·Lz."
+                  id="cs-beta-z"
+                  value={state.beta_z}
+                  unit="—"
+                  onChange={(v) => setField('beta_z', Math.max(0.1, v))}
+                />
+              </>
+            )}
+          </div>
+
+          <NumField
+            label="NEd"
+            help="Axil de compresión de cálculo (opcional). Con 0 solo se muestra la capacidad Nc,Rd."
+            id="cs-Ned"
+            value={state.Ned}
+            unit="kN"
+            onChange={(v) => setField('Ned', Math.max(0, v))}
+          />
+        </CollapsibleSection>
+      )}
     </div>
   );
 }

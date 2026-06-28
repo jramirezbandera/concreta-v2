@@ -32,7 +32,9 @@ function loadState(): CompositeSectionInputs {
   if (fromUrl) return fromUrl;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as CompositeSectionInputs;
+    // Merge con defaults: estados guardados antes de los campos de compresión
+    // (Ly/Lz/bcType/…) heredan los valores por defecto sin romper la UI.
+    if (raw) return { ...compositeSectionDefaults, ...JSON.parse(raw) } as CompositeSectionInputs;
   } catch { /* ignore */ }
   return compositeSectionDefaults;
 }

@@ -98,6 +98,12 @@ export function CompositeSectionResults({ result }: Props) {
       <ValueRow label="Wpl"              value={`${result.Wpl_cm3.toFixed(0)} cm³`} />
       <ValueRow label="α (Wpl / Wel,min)" value={result.shapeFactor.toFixed(3)} />
 
+      {/* Eje z (débil) */}
+      <GroupHeader label="Eje z (débil)" />
+      <ValueRow label="Iz"        value={`${result.Iz_cm4.toFixed(0)} cm⁴`} />
+      <ValueRow label="Wel,z min" value={`${result.Wel_z_min_cm3.toFixed(0)} cm³`} />
+      <ValueRow label="Wpl,z"     value={`${result.Wpl_z_cm3.toFixed(0)} cm³`} />
+
       {/* Clasificación — reinforced completa; custom orientativa por chapas */}
       {result.checks.length > 0 && (
         <>
@@ -114,12 +120,22 @@ export function CompositeSectionResults({ result }: Props) {
         <span className="text-[11px] font-mono text-text-disabled">{mrdFormula}</span>
       </div>
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
-        <span className="text-[12px] text-text-secondary">MRd</span>
+        <span className="text-[12px] text-text-secondary">MRd,y</span>
         {isClass4 ? (
           <span className="text-[12px] font-mono text-state-fail tabular-nums font-semibold">N/D</span>
         ) : (
           <span className="text-[13px] font-mono text-text-primary tabular-nums font-semibold">
             {formatQuantity(result.Mrd_kNm, 'moment', system, { precision: 1 })}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
+        <span className="text-[12px] text-text-secondary">MRd,z</span>
+        {isClass4 ? (
+          <span className="text-[12px] font-mono text-state-fail tabular-nums font-semibold">N/D</span>
+        ) : (
+          <span className="text-[13px] font-mono text-text-primary tabular-nums font-semibold">
+            {formatQuantity(result.Mrd_z_kNm, 'moment', system, { precision: 1 })}
           </span>
         )}
       </div>
@@ -130,6 +146,35 @@ export function CompositeSectionResults({ result }: Props) {
         <p className="text-[10px] text-state-fail mt-2">
           Clase 4 — pandeo local. MRd no disponible (requiere sección eficaz per EN 1993-1-5).
         </p>
+      )}
+
+      {/* Compresión / Pandeo — solo modo reinforced con datos válidos */}
+      {result.compApplicable && (
+        <>
+          <GroupHeader label="Compresión / Pandeo" />
+          <div className="flex items-center justify-between py-0.75">
+            <span className="text-[11px] font-mono text-text-disabled">
+              Clase en compresión: {result.sectionClassCompression ?? '—'} · curva c (α=0.49)
+            </span>
+          </div>
+          {result.compChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+          <div className="flex items-center justify-between py-1.75 border-b border-border-sub mt-1">
+            <span className="text-[12px] text-text-secondary">Nc,Rd (gobernante)</span>
+            {result.compClass4 ? (
+              <span className="text-[12px] font-mono text-state-fail tabular-nums font-semibold">N/D</span>
+            ) : (
+              <span className="text-[13px] font-mono text-accent tabular-nums font-semibold">
+                {formatQuantity(result.Nc_Rd_kN, 'force', system, { precision: 1 })}
+              </span>
+            )}
+          </div>
+          {result.Ned_kN > 0 && !result.compClass4 && (
+            <ValueRow
+              label="Utilización  NEd / Nc,Rd"
+              value={`${(result.compUtil * 100).toFixed(0)} %`}
+            />
+          )}
+        </>
       )}
     </div>
   );

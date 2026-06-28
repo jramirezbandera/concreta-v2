@@ -4,7 +4,9 @@
 
 import { type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import { makeISectionBySize } from '../sections';
-import { type CheckRow } from './types';
+import { type CheckRow, makeCheckQty, toStatus } from './types';
+import { bucklingChi, BUCKLING_ALPHA } from './buckling';
+import { getBetaForBCType } from './steelColumnBC';
 
 // fy por grado y espesor (CTE DB-SE-A Tabla 4.1 / EN 10025-2). El fy de la
 // sección es el del elemento más DESFAVORABLE (t_max entre tf del perfil y
@@ -25,11 +27,19 @@ const FY_MAP_THICK: Record<string, number> = {
   S450: 410, // CTE DB-SE-A Tabla 4.1
 };
 const GAMMA_M0 = 1.05;
+const GAMMA_M1 = 1.05;
+const E_STEEL = 210000;          // N/mm² — módulo de Young
+const SLEND_MAX = 2.0;           // esbeltez reducida recomendada (CTE DB-SE-A)
+// Curva de pandeo del conjunto soldado (perfil + chapas): curva c fija en
+// ambos ejes (α=0.49). Decisión conservadora para una sección armada soldada
+// no normalizada (EC3 Tabla 6.2, lado seguro). Ver plan / decisión de usuario.
+const COMPOSITE_BUCKLING_ALPHA = BUCKLING_ALPHA.c;
 
 export interface SectionElement {
   A_mm2: number;
   yc_mm: number;         // centroid from section bottom (after re-basing)
   Iy_own_mm4: number;
+  Iz_own_mm4: number;    // about the element's own vertical centroidal axis
   label: string;
   isProfile: boolean;
   yBottom_mm: number;    // after re-basing
@@ -54,6 +64,12 @@ export interface CompositeSectionResult {
   Wel_min_cm3: number;
   Wpl_cm3: number;
   shapeFactor: number;
+  // Weak axis (z)
+  xc_mm: number;
+  Iz_cm4: number;
+  Wel_z_min_cm3: number;
+  Wpl_z_cm3: number;        // informativo (Mrd_z se calcula elástico)
+  Mrd_z_kNm: number;
   // Classification (null when mode='custom')
   epsilon: number | null;
   webRatio: number | null;
@@ -67,6 +83,20 @@ export interface CompositeSectionResult {
   fy_MPa: number;
   Mrd_kNm: number;
   class4Warning: boolean;
+  // Compression / buckling (reinforced mode; defaults when N/A)
+  compApplicable: boolean;          // true si se calculó el bloque de compresión
+  sectionClassCompression: 1 | 2 | 3 | 4 | null;
+  compClass4: boolean;
+  lambda_y: number;
+  lambda_z: number;
+  chi_y: number;
+  chi_z: number;
+  Nb_Rd_y_kN: number;
+  Nb_Rd_z_kN: number;
+  Nc_Rd_kN: number;                 // min(Nb,Rd,y, Nb,Rd,z) — carga gobernante
+  Ned_kN: number;
+  compUtil: number;                 // Ned/Nc_Rd (0 si Ned=0)
+  compChecks: CheckRow[];
   // SVG data
   elements: SectionElement[];
   totalHeight: number;
@@ -86,11 +116,16 @@ function invalid(error: string): CompositeSectionResult {
     A_cm2: 0, yc_mm: 0, Iy_cm4: 0,
     Wel_top_cm3: 0, Wel_bot_cm3: 0, Wel_min_cm3: 0,
     Wpl_cm3: 0, shapeFactor: 0,
+    xc_mm: 0, Iz_cm4: 0, Wel_z_min_cm3: 0, Wpl_z_cm3: 0, Mrd_z_kNm: 0,
     epsilon: null, webRatio: null, webClass: null,
     flangeTopRatio: null, flangeTopClass: null,
     flangeBotRatio: null, flangeBotClass: null,
     sectionClass: null,
     fy_MPa: 275, Mrd_kNm: 0, class4Warning: false,
+    compApplicable: false, sectionClassCompression: null, compClass4: false,
+    lambda_y: 0, lambda_z: 0, chi_y: 0, chi_z: 0,
+    Nb_Rd_y_kN: 0, Nb_Rd_z_kN: 0, Nc_Rd_kN: 0, Ned_kN: 0, compUtil: 0,
+    compChecks: [],
     elements: [], totalHeight: 0,
     profileH: 0, profileB: 0, profileTf: 0, profileTw: 0, profileR: 0,
     checks: [],
@@ -115,95 +150,103 @@ const FLG_LIMITS: [number, number, number] = [9, 10, 14];
 // Internal compressed element (EC3 Tab 5.2, parts supported on both edges)
 const INT_LIMITS: [number, number, number] = [33, 38, 42];
 
-// ── PNA via horizontal strip method ──────────────────────────────────────────
-// Strip elements use the ACTUAL section geometry (profile decomposed into 3
-// rectangles) so PNA is computed correctly. Do NOT pass the composite elements[]
-// directly — the profile is a single element with width=b, which would treat it
-// as a solid rectangle instead of an I-section.
+// ── PNA / Wpl via the strip method (axis-agnostic core) ──────────────────────
+// `AxisStrip` es agnóstico al eje: `lo` = coordenada inferior a lo largo del eje
+// de flexión (y para Wpl_y, x para Wpl_z), `span` = extensión de la franja en
+// ese eje, `mass` = dimensión perpendicular que aporta área. Los dos builders
+// difieren (el perfil en I se descompone distinto según el eje), pero el PNA y
+// el Wpl se calculan con `computeWplAndPna`. El perfil se descompone en
+// rectángulos REALES (no macizo b×h): tratarlo como sólido colocaría el PNA mal
+// y sobreestimaría Wpl. Ignora el radio de acuerdo (ligeramente conservador).
 
-interface StripEl { yBottom_mm: number; height_mm: number; width_mm: number }
+interface AxisStrip { lo: number; span: number; mass: number }
 
-function buildStripElements(elements: SectionElement[]): StripEl[] {
-  const result: StripEl[] = [];
+function buildStripElements(elements: SectionElement[]): AxisStrip[] {
+  // Eje fuerte (y): franjas HORIZONTALES. lo=yBottom, span=altura, mass=ancho.
+  const result: AxisStrip[] = [];
   for (const e of elements) {
     if (e.isProfile && e.profileTf_mm && e.profileTw_mm) {
-      // Decompose I-profile into bottom flange, web, top flange rectangles.
-      // This gives correct Wpl — treating profile as solid rectangle (width=b) would
-      // place the PNA far too low and massively overestimate Wpl.
       const { profileTf_mm: tf, profileTw_mm: tw, width_mm: b, height_mm: h, yBottom_mm: yBot } = e;
-      result.push({ yBottom_mm: yBot,         height_mm: tf,       width_mm: b  }); // bottom flange
-      result.push({ yBottom_mm: yBot + tf,     height_mm: h - 2*tf, width_mm: tw }); // web
-      result.push({ yBottom_mm: yBot + h - tf, height_mm: tf,       width_mm: b  }); // top flange
+      result.push({ lo: yBot,          span: tf,        mass: b  }); // ala inferior
+      result.push({ lo: yBot + tf,     span: h - 2 * tf, mass: tw }); // alma
+      result.push({ lo: yBot + h - tf, span: tf,        mass: b  }); // ala superior
     } else {
-      result.push({ yBottom_mm: e.yBottom_mm, height_mm: e.height_mm, width_mm: e.width_mm });
+      result.push({ lo: e.yBottom_mm, span: e.height_mm, mass: e.width_mm });
     }
   }
   return result;
 }
 
-function computeWplAndPNA(stripEls: StripEl[]): { Wpl: number; y_pna: number } {
-  // Collect all unique y-boundaries
-  const bndSet = new Set<number>();
-  for (const e of stripEls) {
-    bndSet.add(e.yBottom_mm);
-    bndSet.add(e.yBottom_mm + e.height_mm);
-  }
-  const ys = Array.from(bndSet).sort((a, b) => a - b);
-
-  // Build strips with total width at each interval
-  interface Strip { ya: number; yb: number; width: number }
-  const strips: Strip[] = [];
-  for (let i = 0; i < ys.length - 1; i++) {
-    const ya = ys[i];
-    const yb = ys[i + 1];
-    const ymid = (ya + yb) / 2;
-    let width = 0;
-    for (const e of stripEls) {
-      if (e.yBottom_mm <= ymid && ymid < e.yBottom_mm + e.height_mm) {
-        width += e.width_mm;
-      }
+function buildStripElementsZ(elements: SectionElement[]): AxisStrip[] {
+  // Eje débil (z): franjas VERTICALES (columnas en x). lo=xLeft, span=ancho,
+  // mass=altura. El perfil en I → 3 columnas: central (ancho tw, altura total h)
+  // y dos columnas de ala (ancho (b−tw)/2, altura 2·tf).
+  const result: AxisStrip[] = [];
+  for (const e of elements) {
+    if (e.isProfile && e.profileTf_mm && e.profileTw_mm) {
+      const tf = e.profileTf_mm, tw = e.profileTw_mm, b = e.width_mm, h = e.height_mm, xc = e.xCenter_mm;
+      result.push({ lo: xc - tw / 2, span: tw,           mass: h      }); // columna central
+      result.push({ lo: xc - b / 2,  span: (b - tw) / 2, mass: 2 * tf }); // ala izquierda
+      result.push({ lo: xc + tw / 2, span: (b - tw) / 2, mass: 2 * tf }); // ala derecha
+    } else {
+      result.push({ lo: e.xCenter_mm - e.width_mm / 2, span: e.width_mm, mass: e.height_mm });
     }
-    if (width > 0) strips.push({ ya, yb, width });
+  }
+  return result;
+}
+
+// PNA de áreas iguales + módulo plástico respecto al PNA, sobre franjas
+// axis-agnósticas. Usa el área del PROPIO modelo de franjas (no el área total
+// con acuerdos): mezclarlas desplazaría el PNA en secciones simétricas.
+function computeWplAndPna(strips: AxisStrip[]): { Wpl: number; pna: number } {
+  const bndSet = new Set<number>();
+  for (const e of strips) {
+    bndSet.add(e.lo);
+    bndSet.add(e.lo + e.span);
+  }
+  const bnds = Array.from(bndSet).sort((a, b) => a - b);
+
+  interface Slice { a: number; b: number; mass: number }
+  const slices: Slice[] = [];
+  for (let i = 0; i < bnds.length - 1; i++) {
+    const a = bnds[i];
+    const b = bnds[i + 1];
+    const mid = (a + b) / 2;
+    let mass = 0;
+    for (const e of strips) {
+      if (e.lo <= mid && mid < e.lo + e.span) mass += e.mass;
+    }
+    if (mass > 0) slices.push({ a, b, mass });
   }
 
-  // Find PNA: accumulate strip area from bottom until strip-total/2.
-  // NOTE: we use the strip total (sum of strip widths × heights), NOT the
-  // element-total area passed from outside. The element total includes
-  // fillet area for rolled profiles, while the strip model is just the 3
-  // rectangles — if we mixed them the PNA would drift (symmetric sections
-  // would come out slightly off-centre).
-  const stripTotal = strips.reduce((s, st) => s + st.width * (st.yb - st.ya), 0);
-  const halfA = stripTotal / 2;
+  const total = slices.reduce((s, sl) => s + sl.mass * (sl.b - sl.a), 0);
+  const halfA = total / 2;
   let cumArea = 0;
-  let y_pna = 0;
-  for (const strip of strips) {
-    const area = strip.width * (strip.yb - strip.ya);
+  let pna = 0;
+  for (const sl of slices) {
+    const area = sl.mass * (sl.b - sl.a);
     if (cumArea + area >= halfA) {
-      const remaining = halfA - cumArea;
-      y_pna = strip.ya + remaining / strip.width;
+      pna = sl.a + (halfA - cumArea) / sl.mass;
       break;
     }
     cumArea += area;
-    y_pna = strip.yb;
+    pna = sl.b;
   }
 
-  // Wpl = sum of strip moments about PNA
+  // Wpl = suma de momentos de cada franja respecto al PNA
   let Wpl = 0;
-  for (const strip of strips) {
-    const { ya, yb, width: w } = strip;
-    if (yb <= y_pna) {
-      // Entirely below PNA
-      Wpl += w * (yb - ya) * (y_pna - (ya + yb) / 2);
-    } else if (ya >= y_pna) {
-      // Entirely above PNA
-      Wpl += w * (yb - ya) * ((ya + yb) / 2 - y_pna);
+  for (const sl of slices) {
+    const { a, b, mass: m } = sl;
+    if (b <= pna) {
+      Wpl += m * (b - a) * (pna - (a + b) / 2);
+    } else if (a >= pna) {
+      Wpl += m * (b - a) * ((a + b) / 2 - pna);
     } else {
-      // PNA passes through — split
-      Wpl += w * (y_pna - ya) * (y_pna - (ya + y_pna) / 2);
-      Wpl += w * (yb - y_pna) * ((y_pna + yb) / 2 - y_pna);
+      Wpl += m * (pna - a) * (pna - (a + pna) / 2);
+      Wpl += m * (b - pna) * ((pna + b) / 2 - pna);
     }
   }
-  return { Wpl, y_pna };
+  return { Wpl, pna };
 }
 
 // ── Web classification for shifted PNA (EC3 Table 5.2, internal in bending) ──
@@ -280,6 +323,93 @@ function rectOverlapArea(a: Rect, b: Rect): number {
   const dx = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
   const dy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
   return dx > 0 && dy > 0 ? dx * dy : 0;
+}
+
+// ── Classification in PURE COMPRESSION (EC3 Tabla 5.2) ───────────────────────
+// Distinta de la clasificación en flexión (que gobierna Mrd): aquí todos los
+// elementos están en compresión uniforme. Alma y chapas internas → 33/38/42·ε;
+// alas → vuelo 9/10/14·ε SALVO que dos chapas laterales ancladas a las alas
+// (izq. Y der.) cierren el cajón, en cuyo caso las alas pasan a interno. Las
+// chapas laterales se clasifican como panel interno (orientativo, lado seguro),
+// igual que classifyLoosePlate. Devuelve la clase gobernante + filas de check.
+interface ResolvedPlateLite { plate: PlateEntry; height: number; width: number }
+
+function classifyCompression(
+  profile: { h: number; b: number; tf: number; tw: number; r: number },
+  resolvedPlates: ResolvedPlateLite[],
+  eps: number,
+): { cls: 1 | 2 | 3 | 4; checks: CheckRow[] } {
+  const checks: CheckRow[] = [];
+  let govCls: 1 | 2 | 3 | 4 = 1;
+
+  const pushCheck = (
+    id: string, desc: string, ratio: number,
+    cls: 1 | 2 | 3 | 4, limits: [number, number, number],
+  ) => {
+    const lim = (cls === 1 ? limits[0] : cls === 2 ? limits[1] : limits[2]) * eps;
+    checks.push({
+      id, description: desc,
+      value: ratio.toFixed(1),
+      limit: `≤ ${lim.toFixed(1)} (Cl.${cls})`,
+      utilization: Math.min(ratio / Math.max(lim, 1e-6), 2),
+      status: cls <= 2 ? 'ok' : cls === 3 ? 'warn' : 'fail',
+      article: 'CE Anejo 22 T.5.2 (compresión)',
+    });
+    if (cls > govCls) govCls = cls;
+  };
+
+  // Cierre de cajón: lateral anclada a las alas a ambos lados → alas internas.
+  const hasFlangeLeft = resolvedPlates.some(
+    (rp) => rp.plate.posType === 'left' && (rp.plate.lateralAnchor ?? 'web') === 'flange');
+  const hasFlangeRight = resolvedPlates.some(
+    (rp) => rp.plate.posType === 'right' && (rp.plate.lateralAnchor ?? 'web') === 'flange');
+  const boxClosed = hasFlangeLeft && hasFlangeRight;
+
+  // Alma — interno en compresión uniforme
+  const c_w = profile.h - 2 * profile.tf - 2 * profile.r;
+  const webRatio = c_w / profile.tw;
+  pushCheck('cls-comp-web', 'Alma (compresión)', webRatio,
+    classifyElement(webRatio, INT_LIMITS, eps), INT_LIMITS);
+
+  // Alas — vuelo, o interno cuando el cajón está cerrado a ambos lados
+  const c_f = (profile.b - profile.tw - 2 * profile.r) / 2;
+  const flgRatio = c_f / profile.tf;
+  const flgLimits = boxClosed ? INT_LIMITS : FLG_LIMITS;
+  pushCheck('cls-comp-flange', boxClosed ? 'Alas (cajón → interno)' : 'Alas (vuelo)',
+    flgRatio, classifyElement(flgRatio, flgLimits, eps), flgLimits);
+
+  // Chapas
+  let i = 0;
+  for (const rp of resolvedPlates) {
+    i += 1;
+    const pos = rp.plate.posType;
+    if (pos === 'top' || pos === 'bottom') {
+      // Compresión uniforme: vuelo más allá del soporte + panel interno.
+      const b_p = rp.plate.b;
+      const t_p = rp.plate.t;
+      const support = profile.b;
+      const outRatio = Math.max(0, (b_p - support) / 2) / t_p;
+      const outCls = classifyElement(outRatio, FLG_LIMITS, eps);
+      const intRatio = Math.min(b_p, support) / t_p;
+      const intCls = classifyElement(intRatio, INT_LIMITS, eps);
+      if (outCls >= intCls) pushCheck(`cls-comp-plate-${i}`, `Chapa ${pos} (vuelo)`, outRatio, outCls, FLG_LIMITS);
+      else pushCheck(`cls-comp-plate-${i}`, `Chapa ${pos} (interno)`, intRatio, intCls, INT_LIMITS);
+    } else if (pos === 'left' || pos === 'right' || pos === 'custom') {
+      // Panel interno orientativo: c = lado mayor, t = lado menor (= espesor b).
+      // Incluye las chapas 'custom' (antes se omitían): sin clasificarlas, una
+      // chapa custom esbelta (clase 4 en compresión) no activaba compClass4 y
+      // Nc,Rd quedaba sobreestimado — misma «clase 4 silenciosa» que cerraron
+      // las auditorías #101/#103 en flexión.
+      const c = Math.max(rp.height, rp.width);
+      const t = Math.max(Math.min(rp.height, rp.width), 1e-6);
+      const ratio = c / t;
+      const label = pos === 'custom' ? 'Chapa custom (interno supuesto)' : 'Chapa lateral (interno supuesto)';
+      pushCheck(`cls-comp-plate-${i}`, label,
+        ratio, classifyElement(ratio, INT_LIMITS, eps), INT_LIMITS);
+    }
+  }
+
+  return { cls: govCls, checks };
 }
 
 // ── main calc ─────────────────────────────────────────────────────────────────
@@ -361,14 +491,22 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
         width = plate.b;
         break;
       case 'left':
-      case 'right':
-        // Plate runs the web clear height BETWEEN fillets; b = horizontal
-        // extent from web face (fix #106: antes arrancaba en tf y solapaba
-        // los acuerdos).
-        yBottom = profile!.tf + profile!.r;
-        height = web_h;
+      case 'right': {
+        // Anclaje 'web' (def.): pegada al alma, altura libre entre acuerdos
+        // (fix #106). Anclaje 'flange': pegada a la punta del ala, altura total
+        // h → cierra cajón ala-a-ala (afecta a la clasificación en compresión
+        // y a la inercia Iz). La posición horizontal se fija más abajo.
+        const anchor = plate.lateralAnchor ?? 'web';
+        if (anchor === 'flange') {
+          yBottom = 0;
+          height = profile!.h;
+        } else {
+          yBottom = profile!.tf + profile!.r;
+          height = web_h;
+        }
         width = plate.b;
         break;
+      }
       case 'custom':
         yBottom = plate.customYBottom;
         height = plate.t;
@@ -394,6 +532,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       A_mm2: profile.A * 100,
       yc_mm: profile.h / 2 + shift,
       Iy_own_mm4: profile.Iy * 10000,
+      Iz_own_mm4: profile.Iz * 10000,
       label: profile.label,
       isProfile: true,
       yBottom_mm: shift,
@@ -410,10 +549,14 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     const yBot = yBottom + shift;
     const yc = yBot + height / 2;
     let xCenter_mm = 0;
-    if (plate.posType === 'left' && profile) {
-      xCenter_mm = -(profile.tw / 2 + width / 2);
-    } else if (plate.posType === 'right' && profile) {
-      xCenter_mm = +(profile.tw / 2 + width / 2);
+    if ((plate.posType === 'left' || plate.posType === 'right') && profile) {
+      // Cara interior de la chapa: al alma (tw/2) o a la punta del ala (b/2),
+      // más el desfase fino hacia afuera.
+      const anchor = plate.lateralAnchor ?? 'web';
+      const off = plate.lateralOffset ?? 0;
+      const innerFace = (anchor === 'flange' ? profile.b / 2 : profile.tw / 2) + off;
+      const sign = plate.posType === 'left' ? -1 : 1;
+      xCenter_mm = sign * (innerFace + width / 2);
     }
     const label = (plate.posType === 'left' || plate.posType === 'right')
       ? `${width}×${height.toFixed(0)}`
@@ -423,6 +566,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       A_mm2: width * height,
       yc_mm: yc,
       Iy_own_mm4: width * Math.pow(height, 3) / 12,
+      Iz_own_mm4: height * Math.pow(width, 3) / 12,
       label,
       isProfile: false,
       yBottom_mm: yBot,
@@ -444,6 +588,18 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     0,
   );
 
+  // ── weak axis (z): centroide horizontal, Iz por Steiner, Wel_z ──────────────
+  const xc = elements.reduce((s, e) => s + e.A_mm2 * e.xCenter_mm, 0) / A_total;
+  const Iz_total = elements.reduce(
+    (s, e) => s + e.Iz_own_mm4 + e.A_mm2 * Math.pow(e.xCenter_mm - xc, 2),
+    0,
+  );
+  const x_left = Math.min(...elements.map((e) => e.xCenter_mm - e.width_mm / 2));
+  const x_right = Math.max(...elements.map((e) => e.xCenter_mm + e.width_mm / 2));
+  const Wel_z_left = Iz_total / Math.max(xc - x_left, 1);
+  const Wel_z_right = Iz_total / Math.max(x_right - xc, 1);
+  const Wel_z_min = Math.min(Wel_z_left, Wel_z_right);
+
   const y_top = Math.max(...elements.map((e) => e.yBottom_mm + e.height_mm));
   const totalHeight = y_top;
 
@@ -451,7 +607,8 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
   const Wel_bot = Iy_total / Math.max(yc, 1);
   const Wel_min = Math.min(Wel_top, Wel_bot);
 
-  const { Wpl: Wpl_mm3, y_pna: y_pna_mm } = computeWplAndPNA(buildStripElements(elements));
+  const { Wpl: Wpl_mm3, pna: y_pna_mm } = computeWplAndPna(buildStripElements(elements));
+  const { Wpl: Wpl_z_mm3 } = computeWplAndPna(buildStripElementsZ(elements));
 
   // ── classification (reinforced mode only) ─────────────────────────────────
   let epsilon: number | null = null;
@@ -694,6 +851,88 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     Mrd_Nmm = Wel_min * fy / GAMMA_M0;
   }
 
+  // ── Mrd eje z (débil) ───────────────────────────────────────────────────────
+  // Decisión de ingeniería (lado seguro): SIEMPRE elástico (Wel_z_min). No se
+  // sube a Wpl_z porque la clasificación de las alas en flexión-z no está
+  // implementada (las alas trabajan en su plano). Wpl_z se expone informativo.
+  // Clase 4 (en flexión y) → Mrd_z = 0 por coherencia con Mrd_y.
+  const Mrd_z_Nmm = class4Warning ? 0 : Wel_z_min * fy / GAMMA_M0;
+
+  // ── Resistencia a compresión con pandeo en ambos ejes ───────────────────────
+  // Solo modo reinforced (necesita perfil con geometría definida para clasificar
+  // en compresión). Curva c fija (α=0.49). Reutiliza bucklingChi y getBetaForBCType.
+  let compApplicable = false;
+  let sectionClassCompression: 1 | 2 | 3 | 4 | null = null;
+  let compClass4 = false;
+  let lambda_y = 0, lambda_z = 0, chi_y = 0, chi_z = 0;
+  let Nb_Rd_y_kN = 0, Nb_Rd_z_kN = 0, Nc_Rd_kN = 0, compUtil = 0;
+  const Ned_kN = Math.max(0, inp.Ned ?? 0);
+  const compChecks: CheckRow[] = [];
+
+  if (inp.mode === 'reinforced' && profile) {
+    const { beta_y, beta_z } = getBetaForBCType(inp.bcType, inp.beta_y, inp.beta_z);
+    // Guard suave: datos de pandeo inválidos → se omite el bloque (sin invalidar
+    // la sección, a diferencia de pilares).
+    if (inp.Ly > 0 && inp.Lz > 0 && beta_y > 0 && beta_z > 0) {
+      compApplicable = true;
+      const epsC = Math.sqrt(235 / fy);
+      const clsComp = classifyCompression(
+        profile,
+        resolvedPlates.map((rp) => ({ plate: rp.plate, height: rp.height, width: rp.width })),
+        epsC,
+      );
+      sectionClassCompression = clsComp.cls;
+      compClass4 = clsComp.cls === 4;
+      compChecks.push(...clsComp.checks);
+
+      const A_cm2 = A_total / 100;
+      const Iy_cm4 = Iy_total / 10000;
+      const Iz_cm4 = Iz_total / 10000;
+      const NRk = A_cm2 * fy * 0.1;                 // kN
+      const i_y_mm = 10 * Math.sqrt(Iy_cm4 / A_cm2);
+      const i_z_mm = 10 * Math.sqrt(Iz_cm4 / A_cm2);
+      const lambda1 = Math.PI * Math.sqrt(E_STEEL / fy);
+      lambda_y = (beta_y * inp.Ly / i_y_mm) / lambda1;
+      lambda_z = (beta_z * inp.Lz / i_z_mm) / lambda1;
+      // Clase 4 → χ = 0 (sin sección eficaz; no se aporta resistencia)
+      chi_y = compClass4 ? 0 : bucklingChi(lambda_y, COMPOSITE_BUCKLING_ALPHA);
+      chi_z = compClass4 ? 0 : bucklingChi(lambda_z, COMPOSITE_BUCKLING_ALPHA);
+      Nb_Rd_y_kN = chi_y * NRk / GAMMA_M1;
+      Nb_Rd_z_kN = chi_z * NRk / GAMMA_M1;
+      Nc_Rd_kN = Math.min(Nb_Rd_y_kN, Nb_Rd_z_kN);
+      compUtil = Nc_Rd_kN > 0 ? Ned_kN / Nc_Rd_kN : (Ned_kN > 0 ? Infinity : 0);
+
+      if (compClass4) {
+        compChecks.push({
+          id: 'comp-class4',
+          description: 'Sección Clase 4 en compresión — Nc,Rd no disponible (sección eficaz EN 1993-1-5 no implementada)',
+          value: '', limit: '', utilization: 1, status: 'fail',
+          article: 'CE Anejo 22 §6.3.1',
+        });
+      } else {
+        compChecks.push(makeCheckQty('comp-Nby',
+          `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
+          Ned_kN, Nb_Rd_y_kN, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+        compChecks.push(makeCheckQty('comp-Nbz',
+          `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
+          Ned_kN, Nb_Rd_z_kN, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+        // Esbeltez reducida recomendada λ̄ ≤ 2.0
+        compChecks.push({
+          id: 'comp-sy', description: `Esbeltez reducida  λ̄ (eje y) = ${lambda_y.toFixed(2)}`,
+          value: lambda_y.toFixed(2), limit: SLEND_MAX.toFixed(1),
+          utilization: lambda_y / SLEND_MAX, status: toStatus(lambda_y / SLEND_MAX),
+          article: 'CTE DB-SE-A 6.3 (recomendación)',
+        });
+        compChecks.push({
+          id: 'comp-sz', description: `Esbeltez reducida  λ̄ (eje z) = ${lambda_z.toFixed(2)}`,
+          value: lambda_z.toFixed(2), limit: SLEND_MAX.toFixed(1),
+          utilization: lambda_z / SLEND_MAX, status: toStatus(lambda_z / SLEND_MAX),
+          article: 'CTE DB-SE-A 6.3 (recomendación)',
+        });
+      }
+    }
+  }
+
   return {
     valid: true,
     A_cm2: A_total / 100,
@@ -704,6 +943,11 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     Wel_min_cm3: Wel_min / 1000,
     Wpl_cm3: Wpl_mm3 / 1000,
     shapeFactor: Wel_min > 0 ? Wpl_mm3 / Wel_min : 1,
+    xc_mm: xc,
+    Iz_cm4: Iz_total / 10000,
+    Wel_z_min_cm3: Wel_z_min / 1000,
+    Wpl_z_cm3: Wpl_z_mm3 / 1000,
+    Mrd_z_kNm: Mrd_z_Nmm / 1e6,
     epsilon,
     webRatio,
     webClass,
@@ -715,6 +959,19 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     fy_MPa: fy,
     Mrd_kNm: Mrd_Nmm / 1e6,
     class4Warning,
+    compApplicable,
+    sectionClassCompression,
+    compClass4,
+    lambda_y,
+    lambda_z,
+    chi_y,
+    chi_z,
+    Nb_Rd_y_kN,
+    Nb_Rd_z_kN,
+    Nc_Rd_kN,
+    Ned_kN,
+    compUtil,
+    compChecks,
     elements,
     totalHeight,
     profileH: profile?.h ?? 0,

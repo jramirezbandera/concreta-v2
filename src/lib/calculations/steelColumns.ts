@@ -17,6 +17,7 @@ import {
 } from '../sections';
 import { type SteelCheckRow, type SteelCheckStatus } from './steelBeams';
 import { makeCheckQty, makeCheckNeutral, WARN_UTIL } from './types';
+import { bucklingChi } from './buckling';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const E  = 210000;  // N/mm² — Young's modulus
@@ -86,13 +87,6 @@ function checkStr(
 ): SteelCheckRow {
   const util = capacity > 0 ? demand / capacity : Infinity;
   return { id, description, value: demandStr, limit: capacityStr, utilization: util, status: toStatus(util), article };
-}
-
-/** Buckling reduction factor χ from EC3 Table 6.1. */
-function bucklingChi(lambda_bar: number, alpha: number): number {
-  if (lambda_bar <= 0.2) return 1.0;
-  const phi = 0.5 * (1 + alpha * (lambda_bar - 0.2) + lambda_bar * lambda_bar);
-  return Math.min(1.0, 1 / (phi + Math.sqrt(Math.max(0, phi * phi - lambda_bar * lambda_bar))));
 }
 
 function invalidResult(

@@ -120,6 +120,15 @@ export const LABELS = {
     ],
   },
 
+  D_section: {
+    sym: 'D',
+    descLong: 'Diámetro de la sección circular',
+    descShort: 'Diámetro',
+    unit: 'mm',
+    help: 'Diámetro de la sección circular del pilar. Define el área (πD²/4) y, con i = D/4, la esbeltez en todas las direcciones.',
+    modules: ['rcColumns'],
+  },
+
   d_effective: {
     sym: 'd',
     descLong: 'Canto útil',
@@ -1124,6 +1133,48 @@ export const LABELS = {
     unit: 'kN',
     ref: 'EC3 §6.3.1.1 eq. 6.46',
     modules: ['steelColumns', 'empresillado'],
+  },
+
+  Nc_Rd: {
+    sym: 'Nc,Rd',
+    descLong: 'Axil resistente a compresión con pandeo (gobernante)',
+    descShort: 'Compresión gob.',
+    unit: 'kN',
+    ref: 'EC3 §6.3.1.1',
+    modules: ['compositeSection'],
+  },
+
+  Iz_weak: {
+    sym: 'Iz',
+    descLong: 'Inercia — eje débil (z)',
+    descShort: 'Inercia z',
+    unit: 'cm⁴',
+    modules: ['compositeSection'],
+  },
+
+  Wel_z: {
+    sym: 'Wel,z',
+    descLong: 'Módulo resistente elástico — eje z',
+    descShort: 'Wel z',
+    unit: 'cm³',
+    modules: ['compositeSection'],
+  },
+
+  Wpl_z: {
+    sym: 'Wpl,z',
+    descLong: 'Módulo resistente plástico — eje z',
+    descShort: 'Wpl z',
+    unit: 'cm³',
+    modules: ['compositeSection'],
+  },
+
+  Mz_Rd: {
+    sym: 'Mz,Rd',
+    descLong: 'Momento resistente — eje z (débil)',
+    descShort: 'Mz,Rd',
+    unit: 'kNm',
+    ref: 'EC3 §6.2.5',
+    modules: ['compositeSection'],
   },
 
   vRd_c_punching: {

@@ -24,6 +24,7 @@ export async function exportCompositeSectionPDF(
   system: UnitSystem = 'si',
 ): Promise<PdfResult> {
   const fmtMrd = (v: number) => formatQuantity(v, 'moment', system, { precision: 1 });
+  const fmtN = (v: number) => formatQuantity(v, 'force', system, { precision: 1 });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ export async function exportCompositeSectionPDF(
   twoCol(`A = ${fmt(result.A_cm2, 1)} cm^2`,  `yc = ${fmt(result.yc_mm, 1)} mm`);
   twoCol(`Iy = ${fmt(result.Iy_cm4, 0)} cm^4`, `Wel,min = ${fmt(result.Wel_min_cm3, 0)} cm^3`);
   twoCol(`Wpl = ${fmt(result.Wpl_cm3, 0)} cm^3`, `alfa = ${result.shapeFactor.toFixed(3)}`);
+  twoCol(`Iz = ${fmt(result.Iz_cm4, 0)} cm^4`, `Wel,z = ${fmt(result.Wel_z_min_cm3, 0)} cm^3`);
   gap();
 
   // CLASIFICACION
@@ -122,9 +124,26 @@ export async function exportCompositeSectionPDF(
   if (result.class4Warning) {
     twoCol('MRd = N/D (Clase 4)', 'Requiere seccion eficaz EN 1993-1-5');
   } else if (result.sectionClass !== null && result.sectionClass <= 2) {
-    twoCol(`MRd = Wpl x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
+    twoCol(`MRd,y = Wpl x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
+    twoCol(`MRd,z = Wel,z x fy / gM0`, `= ${fmtMrd(result.Mrd_z_kNm)}`);
   } else {
-    twoCol(`MRd = Wel,min x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
+    twoCol(`MRd,y = Wel,min x fy / gM0`, `= ${fmtMrd(result.Mrd_kNm)}`);
+    twoCol(`MRd,z = Wel,z x fy / gM0`, `= ${fmtMrd(result.Mrd_z_kNm)}`);
+  }
+
+  // COMPRESION / PANDEO (solo reinforced con datos validos)
+  if (result.compApplicable) {
+    gap();
+    sectionHeader('COMPRESION / PANDEO');
+    twoCol(`Clase comp = ${result.sectionClassCompression ?? '—'}`, 'curva c (a=0.49)');
+    if (result.compClass4) {
+      twoCol('Nc,Rd = N/D (Clase 4)', 'Requiere seccion eficaz EN 1993-1-5');
+    } else {
+      twoCol(`Nb,Rd,y = ${fmtN(result.Nb_Rd_y_kN)}`, `ly = ${result.lambda_y.toFixed(2)}`);
+      twoCol(`Nb,Rd,z = ${fmtN(result.Nb_Rd_z_kN)}`, `lz = ${result.lambda_z.toFixed(2)}`);
+      twoCol(`Nc,Rd = ${fmtN(result.Nc_Rd_kN)}`,
+        result.Ned_kN > 0 ? `Ut = ${(result.compUtil * 100).toFixed(0)}%` : '');
+    }
   }
 
   // ── Divider before classification checks table ───────────────────────────────

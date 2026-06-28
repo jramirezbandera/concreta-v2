@@ -84,6 +84,16 @@ export interface RCColumnInputs {
   /** Coeficiente de fluencia efectivo φef para Kφ (CE Anejo 19 expr. 5.37).
    *  Típico en edificación ≈ 2.0. Opcional: estados guardados antiguos no lo traen. */
   phiEf?: number;
+  /** Forma de la sección. Ausente ⇒ 'rectangular' (compat. estados antiguos de
+   *  localStorage/URL). El motor lee siempre `inp.sectionType ?? 'rectangular'`. */
+  sectionType?: 'rectangular' | 'circular';
+  /** Diámetro de la sección circular (mm). Solo se usa cuando sectionType === 'circular'. */
+  D?: number;
+  /** Nº de barras longitudinales repartidas en el anillo (circular). */
+  nBarsCirc?: number;
+  /** Diámetro de las barras del anillo (mm) — circular. Campo dedicado (no se
+   *  reutiliza cornerBarDiam, que es semántica rectangular). */
+  circBarDiam?: number;
 }
 
 export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
@@ -187,6 +197,11 @@ export const rcColumnDefaults: RCColumnInputs = {
   L: 3.5,
   beta: 1,
   phiEf: 2.0,
+  // Sección — rectangular por defecto (FTUX inalterado). Circular: anillo de 6Ø16.
+  sectionType: 'rectangular',
+  D: 350,
+  nBarsCirc: 6,
+  circBarDiam: 16,
 };
 
 export const steelBeamDefaults: SteelBeamInputs = {
@@ -406,12 +421,23 @@ export type CompositeSectionMode = 'custom' | 'reinforced';
 export type CompositePlatePos = 'top' | 'bottom' | 'left' | 'right' | 'custom';
 export type SteelGrade = 'S235' | 'S275' | 'S355' | 'S450';
 
+/** Anclaje de una chapa lateral (left/right) en modo reinforced. */
+export type CompositePlateLateralAnchor = 'web' | 'flange';
+
 export interface PlateEntry {
   id: string;
   b: number;             // mm — horizontal width in cross-section
   t: number;             // mm — vertical thickness (ignored for left/right)
   posType: CompositePlatePos;
   customYBottom: number; // mm — only used when posType='custom'
+  /**
+   * Solo left/right. 'web' (def.) = pegada al alma, altura libre entre acuerdos
+   * (comportamiento histórico). 'flange' = pegada a la punta del ala, altura
+   * total h → cierra cajón ala-a-ala. Opcional para compatibilidad hacia atrás.
+   */
+  lateralAnchor?: CompositePlateLateralAnchor;
+  /** Solo left/right. Desfase fino hacia afuera desde el anclaje (mm). Def. 0. */
+  lateralOffset?: number;
 }
 
 export interface CompositeSectionInputs {
@@ -420,6 +446,13 @@ export interface CompositeSectionInputs {
   profileSize: number;
   grade: SteelGrade;
   plates: PlateEntry[];
+  // Compresión / pandeo (solo modo reinforced) — luces de pandeo por eje
+  Ly: number;        // mm — luz de pandeo eje y (fuerte)
+  Lz: number;        // mm — luz de pandeo eje z (débil)
+  bcType: ColumnBCType;
+  beta_y: number;    // β eje y — editable solo si bcType='custom'
+  beta_z: number;    // β eje z — editable solo si bcType='custom'
+  Ned: number;       // kN — axil de compresión opcional (0 = solo capacidad)
 }
 
 export const compositeSectionDefaults: CompositeSectionInputs = {
@@ -430,6 +463,12 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
   plates: [
     { id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 },
   ],
+  Ly: 3500,
+  Lz: 3500,
+  bcType: 'pp',
+  beta_y: 1.0,
+  beta_z: 1.0,
+  Ned: 0,
 };
 
 // ── Pile caps — Encepados de micropilotes (CE art. 48 / CTE DB-SE-C §5.1.4) ──
