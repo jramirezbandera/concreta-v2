@@ -7,6 +7,9 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface SteelBeamsInputsProps {
   state: SteelBeamInputs;
@@ -256,6 +259,7 @@ export function SteelBeamsInputs({
   hideL = false,
 }: SteelBeamsInputsProps) {
   const availableSizes = getSizesForTipo(state.tipo);
+  const { system } = useUnitSystem();
 
   // When tipo changes, snap size to first available if current is invalid
   useEffect(() => {
@@ -266,8 +270,12 @@ export function SteelBeamsInputs({
 
   const deltaAdm = (state.L / state.deflLimit).toFixed(1);
   const fmt = (v: number, d = 1) => v.toFixed(d);
-  const derivedStr = (v: number | undefined, d = 1) =>
-    loadGen && v !== undefined ? fmt(v, d) : '--';
+  // Caja de derivación / filas derivadas: convierten al sistema activo. En SI
+  // mantienen 1 decimal (idéntico a antes); en técnico salen kg/m · mt · Tn.
+  const derivedQ = (v: number | undefined, q: Quantity) =>
+    loadGen && v !== undefined ? formatNumber(v, q, system, 1) : '--';
+  const fmtAL = (v: number) => formatNumber(v, 'areaLoad', system, 1);
+  const uL = (q: Quantity) => getUnitLabel(q, system);
 
   // Beam-type formula annotation for derivation box
   const beamFormulas: Record<BeamType, { MEd: string; VEd: string; Mser: string }> = {
@@ -441,29 +449,29 @@ export function SteelBeamsInputs({
         <div className="text-[10px] text-text-disabled mb-1 uppercase tracking-[0.06em]">
           Derivación ELU (CTE DB-SE)
         </div>
-        <div>Gk = {fmt(state.gk)} × {fmt(state.bTrib)} = {derivedStr(loadGen?.Gk_line)} kN/m</div>
-        <div>Qk = {fmt(state.qk)} × {fmt(state.bTrib)} = {derivedStr(loadGen?.Qk_line)} kN/m</div>
+        <div>Gk = {fmtAL(state.gk)} × {fmt(state.bTrib)} = {derivedQ(loadGen?.Gk_line, 'linearLoad')} {uL('linearLoad')}</div>
+        <div>Qk = {fmtAL(state.qk)} × {fmt(state.bTrib)} = {derivedQ(loadGen?.Qk_line, 'linearLoad')} {uL('linearLoad')}</div>
         <div>
-          wEd = 1.35×{derivedStr(loadGen?.Gk_line)} + 1.50×{derivedStr(loadGen?.Qk_line)} ={' '}
-          {derivedStr(loadGen?.wEd)} kN/m
+          wEd = 1.35×{derivedQ(loadGen?.Gk_line, 'linearLoad')} + 1.50×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
+          {derivedQ(loadGen?.wEd, 'linearLoad')} {uL('linearLoad')}
           <span className="text-text-disabled ml-1">[γG=1.35, γQ=1.50]</span>
         </div>
         <div className="border-t border-border-sub mt-1 pt-1">
-          <div>MEd  = {formulas.MEd} = {derivedStr(loadGen?.MEd, 1)} kNm</div>
-          <div>VEd  = {formulas.VEd} = {derivedStr(loadGen?.VEd, 1)} kN</div>
+          <div>MEd  = {formulas.MEd} = {derivedQ(loadGen?.MEd, 'moment')} {uL('moment')}</div>
+          <div>VEd  = {formulas.VEd} = {derivedQ(loadGen?.VEd, 'force')} {uL('force')}</div>
         </div>
         <div className="border-t border-border-sub mt-1 pt-1">
           <div className="text-[10px] text-text-disabled mb-0.5 uppercase tracking-[0.06em]">
             ELS — Flecha
           </div>
           <div>
-            wSer = {derivedStr(loadGen?.Gk_line)} + {currentPsi.toFixed(2)}×{derivedStr(loadGen?.Qk_line)} ={' '}
-            {derivedStr(loadGen?.wSer)} kN/m
+            wSer = {derivedQ(loadGen?.Gk_line, 'linearLoad')} + {currentPsi.toFixed(2)}×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
+            {derivedQ(loadGen?.wSer, 'linearLoad')} {uL('linearLoad')}
             <span className="text-text-disabled ml-1">
               [{elsComboLabel[state.elsCombo ?? 'characteristic']}, {psiSymbol[state.elsCombo ?? 'characteristic']}]
             </span>
           </div>
-          <div>Mser = {formulas.Mser} = {derivedStr(loadGen?.Mser, 1)} kNm</div>
+          <div>Mser = {formulas.Mser} = {derivedQ(loadGen?.Mser, 'moment')} {uL('moment')}</div>
         </div>
       </div>
       </CollapsibleSection>
@@ -521,8 +529,8 @@ export function SteelBeamsInputs({
       <DerivedRow
         label={LABELS.Mser.sym}
         sub={LABELS.Mser.descShort}
-        value={derivedStr(loadGen?.Mser, 1)}
-        unit={LABELS.Mser.unit}
+        value={derivedQ(loadGen?.Mser, 'moment')}
+        unit={uL('moment')}
       />
       <SelectField
         labelKey="deflLimit"

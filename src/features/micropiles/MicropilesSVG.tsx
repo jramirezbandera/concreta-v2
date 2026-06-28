@@ -7,7 +7,7 @@ import { WARN_UTIL } from '../../lib/calculations/types';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { getMinStructuralCover } from '../../data/micropileLookups';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import { formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
@@ -135,8 +135,8 @@ const fmt2 = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 2
 // ────────────────────────────────────────────────────────────────────────────
 
 function PerfilView({
-  inp, soil, p, width, height,
-}: { inp: MicropilesInputs; soil: SoilLayer[]; p: Palette; width: number; height: number }) {
+  inp, soil, p, width, height, system,
+}: { inp: MicropilesInputs; soil: SoilLayer[]; p: Palette; width: number; height: number; system: UnitSystem }) {
   // Plot coords: y crece hacia abajo (profundidad). Margen para ejes y tags.
   const M = { top: 26, right: 132, bottom: 22, left: 56 };
   const plotW = Math.max(60, width  - M.left - M.right);
@@ -251,13 +251,13 @@ function PerfilView({
                 E{b.layer.id} · {isGran ? 'Granular' : 'Cohesivo'}
               </text>
               <text x={6} y={21} fontSize={8} fontFamily="ui-monospace, monospace" fill={p.textDim}>
-                γ={fmt1(b.layer.gamma)}  φ={fmt1(b.layer.phi)}°
+                γ={formatNumber(b.layer.gamma, 'weightDensity', system, 1)}  φ={fmt1(b.layer.phi)}°
               </text>
               <text x={6} y={31} fontSize={8} fontFamily="ui-monospace, monospace" fill={p.textDim}>
-                c′={fmt1(b.layer.c)} kPa
+                c′={formatQuantity(b.layer.c, 'cohesion', system, { precision: system === 'si' ? 1 : 2 })}
               </text>
               <text x={6} y={41} fontSize={8} fontFamily="ui-monospace, monospace" fill={p.textDim}>
-                NSPT={b.layer.Nspt}  rfℓ={fmt2(b.layer.rflim)} MPa
+                NSPT={b.layer.Nspt}  rfℓ={formatQuantity(b.layer.rflim, 'stress', system, { precision: 2 })}
               </text>
             </g>
           </g>
@@ -666,7 +666,7 @@ export function MicropilesSVG({
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block', background: p.bg }}>
-      {view === 'profile'    && <PerfilView      inp={inp} soil={soil} p={p} width={width} height={height} />}
+      {view === 'profile'    && <PerfilView      inp={inp} soil={soil} p={p} width={width} height={height} system={system} />}
       {view === 'rfcCurve'   && <RfcCurveView    inp={inp} result={result} p={p} width={width} height={height} system={system} />}
       {view === 'topSection' && <TopSectionView  inp={inp} result={result} p={p} width={width} height={height} system={system} />}
       {view === 'semaphores' && <SemaphoresView  result={result} p={p} width={width} height={height} />}

@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import { Trash2, ChevronDown } from 'lucide-react';
 import { type SoilLayer } from '../../data/defaults';
 import { type SoilType } from '../../data/micropileLookups';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatNumber, getUnitLabel, getPrecision, parseQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface SoilStrataEditorProps {
   soil: SoilLayer[];
@@ -34,27 +37,54 @@ export const SOIL_LIMITS = {
 
 interface FieldProps {
   label: string;
+  /** SI value (catalog base) when `quantity` is set; raw number otherwise. */
   value: number;
+  /** Fixed unit suffix when `quantity` is omitted (m, °, NSPT=""). */
   unit?: string;
+  /** When set, value + label convert with the unit system (γ kN/m³↔t/m³,
+   *  c′/su kPa↔kg/cm², rfℓim N/mm²↔kg/cm²). min/max stay in SI. */
+  quantity?: Quantity;
+  /** Display-precision override (rfℓim needs 2 decimals, not the catalog 1). */
+  precision?: number;
   min?: number;
   max?: number;
   /** Tooltip en la etiqueta (campos no obvios: Cu, rfℓim…). */
   hint?: string;
+  /** Emits the SI value. */
   onChange: (n: number) => void;
 }
 
-function MiniNumField({ label, value, unit, min, max, hint, onChange }: FieldProps) {
-  const [local, setLocal] = useState(String(value));
-  // Resync cuando el valor externo cambia (añadir/quitar estratos reordena
-  // las cards y antes el local stale enmascaraba el valor real hasta el blur).
-  useEffect(() => { setLocal(String(value)); }, [value]);
+function MiniNumField({ label, value, unit, quantity, precision, min, max, hint, onChange }: FieldProps) {
+  const { system } = useUnitSystem();
+  const prec = quantity ? (precision ?? getPrecision(quantity, system)) : undefined;
+  // SI value → display string, and display string → SI value.
+  const fmt = (si: number) => (quantity ? formatNumber(si, quantity, system, prec) : String(si));
+  const toSi = (s: string): number | null => {
+    if (quantity) return parseQuantity(s, quantity, system);
+    const n = parseFloat(s.replace(',', '.'));
+    return isNaN(n) ? null : n;
+  };
 
-  const parsed = parseFloat(local);
-  const isParsed = !isNaN(parsed);
-  const belowMin = isParsed && min !== undefined && parsed < min;
-  const aboveMax = isParsed && max !== undefined && parsed > max;
+  const [local, setLocal] = useState(() => fmt(value));
+  // Resync cuando cambia el valor externo (reordenar estratos) o el sistema de
+  // unidades. Salta el reformat si `local` ya representa `value` (no pisar lo
+  // que el usuario teclea: "3" → "3.00").
+  useEffect(() => {
+    const parsed = toSi(local);
+    if (parsed !== null && Math.abs(parsed - value) < 1e-9) return;
+    setLocal(fmt(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, system]);
+
+  const unitText = quantity ? getUnitLabel(quantity, system) : (unit ?? '');
+  const fmtBound = (b: number) => fmt(b);
+
+  const parsedSi = toSi(local);
+  const isParsed = parsedSi !== null;
+  const belowMin = isParsed && min !== undefined && parsedSi! < min;
+  const aboveMax = isParsed && max !== undefined && parsedSi! > max;
   const outOfRange = belowMin || aboveMax;
-  const errMsg = belowMin ? `min: ${min}` : aboveMax ? `max: ${max}` : null;
+  const errMsg = belowMin ? `min: ${fmtBound(min!)}` : aboveMax ? `max: ${fmtBound(max!)}` : null;
 
   return (
     <div className="flex flex-col">
@@ -73,19 +103,19 @@ function MiniNumField({ label, value, unit, min, max, hint, onChange }: FieldPro
             aria-invalid={outOfRange || undefined}
             onChange={(e) => {
               setLocal(e.target.value);
-              const n = parseFloat(e.target.value);
-              // Solo propaga si está en rango; fuera de rango queda en local.
-              if (!isNaN(n) && (min === undefined || n >= min) && (max === undefined || n <= max)) {
-                onChange(n);
+              const si = toSi(e.target.value);
+              // Solo propaga si está en rango (SI); fuera de rango queda en local.
+              if (si !== null && (min === undefined || si >= min) && (max === undefined || si <= max)) {
+                onChange(si);
               }
             }}
             onBlur={() => {
-              let n = parseFloat(local);
-              if (isNaN(n)) { setLocal(String(value)); return; }
-              if (min !== undefined && n < min) n = min;
-              if (max !== undefined && n > max) n = max;
-              setLocal(String(n));
-              onChange(n);
+              let si = toSi(local);
+              if (si === null) { setLocal(fmt(value)); return; }
+              if (min !== undefined && si < min) si = min;
+              if (max !== undefined && si > max) si = max;
+              setLocal(fmt(si));
+              onChange(si);
             }}
             className={[
               'w-13 text-right rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none transition-colors',
@@ -103,7 +133,7 @@ function MiniNumField({ label, value, unit, min, max, hint, onChange }: FieldPro
             'border border-l-0 rounded-r px-1 py-1 text-[9.5px] font-mono whitespace-nowrap inline-flex items-center justify-center min-w-10',
             outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
           ].join(' ')}>
-            {unit ?? ''}
+            {unitText}
           </span>
         </span>
       </label>
@@ -198,18 +228,18 @@ function StrataCard({
             </select>
           </label>
           <MiniNumField label="Pot."   unit="m"     hint="Potencia (espesor) del estrato." value={layer.thickness} {...SOIL_LIMITS.thickness} onChange={(n) => onUpdate(layer.id, 'thickness', n)} />
-          <MiniNumField label="γ"      unit="kN/m³" value={layer.gamma}     {...SOIL_LIMITS.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
+          <MiniNumField label="γ"      quantity="weightDensity" value={layer.gamma}     {...SOIL_LIMITS.gamma}     onChange={(n) => onUpdate(layer.id, 'gamma', n)} />
           {/* c′ solo se muestra en cohesivos — en granulares la cohesión efectiva
               es cero por definición y mostrarlo confundía al usuario. */}
           {layer.type === 'cohesive' && (
-            <MiniNumField label="c′"   unit="kPa"   value={layer.c}         {...SOIL_LIMITS.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
+            <MiniNumField label="c′"   quantity="cohesion"   value={layer.c}         {...SOIL_LIMITS.c}         onChange={(n) => onUpdate(layer.id, 'c', n)} />
           )}
           <MiniNumField label="φ"      unit="°"     value={layer.phi}       {...SOIL_LIMITS.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
           {!hide('Nspt') && (
             <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
           )}
           {layer.type === 'cohesive' && (
-            <MiniNumField label="su" unit="kN/m²" hint="Resistencia al corte sin drenaje del terreno cohesivo." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
+            <MiniNumField label="su" quantity="cohesion" hint="Resistencia al corte sin drenaje del terreno cohesivo." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
           {/* Cu = D60/D10 — solo granulares. Condiciona el pandeo (Tabla 3.6):
               en arena de compacidad media activa la comprobación si Cu≥2, y en
@@ -225,7 +255,7 @@ function StrataCard({
             />
           )}
           {!hide('rflim') && (
-            <MiniNumField label="rfℓim" unit="MPa"   hint="Rozamiento límite por fuste (resistencia unitaria del terreno en el contacto con el micropilote)." value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
+            <MiniNumField label="rfℓim" quantity="stress" precision={2}   hint="Rozamiento límite por fuste (resistencia unitaria del terreno en el contacto con el micropilote)." value={layer.rflim}     {...SOIL_LIMITS.rflim}     onChange={(n) => onUpdate(layer.id, 'rflim', n)} />
           )}
         </div>
       )}
