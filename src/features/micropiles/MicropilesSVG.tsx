@@ -6,6 +6,9 @@ import { type MicropilesResult } from '../../lib/calculations/micropiles';
 import { WARN_UTIL } from '../../lib/calculations/types';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { getMinStructuralCover } from '../../data/micropileLookups';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
 
@@ -324,8 +327,8 @@ function PerfilView({
 // ────────────────────────────────────────────────────────────────────────────
 
 function RfcCurveView({
-  inp, result, p, width, height,
-}: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number }) {
+  inp, result, p, width, height, system,
+}: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number; system: UnitSystem }) {
   // Margen izquierdo ampliado 56→68 para que el label vertical "z (m)"
   // entre dentro del SVG sin recortarse contra el borde del canvas.
   const M = { top: 30, right: 30, bottom: 30, left: 68 };
@@ -390,7 +393,7 @@ function RfcCurveView({
           {Math.round(R)}
         </text>
       ))}
-      <text x={M.left + plotW / 2} y={height - 4} textAnchor="middle" fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Rfc acumulada (kN)</text>
+      <text x={M.left + plotW / 2} y={height - 4} textAnchor="middle" fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">Rfc acumulada ({getUnitLabel('force', system)})</text>
 
       {/* Labels eje Y */}
       {yGrid.map((z) => (
@@ -408,7 +411,7 @@ function RfcCurveView({
       {/* Nc,d vertical */}
       <line x1={xLoad} y1={M.top} x2={xLoad} y2={M.top + plotH} stroke={p.loadLine} strokeWidth={1} strokeDasharray="3 2" />
       <text x={xLoad + 4} y={M.top + 10} fontSize={9} fill={p.loadLine} fontFamily="ui-monospace, monospace">
-        Nc,d = {inp.designLoad} kN
+        Nc,d = {formatQuantity(inp.designLoad as number, 'force', system)}
       </text>
 
       {/* Markers de cruce */}
@@ -443,8 +446,8 @@ function RfcCurveView({
 // ────────────────────────────────────────────────────────────────────────────
 
 function TopSectionView({
-  inp, result, p, width, height,
-}: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number }) {
+  inp, result, p, width, height, system,
+}: { inp: MicropilesInputs; result: MicropilesResult; p: Palette; width: number; height: number; system: UnitSystem }) {
   // Centro del círculo desplazado para dejar hueco a las cotas (Ø perforación,
   // Ø bulbo) que se dibujan a la IZQUIERDA del círculo — así no chocan con el
   // panel-tabla que ocupa la mitad derecha del SVG.
@@ -546,14 +549,14 @@ function TopSectionView({
         <rect x={-6} y={-12} width={Math.max(150, width * 0.32)} height={206} rx={3} fill={p.bgPanel} stroke={p.border} strokeWidth={0.5} />
         <text x={0} y={2} fontSize={9.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>Sección del tope</text>
         {([
-          ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${inp.concreteGrade} N/mm²)`, false],
-          ['Acero',     `fy = ${inp.steelGrade} N/mm²`, false],
+          ['Hormigón',  `HA-${inp.concreteGrade} (fck = ${formatQuantity(inp.concreteGrade as number, 'stress', system)})`, false],
+          ['Acero',     `fy = ${formatQuantity(inp.steelGrade as number, 'stress', system)}`, false],
           ['rec.',      `${fmt2(geomCover)} / ${minCoverRequired} mm mín.`, coverShort],
           ['As,y',      `${fmt2(result.As_y)} mm²`, false],
           ['As,d',      `${fmt2(result.As_d)} mm²`, false],
           ['re',        `${fmt2(result.re)} mm`, false],
-          ['Fc,h',      `${fmt2(result.Fc_h)} kN`, false],
-          ['Fa,h',      `${fmt2(result.Fa_h)} kN`, false],
+          ['Fc,h',      formatQuantity(result.Fc_h, 'force', system), false],
+          ['Fa,h',      formatQuantity(result.Fa_h, 'force', system), false],
           ['R',         `${fmt2(result.R)}`, false],
           ['Fe',        `${fmt2(result.Fe)}`, false],
         ] as Array<[string, string, boolean]>).map(([k, v, isFail], i) => (
@@ -659,12 +662,13 @@ export function MicropilesSVG({
   mode = 'screen',
 }: MicropilesSVGProps) {
   const p = mode === 'pdf' ? PDF : SCREEN;
+  const { system } = useUnitSystem();
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block', background: p.bg }}>
       {view === 'profile'    && <PerfilView      inp={inp} soil={soil} p={p} width={width} height={height} />}
-      {view === 'rfcCurve'   && <RfcCurveView    inp={inp} result={result} p={p} width={width} height={height} />}
-      {view === 'topSection' && <TopSectionView  inp={inp} result={result} p={p} width={width} height={height} />}
+      {view === 'rfcCurve'   && <RfcCurveView    inp={inp} result={result} p={p} width={width} height={height} system={system} />}
+      {view === 'topSection' && <TopSectionView  inp={inp} result={result} p={p} width={width} height={height} system={system} />}
       {view === 'semaphores' && <SemaphoresView  result={result} p={p} width={width} height={height} />}
     </svg>
   );

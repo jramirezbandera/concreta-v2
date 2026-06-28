@@ -109,7 +109,7 @@ function LoadRow({
       <UnitNumberInput
         label="q"
         sub="magnitud"
-        unit={isUdl ? 'kN/m²' : 'kN/m'}
+        quantity={isUdl ? 'areaLoad' : 'linearLoad'}
         help={isUdl ? 'Carga uniforme repartida sobre la banda.' : 'Carga lineal en el punto indicado.'}
         value={load.magnitude}
         onChange={(n) => onUpdate({ magnitude: n })}

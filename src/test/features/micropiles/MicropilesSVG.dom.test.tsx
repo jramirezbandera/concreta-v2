@@ -6,10 +6,16 @@
 // precisamente de esa divergencia).
 
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { render as rtlRender } from '@testing-library/react';
 import { MicropilesSVG, type MicropilesView } from '../../../features/micropiles/MicropilesSVG';
 import { calcMicropiles } from '../../../lib/calculations/micropiles';
 import { micropilesDefaults, micropilesSoilDefaults } from '../../../data/defaults';
+import { UnitSystemProvider } from '../../../lib/units/UnitSystemProvider';
+
+// MicropilesSVG ahora consume useUnitSystem() (etiquetas convierten kN↔Tn /
+// N/mm²↔kg/cm²). Renderizar dentro del provider; `wrapper` re-envuelve rerender.
+const render = (ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(ui, { wrapper: UnitSystemProvider });
 
 const VIEWS: MicropilesView[] = ['profile', 'rfcCurve', 'topSection', 'semaphores'];
 

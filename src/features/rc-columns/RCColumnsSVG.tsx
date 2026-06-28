@@ -8,6 +8,8 @@
 
 import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult } from '../../lib/calculations/rcColumns';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
 
 interface RCColumnsSVGProps {
   inp: RCColumnInputs;
@@ -53,6 +55,7 @@ export function RCColumnsSVG({
 }: RCColumnsSVGProps) {
   const isPdf = mode === 'pdf';
   const colors = isPdf ? PDF_COLORS : SCREEN_COLORS;
+  const { system } = useUnitSystem();
 
   const { b, h, cover, stirrupDiam, cornerBarDiam, nBarsX, barDiamX, nBarsY, barDiamY } = inp;
 
@@ -124,8 +127,8 @@ export function RCColumnsSVG({
   const isSlender = result.valid && (result.lambda_y > 25 || result.lambda_z > 25);
   const slenderTag = isSlender ? 'ESBELTA' : 'CORTA';
 
-  const MEdy_str = result.valid ? `MEdy=${inp.MEdy}kNm` : '';
-  const MEdz_str = result.valid ? `MEdz=${inp.MEdz}kNm` : '';
+  const MEdy_str = result.valid ? `MEdy=${formatQuantity(inp.MEdy as number, 'moment', system)}` : '';
+  const MEdz_str = result.valid ? `MEdz=${formatQuantity(inp.MEdz as number, 'moment', system)}` : '';
 
   const fontSize = isPdf ? 9 : Math.max(8, Math.min(11, width / 28));
   const smallFont = Math.max(7, fontSize - 1.5);

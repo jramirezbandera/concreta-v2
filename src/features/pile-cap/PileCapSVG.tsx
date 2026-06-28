@@ -1,5 +1,8 @@
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface PileCapSVGProps {
   inp:    PileCapInputs;
@@ -30,8 +33,8 @@ function colors(isPdf: boolean) {
 // ── Plan view ────────────────────────────────────────────────────────────────
 
 function PlanView({
-  inp, result, size, isPdf,
-}: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean }) {
+  inp, result, size, isPdf, system,
+}: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; system: UnitSystem }) {
   const c = colors(isPdf);
   const { pilePos, reactions, L_x, L_y, R_max } = result;
   const d_p   = inp.d_p as number;
@@ -115,7 +118,7 @@ function PlanView({
               fill={c.textSec}
               fontFamily="monospace"
             >
-              {`R${i + 1}=${reactions[i].toFixed(0)}kN`}
+              {`R${i + 1}=${formatQuantity(reactions[i], 'force', system, { precision: 0 })}`}
             </text>
           </g>
         );
@@ -315,6 +318,7 @@ function SectionView({
 
 export function PileCapSVG({ inp, result, width, mode = 'screen' }: PileCapSVGProps) {
   const isPdf = mode === 'pdf';
+  const { system } = useUnitSystem();
 
   if (!result.valid) {
     return (
@@ -336,7 +340,7 @@ export function PileCapSVG({ inp, result, width, mode = 'screen' }: PileCapSVGPr
       style={mode === 'pdf' ? { background: '#fff' } : undefined}
     >
       {/* Plan view */}
-      <PlanView inp={inp} result={result} size={planSize} isPdf={isPdf} />
+      <PlanView inp={inp} result={result} size={planSize} isPdf={isPdf} system={system} />
 
       {/* Divider label */}
       <div

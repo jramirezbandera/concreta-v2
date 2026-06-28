@@ -6,9 +6,15 @@
 // del DOM (max del input) y presencia condicional de los NumField custom.
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render as rtlRender, fireEvent } from '@testing-library/react';
 import { MicropilesInputsPanel } from '../../../features/micropiles/MicropilesInputsPanel';
 import { micropilesDefaults, micropilesSoilDefaults, type MicropilesInputs } from '../../../data/defaults';
+import { UnitSystemProvider } from '../../../lib/units/UnitSystemProvider';
+
+// El panel ahora usa UnitNumberInput (Nc,d/fy/Md/Vd/E₀/EL convierten con el
+// toggle) → consume useUnitSystem(). Render dentro del provider.
+const render = (ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(ui, { wrapper: UnitSystemProvider });
 
 interface RenderOpts {
   state?: Partial<MicropilesInputs>;

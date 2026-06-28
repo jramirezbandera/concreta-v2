@@ -3,7 +3,7 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface RetainingWallResultsProps {
@@ -14,6 +14,9 @@ interface RetainingWallResultsProps {
 export function RetainingWallResults({ result, inp }: RetainingWallResultsProps) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
+  // Momento por metro de muro: el factor de conversión es el de 'moment'; el
+  // sufijo "/m" se añade a la etiqueta (la longitud no convierte).
+  const fmtMomPerM = (v: number) => `${formatNumber(v, 'moment', system, 1)} ${getUnitLabel('moment', system)}/m`;
 
   if (!result.valid) {
     return (
@@ -104,13 +107,13 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
         {fusteChecks.length > 0 && (
           <>
             <GroupHeader label="Valores estructurales" />
-            <ValueRow label="MEd fuste"         value={`${result.MEd_fuste.toFixed(1)} kNm/m`} />
+            <ValueRow label="MEd fuste"         value={fmtMomPerM(result.MEd_fuste)} />
             <ValueRow label="As,req fuste"      value={result.As_req_fuste === Infinity ? '∞ (sobre-armado)' : `${result.As_req_fuste.toFixed(0)} mm²/m`} />
             <ValueRow label="As,min fuste"      value={`${result.As_min_fuste.toFixed(0)} mm²/m`} />
-            <ValueRow label="MEd talón"         value={`${result.MEd_talon.toFixed(1)} kNm/m`} />
+            <ValueRow label="MEd talón"         value={fmtMomPerM(result.MEd_talon)} />
             <ValueRow label="As,req talón"      value={result.As_req_talon === Infinity ? '∞ (sobre-armado)' : `${result.As_req_talon.toFixed(0)} mm²/m`} />
             <ValueRow label="As,min talón"      value={`${result.As_min_talon.toFixed(0)} mm²/m`} />
-            <ValueRow label="MEd punta"         value={`${result.MEd_punta.toFixed(1)} kNm/m`} />
+            <ValueRow label="MEd punta"         value={fmtMomPerM(result.MEd_punta)} />
             <ValueRow label="As,req punta"      value={result.As_req_punta === Infinity ? '∞ (sobre-armado)' : `${result.As_req_punta.toFixed(0)} mm²/m`} />
             <ValueRow label="As,min punta"      value={`${result.As_min_punta.toFixed(0)} mm²/m`} />
           </>

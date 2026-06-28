@@ -6,6 +6,8 @@ import {
   peakColor, axisColor, admColor,
 } from './diagramStyle';
 import { beamPeakGeometry, type LabelPos } from './beamPeakGeometry';
+import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface SteelBeamsDiagramsProps {
   beamType: BeamType;
@@ -24,6 +26,7 @@ interface SteelBeamsDiagramsProps {
 export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
   beamType, MEd, VEdA, VEdB, deltaMax, deltaAdm, deflLimit, mode, width, height,
 }) => {
+  const { system } = useUnitSystem();
   // Invariant: VEdA > 0 guarantees safe VEdB/VEdA division in the fp shear-shape
   // computation below. Callers pass VEdA=0 only when the calc failed upstream.
   if (MEd <= 0 || VEdA <= 0) return null;
@@ -362,15 +365,15 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       {/* ══ M diagram ════════════════════════════════════════════════════ */}
       <text x={bx0} y={M_Y0 + 11} fontSize={FS_AXIS} fill={C_AXIS}
         style={{ fontFamily: FF_MONO }}>
-        M (kNm)
+        M ({getUnitLabel('moment', system)})
       </text>
       {mShapeEl}
       {renderDot(geom.mPeak, mStroke)}
-      {renderLabel(geom.mLabel, `${MEd.toFixed(1)} kNm`)}
+      {renderLabel(geom.mLabel, formatQuantity(MEd, 'moment', system, { precision: 1 }))}
       {geom.mPeakSecondary && renderDot(geom.mPeakSecondary, mStroke)}
       {geom.mLabelSecondary && renderLabel(
         geom.mLabelSecondary,
-        `${ffSagValue.toFixed(1)} kNm`,
+        formatQuantity(ffSagValue, 'moment', system, { precision: 1 }),
         { fontSize: FS_FF_SAG, color: C_ADM, bold: false },
       )}
 
@@ -381,15 +384,15 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       {/* ══ V diagram ════════════════════════════════════════════════════ */}
       <text x={bx0} y={V_Y0 + 11} fontSize={FS_AXIS} fill={C_AXIS}
         style={{ fontFamily: FF_MONO }}>
-        V (kN)
+        V ({getUnitLabel('force', system)})
       </text>
       {vShapeEl}
       {renderDot(geom.vPosPeak, vPosStroke)}
-      {renderLabel(geom.vPosLabel, `+${VEdA.toFixed(1)} kN`, { color: vPosLabelC })}
+      {renderLabel(geom.vPosLabel, `+${formatQuantity(VEdA, 'force', system, { precision: 1 })}`, { color: vPosLabelC })}
       {geom.vNegPeak && renderDot(geom.vNegPeak, vNegStroke)}
       {geom.vNegLabel && renderLabel(
         geom.vNegLabel,
-        `-${(beamType === 'fp' ? VEdB : VEdA).toFixed(1)} kN`,
+        `-${formatQuantity(beamType === 'fp' ? VEdB : VEdA, 'force', system, { precision: 1 })}`,
         { color: vNegLabelC },
       )}
 

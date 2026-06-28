@@ -55,8 +55,8 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <ValueRow label="Posición del pilar"               value={`${POSITION_LABEL[c.position] ?? c.position} (${c.nArms} brazos)`} />
         <ValueRow label="Perfil de la cruceta"             value={`UPN ${c.upnSize} (${c.steelGrade})`} />
         <ValueRow label="Clase de sección (EC3)"           value={`Clase ${c.upnClass}`} />
-        <ValueRow label="M_Rd — momento resistente UPN (info)" value={`${c.MRd.toFixed(1)} kN·m`} />
-        <ValueRow label="Vpl,Rd — cortante plástico UPN (info)" value={`${c.VplRd.toFixed(0)} kN`} />
+        <ValueRow label="M_Rd — momento resistente UPN (info)" value={formatQuantity(c.MRd, 'moment', system, { precision: 1 })} />
+        <ValueRow label="Vpl,Rd — cortante plástico UPN (info)" value={formatQuantity(c.VplRd, 'force', system, { precision: 0 })} />
 
         <GroupHeader label="Punzonamiento de la placa" />
         <ValueRow label="u0 — perímetro en cara de placa"  value={`${c.u0.toFixed(0)} mm`} />

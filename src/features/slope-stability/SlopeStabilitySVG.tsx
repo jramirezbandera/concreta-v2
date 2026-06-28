@@ -13,6 +13,8 @@
 
 import type { ReactElement } from 'react';
 import type { SlopeInputs, SoilLayer, SlopeLoad } from '../../data/defaults';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
 import type { SlopeResult, SlopePoint } from '../../lib/calculations/geotech/types';
 
 interface SlopeStabilitySVGProps {
@@ -230,6 +232,7 @@ export function SlopeStabilitySVG({
   height,
   mode = 'screen',
 }: SlopeStabilitySVGProps): ReactElement {
+  const { system } = useUnitSystem();
   const isPdf = mode === 'pdf';
   const P = isPdf ? PDF_PALETTE : SCREEN_PALETTE;
   const H = Math.max(inputs.height, 0.1);
@@ -509,7 +512,7 @@ export function SlopeStabilitySVG({
               })}
               <text x={(xa + xb) / 2} y={yBand - 4} fontSize={9.5} fill={P.load}
                 textAnchor="middle" fontFamily={FONT_MONO}>
-                {svgText(`q = ${fmt1(load.magnitude)} kN/m²`, isPdf)}
+                {svgText(`q = ${formatQuantity(load.magnitude, 'areaLoad', system, { precision: 1 })}`, isPdf)}
               </text>
             </g>
           );
@@ -522,7 +525,7 @@ export function SlopeStabilitySVG({
               color={P.load} sw={1.8} head={6} />
             <text x={xx} y={yTopLoad - 38} fontSize={9.5} fill={P.load}
               textAnchor="middle" fontFamily={FONT_MONO}>
-              {svgText(`${fmt1(load.magnitude)} kN/m`, isPdf)}
+              {svgText(`${formatQuantity(load.magnitude, 'linearLoad', system, { precision: 1 })}`, isPdf)}
             </text>
           </g>
         );

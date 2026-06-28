@@ -7,6 +7,9 @@
 
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface TimberBeamsSVGProps {
   inp: TimberBeamInputs;
@@ -205,12 +208,13 @@ function WallHatch({ x, y, w, h, C }: { x: number; y: number; w: number; h: numb
 }
 
 function Elevation({
-  inp, result, C, isPdf, panelX, panelW, panelH,
+  inp, result, C, isPdf, panelX, panelW, panelH, system,
 }: {
   inp: TimberBeamInputs;
   result: TimberBeamResult;
   C: typeof SCREEN; isPdf: boolean;
   panelX: number; panelW: number; panelH: number;
+  system: UnitSystem;
 }) {
   const padLeft  = 12;
   const padRight = 12;
@@ -299,7 +303,7 @@ function Elevation({
 
   // Load label — ULS design value, consistent with MEd/VEd shown below (γG=1.35, γQ=1.50)
   const wEd = 1.35 * inp.gk + 1.50 * inp.qk;
-  const loadLabel = wEd > 0 ? `Ed=${wEd.toFixed(1)} kN/m` : '';
+  const loadLabel = wEd > 0 ? `Ed=${formatQuantity(wEd, 'linearLoad', system, { precision: 1 })}` : '';
 
   const textStyle = isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined;
   const cls = isPdf ? undefined : 'font-mono text-[8px]';
@@ -357,7 +361,7 @@ function Elevation({
         <>
           <text x={(x0 + x1) / 2} y={panelH - 10} textAnchor="middle"
             fontSize={7} fill={C.label} style={textStyle} className={cls}>
-            MEd={result.MEd.toFixed(1)}kNm  VEd={result.VEd.toFixed(1)}kN
+            MEd={formatQuantity(result.MEd, 'moment', system, { precision: 1 })}  VEd={formatQuantity(result.VEd, 'force', system, { precision: 1 })}
           </text>
         </>
       )}
@@ -369,6 +373,7 @@ function Elevation({
 export function TimberBeamsSVG({ inp, result, mode, width, height }: TimberBeamsSVGProps) {
   const isPdf = mode === 'pdf';
   const C = isPdf ? PDF : SCREEN;
+  const { system } = useUnitSystem();
 
   const leftW  = Math.floor(width * 0.35);
   const rightW = width - leftW;
@@ -402,7 +407,7 @@ export function TimberBeamsSVG({ inp, result, mode, width, height }: TimberBeams
       <CrossSection inp={inp} result={result} C={C} isPdf={isPdf} panelW={leftW} panelH={height} />
 
       {/* Right: elevation */}
-      <Elevation inp={inp} result={result} C={C} isPdf={isPdf} panelX={leftW} panelW={rightW} panelH={height} />
+      <Elevation inp={inp} result={result} C={C} isPdf={isPdf} panelX={leftW} panelW={rightW} panelH={height} system={system} />
     </svg>
   );
 }

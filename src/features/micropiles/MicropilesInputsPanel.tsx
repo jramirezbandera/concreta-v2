@@ -11,6 +11,7 @@ import { MICROPILE_TUBES, CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes
 import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { SoilStrataEditor } from './SoilStrataEditor';
 
 interface MicropilesInputsPanelProps {
@@ -250,7 +251,7 @@ export function MicropilesInputsPanel({
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">
-        <NumField label="Nc,d" sub="por pilote" help={HELP.designLoad} field="designLoad" value={state.designLoad} unit="kN" integer {...LIMITS.designLoad} setField={setField} />
+        <UnitNumberInput label="Nc,d" sub="por pilote" help={HELP.designLoad} field="designLoad" quantity="force" value={state.designLoad} onChange={(n) => setField('designLoad', n)} {...LIMITS.designLoad} />
         <SelectField<EffortType>
           label="Esfuerzo"
           help={HELP.effort}
@@ -356,7 +357,7 @@ export function MicropilesInputsPanel({
             />
           </>
         )}
-        <NumField label="fy" sub="acero" help={HELP.fy} field="steelGrade" value={state.steelGrade} unit="N/mm²" integer {...LIMITS.steelGrade} setField={setField} />
+        <UnitNumberInput label="fy" sub="acero" help={HELP.fy} field="steelGrade" quantity="stress" value={state.steelGrade} onChange={(n) => setField('steelGrade', n)} {...LIMITS.steelGrade} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Ejecución y entorno" refNorma="Guía Fomento Tablas 3.5/3.6/A-5.1">
@@ -500,10 +501,10 @@ export function MicropilesInputsPanel({
       </CollapsibleSection>
 
       <CollapsibleSection label="Empujes horizontales" defaultOpen={false} refNorma="Guía Fomento cap. 3.7">
-        <NumField label="Md" sub="momento cabeza" help={HELP.baseMoment} field="baseMoment" value={state.baseMoment} unit="kNm" {...LIMITS.baseMoment} setField={setField} />
-        <NumField label="Vd" sub="cortante cabeza" help={HELP.baseShear} field="baseShear"  value={state.baseShear}  unit="kN"  {...LIMITS.baseShear}  setField={setField} />
-        <NumField label="E₀" sub="módulo cabeza"  help={HELP.soilModTop}   field="soilModulusTop"   value={state.soilModulusTop}   unit="kN/m²" integer {...LIMITS.soilModulusTop}   setField={setField} />
-        <NumField label="EL" sub="módulo empotr." help={HELP.soilModEmbed} field="soilModulusEmbed" value={state.soilModulusEmbed} unit="kN/m²" integer {...LIMITS.soilModulusEmbed} setField={setField} />
+        <UnitNumberInput label="Md" sub="momento cabeza" help={HELP.baseMoment} field="baseMoment" quantity="moment" value={state.baseMoment} onChange={(n) => setField('baseMoment', n)} {...LIMITS.baseMoment} />
+        <UnitNumberInput label="Vd" sub="cortante cabeza" help={HELP.baseShear} field="baseShear" quantity="force" value={state.baseShear} onChange={(n) => setField('baseShear', n)} {...LIMITS.baseShear} />
+        <UnitNumberInput label="E₀" sub="módulo cabeza"  help={HELP.soilModTop}   field="soilModulusTop"   quantity="areaLoad" precision={0} value={state.soilModulusTop}   onChange={(n) => setField('soilModulusTop', n)}   {...LIMITS.soilModulusTop} />
+        <UnitNumberInput label="EL" sub="módulo empotr." help={HELP.soilModEmbed} field="soilModulusEmbed" quantity="areaLoad" precision={0} value={state.soilModulusEmbed} onChange={(n) => setField('soilModulusEmbed', n)} {...LIMITS.soilModulusEmbed} />
         {/* f (empotramiento ficticio) ahora se interpola desde E₀/EL — Tabla 3.8. */}
       </CollapsibleSection>
 

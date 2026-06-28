@@ -8,6 +8,9 @@
 import type { ReactElement } from 'react';
 import { type TimberColumnInputs } from '../../data/defaults';
 import { type TimberColumnResult } from '../../lib/calculations/timberColumns';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface TimberColumnsSVGProps {
   inp: TimberColumnInputs;
@@ -174,11 +177,12 @@ function CrossSection({
 
 // ─── Column elevation panel ───────────────────────────────────────────────────
 function ColumnElevation({
-  inp, C, isPdf, panelW, panelH,
+  inp, C, isPdf, panelW, panelH, system,
 }: {
   inp: TimberColumnInputs;
   C: typeof SCREEN; isPdf: boolean;
   panelW: number; panelH: number;
+  system: UnitSystem;
 }) {
   const colW  = 36;  // column visual width (px)
   const cx    = panelW * 0.38;  // column center x
@@ -261,7 +265,7 @@ function ColumnElevation({
             stroke={C.loadArrow} strokeWidth={isPdf ? 1.5 : 1.5} />
           <ArrowHead x={cx} y={yTop} dir="down" />
           <text x={cx + 6} y={yTop - 18} fontSize={fs} fill={C.dimText} fontFamily="monospace">
-            {`Nd=${inp.Nd}kN`}
+            {`Nd=${formatQuantity(inp.Nd as number, 'force', system)}`}
           </text>
         </g>
       )}
@@ -274,7 +278,7 @@ function ColumnElevation({
           <ArrowHead x={cx - colW / 2} y={yTop + 10} dir="right" />
           <text x={cx - colW / 2 - 26} y={yTop + 8} fontSize={fs} fill={C.dimText}
             fontFamily="monospace" textAnchor="end">
-            {`Vd=${inp.Vd}kN`}
+            {`Vd=${formatQuantity(inp.Vd as number, 'force', system)}`}
           </text>
         </g>
       )}
@@ -293,7 +297,7 @@ function ColumnElevation({
             />
             <ArrowHead x={mx + r} y={my} dir="down" />
             <text x={mx + r + 6} y={my + 4} fontSize={fs} fill={C.dimText} fontFamily="monospace">
-              {`Md=${inp.Md}kNm`}
+              {`Md=${formatQuantity(inp.Md as number, 'moment', system)}`}
             </text>
           </g>
         );
@@ -335,6 +339,7 @@ function ColumnElevation({
 export function TimberColumnsSVG({ inp, result, mode, width, height }: TimberColumnsSVGProps) {
   const C     = mode === 'pdf' ? PDF : SCREEN;
   const isPdf = mode === 'pdf';
+  const { system } = useUnitSystem();
 
   // Panel split: elevation 58%, cross-section 42%
   const elevW = Math.round(width * 0.58);
@@ -360,7 +365,7 @@ export function TimberColumnsSVG({ inp, result, mode, width, height }: TimberCol
       {/* Column elevation */}
       <ColumnElevation
         inp={inp} C={C} isPdf={isPdf}
-        panelW={elevW} panelH={height}
+        panelW={elevW} panelH={height} system={system}
       />
 
       {/* Cross-section */}

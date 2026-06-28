@@ -1,6 +1,9 @@
 import { type MicropilesResult } from '../../lib/calculations/micropiles';
 import { type MicropilesInputs } from '../../data/defaults';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface MicropilesResultsProps {
   result: MicropilesResult;
@@ -11,6 +14,10 @@ const fmt2 = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 2
 const fmt3 = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
 export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
+  const { system } = useUnitSystem();
+  // Fuerzas/momentos por el sistema activo (kN↔Tn, kNm↔mt). Las dimensiones
+  // (mm/cm) no convierten y siguen con fmt2.
+  const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
   if (!result.valid) {
     return (
       <div className="flex items-center justify-center h-24 rounded border border-state-fail/30 bg-state-fail/5">
@@ -50,9 +57,9 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
       {/* Hundimiento por fuste */}
       <div className="rounded border border-border-main px-4 py-3">
         <GroupHeader label="Hundimiento por fuste" />
-        <ValueRow label="Rfc,d teórico"   value={`${fmt2(result.RfcTheoretical)} kN`} />
-        <ValueRow label="Rfc,d empírico"  value={`${fmt2(result.RfcEmpirical)} kN`} />
-        <ValueRow label="Rfc,d adoptado"  value={`${fmt2(result.RfcAdopted)} kN (${inp.method === 'theoretical' ? 'teórico' : 'empírico'})`} />
+        <ValueRow label="Rfc,d teórico"   value={fmtSi(result.RfcTheoretical, 'force')} />
+        <ValueRow label="Rfc,d empírico"  value={fmtSi(result.RfcEmpirical, 'force')} />
+        <ValueRow label="Rfc,d adoptado"  value={`${fmtSi(result.RfcAdopted, 'force')} (${inp.method === 'theoretical' ? 'teórico' : 'empírico'})`} />
         {shaftChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
       </div>
 
@@ -66,8 +73,8 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
         />
         <ValueRow label="As,y (bruta)"          value={`${fmt2(result.As_y)} mm²`} />
         <ValueRow label="As,d (efectiva)"       value={`${fmt2(result.As_d)} mm² (re=${fmt2(result.re)} mm)`} />
-        <ValueRow label="Fc,h (hormigón)"       value={`${fmt2(result.Fc_h)} kN`} />
-        <ValueRow label="Fa,h (acero)"          value={`${fmt2(result.Fa_h)} kN`} />
+        <ValueRow label="Fc,h (hormigón)"       value={fmtSi(result.Fc_h, 'force')} />
+        <ValueRow label="Fa,h (acero)"          value={fmtSi(result.Fa_h, 'force')} />
         <ValueRow
           label="CR (pandeo)"
           value={`${fmt2(result.crAdopted)} · ${inp.crManualOverride ? 'manual' : 'auto'}`}
@@ -93,9 +100,9 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
           </ul>
         )}
         <ValueRow label="Fe (ejecución)"        value={fmt2(result.Fe)} />
-        <ValueRow label="Nc,rd"                 value={`${fmt2(result.Nc_rd)} kN`} />
+        <ValueRow label="Nc,rd"                 value={fmtSi(result.Nc_rd, 'force')} />
         {inp.effort !== 'compression' && (
-          <ValueRow label="Tc,rd"               value={`${fmt2(result.Tc_rd)} kN`} />
+          <ValueRow label="Tc,rd"               value={fmtSi(result.Tc_rd, 'force')} />
         )}
         {topChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
       </div>
@@ -118,8 +125,8 @@ export function MicropilesResults({ result, inp }: MicropilesResultsProps) {
         <GroupHeader label="Empujes horizontales" />
         <ValueRow label="Le (long. elástica)"     value={`${fmt2(result.Le)} m`} />
         <ValueRow label="Lef (long. ficticia)"    value={`${fmt2(result.Lef)} m`} />
-        <ValueRow label="Mpl,rd"                  value={`${fmt2(result.Mpl_rd)} kNm`} />
-        <ValueRow label="Vpl,rd"                  value={`${fmt2(result.Vpl_rd)} kN`} />
+        <ValueRow label="Mpl,rd"                  value={fmtSi(result.Mpl_rd, 'moment')} />
+        <ValueRow label="Vpl,rd"                  value={fmtSi(result.Vpl_rd, 'force')} />
         {bendingShear.map((c) => <CheckRowItem key={c.id} check={c} />)}
       </div>
 
