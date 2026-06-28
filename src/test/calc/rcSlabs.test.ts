@@ -258,15 +258,15 @@ describe('cortante', () => {
   it('VRd,max consistente con cotθ=2.5 — oracle manual (fix auditoría #3)', () => {
     // CE Anejo 19 §6.2.3(3): VRd,max = ν1·fcd·bw·z/(cotθ+tanθ), con el MISMO
     // θ que VRd,s. Hand-calc (defaults reticular + cercos apoyo Ø6c/150 2 ramas):
-    //   dShear = 350 − 30 − 6 − 16/2 = 306 mm → z = 0.9·306 = 275.4 mm
-    //   VRds = (2·28.3/150)·275.4·434.78·2.5/1000 = 112.95 kN
+    //   El montaje 2Ø12 + refuerzo 2Ø16 NO caben en una fila del nervio (b_w=120,
+    //   cercos Ø6) → se arman en 2 capas (CE art. 69.4). Centroide ȳ≈63.8 →
+    //   dShear = 350 − 63.8 = 286.2 mm → z = 0.9·286.2 = 257.6 mm.
+    //   VRds = (2·28.3/150)·257.6·434.78·2.5/1000 = 105.66 kN
     //   ν1 = 0.6·(1 − 25/250) = 0.54; cotθ + tanθ = 2.5 + 0.4 = 2.9
-    //   VRdmax = 0.54·16.7·120·275.4/2.9/1000 = 102.77 kN
-    // Pre-fix usaba el coeficiente 0.3 de θ=45° con cotθ=2.5 en VRds:
-    // VRdmax = 0.3·0.9·16.7·120·275.4/1000 = 148.9 kN (×1.45 sobreestimado).
+    //   VRdmax = 0.54·16.7·120·257.6/2.9/1000 = 96.13 kN
     const r = calcForjados({ ...base, stirrupsEnabled: true });
-    expect(r.VRds).toBeCloseTo(112.95, 1);
-    expect(r.VRdmax).toBeCloseTo(102.77, 1);
+    expect(r.VRds).toBeCloseTo(105.66, 1);
+    expect(r.VRdmax).toBeCloseTo(96.13, 1);
     expect(r.VRdmax).toBeLessThan(r.VRds);   // con cotθ=2.5 la biela gobierna aquí
   });
 
@@ -277,28 +277,29 @@ describe('cortante', () => {
   });
 
   it('VRd,c con factor 100 en (100·ρl·fck)^⅓ — oracle manual (fix auditoría #38)', () => {
-    // Defaults reticular sin cercos: d=312, b=120, As=628 mm² → ρ=0.0168
-    //   VRdc1 = 0.12·k·(100·0.0168·25)^⅓·120·312 con k=1+√(200/312)=1.80
-    //   = 0.12·1.80·3.47·37440/1000 ≈ 28.1 kN
+    // Defaults reticular sin cercos: montaje 2Ø12 + refuerzo 2Ø16 en 2 capas
+    // (CE art. 69.4) → d=292.2 (no 312), b=120, As=628 mm² → ρ=0.0179
+    //   VRdc1 = 0.12·k·(100·0.0179·25)^⅓·120·292.2 con k=1+√(200/292.2)=1.83
+    //   ≈ 27.3 kN
     // Pre-fix sin el 100: VRdc1 ≈ 6 kN y gobernaba νmin ≈ 15.4 kN — capacidad
     // sin cercos infravalorada ×1.8 (falsos FAIL en forjados correctos).
     const r = calcForjados({ ...base, stirrupsEnabled: false });
-    expect(r.VRdc).toBeCloseTo(28.1, 0);
+    expect(r.VRdc).toBeCloseTo(27.31, 1);
   });
 });
 
 // ── Esbeltez L/d — exención de flecha (fix auditoría #37) ───────────────────
 describe('esbeltez L/d (CE Anejo 19 §7.4.2)', () => {
-  it('defaults reticular: L/d = 16.0 ≤ lim 41.0 → exento (oracle manual)', () => {
-    // d = 350−30−16/2 = 312 (sin cercos); L/d = 5000/312 = 16.0
-    // ρ = 628/(700·312) = 0.00288; ρ0 = √25·10⁻³ = 0.005 → rama ρ ≤ ρ0
+  it('defaults reticular: L/d = 17.1 ≤ lim 37.4 → exento (oracle manual)', () => {
+    // d = 292.2 (montaje 2Ø12 + refuerzo 2Ø16 en 2 capas, CE 69.4); L/d = 5000/292.2 = 17.1
+    // ρ = 628/(700·292.2) = 0.00307; ρ0 = √25·10⁻³ = 0.005 → rama ρ ≤ ρ0
     // K = 1.5 (continuo-interior) ·0.8 (T con bEff/bw = 700/120 > 3) = 1.2
-    // lim = 1.2·(11 + 1.5·5·1.739 + 3.2·5·0.739^1.5) = 41.0
+    // lim = 1.2·(11 + 1.5·5·1.628 + 3.2·5·0.628^1.5) = 37.4
     const r = calcForjados({ ...base, stirrupsEnabled: false });
     const ld = r.infoChecks.find((c) => c.id === 'esbeltez-flecha')!;
     expect(ld.status).toBe('ok');
-    expect(ld.value).toContain('16.0');
-    expect(ld.limit).toContain('41.0');
+    expect(ld.value).toContain('17.1');
+    expect(ld.limit).toContain('37.4');
   });
 
   it('vano largo y canto escaso → warn "comprobar flecha aparte"', () => {
@@ -376,21 +377,45 @@ describe('cuantías mín/máx', () => {
   });
 });
 
-// ── Bar spacing ───────────────────────────────────────────────────────────────
+// ── Bar spacing (CE art. 69.4 — Ø reales + multicapa) ──────────────────────────
 describe('separación barras', () => {
-  it('reticular: spacing check emitted when nBars > 1', () => {
-    // With 2Ø12 base + 2Ø16 refuerzo (4 bars @ same layer in nervio=120 is
-    // tight), the check may resolve to 'bar-spacing-impossible' — still a
-    // spacing evaluation.
+  it('default (2Ø12 + 2Ø16) CUMPLE en 2 capas — Ø reales, no max Ø para todas', () => {
+    // El bug previo: 4×Ø16 en 1 capa → 120−60−64 = −4 → INCUMPLE espurio.
+    // Ahora: capa1 2Ø12 (44≤60) + capa2 2Ø16 (52≤60) → caben. s mín de la capa
+    // más apretada = (60−32)/1 = 28 mm ≥ 20 → ok.
     const r = calcForjados(base);
-    const emitted = r.vano.checks.some(
-      (c) => c.id === 'bar-spacing' || c.id === 'bar-spacing-impossible',
-    );
-    expect(emitted).toBe(true);
+    const sp = r.vano.checks.find((c) => c.id === 'bar-spacing');
+    expect(sp).toBeDefined();
+    expect(sp!.status).toBe('ok');
+    expect(sp!.value).toContain('28');
+    expect(sp!.description).toContain('2 capas');
+    // ya NO se emite la fila 'impossible'
+    expect(r.vano.checks.some((c) => c.id === 'bar-spacing-impossible')).toBe(false);
   });
 
-  it('reticular: bars dont fit → bar-spacing-impossible', () => {
-    // Base 10Ø20 in b_w=120 → way too many
+  it('cabe en 1 capa cuando hay sitio (2Ø12 base, sin refuerzo)', () => {
+    const r = calcForjados({ ...base, refuerzo_vano_inf_nBars: 0 });
+    const sp = r.vano.checks.find((c) => c.id === 'bar-spacing')!;
+    expect(sp.status).toBe('ok');
+    expect(sp.description).not.toContain('capas');   // 1 capa → sin sufijo
+  });
+
+  it('1 barra por capa → sin separación horizontal que comprobar (ok)', () => {
+    // 1Ø20 base + 1Ø20 refuerzo, b_w=100 → clearWidth=40. En 1 fila necesitarían
+    // 20+20+20=60 > 40 → 2 capas de 1 barra cada una; sin separación horizontal.
+    const r = calcForjados({
+      ...base, bWeb: 100,
+      base_inf_nBars: 1, base_inf_barDiam: 20,
+      refuerzo_vano_inf_nBars: 1, refuerzo_vano_inf_barDiam: 20,
+    });
+    const sp = r.vano.checks.find((c) => c.id === 'bar-spacing')!;
+    expect(sp.status).toBe('ok');
+    expect(sp.value).toContain('1 barra/capa');
+  });
+
+  it('reticular: bars dont fit ni en 2 capas → bar-spacing-impossible', () => {
+    // Base 10Ø20 en b_w=120 → ni una capa cabe (380 ≫ 60). El tope de 2 capas
+    // mantiene el INCUMPLE (no se reparte en 5 capas absurdas).
     const r = calcForjados({
       ...base,
       base_inf_nBars: 10, base_inf_barDiam: 20,
@@ -400,9 +425,26 @@ describe('separación barras', () => {
     expect(fail?.status).toBe('fail');
   });
 
+  it('activar cercos estrecha el ancho libre → 2Ø16/capa puede dejar de caber', () => {
+    // Sin cercos clearWidth=60 (2Ø16 = 52 ✓). Con cercos Ø6 clearWidth=48 → 2Ø16
+    // necesitan 52 > 48 → la capa de refuerzo no cabe (CE 69.4 cuenta el cerco).
+    const r = calcForjados({ ...base, stirrupsEnabled: true });
+    expect(r.vano.checks.some((c) => c.id === 'bar-spacing-impossible')).toBe(true);
+  });
+
   it('maciza: uses bar-spacing-maciza check', () => {
     const r = calcForjados({ ...base, variant: 'maciza' });
     expect(r.vano.checks.some((c) => c.id === 'bar-spacing-maciza')).toBe(true);
+  });
+});
+
+// ── FTUX default abre en CUMPLE (recalibrado VEd 30→22) ─────────────────────
+describe('default reticular abre sin INCUMPLE', () => {
+  it('todas las comprobaciones bloqueantes (flexión/cuantías/separación/cortante) = ok', () => {
+    const r = calcForjados(base);
+    const blocking = [...r.vano.checks, ...r.apoyo.checks, ...r.shearChecks];
+    const failed = blocking.filter((c) => c.status === 'fail').map((c) => c.id);
+    expect(failed).toEqual([]);
   });
 });
 
@@ -566,17 +608,24 @@ describe('anchorage checks emitted', () => {
     }
   });
 
-  it('d_eff uses max Ø of tension face when refuerzo is larger', () => {
-    // Base 2Ø12 + refuerzo 2Ø16 → d uses Ø16
+  it('d_eff: montaje + refuerzo en 2 capas → centroide ponderado (CE 69.4)', () => {
+    // Base 2Ø12 + refuerzo 2Ø16 no caben en una fila (b_w=120, sin cercos) → 2 capas.
+    // Capa1 (2Ø12) en la cara: y1 = 30 + 12/2 = 36. Separación libre sv = max(20,16) = 20.
+    // Capa2 (2Ø16): y2 = 30 + 12 + 20 + 16/2 = 70. Centroide ponderado por área:
+    //   ȳ = (226.2·36 + 402.1·70)/628.3 = 57.8 → d = 350 − 57.8 = 292.2 mm.
+    // (La fórmula vieja monocapa daba 312, sobreestimando el brazo mecánico.)
     const r = calcForjados(base);
-    const stirrupV = 0; // stirrupsEnabled=false in defaults
-    const expectedDVano = (base.h as number) - (base.cover as number) - stirrupV - 16 / 2;
-    expect(r.vano.d).toBeCloseTo(expectedDVano, 1);
+    const A12 = getBarArea(12), A16 = getBarArea(16);
+    const yBar = (2 * A12 * 36 + 2 * A16 * 70) / (2 * A12 + 2 * A16);
+    expect(r.vano.d).toBeCloseTo((base.h as number) - yBar, 1);
+    expect(r.vano.d).toBeCloseTo(292.2, 0);
+    // apoyo (M−) es simétrico: base_sup 2Ø12 + refuerzo_apoyo_sup 2Ø16 → mismo d.
+    expect(r.apoyo.d).toBeCloseTo(r.vano.d, 1);
   });
 
-  it('d_eff uses base Ø when refuerzo is absent', () => {
+  it('d_eff uses base Ø (single layer) when refuerzo is absent', () => {
     const r = calcForjados({ ...base, refuerzo_vano_inf_nBars: 0 });
-    // Base 2Ø12 only → d uses Ø12
+    // Base 2Ø12 solo → cabe en 1 capa → d = h − cover − Ø/2 (sin reducción).
     const expectedDVano = (base.h as number) - (base.cover as number) - 0 - 12 / 2;
     expect(r.vano.d).toBeCloseTo(expectedDVano, 1);
   });

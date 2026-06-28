@@ -148,11 +148,13 @@ export function ForjadosSVG({ inp, result, section, width, mode = 'screen' }: Pr
               fill={strokeBar} stroke={strokeBar}
             />
           ))}
-          {/* Refuerzo zonal (accent outline, offset inward slightly to stack visually) */}
+          {/* Refuerzo zonal (accent) — montaje base + refuerzo se arman en 2 capas
+              en el nervio (no caben en una fila); se dibuja la separación libre
+              real sv = max(20, Ø) entre capas, coherente con el d calculado. */}
           {refBarsX.map((bx, i) => {
-            const rY = tensionOnTop
-              ? barY_tension + (baseDiam * scale) / 2 + (refDiam * scale) / 2 + 1
-              : barY_tension - (baseDiam * scale) / 2 - (refDiam * scale) / 2 - 1;
+            const sv = Math.max(20, Math.max(baseDiam, refDiam));   // mm (CE 69.4)
+            const gap = (baseDiam / 2 + sv + refDiam / 2) * scale;
+            const rY = tensionOnTop ? barY_tension + gap : barY_tension - gap;
             return (
               <circle
                 key={`tr-${i}`}

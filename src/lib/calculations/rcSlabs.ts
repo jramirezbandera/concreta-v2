@@ -98,6 +98,91 @@ function invalidSection(error: string): ForjadosSectionResult {
   };
 }
 
+// ── Bar arrangement in the nervio (CE art. 69.4) ─────────────────────────────
+// Distributes the tension bars (montaje base + refuerzo) across up to maxLayers
+// horizontal layers using REAL diameters per bar (not the max-Ø-for-all shortcut).
+// Model: each bundle is one layer — base = outer layer at the tension face,
+// refuerzo = inner layer stacked above it — matching how ForjadosSVG draws them
+// and how a nervio is detailed in practice. Returns the steel-centroid depth so
+// the caller computes d = h − dDepth: a forced 2nd layer raises the centroid and
+// lowers d (→ lower MRd), which the single-layer formula silently ignored.
+export interface BarBundleSpec { count: number; phi: number; }
+export interface NervioArrangement {
+  fits:     boolean;       // bars physically fit (real Ø + min clear spacing, ≤ maxLayers)
+  nLayers:  number;
+  dDepth:   number;        // steel centroid depth from the tension face (mm)
+  governing: number | null; // tightest layer clear spacing (mm); null ⇒ every layer ≤1 bar
+  minLimit: number;        // min clear spacing of the governing layer (mm)
+  shortfall: number;       // mm the worst layer overflows the clear width (≤0 when it fits)
+}
+
+function arrangeNervioBars(
+  bundles:    BarBundleSpec[],  // ordered: base first, refuerzo second
+  clearWidth: number,           // bWeb − 2·cover − 2·stirrup (free space inside the cage)
+  baseline:   number,           // cover + stirrup — depth from face to the first bar surface
+  h:          number,
+  maxLayers = 2,
+): NervioArrangement {
+  const active = bundles.filter((b) => b.count > 0 && b.phi > 0);
+  if (active.length === 0) {
+    return { fits: true, nLayers: 0, dDepth: baseline, governing: null, minLimit: 20, shortfall: 0 };
+  }
+  const allPhis = active.flatMap((b) => Array.from({ length: b.count }, () => b.phi));
+  const maxPhiAll = Math.max(...allPhis);
+
+  // Row geometry — sMin is the bar's OWN diameter (CE 69.4: clear dist ≥ max(20, Ø)).
+  const rowWidth = (phis: number[]): number =>
+    phis.reduce((a, p) => a + p, 0) + Math.max(0, phis.length - 1) * Math.max(20, Math.max(...phis));
+  const rowClear = (phis: number[]): number | null =>
+    phis.length <= 1 ? null : (clearWidth - phis.reduce((a, p) => a + p, 0)) / (phis.length - 1);
+  const rowMin = (phis: number[]): number => Math.max(20, Math.max(...phis));
+
+  // Try a single layer (all bars in one row).
+  if (rowWidth(allPhis) <= clearWidth) {
+    return {
+      fits: true, nLayers: 1,
+      dDepth: baseline + maxPhiAll / 2,            // bars centred on the larger-Ø line
+      governing: rowClear(allPhis),
+      minLimit: rowMin(allPhis),
+      shortfall: rowWidth(allPhis) - clearWidth,   // ≤ 0
+    };
+  }
+
+  // Doesn't fit in one row → one layer per bundle (base outer, refuerzo inner).
+  const layerPhis = active.map((b) => Array.from({ length: b.count }, () => b.phi));
+  let surface = baseline;          // near surface of the current layer
+  let areaSum = 0;
+  let momentSum = 0;               // Σ(area · centreDepth)
+  let worstOverflow = -Infinity;   // max(rowWidth − clearWidth) over layers
+  let governing: number | null = null;
+  let governingMin = 20;
+  let farSurface = baseline;
+  for (let i = 0; i < active.length; i++) {
+    const phi  = active[i].phi;
+    const phis = layerPhis[i];
+    const center = surface + phi / 2;
+    const area = active[i].count * getBarArea(phi);
+    areaSum   += area;
+    momentSum += area * center;
+    worstOverflow = Math.max(worstOverflow, rowWidth(phis) - clearWidth);
+    const clear = rowClear(phis);
+    if (clear !== null && (governing === null || clear < governing)) {
+      governing = clear; governingMin = rowMin(phis);
+    }
+    farSurface = surface + phi;
+    // vertical clear to the next layer ≥ max(20, Ø) of the two adjacent layers.
+    const nextPhi = i + 1 < active.length ? active[i + 1].phi : phi;
+    surface = farSurface + Math.max(20, Math.max(phi, nextPhi));
+  }
+  const dDepth = areaSum > 0 ? momentSum / areaSum : baseline + maxPhiAll / 2;
+
+  const layersFit      = active.every((_, i) => rowWidth(layerPhis[i]) <= clearWidth);
+  const fitsVertically = farSurface <= h - baseline;   // stack stays inside the section
+  const fits = active.length <= maxLayers && layersFit && fitsVertically;
+
+  return { fits, nLayers: active.length, dDepth, governing, minLimit: governingMin, shortfall: worstOverflow };
+}
+
 interface SectionCalcInputs {
   // geometry branch
   variant: 'reticular' | 'maciza';
@@ -113,7 +198,8 @@ interface SectionCalcInputs {
   fck: number; fyk: number;
   // steel
   As: number; AsBase: number; AsRef: number; AsComp: number;
-  barDiamTens: number; nBarsTens: number;
+  barDiamTens: number; nBarsTens: number;  // barDiamTens = max Ø tracción (drives srMax)
+  arrangement?: NervioArrangement;          // reticular bar layout (real Ø, layers)
   // SLS for wk
   Ms: number;
   exposureClass: string;
@@ -207,32 +293,47 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
   ));
 
   // BAR SPACING (CE art. 69.4) ──────────────────────────────────────────
+  // Real Ø + multi-layer: the arrangement (built in calcForjados) reports whether
+  // the bars fit (in ≤2 layers) and the tightest layer's clear spacing. The old
+  // single-row max-Ø-for-all formula falsely failed nervios with mixed bars.
   if (inp.variant === 'reticular') {
-    if (inp.nBarsTens > 1) {
-      const available = inp.bWeb - 2 * inp.cover - inp.nBarsTens * inp.barDiamTens;
-      if (available <= 0) {
+    const arr = inp.arrangement;
+    if (arr && inp.nBarsTens > 1) {
+      const capas = arr.nLayers > 1 ? `, ${arr.nLayers} capas` : '';
+      if (!arr.fits) {
         checks.push({
           id: 'bar-spacing-impossible',
-          description: 'Barras no caben en el nervio',
-          value: `Espacio: ${available.toFixed(0)} mm`,
-          limit: '> 0 mm',
+          description: arr.nLayers > 1
+            ? 'Barras no caben en el nervio (ni en 2 capas)'
+            : 'Barras no caben en el nervio',
+          value: `Exceso: ${arr.shortfall.toFixed(0)} mm`,
+          limit: '≤ ancho libre',
           utilization: Infinity, status: 'fail',
           article: 'CE art. 69.4',
         });
-      } else {
-        const spacing = available / (inp.nBarsTens - 1);
-        const minLimit = Math.max(inp.barDiamTens, 20);
-        const maxLimit = Math.min(300, 3 * inp.h);
-        let status: CheckStatus;
-        let util: number;
-        if (spacing < minLimit) { status = 'fail'; util = minLimit / spacing; }
-        else if (spacing > maxLimit) { status = 'fail'; util = spacing / maxLimit; }
-        else { util = spacing / maxLimit; status = toStatus(util); }
+      } else if (arr.governing === null) {
+        // every layer has ≤1 bar → no horizontal spacing to verify
         checks.push({
           id: 'bar-spacing',
-          description: 'Separación entre barras (nervio)',
+          description: `Separación entre barras (nervio${capas})`,
+          value: '1 barra/capa',
+          limit: '—',
+          utilization: 0, status: 'ok',
+          article: 'CE art. 69.4',
+        });
+      } else {
+        // Min clear spacing governs in a narrow web (the 3·h max-spacing arm is a
+        // slab crack-control rule and never governs here → dropped). util tracks
+        // how close the tightest layer is to its minimum.
+        const spacing  = arr.governing;
+        const minLimit = arr.minLimit;
+        const util = minLimit / spacing;
+        const status: CheckStatus = spacing < minLimit ? 'fail' : toStatus(util);
+        checks.push({
+          id: 'bar-spacing',
+          description: `Separación entre barras (nervio${capas})`,
           value: `s = ${spacing.toFixed(0)} mm`,
-          limit: `${minLimit}–${maxLimit} mm`,
+          limit: `≥ ${minLimit} mm`,
           utilization: util, status, article: 'CE art. 69.4',
         });
       }
@@ -378,6 +479,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   let nBarsVano:    number;
   let barDiamApoyo: number;
   let nBarsApoyo:   number;
+  let arrVano:  NervioArrangement | undefined;
+  let arrApoyo: NervioArrangement | undefined;
   let macSpacingVano  = 0;
   let macSpacingApoyo = 0;
 
@@ -443,8 +546,18 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
 
     const stirrupV = inp.stirrupsEnabled ? (inp.vano_stirrupDiam  as number) : 0;
     const stirrupA = inp.stirrupsEnabled ? (inp.apoyo_stirrupDiam as number) : 0;
-    dVano  = h - cover - stirrupV - phiTensVano  / 2;
-    dApoyo = h - cover - stirrupA - phiTensApoyo / 2;
+    // Bar layout (real Ø, ≤2 layers) drives both the spacing check and d: a forced
+    // 2nd layer raises the steel centroid → d = h − dDepth shrinks (CE art. 69.4).
+    arrVano = arrangeNervioBars(
+      [{ count: nBaseInf, phi: phiBaseInf }, { count: nRefV, phi: phiRefV }],
+      bWeb - 2 * cover - 2 * stirrupV, cover + stirrupV, h,
+    );
+    arrApoyo = arrangeNervioBars(
+      [{ count: nBaseSup, phi: phiBaseSup }, { count: nRefA, phi: phiRefA }],
+      bWeb - 2 * cover - 2 * stirrupA, cover + stirrupA, h,
+    );
+    dVano  = h - arrVano.dDepth;
+    dApoyo = h - arrApoyo.dDepth;
 
     // Bundles for anchorage — skip bundles with zero area.
     if (AsBaseInf > 0) bundlesVano.push({
@@ -537,7 +650,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     bWeb, hFlange,
     fck, fyk,
     As: AsVano, AsBase: AsVanoBase, AsRef: AsVanoRef, AsComp: AsVanoComp,
-    barDiamTens: barDiamVano, nBarsTens: nBarsVano,
+    barDiamTens: barDiamVano, nBarsTens: nBarsVano, arrangement: arrVano,
     Ms: vanoMs, exposureClass,
     macSpacing: macSpacingVano,
   });
@@ -548,7 +661,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     bWeb, hFlange,
     fck, fyk,
     As: AsApoyo, AsBase: AsApoyoBase, AsRef: AsApoyoRef, AsComp: AsApoyoComp,
-    barDiamTens: barDiamApoyo, nBarsTens: nBarsApoyo,
+    barDiamTens: barDiamApoyo, nBarsTens: nBarsApoyo, arrangement: arrApoyo,
     Ms: apoyoMs, exposureClass,
     macSpacing: macSpacingApoyo,
   });

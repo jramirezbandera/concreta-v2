@@ -699,8 +699,11 @@ export interface ForjadosInputs {
   psi2Custom: number;
 }
 
-// FTUX defaults: reticular 30+5, 2Ø16 vano inf, Md+=35 kNm, M-=25 kNm, VEd=30 kN.
-// Produces CUMPLE at ~60-75% util on first open.
+// FTUX defaults: reticular 30+5, montaje 2Ø12 + refuerzo 2Ø16 (se arman en 2
+// capas en el nervio b_w=120 → d≈292 mm, CE art. 69.4), Md+=35, M-=25, VEd=22 kN.
+// Abre en CUMPLE: el cortante gobierna (~80% de VRd,c≈27 kN sin cercos); flexión
+// ~45%, separación de barras OK en 2 capas (s≈28 mm). VEd se bajó de 30→22 porque
+// con d reducido VRd,c≈27 kN < 30 (antes daba INCUMPLE de cortante en el demo).
 export const forjadosDefaults: ForjadosInputs = {
   variant: 'reticular',
 
@@ -736,7 +739,7 @@ export const forjadosDefaults: ForjadosInputs = {
 
   vano_Md:  35,
   apoyo_Md: 25,
-  VEd:      30,
+  VEd:      22,
 
   vano_M_G:  18, vano_M_Q:  10,
   apoyo_M_G: 13, apoyo_M_Q: 7,
