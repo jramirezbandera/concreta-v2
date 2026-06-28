@@ -108,20 +108,20 @@ export function RCColumnsModule() {
             {wideRow ? (
               <div className="flex flex-row items-start justify-center gap-3">
                 <RCColumnsSVG inp={state} result={result} mode="screen" width={triW} height={triSecH} />
-                {interaction.valid && interaction.y && interaction.z && (
+                {interaction.valid && interaction.y && (
                   <>
                     <RCColumnInteractionSVG data={interaction.y} mode="screen" width={triW} height={triW} />
-                    <RCColumnInteractionSVG data={interaction.z} mode="screen" width={triW} height={triW} />
+                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={triW} height={triW} />}
                   </>
                 )}
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <RCColumnsSVG inp={state} result={result} mode="screen" width={svgW} height={svgH} />
-                {interaction.valid && interaction.y && interaction.z && (
+                {interaction.valid && interaction.y && (
                   <div className="flex flex-row items-start justify-center gap-3">
                     <RCColumnInteractionSVG data={interaction.y} mode="screen" width={diagW} height={diagW} />
-                    <RCColumnInteractionSVG data={interaction.z} mode="screen" width={diagW} height={diagW} />
+                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={diagW} height={diagW} />}
                   </div>
                 )}
               </div>
@@ -137,10 +137,10 @@ export function RCColumnsModule() {
         {tab === 'diagramas' && (
           <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <RCColumnsSVG inp={state} result={result} mode="screen" width={340} height={Math.round(340 * 1.15)} />
-            {interaction.valid && interaction.y && interaction.z && (
+            {interaction.valid && interaction.y && (
               <>
                 <RCColumnInteractionSVG data={interaction.y} mode="screen" width={340} height={320} />
-                <RCColumnInteractionSVG data={interaction.z} mode="screen" width={340} height={320} />
+                {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={340} height={320} />}
               </>
             )}
           </div>
@@ -156,7 +156,7 @@ export function RCColumnsModule() {
         >
           <RCColumnsSVG inp={state} result={result} mode="pdf" width={320} height={370} />
         </div>
-        {interaction.valid && interaction.y && interaction.z && (
+        {interaction.valid && interaction.y && (
           <>
             <div
               id="rc-columns-interaction-y-pdf"
@@ -164,12 +164,14 @@ export function RCColumnsModule() {
             >
               <RCColumnInteractionSVG data={interaction.y} mode="pdf" width={300} height={300} />
             </div>
-            <div
-              id="rc-columns-interaction-z-pdf"
-              style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
-            >
-              <RCColumnInteractionSVG data={interaction.z} mode="pdf" width={300} height={300} />
-            </div>
+            {interaction.z && (
+              <div
+                id="rc-columns-interaction-z-pdf"
+                style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+              >
+                <RCColumnInteractionSVG data={interaction.z} mode="pdf" width={300} height={300} />
+              </div>
+            )}
           </>
         )}
       </div>

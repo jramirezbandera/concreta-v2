@@ -85,6 +85,10 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
     );
   }
 
+  if (result.sectionType === 'circular') {
+    return <RCColumnsCircularResults result={result} system={system} />;
+  }
+
   const status = overallStatus(result.checks);
 
   const slenderChecks  = result.checks.filter((c) => ['lambda-y', 'lambda-z', 'nd-max'].includes(c.id));
@@ -159,6 +163,80 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
       {nmZCheck    && <InfoCheckRow  check={nmZCheck}  system={system} />}
       {cond5a      && <InfoCheckRow  check={cond5a}    system={system} />}
       {cond5b      && <InfoCheckRow  check={cond5b}    system={system} />}
+
+      {/* Pandeo */}
+      <GroupHeader label="Pandeo y segundo orden" />
+      {slenderChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
+      {/* Armadura longitudinal */}
+      <GroupHeader label="Armadura longitudinal" />
+      {longChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
+      {/* Armadura transversal */}
+      <GroupHeader label="Armadura transversal" />
+      {transChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
+      {/* Rebar footer */}
+      <div className="mt-3 pt-2 border-t border-border-sub space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-disabled">Despiece</span>
+          <span className="font-mono text-[11px] text-text-primary">{result.rebarSchedule}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-disabled">Solape mín. (CE art. 69.5.2)</span>
+          <span className="font-mono text-[11px] text-text-primary">{result.lapLength} mm</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Circular section results — single-column layout (no biaxial split) ───────
+function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; system: UnitSystem }) {
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
+  const status = overallStatus(result.checks);
+  const find = (id: string) => result.checks.find((c) => c.id === id);
+
+  const flexionCheck = find('flexion-check');
+  const nmResCheck = find('nm-res');
+  const slenderChecks = result.checks.filter((c) => ['lambda', 'nd-max'].includes(c.id));
+  const longChecks = result.checks.filter((c) =>
+    ['as-min', 'as-min-mech', 'as-max', 'nBars-min', 'bar-spacing-circ'].includes(c.id));
+  const transChecks = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing'].includes(c.id));
+  // Mostrar la fila e2 cuando el 2º orden se ha aplicado realmente (e2 > 0), no
+  // por λ > 25: λ_lim puede caer por debajo de 25 con axil alto, de modo que e2
+  // ya está incluido en e_tot/M_res aunque λ ≤ 25.
+  const showE2 = result.e2_y > 0;
+
+  return (
+    <div className="rounded px-4 py-3 transition-colors" style={ambientStyle(status)} aria-label="Resultados pilar circular">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-main">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+          Resultados calculados — circular
+        </span>
+        <VerdictBadge status={status} />
+      </div>
+
+      {/* Key values — single column */}
+      <GroupHeader label="Valores clave" />
+      <ValueRow label="D (diámetro)"            value={`${(result.D ?? 0).toFixed(0)} mm`} />
+      <ValueRow label="λ (esbeltez)"            value={`${(result.lambda ?? 0).toFixed(1)}${(result.lambda ?? 0) > 25 ? ' ★' : ''}`} />
+      <ValueRow label="d (canto útil)"          value={`${(result.d_circ ?? 0).toFixed(0)} mm`} />
+      <ValueRow label="e1"                       value={`${result.e1_y.toFixed(1)} mm`} />
+      <ValueRow label="e_imp"                    value={`${result.e_imp_y.toFixed(1)} mm`} />
+      {showE2 && <ValueRow label="e2  (2º orden)" value={`${result.e2_y.toFixed(1)} mm`} />}
+      <ValueRow label="e_tot"                    value={`${(result.e_tot_res ?? 0).toFixed(1)} mm`} />
+      <ValueRow label="M_res (resultante)"       value={fmtSi(result.M_res ?? 0, 'moment')} />
+      <ValueRow label={resultLabel('As_total')}  value={`${result.As_total.toFixed(0)} mm²`} />
+      <ValueRow label={resultLabel('NRd_max')}   value={fmtSi(result.NRd_max, 'force')} />
+      <ValueRow label="MRd"                       value={fmtSi(result.MRd ?? 0, 'moment')} />
+      <ValueRow label={`ned (${result.ned.toFixed(3)})`} value="" />
+
+      {/* Flexocompresión */}
+      <GroupHeader label="Flexocompresión" />
+      {flexionCheck && <CheckRowItem check={flexionCheck} />}
+      {nmResCheck && <InfoCheckRow check={nmResCheck} system={system} />}
 
       {/* Pandeo */}
       <GroupHeader label="Pandeo y segundo orden" />

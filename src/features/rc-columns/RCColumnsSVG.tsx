@@ -10,6 +10,7 @@ import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult } from '../../lib/calculations/rcColumns';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface RCColumnsSVGProps {
   inp: RCColumnInputs;
@@ -56,6 +57,15 @@ export function RCColumnsSVG({
   const isPdf = mode === 'pdf';
   const colors = isPdf ? PDF_COLORS : SCREEN_COLORS;
   const { system } = useUnitSystem();
+
+  if ((inp.sectionType ?? 'rectangular') === 'circular') {
+    return (
+      <RCColumnsCircularSVG
+        inp={inp} result={result} colors={colors} isPdf={isPdf}
+        width={width} height={height} system={system}
+      />
+    );
+  }
 
   const { b, h, cover, stirrupDiam, cornerBarDiam, nBarsX, barDiamX, nBarsY, barDiamY } = inp;
 
@@ -259,6 +269,140 @@ export function RCColumnsSVG({
             fill={colors.dim} fontSize={smallFont} fontFamily="monospace" textAnchor="middle"
           >
             {MEdy_str}  {MEdz_str}
+          </text>
+        </>
+      )}
+    </svg>
+  );
+}
+
+// ── Circular cross-section ───────────────────────────────────────────────────
+// Círculo + cerco circular + n barras del anillo + cuerda de fibra neutra a
+// 0.8·x_star (segmento de Whitney sombreado). Etiquetas: λ única y M_res.
+function RCColumnsCircularSVG({
+  inp, result, colors, isPdf, width, height, system,
+}: {
+  inp: RCColumnInputs;
+  result: RCColumnResult;
+  colors: typeof SCREEN_COLORS;
+  isPdf: boolean;
+  width: number;
+  height: number;
+  system: UnitSystem;
+}) {
+  const D = inp.D ?? 350;
+  const { cover, stirrupDiam } = inp;
+  const circBarDiam = inp.circBarDiam ?? 16;
+  const n = inp.nBarsCirc ?? 6;
+
+  const margin = { top: 44, bottom: 32, left: 36, right: 36 };
+  const drawW = width - margin.left - margin.right;
+  const drawH = height - margin.top - margin.bottom;
+  const scale = Math.min(drawW, drawH) / D;
+  const radius = (D / 2) * scale;
+  const cx = margin.left + drawW / 2;
+  const cy = margin.top + drawH / 2;
+  const topY = cy - radius; // fibra más comprimida (arriba)
+
+  const stirrupR = Math.max((D / 2 - cover) * scale, 1);
+  const r_s = (D - 2 * cover - 2 * stirrupDiam - circBarDiam) / 2;
+  const r_s_px = Math.max(r_s * scale, 0);
+  const barR = Math.min(Math.max((circBarDiam / 2) * scale, 2), 8);
+
+  // Posición de barras: θ=0 en la fibra superior (orientación simétrica D2).
+  const bars = Array.from({ length: n }, (_, i) => {
+    const t = (2 * Math.PI * i) / n;
+    return { x: cx + r_s_px * Math.sin(t), y: cy - r_s_px * Math.cos(t) };
+  });
+
+  const x_star = result.valid ? (result.x_star ?? 0) : 0;
+  const naVisible = result.valid && x_star > 0 && x_star < D;
+  const naY = topY + x_star * scale;
+  const blockH = result.valid ? Math.min(0.8 * x_star * scale, 2 * radius) : 0;
+
+  const lambda = result.valid ? (result.lambda ?? 0) : 0;
+  const slenderTag = lambda > 25 ? 'ESBELTA' : 'CORTA';
+  const M_res_str = result.valid ? `M_res=${formatQuantity(result.M_res ?? 0, 'moment', system)}` : '';
+
+  const fontSize = isPdf ? 9 : Math.max(8, Math.min(11, width / 28));
+  const smallFont = Math.max(7, fontSize - 1.5);
+  const clipId = `circ-clip-${isPdf ? 'pdf' : 'screen'}`;
+
+  return (
+    <svg
+      width={width} height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ background: colors.bg }}
+      aria-label="Diagrama de pilar circular — sección transversal"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={cx} cy={cy} r={radius} />
+        </clipPath>
+      </defs>
+
+      {/* Segmento comprimido (bloque de Whitney) — casquete recortado al círculo */}
+      {result.valid && blockH > 0 && (
+        <rect
+          x={cx - radius} y={topY} width={2 * radius} height={blockH}
+          fill={colors.stressBlock} fillOpacity={0.18}
+          clipPath={`url(#${clipId})`}
+        />
+      )}
+
+      {/* Sección circular */}
+      <circle
+        cx={cx} cy={cy} r={radius}
+        fill={colors.sectionFill} stroke={colors.section}
+        strokeWidth={isPdf ? 1.2 : 1.5}
+      />
+
+      {/* Cerco circular */}
+      <circle
+        cx={cx} cy={cy} r={stirrupR}
+        fill="none" stroke={colors.stirrup}
+        strokeWidth={Math.max(0.8, stirrupDiam * scale * 0.3)}
+      />
+
+      {/* Fibra neutra (cuerda) */}
+      {naVisible && (
+        <>
+          <line
+            x1={cx - radius - 6} y1={naY} x2={cx + radius + 6} y2={naY}
+            stroke={colors.axis} strokeWidth={isPdf ? 0.8 : 1} strokeDasharray="5 3"
+          />
+          <text x={cx + radius + 8} y={naY + 3} fill={colors.axis} fontSize={smallFont} fontFamily="monospace">
+            FN
+          </text>
+        </>
+      )}
+
+      {/* Barras del anillo */}
+      {bars.map((p, i) => (
+        <circle key={`cb-${i}`} cx={p.x} cy={p.y} r={barR}
+          fill={colors.rebarCorner} stroke={colors.section} strokeWidth={0.5} />
+      ))}
+
+      {/* Dimensión D */}
+      <text x={cx} y={cy + radius + 18} fill={colors.dim} fontSize={fontSize} fontFamily="sans-serif" textAnchor="middle">
+        D = {D} mm
+      </text>
+
+      {/* N (izquierda) */}
+      <text x={cx - radius - 8} y={cy} fill={colors.dim} fontSize={smallFont} fontFamily="monospace"
+        textAnchor="end" dominantBaseline="middle">
+        N={inp.Nd}kN
+      </text>
+
+      {/* Anotaciones superiores: λ + M_res */}
+      {result.valid && (
+        <>
+          <text x={cx} y={margin.top - 22} fill={colors.axis} fontSize={smallFont} fontFamily="monospace" textAnchor="middle">
+            λ={lambda.toFixed(0)} — {slenderTag}
+          </text>
+          <text x={cx} y={margin.top - 9} fill={colors.dim} fontSize={smallFont} fontFamily="monospace" textAnchor="middle">
+            {M_res_str}
           </text>
         </>
       )}

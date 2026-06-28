@@ -38,7 +38,13 @@ export async function exportRCColumnsPDF(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   setGray(doc, 30);
-  doc.text('Concreta \u2014 ELU Pilar Rectangular (Flexi\u00f3n Esviada)', M, M);
+  const isCirc = result.sectionType === 'circular';
+  doc.text(
+    isCirc
+      ? 'Concreta \u2014 ELU Pilar Circular (Flexocompresi\u00f3n)'
+      : 'Concreta \u2014 ELU Pilar Rectangular (Flexi\u00f3n Esviada)',
+    M, M,
+  );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -64,15 +70,24 @@ export async function exportRCColumnsPDF(
 
   const Lk_str = `L=${inp.L}m \u03b2=${inp.beta} Lk=${(inp.L * inp.beta).toFixed(2)}m`;
   const lambdaStr = result.valid
-    ? `\u03bby=${result.lambda_y.toFixed(1)} \u03bbz=${result.lambda_z.toFixed(1)}`
+    ? (isCirc
+        ? `\u03bb=${(result.lambda ?? 0).toFixed(1)}`
+        : `\u03bby=${result.lambda_y.toFixed(1)} \u03bbz=${result.lambda_z.toFixed(1)}`)
     : '\u2014';
 
-  const infoLines: Array<[string, string, string]> = [
-    [`b = ${inp.b} mm`,              `h = ${inp.h} mm`,           `Recub. = ${inp.cover} mm`],
-    [`fck = ${inp.fck} MPa`,         `fyk = ${inp.fyk} MPa`,      `NEd = ${fmtSi(inp.Nd, 'force')}`],
-    [result.rebarSchedule,           '',                            Lk_str],
-    [`MEdy = ${fmtSi(inp.MEdy, 'moment')}`, `MEdz = ${fmtSi(inp.MEdz, 'moment')}`, lambdaStr],
-  ];
+  const infoLines: Array<[string, string, string]> = isCirc
+    ? [
+        [`D = ${inp.D} mm`,             `Recub. = ${inp.cover} mm`,   `NEd = ${fmtSi(inp.Nd, 'force')}`],
+        [`fck = ${inp.fck} MPa`,        `fyk = ${inp.fyk} MPa`,       Lk_str],
+        [result.rebarSchedule,          '',                            lambdaStr],
+        [`MEdy = ${fmtSi(inp.MEdy, 'moment')}`, `MEdz = ${fmtSi(inp.MEdz, 'moment')}`, `M_res = ${fmtSi(result.M_res ?? 0, 'moment')}`],
+      ]
+    : [
+        [`b = ${inp.b} mm`,              `h = ${inp.h} mm`,           `Recub. = ${inp.cover} mm`],
+        [`fck = ${inp.fck} MPa`,         `fyk = ${inp.fyk} MPa`,      `NEd = ${fmtSi(inp.Nd, 'force')}`],
+        [result.rebarSchedule,           '',                            Lk_str],
+        [`MEdy = ${fmtSi(inp.MEdy, 'moment')}`, `MEdz = ${fmtSi(inp.MEdz, 'moment')}`, lambdaStr],
+      ];
 
   for (const [c1, c2, c3] of infoLines) {
     if (c1) doc.text(c1, COL1, infoY);
@@ -105,23 +120,35 @@ export async function exportRCColumnsPDF(
   setGray(doc, 120);
   doc.text('Secci\u00f3n transversal \u2014 compresi\u00f3n cara superior (MEdy+ positivo)', M + CW / 2, captionY, { align: 'center' });
 
-  // ── Interaction diagrams (N-M, both axes) ──────────────────────────────────
+  // ── Interaction diagrams (N-M) — dos ejes (rect.) o uno solo (circular) ─────
   let diagramBlockEnd: number;
   const elIntY = document.getElementById('rc-columns-interaction-y-pdf')?.querySelector('svg') as SVGSVGElement | null;
   const elIntZ = document.getElementById('rc-columns-interaction-z-pdf')?.querySelector('svg') as SVGSVGElement | null;
-  if (elIntY && elIntZ) {
+  if (elIntY) {
     const diagY = captionY + 6;
-    const DIAG_W = CW * 0.46;
     const DIAG_H = 60;
-    const diagGap = CW * 0.04;
-    const diagXy = M + (CW - 2 * DIAG_W - diagGap) / 2;
-    try { await embedSvgAsImage(doc, elIntY, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
-    try { await embedSvgAsImage(doc, elIntZ, { x: diagXy + DIAG_W + diagGap, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    if (elIntZ) {
+      const DIAG_W = CW * 0.46;
+      const diagGap = CW * 0.04;
+      const diagXy = M + (CW - 2 * DIAG_W - diagGap) / 2;
+      try { await embedSvgAsImage(doc, elIntY, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+      try { await embedSvgAsImage(doc, elIntZ, { x: diagXy + DIAG_W + diagGap, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    } else {
+      // Circular: una sola envolvente (simetría polar) — centrada.
+      const DIAG_W = CW * 0.5;
+      const diagXy = M + (CW - DIAG_W) / 2;
+      try { await embedSvgAsImage(doc, elIntY, { x: diagXy, y: diagY, width: DIAG_W, height: DIAG_H }); } catch { /* svg2pdf best-effort */ }
+    }
     const interCaptionY = diagY + DIAG_H + 3;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     setGray(doc, 120);
-    doc.text('Diagramas de interacción N-M — capacidad con armado / sin armar', M + CW / 2, interCaptionY, { align: 'center' });
+    doc.text(
+      isCirc
+        ? 'Diagrama de interacción N-M — capacidad con armado / sin armar'
+        : 'Diagramas de interacción N-M — capacidad con armado / sin armar',
+      M + CW / 2, interCaptionY, { align: 'center' },
+    );
     diagramBlockEnd = interCaptionY + 5;
   } else {
     diagramBlockEnd = captionY + 5;
@@ -146,7 +173,10 @@ export async function exportRCColumnsPDF(
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     setGray(doc, 30);
-    doc.text('Flexi\u00f3n Esviada \u2014 CE Anejo 19 art. 5.8.9', M, tableY);
+    doc.text(
+      isCirc ? 'Flexocompresi\u00f3n \u2014 CE art. 42 + 43' : 'Flexi\u00f3n Esviada \u2014 CE Anejo 19 art. 5.8.9',
+      M, tableY,
+    );
     doc.setFontSize(8);
     doc.text(STATUS_LABEL[overallStatus], PAGE_W - M, tableY, { align: 'right' });
     tableY += 5;
@@ -155,26 +185,44 @@ export async function exportRCColumnsPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     setGray(doc, 70);
-    const kv1 = [
-      `d_y=${result.d_y.toFixed(0)}mm`,
-      `d_z=${result.d_z.toFixed(0)}mm`,
-      `As=${result.As_total.toFixed(0)}mm\u00b2`,
-      `\u03bby=${result.lambda_y.toFixed(1)}`,
-      `\u03bbz=${result.lambda_z.toFixed(1)}`,
-      `NRd,max=${fmtSi(result.NRd_max, 'force')}`,
-    ].join('   ');
+    const kv1 = (isCirc
+      ? [
+          `D=${(result.D ?? 0).toFixed(0)}mm`,
+          `d=${(result.d_circ ?? 0).toFixed(0)}mm`,
+          `As=${result.As_total.toFixed(0)}mm\u00b2`,
+          `\u03bb=${(result.lambda ?? 0).toFixed(1)}`,
+          `NRd,max=${fmtSi(result.NRd_max, 'force')}`,
+        ]
+      : [
+          `d_y=${result.d_y.toFixed(0)}mm`,
+          `d_z=${result.d_z.toFixed(0)}mm`,
+          `As=${result.As_total.toFixed(0)}mm\u00b2`,
+          `\u03bby=${result.lambda_y.toFixed(1)}`,
+          `\u03bbz=${result.lambda_z.toFixed(1)}`,
+          `NRd,max=${fmtSi(result.NRd_max, 'force')}`,
+        ]
+    ).join('   ');
     doc.text(kv1, M, tableY);
     tableY += 4;
 
     // Key values line 2
-    const kv2 = [
-      `MEd,tot,y=${fmtSi(result.MEd_tot_y, 'moment')}`,
-      `MEd,tot,z=${fmtSi(result.MEd_tot_z, 'moment')}`,
-      `MRdy=${fmtSi(result.MRdy, 'moment')}`,
-      `MRdz=${fmtSi(result.MRdz, 'moment')}`,
-      `ned=${result.ned.toFixed(3)}\u2192a=${result.a.toFixed(2)}`,
-      `util=${result.biaxialUtil.toFixed(3)}`,
-    ].join('   ');
+    const kv2 = (isCirc
+      ? [
+          `M_res=${fmtSi(result.M_res ?? 0, 'moment')}`,
+          `MRd=${fmtSi(result.MRd ?? 0, 'moment')}`,
+          `e_tot=${(result.e_tot_res ?? 0).toFixed(0)}mm`,
+          `ned=${result.ned.toFixed(3)}`,
+          `util=${(result.resUtil ?? 0).toFixed(3)}`,
+        ]
+      : [
+          `MEd,tot,y=${fmtSi(result.MEd_tot_y, 'moment')}`,
+          `MEd,tot,z=${fmtSi(result.MEd_tot_z, 'moment')}`,
+          `MRdy=${fmtSi(result.MRdy, 'moment')}`,
+          `MRdz=${fmtSi(result.MRdz, 'moment')}`,
+          `ned=${result.ned.toFixed(3)}\u2192a=${result.a.toFixed(2)}`,
+          `util=${result.biaxialUtil.toFixed(3)}`,
+        ]
+    ).join('   ');
     doc.text(kv2, M, tableY);
     tableY += 4;
 
@@ -201,7 +249,7 @@ export async function exportRCColumnsPDF(
     doc.setFontSize(6.5);
 
     // Informational check IDs
-    const infoIds = new Set(['nm-y', 'nm-z', 'cond-5.38a', 'cond-5.38b']);
+    const infoIds = new Set(['nm-y', 'nm-z', 'cond-5.38a', 'cond-5.38b', 'nm-res']);
 
     for (const ch of checks) {
       if (tableY > PAGE_H - M - 10) {

@@ -48,6 +48,19 @@ export interface RCColumnResult {
   // Rebar info
   rebarSchedule: string;
   lapLength: number;
+  // ── Circular section (aditivo; solo poblado cuando sectionType === 'circular') ──
+  // Los campos rectangulares espejo (lambda_y/z, MRdy/z, d_y/z, biaxialUtil) se
+  // rellenan también en circular para que los consumidores no ramifiquen donde no
+  // es necesario. Estos son los específicos del círculo.
+  sectionType: 'rectangular' | 'circular';
+  D?: number;          // diámetro (mm)
+  lambda?: number;     // esbeltez única = Lk/(D/4)
+  d_circ?: number;     // canto eficaz curvatura = D/2 + i_s (mm)
+  M_res?: number;      // momento resultante solicitante = hypot(MEd_tot_y, MEd_tot_z) (kNm)
+  e_tot_res?: number;  // excentricidad total en la dirección resultante (mm)
+  MRd?: number;        // momento resistente único (kNm)
+  x_star?: number;     // profundidad de fibra neutra circular (mm)
+  resUtil?: number;    // M_res / MRd
   // Checks
   checks: CheckRow[];
 }
@@ -216,6 +229,11 @@ function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string 
 }
 
 export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
+  // Fork por forma de sección. El camino rectangular queda intacto (true fork,
+  // decisión D1/T1 de la revisión): el motor circular vive en calcRCColumnCirc
+  // con su propio solver, sin tocar calcNM/computeAxis rectangulares.
+  if ((inp.sectionType ?? 'rectangular') === 'circular') return calcRCColumnCirc(inp);
+
   const {
     b, h, cover,
     cornerBarDiam, nBarsX, barDiamX, nBarsY, barDiamY,
@@ -236,6 +254,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     NRd_max: 0, x_star_y: 0, x_star_z: 0, MRdy: 0, MRdz: 0,
     ned: 0, a: 0, biaxialUtil: 0,
     rebarSchedule: '', lapLength: 0,
+    sectionType: 'rectangular',
     checks: [],
   });
 
@@ -615,6 +634,396 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     MRdy, MRdz,
     ned, a, biaxialUtil,
     rebarSchedule, lapLength,
+    sectionType: 'rectangular',
+    checks,
+  };
+}
+
+// ── Circular section (true fork) ────────────────────────────────────────────
+// Soporte de pilar de sección circular. Motor SEPARADO del rectangular
+// (decisión D1/T1): calcNM/computeAxis rectangulares quedan byte-idénticos.
+//
+// Hipótesis (Anejo 19 / EC2, confirmadas en investigación normativa 2026-06-28):
+//   · Bloque de Whitney circular: profundidad a = 0.8·x desde la fibra más
+//     comprimida; la zona comprimida es un segmento (casquete) circular. La
+//     compresión total (Nc = fcd·πR²) se alcanza en a = D ⇒ x ≥ 1.25·D.
+//   · Esbeltez única i = D/4 (simetría polar); flexión esviada → momento
+//     resultante M = √(MEdy²+MEdz²) ≤ MRd (como el módulo de acero CHS).
+//   · n barras iguales en un anillo de radio r_s, en θ_i = 2π·i/n (una barra en
+//     la fibra superior ⇒ orientación simétrica al plano de flexión, D2).
+//   · Nº mínimo de barras = 4 (Anejo 19 §9.5.2(4); el "6" era práctica EHE-08).
+
+/** Nº mínimo de barras longitudinales en pilar circular — Anejo 19 §9.5.2(4). */
+export const NBARS_MIN_CIRC = 4;
+/** Nº de tiras para integrar el segmento (reservado; el motor usa forma cerrada). */
+// (la fuerza de hormigón usa la fórmula cerrada de área+centroide de segmento,
+//  más exacta en el centroide de casquetes someros que la integración por tiras)
+
+/**
+ * Compresión del hormigón en un segmento (casquete) circular bajo bloque de
+ * Whitney. Devuelve la fuerza Nc y la profundidad yc de su resultante desde la
+ * fibra más comprimida (juega el papel del 0.4·x rectangular).
+ *
+ * Forma cerrada del casquete de profundidad a = 0.8·x (≤ D):
+ *   α = acos((R−a)/R)                        semiángulo del casquete
+ *   A = R²·(α − sinα·cosα)                    área del segmento
+ *   ȳc_centro = (2R·sin³α)/(3·(α − sinα·cosα))  centroide desde el centro, hacia arriba
+ *   yc = R − ȳc_centro                         profundidad desde la fibra superior
+ * Límite a→0 bien definido (ȳc_centro→R ⇒ yc→0); a=D ⇒ α=π ⇒ A=πR², yc=R.
+ */
+export function segmentConcrete(D: number, x: number, fcd: number): { Nc: number; yc: number } {
+  const R = D / 2;
+  const a = Math.min(0.8 * x, D);
+  if (a <= 1e-9 * D) return { Nc: 0, yc: 0 };
+  const cosA = Math.max(-1, Math.min(1, (R - a) / R));
+  const alpha = Math.acos(cosA);
+  const denom = alpha - Math.sin(alpha) * Math.cos(alpha);          // = A / R²
+  const area = R * R * denom;
+  const yc_from_center = denom > 1e-12
+    ? (2 * R * Math.pow(Math.sin(alpha), 3)) / (3 * denom)
+    : R; // límite α→0
+  const yc = R - yc_from_center;
+  return { Nc: fcd * area, yc };
+}
+
+/**
+ * N-M de la sección circular para una profundidad de fibra neutra x.
+ * Réplica del bucle de acero de calcNM, con el hormigón del segmento circular.
+ * Momentos referidos al centro de la sección (D/2).
+ */
+function calcNMCirc(
+  x: number, D: number, bars: BarGroup[], fcd: number, fyd: number,
+): { NRd: number; MRd: number } {
+  const { Nc, yc } = segmentConcrete(D, x, fcd);
+  let NRd = Nc;
+  let MRd = Nc * (D / 2 - yc);
+  for (const bar of bars) {
+    const eps = ecu3 * (x - bar.y) / x;
+    const sig = Math.max(-fyd, Math.min(fyd, Es * eps));
+    NRd += bar.area * sig;
+    MRd += bar.area * sig * (D / 2 - bar.y);
+  }
+  return { NRd, MRd };
+}
+
+/** Búsqueda binaria de x* y MRd para la sección circular (depth = D). */
+function computeAxisCirc(
+  NEd_N: number, D: number, bars: BarGroup[], fcd: number, fyd: number,
+  NRd_max: number, NRd_Whitney: number,
+): { MRd_Nmm: number; x_star: number; ndMaxFailed: boolean } {
+  if (NEd_N >= NRd_max) {
+    return { MRd_Nmm: 0, x_star: D, ndMaxFailed: true };
+  }
+  if (NEd_N >= NRd_Whitney) {
+    // Zona gap: a x = 2D el bloque satura (a = min(0.8·2D, D) = D, círculo lleno).
+    // Misma interpolación lineal que el motor rectangular entre el plateau de
+    // Whitney y (NRd_max, M=0). Para anillo simétrico plateau.MRd ≈ 0.
+    const plateau = calcNMCirc(2 * D, D, bars, fcd, fyd);
+    const span = NRd_max - NRd_Whitney;
+    const f = span > 1e-9 ? Math.min(1, Math.max(0, (NRd_max - NEd_N) / span)) : 0;
+    return { MRd_Nmm: plateau.MRd * f, x_star: D, ndMaxFailed: false };
+  }
+  let xLo = 1;
+  let xHi = 2 * D;
+  for (let i = 0; i < 60; i++) {
+    const xMid = (xLo + xHi) / 2;
+    if (calcNMCirc(xMid, D, bars, fcd, fyd).NRd < NEd_N) xLo = xMid;
+    else xHi = xMid;
+  }
+  const x_star = (xLo + xHi) / 2;
+  const { MRd } = calcNMCirc(x_star, D, bars, fcd, fyd);
+  return { MRd_Nmm: MRd, x_star, ndMaxFailed: false };
+}
+
+interface CircSectionModel {
+  mat: ReturnType<typeof getConcrete>;
+  fcd: number;
+  fyd: number;
+  As_total: number;
+  D: number;
+  r_s: number;          // radio del anillo de barras (mm)
+  barsCirc: BarGroup[];
+  d_circ: number;       // canto eficaz curvatura = D/2 + i_s
+  nBars: number;
+  circBarDiam: number;
+  Ac: number;
+  NRd_max: number;
+  NRd_Whitney: number;
+}
+
+function buildSectionModelCirc(inp: RCColumnInputs): CircSectionModel | { error: string } {
+  const D = inp.D ?? 350;
+  const n = inp.nBarsCirc ?? NBARS_MIN_CIRC;
+  const circBarDiam = inp.circBarDiam ?? 16;
+  const { cover, stirrupDiam, fck, fyk } = inp;
+
+  if (circBarDiam < 6) return { error: 'Diámetro de barra debe ser ≥ 6 mm' };
+  if (n < NBARS_MIN_CIRC) return { error: `Mínimo ${NBARS_MIN_CIRC} barras en sección circular (Anejo 19 §9.5.2)` };
+
+  const mat = getConcrete(fck);
+  const fcd = mat.fcd;
+  const fyd = getFyd(fyk);
+
+  const R = D / 2;
+  const r_s = (D - 2 * cover - 2 * stirrupDiam - circBarDiam) / 2;
+  if (r_s <= 0) return { error: 'Diámetro insuficiente para el recubrimiento y las barras' };
+
+  const Abar = getBarArea(circBarDiam);
+  const As_total = n * Abar;
+
+  // Anillo de n barras en θ_i = 2π·i/n; θ=0 sitúa una barra en la fibra superior
+  // (orientación simétrica al plano de flexión — decisión D2).
+  const barsCirc: BarGroup[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (2 * Math.PI * i) / n;
+    barsCirc.push({ y: R - r_s * Math.cos(t), area: Abar });
+  }
+
+  const i_s = r_s / Math.SQRT2;        // I_s = As·r_s²/2 ⇒ i_s = r_s/√2 (EC2 §5.8.8.3)
+  const d_circ = R + i_s;
+  const Ac = Math.PI * R * R;
+
+  // εc2 = 0.002 limita σ_acero a 400 N/mm² en compresión centrada (= rectangular).
+  const fyc_d_max = Math.min(fyd, 400);
+  const NRd_max = fcd * (Ac - As_total) + fyc_d_max * As_total;
+  // Saturación del barrido de Whitney CIRCULAR: a diferencia del rectangular
+  // (Nc = fcd·0.8·b·h tope), segmentConcrete satura en el círculo COMPLETO
+  // (a = min(0.8x, D) → Nc = fcd·Ac a x ≥ 1.25D), por lo que el axil máximo del
+  // barrido es fcd·Ac + As·fyd, NO 0.8·fcd·Ac. Copiar el 0.8 disparaba la zona
+  // gap ~0.2·fcd·Ac antes de tiempo y colapsaba MRd→0 para pilares muy cargados.
+  // Con este valor NRd_Whitney > NRd_max, así que la rama gap nunca se alcanza
+  // (ndMaxFailed gobierna a NEd ≥ NRd_max) y la bisección cubre todo NEd < NRd_max.
+  const NRd_Whitney = fcd * Ac + As_total * fyd;
+
+  return { mat, fcd, fyd, As_total, D, r_s, barsCirc, d_circ, nBars: n, circBarDiam, Ac, NRd_max, NRd_Whitney };
+}
+
+function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
+  const { cover, stirrupDiam, stirrupSpacing, Nd, MEdy, MEdz, L, beta } = inp;
+  const Lk = L * beta;
+  const Lk_mm = Lk * 1000;
+
+  const invalid = (error: string): RCColumnResult => ({
+    valid: false, error,
+    d_y: 0, d_z: 0, d_prime: 0, As_total: 0,
+    lambda_y: 0, lambda_z: 0, Lk: 0,
+    e1_y: 0, e_imp_y: 0, e2_y: 0, e_tot_y: 0, MEd_tot_y: 0,
+    e1_z: 0, e_imp_z: 0, e2_z: 0, e_tot_z: 0, MEd_tot_z: 0,
+    NRd_max: 0, x_star_y: 0, x_star_z: 0, MRdy: 0, MRdz: 0,
+    ned: 0, a: 0, biaxialUtil: 0,
+    rebarSchedule: '', lapLength: 0,
+    sectionType: 'circular',
+    checks: [],
+  });
+
+  if (Nd < 1) return invalid('NEd debe ser ≥ 1 kN (módulo para flexocompresión)');
+
+  const sm = buildSectionModelCirc(inp);
+  if ('error' in sm) return invalid(sm.error);
+  const {
+    mat, fcd, fyd, As_total, D, r_s, barsCirc, d_circ, nBars, circBarDiam, Ac, NRd_max, NRd_Whitney,
+  } = sm;
+
+  const NEd_N = Nd * 1e3;
+
+  // ── Esbeltez única (simetría polar): i = D/4 ───────────────────────────────
+  const lambda = Lk_mm / (D / 4);
+
+  // ── 2º orden en la dirección RESULTANTE (decisión T2) ──────────────────────
+  // Se aplica UNA sola vez la excentricidad mínima, la imperfección y e2 sobre
+  // el momento de 1er orden resultante M1 = √(MEdy²+MEdz²). NO se combinan dos
+  // e_tot por eje con hypot (eso metía un √2 fantasma con momento en un eje).
+  const phiEf = inp.phiEf ?? 2.0;
+  const Kphi = Math.max(1, 1 + (0.35 + inp.fck / 200 - lambda / 150) * phiEf);
+  const n_ax = NEd_N / (Ac * fcd);
+  const lambda_lim = Math.min((20 * 0.7 * 1.1 * 0.7) / Math.sqrt(Math.max(n_ax, 1e-9)), 25);
+
+  const M1 = Math.hypot(MEdy, MEdz);                       // 1er orden resultante (kNm)
+  const e0 = (M1 * 1e6) / NEd_N;                            // mm
+  const e1 = Math.max(e0, Math.max(D / 30, 20));           // excentricidad mínima (única)
+  const e_imp = Lk_mm / 400;                                // imperfección (única)
+  const curv = (Kphi * fyd) / (Es * 0.45 * d_circ);
+  const e2 = lambda > lambda_lim ? (curv * Lk_mm * Lk_mm) / 10 : 0;
+  const e_tot = e1 + e_imp + e2;
+  const M_res = (NEd_N * e_tot) / 1e6;                      // kNm
+
+  // ── Capacidad N-M (una sola dirección, simetría polar) ─────────────────────
+  const axis = computeAxisCirc(NEd_N, D, barsCirc, fcd, fyd, NRd_max, NRd_Whitney);
+  const ndMaxFailed = axis.ndMaxFailed;
+  const MRd = axis.MRd_Nmm / 1e6;                           // kNm
+  const resUtil = ndMaxFailed ? Infinity : (MRd > 0 ? M_res / MRd : Infinity);
+  const d_prime = cover + stirrupDiam + circBarDiam / 2;
+
+  // ── Despiece + solape (geometría-agnóstico, usa circBarDiam) ───────────────
+  const rebarSchedule = `${nBars}Ø${circBarDiam} (Ø${stirrupDiam}/c${stirrupSpacing})`;
+  const fctm = mat.fctm;
+  const fctd = (0.7 * fctm) / 1.5;
+  const fbd = 2.25 * fctd;
+  const lb_rqd = (circBarDiam / 4) * (fyd / fbd);
+  const l0 = 1.5 * lb_rqd;
+  const l0_min = Math.max(0.3 * l0, 15 * circBarDiam, 200);
+  const lapLength = Math.ceil(Math.max(l0, l0_min) / 5) * 5;
+
+  // ── Checks ─────────────────────────────────────────────────────────────────
+  type CheckStatus = 'ok' | 'warn' | 'fail';
+  const checks: CheckRow[] = [];
+
+  // lambda (única)
+  checks.push({
+    id: 'lambda',
+    description: `Esbeltez λ = ${lambda.toFixed(1)} — ${lambda <= 25 ? 'pilar corto' : 'pilar esbelto, 2º orden'}`,
+    value: `λ = ${lambda.toFixed(1)}`,
+    limit: 'λ ≤ 100',
+    utilization: lambda / 100,
+    status: (lambda <= 100 ? 'ok' : 'warn') as CheckStatus,
+    article: 'CE art. 43.5',
+  });
+
+  // nd-max
+  checks.push(makeCheckQty(
+    'nd-max',
+    'NEd ≤ NRd,max (aplastamiento por compresión pura)',
+    NEd_N / 1e3, NRd_max / 1e3, 'force', 'CE art. 42',
+  ));
+
+  // flexion-check (gobernante)
+  if (ndMaxFailed) {
+    checks.push({
+      id: 'flexion-check',
+      description: 'Flexocompresión (M_res ≤ MRd) — N/A (aplastamiento gobierna)',
+      value: '—', limit: '≤ 1.0', utilization: Infinity, status: 'fail',
+      article: 'CE art. 42 + 43',
+    });
+  } else {
+    checks.push({
+      id: 'flexion-check',
+      description: 'Flexocompresión: M_res = √(MEdy²+MEdz²) ≤ MRd',
+      valueNum: M_res, valueQty: 'moment',
+      limitNum: MRd, limitQty: 'moment',
+      utilization: resUtil,
+      status: toStatus(resUtil),
+      article: 'CE art. 42 + 43',
+    });
+  }
+
+  // nm-res (informativo)
+  checks.push({
+    id: 'nm-res',
+    description: `Momento resultante M_res / MRd  (λ=${lambda.toFixed(0)}, e_tot=${e_tot.toFixed(0)} mm)`,
+    valueNum: M_res, valueQty: 'moment',
+    limitNum: MRd, limitQty: 'moment',
+    utilization: ndMaxFailed ? Infinity : resUtil,
+    status: 'ok',
+    article: 'CE Anejo 19 §5.8.8',
+  });
+
+  // as-min geom
+  const As_min = 0.002 * Ac;
+  checks.push(makeCheck(
+    'as-min',
+    'Armadura mínima geom.: As ≥ 0.002·Ac',
+    As_min, As_total,
+    `${As_total.toFixed(0)} mm²`, `≥ ${As_min.toFixed(0)} mm²`,
+    'CE Anejo 19 art. 9.5.2',
+  ));
+
+  // as-min mech
+  const fyc_d = Math.min(fyd, 400);
+  const As_min_mech = (0.10 * NEd_N) / fyc_d;
+  checks.push(makeCheck(
+    'as-min-mech',
+    'Armadura mínima mec.: As·f_yc,d ≥ 0.10·N_Ed',
+    As_min_mech, As_total,
+    `${As_total.toFixed(0)} mm²`, `≥ ${As_min_mech.toFixed(0)} mm²`,
+    'CE art. 42.3.1',
+  ));
+
+  // as-max
+  const As_max = 0.04 * Ac;
+  checks.push(makeCheck(
+    'as-max',
+    'Armadura máxima: As ≤ 0.04·Ac',
+    As_total, As_max,
+    `${As_total.toFixed(0)} mm²`, `≤ ${As_max.toFixed(0)} mm²`,
+    'CE art. 42.3',
+  ));
+
+  // nBars-min (Anejo 19 §9.5.2(4): mínimo 4 en sección circular)
+  {
+    const status: CheckStatus = nBars >= NBARS_MIN_CIRC ? 'ok' : 'fail';
+    checks.push({
+      id: 'nBars-min',
+      description: `Mínimo ${NBARS_MIN_CIRC} barras en sección circular`,
+      value: `${nBars} barras`,
+      limit: `≥ ${NBARS_MIN_CIRC} barras`,
+      utilization: NBARS_MIN_CIRC / Math.max(nBars, 1),
+      status,
+      article: 'CE Anejo 19 art. 9.5.2',
+    });
+  }
+
+  // bar-spacing-circ: separación libre por CUERDA entre barras adyacentes del anillo
+  {
+    const clear = 2 * r_s * Math.sin(Math.PI / nBars) - circBarDiam;
+    const sMin = Math.max(circBarDiam, 20);
+    const status: CheckStatus = clear < 0 ? 'fail' : clear < sMin ? 'fail' : 'ok';
+    checks.push({
+      id: 'bar-spacing-circ',
+      description: 'Separación libre entre barras del anillo (cuerda)',
+      value: clear < 0 ? 'No caben' : `${clear.toFixed(0)} mm`,
+      limit: `≥ ${sMin} mm`,
+      utilization: clear > 0 ? sMin / clear : Infinity,
+      status,
+      article: 'CE art. 69.4.1',
+    });
+  }
+
+  // stirrup-diam: ≥ max(φ_long/4, 6 mm)
+  {
+    const stirrupDemand = Math.max(circBarDiam / 4, 6);
+    const status: CheckStatus = stirrupDiam >= stirrupDemand ? 'ok' : 'fail';
+    checks.push({
+      id: 'stirrup-diam',
+      description: 'Diámetro mínimo cerco ≥ max(φ/4, 6 mm)',
+      value: `Ø${stirrupDiam} mm`,
+      limit: `≥ Ø${stirrupDemand.toFixed(0)} mm`,
+      utilization: stirrupDemand / stirrupDiam,
+      status,
+      article: 'CE art. 69.4.3',
+    });
+  }
+
+  // stirrup-spacing: ≤ min(12·φ, D, 300 mm)
+  // El término least-dimension es D para sección circular. Se mantiene el
+  // coeficiente 12 del módulo rectangular por coherencia (Anejo 19 §9.5.3(3)
+  // permite 15·φ; 12 es conservador y consistente entre ambas formas).
+  {
+    const sMax = Math.min(12 * circBarDiam, D, 300);
+    const status: CheckStatus = stirrupSpacing <= sMax ? 'ok' : 'fail';
+    checks.push({
+      id: 'stirrup-spacing',
+      description: 'Separación máxima de cercos ≤ min(12φ, D, 300 mm)',
+      value: `${stirrupSpacing} mm`,
+      limit: `≤ ${sMax} mm`,
+      utilization: stirrupSpacing / sMax,
+      status,
+      article: 'CE art. 69.4.3',
+    });
+  }
+
+  return {
+    valid: true,
+    d_y: d_circ, d_z: d_circ, d_prime, As_total,
+    lambda_y: lambda, lambda_z: lambda, Lk,
+    e1_y: e1, e_imp_y: e_imp, e2_y: e2, e_tot_y: e_tot, MEd_tot_y: M_res,
+    e1_z: e1, e_imp_z: e_imp, e2_z: e2, e_tot_z: e_tot, MEd_tot_z: M_res,
+    NRd_max: NRd_max / 1e3,
+    x_star_y: axis.x_star, x_star_z: axis.x_star,
+    MRdy: MRd, MRdz: MRd,
+    ned: NEd_N / NRd_max, a: 1, biaxialUtil: resUtil,
+    rebarSchedule, lapLength,
+    sectionType: 'circular',
+    D, lambda, d_circ, M_res, e_tot_res: e_tot, MRd, x_star: axis.x_star, resUtil,
     checks,
   };
 }
@@ -691,6 +1100,39 @@ function sweepEnvelope(
   return pts;
 }
 
+// Versión circular del barrido (depth = D, hormigón del segmento circular).
+function sweepEnvelopeCirc(
+  D: number, bars: BarGroup[], fcd: number, fyd: number, compressionN: number,
+): InteractionPoint[] {
+  const pts: InteractionPoint[] = [];
+  const AsTot = bars.reduce((sum, bar) => sum + bar.area, 0);
+  if (AsTot > 0) pts.push({ N: -AsTot * fyd / 1e3, M: 0 });
+
+  const N_SAMPLES = 80;
+  const xMax = 1.6 * D;
+  const compN = compressionN / 1e3;
+  let prevN = -Infinity;
+  let started = false;
+  for (let i = 1; i <= N_SAMPLES; i++) {
+    const t = i / N_SAMPLES;
+    const x = t * t * xMax + D / 4000;
+    const { NRd, MRd } = calcNMCirc(x, D, bars, fcd, fyd);
+    const N = NRd / 1e3;
+    const M = MRd / 1e6;
+    // El bloque circular satura en fcd·Ac + As·fyd (> NRd_max armado): recortar
+    // en compressionN para que la nariz de compresión no sobrepase el punto de
+    // cierre (NRd_max) y la curva quede monótona en N.
+    if (started && N > compN) break;
+    if (started && N <= prevN + 1e-6) break;
+    if (M < 0) { if (started) break; continue; }
+    pts.push({ N, M });
+    prevN = N;
+    started = true;
+  }
+  pts.push({ N: compressionN / 1e3, M: 0 });
+  return pts;
+}
+
 // M capacity of an envelope at axial N (linear interpolation). null if N out of range.
 function envelopeCapacityM(curve: InteractionPoint[], N: number): number | null {
   if (curve.length < 2) return null;
@@ -714,8 +1156,27 @@ function envelopeCapacityM(curve: InteractionPoint[], N: number): number | null 
 export function buildColumnInteraction(
   inp: RCColumnInputs, result: RCColumnResult,
 ): ColumnInteractionResult {
+  if (!result.valid) return { valid: false, y: null, z: null };
+
+  // ── Circular: una sola envolvente (simetría polar) → se devuelve como `y`,
+  // con z: null. Los consumidores renderizan POSITIVAMENTE este caso de un
+  // diagrama (no se apoyan en el guard y && z, que lo suprimiría).
+  if ((inp.sectionType ?? 'rectangular') === 'circular') {
+    const smc = buildSectionModelCirc(inp);
+    if ('error' in smc) return { valid: false, y: null, z: null };
+    const { fcd, fyd, barsCirc, D, NRd_max, Ac } = smc;
+    const reinforced = sweepEnvelopeCirc(D, barsCirc, fcd, fyd, NRd_max);
+    const plain = sweepEnvelopeCirc(D, [], fcd, fyd, fcd * Ac);
+    const applied: InteractionPoint = { N: inp.Nd, M: result.M_res ?? result.MEd_tot_y };
+    const Mcap = envelopeCapacityM(reinforced, applied.N);
+    const inside = Mcap !== null && applied.M <= Mcap + 1e-9;
+    const utilization = Mcap !== null && Mcap > 1e-9 ? applied.M / Mcap : Infinity;
+    const y: AxisInteraction = { axis: 'y', reinforced, plain, applied, inside, utilization, governing: true };
+    return { valid: true, y, z: null };
+  }
+
   const sm = buildSectionModel(inp);
-  if ('error' in sm || !result.valid) return { valid: false, y: null, z: null };
+  if ('error' in sm) return { valid: false, y: null, z: null };
   const { fcd, fyd, barsY, barsZ, NRd_max } = sm;
 
   const buildAxis = (
