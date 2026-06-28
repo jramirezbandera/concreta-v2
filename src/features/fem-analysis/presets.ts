@@ -367,9 +367,13 @@ export const DESIGN_PRESETS: Record<DesignPresetId, DesignPresetTemplate> = {
         { node: 'n4', type: 'roller' },
       ],
       loads: [
-        { id: 'l1', kind: 'udl', lc: 'G', bar: 'b1', w: 30, dir: '-y' },
-        { id: 'l2', kind: 'udl', lc: 'G', bar: 'b2', w: 30, dir: '-y' },
-        { id: 'l3', kind: 'udl', lc: 'G', bar: 'b3', w: 30, dir: '-y' },
+        // Tuned to ~22 kN/m so the canonical continuous-beam preset lands on a
+        // CUMPLE verdict (see FTUX_*_ARMADO note above: target ~70-80% η). At
+        // 30 kN/m the interior-support hogging governed and pushed the bar to
+        // INCUMPLE 102%, contradicting the intended green-on-first-load FTUX.
+        { id: 'l1', kind: 'udl', lc: 'G', bar: 'b1', w: 22, dir: '-y' },
+        { id: 'l2', kind: 'udl', lc: 'G', bar: 'b2', w: 22, dir: '-y' },
+        { id: 'l3', kind: 'udl', lc: 'G', bar: 'b3', w: 22, dir: '-y' },
       ],
     }),
   },
