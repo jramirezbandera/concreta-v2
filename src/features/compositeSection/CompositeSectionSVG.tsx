@@ -50,7 +50,7 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
   const secW_mm = Math.max(xMax_mm - xMin_mm, 1);
 
   // ── Scale ─────────────────────────────────────────────────────────────────
-  const PAD_L = 48;   // left: room for y_c annotation
+  const PAD_L = 64;   // left: dos carriles — cota de altura total (exterior) + etiqueta y_c
   const PAD_R = 24;
   const PAD_T = 24;
   const PAD_B = 32;   // bottom: room for total height annotation
@@ -137,8 +137,16 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
         const ry = sy(e.yBottom_mm + e.height_mm);
         const rw = pw(e.width_mm);
         const rh = ph(e.height_mm);
-        // Label inside if tall enough
-        const showLabel = rh > 14 && rw > 20;
+        // Etiqueta legible: horizontal si cabe en el ancho de la chapa; si no,
+        // vertical en chapas altas y estrechas (caso cajón); nada si no cabe.
+        // Cuando la chapa cruza el centroide se desplaza hacia arriba para no
+        // pisar la línea de CG ni sus puntos.
+        const labelW = e.label.length * 5.4;   // ~0.6em monospace @ fontSize 9
+        const cx = rx + rw / 2;
+        const spansCG = e.yBottom_mm < yc && yc < e.yBottom_mm + e.height_mm;
+        const horiz = rw >= labelW + 4 && rh > 13;
+        const vert = !horiz && rh >= labelW + 4 && rw >= 12;
+        const ly = spansCG ? ry + Math.min(rh * 0.28, rh / 2 - labelW / 2 - 4) : ry + rh / 2;
         return (
           <g key={`plate-${i}`}>
             <rect x={rx} y={ry} width={rw} height={rh}
@@ -146,15 +154,16 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
               stroke={strPlate}
               strokeWidth={1.0}
             />
-            {showLabel && (
+            {(horiz || vert) && (
               <text
-                x={rx + rw / 2}
-                y={ry + rh / 2}
+                x={cx}
+                y={ly}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fill={strTextDim}
                 fontSize={9}
                 fontFamily="monospace"
+                transform={vert ? `rotate(-90, ${cx}, ${ly})` : undefined}
               >
                 {e.label}
               </text>
@@ -198,7 +207,7 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
 
       {/* ── yc annotation on left ─────────────────────────────────────────── */}
       <text
-        x={PAD_L - 6}
+        x={PAD_L - 10}
         y={yCx}
         textAnchor="end"
         dominantBaseline="central"
@@ -211,7 +220,7 @@ export function CompositeSectionSVG({ result, width, mode = 'screen' }: Composit
 
       {/* ── Total height annotation ────────────────────────────────────────── */}
       {(() => {
-        const xAnn = sx(xMin_mm) - 18;
+        const xAnn = 18;  // carril exterior fijo, despejado de la etiqueta y_c
         const yTop = sy(totalHeight);
         const yBot = sy(0);
         return (
