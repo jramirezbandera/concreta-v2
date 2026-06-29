@@ -1331,10 +1331,13 @@ function ToolHint({ tool }: { tool: ToolId }) {
   const text = map[tool];
   if (!text) return null;
   return (
-    <g>
+    // Ambient guidance, not a control. No border + faint fill so it reads as a
+    // passive hint rather than a search/input field (which the bordered box used
+    // to imply). Text dimmed to text-disabled to sit below the model.
+    <g style={{ pointerEvents: 'none' }}>
       <rect x={12} y={12} rx={4} ry={4} width={Math.max(220, text.length * 7)} height={26}
-        fill="var(--color-bg-surface)" stroke="var(--color-border-main)" opacity="0.95" />
-      <text x={22} y={29} fontFamily="var(--font-sans)" fontSize="11" fill="var(--color-text-secondary)">{text}</text>
+        fill="var(--color-bg-surface)" opacity="0.7" />
+      <text x={20} y={29} fontFamily="var(--font-sans)" fontSize="11" fill="var(--color-text-disabled)">{text}</text>
     </g>
   );
 }
