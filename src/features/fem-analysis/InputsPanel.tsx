@@ -469,7 +469,7 @@ function LoadRow({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-accent)' }}>{load.id}</span>
         <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{target}</span>
-        <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-secondary)', padding: '1px 5px', borderRadius: 3, background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-sub)' }}>
+        <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-secondary)', padding: '1px 5px', borderRadius: 4, background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-sub)' }}>
           [{load.lc}]
         </span>
         <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-text-primary)', marginLeft: 'auto' }}>{summary}</span>
@@ -577,7 +577,7 @@ function pillStyle(active: boolean): React.CSSProperties {
     padding: '3px 9px',
     fontSize: 11,
     fontFamily: 'var(--font-mono)',
-    borderRadius: 3,
+    borderRadius: 4,
     background: active ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'var(--color-bg-elevated)',
     color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
     border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-border-main)'),
