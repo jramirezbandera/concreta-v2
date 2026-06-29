@@ -200,7 +200,7 @@ export function InlineEdit({
         color: 'var(--color-text-primary)',
         fontVariantNumeric: 'tabular-nums',
         borderRadius: 4,
-        transition: 'background-color 120ms',
+        transition: 'background-color 150ms',
       }}
       onMouseEnter={(e) => {
         if (!disabled) e.currentTarget.style.background = 'var(--color-bg-elevated)';

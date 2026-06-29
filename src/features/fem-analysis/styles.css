@@ -179,7 +179,7 @@
   padding: 7px 0 7px 10px;
   border-bottom: 1px solid var(--color-border-sub);
   position: relative;
-  transition: background 120ms;
+  transition: background 150ms;
 }
 .fem-check-row--clickable { cursor: pointer; }
 .fem-check-row--clickable:hover { background: var(--color-tint-accent-soft); }
@@ -191,7 +191,7 @@
   width: 2px;
   border-radius: 1px;
   background: transparent;
-  transition: background 120ms;
+  transition: background 150ms;
 }
 .fem-check-row--clickable:hover .fem-check-rail { background: var(--color-accent); }
 .fem-check-name { font-size: 12px; color: var(--color-text-secondary); }
@@ -224,12 +224,6 @@
 .fem-ambient-ok   { background: linear-gradient(180deg, color-mix(in srgb, var(--color-state-ok) 8%, transparent) 0%, transparent 80px); border-top: 2px solid var(--color-state-ok); }
 .fem-ambient-warn { background: linear-gradient(180deg, color-mix(in srgb, var(--color-state-warn) 8%, transparent) 0%, transparent 80px); border-top: 2px solid var(--color-state-warn); }
 .fem-ambient-fail { background: linear-gradient(180deg, color-mix(in srgb, var(--color-state-fail) 8%, transparent) 0%, transparent 80px); border-top: 2px solid var(--color-state-fail); }
-
-@keyframes fem-pulse-accent {
-  0%, 100% { filter: drop-shadow(0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent)); }
-  50%      { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent) 70%, transparent)); }
-}
-.fem-selected-pulse { animation: fem-pulse-accent 1.6s ease-in-out infinite; }
 
 .fem-landing-card:hover {
   border-color: var(--color-accent) !important;
