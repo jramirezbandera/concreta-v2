@@ -9,6 +9,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Shared keyboard focus ring. Inline styles can't express :focus-visible, so
+   elements that need a visible keyboard focus (canvas bar <g>, number inputs,
+   <select>) drop their inline `outline: none` and carry this class instead.
+   Mouse focus stays clean (:focus → none); keyboard focus shows the accent
+   ring (:focus-visible). WCAG 2.4.7. */
+.fem-focus-ring:focus { outline: none; }
+.fem-focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
 .fem-tool-btn {
   display: flex;
   align-items: center;

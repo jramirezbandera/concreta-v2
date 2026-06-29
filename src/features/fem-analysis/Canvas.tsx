@@ -777,7 +777,8 @@ function BarRenderer({
       } : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      style={{ cursor: isSelectTool ? 'pointer' : 'crosshair', outline: 'none' }}
+      className={isSelectTool ? 'fem-focus-ring' : undefined}
+      style={{ cursor: isSelectTool ? 'pointer' : 'crosshair' }}
     >
       {/* Invisible hit-area: matches WCAG 2.5.5 for touch targets without
           changing the visible 3-4px stroke. The plan called this out as

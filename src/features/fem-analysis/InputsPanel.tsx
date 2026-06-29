@@ -326,6 +326,7 @@ function NodePanel({
                 : { ...m, supports: [...others, { node: node.id, type: v as SupportType }] };
             });
           }}
+          className="fem-focus-ring"
           style={fieldSelectStyle()}
         >
           <option value="none">Ninguno</option>
@@ -378,6 +379,7 @@ function LoadPanel({
         <select
           value={load.lc}
           onChange={(e) => patch((l) => ({ ...l, lc: e.target.value as LoadCase }))}
+          className="fem-focus-ring"
           style={fieldSelectStyle()}
         >
           <option value="G">G — Permanente</option>
@@ -392,6 +394,7 @@ function LoadPanel({
           <select
             value={load.useCategory ?? 'B'}
             onChange={(e) => patch((l) => ({ ...l, useCategory: e.target.value as UseCategoryCode }))}
+            className="fem-focus-ring"
             style={fieldSelectStyle()}
           >
             {USE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -524,6 +527,7 @@ function NumField({
       <div style={{ display: 'flex', alignItems: 'stretch', height: 24 }}>
         <input
           type="number"
+          className="fem-focus-ring"
           value={Number.isFinite(displayValue) ? displayValue : 0}
           step={step}
           min={min}
@@ -545,7 +549,6 @@ function NumField({
             fontFamily: 'var(--font-mono)',
             fontSize: 12,
             padding: '0 6px',
-            outline: 'none',
             color: 'var(--color-text-primary)',
           }}
         />
@@ -593,7 +596,6 @@ function fieldSelectStyle(): React.CSSProperties {
     padding: '2px 6px',
     height: 24,
     width: 130,
-    outline: 'none',
   };
 }
 
