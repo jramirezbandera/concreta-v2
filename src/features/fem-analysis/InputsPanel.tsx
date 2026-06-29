@@ -482,7 +482,15 @@ function LoadRow({
             e.stopPropagation();
             setModel((m) => ({ ...m, loads: m.loads.filter((l) => l.id !== load.id) }));
           }}
-          style={{ color: 'var(--color-text-disabled)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+          style={{
+            color: 'var(--color-text-disabled)', background: 'none', border: 'none',
+            cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 4,
+            // Expand the hit area to ≥24px (glyph was ~7px wide); negative
+            // margin keeps the glyph in place so the row layout doesn't shift
+            // (same ≥24px hit-area pattern as DESIGN.md HelpTooltip).
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            minWidth: 24, minHeight: 24, padding: 5, margin: -5,
+          }}
           aria-label={`Borrar ${load.id}`}
         >×</button>
       </div>
