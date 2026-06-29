@@ -583,7 +583,18 @@ export function Canvas({
           return (
             <g
               key={n.id}
+              role={nodeIsSelect ? 'button' : undefined}
+              tabIndex={nodeIsSelect ? 0 : -1}
+              aria-label={nodeIsSelect ? `Nodo ${n.id}, pulsa Enter para seleccionar` : undefined}
+              className={nodeIsSelect ? 'fem-focus-ring' : undefined}
               onClick={nodeIsSelect ? (e) => { e.stopPropagation(); setSelected({ kind: 'node', id: n.id }); } : undefined}
+              onKeyDown={nodeIsSelect ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelected({ kind: 'node', id: n.id });
+                }
+              } : undefined}
               style={{ cursor: nodeIsSelect ? 'pointer' : 'crosshair' }}
             >
               {/* Invisible touch hit-area (22px radius) over the visible 5-7px node. */}
@@ -1286,7 +1297,21 @@ function AddVanoButton({
   const xMax = Math.max(...model.nodes.map((n) => n.x));
   const [sx, sy] = w2s(xMax, 0);
   return (
-    <g onClick={(e) => { e.stopPropagation(); onClick(); }} style={{ cursor: 'pointer' }}>
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label="Añadir vano"
+      className="fem-focus-ring"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        }
+      }}
+      style={{ cursor: 'pointer' }}
+    >
       <circle cx={sx + 32} cy={sy} r={12} fill="var(--color-bg-elevated)" stroke="var(--color-accent)" strokeWidth="1.5" />
       <line x1={sx + 27} y1={sy} x2={sx + 37} y2={sy} stroke="var(--color-accent)" strokeWidth="1.5" />
       <line x1={sx + 32} y1={sy - 5} x2={sx + 32} y2={sy + 5} stroke="var(--color-accent)" strokeWidth="1.5" />
