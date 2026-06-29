@@ -123,29 +123,47 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
     );
   }
 
-  // Compact mode (FEM embed): drops the horizontal utilization bar column to
-  // fit the narrower right-side panel. Layout collapses from 4 cols to 3.
-  //
+  const tag = (
+    <span className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] whitespace-nowrap text-center ${STATUS_TAG_CLASSES[check.status]}`}>
+      {isFinite(check.utilization) && check.utilization <= 1
+        ? `${(check.utilization * 100).toFixed(0)}%`
+        : STATUS_LABEL[check.status]}
+    </span>
+  );
+
+  // Compact mode (narrow side panels: FEM bar embed, masonry-walls). At ~280px
+  // a name + long value ("As,min = 840 mm²") + a wide tag ("INCUMPLE" for >100%)
+  // can't share one row — the old 3-col `1fr auto auto` grid squeezed the name
+  // column to ~1 char per line. Stack the name and its value(s) in one flexible
+  // column and keep only the verdict tag beside them, so the name always has the
+  // full panel width and stays readable.
+  if (compact) {
+    return (
+      <div className="check-row relative grid items-start gap-2 py-2.5 max-md:min-h-11 px-3 pl-4 border-b border-border-sub last:border-b-0 cursor-pointer [grid-template-columns:minmax(0,1fr)_max-content]">
+        <span className="check-left-rail" />
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="text-[12px] text-text-primary leading-snug wrap-break-word">{check.description}</span>
+          <span className="font-mono text-[11px] text-text-secondary tabular-nums leading-snug wrap-break-word" title={valueText}>{valueText}</span>
+          {limitText && (
+            <span className="font-mono text-[10px] text-text-disabled tabular-nums leading-snug wrap-break-word" title={limitText}>{limitText}</span>
+          )}
+          {check.article && (
+            <span className="font-mono text-[10px] text-text-disabled leading-snug">{check.article}</span>
+          )}
+        </div>
+        <span className="self-start">{tag}</span>
+      </div>
+    );
+  }
+
   // Non-compact mode is responsive: 4 cols on desktop (lg+), 3 cols on
   // mobile/tablet (the bar hides). The previous static 4-col grid left
   // ~50px for the description on a 375px viewport, making the check name
   // disappear entirely. Below lg we adopt the compact-style proportions.
-  const padX = compact ? 'px-3 pl-4' : 'px-4 pl-5 max-lg:px-3 max-lg:pl-4';
-  const gap  = compact ? 'gap-2' : 'gap-3.5 max-lg:gap-2';
-
-  const gridColsClass = compact
-    ? '[grid-template-columns:1fr_auto_auto]'
-    : 'lg:[grid-template-columns:1fr_140px_64px_60px] [grid-template-columns:1fr_minmax(0,1fr)_auto]';
-
-  // In compact mode (and below lg) the description is allowed to wrap so the
-  // check name is always readable. On desktop we keep single-line ellipsis
-  // to preserve density.
-  const descClass = compact
-    ? 'text-[12px] text-text-primary leading-snug wrap-break-word'
-    : 'text-[12px] text-text-primary leading-snug wrap-break-word lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap';
+  const descClass = 'text-[12px] text-text-primary leading-snug wrap-break-word lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap';
 
   return (
-    <div className={`check-row relative grid items-start ${gap} py-2.5 max-md:min-h-11 ${padX} border-b border-border-sub last:border-b-0 cursor-pointer ${gridColsClass}`}>
+    <div className="check-row relative grid items-start gap-3.5 max-lg:gap-2 py-2.5 max-md:min-h-11 px-4 pl-5 max-lg:px-3 max-lg:pl-4 border-b border-border-sub last:border-b-0 cursor-pointer lg:[grid-template-columns:1fr_140px_64px_60px] [grid-template-columns:1fr_minmax(0,1fr)_auto]">
       <span className="check-left-rail" />
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className={descClass}>{check.description}</span>
@@ -163,20 +181,14 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
           </span>
         )}
       </span>
-      {!compact && (
-        <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center max-lg:hidden">
-          <div
-            className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
-            style={{ width: `${pct}%` }}
-            role="presentation"
-          />
-        </div>
-      )}
-      <span className={`font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.03em] whitespace-nowrap text-center self-center ${STATUS_TAG_CLASSES[check.status]}`}>
-        {isFinite(check.utilization) && check.utilization <= 1
-          ? `${(check.utilization * 100).toFixed(0)}%`
-          : STATUS_LABEL[check.status]}
-      </span>
+      <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center max-lg:hidden">
+        <div
+          className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
+          style={{ width: `${pct}%` }}
+          role="presentation"
+        />
+      </div>
+      <span className="self-center">{tag}</span>
     </div>
   );
 }
