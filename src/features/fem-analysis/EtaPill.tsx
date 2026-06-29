@@ -45,7 +45,7 @@ export function EtaPill({ result, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className={`md:hidden absolute top-3 right-3 z-10 ${bg} ${fg} font-mono text-[11px] font-semibold px-3 py-2 rounded shadow-md min-h-11 min-w-11 flex items-center justify-center`}
+      className={`md:hidden absolute top-3 right-3 z-10 ${bg} ${fg} font-mono text-[11px] font-semibold px-3 py-2 rounded min-h-11 min-w-11 flex items-center justify-center`}
       aria-label={`Ver resultados — ${label}`}
     >
       {label}
