@@ -1,6 +1,14 @@
 /* FEM 1D — module-scoped styles. All class names use the `fem-` prefix
    to avoid colliding with global Tailwind/CSS conventions. */
 
+/* DESIGN.md §47: ALL numeric values render with tabular figures. Because
+   font-variant-numeric inherits, setting it once on the module root covers
+   every panel value and SVG canvas label (no per-span churn, no jitter on
+   value changes). */
+.fem-root {
+  font-variant-numeric: tabular-nums;
+}
+
 .fem-tool-btn {
   display: flex;
   align-items: center;

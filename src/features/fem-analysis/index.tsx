@@ -310,7 +310,7 @@ export function FemAnalysisModule() {
 
   if (!model) {
     return (
-      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="fem-root flex flex-col h-full min-h-0 overflow-hidden">
         <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
         <Landing onPick={pickPreset} recientes={loadRecent()} />
       </div>
@@ -318,7 +318,7 @@ export function FemAnalysisModule() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="fem-root flex flex-col h-full min-h-0 overflow-hidden">
       <Topbar
         moduleLabel="FEM 1D"
         moduleGroup="Análisis"
