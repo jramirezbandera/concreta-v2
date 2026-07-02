@@ -18,7 +18,7 @@ import { RetainingWallResults } from './RetainingWallResults';
 const VIEW_TABS: { id: RetainingWallView; num: string; label: string; color: string }[] = [
   { id: 'geometry', num: '1', label: 'Geometría',        color: '#38bdf8' },
   { id: 'loads',    num: '2', label: 'Cargas y empujes', color: '#fcd34d' },
-  { id: 'rebar',    num: '3', label: 'Armado',           color: '#f8fafc' },
+  { id: 'rebar',    num: '3', label: 'Armado',           color: '#64748b' },
 ];
 
 function ViewTabButton({
