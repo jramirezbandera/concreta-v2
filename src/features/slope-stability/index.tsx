@@ -75,13 +75,16 @@ export function SlopeStabilityModule() {
   // El botón PDF nunca se deshabilita → garantizar un resultado fresco antes de
   // exportar (await ensureResult), y dejar pintar el clon oculto antes de
   // rasterizarlo (nextFrame) por si el resultado se acababa de calcular.
+  // `validation.valid` gatea el export igual que gatea Calcular: con datos
+  // inválidos el motor extendería estratos / ignoraría el NF en silencio y el
+  // PDF saldría con sello de trazabilidad sobre datos que la app declara malos.
   const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } = usePdfPreview(
     async () => {
       const res = await solver.ensureResult();
       await nextFrame();
       return exportSlopeStabilityPDF(state, res, system);
     },
-    true,
+    validation.valid,
   );
 
   // Enlace compartible: codifica los inputs anidados (estratos/cargas/contexto)

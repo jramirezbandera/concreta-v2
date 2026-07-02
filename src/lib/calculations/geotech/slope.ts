@@ -22,8 +22,7 @@ import type { SlopeInputs } from "../../../data/defaults";
 import type { SlopeResult, SlopeRun, SlopeRunOptions, SlopeEngineMeta } from "./types";
 import { getPySlope } from "./client";
 import manifest from "./vendor/pyslope.manifest.json";
-
-const PYODIDE_VERSION = "314.0.0";
+import { PYODIDE_VERSION } from "./pyodideVersion";
 
 // Cotas duras de malla — acotan el cómputo para que una corrida patológica no
 // monopolice el worker (eng-review §9.2 #1, "iteraciones acotadas").

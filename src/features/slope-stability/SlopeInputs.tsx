@@ -21,6 +21,8 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { SoilStrataEditor } from '../micropiles/SoilStrataEditor';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { getUnitLabel } from '../../lib/units/format';
 
 interface SlopeInputsPanelProps {
   value: SlopeInputs;
@@ -78,6 +80,9 @@ function LoadRow({
   onRemove: () => void;
 }) {
   const isUdl = load.kind === 'udl';
+  // Sufijos de unidad del selector según el toggle SI↔técnico (kN/m² ↔ kg/m²,
+  // kN/m ↔ kg/m) — el input de magnitud ya convertía vía quantity=.
+  const { system } = useUnitSystem();
   return (
     <div className="rounded border border-border-main bg-bg-primary/40 px-2.5 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2 min-w-0">
@@ -93,8 +98,8 @@ function LoadRow({
             aria-label={`Tipo de sobrecarga ${index + 1}`}
             className="bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none focus:border-accent transition-colors min-w-0"
           >
-            <option value="udl">UDL (kN/m²)</option>
-            <option value="line">Lineal (kN/m)</option>
+            <option value="udl">{`UDL (${getUnitLabel('areaLoad', system)})`}</option>
+            <option value="line">{`Lineal (${getUnitLabel('linearLoad', system)})`}</option>
           </select>
         </label>
         <button

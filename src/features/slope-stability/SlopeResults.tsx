@@ -26,6 +26,9 @@ import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import type { CheckRow } from '../../lib/calculations/types';
 import type { SlopeSlice } from '../../lib/calculations/geotech/types';
 import { slopeMethodLabel, engineStatusText } from '../../lib/text/labels';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 import type { SlopeSolver } from './useSlopeSolver';
 import type { SlopeInputs } from '../../data/defaults';
 
@@ -34,14 +37,6 @@ interface SlopeResultsProps {
   /** Situación de proyecto — fija el límite de FoS y su etiqueta. */
   situation: SlopeInputs['situation'];
 }
-
-// Límite de factor de seguridad por situación — CTE DB-SE-C art. 7.2.2.1 (γR):
-// persistente y transitoria 1,5; extraordinaria 1,1 (doc §4.2).
-const FOS_LIMIT: Record<SlopeInputs['situation'], number> = {
-  persistent:    1.5,
-  transient:     1.5,
-  extraordinary: 1.1,
-};
 
 const SITUATION_LABEL: Record<SlopeInputs['situation'], string> = {
   persistent:    'persistente',
@@ -118,10 +113,25 @@ function fmtSlice(value: number | undefined, digits: number, scale = 1): string 
     : (value * scale).toFixed(digits);
 }
 
+/** Como fmtSlice pero convertido al sistema de unidades activo (W en kN↔Tn, u en
+ *  kPa↔kg/cm²). Los valores del worker vienen SIEMPRE en SI; solo se convierte al
+ *  mostrar (convención formatQuantity del producto). En técnico los valores son
+ *  ~10× más pequeños → 2 decimales para no perder lectura. */
+function fmtSliceQ(
+  value: number | undefined,
+  quantity: 'force' | 'cohesion',
+  system: UnitSystem,
+): string {
+  if (value === undefined || !isFinite(value)) return '—';
+  return formatNumber(value, quantity, system, system === 'si' ? 1 : 2);
+}
+
 /** Tabla compacta de física por dovela — solo lee `run.slices` (worker). Estilo
  *  mono/tabular-nums sin saturar; cabecera sticky discreta. Columnas:
- *  nº · x (m) · b (m) · W (kN) · α (º) · u (kPa). El ancho b = xR − xL es geometría. */
+ *  nº · x (m) · b (m) · W (kN|Tn) · α (º) · u (kPa|kg/cm²) según el toggle de
+ *  unidades. El ancho b = xR − xL es geometría (m en ambos sistemas). */
 function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
+  const { system } = useUnitSystem();
   return (
     <div className="max-h-72 overflow-y-auto">
       <table className="w-full border-collapse font-mono text-[10px] tabular-nums">
@@ -130,9 +140,9 @@ function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
             <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">nº</th>
             <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">x (m)</th>
             <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">b (m)</th>
-            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">W (kN)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">{`W (${getUnitLabel('force', system)})`}</th>
             <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">α (º)</th>
-            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">u (kPa)</th>
+            <th className="sticky top-0 bg-bg-surface text-right font-semibold uppercase tracking-[0.05em] px-2 py-1.5 border-b border-border-sub">{`u (${getUnitLabel('cohesion', system)})`}</th>
           </tr>
         </thead>
         <tbody>
@@ -141,9 +151,9 @@ function SlicesTable({ slices }: { slices: SlopeSlice[] }): JSX.Element {
               <td className="text-right text-text-disabled px-2 py-1">{i + 1}</td>
               <td className="text-right px-2 py-1">{fmtSlice(s.x, 2)}</td>
               <td className="text-right px-2 py-1">{fmtSlice(s.xR - s.xL, 2)}</td>
-              <td className="text-right px-2 py-1">{fmtSlice(s.weight, 1)}</td>
+              <td className="text-right px-2 py-1">{fmtSliceQ(s.weight, 'force', system)}</td>
               <td className="text-right px-2 py-1">{fmtSlice(s.alpha, 1, RAD_TO_DEG)}</td>
-              <td className="text-right px-2 py-1">{fmtSlice(s.u, 1)}</td>
+              <td className="text-right px-2 py-1">{fmtSliceQ(s.u, 'cohesion', system)}</td>
             </tr>
           ))}
         </tbody>
@@ -156,7 +166,6 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
   const { engineState, result, error, isStale, engineReady, calculate, cancel } = solver;
 
   const isBusy = engineState === 'loading' || engineState === 'computing';
-  const limit = FOS_LIMIT[situation];
   // El anuncio aria-live vive en el shell del módulo (index.tsx), siempre montado
   // — en móvil este panel puede ir display:none según la pestaña.
   // Precalentando en segundo plano: motor aún no listo, sin corrida ni resultado.
@@ -261,9 +270,20 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
       {/* ── Resultado: verdict ambiental + FoS + checks + traza ──────────── */}
       {result !== null && (() => {
         const status = overallStatus(result.checks);
-        const fos = result.fos;
+        // Check CTE gobernante del header — FUENTE ÚNICA: la fila que ya emitió
+        // slope.ts (antes se duplicaba aquí el límite de excavación 1,5/1,1 y se
+        // mostraba también en contexto 'global-foundation', donde el check
+        // aplicable es Tabla 2.1: FoS_d con terreno minorado γ_M vs ≥ 1,0).
+        //   excavation        → fos-static      (FoS característico vs γ_R)
+        //   global-foundation → fos-cte-tabla21 (FoS_d minorado vs 1,0)
+        const governing =
+          result.checks.find((c) => c.id === 'fos-cte-tabla21') ??
+          result.checks.find((c) => c.id === 'fos-static') ??
+          null;
+        const isDesignFos = governing?.id === 'fos-cte-tabla21';
+        const fosStr = governing?.valueStr ?? result.fos.toFixed(2);
         const fosOk: 'ok' | 'warn' | 'fail' =
-          fos >= limit ? 'ok' : fos >= limit * 0.95 ? 'warn' : 'fail';
+          governing && governing.status !== 'neutral' ? governing.status : 'ok';
         const FosGlyph = fosOk === 'ok' ? Check : fosOk === 'warn' ? TriangleAlert : X;
         const fosColor =
           fosOk === 'ok' ? 'text-state-ok' : fosOk === 'warn' ? 'text-state-warn' : 'text-state-fail';
@@ -274,19 +294,21 @@ export function SlopeResults({ solver, situation }: SlopeResultsProps): JSX.Elem
             {/* Cabecera del verdict */}
             <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border-main">
               <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
-                Factor de seguridad
+                {isDesignFos ? 'FoS de cálculo (γ_M)' : 'Factor de seguridad'}
               </span>
               <VerdictBadge status={status} />
             </div>
 
-            {/* FoS destacado — fila prominente (mono, grande). */}
+            {/* FoS destacado — fila prominente (mono, grande). En excavación es el
+                FoS característico; en estabilidad global, el FoS_d de la corrida
+                minorada de Tabla 2.1 (el que se compara contra su límite). */}
             <div className="flex items-baseline justify-between px-4 py-3 border-b border-border-sub">
               <span className={`inline-flex items-center gap-2 font-mono text-2xl font-semibold tabular-nums ${fosColor}`}>
                 <FosGlyph size={20} strokeWidth={2.25} aria-hidden="true" />
-                {fos.toFixed(2)}
+                {fosStr}
               </span>
               <span className="font-mono text-[11px] text-text-disabled tabular-nums">
-                ≥ {limit.toFixed(2)}
+                {governing?.limitStr ?? ''}
                 <span className="ml-1 normal-case">· {SITUATION_LABEL[situation]}</span>
               </span>
             </div>

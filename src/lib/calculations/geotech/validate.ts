@@ -21,6 +21,25 @@ export function validateSlope(inp: SlopeInputs): SlopeValidation {
   if (inp.strata.length < 1) {
     return { valid: false, error: "Define al menos un estrato.", fix: "Añade un estrato con su γ, c' y φ'." };
   }
+  // Invariantes por estrato que PySlope rechaza en runtime con errores crípticos:
+  // espesor 0 → profundidades acumuladas duplicadas ("same material depth");
+  // γ fuera de [1,50] → assert_range del vendor. Mejor gatearlos aquí con mensaje útil.
+  const badThickness = inp.strata.findIndex((st) => !(st.thickness > 0));
+  if (badThickness !== -1) {
+    return {
+      valid: false,
+      error: `El estrato ${badThickness + 1} tiene espesor 0.`,
+      fix: "Todos los estratos deben tener espesor mayor que 0 m (elimina el estrato o corrige su espesor).",
+    };
+  }
+  const badGamma = inp.strata.findIndex((st) => !(st.gamma >= 1 && st.gamma <= 50));
+  if (badGamma !== -1) {
+    return {
+      valid: false,
+      error: `El peso específico del estrato ${badGamma + 1} está fuera de rango.`,
+      fix: "Introduce un γ entre 1 y 50 kN/m³ (límite del motor PySlope).",
+    };
+  }
   const totalThickness = inp.strata.reduce((s, st) => s + (st.thickness || 0), 0);
   if (totalThickness < inp.height) {
     return {

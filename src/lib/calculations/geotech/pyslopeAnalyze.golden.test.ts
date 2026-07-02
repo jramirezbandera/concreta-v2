@@ -133,23 +133,13 @@ describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
     expect(minFos).toBeCloseTo(r.fos, 6);
   });
 
-  // Física por dovela: depende del fork T1.1 (s.get_critical_slice_data()). Hasta
-  // que aterrice, las dovelas salen solo-geometría (alpha/weight/u undefined) y el
-  // contrato sigue válido. Cuando el fork está, cada dovela trae α/W/u numéricos.
-  // La aserción dura ocurre en el gate de fase; aquí se valida condicionalmente.
-  it("rellena α/W/u por dovela cuando el fork T1.1 expone la física", () => {
+  // Física por dovela: la expone el fork T1.1 (s.get_critical_slice_data()), que
+  // YA ATERRIZÓ (manifest patchHash d5b91642…). Aserción INCONDICIONAL: el bloque
+  // de física en ANALYZE_PY lleva un `except Exception: pass` defensivo, así que
+  // una regresión del fork dejaría la tabla de dovelas y el PDF en "—" con todos
+  // los tests en verde — este test es el único candado contra ese fallo silencioso.
+  it("rellena α/W/u por dovela (fork T1.1 presente — sin física es regresión)", () => {
     const r = analyze({ gammaC: 1, gammaPhi: 1, loadFactor: 1 });
-    const hasPhysics = r.slices.some((s) => s.alpha !== undefined);
-    if (!hasPhysics) {
-      // T1.1 aún no ha aterrizado: contrato base intacto, sin física.
-      for (const s of r.slices) {
-        expect(s.alpha).toBeUndefined();
-        expect(s.weight).toBeUndefined();
-        expect(s.u).toBeUndefined();
-      }
-      return;
-    }
-    // Fork presente: cada dovela trae α/W/u numéricos y físicamente razonables.
     for (const s of r.slices) {
       expect(Number.isFinite(s.alpha as number)).toBe(true);
       expect(Number.isFinite(s.weight as number)).toBe(true);
@@ -159,5 +149,36 @@ describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
       // α en rango físico (-π/2, π/2).
       expect(Math.abs(s.alpha as number)).toBeLessThan(Math.PI / 2);
     }
+  });
+
+  // Regresión A1 (auditoría 2026-07-01): `waterTableDepth: 0` = NF en coronación
+  // (talud saturado, caso pésimo). ANALYZE_PY gateaba con `> 0` y lo trataba como
+  // SECO en silencio (FoS +41% no conservador medido). Debe correr con agua.
+  it("NF a 0 m (coronación) NO se ignora: FoS menor que el seco", () => {
+    const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
+    const optsJson = JSON.stringify({ slices: 25, iterations: ITERATIONS, gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+    const dry = JSON.parse(fn(JSON.stringify({ ...slopeDefaults, waterTableDepth: null }), optsJson)) as Run;
+    const wt0 = JSON.parse(fn(JSON.stringify({ ...slopeDefaults, waterTableDepth: 0 }), optsJson)) as Run;
+    expect(Number.isFinite(wt0.fos)).toBe(true);
+    // Con NF en coronación la presión intersticial reduce el FoS de forma clara.
+    expect(wt0.fos).toBeLessThan(dry.fos * 0.95);
+    // Y las dovelas registran u > 0 (el seco las deja a 0).
+    expect(Math.max(...wt0.slices.map((s) => s.u ?? 0))).toBeGreaterThan(0);
+  });
+
+  // Regresión A2 (auditoría 2026-07-01): talud pequeño y empinado (H=2 m, β=45°)
+  // → coronación a <5 m del borde del modelo → left = top_x − 5 salía NEGATIVO y
+  // set_analysis_limits lanzaba ValueError antes de su clamp interno. Con el
+  // clamp en ANALYZE_PY la corrida completa sin error y con límites coherentes.
+  it("talud pequeño (H=2 m, β=45°) calcula sin ValueError de límites", () => {
+    const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
+    const optsJson = JSON.stringify({ slices: 25, iterations: ITERATIONS, gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+    const r = JSON.parse(fn(JSON.stringify({ ...slopeDefaults, height: 2, angle: 45 }), optsJson)) as Run &
+      { limits: { left: number; right: number } };
+    expect(Number.isFinite(r.fos)).toBe(true);
+    expect(r.fos).toBeGreaterThan(0);
+    // Límites emitidos = límites usados: dentro del modelo, bien ordenados.
+    expect(r.limits.left).toBeGreaterThanOrEqual(0);
+    expect(r.limits.right).toBeGreaterThan(r.limits.left);
   });
 });

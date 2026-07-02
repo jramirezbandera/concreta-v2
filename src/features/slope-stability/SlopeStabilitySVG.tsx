@@ -653,8 +653,11 @@ export function SlopeStabilitySVG({
                   <rect x={lx + 8} y={cy - 6} width={9} height={9}
                     fill={band.fill1} stroke={texColor} strokeWidth={0.6} />
                   <text x={lx + 24} y={cy + 1.5} fontSize={8.5} fill={P.label} fontFamily={FONT_MONO}>
+                    {/* γ y c' convertidos al sistema activo (kN/m³↔t/m³, kPa↔kg/cm²) —
+                        antes γ salía sin unidad y c' hardcodeaba kPa aunque el
+                        resto de la app estuviera en técnico. */}
                     {svgText(
-                      `E${layer.id} · γ=${fmt1(layer.gamma)}  φ'=${fmt1(layer.phi)}°  c'=${fmt1(layer.c)} kPa`,
+                      `E${layer.id} · γ=${formatQuantity(layer.gamma, 'weightDensity', system)}  φ'=${fmt1(layer.phi)}°  c'=${formatQuantity(layer.c, 'cohesion', system)}`,
                       isPdf,
                     )}
                   </text>

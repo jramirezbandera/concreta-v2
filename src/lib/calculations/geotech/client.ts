@@ -7,21 +7,65 @@
 import * as Comlink from "comlink";
 import type { SlopeWorkerApi } from "./pyslope.worker";
 
-let worker: Worker | null = null;
-let apiPromise: Promise<Comlink.Remote<SlopeWorkerApi>> | null = null;
-let warmReady = false; // true cuando un boot ha resuelto y el worker sigue vivo.
+/** Superficie del worker que consume el adaptador (slope.ts). Estructuralmente
+ *  igual que Comlink.Remote<SlopeWorkerApi>, pero es un wrapper local: registra
+ *  cada `analyze` en vuelo para poder RECHAZARLA en terminatePySlope() —
+ *  worker.terminate() mata el puerto sin avisar a Comlink y sus promesas
+ *  pendientes quedarían colgadas para siempre (p.ej. el await del export PDF). */
+export interface SlopeApi {
+  ready(): Promise<void>;
+  analyze(inputsJson: string, optsJson: string): Promise<string>;
+}
 
-function spawn(): Promise<Comlink.Remote<SlopeWorkerApi>> {
+let worker: Worker | null = null;
+let apiPromise: Promise<SlopeApi> | null = null;
+let warmReady = false; // true cuando un boot ha resuelto y el worker sigue vivo.
+// Rechazadores de las corridas en vuelo del worker ACTUAL. terminatePySlope()
+// hace swap del set antes de rechazar, así las corridas lanzadas contra el
+// worker nuevo (post-rewarm) no se ven afectadas por un terminate viejo.
+let pendingRejects = new Set<(e: Error) => void>();
+
+function spawn(): Promise<SlopeApi> {
   worker = new Worker(new URL("./pyslope.worker.ts", import.meta.url), { type: "module" });
-  const api = Comlink.wrap<SlopeWorkerApi>(worker);
+  const remote = Comlink.wrap<SlopeWorkerApi>(worker);
+  const api: SlopeApi = {
+    ready: () => remote.ready(),
+    analyze: (inputsJson, optsJson) =>
+      new Promise<string>((resolve, reject) => {
+        pendingRejects.add(reject);
+        remote.analyze(inputsJson, optsJson).then(
+          (v) => {
+            pendingRejects.delete(reject);
+            resolve(v);
+          },
+          (e) => {
+            pendingRejects.delete(reject);
+            reject(e as Error);
+          },
+        );
+      }),
+  };
   // Si el boot RECHAZA (blip de red en los ~16 MB, fallo al spawnear), NO dejar
   // la promesa rechazada cacheada: limpiar worker/apiPromise para que el
   // siguiente getPySlope() (precarga, Calcular o Reintentar) arranque un worker
   // fresco y reintente de verdad. Sin esto, un fallo transitorio envenena todas
   // las corridas hasta recargar la página (eng-review P1).
-  const p = api.ready().then(() => {
-    if (apiPromise === p) warmReady = true;
-    return api;
+  // El boot también se registra en pendingRejects: ready() es otra llamada
+  // Comlink y un terminate a media descarga la dejaría colgada igual que a un
+  // analyze (p.ej. Cancelar durante el cold-start con un export PDF esperando).
+  const p = new Promise<SlopeApi>((resolve, reject) => {
+    pendingRejects.add(reject);
+    remote.ready().then(
+      () => {
+        pendingRejects.delete(reject);
+        if (apiPromise === p) warmReady = true;
+        resolve(api);
+      },
+      (e) => {
+        pendingRejects.delete(reject);
+        reject(e as Error);
+      },
+    );
   });
   apiPromise = p;
   p.catch(() => {
@@ -36,7 +80,7 @@ function spawn(): Promise<Comlink.Remote<SlopeWorkerApi>> {
 }
 
 /** Devuelve SIEMPRE la misma instancia (arrancándola si hace falta). */
-export function getPySlope(): Promise<Comlink.Remote<SlopeWorkerApi>> {
+export function getPySlope(): Promise<SlopeApi> {
   return apiPromise ?? spawn();
 }
 
@@ -46,12 +90,17 @@ export function isWarm(): boolean {
   return warmReady;
 }
 
-/** Mata el worker (aborta cualquier corrida en curso). */
+/** Mata el worker (aborta cualquier corrida en curso) y RECHAZA las promesas de
+ *  las corridas en vuelo — sin esto quedarían pendientes para siempre y un await
+ *  aguas arriba (p.ej. ensureResult del export PDF) se colgaría hasta recargar. */
 export function terminatePySlope(): void {
   warmReady = false;
   worker?.terminate();
   worker = null;
   apiPromise = null;
+  const rejects = pendingRejects;
+  pendingRejects = new Set();
+  for (const reject of rejects) reject(new Error("Cálculo cancelado"));
 }
 
 /** Cancelación: termina el worker y re-calienta uno nuevo en segundo plano para

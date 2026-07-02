@@ -199,4 +199,18 @@ sb.analyse_slope(method='ordinary')
     expect(manifest.patchHash).toMatch(/^[0-9a-f]{64}$/);
     expect(manifest.patchHash).toBe(GOLDEN_PATCH_HASH);
   });
+
+  // Coherencia de trazabilidad: la versión de Pyodide que el adaptador estampa en
+  // el PDF (pyodideVersion.ts, consumida por slope.ts) debe coincidir con la
+  // dependencia pineada. Un bump de `pyodide` en package.json sin tocar la
+  // constante haría mentir al sello del PDF — este test lo hace fallo visible.
+  it("PYODIDE_VERSION coincide con la dependencia pineada en package.json", async () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      devDependencies?: Record<string, string>;
+      dependencies?: Record<string, string>;
+    };
+    const pinned = pkg.devDependencies?.pyodide ?? pkg.dependencies?.pyodide;
+    const { PYODIDE_VERSION } = await import("./pyodideVersion");
+    expect(pinned).toBe(PYODIDE_VERSION);
+  });
 });

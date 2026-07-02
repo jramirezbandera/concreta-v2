@@ -104,4 +104,21 @@ describe("exportSlopeStabilityPDF", () => {
     const pdf = await exportSlopeStabilityPDF(slopeDefaults, emptySlices);
     expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
   });
+
+  it("exporta en sistema técnico (cargas/estratos/dovelas convertidos) sin crash", async () => {
+    // Con NF y ambos tipos de carga para ejercitar todos los caminos de
+    // conversión (areaLoad, linearLoad, weightDensity, cohesion, force).
+    const inp: SlopeInputs = {
+      ...slopeDefaults,
+      waterTableDepth: 1.5,
+      loads: [
+        { id: 1, kind: "udl", magnitude: 10, offset: 0, length: 2 },
+        { id: 2, kind: "line", magnitude: 15, offset: 1 },
+      ],
+    };
+    const result = await calcSlope(inp);
+    const pdf = await exportSlopeStabilityPDF(inp, result, "tecnico");
+    expect(pdf.blobUrl).toMatch(/^blob:/);
+    expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+  });
 });

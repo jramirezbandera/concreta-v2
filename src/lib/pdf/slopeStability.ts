@@ -28,7 +28,8 @@
 import jsPDF from "jspdf";
 import type { SlopeInputs } from "../../data/defaults";
 import type { SlopeResult, SlopeSlice } from "../../lib/calculations/geotech/types";
-import type { UnitSystem } from "../units/types";
+import { formatQuantity, formatNumber, getUnitLabel } from "../units/format";
+import type { Quantity, UnitSystem } from "../units/types";
 import {
   drawHeader,
   drawFootersAllPages,
@@ -64,16 +65,22 @@ const disclaimer = (method: string): string =>
   "queda pendiente (Phase 3) y figura como verificación informativa. " +
   "No sustituye un estudio geotécnico.";
 
-/** Físca por dovela: campo numérico → texto, ausente → "—" (no se reconstruye en JS). */
-function num(v: number | undefined, digits: number): string {
-  return v === undefined || !isFinite(v) ? "—" : v.toFixed(digits);
-}
-
 export async function exportSlopeStabilityPDF(
   inp: SlopeInputs,
   result: SlopeResult,
-  _system: UnitSystem = "si",
+  system: UnitSystem = "si",
 ): Promise<PdfResult> {
+  // Valores del modelo SIEMPRE en SI; solo se convierte al MOSTRAR (convención
+  // formatQuantity del producto). fmtQ incluye la unidad; numQ solo el número
+  // (para columnas con la unidad en la cabecera); unit da el sufijo de cabecera.
+  const fmtQ = (v: number, q: Quantity, precision?: number) =>
+    formatQuantity(v, q, system, { precision });
+  const numQ = (v: number | undefined, q: Quantity, precision?: number) =>
+    v === undefined || !isFinite(v) ? "—" : formatNumber(v, q, system, precision);
+  const unit = (q: Quantity) => getUnitLabel(q, system);
+  // W/u por dovela: en técnico los valores son ~10× más pequeños (Tn, kg/cm²)
+  // → 2 decimales para no perder lectura; en SI se mantiene 1 (como la UI).
+  const slicePrec = system === "si" ? 1 : 2;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const engineVersion = `PySlope ${result.engine.pyslopeVersion}`;
@@ -160,8 +167,8 @@ export async function exportSlopeStabilityPDF(
     for (const ld of inp.loads) {
       line(
         ld.kind === "udl"
-          ? `UDL ${ld.magnitude} kN/m2 @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
-          : `Lineal ${ld.magnitude} kN/m @ ${ld.offset} m`,
+          ? `UDL ${fmtQ(ld.magnitude, "areaLoad")} @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
+          : `Lineal ${fmtQ(ld.magnitude, "linearLoad")} @ ${ld.offset} m`,
       );
     }
   }
@@ -185,17 +192,19 @@ export async function exportSlopeStabilityPDF(
       { key: "i", label: "#", w: 10, render: (r) => String(r.i) },
       { key: "tipo", label: "Tipo", w: 30 },
       { key: "esp", label: "Espesor", w: 28, align: "right" },
-      { key: "gamma", label: "g (kN/m3)", w: 32, align: "right" },
+      // Unidades de cabecera según el sistema activo (drawTable pasa las labels
+      // por pdfStr: ³→^3, ²→2). Los valores se convierten con la misma quantity.
+      { key: "gamma", label: `g (${unit("weightDensity")})`, w: 32, align: "right" },
       { key: "phi", label: "phi (deg)", w: 30, align: "right" },
-      { key: "c", label: "c' (kPa)", w: 30, align: "right" },
+      { key: "c", label: `c' (${unit("cohesion")})`, w: 30, align: "right" },
     ] as TableCol<{ i: number; tipo: string; esp: string; gamma: string; phi: string; c: string }>[],
     rows: inp.strata.map((st, i) => ({
       i: i + 1,
       tipo: st.type === "granular" ? "Granular" : "Cohesivo",
       esp: `${st.thickness} m`,
-      gamma: `${st.gamma}`,
+      gamma: numQ(st.gamma, "weightDensity"),
       phi: `${st.phi}`,
-      c: `${st.c}`,
+      c: numQ(st.c, "cohesion"),
     })),
   });
 
@@ -322,7 +331,7 @@ export async function exportSlopeStabilityPDF(
         align: "right",
         render: (r) => (r.s.xR - r.s.xL).toFixed(2),
       },
-      { key: "W", label: "W (kN)", w: 32, align: "right", render: (r) => num(r.s.weight, 1) },
+      { key: "W", label: `W (${unit("force")})`, w: 32, align: "right", render: (r) => numQ(r.s.weight, "force", slicePrec) },
       {
         key: "alpha",
         label: "alpha (deg)",
@@ -333,7 +342,7 @@ export async function exportSlopeStabilityPDF(
             ? "—"
             : ((r.s.alpha * 180) / Math.PI).toFixed(1),
       },
-      { key: "u", label: "u (kPa)", w: 32, align: "right", render: (r) => num(r.s.u, 1) },
+      { key: "u", label: `u (${unit("cohesion")})`, w: 32, align: "right", render: (r) => numQ(r.s.u, "cohesion", slicePrec) },
     ];
     by = drawTable(doc, {
       x: M,

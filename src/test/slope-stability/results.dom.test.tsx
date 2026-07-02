@@ -5,7 +5,7 @@
 //   • la fila sísmica neutra se distingue (tag DIFERIDO, sin η%/barra),
 //   • la "Tabla de dovelas" colapsa por defecto y expande mostrando W/α/u.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { UnitSystemProvider } from "../../lib/units/UnitSystemProvider";
 import { ThemeProvider } from "../../lib/theme/ThemeProvider";
@@ -191,5 +191,48 @@ describe("SlopeResults — tabla de checks agrupada + tabla de dovelas (T3.3)", 
     // Dovela 3: sin física → "—" en W/α/u.
     const thirdData = within(rows[3]);
     expect(thirdData.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("SlopeResults — unidades técnico + header contextual", () => {
+  afterEach(() => window.localStorage.removeItem("unitSystem"));
+
+  it("en técnico la tabla de dovelas convierte W (kN→Tn) y u (kPa→kg/cm²)", () => {
+    window.localStorage.setItem("unitSystem", "tecnico");
+    renderResults();
+    fireEvent.click(screen.getByRole("button", { name: /Tabla de dovelas/i }));
+
+    expect(screen.getByText("W (Tn)")).toBeInTheDocument();
+    expect(screen.getByText("u (kg/cm²)")).toBeInTheDocument();
+    expect(screen.queryByText("W (kN)")).not.toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const rows = within(table).getAllByRole("row");
+    // Dovela 1: W = 42.5 kN → 4.33 Tn · u = 12.3 kPa → 0.13 kg/cm². La geometría
+    // (x, b en m) y α (º) no cambian de sistema.
+    const cells = within(rows[1]).getAllByRole("cell");
+    expect(cells.map((c) => c.textContent)).toEqual(["1", "1.00", "1.00", "4.33", "30.0", "0.13"]);
+  });
+
+  it("header en excavación: FoS característico vs límite del check fos-static", () => {
+    // Solo el check de excavación (sin tabla21) — como emite slope.ts en ese contexto.
+    const excavation: SlopeSolver = {
+      ...solver,
+      result: { ...mockResult, checks: checks.filter((c) => c.id !== "fos-cte-tabla21") },
+    };
+    renderResults(excavation);
+    expect(screen.getByText("Factor de seguridad")).toBeInTheDocument();
+    expect(screen.queryByText(/FoS de cálculo/)).not.toBeInTheDocument();
+    // Límite del check gobernante (≥ 1.50) + situación en la fila destacada.
+    expect(screen.getByText(/· persistente/)).toBeInTheDocument();
+  });
+
+  it("header en estabilidad global: FoS_d de Tabla 2.1 (γ_M) — no el límite de excavación", () => {
+    // El mock incluye fos-cte-tabla21 → es el check CTE gobernante del header.
+    renderResults();
+    expect(screen.getByText("FoS de cálculo (γ_M)")).toBeInTheDocument();
+    // El FoS grande es el de la corrida minorada (1.10), no el característico (1.54).
+    // "1.10" también aparece en la fila del check → al menos 2 apariciones.
+    expect(screen.getAllByText("1.10").length).toBeGreaterThanOrEqual(2);
   });
 });

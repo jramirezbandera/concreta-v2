@@ -36,8 +36,11 @@ def _analyze(inputs_json, opts_json):
                              cohesion=c, depth_to_bottom=cum))
     s.set_materials(*mats)
 
+    # NF >= 0: la cota 0 (NF en coronación, talud saturado — el caso pésimo) es
+    # válida para PySlope y NO debe caer al análisis seco. Solo None/negativo
+    # (gateado por validate.ts) omiten el nivel freático.
     wt = inp.get('waterTableDepth')
-    if wt is not None and float(wt) > 0:
+    if wt is not None and float(wt) >= 0:
         s.set_water_table(float(wt))
 
     udls, lls = [], []
@@ -53,8 +56,13 @@ def _analyze(inputs_json, opts_json):
     if lls:
         s.set_lls(*lls)
 
-    left = s.get_top_coordinates()[0] - 5
-    right = s.get_bottom_coordinates()[0] + 5
+    # Límites clampeados al modelo: en taludes pequeños (H<~3 m) la coronación
+    # puede quedar a <5 m del borde y top_x-5 sale negativo — set_analysis_limits
+    # VALIDA antes de clampear y lanzaba ValueError. El clamp de right espeja el
+    # interno de PySlope (min con external_length) para que el JSON emitido
+    # coincida con los límites realmente usados en la búsqueda.
+    left = max(0.0, s.get_top_coordinates()[0] - 5)
+    right = min(float(s._external_length), s.get_bottom_coordinates()[0] + 5)
     s.set_analysis_limits(left, right)
     s.update_analysis_options(slices=slices, iterations=iterations)
     s.analyse_slope(method=method)

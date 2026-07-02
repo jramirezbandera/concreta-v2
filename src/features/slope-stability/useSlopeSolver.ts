@@ -139,10 +139,14 @@ export function useSlopeSolver(inputs: SlopeInputs, valid: boolean): SlopeSolver
   }, [result, startWarm]);
 
   const ensureResult = useCallback(async (): Promise<SlopeResult> => {
+    // Mismo gate que calculate(): nunca correr el motor con datos inválidos
+    // (extendería estratos / ignoraría inputs en silencio). El llamador (PDF)
+    // ya bloquea con toast vía usePdfPreview; esto es el cinturón de seguridad.
+    if (!valid) throw new Error("Los datos de entrada no son válidos");
     if (result && !isStale) return result;
     const reqId = ++reqRef.current;
     return compute(reqId);
-  }, [result, isStale, compute]);
+  }, [valid, result, isStale, compute]);
 
   return { engineState, result, error, isStale, engineReady, calculate, cancel, ensureResult };
 }
