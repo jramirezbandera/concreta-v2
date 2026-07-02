@@ -690,6 +690,28 @@ describe('Compresión / pandeo', () => {
     expect(r.valid).toBe(true);
     expect(r.compApplicable).toBe(false);
   });
+
+  it('nota informativa de pandeo torsional/flexo-torsional presente (fila neutral)', () => {
+    const r = calcCompositeSection(heb);
+    const note = r.compChecks.find((c) => c.id === 'comp-tf-note');
+    expect(note).toBeDefined();
+    expect(note!.status).toBe('neutral');
+    expect(note!.neutral).toBe(true);
+    expect(note!.article).toMatch(/6\.3\.1\.4/);
+  });
+
+  it('nota T/FT también presente en clase 4 (modo no cubierto → no darlo por cubierto)', () => {
+    const r = calcCompositeSection({
+      ...heb, plates: [{ id: 'pc', b: 4, t: 200, posType: 'custom', customYBottom: 250 }],
+    });
+    expect(r.compClass4).toBe(true);
+    expect(r.compChecks.some((c) => c.id === 'comp-tf-note')).toBe(true);
+  });
+
+  it('sin bloque de compresión (Ly=0) → sin nota T/FT', () => {
+    const r = calcCompositeSection({ ...heb, Ly: 0 });
+    expect(r.compChecks.some((c) => c.id === 'comp-tf-note')).toBe(false);
+  });
 });
 
 // ── Clasificación en compresión: alma esbelta → clase 4 → Nc_Rd = 0 ──────────
@@ -743,6 +765,69 @@ describe('Clasificación en compresión — chapa custom esbelta', () => {
     expect(r.Nc_Rd_kN).toBe(0);
     // la chapa custom aparece en las filas de clasificación en compresión
     expect(r.compChecks.some((c) => /custom/i.test(c.description))).toBe(true);
+  });
+});
+
+// ── Auditoría #108: apilado en compresión usa el apoyo real de la pila ───────
+describe('Auditoría #108: platabandas apiladas en compresión', () => {
+  const buckling = {
+    Ly: 3000, Lz: 3000, bcType: 'pp' as const, beta_y: 1, beta_z: 1, Ned: 0,
+  };
+
+  it('chapa ancha sobre chapa estrecha (top): vuelo real (300−80)/2/8 = 13.75 > 14ε → clase 4 y Nc_Rd = 0', () => {
+    // Antes el vuelo se medía desde profile.b=150: 9.4 → clase 3 → Nc,Rd=1701 kN
+    const r = calcCompositeSection({
+      ...base, profileType: 'IPE', profileSize: 300, grade: 'S275', ...buckling,
+      plates: [
+        { id: 'p1', b: 80,  t: 10, posType: 'top', customYBottom: 0 },
+        { id: 'p2', b: 300, t: 8,  posType: 'top', customYBottom: 0 },
+      ],
+    });
+    expect(r.compApplicable).toBe(true);
+    expect(r.sectionClassCompression).toBe(4);
+    expect(r.compClass4).toBe(true);
+    expect(r.Nc_Rd_kN).toBe(0);
+  });
+
+  it('pila bottom equivalente también rastrea su apoyo (flexión no la cubre: tracción con M+)', () => {
+    const r = calcCompositeSection({
+      ...base, profileType: 'IPE', profileSize: 300, grade: 'S275', ...buckling,
+      plates: [
+        { id: 'p1', b: 80,  t: 10, posType: 'bottom', customYBottom: 0 },
+        { id: 'p2', b: 300, t: 8,  posType: 'bottom', customYBottom: 0 },
+      ],
+    });
+    expect(r.compClass4).toBe(true);
+    expect(r.Nc_Rd_kN).toBe(0);
+  });
+
+  it('pila de canto decreciente (caso habitual): sin cambio de comportamiento', () => {
+    // 200×15 sobre IPE300 (vuelo (200−150)/2/15=1.7) y 150×10 sobre la 200
+    // (vuelo 0, interno 150/10=15 < 33ε) → todo clase 1, Nc,Rd > 0.
+    const r = calcCompositeSection({
+      ...base, ...buckling,
+      plates: [
+        { id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 },
+        { id: 'p2', b: 150, t: 10, posType: 'top', customYBottom: 0 },
+      ],
+    });
+    expect(r.compClass4).toBe(false);
+    expect(r.Nc_Rd_kN).toBeGreaterThan(0);
+  });
+
+  it('la pila top no contamina el apoyo de la pila bottom (pilas independientes)', () => {
+    // Top estrecha (80) + bottom 200×12: el vuelo de la bottom se mide desde
+    // profile.b=150 → (200−150)/2/12 = 2.1 → clase 1 (no desde 80 → 5.0).
+    const r = calcCompositeSection({
+      ...base, ...buckling,
+      plates: [
+        { id: 'p1', b: 80,  t: 10, posType: 'top',    customYBottom: 0 },
+        { id: 'p2', b: 200, t: 12, posType: 'bottom', customYBottom: 0 },
+      ],
+    });
+    const row = r.compChecks.find((c) => c.id === 'cls-comp-plate-2')!;
+    expect(row.value).toBe('2.1');
+    expect(r.compClass4).toBe(false);
   });
 });
 

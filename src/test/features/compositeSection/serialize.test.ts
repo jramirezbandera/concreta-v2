@@ -60,6 +60,52 @@ describe('decodeShareString — entradas inválidas', () => {
     const bad = { ...custom, plates: [{ ...custom.plates[0], b: 'ancho' as unknown }] };
     expect(decodeShareString(encodeShareString(bad as unknown as CompositeSectionInputs))).toBeNull();
   });
+
+  // Auditoría #109: posType fuera del enum caía en un switch sin default en
+  // calcCompositeSection → resultado entero NaN con valid:true.
+  it('posType desconocido → null', () => {
+    const bad = { ...custom, plates: [{ ...custom.plates[0], posType: 'diagonal' as unknown }] };
+    expect(decodeShareString(encodeShareString(bad as unknown as CompositeSectionInputs))).toBeNull();
+  });
+
+  it('mode desconocido → null', () => {
+    const bad = { ...custom, mode: 'hibrido' as unknown };
+    expect(decodeShareString(encodeShareString(bad as unknown as CompositeSectionInputs))).toBeNull();
+  });
+
+  it('lateralAnchor desconocido → null', () => {
+    const bad = { ...custom, plates: [{ ...custom.plates[2], lateralAnchor: 'alma' as unknown }] };
+    expect(decodeShareString(encodeShareString(bad as unknown as CompositeSectionInputs))).toBeNull();
+  });
+
+  it('lateralOffset no numérico → null (numérico o ausente sí)', () => {
+    const bad = { ...custom, plates: [{ ...custom.plates[2], lateralOffset: '5mm' as unknown }] };
+    expect(decodeShareString(encodeShareString(bad as unknown as CompositeSectionInputs))).toBeNull();
+  });
+
+  it('Ned/Ly no numéricos → null (NaN silencioso en checks)', () => {
+    const badNed = { ...custom, Ned: 'mucho' as unknown };
+    expect(decodeShareString(encodeShareString(badNed as unknown as CompositeSectionInputs))).toBeNull();
+    const badLy = { ...custom, Ly: '3500' as unknown };
+    expect(decodeShareString(encodeShareString(badLy as unknown as CompositeSectionInputs))).toBeNull();
+  });
+
+  it('bcType basura se tolera (el motor cae a pp — review fix #1)', () => {
+    const odd = { ...custom, bcType: 'garbage' as unknown };
+    expect(decodeShareString(encodeShareString(odd as unknown as CompositeSectionInputs))).not.toBeNull();
+  });
+
+  it('payload antiguo sin bloque de pandeo → decodifica con defaults (backward-compat)', () => {
+    const legacy: Record<string, unknown> = {
+      mode: 'reinforced', profileType: 'IPE', profileSize: 300, grade: 'S275',
+      plates: [{ id: 'p1', b: 200, t: 15, posType: 'top', customYBottom: 0 }],
+    };
+    const decoded = decodeShareString(encodeShareString(legacy as unknown as CompositeSectionInputs));
+    expect(decoded).not.toBeNull();
+    expect(decoded!.Ly).toBe(compositeSectionDefaults.Ly);
+    expect(decoded!.bcType).toBe(compositeSectionDefaults.bcType);
+    expect(decoded!.Ned).toBe(compositeSectionDefaults.Ned);
+  });
 });
 
 describe('buildShareUrl / readModelFromUrl', () => {

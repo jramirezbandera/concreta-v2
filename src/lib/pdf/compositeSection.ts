@@ -144,6 +144,17 @@ export async function exportCompositeSectionPDF(
       twoCol(`Nc,Rd = ${fmtN(result.Nc_Rd_kN)}`,
         result.Ned_kN > 0 ? `Ut = ${(result.compUtil * 100).toFixed(0)}%` : '');
     }
+    // Nota (análoga a la de signo M+): solo se comprueba pandeo por flexion.
+    doc.setFontSize(6.5);
+    setGray(doc, 130);
+    const tfNote = doc.splitTextToSize(
+      pdfStr('Nota: solo pandeo por flexion (ejes y, z). Torsion / flexo-torsion (§6.3.1.4) no verificada; puede gobernar en secciones monosimetricas o de baja rigidez torsional.'),
+      PAGE_W - M - COL_R,
+    );
+    doc.text(tfNote, COL_R, ry);
+    ry += tfNote.length * 3;
+    doc.setFontSize(8);
+    setGray(doc, 80);
   }
 
   // ── Divider before classification checks table ───────────────────────────────

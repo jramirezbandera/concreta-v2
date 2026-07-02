@@ -4,7 +4,7 @@
 
 import { type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import { makeISectionBySize } from '../sections';
-import { type CheckRow, makeCheckQty, toStatus } from './types';
+import { type CheckRow, makeCheckQty, makeCheckNeutral, toStatus } from './types';
 import { bucklingChi, BUCKLING_ALPHA } from './buckling';
 import { getBetaForBCType } from './steelColumnBC';
 
@@ -378,7 +378,13 @@ function classifyCompression(
   pushCheck('cls-comp-flange', boxClosed ? 'Alas (cajón → interno)' : 'Alas (vuelo)',
     flgRatio, classifyElement(flgRatio, flgLimits, eps), flgLimits);
 
-  // Chapas
+  // Chapas — las platabandas apiladas se clasifican respecto a su APOYO REAL
+  // (el ala o la chapa anterior de su pila), igual que la clasificación en
+  // flexión (fix #104). Antes todas usaban profile.b: una chapa más ancha que
+  // la anterior veía un vuelo menor del real y una clase 4 quedaba oculta →
+  // Nc,Rd sobreestimado (fix auditoría #108).
+  let topSupport = profile.b;
+  let bottomSupport = profile.b;
   let i = 0;
   for (const rp of resolvedPlates) {
     i += 1;
@@ -387,13 +393,14 @@ function classifyCompression(
       // Compresión uniforme: vuelo más allá del soporte + panel interno.
       const b_p = rp.plate.b;
       const t_p = rp.plate.t;
-      const support = profile.b;
+      const support = pos === 'top' ? topSupport : bottomSupport;
       const outRatio = Math.max(0, (b_p - support) / 2) / t_p;
       const outCls = classifyElement(outRatio, FLG_LIMITS, eps);
       const intRatio = Math.min(b_p, support) / t_p;
       const intCls = classifyElement(intRatio, INT_LIMITS, eps);
       if (outCls >= intCls) pushCheck(`cls-comp-plate-${i}`, `Chapa ${pos} (vuelo)`, outRatio, outCls, FLG_LIMITS);
       else pushCheck(`cls-comp-plate-${i}`, `Chapa ${pos} (interno)`, intRatio, intCls, INT_LIMITS);
+      if (pos === 'top') topSupport = b_p; else bottomSupport = b_p;
     } else if (pos === 'left' || pos === 'right' || pos === 'custom') {
       // Panel interno orientativo: c = lado mayor, t = lado menor (= espesor b).
       // Incluye las chapas 'custom' (antes se omitían): sin clasificarlas, una
@@ -930,6 +937,20 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
           article: 'CTE DB-SE-A 6.3 (recomendación)',
         });
       }
+
+      // Nota informativa (análoga a la de signo M+): solo se comprueba el pandeo
+      // POR FLEXIÓN en los ejes y/z. El pandeo por torsión y flexo-torsión
+      // (EC3 §6.3.1.4) no se verifica y puede gobernar en secciones
+      // monosimétricas (una sola platabanda, o chapa lateral a un solo lado) o
+      // abiertas de baja rigidez torsional. Se muestra siempre que hay bloque
+      // de compresión, también con clase 4, para no dar por cubierto un modo
+      // que el módulo no calcula.
+      compChecks.push(makeCheckNeutral(
+        'comp-tf-note',
+        'Solo pandeo por flexión (ejes y, z). Torsión / flexo-torsión (§6.3.1.4) no comprobada — puede gobernar en secciones monosimétricas o de baja rigidez torsional',
+        'T·FT',
+        'CE Anejo 22 (EC3) §6.3.1.4',
+      ));
     }
   }
 

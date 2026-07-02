@@ -69,25 +69,49 @@ export function buildShareUrl(state: CompositeSectionInputs, baseUrl?: string): 
   return u.toString();
 }
 
+// Enums permitidos en el payload. `posType` fuera del enum caía en un switch
+// sin default en calcCompositeSection → resultado entero NaN con valid:true
+// (auditoría #109, mismo threat model que el bcType corrupto del review fix #1).
+const VALID_MODES = ['reinforced', 'custom'];
+const VALID_POS_TYPES = ['top', 'bottom', 'left', 'right', 'custom'];
+const VALID_ANCHORS = ['web', 'flange'];
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === 'number' && isFinite(v);
+}
+
+/** Campo opcional: ausente (lo completa el merge con defaults) o número finito. */
+function optNum(v: unknown): boolean {
+  return v === undefined || isFiniteNum(v);
+}
+
 /**
  * Comprobación de forma ligera de un CompositeSectionInputs deserializado.
  */
 function isValidState(x: unknown): x is CompositeSectionInputs {
   if (!x || typeof x !== 'object') return false;
   const s = x as Record<string, unknown>;
-  if (typeof s.mode !== 'string') return false;
+  if (typeof s.mode !== 'string' || !VALID_MODES.includes(s.mode)) return false;
   if (s.profileType !== 'IPE' && s.profileType !== 'HEA' && s.profileType !== 'HEB') return false;
-  if (typeof s.profileSize !== 'number' || !isFinite(s.profileSize)) return false;
+  if (!isFiniteNum(s.profileSize)) return false;
   if (typeof s.grade !== 'string') return false;
+  // Bloque de pandeo — opcional (payloads previos al bloque de compresión no lo
+  // traen). Si viene, debe ser numérico: un `Ned: "x"` manipulado producía NaN
+  // silencioso en las filas de check. bcType basura sí se tolera: el motor cae
+  // a 'pp' (getBetaForBCType, review fix #1).
+  if (!optNum(s.Ly) || !optNum(s.Lz) || !optNum(s.beta_y) || !optNum(s.beta_z) || !optNum(s.Ned)) return false;
+  if (s.bcType !== undefined && typeof s.bcType !== 'string') return false;
   if (!Array.isArray(s.plates)) return false;
   for (const pl of s.plates) {
     if (!pl || typeof pl !== 'object') return false;
     const p = pl as Record<string, unknown>;
     if (typeof p.id !== 'string') return false;
-    if (typeof p.b !== 'number' || !isFinite(p.b)) return false;
-    if (typeof p.t !== 'number' || !isFinite(p.t)) return false;
-    if (typeof p.posType !== 'string') return false;
-    if (typeof p.customYBottom !== 'number' || !isFinite(p.customYBottom)) return false;
+    if (!isFiniteNum(p.b)) return false;
+    if (!isFiniteNum(p.t)) return false;
+    if (typeof p.posType !== 'string' || !VALID_POS_TYPES.includes(p.posType)) return false;
+    if (!isFiniteNum(p.customYBottom)) return false;
+    if (p.lateralAnchor !== undefined && !VALID_ANCHORS.includes(p.lateralAnchor as string)) return false;
+    if (!optNum(p.lateralOffset)) return false;
   }
   return true;
 }

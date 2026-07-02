@@ -12,6 +12,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { IconGridSelector } from '../../components/ui/IconGridSelector';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { BC_OPTIONS } from '../steel-columns/columnBCOptions';
 
 interface Props {
@@ -443,12 +444,18 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             )}
           </div>
 
-          <NumField
-            label="NEd"
+          {/* Fuerza → UnitNumberInput para que respete el toggle kN↔Tn (los
+              resultados ya salen vía formatQuantity; con NumField la entrada
+              quedaba fija en kN — auditoría #110). Ly/Lz siguen en NumField:
+              van en metros en ambos sistemas. */}
+          <UnitNumberInput
+            labelKey="NEd"
             help="Axil de compresión de cálculo (opcional). Con 0 solo se muestra la capacidad Nc,Rd."
             id="cs-Ned"
+            quantity="force"
             value={state.Ned}
-            unit="kN"
+            min={0}
+            step={10}
             onChange={(v) => setField('Ned', Math.max(0, v))}
           />
         </CollapsibleSection>
