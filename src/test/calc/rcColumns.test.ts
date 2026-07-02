@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest';
 import { calcRCColumn } from '../../lib/calculations/rcColumns';
 import { rcColumnDefaults } from '../../data/defaults';
+import { getConcrete, getFyd, Es } from '../../data/materials';
+import { getBarArea } from '../../data/rebar';
 
 const D = rcColumnDefaults;
 
@@ -233,7 +235,9 @@ describe('RC Columns — NEd > NRd,max fails', () => {
     expect(r.NRd_max).toBeCloseTo(1811, 0);
   });
 
-  it('binary search succeeds for NEd in Whitney gap zone (no NaN)', () => {
+  it('binary search succeeds for high-axial NEd near NRd_max (no NaN)', () => {
+    // Nd=1600 (ned≈0.88) caía en la antigua "zona gap" de Whitney; con el
+    // modelo de fibras (pivote C) la bisección cubre todo NEd < NRd_max.
     const r = calcRCColumn(inp({ Nd: 1600 }));
     expect(r.valid).toBe(true);
     expect(r.x_star_y).toBeGreaterThan(0);
@@ -242,20 +246,20 @@ describe('RC Columns — NEd > NRd,max fails', () => {
     expect(nd?.status).not.toBe('fail');
   });
 
-  it('gap zone: MRd interpola hacia (NRd_max, 0) — oracle manual (fix auditoría #16)', () => {
-    // 300×300 C25 4Ø16, Nd=1700 kN (NRd_Whitney ≈ 1552 < NEd < NRd_max ≈ 1811):
-    //   M_plateau (x=2h: bloque 0.8·fcd·b·h + acero) ≈ 37.4 kNm
-    //   f = (1811−1700)/(1811−1552) = 0.43 → MRd ≈ 16.1 kNm
-    // Pre-fix se congelaba el MRd del estado Whitney (~50 kNm, que corresponde
-    // a un axil MENOR que el aplicado) y el check daba verde a un pilar que falla.
+  it('axil alto: MRd por pivote C — oracle fibras (migración 2026-07-01)', () => {
+    // 300×300 C25 4Ø16, Nd=1700 kN (ned ≈ 0.94, NRd_max ≈ 1811):
+    // MRdy = 14.84 kNm por integración de fibras parábola-rectángulo con
+    // pivote C (verificado contra referencia independiente a 4000 tiras).
+    // La interpolación lineal de la zona gap de Whitney daba 16.1 (+8%); el
+    // pre-fix original congelaba ~50 kNm y daba verde a un pilar que falla.
     const r = calcRCColumn(inp({ Nd: 1700, L: 1.5 }));
     expect(r.valid).toBe(true);
-    expect(r.MRdy).toBeCloseTo(16.1, 0);
-    expect(r.MRdy).toBeLessThan(25);            // capacidad real interpolada
-    expect(r.biaxialUtil).toBeGreaterThan(1.0); // MEd_tot_y ≈ 40 kNm > MRd → falla
+    expect(r.MRdy).toBeCloseTo(14.8, 0);
+    expect(r.MRdy).toBeLessThan(25);            // capacidad real, no la congelada
+    expect(r.biaxialUtil).toBeGreaterThan(1.0); // MEd_tot_y ≈ 53 kNm > MRd → falla
   });
 
-  it('gap zone: MRd → 0 cuando NEd → NRd_max (monótono decreciente)', () => {
+  it('axil alto: MRd → 0 cuando NEd → NRd_max (monótono decreciente)', () => {
     const r1 = calcRCColumn(inp({ Nd: 1600, L: 1.5 }));
     const r2 = calcRCColumn(inp({ Nd: 1750, L: 1.5 }));
     const r3 = calcRCColumn(inp({ Nd: 1830, L: 1.5 }));
@@ -715,5 +719,74 @@ describe('RC Columns — N-M interaction diagram', () => {
     const r = calcRCColumn(inp({ cornerBarDiam: 4 }));
     const d = buildColumnInteraction(inp({ cornerBarDiam: 4 }), r);
     expect(d.valid).toBe(false);
+  });
+});
+
+// ── Motor vs referencia por fibras independiente (migración 2026-07-01) ──────
+// Integración por fibras a 4000 tiras (~17× las del motor) del diagrama
+// parábola-rectángulo con pivotes B/C y descuento del hormigón desplazado.
+// Mismo modelo normativo, implementación separada: cualquier regresión en el
+// perfil de deformaciones, σ-ε o el descuento de barras aparece aquí.
+describe('RC Columns — engine vs independent fiber reference', () => {
+  const EPS_C2 = 0.002, EPS_CU = 0.0035, N_EXP = 2;
+
+  function strainRef(y: number, x: number, h: number): number {
+    if (x <= h) return EPS_CU * (x - y) / x;                 // pivote B
+    return EPS_C2 * (x - y) / (x - h * (1 - EPS_C2 / EPS_CU)); // pivote C
+  }
+  function sigmaRef(eps: number, fcd: number): number {
+    if (eps <= 0) return 0;
+    if (eps >= EPS_C2) return fcd;
+    return fcd * (1 - Math.pow(1 - eps / EPS_C2, N_EXP));
+  }
+  interface Bar { y: number; area: number }
+  function fiberNMRef(x: number, b: number, h: number, bars: Bar[], fcd: number, fyd: number) {
+    const NS = 4000, dy = h / NS;
+    let N = 0, M = 0;
+    for (let i = 0; i < NS; i++) {
+      const y = (i + 0.5) * dy;
+      const s = sigmaRef(strainRef(y, x, h), fcd);
+      if (s <= 0) break;
+      N += s * b * dy;
+      M += s * b * dy * (h / 2 - y);
+    }
+    for (const bb of bars) {
+      const eps = strainRef(bb.y, x, h);
+      const sig = Math.max(-fyd, Math.min(fyd, Es * eps)) - sigmaRef(eps, fcd);
+      N += bb.area * sig;
+      M += bb.area * sig * (h / 2 - bb.y);
+    }
+    return { N, M };
+  }
+  function fiberMRdRef(NEd: number, b: number, h: number, bars: Bar[], fcd: number, fyd: number): number {
+    let lo = 1e-3, hi = 2 * h;
+    for (let g = 0; g < 24 && fiberNMRef(hi, b, h, bars, fcd, fyd).N < NEd; g++) hi *= 2;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      if (fiberNMRef(mid, b, h, bars, fcd, fyd).N < NEd) lo = mid; else hi = mid;
+    }
+    return fiberNMRef((lo + hi) / 2, b, h, bars, fcd, fyd).M;
+  }
+
+  // defaults 300×300 C25 B500S 4Ø16 (cover 30, cerco 6): d' = 44, d = 256.
+  const fcd = getConcrete(25).fcd, fyd = getFyd(500);
+  const A16 = getBarArea(16);
+  const bars: Bar[] = [{ y: 44, area: 2 * A16 }, { y: 256, area: 2 * A16 }];
+  const As = 4 * A16;
+  const NRd_max = fcd * (300 * 300 - As) + 400 * As;
+
+  for (const lvl of [0.30, 0.65, 0.90]) {
+    it(`MRdy within ±1% of reference (defaults, ned=${lvl})`, () => {
+      const NEd = lvl * NRd_max;
+      const r = calcRCColumn(inp({ Nd: NEd / 1e3, L: 0.5 }));
+      expect(r.valid).toBe(true);
+      const ref = fiberMRdRef(NEd, 300, 300, bars, fcd, fyd) / 1e6;
+      expect(Math.abs(r.MRdy / ref - 1)).toBeLessThan(0.01);
+    });
+  }
+
+  it('N(x→∞) plateau matches NRd_max (pure pivot C)', () => {
+    const plateau = fiberNMRef(800 * 300, 300, 300, bars, fcd, fyd).N;
+    expect(plateau / NRd_max).toBeCloseTo(1, 3);
   });
 });

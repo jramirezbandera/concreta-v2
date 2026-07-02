@@ -58,19 +58,53 @@ export interface RCColumnResult {
   d_circ?: number;     // canto eficaz curvatura = D/2 + i_s (mm)
   M_res?: number;      // momento resultante solicitante = hypot(MEd_tot_y, MEd_tot_z) (kNm)
   e_tot_res?: number;  // excentricidad total en la dirección resultante (mm)
-  MRd?: number;        // momento resistente único (kNm)
+  MRd?: number;        // momento resistente único (kNm) — mínimo sobre θ0
   x_star?: number;     // profundidad de fibra neutra circular (mm)
+  theta_star?: number; // rotación gobernante del anillo (rad, en [0, π/n])
   resUtil?: number;    // M_res / MRd
   // Checks
   checks: CheckRow[];
 }
 
-const ecu3 = 0.0035;
-
 interface BarGroup { y: number; area: number; }
 
+// ── Modelo de fibras compartido (rectangular + circular) ─────────────────────
+// Diagrama parábola-rectángulo del hormigón (Anejo 19 §3.1.7(1)) + diagrama de
+// pivotes B/C (§6.1). Sustituye al bloque de Whitney con pivote B solo
+// (migración 2026-07-01): aquel sobreestimaba MRd frente al diagrama de
+// pivotes de forma creciente con el axil (rectangular: +3% a ned=0.5, +14% a
+// ned=0.9; circular: hasta +32%, al faltar además el η·fcd −10% de §3.1.7(3)
+// para anchos decrecientes — la integración exacta lo hace innecesario).
+
+/** Parámetros del diagrama parábola-rectángulo (CE 21.3.3 / Anejo 19 §3.1.7). */
+interface PRDiagram { epsC2: number; epsCu: number; nExp: number }
+
+/** Nº de tiras de la integración por fibras del hormigón. */
+const N_STRIPS_FIBER = 240;
+
+// Deformación a profundidad y (desde la fibra más comprimida) para fibra
+// neutra x: pivote B (εcu en fibra extrema) mientras x ≤ depth; pivote C
+// (εc2 fija a profundidad depth·(1−εc2/εcu), = 3h/7 con los valores por
+// defecto) cuando toda la sección está comprimida.
+function strainPivots(y: number, x: number, depth: number, pr: PRDiagram): number {
+  if (x <= depth) return pr.epsCu * (x - y) / x;
+  const yC = depth * (1 - pr.epsC2 / pr.epsCu);
+  return pr.epsC2 * (x - y) / (x - yC);
+}
+
+// σc(ε) parábola-rectángulo: fcd·(1 − (1 − ε/εc2)^n) hasta εc2, plateau fcd.
+function sigmaConcretePR(eps: number, fcd: number, pr: PRDiagram): number {
+  if (eps <= 0) return 0;
+  if (eps >= pr.epsC2) return fcd;
+  return fcd * (1 - Math.pow(1 - eps / pr.epsC2, pr.nExp));
+}
+
 /**
- * Concrete + steel N-M capacity at neutral axis depth x.
+ * Concrete + steel N-M capacity at neutral axis depth x — integración por
+ * fibras (tiras horizontales, ancho constante) del parábola-rectángulo con
+ * pivotes B/C. A las barras comprimidas se les descuenta el hormigón
+ * desplazado (σs − σc), de modo que N(x→∞) → fcd·(b·h−As) + 400·As = NRd_max
+ * exacto (pivote C puro: ε→εc2 ⇒ σs→Es·0.002 = 400).
  * @param x     neutral axis depth from compression face (mm)
  * @param width section dimension perpendicular to bending (mm)
  * @param depth section dimension in bending direction (mm)
@@ -83,26 +117,33 @@ function calcNM(
   bars: BarGroup[],
   fcd: number,
   fyd: number,
+  pr: PRDiagram,
 ): { NRd: number; MRd: number } {
-  const xn = Math.min(x, depth);    // cap at full depth — full section in compression
-  const Nc = fcd * 0.8 * xn * width;
-  const yc = 0.4 * xn;              // depth of Nc resultant from compression face
-
-  let NRd = Nc;
-  let MRd = Nc * (depth / 2 - yc);  // moment about section centroid
-
+  const dy = depth / N_STRIPS_FIBER;
+  let NRd = 0;
+  let MRd = 0;
+  for (let i = 0; i < N_STRIPS_FIBER; i++) {
+    const y = (i + 0.5) * dy;
+    const sc = sigmaConcretePR(strainPivots(y, x, depth, pr), fcd, pr);
+    if (sc <= 0) break;               // tiras ordenadas: bajo la fibra neutra σ = 0
+    NRd += sc * width * dy;
+    MRd += sc * width * dy * (depth / 2 - y);
+  }
   for (const bar of bars) {
-    const eps = ecu3 * (x - bar.y) / x;                            // positive = compression
-    const sig = Math.max(-fyd, Math.min(fyd, Es * eps));
+    const eps = strainPivots(bar.y, x, depth, pr);
+    const sigS = Math.max(-fyd, Math.min(fyd, Es * eps));
+    const sig = sigS - sigmaConcretePR(eps, fcd, pr);   // descuenta hormigón desplazado
     NRd += bar.area * sig;
     MRd += bar.area * sig * (depth / 2 - bar.y);
   }
-
   return { NRd, MRd };
 }
 
 /**
  * Binary search for x_star and resulting MRd for one bending axis.
+ * N(x) es monótona creciente con asíntota NRd_max (pivote C): para
+ * NEd < NRd_max siempre hay equilibrio — se expande el techo exponencialmente
+ * antes de bisecar (la antigua zona gap de Whitney ya no existe).
  * Returns MRd in N·mm.
  */
 function computeAxis(
@@ -112,38 +153,27 @@ function computeAxis(
   bars: BarGroup[],
   fcd: number,
   fyd: number,
+  pr: PRDiagram,
   NRd_max: number,
-  NRd_Whitney: number,
 ): { MRd_Nmm: number; x_star: number; ndMaxFailed: boolean } {
   if (NEd_N >= NRd_max) {
     return { MRd_Nmm: 0, x_star: depth, ndMaxFailed: true };
   }
-  if (NEd_N >= NRd_Whitney) {
-    // Gap zone (NRd_Whitney ≤ NEd < NRd_max) — la rama de pivote C (εc2 a
-    // 3h/7, CE Anejo 19 art. 6.1) no está modelada en calcNM: el barrido
-    // Whitney se agota en ~NRd_Whitney con un momento residual M_plateau y
-    // la capacidad real decae hasta (NRd_max, M=0). Interpolación lineal
-    // entre ambos puntos — la misma aproximación que envelopeCapacityM usa
-    // para el diagrama N-M — en lugar de congelar el MRd del estado Whitney
-    // (que corresponde a un axil MENOR que el aplicado: no conservador).
-    const plateau = calcNM(2 * depth, width, depth, bars, fcd, fyd);
-    const span = NRd_max - NRd_Whitney;
-    const f = span > 1e-9 ? Math.min(1, Math.max(0, (NRd_max - NEd_N) / span)) : 0;
-    return { MRd_Nmm: plateau.MRd * f, x_star: depth, ndMaxFailed: false };
-  }
-  // Normal range: binary search in [1, 2*depth]
-  let xLo = 1;
+  let xLo = 1e-3;
   let xHi = 2 * depth;
-  for (let i = 0; i < 60; i++) {
+  for (let g = 0; g < 24 && calcNM(xHi, width, depth, bars, fcd, fyd, pr).NRd < NEd_N; g++) {
+    xHi *= 2;
+  }
+  for (let i = 0; i < 80; i++) {
     const xMid = (xLo + xHi) / 2;
-    if (calcNM(xMid, width, depth, bars, fcd, fyd).NRd < NEd_N) {
+    if (calcNM(xMid, width, depth, bars, fcd, fyd, pr).NRd < NEd_N) {
       xLo = xMid;
     } else {
       xHi = xMid;
     }
   }
   const x_star = (xLo + xHi) / 2;
-  const { MRd } = calcNM(x_star, width, depth, bars, fcd, fyd);
+  const { MRd } = calcNM(x_star, width, depth, bars, fcd, fyd, pr);
   return { MRd_Nmm: MRd, x_star, ndMaxFailed: false };
 }
 
@@ -152,17 +182,18 @@ function interpExponent(ned: number): number {
   if (ned <= 0.1) return 1.0;
   if (ned <= 0.7) return 1.0 + (ned - 0.1) / 0.6 * 0.5;  // 1.0 → 1.5
   if (ned <= 1.0) return 1.5 + (ned - 0.7) / 0.3 * 0.5;  // 1.5 → 2.0
-  return 2.0; // clamp defensivo (NRd_Whitney < NRd_max siempre; ned < 1 en zona gap)
+  return 2.0; // clamp defensivo (ned < 1 siempre que nd-max no falle)
 }
 
 // ── Section model — geometry + materials + bar groups + axial capacities ────
-// Construcción de barsY/barsZ + NRd_max/NRd_Whitney extraída como helper
+// Construcción de barsY/barsZ + NRd_max extraída como helper
 // compartido por calcRCColumn y buildColumnInteraction: una sola fuente para
 // el modelo de sección, sin forkear el motor (autoplan eng review 2026-05-17).
 interface SectionModel {
   mat: ReturnType<typeof getConcrete>;
   fcd: number;
   fyd: number;
+  pr: PRDiagram;        // parábola-rectángulo del hormigón (εc2, εcu, n)
   As_total: number;
   d_prime: number;
   d_y: number;
@@ -170,7 +201,6 @@ interface SectionModel {
   barsY: BarGroup[];
   barsZ: BarGroup[];
   NRd_max: number;      // N — compresión pura, área neta (CE art. 39)
-  NRd_Whitney: number;  // N — bloque de Whitney a canto completo
 }
 
 function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string } {
@@ -183,6 +213,7 @@ function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string 
   const mat = getConcrete(fck);
   const fcd = mat.fcd;
   const fyd = getFyd(fyk);
+  const pr: PRDiagram = { epsC2: mat.eps_c2, epsCu: mat.eps_cu, nExp: mat.n };
 
   const cornerArea = getBarArea(cornerBarDiam);
   const areaX = getBarArea(barDiamX);
@@ -220,12 +251,12 @@ function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string 
   // del acero no puede superar Es·0.002 = 400 N/mm² (f_yc,d). Para B500S
   // (fyd=434.8) usar fyd sobreestimaba NRd_max ~2% del lado inseguro;
   // coherente ahora con el check as-min-mech (CE Anejo 19 §6.1 / EHE art.40.2).
+  // calcNM (fibras, hormigón desplazado descontado) tiende a este mismo valor
+  // cuando x→∞, así que la bisección cubre todo NEd < NRd_max sin zona gap.
   const fyc_d_max = Math.min(fyd, 400);
   const NRd_max = fcd * (b * h - As_total) + fyc_d_max * As_total;
-  // NRd_Whitney sí usa fyd: a x = canto completo las barras superan εyd.
-  const NRd_Whitney = fcd * 0.8 * b * h + As_total * fyd;
 
-  return { mat, fcd, fyd, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max, NRd_Whitney };
+  return { mat, fcd, fyd, pr, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max };
 }
 
 export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
@@ -264,7 +295,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const sm = buildSectionModel(inp);
   if ('error' in sm) return invalid(sm.error);
   const {
-    mat, fcd, fyd, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max, NRd_Whitney,
+    mat, fcd, fyd, pr, As_total, d_prime, d_y, d_z, barsY, barsZ, NRd_max,
   } = sm;
 
   // ── Step 3: Slenderness per axis ───────────────────────────────────────────
@@ -309,8 +340,8 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const MEd_tot_z = NEd_N * e_tot_z / 1e6;  // kNm
 
   // ── Step 6: N-M interaction for both axes ─────────────────────────────────
-  const axisY = computeAxis(NEd_N, h, b, barsY, fcd, fyd, NRd_max, NRd_Whitney);
-  const axisZ = computeAxis(NEd_N, b, h, barsZ, fcd, fyd, NRd_max, NRd_Whitney);
+  const axisY = computeAxis(NEd_N, h, b, barsY, fcd, fyd, pr, NRd_max);
+  const axisZ = computeAxis(NEd_N, b, h, barsZ, fcd, fyd, pr, NRd_max);
 
   const ndMaxFailed = axisY.ndMaxFailed; // same result for both axes (same NRd_max)
   const MRdy = axisY.MRd_Nmm / 1e6;     // kNm
@@ -643,112 +674,129 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
 // Soporte de pilar de sección circular. Motor SEPARADO del rectangular
 // (decisión D1/T1): calcNM/computeAxis rectangulares quedan byte-idénticos.
 //
-// Hipótesis (Anejo 19 / EC2, confirmadas en investigación normativa 2026-06-28):
-//   · Bloque de Whitney circular: profundidad a = 0.8·x desde la fibra más
-//     comprimida; la zona comprimida es un segmento (casquete) circular. La
-//     compresión total (Nc = fcd·πR²) se alcanza en a = D ⇒ x ≥ 1.25·D.
+// Hipótesis (Anejo 19 / EC2):
+//   · Hormigón por INTEGRACIÓN POR FIBRAS del diagrama parábola-rectángulo
+//     (§3.1.7(1)) con pivotes B/C (§6.1). Sustituye al bloque de Whitney de la
+//     1ª implementación (auditoría 2026-07-01): el bloque con fcd pleno exigía
+//     la reducción η·fcd −10% de §3.1.7(3) (ancho decreciente hacia la fibra
+//     comprimida) y con solo pivote B sobreestimaba MRd hasta +32% a axil alto.
 //   · Esbeltez única i = D/4 (simetría polar); flexión esviada → momento
 //     resultante M = √(MEdy²+MEdz²) ≤ MRd (como el módulo de acero CHS).
-//   · n barras iguales en un anillo de radio r_s, en θ_i = 2π·i/n (una barra en
-//     la fibra superior ⇒ orientación simétrica al plano de flexión, D2).
+//   · n barras iguales en un anillo de radio r_s, en θ_i = θ0 + 2π·i/n. La
+//     rotación real del anillo respecto al plano de flexión es desconocida en
+//     obra ⇒ MRd = mínimo sobre θ0 ∈ [0, π/n] (θ0=0 fijo llegaba a +8.5%
+//     inseguro con n=5; sustituye a la decisión D2).
 //   · Nº mínimo de barras = 4 (Anejo 19 §9.5.2(4); el "6" era práctica EHE-08).
 
 /** Nº mínimo de barras longitudinales en pilar circular — Anejo 19 §9.5.2(4). */
 export const NBARS_MIN_CIRC = 4;
-/** Nº de tiras para integrar el segmento (reservado; el motor usa forma cerrada). */
-// (la fuerza de hormigón usa la fórmula cerrada de área+centroide de segmento,
-//  más exacta en el centroide de casquetes someros que la integración por tiras)
+/** Nº de orientaciones del anillo ensayadas en [0, π/n] para hallar la pésima. */
+const N_RING_ROTATIONS = 9;
 
-/**
- * Compresión del hormigón en un segmento (casquete) circular bajo bloque de
- * Whitney. Devuelve la fuerza Nc y la profundidad yc de su resultante desde la
- * fibra más comprimida (juega el papel del 0.4·x rectangular).
- *
- * Forma cerrada del casquete de profundidad a = 0.8·x (≤ D):
- *   α = acos((R−a)/R)                        semiángulo del casquete
- *   A = R²·(α − sinα·cosα)                    área del segmento
- *   ȳc_centro = (2R·sin³α)/(3·(α − sinα·cosα))  centroide desde el centro, hacia arriba
- *   yc = R − ȳc_centro                         profundidad desde la fibra superior
- * Límite a→0 bien definido (ȳc_centro→R ⇒ yc→0); a=D ⇒ α=π ⇒ A=πR², yc=R.
- */
-export function segmentConcrete(D: number, x: number, fcd: number): { Nc: number; yc: number } {
+/** Anillo de n barras de área Abar en radio r_s, rotado θ0 (θ=0 = fibra más comprimida). */
+function ringBarsCirc(D: number, r_s: number, n: number, Abar: number, theta0: number): BarGroup[] {
   const R = D / 2;
-  const a = Math.min(0.8 * x, D);
-  if (a <= 1e-9 * D) return { Nc: 0, yc: 0 };
-  const cosA = Math.max(-1, Math.min(1, (R - a) / R));
-  const alpha = Math.acos(cosA);
-  const denom = alpha - Math.sin(alpha) * Math.cos(alpha);          // = A / R²
-  const area = R * R * denom;
-  const yc_from_center = denom > 1e-12
-    ? (2 * R * Math.pow(Math.sin(alpha), 3)) / (3 * denom)
-    : R; // límite α→0
-  const yc = R - yc_from_center;
-  return { Nc: fcd * area, yc };
+  const bars: BarGroup[] = [];
+  for (let i = 0; i < n; i++) {
+    bars.push({ y: R - r_s * Math.cos(theta0 + (2 * Math.PI * i) / n), area: Abar });
+  }
+  return bars;
 }
 
 /**
  * N-M de la sección circular para una profundidad de fibra neutra x.
- * Réplica del bucle de acero de calcNM, con el hormigón del segmento circular.
- * Momentos referidos al centro de la sección (D/2).
+ * Integración por fibras (tiras horizontales) del hormigón + barras discretas.
+ * A las barras comprimidas se les descuenta el hormigón desplazado (σs − σc),
+ * de modo que N(x→∞) → fcd·(Ac−As) + 400·As = NRd_max exacto (pivote C puro:
+ * ε→εc2 ⇒ σs→Es·0.002 = 400). Momentos referidos al centro de la sección (D/2).
  */
 function calcNMCirc(
-  x: number, D: number, bars: BarGroup[], fcd: number, fyd: number,
+  x: number, D: number, bars: BarGroup[], fcd: number, fyd: number, pr: PRDiagram,
 ): { NRd: number; MRd: number } {
-  const { Nc, yc } = segmentConcrete(D, x, fcd);
-  let NRd = Nc;
-  let MRd = Nc * (D / 2 - yc);
+  const R = D / 2;
+  const dy = D / N_STRIPS_FIBER;
+  let NRd = 0;
+  let MRd = 0;
+  for (let i = 0; i < N_STRIPS_FIBER; i++) {
+    const y = (i + 0.5) * dy;
+    const sc = sigmaConcretePR(strainPivots(y, x, D, pr), fcd, pr);
+    if (sc <= 0) break;               // tiras ordenadas: bajo la fibra neutra σ = 0
+    const w = 2 * Math.sqrt(Math.max(0, R * R - (y - R) * (y - R)));
+    NRd += sc * w * dy;
+    MRd += sc * w * dy * (R - y);
+  }
   for (const bar of bars) {
-    const eps = ecu3 * (x - bar.y) / x;
-    const sig = Math.max(-fyd, Math.min(fyd, Es * eps));
+    const eps = strainPivots(bar.y, x, D, pr);
+    const sigS = Math.max(-fyd, Math.min(fyd, Es * eps));
+    const sig = sigS - sigmaConcretePR(eps, fcd, pr);   // descuenta hormigón desplazado
     NRd += bar.area * sig;
-    MRd += bar.area * sig * (D / 2 - bar.y);
+    MRd += bar.area * sig * (R - bar.y);
   }
   return { NRd, MRd };
 }
 
-/** Búsqueda binaria de x* y MRd para la sección circular (depth = D). */
+/** Búsqueda binaria de x* y MRd para UNA orientación del anillo.
+ *  N(x) es monótona creciente con asíntota NRd_max (pivote C), así que para
+ *  NEd < NRd_max siempre hay solución: se expande el techo exponencialmente
+ *  antes de bisecar (no hay zona gap — el diagrama de pivotes cubre todo). */
 function computeAxisCirc(
   NEd_N: number, D: number, bars: BarGroup[], fcd: number, fyd: number,
-  NRd_max: number, NRd_Whitney: number,
+  pr: PRDiagram, NRd_max: number,
 ): { MRd_Nmm: number; x_star: number; ndMaxFailed: boolean } {
   if (NEd_N >= NRd_max) {
     return { MRd_Nmm: 0, x_star: D, ndMaxFailed: true };
   }
-  if (NEd_N >= NRd_Whitney) {
-    // Zona gap: a x = 2D el bloque satura (a = min(0.8·2D, D) = D, círculo lleno).
-    // Misma interpolación lineal que el motor rectangular entre el plateau de
-    // Whitney y (NRd_max, M=0). Para anillo simétrico plateau.MRd ≈ 0.
-    const plateau = calcNMCirc(2 * D, D, bars, fcd, fyd);
-    const span = NRd_max - NRd_Whitney;
-    const f = span > 1e-9 ? Math.min(1, Math.max(0, (NRd_max - NEd_N) / span)) : 0;
-    return { MRd_Nmm: plateau.MRd * f, x_star: D, ndMaxFailed: false };
-  }
-  let xLo = 1;
+  let xLo = 1e-3;
   let xHi = 2 * D;
-  for (let i = 0; i < 60; i++) {
+  for (let g = 0; g < 24 && calcNMCirc(xHi, D, bars, fcd, fyd, pr).NRd < NEd_N; g++) {
+    xHi *= 2;
+  }
+  for (let i = 0; i < 80; i++) {
     const xMid = (xLo + xHi) / 2;
-    if (calcNMCirc(xMid, D, bars, fcd, fyd).NRd < NEd_N) xLo = xMid;
+    if (calcNMCirc(xMid, D, bars, fcd, fyd, pr).NRd < NEd_N) xLo = xMid;
     else xHi = xMid;
   }
   const x_star = (xLo + xHi) / 2;
-  const { MRd } = calcNMCirc(x_star, D, bars, fcd, fyd);
+  const { MRd } = calcNMCirc(x_star, D, bars, fcd, fyd, pr);
   return { MRd_Nmm: MRd, x_star, ndMaxFailed: false };
+}
+
+/** MRd en la dirección resultante = mínimo sobre la rotación θ0 del anillo
+ *  (periodo π/n por simetría). Devuelve también la orientación gobernante θ0*
+ *  para que la envolvente N-M se dibuje con el mismo anillo. */
+function computeAxisCircWorst(
+  NEd_N: number, sm: CircSectionModel,
+): { MRd_Nmm: number; x_star: number; theta_star: number; ndMaxFailed: boolean } {
+  const { D, r_s, nBars, Abar, fcd, fyd, pr, NRd_max } = sm;
+  if (NEd_N >= NRd_max) {
+    return { MRd_Nmm: 0, x_star: D, theta_star: 0, ndMaxFailed: true };
+  }
+  let best: { MRd_Nmm: number; x_star: number; theta_star: number; ndMaxFailed: boolean } | null = null;
+  for (let k = 0; k < N_RING_ROTATIONS; k++) {
+    const theta0 = (k / (N_RING_ROTATIONS - 1)) * (Math.PI / nBars);
+    const bars = ringBarsCirc(D, r_s, nBars, Abar, theta0);
+    const r = computeAxisCirc(NEd_N, D, bars, fcd, fyd, pr, NRd_max);
+    if (best === null || r.MRd_Nmm < best.MRd_Nmm) {
+      best = { ...r, theta_star: theta0 };
+    }
+  }
+  return best!;
 }
 
 interface CircSectionModel {
   mat: ReturnType<typeof getConcrete>;
   fcd: number;
   fyd: number;
+  pr: PRDiagram;        // parábola-rectángulo del hormigón (εc2, εcu, n)
   As_total: number;
+  Abar: number;         // área de una barra del anillo (mm²)
   D: number;
   r_s: number;          // radio del anillo de barras (mm)
-  barsCirc: BarGroup[];
   d_circ: number;       // canto eficaz curvatura = D/2 + i_s
   nBars: number;
   circBarDiam: number;
   Ac: number;
   NRd_max: number;
-  NRd_Whitney: number;
 }
 
 function buildSectionModelCirc(inp: RCColumnInputs): CircSectionModel | { error: string } {
@@ -763,6 +811,7 @@ function buildSectionModelCirc(inp: RCColumnInputs): CircSectionModel | { error:
   const mat = getConcrete(fck);
   const fcd = mat.fcd;
   const fyd = getFyd(fyk);
+  const pr: PRDiagram = { epsC2: mat.eps_c2, epsCu: mat.eps_cu, nExp: mat.n };
 
   const R = D / 2;
   const r_s = (D - 2 * cover - 2 * stirrupDiam - circBarDiam) / 2;
@@ -771,31 +820,17 @@ function buildSectionModelCirc(inp: RCColumnInputs): CircSectionModel | { error:
   const Abar = getBarArea(circBarDiam);
   const As_total = n * Abar;
 
-  // Anillo de n barras en θ_i = 2π·i/n; θ=0 sitúa una barra en la fibra superior
-  // (orientación simétrica al plano de flexión — decisión D2).
-  const barsCirc: BarGroup[] = [];
-  for (let i = 0; i < n; i++) {
-    const t = (2 * Math.PI * i) / n;
-    barsCirc.push({ y: R - r_s * Math.cos(t), area: Abar });
-  }
-
   const i_s = r_s / Math.SQRT2;        // I_s = As·r_s²/2 ⇒ i_s = r_s/√2 (EC2 §5.8.8.3)
   const d_circ = R + i_s;
   const Ac = Math.PI * R * R;
 
   // εc2 = 0.002 limita σ_acero a 400 N/mm² en compresión centrada (= rectangular).
+  // calcNMCirc (fibras, hormigón desplazado descontado) tiende a este mismo
+  // valor cuando x→∞, así que la bisección cubre todo NEd < NRd_max sin zona gap.
   const fyc_d_max = Math.min(fyd, 400);
   const NRd_max = fcd * (Ac - As_total) + fyc_d_max * As_total;
-  // Saturación del barrido de Whitney CIRCULAR: a diferencia del rectangular
-  // (Nc = fcd·0.8·b·h tope), segmentConcrete satura en el círculo COMPLETO
-  // (a = min(0.8x, D) → Nc = fcd·Ac a x ≥ 1.25D), por lo que el axil máximo del
-  // barrido es fcd·Ac + As·fyd, NO 0.8·fcd·Ac. Copiar el 0.8 disparaba la zona
-  // gap ~0.2·fcd·Ac antes de tiempo y colapsaba MRd→0 para pilares muy cargados.
-  // Con este valor NRd_Whitney > NRd_max, así que la rama gap nunca se alcanza
-  // (ndMaxFailed gobierna a NEd ≥ NRd_max) y la bisección cubre todo NEd < NRd_max.
-  const NRd_Whitney = fcd * Ac + As_total * fyd;
 
-  return { mat, fcd, fyd, As_total, D, r_s, barsCirc, d_circ, nBars: n, circBarDiam, Ac, NRd_max, NRd_Whitney };
+  return { mat, fcd, fyd, pr, As_total, Abar, D, r_s, d_circ, nBars: n, circBarDiam, Ac, NRd_max };
 }
 
 function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
@@ -821,7 +856,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   const sm = buildSectionModelCirc(inp);
   if ('error' in sm) return invalid(sm.error);
   const {
-    mat, fcd, fyd, As_total, D, r_s, barsCirc, d_circ, nBars, circBarDiam, Ac, NRd_max, NRd_Whitney,
+    mat, fcd, fyd, As_total, D, r_s, d_circ, nBars, circBarDiam, Ac, NRd_max,
   } = sm;
 
   const NEd_N = Nd * 1e3;
@@ -847,8 +882,8 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   const e_tot = e1 + e_imp + e2;
   const M_res = (NEd_N * e_tot) / 1e6;                      // kNm
 
-  // ── Capacidad N-M (una sola dirección, simetría polar) ─────────────────────
-  const axis = computeAxisCirc(NEd_N, D, barsCirc, fcd, fyd, NRd_max, NRd_Whitney);
+  // ── Capacidad N-M (dirección resultante, orientación pésima del anillo) ────
+  const axis = computeAxisCircWorst(NEd_N, sm);
   const ndMaxFailed = axis.ndMaxFailed;
   const MRd = axis.MRd_Nmm / 1e6;                           // kNm
   const resUtil = ndMaxFailed ? Infinity : (MRd > 0 ? M_res / MRd : Infinity);
@@ -1023,7 +1058,8 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     ned: NEd_N / NRd_max, a: 1, biaxialUtil: resUtil,
     rebarSchedule, lapLength,
     sectionType: 'circular',
-    D, lambda, d_circ, M_res, e_tot_res: e_tot, MRd, x_star: axis.x_star, resUtil,
+    D, lambda, d_circ, M_res, e_tot_res: e_tot, MRd, x_star: axis.x_star,
+    theta_star: axis.theta_star, resUtil,
     checks,
   };
 }
@@ -1055,18 +1091,17 @@ export interface ColumnInteractionResult {
 
 // Traces one N-M capacity envelope by sweeping the neutral-axis depth x.
 //
-// calcNM(x) is monotonic non-decreasing in N but plateaus once the concrete
-// block clamps at x=depth and every bar saturates at fyd: beyond that point N
-// is flat while M keeps changing, which would draw a spurious vertical tail.
-// We trim the curve where N stops increasing and (reinforced only) append the
-// true pure-compression point (NRd_max, 0) -- the swept curve only reaches
-// NRd_Whitney, which carries a residual 0.8-block eccentricity.
+// Con el modelo de fibras N(x) es estrictamente creciente con asíntota
+// NRd_max (pivote C), así que la curva nunca sobrepasa el punto de cierre;
+// las muestras del arranque (x minúsculo, acero clamped, hormigón sin tiras
+// comprimidas — la integración por tiras cuantiza el inicio) repiten N y se
+// SALTAN (continue), no cortan la curva (break).
 //
 // Sampling is non-uniform (x ~ t^2) so the high-curvature tension nose near
 // x->0 is well resolved. Only the M >= 0 quadrant is drawn.
 function sweepEnvelope(
   depth: number, width: number, bars: BarGroup[],
-  fcd: number, fyd: number, compressionN: number,
+  fcd: number, fyd: number, pr: PRDiagram, compressionN: number,
 ): InteractionPoint[] {
   const pts: InteractionPoint[] = [];
   const AsTot = bars.reduce((sum, bar) => sum + bar.area, 0);
@@ -1076,15 +1111,17 @@ function sweepEnvelope(
 
   const N_SAMPLES = 80;
   const xMax = 1.6 * depth;
-  let prevN = -Infinity;
+  const compN = compressionN / 1e3;
+  let prevN = AsTot > 0 ? -AsTot * fyd / 1e3 : -Infinity;
   let started = false;
   for (let i = 1; i <= N_SAMPLES; i++) {
     const t = i / N_SAMPLES;
     const x = t * t * xMax + depth / 4000;   // non-uniform: dense near x->0
-    const { NRd, MRd } = calcNM(x, width, depth, bars, fcd, fyd);
+    const { NRd, MRd } = calcNM(x, width, depth, bars, fcd, fyd, pr);
     const N = NRd / 1e3;
     const M = MRd / 1e6;
-    if (started && N <= prevN + 1e-6) break;  // trim flat / non-monotone tail
+    if (started && N > compN) break;         // salvaguarda: no sobrepasar el cierre
+    if (N <= prevN + 1e-6) continue;         // dedupe muestras planas
     if (M < 0) {
       if (started) break;
       continue;
@@ -1100,9 +1137,12 @@ function sweepEnvelope(
   return pts;
 }
 
-// Versión circular del barrido (depth = D, hormigón del segmento circular).
+// Versión circular del barrido (depth = D, fibras parábola-rectángulo).
+// N(x) tiende asintóticamente a NRd_max (pivote C), así que la curva nunca
+// sobrepasa el punto de cierre (NRd_max, 0); el recorte en compN queda como
+// salvaguarda de monotonía.
 function sweepEnvelopeCirc(
-  D: number, bars: BarGroup[], fcd: number, fyd: number, compressionN: number,
+  D: number, bars: BarGroup[], fcd: number, fyd: number, pr: PRDiagram, compressionN: number,
 ): InteractionPoint[] {
   const pts: InteractionPoint[] = [];
   const AsTot = bars.reduce((sum, bar) => sum + bar.area, 0);
@@ -1111,19 +1151,20 @@ function sweepEnvelopeCirc(
   const N_SAMPLES = 80;
   const xMax = 1.6 * D;
   const compN = compressionN / 1e3;
-  let prevN = -Infinity;
+  // Seed en el punto de tracción pura: las primeras muestras del barrido (x
+  // minúsculo, acero clamped, hormigón aún sin tiras comprimidas) repiten ese
+  // N — la integración por tiras cuantiza el arranque del hormigón, así que
+  // las muestras planas se SALTAN (continue), no cortan la curva (break).
+  let prevN = AsTot > 0 ? -AsTot * fyd / 1e3 : -Infinity;
   let started = false;
   for (let i = 1; i <= N_SAMPLES; i++) {
     const t = i / N_SAMPLES;
     const x = t * t * xMax + D / 4000;
-    const { NRd, MRd } = calcNMCirc(x, D, bars, fcd, fyd);
+    const { NRd, MRd } = calcNMCirc(x, D, bars, fcd, fyd, pr);
     const N = NRd / 1e3;
     const M = MRd / 1e6;
-    // El bloque circular satura en fcd·Ac + As·fyd (> NRd_max armado): recortar
-    // en compressionN para que la nariz de compresión no sobrepase el punto de
-    // cierre (NRd_max) y la curva quede monótona en N.
     if (started && N > compN) break;
-    if (started && N <= prevN + 1e-6) break;
+    if (N <= prevN + 1e-6) continue;         // dedupe muestras planas
     if (M < 0) { if (started) break; continue; }
     pts.push({ N, M });
     prevN = N;
@@ -1164,9 +1205,14 @@ export function buildColumnInteraction(
   if ((inp.sectionType ?? 'rectangular') === 'circular') {
     const smc = buildSectionModelCirc(inp);
     if ('error' in smc) return { valid: false, y: null, z: null };
-    const { fcd, fyd, barsCirc, D, NRd_max, Ac } = smc;
-    const reinforced = sweepEnvelopeCirc(D, barsCirc, fcd, fyd, NRd_max);
-    const plain = sweepEnvelopeCirc(D, [], fcd, fyd, fcd * Ac);
+    const { fcd, fyd, pr, D, r_s, nBars, Abar, NRd_max, Ac } = smc;
+    // La envolvente se dibuja con el anillo en la orientación gobernante θ0*
+    // a N = NEd (la misma que usa el motor para MRd): la curva y el check
+    // flexion-check coinciden exactamente en el punto aplicado.
+    const worst = computeAxisCircWorst(inp.Nd * 1e3, smc);
+    const barsAtWorst = ringBarsCirc(D, r_s, nBars, Abar, worst.theta_star);
+    const reinforced = sweepEnvelopeCirc(D, barsAtWorst, fcd, fyd, pr, NRd_max);
+    const plain = sweepEnvelopeCirc(D, [], fcd, fyd, pr, fcd * Ac);
     const applied: InteractionPoint = { N: inp.Nd, M: result.M_res ?? result.MEd_tot_y };
     const Mcap = envelopeCapacityM(reinforced, applied.N);
     const inside = Mcap !== null && applied.M <= Mcap + 1e-9;
@@ -1177,15 +1223,15 @@ export function buildColumnInteraction(
 
   const sm = buildSectionModel(inp);
   if ('error' in sm) return { valid: false, y: null, z: null };
-  const { fcd, fyd, barsY, barsZ, NRd_max } = sm;
+  const { fcd, fyd, pr, barsY, barsZ, NRd_max } = sm;
 
   const buildAxis = (
     axis: 'y' | 'z', depth: number, width: number,
     bars: BarGroup[], MEd_tot: number,
   ): AxisInteraction => {
-    const reinforced = sweepEnvelope(depth, width, bars, fcd, fyd, NRd_max);
+    const reinforced = sweepEnvelope(depth, width, bars, fcd, fyd, pr, NRd_max);
     // Plain concrete: pure-compression capacity is fcd·(gross area) = fcd·depth·width.
-    const plain = sweepEnvelope(depth, width, [], fcd, fyd, fcd * depth * width);
+    const plain = sweepEnvelope(depth, width, [], fcd, fyd, pr, fcd * depth * width);
     const applied: InteractionPoint = { N: inp.Nd, M: MEd_tot };
     const Mcap = envelopeCapacityM(reinforced, applied.N);
     const inside = Mcap !== null && applied.M <= Mcap + 1e-9;

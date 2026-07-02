@@ -1,74 +1,156 @@
 // Tests for the CIRCULAR RC column engine (true fork — calcRCColumnCirc).
 // Anejo 19 / EC2. The rectangular suite (rcColumns.test.ts) stays untouched;
-// here we cover the circular-only paths: segment concrete, resultant 2nd-order
-// eccentricity (no phantom √2 — decision T2), chord bar spacing, checks, guards
-// and the single N-M envelope.
+// here we cover the circular-only paths: parabola-rectangle fiber concrete
+// (pivots B/C — replaced the Whitney block after the 2026-07-01 audit found it
+// up to +32% unsafe at high axial), worst ring orientation θ0*, resultant
+// 2nd-order eccentricity (no phantom √2 — decision T2), chord bar spacing,
+// checks, guards and the single N-M envelope.
 
 import { describe, it, expect } from 'vitest';
 import {
   calcRCColumn,
   buildColumnInteraction,
-  segmentConcrete,
   NBARS_MIN_CIRC,
 } from '../../lib/calculations/rcColumns';
 import { rcColumnDefaults } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
+import { getBarArea } from '../../data/rebar';
 
 const D0 = rcColumnDefaults;
 function circ(overrides: Partial<typeof D0> = {}): typeof D0 {
   return { ...D0, sectionType: 'circular', ...overrides } as typeof D0;
 }
 
-const ecu3 = 0.0035;
+const COVER = 30, STIRRUP = 6;
 
-// Independent strip-integration reference for the circular Whitney segment.
-// Different method than the engine's closed form → genuine cross-check.
-function segmentRef(D: number, x: number, fcd: number, N = 20000) {
-  const R = D / 2;
-  const a = Math.min(0.8 * x, D);
-  if (a <= 0) return { Nc: 0, yc: 0 };
-  const dy = a / N;
-  let area = 0, moment = 0;
-  for (let i = 0; i < N; i++) {
-    const y = (i + 0.5) * dy;
-    const w = 2 * Math.sqrt(Math.max(0, R * R - (y - R) * (y - R)));
-    const dA = w * dy;
-    area += dA;
-    moment += dA * y;
-  }
-  return { Nc: fcd * area, yc: moment / area };
+// ── Referencia independiente ─────────────────────────────────────────────────
+// Integración por fibras (4000 tiras, ~17× las del motor) del diagrama
+// parábola-rectángulo con pivotes B/C y descuento del hormigón desplazado.
+// Implementación separada del motor: mismo modelo normativo, distinto código.
+const EPS_C2 = 0.002, EPS_CU = 0.0035, N_EXP = 2;
+
+function strainRef(y: number, x: number, D: number): number {
+  if (x <= D) return EPS_CU * (x - y) / x;                 // pivote B
+  const yC = D * (1 - EPS_C2 / EPS_CU);                    // = 3D/7
+  return EPS_C2 * (x - y) / (x - yC);                      // pivote C
 }
 
-// ── segmentConcrete — closed form vs independent strip reference ─────────────
-describe('segmentConcrete (Whitney circular segment)', () => {
-  const D = 400, fcd = 16.667, R = 200;
+function sigmaRef(eps: number, fcd: number): number {
+  if (eps <= 0) return 0;
+  if (eps >= EPS_C2) return fcd;
+  return fcd * (1 - Math.pow(1 - eps / EPS_C2, N_EXP));
+}
 
-  // a = 0.8·x ⇒ for a/D = k, x = 1.25·k·D. Full compression (a=D) at x = 1.25·D.
-  for (const k of [0.1, 0.3, 0.5, 0.8, 1.0]) {
-    it(`area & centroid match strip reference at a/D=${k}`, () => {
-      const x = 1.25 * k * D;
-      const got = segmentConcrete(D, x, fcd);
-      const ref = segmentRef(D, x, fcd);
-      expect(got.Nc).toBeCloseTo(ref.Nc, -1);        // ~within 10 N·(scale) → rel <0.5%
-      expect(got.Nc / ref.Nc).toBeCloseTo(1, 2);     // <0.5% on force
-      expect(got.yc / ref.yc).toBeCloseTo(1, 2);     // <0.5% on centroid (drives MRd)
-    });
+interface Bar { y: number; area: number }
+
+function ringRef(D: number, n: number, phi: number, theta0 = 0): Bar[] {
+  const R = D / 2;
+  const r_s = (D - 2 * COVER - 2 * STIRRUP - phi) / 2;
+  const A = getBarArea(phi);
+  const out: Bar[] = [];
+  for (let i = 0; i < n; i++) out.push({ y: R - r_s * Math.cos(theta0 + 2 * Math.PI * i / n), area: A });
+  return out;
+}
+
+function fiberNMRef(x: number, D: number, bars: Bar[], fcd: number, fyd: number) {
+  const R = D / 2, NS = 4000, dy = D / NS;
+  let N = 0, M = 0;
+  for (let i = 0; i < NS; i++) {
+    const y = (i + 0.5) * dy;
+    const s = sigmaRef(strainRef(y, x, D), fcd);
+    if (s <= 0) continue;
+    const w = 2 * Math.sqrt(Math.max(0, R * R - (y - R) * (y - R)));
+    N += s * w * dy;
+    M += s * w * dy * (R - y);
+  }
+  for (const b of bars) {
+    const eps = strainRef(b.y, x, D);
+    const sig = Math.max(-fyd, Math.min(fyd, Es * eps)) - sigmaRef(eps, fcd);
+    N += b.area * sig;
+    M += b.area * sig * (R - b.y);
+  }
+  return { N, M };
+}
+
+function fiberMRdRef(NEd: number, D: number, bars: Bar[], fcd: number, fyd: number): number {
+  let lo = 1e-3, hi = 2 * D;
+  for (let g = 0; g < 24 && fiberNMRef(hi, D, bars, fcd, fyd).N < NEd; g++) hi *= 2;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (fiberNMRef(mid, D, bars, fcd, fyd).N < NEd) lo = mid; else hi = mid;
+  }
+  return fiberNMRef((lo + hi) / 2, D, bars, fcd, fyd).M;
+}
+
+// ── Motor vs referencia por fibras ───────────────────────────────────────────
+describe('Circular engine vs independent fiber reference', () => {
+  const cases = [
+    { D: 350, fck: 25, fyk: 500, n: 6, phi: 16 },
+    { D: 400, fck: 25, fyk: 500, n: 8, phi: 20 },
+    { D: 500, fck: 30, fyk: 500, n: 12, phi: 25 },
+  ];
+
+  for (const c of cases) {
+    for (const lvl of [0.30, 0.65, 0.90]) {
+      it(`MRd within ±1.5% of reference (D${c.D} ${c.n}Ø${c.phi} fck${c.fck} ned=${lvl})`, () => {
+        const fcd = getConcrete(c.fck).fcd, fyd = getFyd(c.fyk);
+        const As = c.n * getBarArea(c.phi);
+        const Ac = Math.PI * (c.D / 2) ** 2;
+        const NRd_max = fcd * (Ac - As) + Math.min(fyd, 400) * As;
+        const NEd = lvl * NRd_max;
+        const r = calcRCColumn(circ({
+          D: c.D, nBarsCirc: c.n, circBarDiam: c.phi, fck: c.fck, fyk: c.fyk,
+          cover: COVER, stirrupDiam: STIRRUP, Nd: NEd / 1e3, MEdy: 1, MEdz: 0, L: 0.5, beta: 1,
+        }));
+        expect(r.valid).toBe(true);
+        // referencia evaluada en la MISMA orientación gobernante que el motor
+        const ref = fiberMRdRef(NEd, c.D, ringRef(c.D, c.n, c.phi, r.theta_star!), fcd, fyd) / 1e6;
+        expect(Math.abs(r.MRd! / ref - 1)).toBeLessThan(0.015);
+      });
+    }
   }
 
-  it('full compression Nc = fcd·πR² is reached at x ≥ 1.25·D (not x = D)', () => {
-    const atD = segmentConcrete(D, D, fcd).Nc;        // a = 0.8D → segmento, NO círculo
-    const at125 = segmentConcrete(D, 1.25 * D, fcd).Nc; // a = D → círculo completo
-    const full = fcd * Math.PI * R * R;
-    expect(at125).toBeCloseTo(full, -1);
-    expect(atD).toBeLessThan(full * 0.97);            // a 0.8D el área es claramente menor
+  it('accuracy regression: no Whitney-era +27% overshoot at ned=0.9 (D350 6Ø16)', () => {
+    // Con el bloque de Whitney a fcd pleno el motor daba 32.5 kNm aquí; la
+    // referencia parábola-rectángulo da ~25.7 (θ0=0). El motor de fibras debe
+    // quedar ≤ la referencia a θ0=0 (es un mínimo sobre rotaciones).
+    const fcd = getConcrete(25).fcd, fyd = getFyd(500);
+    const As = 6 * getBarArea(16), Ac = Math.PI * 175 ** 2;
+    const NRd_max = fcd * (Ac - As) + 400 * As;
+    const NEd = 0.9 * NRd_max;
+    const r = calcRCColumn(circ({
+      D: 350, nBarsCirc: 6, circBarDiam: 16, fck: 25, fyk: 500,
+      cover: COVER, stirrupDiam: STIRRUP, Nd: NEd / 1e3, MEdy: 1, MEdz: 0, L: 0.5, beta: 1,
+    }));
+    const refTheta0 = fiberMRdRef(NEd, 350, ringRef(350, 6, 16, 0), fcd, fyd) / 1e6;
+    expect(r.MRd!).toBeLessThanOrEqual(refTheta0 * 1.005);
+    expect(r.MRd!).toBeGreaterThan(refTheta0 * 0.85); // y sin sobre-penalizar
   });
 
-  it('a→0 (x→0) gives zero force', () => {
-    expect(segmentConcrete(D, 0, fcd).Nc).toBe(0);
+  it('worst ring orientation: engine MRd ≤ capacity at θ0=0 and θ0=π/n (n=5, high axial)', () => {
+    // El caso pésimo de la auditoría: n=5, ned=0.9 → θ0=0 sobreestimaba +8.5%.
+    const fcd = getConcrete(25).fcd, fyd = getFyd(500);
+    const As = 5 * getBarArea(20), Ac = Math.PI * 200 ** 2;
+    const NRd_max = fcd * (Ac - As) + 400 * As;
+    const NEd = 0.9 * NRd_max;
+    const r = calcRCColumn(circ({
+      D: 400, nBarsCirc: 5, circBarDiam: 20, fck: 25, fyk: 500,
+      cover: COVER, stirrupDiam: STIRRUP, Nd: NEd / 1e3, MEdy: 1, MEdz: 0, L: 0.5, beta: 1,
+    }));
+    const m0 = fiberMRdRef(NEd, 400, ringRef(400, 5, 20, 0), fcd, fyd) / 1e6;
+    const mPi = fiberMRdRef(NEd, 400, ringRef(400, 5, 20, Math.PI / 5), fcd, fyd) / 1e6;
+    expect(r.MRd!).toBeLessThanOrEqual(Math.min(m0, mPi) * 1.01);
+    expect(r.theta_star).toBeGreaterThanOrEqual(0);
+    expect(r.theta_star).toBeLessThanOrEqual(Math.PI / 5 + 1e-9);
   });
 
-  it('full-circle centroid sits at the section centre (yc = R)', () => {
-    expect(segmentConcrete(D, 1.25 * D, fcd).yc).toBeCloseTo(R, 3);
+  it('N(x→∞) plateau matches NRd_max (pure pivot C)', () => {
+    const fcd = getConcrete(25).fcd, fyd = getFyd(500);
+    const bars = ringRef(400, 8, 20, 0);
+    const As = 8 * getBarArea(20), Ac = Math.PI * 200 ** 2;
+    const NRd_max = fcd * (Ac - As) + 400 * As;
+    const plateau = fiberNMRef(800 * 400, 400, bars, fcd, fyd).N;
+    expect(plateau / NRd_max).toBeCloseTo(1, 3);
   });
 });
 
@@ -146,25 +228,15 @@ describe('Circular column — section model', () => {
     expect(many.MRd!).toBeGreaterThan(few.MRd!);
   });
 
-  it('end-to-end: reconstruct N,M at x_star from segmentConcrete + bar ring', () => {
-    const fcd = getConcrete(25).fcd, fyd = getFyd(500), D = 400, R = 200;
-    const cover = 30, stirrup = 6, phi = 20, n = 8;
+  it('end-to-end: reconstruct N,M at x_star with the governing ring θ0* (fibers)', () => {
+    const fcd = getConcrete(25).fcd, fyd = getFyd(500);
     const Nd = 800;
-    const r = calcRCColumn(circ({ D, nBarsCirc: n, circBarDiam: phi, Nd, MEdy: 60, MEdz: 0 }));
+    const r = calcRCColumn(circ({ D: 400, nBarsCirc: 8, circBarDiam: 20, Nd, MEdy: 60, MEdz: 0 }));
     expect(r.valid).toBe(true);
-    const x = r.x_star!;
-    const r_s = (D - 2 * cover - 2 * stirrup - phi) / 2;
-    const Abar = Math.PI * (phi / 2) ** 2;
-    const { Nc, yc } = segmentConcrete(D, x, fcd);
-    let NRd = Nc, MRd = Nc * (D / 2 - yc);
-    for (let i = 0; i < n; i++) {
-      const y = R - r_s * Math.cos((2 * Math.PI * i) / n);
-      const sig = Math.max(-fyd, Math.min(fyd, Es * ecu3 * (x - y) / x));
-      NRd += Abar * sig;
-      MRd += Abar * sig * (D / 2 - y);
-    }
-    expect(NRd).toBeCloseTo(Nd * 1e3, -2);          // equilibrio axial en x_star
-    expect(MRd / 1e6).toBeCloseTo(r.MRd!, 1);       // momento resistente reconstruido
+    const bars = ringRef(400, 8, 20, r.theta_star!);
+    const { N, M } = fiberNMRef(r.x_star!, 400, bars, fcd, fyd);
+    expect(Math.abs(N / (Nd * 1e3) - 1)).toBeLessThan(0.01);   // equilibrio axial en x_star
+    expect(Math.abs(M / 1e6 / r.MRd! - 1)).toBeLessThan(0.015); // momento resistente reconstruido
   });
 });
 
@@ -233,15 +305,15 @@ describe('Circular column — guards', () => {
   });
 });
 
-// ── High-axial gap-zone (regression: NRd_Whitney must use full Ac) ───────────
-describe('Circular column — high axial / Whitney saturation', () => {
-  // D=350, fck=25 (fcd=16.667), 6Ø16: NRd_max≈2066 kN. The OLD NRd_Whitney
-  // (0.8·fcd·Ac) was ≈1807 kN, so a valid load like 1950 kN (ned≈0.94) wrongly
-  // entered the gap-zone branch and collapsed MRd to ~0.5 kNm. With NRd_Whitney
-  // = fcd·Ac + As·fyd the bisection runs and MRd stays substantial.
+// ── High-axial regression (bisección cubre todo NEd < NRd_max, sin zona gap) ─
+describe('Circular column — high axial', () => {
+  // D=350, fck=25 (fcd=16.667), 6Ø16: NRd_max≈2066 kN. Regresión histórica: la
+  // 1ª implementación (NRd_Whitney = 0.8·fcd·Ac) metía cargas válidas como
+  // 1950 kN (ned≈0.94) en la rama gap y colapsaba MRd a ~0.5 kNm. Con el motor
+  // de fibras (pivote C) la bisección alcanza cualquier NEd < NRd_max.
   const hi = circ({ D: 350, nBarsCirc: 6, circBarDiam: 16, Nd: 1950, MEdy: 10, MEdz: 0 });
 
-  it('MRd does NOT collapse for a valid high-axial load (gap-zone fired too early)', () => {
+  it('MRd does NOT collapse for a valid high-axial load', () => {
     const r = calcRCColumn(hi);
     expect(r.valid).toBe(true);
     const ndMax = r.checks.find((c) => c.id === 'nd-max')!;
@@ -273,6 +345,21 @@ describe('Circular column — interaction diagram', () => {
     const last = it_.y!.reinforced[it_.y!.reinforced.length - 1];
     expect(last.N).toBeCloseTo(result.NRd_max, -1);
     expect(last.M).toBeCloseTo(0, 3);
+  });
+
+  it('envelope agrees with the engine MRd at N = NEd (same θ0* ring)', () => {
+    const inp = circ({ D: 400, nBarsCirc: 8, circBarDiam: 20, Nd: 800, MEdy: 60 });
+    const result = calcRCColumn(inp);
+    const env = buildColumnInteraction(inp, result).y!.reinforced;
+    let mEnv: number | null = null;
+    for (let i = 0; i < env.length - 1; i++) {
+      if (800 >= env[i].N && 800 <= env[i + 1].N) {
+        const f = (800 - env[i].N) / (env[i + 1].N - env[i].N);
+        mEnv = env[i].M + f * (env[i + 1].M - env[i].M);
+      }
+    }
+    expect(mEnv).not.toBeNull();
+    expect(Math.abs(mEnv! / result.MRd! - 1)).toBeLessThan(0.02);
   });
 });
 
