@@ -170,7 +170,13 @@ export function MasonryWallsModule() {
   // L=0, etc.) la UI muestra un banner en lugar de números sin sentido.
   const edificioResult = useMemo(() => calcularEdificio(state), [state]);
   const invalid: EdificioInvalid | null = edificioResult.invalid ? edificioResult : null;
-  const plantasCalc: PlantaResult[] = edificioResult.invalid ? [] : edificioResult.plantas;
+  // Memoizado para dar una referencia ESTABLE: la rama inválida devolvía un `[]`
+  // literal nuevo en cada render, lo que hacía recalcular `overall`/`critico`
+  // (sus useMemo dependen de plantasCalc) en cada render aunque no cambiara nada.
+  const plantasCalc: PlantaResult[] = useMemo(
+    () => (edificioResult.invalid ? [] : edificioResult.plantas),
+    [edificioResult],
+  );
   const overall = useMemo(() => overallStatus(plantasCalc), [plantasCalc]);
   const critico = useMemo(() => getCriticoEdificio(plantasCalc), [plantasCalc]);
 

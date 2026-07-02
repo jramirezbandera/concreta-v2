@@ -201,9 +201,13 @@ export function FemAnalysisModule() {
   // and the embedded <RCBeamsResults> share the same source of truth. Resets
   // to 'vano' when the selected bar changes (decision 2C from eng review).
   const [activeSection, setActiveSection] = useState<'vano' | 'apoyo'>('vano');
+  // Extraído a variable para que la regla exhaustive-deps pueda comprobarlo
+  // estáticamente (un ternario en el array de deps no lo permite). Resetea a
+  // 'vano' solo cuando cambia la BARRA seleccionada (no en nodos/cargas).
+  const selectedBarId = selected?.kind === 'bar' ? selected.id : null;
   useEffect(() => {
     setActiveSection('vano');
-  }, [selected?.kind === 'bar' ? selected.id : null]);
+  }, [selectedBarId]);
 
   // Mobile UX: when the user taps an element in the canvas (Diagramas tab),
   // jump to Datos tab so they immediately see the inspector. Skip the auto-jump

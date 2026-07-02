@@ -132,8 +132,13 @@ export function UnitNumberInput({
       parsed = isNaN(n) ? null : n;
     }
     if (parsed !== null && Math.abs(parsed - value) < 1e-9) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-sync the input string when the external value/unit changes
+    // Re-sincroniza el string mostrado cuando cambia el valor/unidad externo.
     setLocalStr(formatForInput(value));
+    // `formatForInput` (recreada cada render) y `localStr` se omiten a propósito:
+    // este efecto SOLO debe re-sincronizar el string cuando cambia el valor/unidad
+    // EXTERNO. `localStr` se lee para no pisar lo que el usuario teclea, pero
+    // suscribirse a él dispararía el efecto en cada pulsación (justo lo que evita).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, system, quantity, integer, precision]);
 
   const inputId = id ?? (field ? `input-${field}` : undefined);
