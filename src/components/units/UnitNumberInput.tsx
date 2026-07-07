@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react";
 import { LABELS, type LabelKey } from "../../lib/text/labels";
 import { InputLabel } from "../ui/InputLabel";
-import {
-  formatNumber,
-  getPrecision,
-  getUnitLabel,
-  parseQuantity,
-} from "../../lib/units/format";
+import { getUnitLabel } from "../../lib/units/format";
 import type { Quantity } from "../../lib/units/types";
 import { useUnitSystem } from "../../lib/units/useUnitSystem";
+import { RawNumberInput } from "./RawNumberInput";
 
 type UnitNumberInputProps = {
   /**
@@ -67,6 +62,8 @@ type UnitNumberInputProps = {
    * Use for bounded knobs like the search-mesh fields (dovelas / círculos).
    */
   clamp?: boolean;
+  /** Tailwind width utility for the input box (default `w-15`). */
+  widthClass?: string;
 };
 
 export function UnitNumberInput({
@@ -86,60 +83,15 @@ export function UnitNumberInput({
   max,
   step,
   clamp = false,
+  widthClass,
 }: UnitNumberInputProps) {
   const { system } = useUnitSystem();
-
-  // Coerce into [min, max]. Only invoked from blur when `clamp` is set, so the
-  // value never gets snapped mid-typing (which would fight the user).
-  const clampToRange = (n: number): number => {
-    let c = n;
-    if (min !== undefined) c = Math.max(min, c);
-    if (max !== undefined) c = Math.min(max, c);
-    return c;
-  };
 
   const resolvedLabel = labelKey ? LABELS[labelKey].sym : (label ?? "");
   const resolvedUnit = quantity
     ? getUnitLabel(quantity, system)
     : (labelKey ? LABELS[labelKey].unit : (unit ?? ""));
   const unitText = resolvedUnit === "—" ? "" : resolvedUnit;
-
-  const formatForInput = (siValue: number): string => {
-    if (!Number.isFinite(siValue)) return "";
-    if (integer) return String(Math.round(siValue));
-    if (quantity) {
-      const prec = precision ?? getPrecision(quantity, system);
-      return formatNumber(siValue, quantity, system, prec);
-    }
-    return String(siValue);
-  };
-
-  const [localStr, setLocalStr] = useState(() => formatForInput(value));
-
-  useEffect(() => {
-    // Skip the reformat when localStr already represents `value` — otherwise
-    // every keystroke round-trips through parent state and overwrites what the
-    // user is typing with the formatted version (e.g. "3" → "3.00"), forcing
-    // them to re-click between digits.
-    let parsed: number | null;
-    if (integer) {
-      const n = parseInt(localStr, 10);
-      parsed = isNaN(n) ? null : n;
-    } else if (quantity) {
-      parsed = parseQuantity(localStr, quantity, system);
-    } else {
-      const n = parseFloat(localStr.replace(",", "."));
-      parsed = isNaN(n) ? null : n;
-    }
-    if (parsed !== null && Math.abs(parsed - value) < 1e-9) return;
-    // Re-sincroniza el string mostrado cuando cambia el valor/unidad externo.
-    setLocalStr(formatForInput(value));
-    // `formatForInput` (recreada cada render) y `localStr` se omiten a propósito:
-    // este efecto SOLO debe re-sincronizar el string cuando cambia el valor/unidad
-    // EXTERNO. `localStr` se lee para no pisar lo que el usuario teclea, pero
-    // suscribirse a él dispararía el efecto en cada pulsación (justo lo que evita).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, system, quantity, integer, precision]);
 
   const inputId = id ?? (field ? `input-${field}` : undefined);
 
@@ -155,67 +107,21 @@ export function UnitNumberInput({
         sub={label !== undefined ? sub : undefined}
         help={help}
       />
-      <div className="flex shrink-0">
-        <input
-          id={inputId}
-          type="text"
-          inputMode={integer ? "numeric" : "decimal"}
-          value={localStr}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            const raw = integer
-              ? e.target.value.replace(/[^0-9-]/g, "")
-              : e.target.value;
-            setLocalStr(raw);
-            if (integer) {
-              const n = parseInt(raw, 10);
-              if (!isNaN(n)) onChange(n);
-              return;
-            }
-            if (quantity) {
-              const si = parseQuantity(raw, quantity, system);
-              if (si !== null) onChange(si);
-              return;
-            }
-            const normalized = raw.replace(",", ".");
-            const n = parseFloat(normalized);
-            if (!isNaN(n)) onChange(n);
-          }}
-          onBlur={() => {
-            if (integer) {
-              const n = parseInt(localStr, 10);
-              if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }
-              const next = clamp ? clampToRange(Math.round(n)) : Math.round(n);
-              if (clamp && next !== value) onChange(next);
-              setLocalStr(String(next));
-              return;
-            }
-            if (quantity) {
-              const si = parseQuantity(localStr, quantity, system);
-              if (si === null) { setLocalStr(formatForInput(value)); return; }
-              const next = clamp ? clampToRange(si) : si;
-              if (clamp && next !== value) onChange(next);
-              setLocalStr(formatForInput(next));
-              return;
-            }
-            const normalized = localStr.replace(",", ".");
-            const n = parseFloat(normalized);
-            if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }
-            if (clamp) {
-              const next = clampToRange(n);
-              if (next !== value) onChange(next);
-              setLocalStr(formatForInput(next));
-            }
-          }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${resolvedLabel} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
+      <RawNumberInput
+        id={inputId}
+        value={value}
+        onChange={onChange}
+        unit={unitText}
+        ariaLabel={`${resolvedLabel} (${unitText})`}
+        quantity={quantity}
+        precision={precision}
+        integer={integer}
+        min={min}
+        max={max}
+        step={step}
+        clamp={clamp}
+        widthClass={widthClass}
+      />
     </div>
   );
 }

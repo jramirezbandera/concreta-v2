@@ -102,7 +102,12 @@ html.theme-switching *::after {
 ::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-hover); }
 
-.scroll-hide                    { scrollbar-width: thin; scrollbar-color: var(--color-scrollbar) transparent; }
+/* `overflow-x: hidden` centraliza la contención de scroll lateral en TODOS los
+   paneles de módulo: la utilidad siempre acompaña a `overflow-y-auto`, así que
+   solo el eje X se recorta (un `overflow-y-auto` a secas computa overflow-x=auto
+   y provoca el scroll horizontal que el usuario veía en móvil). El contenido
+   ancho (SVG de diagramas) se escala al contenedor en cada módulo. */
+.scroll-hide                    { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--color-scrollbar) transparent; }
 .scroll-hide::-webkit-scrollbar { width: 6px; }
 .scroll-hide::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 3px; }
 .scroll-hide::-webkit-scrollbar-track { background: transparent; }
@@ -112,6 +117,27 @@ html.theme-switching *::after {
   nav, aside, header { display: none !important; }
   * { color-scheme: light !important; }
 }
+
+/* ── Móvil: usabilidad de formularios ──
+   iOS Safari hace auto-zoom al enfocar un control cuya fuente es < 16px (y ese
+   zoom, además, ensancha la página y habilita scroll lateral). Forzamos 16px en
+   los controles de formulario solo en móvil/tablet (< lg) para defeatear el zoom
+   sin tocar la densidad de escritorio. `!important` porque debe ganar a las
+   utilidades Tailwind `text-[12px]` de los inputs; es una regla de un único
+   propósito y scope acotado. El viewport se deja escalable: el pellizco manual
+   sigue disponible para ampliar diagramas/PDF. */
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Red de seguridad contra scroll horizontal a nivel documento. La contención
+   real la hacen los contenedores de módulo (overflow), pero esto evita que
+   cualquier desbordamiento puntual (absolutos, landing) ensanche la página. */
+html, body { overflow-x: hidden; }
 
 /* ── Theme tokens ──
    `@theme` (NOT `inline`) so utilities emit var(--color-*) and conmutan por tema.

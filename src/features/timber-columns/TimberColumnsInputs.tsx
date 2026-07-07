@@ -12,52 +12,6 @@ interface Props {
 
 // ── Shared field components ────────────────────────────────────────────────────
 
-
-function NumField({
-  labelKey, label, sub, help, field, value, unit, min, step, setField, helpText,
-}: {
-  labelKey?: LabelKey;
-  label?: string; sub?: string;
-  /** Tooltip ⓘ breve junto al label. Distinto de `helpText` (párrafo inline persistente). */
-  help?: string;
-  field: keyof TimberColumnInputs; value: number; unit?: string;
-  min?: number; step?: number;
-  setField: Props['setField'];
-  helpText?: string;
-}) {
-  const resolved = labelKey
-    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
-    : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  return (
-    <div className="py-0.75 max-lg:min-h-11">
-      <div className="flex items-center justify-between gap-2">
-        <InputLabel
-          htmlFor={`tc-${field}`}
-          labelKey={labelKey}
-          label={labelKey ? undefined : resolved.label}
-          sub={labelKey ? undefined : resolved.sub}
-          help={help}
-        />
-        <div className="flex shrink-0">
-          <input
-            id={`tc-${field}`}
-            type="number" value={value} min={min} step={step}
-            onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) setField(field, n); }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          />
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {unitText}
-          </span>
-        </div>
-      </div>
-      {helpText && (
-        <span className="text-[10px] text-text-disabled leading-tight whitespace-pre-line mt-0.5 block">{helpText}</span>
-      )}
-    </div>
-  );
-}
-
 function SelectField({
   labelKey, label, help, field, value, options, setField,
 }: {
@@ -185,13 +139,13 @@ export function TimberColumnsInputs({ state, setField }: Props) {
           </select>
         </div>
 
-        <NumField labelKey="b_section" field="b" value={state.b} min={40}  step={10} setField={setField} />
-        <NumField labelKey="h_section" field="h" value={state.h} min={40}  step={10} setField={setField} />
+        <UnitNumberInput id="tc-b" labelKey="b_section" value={state.b} min={40} step={10} widthClass="w-18" onChange={(v) => setField('b', v)} />
+        <UnitNumberInput id="tc-h" labelKey="h_section" value={state.h} min={40} step={10} widthClass="w-18" onChange={(v) => setField('h', v)} />
       </CollapsibleSection>
 
       {/* ── Geometría ─────────────────────────────────────────────────────── */}
       <CollapsibleSection label="Geometría">
-        <NumField labelKey="L_column" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
+        <UnitNumberInput id="tc-L" labelKey="L_column" value={state.L} min={0.5} step={0.5} widthClass="w-18" onChange={(v) => setField('L', v)} />
         <SelectField label="Apoyo eje fuerte" field="beta_y" value={state.beta_y} options={BETA_Y_OPTIONS} setField={setField}
           help="Condición de apoyo en el plano del eje fuerte (y). Fija βy y la longitud de pandeo Lk,y = βy·L." />
         <SelectField label="Apoyo eje débil"  field="beta_z" value={state.beta_z} options={BETA_Z_OPTIONS} setField={setField}
@@ -245,9 +199,13 @@ export function TimberColumnsInputs({ state, setField }: Props) {
         {state.fireResistance !== 'R0' && (
           <>
             <SelectField labelKey="exposedFaces" field="exposedFaces" value={state.exposedFaces} options={EXPOSED_FACES_OPTIONS} setField={setField} />
-            <NumField labelKey="eta_fi" field="etaFi" value={state.etaFi} min={0} step={0.05} setField={setField}
-              helpText={"Factor de reducción de carga en incendio.\nNd,fi = η_fi · Nd  (EN 1995-1-2 §2.4.2)\nValor típico: 0.65–0.70 (cargas uso habitual).\nUsar 1.0 si Nd ya está en combinación de incendio."}
-            />
+            {/* etaFi conserva el párrafo de ayuda persistente (helpText) bajo el input. */}
+            <div className="max-lg:min-h-11">
+              <UnitNumberInput id="tc-etaFi" labelKey="eta_fi" value={state.etaFi} min={0} step={0.05} widthClass="w-18" onChange={(v) => setField('etaFi', v)} />
+              <span className="text-[10px] text-text-disabled leading-tight whitespace-pre-line mt-0.5 block">
+                {"Factor de reducción de carga en incendio.\nNd,fi = η_fi · Nd  (EN 1995-1-2 §2.4.2)\nValor típico: 0.65–0.70 (cargas uso habitual).\nUsar 1.0 si Nd ya está en combinación de incendio."}
+              </span>
+            </div>
           </>
         )}
       </CollapsibleSection>

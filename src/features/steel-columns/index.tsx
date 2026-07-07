@@ -56,6 +56,11 @@ export function SteelColumnsModule() {
     Math.max(280, Math.min(FIXED_SVG_W + FIXED_DIAG_W, rowAvail - interW)),
   );
   const svgH = Math.round(totalSvgW * 0.7); // taller to give column geometry more room
+  // Mobile "Diagramas" tab measures its own container so the SVGs scale to the
+  // phone instead of fixed 340/320px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(FIXED_SVG_W, Math.max(240, mobileCanvasWidth - CANVAS_PAD)) : 300;
+  const mobileInterW = Math.min(320, mobileW);
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -134,10 +139,10 @@ export function SteelColumnsModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <SteelColumnsSVG inp={effectiveInputs} result={result} mode="screen" width={340} height={Math.round(340 * 0.7)} />
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            <SteelColumnsSVG inp={effectiveInputs} result={result} mode="screen" width={mobileW} height={Math.round(mobileW * 0.7)} />
             {result.interaction && (
-              <SteelColumnInteractionSVG data={result.interaction} mode="screen" width={320} height={320} />
+              <SteelColumnInteractionSVG data={result.interaction} mode="screen" width={mobileInterW} height={mobileInterW} />
             )}
           </div>
         )}

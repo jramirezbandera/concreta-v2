@@ -51,6 +51,10 @@ export function RCBeamsModule() {
   }
   // Aspect ratio ~1.3 (portrait — beams are taller than wide)
   const rcSvgH = Math.min(MAX_SVG_H, Math.round(rcSvgW * 1.3));
+  // Mobile "Diagramas" tab measures its own container so the SVGs scale to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(420, Math.max(240, mobileCanvasWidth - CANVAS_PAD)) : 300;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -158,17 +162,17 @@ export function RCBeamsModule() {
 
         {/* Mobile: Diagramas tab — portico only (simple mode lives in main panel) */}
         {tab === 'diagramas' && !isSimple && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             {result.vano && (
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-text-secondary font-mono tracking-wide">VANO — M+</span>
-                <RCBeamsSVG inp={state} result={result} momentSign="positive" mode="screen" width={340} height={Math.round(340 * 1.3)} />
+                <RCBeamsSVG inp={state} result={result} momentSign="positive" mode="screen" width={mobileW} height={Math.round(mobileW * 1.3)} />
               </div>
             )}
             {result.apoyo && (
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[11px] text-text-secondary font-mono tracking-wide">APOYO — M−</span>
-                <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="screen" width={340} height={Math.round(340 * 1.3)} />
+                <RCBeamsSVG inp={state} result={result} momentSign="negative" mode="screen" width={mobileW} height={Math.round(mobileW * 1.3)} />
               </div>
             )}
           </div>

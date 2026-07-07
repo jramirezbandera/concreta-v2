@@ -53,6 +53,10 @@ export function RCColumnsModule() {
     ? Math.max(300, Math.min(360, Math.floor((canvasWidth - CANVAS_PAD - 2 * GAP) / 3)))
     : 320;
   const triSecH = Math.min(MAX_SVG_H, Math.round(triW * 1.15));
+  // Mobile "Diagramas" tab measures its own container so the SVGs scale to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(420, Math.max(240, mobileCanvasWidth - CANVAS_PAD)) : 300;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -135,12 +139,12 @@ export function RCColumnsModule() {
         </div>
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <RCColumnsSVG inp={state} result={result} mode="screen" width={340} height={Math.round(340 * 1.15)} />
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            <RCColumnsSVG inp={state} result={result} mode="screen" width={mobileW} height={Math.round(mobileW * 1.15)} />
             {interaction.valid && interaction.y && (
               <>
-                <RCColumnInteractionSVG data={interaction.y} mode="screen" width={340} height={320} />
-                {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={340} height={320} />}
+                <RCColumnInteractionSVG data={interaction.y} mode="screen" width={mobileW} height={320} />
+                {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={mobileW} height={320} />}
               </>
             )}
           </div>

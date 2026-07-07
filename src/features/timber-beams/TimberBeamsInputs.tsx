@@ -12,47 +12,6 @@ interface Props {
 
 // ── Shared field components (same pattern as SteelBeamsInputs) ────────────────
 
-
-function NumField({
-  labelKey, label, sub, help, unit, field, value, min, step, setField,
-}: {
-  // Pull label/sub/unit from the LABELS catalog when a key is given.
-  labelKey?: LabelKey;
-  // Escape hatch for one-off fields not in the catalog (e.g. psi2Custom).
-  label?: string; sub?: string; unit?: string;
-  help?: string;
-  field: keyof TimberBeamInputs; value: number;
-  min?: number; step?: number;
-  setField: Props['setField'];
-}) {
-  const resolved = labelKey
-    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
-    : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel
-        htmlFor={`tb-${field}`}
-        labelKey={labelKey}
-        label={labelKey ? undefined : resolved.label}
-        sub={labelKey ? undefined : resolved.sub}
-        help={help}
-      />
-      <div className="flex shrink-0">
-        <input
-          id={`tb-${field}`}
-          type="number" value={value} min={min} step={step}
-          onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) setField(field, n); }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function SelectField({
   labelKey, label, help, field, value, options, setField,
 }: {
@@ -179,13 +138,13 @@ export function TimberBeamsInputs({ state, setField }: Props) {
           </select>
         </div>
 
-        <NumField labelKey="b_section" field="b" value={state.b} min={40}  step={10} setField={setField} />
-        <NumField labelKey="h_section" field="h" value={state.h} min={80}  step={10} setField={setField} />
+        <UnitNumberInput id="tb-b" labelKey="b_section" value={state.b} min={40} step={10} widthClass="w-18" onChange={(v) => setField('b', v)} />
+        <UnitNumberInput id="tb-h" labelKey="h_section" value={state.h} min={80} step={10} widthClass="w-18" onChange={(v) => setField('h', v)} />
       </CollapsibleSection>
 
       {/* ── Geometría del vano ──────────────────────────────────────────── */}
       <CollapsibleSection label="Geometría del vano">
-        <NumField labelKey="L_span" field="L" value={state.L} min={0.5} step={0.5} setField={setField} />
+        <UnitNumberInput id="tb-L" labelKey="L_span" value={state.L} min={0.5} step={0.5} widthClass="w-18" onChange={(v) => setField('L', v)} />
       </CollapsibleSection>
 
       {/* ── Cargas características ───────────────────────────────────────── */}
@@ -224,8 +183,9 @@ export function TimberBeamsInputs({ state, setField }: Props) {
           setField={setField} />
 
         {state.loadType === 'custom' && (
-          <NumField label="ψ₂ personalizado" field="psi2Custom" value={state.psi2Custom} unit="" min={0} step={0.05} setField={setField}
-            help="Coeficiente de combinación cuasipermanente ψ₂ a medida, para la flecha activa." />
+          <UnitNumberInput id="tb-psi2Custom" label="ψ₂ personalizado" value={state.psi2Custom} unit="" min={0} step={0.05} widthClass="w-18"
+            help="Coeficiente de combinación cuasipermanente ψ₂ a medida, para la flecha activa."
+            onChange={(v) => setField('psi2Custom', v)} />
         )}
 
         {/* Derived material factors — read-only */}

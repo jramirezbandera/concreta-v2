@@ -16,50 +16,6 @@ interface SteelColumnsInputsProps {
 
 // ── Shared field components ───────────────────────────────────────────────────
 
-function NumField({
-  labelKey, label, sub, help, id, value, unit, min, step, onChange,
-}: {
-  // Pull label/sub/unit from the LABELS catalog when a key is given.
-  labelKey?: LabelKey;
-  // Escape hatch for one-off fields not in the catalog.
-  label?: string; sub?: string; unit?: string;
-  help?: string;
-  id: string; value: number;
-  min?: number; step?: number;
-  onChange: (v: number) => void;
-}) {
-  const resolved = labelKey
-    ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
-    : { label: label ?? '', sub, unit: unit ?? '' };
-  const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel
-        htmlFor={id}
-        labelKey={labelKey}
-        label={labelKey ? undefined : resolved.label}
-        sub={labelKey ? undefined : resolved.sub}
-        help={help}
-      />
-      <div className="flex shrink-0">
-        <input
-          id={id}
-          type="number"
-          value={value}
-          min={min}
-          step={step}
-          onChange={(e) => { const n = Number(e.target.value); if (!isNaN(n)) onChange(n); }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${resolved.label} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function SelectField({
   labelKey, label, help, id, value, options, onChange,
 }: {
@@ -173,7 +129,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       />
       {isCHS ? (
         <>
-          <NumField
+          <UnitNumberInput
             label="D"
             sub="diámetro exterior"
             help="Diámetro exterior del tubo circular (CHS)."
@@ -182,9 +138,10 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
             value={state.chs_D}
             min={20}
             step={1}
+            widthClass="w-18"
             onChange={(v) => { if (v > 0) setField('chs_D', v); }}
           />
-          <NumField
+          <UnitNumberInput
             label="t"
             sub="espesor pared"
             help="Espesor de la pared del tubo. Con D define la clase de sección y la esbeltez D/t."
@@ -193,6 +150,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
             value={state.chs_t}
             min={1}
             step={0.1}
+            widthClass="w-18"
             onChange={(v) => { if (v > 0) setField('chs_t', v); }}
           />
           <SelectField
@@ -240,50 +198,26 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
       <CollapsibleSection label="Geometría">
 
       {/* Ly — unbraced length y-axis, displayed in m (stored internally in mm) */}
-      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <InputLabel htmlFor="sc-Ly" labelKey="Ly_strong" className="whitespace-nowrap shrink-0" />
-        <div className="flex shrink-0">
-          <input
-            id="sc-Ly"
-            type="number"
-            value={+(state.Ly / 1000).toFixed(2)}
-            min={0.1}
-            step={0.1}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (!isNaN(n) && n > 0) setField('Ly', Math.round(n * 1000));
-            }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label={`${LABELS.Ly_strong.sym} (${LABELS.Ly_strong.unit})`}
-          />
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {LABELS.Ly_strong.unit}
-          </span>
-        </div>
-      </div>
+      <UnitNumberInput
+        id="sc-Ly"
+        labelKey="Ly_strong"
+        value={+(state.Ly / 1000).toFixed(2)}
+        min={0.1}
+        step={0.1}
+        widthClass="w-18"
+        onChange={(m) => { if (m > 0) setField('Ly', Math.round(m * 1000)); }}
+      />
 
       {/* Lz — unbraced length z-axis, displayed in m (stored internally in mm) */}
-      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <InputLabel htmlFor="sc-Lz" labelKey="Lz_weak" className="whitespace-nowrap shrink-0" />
-        <div className="flex shrink-0">
-          <input
-            id="sc-Lz"
-            type="number"
-            value={+(state.Lz / 1000).toFixed(2)}
-            min={0.1}
-            step={0.1}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (!isNaN(n) && n > 0) setField('Lz', Math.round(n * 1000));
-            }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label={`${LABELS.Lz_weak.sym} (${LABELS.Lz_weak.unit})`}
-          />
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {LABELS.Lz_weak.unit}
-          </span>
-        </div>
-      </div>
+      <UnitNumberInput
+        id="sc-Lz"
+        labelKey="Lz_weak"
+        value={+(state.Lz / 1000).toFixed(2)}
+        min={0.1}
+        step={0.1}
+        widthClass="w-18"
+        onChange={(m) => { if (m > 0) setField('Lz', Math.round(m * 1000)); }}
+      />
 
       {/* BC selector — shared for both axes */}
       <div className="mt-2">
@@ -300,7 +234,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           </div>
         ) : (
           <div className="flex flex-col gap-0">
-            <NumField
+            <UnitNumberInput
               label="βy"
               help="Factor de longitud de pandeo del eje fuerte (y). Lcr,y = βy·Ly."
               id="sc-beta-y"
@@ -308,9 +242,11 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               unit="—"
               min={0.1}
               step={0.05}
-              onChange={(v) => setField('beta_y', Math.max(0.1, v))}
+              clamp
+              widthClass="w-18"
+              onChange={(v) => setField('beta_y', v)}
             />
-            <NumField
+            <UnitNumberInput
               label="βz"
               help="Factor de longitud de pandeo del eje débil (z). Lcr,z = βz·Lz."
               id="sc-beta-z"
@@ -318,7 +254,9 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
               unit="—"
               min={0.1}
               step={0.05}
-              onChange={(v) => setField('beta_z', Math.max(0.1, v))}
+              clamp
+              widthClass="w-18"
+              onChange={(v) => setField('beta_z', v)}
             />
           </div>
         )}

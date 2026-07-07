@@ -31,6 +31,10 @@ export function ForjadosModule() {
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(220, canvasWidth - 32)
     : 380;
+  // Mobile "Diagramas" tab measures its own container so the SVG scales to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(480, Math.max(220, mobileCanvasWidth - 32)) : 300;
 
   // Variant switch: reset armado fields to defaults for the new variant + toast.
   // Reason: reticular uses n×Ø bundles; maciza uses Ø/s parrillas; the base/refuerzo
@@ -128,8 +132,8 @@ export function ForjadosModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid lg:hidden flex flex-col items-center py-4 px-4 gap-4">
-            <ForjadosSVG inp={state} result={result} section={section} width={340} mode="screen" />
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid lg:hidden flex flex-col items-center py-4 px-4 gap-4">
+            <ForjadosSVG inp={state} result={result} section={section} width={mobileW} mode="screen" />
           </div>
         )}
       </div>

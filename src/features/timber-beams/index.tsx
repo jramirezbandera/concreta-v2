@@ -28,6 +28,10 @@ export function TimberBeamsModule() {
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);
   const SVG_H = Math.round(SVG_W * (200 / 760));
+  // Mobile "Diagramas" tab measures its own container so the SVG scales to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(760, Math.max(240, mobileCanvasWidth - 32)) : 300;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -93,8 +97,8 @@ export function TimberBeamsModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <TimberBeamsSVG inp={state as never} result={result} mode="screen" width={340} height={Math.round(340 * (200 / 760))} />
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
+            <TimberBeamsSVG inp={state as never} result={result} mode="screen" width={mobileW} height={Math.round(mobileW * (200 / 760))} />
           </div>
         )}
 

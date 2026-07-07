@@ -85,6 +85,13 @@ export function SteelBeamsModule() {
   const svgH = Math.round(svgW * (280 / 420));
   const diagH = Math.round(diagW * (280 / 400));
 
+  // Mobile "Diagramas" tab — measure its own width so the stacked SVGs scale to
+  // the phone instead of a fixed 340px that scrolled sideways on ≤372px screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileAvail = (mobileCanvasWidth ?? 0) - CANVAS_PAD;
+  const mobileSvgW = mobileCanvasWidth ? Math.min(FIXED_SVG_W, Math.max(180, mobileAvail)) : 300;
+  const mobileDiagW = mobileCanvasWidth ? Math.min(FIXED_DIAG_W, Math.max(180, mobileAvail)) : 300;
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <Topbar
@@ -109,7 +116,7 @@ export function SteelBeamsModule() {
             'lg:flex',
           ].join(' ')}
         >
-          <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide px-5 py-4">
             <SteelBeamsInputs
               state={state}
               setField={setField}
@@ -133,7 +140,7 @@ export function SteelBeamsModule() {
         {/* Right: SVG + results */}
         <div
           className={[
-            'min-w-0 overflow-y-auto scroll-hide',
+            'min-w-0 overflow-y-auto overflow-x-hidden scroll-hide',
             'lg:flex-1',
             tab === 'results' ? 'flex-1' : 'hidden',
             'lg:block',
@@ -170,8 +177,8 @@ export function SteelBeamsModule() {
 
         {/* Mobile: Diagramas tab — cross-section + M/V/delta stacked */}
         {tab === 'diagramas' && (
-          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-6 canvas-dot-grid">
-            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={340} height={Math.round(340 * (280 / 420))} />
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-6 canvas-dot-grid">
+            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={mobileSvgW} height={Math.round(mobileSvgW * (280 / 420))} />
             {loadGen && result.valid && (
               <SteelBeamsDiagrams
                 beamType={state.beamType}
@@ -183,8 +190,8 @@ export function SteelBeamsModule() {
                 deltaAdm={result.delta_adm}
                 deflLimit={state.deflLimit}
                 mode="screen"
-                width={340}
-                height={Math.round(340 * (280 / 400))}
+                width={mobileDiagW}
+                height={Math.round(mobileDiagW * (280 / 400))}
               />
             )}
           </div>

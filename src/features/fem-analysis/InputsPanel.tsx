@@ -9,6 +9,7 @@
 // Plus a persistent "Cargas" + "Geometría" + "Combinación" sections at the
 // bottom (matching the legacy esqueleto layout for familiarity).
 
+import { useEffect, useState } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { USE_CATEGORIES } from '../../lib/calculations/loadGen';
 import { fromDisplay, toDisplay } from '../../lib/units/convert';
@@ -530,22 +531,43 @@ function NumField({
   const { system } = useUnitSystem();
   const displayValue = quantity ? toDisplay(value, quantity, system) : value;
   const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
+
+  // String local mientras se teclea: permite vaciar el campo (antes se
+  // autocompletaba a 0), acepta coma decimal y no reformatea a media escritura.
+  // type="text" + inputMode="decimal" evita además el auto-zoom de iOS.
+  const fmtDisp = (d: number) => (Number.isFinite(d) ? String(d) : '');
+  const [localStr, setLocalStr] = useState(() => fmtDisp(displayValue));
+  useEffect(() => {
+    const n = parseFloat(localStr.replace(',', '.'));
+    const parsed = isNaN(n) ? null : n;
+    if (parsed !== null && Math.abs(parsed - displayValue) < 1e-9) return;
+    setLocalStr(fmtDisp(displayValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayValue]);
+
   return (
     <Row label={label}>
       <div style={{ display: 'flex', alignItems: 'stretch', height: 24 }}>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           className="fem-focus-ring"
-          value={Number.isFinite(displayValue) ? displayValue : 0}
+          value={localStr}
           step={step}
           min={min}
           max={max}
           onChange={(e) => {
-            const v = parseFloat(e.target.value);
+            const raw = e.target.value;
+            setLocalStr(raw);
+            const v = parseFloat(raw.replace(',', '.'));
             if (!Number.isFinite(v)) return;
             // Si quantity, el usuario teclea en display units; convertir a SI.
             const si = quantity ? fromDisplay(v, quantity, system) : v;
             onChange(si);
+          }}
+          onBlur={() => {
+            const n = parseFloat(localStr.replace(',', '.'));
+            if (isNaN(n)) setLocalStr(fmtDisp(displayValue));
           }}
           style={{
             width: 60,

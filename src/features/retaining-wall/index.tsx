@@ -111,6 +111,10 @@ export function RetainingWallModule() {
     ? Math.max(200, canvasWidth - 32)
     : 380;
   const svgH = Math.round(svgW * (480 / 420));
+  // Mobile "Diagramas" tab measures its own container so the SVG scales to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(480, Math.max(240, mobileCanvasWidth - 32)) : 300;
 
   // Summary verdict — derive from active checks (handles seismic case automatically).
   const findCheck = (id: string) => result.checks.find((c) => c.id === id);
@@ -228,13 +232,13 @@ export function RetainingWallModule() {
                 />
               ))}
             </div>
-            <div className="flex flex-col items-center px-4 canvas-dot-grid py-4">
+            <div ref={mobileCanvasRef} className="flex flex-col items-center px-4 canvas-dot-grid py-4">
               <RetainingWallSVG
                 inp={state}
                 result={result}
                 mode="screen"
-                width={340}
-                height={Math.round(340 * (480 / 420))}
+                width={mobileW}
+                height={Math.round(mobileW * (480 / 420))}
                 view={view}
               />
             </div>

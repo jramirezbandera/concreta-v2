@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FORMULAS } from '../data';
 import { fmt } from '../eval';
 import { useCalculator } from '../calculator-context';
+import { RawNumberInput } from '../../units/RawNumberInput';
 
 export function FormulaMode() {
   const [pickedId, setPickedId] = useState(FORMULAS[0].id);
@@ -58,20 +59,13 @@ export function FormulaMode() {
         {f.inputs.map((i) => (
           <div key={i.k} className="flex items-center justify-between gap-2 min-w-0">
             <span className="text-[12px] text-text-secondary truncate">{i.label}</span>
-            <div className="flex shrink-0">
-              <input
-                type="number"
-                value={inputs[i.k]}
-                onChange={(e) => setInputs((s) => ({ ...s, [i.k]: parseFloat(e.target.value) || 0 }))}
-                className="w-20 bg-bg-primary border border-border-main rounded-l text-right font-mono text-[12px] px-1.5 py-0.5 text-text-primary focus:outline-none focus:border-accent"
-                aria-label={i.label}
-              />
-              {i.unit && (
-                <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r text-[10px] font-mono text-text-disabled px-1.5 flex items-center">
-                  {i.unit}
-                </span>
-              )}
-            </div>
+            <RawNumberInput
+              value={inputs[i.k]}
+              onChange={(v) => setInputs((s) => ({ ...s, [i.k]: v }))}
+              unit={i.unit ?? ''}
+              ariaLabel={i.label}
+              widthClass="w-20"
+            />
           </div>
         ))}
       </div>

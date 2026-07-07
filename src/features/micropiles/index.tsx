@@ -159,6 +159,10 @@ export function MicropilesModule() {
     ? Math.max(280, canvasWidth - 32)
     : 560;
   const svgH = Math.min(520, Math.round(svgW * (430 / 560)));
+  // Mobile "Diagramas" tab measures its own container so the SVG scales to the
+  // phone instead of a fixed 340px that overflowed on narrow screens.
+  const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
+  const mobileW = mobileCanvasWidth ? Math.min(480, Math.max(240, mobileCanvasWidth - 32)) : 300;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -270,14 +274,14 @@ export function MicropilesModule() {
                 />
               ))}
             </div>
-            <div className="flex flex-col items-center px-4 canvas-dot-grid py-4">
+            <div ref={mobileCanvasRef} className="flex flex-col items-center px-4 canvas-dot-grid py-4">
               <MicropilesSVG
                 inp={state}
                 soil={soil}
                 result={result}
                 view={view}
-                width={340}
-                height={Math.round(340 * (430 / 560))}
+                width={mobileW}
+                height={Math.round(mobileW * (430 / 560))}
               />
             </div>
           </div>

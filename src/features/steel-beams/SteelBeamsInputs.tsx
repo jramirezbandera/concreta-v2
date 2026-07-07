@@ -7,6 +7,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
@@ -100,64 +101,6 @@ const BEAM_TYPE_OPTIONS: Array<{ type: BeamType; label: string; Svg: () => React
 ];
 
 // ── Shared field components ───────────────────────────────────────────────────
-
-function NumField({
-  labelKey,
-  label,
-  sub,
-  help,
-  unit,
-  field,
-  value,
-  min,
-  step,
-  setField,
-}: {
-  labelKey?: LabelKey;
-  label?: string;
-  sub?: string;
-  help?: string;
-  unit?: string;
-  field: keyof SteelBeamInputs;
-  value: number;
-  min?: number;
-  step?: number;
-  setField: SteelBeamsInputsProps['setField'];
-}) {
-  const rawUnit = labelKey ? LABELS[labelKey].unit : (unit ?? '');
-  const unitText = rawUnit === '—' ? '' : rawUnit;
-  const ariaName = labelKey ? (LABELS[labelKey].sym || LABELS[labelKey].descShort) : (label ?? '');
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      {/* InputLabel resuelve sym/descShort/help/ref del catálogo vía labelKey. */}
-      <InputLabel
-        htmlFor={`sb-input-${field}`}
-        labelKey={labelKey}
-        label={labelKey ? undefined : label}
-        sub={labelKey ? undefined : sub}
-        help={help}
-      />
-      <div className="flex shrink-0">
-        <input
-          id={`sb-input-${field}`}
-          type="number"
-          value={value}
-          min={min}
-          step={step}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (!isNaN(n)) setField(field, n);
-          }}
-          className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          aria-label={`${ariaName} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function SelectField({
   labelKey,
@@ -380,27 +323,15 @@ export function SteelBeamsInputs({
       />
       {/* L — beam span, stored in mm, displayed in m. Hidden in FEM embed (FEM provides L). */}
       {!hideL && (
-      <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-        <InputLabel htmlFor="sb-input-L" labelKey="L_span" className="whitespace-nowrap shrink-0" />
-        <div className="flex shrink-0">
-          <input
-            id="sb-input-L"
-            type="number"
-            value={+(state.L / 1000).toFixed(2)}
-            min={0.5}
-            step={0.1}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (!isNaN(n) && n > 0) setField('L', Math.round(n * 1000));
-            }}
-            className="w-18 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label={`${LABELS.L_span.sym} (${LABELS.L_span.unit})`}
-          />
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {LABELS.L_span.unit}
-          </span>
-        </div>
-      </div>
+      <UnitNumberInput
+        id="sb-input-L"
+        labelKey="L_span"
+        value={+(state.L / 1000).toFixed(2)}
+        min={0.5}
+        step={0.1}
+        widthClass="w-18"
+        onChange={(m) => { if (m > 0) setField('L', Math.round(m * 1000)); }}
+      />
       )}
       </CollapsibleSection>
 
@@ -408,12 +339,13 @@ export function SteelBeamsInputs({
       {!hideLoads && (
       <CollapsibleSection label="Cargas">
       {/* bTrib — directly below L */}
-      <NumField
+      <UnitNumberInput
+        id="sb-input-bTrib"
         labelKey="b_trib"
-        field="bTrib"
         value={state.bTrib}
         min={0}
-        setField={setField}
+        widthClass="w-18"
+        onChange={(v) => setField('bTrib', v)}
       />
       <UnitNumberInput
         labelKey="gk_surface"
@@ -445,7 +377,7 @@ export function SteelBeamsInputs({
       />
 
       {/* Derivation box */}
-      <div className="bg-bg-elevated/40 rounded px-2 py-1.5 mt-2 mb-1 text-[11px] font-mono text-text-secondary">
+      <div className="bg-bg-elevated/40 rounded px-2 py-1.5 mt-2 mb-1 text-[11px] font-mono text-text-secondary break-words">
         <div className="text-[10px] text-text-disabled mb-1 uppercase tracking-[0.06em]">
           Derivación ELU (CTE DB-SE)
         </div>
@@ -491,24 +423,16 @@ export function SteelBeamsInputs({
           >
             auto
           </span>
-          <div className="flex shrink-0">
-            <input
-              id="sb-input-Lcr"
-              type="number"
-              value={+(displayLcr / 1000).toFixed(2)}
-              min={0.1}
-              step={0.1}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!isNaN(n) && n > 0) onLcrChange(Math.round(n * 1000));
-              }}
-              className="w-12 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              aria-label={`${LABELS.Lcr_LTB.sym} (${LABELS.Lcr_LTB.unit})`}
-            />
-            <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-              {LABELS.Lcr_LTB.unit}
-            </span>
-          </div>
+          <RawNumberInput
+            id="sb-input-Lcr"
+            value={+(displayLcr / 1000).toFixed(2)}
+            min={0.1}
+            step={0.1}
+            widthClass="w-12"
+            unit={LABELS.Lcr_LTB.unit}
+            ariaLabel={`${LABELS.Lcr_LTB.sym} (${LABELS.Lcr_LTB.unit})`}
+            onChange={(m) => { if (m > 0) onLcrChange(Math.round(m * 1000)); }}
+          />
         </div>
       </div>
       </CollapsibleSection>
