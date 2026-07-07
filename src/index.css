@@ -119,18 +119,17 @@ html.theme-switching *::after {
 }
 
 /* ── Móvil: usabilidad de formularios ──
-   iOS Safari hace auto-zoom al enfocar un control cuya fuente es < 16px (y ese
-   zoom, además, ensancha la página y habilita scroll lateral). Forzamos 16px en
-   los controles de formulario solo en móvil/tablet (< lg) para defeatear el zoom
-   sin tocar la densidad de escritorio. `!important` porque debe ganar a las
-   utilidades Tailwind `text-[12px]` de los inputs; es una regla de un único
-   propósito y scope acotado. El viewport se deja escalable: el pellizco manual
-   sigue disponible para ampliar diagramas/PDF. */
+   El auto-zoom de iOS al enfocar un input (que además ensanchaba la página) se
+   desactiva a nivel viewport con `maximum-scale=1, user-scalable=no` (ver
+   index.html), así que aquí ya no hace falta llegar a 16px. Fijamos los controles
+   a 14px en móvil/tablet (< lg): algo más grandes que en escritorio para tocar,
+   sin resultar enormes. `!important` porque debe ganar a las utilidades Tailwind
+   `text-[12px]` de los inputs; regla de un único propósito y scope acotado. */
 @media (max-width: 1023px) {
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: 14px !important;
   }
 }
 
