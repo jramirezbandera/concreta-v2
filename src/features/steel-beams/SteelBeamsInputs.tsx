@@ -461,11 +461,11 @@ export function SteelBeamsInputs({
         field="deflLimit"
         value={state.deflLimit}
         options={[
-          { value: 250, label: 'L/250 — cubiertas / industrial' },
-          { value: 300, label: 'L/300 — uso general (CTE)' },
-          { value: 400, label: 'L/400 — forjados con yeso' },
-          { value: 500, label: 'L/500 — forjados sensibles' },
-          { value: 600, label: 'L/600 — precisión / laboratorios' },
+          { value: 250, label: 'L/250 — cubiertas / correas' },
+          { value: 300, label: 'L/300 — resto de casos (CTE)' },
+          { value: 400, label: 'L/400 — tabiques ordinarios / pav. c. juntas' },
+          { value: 500, label: 'L/500 — tabiques frágiles / pav. sin juntas' },
+          { value: 600, label: 'L/600 — equipos sensibles' },
         ]}
         setField={setField}
       />
