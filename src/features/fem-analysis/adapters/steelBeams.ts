@@ -464,6 +464,7 @@ function buildSteelBeamInputs(
   const Lcr_mm = sel.Lcr != null ? sel.Lcr * 1000 : L_mm;
 
   return {
+    title: '',        // metadato de documento; las barras FEM no llevan título propio
     tipo,
     size,
     steel: sel.steel,

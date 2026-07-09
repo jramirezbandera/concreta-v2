@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react';
 import { steelColumnDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
-import { exportSteelColumnsPDF } from '../../lib/pdf/steelColumns';
+import { exportSteelColumnsPDF, steelColumnsFallbackFilename } from '../../lib/pdf/steelColumns';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { SteelColumnsInputs } from './SteelColumnsInputs';
 import { SteelColumnsSVG } from './SteelColumnsSVG';
@@ -36,8 +37,12 @@ export function SteelColumnsModule() {
   // PDF export stays available even when the result is invalid (e.g. Class 4,
   // overall INCUMPLE) — the user may want a PDF to document that a profile
   // doesn't meet EC3. Only require a result object.
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportSteelColumnsPDF(effectiveInputs, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportSteelColumnsPDF(effectiveInputs, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   // Responsive SVG sizing
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -67,7 +72,7 @@ export function SteelColumnsModule() {
       <Topbar
         moduleLabel="Pilares"
         moduleGroup="Acero"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -172,6 +177,16 @@ export function SteelColumnsModule() {
           </div>
         )}
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={steelColumnsFallbackFilename(effectiveInputs)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

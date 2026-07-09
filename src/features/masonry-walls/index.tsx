@@ -9,7 +9,9 @@ import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import { useDocTitle } from '../../hooks/useDocTitle';
 import {
   blankMasonryState,
   calcularEdificio,
@@ -27,7 +29,7 @@ import {
   type PlantaResult,
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
-import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
+import { exportMasonryWallsPDF, masonryWallsFallbackFilename } from '../../lib/pdf/masonryWalls';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { showToast } from '../../components/ui/Toast';
 import { buildShareUrl, decodeShareStringWithMeta } from './serialize';
@@ -180,12 +182,17 @@ export function MasonryWallsModule() {
   const overall = useMemo(() => overallStatus(plantasCalc), [plantasCalc]);
   const critico = useMemo(() => getCriticoEdificio(plantasCalc), [plantasCalc]);
 
+  // Título del documento: fuera del estado del edificio (ver useDocTitle) para no
+  // recomputar ni contaminar inputsFingerprint(state) al teclearlo.
+  const [docTitle, setDocTitle] = useDocTitle('concreta-masonry-title');
+
   // PDF export — invalid disables the button (toast en su lugar).
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(
-      () => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid, system }),
-      !invalid,
-    );
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid, system, title }),
+      valid: !invalid,
+      onTitleChange: setDocTitle,
+    });
 
   // Compartir enlace: serializa el state actual + lz-string + base64 y lo
   // copia al portapapeles. El receptor pega el enlace y carga el mismo caso.
@@ -342,7 +349,7 @@ export function MasonryWallsModule() {
       <Topbar
         moduleLabel="Muros de fábrica"
         moduleGroup="Rehabilitación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
@@ -544,6 +551,16 @@ export function MasonryWallsModule() {
           />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={docTitle}
+          fallbackFilename={masonryWallsFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

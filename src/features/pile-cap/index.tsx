@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { pileCapDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPileCap } from '../../lib/calculations/pileCap';
-import { exportPileCapPDF } from '../../lib/pdf/pileCap';
+import { exportPileCapPDF, pileCapFallbackFilename } from '../../lib/pdf/pileCap';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PileCapInputsPanel } from './PileCapInputsPanel';
 import { PileCapResults } from './PileCapResults';
@@ -22,8 +23,12 @@ export function PileCapModule() {
 
   const result = useMemo(() => calcPileCap(state), [state]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportPileCapPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportPileCapPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -39,7 +44,7 @@ export function PileCapModule() {
       <Topbar
         moduleLabel="Encepados"
         moduleGroup="Cimentación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -112,6 +117,16 @@ export function PileCapModule() {
           <PileCapSVG inp={state} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={pileCapFallbackFilename(state)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

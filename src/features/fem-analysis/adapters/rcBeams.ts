@@ -240,6 +240,7 @@ function buildRcBeamInputs(
     // FEM siempre opera en semántica 'portico' (pre-fija aunque calcRCBeam
     // es mode-agnostic — el FEM no consume `mode`).
     mode: 'portico',
+    title: '', // metadato de documento; las barras FEM no llevan título propio
     b: cmToMm(section.b),
     h: cmToMm(section.h),
     cover: section.cover,

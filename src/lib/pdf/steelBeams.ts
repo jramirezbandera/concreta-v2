@@ -14,7 +14,7 @@ import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 import { formatQuantity, formatNumber, getUnitLabel } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M = 20;   // page margin mm
 
@@ -32,11 +32,19 @@ const MSER_FORMULA: Record<BeamType, string> = {
   ff:         'wSer*L^2/12 (emp.)',
 };
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function steelBeamsFallbackFilename(): string {
+  return `concreta-acero-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
 export async function exportSteelBeamsPDF(
   inp: SteelBeamInputs,
   result: SteelBeamResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
     c.valueNum !== undefined && c.valueQty
@@ -80,19 +88,16 @@ export async function exportSteelBeamsPDF(
   };
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text(pdfStr(`Concreta - ELU/ELS Viga Acero - ${beamCase.labelShort}`), M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - ELU/ELS Viga Acero - ${beamCase.labelShort}`, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG: beam cross-section ──────────────────────────────────────────────────
   const svgContainer = document.getElementById('steel-beams-svg-pdf');
@@ -101,7 +106,7 @@ export async function exportSteelBeamsPDF(
   const SVG_W = 90;
   const SVG_H = 56;   // 420:260 aspect at 90mm width → 55.7mm
   const svgX  = M;
-  const svgY  = M + 12;
+  const svgY  = titleBaseY + 12;
 
   if (svgEl) {
     await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
@@ -296,7 +301,7 @@ export async function exportSteelBeamsPDF(
   doc.text('Concreta - concreta.app | CTE DB-SE-A Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = `concreta-acero-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, steelBeamsFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

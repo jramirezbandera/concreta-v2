@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { timberBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcTimberBeam } from '../../lib/calculations/timberBeams';
-import { exportTimberBeamsPDF } from '../../lib/pdf/timberBeams';
+import { exportTimberBeamsPDF, timberBeamsFallbackFilename } from '../../lib/pdf/timberBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { TimberBeamsInputs } from './TimberBeamsInputs';
 import { TimberBeamsSVG } from './TimberBeamsSVG';
@@ -22,8 +23,12 @@ export function TimberBeamsModule() {
 
   const result = useMemo(() => calcTimberBeam(state as never), [state]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportTimberBeamsPDF(state as never, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportTimberBeamsPDF(state as never, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);
@@ -38,7 +43,7 @@ export function TimberBeamsModule() {
       <Topbar
         moduleLabel="Vigas de madera"
         moduleGroup="Madera"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -113,6 +118,16 @@ export function TimberBeamsModule() {
           <TimberBeamsSVG inp={state as never} result={result} mode="pdf" width={760} height={200} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={timberBeamsFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

@@ -7,15 +7,23 @@ import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M = 20;
+
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function isolatedFootingFallbackFilename(): string {
+  return 'zapata-aislada.pdf';
+}
 
 export async function exportIsolatedFootingPDF(
   inp: IsolatedFootingInputs,
   result: IsolatedFootingResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
     c.valueNum !== undefined && c.valueQty
@@ -29,26 +37,23 @@ export async function exportIsolatedFootingPDF(
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ──────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text('Concreta - Zapata aislada', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Zapata aislada', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG (single — planta + sección + diagrama) ───────────────────────────────
   const svgContainer = document.getElementById('isolated-footing-svg-pdf');
   const svgEl = svgContainer ? (svgContainer.querySelector('svg') as SVGSVGElement | null) : null;
 
   const SVG_X = M;
-  const SVG_Y = M + 12;
+  const SVG_Y = titleBaseY + 12;
   const SVG_W = 80;    // viewBox 320×~426 → preserve aspect ratio
   const SVG_H = 107;
 
@@ -285,7 +290,7 @@ export async function exportIsolatedFootingPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, PAGE_H - M, { align: 'right' });
 
-  const filename = 'zapata-aislada.pdf';
+  const filename = titledFilename(elementTitle, isolatedFootingFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = doc.getNumberOfPages();

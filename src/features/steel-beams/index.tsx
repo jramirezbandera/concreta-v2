@@ -3,14 +3,15 @@ import { steelBeamDefaults } from '../../data/defaults';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { deriveFromLoads } from '../../lib/calculations/loadGen';
-import { exportSteelBeamsPDF } from '../../lib/pdf/steelBeams';
+import { exportSteelBeamsPDF, steelBeamsFallbackFilename } from '../../lib/pdf/steelBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { SteelBeamsInputs } from './SteelBeamsInputs';
 import { SteelBeamsSVG } from './SteelBeamsSVG';
@@ -51,8 +52,12 @@ export function SteelBeamsModule() {
     return [eff, lg, calcSteelBeam(eff)] as const;
   }, [state, lcrManuallyOverridden, autoLcr]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportSteelBeamsPDF(effectiveInputs, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportSteelBeamsPDF(effectiveInputs, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   // Responsive SVG sizing — measure the canvas container
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -97,7 +102,7 @@ export function SteelBeamsModule() {
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Acero"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -229,6 +234,16 @@ export function SteelBeamsModule() {
           )}
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={steelBeamsFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

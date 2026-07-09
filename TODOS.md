@@ -220,6 +220,33 @@ Current PDF export is an incremental update (both sections, same jsPDF template)
 
 Priority: P3 — implement after talking to first users. They'll tell you what format they actually want.
 
+### Título de elemento en PDF — propagar a los otros 17 módulos (design + design-review 2026-07-08)
+
+**Status: HECHO (2026-07-08).** Fase 1 = Vigas (rc-beams). Fase 2 = los otros 17 módulos, completada. Resumen de lo implementado:
+- `drawElementTitle`/`truncateToWidth` promovidos a `lib/pdf/utils.ts` (fuente única; rc-beams dejó de tener copias locales); `drawHeader` acepta `elementTitle` opcional (H1 + subtítulo, byte-idéntico si vacío) para los 2 módulos con cabecera rica (masonry, slope).
+- Hook compositor `hooks/useTitledPdfExport.ts` (regla de tres): envuelve `usePdfPreview`, gestiona el `TitlePromptModal` y **gatea `valid` ANTES de abrir el modal**. Todos los `index.tsx` migrados a él.
+- Módulos de estado plano (13, incl. rc-beams): `title` en `*Inputs` + `title: ''` en `*Defaults` (clave reservada); persiste/comparte gratis vía `useModuleState`.
+- Módulos de estado anidado con solver pesado / hash de procedencia (masonry, slope, fem): el título vive FUERA del estado de cálculo en `hooks/useDocTitle.ts` (localStorage) — así teclearlo NO reejecuta el solver ni contamina `inputsFingerprint()` (exclusión por construcción). compositeSection sí lleva `title` en sus inputs (cálculo barato, sin hash).
+- Cada exportador expone `<mod>FallbackFilename()` (fuente única del nombre por defecto: exportador + preview del modal) y construye el nombre con `titledFilename(elementTitle, fallback)`.
+- Tests: `test/pdf/titlePropagation.dom.test.tsx` (18 fallbacks + composición + camino real rc-columns). Verificado: tsc/eslint limpios, 2348 tests passed.
+
+**What:** Replicar la función "título de elemento" (nombre en PDF + filename) del módulo Vigas a los otros 17 exportadores.
+
+**Why:** Un PDF de cálculo sin nombre de pieza es anónimo (`zapata-aislada (3).pdf`). Con "Zapata P3" el export es archivable e identificable. Coherencia: raro que solo Vigas tenga título.
+
+**No es "~3 líneas por módulo" (aviso de Codex en el eng-review):** es una migración real. Los módulos difieren en validación, cabecera (solo 2 usan `drawHeader`; el resto son bespoke), nombre de archivo y layout PDF. Por módulo:
+- Añadir `title: ''` a los `*Defaults` (y al tipo `*Inputs`), como **clave reservada de metadatos**.
+- Cablear el `TitlePromptModal` en cada `features/<mod>/index.tsx`: `Topbar onExportPdf` abre el modal; confirmar → `setField('title', t)` + `handleExportPdf(t)`.
+- Reenviar `title` a cada `exportXxxPDF()`: pintarlo en cabecera con `pdfStr()` (H1 + subtítulo) y construir el nombre con `titledFilename(title, <fallback actual>)`.
+- **Excluir `title` de `inputsFingerprint()`** en los módulos que muestran hash (masonry, slope) — si no, el nombre de documento contamina el hash de provenance del cálculo (regresión de trazabilidad).
+- Considerar extraer el hook compositor `useTitledPdfExport` (regla de tres) para reducir el boilerplate repetido.
+
+**Pros:** todos los módulos con PDFs identificables; `slugTitle`/`titledFilename`/`TitlePromptModal` ya existen. **Cons:** 17× superficie real (validación + cabecera + tests + QA móvil), no un find-replace.
+
+**Depends on / blocked by:** cerrar Fase 1 (Vigas) primero. **Ojo antes de propagar:** en módulos con `valid` dinámico (no `true` fijo como Vigas), comprobar `valid` ANTES de abrir el modal — si no, el usuario escribe el título y luego choca con el toast "datos no válidos" (`usePdfPreview.ts:20`).
+
+**Context:** ver design doc `~/.gstack/projects/jramirezbandera-concreta-v2/javier-main-design-20260708-201238.md` (secciones Design Spec + Next Steps paso 8).
+
 ## P3 — Nice to have
 
 - [x] RC Columns results: conditionally hide e2 and e_imp value rows when lambda ≤ 25 — DONE 2026-03-30 (bundled with biaxial bending implementation).

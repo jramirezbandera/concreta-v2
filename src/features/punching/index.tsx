@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { punchingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPunching } from '../../lib/calculations/punching';
-import { exportPunchingPDF } from '../../lib/pdf/punching';
+import { exportPunchingPDF, punchingFallbackFilename } from '../../lib/pdf/punching';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PunchingInputsPanel } from './PunchingInputs';
 import { PunchingResults } from './PunchingResults';
@@ -22,8 +23,12 @@ export function PunchingModule() {
 
   const result = useMemo(() => calcPunching(state), [state]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportPunchingPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportPunchingPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -39,7 +44,7 @@ export function PunchingModule() {
       <Topbar
         moduleLabel="Punzonamiento"
         moduleGroup="Hormigón"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -112,6 +117,16 @@ export function PunchingModule() {
           <PunchingSVG inp={state} result={result} width={440} mode="pdf" />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={punchingFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

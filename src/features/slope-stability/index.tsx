@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useContainerWidth } from "../../hooks/useContainerWidth";
-import { usePdfPreview } from "../../hooks/usePdfPreview";
+import { useTitledPdfExport } from "../../hooks/useTitledPdfExport";
+import { useDocTitle } from "../../hooks/useDocTitle";
 import { useDrawer } from "../../components/layout/AppShell";
 import { useUnitSystem } from "../../lib/units/useUnitSystem";
 import { Topbar } from "../../components/layout/Topbar";
 import { showToast } from "../../components/ui/Toast";
 import { PdfPreviewModal } from "../../components/ui/PdfPreviewModal";
+import { TitlePromptModal } from "../../components/ui/TitlePromptModal";
 import { MobileTabBar, type MobileTab } from "../../components/ui/MobileTabBar";
 import { validateSlope } from "../../lib/calculations/geotech/validate";
-import { exportSlopeStabilityPDF } from "../../lib/pdf/slopeStability";
+import { exportSlopeStabilityPDF, slopeStabilityFallbackFilename } from "../../lib/pdf/slopeStability";
 import { useSlopeState, buildShareUrl } from "./useSlopeState";
 import { useSlopeSolver } from "./useSlopeSolver";
 import { SlopeInputs } from "./SlopeInputs";
@@ -68,6 +70,9 @@ export function SlopeStabilityModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>("inputs");
   const [view, setView] = useState<SlopeView>("section");
+  // Título del documento: fuera del estado del solver (ver useDocTitle) para no
+  // reejecutar PySlope ni alterar el hash de procedencia al teclearlo.
+  const [docTitle, setDocTitle] = useDocTitle("concreta-slope-title");
 
   const validation = validateSlope(state);
   const solver = useSlopeSolver(state, validation.valid);
@@ -78,14 +83,16 @@ export function SlopeStabilityModule() {
   // `validation.valid` gatea el export igual que gatea Calcular: con datos
   // inválidos el motor extendería estratos / ignoraría el NF en silencio y el
   // PDF saldría con sello de trazabilidad sobre datos que la app declara malos.
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } = usePdfPreview(
-    async () => {
-      const res = await solver.ensureResult();
-      await nextFrame();
-      return exportSlopeStabilityPDF(state, res, system);
-    },
-    validation.valid,
-  );
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: async (title) => {
+        const res = await solver.ensureResult();
+        await nextFrame();
+        return exportSlopeStabilityPDF(state, res, system, title);
+      },
+      valid: validation.valid,
+      onTitleChange: setDocTitle,
+    });
 
   // Enlace compartible: codifica los inputs anidados (estratos/cargas/contexto)
   // en ?model= vía lz-string y lo copia al portapapeles. Mismo patrón que FEM
@@ -133,7 +140,7 @@ export function SlopeStabilityModule() {
       <Topbar
         moduleLabel="Taludes"
         moduleGroup="Geotecnia"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
@@ -236,6 +243,16 @@ export function SlopeStabilityModule() {
           <SlopeSearchSVG inp={state} run={run} width={640} height={400} mode="pdf" />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={docTitle}
+          fallbackFilename={slopeStabilityFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

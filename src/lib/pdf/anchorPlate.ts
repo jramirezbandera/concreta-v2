@@ -11,7 +11,7 @@ import jsPDF from 'jspdf';
 import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
 import { BOTTOM_ANCHORAGE_LABEL, TOP_CONNECTION_LABEL } from '../../data/anchorBars';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -45,42 +45,47 @@ function fmt(v: number, d = 1): string {
   return v.toFixed(d);
 }
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function anchorPlateFallbackFilename(inp: AnchorPlateInputs): string {
+  return `concreta-placa-anclaje-${inp.sectionType}${inp.sectionSize}-${inp.plate_a}x${inp.plate_b}.pdf`;
+}
+
 export async function exportAnchorPlatePDF(
   inp: AnchorPlateInputs,
   result: AnchorPlateResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system, { precision: 1 });
 
   // ── 1. Header ──────────────────────────────────────────────────────────
-  setGray(doc, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('Concreta - Placa de anclaje con barras corrugadas (CE Anejo 18 / Anejo 11)', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Placa de anclaje con barras corrugadas (CE Anejo 18 / Anejo 11)', M);
 
   setGray(doc, 130);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
   // H17 (Phase 3) — distinción explícita verificación vs dimensionado.
   // El módulo verifica una solución introducida por el usuario; no la
   // dimensiona. Sin esta nota el lector puede leer los resultados como
   // un diseño optimizado.
   doc.text(
     'Verificacion de la solucion introducida por el usuario - no dimensiona.',
-    PAGE_W - M, M + 5, { align: 'right' },
+    PAGE_W - M, titleBaseY + 5, { align: 'right' },
   );
 
   setGray(doc, 200);
   doc.setLineWidth(0.3);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── 2. Inputs — two columns ────────────────────────────────────────────
   const COL_L = M;
   const COL_R = M + CW / 2;
   const LH = 4.2;
-  let ly = M + 13;
+  let ly = titleBaseY + 13;
   let ry = ly;
 
   const sectionHeader = (x: number, label: string, yRef: 'l' | 'r') => {
@@ -460,7 +465,7 @@ export async function exportAnchorPlatePDF(
     doc.text(`Pag. ${i} / ${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
   }
 
-  const filename = `concreta-placa-anclaje-${inp.sectionType}${inp.sectionSize}-${inp.plate_a}x${inp.plate_b}.pdf`;
+  const filename = titledFilename(elementTitle, anchorPlateFallbackFilename(inp));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   return { blobUrl, filename, pageCount };

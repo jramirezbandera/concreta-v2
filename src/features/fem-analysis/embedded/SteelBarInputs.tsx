@@ -64,6 +64,7 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
   })();
 
   const state: SteelBeamInputs = useMemo(() => ({
+    title: '',        // metadato de documento; las barras FEM no llevan título propio
     tipo,
     size,
     steel: sel.steel,

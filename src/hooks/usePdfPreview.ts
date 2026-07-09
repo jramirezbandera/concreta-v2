@@ -3,7 +3,7 @@ import { showToast } from '../components/ui/Toast';
 import type { PdfResult } from '../lib/pdf/utils';
 
 export function usePdfPreview(
-  exportFn: () => Promise<PdfResult>,
+  exportFn: (title?: string) => Promise<PdfResult>,
   valid: boolean,
 ) {
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -16,14 +16,16 @@ export function usePdfPreview(
     };
   }, [pdfPreview]);
 
-  const handleExportPdf = useCallback(async () => {
+  // `title` opcional: los módulos con TitlePromptModal lo pasan al confirmar; el
+  // resto llama sin argumento y su exportFn lo ignora (retrocompatible).
+  const handleExportPdf = useCallback(async (title?: string) => {
     if (!valid) {
       showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
       return;
     }
     setPdfExporting(true);
     try {
-      const result = await exportFn();
+      const result = await exportFn(title);
       if (window.innerWidth < 768) {
         // Mobile: direct download, no preview
         const a = document.createElement('a');

@@ -4,35 +4,40 @@
 import jsPDF from 'jspdf';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function empresalladoFallbackFilename(): string {
+  return 'empresillado.pdf';
+}
+
 export async function exportEmpresalladoPDF(
   inp: EmpresalladoInputs,
   result: EmpresalladoResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text('Concreta - Pilar compuesto empresillado - EC3 §6.4', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Pilar compuesto empresillado - EC3 §6.4', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG ─────────────────────────────────────────────────────────────────────
   // EmpresalladoSvg renders as a single <svg> with both cross-section and elevation.
@@ -40,7 +45,7 @@ export async function exportEmpresalladoPDF(
   const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
 
   const SVG_X = M;
-  const SVG_Y = M + 12;
+  const SVG_Y = titleBaseY + 12;
   const SVG_W = 90;   // mm — takes left ~half of page
   const SVG_H = 90;   // mm — matches 600×480 hidden SVG aspect (wider elevation view)
 
@@ -179,7 +184,7 @@ export async function exportEmpresalladoPDF(
   doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = 'empresillado.pdf';
+  const filename = titledFilename(elementTitle, empresalladoFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

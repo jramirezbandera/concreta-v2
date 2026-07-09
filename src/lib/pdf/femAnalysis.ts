@@ -22,11 +22,17 @@ import type { DesignBar, DesignModel, SolveResult } from '../../features/fem-ana
 import { formatQuantity, getUnitLabel } from '../units/format';
 import { toStatus } from '../calculations/types';
 import type { UnitSystem } from '../units/types';
-import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, type PdfResult } from './utils';
+import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M = 18;                 // page margin (mm)
 const CW = PAGE_W - 2 * M;    // content width (mm)
 const FOOTER_Y = PAGE_H - 10;
+
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function femAnalysisFallbackFilename(): string {
+  return `concreta-fem-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
 
 function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.setLineWidth(lw);
@@ -55,14 +61,10 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
 
 // ── Cover page ──────────────────────────────────────────────────────────────
 
-function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: UnitSystem): number {
-  let y = M;
-
-  // Title
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text('Concreta — Análisis FEM 1D', M, y);
+function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: UnitSystem, elementTitle: string): number {
+  // Title. Con título de elemento, este pasa a H1 y "Concreta — Análisis FEM 1D"
+  // baja a subtítulo (drawElementTitle); sin título, la cabecera queda igual.
+  let y = drawElementTitle(doc, elementTitle, 'Concreta — Análisis FEM 1D', M);
   y += 6;
 
   // Date + preset
@@ -477,11 +479,13 @@ export async function exportFemAnalysisPDF(
   model: DesignModel,
   result: SolveResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // Cover page.
-  drawCover(doc, model, result, system);
+  drawCover(doc, model, result, system, elementTitle);
 
   // One section per bar — start each on a new page when the bar's spec
   // would overflow current page; otherwise continue on current.
@@ -497,7 +501,7 @@ export async function exportFemAnalysisPDF(
     drawFooter(doc, totalPages);
   }
 
-  const filename = `concreta-fem-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, femAnalysisFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   return { blobUrl, filename, pageCount: totalPages };

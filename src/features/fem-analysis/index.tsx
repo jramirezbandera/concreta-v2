@@ -22,10 +22,12 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { showToast } from '../../components/ui/Toast';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import { useDocTitle } from '../../hooks/useDocTitle';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
+import { exportFemAnalysisPDF, femAnalysisFallbackFilename } from '../../lib/pdf/femAnalysis';
 import { Canvas } from './Canvas';
 import { EtaPill } from './EtaPill';
 import { FloatingControls } from './FloatingControls';
@@ -287,15 +289,20 @@ export function FemAnalysisModule() {
   // PDF export — always available per project memory rule "PDF export never disabled".
   // If the solver chunk isn't loaded yet, await it inside the click handler so
   // the button stays clickable from first paint.
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(
-      async () => {
+  // Título del documento: fuera del modelo FEM (ver useDocTitle) para no
+  // recomputar el solver ni alterar el hash al teclearlo.
+  const [docTitle, setDocTitle] = useDocTitle('concreta-fem-title');
+
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: async (title) => {
         const solver = await ensureSolver();
         const r = model ? solver(model) : result;
-        return exportFemAnalysisPDF(model!, r, system);
+        return exportFemAnalysisPDF(model!, r, system, title);
       },
-      true,
-    );
+      valid: true,
+      onTitleChange: setDocTitle,
+    });
 
   function handleShare() {
     if (!model) return;
@@ -327,7 +334,7 @@ export function FemAnalysisModule() {
         moduleLabel="FEM 1D"
         moduleGroup="Análisis"
         onMenuOpen={openDrawer}
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onCopyLink={handleShare}
       />
@@ -453,6 +460,16 @@ export function FemAnalysisModule() {
           )}
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={docTitle}
+          fallbackFilename={femAnalysisFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

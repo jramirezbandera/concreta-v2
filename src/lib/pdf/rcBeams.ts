@@ -10,7 +10,7 @@ import { buildSectionNarrative } from '../../features/rc-beams/rcBeamNarrative';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M  = 20;          // margin
 const CW = PAGE_W - 2 * M;  // content width = 170mm
@@ -19,6 +19,15 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.setLineWidth(lw);
   setGray(doc, gray);
   doc.line(M, y, PAGE_W - M, y);
+}
+
+/** Nombre de archivo por defecto (con fecha) según el modo. Fuente única: lo usan
+ *  el exportador (fallback de titledFilename) y el TitlePromptModal (preview). */
+export function rcBeamsFallbackFilename(inp: RCBeamInputs): string {
+  const date = new Date().toISOString().slice(0, 10);
+  return inp.mode === 'simple'
+    ? `concreta-viga-simple-${date}.pdf`
+    : `concreta-viga-${date}.pdf`;
 }
 
 function drawSectionTable(
@@ -80,12 +89,16 @@ function drawSectionTable(
   y += 5;
 
   // Rebar schedule + lap length
-  doc.text(`Despiece: ${section.rebarSchedule}    Solape min: ${section.lapLength}mm (CE art. 69.5.2)`, M, y);
+  doc.text(`Despiece: ${section.rebarSchedule}    Solape min: ${section.lapLength.toFixed(0)}mm (CE art. 69.5.2)`, M, y);
   y += 5;
 
-  // Table header
-  hline(doc, y - 1, 180, 0.15);
-  const COL = { desc: M, value: M + 80, limit: M + 120, util: M + 152, status: M + 165 };
+  // Table header. El estado se ancla al margen derecho (align:'right') porque
+  // las etiquetas largas ("ADVERTENCIA") se salían de la caja; el resto de
+  // columnas se recolocan para no solaparse con él. La regla superior va a
+  // y-3 (no y-1): a tamaño 6 el texto sube ~1.5mm sobre la línea base, así
+  // que una regla a y-1 cruzaba por encima de las cabeceras.
+  hline(doc, y - 3, 180, 0.15);
+  const COL = { desc: M, value: M + 76, limit: M + 114, util: M + 146, status: PAGE_W - M };
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   setGray(doc, 100);
@@ -93,7 +106,7 @@ function drawSectionTable(
   doc.text('Valor',         COL.value,  y);
   doc.text('Limite',        COL.limit,  y);
   doc.text('Ut%',           COL.util,   y);
-  doc.text('Estado',        COL.status, y);
+  doc.text('Estado',        COL.status, y, { align: 'right' });
   y += 1.5;
   hline(doc, y, 170, 0.15);
   y += 3.5;
@@ -109,7 +122,7 @@ function drawSectionTable(
 
     // Description
     setGray(doc, 50);
-    const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
+    const desc = doc.splitTextToSize(ch.description, 72)[0] as string;
     doc.text(desc, COL.desc, y);
     doc.text(checkValueStr(ch), COL.value, y);
     doc.text(checkLimitStr(ch), COL.limit, y);
@@ -119,7 +132,7 @@ function drawSectionTable(
     doc.text(utilStr, COL.util, y);
     setGray(doc, ch.status === 'ok' ? 70 : 30);
     doc.setFont('helvetica', 'bold');
-    doc.text(STATUS_LABEL[ch.status], COL.status, y);
+    doc.text(STATUS_LABEL[ch.status], COL.status, y, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     y += 3.5;
 
@@ -143,29 +156,31 @@ export async function exportRCBeamsPDF(
   inp: RCBeamInputs,
   result: RCBeamResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  // Título del elemento: el argumento explícito (del modal) gana; si no, el
+  // persistido en inp.title. `?? ` (no `||`) para que '' explícito → sin título.
+  const elementTitle = title ?? inp.title ?? '';
+
   // Simple-mode PDF: 3-SVG layout focused on una sola sección + narrativa.
   if (inp.mode === 'simple') {
-    return exportRCBeamsSimplePDF(inp, result, system);
+    return exportRCBeamsSimplePDF(inp, result, system, elementTitle);
   }
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text('Concreta — ELU/ELS Viga Rectangular', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — ELU/ELS Viga Rectangular', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
-  hline(doc, M + 8, 200, 0.3);
+  hline(doc, titleBaseY + 8, 200, 0.3);
 
   // ── Input summary — compact, 3-column grid ─────────────────────────────────
-  let infoY = M + 13;
+  let infoY = titleBaseY + 13;
   const lineH = 4;
 
   const COL1 = M;
@@ -257,7 +272,7 @@ export async function exportRCBeamsPDF(
   doc.text('Concreta \u2014 concreta.app | Codigo Estructural (CE) Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = `concreta-viga-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, rcBeamsFallbackFilename(inp));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();
@@ -269,6 +284,7 @@ async function exportRCBeamsSimplePDF(
   inp: RCBeamInputs,
   result: RCBeamResult,
   system: UnitSystem,
+  elementTitle = '',
 ): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
@@ -279,28 +295,24 @@ async function exportRCBeamsSimplePDF(
   const MRd = result.vano?.MRd ?? 0;
   const Md = sectionResult.Md;
   const utilization = MRd > 0 ? (Md / MRd) * 100 : 0;
-  const resists = Md <= MRd && !sectionResult.exceededCapacity;
 
   // ── Header ────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text('Concreta — Sección de Viga (modo simple)', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — Sección de Viga (modo simple)', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
-  hline(doc, M + 8, 200, 0.3);
+  hline(doc, titleBaseY + 8, 200, 0.3);
 
   // ── Verdict block — Md vs MRd, prominent ───────────────────────────────────
-  let y = M + 13;
+  let y = titleBaseY + 13;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   setGray(doc, 30);
   doc.text(
-    `Md = ${fmtSi(Md, 'moment')}   /   MRd = ${fmtSi(MRd, 'moment')}   →   ${utilization.toFixed(0)}% capacidad   ·   ${resists ? 'RESISTE' : 'NO RESISTE'}`,
+    `Md = ${fmtSi(Md, 'moment')}   /   MRd = ${fmtSi(MRd, 'moment')}   ·   ${utilization.toFixed(0)}% capacidad`,
     M,
     y,
   );
@@ -449,7 +461,7 @@ async function exportRCBeamsSimplePDF(
   doc.text('Concreta — concreta.app | Codigo Estructural (CE) Espana · CE 21.3.3 (parábola-rectángulo)', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = `concreta-viga-simple-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, rcBeamsFallbackFilename(inp));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

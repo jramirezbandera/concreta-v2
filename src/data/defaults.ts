@@ -22,6 +22,13 @@ export interface RCBeamInputs {
    *  los casos de localStorage state antiguo donde el campo puede llegar
    *  como undefined a runtime aunque TS lo tipa como required. */
   mode: 'simple' | 'portico';
+  /** Nombre del elemento ("Viga 1", "Dintel de ventana"). Metadato de DOCUMENTO,
+   *  no input de cálculo: se captura en el TitlePromptModal al exportar, se usa
+   *  como H1 de la cabecera del PDF y como nombre de archivo. Vive aquí para que
+   *  useModuleState lo persista (localStorage) y lo lleve en el enlace compartido
+   *  gratis; el motor calcRCBeam lo ignora. RESERVADO: al propagar a módulos que
+   *  muestran hash, debe excluirse de inputsFingerprint() (no es input del cálculo). */
+  title: string;
   // Shared geometry + materials
   b: number;              // width (mm)
   h: number;              // total depth (mm)
@@ -64,6 +71,9 @@ export interface RCBeamInputs {
 }
 
 export interface RCColumnInputs {
+  /** Nombre del elemento para el PDF (metadato de documento, no input de
+   *  cálculo). Reservado: excluir de inputsFingerprint(). Ver RCBeamInputs.title. */
+  title: string;
   b: number;
   h: number;
   cover: number;
@@ -102,6 +112,8 @@ export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
 export type ElsCombo = 'characteristic' | 'frequent' | 'quasi-permanent';
 
 export interface SteelBeamInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN';
   size: number;
   steel: 'S275' | 'S355';
@@ -142,6 +154,7 @@ export interface FootingInputs {
 
 export const rcBeamDefaults: RCBeamInputs = {
   mode: 'simple',
+  title: '',
   b: 300,
   h: 500,
   cover: 30,
@@ -179,6 +192,7 @@ export const rcBeamDefaults: RCBeamInputs = {
 };
 
 export const rcColumnDefaults: RCColumnInputs = {
+  title: '',
   b: 300,
   h: 300,
   cover: 30,
@@ -205,6 +219,7 @@ export const rcColumnDefaults: RCColumnInputs = {
 };
 
 export const steelBeamDefaults: SteelBeamInputs = {
+  title: '',
   tipo: 'IPE',
   size: 300,
   steel: 'S275',
@@ -228,6 +243,8 @@ export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN' | 'CHS';
 export type CHSProcess = 'hot-finished' | 'cold-formed';
 
 export interface SteelColumnInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   sectionType: SteelColumnSectionType;
   /** Size key — mm for HEA/HEB/IPE/2UPN. Ignored when sectionType='CHS'. */
   size: number;
@@ -253,6 +270,7 @@ export interface SteelColumnInputs {
 }
 
 export const steelColumnDefaults: SteelColumnInputs = {
+  title: '',
   sectionType: 'HEB',
   size: 200,
   steel: 'S275',
@@ -270,6 +288,8 @@ export const steelColumnDefaults: SteelColumnInputs = {
 };
 
 export interface RetainingWallInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   // Geometry (m)
   H: number;        // clear stem height above footing top
   hf: number;       // footing thickness
@@ -309,6 +329,7 @@ export interface RetainingWallInputs {
 }
 
 export const retainingWallDefaults: RetainingWallInputs = {
+  title: '',
   H: 3.0,
   hf: 0.5,
   tFuste: 0.3,
@@ -349,6 +370,8 @@ export type CrucetaColType = 'HEB' | 'HEA' | 'IPE';
 export type CrucetaSteel = 'S275' | 'S355';
 
 export interface PunchingInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title:         string;
   mode:          PunchingMode;      // 'pilar' | 'carga-puntual' | 'pilar-cruceta'
   cx:            number;            // mm — column/area dim x (or Ø if circular)
   cy:            number;            // mm — column/area dim y (= cx if circular)
@@ -383,6 +406,7 @@ export interface PunchingInputs {
 }
 
 export const punchingDefaults: PunchingInputs = {
+  title:         '',
   mode:          'pilar',
   cx:            300,
   cy:            300,
@@ -441,6 +465,8 @@ export interface PlateEntry {
 }
 
 export interface CompositeSectionInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   mode: CompositeSectionMode;
   profileType: 'IPE' | 'HEA' | 'HEB';
   profileSize: number;
@@ -456,6 +482,7 @@ export interface CompositeSectionInputs {
 }
 
 export const compositeSectionDefaults: CompositeSectionInputs = {
+  title: '',
   mode: 'reinforced',
   profileType: 'IPE',
   profileSize: 300,
@@ -474,6 +501,8 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
 // ── Pile caps — Encepados de micropilotes (CE art. 48 / CTE DB-SE-C §5.1.4) ──
 
 export interface PileCapInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title:    string;
   n:        number;  // 2 | 3 | 4 — number of micropiles
   d_p:      number;  // mm — pile diameter
   s:        number;  // mm — pile spacing c/c
@@ -496,6 +525,7 @@ export interface PileCapInputs {
 // σ_strut=6.04 vs σ_Rd=9.02 → 67%; tirante 330/1131 mm² → 29% (fyd=fyk/γs,
 // sin tope EHE); anclaje lb,req≈329 vs 1000 mm → 33%.
 export const pileCapDefaults: PileCapInputs = {
+  title:   '',
   n:       2,
   d_p:     220,
   s:       1200,
@@ -515,6 +545,8 @@ export const pileCapDefaults: PileCapInputs = {
 // ── Empresillado — RC column jacketed with 4 equal-leg L-angles (EC3 §6.4) ──
 
 export interface EmpresalladoInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   // Existing column geometry
   bc: number;       // column width parallel to x-axis (cm)
   hc: number;       // column depth parallel to y-axis (cm)
@@ -539,6 +571,7 @@ export interface EmpresalladoInputs {
 }
 
 export const empresalladoDefaults: EmpresalladoInputs = {
+  title: '',
   bc: 30,    // cm
   hc: 30,    // cm
   L: 3.0,   // m
@@ -576,6 +609,8 @@ export const footingDefaults: FootingInputs = {
 // Calc derives the other set via loadFactor (default 1.35).
 
 export interface IsolatedFootingInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title:              string;
   // Geometry (m)
   B:                  number;  // footing width — x direction
   L:                  number;  // footing length — y direction
@@ -611,6 +646,7 @@ export interface IsolatedFootingInputs {
 //   N_total = 300 + W_footing + W_soil ≈ 300 + 48.6 + 12.96 = 361.6 kN
 //   σmax = σmin = 361.6 / (1.8·1.8) = 111.6 kPa → util = 55.8% → OK (state-ok)
 export const isolatedFootingDefaults: IsolatedFootingInputs = {
+  title: '',
   B: 1.8, L: 1.8, h: 0.6, bc: 0.4, hc: 0.4, Df: 0.8, cover: 60,
   sigma_adm: 200,
   loadsAreFactored: false, loadFactor: 1.35,
@@ -624,6 +660,8 @@ export const isolatedFootingDefaults: IsolatedFootingInputs = {
 // ── Timber Beams (EC5 EN 1995-1-1) ───────────────────────────────────────────
 
 export interface TimberBeamInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   gradeId: string;       // 'C24', 'GL28h', etc.
   b: number;             // mm — section width
   h: number;             // mm — section height (h ≥ b)
@@ -645,6 +683,7 @@ export interface TimberBeamInputs {
 
 // FTUX defaults: C24 150×400, L=5m biart., g=2kN/m q=3kN/m → ~70% util
 export const timberBeamDefaults: TimberBeamInputs = {
+  title: '',
   gradeId: 'C24',
   b: 150,
   h: 400,
@@ -665,6 +704,8 @@ export const timberBeamDefaults: TimberBeamInputs = {
 // ── Timber Columns (EC5 EN 1995-1-1 §6.3) ────────────────────────────────────
 
 export interface TimberColumnInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   gradeId: string;          // 'C24', 'GL28h', etc.
   b: number;                // mm — section width
   h: number;                // mm — section height
@@ -689,6 +730,8 @@ export type ForjadosTipologia = '25+5' | '30+5' | '35+5' | '40+5' | '35+10' | 'c
 export type ForjadosTipoVano = 'biapoyado' | 'continuo-extremo' | 'continuo-interior' | 'voladizo';
 
 export interface ForjadosInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   variant: ForjadosVariant;
 
   // Geometría compartida
@@ -744,6 +787,7 @@ export interface ForjadosInputs {
 // ~45%, separación de barras OK en 2 capas (s≈28 mm). VEd se bajó de 30→22 porque
 // con d reducido VRd,c≈27 kN < 30 (antes daba INCUMPLE de cortante en el demo).
 export const forjadosDefaults: ForjadosInputs = {
+  title: '',
   variant: 'reticular',
 
   h:       350,
@@ -791,6 +835,7 @@ export const forjadosDefaults: ForjadosInputs = {
 // INCUMPLE en rojo al primer open (el fix de la forma lineal de 6.23 nunca
 // recalibró la demo). Con Md=3: comb-623 ≈ 0.69, comb-624 ≈ 0.60 → verde ~70%.
 export const timberColumnDefaults: TimberColumnInputs = {
+  title: '',
   gradeId: 'C24',
   b: 160,
   h: 160,
@@ -820,6 +865,8 @@ export type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './an
 import type { RebarGrade, RebarDiam, BottomAnchorage, TopConnection } from './anchorBars';
 
 export interface AnchorPlateInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
   // Perfil (reusa del módulo steel-columns)
   sectionType: AnchorPlateSectionType;
   sectionSize: number;              // e.g. 200 for HEB-200
@@ -878,6 +925,7 @@ export interface AnchorPlateInputs {
 // FTUX: HEB-200, placa 400×300×20 S275, 4 barras φ20 B500S en esquinas,
 // prolongación recta, 2 rigidizadores. Axil+biaxial para ejercitar el solver.
 export const anchorPlateDefaults: AnchorPlateInputs = {
+  title: '',
   sectionType: 'HEB',
   sectionSize: 200,
 
@@ -981,6 +1029,8 @@ export interface SoilLayer {
 }
 
 export interface MicropilesInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title:              string;
   // Geometría — convención: profundidad medida DESDE LA RASANTE, positiva
   // hacia abajo (convención geotécnica). Una cabeza enterrada 1 m tiene
   // topDepth = 1. Si por algún motivo la cabeza queda sobre rasante (poste),
@@ -1042,6 +1092,7 @@ export interface MicropilesInputs {
 }
 
 export const micropilesDefaults: MicropilesInputs = {
+  title:              '',
   topDepth:           1.0,
   toeDepth:           17.0,
   drillDiameter:      185,           // mm (era 0.185 m)

@@ -12,7 +12,7 @@
 import jsPDF from 'jspdf';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -33,35 +33,40 @@ const DURATION_LABEL: Record<string, string> = {
   instantaneous: 'Instantanea',
 };
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function timberBeamsFallbackFilename(): string {
+  return 'viga-madera.pdf';
+}
+
 export async function exportTimberBeamsPDF(
   inp: TimberBeamInputs,
   result: TimberBeamResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 2) =>
     formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text('Concreta - Viga de madera - EC5 EN 1995-1-1 / 1995-1-2', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Viga de madera - EC5 EN 1995-1-1 / 1995-1-2', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   setGray(doc, 130);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG full-width ───────────────────────────────────────────────────────────
   const svgContainer = document.getElementById('timber-beams-svg-pdf');
   const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
 
-  const SVG_Y  = M + 12;
+  const SVG_Y  = titleBaseY + 12;
   const SVG_W  = CONTENT_W;                         // 170mm
   const SVG_H  = Math.round(SVG_W * 200 / 760);     // ~44mm (exact aspect of 760×200)
 
@@ -260,7 +265,7 @@ export async function exportTimberBeamsPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = 'viga-madera.pdf';
+  const filename = titledFilename(elementTitle, timberBeamsFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

@@ -53,6 +53,7 @@ import {
   drawTable,
   embedSvgAsImage,
   inputsFingerprint,
+  titledFilename,
   FOOTER_RESERVE,
   type TableCol,
   type PdfResult,
@@ -72,6 +73,12 @@ const statusGray = (eta: number): number =>
 const statusRGB = (eta: number): [number, number, number] =>
   eta >= 1 ? [239, 68, 68] : eta >= WARN_UTIL ? [245, 158, 11] : [34, 197, 94];
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function masonryWallsFallbackFilename(): string {
+  return `muros-fabrica-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
 interface ExportArgs {
   state: MasonryWallState;
   plantasCalc: PlantaResult[];
@@ -82,15 +89,20 @@ interface ExportArgs {
    *  usuario para mantener consistencia con la UI on-screen (trazabilidad
    *  legal + evita confusión del ingeniero firmante). */
   system: UnitSystem;
+  /** Nombre del elemento (H1 de la cabecera + nombre de archivo). Metadato de
+   *  documento: NO entra en inputsFingerprint(state) — llega aparte. */
+  title?: string;
 }
 
 export async function exportMasonryWallsPDF({
-  state, plantasCalc, critico, overall, invalid, system,
+  state, plantasCalc, critico, overall, invalid, system, title,
 }: ExportArgs): Promise<PdfResult> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const hash = inputsFingerprint(state);
+  const elementTitle = title ?? '';
   const headerMeta = {
     title: 'Concreta - Muros de fabrica - DB-SE-F',
+    elementTitle,
     engineVersion: MASONRY_ENGINE_VERSION,
     inputsHash: hash,
     proyecto: state.proyecto,
@@ -119,7 +131,7 @@ export async function exportMasonryWallsPDF({
       engineVersion: MASONRY_ENGINE_VERSION,
       proyecto: state.proyecto,
     }, M);
-    return finalize(doc, 'muros-fabrica');
+    return finalize(doc, elementTitle);
   }
 
   // ── Pre-cálculos derivados (compartidos entre páginas) ──────────────────
@@ -287,7 +299,7 @@ export async function exportMasonryWallsPDF({
     proyecto: state.proyecto,
   }, M);
 
-  return finalize(doc, 'muros-fabrica');
+  return finalize(doc, elementTitle);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1010,11 +1022,11 @@ function drawMetodologia(doc: jsPDF, startY: number): void {
 // Finalize
 // ─────────────────────────────────────────────────────────────────────────────
 
-function finalize(doc: jsPDF, slug: string): PdfResult {
+function finalize(doc: jsPDF, elementTitle: string): PdfResult {
   const pageCount = doc.getNumberOfPages();
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
-  const filename = `${slug}-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, masonryWallsFallbackFilename());
   return { blobUrl, filename, pageCount };
 }
 

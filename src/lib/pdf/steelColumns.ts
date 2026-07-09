@@ -17,10 +17,16 @@ import { type SteelCheckStatus } from '../calculations/steelBeams';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, truncateToWidth, type PdfResult } from './utils';
 
 const M  = 15;   // margin mm
 const CW = PAGE_W - 2 * M;  // content width = 180mm
+
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function steelColumnsFallbackFilename(inp: SteelColumnInputs): string {
+  return `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
+}
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
 
@@ -82,7 +88,9 @@ export async function exportSteelColumnsPDF(
   inp: SteelColumnInputs,
   result: SteelColumnResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   _pageNum = 1;
   let y = M;
@@ -116,6 +124,16 @@ export async function exportSteelColumnsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.text(dateStr, PAGE_W - M, y, { align: 'right' });
+
+  // Título del elemento (opcional): línea prominente bajo la marca. Sin título
+  // no se dibuja nada y la cabecera queda byte-idéntica a la histórica.
+  if (elementTitle.trim()) {
+    y += 5.5;
+    setGray(doc, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(truncateToWidth(doc, pdfStr(elementTitle), CW), M, y);
+  }
 
   y += 5;
   setGray(doc, 20);
@@ -441,7 +459,7 @@ export async function exportSteelColumnsPDF(
   drawPageFooter(doc);
 
   // ── Return preview ───────────────────────────────────────────────────────
-  const filename = `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
+  const filename = titledFilename(elementTitle, steelColumnsFallbackFilename(inp));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

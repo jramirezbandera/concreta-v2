@@ -5,17 +5,26 @@
 import jsPDF from 'jspdf';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;  // mm margin
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function pileCapFallbackFilename(inp: PileCapInputs): string {
+  const n = inp.n as number;
+  return `concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
 export async function exportPileCapPDF(
   inp: PileCapInputs,
   result: PileCapResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -25,19 +34,16 @@ export async function exportPileCapPDF(
   const modeLabel = `Encepado ${n} micropilotes — bielas y tirantes`;
 
   // ── Header ─────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text(`Concreta - ${modeLabel}`, M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - ${modeLabel}`, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG: dual plan + section view ──────────────────────────────────────────
   const svgContainer = document.getElementById('pile-cap-svg-pdf');
@@ -46,7 +52,7 @@ export async function exportPileCapPDF(
   const SVG_W = 85;
   const SVG_H = 110;
   const svgX  = M;
-  const svgY  = M + 12;
+  const svgY  = titleBaseY + 12;
 
   if (svgEl) {
     await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
@@ -212,7 +218,7 @@ export async function exportPileCapPDF(
     doc.text(`Pagina ${i}/${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
   }
 
-  const filename = `concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, pileCapFallbackFilename(inp));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   return { blobUrl, filename, pageCount };

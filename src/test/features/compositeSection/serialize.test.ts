@@ -13,6 +13,7 @@ import {
 import { compositeSectionDefaults, type CompositeSectionInputs } from '../../../data/defaults';
 
 const custom: CompositeSectionInputs = {
+  title: '',
   mode: 'reinforced',
   profileType: 'HEB',
   profileSize: 240,

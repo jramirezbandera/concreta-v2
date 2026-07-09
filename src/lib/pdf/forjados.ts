@@ -13,18 +13,26 @@ import jsPDF from 'jspdf';
 import { type ForjadosInputs } from '../../data/defaults';
 import { type ForjadosResult } from '../calculations/rcSlabs';
 import { type CheckRow } from '../calculations/types';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;  // 170mm
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function forjadosFallbackFilename(result: ForjadosResult): string {
+  return result.variant === 'reticular' ? 'forjado-reticular.pdf' : 'losa-maciza.pdf';
+}
+
 export async function exportForjadosPDF(
   inp: ForjadosInputs,
   result: ForjadosResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
   // Freeze state at export start — the user may mutate inputs while svg2pdf is
@@ -38,25 +46,22 @@ export async function exportForjadosPDF(
   const isReticular = frozenResult.variant === 'reticular';
 
   // ── Header ───────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
   const titleVariant = isReticular ? 'Forjado reticular' : 'Losa maciza';
-  doc.text(`Concreta - ${titleVariant} - CE art. 21, 42, 44`, M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - ${titleVariant} - CE art. 21, 42, 44`, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   setGray(doc, 130);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG ──────────────────────────────────────────────────────────────────
   const svgContainer = document.getElementById('forjados-svg-pdf');
   const svgEls = svgContainer ? Array.from(svgContainer.querySelectorAll('svg')) as SVGSVGElement[] : [];
-  const SVG_Y = M + 12;
+  const SVG_Y = titleBaseY + 12;
   const SVG_H = 65;
   if (svgEls[0]) {
     await embedSvgAsImage(doc, svgEls[0], { x: M, y: SVG_Y, width: CONTENT_W, height: SVG_H });
@@ -277,7 +282,7 @@ export async function exportForjadosPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = isReticular ? 'forjado-reticular.pdf' : 'losa-maciza.pdf';
+  const filename = titledFilename(elementTitle, forjadosFallbackFilename(frozenResult));
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

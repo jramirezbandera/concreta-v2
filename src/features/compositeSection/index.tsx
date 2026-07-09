@@ -1,13 +1,14 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcCompositeSection } from '../../lib/calculations/compositeSection';
-import { exportCompositeSectionPDF } from '../../lib/pdf/compositeSection';
+import { exportCompositeSectionPDF, compositeSectionFallbackFilename } from '../../lib/pdf/compositeSection';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { CompositeSectionInputsPanel } from './CompositeSectionInputs';
@@ -107,8 +108,12 @@ export function CompositeSectionModule() {
 
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportCompositeSectionPDF(inputs, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportCompositeSectionPDF(inputs, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -124,7 +129,7 @@ export function CompositeSectionModule() {
       <Topbar
         moduleLabel="Sección compuesta"
         moduleGroup="Acero"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -213,6 +218,16 @@ export function CompositeSectionModule() {
           <CompositeSectionSVG inp={inputs} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={inputs.title}
+          fallbackFilename={compositeSectionFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { rcBeamDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
-import { exportRCBeamsPDF } from '../../lib/pdf/rcBeams';
+import { exportRCBeamsPDF, rcBeamsFallbackFilename } from '../../lib/pdf/rcBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { RCBeamsInputs } from './RCBeamsInputs';
 import { RCBeamsSVG } from './RCBeamsSVG';
@@ -31,8 +32,14 @@ export function RCBeamsModule() {
 
   // PDF export stays available even when result is invalid — engineers may
   // need a PDF to document a failing/non-conforming section (memory note).
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportRCBeamsPDF(state, result, system), true);
+  // "Preguntar al exportar": openExport valida y abre el TitlePromptModal; al
+  // confirmar se persiste el título y se genera el PDF con él.
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportRCBeamsPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   // Responsive SVG sizing — two SVGs side by side, stacked below STACK_THRESHOLD
   const [canvasRef, canvasWidth] = useContainerWidth();
@@ -61,7 +68,7 @@ export function RCBeamsModule() {
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Hormigon Armado"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -217,6 +224,16 @@ export function RCBeamsModule() {
           );
         })()}
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={rcBeamsFallbackFilename(state)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

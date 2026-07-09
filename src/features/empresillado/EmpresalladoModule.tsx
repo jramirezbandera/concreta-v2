@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { empresalladoDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcEmpresillado } from '../../lib/calculations/empresillado';
-import { exportEmpresalladoPDF } from '../../lib/pdf/empresillado';
+import { exportEmpresalladoPDF, empresalladoFallbackFilename } from '../../lib/pdf/empresillado';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { EmpresalladoInputsPanel } from './EmpresalladoInputs';
 import { EmpresalladoSvg } from './EmpresalladoSvg';
@@ -23,8 +24,12 @@ export function EmpresalladoModule() {
   const result = useMemo(() => calcEmpresillado(state), [state]);
   const sError = state.s <= state.lp;
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportEmpresalladoPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportEmpresalladoPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const SVG_W = Math.min(Math.max((canvasWidth ?? 0) - 32, 240), 760);
@@ -39,7 +44,7 @@ export function EmpresalladoModule() {
       <Topbar
         moduleLabel="Empresillado"
         moduleGroup="Rehabilitación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -121,6 +126,16 @@ export function EmpresalladoModule() {
           <EmpresalladoSvg inp={state} result={result} mode="pdf" width={600} height={480} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={empresalladoFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

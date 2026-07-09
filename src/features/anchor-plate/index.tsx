@@ -2,13 +2,14 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { anchorPlateDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
-import { exportAnchorPlatePDF } from '../../lib/pdf/anchorPlate';
+import { exportAnchorPlatePDF, anchorPlateFallbackFilename } from '../../lib/pdf/anchorPlate';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { AnchorPlateInputsPanel } from './AnchorPlateInputs';
 import { AnchorPlateSVG } from './AnchorPlateSVG';
@@ -28,8 +29,12 @@ export function AnchorPlateModule() {
   const deferredState = useDeferredValue(state);
   const result = useMemo(() => calcAnchorPlate(deferredState, system), [deferredState, system]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportAnchorPlatePDF(deferredState, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportAnchorPlatePDF(deferredState, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
@@ -58,7 +63,7 @@ export function AnchorPlateModule() {
       <Topbar
         moduleLabel="Placas de anclaje"
         moduleGroup="Acero + cimentación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -148,6 +153,16 @@ export function AnchorPlateModule() {
           />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={anchorPlateFallbackFilename(state)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

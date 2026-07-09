@@ -8,7 +8,7 @@ import { type MicropilesResult } from '../calculations/micropiles';
 import type { CheckStatus } from '../calculations/types';
 import { CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 /**
  * Renderiza la línea "Tubo: ..." del PDF. Si es del catálogo, usa el label
@@ -42,28 +42,33 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.line(M, y, PAGE_W - M, y);
 }
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function micropilesFallbackFilename(): string {
+  return 'micropilotes.pdf';
+}
+
 export async function exportMicropilesPDF(
   inp: MicropilesInputs,
   soil: SoilLayer[],
   result: MicropilesResult,
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ──────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text(pdfStr('Concreta — Micropilotes'), M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — Micropilotes', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
-  hline(doc, M + 8, 200, 0.3);
+  hline(doc, titleBaseY + 8, 200, 0.3);
 
   // ── Input summary (left) + Perfil SVG (right) ───────────────────────────
-  const startY = M + 13;
+  const startY = titleBaseY + 13;
   let y = startY;
 
   doc.setFont('helvetica', 'bold');
@@ -337,7 +342,7 @@ export async function exportMicropilesPDF(
     doc.text(pdfStr('Concreta — Herramienta de cálculo estructural. Verificar resultados antes de su uso en proyecto.'), M, PAGE_H - 10);
   }
 
-  const filename = 'micropilotes.pdf';
+  const filename = titledFilename(elementTitle, micropilesFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = totalPages;

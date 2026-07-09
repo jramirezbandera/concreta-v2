@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { forjadosDefaults, type ForjadosVariant } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcForjados } from '../../lib/calculations/rcSlabs';
-import { exportForjadosPDF } from '../../lib/pdf/forjados';
+import { exportForjadosPDF, forjadosFallbackFilename } from '../../lib/pdf/forjados';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { ForjadosInputsPanel } from './ForjadosInputs';
@@ -24,8 +25,12 @@ export function ForjadosModule() {
 
   const result = useMemo(() => calcForjados(state), [state]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportForjadosPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportForjadosPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -73,7 +78,7 @@ export function ForjadosModule() {
       <Topbar
         moduleLabel="Forjados"
         moduleGroup="Hormigón"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -147,6 +152,16 @@ export function ForjadosModule() {
           <ForjadosSVG inp={state} result={result} section={section} width={480} mode="pdf" />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={forjadosFallbackFilename(result)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

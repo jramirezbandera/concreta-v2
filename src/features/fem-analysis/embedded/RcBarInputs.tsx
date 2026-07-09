@@ -43,6 +43,7 @@ export function RcBarInputs({ bar, setModel, activeSection, setActiveSection, ba
     const Vmax = barResult ? Math.max(...barResult.V.map(Math.abs), 0) : 0;
     return {
       mode: 'portico',  // FEM siempre opera en semántica pórtico (vano + apoyo).
+      title: '',        // metadato de documento; las barras FEM no llevan título propio
       b: sec.b * 10,                 // cm → mm
       h: sec.h * 10,                 // cm → mm
       cover: sec.cover,              // already mm

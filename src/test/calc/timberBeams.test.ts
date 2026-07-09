@@ -37,6 +37,7 @@ import { calcTimberBeam } from '../../lib/calculations/timberBeams';
 import { type TimberBeamInputs } from '../../data/defaults';
 
 const baseInp: TimberBeamInputs = {
+  title: '',
   gradeId: 'C24',
   b: 150,
   h: 400,

@@ -11,7 +11,7 @@
 import jsPDF from 'jspdf';
 import { type TimberColumnInputs } from '../../data/defaults';
 import { type TimberColumnResult } from '../../lib/calculations/timberColumns';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -39,35 +39,40 @@ const BETA_LABEL: Record<number, string> = {
   2.0: 'Mensula',
 };
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function timberColumnsFallbackFilename(): string {
+  return 'pilar-madera.pdf';
+}
+
 export async function exportTimberColumnsPDF(
   inp: TimberColumnInputs,
   result: TimberColumnResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 2) =>
     formatQuantity(v, q, system, { precision });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text('Concreta - Pilar de madera - EC5 EN 1995-1-1 §6.3 / 1995-1-2', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Pilar de madera - EC5 EN 1995-1-1 §6.3 / 1995-1-2', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   setGray(doc, 130);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG full-width ───────────────────────────────────────────────────────────
   const svgContainer = document.getElementById('timber-columns-svg-pdf');
   const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
 
-  const SVG_Y = M + 12;
+  const SVG_Y = titleBaseY + 12;
   const SVG_W = CONTENT_W;                         // 170mm
   const SVG_H = Math.round(SVG_W * 200 / 760);    // ~44mm
 
@@ -271,7 +276,7 @@ export async function exportTimberColumnsPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = 'pilar-madera.pdf';
+  const filename = titledFilename(elementTitle, timberColumnsFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

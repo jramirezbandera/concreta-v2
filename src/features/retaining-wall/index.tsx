@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react';
 import { retainingWallDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
-import { exportRetainingWallPDF } from '../../lib/pdf/retainingWall';
+import { exportRetainingWallPDF, retainingWallFallbackFilename } from '../../lib/pdf/retainingWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatNumber, getUnitLabel } from '../../lib/units/format';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { RetainingWallInputsPanel } from './RetainingWallInputs';
 import { RetainingWallSVG, type RetainingWallView } from './RetainingWallSVG';
@@ -103,8 +104,12 @@ export function RetainingWallModule() {
 
   const result = useMemo(() => calcRetainingWall(state), [state]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportRetainingWallPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportRetainingWallPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -135,7 +140,7 @@ export function RetainingWallModule() {
       <Topbar
         moduleLabel="Muros"
         moduleGroup="Cimentación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -259,6 +264,16 @@ export function RetainingWallModule() {
           <RetainingWallSVG inp={state} result={result} mode="pdf" width={560} height={460} view="rebar" />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={retainingWallFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

@@ -3,13 +3,14 @@ import { micropilesDefaults, micropilesSoilDefaults, type MicropilesInputs, type
 import { type SoilType } from '../../data/micropileLookups';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { WARN_UTIL } from '../../lib/calculations/types';
-import { exportMicropilesPDF } from '../../lib/pdf/micropiles';
+import { exportMicropilesPDF, micropilesFallbackFilename } from '../../lib/pdf/micropiles';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { MicropilesInputsPanel } from './MicropilesInputsPanel';
@@ -132,8 +133,12 @@ export function MicropilesModule() {
 
   const result = useMemo(() => calcMicropiles(state, soil), [state, soil]);
 
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportMicropilesPDF(state, soil, result), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportMicropilesPDF(state, soil, result, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   // Share enlace: construimos el enlace bajo demanda combinando los inputs
   // escalares (getShareUrl, desde el estado EN MEMORIA de useModuleState) con
@@ -169,7 +174,7 @@ export function MicropilesModule() {
       <Topbar
         moduleLabel="Micropilotes"
         moduleGroup="Cimentación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
@@ -304,6 +309,16 @@ export function MicropilesModule() {
           <MicropilesSVG inp={state} soil={soil} result={result} view="semaphores" mode="pdf" width={500} height={360} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={micropilesFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

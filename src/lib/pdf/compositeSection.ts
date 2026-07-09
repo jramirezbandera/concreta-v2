@@ -8,7 +8,7 @@
 import jsPDF from 'jspdf';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -18,11 +18,19 @@ function fmt(v: number, decimals = 1): string {
   return v.toFixed(decimals);
 }
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function compositeSectionFallbackFilename(): string {
+  return `concreta-seccion-compuesta-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
 export async function exportCompositeSectionPDF(
   inp: CompositeSectionInputs,
   result: CompositeSectionResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const fmtMrd = (v: number) => formatQuantity(v, 'moment', system, { precision: 1 });
   const fmtN = (v: number) => formatQuantity(v, 'force', system, { precision: 1 });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -32,19 +40,16 @@ export async function exportCompositeSectionPDF(
     ? `${inp.profileType} ${inp.profileSize} + chapas`
     : 'Modo personalizado';
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text(`Concreta - Seccion Compuesta Acero - ${modeLabel}`, M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - Seccion Compuesta Acero - ${modeLabel}`, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG: cross-section ───────────────────────────────────────────────────────
   const svgContainer = document.getElementById('composite-section-svg-pdf');
@@ -53,7 +58,7 @@ export async function exportCompositeSectionPDF(
   const SVG_W = 80;
   const SVG_H = 90;   // taller than steelBeams — composite sections can be tall
   const svgX  = M;
-  const svgY  = M + 12;
+  const svgY  = titleBaseY + 12;
 
   if (svgEl) {
     await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
@@ -269,7 +274,7 @@ export async function exportCompositeSectionPDF(
   doc.text('Concreta - concreta.app | CE art. 5.2 / EN 1993-1-1 Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = `concreta-seccion-compuesta-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, compositeSectionFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

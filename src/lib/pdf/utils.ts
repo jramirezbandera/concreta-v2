@@ -77,6 +77,90 @@ export interface PdfResult {
   pageCount: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Element-title → filename slug (shared by every module + the TitlePromptModal).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Slugify a user-entered element title into a filesystem-safe, lowercase,
+ * hyphenated string. NFD-normalizes and strips combining diacritics (so accents
+ * survive as their base letter), maps any run of non-alphanumeric characters to
+ * a single hyphen, and trims edge hyphens. Returns `''` when the title has no
+ * usable alphanumeric content (e.g. only symbols) — callers fall back to a
+ * default filename via `titledFilename`.
+ *
+ *   "Dintel de ventana"   → "dintel-de-ventana"
+ *   "Viga N.º 1 (P-baja)" → "viga-n-1-p-baja"
+ *   "Ñoño & Cía"          → "nono-cia"
+ *   "/// ??? ///"         → ""
+ */
+export function slugTitle(title: string): string {
+  return title
+    .normalize('NFD')
+    .replace(/\p{Mn}/gu, '') // strip combining diacritics (Mark, nonspacing)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')     // any non-alphanumeric run → single hyphen
+    .replace(/^-+|-+$/g, '');        // trim leading/trailing hyphens
+}
+
+/**
+ * Build the PDF download filename from a user title. A non-empty slug yields
+ * `<slug>.pdf`; otherwise `fallback` (each module's dated default, e.g.
+ * `concreta-viga-2026-07-08.pdf`). This is the SINGLE source of truth for the
+ * download name — the export functions AND the TitlePromptModal preview both
+ * call it, so the preview can never disagree with the actual file.
+ */
+export function titledFilename(title: string, fallback: string): string {
+  const slug = slugTitle(title);
+  return slug ? `${slug}.pdf` : fallback;
+}
+
+/**
+ * Truncate `text` (already sanitized with pdfStr) to `maxW` mm by the MEASURED
+ * width of the current font (not by character count), appending an ellipsis.
+ * The caller must set font/size before calling (getTextWidth depends on them).
+ */
+export function truncateToWidth(doc: jsPDF, text: string, maxW: number): string {
+  if (doc.getTextWidth(text) <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && doc.getTextWidth(t + '...') > maxW) t = t.slice(0, -1);
+  return t.replace(/\s+$/, '') + '...';
+}
+
+/**
+ * Draw the identification heading for a bespoke (non-`drawHeader`) module and
+ * return the `y` of the last title line written (the caller continues with the
+ * date line below). Shared by every module's PDF exporter so the element-title
+ * treatment is identical across the app.
+ *
+ *   - With a title: the element name is the H1 (bold 14) and `moduleTitle`
+ *     becomes a gray subtitle underneath; returns `m + 5.5`.
+ *   - Empty title: `moduleTitle` is the H1 (bold 13) — the historical header —
+ *     and returns `m` unchanged, so the page is byte-identical to pre-feature.
+ *
+ * The H1 shifts subsequent content, so the caller must thread the returned `y`
+ * instead of hardcoding `m + N` offsets.
+ */
+export function drawElementTitle(doc: jsPDF, title: string, moduleTitle: string, m: number): number {
+  const clean = title.trim();
+  if (clean) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    setGray(doc, 20);
+    doc.text(truncateToWidth(doc, pdfStr(clean), PAGE_W - 2 * m), m, m);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    setGray(doc, 110);
+    doc.text(pdfStr(moduleTitle), m, m + 5.5);
+    return m + 5.5;
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  setGray(doc, 30);
+  doc.text(pdfStr(moduleTitle), m, m);
+  return m;
+}
+
 /** Standard check status labels (Spanish). */
 export const STATUS_LABEL: Record<string, string> = {
   ok:      'CUMPLE',
@@ -268,6 +352,13 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
 export interface PdfHeaderMeta {
   /** Main title line, e.g. "Concreta - Muros de fabrica - DB-SE-F". */
   title: string;
+  /**
+   * Optional element name ("Muro 1", "Talud acceso norte"). When present it
+   * becomes the H1 and `title` drops to a gray subtitle; when empty the header
+   * is byte-identical to before. Same treatment as `drawElementTitle` for the
+   * bespoke-header modules.
+   */
+  elementTitle?: string;
   /** Generation timestamp. Default `new Date()`. */
   generatedAt?: Date;
   /** Calculation engine version, e.g. "2.0.0". Renders on cover header AND on every footer (see drawFootersAllPages). */
@@ -297,13 +388,24 @@ export function drawHeader(
   const generatedAt = meta.generatedAt ?? new Date();
   const dateStr = generatedAt.toLocaleDateString('es-ES');
 
-  // Title row
+  // Title row. With an element title it becomes the H1 (bold 14) and the module
+  // descriptor (meta.title) drops to a gray subtitle, shifting the rest of the
+  // band down by `dy`. Empty element title ⇒ dy=0 ⇒ historical layout unchanged.
+  const elementTitle = meta.elementTitle?.trim();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  setGray(doc, 30);
-  doc.text(pdfStr(meta.title), M, M);
+  setGray(doc, elementTitle ? 20 : 30);
+  doc.text(pdfStr(elementTitle || meta.title), M, M);
+  let dy = 0;
+  if (elementTitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    setGray(doc, 110);
+    doc.text(pdfStr(meta.title), M, M + 5.5);
+    dy = 5.5;
+  }
 
-  // Right-aligned engine version + fingerprint on title line
+  // Right-aligned engine version + fingerprint on the H1 line
   if (meta.engineVersion || meta.inputsHash) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
@@ -318,7 +420,7 @@ export function drawHeader(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setGray(doc, 120);
-  doc.text(`Generado: ${dateStr}`, M, M + 5);
+  doc.text(`Generado: ${dateStr}`, M, M + 5 + dy);
 
   // Project metadata row — render even when empty fields ("Sin especificar")
   // so the absence is visible and the inspector knows the document is missing
@@ -328,7 +430,7 @@ export function drawHeader(
     meta.expediente !== undefined ||
     meta.autor !== undefined ||
     meta.fechaProyecto !== undefined;
-  let bandBottom = M + 8;
+  let bandBottom = M + 8 + dy;
   if (hasMetadata) {
     const SIN = 'Sin especificar';
     doc.setFontSize(8);
@@ -336,8 +438,8 @@ export function drawHeader(
     const colA = M;
     const colB = M + (PAGE_W - 2 * M) / 3;
     const colC = M + 2 * (PAGE_W - 2 * M) / 3;
-    const labelY = M + 10;
-    const valY = M + 14;
+    const labelY = M + 10 + dy;
+    const valY = M + 14 + dy;
     doc.setFont('helvetica', 'bold');
     setGray(doc, 100);
     doc.setFontSize(7);

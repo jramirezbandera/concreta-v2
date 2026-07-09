@@ -7,7 +7,7 @@ import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rc
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M  = 20;
 const CW = PAGE_W - 2 * M;
@@ -18,11 +18,21 @@ function hline(doc: jsPDF, y: number, gray = 200, lw = 0.2) {
   doc.line(M, y, PAGE_W - M, y);
 }
 
+/** Nombre de archivo por defecto (con fecha) cuando el título va vacío. Fuente
+ *  única compartida por el exportador y el TitlePromptModal (preview). */
+export function rcColumnsFallbackFilename(): string {
+  return `concreta-pilar-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
 export async function exportRCColumnsPDF(
   inp: RCColumnInputs,
   result: RCColumnResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  // Título del elemento: el argumento explícito (del modal) gana; si no, el
+  // persistido en inp.title. `??` (no `||`) para que '' explícito → sin título.
+  const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   const checkValueStr = (c: { valueNum?: number; valueQty?: Quantity; valueStr?: string; value?: string }) =>
     c.valueNum !== undefined && c.valueQty
@@ -35,26 +45,25 @@ export async function exportRCColumnsPDF(
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ─────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
   const isCirc = result.sectionType === 'circular';
-  doc.text(
+  const titleBaseY = drawElementTitle(
+    doc,
+    elementTitle,
     isCirc
       ? 'Concreta \u2014 ELU Pilar Circular (Flexocompresi\u00f3n)'
       : 'Concreta \u2014 ELU Pilar Rectangular (Flexi\u00f3n Esviada)',
-    M, M,
+    M,
   );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   setGray(doc, 120);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
-  hline(doc, M + 8, 200, 0.3);
+  hline(doc, titleBaseY + 8, 200, 0.3);
 
   // ── Input summary (4 rows × 3 columns) ────────────────────────────────────
-  let infoY = M + 13;
+  let infoY = titleBaseY + 13;
   const lineH = 4;
   const COL1 = M, COL2 = M + 58, COL3 = M + 116;
 
@@ -294,7 +303,7 @@ export async function exportRCColumnsPDF(
   doc.text('Concreta \u2014 concreta.app | C\u00f3digo Estructural (CE) Espa\u00f1a', M, footerY);
   doc.text('P\u00e1gina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = `concreta-pilar-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = titledFilename(elementTitle, rcColumnsFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

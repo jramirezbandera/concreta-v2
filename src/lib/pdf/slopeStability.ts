@@ -40,6 +40,7 @@ import {
   pdfStr,
   STATUS_LABEL,
   PAGE_W,
+  titledFilename,
   type PdfResult,
   type TableCol,
 } from "./utils";
@@ -47,6 +48,12 @@ import type { CheckRow } from "../../lib/calculations/types";
 import { slopeMethodLabel } from "../text/labels";
 
 const M = 20;
+
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function slopeStabilityFallbackFilename(): string {
+  return "estabilidad-talud.pdf";
+}
 
 const SITUATION_LABEL: Record<SlopeInputs["situation"], string> = {
   persistent: "Persistente / transitoria",
@@ -69,7 +76,11 @@ export async function exportSlopeStabilityPDF(
   inp: SlopeInputs,
   result: SlopeResult,
   system: UnitSystem = "si",
+  title?: string,
 ): Promise<PdfResult> {
+  // El título es metadato de documento: NO vive en SlopeInputs (no debe entrar
+  // al solver ni al hash de procedencia), llega como argumento del modal.
+  const elementTitle = title ?? "";
   // Valores del modelo SIEMPRE en SI; solo se convierte al MOSTRAR (convención
   // formatQuantity del producto). fmtQ incluye la unidad; numQ solo el número
   // (para columnas con la unidad en la cabecera); unit da el sufijo de cabecera.
@@ -90,6 +101,7 @@ export async function exportSlopeStabilityPDF(
     doc,
     {
       title: "Concreta - Estabilidad de taludes",
+      elementTitle,
       engineVersion: result.engine.pyslopeVersion,
       inputsHash: result.engine.inputsHash,
     },
@@ -364,7 +376,7 @@ export async function exportSlopeStabilityPDF(
   // ── Footers en todas las páginas (versión motor en cada una) ─────────────────
   drawFootersAllPages(doc, { engineVersion }, M);
 
-  const filename = "estabilidad-talud.pdf";
+  const filename = titledFilename(elementTitle, slopeStabilityFallbackFilename());
   const blob = doc.output("blob");
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = doc.getNumberOfPages();

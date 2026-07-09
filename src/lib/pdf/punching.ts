@@ -11,7 +11,7 @@
 import jsPDF from 'jspdf';
 import { type PunchingInputs } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -24,33 +24,38 @@ const POSITION_LABEL: Record<string, string> = {
   esquina:  'Esquina',
 };
 
+/** Nombre de archivo por defecto cuando el título va vacío. Fuente única
+ *  compartida por el exportador y el TitlePromptModal (preview). */
+export function punchingFallbackFilename(): string {
+  return 'punzonamiento.pdf';
+}
+
 export async function exportPunchingPDF(
   inp: PunchingInputs,
   result: PunchingResult,
   system: UnitSystem = 'si',
+  title?: string,
 ): Promise<PdfResult> {
+  const elementTitle = title ?? inp.title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  setGray(doc, 30);
-  doc.text('Concreta - Punzonamiento en losa - CE art. 6.4', M, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Punzonamiento en losa - CE art. 6.4', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   setGray(doc, 130);
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, M + 5);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, M, titleBaseY + 5);
 
   doc.setLineWidth(0.3);
   setGray(doc, 200);
-  doc.line(M, M + 8, PAGE_W - M, M + 8);
+  doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
   // ── SVG: single plan view, centred ──────────────────────────────────────────
   const svgContainer = document.getElementById('punching-svg-pdf');
   const svgEls = svgContainer ? Array.from(svgContainer.querySelectorAll('svg')) as SVGSVGElement[] : [];
 
-  const SVG_Y  = M + 12;
+  const SVG_Y  = titleBaseY + 12;
   const PLAN_H = 85;                         // mm — square plan
   const PLAN_W = PLAN_H;
   const PLAN_X = M + (CONTENT_W - PLAN_W) / 2; // centred
@@ -270,7 +275,7 @@ export async function exportPunchingPDF(
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
-  const filename = 'punzonamiento.pdf';
+  const filename = titledFilename(elementTitle, punchingFallbackFilename());
   const blob = doc.output('blob');
   const blobUrl = URL.createObjectURL(blob);
   const pageCount = (doc.internal as unknown as { getNumberOfPages(): number }).getNumberOfPages();

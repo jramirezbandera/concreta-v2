@@ -20,6 +20,8 @@ import {
   drawTable,
   drawHeader,
   drawFootersAllPages,
+  slugTitle,
+  titledFilename,
   PAGE_H,
   FOOTER_RESERVE,
 } from '../../lib/pdf/utils';
@@ -311,6 +313,60 @@ describe('drawHeader', () => {
       title: 'Φ-bar — verification',
       engineVersion: '1.0.0',
     }, M)).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// slugTitle
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('slugTitle', () => {
+  it('lowercases, spaces → single hyphen', () => {
+    expect(slugTitle('Dintel de ventana')).toBe('dintel-de-ventana');
+    expect(slugTitle('Viga 1')).toBe('viga-1');
+  });
+
+  it('strips diacritics to base letters (Spanish accents, ñ)', () => {
+    expect(slugTitle('Ñoño')).toBe('nono');
+    expect(slugTitle('Cimentación P-3')).toBe('cimentacion-p-3');
+    expect(slugTitle('Áéíóú Ü')).toBe('aeiou-u');
+  });
+
+  it('collapses any non-alphanumeric run into one hyphen and trims edges', () => {
+    expect(slugTitle('  a  --  b  ')).toBe('a-b');
+    expect(slugTitle('Viga N.º 1 (P-baja)')).toBe('viga-n-1-p-baja');
+    expect(slugTitle('///a///b///')).toBe('a-b');
+  });
+
+  it('returns empty string when no alphanumeric content survives', () => {
+    expect(slugTitle('')).toBe('');
+    expect(slugTitle('/// ??? ///')).toBe('');
+    expect(slugTitle('   ')).toBe('');
+    expect(slugTitle('—·—')).toBe('');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// titledFilename
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('titledFilename', () => {
+  const FALLBACK = 'concreta-viga-2026-07-08.pdf';
+
+  it('returns "<slug>.pdf" for a non-empty title', () => {
+    expect(titledFilename('Dintel de ventana', FALLBACK)).toBe('dintel-de-ventana.pdf');
+  });
+
+  it('falls back to the default filename when the slug is empty', () => {
+    expect(titledFilename('', FALLBACK)).toBe(FALLBACK);
+    expect(titledFilename('/// ???', FALLBACK)).toBe(FALLBACK);
+    expect(titledFilename('   ', FALLBACK)).toBe(FALLBACK);
+  });
+
+  it('is the single source of truth (same input → same name as the modal preview)', () => {
+    // The TitlePromptModal preview calls this exact function, so a given title
+    // always maps to one filename — the preview cannot disagree with the export.
+    expect(titledFilename('Zapata P3', FALLBACK)).toBe('zapata-p3.pdf');
   });
 });
 

@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { isolatedFootingDefaults } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
-import { usePdfPreview } from '../../hooks/usePdfPreview';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcIsolatedFooting } from '../../lib/calculations/isolatedFooting';
-import { exportIsolatedFootingPDF } from '../../lib/pdf/isolatedFooting';
+import { exportIsolatedFootingPDF, isolatedFootingFallbackFilename } from '../../lib/pdf/isolatedFooting';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { IsolatedFootingInputsPanel } from './IsolatedFootingInputsPanel';
 import { IsolatedFootingResults } from './IsolatedFootingResults';
@@ -24,8 +25,12 @@ export function IsolatedFootingModule() {
 
   // PDF export stays available even when result is invalid — engineers may
   // need a PDF to document a failing/non-conforming section (memory note).
-  const { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview } =
-    usePdfPreview(() => exportIsolatedFootingPDF(state, result, system), true);
+  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+    useTitledPdfExport({
+      exportFn: (title) => exportIsolatedFootingPDF(state, result, system, title),
+      valid: true,
+      onTitleChange: (t) => setField('title', t),
+    });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
@@ -41,7 +46,7 @@ export function IsolatedFootingModule() {
       <Topbar
         moduleLabel="Zapatas"
         moduleGroup="Cimentación"
-        onExportPdf={handleExportPdf}
+        onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
@@ -114,6 +119,16 @@ export function IsolatedFootingModule() {
           <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} system={system} />
         </div>
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={isolatedFootingFallbackFilename()}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal
