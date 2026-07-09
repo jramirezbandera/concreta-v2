@@ -14,7 +14,7 @@ import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 import { formatQuantity, formatNumber, getUnitLabel } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, truncateToWidth, type PdfResult } from './utils';
 
 const M = 20;   // page margin mm
 
@@ -124,10 +124,18 @@ export async function exportSteelBeamsPDF(
   }
 
   // ── Right column: input summary + computed key values ───────────────────────
-  const COL_R  = M + 98;   // right column x
-  const COL_R2 = COL_R + 34; // second value in right column
+  // El SVG izquierdo acaba en M+90, así que la columna arranca en M+94. Nada
+  // puede cruzar PAGE_W-M: `twoCol` trunca cada celda a su ancho y `oneCol`
+  // envuelve — antes la línea de wSer se salía del margen derecho.
+  const COL_R   = M + 94;                 // right column x
+  const COL_R2  = COL_R + 40;             // second value in right column
+  const RIGHT_W = PAGE_W - M - COL_R;     // 76mm — ancho útil de la columna
+  const COL_A_W = COL_R2 - COL_R - 2;     // 38mm — celda izquierda de twoCol
+  const COL_B_W = PAGE_W - M - COL_R2;    // 36mm — celda derecha de twoCol
   const LH     = 4;         // line height mm (compact to fit all sections)
-  let ry = M + 14;
+  // `titleBaseY`, no `M`: con título el H1 baja la cabecera 5.5mm y la regla
+  // separadora (titleBaseY+8) pasaba por encima de "PERFIL Y MATERIAL".
+  let ry = titleBaseY + 14;
 
   const sectionHeader = (label: string) => {
     doc.setFont('helvetica', 'bold');
@@ -141,15 +149,17 @@ export async function exportSteelBeamsPDF(
 
   const twoCol = (a: string, b: string) => {
     doc.setFontSize(8);
-    doc.text(pdfStr(a), COL_R, ry);
-    if (b) doc.text(pdfStr(b), COL_R2, ry);
+    doc.text(truncateToWidth(doc, pdfStr(a), COL_A_W), COL_R, ry);
+    if (b) doc.text(truncateToWidth(doc, pdfStr(b), COL_B_W), COL_R2, ry);
     ry += LH;
   };
 
   const oneCol = (a: string) => {
     doc.setFontSize(8);
-    doc.text(pdfStr(a), COL_R, ry);
-    ry += LH;
+    for (const line of doc.splitTextToSize(pdfStr(a), RIGHT_W) as string[]) {
+      doc.text(line, COL_R, ry);
+      ry += LH;
+    }
   };
 
   const gap = () => { ry += 2; };
@@ -158,7 +168,9 @@ export async function exportSteelBeamsPDF(
   sectionHeader('PERFIL Y MATERIAL');
   const profileLabel = result.profile?.label ?? `${inp.tipo} ${inp.size}`;
   twoCol(profileLabel, inp.steel);
-  twoCol(`Tipo: ${beamCase.label}`, `L = ${(inp.L / 1000).toFixed(2)} m`);
+  // Una sola celda: "Tipo: Empotrada-Articulada" no cabe en COL_A_W y pisaba
+  // el "L = ..." de la segunda columna.
+  oneCol(`Tipo: ${beamCase.label} (L = ${(inp.L / 1000).toFixed(2)} m)`);
   gap();
 
   // SOLICITACIONES ELU
@@ -198,7 +210,9 @@ export async function exportSteelBeamsPDF(
   twoCol(`dmax = ${fmt(result.delta_max)} mm`, `dadm = ${fmt(result.delta_adm)} mm`);
 
   // ── Results table ────────────────────────────────────────────────────────────
-  const tableY = M + 12 + SVG_H + diagramsH + 6;
+  // Anclado a `svgY` (= titleBaseY + 12), no a `M + 12`: con título los
+  // diagramas bajan 5.5mm y la regla de la tabla los cortaba por abajo.
+  const tableY = svgY + SVG_H + diagramsH + 6;
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -220,14 +234,16 @@ export async function exportSteelBeamsPDF(
     doc.text(STATUS_LABEL[overall], PAGE_W - M, tableY + 3, { align: 'right' });
   }
 
-  // Table column positions
+  // Table column positions. `status` se ancla al margen derecho (align:'right')
+  // porque las etiquetas largas ("ADVERTENCIA") desbordaban la caja.
   const COL = {
     desc:   M,
-    value:  M + 82,
-    limit:  M + 118,
-    util:   M + 150,
-    status: M + 162,
+    value:  M + 76,
+    limit:  M + 114,
+    util:   M + 146,
+    status: PAGE_W - M,
   };
+  const DESC_W = 74;   // ancho máximo de la descripción, antes de "Valor"
 
   let rowY = tableY + 9;
 
@@ -239,7 +255,7 @@ export async function exportSteelBeamsPDF(
   doc.text('Valor',              COL.value,  rowY);
   doc.text('Limite',             COL.limit,  rowY);
   doc.text('Ut%',                COL.util,   rowY);
-  doc.text('Estado',             COL.status, rowY);
+  doc.text('Estado',             COL.status, rowY, { align: 'right' });
   rowY += 2;
 
   doc.setLineWidth(0.2);
@@ -259,29 +275,30 @@ export async function exportSteelBeamsPDF(
 
     if (chk.neutral) {
       setGray(doc, 50);
-      doc.text(pdfStr(chk.description), COL.desc, rowY);
+      doc.text(truncateToWidth(doc, pdfStr(chk.description), DESC_W), COL.desc, rowY);
       doc.setFont('helvetica', 'bold');
-      doc.text(chk.tag ?? '', COL.status, rowY);
+      doc.text(pdfStr(chk.tag ?? ''), COL.status, rowY, { align: 'right' });
       doc.setFont('helvetica', 'normal');
     } else {
       const st = chk.status as DisplayStatus;
       setGray(doc, 50);
-      doc.text(pdfStr(chk.description), COL.desc, rowY);
+      doc.text(truncateToWidth(doc, pdfStr(chk.description), DESC_W), COL.desc, rowY);
       doc.text(pdfStr(checkValueStr(chk)), COL.value,  rowY);
       doc.text(pdfStr(checkLimitStr(chk)), COL.limit,  rowY);
       doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY);
       doc.setFont('helvetica', 'bold');
       setGray(doc, st === 'ok' ? 60 : 30);
-      doc.text(STATUS_LABEL[st],          COL.status, rowY);
+      doc.text(STATUS_LABEL[st],          COL.status, rowY, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       setGray(doc, 50);
     }
 
-    // Article reference
+    // Article reference — pdfStr: el guion largo de "§6.3.2.3 — Pandeo…" no es
+    // Latin-1 y jsPDF lo emitiría como basura.
     rowY += 4;
     doc.setFontSize(6);
     setGray(doc, 160);
-    doc.text(chk.article, COL.desc + 2, rowY);
+    doc.text(pdfStr(chk.article), COL.desc + 2, rowY);
     doc.setFontSize(7);
     setGray(doc, 50);
 

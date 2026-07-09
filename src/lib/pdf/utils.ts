@@ -144,6 +144,10 @@ export function truncateToWidth(doc: jsPDF, text: string, maxW: number): string 
 export function drawElementTitle(doc: jsPDF, title: string, moduleTitle: string, m: number): number {
   const clean = title.trim();
   if (clean) {
+    // Metadatos /Title: los visores (Chrome, Acrobat) rotulan la pestaña con
+    // esto en vez de con el UUID del blob. Sólo con título, para no alterar el
+    // Info dict — y por tanto los bytes — del caso sin título.
+    doc.setProperties({ title: clean, creator: 'Concreta' });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     setGray(doc, 20);

@@ -9,7 +9,7 @@ interface PdfPreviewModalProps {
   onClose: () => void;
 }
 
-export function PdfPreviewModal({ blobUrl, pageCount, onClose, onDownload }: PdfPreviewModalProps) {
+export function PdfPreviewModal({ blobUrl, filename, pageCount, onClose, onDownload }: PdfPreviewModalProps) {
   // Lock body scroll
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -35,13 +35,21 @@ export function PdfPreviewModal({ blobUrl, pageCount, onClose, onDownload }: Pdf
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border-main shrink-0">
-          <FileText size={16} className="text-text-secondary" />
-          <span className="text-sm font-medium text-text-primary">Previsualización PDF</span>
-          <span className="text-xs text-text-secondary">A4 · {pageCount} página{pageCount !== 1 ? 's' : ''}</span>
-          <div className="flex-1" />
+          <FileText size={16} className="text-text-secondary shrink-0" />
+          <span className="text-sm font-medium text-text-primary shrink-0">Previsualización PDF</span>
+          <span className="text-xs text-text-secondary shrink-0">A4 · {pageCount} página{pageCount !== 1 ? 's' : ''}</span>
+          {/* El nombre real de descarga. La barra del visor de Chrome guarda con
+            * el UUID del blob; sólo este botón respeta el título del elemento. */}
+          <span
+            className="flex-1 min-w-0 truncate text-xs font-mono text-text-secondary"
+            title={filename}
+          >
+            {filename}
+          </span>
           <button
             onClick={onDownload}
-            className="flex items-center gap-1.5 bg-bg-elevated hover:bg-bg-primary border border-border-main rounded px-4 py-1.5 text-sm text-text-primary transition-colors"
+            title={`Descargar como ${filename}`}
+            className="flex items-center gap-1.5 shrink-0 bg-bg-elevated hover:bg-bg-primary border border-border-main rounded px-4 py-1.5 text-sm text-text-primary transition-colors"
           >
             <Download size={14} />
             Descargar

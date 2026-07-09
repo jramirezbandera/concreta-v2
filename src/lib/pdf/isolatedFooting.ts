@@ -65,7 +65,9 @@ export async function exportIsolatedFootingPDF(
   const COL_R  = M + SVG_W + 7;            // 107
   const COL_R2 = COL_R + 38;               // 145
   const LH     = 4.5;
-  let ry = M + 14;
+  // `titleBaseY`, no `M`: con título la regla (titleBaseY+8) baja 5.5mm y pisaba
+  // la primera cabecera de esta columna.
+  let ry = titleBaseY + 14;
 
   const secHeader = (label: string, badge?: { text: string }) => {
     doc.setFont('helvetica', 'bold');
