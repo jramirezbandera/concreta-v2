@@ -2,14 +2,14 @@
 // Rectangular section under combined axial compression + biaxial bending.
 // All units: mm, MPa, kN, kNm unless noted.
 //
-// CE art. 39     — Concrete material properties
-// CE art. 42     — Bending resistance (ELU Flexocompresion)
-// CE art. 42.3   — Reinforcement limits for columns
-// CE art. 43     — Second-order effects (slenderness)
-// CE art. 43.5.3 — Nominal curvature method
-// CE art. 69.4   — Bar spacing
-// CE art. 69.4.3 — Transverse reinforcement for columns
-// CE Anejo 19 art. 5.8.9 — Biaxial bending simplified criterion
+// CE Anejo 19 §3.1     — Concrete material properties
+// CE Anejo 19 §6.1     — Bending resistance (ELU Flexocompresion)
+// CE Anejo 19 §9.5.2   — Reinforcement limits for columns
+// CE Anejo 19 §5.8     — Second-order effects (slenderness)
+// CE Anejo 19 §5.8.8 — Nominal curvature method
+// CE Anejo 19 §8.2   — Bar spacing
+// CE Anejo 19 §9.5.3 — Transverse reinforcement for columns
+// CE Anejo 19 §5.8.9 — Biaxial bending simplified criterion
 
 import { type RCColumnInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
@@ -177,7 +177,7 @@ function computeAxis(
   return { MRd_Nmm: MRd, x_star, ndMaxFailed: false };
 }
 
-/** Interpolate biaxial exponent a from NEd/NRd_max (CE Anejo 19 art. 5.8.9(4)). */
+/** Interpolate biaxial exponent a from NEd/NRd_max (CE Anejo 19 §5.8.9(4)). */
 function interpExponent(ned: number): number {
   if (ned <= 0.1) return 1.0;
   if (ned <= 0.7) return 1.0 + (ned - 0.1) / 0.6 * 0.5;  // 1.0 → 1.5
@@ -200,7 +200,7 @@ interface SectionModel {
   d_z: number;
   barsY: BarGroup[];
   barsZ: BarGroup[];
-  NRd_max: number;      // N — compresión pura, área neta (CE art. 39)
+  NRd_max: number;      // N — compresión pura, área neta (CE Anejo 19 §3.1)
 }
 
 function buildSectionModel(inp: RCColumnInputs): SectionModel | { error: string } {
@@ -302,11 +302,11 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const lambda_y = Lk_mm / (h / Math.sqrt(12));  // strong axis (iy = h/√12)
   const lambda_z = Lk_mm / (b / Math.sqrt(12));  // weak axis  (iz = b/√12)
 
-  // ── Step 4: Second-order eccentricities (CE art. 43.5.3) ──────────────────
+  // ── Step 4: Second-order eccentricities (CE Anejo 19 §5.8.8) ──────────────────
   const NEd_N = Nd * 1e3;  // N
 
   // Método de curvatura nominal: 1/r = Kr·Kφ·(1/r0) con 1/r0 = εyd/(0.45·d)
-  // (CE Anejo 19 art. 5.8.8.3). Kr = 1 (lado seguro). Kφ = 1 + β·φef ≥ 1
+  // (CE Anejo 19 §5.8.8.3). Kr = 1 (lado seguro). Kφ = 1 + β·φef ≥ 1
   // (expr. 5.37, β = 0.35 + fck/200 − λ/150) corrige por fluencia — omitirlo
   // subestima e2 un 20-40% en el rango 25 < λ ≲ 70 donde el 2º orden gobierna.
   const phiEf = inp.phiEf ?? 2.0;
@@ -347,7 +347,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const MRdy = axisY.MRd_Nmm / 1e6;     // kNm
   const MRdz = axisZ.MRd_Nmm / 1e6;     // kNm
 
-  // ── Step 7: Biaxial check (CE Anejo 19 art. 5.8.9) ────────────────────────
+  // ── Step 7: Biaxial check (CE Anejo 19 §5.8.9) ────────────────────────
   const ned = NEd_N / NRd_max;
   const a   = interpExponent(ned);
 
@@ -402,7 +402,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: '\u03bb \u2264 100',
       utilization: lambda_y / 100,
       status,
-      article: 'CE art. 43.5',
+      article: 'CE Anejo 19 §5.8.8',
     });
   }
 
@@ -416,7 +416,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: '\u03bb \u2264 100',
       utilization: lambda_z / 100,
       status,
-      article: 'CE art. 43.5',
+      article: 'CE Anejo 19 §5.8.8',
     });
   }
 
@@ -427,7 +427,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     NEd_N / 1e3,
     NRd_max / 1e3,
     'force',
-    'CE art. 42',
+    'CE Anejo 19 §6.1',
   ));
 
   // nm-y (informational)
@@ -436,7 +436,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       id: 'nm-y',
       description: 'MEd,tot,y \u2264 MRdy \u2014 N/A (aplastamiento governa)',
       value: '\u2014', limit: '\u2014', utilization: NaN, status: 'fail',
-      article: 'CE art. 42 + 43',
+      article: 'CE Anejo 19 §6.1 + §5.8',
     });
   } else {
     checks.push({
@@ -445,7 +445,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
         'MEd,tot,y vs MRdy',
         MEd_tot_y, MRdy,
         'moment',
-        'CE art. 42 + 43',
+        'CE Anejo 19 §6.1 + §5.8',
       ),
       status: MRdy > 0 && MEd_tot_y <= MRdy ? 'ok' : 'fail',
     });
@@ -457,7 +457,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       id: 'nm-z',
       description: 'MEd,tot,z \u2264 MRdz \u2014 N/A (aplastamiento governa)',
       value: '\u2014', limit: '\u2014', utilization: NaN, status: 'fail',
-      article: 'CE art. 42 + 43',
+      article: 'CE Anejo 19 §6.1 + §5.8',
     });
   } else {
     checks.push({
@@ -466,7 +466,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
         'MEd,tot,z vs MRdz',
         MEd_tot_z, MRdz,
         'moment',
-        'CE art. 42 + 43',
+        'CE Anejo 19 §6.1 + §5.8',
       ),
       status: MRdz > 0 && MEd_tot_z <= MRdz ? 'ok' : 'fail',
     });
@@ -480,7 +480,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     limit: '\u2264 2.0',
     utilization: NaN,
     status: 'ok',  // informational only — never fails
-    article: 'CE Anejo 19 art. 5.8.9',
+    article: 'CE Anejo 19 §5.8.9',
   });
 
   // cond-5.38b (informational)
@@ -491,7 +491,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     limit: '\u2265 5.0 \u00f3 \u2264 0.2',
     utilization: NaN,
     status: 'ok',  // informational only
-    article: 'CE Anejo 19 art. 5.8.9',
+    article: 'CE Anejo 19 §5.8.9',
   });
 
   // biaxial-check (governing)
@@ -500,7 +500,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       id: 'biaxial-check',
       description: 'Flexi\u00f3n esviada (biaxial) \u2014 N/A (aplastamiento governa)',
       value: '\u2014', limit: '\u2264 1.0', utilization: Infinity, status: 'fail',
-      article: 'CE Anejo 19 art. 5.8.9',
+      article: 'CE Anejo 19 §5.8.9',
     });
   } else {
     checks.push({
@@ -510,12 +510,12 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: '\u2264 1.0',
       utilization: biaxialUtil,
       status: toStatus(biaxialUtil),
-      article: 'CE Anejo 19 art. 5.8.9',
+      article: 'CE Anejo 19 §5.8.9',
     });
   }
 
-  // as-min geom (CE art. 42.3.1 — cuantía geométrica)
-  // Cuant\u00eda geom\u00e9trica m\u00ednima 0.002\u00b7Ac (CE Anejo 19 art. 9.5.2 / EC2 \u00a79.5.2).
+  // as-min geom (CE Anejo 19 §9.5.2 — cuantía geométrica)
+  // Cuant\u00eda geom\u00e9trica m\u00ednima 0.002\u00b7Ac (CE Anejo 19 §9.5.2 / EC2 \u00a79.5.2).
   // El 0.003 anterior no correspond\u00eda a ninguna referencia; la rama mec\u00e1nica
   // (0.10\u00b7NEd/f_yc,d) cubre la necesidad estructural por separado.
   const As_min = 0.002 * b * h;
@@ -525,10 +525,10 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     As_min, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 art. 9.5.2',
+    'CE Anejo 19 §9.5.2',
   ));
 
-  // as-min mech (CE art. 42.3.1 — cuantía mecánica dependiente de carga)
+  // as-min mech (CE Anejo 19 §9.5.2 — cuantía mecánica dependiente de carga)
   // As · f_yc,d ≥ 0.10 · N_Ed,    con f_yc,d = min(f_yd, 400 N/mm²)
   // Gobierna en pilares muy cargados con sección sobredimensionada.
   const fyc_d = Math.min(fyd, 400);                   // N/mm²
@@ -539,7 +539,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     As_min_mech, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min_mech.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3.1',
+    'CE Anejo 19 §9.5.2',
   ));
 
   // as-max
@@ -550,7 +550,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     As_total, As_max,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2264 ${As_max.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.5.2',
   ));
 
   // nBars-min: 4 corners + intermediates = at least 4
@@ -564,7 +564,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: '\u2265 4 barras',
       utilization: 4 / Math.max(totalBars, 1),
       status,
-      article: 'CE art. 42.3',
+      article: 'CE Anejo 19 §9.5.2',
     });
   }
 
@@ -588,7 +588,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: `\u2265 ${sMinX} mm`,
       utilization: effectiveClear > 0 ? sMinX / effectiveClear : Infinity,
       status,
-      article: 'CE art. 69.4.1',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
@@ -610,11 +610,11 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: `\u2265 ${sMinY} mm`,
       utilization: clearY > 0 ? sMinY / clearY : Infinity,
       status,
-      article: 'CE art. 69.4.1',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
-  // stirrup-diam: ≥ max(φ_max_long/4, 6mm) — CE art. 69.4.3
+  // stirrup-diam: ≥ max(φ_max_long/4, 6mm) — CE Anejo 19 §9.5.3
   {
     const maxLongDiam = Math.max(cornerBarDiam, barDiamX, barDiamY);
     const stirrupDemand = Math.max(maxLongDiam / 4, 6);
@@ -626,11 +626,11 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: `\u2265 \u00d8${stirrupDemand.toFixed(0)} mm`,
       utilization: stirrupDemand / stirrupDiam,
       status,
-      article: 'CE art. 69.4.3',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
-  // stirrup-spacing: ≤ min(12·φ_min, min(b,h), 300mm) — CE Anejo 19 art. 9.5.3
+  // stirrup-spacing: ≤ min(12·φ_min, min(b,h), 300mm) — CE Anejo 19 §9.5.3
   // El cerco arriostra la barra longitudinal MÁS FINA (la más propensa a
   // pandear): el límite usa el Ø mínimo presente, no el de esquina. Con
   // esquinas Ø25 e intermedias Ø12, 12·Ømin = 144 mm, no 300.
@@ -649,7 +649,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       limit: `\u2264 ${sMax} mm`,
       utilization: stirrupSpacing / sMax,
       status,
-      article: 'CE art. 69.4.3',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
@@ -911,14 +911,14 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     limit: 'λ ≤ 100',
     utilization: lambda / 100,
     status: (lambda <= 100 ? 'ok' : 'warn') as CheckStatus,
-    article: 'CE art. 43.5',
+    article: 'CE Anejo 19 §5.8.8',
   });
 
   // nd-max
   checks.push(makeCheckQty(
     'nd-max',
     'NEd ≤ NRd,max (aplastamiento por compresión pura)',
-    NEd_N / 1e3, NRd_max / 1e3, 'force', 'CE art. 42',
+    NEd_N / 1e3, NRd_max / 1e3, 'force', 'CE Anejo 19 §6.1',
   ));
 
   // flexion-check (gobernante)
@@ -927,7 +927,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       id: 'flexion-check',
       description: 'Flexocompresión (M_res ≤ MRd) — N/A (aplastamiento gobierna)',
       value: '—', limit: '≤ 1.0', utilization: Infinity, status: 'fail',
-      article: 'CE art. 42 + 43',
+      article: 'CE Anejo 19 §6.1 + §5.8',
     });
   } else {
     checks.push({
@@ -937,7 +937,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       limitNum: MRd, limitQty: 'moment',
       utilization: resUtil,
       status: toStatus(resUtil),
-      article: 'CE art. 42 + 43',
+      article: 'CE Anejo 19 §6.1 + §5.8',
     });
   }
 
@@ -959,7 +959,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     'Armadura mínima geom.: As ≥ 0.002·Ac',
     As_min, As_total,
     `${As_total.toFixed(0)} mm²`, `≥ ${As_min.toFixed(0)} mm²`,
-    'CE Anejo 19 art. 9.5.2',
+    'CE Anejo 19 §9.5.2',
   ));
 
   // as-min mech
@@ -970,7 +970,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     'Armadura mínima mec.: As·f_yc,d ≥ 0.10·N_Ed',
     As_min_mech, As_total,
     `${As_total.toFixed(0)} mm²`, `≥ ${As_min_mech.toFixed(0)} mm²`,
-    'CE art. 42.3.1',
+    'CE Anejo 19 §9.5.2',
   ));
 
   // as-max
@@ -980,7 +980,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     'Armadura máxima: As ≤ 0.04·Ac',
     As_total, As_max,
     `${As_total.toFixed(0)} mm²`, `≤ ${As_max.toFixed(0)} mm²`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.5.2',
   ));
 
   // nBars-min (Anejo 19 §9.5.2(4): mínimo 4 en sección circular)
@@ -993,7 +993,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       limit: `≥ ${NBARS_MIN_CIRC} barras`,
       utilization: NBARS_MIN_CIRC / Math.max(nBars, 1),
       status,
-      article: 'CE Anejo 19 art. 9.5.2',
+      article: 'CE Anejo 19 §9.5.2',
     });
   }
 
@@ -1009,7 +1009,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       limit: `≥ ${sMin} mm`,
       utilization: clear > 0 ? sMin / clear : Infinity,
       status,
-      article: 'CE art. 69.4.1',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
@@ -1024,7 +1024,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       limit: `≥ Ø${stirrupDemand.toFixed(0)} mm`,
       utilization: stirrupDemand / stirrupDiam,
       status,
-      article: 'CE art. 69.4.3',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 
@@ -1042,7 +1042,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       limit: `≤ ${sMax} mm`,
       utilization: stirrupSpacing / sMax,
       status,
-      article: 'CE art. 69.4.3',
+      article: 'CE Anejo 19 §9.5.3',
     });
   }
 

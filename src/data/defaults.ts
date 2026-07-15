@@ -301,7 +301,7 @@ export interface RetainingWallInputs {
   // Materials
   fck: number;      // N/mm²
   fyk: number;      // N/mm²
-  cover: number;    // m
+  cover: number;    // mm (v2 2026-07-13: antes en m — único módulo que lo almacenaba así)
   // Backfill
   gammaSuelo: number;   // dry/bulk unit weight (kN/m³)
   gammaSat: number;     // saturated unit weight (kN/m³)
@@ -338,7 +338,7 @@ export const retainingWallDefaults: RetainingWallInputs = {
   df: 0,
   fck: 25,
   fyk: 500,
-  cover: 0.04,
+  cover: 40,
   gammaSuelo: 18,
   gammaSat: 20,
   phi: 30,
@@ -361,10 +361,13 @@ export const retainingWallDefaults: RetainingWallInputs = {
   diam_zt_sup: 0, sep_zt_sup: 200,
 };
 
-// ── Punching shear (CE art. 6.4) ─────────────────────────────────────────────
+// ── Punching shear (CE Anejo 19 §6.4) ─────────────────────────────────────────────
 
 export type PunchingMode = 'pilar' | 'carga-puntual' | 'pilar-cruceta';
 export type PunchingPosition = 'interior' | 'borde' | 'esquina';
+/** Origen del coeficiente β: 'auto' = simplificado por posición (Anejo 19 fig.
+ *  6.21N); 'custom' = β afinado introducido por el proyectista (§6.4.3). */
+export type PunchingBetaMode = 'auto' | 'custom';
 // Cruceta v1: only HEB/HEA/IPE columns (rectangular footprint) + zapata substrate.
 export type CrucetaColType = 'HEB' | 'HEA' | 'IPE';
 export type CrucetaSteel = 'S275' | 'S355';
@@ -385,6 +388,8 @@ export interface PunchingInputs {
   sInf:          number;            // mm — bottom face bar spacing
   VEd:           number;            // kN — design force ELU (= axil N for cruceta)
   position:      PunchingPosition;  // 'interior' | 'borde' | 'esquina'
+  betaMode:      PunchingBetaMode;  // 'auto' (simplificado por posición) | 'custom' (β del proyectista)
+  betaManual:    number;            // β introducido a mano (solo con betaMode='custom')
   hasShearReinf: boolean;
   swDiam:        number;            // mm — stirrup bar diameter
   swLegs:        number;            // number of stirrup legs per stirrup group
@@ -420,6 +425,8 @@ export const punchingDefaults: PunchingInputs = {
   sInf:          150,
   VEd:           260,    // kN — ~79% util en vRd,c con β=1.15 (fix #132; antes 300 con β=1.0)
   position:      'interior',
+  betaMode:      'auto', // β simplificado por posición; 'custom' para el β afinado del §6.4.3
+  betaManual:    1.15,   // valor inicial del β personalizado (= interior con transferencia de momento)
   hasShearReinf: false,
   swDiam:        8,      // mm — typical stirrup diameter
   swLegs:        2,
@@ -498,7 +505,7 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
   Ned: 0,
 };
 
-// ── Pile caps — Encepados de micropilotes (CE art. 48 / CTE DB-SE-C §5.1.4) ──
+// ── Pile caps — Encepados de micropilotes (CE Anejo 19 §6.5 / CTE DB-SE-C §5.1.4) ──
 
 export interface PileCapInputs {
   /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
@@ -542,7 +549,7 @@ export const pileCapDefaults: PileCapInputs = {
   R_adm:   250,
 };
 
-// ── Empresillado — RC column jacketed with 4 equal-leg L-angles (EC3 §6.4) ──
+// ── Empresillado — RC column jacketed with 4 equal-leg L-angles (CE Anejo 22 §6.4) ──
 
 export interface EmpresalladoInputs {
   /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
@@ -555,7 +562,7 @@ export interface EmpresalladoInputs {
   N_Ed: number;     // axial compression (kN)
   Mx_Ed: number;    // bending about x-axis (kNm)
   My_Ed: number;    // bending about y-axis (kNm)
-  Vd: number;       // design shear in column section (kN); VEd = max(Vd, NEd/500) per EC3 §6.4.3.1
+  Vd: number;       // design shear in column section (kN); VEd = max(Vd, NEd/500) per CE Anejo 22 §6.4.3.1
   // L-angle profile
   perfil: string;   // AngleProfile key, e.g. 'L100x10'
   fy: number;       // steel yield strength (MPa), typically 275 or 355
@@ -723,7 +730,7 @@ export interface TimberColumnInputs {
   etaFi: number;            // fire load reduction factor (0–1); used only when fireResistance !== 'R0'
 }
 
-// ── Forjados (reticular + losa maciza) — CE art. 21, 42, 44 ──────────────────
+// ── Forjados (reticular + losa maciza) — CE Anejo 19 §5.3.2.1, §6.1, §6.2 ──────────────────
 
 export type ForjadosVariant = 'reticular' | 'maciza';
 export type ForjadosTipologia = '25+5' | '30+5' | '35+5' | '40+5' | '35+10' | 'custom';
@@ -782,7 +789,7 @@ export interface ForjadosInputs {
 }
 
 // FTUX defaults: reticular 30+5, montaje 2Ø12 + refuerzo 2Ø16 (se arman en 2
-// capas en el nervio b_w=120 → d≈292 mm, CE art. 69.4), Md+=35, M-=25, VEd=22 kN.
+// capas en el nervio b_w=120 → d≈292 mm, CE Anejo 19 §8.2), Md+=35, M-=25, VEd=22 kN.
 // Abre en CUMPLE: el cortante gobierna (~80% de VRd,c≈27 kN sin cercos); flexión
 // ~45%, separación de barras OK en 2 capas (s≈28 mm). VEd se bajó de 30→22 porque
 // con d reducido VRd,c≈27 kN < 30 (antes daba INCUMPLE de cortante en el demo).
@@ -914,7 +921,7 @@ export interface AnchorPlateInputs {
   pedestal_cY2:   number;            // mm — idem a −y.
   pedestal_h:     number;            // mm — canto del macizo, necesario para splitting ψh,sp (PR0, default 1000; usado por PR6).
   concrete_cracked: boolean;         // EN 1992-4 §7.2.1.5: k2=7.5 fisurado (default, conservador) ó 10.5 no fisurado. Afecta pull-out y, en futuro, factor ψc,N del cono.
-  plate_margin_x: number;            // mm — placa al borde del macizo, eje fuerte (EC3 §6.2.5, factor α extensión)
+  plate_margin_x: number;            // mm — placa al borde del macizo, eje fuerte (CE Anejo 22 §6.2.5, factor α extensión)
   plate_margin_y: number;            // mm — placa al borde del macizo, eje débil
   surface_type:   PedestalSurface;
 

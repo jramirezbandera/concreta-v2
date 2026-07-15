@@ -183,7 +183,7 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
           <span className="font-mono text-[11px] text-text-primary">{result.rebarSchedule}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-text-disabled">Solape mín. (CE art. 69.5.2)</span>
+          <span className="text-[11px] text-text-disabled">Solape mín. (CE Anejo 19 §8.7.3)</span>
           <span className="font-mono text-[11px] text-text-primary">{result.lapLength} mm</span>
         </div>
       </div>
@@ -257,7 +257,7 @@ function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; 
           <span className="font-mono text-[11px] text-text-primary">{result.rebarSchedule}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-text-disabled">Solape mín. (CE art. 69.5.2)</span>
+          <span className="text-[11px] text-text-disabled">Solape mín. (CE Anejo 19 §8.7.3)</span>
           <span className="font-mono text-[11px] text-text-primary">{result.lapLength} mm</span>
         </div>
       </div>

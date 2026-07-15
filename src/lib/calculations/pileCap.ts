@@ -17,18 +17,18 @@
 //     EHE 58.4.1.1 y el CE Anejo 19 §6.5.3 no lo recoge (#85)
 //   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
 //   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
-//     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4) (#75)
+//     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4.4) (#75)
 //   - armadura secundaria (superior ≥ 10% de la inferior, retícula h+v ≥ 4‰):
 //     RECOMENDACIÓN de buena práctica (ex-EHE 58.4.1.4); CE Anejo 19 §9.8.1
 //     no la exige con carácter general (#79)
 //
-// CE art. 48 / Anejo 19 §6.5 — strut-and-tie model, strut angle limits
+// CE Anejo 19 §6.5 — strut-and-tie model, strut angle limits
 // CE Anejo 19 §6.5.2 — strut crushing 0.60·ν'·fcd (lado seguro frente al nodo
 //   C-C-T de §6.5.4, k2=0.85·ν'·fcd) — ver check 'strut-capacity'
 // CE Anejo 19 §6.5.4 — nodo C-C-C bajo el pilar (k1=1.0·ν'·fcd)
-// CE art. 69   — anchorage length
-// CE art. 9.1  — minimum reinforcement
-// CE art. 42.3 — maximum bar spacing
+// CE Anejo 19 §8.4.4   — anchorage length
+// CE Anejo 19 §9.2.1.1  — minimum reinforcement
+// CE Anejo 19 §8.2 — maximum bar spacing
 // CTE DB-SE-C §5.1.4 — geometric requirements (spacing, edge, depth)
 //
 // IMPORTANT: A_node = π·d_p²/4 (circular pile cross-section).
@@ -204,7 +204,7 @@ function getCapDimensions(
   return { L_x: s + 2 * e, L_y: s + 2 * e, e_borde: e };
 }
 
-// ── As_min (CE art. 9.1) ───────────────────────────────────────────────────
+// ── As_min (CE Anejo 19 §9.2.1.1) ───────────────────────────────────────────────────
 
 function calcAsMin(fctm: number, fyk: number, b: number, d: number): number {
   return Math.max(
@@ -352,7 +352,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // (fix auditoría #86 — antes se repartía en todo el ancho del encepado).
   const A_phi = getBarArea(phi_tie);   // mm² per bar
   const s_max = Math.min(250, 15 * phi_tie);
-  const s_bar_min = Math.max(20, phi_tie);  // CE art. 69.4 (árido fino supuesto)
+  const s_bar_min = Math.max(20, phi_tie);  // CE Anejo 19 §8.2 (árido fino supuesto)
   const w_band = Math.min(d_p + 2 * cover, Math.min(L_x, L_y) - 2 * cover);
 
   // Width b for As_min per direction (sección completa — mínimo geométrico)
@@ -382,7 +382,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     s_bar_y = n_bars_y > 1 ? w_band / (n_bars_y - 1) : 999;
   }
 
-  // ── Anchorage (CE art. 69 / Anejo 19 §8.4) — fix auditoría #75 ───────────
+  // ── Anchorage (CE Anejo 19 §8.4.4) — fix auditoría #75 ───────────
   // fctd con el 0.7 de fctk,0.05 (antes fctm/1.5: fbd inflado ×1.43) y
   // demanda = lbd de la barra DOBLADA (patilla vertical, α1=0.7, supone
   // c_d ≥ 3φ — cumplido con cover ≥ 3φ habitual), reducida por
@@ -478,18 +478,18 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       limit: '26.5° – 63.5°',
       utilization: theta_util,
       status: theta_status,
-      article: 'CE art. 48 / Anejo 19 §6.5',
+      article: 'CE Anejo 19 §6.5',
     });
   }
 
-  // 6. Strut capacity — CE art. 48.3
+  // 6. Strut capacity — CE Anejo 19 §6.5
   checks.push(makeCheck(
     'strut-capacity',
     'Tensión nodal biela (nodo C-C-T)',
     sigma_strut, sigma_Rd_max,
     `${sigma_strut.toFixed(2)} MPa`,
     `${sigma_Rd_max.toFixed(2)} MPa`,
-    'CE art. 48.3',
+    'CE Anejo 19 §6.5',
   ));
 
   // 7. Tie reinforcement x
@@ -536,7 +536,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         limit: '≥ 2 barras',
         utilization: 0.99,
         status: 'warn',
-        article: 'CE art. 42.3',
+        article: 'CE Anejo 19 §8.2',
       });
     } else {
       checks.push(makeCheck(
@@ -545,7 +545,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         s_bar_worst, s_max,
         `${s_bar_worst.toFixed(0)} mm`,
         `${s_max.toFixed(0)} mm`,
-        'CE art. 42.3',
+        'CE Anejo 19 §8.2',
       ));
       checks.push(makeCheck(
         'bar-spacing-min',
@@ -553,7 +553,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         s_bar_min, s_bar_worst,
         `${s_bar_min.toFixed(0)} mm`,
         `${s_bar_worst.toFixed(0)} mm`,
-        'CE art. 69.4',
+        'CE Anejo 19 §8.2',
       ));
     }
   }
@@ -565,7 +565,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     lb_net, lb_avail,
     `${lb_net.toFixed(0)} mm`,
     `${lb_avail.toFixed(0)} mm`,
-    'CE art. 69 / Anejo 19 §8.4',
+    'CE Anejo 19 §8.4.4',
   ));
 
   // 11. Column node C-C-C (CE Anejo 19 §6.5.4, k1 = 1.0) — fix auditoría #83

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { empresalladoDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { empresalladoDefaults, type EmpresalladoInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcEmpresillado } from '../../lib/calculations/empresillado';
 import { exportEmpresalladoPDF, empresalladoFallbackFilename } from '../../lib/pdf/empresillado';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { empresalladoAdapter, summarizeEmpresalladoResults } from '../../lib/ai/modules/empresillado';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { EmpresalladoInputsPanel } from './EmpresalladoInputs';
 import { EmpresalladoSvg } from './EmpresalladoSvg';
 import { EmpresalladoResults } from './EmpresalladoResults';
@@ -21,7 +26,30 @@ export function EmpresalladoModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  const handleAiApply = (plan: AiApplyPlan<EmpresalladoInputs>) => {
+    const ORDER: (keyof EmpresalladoInputs)[] = [
+      'bc', 'hc', 'L', 'N_Ed', 'Mx_Ed', 'My_Ed', 'Vd',
+      'perfil', 'fy', 'beta_x', 'beta_y',
+      's', 'lp', 'bp', 'tp',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as EmpresalladoInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcEmpresillado(state), [state]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeEmpresalladoResults(result), [result]);
   const sError = state.s <= state.lp;
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
@@ -63,6 +91,14 @@ export function EmpresalladoModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <EmpresalladoInputsPanel state={state} setField={setField} sError={sError} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -126,6 +162,16 @@ export function EmpresalladoModule() {
           <EmpresalladoSvg inp={state} result={result} mode="pdf" width={600} height={480} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={empresalladoAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

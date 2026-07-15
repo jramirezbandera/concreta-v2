@@ -13,7 +13,7 @@ export const BETA_J = 2 / 3;
 /**
  * Concrete bearing strength of the joint, f_jd (MPa):
  *   f_jd = βj · α · fcd
- * α is the EC3 §6.2.5(4) concentration factor Kj (1 ≤ α ≤ 3); pass α = 1 for
+ * α is the CE Anejo 22 §6.2.5(4) concentration factor Kj (1 ≤ α ≤ 3); pass α = 1 for
  * no concentration (conservative).
  */
 export function fjd(fcd: number, alpha = 1, betaj: number = BETA_J): number {

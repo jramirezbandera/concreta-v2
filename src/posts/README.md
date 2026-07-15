@@ -13,7 +13,7 @@ slug: "url-amigable-del-articulo"
 date: "2026-05-08"
 category: "TUTORIAL"        # TUTORIAL | NORMATIVA | CHANGELOG | PRODUCTO
 read: "12 min"
-norm: "CE art.45"           # Norma destacada o "—"
+norm: "CE Anejo 19 §6.4"    # Norma destacada o "—"
 excerpt: "Resumen corto del artículo (1-2 frases)."
 author: "Javier Ramírez Bandera"
 authorRole: "FUNDADOR · ARQUITECTO CALCULISTA"
@@ -25,7 +25,7 @@ coverCaption: "Pie de figura"   # opcional
 
 Un párrafo. Las citas en bloque se renderizan como callouts:
 
-> **CE art.45.1** — empieza con texto normal → callout azul.
+> **CE Anejo 19 §6.4.2** — empieza con texto normal → callout azul.
 > ⚠ **cuidado** — empieza con ⚠ → callout ámbar.
 > ✓ **caso real** — empieza con ✓ → callout verde.
 

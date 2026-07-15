@@ -1,5 +1,5 @@
 // Composite steel section — Steiner theorem + EC3/CE classification
-// CE art. 5.2 / EC3 Table 5.2 (EN 1993-1-1)
+// CE Anejo 22 §5.5 / EC3 Table 5.2 (EN 1993-1-1)
 // All internal calculations in mm and mm⁴. Display in cm⁴, cm³, kNm.
 
 import { type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
@@ -32,7 +32,7 @@ const E_STEEL = 210000;          // N/mm² — módulo de Young
 const SLEND_MAX = 2.0;           // esbeltez reducida recomendada (CTE DB-SE-A)
 // Curva de pandeo del conjunto soldado (perfil + chapas): curva c fija en
 // ambos ejes (α=0.49). Decisión conservadora para una sección armada soldada
-// no normalizada (EC3 Tabla 6.2, lado seguro). Ver plan / decisión de usuario.
+// no normalizada (CE Anejo 22 Tabla 6.2, lado seguro). Ver plan / decisión de usuario.
 const COMPOSITE_BUCKLING_ALPHA = BUCKLING_ALPHA.c;
 
 export interface SectionElement {
@@ -325,7 +325,7 @@ function rectOverlapArea(a: Rect, b: Rect): number {
   return dx > 0 && dy > 0 ? dx * dy : 0;
 }
 
-// ── Classification in PURE COMPRESSION (EC3 Tabla 5.2) ───────────────────────
+// ── Classification in PURE COMPRESSION (CE Anejo 22 Tabla 5.2) ───────────────────────
 // Distinta de la clasificación en flexión (que gobierna Mrd): aquí todos los
 // elementos están en compresión uniforme. Alma y chapas internas → 33/38/42·ε;
 // alas → vuelo 9/10/14·ε SALVO que dos chapas laterales ancladas a las alas
@@ -726,7 +726,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       limit: `≤ ${webLimVal.toFixed(1)} (Cl.${webClass})`,
       utilization: Math.min(webRatio / Math.max(webLimVal, 1e-6), 2),
       status: webClass <= 2 ? 'ok' : webClass === 3 ? 'warn' : 'fail',
-      article: 'CE art. 5.2 T.5.2',
+      article: 'CE Anejo 22 §5.5 (T.5.2)',
     });
 
     const ftLimVal = ftLimGov ?? FLG_LIMITS[Math.min(flangeTopClass - 1, 2)] * epsilon;
@@ -738,7 +738,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       limit: `≤ ${ftLimVal.toFixed(1)} (Cl.${flangeTopClass})`,
       utilization: ftUtil,
       status: flangeTopClass <= 2 ? 'ok' : flangeTopClass === 3 ? 'warn' : 'fail',
-      article: 'CE art. 5.2 T.5.2',
+      article: 'CE Anejo 22 §5.5 (T.5.2)',
     });
 
     const fbLimVal = FLG_LIMITS[Math.min(flangeBotClass - 1, 2)] * epsilon;
@@ -749,7 +749,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       limit: `≤ ${fbLimVal.toFixed(1)} (Cl.${flangeBotClass})`,
       utilization: classUtil(flangeBotRatio, flangeBotClass, FLG_LIMITS, epsilon),
       status: flangeBotClass <= 2 ? 'ok' : flangeBotClass === 3 ? 'warn' : 'fail',
-      article: 'CE art. 5.2 T.5.2',
+      article: 'CE Anejo 22 §5.5 (T.5.2)',
     });
   }
 
@@ -919,10 +919,10 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       } else {
         compChecks.push(makeCheckQty('comp-Nby',
           `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
-          Ned_kN, Nb_Rd_y_kN, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+          Ned_kN, Nb_Rd_y_kN, 'force', 'CE Anejo 22 §6.3.1'));
         compChecks.push(makeCheckQty('comp-Nbz',
           `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
-          Ned_kN, Nb_Rd_z_kN, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+          Ned_kN, Nb_Rd_z_kN, 'force', 'CE Anejo 22 §6.3.1'));
         // Esbeltez reducida recomendada λ̄ ≤ 2.0
         compChecks.push({
           id: 'comp-sy', description: `Esbeltez reducida  λ̄ (eje y) = ${lambda_y.toFixed(2)}`,
@@ -940,7 +940,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
 
       // Nota informativa (análoga a la de signo M+): solo se comprueba el pandeo
       // POR FLEXIÓN en los ejes y/z. El pandeo por torsión y flexo-torsión
-      // (EC3 §6.3.1.4) no se verifica y puede gobernar en secciones
+      // (CE Anejo 22 §6.3.1.4) no se verifica y puede gobernar en secciones
       // monosimétricas (una sola platabanda, o chapa lateral a un solo lado) o
       // abiertas de baja rigidez torsional. Se muestra siempre que hay bloque
       // de compresión, también con clase 4, para no dar por cubierto un modo
@@ -949,7 +949,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
         'comp-tf-note',
         'Solo pandeo por flexión (ejes y, z). Torsión / flexo-torsión (§6.3.1.4) no comprobada — puede gobernar en secciones monosimétricas o de baja rigidez torsional',
         'T·FT',
-        'CE Anejo 22 (EC3) §6.3.1.4',
+        'CE Anejo 22 §6.3.1.4',
       ));
     }
   }

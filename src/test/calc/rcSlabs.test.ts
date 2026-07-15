@@ -1,4 +1,4 @@
-// Forjados (reticular + losa maciza) — CE art. 21, 42, 44, 49.2.4
+// Forjados (reticular + losa maciza) — CE Anejo 19 §5.3.2.1, §6.1, §6.2, §7.3
 // Run: bun test src/test/calc/rcSlabs.test.ts
 
 import { describe, expect, it } from 'vitest';
@@ -259,7 +259,7 @@ describe('cortante', () => {
     // CE Anejo 19 §6.2.3(3): VRd,max = ν1·fcd·bw·z/(cotθ+tanθ), con el MISMO
     // θ que VRd,s. Hand-calc (defaults reticular + cercos apoyo Ø6c/150 2 ramas):
     //   El montaje 2Ø12 + refuerzo 2Ø16 NO caben en una fila del nervio (b_w=120,
-    //   cercos Ø6) → se arman en 2 capas (CE art. 69.4). Centroide ȳ≈63.8 →
+    //   cercos Ø6) → se arman en 2 capas (CE Anejo 19 §8.2). Centroide ȳ≈63.8 →
     //   dShear = 350 − 63.8 = 286.2 mm → z = 0.9·286.2 = 257.6 mm.
     //   VRds = (2·28.3/150)·257.6·434.78·2.5/1000 = 105.66 kN
     //   ν1 = 0.6·(1 − 25/250) = 0.54; cotθ + tanθ = 2.5 + 0.4 = 2.9
@@ -278,7 +278,7 @@ describe('cortante', () => {
 
   it('VRd,c con factor 100 en (100·ρl·fck)^⅓ — oracle manual (fix auditoría #38)', () => {
     // Defaults reticular sin cercos: montaje 2Ø12 + refuerzo 2Ø16 en 2 capas
-    // (CE art. 69.4) → d=292.2 (no 312), b=120, As=628 mm² → ρ=0.0179
+    // (CE Anejo 19 §8.2) → d=292.2 (no 312), b=120, As=628 mm² → ρ=0.0179
     //   VRdc1 = 0.12·k·(100·0.0179·25)^⅓·120·292.2 con k=1+√(200/292.2)=1.83
     //   ≈ 27.3 kN
     // Pre-fix sin el 100: VRdc1 ≈ 6 kN y gobernaba νmin ≈ 15.4 kN — capacidad
@@ -377,7 +377,7 @@ describe('cuantías mín/máx', () => {
   });
 });
 
-// ── Bar spacing (CE art. 69.4 — Ø reales + multicapa) ──────────────────────────
+// ── Bar spacing (CE Anejo 19 §8.2 — Ø reales + multicapa) ──────────────────────────
 describe('separación barras', () => {
   it('default (2Ø12 + 2Ø16) CUMPLE en 2 capas — Ø reales, no max Ø para todas', () => {
     // El bug previo: 4×Ø16 en 1 capa → 120−60−64 = −4 → INCUMPLE espurio.
@@ -455,7 +455,7 @@ describe('info checks (no bloqueantes)', () => {
     expect(r.infoChecks.some((c) => c.id === 'biaxial-note')).toBe(true);
   });
 
-  it('maciza: armadura de reparto note (CE art. 42.3.6)', () => {
+  it('maciza: armadura de reparto note (CE Anejo 19 §9.3.1.1)', () => {
     const r = calcForjados({ ...base, variant: 'maciza' });
     expect(r.infoChecks.some((c) => c.id === 'armadura-reparto')).toBe(true);
   });
@@ -513,8 +513,8 @@ describe('tipo vano L0 factor', () => {
   });
 });
 
-// ── Anclaje (CE art. 69.5.1.1) ──────────────────────────────────────────────
-describe('computeAnchorage (CE art. 69.5.1.1)', () => {
+// ── Anclaje (CE Anejo 19 §8.4.4) ──────────────────────────────────────────────
+describe('computeAnchorage (CE Anejo 19 §8.4.4)', () => {
   it('lb_rqd = (Ø/4)·(fyd/fbd) for Pos I — fctd con 0.7·fctm/γc (fix auditoría #19)', () => {
     // Ø16, fck=25 → fctm≈2.6
     // fctd = αct·fctk,0.05/γc = 0.7·fctm/1.5 (CE Anejo 19 §3.1.6 + Tabla 3.1)
@@ -570,7 +570,7 @@ describe('anchorage checks emitted', () => {
     const apoyoAnch = r.apoyo.checks.filter((c) => c.id.startsWith('anchorage-'));
     expect(vanoAnch.length).toBe(2);
     expect(apoyoAnch.length).toBe(2);
-    expect(vanoAnch.every((c) => c.article === 'CE art. 69.5.1.1')).toBe(true);
+    expect(vanoAnch.every((c) => c.article === 'CE Anejo 19 §8.4.4')).toBe(true);
   });
 
   it('no refuerzo → only 1 anchorage check per zone (base only)', () => {

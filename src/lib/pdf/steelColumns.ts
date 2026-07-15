@@ -37,8 +37,23 @@ const COL = {
   limit:  M + 113,     // capacity / limit
   util:   M + 139,     // utilization %
   status: M + 152,     // CUMPLE / INCUMPLE
-  art:    PAGE_W - M,  // normative article (right-aligned)
 };
+
+/** Ancho útil de la descripción: hasta la columna "Valor", con 4 mm de aire. */
+const DESC_W = 84;
+
+/**
+ * El artículo normativo va en la SEGUNDA línea de cada fila, bajo la
+ * descripción. Antes se alineaba a la derecha en la MISMA línea base que el
+ * estado: "CE Anejo 22 §6.2.4" mide 27 mm y arrancaba dentro de
+ * "CUMPLE" (x=167), así que se pisaban. A la izquierda hay sitio de sobra y
+ * además queda bajo su descripción, que es a lo que se refiere.
+ *
+ * Geometría de la fila (baseline y): texto y · barra y+1.5…y+2.9 ·
+ * artículo y+4 · separador y+5.5 · siguiente fila y+8. La barra arranca en
+ * COL.value (x=103), muy a la derecha de donde acaba el artículo.
+ */
+const ART_DY = 4;
 
 function fmt(v: number, d = 1): string {
   return v.toFixed(d);
@@ -139,7 +154,7 @@ export async function exportSteelColumnsPDF(
   setGray(doc, 20);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('Pilares de Acero — Verificacion ELU  (EC3 §6.3 / CE DB-SE-A)', M, y);
+  doc.text('Pilares de Acero — Verificacion ELU  (CE Anejo 22 §6.3 / CE DB-SE-A)', M, y);
 
   y += 4;
   setGray(doc, 110);
@@ -260,7 +275,7 @@ export async function exportSteelColumnsPDF(
     setGray(doc, 140);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    doc.text('Contorno de interaccion biaxial My-Mz (EC3 6.3.3)', PAGE_W / 2, y, { align: 'center' });
+    doc.text('Contorno de interaccion biaxial My-Mz (CE Anejo 22 6.3.3)', PAGE_W / 2, y, { align: 'center' });
     y += 4;
   }
 
@@ -285,7 +300,6 @@ export async function exportSteelColumnsPDF(
   doc.text('Limite', COL.limit, y);
   doc.text('Ut%', COL.util, y);
   doc.text('Estado', COL.status, y);
-  doc.text('Normativa', COL.art, y, { align: 'right' });
   y += 2;
   setGray(doc, 180);
   doc.setLineWidth(0.15);
@@ -307,7 +321,7 @@ export async function exportSteelColumnsPDF(
       setGray(doc, 150);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
-      doc.text(pdfStr(c.article), COL.art, y, { align: 'right' });
+      doc.text(pdfStr(c.article), COL.desc + 2, y + ART_DY);
     } else {
       const status = c.status as DisplayStatus;
       const utilPct = c.utilization * 100;
@@ -316,8 +330,9 @@ export async function exportSteelColumnsPDF(
       setGray(doc, 40);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      const descLine = doc.splitTextToSize(pdfStr(c.description), 84)[0] as string;
-      doc.text(descLine, COL.desc, y);
+      // truncateToWidth (con elipsis) en vez de `splitTextToSize(...)[0]`, que
+      // se quedaba con la primera línea y tiraba el resto SIN avisar.
+      doc.text(truncateToWidth(doc, pdfStr(c.description), DESC_W), COL.desc, y);
 
       // Value
       setGray(doc, 30);
@@ -344,7 +359,7 @@ export async function exportSteelColumnsPDF(
       setGray(doc, 140);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(5.5);
-      doc.text(pdfStr(c.article), COL.art, y, { align: 'right' });
+      doc.text(pdfStr(c.article), COL.desc + 2, y + ART_DY);
 
       // Utilization bar — drawn below text, spans value→status columns
       const barX  = COL.value;

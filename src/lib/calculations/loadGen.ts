@@ -24,7 +24,47 @@ export const USE_CATEGORIES = [
 
 export type UseCategoryCode = typeof USE_CATEGORIES[number]['value'];
 
-/** ψ factors per use category — CTE DB-SE-AE Tabla 4.2 */
+/**
+ * Acciones variables NO ligadas a un uso (CTE DB-SE Tabla 4.2). Solo tienen
+ * sentido en los módulos de UNA SOLA acción variable (steel-beams), donde `qk`
+ * es la ENVOLVENTE — la hipótesis más desfavorable entre uso, nieve y viento —
+ * y la categoría elegida es la que fija sus ψ. `qk: null` = sin valor de
+ * catálogo (lo teclea el usuario), igual que 'custom'.
+ *
+ * NO entran en USE_CATEGORIES: el FEM modela nieve y viento como hipótesis
+ * propias (S, W) y su selector de categoría solo aplica a la hipótesis Q.
+ */
+const NON_USE_ACTIONS = [
+  { value: 'snow',      label: 'Nieve (alt. <= 1000 m)', qk: null },
+  { value: 'snow_high', label: 'Nieve (alt. > 1000 m)',  qk: null },
+  { value: 'wind',      label: 'Viento (descendente)',   qk: null },
+] as const;
+
+/**
+ * Opciones del campo "acción variable" de steel-beams: las categorías de uso de
+ * la Tabla 3.1 + nieve/viento + personalizada (que va SIEMPRE la última).
+ */
+export const VARIABLE_ACTIONS = [
+  ...USE_CATEGORIES.filter((c) => c.value !== 'custom'),
+  ...NON_USE_ACTIONS,
+  ...USE_CATEGORIES.filter((c) => c.value === 'custom'),
+] as ReadonlyArray<{ value: string; label: string; qk: number | null }>;
+
+/** Label legible de una categoría/acción variable ('custom' → "Personalizada"). */
+export function categoryLabel(value: string): string {
+  return VARIABLE_ACTIONS.find((c) => c.value === value)?.label ?? value;
+}
+
+/**
+ * qk de catálogo de una categoría de uso (Tabla 3.1), o null si no lo tiene
+ * ('custom', nieve, viento): ahí el valor lo fija el usuario y NO hay sobrecarga
+ * de tabla que la envolvente deba respetar.
+ */
+export function categoryQk(value: string): number | null {
+  return VARIABLE_ACTIONS.find((c) => c.value === value)?.qk ?? null;
+}
+
+/** ψ factors per use category / variable action — CTE DB-SE Tabla 4.2 */
 const PSI_VALUES: Record<string, { psi0: number; psi1: number; psi2: number }> = {
   A1:     { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
   A2:     { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
@@ -36,8 +76,13 @@ const PSI_VALUES: Record<string, { psi0: number; psi1: number; psi2: number }> =
   E1:     { psi0: 1.0, psi1: 0.9, psi2: 0.8 },
   // Categoría G (cubiertas accesibles únicamente para conservación):
   // CTE DB-SE Tabla 4.2 → ψ0 = ψ1 = ψ2 = 0 (auditoría #74).
-  G1:     { psi0: 0.0, psi1: 0.0, psi2: 0.0 },
-  custom: { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
+  G1:        { psi0: 0.0, psi1: 0.0, psi2: 0.0 },
+  // Nieve y viento (Tabla 4.2): ψ de la ACCIÓN, no del uso. Sin ellas, una
+  // envolvente gobernada por nieve heredaba las ψ genéricas de 'custom'.
+  snow:      { psi0: 0.5, psi1: 0.2, psi2: 0.0 },
+  snow_high: { psi0: 0.7, psi1: 0.5, psi2: 0.2 },
+  wind:      { psi0: 0.6, psi1: 0.5, psi2: 0.0 },
+  custom:    { psi0: 0.7, psi1: 0.5, psi2: 0.3 },
 };
 
 /** Returns the ψ multiplier applied to Qk for the given ELS combination. */

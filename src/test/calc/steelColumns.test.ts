@@ -190,7 +190,7 @@ describe('LTB — lateral-torsional buckling', () => {
     expect(r8.chi_LT).toBeLessThan(r3.chi_LT);
   });
 
-  // EC3 §6.3.2.3 Tabla 6.5 — rolled I/H: h/b ≤ 2 → curve b (0.34); h/b > 2 → curve c (0.49)
+  // CE Anejo 22 §6.3.2.3 Tabla 6.5 — rolled I/H: h/b ≤ 2 → curve b (0.34); h/b > 2 → curve c (0.49)
   it('LTB α_LT: rolled I/H with h/b ≤ 2 → curve b (α=0.34)', () => {
     // HEB200: h=200, b=200 → h/b=1.0 ≤ 2 → curve b
     const r = calcSteelColumn(inp({ sectionType: 'HEB', size: 200, Ly: 5000, Lz: 5000, My_Ed: 60 }));

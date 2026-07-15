@@ -56,7 +56,7 @@ export function ForjadosResults({ result }: Props) {
       {/* Parámetros globales */}
       {isReticular && (
         <>
-          <GroupHeader label="Parámetros (CE art. 21)" />
+          <GroupHeader label="Parámetros (CE Anejo 19 §5.3.2.1)" />
           <ValueRow label="L0 (longitud equivalente)" value={`${result.L0.toFixed(0)} mm`} />
           <ValueRow label="b_eff (ancho eficaz)"      value={`${result.bEff.toFixed(0)} mm`} />
         </>
@@ -87,7 +87,7 @@ export function ForjadosResults({ result }: Props) {
       {result.apoyo.checks.map((c) => <CheckRowItem key={`a-${c.id}`} check={c} />)}
 
       {/* CORTANTE */}
-      <GroupHeader label="Cortante (CE art. 44)" />
+      <GroupHeader label="Cortante (CE Anejo 19 §6.2)" />
       <ValueRow label="VRd,c (sin cercos)" value={fmtSi(result.VRdc, 'force')} />
       <div
         className="overflow-hidden transition-all duration-150"

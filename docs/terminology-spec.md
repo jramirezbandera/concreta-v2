@@ -720,7 +720,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Factor de excentricidad de carga`
 - descShort: `β excentricidad`
 - unit: `—`
-- ref: `CE art. 46.3.2`
+- ref: `CE Anejo 19 §6.4.3`
 - modules: punching
 
 ### `Mcr` — elastic critical moment for LTB
@@ -832,7 +832,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Cortante resistente a punzonamiento (sin cercos)`
 - descShort: `vRd,c`
 - unit: `N/mm²`
-- ref: `CE art. 46.3.3`
+- ref: `CE Anejo 19 §6.4.4`
 - modules: punching, isolatedFooting
 
 ### `vRd_cs` — punching shear resistance with stirrups
@@ -841,7 +841,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Cortante resistente a punzonamiento (con cercos)`
 - descShort: `vRd,cs`
 - unit: `N/mm²`
-- ref: `CE art. 46.3.4`
+- ref: `CE Anejo 19 §6.4.5`
 - modules: punching
 
 ### `vRd_max` — maximum punching shear at column face
@@ -850,7 +850,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Cortante resistente máximo en cara de pilar`
 - descShort: `vRd,max`
 - unit: `N/mm²`
-- ref: `CE art. 46.3.2`
+- ref: `CE Anejo 19 §6.4.5(3)`
 - modules: punching
 
 ### `vEd_punching` — acting punching shear stress
@@ -859,7 +859,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Cortante de punzonamiento actuante`
 - descShort: `vEd`
 - unit: `N/mm²`
-- ref: `CE art. 46.3.2`
+- ref: `CE Anejo 19 §6.4.3`
 - modules: punching, isolatedFooting
 
 ### `u1_perimeter` — critical punching perimeter at 2d
@@ -868,7 +868,7 @@ export const LOAD_TYPE_OPTIONS = [
 - descLong: `Perímetro crítico (a 2d del pilar)`
 - descShort: `u1`
 - unit: `mm`
-- ref: `CE art. 46.3.2`
+- ref: `CE Anejo 19 §6.4.2`
 - modules: punching, isolatedFooting
 
 ---

@@ -10,7 +10,7 @@ import { buildSectionNarrative } from '../../features/rc-beams/rcBeamNarrative';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, pdfStr, type PdfResult } from './utils';
 
 const M  = 20;          // margin
 const CW = PAGE_W - 2 * M;  // content width = 170mm
@@ -52,13 +52,13 @@ function drawSectionTable(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   setGray(doc, 30);
-  doc.text(title, M, y);
+  doc.text(pdfStr(title), M, y);
 
   if (!section.valid) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     setGray(doc, 80);
-    doc.text(section.error ?? 'Datos invalidos', M + 4, y + 5);
+    doc.text(pdfStr(section.error ?? 'Datos invalidos'), M + 4, y + 5);
     return y + 12;
   }
 
@@ -85,11 +85,11 @@ function drawSectionTable(
     `VRd=${fmtSi(section.VRd, 'force')}`,
     `wk=${section.wk.toFixed(3)}mm`,
   ].join('   ');
-  doc.text(keyVals, M, y);
+  doc.text(pdfStr(keyVals), M, y);
   y += 5;
 
   // Rebar schedule + lap length
-  doc.text(`Despiece: ${section.rebarSchedule}    Solape min: ${section.lapLength.toFixed(0)}mm (CE art. 69.5.2)`, M, y);
+  doc.text(pdfStr(`Despiece: ${section.rebarSchedule}    Solape min: ${section.lapLength.toFixed(0)}mm (CE Anejo 19 §8.7.3)`), M, y);
   y += 5;
 
   // Table header. El estado se ancla al margen derecho (align:'right') porque
@@ -122,10 +122,10 @@ function drawSectionTable(
 
     // Description
     setGray(doc, 50);
-    const desc = doc.splitTextToSize(ch.description, 72)[0] as string;
+    const desc = doc.splitTextToSize(pdfStr(ch.description), 72)[0] as string;
     doc.text(desc, COL.desc, y);
-    doc.text(checkValueStr(ch), COL.value, y);
-    doc.text(checkLimitStr(ch), COL.limit, y);
+    doc.text(pdfStr(checkValueStr(ch)), COL.value, y);
+    doc.text(pdfStr(checkLimitStr(ch)), COL.limit, y);
     const utilStr = isFinite(ch.utilization)
       ? `${(ch.utilization * 100).toFixed(0)}%`
       : '---';
@@ -139,7 +139,7 @@ function drawSectionTable(
     // Article reference — smaller, below the row
     setGray(doc, 160);
     doc.setFontSize(5.5);
-    doc.text(ch.article, COL.desc + 2, y);
+    doc.text(pdfStr(ch.article), COL.desc + 2, y);
     doc.setFontSize(6.5);
     setGray(doc, 50);
     y += 2;
@@ -246,8 +246,8 @@ export async function exportRCBeamsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 120);
-  doc.text('VANO \u2014 M+  (compresion cara superior)', xVano, captionY);
-  doc.text('APOYO \u2014 M\u2212  (compresion cara inferior)', xApoyo, captionY);
+  doc.text(pdfStr('VANO \u2014 M+  (compresion cara superior)'), xVano, captionY);
+  doc.text(pdfStr('APOYO \u2014 M\u2212  (compresion cara inferior)'), xApoyo, captionY);
 
   const diagramBlockEnd = captionY + 5;
 
@@ -380,7 +380,7 @@ async function exportRCBeamsSimplePDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 120);
-  doc.text('Deformación (ε)', xStrain, captionY);
+  doc.text(pdfStr('Deformación (ε)'), xStrain, captionY);
   doc.text('Sección', xSection, captionY);
   doc.text('Fuerzas movilizadas', xForces, captionY);
 
@@ -425,10 +425,13 @@ async function exportRCBeamsSimplePDF(
       `${sectionResult.steelYielded_tens ? 'Acero tracción yielded' : ''}${sectionResult.concreteCrushed ? ' · Hormigón crushed' : ''}`,
     ],
   ];
+  // pdfStr: ε, σ y ‰ están fuera de Latin-1; sin sanear jsPDF emitía estas
+  // líneas en UTF-16 (ε -> 'µ', σ -> 'Ã') y al doble de ancho, por lo que la
+  // tercera columna se salía del margen derecho.
   for (const [c1, c2, c3] of stateLines) {
-    doc.text(c1, M, y);
-    doc.text(c2, COL2X, y);
-    doc.text(c3, COL3X, y);
+    doc.text(pdfStr(c1), M, y);
+    doc.text(pdfStr(c2), COL2X, y);
+    doc.text(pdfStr(c3), COL3X, y);
     y += lineH;
   }
 
@@ -440,7 +443,7 @@ async function exportRCBeamsSimplePDF(
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   setGray(doc, 60);
-  const wrapped = doc.splitTextToSize(narrative, CW);
+  const wrapped = doc.splitTextToSize(pdfStr(narrative), CW);
   for (const line of wrapped) {
     if (y > PAGE_H - M - 15) break;
     doc.text(line, M, y);

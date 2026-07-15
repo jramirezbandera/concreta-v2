@@ -13,6 +13,27 @@ export default defineConfig({
   // Pyodide se autohospeda en public/pyodide/ y el worker lo importa por URL no
   // literal (no como dependencia npm) — excluirlo del pre-bundle de Vite.
   optimizeDeps: { exclude: ["pyodide"] },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Los SDKs de IA (@anthropic-ai/sdk, openai, @google/genai) solo se
+        // cargan vía dynamic import desde src/lib/ai/providers/* ("Rellenar
+        // con IA", BYOK). Se agrupan en un único chunk `ai-vendor` para no
+        // engordar el chunk principal y poder excluirlos del precache del SW
+        // (globIgnores de VitePWA, abajo). Vite 8 usa rolldown: la API vigente
+        // es `output.codeSplitting` (`advancedChunks` es su alias @deprecated
+        // en rolldown 1.0.0-rc.12).
+        codeSplitting: {
+          groups: [
+            {
+              name: "ai-vendor",
+              test: /node_modules[\\/](@anthropic-ai[\\/]sdk|openai|@google[\\/]genai)[\\/]/,
+            },
+          ],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),
@@ -43,6 +64,13 @@ export default defineConfig({
             },
           },
         ],
+        // El chunk `ai-vendor` (SDKs de IA, ver build.rolldownOptions arriba)
+        // NO entra en el precache: la feature "Rellenar con IA" requiere red
+        // de todos modos (llamada directa navegador→proveedor), así que
+        // precachearlo solo inflaría el SW para todos los usuarios. A
+        // diferencia de Pyodide tampoco lleva runtimeCaching: sin red el
+        // chunk cacheado no serviría de nada.
+        globIgnores: ["**/ai-vendor-*.js"],
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,

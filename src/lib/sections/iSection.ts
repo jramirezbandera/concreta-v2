@@ -103,7 +103,7 @@ export class ISectionAdapter implements ColumnBeamSection {
   }
 
   getBucklingAlpha(): { alpha_y: number; alpha_z: number } {
-    // EC3 §6.3.1.2 Tabla 6.2 (S275/S355) — rolled I/H:
+    // CE Anejo 22 §6.3.1.2 Tabla 6.2 (S275/S355) — rolled I/H:
     //   h/b > 1.2 and tf ≤ 40mm → curve a (y) / curve b (z)
     //   h/b ≤ 1.2 and tf ≤ 100mm → curve b (y) / curve c (z)
     // IPE is always slender (h/b > 1) and treated with curve a/b.
@@ -115,7 +115,7 @@ export class ISectionAdapter implements ColumnBeamSection {
   }
 
   getLTBAlpha(): number {
-    // EC3 §6.3.2.3 Tabla 6.5 — rolled I/H:
+    // CE Anejo 22 §6.3.2.3 Tabla 6.5 — rolled I/H:
     //   h/b ≤ 2 → curve b (α = 0.34)
     //   h/b > 2 → curve c (α = 0.49)
     return this.h / this.b <= 2 ? 0.34 : 0.49;

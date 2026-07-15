@@ -100,7 +100,7 @@ export class CHSAdapter implements ColumnBeamSection {
   }
 
   classify(fy: number, _mode: 'compression' | 'bending' | 'combined' = 'compression'): number {
-    // EC3 §5.5 Tabla 5.2 — tubular: D/t limits use ε² = 235/fy.
+    // CE Anejo 22 §5.5 Tabla 5.2 — tubular: D/t limits use ε² = 235/fy.
     //   Class 1: D/t ≤ 50·ε²
     //   Class 2: D/t ≤ 70·ε²
     //   Class 3: D/t ≤ 90·ε²
@@ -116,7 +116,7 @@ export class CHSAdapter implements ColumnBeamSection {
   }
 
   getBucklingAlpha(): { alpha_y: number; alpha_z: number } {
-    // EC3 §6.3.1.2 Tab 6.2:
+    // CE Anejo 22 §6.3.1.2 Tab 6.2:
     //   CHS hot-finished → curve a (α = 0.21)
     //   CHS cold-formed  → curve c (α = 0.49)
     const alpha = this.process === 'hot-finished' ? 0.21 : 0.49;

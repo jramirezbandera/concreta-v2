@@ -170,7 +170,7 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
             </span>
             <span
               className="bg-bg-elevated text-text-disabled font-mono text-[11px] px-1.5 py-0.5 rounded tabular-nums"
-              title="EC3 §5.5 Tab 5.2: Clase 1 si D/t ≤ 50·ε², Clase 2 ≤ 70·ε², Clase 3 ≤ 90·ε²"
+              title="CE Anejo 22 §5.5 Tab 5.2: Clase 1 si D/t ≤ 50·ε², Clase 2 ≤ 70·ε², Clase 3 ≤ 90·ε²"
             >
               {chs_dOverT.toFixed(1)}
             </span>

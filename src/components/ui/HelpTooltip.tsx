@@ -16,7 +16,7 @@ import { Info } from 'lucide-react';
  *                 └── portal a body ──┐
  *                  ┌──────────────────┴───┐
  *                  │ Ancho de la sección.  │
- *                  │ EC3 §6.2.5            │ ← refText (2ª línea, dim)
+ *                  │ CE Anejo 22 §6.2.5            │ ← refText (2ª línea, dim)
  *                  └──────────────────────┘
  */
 interface HelpTooltipProps {

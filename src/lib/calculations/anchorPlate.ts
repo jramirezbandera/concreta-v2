@@ -16,7 +16,7 @@
 //     rigidizadores). Eurocódigo de referencia secundaria: EC3 1-8.
 //   - Anejo 11 — Anclajes en hormigón (cono, pull-out, splitting, modos
 //     de fallo en cortante). Eurocódigo de referencia secundaria: EN 1992-4.
-//   - Anejo 19 — Hormigón estructural (longitud de anclaje §49.5, fctd).
+//   - Anejo 19 — Hormigón estructural (longitud de anclaje §8.4, fctd).
 //     Eurocódigo de referencia secundaria: EC2.
 //   - Anejo 22 — Esbeltez de placa en compresión (rigidizadores §5.5).
 //
@@ -133,6 +133,38 @@ function resolveShear(inp: AnchorPlateInputs) {
     c2 = Math.min(edges.cX1, edges.cX2);
   }
   return { Vx, Vy, Vmag, Vangle_rad, c1, c2 };
+}
+
+// ─── Escritura coherente de cortante y bordes (contraparte de los resolvers) ──
+//
+// resolveShear/resolveEdges LEEN el par legacy+direccional con reglas de
+// precedencia; estos patches son la forma sancionada de ESCRIBIRLO para no
+// dejar los campos incoherentes entre sí. Los consumen los inputs de la UI
+// (AnchorPlateInputs) y el apply del asistente IA. Saneamiento 2026-07-13:
+// antes la sincronización vivía duplicada en handlers del componente, y una
+// edición direccional que volvía a la simetría (cX1=cX2) dejaba un
+// `pedestal_cX` obsoleto que resolveEdges pasaba a usar.
+
+/**
+ * Patch de cortante: fija Vx/Vy y deja `VEd` coherente con la lectura de
+ * resolveShear — con Vy=0, VEd=Vx (caso escalar legacy); con Vy≠0, VEd guarda
+ * la magnitud (es lo que muestra la UI como "magnitud" y resolveShear la
+ * ignora en favor del par direccional).
+ */
+export function shearPatch(Vx: number, Vy: number): Partial<AnchorPlateInputs> {
+  return { Vx, Vy, VEd: Math.abs(Vy) < 1e-9 ? Vx : Math.hypot(Vx, Vy) };
+}
+
+/**
+ * Patch de bordes de un eje: fija el par direccional (c1, c2) y siembra el
+ * legacy con min(c1,c2) — si el par queda simétrico, resolveEdges leerá el
+ * legacy y debe valer exactamente ese valor; si queda asimétrico, resolveEdges
+ * lo ignora y el mínimo es el eco conservador para estados pre-PR0.
+ */
+export function edgeAxisPatch(axis: 'x' | 'y', c1: number, c2: number): Partial<AnchorPlateInputs> {
+  return axis === 'x'
+    ? { pedestal_cX1: c1, pedestal_cX2: c2, pedestal_cX: Math.min(c1, c2) }
+    : { pedestal_cY1: c1, pedestal_cY2: c2, pedestal_cY: Math.min(c1, c2) };
 }
 
 // ─── Rebar design strengths per bar (helper) ─────────────────────────────
@@ -947,7 +979,7 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
 export function bearingConcentration(inp: AnchorPlateInputs): {
   Kj: number; a1: number; b1: number;
 } {
-  // Fórmula EC3 §6.2.5(4) ahora vive en ./ec3BasePlate (única fuente de verdad
+  // Fórmula CE Anejo 22 §6.2.5(4) ahora vive en ./ec3BasePlate (única fuente de verdad
   // compartida con cruceta.ts). Math idéntica — sin drift de constantes.
   return concentrationKj(
     inp.plate_a, inp.plate_b, inp.plate_margin_x, inp.plate_margin_y, inp.pedestal_h,
@@ -1193,7 +1225,7 @@ export function checkBoltTension(
     limit: `FtRd=${fmtF(FtRd_kN, system)} (As=${As.toFixed(0)} mm², fyd=${fyd.toFixed(0)} MPa)`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 19 §49.5',
+    article: 'CE Anejo 19 §3.2',
   };
 }
 
@@ -1320,7 +1352,7 @@ export function checkAnchorageLength(
       limit: 'Regido por check 8 (pull-out EN 1992-4 §7.2.1.5)',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 19 §49.5',
+      article: 'CE Anejo 19 §8.4.4',
     };
   }
 
@@ -1375,7 +1407,7 @@ export function checkAnchorageLength(
   let worstAlpha1 = 1.0;
   let worstAlpha2 = 1.0;
   let worstCd = Infinity;
-  // H3 (Phase 2 Tier 2) — lb,d = α1·α2·α3·α4·α5·lb,rqd (CE Anejo 19 §49.5).
+  // H3 (Phase 2 Tier 2) — lb,d = α1·α2·α3·α4·α5·lb,rqd (CE Anejo 19 §8.4.4).
   // Implementados: α1 (forma extremo) y α2 (recubrimiento, continuo). α3
   // (transversal no soldada), α4 (transversal soldada) y α5 (presión
   // transversal) quedan a 1.0 — no exponemos armadura transversal ni
@@ -1406,12 +1438,12 @@ export function checkAnchorageLength(
       limit: `hef=${inp.bar_hef.toFixed(0)} mm`,
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 19 §49.5',
+      article: 'CE Anejo 19 §8.4.4',
     };
   }
 
   // Suelo normativo lb,min = max(0.3·lb,rqd(fyd); 10φ; 100 mm) — EC2 §8.4.4(1)
-  // / CE Anejo 19 §49.5. Sin él, con Ft pequeño lb,rqd tiende a milímetros y
+  // / CE Anejo 19 §8.4.4. Sin él, con Ft pequeño lb,rqd tiende a milímetros y
   // el check salía verde aunque hef < 10φ.
   const lb_rqd_full = (inp.bar_diam / 4) * (fyd / fbd);
   const lb_min = Math.max(0.3 * lb_rqd_full, 10 * inp.bar_diam, 100);
@@ -1425,7 +1457,7 @@ export function checkAnchorageLength(
     limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 19 §49.5',
+    article: 'CE Anejo 19 §8.4.4',
   };
 }
 

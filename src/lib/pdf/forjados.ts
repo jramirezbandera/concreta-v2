@@ -1,4 +1,4 @@
-// PDF export for Forjados (reticular / losa maciza) — CE art. 21, 42, 44, 49.2.4.
+// PDF export for Forjados (reticular / losa maciza) — CE Anejo 19 §5.3.2.1, §6.1, §6.2, §7.3.
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm.
 //
 // Layout:
@@ -47,7 +47,7 @@ export async function exportForjadosPDF(
 
   // ── Header ───────────────────────────────────────────────────────────────
   const titleVariant = isReticular ? 'Forjado reticular' : 'Losa maciza';
-  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - ${titleVariant} - CE art. 21, 42, 44`, M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, `Concreta - ${titleVariant} - CE Anejo 19 §5.3.2.1, §6.1, §6.2`, M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);

@@ -424,7 +424,7 @@ describe('check 9 — splitting (EN 1992-4 §7.2.1.6)', () => {
   });
 });
 
-describe('check 10 — stiffener (EC3 §5.5 + §4.5.3)', () => {
+describe('check 10 — stiffener (CE Anejo 22 §5.5 + §4.5.3)', () => {
   it('rib_count=0 → check reports neutral', () => {
     const r = calcAnchorPlate({ ...base, rib_count: 0 });
     const st = r.checks.find((c) => c.id === 'stiffener')!;

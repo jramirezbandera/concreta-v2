@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { deriveFromLoads, GAMMA_G, GAMMA_Q } from '../../lib/calculations/loadGen';
+import {
+  deriveFromLoads, GAMMA_G, GAMMA_Q, getPsiRow,
+  USE_CATEGORIES, VARIABLE_ACTIONS, categoryLabel, categoryQk,
+} from '../../lib/calculations/loadGen';
 import { steelBeamDefaults } from '../../data/defaults';
 
 // Base inputs for all tests: ss, A1 residential, bTrib=3m, L=6000mm, gk=1.0, qk=2.0
@@ -173,5 +176,56 @@ describe('Auditoría #74: G1 psi factors', () => {
   it('combinación característica sigue usando ψ=1', () => {
     const ch = deriveFromLoads({ ...base, useCategory: 'G1', elsCombo: 'characteristic' });
     expect(ch.psi).toBe(1.0);
+  });
+});
+
+// ── Acción variable envolvente: nieve y viento tienen ψ propias (Tabla 4.2) ───
+// El módulo solo admite UNA acción variable (qk = envolvente). Cuando la que
+// gobierna no es una sobrecarga de uso, sus ψ NO son las de la Tabla 3.1: sin
+// las filas nieve/viento, una envolvente de nieve heredaba las ψ genéricas de
+// 'custom' (0.7/0.5/0.3) en vez de las suyas.
+describe('VARIABLE_ACTIONS — acciones no ligadas al uso (nieve, viento)', () => {
+  it('las opciones de vigas = categorías de uso + nieve/viento, con "Personalizada" al final', () => {
+    const values = VARIABLE_ACTIONS.map((c) => c.value);
+    expect(values).toEqual([
+      'A1', 'A2', 'B', 'C1', 'C2', 'C3', 'D1', 'E1', 'G1',
+      'snow', 'snow_high', 'wind', 'custom',
+    ]);
+    // nieve/viento no tienen qk de catálogo: el valor lo teclea el usuario
+    for (const v of ['snow', 'snow_high', 'wind', 'custom']) {
+      expect(categoryQk(v)).toBeNull();
+    }
+    expect(categoryQk('G1')).toBe(1.0);
+    expect(categoryLabel('custom')).toBe('Personalizada');
+    expect(categoryLabel('snow')).toMatch(/Nieve/);
+  });
+
+  it('NO contaminan USE_CATEGORIES (el FEM modela nieve/viento como hipótesis S y W)', () => {
+    const useValues = USE_CATEGORIES.map((c) => c.value);
+    expect(useValues).not.toContain('snow');
+    expect(useValues).not.toContain('wind');
+  });
+
+  it('ψ de nieve h ≤ 1000 m (CTE DB-SE Tabla 4.2): ψ0=0.5, ψ1=0.2, ψ2=0', () => {
+    expect(getPsiRow('snow')).toEqual({ psi0: 0.5, psi1: 0.2, psi2: 0.0 });
+    // cuasi-permanente: la nieve no deja carga remanente → wSer = Gk
+    const qp = deriveFromLoads({ ...base, useCategory: 'snow', elsCombo: 'quasi-permanent' });
+    expect(qp.psi).toBe(0);
+    expect(qp.wSer).toBeCloseTo(qp.Gk_line, 6);
+    // frecuente: ψ1 = 0.2 (con 'custom' habría salido 0.5 — más carga, no la real)
+    const freq = deriveFromLoads({ ...base, useCategory: 'snow', elsCombo: 'frequent' });
+    expect(freq.psi).toBe(0.2);
+    expect(freq.wSer).toBeCloseTo(freq.Gk_line + 0.2 * freq.Qk_line, 6);
+  });
+
+  it('ψ de nieve h > 1000 m y de viento (Tabla 4.2)', () => {
+    expect(getPsiRow('snow_high')).toEqual({ psi0: 0.7, psi1: 0.5, psi2: 0.2 });
+    expect(getPsiRow('wind')).toEqual({ psi0: 0.6, psi1: 0.5, psi2: 0.0 });
+  });
+
+  it('la ELU no depende de la acción: wEd = 1.35·Gk + 1.50·Qk en todas', () => {
+    const uso  = deriveFromLoads({ ...base, useCategory: 'G1' });
+    const snow = deriveFromLoads({ ...base, useCategory: 'snow' });
+    expect(snow.wEd).toBeCloseTo(uso.wEd, 9);
   });
 });

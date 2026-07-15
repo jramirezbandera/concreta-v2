@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { punchingDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { punchingDefaults, type PunchingInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcPunching } from '../../lib/calculations/punching';
 import { exportPunchingPDF, punchingFallbackFilename } from '../../lib/pdf/punching';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { punchingAdapter, summarizePunchingResults } from '../../lib/ai/modules/punching';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { PunchingInputsPanel } from './PunchingInputs';
 import { PunchingResults } from './PunchingResults';
 import { PunchingSVG } from './PunchingSVG';
@@ -21,7 +26,35 @@ export function PunchingModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: `mode` PRIMERO (decide qué campos existen), luego
+  // `position` (gate de isCircular y de los bordes) y `hasShearReinf` antes que
+  // la configuración de cercos.
+  const handleAiApply = (plan: AiApplyPlan<PunchingInputs>) => {
+    const ORDER: (keyof PunchingInputs)[] = [
+      'mode', 'position', 'isCircular', 'cx', 'cy', 'd',
+      'fck', 'fyk', 'barDiamSup', 'sSup', 'barDiamInf', 'sInf',
+      'VEd', 'hasShearReinf', 'swDiam', 'swLegs', 'sr', 'fywk',
+      'colType', 'colSize', 'plateA', 'plateB', 'steelGrade', 'upnSize',
+      'weldThroat', 'edgeY', 'edgeX',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as PunchingInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcPunching(state), [state]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizePunchingResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -63,6 +96,14 @@ export function PunchingModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <PunchingInputsPanel state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -117,6 +158,16 @@ export function PunchingModule() {
           <PunchingSVG inp={state} result={result} width={440} mode="pdf" />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={punchingAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

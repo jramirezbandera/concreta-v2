@@ -111,7 +111,7 @@ export async function exportCompositeSectionPDF(
 
   // CLASIFICACION
   if (result.sectionClass !== null) {
-    sectionHeader('CLASIFICACION CE art. 5.2');
+    sectionHeader('CLASIFICACION CE Anejo 22 §5.5');
     twoCol(`eps = ${result.epsilon?.toFixed(3) ?? '—'}`, `Clase ${result.sectionClass}`);
     if (result.webRatio !== null) {
       twoCol(`c/tw = ${result.webRatio.toFixed(1)} (alma)`, `Clase alma: ${result.webClass}`);
@@ -165,7 +165,13 @@ export async function exportCompositeSectionPDF(
   }
 
   // ── Divider before classification checks table ───────────────────────────────
-  const tableY = svgY + SVG_H + 6;
+  // Cuelga de lo que ACABE MÁS ABAJO: el SVG (izquierda) o la columna de
+  // resultados (`ry`). Antes sólo miraba el SVG, así que en compresión —donde
+  // la columna crece con Nb,Rd,y / Nb,Rd,z / Nc,Rd y la nota de pandeo torsional
+  // (§6.3.1.4), tres líneas más— sus últimas filas caían DENTRO de la tabla: la
+  // regla divisoria las tachaba y la nota se montaba sobre la cabecera
+  // (Limite / Ut% / Estado).
+  const tableY = Math.max(svgY + SVG_H + 6, ry + 6);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -196,8 +202,8 @@ export async function exportCompositeSectionPDF(
     desc:   M,
     value:  M + 82,
     limit:  M + 118,
-    util:   M + 150,
-    status: M + 162,
+    util:   M + 150,      // borde DERECHO (align:'right')
+    status: PAGE_W - M,   // borde DERECHO (align:'right')
   };
 
   let rowY = tableY + 9;
@@ -209,8 +215,8 @@ export async function exportCompositeSectionPDF(
   doc.text('Verificacion',  COL.desc,   rowY);
   doc.text('Valor',         COL.value,  rowY);
   doc.text('Limite',        COL.limit,  rowY);
-  doc.text('Ut%',           COL.util,   rowY);
-  doc.text('Estado',        COL.status, rowY);
+  doc.text('Ut%',           COL.util,   rowY, { align: 'right' });
+  doc.text('Estado',        COL.status, rowY, { align: 'right' });
   rowY += 2;
 
   doc.setLineWidth(0.2);
@@ -246,10 +252,10 @@ export async function exportCompositeSectionPDF(
       doc.text(pdfStr(chk.description), COL.desc, rowY);
       doc.text(pdfStr(chk.value ?? ''), COL.value,  rowY);
       doc.text(pdfStr(chk.limit ?? ''), COL.limit,  rowY);
-      doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY);
+      doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY, { align: 'right' });
       doc.setFont('helvetica', 'bold');
       setGray(doc, st === 'ok' ? 60 : 30);
-      doc.text(STATUS_LABEL[st], COL.status, rowY);
+      doc.text(STATUS_LABEL[st], COL.status, rowY, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       setGray(doc, 50);
 
@@ -273,7 +279,7 @@ export async function exportCompositeSectionPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 150);
-  doc.text('Concreta - concreta.app | CE art. 5.2 / EN 1993-1-1 Espana', M, footerY);
+  doc.text('Concreta - concreta.app | CE Anejo 22 §5.5 / EN 1993-1-1 Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, compositeSectionFallbackFilename());

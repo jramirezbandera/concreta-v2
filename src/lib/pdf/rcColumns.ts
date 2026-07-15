@@ -1,4 +1,4 @@
-// PDF export for RC Columns module — biaxial bending (CE Anejo 19 art. 5.8.9)
+// PDF export for RC Columns module — biaxial bending (CE Anejo 19 §5.8.9)
 // A4 portrait, margins 20mm.
 
 import jsPDF from 'jspdf';
@@ -7,7 +7,7 @@ import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rc
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, STATUS_LABEL, titledFilename, drawElementTitle, pdfStr, truncateToWidth, type PdfResult } from './utils';
 
 const M  = 20;
 const CW = PAGE_W - 2 * M;
@@ -77,12 +77,14 @@ export async function exportRCColumnsPDF(
   doc.setFontSize(7);
   setGray(doc, 80);
 
-  const Lk_str = `L=${inp.L}m \u03b2=${inp.beta} Lk=${(inp.L * inp.beta).toFixed(2)}m`;
-  const lambdaStr = result.valid
+  // pdfStr: \u03b2 y \u03bb est\u00e1n fuera de Latin-1. Sin sanear, jsPDF emite la l\u00ednea
+  // ENTERA en UTF-16 (\u03b2 -> '\u00b2', \u03bb -> '\u00bb') y al doble de ancho.
+  const Lk_str = pdfStr(`L=${inp.L}m \u03b2=${inp.beta} Lk=${(inp.L * inp.beta).toFixed(2)}m`);
+  const lambdaStr = pdfStr(result.valid
     ? (isCirc
         ? `\u03bb=${(result.lambda ?? 0).toFixed(1)}`
         : `\u03bby=${result.lambda_y.toFixed(1)} \u03bbz=${result.lambda_z.toFixed(1)}`)
-    : '\u2014';
+    : '\u2014');
 
   const infoLines: Array<[string, string, string]> = isCirc
     ? [
@@ -127,7 +129,7 @@ export async function exportRCColumnsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 120);
-  doc.text('Secci\u00f3n transversal \u2014 compresi\u00f3n cara superior (MEdy+ positivo)', M + CW / 2, captionY, { align: 'center' });
+  doc.text(pdfStr('Secci\u00f3n transversal \u2014 compresi\u00f3n cara superior (MEdy+ positivo)'), M + CW / 2, captionY, { align: 'center' });
 
   // ── Interaction diagrams (N-M) — dos ejes (rect.) o uno solo (circular) ─────
   let diagramBlockEnd: number;
@@ -153,9 +155,9 @@ export async function exportRCColumnsPDF(
     doc.setFontSize(6.5);
     setGray(doc, 120);
     doc.text(
-      isCirc
+      pdfStr(isCirc
         ? 'Diagrama de interacción N-M — capacidad con armado / sin armar'
-        : 'Diagramas de interacción N-M — capacidad con armado / sin armar',
+        : 'Diagramas de interacción N-M — capacidad con armado / sin armar'),
       M + CW / 2, interCaptionY, { align: 'center' },
     );
     diagramBlockEnd = interCaptionY + 5;
@@ -183,7 +185,7 @@ export async function exportRCColumnsPDF(
     doc.setFontSize(9);
     setGray(doc, 30);
     doc.text(
-      isCirc ? 'Flexocompresi\u00f3n \u2014 CE art. 42 + 43' : 'Flexi\u00f3n Esviada \u2014 CE Anejo 19 art. 5.8.9',
+      pdfStr(isCirc ? 'Flexocompresi\u00f3n \u2014 CE Anejo 19 §6.1 + §5.8' : 'Flexi\u00f3n Esviada \u2014 CE Anejo 19 §5.8.9'),
       M, tableY,
     );
     doc.setFontSize(8);
@@ -211,8 +213,12 @@ export async function exportRCColumnsPDF(
           `NRd,max=${fmtSi(result.NRd_max, 'force')}`,
         ]
     ).join('   ');
-    doc.text(kv1, M, tableY);
-    tableY += 4;
+    // pdfStr + envoltura: kv2 (rect.) supera los 170mm de caja y se salía por
+    // la derecha. `splitTextToSize` respeta el ancho útil CW.
+    for (const line of doc.splitTextToSize(pdfStr(kv1), CW) as string[]) {
+      doc.text(line, M, tableY);
+      tableY += 4;
+    }
 
     // Key values line 2
     const kv2 = (isCirc
@@ -232,16 +238,22 @@ export async function exportRCColumnsPDF(
           `util=${result.biaxialUtil.toFixed(3)}`,
         ]
     ).join('   ');
-    doc.text(kv2, M, tableY);
-    tableY += 4;
+    for (const line of doc.splitTextToSize(pdfStr(kv2), CW) as string[]) {
+      doc.text(line, M, tableY);
+      tableY += 4;
+    }
 
-    // Rebar
-    doc.text(`Despiece: ${result.rebarSchedule}    Solape m\u00edn: ${result.lapLength}mm (CE art. 69.5.2)`, M, tableY);
+    // Rebar. Sin pdfStr a prop\u00f3sito: `\u00d8` (0xD8) es Latin-1 y jsPDF lo pinta
+    // bien; `pdfStr` lo degradar\u00eda a "ph16".
+    doc.text(`Despiece: ${result.rebarSchedule}    Solape m\u00edn: ${result.lapLength.toFixed(0)}mm (CE Anejo 19 §8.7.3)`, M, tableY);
     tableY += 5;
 
-    // Check table header
-    hline(doc, tableY - 1, 180, 0.15);
-    const COL = { desc: M, value: M + 80, limit: M + 120, util: M + 152, status: M + 165 };
+    // Check table header. `status` anclado al margen derecho: "ADVERTENCIA"
+    // desbordaba la caja. La regla va a tableY-3 (no -1): a tama\u00f1o 6 el texto
+    // sube ~1.5mm sobre la l\u00ednea base y la regla lo cruzaba.
+    hline(doc, tableY - 3, 180, 0.15);
+    const COL = { desc: M, value: M + 76, limit: M + 114, util: M + 146, status: PAGE_W - M };
+    const DESC_W = 74;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6);
     setGray(doc, 100);
@@ -249,7 +261,7 @@ export async function exportRCColumnsPDF(
     doc.text('Valor',           COL.value, tableY);
     doc.text('L\u00edmite',    COL.limit, tableY);
     doc.text('Ut%',             COL.util, tableY);
-    doc.text('Estado',          COL.status, tableY);
+    doc.text('Estado',          COL.status, tableY, { align: 'right' });
     tableY += 1.5;
     hline(doc, tableY, 170, 0.15);
     tableY += 3.5;
@@ -268,24 +280,26 @@ export async function exportRCColumnsPDF(
 
       const isInfo = infoIds.has(ch.id);
       setGray(doc, isInfo ? 120 : 50);
-      const desc = doc.splitTextToSize(ch.description, 74)[0] as string;
-      doc.text(desc, COL.desc, tableY);
-      doc.text(checkValueStr(ch), COL.value, tableY);
-      doc.text(checkLimitStr(ch), COL.limit, tableY);
+      // `truncateToWidth` sobre el texto YA saneado: mide el ancho real. El
+      // anterior `splitTextToSize(...)[0]` descartaba en silencio el resto de
+      // la l\u00ednea y, al no sanear, med\u00eda la mitad de lo que luego se pintaba.
+      doc.text(truncateToWidth(doc, pdfStr(ch.description), DESC_W), COL.desc, tableY);
+      doc.text(pdfStr(checkValueStr(ch)), COL.value, tableY);
+      doc.text(pdfStr(checkLimitStr(ch)), COL.limit, tableY);
       const utilStr = isInfo || !isFinite(ch.utilization) || isNaN(ch.utilization)
-        ? '\u2014'
+        ? pdfStr('\u2014')
         : `${(ch.utilization * 100).toFixed(0)}%`;
       doc.text(utilStr, COL.util, tableY);
       setGray(doc, isInfo ? 140 : ch.status === 'ok' ? 70 : 30);
       doc.setFont('helvetica', isInfo ? 'normal' : 'bold');
       const statusStr = isInfo ? '(info)' : STATUS_LABEL[ch.status];
-      doc.text(statusStr, COL.status, tableY);
+      doc.text(statusStr, COL.status, tableY, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       tableY += 3.5;
 
       setGray(doc, 160);
       doc.setFontSize(5.5);
-      doc.text(ch.article, COL.desc + 2, tableY);
+      doc.text(pdfStr(ch.article), COL.desc + 2, tableY);
       doc.setFontSize(6.5);
       setGray(doc, 50);
       tableY += 2;
@@ -300,7 +314,7 @@ export async function exportRCColumnsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text('Concreta \u2014 concreta.app | C\u00f3digo Estructural (CE) Espa\u00f1a', M, footerY);
+  doc.text(pdfStr('Concreta \u2014 concreta.app | C\u00f3digo Estructural (CE) Espa\u00f1a'), M, footerY);
   doc.text('P\u00e1gina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, rcColumnsFallbackFilename());

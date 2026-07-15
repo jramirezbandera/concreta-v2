@@ -4,8 +4,11 @@
 
 import { type CheckRow, type CheckStatus } from '../../lib/calculations/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
-import type { UnitSystem } from '../../lib/units/types';
+import { checkValueStr, checkLimitStr } from '../../lib/calculations/checkFormat';
+
+// Formatting helpers moved to lib so non-React consumers (PDF, AI assistant)
+// can use them; re-exported here so existing imports keep working.
+export { checkValueStr, checkLimitStr, overallStatus } from '../../lib/calculations/checkFormat';
 
 export const STATUS_LABEL: Record<CheckStatus, string> = {
   ok:      'CUMPLE',
@@ -45,26 +48,6 @@ export const STATUS_COLORS: Record<CheckStatus, { fg: string; bg: string; border
   neutral: { fg: 'var(--color-state-neutral)', bg: 'color-mix(in srgb, var(--color-state-neutral) 8%, transparent)', border: 'color-mix(in srgb, var(--color-state-neutral) 30%, transparent)' },
 };
 
-/**
- * Resolve a CheckRow's display value — prefers the numeric path (valueNum +
- * valueQty) for system-aware formatting, falling back to the legacy
- * `value`/`limit` strings. Pass `system` from the active unit system; callers
- * in a non-React context (PDF export) can pass 'si' until migrated.
- */
-export function checkValueStr(c: CheckRow, system: UnitSystem = 'si'): string {
-  if (c.valueNum !== undefined && c.valueQty) {
-    return formatQuantity(c.valueNum, c.valueQty, system);
-  }
-  return c.valueStr ?? c.value ?? '';
-}
-
-export function checkLimitStr(c: CheckRow, system: UnitSystem = 'si'): string {
-  if (c.limitNum !== undefined && c.limitQty) {
-    return formatQuantity(c.limitNum, c.limitQty, system);
-  }
-  return c.limitStr ?? c.limit ?? '';
-}
-
 /** Ambient verdict style — gradient from status color fading down + 2px top border. */
 export function ambientStyle(status: CheckStatus): React.CSSProperties {
   const c = STATUS_COLORS[status];
@@ -72,13 +55,6 @@ export function ambientStyle(status: CheckStatus): React.CSSProperties {
     background: `linear-gradient(180deg, ${c.bg} 0%, transparent 80px)`,
     borderTop: `2px solid ${c.fg}`,
   };
-}
-
-export function overallStatus(checks: CheckRow[]): Exclude<CheckStatus, 'neutral'> {
-  const active = checks.filter((c) => c.status !== 'neutral');
-  if (active.some((c) => c.status === 'fail')) return 'fail';
-  if (active.some((c) => c.status === 'warn')) return 'warn';
-  return 'ok';
 }
 
 export function VerdictBadge({ status }: { status: CheckStatus }) {

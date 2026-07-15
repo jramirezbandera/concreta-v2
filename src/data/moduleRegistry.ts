@@ -137,7 +137,7 @@ export const moduleRegistry: ModuleEntry[] = [
     defaults: micropilesDefaults,
     // Auditoría 2026-05-23: validado contra Guía Fomento 2005 oficial
     // (Tablas 2.4, 3.5, 3.7, 3.8, 3.9, A-5.1). 70+ tests verbatim. TODO
-    // pendiente menor: clasificación de sección EC3 Tabla 5.2 (E3).
+    // pendiente menor: clasificación de sección CE Anejo 22 Tabla 5.2 (E3).
     shipped: true,
   },
   {
@@ -211,7 +211,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'steel-beams': '1',
   'steel-columns': '1',
   'isolated-footing': '2', // bumped: rewrite (sigma_adm input + single load set + distribution classification)
-  'retaining-wall': '1',
+  'retaining-wall': '2', // bumped 2026-07-13: cover m→mm (saneamiento pre-IA; estados antiguos en m se descartan)
   'punching': '2', // bumped 2026-06-09: modo cruceta recortado a "compañero de hand-calc" (~14 inputs eliminados)
   'forjados': '1',
   'composite-section': '1',

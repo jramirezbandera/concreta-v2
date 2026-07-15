@@ -12,7 +12,7 @@
 import jsPDF from 'jspdf';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -194,42 +194,65 @@ export async function exportTimberBeamsPDF(
   doc.line(M, rowY, PAGE_W - M, rowY);
   rowY += 5;
 
-  for (const ch of result.checks) {
-    if (rowY > PAGE_H - M - 8) break;
+  const DESC_W = 97;              // ancho útil de la descripción (hasta Valor)
+  const NOTE_W = TC.util - M - 3; // fila neutra: se para ANTES de la etiqueta
+  const ROW_LH = 3.1;             // interlínea a cuerpo 7.5 (7.5pt·1.15·25.4/72)
+  const LH_N = 2.9;               // interlínea a cuerpo 7 (filas neutras)
 
+  for (const ch of result.checks) {
     if (ch.neutral) {
-      // Group separator (e.g. "ELU - Estado Límite Último")
+      // Group separator (e.g. "ELU - Estado Límite Último"). La descripción
+      // envuelve ANTES de la etiqueta: si un día llega una nota larga (como la
+      // de kmod en timberColumns) no se le meterá por debajo.
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
+      const noteL = doc.splitTextToSize(pdfStr(ch.description), NOTE_W) as string[];
+      rowY = ensureSpace(doc, rowY, (noteL.length - 1) * LH_N + 6, M);
       setGray(doc, 70);
-      doc.text(pdfStr(ch.description), TC.desc, rowY);
+      noteL.forEach((t, i) => doc.text(t, TC.desc, rowY + i * LH_N));
       if (ch.tag) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         setGray(doc, 120);
         doc.text(pdfStr(ch.tag), TC.util, rowY);
       }
+      const noteEndY = rowY + (noteL.length - 1) * LH_N;
       setGray(doc, 205);
-      doc.line(M, rowY + 2, PAGE_W - M, rowY + 2);
-      rowY += 6;
+      doc.line(M, noteEndY + 2, PAGE_W - M, noteEndY + 2);
+      rowY = noteEndY + 6;
       continue;
     }
 
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
 
-    // Description — line 1
+    // Description — se trocea a mano para saber CUÁNTAS líneas ocupa. Antes iba
+    // con `maxWidth: 97` (jsPDF la partía él solo) pero la fila medía 9 mm fijos
+    // y el artículo colgaba de `rowY + 3.5`: en cuanto la descripción envolvía,
+    // su 2ª línea aterrizaba encima del artículo — y la última, sobre el
+    // separador y la fila de abajo.
+    doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
+    doc.setFontSize(7.5);
+    const descL = doc.splitTextToSize(pdfStr(ch.description), DESC_W) as string[];
+    // Alto de fila: (n-1) interlíneas + artículo (3.5) + regla (1.5) + hueco (3.5).
+    const rowH = (descL.length - 1) * ROW_LH + 8.5;
+
+    // Antes: `if (rowY > PAGE_H - M - 8) break` — DESCARTABA en silencio las
+    // comprobaciones que no cupieran. Ahora saltan a la página siguiente.
+    rowY = ensureSpace(doc, rowY, rowH, M);
+    const artY = rowY + (descL.length - 1) * ROW_LH + 3.5;   // DESPUÉS del salto
+
     doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
     doc.setFontSize(7.5);
     setGray(doc, 55);
-    doc.text(pdfStr(ch.description), TC.desc, rowY, { maxWidth: 97 });
+    descL.forEach((t, i) => doc.text(t, TC.desc, rowY + i * ROW_LH));
 
-    // Normative ref — line 2 (grey subscript, same x)
+    // Normative ref — bajo la ÚLTIMA línea de la descripción
     if (ch.article) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
       setGray(doc, 150);
-      doc.text(pdfStr(ch.article), TC.desc, rowY + 3.5, { maxWidth: 97 });
+      doc.text(pdfStr(ch.article), TC.desc, artY, { maxWidth: DESC_W });
     }
 
     // Valor + Límite
@@ -250,20 +273,27 @@ export async function exportTimberBeamsPDF(
     doc.text(utText, TC.util, rowY);
 
     setGray(doc, 215);
-    doc.line(M, rowY + 5, PAGE_W - M, rowY + 5);
-    rowY += 9;  // taller row to fit 2-line description
+    doc.line(M, artY + 1.5, PAGE_W - M, artY + 1.5);
+    rowY = artY + 5;
   }
 
   // ── Footer ───────────────────────────────────────────────────────────────────
+  // En TODAS las páginas: la tabla ya puede desbordar a una segunda (antes las
+  // filas sobrantes se descartaban en silencio, así que el pie siempre caía en
+  // la única página y podía rotularse "Pagina 1" a pelo).
   const footerY = PAGE_H - 10;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  setGray(doc, 150);
-  doc.text(
-    'Concreta - concreta.app | EC5 EN 1995-1-1 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
-    M, footerY,
-  );
-  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 150);
+    doc.text(
+      'Concreta - concreta.app | EC5 EN 1995-1-1 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
+      M, footerY,
+    );
+    doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });
+  }
 
   const filename = titledFilename(elementTitle, timberBeamsFallbackFilename());
   const blob = doc.output('blob');

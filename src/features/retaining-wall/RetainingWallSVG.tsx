@@ -886,7 +886,7 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
   const P = isPdf ? PDF_PALETTE : SCREEN_PALETTE;
   const margin = { top: 50, right: 40, bottom: 110, left: 40 };
   const g = computeGeom(inp, width, height, margin);
-  const cover_m = inp.cover as number;
+  const cover_m = (inp.cover as number) / 1000; // stored in mm (schema v2); geometry works in m
   const cv = cover_m * g.scale;
 
   const fv_int_d = inp.diam_fv_int as number;
@@ -971,8 +971,7 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
   const noRebar = callouts.length === 0;
   const elevW = width - margin.left - margin.right;
 
-  // Display cover in mm regardless of internal storage (m)
-  const cover_display_mm = Math.round(cover_m * 1000);
+  const cover_display_mm = Math.round(inp.cover as number);
 
   const _result = result; // not strictly needed but keep prop typing
   void _result;

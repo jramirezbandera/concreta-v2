@@ -90,7 +90,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
   // δ_max ≈ 0.005416wL⁴/EI at x≈0.4215L from fixed end
   //       → k = 8/185.185 ≈ 0.04320 (exact: M_A = wL²/8 → k = 8/185.185)
   // Critical M section: fixed support, V_A = 5wL/8 = VEd → VEd_interaction = VEd
-  // Lcr = 1.0L (conservative upper bound — engineer should reduce per EC3 §6.3 if
+  // Lcr = 1.0L (conservative upper bound — engineer should reduce per CE Anejo 22 §6.3 if
   //             full rotational restraint is confirmed, typically 0.7L)
   fp: {
     label:           'Articulada–Empotrada',
@@ -110,7 +110,7 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
   // V_max = wL/2   (each support)
   // δ_max = wL⁴/(384EI) → k = 1/32 via δ = (1/32)·Mser·L²/EI, Mser = wL²/12
   // Critical M section: each support, max M and max V coincide → VEd_interaction = VEd
-  // Lcr = 1.0L (conservative — engineer should reduce per EC3 §6.3, typically 0.5–0.7L)
+  // Lcr = 1.0L (conservative — engineer should reduce per CE Anejo 22 §6.3, typically 0.5–0.7L)
   // C1 = 1.13 (simplification — actual moment gradient for ff differs; conservative)
   ff: {
     label:           'Biempotrada',

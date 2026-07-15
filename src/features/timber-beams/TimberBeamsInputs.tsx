@@ -1,5 +1,6 @@
-import { type TimberBeamInputs } from '../../data/defaults';
+import { type BeamType, type TimberBeamInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getKdef, getTimberGrade } from '../../data/timberGrades';
+import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -106,6 +107,14 @@ const EXPOSED_FACES_OPTIONS = [
   { value: 4, label: '4 caras — Viga exenta' },
 ];
 
+// Tipo de viga — el motor (calcTimberBeam) ya consume `beamType` vía BEAM_CASES
+// para MEd/VEd/flecha, pero el panel no lo exponía y quedaba siempre en 'ss'.
+// Las etiquetas salen de BEAM_CASES para que no puedan divergir del motor.
+const BEAM_TYPE_OPTIONS = (['ss', 'cantilever', 'fp', 'ff'] as const).map((t: BeamType) => ({
+  value: t,
+  label: BEAM_CASES[t].label,
+}));
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TimberBeamsInputs({ state, setField }: Props) {
@@ -144,6 +153,14 @@ export function TimberBeamsInputs({ state, setField }: Props) {
 
       {/* ── Geometría del vano ──────────────────────────────────────────── */}
       <CollapsibleSection label="Geometría del vano">
+        <SelectField
+          label="Tipo de viga"
+          help="Condiciones de apoyo del vano. Fijan MEd, VEd y la flecha (biapoyada wL²/8, ménsula wL²/2, empotrada-articulada wL²/8 en el empotramiento, biempotrada wL²/12)."
+          field="beamType"
+          value={state.beamType ?? 'ss'}
+          options={BEAM_TYPE_OPTIONS}
+          setField={setField}
+        />
         <UnitNumberInput id="tb-L" labelKey="L_span" value={state.L} min={0.5} step={0.5} widthClass="w-18" onChange={(v) => setField('L', v)} />
       </CollapsibleSection>
 

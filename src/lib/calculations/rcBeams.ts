@@ -1,14 +1,14 @@
 // RC Beam calculations — Codigo Estructural (CE) Spain
 // All units: mm, MPa, kN, kNm unless noted.
 //
-// CE art. 39     — Concrete material properties
-// CE art. 42     — Bending resistance (ELU Flexion simple)
-// CE art. 42.3   — Reinforcement limits
-// CE art. 44     — Shear resistance (ELU Cortante)
-// CE art. 44.2.3 — rho_w,min (minimum transverse reinforcement ratio)
-// CE art. 49.2.4 — Crack width (ELS Fisuracion)
-// CE art. 69.4   — Bar spacing
-// CE art. 69.5.2 — Lap lengths
+// CE Anejo 19 §3.1     — Concrete material properties
+// CE Anejo 19 §6.1     — Bending resistance (ELU Flexion simple)
+// CE Anejo 19 §9.2.1.1   — Reinforcement limits
+// CE Anejo 19 §6.2     — Shear resistance (ELU Cortante)
+// CE Anejo 19 §9.2.2(5) — rho_w,min (minimum transverse reinforcement ratio)
+// CE Anejo 19 §7.3 — Crack width (ELS Fisuracion)
+// CE Anejo 19 §8.2   — Bar spacing
+// CE Anejo 19 §8.7.3 — Lap lengths
 
 import { type RCBeamInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
@@ -123,7 +123,13 @@ export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): 
   };
 }
 
-function psi2Quasi(state: RCBeamInputs): number {
+/**
+ * ψ₂ EFECTIVO de la combinación cuasipermanente (Tabla 12.1), resolviendo el
+ * escape de `loadType: 'custom'` hacia `psi2Custom`. Exportado porque es la
+ * magnitud que hay que vigilar en el guardarraíl del asistente: ni el enum ni
+ * `psi2Custom` por separado dicen la verdad (ver ai/modules/rcBeams.ts, fuga 2).
+ */
+export function psi2Quasi(state: RCBeamInputs): number {
   const lt = state.loadType;
   if (lt === 'custom') return state.psi2Custom;
   return PSI2_MAP[lt] ?? 0.3;
@@ -148,7 +154,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   const fcd = mat.fcd;
   const fyd = getFyd(inp.fyk);
 
-  // Effective depth: d = h - cover - stirrupDiam - barDiam/2  (CE art. 42)
+  // Effective depth: d = h - cover - stirrupDiam - barDiam/2  (CE Anejo 19 §6.1)
   const d = inp.h - inp.cover - inp.stirrupDiam - inp.barDiam / 2;
 
   const barArea = getBarArea(inp.barDiam);
@@ -164,7 +170,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
 
   const checks: CheckRow[] = [];
 
-  // BENDING (CE art. 42) ────────────────────────────────────────────────
+  // BENDING (CE Anejo 19 §6.1) ────────────────────────────────────────────────
   // Over-reinforcement limit: x <= xLimit = ecu3/(ecu3+eyd) * d
   const ecu3 = 0.0035;
   const eyd = fyd / Es;
@@ -187,7 +193,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     'Momento resistente MRd >= Md',
     inp.Md, MRd,
     'moment',
-    'CE art. 42',
+    'CE Anejo 19 §6.1',
   ));
 
   // Over-reinforcement warn — fixes P2 silent gap in TODOS.md
@@ -199,15 +205,15 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       limit: `x,lim = ${xLimit.toFixed(0)} mm`,
       utilization: x / xLimit,
       status: 'warn',
-      article: 'CE art. 42',
+      article: 'CE Anejo 19 §6.1',
     });
   }
 
   // MIN REINFORCEMENT tension bars ──────────────────────────────────────
-  // Geometric minimum (CE art. 42.3.5 Tabla 42.3.5): 2.8‰ of the GROSS
+  // Geometric minimum (CE Anejo 19 §9.2.1.1 Tabla 42.3.5): 2.8‰ of the GROSS
   // cross-section area b·h (NOT b·d). Using b·d understates As,min by
   // ~10 % for typical cover/depth and is unconservative.
-  // Mechanical minimum (CE art. 42.3.2): 0.04·Ac·fcd/fyd, also on b·h.
+  // Mechanical minimum (CE Anejo 19 §9.2.1.1): 0.04·Ac·fcd/fyd, also on b·h.
   const AsMinGeom = 0.0028 * inp.b * inp.h;
   const AsMinMec  = (0.04 * inp.b * inp.h * fcd) / fyd;
   const AsMin     = Math.max(AsMinGeom, AsMinMec);
@@ -218,11 +224,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     AsMin, As,
     `As,min = ${AsMin.toFixed(0)} mm\u00b2`,
     `As = ${As.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3.2',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
-  // MIN REINFORCEMENT compression bars — constructive minimum (CE art. 42.3.3)
-  // Tension As,min formula applies only to tension steel (CE art. 42.3.2 "traccionada").
+  // MIN REINFORCEMENT compression bars — constructive minimum (CE Anejo 19 §9.2.1.1)
+  // Tension As,min formula applies only to tension steel (CE Anejo 19 §9.2.1.1 "traccionada").
   // For compression bars: constructive minimum 0.001·b·d (two bars minimum).
   const AsMinComp = 0.001 * inp.b * d;
   checks.push(check(
@@ -231,10 +237,10 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     AsMinComp, AsComp,
     `As,c,min = ${AsMinComp.toFixed(0)} mm\u00b2`,
     `As,c = ${AsComp.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3.3',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
-  // MAX REINFORCEMENT total (CE art. 42.3) ─────────────────────────────
+  // MAX REINFORCEMENT total (CE Anejo 19 §9.2.1.1) ─────────────────────────────
   const AsTotal = As + AsComp;
   const AsMax = 0.04 * inp.b * inp.h;
   checks.push(check(
@@ -243,10 +249,10 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     AsTotal, AsMax,
     `As,tot = ${AsTotal.toFixed(0)} mm\u00b2`,
     `As,max = ${AsMax.toFixed(0)} mm\u00b2`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
-  // SHEAR (CE art. 44) ──────────────────────────────────────────────────
+  // SHEAR (CE Anejo 19 §6.2) ──────────────────────────────────────────────────
   const k = Math.min(1 + Math.sqrt(200 / d), 2.0);
   const rhoL = Math.min(As / (inp.b * d), 0.02);
   // (100·rho_l·fck)^(1/3) — el 100 es parte de la formula EC2 6.2.a
@@ -270,7 +276,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     'Cortante VEd <= VRd',
     inp.VEd, VRd,
     'force',
-    'CE art. 44',
+    'CE Anejo 19 §6.2',
   ));
 
   if (hasStirrups) {
@@ -279,7 +285,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       'Aplastamiento biela comprimida VEd <= VRd,max',
       inp.VEd, VRdmax,
       'force',
-      'CE art. 44',
+      'CE Anejo 19 §6.2',
     ));
   }
 
@@ -305,10 +311,10 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       limit: `\u03c1w,min = ${rhoWMin.toFixed(5)}`,
       utilization: rhoWUtil,
       status: rhoWStatus,
-      article: 'CE art. 44.2.3.2.2',
+      article: 'CE Anejo 19 §6.2.3',
     });
 
-    // MAX STIRRUP SPACING (CE art. 44.2.3.4) ─────────────────────────────
+    // MAX STIRRUP SPACING (CE Anejo 19 §9.2.2(6)) ─────────────────────────────
     const sMax = Math.min(0.75 * d, 300);
     checks.push(check(
       'stirrup-spacing-max',
@@ -316,10 +322,10 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       inp.stirrupSpacing, sMax,
       `s = ${inp.stirrupSpacing} mm`,
       `s,max = ${sMax.toFixed(0)} mm`,
-      'CE art. 44.2.3.4',
+      'CE Anejo 19 §9.2.2(6)',
     ));
 
-    // TRANSVERSE STIRRUP LEG SPACING (CE Anejo 19 art. 9.2.2(8)) ─────────
+    // TRANSVERSE STIRRUP LEG SPACING (CE Anejo 19 §9.2.2(8)) ─────────
     // stirrupLegs >= 2 garantizado por la UI; el guard evita la division por
     // cero (s_t = Infinity) si llega un 1 por via programatica (auditoría #64).
     if (inp.stirrupLegs >= 2) {
@@ -332,7 +338,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
         s_t, s_t_max,
         `s_t = ${s_t.toFixed(0)} mm`,
         `s_t,max = ${s_t_max.toFixed(0)} mm`,
-        'CE Anejo 19 art. 9.2.2(8)',
+        'CE Anejo 19 §9.2.2(8)',
       ));
     }
   } else {
@@ -347,11 +353,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       limit: `ρw,min = ${rhoWMin.toFixed(5)}`,
       utilization: Infinity,
       status: 'fail',
-      article: 'CE Anejo 19 art. 9.2.2',
+      article: 'CE Anejo 19 §9.2.2(5)',
     });
   }
 
-  // BAR SPACING (CE art. 69.4) ──────────────────────────────────────────
+  // BAR SPACING (CE Anejo 19 §8.2) ──────────────────────────────────────────
   if (inp.nBars === 1) {
     checks.push({
       id: 'bar-spacing',
@@ -360,7 +366,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       limit: 'Barra unica',
       utilization: 0,
       status: 'ok',
-      article: 'CE art. 69.4',
+      article: 'CE Anejo 19 §8.2',
     });
   } else {
     // Net space remaining after placing all bars side-by-side within stirrups
@@ -374,7 +380,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
         limit: '> 0 mm',
         utilization: Infinity,
         status: 'fail',
-        article: 'CE art. 69.4',
+        article: 'CE Anejo 19 §8.2',
       });
     } else {
       const spacing = available / (inp.nBars - 1);
@@ -402,12 +408,12 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
         limit: `${minLimit}-${maxLimit} mm`,
         utilization: spacingUtil,
         status: spacingStatus,
-        article: 'CE art. 69.4',
+        article: 'CE Anejo 19 §8.2',
       });
     }
   }
 
-  // CRACKING (CE art. 49.2.4) ────────────────────────────────────────────
+  // CRACKING (CE Anejo 19 §7.3) ────────────────────────────────────────────
   const Ecm_MPa = mat.Ecm * 1000; // GPa -> MPa
   const n = Es / Ecm_MPa;
   const A_coef = 0.5 * inp.b;
@@ -454,7 +460,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     wk, wkLim,
     `wk = ${wk.toFixed(3)} mm`,
     `wmax = ${wkLim.toFixed(2)} mm`,
-    'CE art. 49.2.4',
+    'CE Anejo 19 §7.3',
   ));
 
   // LAP LENGTH (CE Anejo 19 §8.7.3 / EC2) ────────────────────────────────
@@ -589,7 +595,7 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
       limit: `λ,lim = ${lambdaLim.toFixed(1)}`,
       utilization: ld / lambdaLim,
       status: toStatus(ld / lambdaLim),
-      article: 'CE Anejo 19 art. 7.4.2',
+      article: 'CE Anejo 19 §7.4.2',
     });
   }
 

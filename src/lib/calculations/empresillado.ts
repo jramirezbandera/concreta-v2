@@ -59,7 +59,7 @@ export interface EmpresalladoResult {
   chi: number;
   N_b_Rd: number;      // kN — global buckling resistance of compound section
 
-  // Segundo orden EC3 §6.4.1
+  // Segundo orden CE Anejo 22 §6.4.1
   Ncr_X: number;       // kN — carga crítica de la pieza compuesta
   Ncr_Y: number;
   Sv_X: number;        // kN — rigidez a cortante del sistema de presillas
@@ -164,7 +164,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   // ── Steel resistance: 1 N/mm² = 0.1 kN/cm² (since 1 cm² = 100 mm²) ────────
   const fy_cm = fy / 10;   // kN/cm²
 
-  // ── Modelo de SEGUNDO ORDEN — EC3 §6.4.1 (fix auditoría #125) ────────────
+  // ── Modelo de SEGUNDO ORDEN — CE Anejo 22 §6.4.1 (fix auditoría #125) ────────────
   // Antes el cordón era de primer orden y VEd = max(Vd, N/500): sin la
   // imperfección e0 = L/500, sin la amplificación 1/(1−N/Ncr−N/Sv) y con un
   // cortante nocional ~3-25× corto (flip verde→fail demostrado en la
@@ -218,7 +218,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const N_pl_Rd = (A * fy_cm) / γM0;   // kN — one chord
 
   // ── Local buckling (eje v) ────────────────────────────────────────────────
-  // EC3 §6.4.3.1(3): for battened compound members, the chord buckling
+  // CE Anejo 22 §6.4.3.1(3): for battened compound members, the chord buckling
   // length between consecutive battens equals the distance between battens
   // (centre-to-centre spacing s), NOT 0.5·s. Using 0.5 assumes ideal fixity
   // at the batten, which EC3 does not recognise for this check — it
@@ -230,7 +230,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const chi_v = bucklingChi(lambda_v);
   const N_bv_Rd = (chi_v * A * fy_cm) / γM1;
 
-  // ── Global buckling (EC3 §6.4.3.1) ───────────────────────────────────────
+  // ── Global buckling (CE Anejo 22 §6.4.3.1) ───────────────────────────────────────
   const Lk_X = beta_x * L_cm;
   const Lk_Y = beta_y * L_cm;
   const lambda_0X = (Lk_X / i_X) / (93.9 * ε);
@@ -265,7 +265,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   const M_Rd_pl  = (W_pl_mm3 * fy) / (γM0 * 1e6);      // kNm  (N·mm → kNm ÷1e6)
   const V_Rd_pl  = (bp_mm * tp_mm * fy) / (Math.sqrt(3) * γM0 * 1000);  // kN
 
-  // ── Flexión Vierendeel del cordón (EC3 §6.4.3.1(1), fix auditoría #126) ───
+  // ── Flexión Vierendeel del cordón (CE Anejo 22 §6.4.3.1(1), fix auditoría #126) ───
   // M_ch = VEd·s/8 por cordón (V repartido en 2 planos, punto de inflexión a
   // media distancia entre presillas). Capacidad elástica del angular sobre el
   // eje paralelo al ala: Wel = I1/(b − e).
@@ -277,9 +277,9 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
   // ── Check rows ────────────────────────────────────────────────────────────
   const checks: CheckRow[] = [
     makeCheckQty('cordones', 'Cordones — compresión (N_chord / N_pl,Rd)',
-      N_chord_max, N_pl_Rd, 'force', 'EC3 §6.4.2'),
+      N_chord_max, N_pl_Rd, 'force', 'CE Anejo 22 §6.4.2'),
     makeCheckQty('pandeo-local', 'Pandeo local eje v (N_chord / N_bv,Rd)',
-      N_chord_max, N_bv_Rd, 'force', 'EC3 §6.4 / §6.3.1'),
+      N_chord_max, N_bv_Rd, 'force', 'CE Anejo 22 §6.4 / §6.3.1'),
     {
       id: 'cordon-interaccion',
       description: `Cordón — pandeo + flexión Vierendeel: N/N_bv,Rd + M_ch/M_el,Rd (M_ch=${M_ch.toFixed(2)} kNm)`,
@@ -287,14 +287,14 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
       limit: '1.000',
       utilization: util_chord_int,
       status: toStatus(util_chord_int),
-      article: 'EC3 §6.4.3.1(1) — Cordón a axil + momento local',
+      article: 'CE Anejo 22 §6.4.3.1(1) — Cordón a axil + momento local',
     },
     makeCheckQty('pandeo-global', 'Pandeo global (N_Ed / N_b,Rd)',
-      N_Ed, N_b_Rd, 'force', 'EC3 §6.4.3.1'),
+      N_Ed, N_b_Rd, 'force', 'CE Anejo 22 §6.4.3.1'),
     makeCheckQty('pletina-flexion', 'Pletinas — flexión (η_M)',
-      M_Ed_pl, M_Rd_pl, 'moment', 'EC3 §6.4.3.2'),
+      M_Ed_pl, M_Rd_pl, 'moment', 'CE Anejo 22 §6.4.3.2'),
     makeCheckQty('pletina-cortante', 'Pletinas — cortante interno T=(VEd/2)·s/h₀',
-      T_pl, V_Rd_pl, 'force', 'EC3 §6.4.3.2'),
+      T_pl, V_Rd_pl, 'force', 'CE Anejo 22 §6.4.3.2'),
     {
       id: 'sep-presillas',
       description: 'Separación de presillas s ≤ 50·i_v',
@@ -311,7 +311,7 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
       limit: '',
       utilization: 0,
       status: 'neutral',
-      article: 'EC3 §6.4 — hipótesis del modelo',
+      article: 'CE Anejo 22 §6.4 — hipótesis del modelo',
       neutral: true,
       tag: 'LÍMITES',
     },

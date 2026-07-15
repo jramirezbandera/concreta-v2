@@ -72,7 +72,7 @@ import { anchorPlateDefaults } from '../../data/defaults';
 //     Ft_total ≈ 25-35 kN (rango razonable; el actual bug clava 4·136.6 = 546 kN!)
 //     Nc = NEd + Ft_total ≈ 225-235 kN
 //
-// ─── Check 6: longitud anclaje (CE Anejo 19 §49.5) ────────────────────
+// ─── Check 6: longitud anclaje (CE Anejo 19 §8.4) ─────────────────────
 //   fctd = 0.21·25^(2/3)/1.5 = 1.197 MPa
 //   fbd = 2.25·1·1·fctd = 2.69 MPa (η1=η2=1, vertical pre-installed)
 //   cd = min(200, 200, (300-20)/2, (200-20)/2) = min(200,200,140,90) = 90 mm

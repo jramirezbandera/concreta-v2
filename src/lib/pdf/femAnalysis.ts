@@ -22,7 +22,7 @@ import type { DesignBar, DesignModel, SolveResult } from '../../features/fem-ana
 import { formatQuantity, getUnitLabel } from '../units/format';
 import { toStatus } from '../calculations/types';
 import type { UnitSystem } from '../units/types';
-import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { PAGE_H, PAGE_W, setGray, STATUS_LABEL, titledFilename, drawElementTitle, pdfStr, truncateToWidth, type PdfResult } from './utils';
 
 const M = 18;                 // page margin (mm)
 const CW = PAGE_W - 2 * M;    // content width (mm)
@@ -152,6 +152,11 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: 
   y += 5;
 
   // Header row
+  // `status` se ancla al margen DERECHO (align:'right'). Antes era `M + 174`,
+  // es decir EXACTAMENTE el margen (PAGE_W - M = 192): al pintarse alineado a
+  // la izquierda, "CUMPLE" se salía entero de la caja (acababa en 202 mm) y
+  // "ADVERTENCIA" (18 mm) se habría ido casi al borde del papel. `eta` se
+  // retranquea para dejarle esos 18 mm de carril.
   const COL = {
     id:      M,
     mat:     M + 18,
@@ -159,8 +164,8 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: 
     L:       M + 88,
     Mmax:    M + 108,
     Vmax:    M + 134,
-    eta:     M + 158,
-    status:  M + 174,
+    eta:     M + 148,
+    status:  PAGE_W - M,
   };
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
@@ -172,7 +177,7 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: 
   doc.text(`|M| (${getUnitLabel('moment', system)})`, COL.Mmax, y);
   doc.text(`|V| (${getUnitLabel('force', system)})`,  COL.Vmax, y);
   doc.text('eta',       COL.eta, y);
-  doc.text('Estado',    COL.status, y);
+  doc.text('Estado',    COL.status, y, { align: 'right' });
   y += 1.5;
   hline(doc, y, 170, 0.15);
   y += 3.5;
@@ -192,7 +197,7 @@ function drawCover(doc: jsPDF, model: DesignModel, result: SolveResult, system: 
     doc.text(r && r.status !== 'pending' ? `${(r.eta * 100).toFixed(0)}%` : '-', COL.eta, y);
     setGray(doc, statusGrayFor(r?.status));
     doc.setFont('helvetica', 'bold');
-    doc.text(STATUS_LABEL[r?.status ?? 'neutral'] ?? '-', COL.status, y);
+    doc.text(STATUS_LABEL[r?.status ?? 'neutral'] ?? '-', COL.status, y, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     setGray(doc, 50);
     y += 4;
@@ -423,13 +428,14 @@ function drawBarSection(
     doc.text('COMPROBACIONES', M, y);
     y += 4;
 
-    const COL = { desc: M, value: M + 96, util: M + 138, status: M + 158 };
+    // `status` anclado al margen derecho: "ADVERTENCIA" desbordaba la caja.
+    const COL = { desc: M, value: M + 96, util: M + 138, status: PAGE_W - M };
     doc.setFontSize(6.5);
     setGray(doc, 100);
     doc.text('Verificacion', COL.desc, y);
     doc.text('Valor', COL.value, y);
     doc.text('Ut%', COL.util, y);
-    doc.text('Estado', COL.status, y);
+    doc.text('Estado', COL.status, y, { align: 'right' });
     y += 1.2;
     hline(doc, y, 200, 0.1);
     y += 3;
@@ -439,23 +445,25 @@ function drawBarSection(
       y = ensureSpace(doc, y, 6);
       setGray(doc, 60);
       doc.setFontSize(6.5);
-      const desc = doc.splitTextToSize(c.name, 92)[0] as string;
+      // pdfStr: `ρw` (y demás griegas de los checks) no es Latin-1; sin sanear
+      // jsPDF emitía la fila entera en UTF-16, al doble de ancho.
+      const desc = truncateToWidth(doc, pdfStr(c.name), 92);
       doc.text(desc, COL.desc, y);
-      const valStr = c.val ?? '';
+      const valStr = pdfStr(c.val ?? '');
       doc.text(valStr, COL.value, y);
       const utilStr = isFinite(c.eta) ? `${(c.eta * 100).toFixed(0)}%` : '---';
       doc.text(utilStr, COL.util, y);
       const status: 'ok' | 'warn' | 'fail' = toStatus(c.eta);
       setGray(doc, status === 'ok' ? 70 : 30);
       doc.setFont('helvetica', 'bold');
-      doc.text(STATUS_LABEL[status], COL.status, y);
+      doc.text(STATUS_LABEL[status], COL.status, y, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       y += 3.5;
       // Article ref.
       if (c.ref) {
         setGray(doc, 160);
         doc.setFontSize(5.5);
-        doc.text(c.ref, COL.desc + 2, y);
+        doc.text(pdfStr(c.ref), COL.desc + 2, y);
         doc.setFontSize(6.5);
         y += 2.5;
       }

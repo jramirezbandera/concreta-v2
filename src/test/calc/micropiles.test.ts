@@ -548,7 +548,7 @@ describe('Empujes horizontales', () => {
   it('interacción M-N: MN,Rd = Mpl,Rd·(1−n^1.7) — oracle manual (fix auditoría #15)', () => {
     // FTUX Ø88.9×9 S550: Npl,Rd = As_d·(fy/1.1) = 2092.7·500.9/1000 = 1048.2 kN
     // n = 350/1048.2 = 0.334 → 1−n^1.7 = 0.845
-    // Mpl,Rd (sin axil) = 26.56 kNm → MN,Rd = 22.44 kNm (EC3 §6.2.9, CHS clase 1/2)
+    // Mpl,Rd (sin axil) = 26.56 kNm → MN,Rd = 22.44 kNm (CE Anejo 22 §6.2.9, CHS clase 1/2)
     // Pre-fix el check de flexión usaba Mpl,Rd sin reducir por el axil concomitante.
     const rN = calcMicropiles({ ...baseInp, baseShear: 50, baseMoment: 100 }, baseSoil);
     const r0 = calcMicropiles({ ...baseInp, baseShear: 50, baseMoment: 100, designLoad: 0.001 }, baseSoil);

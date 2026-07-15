@@ -106,7 +106,7 @@ function SectionBlock({
           <span className="font-mono text-[11px] text-text-primary">{section.rebarSchedule}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-text-disabled">Solape min. (CE art. 69.5.2)</span>
+          <span className="text-[11px] text-text-disabled">Solape min. (CE Anejo 19 §8.7.3)</span>
           <span className="font-mono text-[11px] text-text-primary">{section.lapLength} mm</span>
         </div>
       </div>

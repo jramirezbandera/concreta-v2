@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/defaults';
 
-import { type LoadGenResult, getPsiRow, USE_CATEGORIES } from '../../lib/calculations/loadGen';
+import { type LoadGenResult, getPsiRow, VARIABLE_ACTIONS } from '../../lib/calculations/loadGen';
 import { getSizesForTipo } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
@@ -251,7 +251,7 @@ export function SteelBeamsInputs({
   // Lcr tooltip per beam type
   const lcrTooltip: Partial<Record<BeamType, string>> = {
     cantilever: 'Lcr = 2L (ménsula punta libre — CTE DB-SE-A)',
-    ff: 'Lcr = 1.0L conservador — reducir según condiciones reales (EC3 §6.3)',
+    ff: 'Lcr = 1.0L conservador — reducir según condiciones reales (CE Anejo 22 §6.3)',
   };
 
   return (
@@ -365,13 +365,15 @@ export function SteelBeamsInputs({
         }}
       />
       <SelectField
-        labelKey="loadType"
+        labelKey="variableAction"
         field="useCategory"
         value={state.useCategory}
-        options={USE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+        options={VARIABLE_ACTIONS.map((c) => ({ value: c.value, label: c.label }))}
         setField={(field, val) => {
           setField(field, val);
-          const cat = USE_CATEGORIES.find((c) => c.value === val);
+          // Nieve/viento/personalizada no tienen qk de catálogo: solo fijan las ψ,
+          // el valor de la envolvente lo teclea el usuario.
+          const cat = VARIABLE_ACTIONS.find((c) => c.value === val);
           if (cat && cat.qk !== null) setField('qk', cat.qk);
         }}
       />

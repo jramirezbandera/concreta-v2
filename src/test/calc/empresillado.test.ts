@@ -102,8 +102,8 @@ describe('Rectangular column (bc ≠ hc)', () => {
   });
 });
 
-// ─── Suite 6: EC3 §6.4 correction guard ──────────────────────────────────────
-describe('EC3 §6.4 correction: λ̄_eff > λ̄_0 always when s₀>0', () => {
+// ─── Suite 6: CE Anejo 22 §6.4 correction guard ──────────────────────────────────────
+describe('CE Anejo 22 §6.4 correction: λ̄_eff > λ̄_0 always when s₀>0', () => {
   it('λ̄_effX > λ̄_0X (x-axis)', () => {
     const r = calcEmpresillado(inp());
     expect(r.valid).toBe(true);
@@ -121,8 +121,8 @@ describe('EC3 §6.4 correction: λ̄_eff > λ̄_0 always when s₀>0', () => {
     expect(r.lambda_effX).toBeCloseTo(expected, 8);
   });
 
-  // EC3 §6.4.3.1(3) — local chord buckling length between battens = s (not 0.5·s).
-  it('λ̄_v back-calculation gives Lk_local = s (EC3 §6.4.3.1(3))', () => {
+  // CE Anejo 22 §6.4.3.1(3) — local chord buckling length between battens = s (not 0.5·s).
+  it('λ̄_v back-calculation gives Lk_local = s (CE Anejo 22 §6.4.3.1(3))', () => {
     const r = calcEmpresillado(inp({ s: 40, lp: 10 }));
     expect(r.valid).toBe(true);
     // λ̄_v = (Lk/iv)/(93.9·ε) → Lk = λ̄_v·93.9·ε·iv  (all in cm)
@@ -172,7 +172,7 @@ describe('Fail state: large N_Ed on slender column', () => {
   });
 });
 
-// ─── Suite 9: Pletina formulas (EC3 §6.4.3.1–2, biempotradas) ────────────────
+// ─── Suite 9: Pletina formulas (CE Anejo 22 §6.4.3.1–2, biempotradas) ────────────────
 describe('Pletina — EC3 biempotradas formulas', () => {
   it('Vd=0: V_Ed = π·MEd_II/L (cortante de 2.º orden, fix #125 — antes N/500 = 1 kN, 25× corto)', () => {
     const r = calcEmpresillado(inp({ N_Ed: 500, Vd: 0 }));
@@ -188,7 +188,7 @@ describe('Pletina — EC3 biempotradas formulas', () => {
     expect(r5.V_Ed).toBeCloseTo(r0.V_Ed + 5, 4);
   });
 
-  it('M_Ed_pl = V_Ed · s / 4 (biempotrado, EC3 §6.4.3.2)', () => {
+  it('M_Ed_pl = V_Ed · s / 4 (biempotrado, CE Anejo 22 §6.4.3.2)', () => {
     const i = inp();
     const r = calcEmpresillado(i);
     // s in cm → m: i.s / 100; divide by 4 for fixed-fixed 2-face system

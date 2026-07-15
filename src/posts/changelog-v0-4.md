@@ -24,7 +24,7 @@ Limitaciones: sólo dos cordones, soldadura entre presilla y cordón asumida res
 
 ## 2 · Placas de anclaje
 
-Comprobación combinada de la placa, los pernos y el hormigón soporte. La fórmula sigue DB-SE-A §8.7 para soldaduras y CE art.45 para el hormigón. Cubre:
+Comprobación combinada de la placa, los pernos y el hormigón soporte. La fórmula sigue DB-SE-A §8.7 para soldaduras y el Código Estructural para el hormigón. Cubre:
 
 - Tracción y cortante en pernos químicos y mecánicos.
 - Flexión de la placa por levantamiento.
@@ -44,4 +44,4 @@ Eso significa que cuando defines la armadura de un vano en el FEM, sus comprobac
 
 ## Próxima versión
 
-v0.5 está enfocada en deformaciones diferidas (CE art.50), torsión en vigas, y el primer paso para sísmica (NCSE-02).
+v0.5 está enfocada en deformaciones diferidas (CE Anejo 19 §7.4), torsión en vigas, y el primer paso para sísmica (NCSE-02).

@@ -108,7 +108,7 @@ export function CompositeSectionResults({ result }: Props) {
       {result.checks.length > 0 && (
         <>
           <GroupHeader label={sectionClass !== null
-            ? 'Clasificación CE art. 5.2'
+            ? 'Clasificación CE Anejo 22 §5.5'
             : 'Clasificación orientativa (chapas)'} />
           {result.checks.map((c) => <CheckRowItem key={c.id} check={c} />)}
         </>

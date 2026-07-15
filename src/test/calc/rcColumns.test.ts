@@ -325,7 +325,7 @@ describe('RC Columns — N-M interaction fails', () => {
 
 describe('RC Columns — Reinforcement limit checks', () => {
   it('as-min fails when As < 0.002·b·h (fix auditoría #52)', () => {
-    // CE Anejo 19 art. 9.5.2 → 0.002·Ac = 180 mm²; 4×Ø6 = 113 mm² < 180 → fail.
+    // CE Anejo 19 §9.5.2 → 0.002·Ac = 180 mm²; 4×Ø6 = 113 mm² < 180 → fail.
     const r = calcRCColumn(inp({ cornerBarDiam: 6 }));
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'as-min');

@@ -485,10 +485,18 @@ describe('structural design', () => {
     expect(r.As_req_talon).toBeGreaterThanOrEqual(0);
   });
 
-  it('cover=0.05m, tFuste=0.06m → invalid (d_fuste ≤ 0)', () => {
-    const r = calcRetainingWall({ ...base, cover: 0.05, tFuste: 0.06 });
+  it('cover=50mm, tFuste=0.06m → invalid (d_fuste ≤ 0)', () => {
+    const r = calcRetainingWall({ ...base, cover: 50, tFuste: 0.06 });
     expect(r.valid).toBe(false);
     expect(r.error).toMatch(/recubrimiento/i);
+  });
+
+  it('cover < 10 mm → invalid (guard: enlaces antiguos con cover en m)', () => {
+    // Schema v1 almacenaba cover en METROS; un enlace compartido antiguo
+    // inyecta 0.04 vía URL. Debe fallar en alto, no calcular con rec.≈0.
+    const r = calcRetainingWall({ ...base, cover: 0.04 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/mm/);
   });
 
   it('bTalon=0 → talon checks absent', () => {
@@ -573,10 +581,10 @@ describe('rebar verification', () => {
     expect(r.As_min_h_fuste).toBeGreaterThan(0);
   });
 
-  it('As_min_talon follows CE art. 9.1: max(0.26·fctm/fyk·b·d, 0.0013·b·d)', () => {
-    // base: fck=25 → fctm=2.56 MPa, fyk=500, hf=0.5m, cover=0.04m → d=446mm
+  it('As_min_talon follows CE Anejo 19 §9.2.1.1: max(0.26·fctm/fyk·b·d, 0.0013·b·d)', () => {
+    // base: fck=25 → fctm=2.56 MPa, fyk=500, hf=0.5m, cover=40mm → d=446mm
     const r = calcRetainingWall(base);
-    const d = 0.5 * 1000 - 0.04 * 1000 - 14; // 446mm
+    const d = 0.5 * 1000 - 40 - 14; // 446mm
     const expected = Math.max(0.26 * 2.56 / 500 * 1000 * d, 0.0013 * 1000 * d);
     expect(r.As_min_talon).toBeCloseTo(expected, 0);
   });

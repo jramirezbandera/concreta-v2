@@ -33,6 +33,17 @@ const PSI2_TABLE: Record<string, number> = {
   custom:      0.30, // placeholder — overridden by psi2Custom
 };
 
+/**
+ * ψ₂ EFECTIVO, resolviendo el escape de `loadType: 'custom'` hacia `psi2Custom`.
+ * Exportado porque es la magnitud que hay que vigilar en el guardarraíl del
+ * asistente: ni el enum ni `psi2Custom` por separado dicen la verdad (ver
+ * ai/modules/timberBeams.ts, fuga 2). Gobierna la flecha final/activa (u_fin,
+ * u_active) y la combinación de incendio.
+ */
+export function psi2ForLoadType(inp: Pick<TimberBeamInputs, 'loadType' | 'psi2Custom'>): number {
+  return inp.loadType === 'custom' ? inp.psi2Custom : (PSI2_TABLE[inp.loadType] ?? 0.30);
+}
+
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
 export interface TimberCheckRow {
@@ -166,7 +177,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const kmod_user = getKmod(inp.loadDuration as LoadDurationClass, inp.serviceClass as ServiceClass);
   const kdef   = getKdef(grade.type, inp.serviceClass as ServiceClass);
   const gammaM = getGammaM(grade.type);
-  const psi2   = inp.loadType === 'custom' ? inp.psi2Custom : (PSI2_TABLE[inp.loadType] ?? 0.30);
+  const psi2   = psi2ForLoadType(inp);
 
   // ── ELU — combinaciones (EC5 §3.1.3(2), fix auditoría #113) ───────────────
   // Cada combinación se verifica con el kmod de su acción más corta. Además

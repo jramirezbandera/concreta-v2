@@ -313,6 +313,9 @@ The MVP is organized into three main modules.
 - Geometric reinforcement ratio.
 - Warnings for invalid or insufficient reinforcement.
 
+### AI assistant
+- "Fill with AI" chat assistant available (see 9.3.1); in this module it extracts design forces (Nd, MEdy, MEdz) directly, and asks which axis is meant when a moment "M" is ambiguous.
+
 ---
 
 ## 9.3. Steel — Beams
@@ -352,6 +355,66 @@ The MVP is organized into three main modules.
 - Clear and proportional diagrams.
 - Show when the profile passes in resistance but fails lateral-torsional buckling.
 - Add future suggestions such as: "reduce Lcr" or "increase profile size".
+
+---
+
+## 9.3.1. "Fill with AI" chat assistant
+
+Reference section for the AI assistant. Introduced in Phase 0 as a one-shot extractor for steel beams; Phase 1 turned it into a conversational chat and generalized it, through per-module adapters, to the rest of the app.
+
+**Connected modules (16).** Phases 0–2: Steel — Beams (9.3), Reinforced concrete — Columns (9.2), Foundations — Isolated footings (9.5). Wave 3 (arrays in the payload): Steel — Composite section, Foundations — Micropiles, Geotechnics — Slope stability. Wave 1 (direct fit): Foundations — Pile caps, Timber — Columns, Timber — Beams, Steel — Columns, Rehabilitation — Battened column jacket (*empresillado*), Reinforced concrete — Punching shear. Wave 2 (flat state with quirks): Reinforced concrete — Beams (two sections), Reinforced concrete — Ribbed/solid slabs (atomic-patch gate), Foundations — Retaining walls (the full geotechnical safety table), Steel — Anchor plates (legacy field sync). Still pending: masonry walls; FEM 1D is deliberately out of scope (it is model generation, not form filling). The roadmap lives in [docs/asistente-ia-plan-modulos.md](docs/asistente-ia-plan-modulos.md).
+
+This section is the *what*. For the *how* — anatomy of a chat turn, the adapter contract, the schema dialects per provider, and how to wire a new module — see [docs/asistente-ia-arquitectura.md](docs/asistente-ia-arquitectura.md).
+
+### Scope and principle
+- Optional multi-turn chat assistant that extracts input data from a problem statement (text and/or images) and proposes values for the active module's form.
+- The app remains offline-first, with no servers of its own. This is the only feature that contacts external services: a conscious, opt-in deviation from the "no external servers" principle (see section 13, Performance).
+
+### BYOK privacy model
+- The user provides their own API key for one provider: Anthropic, OpenAI, or Google Gemini.
+- Keys are stored only in the browser's localStorage (key `concreta-ai-settings`), unencrypted; the UI warns about this.
+- Calls go directly browser → provider, using the official SDKs in browser mode.
+- No backend, no telemetry: Concreta does not store or forward statements or images.
+
+### Models
+One fixed mid-tier model per provider, defined in `src/lib/ai/models.ts`:
+- Anthropic: `claude-sonnet-5`.
+- OpenAI: `gpt-5.6-terra`.
+- Google: `gemini-3.5-flash`.
+
+### Cost and prompt caching
+The user pays for their own tokens (BYOK), so cost is a product concern, not just an engineering one. Cost is dominated by *input*: every turn resends the whole system prompt. Measured on the steel-beams module: ~5.200 fixed tokens per turn (system + schema), ~35k input / ~1.2k output for a 6-turn conversation, i.e. **≈$0.07 per conversation on Sonnet 5** (~$0.06 on Gemini 3.5 Flash).
+
+The system prompt is therefore split in two blocks (`ChatSystem {stable, volatile}`): the rules (~3.100–4.000 tokens, byte-identical across turns of the same module) go first and are **cached**; the form state and the calculation results go last and are not. Caching is a byte-for-byte *prefix* match in all three providers, so this ordering is the whole mechanism — see `docs/asistente-ia-arquitectura.md` §8.1 for how each provider activates it (Anthropic: explicit `cache_control`; OpenAI: automatic + `prompt_cache_key`; Gemini: implicit). It cuts a 6-turn conversation by **41%** ($0.124 → $0.073).
+
+Anthropic adds a second cache breakpoint over the message history **only when images are in the window** — a screenshot is 1.500–4.500 tokens resent every turn, which is worth caching; a text-only history is not (the 1.25× write surcharge would eat the saving).
+
+On the output side, all three providers are asked for the **minimum reasoning**: reasoning tokens are billed as output even though the user never sees them, and a turn whose useful answer is ~200 tokens can bill several times that. The task is structured extraction driven by an explicit prompt, not open-ended reasoning. Anthropic: `thinking: disabled`. OpenAI: `reasoning: {effort: 'none'}`. Gemini: `thinkingConfig: {thinkingLevel: MINIMAL}` — the floor, not off: Gemini 3.x cannot disable thinking. This is a tunable knob, not dogma: if the assistant starts failing on convoluted statements, raising the effort is one line per provider.
+
+### Interaction flow
+- "Fill with AI" ("Rellenar con IA") button opens a chat modal.
+- Messages combine text and/or images (max. 3 per message).
+- Each assistant turn is a structured-output call returning the envelope `{reply, proposal | null}`: `reply` is the conversational answer, always shown; `proposal` is an optional set of proposed values for the form.
+- Every request includes a snapshot of the current form state, so follow-ups can build on it ("raise the span to 9 m").
+- The snapshot carries the conversation's memory (`src/lib/ai/pendingSnapshot.ts`): a `pendientes_de_aplicar` block with the accumulated not-yet-applied proposal, and `sin_confirmar` filtered by the keys already addressed in the thread. Without this, a value confirmed in conversation that happens to equal the factory default could never leave `sin_confirmar` (confirmation is tracked per-thread, not in form state), and the assistant would re-ask it forever. The model is instructed to include confirmed values in `proposal` even when they match the current value — that is what feeds the per-thread confirmation set.
+- Proposals render as cards with a field-by-field Current / Proposed preview, fields not applied or not found (with reason), and warnings.
+- Nothing touches the form state until the user confirms "Apply". Applying does not close the modal; the conversation continues.
+- When the statement is ambiguous, the assistant asks a clarifying question (`reply` without `proposal`) instead of guessing.
+- Conversation history lives only in memory: closing the modal discards it. Each request sends a sliding window of at most 12 turns and 6 images.
+- Steel beams: the AI extracts loads (gk, qk, tributary width, use category), never design forces: MEd / VEd are derived by the app from the applied loads, as with manual input. Module-specific behavior for RC columns and isolated footings is noted in their sections.
+
+### Safety guardrails
+The assistant can reduce a calculation's safety in ways that look plausible and pass unnoticed. This happened: the assistant wrote the Málaga snow load (0.20 kN/m²) over the maintenance overload (1.0) in the single `qk` field, halving the design moment. Two complementary layers, plus the prompt, contain this.
+
+- **Principle — demand/criteria vs. resistance.** The problem's *data* (loads, design forces, spans, buckling coefficients, soil properties) and its *criteria* (deflection limit, cover, whether loads are factored) are fixed by the project, the code, or the geotechnical report: they are not design variables. *Resistance* (section, profile, reinforcement, material grade, footing size) is. The only legitimate way to make a check pass is to raise resistance. A model asked to "make it comply" has a structural incentive to do the opposite, which is cheaper and looks just as green.
+- **Layer 1 — rejection (narrow).** Only for provable internal contradictions. Today: a proposed `qk` below the use category's table overload contradicts that category, so it is refused with a "Aviso de seguridad:" warning (`mapExtraction.ts`). Deliberately narrow: escape hatch is the "Custom" category.
+- **Layer 2 — flagging (generic).** `src/lib/ai/safety.ts` holds a per-module table of fields that are *not* design variables, each with the direction that is dangerous. Any proposed change that lowers the safety level is returned in `plan.risks`. Noise gate: a risk only fires if the current value is *not* the factory default — lowering a default while entering the real data is filling in the form; lowering an established value is the incident's pattern. `alwaysCheck` overrides the gate for fields that reinterpret the whole calculation (today: footings' `loadsAreFactored`, which stops γ from being applied to service loads).
+- **Interlock.** Risks render as a red block in the proposal card (field, before → after, and why that field is not a free design variable), and "Apply" stays disabled until the user ticks an explicit confirmation. Flagging without stopping the click would not prevent the failure it exists for.
+- `risks` is a **required** field of `AiApplyPlan`: a new module cannot be wired up without declaring its rules (even if empty).
+
+### Offline behavior
+- The rest of the app keeps working fully offline; only this feature fails, with a clear error message.
+- The provider SDKs are bundled in a separate chunk (`ai-vendor`) excluded from the PWA precache.
 
 ---
 
@@ -404,6 +467,9 @@ The MVP is organized into three main modules.
 - Plan and section drawing of the footing.
 - Clear summary of whether the resultant falls within the central kern.
 - Clear messages when stresses are inadmissible.
+
+### AI assistant
+- "Fill with AI" chat assistant available (see 9.3.1); in this module it distinguishes service loads from factored (design) loads, and asks which the statement gives when unclear.
 
 ---
 
@@ -484,6 +550,7 @@ Generate a clear, professional, and useful PDF for archiving, internal review, o
 ### Performance
 - The app must respond almost instantly for MVP calculations.
 - It must not depend on external servers to calculate.
+  - Sole exception: the opt-in "Fill with AI" chat assistant (section 9.3.1) calls external AI providers; all calculations remain local.
 
 ### Reliability
 - Formulas must be centralized and tested.

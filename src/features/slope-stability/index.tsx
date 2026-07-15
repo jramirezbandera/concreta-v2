@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useContainerWidth } from "../../hooks/useContainerWidth";
 import { useTitledPdfExport } from "../../hooks/useTitledPdfExport";
 import { useDocTitle } from "../../hooks/useDocTitle";
@@ -17,8 +17,12 @@ import { SlopeInputs } from "./SlopeInputs";
 import { SlopeStabilitySVG } from "./SlopeStabilitySVG";
 import { SlopeSearchSVG } from "./SlopeSearchSVG";
 import { SlopeResults } from "./SlopeResults";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { engineStatusText } from "../../lib/text/labels";
+import type { AiApplyPlan } from "../../lib/ai/modules/types";
+import type { SlopeInputs as SlopeInputsModel } from "../../data/defaults";
+import { slopeStabilityAdapter, summarizeSlopeResults } from "../../lib/ai/modules/slopeStability";
+import { AiChatModal } from "../../components/ai/AiChatModal";
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -76,6 +80,29 @@ export function SlopeStabilityModule() {
 
   const validation = validateSlope(state);
   const solver = useSlopeSolver(state, validation.valid);
+
+  // "Rellenar con IA" (ola 3). Este módulo es el único con cálculo MANUAL:
+  // el adapter declara resultsRecalc:'manual' y el resumen refleja el estado
+  // del solver (sin calcular / fresco / desactualizado).
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(
+    () => summarizeSlopeResults(solver.result, solver.isStale),
+    [solver.result, solver.isStale],
+  );
+
+  // Aplica el plan confirmado. useSlopeState solo expone setState(completo):
+  // los campos del plan (arrays de estratos/cargas incluidos, como REEMPLAZO)
+  // se funden sobre el estado vigente. El fingerprint del solver marcará
+  // isStale solo — el usuario pulsa "Calcular" cuando quiera ver el efecto.
+  const handleAiApply = (plan: AiApplyPlan<SlopeInputsModel>) => {
+    setState({ ...state, ...plan.fields });
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? "" : "s"} aplicado${n === 1 ? "" : "s"}${w ? ` · ${w} aviso${w === 1 ? "" : "s"}` : ""} — pulsa Calcular para ver el efecto`,
+      { autoDismiss: 4500 },
+    );
+  };
 
   // El botón PDF nunca se deshabilita → garantizar un resultado fresco antes de
   // exportar (await ensureResult), y dejar pintar el clon oculto antes de
@@ -157,6 +184,14 @@ export function SlopeStabilityModule() {
           ].join(" ")}
         >
           <div className="scroll-hide flex-1 overflow-y-auto px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <SlopeInputs value={state} onChange={setState} validation={validation} />
           </div>
           <div className="hidden shrink-0 border-t border-border-main px-4 py-3 lg:block">
@@ -243,6 +278,10 @@ export function SlopeStabilityModule() {
           <SlopeSearchSVG inp={state} run={run} width={640} height={400} mode="pdf" />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal adapter={slopeStabilityAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

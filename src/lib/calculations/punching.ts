@@ -1,11 +1,11 @@
 // Punching shear — Código Estructural (CE) Spain art. 6.4
 // All units: mm, MPa, kN unless noted.
 //
-// CE art. 6.4.2 — Critical perimeter u1 (at 2d from loaded area)
-// CE art. 6.4.3 — β eccentricity factor (simplified by position)
-// CE art. 6.4.4 — vRd,c (without shear reinforcement)
-// CE art. 6.4.5 — vRd,max (absolute max) and vRd,cs (with stirrups, α=90°)
-// CE art. 9.1   — ρl,min (minimum flexural reinforcement)
+// CE Anejo 19 §6.4.2 — Critical perimeter u1 (at 2d from loaded area)
+// CE Anejo 19 §6.4.3 — β eccentricity factor (simplified by position)
+// CE Anejo 19 §6.4.4 — vRd,c (without shear reinforcement)
+// CE Anejo 19 §6.4.5 — vRd,max (absolute max) and vRd,cs (with stirrups, α=90°)
+// CE Anejo 19 §9.2.1.1   — ρl,min (minimum flexural reinforcement)
 
 import { type PunchingInputs, type CrucetaSteel, type PunchingPosition } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
@@ -15,7 +15,7 @@ import { calcCruceta } from './cruceta';
 
 export type { CheckRow } from './types';
 
-// ── Position helpers (CE art. 6.4) — single source for punching + cruceta ─────
+// ── Position helpers (CE Anejo 19 §6.4) — single source for punching + cruceta ─────
 /**
  * β eccentricity factor by column position (CE Anejo 19 / EC2 fig. 6.21N,
  * simplified — válido para estructuras arriostradas con luces adyacentes que
@@ -107,6 +107,9 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   if (inp.sSup <= 0 || inp.sInf <= 0) return invalid('Las separaciones de armado deben ser > 0');
   if (inp.barDiamSup <= 0 || inp.barDiamInf <= 0) return invalid('Los diámetros de armado deben ser > 0');
   if (inp.fck < 12 || inp.fck > 90) return invalid('fck fuera de rango (12–90 MPa)');
+  if (inp.betaMode === 'custom' && !(inp.betaManual >= 1)) {
+    return invalid('β personalizado debe ser ≥ 1.0 (no hay excentricidad que reduzca la demanda por debajo de la carga concéntrica)');
+  }
   if (inp.hasShearReinf && inp.sr <= 0) return invalid('Separación radial sr debe ser > 0');
   if (inp.hasShearReinf && inp.swLegs <= 0) return invalid('Nº de ramas debe ser > 0');
   if (inp.hasShearReinf && inp.swDiam <= 0) return invalid('Diámetro del cerco debe ser > 0');
@@ -123,11 +126,15 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // isCircular only valid for interior position
   const useCircular = inp.isCircular && inp.position === 'interior';
 
-  // ── β — eccentricity factor (CE art. 6.4.3, simplified) ──────────────────
-  // 'pilar' transfiere momento → 1.15 interior; 'carga-puntual' no → 1.0
-  const beta = betaForPosition(inp.position, inp.mode !== 'carga-puntual');
+  // ── β — eccentricity factor (CE Anejo 19 §6.4.3) ─────────────────────────
+  // 'auto' = simplificado por posición ('pilar' transfiere momento → 1.15
+  // interior; 'carga-puntual' no → 1.0). 'custom' = β afinado que introduce el
+  // proyectista (método general §6.4.3: β = 1 + k·MEd·u1/(VEd·W1)).
+  const beta = inp.betaMode === 'custom'
+    ? inp.betaManual
+    : betaForPosition(inp.position, inp.mode !== 'carga-puntual');
 
-  // ── Critical perimeter u1 (CE art. 6.4.2) ────────────────────────────────
+  // ── Critical perimeter u1 (CE Anejo 19 §6.4.2) ────────────────────────────────
   // Convention for borde/esquina:
   //   cx = dimension parallel to free edge
   //   cy = dimension perpendicular to free edge (toward slab interior)
@@ -154,7 +161,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     }
   }
 
-  // ── Column-face perimeter u0 (CE art. 6.4.5(3) / EC2 §6.4.5(3)) ──────────
+  // ── Column-face perimeter u0 (CE Anejo 19 §6.4.5(3) / EC2 §6.4.5(3)) ──────────
   // vRd,max crushing check is done at the column face, NOT at u1. Checking
   // it at u1 gives a vEd ~ order of magnitude smaller and effectively
   // disables the column-face crushing check.
@@ -180,7 +187,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     }
   }
 
-  // ── Design shear stress (CE art. 6.4.3) ──────────────────────────────────
+  // ── Design shear stress (CE Anejo 19 §6.4.3) ──────────────────────────────────
   // vEd = β · VEd[kN] · 1000 / (u1[mm] · d[mm])   → MPa = N/mm²
   // ×1000 converts kN → N
   const vEd  = beta * inp.VEd * 1000 / (u1 * d);
@@ -200,7 +207,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // direcciones ortogonales (ρl = √(ρx·ρy) colapsa a ρ) — documentado en UI.
   const rhoLRaw = asTension / d;
 
-  // ρl,min per CE art. 9.1: max(0.26·fctm/fyk, 0.0013)
+  // ρl,min per CE Anejo 19 §9.2.1.1: max(0.26·fctm/fyk, 0.0013)
   const rhoLMin = Math.max(0.26 * fctm / inp.fyk, 0.0013);
   const rhoLClamped = rhoLRaw < rhoLMin;
   // Fix auditoría #136: la fórmula usa el ρl REAL (cap 0.02), sin suelo en
@@ -212,11 +219,11 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // ── vmin ─────────────────────────────────────────────────────────────────
   const vMin = 0.035 * Math.pow(k, 1.5) * Math.sqrt(inp.fck); // MPa
 
-  // ── vRd,c — resistance without shear reinforcement (CE art. 6.4.4) ───────
+  // ── vRd,c — resistance without shear reinforcement (CE Anejo 19 §6.4.4) ───────
   const CRdc = 0.18 / 1.5; // = 0.12
   const vRdc = Math.max(CRdc * k * Math.pow(100 * rhoL * inp.fck, 1 / 3), vMin);
 
-  // ── vRd,max — absolute maximum resistance (CE art. 6.4.5) ────────────────
+  // ── vRd,max — absolute maximum resistance (CE Anejo 19 §6.4.5) ────────────────
   const nu = 0.6 * (1 - inp.fck / 250);          // effectiveness factor
   const vRdmax = 0.4 * nu * fcd;
 
@@ -226,7 +233,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   const nSides = sidesForPosition(inp.position);
   const aswPerRow = nSides * inp.swLegs * getBarArea(inp.swDiam); // mm²
 
-  // ── vRd,cs — resistance with shear reinforcement (CE art. 6.4.5) ─────────
+  // ── vRd,cs — resistance with shear reinforcement (CE Anejo 19 §6.4.5) ─────────
   // α = 90° always → sin(α) = 1
   let vRdcs: number | undefined;
   if (inp.hasShearReinf) {
@@ -258,11 +265,11 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
       limit:       `ρl,min = ${rhoLMin.toFixed(4)}`,
       utilization: util,
       status:      rhoLClamped ? 'warn' : toStatus(util),
-      article:     'CE art. 9.1',
+      article:     'CE Anejo 19 §9.2.1.1',
     });
   }
 
-  // punz-sr-max: sr ≤ 0.75·d (CE art. 9.4.3) — only when shear reinf is active
+  // punz-sr-max: sr ≤ 0.75·d (CE Anejo 19 §9.4.3) — only when shear reinf is active
   if (inp.hasShearReinf) {
     const srMax = 0.75 * d;
     const util = inp.sr / srMax; // ≤1 = ok, >1 = violation
@@ -274,17 +281,17 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
       limit:       `0.75d = ${srMax.toFixed(0)} mm`,
       utilization: Math.min(util, 1),
       status:      srStatus,
-      article:     'CE art. 9.4.3',
+      article:     'CE Anejo 19 §9.4.3',
     });
   }
 
-  // punz-ved-max: vEd0 ≤ vRd,max at column-face perimeter u0 (CE art. 6.4.5(3))
+  // punz-ved-max: vEd0 ≤ vRd,max at column-face perimeter u0 (CE Anejo 19 §6.4.5(3))
   // Tensiones por la Quantity 'stress' → se muestran en N/mm² y convierten con el
   // toggle N/mm²↔kg/cm² (consistente con el resto de la app).
   checks.push(makeCheckQty(
     'punz-ved-max',
     'vEd,0 ≤ vRd,max (en u0, cara del pilar)',
-    vEd0, vRdmax, 'stress', 'CE art. 6.4.5(3)',
+    vEd0, vRdmax, 'stress', 'CE Anejo 19 §6.4.5(3)',
   ));
 
   // punz-ved-vrdc: vEd ≤ vRd,c. SIN cercos es vinculante; CON cercos pasa a
@@ -296,7 +303,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     const row = makeCheckQty(
       'punz-ved-vrdc',
       'vEd ≤ vRd,c (sin armado)',
-      vEd, vRdc, 'stress', 'CE art. 6.4.4',
+      vEd, vRdc, 'stress', 'CE Anejo 19 §6.4.4',
     );
     if (inp.hasShearReinf && row.status === 'fail') {
       row.status = 'warn';
@@ -310,7 +317,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     checks.push(makeCheckQty(
       'punz-ved-vrdcs',
       'vEd ≤ vRd,cs (con cercos)',
-      vEd, vRdcs, 'stress', 'CE art. 6.4.5',
+      vEd, vRdcs, 'stress', 'CE Anejo 19 §6.4.5',
     ));
 
     // Nota de DISPOSICIÓN (fix auditoría #134): la ec. 6.52 presupone el
@@ -328,18 +335,33 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     });
   }
 
-  // Validez del β simplificado (fix auditoría #138/#132)
-  checks.push({
-    id: 'punz-beta-note',
-    description: `β=${beta.toFixed(2)} simplificado — válido para estructura arriostrada con luces adyacentes que no difieren >25%; si no, calcular β con la transferencia de momento real`,
-    value: '',
-    limit: '',
-    utilization: 0,
-    status: 'neutral',
-    article: 'CE Anejo 19 §6.4.3 (fig. 6.21N)',
-    neutral: true,
-    tag: 'HIPÓTESIS',
-  });
+  // Validez del β (fix auditoría #138/#132). En 'custom' el β lo fija el
+  // proyectista (método general §6.4.3) y la responsabilidad del valor es suya.
+  checks.push(
+    inp.betaMode === 'custom'
+      ? {
+          id: 'punz-beta-note',
+          description: `β=${beta.toFixed(2)} personalizado — introducido por el proyectista (método general §6.4.3: β=1+k·MEd·u1/(VEd·W1)); la app no verifica su cálculo`,
+          value: '',
+          limit: '',
+          utilization: 0,
+          status: 'neutral',
+          article: 'CE Anejo 19 §6.4.3',
+          neutral: true,
+          tag: 'HIPÓTESIS',
+        }
+      : {
+          id: 'punz-beta-note',
+          description: `β=${beta.toFixed(2)} simplificado — válido para estructura arriostrada con luces adyacentes que no difieren >25%; si no, calcular β con la transferencia de momento real`,
+          value: '',
+          limit: '',
+          utilization: 0,
+          status: 'neutral',
+          article: 'CE Anejo 19 §6.4.3 (fig. 6.21N)',
+          neutral: true,
+          tag: 'HIPÓTESIS',
+        },
+  );
 
   const valid = checks.every((c) => c.status !== 'fail');
 

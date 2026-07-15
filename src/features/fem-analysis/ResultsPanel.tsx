@@ -208,7 +208,7 @@ function ModelSummary({
 function NormativaFooter() {
   const rows: { label: string; value: string }[] = [
     { label: 'Hormigón',  value: 'CE 2021' },
-    { label: 'Acero',     value: 'CTE DB-SE-A · EC3' },
+    { label: 'Acero',     value: 'CTE DB-SE-A · CE Anejo 22' },
     { label: 'Acciones',  value: 'CTE DB-SE' },
   ];
   return (

@@ -245,8 +245,7 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
           options={[400, 500, 600].map((f) => ({ value: f, label: `${f} N/mm²` }))}
           setField={setField}
         />
-        {/* Almacenado en m (lo que lee el motor); mostrado en cm para legibilidad. */}
-        <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} unit="cm" scale={100} setField={setField} />
+        <NumField labelKey="cover_geometric" field="cover" value={state.cover as number} integer setField={setField} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Terreno (trasdós)">

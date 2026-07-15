@@ -3,7 +3,7 @@ export const GAMMA_C = 1.5;   // concrete
 export const GAMMA_S = 1.15;  // steel reinforcement
 export const GAMMA_M0 = 1.05; // steel sections
 export const GAMMA_M1 = 1.05; // steel sections (stability)
-export const ALPHA_CC = 1.0;  // long-term concrete strength coefficient (CE art. 39.4)
+export const ALPHA_CC = 1.0;  // long-term concrete strength coefficient (CE Anejo 19 §3.1.6)
 
 // Derived design values helper
 export const fcd = (fck: number) => (ALPHA_CC * fck) / GAMMA_C;

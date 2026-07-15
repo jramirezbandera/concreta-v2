@@ -244,27 +244,27 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
       )}
 
       {/* Section classification */}
-      <GroupHeader label="Sección" code="EC3 §5.5" />
+      <GroupHeader label="Sección" code="CE Anejo 22 §5.5" />
       {sectionChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Resistencias sección */}
-      <GroupHeader label="Resistencia sección" code="EC3 §6.2.5" subtitle={resistSubtitle} />
+      <GroupHeader label="Resistencia sección" code="CE Anejo 22 §6.2.5" subtitle={resistSubtitle} />
       {resistChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Pandeo */}
-      <GroupHeader label="Pandeo (ELU)" code="EC3 §6.3.1" />
+      <GroupHeader label="Pandeo (ELU)" code="CE Anejo 22 §6.3.1" />
       {bucklingChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* LTB — only when applicable */}
       {hasLTB && (
         <>
-          <GroupHeader label="Pandeo lateral (LTB)" code="EC3 §6.3.2" />
+          <GroupHeader label="Pandeo lateral (LTB)" code="CE Anejo 22 §6.3.2" />
           {ltbChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
         </>
       )}
 
       {/* Interacción */}
-      <GroupHeader label="Interacción N+M" code="EC3 §6.3.3" />
+      <GroupHeader label="Interacción N+M" code="CE Anejo 22 §6.3.3" />
       {intChecks.map((c) => <CheckRowItem key={c.id} check={c} muted={zeroLoads} />)}
 
       {/* Esbeltez */}

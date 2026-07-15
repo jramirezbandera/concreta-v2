@@ -13,7 +13,7 @@ import { availableFck } from '../../data/materials';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
-import type { ValidationWarning } from '../../lib/calculations/anchorPlate';
+import { edgeAxisPatch, shearPatch, type ValidationWarning } from '../../lib/calculations/anchorPlate';
 
 interface Props {
   state: Inputs;
@@ -377,28 +377,27 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   const initialShearAsym = (state.Vy as number) !== 0;
   const [shearDirectional, setShearDirectional] = useState(initialShearAsym);
 
-  // Wrapper: legacy cX edit syncs cX1=cX2=cX cuando toggle está OFF.
-  const setLegacyCX = (v: number) => {
-    setField('pedestal_cX', v);
-    if (!edgesDirectional) {
-      setField('pedestal_cX1', v);
-      setField('pedestal_cX2', v);
+  // La sincronización legacy↔direccional vive en shearPatch/edgeAxisPatch
+  // (lib/calculations/anchorPlate.ts), junto a los resolvers que la leen.
+  const applyPatch = (patch: Partial<Inputs>) => {
+    for (const [f, v] of Object.entries(patch) as [keyof Inputs, Inputs[keyof Inputs]][]) {
+      setField(f, v);
     }
+  };
+  // Legacy cX/cY con toggle OFF: cX1=cX2=cX. Con toggle ON el legacy es el
+  // eco "simétrico" y solo se escribe a sí mismo (los direccionales mandan).
+  const setLegacyCX = (v: number) => {
+    if (edgesDirectional) setField('pedestal_cX', v);
+    else applyPatch(edgeAxisPatch('x', v, v));
   };
   const setLegacyCY = (v: number) => {
-    setField('pedestal_cY', v);
-    if (!edgesDirectional) {
-      setField('pedestal_cY1', v);
-      setField('pedestal_cY2', v);
-    }
+    if (edgesDirectional) setField('pedestal_cY', v);
+    else applyPatch(edgeAxisPatch('y', v, v));
   };
-  // VEd → Vx/Vy: cuando toggle OFF, edit VEd sincroniza Vx=VEd, Vy=0.
+  // VEd con toggle OFF = cortante escalar en +x (Vx=VEd, Vy=0).
   const setLegacyVEd = (v: number) => {
-    setField('VEd', v);
-    if (!shearDirectional) {
-      setField('Vx', v);
-      setField('Vy', 0);
-    }
+    if (shearDirectional) setField('VEd', v);
+    else applyPatch(shearPatch(v, 0));
   };
 
   return (
@@ -438,8 +437,8 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         {shearDirectional && (
           <>
-            <UnitNumberInput label="Vx" sub="eje fuerte" help={HELP.Vx} field="Vx" value={state.Vx as number} quantity="force" onChange={(v) => setField('Vx', v)} />
-            <UnitNumberInput label="Vy" sub="eje débil"  help={HELP.Vy} field="Vy" value={state.Vy as number} quantity="force" onChange={(v) => setField('Vy', v)} />
+            <UnitNumberInput label="Vx" sub="eje fuerte" help={HELP.Vx} field="Vx" value={state.Vx as number} quantity="force" onChange={(v) => applyPatch(shearPatch(v, state.Vy as number))} />
+            <UnitNumberInput label="Vy" sub="eje débil"  help={HELP.Vy} field="Vy" value={state.Vy as number} quantity="force" onChange={(v) => applyPatch(shearPatch(state.Vx as number, v))} />
           </>
         )}
       </CollapsibleSection>
@@ -569,10 +568,10 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         {edgesDirectional && (
           <>
-            <NumField label="cX1" sub="cara +x"  help={HELP.cX1} field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={setField} />
-            <NumField label="cX2" sub="cara −x"  help={HELP.cX2} field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={setField} />
-            <NumField label="cY1" sub="cara +y"  help={HELP.cY1} field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={setField} />
-            <NumField label="cY2" sub="cara −y"  help={HELP.cY2} field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={setField} />
+            <NumField label="cX1" sub="cara +x"  help={HELP.cX1} field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('x', v as number, state.pedestal_cX2 as number))} />
+            <NumField label="cX2" sub="cara −x"  help={HELP.cX2} field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('x', state.pedestal_cX1 as number, v as number))} />
+            <NumField label="cY1" sub="cara +y"  help={HELP.cY1} field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('y', v as number, state.pedestal_cY2 as number))} />
+            <NumField label="cY2" sub="cara −y"  help={HELP.cY2} field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('y', state.pedestal_cY1 as number, v as number))} />
           </>
         )}
         <NumField label="mX"  sub="placa→borde (α)"  help={HELP.mX} field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={setField} />

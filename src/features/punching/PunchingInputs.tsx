@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { type PunchingInputs, type PunchingMode, type PunchingPosition, type CrucetaColType, type CrucetaSteel } from '../../data/defaults';
+import { betaForPosition } from '../../lib/calculations/punching';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams, getBarArea } from '../../data/rebar';
 import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
@@ -177,6 +178,45 @@ function ToggleButton({
   );
 }
 
+// ── β — coeficiente de excentricidad (auto por posición / personalizado) ─────
+/**
+ * Por defecto β sale del método simplificado por posición (Anejo 19 fig. 6.21N).
+ * Con "β personalizado" el proyectista introduce el β afinado del método general
+ * (§6.4.3), útil cuando el simplificado no aplica (luces muy dispares, pórtico
+ * no arriostrado) o se quiere apurar el cálculo.
+ */
+function BetaField({ state, setField }: PunchingInputsProps) {
+  const isCustom = state.betaMode === 'custom';
+  const auto = betaForPosition(state.position, state.mode !== 'carga-puntual');
+  return (
+    <>
+      <ToggleButton
+        label="β personalizado"
+        help={
+          'Por defecto β se toma del método simplificado según la posición del soporte '
+          + '(interior 1.15 con transferencia de momento, borde 1.4, esquina 1.5). Actívalo '
+          + 'para introducir el β afinado que calcules por el método general del Anejo 19 '
+          + '§6.4.3: β = 1 + k·MEd·u1/(VEd·W1).'
+        }
+        active={isCustom}
+        onClick={() => setField('betaMode', isCustom ? 'auto' : 'custom')}
+      />
+      {isCustom ? (
+        <NumField
+          label="β" sub="excentricidad" field="betaManual"
+          value={state.betaManual} unit="—" setField={setField}
+          help="Coeficiente de excentricidad β introducido a mano (≥ 1.0). Método general Anejo 19 §6.4.3; su cálculo es responsabilidad del proyectista y la app no lo verifica."
+        />
+      ) : (
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11">
+          <span className="text-[10px] text-text-disabled">β simplificado (según posición)</span>
+          <span className="text-[10px] font-mono text-text-secondary tabular-nums">{auto.toFixed(2)}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── SVG schematics for mode buttons ──────────────────────────────────────────
 
 function SvgPilar() {
@@ -262,6 +302,7 @@ function CrucetaInputs({ state, setField }: PunchingInputsProps) {
       <CollapsibleSection label="Configuración">
         <SelectField label="Posición" field="position" value={state.position} options={POSITION_OPTIONS} setField={setField}
           help="Posición del soporte en la losa (interior, borde o esquina). Fija el coeficiente β de excentricidad y el perímetro crítico." />
+        <BetaField state={state} setField={setField} />
         <div
           className="overflow-hidden transition-all duration-150"
           style={{ maxHeight: isEdge ? '140px' : '0px', opacity: isEdge ? 1 : 0 }}
@@ -460,6 +501,7 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
           options={POSITION_OPTIONS}
           setField={setField}
         />
+        <BetaField state={state} setField={setField} />
       </CollapsibleSection>
 
       {/* ARMADO DE PUNZONAMIENTO */}

@@ -4,8 +4,8 @@ slug: "punzonamiento-u1-a-2d"
 date: "2026-05-08"
 category: "TUTORIAL"
 read: "12 min"
-norm: "CE art.45"
-excerpt: "Repasamos el perímetro crítico u1 a 2d del CE art.45 y resolvemos tres casos prácticos donde el ingeniero novel se equivoca: bordes, esquinas y huecos próximos al pilar."
+norm: "CE Anejo 19 §6.4"
+excerpt: "Repasamos el perímetro crítico u1 a 2d del CE Anejo 19 §6.4 y resolvemos tres casos prácticos donde el ingeniero novel se equivoca: bordes, esquinas y huecos próximos al pilar."
 author: "Javier Ramírez Bandera"
 authorRole: "FUNDADOR · ARQUITECTO CALCULISTA"
 ---
@@ -14,9 +14,9 @@ El punzonamiento sigue siendo uno de los modos de fallo más comunes en placas d
 
 ## Contexto normativo
 
-El art.45 del CE establece la comprobación de punzonamiento como una verificación de tensión tangencial sobre un perímetro de control definido a una distancia de 2d desde la cara del pilar, donde d es el canto útil de la placa. Esta distancia no es caprichosa: corresponde al ángulo de fisuración interno de la zona descomprimida bajo el pilar.
+El Anejo 19 §6.4 del CE establece la comprobación de punzonamiento como una verificación de tensión tangencial sobre un perímetro de control definido a una distancia de 2d desde la cara del pilar, donde d es el canto útil de la placa. Esta distancia no es caprichosa: corresponde al ángulo de fisuración interno de la zona descomprimida bajo el pilar.
 
-> **CE art.45.1 · perímetro de control**
+> **CE Anejo 19 §6.4.2 · perímetro de control**
 > El perímetro u1 se sitúa a una distancia 2·d de la cara del pilar, redondeado en las esquinas con radio 2·d. Cuando el pilar es próximo a un borde libre o una abertura, el perímetro se trunca por la línea más corta.
 
 La tensión nominal de cálculo se obtiene como:

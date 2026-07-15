@@ -1,4 +1,4 @@
-// Punching shear test suite — CE art. 6.4
+// Punching shear test suite — CE Anejo 19 §6.4
 // Run: bun test src/test/calc/punching.test.ts
 
 import { describe, expect, it } from 'vitest';
@@ -69,6 +69,40 @@ describe('beta', () => {
   it('esquina β=1.5',  () => expect(calcPunching({ ...base, position: 'esquina' }).beta).toBe(1.5));
 });
 
+// ── β personalizado (método general §6.4.3) ──────────────────────────────────
+describe('beta custom', () => {
+  it('betaMode=custom usa betaManual, no la posición', () => {
+    // esquina daría 1.5 en auto; el custom manda
+    const r = calcPunching({ ...base, position: 'esquina', betaMode: 'custom', betaManual: 1.27 });
+    expect(r.beta).toBe(1.27);
+  });
+
+  it('el β custom escala vEd = β·VEd·1000/(u1·d)', () => {
+    const auto   = calcPunching(base);                                           // β=1.15
+    const custom = calcPunching({ ...base, betaMode: 'custom', betaManual: 1.5 });
+    expect(custom.vEd).toBeCloseTo(auto.vEd * (1.5 / 1.15), 6);
+  });
+
+  it('la nota de β cambia a "personalizado" y sigue siendo neutral (no invalida)', () => {
+    const r = calcPunching({ ...base, betaMode: 'custom', betaManual: 1.3 });
+    const note = r.checks.find((c) => c.id === 'punz-beta-note');
+    expect(note?.status).toBe('neutral');
+    expect(note?.description).toContain('personalizado');
+    expect(r.valid).toBe(true);
+  });
+
+  it('β custom < 1.0 es inválido (excentricidad no reduce por debajo de la concéntrica)', () => {
+    const r = calcPunching({ ...base, betaMode: 'custom', betaManual: 0.9 });
+    expect(r.error).toBeDefined();
+    expect(r.valid).toBe(false);
+  });
+
+  it('betaMode=auto ignora betaManual (queda en el simplificado por posición)', () => {
+    const r = calcPunching({ ...base, betaMode: 'auto', betaManual: 3.0 });
+    expect(r.beta).toBe(1.15);
+  });
+});
+
 // ── vEd design shear stress ───────────────────────────────────────────────────
 describe('vEd', () => {
   it('interior: β·VEd·1000/(u1·d)', () => {
@@ -85,7 +119,7 @@ describe('vEd', () => {
   });
 });
 
-// ── u0 / vEd0 — column-face perimeter (CE art. 6.4.5(3)) ──────────────────────
+// ── u0 / vEd0 — column-face perimeter (CE Anejo 19 §6.4.5(3)) ──────────────────────
 describe('u0 / vEd,0', () => {
   it('interior u0 = 2·(cx+cy)', () => {
     const r = calcPunching(base);
@@ -213,7 +247,7 @@ describe('rhoL', () => {
   });
 });
 
-// ── ρl,min (CE art. 9.1) ─────────────────────────────────────────────────────
+// ── ρl,min (CE Anejo 19 §9.2.1.1) ─────────────────────────────────────────────────────
 describe('rhoLMin', () => {
   it('fck=25, fyk=500: rhoLMin = max(0.26·fctm/500, 0.0013)', () => {
     // fctm(fck=25) ≈ 2.56 MPa

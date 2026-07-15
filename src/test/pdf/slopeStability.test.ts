@@ -43,6 +43,7 @@ vi.mock("../../lib/calculations/geotech/client", () => ({
 import { exportSlopeStabilityPDF } from "../../lib/pdf/slopeStability";
 import { calcSlope } from "../../lib/calculations/geotech/slope";
 import { slopeDefaults, type SlopeInputs } from "../../data/defaults";
+import { pdfBytes, utf16Runs } from "./utf16";
 
 beforeAll(() => {
   if (typeof URL.createObjectURL !== "function") {
@@ -120,5 +121,13 @@ describe("exportSlopeStabilityPDF", () => {
     const pdf = await exportSlopeStabilityPDF(inp, result, "tecnico");
     expect(pdf.blobUrl).toMatch(/^blob:/);
     expect(pdf.pageCount).toBeGreaterThanOrEqual(1);
+  });
+
+  // Invariante Latin-1 (ver src/test/pdf/utf16.ts). Vive aquí, y no en
+  // latin1Encoding.dom.test.ts, porque este módulo necesita el mock de Pyodide.
+  it("no emite ningun texto en UTF-16", async () => {
+    const result = await calcSlope(slopeDefaults);
+    const pdf = await pdfBytes(() => exportSlopeStabilityPDF(slopeDefaults, result, "si", "Talud 1"));
+    expect(utf16Runs(pdf)).toEqual([]);
   });
 });

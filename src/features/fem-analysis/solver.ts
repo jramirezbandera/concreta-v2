@@ -192,11 +192,11 @@ function checkBar(bar: Bar, diag: ReturnType<typeof sampleDiagrams>): { eta: num
 
     if (Math.abs(diag.Mmax) > 0.01) {
       const eta = Math.abs(diag.Mmax) / MRd;
-      checks.push({ name: 'Flexión', val: `${Math.abs(diag.Mmax).toFixed(1)} / ${MRd.toFixed(0)}`, unit: 'kN·m', eta, ref: 'EC3 §6.2.5' });
+      checks.push({ name: 'Flexión', val: `${Math.abs(diag.Mmax).toFixed(1)} / ${MRd.toFixed(0)}`, unit: 'kN·m', eta, ref: 'CE Anejo 22 §6.2.5' });
     }
     if (Math.abs(diag.Vmax) > 0.01) {
       const eta = Math.abs(diag.Vmax) / VRd;
-      checks.push({ name: 'Cortante', val: `${Math.abs(diag.Vmax).toFixed(1)} / ${VRd.toFixed(0)}`, unit: 'kN', eta, ref: 'EC3 §6.2.6' });
+      checks.push({ name: 'Cortante', val: `${Math.abs(diag.Vmax).toFixed(1)} / ${VRd.toFixed(0)}`, unit: 'kN', eta, ref: 'CE Anejo 22 §6.2.6' });
     }
     if (Math.abs(diag.Nmax) > 0.01) {
       const NRd = diag.Nmax > 0 ? NRd_t : NRd_c;
@@ -206,33 +206,33 @@ function checkBar(bar: Bar, diag: ReturnType<typeof sampleDiagrams>): { eta: num
         val: `${Math.abs(diag.Nmax).toFixed(1)} / ${NRd.toFixed(0)}`,
         unit: 'kN',
         eta,
-        ref: diag.Nmax > 0 ? 'EC3 §6.2.3' : 'EC3 §6.3.1',
+        ref: diag.Nmax > 0 ? 'CE Anejo 22 §6.2.3' : 'CE Anejo 22 §6.3.1',
       });
     }
     if (Math.abs(diag.Mmax) > 0.01 && Math.abs(diag.Nmax) > 0.5) {
       const eta = Math.abs(diag.Mmax) / MRd + Math.abs(diag.Nmax) / NRd_c;
-      checks.push({ name: 'M+N (interacción)', val: eta.toFixed(2), unit: '-', eta, ref: 'EC3 §6.3.3' });
+      checks.push({ name: 'M+N (interacción)', val: eta.toFixed(2), unit: '-', eta, ref: 'CE Anejo 22 §6.3.3' });
     }
   } else if (isRc(mat)) {
     const MRd = mat.name === 'HA 30×50' ? 215 : 145;
     const VRd = mat.name === 'HA 30×50' ? 180 : 130;
     if (Math.abs(diag.Mmax) > 0.01) {
       const eta = Math.abs(diag.Mmax) / MRd;
-      checks.push({ name: 'Flexión', val: `${Math.abs(diag.Mmax).toFixed(1)} / ${MRd.toFixed(0)}`, unit: 'kN·m', eta, ref: 'CE art. 22' });
+      checks.push({ name: 'Flexión', val: `${Math.abs(diag.Mmax).toFixed(1)} / ${MRd.toFixed(0)}`, unit: 'kN·m', eta, ref: 'CE Anejo 19 §6.1' });
     }
     if (Math.abs(diag.Vmax) > 0.01) {
       const eta = Math.abs(diag.Vmax) / VRd;
-      checks.push({ name: 'Cortante', val: `${Math.abs(diag.Vmax).toFixed(1)} / ${VRd.toFixed(0)}`, unit: 'kN', eta, ref: 'CE art. 23' });
+      checks.push({ name: 'Cortante', val: `${Math.abs(diag.Vmax).toFixed(1)} / ${VRd.toFixed(0)}`, unit: 'kN', eta, ref: 'CE Anejo 19 §6.2' });
     }
     if (Math.abs(diag.Nmax) > 0.5) {
       const NRd_c = 1800;
       const eta = Math.abs(diag.Nmax) / NRd_c;
-      checks.push({ name: 'Compresión', val: `${Math.abs(diag.Nmax).toFixed(0)} / ${NRd_c.toFixed(0)}`, unit: 'kN', eta, ref: 'CE art. 22' });
+      checks.push({ name: 'Compresión', val: `${Math.abs(diag.Nmax).toFixed(0)} / ${NRd_c.toFixed(0)}`, unit: 'kN', eta, ref: 'CE Anejo 19 §6.1' });
     }
     if (Math.abs(diag.Mmax) > 0.01) {
       const wk = 0.18 + (Math.abs(diag.Mmax) / MRd) * 0.18;
       const eta = wk / 0.3;
-      checks.push({ name: 'Fisuración wk', val: `${wk.toFixed(2)} / 0.30`, unit: 'mm', eta, ref: 'CE art. 24' });
+      checks.push({ name: 'Fisuración wk', val: `${wk.toFixed(2)} / 0.30`, unit: 'mm', eta, ref: 'CE Anejo 19 §7.3' });
     }
   }
 

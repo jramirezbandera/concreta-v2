@@ -303,7 +303,7 @@ format. Both should include the `γM` description, not the bare symbol.
 | Entry key | sym | descLong | ref |
 |---|---|---|---|
 | `beta_buckling` | `β` | Factor de longitud de pandeo | EC3 §6.3.1.3 Tabla 6.2 / EC5 §6.3.2 |
-| `beta_punching` | `β` | Factor de excentricidad de carga | CE art. 46.3 |
+| `beta_punching` | `β` | Factor de excentricidad de carga | CE Anejo 19 §6.4.3 |
 
 **Why:** Same symbol, totally different physics. Users know which one they're
 looking at because of the module context, but the `descLong` must carry the

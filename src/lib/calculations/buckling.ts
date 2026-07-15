@@ -2,7 +2,7 @@
 // (pilares, sección compuesta…). Extraído de steelColumns.ts para reutilizarlo
 // sin duplicar la fórmula de la Tabla 6.1.
 
-/** Factores de imperfección α de las curvas de pandeo (EC3 §6.3.1.2 Tabla 6.2). */
+/** Factores de imperfección α de las curvas de pandeo (CE Anejo 22 §6.3.1.2 Tabla 6.2). */
 export const BUCKLING_ALPHA = {
   a0: 0.13,
   a: 0.21,

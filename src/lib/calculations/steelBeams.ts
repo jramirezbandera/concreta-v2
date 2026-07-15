@@ -6,7 +6,7 @@
 //   CTE DB-SE-A 6.2.5  — Bending resistance
 //   CTE DB-SE-A 6.2.6  — Shear resistance
 //   CTE DB-SE-A 6.2.8  — M-V interaction
-//   CE Anejo 22 (EC3) 6.3.2.3 — Lateral-torsional buckling (rolled sections)
+//   CE Anejo 22 §6.3.2.3 — Lateral-torsional buckling (rolled sections)
 //   CTE DB-SE   4.3.3  — Deflection (SLS)
 
 import { type SteelBeamInputs } from '../../data/defaults';
@@ -208,7 +208,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   }
   const eta_MV = Mv_Rd > 0 ? inp.MEd / Mv_Rd : Infinity;
 
-  // 9. LTB (CE Anejo 22 / EC3 §6.3.2.3, caso laminados) — Mcr y α_LT delegados
+  // 9. LTB (CE Anejo 22 / CE Anejo 22 §6.3.2.3, caso laminados) — Mcr y α_LT delegados
   //    al section adapter. Mcr incluye el término de altura de aplicación de
   //    la carga C2·zg con zg=+h/2 (UDL gravitatoria en ala superior,
   //    desestabilizante — auditoría #61).
@@ -297,7 +297,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
         'lcr-warning',
         `Lcr (${(inp.Lcr / 1000).toFixed(2)} m) > L (${(inp.L / 1000).toFixed(2)} m) — verificar longitud de pandeo`,
         'REVISAR',
-        'CE Anejo 22 (EC3) §6.3.2 — Pandeo lateral torsional',
+        'CE Anejo 22 §6.3.2 — Pandeo lateral torsional',
       ),
     );
   }
@@ -312,7 +312,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
       inp.MEd,
       Mb_Rd,
       'moment',
-      'CE Anejo 22 (EC3) §6.3.2.3 — Pandeo lateral torsional (LTB), secciones laminadas',
+      'CE Anejo 22 §6.3.2.3 — Pandeo lateral torsional (LTB), secciones laminadas',
     ),
   );
 

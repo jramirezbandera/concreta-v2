@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react';
-import { forjadosDefaults, type ForjadosVariant } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import {
+  forjadosDefaults,
+  type ForjadosInputs,
+  type ForjadosTipologia,
+  type ForjadosVariant,
+} from '../../data/defaults';
+import { tipologiaPatch, variantSwitchPatch } from '../../data/forjadoTipologias';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,7 +14,10 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcForjados } from '../../lib/calculations/rcSlabs';
 import { exportForjadosPDF, forjadosFallbackFilename } from '../../lib/pdf/forjados';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { forjadosAdapter, summarizeForjadoResults } from '../../lib/ai/modules/forjados';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -41,37 +51,70 @@ export function ForjadosModule() {
   const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
   const mobileW = mobileCanvasWidth ? Math.min(480, Math.max(220, mobileCanvasWidth - 32)) : 300;
 
-  // Variant switch: reset armado fields to defaults for the new variant + toast.
-  // Reason: reticular uses n×Ø bundles; maciza uses Ø/s parrillas; the base/refuerzo
-  // field sets differ, so stale values across the switch are confusing.
+  // Variant switch: el patch (variant + armado a defaults + preset reticular)
+  // vive en variantSwitchPatch — única fuente de verdad, compartida con el
+  // apply del asistente IA.
   const handleVariantSwitch = (next: ForjadosVariant) => {
-    if (next === state.variant) return;
-    setField('variant', next);
-    const armadoFields = [
-      // Reticular: montaje base + refuerzos zonales (n × Ø)
-      'base_sup_nBars', 'base_sup_barDiam',
-      'base_inf_nBars', 'base_inf_barDiam',
-      'refuerzo_vano_inf_nBars',  'refuerzo_vano_inf_barDiam',
-      'refuerzo_apoyo_sup_nBars', 'refuerzo_apoyo_sup_barDiam',
-      // Maciza: parrilla base + refuerzos zonales (Ø / s)
-      'base_sup_phi_mac', 'base_sup_s_mac',
-      'base_inf_phi_mac', 'base_inf_s_mac',
-      'refuerzo_vano_inf_phi_mac',  'refuerzo_vano_inf_s_mac',
-      'refuerzo_apoyo_sup_phi_mac', 'refuerzo_apoyo_sup_s_mac',
-    ] as const;
-    for (const f of armadoFields) {
-      setField(f, forjadosDefaults[f]);
-    }
-    // For reticular, also re-apply preset tipología geometry
-    if (next === 'reticular') {
-      setField('tipologia', forjadosDefaults.tipologia);
-      setField('h',        forjadosDefaults.h);
-      setField('hFlange',  forjadosDefaults.hFlange);
-      setField('bWeb',     forjadosDefaults.bWeb);
-      setField('intereje', forjadosDefaults.intereje);
+    const patch = variantSwitchPatch(state, next);
+    const entries = Object.entries(patch) as [keyof ForjadosInputs, ForjadosInputs[keyof ForjadosInputs]][];
+    if (entries.length === 0) return;
+    for (const [f, v] of entries) {
+      setField(f, v);
     }
     showToast('Armado reiniciado al cambiar de variante', { autoDismiss: 3000 });
   };
+
+  // "Rellenar con IA" (ola 2)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Los dos gates de este módulo NO son un setField suelto, y por eso el apply no
+  // es un bucle plano: `variant` reinicia los 16 campos de armado
+  // (variantSwitchPatch) y `tipologia` re-aplica el preset de geometría
+  // (tipologiaPatch). Se escriben PRIMERO, y los campos del plan van DESPUÉS para
+  // que el armado y la geometría propuestos por la IA ganen a los defaults que el
+  // patch acaba de reponer. Ambos helpers son los mismos que usa la UI.
+  const handleAiApply = (plan: AiApplyPlan<ForjadosInputs>) => {
+    const writePatch = (patch: Partial<ForjadosInputs>) => {
+      for (const [f, v] of Object.entries(patch) as [keyof ForjadosInputs, ForjadosInputs[keyof ForjadosInputs]][]) {
+        setField(f, v);
+      }
+    };
+    if (plan.fields.variant !== undefined) {
+      writePatch(variantSwitchPatch(state, plan.fields.variant));
+    }
+    if (plan.fields.tipologia !== undefined) {
+      writePatch(tipologiaPatch(plan.fields.tipologia as ForjadosTipologia));
+    }
+
+    const ORDER: (keyof ForjadosInputs)[] = [
+      'variant', 'tipologia', 'h', 'hFlange', 'bWeb', 'intereje',
+      'spanLength', 'tipoVano', 'cover', 'fck', 'fyk', 'exposureClass',
+      'base_sup_nBars', 'base_sup_barDiam', 'base_inf_nBars', 'base_inf_barDiam',
+      'refuerzo_vano_inf_nBars', 'refuerzo_vano_inf_barDiam',
+      'refuerzo_apoyo_sup_nBars', 'refuerzo_apoyo_sup_barDiam',
+      'base_sup_phi_mac', 'base_sup_s_mac', 'base_inf_phi_mac', 'base_inf_s_mac',
+      'refuerzo_vano_inf_phi_mac', 'refuerzo_vano_inf_s_mac',
+      'refuerzo_apoyo_sup_phi_mac', 'refuerzo_apoyo_sup_s_mac',
+      'stirrupsEnabled',
+      'vano_stirrupDiam', 'vano_stirrupSpacing', 'vano_stirrupLegs',
+      'apoyo_stirrupDiam', 'apoyo_stirrupSpacing', 'apoyo_stirrupLegs',
+      'vano_Md', 'apoyo_Md', 'VEd',
+      'vano_M_G', 'vano_M_Q', 'apoyo_M_G', 'apoyo_M_Q',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as ForjadosInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeForjadoResults(result), [result]);
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -96,6 +139,14 @@ export function ForjadosModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide px-4 py-4 min-w-0">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <ForjadosInputsPanel
               state={state}
               section={section}
@@ -152,6 +203,16 @@ export function ForjadosModule() {
           <ForjadosSVG inp={state} result={result} section={section} width={480} mode="pdf" />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={forjadosAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

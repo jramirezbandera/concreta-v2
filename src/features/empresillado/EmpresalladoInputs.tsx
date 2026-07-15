@@ -150,9 +150,9 @@ export function EmpresalladoInputsPanel({ state, setField, sError }: Empresallad
         <UnitNumberInput labelKey="Mx_Ed_plan" field="Mx_Ed" value={state.Mx_Ed} quantity="moment" onChange={(v) => set('Mx_Ed', v)} />
         <UnitNumberInput labelKey="My_Ed_plan" field="My_Ed" value={state.My_Ed} quantity="moment" onChange={(v) => set('My_Ed', v)} />
         <UnitNumberInput labelKey="VEd"        field="Vd"    value={state.Vd}    quantity="force"  onChange={(v) => set('Vd', v)}
-          help="Cortante de cálculo (ELU). Si es menor que N_Ed/500 se aplica el mínimo normativo (EC3 §6.4.3.1)." />
+          help="Cortante de cálculo (ELU). Si es menor que N_Ed/500 se aplica el mínimo normativo (CE Anejo 22 §6.4.3.1)." />
         <p className="text-[10px] text-text-disabled leading-tight whitespace-pre-line pl-1 mb-1">
-          {"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (EC3 §6.4.3.1)."}
+          {"Cortante actuante en la sección del pilar.\nSi Vd < N_Ed/500, se aplica el mínimo normativo N_Ed/500 (CE Anejo 22 §6.4.3.1)."}
         </p>
       </CollapsibleSection>
 

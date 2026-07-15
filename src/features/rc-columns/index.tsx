@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { rcColumnDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { rcColumnDefaults, type RCColumnInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCColumn, buildColumnInteraction } from '../../lib/calculations/rcColumns';
 import { exportRCColumnsPDF, rcColumnsFallbackFilename } from '../../lib/pdf/rcColumns';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { rcColumnsAdapter, summarizeRCColumnResults } from '../../lib/ai/modules/rcColumns';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { RCColumnsInputs } from './RCColumnsInputs';
 import { RCColumnsSVG } from './RCColumnsSVG';
 import { RCColumnInteractionSVG } from './RCColumnInteractionSVG';
@@ -22,7 +27,34 @@ export function RCColumnsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (T4.2)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Aplica el plan confirmado en AiChatModal. ORDER del contrato con
+  // sectionType PRIMERO: el gate de forma (b/h vs D, armado rect vs anillo)
+  // depende de él. El modal NO se cierra al aplicar (la conversación sigue).
+  const handleAiApply = (plan: AiApplyPlan<RCColumnInputs>) => {
+    const ORDER: (keyof RCColumnInputs)[] = [
+      'sectionType', 'b', 'h', 'D', 'cover', 'L', 'beta', 'fck', 'fyk',
+      'cornerBarDiam', 'nBarsX', 'barDiamX', 'nBarsY', 'barDiamY',
+      'nBarsCirc', 'circBarDiam', 'stirrupDiam', 'stirrupSpacing',
+      'Nd', 'MEdy', 'MEdz',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as RCColumnInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcRCColumn(state), [state]);
+  // Resumen de resultados para el prompt del chat IA (Fase 2 — T3.3)
+  const aiResults = useMemo(() => summarizeRCColumnResults(result), [result]);
   // Diagrama de interacción N-M (ambos ejes) — memoizado junto al result para
   // no recomputar el barrido por cada instancia de SVG (pantalla/móvil/PDF).
   const interaction = useMemo(() => buildColumnInteraction(state, result), [state, result]);
@@ -86,6 +118,14 @@ export function RCColumnsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <RCColumnsInputs state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -184,6 +224,16 @@ export function RCColumnsModule() {
           </>
         )}
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={rcColumnsAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { timberBeamDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { timberBeamDefaults, type TimberBeamInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcTimberBeam } from '../../lib/calculations/timberBeams';
 import { exportTimberBeamsPDF, timberBeamsFallbackFilename } from '../../lib/pdf/timberBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { timberBeamsAdapter, summarizeTimberBeamResults } from '../../lib/ai/modules/timberBeams';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { TimberBeamsInputs } from './TimberBeamsInputs';
 import { TimberBeamsSVG } from './TimberBeamsSVG';
 import { TimberBeamsResults } from './TimberBeamsResults';
@@ -21,7 +26,32 @@ export function TimberBeamsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: los gates antes que sus dependientes — `loadType` antes
+  // que `psi2Custom` y `fireResistance` antes que `exposedFaces`.
+  const handleAiApply = (plan: AiApplyPlan<TimberBeamInputs>) => {
+    const ORDER: (keyof TimberBeamInputs)[] = [
+      'gradeId', 'b', 'h', 'beamType', 'L', 'gk', 'qk',
+      'serviceClass', 'loadDuration', 'loadType', 'psi2Custom',
+      'fireResistance', 'exposedFaces', 'isSystem', 'partitionType',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k as never, v as never);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcTimberBeam(state as never), [state]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeTimberBeamResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -62,6 +92,14 @@ export function TimberBeamsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <TimberBeamsInputs state={state as never} setField={setField as never} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -118,6 +156,16 @@ export function TimberBeamsModule() {
           <TimberBeamsSVG inp={state as never} result={result} mode="pdf" width={760} height={200} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={timberBeamsAdapter}
+          current={state as TimberBeamInputs}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

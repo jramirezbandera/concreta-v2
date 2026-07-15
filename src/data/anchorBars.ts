@@ -1,5 +1,5 @@
 // Anchor-plate rebar reference tables.
-// Barras corrugadas según Código Estructural (RD 470/2021) Anejo 19 §32.
+// Barras corrugadas según Código Estructural (RD 470/2021) Anejo 19 §3.2.
 // Grados B400S / B500S, diámetros ISO.
 
 export type RebarGrade = 'B400S' | 'B500S';
@@ -7,7 +7,7 @@ export type RebarDiam  = 8 | 10 | 12 | 16 | 20 | 25 | 32;
 
 /** Anclaje en el extremo empotrado de la barra (transferencia al hormigón).
  *  Ortogonal a cómo la barra se une a la placa (ver TopConnection).
- *  - prolongacion_recta : barra recta, anclada por adherencia CE Anejo 19 §49.5.
+ *  - prolongacion_recta : barra recta, anclada por adherencia CE Anejo 19 §8.4.4.
  *  - patilla            : doblado 90° (α1=0.7 si cd > 3·φ, si no 1.0).
  *  - gancho             : doblado ≥135° (mismo α1 condicional).
  *  - arandela_tuerca    : cabeza ensanchada (arandela + tuerca) al fondo,
@@ -27,7 +27,7 @@ export type BottomAnchorage =
 export type TopConnection = 'soldada' | 'tuerca_arandela';
 
 /** Yield (fyk) and ultimate (fuk) tensile strength per grade [MPa].
- *  CE Anejo 19 §32 (barras corrugadas). fuk = ft característico. */
+ *  CE Anejo 19 §3.2 (barras corrugadas). fuk = ft característico. */
 export const REBAR_GRADES: Record<RebarGrade, { fyk: number; fuk: number }> = {
   B400S: { fyk: 400, fuk: 440 },
   B500S: { fyk: 500, fuk: 550 },
@@ -87,7 +87,7 @@ export function washerBearingArea(diam: number, washerOd: number): number {
   return (D * D - d * d) * Math.PI / 4;
 }
 
-/** Anchorage length factor α1 per CE Anejo 19 §49.5 Tab 8.2 for straight / hook.
+/** Anchorage length factor α1 per CE Anejo 19 §8.4.4 Tab 8.2 for straight / hook.
  *  Rectas → α1=1.0. Patilla/gancho en tracción → α1=0.7 sólo si cd > 3·φ,
  *  en otro caso α1=1.0.
  *
@@ -103,7 +103,7 @@ export function anchorageAlpha1(kind: BottomAnchorage, cd: number, diam: number)
   }
 }
 
-/** Anchorage length factor α2 per CE Anejo 19 §49.5 / EC2 §8.4.4 Tab 8.2.
+/** Anchorage length factor α2 per CE Anejo 19 §8.4.4 / EC2 §8.4.4 Tab 8.2.
  *  Reducción continua por recubrimiento:
  *    α2 = 1 − 0.15·(cd − φ)/φ,   con 0.7 ≤ α2 ≤ 1.0
  *  · cd = φ          → α2 = 1.00 (sin reducción)
@@ -117,7 +117,7 @@ export function anchorageAlpha2(cd: number, diam: number): number {
   return Math.max(0.7, Math.min(1.0, 1 - 0.15 * ratio));
 }
 
-/** Does this bottom anchorage transfer load by bond (needs lbd per CE Anejo 19 §49.5)? */
+/** Does this bottom anchorage transfer load by bond (needs lbd per CE Anejo 19 §8.4.4)? */
 export function needsBondAnchorage(kind: BottomAnchorage): boolean {
   return kind === 'prolongacion_recta' || kind === 'patilla' || kind === 'gancho';
 }

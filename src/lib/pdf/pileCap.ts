@@ -101,7 +101,7 @@ export async function exportPileCapPDF(
   gap();
 
   // BIELAS Y TIRANTES
-  secHeader('BIELAS Y TIRANTES (CE art. 48)');
+  secHeader('BIELAS Y TIRANTES (CE Anejo 19 §6.5)');
   twoCol(`th = ${result.theta_deg.toFixed(1)} deg`, `z_eff = ${result.z_eff.toFixed(0)} mm`);
   twoCol(`sigma_biela = ${result.sigma_strut.toFixed(2)} MPa`, `sigma_Rd = ${result.sigma_Rd_max.toFixed(2)} MPa`);
   twoCol(`Ft,x = ${fmtSi(result.Ft_x, 'force')}`,
@@ -144,8 +144,8 @@ export async function exportPileCapPDF(
     desc:   M,
     value:  M + 82,
     limit:  M + 118,
-    util:   M + 150,
-    status: M + 162,
+    util:   M + 150,      // borde DERECHO (align:'right')
+    status: PAGE_W - M,   // borde DERECHO (align:'right')
   };
 
   let rowY = tableY + 9;
@@ -161,8 +161,8 @@ export async function exportPileCapPDF(
     doc.text('Verificacion', COL.desc,   atY);
     doc.text('Valor',        COL.value,  atY);
     doc.text('Limite',       COL.limit,  atY);
-    doc.text('Ut%',          COL.util,   atY);
-    doc.text('Estado',       COL.status, atY);
+    doc.text('Ut%',          COL.util,   atY, { align: 'right' });
+    doc.text('Estado',       COL.status, atY, { align: 'right' });
     const lineY = atY + 2;
     doc.setLineWidth(0.2);
     setGray(doc, 160);
@@ -184,10 +184,10 @@ export async function exportPileCapPDF(
     doc.text(pdfStr(chk.description), COL.desc,   rowY);
     doc.text(pdfStr(chk.value ?? ''), COL.value,  rowY);
     doc.text(pdfStr(chk.limit ?? ''), COL.limit,  rowY);
-    doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY);
+    doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     setGray(doc, st === 'ok' ? 60 : 30);
-    doc.text(STATUS_LABEL[st], COL.status, rowY);
+    doc.text(STATUS_LABEL[st], COL.status, rowY, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     setGray(doc, 50);
 
@@ -216,7 +216,7 @@ export async function exportPileCapPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     setGray(doc, 150);
-    doc.text('Concreta - concreta.app | CE art. 48 / CTE DB-SE-C', M, footerY);
+    doc.text('Concreta - concreta.app | CE Anejo 19 §6.5 / CTE DB-SE-C', M, footerY);
     doc.text(`Pagina ${i}/${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
   }
 

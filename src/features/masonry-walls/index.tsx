@@ -5,6 +5,7 @@
 // flat primitives). Same approach as the FEM 1D module.
 
 import { useEffect, useMemo, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -32,6 +33,9 @@ import {
 import { exportMasonryWallsPDF, masonryWallsFallbackFilename } from '../../lib/pdf/masonryWalls';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { showToast } from '../../components/ui/Toast';
+import { AiChatModal } from '../../components/ai/AiChatModal';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { masonryWallsAdapter, summarizeMasonryResults } from '../../lib/ai/modules/masonryWalls';
 import { buildShareUrl, decodeShareStringWithMeta } from './serialize';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
 import { MasonryWallsResults } from './MasonryWallsResults';
@@ -181,6 +185,25 @@ export function MasonryWallsModule() {
   );
   const overall = useMemo(() => overallStatus(plantasCalc), [plantasCalc]);
   const critico = useMemo(() => getCriticoEdificio(plantasCalc), [plantasCalc]);
+
+  // "Rellenar con IA" (ola 4). Alcance reducido: el plan solo trae los escalares
+  // globales (fábrica, coeficientes, L y t) — las plantas, con sus huecos y sus
+  // puntuales, son contexto de solo lectura para el asistente, así que el merge
+  // plano nunca las toca. Tampoco hace falta limpiar la selección: si la key del
+  // machón queda huérfana, el panel cae al crítico.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeMasonryResults(edificioResult), [edificioResult]);
+
+  const handleAiApply = (plan: AiApplyPlan<MasonryWallState>) => {
+    setState((s) => ({ ...s, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+      + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
 
   // Título del documento: fuera del estado del edificio (ver useDocTitle) para no
   // recomputar ni contaminar inputsFingerprint(state) al teclearlo.
@@ -368,6 +391,18 @@ export function MasonryWallsModule() {
           tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
         ].join(' ')}>
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide">
+            {/* El padding horizontal vive en MasonryWallsInputs, así que el botón
+                trae el suyo para alinearse con los campos de abajo. */}
+            <div className="px-4 pt-3">
+              <button
+                type="button"
+                onClick={() => setAiOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors cursor-pointer"
+              >
+                <Sparkles size={14} aria-hidden="true" />
+                Rellenar con IA
+              </button>
+            </div>
             <MasonryWallsInputs
               state={state}
               setState={setState}
@@ -551,6 +586,16 @@ export function MasonryWallsModule() {
           />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={masonryWallsAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

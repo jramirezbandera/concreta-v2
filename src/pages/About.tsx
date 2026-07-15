@@ -10,7 +10,7 @@ const DESIGN_PRINCIPLES: [string, string][] = [
   ['Densidad sobre amplitud.', 'Más información por pixel, menos scroll.'],
   ['SVG vivo, no mockup.', 'Cada input redibuja la geometría.'],
   ['Dark theme intencional.', 'El SVG manda; el chrome desaparece.'],
-  ['Artículo siempre visible.', 'CE art.42, no «comprobación 1».'],
+  ['Artículo siempre visible.', 'CE Anejo 19 §6.1, no «comprobación 1».'],
   ['Sin backend.', 'Tus cálculos no son nuestros.'],
 ];
 

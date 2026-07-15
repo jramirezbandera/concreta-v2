@@ -41,7 +41,33 @@ describe('pdfStr', () => {
     expect(pdfStr('φ = 0.5')).toBe('phi = 0.5');
     expect(pdfStr('λ = h/t')).toBe('lam = h/t');
     expect(pdfStr('σ_top')).toBe('sigma_top');
-    expect(pdfStr('β·f_d')).toBe('betaxf_d');
+    expect(pdfStr('β·f_d')).toBe('beta·f_d');   // el `·` es Latin-1: se preserva
+    expect(pdfStr('ρw,min')).toBe('rhow,min');
+    expect(pdfStr('α_cc')).toBe('alpha_cc');
+    expect(pdfStr('ψ2')).toBe('psi2');
+  });
+
+  // Estos caracteres SÍ existen en WinAnsi, así que jsPDF los pinta tal cual.
+  // Degradarlos (Ø->ph, ²->2, ·->x) era una pérdida gratuita de fidelidad.
+  it('preserves Latin-1 symbols that WinAnsi can render', () => {
+    expect(pdfStr('4Ø16 + Ø6/c150')).toBe('4Ø16 + Ø6/c150');
+    expect(pdfStr('804 mm²')).toBe('804 mm²');
+    expect(pdfStr('1.5 m³')).toBe('1.5 m³');
+    expect(pdfStr('30°')).toBe('30°');
+    expect(pdfStr('0.002·b·h')).toBe('0.002·b·h');
+  });
+
+  it('maps non-Latin-1 chars that DO have a WinAnsi slot to that byte', () => {
+    expect(pdfStr('1.30‰')).toBe('1.30\x89');   // perthousand
+    expect(pdfStr('a•b')).toBe('a\x95b');       // bullet
+    expect(pdfStr('a…b')).toBe('a\x85b');       // ellipsis
+  });
+
+  it('substitutes arrows, minus and comparison operators', () => {
+    expect(pdfStr('ned=0.276→a=1.15')).toBe('ned=0.276->a=1.15');
+    expect(pdfStr('M−')).toBe('M-');            // U+2212, no el guion ASCII
+    expect(pdfStr('x ≤ 2 y ≥ 1')).toBe('x <= 2 y >= 1');
+    expect(pdfStr('a ≈ b, c ≠ d')).toBe('a ~= b, c != d');
   });
 
   it('replaces uppercase Greek letters Φ/Σ/Δ (used in formulas)', () => {

@@ -1,6 +1,6 @@
 // Forjados — Reticular (sección T por nervio) + Losa maciza (franja 1m)
-// CE art. 21 (b_eff), art. 42 (flexión), art. 42.3 (cuantías), art. 44 (cortante),
-// art. 49.2.4 (fisuración), art. 69.4 (separación barras).
+// CE Anejo 19 §5.3.2.1 (b_eff), §6.1 (flexión), §9.2.1.1 (cuantías), §6.2 (cortante),
+// §7.3 (fisuración), §8.2 (separación barras).
 // All units: mm, MPa, kN, kNm.
 
 import { type ForjadosInputs } from '../../data/defaults';
@@ -13,7 +13,7 @@ import { type CheckRow, type CheckStatus, toStatus, makeCheck as check } from '.
 
 export type { CheckStatus, CheckRow } from './types';
 
-// ── Anchorage (CE art. 69.5.1.1) ─────────────────────────────────────────────
+// ── Anchorage (CE Anejo 19 §8.4.4) ─────────────────────────────────────────────
 // lb_rqd = (Ø/4)·(σsd/fbd); lb_min = max(0.3·lb_rqd, 10·Ø, 100 mm).
 // fbd = 2.25·η1·η2·fctd; fctd = fctm/1.5.
 // Posición I (buena adherencia): barra en cara inferior, o en losas con h ≤ 300 mm.
@@ -98,7 +98,7 @@ function invalidSection(error: string): ForjadosSectionResult {
   };
 }
 
-// ── Bar arrangement in the nervio (CE art. 69.4) ─────────────────────────────
+// ── Bar arrangement in the nervio (CE Anejo 19 §8.2) ─────────────────────────────
 // Distributes the tension bars (montaje base + refuerzo) across up to maxLayers
 // horizontal layers using REAL diameters per bar (not the max-Ø-for-all shortcut).
 // Model: each bundle is one layer — base = outer layer at the tension face,
@@ -246,7 +246,7 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
       limit: `x,lim = ${xLimit.toFixed(0)} mm`,
       utilization: x / xLimit,
       status: 'warn',
-      article: 'CE art. 42',
+      article: 'CE Anejo 19 §6.1',
     });
   }
 
@@ -277,10 +277,10 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
     AsMin, inp.As,
     `As,min = ${AsMin.toFixed(0)} mm²`,
     `As = ${inp.As.toFixed(0)} mm²`,
-    'CE art. 42.3.2',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
-  // MAX REINFORCEMENT total (CE art. 42.3) ──────────────────────────────
+  // MAX REINFORCEMENT total (CE Anejo 19 §9.2.1.1) ──────────────────────────────
   const AsTotal = inp.As + inp.AsComp;
   const AsMax = 0.04 * bRef * inp.h;
   checks.push(check(
@@ -289,10 +289,10 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
     AsTotal, AsMax,
     `As,tot = ${AsTotal.toFixed(0)} mm²`,
     `As,max = ${AsMax.toFixed(0)} mm²`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
-  // BAR SPACING (CE art. 69.4) ──────────────────────────────────────────
+  // BAR SPACING (CE Anejo 19 §8.2) ──────────────────────────────────────────
   // Real Ø + multi-layer: the arrangement (built in calcForjados) reports whether
   // the bars fit (in ≤2 layers) and the tightest layer's clear spacing. The old
   // single-row max-Ø-for-all formula falsely failed nervios with mixed bars.
@@ -309,7 +309,7 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
           value: `Exceso: ${arr.shortfall.toFixed(0)} mm`,
           limit: '≤ ancho libre',
           utilization: Infinity, status: 'fail',
-          article: 'CE art. 69.4',
+          article: 'CE Anejo 19 §8.2',
         });
       } else if (arr.governing === null) {
         // every layer has ≤1 bar → no horizontal spacing to verify
@@ -319,7 +319,7 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
           value: '1 barra/capa',
           limit: '—',
           utilization: 0, status: 'ok',
-          article: 'CE art. 69.4',
+          article: 'CE Anejo 19 §8.2',
         });
       } else {
         // Min clear spacing governs in a narrow web (the 3·h max-spacing arm is a
@@ -334,7 +334,7 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
           description: `Separación entre barras (nervio${capas})`,
           value: `s = ${spacing.toFixed(0)} mm`,
           limit: `≥ ${minLimit} mm`,
-          utilization: util, status, article: 'CE art. 69.4',
+          utilization: util, status, article: 'CE Anejo 19 §8.2',
         });
       }
     }
@@ -347,11 +347,11 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
       inp.macSpacing, sMax,
       `s = ${inp.macSpacing.toFixed(0)} mm`,
       `s,max = ${sMax.toFixed(0)} mm`,
-      'CE art. 69.4',
+      'CE Anejo 19 §8.2',
     ));
   }
 
-  // FISURACIÓN (CE art. 49.2.4) — only when exposureClass ≠ XC1 ──────────
+  // FISURACIÓN (CE Anejo 19 §7.3) — only when exposureClass ≠ XC1 ──────────
   let wk = 0;
   const wkLim = wkMax[inp.exposureClass] ?? 0.3;
   if (inp.exposureClass !== 'XC1' && inp.Ms > 0) {
@@ -386,7 +386,7 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
       wk, wkLim,
       `wk = ${wk.toFixed(3)} mm`,
       `wmax = ${wkLim.toFixed(2)} mm`,
-      'CE art. 49.2.4',
+      'CE Anejo 19 §7.3',
     ));
   }
 
@@ -547,7 +547,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     const stirrupV = inp.stirrupsEnabled ? (inp.vano_stirrupDiam  as number) : 0;
     const stirrupA = inp.stirrupsEnabled ? (inp.apoyo_stirrupDiam as number) : 0;
     // Bar layout (real Ø, ≤2 layers) drives both the spacing check and d: a forced
-    // 2nd layer raises the steel centroid → d = h − dDepth shrinks (CE art. 69.4).
+    // 2nd layer raises the steel centroid → d = h − dDepth shrinks (CE Anejo 19 §8.2).
     arrVano = arrangeNervioBars(
       [{ count: nBaseInf, phi: phiBaseInf }, { count: nRefV, phi: phiRefV }],
       bWeb - 2 * cover - 2 * stirrupV, cover + stirrupV, h,
@@ -673,7 +673,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     vano_Md, vano.MRd,
     `Md = ${vano_Md.toFixed(1)} kNm`,
     `MRd = ${vano.MRd.toFixed(1)} kNm`,
-    'CE art. 42',
+    'CE Anejo 19 §6.1',
   ));
   apoyo.checks.unshift(check(
     'bending',
@@ -681,10 +681,10 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     apoyo_Md, apoyo.MRd,
     `|M-| = ${apoyo_Md.toFixed(1)} kNm`,
     `MRd = ${apoyo.MRd.toFixed(1)} kNm`,
-    'CE art. 42',
+    'CE Anejo 19 §6.1',
   ));
 
-  // ── Anchorage (CE art. 69.5.1.1) — info per bar bundle ────────────────
+  // ── Anchorage (CE Anejo 19 §8.4.4) — info per bar bundle ────────────────
   // Report lb_rqd and lb_min for each non-empty bundle (base + refuerzo) in
   // each zone. Status is always 'ok' / utilization 0 (non-blocking info).
   const appendAnchorage = (sec: ForjadosSectionResult, bundles: BarBundle[]) => {
@@ -697,14 +697,14 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
         limit: `lb,min = ${a.lb_min.toFixed(0)} mm`,
         utilization: 0,
         status: 'ok',
-        article: 'CE art. 69.5.1.1',
+        article: 'CE Anejo 19 §8.4.4',
       });
     }
   };
   appendAnchorage(vano,  bundlesVano);
   appendAnchorage(apoyo, bundlesApoyo);
 
-  // ── Shear (CE art. 44) — single VEd, governing section depth ──────────
+  // ── Shear (CE Anejo 19 §6.2) — single VEd, governing section depth ──────────
   // Use the smaller d (more conservative), and b = b_w (reticular) or 1000 (maciza).
   const dShear = Math.min(dVano, dApoyo);
   const bShear = variant === 'reticular' ? bWeb : 1000;
@@ -743,7 +743,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       VEd, VRd,
       `VEd = ${VEd.toFixed(1)} kN`,
       `VRd = ${VRd.toFixed(1)} kN`,
-      'CE art. 44',
+      'CE Anejo 19 §6.2',
     ));
     shearChecks.push(check(
       'shear-max',
@@ -751,7 +751,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       VEd, VRdmax,
       `VEd = ${VEd.toFixed(1)} kN`,
       `VRd,max = ${VRdmax.toFixed(1)} kN`,
-      'CE art. 44',
+      'CE Anejo 19 §6.2',
     ));
 
     // ρw,min
@@ -769,7 +769,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       value: `ρw = ${rhoW.toFixed(5)}`,
       limit: `ρw,min = ${rhoWMin.toFixed(5)}`,
       utilization: rhoWUtil, status: rhoWStatus,
-      article: 'CE art. 44.2.3.2.2',
+      article: 'CE Anejo 19 §6.2.3',
     });
 
     // Max stirrup spacing
@@ -780,7 +780,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       stirrupSpacing, sMax,
       `s = ${stirrupSpacing.toFixed(0)} mm`,
       `s,max = ${sMax.toFixed(0)} mm`,
-      'CE art. 44.2.3.4',
+      'CE Anejo 19 §9.2.2(6)',
     ));
   } else {
     shearChecks.push(check(
@@ -789,7 +789,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       VEd, VRdc,
       `VEd = ${VEd.toFixed(1)} kN`,
       `VRd,c = ${VRdc.toFixed(1)} kN`,
-      'CE art. 44.2',
+      'CE Anejo 19 §6.2',
     ));
   }
 
@@ -831,7 +831,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     article: 'CE Anejo 19 §7.4.2',
   });
   if (variant === 'maciza') {
-    // Armadura de reparto (CE art. 42.3.6) ≥ 20% armadura principal
+    // Armadura de reparto (CE Anejo 19 §9.3.1.1) ≥ 20% armadura principal
     const AsMainPerM = AsVano; // mm²/m
     const AsRepMin = 0.2 * AsMainPerM;
     infoChecks.push({
@@ -840,7 +840,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       value: `—`,
       limit: `As,rep,min ≈ ${AsRepMin.toFixed(0)} mm²/m`,
       utilization: 0, status: 'ok',
-      article: 'CE art. 42.3.6',
+      article: 'CE Anejo 19 §9.3.1.1',
     });
   }
   if (variant === 'reticular') {

@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo, useState } from 'react';
-import { anchorPlateDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { anchorPlateDefaults, type AnchorPlateInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
 import { exportAnchorPlatePDF, anchorPlateFallbackFilename } from '../../lib/pdf/anchorPlate';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { anchorPlateAdapter, summarizeAnchorPlateResults } from '../../lib/ai/modules/anchorPlate';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { AnchorPlateInputsPanel } from './AnchorPlateInputs';
 import { AnchorPlateSVG } from './AnchorPlateSVG';
 import { AnchorPlateResults } from './AnchorPlateResults';
@@ -28,6 +33,43 @@ export function AnchorPlateModule() {
   // El PDF recibe deferredState/result para que ambos estén siempre en sync.
   const deferredState = useDeferredValue(state);
   const result = useMemo(() => calcAnchorPlate(deferredState, system), [deferredState, system]);
+
+  // "Rellenar con IA" (ola 2)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: familia antes que tamaño, y los gates (`bottom_anchorage`,
+  // `rib_count`) antes que sus dependientes. Los campos legacy (`VEd`,
+  // `pedestal_cX`/`cY`) NO se escriben aquí a mano: el buildPlan ya los ha dejado
+  // en `plan.fields` a través de shearPatch/edgeAxisPatch, que es la única forma
+  // sancionada de mantenerlos coherentes con los resolvers del motor.
+  const handleAiApply = (plan: AiApplyPlan<AnchorPlateInputs>) => {
+    const ORDER: (keyof AnchorPlateInputs)[] = [
+      'sectionType', 'sectionSize',
+      'NEd', 'NEd_G', 'Mx', 'My', 'Vx', 'Vy', 'VEd',
+      'plate_a', 'plate_b', 'plate_t', 'plate_steel',
+      'bar_nLayout', 'bar_diam', 'bar_grade', 'bar_edge_x', 'bar_edge_y', 'bar_hef',
+      'bottom_anchorage', 'top_connection', 'washer_od',
+      'rib_count', 'rib_h', 'rib_t',
+      'fck',
+      'pedestal_cX1', 'pedestal_cX2', 'pedestal_cY1', 'pedestal_cY2',
+      'pedestal_cX', 'pedestal_cY',
+      'pedestal_h', 'plate_margin_x', 'plate_margin_y', 'surface_type', 'weld_throat',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as AnchorPlateInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
+  // Resumen de resultados para el prompt del chat IA. Sale de `result`, que va un
+  // tick por detrás del estado (useDeferredValue) — igual que la pantalla.
+  const aiResults = useMemo(() => summarizeAnchorPlateResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -81,6 +123,14 @@ export function AnchorPlateModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <AnchorPlateInputsPanel state={state} setField={setField} warnings={result.warnings} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -153,6 +203,16 @@ export function AnchorPlateModule() {
           />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={anchorPlateAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

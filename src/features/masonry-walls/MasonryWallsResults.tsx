@@ -10,13 +10,14 @@ import {
   ValueRow,
   VerdictBadge,
 } from '../../components/checks';
-import { toStatus, type CheckRow, type CheckStatus } from '../../lib/calculations/types';
-import type {
-  CriticoResult,
-  EdificioInvalid,
-  MasonryWallState,
-  OverallStatus,
-  PlantaResult,
+import { type CheckRow, type CheckStatus } from '../../lib/calculations/types';
+import {
+  masonryMachonChecks,
+  type CriticoResult,
+  type EdificioInvalid,
+  type MasonryWallState,
+  type OverallStatus,
+  type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
@@ -85,48 +86,12 @@ export function MasonryWallsResults({
   const displayMachon = machonSel || critico;
   const isShowingCritical = !machonSel;
 
-  // Construir checks como CheckRow[] para el shared CheckRowItem.
-  const checks: CheckRow[] = displayMachon ? [
-    {
-      id: 'compresion-excentrica',
-      description: 'Compresión excéntrica',
-      article: 'DB-SE-F §5.2',
-      value: formatQuantity(displayMachon.N_Ed, 'force', system),
-      limit: formatQuantity(displayMachon.N_Rd, 'force', system),
-      utilization: displayMachon.eta,
-      status: toStatus(displayMachon.eta),
-    },
-    {
-      id: 'pandeo',
-      description: 'Pandeo (esbeltez λ)',
-      article: 'DB-SE-F §5.2.4',
-      value: `λ=${displayMachon.planta.lambda.toFixed(1)}`,
-      limit: '27',
-      utilization: displayMachon.planta.lambda / 27,
-      status: displayMachon.planta.lambda < 22
-        ? 'ok'
-        : displayMachon.planta.lambda < 27 ? 'warn' : 'fail',
-    },
-    displayMachon.etaConc > 0
-      ? {
-          id: 'concentracion',
-          description: 'Concentración bajo apoyo',
-          article: 'DB-SE-F §5.4',
-          value: 'σ_loc',
-          limit: 'β·f_d',
-          utilization: displayMachon.etaConc,
-          status: toStatus(displayMachon.etaConc),
-        }
-      : {
-          id: 'concentracion',
-          description: 'Concentración bajo apoyo',
-          article: 'DB-SE-F §5.4',
-          valueStr: '—',
-          utilization: 0,
-          status: 'neutral',
-          neutral: true,
-        },
-  ] : [];
+  // Las filas las construye el motor (masonryMachonChecks) — las mismas que
+  // reutiliza el resumen del asistente IA, para que chat y pantalla nunca
+  // cuenten cosas distintas.
+  const checks: CheckRow[] = displayMachon
+    ? masonryMachonChecks(displayMachon, displayMachon.planta)
+    : [];
 
   return (
     <div>

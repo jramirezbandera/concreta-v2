@@ -25,6 +25,7 @@ import jsPDF from 'jspdf';
 import { WARN_UTIL } from '../calculations/types';
 import {
   MASONRY_ENGINE_VERSION,
+  MASONRY_LAMBDA_MAX,
   type MasonryWallState,
   type PlantaResult,
   type CriticoResult,
@@ -754,7 +755,9 @@ function drawGovernanteBlock(
   y += 5;
 
   // Comprobaciones §5.2 / §5.2.4 / §5.4
-  const lambdaPass = pl.lambda < 27;
+  // El criterio es el del motor (fail sii λ > 27), no `< 27`: en λ = 27 exacto
+  // el PDF decía INCUMPLE y el veredicto del motor decía CUMPLE.
+  const lambdaPass = pl.lambda <= MASONRY_LAMBDA_MAX;
   doc.setFont('helvetica', 'bold');
   setGray(doc, 60);
   doc.text('§5.2:', M, y);
@@ -767,7 +770,7 @@ function drawGovernanteBlock(
   doc.text('§5.2.4:', M, y);
   doc.setFont('helvetica', 'normal');
   setGray(doc, 40);
-  doc.text(`lam = h_ef/t = ${num(pl.h_ef, 0)}/${state.t} = ${pl.lambda.toFixed(1)}  ${lambdaPass ? '< 27 (CUMPLE)' : '>= 27 (INCUMPLE)'}`, M + 16, y);
+  doc.text(`lam = h_ef/t = ${num(pl.h_ef, 0)}/${state.t} = ${pl.lambda.toFixed(1)}  ${lambdaPass ? `<= ${MASONRY_LAMBDA_MAX} (CUMPLE)` : `> ${MASONRY_LAMBDA_MAX} (INCUMPLE)`}`, M + 16, y);
   y += 3.5;
   if (m.etaConc > 0) {
     doc.setFont('helvetica', 'bold');
@@ -937,7 +940,7 @@ function drawAppendixPlanta(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 120);
-  doc.text(`Comprobaciones aplicadas: §5.2 (compresion excentrica), §5.2.4 (pandeo lam < 27)${algunaConc ? ', §5.4 (concentracion bajo apoyo)' : ''}.`, M, y);
+  doc.text(`Comprobaciones aplicadas: §5.2 (compresion excentrica), §5.2.4 (pandeo lam <= ${MASONRY_LAMBDA_MAX})${algunaConc ? ', §5.4 (concentracion bajo apoyo)' : ''}.`, M, y);
 
   if (system !== 'si') {
     y += 4;

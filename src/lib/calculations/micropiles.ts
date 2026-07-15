@@ -1,4 +1,4 @@
-// Micropilotes — Guía Fomento 2005 (cap. 3) + EC3 §6.2
+// Micropilotes — Guía Fomento 2005 (cap. 3) + CE Anejo 22 §6.2
 // All shaft + structural checks. Single-pile design.
 //
 // Discretización: 50 segmentos uniformes a lo largo de la longitud L.
@@ -21,7 +21,7 @@
 //   Guía Fomento cap. 3.7 — Empujes horizontales y longitud ficticia
 //   Guía Fomento cap. 3.8 — Conexión con encepado
 //   Guía Fomento Tablas 3.5/3.6/3.7/A-5.1 — Factores Fe, Fc/Fφ, Fr, eg_min
-//   EC3 §6.2.5 / §6.2.6 — Flexión y cortante de la sección tubular
+//   CE Anejo 22 §6.2.5 / §6.2.6 — Flexión y cortante de la sección tubular
 
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import {
@@ -126,7 +126,7 @@ export interface MicropilesResult {
   Vpl_rd: number;                   // kN — cortante plástico resistente
   im: number;                       // utilización flexión
   iv: number;                       // utilización cortante
-  /** Clasificación de la sección tubular post-corrosión (EC3 Tabla 5.2). */
+  /** Clasificación de la sección tubular post-corrosión (CE Anejo 22 Tabla 5.2). */
   sectionClass: SectionClass;
 
   // Asientos estimados (mm)
@@ -521,7 +521,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   //   Clase 1/2 → W = Wpl (plastificación completa permitida).
   //   Clase 3   → W = Wel (límite elástico).
   //   Clase 4   → invalid: la sección abolla localmente antes de fy y
-  //               Concreta no implementa Aeff/Weff (EC3 §6.2.9.2).
+  //               Concreta no implementa Aeff/Weff (CE Anejo 22 §6.2.9.2).
   const eEff = (deNet - di) / 2;
   const sectionClass = classifyCircularHollow(deNet, eEff, fy);
   if (sectionClass === 4) {
@@ -539,12 +539,12 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const Wel = (Math.PI * (Math.pow(deNet, 4) - Math.pow(di, 4))) / (32 * deNet);
   const W = sectionClass <= 2 ? Wpl : Wel;
   // γa = 1.10 de la Guía Fomento §3.7 para el tubo (más conservador que el
-  // γM0=1.05 de EC3 §6.2.5/6.2.6; se adopta la Guía por trazabilidad — el
+  // γM0=1.05 de CE Anejo 22 §6.2.5/6.2.6; se adopta la Guía por trazabilidad — el
   // article de los checks cita ambas fuentes).
   const GAMMA_A = 1.1;
   const Mpl_rd = (W * (fy / GAMMA_A)) / 1e6;                                // kNm
 
-  // Av tubular ≈ 2·A/π (EC3 §6.2.6 sección hueca circular), γa = 1.10 (Guía)
+  // Av tubular ≈ 2·A/π (CE Anejo 22 §6.2.6 sección hueca circular), γa = 1.10 (Guía)
   const Vpl_rd = ((2 * As_d / Math.PI) * (fy / Math.sqrt(3))) / GAMMA_A / 1000; // kN
 
   // Empujes horizontales — modelo de ménsula equivalente (Guía §3.7, pág. 40).
@@ -569,7 +569,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     ? Math.pow(2 * VEd / Vpl_rd - 1, 2)
     : 0;
 
-  // Interacción M-N (EC3 §6.2.9): el axil concomitante NEd = designLoad reduce
+  // Interacción M-N (CE Anejo 22 §6.2.9): el axil concomitante NEd = designLoad reduce
   // el momento resistente del tubo. n = NEd/Npl,Rd (sección post-corrosión).
   //   CHS clase 1/2 → MN,Rd = Mpl,Rd·(1 − n^1.7) (aprox. aceptada para tubos)
   //   Clase 3       → criterio elástico lineal: MN,Rd = Mel,Rd·(1 − n)
@@ -674,7 +674,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     limit:  `${Mpl_rdm.toFixed(2)} kNm`,
     utilization: bendingUtil,
     status: toStatus(bendingUtil),
-    article: 'EC3 §6.2.5 + §6.2.9 / Guía §3.7 (Tablas 3.8/3.9)',
+    article: 'CE Anejo 22 §6.2.5 + §6.2.9 / Guía §3.7 (Tablas 3.8/3.9)',
   });
   checks.push({
     id: 'shear',
@@ -683,7 +683,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     limit: `${Vpl_rd.toFixed(2)} kN`,
     utilization: iv,
     status: toStatus(iv),
-    article: 'EC3 §6.2.6 / Guía §3.7 (γa=1.10)',
+    article: 'CE Anejo 22 §6.2.6 / Guía §3.7 (γa=1.10)',
   });
 
   // Garganta de soldadura — neutral (no es utilización lineal)

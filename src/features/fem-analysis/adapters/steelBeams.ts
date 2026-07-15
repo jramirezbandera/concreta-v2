@@ -63,7 +63,7 @@ export interface AdaptResult {
  * V1.1 — Lane R9 / Codex catch #4 fix:
  *   The adapter iterates the multi-principal ELU combinations (G+Q principal,
  *   G+W principal, etc.) and runs calcSteelBeam per sub-combination. M-V
- *   interaction (EC3 §6.2.8) requires the (M, V) tuple from the SAME
+ *   interaction (CE Anejo 22 §6.2.8) requires the (M, V) tuple from the SAME
  *   combination at the SAME section — taking M_max from one combo and V_max
  *   from another would overestimate the interaction check (false INCUMPLE).
  *

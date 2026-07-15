@@ -7,7 +7,14 @@
  *  v2.0.0 = cascada de cargas concentradas multi-planta (2026-05-12). */
 export const MASONRY_ENGINE_VERSION = '2.0.0';
 
-import { WARN_UTIL } from './types';
+import { toStatus, WARN_UTIL, type CheckRow } from './types';
+
+/** Esbeltez máxima admisible λ = h_ef/t (DB-SE-F §5.2.4). Límite ABSOLUTO:
+ *  por encima el muro no es apto aunque η < 1. Fuente única — el motor, la
+ *  fila de comprobación y el PDF lo leen de aquí (antes era un literal `27`
+ *  repetido en cuatro sitios, y la UI lo aplicaba con `<` donde el motor usa
+ *  `>`, de modo que λ = 27 exacto incumplía en pantalla y cumplía en el motor). */
+export const MASONRY_LAMBDA_MAX = 27;
 
 //
 // Comprobación de muros de carga de fábrica en edificación rehabilitada,
@@ -193,6 +200,24 @@ export function lookupFk(pieza: PiezaTipo, fb: number, fm: number): number | nul
   if (!row) return null;
   const v = row[fm];
   return v == null ? null : v;
+}
+
+/**
+ * fm con celda NO nula en Tabla 4.4 para el par (pieza, fb). Devuelve [] cuando
+ * ese fb no existe para esa pieza.
+ *
+ * OJO: `FM_PARA_FB` mapea fb → fm SIN mirar la pieza, y hay celdas nulas
+ * (`macizo_junta_delgada` con fb = 5: las dos). Ofrecer esas combinaciones deja
+ * el módulo en "Datos no válidos", así que tanto los desplegables como el
+ * adapter de IA filtran por aquí, no por `FM_PARA_FB`.
+ */
+export function fmValidosPara(pieza: PiezaTipo, fb: number): number[] {
+  return (FM_PARA_FB[fb] ?? []).filter((fm) => lookupFk(pieza, fb, fm) != null);
+}
+
+/** fb con alguna celda NO nula en Tabla 4.4 para esa pieza. */
+export function fbValidosPara(pieza: PiezaTipo): number[] {
+  return FB_VALUES.filter((fb) => fmValidosPara(pieza, fb).length > 0);
 }
 
 // ── Anejo C DB-SE-F · ecuación C.1 (mortero ordinario, juntas extendidas) ──
@@ -477,6 +502,68 @@ export interface MasonryWallState {
   expediente?: string;
   autor?: string;
   fechaProyecto?: string;
+}
+
+// ── Patches atómicos del estado (compartidos UI ↔ asistente IA) ───────────
+//
+// Cuatro campos del estado NO se escriben sueltos: cambiar uno arrastra a otro
+// (la terna de Tabla 4.4 tiene celdas nulas; γ_custom se auto-estima al cambiar
+// el tipo de muro del Anejo C). La UI y el `buildPlan` del adapter comparten
+// estos helpers para que la IA no pueda dejar un estado que la UI nunca
+// produciría — mismo patrón que `variantSwitchPatch`/`tipologiaPatch` en
+// forjados.
+
+/**
+ * Cambio de pieza: coerciona fb y fm a una celda VÁLIDA de Tabla 4.4 para la
+ * pieza nueva. Conserva fb/fm si siguen siendo válidos; si no, cae al fb válido
+ * más próximo y, en última instancia, a la sugerencia de la pieza.
+ */
+export function piezaPatch(
+  s: Pick<MasonryWallState, 'fb' | 'fm'>,
+  pieza: PiezaTipo,
+): Pick<MasonryWallState, 'pieza' | 'fb' | 'fm'> {
+  const fbs = fbValidosPara(pieza);
+  if (fbs.length === 0) return { pieza, fb: s.fb, fm: s.fm }; // pieza sin celdas: imposible hoy
+  const fb = fbs.includes(s.fb) ? s.fb : fbs.reduce(
+    (best, cand) => (Math.abs(cand - s.fb) < Math.abs(best - s.fb) ? cand : best),
+    fbs[0],
+  );
+  const fms = fmValidosPara(pieza, fb);
+  const fm = fms.includes(s.fm) ? s.fm : fms[0];
+  return { pieza, fb, fm };
+}
+
+/** Cambio de fb: coerciona fm a la fila válida de (pieza, fb). */
+export function fbPatch(
+  s: Pick<MasonryWallState, 'pieza' | 'fm'>,
+  fb: number,
+): Pick<MasonryWallState, 'fb' | 'fm'> {
+  const fms = fmValidosPara(s.pieza, fb);
+  const fm = fms.includes(s.fm) ? s.fm : (fms[0] ?? s.fm);
+  return { fb, fm };
+}
+
+/**
+ * Cambio de tipo de muro (Anejo C): re-estima γ salvo que el usuario lo haya
+ * fijado a mano, y resetea el flag ("borrón y cuenta nueva": un tipo nuevo
+ * invita a re-estimar).
+ */
+export function tipoMuroPatch(
+  s: Pick<MasonryWallState, 'gamma_custom' | 'gamma_custom_edited'>,
+  t: TipoMuroAnejoC,
+): Pick<MasonryWallState, 'anejoC_tipoMuro' | 'gamma_custom' | 'gamma_custom_edited'> {
+  return {
+    anejoC_tipoMuro: t,
+    gamma_custom: s.gamma_custom_edited ? s.gamma_custom : GAMMA_ESTIMADO[t],
+    gamma_custom_edited: false,
+  };
+}
+
+/** γ explícito: marca `edited` para que un cambio de tipo de muro no lo pise. */
+export function gammaCustomPatch(
+  v: number,
+): Pick<MasonryWallState, 'gamma_custom' | 'gamma_custom_edited'> {
+  return { gamma_custom: v, gamma_custom_edited: true };
 }
 
 export interface FabricaResuelta {
@@ -820,7 +907,7 @@ function mayorarPuntual(p: Puntual, gG: number, gQ: number): number {
  * tiene ninguna combinación válida (caso muy raro). Usado por el banner de
  * validación para no dejar al usuario solo ante la tabla.
  */
-function sugerirFbFm(pieza: PiezaTipo): { fb: number; fm: number; fk: number } | null {
+export function sugerirFbFm(pieza: PiezaTipo): { fb: number; fm: number; fk: number } | null {
   const t = TABLA_4_4[pieza];
   if (!t) return null;
   let best: { fb: number; fm: number; fk: number } | null = null;
@@ -1176,7 +1263,7 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       // λ ≤ 27 (DB-SE-F §5.2.4 / EC6 §5.5.1.4): límite ABSOLUTO de esbeltez,
       // independiente del axil. Por encima el muro no es apto aunque η < 1.
       let status: 'ok' | 'warn' | 'fail' = 'ok';
-      if (etaMax >= 1.0 || lambda > 27) status = 'fail';
+      if (etaMax >= 1.0 || lambda > MASONRY_LAMBDA_MAX) status = 'fail';
       else if (etaMax >= WARN_UTIL) status = 'warn';
 
       return {
@@ -1307,12 +1394,137 @@ export function overallStatus(plantasCalc: PlantaResult[]): OverallStatus {
   let slendernessFail = false;
   plantasCalc.forEach((pl) => {
     // λ > 27 (DB-SE-F §5.2.4): el edificio INCUMPLE aunque todos los η < 1.
-    if (pl.lambda > 27) slendernessFail = true;
+    if (pl.lambda > MASONRY_LAMBDA_MAX) slendernessFail = true;
     pl.machones.forEach((m) => { if (m.etaMax > max) max = m.etaMax; });
   });
   if (max >= 1.0 || slendernessFail) return { v: 'fail', label: 'INCUMPLE', eta: max };
   if (max >= WARN_UTIL) return { v: 'warn', label: 'REVISAR', eta: max };
   return { v: 'ok', label: 'CUMPLE', eta: max };
+}
+
+// ── Comprobaciones como CheckRow[] (compartidas UI ↔ asistente IA) ─────────
+//
+// Las filas se construyen por la ruta NUMÉRICA (valueNum + valueQty), no con
+// strings pre-formateados: así la UI las pinta en el sistema de unidades activo
+// (CheckRowItem llama a checkValueStr(check, system)) y el resumen de la IA las
+// serializa en SI. Un CheckRow legacy con `value: '…'` daría a la IA el texto
+// del usuario y no un número — la trampa de los módulos de madera.
+//
+// `utilization` se COPIA del motor, nunca se recalcula como demanda/capacidad:
+// eso destruiría los dos centinelas (axil de tracción → η = 99; N_Rd = 0 → 99),
+// que es lo que hace makeCheckQty y por eso no se usa aquí.
+
+/** Esbeltez de una planta → estado de la fila del machón. Conserva la banda
+ *  ámbar informativa 22 ≤ λ ≤ 27, que el motor NO tiene (para él solo cuenta
+ *  λ > 27). Por eso esta fila no puede alimentar el veredicto de la IA — ver
+ *  `masonryBuildingChecks`. */
+function lambdaStatusMachon(lambda: number): 'ok' | 'warn' | 'fail' {
+  if (lambda > MASONRY_LAMBDA_MAX) return 'fail';
+  return lambda < 22 ? 'ok' : 'warn';
+}
+
+/**
+ * Las tres comprobaciones DB-SE-F de un machón: compresión excéntrica §5.2,
+ * pandeo §5.2.4 y concentración bajo apoyo §5.4 (fila neutra si no hay ninguna
+ * carga concentrada sobre él).
+ *
+ * La fila de compresión imprime el axil que GOBIERNA η, no el de cabeza:
+ * N_Ed_pie = N_Ed + peso propio del machón, con el mismo N_Rd, así que el pie
+ * manda siempre salvo con axil de tracción. Imprimir la cabeza junto a
+ * η = max(η_cabeza, η_pie) dejaba unos números que no cuadraban entre sí.
+ */
+export function masonryMachonChecks(m: MachonResult, pl: PlantaResult): CheckRow[] {
+  const gobiernaPie = m.eta_pie >= m.eta_cabeza;
+  return [
+    {
+      id: 'compresion-excentrica',
+      description: `Compresión excéntrica · ${gobiernaPie ? 'pie' : 'cabeza'}`,
+      article: 'DB-SE-F §5.2',
+      valueNum: gobiernaPie ? m.N_Ed_pie : m.N_Ed,
+      valueQty: 'force',
+      limitNum: m.N_Rd,
+      limitQty: 'force',
+      utilization: m.eta,
+      status: toStatus(m.eta),
+    },
+    {
+      id: 'pandeo',
+      description: 'Pandeo (esbeltez λ)',
+      article: 'DB-SE-F §5.2.4',
+      valueStr: `λ=${pl.lambda.toFixed(1)}`,
+      limitStr: `≤ ${MASONRY_LAMBDA_MAX}`,
+      utilization: pl.lambda / MASONRY_LAMBDA_MAX,
+      status: lambdaStatusMachon(pl.lambda),
+    },
+    m.etaConc > 0
+      ? {
+          id: 'concentracion',
+          description: 'Concentración bajo apoyo',
+          article: 'DB-SE-F §5.4',
+          valueStr: 'σ_loc',
+          limitStr: 'β·f_d',
+          utilization: m.etaConc,
+          status: toStatus(m.etaConc),
+        }
+      : {
+          id: 'concentracion',
+          description: 'Concentración bajo apoyo',
+          article: 'DB-SE-F §5.4',
+          valueStr: '—',
+          utilization: 0,
+          status: 'neutral',
+          neutral: true,
+        },
+  ];
+}
+
+/** Planta con la esbeltez máxima del edificio (la primera en caso de empate). */
+export function plantaMasEsbelta(plantas: PlantaResult[]): PlantaResult | null {
+  let peor: PlantaResult | null = null;
+  for (const pl of plantas) {
+    if (peor === null || pl.lambda > peor.lambda) peor = pl;
+  }
+  return peor;
+}
+
+/**
+ * Fila de esbeltez de EDIFICIO: λ máxima sobre TODAS las plantas y SIN banda
+ * ámbar — exactamente el criterio del motor (`overallStatus`: fail sii
+ * λ > 27). La fila del machón no sirve para el veredicto por dos motivos: solo
+ * mira la planta del machón crítico (otra planta puede ser la esbelta) y avisa
+ * en ámbar entre 22 y 27, donde el motor sigue diciendo CUMPLE.
+ */
+export function masonryEsbeltezEdificioCheck(plantas: PlantaResult[]): CheckRow {
+  const peor = plantaMasEsbelta(plantas);
+  const lambda = peor?.lambda ?? 0;
+  return {
+    id: 'esbeltez-edificio',
+    description: 'Esbeltez máxima del edificio',
+    article: 'DB-SE-F §5.2.4',
+    valueStr: peor ? `λ=${lambda.toFixed(1)} (${peor.nombre})` : 'λ=0.0',
+    limitStr: `≤ ${MASONRY_LAMBDA_MAX}`,
+    utilization: lambda / MASONRY_LAMBDA_MAX,
+    status: lambda > MASONRY_LAMBDA_MAX ? 'fail' : 'ok',
+  };
+}
+
+/**
+ * Checks del EDIFICIO para el resumen del asistente: las dos comprobaciones de
+ * utilización del machón crítico + la esbeltez de edificio.
+ *
+ * INVARIANTE (testada): `checkFormat.overallStatus(masonryBuildingChecks(...))`
+ * === `overallStatus(plantas).v` para cualquier estado. Se sostiene porque
+ * `getCriticoEdificio` devuelve el argmax de etaMax, etaMax = max(eta, etaConc)
+ * y `toStatus` es monótona, de modo que el máximo de los estados de esas dos
+ * filas es el veredicto por η del motor; y la fila de esbeltez reproduce su
+ * `slendernessFail`. Si se rompe, el chat diría CUMPLE con la pantalla en rojo.
+ */
+export function masonryBuildingChecks(
+  plantas: PlantaResult[],
+  critico: CriticoResult,
+): CheckRow[] {
+  const [compresion, , concentracion] = masonryMachonChecks(critico, critico.planta);
+  return [compresion, concentracion, masonryEsbeltezEdificioCheck(plantas)];
 }
 
 // ── Defaults ──────────────────────────────────────────────────────────────
@@ -1427,6 +1639,36 @@ export function isBlankMasonryState(state: MasonryWallState): boolean {
   );
 }
 
+/** Huella estructural de unas plantas, ignorando los ids (que son aleatorios). */
+function plantasFingerprint(plantas: Planta[]): string {
+  return JSON.stringify(
+    plantas.map((p) => ({
+      nombre: p.nombre, H: p.H, q_G: p.q_G, q_Q: p.q_Q,
+      e_apoyo: p.e_apoyo, a_apoyo: p.a_apoyo, rho_n: p.rho_n ?? null,
+      huecos: p.huecos.map((h) => ({ x: h.x, y: h.y, w: h.w, h: h.h, tipo: h.tipo })),
+      puntuales: p.puntuales.map((q) => ({ x: q.x, P_G: q.P_G, P_Q: q.P_Q, b_apoyo: q.b_apoyo })),
+    })),
+  );
+}
+
+/**
+ * ¿Las plantas siguen siendo una PLANTILLA de la app (la de arranque o el
+ * edificio de ejemplo) y no datos del usuario?
+ *
+ * Las plantas no son campos del payload de la IA (v1: solo contexto de lectura),
+ * así que NO pueden aparecer en `sin_confirmar` y el asistente no tiene forma de
+ * saber que las alturas y cargas que ve son inventadas por la app. Sin esta
+ * bandera dictaminaría "tu edificio CUMPLE" sobre un edificio que nadie ha
+ * declarado. Mantener sincronizada con `blankMasonryState`/`defaultMasonryState`.
+ */
+export function masonryPlantasSonDeFabrica(state: MasonryWallState): boolean {
+  const fp = plantasFingerprint(state.plantas);
+  return (
+    fp === plantasFingerprint(blankMasonryState().plantas) ||
+    fp === plantasFingerprint(defaultMasonryState().plantas)
+  );
+}
+
 export function defaultMasonryState(): MasonryWallState {
   return {
     fabricaModo: 'tabla',
@@ -1518,9 +1760,33 @@ export function normalizeMasonryState(
   // "Planta baja" + "Planta 1..N" + "Cubierta"; la convención nueva es
   // "Planta 1" en idx=0, "Planta 2..N-1" intermedias, "Cubierta" topmost.
   merged.plantas = renumberPlantas(merged.plantas);
+
+  // Terna (pieza, fb, fm) de Tabla 4.4 (auditoría 2026-07-14, 5ª familia).
+  // Un estado antiguo o una share-URL pueden traer una COMBINACIÓN inexistente
+  // —p. ej. "junta delgada" con fb=5, que no tiene celda—: el motor la deja en
+  // EdificioInvalid y, peor, la UI puebla el desplegable de fb con fbValidosPara
+  // (que NO incluye 5), así que el <select> renderiza un valor que no está entre
+  // sus opciones. `piezaPatch` es idempotente para las combinaciones válidas y
+  // coacciona las inválidas a una celda real; se aplica siempre y se marca legacy
+  // si cambió algo. Primero se valida la propia `pieza` (un enum corrupto la
+  // devolvería a fábrica).
+  const piezaIn = r.pieza;
+  const piezaValid =
+    typeof piezaIn === 'string' && piezaIn in TABLA_4_4
+      ? (piezaIn as PiezaTipo)
+      : null;
+  const piezaCorrupt = piezaIn !== undefined && piezaValid == null;
+  if (piezaCorrupt) merged.pieza = defaults.pieza;
+  const terna = piezaPatch(merged, merged.pieza);
+  const ternaCoerced =
+    terna.pieza !== merged.pieza || terna.fb !== merged.fb || terna.fm !== merged.fm;
+  merged.pieza = terna.pieza;
+  merged.fb = terna.fb;
+  merged.fm = terna.fm;
+
   return {
     state: merged,
-    migratedLegacy: isLegacyCustom || tipoCorrupt,
+    migratedLegacy: isLegacyCustom || tipoCorrupt || piezaCorrupt || ternaCoerced,
   };
 }
 

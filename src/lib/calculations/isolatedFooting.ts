@@ -10,7 +10,7 @@
 //   bitriangular_biaxial  : both beyond core         (Newton-Raphson)
 //   overturning_fail      : ex ≥ B/2 OR ey ≥ L/2 OR NR diverges
 //
-// Armado gating (CE art. 55):
+// Armado gating (CE Anejo 19 §6.5):
 //   rigid    (v_max ≤ 2h) → strut-tie active, bending/shear/punching neutral
 //   flexible (v_max > 2h) → strut-tie neutral, bending/shear/punching active
 
@@ -434,7 +434,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const As_req_bend_x = reqAs(MEd_x, d_x);
   const As_req_bend_y = reqAs(MEd_y, d_y);
 
-  // ── Strut-tie tie force (CE art. 55.2 / EHE-08 art. 58.4.1.2) ─────────────
+  // ── Strut-tie tie force (CE Anejo 19 §6.5 / EHE-08 art. 58.4.1.2) ─────────────
   const Td_x = sigma_Ed_uniform * L * B * (B - bc) / (6.8 * (d_x / 1000));   // kN
   const Td_y = sigma_Ed_uniform * B * L * (L - hc) / (6.8 * (d_y / 1000));   // kN
   const As_req_tie_x = (Td_x * 1000 / fyd) / L;   // mm²/m (spread across L)
@@ -449,7 +449,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const As_prov_x = (getBarArea(inp.phi_x) / inp.s_x) * 1000;
   const As_prov_y = (getBarArea(inp.phi_y) / inp.s_y) * 1000;
 
-  // ── Shear (CE art. 44, at d from column face) ─────────────────────────────
+  // ── Shear (CE Anejo 19 §6.2, at d from column face) ─────────────────────────────
   const ell_x = Math.max(ax - d_x, 0);
   const ell_y = Math.max(ay - d_y, 0);
   const VEd_x = sigma_Ed_uniform * (ell_x / 1000);   // kN/m
@@ -471,7 +471,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   const VRd_x = vRdc_x * d_x;
   const VRd_y = vRdc_y * d_y;
 
-  // ── Punching (CE art. 46 / EC2 §6.4) ──────────────────────────────────────
+  // ── Punching (CE Anejo 19 §6.4 / EC2 §6.4) ────────────────────────────────
   const d_avg = (d_x + d_y) / 2;
   const u1_rect = 2 * (bc * 1000 + hc * 1000) + 2 * Math.PI * 2 * d_avg;
   // β por transferencia de momento (EC2 §6.4.3(6), pilar interior, biaxial):
@@ -600,37 +600,37 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
   // Rigid:    strut-tie active, bending + shear + punching neutral
   if (isRigid) {
     // Strut-tie active
-    pushBendingOrTie(checks, 'biela-tirante-x', 'Armadura dir. x (biela-tirante)', As_adopted_x, As_prov_x, As_req_x, 'CE art. 55.2 / EHE 58.4.1.2');
-    pushBendingOrTie(checks, 'biela-tirante-y', 'Armadura dir. y (biela-tirante)', As_adopted_y, As_prov_y, As_req_y, 'CE art. 55.2 / EHE 58.4.1.2');
+    pushBendingOrTie(checks, 'biela-tirante-x', 'Armadura dir. x (biela-tirante)', As_adopted_x, As_prov_x, As_req_x, 'CE Anejo 19 §6.5 / EHE 58.4.1.2');
+    pushBendingOrTie(checks, 'biela-tirante-y', 'Armadura dir. y (biela-tirante)', As_adopted_y, As_prov_y, As_req_y, 'CE Anejo 19 §6.5 / EHE 58.4.1.2');
     // Bending neutral
-    checks.push(makeCheckNeutral('flexion-x', 'Flexión dir. x', 'rígida — N/A', 'CE art. 9.1'));
-    checks.push(makeCheckNeutral('flexion-y', 'Flexión dir. y', 'rígida — N/A', 'CE art. 9.1'));
+    checks.push(makeCheckNeutral('flexion-x', 'Flexión dir. x', 'rígida — N/A', 'CE Anejo 19 §9.2.1.1'));
+    checks.push(makeCheckNeutral('flexion-y', 'Flexión dir. y', 'rígida — N/A', 'CE Anejo 19 §9.2.1.1'));
     // Shear neutral
-    checks.push(makeCheckNeutral('cortante-x', 'Cortante dir. x', 'rígida — N/A', 'CE art. 44'));
-    checks.push(makeCheckNeutral('cortante-y', 'Cortante dir. y', 'rígida — N/A', 'CE art. 44'));
+    checks.push(makeCheckNeutral('cortante-x', 'Cortante dir. x', 'rígida — N/A', 'CE Anejo 19 §6.2'));
+    checks.push(makeCheckNeutral('cortante-y', 'Cortante dir. y', 'rígida — N/A', 'CE Anejo 19 §6.2'));
     // Punching neutral
-    checks.push(makeCheckNeutral('punzonamiento', 'Punzonamiento', 'rígida — N/A', 'CE art. 46'));
+    checks.push(makeCheckNeutral('punzonamiento', 'Punzonamiento', 'rígida — N/A', 'CE Anejo 19 §6.4'));
     checks.push(makeCheckNeutral('punzonamiento-max', 'Punzonamiento vRd,max (u0)', 'rígida — N/A', 'EC2 §6.4.5(3)'));
   } else {
     // Strut-tie neutral
-    checks.push(makeCheckNeutral('biela-tirante-x', 'Armadura dir. x (biela-tirante)', 'flexible — N/A', 'CE art. 55.2'));
-    checks.push(makeCheckNeutral('biela-tirante-y', 'Armadura dir. y (biela-tirante)', 'flexible — N/A', 'CE art. 55.2'));
+    checks.push(makeCheckNeutral('biela-tirante-x', 'Armadura dir. x (biela-tirante)', 'flexible — N/A', 'CE Anejo 19 §6.5'));
+    checks.push(makeCheckNeutral('biela-tirante-y', 'Armadura dir. y (biela-tirante)', 'flexible — N/A', 'CE Anejo 19 §6.5'));
     // Bending active
-    pushBendingOrTie(checks, 'flexion-x', 'Armadura flexión dir. x', As_adopted_x, As_prov_x, As_req_x, 'CE art. 9.1');
-    pushBendingOrTie(checks, 'flexion-y', 'Armadura flexión dir. y', As_adopted_y, As_prov_y, As_req_y, 'CE art. 9.1');
+    pushBendingOrTie(checks, 'flexion-x', 'Armadura flexión dir. x', As_adopted_x, As_prov_x, As_req_x, 'CE Anejo 19 §9.2.1.1');
+    pushBendingOrTie(checks, 'flexion-y', 'Armadura flexión dir. y', As_adopted_y, As_prov_y, As_req_y, 'CE Anejo 19 §9.2.1.1');
     // Shear active
     if (ell_x > 0) {
-      checks.push(makeCheckQty('cortante-x', 'Cortante dir. x (a d del pilar)', VEd_x, VRd_x, 'linearLoad', 'CE art. 44'));
+      checks.push(makeCheckQty('cortante-x', 'Cortante dir. x (a d del pilar)', VEd_x, VRd_x, 'linearLoad', 'CE Anejo 19 §6.2'));
     } else {
-      checks.push(makeCheckNeutral('cortante-x', 'Cortante dir. x', 'd ≥ ax — N/A', 'CE art. 44'));
+      checks.push(makeCheckNeutral('cortante-x', 'Cortante dir. x', 'd ≥ ax — N/A', 'CE Anejo 19 §6.2'));
     }
     if (ell_y > 0) {
-      checks.push(makeCheckQty('cortante-y', 'Cortante dir. y (a d del pilar)', VEd_y, VRd_y, 'linearLoad', 'CE art. 44'));
+      checks.push(makeCheckQty('cortante-y', 'Cortante dir. y (a d del pilar)', VEd_y, VRd_y, 'linearLoad', 'CE Anejo 19 §6.2'));
     } else {
-      checks.push(makeCheckNeutral('cortante-y', 'Cortante dir. y', 'd ≥ ay — N/A', 'CE art. 44'));
+      checks.push(makeCheckNeutral('cortante-y', 'Cortante dir. y', 'd ≥ ay — N/A', 'CE Anejo 19 §6.2'));
     }
     // Punching active
-    checks.push(makeCheckQty('punzonamiento', 'Punzonamiento (a 2d del pilar)', vEd_punch, vRdc_punch, 'stress', 'CE art. 46'));
+    checks.push(makeCheckQty('punzonamiento', 'Punzonamiento (a 2d del pilar)', vEd_punch, vRdc_punch, 'stress', 'CE Anejo 19 §6.4'));
     checks.push(makeCheckQty('punzonamiento-max', 'Punzonamiento vRd,max (perímetro u0)', vEd_u0_punch, vRd_max_punch, 'stress', 'EC2 §6.4.5(3)'));
   }
 
@@ -643,13 +643,13 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     'cuantia-min-x', 'Cuantía mínima dir. x',
     As_min_x, As_prov_x,
     `${As_min_x.toFixed(0)} mm²/m`, `${As_prov_x.toFixed(0)} mm²/m`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.2.1.1',
   ));
   checks.push(makeCheck(
     'cuantia-min-y', 'Cuantía mínima dir. y',
     As_min_y, As_prov_y,
     `${As_min_y.toFixed(0)} mm²/m`, `${As_prov_y.toFixed(0)} mm²/m`,
-    'CE art. 42.3',
+    'CE Anejo 19 §9.2.1.1',
   ));
 
   // Separación x/y (always active, max 300 mm)
@@ -661,7 +661,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     limit: `${s_max} mm`,
     utilization: inp.s_x / s_max,
     status: toStatus(inp.s_x / s_max),
-    article: 'CE art. 42.3',
+    article: 'CE Anejo 19 §8.2',
   });
   checks.push({
     id: 'separacion-y',
@@ -670,7 +670,7 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     limit: `${s_max} mm`,
     utilization: inp.s_y / s_max,
     status: toStatus(inp.s_y / s_max),
-    article: 'CE art. 42.3',
+    article: 'CE Anejo 19 §8.2',
   });
 
   const overall_fail = checks.some((c) => c.status === 'fail');

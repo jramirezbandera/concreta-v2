@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { retainingWallDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { retainingWallDefaults, type RetainingWallInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -8,10 +9,14 @@ import { calcRetainingWall } from '../../lib/calculations/retainingWall';
 import { exportRetainingWallPDF, retainingWallFallbackFilename } from '../../lib/pdf/retainingWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { retainingWallAdapter, summarizeRetainingWallResults } from '../../lib/ai/modules/retainingWall';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { RetainingWallInputsPanel } from './RetainingWallInputs';
 import { RetainingWallSVG, type RetainingWallView } from './RetainingWallSVG';
 import { RetainingWallResults } from './RetainingWallResults';
@@ -104,6 +109,35 @@ export function RetainingWallModule() {
 
   const result = useMemo(() => calcRetainingWall(state), [state]);
 
+  // "Rellenar con IA" (ola 2)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: `hasWater` antes que `hw` y `Ab` antes que `S` (los gatean).
+  const handleAiApply = (plan: AiApplyPlan<RetainingWallInputs>) => {
+    const ORDER: (keyof RetainingWallInputs)[] = [
+      'H', 'hf', 'tFuste', 'bPunta', 'bTalon', 'df',
+      'fck', 'fyk', 'cover',
+      'gammaSuelo', 'gammaSat', 'phi', 'delta', 'q', 'sigmaAdm', 'mu',
+      'usePassive', 'hasWater', 'hw', 'Ab', 'S',
+      'diam_fv_int', 'sep_fv_int', 'diam_fv_ext', 'sep_fv_ext',
+      'diam_fh', 'sep_fh', 'diam_zs', 'sep_zs', 'diam_zi', 'sep_zi',
+      'diam_zt_inf', 'sep_zt_inf', 'diam_zt_sup', 'sep_zt_sup',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as RetainingWallInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeRetainingWallResults(result), [result]);
+
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
       exportFn: (title) => exportRetainingWallPDF(state, result, system, title),
@@ -159,6 +193,14 @@ export function RetainingWallModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <RetainingWallInputsPanel state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -264,6 +306,16 @@ export function RetainingWallModule() {
           <RetainingWallSVG inp={state} result={result} mode="pdf" width={560} height={460} view="rebar" />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={retainingWallAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

@@ -1,5 +1,9 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
+import { Sparkles } from 'lucide-react';
 import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { compositeSectionAdapter, summarizeCompositeSectionResults } from '../../lib/ai/modules/compositeSection';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -108,6 +112,28 @@ export function CompositeSectionModule() {
 
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
+  // "Rellenar con IA" (ola 3 — piloto de arrays en el payload)
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeCompositeSectionResults(result), [result]);
+
+  // Aplica el plan confirmado en AiChatModal. ORDER del contrato: mode PRIMERO
+  // (gatea perfil, laterales y bloque de compresión), familia antes que tamaño,
+  // bcType antes que β. `plates` entra como REEMPLAZO completo del array.
+  const handleAiApply = (plan: AiApplyPlan<CompositeSectionInputs>) => {
+    const ORDER: (keyof CompositeSectionInputs)[] =
+      ['mode', 'profileType', 'profileSize', 'grade', 'plates', 'Ly', 'Lz', 'bcType', 'beta_y', 'beta_z', 'Ned'];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as CompositeSectionInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
       exportFn: (title) => exportCompositeSectionPDF(inputs, result, system, title),
@@ -148,6 +174,14 @@ export function CompositeSectionModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <CompositeSectionInputsPanel
               state={inputs}
               addPlate={addPlate}
@@ -218,6 +252,10 @@ export function CompositeSectionModule() {
           <CompositeSectionSVG inp={inputs} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal adapter={compositeSectionAdapter} current={inputs} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

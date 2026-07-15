@@ -11,7 +11,7 @@
 import jsPDF from 'jspdf';
 import { type TimberColumnInputs } from '../../data/defaults';
 import { type TimberColumnResult } from '../../lib/calculations/timberColumns';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -210,39 +210,63 @@ export async function exportTimberColumnsPDF(
   doc.line(M, rowY, PAGE_W - M, rowY);
   rowY += 5;
 
-  for (const ch of result.checks) {
-    if (rowY > PAGE_H - M - 8) break;
+  const DESC_W = 97;              // ancho útil de la descripción (hasta Valor)
+  const NOTE_W = TC.util - M - 3; // fila neutra: se para ANTES de la etiqueta
+  const ROW_LH = 3.1;             // interlínea a cuerpo 7.5
+  const LH_N = 2.9;               // interlínea a cuerpo 7 (filas neutras)
 
+  for (const ch of result.checks) {
     if (ch.neutral) {
+      // La descripción se pintaba SIN límite de ancho: la nota de kmod ("Nd/Vd/
+      // Md ya mayorados con un único kmod…") mide 190 mm y se metía por debajo
+      // de su propia etiqueta "NOTA" (x=170). Ahora envuelve antes de llegar.
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
+      const noteL = doc.splitTextToSize(pdfStr(ch.description), NOTE_W) as string[];
+      rowY = ensureSpace(doc, rowY, (noteL.length - 1) * LH_N + 6, M);
       setGray(doc, 70);
-      doc.text(pdfStr(ch.description), TC.desc, rowY);
+      noteL.forEach((t, i) => doc.text(t, TC.desc, rowY + i * LH_N));
       if (ch.tag) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         setGray(doc, 120);
         doc.text(pdfStr(ch.tag), TC.util, rowY);
       }
+      const noteEndY = rowY + (noteL.length - 1) * LH_N;
       setGray(doc, 205);
-      doc.line(M, rowY + 2, PAGE_W - M, rowY + 2);
-      rowY += 6;
+      doc.line(M, noteEndY + 2, PAGE_W - M, noteEndY + 2);
+      rowY = noteEndY + 6;
       continue;
     }
 
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
 
+    // Description — se trocea a mano para saber CUÁNTAS líneas ocupa. Antes iba
+    // con `maxWidth: 97` (jsPDF la partía él solo) pero la fila medía 9 mm fijos
+    // y el artículo colgaba de `rowY + 3.5`: en cuanto la descripción envolvía,
+    // su 2ª línea aterrizaba encima del artículo.
+    doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
+    doc.setFontSize(7.5);
+    const descL = doc.splitTextToSize(pdfStr(ch.description), DESC_W) as string[];
+    // Alto de fila: (n-1) interlíneas + artículo (3.5) + regla (1.5) + hueco (3.5).
+    const rowH = (descL.length - 1) * ROW_LH + 8.5;
+
+    // Antes: `if (rowY > PAGE_H - M - 8) break` — DESCARTABA en silencio las
+    // comprobaciones que no cupieran. Ahora saltan a la página siguiente.
+    rowY = ensureSpace(doc, rowY, rowH, M);
+    const artY = rowY + (descL.length - 1) * ROW_LH + 3.5;   // DESPUÉS del salto
+
     doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
     doc.setFontSize(7.5);
     setGray(doc, 55);
-    doc.text(pdfStr(ch.description), TC.desc, rowY, { maxWidth: 97 });
+    descL.forEach((t, i) => doc.text(t, TC.desc, rowY + i * ROW_LH));
 
     if (ch.article) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
       setGray(doc, 150);
-      doc.text(pdfStr(ch.article), TC.desc, rowY + 3.5, { maxWidth: 97 });
+      doc.text(pdfStr(ch.article), TC.desc, artY, { maxWidth: DESC_W });
     }
 
     doc.setFont('helvetica', 'normal');
@@ -261,20 +285,27 @@ export async function exportTimberColumnsPDF(
     doc.text(utText, TC.util, rowY);
 
     setGray(doc, 215);
-    doc.line(M, rowY + 5, PAGE_W - M, rowY + 5);
-    rowY += 9;
+    doc.line(M, artY + 1.5, PAGE_W - M, artY + 1.5);
+    rowY = artY + 5;
   }
 
   // ── Footer ───────────────────────────────────────────────────────────────────
+  // En TODAS las páginas: la tabla ya puede desbordar a una segunda (antes las
+  // filas sobrantes se descartaban en silencio, así que el pie siempre caía en
+  // la única página y podía rotularse "Pagina 1" a pelo).
   const footerY = PAGE_H - 10;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  setGray(doc, 150);
-  doc.text(
-    'Concreta - concreta.app | EC5 EN 1995-1-1 §6.3 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
-    M, footerY,
-  );
-  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 150);
+    doc.text(
+      'Concreta - concreta.app | EC5 EN 1995-1-1 §6.3 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
+      M, footerY,
+    );
+    doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });
+  }
 
   const filename = titledFilename(elementTitle, timberColumnsFallbackFilename());
   const blob = doc.output('blob');

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { isolatedFootingDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { isolatedFootingDefaults, type IsolatedFootingInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcIsolatedFooting } from '../../lib/calculations/isolatedFooting';
 import { exportIsolatedFootingPDF, isolatedFootingFallbackFilename } from '../../lib/pdf/isolatedFooting';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { isolatedFootingAdapter, summarizeIsolatedFootingResults } from '../../lib/ai/modules/isolatedFooting';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { IsolatedFootingInputsPanel } from './IsolatedFootingInputsPanel';
 import { IsolatedFootingResults } from './IsolatedFootingResults';
 import { IsolatedFootingSVG } from './IsolatedFootingSVG';
@@ -21,7 +26,29 @@ export function IsolatedFootingModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (T4.3)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Aplica el plan confirmado en AiChatModal. ORDER del contrato:
+  // loadsAreFactored PRIMERO (el toggle condiciona la interpretación de las cargas).
+  const handleAiApply = (plan: AiApplyPlan<IsolatedFootingInputs>) => {
+    const ORDER: (keyof IsolatedFootingInputs)[] =
+      ['loadsAreFactored', 'loadFactor', 'N', 'Mx', 'My', 'H', 'B', 'L', 'h', 'bc', 'hc', 'Df', 'cover',
+       'sigma_adm', 'fck', 'fyk', 'phi_x', 's_x', 'phi_y', 's_y', 'gamma_soil_kN_m3', 'mu_friction'];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as IsolatedFootingInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcIsolatedFooting(state), [state]);
+  const aiResults = useMemo(() => summarizeIsolatedFootingResults(result), [result]);
 
   // PDF export stays available even when result is invalid — engineers may
   // need a PDF to document a failing/non-conforming section (memory note).
@@ -65,6 +92,14 @@ export function IsolatedFootingModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <IsolatedFootingInputsPanel state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -119,6 +154,10 @@ export function IsolatedFootingModule() {
           <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} system={system} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal adapter={isolatedFootingAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

@@ -40,7 +40,7 @@ export { sidesForPosition } from './punching';
 const GAMMA_M0 = 1.05;
 const STEEL_FY: Record<CrucetaSteel, number> = { S275: 275, S355: 355 };
 
-// ─── Clase de sección UPN (EC3 §5.5 Tabla 5.2, simplificado) ───────────────────
+// ─── Clase de sección UPN (CE Anejo 22 §5.5 Tabla 5.2, simplificado) ───────────────────
 /** Clase de un UPN en flexión eje fuerte. Vuelo de ala + alma en flexión (conservador). */
 function classifyUPN(upn: UPNProfile, fy: number): 1 | 2 | 3 | 4 {
   const eps = Math.sqrt(235 / fy);
@@ -123,7 +123,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     value: `Clase ${upnClass}`, limit: '≤ 3',
     utilization: upnClass <= 3 ? upnClass / 4 : 1,
     status: upnClass <= 3 ? 'ok' : 'fail',
-    article: 'CE Anejo 22 (EC3) §5.5',
+    article: 'CE Anejo 22 §5.5',
   });
 
   // Capacidades del UPN — informativo (el ingeniero comprueba el reparto/flexión a mano).
@@ -131,7 +131,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
     'cru-upn-cap',
     'Capacidades del UPN (dato para el hand-calc del reparto)',
     `M_Rd ${MRd.toFixed(1)} kN·m · Vpl,Rd ${VplRd.toFixed(0)} kN`,
-    'CE Anejo 22 (EC3) §6.2',
+    'CE Anejo 22 §6.2',
   ));
 
   // Cabida del ala en el hueco libre al borde (geometría, vinculante).

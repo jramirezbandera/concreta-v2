@@ -12,7 +12,7 @@ interface PunchingSVGProps {
 // ── Plan view (top) ───────────────────────────────────────────────────────────
 // Single, to-scale plan of the punching problem. The critical perimeter u1 is the
 // real 2d offset of the loaded area, truncated at the free edge(s) exactly as the
-// CE art. 6.4 formulas assume for each position (interior / borde / esquina). The
+// CE Anejo 19 §6.4 formulas assume for each position (interior / borde / esquina). The
 // punching collar (column → u1) is tinted with the overall verdict colour so the
 // drawing itself reads as a pass/fail checker.
 function PlanView({

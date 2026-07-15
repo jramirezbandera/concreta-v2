@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { steelBeamDefaults } from '../../data/defaults';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
+import { steelBeamDefaults, type SteelBeamInputs } from '../../data/defaults';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -9,10 +10,14 @@ import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { deriveFromLoads } from '../../lib/calculations/loadGen';
 import { exportSteelBeamsPDF, steelBeamsFallbackFilename } from '../../lib/pdf/steelBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { steelBeamsAdapter, summarizeSteelBeamResults } from '../../lib/ai/modules/steelBeams';
 import { Topbar } from '../../components/layout/Topbar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { SteelBeamsInputs } from './SteelBeamsInputs';
 import { SteelBeamsSVG } from './SteelBeamsSVG';
 import { SteelBeamsResults } from './SteelBeamsResults';
@@ -24,9 +29,19 @@ export function SteelBeamsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (T3.1)
+  const [aiOpen, setAiOpen] = useState(false);
+  // Cuando la IA aplica una Lcr explícita junto a un cambio de L/beamType, el
+  // efecto de reset de abajo debe saltarse UNA vez para no pisar el override.
+  const skipLcrResetRef = useRef(false);
+
   // Lcr auto-fill
   const [lcrManuallyOverridden, setLcrManuallyOverridden] = useState(false);
   useEffect(() => {
+    if (skipLcrResetRef.current) {
+      skipLcrResetRef.current = false;
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual-override flag when the beam type/length changes (derived-from-prop reset)
     setLcrManuallyOverridden(false);
   }, [state.beamType, state.L]);
@@ -37,6 +52,33 @@ export function SteelBeamsModule() {
   const handleLcrChange = (val: number) => {
     setField('Lcr', val);
     setLcrManuallyOverridden(Math.abs(val - autoLcr) > 5);
+  };
+
+  // Aplica el plan confirmado en AiChatModal: orden tipo→size garantizado (el
+  // useEffect de SteelBeamsInputs re-valida size tras el commit) y gestión del
+  // flag de Lcr (explícita → override manual; L/beamType nuevos sin Lcr → auto).
+  const handleAiApply = (plan: AiApplyPlan<SteelBeamInputs>) => {
+    const f = plan.fields;
+    const lChanged = f.L !== undefined && f.L !== state.L;
+    const btChanged = f.beamType !== undefined && f.beamType !== state.beamType;
+    if (f.Lcr !== undefined) {
+      if (lChanged || btChanged) skipLcrResetRef.current = true; // el effect de reset se salta UNA vez
+      setLcrManuallyOverridden(true);
+    } else if (lChanged || btChanged) {
+      setLcrManuallyOverridden(false); // Lcr vuelve a auto con la nueva L/beamType
+    }
+    const ORDER: (keyof SteelBeamInputs)[] =
+      ['tipo', 'size', 'steel', 'beamType', 'L', 'deflLimit', 'elsCombo', 'useCategory', 'gk', 'qk', 'bTrib', 'Lcr'];
+    for (const k of ORDER) {
+      const v = f[k];
+      if (v !== undefined) setField(k, v as SteelBeamInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
   };
 
   const [effectiveInputs, loadGen, result] = useMemo(() => {
@@ -51,6 +93,9 @@ export function SteelBeamsModule() {
     };
     return [eff, lg, calcSteelBeam(eff)] as const;
   }, [state, lcrManuallyOverridden, autoLcr]);
+
+  // Resumen de resultados para el prompt del chat IA (Fase 2, T3.2)
+  const aiResults = useMemo(() => summarizeSteelBeamResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -122,6 +167,14 @@ export function SteelBeamsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <SteelBeamsInputs
               state={state}
               setField={setField}
@@ -234,6 +287,10 @@ export function SteelBeamsModule() {
           )}
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal adapter={steelBeamsAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

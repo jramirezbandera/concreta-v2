@@ -20,21 +20,34 @@ export function setGray(doc: jsPDF, g: number): void {
  * Replaces known Unicode symbols with ASCII approximations,
  * then strips any remaining non-Latin-1 characters.
  *
+ * OBLIGATORIO en TODA cadena que llegue a `doc.text()`. Las fuentes core de
+ * jsPDF sólo hablan Latin-1: si una cadena lleva UN carácter fuera de ese rango
+ * (λ, ≤, ε, →…), jsPDF emite la cadena ENTERA en UTF-16BE. El visor pinta cada
+ * byte como un glifo Latin-1 — los NUL salen como huecos ("E s b e l t e z") y
+ * λ sale como "»" — y, peor, el texto ocupa el DOBLE del ancho que devuelve
+ * `getTextWidth`, así que se sale de su columna y pisa la siguiente.
+ * `src/test/pdf/latin1Encoding.dom.test.ts` vigila esta invariante.
+ *
  * Covers all symbols used across Concreta modules:
- *   Greek lowercase: λ χ σ τ γ φ η δ β θ ε
+ *   Greek lowercase: λ χ σ τ γ φ η δ β θ ε ρ α ψ κ π ν μ
  *   Greek uppercase: Φ Σ Δ (used in formulas for masonry / fem / steel)
- *   Super/subscripts: ⁴ ³ ² ₁ ₂
- *   Math / punctuation: √ · ≤ ≥ ° Ø ' — –
+ *   Super/subscripts: ⁴ ⁶ ₀₁₂₃₄₅
+ *   Math / punctuation: √ ≤ ≥ ≠ ≈ ∞ → ⇒ − ' — –
+ *   Con glifo propio en WinAnsi (se mapean al byte, no a ASCII): ‰ • …
+ *   Se preservan intactos (ya son Latin-1): ² ³ · ° Ø µ
  */
 export function pdfStr(s: string): string {
   return s
-    // Superscripts
+    // Superscripts sin hueco en WinAnsi (² y ³ SÍ lo tienen: se preservan)
     .replace(/⁴/g, '^4')
-    .replace(/³/g, '^3')
-    .replace(/²/g, '2')
+    .replace(/⁶/g, '^6')
     // Subscripts
+    .replace(/₀/g, '0')
     .replace(/₁/g, '1')
     .replace(/₂/g, '2')
+    .replace(/₃/g, '3')
+    .replace(/₄/g, '4')
+    .replace(/₅/g, '5')
     // Greek uppercase — must come before lowercase to avoid double-replace
     .replace(/Φ/g, 'Phi')
     .replace(/Σ/g, 'Sum')
@@ -52,20 +65,39 @@ export function pdfStr(s: string): string {
     .replace(/τ/g, 't')
     .replace(/θ/g, 'th')
     .replace(/ε/g, 'eps')
+    .replace(/ρ/g, 'rho')
+    .replace(/α/g, 'alpha')
+    .replace(/ψ/g, 'psi')
+    .replace(/κ/g, 'k')
+    .replace(/π/g, 'pi')
+    .replace(/ν/g, 'nu')
+    .replace(/μ/g, '\xB5')  // mu griega -> signo micro (Latin-1, mismo glifo)
     // Other symbols
     .replace(/≤/g, '<=')
     .replace(/≥/g, '>=')
+    .replace(/≠/g, '!=')
+    .replace(/≈/g, '~=')
     .replace(/√/g, 'sqrt')
-    .replace(/·/g, 'x')
-    .replace(/°/g, 'deg')
-    .replace(/Ø/g, 'ph')
+    .replace(/∞/g, 'inf')
     .replace(/'/g, "'")
+    .replace(/→/g, '->')    // sin hueco en WinAnsi
+    .replace(/⇒/g, '=>')
+    .replace(/−/g, '-')     // minus U+2212 (no es el guion ASCII)
+    // Estos SÍ tienen hueco en WinAnsi: jsPDF los emite como UN byte y el visor
+    // pinta el glifo real. Sin el mapeo caían en el catch-all -> '?'.
+    .replace(/‰/g, '\x89')  // perthousand
+    .replace(/•/g, '\x95')  // bullet
+    .replace(/…/g, '\x85')  // ellipsis
     // Dashes
     .replace(/—/g, ' - ')   // em dash —
     .replace(/–/g, '-')     // en dash –
     // Catch-all: strip any remaining non-Latin-1 character. The NUL bound
     // is intentional — Latin-1 spans U+0000..U+00FF and we keep the whole
     // range (control codes included) for any rare embedded \n or \t.
+    //
+    // NOTA: `² ³ · ° Ø µ` NO se tocan. Son Latin-1 (0xB2 0xB3 0xB7 0xB0 0xD8
+    // 0xB5) y jsPDF declara /WinAnsiEncoding, así que se pintan tal cual. Antes
+    // se degradaban a `2 ^3 x deg ph` — de ahí el feo "ph16" en los despieces.
     // eslint-disable-next-line no-control-regex
     .replace(/[^\u0000-\u00FF]/g, '?');
 }

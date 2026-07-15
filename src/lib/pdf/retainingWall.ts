@@ -6,7 +6,7 @@ import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
 
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -76,7 +76,7 @@ export async function exportRetainingWallPDF(
     [`H = ${(inp.H as number).toFixed(2)} m`,                           `hf = ${(inp.hf as number).toFixed(2)} m`],
     [`tFuste = ${(inp.tFuste as number).toFixed(2)} m`,                 `df = ${(inp.df as number).toFixed(2)} m`],
     [`bPunta = ${(inp.bPunta as number).toFixed(2)} m`,                 `bTalon = ${(inp.bTalon as number).toFixed(2)} m`],
-    [`B = ${B_m.toFixed(2)} m`,                                         `recub. = ${(inp.cover as number).toFixed(3)} m`],
+    [`B = ${B_m.toFixed(2)} m`,                                         `recub. = ${(inp.cover as number).toFixed(0)} mm`],
     [pdfStr(`fck = ${inp.fck} N/mm²`),                                  pdfStr(`fyk = ${inp.fyk} N/mm²`)],
     [pdfStr(`g_s = ${fmtSi(inp.gammaSuelo as number, 'weightDensity')}`), pdfStr(`g_sat = ${fmtSi(inp.gammaSat as number, 'weightDensity')}`)],
     [pdfStr(`phi = ${inp.phi}°`),                                       pdfStr(`d = ${inp.delta}°`)],
@@ -155,56 +155,74 @@ export async function exportRetainingWallPDF(
   doc.setFontSize(7);
   setGray(doc, 60);
   doc.text('COMPROBACIONES', M, y);
-  y += 3;
+  y += 5.5;
 
-  const COL = { desc: M, value: M + 76, limit: M + 116, util: M + 148, status: M + 161 };
+  // Columnas: `x` es el origen de cada celda y `CW` su ancho ÚTIL real. Todo
+  // texto se parte a ese ancho (celdas multilínea). Antes value/limit se
+  // pintaban sin medir: `As,min = 565 mm²/m (30% As,long; mín. Ø12@20)` mide
+  // 52 mm en una columna de 32 y se comía Ut% y Estado. Y la descripción se
+  // truncaba en silencio (`splitTextToSize(...)[0]`, sin elipsis).
+  const COL = { desc: M, value: M + 66, limit: M + 98, utilR: M + 158, status: M + 160 };
+  const CW  = { desc: 64, value: 30, limit: 46 };
+  const LH  = 3.2;   // interlínea dentro de una celda
 
-  hline(doc, y - 0.5, 180, 0.15);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6);
-  setGray(doc, 100);
-  doc.text('Verificacion', COL.desc,   y);
-  doc.text('Valor',        COL.value,  y);
-  doc.text('Limite',       COL.limit,  y);
-  doc.text('Ut%',          COL.util,   y);
-  doc.text('Estado',       COL.status, y);
-  y += 1.5;
-  hline(doc, y, 170, 0.15);
-  y += 3.5;
+  // Cabecera de la tabla. La regla superior va 3.2 mm POR ENCIMA de la línea
+  // base: a cuerpo 6 el texto sube ~2.1 mm, así que la anterior (`y - 0.5`)
+  // caía DENTRO de las letras y las tachaba.
+  const drawCheckHeader = (atY: number): number => {
+    hline(doc, atY - 3.2, 180, 0.15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    setGray(doc, 100);
+    doc.text('Verificacion', COL.desc,   atY);
+    doc.text('Valor',        COL.value,  atY);
+    doc.text('Limite',       COL.limit,  atY);
+    doc.text('Ut%',          COL.utilR,  atY, { align: 'right' });
+    doc.text('Estado',       COL.status, atY);
+    hline(doc, atY + 1.5, 170, 0.15);
+    return atY + 5;
+  };
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  y = drawCheckHeader(y);
 
   for (const ch of result.checks) {
-    if (y > PAGE_H - M - 10) {
-      doc.addPage();
-      y = M + 10;
-    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    const descL = doc.splitTextToSize(pdfStr(ch.description), CW.desc)  as string[];
+    const valL  = doc.splitTextToSize(pdfStr(ch.value ?? ''), CW.value) as string[];
+    const limL  = doc.splitTextToSize(pdfStr(ch.limit ?? ''), CW.limit) as string[];
+    const nLines = Math.max(descL.length, valL.length, limL.length, 1);
+    // Avance de fila: (n-1) interlíneas + artículo (3.5) + regla (2) + hueco (3).
+    const rowH = (nLines - 1) * LH + 8.5;
+
+    // Salto de página predictivo: la fila entera cabe o pasa a la siguiente
+    // página con su cabecera repetida (antes se partía a media fila).
+    y = ensureSpace(doc, y, rowH, M, drawCheckHeader);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
 
     setGray(doc, 50);
-    const desc = doc.splitTextToSize(pdfStr(ch.description), 70)[0] as string;
-    doc.text(desc,       COL.desc,   y);
-    doc.text(pdfStr(ch.value ?? ''), COL.value,  y);
-    doc.text(pdfStr(ch.limit ?? ''), COL.limit,  y);
+    descL.forEach((t, i) => doc.text(t, COL.desc,  y + i * LH));
+    valL .forEach((t, i) => doc.text(t, COL.value, y + i * LH));
+    limL .forEach((t, i) => doc.text(t, COL.limit, y + i * LH));
+
     const utilStr = isFinite(ch.utilization)
       ? `${(ch.utilization * 100).toFixed(0)}%`
       : '---';
-    doc.text(utilStr, COL.util, y);
+    doc.text(utilStr, COL.utilR, y, { align: 'right' });
+
     setGray(doc, ch.status === 'ok' ? 70 : 30);
     doc.setFont('helvetica', 'bold');
     doc.text(STATUS_LABEL[ch.status], COL.status, y);
+
+    const artY = y + (nLines - 1) * LH + 3.5;
     doc.setFont('helvetica', 'normal');
-    y += 3.5;
-
-    setGray(doc, 160);
     doc.setFontSize(5.5);
-    doc.text(pdfStr(ch.article), COL.desc + 2, y);
-    doc.setFontSize(6.5);
-    setGray(doc, 50);
-    y += 2;
+    setGray(doc, 160);
+    doc.text(pdfStr(ch.article), COL.desc + 2, artY);
 
-    hline(doc, y, 230, 0.1);
-    y += 3;
+    hline(doc, artY + 2, 230, 0.1);
+    y = artY + 5;
   }
 
   // ── Extra diagram pages: Cargas y empujes + Armado ──────────────────────

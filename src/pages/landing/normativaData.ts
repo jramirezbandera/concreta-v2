@@ -50,21 +50,21 @@ export const NORM_BLOCKS: NormBlock[] = [
     id: 'ce-hormigon',
     tocLabel: 'Hormigón armado',
     title: 'Hormigón armado',
-    code: 'CE · 2021',
+    code: 'CE · Anejo 19 · 2021',
     status: 'ok',
     statusLabel: '● implementado',
-    reviewed: '05/2026',
-    queEs: 'la norma de referencia para el hormigón estructural en España desde 2021 (Real Decreto 470/2021). Sustituye a la EHE-08 y a la EAE para todo el hormigón nuevo.',
+    reviewed: '07/2026',
+    queEs: 'la norma de referencia para el hormigón estructural en España desde 2021 (Real Decreto 470/2021). Sustituye a la EHE-08 y a la EAE. El cálculo (flexión, cortante, punzonamiento…) vive en su Anejo 19, que reproduce la estructura del Eurocódigo 2; el articulado del CE solo remite a él.',
     paraQue: 'es la norma que cita el visado cuando comprueba tu cálculo de una viga, un pilar o un forjado.',
     articles: [
-      { code: 'art.42', desc: 'Estados límite últimos — flexión simple y compuesta', mod: 'Vigas · Pilares' },
-      { code: 'art.43', desc: 'Flexocompresión y pandeo en pilares', mod: 'Pilares' },
-      { code: 'art.44', desc: 'Cortante', mod: 'Vigas · Forjados' },
-      { code: 'art.45', desc: 'Punzonamiento en placas', mod: 'Punzonamiento' },
-      { code: 'art.46', desc: 'Torsión', mod: 'Vigas (parcial)' },
-      { code: 'art.49', desc: 'Estados límite de servicio · fisuración', mod: 'Vigas' },
-      { code: 'art.50', desc: 'Deformaciones diferidas y fluencia', mod: 'Roadmap v0.5' },
-      { code: 'art.55', desc: 'Anclaje y empalmes de armaduras', mod: 'Vigas · Pilares' },
+      { code: '§6.1', desc: 'Estados límite últimos — flexión simple y compuesta', mod: 'Vigas · Pilares' },
+      { code: '§5.8', desc: 'Flexocompresión y pandeo en pilares', mod: 'Pilares' },
+      { code: '§6.2', desc: 'Cortante', mod: 'Vigas · Forjados' },
+      { code: '§6.4', desc: 'Punzonamiento en placas', mod: 'Punzonamiento' },
+      { code: '§6.3', desc: 'Torsión', mod: 'Vigas (parcial)' },
+      { code: '§7.3', desc: 'Estados límite de servicio · fisuración', mod: 'Vigas' },
+      { code: '§7.4', desc: 'Deformaciones diferidas y fluencia', mod: 'Roadmap v0.5' },
+      { code: '§8.4', desc: 'Anclaje y empalmes de armaduras', mod: 'Vigas · Pilares' },
     ],
   },
   {
@@ -150,7 +150,7 @@ export const NORM_BLOCKS: NormBlock[] = [
     statusLabel: '○ planificado',
     note: 'En este orden, en los próximos doce meses.',
     articles: [
-      { code: 'v0.5', desc: 'CE art.50 — deformaciones diferidas, fluencia y retracción', mod: 'Vigas HA' },
+      { code: 'v0.5', desc: 'CE Anejo 19 §7.4 — deformaciones diferidas, fluencia y retracción', mod: 'Vigas HA' },
       { code: 'v0.6', desc: 'CTE DB-SE-AE — acción sísmica y NCSE-02', mod: 'Pilares · FEM' },
       { code: 'v0.7', desc: 'CE — secciones en T, secciones huecas y vigas mixtas', mod: 'Vigas HA' },
       { code: 'v0.8', desc: 'CTE DB-SE-F — fábricas y muros portantes', mod: 'Módulo nuevo' },
@@ -173,13 +173,13 @@ export const MODULE_DOCS: ModuleDoc[] = [
   {
     id: 'doc-vigas-ha',
     title: 'Vigas HA',
-    ref: 'CE art.42–49 · 55',
+    ref: 'CE Anejo 19 §6 · §7 · §9',
     usos: [
       'Flexión simple en sección rectangular y T.',
       'Flexión compuesta con N pequeño.',
       'Cortante con bielas comprimidas y cercos.',
       'Fisuración (ELS) bajo combinación frecuente.',
-      'Cuantías mínimas y máximas según art.55.',
+      'Cuantías mínimas y máximas según §9.2.1.1.',
     ],
     limitaciones: [
       'No cubre torsión (parcial en roadmap v0.6).',
@@ -190,7 +190,7 @@ export const MODULE_DOCS: ModuleDoc[] = [
   {
     id: 'doc-pilares-ha',
     title: 'Pilares HA',
-    ref: 'CE art.42 · 43',
+    ref: 'CE Anejo 19 §5.8 · §6.1',
     usos: [
       'Sección rectangular con armado simétrico o asimétrico.',
       'Flexocompresión recta y esviada simplificada.',
@@ -206,7 +206,7 @@ export const MODULE_DOCS: ModuleDoc[] = [
   {
     id: 'doc-punzonamiento',
     title: 'Punzonamiento',
-    ref: 'CE art.45',
+    ref: 'CE Anejo 19 §6.4',
     usos: [
       'Pilar interior, de borde y de esquina con β tabulado.',
       'Comprobación en el borde del pilar y a u1 = 2d.',

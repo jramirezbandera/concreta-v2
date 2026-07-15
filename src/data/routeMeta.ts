@@ -49,15 +49,15 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/acero/vigas': {
     title: 'Vigas de acero — Concreta',
-    description: 'Flexión, pandeo lateral-torsional y deflexión en vigas de acero laminado. EC3 §6.2–6.3.',
+    description: 'Flexión, pandeo lateral-torsional y deflexión en vigas de acero laminado. CE Anejo 22 §6.2–6.3.',
   },
   '/acero/pilares': {
     title: 'Pilares de acero — Concreta',
-    description: 'Pandeo y empresillado en pilares de acero. EC3 §6.4.',
+    description: 'Pandeo y empresillado en pilares de acero. CE Anejo 22 §6.4.',
   },
   '/acero/seccion-compuesta': {
     title: 'Sección compuesta — Concreta',
-    description: 'Steiner, clase de sección y módulo plástico Wpl por bandas. EC3.',
+    description: 'Steiner, clase de sección y módulo plástico Wpl por bandas. CE Anejo 22.',
   },
   '/acero/placas-de-anclaje': {
     title: 'Placas de anclaje — Concreta',
@@ -85,7 +85,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/rehab/empresillado': {
     title: 'Pilar empresillado — Concreta',
-    description: 'Pilar compuesto batido (empresillado). EC3 §6.4.2.',
+    description: 'Pilar compuesto batido (empresillado). CE Anejo 22 §6.4.2.',
   },
   '/rehab/muros-fabrica': {
     title: 'Muros de fábrica — Concreta · DB-SE-F',

@@ -1,6 +1,10 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
+import { Sparkles } from 'lucide-react';
 import { micropilesDefaults, micropilesSoilDefaults, type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type SoilType } from '../../data/micropileLookups';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { micropilesAdapter, summarizeMicropilesResults, type MicropilesAiInputs } from '../../lib/ai/modules/micropiles';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -133,6 +137,38 @@ export function MicropilesModule() {
 
   const result = useMemo(() => calcMicropiles(state, soil), [state, soil]);
 
+  // "Rellenar con IA" (ola 3 — fases A+B: escalares y estratos). El adapter
+  // tipa sobre el COMBINADO escalares+soil; aquí se compone y se separa.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiCurrent = useMemo<MicropilesAiInputs>(() => ({ ...state, soil }), [state, soil]);
+  const aiResults = useMemo(() => summarizeMicropilesResults(result), [result]);
+
+  // ORDER del contrato: overrides ANTES que sus campos gateados (crManualOverride
+  // antes que CR, coverManualOverride antes que structuralCover, tube antes que
+  // customTube*); `soil` va aparte por setSoil (reemplazo completo).
+  const handleAiApply = (plan: AiApplyPlan<MicropilesAiInputs>) => {
+    const { soil: proposedSoil, ...scalars } = plan.fields;
+    const ORDER: (keyof MicropilesInputs)[] = [
+      'topDepth', 'toeDepth', 'drillDiameter', 'waterTableDepth',
+      'injectionPressure', 'designLoad', 'effort', 'method', 'groutType',
+      'concreteGrade', 'tube', 'customTubeDe', 'customTubeE', 'steelGrade',
+      'execution', 'corrosionEnv', 'designLifeYears', 'connection', 'application', 'duration',
+      'crManualOverride', 'CR', 'coverManualOverride', 'structuralCover',
+      'baseMoment', 'baseShear', 'soilModulusTop', 'soilModulusEmbed',
+    ];
+    for (const k of ORDER) {
+      const v = (scalars as Partial<MicropilesInputs>)[k];
+      if (v !== undefined) setField(k, v as MicropilesInputs[typeof k]);
+    }
+    if (proposedSoil !== undefined) setSoil(proposedSoil);
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
       exportFn: (title) => exportMicropilesPDF(state, soil, result, title),
@@ -193,6 +229,14 @@ export function MicropilesModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <MicropilesInputsPanel
               state={state}
               setField={setField}
@@ -309,6 +353,10 @@ export function MicropilesModule() {
           <MicropilesSVG inp={state} soil={soil} result={result} view="semaphores" mode="pdf" width={500} height={360} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal adapter={micropilesAdapter} current={aiCurrent} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

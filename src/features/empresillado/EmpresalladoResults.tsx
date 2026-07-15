@@ -155,7 +155,7 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
 
       {/* Chord compression */}
       <GroupHeader
-        label="Cordones — EC3 §6.4.2"
+        label="Cordones — CE Anejo 22 §6.4.2"
         description="Axil máximo en el angular más comprimido: N_chord = N_Ed/4 + |Mx|/(2*hy) + |My|/(2*hx)."
       />
       <ValueRow
@@ -163,20 +163,20 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
         value={`${formatQuantity(contrib_N, 'force', system, { precision: 1, withUnit: false })} + ${formatQuantity(contrib_Mx, 'force', system, { precision: 1, withUnit: false })} + ${fmtSi(contrib_My, 'force')}`}
       />
       <ValueRow label="Axil maximo en cordon (N_chord)" value={fmtSi(result.N_chord_max, 'force')} />
-      {chordCheck && <CheckRowItem check={chordCheck} description="Compresión en cordón — N_chord / N_pl,Rd (EC3 §6.4.2)" system={system} />}
+      {chordCheck && <CheckRowItem check={chordCheck} description="Compresión en cordón — N_chord / N_pl,Rd (CE Anejo 22 §6.4.2)" system={system} />}
 
       {/* Local buckling */}
       <GroupHeader
-        label="Pandeo local del cordón — EC3 §6.4.2.1"
+        label="Pandeo local del cordón — CE Anejo 22 §6.4.2.1"
         description="Pandeo del angular entre pletinas consecutivas. Pletinas soldadas biempotradas: lk = 0.5*s (Tabla 6.8)."
       />
       <ValueRow label="Esbeltez local (lambda_v)" value={result.lambda_v.toFixed(3)} />
       <ValueRow label="Coef. reducción local (chi_v) — curva b" value={result.chi_v.toFixed(3)} />
-      {localCheck && <CheckRowItem check={localCheck} description="Pandeo local eje v — N_chord / N_bv,Rd (EC3 §6.4 / §6.3.1)" system={system} />}
+      {localCheck && <CheckRowItem check={localCheck} description="Pandeo local eje v — N_chord / N_bv,Rd (CE Anejo 22 §6.4 / §6.3.1)" system={system} />}
 
       {/* Global buckling */}
       <GroupHeader
-        label="Pandeo global de la sección compuesta — EC3 §6.4.3"
+        label="Pandeo global de la sección compuesta — CE Anejo 22 §6.4.3"
         description="Esbeltez efectiva con corrección por pandeo local: lambda_eff = sqrt(lambda_0^2 + lambda_vl^2)."
       />
       <ValueRow label="Esbeltez global no corregida (lambda_0) X / Y" value={`${result.lambda_0X.toFixed(3)} / ${result.lambda_0Y.toFixed(3)}`} />
@@ -184,17 +184,17 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
       <ValueRow label="Esbeltez efectiva corregida (lambda_eff) X / Y" value={`${result.lambda_effX.toFixed(3)} / ${result.lambda_effY.toFixed(3)}`} />
       <ValueRow label="Coef. reducción de pandeo (chi) X / Y" value={`${result.chi_X.toFixed(3)} / ${result.chi_Y.toFixed(3)}`} />
       <ValueRow label="Chi gobernante (eje más desfavorable)" value={result.chi.toFixed(3)} />
-      {globalCheck && <CheckRowItem check={globalCheck} description="Pandeo global — N_Ed / N_b,Rd (EC3 §6.4.3.1)" system={system} />}
+      {globalCheck && <CheckRowItem check={globalCheck} description="Pandeo global — N_Ed / N_b,Rd (CE Anejo 22 §6.4.3.1)" system={system} />}
 
       {/* Pletinas */}
       <GroupHeader
-        label="Pletinas — EC3 §6.4.3.2"
+        label="Pletinas — CE Anejo 22 §6.4.3.2"
         description="V_Ed = max(Vd, N_Ed/500). Pletina biempotrada: M_Ed = V_Ed*s/4."
       />
       <ValueRow label="Cortante de diseño en pletina (V_Ed)" value={fmtSi2(result.V_Ed, 'force')} />
       <ValueRow label="Momento flector en pletina (M_Ed)" value={fmtSi3(result.M_Ed_pl, 'moment')} />
-      {pletMCheck && <CheckRowItem check={pletMCheck} description="Pletina — flexion — M_Ed / M_pl,Rd (EC3 §6.4.3.2)" system={system} />}
-      {pletVCheck && <CheckRowItem check={pletVCheck} description="Pletina — cortante — V_Ed / V_Rd,pl (EC3 §6.4.3.2)" system={system} />}
+      {pletMCheck && <CheckRowItem check={pletMCheck} description="Pletina — flexion — M_Ed / M_pl,Rd (CE Anejo 22 §6.4.3.2)" system={system} />}
+      {pletVCheck && <CheckRowItem check={pletVCheck} description="Pletina — cortante — V_Ed / V_Rd,pl (CE Anejo 22 §6.4.3.2)" system={system} />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { timberColumnDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { timberColumnDefaults, type TimberColumnInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcTimberColumn } from '../../lib/calculations/timberColumns';
 import { exportTimberColumnsPDF, timberColumnsFallbackFilename } from '../../lib/pdf/timberColumns';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { timberColumnsAdapter, summarizeTimberColumnResults } from '../../lib/ai/modules/timberColumns';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { TimberColumnsInputs } from './TimberColumnsInputs';
 import { TimberColumnsSVG } from './TimberColumnsSVG';
 import { TimberColumnsResults } from './TimberColumnsResults';
@@ -21,7 +26,32 @@ export function TimberColumnsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: `fireResistance` ANTES que exposedFaces/etaFi (con R0 la
+  // comprobación de incendio no existe y esos campos son inertes).
+  const handleAiApply = (plan: AiApplyPlan<TimberColumnInputs>) => {
+    const ORDER: (keyof TimberColumnInputs)[] = [
+      'gradeId', 'b', 'h', 'L', 'beta_y', 'beta_z',
+      'Nd', 'Vd', 'Md', 'momentAxis',
+      'serviceClass', 'loadDuration', 'fireResistance', 'exposedFaces', 'etaFi',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k as never, v as never);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcTimberColumn(state as never), [state]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeTimberColumnResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -62,6 +92,14 @@ export function TimberColumnsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <TimberColumnsInputs state={state as never} setField={setField as never} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -118,6 +156,16 @@ export function TimberColumnsModule() {
           <TimberColumnsSVG inp={state as never} result={result} mode="pdf" width={760} height={200} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={timberColumnsAdapter}
+          current={state as TimberColumnInputs}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

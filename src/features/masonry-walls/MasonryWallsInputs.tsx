@@ -8,19 +8,22 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import {
   TABLA_4_4,
-  FB_VALUES,
-  FM_PARA_FB,
   CATEGORIA_LABELS,
   EJECUCION_LABELS,
   GAMMA_M_TABLA,
-  GAMMA_ESTIMADO,
   K_ANEJO_C,
   TIPO_MURO_LABELS,
   TIPO_MURO_LABELS_SHORT,
   calcFkAnejoC,
+  fbPatch,
+  fbValidosPara,
   findGammaMCell,
+  fmValidosPara,
+  gammaCustomPatch,
   lookupGammaM,
+  piezaPatch,
   resolverFabrica,
+  tipoMuroPatch,
   eMin,
   detectarHuecosSolapados,
   type CategoriaControl,
@@ -240,24 +243,15 @@ function CustomFabricaBlock({
   const setMethod = (m: CustomMethod) =>
     setState((s) => ({ ...s, customMethod: m }));
 
-  // Auto-γ: cambiar tipoMuro debería rellenar γ_custom con el estimado de
-  // GAMMA_ESTIMADO[tipo], PERO solo si el usuario no ha tocado γ manualmente.
-  // El flag gamma_custom_edited persiste la "intención" del usuario; el
-  // cambio de tipoMuro lo resetea (asume que el usuario quiere re-estimar).
+  // Auto-γ al cambiar tipoMuro y marcado de γ como "editado por el usuario":
+  // los dos patches viven en el motor porque el asistente IA los comparte (si
+  // la IA escribiera γ sin marcar el flag, el siguiente cambio de tipo de muro
+  // lo pisaría en silencio).
   const setTipoMuro = (t: TipoMuroAnejoC) =>
-    setState((s) => ({
-      ...s,
-      anejoC_tipoMuro: t,
-      gamma_custom: s.gamma_custom_edited ? s.gamma_custom : GAMMA_ESTIMADO[t],
-      gamma_custom_edited: false, // un cambio de tipo "borrón y cuenta nueva"
-    }));
+    setState((s) => ({ ...s, ...tipoMuroPatch(s, t) }));
 
   const setGammaCustom = (v: number) =>
-    setState((s) => ({
-      ...s,
-      gamma_custom: v,
-      gamma_custom_edited: true, // marca que el valor es decisión del usuario
-    }));
+    setState((s) => ({ ...s, ...gammaCustomPatch(v) }));
 
   const r = calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm);
   const K = K_ANEJO_C[state.anejoC_tipoMuro];
@@ -459,7 +453,11 @@ export function MasonryWallsInputs({
   const fab = resolverFabrica(state);
   const plantaSel = state.plantas[selectedPlantaIdx];
   const plantaCalcSel = plantasCalc[selectedPlantaIdx];
-  const fmDisponibles = FM_PARA_FB[state.fb] || [];
+  // Los desplegables se filtran por PIEZA, no por FM_PARA_FB (que ignora la
+  // pieza y ofrece celdas nulas de Tabla 4.4: con "junta delgada" no existe
+  // fb=5, y elegirlo tumbaba el módulo a "Datos no válidos").
+  const fbDisponibles = fbValidosPara(state.pieza);
+  const fmDisponibles = fmValidosPara(state.pieza, state.fb);
 
   return (
     <div className="px-4 py-3 min-w-0">
@@ -502,20 +500,15 @@ export function MasonryWallsInputs({
               label="Pieza"
               help={HELP.pieza}
               value={state.pieza}
-              onChange={(v) => set('pieza', v as MasonryWallState['pieza'])}
+              onChange={(v) => setState((s) => ({ ...s, ...piezaPatch(s, v as MasonryWallState['pieza']) }))}
               options={Object.entries(TABLA_4_4).map(([k, v]) => ({ value: k as MasonryWallState['pieza'], label: v.label }))}
             />
             <SelField
               label="fb (pieza)"
               help={HELP.fb}
               value={state.fb}
-              onChange={(v) => {
-                const fbN = Number(v);
-                const fms = FM_PARA_FB[fbN];
-                const newFm = fms.includes(state.fm) ? state.fm : fms[0];
-                setState((s) => ({ ...s, fb: fbN, fm: newFm }));
-              }}
-              options={FB_VALUES.map((v) => ({ value: v, label: `${v} N/mm²` }))}
+              onChange={(v) => setState((s) => ({ ...s, ...fbPatch(s, Number(v)) }))}
+              options={fbDisponibles.map((v) => ({ value: v, label: `${v} N/mm²` }))}
             />
             <SelField
               label="fm (mortero)"

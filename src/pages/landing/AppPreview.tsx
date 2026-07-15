@@ -37,7 +37,7 @@ export const MODULE_CONFIG: Record<string, ModuleConfig> = {
       ['Cuantía mín.', 'ρ', 24, 'ok'],
       ['Anclaje', 'lb,rqd', 67, 'ok'],
     ],
-    norm: 'CE art.42 · γc=1.5 · γs=1.15',
+    norm: 'CE Anejo 19 §6.1 · γc=1.5 · γs=1.15',
     canvas: 'rc-beam',
   },
   'rc-punching': {
@@ -56,7 +56,7 @@ export const MODULE_CONFIG: Record<string, ModuleConfig> = {
       ['Cercos a 0.75d', 'vRd,cs', 86, 'warn'],
       ['Perímetro uout', 'vRd,c', 54, 'ok'],
     ],
-    norm: 'CE art.45 · u1 = 2d',
+    norm: 'CE Anejo 19 §6.4 · u1 = 2d',
     canvas: 'punching',
   },
   'steel-beams': {

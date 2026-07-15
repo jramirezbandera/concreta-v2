@@ -255,9 +255,9 @@ describe('Reinforcement limits', () => {
     expect(r.vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('fail');
   });
 
-  // CE art. 42.3.5 Tabla 42.3.5 — geometric minimum uses gross area b·h,
+  // CE Anejo 19 §9.2.1.1 — geometric minimum uses gross area b·h,
   // NOT the effective depth b·d. Regression for the ~10% unconservative bug.
-  it('as-min geometric minimum uses b·h (CE art. 42.3.5), not b·d', () => {
+  it('as-min geometric minimum uses b·h (CE Anejo 19 §9.2.1.1), not b·d', () => {
     // Default beam: b=300, h=500 → AsMinGeom = 0.0028·300·500 = 420 mm²
     // Mechanical: 0.04·b·h·fcd/fyd = 0.04·300·500·(25/1.5)/(500/1.15)
     //           = 6000·(16.67/434.78) = 6000·0.03833 = 230.0 mm²
@@ -572,8 +572,8 @@ describe('Regression', () => {
   });
 });
 
-// ── Stirrup leg spacing (CE Anejo 19 art. 9.2.2(8)) ──────────────────────────
-describe('stirrup-legs-spacing (CE Anejo 19 art. 9.2.2(8))', () => {
+// ── Stirrup leg spacing (CE Anejo 19 §9.2.2(8)) ──────────────────────────
+describe('stirrup-legs-spacing (CE Anejo 19 §9.2.2(8))', () => {
   it('nLegs=2, standard beam -> ok (s_t=224 < 340 mm limit)', () => {
     // b=300, h=500, cover=30, stirrupDiam=8, stirrupLegs=2
     // inner = 300 - 60 - 16 = 224; s_t = 224/1 = 224

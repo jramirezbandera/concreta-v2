@@ -200,7 +200,7 @@ describe('Stability', () => {
   });
 });
 
-// ── 7. Rigid / flexible classification (CE art. 55) ─────────────────────────
+// ── 7. Rigid / flexible classification (CE Anejo 19 §6.5) ─────────────────────────
 
 describe('Rigid / flexible classification', () => {
   it('defaults classify as rigid (v_max = 0.7, h = 0.6 → v/h = 1.17 ≤ 2)', () => {
@@ -267,7 +267,7 @@ describe('Anclaje de la armadura (fix auditoría #31)', () => {
 
 // ── 7b. Shear oracle (fix auditoría #2: VRd = vRdc·d, no vRdc·1000) ─────────
 
-describe('Shear VRd oracle — CE art. 44', () => {
+describe('Shear VRd oracle — CE Anejo 19 §6.2', () => {
   it('flexible B=L=3, h=0.4: VRd_x = vRdc·d_x ≈ 140.8 kN/m (oracle manual)', () => {
     // Hand-calc:
     //   N_elu = 300·1.35 = 405 kN; ex=ey=0 → σ_Ed = 405/(3·3) = 45 kPa

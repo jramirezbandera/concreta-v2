@@ -10,7 +10,7 @@ import jsPDF from 'jspdf';
 import { type SteelBeamInputs, type BeamType } from '../../data/defaults';
 import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { BEAM_CASES } from '../calculations/beamCases';
-import { getPsiForCategory, getPsiRow } from '../calculations/loadGen';
+import { categoryLabel, getPsiForCategory, getPsiRow } from '../calculations/loadGen';
 import { formatQuantity, formatNumber, getUnitLabel } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -182,9 +182,10 @@ export async function exportSteelBeamsPDF(
   );
   gap();
 
-  // GENERADOR DE CARGAS
-  sectionHeader('GENERADOR DE CARGAS');
-  twoCol(`Cat.: ${inp.useCategory}`, `qk = ${fmtSi(inp.qk, 'areaLoad')}`);
+  // GENERADOR DE CARGAS — qk es la ENVOLVENTE de las acciones variables (una
+  // sola casilla): el encabezado lo dice y la nota al pie lo justifica.
+  sectionHeader('CARGAS (qk = ENVOLVENTE)');
+  twoCol(`Cat.: ${categoryLabel(inp.useCategory)}`, `qk = ${fmtSi(inp.qk, 'areaLoad')}`);
   twoCol(`gk = ${fmtSi(inp.gk, 'areaLoad')}`, `bTrib = ${fmt(inp.bTrib)} m`);
   // Line loads
   twoCol(`Gk = ${fmtSi(Gk_line, 'linearLoad')}`, `Qk = ${fmtSi(Qk_line, 'linearLoad')}`);
@@ -212,7 +213,14 @@ export async function exportSteelBeamsPDF(
   // ── Results table ────────────────────────────────────────────────────────────
   // Anclado a `svgY` (= titleBaseY + 12), no a `M + 12`: con título los
   // diagramas bajan 5.5mm y la regla de la tabla los cortaba por abajo.
-  const tableY = svgY + SVG_H + diagramsH + 6;
+  //
+  // Y cuelga de lo que ACABE MÁS ABAJO: los diagramas (columna izquierda) o el
+  // resumen de la derecha (`ry`). Antes sólo miraba los diagramas, y como la
+  // columna derecha crece con el contenido (`oneCol` envuelve, el generador de
+  // cargas añade filas), sus últimas líneas —Vc,Rd / Av / Mb,Rd / chiLT— caían
+  // DENTRO de la tabla: la regla separadora las tachaba y las columnas Valor y
+  // Ut% de la primera fila se les montaban encima.
+  const tableY = Math.max(svgY + SVG_H + diagramsH + 6, ry + 6);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -310,8 +318,24 @@ export async function exportSteelBeamsPDF(
     rowY += 4;  // gap: next description baseline is 4mm below separator
   }
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
+  // ── Nota de cargas ───────────────────────────────────────────────────────────
+  // El módulo tiene UNA sola acción variable: sin esta nota la memoria se lee
+  // como "sobrecarga de uso" a secas y oculta que qk debe ser la envolvente.
+  // Va sobre el pie (banda libre: las filas saltan de página en PAGE_H - M - 14).
   const footerY = PAGE_H - 10;
+  const LOADS_NOTE =
+    'qk = accion variable ENVOLVENTE: la mas desfavorable de las hipotesis (sobrecarga de uso, nieve, ' +
+    'viento). En cubiertas de categoria G la sobrecarga de uso no es concomitante con nieve ni viento ' +
+    '(CTE DB-SE-AE 3.1.1): gobierna la mayor.';
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  setGray(doc, 150);
+  const noteLines = doc.splitTextToSize(pdfStr(LOADS_NOTE), PAGE_W - 2 * M) as string[];
+  noteLines.forEach((line, i) => {
+    doc.text(line, M, footerY - 4 - (noteLines.length - 1 - i) * 2.6);
+  });
+
+  // ── Footer ───────────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 150);

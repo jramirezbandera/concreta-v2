@@ -96,7 +96,7 @@ export type ClassifyMode = 'compression' | 'bending' | 'combined';
 
 export interface ColumnBeamSection extends SectionGeometry {
   /**
-   * EC3 §5.5 Table 5.2 classification. Returns 1..4. Input is the yield
+   * CE Anejo 22 §5.5 Table 5.2 classification. Returns 1..4. Input is the yield
    * strength fy in MPa (the method already applies ε = √(235/fy)). The
    * optional `mode` selects web limits: `compression` uses 33/38/42·ε;
    * `bending` uses 72/83/124·ε; `combined` (auditoría #91) interpola con la
@@ -107,7 +107,7 @@ export interface ColumnBeamSection extends SectionGeometry {
   classify(fy: number, mode?: ClassifyMode, opts?: CombinedClassifyOpts): number;
 
   /**
-   * Flexural buckling imperfection factors α per EC3 §6.3.1.2 Tab 6.1/6.2.
+   * Flexural buckling imperfection factors α per CE Anejo 22 §6.3.1.2 Tab 6.1/6.2.
    * For CHS: both axes share the same curve (a for hot-finished, c for
    * cold-formed). For I: depends on h/b ratio and steel grade. For 2UPN
    * box: curve b both axes.
@@ -115,7 +115,7 @@ export interface ColumnBeamSection extends SectionGeometry {
   getBucklingAlpha(): { alpha_y: number; alpha_z: number };
 
   /**
-   * LTB imperfection factor α_LT per EC3 §6.3.2.3 Tabla 6.5 (rolled I).
+   * LTB imperfection factor α_LT per CE Anejo 22 §6.3.2.3 Tabla 6.5 (rolled I).
    * Returns NaN when LTB does not apply (CHS, 2UPN box, or axisymmetric).
    */
   getLTBAlpha(): number;

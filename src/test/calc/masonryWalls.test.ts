@@ -13,26 +13,41 @@ import {
   defaultMasonryState,
   eApoyoForjado,
   eMin,
+  fbPatch,
+  fbValidosPara,
   findGammaMCell,
+  fmValidosPara,
+  GAMMA_ESTIMADO,
   GAMMA_M_TABLA,
+  gammaCustomPatch,
   getCriticoEdificio,
   getMachonesPlanta,
   isBlankMasonryState,
   lookupFk,
   lookupGammaM,
+  masonryBuildingChecks,
+  masonryEsbeltezEdificioCheck,
+  masonryMachonChecks,
+  masonryPlantasSonDeFabrica,
   newId,
   normalizeMasonryState,
   overallStatus,
+  piezaPatch,
+  plantaMasEsbelta,
   plantaTemplate,
   renumberPlantas,
   repartoMomento,
   resolverFabrica,
+  tipoMuroPatch,
   type Hueco,
   type MasonryWallState,
   type Planta,
   type PlantaResult,
   type Puntual,
 } from '../../lib/calculations/masonryWalls';
+// El veredicto que deduce el asistente sale de aquí (checks → estado global);
+// el del badge, de `overallStatus` del motor. Los tests de paridad comparan los dos.
+import { overallStatus as overallStatusChecks } from '../../lib/calculations/checkFormat';
 import {
   buildShareUrl,
   decodeShareString,
@@ -1608,6 +1623,47 @@ describe('normalizeMasonryState — backward-compat de localStorage y share URLs
     expect(migratedLegacy).toBe(true);
   });
 
+  // ── 5ª familia de la auditoría (2026-07-14): coerción de la terna Tabla 4.4 ──
+  // Un estado antiguo o una share-URL pueden traer una combinación (pieza, fb, fm)
+  // inexistente. El motor la deja en EdificioInvalid y la UI puebla el <select> de
+  // fb con opciones que NO incluyen el valor guardado. normalizeMasonryState la
+  // coacciona a una celda real y marca migratedLegacy.
+  it('terna inexistente (junta delgada + fb=5) → coaccionada a una celda válida', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const roto = {
+      ...defaultMasonryState(),
+      fabricaModo: 'tabla' as const,
+      pieza: 'macizo_junta_delgada' as const,
+      fb: 5,   // macizo_junta_delgada NO tiene fb=5 (ambas celdas null)
+      fm: 2.5,
+    };
+    const { state, migratedLegacy } = normalizeMasonryState(roto);
+    // el fb resultante SÍ está entre las opciones que pintaría la UI…
+    expect(fbValidosPara(state.pieza)).toContain(state.fb);
+    // …y la terna final existe en Tabla 4.4 (el módulo ya no cae a inválido):
+    expect(lookupFk(state.pieza, state.fb, state.fm)).not.toBeNull();
+    expect(migratedLegacy).toBe(true);
+  });
+
+  it('pieza corrupta → vuelve a la de fábrica con una terna válida y marca migratedLegacy', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const corrupt = { ...defaultMasonryState(), pieza: 'ladrillo_marciano' };
+    const { state, migratedLegacy } = normalizeMasonryState(corrupt);
+    expect(lookupFk(state.pieza, state.fb, state.fm)).not.toBeNull();
+    expect(migratedLegacy).toBe(true);
+  });
+
+  it('terna VÁLIDA se conserva byte a byte y NO marca migratedLegacy (idempotente)', async () => {
+    const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
+    const ok = {
+      ...defaultMasonryState(),
+      fabricaModo: 'tabla' as const, pieza: 'macizo' as const, fb: 10, fm: 5,
+    };
+    const { state, migratedLegacy } = normalizeMasonryState(ok);
+    expect([state.pieza, state.fb, state.fm]).toEqual(['macizo', 10, 5]);
+    expect(migratedLegacy).toBe(false);
+  });
+
   it('raw inválido (null / no-object) → devuelve defaults sin marcar migratedLegacy', async () => {
     const { normalizeMasonryState } = await import('../../lib/calculations/masonryWalls');
     // defaultMasonryState() genera IDs aleatorios, así que no es deep-equal-able;
@@ -1661,5 +1717,211 @@ describe('normalizeMasonryState — backward-compat de localStorage y share URLs
     const encoded = url.split('?model=')[1];
     const decoded = decodeShareString(encoded);
     expect(decoded).toEqual(modern);
+  });
+});
+
+// ─── Comprobaciones compartidas (UI ↔ asistente IA) ──────────────────────
+
+describe('masonryMachonChecks — filas del machón', () => {
+  const plantas = expectPlantas(calcularEdificio(statePB({ t: 240 })));
+  const pl = plantas[0];
+  const m = pl.machones[0];
+
+  it('la compresión imprime el axil que GOBIERNA η, no el de cabeza', () => {
+    // N_Ed_pie = N_Ed + peso propio ≥ N_Ed con el mismo N_Rd ⇒ el pie manda
+    // siempre. Imprimir la cabeza junto a η = max(η_cabeza, η_pie) dejaba unos
+    // números que no cuadraban entre sí.
+    expect(m.eta_pie).toBeGreaterThanOrEqual(m.eta_cabeza);
+    const [compresion] = masonryMachonChecks(m, pl);
+    expect(compresion.description).toContain('pie');
+    expect(compresion.valueNum).toBe(m.N_Ed_pie);
+    expect(compresion.valueQty).toBe('force');
+    expect(compresion.limitNum).toBe(m.N_Rd);
+    expect(compresion.utilization).toBe(m.eta);
+  });
+
+  it('la utilización se COPIA del motor: preserva el centinela de tracción (99)', () => {
+    // Axil de tracción: la fábrica no resiste y el motor devuelve η = 99. Un
+    // makeCheckQty recalculando demanda/capacidad daría un η negativo → 'ok'.
+    const mt = { ...m, N_Ed: -50, N_Ed_pie: -20, eta_cabeza: 99, eta_pie: 99, eta: 99 };
+    const [compresion] = masonryMachonChecks(mt, pl);
+    expect(compresion.utilization).toBe(99);
+    expect(compresion.status).toBe('fail');
+  });
+
+  it('el pandeo del machón falla SOLO por encima de 27 (banda ámbar 22–27)', () => {
+    const rowFor = (lambda: number) => masonryMachonChecks(m, { ...pl, lambda })[1];
+    expect(rowFor(21.9).status).toBe('ok');
+    expect(rowFor(22).status).toBe('warn');
+    expect(rowFor(27).status).toBe('warn');     // λ = 27 exacto CUMPLE (motor: > 27)
+    expect(rowFor(27.1).status).toBe('fail');
+  });
+
+  it('sin carga concentrada, la fila §5.4 es neutra', () => {
+    const [, , concentracion] = masonryMachonChecks(m, pl);
+    expect(m.etaConc).toBe(0);
+    expect(concentracion.neutral).toBe(true);
+    expect(concentracion.status).toBe('neutral');
+  });
+});
+
+describe('masonryBuildingChecks — paridad con el veredicto del motor', () => {
+  // INVARIANTE: el veredicto que el asistente deduce de los CheckRow tiene que
+  // ser el mismo que el badge de la pantalla. Si se rompe, el chat diría CUMPLE
+  // con la pantalla en rojo (o al revés).
+  const paridad = (plantas: PlantaResult[]) => {
+    const critico = getCriticoEdificio(plantas);
+    expect(critico).not.toBeNull();
+    return {
+      checks: overallStatusChecks(masonryBuildingChecks(plantas, critico!)),
+      motor: overallStatus(plantas).v,
+    };
+  };
+  const conLambdas = (plantas: PlantaResult[], lambdas: number[]): PlantaResult[] =>
+    plantas.map((pl, i) => ({ ...pl, lambda: lambdas[i] ?? pl.lambda }));
+
+  const plantasCon = (q_G: number): PlantaResult[] => {
+    const base = statePB({ t: 240 });
+    const st: MasonryWallState = {
+      ...base,
+      plantas: base.plantas.map((p) => ({ ...p, q_G, q_Q: 0.5 })),
+    };
+    return expectPlantas(calcularEdificio(st));
+  };
+
+  /** η es AFÍN en q_G (el peso propio es el término independiente) → dos puntos
+   *  y despeje dan una fixture con el η exacto que se quiera. */
+  const qParaEta = (target: number): number => {
+    const eta = (q: number) => overallStatus(plantasCon(q)).eta;
+    const e1 = eta(1);
+    const e2 = eta(2);
+    return 1 + (target - e1) / (e2 - e1);
+  };
+
+  it('CUMPLE por η', () => {
+    const r = paridad(plantasCon(2));
+    expect(r.motor).toBe('ok');
+    expect(r.checks).toBe(r.motor);
+  });
+
+  it('REVISA por η (banda 0.95–1)', () => {
+    const r = paridad(plantasCon(qParaEta(0.97)));
+    expect(r.motor).toBe('warn');
+    expect(r.checks).toBe(r.motor);
+  });
+
+  it('INCUMPLE por η', () => {
+    const r = paridad(plantasCon(qParaEta(1.2)));
+    expect(r.motor).toBe('fail');
+    expect(r.checks).toBe(r.motor);
+  });
+
+  it('INCUMPLE por esbeltez en una planta que NO es la del machón crítico', () => {
+    // λ = 30 en cubierta (η bajo) y el machón crítico abajo con η < 0.95: con la
+    // fila de pandeo del MACHÓN el chat habría dicho CUMPLE con el badge en rojo.
+    const plantas = conLambdas(plantasCon(2), [18, 30]);
+    const critico = getCriticoEdificio(plantas)!;
+    expect(critico.planta.lambda).toBe(18);
+    expect(critico.etaMax).toBeLessThan(0.95);
+    const r = paridad(plantas);
+    expect(r.motor).toBe('fail');
+    expect(r.checks).toBe(r.motor);
+  });
+
+  it('λ en banda ámbar (25) NO vuelca el veredicto: motor y checks dicen CUMPLE', () => {
+    // La banda 22–27 es un aviso de PANTALLA. Si se colara en los checks del
+    // resumen, el chat diría REVISAR con el badge verde.
+    const r = paridad(conLambdas(plantasCon(2), [25, 25]));
+    expect(r.motor).toBe('ok');
+    expect(r.checks).toBe('ok');
+  });
+
+  it('λ = 27 exacto CUMPLE en ambos', () => {
+    const r = paridad(conLambdas(plantasCon(2), [27, 27]));
+    expect(r.motor).toBe('ok');
+    expect(r.checks).toBe('ok');
+  });
+
+  it('la fila de esbeltez de edificio nombra la planta más esbelta', () => {
+    const plantas = conLambdas(plantasCon(2), [18, 30]);
+    const fila = masonryEsbeltezEdificioCheck(plantas);
+    expect(fila.status).toBe('fail');
+    expect(fila.valueStr).toContain('30.0');
+    expect(fila.valueStr).toContain('Cubierta');
+    expect(plantaMasEsbelta(plantas)!.lambda).toBe(30);
+  });
+});
+
+// ─── Tabla 4.4: celdas válidas por pieza ─────────────────────────────────
+
+describe('fbValidosPara / fmValidosPara — celdas NO nulas de Tabla 4.4', () => {
+  it('macizo fb=10 admite fm 5 y 7.5', () => {
+    expect(fmValidosPara('macizo', 10)).toEqual([5, 7.5]);
+  });
+
+  it('junta delgada NO admite fb=5 (las dos celdas son null)', () => {
+    expect(fmValidosPara('macizo_junta_delgada', 5)).toEqual([]);
+    expect(fbValidosPara('macizo_junta_delgada')).toEqual([10, 15, 20, 25]);
+  });
+
+  it('el resto de piezas admite los cinco fb', () => {
+    expect(fbValidosPara('macizo')).toEqual([5, 10, 15, 20, 25]);
+  });
+});
+
+// ─── Patches atómicos compartidos con el asistente ───────────────────────
+
+describe('piezaPatch / fbPatch — la terna siempre queda en una celda válida', () => {
+  it('cambiar a junta delgada desde fb=5 coerciona a un fb válido', () => {
+    const p = piezaPatch({ fb: 5, fm: 2.5 }, 'macizo_junta_delgada');
+    expect(p.pieza).toBe('macizo_junta_delgada');
+    expect(p.fb).toBe(10);
+    expect(lookupFk(p.pieza, p.fb, p.fm)).not.toBeNull();
+  });
+
+  it('conserva fb y fm si siguen siendo válidos para la pieza nueva', () => {
+    expect(piezaPatch({ fb: 20, fm: 15 }, 'perforado')).toEqual({ pieza: 'perforado', fb: 20, fm: 15 });
+  });
+
+  it('fbPatch coerciona fm a la fila del nuevo fb', () => {
+    expect(fbPatch({ pieza: 'macizo', fm: 5 }, 20)).toEqual({ fb: 20, fm: 10 });
+    expect(fbPatch({ pieza: 'macizo', fm: 5 }, 10)).toEqual({ fb: 10, fm: 5 });
+  });
+});
+
+describe('tipoMuroPatch / gammaCustomPatch — auto-γ del Anejo C', () => {
+  it('re-estima γ cuando el usuario no lo ha tocado', () => {
+    const p = tipoMuroPatch({ gamma_custom: 18, gamma_custom_edited: false }, 'una_hoja_hueco');
+    expect(p.gamma_custom).toBe(GAMMA_ESTIMADO.una_hoja_hueco);
+    expect(p.gamma_custom_edited).toBe(false);
+  });
+
+  it('conserva el γ medido por el usuario (pero resetea el flag)', () => {
+    const p = tipoMuroPatch({ gamma_custom: 16.5, gamma_custom_edited: true }, 'una_hoja_hueco');
+    expect(p.gamma_custom).toBe(16.5);
+    expect(p.gamma_custom_edited).toBe(false);
+  });
+
+  it('gammaCustomPatch marca el γ como decisión del usuario', () => {
+    expect(gammaCustomPatch(17)).toEqual({ gamma_custom: 17, gamma_custom_edited: true });
+  });
+});
+
+// ─── Plantillas de plantas (contexto de solo lectura de la IA) ───────────
+
+describe('masonryPlantasSonDeFabrica', () => {
+  it('true para el estado en blanco y para el edificio de ejemplo', () => {
+    expect(masonryPlantasSonDeFabrica(blankMasonryState())).toBe(true);
+    expect(masonryPlantasSonDeFabrica(defaultMasonryState())).toBe(true);
+  });
+
+  it('false en cuanto el usuario toca una planta', () => {
+    const s = blankMasonryState();
+    expect(masonryPlantasSonDeFabrica({ ...s, plantas: [{ ...s.plantas[0], q_G: 12 }] })).toBe(false);
+  });
+
+  it('los ids aleatorios no cuentan (comparación estructural)', () => {
+    const s = blankMasonryState();
+    expect(masonryPlantasSonDeFabrica({ ...s, plantas: [{ ...s.plantas[0], id: 'otro-id' }] })).toBe(true);
   });
 });

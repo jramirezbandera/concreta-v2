@@ -75,11 +75,16 @@ export async function exportIsolatedFootingPDF(
     setGray(doc, 60);
     doc.text(label, COL_R, ry);
     if (badge) {
-      // mono caps badge after the section header (per plan §4.5.1)
+      // mono caps badge after the section header (per plan §4.5.1).
+      // El ancho del título se mide ANTES de cambiar de fuente: getTextWidth
+      // usa la fuente ACTIVA, y al medirlo con courier 6.5 (más estrecha que
+      // helvetica bold 7.5) la insignia arrancaba demasiado a la izquierda y se
+      // montaba sobre el propio "CARGAS".
+      const labelW = doc.getTextWidth(label);
       doc.setFont('courier', 'normal');
       doc.setFontSize(6.5);
       setGray(doc, 102);  // #666666
-      doc.text(badge.text, COL_R + doc.getTextWidth(label) + 2, ry);
+      doc.text(badge.text, COL_R + labelW + 2, ry);
     }
     ry += LH;
     doc.setFont('helvetica', 'normal');
@@ -195,10 +200,12 @@ export async function exportIsolatedFootingPDF(
   const fsX = result.FS_overturn_x === Infinity ? '∞' : result.FS_overturn_x.toFixed(2);
   const fsY = result.FS_overturn_y === Infinity ? '∞' : result.FS_overturn_y.toFixed(2);
   const fsS = result.FS_sliding === Infinity ? '∞' : result.FS_sliding.toFixed(2);
-  doc.text(`FS_vuelco_x = ${fsX}`, SLS_X,  dy);
-  doc.text(`FS_vuelco_y = ${fsY}`, SLS_X2, dy);
-  doc.text(`FS_desliz = ${fsS}`,   ELU_X,  dy);
-  doc.text(`Clasif: ${result.isRigid ? 'rigida' : 'flexible'}`, ELU_X2, dy);
+  // pdfStr: el '∞' de un FS infinito no es Latin-1 y sin sanear arrastraba la
+  // línea entera a UTF-16 (doble de ancho + basura).
+  doc.text(pdfStr(`FS_vuelco_x = ${fsX}`), SLS_X,  dy);
+  doc.text(pdfStr(`FS_vuelco_y = ${fsY}`), SLS_X2, dy);
+  doc.text(pdfStr(`FS_desliz = ${fsS}`),   ELU_X,  dy);
+  doc.text(pdfStr(`Clasif: ${result.isRigid ? 'rigida' : 'flexible'}`), ELU_X2, dy);
   dy += LH;
 
   // ── Checks table ─────────────────────────────────────────────────────────────
@@ -225,8 +232,8 @@ export async function exportIsolatedFootingPDF(
     desc:   M,
     value:  M + 82,
     limit:  M + 118,
-    util:   M + 150,
-    status: M + 162,
+    util:   M + 150,      // borde DERECHO (align:'right')
+    status: PAGE_W - M,   // borde DERECHO (align:'right')
   };
 
   let rowY = tableY + 9;
@@ -242,8 +249,8 @@ export async function exportIsolatedFootingPDF(
     doc.text('Verificacion', COL.desc,   atY);
     doc.text('Valor',        COL.value,  atY);
     doc.text('Limite',       COL.limit,  atY);
-    doc.text('Ut%',          COL.util,   atY);
-    doc.text('Estado',       COL.status, atY);
+    doc.text('Ut%',          COL.util,   atY, { align: 'right' });
+    doc.text('Estado',       COL.status, atY, { align: 'right' });
     const lineY = atY + 2;
     doc.setLineWidth(0.2);
     setGray(doc, 160);
@@ -272,10 +279,10 @@ export async function exportIsolatedFootingPDF(
     doc.text(pdfStr(checkLimitStr(ch)), COL.limit, rowY);
     setGray(doc, textG);
     const utStr = !isFinite(ch.utilization)
-      ? '∞'
+      ? pdfStr('∞')
       : `${(ch.utilization * 100).toFixed(0)}%`;
-    doc.text(utStr, COL.util, rowY);
-    doc.text(STATUS_LABEL[ch.status], COL.status, rowY);
+    doc.text(utStr, COL.util, rowY, { align: 'right' });
+    doc.text(STATUS_LABEL[ch.status], COL.status, rowY, { align: 'right' });
 
     setGray(doc, 220);
     doc.line(M, rowY + 2, PAGE_W - M, rowY + 2);

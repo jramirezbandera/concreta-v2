@@ -4,7 +4,7 @@
 import jsPDF from 'jspdf';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -28,7 +28,7 @@ export async function exportEmpresalladoPDF(
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Pilar compuesto empresillado - EC3 §6.4', M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Pilar compuesto empresillado - CE Anejo 22 §6.4', M);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -133,8 +133,8 @@ export async function exportEmpresalladoPDF(
     desc:   M,
     value:  M + 82,
     limit:  M + 118,
-    util:   M + 150,
-    status: M + 162,
+    util:   M + 150,      // borde DERECHO (align:'right')
+    status: PAGE_W - M,   // borde DERECHO (align:'right')
   };
 
   let rowY = tableY + 9;
@@ -145,8 +145,8 @@ export async function exportEmpresalladoPDF(
   doc.text('Verificacion', COL.desc,   rowY);
   doc.text('Valor',        COL.value,  rowY);
   doc.text('Limite',       COL.limit,  rowY);
-  doc.text('Ut%',          COL.util,   rowY);
-  doc.text('Estado',       COL.status, rowY);
+  doc.text('Ut%',          COL.util,   rowY, { align: 'right' });
+  doc.text('Estado',       COL.status, rowY, { align: 'right' });
   rowY += 2;
 
   doc.setLineWidth(0.2);
@@ -154,15 +154,31 @@ export async function exportEmpresalladoPDF(
   doc.line(M, rowY, PAGE_W - M, rowY);
   rowY += 5;
 
+  // Altura de fila VARIABLE. La descripción se pintaba con `maxWidth: 78`, así
+  // que jsPDF la partía él solo y bajaba la 2ª línea ~3.1 mm... pero la fila
+  // medía 7 mm fijos y el separador iba a `rowY + 2`: la regla cruzaba por
+  // dentro de esa segunda línea (la tachaba) y el resto invadía la fila de
+  // abajo. Ahora se trocea a mano y la fila crece lo que haga falta.
+  const DESC_W = 78;
+  const ROW_LH = 3.1;   // interlínea a cuerpo 7.5 (7.5pt · 1.15 · 25.4/72)
+
   for (const ch of result.checks) {
-    if (rowY > PAGE_H - M - 10) break;
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
 
     doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
     doc.setFontSize(7.5);
+    const descL = doc.splitTextToSize(pdfStr(ch.description), DESC_W) as string[];
+    const rowH = (descL.length - 1) * ROW_LH + 7;
+
+    // Antes: `if (rowY > PAGE_H - M - 10) break` — DESCARTABA en silencio las
+    // comprobaciones que no cupieran. Ahora saltan a la página siguiente.
+    rowY = ensureSpace(doc, rowY, rowH, M);
+
+    doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');
+    doc.setFontSize(7.5);
     setGray(doc, 60);
-    doc.text(pdfStr(ch.description), COL.desc, rowY, { maxWidth: 78 });
+    descL.forEach((t, i) => doc.text(t, COL.desc, rowY + i * ROW_LH));
 
     setGray(doc, 80);
     doc.text(pdfStr(ch.value ?? ''), COL.value, rowY);
@@ -170,21 +186,28 @@ export async function exportEmpresalladoPDF(
 
     const textG = isFail ? 180 : isWarn ? 120 : 60;
     setGray(doc, textG);
-    doc.text(`${(ch.utilization * 100).toFixed(0)}%`, COL.util, rowY);
-    doc.text(STATUS_LABEL[ch.status], COL.status, rowY);
+    doc.text(`${(ch.utilization * 100).toFixed(0)}%`, COL.util, rowY, { align: 'right' });
+    doc.text(STATUS_LABEL[ch.status], COL.status, rowY, { align: 'right' });
 
+    const rowEndY = rowY + (descL.length - 1) * ROW_LH;
     setGray(doc, 220);
-    doc.line(M, rowY + 2, PAGE_W - M, rowY + 2);
-    rowY += 7;
+    doc.line(M, rowEndY + 2, PAGE_W - M, rowEndY + 2);
+    rowY = rowEndY + 7;
   }
 
   // ── Footer ───────────────────────────────────────────────────────────────────
+  // En TODAS las páginas: la tabla ya puede desbordar a una segunda (antes las
+  // filas sobrantes se descartaban en silencio).
   const footerY = PAGE_H - 10;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  setGray(doc, 150);
-  doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
-  doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 150);
+    doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
+    doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });
+  }
 
   const filename = titledFilename(elementTitle, empresalladoFallbackFilename());
   const blob = doc.output('blob');

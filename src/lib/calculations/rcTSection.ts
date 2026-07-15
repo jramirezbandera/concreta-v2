@@ -1,4 +1,4 @@
-// T-section bending solver — CE art. 21 (b_eff), art. 42 (flexión)
+// T-section bending solver — CE Anejo 19 §5.3.2.1 (b_eff), §6.1 (flexión)
 // All units: mm, MPa, kN, kNm.
 
 export interface TSectionResult {
@@ -11,7 +11,7 @@ export interface TSectionResult {
 /**
  * x,lim — profundidad de fibra neutra a partir de la cual el acero no
  * plastifica (εs < εyd con εcu3 = 3.5‰). Por encima, la hipótesis Whitney
- * con fyd deja de ser válida y MRd debe limitarse (CE art. 42 / Anejo 19 §6.1).
+ * con fyd deja de ser válida y MRd debe limitarse (CE Anejo 19 §6.1).
  */
 function xLim(d: number, fyd: number): number {
   const Es = 200000;
@@ -82,7 +82,7 @@ export function solveTSection(
 }
 
 /**
- * b_eff — CE art. 21. Simplification:
+ * b_eff — CE Anejo 19 §5.3.2.1. Simplification:
  *   b_eff = min(intereje, L0 / 5)
  * where L0 = l0Factor · L (tipoVano dependent).
  * Never below b_w.

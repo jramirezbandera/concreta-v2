@@ -103,7 +103,7 @@ export function PileCapResults({ inp, result }: Props) {
       )}
 
       {/* Anclaje */}
-      <GroupHeader label="Anclaje (CE art. 69)" />
+      <GroupHeader label="Anclaje (CE Anejo 19 §8.4.4)" />
       <ValueRow label="lb,básica" value={`${result.lb.toFixed(0)} mm`} />
       <ValueRow label="lb,req"     value={`${result.lb_net.toFixed(0)} mm`} />
       <ValueRow label="lb,disp"   value={`${result.lb_avail.toFixed(0)} mm`} />
@@ -115,7 +115,7 @@ export function PileCapResults({ inp, result }: Props) {
       {n === 3 && (
         <p className="text-[10px] text-text-secondary mt-2 leading-relaxed">
           Nota n=3: Ft calculado conservadoramente como R_max·a_crit/z_eff (~15% sobre el valor exacto).
-          CE art. 48 / EHE-08 art. 58.
+          CE Anejo 19 §6.5 / EHE-08 art. 58.
         </p>
       )}
     </div>

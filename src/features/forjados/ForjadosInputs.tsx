@@ -5,7 +5,7 @@ import {
   type ForjadosTipologia,
   type ForjadosTipoVano,
 } from '../../data/defaults';
-import { TIPOLOGIAS, TIPOS_VANO, getTipologia } from '../../data/forjadoTipologias';
+import { TIPOLOGIAS, TIPOS_VANO, tipologiaPatch } from '../../data/forjadoTipologias';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
@@ -224,16 +224,12 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
   const tipologia = state.tipologia as ForjadosTipologia;
   const geomLocked = isReticular && tipologia !== 'custom';
 
+  // El patch (clave + geometría del preset) vive en tipologiaPatch — única
+  // fuente de verdad, compartida con el apply del asistente IA.
   const handleTipologia = (key: string) => {
-    setField('tipologia', key as ForjadosTipologia);
-    if (key !== 'custom') {
-      const t = getTipologia(key as ForjadosTipologia);
-      if (t) {
-        setField('h', t.h);
-        setField('hFlange', t.hFlange);
-        setField('bWeb', t.bWeb);
-        setField('intereje', t.intereje);
-      }
+    const patch = tipologiaPatch(key as ForjadosTipologia);
+    for (const [f, v] of Object.entries(patch) as [keyof ForjadosInputs, ForjadosInputs[keyof ForjadosInputs]][]) {
+      setField(f, v);
     }
   };
 
@@ -294,8 +290,6 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
             <NumField label="h_f" sub="capa compr." help={HELP.hf}       field="hFlange"  value={state.hFlange as number}  readOnly={geomLocked} setField={setField} />
             <NumField label="b_w" sub="nervio"      help={HELP.bw}       field="bWeb"     value={state.bWeb as number}     readOnly={geomLocked} setField={setField} />
             <NumField label="Intereje"              help={HELP.intereje} field="intereje" value={state.intereje as number} readOnly={geomLocked} setField={setField} />
-            <NumField label="L"   sub="luz"         help={HELP.L}        field="spanLength" value={state.spanLength as number} setField={setField} />
-            <SelectField label="Tipo vano" help={HELP.tipoVano} field="tipoVano" value={state.tipoVano as string} options={TIPO_VANO_OPTIONS} setField={setField} />
           </>
         )}
         {!isReticular && (
@@ -304,6 +298,11 @@ export function ForjadosInputsPanel({ state, section, setSection, setField, onVa
             <p className="text-[10px] text-text-disabled -mt-0.5 mb-1">Franja b = 1000 mm (por metro)</p>
           </>
         )}
+        {/* Luz y tipo de vano: los usa la esbeltez L/d en AMBAS variantes
+         *  (rcSlabs, K_LD + span_ld), así que se editan siempre. En reticular
+         *  además fijan L0 y el ancho eficaz. */}
+        <NumField label="L"   sub="luz"   help={HELP.L}        field="spanLength" value={state.spanLength as number} setField={setField} />
+        <SelectField label="Tipo vano" help={HELP.tipoVano} field="tipoVano" value={state.tipoVano as string} options={TIPO_VANO_OPTIONS} setField={setField} />
         <NumField label="Recubrimiento" sub="mec." help={HELP.cover} field="cover" value={state.cover as number} setField={setField} />
       </CollapsibleSection>
 

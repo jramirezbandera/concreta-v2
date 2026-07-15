@@ -248,7 +248,7 @@ export type SectionClass = 1 | 2 | 3 | 4;
  * pero la clasificación es obligatoria por norma — y un futuro tubo de
  * mayor diámetro o un acero más resistente podría degradar la sección.
  *
- * Para clase 4 EC3 §6.2.9.2 exige sección efectiva (Aeff/Weff). Concreta
+ * Para clase 4 CE Anejo 22 §6.2.9.2 exige sección efectiva (Aeff/Weff). Concreta
  * no la implementa: cuando esta función devuelve 4, el motor invalida con
  * mensaje en lugar de calcular con Wel o Wpl.
  */

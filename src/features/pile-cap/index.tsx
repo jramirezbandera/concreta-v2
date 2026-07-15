@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { pileCapDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { pileCapDefaults, type PileCapInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcPileCap } from '../../lib/calculations/pileCap';
 import { exportPileCapPDF, pileCapFallbackFilename } from '../../lib/pdf/pileCap';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { pileCapAdapter, summarizePileCapResults } from '../../lib/ai/modules/pileCap';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { PileCapInputsPanel } from './PileCapInputsPanel';
 import { PileCapResults } from './PileCapResults';
 import { PileCapSVG } from './PileCapSVG';
@@ -21,7 +26,33 @@ export function PileCapModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Aplica el plan confirmado en AiChatModal. ORDER del contrato con `n`
+  // PRIMERO: decide las posiciones de los pilotes y qué tirantes existen. El
+  // modal NO se cierra al aplicar (la conversación sigue).
+  const handleAiApply = (plan: AiApplyPlan<PileCapInputs>) => {
+    const ORDER: (keyof PileCapInputs)[] = [
+      'n', 'd_p', 's', 'h_enc', 'b_col', 'h_col',
+      'fck', 'fyk', 'cover', 'phi_tie',
+      'N_Ed', 'Mx_Ed', 'My_Ed', 'R_adm',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as PileCapInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcPileCap(state), [state]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizePileCapResults(result), [result]);
 
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
@@ -63,6 +94,14 @@ export function PileCapModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <PileCapInputsPanel state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -117,6 +156,16 @@ export function PileCapModule() {
           <PileCapSVG inp={state} result={result} mode="pdf" width={320} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={pileCapAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

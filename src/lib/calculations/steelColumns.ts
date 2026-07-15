@@ -1,4 +1,4 @@
-// Steel Column calculations — CE Anejo 22 (EC3); CTE DB-SE-A solo para la
+// Steel Column calculations — CE Anejo 22; CTE DB-SE-A solo para la
 // recomendación de esbeltez. Flexocompresión §6.3.3 con Método 2 (Anejo B).
 // Units: mm for section dims, N/mm² for stress, kN for forces, kNm for moments.
 // Section properties follow ArcelorMittal convention:
@@ -162,7 +162,7 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const fy_nominal = steel === 'S355' ? 355 : 275;  // N/mm²
   const fy = section.tf > 16 ? fy_nominal - 10 : fy_nominal;
 
-  // 4. Section classification (EC3 §5.5 Tabla 5.2). Para secciones en I el
+  // 4. Section classification (CE Anejo 22 §5.5 Tabla 5.2). Para secciones en I el
   //    alma se clasifica con la distribución REAL N+My (α plástica, ψ
   //    elástica) en vez de compresión pura — antes todos los IPE ≥300 en
   //    S355 quedaban rechazados como clase 4 aunque con flexión dominante
@@ -218,7 +218,7 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const lambda_y = (Lk_y / i_y) / lambda1;
   const lambda_z = (Lk_z / i_z) / lambda1;
 
-  // 8. Buckling curves (EC3 Tabla 6.2) — delegated to the section adapter
+  // 8. Buckling curves (CE Anejo 22 Tabla 6.2) — delegated to the section adapter
   const { alpha_y, alpha_z } = section.getBucklingAlpha();
 
   const chi_y = bucklingChi(lambda_y, alpha_y);
@@ -334,35 +334,35 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const checks: SteelCheckRow[] = [];
 
   // Classification
-  checks.push(makeCheckNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE Anejo 22 (EC3) §5.5.2'));
+  checks.push(makeCheckNeutral('class', 'Clasificación de sección', `CLASE ${sectionClass}`, 'CE Anejo 22 §5.5.2'));
 
   // Section resistances
   if (Ned > 0) {
-    checks.push(makeCheckQty('NRd', 'Compresión  NEd / NRd', Ned, NRd, 'force', 'CE Anejo 22 (EC3) §6.2.4'));
+    checks.push(makeCheckQty('NRd', 'Compresión  NEd / NRd', Ned, NRd, 'force', 'CE Anejo 22 §6.2.4'));
   }
   if (isCHS && M_res !== undefined && M_res > 0) {
     // CHS: axisymmetric → single §6.2.5 check with resultant moment M_res.
     checks.push(makeCheckQty('MRes', `Flexión resultante  M_res = √(My²+Mz²) / M_Rd`,
-      M_res, My_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
+      M_res, My_Rd, 'moment', 'CE Anejo 22 §6.2.5'));
   } else {
     if (My_Ed > 0) {
-      checks.push(makeCheckQty('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
+      checks.push(makeCheckQty('MyRd', 'Flexión  My,Ed / My,Rd', My_Ed, My_Rd, 'moment', 'CE Anejo 22 §6.2.5'));
     }
     if (Mz_Ed > 0) {
-      checks.push(makeCheckQty('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd, 'moment', 'CE Anejo 22 (EC3) §6.2.5'));
+      checks.push(makeCheckQty('MzRd', 'Flexión  Mz,Ed / Mz,Rd', Mz_Ed, Mz_Rd, 'moment', 'CE Anejo 22 §6.2.5'));
     }
   }
 
   // Buckling
   checks.push(makeCheckQty('Nby', `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
-    Ned, Nb_Rd_y, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+    Ned, Nb_Rd_y, 'force', 'CE Anejo 22 §6.3.1'));
   checks.push(makeCheckQty('Nbz', `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
-    Ned, Nb_Rd_z, 'force', 'CE Anejo 22 (EC3) §6.3.1'));
+    Ned, Nb_Rd_z, 'force', 'CE Anejo 22 §6.3.1'));
 
   // LTB
   if (hasLTB) {
     checks.push(makeCheckQty('LTB', `Pandeo lateral  (λ̄LT=${lambda_LT.toFixed(2)}, χLT=${chi_LT.toFixed(2)})`,
-      My_Ed, Mb_Rd, 'moment', 'CE Anejo 22 (EC3) §6.3.2'));
+      My_Ed, Mb_Rd, 'moment', 'CE Anejo 22 §6.3.2'));
   }
 
   // Interaction — dimensionless ratios (stay on legacy string path)
@@ -370,13 +370,13 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     id: 'int1', description: 'Interacción N+My+Mz  (Ec. 1)',
     value: util_check1.toFixed(3), limit: '1.000',
     utilization: util_check1, status: toStatus(util_check1),
-    article: 'CE Anejo 22 (EC3) §6.3.3',
+    article: 'CE Anejo 22 §6.3.3',
   });
   checks.push({
     id: 'int2', description: 'Interacción N+My+Mz  (Ec. 2)',
     value: util_check2.toFixed(3), limit: '1.000',
     utilization: util_check2, status: toStatus(util_check2),
-    article: 'CE Anejo 22 (EC3) §6.3.3',
+    article: 'CE Anejo 22 §6.3.3',
   });
 
   // Slenderness — dimensionless reduced slenderness ratio

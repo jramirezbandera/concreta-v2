@@ -134,7 +134,7 @@ export const LABELS = {
     descLong: 'Canto útil',
     descShort: 'Canto útil',
     unit: 'mm',
-    ref: 'CE art. 40.3.2',
+    ref: 'CE Anejo 19 §6.1',
     help: 'Canto útil: distancia desde la fibra más comprimida al centro de la armadura de tracción.',
     modules: ['rcBeams', 'rcColumns', 'punching'],
   },
@@ -144,7 +144,7 @@ export const LABELS = {
     descLong: 'Canto útil de la armadura de compresión',
     descShort: 'Armadura compresión',
     unit: 'mm',
-    ref: 'CE art. 40.3.2',
+    ref: 'CE Anejo 19 §6.1',
     modules: ['rcColumns'],
   },
 
@@ -171,7 +171,7 @@ export const LABELS = {
     descLong: 'Longitud libre — eje fuerte',
     descShort: 'Libre eje y',
     unit: 'm',
-    ref: 'EC3 §6.3.1.3',
+    ref: 'CE Anejo 22 §6.3.1.3',
     help: 'Longitud libre de pandeo respecto al eje fuerte (y): distancia entre coacciones que impiden el desplazamiento en ese plano.',
     modules: ['steelColumns', 'timberColumns'],
   },
@@ -181,7 +181,7 @@ export const LABELS = {
     descLong: 'Longitud libre — eje débil',
     descShort: 'Libre eje z',
     unit: 'm',
-    ref: 'EC3 §6.3.1.3',
+    ref: 'CE Anejo 22 §6.3.1.3',
     help: 'Longitud libre de pandeo respecto al eje débil (z). Suele gobernar el pandeo por ser el eje de menor inercia.',
     modules: ['steelColumns', 'timberColumns'],
   },
@@ -191,7 +191,7 @@ export const LABELS = {
     descLong: 'Longitud de pandeo',
     descShort: 'Lk = β·L',
     unit: 'm',
-    ref: 'CE art. 43.1.2 / EC3 §6.3.1.3',
+    ref: 'CE Anejo 19 §5.8 / CE Anejo 22 §6.3.1.3',
     modules: ['rcColumns'],
   },
 
@@ -302,7 +302,7 @@ export const LABELS = {
     descLong: 'Recubrimiento geométrico (a cara de barra)',
     descShort: 'Recubrimiento',
     unit: 'mm',
-    ref: 'CE art. 37.2.4',
+    ref: 'CE Anejo 19 §4.4.1',
     help: 'Distancia desde la cara de hormigón hasta la barra. Protege frente a corrosión y fija el canto útil (d = h − r − Ø/2); depende de la clase de exposición.',
     modules: ['rcBeams', 'rcColumns', 'isolatedFooting', 'pileCap', 'punching'],
   },
@@ -311,8 +311,8 @@ export const LABELS = {
     sym: 'c',
     descLong: 'Recubrimiento geométrico (a la superficie de la barra)',
     descShort: 'Recubrimiento',
-    unit: 'm',
-    ref: 'CE art. 37.2.4',
+    unit: 'mm',
+    ref: 'CE Anejo 19 §4.4.1',
     help: 'Recubrimiento geométrico hasta la superficie de la barra. Depende de la clase de exposición ambiental.',
     modules: ['retainingWall'],
   },
@@ -326,7 +326,7 @@ export const LABELS = {
     descLong: 'Resistencia característica del hormigón',
     descShort: 'Característica hormigón',
     unit: 'N/mm²',
-    ref: 'CE art. 39.2 Tabla 39.2',
+    ref: 'CE Anejo 19 §3.1.2 (Tabla 3.1)',
     help: 'Resistencia característica a compresión del hormigón a 28 días (HA-25 → 25 N/mm²). De ella deriva fcd = fck/γc.',
     modules: [
       'rcBeams',
@@ -343,7 +343,7 @@ export const LABELS = {
     descLong: 'Límite elástico característico del acero de armar',
     descShort: 'Característica acero',
     unit: 'N/mm²',
-    ref: 'CE art. 32.2 Tabla 32.2.a',
+    ref: 'CE Anejo 19 §3.2.2',
     help: 'Límite elástico característico del acero de armar (B400S → 400; B500S → 500 N/mm²). De él deriva fyd = fyk/γs.',
     modules: [
       'rcBeams',
@@ -360,7 +360,7 @@ export const LABELS = {
     descLong: 'Resistencia de cálculo del hormigón',
     descShort: 'De cálculo hormigón',
     unit: 'N/mm²',
-    ref: 'CE art. 39.4 eq. 39.4.a',
+    ref: 'CE Anejo 19 §3.1.6',
     modules: ['rcBeams', 'rcColumns', 'punching'],
   },
 
@@ -369,7 +369,7 @@ export const LABELS = {
     descLong: 'Resistencia de cálculo del acero de armar',
     descShort: 'De cálculo acero',
     unit: 'N/mm²',
-    ref: 'CE art. 38.4 eq. 38.4',
+    ref: 'CE Anejo 19 §3.2.7',
     modules: ['rcBeams', 'rcColumns'],
   },
 
@@ -378,8 +378,8 @@ export const LABELS = {
     descLong: 'Clase de exposición ambiental',
     descShort: 'Clase exposición',
     unit: '—',
-    ref: 'CE art. 27 Tabla 27',
-    help: 'Clase de exposición ambiental (CE Tabla 27). Fija el recubrimiento mínimo y el límite de abertura de fisura wmax en la comprobación de fisuración.',
+    ref: 'CE Anejo 19 §4.2 (Tabla 4.1)',
+    help: 'Clase de exposición ambiental (CE Anejo 19 Tabla 4.1). Fija el recubrimiento mínimo y el límite de abertura de fisura wmax en la comprobación de fisuración.',
     modules: ['rcBeams', 'rcColumns'],
   },
 
@@ -392,7 +392,7 @@ export const LABELS = {
     descLong: 'Límite elástico del acero estructural',
     descShort: 'Límite elástico',
     unit: 'N/mm²',
-    ref: 'EN 10025 / EC3 §3.2.1 Tabla 3.1',
+    ref: 'EN 10025 / CE Anejo 22 §3.2.1 Tabla 3.1',
     help: 'Límite elástico del acero estructural (S235 → 235; S275 → 275; S355 → 355 N/mm²).',
     modules: ['steelBeams', 'steelColumns', 'compositeSection', 'empresillado'],
   },
@@ -402,7 +402,7 @@ export const LABELS = {
     descLong: 'Grado del acero estructural',
     descShort: 'Acero',
     unit: '—',
-    ref: 'EC3 §3.2.1 Tabla 3.1',
+    ref: 'CE Anejo 22 §3.2.1 Tabla 3.1',
     help: 'Grado del acero: fija el límite elástico fy. S275 → fy = 275 N/mm²; S355 → fy = 355 N/mm² (para t ≤ 40 mm).',
     modules: ['steelBeams', 'steelColumns', 'compositeSection'],
   },
@@ -522,11 +522,11 @@ export const LABELS = {
 
   qk_surface: {
     sym: 'q',
-    descLong: 'Sobrecarga de uso',
-    descShort: 'Sobrecarga de uso',
+    descLong: 'Acción variable (envolvente)',
+    descShort: 'Acción variable',
     unit: 'kN/m²',
     ref: 'CTE DB-SE-AE §3 Tabla 3.1',
-    help: 'Sobrecarga de uso según la categoría del local. Si la editas a mano, la categoría pasa a "personalizado".',
+    help: 'ÚNICA acción variable del módulo: introduce la ENVOLVENTE, es decir, la más desfavorable de las hipótesis que actúen (sobrecarga de uso, nieve, viento descendente), no la última que hayas mirado. En cubiertas accesibles solo para conservación (cat. G) la sobrecarga de uso NO es concomitante con nieve ni viento (DB-SE-AE 3.1.1): gobierna la mayor de ellas. Si la editas a mano, la categoría pasa a "Personalizada".',
     modules: ['steelBeams'],
   },
 
@@ -546,7 +546,17 @@ export const LABELS = {
     unit: '—',
     ref: 'CTE DB-SE-AE §3 Tabla 3.1',
     help: 'Categoría de uso del CTE: fija la sobrecarga q y los coeficientes ψ de combinación de acciones.',
-    modules: ['rcBeams', 'steelBeams', 'timberBeams'],
+    modules: ['rcBeams', 'timberBeams'],
+  },
+
+  variableAction: {
+    sym: '',
+    descLong: 'Acción variable dominante',
+    descShort: 'Acción',
+    unit: '—',
+    ref: 'CTE DB-SE-AE T.3.1 / DB-SE T.4.2',
+    help: 'Qué acción gobierna la envolvente q: una categoría de uso de la Tabla 3.1 (que autorrellena su sobrecarga), o nieve/viento (el valor lo introduces tú). Fija además los coeficientes ψ de combinación: usar "Personalizada" con una envolvente de nieve aplicaría ψ de sobrecarga de uso, no las de nieve.',
+    modules: ['steelBeams'],
   },
 
   Lcr_LTB: {
@@ -554,7 +564,7 @@ export const LABELS = {
     descLong: 'Longitud de pandeo lateral',
     descShort: 'Longitud pandeo',
     unit: 'm',
-    ref: 'EC3 §6.3.2.2',
+    ref: 'CE Anejo 22 §6.3.2.2',
     help: 'Distancia entre puntos de arriostramiento del ala comprimida. Gobierna el pandeo lateral-torsional (vuelco). Por defecto = L; redúcela si hay arriostramientos intermedios.',
     modules: ['steelBeams'],
   },
@@ -592,7 +602,7 @@ export const LABELS = {
     descLong: 'Coeficiente de combinación cuasipermanente',
     descShort: 'Combinación cuasipermanente',
     unit: '—',
-    ref: 'CTE DB-SE §4.2.4 Tabla 4.2 / CE art. 13.2',
+    ref: 'CTE DB-SE §4.2.4 Tabla 4.2 / CE Anejo 18',
     modules: ['rcBeams', 'timberBeams'],
   },
 
@@ -671,7 +681,7 @@ export const LABELS = {
     descShort: 'Momento eje x',
     unit: 'kNm',
     quantity: 'moment',
-    ref: 'CE art. 42',
+    ref: 'CTE DB-SE §4.2.1',
     help: 'Momento de cálculo (ELU) en planta alrededor del eje x.',
     modules: ['isolatedFooting', 'pileCap', 'empresillado'],
   },
@@ -682,7 +692,7 @@ export const LABELS = {
     descShort: 'Momento eje y',
     unit: 'kNm',
     quantity: 'moment',
-    ref: 'CE art. 42',
+    ref: 'CTE DB-SE §4.2.1',
     help: 'Momento de cálculo (ELU) en planta alrededor del eje y.',
     modules: ['isolatedFooting', 'pileCap', 'empresillado'],
   },
@@ -794,7 +804,7 @@ export const LABELS = {
     descLong: 'Coeficiente parcial del hormigón',
     descShort: 'γc',
     unit: '—',
-    ref: 'CE art. 15.3 Tabla 15.3.a',
+    ref: 'CE Anejo 19 §2.4.2.4 (Tabla 2.1N)',
     modules: ['rcBeams', 'rcColumns', 'punching', 'isolatedFooting', 'pileCap', 'retainingWall'],
   },
 
@@ -803,7 +813,7 @@ export const LABELS = {
     descLong: 'Coeficiente parcial del acero de armar',
     descShort: 'γs',
     unit: '—',
-    ref: 'CE art. 15.3 Tabla 15.3.a',
+    ref: 'CE Anejo 19 §2.4.2.4 (Tabla 2.1N)',
     modules: ['rcBeams', 'rcColumns', 'punching', 'isolatedFooting', 'pileCap', 'retainingWall'],
   },
 
@@ -812,7 +822,7 @@ export const LABELS = {
     descLong: 'Coeficiente parcial — resistencia de la sección',
     descShort: 'Resistencia sección',
     unit: '—',
-    ref: 'EC3 §6.1(1)',
+    ref: 'CE Anejo 22 §6.1(1)',
     modules: ['steelBeams', 'steelColumns', 'compositeSection', 'empresillado'],
   },
 
@@ -821,7 +831,7 @@ export const LABELS = {
     descLong: 'Coeficiente parcial — resistencia al pandeo',
     descShort: 'Resistencia pandeo',
     unit: '—',
-    ref: 'EC3 §6.1(1)',
+    ref: 'CE Anejo 22 §6.1(1)',
     modules: ['steelColumns', 'empresillado'],
   },
 
@@ -946,7 +956,7 @@ export const LABELS = {
     descLong: 'Factor de reducción por pandeo lateral',
     descShort: 'Reducción vuelco',
     unit: '—',
-    ref: 'EC3 §6.3.2.2 eq. 6.56',
+    ref: 'CE Anejo 22 §6.3.2.2 eq. 6.56',
     modules: ['steelBeams', 'steelColumns'],
   },
 
@@ -955,7 +965,7 @@ export const LABELS = {
     descLong: 'Factor de reducción por pandeo por flexión — eje y',
     descShort: 'Reducción pandeo y',
     unit: '—',
-    ref: 'EC3 §6.3.1.2 eq. 6.49',
+    ref: 'CE Anejo 22 §6.3.1.2 eq. 6.49',
     modules: ['steelColumns'],
   },
 
@@ -964,7 +974,7 @@ export const LABELS = {
     descLong: 'Factor de reducción por pandeo por flexión — eje z',
     descShort: 'Reducción pandeo z',
     unit: '—',
-    ref: 'EC3 §6.3.1.2 eq. 6.49',
+    ref: 'CE Anejo 22 §6.3.1.2 eq. 6.49',
     modules: ['steelColumns'],
   },
 
@@ -973,7 +983,7 @@ export const LABELS = {
     descLong: 'Esbeltez reducida — pandeo lateral',
     descShort: 'Esbeltez vuelco',
     unit: '—',
-    ref: 'EC3 §6.3.2.2 eq. 6.56',
+    ref: 'CE Anejo 22 §6.3.2.2 eq. 6.56',
     modules: ['steelBeams', 'steelColumns'],
   },
 
@@ -982,7 +992,7 @@ export const LABELS = {
     descLong: 'Esbeltez reducida — eje y',
     descShort: 'Esbeltez eje y',
     unit: '—',
-    ref: 'EC3 §6.3.1.3 eq. 6.50',
+    ref: 'CE Anejo 22 §6.3.1.3 eq. 6.50',
     modules: ['steelColumns'],
   },
 
@@ -991,7 +1001,7 @@ export const LABELS = {
     descLong: 'Esbeltez reducida — eje z',
     descShort: 'Esbeltez eje z',
     unit: '—',
-    ref: 'EC3 §6.3.1.3 eq. 6.50',
+    ref: 'CE Anejo 22 §6.3.1.3 eq. 6.50',
     modules: ['steelColumns'],
   },
 
@@ -1000,7 +1010,7 @@ export const LABELS = {
     descLong: 'Factor de longitud de pandeo',
     descShort: 'β pandeo',
     unit: '—',
-    ref: 'CE art. 43.1.2 Tabla 43.1.2 / EC3 §6.3.1.3',
+    ref: 'CE Anejo 19 §5.8 / CE Anejo 22 §6.3.1.3',
     help: 'Factor de longitud de pandeo según las coacciones de los extremos (biempotrado 0.5, biarticulado 1.0, ménsula 2.0). Define Lk = β·L.',
     modules: ['rcColumns', 'steelColumns', 'timberColumns', 'empresillado'],
   },
@@ -1010,7 +1020,7 @@ export const LABELS = {
     descLong: 'Factor de excentricidad de carga',
     descShort: 'β excentricidad',
     unit: '—',
-    ref: 'CE art. 46.3.2',
+    ref: 'CE Anejo 19 §6.4.3',
     modules: ['punching'],
   },
 
@@ -1019,7 +1029,7 @@ export const LABELS = {
     descLong: 'Momento crítico elástico — pandeo lateral',
     descShort: 'Crítico elástico',
     unit: 'kNm',
-    ref: 'EC3 §6.3.2.2 (anejo informativo)',
+    ref: 'CE Anejo 22 §6.3.2.2 (anejo informativo)',
     modules: ['steelColumns'],
   },
 
@@ -1032,7 +1042,7 @@ export const LABELS = {
     descLong: 'Momento resistente de la sección',
     descShort: 'Resistente sección',
     unit: 'kNm',
-    ref: 'CE art. 42.1.2',
+    ref: 'CE Anejo 19 §6.1',
     modules: ['rcBeams'],
   },
 
@@ -1041,7 +1051,7 @@ export const LABELS = {
     descLong: 'Momento resistente — eje y',
     descShort: 'Resistente eje y',
     unit: 'kNm',
-    ref: 'EC3 §6.2.5 / CE art. 42.1.2',
+    ref: 'CE Anejo 22 §6.2.5 / CE Anejo 19 §6.1',
     modules: ['rcColumns', 'steelColumns'],
   },
 
@@ -1050,7 +1060,7 @@ export const LABELS = {
     descLong: 'Momento resistente — eje z',
     descShort: 'Resistente eje z',
     unit: 'kNm',
-    ref: 'EC3 §6.2.5 / CE art. 42.1.2',
+    ref: 'CE Anejo 22 §6.2.5 / CE Anejo 19 §6.1',
     modules: ['rcColumns', 'steelColumns'],
   },
 
@@ -1059,7 +1069,7 @@ export const LABELS = {
     descLong: 'Axil resistente máximo',
     descShort: 'Axil máximo',
     unit: 'kN',
-    ref: 'CE art. 42.1.2',
+    ref: 'CE Anejo 19 §6.1',
     modules: ['rcColumns'],
   },
 
@@ -1068,7 +1078,7 @@ export const LABELS = {
     descLong: 'Cortante resistente sin armadura',
     descShort: 'Sin armadura',
     unit: 'kN',
-    ref: 'CE art. 44.2.3.2.1',
+    ref: 'CE Anejo 19 §6.2.2',
     modules: ['rcBeams'],
   },
 
@@ -1077,7 +1087,7 @@ export const LABELS = {
     descLong: 'Cortante resistente con cercos',
     descShort: 'Con cercos',
     unit: 'kN',
-    ref: 'CE art. 44.2.3.2.2',
+    ref: 'CE Anejo 19 §6.2.3',
     modules: ['rcBeams'],
   },
 
@@ -1086,7 +1096,7 @@ export const LABELS = {
     descLong: 'Momento resistente de la sección',
     descShort: 'Resistente sección',
     unit: 'kNm',
-    ref: 'EC3 §6.2.5 eq. 6.12-6.14',
+    ref: 'CE Anejo 22 §6.2.5 eq. 6.12-6.14',
     modules: ['steelBeams'],
   },
 
@@ -1095,7 +1105,7 @@ export const LABELS = {
     descLong: 'Cortante resistente de la sección',
     descShort: 'Resistente sección',
     unit: 'kN',
-    ref: 'EC3 §6.2.6 eq. 6.17-6.18',
+    ref: 'CE Anejo 22 §6.2.6 eq. 6.17-6.18',
     modules: ['steelBeams'],
   },
 
@@ -1104,7 +1114,7 @@ export const LABELS = {
     descLong: 'Momento resistente a vuelco lateral',
     descShort: 'Resistente vuelco',
     unit: 'kNm',
-    ref: 'EC3 §6.3.2.1 eq. 6.54',
+    ref: 'CE Anejo 22 §6.3.2.1 eq. 6.54',
     modules: ['steelBeams', 'steelColumns'],
   },
 
@@ -1113,7 +1123,7 @@ export const LABELS = {
     descLong: 'Axil resistente de la sección',
     descShort: 'Resistente sección',
     unit: 'kN',
-    ref: 'EC3 §6.2.4 eq. 6.10',
+    ref: 'CE Anejo 22 §6.2.4 eq. 6.10',
     modules: ['steelColumns'],
   },
 
@@ -1122,7 +1132,7 @@ export const LABELS = {
     descLong: 'Axil resistente a pandeo — eje y',
     descShort: 'Pandeo eje y',
     unit: 'kN',
-    ref: 'EC3 §6.3.1.1 eq. 6.46',
+    ref: 'CE Anejo 22 §6.3.1.1 eq. 6.46',
     modules: ['steelColumns', 'empresillado'],
   },
 
@@ -1131,7 +1141,7 @@ export const LABELS = {
     descLong: 'Axil resistente a pandeo — eje z',
     descShort: 'Pandeo eje z',
     unit: 'kN',
-    ref: 'EC3 §6.3.1.1 eq. 6.46',
+    ref: 'CE Anejo 22 §6.3.1.1 eq. 6.46',
     modules: ['steelColumns', 'empresillado'],
   },
 
@@ -1140,7 +1150,7 @@ export const LABELS = {
     descLong: 'Axil resistente a compresión con pandeo (gobernante)',
     descShort: 'Compresión gob.',
     unit: 'kN',
-    ref: 'EC3 §6.3.1.1',
+    ref: 'CE Anejo 22 §6.3.1.1',
     modules: ['compositeSection'],
   },
 
@@ -1173,7 +1183,7 @@ export const LABELS = {
     descLong: 'Momento resistente — eje z (débil)',
     descShort: 'Mz,Rd',
     unit: 'kNm',
-    ref: 'EC3 §6.2.5',
+    ref: 'CE Anejo 22 §6.2.5',
     modules: ['compositeSection'],
   },
 
@@ -1182,7 +1192,7 @@ export const LABELS = {
     descLong: 'Cortante resistente sin cercos',
     descShort: 'Sin cercos',
     unit: 'N/mm²',
-    ref: 'CE art. 46.3.3',
+    ref: 'CE Anejo 19 §6.4.4',
     modules: ['punching', 'isolatedFooting'],
   },
 
@@ -1191,7 +1201,7 @@ export const LABELS = {
     descLong: 'Cortante resistente con cercos',
     descShort: 'Con cercos',
     unit: 'N/mm²',
-    ref: 'CE art. 46.3.4',
+    ref: 'CE Anejo 19 §6.4.5',
     modules: ['punching'],
   },
 
@@ -1200,7 +1210,7 @@ export const LABELS = {
     descLong: 'Cortante resistente máximo en cara de pilar',
     descShort: 'Máximo cara pilar',
     unit: 'N/mm²',
-    ref: 'CE art. 46.3.2',
+    ref: 'CE Anejo 19 §6.4.5(3)',
     modules: ['punching'],
   },
 
@@ -1209,7 +1219,7 @@ export const LABELS = {
     descLong: 'Cortante de punzonamiento actuante',
     descShort: 'Punzonamiento actuante',
     unit: 'N/mm²',
-    ref: 'CE art. 46.3.2',
+    ref: 'CE Anejo 19 §6.4.3',
     modules: ['punching', 'isolatedFooting'],
   },
 
@@ -1218,7 +1228,7 @@ export const LABELS = {
     descLong: 'Perímetro crítico',
     descShort: 'Crítico a 2d del pilar',
     unit: 'mm',
-    ref: 'CE art. 46.3.2',
+    ref: 'CE Anejo 19 §6.4.2',
     modules: ['punching', 'isolatedFooting'],
   },
 
@@ -1317,7 +1327,7 @@ export const LABELS = {
     descLong: 'Separación entre barras',
     descShort: 'Separación',
     unit: 'mm',
-    ref: 'CE art. 42.3.1 (separación máxima)',
+    ref: 'CE Anejo 19 §8.2 (separación máxima)',
     modules: [
       'rcBeams',
       'rcColumns',
@@ -1349,7 +1359,7 @@ export const LABELS = {
     descLong: 'Área total de armadura longitudinal',
     descShort: 'Total longitudinal',
     unit: 'mm²',
-    ref: 'CE art. 42.3 (cuantía mínima)',
+    ref: 'CE Anejo 19 §9.2.1.1 / §9.5.2 (cuantía mínima)',
     modules: ['rcBeams', 'rcColumns'],
   },
 
@@ -1358,7 +1368,7 @@ export const LABELS = {
     descLong: 'Armadura de tracción',
     descShort: 'Tracción',
     unit: 'mm²',
-    ref: 'CE art. 42.3.2',
+    ref: 'CE Anejo 19 §9.2.1.1',
     modules: ['rcBeams'],
   },
 
@@ -1367,7 +1377,7 @@ export const LABELS = {
     descLong: 'Armadura de compresión',
     descShort: 'Compresión',
     unit: 'mm²',
-    ref: 'CE art. 42.3.3',
+    ref: 'CE Anejo 19 §9.2.1.1',
     modules: ['rcBeams'],
   },
 
@@ -1376,7 +1386,7 @@ export const LABELS = {
     descLong: 'Armadura requerida — dirección x',
     descShort: 'Requerida x',
     unit: 'mm²/m',
-    ref: 'CE art. 42.1.2 / art. 58.4.2',
+    ref: 'CE Anejo 19 §6.1',
     modules: ['isolatedFooting', 'pileCap'],
   },
 
@@ -1385,7 +1395,7 @@ export const LABELS = {
     descLong: 'Armadura requerida — dirección y',
     descShort: 'Requerida y',
     unit: 'mm²/m',
-    ref: 'CE art. 42.1.2 / art. 58.4.2',
+    ref: 'CE Anejo 19 §6.1',
     modules: ['isolatedFooting', 'pileCap'],
   },
 
@@ -1394,7 +1404,7 @@ export const LABELS = {
     descLong: 'Armadura mínima geométrica — dirección x',
     descShort: 'Mínima x',
     unit: 'mm²/m',
-    ref: 'CE art. 42.3.5',
+    ref: 'CE Anejo 19 §9.2.1.1',
     modules: ['isolatedFooting', 'pileCap'],
   },
 
@@ -1403,7 +1413,7 @@ export const LABELS = {
     descLong: 'Armadura mínima geométrica — dirección y',
     descShort: 'Mínima y',
     unit: 'mm²/m',
-    ref: 'CE art. 42.3.5',
+    ref: 'CE Anejo 19 §9.2.1.1',
     modules: ['isolatedFooting', 'pileCap'],
   },
 
@@ -1730,7 +1740,7 @@ export const LABELS = {
     descLong: 'Abertura característica de fisura',
     descShort: 'Abertura fisura',
     unit: 'mm',
-    ref: 'CE art. 49.2.4 eq. 49.2.3.b',
+    ref: 'CE Anejo 19 §7.3.4',
     modules: ['rcBeams'],
   },
 
@@ -1739,7 +1749,7 @@ export const LABELS = {
     descLong: 'Flecha máxima',
     descShort: 'Flecha máxima',
     unit: 'mm',
-    ref: 'CE art. 50 / EC3 §7.2.1',
+    ref: 'CTE DB-SE §4.3.3 / CE Anejo 22 §7.2.1',
     modules: ['steelBeams'],
   },
 

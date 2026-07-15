@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { rcBeamDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { rcBeamDefaults, type RCBeamInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -7,10 +8,14 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { exportRCBeamsPDF, rcBeamsFallbackFilename } from '../../lib/pdf/rcBeams';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { rcBeamsAdapter, summarizeRcBeamResults } from '../../lib/ai/modules/rcBeams';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { RCBeamsInputs } from './RCBeamsInputs';
 import { RCBeamsSVG } from './RCBeamsSVG';
 import { RCBeamsResults } from './RCBeamsResults';
@@ -28,7 +33,38 @@ export function RCBeamsModule() {
   const [section, setSection] = useState<'vano' | 'apoyo'>('vano');
   const isSimple = state.mode === 'simple';
 
+  // "Rellenar con IA" (ola 2)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: `mode` PRIMERO (decide si la sección de apoyo existe para
+  // el usuario), y `loadType` antes que `psi2Custom` (lo gatea).
+  const handleAiApply = (plan: AiApplyPlan<RCBeamInputs>) => {
+    const ORDER: (keyof RCBeamInputs)[] = [
+      'mode', 'b', 'h', 'cover', 'fck', 'fyk', 'exposureClass',
+      'loadType', 'psi2Custom', 'L', 'structSystem',
+      'vano_Md', 'vano_VEd', 'vano_M_G', 'vano_M_Q',
+      'vano_bot_nBars', 'vano_bot_barDiam', 'vano_top_nBars', 'vano_top_barDiam',
+      'vano_stirrupDiam', 'vano_stirrupSpacing', 'vano_stirrupLegs',
+      'apoyo_Md', 'apoyo_VEd', 'apoyo_M_G', 'apoyo_M_Q',
+      'apoyo_top_nBars', 'apoyo_top_barDiam', 'apoyo_bot_nBars', 'apoyo_bot_barDiam',
+      'apoyo_stirrupDiam', 'apoyo_stirrupSpacing', 'apoyo_stirrupLegs',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as RCBeamInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   const result = useMemo(() => calcRCBeam(state), [state]);
+  // Resumen de resultados para el prompt del chat IA. Depende del MODO: en
+  // "simple" la app solo muestra el vano, y el resumen debe reflejar lo que se ve.
+  const aiResults = useMemo(() => summarizeRcBeamResults(result, state.mode), [result, state.mode]);
 
   // PDF export stays available even when result is invalid — engineers may
   // need a PDF to document a failing/non-conforming section (memory note).
@@ -92,6 +128,14 @@ export function RCBeamsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <RCBeamsInputs
               state={state}
               section={section}
@@ -224,6 +268,16 @@ export function RCBeamsModule() {
           );
         })()}
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={rcBeamsAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal

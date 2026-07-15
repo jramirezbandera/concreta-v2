@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { steelColumnDefaults } from '../../data/defaults';
+import { Sparkles } from 'lucide-react';
+import { steelColumnDefaults, type SteelColumnInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -8,10 +9,14 @@ import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { getBetaForBCType } from '../../lib/calculations/steelColumnBC';
 import { exportSteelColumnsPDF, steelColumnsFallbackFilename } from '../../lib/pdf/steelColumns';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { steelColumnsAdapter, summarizeSteelColumnResults } from '../../lib/ai/modules/steelColumns';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { SteelColumnsInputs } from './SteelColumnsInputs';
 import { SteelColumnsSVG } from './SteelColumnsSVG';
 import { SteelColumnInteractionSVG } from './SteelColumnInteractionSVG';
@@ -23,6 +28,30 @@ export function SteelColumnsModule() {
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
 
+  // "Rellenar con IA" (ola 1)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // ORDER del contrato: `sectionType` PRIMERO (decide el catálogo de tamaños y
+  // si el perfil se define con size o con D/t), y `bcType` antes que β (el plan
+  // trae los β derivados cuando la condición de apoyo no es "custom").
+  const handleAiApply = (plan: AiApplyPlan<SteelColumnInputs>) => {
+    const ORDER: (keyof SteelColumnInputs)[] = [
+      'sectionType', 'size', 'steel', 'chs_D', 'chs_t', 'chs_process',
+      'Ly', 'Lz', 'bcType', 'beta_y', 'beta_z',
+      'Ned', 'My_Ed', 'Mz_Ed',
+    ];
+    for (const k of ORDER) {
+      const v = plan.fields[k];
+      if (v !== undefined) setField(k, v as SteelColumnInputs[typeof k]);
+    }
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  };
+
   // Resolve effective inputs: derive beta from shared bcType (non-custom)
   const effectiveInputs = useMemo(() => {
     if (state.bcType === 'custom') return state;
@@ -31,6 +60,8 @@ export function SteelColumnsModule() {
   }, [state]);
 
   const result = useMemo(() => calcSteelColumn(effectiveInputs), [effectiveInputs]);
+  // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
+  const aiResults = useMemo(() => summarizeSteelColumnResults(result), [result]);
 
   const zeroLoads = state.Ned === 0 && state.My_Ed === 0 && state.Mz_Ed === 0;
 
@@ -92,6 +123,14 @@ export function SteelColumnsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Rellenar con IA
+            </button>
             <SteelColumnsInputs state={state} setField={setField} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -177,6 +216,16 @@ export function SteelColumnsModule() {
           </div>
         )}
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={steelColumnsAdapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal
