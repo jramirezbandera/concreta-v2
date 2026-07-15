@@ -11,8 +11,8 @@
 
 .landing-root {
   @media (max-width: 1100px) {
-    /* minmax(0,1fr) — without the 0 floor, the track grows to the app-preview's
-       ~540px min-content and drags the hero copy off-screen on phones. */
+    /* minmax(0,1fr) — without the 0 floor, the track grows to the hero preview
+       frame's min-content and drags the hero copy off-screen on phones. */
     .hero-inner-split {
       grid-template-columns: minmax(0, 1fr);
       gap: 40px;
@@ -74,15 +74,9 @@
     .nav-mobile-menu {
       display: flex;
     }
-    /* The app-preview is a 4-column desktop UI — illegible scaled into a phone.
-       Hide it (and its now-orphaned carousel tabs); the copy + CTAs carry the
-       hero, and the Módulos section below proves the product on mobile. */
-    .hero-preview {
-      display: none;
-    }
-    .hero-carousel-tabs {
-      display: none;
-    }
+    /* The hero preview is now a single FEM schematic (beam + supports + loads),
+       legible at phone width — it stacks below the copy (hero-inner-split
+       collapses to 1 column) and stays the openable example on mobile. */
     .mod-grid {
       grid-template-columns: 1fr;
     }
@@ -135,12 +129,16 @@
   }
 
   /* Reduced motion — silence auto-motion for vestibular-sensitive users.
-     The carousel still advances on click/tab; it just stops moving on its own. */
+     Hover/focus affordances stay (they only fire on interaction). */
   @media (prefers-reduced-motion: reduce) {
-    .ht-progress,
-    .hero-preview-carousel .hero-preview-frame,
+    .hero-preview-carousel .hero-slide,
     .link-flow-arrow {
       animation: none;
+    }
+    /* Slides still auto-advance (user preference); just drop the animated
+       progress bar so there's no static filled bar under reduced-motion. */
+    .st-progress {
+      display: none;
     }
   }
 }

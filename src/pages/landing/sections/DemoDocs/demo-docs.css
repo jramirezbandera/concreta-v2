@@ -26,16 +26,6 @@
     overflow: hidden;
     border-bottom: 1px solid var(--border-sub);
   }
-  .demo-thumb-thumb {
-    position: absolute;
-    inset: 0;
-    opacity: 0.35;
-    filter: saturate(0.85);
-    pointer-events: none;
-  }
-  .demo-thumb-thumb .app-preview {
-    height: 100%;
-  }
   .demo-thumb-overlay {
     position: absolute;
     left: 32px;

@@ -1,15 +1,9 @@
 /* animations.css — keyframes shared by the marketing site.
    Keyframes MUST stay top-level (cannot be nested under .landing-root). */
 
-@keyframes lp-ht-progress {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-@keyframes lp-carousel-in {
+/* Hero carousel: slide fades in on module change; tab progress fills over the
+   auto-advance interval. */
+@keyframes lp-slide-in {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -17,6 +11,14 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@keyframes lp-slide-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 @keyframes lp-arrow {

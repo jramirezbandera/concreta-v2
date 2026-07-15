@@ -121,81 +121,159 @@
   .hero-preview {
     position: relative;
   }
+  /* Openable product frame — a real FEM 1D case that deep-links into the app.
+     The whole frame is a link (design T4/D5: the star visual is clickable and
+     opens the same case it shows). */
   .hero-preview-frame {
+    display: block;
     background: var(--bg-surface);
     border: 1px solid var(--border-main);
     border-radius: 6px;
     overflow: hidden;
     box-shadow: var(--shadow-frame);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 150ms ease-in-out,
+      box-shadow 150ms ease-in-out,
+      transform 150ms ease-in-out;
   }
-  .hero-preview-caption {
-    margin-top: 10px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    display: flex;
-    justify-content: space-between;
+  .hero-preview-frame:hover,
+  .hero-preview-frame:focus-visible {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .hero-preview-frame:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
-  /* Module carousel — tabs under the hero copy */
-  .hero-carousel-tabs {
+  .hero-preview-carousel .hero-slide {
+    animation: lp-slide-in 350ms ease-out;
+  }
+
+  /* Frame header — breadcrumb (mirrors the app topbar) + output tag */
+  .hero-slide-bar {
     display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin: 32px 0 32px;
-    border-top: 1px solid var(--border-sub);
-    border-bottom: 1px solid var(--border-sub);
-  }
-  .hero-carousel-tab {
-    display: grid;
-    grid-template-columns: 32px 1fr auto;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
-    padding: 10px 4px;
-    background: transparent;
-    border: none;
+    padding: 9px 14px;
     border-bottom: 1px solid var(--border-sub);
-    text-align: left;
-    cursor: pointer;
-    position: relative;
-    font-family: inherit;
-    color: var(--text-secondary);
-    transition: color 150ms ease-in-out;
+    background: var(--bg-surface);
   }
-  .hero-carousel-tab:last-child {
-    border-bottom: none;
-  }
-  .hero-carousel-tab:hover {
-    color: var(--text-primary);
-  }
-  .hero-carousel-tab.active {
-    color: var(--text-primary);
-  }
-  .hero-carousel-tab .ht-num {
-    color: var(--text-disabled);
+  .hero-slide-bread {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
-  .hero-carousel-tab.active .ht-num {
-    color: var(--accent);
-  }
-  .hero-carousel-tab .ht-name {
-    font-size: 14px;
+  .hero-slide-bread .hero-slide-sub {
+    color: var(--text-primary);
     font-weight: 500;
   }
-  .hero-carousel-tab .ht-group {
-    font-size: 10px;
+  .hero-slide-tag {
+    font-size: 11px;
     letter-spacing: 0.06em;
+    white-space: nowrap;
   }
-  .ht-progress {
+
+  /* Canvas — the structural schematic on the dot grid */
+  .hero-slide-canvas {
+    /* background-color only — the .dot-grid class owns background-image; a
+       `background` shorthand here would clobber the dots. */
+    background-color: var(--bg-canvas);
+    padding: 8px 12px;
+  }
+  .hero-slide-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Frame footer — case facts + the open affordance */
+  .hero-slide-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+    border-top: 1px solid var(--border-sub);
+    font-size: 11.5px;
+  }
+  .hero-slide-facts {
+    color: var(--text-secondary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hero-slide-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .hero-slide-open .arr {
+    transition: transform 150ms ease-in-out;
+  }
+  .hero-preview-frame:hover .hero-slide-open .arr,
+  .hero-preview-frame:focus-visible .hero-slide-open .arr {
+    transform: translateX(4px);
+  }
+
+  /* Carousel tabs — one per module, below the frame */
+  .hero-slide-tabs {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .hero-slide-tab {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 92px;
+    padding: 8px 10px 9px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-sub);
+    border-radius: 4px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    transition:
+      color 150ms ease-in-out,
+      border-color 150ms ease-in-out;
+  }
+  .hero-slide-tab:hover {
+    color: var(--text-primary);
+    border-color: var(--border-main);
+  }
+  .hero-slide-tab.active {
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  .hero-slide-tab .st-name {
+    display: block;
+  }
+  .st-progress {
     position: absolute;
     left: 0;
-    bottom: -1px;
+    bottom: 0;
     width: 100%;
-    height: 1px;
+    height: 2px;
     background: var(--accent);
     transform-origin: left;
-    animation: lp-ht-progress 4s linear forwards;
-  }
-  .hero-preview-carousel .hero-preview-frame {
-    animation: lp-carousel-in 350ms ease-out;
+    animation: lp-slide-progress 4500ms linear forwards;
   }
 }

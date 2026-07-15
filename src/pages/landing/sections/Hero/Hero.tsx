@@ -1,16 +1,28 @@
-// Hero.tsx — landing hero with eyebrow, title, sub, CTAs, meta strip, and
-// a rotating module preview carousel.
+// Hero.tsx — landing hero: eyebrow + title + sub + CTAs + meta strip, and a
+// rotating product frame that cycles through four modules (design 2026-07-15).
+//
+// The frame shows one module at a time — RC beams, steel beams, retaining wall,
+// FEM — to communicate the breadth of disciplines Concreta covers. Honest links:
+// FEM opens its preloaded case (deep-link); the other three open their real
+// module via its route. Each slide draws a real schematic (canvases.tsx), never
+// the hand-drawn full-UI replica (AppPreview) that drifted from the app.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { AppPreview, MODULE_CONFIG } from '../../AppPreview';
+import { MODULE_LIBRARY } from '../../modules';
+import { HERO_SLIDES } from '../../heroCase';
+import { HERO_CANVASES } from './canvases';
 import './hero.css';
+
+// Derived from the module library so the headline count never drifts from the
+// grid (design-review T5). Today: 18.
+const MODULE_COUNT = MODULE_LIBRARY.length;
+
+const ROTATE_MS = 4500;
 
 const HERO_TAGLINE = 'El cálculo estructural que no te frena.';
 const HERO_SUB =
   'Concreta es la herramienta de cálculo estructural pensada por arquitectos e ingenieros calculistas españoles: comprobaciones normativas rápidas, trazables y defendibles ante visado y obra.';
-
-const CAROUSEL_ORDER = ['rc-beams', 'rc-punching', 'steel-beams', 'walls', 'timber'];
 
 function HeroEyebrow() {
   return (
@@ -36,12 +48,12 @@ function HeroMeta() {
   return (
     <div className="hero-meta">
       <div className="hero-meta-item">
-        <div className="hero-meta-v mono">12+</div>
+        <div className="hero-meta-v mono">{MODULE_COUNT}</div>
         <div className="hero-meta-l">módulos</div>
       </div>
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">PDF</div>
-        <div className="hero-meta-l">vectorial en 5 s</div>
+        <div className="hero-meta-l">vectorial en 5&nbsp;s</div>
       </div>
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">PWA</div>
@@ -55,21 +67,23 @@ function HeroMeta() {
   );
 }
 
-export function HeroCarousel() {
+export function Hero() {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
+    // Auto-advance the carousel; pause on hover/focus. Reduced-motion is handled
+    // in CSS (the slide-in + progress-bar animations are dropped), but the slides
+    // still cycle — showing all four is the point.
     if (paused) return;
-    // Respect reduced-motion: no auto-advance. Tabs still work on click/keyboard.
-    // matchMedia is absent in some environments (jsdom, SSR) — guard it.
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = setInterval(() => setIdx((i) => (i + 1) % CAROUSEL_ORDER.length), 4000);
+    const timer = setInterval(() => setIdx((i) => (i + 1) % HERO_SLIDES.length), ROTATE_MS);
     return () => clearInterval(timer);
   }, [paused]);
 
-  const current = CAROUSEL_ORDER[idx];
-  const cfg = MODULE_CONFIG[current];
+  const slide = HERO_SLIDES[idx];
+  const Canvas = HERO_CANVASES[slide.canvas];
+
+  const pause = { onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false) };
 
   return (
     <section className="hero">
@@ -79,40 +93,57 @@ export function HeroCarousel() {
           <h1 className="hero-title">{HERO_TAGLINE}</h1>
           <p className="hero-sub">{HERO_SUB}</p>
           <HeroCTAs />
+          <HeroMeta />
+        </div>
+
+        <div className="hero-preview hero-preview-carousel" {...pause}>
+          <Link
+            key={slide.id}
+            to={slide.href}
+            className="hero-preview-frame hero-slide"
+            aria-label={`Abrir en la app: ${slide.module} — ${slide.name}`}
+          >
+            <div className="hero-slide-bar">
+              <div className="hero-slide-bread mono">
+                <span>{slide.group}</span>
+                <span className="dim">/</span>
+                <span>{slide.module}</span>
+                <span className="dim">/</span>
+                <span className="hero-slide-sub">{slide.name}</span>
+              </div>
+              <span className="hero-slide-tag mono dim">{slide.tag}</span>
+            </div>
+            <div className="hero-slide-canvas dot-grid">
+              <Canvas />
+            </div>
+            <div className="hero-slide-foot mono">
+              <span className="hero-slide-facts">{slide.facts}</span>
+              <span className="hero-slide-open">
+                {slide.cta} <span className="arr">→</span>
+              </span>
+            </div>
+          </Link>
+
           <div
-            className="hero-carousel-tabs"
-            onMouseEnter={() => setPaused(true)}
-            onMouseLeave={() => setPaused(false)}
+            className="hero-slide-tabs"
+            role="tablist"
+            aria-label="Módulos de ejemplo"
             onFocus={() => setPaused(true)}
             onBlur={() => setPaused(false)}
           >
-            {CAROUSEL_ORDER.map((m, i) => (
+            {HERO_SLIDES.map((s, i) => (
               <button
                 type="button"
-                key={m}
-                className={`hero-carousel-tab ${i === idx ? 'active' : ''}`}
+                key={s.id}
+                role="tab"
+                aria-selected={i === idx}
+                className={`hero-slide-tab ${i === idx ? 'active' : ''}`}
                 onClick={() => { setIdx(i); setPaused(true); }}
               >
-                <span className="mono ht-num">{String(i + 1).padStart(2, '0')}</span>
-                <span className="ht-name">{MODULE_CONFIG[m].name}</span>
-                <span className="ht-group mono dim">{MODULE_CONFIG[m].group}</span>
-                {i === idx && !paused && <span key={`p${idx}`} className="ht-progress" />}
+                <span className="st-name">{s.tabLabel}</span>
+                {i === idx && !paused && <span key={`p${idx}`} className="st-progress" />}
               </button>
             ))}
-          </div>
-          <HeroMeta />
-        </div>
-        <div
-          className="hero-preview hero-preview-carousel"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-        >
-          <div className="hero-preview-frame" key={current}>
-            <AppPreview moduleId={current} accent="var(--accent)" />
-          </div>
-          <div className="hero-preview-caption mono">
-            <span>{cfg.group.toLowerCase()} / {cfg.name.toLowerCase()}</span>
-            <span className="dim">{idx + 1} / {CAROUSEL_ORDER.length}</span>
           </div>
         </div>
       </div>

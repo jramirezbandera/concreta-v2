@@ -1,6 +1,5 @@
 // DemoDocs.tsx — "Recursos" section: video demo card + docs/blog/changelog stack.
 
-import { AppPreview } from '../../AppPreview';
 import './demo-docs.css';
 
 export function DemoDocsSection() {
@@ -28,9 +27,6 @@ export function DemoDocsSection() {
               <div className="demo-thumb-overlay">
                 <div className="demo-thumb-label mono">DEMO · 4 MIN</div>
                 <div className="demo-thumb-title">Calcula una viga HA y exporta el PDF</div>
-              </div>
-              <div className="demo-thumb-thumb">
-                <AppPreview moduleId="rc-beams" accent="var(--accent)" />
               </div>
             </div>
             <div className="demo-foot">

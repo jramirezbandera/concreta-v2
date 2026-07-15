@@ -9,7 +9,7 @@
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { ScrollToHash } from './landing/ScrollToHash';
-import { HeroCarousel } from './landing/sections/Hero/Hero';
+import { Hero } from './landing/sections/Hero/Hero';
 import { ModulesSection } from './landing/sections/Modules/Modules';
 import { OutputSection } from './landing/sections/Output/Output';
 import { PhilosophySection } from './landing/sections/Philosophy/Philosophy';
@@ -31,7 +31,7 @@ export function Landing() {
       <LandingNav />
 
       <main>
-        <HeroCarousel />
+        <Hero />
         <ModulesSection />
         <OutputSection />
         <PhilosophySection />
