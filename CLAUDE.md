@@ -17,6 +17,10 @@ The in-depth app specs are in [SPECS.md](./SPECS.md).
 - jsPDF + svg2pdf.js (PDF exports)
 - Static PWA
 
+## Versioning
+
+Before you deploy the web to github pages, bump the version in package.json. Use calendar versioning: For example, if today is january 1st 2025, use `250101.0`. If doing more than one deploy on the same day increment the patch number sequentially, eg. `250101.1`
+
 ## Code Standards
 
 - Spanish Structural Code (CE) — reinforced concrete and steel
