@@ -54,12 +54,9 @@ vi.mock('@google/genai', () => {
   class MockGoogleGenAI {
     models = { generateContent: mocks.geminiGenerate };
   }
-  // ThinkingLevel es un enum de RUNTIME del SDK (el provider lo destructura del
-  // dynamic import para pedir MINIMAL sin importar el SDK estáticamente).
   return {
     GoogleGenAI: MockGoogleGenAI,
     ApiError: MockApiError,
-    ThinkingLevel: { MINIMAL: 'MINIMAL', LOW: 'LOW', MEDIUM: 'MEDIUM', HIGH: 'HIGH' },
   };
 });
 
@@ -294,12 +291,12 @@ describe('gemini.chatRaw', () => {
     mocks.geminiGenerate.mockResolvedValueOnce({ text: ENVELOPE_JSON });
     const req = makeReq();
 
-    const raw = await geminiChatRaw(req, 'AIza-test', 'gemini-3.5-flash');
+    const raw = await geminiChatRaw(req, 'AIza-test', 'gemini-3.1-flash-lite');
 
     expect(raw).toEqual(ENVELOPE);
     expect(mocks.geminiGenerate).toHaveBeenCalledTimes(1);
     const [params] = mocks.geminiGenerate.mock.calls[0] as [Record<string, unknown>];
-    expect(params.model).toBe('gemini-3.5-flash');
+    expect(params.model).toBe('gemini-3.1-flash-lite');
 
     const contents = params.contents as Record<string, unknown>[];
     expect(contents).toHaveLength(3);
@@ -419,16 +416,16 @@ describe('razonamiento — se pide el mínimo en los 3 providers', () => {
     expect(body.reasoning).toEqual({ effort: 'none' });
   });
 
-  it('gemini: thinkingLevel MINIMAL, y NUNCA junto a thinkingBudget (sería un 400)', async () => {
+  it('gemini: thinkingBudget 0 (2.5 apaga el razonamiento), y NUNCA junto a thinkingLevel (sería un 400)', async () => {
     mocks.geminiGenerate.mockResolvedValueOnce({ text: ENVELOPE_JSON });
 
-    await geminiChatRaw(makeReq(), 'AIza-test', 'gemini-3.5-flash');
+    await geminiChatRaw(makeReq(), 'AIza-test', 'gemini-3.1-flash-lite');
 
     const [params] = mocks.geminiGenerate.mock.calls[0] as [Record<string, unknown>];
     const config = params.config as Record<string, unknown>;
     const thinking = config.thinkingConfig as Record<string, unknown>;
-    expect(thinking.thinkingLevel).toBe('MINIMAL');
-    expect(thinking.thinkingBudget).toBeUndefined();
+    expect(thinking.thinkingBudget).toBe(0);
+    expect(thinking.thinkingLevel).toBeUndefined();
   });
 });
 
@@ -448,7 +445,7 @@ describe('caché de prompt — openai y gemini (implícita)', () => {
   it('gemini no lleva parámetro de caché, pero el prefijo estable va delante', async () => {
     mocks.geminiGenerate.mockResolvedValueOnce({ text: ENVELOPE_JSON });
 
-    await geminiChatRaw(makeReq(), 'AIza-test', 'gemini-3.5-flash');
+    await geminiChatRaw(makeReq(), 'AIza-test', 'gemini-3.1-flash-lite');
 
     const [params] = mocks.geminiGenerate.mock.calls[0] as [Record<string, unknown>];
     const config = params.config as Record<string, unknown>;

@@ -8,10 +8,16 @@ export const AI_MODELS: Record<AiProviderId, string> = {
   // Soporta visión (entrada de imágenes) y structured outputs (json_schema strict).
   // Fuentes: https://developers.openai.com/api/docs/models/gpt-5.6-terra · https://openai.com/index/gpt-5-6/
   openai: 'gpt-5.6-terra',
-  // Verificado 2026-07-12. Gemini 3.5 Flash: generación vigente "Flash", GA/estable; entrada de
-  // imágenes y structured output vía responseJsonSchema/responseSchema en GenerateContentConfig.
-  // Fuentes: https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5 · https://ai.google.dev/gemini-api/docs/models
-  gemini: 'gemini-3.5-flash',
+  // Gemini 3.1 Flash-Lite. Historia: el free tier de gemini-3.5-flash son solo 20
+  // peticiones/DÍA por proyecto (RPD FreeTier, verificado en vivo con un 429), inviable
+  // para la clave compartida. Bajamos a un modelo con free tier grande, pero la cuenta de
+  // la clave es NUEVA y Google le veta gemini-2.5-flash / -lite y 2.0-* (404 "no longer
+  // available to new users"); los únicos flash que responde son los -lite de generación
+  // vigente. gemini-3.1-flash-lite (modelo FIJADO, no alias): 200 OK, structured output vía
+  // responseJsonSchema y razonamiento apagable con thinkingBudget:0 (verificado: la
+  // respuesta no trae thoughtsTokenCount). Es el tier "lite" (alto volumen, más cuota).
+  // Fuentes: https://ai.google.dev/gemini-api/docs/models · https://ai.google.dev/gemini-api/docs/rate-limits
+  gemini: 'gemini-3.1-flash-lite',
 };
 
 export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {

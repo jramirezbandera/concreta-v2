@@ -91,9 +91,8 @@ function parseJsonText(text: string | undefined): unknown {
 export const chatRaw: ProviderChatFn = async (req, apiKey, model) => {
   let GoogleGenAI: (typeof import('@google/genai'))['GoogleGenAI'];
   let ApiError: (typeof import('@google/genai'))['ApiError'];
-  let ThinkingLevel: (typeof import('@google/genai'))['ThinkingLevel'];
   try {
-    ({ GoogleGenAI, ApiError, ThinkingLevel } = await import('@google/genai'));
+    ({ GoogleGenAI, ApiError } = await import('@google/genai'));
   } catch {
     throw new AiError('network', 'No se pudo cargar el SDK de Gemini (¿sin conexión?).');
   }
@@ -114,22 +113,24 @@ export const chatRaw: ProviderChatFn = async (req, apiKey, model) => {
         ],
       })),
       config: {
-        // CACHÉ DE PROMPT: en Gemini es IMPLÍCITA y automática (2.5+), sin
-        // parámetro ni breakpoint: cachea sola el prefijo común de la petición
-        // —systemInstruction incluido— si supera el umbral del modelo (4.096
-        // tokens en 3.5 Flash, que nuestro bloque estable sobrepasa). Lo único
-        // que hay que hacer es NO meter nada variable delante: por eso el
-        // system va estable-primero (ver ChatSystem en ../types).
+        // CACHÉ DE PROMPT: en Gemini es IMPLÍCITA y automática, sin parámetro ni
+        // breakpoint: cachea sola el prefijo común de la petición
+        // —systemInstruction incluido— si supera el umbral del modelo, que
+        // nuestro bloque estable sobrepasa. Lo único que hay que hacer es NO
+        // meter nada variable delante: por eso el system va estable-primero
+        // (ver ChatSystem en ../types).
         systemInstruction: chatSystemText(req.system),
-        // RAZONAMIENTO AL MÍNIMO — el equivalente más cercano al `thinking:
-        // disabled` de Anthropic. En Gemini 3.x el pensamiento NO se puede
-        // apagar (a diferencia de 2.5, donde `thinkingBudget: 0` lo desactivaba):
-        // MINIMAL es el suelo. Importa porque esos tokens se facturan como SALIDA
-        // ($9/M en 3.5 Flash) aunque no se vean, y la tarea es extracción guiada
-        // por un prompt muy explícito, no razonamiento abierto.
-        // OJO: `thinkingLevel` y el antiguo `thinkingBudget` son EXCLUYENTES —
-        // mandar los dos es un 400.
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        // RAZONAMIENTO APAGADO — el equivalente al `thinking: disabled` de
+        // Anthropic. En gemini-3.1-flash-lite (el modelo de AI_MODELS.gemini)
+        // `thinkingBudget: 0` desactiva el pensamiento por completo: VERIFICADO
+        // en vivo — la respuesta no trae `usageMetadata.thoughtsTokenCount`.
+        // Importa porque esos tokens se facturarían como SALIDA aunque no se
+        // vean, y la tarea es extracción guiada por un prompt muy explícito, no
+        // razonamiento abierto. OJO: `thinkingBudget` y `thinkingLevel` (este
+        // último es de algunos 3.x) son EXCLUYENTES — mandar los dos es un 400;
+        // aquí solo va thinkingBudget. Si se cambia de modelo, revalidar que
+        // acepta thinkingBudget:0 (algunos 3.x solo admiten thinkingLevel).
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: 'application/json',
         responseJsonSchema: req.schema,
         abortSignal: req.signal,
