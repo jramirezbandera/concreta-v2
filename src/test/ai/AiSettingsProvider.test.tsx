@@ -8,24 +8,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 import { useAiSettings } from '../../lib/ai/useAiSettings';
+import { SHARED_GEMINI_KEY } from '../../lib/ai/sharedKey';
 import type { AiSettings } from '../../lib/ai/AiSettingsProvider';
 
 const STORAGE_KEY = 'concreta-ai-settings';
 
 function Probe() {
-  const { settings, activeKey, setProvider, setKey, clearKey } = useAiSettings();
+  const { settings, activeKey, usingSharedKey, setProvider, setKey, clearKey } = useAiSettings();
   return (
     <>
       <span data-testid="provider">{settings.provider}</span>
       <span data-testid="active-key">{activeKey === null ? '(null)' : activeKey}</span>
+      <span data-testid="shared">{usingSharedKey ? 'yes' : 'no'}</span>
       <span data-testid="keys">{JSON.stringify(settings.keys)}</span>
       <button onClick={() => setKey('anthropic', 'sk-ant-1')}>set ant</button>
       <button onClick={() => setKey('openai', 'sk-oai-1')}>set oai</button>
+      <button onClick={() => setKey('gemini', 'g-own')}>set gemini</button>
       <button onClick={() => setKey('anthropic', '  sk-pad  ')}>set padded</button>
       <button onClick={() => setKey('anthropic', '   ')}>set blank</button>
+      <button onClick={() => setProvider('anthropic')}>go anthropic</button>
       <button onClick={() => setProvider('openai')}>go openai</button>
       <button onClick={() => setProvider('gemini')}>go gemini</button>
       <button onClick={() => clearKey('anthropic')}>clear ant</button>
+      <button onClick={() => clearKey('gemini')}>clear gemini</button>
     </>
   );
 }
@@ -53,17 +58,21 @@ beforeEach(() => {
 });
 
 describe('AiSettingsProvider — defaults y persistencia', () => {
-  it("sin nada almacenado: provider 'anthropic' y activeKey null", () => {
+  it("sin nada almacenado: provider 'gemini' con la clave compartida activa", () => {
     renderProbe();
-    expect(screen.getByTestId('provider').textContent).toBe('anthropic');
-    expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    expect(screen.getByTestId('provider').textContent).toBe('gemini');
+    // El default es Gemini, que trae clave compartida embebida → activeKey NO es null.
+    expect(screen.getByTestId('active-key').textContent).toBe(SHARED_GEMINI_KEY);
+    expect(screen.getByTestId('shared').textContent).toBe('yes');
     expect(screen.getByTestId('keys').textContent).toBe('{}');
   });
 
   it("setKey persiste en localStorage['concreta-ai-settings'] (JSON con keys) y activa la key", () => {
     renderProbe();
+    click('go anthropic'); // el default es gemini: paso a un proveedor BYOK puro
     click('set ant');
     expect(screen.getByTestId('active-key').textContent).toBe('sk-ant-1');
+    expect(screen.getByTestId('shared').textContent).toBe('no');
     expect(storedSettings()).toEqual({
       provider: 'anthropic',
       keys: { anthropic: 'sk-ant-1' },
@@ -72,6 +81,7 @@ describe('AiSettingsProvider — defaults y persistencia', () => {
 
   it('setKey recorta espacios alrededor de la key', () => {
     renderProbe();
+    click('go anthropic');
     click('set padded');
     expect(screen.getByTestId('active-key').textContent).toBe('sk-pad');
     expect(storedSettings().keys.anthropic).toBe('sk-pad');
@@ -91,6 +101,7 @@ describe('AiSettingsProvider — defaults y persistencia', () => {
 describe('AiSettingsProvider — setProvider / clearKey', () => {
   it('setProvider cambia settings.provider y activeKey pasa a la key de ese proveedor', () => {
     renderProbe();
+    click('go anthropic');
     click('set ant');
     click('set oai');
     expect(screen.getByTestId('active-key').textContent).toBe('sk-ant-1'); // aún anthropic
@@ -101,16 +112,18 @@ describe('AiSettingsProvider — setProvider / clearKey', () => {
     expect(storedSettings().provider).toBe('openai');
   });
 
-  it('setProvider hacia un proveedor SIN key deja activeKey en null', () => {
+  it('setProvider hacia un proveedor BYOK puro SIN key deja activeKey en null', () => {
     renderProbe();
     click('set ant');
-    click('go gemini');
-    expect(screen.getByTestId('provider').textContent).toBe('gemini');
+    click('go openai'); // openai no tiene clave compartida
+    expect(screen.getByTestId('provider').textContent).toBe('openai');
     expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    expect(screen.getByTestId('shared').textContent).toBe('no');
   });
 
   it('clearKey elimina la key del estado y de localStorage', () => {
     renderProbe();
+    click('go anthropic');
     click('set ant');
     click('clear ant');
     expect(screen.getByTestId('active-key').textContent).toBe('(null)');
@@ -120,10 +133,42 @@ describe('AiSettingsProvider — setProvider / clearKey', () => {
 
   it('setKey con solo espacios equivale a clearKey', () => {
     renderProbe();
+    click('go anthropic');
     click('set ant');
     click('set blank');
     expect(screen.getByTestId('active-key').textContent).toBe('(null)');
     expect(storedSettings().keys).toEqual({});
+  });
+});
+
+describe('AiSettingsProvider — clave compartida (Gemini)', () => {
+  it('Gemini sin key propia usa la clave compartida embebida', () => {
+    renderProbe(); // default = gemini
+    expect(screen.getByTestId('active-key').textContent).toBe(SHARED_GEMINI_KEY);
+    expect(screen.getByTestId('shared').textContent).toBe('yes');
+    expect(screen.getByTestId('keys').textContent).toBe('{}'); // NO se escribe en localStorage
+  });
+
+  it('la key propia de Gemini tiene prioridad sobre la compartida y al borrarla se recupera', () => {
+    renderProbe();
+    click('set gemini');
+    expect(screen.getByTestId('active-key').textContent).toBe('g-own');
+    expect(screen.getByTestId('shared').textContent).toBe('no');
+    expect(storedSettings().keys.gemini).toBe('g-own');
+
+    click('clear gemini');
+    expect(screen.getByTestId('active-key').textContent).toBe(SHARED_GEMINI_KEY);
+    expect(screen.getByTestId('shared').textContent).toBe('yes');
+  });
+
+  it('Anthropic y OpenAI no tienen clave compartida (siguen BYOK puro)', () => {
+    renderProbe();
+    click('go anthropic');
+    expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    expect(screen.getByTestId('shared').textContent).toBe('no');
+    click('go openai');
+    expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    expect(screen.getByTestId('shared').textContent).toBe('no');
   });
 });
 
@@ -152,8 +197,9 @@ describe('AiSettingsProvider — sync cross-tab (evento storage)', () => {
     act(() => {
       window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: null }));
     });
-    expect(screen.getByTestId('provider').textContent).toBe('anthropic');
-    expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    // Defaults = Gemini con la clave compartida.
+    expect(screen.getByTestId('provider').textContent).toBe('gemini');
+    expect(screen.getByTestId('active-key').textContent).toBe(SHARED_GEMINI_KEY);
   });
 
   it('ignora eventos storage de otras claves', () => {
@@ -162,12 +208,13 @@ describe('AiSettingsProvider — sync cross-tab (evento storage)', () => {
       window.dispatchEvent(
         new StorageEvent('storage', {
           key: 'otra-clave',
-          newValue: JSON.stringify({ provider: 'gemini', keys: { gemini: 'g-key' } }),
+          newValue: JSON.stringify({ provider: 'openai', keys: { openai: 'sk-oai' } }),
         }),
       );
     });
-    expect(screen.getByTestId('provider').textContent).toBe('anthropic');
-    expect(screen.getByTestId('active-key').textContent).toBe('(null)');
+    // Sigue en los defaults (Gemini + clave compartida), el evento ajeno se ignora.
+    expect(screen.getByTestId('provider').textContent).toBe('gemini');
+    expect(screen.getByTestId('active-key').textContent).toBe(SHARED_GEMINI_KEY);
   });
 });
 

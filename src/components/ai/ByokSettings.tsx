@@ -46,7 +46,7 @@ interface ByokSettingsProps {
  * (lee/escribe vía useAiSettings — requiere <AiSettingsProvider>).
  */
 export function ByokSettings({ defaultOpen }: ByokSettingsProps = {}) {
-  const { settings, activeKey, setProvider, setKey, clearKey } = useAiSettings();
+  const { settings, activeKey, usingSharedKey, setProvider, setKey, clearKey } = useAiSettings();
   const [open, setOpen] = useState(() => defaultOpen ?? activeKey === null);
   const provider = settings.provider;
   const keyValue = settings.keys[provider] ?? '';
@@ -115,6 +115,12 @@ export function ByokSettings({ defaultOpen }: ByokSettingsProps = {}) {
           >
             Obtener API key
           </a>
+          {usingSharedKey && keyValue === '' && (
+            <p className="text-[11px] text-text-secondary leading-snug">
+              <span className="text-text-primary">Usando la clave compartida de Concreta</span>{' '}
+              (gratis, con límite de uso). Añade la tuya para peticiones sin límite.
+            </p>
+          )}
           <p className="text-[11px] text-text-secondary leading-snug">
             La key se guarda solo en este navegador (localStorage), sin cifrar. Úsala solo en
             equipos de confianza.

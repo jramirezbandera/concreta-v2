@@ -69,6 +69,18 @@ function seedKey() {
   );
 }
 
+/**
+ * Estado "sin API key": el default (Gemini) trae clave compartida embebida, así
+ * que para reproducir el escenario sin clave hay que situarse en un proveedor
+ * BYOK puro (Anthropic) sin key guardada → activeKey === null.
+ */
+function seedNoKey() {
+  window.localStorage.setItem(
+    SETTINGS_KEY,
+    JSON.stringify({ provider: 'anthropic', keys: {} }),
+  );
+}
+
 /** Payload steel-beams todo-null; se sobrescriben solo los campos del caso. */
 function makePayload(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -129,7 +141,8 @@ beforeEach(() => {
 
 describe('AiChatModal — sin API key', () => {
   it('Enviar deshabilitado (incluso con texto) y ajustes BYOK abiertos con aviso', () => {
-    renderModal(); // sin sembrar key
+    seedNoKey();
+    renderModal();
 
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled();
 
@@ -242,7 +255,8 @@ describe('AiChatModal — camino guiado (estado vacío)', () => {
   });
 
   it('sin key: el botón guiado está deshabilitado y no llama a runChatTurn', async () => {
-    renderModal(); // sin sembrar key
+    seedNoKey();
+    renderModal();
     const user = userEvent.setup();
 
     const guided = screen.getByRole('button', { name: GUIDED_BTN });
@@ -643,7 +657,8 @@ describe('AiChatModal — tarjeta "¿Por qué no cumple?" (estado vacío)', () =
   });
 
   it('sin key: la tarjeta está deshabilitada y no llama a runChatTurn', async () => {
-    renderModal(FAIL_RESULTS); // sin sembrar key
+    seedNoKey();
+    renderModal(FAIL_RESULTS);
     const user = userEvent.setup();
 
     const card = screen.getByRole('button', { name: WHY_FAIL_BTN });

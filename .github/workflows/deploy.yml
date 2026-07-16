@@ -29,6 +29,11 @@ jobs:
 
       - name: Build
         run: bun run build
+        env:
+          # Clave Gemini compartida del asistente IA: vive SOLO en el Secret del
+          # repo (Settings → Secrets → Actions), nunca en el código. Se hornea en
+          # el bundle servido al compilar. Ver src/lib/ai/sharedKey.ts.
+          VITE_AI_SHARED_GEMINI_KEY: ${{ secrets.VITE_AI_SHARED_GEMINI_KEY }}
 
       - uses: actions/configure-pages@v6
 

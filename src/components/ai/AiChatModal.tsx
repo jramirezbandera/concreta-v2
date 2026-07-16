@@ -134,7 +134,7 @@ export function AiChatModal<TInputs>({
   onApply,
   onClose,
 }: AiChatModalProps<TInputs>) {
-  const { settings, activeKey } = useAiSettings();
+  const { settings, activeKey, usingSharedKey } = useAiSettings();
   const { system: unitSystem } = useUnitSystem();
 
   const [items, setItems] = useState<ChatItem<TInputs>[]>([]);
@@ -766,7 +766,7 @@ export function AiChatModal<TInputs>({
           </div>
           <p className="text-[11px] text-text-disabled leading-snug">
             Enter envía · Shift+Enter salto de línea · Ctrl+V pega capturas. Los mensajes se
-            envían a {providerLabel} con tu API key.
+            envían a {providerLabel} {usingSharedKey ? 'con la clave compartida de Concreta' : 'con tu API key'}.
           </p>
         </div>
       </div>
