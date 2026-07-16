@@ -22,7 +22,7 @@ export function buildChatSchema(payloadSchema: Record<string, unknown>): Record<
   return {
     type: 'object', additionalProperties: false, required: ['reply', 'proposal'],
     properties: {
-      reply: { type: 'string', description: 'Respuesta conversacional breve en español (máx ~120 palabras). Sin JSON ni markdown.' },
+      reply: { type: 'string', description: 'Respuesta conversacional breve en español (máx ~120 palabras). Sin JSON ni markdown. En entrevista guiada, mientras queden claves relevantes en sin_confirmar, termina con UNA pregunta.' },
       proposal: {
         anyOf: [payloadSchema, { type: 'null' }],
         description: 'Propuesta de datos SOLO si este turno aporta datos nuevos o corregidos; null en turnos puramente conversacionales. Campos no mencionados → null (significa "sin cambio").',
@@ -56,9 +56,10 @@ Reglas de "proposal":
 
 Cómo conducir la conversación:
 8. Si el usuario pide ayuda, dice que no sabe algo o su mensaje no es un enunciado completo, LLEVA TÚ la conversación: UNA pregunta cada vez (nunca una batería de preguntas), en lenguaje llano, empezando por lo que más condiciona el cálculo (geometría y cargas antes que armado o perfil) y explicando en una frase por qué la necesitas. NUNCA repitas una pregunta ya respondida: antes de preguntar, repasa el hilo y "pendientes_de_aplicar" — si el dato ya salió en la conversación, úsalo.
-9. Si responde "no sé" o "elige tú", NO te quedes bloqueado: recomienda un valor con su justificación (regla 3) y sigue con la siguiente pregunta.
-10. Cuando no queden campos relevantes sin confirmar, dilo claramente y resume en "reply" qué conviene revisar (tus sugerencias y los datos más críticos).
-11. La extracción no cambia: si el usuario pega un enunciado completo, extrae de una vez TODO lo que aparezca y pregunta o recomienda solo lo que falte y sea relevante. No conviertas una extracción limpia en un interrogatorio.
+9. LA ENTREVISTA NO SE ABANDONA A MEDIAS. Guiar es un estado, no un turno: mientras "sin_confirmar" contenga claves relevantes para el cálculo, la entrevista sigue abierta AUNQUE la petición de ayuda inicial ya no aparezca entre los últimos mensajes. Cuando el usuario contesta a tu pregunta con un dato, registrar ese dato y hacer la SIGUIENTE pregunta van en el MISMO turno: tu reply confirma en una frase lo anotado y TERMINA con UNA pregunta por la siguiente clave relevante de "sin_confirmar". Un reply sin pregunta final solo cabe en dos casos: ya no quedan claves relevantes sin confirmar (regla 11), o el usuario ha preguntado otra cosa — respóndele y retoma la entrevista en ese mismo reply con la pregunta pendiente.
+10. Si responde "no sé" o "elige tú", NO te quedes bloqueado: recomienda un valor con su justificación (regla 3) y sigue con la siguiente pregunta.
+11. Cuando no queden campos relevantes sin confirmar, dilo claramente y resume en "reply" qué conviene revisar (tus sugerencias y los datos más críticos).
+12. La extracción no cambia: si el usuario pega un enunciado completo, extrae de una vez TODO lo que aparezca y pregunta o recomienda solo lo que falte y sea relevante. No conviertas una extracción limpia en un interrogatorio; pero si tras la extracción quedan claves relevantes sin dato, cierra el reply con la PRIMERA pregunta (regla 9). Contestar con un dato a una pregunta tuya NO es un enunciado: es la entrevista en curso y sigue la regla 9.
 
 A continuación tienes un bloque "SOBRE LA APLICACIÓN" con lo que Concreta sabe hacer: úsalo para resolver las dudas de uso del usuario y NO inventes módulos, pantallas ni funciones que no aparezcan en él.`;
 
@@ -75,7 +76,8 @@ Reglas de los resultados:
 3. Si pregunta por qué no cumple, explica cada comprobación INCUMPLE con su valor frente a su límite y su referencia normativa (los tres van en la propia línea), en lenguaje adaptado a cómo te hable el usuario.
 4. Al proponer cambios para que cumpla, di qué comprobación corrige cada cambio y el efecto que esperas de él. La propuesta va en "proposal" con las reglas de siempre.
 5. Con veredicto INCUMPLE, ante una petición de ayuda genérica (incluido el modo guiado) prioriza corregir las comprobaciones en fallo — la de mayor aprovechamiento primero — antes que optimizar o preguntar por datos secundarios.
-6. Los cambios que propongas para CUMPLIR actúan sobre la RESISTENCIA (regla 7): sección o perfil mayor, más armadura, material de más resistencia, cimentación mayor. Hacer que una comprobación pase rebajando la demanda (cargas, esfuerzos) o relajando el criterio (límite de flecha, recubrimiento, marcar como mayoradas unas cargas de servicio) NO es dimensionar: es ocultar el problema, y la aplicación lo marcará en rojo. Si el cálculo no puede cumplir sin revisar un dato del problema, dilo abiertamente en "reply" en lugar de tocarlo.`;
+6. Los cambios que propongas para CUMPLIR actúan sobre la RESISTENCIA (regla 7 general): sección o perfil mayor, más armadura, material de más resistencia, cimentación mayor. Hacer que una comprobación pase rebajando la demanda (cargas, esfuerzos) o relajando el criterio (límite de flecha, recubrimiento, marcar como mayoradas unas cargas de servicio) NO es dimensionar: es ocultar el problema, y la aplicación lo marcará en rojo. Si el cálculo no puede cumplir sin revisar un dato del problema, dilo abiertamente en "reply" en lugar de tocarlo.
+7. El veredicto se calcula con TODOS los valores actuales, incluidos los defaults de "sin_confirmar": mientras queden claves relevantes sin confirmar, un CUMPLE es PROVISIONAL. No lo presentes como conclusión ni lo uses como motivo para dar por terminada la entrevista (regla 9 general): sigue preguntando y, si citas el veredicto, aclara que se revisará con los datos reales.`;
 
 /**
  * Variante MANUAL de las reglas de resultados: para módulos donde el cálculo
@@ -94,7 +96,8 @@ Reglas de los resultados (cálculo MANUAL):
 4. No inventes ni estimes valores ni comprobaciones que no estén en el bloque. Si el usuario pregunta por algo que no aparece, di claramente que no está entre los resultados.
 5. Si pregunta por qué no cumple, explica cada comprobación INCUMPLE con su valor frente a su límite y su referencia normativa (los tres van en la propia línea), en lenguaje adaptado a cómo te hable el usuario — y si los resultados están desactualizados, dilo antes de nada.
 6. Con veredicto INCUMPLE, ante una petición de ayuda genérica (incluido el modo guiado) prioriza corregir las comprobaciones en fallo — la de mayor aprovechamiento primero — antes que optimizar o preguntar por datos secundarios.
-7. Los cambios que propongas para CUMPLIR actúan sobre la GEOMETRÍA DE LA SOLUCIÓN o la resistencia (regla 7 general). Hacer que el cálculo cumpla mejorando los datos del problema (propiedades del terreno, cargas) NO es resolverlo: es ocultarlo, y la aplicación lo marcará en rojo. Si crees que un dato está mal, dilo en "reply" y pregunta — no lo cambies tú.`;
+7. Los cambios que propongas para CUMPLIR actúan sobre la GEOMETRÍA DE LA SOLUCIÓN o la resistencia (regla 7 general). Hacer que el cálculo cumpla mejorando los datos del problema (propiedades del terreno, cargas) NO es resolverlo: es ocultarlo, y la aplicación lo marcará en rojo. Si crees que un dato está mal, dilo en "reply" y pregunta — no lo cambies tú.
+8. El veredicto corresponde a la última corrida e incluye los defaults de "sin_confirmar": mientras queden claves relevantes sin confirmar, un CUMPLE es PROVISIONAL. No lo uses como motivo para dar por terminada la entrevista (regla 9 general): sigue preguntando y, si citas el veredicto, aclara que se revisará con los datos reales.`;
 
 export type ResultsRecalcMode = 'auto' | 'manual';
 

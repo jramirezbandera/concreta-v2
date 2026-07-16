@@ -7,8 +7,8 @@
 //     `sin_confirmar` (defaults, no decisiones del usuario), permiso de
 //     RECOMENDAR con warnings "Sugerencia:", arrastre de propuestas
 //     pendientes (regla 5), guardarraíl DEMANDA/CRITERIO vs RESISTENCIA
-//     (regla 7) y regla de conducción guiada (una pregunta cada vez, hoy
-//     numeradas 8-11).
+//     (regla 7) y reglas de conducción guiada (una pregunta cada vez +
+//     entrevista como ESTADO dirigido por sin_confirmar, hoy numeradas 8-12).
 //   - buildChatSystemPrompt con 4º argumento opcional (Fase 2, plan T1.2):
 //     sin él la composición actual queda intacta (ni CHAT_RESULTS_RULES ni
 //     bloque de resultados); con él: base < reglas módulo < CHAT_RESULTS_RULES
@@ -56,7 +56,7 @@ describe('buildChatSchema — forma exacta del envelope', () => {
       properties: {
         reply: {
           type: 'string',
-          description: 'Respuesta conversacional breve en español (máx ~120 palabras). Sin JSON ni markdown.',
+          description: 'Respuesta conversacional breve en español (máx ~120 palabras). Sin JSON ni markdown. En entrevista guiada, mientras queden claves relevantes en sin_confirmar, termina con UNA pregunta.',
         },
         proposal: {
           anyOf: [PAYLOAD_SCHEMA, { type: 'null' }],
@@ -231,14 +231,41 @@ describe('buildChatSystemPrompt — composición base + reglas + snapshot', () =
     expect(prompt).toMatch(/repasa el hilo y "pendientes_de_aplicar"/);
     // al completar: lo dice y resume qué revisar
     expect(prompt).toMatch(/no queden campos relevantes sin confirmar/);
-    // la conducción va DESPUÉS de las reglas de proposal (hoy 8-11: la regla 7
+    // la conducción va DESPUÉS de las reglas de proposal (hoy 8-12: la regla 7
     // de seguridad desplazó la numeración) — así "(regla 7)" no queda huérfana.
     expect(CHAT_SYSTEM_PROMPT_BASE).toMatch(/Cómo conducir la conversación:\n8\. /);
   });
 
-  it('la extracción de enunciados completos no se convierte en un interrogatorio', () => {
+  it('regla 9: la entrevista es un ESTADO dirigido por sin_confirmar — registrar y preguntar en el MISMO turno', () => {
+    // El fix del stall del modo guiado (auditoría 2026-07-16): la continuación
+    // NO depende del último mensaje del usuario ni de que la petición inicial
+    // de guía siga en la ventana de historial (se poda a los 6 pares) — depende
+    // del estado sin_confirmar, que viaja fresco en cada turno.
+    expect(prompt).toContain('LA ENTREVISTA NO SE ABANDONA A MEDIAS');
+    expect(prompt).toMatch(/Guiar es un estado, no un turno/);
+    // sobrevive a la poda de la ventana de historial:
+    expect(prompt).toMatch(/AUNQUE la petición de ayuda inicial ya no aparezca/);
+    // el mandato central — dato registrado y siguiente pregunta en el mismo turno:
+    expect(prompt).toMatch(/registrar ese dato y hacer la SIGUIENTE pregunta van en el MISMO turno/);
+    expect(prompt).toMatch(/TERMINA con UNA pregunta por la siguiente clave relevante de "sin_confirmar"/);
+    // las dos únicas salidas válidas sin pregunta final:
+    expect(prompt).toMatch(/Un reply sin pregunta final solo cabe en dos casos/);
+    expect(prompt).toMatch(/retoma la entrevista en ese mismo reply con la pregunta pendiente/);
+  });
+
+  it('la extracción de enunciados completos no se convierte en un interrogatorio, pero cierra con la primera pregunta si faltan datos', () => {
     expect(prompt).toContain('enunciado completo');
     expect(prompt).toContain('No conviertas una extracción limpia en un interrogatorio');
+    // extracción incompleta → el reply también termina preguntando:
+    expect(prompt).toMatch(/cierra el reply con la PRIMERA pregunta/);
+    // responder con un dato a una pregunta de la entrevista NO es "pegar un enunciado":
+    expect(prompt).toMatch(/Contestar con un dato a una pregunta tuya NO es un enunciado/);
+  });
+
+  it('el envelope refuerza la continuación en la descripción de reply (señal en tiempo de generación)', () => {
+    const envelope = buildChatSchema(PAYLOAD_SCHEMA);
+    const reply = (envelope.properties as Record<string, Record<string, unknown>>).reply;
+    expect(reply.description).toMatch(/termina con UNA pregunta/);
   });
 
   it('el límite de reply es ~120 palabras (guiar exige explicar algo más)', () => {
@@ -414,9 +441,25 @@ describe('buildChatSystemPrompt — bloque de resultados (4º argumento, plan T1
   });
 
   it('regla 6 de resultados: remite a la regla 7 de la base (renumeración de la base incluida)', () => {
-    expect(CHAT_RESULTS_RULES).toContain('(regla 7)');
+    // "(regla 7 general)" y no "(regla 7)" a secas: las reglas de resultados
+    // tienen ya su propia regla 7 (CUMPLE provisional) y la referencia sin
+    // apellido sería ambigua.
+    expect(CHAT_RESULTS_RULES).toContain('(regla 7 general)');
     // la regla referida es efectivamente la 7 de la base:
     expect(CHAT_SYSTEM_PROMPT_BASE).toContain('7. DEMANDA/CRITERIO frente a RESISTENCIA');
+  });
+
+  it('regla 7 de resultados: un CUMPLE sobre defaults sin confirmar es PROVISIONAL y no termina la entrevista', () => {
+    // Cierra el tercer disparador del stall del modo guiado (auditoría
+    // 2026-07-16): con los defaults muchos módulos ya CUMPLEN y ese veredicto
+    // al final del prompt competía con sin_confirmar como señal de "ya está".
+    expect(CHAT_RESULTS_RULES).toMatch(/incluidos los defaults de "sin_confirmar"/);
+    expect(CHAT_RESULTS_RULES).toMatch(/un CUMPLE es PROVISIONAL/);
+    expect(CHAT_RESULTS_RULES).toMatch(/ni lo uses como motivo para dar por terminada la entrevista/);
+    expect(CHAT_RESULTS_RULES).toContain('(regla 9 general)');
+    expect(CHAT_RESULTS_RULES).toMatch(/se revisará con los datos reales/);
+    // la base tiene efectivamente esa regla 9 (entrevista como estado):
+    expect(CHAT_SYSTEM_PROMPT_BASE).toContain('9. LA ENTREVISTA NO SE ABANDONA A MEDIAS');
   });
 });
 
@@ -513,6 +556,12 @@ describe('buildChatSystemPrompt — resultsRecalc manual (5º argumento)', () =>
     expect(CHAT_RESULTS_RULES_MANUAL).toContain('pulse "Calcular"');
     expect(CHAT_RESULTS_RULES_MANUAL).toContain('SIN CALCULAR');
     expect(CHAT_RESULTS_RULES_MANUAL).toContain('AVISO: RESULTADOS DESACTUALIZADOS');
+  });
+
+  it('la variante manual también declara el CUMPLE provisional (regla 8) sin terminar la entrevista', () => {
+    expect(CHAT_RESULTS_RULES_MANUAL).toMatch(/un CUMPLE es PROVISIONAL/);
+    expect(CHAT_RESULTS_RULES_MANUAL).toMatch(/dar por terminada la entrevista/);
+    expect(CHAT_RESULTS_RULES_MANUAL).toContain('(regla 9 general)');
   });
 
   it('orden estricto conservado: base < reglas módulo < reglas manuales < estado < resultados', () => {
