@@ -9,6 +9,8 @@ import { ChunkErrorElement } from './components/layout/ChunkErrorElement';
 import { UnitSystemProvider } from './lib/units/UnitSystemProvider';
 import { ThemeProvider } from './lib/theme/ThemeProvider';
 import { AiSettingsProvider } from './lib/ai/AiSettingsProvider';
+import { ToastContainer } from './components/ui/Toast';
+import { PwaUpdatePrompt } from './components/pwa/PwaUpdatePrompt';
 
 // Route configs use react-router v7's `lazy` so chunk loading integrates with
 // the data router's pending-state machine. `HydrateFallback` paints during the
@@ -171,6 +173,11 @@ export function App() {
         <UnitSystemProvider>
           <AiSettingsProvider>
             <RouterProvider router={router} />
+            {/* Montados en la raíz para cubrir TODAS las rutas — incluida la
+                landing (start_url de la PWA), que no usa AppShell. Un solo
+                ToastContainer en toda la app: NO reañadir en AppShell. */}
+            <ToastContainer />
+            <PwaUpdatePrompt />
           </AiSettingsProvider>
         </UnitSystemProvider>
       </ThemeProvider>

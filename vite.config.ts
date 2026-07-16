@@ -40,9 +40,21 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "prompt", // prompt user before SW update (CEO plan: show toast + "Actualizar" button)
+      // No auto-inyectamos registerSW.js: registramos el SW desde React con
+      // `useRegisterSW` (src/components/pwa/PwaUpdatePrompt.tsx) para poder
+      // enganchar `onNeedRefresh` → toast "Actualizar". Con 'auto' el script
+      // inyectado registra sin callbacks y el SW nuevo se quedaría esperando
+      // para siempre (bundle cacheado obsoleto tras cada deploy).
+      injectRegister: false,
       devOptions: { enabled: false }, // preserve Vite HMR in dev
       workbox: {
         globPatterns: ["**/*.{js,css,html,woff2,png,svg,ico}"],
+        // Cache-bust por versión: cada build reescribe el precache con revisiones
+        // por content-hash. Al activar el SW nuevo (SKIP_WAITING desde el toast),
+        // workbox purga las entradas del precache anterior para no dejar bundle
+        // viejo en Cache Storage. Es el default de vite-plugin-pwa; explícito
+        // para dejar constancia del mecanismo de invalidación.
+        cleanupOutdatedCaches: true,
         // Pyodide (~16 MB) NO entra en el precache, AUNQUE el módulo de taludes
         // ya esté shipped:true (Phase 2). Dos barreras lo garantizan: (1) sus
         // assets son .mjs/.wasm/.whl/.zip/.json — ninguna extensión está en el

@@ -1,7 +1,6 @@
 import { Suspense, createContext, useContext, useState } from 'react';
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
-import { ToastContainer } from '../ui/Toast';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
@@ -44,8 +43,6 @@ export function AppShell() {
               </Suspense>
             </ChunkErrorBoundary>
           </div>
-
-          <ToastContainer />
         </div>
       </CalculatorProvider>
     </DrawerContext.Provider>
