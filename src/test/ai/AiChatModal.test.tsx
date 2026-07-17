@@ -27,6 +27,7 @@ vi.mock('../../lib/ai/providers', () => ({ runChatTurn: chatMock }));
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
+import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { steelBeamDefaults, isolatedFootingDefaults, type SteelBeamInputs } from '../../data/defaults';
 import { steelBeamsAdapter } from '../../lib/ai/modules/steelBeams';
 import { isolatedFootingAdapter } from '../../lib/ai/modules/isolatedFooting';
@@ -96,17 +97,19 @@ function renderModal(results: AiResultsSummary = OK_RESULTS) {
   const onApply = vi.fn();
   const onClose = vi.fn();
   const ui = (r: AiResultsSummary) => (
-    <UnitSystemProvider>
-      <AiSettingsProvider>
-        <AiChatModal
-          adapter={steelBeamsAdapter}
-          current={steelBeamDefaults}
-          results={r}
-          onApply={onApply}
-          onClose={onClose}
-        />
-      </AiSettingsProvider>
-    </UnitSystemProvider>
+    <ThemeProvider>
+      <UnitSystemProvider>
+        <AiSettingsProvider>
+          <AiChatModal
+            adapter={steelBeamsAdapter}
+            current={steelBeamDefaults}
+            results={r}
+            onApply={onApply}
+            onClose={onClose}
+          />
+        </AiSettingsProvider>
+      </UnitSystemProvider>
+    </ThemeProvider>
   );
   const utils = render(ui(results));
   return {
@@ -200,10 +203,10 @@ describe('AiChatModal — envío', () => {
       });
     });
 
-    // Reply del assistant + tarjeta de propuesta debajo.
+    // Reply del assistant + tarjeta de propuesta (diff) debajo.
     expect(await screen.findByText('Propongo estos datos')).toBeInTheDocument();
     const applyBtn = await screen.findByRole('button', { name: 'Aplicar 3 cambios' });
-    expect(screen.getByText('Propuesto')).toBeInTheDocument();
+    expect(screen.getByText('Propuesta')).toBeInTheDocument();
 
     await user.click(applyBtn);
 
@@ -213,10 +216,11 @@ describe('AiChatModal — envío', () => {
     expect(plan.fields).toEqual({ tipo: 'HEB', size: 200, L: 8000 });
     expect(plan.changes).toHaveLength(3);
 
-    // La tarjeta pasa a "Aplicado" (deshabilitado) y el modal NO se cierra.
+    // La tarjeta pasa a "Aplicado" (deshabilitado) y la ventana NO se cierra
+    // (el composer sigue montado: el asistente permanece abierto).
     expect(await screen.findByRole('button', { name: 'Aplicado' })).toBeDisabled();
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByText('Rellenar con IA · Vigas de acero')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
   });
 
   it('envelope con proposal null → solo reply, sin tarjeta', async () => {
@@ -231,7 +235,7 @@ describe('AiChatModal — envío', () => {
 
     expect(await screen.findByText('Para tabiques frágiles usa L/500.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Aplicar/ })).not.toBeInTheDocument();
-    expect(screen.queryByText('Propuesto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Propuesta')).not.toBeInTheDocument();
   });
 });
 
@@ -693,17 +697,19 @@ describe('AiChatModal — límite de Anthropic (módulos grandes)', () => {
   /** Modal montado sobre un módulo GRANDE (zapatas: 23 uniones > 16). */
   function renderFooting() {
     render(
-      <UnitSystemProvider>
-        <AiSettingsProvider>
-          <AiChatModal
-            adapter={isolatedFootingAdapter}
-            current={isolatedFootingDefaults}
-            results={OK_RESULTS}
-            onApply={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </AiSettingsProvider>
-      </UnitSystemProvider>,
+      <ThemeProvider>
+        <UnitSystemProvider>
+          <AiSettingsProvider>
+            <AiChatModal
+              adapter={isolatedFootingAdapter}
+              current={isolatedFootingDefaults}
+              results={OK_RESULTS}
+              onApply={vi.fn()}
+              onClose={vi.fn()}
+            />
+          </AiSettingsProvider>
+        </UnitSystemProvider>
+      </ThemeProvider>,
     );
   }
 

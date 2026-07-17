@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
 import { micropilesDefaults, micropilesSoilDefaults, type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type SoilType } from '../../data/micropileLookups';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
@@ -214,6 +213,7 @@ export function MicropilesModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -229,14 +229,6 @@ export function MicropilesModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Rellenar con IA
-            </button>
             <MicropilesInputsPanel
               state={state}
               setField={setField}

@@ -209,7 +209,8 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
 
   const mShapeFn: (t: number) => number =
     beamType === 'ss'         ? (t) => 4 * t * (1 - t)          :
-    beamType === 'cantilever' ? (t) => -(1 - t)                  :
+    // Ménsula bajo UDL: M(x) = -w(L-x)²/2 → parábola, no recta.
+    beamType === 'cantilever' ? (t) => -((1 - t) ** 2)          :
     beamType === 'fp'         ? (t) => -1 + 5 * t - 4 * t * t   :
     /* ff */                    (t) => -1 + 6 * t - 6 * t * t;
 

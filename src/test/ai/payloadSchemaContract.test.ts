@@ -31,6 +31,7 @@ import { forjadosAdapter } from '../../lib/ai/modules/forjados';
 import { retainingWallAdapter } from '../../lib/ai/modules/retainingWall';
 import { anchorPlateAdapter } from '../../lib/ai/modules/anchorPlate';
 import { masonryWallsAdapter } from '../../lib/ai/modules/masonryWalls';
+import { femAnalysisAdapter } from '../../lib/ai/modules/femAnalysis';
 
 const ADAPTERS = [
   steelBeamsAdapter, rcColumnsAdapter, isolatedFootingAdapter,
@@ -38,7 +39,7 @@ const ADAPTERS = [
   pileCapAdapter, timberColumnsAdapter, timberBeamsAdapter,
   steelColumnsAdapter, empresalladoAdapter, punchingAdapter,
   rcBeamsAdapter, forjadosAdapter, retainingWallAdapter, anchorPlateAdapter,
-  masonryWallsAdapter,
+  masonryWallsAdapter, femAnalysisAdapter,
 ] as const;
 
 interface SchemaLike {

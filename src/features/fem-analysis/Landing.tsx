@@ -5,6 +5,7 @@
 // continua + Ménsula + Viga simple as V1) plus a Recientes list (max 5)
 // when localStorage has prior models.
 
+import { Sparkles } from 'lucide-react';
 import { DESIGN_PRESETS, type DesignPresetId } from './presets';
 
 interface RecentEntry {
@@ -17,9 +18,11 @@ interface RecentEntry {
 interface Props {
   onPick: (id: DesignPresetId) => void;
   recientes: RecentEntry[];
+  /** Abre el asistente IA sin modelo previo (arranca sobre una semilla-plantilla). */
+  onStartAi?: () => void;
 }
 
-export function Landing({ onPick, recientes }: Props) {
+export function Landing({ onPick, recientes, onStartAi }: Props) {
   const v1Plantillas: DesignPresetId[] = ['continuous', 'cantilever', 'beam'];
 
   return (
@@ -105,6 +108,55 @@ export function Landing({ onPick, recientes }: Props) {
                 </button>
               );
             })}
+
+            {onStartAi && (
+              <button
+                type="button"
+                onClick={onStartAi}
+                style={{
+                  textAlign: 'left',
+                  padding: 16,
+                  borderRadius: 6,
+                  background: 'var(--color-bg-surface)',
+                  border: '1px dashed var(--color-border-main)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 150ms',
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.background = 'var(--color-bg-elevated)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border-main)';
+                  e.currentTarget.style.background = 'var(--color-bg-surface)';
+                }}
+              >
+                <div style={{
+                  background: 'var(--color-bg-primary)',
+                  border: '1px solid var(--color-border-sub)',
+                  borderRadius: 4,
+                  padding: '10px 8px',
+                  height: 80,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--color-accent)',
+                }}>
+                  <Sparkles size={28} aria-hidden="true" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 3 }}>
+                    Descríbela con IA
+                  </div>
+                  <div className="font-mono" style={{
+                    fontSize: 11, color: 'var(--color-text-disabled)',
+                    lineHeight: 1.45,
+                  }}>
+                    Cuéntale la viga al asistente y la dibuja: vanos, apoyos, cargas y secciones.
+                  </div>
+                </div>
+              </button>
+            )}
           </div>
 
           {recientes.length > 0 && (

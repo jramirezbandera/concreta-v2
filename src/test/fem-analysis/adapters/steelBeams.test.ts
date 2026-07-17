@@ -134,6 +134,22 @@ describe('steelBeams adapter — SS UDL envelope + calcSteelBeam call', () => {
     expect(adapt.inputs.Lcr).toBe(L * 1000); // default = bar length
   });
 
+  // Override manual (bug 2026-07-17: el panel lo descartaba y siempre iba en
+  // auto; el motor SÍ lo consume — SteelSelection.Lcr en m, calcSteelBeam en mm).
+  it('SteelSelection.Lcr (m) overrides the auto Lcr and reaches the engine in mm', () => {
+    const barLcr = steelBar('b1', 'n1', 'n2', {
+      steelSelection: { ...STEEL_IPE240, Lcr: 3 },
+    });
+    const adaptLcr = adaptSteelBar(barLcr, result.elements, model);
+    expect(adaptLcr.inputs.Lcr).toBe(3000);
+    // Acortar Lcr mejora el vuelco lateral: Mb,Rd debe SUBIR respecto al auto.
+    const mbAuto = (adapt.result as { Mb_Rd?: number } | undefined)?.Mb_Rd;
+    const mbLcr = (adaptLcr.result as { Mb_Rd?: number } | undefined)?.Mb_Rd;
+    expect(mbAuto).toBeDefined();
+    expect(mbLcr).toBeDefined();
+    expect(mbLcr!).toBeGreaterThan(mbAuto!);
+  });
+
   it('loadgen stubs (gk=0, qk=0, bTrib=1) — adapter bypasses loadgen', () => {
     expect(adapt.inputs.gk).toBe(0);
     expect(adapt.inputs.qk).toBe(0);

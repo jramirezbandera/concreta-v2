@@ -1,6 +1,6 @@
 // Tests de la tarjeta de propuesta compartida (src/components/ai/ProposalCard.tsx).
-// Componente puramente presentacional — sin providers ni red. Cubre: tabla de
-// preview con before/after, bloque "No aplicados" colapsable, warnings, notes,
+// Componente puramente presentacional — sin providers ni red. Cubre: diff
+// (Actual → Propuesto) con before/after, bloque "No aplicados" colapsable, warnings, notes,
 // botón Aplicar N cambio(s) (singular/plural) → onApply, estado `applied`
 // ("Aplicado" deshabilitado), estado `superseded` (sin botón, nota "Recogida
 // en la propuesta más reciente", bloques secundarios ocultos; `applied` manda)
@@ -47,14 +47,12 @@ function samplePlan(): AiApplyPlan<unknown> {
 }
 
 describe('ProposalCard — plan con cambios', () => {
-  it('muestra la tabla Campo/Actual/Propuesto con before/after, warning y notes', () => {
+  it('muestra el diff (Actual → Propuesto) con before/after, warning y notes', () => {
     render(<ProposalCard plan={samplePlan()} applied={false} onApply={vi.fn()} />);
 
-    // Cabeceras de la tabla de preview.
-    expect(screen.getByText('Campo')).toBeInTheDocument();
-    expect(screen.getByText('Actual')).toBeInTheDocument();
-    expect(screen.getByText('Propuesto')).toBeInTheDocument();
-    // Filas: label + before + after.
+    // Cabecera de la tarjeta de propuesta.
+    expect(screen.getByText('Propuesta')).toBeInTheDocument();
+    // Filas del diff: label + before (tachado) + after.
     expect(screen.getByText('Luz')).toBeInTheDocument();
     expect(screen.getByText('6.00 m')).toBeInTheDocument();
     expect(screen.getByText('8.00 m')).toBeInTheDocument();
@@ -162,7 +160,7 @@ describe('ProposalCard — plan sin cambios', () => {
 
     expect(screen.getByText('La propuesta no cambia ningún valor del formulario.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aplicar 0 cambios' })).toBeDisabled();
-    // Sin tabla de preview.
+    // Sin filas de diff (la cabecera antigua "Propuesto" ya no existe).
     expect(screen.queryByText('Propuesto')).not.toBeInTheDocument();
   });
 });

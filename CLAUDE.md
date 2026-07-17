@@ -40,26 +40,31 @@ Before you deploy the web to github pages, bump the version in package.json. Use
 
 Keep it modern simple and professional, everything must be explained visually, live svg rendering of the input data and output, visual checkers implemented. 
 
-## Color Palette (dark theme)
+## Color Palette (dark theme — "Ónice")
 
 The color palette is defined as Tailwind theme variables in `src/index.css`.
+The dark theme is "Ónice": a deep neutral-black base (no blue tint), high contrast.
+Only the neutral base + neutral chart tokens are monochrome; the sky accent and the
+semantic state colours are kept from the brand palette.
 
 ### Reference:
 
 Base:
-- bg-primary: #0f172a   (slate-950 — page background and input fields)
-- bg-surface: #1e293b   (slate-800 — panels, result blocks)
-- border-main: #334155  (slate-600)
-- text-primary: #f8fafc
-- text-secondary: #94a3b8 (slate-400 — labels, code references)
-- text-disabled: #475569 (slate-600 — unavailable modules)
+- bg-primary: #0c0c0e   (near-black — page background, input fields and canvas)
+- bg-surface: #161619   (panels, sidebar, result blocks)
+- bg-elevated: #202024  (cards / raised blocks)
+- border-main: #2c2c34  (primary border — lifts off elevated)
+- border-sub: #202027   (dividers / card edges)
+- text-primary: #fafafa
+- text-secondary: #9a9ea7 (labels, code references)
+- text-disabled: #6b6f79  (labels/refs/helptext, 10px group headers, unavailable modules)
 - accent: #38bdf8        (sky-400 — interactive elements only: focus, active nav, bar fill)
 - accent-hover: #0ea5e9
 
 Semantic state colors (add to Tailwind CSS v4):
 - state-ok:      #22c55e  (green-500 — utilization < 95%)
 - state-warn:    #f59e0b  (amber-500 — utilization 95–99%)
-- state-fail:    #f56565  (red-450   — utilization ≥ 100%; lifted from #ef4444 so fail text clears AA ~4.8:1 on the slate panel)
+- state-fail:    #f56565  (red-450   — utilization ≥ 100%; lifted from #ef4444 so fail text clears AA on the near-black panel)
 - state-neutral: #64748b  (slate-500 — no data state)
 
 ## Typography

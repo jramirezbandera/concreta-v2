@@ -1,11 +1,20 @@
-// Modal de chat conversacional del asistente IA (T3.1 — Fase 3). Genérico por
-// módulo vía AiModuleAdapter<TInputs>: el hilo vive SOLO en memoria del modal;
-// cada turno reconstruye el system prompt con un snapshot FRESCO del estado
-// vivo y el bloque de resultados (`current` y `results` son props vivas —
-// nunca se memoizan), envía el envelope schema (memoizado) y la ventana de
-// turnos de buildChatTurns, y las propuestas se muestran como <ProposalCard>
-// inline. Aplicar NO cierra el modal (la tarjeta pasa a "Aplicado" y la
-// conversación sigue).
+// Ventana conversacional del asistente IA. Genérica por módulo vía
+// AiModuleAdapter<TInputs>: el hilo vive SOLO en memoria del modal; cada turno
+// reconstruye el system prompt con un snapshot FRESCO del estado vivo y el
+// bloque de resultados (`current` y `results` son props vivas — nunca se
+// memoizan), envía el envelope schema (memoizado) y la ventana de turnos de
+// buildChatTurns, y las propuestas se muestran como <ProposalCard> inline.
+// Aplicar NO cierra la ventana (la tarjeta pasa a "Aplicado" y la conversación
+// sigue).
+//
+// CONTENEDOR (rediseño 4a): un mismo componente con tres modos —slide-over
+// acoplado al borde derecho (por defecto), ventana flotante arrastrable anclada
+// abajo a la derecha (mismo patrón de arrastre que Calculator.tsx) y píldora
+// minimizada en la esquina—. El modo y la posición de la ventana flotante
+// persisten en localStorage (clave propia). En móvil cae como hoja inferior
+// (bottom sheet) con arrastre para cerrar. Toda la lógica de chat (hilo,
+// envío/cancelación, acumulación/fusión de propuestas, autoscroll, foco,
+// Escape, adjuntos) se CONSERVA; lo que cambia es el chrome y la presentación.
 //
 // ACUMULACIÓN: las propuestas no aplicadas se fusionan en cliente — cada
 // propuesta nueva se combina con la pendiente (lo nuevo gana,
@@ -13,13 +22,22 @@
 // siempre queda UNA tarjeta viva con todo lo acumulado. La fusión es SOLO de
 // UI/plan: el historial hacia el modelo reenvía cada envelope verbatim.
 //
-// Chrome del modal portado de AiFillModal (backdrop, panel, header, Escape,
-// bloqueo de scroll del body y devolución de foco al disparador) y cancelación
-// con el patrón reqId + AbortController; las refs de cancelación se mutan SOLO
-// en handlers/effects (React Compiler). SEGURIDAD: la API key nunca se loguea
-// ni se interpola en textos/errores.
+// Cancelación con el patrón reqId + AbortController; las refs de cancelación se
+// mutan SOLO en handlers/effects (React Compiler). SEGURIDAD: la API key nunca
+// se loguea ni se interpola en textos/errores.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, SendHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react';
+import {
+  ImagePlus,
+  Minus,
+  PanelRight,
+  PictureInPicture2,
+  RotateCcw,
+  SendHorizontal,
+  Sparkles,
+  Square,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import {
   AiError,
   AI_ERROR_MESSAGES,
@@ -41,18 +59,21 @@ import { mergeProposalPayloads } from '../../lib/ai/mergeProposal';
 import { collectConfirmedKeys, decorateSnapshot } from '../../lib/ai/pendingSnapshot';
 import type { AiApplyPlan, AiModuleAdapter } from '../../lib/ai/modules/types';
 import { runChatTurn } from '../../lib/ai/providers';
-import type { AiResultsSummary } from '../../lib/ai/resultsSummary';
+import type { AiResultsSummary, AiVerdict } from '../../lib/ai/resultsSummary';
 import { useAiSettings } from '../../lib/ai/useAiSettings';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { useTheme } from '../../lib/theme/useTheme';
 import { showToast } from '../ui/Toast';
 import { ByokSettings } from './ByokSettings';
 import { ProposalCard } from './ProposalCard';
+import { ProviderStrip } from './ProviderStrip';
 
 export interface AiChatModalProps<TInputs> {
   adapter: AiModuleAdapter<TInputs>;
   current: TInputs; // estado VIVO del módulo — snapshot por turno
   results: AiResultsSummary; // serializado por el padre; prop viva → frescura por turno
-  onApply: (plan: AiApplyPlan<TInputs>) => void; // el padre aplica; el modal NO se cierra
+  onApply: (plan: AiApplyPlan<TInputs>) => void; // el padre aplica; la ventana NO se cierra
   onClose: () => void;
 }
 
@@ -80,6 +101,9 @@ interface LocalImage {
   id: string;
   attachment: AiImageAttachment;
 }
+
+/** Modo del contenedor que persiste (la píldora es un sub-estado transitorio). */
+type WindowMode = 'panel' | 'floating';
 
 // Contadores a nivel de módulo (ids estables sin mutar refs en render).
 let chatItemSeq = 0;
@@ -119,13 +143,57 @@ const GUIDED_PROMPT =
 /** Primer mensaje user de la tarjeta de diagnóstico (solo con veredicto fail). */
 const WHY_FAIL_PROMPT = '¿Por qué no cumple este cálculo y qué cambiarías para que cumpla?';
 
-// Botones — mismo lenguaje visual que TitlePromptModal/AiFillModal.
-const PRIMARY_STYLE = {
-  border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-  background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
+/** Primer mensaje user de la sugerencia de predimensionado. */
+const PREDIM_PROMPT =
+  'Predimensiona este cálculo: propón unos valores que cumplan todas las comprobaciones con la geometría y las cargas actuales, y explícame brevemente el porqué.';
+
+/** Altura de la topbar del shell (h-12): tope superior del slide-over/flotante. */
+const TOPBAR_H = 48;
+
+/** Persistencia del modo + posición de la ventana flotante. Clave propia. */
+const UI_KEY = 'concreta-ai-assistant-ui';
+interface UiState {
+  mode: WindowMode;
+  pos: { x: number; y: number } | null;
+}
+function readUi(): UiState {
+  if (typeof window === 'undefined') return { mode: 'panel', pos: null };
+  try {
+    const raw = window.localStorage.getItem(UI_KEY);
+    if (raw === null) return { mode: 'panel', pos: null };
+    const p = JSON.parse(raw) as { mode?: unknown; pos?: unknown };
+    const mode: WindowMode = p.mode === 'floating' ? 'floating' : 'panel';
+    const rawPos = p.pos as { x?: unknown; y?: unknown } | null | undefined;
+    const pos =
+      rawPos != null && typeof rawPos.x === 'number' && typeof rawPos.y === 'number'
+        ? { x: rawPos.x, y: rawPos.y }
+        : null;
+    return { mode, pos };
+  } catch {
+    return { mode: 'panel', pos: null };
+  }
+}
+function persistUi(v: UiState): void {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(UI_KEY, JSON.stringify(v));
+  } catch {
+    // persistencia opcional — el estado de la sesión sigue vivo
+  }
+}
+
+const VERDICT_LABEL: Record<AiVerdict, string | null> = {
+  ok: 'CUMPLE',
+  warn: 'ADVERT.',
+  fail: 'INCUMPLE',
+  invalid: null,
 };
+
+// Botón secundario inline (Cancelar, Reintentar…) — lenguaje del sistema.
 const INLINE_BTN =
   'px-2.5 py-1 rounded border border-border-main text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors disabled:opacity-40';
+// Botón de control de la cabecera (reducir/expandir/minimizar/cerrar).
+const HEADER_BTN =
+  'w-6 h-6 rounded grid place-items-center text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0';
 
 export function AiChatModal<TInputs>({
   adapter,
@@ -134,13 +202,16 @@ export function AiChatModal<TInputs>({
   onApply,
   onClose,
 }: AiChatModalProps<TInputs>) {
-  const { settings, activeKey, usingSharedKey } = useAiSettings();
+  const { settings, activeKey } = useAiSettings();
   const { system: unitSystem } = useUnitSystem();
+  const isMobile = useIsMobile();
+  const isDark = useTheme().theme === 'dark';
 
   const [items, setItems] = useState<ChatItem<TInputs>[]>([]);
   const [text, setText] = useState('');
   const [images, setImages] = useState<LocalImage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [composerFocused, setComposerFocused] = useState(false);
 
   // Cancelación (molde AiFillModal/useSlopeSolver): el request-id invalida
   // promesas obsoletas y el AbortController corta la petición HTTP en vuelo.
@@ -173,15 +244,56 @@ export function AiChatModal<TInputs>({
     [settings.provider, schema],
   );
 
-  // Bloquear scroll del body + devolver el foco al disparador al cerrar
-  // (patrón TitlePromptModal: el activeElement al montar es el botón que abrió
-  // el modal — se captura antes de que el autofocus mueva el foco al textarea).
+  // ── Estado del contenedor (modo, posición flotante, minimizado) ──
+  const [mode, setMode] = useState<WindowMode>(() => readUi().mode);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => readUi().pos);
+  const [minimized, setMinimized] = useState(false);
+  const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const [sheetDrag, setSheetDrag] = useState<{ startY: number; dy: number } | null>(null);
+  const [vp, setVp] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
+  // Ajustes BYOK: arrancan desplegados cuando no hay clave activa (no se puede
+  // enviar sin ella) o cuando el módulo no lo admite con Anthropic (guiar al
+  // usuario a cambiar de proveedor).
+  const [providerSettingsOpen, setProviderSettingsOpen] = useState(
+    () => activeKey === null || anthropicUnsupported,
+  );
+
+  // Persistir modo + posición flotante entre sesiones.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    const trigger = document.activeElement as HTMLElement | null;
+    persistUi({ mode, pos });
+  }, [mode, pos]);
+
+  // Seguir el tamaño del viewport (dock de la ventana flotante + móvil).
+  useEffect(() => {
+    const onResize = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+
+  // Bloqueo de scroll del body SOLO en modos "modales" (slide-over o hoja
+  // inferior). En flotante/píldora el usuario sigue trabajando con la app.
+  const scrollLocked = isMobile ? !minimized : mode === 'panel' && !minimized;
+  useEffect(() => {
+    if (!scrollLocked) return;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflow = prev;
+    };
+  }, [scrollLocked]);
+
+  // Devolver el foco al disparador al cerrar (el activeElement al montar es el
+  // botón que abrió la ventana — se captura antes del autofocus del textarea).
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    return () => {
       trigger?.focus?.();
     };
   }, []);
@@ -197,14 +309,49 @@ export function AiChatModal<TInputs>({
 
   // Autofocus del composer al montar y al terminar cada petición.
   useEffect(() => {
-    if (!loading) textareaRef.current?.focus();
-  }, [loading]);
+    if (!loading && !minimized) textareaRef.current?.focus();
+  }, [loading, minimized]);
+
+  // Auto-ajuste de altura del composer a su contenido (1 línea vacío → ~5 máx):
+  // sin esto el textarea forzaba un mínimo de 2 filas y, con la caja alineada
+  // abajo, los botones quedaban descentrados respecto al placeholder. Depende
+  // también de mode/minimized/isMobile: al recrearse el nodo entre modos hay
+  // que recalcular su altura.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+  }, [text, mode, minimized, isMobile]);
 
   // Autoscroll al fondo del hilo con cada ítem nuevo (o pseudo-ítem de carga).
   useEffect(() => {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [items, loading]);
+  }, [items, loading, minimized, mode]);
+
+  // Arrastre de la ventana flotante (mecánica portada de Calculator.tsx).
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: MouseEvent | TouchEvent) => {
+      const t = 'touches' in e ? e.touches[0] : e;
+      setPos({
+        x: Math.max(8, Math.min(window.innerWidth - 80, t.clientX - drag.dx)),
+        y: Math.max(TOPBAR_H, Math.min(window.innerHeight - 60, t.clientY - drag.dy)),
+      });
+    };
+    const up = () => setDrag(null);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchmove', move);
+    window.addEventListener('touchend', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', up);
+    };
+  }, [drag]);
 
   /**
    * Lanza un turno de chat con los ítems dados (deben terminar en user).
@@ -331,15 +478,15 @@ export function AiChatModal<TInputs>({
 
   const canSend =
     activeKey !== null && !loading && !anthropicUnsupported && (text.trim() !== '' || images.length > 0);
-  // El camino guiado no exige texto en el composer: solo key y ninguna petición
-  // en vuelo (su mensaje user es la constante GUIDED_PROMPT).
+  // Los caminos de sugerencia no exigen texto en el composer: solo key y
+  // ninguna petición en vuelo (su mensaje user es una constante).
   const canStartGuided = activeKey !== null && !loading && !anthropicUnsupported;
 
   /**
    * Añade un turno user con el texto/imágenes dados, limpia el composer y lanza
-   * la petición. Es el único camino de envío: send() (composer) y el botón
-   * guiado (GUIDED_PROMPT) pasan por aquí, de modo que el mensaje guiado se
-   * comporta exactamente como si el usuario lo hubiera escrito y enviado.
+   * la petición. Es el único camino de envío: send() (composer) y las
+   * sugerencias (GUIDED/WHY_FAIL/PREDIM) pasan por aquí, de modo que un mensaje
+   * de sugerencia se comporta exactamente como si el usuario lo hubiera escrito.
    */
   const submit = (rawText: string, imgs: LocalImage[]) => {
     const trimmed = rawText.trim();
@@ -374,6 +521,12 @@ export function AiChatModal<TInputs>({
   const startWhyFail = () => {
     if (!canStartGuided) return;
     submit(WHY_FAIL_PROMPT, []);
+  };
+
+  /** Sugerencia de predimensionado: envía PREDIM_PROMPT — mismo gate. */
+  const startPredim = () => {
+    if (!canStartGuided) return;
+    submit(PREDIM_PROMPT, []);
   };
 
   /**
@@ -429,6 +582,21 @@ export function AiChatModal<TInputs>({
     return () => window.removeEventListener('keydown', onKey);
   }, [loading, onClose, cancelInFlight]);
 
+  // Atajo "A" para restaurar desde la píldora (solo minimizado y sin foco en
+  // un campo de texto, para no secuestrar la escritura en la app).
+  useEffect(() => {
+    if (!minimized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'a' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      setMinimized(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [minimized]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault(); // Enter envía; Shift+Enter inserta salto de línea
@@ -481,295 +649,619 @@ export function AiChatModal<TInputs>({
   };
 
   const providerLabel = AI_PROVIDER_LABELS[settings.provider];
-  // Auto-crecimiento moderado del textarea: 2–5 filas según saltos de línea.
-  const composerRows = Math.min(5, Math.max(2, text.split('\n').length));
   // El placeholder del adapter es un enunciado de ejemplo largo: se muestra
   // entero en el estado vacío del hilo (sin el prefijo "Ej.:"), no dentro del
   // textarea, donde se recortaba.
   const exampleText = adapter.placeholder.replace(/^Ej\.:\s*/i, '');
+  const verdictLabel = VERDICT_LABEL[results.verdict];
+  const subtitle = verdictLabel ? `${adapter.label} · ${verdictLabel}` : adapter.label;
+  const hasPending = findPendingPayload(items) != null;
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center px-4"
-      role="presentation"
-    >
-      {/* El clic en el backdrop NO cierra (patrón TitlePromptModal): evita
-          perder la conversación por un clic accidental fuera. */}
-      <div
-        className="bg-bg-surface rounded-lg shadow-2xl border border-border-main w-[640px] max-w-full h-[min(660px,85vh)] flex flex-col"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ai-chat-heading"
+  // Geometría de la ventana flotante (dock abajo-derecha si no hay posición
+  // guardada; clamp al viewport para que un resize no la deje fuera).
+  const floatW = Math.max(320, Math.min(400, vp.w - 32));
+  const floatH = Math.max(360, Math.min(600, vp.h - 96));
+  const rawPos = pos ?? {
+    x: Math.max(8, vp.w - floatW - 16),
+    y: Math.max(TOPBAR_H + 8, vp.h - floatH - 16),
+  };
+  const fx = Math.min(Math.max(8, rawPos.x), Math.max(8, vp.w - 80));
+  const fy = Math.min(Math.max(TOPBAR_H, rawPos.y), Math.max(TOPBAR_H, vp.h - 60));
+
+  const onDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    const t = 'touches' in e ? e.touches[0] : (e as React.MouseEvent);
+    setDrag({ dx: t.clientX - fx, dy: t.clientY - fy });
+  };
+  const onSheetTouchStart = (e: React.TouchEvent) =>
+    setSheetDrag({ startY: e.touches[0].clientY, dy: 0 });
+  const onSheetTouchMove = (e: React.TouchEvent) => {
+    if (!sheetDrag) return;
+    setSheetDrag({ ...sheetDrag, dy: Math.max(0, e.touches[0].clientY - sheetDrag.startY) });
+  };
+  const onSheetTouchEnd = () => {
+    if (!sheetDrag) return;
+    if (sheetDrag.dy > 90) onClose();
+    setSheetDrag(null);
+  };
+
+  // Elevación de las superficies flotantes. En el tema oscuro "Ónice" (negro casi
+  // puro) la sombra slate del modo claro es INVISIBLE y `bg-surface` apenas se
+  // despega del lienzo: en oscuro se levanta la superficie (degradado
+  // elevated→surface), se define el filo con una hairline clara (luz desde
+  // arriba) + realce interior, y la sombra pasa a negra real para dar profundidad.
+  // Patrón alineado con la skin premium de Calculator.tsx.
+  const floatBg = isDark
+    ? 'linear-gradient(180deg, var(--color-bg-elevated), var(--color-bg-surface))'
+    : undefined;
+  const floatBorder = isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid var(--color-border-main)';
+  const floatShadow = isDark
+    ? '0 24px 64px -16px rgba(0,0,0,0.9), 0 8px 20px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)'
+    : '0 30px 80px -16px rgba(15,23,42,0.25), 0 0 0 1px rgba(15,23,42,0.05)';
+
+  // ── Fragmentos compartidos por todos los modos ──
+
+  const headerBrand = (
+    <>
+      <span
+        className="w-[22px] h-[22px] rounded-[5px] text-accent grid place-items-center shrink-0"
+        style={{ background: 'var(--color-tint-accent)' }}
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-border-main shrink-0">
-          <Sparkles size={16} className="text-accent" aria-hidden="true" />
-          <span id="ai-chat-heading" className="text-sm font-medium text-text-primary">
-            Rellenar con IA · {adapter.label}
-          </span>
-          <div className="flex-1" />
+        <Sparkles size={13} aria-hidden="true" />
+      </span>
+      <div className="flex flex-col leading-tight min-w-0">
+        <span id="ai-chat-heading" className="text-[13px] font-semibold text-text-primary">
+          Asistente
+        </span>
+        <span className="text-[11px] font-mono text-text-disabled truncate">{subtitle}</span>
+      </div>
+    </>
+  );
+
+  const providerArea = (
+    <div className="px-4 pt-3 shrink-0 space-y-2">
+      <ProviderStrip
+        open={providerSettingsOpen}
+        onToggle={() => setProviderSettingsOpen((o) => !o)}
+      />
+      {providerSettingsOpen && <ByokSettings defaultOpen />}
+    </div>
+  );
+
+  const anthropicWarning = anthropicUnsupported && (
+    <div className="px-4 pt-2 shrink-0">
+      <div
+        className="flex items-start gap-2 rounded border border-state-warn/40 px-3 py-2"
+        style={{ background: 'var(--color-tint-warn)' }}
+      >
+        <TriangleAlert size={14} className="text-state-warn shrink-0 mt-0.5" aria-hidden="true" />
+        <p className="text-[12px] text-text-secondary leading-relaxed">
+          <span className="text-text-primary font-medium">{providerLabel} no admite este módulo.</span>{' '}
+          Tiene demasiados campos para el motor de esquemas de Anthropic. Cambia el proveedor a{' '}
+          <span className="text-text-primary">OpenAI (GPT)</span> o{' '}
+          <span className="text-text-primary">Google (Gemini)</span> para usar el asistente aquí.
+        </p>
+      </div>
+    </div>
+  );
+
+  const thread = (
+    <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3.5">
+      {/* Estado vacío: cabecera + sugerencias contextuales según el cálculo.
+          Cada botón conserva su comportamiento (WHY_FAIL / ejemplo / GUIDED) y
+          se añade Predimensionar. */}
+      {items.length === 0 && !loading && (
+        <div className="h-full flex flex-col justify-center gap-3">
+          <div className="flex flex-col items-center text-center gap-2 pb-1">
+            <span
+              className="w-10 h-10 rounded-[11px] text-accent grid place-items-center"
+              style={{ background: 'var(--color-tint-accent)' }}
+            >
+              <Sparkles size={19} aria-hidden="true" />
+            </span>
+            <span className="text-[14px] font-semibold text-text-primary">¿En qué te ayudo?</span>
+            <span className="text-[11.5px] leading-relaxed text-text-secondary max-w-[34ch]">
+              Puedo rellenar datos desde un enunciado, explicar por qué falla el cálculo o
+              predimensionar. Tú revisas y decides qué aplicar.
+            </span>
+          </div>
+
+          {results.verdict === 'fail' && (
+            <button
+              type="button"
+              onClick={startWhyFail}
+              disabled={!canStartGuided}
+              className="w-full text-left rounded border border-state-fail/40 px-3 py-2.5 transition-colors disabled:opacity-40 hover:border-state-fail/70 disabled:hover:border-state-fail/40"
+              style={{ background: 'var(--color-tint-fail)' }}
+            >
+              <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-state-fail mb-0.5">
+                Diagnosticar · el cálculo incumple
+              </span>
+              <span className="block text-[11.5px] leading-snug text-text-secondary">
+                ¿Por qué no cumple? Pídeme el diagnóstico y qué cambiar.
+              </span>
+            </button>
+          )}
           <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="p-1.5 rounded hover:bg-bg-elevated text-text-secondary hover:text-text-primary transition-colors"
+            type="button"
+            onClick={startPredim}
+            disabled={!canStartGuided}
+            className="w-full text-left rounded border border-border-main px-3 py-2.5 transition-colors disabled:opacity-40 hover:border-accent/40 disabled:hover:border-border-main"
           >
-            <X size={16} />
+            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-accent mb-0.5">
+              Predimensionar
+            </span>
+            <span className="block text-[11.5px] leading-snug text-text-secondary">
+              Propón unos valores que cumplan con estas cargas y geometría.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setText(exampleText);
+              textareaRef.current?.focus();
+            }}
+            className="w-full text-left rounded border border-border-main px-3 py-2.5 transition-colors hover:border-accent/40"
+          >
+            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-text-disabled mb-0.5">
+              Pegar un enunciado de ejemplo
+            </span>
+            <span className="block text-[11.5px] leading-snug text-text-secondary">{exampleText}</span>
+          </button>
+          <button
+            type="button"
+            onClick={startGuided}
+            disabled={!canStartGuided}
+            className="w-full text-left rounded border border-border-main px-3 py-2.5 transition-colors disabled:opacity-40 hover:border-accent/40 disabled:hover:border-border-main"
+          >
+            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-text-disabled mb-0.5">
+              Guíame paso a paso
+            </span>
+            <span className="block text-[11.5px] leading-snug text-text-secondary">
+              No sé todos los datos: te pregunto uno a uno y recomiendo los que falten.
+            </span>
           </button>
         </div>
+      )}
 
-        {/* Ajustes BYOK — arriba del hilo, fuera del scroll (auto-abierta sin key) */}
-        <div className="px-5 pt-3 shrink-0">
-          <ByokSettings />
-        </div>
-
-        {/* Aviso de módulo no soportado por Anthropic (>16 campos): el asistente
-            queda bloqueado hasta cambiar de proveedor, justo arriba en BYOK. */}
-        {anthropicUnsupported && (
-          <div className="px-5 pt-3 shrink-0">
-            <div className="flex items-start gap-2 rounded border border-state-warn/40 bg-state-warn/[0.06] px-3 py-2">
-              <TriangleAlert
-                size={14}
-                className="text-state-warn shrink-0 mt-0.5"
+      {items.map((item) => {
+        if (item.kind === 'user') {
+          return (
+            <div key={item.id} className="flex flex-col items-end gap-1.5">
+              {item.images.length > 0 && (
+                <div className="flex gap-2">
+                  {item.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={`data:${img.mediaType};base64,${img.data}`}
+                      alt="Imagen adjunta"
+                      className="h-16 w-16 object-cover rounded border border-border-main"
+                    />
+                  ))}
+                </div>
+              )}
+              {item.text !== '' && (
+                <div className="max-w-[85%] rounded px-2.5 py-1.5 bg-bg-elevated border border-border-main text-[12.5px] text-text-primary whitespace-pre-wrap leading-relaxed">
+                  {item.text}
+                </div>
+              )}
+            </div>
+          );
+        }
+        if (item.kind === 'assistant') {
+          return (
+            <div key={item.id} className="flex gap-2 items-start">
+              <span
+                className="w-[22px] h-[22px] rounded-[5px] text-accent grid place-items-center shrink-0 mt-0.5"
+                style={{ background: 'var(--color-tint-accent)' }}
                 aria-hidden="true"
-              />
-              <p className="text-[12px] text-text-secondary leading-relaxed">
-                <span className="text-text-primary font-medium">
-                  {providerLabel} no admite este módulo.
-                </span>{' '}
-                Tiene demasiados campos para el motor de esquemas de Anthropic. Cambia el proveedor
-                arriba a <span className="text-text-primary">OpenAI (GPT)</span> o{' '}
-                <span className="text-text-primary">Google (Gemini)</span> para usar el asistente
-                aquí.
+              >
+                <Sparkles size={12} />
+              </span>
+              <div className="flex-1 min-w-0 space-y-2">
+                <p className="text-[12.5px] text-text-primary whitespace-pre-wrap leading-[1.55]">
+                  {item.reply}
+                </p>
+                {item.proposalError && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-state-warn leading-snug">
+                    <TriangleAlert size={12} className="shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>{PROPOSAL_UNREADABLE_WARNING}</span>
+                  </p>
+                )}
+                {item.plan !== null && (
+                  <ProposalCard
+                    plan={item.plan}
+                    applied={item.applied}
+                    superseded={item.superseded}
+                    onApply={() => handleApply(item.id)}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={item.id} className="flex gap-2 items-start">
+            <span
+              className="w-[22px] h-[22px] rounded-[5px] grid place-items-center shrink-0 mt-0.5 text-state-fail"
+              style={{ background: 'var(--color-tint-fail)' }}
+              aria-hidden="true"
+            >
+              <TriangleAlert size={12} />
+            </span>
+            <div
+              className="flex-1 min-w-0 rounded-md border border-state-fail/40 px-3 py-2.5 space-y-2"
+              style={{ background: 'var(--color-tint-fail)' }}
+            >
+              <p className="text-[12px] font-semibold text-state-fail">
+                {AI_ERROR_MESSAGES[item.errorKind]}
               </p>
+              {item.detail !== null && (
+                <p className="text-[11px] font-mono text-text-secondary leading-snug break-words">
+                  {item.detail}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => retry(item.id)}
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded border border-state-fail/40 text-[12px] text-state-fail hover:bg-state-fail/10 transition-colors"
+                >
+                  <RotateCcw size={12} aria-hidden="true" />
+                  Reintentar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProviderSettingsOpen(true)}
+                  className={INLINE_BTN}
+                >
+                  Cambiar proveedor
+                </button>
+              </div>
             </div>
           </div>
-        )}
+        );
+      })}
 
-        {/* Hilo (scrollable, autoscroll al fondo) */}
-        <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Estado vacío: hasta tres caminos. (0) SOLO con veredicto fail, la
-              tarjeta de diagnóstico ENVÍA WHY_FAIL_PROMPT como primer turno user
-              ('invalid' NO la muestra: ese error ya se ve en el panel); (1) el
-              ejemplo del módulo vive aquí (no en el placeholder, donde se
-              recortaba) y rellena el composer al pulsarlo; (2) el guiado ENVÍA
-              directamente GUIDED_PROMPT como primer turno user. */}
-          {items.length === 0 && !loading && (
-            <div className="h-full flex flex-col items-center justify-center text-center gap-4 px-2">
-              <Sparkles size={22} className="text-accent opacity-80" aria-hidden="true" />
-              <p className="text-sm text-text-secondary max-w-[46ch] leading-relaxed">
-                Pega el enunciado del problema (o una captura) y la IA propondrá los datos. Si no
-                los tienes todos, pide que te guíe. Tú revisas y decides qué aplicar.
-              </p>
-              <div className="w-full max-w-[46ch] flex flex-col gap-2">
-                {results.verdict === 'fail' && (
-                  <button
-                    type="button"
-                    onClick={startWhyFail}
-                    disabled={!canStartGuided}
-                    className="w-full text-left rounded border border-state-fail/40 px-3 py-2 text-[12px] text-text-secondary leading-relaxed hover:border-state-fail/70 hover:text-text-primary transition-colors disabled:opacity-40 disabled:hover:border-state-fail/40 disabled:hover:text-text-secondary"
-                  >
-                    <span className="block text-[10px] uppercase tracking-wide text-text-disabled mb-1">
-                      ¿Por qué no cumple?
-                    </span>
-                    El cálculo actual incumple alguna comprobación: pídeme el diagnóstico y qué
-                    cambiar.
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setText(exampleText);
-                    textareaRef.current?.focus();
-                  }}
-                  className="w-full text-left rounded border border-border-main px-3 py-2 text-[12px] text-text-secondary leading-relaxed hover:border-accent/40 hover:text-text-primary transition-colors"
-                >
-                  <span className="block text-[10px] uppercase tracking-wide text-text-disabled mb-1">
-                    Pegar un enunciado de ejemplo
-                  </span>
-                  {exampleText}
-                </button>
-                <button
-                  type="button"
-                  onClick={startGuided}
-                  disabled={!canStartGuided}
-                  className="w-full text-left rounded border border-border-main px-3 py-2 text-[12px] text-text-secondary leading-relaxed hover:border-accent/40 hover:text-text-primary transition-colors disabled:opacity-40 disabled:hover:border-border-main disabled:hover:text-text-secondary"
-                >
-                  <span className="block text-[10px] uppercase tracking-wide text-text-disabled mb-1">
-                    Guíame paso a paso
-                  </span>
-                  No sé todos los datos: te pregunto los datos uno a uno y te recomiendo los que
-                  falten.
-                </button>
-              </div>
-            </div>
-          )}
-
-          {items.map((item) => {
-            if (item.kind === 'user') {
-              return (
-                <div key={item.id} className="flex flex-col items-end gap-1.5">
-                  {item.images.length > 0 && (
-                    <div className="flex gap-2">
-                      {item.images.map((img, i) => (
-                        <img
-                          key={i}
-                          src={`data:${img.mediaType};base64,${img.data}`}
-                          alt="Imagen adjunta"
-                          className="h-16 w-16 object-cover rounded border border-border-main"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {item.text !== '' && (
-                    <div className="max-w-[85%] rounded px-3 py-2 bg-bg-elevated border border-border-main text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-                      {item.text}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            if (item.kind === 'assistant') {
-              return (
-                <div key={item.id} className="space-y-2">
-                  <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-                    {item.reply}
-                  </p>
-                  {item.proposalError && (
-                    <p className="flex items-start gap-1.5 text-[11px] text-state-warn leading-snug">
-                      <TriangleAlert size={12} className="shrink-0 mt-0.5" aria-hidden="true" />
-                      <span>{PROPOSAL_UNREADABLE_WARNING}</span>
-                    </p>
-                  )}
-                  {item.plan !== null && (
-                    <ProposalCard
-                      plan={item.plan}
-                      applied={item.applied}
-                      superseded={item.superseded}
-                      onApply={() => handleApply(item.id)}
-                    />
-                  )}
-                </div>
-              );
-            }
-            return (
-              <div key={item.id} className="space-y-1.5">
-                <div className="flex items-start gap-2">
-                  <TriangleAlert
-                    size={16}
-                    className="text-state-fail shrink-0 mt-0.5"
-                    aria-hidden="true"
-                  />
-                  <p className="text-sm text-text-primary flex-1">
-                    {AI_ERROR_MESSAGES[item.errorKind]}
-                  </p>
-                  <button type="button" onClick={() => retry(item.id)} className={INLINE_BTN}>
-                    Reintentar
-                  </button>
-                </div>
-                {item.detail !== null && (
-                  <p className="text-[11px] font-mono text-text-secondary leading-snug break-words pl-6">
-                    {item.detail}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Pseudo-ítem de carga (petición en vuelo) */}
-          {loading && (
+      {/* Pseudo-ítem de carga (petición en vuelo): avatar + spinner + esqueleto. */}
+      {loading && (
+        <div className="flex gap-2 items-start">
+          <span
+            className="w-[22px] h-[22px] rounded-[5px] text-accent grid place-items-center shrink-0 mt-0.5"
+            style={{ background: 'var(--color-tint-accent)' }}
+            aria-hidden="true"
+          >
+            <Sparkles size={12} />
+          </span>
+          <div className="flex-1 min-w-0 space-y-2.5">
             <div className="flex items-center gap-2.5">
               <span
                 className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0"
                 aria-hidden="true"
               />
-              <span className="text-sm text-text-secondary flex-1">
+              <span className="text-[12.5px] text-text-secondary flex-1">
                 Consultando a {providerLabel}…
               </span>
               <button type="button" onClick={cancelInFlight} className={INLINE_BTN}>
                 Cancelar
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Composer */}
-        <div className="px-5 py-3 border-t border-border-main shrink-0 space-y-2">
-          {images.length > 0 && (
-            <div className="flex gap-2">
-              {images.map((img) => (
-                <div key={img.id} className="relative">
-                  {/* Para la miniatura se monta el data URL; el attachment
-                      guarda el base64 puro (contrato AiImageAttachment). */}
-                  <img
-                    src={`data:${img.attachment.mediaType};base64,${img.attachment.data}`}
-                    alt="Imagen adjunta"
-                    className="h-16 w-16 object-cover rounded border border-border-main"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(img.id)}
-                    aria-label="Quitar imagen"
-                    className="absolute -top-1.5 -right-1.5 p-0.5 rounded bg-bg-surface border border-border-main text-text-secondary hover:text-text-primary transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
+            <div className="space-y-1.5" aria-hidden="true">
+              <span className="block h-[9px] rounded-[3px] bg-bg-elevated w-full" />
+              <span className="block h-[9px] rounded-[3px] bg-bg-elevated w-[88%]" />
+              <span className="block h-[9px] rounded-[3px] bg-bg-elevated w-[64%]" />
             </div>
-          )}
-          <div className="flex items-end gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={images.length >= MAX_IMAGES || anthropicUnsupported}
-              aria-label="Adjuntar imagen"
-              className="p-2 rounded border border-border-main text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors disabled:opacity-40 shrink-0"
-            >
-              <ImagePlus size={16} aria-hidden="true" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={IMAGE_ACCEPT_ATTR}
-              multiple
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <textarea
-              ref={textareaRef}
-              rows={composerRows}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              disabled={anthropicUnsupported}
-              placeholder={
-                anthropicUnsupported
-                  ? 'No disponible con Anthropic en este módulo'
-                  : items.length === 0
-                    ? 'Pega aquí el enunciado…'
-                    : 'Escribe un mensaje…'
-              }
-              aria-label="Mensaje para el asistente"
-              className="flex-1 min-w-0 bg-bg-primary border border-border-main rounded px-3 py-2 text-sm text-text-primary placeholder:text-text-disabled outline-none focus:border-accent resize-none transition-colors disabled:opacity-50"
-            />
-            <button
-              type="button"
-              onClick={send}
-              disabled={!canSend}
-              aria-label="Enviar"
-              className="p-2 rounded text-accent disabled:opacity-40 transition-all shrink-0"
-              style={PRIMARY_STYLE}
-            >
-              <SendHorizontal size={16} aria-hidden="true" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const composer = (
+    <div className="px-4 py-3 border-t border-border-main shrink-0 space-y-2">
+      {images.length > 0 && (
+        <div className="flex gap-2">
+          {images.map((img) => (
+            <div key={img.id} className="relative">
+              {/* Para la miniatura se monta el data URL; el attachment guarda el
+                  base64 puro (contrato AiImageAttachment). */}
+              <img
+                src={`data:${img.attachment.mediaType};base64,${img.attachment.data}`}
+                alt="Imagen adjunta"
+                className="h-16 w-16 object-cover rounded border border-border-main"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(img.id)}
+                aria-label="Quitar imagen"
+                className="absolute -top-1.5 -right-1.5 p-0.5 rounded bg-bg-surface border border-border-main text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Composer unificado: adjuntar + textarea + enviar en una sola caja. */}
+      <div
+        className={`flex items-end gap-1.5 rounded-md border bg-bg-primary pl-2 pr-1.5 py-1.5 transition-colors ${
+          composerFocused ? 'border-accent' : 'border-border-main'
+        }`}
+        style={composerFocused ? { boxShadow: '0 0 0 3px var(--color-tint-accent)' } : undefined}
+      >
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={images.length >= MAX_IMAGES || anthropicUnsupported}
+          aria-label="Adjuntar imagen"
+          className="w-7 h-7 rounded-[5px] grid place-items-center text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors disabled:opacity-40 shrink-0"
+        >
+          <ImagePlus size={16} aria-hidden="true" />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={IMAGE_ACCEPT_ATTR}
+          multiple
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <textarea
+          ref={textareaRef}
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
+          disabled={anthropicUnsupported}
+          placeholder={
+            anthropicUnsupported
+              ? 'No disponible con Anthropic en este módulo'
+              : items.length === 0
+                ? 'Pega aquí el enunciado…'
+                : 'Escribe un mensaje…'
+          }
+          aria-label="Mensaje para el asistente"
+          className="flex-1 min-w-0 self-center bg-transparent text-[12.5px] text-text-primary placeholder:text-text-disabled outline-none resize-none py-1 leading-[1.4] max-h-[120px] overflow-y-auto disabled:opacity-50"
+        />
+        {loading ? (
+          <button
+            type="button"
+            onClick={cancelInFlight}
+            aria-label="Detener"
+            className="w-7 h-7 rounded-[5px] grid place-items-center shrink-0 bg-bg-elevated text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={send}
+            disabled={!canSend}
+            aria-label="Enviar"
+            className="w-7 h-7 rounded-[5px] grid place-items-center shrink-0 text-white disabled:opacity-40 transition-all"
+            style={{ background: 'var(--color-accent)' }}
+          >
+            <SendHorizontal size={15} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <p className="text-[10.5px] text-text-disabled leading-snug">
+        Enter envía · Shift+Enter salto de línea · Ctrl+V pega capturas.
+      </p>
+    </div>
+  );
+
+  // ── Píldora minimizada (escritorio) ──
+  if (minimized && !isMobile) {
+    return (
+      <button
+        type="button"
+        onClick={() => setMinimized(false)}
+        aria-label="Restaurar asistente"
+        className="fixed z-50 inline-flex items-center gap-2.5 h-[38px] px-3.5 rounded-md bg-bg-surface border border-border-main text-[12px] text-text-primary hover:border-accent/40 transition-colors"
+        style={{
+          right: 16,
+          bottom: 16,
+          background: floatBg,
+          boxShadow: isDark
+            ? '0 14px 30px -8px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06)'
+            : '0 12px 24px -8px rgba(15,23,42,0.28)',
+        }}
+      >
+        <span
+          className="w-[7px] h-[7px] rounded-full shrink-0"
+          style={{
+            background: 'var(--color-accent)',
+            boxShadow: hasPending
+              ? '0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent)'
+              : '0 0 6px color-mix(in srgb, var(--color-accent) 60%, transparent)',
+          }}
+        />
+        <Sparkles size={14} className="text-accent" aria-hidden="true" />
+        <span className="font-medium">Asistente</span>
+        <span className="font-mono text-[10px] text-text-disabled border border-border-sub rounded px-1">
+          A
+        </span>
+      </button>
+    );
+  }
+
+  // ── Móvil: hoja inferior (bottom sheet) ──
+  if (isMobile) {
+    return (
+      <>
+        <div
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(15,23,42,0.28)' }}
+          aria-hidden="true"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ai-chat-heading"
+          className="fixed left-0 right-0 bottom-0 z-50 flex flex-col bg-bg-surface"
+          style={{
+            maxHeight: '86%',
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            background: floatBg,
+            borderTop: isDark ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            boxShadow: isDark
+              ? '0 -18px 44px -18px rgba(0,0,0,0.75)'
+              : '0 -18px 40px -20px rgba(15,23,42,0.4)',
+            transform: sheetDrag ? `translateY(${sheetDrag.dy}px)` : 'translateY(0)',
+            transition: sheetDrag ? 'none' : 'transform 0.22s cubic-bezier(0.32,0.72,0,1)',
+          }}
+        >
+          <div
+            className="flex justify-center pt-2 pb-1 touch-none shrink-0"
+            onTouchStart={onSheetTouchStart}
+            onTouchMove={onSheetTouchMove}
+            onTouchEnd={onSheetTouchEnd}
+          >
+            <span className="block w-9 h-1 rounded-full bg-border-main" />
+          </div>
+          <div className="flex items-center gap-2.5 px-4 pb-2.5 border-b border-border-sub shrink-0">
+            {headerBrand}
+            <div className="flex-1" />
+            <button type="button" onClick={onClose} aria-label="Cerrar" className={HEADER_BTN}>
+              <X size={16} />
             </button>
           </div>
-          <p className="text-[11px] text-text-disabled leading-snug">
-            Enter envía · Shift+Enter salto de línea · Ctrl+V pega capturas. Los mensajes se
-            envían a {providerLabel} {usingSharedKey ? 'con la clave compartida de Concreta' : 'con tu API key'}.
-          </p>
+          {providerArea}
+          {anthropicWarning}
+          {thread}
+          {composer}
         </div>
+      </>
+    );
+  }
+
+  // ── Ventana flotante arrastrable (modo B) ──
+  if (mode === 'floating') {
+    return (
+      <div
+        role="dialog"
+        aria-labelledby="ai-chat-heading"
+        className="fixed z-50 flex flex-col bg-bg-surface overflow-hidden"
+        style={{
+          left: fx,
+          top: fy,
+          width: floatW,
+          height: floatH,
+          borderRadius: 8,
+          border: floatBorder,
+          background: floatBg,
+          boxShadow: floatShadow,
+        }}
+      >
+        {/* Filo de acento superior (4a). */}
+        <span
+          className="h-0.5 shrink-0"
+          style={{
+            background: 'linear-gradient(90deg, var(--color-accent), var(--color-accent-hover))',
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="relative flex items-center gap-2 h-11 pl-3 pr-1.5 border-b border-border-sub shrink-0 cursor-move select-none"
+          style={{ background: 'var(--color-bg-elevated)' }}
+          onMouseDown={onDragStart}
+          onTouchStart={onDragStart}
+        >
+          {headerBrand}
+          <div className="flex-1" />
+          <span className="font-mono text-[10px] text-text-disabled border border-border-main rounded px-1 py-px">
+            Esc
+          </span>
+          <button
+            type="button"
+            title="Expandir a panel"
+            aria-label="Expandir a panel"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setMode('panel')}
+            className={HEADER_BTN}
+          >
+            <PanelRight size={14} />
+          </button>
+          <button
+            type="button"
+            title="Minimizar"
+            aria-label="Minimizar"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setMinimized(true)}
+            className={HEADER_BTN}
+          >
+            <Minus size={14} />
+          </button>
+          <button
+            type="button"
+            title="Cerrar"
+            aria-label="Cerrar"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            className={HEADER_BTN}
+          >
+            <X size={14} />
+          </button>
+        </div>
+        {providerArea}
+        {anthropicWarning}
+        {thread}
+        {composer}
       </div>
-    </div>
+    );
+  }
+
+  // ── Slide-over acoplado al borde derecho (modo A, por defecto) ──
+  return (
+    <>
+      {/* Velo tenue sobre el área de trabajo (sin blur). El clic NO cierra. */}
+      <div
+        className="fixed z-40"
+        style={{ top: TOPBAR_H, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.18)' }}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-chat-heading"
+        className="fixed z-50 flex flex-col bg-bg-surface"
+        style={{
+          top: TOPBAR_H,
+          right: 0,
+          bottom: 0,
+          width: Math.min(440, vp.w),
+          borderLeft: floatBorder,
+          background: floatBg,
+          boxShadow: isDark
+            ? '-18px 0 44px -18px rgba(0,0,0,0.6)'
+            : '-16px 0 40px -20px rgba(15,23,42,0.35)',
+        }}
+      >
+        <div className="flex items-center gap-2.5 px-4 h-12 border-b border-border-main shrink-0">
+          {headerBrand}
+          <div className="flex-1" />
+          <button
+            type="button"
+            title="Reducir a esquina"
+            aria-label="Reducir a esquina"
+            onClick={() => setMode('floating')}
+            className={HEADER_BTN}
+          >
+            <PictureInPicture2 size={15} />
+          </button>
+          <button type="button" title="Cerrar" aria-label="Cerrar" onClick={onClose} className={HEADER_BTN}>
+            <X size={15} />
+          </button>
+        </div>
+        {providerArea}
+        {anthropicWarning}
+        {thread}
+        {composer}
+      </div>
+    </>
   );
 }

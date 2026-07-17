@@ -5,15 +5,20 @@
 // per-bar verdict dots.
 //
 // V1 interactions:
-//   - Tool 'select' : click a bar/node/load to select it
-//   - Tool 'node'   : click on an existing bar to insert a mid-bar node
-//   - Tool 'support': click a node to cycle pinned → fixed → roller → none
-//   - Tool 'load'   : click bar (UDL) or node (point load)
-//   - Tool 'delete' : remove selected bar/node/load
-//   - Inline edit on cota labels and on load value labels
-//   - "+vano" button at the right end of the strip → adds a new vano
-//     cloning the previous vano's length + UDL + section/armado
-//   - Suprimir/Delete keyboard removes the current selection
+//   - Tool 'select'    : click a bar/node/load to select it
+//   - Tool 'node'      : click on an existing bar to insert a mid-bar node
+//   - Tool 'bar'       : two-click pick node i → node j to connect them with a
+//                        bar (rebuilds a bar deleted from the middle of a beam)
+//   - Tool 'support'   : click a node to cycle pinned → fixed → roller → none
+//   - Tool 'load-dist' : click a bar → distributed load (UDL)
+//   - Tool 'load-point': click a node → point load; click a bar → create a node
+//                        there and put a point load on it
+//   - Tool 'delete'    : remove selected bar/node/load
+//   - Inline edit on cota labels (chain of node gaps) and on load value labels
+//   - "+vano" buttons at both ends of the strip → prepend/append a new vano
+//     cloning the adjacent vano's length + UDL + section/armado
+//   - Suprimir/Delete keyboard removes the current selection; Esc cancels a
+//     pending bar pick
 //
 // Diagrams are read from `result.perBar[id]` which already holds combined
 // ELU samples produced by the bridge (`solveDesignModel`).
@@ -22,9 +27,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { InlineEdit } from './components/InlineEdit';
-import { canEditBarLength, canInsertNode } from './invariants';
+import { canEditBarLength, canInsertNode, MIN_NODE_SEPARATION_M } from './invariants';
 import {
   DEFAULT_APOYO_ARMADO,
+  DEFAULT_RC_SECTION,
   DEFAULT_VANO_ARMADO,
   DESIGN_PRESETS,
 } from './presets';
@@ -69,6 +75,13 @@ export function Canvas({
   void hoveredBar;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [size, setSize] = useState({ w: 800, h: 480 });
+  // 'bar' tool: id of the first node picked, awaiting a second node to connect.
+  const [pendingBarNode, setPendingBarNode] = useState<string | null>(null);
+
+  // Reset a pending bar pick whenever we leave the bar tool or go read-only.
+  useEffect(() => {
+    if (tool !== 'bar' || readOnly) setPendingBarNode(null);
+  }, [tool, readOnly]);
 
   // Bounds: x range from leftmost to rightmost node; y is fixed at 0 with
   // padding for diagrams above/below the strip.
@@ -135,6 +148,12 @@ export function Canvas({
   useEffect(() => {
     if (readOnly) return;
     function onKey(e: KeyboardEvent) {
+      // Esc cancels a pending bar pick (before the input-focus guard so it
+      // works regardless of focus).
+      if (e.key === 'Escape') {
+        if (pendingBarNode) { e.preventDefault(); setPendingBarNode(null); }
+        return;
+      }
       if (e.key !== 'Delete' && e.key !== 'Supr') return;
       if (!selected) return;
       // Avoid deleting when an input is focused
@@ -146,17 +165,12 @@ export function Canvas({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, model, readOnly]);
+  }, [selected, model, readOnly, pendingBarNode]);
 
   function nextNodeId(): string {
     let i = 1;
     while (model.nodes.find((n) => n.id === 'n' + i)) i++;
     return 'n' + i;
-  }
-  function nextLoadId(): string {
-    let i = 1;
-    while (model.loads.find((l) => l.id === 'l' + i)) i++;
-    return 'l' + i;
   }
 
   function getSvgPt(e: React.MouseEvent<SVGSVGElement>): { sx: number; sy: number; wx: number } {
@@ -228,27 +242,65 @@ export function Canvas({
       setModel((m) => ({ ...m, nodes: [...m.nodes, { id, x: xSnap, y: 0 }] }));
       return;
     }
+    if (effectiveTool === 'bar') {
+      // Two-click: pick node i, then node j, to connect them with a bar.
+      const node = findNodeAt(wx);
+      if (!node) { setPendingBarNode(null); return; }        // click off any node cancels
+      if (!pendingBarNode) { setPendingBarNode(node.id); return; }
+      if (node.id === pendingBarNode) { setPendingBarNode(null); return; } // same node cancels
+      createBar(pendingBarNode, node.id);
+      setPendingBarNode(null);
+      return;
+    }
     if (effectiveTool === 'support') {
       const node = findNodeAt(wx);
       if (!node) return;
       cycleSupport(node.id);
       return;
     }
-    if (effectiveTool === 'load') {
+    if (effectiveTool === 'load-dist') {
+      // Distributed load: only acts on a bar (UDL). Ignores nodes / empty space.
+      const bar = findBarAt(wx);
+      if (bar) {
+        setModel((m) => {
+          const id = nextLoadIdInModel(m);
+          const load: Load = { id, kind: 'udl', lc: 'G', bar: bar.id, w: 15, dir: '-y' };
+          return { ...m, loads: [...m.loads, load] };
+        });
+      }
+      return;
+    }
+    if (effectiveTool === 'load-point') {
+      // Point load: on an existing node, or create a node on the bar under the
+      // cursor and load it (single undo step).
       const node = findNodeAt(wx);
       if (node) {
-        const id = nextLoadId();
-        // V1.1 sign convention: Py > 0 = downward (gravity-positive engineering).
-        const load: Load = { id, kind: 'point-node', lc: 'G', node: node.id, Px: 0, Py: 10 };
-        setModel((m) => ({ ...m, loads: [...m.loads, load] }));
+        setModel((m) => {
+          const id = nextLoadIdInModel(m);
+          // V1.1 sign convention: Py > 0 = downward (gravity-positive engineering).
+          const load: Load = { id, kind: 'point-node', lc: 'G', node: node.id, Px: 0, Py: 10 };
+          return { ...m, loads: [...m.loads, load] };
+        });
         return;
       }
       const bar = findBarAt(wx);
-      if (bar) {
-        const id = nextLoadId();
-        const load: Load = { id, kind: 'udl', lc: 'G', bar: bar.id, w: 15, dir: '-y' };
-        setModel((m) => ({ ...m, loads: [...m.loads, load] }));
-      }
+      if (!bar) return;
+      const ni = model.nodes.find((n) => n.id === bar.i);
+      const nj = model.nodes.find((n) => n.id === bar.j);
+      if (!ni || !nj) return;
+      // Snap to 0.1m grid, reject positions on/near the bar ends.
+      const xSnap = Math.round(wx * 10) / 10;
+      const xLow = Math.min(ni.x, nj.x);
+      const xHigh = Math.max(ni.x, nj.x);
+      if (xSnap <= xLow + 0.05 || xSnap >= xHigh - 0.05) return;
+      if (!canInsertNode(model, xSnap, 0).ok) return;
+      setModel((m) => {
+        const newNodeId = nextNodeIdInModel(m);
+        const nodes = [...m.nodes, { id: newNodeId, x: xSnap, y: 0 }];
+        const loadId = nextLoadIdInModel(m);
+        const load: Load = { id: loadId, kind: 'point-node', lc: 'G', node: newNodeId, Px: 0, Py: 10 };
+        return { ...m, nodes, loads: [...m.loads, load] };
+      });
       return;
     }
     if (effectiveTool === 'delete') {
@@ -302,33 +354,81 @@ export function Canvas({
     setModel((m) => ({ ...m, loads: m.loads.filter((l) => l.id !== id) }));
   }
 
-  // Edit handlers: cota length, UDL value, point load value.
-  function setBarLengthEdge(barId: string, newL: number) {
-    if (!canEditBarLength(newL).ok) return;
+  // 'bar' tool: connect two existing nodes with a new bar. Rejects if the nodes
+  // are already connected or a third node lies strictly between them (which
+  // would overlap bars on the collinear strip). Clones section/armado from an
+  // adjacent bar, else the first bar, else RC defaults.
+  function createBar(aId: string, bId: string) {
     setModel((m) => {
-      const bar = m.bars.find((b) => b.id === barId);
-      if (!bar) return m;
-      const ni = m.nodes.find((n) => n.id === bar.i)!;
-      const nj = m.nodes.find((n) => n.id === bar.j)!;
-      // Determine which node is to the right (the j-end in design ordering OR
-      // the higher-x one) and shift it to ni.x + newL. Then cascade-shift any
-      // nodes/bars to its right by the delta.
-      const xLow = Math.min(ni.x, nj.x);
-      const xHigh = Math.max(ni.x, nj.x);
-      const oldL = xHigh - xLow;
-      const deltaL = newL - oldL;
-      if (Math.abs(deltaL) < 1e-9) return m;
-      // Shift all nodes with x > xHigh - eps by deltaL (cascade), and the
-      // higher-x endpoint of THIS bar.
-      const movedX = xHigh + deltaL;
-      const nodes = m.nodes.map((n) => {
-        if (n.x > xHigh - 1e-9) {
-          // The one at xHigh becomes movedX; everything to the right shifts.
-          return { ...n, x: n.x - xHigh + movedX };
-        }
-        return n;
-      });
-      return { ...m, nodes };
+      if (aId === bId) return m;
+      const na = m.nodes.find((n) => n.id === aId);
+      const nb = m.nodes.find((n) => n.id === bId);
+      if (!na || !nb) return m;
+      const already = m.bars.some(
+        (b) => (b.i === aId && b.j === bId) || (b.i === bId && b.j === aId),
+      );
+      if (already) return m;
+      const xLow = Math.min(na.x, nb.x);
+      const xHigh = Math.max(na.x, nb.x);
+      const between = m.nodes.some(
+        (n) => n.id !== aId && n.id !== bId && n.x > xLow + 1e-9 && n.x < xHigh - 1e-9,
+      );
+      if (between) return m;
+      // Left→right endpoint ordering, matching the rest of the model.
+      const leftId = na.x <= nb.x ? aId : bId;
+      const rightId = na.x <= nb.x ? bId : aId;
+      const newBarId = nextBarIdInModel(m);
+      // Clone a neighbour bar (sharing an endpoint), else the first bar.
+      const neighbour =
+        m.bars.find((b) => b.i === aId || b.j === aId || b.i === bId || b.j === bId) ??
+        m.bars[0];
+      const newBar: DesignBar = neighbour
+        ? {
+            ...(JSON.parse(JSON.stringify(neighbour)) as DesignBar),
+            id: newBarId,
+            i: leftId,
+            j: rightId,
+            vano_armado: neighbour.vano_armado
+              ? { ...neighbour.vano_armado }
+              : { ...DEFAULT_VANO_ARMADO },
+            apoyo_armado: neighbour.apoyo_armado
+              ? { ...neighbour.apoyo_armado }
+              : { ...DEFAULT_APOYO_ARMADO },
+            internalHinges: { i: false, j: false },
+          }
+        : {
+            id: newBarId,
+            i: leftId,
+            j: rightId,
+            material: 'rc',
+            rcSection: { ...DEFAULT_RC_SECTION },
+            vano_armado: { ...DEFAULT_VANO_ARMADO },
+            apoyo_armado: { ...DEFAULT_APOYO_ARMADO },
+            internalHinges: { i: false, j: false },
+          };
+      return { ...m, bars: [...m.bars, newBar] };
+    });
+  }
+
+  // Edit handlers: node-gap cota (chain), UDL value, point load value.
+  //
+  // Chain-cota semantics: editing the gap between a node and its LEFT neighbour
+  // moves ONLY that node (no cascade), bounded strictly between its neighbours.
+  function setGapLength(rightNodeId: string, newGap: number) {
+    if (!canEditBarLength(newGap).ok) return;
+    setModel((m) => {
+      const sorted = [...m.nodes].sort((a, b) => a.x - b.x);
+      const idx = sorted.findIndex((n) => n.id === rightNodeId);
+      if (idx <= 0) return m; // first node is the datum — no left gap to edit
+      const left = sorted[idx - 1];
+      const rightNeighbour = sorted[idx + 1]; // may be undefined (last node)
+      const targetX = left.x + newGap;
+      if (targetX <= left.x + MIN_NODE_SEPARATION_M) return m;
+      if (rightNeighbour && targetX >= rightNeighbour.x - MIN_NODE_SEPARATION_M) return m;
+      return {
+        ...m,
+        nodes: m.nodes.map((n) => (n.id === rightNodeId ? { ...n, x: targetX } : n)),
+      };
     });
   }
 
@@ -346,43 +446,46 @@ export function Canvas({
     }));
   }
 
-  function addVano() {
+  // Append ('right') or prepend ('left') a vano, cloning the vano at that end
+  // (its length + UDL + section/armado) and adding a roller support at the new
+  // free endpoint.
+  function addVano(side: 'left' | 'right') {
     setModel((m) => {
       if (m.bars.length === 0) return m;
-      // Pick the rightmost bar to clone.
-      const sorted = m.bars.map((b) => {
+      const withX = m.bars.map((b) => {
         const ni = m.nodes.find((n) => n.id === b.i)!;
         const nj = m.nodes.find((n) => n.id === b.j)!;
-        const xMax = Math.max(ni.x, nj.x);
-        return { bar: b, xMax, xLow: Math.min(ni.x, nj.x) };
-      }).sort((a, b) => b.xMax - a.xMax);
-      const last = sorted[0];
-      const lastL = last.xMax - last.xLow;
+        return { bar: b, xMax: Math.max(ni.x, nj.x), xLow: Math.min(ni.x, nj.x) };
+      });
+      // Clone the end-most bar: rightmost for 'right', leftmost for 'left'.
+      const target = side === 'right'
+        ? withX.slice().sort((a, b) => b.xMax - a.xMax)[0]
+        : withX.slice().sort((a, b) => a.xLow - b.xLow)[0];
+      const L = target.xMax - target.xLow;
       const newNodeId = nextNodeIdInModel(m);
       const newBarId = nextBarIdInModel(m);
-      const newX = last.xMax + lastL;
+      const newX = side === 'right' ? target.xMax + L : target.xLow - L;
       const newNode: Node = { id: newNodeId, x: newX, y: 0 };
-      // Find the rightmost endpoint node id (the one at last.xMax).
-      const rightEndpoint = (() => {
-        const ni = m.nodes.find((n) => n.id === last.bar.i)!;
-        const nj = m.nodes.find((n) => n.id === last.bar.j)!;
-        return ni.x >= nj.x ? ni.id : nj.id;
-      })();
-      // Clone the last bar's section/armado.
+      // Endpoint node of the cloned bar that the new node attaches to.
+      const ni = m.nodes.find((n) => n.id === target.bar.i)!;
+      const nj = m.nodes.find((n) => n.id === target.bar.j)!;
+      const anchorId = side === 'right'
+        ? (ni.x >= nj.x ? ni.id : nj.id)   // rightmost endpoint
+        : (ni.x <= nj.x ? ni.id : nj.id);  // leftmost endpoint
+      // Keep left→right ordering: new node is j for 'right', i for 'left'.
       const newBar: DesignBar = {
-        ...JSON.parse(JSON.stringify(last.bar)),
+        ...(JSON.parse(JSON.stringify(target.bar)) as DesignBar),
         id: newBarId,
-        i: rightEndpoint,
-        j: newNodeId,
-        // Preserve armado for HA
-        vano_armado: last.bar.vano_armado ? { ...last.bar.vano_armado } : { ...DEFAULT_VANO_ARMADO },
-        apoyo_armado: last.bar.apoyo_armado ? { ...last.bar.apoyo_armado } : { ...DEFAULT_APOYO_ARMADO },
+        i: side === 'right' ? anchorId : newNodeId,
+        j: side === 'right' ? newNodeId : anchorId,
+        vano_armado: target.bar.vano_armado ? { ...target.bar.vano_armado } : { ...DEFAULT_VANO_ARMADO },
+        apoyo_armado: target.bar.apoyo_armado ? { ...target.bar.apoyo_armado } : { ...DEFAULT_APOYO_ARMADO },
         internalHinges: { i: false, j: false },
       };
-      // Clone the last UDL (if any) onto the new bar.
-      const lastUdl = m.loads.find((l) => l.kind === 'udl' && l.bar === last.bar.id);
-      const clonedLoad = lastUdl && lastUdl.kind === 'udl'
-        ? [{ ...lastUdl, id: nextLoadIdInModel(m), bar: newBarId }] as Load[]
+      // Clone the end vano's UDL (if any) onto the new bar.
+      const endUdl = m.loads.find((l) => l.kind === 'udl' && l.bar === target.bar.id);
+      const clonedLoad = endUdl && endUdl.kind === 'udl'
+        ? [{ ...endUdl, id: nextLoadIdInModel(m), bar: newBarId }] as Load[]
         : [];
       // Add a roller support at the new endpoint.
       const newSupport: Support = { node: newNodeId, type: 'roller' };
@@ -528,12 +631,13 @@ export function Canvas({
           />
         ))}
 
-        {/* Bar dimensions (cotas) — only in default layer (working state) */}
+        {/* Node-gap dimensions (cota chain) — only in default layer. Editing a
+            gap moves only that node (no cascade). */}
         {view.layer === 'none' && (
-          <BarDimensions
+          <NodeChainDimensions
             model={model}
             w2s={w2s}
-            onEditLength={setBarLengthEdge}
+            onEditGap={setGapLength}
             readOnly={readOnly}
           />
         )}
@@ -560,6 +664,7 @@ export function Canvas({
               tool={tool}
               stackIndex={stack.get(ld.id) ?? 0}
               onClick={() => setSelected({ kind: 'load', id: ld.id })}
+              onDelete={deleteLoad}
               onEditValue={setLoadValue}
               readOnly={readOnly}
             />
@@ -578,6 +683,8 @@ export function Canvas({
         {model.nodes.map((n) => {
           const [sx, sy] = w2s(n.x, 0);
           const isSel = selected?.kind === 'node' && selected.id === n.id;
+          // First node picked for the 'bar' tool, awaiting the second.
+          const isPending = pendingBarNode === n.id;
           // Read-only always tap-to-select; in editor mode only 'select' tool.
           const nodeIsSelect = readOnly || tool === 'select';
           return (
@@ -586,7 +693,11 @@ export function Canvas({
               role={nodeIsSelect ? 'button' : undefined}
               tabIndex={nodeIsSelect ? 0 : -1}
               aria-label={nodeIsSelect ? `Nodo ${n.id}, pulsa Enter para seleccionar` : undefined}
-              className={nodeIsSelect ? 'fem-focus-ring' : undefined}
+              // Always carry fem-focus-ring — silences the browser's near-black
+              // mouse-focus outline when a node is clicked with a non-select tool
+              // (support, delete, carga puntual). Accent ring still shows on
+              // keyboard focus (:focus-visible, select mode only).
+              className="fem-focus-ring"
               onClick={nodeIsSelect ? (e) => { e.stopPropagation(); setSelected({ kind: 'node', id: n.id }); } : undefined}
               onKeyDown={nodeIsSelect ? (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -599,10 +710,15 @@ export function Canvas({
             >
               {/* Invisible touch hit-area (22px radius) over the visible 5-7px node. */}
               <circle cx={sx} cy={sy} r={22} fill="transparent" pointerEvents="all" />
+              {/* Dashed accent ring on the node awaiting a bar connection. */}
+              {isPending && (
+                <circle cx={sx} cy={sy} r={11} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeDasharray="3 2" pointerEvents="none" />
+              )}
               <circle
-                cx={sx} cy={sy} r={isSel ? 7 : 5}
+                cx={sx} cy={sy} r={isSel || isPending ? 7 : 5}
                 fill={isSel ? 'var(--color-accent)' : 'var(--color-bg-primary)'}
-                stroke="var(--color-text-primary)" strokeWidth="1.6"
+                stroke={isPending ? 'var(--color-accent)' : 'var(--color-text-primary)'}
+                strokeWidth={isPending ? 2.2 : 1.6}
                 pointerEvents="none"
               />
               {/* Hinge glyph if any bar has internalHinges set at this node */}
@@ -623,11 +739,14 @@ export function Canvas({
 
         </g>{/* /structural content */}
 
-        {/* "+vano" floating button — hidden in read-only (mobile). Outside the
-            measured group so the empty space it forces past the last node
-            doesn't pull the model off-center. */}
+        {/* "+vano" floating buttons at both ends — hidden in read-only (mobile).
+            Outside the measured group so the empty space they force past the end
+            nodes doesn't pull the model off-center. */}
         {model.bars.length > 0 && !readOnly && (
-          <AddVanoButton model={model} w2s={w2s} onClick={addVano} />
+          <>
+            <AddVanoButton side="left" model={model} w2s={w2s} onClick={() => addVano('left')} />
+            <AddVanoButton side="right" model={model} w2s={w2s} onClick={() => addVano('right')} />
+          </>
         )}
 
         {/* Tool hint — only meaningful in editor mode (desktop/tablet). */}
@@ -788,7 +907,13 @@ function BarRenderer({
       } : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={isSelectTool ? 'fem-focus-ring' : undefined}
+      // Always carry fem-focus-ring so mouse focus (:focus) is silenced in every
+      // tool. Without it, clicking a bar with a non-select tool (e.g. carga
+      // distribuida) focuses this tabindex=-1 group and the browser paints its
+      // default near-black auto outline — the "black square" bug. Keyboard focus
+      // (:focus-visible, only reachable when tabIndex=0 in select mode) still
+      // shows the accent ring.
+      className="fem-focus-ring"
       style={{ cursor: isSelectTool ? 'pointer' : 'crosshair' }}
     >
       {/* Invisible hit-area: matches WCAG 2.5.5 for touch targets without
@@ -853,39 +978,43 @@ function BarRenderer({
   );
 }
 
-function BarDimensions({
-  model, w2s, onEditLength, readOnly = false,
+// Dimension chain: one editable cota per gap between consecutive nodes. Editing
+// a gap moves ONLY the node on its right (bounded by neighbours) — see
+// `setGapLength`. Every point (including mid-bar splits) is thus dimensioned.
+function NodeChainDimensions({
+  model, w2s, onEditGap, readOnly = false,
 }: {
   model: DesignModel;
   w2s: (x: number, y: number) => [number, number];
-  onEditLength: (barId: string, newL: number) => void;
+  onEditGap: (rightNodeId: string, newGap: number) => void;
   readOnly?: boolean;
 }) {
+  const sorted = [...model.nodes].sort((a, b) => a.x - b.x);
   const items: React.ReactNode[] = [];
-  for (const bar of model.bars) {
-    const ni = model.nodes.find((n) => n.id === bar.i);
-    const nj = model.nodes.find((n) => n.id === bar.j);
-    if (!ni || !nj) continue;
-    const L = Math.abs(nj.x - ni.x);
-    const [x1, y1] = w2s(ni.x, 0);
-    const [x2] = w2s(nj.x, 0);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    const gap = b.x - a.x;
+    if (gap <= 1e-9) continue;
+    const [x1, y1] = w2s(a.x, 0);
+    const [x2] = w2s(b.x, 0);
     const yDim = y1 + 38;
     const xMid = (x1 + x2) / 2;
     items.push(
-      <g key={`dim-${bar.id}`}>
+      <g key={`gap-${a.id}-${b.id}`}>
         <line x1={x1} y1={yDim} x2={x2} y2={yDim} stroke="var(--color-text-secondary)" strokeWidth="1" />
         <line x1={x1} y1={yDim - 3} x2={x1} y2={yDim + 3} stroke="var(--color-text-secondary)" strokeWidth="1" />
         <line x1={x2} y1={yDim - 3} x2={x2} y2={yDim + 3} stroke="var(--color-text-secondary)" strokeWidth="1" />
         <foreignObject x={xMid - 30} y={yDim + 4} width={60} height={20}>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <InlineEdit
-              value={L}
+              value={gap}
               decimals={2}
               unit="m"
               min={0.1}
               disabled={readOnly}
-              onCommit={(newL) => onEditLength(bar.id, newL)}
-              ariaLabel={`Luz barra ${bar.id}`}
+              onCommit={(newGap) => onEditGap(b.id, newGap)}
+              ariaLabel={`Cota ${a.id}–${b.id}`}
             />
           </div>
         </foreignObject>
@@ -916,7 +1045,7 @@ function lcColor(lc: LoadCase): string {
 }
 
 function LoadGlyph({
-  load, model, w2s, selected, tool, stackIndex, onClick, onEditValue, readOnly = false,
+  load, model, w2s, selected, tool, stackIndex, onClick, onDelete, onEditValue, readOnly = false,
 }: {
   load: Load;
   model: DesignModel;
@@ -927,6 +1056,7 @@ function LoadGlyph({
    *  Used to offset upper loads outward so they don't overlap. */
   stackIndex: number;
   onClick: () => void;
+  onDelete: (loadId: string) => void;
   onEditValue: (loadId: string, value: number) => void;
   readOnly?: boolean;
 }) {
@@ -934,8 +1064,23 @@ function LoadGlyph({
   const c = isSelected ? 'var(--color-accent)' : lcColor(load.lc);
   // In read-only the only meaningful tool is 'select' — clicks are tap-to-select.
   const isSelectTool = readOnly || tool === 'select';
-  const groupClick = isSelectTool ? (e: React.MouseEvent) => { e.stopPropagation(); onClick(); } : undefined;
-  const groupCursor = isSelectTool ? 'pointer' : 'crosshair';
+  const isDeleteTool = !readOnly && tool === 'delete';
+  // The glyph captures clicks (and stops them reaching the SVG's bar/node
+  // handlers) in select AND delete modes: select → pick the load; delete →
+  // remove THIS load, not the whole bar underneath it. Other tools let the
+  // click fall through to the SVG so they can act on the bar/node.
+  const interactive = isSelectTool || isDeleteTool;
+  const handleGroupClick = interactive
+    ? (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isDeleteTool) onDelete(load.id);
+        else onClick();
+      }
+    : undefined;
+  const groupCursor = interactive ? 'pointer' : 'crosshair';
+  // Disable inline value editing in delete mode so a click on the number label
+  // removes the load (via the group handler) instead of opening the editor.
+  const editDisabled = readOnly || isDeleteTool;
 
   if (load.kind === 'point-node') {
     const node = model.nodes.find((n) => n.id === load.node);
@@ -953,13 +1098,21 @@ function LoadGlyph({
     const tailY = Py > 0 ? sy - (len + 4) - stackOff : sy + (len + 4) + stackOff;
     const tipY  = Py > 0 ? sy - 4         - stackOff : sy + 4         + stackOff;
     return (
-      <g onClick={groupClick} style={{ cursor: groupCursor }}>
+      <g onClick={handleGroupClick} style={{ cursor: groupCursor }}>
+        {/* Invisible wide hit area over the arrow so the load is easy to click
+            (select/delete) instead of the thin 1.5px stroke. */}
+        {interactive && (
+          <line
+            x1={sx} y1={Math.min(tailY, tipY)} x2={sx} y2={Math.max(tailY, tipY)}
+            stroke="transparent" strokeWidth={18} pointerEvents="stroke"
+          />
+        )}
         <line x1={sx} y1={tailY} x2={sx} y2={tipY} stroke={c} strokeWidth="1.5" markerEnd="url(#fem-arr-load)" />
         <foreignObject x={sx + 4} y={(tailY + tipY) / 2 - 10} width={70} height={20}>
           <div>
             <InlineEdit
               value={Math.abs(Py)} quantity="force" min={0}
-              disabled={readOnly}
+              disabled={editDisabled}
               onCommit={(v) => onEditValue(load.id, v)}
               ariaLabel={`Carga ${load.id}`}
             />
@@ -1010,14 +1163,29 @@ function LoadGlyph({
       }
       const xMid = (x1 + x2) / 2;
       const yMid = (tailY1 + tailY2) / 2 - 14;
+      // Invisible hit band over the UDL arrows so clicking anywhere on the
+      // distributed load (not just a thin arrow) selects/deletes it. Inset a few
+      // px from the bar edge so the bar underneath stays clickable for delete.
+      const bandTop = Math.min(tailY1, tipY1);
+      const bandBot = Math.max(tailY1, tipY1);
+      const barSideGap = 5; // keep the strip line reachable to delete the bar
+      const hitY = isUp ? bandTop + barSideGap : bandTop;
+      const hitH = Math.max(2, (bandBot - bandTop) - barSideGap);
       return (
-        <g onClick={groupClick} style={{ cursor: groupCursor }}>
+        <g onClick={handleGroupClick} style={{ cursor: groupCursor }}>
+          {interactive && (
+            <rect
+              x={Math.min(x1, x2)} y={hitY}
+              width={Math.abs(x2 - x1)} height={hitH}
+              fill="transparent" pointerEvents="all"
+            />
+          )}
           {elems}
           <foreignObject x={xMid - 40} y={yMid - 8} width={90} height={20}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <InlineEdit
                 value={load.w} quantity="linearLoad" min={0}
-                disabled={readOnly}
+                disabled={editDisabled}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`UDL ${load.id}`}
               />
@@ -1038,13 +1206,19 @@ function LoadGlyph({
       const tailY = isUp ? py + len + stackOff : py - len - stackOff;
       const tipY  = isUp ? py + 4 + stackOff   : py - 4 - stackOff;
       return (
-        <g onClick={groupClick} style={{ cursor: groupCursor }}>
+        <g onClick={handleGroupClick} style={{ cursor: groupCursor }}>
+          {interactive && (
+            <line
+              x1={px} y1={Math.min(tailY, tipY)} x2={px} y2={Math.max(tailY, tipY)}
+              stroke="transparent" strokeWidth={18} pointerEvents="stroke"
+            />
+          )}
           <line x1={px} y1={tailY} x2={px} y2={tipY} stroke={c} strokeWidth="1.5" markerEnd="url(#fem-arr-load)" />
           <foreignObject x={px + 4} y={(tailY + tipY) / 2 - 10} width={70} height={20}>
             <div>
               <InlineEdit
                 value={load.P} quantity="force" min={0}
-                disabled={readOnly}
+                disabled={editDisabled}
                 onCommit={(v) => onEditValue(load.id, v)}
                 ariaLabel={`P ${load.id}`}
               />
@@ -1286,21 +1460,24 @@ function DeformedBar({
 }
 
 function AddVanoButton({
-  model, w2s, onClick,
+  side, model, w2s, onClick,
 }: {
+  side: 'left' | 'right';
   model: DesignModel;
   w2s: (x: number, y: number) => [number, number];
   onClick: () => void;
 }) {
-  // Find rightmost node x.
   if (model.nodes.length === 0) return null;
-  const xMax = Math.max(...model.nodes.map((n) => n.x));
-  const [sx, sy] = w2s(xMax, 0);
+  // Anchor at the end-most node; offset the button outward past it.
+  const xs = model.nodes.map((n) => n.x);
+  const xEnd = side === 'right' ? Math.max(...xs) : Math.min(...xs);
+  const [sxNode, sy] = w2s(xEnd, 0);
+  const cx = side === 'right' ? sxNode + 32 : sxNode - 32;
   return (
     <g
       role="button"
       tabIndex={0}
-      aria-label="Añadir vano"
+      aria-label={side === 'right' ? 'Añadir vano por la derecha' : 'Añadir vano por la izquierda'}
       className="fem-focus-ring"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       onKeyDown={(e) => {
@@ -1312,10 +1489,10 @@ function AddVanoButton({
       }}
       style={{ cursor: 'pointer' }}
     >
-      <circle cx={sx + 32} cy={sy} r={12} fill="var(--color-bg-elevated)" stroke="var(--color-accent)" strokeWidth="1.5" />
-      <line x1={sx + 27} y1={sy} x2={sx + 37} y2={sy} stroke="var(--color-accent)" strokeWidth="1.5" />
-      <line x1={sx + 32} y1={sy - 5} x2={sx + 32} y2={sy + 5} stroke="var(--color-accent)" strokeWidth="1.5" />
-      <text x={sx + 32} y={sy + 26} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="9" fill="var(--color-text-disabled)">+ vano</text>
+      <circle cx={cx} cy={sy} r={12} fill="var(--color-bg-elevated)" stroke="var(--color-accent)" strokeWidth="1.5" />
+      <line x1={cx - 5} y1={sy} x2={cx + 5} y2={sy} stroke="var(--color-accent)" strokeWidth="1.5" />
+      <line x1={cx} y1={sy - 5} x2={cx} y2={sy + 5} stroke="var(--color-accent)" strokeWidth="1.5" />
+      <text x={cx} y={sy + 26} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="9" fill="var(--color-text-disabled)">+ vano</text>
     </g>
   );
 }
@@ -1324,8 +1501,10 @@ function ToolHint({ tool }: { tool: ToolId }) {
   const map: Record<ToolId, string> = {
     select: 'Click una barra, nodo o carga para seleccionar',
     node: 'Click sobre una barra para insertar un nodo intermedio',
+    bar: 'Click en dos nodos para unirlos con una barra',
     support: 'Click en un nodo para asignar/cambiar apoyo',
-    load: 'Click en nodo (carga puntual) o barra (UDL)',
+    'load-dist': 'Click en una barra para añadir carga distribuida (UDL)',
+    'load-point': 'Click en un nodo, o en la barra para crear un punto, y añadir carga puntual',
     delete: 'Click en un nodo, barra o carga para eliminar',
   };
   const text = map[tool];

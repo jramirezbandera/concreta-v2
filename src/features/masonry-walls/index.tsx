@@ -5,7 +5,6 @@
 // flat primitives). Same approach as the FEM 1D module.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Sparkles } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -376,6 +375,7 @@ export function MasonryWallsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -391,18 +391,6 @@ export function MasonryWallsModule() {
           tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden',
         ].join(' ')}>
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide">
-            {/* El padding horizontal vive en MasonryWallsInputs, así que el botón
-                trae el suyo para alinearse con los campos de abajo. */}
-            <div className="px-4 pt-3">
-              <button
-                type="button"
-                onClick={() => setAiOpen(true)}
-                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors cursor-pointer"
-              >
-                <Sparkles size={14} aria-hidden="true" />
-                Rellenar con IA
-              </button>
-            </div>
             <MasonryWallsInputs
               state={state}
               setState={setState}

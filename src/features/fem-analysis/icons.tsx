@@ -34,6 +34,16 @@ export const FemIcons = {
       <path d="M4 8 L7 11 L10 8" />
     </svg>
   ),
+  // Distributed load: a top rail feeding a row of short down-arrows onto a bar.
+  LoadDist: ({ s = 14 }: IconProps) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 3 H12.5" />
+      <path d="M3 3 V8 M3 8 L2 6.5 M3 8 L4 6.5" />
+      <path d="M7 3 V8 M7 8 L6 6.5 M7 8 L8 6.5" />
+      <path d="M11 3 V8 M11 8 L10 6.5 M11 8 L12 6.5" />
+      <path d="M1.5 11 H12.5" />
+    </svg>
+  ),
   Trash: ({ s = 14 }: IconProps) => (
     <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2.5 4 H11.5" />

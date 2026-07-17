@@ -111,9 +111,11 @@ describe('RCColumnsModule — Rellenar con IA (integración T4.2)', () => {
     expect(document.getElementById('input-h')).not.toBeNull();
     expect(document.getElementById('input-D')).toBeNull();
 
-    // El botón del panel izquierdo abre el modal genérico con el adapter del módulo.
-    await user.click(screen.getByRole('button', { name: /Rellenar con IA/ }));
-    expect(screen.getByText('Rellenar con IA · Pilares de hormigón')).toBeInTheDocument();
+    // El botón "Asistente IA" de la topbar abre el asistente genérico con el
+    // adapter del módulo. (Hay dos AiButton renderizados —icono móvil + etiqueta
+    // escritorio—; ambos con aria-label "Abrir asistente IA"; cualquiera vale.)
+    await user.click(screen.getAllByRole('button', { name: 'Abrir asistente IA' })[0]);
+    expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
 
     typeAndSend('Hazlo circular de 40 cm con Nd = 1200 kN');
 
@@ -153,9 +155,10 @@ describe('RCColumnsModule — Rellenar con IA (integración T4.2)', () => {
     // Toast del handler (plural, sin avisos).
     expect(await screen.findByText('IA: 3 campos aplicados')).toBeInTheDocument();
 
-    // Aplicar NO cierra el modal: la tarjeta pasa a "Aplicado" (deshabilitado).
+    // Aplicar NO cierra el asistente: la tarjeta pasa a "Aplicado" (deshabilitado)
+    // y el composer sigue montado.
     expect(screen.getByRole('button', { name: 'Aplicado' })).toBeDisabled();
-    expect(screen.getByText('Rellenar con IA · Pilares de hormigón')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
 
     // --- Fase 3 (T3.3): el 2º turno lleva los resultados RECALCULADOS ---
     // Estado tras aplicar la propuesta = defaults + los 3 campos aplicados.

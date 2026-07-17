@@ -29,7 +29,11 @@ export type AiModuleId =
   | 'anchor-plate'
   // Ola 4 — modelo anidado: la IA solo propone los escalares globales; las
   // plantas (con huecos y puntuales) viajan al snapshot como contexto de lectura
-  | 'masonry-walls';
+  | 'masonry-walls'
+  // Ola 5 — modelo estructural completo (FEM 1D): el payload es una PROYECCIÓN
+  // plana de la tira colineal (vanos/apoyos/cargas) que buildPlan reconstruye
+  // en un DesignModel; el armado y las rótulas viajan como contexto de lectura
+  | 'fem-1d';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)

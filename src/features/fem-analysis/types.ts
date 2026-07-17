@@ -408,10 +408,21 @@ export interface ViewState {
   deformedScale?: number;
 }
 
-// 'bar' tool removed in V1.1 — geometry is created via "+ vano" floating button
-// (clones last vano) or via "Añadir nodo" mid-bar split. No free-form bar drawing
-// in the V1 wedge (collinear strip only).
-export type ToolId = 'select' | 'node' | 'support' | 'load' | 'delete';
+// Tool set (V1.2):
+//   - 'bar' (re-introduced): connect two EXISTING collinear nodes with a bar.
+//     Two-click pick i→j; no free-form drawing (still collinear strip only).
+//     Restores the ability to rebuild a bar deleted from the middle of a beam.
+//   - 'load-dist' / 'load-point': the old single 'load' tool split in two —
+//     distributed (UDL on a bar) vs point (nodal load, creating the node if
+//     the click lands on a bar with no node nearby).
+export type ToolId =
+  | 'select'
+  | 'node'
+  | 'bar'
+  | 'support'
+  | 'load-dist'
+  | 'load-point'
+  | 'delete';
 
 export type Selected =
   | { kind: 'node'; id: string }

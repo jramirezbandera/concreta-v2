@@ -17,7 +17,7 @@ import { SlopeInputs } from "./SlopeInputs";
 import { SlopeStabilitySVG } from "./SlopeStabilitySVG";
 import { SlopeSearchSVG } from "./SlopeSearchSVG";
 import { SlopeResults } from "./SlopeResults";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { engineStatusText } from "../../lib/text/labels";
 import type { AiApplyPlan } from "../../lib/ai/modules/types";
 import type { SlopeInputs as SlopeInputsModel } from "../../data/defaults";
@@ -171,6 +171,7 @@ export function SlopeStabilityModule() {
         pdfExporting={pdfExporting}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -184,14 +185,6 @@ export function SlopeStabilityModule() {
           ].join(" ")}
         >
           <div className="scroll-hide flex-1 overflow-y-auto px-4 py-4">
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Rellenar con IA
-            </button>
             <SlopeInputs value={state} onChange={setState} validation={validation} />
           </div>
           <div className="hidden shrink-0 border-t border-border-main px-4 py-3 lg:block">

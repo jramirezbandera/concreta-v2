@@ -49,6 +49,11 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
   const tipo = (m?.[1] ?? 'IPE') as SteelBeamInputs['tipo'];
   const size = m?.[2] ? parseInt(m[2], 10) : 240;
 
+  // Lcr efectiva: el override manual vive en SteelSelection.Lcr (METROS,
+  // persiste con el modelo); sin override, auto = luz de la barra — el mismo
+  // fallback que aplica adaptSteelBar al comprobar.
+  const lcrMm = sel.Lcr != null ? Math.round(sel.Lcr * 1000) : L_mm;
+
   const derivedUseCategory = deriveUseCategory(barLoads);
 
   // Envelope-derived forces (worst absolute over ELU envelope for MEd/VEd, ELS-frec for Mser).
@@ -72,7 +77,7 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     MEd,
     VEd,
     VEd_interaction: VEd, // V1.1: same as VEd; per-combination iteration is V1.5
-    Lcr: L_mm,
+    Lcr: lcrMm,
     Mser,
     L: L_mm,
     deflLimit: sel.deflLimit,
@@ -81,7 +86,7 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     gk: 0,    // hidden in FEM embed
     qk: 0,    // hidden
     bTrib: 1, // hidden
-  }), [tipo, size, sel, MEd, VEd, Mser, L_mm, derivedUseCategory]);
+  }), [tipo, size, sel, MEd, VEd, Mser, L_mm, lcrMm, derivedUseCategory]);
 
   // Synthetic loadGen so the (hidden) derivation block doesn't show '--'.
   const loadGen: LoadGenResult = useMemo(() => ({
@@ -117,13 +122,30 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     }));
   }
 
+  // Lcr manual → SteelSelection.Lcr en METROS (adaptSteelBar lo multiplica
+  // ×1000 al comprobar). Volver a teclear la luz (±5 mm, la misma tolerancia
+  // del módulo standalone) borra el override y el badge vuelve a "auto".
+  function handleLcrChange(valMm: number) {
+    const manual = Math.abs(valMm - L_mm) > 5;
+    setModel((m) => ({
+      ...m,
+      bars: m.bars.map((b) => {
+        if (b.id !== bar.id) return b;
+        const next: SteelSelection = { ...sel };
+        if (manual) next.Lcr = valMm / 1000;
+        else delete next.Lcr;
+        return { ...b, steelSelection: next };
+      }),
+    }));
+  }
+
   return (
     <SteelBeamsInputs
       state={state}
       setField={setField}
-      displayLcr={L_mm}
-      lcrIsAuto
-      onLcrChange={() => { /* FEM owns Lcr — ignore */ }}
+      displayLcr={lcrMm}
+      lcrIsAuto={sel.Lcr == null}
+      onLcrChange={handleLcrChange}
       loadGen={loadGen}
       hideLoads
       hideBeamType

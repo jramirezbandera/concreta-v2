@@ -1,5 +1,4 @@
 import { useDeferredValue, useMemo, useState } from 'react';
-import { Sparkles } from 'lucide-react';
 import { anchorPlateDefaults, type AnchorPlateInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -109,6 +108,7 @@ export function AnchorPlateModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -123,14 +123,6 @@ export function AnchorPlateModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-5 py-4">
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Rellenar con IA
-            </button>
             <AnchorPlateInputsPanel state={state} setField={setField} warnings={result.warnings} />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">

@@ -224,23 +224,25 @@ html, body { overflow-x: hidden; }
   --color-tint-neutral: color-mix(in srgb, var(--color-state-neutral) 10%, transparent);
 }
 
-/* Dark — neutral slate base (slate-900/800/700 family, per CLAUDE.md).
-   Higher specificity than :root so it always wins. Surfaces are spaced with
-   clearly perceptible luminance steps (each ~2× the last) so the page, panels
-   and cards read as distinct planes instead of one dark mass; borders sit
-   above the lightest surface so input/panel edges stay visible. */
+/* Dark — "Ónice": deep neutral-black base (no blue tint), high contrast, per the
+   dark-mode redesign. Higher specificity than :root so it always wins. The neutral
+   planes (page/panel/card) are near-black greys spaced by clearly perceptible
+   luminance steps so page, panels and cards read as distinct planes instead of one
+   dark mass; borders sit above the lightest surface so input/panel edges stay
+   visible. The sky accent and the semantic state colours are kept from the brand
+   palette — only the neutral base and the neutral chart tokens go monochrome. */
 html[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg-primary: #0f172a;   /* slate-900 — page background + input fields + canvas */
-  --color-bg-surface: #1e293b;   /* slate-800 — panels, sidebar, result blocks */
-  --color-bg-elevated: #2a3a52;  /* slate-800→700 — cards / raised blocks */
-  --color-bg-canvas: #0f172a;    /* same as page — work area framed by the lighter panels */
-  --color-border-main: #41546f;  /* clearly visible primary border (lifts off elevated) */
-  --color-border-sub: #384a66;   /* divider — nudged toward border-main so it also reads as a card edge (was #30405c, ~1.1:1 on cards) while staying below border-main */
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-disabled: #7a8ba6; /* lifted above slate-500 so the 10px uppercase group headers clear ~4:1 on the slate panel (slate-500 #64748b was only 3.07:1) */
+  --color-bg-primary: #0c0c0e;   /* page background + input fields + canvas */
+  --color-bg-surface: #161619;   /* panels, sidebar, result blocks */
+  --color-bg-elevated: #202024;  /* cards / raised blocks */
+  --color-bg-canvas: #0c0c0e;    /* same as page — work area framed by the lighter panels */
+  --color-border-main: #2c2c34;  /* clearly visible primary border (lifts off elevated) */
+  --color-border-sub: #202027;   /* divider — below border-main, still reads as a card edge */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #9a9ea7;
+  --color-text-disabled: #6b6f79; /* labels/refs/helptext + 10px uppercase group headers */
   --color-accent: #38bdf8;
   --color-accent-hover: #0ea5e9;
   --color-btn-primary-bg: #38bdf8;
@@ -248,23 +250,23 @@ html[data-theme="dark"] {
   --color-btn-primary-fg: #052238;
   --color-state-ok: #22c55e;
   --color-state-warn: #f59e0b;
-  --color-state-fail: #f56565; /* red-450 — lifted from #ef4444 so fail text clears AA (4.8:1) on the slate panel; #ef4444 was 3.9:1 */
+  --color-state-fail: #f56565; /* red-450 — lifted from #ef4444 so fail text clears AA on the near-black panel */
   --color-state-neutral: #64748b;
 
-  --color-chart-section: #334155;
-  --color-chart-section-fill: #1e293b;
+  --color-chart-section: #4b4f59;
+  --color-chart-section-fill: #161619;
   --color-chart-rebar: #38bdf8;
-  --color-chart-rebar-dim: #475569;
-  --color-chart-stirrup: #94a3b8;
+  --color-chart-rebar-dim: #4b4f59;
+  --color-chart-stirrup: #9a9ea7;
   --color-chart-stress: #38bdf8;
   --color-chart-axis: #38bdf8;
-  --color-chart-dim: #94a3b8;
-  --color-chart-dim-text: #94a3b8;
+  --color-chart-dim: #9a9ea7;
+  --color-chart-dim-text: #9a9ea7;
   --color-chart-envelope: #a78bfa;
-  --color-chart-label: #e2e8f0;
-  --color-chart-rebar-faint: #64748b;
-  --color-chart-profile: #0f172a;      /* recessed dark profile, matches the slate page */
-  --color-dot-grid: #28364d;
+  --color-chart-label: #e6e7ea;
+  --color-chart-rebar-faint: #6b6f79;
+  --color-chart-profile: #0c0c0e;      /* recessed dark profile, matches the page */
+  --color-dot-grid: #1f1f26;
 
   --color-geo-soil-top: #4a3522;
   --color-geo-soil-bot: #2a1d12;
@@ -285,6 +287,6 @@ html[data-theme="dark"] {
   --color-fem-w: #60a5fa;
   --color-fem-s: #cbd5e1;
   --color-fem-e: #f87171;
-  --color-scrollbar: #334155;        /* slate-700 — visible on the slate page */
-  --color-scrollbar-hover: #475569;
+  --color-scrollbar: #34343c;        /* visible on the near-black page */
+  --color-scrollbar-hover: #4b4f59;
 }

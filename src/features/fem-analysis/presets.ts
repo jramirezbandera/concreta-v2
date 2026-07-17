@@ -243,12 +243,12 @@ export function clonePreset(id: PresetId): FemModel {
 // (truss, frame, multistory, gable) require non-collinear topology that the
 // V1 strip-layout solver doesn't handle yet — kept in PRESETS for V2 unlock.
 
-const DEFAULT_RC_SECTION: RcSection = {
+export const DEFAULT_RC_SECTION: RcSection = {
   b: 30, h: 50, fck: 25, fyk: 500, cover: 30,
   exposureClass: 'XC1', loadType: 'B',
 };
 
-const DEFAULT_STEEL_SELECTION: SteelSelection = {
+export const DEFAULT_STEEL_SELECTION: SteelSelection = {
   profileKey: 'steel_IPE240',
   steel: 'S275',
   beamType: 'ss',

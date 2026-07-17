@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles } from 'lucide-react';
 import { steelBeamDefaults, type SteelBeamInputs } from '../../data/defaults';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
 import { useModuleState } from '../../hooks/useModuleState';
@@ -156,6 +155,7 @@ export function SteelBeamsModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -172,14 +172,6 @@ export function SteelBeamsModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide px-5 py-4">
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Rellenar con IA
-            </button>
             <SteelBeamsInputs
               state={state}
               setField={setField}

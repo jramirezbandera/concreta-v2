@@ -123,7 +123,7 @@ export function InputsPanel({
         </Row>
         {model.loads.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', marginTop: 6 }}>
-            Sin cargas. Selecciona la herramienta de carga y haz click en un nodo o barra.
+            Sin cargas. Usa «Carga distribuida» (click en barra) o «Carga puntual» (click en nodo o barra).
           </div>
         )}
         {model.loads.map((ld) => (

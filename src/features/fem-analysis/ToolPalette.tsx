@@ -5,11 +5,13 @@ interface ToolDef { id: ToolId; icon: React.ReactNode; label: string }
 
 export function ToolPalette({ tool, setTool }: { tool: ToolId; setTool: (t: ToolId) => void }) {
   const tools: ToolDef[] = [
-    { id: 'select',  icon: <FemIcons.Cursor />,  label: 'Seleccionar' },
-    { id: 'node',    icon: <FemIcons.Node />,    label: 'Añadir nodo' },
-    { id: 'support', icon: <FemIcons.Support />, label: 'Apoyo' },
-    { id: 'load',    icon: <FemIcons.Load />,    label: 'Carga' },
-    { id: 'delete',  icon: <FemIcons.Trash />,   label: 'Eliminar' },
+    { id: 'select',     icon: <FemIcons.Cursor />,   label: 'Seleccionar' },
+    { id: 'node',       icon: <FemIcons.Node />,     label: 'Añadir nodo' },
+    { id: 'bar',        icon: <FemIcons.Bar />,      label: 'Añadir barra' },
+    { id: 'support',    icon: <FemIcons.Support />,  label: 'Apoyo' },
+    { id: 'load-dist',  icon: <FemIcons.LoadDist />, label: 'Carga distribuida' },
+    { id: 'load-point', icon: <FemIcons.Load />,     label: 'Carga puntual' },
+    { id: 'delete',     icon: <FemIcons.Trash />,    label: 'Eliminar' },
   ];
   return (
     <div

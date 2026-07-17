@@ -38,8 +38,8 @@ ${buildModuleList()}
 Cualquier cálculo que no esté en esta lista NO existe todavía en la aplicación.
 
 Qué puede hacer el usuario en la interfaz:
-- Panel de datos (izquierda): el botón "Rellenar con IA" abre este chat; al pie está "Restablecer valores".
-- Barra superior: "Exportar PDF" genera la memoria de cálculo justificativa; "Copiar enlace" comparte el cálculo por URL; el conmutador de unidades cambia entre SI y sistema técnico (N/mm² ↔ kg/cm², kN ↔ t); hay también una "Calculadora" auxiliar y un conmutador de tema claro/oscuro.
+- Panel de datos (izquierda): contiene los campos de entrada; al pie está "Restablecer valores".
+- Barra superior: el botón "Asistente IA" abre este chat; hay una "Calculadora" auxiliar; "Exportar PDF" genera la memoria de cálculo justificativa; y el menú "Ajustes" recoge el conmutador de unidades (SI ↔ técnico: N/mm² ↔ kg/cm², kN ↔ t), el tema claro/oscuro y "Copiar enlace" (comparte el cálculo por URL).
 - Los resultados se ven a la derecha (en móvil, en la pestaña "Resultados") y se recalculan solos al cambiar cualquier dato.
 
 Hechos técnicos:

@@ -15,9 +15,12 @@
 //     User can expand inputs via the CollapseToggle.
 //   - Desktop (≥1310px): full 3-panel layout, all controls visible.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Topbar } from '../../components/layout/Topbar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
+import { femAnalysisAdapter, summarizeFemResults } from '../../lib/ai/modules/femAnalysis';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { useDrawer } from '../../components/layout/AppShell';
 import { showToast } from '../../components/ui/Toast';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -181,6 +184,13 @@ export function FemAnalysisModule() {
   const [tool, setTool] = useState<ToolId>('select');
   const [selected, setSelected] = useState<Selected>(null);
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
+
+  // Asistente IA (ola 5). Con model === null (pantalla de plantillas) el chat
+  // arranca sobre una SEMILLA de plantilla que no se persiste ni entra en la
+  // historia hasta que el usuario aplica una propuesta (handleAiApply).
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiSeed = useMemo(() => cloneDesignPreset('beam'), []);
+  const aiCurrent = model ?? aiSeed;
   const [view, setView] = useState<ViewState>({
     layer: 'none',           // default: cotas + cargas + bars (no overlay)
     combo: 'ELU',
@@ -284,7 +294,31 @@ export function FemAnalysisModule() {
   // Solver loads lazily — see useLazyDesignSolver for rationale. `result`
   // returns `status: 'pending'` while the solver chunk is in flight, then
   // re-runs synchronously on every model change once loaded.
-  const { result, ensureSolver } = useLazyDesignSolver(model);
+  // Con el chat abierto desde la landing se calcula la SEMILLA: sin esto el
+  // asistente vería status 'neutral' en vez de resultados reales.
+  const { result, ensureSolver } = useLazyDesignSolver(model ?? (aiOpen ? aiSeed : null));
+
+  // Resumen de resultados para el prompt del chat (prop viva: se rehace por turno).
+  const aiResults = useMemo(() => summarizeFemResults(aiCurrent, result), [aiCurrent, result]);
+
+  // Aplica una propuesta del asistente con UN solo setModel: la propuesta
+  // entera es UN paso de undo (Ctrl+Z la revierte de golpe). Desde la landing,
+  // resetModel(aiSeed) siembra primero (setModel no-opea con present null) y el
+  // updater encolado ve la semilla — undo vuelve a la plantilla, no a null.
+  function handleAiApply(plan: AiApplyPlan<DesignModel>) {
+    const structural = plan.fields.nodes !== undefined || plan.fields.bars !== undefined
+      || plan.fields.supports !== undefined || plan.fields.loads !== undefined;
+    if (!model) resetModel(aiSeed);
+    setModel((m) => ({ ...m, ...plan.fields }));
+    // La selección puede apuntar a ids que desaparecen con la nueva geometría.
+    if (structural) setSelected(null);
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} cambio${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}${w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''}`,
+      { autoDismiss: 4000 },
+    );
+  }
 
   // PDF export — always available per project memory rule "PDF export never disabled".
   // If the solver chunk isn't loaded yet, await it inside the click handler so
@@ -322,8 +356,17 @@ export function FemAnalysisModule() {
   if (!model) {
     return (
       <div className="fem-root flex flex-col h-full min-h-0 overflow-hidden">
-        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
-        <Landing onPick={pickPreset} recientes={loadRecent()} />
+        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} onOpenAssistant={() => setAiOpen(true)} />
+        <Landing onPick={pickPreset} recientes={loadRecent()} onStartAi={() => setAiOpen(true)} />
+        {aiOpen && (
+          <AiChatModal
+            adapter={femAnalysisAdapter}
+            current={aiCurrent}
+            results={aiResults}
+            onApply={handleAiApply}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
       </div>
     );
   }
@@ -337,6 +380,7 @@ export function FemAnalysisModule() {
         onExportPdf={openExport}
         pdfExporting={pdfExporting}
         onCopyLink={handleShare}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -356,16 +400,18 @@ export function FemAnalysisModule() {
             <CollapseToggle open={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)} side="right" title="inputs" />
           </div>
           {(inputsOpen || isMobile) ? (
-            <InputsPanel
-              model={model}
-              setModel={setModel}
-              selected={selected}
-              setSelected={setSelected}
-              result={result}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              readOnly={isMobile}
-            />
+            <>
+              <InputsPanel
+                model={model}
+                setModel={setModel}
+                selected={selected}
+                setSelected={setSelected}
+                result={result}
+                activeSection={activeSection}
+                setActiveSection={setActiveSection}
+                readOnly={isMobile}
+              />
+            </>
           ) : (
             <SideRail label="Inputs" />
           )}
@@ -478,6 +524,16 @@ export function FemAnalysisModule() {
           pageCount={pdfPreview.pageCount}
           onDownload={handleDownloadPdf}
           onClose={closePdfPreview}
+        />
+      )}
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={femAnalysisAdapter}
+          current={aiCurrent}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
         />
       )}
     </div>

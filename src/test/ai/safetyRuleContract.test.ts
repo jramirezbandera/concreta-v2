@@ -53,6 +53,10 @@ import { forjadosAdapter, FORJADOS_SAFETY_RULES } from '../../lib/ai/modules/for
 import { retainingWallAdapter, RETAINING_WALL_SAFETY_RULES } from '../../lib/ai/modules/retainingWall';
 import { anchorPlateAdapter, ANCHOR_PLATE_SAFETY_RULES } from '../../lib/ai/modules/anchorPlate';
 import { masonryWallsAdapter, MASONRY_SAFETY_RULES } from '../../lib/ai/modules/masonryWalls';
+import {
+  femAnalysisAdapter, FEM_SAFETY_RULES,
+  VANOS_ELEMENT_RULES, VANOS_RISK_CTX, CARGAS_ELEMENT_RULES, CARGAS_RISK_CTX,
+} from '../../lib/ai/modules/femAnalysis';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 17 TInputs distintos */
 
@@ -97,6 +101,14 @@ const ENTRIES: readonly Entry[] = [
   { adapter: retainingWallAdapter, rules: RETAINING_WALL_SAFETY_RULES },
   { adapter: anchorPlateAdapter, rules: ANCHOR_PLATE_SAFETY_RULES },
   { adapter: masonryWallsAdapter, rules: MASONRY_SAFETY_RULES },
+  {
+    adapter: femAnalysisAdapter,
+    rules: FEM_SAFETY_RULES,
+    elements: [
+      { ctx: VANOS_RISK_CTX, rules: VANOS_ELEMENT_RULES },
+      { ctx: CARGAS_RISK_CTX, rules: CARGAS_ELEMENT_RULES },
+    ],
+  },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -104,10 +116,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 17 adapters están en el contrato', () => {
+describe('los 18 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(17);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(17);
+    expect(ENTRIES).toHaveLength(18);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(18);
   });
 });
 

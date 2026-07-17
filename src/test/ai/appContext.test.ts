@@ -4,7 +4,7 @@
 //     aparición, labels de las entradas shipped) — sin literales frágiles, para
 //     que el bloque nunca se desactualice cuando se publique un módulo nuevo;
 //   - los módulos NO publicados (shipped: false) no aparecen;
-//   - textos REALES de la interfaz ("Rellenar con IA", "Exportar PDF",
+//   - textos REALES de la interfaz ("Asistente IA", "Exportar PDF",
 //     "Copiar enlace"…), que son los que el usuario ve y por los que pregunta;
 //   - reglas de alcance (no inventar UI, no cambiar de módulo, menú lateral);
 //   - APP_CONTEXT_BLOCK es la constante de módulo = buildAppContextBlock().
@@ -84,9 +84,10 @@ describe('buildAppContextBlock — listado de módulos (derivado del registro)',
 describe('buildAppContextBlock — interfaz real', () => {
   it('nombra los botones con su texto EXACTO', () => {
     const block = buildAppContextBlock();
-    expect(block).toContain('Rellenar con IA');
+    expect(block).toContain('Asistente IA');
     expect(block).toContain('Exportar PDF');
     expect(block).toContain('Copiar enlace');
+    expect(block).toContain('Ajustes');
     expect(block).toContain('Restablecer valores');
     expect(block).toContain('Calculadora');
   });

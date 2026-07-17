@@ -1,9 +1,9 @@
 import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
-import { UnitSystemToggle } from '../units/UnitSystemToggle';
-import { ThemeToggle } from '../theme/ThemeToggle';
 import { CalcButton } from '../calculator/CalcButton';
 import { useCalculator } from '../calculator/calculator-context';
+import { AiButton } from '../ai/AiButton';
+import { AjustesMenu } from './AjustesMenu';
 
 interface TopbarProps {
   moduleLabel: string;
@@ -17,9 +17,15 @@ interface TopbarProps {
    * handler. When omitted, the button copies window.location.href.
    */
   onCopyLink?: () => void;
+  /**
+   * Abre el asistente IA del módulo. Cuando se pasa, la topbar muestra el botón
+   * "Asistente IA" (acción primaria). Los módulos sin asistente lo omiten y el
+   * botón no aparece.
+   */
+  onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -54,26 +60,13 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {/* Asistente IA — acción primaria (único botón relleno). */}
+        {onOpenAssistant && <AiButton onClick={onOpenAssistant} />}
         <CalcButton onClick={openCalc} />
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
-        <UnitSystemToggle />
-        <ThemeToggle />
-        {/* Copy link — icon-only por debajo de lg (layout de tabs, topbar
-            compacto), icon+texto en escritorio. Mismo patrón que Exportar PDF;
-            mantiene sitio para el breadcrumb cuando el menú hamburguesa ocupa
-            espacio en tablet. */}
-        <button
-          onClick={handleCopyUrl}
-          title="Copiar enlace a este cálculo"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-[12px]"
-          aria-label="Copiar enlace a este cálculo"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
-            <path d="M6 10a3 3 0 0 0 4 0l2-2a3 3 0 0 0-4-4l-1 1M10 6a3 3 0 0 0-4 0L4 8a3 3 0 0 0 4 4l1-1"/>
-          </svg>
-          <span className="hidden lg:inline">Copiar enlace</span>
-        </button>
-        {/* PDF export — accent styled */}
+        {/* Ajustes: recoge Unidades, Tema y Copiar enlace. */}
+        <AjustesMenu onCopyLink={handleCopyUrl} />
+        {/* PDF export — resaltado sutil (accent-outline). */}
         {onExportPdf && (
           <button
             onClick={onExportPdf}

@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
 import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry } from '../../data/defaults';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { compositeSectionAdapter, summarizeCompositeSectionResults } from '../../lib/ai/modules/compositeSection';
@@ -159,6 +158,7 @@ export function CompositeSectionModule() {
         pdfExporting={pdfExporting}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -174,14 +174,6 @@ export function CompositeSectionModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-1.5 rounded border border-border-main text-sm text-text-secondary hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Rellenar con IA
-            </button>
             <CompositeSectionInputsPanel
               state={inputs}
               addPlate={addPlate}
