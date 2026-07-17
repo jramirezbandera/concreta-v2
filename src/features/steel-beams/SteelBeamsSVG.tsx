@@ -1,37 +1,25 @@
-// Steel Beam SVG — two panels: I-section cross-section + M-V interaction envelope.
+// Steel Beam SVG — sección transversal del perfil en I con cotas.
 //
 // mode='screen': dark theme colors via CSS vars
 // mode='pdf':    inline styles, grayscale
 
-import { type SteelBeamInputs } from '../../data/defaults';
 import { type SteelBeamResult } from '../../lib/calculations/steelBeams';
-import { WARN_UTIL } from '../../lib/calculations/types';
 import { FF_MONO } from './diagramStyle';
 
 interface SteelBeamsSVGProps {
-  inp?: SteelBeamInputs;
   result: SteelBeamResult;
   mode: 'screen' | 'pdf';
   width: number;
   height: number;
 }
 
-// Screen palette via theme tokens (dark ≈ old literals; sectionFill #263348→#1e293b).
-// PDF palette below stays literal grayscale.
+// Screen palette via theme tokens; PDF palette literal grayscale.
 const SCREEN = {
   bg: 'transparent',
   sectionFill: 'var(--color-chart-section-fill)',
   sectionStroke: 'var(--color-chart-section)',
   dim: 'var(--color-chart-dim)',
   dimText: 'var(--color-chart-dim-text)',
-  axis: 'var(--color-chart-section)',
-  axisLabel: 'var(--color-chart-rebar-faint)',
-  envelope: 'var(--color-accent)',
-  pointOk: 'var(--color-state-ok)',
-  pointWarn: 'var(--color-state-warn)',
-  pointFail: 'var(--color-state-fail)',
-  pointNeutral: 'var(--color-state-neutral)',
-  gridLine: 'var(--color-chart-section-fill)',
 };
 
 const PDF = {
@@ -40,21 +28,7 @@ const PDF = {
   sectionStroke: '#000000',
   dim: '#666666',
   dimText: '#444444',
-  axis: '#333333',
-  axisLabel: '#555555',
-  envelope: '#444444',
-  pointOk: '#333333',
-  pointWarn: '#666666',
-  pointFail: '#000000',
-  pointNeutral: '#888888',
-  gridLine: '#dddddd',
 };
-
-function statusColor(eta: number, colors: typeof SCREEN): string {
-  if (eta < WARN_UTIL) return colors.pointOk;
-  if (eta < 1.0) return colors.pointWarn;
-  return colors.pointFail;
-}
 
 export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProps) {
   const isPdf = mode === 'pdf';
@@ -62,14 +36,9 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
 
   const profile = result.profile;
 
-  // ── Layout ────────────────────────────────────────────────────────────────
-  const leftW = Math.floor(width * 0.42);
-  const rightW = width - leftW;
-
-  // ── Left panel: I-section cross-section ───────────────────────────────────
-  const padL = { top: 28, bottom: 28, left: 30, right: 16 };
-  const drawLW = leftW - padL.left - padL.right;
-  const drawLH = height - padL.top - padL.bottom;
+  const pad = { top: 30, bottom: 30, left: 36, right: 20 };
+  const drawW = width - pad.left - pad.right;
+  const drawH = height - pad.top - pad.bottom;
 
   let sectionG: React.ReactNode = null;
 
@@ -77,21 +46,18 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
     const ph = profile.h;   // mm
     const pb = profile.b;   // mm
 
-    const scaleX = drawLW / pb;
-    const scaleY = drawLH / ph;
-    const scale = Math.min(scaleX, scaleY);
+    const scale = Math.min(drawW / pb, drawH / ph);
 
     const sW = pb * scale;
     const sH = ph * scale;
 
-    const ox = padL.left + (drawLW - sW) / 2;
-    const oy = padL.top + (drawLH - sH) / 2;
+    const ox = pad.left + (drawW - sW) / 2;
+    const oy = pad.top + (drawH - sH) / 2;
 
     const tf = profile.tf * scale;
     const tw = profile.tw * scale;
     const halfTw = tw / 2;
-    const halfSW = sW / 2;
-    const cx = ox + halfSW;
+    const cx = ox + sW / 2;
 
     // I-shape path (simplified, no fillet)
     const topFlangeY = oy;
@@ -158,32 +124,31 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           b={profile.b}
         </text>
 
-        {/* tf label — centered on the top flange (same inside-the-section
-            pattern as tw). Keeps it clear of the rotated h dimension on the
-            left and the left-panel padding edge. */}
+        {/* tf/tw labels — en la zona VACÍA a la derecha del alma (antes iban
+            centrados sobre el ala/alma y pisaban sus propios trazos): tf justo
+            bajo el ala superior, tw a media altura junto al alma. */}
         <text
-          x={ox + sW / 2}
-          y={topFlangeY + tf / 2}
-          textAnchor="middle"
+          x={cx + halfTw + 6}
+          y={webTop + 9}
+          textAnchor="start"
           dominantBaseline="middle"
-          fontSize={12}
+          fontSize={11}
           fill={C.dimText}
-          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px' } : undefined}
-          className={isPdf ? undefined : 'text-[12px] font-mono fill-text-secondary'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
           tf={profile.tf}
         </text>
 
-        {/* tw label */}
         <text
-          x={cx}
+          x={cx + halfTw + 6}
           y={oy + sH / 2}
-          textAnchor="middle"
+          textAnchor="start"
           dominantBaseline="middle"
-          fontSize={12}
+          fontSize={11}
           fill={C.dimText}
-          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px' } : undefined}
-          className={isPdf ? undefined : 'text-[12px] font-mono fill-text-secondary'}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
           tw={profile.tw}
         </text>
@@ -191,7 +156,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
         {/* Profile label */}
         <text
           x={ox + sW / 2}
-          y={oy + sH + 14}
+          y={oy + sH + 16}
           textAnchor="middle"
           fontSize={12}
           fontWeight="600"
@@ -205,46 +170,6 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
     );
   }
 
-  // ── Right panel: M-V interaction diagram ──────────────────────────────────
-  const padR = { top: 24, bottom: 32, left: 36, right: 16 };
-  const plotW = rightW - padR.left - padR.right;
-  const plotH = height - padR.top - padR.bottom;
-
-  const rx = leftW + padR.left;  // plot origin x
-  const ry = padR.top;            // plot origin y (top)
-
-  // Scale: plot goes from (0,0) to (1,1) in VEd/Vc,Rd × MEd/Mc,Rd space
-  const toPlotX = (v: number) => rx + v * plotW;
-  const toPlotY = (m: number) => ry + plotH - m * plotH;  // flip y
-
-  // D-shaped M-V interaction envelope
-  const N = 30;
-  const envelopePoints = Array.from({ length: N + 1 }, (_, i) => {
-    const v = i / N;
-    const m = Math.max(0, 1 - Math.max(0, 2 * v - 1) ** 2);
-    return `${toPlotX(v).toFixed(1)},${toPlotY(m).toFixed(1)}`;
-  });
-  const envelopePath = `M ${envelopePoints[0]} L ${envelopePoints.slice(1).join(' L ')} L ${toPlotX(1).toFixed(1)},${toPlotY(0).toFixed(1)} L ${toPlotX(0).toFixed(1)},${toPlotY(0).toFixed(1)} Z`;
-
-  // Grid lines at 0.5
-  const gridV = toPlotX(0.5);
-  const gridM = toPlotY(0.5);
-
-  // Design point: x = VEd_interaction / Vc,Rd (shear at critical moment section)
-  // For ss beams VEd_interaction=0, so the point falls on the y-axis (pure bending).
-  const eta_V_interac = result.valid && result.Vc_Rd > 0
-    ? result.VEd_interaction / result.Vc_Rd
-    : 0;
-  const ptX = result.valid ? toPlotX(Math.min(eta_V_interac, 1.5)) : null;
-  const ptY = result.valid ? toPlotY(Math.min(result.eta_M, 1.5)) : null;
-  const ptColor = result.valid ? statusColor(result.eta_MV, C) : C.pointNeutral;
-
-  const fontSize = 10;
-  const labelStyle = isPdf
-    ? { fontFamily: FF_MONO, fontSize: `${fontSize}px` }
-    : undefined;
-  const labelClass = isPdf ? undefined : 'text-[10px] font-mono fill-text-disabled';
-
   return (
     <svg
       width={width}
@@ -253,182 +178,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
       aria-hidden="true"
       style={isPdf ? { background: C.bg } : undefined}
     >
-      {/* ── Left panel: I-section ── */}
       {sectionG}
-
-      {/* ── Divider ── */}
-      <line
-        x1={leftW} y1={8}
-        x2={leftW} y2={height - 8}
-        stroke={isPdf ? '#cccccc' : '#1e293b'}
-        strokeWidth={1}
-      />
-
-      {/* ── Right panel: M-V diagram ── */}
-
-      {/* Envelope fill */}
-      <path
-        d={envelopePath}
-        fill={C.envelope}
-        opacity={isPdf ? 0.08 : 0.06}
-      />
-      {/* Envelope stroke */}
-      <path
-        d={`M ${envelopePoints[0]} L ${envelopePoints.slice(1).join(' L ')}`}
-        fill="none"
-        stroke={C.envelope}
-        strokeWidth={1.25}
-        opacity={0.7}
-      />
-
-      {/* Grid line at 0.5 */}
-      <line
-        x1={gridV} y1={ry}
-        x2={gridV} y2={ry + plotH}
-        stroke={C.gridLine}
-        strokeWidth={0.5}
-        strokeDasharray="3 3"
-      />
-      <line
-        x1={rx} y1={gridM}
-        x2={rx + plotW} y2={gridM}
-        stroke={C.gridLine}
-        strokeWidth={0.5}
-        strokeDasharray="3 3"
-      />
-
-      {/* Axes */}
-      <line
-        x1={rx} y1={ry}
-        x2={rx} y2={ry + plotH}
-        stroke={C.axis}
-        strokeWidth={1}
-      />
-      <line
-        x1={rx} y1={ry + plotH}
-        x2={rx + plotW} y2={ry + plotH}
-        stroke={C.axis}
-        strokeWidth={1}
-      />
-
-      {/* X-axis ticks and labels */}
-      {[0, 0.5, 1.0].map((v) => (
-        <g key={`xt-${v}`}>
-          <line
-            x1={toPlotX(v)} y1={ry + plotH}
-            x2={toPlotX(v)} y2={ry + plotH + 4}
-            stroke={C.axis} strokeWidth={0.75}
-          />
-          <text
-            x={toPlotX(v)}
-            y={ry + plotH + 11}
-            textAnchor="middle"
-            fontSize={fontSize}
-            fill={C.axisLabel}
-            style={labelStyle}
-            className={labelClass}
-          >
-            {v}
-          </text>
-        </g>
-      ))}
-
-      {/* Y-axis ticks and labels */}
-      {[0, 0.5, 1.0].map((m) => (
-        <g key={`yt-${m}`}>
-          <line
-            x1={rx - 4} y1={toPlotY(m)}
-            x2={rx} y2={toPlotY(m)}
-            stroke={C.axis} strokeWidth={0.75}
-          />
-          <text
-            x={rx - 6}
-            y={toPlotY(m)}
-            textAnchor="end"
-            dominantBaseline="middle"
-            fontSize={fontSize}
-            fill={C.axisLabel}
-            style={labelStyle}
-            className={labelClass}
-          >
-            {m}
-          </text>
-        </g>
-      ))}
-
-      {/* Axis labels */}
-      <text
-        x={rx + plotW / 2}
-        y={ry + plotH + 24}
-        textAnchor="middle"
-        fontSize={10}
-        fill={C.axisLabel}
-        style={labelStyle}
-        className={labelClass}
-      >
-        VEd / Vc,Rd
-      </text>
-
-      <text
-        x={rx - 28}
-        y={ry + plotH / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize={10}
-        fill={C.axisLabel}
-        transform={`rotate(-90, ${rx - 28}, ${ry + plotH / 2})`}
-        style={labelStyle}
-        className={labelClass}
-      >
-        MEd / Mc,Rd
-      </text>
-
-      {/* Design point */}
-      {ptX !== null && ptY !== null && (
-        <g>
-          {/* Crosshair lines */}
-          <line
-            x1={rx} y1={ptY!}
-            x2={ptX!} y2={ptY!}
-            stroke={ptColor} strokeWidth={0.5} opacity={0.5} strokeDasharray="2 2"
-          />
-          <line
-            x1={ptX!} y1={ry + plotH}
-            x2={ptX!} y2={ptY!}
-            stroke={ptColor} strokeWidth={0.5} opacity={0.5} strokeDasharray="2 2"
-          />
-          {/* Point */}
-          <circle
-            cx={ptX!}
-            cy={ptY!}
-            r={4}
-            fill={ptColor}
-            opacity={0.9}
-          />
-          <circle
-            cx={ptX!}
-            cy={ptY!}
-            r={4}
-            fill="none"
-            stroke={ptColor}
-            strokeWidth={1.5}
-            opacity={1}
-          />
-        </g>
-      )}
-
-      {/* Panel title */}
-      <text
-        x={rx + plotW / 2}
-        y={ry - 10}
-        textAnchor="middle"
-        fontSize={11}
-        fill={C.dimText}
-        style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
-        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
-      >
-        Interacción M-V
-      </text>
     </svg>
   );
 }

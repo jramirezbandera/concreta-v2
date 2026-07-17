@@ -99,26 +99,26 @@ export async function exportSteelBeamsPDF(
   setGray(doc, 200);
   doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
-  // ── SVG: beam cross-section ──────────────────────────────────────────────────
+  // ── SVG: sección del perfil ──────────────────────────────────────────────────
   const svgContainer = document.getElementById('steel-beams-svg-pdf');
   const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
 
-  const SVG_W = 90;
-  const SVG_H = 56;   // 420:260 aspect at 90mm width → 55.7mm
-  const svgX  = M;
+  const SVG_W = 52;
+  const SVG_H = 66.9;         // 210:270 aspect at 52mm width
+  const svgX  = M + 19;       // centrado en la columna izquierda de 90mm
   const svgY  = titleBaseY + 12;
 
   if (svgEl) {
     await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
   }
 
-  // ── SVG: M/V/δ diagrams ──────────────────────────────────────────────────────
+  // ── SVG: esquema de carga + diagramas M/V/δ (rejilla 2×2) ────────────────────
   let diagramsH = 0;
   const diagContainer = document.getElementById('steel-beams-diagrams-pdf');
   const diagSvg = diagContainer?.querySelector('svg') as SVGSVGElement | null;
   if (diagSvg) {
     const DIAG_W = 90;
-    const DIAG_H = 48;   // 420:220 at 90mm → 47mm
+    const DIAG_H = 48.9;   // 460:250 at 90mm
     await embedSvgAsImage(doc, diagSvg, { x: M, y: svgY + SVG_H + 3, width: DIAG_W, height: DIAG_H });
     diagramsH = DIAG_H + 3;
   }

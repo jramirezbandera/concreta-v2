@@ -107,8 +107,11 @@ export function SteelBeamsModule() {
   // Responsive SVG sizing — measure the canvas container
   const [canvasRef, canvasWidth] = useContainerWidth();
 
-  const FIXED_SVG_W = 420;
-  const FIXED_DIAG_W = 400;
+  // Perfil (estrecho, alto) + rejilla 2×2 de carga/M/V/δ (ancha)
+  const FIXED_SVG_W = 210;
+  const FIXED_DIAG_W = 620;
+  const SVG_ASPECT = 270 / 210;   // alto/ancho del perfil
+  const DIAG_ASPECT = 300 / 620;  // alto/ancho de la rejilla 2×2
   const CANVAS_PAD = 32; // px-4 each side
   const GAP = 32;
   const TOTAL_FIXED = FIXED_SVG_W + GAP + FIXED_DIAG_W + CANVAS_PAD;
@@ -132,15 +135,17 @@ export function SteelBeamsModule() {
     diagW = Math.max(160, Math.round(available * (1 - ratio)));
   }
 
-  const svgH = Math.round(svgW * (280 / 420));
-  const diagH = Math.round(diagW * (280 / 400));
+  const svgH = Math.round(svgW * SVG_ASPECT);
+  const diagH = Math.round(diagW * DIAG_ASPECT);
 
   // Mobile "Diagramas" tab — measure its own width so the stacked SVGs scale to
   // the phone instead of a fixed 340px that scrolled sideways on ≤372px screens.
+  // En móvil los diagramas van en 1 columna (4 celdas apiladas), no en 2×2.
+  const MOBILE_DIAG_ASPECT = 1.8;
   const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
   const mobileAvail = (mobileCanvasWidth ?? 0) - CANVAS_PAD;
-  const mobileSvgW = mobileCanvasWidth ? Math.min(FIXED_SVG_W, Math.max(180, mobileAvail)) : 300;
-  const mobileDiagW = mobileCanvasWidth ? Math.min(FIXED_DIAG_W, Math.max(180, mobileAvail)) : 300;
+  const mobileSvgW = mobileCanvasWidth ? Math.min(FIXED_SVG_W, Math.max(180, mobileAvail)) : 210;
+  const mobileDiagW = mobileCanvasWidth ? Math.min(400, Math.max(180, mobileAvail)) : 300;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -209,10 +214,11 @@ export function SteelBeamsModule() {
             ref={canvasRef}
             className="hidden lg:flex lg:flex-col xl:flex-row border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4 gap-6"
           >
-            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={svgW} height={svgH} />
+            <SteelBeamsSVG result={result} mode="screen" width={svgW} height={svgH} />
             {loadGen && result.valid && (
               <SteelBeamsDiagrams
                 beamType={state.beamType}
+                wEd={loadGen.wEd}
                 MEd={loadGen.MEd}
                 VEdA={loadGen.VEd}
                 VEdB={state.beamType === 'fp' ? loadGen.VEd * (3 / 5) : loadGen.VEd}
@@ -236,10 +242,11 @@ export function SteelBeamsModule() {
         {/* Mobile: Diagramas tab — cross-section + M/V/delta stacked */}
         {tab === 'diagramas' && (
           <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-6 canvas-dot-grid">
-            <SteelBeamsSVG inp={effectiveInputs} result={result} mode="screen" width={mobileSvgW} height={Math.round(mobileSvgW * (280 / 420))} />
+            <SteelBeamsSVG result={result} mode="screen" width={mobileSvgW} height={Math.round(mobileSvgW * SVG_ASPECT)} />
             {loadGen && result.valid && (
               <SteelBeamsDiagrams
                 beamType={state.beamType}
+                wEd={loadGen.wEd}
                 MEd={loadGen.MEd}
                 VEdA={loadGen.VEd}
                 VEdB={state.beamType === 'fp' ? loadGen.VEd * (3 / 5) : loadGen.VEd}
@@ -249,7 +256,8 @@ export function SteelBeamsModule() {
                 deflLimit={state.deflLimit}
                 mode="screen"
                 width={mobileDiagW}
-                height={Math.round(mobileDiagW * (280 / 400))}
+                height={Math.round(mobileDiagW * MOBILE_DIAG_ASPECT)}
+                columns={1}
               />
             )}
           </div>
@@ -263,7 +271,7 @@ export function SteelBeamsModule() {
           id="steel-beams-svg-pdf"
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
-          <SteelBeamsSVG inp={effectiveInputs} result={result} mode="pdf" width={420} height={260} />
+          <SteelBeamsSVG result={result} mode="pdf" width={210} height={270} />
         </div>
 
         <div
@@ -273,6 +281,7 @@ export function SteelBeamsModule() {
           {loadGen && result.valid && (
             <SteelBeamsDiagrams
               beamType={state.beamType}
+              wEd={loadGen.wEd}
               MEd={loadGen.MEd}
               VEdA={loadGen.VEd}
               VEdB={state.beamType === 'fp' ? loadGen.VEd * (3 / 5) : loadGen.VEd}
@@ -281,8 +290,8 @@ export function SteelBeamsModule() {
               deltaAdm={result.delta_adm}
               deflLimit={state.deflLimit}
               mode="pdf"
-              width={420}
-              height={220}
+              width={460}
+              height={250}
             />
           )}
         </div>
