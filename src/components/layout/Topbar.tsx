@@ -48,12 +48,15 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
             <Menu size={18} aria-hidden="true" />
           </button>
         )}
-        {/* Breadcrumb: GROUP / Module */}
+        {/* Breadcrumb: GROUP / Module. En móvil se oculta el grupo (contexto
+            redundante que ya da el drawer) para que el título del módulo tenga
+            todo el ancho y no se corte a "V…". Aparece a partir de `sm`, donde
+            los botones de la derecha también recuperan su etiqueta. */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
+          <span className="hidden sm:inline text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
             {moduleGroup}
           </span>
-          <span className="text-text-disabled shrink-0">/</span>
+          <span className="hidden sm:inline text-text-disabled shrink-0">/</span>
           <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
             {moduleLabel}
           </span>
