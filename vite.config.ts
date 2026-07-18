@@ -18,13 +18,25 @@ export default defineConfig({
       output: {
         // Los SDKs de IA (@anthropic-ai/sdk, openai, @google/genai) solo se
         // cargan vía dynamic import desde src/lib/ai/providers/* ("Rellenar
-        // con IA", BYOK). Se agrupan en un único chunk `ai-vendor` para no
-        // engordar el chunk principal y poder excluirlos del precache del SW
-        // (globIgnores de VitePWA, abajo). Vite 8 usa rolldown: la API vigente
-        // es `output.codeSplitting` (`advancedChunks` es su alias @deprecated
-        // en rolldown 1.0.0-rc.12).
+        // con IA", BYOK). Se agrupan en un único chunk `ai-vendor` con nombre
+        // estable para poder excluirlo del precache del SW (globIgnores de
+        // VitePWA, abajo). Vite 8 usa rolldown: la API vigente es
+        // `output.codeSplitting` (`advancedChunks` es su alias @deprecated en
+        // rolldown 1.0.0-rc.12).
         codeSplitting: {
           groups: [
+            // El helper compartido de import() de Vite (__vite_preload) DEBE ir
+            // en su propio chunk. Si no, rolldown lo mete dentro de `ai-vendor`
+            // y, como el entry necesita ese helper para sus lazy-imports, pasa a
+            // importar `ai-vendor` ESTÁTICAMENTE → arrastra 634 KB de SDK al
+            // arranque y obliga a precachearlo (o pantalla en blanco tras cada
+            // deploy, ver globIgnores abajo). Aislándolo, ai-vendor queda 100%
+            // lazy: solo lo carga `import()` desde providers/*, y el arranque
+            // solo arrastra este helper de ~1,2 KB (precacheado).
+            {
+              name: "vite-preload-helper",
+              test: /preload-helper/,
+            },
             {
               name: "ai-vendor",
               test: /node_modules[\\/](@anthropic-ai[\\/]sdk|openai|@google[\\/]genai)[\\/]/,
@@ -76,20 +88,24 @@ export default defineConfig({
             },
           },
         ],
-        // OJO: el chunk `ai-vendor` (SDKs de IA, ver build.rolldownOptions
-        // arriba) DEBE entrar en el precache aunque la feature "Rellenar con IA"
-        // solo se use bajo demanda. Motivo: rolldown coloca el helper compartido
-        // de `import()` de Vite (__vite_preload) DENTRO de este chunk, así que el
-        // entry lo importa ESTÁTICAMENTE (`import{a as g}from"./ai-vendor…"`) y no
-        // arranca sin él. Además su contenido lleva la tabla __vite__mapDeps con
-        // nombres hasheados de otros chunks, por lo que cambia de hash en CADA
-        // deploy. Si se excluye del precache, tras cada deploy el SW antiguo sirve
-        // el index/entry viejos que importan el `ai-vendor-<hashViejo>.js` ya
-        // purgado por GitHub Pages → 404 → React no monta → pantalla en blanco
-        // hasta borrar caché. Precachearlo lo hace parte del snapshot atómico.
-        // (Optimización futura: sacar __vite_preload de ai-vendor para que el
-        //  arranque no arrastre 634 KB de SDK; entonces podría quedar fuera del
-        //  precache con un runtimeCaching StaleWhileRevalidate.)
+        // El chunk `ai-vendor` (SDKs de IA, ver build.rolldownOptions arriba) se
+        // EXCLUYE del precache: es 100% lazy (solo lo carga `import()` desde
+        // src/lib/ai/providers/*), así que el arranque NO depende de él y
+        // precachearlo solo inflaría el SW (~634 KB) para todos los usuarios de
+        // una feature BYOK que además requiere red.
+        //
+        // INVARIANTE: esto solo es seguro porque el helper __vite_preload va en
+        // su propio chunk (grupo `vite-preload-helper` de arriba, precacheado).
+        // Si se quita ese grupo, rolldown vuelve a meter el helper en ai-vendor,
+        // el entry lo importa estáticamente y excluirlo del precache deja la app
+        // EN BLANCO tras cada deploy (el SW viejo sirve un index/entry que piden
+        // un `ai-vendor-<hashViejo>.js` ya purgado por GitHub Pages → 404).
+        //
+        // No lleva runtimeCaching a propósito (a diferencia de Pyodide): sin red
+        // el chunk cacheado no sirve —la IA llama al proveedor por red igualmente—
+        // y el único borde (abrir la IA justo tras un deploy, con el chunk viejo
+        // purgado y el SW aún sin actualizar) lo cubre el toast "Actualizar".
+        globIgnores: ["**/ai-vendor-*.js"],
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
