@@ -76,13 +76,20 @@ export default defineConfig({
             },
           },
         ],
-        // El chunk `ai-vendor` (SDKs de IA, ver build.rolldownOptions arriba)
-        // NO entra en el precache: la feature "Rellenar con IA" requiere red
-        // de todos modos (llamada directa navegador→proveedor), así que
-        // precachearlo solo inflaría el SW para todos los usuarios. A
-        // diferencia de Pyodide tampoco lleva runtimeCaching: sin red el
-        // chunk cacheado no serviría de nada.
-        globIgnores: ["**/ai-vendor-*.js"],
+        // OJO: el chunk `ai-vendor` (SDKs de IA, ver build.rolldownOptions
+        // arriba) DEBE entrar en el precache aunque la feature "Rellenar con IA"
+        // solo se use bajo demanda. Motivo: rolldown coloca el helper compartido
+        // de `import()` de Vite (__vite_preload) DENTRO de este chunk, así que el
+        // entry lo importa ESTÁTICAMENTE (`import{a as g}from"./ai-vendor…"`) y no
+        // arranca sin él. Además su contenido lleva la tabla __vite__mapDeps con
+        // nombres hasheados de otros chunks, por lo que cambia de hash en CADA
+        // deploy. Si se excluye del precache, tras cada deploy el SW antiguo sirve
+        // el index/entry viejos que importan el `ai-vendor-<hashViejo>.js` ya
+        // purgado por GitHub Pages → 404 → React no monta → pantalla en blanco
+        // hasta borrar caché. Precachearlo lo hace parte del snapshot atómico.
+        // (Optimización futura: sacar __vite_preload de ai-vendor para que el
+        //  arranque no arrastre 634 KB de SDK; entonces podría quedar fuera del
+        //  precache con un runtimeCaching StaleWhileRevalidate.)
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
