@@ -1,0 +1,103 @@
+/* FEM 2D — editor chrome. Prefixed .fem2d-* on purpose: the 1D module ships
+   global .fem-tool-btn classes; sharing the name would couple both modules'
+   styling through the CSS cascade (whichever chunk loads last wins). */
+
+.fem2d-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  transition: all 150ms;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+}
+.fem2d-tool-btn:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+.fem2d-tool-btn[data-active='true'] {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* Load-family flyout (single "Cargas" button → menu of the 4 load types). */
+.fem2d-load-caret {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--color-text-disabled);
+  pointer-events: none;
+}
+.fem2d-tool-btn[data-active='true'] .fem2d-load-caret {
+  color: var(--color-accent);
+}
+.fem2d-load-menu {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  min-width: 234px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-main);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+.fem2d-load-menu-title {
+  padding: 2px 8px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-disabled);
+}
+.fem2d-load-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: all 120ms;
+}
+.fem2d-load-item:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+.fem2d-load-item[data-active='true'] {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+.fem2d-load-item-icon {
+  display: inline-flex;
+  width: 18px;
+  flex-shrink: 0;
+  justify-content: center;
+  color: inherit;
+}
+
+.fem2d-focus-ring:focus {
+  outline: none;
+}
+.fem2d-focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}

@@ -87,7 +87,7 @@ export function SteelColumnInteractionSVG({
       style={{ background: C.bg, display: 'block' }}
     >
       {/* Título */}
-      <text x={padLeft} y={14} fill={C.label} fontSize="10" fontWeight="600"
+      <text x={padLeft} y={14} fill={C.label} fontSize="12" fontWeight="600"
         fontFamily="var(--font-mono)" textAnchor="start">
         INTERACCIÓN BIAXIAL
       </text>
@@ -106,7 +106,7 @@ export function SteelColumnInteractionSVG({
       {polyPath ? (
         <path d={polyPath} fill={C.envelopeFill} stroke={C.envelope} strokeWidth="1.6" />
       ) : (
-        <text x={padLeft + plotW / 2} y={padTop + plotH / 2} fill={C.fail} fontSize="9"
+        <text x={padLeft + plotW / 2} y={padTop + plotH / 2} fill={C.fail} fontSize="11"
           textAnchor="middle" fontFamily="var(--font-mono)">
           el axil agota la capacidad
         </text>
@@ -123,25 +123,25 @@ export function SteelColumnInteractionSVG({
       )}
       <circle cx={mx} cy={my} r="3.5" fill={markerColor}
         stroke={mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)'} strokeWidth="1" />
-      <text x={mx + 9} y={my - 5} fill={C.label} fontSize="9" fontWeight="600"
+      <text x={mx + 9} y={my - 5} fill={C.label} fontSize="11" fontWeight="600"
         fontFamily="var(--font-mono)" textAnchor="start">
         ({applied.My.toFixed(1)}; {applied.Mz.toFixed(1)})
       </text>
 
       {/* Ticks */}
-      <text x={padLeft} y={padTop + plotH + 12} fill={C.labelDim} fontSize="7.5"
+      <text x={padLeft} y={padTop + plotH + 12} fill={C.labelDim} fontSize="9.5"
         textAnchor="middle" fontFamily="var(--font-mono)">0</text>
-      <text x={padLeft + plotW} y={padTop + plotH + 12} fill={C.labelDim} fontSize="7.5"
+      <text x={padLeft + plotW} y={padTop + plotH + 12} fill={C.labelDim} fontSize="9.5"
         textAnchor="middle" fontFamily="var(--font-mono)">{(myMax / 1.15).toFixed(0)}</text>
-      <text x={padLeft - 4} y={padTop + 3} fill={C.labelDim} fontSize="7.5"
+      <text x={padLeft - 4} y={padTop + 3} fill={C.labelDim} fontSize="9.5"
         textAnchor="end" fontFamily="var(--font-mono)">{(mzMax / 1.15).toFixed(0)}</text>
 
       {/* Etiquetas de eje */}
-      <text x={padLeft + plotW / 2} y={height - 6} fill={C.labelDim} fontSize="8"
+      <text x={padLeft + plotW / 2} y={height - 6} fill={C.labelDim} fontSize="10.5"
         textAnchor="middle" fontFamily="var(--font-mono)">
         My (kN·m)
       </text>
-      <text x={11} y={padTop + plotH / 2} fill={C.labelDim} fontSize="8"
+      <text x={11} y={padTop + plotH / 2} fill={C.labelDim} fontSize="10.5"
         textAnchor="middle" fontFamily="var(--font-mono)"
         transform={`rotate(-90 11 ${padTop + plotH / 2})`}>
         Mz (kN·m)

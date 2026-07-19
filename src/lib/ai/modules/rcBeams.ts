@@ -645,7 +645,10 @@ function buildRcBeamsPlan(
 
 // ── Snapshot del estado ───────────────────────────────────────────────────────
 
-type StateKey = Exclude<keyof RCBeamInputs, 'title'>;
+// Se excluyen también los campos OPCIONALES del estado (deflMethod/phiEf, flecha
+// directa): no viajan al payload a propósito (límite de 16 uniones Anthropic +
+// snapshot estable) y su `undefined` rompería el tipado de `valores`.
+type StateKey = Exclude<keyof RCBeamInputs, 'title' | 'deflMethod' | 'phiEf'>;
 
 const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
   mode: 'mode',

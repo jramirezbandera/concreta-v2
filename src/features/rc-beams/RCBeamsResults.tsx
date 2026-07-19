@@ -57,6 +57,12 @@ function SectionBlock({
     ['bar-spacing', 'bar-spacing-impossible'].includes(c.id),
   );
   const crackingChecks = section.checks.filter((c) => c.id === 'cracking');
+  // Comprobación de pieza (solo vano; L=0 → no existe). Antes del grupo estas
+  // filas contaban en el veredicto (overallStatus lee TODOS los checks) pero
+  // no se pintaban — un INCUMPLE podía llegar sin fila roja visible.
+  const deflectionChecks = section.checks.filter((c) =>
+    ['slenderness-ld', 'deflection-cracked'].includes(c.id),
+  );
 
   return (
     <div
@@ -98,6 +104,13 @@ function SectionBlock({
 
       <GroupHeader label="ELS Fisuracion" />
       {crackingChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
+
+      {deflectionChecks.length > 0 && (
+        <>
+          <GroupHeader label="ELS Flecha" />
+          {deflectionChecks.map((c) => <CheckRowItem key={c.id} check={c} compact={compact} />)}
+        </>
+      )}
 
       {/* Rebar info footer */}
       <div className="mt-3 pt-2 border-t border-border-sub space-y-1">

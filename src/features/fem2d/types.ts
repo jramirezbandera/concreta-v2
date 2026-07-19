@@ -32,18 +32,19 @@
 // │   e.g. wind pressure perpendicular to a rafter.                     │
 // └─────────────────────────────────────────────────────────────────────┘
 //
-// Shared shapes (LoadCase, UseCategoryCode, RcSection, ModelError) are
-// imported from fem-analysis for now; Lane B moves them into frame-core and
-// this import gets repointed (single line).
+// Shared shapes (LoadCase, UseCategoryCode, RcSection, ModelError) come from
+// the shared frame-core (Lane B extraction, D12).
 
 import type {
+  ArmadoHA,
   LoadCase,
   ModelError,
+  RcColumnCage,
   RcSection,
   UseCategoryCode,
-} from '../fem-analysis/types';
+} from '../../lib/frame-core/types';
 
-export type { LoadCase, ModelError, RcSection, UseCategoryCode };
+export type { ArmadoHA, LoadCase, ModelError, RcColumnCage, RcSection, UseCategoryCode };
 
 // ── Size caps (D4: dense synchronous solve stays instant) ───────────────────
 
@@ -110,13 +111,40 @@ export interface Fem2DMember {
   /** Required when material === 'rc'. Gross-section EI/EA come from here. */
   rcSection?: RcSection;
   /**
+   * RC reinforcement, per role family (material === 'rc' only). BOTH shapes
+   * are stamped with defaults when the user switches a member to HA and BOTH
+   * persist across role flips (auto re-inference can toggle pilar↔viga at any
+   * node move — losing the cage on a transient flip would be data loss):
+   *   viga / cordon → vanoArmado + apoyoArmado (1D pattern: calcRCBeam pair)
+   *   pilar         → columnCage (calcRCColumn rectangular cage)
+   * Checks read whichever the CURRENT role needs; missing armado → 'pending'
+   * (share links / AI proposals may carry HA members without armado).
+   */
+  vanoArmado?: ArmadoHA;
+  apoyoArmado?: ArmadoHA;
+  columnCage?: RcColumnCage;
+  /**
    * Moment releases at each end (beam-column only; a two-force element is
    * released at both ends by formulation and ignores this field).
-   * NOTE: no armado fields yet on purpose — the check phase (T5) defines the
-   * RC reinforcement model (a column cage is NOT expressible as the 1D
-   * vano/apoyo pair; see eng-review outside-voice finding 2).
    */
   releases: { i: boolean; j: boolean };
+  /**
+   * Lateral-torsional buckling restraint spacing (m) for steel beam-columns:
+   * distance between compression-flange restraints (correas / viguetas /
+   * forjado). Caps the LTB critical length the beam check uses
+   * (Lcr = min(ltbSpacing, member length)). Undefined = unrestrained (full
+   * member length). Ignored for two-force members and columns (a column's
+   * unbraced height is its own length).
+   */
+  ltbSpacing?: number;
+  /**
+   * Free-editor flag: the user explicitly picked this member's role in the
+   * inspector. Blocks the geometric re-inference that runs when nodes move
+   * (auto only ever flips between pilar/viga; template-stamped semantic roles
+   * — cordon/diagonal/montante — are preserved regardless). The ENGINE ignores
+   * this field entirely.
+   */
+  roleManual?: boolean;
 }
 
 // ── Loads (D5: signed components, world or local frame) ─────────────────────

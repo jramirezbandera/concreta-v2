@@ -57,6 +57,11 @@ import {
   femAnalysisAdapter, FEM_SAFETY_RULES,
   VANOS_ELEMENT_RULES, VANOS_RISK_CTX, CARGAS_ELEMENT_RULES, CARGAS_RISK_CTX,
 } from '../../lib/ai/modules/femAnalysis';
+import {
+  fem2dAdapter, FEM2D_SAFETY_RULES,
+  NUDOS_ELEMENT_RULES, NUDOS_RISK_CTX, BARRAS_ELEMENT_RULES, BARRAS_RISK_CTX,
+  CARGAS2D_ELEMENT_RULES, CARGAS2D_RISK_CTX,
+} from '../../lib/ai/modules/fem2d';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 17 TInputs distintos */
 
@@ -109,6 +114,15 @@ const ENTRIES: readonly Entry[] = [
       { ctx: CARGAS_RISK_CTX, rules: CARGAS_ELEMENT_RULES },
     ],
   },
+  {
+    adapter: fem2dAdapter,
+    rules: FEM2D_SAFETY_RULES,
+    elements: [
+      { ctx: NUDOS_RISK_CTX, rules: NUDOS_ELEMENT_RULES },
+      { ctx: BARRAS_RISK_CTX, rules: BARRAS_ELEMENT_RULES },
+      { ctx: CARGAS2D_RISK_CTX, rules: CARGAS2D_ELEMENT_RULES },
+    ],
+  },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -116,10 +130,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 18 adapters están en el contrato', () => {
+describe('los 19 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(18);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(18);
+    expect(ENTRIES).toHaveLength(19);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(19);
   });
 });
 

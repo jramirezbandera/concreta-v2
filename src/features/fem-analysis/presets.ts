@@ -1,3 +1,4 @@
+import { STEEL_CATALOG } from '../../lib/frame-core/sections';
 import type {
   ArmadoHA,
   BarRole,
@@ -12,17 +13,25 @@ import type {
 } from './types';
 
 // Material catalog. Mutable so users can add custom HA sections at runtime.
+// Steel profile data lives in the shared frame-core STEEL_CATALOG (Lane B
+// extraction, D12); the legacy SteelMaterial entries are derived from it so
+// both bar modules read one table. Values are byte-identical to the old
+// inline literals — pure refactor.
+function steelMat(key: string): SteelMaterial {
+  const p = STEEL_CATALOG[key];
+  return { kind: 'steel', role: p.role, name: p.name, E: p.E, A: p.A, I: p.I, fy: p.fy, gamma: p.gamma, color: 'steel' };
+}
+
 export const MAT: Record<string, Material> = {
-  // Steel beam profiles (IPE)
-  steel_IPE200: { kind: 'steel', role: 'viga',  name: 'IPE 200', E: 210000, A: 28.5, I: 1943,  fy: 275, gamma: 1.05, color: 'steel' },
-  steel_IPE240: { kind: 'steel', role: 'viga',  name: 'IPE 240', E: 210000, A: 39.1, I: 3892,  fy: 275, gamma: 1.05, color: 'steel' },
-  steel_IPE300: { kind: 'steel', role: 'viga',  name: 'IPE 300', E: 210000, A: 53.8, I: 8356,  fy: 275, gamma: 1.05, color: 'steel' },
-  steel_IPE360: { kind: 'steel', role: 'viga',  name: 'IPE 360', E: 210000, A: 72.7, I: 16270, fy: 275, gamma: 1.05, color: 'steel' },
-  steel_HEB160: { kind: 'steel', role: 'pilar', name: 'HEB 160', E: 210000, A: 54.3, I: 2492,  fy: 275, gamma: 1.05, color: 'steel' },
-  steel_HEB200: { kind: 'steel', role: 'pilar', name: 'HEB 200', E: 210000, A: 78.1, I: 5696,  fy: 275, gamma: 1.05, color: 'steel' },
-  steel_HEB240: { kind: 'steel', role: 'pilar', name: 'HEB 240', E: 210000, A: 106,  I: 11260, fy: 275, gamma: 1.05, color: 'steel' },
-  steel_HEB300: { kind: 'steel', role: 'pilar', name: 'HEB 300', E: 210000, A: 149,  I: 25170, fy: 275, gamma: 1.05, color: 'steel' },
-  steel_L80x8:  { kind: 'steel', role: 'viga',  name: 'L 80×8',  E: 210000, A: 12.3, I: 73.7,  fy: 275, gamma: 1.05, color: 'steel' },
+  steel_IPE200: steelMat('steel_IPE200'),
+  steel_IPE240: steelMat('steel_IPE240'),
+  steel_IPE300: steelMat('steel_IPE300'),
+  steel_IPE360: steelMat('steel_IPE360'),
+  steel_HEB160: steelMat('steel_HEB160'),
+  steel_HEB200: steelMat('steel_HEB200'),
+  steel_HEB240: steelMat('steel_HEB240'),
+  steel_HEB300: steelMat('steel_HEB300'),
+  steel_L80x8:  steelMat('steel_L80x8'),
   rc_30x50:     { kind: 'rc',    role: 'viga',  name: 'HA 30×50', E: 30000, b: 30, h: 50, A: 1500, I: 312500, fck: 25, gamma: 1.5, color: 'rc' },
   rc_25x40:     { kind: 'rc',    role: 'viga',  name: 'HA 25×40', E: 30000, b: 25, h: 40, A: 1000, I: 133333, fck: 25, gamma: 1.5, color: 'rc' },
 };

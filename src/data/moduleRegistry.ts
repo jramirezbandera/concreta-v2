@@ -15,6 +15,7 @@ import {
   forjadosDefaults,
   anchorPlateDefaults,
   femAnalysisDefaults,
+  fem2dDefaults,
   micropilesDefaults,
   slopeDefaults,
   type RCBeamInputs,
@@ -189,6 +190,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-fem2d',
+    route: '/analisis/fem2d',
+    label: 'FEM 2D',
+    group: 'Análisis',
+    // Nested model (template + params) lives in the module's own localStorage,
+    // like FEM 1D; the registry only needs lightweight flags. Cast as the other
+    // rich-state modules do (compositeSection/slope).
+    defaults: fem2dDefaults as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-slope-stability',
     route: '/geotec/taludes',
     label: 'Taludes',
@@ -223,6 +235,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'timber-columns': '1',
   'anchor-plate': '1',
   'fem-2d': '1',
+  'fem2d': '2', // bumped 2026-07-18: editor libre — el blob pasa de Fem2DUiState paramétrico al Fem2DModel completo
   'slope-stability': '2', // bumped Phase 2 (2026-06-24): SlopeInputs ganó `context` (excavation|global-foundation); el bump descarta el localStorage de Phase 1 en la próxima carga.
 };
 

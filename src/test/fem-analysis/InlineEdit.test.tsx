@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render as rtlRender, screen, type RenderOptions } from '@testing-library/react';
-import { InlineEdit } from '../../features/fem-analysis/components/InlineEdit';
+import { InlineEdit } from '../../components/ui/InlineEdit';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 // InlineEdit ahora usa useUnitSystem internamente (para soportar el toggle

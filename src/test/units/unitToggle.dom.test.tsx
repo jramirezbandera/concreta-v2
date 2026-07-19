@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render as rtlRender, screen, type RenderOptions } from '@testing-library/react';
-import { InlineEdit } from '../../features/fem-analysis/components/InlineEdit';
+import { InlineEdit } from '../../components/ui/InlineEdit';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 function renderInProvider(ui: React.ReactElement, options?: RenderOptions) {

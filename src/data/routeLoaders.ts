@@ -24,6 +24,7 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/madera/vigas': () => import('../features/timber-beams'),
   '/madera/pilares': () => import('../features/timber-columns'),
   '/analisis/fem': () => import('../features/fem-analysis'),
+  '/analisis/fem2d': () => import('../features/fem2d'),
   '/geotec/taludes': () => import('../features/slope-stability'),
 };
 

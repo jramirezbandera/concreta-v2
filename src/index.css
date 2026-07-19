@@ -208,6 +208,19 @@ html, body { overflow-x: hidden; }
   --color-fem-w: #2563eb;  /* viento (wind) */
   --color-fem-s: #475569;  /* nieve (snow) */
   --color-fem-e: #dc2626;  /* sismo (seismic) */
+
+  /* FEM 2D load-case glyph palette (light = AA on the white canvas + PDF paper).
+     The screen SVG reads these via var(); the PDF raster path (embedSvgAsImage,
+     which can't resolve var()) uses the fixed-hex LC_COLOR_PDF mirror. */
+  --color-fem2d-g: #475569;  /* permanente (G) — slate-600, 7.2:1 */
+  --color-fem2d-q: #0369a1;  /* variable   (Q) — sky-700,   5.9:1 */
+  --color-fem2d-w: #b45309;  /* viento     (W) — amber-700, 5.0:1 */
+  --color-fem2d-s: #0e7490;  /* nieve      (S) — cyan-700,  5.4:1 */
+  --color-fem2d-e: #6d28d9;  /* sismo      (E) — violet-700,7.1:1 */
+  /* FEM 2D N/V/M diagram bands by sign (convención azul=+, rojo=−). El PDF
+     rasterizado no resuelve var(): usa el espejo hex DIAG_*_PDF de canvasTheme. */
+  --color-fem2d-diag-pos: #2563eb;  /* valores positivos — blue-600 */
+  --color-fem2d-diag-neg: #dc2626;  /* valores negativos — red-600 */
   --color-scrollbar: #94a3b8;       /* slate-400 — visible but not heavy on white */
   --color-scrollbar-hover: #64748b;
 }
@@ -287,6 +300,17 @@ html[data-theme="dark"] {
   --color-fem-w: #60a5fa;
   --color-fem-s: #cbd5e1;
   --color-fem-e: #f87171;
+
+  /* FEM 2D load-case glyphs — bright hues for the near-black canvas. Unchanged
+     from the pre-token values, so dark mode renders identically. */
+  --color-fem2d-g: #9a9ea7;
+  --color-fem2d-q: #38bdf8;
+  --color-fem2d-w: #f59e0b;
+  --color-fem2d-s: #22d3ee;
+  --color-fem2d-e: #a78bfa;
+  /* N/V/M diagram bands by sign — bright pair for the near-black canvas. */
+  --color-fem2d-diag-pos: #38bdf8;   /* positivos — sky-400 (el azul de siempre) */
+  --color-fem2d-diag-neg: #f87171;   /* negativos — red-400 */
   --color-scrollbar: #34343c;        /* visible on the near-black page */
   --color-scrollbar-hover: #4b4f59;
 }

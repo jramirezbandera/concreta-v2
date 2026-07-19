@@ -109,12 +109,15 @@ function NumField({
               if (stored !== n * scale) setField(field, stored);
             }
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
-          aria-label={`${resolved.label} (${unitText})`}
+          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
+          aria-label={unitText ? `${resolved.label} (${unitText})` : resolved.label}
         />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
+        {/* Campos adimensionales (φef): sin caja de unidad vacía */}
+        {unitText && (
+          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+            {unitText}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -317,23 +320,45 @@ export function RCBeamsInputs({
         <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
         <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
-        {/* Luz + sistema para la esbeltez L/d (CE Anejo 19 §7.4.2). L=0 desactiva. */}
-        <NumField label="L" sub="luz (esbeltez L/d)" field="L"
-          value={state.L as number} unit="m" min={0} scale={1000} setField={setField}
-          help="Luz de cálculo para el control de flecha por esbeltez (L/d, CE Anejo 19 §7.4.2). Déjala en 0 para desactivar esta comprobación." />
-        <SelectField
-          label="Sistema"
-          help="Condición de apoyo que fija el coeficiente K del límite de esbeltez L/d: biapoyada 1.0, vano extremo 1.3, vano interior 1.5, ménsula 0.4."
-          field="structSystem"
-          value={(state.structSystem as string) ?? 'ss'}
-          options={[
-            { value: 'ss',         label: 'Biapoyada (K=1.0)' },
-            { value: 'end',        label: 'Vano extremo (K=1.3)' },
-            { value: 'interior',   label: 'Vano interior (K=1.5)' },
-            { value: 'cantilever', label: 'Ménsula (K=0.4)' },
-          ]}
-          setField={setField}
-        />
+        {/* Comprobación de flecha (pieza): luz + sistema + método (+φef en
+         *  cálculo directo). L=0 desactiva. Oculta en el FEM embed
+         *  (hideSolicitations): allí la flecha es la real del solver,
+         *  checks.ts fuerza L=0 y estos campos eran UI muerta (el setField
+         *  del wrapper los descarta). */}
+        {!hideSolicitations && (<>
+          <NumField label="L" sub="luz (flecha)" field="L"
+            value={state.L as number} unit="m" min={0} scale={1000} setField={setField}
+            help="Luz de cálculo para la comprobación de flecha (esbeltez L/d o cálculo directo, según el método elegido). Déjala en 0 para desactivarla." />
+          <SelectField
+            label="Sistema"
+            help="Condición de apoyo. Con esbeltez L/d fija el coeficiente K del límite (biapoyada 1.0, vano extremo 1.3, vano interior 1.5, ménsula 0.4); con cálculo directo fija el coeficiente de la flecha elástica y la corrección por momentos de apoyo (modo Pórtico)."
+            field="structSystem"
+            value={(state.structSystem as string) ?? 'ss'}
+            options={[
+              { value: 'ss',         label: 'Biapoyada (K=1.0)' },
+              { value: 'end',        label: 'Vano extremo (K=1.3)' },
+              { value: 'interior',   label: 'Vano interior (K=1.5)' },
+              { value: 'cantilever', label: 'Ménsula (K=0.4)' },
+            ]}
+            setField={setField}
+          />
+          <SelectField
+            label="Flecha"
+            help="Método de comprobación de flecha. La esbeltez L/d exime del cálculo directo si cumple (CE Anejo 19 §7.4.2). El cálculo directo obtiene la flecha diferida cuasipermanente con sección fisurada y fluencia (§7.4.3) y la compara con L/300 (apariencia, CTE DB-SE 4.3.3). Solo puntúa el método elegido."
+            field="deflMethod"
+            value={(state.deflMethod as string) ?? 'ld'}
+            options={[
+              { value: 'ld',     label: 'Esbeltez L/d (sin cálculo)' },
+              { value: 'direct', label: 'Cálculo directo (diferida)' },
+            ]}
+            setField={setField}
+          />
+          {((state.deflMethod as string) ?? 'ld') === 'direct' && (
+            <NumField label="φef" sub="fluencia" field="phiEf"
+              value={(state.phiEf as number | undefined) ?? 2} min={0} setField={setField}
+              help="Coeficiente de fluencia efectivo de la flecha diferida: Ec,ef = Ec/(1+φef). Típico en edificación ≈ 2,0 (HR 50-70%, puesta en carga a 28 días)." />
+          )}
+        </>)}
       </CollapsibleSection>
 
       {/* Shared materials */}

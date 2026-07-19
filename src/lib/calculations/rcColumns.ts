@@ -66,7 +66,10 @@ export interface RCColumnResult {
   checks: CheckRow[];
 }
 
-interface BarGroup { y: number; area: number; }
+/** One rebar layer of the fiber model. Exported for reuse by the FEM 2D beam
+ *  M+N check (rcBeamMN.ts) — the primitives accept ARBITRARY (asymmetric)
+ *  layouts; only buildSectionModel is coupled to the symmetric column cage. */
+export interface BarGroup { y: number; area: number; }
 
 // ── Modelo de fibras compartido (rectangular + circular) ─────────────────────
 // Diagrama parábola-rectángulo del hormigón (Anejo 19 §3.1.7(1)) + diagrama de
@@ -77,7 +80,7 @@ interface BarGroup { y: number; area: number; }
 // para anchos decrecientes — la integración exacta lo hace innecesario).
 
 /** Parámetros del diagrama parábola-rectángulo (CE 21.3.3 / Anejo 19 §3.1.7). */
-interface PRDiagram { epsC2: number; epsCu: number; nExp: number }
+export interface PRDiagram { epsC2: number; epsCu: number; nExp: number }
 
 /** Nº de tiras de la integración por fibras del hormigón. */
 const N_STRIPS_FIBER = 240;
@@ -110,7 +113,7 @@ function sigmaConcretePR(eps: number, fcd: number, pr: PRDiagram): number {
  * @param depth section dimension in bending direction (mm)
  * @param bars  array of {y: distance from compression face (mm), area: mm²}
  */
-function calcNM(
+export function calcNM(
   x: number,
   width: number,
   depth: number,
@@ -144,9 +147,14 @@ function calcNM(
  * N(x) es monótona creciente con asíntota NRd_max (pivote C): para
  * NEd < NRd_max siempre hay equilibrio — se expande el techo exponencialmente
  * antes de bisecar (la antigua zona gap de Whitney ya no existe).
+ * También converge con NEd NEGATIVO (tracción): N(x→1e-3) = −As_tot·fyd
+ * (todas las barras a −fyd, hormigón nulo), así que el bracketing cubre
+ * (−NtRd, NRd_max). CONTRATO DEL CALLER: para NEd ≤ −NtRd NO hay equilibrio
+ * (la bisección colapsaría a xLo con un MRd espurio) — el caller debe cortar
+ * antes con su propio fail de tracción pura (ver rcBeamMN.ts).
  * Returns MRd in N·mm.
  */
-function computeAxis(
+export function computeAxis(
   NEd_N: number,
   depth: number,
   width: number,

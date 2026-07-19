@@ -29,7 +29,7 @@ export function setGray(doc: jsPDF, g: number): void {
  * `src/test/pdf/latin1Encoding.dom.test.ts` vigila esta invariante.
  *
  * Covers all symbols used across Concreta modules:
- *   Greek lowercase: λ χ σ τ γ φ η δ β θ ε ρ α ψ κ π ν μ
+ *   Greek lowercase: λ χ σ τ γ φ η ζ δ β θ ε ρ α ψ κ π ν μ
  *   Greek uppercase: Φ Σ Δ (used in formulas for masonry / fem / steel)
  *   Super/subscripts: ⁴ ⁶ ₀₁₂₃₄₅
  *   Math / punctuation: √ ≤ ≥ ≠ ≈ ∞ → ⇒ − ' — –
@@ -60,6 +60,7 @@ export function pdfStr(s: string): string {
     .replace(/γ/g, 'g')
     .replace(/φ/g, 'phi')
     .replace(/η/g, 'eta')
+    .replace(/ζ/g, 'zeta')
     .replace(/δ/g, 'd')
     .replace(/β/g, 'beta')
     .replace(/τ/g, 't')

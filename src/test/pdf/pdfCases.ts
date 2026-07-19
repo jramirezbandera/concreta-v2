@@ -53,6 +53,9 @@ import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
 import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { solveDesignModel } from '../../features/fem-analysis/solveDesignModel';
+import { exportFem2DPDF } from '../../lib/pdf/fem2d';
+import { fem2dUiDefaults, buildModelFromState } from '../../features/fem2d/uiState';
+import { analyzeFem2D } from '../../features/fem2d/pipeline';
 
 export interface PdfCase {
   name: string;
@@ -208,6 +211,45 @@ export const PDF_CASES: PdfCase[] = [
         ),
       };
       return exportFemAnalysisPDF(model, stressed, 'si', T);
+    },
+  },
+
+  // FEM 2D — el estado de cada barra vive en `checks.perMember[].status/eta`
+  // (no en `result.checks`), así que el tweak genérico allWarn/allFail no aplica:
+  // stressable:false. Se registran dos topologías porque exponen filas distintas
+  // — el pórtico saca el axil de pilar y la esquina; la cercha saca "Compresion +
+  // pandeo" de las diagonales (los nombres de comprobación más anchos) — y un
+  // tercer caso 'custom' que ejercita la rama describeModel de estructura
+  // editada (cabecera "Estructura personalizada" + fallback fem2d-estructura).
+  {
+    m: 18,
+    name: 'fem2d (portico)',
+    stressable: false,
+    run: () => {
+      const state = { ...fem2dUiDefaults(), templateId: 'portal-frame' as const };
+      const model = buildModelFromState(state).model!;
+      return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
+    },
+  },
+  {
+    m: 18,
+    name: 'fem2d (cercha)',
+    stressable: false,
+    run: () => {
+      const state = { ...fem2dUiDefaults(), templateId: 'pratt-truss' as const };
+      const model = buildModelFromState(state).model!;
+      return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
+    },
+  },
+  {
+    m: 18,
+    name: 'fem2d (custom editado)',
+    stressable: false,
+    run: () => {
+      const state = { ...fem2dUiDefaults(), templateId: 'gable' as const };
+      const built = buildModelFromState(state).model!;
+      const model = { ...built, templateId: 'custom' as const };
+      return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
     },
   },
 ];

@@ -4,7 +4,7 @@
 //   fck=25, fyk=500, Nd=500kN, MEdy=30kNm, MEdz=10kNm, L=3.5m, beta=1
 
 import { describe, it, expect } from 'vitest';
-import { calcRCColumn } from '../../lib/calculations/rcColumns';
+import { calcRCColumn, calcNM, computeAxis, type BarGroup, type PRDiagram } from '../../lib/calculations/rcColumns';
 import { rcColumnDefaults } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
@@ -788,5 +788,50 @@ describe('RC Columns — engine vs independent fiber reference', () => {
   it('N(x→∞) plateau matches NRd_max (pure pivot C)', () => {
     const plateau = fiberNMRef(800 * 300, 300, 300, bars, fcd, fyd).N;
     expect(plateau / NRd_max).toBeCloseTo(1, 3);
+  });
+
+  // ── Primitivos EXPORTADOS con layout ASIMÉTRICO de viga (FEM 2D M+N) ──────
+  // calcNM/computeAxis se exportaron para el chequeo de flexión compuesta de
+  // vigas HA (rcBeamMN.ts): armado distinto arriba/abajo. Se anclan contra la
+  // MISMA referencia independiente de 4000 tiras (que ya acepta bars
+  // arbitrario y NEd con signo — el bracketing cubre (−NtRd, NRd_max)).
+  describe('exported fiber primitives — asymmetric beam layout', () => {
+    // Viga 300×500 C25 B500S: 2Ø12 arriba (y=44), 4Ø20 abajo (y=450:
+    // cover 30 + cerco 8 + 20/2 = 48 → y = 500 − 48 = 452).
+    const A12 = getBarArea(12);
+    const A20 = getBarArea(20);
+    const beamBars: BarGroup[] = [
+      { y: 44, area: 2 * A12 },
+      { y: 452, area: 4 * A20 },
+    ];
+    const AsTot = 2 * A12 + 4 * A20;
+    const beamNRdMax = fcd * (300 * 500 - AsTot) + Math.min(fyd, 400) * AsTot;
+    const NtRd = AsTot * fyd;
+    const pr: PRDiagram = { epsC2: EPS_C2, epsCu: EPS_CU, nExp: N_EXP };
+
+    for (const [label, NEd] of [
+      ['compresión 0.30·NRdmax', 0.30 * beamNRdMax],
+      ['compresión 0.05·NRdmax', 0.05 * beamNRdMax],
+      ['flexión pura (N≈0)', 1],
+      ['tracción −0.5·NtRd', -0.5 * NtRd],
+    ] as const) {
+      it(`computeAxis MRd within ±1% of the 4000-strip reference (${label})`, () => {
+        const got = computeAxis(NEd, 500, 300, beamBars, fcd, fyd, pr, beamNRdMax);
+        expect(got.ndMaxFailed).toBe(false);
+        const ref = fiberMRdRef(NEd, 300, 500, beamBars, fcd, fyd);
+        expect(Math.abs(got.MRd_Nmm / ref - 1)).toBeLessThan(0.01);
+        expect(got.MRd_Nmm).toBeGreaterThan(0);
+      });
+    }
+
+    it('calcNM at x→0 gives pure tension −As_tot·fyd (bracketing floor)', () => {
+      const { NRd } = calcNM(1e-3, 300, 500, beamBars, fcd, fyd, pr);
+      expect(NRd).toBeCloseTo(-NtRd, 6);
+    });
+
+    it('NEd ≥ NRd_max flags ndMaxFailed (caller must fail, never divide)', () => {
+      const got = computeAxis(1.01 * beamNRdMax, 500, 300, beamBars, fcd, fyd, pr, beamNRdMax);
+      expect(got.ndMaxFailed).toBe(true);
+    });
   });
 });

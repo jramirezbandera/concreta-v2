@@ -80,10 +80,10 @@ function ISectionShape({
       <line x1={ox - 8} y1={oy} x2={ox - 8} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox - 11} y1={oy} x2={ox - 5} y2={oy} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox - 11} y1={oy + sH} x2={ox - 5} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
-      <text x={ox - 16} y={oy + sH / 2} dominantBaseline="middle" textAnchor="middle"
-        fontSize={8} fill={C.dimText} transform={`rotate(-90, ${ox - 16}, ${oy + sH / 2})`}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={ox - 18} y={oy + sH / 2} dominantBaseline="middle" textAnchor="middle"
+        fontSize={11} fill={C.dimText} transform={`rotate(-90, ${ox - 18}, ${oy + sH / 2})`}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         h={profile.h}
       </text>
 
@@ -91,33 +91,37 @@ function ISectionShape({
       <line x1={ox} y1={oy - 10} x2={ox + sW} y2={oy - 10} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox} y1={oy - 13} x2={ox} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox + sW} y1={oy - 13} x2={ox + sW} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
-      <text x={ox + sW / 2} y={oy - 14} textAnchor="middle" fontSize={8} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={ox + sW / 2} y={oy - 15} textAnchor="middle" fontSize={11} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         b={profile.b}
       </text>
 
-      {/* tf label */}
-      <text x={ox - 4} y={oy + tf / 2} textAnchor="end" dominantBaseline="middle"
-        fontSize={7} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
-        className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}>
+      {/* tf callout — leader from top-flange edge out to the right, clear of the section */}
+      <line x1={ox + sW} y1={oy + tf / 2} x2={ox + sW + 13} y2={oy + tf / 2}
+        stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox + sW + 16} y={oy + tf / 2} textAnchor="start" dominantBaseline="middle"
+        fontSize={10} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '10px' } : undefined}
+        className={isPdf ? undefined : 'text-[10px] font-mono fill-text-disabled'}>
         tf={profile.tf}
       </text>
 
-      {/* tw label */}
-      <text x={cx} y={oy + sH / 2} textAnchor="middle" dominantBaseline="middle"
-        fontSize={7} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
-        className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}>
+      {/* tw callout — leader from web edge out to the right, clear of the section */}
+      <line x1={cx + halfTw} y1={oy + sH / 2} x2={ox + sW + 13} y2={oy + sH / 2}
+        stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox + sW + 16} y={oy + sH / 2} textAnchor="start" dominantBaseline="middle"
+        fontSize={10} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '10px' } : undefined}
+        className={isPdf ? undefined : 'text-[10px] font-mono fill-text-disabled'}>
         tw={profile.tw}
       </text>
 
       {/* Profile label */}
-      <text x={ox + sW / 2} y={oy + sH + 14} textAnchor="middle" fontSize={9} fontWeight={600}
+      <text x={ox + sW / 2} y={oy + sH + 18} textAnchor="middle" fontSize={12} fontWeight={600}
         fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
-        className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}>
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '12px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[12px] font-semibold font-mono fill-text-secondary'}>
         {profile.label}
       </text>
     </g>
@@ -170,10 +174,10 @@ function UPNBoxShape({
       <line x1={ox - 8} y1={oy} x2={ox - 8} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox - 11} y1={oy} x2={ox - 5} y2={oy} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox - 11} y1={oy + sH} x2={ox - 5} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
-      <text x={ox - 16} y={oy + sH / 2} dominantBaseline="middle" textAnchor="middle"
-        fontSize={8} fill={C.dimText} transform={`rotate(-90, ${ox - 16}, ${oy + sH / 2})`}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={ox - 18} y={oy + sH / 2} dominantBaseline="middle" textAnchor="middle"
+        fontSize={11} fill={C.dimText} transform={`rotate(-90, ${ox - 18}, ${oy + sH / 2})`}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         h={profile.h}
       </text>
 
@@ -181,17 +185,17 @@ function UPNBoxShape({
       <line x1={ox} y1={oy - 10} x2={ox + sW} y2={oy - 10} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox} y1={oy - 13} x2={ox} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox + sW} y1={oy - 13} x2={ox + sW} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
-      <text x={ox + sW / 2} y={oy - 14} textAnchor="middle" fontSize={8} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={ox + sW / 2} y={oy - 15} textAnchor="middle" fontSize={11} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         b={profile.b}
       </text>
 
       {/* Profile label */}
-      <text x={ox + sW / 2} y={oy + sH + 14} textAnchor="middle" fontSize={9} fontWeight={600}
+      <text x={ox + sW / 2} y={oy + sH + 18} textAnchor="middle" fontSize={12} fontWeight={600}
         fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
-        className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}>
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '12px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[12px] font-semibold font-mono fill-text-secondary'}>
         2UPN {profile.size}
       </text>
     </g>
@@ -235,25 +239,26 @@ function CHSShape({
       <line x1={ox} y1={oy - 10} x2={ox + sW} y2={oy - 10} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox} y1={oy - 13} x2={ox} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
       <line x1={ox + sW} y1={oy - 13} x2={ox + sW} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
-      <text x={ox + sW / 2} y={oy - 14} textAnchor="middle" fontSize={8} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={ox + sW / 2} y={oy - 15} textAnchor="middle" fontSize={11} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         D={D}
       </text>
 
-      {/* t callout — from wall thickness outward */}
-      <text x={cx + rOuter + 4} y={cy - 2} textAnchor="start" dominantBaseline="middle"
-        fontSize={7} fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '7px' } : undefined}
-        className={isPdf ? undefined : 'text-[7px] font-mono fill-text-disabled'}>
+      {/* t callout — leader from the wall outward to the right */}
+      <line x1={cx + rOuter} y1={cy} x2={cx + rOuter + 13} y2={cy} stroke={C.dim} strokeWidth={0.75} />
+      <text x={cx + rOuter + 16} y={cy} textAnchor="start" dominantBaseline="middle"
+        fontSize={10} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '10px' } : undefined}
+        className={isPdf ? undefined : 'text-[10px] font-mono fill-text-disabled'}>
         t
       </text>
 
       {/* Label */}
-      <text x={ox + sW / 2} y={oy + sH + 14} textAnchor="middle" fontSize={9} fontWeight={600}
+      <text x={ox + sW / 2} y={oy + sH + 18} textAnchor="middle" fontSize={12} fontWeight={600}
         fill={C.dimText}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '9px', fontWeight: '600' } : undefined}
-        className={isPdf ? undefined : 'text-[9px] font-semibold font-mono fill-text-secondary'}>
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '12px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[12px] font-semibold font-mono fill-text-secondary'}>
         {label}
       </text>
     </g>
@@ -417,35 +422,35 @@ function ColumnGeometry({
         stroke={C.dim} strokeWidth={0.75} />
       <line x1={colX - 33} y1={topY} x2={colX - 27} y2={topY} stroke={C.dim} strokeWidth={0.75} />
       <line x1={colX - 33} y1={botY} x2={colX - 27} y2={botY} stroke={C.dim} strokeWidth={0.75} />
-      <text x={colX - 38} y={(topY + botY) / 2} textAnchor="middle" dominantBaseline="middle"
-        fontSize={8} fill={C.dimText}
-        transform={`rotate(-90, ${colX - 38}, ${(topY + botY) / 2})`}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-mono fill-text-secondary'}>
+      <text x={colX - 40} y={(topY + botY) / 2} textAnchor="middle" dominantBaseline="middle"
+        fontSize={11} fill={C.dimText}
+        transform={`rotate(-90, ${colX - 40}, ${(topY + botY) / 2})`}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
         Ly={Ly}
       </text>
 
       {/* Lk_y label */}
-      <text x={colX + 14} y={topY + colH * 0.35} textAnchor="start" dominantBaseline="middle"
-        fontSize={8} fontWeight={600} fill={C.lkLabel}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px', fontWeight: '600' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-semibold font-mono'}>
+      <text x={colX + 16} y={topY + colH * 0.35} textAnchor="start" dominantBaseline="middle"
+        fontSize={11} fontWeight={600} fill={C.lkLabel}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-semibold font-mono'}>
         Lky={Lk_y}
       </text>
 
       {/* Lk_z label */}
-      <text x={colX + 14} y={topY + colH * 0.6} textAnchor="start" dominantBaseline="middle"
-        fontSize={8} fontWeight={600} fill={C.lkLabel}
-        style={isPdf ? { fontFamily: 'monospace', fontSize: '8px', fontWeight: '600' } : undefined}
-        className={isPdf ? undefined : 'text-[8px] font-semibold font-mono'}>
+      <text x={colX + 16} y={topY + colH * 0.6} textAnchor="start" dominantBaseline="middle"
+        fontSize={11} fontWeight={600} fill={C.lkLabel}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px', fontWeight: '600' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-semibold font-mono'}>
         Lkz={Lk_z}
       </text>
 
       {/* Legend at bottom */}
-      <text x={colX} y={botY + (bcType === 'pp' ? pinSize * 1.5 : hatchH) + 14}
-        textAnchor="middle" fontSize={9} fill={C.label}
-        style={isPdf ? { fontFamily: 'sans-serif', fontSize: '9px' } : undefined}
-        className={isPdf ? undefined : 'text-[9px] fill-text-disabled'}>
+      <text x={colX} y={botY + (bcType === 'pp' ? pinSize * 1.5 : hatchH) + 18}
+        textAnchor="middle" fontSize={12} fill={C.label}
+        style={isPdf ? { fontFamily: 'sans-serif', fontSize: '12px' } : undefined}
+        className={isPdf ? undefined : 'text-[12px] fill-text-disabled'}>
         {bcType === 'pp' ? 'Art.-Art.' : bcType === 'pf' ? 'Art.-Emp.' : bcType === 'ff' ? 'Emp.-Emp.' : bcType === 'fc' ? 'Emp.-Libre' : 'β personalizado'}
       </text>
     </g>

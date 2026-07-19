@@ -4,8 +4,12 @@
 //         cracking, lap lengths, rebar schedule format, comp bar As,min, s_max stirrup check
 
 import { describe, expect, it } from 'vitest';
-import { calcRCBeam, pickSectionInputs } from '../../lib/calculations/rcBeams';
+import { calcRCBeam, calcRcShear, pickSectionInputs } from '../../lib/calculations/rcBeams';
+import { crackedDeflectionFactor } from '../../lib/calculations/crackedDeflection';
+import { rcElasticModulusMPa } from '../../lib/frame-core/sections';
 import { rcBeamDefaults } from '../../data/defaults';
+import { getConcrete, getFyd } from '../../data/materials';
+import { getBarArea } from '../../data/rebar';
 
 // Shared base fixture — all tests clone and override as needed
 const base = { ...rcBeamDefaults };
@@ -752,5 +756,181 @@ describe('Auditoría #67: esbeltez L/d (flecha sin cálculo directo)', () => {
     const u9 = r9.vano.checks.find((c) => c.id === 'slenderness-ld')!.utilization;
     // Sin el factor 7/L el crecimiento sería lineal (×1.5); con él, ×1.5·(9/7)
     expect(u9 / u6).toBeCloseTo((9000 / 6000) * (9000 / 7000), 2);
+  });
+});
+
+// ── Flecha directa diferida con sección fisurada (deflMethod='direct') ───────
+// δ_dif = δ_el·k con k de crackedDeflectionFactor (§7.4.3) y δ_el derivada de
+// los momentos cuasipermanentes con la MISMA base B = Ec_base·Ig del factor.
+// Los esperados se COMPONEN de crackedDeflectionFactor/rcElasticModulusMPa
+// (no se recalculan a mano): aquí se verifica el cableado δ_el/sección/modo.
+describe('Flecha directa (CE Anejo 19 §7.4.3 + CTE DB-SE 4.3.3)', () => {
+  const Bsol = rcElasticModulusMPa(base.fck) * (base.b * base.h ** 3) / 12; // N·mm²
+  const adm = base.L / 300; // 20 mm
+  // Cuasipermanentes del fixture (ψ2 residencial = 0.3)
+  const vanoMs = base.vano_M_G + 0.3 * base.vano_M_Q;   // 51 kN·m
+  const apoyoMs = base.apoyo_M_G + 0.3 * base.apoyo_M_Q; // 39.5 kN·m
+  const vanoSec = { b: base.b, h: base.h, fck: base.fck, As: 4 * getBarArea(16), d: 454 };
+
+  const row = (r: ReturnType<typeof calcRCBeam>) =>
+    r.vano.checks.find((c) => c.id === 'deflection-cracked');
+
+  it('los métodos son excluyentes: direct emite deflection-cracked y suprime slenderness-ld', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct' });
+    expect(row(r)).toBeDefined();
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('slenderness-ld');
+    expect(r.apoyo.checks.map((c) => c.id)).not.toContain('deflection-cracked');
+  });
+
+  it("backcompat: sin deflMethod (estados antiguos) → 'ld', sin fila directa", () => {
+    const { deflMethod: _omit, ...old } = base;
+    const r = calcRCBeam(old as typeof base);
+    expect(r.vano.checks.map((c) => c.id)).toContain('slenderness-ld');
+    expect(row(r)).toBeUndefined();
+  });
+
+  it('L=0 → sin fila también en direct', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct', L: 0 });
+    expect(row(r)).toBeUndefined();
+  });
+
+  it('biapoyada no fisurada: δ_dif = (1+φef)·(5/48)·Mcp·L²/B exacto', () => {
+    // Ms = 20 kN·m ≤ Mcr ≈ 32 kN·m (C25, 300×500) → ζ = 0, k = 1+φef = 3
+    const r = calcRCBeam({ ...base, deflMethod: 'direct', vano_M_G: 20, vano_M_Q: 0 });
+    const c = row(r)!;
+    const deltaEl = (5 / 48) * (20e6 * base.L * base.L) / Bsol;
+    expect(c.utilization).toBeCloseTo((3 * deltaEl) / adm, 6);
+    expect(c.status).toBe('ok');
+  });
+
+  it('φef=0 no fisurada: δ_dif = δ_el exacta (la fluencia se apaga)', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct', phiEf: 0, vano_M_G: 20, vano_M_Q: 0 });
+    const deltaEl = (5 / 48) * (20e6 * base.L * base.L) / Bsol;
+    expect(row(r)!.utilization).toBeCloseTo(deltaEl / adm, 6);
+  });
+
+  it('biapoyada fisurada (fixture, Ms=51): δ_dif = δ_el·k compuesto del factor', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct' });
+    const fis = crackedDeflectionFactor({ ...vanoSec, Mcp: vanoMs, phiEf: 2.0 });
+    expect(fis.zeta).toBeGreaterThan(0); // el caso ejercita la rama fisurada
+    const deltaEl = (5 / 48) * (vanoMs * 1e6 * base.L * base.L) / Bsol;
+    expect(row(r)!.utilization).toBeCloseTo((deltaEl * fis.k) / adm, 6);
+  });
+
+  it('phiEf ausente (estados antiguos) ≡ phiEf 2.0', () => {
+    const { phiEf: _omit, ...old } = { ...base, deflMethod: 'direct' as const };
+    const r1 = calcRCBeam(old as typeof base);
+    const r2 = calcRCBeam({ ...base, deflMethod: 'direct', phiEf: 2.0 });
+    expect(row(r1)!.utilization).toBeCloseTo(row(r2)!.utilization, 12);
+  });
+
+  it('pórtico interior: corrección −0.2·|M_apoyo| y ζ con el máx Mcp del miembro', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct', mode: 'portico', structSystem: 'interior' });
+    const Mnet = vanoMs - 0.2 * apoyoMs;
+    const fis = crackedDeflectionFactor({ ...vanoSec, Mcp: Math.max(vanoMs, apoyoMs), phiEf: 2.0 });
+    const deltaEl = (5 / 48) * (Mnet * 1e6 * base.L * base.L) / Bsol;
+    expect(row(r)!.utilization).toBeCloseTo((deltaEl * fis.k) / adm, 6);
+  });
+
+  it('pórtico interior con hogging dominante: Mnet se clampa a 0 → δ = 0 (nunca negativa)', () => {
+    const r = calcRCBeam({
+      ...base, deflMethod: 'direct', mode: 'portico', structSystem: 'interior',
+      apoyo_M_G: 400, apoyo_M_Q: 0,
+    });
+    const c = row(r)!;
+    expect(c.utilization).toBe(0);
+    expect(c.status).toBe('ok');
+  });
+
+  it("modo simple ignora los momentos de apoyo (dato oculto): 'interior' calcula isostático", () => {
+    // Mismo estado, solo cambia mode: en simple NO se aplica la corrección
+    // −0.2·apoyoMs ni el max() de ζ — la pieza es una sola sección.
+    const rs = calcRCBeam({ ...base, deflMethod: 'direct', mode: 'simple', structSystem: 'interior' });
+    const fis = crackedDeflectionFactor({ ...vanoSec, Mcp: vanoMs, phiEf: 2.0 });
+    const deltaEl = (5 / 48) * (vanoMs * 1e6 * base.L * base.L) / Bsol;
+    expect(row(rs)!.utilization).toBeCloseTo((deltaEl * fis.k) / adm, 6);
+    const rp = calcRCBeam({ ...base, deflMethod: 'direct', mode: 'portico', structSystem: 'interior' });
+    expect(row(rp)!.utilization).toBeLessThan(row(rs)!.utilization);
+  });
+
+  it('ménsula en pórtico: δ_el = |M_ap|·L²/4B con la SECCIÓN DE APOYO (As y d propios)', () => {
+    // Apoyo con Ø20 para que As y d difieran del vano y delaten un cableado cruzado.
+    const r = calcRCBeam({
+      ...base, deflMethod: 'direct', mode: 'portico', structSystem: 'cantilever',
+      apoyo_top_barDiam: 20,
+    });
+    const dApoyo = base.h - base.cover - base.apoyo_stirrupDiam - 20 / 2; // 452
+    const fis = crackedDeflectionFactor({
+      b: base.b, h: base.h, fck: base.fck,
+      As: base.apoyo_top_nBars * getBarArea(20), d: dApoyo,
+      Mcp: apoyoMs, phiEf: 2.0,
+    });
+    const deltaEl = (apoyoMs * 1e6 * base.L * base.L) / (4 * Bsol);
+    expect(row(r)!.utilization).toBeCloseTo((deltaEl * fis.k) / adm, 6);
+  });
+
+  it('ménsula en modo simple: la única sección (vano) manda también en la flecha', () => {
+    const r = calcRCBeam({ ...base, deflMethod: 'direct', structSystem: 'cantilever' });
+    const fis = crackedDeflectionFactor({ ...vanoSec, Mcp: vanoMs, phiEf: 2.0 });
+    const deltaEl = (vanoMs * 1e6 * base.L * base.L) / (4 * Bsol);
+    expect(row(r)!.utilization).toBeCloseTo((deltaEl * fis.k) / adm, 6);
+  });
+});
+
+// ── calcRcShear (extraída de calcSection, compartida con FEM 2D pilares) ─────
+describe('calcRcShear — término de axil σcp y paridad', () => {
+  const mat = getConcrete(25);
+  const fyd = getFyd(500);
+  // Geometría de referencia: b=300, d=450, As=804 mm² (4Ø16), cerco Ø8/150 2R.
+  const P = {
+    b: 300, d: 450, fck: 25, fcd: mat.fcd, fyd,
+    As: 804.2, Asw: (2 * 50.3) / 150, hasStirrups: true,
+  };
+
+  it('paridad con calcSection: mismos VRd/VRdmax que el motor de vigas (σcp=0)', () => {
+    // El motor con defaults (d=454, As=4Ø16, Ø8/150 2R) — replicamos su llamada.
+    const r = calcRCBeam(rcBeamDefaults);
+    const d = 500 - 30 - 8 - 16 / 2; // 454
+    const s = calcRcShear({
+      b: 300, d, fck: 25, fcd: mat.fcd, fyd,
+      As: 4 * 201.1, Asw: (2 * 50.3) / 150, hasStirrups: true, sigmaCp: 0,
+    });
+    expect(s.VRd).toBe(r.vano.VRd);       // igualdad EXACTA de floats (delegación)
+    expect(s.VRdmax).toBe(r.vano.VRdmax);
+    expect(s.VRdc).toBe(r.vano.VRdc);
+  });
+
+  it('σcp = 2 MPa suma exactamente 0.15·σcp·b·d/1000 = 40.5 kN a VRdc', () => {
+    const s0 = calcRcShear({ ...P, sigmaCp: 0 });
+    const s2 = calcRcShear({ ...P, sigmaCp: 2 });
+    expect(s2.VRdc - s0.VRdc).toBeCloseTo((0.15 * 2 * 300 * 450) / 1000, 10); // 40.5
+    expect(s2.sigmaCpEff).toBe(2);
+  });
+
+  it('αcw = 1 + σcp/fcd amplifica VRd,max (2/16.67 ⇒ ×1.12)', () => {
+    const s0 = calcRcShear({ ...P, sigmaCp: 0 });
+    const s2 = calcRcShear({ ...P, sigmaCp: 2 });
+    expect(s2.alphaCw).toBeCloseTo(1 + 2 / mat.fcd, 10);
+    expect(s2.VRdmax / s0.VRdmax).toBeCloseTo(1 + 2 / mat.fcd, 10);
+  });
+
+  it('σcp con cap +0.2·fcd (compresión altísima no infla VRdc sin límite)', () => {
+    const s = calcRcShear({ ...P, sigmaCp: 10 });
+    expect(s.sigmaCpEff).toBeCloseTo(0.2 * mat.fcd, 10);
+  });
+
+  it('tracción (σcp < 0) REDUCE VRdc con signo, αcw = 1, y VRdc queda ≥ 0', () => {
+    const s0 = calcRcShear({ ...P, sigmaCp: 0 });
+    const sT = calcRcShear({ ...P, sigmaCp: -1 });
+    expect(sT.VRdc).toBeCloseTo(s0.VRdc - (0.15 * 1 * 300 * 450) / 1000, 10);
+    expect(sT.alphaCw).toBe(1);
+    // Tracción brutal → floor a 0, nunca negativo.
+    const sX = calcRcShear({ ...P, sigmaCp: -100 });
+    expect(sX.VRdc).toBe(0);
+  });
+
+  it('sin cercos: VRd = VRdc (política de viga intacta)', () => {
+    const s = calcRcShear({ ...P, Asw: 0, hasStirrups: false });
+    expect(s.VRd).toBe(s.VRdc);
   });
 });

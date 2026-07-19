@@ -28,6 +28,7 @@
 //   b·h [m²]  = b[cm]·h[cm] × 1e-4
 //   q_sw [kN/m] = γ [kN/m³] × A [m²]
 
+import { rcSelfWeight, rcStiffness, steelSelfWeight, steelStiffness } from '../../lib/frame-core/sections';
 import { MAT } from './presets';
 import type {
   AnalysisBC,
@@ -43,8 +44,6 @@ import type {
 } from './types';
 
 const EPS = 1e-6;
-const GAMMA_CONCRETE = 25;     // kN/m³
-const GAMMA_STEEL = 78.5;      // kN/m³
 
 // ── Public entry point ──────────────────────────────────────────────────────
 
@@ -253,27 +252,21 @@ export function autoDecompose(model: DesignModel): AnalysisModel {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+// Section stiffness / self-weight formulas moved to the shared frame-core
+// (Lane B extraction, D12) — identical math, suite-verified. The MAT guard is
+// kept so custom-RC MAT keys and unknown profiles keep returning zeros exactly
+// as before.
 function computeStiffness(bar: DesignBar): { EI: number; EA: number } {
   if (bar.material === 'rc') {
     const sec = bar.rcSection;
     if (!sec) return { EI: 0, EA: 0 };
-    // E from EC2-ish: 8500 · ∛(fck+8) MPa, kept consistent with the legacy
-    // setRcCustom helper in presets.ts so user-facing E stays stable.
-    const E_MPa = 8500 * Math.cbrt(sec.fck + 8);
-    const I_cm4 = (sec.b * Math.pow(sec.h, 3)) / 12; // cm⁴
-    const A_cm2 = sec.b * sec.h;                      // cm²
-    const EI = E_MPa * 1e3 * I_cm4 * 1e-8; // kN/m² · m⁴ = kN·m²
-    const EA = E_MPa * 1e3 * A_cm2 * 1e-4; // kN/m² · m²  = kN
-    return { EI, EA };
+    return rcStiffness(sec);
   }
-  // steel
   const sel = bar.steelSelection;
   if (!sel) return { EI: 0, EA: 0 };
   const profile = MAT[sel.profileKey];
   if (!profile || profile.kind !== 'steel') return { EI: 0, EA: 0 };
-  const EI = profile.E * 1e3 * profile.I * 1e-8;
-  const EA = profile.E * 1e3 * profile.A * 1e-4;
-  return { EI, EA };
+  return steelStiffness(sel.profileKey) ?? { EI: 0, EA: 0 };
 }
 
 function computeSelfWeight(bar: DesignBar): number {
@@ -281,13 +274,13 @@ function computeSelfWeight(bar: DesignBar): number {
   if (bar.material === 'rc') {
     const sec = bar.rcSection;
     if (!sec) return 0;
-    return GAMMA_CONCRETE * sec.b * 0.01 * sec.h * 0.01; // kN/m³ · m · m
+    return rcSelfWeight(sec);
   }
   const sel = bar.steelSelection;
   if (!sel) return 0;
   const profile = MAT[sel.profileKey];
   if (!profile || profile.kind !== 'steel') return 0;
-  return GAMMA_STEEL * profile.A * 1e-4; // kN/m³ · m²
+  return steelSelfWeight(sel.profileKey);
 }
 
 function buildLoadCases(

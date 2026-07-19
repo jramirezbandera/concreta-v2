@@ -182,6 +182,15 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/analisis/fem',
     icon: <ModuleIcon moduleKey="concreta-fem-2d" size={ICON_SIZE} />,
   },
+  {
+    id: 'fem2d',
+    group: 'ANÁLISIS',
+    name: 'FEM 2D',
+    ref: 'CTE comb.',
+    short: 'Pórticos y cerchas paramétricos: N/V/M, pandeo, αcr de 2º orden.',
+    route: '/analisis/fem2d',
+    icon: <ModuleIcon moduleKey="concreta-fem2d" size={ICON_SIZE} />,
+  },
 
   // ── GEOTECNIA
   {

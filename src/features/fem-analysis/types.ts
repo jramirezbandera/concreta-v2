@@ -18,17 +18,16 @@
 // inputs per user-facing bar.
 
 // ── Shared primitives ───────────────────────────────────────────────────────
+//
+// LoadCase / UseCategoryCode / ModelError / RcSection moved to the shared
+// frame-core (Lane B extraction, eng-review D12) and are re-exported here so
+// every existing 1D import keeps working unchanged.
+
+import type { ArmadoHA, LoadCase, ModelError, RcSection, UseCategoryCode } from '../../lib/frame-core/types';
+
+export type { ArmadoHA, LoadCase, ModelError, RcSection, UseCategoryCode };
 
 export type SupportType = 'pinned' | 'fixed' | 'roller' | 'spring';
-export type LoadCase = 'G' | 'Q' | 'W' | 'S' | 'E';
-
-/**
- * CTE DB-SE-AE Tabla 3.1 use category code.
- * Per-load classification for Q-type loads only — drives ψ values in
- * combinations.ts (Tabla 4.2 CTE).
- */
-export type UseCategoryCode =
-  | 'A1' | 'A2' | 'B' | 'C1' | 'C2' | 'C3' | 'D1' | 'E1' | 'G1' | 'custom';
 export type LoadKind = 'point-node' | 'udl' | 'point-bar';
 export type BarRole = 'viga' | 'pilar';
 export type MaterialFamily = 'steel' | 'rc';
@@ -86,36 +85,12 @@ export interface PointBarLoad {
 
 export type Load = PointNodeLoad | UdlLoad | PointBarLoad;
 
-// ── ArmadoHA — one rebar layout per check region (vano OR apoyo) ────────────
+// ── ArmadoHA ────────────────────────────────────────────────────────────────
 //
-// The user enters one ArmadoHA for the bar's vano region (positive M, tension
-// at the bottom) and one for the apoyo region (negative M, tension at the
-// top). The adapter to RCBeamInputs handles the "bot vs top vs tension vs
-// compression" semantics of the rcBeams data model.
-
-export interface ArmadoHA {
-  /** Bars on the side in tension for the region (bottom for vano, top for apoyo) */
-  tens_nBars: number;
-  tens_barDiam: number;          // mm
-  /** Bars on the opposite face (compression) */
-  comp_nBars: number;
-  comp_barDiam: number;          // mm
-  stirrupDiam: number;           // mm
-  stirrupSpacing: number;        // mm (s)
-  stirrupLegs: number;
-}
+// MOVED to frame-core/types.ts (shared with FEM 2D) and re-exported above —
+// every existing 1D import keeps working unchanged.
 
 // ── DesignModel — user-facing schema ────────────────────────────────────────
-
-export interface RcSection {
-  b: number;   // cm (canonical UI unit; adapter multiplies ×10 for mm)
-  h: number;   // cm
-  fck: number; // MPa
-  fyk: number; // MPa  (default 500 for B500S)
-  cover: number; // mm (mechanical cover)
-  exposureClass: string; // 'XC1' | 'XC2' | 'XC3' | 'XC4'
-  loadType: string;      // 'residential'|'office'|'parking'|'roof'|'custom'
-}
 
 export interface SteelSelection {
   /** Catalog key into STEEL_PROFILES (e.g. 'IPE_240'). */
@@ -274,12 +249,6 @@ export interface ReactionsByCombo {
   ELS_c:    ReactionResult[];
   ELS_frec: ReactionResult[];
   ELS_cp:   ReactionResult[];
-}
-
-export interface ModelError {
-  severity: 'fail' | 'warn';
-  code: string;
-  msg: string;
 }
 
 export interface SolveResult {

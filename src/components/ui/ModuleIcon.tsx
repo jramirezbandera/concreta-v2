@@ -118,13 +118,24 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M6 2v12M10 2v12M2 6h12M2 10h12"/>
         </svg>
       );
-    // FEM 1D: 4-node frame with diagonal — wire-frame model schematic
+    // FEM 1D: continuous beam — two spans over three pinned supports, node
+    // dots at the supports (same wire-frame language as the 2D icon below)
     case 'concreta-fem-2d':
       return (
-        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" aria-hidden="true" className="shrink-0">
-          <path d="M3 13V4M13 13V4M3 4h10M3 13l10-9"/>
-          <circle cx="3" cy="4" r="1.1" fill="currentColor" stroke="none"/>
-          <circle cx="13" cy="4" r="1.1" fill="currentColor" stroke="none"/>
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <path d="M1.5 6h13"/>
+          <path d="M3 7.4l-1.4 3.1h2.8ZM8 7.4l-1.4 3.1h2.8ZM13 7.4l-1.4 3.1h2.8Z"/>
+          <circle cx="3" cy="6" r="1.1" fill="currentColor" stroke="none"/>
+          <circle cx="8" cy="6" r="1.1" fill="currentColor" stroke="none"/>
+          <circle cx="13" cy="6" r="1.1" fill="currentColor" stroke="none"/>
+        </svg>
+      );
+    // FEM 2D: gable portal frame — two columns + pitched roof (distinct from
+    // the 1D beam-frame schematic above)
+    case 'concreta-fem2d':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <path d="M3 13V6l5-3 5 3v7"/>
           <circle cx="3" cy="13" r="1.1" fill="currentColor" stroke="none"/>
           <circle cx="13" cy="13" r="1.1" fill="currentColor" stroke="none"/>
         </svg>

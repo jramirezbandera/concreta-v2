@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { InlineEdit } from './components/InlineEdit';
+import { InlineEdit } from '../../components/ui/InlineEdit';
 import { canEditBarLength, canInsertNode, MIN_NODE_SEPARATION_M } from './invariants';
 import {
   DEFAULT_APOYO_ARMADO,

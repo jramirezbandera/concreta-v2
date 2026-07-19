@@ -33,7 +33,11 @@ export type AiModuleId =
   // Ola 5 — modelo estructural completo (FEM 1D): el payload es una PROYECCIÓN
   // plana de la tira colineal (vanos/apoyos/cargas) que buildPlan reconstruye
   // en un DesignModel; el armado y las rótulas viajan como contexto de lectura
-  | 'fem-1d';
+  | 'fem-1d'
+  // Ola 6 — topología LIBRE 2D (pórticos y cerchas): el payload es la
+  // proyección plana del Fem2DModel completo con referencias por índice
+  // 1-based; cargas en componentes CON SIGNO y cross-check con el solver real
+  | 'fem-2d';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)

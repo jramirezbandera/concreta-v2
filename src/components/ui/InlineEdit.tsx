@@ -1,7 +1,10 @@
-// FEM 1D — InlineEdit primitive
+// InlineEdit — shared click-to-edit numeric primitive.
 //
-// A minimal click-to-edit input rendered inside the SVG canvas (or panel) for
-// editing dimensions, load values, and similar single-number fields.
+// A minimal click-to-edit input rendered inside an SVG canvas (via
+// <foreignObject>) or a panel, for editing dimensions, load values, and
+// similar single-number fields. Born in the FEM 1D canvas; extracted to
+// components/ui so the FEM 2D editor can reuse it (features/fem2d must not
+// import from features/fem-analysis — architectural quarantine).
 //
 // Behavior (per design review Pass 2 spec):
 //   - Display: shows the current value as Geist Mono text (matching DESIGN.md
@@ -19,10 +22,10 @@
 // via a tolerant parser. Rejects non-numeric input by reverting on commit.
 
 import { useEffect, useRef, useState } from 'react';
-import { fromDisplay, toDisplay } from '../../../lib/units/convert';
-import { getPrecision, getUnitLabel } from '../../../lib/units/format';
-import type { Quantity } from '../../../lib/units/types';
-import { useUnitSystem } from '../../../lib/units/useUnitSystem';
+import { fromDisplay, toDisplay } from '../../lib/units/convert';
+import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface Props {
   /** SIempre el valor canónico SI cuando `quantity` está set. Sin quantity,

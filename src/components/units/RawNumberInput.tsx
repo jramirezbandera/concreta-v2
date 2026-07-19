@@ -43,6 +43,13 @@ type RawNumberInputProps = {
 
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
+  /**
+   * Stretch the input to fill its container instead of the fixed `widthClass`.
+   * Used by the stacked (label-on-top) layout so the box spans the full column
+   * width — the fix for narrow sidebars where an inline `label ↔ w-15` row
+   * truncates the label.
+   */
+  fullWidth?: boolean;
 };
 
 /**
@@ -66,6 +73,7 @@ export function RawNumberInput({
   step,
   clamp = false,
   widthClass = "w-15",
+  fullWidth = false,
 }: RawNumberInputProps) {
   const { system } = useUnitSystem();
 
@@ -114,7 +122,7 @@ export function RawNumberInput({
   }, [value, system, quantity, integer, precision]);
 
   return (
-    <div className="flex shrink-0">
+    <div className={fullWidth ? "flex w-full min-w-0" : "flex shrink-0"}>
       <input
         id={id}
         type="text"
@@ -168,7 +176,7 @@ export function RawNumberInput({
             setLocalStr(formatForInput(next));
           }
         }}
-        className={`${widthClass} text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+        className={`${fullWidth ? "flex-1 min-w-0" : widthClass} text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
         aria-label={ariaLabel}
       />
       <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">

@@ -64,6 +64,12 @@ type UnitNumberInputProps = {
   clamp?: boolean;
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
+  /**
+   * Stacked layout: label on top, full-width input below (instead of the
+   * default inline `label ↔ input` row). Use inside narrow grid cells where an
+   * inline row would truncate the label (e.g. the FEM 2D concrete panel).
+   */
+  stacked?: boolean;
 };
 
 export function UnitNumberInput({
@@ -84,6 +90,7 @@ export function UnitNumberInput({
   step,
   clamp = false,
   widthClass,
+  stacked = false,
 }: UnitNumberInputProps) {
   const { system } = useUnitSystem();
 
@@ -96,7 +103,13 @@ export function UnitNumberInput({
   const inputId = id ?? (field ? `input-${field}` : undefined);
 
   return (
-    <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+    <div
+      className={
+        stacked
+          ? "flex flex-col gap-1 py-0.75 min-w-0"
+          : "flex items-center justify-between py-0.75 gap-2 min-w-0"
+      }
+    >
       {/* Label delegado a InputLabel (único primitivo catalog-aware): resuelve
           sym/descShort/help/ref del catálogo y pinta el icono ⓘ cuando hay help.
           Un `label` explícito es override → no se pasa labelKey para que gane. */}
@@ -121,6 +134,7 @@ export function UnitNumberInput({
         step={step}
         clamp={clamp}
         widthClass={widthClass}
+        fullWidth={stacked}
       />
     </div>
   );

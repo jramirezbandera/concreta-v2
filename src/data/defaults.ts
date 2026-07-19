@@ -16,7 +16,10 @@ export interface RCBeamInputs {
   /** UI mode: 'simple' renderiza una sola sección + 3 SVGs (deformación /
    *  sección / fuerzas) resuelta al momento Md — modo por defecto.
    *  'portico' renderiza VANO + APOYO lado a lado (pórtico clásico).
-   *  El motor calcRCBeam es agnóstico a este campo.
+   *  El motor calcRCBeam solo lo lee para la flecha directa (deflMethod
+   *  'direct'): en 'simple' la pieza es UNA sección y los momentos de apoyo
+   *  (ocultos al usuario) NUNCA entran en la flecha; el resto del motor es
+   *  agnóstico al campo.
    *  Required en la interface; el consumer (RCBeamsInputs / rc-beams index)
    *  defensiva con `state.mode === 'portico' ? 'portico' : 'simple'` cubre
    *  los casos de localStorage state antiguo donde el campo puede llegar
@@ -38,12 +41,23 @@ export interface RCBeamInputs {
   exposureClass: string;  // XC1–XC4
   loadType: string;       // 'residential'|'office'|'parking'|'roof'|'custom'
   psi2Custom: number;     // psi2 value when loadType='custom'
-  /** Luz del vano (mm) para la comprobación de esbeltez L/d sin cálculo
-   *  directo de flecha (CE Anejo 19 §7.4.2). 0 = no comprobar. */
+  /** Luz del vano (mm) para la comprobación de flecha (esbeltez L/d o cálculo
+   *  directo según deflMethod). 0 = no comprobar. */
   L: number;
-  /** Sistema estructural — K de la Tabla 7.4N: biapoyada 1.0, vano extremo
-   *  de continua 1.3, vano interior 1.5, ménsula 0.4. */
+  /** Sistema estructural. En 'ld' fija la K de la Tabla 7.4N (biapoyada 1.0,
+   *  vano extremo 1.3, interior 1.5, ménsula 0.4); en 'direct' fija el
+   *  coeficiente de la flecha elástica y la corrección por momentos de apoyo. */
   structSystem: 'ss' | 'end' | 'interior' | 'cantilever';
+  /** Método de comprobación de flecha (con L > 0): 'ld' = esbeltez L/d sin
+   *  cálculo directo (CE Anejo 19 §7.4.2, exime del cálculo si cumple),
+   *  'direct' = flecha diferida cuasipermanente con sección fisurada y
+   *  fluencia (§7.4.3) contra L/300 (apariencia, CTE DB-SE 4.3.3).
+   *  Opcional: estados guardados antiguos no lo traen → 'ld'. */
+  deflMethod?: 'ld' | 'direct';
+  /** Coeficiente de fluencia efectivo φef de la flecha diferida (solo método
+   *  'direct'): Ec,ef = Ec/(1+φef). Típico edificación ≈ 2.0. Opcional:
+   *  estados guardados antiguos no lo traen → 2.0. */
+  phiEf?: number;
   // Vano (midspan) — positive bending M+
   vano_Md: number;               // design moment (kNm)
   vano_VEd: number;              // design shear (kN)
@@ -165,6 +179,8 @@ export const rcBeamDefaults: RCBeamInputs = {
   psi2Custom: 0.3,
   L: 6000,
   structSystem: 'ss',
+  deflMethod: 'ld',   // FTUX inalterado: el cálculo directo es opt-in
+  phiEf: 2.0,
   // Vano — tension bottom d=500-30-8-8=454mm, compression top 2Ø12
   vano_Md: 85,
   vano_VEd: 65,
@@ -998,6 +1014,20 @@ export const femAnalysisDefaults: FemAnalysisInputs = {
   selfWeight: false,
   showDeformed: false,
   showReactions: true,
+};
+
+// FEM 2D (pórticos/cerchas). Like FEM 1D, the real state is a rich nested model
+// (template id + one param set per template) managed in the module's own
+// localStorage key (see features/fem2d/useFem2DState). These primitive flags
+// exist only to keep the registry shape uniform.
+export interface Fem2DModuleInputs {
+  templateId: string;
+  selfWeight: boolean;
+}
+
+export const fem2dDefaults: Fem2DModuleInputs = {
+  templateId: 'portal-frame',
+  selfWeight: true,
 };
 
 // ── Masonry walls (DB-SE-F) — multi-floor wall verification ──────────────

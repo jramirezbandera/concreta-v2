@@ -12,6 +12,8 @@
 
 import { type RCBeamInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
+import { crackedDeflectionFactor } from './crackedDeflection';
+import { rcElasticModulusMPa } from '../frame-core/sections';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty } from './types';
@@ -135,6 +137,71 @@ export function psi2Quasi(state: RCBeamInputs): number {
   return PSI2_MAP[lt] ?? 0.3;
 }
 
+// ── Cortante HA (CE Anejo 19 §6.2) — extraído de calcSection para compartirlo
+// con el FEM 2D (cortante de PILARES con axil). Mismo orden aritmético que el
+// bloque inline original: con sigmaCp = 0 y hasStirrups el resultado es
+// float-idéntico (sumando literal +0 y factor ·1), anclado por los tests de
+// paridad existentes (VRdmax ≈ 381.2, VRdc ≈ 66.7).
+//
+// El término de axil k1·σcp (EC2/CE §6.2.2(1), k1 = 0.15) entra CON SIGNO
+// (σcp < 0 = tracción REDUCE VRd,c — truncarla a 0 sería inseguro en
+// pilares-tirante), con cap superior +0.2·fcd y suelo VRdc ≥ 0. αcw
+// (§6.2.3(3)) amplifica VRd,max solo con compresión (tramo 1+σcp/fcd, que es
+// el único alcanzable con el cap 0.2·fcd).
+//
+// POLÍTICA VRd: la de VIGA (hasStirrups ? min(VRds, VRdmax) : VRdc) — el
+// caller de pilar aplica la suya (max(VRdc, min(VRds, VRdmax)), §6.2.1(4):
+// con VEd ≤ VRd,c no se exige armadura de cortante calculada).
+
+export interface RcShearParams {
+  b: number;            // mm
+  d: number;            // mm
+  fck: number;          // MPa
+  fcd: number;          // MPa
+  fyd: number;          // MPa (armadura transversal)
+  As: number;           // mm² — armadura longitudinal TRACCIONADA (para ρl)
+  Asw: number;          // mm²/mm (área de cercos por unidad de longitud)
+  hasStirrups: boolean; // política de viga: sin cercos → VRd = VRdc
+  /** σcp = NEd/Ac (MPa, + compresión, − tracción). Default 0. */
+  sigmaCp?: number;
+}
+
+export interface RcShearResult {
+  VRdc: number;    // kN
+  VRds: number;    // kN
+  VRdmax: number;  // kN
+  VRd: number;     // kN — política de VIGA
+  k: number;
+  rhoL: number;
+  nu1: number;
+  alphaCw: number;
+  sigmaCpEff: number; // MPa tras el cap +0.2·fcd
+}
+
+export function calcRcShear(p: RcShearParams): RcShearResult {
+  const k = Math.min(1 + Math.sqrt(200 / p.d), 2.0);
+  const rhoL = Math.min(p.As / (p.b * p.d), 0.02);
+  // (100·rho_l·fck)^(1/3) — el 100 es parte de la formula EC2 6.2.a
+  // (fix auditoría #68; mismo fix que rcSlabs #38).
+  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(100 * rhoL * p.fck, 1 / 3) * p.b * p.d) / 1000;
+  const VRdc2 = ((0.051 / GAMMA_C) * Math.pow(k, 1.5) * Math.sqrt(p.fck) * p.b * p.d) / 1000;
+  const sigmaCpEff = Math.min(p.sigmaCp ?? 0, 0.2 * p.fcd);
+  const VRdc = Math.max(Math.max(VRdc1, VRdc2) + (0.15 * sigmaCpEff * p.b * p.d) / 1000, 0);
+
+  const z = 0.9 * p.d;
+  const cotTheta = 2.5;
+  const VRds = (p.Asw * z * p.fyd * cotTheta) / 1000;
+  // VRd,max con el MISMO θ que VRd,s (CE Anejo 19 §6.2.3(3)): para cotθ=2.5
+  // el divisor es (cotθ+tanθ)=2.9, no el 0.3·fcd·b·z de θ=45° (fix auditoría
+  // #59; mismo fix que rcSlabs #3).
+  const nu1 = 0.6 * (1 - p.fck / 250);
+  const alphaCw = sigmaCpEff > 0 ? Math.min(1 + sigmaCpEff / p.fcd, 1.25) : 1;
+  const VRdmax = (alphaCw * ((nu1 * p.fcd * p.b * z) / (cotTheta + 1 / cotTheta))) / 1000;
+  const VRd = p.hasStirrups ? Math.min(VRds, VRdmax) : VRdc;
+
+  return { VRdc, VRds, VRdmax, VRd, k, rhoL, nu1, alphaCw, sigmaCpEff };
+}
+
 function invalidSection(error: string): RCBeamSectionResult {
   return {
     valid: false, error,
@@ -252,24 +319,12 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     'CE Anejo 19 §9.2.1.1',
   ));
 
-  // SHEAR (CE Anejo 19 §6.2) ──────────────────────────────────────────────────
-  const k = Math.min(1 + Math.sqrt(200 / d), 2.0);
-  const rhoL = Math.min(As / (inp.b * d), 0.02);
-  // (100·rho_l·fck)^(1/3) — el 100 es parte de la formula EC2 6.2.a
-  // (fix auditoría #68; mismo fix que rcSlabs #38).
-  const VRdc1 = ((0.18 / GAMMA_C) * k * Math.pow(100 * rhoL * inp.fck, 1 / 3) * inp.b * d) / 1000;
-  const VRdc2 = ((0.051 / GAMMA_C) * Math.pow(k, 1.5) * Math.sqrt(inp.fck) * inp.b * d) / 1000;
-  const VRdc = Math.max(VRdc1, VRdc2);
-
-  const z = 0.9 * d;
-  const cotTheta = 2.5;
-  const VRds = (Asw * z * fyd * cotTheta) / 1000;
-  // VRd,max con el MISMO θ que VRd,s (CE Anejo 19 §6.2.3(3)): para cotθ=2.5
-  // el divisor es (cotθ+tanθ)=2.9, no el 0.3·fcd·b·z de θ=45° (fix auditoría
-  // #59; mismo fix que rcSlabs #3).
-  const nu1 = 0.6 * (1 - inp.fck / 250);
-  const VRdmax = (nu1 * fcd * inp.b * z / (cotTheta + 1 / cotTheta)) / 1000;
-  const VRd = hasStirrups ? Math.min(VRds, VRdmax) : VRdc;
+  // SHEAR (CE Anejo 19 §6.2) — delega en calcRcShear (compartida con el
+  // cortante de pilares del FEM 2D); sigmaCp = 0 ⇒ float-idéntico al bloque
+  // inline histórico (anclado por los tests de paridad).
+  const { VRdc, VRds, VRdmax, VRd } = calcRcShear({
+    b: inp.b, d, fck: inp.fck, fcd, fyd, As, Asw, hasStirrups, sigmaCp: 0,
+  });
 
   checks.push(makeCheckQty(
     'shear',
@@ -561,14 +616,78 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     bondClass:      'poor',
   });
 
-  // DEFLECTION — esbeltez L/d sin cálculo directo (CE Anejo 19 §7.4.2,
-  // fix auditoría #67). Comprobación de pieza (no de sección): se evalúa con
-  // la armadura de VANO (centro de luz) y se emite en vano.checks. L=0 = no
-  // comprobar (estados antiguos sin el campo). El factor 310/σs se aproxima
-  // por 500/fyk (As,prov = As,req, lado seguro), y para L > 7 m se aplica
-  // 7/L (vigas que soportan tabiquería frágil — conservador por defecto).
+  // DEFLECTION — comprobación de pieza (no de sección), emitida en
+  // vano.checks. L=0 = no comprobar (estados antiguos sin el campo). Dos
+  // métodos EXCLUYENTES según deflMethod (§7.4.2 exime del cálculo directo
+  // cuando L/d cumple — solo el método elegido puntúa):
+  //   'ld' (default) → esbeltez L/d sin cálculo directo (CE Anejo 19 §7.4.2,
+  //       fix auditoría #67), armadura de VANO (centro de luz). 310/σs se
+  //       aproxima por 500/fyk (As,prov = As,req, lado seguro) y para
+  //       L > 7 m se aplica 7/L (tabiquería frágil — conservador).
+  //   'direct' → flecha diferida cuasipermanente con sección fisurada:
+  //       δ_dif = δ_el·k con k de crackedDeflectionFactor (§7.4.3, mismo
+  //       motor que la fila 'deflection-cracked' del FEM 2D) contra L/300
+  //       (apariencia, CTE DB-SE 4.3.3). Sin solver ni cargas, δ_el se
+  //       deriva de los MOMENTOS cuasipermanentes con la MISMA base rígida
+  //       B = Ec_base·Ig que usa el factor (no fisurada ⇒ δ_el·(1+φef)
+  //       exacto): UDL + momentos de extremo δ = 5L²/48B·(Mc + 0.1·ΣM_ext)
+  //       con M_ext hogging < 0 → c = 0 (biapoyada) / 0.1 (vano extremo) /
+  //       0.2 (interior) sobre |M_apoyo|; ménsula δ = |M_ap|·L²/4B (UDL).
+  //       Los momentos de APOYO solo entran en modo 'portico': en 'simple'
+  //       el usuario no los ve (estado oculto) y un dato fantasma nunca debe
+  //       REDUCIR la flecha → isostática con datos de vano (conservador).
+  //       ζ se evalúa con el máx Mcp del miembro (sección más fisurada,
+  //       paridad FEM 2D) y la armadura de la cara traccionada que gobierna
+  //       la flecha (vano; ménsula en pórtico → apoyo).
   const L = Math.abs((inp.L as number) ?? 0);
-  if (L > 0 && vano.valid) {
+  const deflMethod = (inp.deflMethod as string | undefined) ?? 'ld';
+  if (L > 0 && deflMethod === 'direct') {
+    const isPortico = inp.mode === 'portico'; // backcompat: sin mode → simple
+    const isCant = inp.structSystem === 'cantilever';
+    const useApoyo = isCant && isPortico;
+    const sec = useApoyo ? apoyo : vano;
+    if (vano.valid && sec.valid) {
+      const b = inp.b as number;
+      const h = inp.h as number;
+      const phiEf = Math.max(0, (inp.phiEf as number | undefined) ?? 2.0);
+      const Bsol = rcElasticModulusMPa(inp.fck as number) * (b * Math.pow(h, 3)) / 12; // N·mm²
+      let deltaEl: number; // mm
+      let Mzeta: number;   // kN·m
+      if (isCant) {
+        const M = useApoyo ? apoyoMs : vanoMs;
+        deltaEl = (M * 1e6 * L * L) / (4 * Bsol);
+        Mzeta = M;
+      } else {
+        const C_APOYO: Record<string, number> = { ss: 0, end: 0.1, interior: 0.2 };
+        const c = isPortico ? (C_APOYO[inp.structSystem as string] ?? 0) : 0;
+        // El hogging descarga el centro de vano; la flecha nunca es < 0.
+        const Mnet = Math.max(0, vanoMs - c * apoyoMs);
+        deltaEl = (5 / 48) * (Mnet * 1e6 * L * L) / Bsol;
+        Mzeta = isPortico ? Math.max(vanoMs, apoyoMs) : vanoMs;
+      }
+      const fis = crackedDeflectionFactor({
+        b, h,
+        fck: inp.fck as number,
+        As: sec.As,
+        d: sec.d,
+        Mcp: Mzeta,
+        phiEf,
+      });
+      // 0 × ∞ (sin flecha cp pero k = ∞ por As = 0) debe leer 0, no NaN.
+      const deltaDif = deltaEl === 0 ? 0 : deltaEl * fis.k;
+      const adm = L / 300;
+      const util = deltaDif / adm;
+      vano.checks.push({
+        id: 'deflection-cracked',
+        description: 'Flecha diferida (ELS-cp, seccion fisurada)',
+        value: `δ = ${deltaDif.toFixed(1)} mm (k = ${Number.isFinite(fis.k) ? fis.k.toFixed(2) : '∞'}, ζ = ${fis.zeta.toFixed(2)})`,
+        limit: `L/300 = ${adm.toFixed(1)} mm`,
+        utilization: util,
+        status: toStatus(util),
+        article: 'CE Anejo 19 §7.4.3 · CTE DB-SE 4.3.3',
+      });
+    }
+  } else if (L > 0 && vano.valid) {
     const K_MAP: Record<string, number> = { ss: 1.0, end: 1.3, interior: 1.5, cantilever: 0.4 };
     const K = K_MAP[inp.structSystem as string] ?? 1.0;
     const fck = inp.fck as number;
