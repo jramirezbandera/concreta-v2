@@ -126,6 +126,7 @@ function NumField({
 function SelectField({
   labelKey,
   label,
+  sub,
   help,
   field,
   value,
@@ -134,6 +135,7 @@ function SelectField({
 }: {
   labelKey?: LabelKey;
   label?: string;
+  sub?: string;
   help?: string;
   field: keyof RCBeamInputs;
   value: string | number;
@@ -144,7 +146,7 @@ function SelectField({
     ? LABELS[labelKey].sym
       ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
-    : { label: label ?? '', sub: undefined as string | undefined };
+    : { label: label ?? '', sub };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel
@@ -315,23 +317,43 @@ export function RCBeamsInputs({
         </div>
       )}
 
-      {/* Shared geometry */}
+      {/* Shared geometry — solo la sección (b/h/recubrimiento). Los inputs de
+       *  la comprobación de flecha viven en su propia sección "Flecha (ELS)"
+       *  a continuación, con el método PRIMERO y sus parámetros debajo. */}
       <CollapsibleSection label="Geometria">
         <NumField labelKey="b_section"        field="b"     value={state.b as number}     min={1} setField={setField} />
         <NumField labelKey="h_section"        field="h"     value={state.h as number}     min={1} setField={setField} />
         <NumField labelKey="cover_mechanical" field="cover" value={state.cover as number} min={1} setField={setField} />
-        {/* Comprobación de flecha (pieza): luz + sistema + método (+φef en
-         *  cálculo directo). L=0 desactiva. Oculta en el FEM embed
-         *  (hideSolicitations): allí la flecha es la real del solver,
-         *  checks.ts fuerza L=0 y estos campos eran UI muerta (el setField
-         *  del wrapper los descarta). */}
-        {!hideSolicitations && (<>
-          <NumField label="L" sub="luz (flecha)" field="L"
+      </CollapsibleSection>
+
+      {/* Comprobación de flecha (pieza, ELS): luz + método + condición de apoyo
+       *  (+φef en cálculo directo). El método va PRIMERO — sus parámetros
+       *  (Sistema, φef) le siguen. "Sistema" NO es exclusivo de un método: en
+       *  L/d fija la K del límite; en directo distingue ménsula (fórmula
+       *  distinta) de viga y aplica la corrección por momentos de apoyo. L=0
+       *  desactiva. Oculta en el FEM embed (hideSolicitations): allí la flecha
+       *  es la real del solver, checks.ts fuerza L=0 y estos campos eran UI
+       *  muerta (el setField del wrapper los descarta). */}
+      {!hideSolicitations && (
+        <CollapsibleSection label="Flecha (ELS)">
+          <NumField label="L" sub="luz" field="L"
             value={state.L as number} unit="m" min={0} scale={1000} setField={setField}
             help="Luz de cálculo para la comprobación de flecha (esbeltez L/d o cálculo directo, según el método elegido). Déjala en 0 para desactivarla." />
           <SelectField
+            label="Método"
+            help="Método de comprobación de flecha. La esbeltez L/d exime del cálculo directo si cumple (CE Anejo 19 §7.4.2). El cálculo directo obtiene la flecha diferida cuasipermanente con sección fisurada y fluencia (§7.4.3) y la compara con L/300 (apariencia, CTE DB-SE 4.3.3). Solo puntúa el método elegido."
+            field="deflMethod"
+            value={(state.deflMethod as string) ?? 'ld'}
+            options={[
+              { value: 'ld',     label: 'Esbeltez L/d (sin cálculo)' },
+              { value: 'direct', label: 'Cálculo directo (diferida)' },
+            ]}
+            setField={setField}
+          />
+          <SelectField
             label="Sistema"
-            help="Condición de apoyo. Con esbeltez L/d fija el coeficiente K del límite (biapoyada 1.0, vano extremo 1.3, vano interior 1.5, ménsula 0.4); con cálculo directo fija el coeficiente de la flecha elástica y la corrección por momentos de apoyo (modo Pórtico)."
+            sub="condición de apoyo"
+            help="Condición de apoyo. Aplica a AMBOS métodos: con esbeltez L/d fija el coeficiente K del límite (biapoyada 1.0, vano extremo 1.3, vano interior 1.5, ménsula 0.4); con cálculo directo distingue ménsula (fórmula distinta) de viga y fija la corrección por momentos de apoyo (modo Pórtico)."
             field="structSystem"
             value={(state.structSystem as string) ?? 'ss'}
             options={[
@@ -342,24 +364,13 @@ export function RCBeamsInputs({
             ]}
             setField={setField}
           />
-          <SelectField
-            label="Flecha"
-            help="Método de comprobación de flecha. La esbeltez L/d exime del cálculo directo si cumple (CE Anejo 19 §7.4.2). El cálculo directo obtiene la flecha diferida cuasipermanente con sección fisurada y fluencia (§7.4.3) y la compara con L/300 (apariencia, CTE DB-SE 4.3.3). Solo puntúa el método elegido."
-            field="deflMethod"
-            value={(state.deflMethod as string) ?? 'ld'}
-            options={[
-              { value: 'ld',     label: 'Esbeltez L/d (sin cálculo)' },
-              { value: 'direct', label: 'Cálculo directo (diferida)' },
-            ]}
-            setField={setField}
-          />
           {((state.deflMethod as string) ?? 'ld') === 'direct' && (
             <NumField label="φef" sub="fluencia" field="phiEf"
               value={(state.phiEf as number | undefined) ?? 2} min={0} setField={setField}
               help="Coeficiente de fluencia efectivo de la flecha diferida: Ec,ef = Ec/(1+φef). Típico en edificación ≈ 2,0 (HR 50-70%, puesta en carga a 28 días)." />
           )}
-        </>)}
-      </CollapsibleSection>
+        </CollapsibleSection>
+      )}
 
       {/* Shared materials */}
       <CollapsibleSection label="Materiales">
