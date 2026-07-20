@@ -190,7 +190,7 @@ const PROMPT_RULES = `Reglas específicas del módulo FEM 1D (viga continua):
 7. LÍMITES V1: viga continua COLINEAL (sin pórticos, cerchas ni pilares); el apoyo "muelle" se comporta como deslizante. El ARMADO del hormigón, los detalles de acero (Lcr, límite de flecha) y las RÓTULAS internas aparecen en el estado pero son de SOLO LECTURA: se editan en el panel del módulo (en móvil, pestaña Datos) — dilo cuando el usuario pida cambiarlos.
 8. MATERIALES: rc necesita b_cm/h_cm/fck; steel necesita "perfil" EXACTO del catálogo y "acero". Al cambiar el material de un vano se aplican defaults razonables donde falte dato (avísalo y sugiere revisar el armado).
 9. Si "modelo_de_plantilla" es true, TODO lo que ves (luces, apoyos, cargas, secciones) es una plantilla de la aplicación, NO datos del usuario: pregúntalos antes de dar por bueno ningún veredicto.
-10. Si una propuesta estructural se descartó con un motivo del validador (estructura inestable, apoyos insuficientes…), corrígela en el turno siguiente — no la repitas igual.`;
+10. Si una propuesta estructural se descartó con un motivo del validador (estructura inestable, apoyos insuficientes…), el motivo te llega en "errores_propuesta_anterior" del estado: corrígela en el turno siguiente atendiendo a ese motivo — no la repitas igual.`;
 
 const PLACEHOLDER_EXAMPLE =
   'Ej.: Viga continua de dos vanos de 5 y 4 m en HA 30×50, apoyos articulados, '
@@ -887,7 +887,7 @@ function buildFemPlan(
 
   function skip(key: PayloadKey, reason: string): void {
     handled.add(key);
-    skipped.push({ label: LABELS[key], reason });
+    skipped.push({ field: key, label: LABELS[key], reason });
   }
 
   function applied(key: PayloadKey, before: string, after: string): void {
@@ -1046,7 +1046,7 @@ function buildFemPlan(
         const idx = changes.findIndex((c) => c.field === key);
         if (idx !== -1) {
           changes.splice(idx, 1);
-          skipped.push({ label: LABELS[key], reason });
+          skipped.push({ field: key, label: LABELS[key], reason });
         }
       }
       delete fields.nodes;

@@ -76,7 +76,7 @@ describe('buildApplyPlan — Luz L (reglas 1, 2, 8)', () => {
   it('L_m 6 (igual al current tras redondear a mm) → skipped "Ya coincide"', () => {
     const p = plan({ L_m: 6 });
     expect(p.fields).toEqual({});
-    expect(p.skipped).toEqual([{ label: 'Luz L', reason: ALREADY }]);
+    expect(p.skipped).toEqual([{ field: 'L_m', label: 'Luz L', reason: ALREADY }]);
   });
 });
 
@@ -100,7 +100,7 @@ describe('buildApplyPlan — tipo + size contra catálogo (regla 3)', () => {
     expect(changeFor(p, 'Tipo de perfil')).toMatchObject({ before: 'IPE', after: 'HEB' });
     // El size se valida contra el tipoEfectivo (HEB, el extraído), no el actual.
     expect(skipFor(p, 'Perfil')).toEqual({
-      label: 'Perfil', reason: 'HEB 305 no existe en el catálogo',
+      field: 'size', label: 'Perfil', reason: 'HEB 305 no existe en el catálogo',
     });
     expect(p.fields.size).toBeUndefined();
     expect(p.notFound).not.toContain('Perfil');
@@ -110,7 +110,7 @@ describe('buildApplyPlan — tipo + size contra catálogo (regla 3)', () => {
     const p = plan({ tipo: 'IPE' });
     expect(p.fields).toEqual({});
     expect(p.changes).toEqual([]);
-    expect(p.skipped).toEqual([{ label: 'Tipo de perfil', reason: ALREADY }]);
+    expect(p.skipped).toEqual([{ field: 'tipo', label: 'Tipo de perfil', reason: ALREADY }]);
   });
 
   it('size 200 sin tipo → se valida contra el tipo actual (IPE 200 existe) y se aplica', () => {
@@ -125,7 +125,7 @@ describe('buildApplyPlan — tipo + size contra catálogo (regla 3)', () => {
     const p = plan({ size: 305 });
     expect(p.fields).toEqual({});
     expect(skipFor(p, 'Perfil')).toEqual({
-      label: 'Perfil', reason: 'IPE 305 no existe en el catálogo',
+      field: 'size', label: 'Perfil', reason: 'IPE 305 no existe en el catálogo',
     });
   });
 
@@ -241,8 +241,8 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     const p = plan({ useCategory: 'A1' });
     expect(p.fields).toEqual({});
     expect(p.changes).toEqual([]);
-    expect(skipFor(p, 'Categoría de uso')).toEqual({ label: 'Categoría de uso', reason: ALREADY });
-    expect(skipFor(p, 'Sobrecarga qk')).toEqual({ label: 'Sobrecarga qk', reason: ALREADY });
+    expect(skipFor(p, 'Categoría de uso')).toEqual({ field: 'useCategory', label: 'Categoría de uso', reason: ALREADY });
+    expect(skipFor(p, 'Sobrecarga qk')).toEqual({ field: 'qk_kNm2', label: 'Sobrecarga qk', reason: ALREADY });
   });
 });
 
@@ -344,7 +344,7 @@ describe('buildApplyPlan — Lcr explícita', () => {
   it('Lcr_m 6 (igual al current) → skipped y lcrExplicit = false', () => {
     const p = plan({ Lcr_m: 6 });
     expect(p.fields).toEqual({});
-    expect(skipFor(p, 'Long. pandeo Lcr')).toEqual({ label: 'Long. pandeo Lcr', reason: ALREADY });
+    expect(skipFor(p, 'Long. pandeo Lcr')).toEqual({ field: 'Lcr_m', label: 'Long. pandeo Lcr', reason: ALREADY });
     expect(p.lcrExplicit).toBe(false);
   });
 });

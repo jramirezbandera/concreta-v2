@@ -153,6 +153,15 @@ describe('buildChatSystemPrompt — composición base + reglas + snapshot', () =
     expect(prompt).toMatch(/valor vigente de esa clave aunque "valores" muestre todavía el antiguo/);
   });
 
+  it('explica errores_propuesta_anterior: rechazado ≠ pendiente, se reenvía corregido', () => {
+    expect(prompt).toContain('"errores_propuesta_anterior"');
+    expect(prompt).toMatch(/NO está acordada ni pendiente/);
+    expect(prompt).toMatch(/NO se aplicará aunque el usuario pulse Aplicar/);
+    // el arrastre automático (regla 5) no subsana un rechazo:
+    expect(prompt).toMatch(/no subsana un rechazo/);
+    expect(prompt).toMatch(/CORREGIDA atendiendo al motivo/);
+  });
+
   it('regla 2: un campo en sin_confirmar nunca cuenta como "ya correcto"', () => {
     expect(prompt).toContain('NO repitas en proposal');
     expect(prompt).toMatch(/"sin_confirmar" NUNCA cuenta como "ya correcto"/);

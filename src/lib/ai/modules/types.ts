@@ -46,7 +46,19 @@ export interface AiFieldChange {
   after: string;      // formateado
 }
 
-export interface AiSkippedField { label: string; reason: string; }
+export interface AiSkippedField {
+  /**
+   * Clave del PAYLOAD a la que corresponde el skip (opcional). La usa
+   * decorateSnapshot (pendingSnapshot.ts) para retirar de
+   * `pendientes_de_aplicar` las claves cuyo skip es un RECHAZO (motivo
+   * distinto de "Ya coincide con el valor actual") — sin ella el rechazo se
+   * realimenta igualmente en `errores_propuesta_anterior`, pero la clave
+   * seguiría presentándose como pendiente/acordada.
+   */
+  field?: string;
+  label: string;
+  reason: string;
+}
 
 export interface AiApplyPlan<TInputs> {
   fields: Partial<TInputs>;     // SI interno, listo para setField

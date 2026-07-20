@@ -119,18 +119,25 @@ function nextImageId(): string {
 }
 
 /**
- * Payload de la última propuesta PENDIENTE del hilo: el ítem assistant más
- * reciente con plan construido, ni aplicado ni reemplazado. null si no hay
- * nada pendiente (la siguiente propuesta no arrastra nada).
+ * Última propuesta PENDIENTE del hilo: el ítem assistant más reciente con plan
+ * construido, ni aplicado ni reemplazado. null si no hay nada pendiente (la
+ * siguiente propuesta no arrastra nada y no hay rechazos que realimentar).
  */
-function findPendingPayload<TInputs>(items: ReadonlyArray<ChatItem<TInputs>>): unknown {
+function findPendingItem<TInputs>(
+  items: ReadonlyArray<ChatItem<TInputs>>,
+): Extract<ChatItem<TInputs>, { kind: 'assistant' }> | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (item.kind === 'assistant' && item.plan !== null && !item.applied && !item.superseded) {
-      return item.payload;
+      return item;
     }
   }
   return null;
+}
+
+/** Payload de la última propuesta pendiente (el que se fusiona con la siguiente). */
+function findPendingPayload<TInputs>(items: ReadonlyArray<ChatItem<TInputs>>): unknown {
+  return findPendingItem(items)?.payload ?? null;
 }
 
 /** Warning sintético cuando buildPlan rechaza la propuesta del modelo. */
@@ -366,18 +373,23 @@ export function AiChatModal<TInputs>({
     abortRef.current = controller;
     setLoading(true);
     // Snapshot decorado con la memoria del hilo: la propuesta acumulada viva
-    // (pendientes_de_aplicar) y las claves ya confirmadas salen de
-    // sin_confirmar — sin esto el modelo re-pregunta lo ya acordado.
+    // (pendientes_de_aplicar), las claves ya confirmadas fuera de
+    // sin_confirmar — sin esto el modelo re-pregunta lo ya acordado — y los
+    // RECHAZOS del plan pendiente (errores_propuesta_anterior): sin ellos el
+    // modelo no sabe que su propuesta se descartó ni por qué, y la reenvía
+    // igual en bucle (el caso del veto estructural del FEM 2D).
     // Partido en bloque estable (cacheable) + volátil: el estado y los resultados
     // van SIEMPRE detrás de las reglas, que son idénticas turno a turno y es lo
     // que la caché de prompt reutiliza (ver ChatSystem en lib/ai/types).
+    const pendingItem = findPendingItem(itemsForTurn);
     const system = buildChatSystemBlocks(
       adapter.label,
       adapter.promptRules,
       decorateSnapshot(
         adapter.snapshot(current),
-        findPendingPayload(itemsForTurn),
+        pendingItem?.payload ?? null,
         confirmedKeysRef.current,
+        pendingItem?.plan?.skipped ?? [],
       ),
       results.text,
       adapter.resultsRecalc, // undefined ⇒ 'auto' (reglas de siempre)

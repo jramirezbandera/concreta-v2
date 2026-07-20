@@ -584,6 +584,28 @@ describe('AiChatModal — memoria del hilo (snapshot decorado)', () => {
     expect(sinConfirmar).toContain('tipo'); // el resto sigue sin confirmar
   });
 
+  it('clave RECHAZADA por el plan → errores_propuesta_anterior en el snapshot y fuera de pendientes', async () => {
+    seedKey();
+    renderModal();
+
+    // L_m 99 está fuera del rango del adapter (0.5–40): el plan la descarta
+    // con motivo. Antes ese motivo solo se pintaba en la tarjeta y el modelo
+    // veía la clave como "pendiente de aplicar" — reenviaba lo mismo en bucle.
+    await turn('Viga de 99 m con vigas cada 3 m', {
+      reply: 'Anotado.',
+      proposal: makePayload({ L_m: 99, bTrib_m: 3 }),
+    });
+
+    chatMock.mockImplementationOnce(() => new Promise(() => {})); // 2º turno en vuelo
+    typeAndSend('¿Qué falta?');
+
+    const snap = snapshotIn((chatMock.mock.calls[1][2] as ChatRequest).system);
+    expect(snap.pendientes_de_aplicar).toEqual({ bTrib_m: 3 });
+    expect(snap.errores_propuesta_anterior).toEqual([
+      'L_m: Valor 99 m fuera del rango admisible 0.5–40 m',
+    ]);
+  });
+
   it('tras Aplicar: sin pendientes, pero las claves tratadas siguen fuera de sin_confirmar', async () => {
     seedKey();
     renderModal();

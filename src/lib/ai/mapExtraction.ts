@@ -23,6 +23,8 @@ export interface FieldChange {
 }
 
 export interface SkippedField {
+  /** Clave del payload (ExtractionKey) — ver AiSkippedField en modules/types. */
+  field?: string;
   label: string;
   reason: string;
 }
@@ -193,7 +195,7 @@ export function buildApplyPlan(
 
   function skip(key: ExtractionKey, reason: string): void {
     handled.add(key);
-    skipped.push({ label: LABELS[key], reason });
+    skipped.push({ field: key, label: LABELS[key], reason });
   }
 
   function apply<K extends keyof SteelBeamInputs>(

@@ -3,8 +3,14 @@
 // sin_confirmar por claves confirmadas. El caso que motiva todo: un valor
 // confirmado en conversación que COINCIDE con el default de fábrica no podía
 // salir nunca de sin_confirmar y el asistente lo re-preguntaba en bucle.
+// Desde 2026-07-20 también errores_propuesta_anterior: los skips-RECHAZO del
+// plan pendiente se realimentan al modelo y sus claves salen de pendientes.
 import { describe, expect, it } from 'vitest';
-import { collectConfirmedKeys, decorateSnapshot } from '../../lib/ai/pendingSnapshot';
+import {
+  collectConfirmedKeys,
+  decorateSnapshot,
+  rejectedSkips,
+} from '../../lib/ai/pendingSnapshot';
 
 const SNAPSHOT =
   '{"valores":{"L_m":6,"bTrib_m":3,"tipo":"IPE"},"sin_confirmar":["L_m","bTrib_m","tipo"]}';
@@ -98,6 +104,65 @@ describe('decorateSnapshot — confirmados del hilo', () => {
     ) as Record<string, unknown>;
     expect(out.pendientes_de_aplicar).toEqual({ L_m: 3.5, bTrib_m: 3 });
     expect(out.sin_confirmar).toEqual(['tipo']);
+  });
+});
+
+describe('decorateSnapshot — errores_propuesta_anterior', () => {
+  const ALREADY = 'Ya coincide con el valor actual';
+
+  it('un skip-rechazo se realimenta y su clave sale de pendientes_de_aplicar', () => {
+    // El caso real del veto FEM 2D: cargas rechazada (biela con carga en
+    // barra) — antes el modelo la veía en pendientes como "acordada" y la
+    // reenviaba igual en bucle.
+    const out = JSON.parse(
+      decorateSnapshot(SNAPSHOT, { L_m: 3.5, tipo: 'HEB' }, NONE, [
+        { field: 'tipo', label: 'Tipo de perfil', reason: 'HEB 999 no existe en el catálogo' },
+      ]),
+    ) as Record<string, unknown>;
+    expect(out.pendientes_de_aplicar).toEqual({ L_m: 3.5 });
+    expect(out.errores_propuesta_anterior).toEqual([
+      'tipo: HEB 999 no existe en el catálogo',
+    ]);
+  });
+
+  it('el skip benigno ("Ya coincide…") NO es un rechazo: passthrough byte-idéntico', () => {
+    expect(
+      decorateSnapshot(SNAPSHOT, null, NONE, [
+        { field: 'L_m', label: 'Luz L', reason: ALREADY },
+      ]),
+    ).toBe(SNAPSHOT);
+  });
+
+  it('un rechazo sin `field` se realimenta con el label y no filtra pendientes', () => {
+    const out = JSON.parse(
+      decorateSnapshot(SNAPSHOT, { L_m: 3.5 }, NONE, [
+        { label: 'Luz L', reason: 'Valor 99 m fuera del rango admisible 0.5–40 m' },
+      ]),
+    ) as Record<string, unknown>;
+    expect(out.pendientes_de_aplicar).toEqual({ L_m: 3.5 });
+    expect(out.errores_propuesta_anterior).toEqual([
+      'Luz L: Valor 99 m fuera del rango admisible 0.5–40 m',
+    ]);
+  });
+
+  it('con TODAS las claves rechazadas no se emite pendientes pero sí los errores', () => {
+    const out = JSON.parse(
+      decorateSnapshot(SNAPSHOT, { cargas: [{ fy: -3 }] }, NONE, [
+        { field: 'cargas', label: 'Cargas', reason: 'Carga 1: componentes nulas' },
+      ]),
+    ) as Record<string, unknown>;
+    expect('pendientes_de_aplicar' in out).toBe(false);
+    expect(out.errores_propuesta_anterior).toEqual([
+      'cargas: Carga 1: componentes nulas',
+    ]);
+  });
+
+  it('rejectedSkips separa rechazos de skips benignos', () => {
+    const rej = rejectedSkips([
+      { field: 'L_m', label: 'Luz L', reason: ALREADY },
+      { field: 'tipo', label: 'Tipo', reason: 'fuera de catálogo' },
+    ]);
+    expect(rej).toEqual([{ field: 'tipo', label: 'Tipo', reason: 'fuera de catálogo' }]);
   });
 });
 

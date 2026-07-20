@@ -22,10 +22,37 @@
  * proposal los valores confirmados aunque coincidan con el actual — es lo que
  * alimenta este registro. Los adapters NO cambian: la decoración es genérica
  * sobre el contrato {valores, sin_confirmar}.
+ *
+ * ERRORES DE LA PROPUESTA ANTERIOR (fix 2026-07-20). SÍNTOMA: un rechazo del
+ * validador (p. ej. el veto en bloque del FEM 2D) solo se pintaba en la
+ * ProposalCard; el modelo no lo veía nunca — su regla "si una propuesta se
+ * descartó, corrígela" era letra muerta y, peor, `pendientes_de_aplicar` le
+ * presentaba el payload rechazado como acordado: bucle sin salida (reenvía lo
+ * mismo → mismo veto). ARREGLO: los `skipped` del plan pendiente cuyo motivo
+ * NO es el skip benigno compartido ("Ya coincide con el valor actual", texto
+ * idéntico en los 18 adapters) se realimentan como `errores_propuesta_anterior`
+ * y sus claves (skip.field, cuando el adapter la informa) salen de
+ * `pendientes_de_aplicar`. Genérico por el motivo; el filtrado de pendientes
+ * requiere `field` (hoy: fem2d, femAnalysis, mapExtraction).
  */
+import type { AiSkippedField } from './modules/types';
 
 /** Claves del payload que no son campos del formulario. */
 const META_KEYS = new Set(['warnings', 'notes']);
+
+/**
+ * Skip benigno compartido: el valor propuesto ya coincide con el actual. Es el
+ * ÚNICO motivo de skip que no es un rechazo; todos los adapters usan
+ * literalmente este texto (const ALREADY local en cada uno).
+ */
+const BENIGN_SKIP = 'Ya coincide con el valor actual';
+
+/** Skips del plan que son RECHAZOS reales (motivo distinto del benigno). */
+export function rejectedSkips(
+  skipped: ReadonlyArray<AiSkippedField>,
+): AiSkippedField[] {
+  return skipped.filter((s) => !s.reason.startsWith(BENIGN_SKIP));
+}
 
 /**
  * Añade a `into` las claves de campo con valor no-null de una proposal del
@@ -45,6 +72,11 @@ export function collectConfirmedKeys(proposal: unknown, into: Set<string>): void
  * Snapshot del adapter + memoria de la conversación → snapshot decorado:
  * - `pendientes_de_aplicar`: claves no-null de la propuesta acumulada viva
  *   (solo si hay alguna) — valores ya acordados que el usuario aún no aplicó.
+ *   Una clave RECHAZADA por el plan (skip con `field` y motivo no benigno) NO
+ *   es un acuerdo: se retira de pendientes.
+ * - `errores_propuesta_anterior`: motivos de los skips-rechazo del plan
+ *   pendiente (solo si hay alguno) — es lo que permite al modelo corregir en
+ *   el turno siguiente en vez de reenviar lo mismo.
  * - `sin_confirmar` filtrado: fuera lo pendiente y lo confirmado en el hilo.
  * Sin nada que decorar devuelve el JSON ORIGINAL byte-idéntico (los tests de
  * integración asertan el snapshot literal del adapter). JSON inesperado →
@@ -54,16 +86,25 @@ export function decorateSnapshot(
   snapshotJson: string,
   pendingPayload: unknown,
   confirmedKeys: ReadonlySet<string>,
+  lastPlanSkipped: ReadonlyArray<AiSkippedField> = [],
 ): string {
+  const rejections = rejectedSkips(lastPlanSkipped);
+  const rejectedKeys = new Set(
+    rejections
+      .map((r) => r.field)
+      .filter((f): f is string => typeof f === 'string'),
+  );
   const pendientes: Record<string, unknown> = {};
   if (typeof pendingPayload === 'object' && pendingPayload !== null && !Array.isArray(pendingPayload)) {
     for (const [key, value] of Object.entries(pendingPayload)) {
-      if (META_KEYS.has(key)) continue;
+      if (META_KEYS.has(key) || rejectedKeys.has(key)) continue;
       if (value !== null && value !== undefined) pendientes[key] = value;
     }
   }
   const pendingKeys = Object.keys(pendientes);
-  if (pendingKeys.length === 0 && confirmedKeys.size === 0) return snapshotJson;
+  if (pendingKeys.length === 0 && confirmedKeys.size === 0 && rejections.length === 0) {
+    return snapshotJson;
+  }
 
   let parsed: unknown;
   try {
@@ -83,5 +124,10 @@ export function decorateSnapshot(
 
   const out: Record<string, unknown> = { valores: snap.valores, sin_confirmar: sinConfirmar };
   if (pendingKeys.length > 0) out.pendientes_de_aplicar = pendientes;
+  if (rejections.length > 0) {
+    out.errores_propuesta_anterior = rejections.map(
+      (r) => `${r.field ?? r.label}: ${r.reason}`,
+    );
+  }
   return JSON.stringify(out);
 }
