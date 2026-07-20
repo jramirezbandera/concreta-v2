@@ -7,12 +7,17 @@
 // clears history — those aren't user edits.
 //
 // Hydration priority at mount: URL (?model=, v2 model or v1 parametric link)
-// > localStorage v2 > portal-frame template defaults (the model is NEVER null;
-// there is no landing screen — first run seeds the default portal frame).
+// > localStorage v2 > portal-frame template defaults (the model is NEVER null,
+// so all hooks and the solver stay simple). First run has no URL and no stored
+// blob: it still seeds the portal frame, but flags `startedEmpty` so the shell
+// shows the template landing over the (unshown, unpersisted) seed — the same
+// entry experience as FEM 1D. The seed is only persisted once the user actually
+// picks/edits/AI-fills a model (the reference changes), so a reload with an
+// untouched landing re-opens the landing.
 // Schema: MODULE_SCHEMA_VERSIONS['fem2d'] = '2' — a version mismatch discards
 // the stored blob (v1 stored parametric UI state, incompatible shape).
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getModuleSchemaVersion } from '../../data/moduleRegistry';
 import { useHistoryState } from '../../hooks/useHistoryState';
 import { validateModel2DBasic } from './builder';
@@ -58,8 +63,14 @@ function loadFromUrl(): Fem2DModel | null {
   }
 }
 
-function loadInitial(): Fem2DModel {
-  return loadFromUrl() ?? loadFromStorage() ?? seedModel();
+/** Hydrated model plus whether it came from a real source (URL/storage) or is
+ *  just the first-run seed (→ the shell opens the template landing). */
+function loadInitialWithSource(): { model: Fem2DModel; fromSaved: boolean } {
+  const fromUrl = loadFromUrl();
+  if (fromUrl) return { model: fromUrl, fromSaved: true };
+  const fromStorage = loadFromStorage();
+  if (fromStorage) return { model: fromStorage, fromSaved: true };
+  return { model: seedModel(), fromSaved: false };
 }
 
 export interface Fem2DModelStore {
@@ -73,10 +84,17 @@ export interface Fem2DModelStore {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** True on first run (no URL, no stored model): show the template landing. */
+  startedEmpty: boolean;
 }
 
 export function useFem2DState(): Fem2DModelStore {
-  const h = useHistoryState<Fem2DModel>(loadInitial);
+  // Resolve the hydration source exactly once (lazy useState initializer runs
+  // on mount only) so `startedEmpty` is stable and the persist guard can
+  // compare against the seed reference.
+  const [initial] = useState(loadInitialWithSource);
+
+  const h = useHistoryState<Fem2DModel>(() => initial.model);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Strip ?model= after the mount-time hydration so the URL stays clean
@@ -93,6 +111,11 @@ export function useFem2DState(): Fem2DModelStore {
   // Persist (debounced) on every model change.
   const model = h.value!;
   useEffect(() => {
+    // Don't persist the untouched landing seed: while the user sits on the
+    // template screen (first run + model still the seed reference), keep
+    // localStorage empty so a reload re-opens the landing. Any pick/edit/AI
+    // replaces the reference and persistence resumes.
+    if (!initial.fromSaved && model === initial.model) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       try {
@@ -105,7 +128,7 @@ export function useFem2DState(): Fem2DModelStore {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [model]);
+  }, [model, initial]);
 
   const resetModel = useCallback((next: Fem2DModel) => h.reset(next), [h]);
 
@@ -117,5 +140,6 @@ export function useFem2DState(): Fem2DModelStore {
     redo: h.redo,
     canUndo: h.canUndo,
     canRedo: h.canRedo,
+    startedEmpty: !initial.fromSaved,
   };
 }

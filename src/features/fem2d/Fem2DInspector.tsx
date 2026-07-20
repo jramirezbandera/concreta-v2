@@ -18,7 +18,7 @@
 // gesture); every mutation is a pure modelOps call.
 
 import type { JSX } from 'react';
-import { ChevronLeft, Maximize2, Trash2 } from 'lucide-react';
+import { ChevronLeft, LayoutTemplate, Maximize2, Trash2 } from 'lucide-react';
 import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { formatQuantity } from '../../lib/units/format';
@@ -69,6 +69,8 @@ interface Props {
   selected: Selected2D;
   setSelected: (s: Selected2D) => void;
   onNewStructure: () => void;
+  /** Vuelve a la pantalla de plantillas (registra la actual en "recientes"). */
+  onBackToLanding?: () => void;
   /** Abre la ficha de cálculo grande de la barra (modal Fem2DMemberDetail). */
   onOpenDetail?: (memberId: string) => void;
   readOnly?: boolean;
@@ -168,7 +170,7 @@ function loadSummary(ld: Fem2DLoad, system: 'si' | 'tecnico'): string {
   return `${ld.member} @ ${ld.pos.toFixed(2)} · ${parts.join(' · ') || '0'}${ld.frame === 'local' ? ' (local)' : ''}`;
 }
 
-function GlobalPanel({ model, setModel, setSelected, onNewStructure, readOnly }: Props): JSX.Element {
+function GlobalPanel({ model, setModel, setSelected, onNewStructure, onBackToLanding, readOnly }: Props): JSX.Element {
   const { system } = useUnitSystem();
   // La duración de la nieve (kmod) solo afecta a barras de MADERA — el toggle
   // se muestra únicamente cuando hay alguna, para no ensuciar los modelos de
@@ -176,6 +178,17 @@ function GlobalPanel({ model, setModel, setSelected, onNewStructure, readOnly }:
   const hasTimber = model.members.some((m) => m.material === 'timber');
   return (
     <div className="flex flex-col gap-3">
+      {onBackToLanding && !readOnly && (
+        <button
+          type="button"
+          onClick={onBackToLanding}
+          className="inline-flex items-center gap-1.5 self-start -mb-1 text-[11px] text-text-secondary hover:text-accent transition-colors"
+        >
+          <LayoutTemplate size={12} aria-hidden="true" />
+          Plantillas
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onNewStructure}

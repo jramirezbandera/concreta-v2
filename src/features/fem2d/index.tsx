@@ -30,6 +30,9 @@ import { useFem2DState, buildShareUrl } from './useFem2DState';
 import { analyzeFem2D } from './pipeline';
 import type { Fem2DComboId } from './checks';
 import { NewStructureDialog } from './NewStructureDialog';
+import { Landing } from './Landing';
+import { loadRecent, pushRecent } from './recents';
+import { buildTemplateWithDefaults } from './templates';
 import { Fem2DCanvas, type Fem2DCanvasView } from './Fem2DCanvas';
 import { Fem2DEditorCanvas } from './Fem2DEditorCanvas';
 import { Fem2DInspector } from './Fem2DInspector';
@@ -37,7 +40,7 @@ import { Fem2DMemberDetail } from './Fem2DMemberDetail';
 import { Fem2DResults } from './Fem2DResults';
 import { ToolPalette2D } from './ToolPalette2D';
 import type { Selected2D, Tool2DId } from './modelOps';
-import type { Fem2DModel } from './types';
+import type { Fem2DModel, Fem2DTemplateId } from './types';
 import './styles.css';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -76,7 +79,11 @@ function ViewTabButton({ active, label, title, onClick }: { active: boolean; lab
 }
 
 export function Fem2DModule(): JSX.Element {
-  const { model, setModel, resetModel, undo, redo, canUndo, canRedo } = useFem2DState();
+  const { model, setModel, resetModel, undo, redo, canUndo, canRedo, startedEmpty } = useFem2DState();
+  // Pantalla de plantillas (paridad con FEM 1D): en el primer arranque (sin URL
+  // ni modelo guardado) se muestra sobre la semilla viva; elegir una plantilla,
+  // "Nueva estructura" o aplicar una propuesta de IA entra al editor.
+  const [showLanding, setShowLanding] = useState(startedEmpty);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const isMobile = useIsMobile();
@@ -108,6 +115,7 @@ export function Fem2DModule(): JSX.Element {
     const structural = plan.fields.nodes !== undefined || plan.fields.members !== undefined
       || plan.fields.supports !== undefined || plan.fields.loads !== undefined;
     setModel((m) => ({ ...m, ...plan.fields }));
+    setShowLanding(false); // la propuesta aplicada es ya un modelo del editor
     if (structural) setSelected(null);
     const n = plan.changes.length;
     const w = plan.warnings.length;
@@ -116,6 +124,29 @@ export function Fem2DModule(): JSX.Element {
       { autoDismiss: 4000 },
     );
   }
+
+  // Landing → editor: build the picked template with its FTUX-green defaults
+  // (one click, like FEM 1D). resetModel clears history — a template pick is
+  // not a user edit. Parametric tuning stays available via "Nueva estructura".
+  function pickTemplate(id: Fem2DTemplateId) {
+    resetModel(buildTemplateWithDefaults(id));
+    setSelected(null);
+    setShowLanding(false);
+  }
+
+  // Editor → landing: la estructura que dejas atrás pasa a "recientes" (su
+  // plantilla + el último η), como en el FEM 1D. El modelo sigue vivo por
+  // debajo, así que volver a él (o recargar) no lo pierde.
+  function backToLanding() {
+    // Un modelo 'custom' (editado libremente o dibujado por IA sin plantilla) no
+    // tiene plantilla que reabrir → no entra en recientes; el modelo sigue vivo.
+    if (model.templateId !== 'custom') {
+      pushRecent(model.templateId, result.checks?.maxEta ?? 0);
+    }
+    setSelected(null);
+    setShowLanding(true);
+  }
+
   // First fail-severity message → editor canvas banner (mechanisms, refs…).
   const firstFail = useMemo(
     () => result.errors.find((e) => e.severity === 'fail')?.msg ?? null,
@@ -197,6 +228,32 @@ export function Fem2DModule(): JSX.Element {
       ? `Cálculo listo. Utilización máxima ${(result.checks.maxEta * 100).toFixed(0)} por ciento.`
       : '';
 
+  // Pantalla de plantillas (primer arranque). El modelo semilla vive por debajo
+  // (no persistido hasta un pick/edit/IA), así que el asistente arranca sobre él
+  // con current={model} — sin necesidad de una semilla aparte como en el 1D.
+  if (showLanding) {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <Topbar
+          moduleLabel="FEM 2D"
+          moduleGroup="Análisis"
+          onMenuOpen={openDrawer}
+          onOpenAssistant={() => setAiOpen(true)}
+        />
+        <Landing onPick={pickTemplate} recientes={loadRecent()} onStartAi={() => setAiOpen(true)} />
+        {aiOpen && (
+          <AiChatModal
+            adapter={fem2dAdapter}
+            current={model}
+            results={aiResults}
+            onApply={handleAiApply}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
@@ -228,6 +285,7 @@ export function Fem2DModule(): JSX.Element {
               selected={selected}
               setSelected={setSelected}
               onNewStructure={() => setNewOpen(true)}
+              onBackToLanding={backToLanding}
               onOpenDetail={openDetail}
               readOnly={isMobile}
             />
@@ -396,6 +454,7 @@ export function Fem2DModule(): JSX.Element {
           onCreate={(next) => {
             resetModel(next);
             setSelected(null); // la selección apuntaba al modelo anterior
+            setShowLanding(false);
             setNewOpen(false);
           }}
           onCancel={() => setNewOpen(false)}

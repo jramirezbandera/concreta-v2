@@ -507,3 +507,19 @@ export const FEM2D_TEMPLATES = {
   'multistory': multistoryTemplate,
   'gable': gableTemplate,
 } as const;
+
+/** Build a template with its own FTUX-green defaults (one-click landing pick).
+ *  Typed switch (concrete keys) — the same dispatch pattern as buildModelFromState;
+ *  it avoids collapsing the per-template param union into an intersection. */
+export function buildTemplateWithDefaults(id: Fem2DTemplateId): Fem2DModel {
+  switch (id) {
+    case 'pratt-truss':
+      return prattTrussTemplate.build(prattTrussTemplate.defaults());
+    case 'portal-frame':
+      return portalFrameTemplate.build(portalFrameTemplate.defaults());
+    case 'multistory':
+      return multistoryTemplate.build(multistoryTemplate.defaults());
+    case 'gable':
+      return gableTemplate.build(gableTemplate.defaults());
+  }
+}
