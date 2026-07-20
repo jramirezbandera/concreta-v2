@@ -27,6 +27,27 @@ export function asBar(diam: number, sep: number): number {
   return (Math.PI / 4) * diam * diam / sep * 1000;
 }
 
+/**
+ * Fila informativa (neutral) para el deslizamiento cuando `slidingRestrained`
+ * está activo: se muestra el FS de referencia pero no gobierna el veredicto
+ * (status 'neutral' → excluido de overallStatus). El deslizamiento lo impide la
+ * coacción (solera/atado a otra estructura), no el rozamiento de la zapata.
+ */
+function deslizRestrainedCheck(id: string, FS: number, article: string): CheckRow {
+  const fsStr = isFinite(FS) ? FS.toFixed(2) : '∞';
+  return {
+    id,
+    description: `Estabilidad al deslizamiento — impedido (base coaccionada)`,
+    value: `FS = ${fsStr}`,
+    limit: 'no verificado',
+    utilization: 0,
+    status: 'neutral',
+    neutral: true,
+    tag: 'IMPEDIDO',
+    article,
+  };
+}
+
 const GAMMA_C_RC = 25;    // kN/m³ — reinforced concrete unit weight
 const GAMMA_W    = 10;    // kN/m³ — water unit weight
 
@@ -310,12 +331,20 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     `FS = ${FS_vuelco.toFixed(2)}`, '≥ 2.00',
     'CTE DB-SE-C Tabla 2.1',
   ));
-  checks.push(makeCheck(
-    'deslizamiento', `Estabilidad al deslizamiento${deslizSuffix}`,
-    1.5, FS_desliz,
-    `FS = ${FS_desliz.toFixed(2)}`, '≥ 1.50',
-    'CTE DB-SE-C §4.4.2',
-  ));
+  if (inp.slidingRestrained) {
+    // Base coaccionada (p.ej. atada por una solera a otra estructura): el
+    // deslizamiento lo impide el elemento de arriostramiento, no el rozamiento
+    // de la zapata. La comprobación se muestra informativa (no gobierna el
+    // veredicto). El usuario asume que la coacción está garantizada.
+    checks.push(deslizRestrainedCheck('deslizamiento', FS_desliz, 'CTE DB-SE-C §4.4.2'));
+  } else {
+    checks.push(makeCheck(
+      'deslizamiento', `Estabilidad al deslizamiento${deslizSuffix}`,
+      1.5, FS_desliz,
+      `FS = ${FS_desliz.toFixed(2)}`, '≥ 1.50',
+      'CTE DB-SE-C §4.4.2',
+    ));
+  }
   checks.push(makeCheck(
     'excentricidad', 'Resultante en tercer medio (|e| ≤ B/6)',
     eAbs, B_m / 6,
@@ -428,12 +457,16 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       `FS = ${FS_vuelco_seis.toFixed(2)}`, '≥ 1.10',
       'NCSE-02 / NCSP-07',
     ));
-    checks.push(makeCheck(
-      'deslizamiento-sismico', `Estabilidad al deslizamiento (sismico)${deslizSuffix}`,
-      1.1, FS_desliz_seis,
-      `FS = ${FS_desliz_seis.toFixed(2)}`, '≥ 1.10',
-      'NCSE-02 / NCSP-07',
-    ));
+    if (inp.slidingRestrained) {
+      checks.push(deslizRestrainedCheck('deslizamiento-sismico', FS_desliz_seis, 'NCSE-02 / NCSP-07'));
+    } else {
+      checks.push(makeCheck(
+        'deslizamiento-sismico', `Estabilidad al deslizamiento (sismico)${deslizSuffix}`,
+        1.1, FS_desliz_seis,
+        `FS = ${FS_desliz_seis.toFixed(2)}`, '≥ 1.10',
+        'NCSE-02 / NCSP-07',
+      ));
+    }
   }
 
   // ── 11. Structural design (ELU) — skip if e ≥ B/3 ───────────────────────

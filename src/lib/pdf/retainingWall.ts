@@ -83,7 +83,8 @@ export async function exportRetainingWallPDF(
     [pdfStr(`q = ${fmtSi(inp.q as number, 'areaLoad')}`),               pdfStr(`sigma_adm = ${fmtSi(inp.sigmaAdm as number, 'soilPressure', 3)}`)],
     [`mu = ${inp.mu}`,                                                  `hw = ${(inp.hw as number).toFixed(2)} m`],
     [`Ab = ${inp.Ab} g`,                                                `S = ${inp.S}`],
-    [`Ep: ${inp.usePassive ? 'considerado' : 'ignorado'}`,              ''],
+    [`Ep: ${inp.usePassive ? 'considerado' : 'ignorado'}`,
+      inp.slidingRestrained ? 'Deslizamiento: impedido (base coaccionada)' : ''],
   ];
 
   for (const [a, b] of pairs) {

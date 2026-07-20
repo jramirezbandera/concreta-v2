@@ -360,6 +360,9 @@ export interface RetainingWallInputs {
   q: number;            // uniform surcharge on backfill (kN/m²)
   sigmaAdm: number;     // admissible bearing capacity (kPa)
   mu: number;           // base friction coefficient
+  // Sliding restrained (base coaccionada — p.ej. muro atado por una solera a otra
+  // estructura): true desactiva la comprobación de deslizamiento (estática y sísmica).
+  slidingRestrained: boolean;
   // Passive resistance (CTE DB-SE-C §9.3.3 — user-decided inclusion)
   usePassive: boolean;  // when true, include Ep = ½·Kp·γ·(df+hf)² in stability
   // Water table
@@ -396,6 +399,7 @@ export const retainingWallDefaults: RetainingWallInputs = {
   q: 0,
   sigmaAdm: 200,
   mu: 0.40,
+  slidingRestrained: false,
   usePassive: false,
   hasWater: false,
   hw: 2.0,

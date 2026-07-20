@@ -406,6 +406,53 @@ describe('Mononobe-Okabe seismic', () => {
   });
 });
 
+// ── Deslizamiento impedido (base coaccionada) ─────────────────────────────────
+describe('slidingRestrained', () => {
+  it('desactivado (default): el check de deslizamiento es una comprobación normal', () => {
+    const c = calcRetainingWall(base).checks.find((ch) => ch.id === 'deslizamiento')!;
+    expect(c.status).not.toBe('neutral');
+    expect(c.description).toContain('Estabilidad al deslizamiento');
+  });
+
+  it('activado: el check de deslizamiento pasa a neutral (no gobierna el veredicto)', () => {
+    const c = calcRetainingWall({ ...base, slidingRestrained: true })
+      .checks.find((ch) => ch.id === 'deslizamiento')!;
+    expect(c.status).toBe('neutral');
+    expect(c.tag).toBe('IMPEDIDO');
+    expect(c.value).toContain('FS =');
+  });
+
+  it('un muro que fallaría a deslizamiento deja de tener un check fail al impedirlo', () => {
+    // μ muy bajo → FS_desliz < 1.5 (falla) en el caso activo
+    const failing = { ...base, mu: 0.1 };
+    const desliz = calcRetainingWall(failing).checks.find((c) => c.id === 'deslizamiento')!;
+    expect(desliz.status).toBe('fail');
+
+    const restrained = calcRetainingWall({ ...failing, slidingRestrained: true });
+    const deslizR = restrained.checks.find((c) => c.id === 'deslizamiento')!;
+    expect(deslizR.status).toBe('neutral');
+    // Ningún check de deslizamiento incumple ya
+    expect(restrained.checks.filter((c) => c.id.startsWith('desliz') && c.status === 'fail'))
+      .toHaveLength(0);
+  });
+
+  it('sísmico: el check de deslizamiento sísmico también pasa a neutral', () => {
+    const r = calcRetainingWall({ ...base, Ab: 0.16, S: 1.3, slidingRestrained: true });
+    const c = r.checks.find((ch) => ch.id === 'deslizamiento-sismico')!;
+    expect(c.status).toBe('neutral');
+    expect(c.tag).toBe('IMPEDIDO');
+  });
+
+  it('impedir el deslizamiento NO afecta a vuelco ni a las tensiones', () => {
+    const normal = calcRetainingWall(base);
+    const restr  = calcRetainingWall({ ...base, slidingRestrained: true });
+    expect(restr.FS_vuelco).toBeCloseTo(normal.FS_vuelco, 9);
+    expect(restr.sigma_max).toBeCloseTo(normal.sigma_max, 9);
+    expect(restr.checks.find((c) => c.id === 'vuelco')!.status)
+      .toBe(normal.checks.find((c) => c.id === 'vuelco')!.status);
+  });
+});
+
 // ── Structural ────────────────────────────────────────────────────────────────
 describe('structural design', () => {
   it('check ids present: vuelco, deslizamiento, excentricidad, sigma-max, sigma-min', () => {

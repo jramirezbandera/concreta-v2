@@ -286,6 +286,26 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
           onChange={(v) => setField('sigmaAdm', v)}
         />
         <NumField labelKey="mu_base"          field="mu"         value={state.mu         as number} setField={setField} />
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+          <span className="text-[13px] text-text-secondary">Deslizamiento impedido</span>
+          <button
+            type="button"
+            onClick={() => setField('slidingRestrained', !(state.slidingRestrained as boolean))}
+            className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+              state.slidingRestrained
+                ? 'bg-accent/15 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-disabled border border-border-main'
+            }`}
+            aria-pressed={state.slidingRestrained as boolean}
+          >
+            {state.slidingRestrained ? 'Impedido' : 'Comprobar'}
+          </button>
+        </div>
+        <p className="text-[11px] text-text-disabled mt-1">
+          {state.slidingRestrained
+            ? 'La base está coaccionada (p. ej. atada por una solera a otra estructura): la comprobación de deslizamiento se muestra informativa y no gobierna el veredicto.'
+            : 'La comprobación de deslizamiento (estática y sísmica) está activa.'}
+        </p>
       </CollapsibleSection>
 
       <CollapsibleSection label="Nivel freático">
