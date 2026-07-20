@@ -732,3 +732,67 @@ describe('copyMemberPropsMany (brocha en ventana, un solo undo)', () => {
     expect(res.model).toBe(model);
   });
 });
+
+describe('setMemberMaterial — madera', () => {
+  it('a madera estampa la semilla C24 140×240 CS1 y conserva el perfil de acero', () => {
+    const model = portal();
+    const res = setMemberMaterial(model, 'v1', 'timber');
+    expect(res.ok).toBe(true);
+    const m = (res as { ok: true; model: Fem2DModel }).model.members.find((mm) => mm.id === 'v1')!;
+    expect(m.material).toBe('timber');
+    expect(m.timberSection).toEqual({ gradeId: 'C24', b: 140, h: 240, serviceClass: 1 });
+    expect(m.steelSelection).toBeDefined(); // restaurable al volver a acero
+  });
+
+  it('la sección de madera SOBREVIVE al ir y volver de material (nunca se borra)', () => {
+    let model = portal();
+    model = (setMemberMaterial(model, 'v1', 'timber') as { ok: true; model: Fem2DModel }).model;
+    model = {
+      ...model,
+      members: model.members.map((mm) =>
+        mm.id === 'v1' && mm.timberSection ? { ...mm, timberSection: { ...mm.timberSection, gradeId: 'GL24h', h: 400 } } : mm,
+      ),
+    };
+    model = (setMemberMaterial(model, 'v1', 'steel') as { ok: true; model: Fem2DModel }).model;
+    model = (setMemberMaterial(model, 'v1', 'timber') as { ok: true; model: Fem2DModel }).model;
+    const m = model.members.find((mm) => mm.id === 'v1')!;
+    expect(m.timberSection).toEqual({ gradeId: 'GL24h', b: 140, h: 400, serviceClass: 1 });
+  });
+
+  it('una biela SÍ puede ser de madera (la de hormigón sigue bloqueada)', () => {
+    const model = pratt();
+    const diagonal = model.members.find((mm) => mm.elementType === 'two-force')!;
+    const res = setMemberMaterial(model, diagonal.id, 'timber');
+    expect(res.ok).toBe(true);
+    const rc = setMemberMaterial(model, diagonal.id, 'rc');
+    expect(rc.ok).toBe(false);
+  });
+
+  it('setMemberTwoForce acepta una viga-columna de madera', () => {
+    let model = portal();
+    model = (setMemberMaterial(model, 'v1', 'timber') as { ok: true; model: Fem2DModel }).model;
+    // v1 lleva cargas de plantilla — las quitamos para poder pasarla a biela.
+    model = {
+      ...model,
+      loads: model.loads.filter((l) => l.kind === 'node' || l.member !== 'v1'),
+    };
+    const res = setMemberTwoForce(model, 'v1', true);
+    expect(res.ok).toBe(true);
+    const m = (res as { ok: true; model: Fem2DModel }).model.members.find((mm) => mm.id === 'v1')!;
+    expect(m.material).toBe('timber');
+    expect(m.elementType).toBe('two-force');
+  });
+
+  it('copy-props pinta madera sobre acero (sección clonada, no compartida)', () => {
+    let model = portal();
+    model = (setMemberMaterial(model, 'v1', 'timber') as { ok: true; model: Fem2DModel }).model;
+    const res = copyMemberProps(model, 'v1', 'p1');
+    expect(res.ok).toBe(true);
+    const out = (res as { ok: true; model: Fem2DModel }).model;
+    const src = out.members.find((mm) => mm.id === 'v1')!;
+    const tgt = out.members.find((mm) => mm.id === 'p1')!;
+    expect(tgt.material).toBe('timber');
+    expect(tgt.timberSection).toEqual(src.timberSection);
+    expect(tgt.timberSection).not.toBe(src.timberSection);
+  });
+});

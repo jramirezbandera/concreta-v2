@@ -1,12 +1,15 @@
 // FEM 2D — selection-driven inspector (left panel).
 //
 // Four states keyed off Selected2D, mirroring the 1D InputsPanel:
-//   nothing → "Nueva estructura" + model summary + self-weight + load list
-//             (rows select their load; trash deletes).
+//   nothing → "Nueva estructura" + model summary + self-weight + snow>1000m
+//             (solo si hay madera) + load list (rows select their load; trash
+//             deletes).
 //   member  → rol (auto/manual + volver-a-auto) · biela · material (acero ⇄
-//             hormigón) · [acero: perfil · acero · correas] · [HA: sección
-//             b/h/fck/fyk/recubrimiento/exposición + armado por rol (vano y
-//             apoyo para viga/cordón; jaula para pilar)] · rótulas i/j · borrar.
+//             hormigón ⇄ madera) · [acero: perfil · acero · correas] · [HA:
+//             sección b/h/fck/fyk/recubrimiento/exposición + armado por rol
+//             (vano y apoyo para viga/cordón; jaula para pilar)] · [madera:
+//             clase resistente · escuadría b×h mm · clase de servicio · correas
+//             en viga/cordón] · rótulas i/j · borrar.
 //   node    → x/y (commit-on-blur) · apoyo · borrar.
 //   load    → hipótesis/categoría · componentes (mundo o marco local) ·
 //             extensión (UDL) / posición (puntual en barra) · borrar.
@@ -20,9 +23,16 @@ import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { STEEL_CATALOG } from '../../lib/frame-core/sections';
 import { DraftNumberField } from './DraftNumberField';
-import { ALL_PROFILES, BENDING_PROFILES } from './profiles';
+import {
+  AXIAL_FAMILIES,
+  BENDING_FAMILIES,
+  familyOfKey,
+  nearestInFamily,
+  steelEntriesByFamily,
+  type SteelFamily,
+} from './profiles';
+import { TIMBER_GRADES } from '../../data/timberGrades';
 import {
   DEFAULT_APOYO_ARMADO_2D,
   DEFAULT_COLUMN_CAGE_2D,
@@ -45,11 +55,13 @@ import {
   updateMemberArmado,
   updateMemberColumnCage,
   updateMemberRcSection,
+  updateMemberTimberSection,
   type OpResult,
   type Selected2D,
   type SelectionSet2D,
 } from './modelOps';
 import type { ArmadoHA, Fem2DLoad, Fem2DMember, Fem2DModel, MemberRole, RcColumnCage, Support2DType } from './types';
+import type { ServiceClass } from '../../data/timberGrades';
 
 interface Props {
   model: Fem2DModel;
@@ -83,6 +95,19 @@ const CATEGORIAS = ['A1', 'A2', 'B', 'C1', 'C2', 'C3', 'D1', 'E1', 'G1'] as cons
 const FCK_OPTIONS = [25, 30, 35, 40, 45, 50] as const;
 const FYK_OPTIONS = [400, 500] as const;
 const EXPOSURE_OPTIONS = ['XC1', 'XC2', 'XC3', 'XC4'] as const;
+
+/** Clases resistentes agrupadas para el select de madera. */
+const TIMBER_GRADE_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Aserrada — conífera (C)', ids: TIMBER_GRADES.filter((g) => g.type === 'sawn' && g.subtype === 'softwood').map((g) => g.id) },
+  { label: 'Aserrada — frondosa (D)', ids: TIMBER_GRADES.filter((g) => g.type === 'sawn' && g.subtype === 'hardwood').map((g) => g.id) },
+  { label: 'Laminada encolada (GL)', ids: TIMBER_GRADES.filter((g) => g.type === 'glulam').map((g) => g.id) },
+];
+
+const SERVICE_CLASS_OPTIONS: { value: ServiceClass; label: string }[] = [
+  { value: 1, label: '1 — interior seco' },
+  { value: 2, label: '2 — cubierto / protegido' },
+  { value: 3, label: '3 — exterior expuesto' },
+];
 
 const selectClass =
   'bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors w-full';
@@ -145,6 +170,10 @@ function loadSummary(ld: Fem2DLoad, system: 'si' | 'tecnico'): string {
 
 function GlobalPanel({ model, setModel, setSelected, onNewStructure, readOnly }: Props): JSX.Element {
   const { system } = useUnitSystem();
+  // La duración de la nieve (kmod) solo afecta a barras de MADERA — el toggle
+  // se muestra únicamente cuando hay alguna, para no ensuciar los modelos de
+  // acero/HA con un dato que no usan.
+  const hasTimber = model.members.some((m) => m.material === 'timber');
   return (
     <div className="flex flex-col gap-3">
       <button
@@ -186,6 +215,28 @@ function GlobalPanel({ model, setModel, setSelected, onNewStructure, readOnly }:
           {model.selfWeight ? 'Incluido' : 'Omitido'}
         </button>
       </div>
+
+      {hasTimber && (
+        <div className="flex items-center justify-between gap-2 min-w-0 px-0.5">
+          <InputLabel
+            label="Nieve a >1000 m"
+            help="Madera: por encima de 1000 m de altitud la nieve es una acción de duración MEDIA (kmod menor, EC5 §2.3.1.2 / CTE DB-SE-M), no corta. Solo afecta a las barras de madera con hipótesis de nieve; acero y hormigón la ignoran."
+          />
+          <button
+            type="button"
+            disabled={readOnly}
+            onClick={() => setModel((m) => ({ ...m, snowOver1000m: !(m.snowOver1000m ?? false) }))}
+            aria-pressed={model.snowOver1000m ?? false}
+            className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 disabled:opacity-50 ${
+              model.snowOver1000m
+                ? 'bg-accent/15 text-accent border border-accent/40'
+                : 'bg-bg-elevated text-text-disabled border border-border-main'
+            }`}
+          >
+            {model.snowOver1000m ? '>1000 m' : '≤1000 m'}
+          </button>
+        </div>
+      )}
 
       <div className="rounded border border-border-main overflow-hidden">
         <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled px-3 pt-2.5 pb-1.5 border-b border-border-sub">
@@ -418,9 +469,62 @@ function RcMemberEditor({ m, model, setModel }: RcEditorProps): JSX.Element {
       ) : (
         <p className="text-[10.5px] text-text-secondary leading-snug py-1">
           El rol axil ({m.role}) no está soportado en hormigón: la barra queda
-          pendiente de comprobar. Usa rol pilar/viga/cordón o material acero.
+          pendiente de comprobar. Usa rol pilar/viga/cordón, o material acero o
+          madera.
         </p>
       )}
+    </>
+  );
+}
+
+// ── Timber member editor (clase resistente + escuadría + clase de servicio) ──
+
+function TimberMemberEditor({ m, setModel }: RcEditorProps): JSX.Element {
+  const sec = m.timberSection;
+  if (!sec) return <p className="text-[11px] text-state-fail px-0.5 py-1">Barra de madera sin sección — cambia a acero y vuelve a madera para regenerarla.</p>;
+  const patchSec = (p: Parameters<typeof updateMemberTimberSection>[2]) =>
+    setModel((mm) => updateMemberTimberSection(mm, m.id, p));
+  return (
+    <>
+      <SubHeader label="Sección de madera" />
+      <Row label="Clase resistente" help="Clase de la madera (EN 338 aserrada / EN 14080 laminada): fija fm,k, fc0,k, ft0,k, fv,k y el módulo E del análisis.">
+        <select
+          value={sec.gradeId}
+          onChange={(e) => patchSec({ gradeId: e.target.value })}
+          className={selectClass}
+          aria-label="Clase resistente de la madera"
+        >
+          {TIMBER_GRADE_GROUPS.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.ids.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </Row>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <DraftNumberField
+          stacked label="b" sub="ancho" unit="mm" integer value={sec.b} resetKey={`${m.id}:tb`} min={40}
+          onCommit={(v) => patchSec({ b: Math.max(40, Math.round(v)) })}
+        />
+        <DraftNumberField
+          stacked label="h" sub="canto" unit="mm" integer value={sec.h} resetKey={`${m.id}:th`} min={40}
+          onCommit={(v) => patchSec({ h: Math.max(40, Math.round(v)) })}
+        />
+      </div>
+      <Row label="Clase de servicio" help="Ambiente higrotérmico EC5: gobierna kmod (resistencia según la duración de la carga) y kdef (fluencia de la flecha).">
+        <select
+          value={sec.serviceClass}
+          onChange={(e) => patchSec({ serviceClass: Number(e.target.value) as ServiceClass })}
+          className={selectClass}
+          aria-label="Clase de servicio"
+        >
+          {SERVICE_CLASS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </Row>
     </>
   );
 }
@@ -507,9 +611,9 @@ function MemberPanel(props: Props & { memberId: string }): JSX.Element {
         </button>
       </div>
 
-      <Row label="Material" help="Acero laminado (catálogo de perfiles) u hormigón armado (sección rectangular con su armado). Una biela no puede ser de hormigón: el chequeo axil HA no está modelado.">
+      <Row label="Material" help="Acero laminado (catálogo de perfiles), hormigón armado (sección rectangular con su armado) o madera (escuadría b×h con su clase resistente EC5). Una biela no puede ser de hormigón (el chequeo axil HA no está modelado); de madera sí.">
         <div className="flex gap-1.5">
-          {([['steel', 'Acero'], ['rc', 'Hormigón']] as const).map(([mat, label]) => (
+          {([['steel', 'Acero'], ['rc', 'Hormigón'], ['timber', 'Madera']] as const).map(([mat, label]) => (
             <button
               key={mat}
               type="button"
@@ -527,20 +631,15 @@ function MemberPanel(props: Props & { memberId: string }): JSX.Element {
         </div>
       </Row>
 
-      {m.material === 'steel' ? (
+      {m.material === 'timber' ? (
+        <TimberMemberEditor m={m} model={model} setModel={setModel} />
+      ) : m.material === 'steel' ? (
         <>
-          <Row label="Perfil">
-            <select
-              value={m.steelSelection?.profileKey ?? ''}
-              onChange={(e) => setModel((mm) => setMemberProfile(mm, m.id, e.target.value))}
-              className={selectClass}
-              aria-label="Perfil de la barra"
-            >
-              {(twoForce ? ALL_PROFILES : BENDING_PROFILES).map((k) => (
-                <option key={k} value={k}>{STEEL_CATALOG[k].name}</option>
-              ))}
-            </select>
-          </Row>
+          <SteelProfileRows
+            profileKey={m.steelSelection?.profileKey ?? ''}
+            twoForce={twoForce}
+            onSelect={(key) => setModel((mm) => setMemberProfile(mm, m.id, key))}
+          />
 
           <Row label="Acero">
             <select
@@ -580,10 +679,10 @@ function MemberPanel(props: Props & { memberId: string }): JSX.Element {
         </Row>
       )}
 
-      {!twoForce && m.material === 'steel' && (m.role === 'viga' || m.role === 'cordon') && (
+      {!twoForce && m.material !== 'rc' && (m.role === 'viga' || m.role === 'cordon') && (
         <>
           <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-            <InputLabel label="Correas" sub="arriostr. ala" help="Separación entre puntos que arriostran el ala comprimida (correas/viguetas/forjado). Limita la longitud crítica de pandeo lateral (LTB). Sin arriostrar = pandea con la luz completa." />
+            <InputLabel label="Correas" sub="arriostr. ala" help="Separación entre puntos que arriostran el borde comprimido (correas/viguetas/forjado). Limita la longitud crítica de pandeo lateral (LTB); en madera limita también la longitud de pandeo fuera del plano (kc,z). Sin arriostrar = pandea con la luz completa." />
             <button
               type="button"
               onClick={() => setModel((mm) => setMemberLtbSpacing(mm, m.id, braced ? undefined : 1.5))}
@@ -621,6 +720,49 @@ function MemberPanel(props: Props & { memberId: string }): JSX.Element {
         />
       )}
     </fieldset>
+  );
+}
+
+/** Two-step profile selector (familia + tamaño), patrón de los módulos
+ *  standalone. Cambiar de familia salta a la entrada de rigidez más parecida
+ *  (nearestInFamily) para que la barra no pegue un salto de canto absurdo. */
+function SteelProfileRows({ profileKey, twoForce, onSelect }: {
+  profileKey: string;
+  twoForce: boolean;
+  onSelect: (key: string) => void;
+}): JSX.Element {
+  const families = twoForce ? AXIAL_FAMILIES : BENDING_FAMILIES;
+  const current = familyOfKey(profileKey);
+  // Una selección heredada fuera de la lista (p.ej. un L en una barra recién
+  // pasada a pórtico) se muestra tal cual: el enrutado la deja 'pendiente'
+  // honestamente en vez de que el select mienta.
+  const famOptions = current && !families.includes(current) ? [current, ...families] : families;
+  const fam = current ?? families[0];
+  return (
+    <Row label="Perfil">
+      <div className="flex gap-1.5 min-w-0">
+        <select
+          value={fam}
+          onChange={(e) => onSelect(nearestInFamily(e.target.value as SteelFamily, profileKey).key)}
+          className={selectClass}
+          aria-label="Familia de perfil"
+        >
+          {famOptions.map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+        <select
+          value={profileKey}
+          onChange={(e) => onSelect(e.target.value)}
+          className={selectClass}
+          aria-label="Tamaño del perfil"
+        >
+          {steelEntriesByFamily(fam).map((en) => (
+            <option key={en.key} value={en.key}>{en.sizeLabel}</option>
+          ))}
+        </select>
+      </div>
+    </Row>
   );
 }
 

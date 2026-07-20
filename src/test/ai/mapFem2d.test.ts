@@ -197,7 +197,9 @@ describe('fem2d — validación por lista (todo-o-nada)', () => {
   });
 
   it('perfil fuera de catálogo → skip de barras', () => {
-    const p = plan({ barras: [barra(1, 2, { perfil: 'IPE 220' }), barra(2, 3), barra(4, 3)] });
+    // 'IPE 220' dejó de valer como caso: el catálogo unificado trae la serie
+    // IPE completa (y 2UPN/SHS/RHS/CHS). Un perfil inexistente de verdad:
+    const p = plan({ barras: [barra(1, 2, { perfil: 'IPE 999' }), barra(2, 3), barra(4, 3)] });
     expect(skipFor(p, 'Barras')?.reason).toContain('fuera del catálogo');
   });
 
@@ -520,6 +522,73 @@ describe('fem2d — barras de hormigón', () => {
     const current = portalConHA();
     const s = summarizeFem2DResults(current, analyzeFem2D(current));
     expect(s.text).toContain('HA 30×50');
+  });
+});
+
+// ── Barras de MADERA (mismo patrón de arrastre que el HA) ────────────────────
+
+describe('fem2d — barras de madera', () => {
+  /** Pórtico con el dintel v1 convertido a madera (semilla C24 140×240). */
+  function portalConMadera(): Fem2DModel {
+    const model = portal();
+    const res = setMemberMaterial(model, 'v1', 'timber');
+    if (!res.ok) throw new Error(res.reason);
+    return res.model;
+  }
+
+  it('reconstrucción de la lista: la barra de madera conserva sección + acero latente', () => {
+    const current = portalConMadera();
+    const p = plan({
+      barras: [PORTAL_BARRAS[0], PORTAL_BARRAS[1], barra(4, 3, { acero: 'S355' })],
+    }, current);
+    expect(p.fields.members).toHaveLength(3);
+    const v1 = p.fields.members![1];
+    const orig = current.members.find((m) => m.id === 'v1')!;
+    expect(v1.material).toBe('timber');
+    expect(v1.timberSection).toEqual(orig.timberSection);
+    expect(v1.steelSelection).toEqual(orig.steelSelection); // restaurable
+  });
+
+  it('darle perfil convierte a acero con AVISO, sin perder la sección latente', () => {
+    const current = portalConMadera();
+    const p = plan({
+      barras: [PORTAL_BARRAS[0], barra(2, 3, { perfil: 'IPE 300' }), PORTAL_BARRAS[2]],
+    }, current);
+    const v1 = p.fields.members![1];
+    expect(v1.material).toBe('steel');
+    expect(v1.steelSelection?.profileKey).toBe('steel_IPE300');
+    expect(v1.timberSection).toBeDefined();
+    expect(p.warnings.some((w) => w.includes('madera a acero'))).toBe(true);
+  });
+
+  it('barra de madera + tipo biela → SE ACEPTA (la biela de madera está soportada)', () => {
+    const current = portalConMadera();
+    // v1 lleva cargas de barra de la plantilla: hay que retirarlas en la misma
+    // propuesta (una biela no admite cargas en la barra — cross-check solver).
+    const p = plan({
+      barras: [PORTAL_BARRAS[0], barra(2, 3, { tipo: 'biela' }), PORTAL_BARRAS[2]],
+      cargas: [PORTAL_CARGAS[2]],
+    }, current);
+    expect(p.fields.members).toBeDefined();
+    const v1 = p.fields.members![1];
+    expect(v1.material).toBe('timber');
+    expect(v1.elementType).toBe('two-force');
+  });
+
+  it('el snapshot describe la barra de madera como comprobada pero no editable', () => {
+    const current = portalConMadera();
+    const snap = JSON.parse(fem2dAdapter.snapshot(current)) as {
+      valores: { barras_madera?: string[] };
+    };
+    expect(snap.valores.barras_madera).toHaveLength(1);
+    expect(snap.valores.barras_madera![0]).toContain('C24 140×240 mm');
+    expect(snap.valores.barras_madera![0]).toContain('inspector');
+  });
+
+  it('el resumen de resultados incluye las filas de madera con su sección', () => {
+    const current = portalConMadera();
+    const s = summarizeFem2DResults(current, analyzeFem2D(current));
+    expect(s.text).toContain('C24 140×240');
   });
 });
 

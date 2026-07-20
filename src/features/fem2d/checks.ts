@@ -58,6 +58,18 @@
 //         under tension; αcw on VRd,max) and the COLUMN policy
 //         VRd = max(VRdc, min(VRds, VRdmax)) — §6.2.1(4).
 //     RC + two-force / axial roles → 'pending' (no HA axial engine).
+//     TIMBER (cualquier familia de rol) → calcTimberFrameMember per ELU combo
+//         (EC5): cortante §6.1.7, flexocompresión §6.3.2 ecs. 6.23/6.24 +
+//         vuelco §6.3.3 ec. 6.35, flexotracción §6.2.3 ec. 6.17. A diferencia
+//         de acero/HA el kmod NO es combo-independiente: sale de la acción de
+//         duración más corta del combo (comboDuration — con la nieve a MEDIA
+//         por encima de 1000 m vía model.snowOver1000m), así que se añade una
+//         combinación sintética 1.35·G (kmod permanente 0.60) que puede
+//         gobernar con carga variable pequeña (§3.1.3(2)). Lef_y = L (β=1 +
+//         αcr); Lef_z = Lltb = separación de correas (arriostra kc,z Y kcrit).
+//         Una biela de madera SÍ se comprueba (degenera a axil puro). Vigas y
+//         cordones añaden flecha instantánea (ELS-c) y final con fluencia
+//         (δ_c + kdef·δ_cp). Sin situación de incendio (paridad acero/HA).
 //
 // T7 — simplified second-order (EC3 / CE Anejo 22 §5.2). Sway sensitivity per
 //   ELU combination via αcr = S·h / V_Ed (storey formula 5.2.1(4)B), where the
@@ -83,6 +95,13 @@ import { calcRCColumn } from '../../lib/calculations/rcColumns';
 import { getConcrete } from '../../data/materials';
 import { calcSteelBeam, type SteelCheckRow } from '../../lib/calculations/steelBeams';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
+import { descriptorForKey } from '../../lib/sections';
+import {
+  calcTimberFrameMember,
+  type TimberFrameCheckRow,
+  type TimberFrameResult,
+} from '../../lib/calculations/timberFrameMember';
+import { getKdef, getTimberGrade, type LoadDurationClass } from '../../data/timberGrades';
 import { toStatus, type CheckRow, type CheckStatus } from '../../lib/calculations/types';
 import { formatQuantity } from '../../lib/units/format';
 import { getBarArea } from '../../data/rebar';
@@ -276,7 +295,7 @@ export function checkFem2D(
     const a = nodeById.get(m.i);
     const b = nodeById.get(m.j);
     const sagSign: 1 | -1 = a && b && b.x - a.x < 0 ? -1 : 1;
-    const verdict = checkMember(m, els, eluAmplified, combos.ELS_c, combos.ELS_cp, sagSign);
+    const verdict = checkMember(m, els, eluAmplified, combos.ELS_c, combos.ELS_cp, sagSign, model.snowOver1000m ?? false);
     perMember[m.id] = verdict;
     if (verdict.status === 'pending') anyPending = true;
     if (verdict.status === 'fail') anyFail = true;
@@ -460,6 +479,35 @@ export function worstRelativeDeflection(els: Solver2DElementResult[], combosList
   return best;
 }
 
+/**
+ * Instantaneous relative-to-chord deflection (mm) of the governing ELS-c
+ * combination + its label, and the row that reports it against L/DEFL_LIMIT.
+ * Shared by the steel beam path and the timber path (the fila is normativa
+ * idéntica — CTE DB-SE 4.3.3 characteristic combination, L/300 — so it lives
+ * in ONE place; the timber path additionally reuses the returned δ_mm for its
+ * creep row δ_fin = δ_c + kdef·δ_cp).
+ */
+function worstElsDeflectionMm(els: Solver2DElementResult[], elsCombos: LcFactors[]): { delta_mm: number; combo: string } {
+  let delta_m = 0;
+  let deltaCombo = '';
+  for (const factors of elsCombos) {
+    const d = worstRelativeDeflection(els, [factors]);
+    if (d > delta_m) { delta_m = d; deltaCombo = formatCombo(factors); }
+  }
+  return { delta_mm: delta_m * 1000, combo: deltaCombo };
+}
+
+function elsDeflectionRow(delta_mm: number, adm_mm: number, combo: string): MemberCheck {
+  return {
+    id: 'deflection',
+    name: 'Flecha relativa (ELS-c)',
+    val: `${delta_mm.toFixed(1)} / L/${DEFL_LIMIT} = ${adm_mm.toFixed(1)} mm`,
+    eta: adm_mm > 0 ? delta_mm / adm_mm : 0,
+    ref: 'CTE DB-SE 4.3.3',
+    ...(combo !== '' ? { combo } : {}),
+  };
+}
+
 // ── T5: member routing ──────────────────────────────────────────────────────
 
 function checkMember(
@@ -469,6 +517,7 @@ function checkMember(
   elsCombos: LcFactors[],
   cpFactors: LcFactors,
   sagSign: 1 | -1,
+  snowOver1000m: boolean,
 ): MemberVerdict2D {
   if (els.length === 0) {
     return {
@@ -503,15 +552,21 @@ function checkMember(
   if (m.material === 'rc') {
     if (!m.rcSection) return pending('sección HA sin definir');
     if (m.elementType === 'two-force') {
-      return pending('biela HA no soportada (sin motor axil de hormigón) — pásala a acero o a viga-columna');
+      return pending('biela HA no soportada (sin motor axil de hormigón) — pásala a acero, madera o a viga-columna');
     }
     if (m.role === 'pilar') {
       routed = rcColumnChecks(m, L, eluCombos, els);
     } else if (m.role === 'viga' || m.role === 'cordon') {
       routed = rcBeamChecks(m, sagSign, eluCombos, cpFactors, els);
     } else {
-      return pending(`rol axil '${m.role}' no soportado en HA — usa pilar/viga/cordón o acero`);
+      return pending(`rol axil '${m.role}' no soportado en HA — usa pilar/viga/cordón, acero o madera`);
     }
+  } else if (m.material === 'timber') {
+    if (!m.timberSection) return pending('sección de madera sin definir');
+    if (!getTimberGrade(m.timberSection.gradeId)) {
+      return pending(`clase resistente '${m.timberSection.gradeId}' desconocida`);
+    }
+    routed = timberChecks(m, L, eluCombos, elsCombos, cpFactors, els, snowOver1000m);
   } else {
     const sel = m.steelSelection!;
     const cat = STEEL_CATALOG[sel.profileKey];
@@ -565,11 +620,16 @@ interface RoutedChecks {
   detailGroups?: DetailGroup2D[];
 }
 
-/** "IPE 240 · S275" | "HA 30×50 cm · HA-25 · B500" for the ficha header. */
+/** "IPE 240 · S275" | "HA 30×50 cm · HA-25 · B500" | "C24 140×240 mm · CS1"
+ *  for the ficha header. */
 function memberSectionLabel(m: Fem2DMember): string {
   if (m.material === 'rc') {
     const s = m.rcSection;
     return s ? `HA ${s.b}×${s.h} cm · HA-${s.fck} · B${s.fyk}` : 'HA (sección sin definir)';
+  }
+  if (m.material === 'timber') {
+    const s = m.timberSection;
+    return s ? `${s.gradeId} ${s.b}×${s.h} mm · CS${s.serviceClass}` : 'madera (sección sin definir)';
   }
   const sel = m.steelSelection;
   const cat = sel ? STEEL_CATALOG[sel.profileKey] : undefined;
@@ -691,10 +751,40 @@ function axialChecks(
   };
 }
 
-function parseEngineProfile(profileKey: string): { tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN'; size: number } | null {
-  const match = profileKey.match(/^steel_(IPE|HEA|HEB|IPN)(\d+)$/);
-  if (!match) return null;
-  return { tipo: match[1] as 'IPE' | 'HEA' | 'HEB' | 'IPN', size: Number(match[2]) };
+/** Profile-defining fields of SteelBeamInputs from a catalog key, via the
+ *  unified registry descriptor. null = no bending adapter for this entry
+ *  (L angles, unknown keys) → the caller must flag the member incomplete. */
+function beamProfileFields(
+  profileKey: string,
+): Pick<SteelBeamInputs, 'tipo' | 'size' | 'chs_D' | 'chs_t' | 'rhs_h' | 'rhs_b' | 'rhs_t' | 'tube_process'> | null {
+  const d = descriptorForKey(profileKey);
+  if (!d) return null;
+  const base = { size: 0, chs_D: 0, chs_t: 0, rhs_h: 0, rhs_b: 0, rhs_t: 0, tube_process: 'cold-formed' as const };
+  switch (d.kind) {
+    case 'I':    return { ...base, tipo: d.tipo, size: d.size };
+    case '2UPN': return { ...base, tipo: '2UPN', size: d.size };
+    case 'CHS':  return { ...base, tipo: 'CHS', chs_D: d.D, chs_t: d.t, tube_process: d.process };
+    case 'RHS':  return { ...base, tipo: d.h === d.b ? 'SHS' : 'RHS', rhs_h: d.h, rhs_b: d.b, rhs_t: d.t, tube_process: d.process };
+  }
+}
+
+/** Profile-defining fields of SteelColumnInputs from a catalog key. */
+function columnProfileFields(
+  profileKey: string,
+): Pick<SteelColumnInputs, 'sectionType' | 'size' | 'chs_D' | 'chs_t' | 'chs_process' | 'rhs_h' | 'rhs_b' | 'rhs_t' | 'rhs_process'> | null {
+  const d = descriptorForKey(profileKey);
+  if (!d) return null;
+  const base = {
+    size: 0,
+    chs_D: 0, chs_t: 0, chs_process: 'cold-formed' as const,
+    rhs_h: 0, rhs_b: 0, rhs_t: 0, rhs_process: 'cold-formed' as const,
+  };
+  switch (d.kind) {
+    case 'I':    return { ...base, sectionType: d.tipo, size: d.size };
+    case '2UPN': return { ...base, sectionType: '2UPN', size: d.size };
+    case 'CHS':  return { ...base, sectionType: 'CHS', chs_D: d.D, chs_t: d.t, chs_process: d.process };
+    case 'RHS':  return { ...base, sectionType: d.h === d.b ? 'SHS' : 'RHS', rhs_h: d.h, rhs_b: d.b, rhs_t: d.t, rhs_process: d.process };
+  }
 }
 
 /** Map engine CheckRows → MemberChecks (worst-η merge happens upstream).
@@ -732,7 +822,7 @@ function beamChecks(
   elsCombos: LcFactors[],
   els: Solver2DElementResult[],
 ): RoutedChecks {
-  const profile = parseEngineProfile(m.steelSelection!.profileKey);
+  const profile = beamProfileFields(m.steelSelection!.profileKey);
   const agg = new Map<string, MemberCheck>();
   let incomplete = false;
   let Nt = 0, NtCombo = '';
@@ -748,8 +838,7 @@ function beamChecks(
     if (!profile) continue; // L-profile beam-column: no bending engine (below)
     const inputs: SteelBeamInputs = {
       title: '',
-      tipo: profile.tipo,
-      size: profile.size,
+      ...profile,
       steel,
       // Conservative LTB default for frame members (C1=1 family). Lcr is the
       // compression-flange restraint spacing (correas/forjado) capped by the
@@ -827,22 +916,9 @@ function beamChecks(
   }
 
   // Real relative-to-chord deflection, with its governing ELS combination.
-  let delta_m = 0;
-  let deltaCombo = '';
-  for (const factors of elsCombos) {
-    const d = worstRelativeDeflection(els, [factors]);
-    if (d > delta_m) { delta_m = d; deltaCombo = formatCombo(factors); }
-  }
   const adm_mm = (L * 1000) / DEFL_LIMIT;
-  const delta_mm = delta_m * 1000;
-  mergeWorst(agg, [{
-    id: 'deflection',
-    name: 'Flecha relativa (ELS-c)',
-    val: `${delta_mm.toFixed(1)} / L/${DEFL_LIMIT} = ${adm_mm.toFixed(1)} mm`,
-    eta: delta_mm / adm_mm,
-    ref: 'CTE DB-SE 4.3.3',
-    ...(deltaCombo !== '' ? { combo: deltaCombo } : {}),
-  }]);
+  const { delta_mm, combo: deltaCombo } = worstElsDeflectionMm(els, elsCombos);
+  mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo)]);
 
   // ── Ficha: resistencias de sección (combo-independientes) ────────────────
   const detailGroups: DetailGroup2D[] = [];
@@ -880,7 +956,8 @@ function columnChecks(
   eluCombos: LcFactors[],
   els: Solver2DElementResult[],
 ): RoutedChecks {
-  const profile = parseEngineProfile(m.steelSelection!.profileKey);
+  const profile = columnProfileFields(m.steelSelection!.profileKey);
+  const beamFields = beamProfileFields(m.steelSelection!.profileKey); // Vpl run
   const agg = new Map<string, MemberCheck>();
   let incomplete = false;
   let Nt = 0, NtCombo = '';
@@ -892,15 +969,11 @@ function columnChecks(
     const ext = comboExtremes(els, factors);
     if (ext.Nmax > Nt) { Nt = ext.Nmax; NtCombo = formatCombo(factors); }
     if (ext.V_Ed > Vmax) { Vmax = ext.V_Ed; VmaxCombo = formatCombo(factors); }
-    if (!profile || profile.tipo === 'IPN') continue;
+    if (!profile) continue;
     const inputs: SteelColumnInputs = {
       title: '',
-      sectionType: profile.tipo,
-      size: profile.size,
+      ...profile,
       steel,
-      chs_D: 168.3,
-      chs_t: 8,
-      chs_process: 'hot-finished',
       Ly: L * 1000,
       Lz: L * 1000,
       // β = 1 both axes: NON-sway buckling length paired with the αcr
@@ -929,18 +1002,16 @@ function columnChecks(
     mergeWorst(agg, mapEngineChecks(result.checks ?? [], formatCombo(factors)));
   }
 
-  // Cortante plástico Vpl,Rd vía el motor de VIGAS (el Av sale de sus tablas
-  // dimensionales — el catálogo frame-core no lleva h/b/tw/tf). Vpl no depende
+  // Cortante plástico Vpl,Rd vía el motor de VIGAS (el Av sale del adapter de
+  // sección — el catálogo frame-core no lleva h/b/tw/tf). Vpl no depende
   // del combo ⇒ separable: UNA llamada con el V máximo. MEd = 0 y
   // VEd_interaction = 0 ⇒ el motor no emite interacción; solo se toma la fila
-  // 'shear'. Corre también para IPN (tiene tablas de viga aunque el motor de
-  // pilares no lo soporte).
+  // 'shear'.
   let VplRd: number | null = null; // ficha
-  if (profile && Vmax > 1e-6) {
+  if (beamFields && Vmax > 1e-6) {
     const shearRun = calcSteelBeam({
       title: '',
-      tipo: profile.tipo,
-      size: profile.size,
+      ...beamFields,
       steel: m.steelSelection!.steel,
       beamType: 'ss',
       MEd: 0,
@@ -997,10 +1068,10 @@ function columnChecks(
     });
   }
 
-  if (!profile || profile.tipo === 'IPN') {
-    // F1: no engine can check this profile as a column → incomplete. La fila
-    // de cortante del IPN (agg) sí viaja: informa aunque el veredicto quede
-    // pendiente.
+  if (!profile) {
+    // F1: no engine can check this profile as a column (L angles / unknown
+    // key) → incomplete. La fila de cortante (agg), si corrió, sí viaja:
+    // informa aunque el veredicto quede pendiente.
     return {
       incomplete: true,
       rows: [{
@@ -1028,6 +1099,206 @@ function columnChecks(
       ref: 'CE Anejo 22 §6.2.3',
       combo: NtCombo,
     }]);
+  }
+
+  return { rows: Array.from(agg.values()), incomplete, detailGroups };
+}
+
+// ── Timber members (todas las familias de rol → calcTimberFrameMember) ──────
+
+/** Clase de duración de una combinación: la de la acción MÁS CORTA presente
+ *  con factor > 0 (EC5 §3.1.3(2) — el kmod de la combinación es el de su
+ *  acción más corta). Asignación CTE DB SE-M Tabla 2.2: G permanente · Q (uso)
+ *  media · viento corta · sismo instantánea. La NIEVE es corta a ≤1000 m y
+ *  MEDIA por encima (`snowOver1000m`) — pero el viento, si concurre, sigue
+ *  siendo la acción más corta y gobierna. Un factor 0 (ψ0 = 0) no cuenta: esa
+ *  acción no aporta nada a la combinación. */
+function comboDuration(factors: LcFactors, snowOver1000m: boolean): LoadDurationClass {
+  if ((factors.E ?? 0) > 0) return 'instantaneous';
+  if ((factors.W ?? 0) > 0) return 'short';
+  if ((factors.S ?? 0) > 0) return snowOver1000m ? 'medium' : 'short';
+  if ((factors.Q ?? 0) > 0) return 'medium';
+  return 'permanent';
+}
+
+const DURATION_LABEL: Record<LoadDurationClass, string> = {
+  permanent: 'permanente',
+  long: 'larga',
+  medium: 'media',
+  short: 'corta',
+  instantaneous: 'instantánea',
+};
+
+function mapTimberChecks(rows: TimberFrameCheckRow[], combo: string): MemberCheck[] {
+  return rows.map((c) => ({
+    id: c.id,
+    name: c.description,
+    val: c.limit !== '' ? `${c.value} / ${c.limit}` : c.value,
+    eta: c.utilization,
+    ref: c.article,
+    ...(c.utilization > 0 ? { combo } : {}),
+  }));
+}
+
+/**
+ * Barras de madera: calcTimberFrameMember POR COMBINACIÓN ELU (el kmod depende
+ * de la duración de las acciones del combo, así que — a diferencia del acero —
+ * las resistencias NO son combo-independientes y la combinación solo-G con
+ * kmod permanente puede gobernar con carga variable pequeña, §3.1.3(2)).
+ * Emparejamiento conservador no concurrente (mismo criterio que los pilares
+ * de acero/HA): |M| y |V| máximos del combo con ambos extremos de N del combo.
+ * Roles: viga/cordón/pilar como viga-columna (el motor cubre flexocompresión
+ * 6.23/6.24/6.35 y flexotracción 6.17); una biela entra por el mismo camino y
+ * degenera limpiamente a axil puro (M = V = 0 en sus muestras del solver).
+ * Vigas/cordones añaden flecha instantánea (ELS-c) y FINAL con kdef.
+ */
+function timberChecks(
+  m: Fem2DMember,
+  L: number,
+  eluCombos: LcFactors[],
+  elsCombos: LcFactors[],
+  cpFactors: LcFactors,
+  els: Solver2DElementResult[],
+  snowOver1000m: boolean,
+): RoutedChecks {
+  const sec = m.timberSection!;
+  const grade = getTimberGrade(sec.gradeId)!;
+  const twoForce = m.elementType === 'two-force';
+  // Longitud arriostrada fuera del plano / de vuelco: correas para vigas y
+  // cordones (en madera arriostran AMBOS mecanismos: kc,z y kcrit); un pilar o
+  // una biela pandean con su longitud completa.
+  const braceable = !twoForce && m.role !== 'pilar';
+  const Lb = braceable ? Math.min(m.ltbSpacing ?? L, L) : L;
+
+  const agg = new Map<string, MemberCheck>();
+  let incomplete = false;
+  // Ficha: la pasada válida cuyo peor η gobierna (kmod varía por combo).
+  let engBest: {
+    res: TimberFrameResult;
+    label: string;
+    duration: LoadDurationClass;
+    key: number;
+  } | null = null;
+
+  // §3.1.3(2) (fix #113 del módulo de vigas transplantado): la combinación
+  // SOLO-PERMANENTE (1.35·G con kmod permanente = 0.60) puede gobernar cuando
+  // la variable es pequeña (q < ~0.3·g), pero el set multi-principal no la
+  // incluye si hay acciones variables — se añade aquí. Sin cargas G aporta
+  // extremos nulos y no emite filas (inocua).
+  const combosToRun: LcFactors[] = eluCombos.some((f) => comboDuration(f, snowOver1000m) === 'permanent')
+    ? eluCombos
+    : [...eluCombos, { G: 1.35 }];
+
+  for (const factors of combosToRun) {
+    const ext = comboExtremes(els, factors);
+    const label = formatCombo(factors);
+    const duration = comboDuration(factors, snowOver1000m);
+    const runs = [ext.Nmin];
+    if (ext.Nmax > 1e-6 && ext.Nmax !== ext.Nmin) runs.push(ext.Nmax);
+    for (const N of runs) {
+      const res = calcTimberFrameMember({
+        section: sec,
+        // β = 1 en el plano: longitud de pandeo NO traslacional emparejada con
+        // los momentos amplificados por αcr (mismo criterio que acero/HA).
+        Lef_y: L,
+        Lef_z: Lb,
+        Lltb: Lb,
+        loadDuration: duration,
+        N,
+        M: ext.M_Ed,
+        V: ext.V_Ed,
+      });
+      if (!res.valid) {
+        // F1: un motor que rechaza el combo deja la barra sin comprobar →
+        // el veredicto debe leer 'pending', nunca un verde no ganado.
+        incomplete = true;
+        mergeWorst(agg, [{
+          id: 'engine-invalid',
+          name: 'Comprobación de madera',
+          val: res.error ?? 'no válida',
+          eta: 0,
+          ref: '',
+        }]);
+        continue;
+      }
+      const key = res.checks.reduce(
+        (mx, c) => Math.max(mx, Number.isFinite(c.utilization) ? c.utilization : 1e9),
+        0,
+      );
+      if (!engBest || key > engBest.key) engBest = { res, label, duration, key };
+      mergeWorst(agg, mapTimberChecks(res.checks, label));
+    }
+  }
+
+  // ── Flecha (solo familias de flexión — pilares y bielas no llevan fila δ) ──
+  if (braceable) {
+    const adm_mm = (L * 1000) / DEFL_LIMIT;
+
+    // Instantánea característica: la δ REAL del solver relativa a la cuerda,
+    // con su combinación pésima (misma fila normativa que las vigas de acero,
+    // helper compartido).
+    const { delta_mm, combo: deltaCombo } = worstElsDeflectionMm(els, elsCombos);
+    mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo)]);
+
+    // FINAL con fluencia: δ_fin = δ_c + kdef·δ_cp — COTA SUPERIOR de la
+    // u_fin = u_G·(1+kdef) + u_Q·(1+ψ2·kdef) del módulo de vigas de madera
+    // (EC5 §2.2.3), sin necesitar la partición G/Q por hipótesis: la fluencia
+    // actúa sobre la parte cuasipermanente. Exacta cuando la MISMA sección
+    // gobierna δ_c y δ_cp (el caso gravitatorio normal); con picos no
+    // coincidentes (p.ej. viento principal en ELS-c) cada término se maximiza
+    // por separado y la suma queda del lado seguro.
+    const kdef = getKdef(grade.type, sec.serviceClass);
+    const deltaCp_mm = worstRelativeDeflection(els, [cpFactors]) * 1000;
+    const deltaFin = delta_mm + kdef * deltaCp_mm;
+    mergeWorst(agg, [{
+      id: 'deflection-fin',
+      name: 'Flecha final con fluencia (δ_c + kdef·δ_cp)',
+      val: `δ = ${deltaFin.toFixed(1)} mm (kdef = ${kdef.toFixed(2)}) / L/${DEFL_LIMIT} = ${adm_mm.toFixed(1)} mm`,
+      eta: adm_mm > 0 ? deltaFin / adm_mm : 0,
+      ref: 'CTE DB-SE 4.3.3 · EN 1995-1-1 §2.2.3',
+      combo: formatCombo(cpFactors),
+    }]);
+  }
+
+  // ── Ficha: material + pandeo del combo pésimo ─────────────────────────────
+  const detailGroups: DetailGroup2D[] = [];
+  if (engBest) {
+    const e = engBest.res;
+    detailGroups.push({
+      title: `Material y resistencias — combo pésimo: ${engBest.label}`,
+      rows: [
+        {
+          label: 'Clase resistente',
+          value: `${grade.label} (${grade.type === 'glulam' ? 'laminada encolada' : 'aserrada'})`,
+        },
+        {
+          label: `kmod (clase de servicio ${sec.serviceClass}, duración ${DURATION_LABEL[engBest.duration]})`,
+          value: e.kmod.toFixed(2),
+        },
+        { label: 'γM', value: e.gammaM.toFixed(2) },
+        { label: 'kh (factor de tamaño)', value: e.kh.toFixed(3) },
+        {
+          label: 'fm,d (con kh) / fc0,d / ft0,d / fv,d',
+          value: `${e.fm_d.toFixed(2)} / ${e.fc0_d.toFixed(2)} / ${e.ft0_d.toFixed(2)} / ${e.fv_d.toFixed(2)} N/mm²`,
+        },
+      ],
+    });
+    detailGroups.push({
+      title: 'Pandeo y vuelco lateral',
+      rows: [
+        { label: 'Lef en el plano (β = 1, no traslacional + αcr)', value: `${L.toFixed(2)} m` },
+        {
+          label: 'Lef fuera del plano / vuelco',
+          value: `${Lb.toFixed(2)} m${braceable ? (m.ltbSpacing !== undefined ? ' (arriostrada por correas)' : ' (sin arriostrar = L)') : ''}`,
+        },
+        { label: 'λrel,y / kc,y (plano)', value: `${e.lambda_rel_y.toFixed(2)} / ${e.kc_y.toFixed(3)}` },
+        { label: 'λrel,z / kc,z (fuera del plano)', value: `${e.lambda_rel_z.toFixed(2)} / ${e.kc_z.toFixed(3)}` },
+        {
+          label: 'σm,crit / λrel,m / kcrit (vuelco lateral)',
+          value: `${e.sigma_m_crit.toFixed(1)} N/mm² / ${e.lambda_rel_m.toFixed(2)} / ${e.kcrit.toFixed(3)}`,
+        },
+      ],
+    });
   }
 
   return { rows: Array.from(agg.values()), incomplete, detailGroups };

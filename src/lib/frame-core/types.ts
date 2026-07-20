@@ -58,6 +58,21 @@ export interface ArmadoHA {
 }
 
 /**
+ * Rectangular timber section for FEM 2D members (madera aserrada o laminada).
+ * b/h in mm (the timber module's canonical unit — free escuadrías, no catalog);
+ * h is the in-plane bending depth. The strength class id indexes
+ * data/timberGrades (C14…C40, D30…D70, GL24h…GL32h); serviceClass is the EC5
+ * clase de servicio (1 interior seco · 2 cubierto · 3 exterior expuesto) and
+ * drives kmod (with the combination's load duration) and kdef (deflection).
+ */
+export interface TimberSection {
+  gradeId: string;
+  b: number; // mm — ancho (fuera del plano)
+  h: number; // mm — canto (en el plano del pórtico)
+  serviceClass: 1 | 2 | 3;
+}
+
+/**
  * Rectangular RC column cage — the reinforcement model calcRCColumn expects
  * (4 corner bars always present + optional intermediate bars per face pair).
  * A column cage is NOT expressible as the vano/apoyo ArmadoHA pair (eng-review

@@ -136,15 +136,17 @@ function invalidResult(error: string): TimberColumnResult {
   };
 }
 
-// Compute kc buckling reduction factor from λrel and βc (EC5 §6.3.2)
-function calcKc(lambda_rel: number, betaC: number): number {
+// Compute kc buckling reduction factor from λrel and βc (EC5 §6.3.2).
+// Exported: timberFrameMember.ts (FEM 2D) reuses the exact same reduction.
+export function calcKc(lambda_rel: number, betaC: number): number {
   if (lambda_rel <= 0.3) return 1.0;
   const k = 0.5 * (1 + betaC * (lambda_rel - 0.3) + lambda_rel * lambda_rel);
   return 1 / (k + Math.sqrt(k * k - lambda_rel * lambda_rel));
 }
 
-// Compute relative slenderness for column buckling (EC5 §6.3.2)
-function calcLambdaRel(lambda: number, fc0_k: number, E0_05_Nmm2: number): number {
+// Compute relative slenderness for column buckling (EC5 §6.3.2).
+// Exported: timberFrameMember.ts (FEM 2D) reuses it.
+export function calcLambdaRel(lambda: number, fc0_k: number, E0_05_Nmm2: number): number {
   return (lambda / Math.PI) * Math.sqrt(fc0_k / E0_05_Nmm2);
 }
 

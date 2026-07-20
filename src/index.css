@@ -221,6 +221,9 @@ html, body { overflow-x: hidden; }
      rasterizado no resuelve var(): usa el espejo hex DIAG_*_PDF de canvasTheme. */
   --color-fem2d-diag-pos: #2563eb;  /* valores positivos — blue-600 */
   --color-fem2d-diag-neg: #dc2626;  /* valores negativos — red-600 */
+  /* FEM 2D banda de material madera (tono madera fijo; la banda HA usa el
+     color del veredicto). El PDF rasterizado usa TIMBER_BAND_PDF. */
+  --color-fem2d-timber: #a16207;    /* yellow-700 — madera sobre lienzo blanco */
   --color-scrollbar: #94a3b8;       /* slate-400 — visible but not heavy on white */
   --color-scrollbar-hover: #64748b;
 }
@@ -311,6 +314,7 @@ html[data-theme="dark"] {
   /* N/V/M diagram bands by sign — bright pair for the near-black canvas. */
   --color-fem2d-diag-pos: #38bdf8;   /* positivos — sky-400 (el azul de siempre) */
   --color-fem2d-diag-neg: #f87171;   /* negativos — red-400 */
+  --color-fem2d-timber: #d4a373;     /* banda madera — tan cálido sobre Ónice */
   --color-scrollbar: #34343c;        /* visible on the near-black page */
   --color-scrollbar-hover: #4b4f59;
 }

@@ -16,7 +16,7 @@ import { showToast } from '../../components/ui/Toast';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { computeAlignments, moveAlignmentGap, type Axis2D } from './alignments';
 import type { Fem2DCheckBundle } from './checks';
-import { computeLoadStackCounts, computeLoadStacks, fitMarginFor, strokeFor } from './canvasTheme';
+import { computeLoadStackCounts, computeLoadStacks, fitMarginFor, strokeFor, timberBandColor } from './canvasTheme';
 import { LoadGlyph, ReleaseHingeGlyphs, SupportGlyph } from './canvasGlyphs';
 import { hitTest, selectInRect } from './hitTest';
 import {
@@ -377,6 +377,17 @@ export function Fem2DEditorCanvas({
             strokeWidth={7.5}
             strokeLinecap="round"
             strokeOpacity={0.25}
+          />
+        )}
+        {m.material === 'timber' && (
+          // Madera: banda ancha en tono madera fijo — el material se reconoce
+          // de un vistazo (misma banda que el lienzo de solo lectura).
+          <line
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke={isSel ? 'var(--color-accent)' : timberBandColor(false)}
+            strokeWidth={7.5}
+            strokeLinecap="round"
+            strokeOpacity={0.38}
           />
         )}
         <line

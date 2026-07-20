@@ -15,10 +15,14 @@
 //   b·h [m²]  = b[cm]·h[cm] × 1e-4
 //   q_sw [kN/m] = γ [kN/m³] × A [m²]
 
-import type { RcSection } from './types';
+import { getTimberGrade } from '../../data/timberGrades';
+import { STEEL_SECTION_ENTRIES } from '../sections/catalog';
+import type { RcSection, TimberSection } from './types';
 
 export const GAMMA_CONCRETE = 25;   // kN/m³
 export const GAMMA_STEEL = 78.5;    // kN/m³
+/** g para pasar ρ_mean (kg/m³) a peso (kN/m³) — mismo valor que units/catalog. */
+const GRAVITY = 9.80665; // m/s²
 
 export interface SteelProfileData {
   name: string;                     // canonical display name ('IPE 240', …)
@@ -29,25 +33,31 @@ export interface SteelProfileData {
   /** cm⁴ — MINOR/minimum axis, for flexural buckling of axial members (the
    *  fem2d two-force check). For L angles this is the v-v minimum axis (an
    *  L 80×8 buckles about v-v at i≈1.55 cm — using the major I would
-   *  overestimate capacity ~2.5×). Standard table values. */
+   *  overestimate capacity ~2.5×). For 2UPN boxes Iz_box can EXCEED Iy, so
+   *  the derivation stores the minimum of both axes. */
   Iz: number;
   fy: number;                       // MPa (S275 default)
   gamma: number;                    // partial factor γ_M0
 }
 
-/** Shared rolled-profile catalog. Major-axis values moved verbatim from the
- *  1D MAT; Iz added for the fem2d axial buckling check. */
-export const STEEL_CATALOG: Record<string, SteelProfileData> = {
-  steel_IPE200: { name: 'IPE 200', role: 'viga',  E: 210000, A: 28.5, I: 1943,  Iz: 142.4, fy: 275, gamma: 1.05 },
-  steel_IPE240: { name: 'IPE 240', role: 'viga',  E: 210000, A: 39.1, I: 3892,  Iz: 283.6, fy: 275, gamma: 1.05 },
-  steel_IPE300: { name: 'IPE 300', role: 'viga',  E: 210000, A: 53.8, I: 8356,  Iz: 603.8, fy: 275, gamma: 1.05 },
-  steel_IPE360: { name: 'IPE 360', role: 'viga',  E: 210000, A: 72.7, I: 16270, Iz: 1043,  fy: 275, gamma: 1.05 },
-  steel_HEB160: { name: 'HEB 160', role: 'pilar', E: 210000, A: 54.3, I: 2492,  Iz: 889.2, fy: 275, gamma: 1.05 },
-  steel_HEB200: { name: 'HEB 200', role: 'pilar', E: 210000, A: 78.1, I: 5696,  Iz: 2003,  fy: 275, gamma: 1.05 },
-  steel_HEB240: { name: 'HEB 240', role: 'pilar', E: 210000, A: 106,  I: 11260, Iz: 3923,  fy: 275, gamma: 1.05 },
-  steel_HEB300: { name: 'HEB 300', role: 'pilar', E: 210000, A: 149,  I: 25170, Iz: 8563,  fy: 275, gamma: 1.05 },
-  steel_L80x8:  { name: 'L 80×8',  role: 'viga',  E: 210000, A: 12.3, I: 73.7,  Iz: 29.5,  fy: 275, gamma: 1.05 },
-};
+/** Shared profile catalog — DERIVED from the unified named registry
+ *  (lib/sections/catalog.ts). The 9 historic literal keys (steel_IPE…,
+ *  steel_HEB…, steel_L80x8) resolve to identical values (suite-guarded);
+ *  every other UI-reachable key (full IPE/HEA/HEB/IPN series, 2UPN, SHS/RHS/
+ *  CHS tubes) now resolves too — a missing key used to yield silent
+ *  EI = 0 bars in the 1D solver. */
+export const STEEL_CATALOG: Record<string, SteelProfileData> = Object.fromEntries(
+  STEEL_SECTION_ENTRIES.map((e) => [e.key, {
+    name: e.label,
+    role: e.role,
+    E: 210000,
+    A: e.A,
+    I: e.Iy,
+    Iz: Math.min(e.Iy, e.Iz),
+    fy: 275,
+    gamma: 1.05,
+  }]),
+);
 
 export interface SectionStiffness {
   EA: number; // kN
@@ -94,4 +104,28 @@ export function steelSelfWeight(profileKey: string): number {
   const p = STEEL_CATALOG[profileKey];
   if (!p) return 0;
   return GAMMA_STEEL * p.A * 1e-4;
+}
+
+/** Timber section stiffness — E0,mean de la clase resistente (análisis
+ *  elástico de esfuerzos, EC5 §2.2.2), sección bruta b×h en mm. null cuando
+ *  la clase no existe en el catálogo. */
+export function timberStiffness(sec: TimberSection): SectionStiffness | null {
+  const g = getTimberGrade(sec.gradeId);
+  if (!g) return null;
+  const E_MPa = g.E0_mean * 1000;             // kN/mm² → MPa
+  const I_m4 = (sec.b * Math.pow(sec.h, 3)) / 12 * 1e-12; // mm⁴ → m⁴
+  const A_m2 = sec.b * sec.h * 1e-6;          // mm² → m²
+  return {
+    EI: E_MPa * 1e3 * I_m4,
+    EA: E_MPa * 1e3 * A_m2,
+  };
+}
+
+/** Self-weight per unit length (positive magnitude, kN/m) con ρ_mean de la
+ *  clase. 0 if the grade is unknown. */
+export function timberSelfWeight(sec: TimberSection): number {
+  const g = getTimberGrade(sec.gradeId);
+  if (!g) return 0;
+  const gamma = (g.rho_mean * GRAVITY) / 1000; // kg/m³ → kN/m³
+  return gamma * sec.b * sec.h * 1e-6;
 }

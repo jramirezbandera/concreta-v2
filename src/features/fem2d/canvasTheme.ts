@@ -66,6 +66,17 @@ export function diagColorFor(sign: number, pdf: boolean): string {
   return sign < 0 ? (pdf ? DIAG_NEG_PDF : DIAG_NEG) : (pdf ? DIAG_POS_PDF : DIAG_POS);
 }
 
+// Banda de material MADERA (barras timber): tono madera FIJO — a diferencia de
+// la banda HA (que replica el color del veredicto), aquí el color identifica el
+// material de un vistazo en un modelo mixto. Mismo split token/hex-PDF.
+export const TIMBER_BAND = 'var(--color-fem2d-timber)';
+export const TIMBER_BAND_PDF = '#a16207';
+
+/** Colour of the material band for timber members. */
+export function timberBandColor(pdf: boolean): string {
+  return pdf ? TIMBER_BAND_PDF : TIMBER_BAND;
+}
+
 // Load glyph geometry (px). Shared by canvasGlyphs (drawing) and hitTest
 // (clicking) so the clickable area always matches the drawn arrows.
 export const POINT_ARROW_LEN = 26;  // point/node load arrow length

@@ -151,9 +151,11 @@ export function describeModel(model: Fem2DModel, system: UnitSystem): ParamSecti
   for (const m of model.members) {
     const desc = m.material === 'rc' && m.rcSection
       ? `${m.rcSection.b}×${m.rcSection.h} cm HA-${m.rcSection.fck}`
-      : m.steelSelection
-        ? `${profileName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
-        : 'HA';
+      : m.material === 'timber' && m.timberSection
+        ? `${m.timberSection.gradeId} ${m.timberSection.b}×${m.timberSection.h} mm`
+        : m.material === 'steel' && m.steelSelection
+          ? `${profileName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
+          : m.material === 'timber' ? 'madera' : 'HA';
     const set = byRole.get(m.role) ?? new Set<string>();
     set.add(desc);
     byRole.set(m.role, set);

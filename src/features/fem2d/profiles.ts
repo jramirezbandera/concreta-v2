@@ -1,10 +1,26 @@
-// FEM 2D — profile option lists for selects (template forms + member inspector).
+// FEM 2D — profile family lists for the two-step selects (template forms +
+// member inspector). The registry helpers (familyOfKey / nearestInFamily /
+// steelEntriesByFamily) live in lib/sections/catalog.ts and are re-exported
+// here so fem2d components keep a single local import.
 //
-// Bending members (columns/beams/chords) take an I/H profile; angles (L) are
-// axial-only and belong to the web/two-force selector. IPN is kept out of the
-// column engine upstream but is valid geometry, so it stays selectable.
+// Bending members (beam-column: pilares/vigas/cordones) accept every family
+// with a ColumnBeamSection adapter (I/H, 2UPN, SHS/RHS/CHS). Angles (L) are
+// axial-only and belong to the two-force selector exclusively — the bending
+// engines reject them (contrato F1: pending, never green).
 
-import { STEEL_CATALOG } from '../../lib/frame-core/sections';
+import { STEEL_FAMILIES, type SteelFamily } from '../../lib/sections';
 
-export const BENDING_PROFILES = Object.keys(STEEL_CATALOG).filter((k) => /_(IPE|HEB|HEA|IPN)\d/.test(k));
-export const ALL_PROFILES = Object.keys(STEEL_CATALOG);
+export {
+  familyOfKey,
+  getSteelEntry,
+  nearestInFamily,
+  steelEntriesByFamily,
+} from '../../lib/sections';
+export type { SteelFamily, SteelCatalogEntry } from '../../lib/sections';
+
+/** Families offered on beam-column members (bending engines route them). */
+export const BENDING_FAMILIES: readonly SteelFamily[] =
+  STEEL_FAMILIES.filter((f) => f !== 'L');
+
+/** Families offered on two-force members (axial check only needs A + Iz). */
+export const AXIAL_FAMILIES: readonly SteelFamily[] = STEEL_FAMILIES;

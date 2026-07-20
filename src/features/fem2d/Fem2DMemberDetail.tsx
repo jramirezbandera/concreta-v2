@@ -174,7 +174,7 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClo
     : member.releases.j ? 'en j'
     : 'sin rótulas';
 
-  const showLtb = member.material === 'steel'
+  const showLtb = member.material !== 'rc'
     && member.elementType === 'beam-column'
     && (member.role === 'viga' || member.role === 'cordon');
 

@@ -28,6 +28,7 @@ import type {
   RcSection,
   Steel2DSelection,
   Support2DType,
+  TimberSection,
   UseCategoryCode,
 } from './types';
 
@@ -47,6 +48,7 @@ interface MemberOpts {
   role?: MemberRole;
   steelSelection?: Steel2DSelection;
   rcSection?: RcSection;
+  timberSection?: TimberSection;
   releases?: { i: boolean; j: boolean };
   ltbSpacing?: number;
 }
@@ -59,7 +61,7 @@ function member(
   defaultRole: MemberRole,
   opts: MemberOpts = {},
 ): Fem2DMember {
-  const material = opts.rcSection ? 'rc' : 'steel';
+  const material = opts.rcSection ? 'rc' : opts.timberSection ? 'timber' : 'steel';
   return {
     id,
     i,
@@ -67,8 +69,9 @@ function member(
     role: opts.role ?? defaultRole,
     elementType,
     material,
-    steelSelection: opts.rcSection ? undefined : (opts.steelSelection ?? { ...DEFAULT_STEEL_2D }),
+    steelSelection: material === 'steel' ? (opts.steelSelection ?? { ...DEFAULT_STEEL_2D }) : undefined,
     rcSection: opts.rcSection,
+    timberSection: opts.timberSection,
     releases: opts.releases ?? { i: false, j: false },
     ltbSpacing: opts.ltbSpacing,
   };
@@ -231,6 +234,9 @@ export function validateModel2DBasic(model: Fem2DModel): ModelError[] {
     }
     if (m.material === 'rc' && !m.rcSection) {
       errors.push(fail('MEMBER_SECTION_MISSING', `Barra ${m.id}: material HA sin sección.`));
+    }
+    if (m.material === 'timber' && !m.timberSection) {
+      errors.push(fail('MEMBER_SECTION_MISSING', `Barra ${m.id}: material madera sin sección.`));
     }
   }
 

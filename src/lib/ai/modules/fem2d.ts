@@ -34,10 +34,12 @@
  *   añade las reacciones por apoyo (envolvente ELU multi-principal).
  *   El rol admite 'auto' (inferencia geométrica ±10° → pilar, como el editor).
  * - El CHAT solo edita barras de ACERO (el límite duro de 16 uniones de
- *   Anthropic impide añadir los campos HA al schema): una barra HA existente
- *   se conserva COMPLETA (sección + armado, comprobada por sus motores) si no
- *   se toca su perfil; darle perfil/acero la convierte a acero con aviso. El
- *   hormigón se edita en el inspector del lienzo.
+ *   Anthropic impide añadir los campos HA — o los de madera — al schema): una
+ *   barra HA o de MADERA existente se conserva COMPLETA (sección + armado HA /
+ *   timberSection, comprobada por sus motores) si no se toca su perfil; darle
+ *   perfil/acero la convierte a acero con aviso. El hormigón y la madera se
+ *   editan en el inspector del lienzo (contexto solo-lectura barras_ha /
+ *   barras_madera en el snapshot).
  * - Patrón plantilla (masonry/FEM 1D): `modelo_de_plantilla` marca que lo que
  *   ve el modelo es una semilla de la app, no datos del usuario. Cualquier
  *   cambio estructural aplicado estampa `templateId: 'custom'` (la misma
@@ -235,7 +237,7 @@ const PROMPT_RULES = `Reglas específicas del módulo FEM 2D (pórticos y cercha
 8. HIPÓTESIS: G/Q/W/S/E por carga, con valores CARACTERÍSTICOS sin mayorar (la app aplica γ y ψ, las combinaciones multi-principal y la amplificación de 2º orden vía αcr). "categoria_uso" (CTE Tabla 3.1) solo con Q; si el usuario no la da, usa B con un aviso "Sugerencia:".
 9. PESO PROPIO: con peso_propio = true el programa añade solo el peso de cada barra como carga G — no lo dupliques en "cargas". Si el usuario da una "carga total", pregunta si incluye el peso propio.
 10. RÓTULAS: "rotulas" libera el momento en los extremos de una viga-columna ("i" = en nudo_i, "j" = en nudo_j, "ambas", "ninguna"; null = conservar). Úsalas para modelar uniones articuladas (viga apoyada entre pilares, correa continua…). Una biela ya es biarticulada por formulación: no le pongas rotulas. No crees mecanismos: una barra con rótulas en ambos extremos necesita que ALGO estabilice sus nudos (el solver descarta la propuesta si queda un mecanismo).
-11. HORMIGÓN: las barras HA se COMPRUEBAN con su sección y armado, pero el chat NO puede editarlos (se hace en el inspector del lienzo — remite ahí al usuario). Una barra HA se conserva intacta si no tocas su perfil; darle "perfil"/"acero" la CONVIERTE a acero (hazlo solo si el usuario lo pide explícitamente).
+11. HORMIGÓN Y MADERA: las barras HA y de madera se COMPRUEBAN con su sección (y armado en HA), pero el chat NO puede editarlas (se hace en el inspector del lienzo — remite ahí al usuario). Una barra HA o de madera se conserva intacta si no tocas su perfil; darle "perfil"/"acero" la CONVIERTE a acero (hazlo solo si el usuario lo pide explícitamente). Una biela puede ser de acero o de madera, nunca de hormigón.
 12. Si "modelo_de_plantilla" es true, TODO lo que ves (geometría, apoyos, cargas, perfiles) es una plantilla de la aplicación, NO datos del usuario: pregúntalos antes de dar por bueno ningún veredicto.
 13. Si una propuesta estructural se descartó con un motivo del validador o del solver (mecanismo, apoyos insuficientes, biela con carga en barra…), corrígela en el turno siguiente — no la repitas igual.`;
 
@@ -523,7 +525,10 @@ function fmtNudos(nudos: readonly NudoProj[]): string {
 }
 
 function fmtBarra(b: BarraProj): string {
-  const perfil = b.perfil !== null ? `${b.perfil}${b.acero !== null ? ` ${b.acero}` : ''}` : 'HA';
+  // perfil null = sección no editable por chat (HA o madera — el payload no
+  // distingue el material sin coste de unión; el contexto barras_ha /
+  // barras_madera del snapshot sí).
+  const perfil = b.perfil !== null ? `${b.perfil}${b.acero !== null ? ` ${b.acero}` : ''}` : 'HA/madera';
   const biela = b.tipo === 'biela' ? ' biela' : '';
   const correas = b.correas_m > 0 ? ` correas ${b.correas_m} m` : '';
   const rotulas = b.rotulas !== 'ninguna' ? ` rótula ${b.rotulas === 'ambas' ? 'i+j' : b.rotulas}` : '';
@@ -802,17 +807,25 @@ function mapBarras(
     // --- Material / perfil ---
     let material: Fem2DMember['material'] = 'steel';
     let steelSelection: Fem2DMember['steelSelection'];
-    // La sección y el armado HA se ARRASTRAN siempre desde prev (también al
-    // convertir a acero): son datos del usuario editados en el inspector y el
-    // chat no puede reconstruirlos — perderlos sería destructivo.
+    // La sección y el armado HA — y la sección de madera — se ARRASTRAN siempre
+    // desde prev (también al convertir a acero): son datos del usuario editados
+    // en el inspector y el chat no puede reconstruirlos — perderlos sería
+    // destructivo.
     const rcSection = prev?.rcSection;
+    const timberSection = prev?.timberSection;
     if (prev !== null && prev.material === 'rc' && it.perfil === null && it.acero === null) {
       // Barra HA existente sin tocar su perfil: sigue siendo HA y se comprueba
       // con su sección+armado actuales (el chat no edita el hormigón).
       if (tipo === 'biela') {
-        return `Barra ${n}: una biela no puede ser de hormigón (sin motor axil HA) — dale un perfil de acero o déjala como viga-columna`;
+        return `Barra ${n}: una biela no puede ser de hormigón (sin motor axil HA) — dale un perfil de acero, pásala a madera o déjala como viga-columna`;
       }
       material = 'rc';
+      steelSelection = prev.steelSelection; // restaurable si vuelve a acero
+    } else if (prev !== null && prev.material === 'timber' && it.perfil === null && it.acero === null) {
+      // Barra de MADERA existente sin tocar su perfil: sigue siendo madera y
+      // se comprueba con su sección actual (el chat no edita la madera, mismo
+      // patrón que el HA). Una biela de madera SÍ está soportada (axil EC5).
+      material = 'timber';
       steelSelection = prev.steelSelection; // restaurable si vuelve a acero
     } else {
       const prevSteel = prev !== null && prev.material === 'steel' ? prev.steelSelection : undefined;
@@ -832,6 +845,8 @@ function mapBarras(
       steelSelection = sel;
       if (prev !== null && prev.material === 'rc') {
         warnings.push(`Barra ${n} pasa de hormigón a acero (${perfilName(sel.profileKey)} ${sel.steel}).`);
+      } else if (prev !== null && prev.material === 'timber') {
+        warnings.push(`Barra ${n} pasa de madera a acero (${perfilName(sel.profileKey)} ${sel.steel}).`);
       } else if (prev === null && it.perfil === null) {
         warnings.push(`Barra ${n} (nueva): hereda el perfil ${perfilName(sel.profileKey)} ${sel.steel} — revísalo.`);
       }
@@ -890,6 +905,7 @@ function mapBarras(
       material,
       steelSelection,
       ...(rcSection !== undefined ? { rcSection } : {}),
+      ...(timberSection !== undefined ? { timberSection } : {}),
       ...(prev?.vanoArmado !== undefined ? { vanoArmado: prev.vanoArmado } : {}),
       ...(prev?.apoyoArmado !== undefined ? { apoyoArmado: prev.apoyoArmado } : {}),
       ...(prev?.columnCage !== undefined ? { columnCage: prev.columnCage } : {}),
@@ -1323,6 +1339,17 @@ function buildSnapshot2D(c: Fem2DModel): string {
     });
   if (haPendientes.length > 0) valores.barras_ha = haPendientes;
 
+  const maderaPendientes = c.members
+    .map((m, k) => ({ m, k }))
+    .filter(({ m }) => m.material === 'timber')
+    .map(({ m, k }) => {
+      const sec = m.timberSection
+        ? `${m.timberSection.gradeId} ${m.timberSection.b}×${m.timberSection.h} mm, clase de servicio ${m.timberSection.serviceClass}`
+        : 'sin sección';
+      return `Barra ${k + 1} es de madera (${sec}): se comprueba con esa sección EC5, pero el chat no puede editarla (solo el inspector del lienzo)`;
+    });
+  if (maderaPendientes.length > 0) valores.barras_madera = maderaPendientes;
+
   // sin_confirmar: claves cuya proyección coincide con la plantilla semilla.
   // templateId 'custom' ⇒ todo se considera ESTABLECIDO (lista vacía).
   const baseline = presetBaseline(c);
@@ -1354,9 +1381,11 @@ const ROL_LABEL: Record<MemberRole, string> = {
 function memberDesc(m: Fem2DMember, index: number): string {
   const perfil = m.material === 'rc'
     ? (m.rcSection ? `HA ${m.rcSection.b}×${m.rcSection.h}` : 'HA')
-    : m.steelSelection !== undefined
-      ? `${perfilName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
-      : 'acero';
+    : m.material === 'timber'
+      ? (m.timberSection ? `${m.timberSection.gradeId} ${m.timberSection.b}×${m.timberSection.h}` : 'madera')
+      : m.steelSelection !== undefined
+        ? `${perfilName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
+        : 'acero';
   return `Barra ${index + 1} '${m.id}' (${ROL_LABEL[m.role]} ${perfil})`;
 }
 
@@ -1478,7 +1507,7 @@ export function summarizeFem2DResults(
   if (bundle.status === 'pending') {
     const motivo = model.members.length === 0
       ? 'el modelo no tiene barras'
-      : 'hay barras sin comprobar (armado HA sin definir, viga HA comprimida esbelta λ > λ_lim — compruébala como pilar —, rol o perfil no soportado)';
+      : 'hay barras sin comprobar (armado HA o sección de madera sin definir, viga HA comprimida esbelta λ > λ_lim — compruébala como pilar —, rol o perfil no soportado)';
     return {
       verdict: 'invalid',
       text: `PENDIENTE: ${motivo} — el veredicto global no está disponible todavía.\n${summary.text}`,

@@ -19,7 +19,7 @@
 import { useMemo, type JSX } from 'react';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { Fem2DCheckBundle, Fem2DComboId } from './checks';
-import { computeLoadStackCounts, computeLoadStacks, fitMarginFor, strokeFor } from './canvasTheme';
+import { computeLoadStackCounts, computeLoadStacks, fitMarginFor, strokeFor, timberBandColor } from './canvasTheme';
 import { DeformedLayer, DiagramLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph } from './canvasGlyphs';
 import { computeDeformedShape } from './deformed';
 import type { Solver2DElementResult } from './solver2d';
@@ -76,6 +76,17 @@ export function Fem2DCanvas({
             strokeWidth={7}
             strokeLinecap="round"
             strokeOpacity={dim ? 0.12 : 0.25}
+          />
+        )}
+        {m.material === 'timber' && (
+          // Timber members: same wide band, but in a FIXED wood tone so the
+          // material reads at a glance in a mixed model.
+          <line
+            x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)}
+            stroke={timberBandColor(pdf)}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeOpacity={dim ? 0.18 : 0.38}
           />
         )}
         <line

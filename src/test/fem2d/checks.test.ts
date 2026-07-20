@@ -696,6 +696,7 @@ describe('cortante de pilar', () => {
 
     const direct = calcSteelBeam({
       title: '', tipo: 'HEB', size: 160, steel: 'S275', beamType: 'ss',
+      chs_D: 0, chs_t: 0, rhs_h: 0, rhs_b: 0, rhs_t: 0, tube_process: 'cold-formed',
       MEd: 0, VEd: 27, VEd_interaction: 0, Lcr: 3000, Mser: 0, L: 3000,
       deflLimit: 300, elsCombo: 'characteristic', useCategory: 'B', gk: 0, qk: 0, bTrib: 1,
     });
@@ -851,6 +852,7 @@ describe('ficha — detail (datos + intermedios del motor)', () => {
     const match = sel.profileKey.match(/^steel_(IPE|HEA|HEB|IPN)(\d+)$/)!;
     const eng = calcSteelBeam({
       title: '', tipo: match[1] as 'IPE', size: Number(match[2]), steel: sel.steel,
+      chs_D: 0, chs_t: 0, rhs_h: 0, rhs_b: 0, rhs_t: 0, tube_process: 'cold-formed',
       beamType: 'ss', MEd: 1, VEd: 0, VEd_interaction: 0, Lcr: 1000, Mser: 0,
       L: 6000, deflLimit: 300, elsCombo: 'characteristic', useCategory: 'B',
       gk: 0, qk: 0, bTrib: 1,

@@ -7,16 +7,22 @@
 // Fem2DUiState draft — never touches the live model (the dialog builds the
 // model on confirm via buildModelFromState).
 //
-// Also exports the profile option lists (BENDING_PROFILES / ALL_PROFILES) —
-// the member inspector reuses them for the perfil select.
+// Profile selection is the shared two-step familia+tamaño pattern (family
+// lists live in ./profiles) — the member inspector mirrors it.
 
 import type { JSX } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
-import { STEEL_CATALOG } from '../../lib/frame-core/sections';
-import { ALL_PROFILES, BENDING_PROFILES } from './profiles';
+import {
+  AXIAL_FAMILIES,
+  BENDING_FAMILIES,
+  familyOfKey,
+  nearestInFamily,
+  steelEntriesByFamily,
+  type SteelFamily,
+} from './profiles';
 import { FEM2D_TEMPLATES, type GableParams, type MultistoryParams, type PortalFrameParams, type PrattTrussParams } from './templates';
 import { TEMPLATE_ORDER, type Fem2DUiState } from './uiState';
 import type { Fem2DTemplateId } from './types';
@@ -67,8 +73,40 @@ function LabeledSelect({
   );
 }
 
-function profileOptions(keys: string[]) {
-  return keys.map((k) => ({ value: k, label: STEEL_CATALOG[k].name }));
+/** Two-step familia + tamaño profile selector (same pattern as the member
+ *  inspector). Switching family snaps to the nearest-stiffness entry. */
+function ProfilePairSelect({ idBase, label, help, value, onChange, axial = false }: {
+  idBase: string;
+  label: string;
+  help?: string;
+  value: string;
+  onChange: (key: string) => void;
+  /** true = two-force selector (adds the L family). */
+  axial?: boolean;
+}): JSX.Element {
+  const families = axial ? AXIAL_FAMILIES : BENDING_FAMILIES;
+  const current = familyOfKey(value);
+  const famOptions = current && !families.includes(current) ? [current, ...families] : families;
+  const fam = current ?? families[0];
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      <LabeledSelect
+        id={`${idBase}-fam`}
+        label={label}
+        help={help}
+        value={fam}
+        onChange={(f) => onChange(nearestInFamily(f as SteelFamily, value).key)}
+        options={famOptions.map((f) => ({ value: f, label: f }))}
+      />
+      <LabeledSelect
+        id={`${idBase}-size`}
+        label="Tamaño"
+        value={value}
+        onChange={onChange}
+        options={steelEntriesByFamily(fam).map((e) => ({ value: e.key, label: e.sizeLabel }))}
+      />
+    </div>
+  );
 }
 
 // ── Per-template forms ────────────────────────────────────────────────────────
@@ -82,8 +120,8 @@ function PortalForm({ p, set }: { p: PortalFrameParams; set: (patch: Partial<Por
         <LabeledSelect id="fem2d-portal-base" label="Base" help="Empotrada o articulada en los arranques de pilar." value={p.baseFixity} onChange={(v) => set({ baseFixity: v as PortalFrameParams['baseFixity'] })} options={FIXITY_OPTIONS} />
       </CollapsibleSection>
       <CollapsibleSection label="Perfiles" refNorma="CE Anejo 22">
-        <LabeledSelect id="fem2d-portal-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
-        <LabeledSelect id="fem2d-portal-beam" label="Dintel" value={p.beamProfileKey} onChange={(v) => set({ beamProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
+        <ProfilePairSelect idBase="fem2d-portal-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} />
+        <ProfilePairSelect idBase="fem2d-portal-beam" label="Dintel" value={p.beamProfileKey} onChange={(v) => set({ beamProfileKey: v })} />
         <LabeledSelect id="fem2d-portal-steel" label="Acero" value={p.steel} onChange={(v) => set({ steel: v as PortalFrameParams['steel'] })} options={STEEL_OPTIONS} />
         <UnitNumberInput label="s" sub="correas (arriostr. ala)" unit="m" help="Separación de correas que arriostran el ala comprimida del dintel (limita el pandeo lateral)." value={p.beamLtbSpacing} onChange={(n) => set({ beamLtbSpacing: n })} min={0.1} max={30} />
       </CollapsibleSection>
@@ -106,8 +144,8 @@ function GableForm({ p, set }: { p: GableParams; set: (patch: Partial<GableParam
         <LabeledSelect id="fem2d-gable-base" label="Base" value={p.baseFixity} onChange={(v) => set({ baseFixity: v as GableParams['baseFixity'] })} options={FIXITY_OPTIONS} />
       </CollapsibleSection>
       <CollapsibleSection label="Perfiles" refNorma="CE Anejo 22">
-        <LabeledSelect id="fem2d-gable-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
-        <LabeledSelect id="fem2d-gable-rafter" label="Faldón" value={p.rafterProfileKey} onChange={(v) => set({ rafterProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
+        <ProfilePairSelect idBase="fem2d-gable-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} />
+        <ProfilePairSelect idBase="fem2d-gable-rafter" label="Faldón" value={p.rafterProfileKey} onChange={(v) => set({ rafterProfileKey: v })} />
         <LabeledSelect id="fem2d-gable-steel" label="Acero" value={p.steel} onChange={(v) => set({ steel: v as GableParams['steel'] })} options={STEEL_OPTIONS} />
         <UnitNumberInput label="s" sub="correas (arriostr. faldón)" unit="m" value={p.rafterLtbSpacing} onChange={(n) => set({ rafterLtbSpacing: n })} min={0.1} max={30} />
       </CollapsibleSection>
@@ -146,8 +184,8 @@ function MultistoryForm({ p, set }: { p: MultistoryParams; set: (patch: Partial<
         <LabeledSelect id="fem2d-multi-base" label="Base" value={p.baseFixity} onChange={(v) => set({ baseFixity: v as MultistoryParams['baseFixity'] })} options={FIXITY_OPTIONS} />
       </CollapsibleSection>
       <CollapsibleSection label="Perfiles" refNorma="CE Anejo 22">
-        <LabeledSelect id="fem2d-multi-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
-        <LabeledSelect id="fem2d-multi-beam" label="Viga" value={p.beamProfileKey} onChange={(v) => set({ beamProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
+        <ProfilePairSelect idBase="fem2d-multi-col" label="Pilar" value={p.columnProfileKey} onChange={(v) => set({ columnProfileKey: v })} />
+        <ProfilePairSelect idBase="fem2d-multi-beam" label="Viga" value={p.beamProfileKey} onChange={(v) => set({ beamProfileKey: v })} />
         <LabeledSelect id="fem2d-multi-steel" label="Acero" value={p.steel} onChange={(v) => set({ steel: v as MultistoryParams['steel'] })} options={STEEL_OPTIONS} />
         <UnitNumberInput label="s" sub="arriostr. ala vigas" unit="m" value={p.beamLtbSpacing} onChange={(n) => set({ beamLtbSpacing: n })} min={0.1} max={30} />
       </CollapsibleSection>
@@ -172,8 +210,8 @@ function PrattForm({ p, set }: { p: PrattTrussParams; set: (patch: Partial<Pratt
         <UnitNumberInput label="n" sub="paneles (par)" value={p.nPanels} onChange={(n) => set({ nPanels: n })} integer min={4} max={12} step={2} clamp unit="ud" help="Número de paneles (par, 4–12)." />
       </CollapsibleSection>
       <CollapsibleSection label="Perfiles" refNorma="CE Anejo 22">
-        <LabeledSelect id="fem2d-pratt-chord" label="Cordones" value={p.chordProfileKey} onChange={(v) => set({ chordProfileKey: v })} options={profileOptions(BENDING_PROFILES)} />
-        <LabeledSelect id="fem2d-pratt-web" label="Celosía" help="Diagonales y montantes (solo axil): admite angulares L." value={p.webProfileKey} onChange={(v) => set({ webProfileKey: v })} options={profileOptions(ALL_PROFILES)} />
+        <ProfilePairSelect idBase="fem2d-pratt-chord" label="Cordones" value={p.chordProfileKey} onChange={(v) => set({ chordProfileKey: v })} />
+        <ProfilePairSelect idBase="fem2d-pratt-web" label="Celosía" help="Diagonales y montantes (solo axil): admite angulares L y tubos." value={p.webProfileKey} onChange={(v) => set({ webProfileKey: v })} axial />
         <LabeledSelect id="fem2d-pratt-steel" label="Acero" value={p.steel} onChange={(v) => set({ steel: v as PrattTrussParams['steel'] })} options={STEEL_OPTIONS} />
       </CollapsibleSection>
       <CollapsibleSection label="Cargas" refNorma="CTE DB-SE-AE">

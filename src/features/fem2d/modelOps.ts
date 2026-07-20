@@ -30,6 +30,7 @@ import {
   type RcSection,
   type Steel2DSelection,
   type Support2DType,
+  type TimberSection,
 } from './types';
 
 // ── Editor-level types (shared by canvas, palette and shell) ────────────────
@@ -149,6 +150,15 @@ export const DEFAULT_APOYO_ARMADO_2D: ArmadoHA = {
 export const DEFAULT_COLUMN_CAGE_2D: RcColumnCage = {
   cornerBarDiam: 16, nBarsX: 0, barDiamX: 12, nBarsY: 0, barDiamY: 12,
   stirrupDiam: 6, stirrupSpacing: 150,
+};
+/**
+ * Madera: semilla al cambiar una barra a madera (misma filosofía que el HA —
+ * veredicto vivo desde el primer click, nunca un pending esperando sección).
+ * C24 140×240 es la escuadría aserrada corriente; clase de servicio 1
+ * (interior seco) como el módulo de vigas de madera.
+ */
+export const DEFAULT_TIMBER_SECTION_2D: TimberSection = {
+  gradeId: 'C24', b: 140, h: 240, serviceClass: 1,
 };
 /** Verticality threshold for role inference: |dx| ≤ tan(10°)·|dy| → pilar. */
 const VERTICAL_TAN = Math.tan((10 * Math.PI) / 180);
@@ -581,7 +591,7 @@ export function setMemberTwoForce(model: Fem2DModel, memberId: string, twoForce:
     if (m.material === 'rc') {
       return {
         ok: false,
-        reason: 'Una biela de hormigón no está soportada: el chequeo axil HA (tracción fisurada + pandeo) no está modelado. Cambia la barra a acero primero.',
+        reason: 'Una biela de hormigón no está soportada: el chequeo axil HA (tracción fisurada + pandeo) no está modelado. Cambia la barra a acero o madera primero.',
       };
     }
     const loads = model.loads.filter((l) => l.kind !== 'node' && l.member === memberId);
@@ -627,10 +637,16 @@ export function setMemberSteel(model: Fem2DModel, memberId: string, steel: 'S275
  * Switch a member's material. To 'rc': stamps role-aware section defaults +
  * BOTH armado shapes (beam pair + column cage) so the verdict is live at once
  * and survives any later role flip; blocked on bielas (no HA axial engine).
- * Existing HA data is preserved when toggling back and forth — the previous
+ * To 'timber': stamps the C24 seed section (a timber biela IS supported — the
+ * EC5 engine covers pure axial: tracción §6.2.3 y pandeo kc §6.3.2). Existing
+ * material data is preserved when toggling back and forth — the previous
  * material's fields are kept, never wiped.
  */
-export function setMemberMaterial(model: Fem2DModel, memberId: string, material: 'steel' | 'rc'): OpResult {
+export function setMemberMaterial(
+  model: Fem2DModel,
+  memberId: string,
+  material: 'steel' | 'rc' | 'timber',
+): OpResult {
   const m = model.members.find((mm) => mm.id === memberId);
   if (!m) return { ok: false, reason: 'Barra inexistente.' };
   if (m.material === material) return { ok: true, model };
@@ -651,7 +667,16 @@ export function setMemberMaterial(model: Fem2DModel, memberId: string, material:
         vanoArmado: m.vanoArmado ?? { ...DEFAULT_VANO_ARMADO_2D },
         apoyoArmado: m.apoyoArmado ?? { ...DEFAULT_APOYO_ARMADO_2D },
         columnCage: m.columnCage ?? { ...DEFAULT_COLUMN_CAGE_2D },
-        ltbSpacing: undefined, // arriostramiento LTB es concepto de acero
+        ltbSpacing: undefined, // arriostramiento LTB es concepto de acero/madera
+      }),
+    };
+  }
+  if (material === 'timber') {
+    return {
+      ok: true,
+      model: patchMember(model, memberId, {
+        material: 'timber',
+        timberSection: m.timberSection ?? { ...DEFAULT_TIMBER_SECTION_2D },
       }),
     };
   }
@@ -668,6 +693,16 @@ export function updateMemberRcSection(model: Fem2DModel, memberId: string, patch
   const m = model.members.find((mm) => mm.id === memberId);
   if (!m || !m.rcSection) return model;
   return patchMember(model, memberId, { rcSection: { ...m.rcSection, ...patch } });
+}
+
+export function updateMemberTimberSection(
+  model: Fem2DModel,
+  memberId: string,
+  patch: Partial<TimberSection>,
+): Fem2DModel {
+  const m = model.members.find((mm) => mm.id === memberId);
+  if (!m || !m.timberSection) return model;
+  return patchMember(model, memberId, { timberSection: { ...m.timberSection, ...patch } });
 }
 
 export function updateMemberArmado(
@@ -719,13 +754,19 @@ export function copyMemberProps(model: Fem2DModel, sourceId: string, targetId: s
   }
 
   let base = model;
-  // Material BEFORE the element-type toggle: painting a steel biela onto an
-  // HA beam-column must not trip the biela↔HA guard — the final state is a
-  // STEEL biela (a two-force source can never be HA; the ops forbid it).
+  // Material BEFORE the element-type toggle: painting a steel/timber biela onto
+  // an HA beam-column must not trip the biela↔HA guard — the final state is a
+  // steel or timber biela (a two-force source can never be HA; the ops forbid
+  // it, and timber bielas ARE supported).
   if (src.material !== tgt.material && src.material === 'steel') {
     base = patchMember(base, targetId, {
       material: 'steel',
       steelSelection: src.steelSelection ? { ...src.steelSelection } : { ...DEFAULT_STEEL_2D },
+    });
+  } else if (src.material !== tgt.material && src.material === 'timber') {
+    base = patchMember(base, targetId, {
+      material: 'timber',
+      timberSection: src.timberSection ? { ...src.timberSection } : { ...DEFAULT_TIMBER_SECTION_2D },
     });
   }
   if (src.elementType !== tgt.elementType) {
@@ -737,6 +778,7 @@ export function copyMemberProps(model: Fem2DModel, sourceId: string, targetId: s
     material: src.material,
     steelSelection: src.steelSelection ? { ...src.steelSelection } : undefined,
     rcSection: src.rcSection ? { ...src.rcSection } : undefined,
+    timberSection: src.timberSection ? { ...src.timberSection } : undefined,
     vanoArmado: src.vanoArmado ? { ...src.vanoArmado } : undefined,
     apoyoArmado: src.apoyoArmado ? { ...src.apoyoArmado } : undefined,
     columnCage: src.columnCage ? { ...src.columnCage } : undefined,

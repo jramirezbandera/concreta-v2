@@ -2,6 +2,22 @@
 
 Items deferred from the CEO review and design doc. Work these before public launch.
 
+## FEM 2D — comprobación de INCENDIO (sección reducida) para madera
+
+**Status:** DIFERIDO — eng-review de la feature "madera en FEM 2D" (2026-07-20). Alcance propio, no cabía en esa PR.
+
+**What:** añadir la situación accidental de incendio (EN 1995-1-2, método de sección reducida: dchar = βn·t, capa d0 = 7 mm, resistencias f20 = kfi·fk con γM,fi = 1.0) a las barras de MADERA del módulo FEM 2D de pórticos.
+
+**Why:** en madera el fuego suele GOBERNAR el dimensionado — la sección residual carboniza a ~0.8 mm/min (conífera aserrada), así que a R30 una viga pierde ~5 cm de cada cara expuesta y su capacidad cae mucho. Un pórtico de madera que CUMPLE en frío puede fallar a R30. Es el mayor hueco normativo que dejó la feature de madera.
+
+**Pros:** cierra el módulo de madera "completo"; el usuario de estructuras de madera vista (naves, cubiertas) casi siempre necesita el fuego; los factores ya existen (`getBetaN`, kfi 1.25/1.15) y el método está implementado y auditado en los motores standalone `calcTimberBeam`/`calcTimberColumn` (lib/calculations/timberBeams.ts §fire).
+
+**Cons:** es una PR propia, no un añadido: el FEM 2D no modela incendio para NINGÚN material (paridad deliberada acero/HA), así que hacerlo bien implica (a) esfuerzos de la combinación accidental (γG,fi=γQ,fi=1.0, ψ para las variables), (b) sección residual por barra en `timberFrameMember`, (c) posiblemente una vista/columna de resultados "R__" y (d) decidir si entra a la vez para los 3 materiales por coherencia.
+
+**Context:** `src/lib/calculations/timberFrameMember.ts` es el motor por esfuerzos que alimenta `timberChecks` en `src/features/fem2d/checks.ts`. Hoy comprueba frío (§6.1.7, 6.23/6.24, 6.35, 6.17) sin fuego, igual que acero/HA. El disclaimer del PDF del módulo ya indica que no incluye incendio. El punto de partida limpio: portar el bloque `fire` de `calcTimberBeam`/`calcTimberColumn` (residual b_ef/h_ef, kfi, kcrit,fi) a una rama de `calcTimberFrameMember` que reciba el tiempo de exposición R y las caras expuestas por barra.
+
+**Depends on / blocked by:** decisión de producto: ¿el FEM 2D gana incendio solo para madera, o para los 3 materiales a la vez? (coherencia de UI/veredicto).
+
 ## P1 — Must resolve before launch
 
 ### Monetization model decision

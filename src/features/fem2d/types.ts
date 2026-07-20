@@ -41,10 +41,11 @@ import type {
   ModelError,
   RcColumnCage,
   RcSection,
+  TimberSection,
   UseCategoryCode,
 } from '../../lib/frame-core/types';
 
-export type { ArmadoHA, LoadCase, ModelError, RcColumnCage, RcSection, UseCategoryCode };
+export type { ArmadoHA, LoadCase, ModelError, RcColumnCage, RcSection, TimberSection, UseCategoryCode };
 
 // ── Size caps (D4: dense synchronous solve stays instant) ───────────────────
 
@@ -105,11 +106,17 @@ export interface Fem2DMember {
   j: string; // node id
   role: MemberRole;
   elementType: ElementType2D;
-  material: 'steel' | 'rc';
+  material: 'steel' | 'rc' | 'timber';
   /** Required when material === 'steel'. */
   steelSelection?: Steel2DSelection;
   /** Required when material === 'rc'. Gross-section EI/EA come from here. */
   rcSection?: RcSection;
+  /**
+   * Required when material === 'timber'. Rectangular b×h (mm) + strength class
+   * + clase de servicio. Persists across material flips (same policy as the RC
+   * shapes below — switching away and back must never lose the user's section).
+   */
+  timberSection?: TimberSection;
   /**
    * RC reinforcement, per role family (material === 'rc' only). BOTH shapes
    * are stamped with defaults when the user switches a member to HA and BOTH
@@ -208,6 +215,14 @@ export interface Fem2DModel {
   templateId: Fem2DTemplateId | 'custom';
   /** Include member self-weight as a G-case UDL (resolved at decompose time). */
   selfWeight: boolean;
+  /**
+   * Site datum: snow load is a MEDIUM-duration action (not short) when the
+   * building sits above 1000 m (CTE DB-SE-M Tabla 2.2 / EC5 §2.3.1.2). Drives
+   * ONLY the kmod class of timber members under an S-governed combination
+   * (steel/HA ignore it); undefined/false ⇒ ≤1000 m ⇒ snow is short-duration.
+   * Optional so links/localStorage saved before this field decode to false.
+   */
+  snowOver1000m?: boolean;
   nodes: Fem2DNode[];
   members: Fem2DMember[];
   supports: Fem2DSupport[];

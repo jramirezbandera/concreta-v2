@@ -101,4 +101,27 @@ describe('fem2d serialize v2 — v1 parametric link compat', () => {
     expect(v1.apoyoArmado).toEqual(orig.apoyoArmado);
     expect(v1.columnCage).toEqual(orig.columnCage);
   });
+
+  it('round-trip preserves a timber member (sección mm) + el flag snowOver1000m', () => {
+    const base = buildModelFromState(fem2dUiDefaults()).model!;
+    const tim = setMemberMaterial(base, 'v1', 'timber');
+    expect(tim.ok).toBe(true);
+    if (!tim.ok) return;
+    const model: Fem2DModel = { ...tim.model, snowOver1000m: true };
+    const decoded = decodeShareString(encodeShareString(model));
+    expect(decoded).not.toBeNull();
+    expect(decoded).toEqual(model);
+    const v1 = decoded!.members.find((m) => m.id === 'v1')!;
+    expect(v1.material).toBe('timber');
+    expect(v1.timberSection).toEqual(tim.model.members.find((m) => m.id === 'v1')!.timberSection);
+    expect(decoded!.snowOver1000m).toBe(true);
+  });
+
+  it('un enlace SIN snowOver1000m decodifica sin el campo (compat hacia atrás)', () => {
+    // Modelos guardados antes del campo: el flag ausente ⇒ ≤1000 m (false).
+    const model = buildModelFromState(fem2dUiDefaults()).model!;
+    expect('snowOver1000m' in model).toBe(false);
+    const decoded = decodeShareString(encodeShareString(model))!;
+    expect(decoded.snowOver1000m).toBeUndefined();
+  });
 });

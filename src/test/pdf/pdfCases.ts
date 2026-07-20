@@ -56,6 +56,7 @@ import { solveDesignModel } from '../../features/fem-analysis/solveDesignModel';
 import { exportFem2DPDF } from '../../lib/pdf/fem2d';
 import { fem2dUiDefaults, buildModelFromState } from '../../features/fem2d/uiState';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
+import { setMemberMaterial } from '../../features/fem2d/modelOps';
 
 export interface PdfCase {
   name: string;
@@ -249,6 +250,25 @@ export const PDF_CASES: PdfCase[] = [
       const state = { ...fem2dUiDefaults(), templateId: 'gable' as const };
       const built = buildModelFromState(state).model!;
       const model = { ...built, templateId: 'custom' as const };
+      return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
+    },
+  },
+  // Pórtico MIXTO acero + HA + madera: la única fixture que mete las filas de
+  // MADERA (σm/τ/kcrit/λrel/≤ …) y de HA por la auditoría latin1 + layout del
+  // PDF. Sin ella, esos glifos y esas cadenas largas del motor de madera no se
+  // renderizarían nunca en un test (el resto de casos fem2d son solo-acero).
+  {
+    m: 18,
+    name: 'fem2d (mixto acero+HA+madera)',
+    stressable: false,
+    run: () => {
+      const state = { ...fem2dUiDefaults(), templateId: 'portal-frame' as const };
+      const built = buildModelFromState(state).model!;
+      // v1 = dintel → madera (GL/C class rows); p1 = pilar → hormigón; p2 queda
+      // en acero. Los tres materiales conviven en el mismo documento.
+      const toTimber = setMemberMaterial(built, 'v1', 'timber');
+      const toRc = toTimber.ok ? setMemberMaterial(toTimber.model, 'p1', 'rc') : toTimber;
+      const model = { ...(toRc.ok ? toRc.model : built), templateId: 'custom' as const, snowOver1000m: true };
       return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
     },
   },

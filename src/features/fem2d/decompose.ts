@@ -23,7 +23,14 @@
 //
 // Stiffness comes from frame-core sections (steel catalog / RC gross section).
 
-import { rcSelfWeight, rcStiffness, steelSelfWeight, steelStiffness } from '../../lib/frame-core/sections';
+import {
+  rcSelfWeight,
+  rcStiffness,
+  steelSelfWeight,
+  steelStiffness,
+  timberSelfWeight,
+  timberStiffness,
+} from '../../lib/frame-core/sections';
 import type { ModelError } from '../../lib/frame-core/types';
 import type {
   Analysis2DBC,
@@ -80,6 +87,17 @@ export function decompose2D(model: Fem2DModel): Decompose2DResult {
     let EI = 0;
     if (m.material === 'rc' && m.rcSection) {
       ({ EA, EI } = rcStiffness(m.rcSection));
+    } else if (m.material === 'timber' && m.timberSection) {
+      const st = timberStiffness(m.timberSection);
+      if (!st) {
+        errors.push({
+          severity: 'fail',
+          code: 'UNKNOWN_TIMBER_GRADE',
+          msg: `Barra ${m.id}: clase resistente '${m.timberSection.gradeId}' no existe en el catálogo.`,
+        });
+        continue;
+      }
+      ({ EA, EI } = st);
     } else if (m.material === 'steel' && m.steelSelection) {
       const st = steelStiffness(m.steelSelection.profileKey);
       if (!st) {
@@ -124,9 +142,11 @@ export function decompose2D(model: Fem2DModel): Decompose2DResult {
     const selfW = model.selfWeight
       ? (m.material === 'rc' && m.rcSection
           ? rcSelfWeight(m.rcSection)
-          : m.steelSelection
-            ? steelSelfWeight(m.steelSelection.profileKey)
-            : 0)
+          : m.material === 'timber' && m.timberSection
+            ? timberSelfWeight(m.timberSection)
+            : m.steelSelection
+              ? steelSelfWeight(m.steelSelection.profileKey)
+              : 0)
       : 0;
 
     for (let k = 0; k < dedup.length - 1; k++) {
