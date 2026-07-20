@@ -2,9 +2,9 @@
 // snapshot = {valores, sin_confirmar} — valores en unidades humanas con
 // exactamente las claves extraíbles del payload schema, sin_confirmar con las
 // claves cuyo valor de estado sigue siendo el default del módulo; buildPlan
-// delega en parseExtraction + buildApplyPlan (unidades humanas → SI interno) y
-// propaga notes; payload no-objeto → AiError('bad-response');
-// STEEL_PROMPT_RULES sin el framing one-shot.
+// delega en parseExtraction + buildApplyPlan (unidades humanas → SI interno);
+// payload no-objeto → AiError('bad-response'); STEEL_PROMPT_RULES sin el
+// framing one-shot.
 
 import { describe, it, expect } from 'vitest';
 import { steelBeamsAdapter, summarizeSteelBeamResults } from '../../lib/ai/modules/steelBeams';
@@ -16,20 +16,22 @@ import { steelBeamDefaults, type SteelBeamInputs } from '../../data/defaults';
 
 const SYSTEM = 'si' as const;
 
-/** Las 12 claves extraíbles del payload (schema menos warnings/notes). */
+/** Las 15 claves extraíbles del payload (schema menos warnings), en orden. */
 const EXTRACTABLE_KEYS = [
-  'tipo', 'size', 'steel', 'beamType', 'L_m', 'Lcr_m', 'deflLimit',
+  'tipo', 'size', 'tubo_h_mm', 'tubo_b_mm', 'tubo_t_mm',
+  'steel', 'beamType', 'L_m', 'Lcr_m', 'deflLimit',
   'elsCombo', 'useCategory', 'gk_kNm2', 'qk_kNm2', 'bTrib_m',
 ];
 
 /** Payload todo-null + warnings vacíos, con overrides parciales. */
 function makePayload(partial: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    tipo: null, size: null, steel: null, beamType: null,
+    tipo: null, size: null,
+    tubo_h_mm: null, tubo_b_mm: null, tubo_t_mm: null,
+    steel: null, beamType: null,
     L_m: null, Lcr_m: null, deflLimit: null, elsCombo: null,
     useCategory: null, gk_kNm2: null, qk_kNm2: null, bTrib_m: null,
     warnings: [],
-    notes: null,
     ...partial,
   };
 }
@@ -43,9 +45,9 @@ describe('steelBeamsAdapter — identidad y contrato', () => {
     expect(steelBeamsAdapter.placeholder).toContain('Viga biapoyada de 8 m de luz');
   });
 
-  it('las claves extraíbles coinciden con las properties del schema menos warnings/notes', () => {
+  it('las claves extraíbles coinciden con las properties del schema menos warnings', () => {
     const props = Object.keys(STEEL_BEAM_EXTRACTION_SCHEMA.properties as Record<string, unknown>);
-    expect(props.filter((k) => k !== 'warnings' && k !== 'notes').sort())
+    expect(props.filter((k) => k !== 'warnings').sort())
       .toEqual([...EXTRACTABLE_KEYS].sort());
   });
 });
@@ -74,6 +76,11 @@ describe('steelBeamsAdapter.snapshot', () => {
     expect(snap(steelBeamDefaults).valores).toEqual({
       tipo: 'IPE',
       size: 300,
+      // Con tipo IPE los tubo_* son inertes: reflejan los defaults rhs_* del
+      // módulo (van a sin_confirmar), no datos del usuario.
+      tubo_h_mm: 150,    // rhs_h default
+      tubo_b_mm: 100,    // rhs_b default
+      tubo_t_mm: 8,      // rhs_t default
       steel: 'S275',
       beamType: 'ss',
       L_m: 6,            // 6000 mm → 6 m
@@ -85,6 +92,13 @@ describe('steelBeamsAdapter.snapshot', () => {
       qk_kNm2: 2.0,
       bTrib_m: 3.0,      // directo (ya en m)
     });
+  });
+
+  it('con tipo CHS los tubo_h/tubo_t reflejan chs_D/chs_t (no rhs_*)', () => {
+    const v = snap({ ...steelBeamDefaults, tipo: 'CHS', chs_D: 219.1, chs_t: 10 }).valores;
+    expect(v.tubo_h_mm).toBe(219.1);
+    expect(v.tubo_t_mm).toBe(10);
+    expect(v.tipo).toBe('CHS');
   });
 
   it('formulario recién abierto (defaults) → TODAS las claves en sin_confirmar, en el orden de valores', () => {
@@ -126,18 +140,29 @@ describe('steelBeamsAdapter.buildPlan', () => {
     expect(plan.warnings).toEqual([]);
   });
 
-  it('propaga notes desde el payload', () => {
+  it('tubo RHS: tipo + tubo_h/b/t → fields rhs_h/rhs_b/rhs_t', () => {
+    // Dimensiones ≠ defaults (150/100/8): un valor igual se saltaría con ALREADY.
     const plan = steelBeamsAdapter.buildPlan(
-      makePayload({ notes: 'Se asumió forjado de oficinas.' }),
+      makePayload({ tipo: 'RHS', tubo_h_mm: 200, tubo_b_mm: 120, tubo_t_mm: 10 }),
       steelBeamDefaults,
       SYSTEM,
     );
-    expect(plan.notes).toBe('Se asumió forjado de oficinas.');
+    expect(plan.fields.tipo).toBe('RHS');
+    expect(plan.fields.rhs_h).toBe(200);
+    expect(plan.fields.rhs_b).toBe(120);
+    expect(plan.fields.rhs_t).toBe(10);
   });
 
-  it('notes null → plan.notes null', () => {
-    const plan = steelBeamsAdapter.buildPlan(makePayload(), steelBeamDefaults, SYSTEM);
-    expect(plan.notes).toBeNull();
+  it('tubo CHS: tubo_h/tubo_t → chs_D/chs_t; el ancho (tubo_b) se descarta', () => {
+    const plan = steelBeamsAdapter.buildPlan(
+      makePayload({ tipo: 'CHS', tubo_h_mm: 219.1, tubo_b_mm: 219.1, tubo_t_mm: 10 }),
+      steelBeamDefaults,
+      SYSTEM,
+    );
+    expect(plan.fields.chs_D).toBe(219.1);
+    expect(plan.fields.chs_t).toBe(10);
+    expect(plan.fields.rhs_b).toBeUndefined();
+    expect(plan.skipped.some((s) => s.label === 'Ancho del tubo')).toBe(true);
   });
 
   // risks es un campo REQUERIDO del contrato AiApplyPlan: el adapter debe

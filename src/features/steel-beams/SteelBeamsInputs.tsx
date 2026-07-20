@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/defaults';
 
 import { type LoadGenResult, getPsiRow, VARIABLE_ACTIONS } from '../../lib/calculations/loadGen';
-import { getSizesForTipo } from '../../data/steelProfiles';
+import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
@@ -30,6 +30,10 @@ interface SteelBeamsInputsProps {
   hideBeamType?: boolean;
   /** FEM embed: hide L input (FEM provides bar length). */
   hideL?: boolean;
+  /** FEM embed: hide the profile selector block (the bar panel renders its
+   *  own catalog-keyed familia+tamaño selects — free tube dims wouldn't map
+   *  back to a profileKey). */
+  hideProfile?: boolean;
 }
 
 // ── SVG structural schematics for beam type buttons ──────────────────────────
@@ -200,13 +204,22 @@ export function SteelBeamsInputs({
   hideLoads = false,
   hideBeamType = false,
   hideL = false,
+  hideProfile = false,
 }: SteelBeamsInputsProps) {
-  const availableSizes = getSizesForTipo(state.tipo);
+  const isCHS = state.tipo === 'CHS';
+  const isRHS = state.tipo === 'SHS' || state.tipo === 'RHS';
+  const isSquare = state.tipo === 'SHS';
+  const isBox = state.tipo === '2UPN';
+  const availableSizes = isCHS || isRHS
+    ? []
+    : isBox
+    ? getSizesUPN()
+    : getSizesForTipo(state.tipo as 'IPE' | 'HEA' | 'HEB' | 'IPN');
   const { system } = useUnitSystem();
 
   // When tipo changes, snap size to first available if current is invalid
   useEffect(() => {
-    if (!availableSizes.includes(state.size)) {
+    if (!isCHS && !isRHS && !availableSizes.includes(state.size)) {
       setField('size', availableSizes[0] ?? 160);
     }
   }, [state.tipo]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -300,20 +313,116 @@ export function SteelBeamsInputs({
 
       {/* PERFIL */}
       <CollapsibleSection label="Perfil">
-      <SelectField
-        labelKey="profile_type"
-        field="tipo"
-        value={state.tipo}
-        options={(['IPE', 'HEA', 'HEB', 'IPN'] as const).map((t) => ({ value: t, label: t }))}
-        setField={setField}
-      />
-      <SelectField
-        labelKey="profile_size"
-        field="size"
-        value={state.size}
-        options={availableSizes.map((s) => ({ value: s, label: `${state.tipo} ${s}` }))}
-        setField={setField}
-      />
+      {!hideProfile && (
+        <>
+          <SelectField
+            labelKey="profile_type"
+            field="tipo"
+            value={state.tipo}
+            options={[
+              { value: 'IPE', label: 'IPE' },
+              { value: 'HEA', label: 'HEA' },
+              { value: 'HEB', label: 'HEB' },
+              { value: 'IPN', label: 'IPN' },
+              { value: '2UPN', label: '2UPN' },
+              { value: 'SHS', label: 'SHS (cuadrado)' },
+              { value: 'RHS', label: 'RHS (rect.)' },
+              { value: 'CHS', label: 'Circular' },
+            ]}
+            setField={setField}
+          />
+          {isRHS ? (
+            <>
+              <UnitNumberInput
+                label="h"
+                sub={isSquare ? 'lado' : 'canto'}
+                help={isSquare ? 'Lado exterior del tubo cuadrado (SHS).' : 'Canto exterior del tubo rectangular (eje de flexión).'}
+                unit="mm"
+                id="sb-rhs-h"
+                value={state.rhs_h}
+                min={20}
+                step={5}
+                widthClass="w-18"
+                onChange={(v) => { if (v > 0) setField('rhs_h', v); }}
+              />
+              {!isSquare && (
+                <UnitNumberInput
+                  label="b"
+                  sub="ancho"
+                  help="Ancho exterior del tubo rectangular."
+                  unit="mm"
+                  id="sb-rhs-b"
+                  value={state.rhs_b}
+                  min={20}
+                  step={5}
+                  widthClass="w-18"
+                  onChange={(v) => { if (v > 0) setField('rhs_b', v); }}
+                />
+              )}
+              <UnitNumberInput
+                label="t"
+                sub="espesor pared"
+                help="Espesor de la pared del tubo (clase de sección por c/t de paredes internas)."
+                unit="mm"
+                id="sb-rhs-t"
+                value={state.rhs_t}
+                min={1}
+                step={0.5}
+                widthClass="w-18"
+                onChange={(v) => { if (v > 0) setField('rhs_t', v); }}
+              />
+            </>
+          ) : isCHS ? (
+            <>
+              <UnitNumberInput
+                label="D"
+                sub="diámetro exterior"
+                help="Diámetro exterior del tubo circular (CHS)."
+                unit="mm"
+                id="sb-chs-D"
+                value={state.chs_D}
+                min={20}
+                step={1}
+                widthClass="w-18"
+                onChange={(v) => { if (v > 0) setField('chs_D', v); }}
+              />
+              <UnitNumberInput
+                label="t"
+                sub="espesor pared"
+                help="Espesor de la pared del tubo (clase por D/t)."
+                unit="mm"
+                id="sb-chs-t"
+                value={state.chs_t}
+                min={1}
+                step={0.1}
+                widthClass="w-18"
+                onChange={(v) => { if (v > 0) setField('chs_t', v); }}
+              />
+            </>
+          ) : (
+            <SelectField
+              labelKey="profile_size"
+              field="size"
+              value={state.size}
+              options={availableSizes.map((s) => ({ value: s, label: `${state.tipo} ${s}` }))}
+              setField={setField}
+            />
+          )}
+          {(isRHS || isCHS) && (
+            <SelectField
+              label="Proceso"
+              help="Acabado en caliente (EN 10210) o conformado en frío (EN 10219). En vigas no cambia la resistencia a flexión (los tubos no vuelcan), solo la geometría de esquinas."
+              field="tube_process"
+              value={state.tube_process}
+              options={[
+                { value: 'hot-finished', label: 'Caliente (EN 10210)' },
+                { value: 'cold-formed',  label: 'Frío (EN 10219)' },
+              ]}
+              setField={setField}
+            />
+          )}
+        </>
+      )}
       <SelectField
         labelKey="steel_grade"
         field="steel"

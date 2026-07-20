@@ -21,11 +21,12 @@ const ALREADY = 'Ya coincide con el valor actual';
 /** Extraction todo-null + warnings vacíos, con overrides parciales. */
 function makeExtraction(partial: Partial<SteelBeamExtraction> = {}): SteelBeamExtraction {
   return {
-    tipo: null, size: null, steel: null, beamType: null,
+    tipo: null, size: null,
+    tubo_h_mm: null, tubo_b_mm: null, tubo_t_mm: null,
+    steel: null, beamType: null,
     L_m: null, Lcr_m: null, deflLimit: null, elsCombo: null,
     useCategory: null, gk_kNm2: null, qk_kNm2: null, bTrib_m: null,
     warnings: [],
-    notes: null,
     ...partial,
   };
 }
@@ -126,6 +127,58 @@ describe('buildApplyPlan — tipo + size contra catálogo (regla 3)', () => {
     expect(skipFor(p, 'Perfil')).toEqual({
       label: 'Perfil', reason: 'IPE 305 no existe en el catálogo',
     });
+  });
+
+  it("familia de cajón '2UPN' + size 200 (existe en el catálogo UPN) → aplicado", () => {
+    const p = plan({ tipo: '2UPN', size: 200 });
+    expect(p.fields).toEqual({ tipo: '2UPN', size: 200 });
+    expect(changeFor(p, 'Perfil')).toMatchObject({ after: '2UPN 200', value: 200 });
+  });
+});
+
+describe('buildApplyPlan — tubos SHS/RHS/CHS (regla 5b)', () => {
+  it('RHS + las tres dimensiones → tipo + rhs_h/rhs_b/rhs_t (size no aplica)', () => {
+    const p = plan({ tipo: 'RHS', tubo_h_mm: 200, tubo_b_mm: 120, tubo_t_mm: 10 });
+    expect(p.fields).toEqual({ tipo: 'RHS', rhs_h: 200, rhs_b: 120, rhs_t: 10 });
+    expect(changeFor(p, 'Dimensión del tubo')).toMatchObject({ field: 'rhs_h', after: '200 mm', value: 200 });
+    expect(changeFor(p, 'Ancho del tubo')).toMatchObject({ field: 'rhs_b', after: '120 mm', value: 120 });
+    expect(changeFor(p, 'Espesor del tubo')).toMatchObject({ field: 'rhs_t', after: '10 mm', value: 10 });
+  });
+
+  it('SHS: tubo_h/tubo_t → rhs_h/rhs_t; el ancho (tubo_b) se descarta con motivo', () => {
+    const p = plan({ tipo: 'SHS', tubo_h_mm: 160, tubo_b_mm: 160, tubo_t_mm: 6 });
+    expect(p.fields).toEqual({ tipo: 'SHS', rhs_h: 160, rhs_t: 6 });
+    expect(p.fields.rhs_b).toBeUndefined();
+    expect(skipFor(p, 'Ancho del tubo')?.reason).toContain('solo se usa con RHS');
+  });
+
+  it('CHS: tubo_h → chs_D, tubo_t → chs_t; ancho descartado', () => {
+    const p = plan({ tipo: 'CHS', tubo_h_mm: 219.1, tubo_b_mm: 219.1, tubo_t_mm: 10 });
+    expect(p.fields).toEqual({ tipo: 'CHS', chs_D: 219.1, chs_t: 10 });
+    expect(skipFor(p, 'Ancho del tubo')).toBeDefined();
+  });
+
+  it("size propuesto sobre un tubo → skipped (los tubos no usan «size»)", () => {
+    const p = plan({ tipo: 'SHS', size: 160, tubo_h_mm: 160, tubo_t_mm: 6 });
+    expect(p.fields.size).toBeUndefined();
+    expect(skipFor(p, 'Perfil')?.reason).toContain('no usan «size»');
+  });
+
+  it('dimensiones de tubo sobre un perfil ABIERTO (IPE) → descartadas, no aplicadas', () => {
+    const p = plan({ tubo_h_mm: 200, tubo_t_mm: 8 });   // tipo actual = IPE
+    expect(p.fields).toEqual({});
+    expect(skipFor(p, 'Dimensión del tubo')?.reason).toContain('solo se usan con las familias SHS, RHS o CHS');
+    expect(skipFor(p, 'Espesor del tubo')).toBeDefined();
+    // Los campos de tubo NUNCA entran en notFound (no son "dato pendiente").
+    expect(p.notFound).not.toContain('Dimensión del tubo');
+    expect(p.notFound).not.toContain('Ancho del tubo');
+    expect(p.notFound).not.toContain('Espesor del tubo');
+  });
+
+  it('dimensión de tubo fuera de rango → skipped con motivo de rango', () => {
+    const p = plan({ tipo: 'RHS', tubo_t_mm: 0.2 });
+    expect(p.fields.rhs_t).toBeUndefined();
+    expect(skipFor(p, 'Espesor del tubo')?.reason).toContain('fuera del rango admisible');
   });
 });
 

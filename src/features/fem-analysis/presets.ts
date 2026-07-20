@@ -23,15 +23,11 @@ function steelMat(key: string): SteelMaterial {
 }
 
 export const MAT: Record<string, Material> = {
-  steel_IPE200: steelMat('steel_IPE200'),
-  steel_IPE240: steelMat('steel_IPE240'),
-  steel_IPE300: steelMat('steel_IPE300'),
-  steel_IPE360: steelMat('steel_IPE360'),
-  steel_HEB160: steelMat('steel_HEB160'),
-  steel_HEB200: steelMat('steel_HEB200'),
-  steel_HEB240: steelMat('steel_HEB240'),
-  steel_HEB300: steelMat('steel_HEB300'),
-  steel_L80x8:  steelMat('steel_L80x8'),
+  // EVERY key of the shared catalog resolves (full IPE/HEA/HEB/IPN series,
+  // 2UPN, SHS/RHS/CHS tubes, L 80×8). The embedded 1D panel reconstructs
+  // profileKey from tipo+size ('steel_HEA200') — before this derivation a
+  // key outside the 9 literals produced a silent EI = 0 rubber bar.
+  ...Object.fromEntries(Object.keys(STEEL_CATALOG).map((k) => [k, steelMat(k)])),
   rc_30x50:     { kind: 'rc',    role: 'viga',  name: 'HA 30×50', E: 30000, b: 30, h: 50, A: 1500, I: 312500, fck: 25, gamma: 1.5, color: 'rc' },
   rc_25x40:     { kind: 'rc',    role: 'viga',  name: 'HA 25×40', E: 30000, b: 25, h: 40, A: 1000, I: 133333, fck: 25, gamma: 1.5, color: 'rc' },
 };

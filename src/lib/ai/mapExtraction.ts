@@ -9,7 +9,7 @@ import {
 } from './safety';
 import { beamSchemeRules } from './beamScheme';
 import { steelBeamDefaults, type BeamType, type ElsCombo, type SteelBeamInputs } from '../../data/defaults';
-import { getSizesForTipo } from '../../data/steelProfiles';
+import { getSizesForTipo, getSizesUPN } from '../../data/steelProfiles';
 import { categoryLabel, categoryQk } from '../calculations/loadGen';
 import { formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
@@ -110,6 +110,9 @@ export const STEEL_BEAM_SCHEME_RULES = beamSchemeRules<SteelBeamInputs>();
 const LABELS = {
   tipo: 'Tipo de perfil',
   size: 'Perfil',
+  tubo_h_mm: 'Dimensión del tubo',
+  tubo_b_mm: 'Ancho del tubo',
+  tubo_t_mm: 'Espesor del tubo',
   steel: 'Acero',
   beamType: 'Tipo de viga',
   L_m: 'Luz L',
@@ -124,10 +127,24 @@ const LABELS = {
 
 type ExtractionKey = keyof typeof LABELS;
 
+// Orden de reporte de campos NO resueltos (notFound). Los campos de tubo se
+// dejan FUERA a propósito: un tubo_* en null no es "falta un dato" en un perfil
+// abierto, es que no aplica — se marcan handled en el bloque de perfil.
 const KEY_ORDER: readonly ExtractionKey[] = [
   'tipo', 'size', 'steel', 'beamType', 'L_m', 'Lcr_m', 'deflLimit',
   'elsCombo', 'useCategory', 'gk_kNm2', 'qk_kNm2', 'bTrib_m',
 ];
+
+/** Familias tubulares — el perfil se define por dimensiones, no por «size». */
+const TUBE_FAMILIES: ReadonlySet<string> = new Set(['SHS', 'RHS', 'CHS']);
+const isTubeFamily = (t: string): boolean => TUBE_FAMILIES.has(t);
+
+/** Tamaños de catálogo por familia con «size» (I/H/IPN y 2UPN). Vacío en tubos. */
+function catalogSizesFor(tipo: SteelBeamInputs['tipo']): number[] {
+  if (tipo === '2UPN') return getSizesUPN();
+  if (tipo === 'IPE' || tipo === 'HEA' || tipo === 'HEB' || tipo === 'IPN') return getSizesForTipo(tipo);
+  return [];
+}
 
 const BEAM_TYPE_LABELS: Record<BeamType, string> = {
   ss: 'Biarticulada',
@@ -198,15 +215,60 @@ export function buildApplyPlan(
     else apply('tipo', 'tipo', x.tipo, current.tipo, x.tipo);
   }
 
-  // --- size contra catálogo (regla 3) ---
+  // --- size contra catálogo (regla 3). Solo aplica a I/H/IPN y al cajón 2UPN;
+  //     los tubos SHS/RHS/CHS se definen por dimensiones (bloque de abajo). ---
+  const tubeEff = isTubeFamily(tipoEfectivo);
+  const sizesForTipo = catalogSizesFor(tipoEfectivo);
   if (x.size !== null) {
-    if (!getSizesForTipo(tipoEfectivo).includes(x.size)) {
+    if (tubeEff) {
+      skip('size', `Los tubos ${tipoEfectivo} no usan «size»: se definen por dimensiones (canto/lado/diámetro y espesor)`);
+    } else if (!sizesForTipo.includes(x.size)) {
       skip('size', `${tipoEfectivo} ${x.size} no existe en el catálogo`);
     } else if (x.size === current.size) {
       skip('size', ALREADY);
     } else {
       apply('size', 'size', x.size, `${current.tipo} ${current.size}`, `${tipoEfectivo} ${x.size}`);
     }
+  } else if (tubeEff) {
+    // Tubo sin «size» propuesto: no es un dato pendiente (el tubo va por dims).
+    handled.add('size');
+  }
+
+  // --- Dimensiones de tubo (SHS/RHS/CHS). Se enrutan al juego de estado de la
+  //     familia EFECTIVA: CHS → chs_D/chs_t; SHS/RHS → rhs_h/rhs_b/rhs_t. En un
+  //     perfil abierto (o cajón 2UPN) cualquier tubo_* se descarta con motivo. ---
+  const isCHSEff = tipoEfectivo === 'CHS';
+  const applyTubeDim = (
+    key: 'tubo_h_mm' | 'tubo_b_mm' | 'tubo_t_mm',
+    field: 'chs_D' | 'chs_t' | 'rhs_h' | 'rhs_b' | 'rhs_t',
+    value: number | null,
+    min: number,
+    max: number,
+  ): void => {
+    if (value === null) { handled.add(key); return; }
+    if (value < min || value > max) { skip(key, rangeReason(value, min, max, 'mm')); return; }
+    const v = round2(value);
+    if (Math.abs(v - current[field]) <= EPS) skip(key, ALREADY);
+    else apply(key, field, v, `${current[field]} mm`, `${v} mm`);
+  };
+
+  if (!tubeEff) {
+    // Perfil abierto / cajón: los datos de tubo no aplican.
+    for (const key of ['tubo_h_mm', 'tubo_b_mm', 'tubo_t_mm'] as const) {
+      if (x[key] !== null) skip(key, 'Los datos de tubo (dimensiones exteriores y espesor) solo se usan con las familias SHS, RHS o CHS');
+      else handled.add(key);
+    }
+  } else {
+    // tubo_h_mm → diámetro (CHS) o canto/lado (SHS/RHS).
+    applyTubeDim('tubo_h_mm', isCHSEff ? 'chs_D' : 'rhs_h', x.tubo_h_mm, 20, 2000);
+    // tubo_b_mm → ancho, SOLO RHS (en SHS el lado es tubo_h_mm; en CHS no hay b).
+    if (x.tubo_b_mm !== null && tipoEfectivo !== 'RHS') {
+      skip('tubo_b_mm', 'El ancho solo se usa con RHS: en SHS el lado es la dimensión del tubo y en CHS el diámetro');
+    } else {
+      applyTubeDim('tubo_b_mm', 'rhs_b', x.tubo_b_mm, 20, 2000);
+    }
+    // tubo_t_mm → espesor de pared.
+    applyTubeDim('tubo_t_mm', isCHSEff ? 'chs_t' : 'rhs_t', x.tubo_t_mm, 1, 100);
   }
 
   // --- steel ---
@@ -346,9 +408,12 @@ export function buildApplyPlan(
     }
   }
 
-  // --- notFound: campos null no resueltos por el mapper ---
+  // --- notFound: campos null no resueltos por el mapper (KEY_ORDER excluye los
+  //     campos de tubo a propósito — ver su declaración) ---
   const values: Record<ExtractionKey, unknown> = {
-    tipo: x.tipo, size: x.size, steel: x.steel, beamType: x.beamType,
+    tipo: x.tipo, size: x.size,
+    tubo_h_mm: x.tubo_h_mm, tubo_b_mm: x.tubo_b_mm, tubo_t_mm: x.tubo_t_mm,
+    steel: x.steel, beamType: x.beamType,
     L_m: x.L_m, Lcr_m: x.Lcr_m, deflLimit: x.deflLimit, elsCombo: x.elsCombo,
     useCategory: x.useCategory, gk_kNm2: x.gk_kNm2, qk_kNm2: x.qk_kNm2, bTrib_m: x.bTrib_m,
   };

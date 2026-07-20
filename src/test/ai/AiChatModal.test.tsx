@@ -85,10 +85,12 @@ function seedNoKey() {
 /** Payload steel-beams todo-null; se sobrescriben solo los campos del caso. */
 function makePayload(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    tipo: null, size: null, steel: null, beamType: null,
+    tipo: null, size: null,
+    tubo_h_mm: null, tubo_b_mm: null, tubo_t_mm: null,
+    steel: null, beamType: null,
     L_m: null, Lcr_m: null, deflLimit: null, elsCombo: null,
     useCategory: null, gk_kNm2: null, qk_kNm2: null, bTrib_m: null,
-    warnings: [], notes: null,
+    warnings: [],
     ...over,
   };
 }
@@ -745,7 +747,7 @@ describe('AiChatModal — límite de Anthropic (módulos grandes)', () => {
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled();
   });
 
-  it('Anthropic + módulo pequeño (steel-beams, 14 uniones): sin aviso', () => {
+  it('Anthropic + módulo en el límite (steel-beams, 16 uniones): sin aviso', () => {
     seedProvider('anthropic');
     renderModal(); // steel-beams
 

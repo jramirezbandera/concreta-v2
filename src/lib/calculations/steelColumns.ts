@@ -111,13 +111,23 @@ function buildDescriptor(inp: SteelColumnInputs): SectionDescriptor {
       return { kind: '2UPN', size: inp.size };
     case 'CHS':
       return { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.chs_process };
+    case 'SHS':
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.rhs_process };
+    case 'RHS':
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.rhs_process };
     default:
       return { kind: 'I', tipo: inp.sectionType, size: inp.size };
   }
 }
 
 function descriptorKind(inp: SteelColumnInputs): SectionKind {
-  return inp.sectionType === '2UPN' ? '2UPN' : inp.sectionType === 'CHS' ? 'CHS' : 'I';
+  switch (inp.sectionType) {
+    case '2UPN': return '2UPN';
+    case 'CHS':  return 'CHS';
+    case 'SHS':
+    case 'RHS':  return 'RHS';
+    default:     return 'I';
+  }
 }
 
 // ─── Main calculator ──────────────────────────────────────────────────────────
@@ -146,12 +156,20 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
     const label =
       inp.sectionType === 'CHS'
         ? `CHS ${inp.chs_D}×${inp.chs_t}`
-        : `${inp.sectionType} ${inp.size}`;
+        : inp.sectionType === 'SHS' || inp.sectionType === 'RHS'
+          ? `${inp.sectionType} ${inp.rhs_h}×${inp.sectionType === 'SHS' ? inp.rhs_h : inp.rhs_b}×${inp.rhs_t}`
+          : `${inp.sectionType} ${inp.size}`;
     return invalidResult(`Perfil ${label} no encontrado`, 1, kind);
+  }
+  // Tubos rectangulares degenerados (t=0, b≤2t…): el adapter produce sección
+  // de valores nulos en vez de lanzar — rechazo explícito aquí.
+  if (kind === 'RHS' && !(section.A > 0)) {
+    return invalidResult('Dimensiones de tubo no válidas (se requiere h, b > 2t y t > 0)', 1, kind);
   }
 
   const isBox = section.kind === '2UPN';
   const isCHS = section.kind === 'CHS';
+  const isRHS = section.kind === 'RHS';
   const { h, b, A, Iy, Iz, Wpl_y, Wel_y, Wpl_z, Wel_z, It: _It, Iw: _Iw } = section;
   void _It; void _Iw; // consumed by section.computeMcr
 
@@ -277,7 +295,7 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const n_z = Ned / (chi_z * NRk / γM1);
 
   const mu_y = Math.min(Math.max(lambda_y - 0.2, 0), 0.8);
-  const mu_z = (isCHS || isBox)
+  const mu_z = (isCHS || isBox || isRHS)
     ? Math.min(Math.max(lambda_z - 0.2, 0), 0.8)
     : Math.min(Math.max(2 * lambda_z - 0.6, 0), 1.4);
 

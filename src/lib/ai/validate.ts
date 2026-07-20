@@ -1,7 +1,7 @@
 import { AiError, type ChatEnvelope, type SteelBeamExtraction } from './types';
 
 // Listas permitidas (espejo del JSON Schema de schema.ts).
-const TIPOS = ['IPE', 'HEA', 'HEB', 'IPN'] as const;
+const TIPOS = ['IPE', 'HEA', 'HEB', 'IPN', '2UPN', 'SHS', 'RHS', 'CHS'] as const;
 const STEELS = ['S275', 'S355'] as const;
 const BEAM_TYPES = ['ss', 'cantilever', 'fp', 'ff'] as const;
 const DEFL_LIMITS = [250, 300, 400, 500, 600] as const;
@@ -33,6 +33,9 @@ export function parseExtraction(raw: unknown): SteelBeamExtraction {
   return {
     tipo: oneOf(r.tipo, TIPOS),
     size: finiteNumber(r.size),
+    tubo_h_mm: finiteNumber(r.tubo_h_mm),
+    tubo_b_mm: finiteNumber(r.tubo_b_mm),
+    tubo_t_mm: finiteNumber(r.tubo_t_mm),
     steel: oneOf(r.steel, STEELS),
     beamType: oneOf(r.beamType, BEAM_TYPES),
     L_m: finiteNumber(r.L_m),
@@ -46,7 +49,6 @@ export function parseExtraction(raw: unknown): SteelBeamExtraction {
     warnings: Array.isArray(r.warnings)
       ? r.warnings.filter((w): w is string => typeof w === 'string')
       : [],
-    notes: typeof r.notes === 'string' ? r.notes : null,
   };
 }
 

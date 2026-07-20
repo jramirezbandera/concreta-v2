@@ -74,15 +74,17 @@ function BetaAutoRow({ label, value }: { label: string; value: number }) {
 export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps) {
   const isBox = state.sectionType === '2UPN';
   const isCHS = state.sectionType === 'CHS';
-  const availableSizes = isCHS
+  const isRHS = state.sectionType === 'SHS' || state.sectionType === 'RHS';
+  const isSquare = state.sectionType === 'SHS';
+  const availableSizes = isCHS || isRHS
     ? []
     : isBox
     ? getSizesUPN()
-    : getSizesForTipo(state.sectionType as 'HEA' | 'HEB' | 'IPE');
+    : getSizesForTipo(state.sectionType as 'HEA' | 'HEB' | 'IPE' | 'IPN');
 
   // When sectionType changes, snap size to first available if current is invalid
   useEffect(() => {
-    if (!isCHS && !availableSizes.includes(state.size)) {
+    if (!isCHS && !isRHS && !availableSizes.includes(state.size)) {
       setField('size', availableSizes[0] ?? 160);
     }
   }, [state.sectionType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -122,12 +124,67 @@ export function SteelColumnsInputs({ state, setField }: SteelColumnsInputsProps)
           { value: 'HEA', label: 'HEA' },
           { value: 'HEB', label: 'HEB' },
           { value: 'IPE', label: 'IPE' },
+          { value: 'IPN', label: 'IPN' },
           { value: '2UPN', label: '2UPN' },
+          { value: 'SHS', label: 'SHS (cuadrado)' },
+          { value: 'RHS', label: 'RHS (rect.)' },
           { value: 'CHS', label: 'Circular' },
         ]}
         onChange={(v) => setField('sectionType', v as SteelColumnInputs['sectionType'])}
       />
-      {isCHS ? (
+      {isRHS ? (
+        <>
+          <UnitNumberInput
+            label="h"
+            sub={isSquare ? 'lado' : 'canto'}
+            help={isSquare ? 'Lado exterior del tubo cuadrado (SHS).' : 'Canto exterior del tubo rectangular (eje fuerte).'}
+            unit="mm"
+            id="sc-rhs-h"
+            value={state.rhs_h}
+            min={20}
+            step={5}
+            widthClass="w-18"
+            onChange={(v) => { if (v > 0) setField('rhs_h', v); }}
+          />
+          {!isSquare && (
+            <UnitNumberInput
+              label="b"
+              sub="ancho"
+              help="Ancho exterior del tubo rectangular (eje débil)."
+              unit="mm"
+              id="sc-rhs-b"
+              value={state.rhs_b}
+              min={20}
+              step={5}
+              widthClass="w-18"
+              onChange={(v) => { if (v > 0) setField('rhs_b', v); }}
+            />
+          )}
+          <UnitNumberInput
+            label="t"
+            sub="espesor pared"
+            help="Espesor de la pared del tubo. Define la clase de sección (c/t de las paredes internas)."
+            unit="mm"
+            id="sc-rhs-t"
+            value={state.rhs_t}
+            min={1}
+            step={0.5}
+            widthClass="w-18"
+            onChange={(v) => { if (v > 0) setField('rhs_t', v); }}
+          />
+          <SelectField
+            label="Proceso"
+            help="Acabado en caliente (EN 10210, curva de pandeo a) o conformado en frío (EN 10219, curva c)."
+            id="sc-rhs-process"
+            value={state.rhs_process}
+            options={[
+              { value: 'hot-finished', label: 'Caliente (EN 10210)' },
+              { value: 'cold-formed',  label: 'Frío (EN 10219)' },
+            ]}
+            onChange={(v) => setField('rhs_process', v as SteelColumnInputs['rhs_process'])}
+          />
+        </>
+      ) : isCHS ? (
         <>
           <UnitNumberInput
             label="D"

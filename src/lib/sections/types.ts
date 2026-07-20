@@ -16,7 +16,7 @@
 // M_res = √(My² + Mz²) because CHS is axially symmetric.
 
 /** Discriminant for each concrete section type. */
-export type SectionKind = 'I' | '2UPN' | 'CHS';
+export type SectionKind = 'I' | '2UPN' | 'CHS' | 'RHS';
 
 /** Pure visual primitives — SVG renderer composes labels/dim-arrows itself. */
 export interface CrossSectionPrimitives {
@@ -110,9 +110,19 @@ export interface ColumnBeamSection extends SectionGeometry {
    * Flexural buckling imperfection factors α per CE Anejo 22 §6.3.1.2 Tab 6.1/6.2.
    * For CHS: both axes share the same curve (a for hot-finished, c for
    * cold-formed). For I: depends on h/b ratio and steel grade. For 2UPN
-   * box: curve b both axes.
+   * box: curve b both axes. RHS/SHS: a (hot) / c (cold) both axes.
    */
   getBucklingAlpha(): { alpha_y: number; alpha_z: number };
+
+  /**
+   * Shear area A_v in mm² for shear parallel to the strong axis (V_z), per
+   * CE Anejo 22 §6.2.6(3):
+   *   - I laminado: A − 2·b·tf + (tw + 2r)·tf, con suelo η·hw·tw (η = 1).
+   *   - RHS/SHS:    A·h/(b + h).
+   *   - 2UPN cajón: 2·(h − 2·tf)·tw (suma de almas).
+   *   - CHS:        2·A/π.
+   */
+  shearAreaZ(): number;
 
   /**
    * LTB imperfection factor α_LT per CE Anejo 22 §6.3.2.3 Tabla 6.5 (rolled I).

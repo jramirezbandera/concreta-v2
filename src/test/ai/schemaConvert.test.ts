@@ -58,6 +58,9 @@ function propsOf(schema: Record<string, unknown>): Record<string, Record<string,
   return schema.properties as Record<string, Record<string, unknown>>;
 }
 
+/** Enum de `tipo` sin null (I/H/IPN + cajón 2UPN + tubos SHS/RHS/CHS). */
+const TIPO_ENUM = ['IPE', 'HEA', 'HEB', 'IPN', '2UPN', 'SHS', 'RHS', 'CHS'];
+
 // El validador de Anthropic rechaza `type` como array (400 "Enum value 'IPE'
 // does not match declared type"); estos tests fijan la conversión a `anyOf`.
 describe('toAnthropicSchema', () => {
@@ -67,7 +70,7 @@ describe('toAnthropicSchema', () => {
   it('convierte enums anulables a anyOf con enum sin null y rama type:null', () => {
     expect(props.tipo).toEqual({
       anyOf: [
-        { type: 'string', enum: ['IPE', 'HEA', 'HEB', 'IPN'] },
+        { type: 'string', enum: TIPO_ENUM },
         { type: 'null' },
       ],
       description: expect.stringContaining('Familia del perfil'),
@@ -127,7 +130,7 @@ describe('toAnthropicSchema', () => {
     const payloadProps = propsOf(anyOf[0] as Record<string, unknown>);
     expect(payloadProps.tipo).toEqual({
       anyOf: [
-        { type: 'string', enum: ['IPE', 'HEA', 'HEB', 'IPN'] },
+        { type: 'string', enum: TIPO_ENUM },
         { type: 'null' },
       ],
       description: expect.stringContaining('Familia del perfil'),
@@ -183,7 +186,7 @@ describe('toOpenAiSchema', () => {
   it('filtra null de los enums del primer nivel conservando el type array', () => {
     const converted = toOpenAiSchema(STEEL_BEAM_EXTRACTION_SCHEMA);
     const props = propsOf(converted);
-    expect(props.tipo.enum).toEqual(['IPE', 'HEA', 'HEB', 'IPN']);
+    expect(props.tipo.enum).toEqual(TIPO_ENUM);
     expect(props.tipo.type).toEqual(['string', 'null']);
     expect(props.deflLimit.enum).toEqual([250, 300, 400, 500, 600]);
     // Campos sin enum quedan intactos.
@@ -210,7 +213,7 @@ describe('toOpenAiSchema', () => {
     const payload = (proposal.anyOf as Record<string, unknown>[])[0] as Record<string, unknown>;
     const payloadProps = propsOf(payload);
     expect(payloadProps.tipo.type).toEqual(['string', 'null']);
-    expect(payloadProps.tipo.enum).toEqual(['IPE', 'HEA', 'HEB', 'IPN']);
+    expect(payloadProps.tipo.enum).toEqual(TIPO_ENUM);
     expect(payloadProps.deflLimit.type).toEqual(['integer', 'null']);
     expect(payloadProps.deflLimit.enum).toEqual([250, 300, 400, 500, 600]);
     // La rama {type:'null'} de proposal sobrevive.
@@ -355,7 +358,11 @@ describe('límite de uniones de Anthropic', () => {
     expect(countAnthropicUnions(buildChatSchema(isolatedFootingAdapter.payloadSchema))).toBe(23);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(isolatedFootingAdapter.payloadSchema))).toBe(true);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(punchingAdapter.payloadSchema))).toBe(true);
-    // Pequeño y el de 16 exacto → soportados (masonry dio 200 en vivo).
+    // En el límite de 16 exacto → soportados (masonry dio 200 en vivo).
+    // steel-beams: 15 uniones de payload (con las 3 dims de tubo, sin notes) +
+    // la de `proposal` = 16. Centinela: el próximo campo anulable lo expulsa de
+    // Anthropic — habría que compactar (p. ej. anidar las dims de tubo).
+    expect(countAnthropicUnions(buildChatSchema(steelBeamsAdapter.payloadSchema))).toBe(16);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(steelBeamsAdapter.payloadSchema))).toBe(false);
     expect(countAnthropicUnions(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(16);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(false);

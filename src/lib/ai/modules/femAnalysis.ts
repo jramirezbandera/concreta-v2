@@ -52,6 +52,7 @@ import {
   type SafetyRule,
 } from '../safety';
 import { toStatus, type CheckRow } from '../../calculations/types';
+import { STEEL_SECTION_ENTRIES } from '../../sections';
 import type {
   ArmadoHA,
   DesignBar,
@@ -84,22 +85,16 @@ import {
 // ── Catálogos del módulo ──────────────────────────────────────────────────────
 
 /**
- * Perfiles proponibles por chat: nombre humano → clave del catálogo MAT.
+ * Perfiles proponibles por chat: nombre humano → clave del catálogo unificado.
  * Enum CERRADO a propósito: `autoDecompose` hace `MAT[profileKey]` y una clave
  * inexistente da EI = 0 EN SILENCIO (viga de goma con diagramas plausibles).
- * Se excluye 'L 80×8': parseProfileKey no lo soporta (cae al fallback IPE 240
- * y el check mentiría sobre el perfil realmente comprobado).
+ * DERIVADO del registro (todas las familias con motor de flexión: I/H, 2UPN,
+ * SHS/RHS/CHS); se excluye la familia L: los angulares son solo-axil y el
+ * check de barra 1D mentiría sobre el perfil realmente comprobado.
  */
-const PERFIL_CATALOG: Record<string, string> = {
-  'IPE 200': 'steel_IPE200',
-  'IPE 240': 'steel_IPE240',
-  'IPE 300': 'steel_IPE300',
-  'IPE 360': 'steel_IPE360',
-  'HEB 160': 'steel_HEB160',
-  'HEB 200': 'steel_HEB200',
-  'HEB 240': 'steel_HEB240',
-  'HEB 300': 'steel_HEB300',
-};
+const PERFIL_CATALOG: Record<string, string> = Object.fromEntries(
+  STEEL_SECTION_ENTRIES.filter((e) => e.family !== 'L').map((e) => [e.label, e.key]),
+);
 const PERFIL_NAMES = Object.keys(PERFIL_CATALOG);
 
 const MATERIALS = ['rc', 'steel'] as const;

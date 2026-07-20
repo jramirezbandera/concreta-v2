@@ -14,6 +14,9 @@ import { AiError } from '../../lib/ai/types';
 const VALID_RAW = {
   tipo: 'HEB',
   size: 200,
+  tubo_h_mm: null,
+  tubo_b_mm: null,
+  tubo_t_mm: null,
   steel: 'S355',
   beamType: 'cantilever',
   L_m: 8,
@@ -25,7 +28,6 @@ const VALID_RAW = {
   qk_kNm2: 3,
   bTrib_m: 4,
   warnings: ['unidades convertidas de kp/m² a kN/m²'],
-  notes: 'Enunciado claro',
 };
 
 /** Ejecuta parseExtraction y devuelve el kind del AiError lanzado (o null si no lanza). */
@@ -45,10 +47,12 @@ describe('parseExtraction — raw válido', () => {
 
   it('todos los campos null (schema todo-null) pasan como null', () => {
     const allNull = {
-      tipo: null, size: null, steel: null, beamType: null,
+      tipo: null, size: null,
+      tubo_h_mm: null, tubo_b_mm: null, tubo_t_mm: null,
+      steel: null, beamType: null,
       L_m: null, Lcr_m: null, deflLimit: null, elsCombo: null,
       useCategory: null, gk_kNm2: null, qk_kNm2: null, bTrib_m: null,
-      warnings: [], notes: null,
+      warnings: [],
     };
     expect(parseExtraction(allNull)).toEqual(allNull);
   });
@@ -115,8 +119,17 @@ describe('parseExtraction — campos defensivos (null, nunca throw)', () => {
     expect(out.size).toBeNull();
   });
 
-  it('notes no-string → null', () => {
-    expect(parseExtraction({ ...VALID_RAW, notes: 42 }).notes).toBeNull();
+  it('dimensiones de tubo no-numéricas → null (defensivo)', () => {
+    const out = parseExtraction({ ...VALID_RAW, tubo_h_mm: '150', tubo_t_mm: Number.NaN, tubo_b_mm: 100 });
+    expect(out.tubo_h_mm).toBeNull();   // string → null
+    expect(out.tubo_t_mm).toBeNull();   // NaN → null
+    expect(out.tubo_b_mm).toBe(100);    // número finito pasa
+  });
+
+  it('familias tubulares (SHS/RHS/CHS) y el cajón 2UPN pasan el enum de tipo', () => {
+    for (const t of ['SHS', 'RHS', 'CHS', '2UPN']) {
+      expect(parseExtraction({ ...VALID_RAW, tipo: t }).tipo).toBe(t);
+    }
   });
 });
 

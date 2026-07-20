@@ -125,12 +125,28 @@ export type BeamType = 'ss' | 'cantilever' | 'fp' | 'ff';
 /** ELS serviceability combination for deflection check (CTE DB-SE Tabla 4.2). */
 export type ElsCombo = 'characteristic' | 'frequent' | 'quasi-permanent';
 
+/** Familia de perfil del módulo de vigas — I/H laminados + cajón 2UPN + tubos. */
+export type SteelBeamSectionType = 'IPE' | 'HEA' | 'HEB' | 'IPN' | '2UPN' | 'SHS' | 'RHS' | 'CHS';
+
 export interface SteelBeamInputs {
   /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
   title: string;
-  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN';
+  tipo: SteelBeamSectionType;
+  /** Size key — mm for IPE/HEA/HEB/IPN/2UPN. Ignored for SHS/RHS/CHS (tube dims below). */
   size: number;
   steel: 'S275' | 'S355';
+  /** CHS only — outer diameter (mm). */
+  chs_D: number;
+  /** CHS only — wall thickness (mm). */
+  chs_t: number;
+  /** SHS/RHS only — overall depth h (mm). SHS uses h for both dims. */
+  rhs_h: number;
+  /** RHS only — overall width b (mm). */
+  rhs_b: number;
+  /** SHS/RHS only — wall thickness (mm). */
+  rhs_t: number;
+  /** Tubos (SHS/RHS/CHS) — EN 10210 hot-finished (curva a) vs EN 10219 cold-formed (curva c). */
+  tube_process: CHSProcess;
   beamType: BeamType;
   MEd: number;
   VEd: number;
@@ -239,6 +255,12 @@ export const steelBeamDefaults: SteelBeamInputs = {
   tipo: 'IPE',
   size: 300,
   steel: 'S275',
+  chs_D: 168.3,
+  chs_t: 8,
+  rhs_h: 150,
+  rhs_b: 100,
+  rhs_t: 8,
+  tube_process: 'cold-formed',
   beamType: 'ss',
   MEd: 80,
   VEd: 60,
@@ -255,7 +277,7 @@ export const steelBeamDefaults: SteelBeamInputs = {
 };
 
 export type ColumnBCType = 'ff' | 'pp' | 'pf' | 'fc' | 'custom';
-export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | '2UPN' | 'CHS';
+export type SteelColumnSectionType = 'HEA' | 'HEB' | 'IPE' | 'IPN' | '2UPN' | 'SHS' | 'RHS' | 'CHS';
 export type CHSProcess = 'hot-finished' | 'cold-formed';
 
 export interface SteelColumnInputs {
@@ -271,6 +293,14 @@ export interface SteelColumnInputs {
   chs_t: number;
   /** CHS only — EN 10210 hot-finished (curve a) vs EN 10219 cold-formed (curve c). */
   chs_process: CHSProcess;
+  /** SHS/RHS only — overall depth h (mm). SHS uses h for both dims. */
+  rhs_h: number;
+  /** RHS only — overall width b (mm). */
+  rhs_b: number;
+  /** SHS/RHS only — wall thickness (mm). */
+  rhs_t: number;
+  /** SHS/RHS only — proceso (curva a caliente / curva c frío). */
+  rhs_process: CHSProcess;
   // Geometry — independent unbraced lengths per axis
   Ly: number;      // unbraced length y-y (strong axis) in mm
   Lz: number;      // unbraced length z-z (weak axis) in mm
@@ -293,6 +323,10 @@ export const steelColumnDefaults: SteelColumnInputs = {
   chs_D: 168.3,
   chs_t: 8,
   chs_process: 'hot-finished',
+  rhs_h: 150,
+  rhs_b: 100,
+  rhs_t: 8,
+  rhs_process: 'cold-formed',
   Ly: 3500,
   Lz: 3500,
   bcType: 'pp',

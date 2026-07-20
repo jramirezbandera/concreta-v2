@@ -14,7 +14,14 @@ import { useMemo } from 'react';
 import type { LoadGenResult } from '../../../lib/calculations/loadGen';
 import type { SteelBeamInputs, ElsCombo } from '../../../data/defaults';
 import { SteelBeamsInputs } from '../../steel-beams/SteelBeamsInputs';
-import { MAT } from '../presets';
+import {
+  STEEL_FAMILIES as SECTION_FAMILIES,
+  familyOfKey,
+  nearestInFamily,
+  steelEntriesByFamily,
+  type SteelFamily,
+} from '../../../lib/sections';
+import { parseProfileKey } from '../adapters/steelBeams';
 import type {
   BarResult,
   DesignBar,
@@ -22,6 +29,9 @@ import type {
   Load,
   SteelSelection,
 } from '../types';
+
+/** Familias ofertadas en barras 1D (flexión): todas menos los angulares L. */
+const BAR_FAMILIES: readonly SteelFamily[] = SECTION_FAMILIES.filter((f) => f !== 'L');
 
 interface Props {
   bar: DesignBar;
@@ -42,12 +52,9 @@ function deriveUseCategory(barLoads: Load[]): string {
 export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Props) {
   const sel: SteelSelection = bar.steelSelection!;
 
-  // Parse profileKey (e.g. 'steel_IPE240') → tipo + size for the standalone shape.
-  const profile = MAT[sel.profileKey];
-  const profileName = profile?.name ?? 'IPE 240';
-  const m = /^([A-Z]+)\s*(\d+)/.exec(profileName);
-  const tipo = (m?.[1] ?? 'IPE') as SteelBeamInputs['tipo'];
-  const size = m?.[2] ? parseInt(m[2], 10) : 240;
+  // Profile fields via the unified registry (same mapping the check adapter
+  // uses — the panel and the check can't disagree on what profile this is).
+  const profileFields = useMemo(() => parseProfileKey(sel.profileKey), [sel.profileKey]);
 
   // Lcr efectiva: el override manual vive en SteelSelection.Lcr (METROS,
   // persiste con el modelo); sin override, auto = luz de la barra — el mismo
@@ -70,8 +77,7 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
 
   const state: SteelBeamInputs = useMemo(() => ({
     title: '',        // metadato de documento; las barras FEM no llevan título propio
-    tipo,
-    size,
+    ...profileFields,
     steel: sel.steel,
     beamType: sel.beamType,
     MEd,
@@ -86,7 +92,7 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     gk: 0,    // hidden in FEM embed
     qk: 0,    // hidden
     bTrib: 1, // hidden
-  }), [tipo, size, sel, MEd, VEd, Mser, L_mm, lcrMm, derivedUseCategory]);
+  }), [profileFields, sel, MEd, VEd, Mser, L_mm, lcrMm, derivedUseCategory]);
 
   // Synthetic loadGen so the (hidden) derivation block doesn't show '--'.
   const loadGen: LoadGenResult = useMemo(() => ({
@@ -101,18 +107,21 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     Mser,
   }), [MEd, VEd, Mser]);
 
+  function setProfileKey(key: string) {
+    setModel((m) => ({
+      ...m,
+      bars: m.bars.map((b) => (b.id === bar.id ? { ...b, steelSelection: { ...sel, profileKey: key } } : b)),
+    }));
+  }
+
   function setField(field: keyof SteelBeamInputs, value: SteelBeamInputs[keyof SteelBeamInputs]) {
     setModel((m) => ({
       ...m,
       bars: m.bars.map((b) => {
         if (b.id !== bar.id) return b;
-        // Map back to SteelSelection.
-        if (field === 'tipo' || field === 'size') {
-          // Reconstruct profileKey from tipo + size (e.g. 'steel_IPE300').
-          const newTipo  = field === 'tipo'  ? (value as string) : tipo;
-          const newSize  = field === 'size'  ? (value as number) : size;
-          return { ...b, steelSelection: { ...sel, profileKey: `steel_${newTipo}${newSize}` } };
-        }
+        // Map back to SteelSelection. Profile selection now goes through the
+        // catalog-keyed familia+tamaño selects (setProfileKey) — the standalone
+        // profile block is hidden (hideProfile), so tipo/size/dims never land here.
         if (field === 'steel')      return { ...b, steelSelection: { ...sel, steel: value as 'S275' | 'S355' } };
         if (field === 'deflLimit')  return { ...b, steelSelection: { ...sel, deflLimit: value as number } };
         if (field === 'elsCombo')   return { ...b, steelSelection: { ...sel, elsCombo: value as 'characteristic' | 'frequent' | 'quasi-permanent' } };
@@ -139,17 +148,56 @@ export function SteelBarInputs({ bar, setModel, barResult, L_mm, barLoads }: Pro
     }));
   }
 
+  // Familia + tamaño (claves del catálogo unificado — mismo patrón que el
+  // inspector de FEM 2D; las dimensiones libres de tubo no mapean a una clave,
+  // así que aquí SIEMPRE se elige de catálogo).
+  const currentFamily = familyOfKey(sel.profileKey);
+  const famOptions = currentFamily && !BAR_FAMILIES.includes(currentFamily)
+    ? [currentFamily, ...BAR_FAMILIES]
+    : BAR_FAMILIES;
+  const fam = currentFamily ?? BAR_FAMILIES[0];
+  const selectClass =
+    'flex-1 min-w-0 bg-bg-primary border border-border-main rounded px-2 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors';
+
   return (
-    <SteelBeamsInputs
-      state={state}
-      setField={setField}
-      displayLcr={lcrMm}
-      lcrIsAuto={sel.Lcr == null}
-      onLcrChange={handleLcrChange}
-      loadGen={loadGen}
-      hideLoads
-      hideBeamType
-      hideL
-    />
+    <>
+      <div className="flex items-center justify-between py-0.75 gap-2">
+        <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">Perfil</span>
+        <div className="flex gap-1.5 min-w-0 flex-1 justify-end">
+          <select
+            value={fam}
+            onChange={(e) => setProfileKey(nearestInFamily(e.target.value as SteelFamily, sel.profileKey).key)}
+            className={selectClass}
+            aria-label="Familia de perfil"
+          >
+            {famOptions.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <select
+            value={sel.profileKey}
+            onChange={(e) => setProfileKey(e.target.value)}
+            className={selectClass}
+            aria-label="Tamaño del perfil"
+          >
+            {steelEntriesByFamily(fam).map((en) => (
+              <option key={en.key} value={en.key}>{en.sizeLabel}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <SteelBeamsInputs
+        state={state}
+        setField={setField}
+        displayLcr={lcrMm}
+        lcrIsAuto={sel.Lcr == null}
+        onLcrChange={handleLcrChange}
+        loadGen={loadGen}
+        hideLoads
+        hideBeamType
+        hideL
+        hideProfile
+      />
+    </>
   );
 }

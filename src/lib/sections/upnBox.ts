@@ -84,6 +84,12 @@ export class UPNBoxAdapter implements ColumnBeamSection {
     return NaN;  // LTB doesn't apply to closed sections
   }
 
+  shearAreaZ(): number {
+    // Two webs (one per UPN channel), each (h − 2·tf) × tw — CE Anejo 22
+    // §6.2.6(3), suma de almas de un cajón soldado.
+    return 2 * (this.h - 2 * this.tf) * this.tw;
+  }
+
   computeMcr(_Lcr: number, _C1: number, _E: number, _G: number): number {
     // Closed section: Iw = 0, torsional stiffness GIt very large. Mcr → ∞
     // (numerically very large), so λ̄_LT = √(Wpl·fy / Mcr) → 0 → χ_LT = 1.

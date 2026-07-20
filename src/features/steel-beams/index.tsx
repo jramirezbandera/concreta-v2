@@ -66,8 +66,11 @@ export function SteelBeamsModule() {
     } else if (lChanged || btChanged) {
       setLcrManuallyOverridden(false); // Lcr vuelve a auto con la nueva L/beamType
     }
+    // `tipo` va primero (decide qué juego de dimensiones lee el motor); las
+    // dimensiones de tubo (chs_*/rhs_*) DEBEN estar en el whitelist o el chat
+    // las descartaría en silencio (mismo patrón que el bug #109 de composite).
     const ORDER: (keyof SteelBeamInputs)[] =
-      ['tipo', 'size', 'steel', 'beamType', 'L', 'deflLimit', 'elsCombo', 'useCategory', 'gk', 'qk', 'bTrib', 'Lcr'];
+      ['tipo', 'size', 'chs_D', 'chs_t', 'rhs_h', 'rhs_b', 'rhs_t', 'steel', 'beamType', 'L', 'deflLimit', 'elsCombo', 'useCategory', 'gk', 'qk', 'bTrib', 'Lcr'];
     for (const k of ORDER) {
       const v = f[k];
       if (v !== undefined) setField(k, v as SteelBeamInputs[typeof k]);

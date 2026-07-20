@@ -36,6 +36,7 @@ export function SteelColumnsModule() {
   const handleAiApply = (plan: AiApplyPlan<SteelColumnInputs>) => {
     const ORDER: (keyof SteelColumnInputs)[] = [
       'sectionType', 'size', 'steel', 'chs_D', 'chs_t', 'chs_process',
+      'rhs_h', 'rhs_b', 'rhs_t', 'rhs_process',
       'Ly', 'Lz', 'bcType', 'beta_y', 'beta_z',
       'Ned', 'My_Ed', 'Mz_Ed',
     ];

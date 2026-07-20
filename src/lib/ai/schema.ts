@@ -14,10 +14,13 @@
 export const STEEL_BEAM_EXTRACTION_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['tipo', 'size', 'steel', 'beamType', 'L_m', 'Lcr_m', 'deflLimit', 'elsCombo', 'useCategory', 'gk_kNm2', 'qk_kNm2', 'bTrib_m', 'warnings', 'notes'],
+  required: ['tipo', 'size', 'tubo_h_mm', 'tubo_b_mm', 'tubo_t_mm', 'steel', 'beamType', 'L_m', 'Lcr_m', 'deflLimit', 'elsCombo', 'useCategory', 'gk_kNm2', 'qk_kNm2', 'bTrib_m', 'warnings'],
   properties: {
-    tipo: { type: ['string', 'null'], enum: ['IPE', 'HEA', 'HEB', 'IPN', null], description: 'Familia del perfil laminado. null si el enunciado no la indica.' },
-    size: { type: ['integer', 'null'], description: 'Canto nominal del perfil en mm (p.ej. 300 para un IPE 300).' },
+    tipo: { type: ['string', 'null'], enum: ['IPE', 'HEA', 'HEB', 'IPN', '2UPN', 'SHS', 'RHS', 'CHS', null], description: 'Familia del perfil: laminados abiertos "IPE"/"HEA"/"HEB"/"IPN", cajón "2UPN" (dos UPN soldadas), o tubos "SHS" (cuadrado), "RHS" (rectangular) y "CHS" (circular). null si el enunciado no la indica.' },
+    size: { type: ['integer', 'null'], description: 'Designación del perfil en mm SOLO para IPE/HEA/HEB/IPN/2UPN (p.ej. 300 para un IPE 300, 200 para un 2UPN 200). NO se usa con tubos SHS/RHS/CHS: éstos se definen con tubo_h_mm/tubo_b_mm/tubo_t_mm.' },
+    tubo_h_mm: { type: ['number', 'null'], description: 'SOLO tubos: dimensión exterior principal en mm — diámetro D en CHS, lado en SHS, canto (mayor) en RHS. null en perfiles no tubulares.' },
+    tubo_b_mm: { type: ['number', 'null'], description: 'SOLO tubos RECTANGULARES (RHS): ancho exterior en mm. En SHS y CHS déjalo null (el lado/diámetro va en tubo_h_mm).' },
+    tubo_t_mm: { type: ['number', 'null'], description: 'SOLO tubos: espesor de pared en mm. null en perfiles no tubulares.' },
     steel: { type: ['string', 'null'], enum: ['S275', 'S355', null], description: 'Grado de acero.' },
     beamType: { type: ['string', 'null'], enum: ['ss', 'cantilever', 'fp', 'ff', null], description: 'Apoyos: ss=biarticulada, cantilever=ménsula, fp=empotrada-articulada, ff=biempotrada.' },
     L_m: { type: ['number', 'null'], description: 'Luz de la viga en METROS.' },
@@ -29,7 +32,6 @@ export const STEEL_BEAM_EXTRACTION_SCHEMA: Record<string, unknown> = {
     qk_kNm2: { type: ['number', 'null'], description: 'ÚNICA acción variable superficial del módulo, en kN/m²: la ENVOLVENTE (la más desfavorable) de todas las hipótesis variables — sobrecarga de uso, nieve, viento descendente, mantenimiento. No es "la última acción mencionada".' },
     bTrib_m: { type: ['number', 'null'], description: 'Ancho tributario en METROS.' },
     warnings: { type: 'array', items: { type: 'string' }, description: 'Avisos: esfuerzos en vez de cargas, cargas lineales, unidades dudosas, ambigüedades, datos ignorados.' },
-    notes: { type: ['string', 'null'], description: 'Comentario breve opcional.' },
   },
 };
 
@@ -45,6 +47,7 @@ export const STEEL_PROMPT_RULES = `REGLAS DEL MÓDULO (vigas de acero laminado s
 3. Si el usuario da cargas LINEALES (kN/m) y también un ancho tributario coherente, puedes derivar la carga superficial dividiendo (kN/m ÷ m = kN/m²) e indicarlo en un warning. Si da cargas lineales sin ancho tributario, deja los campos de carga en null y descríbelo en un warning.
 4. gk_kNm2 es la carga permanente ADICIONAL (solado, tabiquería, falso techo...), sin el peso propio del perfil de acero (la app lo añade automáticamente).
 5. beamType: "ss" = biarticulada o simplemente apoyada; "cantilever" = ménsula o voladizo; "fp" = empotrada-articulada; "ff" = biempotrada.
+5b. PERFIL: con las familias abiertas IPE/HEA/HEB/IPN y el cajón 2UPN, el perfil se elige con "size" (IPE 300 → size 300; 2UPN 200 → size 200) y los campos tubo_* quedan en null. Con los TUBOS el "size" NO se usa y el perfil se define por dimensiones exteriores en mm: SHS (cuadrado) → tubo_h_mm (lado) + tubo_t_mm (espesor), tubo_b_mm null; RHS (rectangular) → tubo_h_mm (canto) + tubo_b_mm (ancho) + tubo_t_mm; CHS (circular) → tubo_h_mm (diámetro) + tubo_t_mm, tubo_b_mm null. Propón SIEMPRE la familia (tipo) junto a sus dimensiones. Ventaja de los tubos como viga: al ser secciones cerradas NO tienen pandeo lateral (vuelco), así que χLT = 1 y no gobierna la comprobación de vuelco.
 6. Lcr_m SOLO si el usuario da explícitamente la longitud de pandeo lateral (o arriostramientos a distancia concreta). Si no la da, null: la app la calcula automáticamente.
 7. deflLimit: denominador n del límite de flecha L/n. Si el usuario pide un n distinto de 250/300/400/500/600, devuelve null y añade un warning con el valor pedido.
 8. useCategory solo si el usuario nombra el uso del forjado (vivienda/residencial → A1; trasteros → A2; oficinas/administrativo → B; zonas con mesas → C1; asientos fijos → C2; zonas sin obstáculos/de paso → C3; comercial → D1; almacén → E1; cubierta accesible solo para conservación → G1). Si da un qk explícito sin nombrar uso, deja useCategory en null.

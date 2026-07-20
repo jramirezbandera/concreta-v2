@@ -21,6 +21,7 @@
 
 import { calcSteelBeam, type SteelBeamResult, type SteelCheckRow } from '../../../lib/calculations/steelBeams';
 import { toStatus } from '../../../lib/calculations/types';
+import { descriptorForKey } from '../../../lib/sections';
 import type { SteelBeamInputs } from '../../../data/defaults';
 import { buildLcCombinations, type LcFactors } from '../lcCombinations';
 import type {
@@ -457,16 +458,16 @@ function buildSteelBeamInputs(
   beamType: 'ss' | 'cantilever' | 'fp' | 'ff',
   env: SteelBarEnvelope,
 ): SteelBeamInputs {
-  // Map catalog key ('steel_IPE240') to (tipo, size) for calcSteelBeam.
-  const { tipo, size } = parseProfileKey(sel.profileKey);
+  // Map catalog key ('steel_IPE240', 'steel_SHS100x100x5'…) to the engine's
+  // profile fields via the unified registry descriptor.
+  const profileFields = parseProfileKey(sel.profileKey);
   // L in mm (calcSteelBeam internal). Lcr defaults to bar length when not set.
   const L_mm = env.L * 1000;
   const Lcr_mm = sel.Lcr != null ? sel.Lcr * 1000 : L_mm;
 
   return {
     title: '',        // metadato de documento; las barras FEM no llevan título propio
-    tipo,
-    size,
+    ...profileFields,
     steel: sel.steel,
     beamType,
     MEd: env.M_Ed,
@@ -490,16 +491,28 @@ function buildSteelBeamInputs(
   };
 }
 
-function parseProfileKey(key: string): { tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN'; size: number } {
-  // Catalog keys follow 'steel_IPE240', 'steel_HEB200', etc.
-  const m = key.match(/^steel_(IPE|HEA|HEB|IPN|L)(\d+)/);
-  if (!m) {
-    // Fallback: best-effort parse for unrecognized keys (e.g. L80x8). The
-    // calcSteelBeam check will then return 'Perfil no encontrado', surfaced
-    // upstream. V1 only handles IPE/HEB/HEA/IPN; L profiles are out of scope.
-    return { tipo: 'IPE', size: 240 };
+export type ProfileFields = Pick<
+  SteelBeamInputs,
+  'tipo' | 'size' | 'chs_D' | 'chs_t' | 'rhs_h' | 'rhs_b' | 'rhs_t' | 'tube_process'
+>;
+
+export function parseProfileKey(key: string): ProfileFields {
+  const base: ProfileFields = {
+    tipo: 'IPE', size: -1,
+    chs_D: 0, chs_t: 0, rhs_h: 0, rhs_b: 0, rhs_t: 0,
+    tube_process: 'cold-formed',
+  };
+  const d = descriptorForKey(key);
+  if (!d) {
+    // Unknown key or L angle (no bending adapter): size = -1 makes the
+    // engine return 'Perfil no encontrado', surfaced upstream as invalid —
+    // never a silently-wrong substitute profile.
+    return base;
   }
-  const tipo = m[1] === 'L' ? 'IPE' : (m[1] as 'IPE' | 'HEA' | 'HEB' | 'IPN');
-  const size = parseInt(m[2], 10);
-  return { tipo, size };
+  switch (d.kind) {
+    case 'I':    return { ...base, tipo: d.tipo, size: d.size };
+    case '2UPN': return { ...base, tipo: '2UPN', size: d.size };
+    case 'CHS':  return { ...base, tipo: 'CHS', chs_D: d.D, chs_t: d.t, tube_process: d.process };
+    case 'RHS':  return { ...base, tipo: d.h === d.b ? 'SHS' : 'RHS', rhs_h: d.h, rhs_b: d.b, rhs_t: d.t, tube_process: d.process };
+  }
 }

@@ -14,6 +14,7 @@ import {
   BETA_GATE_REASON,
   CHS_ONLY_REASON,
   CHS_SIZE_REASON,
+  RHS_B_REASON,
 } from '../../lib/ai/modules/steelColumns';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { AiError } from '../../lib/ai/types';
@@ -26,7 +27,7 @@ const ALREADY = 'Ya coincide con el valor actual';
 
 interface Payload {
   sectionType: string | null; size: number | null; steel: string | null;
-  chs_D_mm: number | null; chs_t_mm: number | null; chs_process: string | null;
+  tubo_h_mm: number | null; tubo_b_mm: number | null; tubo_t_mm: number | null; tubo_proceso: string | null;
   Ly_m: number | null; Lz_m: number | null;
   bcType: string | null; beta_y: number | null; beta_z: number | null;
   Ned_kN: number | null; My_kNm: number | null; Mz_kNm: number | null;
@@ -36,7 +37,7 @@ interface Payload {
 function makePayload(partial: Partial<Payload> = {}): Payload {
   return {
     sectionType: null, size: null, steel: null,
-    chs_D_mm: null, chs_t_mm: null, chs_process: null,
+    tubo_h_mm: null, tubo_b_mm: null, tubo_t_mm: null, tubo_proceso: null,
     Ly_m: null, Lz_m: null, bcType: null, beta_y: null, beta_z: null,
     Ned_kN: null, My_kNm: null, Mz_kNm: null,
     warnings: [],
@@ -98,20 +99,40 @@ describe('steelColumns adapter — validación cruzada familia ↔ tamaño', () 
   });
 });
 
-describe('steelColumns adapter — gate CHS', () => {
-  it('con CHS propuesto, `size` se salta (el tubo se define con D y t)', () => {
-    const p = plan({ sectionType: 'CHS', size: 200, chs_D_mm: 219.1, chs_t_mm: 10 });
+describe('steelColumns adapter — gate de tubos', () => {
+  it('con CHS propuesto, `size` se salta (el tubo se define con tubo_h/tubo_t)', () => {
+    const p = plan({ sectionType: 'CHS', size: 200, tubo_h_mm: 219.1, tubo_t_mm: 10 });
     expect(skipFor(p, 'Tamaño del perfil')?.reason).toBe(CHS_SIZE_REASON);
     expect(p.fields.chs_D).toBe(219.1);
     expect(p.fields.chs_t).toBe(10);
   });
 
+  it('con SHS propuesto, tubo_h/tubo_t van a rhs_h/rhs_t (y tubo_b se salta)', () => {
+    // Valores ≠ defaults (rhs_h 150 / rhs_t 8): un valor igual al vigente se
+    // saltaría con ALREADY, que no es lo que se prueba aquí.
+    const p = plan({ sectionType: 'SHS', tubo_h_mm: 160, tubo_b_mm: 120, tubo_t_mm: 6 });
+    expect(p.fields.sectionType).toBe('SHS');
+    expect(p.fields.rhs_h).toBe(160);
+    expect(p.fields.rhs_t).toBe(6);
+    expect(skipFor(p, 'Ancho del tubo b')?.reason).toBe(RHS_B_REASON);
+    expect(p.fields.rhs_b).toBeUndefined();
+  });
+
+  it('con RHS propuesto, las tres dimensiones aplican', () => {
+    const p = plan({ sectionType: 'RHS', tubo_h_mm: 200, tubo_b_mm: 120, tubo_t_mm: 10, tubo_proceso: 'hot-finished' });
+    expect(p.fields.rhs_h).toBe(200);
+    expect(p.fields.rhs_b).toBe(120);
+    expect(p.fields.rhs_t).toBe(10);
+    expect(p.fields.rhs_process).toBe('hot-finished');
+  });
+
   it('con perfil abierto vigente, los datos del tubo se saltan', () => {
-    const p = plan({ chs_D_mm: 200, chs_t_mm: 8, chs_process: 'cold-formed' });
-    expect(skipFor(p, 'Diámetro del tubo D')?.reason).toBe(CHS_ONLY_REASON);
+    const p = plan({ tubo_h_mm: 200, tubo_t_mm: 8, tubo_proceso: 'cold-formed' });
+    expect(skipFor(p, 'Dimensión del tubo h/D')?.reason).toBe(CHS_ONLY_REASON);
     expect(skipFor(p, 'Espesor del tubo t')?.reason).toBe(CHS_ONLY_REASON);
     expect(skipFor(p, 'Proceso del tubo')?.reason).toBe(CHS_ONLY_REASON);
     expect(p.fields.chs_D).toBeUndefined();
+    expect(p.fields.rhs_h).toBeUndefined();
   });
 });
 
@@ -215,7 +236,7 @@ describe('steelColumns adapter — snapshot', () => {
     expect(snap.valores.Ly_m).toBe(3.5);
     expect(snap.valores.Lz_m).toBe(3.5);
     expect(snap.valores.sectionType).toBe('HEB');
-    expect(snap.sin_confirmar).toHaveLength(14);
+    expect(snap.sin_confirmar).toHaveLength(15);
   });
 
   it('la comparación con el default se hace en mm (sin ruido de redondeo)', () => {

@@ -121,6 +121,14 @@ export class ISectionAdapter implements ColumnBeamSection {
     return this.h / this.b <= 2 ? 0.34 : 0.49;
   }
 
+  shearAreaZ(): number {
+    // CE Anejo 22 §6.2.6(3)(a) — rolled I/H, load parallel to web, with the
+    // η·hw·tw floor (η = 1). Formula moved verbatim from calcSteelBeam.
+    const A_mm2 = this.A * 100;
+    const Av = A_mm2 - 2 * this.b * this.tf + (this.tw + 2 * this.r) * this.tf;
+    return Math.max(Av, this.tw * (this.h - 2 * this.tf));
+  }
+
   computeMcr(Lcr: number, C1: number, E: number, G: number, C2 = 0, zg = 0): number {
     // EC3 Eq. F.2 — LTB formula for doubly-symmetric sections, with the
     // load-height term C2·zg (auditoría #61): for transverse loads applied

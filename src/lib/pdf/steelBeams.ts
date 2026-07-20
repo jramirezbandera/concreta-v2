@@ -166,7 +166,8 @@ export async function exportSteelBeamsPDF(
 
   // PERFIL Y MATERIAL
   sectionHeader('PERFIL Y MATERIAL');
-  const profileLabel = result.profile?.label ?? `${inp.tipo} ${inp.size}`;
+  // section.label cubre tubos y 2UPN (sin registro I); profile.label, los I/H.
+  const profileLabel = result.section?.label ?? result.profile?.label ?? `${inp.tipo} ${inp.size}`;
   twoCol(profileLabel, inp.steel);
   // Una sola celda: "Tipo: Empotrada-Articulada" no cabe en COL_A_W y pisaba
   // el "L = ..." de la segunda columna.

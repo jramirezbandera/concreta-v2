@@ -9,8 +9,11 @@ export interface AiImageAttachment {
 
 /** Salida del LLM en unidades "humanas": longitudes en m, cargas en kN/m². Todo nullable. */
 export interface SteelBeamExtraction {
-  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN' | null;
-  size: number | null;                       // canto nominal en mm (p.ej. 300)
+  tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN' | '2UPN' | 'SHS' | 'RHS' | 'CHS' | null;
+  size: number | null;                       // designación en mm para I/H/IPN/2UPN (null en tubos)
+  tubo_h_mm: number | null;                  // tubos: D (CHS) / lado (SHS) / canto (RHS)
+  tubo_b_mm: number | null;                  // tubos: ancho (SOLO RHS; null en SHS/CHS)
+  tubo_t_mm: number | null;                  // tubos: espesor de pared
   steel: 'S275' | 'S355' | null;
   beamType: 'ss' | 'cantilever' | 'fp' | 'ff' | null;
   L_m: number | null;
@@ -22,7 +25,6 @@ export interface SteelBeamExtraction {
   qk_kNm2: number | null;
   bTrib_m: number | null;
   warnings: string[];
-  notes: string | null;
 }
 
 export type AiErrorKind =

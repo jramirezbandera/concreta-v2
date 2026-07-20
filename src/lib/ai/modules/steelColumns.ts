@@ -38,35 +38,47 @@ import { formatQuantity } from '../../units/format';
 import type { UnitSystem } from '../../units/types';
 
 // ── Catálogos del módulo ──────────────────────────────────────────────────────
-const SECTION_TYPES: readonly string[] = ['HEA', 'HEB', 'IPE', '2UPN', 'CHS'];
+const SECTION_TYPES: readonly string[] = ['HEA', 'HEB', 'IPE', 'IPN', '2UPN', 'SHS', 'RHS', 'CHS'];
 const STEELS: readonly string[] = ['S275', 'S355'];
-const CHS_PROCESSES: readonly string[] = ['hot-finished', 'cold-formed'];
+const TUBE_PROCESSES: readonly string[] = ['hot-finished', 'cold-formed'];
 const BC_TYPES: readonly string[] = ['pp', 'pf', 'ff', 'fc', 'custom'];
 
-/** Tamaños disponibles de una familia. CHS no usa `size` (se define con D y t). */
+/** Familias tubulares — el perfil se define con tubo_* en vez de `size`. */
+function isTubeFamily(t: SteelColumnSectionType): boolean {
+  return t === 'CHS' || t === 'SHS' || t === 'RHS';
+}
+
+/** Tamaños disponibles de una familia. Los tubos no usan `size` (dims libres). */
 function sizesFor(sectionType: SteelColumnSectionType): number[] {
-  if (sectionType === 'CHS') return [];
-  if (sectionType === '2UPN') return getSizesUPN();
-  return getSizesForTipo(sectionType);
+  switch (sectionType) {
+    case 'SHS': case 'RHS': case 'CHS': return [];
+    case '2UPN': return getSizesUPN();
+    default: return getSizesForTipo(sectionType);
+  }
 }
 
 // ── Payload schema (JSON Schema canónico PLANO, todo nullable) ────────────────
+// PRESUPUESTO DE UNIONES (límite duro 16 de Anthropic): los campos de tubo son
+// GENÉRICOS (tubo_h_mm = D en CHS / lado en SHS) en vez de un juego por
+// familia — con chs_* + rhs_* separados serían 17 uniones y Anthropic
+// rechazaría el módulo. Hoy: 15 uniones ≤ 16 (test-guarda en providers).
 
 export const STEEL_COLUMN_PAYLOAD_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'sectionType', 'size', 'steel', 'chs_D_mm', 'chs_t_mm', 'chs_process',
+    'sectionType', 'size', 'steel', 'tubo_h_mm', 'tubo_b_mm', 'tubo_t_mm', 'tubo_proceso',
     'Ly_m', 'Lz_m', 'bcType', 'beta_y', 'beta_z',
     'Ned_kN', 'My_kNm', 'Mz_kNm', 'warnings',
   ],
   properties: {
-    sectionType: { type: ['string', 'null'], enum: [...SECTION_TYPES, null], description: 'Familia del perfil: "HEA", "HEB", "IPE", "2UPN" (dos UPN en cajón) o "CHS" (tubo circular hueco).' },
-    size: { type: ['integer', 'null'], description: 'Designación del perfil dentro de su familia (HEB 200 → 200; 2UPN 160 → 160). NO se usa con CHS: el tubo se define con chs_D_mm y chs_t_mm.' },
+    sectionType: { type: ['string', 'null'], enum: [...SECTION_TYPES, null], description: 'Familia del perfil: "HEA", "HEB", "IPE", "IPN", "2UPN" (dos UPN en cajón), "SHS" (tubo cuadrado), "RHS" (tubo rectangular) o "CHS" (tubo circular).' },
+    size: { type: ['integer', 'null'], description: 'Designación del perfil dentro de su familia (HEB 200 → 200; 2UPN 160 → 160). NO se usa con los tubos SHS/RHS/CHS: se definen con tubo_h_mm/tubo_b_mm/tubo_t_mm.' },
     steel: { type: ['string', 'null'], enum: [...STEELS, null], description: 'Grado del acero: "S275" o "S355".' },
-    chs_D_mm: { type: ['number', 'null'], description: 'SOLO para CHS: diámetro exterior del tubo en mm.' },
-    chs_t_mm: { type: ['number', 'null'], description: 'SOLO para CHS: espesor de pared del tubo en mm.' },
-    chs_process: { type: ['string', 'null'], enum: [...CHS_PROCESSES, null], description: 'SOLO para CHS: proceso de fabricación — "hot-finished" (acabado en caliente, EN 10210, curva de pandeo a) o "cold-formed" (conformado en frío, EN 10219, curva c).' },
+    tubo_h_mm: { type: ['number', 'null'], description: 'SOLO tubos: dimensión principal exterior en mm — diámetro D en CHS, lado en SHS, canto h en RHS.' },
+    tubo_b_mm: { type: ['number', 'null'], description: 'SOLO RHS: ancho exterior b en mm. En SHS y CHS no se usa (null).' },
+    tubo_t_mm: { type: ['number', 'null'], description: 'SOLO tubos: espesor de pared en mm.' },
+    tubo_proceso: { type: ['string', 'null'], enum: [...TUBE_PROCESSES, null], description: 'SOLO tubos: proceso de fabricación — "hot-finished" (acabado en caliente, EN 10210, curva de pandeo a) o "cold-formed" (conformado en frío, EN 10219, curva c).' },
     Ly_m: { type: ['number', 'null'], description: 'Longitud de pandeo del eje FUERTE (y) en METROS: distancia entre arriostramientos en ese plano.' },
     Lz_m: { type: ['number', 'null'], description: 'Longitud de pandeo del eje DÉBIL (z) en METROS: distancia entre arriostramientos laterales.' },
     bcType: { type: ['string', 'null'], enum: [...BC_TYPES, null], description: 'Condición de apoyo del pilar: "pp" biarticulado (β=1.0), "pf" articulado-empotrado (β=0.7), "ff" biempotrado (β=0.5), "fc" empotrado-libre / ménsula (β=2.0) o "custom" para dar β a mano. Con cualquier valor distinto de "custom", β lo deriva la aplicación.' },
@@ -84,7 +96,7 @@ export const STEEL_COLUMN_PAYLOAD_SCHEMA: Record<string, unknown> = {
 const PROMPT_RULES = `Reglas específicas del módulo Pilares de acero:
 1. Las longitudes de pandeo Ly_m y Lz_m van en METROS. Son las distancias entre arriostramientos de cada plano: si el pilar está arriostrado a media altura en el plano débil, Lz es la MITAD de la altura mientras que Ly es la altura completa. Si el enunciado no distingue, usa la altura del pilar para las dos y dilo en un warning.
 2. Ned, My y Mz son esfuerzos de CÁLCULO, YA MAYORADOS (ELU). Si el enunciado da cargas de servicio, mayóralas (γG=1.35 / γQ=1.5 salvo indicación) y explícalo en un warning. My es el momento del eje FUERTE y Mz el del DÉBIL.
-3. El perfil: con las familias HEA, HEB, IPE y 2UPN el perfil se elige con "size" (HEB 200 → size 200). Con la familia CHS (tubo circular) "size" NO se usa: el tubo se define con chs_D_mm (diámetro exterior) y chs_t_mm (espesor de pared). Propón siempre la familia junto al tamaño cuando cambies de una a otra.
+3. El perfil: con las familias HEA, HEB, IPE, IPN y 2UPN el perfil se elige con "size" (HEB 200 → size 200). Con las familias tubulares "size" NO se usa: CHS se define con tubo_h_mm (= diámetro D) y tubo_t_mm; SHS con tubo_h_mm (= lado) y tubo_t_mm; RHS con tubo_h_mm (canto), tubo_b_mm (ancho) y tubo_t_mm. Propón siempre la familia junto al tamaño cuando cambies de una a otra.
 4. bcType fija β automáticamente: "pp" biarticulado β=1.0, "pf" articulado-empotrado β=0.7, "ff" biempotrado β=0.5, "fc" ménsula β=2.0. Propón bcType, NO β: los campos beta_y y beta_z solo se usan con bcType="custom" y en cualquier otro caso los sobrescribe la aplicación.
 5. Sección de clase 4: el módulo no la soporta. Si el resultado dice "Clase 4", la salida es un perfil de más espesor (subir de HEA a HEB, o engrosar la pared del tubo), no reducir el axil.
 6. En este módulo son DATOS del problema, no variables de diseño: los esfuerzos (Ned, My, Mz), las longitudes de pandeo (Ly, Lz) y la condición de apoyo (bcType y, en su caso, β). Para que el pilar cumpla actúa SIEMPRE sobre la RESISTENCIA: perfil mayor o de más espesor (HEB frente a HEA, tamaño superior, más pared en el tubo) o acero de más límite elástico (S275 → S355). NUNCA rebajes un esfuerzo, ni acortes una longitud de pandeo, ni "empotres" un pilar articulado para que salga el cálculo: β lo fija cómo está construido el nudo, no la comprobación.`;
@@ -99,9 +111,10 @@ interface SteelColumnPayload {
   sectionType: string | null;
   size: number | null;
   steel: string | null;
-  chs_D_mm: number | null;
-  chs_t_mm: number | null;
-  chs_process: string | null;
+  tubo_h_mm: number | null;
+  tubo_b_mm: number | null;
+  tubo_t_mm: number | null;
+  tubo_proceso: string | null;
   Ly_m: number | null;
   Lz_m: number | null;
   bcType: string | null;
@@ -129,9 +142,10 @@ function parsePayload(raw: unknown): SteelColumnPayload {
     sectionType: stringOrNull(r.sectionType),
     size: finiteNumber(r.size),
     steel: stringOrNull(r.steel),
-    chs_D_mm: finiteNumber(r.chs_D_mm),
-    chs_t_mm: finiteNumber(r.chs_t_mm),
-    chs_process: stringOrNull(r.chs_process),
+    tubo_h_mm: finiteNumber(r.tubo_h_mm),
+    tubo_b_mm: finiteNumber(r.tubo_b_mm),
+    tubo_t_mm: finiteNumber(r.tubo_t_mm),
+    tubo_proceso: stringOrNull(r.tubo_proceso),
     Ly_m: finiteNumber(r.Ly_m),
     Lz_m: finiteNumber(r.Lz_m),
     bcType: stringOrNull(r.bcType),
@@ -152,9 +166,10 @@ const LABELS = {
   sectionType: 'Familia del perfil',
   size: 'Tamaño del perfil',
   steel: 'Acero',
-  chs_D_mm: 'Diámetro del tubo D',
-  chs_t_mm: 'Espesor del tubo t',
-  chs_process: 'Proceso del tubo',
+  tubo_h_mm: 'Dimensión del tubo h/D',
+  tubo_b_mm: 'Ancho del tubo b',
+  tubo_t_mm: 'Espesor del tubo t',
+  tubo_proceso: 'Proceso del tubo',
   Ly_m: 'Longitud de pandeo Ly',
   Lz_m: 'Longitud de pandeo Lz',
   bcType: 'Condición de apoyo',
@@ -167,9 +182,9 @@ const LABELS = {
 
 type PayloadKey = keyof typeof LABELS;
 
-/** ORDER del contrato: `sectionType` antes que `size`/`chs_*`; `bcType` antes que β. */
+/** ORDER del contrato: `sectionType` antes que `size`/`tubo_*`; `bcType` antes que β. */
 const KEY_ORDER: readonly PayloadKey[] = [
-  'sectionType', 'size', 'steel', 'chs_D_mm', 'chs_t_mm', 'chs_process',
+  'sectionType', 'size', 'steel', 'tubo_h_mm', 'tubo_b_mm', 'tubo_t_mm', 'tubo_proceso',
   'Ly_m', 'Lz_m', 'bcType', 'beta_y', 'beta_z',
   'Ned_kN', 'My_kNm', 'Mz_kNm',
 ];
@@ -256,11 +271,14 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 const fmtM = (mm: number) => `${(mm / 1000).toFixed(2)} m`;
 
 export const CHS_SIZE_REASON =
-  'La familia CHS (tubo circular) no usa el tamaño de catálogo: el tubo se define con su '
-  + 'diámetro exterior (chs_D_mm) y su espesor de pared (chs_t_mm).';
+  'Las familias tubulares (SHS/RHS/CHS) no usan el tamaño de catálogo: el tubo se define '
+  + 'con sus dimensiones (tubo_h_mm / tubo_b_mm) y su espesor de pared (tubo_t_mm).';
 
 export const CHS_ONLY_REASON =
-  'Los datos del tubo (D, espesor, proceso) solo se usan con la familia CHS.';
+  'Los datos del tubo (dimensiones, espesor, proceso) solo se usan con las familias SHS, RHS o CHS.';
+
+export const RHS_B_REASON =
+  'El ancho tubo_b_mm solo se usa con la familia RHS (en SHS el lado es tubo_h_mm; en CHS el diámetro).';
 
 export const BETA_GATE_REASON =
   'β lo deriva la condición de apoyo: solo es editable con bcType = "custom".';
@@ -294,10 +312,10 @@ function buildSteelColumnPlan(
     changes.push({ field, label: LABELS[key], before, after });
   }
 
-  // --- Familia PRIMERO (gate del catálogo de tamaños y del bloque CHS) ---
+  // --- Familia PRIMERO (gate del catálogo de tamaños y del bloque de tubos) ---
   if (x.sectionType !== null) {
     if (!SECTION_TYPES.includes(x.sectionType)) {
-      skip('sectionType', `Familia "${x.sectionType}" desconocida (HEA, HEB, IPE, 2UPN, CHS)`);
+      skip('sectionType', `Familia "${x.sectionType}" desconocida (HEA, HEB, IPE, IPN, 2UPN, SHS, RHS, CHS)`);
     } else if (x.sectionType === current.sectionType) {
       skip('sectionType', ALREADY);
     } else {
@@ -308,13 +326,15 @@ function buildSteelColumnPlan(
     }
   }
   const typeFinal = (fields.sectionType ?? current.sectionType) as SteelColumnSectionType;
+  const isTube = isTubeFamily(typeFinal);
   const isCHS = typeFinal === 'CHS';
+  const isRHSFam = typeFinal === 'RHS';
   const catalog = sizesFor(typeFinal);
   const sizeLabel = (s: number) => (typeFinal === '2UPN' ? `2UPN ${s}` : `${typeFinal} ${s}`);
 
   // --- Tamaño, validado contra la familia FINAL ---
   if (x.size !== null) {
-    if (isCHS) {
+    if (isTube) {
       skip('size', CHS_SIZE_REASON);
     } else if (!catalog.includes(x.size)) {
       skip('size', `${typeFinal} ${x.size} no está en el catálogo (${catalog.join(', ')})`);
@@ -323,7 +343,7 @@ function buildSteelColumnPlan(
     } else {
       apply('size', 'size', x.size, `${current.sectionType} ${current.size}`, sizeLabel(x.size));
     }
-  } else if (!isCHS && fields.sectionType !== undefined && !catalog.includes(current.size)) {
+  } else if (!isTube && fields.sectionType !== undefined && !catalog.includes(current.size)) {
     // Cambio de familia sin tamaño: el vigente no existe en la nueva → se ajusta
     // al primero disponible, igual que el auto-ajuste del panel.
     const first = catalog[0];
@@ -345,13 +365,17 @@ function buildSteelColumnPlan(
     }
   }
 
-  // --- Bloque CHS (inerte con perfiles abiertos / cajón) ---
-  function applyChsDim(key: 'chs_D_mm' | 'chs_t_mm', field: 'chs_D' | 'chs_t', value: number | null, min: number, max: number): void {
+  // --- Bloque de tubos (inerte con perfiles abiertos / cajón). Los campos
+  //     genéricos tubo_* se enrutan al juego de estado de la familia FINAL:
+  //     CHS → chs_D/chs_t/chs_process; SHS/RHS → rhs_h/rhs_b/rhs_t/rhs_process.
+  function applyTubeDim(
+    key: 'tubo_h_mm' | 'tubo_b_mm' | 'tubo_t_mm',
+    field: 'chs_D' | 'chs_t' | 'rhs_h' | 'rhs_b' | 'rhs_t',
+    value: number | null,
+    min: number,
+    max: number,
+  ): void {
     if (value === null) return;
-    if (!isCHS) {
-      skip(key, CHS_ONLY_REASON);
-      return;
-    }
     if (value < min || value > max) {
       skip(key, rangeReason(value, min, max, 'mm'));
       return;
@@ -360,20 +384,27 @@ function buildSteelColumnPlan(
     if (Math.abs(v - current[field]) <= EPS) skip(key, ALREADY);
     else apply(key, field, v, `${current[field]} mm`, `${v} mm`);
   }
-  applyChsDim('chs_D_mm', 'chs_D', x.chs_D_mm, 20, 2000);
-  applyChsDim('chs_t_mm', 'chs_t', x.chs_t_mm, 1, 100);
+  if (x.tubo_h_mm !== null && !isTube) skip('tubo_h_mm', CHS_ONLY_REASON);
+  else applyTubeDim('tubo_h_mm', isCHS ? 'chs_D' : 'rhs_h', x.tubo_h_mm, 20, 2000);
 
-  if (x.chs_process !== null) {
-    if (!isCHS) {
-      skip('chs_process', CHS_ONLY_REASON);
-    } else if (!CHS_PROCESSES.includes(x.chs_process)) {
-      skip('chs_process', `Proceso "${x.chs_process}" desconocido (hot-finished, cold-formed)`);
-    } else if (x.chs_process === current.chs_process) {
-      skip('chs_process', ALREADY);
+  if (x.tubo_b_mm !== null && !isRHSFam) skip('tubo_b_mm', isTube ? RHS_B_REASON : CHS_ONLY_REASON);
+  else applyTubeDim('tubo_b_mm', 'rhs_b', x.tubo_b_mm, 20, 2000);
+
+  if (x.tubo_t_mm !== null && !isTube) skip('tubo_t_mm', CHS_ONLY_REASON);
+  else applyTubeDim('tubo_t_mm', isCHS ? 'chs_t' : 'rhs_t', x.tubo_t_mm, 1, 100);
+
+  if (x.tubo_proceso !== null) {
+    const processField = isCHS ? 'chs_process' : 'rhs_process';
+    if (!isTube) {
+      skip('tubo_proceso', CHS_ONLY_REASON);
+    } else if (!TUBE_PROCESSES.includes(x.tubo_proceso)) {
+      skip('tubo_proceso', `Proceso "${x.tubo_proceso}" desconocido (hot-finished, cold-formed)`);
+    } else if (x.tubo_proceso === current[processField]) {
+      skip('tubo_proceso', ALREADY);
     } else {
       apply(
-        'chs_process', 'chs_process', x.chs_process as SteelColumnInputs['chs_process'],
-        PROCESS_ES[current.chs_process], PROCESS_ES[x.chs_process],
+        'tubo_proceso', processField, x.tubo_proceso as SteelColumnInputs['chs_process'],
+        PROCESS_ES[current[processField]], PROCESS_ES[x.tubo_proceso],
       );
     }
   }
@@ -478,7 +509,7 @@ function buildSteelColumnPlan(
   // --- notFound ---
   const values: Record<PayloadKey, unknown> = {
     sectionType: x.sectionType, size: x.size, steel: x.steel,
-    chs_D_mm: x.chs_D_mm, chs_t_mm: x.chs_t_mm, chs_process: x.chs_process,
+    tubo_h_mm: x.tubo_h_mm, tubo_b_mm: x.tubo_b_mm, tubo_t_mm: x.tubo_t_mm, tubo_proceso: x.tubo_proceso,
     Ly_m: x.Ly_m, Lz_m: x.Lz_m, bcType: x.bcType, beta_y: x.beta_y, beta_z: x.beta_z,
     Ned_kN: x.Ned_kN, My_kNm: x.My_kNm, Mz_kNm: x.Mz_kNm,
   };
@@ -507,13 +538,18 @@ function buildSteelColumnPlan(
  * INTERNO (mm) para no introducir ruido de redondeo.
  */
 function buildSnapshot(c: SteelColumnInputs): string {
+  // Los campos genéricos tubo_* se proyectan desde el juego de estado de la
+  // familia VIGENTE (CHS → chs_*; SHS/RHS → rhs_*), igual que los enruta
+  // buildPlan al aplicar.
+  const isCHS = c.sectionType === 'CHS';
   const valores: Record<string, number | string> = {
     sectionType: c.sectionType,
     size: c.size,
     steel: c.steel,
-    chs_D_mm: c.chs_D,
-    chs_t_mm: c.chs_t,
-    chs_process: c.chs_process,
+    tubo_h_mm: isCHS ? c.chs_D : c.rhs_h,
+    tubo_b_mm: c.rhs_b,
+    tubo_t_mm: isCHS ? c.chs_t : c.rhs_t,
+    tubo_proceso: isCHS ? c.chs_process : c.rhs_process,
     Ly_m: c.Ly / 1000,
     Lz_m: c.Lz / 1000,
     bcType: c.bcType,
@@ -525,7 +561,10 @@ function buildSnapshot(c: SteelColumnInputs): string {
   };
   const stateOf: Record<PayloadKey, keyof SteelColumnInputs> = {
     sectionType: 'sectionType', size: 'size', steel: 'steel',
-    chs_D_mm: 'chs_D', chs_t_mm: 'chs_t', chs_process: 'chs_process',
+    tubo_h_mm: isCHS ? 'chs_D' : 'rhs_h',
+    tubo_b_mm: 'rhs_b',
+    tubo_t_mm: isCHS ? 'chs_t' : 'rhs_t',
+    tubo_proceso: isCHS ? 'chs_process' : 'rhs_process',
     Ly_m: 'Ly', Lz_m: 'Lz', bcType: 'bcType', beta_y: 'beta_y', beta_z: 'beta_z',
     Ned_kN: 'Ned', My_kNm: 'My_Ed', Mz_kNm: 'Mz_Ed',
   };

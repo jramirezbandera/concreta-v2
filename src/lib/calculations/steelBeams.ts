@@ -10,8 +10,13 @@
 //   CTE DB-SE   4.3.3  — Deflection (SLS)
 
 import { type SteelBeamInputs } from '../../data/defaults';
-import { getProfile, type SteelProfile } from '../../data/steelProfiles';
-import { ISectionAdapter } from '../sections';
+import { type SteelProfile } from '../../data/steelProfiles';
+import {
+  createSection,
+  ISectionAdapter,
+  type ColumnBeamSection,
+  type SectionDescriptor,
+} from '../sections';
 import { BEAM_CASES } from './beamCases';
 import { type CheckRow, type CheckStatus, makeCheckQty, WARN_UTIL } from './types';
 
@@ -30,7 +35,11 @@ export type SteelCheckRow = CheckRow;
 export interface SteelBeamResult {
   valid: boolean;
   error?: string;
-  profile: SteelProfile;
+  /** Catalog record — set only for I/H families (IPE/HEA/HEB/IPN). */
+  profile: SteelProfile | undefined;
+  /** Polymorphic section adapter (always set on valid results) — label,
+   *  dims and primitives for SVG/PDF; tubes/2UPN have no `profile`. */
+  section?: ColumnBeamSection;
   sectionClass: 1 | 2 | 3 | 4;
   // Bending
   Mc_Rd: number;
@@ -124,29 +133,50 @@ function invalidResult(
   };
 }
 
+/** Build the polymorphic descriptor from the raw input fields (mirror of
+ *  steelColumns.buildDescriptor — SHS collapses to RHS with b = h). */
+function buildBeamDescriptor(inp: SteelBeamInputs): SectionDescriptor {
+  switch (inp.tipo) {
+    case '2UPN':
+      return { kind: '2UPN', size: inp.size };
+    case 'CHS':
+      return { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.tube_process };
+    case 'SHS':
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.tube_process };
+    case 'RHS':
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.tube_process };
+    default:
+      return { kind: 'I', tipo: inp.tipo, size: inp.size };
+  }
+}
+
 export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
-  // 1. Look up profile
-  const profile = getProfile(inp.tipo, inp.size);
-  if (!profile) {
+  // 1. Resolve polymorphic section (classification / LTB / buckling curves /
+  //    shear area are the same code path used by steelColumns).
+  const section = createSection(buildBeamDescriptor(inp));
+  if (!section) {
     return invalidResult('Perfil no encontrado', undefined);
   }
-  // ISectionAdapter wraps the catalog record so classification / LTB /
-  // buckling curves are the same code path used by steelColumns.
-  const section = new ISectionAdapter(profile);
+  // Tubos degenerados (t=0, dims ≤ 2t…): el adapter produce sección nula en
+  // vez de lanzar — rechazo explícito.
+  if (section.kind !== 'I' && !(section.A > 0)) {
+    return invalidResult('Dimensiones de tubo no válidas (se requiere h, b, D > 2t y t > 0)', undefined);
+  }
+  /** Catalog record — only I/H families carry one (SVG/PDF back-compat). */
+  const profile = section instanceof ISectionAdapter ? section.profile : undefined;
 
-  // 2. Convert units: cm/cm²/cm³/cm⁴/cm⁶ → mm (retained for shear-area
+  // 2. Convert units: cm/cm²/cm³/cm⁴ → mm (retained for shear-area
   //    and deflection formulas that still work in raw units).
-  const A_mm    = profile.A * 100;        // cm² → mm²
-  const Iy_mm   = profile.Iy * 1e4;       // cm⁴ → mm⁴
-  const Wpl_y_mm = profile.Wpl_y * 1e3;   // cm³ → mm³
-  const Wel_y_mm = profile.Wel_y * 1e3;   // cm³ → mm³
+  const Iy_mm   = section.Iy * 1e4;       // cm⁴ → mm⁴
+  const Wpl_y_mm = section.Wpl_y * 1e3;   // cm³ → mm³
+  const Wel_y_mm = section.Wel_y * 1e3;   // cm³ → mm³
 
-  // 3. Steel yield strength — reduced for thick flanges (CTE DB-SE-A Tabla 4.1
-  //    / EN 10025-2: 16 < t ≤ 40 mm → S275: 265, S355: 345). El catálogo incluye
-  //    ~14 perfiles con tf > 16 (IPE550/600, HEB240-400, HEA360/400, IPN≥340);
-  //    usar el fy nominal sobreestimaba todas las resistencias 3-4% (auditoría #62).
+  // 3. Steel yield strength — reduced for thick flanges/walls (CTE DB-SE-A
+  //    Tabla 4.1 / EN 10025-2, EN 10210/10219: 16 < t ≤ 40 mm → S275: 265,
+  //    S355: 345). El catálogo I incluye ~14 perfiles con tf > 16; usar el fy
+  //    nominal sobreestimaba las resistencias 3-4% (auditoría #62).
   const fy_nominal = inp.steel === 'S275' ? 275 : 355;
-  const fy = profile.tf > 16 ? fy_nominal - 10 : fy_nominal;
+  const fy = section.tf > 16 ? fy_nominal - 10 : fy_nominal;
 
   // 4. Section classification (CTE 5.5) — bending mode: outstand flange +
   //    internal web in bending (limits 72/83/124·ε).
@@ -176,9 +206,10 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   const Mc_Rd = (W_bend * fy) / γM0 / 1e6;     // kNm
   const eta_M = Mc_Rd > 0 ? inp.MEd / Mc_Rd : Infinity;
 
-  // 7. Shear resistance (CTE 6.2.6)
-  let Av = A_mm - 2 * profile.b * profile.tf + (profile.tw + 2 * profile.r) * profile.tf;
-  Av = Math.max(Av, profile.tw * (profile.h - 2 * profile.tf));
+  // 7. Shear resistance (CTE 6.2.6) — Av delegado al adapter (§6.2.6(3):
+  //    fórmula de alma para I, A·h/(b+h) para RHS/SHS, 2A/π para CHS, suma
+  //    de almas para 2UPN). Para I es la fórmula histórica movida verbatim.
+  const Av = section.shearAreaZ();
   const Vc_Rd = (Av * (fy / Math.sqrt(3))) / γM0 / 1000;   // kN
   const eta_V = Vc_Rd > 0 ? inp.VEd / Vc_Rd : Infinity;
 
@@ -192,18 +223,37 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
 
   if (VEd_interaction / Vc_Rd > 0.5) {
     rho = Math.pow(2 * VEd_interaction / Vc_Rd - 1, 2);
-    const hw = profile.h - 2 * profile.tf;
-    if (sectionClass <= 2) {
-      const Aw = profile.tw * hw;
-      const Wpl_y_red = Wpl_y_mm - (rho * Aw * Aw) / (4 * profile.tw);
-      Mv_Rd = (Wpl_y_red * fy) / γM0 / 1e6;
+    const hw = section.h - 2 * section.tf;
+    if (section.kind === 'I') {
+      if (sectionClass <= 2) {
+        const Aw = section.tw * hw;
+        const Wpl_y_red = Wpl_y_mm - (rho * Aw * Aw) / (4 * section.tw);
+        Mv_Rd = (Wpl_y_red * fy) / γM0 / 1e6;
+      } else {
+        // Class 3 (auditoría #72): EC3/CTE 6.2.8(3) — limite elastico reducido
+        // (1−ρ)·fy en el area de cortante (alma). Criterio elastico de primera
+        // plastificacion: el alma alcanza (1−ρ)·fy en y=hw/2 → la capacidad es
+        // min(Wel·fy, (1−ρ)·fy·Iy/(hw/2)).
+        const M_web_limited = ((1 - rho) * fy * Iy_mm) / (hw / 2) / γM0 / 1e6;
+        Mv_Rd = Math.min(Mc_Rd, M_web_limited);
+      }
+    } else if (section.kind === 'RHS' || section.kind === '2UPN') {
+      if (sectionClass <= 2) {
+        // Dos almas de espesor tw y canto hw: módulo plástico del bloque de
+        // almas = Aw²/(8·tw) (análogo de §6.2.8(5) para cajón). hw = h − 2·tf
+        // incluye la esquina → reducción ligeramente mayor (lado seguro).
+        const Aw = 2 * section.tw * hw;
+        const Wpl_y_red = Wpl_y_mm - (rho * Aw * Aw) / (8 * section.tw);
+        Mv_Rd = Math.min(Mc_Rd, (Wpl_y_red * fy) / γM0 / 1e6);
+      } else {
+        // Clase 3: primera plastificación del alma en la fibra extrema
+        // (las almas de un tubo llegan a ±h/2) con (1−ρ)·fy.
+        Mv_Rd = (1 - rho) * Mc_Rd;
+      }
     } else {
-      // Class 3 (auditoría #72): EC3/CTE 6.2.8(3) — limite elastico reducido
-      // (1−ρ)·fy en el area de cortante (alma). Criterio elastico de primera
-      // plastificacion: el alma alcanza (1−ρ)·fy en y=hw/2 → la capacidad es
-      // min(Wel·fy, (1−ρ)·fy·Iy/(hw/2)).
-      const M_web_limited = ((1 - rho) * fy * Iy_mm) / (hw / 2) / γM0 / 1e6;
-      Mv_Rd = Math.min(Mc_Rd, M_web_limited);
+      // CHS: área de cortante distribuida — reducción global (1−ρ)·Mc,Rd
+      // (§6.2.8(3), lado seguro).
+      Mv_Rd = (1 - rho) * Mc_Rd;
     }
   }
   const eta_MV = Mv_Rd > 0 ? inp.MEd / Mv_Rd : Infinity;
@@ -211,11 +261,12 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   // 9. LTB (CE Anejo 22 / CE Anejo 22 §6.3.2.3, caso laminados) — Mcr y α_LT delegados
   //    al section adapter. Mcr incluye el término de altura de aplicación de
   //    la carga C2·zg con zg=+h/2 (UDL gravitatoria en ala superior,
-  //    desestabilizante — auditoría #61).
+  //    desestabilizante — auditoría #61). Secciones cerradas (2UPN/SHS/RHS/
+  //    CHS): Mcr = ∞ → λ̄LT = 0 → χLT = 1 (no vuelcan).
   const C1 = BEAM_CASES[inp.beamType].C1;
   const C2 = BEAM_CASES[inp.beamType].C2;
-  const zg = profile.h / 2;  // mm — carga en ala superior
-  const Mcr = section.computeMcr(inp.Lcr, C1, E, G, C2, zg);  // kNm
+  const zg = section.h / 2;  // mm — carga en ala superior
+  const Mcr = section.computeMcr(inp.Lcr, C1, E, G, C2, zg);  // kNm (∞ en cerradas)
 
   const lambda_LT = Math.sqrt((W_bend * fy) / (Mcr * 1e6));
   const αLT = section.getLTBAlpha();
@@ -349,6 +400,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
   return {
     valid: true,
     profile,
+    section,
     sectionClass,
     Mc_Rd, eta_M,
     Av, Vc_Rd, eta_V,

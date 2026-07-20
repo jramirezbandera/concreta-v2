@@ -127,6 +127,11 @@ export class CHSAdapter implements ColumnBeamSection {
     return NaN;
   }
 
+  shearAreaZ(): number {
+    // CE Anejo 22 §6.2.6(3)(h) — tubo circular: Av = 2·A/π.
+    return (2 * this.A * 100) / Math.PI;
+  }
+
   computeMcr(_Lcr: number, _C1: number, _E: number, _G: number): number {
     // Axisymmetric: elastic critical moment is infinite (any rotation about
     // the bending axis is equivalent). Sentinel → χ_LT = 1 downstream.

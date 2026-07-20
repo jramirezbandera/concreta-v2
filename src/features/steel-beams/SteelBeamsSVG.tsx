@@ -168,6 +168,102 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
         </text>
       </g>
     );
+  } else if (result.section) {
+    // Tubos / 2UPN — sin registro de catálogo I: se dibujan las primitivas
+    // genéricas del adapter (rect/circle/ring/line) escaladas al panel.
+    const s = result.section;
+    const prims = s.getPrimitives();
+    const bw = Math.max(1e-6, prims.bbox.maxX - prims.bbox.minX);
+    const bh = Math.max(1e-6, prims.bbox.maxY - prims.bbox.minY);
+    const scale = Math.min(drawW / bw, drawH / bh) * 0.9;
+    const cx0 = pad.left + drawW / 2;
+    const cy0 = pad.top + drawH / 2;
+    const X = (x: number) => cx0 + x * scale;
+    const Y = (y: number) => cy0 + y * scale;
+    const left = X(prims.bbox.minX);
+    const right = X(prims.bbox.maxX);
+    const top = Y(prims.bbox.minY);
+    const bottom = Y(prims.bbox.maxY);
+    const strokeW = isPdf ? 1.5 : 1;
+
+    sectionG = (
+      <g>
+        {prims.shapes.map((sh, i) => {
+          switch (sh.type) {
+            case 'rect':
+              return (
+                <rect key={i} x={X(sh.x)} y={Y(sh.y)} width={sh.w * scale} height={sh.h * scale}
+                  fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={strokeW} />
+              );
+            case 'circle':
+              return (
+                <circle key={i} cx={X(sh.cx)} cy={Y(sh.cy)} r={sh.r * scale}
+                  fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={strokeW} />
+              );
+            case 'ring': {
+              const ro = sh.rOuter * scale;
+              const ri = sh.rInner * scale;
+              const cxx = X(sh.cx);
+              const cyy = Y(sh.cy);
+              return (
+                <path
+                  key={i}
+                  d={`M ${cxx - ro},${cyy} a ${ro},${ro} 0 1 0 ${2 * ro},0 a ${ro},${ro} 0 1 0 ${-2 * ro},0 Z ` +
+                    `M ${cxx - ri},${cyy} a ${ri},${ri} 0 1 0 ${2 * ri},0 a ${ri},${ri} 0 1 0 ${-2 * ri},0 Z`}
+                  fillRule="evenodd"
+                  fill={C.sectionFill}
+                  stroke={C.sectionStroke}
+                  strokeWidth={strokeW}
+                />
+              );
+            }
+            case 'line':
+              return (
+                <line key={i} x1={X(sh.x1)} y1={Y(sh.y1)} x2={X(sh.x2)} y2={Y(sh.y2)}
+                  stroke={C.sectionStroke} strokeWidth={0.75}
+                  strokeDasharray={sh.dashed ? '3 2' : undefined} />
+              );
+          }
+        })}
+
+        {/* Dimension: h (left side) */}
+        <line x1={left - 8} y1={top} x2={left - 8} y2={bottom} stroke={C.dim} strokeWidth={0.75} />
+        <line x1={left - 11} y1={top} x2={left - 5} y2={top} stroke={C.dim} strokeWidth={0.75} />
+        <line x1={left - 11} y1={bottom} x2={left - 5} y2={bottom} stroke={C.dim} strokeWidth={0.75} />
+        <text
+          x={left - 16} y={(top + bottom) / 2}
+          dominantBaseline="middle" textAnchor="middle" fontSize={11} fill={C.dimText}
+          transform={`rotate(-90, ${left - 16}, ${(top + bottom) / 2})`}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
+        >
+          h={s.h}
+        </text>
+
+        {/* Dimension: b (top) */}
+        <line x1={left} y1={top - 10} x2={right} y2={top - 10} stroke={C.dim} strokeWidth={0.75} />
+        <line x1={left} y1={top - 13} x2={left} y2={top - 7} stroke={C.dim} strokeWidth={0.75} />
+        <line x1={right} y1={top - 13} x2={right} y2={top - 7} stroke={C.dim} strokeWidth={0.75} />
+        <text
+          x={(left + right) / 2} y={top - 14}
+          textAnchor="middle" fontSize={11} fill={C.dimText}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
+          className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
+        >
+          b={s.b}
+        </text>
+
+        {/* Section label */}
+        <text
+          x={(left + right) / 2} y={bottom + 16}
+          textAnchor="middle" fontSize={12} fontWeight="600" fill={C.dimText}
+          style={isPdf ? { fontFamily: FF_MONO, fontSize: '12px', fontWeight: '600' } : undefined}
+          className={isPdf ? undefined : 'text-[12px] font-semibold font-mono fill-text-secondary'}
+        >
+          {s.label}
+        </text>
+      </g>
+    );
   }
 
   return (

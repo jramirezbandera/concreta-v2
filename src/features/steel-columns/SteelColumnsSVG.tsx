@@ -51,6 +51,77 @@ const PDF = {
 
 // ─── Cross-section panel ──────────────────────────────────────────────────────
 
+/** Hollow rectangular tube (SHS/RHS) — even-odd path for the wall ring, with
+ *  rounded corners per the product standard (ro outer / ro−t inner approx). */
+function RHSShape({
+  ox, oy, sW, sH, t, r,
+  profile, C, isPdf,
+}: {
+  ox: number; oy: number; sW: number; sH: number; t: number; r: number;
+  profile: { h: number; b: number; t: number; label: string };
+  C: typeof SCREEN; isPdf: boolean;
+}) {
+  const ri = Math.max(0, r - t);
+  const ix = ox + t;
+  const iy = oy + t;
+  const iW = Math.max(0, sW - 2 * t);
+  const iH = Math.max(0, sH - 2 * t);
+  const roundedRect = (x: number, y: number, w: number, h: number, rad: number) =>
+    `M ${x + rad},${y} H ${x + w - rad} A ${rad},${rad} 0 0 1 ${x + w},${y + rad} V ${y + h - rad} ` +
+    `A ${rad},${rad} 0 0 1 ${x + w - rad},${y + h} H ${x + rad} A ${rad},${rad} 0 0 1 ${x},${y + h - rad} ` +
+    `V ${y + rad} A ${rad},${rad} 0 0 1 ${x + rad},${y} Z`;
+  return (
+    <g>
+      <title>{`Perfil ${profile.label}`}</title>
+      <desc>{`Tubo estructural ${profile.h}×${profile.b}×${profile.t} mm`}</desc>
+      <path
+        d={`${roundedRect(ox, oy, sW, sH, r)} ${roundedRect(ix, iy, iW, iH, ri)}`}
+        fillRule="evenodd"
+        fill={C.sectionFill}
+        stroke={C.sectionStroke}
+        strokeWidth={isPdf ? 1.5 : 1}
+      />
+
+      {/* Dim h — left side */}
+      <line x1={ox - 8} y1={oy} x2={ox - 8} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox - 11} y1={oy} x2={ox - 5} y2={oy} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox - 11} y1={oy + sH} x2={ox - 5} y2={oy + sH} stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox - 18} y={oy + sH / 2} dominantBaseline="middle" textAnchor="middle"
+        fontSize={11} fill={C.dimText} transform={`rotate(-90, ${ox - 18}, ${oy + sH / 2})`}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
+        h={profile.h}
+      </text>
+
+      {/* Dim b — top */}
+      <line x1={ox} y1={oy - 10} x2={ox + sW} y2={oy - 10} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox} y1={oy - 13} x2={ox} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
+      <line x1={ox + sW} y1={oy - 13} x2={ox + sW} y2={oy - 7} stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox + sW / 2} y={oy - 15} textAnchor="middle" fontSize={11} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
+        b={profile.b}
+      </text>
+
+      {/* t callout — leader to the right wall */}
+      <line x1={ox + sW - t / 2} y1={oy + sH / 2} x2={ox + sW + 14} y2={oy + sH / 2}
+        stroke={C.dim} strokeWidth={0.75} />
+      <text x={ox + sW + 17} y={oy + sH / 2} dominantBaseline="middle" fontSize={10.5} fill={C.dimText}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '10.5px' } : undefined}
+        className={isPdf ? undefined : 'text-[10.5px] font-mono fill-text-secondary'}>
+        t={profile.t}
+      </text>
+
+      {/* Label under the section */}
+      <text x={ox + sW / 2} y={oy + sH + 16} textAnchor="middle" fontSize={11} fill={C.label}
+        style={isPdf ? { fontFamily: 'monospace', fontSize: '11px' } : undefined}
+        className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}>
+        {profile.label}
+      </text>
+    </g>
+  );
+}
+
 function ISectionShape({
   ox, oy, sW, sH, tf, tw,
   profile, C, isPdf,
@@ -471,12 +542,21 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
   const drawLW = leftW - padL.left - padL.right;
   const drawLH = height - padL.top - padL.bottom;
 
-  // Resolve section via polymorphic factory so I / 2UPN / CHS share one path.
+  // Resolve section via polymorphic factory so I / 2UPN / SHS / RHS / CHS
+  // share one path.
   const section = createSection(
     inp.sectionType === '2UPN'
       ? { kind: '2UPN', size: inp.size }
       : inp.sectionType === 'CHS'
       ? { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.chs_process }
+      : inp.sectionType === 'SHS' || inp.sectionType === 'RHS'
+      ? {
+          kind: 'RHS',
+          h: inp.rhs_h,
+          b: inp.sectionType === 'SHS' ? inp.rhs_h : inp.rhs_b,
+          t: inp.rhs_t,
+          process: inp.rhs_process,
+        }
       : { kind: 'I', tipo: inp.sectionType, size: inp.size },
   );
 
@@ -498,6 +578,15 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
           t={section.tf * scale}
           D={section.h}
           label={section.label}
+          C={C} isPdf={isPdf}
+        />
+      );
+    } else if (section.kind === 'RHS') {
+      sectionShape = (
+        <RHSShape
+          ox={ox} oy={oy} sW={sW} sH={sH}
+          t={section.tf * scale} r={section.r * scale}
+          profile={{ h: section.h, b: section.b, t: section.tf, label: section.label }}
           C={C} isPdf={isPdf}
         />
       );

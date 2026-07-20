@@ -18,26 +18,49 @@ const PLACEHOLDER_EXAMPLE =
   'carga permanente adicional 2 kN/m², perfil IPE en acero S275, límite de flecha L/400.';
 
 /**
- * Tabla clave-de-payload → clave-de-estado (+ conversión a unidad humana).
- * El orden fija el de `valores` y, por tanto, el de `sin_confirmar` (determinista).
+ * Tabla clave-de-payload → lectura de estado. El orden fija el de `valores` y,
+ * por tanto, el de `sin_confirmar` (determinista). La mayoría de campos son una
+ * lectura directa de UN campo de estado (`simple`); las dimensiones de tubo se
+ * leen del juego chs_x o rhs_x según la familia vigente (origen condicional).
  */
-const SNAPSHOT_FIELDS: ReadonlyArray<{
-  readonly key: string;                       // clave del payload (unidad humana)
-  readonly state: keyof SteelBeamInputs;      // clave del estado (unidad interna)
-  readonly toHuman?: (v: number) => number;   // solo cuando la unidad difiere
-}> = [
-  { key: 'tipo', state: 'tipo' },
-  { key: 'size', state: 'size' },
-  { key: 'steel', state: 'steel' },
-  { key: 'beamType', state: 'beamType' },
-  { key: 'L_m', state: 'L', toHuman: (v) => v / 1000 },
-  { key: 'Lcr_m', state: 'Lcr', toHuman: (v) => v / 1000 },
-  { key: 'deflLimit', state: 'deflLimit' },
-  { key: 'elsCombo', state: 'elsCombo' },
-  { key: 'useCategory', state: 'useCategory' },
-  { key: 'gk_kNm2', state: 'gk' },
-  { key: 'qk_kNm2', state: 'qk' },
-  { key: 'bTrib_m', state: 'bTrib' },
+interface SnapField {
+  key: string;                                   // clave del payload (unidad humana)
+  get: (c: SteelBeamInputs) => string | number;  // valor en unidad humana
+  isDefault: (c: SteelBeamInputs) => boolean;    // sigue en el default del módulo
+}
+
+/** Campo mapeado 1:1 a un estado, con conversión opcional a unidad humana. */
+function simple(key: string, state: keyof SteelBeamInputs, toHuman?: (v: number) => number): SnapField {
+  return {
+    key,
+    get: (c) => {
+      const raw = c[state];
+      return toHuman && typeof raw === 'number' ? toHuman(raw) : (raw as string | number);
+    },
+    isDefault: (c) => c[state] === steelBeamDefaults[state],
+  };
+}
+
+const isCHS = (c: SteelBeamInputs) => c.tipo === 'CHS';
+
+const SNAPSHOT_FIELDS: readonly SnapField[] = [
+  simple('tipo', 'tipo'),
+  simple('size', 'size'),
+  // Dimensiones de tubo: CHS lee chs_D/chs_t; SHS/RHS leen rhs_h/rhs_t (rhs_b
+  // solo tiene sentido en RHS). Inertes en perfiles abiertos (van a sin_confirmar).
+  { key: 'tubo_h_mm', get: (c) => (isCHS(c) ? c.chs_D : c.rhs_h), isDefault: (c) => (isCHS(c) ? c.chs_D === steelBeamDefaults.chs_D : c.rhs_h === steelBeamDefaults.rhs_h) },
+  { key: 'tubo_b_mm', get: (c) => c.rhs_b, isDefault: (c) => c.rhs_b === steelBeamDefaults.rhs_b },
+  { key: 'tubo_t_mm', get: (c) => (isCHS(c) ? c.chs_t : c.rhs_t), isDefault: (c) => (isCHS(c) ? c.chs_t === steelBeamDefaults.chs_t : c.rhs_t === steelBeamDefaults.rhs_t) },
+  simple('steel', 'steel'),
+  simple('beamType', 'beamType'),
+  simple('L_m', 'L', (v) => v / 1000),
+  simple('Lcr_m', 'Lcr', (v) => v / 1000),
+  simple('deflLimit', 'deflLimit'),
+  simple('elsCombo', 'elsCombo'),
+  simple('useCategory', 'useCategory'),
+  simple('gk_kNm2', 'gk'),
+  simple('qk_kNm2', 'qk'),
+  simple('bTrib_m', 'bTrib'),
 ];
 
 /**
@@ -49,10 +72,9 @@ const SNAPSHOT_FIELDS: ReadonlyArray<{
 function buildSnapshot(c: SteelBeamInputs): string {
   const valores: Record<string, string | number> = {};
   const sinConfirmar: string[] = [];
-  for (const { key, state, toHuman } of SNAPSHOT_FIELDS) {
-    const raw = c[state];
-    valores[key] = toHuman && typeof raw === 'number' ? toHuman(raw) : raw;
-    if (raw === steelBeamDefaults[state]) sinConfirmar.push(key);
+  for (const f of SNAPSHOT_FIELDS) {
+    valores[f.key] = f.get(c);
+    if (f.isDefault(c)) sinConfirmar.push(f.key);
   }
   return JSON.stringify({ valores, sin_confirmar: sinConfirmar });
 }
@@ -92,8 +114,10 @@ export const steelBeamsAdapter: AiModuleAdapter<SteelBeamInputs> = {
   placeholder: PLACEHOLDER_EXAMPLE,
   snapshot: buildSnapshot,
   buildPlan: (payload, current, system, confirmed) => {
-    const x = parseExtraction(payload);            // validate.ts — INTACTO
-    // mapExtraction.ts — INTACTO salvo el paso de `confirmed` al gate anti-ruido
-    return { ...buildApplyPlan(x, current, system, confirmed), notes: x.notes };
+    const x = parseExtraction(payload);            // validate.ts
+    // mapExtraction.ts produce el plan; `notes` desapareció del payload (el
+    // presupuesto de uniones lo ocupan las dimensiones de tubo, y `reply` ya
+    // cubre el comentario conversacional) → AiApplyPlan.notes queda undefined.
+    return buildApplyPlan(x, current, system, confirmed);
   },
 };

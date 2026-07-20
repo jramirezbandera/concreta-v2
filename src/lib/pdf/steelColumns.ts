@@ -22,10 +22,21 @@ import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledF
 const M  = 15;   // margin mm
 const CW = PAGE_W - 2 * M;  // content width = 180mm
 
+/** Designación humana del perfil según la familia (los tubos no usan `size`). */
+export function steelColumnProfileLabel(inp: SteelColumnInputs): string {
+  switch (inp.sectionType) {
+    case 'CHS': return `CHS ${inp.chs_D}x${inp.chs_t}`;
+    case 'SHS': return `SHS ${inp.rhs_h}x${inp.rhs_h}x${inp.rhs_t}`;
+    case 'RHS': return `RHS ${inp.rhs_h}x${inp.rhs_b}x${inp.rhs_t}`;
+    default:    return `${inp.sectionType} ${inp.size}`;
+  }
+}
+
 /** Nombre de archivo por defecto cuando el título va vacío. Fuente única
  *  compartida por el exportador y el TitlePromptModal (preview). */
 export function steelColumnsFallbackFilename(inp: SteelColumnInputs): string {
-  return `concreta-pilar-acero-${inp.sectionType}${inp.size}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
+  const tag = steelColumnProfileLabel(inp).replace(/\s+/g, '');
+  return `concreta-pilar-acero-${tag}-Ly${Math.round(inp.Ly / 100)}-Lz${Math.round(inp.Lz / 100)}.pdf`;
 }
 
 type DisplayStatus = Exclude<SteelCheckStatus, 'neutral'>;
@@ -186,7 +197,7 @@ export async function exportSteelColumnsPDF(
 
   const rowH = 4.5;
   const leftRows: [string, string][] = [
-    ['Perfil',           `${inp.sectionType} ${inp.size}`],
+    ['Perfil',           steelColumnProfileLabel(inp)],
     ['Acero',            inp.steel],
     ['Ly (eje fuerte)',  `${fmt(inp.Ly / 1000, 2)} m`],
     ['Lz (eje debil)',   `${fmt(inp.Lz / 1000, 2)} m`],
@@ -255,7 +266,7 @@ export async function exportSteelColumnsPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.text(
-      `Seccion transversal y geometria de pandeo  |  ${inp.sectionType} ${inp.size}  ${inp.steel}`,
+      `Seccion transversal y geometria de pandeo  |  ${steelColumnProfileLabel(inp)}  ${inp.steel}`,
       PAGE_W / 2, y, { align: 'center' },
     );
     y += 4;
