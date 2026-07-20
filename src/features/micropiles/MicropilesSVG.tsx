@@ -82,7 +82,7 @@ const SCREEN: Palette = {
     { fill1: 'var(--color-geo-s6a)', fill2: 'var(--color-geo-s6b)' },
   ],
   water:        'var(--color-accent)',
-  steel:        'var(--color-text-secondary)',
+  steel:        'var(--color-chart-pile)',
   steelEdge:    'var(--color-chart-rebar-dim)',
   concrete:     '#6b7280',
   cap:          'var(--color-bg-elevated)',
@@ -114,7 +114,7 @@ const PDF: Palette = {
     { fill1: '#c08868', fill2: '#946248' },   // L6 russet
   ],
   water:        '#0ea5e9',
-  steel:        '#475569',
+  steel:        '#aeb8c4',
   steelEdge:    '#1f2937',
   concrete:     '#6b7280',
   cap:          '#e2e8f0',

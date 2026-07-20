@@ -183,6 +183,7 @@ html, body { overflow-x: hidden; }
   --color-chart-label: #0f172a;        /* bright annotation label */
   --color-chart-rebar-faint: #64748b;  /* secondary/side bars (slate-500, AA-ish on white) */
   --color-chart-profile: #cbd5e1;      /* steel profile fill — visible grey ON a light plate */
+  --color-chart-pile: #aeb8c4;         /* micropile steel — light grey on white paper */
   --color-dot-grid: #e2e8f0;
 
   /* Geotechnical material fills (light = white-paper tones). Shared by
@@ -282,6 +283,7 @@ html[data-theme="dark"] {
   --color-chart-label: #e6e7ea;
   --color-chart-rebar-faint: #6b6f79;
   --color-chart-profile: #0c0c0e;      /* recessed dark profile, matches the page */
+  --color-chart-pile: #9a9ea7;         /* micropile steel — light grey on near-black */
   --color-dot-grid: #1f1f26;
 
   --color-geo-soil-top: #4a3522;
