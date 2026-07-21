@@ -260,15 +260,17 @@ export function SlopeStabilityModule() {
         </div>
       </div>
 
-      {/* Clones ocultos para el PDF (mode='pdf', escala de grises). Ambas vistas
-          se montan SIEMPRE — independiente de la pestaña activa — para que el
-          export PDF (T4.2) pueda rasterizar las dos figuras sin swap de estado. */}
+      {/* Clones ocultos para el PDF (mode='pdf', paleta fija en color). Ambas
+          vistas se montan SIEMPRE — independiente de la pestaña activa — para que
+          el export PDF (T4.2) pueda rasterizar las dos figuras sin swap de estado.
+          680×400 = aspecto 1.7, el MISMO de la caja de 170×100 mm del exportador:
+          sin letterbox al incrustar (la figura llena su caja). */}
       <div className="h-0 w-0 overflow-hidden" aria-hidden="true">
         <div id="slope-stability-svg-pdf" style={{ position: "absolute", left: "-9999px", top: 0 }}>
-          <SlopeStabilitySVG inputs={state} result={solver.result} width={640} height={400} mode="pdf" />
+          <SlopeStabilitySVG inputs={state} result={solver.result} width={680} height={400} mode="pdf" />
         </div>
         <div id="slope-search-svg-pdf" style={{ position: "absolute", left: "-9999px", top: 0 }}>
-          <SlopeSearchSVG inp={state} run={run} width={640} height={400} mode="pdf" />
+          <SlopeSearchSVG inp={state} run={run} width={680} height={400} mode="pdf" />
         </div>
       </div>
 

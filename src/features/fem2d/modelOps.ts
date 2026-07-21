@@ -18,12 +18,15 @@
 
 import { validateModel2DBasic } from './builder';
 import {
+  FEM2D_MAX_MEMBERS,
+  FEM2D_MAX_NODES,
   MIN_MEMBER_LENGTH_M,
   type ArmadoHA,
   type Fem2DLoad,
   type Fem2DMember,
   type Fem2DModel,
   type Fem2DNode,
+  type Fem2DSupport,
   type LoadCase,
   type MemberRole,
   type RcColumnCage,
@@ -31,6 +34,7 @@ import {
   type Steel2DSelection,
   type Support2DType,
   type TimberSection,
+  type UseCategoryCode,
 } from './types';
 
 // ── Editor-level types (shared by canvas, palette and shell) ────────────────
@@ -434,12 +438,184 @@ export function deleteSelection(model: Fem2DModel, sel: SelectionSet2D): Fem2DMo
   });
 }
 
+// ── Block ops (vector move / copy of a marquee selection) ───────────────────
+
+/** Evita el polvo flotante al sumar el vector (0.1+0.2 → 4.000000000001). */
+const round6 = (v: number): number => Math.round(v * 1e6) / 1e6;
+
+/**
+ * Nudos sobre los que actúa una operación de vector: los seleccionados
+ * explícitamente MÁS los dos extremos de cada barra seleccionada (semántica
+ * CAD — mover una barra la mueve entera). Ids inexistentes se descartan.
+ */
+export function selectionMoveNodeIds(model: Fem2DModel, sel: SelectionSet2D): Set<string> {
+  const nodeIds = new Set(model.nodes.map((n) => n.id));
+  const selMembers = new Set(sel.members);
+  const out = new Set<string>();
+  for (const id of sel.nodes) if (nodeIds.has(id)) out.add(id);
+  for (const m of model.members) {
+    if (!selMembers.has(m.id)) continue;
+    if (nodeIds.has(m.i)) out.add(m.i);
+    if (nodeIds.has(m.j)) out.add(m.j);
+  }
+  return out;
+}
+
+/**
+ * Desplaza la selección un vector (dx, dy) en UNA op (un undo): se mueven los
+ * nudos de selectionMoveNodeIds; barras y cargas siguen a sus nudos solas. Los
+ * roles auto se re-infieren como en moveNode — una barra PUENTE (un extremo
+ * dentro y otro fuera de la selección) sí rota; las internas no cambian.
+ */
+export function translateSelection(
+  model: Fem2DModel,
+  sel: SelectionSet2D,
+  dx: number,
+  dy: number,
+): OpResult {
+  const ids = selectionMoveNodeIds(model, sel);
+  if (ids.size === 0) {
+    return { ok: false, reason: 'La selección no contiene nudos que desplazar.' };
+  }
+  if (dx === 0 && dy === 0) {
+    return { ok: false, reason: 'Vector nulo (0, 0): nada que desplazar.' };
+  }
+  const moved = model.nodes.map((n) =>
+    ids.has(n.id) ? { ...n, x: round6(n.x + dx), y: round6(n.y + dy) } : n,
+  );
+  // Colisión solo contra los nudos NO movidos: el bloque movido conserva sus
+  // distancias internas (traslación rígida), no puede solaparse consigo mismo.
+  const still = moved.filter((n) => !ids.has(n.id));
+  for (const n of moved) {
+    if (!ids.has(n.id)) continue;
+    for (const s of still) {
+      if (Math.hypot(s.x - n.x, s.y - n.y) < MIN_NODE_SEPARATION_M) {
+        return { ok: false, reason: `El nudo ${n.id} caería sobre el nudo ${s.id}.` };
+      }
+    }
+  }
+  const guarded = applyGuard(model, custom({ ...model, nodes: moved }));
+  if (!guarded.ok) return guarded;
+  return { ok: true, model: reinferRoles(guarded.model, ids) };
+}
+
+/**
+ * Copia la selección desplazada un vector (dx, dy) en UNA op. El bloque =
+ * nudos de selectionMoveNodeIds + barras con AMBOS extremos dentro + los
+ * apoyos de esos nudos + las cargas que cuelgan de esos nudos/barras (clon
+ * completo). Ids nuevos del pool compartido; la selección devuelta ES la
+ * copia — el caller la selecciona para que un segundo "Copiar" encadene
+ * (x·2, y·2) sin reintroducir el vector.
+ */
+export function duplicateSelection(
+  model: Fem2DModel,
+  sel: SelectionSet2D,
+  dx: number,
+  dy: number,
+): { ok: true; model: Fem2DModel; selection: SelectionSet2D } | { ok: false; reason: string } {
+  const nodeIds = selectionMoveNodeIds(model, sel);
+  if (nodeIds.size === 0) {
+    return { ok: false, reason: 'La selección no contiene nudos que copiar.' };
+  }
+  if (dx === 0 && dy === 0) {
+    return { ok: false, reason: 'Vector nulo (0, 0): la copia caería sobre el original.' };
+  }
+  const members = model.members.filter((m) => nodeIds.has(m.i) && nodeIds.has(m.j));
+  if (model.nodes.length + nodeIds.size > FEM2D_MAX_NODES) {
+    return { ok: false, reason: `La copia superaría el máximo de ${FEM2D_MAX_NODES} nudos.` };
+  }
+  if (model.members.length + members.length > FEM2D_MAX_MEMBERS) {
+    return { ok: false, reason: `La copia superaría el máximo de ${FEM2D_MAX_MEMBERS} barras.` };
+  }
+  const srcNodes = model.nodes.filter((n) => nodeIds.has(n.id));
+  for (const n of srcNodes) {
+    const x = round6(n.x + dx);
+    const y = round6(n.y + dy);
+    for (const other of model.nodes) {
+      if (Math.hypot(other.x - x, other.y - y) < MIN_NODE_SEPARATION_M) {
+        return { ok: false, reason: `La copia de ${n.id} caería sobre el nudo ${other.id}.` };
+      }
+    }
+  }
+
+  // Acuñar ids contra el modelo ACUMULADO (pool compartido nodos+barras+cargas,
+  // mismo patrón que splitMemberAt).
+  let acc: Fem2DModel = model;
+  const nodeMap = new Map<string, string>();
+  const newNodes: Fem2DNode[] = [];
+  for (const n of srcNodes) {
+    const node: Fem2DNode = { id: nextFreeId(acc, 'n'), x: round6(n.x + dx), y: round6(n.y + dy) };
+    nodeMap.set(n.id, node.id);
+    newNodes.push(node);
+    acc = { ...acc, nodes: [...acc.nodes, node] };
+  }
+  const memberMap = new Map<string, string>();
+  const newMembers: Fem2DMember[] = [];
+  for (const m of members) {
+    const clone: Fem2DMember = {
+      ...m,
+      id: nextFreeId(acc, 'b'),
+      i: nodeMap.get(m.i)!,
+      j: nodeMap.get(m.j)!,
+      ...(m.steelSelection ? { steelSelection: { ...m.steelSelection } } : {}),
+      ...(m.rcSection ? { rcSection: { ...m.rcSection } } : {}),
+      ...(m.timberSection ? { timberSection: { ...m.timberSection } } : {}),
+      ...(m.vanoArmado ? { vanoArmado: { ...m.vanoArmado } } : {}),
+      ...(m.apoyoArmado ? { apoyoArmado: { ...m.apoyoArmado } } : {}),
+      ...(m.columnCage ? { columnCage: { ...m.columnCage } } : {}),
+      releases: { ...m.releases },
+    };
+    memberMap.set(m.id, clone.id);
+    newMembers.push(clone);
+    acc = { ...acc, members: [...acc.members, clone] };
+  }
+  const newLoads: Fem2DLoad[] = [];
+  for (const ld of model.loads) {
+    let clone: Fem2DLoad | null = null;
+    if (ld.kind === 'node') {
+      const nid = nodeMap.get(ld.node);
+      if (nid !== undefined) clone = { ...ld, id: nextFreeId(acc, 'l'), node: nid };
+    } else {
+      const mid = memberMap.get(ld.member);
+      if (mid !== undefined) clone = { ...ld, id: nextFreeId(acc, 'l'), member: mid };
+    }
+    if (clone !== null) {
+      newLoads.push(clone);
+      acc = { ...acc, loads: [...acc.loads, clone] };
+    }
+  }
+  const newSupports: Fem2DSupport[] = model.supports
+    .filter((s) => nodeMap.has(s.node))
+    .map((s) => ({ node: nodeMap.get(s.node)!, type: s.type }));
+
+  const next = custom({
+    ...model,
+    nodes: [...model.nodes, ...newNodes],
+    members: [...model.members, ...newMembers],
+    supports: [...model.supports, ...newSupports],
+    loads: [...model.loads, ...newLoads],
+  });
+  const guarded = applyGuard(model, next);
+  if (!guarded.ok) return guarded;
+  return {
+    ok: true,
+    model: guarded.model,
+    selection: {
+      nodes: newNodes.map((n) => n.id),
+      members: newMembers.map((m) => m.id),
+      loads: newLoads.map((l) => l.id),
+    },
+  };
+}
+
 // ── Load ops ────────────────────────────────────────────────────────────────
 
 /** Initial direction + hypothesis for a freshly placed point load (the
  *  inspector edits everything afterwards). */
 export interface LoadPreset2D {
   lc: LoadCase;
+  /** CTE Tabla 3.1 category — only meaningful when lc === 'Q'. */
+  useCategory?: UseCategoryCode;
   Fx: number; // kN, world
   Fy: number; // kN, world
 }
@@ -453,6 +629,7 @@ export const HORIZONTAL_PRESET: LoadPreset2D = { lc: 'W', Fx: 10, Fy: 0 };
  *  the inspector afterwards). World-frame signed components, per member length. */
 export interface UdlPreset2D {
   lc: LoadCase;
+  useCategory?: UseCategoryCode;
   wx: number; // kN/m, world
   wy: number; // kN/m, world (gravity is negative)
 }
@@ -462,6 +639,76 @@ export const GRAVITY_UDL_PRESET: UdlPreset2D = { lc: 'G', wx: 0, wy: -10 };
 /** 'load-udl-h' tool: horizontal distributed load (wind pressure → is the
  *  everyday case, hence W). */
 export const HORIZONTAL_UDL_PRESET: UdlPreset2D = { lc: 'W', wx: 10, wy: 0 };
+
+// ── Load draft (configure-before-place) ─────────────────────────────────────
+//
+// The four load tools are ARMED with a value + hypothesis before the click:
+// the palette flyout edits this draft and the canvas turns it into the preset
+// for the placement. Without it every load landed at the hardcoded 10 kN·G/W
+// and had to be re-opened in the inspector to say what it really is.
+//
+// One draft PER TOOL (not one shared): the units differ (kN vs kN/m) and so
+// does the everyday hypothesis, so a value typed for "distribuida vertical"
+// must not follow you to "puntual horizontal".
+
+export type LoadToolId = 'load-udl' | 'load-udl-h' | 'load-point' | 'load-h';
+
+export const LOAD_TOOL_IDS: readonly LoadToolId[] = ['load-udl', 'load-udl-h', 'load-point', 'load-h'];
+
+export function isLoadTool(tool: Tool2DId): tool is LoadToolId {
+  return (LOAD_TOOL_IDS as readonly Tool2DId[]).includes(tool);
+}
+
+/**
+ * What a load tool will place on the next click. `magnitude` is the value in
+ * the tool's own direction (vertical tools push DOWN, horizontal tools push
+ * toward +x): a positive number means "as the tool's icon shows"; a negative
+ * one flips it (succión, tiro hacia la izquierda) without leaving the palette.
+ */
+export interface LoadDraft2D {
+  lc: LoadCase;
+  /** Only carried into the load when lc === 'Q'. */
+  useCategory?: UseCategoryCode;
+  /** kN for point tools, kN/m for the distributed ones. */
+  magnitude: number;
+}
+
+export type LoadDrafts2D = Record<LoadToolId, LoadDraft2D>;
+
+/** Seeds = the historical hardcoded presets (10 kN gravedad G / viento W), so
+ *  placing without touching the flyout behaves exactly as before. */
+export const DEFAULT_LOAD_DRAFTS: LoadDrafts2D = {
+  'load-udl': { lc: 'G', magnitude: 10 },
+  'load-udl-h': { lc: 'W', magnitude: 10 },
+  'load-point': { lc: 'G', magnitude: 10 },
+  'load-h': { lc: 'W', magnitude: 10 },
+};
+
+/** True for the two tools that place a per-length load (kN/m). */
+export const isUdlTool = (tool: LoadToolId): boolean => tool === 'load-udl' || tool === 'load-udl-h';
+/** True for the two tools whose direction is horizontal (+x). */
+export const isHorizontalTool = (tool: LoadToolId): boolean => tool === 'load-udl-h' || tool === 'load-h';
+
+const draftCase = (d: LoadDraft2D): { lc: LoadCase; useCategory?: UseCategoryCode } => ({
+  lc: d.lc,
+  ...(d.lc === 'Q' ? { useCategory: d.useCategory ?? 'B' } : {}),
+});
+
+/** Point preset (kN) for 'load-point' / 'load-h' from its armed draft. */
+export function draftToPointPreset(tool: LoadToolId, draft: LoadDraft2D): LoadPreset2D {
+  const v = draft.magnitude;
+  return isHorizontalTool(tool)
+    ? { ...draftCase(draft), Fx: v, Fy: 0 }
+    : { ...draftCase(draft), Fx: 0, Fy: -v };
+}
+
+/** UDL preset (kN/m) for 'load-udl' / 'load-udl-h' from its armed draft. */
+export function draftToUdlPreset(tool: LoadToolId, draft: LoadDraft2D): UdlPreset2D {
+  const v = draft.magnitude;
+  return isHorizontalTool(tool)
+    ? { ...draftCase(draft), wx: v, wy: 0 }
+    : { ...draftCase(draft), wx: 0, wy: -v };
+}
 
 /** Point load at a node (preset direction; edited in inspector). */
 export function addNodeLoad(
@@ -476,6 +723,7 @@ export function addNodeLoad(
     id: nextFreeId(model, 'l'),
     kind: 'node',
     lc: preset.lc,
+    ...(preset.useCategory !== undefined ? { useCategory: preset.useCategory } : {}),
     node: nodeId,
     Fx: preset.Fx,
     Fy: preset.Fy,
@@ -500,6 +748,7 @@ export function addMemberUdl(
     id: nextFreeId(model, 'l'),
     kind: 'udl',
     lc: preset.lc,
+    ...(preset.useCategory !== undefined ? { useCategory: preset.useCategory } : {}),
     member: memberId,
     wx: preset.wx,
     wy: preset.wy,
@@ -526,6 +775,7 @@ export function addMemberPointLoad(
     id: nextFreeId(model, 'l'),
     kind: 'point-member',
     lc: preset.lc,
+    ...(preset.useCategory !== undefined ? { useCategory: preset.useCategory } : {}),
     member: memberId,
     pos,
     Fx: preset.Fx,
@@ -825,6 +1075,38 @@ export function copyMemberPropsMany(
       applied.push(tid);
     } else {
       failures.push({ id: tid, reason: res.reason });
+    }
+  }
+  return { model: acc, applied, failures };
+}
+
+/**
+ * Edición en GRUPO del inspector: aplica UNA edición por-barra a muchas barras
+ * en una sola op (un undo). Las ops que devuelven el modelo pelado siempre
+ * aplican; las que devuelven OpResult (biela, material) pueden omitir barras
+ * individuales con su motivo sin hundir el lote — el mismo contrato que
+ * copyMemberPropsMany (la brocha).
+ */
+export function editMembersMany(
+  model: Fem2DModel,
+  memberIds: readonly string[],
+  op: (m: Fem2DModel, memberId: string) => Fem2DModel | OpResult,
+): CopyManyResult {
+  let acc = model;
+  const applied: string[] = [];
+  const failures: { id: string; reason: string }[] = [];
+  for (const id of memberIds) {
+    const res = op(acc, id);
+    if ('ok' in res) {
+      if (res.ok) {
+        acc = res.model;
+        applied.push(id);
+      } else {
+        failures.push({ id, reason: res.reason });
+      }
+    } else {
+      acc = res;
+      applied.push(id);
     }
   }
   return { model: acc, applied, failures };

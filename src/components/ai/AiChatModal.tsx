@@ -397,7 +397,7 @@ export function AiChatModal<TInputs>({
     runChatTurn(settings.provider, activeKey, {
       system,
       schema,
-      turns: buildChatTurns(itemsForTurn),
+      turns: buildChatTurns(itemsForTurn, adapter.historyTurns),
       cacheKey: `concreta-${adapter.id}`, // prefijo cacheado = el del módulo
       signal: controller.signal,
     })

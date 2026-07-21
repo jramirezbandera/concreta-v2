@@ -1,8 +1,11 @@
 // Tests de buildChatTurns (src/lib/ai/chatHistory.ts) — plan T1.1.
 // Contrato: ítems 'error' se excluyen; user → {role:'user', text, images};
 // assistant → {role:'assistant', text: rawEnvelope} (verbatim, NO reply);
-// ventana de MAX_HISTORY_TURNS podada SIEMPRE por pares desde el principio
-// (primer turno user + alternancia estricta — restricción dura de Anthropic);
+// ventana de maxTurns (default MAX_HISTORY_TURNS, ampliable por adapter vía
+// historyTurns) podada SIEMPRE por pares desde el principio (primer turno user
+// + alternancia estricta — restricción dura de Anthropic); las imágenes de los
+// turnos podados se ANCLAN al primer turno user superviviente con
+// IMAGES_CARRIED_MARKER (no caducan con la ventana — bucle FEM 2D 2026-07-21);
 // cupo MAX_REQUEST_IMAGES podando imágenes del turno MÁS ANTIGUO hacia
 // delante, conservando el texto y añadiendo IMAGE_OMITTED_MARKER.
 // Función pura: sin mocks.
@@ -12,6 +15,7 @@ import {
   MAX_HISTORY_TURNS,
   MAX_REQUEST_IMAGES,
   IMAGE_OMITTED_MARKER,
+  IMAGES_CARRIED_MARKER,
   buildChatTurns,
   type ChatItemLike,
 } from '../../lib/ai/chatHistory';
@@ -133,6 +137,86 @@ describe('buildChatTurns — ventana deslizante por pares', () => {
   });
 });
 
+describe('buildChatTurns — ventana parametrizable (historyTurns del adapter)', () => {
+  it('maxTurns=20 conserva un hilo de 19 turnos que el default podaría', () => {
+    const items = thread(9, true); // 19 turnos
+    expect(buildChatTurns(items, 20)).toHaveLength(19);
+    expect(buildChatTurns(items)).toHaveLength(11); // el default sí poda
+  });
+
+  it('maxTurns=20 poda por pares al exceder: primer turno user y alternancia', () => {
+    const items = thread(12, true); // 25 turnos → exceso 5 → poda 3 pares
+    const turns = buildChatTurns(items, 20);
+    expect(turns).toHaveLength(19);
+    expectStrictAlternationFromUser(turns);
+    expect(turns[0].text).toBe('u3');
+    expect(turns.at(-1)).toEqual({ role: 'user', text: 'u12' });
+  });
+});
+
+describe('buildChatTurns — anclaje de imágenes podadas por la ventana', () => {
+  it('la imagen de un turno podado se re-adjunta al primer turno user con marcador de arrastre', () => {
+    const croquis = img('croquis');
+    const items = thread(7, true); // 15 turnos → se podan u0/a0 y u1/a1
+    items[0] = user('u0', [croquis]);
+    const turns = buildChatTurns(items);
+    expect(turns).toHaveLength(11);
+    expect(turns[0]).toEqual({
+      role: 'user',
+      text: `${IMAGES_CARRIED_MARKER}\nu2`,
+      images: [croquis],
+    });
+    expectStrictAlternationFromUser(turns);
+  });
+
+  it('varias imágenes arrastradas conservan su orden y van DELANTE de las propias del turno', () => {
+    const items = thread(7, true);
+    items[0] = user('u0', [img('primera')]);
+    items[2] = user('u1', [img('segunda')]);
+    items[4] = user('u2', [img('propia')]);
+    const turns = buildChatTurns(items);
+    expect(turns[0].text).toBe(`${IMAGES_CARRIED_MARKER}\nu2`);
+    expect(turns[0].images).toEqual([img('primera'), img('segunda'), img('propia')]);
+  });
+
+  it('las arrastradas siguen siendo las más antiguas: el cupo las poda primero (ambos marcadores)', () => {
+    const items = thread(7, true);
+    items[0] = user('u0', [img('a'), img('b')]); // podado por ventana → arrastre
+    items[8] = user('u4', [img('c'), img('d'), img('e')]);
+    items[14] = user('u7', [img('f'), img('g'), img('h')]);
+    // total tras anclar: 2 + 3 + 3 = 8 → sobran 2: salen las 2 arrastradas
+    const turns = buildChatTurns(items);
+    expect(turns[0]).toEqual({
+      role: 'user',
+      text: `${IMAGES_CARRIED_MARKER}\nu2\n${IMAGE_OMITTED_MARKER}`,
+    });
+    expect(turns[0].images).toBeUndefined();
+    expect(turns[4].images).toEqual([img('c'), img('d'), img('e')]);
+    expect(turns[10].images).toEqual([img('f'), img('g'), img('h')]);
+    const total = turns.reduce((n, t) => n + (t.images?.length ?? 0), 0);
+    expect(total).toBe(MAX_REQUEST_IMAGES);
+  });
+
+  it('el anclaje funciona igual con la ventana ampliada', () => {
+    const croquis = img('croquis');
+    const items = thread(12, true); // 25 turnos, maxTurns 20 → se podan 3 pares
+    items[0] = user('u0', [croquis]);
+    const turns = buildChatTurns(items, 20);
+    expect(turns[0].text).toBe(`${IMAGES_CARRIED_MARKER}\nu3`);
+    expect(turns[0].images).toEqual([croquis]);
+  });
+
+  it('el anclaje no muta los ítems de la UI', () => {
+    const imagenes = [img('croquis')];
+    const items = thread(7, true);
+    items[0] = user('u0', imagenes);
+    buildChatTurns(items);
+    expect(items[0].images).toBe(imagenes);
+    expect(items[0].text).toBe('u0');
+    expect(imagenes).toHaveLength(1);
+  });
+});
+
 describe('buildChatTurns — cupo de imágenes con marcador', () => {
   it('≤6 imágenes en total → todas viajan, sin marcador', () => {
     const items = [
@@ -213,5 +297,8 @@ describe('constantes del contrato', () => {
     expect(MAX_HISTORY_TURNS).toBe(12);
     expect(MAX_REQUEST_IMAGES).toBe(6);
     expect(IMAGE_OMITTED_MARKER).toBe('[imagen adjunta omitida por longitud de la conversación]');
+    expect(IMAGES_CARRIED_MARKER).toBe(
+      '[las primeras imágenes de este mensaje proceden de mensajes anteriores de la conversación, re-adjuntadas para que sigan visibles]',
+    );
   });
 });

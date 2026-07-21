@@ -94,6 +94,16 @@ export interface AiModuleAdapter<TInputs> {
    */
   resultsRecalc?: 'auto' | 'manual';
   /**
+   * Ventana de historial que viaja en cada request (nº de turnos
+   * user+assistant; ausente ⇒ MAX_HISTORY_TURNS de chatHistory.ts). Los
+   * módulos de entrevista LARGA (FEM: la geometría se confirma dato a dato,
+   * a una pregunta por turno) piden una ventana mayor. Es un amortiguador,
+   * no la memoria: lo durable sigue siendo la propuesta arrastrada en
+   * `pendientes_de_aplicar` (regla CHECKPOINT de sus promptRules) — ninguna
+   * ventana aguanta una entrevista suficientemente larga.
+   */
+  historyTurns?: number;
+  /**
    * Estado del formulario → JSON `{"valores":{…},"sin_confirmar":[…]}`.
    * `valores`: claves del payloadSchema en unidades humanas.
    * `sin_confirmar`: claves que siguen con el valor por defecto del módulo (nadie

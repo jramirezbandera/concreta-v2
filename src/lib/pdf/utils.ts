@@ -266,6 +266,13 @@ export interface TableCol<R> {
   color?: (row: R) => number;
   /** Optional per-cell bold flag. */
   bold?: (row: R) => boolean;
+  /**
+   * Wrap the cell text into multiple lines inside the column width
+   * (splitTextToSize); the row grows vertically to fit the tallest cell.
+   * Without it, overflowing text is TRUNCATED with an ellipsis to the column
+   * width — a cell can never invade its neighbour.
+   */
+  wrap?: boolean;
 }
 
 export interface DrawTableOpts<R> {
@@ -292,12 +299,23 @@ export interface DrawTableOpts<R> {
   pad?: number;
 }
 
+/** Interlínea real de jsPDF: fontSize (pt) × lineHeightFactor (1.15) → mm. */
+const PT2MM = 25.4 / 72;
+
 /**
  * Draw a table with atomic-row pagination.
  *
  * Each row is drawn only if it fits in the remaining page space. Otherwise the
  * row triggers a page break (via `ensureSpace`) and the header band is
  * re-drawn on the continuation page (when `headerRepeat`).
+ *
+ * The header band itself is also protected: if it would not fit together with
+ * the first data row, the whole table starts on the next page — no orphan
+ * header stranded at the bottom of a page.
+ *
+ * Cells are MEASURED before drawing: `wrap` columns split into several lines
+ * (the row grows to the tallest cell); the rest are truncated with an ellipsis
+ * to their column width, so no cell can ever overlap its neighbour.
  *
  * Returns the y coordinate just below the last drawn row (caller advances).
  */
@@ -345,38 +363,56 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
     return atY + headerH + 4;
   };
 
+  // La cabecera nunca queda huérfana al fondo de página: si no cabe junto con
+  // la primera fila de datos, la tabla entera arranca en la página siguiente.
+  y = ensureSpace(doc, y, headerH + 4 + rowH, M);
   y = drawHeaderRow(y);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(cellFontSize);
+  const lineH = cellFontSize * 1.15 * PT2MM;
 
   for (let i = 0; i < rows.length; i++) {
-    // Atomic row: ensure rowH fits, else page break + repeat header.
-    y = ensureSpace(doc, y, rowH, M, headerRepeat ? (newY) => drawHeaderRow(newY) : undefined);
-
     const row = rows[i];
+
+    // Celdas medidas ANTES de dibujar: wrap → varias líneas (la fila crece);
+    // sin wrap → truncado con elipsis a la anchura de columna. getTextWidth /
+    // splitTextToSize dependen de la fuente activa: se fija por celda.
+    const cells = cols.map((col) => {
+      const raw = col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '');
+      const text = pdfStr(raw);
+      const bold = !!(col.bold && col.bold(row));
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(cellFontSize);
+      const lines = col.wrap
+        ? (doc.splitTextToSize(text, col.w - 2 * pad) as string[])
+        : [truncateToWidth(doc, text, col.w - pad)];
+      return { col, lines, bold, colorG: col.color ? col.color(row) : 80 };
+    });
+    const nLines = cells.reduce((mx, c) => Math.max(mx, c.lines.length), 1);
+    const rH = rowH + (nLines - 1) * lineH;
+
+    // Atomic row: ensure rH fits, else page break + repeat header.
+    y = ensureSpace(doc, y, rH, M, headerRepeat ? (newY) => drawHeaderRow(newY) : undefined);
+
     if (zebra && i % 2 === 1) {
       doc.setFillColor(248, 250, 252); // slate-50 — barely visible on print
-      doc.rect(x, y - rowH + 1.5, totalW, rowH, 'F');
+      doc.rect(x, y - rowH + 1.5, totalW, rH, 'F');
     }
 
     let cx = x;
-    for (const col of cols) {
-      const raw = col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '');
-      const text = pdfStr(raw);
-      const colorG = col.color ? col.color(row) : 80;
-      setGray(doc, colorG);
-      doc.setFont('helvetica', col.bold && col.bold(row) ? 'bold' : 'normal');
-      if (col.align === 'right') {
-        doc.text(text, cx + col.w - pad, y, { align: 'right' });
-      } else if (col.align === 'center') {
-        doc.text(text, cx + col.w / 2, y, { align: 'center' });
+    for (const c of cells) {
+      setGray(doc, c.colorG);
+      doc.setFont('helvetica', c.bold ? 'bold' : 'normal');
+      doc.setFontSize(cellFontSize);
+      if (c.col.align === 'right') {
+        doc.text(c.lines, cx + c.col.w - pad, y, { align: 'right' });
+      } else if (c.col.align === 'center') {
+        doc.text(c.lines, cx + c.col.w / 2, y, { align: 'center' });
       } else {
-        doc.text(text, cx + pad, y);
+        doc.text(c.lines, cx + pad, y);
       }
-      cx += col.w;
+      cx += c.col.w;
     }
-    y += rowH;
+    y += rH;
   }
 
   return y;

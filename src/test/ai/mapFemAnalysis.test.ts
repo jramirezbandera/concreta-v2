@@ -12,6 +12,7 @@ import {
   summarizeFemResults,
 } from '../../lib/ai/modules/femAnalysis';
 import { buildChatSchema } from '../../lib/ai/chatSchema';
+import { MAX_HISTORY_TURNS } from '../../lib/ai/chatHistory';
 import {
   ANTHROPIC_UNION_LIMIT,
   countAnthropicUnions,
@@ -322,6 +323,25 @@ describe('femAnalysis — schema', () => {
     const unions = countAnthropicUnions(buildChatSchema(FEM_PAYLOAD_SCHEMA));
     expect(unions).toBeGreaterThan(0);
     expect(unions).toBeLessThanOrEqual(ANTHROPIC_UNION_LIMIT);
+  });
+});
+
+// Espejo del contrato anti-amnesia del FEM 2D (bucle del 2026-07-21): la
+// entrevista larga necesita el CHECKPOINT (la memoria del hilo solo arrastra
+// propuestas) y la ventana de historial ampliada.
+describe('femAnalysis — contrato anti-amnesia de la entrevista', () => {
+  it("promptRules mandan el checkpoint: proposal acumulada por turno y provisionales 'Sugerencia:' estables", () => {
+    expect(femAnalysisAdapter.promptRules).toContain('CHECKPOINT DE ENTREVISTA');
+    expect(femAnalysisAdapter.promptRules).toContain('pendientes_de_aplicar');
+    expect(femAnalysisAdapter.promptRules).toMatch(/arrays ACUMULADOS/);
+    expect(femAnalysisAdapter.promptRules).toMatch(/RECORTADO/);
+    expect(femAnalysisAdapter.promptRules).toMatch(/provisional razonable/);
+    expect(femAnalysisAdapter.promptRules).toMatch(/croquis[\s\S]*MISMO turno/);
+  });
+
+  it('ventana de historial ampliada respecto al default (entrevista larga)', () => {
+    expect(femAnalysisAdapter.historyTurns).toBe(20);
+    expect(femAnalysisAdapter.historyTurns).toBeGreaterThan(MAX_HISTORY_TURNS);
   });
 });
 

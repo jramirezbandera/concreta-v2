@@ -6,8 +6,28 @@
 // #slope-search-svg-pdf) → ambas figuras se omiten sin romper la salida; el
 // objetivo aquí es que el cuerpo (tablas + trazabilidad + disclaimer) compile
 // y exporte. Cubre además la rama defensiva de dovelas sin física.
+//
+// MAQUETACIÓN: este módulo NO puede entrar en PDF_CASES (pdfLayout.dom.test.ts)
+// porque necesita el mock de Pyodide, así que la sonda de layoutProbe se monta
+// AQUÍ (mismo patrón de vi.mock('jspdf')). Origen (2026-07-21): el artículo
+// "Guía Cimentaciones Carretera / ROM 0.5-05" (55 mm) pisaba la columna FoS
+// (40 mm), la trazabilidad se salía del margen derecho y el rótulo
+// VERIFICACIONES quedaba huérfano al fondo de la página 1.
 
 import { describe, it, expect, vi, beforeAll } from "vitest";
+import { layoutViolations, resetProbe, texts } from "./layoutProbe";
+
+// jsPDF cuelga text()/line() de la INSTANCIA, no del prototipo: hay que
+// envolver el constructor para interceptarlos (ver pdfLayout.dom.test.ts).
+/* eslint-disable @typescript-eslint/no-explicit-any */
+vi.mock("jspdf", async (importOriginal) => {
+  const mod = await importOriginal<any>();
+  const { instrument } = await import("./layoutProbe");
+  const Real = mod.default ?? mod.jsPDF;
+  const Patched: any = function (...args: any[]) { return instrument(new Real(...args)); };
+  return { ...mod, default: Patched, jsPDF: Patched };
+});
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Worker mockeado: emite un SlopeRun con dovelas SIN física (alpha/W/u ausentes)
 // para validar la rama defensiva ("—") de la tabla de dovelas.
@@ -129,5 +149,40 @@ describe("exportSlopeStabilityPDF", () => {
     const result = await calcSlope(slopeDefaults);
     const pdf = await pdfBytes(() => exportSlopeStabilityPDF(slopeDefaults, result, "si", "Talud 1"));
     expect(utf16Runs(pdf)).toEqual([]);
+  });
+
+  // ── Maquetación (hermanos de pdfLayout.dom.test.ts, con el mock de Pyodide) ──
+
+  it("maquetación: nada se solapa, ninguna regla tacha, nada se sale (defaults)", async () => {
+    resetProbe();
+    const result = await calcSlope(slopeDefaults);
+    await exportSlopeStabilityPDF(slopeDefaults, result, "si", "Talud nave colindante");
+    expect(texts.length).toBeGreaterThan(15); // la sonda interceptó de verdad
+    expect(layoutViolations(20)).toEqual([]);
+  });
+
+  it("maquetación: global-foundation + NF + cargas + estado ancho (ADVERTENCIA)", async () => {
+    resetProbe();
+    const inp: SlopeInputs = {
+      ...slopeDefaults,
+      context: "global-foundation",
+      waterTableDepth: 1.5,
+      loads: [
+        { id: 1, kind: "udl", magnitude: 10, offset: 0, length: 2 },
+        { id: 2, kind: "line", magnitude: 15, offset: 1 },
+      ],
+    };
+    const result = await calcSlope(inp);
+    // Estado MÁS ANCHO en todas las filas no neutras (mismo criterio que el
+    // tweak allWarn de pdfCases): "ADVERTENCIA" (19 mm) + Ut% de tres cifras.
+    const stressed = {
+      ...result,
+      checks: result.checks.map((c) =>
+        c.neutral ? c : { ...c, status: "warn" as const, utilization: 0.999 },
+      ),
+    };
+    await exportSlopeStabilityPDF(inp, stressed, "si", "Talud 1");
+    expect(texts.length).toBeGreaterThan(15);
+    expect(layoutViolations(20)).toEqual([]);
   });
 });

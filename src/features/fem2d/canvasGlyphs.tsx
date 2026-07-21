@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- buildDiagramLayers devuelve DOS capas (bandas bajo las barras, etiquetas sobre todo) para que el llamador las intercale; no puede ser un componente. Vive con los glifos que dibuja. HMR full-reload aceptable. */
 // FEM 2D — shared SVG glyphs (supports, loads, value labels, diagram layer).
 //
 // Consumed by BOTH canvases (read-only Fem2DCanvas incl. the PDF clones, and
@@ -6,16 +7,12 @@
 // editor wraps these with its own hit-areas).
 
 import type { JSX } from 'react';
-import { formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 import type { Fem2DCheckBundle, Fem2DComboId } from './checks';
 import {
   FIELD_QUANTITY,
   diagColorFor,
   lcColorFor,
-  POINT_ARROW_LEN,
-  POINT_STACK_GAP,
-  UDL_BAND_PX,
   ampFor,
   findLocalExtrema,
   fmtField,
@@ -23,6 +20,7 @@ import {
   signRuns,
 } from './canvasTheme';
 import type { DeformedShape2D } from './deformed';
+import { loadGeometry } from './loadGeometry';
 import type { Fem2DLoad, Fem2DModel } from './types';
 
 // ── Value label (kept inside the SVG bounds so nothing clips) ─────────────────
@@ -197,140 +195,69 @@ export function LoadGlyph({
   selected?: boolean;
 }): JSX.Element | null {
   const color = selected ? 'var(--color-accent)' : lcColorFor(load.lc, pdf);
-  const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
+  // Toda la geometría (y el texto) sale de loadGeometry — la MISMA que usa
+  // hitTest para clicar, así el área sensible no puede separarse del dibujo.
+  const geom = loadGeometry({ load, model, sx, sy, system, stackIndex, stackTotal });
+  if (!geom) return null;   // magnitud nula o destino inexistente: no se pinta
 
-  // World load direction (unit) → screen direction (flip y). Returns null for a
-  // zero vector.
-  const toScreenDir = (wx: number, wy: number): { dx: number; dy: number } | null => {
-    const mag = Math.hypot(wx, wy);
-    if (mag < 1e-9) return null;
-    return { dx: wx / mag, dy: -wy / mag };
-  };
+  const valueLabel = (
+    <ValueLabel
+      x={geom.label.x} y={geom.label.y}
+      text={geom.text}
+      color={color} width={width} height={height} pdf={pdf}
+    />
+  );
 
-  if (load.kind === 'node') {
-    const n = nodeById.get(load.node);
-    if (!n) return null;
-    const mag = Math.hypot(load.Fx, load.Fy);
-    const dir = toScreenDir(load.Fx, load.Fy);
-    if (!dir) return null;
-    const hx = sx(n.x), hy = sy(n.y);
-    const len = POINT_ARROW_LEN;
-    const stackOff = stackIndex * (len + POINT_STACK_GAP);
-    const tailX = hx - dir.dx * (len + stackOff);
-    const tailY = hy - dir.dy * (len + stackOff);
+  if (geom.kind === 'arrow') {
     return (
       <g>
-        <Arrow x1={tailX} y1={tailY} x2={hx} y2={hy} color={color} width={1.4} />
-        <ValueLabel
-          x={tailX - dir.dx * 4} y={tailY - dir.dy * 4 - 2}
-          text={formatQuantity(mag, 'force', system)}
-          color={color} width={width} height={height} pdf={pdf}
-        />
+        <Arrow x1={geom.tail.x} y1={geom.tail.y} x2={geom.head.x} y2={geom.head.y} color={color} width={1.4} />
+        {valueLabel}
       </g>
     );
   }
 
-  // Member UDL / point load: resolve member geometry + local axes.
-  const m = model.members.find((mm) => mm.id === load.member);
-  if (!m) return null;
-  const a = nodeById.get(m.i), b = nodeById.get(m.j);
-  if (!a || !b) return null;
-  const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-  const ex = { x: (b.x - a.x) / L, y: (b.y - a.y) / L };     // member dir
-  const ey = { x: -ex.y, y: ex.x };                          // local +y
-
-  // Resolve the load's world components (frame 'local' → world via ex/ey).
-  const worldVec = (cx: number, cy: number, frame: 'global' | 'local') =>
-    frame === 'global' ? { x: cx, y: cy } : { x: cx * ex.x + cy * ey.x, y: cx * ex.y + cy * ey.y };
-
-  if (load.kind === 'point-member') {
-    const w = worldVec(load.Fx, load.Fy, load.frame);
-    const mag = Math.hypot(w.x, w.y);
-    const dir = toScreenDir(w.x, w.y);
-    if (!dir) return null;
-    const px = a.x + ex.x * L * load.pos, py = a.y + ex.y * L * load.pos;
-    const hx = sx(px), hy = sy(py);
-    const len = POINT_ARROW_LEN;
-    const stackOff = stackIndex * (len + POINT_STACK_GAP);
-    const tailX = hx - dir.dx * (len + stackOff);
-    const tailY = hy - dir.dy * (len + stackOff);
-    return (
-      <g>
-        <Arrow x1={tailX} y1={tailY} x2={hx} y2={hy} color={color} width={1.4} />
-        <ValueLabel
-          x={tailX - dir.dx * 4} y={tailY - dir.dy * 4 - 2}
-          text={formatQuantity(mag, 'force', system)}
-          color={color} width={width} height={height} pdf={pdf}
-        />
-      </g>
-    );
-  }
-
-  // UDL band: arrows along the member, arrowheads on the member line. Stacked
-  // outward by stackIndex so multiple UDLs on one member don't overlap.
-  const w = worldVec(load.wx, load.wy, load.frame);
-  const mag = Math.hypot(load.wx, load.wy);
-  const dir = toScreenDir(w.x, w.y);
-  if (!dir) return null;
-  const from = load.from ?? 0, to = load.to ?? 1;
-  const band = UDL_BAND_PX;
-  const tipOff = stackIndex * band;         // arrowhead offset from the member
-  const topOff = tipOff + band;             // tail offset from the member
-  const p0m = { x: sx(a.x + ex.x * L * from), y: sy(a.y + ex.y * L * from) };
-  const p1m = { x: sx(a.x + ex.x * L * to), y: sy(a.y + ex.y * L * to) };
-  const lenPx = Math.hypot(p1m.x - p0m.x, p1m.y - p0m.y);
+  // Banda UDL: flechas repartidas entre el raíl de cola y la línea de puntas.
+  // TODAS las capas llevan punta de flecha: la de la capa k aterriza justo en
+  // el raíl de la capa k−1 (tip_k = tail_(k−1)), así una pila g+q se lee como
+  // dos bandas de flechas y no como una reja suelta flotando sobre la barra.
+  const lenPx = Math.hypot(geom.tip1.x - geom.tip0.x, geom.tip1.y - geom.tip0.y);
   const nArr = Math.max(2, Math.round(lenPx / 26));
   const arrows: JSX.Element[] = [];
   for (let i = 0; i <= nArr; i++) {
     const t = i / nArr;
-    const hx = p0m.x + (p1m.x - p0m.x) * t, hy = p0m.y + (p1m.y - p0m.y) * t;
     arrows.push(
       <Arrow
         key={i}
-        x1={hx - dir.dx * topOff} y1={hy - dir.dy * topOff}
-        x2={hx - dir.dx * tipOff} y2={hy - dir.dy * tipOff}
-        color={color} width={0.9} head={stackIndex === 0 ? 3 : 0}
+        x1={geom.tail0.x + (geom.tail1.x - geom.tail0.x) * t}
+        y1={geom.tail0.y + (geom.tail1.y - geom.tail0.y) * t}
+        x2={geom.tip0.x + (geom.tip1.x - geom.tip0.x) * t}
+        y2={geom.tip0.y + (geom.tip1.y - geom.tip0.y) * t}
+        color={color} width={0.9} head={3}
       />,
     );
   }
-  const midX = (p0m.x + p1m.x) / 2, midY = (p0m.y + p1m.y) / 2;
-  // Push EVERY label clear of the WHOLE stacked band, then split per layer. The
-  // old per-layer offset (topOff+…) dropped the inner load's label INTO the
-  // outer load's arrow band (g's "15 kN/m" landed on q's arrows). Anchoring on
-  // stackTotal·band lifts the group above all bands; the ·15 keeps the two
-  // haloed numbers legibly apart. Single UDL (total 1) is unchanged at 24 px.
-  const labelOff = stackTotal * band + 8 + stackIndex * 15;
-  // On a steep member (a column) the perpendicular label lands exactly where the
-  // Y dimension chain's "3.20 m" text sits — both hug the member midpoint on the
-  // outer side. Slide the label a fifth of the member length toward j so it
-  // clears the cota (horizontal loads on edge columns, mostly). Beams (flat on
-  // screen) keep the centred label.
-  const segDx = p1m.x - p0m.x, segDy = p1m.y - p0m.y;
-  const segLen = Math.hypot(segDx, segDy) || 1;
-  const steep = Math.abs(segDy) > Math.abs(segDx);
-  const along = steep ? Math.min(30, segLen * 0.22) : 0;
-  const labelX = midX - dir.dx * labelOff + (segDx / segLen) * along;
-  const labelY = midY - dir.dy * labelOff + (segDy / segLen) * along - 2;
   return (
     <g>
       <line
-        x1={p0m.x - dir.dx * topOff} y1={p0m.y - dir.dy * topOff}
-        x2={p1m.x - dir.dx * topOff} y2={p1m.y - dir.dy * topOff}
+        x1={geom.tail0.x} y1={geom.tail0.y} x2={geom.tail1.x} y2={geom.tail1.y}
         stroke={color} strokeWidth={1} opacity={0.8}
       />
       {arrows}
-      <ValueLabel
-        x={labelX} y={labelY}
-        text={formatQuantity(mag, 'linearLoad', system)}
-        color={color} width={width} height={height} pdf={pdf}
-      />
+      {valueLabel}
     </g>
   );
 }
 
 // ── Diagram layer (N / V / M envelopes) ───────────────────────────────────────
 
-export function DiagramLayer({
+/**
+ * Devuelve el diagrama partido en DOS capas, no un `<g>` único: las bandas van
+ * DEBAJO de las barras (la barra debe leerse entera sobre su diagrama) y los
+ * textos ENCIMA de todo, para que ningún trazo de barra cruce un número. El
+ * llamador (Fem2DCanvas) las coloca a cada lado de la capa de miembros.
+ */
+export function buildDiagramLayers({
   model, checks, field, sx, sy, width, height, pdf, system, combo = 'ELU',
 }: {
   model: Fem2DModel;
@@ -344,7 +271,7 @@ export function DiagramLayer({
   system: UnitSystem;
   /** Combination group to plot. Default ELU (PDF clones pass nothing). */
   combo?: Fem2DComboId;
-}): JSX.Element {
+}): { bands: JSX.Element; labels: JSX.Element } {
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
   const quantity = FIELD_QUANTITY[field];
 
@@ -521,13 +448,10 @@ export function DiagramLayer({
     </g>
   );
 
-  return (
-    <g>
-      {shapes}
-      {labels}
-      {legend}
-    </g>
-  );
+  return {
+    bands: <g>{shapes}</g>,
+    labels: <g style={{ pointerEvents: 'none' }}>{labels}{legend}</g>,
+  };
 }
 
 // ── Deformed shape layer (δ view) ─────────────────────────────────────────────
@@ -540,7 +464,7 @@ export function DiagramLayer({
 // visual ×N factor are labelled at the peak.
 
 export function DeformedLayer({
-  shape, sx, sy, width, height, pdf,
+  shape, sx, sy, width, height, pdf, basePxPerM,
 }: {
   shape: DeformedShape2D;
   sx: (x: number) => number;
@@ -548,6 +472,11 @@ export function DeformedLayer({
   width: number;
   height: number;
   pdf: boolean;
+  /** px por metro de geometría del encuadre BASE (autofit, k=1). Con zoom, sx
+   *  ya viene multiplicado, y el ×N que se rotula NO puede depender de dónde
+   *  esté la cámara: es una lectura de cálculo, no de vista. Sin este dato se
+   *  derivaría de sx(1)-sx(0) y el factor cambiaría al mover la rueda. */
+  basePxPerM?: number;
 }): JSX.Element | null {
   const color = pdf ? '#2563eb' : 'var(--color-accent)';
   if (shape.peak < 1e-9 || shape.members.length === 0) {
@@ -579,8 +508,12 @@ export function DeformedLayer({
   });
 
   // Visual amplification ×N = (px per metre of displacement) / (px per metre
-  // of geometry) — uniform transform, so any world axis gives the scale.
-  const pxPerM = Math.abs(sx(1) - sx(0));
+  // of geometry). La escala de geometría es la del encuadre BASE, no la de la
+  // cámara: con zoom ×3, sx(1)-sx(0) se triplica y el rótulo pasaría de ×250 a
+  // ×83 sin que la deformada real cambie — un número de cálculo moviéndose con
+  // la rueda. `basePxPerM` lo ancla; el fallback cubre a los llamantes sin
+  // cámara (clones PDF), donde ambas escalas coinciden.
+  const pxPerM = basePxPerM ?? Math.abs(sx(1) - sx(0));
   const amp = pxPerM > 1e-9 ? kPx / pxPerM : 0;
 
   // ── Value labels: δmax + (δx, δy) at every node + mid-span of every vano ──

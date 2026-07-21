@@ -1,14 +1,13 @@
-// FEM 2D — UI state (T10, parametric-first module)
+// FEM 2D — parametric UI state (v1 era: template id + parameter set).
 //
-// The module has NO free editor (D8): the whole model is a template id + that
-// template's parameter set. This holds ONE parameter set per template so the
-// user can switch topologies without losing what they entered in each — the
-// segmented template selector flips `templateId`, the forms edit
-// `params[templateId]`, and the canvas/results always render the ACTIVE one.
-//
-// selfWeight is lifted to a single UI toggle (every generator emits
-// selfWeight:true; this lets the user turn member self-weight off globally
-// without re-plumbing each template's params).
+// The free editor superseded this as the module's source of truth, and the
+// "Nueva estructura" parametric dialog that edited it is gone (the Landing
+// builds templates via buildTemplateWithDefaults in templates.ts). It survives
+// for two real consumers:
+//   a) serialize.ts — v1 share links encode a Fem2DUiState and are rebuilt
+//      into a model through buildModelFromState, so old links keep working;
+//   b) tests — buildModelFromState(fem2dUiDefaults()) is the canonical
+//      template-model fixture builder.
 //
 // This module is PURE (no React, no DOM) so the build+validate path is unit
 // testable and the quarantine lint stays happy (no fem-analysis import).

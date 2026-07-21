@@ -3,25 +3,50 @@
 // Mirrors the 1D ToolPalette visual language, own CSS class (.fem2d-tool-btn)
 // to avoid coupling through global styles. The four load tools (distributed /
 // point × vertical / horizontal) live under ONE "Cargas" button that opens a
-// flyout menu to the right — the toolbar stays short and every force type is a
+// flyout to the right — the toolbar stays short and every force type is a
 // single, discoverable pick.
+//
+// The flyout is also where the load is CONFIGURED BEFORE placing it: picking a
+// type keeps the panel open with its value + hipótesis (+ categoría for Q), so
+// the click on the canvas already lands the right load instead of a hardcoded
+// 10 kN that has to be re-opened in the inspector afterwards. The draft is per
+// tool (units and everyday hypothesis differ) and lives in the shell.
 
 import { useEffect, useRef, useState, type JSX } from 'react';
+import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { Fem2DIcons } from './icons';
-import type { Tool2DId } from './modelOps';
+import {
+  isLoadTool,
+  isUdlTool,
+  type LoadDraft2D,
+  type LoadDrafts2D,
+  type LoadToolId,
+  type Tool2DId,
+} from './modelOps';
+import type { LoadCase, UseCategoryCode } from './types';
 
 interface ToolDef { id: Tool2DId; icon: React.ReactNode; label: string }
 
 // The load family: shown as a flyout under the single "Cargas" button.
-const LOAD_TOOLS: ToolDef[] = [
+const LOAD_TOOLS: { id: LoadToolId; icon: React.ReactNode; label: string }[] = [
   { id: 'load-udl',   icon: <Fem2DIcons.LoadDist />,  label: 'Distribuida vertical (gravedad ↓)' },
   { id: 'load-udl-h', icon: <Fem2DIcons.LoadDistH />, label: 'Distribuida horizontal (viento →)' },
   { id: 'load-point', icon: <Fem2DIcons.Load />,      label: 'Puntual vertical (gravedad ↓)' },
   { id: 'load-h',     icon: <Fem2DIcons.LoadH />,     label: 'Puntual horizontal (viento →)' },
 ];
-const LOAD_IDS = new Set<Tool2DId>(LOAD_TOOLS.map((t) => t.id));
 
-export function ToolPalette2D({ tool, setTool }: { tool: Tool2DId; setTool: (t: Tool2DId) => void }): JSX.Element {
+const LC_OPTIONS: readonly LoadCase[] = ['G', 'Q', 'W', 'S', 'E'];
+const CATEGORIAS: readonly UseCategoryCode[] = ['A1', 'A2', 'B', 'C1', 'C2', 'C3', 'D1', 'E1', 'G1'];
+
+interface Props {
+  tool: Tool2DId;
+  setTool: (t: Tool2DId) => void;
+  /** Armed value + hipótesis of each load tool (the shell owns them). */
+  loadDrafts: LoadDrafts2D;
+  setLoadDraft: (tool: LoadToolId, draft: LoadDraft2D) => void;
+}
+
+export function ToolPalette2D({ tool, setTool, loadDrafts, setLoadDraft }: Props): JSX.Element {
   const topTools: ToolDef[] = [
     { id: 'select',  icon: <Fem2DIcons.Cursor />,  label: 'Seleccionar' },
     { id: 'node',    icon: <Fem2DIcons.Node />,    label: 'Añadir nudo' },
@@ -32,12 +57,13 @@ export function ToolPalette2D({ tool, setTool }: { tool: Tool2DId; setTool: (t: 
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const loadActive = LOAD_IDS.has(tool);
+  const loadActive = isLoadTool(tool);
   // Remember the last picked load tool so the button face shows it even after
   // switching to select/etc. (adjust-during-render: no effect, no stale pass).
-  const [lastLoad, setLastLoad] = useState<Tool2DId>('load-udl');
+  const [lastLoad, setLastLoad] = useState<LoadToolId>('load-udl');
   if (loadActive && tool !== lastLoad) setLastLoad(tool);
-  const faceTool = LOAD_TOOLS.find((t) => t.id === (loadActive ? tool : lastLoad)) ?? LOAD_TOOLS[0];
+  const armed: LoadToolId = loadActive ? tool : lastLoad;
+  const faceTool = LOAD_TOOLS.find((t) => t.id === armed) ?? LOAD_TOOLS[0];
 
   // Close the flyout on any pointer down outside the palette (canvas click,
   // another tool, elsewhere on the page).
@@ -50,10 +76,12 @@ export function ToolPalette2D({ tool, setTool }: { tool: Tool2DId; setTool: (t: 
     return () => document.removeEventListener('pointerdown', onDown);
   }, [menuOpen]);
 
-  const pickLoad = (id: Tool2DId) => {
-    setTool(id);
-    setMenuOpen(false);
-  };
+  // Picking a type ARMS the tool but keeps the panel open: the value and the
+  // hipótesis right below it are the point of opening the flyout at all.
+  const pickLoad = (id: LoadToolId) => setTool(id);
+
+  const draft = loadDrafts[armed];
+  const patchDraft = (p: Partial<LoadDraft2D>) => setLoadDraft(armed, { ...draft, ...p });
 
   const btn = (t: ToolDef) => (
     <button
@@ -83,13 +111,13 @@ export function ToolPalette2D({ tool, setTool }: { tool: Tool2DId; setTool: (t: 
     >
       {topTools.map(btn)}
 
-      {/* Load family: single button + flyout menu to the right. */}
+      {/* Load family: single button + flyout (type picker + draft config). */}
       <div ref={wrapRef} style={{ position: 'relative' }}>
         <button
-          onClick={() => setMenuOpen((o) => !o)}
+          onClick={() => { setMenuOpen((o) => !o); if (!loadActive) setTool(armed); }}
           title="Cargas"
           aria-label="Cargas"
-          aria-haspopup="menu"
+          aria-haspopup="dialog"
           aria-expanded={menuOpen}
           className="fem2d-tool-btn"
           data-active={loadActive ? 'true' : 'false'}
@@ -99,21 +127,74 @@ export function ToolPalette2D({ tool, setTool }: { tool: Tool2DId; setTool: (t: 
           <span className="fem2d-load-caret" aria-hidden="true">▸</span>
         </button>
         {menuOpen && (
-          <div className="fem2d-load-menu" role="menu" aria-label="Tipo de carga">
+          <div className="fem2d-load-menu" role="group" aria-label="Cargas">
             <p className="fem2d-load-menu-title">Cargas</p>
-            {LOAD_TOOLS.map((lt) => (
-              <button
-                key={lt.id}
-                role="menuitemradio"
-                aria-checked={tool === lt.id}
-                onClick={() => pickLoad(lt.id)}
-                className="fem2d-load-item"
-                data-active={tool === lt.id ? 'true' : 'false'}
-              >
-                <span className="fem2d-load-item-icon">{lt.icon}</span>
-                <span>{lt.label}</span>
-              </button>
-            ))}
+            <div role="radiogroup" aria-label="Tipo de carga" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {LOAD_TOOLS.map((lt) => (
+                <button
+                  key={lt.id}
+                  role="radio"
+                  aria-checked={armed === lt.id}
+                  onClick={() => pickLoad(lt.id)}
+                  className="fem2d-load-item"
+                  data-active={armed === lt.id ? 'true' : 'false'}
+                >
+                  <span className="fem2d-load-item-icon">{lt.icon}</span>
+                  <span>{lt.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Draft: what the NEXT click will place. */}
+            <div className="fem2d-load-config">
+              <p className="fem2d-load-menu-title" style={{ padding: '0 0 2px' }}>Se colocará</p>
+
+              <UnitNumberInput
+                label="Valor"
+                sub={isUdlTool(armed) ? 'por metro de barra' : 'fuerza'}
+                quantity={isUdlTool(armed) ? 'linearLoad' : 'force'}
+                allowNegative
+                value={draft.magnitude}
+                onChange={(v) => patchDraft({ magnitude: v })}
+                help="Positivo = en el sentido del icono (gravedad ↓ o viento →). Un valor negativo lo invierte (succión, empuje a la izquierda)."
+              />
+
+              <div className="fem2d-load-config-row">
+                <label className="fem2d-load-config-label" htmlFor="fem2d-load-lc">Hipótesis</label>
+                <select
+                  id="fem2d-load-lc"
+                  value={draft.lc}
+                  onChange={(e) => patchDraft({ lc: e.target.value as LoadCase })}
+                  className="fem2d-load-select"
+                  title="G permanente · Q sobrecarga de uso · W viento · S nieve · E sismo. Valores característicos sin mayorar (el programa aplica γ y ψ)."
+                >
+                  {LC_OPTIONS.map((lc) => (
+                    <option key={lc} value={lc}>{lc}</option>
+                  ))}
+                </select>
+              </div>
+
+              {draft.lc === 'Q' && (
+                <div className="fem2d-load-config-row">
+                  <label className="fem2d-load-config-label" htmlFor="fem2d-load-cat">Categoría</label>
+                  <select
+                    id="fem2d-load-cat"
+                    value={draft.useCategory ?? 'B'}
+                    onChange={(e) => patchDraft({ useCategory: e.target.value as UseCategoryCode })}
+                    className="fem2d-load-select"
+                    title="Categoría de uso CTE Tabla 3.1 — fija los coeficientes ψ de combinación."
+                  >
+                    {CATEGORIAS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <p className="fem2d-load-config-hint">
+                Clic en {isUdlTool(armed) ? 'una barra' : 'un nudo o una barra'} para colocarla.
+              </p>
+            </div>
           </div>
         )}
       </div>

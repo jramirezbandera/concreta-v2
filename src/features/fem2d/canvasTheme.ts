@@ -188,12 +188,34 @@ export function loadStackKey(load: Fem2DModel['loads'][number]): string {
   return load.kind === 'node' ? `n:${load.node}` : `m:${load.member}`;
 }
 
+/** Magnitude of a load in its own units (kN for point/node, kN/m for a UDL). */
+export function loadMagnitude(load: Fem2DModel['loads'][number]): number {
+  return load.kind === 'udl' ? Math.hypot(load.wx, load.wy) : Math.hypot(load.Fx, load.Fy);
+}
+
+/**
+ * ¿Esta carga pinta algo? Una carga de magnitud CERO no dibuja glifo (no hay
+ * dirección que dibujar) y por tanto tampoco debe ocupar sitio en la pila: si
+ * lo ocupase, la carga real de al lado se iría una banda hacia afuera, perdería
+ * sus puntas de flecha (apuntan al raíl de la capa anterior, que no existe) y
+ * quedaría flotando despegada de la barra con la etiqueta aún más lejos. Esto
+ * es exactamente el fallo que se veía con un "b7 · 0" fantasma en la lista.
+ */
+export function loadIsDrawn(load: Fem2DModel['loads'][number]): boolean {
+  return loadMagnitude(load) > 1e-9;
+}
+
 /** Stack index per load target so overlapping loads (g + q on one dintel) are
- *  drawn apart and both labels stay legible — mirrors the 1D canvas. */
+ *  drawn apart and both labels stay legible — mirrors the 1D canvas. Loads that
+ *  paint nothing keep index 0 and consume no slot (loadIsDrawn). */
 export function computeLoadStacks(model: Fem2DModel): Map<string, number> {
   const stack = new Map<string, number>();
   const counter = new Map<string, number>();
   for (const ld of model.loads) {
+    if (!loadIsDrawn(ld)) {
+      stack.set(ld.id, 0);
+      continue;
+    }
     const key = loadStackKey(ld);
     const next = counter.get(key) ?? 0;
     stack.set(ld.id, next);
@@ -203,14 +225,16 @@ export function computeLoadStacks(model: Fem2DModel): Map<string, number> {
 }
 
 /** How many loads share each target (id → count), so a UDL label can be pushed
- *  clear of the WHOLE stacked arrow band rather than just its own layer. */
+ *  clear of the WHOLE stacked arrow band rather than just its own layer. Only
+ *  drawn loads count — a zero load takes up no band. */
 export function computeLoadStackCounts(model: Fem2DModel): Map<string, number> {
   const perTarget = new Map<string, number>();
   for (const ld of model.loads) {
+    if (!loadIsDrawn(ld)) continue;
     const key = loadStackKey(ld);
     perTarget.set(key, (perTarget.get(key) ?? 0) + 1);
   }
   const byId = new Map<string, number>();
-  for (const ld of model.loads) byId.set(ld.id, perTarget.get(loadStackKey(ld)) ?? 1);
+  for (const ld of model.loads) byId.set(ld.id, Math.max(1, perTarget.get(loadStackKey(ld)) ?? 1));
   return byId;
 }

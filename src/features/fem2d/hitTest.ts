@@ -8,19 +8,25 @@
 //
 // Loads are hit-testable ON DEMAND (opts.loads — the editor enables it only
 // for the select/delete tools so placement tools keep seeing members through
-// the arrows). Their clickable geometry mirrors canvasGlyphs exactly (same
-// shared constants, same stack offsets). Priority: node > load > member, but
-// clicks hugging a member's axis stay member clicks (the UDL arrowheads and
-// the point-load tips touch the line — the line itself must stay selectable).
+// the arrows). Their clickable geometry comes from loadGeometry, the SAME
+// module canvasGlyphs draws from, so the sensitive area can't drift from the
+// painted one. Priority: node > load > member, but clicks hugging a member's
+// axis stay member clicks (the UDL arrowheads and the point-load tips touch
+// the line — the line itself must stay selectable).
+//
+// The value LABEL of a load is clickable too (users aim at the number as
+// readily as at the arrow), but it is the WEAKEST hit: a label floating over
+// another bar still yields that bar.
 //
 // Pure functions — testable without DOM.
 
+import type { UnitSystem } from '../../lib/units/types';
 import {
-  POINT_ARROW_LEN,
-  POINT_STACK_GAP,
   UDL_BAND_PX,
+  computeLoadStackCounts,
   computeLoadStacks,
 } from './canvasTheme';
+import { hitsLoadLabel, loadGeometry } from './loadGeometry';
 import type { SelectionSet2D } from './modelOps';
 import type { Fem2DModel } from './types';
 
@@ -39,6 +45,9 @@ export type Hit =
 export interface HitOptions {
   /** Also test load glyphs (select/delete tools). Default false. */
   loads?: boolean;
+  /** Unit system the canvas is rendering in — the load LABELS are sized from
+   *  their formatted text, so the box has to be measured in the same units. */
+  system?: UnitSystem;
 }
 
 /** Distance from point P to segment AB, plus the clamped projection t∈[0,1]. */
@@ -85,9 +94,13 @@ export function hitTest(
 
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
 
+  // A glyph hit (arrow shaft / band) beats members; a LABEL hit is held back
+  // and only used if no member claims the point.
+  let labelHit: Hit = null;
   if (opts.loads) {
-    const load = hitLoads(model, px, py, sx, sy, nodeById);
-    if (load) return load;
+    const load = hitLoads(model, px, py, sx, sy, nodeById, opts.system ?? 'si');
+    if (load.glyph) return load.glyph;
+    labelHit = load.label;
   }
 
   let bestMember: { id: string; d: number; t: number } | null = null;
@@ -101,7 +114,7 @@ export function hitTest(
     }
   }
   if (bestMember) return { kind: 'member', id: bestMember.id, t: bestMember.t };
-  return null;
+  return labelHit;
 }
 
 // ── Marquee (window / crossing) selection ────────────────────────────────────
@@ -199,8 +212,10 @@ export function selectInRect(
   return { nodes, members, loads };
 }
 
-// ── Load glyph hit-testing (geometry mirrors canvasGlyphs.LoadGlyph) ─────────
+// ── Load hit-testing (geometry comes from loadGeometry — same as the glyphs) ──
 
+/** Two tiers: `glyph` (arrow/band, beats members) and `label` (the number,
+ *  weakest of all — see hitTest). Both null when no load is under the point. */
 function hitLoads(
   model: Fem2DModel,
   px: number,
@@ -208,79 +223,60 @@ function hitLoads(
   sx: (x: number) => number,
   sy: (y: number) => number,
   nodeById: Map<string, Fem2DModel['nodes'][number]>,
-): Hit {
+  system: UnitSystem,
+): { glyph: Hit; label: Hit } {
   const stacks = computeLoadStacks(model);
+  const counts = computeLoadStackCounts(model);
   let best: { id: string; d: number } | null = null;
+  let bestLabel: { id: string; d: number } | null = null;
   const consider = (id: string, d: number, tol: number) => {
     // `<=` on ties: later loads draw on top, so the topmost one wins.
     if (d <= tol && (!best || d <= best.d)) best = { id, d };
   };
 
-  // World direction (unit) → screen direction (flip y). Null for zero vector
-  // (a zero-magnitude load draws nothing and must not capture clicks).
-  const toScreenDir = (wx: number, wy: number): { dx: number; dy: number } | null => {
-    const mag = Math.hypot(wx, wy);
-    if (mag < 1e-9) return null;
-    return { dx: wx / mag, dy: -wy / mag };
-  };
-
   for (const ld of model.loads) {
-    const stackIndex = stacks.get(ld.id) ?? 0;
+    const geom = loadGeometry({
+      load: ld,
+      model,
+      sx,
+      sy,
+      system,
+      stackIndex: stacks.get(ld.id) ?? 0,
+      stackTotal: counts.get(ld.id) ?? 1,
+      nodeById,
+    });
+    if (!geom) continue;   // draws nothing (zero magnitude) → captures nothing
 
-    if (ld.kind === 'node') {
-      const n = nodeById.get(ld.node);
-      const dir = toScreenDir(ld.Fx, ld.Fy);
-      if (!n || !dir) continue;
-      const hx = sx(n.x), hy = sy(n.y);
-      const stackOff = stackIndex * (POINT_ARROW_LEN + POINT_STACK_GAP);
-      const tailX = hx - dir.dx * (POINT_ARROW_LEN + stackOff);
-      const tailY = hy - dir.dy * (POINT_ARROW_LEN + stackOff);
-      consider(ld.id, distPointSegment(px, py, tailX, tailY, hx, hy).d, HIT_LOAD_PX);
-      continue;
-    }
-
-    const m = model.members.find((mm) => mm.id === ld.member);
-    if (!m) continue;
-    const a = nodeById.get(m.i), b = nodeById.get(m.j);
-    if (!a || !b) continue;
-    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const ex = { x: (b.x - a.x) / L, y: (b.y - a.y) / L };
-    const ey = { x: -ex.y, y: ex.x };
-    const worldVec = (cx: number, cy: number, frame: 'global' | 'local') =>
-      frame === 'global' ? { x: cx, y: cy } : { x: cx * ex.x + cy * ey.x, y: cx * ex.y + cy * ey.y };
     // Member axis clearance: the line itself stays a member/tool click.
-    const dMember = distPointSegment(px, py, sx(a.x), sy(a.y), sx(b.x), sy(b.y)).d;
-    if (dMember <= LOAD_MEMBER_CLEARANCE_PX) continue;
-
-    if (ld.kind === 'point-member') {
-      const w = worldVec(ld.Fx, ld.Fy, ld.frame);
-      const dir = toScreenDir(w.x, w.y);
-      if (!dir) continue;
-      const hx = sx(a.x + ex.x * L * ld.pos), hy = sy(a.y + ex.y * L * ld.pos);
-      const stackOff = stackIndex * (POINT_ARROW_LEN + POINT_STACK_GAP);
-      const tailX = hx - dir.dx * (POINT_ARROW_LEN + stackOff);
-      const tailY = hy - dir.dy * (POINT_ARROW_LEN + stackOff);
-      consider(ld.id, distPointSegment(px, py, tailX, tailY, hx, hy).d, HIT_LOAD_PX);
-      continue;
+    if (ld.kind !== 'node') {
+      const m = model.members.find((mm) => mm.id === ld.member);
+      const a = m && nodeById.get(m.i);
+      const b = m && nodeById.get(m.j);
+      if (!a || !b) continue;
+      const dMember = distPointSegment(px, py, sx(a.x), sy(a.y), sx(b.x), sy(b.y)).d;
+      if (dMember <= LOAD_MEMBER_CLEARANCE_PX) continue;
     }
 
-    // UDL: one strip test against the band's CENTRE line — covers the interior
-    // band plus the tail rail with a single segment distance.
-    const w = worldVec(ld.wx, ld.wy, ld.frame);
-    const dir = toScreenDir(w.x, w.y);
-    if (!dir) continue;
-    const from = ld.from ?? 0, to = ld.to ?? 1;
-    const tipOff = stackIndex * UDL_BAND_PX;
-    const midOff = tipOff + UDL_BAND_PX / 2;
-    const p0 = { x: sx(a.x + ex.x * L * from), y: sy(a.y + ex.y * L * from) };
-    const p1 = { x: sx(a.x + ex.x * L * to), y: sy(a.y + ex.y * L * to) };
-    const d = distPointSegment(
-      px, py,
-      p0.x - dir.dx * midOff, p0.y - dir.dy * midOff,
-      p1.x - dir.dx * midOff, p1.y - dir.dy * midOff,
-    ).d;
-    consider(ld.id, d, UDL_BAND_PX / 2 + HIT_LOAD_PX);
+    if (geom.kind === 'arrow') {
+      consider(ld.id, distPointSegment(px, py, geom.tail.x, geom.tail.y, geom.head.x, geom.head.y).d, HIT_LOAD_PX);
+    } else {
+      // UDL: one strip test against the band's CENTRE line — covers the whole
+      // band plus the tail rail with a single segment distance.
+      const mid0 = { x: (geom.tail0.x + geom.tip0.x) / 2, y: (geom.tail0.y + geom.tip0.y) / 2 };
+      const mid1 = { x: (geom.tail1.x + geom.tip1.x) / 2, y: (geom.tail1.y + geom.tip1.y) / 2 };
+      consider(ld.id, distPointSegment(px, py, mid0.x, mid0.y, mid1.x, mid1.y).d, UDL_BAND_PX / 2 + HIT_LOAD_PX);
+    }
+
+    // The value label: clicking the number selects the load too. Ranked by
+    // distance to the box centre so stacked labels resolve to the nearer one.
+    if (hitsLoadLabel(geom, px, py)) {
+      const d = Math.hypot(px - geom.label.x, py - (geom.label.y - 3.5));
+      if (!bestLabel || d <= bestLabel.d) bestLabel = { id: ld.id, d };
+    }
   }
 
-  return best ? { kind: 'load', id: (best as { id: string }).id } : null;
+  return {
+    glyph: best ? { kind: 'load', id: (best as { id: string }).id } : null,
+    label: bestLabel ? { kind: 'load', id: (bestLabel as { id: string }).id } : null,
+  };
 }

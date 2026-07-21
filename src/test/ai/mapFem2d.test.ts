@@ -14,6 +14,7 @@ import {
   summarizeFem2DResults,
 } from "../../lib/ai/modules/fem2d";
 import { buildChatSchema } from "../../lib/ai/chatSchema";
+import { MAX_HISTORY_TURNS } from "../../lib/ai/chatHistory";
 import {
   ANTHROPIC_UNION_LIMIT,
   countAnthropicUnions,
@@ -1076,5 +1077,27 @@ describe("fem2d — presupuesto de uniones", () => {
     const unions = countAnthropicUnions(buildChatSchema(FEM2D_PAYLOAD_SCHEMA));
     expect(unions).toBe(16);
     expect(unions).toBeLessThanOrEqual(ANTHROPIC_UNION_LIMIT);
+  });
+});
+
+// El bucle de amnesia del 2026-07-21 (OpenAI, croquis de pórtico con voladizos):
+// la entrevista a una-pregunta-por-turno superaba la ventana de historial sin
+// emitir NINGUNA proposal, así que ningún dato confirmado persistía (la memoria
+// del hilo solo arrastra propuestas) y el modelo re-preguntaba en círculo. El
+// contrato exige la regla CHECKPOINT (reenviar el modelo acumulado en proposal,
+// con provisionales estables) y la ventana ampliada para la entrevista larga.
+describe("fem2d — contrato anti-amnesia de la entrevista", () => {
+  it("promptRules mandan el checkpoint: proposal acumulada por turno, provisionales 'Sugerencia:' estables y extracción del croquis al verlo", () => {
+    expect(fem2dAdapter.promptRules).toContain("CHECKPOINT DE ENTREVISTA");
+    expect(fem2dAdapter.promptRules).toContain("pendientes_de_aplicar");
+    expect(fem2dAdapter.promptRules).toMatch(/modelo ACUMULADO/);
+    expect(fem2dAdapter.promptRules).toMatch(/RECORTADO/);
+    expect(fem2dAdapter.promptRules).toMatch(/provisional razonable/);
+    expect(fem2dAdapter.promptRules).toMatch(/croquis[\s\S]*MISMO turno/);
+  });
+
+  it("ventana de historial ampliada respecto al default (entrevista larga)", () => {
+    expect(fem2dAdapter.historyTurns).toBe(20);
+    expect(fem2dAdapter.historyTurns).toBeGreaterThan(MAX_HISTORY_TURNS);
   });
 });

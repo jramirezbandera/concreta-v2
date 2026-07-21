@@ -133,7 +133,7 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClo
   const { system } = useUnitSystem();
 
   // Escape + scroll lock + devolver el foco al disparador (patrón de los
-  // modales existentes — NewStructureDialog / PdfPreviewModal).
+  // modales existentes — TitlePromptModal / PdfPreviewModal).
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {

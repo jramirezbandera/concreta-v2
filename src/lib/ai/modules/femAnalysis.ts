@@ -190,7 +190,8 @@ const PROMPT_RULES = `Reglas específicas del módulo FEM 1D (viga continua):
 7. LÍMITES V1: viga continua COLINEAL (sin pórticos, cerchas ni pilares); el apoyo "muelle" se comporta como deslizante. El ARMADO del hormigón, los detalles de acero (Lcr, límite de flecha) y las RÓTULAS internas aparecen en el estado pero son de SOLO LECTURA: se editan en el panel del módulo (en móvil, pestaña Datos) — dilo cuando el usuario pida cambiarlos.
 8. MATERIALES: rc necesita b_cm/h_cm/fck; steel necesita "perfil" EXACTO del catálogo y "acero". Al cambiar el material de un vano se aplican defaults razonables donde falte dato (avísalo y sugiere revisar el armado).
 9. Si "modelo_de_plantilla" es true, TODO lo que ves (luces, apoyos, cargas, secciones) es una plantilla de la aplicación, NO datos del usuario: pregúntalos antes de dar por bueno ningún veredicto.
-10. Si una propuesta estructural se descartó con un motivo del validador (estructura inestable, apoyos insuficientes…), el motivo te llega en "errores_propuesta_anterior" del estado: corrígela en el turno siguiente atendiendo a ese motivo — no la repitas igual.`;
+10. Si una propuesta estructural se descartó con un motivo del validador (estructura inestable, apoyos insuficientes…), el motivo te llega en "errores_propuesta_anterior" del estado: corrígela en el turno siguiente atendiendo a ese motivo — no la repitas igual.
+11. CHECKPOINT DE ENTREVISTA: el historial que ves viaja RECORTADO a los últimos mensajes; lo ÚNICO que persiste turno tras turno es tu "proposal" (la aplicación la arrastra en "pendientes_de_aplicar" del estado). NO acumules la viga "de memoria" esperando a tenerla completa: en cuanto haya una viga utilizable (aunque sea parcial) y en CADA turno en que el usuario confirme o corrija un dato estructural (vano, apoyo, carga, sección), reenvía en "proposal" los arrays ACUMULADOS con el dato nuevo incorporado — "vanos" y "apoyos" coherentes entre sí (regla 2). Completa lo que aún no sepas con un valor provisional razonable y su aviso "Sugerencia:" (p. ej. apoyos donde la viga sería inestable, una sección inicial) para que la viga parcial sea ESTABLE (regla 10) mientras sigues preguntando. Un dato que no guardes así se OLVIDA cuando su mensaje sale del historial — incluida la imagen de un croquis: extráela a "proposal" en el MISMO turno en que la veas.`;
 
 const PLACEHOLDER_EXAMPLE =
   'Ej.: Viga continua de dos vanos de 5 y 4 m en HA 30×50, apoyos articulados, '
@@ -1300,6 +1301,9 @@ export const femAnalysisAdapter: AiModuleAdapter<DesignModel> = {
   payloadSchema: FEM_PAYLOAD_SCHEMA,
   promptRules: PROMPT_RULES,
   placeholder: PLACEHOLDER_EXAMPLE,
+  // Entrevista larga (un dato estructural por turno): ventana ampliada. La
+  // memoria durable sigue siendo el checkpoint de la regla 11, no la ventana.
+  historyTurns: 20,
   snapshot: buildSnapshot,
   buildPlan: buildFemPlan,
 };

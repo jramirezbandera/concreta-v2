@@ -1,16 +1,16 @@
 // FEM 2D — module shell (free-editor era).
 //
 // The module state IS the Fem2DModel (model-centric v2): templates are SEEDS
-// via the "Nueva estructura" dialog, and the model is edited directly (canvas
-// tools land in later phases; this shell already wires history + persistence +
-// share links + PDF over the live model). Solve is synchronous (D4): a useMemo
-// over the model runs analyzeFem2D on every committed edit.
+// picked on the Landing screen (built with their FTUX defaults), and the model
+// is edited directly (canvas tools + inspector). Solve is synchronous (D4): a
+// useMemo over the model runs analyzeFem2D on every committed edit.
 //
-// Left panel (provisional until the selection inspector lands): new-structure
-// button, model summary, self-weight toggle, read-only load list.
+// Starting over lives in the canvas toolbar: the "+" button asks for
+// confirmation and returns to the Landing (backToLanding — the live model
+// stays persisted underneath until a template pick replaces it).
 
-import { useEffect, useMemo, useState, type JSX } from 'react';
-import { Redo2, Tag, Undo2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { LayoutTemplate, Plus, Redo2, Tag, Undo2 } from 'lucide-react';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -21,6 +21,7 @@ import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { fem2dAdapter, summarizeFem2DResults } from '../../lib/ai/modules/fem2d';
@@ -29,17 +30,20 @@ import { exportFem2DPDF, fem2dFallbackFilename } from '../../lib/pdf/fem2d';
 import { useFem2DState, buildShareUrl } from './useFem2DState';
 import { analyzeFem2D } from './pipeline';
 import type { Fem2DComboId } from './checks';
-import { NewStructureDialog } from './NewStructureDialog';
 import { Landing } from './Landing';
 import { loadRecent, pushRecent } from './recents';
 import { buildTemplateWithDefaults } from './templates';
 import { Fem2DCanvas, type Fem2DCanvasView } from './Fem2DCanvas';
 import { Fem2DEditorCanvas } from './Fem2DEditorCanvas';
+import { ZoomControls } from './ZoomControls';
+import { canvasBase } from './drawableBounds';
+import { IDENTITY_VIEW, clampView, reanchorOnResize, zoomAt, type CanvasView2D } from './transform';
+import { ZOOM_STEP } from './useCanvasView2D';
 import { Fem2DInspector } from './Fem2DInspector';
 import { Fem2DMemberDetail } from './Fem2DMemberDetail';
 import { Fem2DResults } from './Fem2DResults';
 import { ToolPalette2D } from './ToolPalette2D';
-import type { Selected2D, Tool2DId } from './modelOps';
+import { DEFAULT_LOAD_DRAFTS, type LoadDraft2D, type LoadDrafts2D, type LoadToolId, type Selected2D, type Tool2DId } from './modelOps';
 import type { Fem2DModel, Fem2DTemplateId } from './types';
 import './styles.css';
 
@@ -81,8 +85,9 @@ function ViewTabButton({ active, label, title, onClick }: { active: boolean; lab
 export function Fem2DModule(): JSX.Element {
   const { model, setModel, resetModel, undo, redo, canUndo, canRedo, startedEmpty } = useFem2DState();
   // Pantalla de plantillas (paridad con FEM 1D): en el primer arranque (sin URL
-  // ni modelo guardado) se muestra sobre la semilla viva; elegir una plantilla,
-  // "Nueva estructura" o aplicar una propuesta de IA entra al editor.
+  // ni modelo guardado) se muestra sobre la semilla viva; elegir una plantilla
+  // o aplicar una propuesta de IA entra al editor. El botón + del lienzo
+  // vuelve aquí (con confirmación).
   const [showLanding, setShowLanding] = useState(startedEmpty);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
@@ -90,10 +95,21 @@ export function Fem2DModule(): JSX.Element {
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [view, setView] = useState<Fem2DCanvasView>('model');
   const [combo, setCombo] = useState<Fem2DComboId>('ELU');
-  const [newOpen, setNewOpen] = useState(false);
+  // Confirmación de "empezar de nuevo" (botón + de la barra del lienzo).
+  const [confirmNew, setConfirmNew] = useState(false);
   const [tool, setTool] = useState<Tool2DId>('select');
+  // Borrador de cada herramienta de carga: valor + hipótesis con los que se
+  // colocará la SIGUIENTE carga (se configura en la paleta antes del clic).
+  const [loadDrafts, setLoadDrafts] = useState<LoadDrafts2D>(DEFAULT_LOAD_DRAFTS);
+  const setLoadDraft = (t: LoadToolId, draft: LoadDraft2D) =>
+    setLoadDrafts((d) => ({ ...d, [t]: draft }));
   const [selected, setSelected] = useState<Selected2D>(null);
   const [showLabels, setShowLabels] = useState(true);
+  // Cámara del lienzo (zoom + encuadre), COMPARTIDA por las 5 vistas: cambiar
+  // de pestaña o de combinación te deja mirando el mismo nudo. Es estado de
+  // VISTA: no se serializa (URL/PDF/localStorage) ni entra en el undo, y vive
+  // mientras el módulo está montado — navegar fuera y volver reencuadra.
+  const [canvasView, setCanvasView] = useState<CanvasView2D>(IDENTITY_VIEW);
   const [aiOpen, setAiOpen] = useState(false);
   // Ficha de cálculo grande por barra (modal). Se abre desde el icono de la
   // fila de resultados o el botón del inspector; seleccionar acompaña.
@@ -116,7 +132,12 @@ export function Fem2DModule(): JSX.Element {
       || plan.fields.supports !== undefined || plan.fields.loads !== undefined;
     setModel((m) => ({ ...m, ...plan.fields }));
     setShowLanding(false); // la propuesta aplicada es ya un modelo del editor
-    if (structural) setSelected(null);
+    // Sustituir la estructura reencuadra: el encuadre anterior apuntaba a una
+    // geometría que ya no existe. Editar (mover cotas, añadir cargas) NO.
+    if (structural) {
+      setSelected(null);
+      setCanvasView(IDENTITY_VIEW);
+    }
     const n = plan.changes.length;
     const w = plan.warnings.length;
     showToast(
@@ -127,10 +148,11 @@ export function Fem2DModule(): JSX.Element {
 
   // Landing → editor: build the picked template with its FTUX-green defaults
   // (one click, like FEM 1D). resetModel clears history — a template pick is
-  // not a user edit. Parametric tuning stays available via "Nueva estructura".
+  // not a user edit; the geometry is then tuned directly on the canvas.
   function pickTemplate(id: Fem2DTemplateId) {
     resetModel(buildTemplateWithDefaults(id));
     setSelected(null);
+    setCanvasView(IDENTITY_VIEW); // estructura nueva ⇒ encuadre nuevo
     setShowLanding(false);
   }
 
@@ -207,10 +229,36 @@ export function Fem2DModule(): JSX.Element {
       onTitleChange: setDocTitle,
     });
 
-  const [canvasRef, canvasWidth] = useContainerWidth();
+  const [canvasRef, canvasWidth, canvasHeight] = useContainerWidth();
   const CANVAS_PAD = 32;
   const svgW = canvasWidth && canvasWidth > 0 ? Math.max(280, canvasWidth - CANVAS_PAD) : 520;
-  const svgH = Math.round(svgW * 0.66);
+  // El alto se acota TAMBIÉN al del panel: si el SVG fuera más alto, el panel
+  // (overflow-auto) haría scroll y la rueda —que ahora es zoom— se lo robaría.
+  // Suelo de 240 px: en paneles muy bajos (móvil apaisado, drawer partido) gana
+  // el suelo y el panel vuelve a hacer scroll; caso aceptado, no ignorado.
+  const svgH = Math.round(
+    Math.max(240, Math.min(svgW * 0.66, canvasHeight && canvasHeight > 0 ? canvasHeight - CANVAS_PAD : svgW * 0.66)),
+  );
+
+  // Botones de zoom: mismo salto discreto que las teclas (±25 % desde el centro
+  // del lienzo), acotado contra los MISMOS límites navegables que usa el gesto.
+  const zoomStep = (factor: number) => {
+    if (model.nodes.length === 0) return;
+    const { bounds } = canvasBase(model, svgW, svgH, system);
+    setCanvasView((v) => clampView(zoomAt(v, factor, svgW / 2, svgH / 2), { width: svgW, height: svgH }, bounds));
+  };
+
+  // Redimensionar el contenedor (abrir el asistente, plegar el drawer, girar el
+  // móvil, mover la ventana) NO puede borrar el encuadre: se conserva k y se
+  // recoloca el centro. Resetear aquí sería destructivo — el usuario perdería
+  // la inspección en curso cada vez que toca el layout.
+  const prevSize = useRef({ w: svgW, h: svgH });
+  useEffect(() => {
+    const prev = prevSize.current;
+    if (prev.w === svgW && prev.h === svgH) return;
+    prevSize.current = { w: svgW, h: svgH };
+    setCanvasView((v) => reanchorOnResize(v, { width: prev.w, height: prev.h }, { width: svgW, height: svgH }));
+  }, [svgW, svgH]);
 
   function handleShare() {
     const url = buildShareUrl(model);
@@ -284,8 +332,6 @@ export function Fem2DModule(): JSX.Element {
               setModel={setModel}
               selected={selected}
               setSelected={setSelected}
-              onNewStructure={() => setNewOpen(true)}
-              onBackToLanding={backToLanding}
               onOpenDetail={openDetail}
               readOnly={isMobile}
             />
@@ -330,6 +376,16 @@ export function Fem2DModule(): JSX.Element {
             <div className="flex-1" />
             <button
               type="button"
+              onClick={() => setConfirmNew(true)}
+              title="Nueva estructura — volver a las plantillas"
+              aria-label="Nueva estructura"
+              className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <Plus size={14} />
+            </button>
+            <span className="w-px h-4 bg-border-main mx-0.5" aria-hidden="true" />
+            <button
+              type="button"
               onClick={() => setShowLabels((v) => !v)}
               aria-pressed={showLabels}
               title="Etiquetas de nudos y barras"
@@ -367,7 +423,12 @@ export function Fem2DModule(): JSX.Element {
             {/* Tool palette — desktop/tablet only, floating over the canvas. */}
             {view === 'model' && !isMobile && (
               <div className="absolute left-3 top-3 z-10 hidden lg:block">
-                <ToolPalette2D tool={tool} setTool={setTool} />
+                <ToolPalette2D
+                  tool={tool}
+                  setTool={setTool}
+                  loadDrafts={loadDrafts}
+                  setLoadDraft={setLoadDraft}
+                />
               </div>
             )}
             {view === 'model' ? (
@@ -378,19 +439,33 @@ export function Fem2DModule(): JSX.Element {
                 selected={selected}
                 setSelected={selectAnd}
                 tool={tool}
+                loadDrafts={loadDrafts}
                 showLabels={showLabels}
                 width={svgW}
                 height={svgH}
                 errorMsg={firstFail}
                 readOnly={isMobile}
+                canvasView={canvasView}
+                setCanvasView={setCanvasView}
               />
             ) : (
               <Fem2DCanvas
                 model={model} checks={result.checks} view={view}
                 combo={combo} elements={result.elements}
                 width={svgW} height={svgH} mode="screen"
+                canvasView={canvasView} setCanvasView={setCanvasView}
               />
             )}
+
+            {/* Zoom: en las 5 vistas y también en móvil (es VISTA, no edición).
+                Anclado al contenedor, espejo de la paleta en left-3 top-3. */}
+            <ZoomControls
+              k={canvasView.k}
+              onZoomIn={() => zoomStep(ZOOM_STEP)}
+              onZoomOut={() => zoomStep(1 / ZOOM_STEP)}
+              onReset={() => setCanvasView(IDENTITY_VIEW)}
+              disabled={model.nodes.length === 0}
+            />
           </div>
         </div>
 
@@ -449,16 +524,21 @@ export function Fem2DModule(): JSX.Element {
         />
       )}
 
-      {newOpen && (
-        <NewStructureDialog
-          onCreate={(next) => {
-            resetModel(next);
-            setSelected(null); // la selección apuntaba al modelo anterior
-            setShowLanding(false);
-            setNewOpen(false);
+      {confirmNew && (
+        <ConfirmDialog
+          title="Nueva estructura"
+          confirmLabel="Ir a plantillas"
+          icon={LayoutTemplate}
+          onConfirm={() => {
+            setConfirmNew(false);
+            backToLanding();
           }}
-          onCancel={() => setNewOpen(false)}
-        />
+          onCancel={() => setConfirmNew(false)}
+        >
+          Saldrás de este modelo y volverás a la pantalla de plantillas. Elegir
+          una plantilla nueva sustituirá el modelo actual (el historial se
+          reinicia).
+        </ConfirmDialog>
       )}
 
       {titleOpen && (

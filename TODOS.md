@@ -957,3 +957,35 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Where to start:** Phase 0 spike (T1 en §9.9 del doc). Versión Pyodide fijada: `314.0.0`.
 
 **Depends on:** validación normativa (cotejar EC7/ROM/Anejo Nacional) antes de `shipped:true`.
+
+## FEM 2D — pan táctil móvil para el zoom del lienzo (fase 2)
+
+**Status:** DIFERIDO — plan-design-review del zoom FEM 2D (2026-07-21, decisión 6b). Fase 1 = solo botones.
+
+**What:** arrastre de UN dedo para encuadrar el lienzo FEM 2D en móvil cuando `k > 1`: `touch-action: none` condicional (solo mientras está ampliado), tap-por-umbral de movimiento para que la selección siga funcionando, Encuadrar siempre visible como salida.
+
+**Why:** en fase 1 el móvil ampliado solo inspecciona lo que queda centrado (zoom al centro por botones) — el pan es el 20 % que falta para cerrar la experiencia táctil.
+
+**Pros:** cierra la experiencia móvil completa del zoom; el diseño ya está escrito en el plan (`~/.claude/plans/fem2d-canvas-zoom.md`, sección Móvil).
+
+**Cons:** reabre el riesgo documentado de romper el scroll vertical de página en móvil (la razón del veto en fase 1); QA táctil doble (editor readOnly + vistas de diagramas); interacción con el pinch nativo de página que se mantiene.
+
+**Context:** el zoom FEM 2D fase 1 sale con regla única móvil "solo botones, touch-action intacto". El pinch del navegador (zoom de página, criterio FEM 1D) se conserva y se compone con el zoom de botones — el chip % no refleja el page-zoom, aceptado a propósito.
+
+**Depends on / blocked by:** zoom FEM 2D fase 1 en producción y validado en vivo.
+
+## FEM 1D — portar el patrón de zoom del lienzo 2D
+
+**Status:** DIFERIDO — plan-design-review del zoom FEM 2D (2026-07-21). El patrón nace y se valida en el 2D.
+
+**What:** llevar `withView` (transform envuelto: geometría escala, trazos/glifos/tolerancias en px constantes) + `ZoomControls` (− / % / + / Maximize, patrón toolbar sin acento) a la tira del FEM 1D (`src/features/fem-analysis/Canvas.tsx`).
+
+**Why:** paridad — vigas continuas largas con muchas cargas también solapan etiquetas de diagramas; misma válvula de escape que motivó el zoom 2D.
+
+**Pros:** reutiliza transform envuelto, controles, atajos y tests ya hechos y validados en el 2D; coherencia de interacción entre los dos módulos FEM.
+
+**Cons:** la tira 1D no es copy-paste: layout propio (yStrip auto-centrado por bbox, escala X fija, escala Y=1 de diagramas), y hoy delega el pinch al navegador a propósito (`touch-action: manipulation`).
+
+**Context:** decisión de la review: FEM 1D fuera del alcance de la PR del zoom 2D. El plan del 2D vive en `~/.claude/plans/fem2d-canvas-zoom.md`; la envoltura `withView` deja `makeTransform` intacto (PDF byte-stable por construcción) — misma técnica aplicable al 1D.
+
+**Depends on / blocked by:** zoom FEM 2D en producción; decidir si el 1D adopta también la rueda-CAD o mantiene solo botones.

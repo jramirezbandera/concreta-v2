@@ -16,14 +16,16 @@
 // with the editor canvas so the PDF figure can never drift from what the
 // editor shows.
 
-import { useMemo, type JSX } from 'react';
+import { useMemo, useRef, type JSX } from 'react';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { Fem2DCheckBundle, Fem2DComboId } from './checks';
-import { computeLoadStackCounts, computeLoadStacks, fitMarginFor, strokeFor, timberBandColor } from './canvasTheme';
-import { DeformedLayer, DiagramLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph } from './canvasGlyphs';
+import { computeLoadStackCounts, computeLoadStacks, strokeFor, timberBandColor } from './canvasTheme';
+import { DeformedLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph, buildDiagramLayers } from './canvasGlyphs';
 import { computeDeformedShape } from './deformed';
 import type { Solver2DElementResult } from './solver2d';
-import { makeTransform, uniformInsets } from './transform';
+import { canvasBase } from './drawableBounds';
+import { IDENTITY_VIEW, withView, type CanvasView2D } from './transform';
+import { useCanvasView2D } from './useCanvasView2D';
 import type { Fem2DModel, Fem2DNode } from './types';
 
 export type Fem2DCanvasView = 'model' | 'N' | 'V' | 'M' | 'def';
@@ -39,25 +41,46 @@ interface Props {
   combo?: Fem2DComboId;
   /** Raw solver element samples — required only by the 'def' view. */
   elements?: Solver2DElementResult[];
+  /** Cámara (zoom/encuadre). Omitida ⇒ autofit — el camino del PDF. */
+  canvasView?: CanvasView2D;
+  setCanvasView?: (v: CanvasView2D) => void;
 }
 
 export function Fem2DCanvas({
   model, checks, view, width, height, mode = 'screen', combo = 'ELU', elements,
+  canvasView = IDENTITY_VIEW, setCanvasView,
 }: Props): JSX.Element {
   const pdf = mode === 'pdf';
   const { system } = useUnitSystem();
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const geom = useMemo(() => {
     const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
     // Reserve room for the diagram bands + their labels around the model
     // bounds; the SAME margin in every view so the model doesn't resize when
-    // switching tabs.
-    const t = makeTransform(model.nodes, width, height, uniformInsets(fitMarginFor(width, height)));
-    return { nodeById, sx: t.sx, sy: t.sy };
-  }, [model, width, height]);
+    // switching tabs. canvasBase da también los límites navegables con ese
+    // mismo margen (un solo sitio decide el encuadre base).
+    return { nodeById, ...canvasBase(model, width, height, system) };
+  }, [model, width, height, system]);
 
-  const { nodeById, sx, sy } = geom;
+  const { nodeById, base, bounds } = geom;
+  // La cámara envuelve el autofit. En modo PDF `canvasView` es la identidad y
+  // withView devuelve el MISMO transform: la figura exportada no puede moverse.
+  const t = withView(base, pdf ? IDENTITY_VIEW : canvasView);
+  const { sx, sy } = t;
   const nodeAt = (id: string): Fem2DNode | undefined => nodeById.get(id);
+
+  // El hook se llama SIEMPRE (reglas de hooks); `enabled` decide si engancha.
+  // En PDF nunca se engancha: ni listeners, ni estado de cámara.
+  useCanvasView2D({
+    svgRef,
+    view: canvasView,
+    setView: setCanvasView ?? (() => {}),
+    bounds,
+    width,
+    height,
+    enabled: !pdf && !!setCanvasView && model.nodes.length > 0,
+  });
 
   // ── Members ─────────────────────────────────────────────────────────────
   const members = model.members.map((m) => {
@@ -124,10 +147,15 @@ export function Fem2DCanvas({
   });
 
   // ── Loads (model view only) ─────────────────────────────────────────────
+  // Las pilas se derivan del MODELO, no de la cámara: memoizadas para que la
+  // rueda no las recalcule en cada fotograma.
+  const loadStacks = useMemo(
+    () => ({ stacks: computeLoadStacks(model), counts: computeLoadStackCounts(model) }),
+    [model],
+  );
   const loads = view === 'model'
     ? (() => {
-        const stacks = computeLoadStacks(model);
-        const stackCounts = computeLoadStackCounts(model);
+        const { stacks, counts: stackCounts } = loadStacks;
         return model.loads.map((ld) => (
           <LoadGlyph
             key={ld.id}
@@ -141,12 +169,22 @@ export function Fem2DCanvas({
     : null;
 
   // ── Diagram (N / V / M) ─────────────────────────────────────────────────
-  const diagram = (view === 'N' || view === 'V' || view === 'M') && checks ? (
-    <DiagramLayer
-      model={model} checks={checks} field={view} combo={combo}
-      sx={sx} sy={sy} width={width} height={height} pdf={pdf} system={system}
-    />
-  ) : null;
+  // Dos capas: bandas bajo los miembros, etiquetas sobre TODO (ver
+  // buildDiagramLayers) — un texto tapado por el trazo de una barra es
+  // ilegible, y en un pórtico los picos caen justo sobre nudos y dinteles.
+  // Memoizado: recalcula la geometría en pantalla de las bandas Y la pasada
+  // greedy de colisión de etiquetas. Depende del transform, así que con zoom
+  // correría en cada evento de rueda si no se memoizara (es, con diferencia, el
+  // camino más caro del lienzo).
+  const diagram = useMemo(
+    () => ((view === 'N' || view === 'V' || view === 'M') && checks
+      ? buildDiagramLayers({
+        model, checks, field: view, combo,
+        sx, sy, width, height, pdf, system,
+      })
+      : null),
+    [view, checks, model, combo, sx, sy, width, height, pdf, system],
+  );
 
   // ── Deformed shape (δ) ──────────────────────────────────────────────────
   const shape = useMemo(
@@ -154,7 +192,12 @@ export function Fem2DCanvas({
     [view, elements, model, combo],
   );
   const deformed = shape ? (
-    <DeformedLayer shape={shape} sx={sx} sy={sy} width={width} height={height} pdf={pdf} />
+    <DeformedLayer
+      shape={shape} sx={sx} sy={sy} width={width} height={height} pdf={pdf}
+      // Escala de geometría del encuadre BASE: el ×N rotulado es una lectura de
+      // cálculo y no puede cambiar al mover la rueda.
+      basePxPerM={Math.abs(base.sx(1) - base.sx(0))}
+    />
   ) : null;
 
   const ariaLabel =
@@ -162,25 +205,32 @@ export function Fem2DCanvas({
       : view === 'def' ? 'Deformada'
         : `Diagrama de ${view}`;
 
+  const interactive = !pdf && !!setCanvasView && model.nodes.length > 0;
+
   return (
     <svg
+      ref={svgRef}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={ariaLabel}
+      // `manipulation` conserva el pinch de página del navegador en móvil
+      // (criterio heredado del FEM 1D): aquí no hay pan táctil.
+      style={interactive ? { touchAction: 'manipulation' } : undefined}
     >
       {/* Opaque white background in PDF mode: kills the PNG alpha channel so
           embedSvgAsImage produces no soft-mask (≈half the file size, and no
           SMask for a viewer to choke on). Screen keeps the transparent canvas. */}
       {pdf && <rect x={0} y={0} width={width} height={height} fill="#ffffff" />}
-      {diagram}
+      {diagram?.bands}
       {members}
       {hinges}
       {deformed}
       {supports}
       {nodes}
       {loads}
+      {diagram?.labels}
     </svg>
   );
 }

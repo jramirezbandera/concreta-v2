@@ -1,9 +1,9 @@
 // FEM 2D — selection-driven inspector (left panel).
 //
 // Four states keyed off Selected2D, mirroring the 1D InputsPanel:
-//   nothing → "Nueva estructura" + model summary + self-weight + snow>1000m
-//             (solo si hay madera) + load list (rows select their load; trash
-//             deletes).
+//   nothing → model summary + self-weight + snow>1000m (solo si hay madera) +
+//             load list (rows select their load; trash deletes). Empezar una
+//             estructura nueva vive en el botón + de la barra del lienzo.
 //   member  → rol (auto/manual + volver-a-auto) · biela · material (acero ⇄
 //             hormigón ⇄ madera) · [acero: perfil · acero · correas] · [HA:
 //             sección b/h/fck/fyk/recubrimiento/exposición + armado por rol
@@ -17,8 +17,8 @@
 // Every numeric edit goes through DraftNumberField (ONE history entry per
 // gesture); every mutation is a pure modelOps call.
 
-import type { JSX } from 'react';
-import { ChevronLeft, LayoutTemplate, Maximize2, Trash2 } from 'lucide-react';
+import { useState, type JSX } from 'react';
+import { ChevronLeft, Copy, Maximize2, Move, Trash2 } from 'lucide-react';
 import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { formatQuantity } from '../../lib/units/format';
@@ -36,13 +36,20 @@ import { TIMBER_GRADES } from '../../data/timberGrades';
 import {
   DEFAULT_APOYO_ARMADO_2D,
   DEFAULT_COLUMN_CAGE_2D,
+  DEFAULT_RC_BEAM_SECTION_2D,
+  DEFAULT_TIMBER_SECTION_2D,
   DEFAULT_VANO_ARMADO_2D,
   deleteLoad,
   deleteMember,
   deleteNode,
   deleteSelection,
+  duplicateSelection,
+  editMembersMany,
   moveNode,
+  normalizeSelection,
   resetMemberRoleAuto,
+  selectionMoveNodeIds,
+  translateSelection,
   setMemberLtbSpacing,
   setMemberMaterial,
   setMemberProfile,
@@ -68,9 +75,6 @@ interface Props {
   setModel: (updater: (m: Fem2DModel) => Fem2DModel) => void;
   selected: Selected2D;
   setSelected: (s: Selected2D) => void;
-  onNewStructure: () => void;
-  /** Vuelve a la pantalla de plantillas (registra la actual en "recientes"). */
-  onBackToLanding?: () => void;
   /** Abre la ficha de cálculo grande de la barra (modal Fem2DMemberDetail). */
   onOpenDetail?: (memberId: string) => void;
   readOnly?: boolean;
@@ -170,7 +174,7 @@ function loadSummary(ld: Fem2DLoad, system: 'si' | 'tecnico'): string {
   return `${ld.member} @ ${ld.pos.toFixed(2)} · ${parts.join(' · ') || '0'}${ld.frame === 'local' ? ' (local)' : ''}`;
 }
 
-function GlobalPanel({ model, setModel, setSelected, onNewStructure, onBackToLanding, readOnly }: Props): JSX.Element {
+function GlobalPanel({ model, setModel, setSelected, readOnly }: Props): JSX.Element {
   const { system } = useUnitSystem();
   // La duración de la nieve (kmod) solo afecta a barras de MADERA — el toggle
   // se muestra únicamente cuando hay alguna, para no ensuciar los modelos de
@@ -178,30 +182,6 @@ function GlobalPanel({ model, setModel, setSelected, onNewStructure, onBackToLan
   const hasTimber = model.members.some((m) => m.material === 'timber');
   return (
     <div className="flex flex-col gap-3">
-      {onBackToLanding && !readOnly && (
-        <button
-          type="button"
-          onClick={onBackToLanding}
-          className="inline-flex items-center gap-1.5 self-start -mb-1 text-[11px] text-text-secondary hover:text-accent transition-colors"
-        >
-          <LayoutTemplate size={12} aria-hidden="true" />
-          Plantillas
-        </button>
-      )}
-
-      <button
-        type="button"
-        onClick={onNewStructure}
-        disabled={readOnly}
-        className="w-full px-3 py-2 rounded text-[12.5px] font-medium text-accent transition-all disabled:opacity-40"
-        style={{
-          border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-          background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
-        }}
-      >
-        Nueva estructura…
-      </button>
-
       <div className="rounded border border-border-main px-3 py-2.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled mb-1.5">Modelo</p>
         <p className="font-mono text-[11px] text-text-secondary tabular-nums">
@@ -957,8 +937,443 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
 
 // ── Multi panel (marquee selection) ─────────────────────────────────────────
 
+/** Título de sección del panel de selección múltiple. */
+function MultiSection({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div className="rounded border border-border-main px-3 py-2 flex flex-col gap-1">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Editor de propiedades EN GRUPO de las barras seleccionadas: los mismos
+ * controles que el panel individual, aplicados a todas a la vez. Cada campo
+ * muestra el valor común (o «— varios —») y SOLO se aplica el campo que se
+ * toca — lo no tocado se conserva por barra. Cada gesto es una op de
+ * editMembersMany (un undo); las barras incompatibles con un cambio (biela con
+ * cargas, biela HA…) se omiten con toast, sin hundir el lote (contrato de la
+ * brocha).
+ */
+function GroupMemberEditor({ model, setModel, members }: {
+  model: Fem2DModel;
+  setModel: (updater: (m: Fem2DModel) => Fem2DModel) => void;
+  members: readonly Fem2DMember[];
+}): JSX.Element {
+  const ids = members.map((m) => m.id);
+  const groupKey = ids.join(',');
+
+  const run = (targetIds: readonly string[], op: (mm: Fem2DModel, id: string) => Fem2DModel | OpResult) => {
+    const res = editMembersMany(model, targetIds, op);
+    if (res.applied.length > 0) setModel(() => res.model);
+    if (res.failures.length > 0) {
+      showToast(
+        `${res.applied.length} cambiada${res.applied.length === 1 ? '' : 's'} · ${res.failures.length} omitida${res.failures.length === 1 ? '' : 's'} — ${res.failures[0].reason}`,
+        { autoDismiss: 5000 },
+      );
+    }
+  };
+
+  function common<T>(get: (m: Fem2DMember) => T): T | undefined {
+    const first = get(members[0]);
+    return members.every((m) => get(m) === first) ? first : undefined;
+  }
+
+  /** Campo numérico de grupo: valor común (o el de la 1ª con sub «varios»);
+   *  DraftNumberField solo comitea si el draft difiere → sembrar es seguro. */
+  const numField = (
+    field: string,
+    label: string,
+    sub: string | undefined,
+    unit: string | undefined,
+    min: number,
+    integer: boolean,
+    get: (m: Fem2DMember) => number,
+    apply: (v: number) => void,
+  ): JSX.Element => {
+    const c = common(get);
+    return (
+      <DraftNumberField
+        stacked
+        label={label}
+        sub={c === undefined ? '— varios —' : sub}
+        unit={unit}
+        {...(integer ? { integer: true } : {})}
+        min={min}
+        value={c ?? get(members[0])}
+        resetKey={`grp:${groupKey}:${field}`}
+        onCommit={apply}
+      />
+    );
+  };
+
+  const commonRole = common((m) => m.role);
+  const commonTipo = common((m) => m.elementType);
+  const commonMat = common((m) => m.material);
+  const anyManual = members.some((m) => m.roleManual === true);
+  const allBeamCol = members.every((m) => m.elementType === 'beam-column');
+
+  const toggleClass = (pressed: boolean) =>
+    `flex-1 px-2.5 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+      pressed
+        ? 'bg-accent/15 text-accent border border-accent/40'
+        : 'bg-bg-elevated text-text-disabled border border-border-main'
+    }`;
+
+  // Correas: solo vigas/cordones de acero o madera en pórtico (mismo criterio
+  // que el panel individual). Se aplican SOLO a las elegibles.
+  const eligibleLtb = members.filter(
+    (m) => m.elementType === 'beam-column' && m.material !== 'rc' && (m.role === 'viga' || m.role === 'cordon'),
+  );
+  const eligibleLtbIds = eligibleLtb.map((m) => m.id);
+  const allBraced = eligibleLtb.length > 0 && eligibleLtb.every((m) => m.ltbSpacing !== undefined);
+  const commonLtb = allBraced
+    ? (eligibleLtb.every((m) => m.ltbSpacing === eligibleLtb[0].ltbSpacing) ? eligibleLtb[0].ltbSpacing : undefined)
+    : undefined;
+
+  return (
+    <>
+      <Row label="Rol" help="Cambia el rol de TODAS las barras seleccionadas (fija manual). El rol dirige la comprobación normativa de cada barra.">
+        <select
+          value={commonRole ?? ''}
+          onChange={(e) => run(ids, (mm, id) => setMemberRole(mm, id, e.target.value as MemberRole))}
+          className={selectClass}
+          aria-label="Rol del grupo"
+        >
+          {commonRole === undefined && <option value="" disabled>— varios —</option>}
+          {ROLE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {anyManual && (
+          <button
+            type="button"
+            onClick={() => run(ids, resetMemberRoleAuto)}
+            className="self-start text-[10.5px] text-accent/80 hover:text-accent transition-colors"
+          >
+            Volver a rol automático
+          </button>
+        )}
+      </Row>
+
+      <Row label="Tipo" help="Pórtico = viga-columna (axil + flexión). Biela = solo axil (celosías); una barra con cargas aplicadas o de hormigón no puede pasar a biela (se omite con aviso).">
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => run(ids, (mm, id) => setMemberTwoForce(mm, id, false))}
+            aria-pressed={commonTipo === 'beam-column'}
+            className={toggleClass(commonTipo === 'beam-column')}
+          >
+            Pórtico
+          </button>
+          <button
+            type="button"
+            onClick={() => run(ids, (mm, id) => setMemberTwoForce(mm, id, true))}
+            aria-pressed={commonTipo === 'two-force'}
+            className={toggleClass(commonTipo === 'two-force')}
+          >
+            Biela
+          </button>
+        </div>
+      </Row>
+
+      <Row label="Material" help="Cambia el material de todas las seleccionadas. Una biela no puede ser de hormigón (se omite con aviso). Los datos del material anterior se conservan por barra.">
+        <div className="flex gap-1.5">
+          {([['steel', 'Acero'], ['rc', 'Hormigón'], ['timber', 'Madera']] as const).map(([mat, label]) => (
+            <button
+              key={mat}
+              type="button"
+              onClick={() => run(ids, (mm, id) => setMemberMaterial(mm, id, mat))}
+              aria-pressed={commonMat === mat}
+              className={toggleClass(commonMat === mat)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Row>
+
+      {commonMat === 'steel' ? (
+        <>
+          <Row label="Perfil">
+            <select
+              value={common((m) => m.steelSelection?.profileKey) ?? ''}
+              onChange={(e) => run(ids, (mm, id) => setMemberProfile(mm, id, e.target.value))}
+              className={selectClass}
+              aria-label="Perfil del grupo"
+            >
+              {common((m) => m.steelSelection?.profileKey) === undefined && (
+                <option value="" disabled>— varios —</option>
+              )}
+              {AXIAL_FAMILIES.map((f) => (
+                <optgroup key={f} label={f}>
+                  {steelEntriesByFamily(f).map((en) => (
+                    <option key={en.key} value={en.key}>{en.sizeLabel}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Row>
+          <Row label="Acero">
+            <select
+              value={common((m) => m.steelSelection?.steel) ?? ''}
+              onChange={(e) => run(ids, (mm, id) => setMemberSteel(mm, id, e.target.value as 'S275' | 'S355'))}
+              className={selectClass}
+              aria-label="Grado del acero del grupo"
+            >
+              {common((m) => m.steelSelection?.steel) === undefined && (
+                <option value="" disabled>— varios —</option>
+              )}
+              <option value="S275">S275</option>
+              <option value="S355">S355</option>
+            </select>
+          </Row>
+        </>
+      ) : commonMat === 'rc' ? (
+        <GroupRcEditor members={members} run={run} numField={numField} common={common} />
+      ) : commonMat === 'timber' ? (
+        <>
+          <Row label="Clase resistente">
+            <select
+              value={common((m) => m.timberSection?.gradeId) ?? ''}
+              onChange={(e) => run(ids, (mm, id) => updateMemberTimberSection(mm, id, { gradeId: e.target.value }))}
+              className={selectClass}
+              aria-label="Clase resistente del grupo"
+            >
+              {common((m) => m.timberSection?.gradeId) === undefined && (
+                <option value="" disabled>— varios —</option>
+              )}
+              {TIMBER_GRADE_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.ids.map((id) => (
+                    <option key={id} value={id}>{id}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Row>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {numField('tb', 'b', 'ancho', 'mm', 40, true,
+              (m) => m.timberSection?.b ?? DEFAULT_TIMBER_SECTION_2D.b,
+              (v) => run(ids, (mm, id) => updateMemberTimberSection(mm, id, { b: Math.max(40, Math.round(v)) })))}
+            {numField('th', 'h', 'canto', 'mm', 40, true,
+              (m) => m.timberSection?.h ?? DEFAULT_TIMBER_SECTION_2D.h,
+              (v) => run(ids, (mm, id) => updateMemberTimberSection(mm, id, { h: Math.max(40, Math.round(v)) })))}
+          </div>
+          <Row label="Clase de servicio">
+            <select
+              value={common((m) => m.timberSection?.serviceClass) ?? ''}
+              onChange={(e) => run(ids, (mm, id) => updateMemberTimberSection(mm, id, { serviceClass: Number(e.target.value) as ServiceClass }))}
+              className={selectClass}
+              aria-label="Clase de servicio del grupo"
+            >
+              {common((m) => m.timberSection?.serviceClass) === undefined && (
+                <option value="" disabled>— varios —</option>
+              )}
+              {SERVICE_CLASS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </Row>
+        </>
+      ) : (
+        <p className="text-[10.5px] text-text-secondary leading-snug py-1">
+          Materiales distintos: unifica el material del grupo para editar la
+          sección en conjunto.
+        </p>
+      )}
+
+      {allBeamCol && (
+        <Row label="Rótulas" help="Libera el momento en ese extremo de TODAS las barras. Pulsado = todas liberadas; sin pulsar = alguna (o ninguna) — al pulsar se unifican.">
+          <div className="flex gap-1.5">
+            {(['i', 'j'] as const).map((end) => {
+              const all = members.every((m) => m.releases[end]);
+              return (
+                <button
+                  key={end}
+                  type="button"
+                  onClick={() => run(ids, (mm, id) => setMemberRelease(mm, id, end, !all))}
+                  aria-pressed={all}
+                  className={toggleClass(all)}
+                >
+                  extremo {end}
+                </button>
+              );
+            })}
+          </div>
+        </Row>
+      )}
+
+      {eligibleLtb.length > 0 && (
+        <>
+          <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+            <InputLabel
+              label="Correas"
+              sub={eligibleLtb.length < members.length ? `${eligibleLtb.length} de ${members.length} barras` : 'arriostr. ala'}
+              help="Separación entre puntos que arriostran el borde comprimido. Solo aplica a vigas/cordones de acero o madera en pórtico: el resto de la selección se ignora."
+            />
+            <button
+              type="button"
+              onClick={() => run(eligibleLtbIds, (mm, id) => setMemberLtbSpacing(mm, id, allBraced ? undefined : 1.5))}
+              aria-pressed={allBraced}
+              className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 ${
+                allBraced
+                  ? 'bg-accent/15 text-accent border border-accent/40'
+                  : 'bg-bg-elevated text-text-disabled border border-border-main'
+              }`}
+            >
+              {allBraced ? 'Arriostradas' : 'Libres'}
+            </button>
+          </div>
+          {allBraced && (
+            <DraftNumberField
+              label="s"
+              sub={commonLtb === undefined ? '— varios —' : 'separación'}
+              unit="m"
+              value={commonLtb ?? eligibleLtb[0].ltbSpacing ?? 1.5}
+              resetKey={`grp:${groupKey}:ltb`}
+              min={0.1}
+              onCommit={(v) => run(eligibleLtbIds, (mm, id) => setMemberLtbSpacing(mm, id, Math.max(0.1, v)))}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Sección + armado HA en grupo (solo cuando TODAS las barras son de hormigón). */
+function GroupRcEditor({ members, run, numField, common }: {
+  members: readonly Fem2DMember[];
+  run: (ids: readonly string[], op: (mm: Fem2DModel, id: string) => Fem2DModel | OpResult) => void;
+  numField: (
+    field: string, label: string, sub: string | undefined, unit: string | undefined,
+    min: number, integer: boolean,
+    get: (m: Fem2DMember) => number, apply: (v: number) => void,
+  ) => JSX.Element;
+  common: <T>(get: (m: Fem2DMember) => T) => T | undefined;
+}): JSX.Element {
+  const ids = members.map((m) => m.id);
+  const sec = (m: Fem2DMember) => m.rcSection ?? DEFAULT_RC_BEAM_SECTION_2D;
+  const allPilar = members.every((m) => m.role === 'pilar');
+  const allViga = members.every((m) => m.role === 'viga' || m.role === 'cordon');
+
+  const armadoGrid = (region: 'vano' | 'apoyo', label: string, subLabel: string): JSX.Element => {
+    const arm = (m: Fem2DMember): ArmadoHA =>
+      (region === 'vano' ? m.vanoArmado : m.apoyoArmado)
+      ?? (region === 'vano' ? DEFAULT_VANO_ARMADO_2D : DEFAULT_APOYO_ARMADO_2D);
+    const patch = (p: Partial<ArmadoHA>) => run(ids, (mm, id) => updateMemberArmado(mm, id, region, p));
+    return (
+      <>
+        <SubHeader label={`${label} · ${subLabel}`} />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          {numField(`${region}:tn`, 'n', 'tracción', undefined, 1, true, (m) => arm(m).tens_nBars, (v) => patch({ tens_nBars: Math.max(1, Math.round(v)) }))}
+          {numField(`${region}:td`, 'Ø', 'tracción', 'mm', 6, true, (m) => arm(m).tens_barDiam, (v) => patch({ tens_barDiam: Math.max(6, Math.round(v)) }))}
+          {numField(`${region}:cn`, 'n', 'compresión', undefined, 0, true, (m) => arm(m).comp_nBars, (v) => patch({ comp_nBars: Math.max(0, Math.round(v)) }))}
+          {numField(`${region}:cd`, 'Ø', 'compresión', 'mm', 6, true, (m) => arm(m).comp_barDiam, (v) => patch({ comp_barDiam: Math.max(6, Math.round(v)) }))}
+          {numField(`${region}:sd`, 'Ø', 'cerco', 'mm', 5, true, (m) => arm(m).stirrupDiam, (v) => patch({ stirrupDiam: Math.max(5, Math.round(v)) }))}
+          {numField(`${region}:ss`, 's', 'cercos', 'mm', 40, true, (m) => arm(m).stirrupSpacing, (v) => patch({ stirrupSpacing: Math.max(40, Math.round(v)) }))}
+          {numField(`${region}:sl`, 'ramas', 'cerco', undefined, 2, true, (m) => arm(m).stirrupLegs, (v) => patch({ stirrupLegs: Math.max(2, Math.round(v)) }))}
+        </div>
+      </>
+    );
+  };
+
+  const cage = (m: Fem2DMember): RcColumnCage => m.columnCage ?? DEFAULT_COLUMN_CAGE_2D;
+  const patchCage = (p: Partial<RcColumnCage>) => run(ids, (mm, id) => updateMemberColumnCage(mm, id, p));
+
+  return (
+    <>
+      <SubHeader label="Sección de hormigón" />
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {numField('rcb', 'b', 'ancho', 'cm', 15, false, (m) => sec(m).b, (v) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { b: Math.max(15, v) })))}
+        {numField('rch', 'h', 'canto', 'cm', 15, false, (m) => sec(m).h, (v) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { h: Math.max(15, v) })))}
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <Row label="fck">
+          <select
+            value={common((m) => sec(m).fck) ?? ''}
+            onChange={(e) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { fck: Number(e.target.value) }))}
+            className={selectClass}
+            aria-label="Resistencia del hormigón del grupo"
+          >
+            {common((m) => sec(m).fck) === undefined && <option value="" disabled>— varios —</option>}
+            {FCK_OPTIONS.map((f) => (
+              <option key={f} value={f}>HA-{f}</option>
+            ))}
+          </select>
+        </Row>
+        <Row label="fyk">
+          <select
+            value={common((m) => sec(m).fyk) ?? ''}
+            onChange={(e) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { fyk: Number(e.target.value) }))}
+            className={selectClass}
+            aria-label="Acero de armar del grupo"
+          >
+            {common((m) => sec(m).fyk) === undefined && <option value="" disabled>— varios —</option>}
+            {FYK_OPTIONS.map((f) => (
+              <option key={f} value={f}>B{f}S</option>
+            ))}
+          </select>
+        </Row>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {numField('rccover', 'rec', 'mecánico', 'mm', 20, true, (m) => sec(m).cover, (v) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { cover: Math.max(20, Math.round(v)) })))}
+        <Row label="Exposición">
+          <select
+            value={common((m) => sec(m).exposureClass) ?? ''}
+            onChange={(e) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { exposureClass: e.target.value }))}
+            className={selectClass}
+            aria-label="Clase de exposición del grupo"
+          >
+            {common((m) => sec(m).exposureClass) === undefined && <option value="" disabled>— varios —</option>}
+            {EXPOSURE_OPTIONS.map((x) => (
+              <option key={x} value={x}>{x}</option>
+            ))}
+          </select>
+        </Row>
+      </div>
+
+      {allPilar ? (
+        <>
+          <SubHeader label="Armado del pilar" />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {numField('cage:corner', 'Ø', 'esquinas', 'mm', 8, true, (m) => cage(m).cornerBarDiam, (v) => patchCage({ cornerBarDiam: Math.max(8, Math.round(v)) }))}
+            <div />
+            {numField('cage:nx', 'n', 'interm. X', undefined, 0, true, (m) => cage(m).nBarsX, (v) => patchCage({ nBarsX: Math.max(0, Math.round(v)) }))}
+            {numField('cage:dx', 'Ø', 'interm. X', 'mm', 6, true, (m) => cage(m).barDiamX, (v) => patchCage({ barDiamX: Math.max(6, Math.round(v)) }))}
+            {numField('cage:ny', 'n', 'interm. Y', undefined, 0, true, (m) => cage(m).nBarsY, (v) => patchCage({ nBarsY: Math.max(0, Math.round(v)) }))}
+            {numField('cage:dy', 'Ø', 'interm. Y', 'mm', 6, true, (m) => cage(m).barDiamY, (v) => patchCage({ barDiamY: Math.max(6, Math.round(v)) }))}
+            {numField('cage:sd', 'Ø', 'cerco', 'mm', 5, true, (m) => cage(m).stirrupDiam, (v) => patchCage({ stirrupDiam: Math.max(5, Math.round(v)) }))}
+            {numField('cage:ss', 's', 'cercos', 'mm', 40, true, (m) => cage(m).stirrupSpacing, (v) => patchCage({ stirrupSpacing: Math.max(40, Math.round(v)) }))}
+          </div>
+        </>
+      ) : allViga ? (
+        <>
+          {armadoGrid('vano', 'Armado vano', 'M+ (tracción abajo)')}
+          {armadoGrid('apoyo', 'Armado apoyo', 'M− (tracción arriba)')}
+        </>
+      ) : (
+        <p className="text-[10.5px] text-text-secondary leading-snug py-1">
+          Roles mixtos: el armado se edita por rol (pilar usa jaula; viga/cordón
+          usan vano y apoyo). Unifica el rol del grupo o edita el armado barra a
+          barra.
+        </p>
+      )}
+    </>
+  );
+}
+
 function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
-  const { setModel, setSelected, sel, readOnly } = props;
+  const { model, setModel, setSelected, sel, readOnly } = props;
+  // El vector sobrevive a los cambios de selección A PROPÓSITO: tras "Copiar"
+  // la selección salta a la copia y repetir el gesto encadena (x·2, y·2).
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+
   const counts = [
     sel.nodes.length > 0 ? `${sel.nodes.length} nudo${sel.nodes.length === 1 ? '' : 's'}` : null,
     sel.members.length > 0 ? `${sel.members.length} barra${sel.members.length === 1 ? '' : 's'}` : null,
@@ -977,8 +1392,36 @@ function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
       </div>
     );
 
+  const moveIds = selectionMoveNodeIds(model, sel);
+  const groupMembers = sel.members
+    .map((id) => model.members.find((m) => m.id === id))
+    .filter((m): m is Fem2DMember => m !== undefined);
+
+  const doTranslate = () => {
+    const res = translateSelection(model, sel, dx, dy);
+    if (res.ok) setModel(() => res.model);
+    else showToast(res.reason, { autoDismiss: 4000 });
+  };
+
+  const doCopy = () => {
+    const res = duplicateSelection(model, sel, dx, dy);
+    if (res.ok) {
+      setModel(() => res.model);
+      setSelected(normalizeSelection(res.selection));
+      showToast(
+        `Copiados ${res.selection.nodes.length} nudo${res.selection.nodes.length === 1 ? '' : 's'} y ${res.selection.members.length} barra${res.selection.members.length === 1 ? '' : 's'} — la selección es la copia (repite para encadenar).`,
+        { autoDismiss: 4000 },
+      );
+    } else {
+      showToast(res.reason, { autoDismiss: 4000 });
+    }
+  };
+
+  const vectorBtnClass =
+    'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded border border-border-main text-[11.5px] text-text-secondary hover:text-accent hover:border-accent/40 transition-colors';
+
   return (
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className="flex flex-col gap-2 min-w-0">
       <PanelHeader title="Selección" sub={counts} onBack={() => setSelected(null)} />
 
       <div className="rounded border border-border-main px-3 py-2">
@@ -986,6 +1429,42 @@ function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
         {idRow('Barras', sel.members)}
         {idRow('Cargas', sel.loads)}
       </div>
+
+      {!readOnly && moveIds.size > 0 && (
+        <MultiSection label="Desplazar / copiar (vector)">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <DraftNumberField
+              stacked label="Δx" unit="m" value={dx} resetKey="multi:dx"
+              onCommit={setDx}
+            />
+            <DraftNumberField
+              stacked label="Δy" unit="m" value={dy} resetKey="multi:dy"
+              onCommit={setDy}
+            />
+          </div>
+          <div className="flex gap-1.5 pt-1">
+            <button type="button" onClick={doTranslate} className={vectorBtnClass}>
+              <Move size={12} aria-hidden="true" />
+              Desplazar
+            </button>
+            <button type="button" onClick={doCopy} className={vectorBtnClass}>
+              <Copy size={12} aria-hidden="true" />
+              Copiar
+            </button>
+          </div>
+          <p className="text-[10px] text-text-disabled leading-snug">
+            Una barra seleccionada arrastra sus dos nudos. La copia clona las
+            barras entre nudos del bloque con sus cargas y apoyos, y queda
+            seleccionada: repite Copiar para encadenar.
+          </p>
+        </MultiSection>
+      )}
+
+      {!readOnly && groupMembers.length >= 2 && (
+        <MultiSection label={`Propiedades de las ${groupMembers.length} barras`}>
+          <GroupMemberEditor model={model} setModel={setModel} members={groupMembers} />
+        </MultiSection>
+      )}
 
       <p className="text-[10px] text-text-disabled leading-snug px-0.5">
         Supr o el botón eliminan todo lo seleccionado en un solo paso. Las barras

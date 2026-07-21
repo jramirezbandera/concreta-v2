@@ -8,8 +8,13 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_LOAD_DRAFTS,
+  GRAVITY_PRESET,
+  GRAVITY_UDL_PRESET,
   HORIZONTAL_PRESET,
   HORIZONTAL_UDL_PRESET,
+  draftToPointPreset,
+  draftToUdlPreset,
   addFreeNode,
   addMember,
   addMemberPointLoad,
@@ -21,16 +26,21 @@ import {
   deleteMember,
   deleteNode,
   deleteSelection,
+  duplicateSelection,
+  editMembersMany,
   inferRole,
   nextFreeId,
   normalizeSelection,
   reinferRoles,
   resetMemberRoleAuto,
+  selectionMoveNodeIds,
   selectionToSet,
   setLoadMagnitude,
   setMemberMaterial,
+  setMemberProfile,
   setMemberRole,
   setMemberTwoForce,
+  translateSelection,
   setSupport,
   splitMemberAt,
   moveNode,
@@ -39,6 +49,7 @@ import {
   updateLoad,
   updateMemberArmado,
   updateMemberColumnCage,
+  type LoadDraft2D,
 } from '../../features/fem2d/modelOps';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
 import { solveFem2D } from '../../features/fem2d/pipeline';
@@ -326,6 +337,51 @@ describe('load ops', () => {
     // A two-force web still rejects any member load, preset or not.
     const web = model.members.find((m) => m.elementType === 'two-force');
     if (web) expect(addMemberUdl(model, web.id, HORIZONTAL_UDL_PRESET).ok).toBe(false);
+  });
+
+  it('el borrador armado en la paleta viaja entero a la carga colocada', () => {
+    const model = portal();
+    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+
+    // Distribuida vertical: 40 kN/m de sobrecarga de uso categoría C3.
+    const draft: LoadDraft2D = { lc: 'Q', useCategory: 'C3', magnitude: 40 };
+    const res = addMemberUdl(model, chord.id, draftToUdlPreset('load-udl', draft));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const udl = res.model.loads[res.model.loads.length - 1];
+    expect(udl.lc).toBe('Q');
+    expect(udl.useCategory).toBe('C3');
+    expect(udl.kind === 'udl' && udl.wy).toBe(-40); // gravedad = −y
+    expect(udl.kind === 'udl' && udl.wx).toBe(0);
+
+    // Puntual horizontal con valor negativo: el sentido se invierte (←).
+    const suction: LoadDraft2D = { lc: 'W', magnitude: -15 };
+    const p = addNodeLoad(model, model.nodes[0].id, draftToPointPreset('load-h', suction));
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    const pl = p.model.loads[p.model.loads.length - 1];
+    expect(pl.kind === 'node' && pl.Fx).toBe(-15);
+    expect(pl.kind === 'node' && pl.Fy).toBe(0);
+    // La categoría solo acompaña a Q: una carga de viento no la arrastra.
+    expect(pl.useCategory).toBeUndefined();
+  });
+
+  it('un borrador Q sin categoría cae en B (el default del combinador)', () => {
+    const model = portal();
+    const preset = draftToPointPreset('load-point', { lc: 'Q', magnitude: 12 });
+    expect(preset.useCategory).toBe('B');
+    expect(preset.Fy).toBe(-12);
+    const res = addNodeLoad(model, model.nodes[0].id, preset);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.model.loads[res.model.loads.length - 1].useCategory).toBe('B');
+  });
+
+  it('los borradores por defecto reproducen los presets históricos', () => {
+    expect(draftToUdlPreset('load-udl', DEFAULT_LOAD_DRAFTS['load-udl'])).toEqual(GRAVITY_UDL_PRESET);
+    expect(draftToUdlPreset('load-udl-h', DEFAULT_LOAD_DRAFTS['load-udl-h'])).toEqual(HORIZONTAL_UDL_PRESET);
+    expect(draftToPointPreset('load-point', DEFAULT_LOAD_DRAFTS['load-point'])).toEqual(GRAVITY_PRESET);
+    expect(draftToPointPreset('load-h', DEFAULT_LOAD_DRAFTS['load-h'])).toEqual(HORIZONTAL_PRESET);
   });
 
   it('setLoadMagnitude rescales keeping direction', () => {
@@ -794,5 +850,204 @@ describe('setMemberMaterial — madera', () => {
     expect(tgt.material).toBe('timber');
     expect(tgt.timberSection).toEqual(src.timberSection);
     expect(tgt.timberSection).not.toBe(src.timberSection);
+  });
+});
+
+// ── Block ops: desplazar / copiar la selección con un vector ─────────────────
+
+describe('selectionMoveNodeIds (barra seleccionada arrastra sus 2 nudos)', () => {
+  it('une los nudos explícitos con los extremos de las barras seleccionadas', () => {
+    const model = portal();
+    const ids = selectionMoveNodeIds(model, { nodes: ['n1'], members: ['v1'], loads: [] });
+    expect([...ids].sort()).toEqual(['n1', 'n2', 'n3']);
+  });
+
+  it('descarta ids inexistentes y selecciones de solo cargas', () => {
+    const model = portal();
+    expect(selectionMoveNodeIds(model, { nodes: ['zz'], members: ['zz'], loads: [] }).size).toBe(0);
+    const loadId = model.loads[0].id;
+    expect(selectionMoveNodeIds(model, { nodes: [], members: [], loads: [loadId] }).size).toBe(0);
+  });
+});
+
+describe('translateSelection (desplazamiento en bloque por vector)', () => {
+  const ALL = (model: Fem2DModel) => ({
+    nodes: model.nodes.map((x) => x.id),
+    members: [],
+    loads: [],
+  });
+
+  it('traslada el pórtico entero: coordenadas desplazadas, roles y reacciones intactos', () => {
+    const model = portal();
+    const before = totalReactions(model);
+    const res = translateSelection(model, ALL(model), 2, 1.5);
+    expect(res.ok).toBe(true);
+    const out = (res as { ok: true; model: Fem2DModel }).model;
+    for (const nd of model.nodes) {
+      const moved = out.nodes.find((x) => x.id === nd.id)!;
+      expect(moved.x).toBeCloseTo(nd.x + 2, 9);
+      expect(moved.y).toBeCloseTo(nd.y + 1.5, 9);
+    }
+    for (let i = 0; i < model.members.length; i++) {
+      expect(out.members[i].role).toBe(model.members[i].role);
+    }
+    const after = totalReactions(out);
+    expect(after.Rx).toBeCloseTo(before.Rx, 6);
+    expect(after.Ry).toBeCloseTo(before.Ry, 6);
+    expect(out.templateId).toBe('custom');
+  });
+
+  it('una barra PUENTE (un extremo dentro, otro fuera) rota y re-infiere su rol auto', () => {
+    const model = portal();
+    // Solo n2 se mueve: p1 (n1→n2) pasa de vertical a muy inclinada → viga.
+    const res = translateSelection(model, { nodes: ['n2'], members: [], loads: [] }, 3, 0);
+    expect(res.ok).toBe(true);
+    const out = (res as { ok: true; model: Fem2DModel }).model;
+    expect(out.members.find((m) => m.id === 'p1')!.role).toBe('viga');
+  });
+
+  it('rechaza el vector nulo, la selección sin nudos y la colisión con un nudo quieto', () => {
+    const model = portal();
+    expect(translateSelection(model, ALL(model), 0, 0)).toMatchObject({ ok: false });
+    expect(
+      translateSelection(model, { nodes: [], members: [], loads: [] }, 1, 0),
+    ).toMatchObject({ ok: false });
+    // n1 (0,0) desplazado (0, 3.5) cae sobre n2 (0, 3.5).
+    const col = translateSelection(model, { nodes: ['n1'], members: [], loads: [] }, 0, 3.5);
+    expect(col.ok).toBe(false);
+    expect((col as { ok: false; reason: string }).reason).toContain('caería sobre');
+  });
+});
+
+describe('duplicateSelection (copia en bloque: nudos + barras + apoyos + cargas)', () => {
+  const ALL = (model: Fem2DModel) => ({
+    nodes: model.nodes.map((x) => x.id),
+    members: model.members.map((x) => x.id),
+    loads: [],
+  });
+
+  it('clona el pórtico completo desplazado: dobla nudos/barras/apoyos/cargas y ΣRy', () => {
+    const model = portal();
+    const before = totalReactions(model);
+    const res = duplicateSelection(model, ALL(model), 8, 0);
+    expect(res.ok).toBe(true);
+    const { model: out, selection } = res as {
+      ok: true; model: Fem2DModel; selection: { nodes: string[]; members: string[]; loads: string[] };
+    };
+    expect(out.nodes).toHaveLength(model.nodes.length * 2);
+    expect(out.members).toHaveLength(model.members.length * 2);
+    expect(out.supports).toHaveLength(model.supports.length * 2);
+    expect(out.loads).toHaveLength(model.loads.length * 2);
+    // La selección devuelta ES la copia (para encadenar).
+    expect(selection.nodes).toHaveLength(model.nodes.length);
+    expect(selection.members).toHaveLength(model.members.length);
+    // Sin colisiones de id entre colecciones (pool compartido).
+    const all = [
+      ...out.nodes.map((x) => x.id),
+      ...out.members.map((x) => x.id),
+      ...out.loads.map((x) => x.id),
+    ];
+    expect(new Set(all).size).toBe(all.length);
+    // Física: dos pórticos idénticos → doble reacción vertical total.
+    const after = totalReactions(out);
+    expect(after.Ry).toBeCloseTo(before.Ry * 2, 6);
+  });
+
+  it('la copia clona las propiedades por VALOR (sin compartir objetos anidados)', () => {
+    const model = portal();
+    const res = duplicateSelection(model, ALL(model), 8, 0);
+    const { model: out, selection } = res as {
+      ok: true; model: Fem2DModel; selection: { nodes: string[]; members: string[]; loads: string[] };
+    };
+    const srcV1 = out.members.find((m) => m.id === 'v1')!;
+    const clones = out.members.filter((m) => selection.members.includes(m.id));
+    const cloneV1 = clones.find((m) => m.ltbSpacing !== undefined)!; // el dintel arriostrado
+    expect(cloneV1.steelSelection).toEqual(srcV1.steelSelection);
+    expect(cloneV1.steelSelection).not.toBe(srcV1.steelSelection);
+    expect(cloneV1.releases).not.toBe(srcV1.releases);
+    expect(cloneV1.ltbSpacing).toBe(srcV1.ltbSpacing);
+  });
+
+  it('bloque parcial: copiar solo el dintel arrastra sus nudos y sus cargas, sin apoyos', () => {
+    const model = portal();
+    const memberLoads = model.loads.filter((l) => l.kind !== 'node' && l.member === 'v1').length;
+    const nodeLoads = model.loads.filter((l) => l.kind === 'node' && (l.node === 'n2' || l.node === 'n3')).length;
+    const res = duplicateSelection(model, { nodes: [], members: ['v1'], loads: [] }, 0, 3);
+    expect(res.ok).toBe(true);
+    const { model: out, selection } = res as {
+      ok: true; model: Fem2DModel; selection: { nodes: string[]; members: string[]; loads: string[] };
+    };
+    expect(selection.nodes).toHaveLength(2);
+    expect(selection.members).toHaveLength(1);
+    expect(out.supports).toHaveLength(model.supports.length); // n2/n3 no tienen apoyo
+    expect(out.loads).toHaveLength(model.loads.length + memberLoads + nodeLoads);
+  });
+
+  it('rechaza vector nulo y colisión con nudos existentes', () => {
+    const model = portal();
+    expect(duplicateSelection(model, ALL(model), 0, 0)).toMatchObject({ ok: false });
+    // n1 (0,0) copiado a (6,0) cae sobre n4.
+    const col = duplicateSelection(model, { nodes: ['n1'], members: [], loads: [] }, 6, 0);
+    expect(col.ok).toBe(false);
+    expect((col as { ok: false; reason: string }).reason).toContain('caería sobre');
+  });
+
+  it('encadena con la selección devuelta y respeta el máximo de nudos', () => {
+    let model = portal(); // 4 nudos
+    let sel = ALL(model) as { nodes: string[]; members: string[]; loads: string[] };
+    // 14 copias de 4 nudos → 60 = límite exacto; la 15ª debe rechazarse.
+    for (let k = 0; k < 14; k++) {
+      const res = duplicateSelection(model, sel, 8, 0);
+      expect(res.ok).toBe(true);
+      const okRes = res as { ok: true; model: Fem2DModel; selection: typeof sel };
+      model = okRes.model;
+      sel = okRes.selection;
+    }
+    expect(model.nodes).toHaveLength(60);
+    // La última copia quedó desplazada 14·8 = 112 m del original.
+    const lastXs = model.nodes.filter((nd) => sel.nodes.includes(nd.id)).map((nd) => nd.x);
+    expect(Math.min(...lastXs)).toBeCloseTo(112, 6);
+    const overflow = duplicateSelection(model, sel, 8, 0);
+    expect(overflow.ok).toBe(false);
+    expect((overflow as { ok: false; reason: string }).reason).toContain('superaría el máximo');
+  });
+});
+
+describe('editMembersMany (edición en grupo del inspector, un undo)', () => {
+  it('aplica una op infalible (perfil) a todas las barras', () => {
+    const model = portal();
+    const res = editMembersMany(model, ['p1', 'v1', 'p2'], (mm, id) =>
+      setMemberProfile(mm, id, 'steel_HEB200'),
+    );
+    expect(res.applied).toEqual(['p1', 'v1', 'p2']);
+    expect(res.failures).toEqual([]);
+    for (const m of res.model.members) {
+      expect(m.steelSelection?.profileKey).toBe('steel_HEB200');
+    }
+  });
+
+  it('una op con guarda omite las barras incompatibles sin hundir el lote', () => {
+    const model = portal();
+    // v1 tiene cargas en barra: no puede pasar a biela; p1 sí.
+    const res = editMembersMany(model, ['p1', 'v1'], (mm, id) =>
+      setMemberTwoForce(mm, id, true),
+    );
+    expect(res.applied).toEqual(['p1']);
+    expect(res.failures).toHaveLength(1);
+    expect(res.failures[0].id).toBe('v1');
+    expect(res.failures[0].reason).toContain('cargas');
+    expect(res.model.members.find((m) => m.id === 'p1')!.elementType).toBe('two-force');
+    expect(res.model.members.find((m) => m.id === 'v1')!.elementType).toBe('beam-column');
+  });
+
+  it('las ops de modelo pelado cuentan como aplicadas (rol en grupo)', () => {
+    const model = portal();
+    const res = editMembersMany(model, ['p1', 'p2'], (mm, id) => setMemberRole(mm, id, 'cordon'));
+    expect(res.applied).toEqual(['p1', 'p2']);
+    for (const id of ['p1', 'p2']) {
+      const m = res.model.members.find((x) => x.id === id)!;
+      expect(m.role).toBe('cordon');
+      expect(m.roleManual).toBe(true);
+    }
   });
 });

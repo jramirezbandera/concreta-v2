@@ -1,9 +1,10 @@
 // FEM 2D — parametric draft state tests.
 //
-// uiState survives the free-editor era as the DRAFT of the "Nueva estructura"
-// dialog: the default draft builds a solvable model for EVERY template (green
-// FTUX), invalid params gate the build, and the self-weight toggle reaches the
-// model. Share-link serialization moved to serializeV2.test.ts (model-centric).
+// uiState survives the free-editor era as the v1 share-link decoder and the
+// tests' template-fixture builder: the default state builds a solvable model
+// for EVERY template (green FTUX), invalid params gate the build, and the
+// self-weight toggle reaches the model. Share-link serialization moved to
+// serializeV2.test.ts (model-centric).
 
 import { describe, expect, it } from 'vitest';
 import {

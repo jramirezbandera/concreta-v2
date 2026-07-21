@@ -6,7 +6,9 @@
 //      dovelas (geometría EXACTA del worker, nunca recalculada), centro O + radios y
 //      etiqueta de FoS. Si `result` es null/stale → solo la capa 1.
 //
-// mode='screen': paleta dark/light por tokens CSS.  mode='pdf': escala de grises.
+// mode='screen': paleta dark/light por tokens CSS.  mode='pdf': hexes fijos en
+// color (espejo del tema claro), desacoplados del tema activo — la figura se
+// rasteriza a PNG, así que los colores son seguros en cualquier visor.
 // Coordenadas internas en METROS, y hacia arriba (frame PySlope); el flip de Y lo
 // hace `sy()` al pintar. Sin emojis, sin rounded-lg, sin violeta, sin gradientes
 // decorativos (DESIGN.md). Comentarios en español.
@@ -77,29 +79,32 @@ const SCREEN_PALETTE: Palette = {
   slice:  'var(--color-text-disabled)',
 };
 
-// PDF: escala de grises + hexes de suelo apagados (impresión, desacoplado del tema).
+// PDF: hexes fijos EN COLOR — espejo de los tokens geo del tema claro
+// (src/index.css --color-geo-*) + estados de la marca, desacoplados del tema
+// activo (un usuario en dark exporta el mismo PDF). La figura va rasterizada a
+// PNG (embedSvgAsImage), así que el color es seguro en Acrobat.
 const PDF_PALETTE: Palette = {
   bg:           '#ffffff',
   panel:        '#ffffff',
-  panelBorder:  '#999999',
-  label:        '#000000',
-  dim:          '#666666',
-  ground:       '#333333',
+  panelBorder:  '#94a3b8',
+  label:        '#111827',
+  dim:          '#4b5563',
+  ground:       '#5d4630',
   granularDot:  '#5c4520',
   cohesiveLine: '#3d2e1a',
   strataBands: [
-    { fill1: '#e8e8e8', fill2: '#d2d2d2' },
-    { fill1: '#dcdcdc', fill2: '#c4c4c4' },
-    { fill1: '#d0d0d0', fill2: '#b8b8b8' },
-    { fill1: '#c6c6c6', fill2: '#acacac' },
-    { fill1: '#bcbcbc', fill2: '#a2a2a2' },
-    { fill1: '#b2b2b2', fill2: '#989898' },
+    { fill1: '#e0c89a', fill2: '#b89968' },
+    { fill1: '#c4bb88', fill2: '#9a9162' },
+    { fill1: '#d49774', fill2: '#a96b48' },
+    { fill1: '#b09480', fill2: '#84685a' },
+    { fill1: '#cdb872', fill2: '#a39150' },
+    { fill1: '#c08868', fill2: '#946248' },
   ],
-  water:  '#444444',
-  load:   '#333333',
-  accent: '#333333',
-  fail:   '#000000',
-  slice:  '#888888',
+  water:  '#0284c7',
+  load:   '#d97706',
+  accent: '#0284c7',
+  fail:   '#dc2626',
+  slice:  '#64748b',
 };
 
 // ─── Helpers de texto (réplica local: RetainingWallSVG no exporta svgText) ─────
@@ -276,7 +281,12 @@ export function SlopeStabilitySVG({
   const padTop = 44;
   const padRight = 14;
   const legendH = inputs.strata.length > 0 ? 16 + inputs.strata.length * 13 + 8 : 0;
-  const padBottom = 14 + legendH;
+  // Franja propia para las cotas de los límites de análisis (se rotulan a
+  // view - padBottom + 11, bajo el borde del área de dibujo): sin ella, con
+  // leyenda presente, los números caían DENTRO del cuadro de materiales
+  // (fillOpacity 0.7 → se transparentaban pisándose con la leyenda).
+  const limitStripH = 12;
+  const padBottom = 14 + limitStripH + legendH;
   const drawW = Math.max(40, width - padLeft - padRight);
   const drawH = Math.max(40, view - padTop - padBottom);
 

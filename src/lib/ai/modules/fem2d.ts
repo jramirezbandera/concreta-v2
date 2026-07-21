@@ -399,7 +399,8 @@ const PROMPT_RULES = `Reglas específicas del módulo FEM 2D (pórticos y cercha
 11. HORMIGÓN Y MADERA: las barras HA y de madera se COMPRUEBAN con su sección (y armado en HA), pero el chat NO puede editarlas (se hace en el inspector del lienzo — remite ahí al usuario). Una barra HA o de madera se conserva intacta si no tocas su perfil; darle "perfil"/"acero" la CONVIERTE a acero (hazlo solo si el usuario lo pide explícitamente). Una biela puede ser de acero o de madera, nunca de hormigón.
 12. Si "modelo_de_plantilla" es true, TODO lo que ves (geometría, apoyos, cargas, perfiles) es una plantilla de la aplicación, NO datos del usuario: pregúntalos antes de dar por bueno ningún veredicto.
 13. Si una propuesta estructural se descartó con un motivo del validador o del solver (mecanismo, apoyos insuficientes…), el motivo te llega en "errores_propuesta_anterior" del estado: corrígela en el turno siguiente atendiendo a ese motivo — no la repitas igual.
-14. Lo ÚNICO que llega a la aplicación son las listas de "proposal" de ESTE turno, y solo cuando el usuario pulsa Aplicar: NUNCA afirmes en "reply" que ya has modelado, definido, configurado o aplicado algo, y "warnings" NO es un registro de acciones ("se ha aplicado…" ahí es falso siempre). Si el usuario dice que no ve la estructura, reenvía en "proposal" las CUATRO listas completas (nudos, barras, apoyos, cargas) en ese mismo turno.`;
+14. Lo ÚNICO que llega a la aplicación son las listas de "proposal" de ESTE turno, y solo cuando el usuario pulsa Aplicar: NUNCA afirmes en "reply" que ya has modelado, definido, configurado o aplicado algo, y "warnings" NO es un registro de acciones ("se ha aplicado…" ahí es falso siempre). Si el usuario dice que no ve la estructura, reenvía en "proposal" las CUATRO listas completas (nudos, barras, apoyos, cargas) en ese mismo turno.
+15. CHECKPOINT DE ENTREVISTA: el historial que ves viaja RECORTADO a los últimos mensajes; lo ÚNICO que persiste turno tras turno es tu "proposal" (la aplicación la arrastra en "pendientes_de_aplicar" del estado). NO acumules la estructura "de memoria" esperando a tenerla completa: en cuanto haya geometría utilizable (aunque sea parcial) y en CADA turno en que el usuario confirme o corrija un dato estructural (nudo, barra, apoyo, carga, perfil), reenvía en "proposal" el modelo ACUMULADO con el dato nuevo incorporado — las cuatro listas coherentes entre sí (regla 2). Completa lo que aún no sepas con un valor provisional razonable y su aviso "Sugerencia:" (p. ej. apoyos articulados en la base, un perfil inicial) para que el modelo parcial sea ESTABLE (la aplicación lo valida con el solver, regla 13) mientras sigues preguntando. Un dato que no guardes así se OLVIDA cuando su mensaje sale del historial — incluida la imagen de un croquis: extráela a "proposal" en el MISMO turno en que la veas.`;
 
 const PLACEHOLDER_EXAMPLE =
   "Ej.: Pórtico de 6 m de luz y 3,5 m de altura, pilares HEB 200 y dintel IPE 240 " +
@@ -2187,6 +2188,9 @@ export const fem2dAdapter: AiModuleAdapter<Fem2DModel> = {
   payloadSchema: FEM2D_PAYLOAD_SCHEMA,
   promptRules: PROMPT_RULES,
   placeholder: PLACEHOLDER_EXAMPLE,
+  // Entrevista larga (un dato estructural por turno): ventana ampliada. La
+  // memoria durable sigue siendo el checkpoint de la regla 15, no la ventana.
+  historyTurns: 20,
   snapshot: buildSnapshot2D,
   buildPlan: buildFem2DPlan,
 };

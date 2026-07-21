@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { HIT_NODE_PX, distPointSegment, hitTest, segmentIntersectsRect, selectInRect } from '../../features/fem2d/hitTest';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
+import { IDENTITY_VIEW, makeTransform, uniformInsets, withView } from '../../features/fem2d/transform';
 import type { Fem2DModel } from '../../features/fem2d/types';
 
 // Identity projection: world units ARE pixels (tests reason in px directly).
@@ -133,6 +134,56 @@ describe('hitTest — loads (opts.loads)', () => {
   });
 });
 
+describe('hitTest — etiqueta de valor de una carga', () => {
+  const s50 = (v: number) => v * 50;
+  // Dintel con UNA sola UDL: capa 0, banda 0…−16 px y etiqueta con la línea
+  // base a −26 px (centro de la caja del texto en −29.5), fuera del alcance de
+  // la banda (que llega a −24).
+  function beamWithUdl(extraMember = false): Fem2DModel {
+    return {
+      templateId: 'custom',
+      selfWeight: false,
+      nodes: [
+        { id: 'n1', x: 0, y: 0 },
+        { id: 'n2', x: 6, y: 0 },
+        // Barra paralela justo por encima (pantalla y = −30), donde cae la
+        // etiqueta de la UDL de b1.
+        ...(extraMember ? [{ id: 'n3', x: 0, y: -0.6 }, { id: 'n4', x: 6, y: -0.6 }] : []),
+      ],
+      members: [
+        {
+          id: 'b1', i: 'n1', j: 'n2', role: 'viga' as const, elementType: 'beam-column' as const,
+          material: 'steel' as const, steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' as const },
+          releases: { i: false, j: false },
+        },
+        ...(extraMember ? [{
+          id: 'b2', i: 'n3', j: 'n4', role: 'viga' as const, elementType: 'beam-column' as const,
+          material: 'steel' as const, steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' as const },
+          releases: { i: false, j: false },
+        }] : []),
+      ],
+      supports: [{ node: 'n1', type: 'pinned' }, { node: 'n2', type: 'roller' }],
+      loads: [{ id: 'l1', kind: 'udl', lc: 'G', member: 'b1', wx: 0, wy: -10, frame: 'global' }],
+    };
+  }
+
+  it('clicar el TEXTO de la carga la selecciona (no solo la flecha)', () => {
+    const hit = hitTest(beamWithUdl(), 150, -29.5, s50, s50, { loads: true, system: 'si' });
+    expect(hit).toEqual({ kind: 'load', id: 'l1' });
+  });
+
+  it('la etiqueta es el impacto más DÉBIL: una barra debajo se lleva el clic', () => {
+    const hit = hitTest(beamWithUdl(true), 150, -29.5, s50, s50, { loads: true, system: 'si' });
+    expect(hit?.kind).toBe('member');
+    if (hit?.kind !== 'member') return;
+    expect(hit.id).toBe('b2');
+  });
+
+  it('lejos del texto no hay impacto', () => {
+    expect(hitTest(beamWithUdl(), 150, -60, s50, s50, { loads: true, system: 'si' })).toBeNull();
+  });
+});
+
 describe('segmentIntersectsRect (Liang-Barsky)', () => {
   const r = { x0: 0, y0: 0, x1: 10, y1: 10 };
   it('contained, crossing and missing segments', () => {
@@ -183,5 +234,53 @@ describe('selectInRect (ventana / captura)', () => {
     expect(sel.loads.length).toBe(2);
     expect(sel.nodes).toEqual([]);
     expect(sel.members).toEqual([]);
+  });
+});
+
+// ── Regresión: hit-testing bajo la cámara (zoom/encuadre) ───────────────────
+// El transform envuelto se le pasa a hitTest igual que el autofit, así que lo
+// que hay que garantizar es que las TOLERANCIAS siguen en píxeles de pantalla:
+// ampliar no puede engordar el área sensible de un nudo (si lo hiciera, en un
+// modelo denso ampliado sería imposible clicar una barra entre dos nudos).
+describe('hitTest bajo zoom (regresión de la cámara)', () => {
+  const nodes = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 6 }];
+  const base = makeTransform(nodes, 600, 400, uniformInsets(40));
+
+  it('el mismo nudo se selecciona antes y después de ampliar', () => {
+    const model = portal();
+    const node = model.nodes[0];
+    for (const view of [IDENTITY_VIEW, { k: 3, tx: -120, ty: -90 }]) {
+      const t = withView(base, view);
+      const hit = hitTest(model, t.sx(node.x), t.sy(node.y), t.sx, t.sy, {});
+      expect(hit?.kind, `k=${view.k}`).toBe('node');
+      expect(hit?.id, `k=${view.k}`).toBe(node.id);
+    }
+  });
+
+  it('la tolerancia del nudo NO escala con el zoom (sigue en px de pantalla)', () => {
+    const model = portal();
+    const node = model.nodes[0];
+    const t = withView(base, { k: 4, tx: 0, ty: 0 });
+    const cx = t.sx(node.x), cy = t.sy(node.y);
+
+    // Justo dentro del radio de captura en píxeles: sigue siendo el nudo.
+    expect(hitTest(model, cx + HIT_NODE_PX - 2, cy, t.sx, t.sy, {})?.kind).toBe('node');
+    // Al doble del radio ya NO puede ser el nudo, por mucho zoom que haya: si
+    // la tolerancia hubiera escalado ×4, aquí seguiríamos capturando el nudo.
+    const far = hitTest(model, cx + HIT_NODE_PX * 2 + 4, cy, t.sx, t.sy, {});
+    expect(far?.kind === 'node' && far.id === node.id).toBe(false);
+  });
+
+  it('el marquee sigue trabajando en coordenadas de pantalla con zoom', () => {
+    const model = portal();
+    const t = withView(base, { k: 2.2, tx: -60, ty: -40 });
+    const xs = model.nodes.map((n) => t.sx(n.x));
+    const ys = model.nodes.map((n) => t.sy(n.y));
+    const sel = selectInRect(
+      model,
+      { x0: Math.min(...xs) - 5, y0: Math.min(...ys) - 5, x1: Math.max(...xs) + 5, y1: Math.max(...ys) + 5 },
+      t.sx, t.sy, false,
+    );
+    expect(sel.nodes.length).toBe(model.nodes.length);
   });
 });

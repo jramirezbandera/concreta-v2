@@ -125,12 +125,18 @@ unidos) sigue existiendo para los tests de composición.
 import* del SDK del proveedor activo y llama a su `chatRaw`.
 
 `turns` no es el hilo entero: [`buildChatTurns`](../src/lib/ai/chatHistory.ts)
-recorta una ventana de los **12 últimos turnos**, podando siempre **por pares**
-(para no romper la alternancia estricta user/assistant que exige Anthropic ni
-dejar de empezar por `user`), y limita el total a **6 imágenes por petición**,
-podando desde el turno más antiguo y dejando un marcador de texto en su lugar.
-Los ítems de error se excluyen. Los turnos `assistant` se reenvían con su
-**envelope JSON crudo verbatim** — no con el `reply` renderizado.
+recorta una ventana de los **12 últimos turnos** por defecto (un adapter puede
+ampliarla con `historyTurns` — los FEM declaran 20 por su entrevista larga, un
+dato estructural por turno), podando siempre **por pares** (para no romper la
+alternancia estricta user/assistant que exige Anthropic ni dejar de empezar por
+`user`). Las **imágenes NO caducan con la ventana**: las de los turnos podados
+se re-adjuntan al primer turno user superviviente con el marcador
+`IMAGES_CARRIED_MARKER` (sin esto, el croquis del primer mensaje desaparecía en
+cuanto la entrevista superaba la ventana — bucle FEM 2D del 2026-07-21); solo
+las poda el cupo de **6 imágenes por petición**, desde el turno más antiguo y
+dejando un marcador de texto en su lugar. Los ítems de error se excluyen. Los
+turnos `assistant` se reenvían con su **envelope JSON crudo verbatim** — no con
+el `reply` renderizado.
 
 ### 2.3. Valida la respuesta
 
@@ -904,6 +910,12 @@ Patrón `reqId + AbortController` (el mismo de `AiFillModal` y `useSlopeSolver`)
   no como el `reply` renderizado ni como el payload fusionado.
 - La ventana de historial se poda **por pares**. Podar por unidades rompe la
   alternancia y Anthropic devuelve 400.
+- **La ventana NO es la memoria del hilo**: lo único que persiste turno tras
+  turno es la propuesta arrastrada (`pendientes_de_aplicar`). Un módulo de
+  entrevista larga necesita que el modelo haga **checkpoint** de lo acordado en
+  `proposal` cada turno (regla CHECKPOINT de los FEM); ampliar `historyTurns`
+  solo amortigua. Sin checkpoint, los datos confirmados caducan con la ventana
+  y el asistente re-pregunta en bucle (el caso OpenAI del 2026-07-21).
 - El discriminador de cálculo no válido es **`error != null`**, nunca `valid`.
 - **`risks` es requerido** en `AiApplyPlan`, y el interlock **bloquea** el botón
   Aplicar. No degradar a mero aviso.

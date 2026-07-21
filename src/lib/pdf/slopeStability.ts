@@ -10,20 +10,29 @@
 //
 // Estructura del documento (orden):
 //   1. Cabecera (título + fecha + motor v + inputs hash) + línea de trazabilidad
-//      (normativa + contexto + situación + motor/parche/malla).
-//   2. Figura 1 — sección (clon #slope-stability-svg-pdf) + columna de inputs
-//      (geometría, agua/situación, contexto, cargas).
-//   3. Tabla de estratos.
-//   4. Resultados clave (FoS crítico, centro O, radio R).
-//   5. Figura 2 — malla de centros / mapa de FoS (clon #slope-search-svg-pdf).
-//      Defensiva: si el clon no existe (T4.1 aún no montado o sin resultado),
-//      se omite SIN romper el resto del PDF.
-//   6. Tabla de verificaciones completa (result.checks, paginada por fila; la
-//      fila sísmica neutra se muestra "N/A" sin η% numérico).
-//   7. Tabla de física por dovela (nº · x · b · W · α · u) desde result.run.slices;
+//      (normativa + contexto + situación + motor/parche/malla, ENVUELTA a la
+//      caja de contenido — con nombres de motor largos se salía del margen).
+//   2. Figura 1 — sección a ANCHO COMPLETO (170×100 mm, clon
+//      #slope-stability-svg-pdf; el clon es 680×400 px = mismo aspecto 1.7).
+//   3. Banda de datos de entrada en 4 columnas (geometría, agua/situación,
+//      contexto, cargas) bajo la figura.
+//   4. Tabla de estratos.
+//   5. Resultados clave (FoS crítico, centro O, radio R).
+//   6. Figura 2 — malla de centros / mapa de FoS a ancho completo (clon
+//      #slope-search-svg-pdf). Defensiva: si el clon no existe (T4.1 aún no
+//      montado o sin resultado), se omite SIN romper el resto del PDF.
+//   7. Tabla de verificaciones completa (result.checks, paginada por fila; la
+//      fila sísmica neutra se muestra "N/A" sin η% numérico). Las columnas
+//      Verificación/Artículo van con `wrap`: los artículos largos (Guía
+//      Cimentaciones / ROM) envuelven en vez de pisar la columna vecina.
+//   8. Tabla de física por dovela (nº · x · b · W · α · u) desde result.run.slices;
 //      campos ausentes → "—" (no se reconstruye física en JS).
-//   8. Disclaimer de alcance (incl. sísmico pendiente · Phase 3).
-//   9. Footers en todas las páginas.
+//   9. Disclaimer de alcance (incl. sísmico pendiente · Phase 3).
+//  10. Footers en todas las páginas.
+//
+// Cada cabecera de sección reserva sitio (ensureSpace) para sí misma MÁS la
+// cabecera de su tabla y ~2 filas: ni títulos ni cabeceras huérfanas al fondo
+// de la página.
 
 import jsPDF from "jspdf";
 import type { SlopeInputs } from "../../data/defaults";
@@ -109,84 +118,89 @@ export async function exportSlopeStabilityPDF(
   );
 
   // Línea de trazabilidad: normativa + contexto/situación + motor + parche + malla.
+  // Envuelta a la caja de contenido (splitTextToSize) — la cadena completa supera
+  // los 170 mm y antes se salía del margen derecho.
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   setGray(doc, 110);
-  doc.text(
+  const trazLines = doc.splitTextToSize(
     pdfStr(
       `CTE DB-SE-C art. 7.2.2.1 · UNE-EN 1997-1 (EC7 DA3)  ·  ` +
         `${CONTEXT_LABEL[inp.context]} · ${SITUATION_LABEL[inp.situation]}  ·  ` +
         `Motor: PySlope ${result.engine.pyslopeVersion} · Pyodide ${result.engine.pyodideVersion} · ` +
         `parche ${result.engine.patchHash.slice(0, 8)} · malla ${result.engine.mesh.iterations}/${result.engine.mesh.slices} (${slopeMethodLabel(result.run.method)})`,
     ),
-    M,
-    contentY,
-  );
+    PAGE_W - 2 * M,
+  ) as string[];
+  doc.text(trazLines, M, contentY);
+  const TRAZ_LH = 7.5 * 1.15 * (25.4 / 72); // interlínea real de jsPDF en mm
 
-  // ── Figura 1: SVG sección rasterizado (clon oculto del shell) ────────────────
+  // ── Figura 1: SVG sección rasterizado, a ancho completo ──────────────────────
+  // 170×100 mm = aspecto 1.7, el mismo del clon (680×400 px): la figura llena su
+  // caja sin letterbox. Antes iba en 120×72 con columna lateral y salía diminuta.
   const sectionContainer = document.getElementById("slope-stability-svg-pdf");
   const sectionSvg = sectionContainer
     ? (sectionContainer.querySelector("svg") as SVGSVGElement | null)
     : null;
   const SVG_X = M;
-  const SVG_Y = contentY + 4;
-  const SVG_W = 120;
-  const SVG_H = 72;
+  const SVG_Y = contentY + trazLines.length * TRAZ_LH + 2;
+  const SVG_W = PAGE_W - 2 * M;
+  const SVG_H = 100;
   if (sectionSvg) {
     await embedSvgAsImage(doc, sectionSvg, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
   }
 
-  // ── Columna derecha: datos de entrada ────────────────────────────────────────
-  const COL_R = M + SVG_W + 6;
-  const LH = 4.5;
-  let ry = SVG_Y + 2;
-  const secHeader = (label: string) => {
+  // ── Banda de datos de entrada: 4 columnas bajo la figura ─────────────────────
+  // Cada valor envuelve dentro de su columna (splitTextToSize) — "Estabilidad
+  // global de cimentacion" no cabe en 42.5 mm de una línea.
+  let by = SVG_Y + SVG_H + 6;
+  const LH = 4.2;
+  const bandCols: { header: string; lines: string[] }[] = [
+    { header: "GEOMETRIA", lines: [`H = ${inp.height} m`, `beta = ${inp.angle} deg`] },
+    {
+      header: "AGUA / SITUACION",
+      lines: [
+        inp.waterTableDepth !== null ? `NF a ${inp.waterTableDepth} m` : "Sin nivel freatico",
+        SITUATION_LABEL[inp.situation],
+      ],
+    },
+    { header: "CONTEXTO", lines: [CONTEXT_LABEL[inp.context]] },
+    {
+      header: "CARGAS",
+      lines:
+        inp.loads.length === 0
+          ? ["Sin sobrecargas"]
+          : inp.loads.map((ld) =>
+              ld.kind === "udl"
+                ? `UDL ${fmtQ(ld.magnitude, "areaLoad")} @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
+                : `Lineal ${fmtQ(ld.magnitude, "linearLoad")} @ ${ld.offset} m`,
+            ),
+    },
+  ];
+  const bandColW = (PAGE_W - 2 * M) / bandCols.length;
+  let bandBottom = by;
+  bandCols.forEach((col, i) => {
+    const xC = M + i * bandColW;
+    let ry = by;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     setGray(doc, 60);
-    doc.text(label, COL_R, ry);
+    doc.text(pdfStr(col.header), xC, ry);
     ry += LH;
-    doc.setFont("helvetica", "normal");
-    setGray(doc, 80);
-  };
-  const line = (s: string) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     setGray(doc, 80);
-    doc.text(pdfStr(s), COL_R, ry);
-    ry += LH;
-  };
-  const gap = () => { ry += 2; };
-
-  secHeader("GEOMETRIA");
-  line(`H = ${inp.height} m`);
-  line(`beta = ${inp.angle} deg`);
-  gap();
-
-  secHeader("AGUA / SITUACION");
-  line(inp.waterTableDepth !== null ? `NF a ${inp.waterTableDepth} m` : "Sin nivel freatico");
-  line(SITUATION_LABEL[inp.situation]);
-  gap();
-
-  secHeader("CONTEXTO");
-  line(CONTEXT_LABEL[inp.context]);
-  gap();
-
-  secHeader("CARGAS");
-  if (inp.loads.length === 0) {
-    line("Sin sobrecargas");
-  } else {
-    for (const ld of inp.loads) {
-      line(
-        ld.kind === "udl"
-          ? `UDL ${fmtQ(ld.magnitude, "areaLoad")} @ ${ld.offset} m${ld.length ? ` (L=${ld.length} m)` : ""}`
-          : `Lineal ${fmtQ(ld.magnitude, "linearLoad")} @ ${ld.offset} m`,
-      );
+    for (const s of col.lines) {
+      const parts = doc.splitTextToSize(pdfStr(s), bandColW - 4) as string[];
+      doc.text(parts, xC, ry);
+      ry += parts.length * LH;
     }
-  }
+    bandBottom = Math.max(bandBottom, ry);
+  });
+  by = bandBottom + 2;
 
-  // ── Estratos (bajo la figura) ────────────────────────────────────────────────
-  let by = SVG_Y + SVG_H + 6;
+  // ── Estratos ─────────────────────────────────────────────────────────────────
+  by = ensureSpace(doc, by, 32, M);
   doc.setLineWidth(0.3);
   setGray(doc, 180);
   doc.line(M, by - 2, PAGE_W - M, by - 2);
@@ -222,6 +236,7 @@ export async function exportSlopeStabilityPDF(
 
   // ── Resultados clave ─────────────────────────────────────────────────────────
   by += 4;
+  by = ensureSpace(doc, by, 16, M);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   setGray(doc, 60);
@@ -244,8 +259,9 @@ export async function exportSlopeStabilityPDF(
     ? (searchContainer.querySelector("svg") as SVGSVGElement | null)
     : null;
   if (searchSvg) {
-    const MAP_W = 120;
-    const MAP_H = 72;
+    // Ancho completo, mismo aspecto 1.7 que el clon (680×400) — sin letterbox.
+    const MAP_W = PAGE_W - 2 * M;
+    const MAP_H = 100;
     // El bloque (cabecera + figura) es atómico: si no cabe, salta de página.
     by = ensureSpace(doc, by, MAP_H + 12, M);
     doc.setLineWidth(0.3);
@@ -261,8 +277,10 @@ export async function exportSlopeStabilityPDF(
   }
 
   // ── Tabla de verificaciones ──────────────────────────────────────────────────
+  // Reserva título + cabecera de tabla + ~2 filas: el rótulo VERIFICACIONES no
+  // se queda huérfano al fondo de la página con la tabla en la siguiente.
   by += 4;
-  by = ensureSpace(doc, by, 14, M);
+  by = ensureSpace(doc, by, 32, M);
   doc.setLineWidth(0.3);
   setGray(doc, 180);
   doc.line(M, by - 2, PAGE_W - M, by - 2);
@@ -281,14 +299,18 @@ export async function exportSlopeStabilityPDF(
   doc.text(STATUS_LABEL[overall], PAGE_W - M, by + 3, { align: "right" });
   by += 8;
 
+  // Verificación y Artículo llevan `wrap`: los textos largos del motor ("Guía
+  // Cimentaciones Carretera / ROM 0.5-05", el check sísmico con su tag) envuelven
+  // dentro de su columna en vez de pisar a la vecina.
   const checkCols: TableCol<CheckRow>[] = [
     {
       key: "description",
       label: "Verificacion",
-      w: 62,
+      w: 58,
+      wrap: true,
       render: (c) => (c.tag ? `${c.description} [${c.tag}]` : c.description),
     },
-    { key: "article", label: "Articulo", w: 40, render: (c) => c.article },
+    { key: "article", label: "Articulo", w: 42, wrap: true, render: (c) => c.article },
     {
       key: "value",
       label: "FoS",
@@ -313,7 +335,8 @@ export async function exportSlopeStabilityPDF(
       render: (c) =>
         c.neutral ? "—" : !isFinite(c.utilization) ? "inf" : `${(c.utilization * 100).toFixed(0)}%`,
     },
-    { key: "status", label: "Estado", w: 20, align: "right", render: (c) => STATUS_LABEL[c.status] },
+    // 22 mm: "ADVERTENCIA" mide 19 mm a 7.5 pt — con 20 se truncaba.
+    { key: "status", label: "Estado", w: 22, align: "right", render: (c) => STATUS_LABEL[c.status] },
   ];
   by = drawTable(doc, { x: M, y: by, M, cols: checkCols, rows: result.checks });
 
@@ -323,7 +346,7 @@ export async function exportSlopeStabilityPDF(
   const slices = result.run.slices ?? [];
   if (slices.length > 0) {
     by += 4;
-    by = ensureSpace(doc, by, 14, M);
+    by = ensureSpace(doc, by, 32, M);
     doc.setLineWidth(0.3);
     setGray(doc, 180);
     doc.line(M, by - 2, PAGE_W - M, by - 2);
