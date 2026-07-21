@@ -47,7 +47,13 @@ const PARSE_REJECT = /[eE]|[a-zA-Z]/;
 export function parseQuantity(
   input: string,
   quantity: Quantity,
-  system: UnitSystem
+  system: UnitSystem,
+  // La mayoría de campos (resistencias, módulos, dimensiones, acciones de
+  // diseño) son no negativos y el teclado los rechaza aquí — invariante del
+  // que dependen los motores (p. ej. steelColumns documenta este rechazo).
+  // Solo los campos que representan una CARGA con dirección (Fx/Fy/w del FEM,
+  // viento) piden signo explícitamente activando este flag.
+  allowNegative = false
 ): number | null {
   const trimmed = input.trim();
   if (trimmed === "") return null;
@@ -55,6 +61,6 @@ export function parseQuantity(
   const normalized = trimmed.replace(",", ".");
   const display = Number(normalized);
   if (!Number.isFinite(display)) return null;
-  if (display < 0) return null;
+  if (!allowNegative && display < 0) return null;
   return fromDisplay(display, quantity, system);
 }

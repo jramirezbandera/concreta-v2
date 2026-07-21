@@ -62,6 +62,11 @@ type UnitNumberInputProps = {
    * Use for bounded knobs like the search-mesh fields (dovelas / círculos).
    */
   clamp?: boolean;
+  /**
+   * Permite valores negativos (quantity mode). Por defecto el parseo los
+   * descarta; sólo campos de carga con dirección (Fx/Fy/w, viento) lo activan.
+   */
+  allowNegative?: boolean;
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
   /**
@@ -89,6 +94,7 @@ export function UnitNumberInput({
   max,
   step,
   clamp = false,
+  allowNegative = false,
   widthClass,
   stacked = false,
 }: UnitNumberInputProps) {
@@ -133,6 +139,7 @@ export function UnitNumberInput({
         max={max}
         step={step}
         clamp={clamp}
+        allowNegative={allowNegative}
         widthClass={widthClass}
         fullWidth={stacked}
       />

@@ -40,6 +40,12 @@ type RawNumberInputProps = {
    * field. Opt-in: without it, min/max stay decorative DOM hints.
    */
   clamp?: boolean;
+  /**
+   * Permite teclear valores negativos (quantity mode). Por defecto el parseo
+   * los descarta — sólo los campos de carga con dirección (Fx/Fy/w del FEM,
+   * viento) lo activan; ver `parseQuantity`.
+   */
+  allowNegative?: boolean;
 
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
@@ -72,6 +78,7 @@ export function RawNumberInput({
   max,
   step,
   clamp = false,
+  allowNegative = false,
   widthClass = "w-15",
   fullWidth = false,
 }: RawNumberInputProps) {
@@ -108,7 +115,7 @@ export function RawNumberInput({
       const n = parseInt(localStr, 10);
       parsed = isNaN(n) ? null : n;
     } else if (quantity) {
-      parsed = parseQuantity(localStr, quantity, system);
+      parsed = parseQuantity(localStr, quantity, system, allowNegative);
     } else {
       const n = parseFloat(localStr.replace(",", "."));
       parsed = isNaN(n) ? null : n;
@@ -142,7 +149,7 @@ export function RawNumberInput({
             return;
           }
           if (quantity) {
-            const si = parseQuantity(raw, quantity, system);
+            const si = parseQuantity(raw, quantity, system, allowNegative);
             if (si !== null) onChange(si);
             return;
           }
@@ -160,7 +167,7 @@ export function RawNumberInput({
             return;
           }
           if (quantity) {
-            const si = parseQuantity(localStr, quantity, system);
+            const si = parseQuantity(localStr, quantity, system, allowNegative);
             if (si === null) { setLocalStr(formatForInput(value)); return; }
             const next = clamp ? clampToRange(si) : si;
             if (clamp && next !== value) onChange(next);

@@ -128,7 +128,7 @@ function PortalForm({ p, set }: { p: PortalFrameParams; set: (patch: Partial<Por
       <CollapsibleSection label="Cargas" refNorma="CTE DB-SE-AE">
         <UnitNumberInput label="g" sub="permanente dintel" quantity="linearLoad" value={p.beamDeadLoad} onChange={(n) => set({ beamDeadLoad: n })} min={0} />
         <UnitNumberInput label="q" sub="sobrecarga dintel" quantity="linearLoad" value={p.beamLiveLoad} onChange={(n) => set({ beamLiveLoad: n })} min={0} />
-        <UnitNumberInput label="W" sub="viento en cabeza" quantity="force" help="Fuerza horizontal de viento en el alero izquierdo. Signo: + hacia la derecha." value={p.windEaveForce} onChange={(n) => set({ windEaveForce: n })} />
+        <UnitNumberInput label="W" sub="viento en cabeza" quantity="force" allowNegative help="Fuerza horizontal de viento en el alero izquierdo. Signo: + hacia la derecha." value={p.windEaveForce} onChange={(n) => set({ windEaveForce: n })} />
       </CollapsibleSection>
     </>
   );
@@ -152,8 +152,8 @@ function GableForm({ p, set }: { p: GableParams; set: (patch: Partial<GableParam
       <CollapsibleSection label="Cargas" refNorma="CTE DB-SE-AE">
         <UnitNumberInput label="g" sub="permanente faldón" quantity="linearLoad" value={p.rafterDeadLoad} onChange={(n) => set({ rafterDeadLoad: n })} min={0} />
         <UnitNumberInput label="S" sub="nieve (por longitud)" quantity="linearLoad" help="Nieve por unidad de longitud de faldón. Pre-convierte la nieve en proyección horizontal (w·cosθ) — v1 no lo hace por ti." value={p.rafterSnowLoad} onChange={(n) => set({ rafterSnowLoad: n })} min={0} />
-        <UnitNumberInput label="W" sub="viento en cabeza" quantity="force" value={p.windEaveForce} onChange={(n) => set({ windEaveForce: n })} />
-        <UnitNumberInput label="w⊥" sub="presión viento faldón" quantity="linearLoad" help="Presión de viento perpendicular al faldón a barlovento. Signo: + = presión hacia la cubierta." value={p.windRafterPressure} onChange={(n) => set({ windRafterPressure: n })} />
+        <UnitNumberInput label="W" sub="viento en cabeza" quantity="force" allowNegative value={p.windEaveForce} onChange={(n) => set({ windEaveForce: n })} />
+        <UnitNumberInput label="w⊥" sub="presión viento faldón" quantity="linearLoad" allowNegative help="Presión de viento perpendicular al faldón a barlovento. Signo: + = presión hacia la cubierta." value={p.windRafterPressure} onChange={(n) => set({ windRafterPressure: n })} />
       </CollapsibleSection>
     </>
   );
@@ -194,7 +194,7 @@ function MultistoryForm({ p, set }: { p: MultistoryParams; set: (patch: Partial<
         <UnitNumberInput label="q" sub="sobrecarga forjado" quantity="linearLoad" value={p.floorLiveLoad} onChange={(n) => set({ floorLiveLoad: n })} min={0} />
         <p className="text-[10px] text-text-disabled leading-snug px-0.5 pt-1">Viento por planta (fuerza horizontal, + hacia la derecha):</p>
         {p.windStoryForces.map((f, i) => (
-          <UnitNumberInput key={i} label={`W${i + 1}`} sub={`planta ${i + 1}`} quantity="force" value={f} onChange={(v) => setWind(i, v)} />
+          <UnitNumberInput key={i} label={`W${i + 1}`} sub={`planta ${i + 1}`} quantity="force" allowNegative value={f} onChange={(v) => setWind(i, v)} />
         ))}
       </CollapsibleSection>
     </>

@@ -900,12 +900,12 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
       {ld.kind === 'udl' ? (
         <>
           <DraftNumberField
-            label="wx" sub={ld.frame === 'local' ? 'axial local' : 'horizontal'} quantity="linearLoad"
+            label="wx" sub={ld.frame === 'local' ? 'axial local' : 'horizontal'} quantity="linearLoad" allowNegative
             value={ld.wx} resetKey={`${ld.id}:wx`}
             onCommit={(v) => patch({ wx: v })}
           />
           <DraftNumberField
-            label="wy" sub={ld.frame === 'local' ? '⊥ barra' : 'vertical (− abajo)'} quantity="linearLoad"
+            label="wy" sub={ld.frame === 'local' ? '⊥ barra' : 'vertical (− abajo)'} quantity="linearLoad" allowNegative
             value={ld.wy} resetKey={`${ld.id}:wy`}
             onCommit={(v) => patch({ wy: v })}
           />
@@ -923,12 +923,12 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
       ) : (
         <>
           <DraftNumberField
-            label="Fx" sub={ld.kind !== 'node' && ld.frame === 'local' ? 'axial local' : 'horizontal'} quantity="force"
+            label="Fx" sub={ld.kind !== 'node' && ld.frame === 'local' ? 'axial local' : 'horizontal'} quantity="force" allowNegative
             value={ld.Fx} resetKey={`${ld.id}:Fx`}
             onCommit={(v) => patch({ Fx: v })}
           />
           <DraftNumberField
-            label="Fy" sub={ld.kind !== 'node' && ld.frame === 'local' ? '⊥ barra' : 'vertical (− abajo)'} quantity="force"
+            label="Fy" sub={ld.kind !== 'node' && ld.frame === 'local' ? '⊥ barra' : 'vertical (− abajo)'} quantity="force" allowNegative
             value={ld.Fy} resetKey={`${ld.id}:Fy`}
             onCommit={(v) => patch({ Fy: v })}
           />

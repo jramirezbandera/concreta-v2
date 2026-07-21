@@ -28,13 +28,15 @@ interface Props {
   quantity?: Quantity;
   min?: number;
   max?: number;
+  /** Permite teclear negativos (cargas con dirección: Fx/Fy/w). */
+  allowNegative?: boolean;
   integer?: boolean;
   /** Stacked layout (label on top, full-width input) — for narrow grid cells. */
   stacked?: boolean;
 }
 
 export function DraftNumberField({
-  value, onCommit, resetKey, label, labelKey, sub, help, unit, quantity, min, max, integer, stacked,
+  value, onCommit, resetKey, label, labelKey, sub, help, unit, quantity, min, max, allowNegative, integer, stacked,
 }: Props): JSX.Element {
   const [draft, setDraft] = useState(value);
   const [seededFor, setSeededFor] = useState(resetKey);
@@ -70,6 +72,7 @@ export function DraftNumberField({
         quantity={quantity}
         min={min}
         max={max}
+        allowNegative={allowNegative}
         integer={integer}
         stacked={stacked}
       />

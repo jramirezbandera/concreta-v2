@@ -98,8 +98,15 @@ describe("units / format — parseQuantity", () => {
     expect(parseQuantity("8 kN", "force", "si")).toBeNull();
     expect(parseQuantity("abc", "force", "si")).toBeNull();
   });
-  it("rejects negatives", () => {
+  it("rejects negatives by default", () => {
     expect(parseQuantity("-5", "force", "si")).toBeNull();
+  });
+  it("accepts negatives when allowNegative is set (cargas con dirección)", () => {
+    expect(parseQuantity("-5", "force", "si", true)).toBe(-5);
+    expect(parseQuantity("-8", "force", "si", true)).toBe(-8);
+    expect(parseQuantity("-2,5", "linearLoad", "si", true)).toBe(-2.5);
+    // el flag no relaja el resto de reglas: notación científica sigue fuera
+    expect(parseQuantity("-1e3", "force", "si", true)).toBeNull();
   });
   it("rejects empty / whitespace", () => {
     expect(parseQuantity("", "force", "si")).toBeNull();
