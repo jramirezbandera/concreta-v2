@@ -24,6 +24,7 @@ import {
   type Tool2DId,
 } from './modelOps';
 import type { LoadCase, UseCategoryCode } from './types';
+import { lcOptionLabel, LC_HELP } from '../../lib/text/loadCases';
 
 interface ToolDef { id: Tool2DId; icon: React.ReactNode; label: string }
 
@@ -166,10 +167,10 @@ export function ToolPalette2D({ tool, setTool, loadDrafts, setLoadDraft }: Props
                   value={draft.lc}
                   onChange={(e) => patchDraft({ lc: e.target.value as LoadCase })}
                   className="fem2d-load-select"
-                  title="G permanente · Q sobrecarga de uso · W viento · S nieve · E sismo. Valores característicos sin mayorar (el programa aplica γ y ψ)."
+                  title={LC_HELP}
                 >
                   {LC_OPTIONS.map((lc) => (
-                    <option key={lc} value={lc}>{lc}</option>
+                    <option key={lc} value={lc}>{lcOptionLabel(lc)}</option>
                   ))}
                 </select>
               </div>

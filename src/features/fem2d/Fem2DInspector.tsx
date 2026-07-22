@@ -23,6 +23,7 @@ import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { lcOptionLabel, LC_HELP } from '../../lib/text/loadCases';
 import { DraftNumberField } from './DraftNumberField';
 import {
   AXIAL_FAMILIES,
@@ -832,7 +833,7 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
     <fieldset disabled={readOnly} className="flex flex-col gap-1 min-w-0 border-0 p-0 m-0">
       <PanelHeader title={ld.id} sub={`${kindLabel} · ${target}`} onBack={() => setSelected(null)} />
 
-      <Row label="Hipótesis" help="G permanente · Q sobrecarga de uso · W viento · S nieve · E sismo. Valores característicos sin mayorar (el programa aplica γ y ψ).">
+      <Row label="Hipótesis" help={LC_HELP}>
         <select
           value={ld.lc}
           onChange={(e) => {
@@ -843,7 +844,7 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
           aria-label="Hipótesis de carga"
         >
           {LC_OPTIONS.map((lc) => (
-            <option key={lc} value={lc}>{lc}</option>
+            <option key={lc} value={lc}>{lcOptionLabel(lc)}</option>
           ))}
         </select>
       </Row>
