@@ -26,12 +26,28 @@ const ELU_GAMMA_VAR = 1.5;
 
 export type LcFactors = Partial<Record<LoadCase, number>>;
 
+/** Hipótesis que puede ser la principal de una combinación: cualquiera menos la
+ *  permanente G (G está siempre presente, nunca es la variable dominante). */
+export type PrincipalLc = Exclude<LoadCase, 'G'>;
+
 export interface LcCombinations {
   /** ELU multi-principal: one combo per variable LC. At least 1 combo. */
   ELU: LcFactors[];
+  /**
+   * Hipótesis principal de cada combo de `ELU`, alineado 1:1 por índice.
+   * `null` = el combo sin variables (solo `1.35·G`).
+   *
+   * Necesario porque "la LC con factor 1.5" NO identifica al principal: una
+   * hipótesis simultánea con ψ0=1.0 (categoría E1, almacén) lleva también
+   * γ·ψ0 = 1.5·1.0 = 1.5, así que un modelo E1 puede tener dos LC a 1.5 en el
+   * mismo combo. El consumidor (fem2d `elu:<LC>`) lo lee de aquí, no lo deduce.
+   */
+  ELU_principals: (PrincipalLc | null)[];
   /** ELS-característica multi-principal: G + X_principal + Σ ψ0·X_sim.
    *  Default for deflection limits per CTE DB-SE 4.3.2.3. */
   ELS_c: LcFactors[];
+  /** Hipótesis principal de cada combo de `ELS_c`, alineado 1:1. `null` = solo G. */
+  ELS_c_principals: (PrincipalLc | null)[];
   /** ELS-frec multi-principal: G + ψ1·X_principal + Σ ψ2·X_sim. */
   ELS_frec: LcFactors[];
   /** ELS-cuasiperm: single combo (no principal, ψ2 to all variables). */
@@ -45,8 +61,8 @@ export interface LcCombinations {
  * would be fully granular.
  */
 export function buildLcCombinations(loads: CaseTaggedLoad[]): LcCombinations {
-  const var_lcs = Array.from(
-    new Set(loads.filter((l) => l.lc !== 'G').map((l) => l.lc)),
+  const var_lcs = Array.from(new Set(loads.map((l) => l.lc))).filter(
+    (lc): lc is PrincipalLc => lc !== 'G',
   );
   // First load per LC (used to derive ψ for the group).
   const repByLc: Partial<Record<LoadCase, CaseTaggedLoad>> = {};
@@ -57,9 +73,13 @@ export function buildLcCombinations(loads: CaseTaggedLoad[]): LcCombinations {
   const psi1 = (lc: LoadCase) => repByLc[lc] ? getPsi(repByLc[lc]!).psi1 : 0;
   const psi2 = (lc: LoadCase) => repByLc[lc] ? getPsi(repByLc[lc]!).psi2 : 0;
 
+  // Los `_principals` se construyen en el MISMO bucle que sus combos para que la
+  // alineación 1:1 sea evidente y no pueda desincronizarse.
   const ELU: LcFactors[] = [];
+  const ELU_principals: (PrincipalLc | null)[] = [];
   if (var_lcs.length === 0) {
     ELU.push({ G: ELU_GAMMA_G });
+    ELU_principals.push(null);
   } else {
     for (const principal of var_lcs) {
       const f: LcFactors = { G: ELU_GAMMA_G, [principal]: ELU_GAMMA_VAR };
@@ -68,13 +88,16 @@ export function buildLcCombinations(loads: CaseTaggedLoad[]): LcCombinations {
         f[sim] = ELU_GAMMA_VAR * psi0(sim);
       }
       ELU.push(f);
+      ELU_principals.push(principal);
     }
   }
 
   // ELS-característica multi-principal (γG=1, γQ=1 for principal, ψ0 for sim)
   const ELS_c: LcFactors[] = [];
+  const ELS_c_principals: (PrincipalLc | null)[] = [];
   if (var_lcs.length === 0) {
     ELS_c.push({ G: 1 });
+    ELS_c_principals.push(null);
   } else {
     for (const principal of var_lcs) {
       const f: LcFactors = { G: 1, [principal]: 1 };
@@ -83,6 +106,7 @@ export function buildLcCombinations(loads: CaseTaggedLoad[]): LcCombinations {
         f[sim] = psi0(sim);
       }
       ELS_c.push(f);
+      ELS_c_principals.push(principal);
     }
   }
 
@@ -103,5 +127,5 @@ export function buildLcCombinations(loads: CaseTaggedLoad[]): LcCombinations {
   const ELS_cp: LcFactors = { G: 1 };
   for (const lc of var_lcs) ELS_cp[lc] = psi2(lc);
 
-  return { ELU, ELS_c, ELS_frec, ELS_cp };
+  return { ELU, ELU_principals, ELS_c, ELS_c_principals, ELS_frec, ELS_cp };
 }

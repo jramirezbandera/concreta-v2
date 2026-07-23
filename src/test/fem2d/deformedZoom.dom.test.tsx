@@ -27,6 +27,7 @@ function ampLabelAt(canvasView: CanvasView2D): string | null {
         model={portal}
         checks={result.checks}
         view="def"
+        combo="env:ELU"
         elements={result.elements}
         width={720}
         height={460}

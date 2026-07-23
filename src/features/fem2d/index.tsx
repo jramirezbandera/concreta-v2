@@ -29,7 +29,9 @@ import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { exportFem2DPDF, fem2dFallbackFilename } from '../../lib/pdf/fem2d';
 import { useFem2DState, buildShareUrl } from './useFem2DState';
 import { analyzeFem2D } from './pipeline';
-import type { Fem2DComboId } from './checks';
+import type { Fem2DComboView, Fem2DComboViewId } from './checks';
+import { comboNotice } from './comboLabels';
+import { ComboSelect } from './ComboSelect';
 import { Landing } from './Landing';
 import { loadRecent, pushRecent } from './recents';
 import { buildTemplateWithDefaults } from './templates';
@@ -55,14 +57,6 @@ const VIEW_TABS: { id: Fem2DCanvasView; label: string; title?: string }[] = [
   { id: 'V', label: 'V', title: 'Diagrama de cortantes' },
   { id: 'M', label: 'M', title: 'Diagrama de momentos' },
   { id: 'def', label: 'δ', title: 'Deformada' },
-];
-
-// Grupos de combinación visualizables (los envolventes que materializa el
-// chequeo). Mismo patrón que el selector "Comb" del FEM 1D.
-const COMBO_TABS: { id: Fem2DComboId; label: string; title: string }[] = [
-  { id: 'ELU', label: 'ELU', title: 'ELU fundamental: 1.35·G + 1.5·Q + 1.5·ψ₀·Qi (envolvente multiprincipal)' },
-  { id: 'ELS_c', label: 'ELS-c', title: 'ELS característica: G + Q + ψ₀·Qi — límite de flechas (CTE DB-SE 4.3.2.3)' },
-  { id: 'ELS_cp', label: 'ELS-cp', title: 'ELS cuasi-permanente: G + ψ₂·Q — deformaciones a largo plazo' },
 ];
 
 function ViewTabButton({ active, label, title, onClick }: { active: boolean; label: string; title?: string; onClick: () => void }): JSX.Element {
@@ -94,7 +88,7 @@ export function Fem2DModule(): JSX.Element {
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [view, setView] = useState<Fem2DCanvasView>('model');
-  const [combo, setCombo] = useState<Fem2DComboId>('ELU');
+  const [combo, setCombo] = useState<Fem2DComboViewId>('env:ELU');
   // Confirmación de "empezar de nuevo" (botón + de la barra del lienzo).
   const [confirmNew, setConfirmNew] = useState(false);
   const [tool, setTool] = useState<Tool2DId>('select');
@@ -194,6 +188,17 @@ export function Fem2DModule(): JSX.Element {
   const detailMember = detailMemberId ? model.members.find((mm) => mm.id === detailMemberId) : undefined;
   const detailVerdict = detailMemberId ? result.checks?.perMember[detailMemberId] : undefined;
   const detailEnvelopes = detailMemberId ? result.checks?.envelopes[detailMemberId] : undefined;
+
+  // Selector de combinaciones. `combo` es un useState FUERA del useMemo que
+  // recalcula `result`, así que puede quedar obsoleto (elegir elu:W, borrar la
+  // carga W): 1ª búsqueda con fallback a comboViews[0] (env:ELU, siempre
+  // presente). Se dibuja SIEMPRE `active.id`, no `combo`, para que el diagrama y
+  // el <select> controlado no se descuadren.
+  const comboViews = result.checks?.comboViews ?? [];
+  const active: Fem2DComboView | undefined =
+    comboViews.find((v) => v.id === combo) ?? comboViews[0];
+  // Nada que dibujar (ni cargas ni peso propio): las 2 envolventes son nulas.
+  const comboDisabled = model.loads.length === 0 && !model.selfWeight;
 
   // Undo/redo keyboard (Ctrl/Cmd+Z, +Shift+Z, Ctrl+Y) — skip when typing.
   useEffect(() => {
@@ -352,26 +357,12 @@ export function Fem2DModule(): JSX.Element {
             ))}
             {/* Selector de combinación — solo con una vista de resultados. */}
             {view !== 'model' && (
-              <div className="flex items-center gap-1 pl-3 pr-1 py-1" role="radiogroup" aria-label="Combinación visual">
-                <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-text-disabled pr-1">Comb</span>
-                {COMBO_TABS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={combo === c.id}
-                    title={c.title}
-                    onClick={() => setCombo(c.id)}
-                    className={`px-2 py-1 rounded text-[10.5px] font-mono font-semibold transition-colors ${
-                      combo === c.id
-                        ? 'bg-accent/15 text-accent border border-accent/40'
-                        : 'bg-bg-elevated text-text-disabled border border-border-main hover:text-text-secondary'
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
+              <ComboSelect
+                comboViews={comboViews}
+                activeId={active?.id}
+                disabled={comboDisabled}
+                onChange={setCombo}
+              />
             )}
             <div className="flex-1" />
             <button
@@ -451,10 +442,20 @@ export function Fem2DModule(): JSX.Element {
             ) : (
               <Fem2DCanvas
                 model={model} checks={result.checks} view={view}
-                combo={combo} elements={result.elements}
+                combo={active?.id} elements={result.elements}
                 width={svgW} height={svgH} mode="screen"
                 canvasView={canvasView} setCanvasView={setCanvasView}
               />
+            )}
+
+            {/* Aviso al pie: qué se está dibujando. Derivado del ESTADO de la
+                vista, nunca del optgroup (una env:ELU colapsada vive bajo
+                «Combinaciones» y no es "la envolvente ELU"). El panel derecho no
+                cambia: esto sólo explica el dibujo. */}
+            {view !== 'model' && active && comboNotice(active) && (
+              <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-bg-surface/90 px-2.5 py-1 text-[10.5px] text-text-secondary shadow-sm ring-1 ring-border-main/60 backdrop-blur-sm">
+                {comboNotice(active)}
+              </div>
             )}
 
             {/* Zoom: en las 5 vistas y también en móvil (es VISTA, no edición).

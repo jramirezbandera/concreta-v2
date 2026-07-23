@@ -61,7 +61,7 @@ describe('computeDeformedShape — analytical battery', () => {
     expect(res.ok).toBe(true);
     const expected = (F * L ** 3) / (3 * EI);
 
-    const els = computeDeformedShape(model, res.elements, 'ELS_c');
+    const els = computeDeformedShape(model, res.elements, [{ W: 1 }]); // ELS-c: W característico
     expect(els.members).toHaveLength(1);
     const tip = els.members[0].disp[els.members[0].disp.length - 1];
     expect(tip.dx).toBeCloseTo(expected, 8);
@@ -83,7 +83,7 @@ describe('computeDeformedShape — analytical battery', () => {
     expect(els.members[0].mid!.y).toBeCloseTo(xm, 9);
     expect(els.members[0].mid!.dx).toBeCloseTo(wMid, 8);
 
-    const elu = computeDeformedShape(model, res.elements, 'ELU');
+    const elu = computeDeformedShape(model, res.elements, [{ G: 1.35, W: 1.5 }]); // ELU
     expect(elu.peak).toBeCloseTo(1.5 * expected, 8);
   });
 
@@ -95,7 +95,7 @@ describe('computeDeformedShape — analytical battery', () => {
     const res = solveFem2D(model);
     expect(res.ok).toBe(true);
 
-    const shape = computeDeformedShape(model, res.elements, 'ELS_cp');
+    const shape = computeDeformedShape(model, res.elements, [{ G: 1 }]); // ELS-cp (sólo G)
     const m = shape.members[0];
     const midIdx = m.base.findIndex((p) => Math.abs(p.x - L / 2) < 1e-9);
     expect(midIdx).toBeGreaterThan(-1);
@@ -146,7 +146,7 @@ describe('computeDeformedShape — analytical battery', () => {
     };
     const res = solveFem2D(model);
     expect(res.ok).toBe(true);
-    const shape = computeDeformedShape(model, res.elements, 'ELS_cp');
+    const shape = computeDeformedShape(model, res.elements, [{ G: 1 }]); // ELS-cp (sólo G)
     const byId = new Map(shape.members.map((m) => [m.memberId, m]));
     expect(byId.get('d1')!.mid).toBeNull();
     expect(byId.get('d2')!.mid).toBeNull();
@@ -165,7 +165,7 @@ describe('computeDeformedShape — analytical battery', () => {
     expect(res.ok).toBe(true);
     expect(res.elements).toHaveLength(2); // split at the load
 
-    const shape = computeDeformedShape(model, res.elements, 'ELS_cp');
+    const shape = computeDeformedShape(model, res.elements, [{ G: 1 }]); // ELS-cp (sólo G)
     const m = shape.members[0];
     // The polyline concatenates both elements: the junction sample is emitted
     // twice (end of e1, start of e2) and must carry the SAME displacement.
@@ -190,14 +190,19 @@ describe('computeDeformedShape — analytical battery', () => {
     expect(res.ok).toBe(true);
 
     // Two ELU sets (W principal / Q principal); the lateral deflection dwarfs
-    // the axial shortening, so W-principal (γ=1.5 on W) must govern.
-    const shape = computeDeformedShape(model, res.elements, 'ELU');
+    // the axial shortening, so W-principal (γ=1.5 on W) must govern. Se pasan
+    // AMBOS sets para que la selección de gobernante (peak δ) siga ejercitándose.
+    // ψ0: Q(B)=0.7 → 1.5·0.7=1.05; W=0.6 → 1.5·0.6=0.9.
+    const shape = computeDeformedShape(model, res.elements, [
+      { G: 1.35, W: 1.5, Q: 1.05 }, // W principal
+      { G: 1.35, Q: 1.5, W: 0.9 }, // Q principal
+    ]);
     expect(shape.factors?.W).toBeCloseTo(1.5, 9);
   });
 
   it('no elements → empty shape', () => {
     const model = simpleBeam([]);
-    const shape = computeDeformedShape(model, [], 'ELU');
+    const shape = computeDeformedShape(model, [], [{ G: 1.35 }]);
     expect(shape.members).toHaveLength(0);
     expect(shape.peak).toBe(0);
     expect(shape.factors).toBeNull();

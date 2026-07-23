@@ -20,7 +20,7 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { diagColorFor, findLocalExtrema, fmtField, signRuns } from './canvasTheme';
 import { memberStatusToCheck, toCheckRow } from './checkMapping';
-import type { Fem2DComboId, MemberEnvelope2D, MemberVerdict2D } from './checks';
+import type { MemberEnvelopes2D, MemberVerdict2D } from './checks';
 import type { Fem2DMember } from './types';
 
 const ROLE_SINGULAR: Record<Fem2DMember['role'], string> = {
@@ -34,7 +34,7 @@ const ROLE_SINGULAR: Record<Fem2DMember['role'], string> = {
 interface Props {
   member: Fem2DMember;
   verdict: MemberVerdict2D;
-  envelopes: Record<Fem2DComboId, MemberEnvelope2D>;
+  envelopes: MemberEnvelopes2D;
   /** True cuando algún combo ELU lleva los factores laterales amplificados por αcr. */
   amplified: boolean;
   onClose: () => void;

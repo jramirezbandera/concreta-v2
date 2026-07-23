@@ -462,7 +462,12 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Where to start:** post-V1 ship, agendar 30 min con el usuario beta. Pedir 5 archivos `.proyectoCYPE` o screenshots de los reportes CYPE. Replicar uno por uno en Concreta FEM. Capturar diferencia en hoja de cálculo simple. Si todo cuadra, escribir blog post / sección landing page.
 
-**Depends on:** V1 ship con solver real + adapter HA + adapter Steel.
+**Depends on:** V1 ship con solver real + adapter HA + adapter Steel. **Prerrequisito
+desbloqueado (2026-07-23):** hasta ahora la comparación con CYPE no era válida —
+Concreta daba ENVOLVENTES y CYPE da COMBINACIONES, no son la misma magnitud. El
+selector de combinaciones del FEM 2D (dibuja cada estado auditable, no la
+envoltura) ya permite el contraste 1:1. Para el 1D falta antes alinear el diagrama
+con la combinación multi-principal (ver "FEM 1D: alinear el DIAGRAMA…" abajo).
 
 ### V1.5 — Rubber-band selection en canvas
 
@@ -482,23 +487,39 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** V1 estable, sin bugs críticos en single-select.
 
-### V1.5 — Distinguir Q vs W vs S con ψ específicos en combinación
+### V1.5 — FEM 1D: alinear el DIAGRAMA con la combinación multi-principal (ψ)
 
-**Status:** DEFERRED del design doc Open Questions (eng-review 2026-04-28).
+**Status:** ACOTADO al 1D (2026-07-23). El motor de combinación multi-principal ya
+existe (`frame-core/lcCombinations.ts` con ψ₀/ψ₁/ψ₂ por `useCategory`) y lo usan
+tanto los chequeos del 1D (`solveDesignModel.ts:136/276` → `buildLcCombinations` +
+`envelopeOver(combos.ELU)`) como TODO el FEM 2D (chequeos, envolventes y el nuevo
+selector de combinaciones, que dibuja cada estado auditable). Lo que queda es SOLO
+el **diagrama que ve el usuario en el 1D**.
 
-**What:** hoy V1 mete todas las cargas variables (Q, W, S, E) en un solo bucket con factor parcial 1.5 sobre la suma. V1.5 las separa según hipótesis: para combinación ELU determinante, aplicar ψ₀ a las acciones simultáneas no-determinantes; para ELS-frecuente aplicar ψ₁; para ELS-cuasi-permanente ψ₂. Los datos ya están en el modelo (cada Load tiene `lc: 'G'|'Q'|'W'|'S'|'E'`); falta la lógica de combinación.
+**What:** `solveDesignModel.ts:186-198` construye los arrays `Mcombined/Vcombined`
+que pinta el diagrama del 1D como el bucket sumado `1.35·G + 1.5·(Q+W+S+E)` — NO
+por la combinación multi-principal que ya usa su propio veredicto. El verdict del
+1D es correcto; el dibujo miente por exceso. Falta reemplazar esas ~12 líneas por
+la envolvente (o la combinación seleccionada) de `combos.ELU`, como en el 2D.
 
-**Why:** la combinación ELU "1.35G + 1.5Q + 1.5·ψ₀,W·W + 1.5·ψ₀,S·S" es la correcta según CTE DB-SE. El bucket único de V1 es conservadoramente correcto (puede sobrestimar) pero no es lo que el usuario profesional espera ver. Para modelos con viento Y nieve simultáneos, la diferencia puede ser 10-20% en el valor de combinación determinante.
+**Why:** el bucket único es conservadoramente correcto (sobrestima) pero incoherente:
+en el 1D el número del diagrama no coincide con el del chequeo, y no es comparable
+a mano ni con CYPE. Con viento Y nieve simultáneos la diferencia puede ser 10-20%.
 
-**Pros:** comparable directamente con CYPE; cumple CTE estrictamente; necesario para ELS-cuasi-permanente para fisuración (ψ₂·Q según useCategory).
+**Pros:** coherencia diagrama↔veredicto en el 1D; comparable con CYPE; reutiliza
+`buildLcCombinations` (cero motor nuevo).
 
-**Cons:** lógica de combinación es ~150 líneas más; tests de combinación adicionales; UI para elegir hipótesis determinante.
+**Cons:** `BarResult.envelope` no tiene `ELS_c` (ver "Convergencia FEM 1D/2D del
+selector ELS" abajo); si además se quiere un selector de combinaciones en el 1D
+como el del 2D, es un cambio del modelo de salida del solver en ≥5 sitios
+(`fem-analysis/types.ts:327-331/375`, `FloatingControls.tsx`, `Canvas.tsx`).
 
-**Context:** ver design doc → Architectural decisions → Hipótesis de carga + combinaciones (ELU + ELS) → última nota: "V1 mezcla todas las variables en un solo bucket... V1.5 las separa con ψ₀, ψ₁, ψ₂ específicos por hipótesis".
+**Where to start:** `solveDesignModel.ts:186-198` — sustituir el sumatorio
+`sumOver=['Q','W','S','E']` por `buildBarEnvelope(elements, bar.id, combos.ELU)`
+(ya se llama en la línea 276 para el chequeo). El 2D es el patrón de referencia:
+`fem2d/checks.ts` + `fem2d/ComboSelect.tsx`.
 
-**Where to start:** `src/features/fem-analysis/combinations.ts` (new). Tabla CTE DB-SE de ψ₀/ψ₁/ψ₂ por categoría de uso (residencial, oficina, parking, etc.). Función `buildCombinations(loads: Load[], useCategory: string): { ELU: WeightedLoadSet[], ELSc: WeightedLoadSet, ELSf: WeightedLoadSet, ELSqp: WeightedLoadSet }`. Solver itera sobre cada combinación; envelope toma el peor.
-
-**Depends on:** V1 ship con bucket único.
+**Depends on:** nada nuevo — el motor multi-principal ya está en `main`.
 
 ### V1.5 — Mobile edit mode (touch-friendly sketch tools)
 

@@ -6,7 +6,7 @@
 // current run; an all-zero series paints nothing.
 
 import { describe, expect, it } from 'vitest';
-import { diagColorFor, DIAG_NEG, DIAG_NEG_PDF, DIAG_POS, DIAG_POS_PDF, signRuns } from '../../features/fem2d/canvasTheme';
+import { diagColorFor, diagramScale, DIAG_NEG, DIAG_NEG_PDF, DIAG_POS, DIAG_POS_PDF, signRuns } from '../../features/fem2d/canvasTheme';
 
 describe('signRuns', () => {
   it('single-sign series → one run with the original samples', () => {
@@ -70,6 +70,45 @@ describe('signRuns', () => {
 
   it('empty input → no runs', () => {
     expect(signRuns([], [])).toEqual([]);
+  });
+});
+
+describe('diagramScale — escala de amplitud del diagrama (trampa 3)', () => {
+  const ampPx = 40; // ampFor típico
+
+  it('vista NO gobernante: escala a scaleRef ⇒ se dibuja MENOR (scaleMax = pico de scaleRef)', () => {
+    // env:ELU pico 84; un elu:* no gobernante pico 41. La amplitud la fija 84,
+    // así que 41 se dibuja a ~la mitad de altura, comparable con su envolvente.
+    const { k, scaleMax } = diagramScale(41, 84, ampPx, 1);
+    expect(scaleMax).toBe(84);
+    expect(k).toBeCloseTo(ampPx / 84, 12);
+    // Menor que si se autonormalizara.
+    expect(Math.abs(k)).toBeLessThan(ampPx / 41);
+  });
+
+  it('GUARDA de desbordamiento: la vista supera a su scaleRef ⇒ autonormaliza (no se sale)', () => {
+    // Contraejemplo del plan: env:ELS_c pico 5, pero els_cp pico 10. Sin guarda,
+    // k = ampPx/5 dibujaría el doble de ampPx (invade cotas). Con guarda,
+    // scaleMax = max(5, 10) = 10 ⇒ el pico ocupa exactamente ampPx.
+    const { k, scaleMax } = diagramScale(10, 5, ampPx, 1);
+    expect(scaleMax).toBe(10);
+    expect(Math.abs(k) * 10).toBeCloseTo(ampPx, 12); // el pico cabe justo en ampPx
+  });
+
+  it('elu:* / els_c: (pico ≤ scaleRef) ⇒ scaleMax === pico de scaleRef, idéntico', () => {
+    const { scaleMax } = diagramScale(30, 84, ampPx, 1);
+    expect(scaleMax).toBe(84);
+  });
+
+  it('todo-cero ⇒ k = 0 (sin división por cero)', () => {
+    const { k, scaleMax } = diagramScale(0, 0, ampPx, 1);
+    expect(scaleMax).toBe(0);
+    expect(k).toBe(0);
+  });
+
+  it('offsetSign se propaga al signo de k (M dibuja el sagging hacia −y)', () => {
+    expect(diagramScale(50, 50, ampPx, -1).k).toBeLessThan(0);
+    expect(diagramScale(50, 50, ampPx, 1).k).toBeGreaterThan(0);
   });
 });
 

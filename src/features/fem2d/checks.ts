@@ -84,7 +84,7 @@
 //   asymmetric GRAVITY is not amplified), storey V excludes the storey's own
 //   column self-weight (attributed at mid-height, below the storey top).
 
-import { buildLcCombinations, type LcFactors } from '../../lib/frame-core/lcCombinations';
+import { buildLcCombinations, type LcCombinations, type LcFactors, type PrincipalLc } from '../../lib/frame-core/lcCombinations';
 import { STEEL_CATALOG } from '../../lib/frame-core/sections';
 import type { LoadCase, ModelError } from '../../lib/frame-core/types';
 import { bucklingChi } from '../../lib/calculations/buckling';
@@ -230,13 +230,91 @@ export interface MemberEnvelope2D {
   w: number[];
 }
 
-/** Combination groups the check phase materializes envelopes for. The canvas
- *  combo selector iterates exactly these ids. */
+/** Claves heredadas de los tres botones originales. Se conservan como ALIAS del
+ *  mismo objeto que las vistas nuevas (decisión aditiva D2/A). Los clones PDF
+ *  (`index.tsx:497/500/503`) y la ficha indexan por estos literales y no pasan
+ *  `combo`, dependiendo del default `'ELU'`; renombrarlos los dejaría en blanco
+ *  con el fixture en verde, porque jsdom no ve esos SVG. */
 export type Fem2DComboId = 'ELU' | 'ELS_c' | 'ELS_cp';
+
+/**
+ * Ids SELECCIONABLES en el desplegable de combinaciones. Un id por vista
+ * dibujable: las dos envolventes, cada combinación ELU/ELS por hipótesis
+ * principal, la cuasi-permanente, la combinación sintética de duración
+ * permanente de madera y cada hipótesis simple.
+ *
+ * `Exclude<LoadCase, 'G'>` en `elu:`/`els_c:` a propósito: G nunca es la
+ * hipótesis principal, así que `elu:G` es un id construible-pero-imposible; el
+ * tipo lo prohíbe para que "los ids tipados impiden los blancos silenciosos"
+ * siga siendo cierto.
+ */
+export type Fem2DComboViewId =
+  | 'env:ELU'
+  | 'env:ELS_c'
+  | 'els_cp'
+  | 'eluperm:G'
+  | `elu:${PrincipalLc}`
+  | `els_c:${PrincipalLc}`
+  | `lc:${LoadCase}`;
+
+/** Los tres alias heredados. NUNCA son ids de vista seleccionables y NUNCA
+ *  llegan a deformed.ts: sólo mantienen vivos los clones PDF y la ficha. */
+type LegacyEnvelopeAlias = Fem2DComboId;
+
+/** Toda clave que `envelopes[m.id]` puede llevar: ids de vista + alias. */
+export type Fem2DEnvelopeKey = Fem2DComboViewId | LegacyEnvelopeAlias;
+
+/** Materializadas SIEMPRE para toda barra: los tres alias heredados, los dos
+ *  anclajes de escala (`env:ELU`/`env:ELS_c`, referencia de la trampa 3 y
+ *  entradas de la ficha) y la cuasi-permanente (`els_cp`). El tipo las exige
+ *  para que un `?.` sobre ellas no pueda devolver `undefined` en silencio —
+ *  moviendo el problema a `[clave]` en vez de eliminarlo (voz externa C1+C2). */
+type AlwaysPresent = LegacyEnvelopeAlias | 'env:ELU' | 'env:ELS_c' | 'els_cp';
+
+/**
+ * Envolventes por combinación de una barra. Las claves obligatorias
+ * (`AlwaysPresent`) existen siempre; el resto de vistas (`elu:*`, `els_c:*`,
+ * `lc:*`, `eluperm:G`) son opcionales — se materializan cuando el modelo las
+ * tiene. Distinción clave (C3): una vista puede quedar FUERA de `comboViews`
+ * (deduplicada de la lista) sin que su clave falte aquí.
+ */
+export type MemberEnvelopes2D = Record<AlwaysPresent, MemberEnvelope2D> &
+  Partial<Record<Fem2DEnvelopeKey, MemberEnvelope2D>>;
+
+/**
+ * Una entrada del selector de combinaciones. `checks.ts` emite ESTRUCTURA; la
+ * capa de UI deriva `label`, `groupLabel` y `notice` de estos campos +
+ * `LC_LABELS` + `formatCombo` (sin texto en español dentro del motor de
+ * chequeo — decisión 2B/C7).
+ */
+export interface Fem2DComboView {
+  id: Fem2DComboViewId;
+  group: 'envelope' | 'ELU' | 'ELS' | 'hypothesis';
+  /** true = envolvente sobre ≥2 combinaciones. */
+  isEnvelope: boolean;
+  /** true = el grupo tenía una sola combinación: la envolvente ES esa combinación. */
+  collapsed: boolean;
+  /** Hipótesis principal. `null` en envolventes y en `lc:*`. */
+  principal: PrincipalLc | null;
+  /** Hipótesis de la vista simple. `null` salvo en `lc:*`. */
+  lc: LoadCase | null;
+  /** Factores para N/V/M — ELU con laterales AMPLIFICADOS por αcr (trampa 4). */
+  forceFactorSets: LcFactors[];
+  /** Factores para δ — ELU SIN amplificar: la deformada usa CTE plano (trampa 1). */
+  dispFactorSets: LcFactors[];
+  /** Vista cuya escala en píxeles usa el render de N/V/M (trampa 3). */
+  scaleRef: Fem2DComboViewId;
+}
 
 export interface Fem2DCheckBundle {
   perMember: Record<string, MemberVerdict2D>;
-  envelopes: Record<string, Record<Fem2DComboId, MemberEnvelope2D>>;
+  envelopes: Record<string, MemberEnvelopes2D>;
+  /** Vistas SELECCIONABLES del desplegable, deduplicadas por firma (las
+   *  hipótesis simples exentas). Nunca vacío: `env:ELU` y `env:ELS_c` se
+   *  emiten siempre y nunca colisionan (γ_G 1.35 vs 1), así que `[0]` es un
+   *  fallback seguro para la vista obsoleta. Orden estable = `LC_ORDER`,
+   *  independiente del orden en que se dibujaron las cargas. */
+  comboViews: Fem2DComboView[];
   /** Worst αcr across ELU combinations; null = no sway storeys (e.g. truss). */
   alphaCr: number | null;
   /** True when any ELU combination had its lateral factors amplified. */
@@ -269,15 +347,37 @@ export function checkFem2D(
   const sway = computeSwaySensitivity(model, analysis, combos.ELU, errors);
   const eluAmplified = sway.factorsPerCombo;
 
-  // ── Envelopes (ELU amplified + ELS groups) ───────────────────────────────
+  // ── T6: vistas del selector (estructura, por-modelo) ─────────────────────
+  const hasTimber = model.members.some((m) => m.material === 'timber');
+  const { views: comboViews, candidates } = buildComboViews(
+    combos, eluAmplified, analysis.loadCases, hasTimber, model.snowOver1000m ?? false,
+  );
+
+  // ── Envelopes (todas las claves candidatas, por barra) ───────────────────
   const envelopes: Fem2DCheckBundle['envelopes'] = {};
   for (const m of model.members) {
     const els = elementsByMember.get(m.id) ?? [];
-    envelopes[m.id] = {
-      ELU: buildEnvelope(els, eluAmplified),
-      ELS_c: buildEnvelope(els, combos.ELS_c),
-      ELS_cp: buildEnvelope(els, [combos.ELS_cp]),
+    // Anclajes obligatorios primero: un objeto por envolvente, compartido con su
+    // alias heredado por IDENTIDAD (criterio 4: envelopes.ELU === envelopes['env:ELU']).
+    const eluEnv = buildEnvelope(els, eluAmplified);
+    const elsCEnv = buildEnvelope(els, combos.ELS_c);
+    const elsCpEnv = buildEnvelope(els, [combos.ELS_cp]);
+    const memberEnv: MemberEnvelopes2D = {
+      ELU: eluEnv,
+      ELS_c: elsCEnv,
+      ELS_cp: elsCpEnv,
+      'env:ELU': eluEnv,
+      'env:ELS_c': elsCEnv,
+      els_cp: elsCpEnv,
     };
+    // Claves de vista opcionales (elu:*, els_c:*, lc:*, eluperm:G). Se
+    // materializan TODAS las candidatas, incluidas las que la lista deduplica
+    // (criterio 11: la clave nunca falta aunque la vista no esté en el selector).
+    for (const c of candidates) {
+      if (c.id in memberEnv) continue; // los 3 anclajes de vista ya están
+      memberEnv[c.id] = buildEnvelope(els, c.forceFactorSets);
+    }
+    envelopes[m.id] = memberEnv;
   }
 
   // ── T5: per-member role-routed checks ────────────────────────────────────
@@ -329,6 +429,7 @@ export function checkFem2D(
   return {
     perMember,
     envelopes,
+    comboViews,
     alphaCr: sway.alphaCr,
     amplified: sway.amplified,
     globalChecks,
@@ -359,6 +460,150 @@ export function formatCombo(factors: LcFactors): string {
   return parts.length > 0 ? parts.join(' + ') : '—';
 }
 
+// ── Combo views (selector) ──────────────────────────────────────────────────
+
+/** Firma canónica de una lista de factores: `LC_ORDER × toFixed(4)`, estable
+ *  frente al orden de inserción de claves. Dos listas con los mismos factores
+ *  (en el mismo orden de combinación) producen la misma cadena. */
+function comboSignature(sets: LcFactors[]): string {
+  return sets
+    .map((f) => LC_ORDER.map((lc) => (f[lc] ?? 0).toFixed(4)).join(','))
+    .join('|');
+}
+
+/**
+ * Descriptores de las vistas del selector. Emite ESTRUCTURA (grupo, principal,
+ * factores, escala) — la capa de UI deriva las etiquetas en español (C7).
+ *
+ * Devuelve DOS listas con la distinción de C3:
+ *   - `candidates`: TODAS las vistas candidatas, en orden de emisión. La fase de
+ *     chequeo materializa una clave de `envelopes` por candidata, SIEMPRE —
+ *     aunque la vista quede fuera del desplegable (una clave que falta = figura
+ *     en blanco silenciosa; ocultar del desplegable ≠ no materializar).
+ *   - `views`: lo que ve el usuario. Deduplicada por firma sobre los grupos
+ *     envolvente/combinación (#1-#6); las hipótesis simples (#7) van EXENTAS
+ *     porque `{G:1, W:0}` (cuasi-permanente sin viento) y la hipótesis G aislada
+ *     son dos afirmaciones ciertas y distintas, no un duplicado que mienta.
+ *
+ * Orden de emisión = `LC_ORDER` (no el de `combos.ELU`, que sigue el de
+ * inserción de las cargas): con ids estables, el ORDEN del desplegable se
+ * reordenaría solo según cómo se dibujó el pórtico. Se ordena por la principal.
+ */
+function buildComboViews(
+  combos: LcCombinations,
+  eluAmplified: LcFactors[],
+  loadCases: Analysis2DLoadCase[],
+  hasTimber: boolean,
+  snowOver1000m: boolean,
+): { views: Fem2DComboView[]; candidates: Fem2DComboView[] } {
+  const byLcOrder = (a: PrincipalLc, b: PrincipalLc) =>
+    LC_ORDER.indexOf(a) - LC_ORDER.indexOf(b);
+
+  // #3 elu:<LC> — force AMPLIFICADO (eluAmplified), disp PLANO (combos.ELU),
+  // emparejados 1:1 con ELU_principals. Se descartan los combos sin principal
+  // (el solo-G, que sólo vive en env:ELU) y se ordena por LC_ORDER.
+  const eluEntries = combos.ELU_principals
+    .map((p, i) => ({ p, force: eluAmplified[i], disp: combos.ELU[i] }))
+    .filter((e): e is { p: PrincipalLc; force: LcFactors; disp: LcFactors } => e.p !== null)
+    .sort((a, b) => byLcOrder(a.p, b.p));
+
+  // #5 els_c:<LC> — sin amplificar (la αcr sólo toca esfuerzos de cálculo ELU).
+  const elsEntries = combos.ELS_c_principals
+    .map((p, i) => ({ p, set: combos.ELS_c[i] }))
+    .filter((e): e is { p: PrincipalLc; set: LcFactors } => e.p !== null)
+    .sort((a, b) => byLcOrder(a.p, b.p));
+
+  const candidates: Fem2DComboView[] = [];
+
+  // #1-#2 Envolventes (siempre). `collapsed` = el grupo tenía UNA combinación:
+  // la envolvente ES esa combinación (la firma coincidirá con su elu:<LC> y la
+  // deduplicación quitará la combinación individual de la LISTA).
+  candidates.push({
+    id: 'env:ELU', group: 'envelope', isEnvelope: true,
+    collapsed: eluAmplified.length === 1, principal: null, lc: null,
+    forceFactorSets: eluAmplified, dispFactorSets: combos.ELU, scaleRef: 'env:ELU',
+  });
+  candidates.push({
+    id: 'env:ELS_c', group: 'envelope', isEnvelope: true,
+    collapsed: combos.ELS_c.length === 1, principal: null, lc: null,
+    forceFactorSets: combos.ELS_c, dispFactorSets: combos.ELS_c, scaleRef: 'env:ELS_c',
+  });
+
+  // #3 Combinaciones ELU por principal.
+  for (const e of eluEntries) {
+    candidates.push({
+      id: `elu:${e.p}`, group: 'ELU', isEnvelope: false, collapsed: false,
+      principal: e.p, lc: null,
+      forceFactorSets: [e.force], dispFactorSets: [e.disp], scaleRef: 'env:ELU',
+    });
+  }
+
+  // #4 eluperm:G — SÓLO madera, y sólo si el set multi-principal no lleva ya una
+  // combinación de duración permanente (mismo disparador que `combosToRun` en
+  // timberChecks). No puede llamarse elu:*: no está en eluAmplified. Escala a
+  // env:ELU pero PUEDE desbordarla (trampa 3, guarda en canvasGlyphs).
+  const permInEluSet = combos.ELU.some((f) => comboDuration(f, snowOver1000m) === 'permanent');
+  if (hasTimber && !permInEluSet) {
+    const permSet: LcFactors = { G: 1.35 };
+    candidates.push({
+      id: 'eluperm:G', group: 'ELU', isEnvelope: false, collapsed: false,
+      principal: null, lc: null,
+      forceFactorSets: [permSet], dispFactorSets: [permSet], scaleRef: 'env:ELU',
+    });
+  }
+
+  // #5 Combinaciones ELS-c por principal.
+  for (const e of elsEntries) {
+    candidates.push({
+      id: `els_c:${e.p}`, group: 'ELS', isEnvelope: false, collapsed: false,
+      principal: e.p, lc: null,
+      forceFactorSets: [e.set], dispFactorSets: [e.set], scaleRef: 'env:ELS_c',
+    });
+  }
+
+  // #6 ELS cuasi-permanente (siempre). `env:ELS_cp` no existe: su "envolvente"
+  // sobre un único combo sería idéntica, con un badge mintiendo. Escala a
+  // env:ELS_c (no tiene envolvente propia) — también con guarda de desbordamiento.
+  candidates.push({
+    id: 'els_cp', group: 'ELS', isEnvelope: false, collapsed: false,
+    principal: null, lc: null,
+    forceFactorSets: [combos.ELS_cp], dispFactorSets: [combos.ELS_cp], scaleRef: 'env:ELS_c',
+  });
+
+  // #7 Hipótesis simples — de `analysis.loadCases` (cargas ∪ peso propio, ya en
+  // LC_ORDER), NO recalculadas (el peso propio no vive en model.loads). Valores
+  // característicos sin mayorar (γ=1). Escala a sí mismas (vista de depuración).
+  const seenLc = new Set<LoadCase>();
+  for (const lcCase of loadCases) {
+    if (seenLc.has(lcCase.lc)) continue;
+    seenLc.add(lcCase.lc);
+    const set: LcFactors = { [lcCase.lc]: 1 };
+    candidates.push({
+      id: `lc:${lcCase.lc}`, group: 'hypothesis', isEnvelope: false, collapsed: false,
+      principal: null, lc: lcCase.lc,
+      forceFactorSets: [set], dispFactorSets: [set], scaleRef: `lc:${lcCase.lc}`,
+    });
+  }
+
+  // Deduplicación de la LISTA (nunca de las claves). Primera firma gana: como
+  // las envolventes se emiten antes, una env:ELU colapsada sobrevive y su
+  // elu:<LC> gemela sale de la lista.
+  const seenSig = new Set<string>();
+  const views: Fem2DComboView[] = [];
+  for (const c of candidates) {
+    if (c.group === 'hypothesis') {
+      views.push(c);
+      continue;
+    }
+    const sig = comboSignature(c.forceFactorSets);
+    if (seenSig.has(sig)) continue;
+    seenSig.add(sig);
+    views.push(c);
+  }
+
+  return { views, candidates };
+}
+
 // ── Envelope machinery ──────────────────────────────────────────────────────
 
 interface ComboExtremes {
@@ -370,7 +615,16 @@ interface ComboExtremes {
   Nmin: number;          // min signed N (compression −)
 }
 
-/** Combined sample value at index i of element e for a factor set. */
+/**
+ * Combined sample value at index i of element e for a factor set.
+ *
+ * Itera `LC_ORDER` (const del módulo) en vez de `Object.keys(e.samples[field])`:
+ * ese `Object.keys` asignaba un array nuevo en CADA llamada, y buildEnvelope
+ * llama aquí 4× por muestra y combinación. Con el selector de combinaciones las
+ * pasadas se multiplican (≈9 → ≈22), así que recorrer la constante deja cero
+ * asignaciones en la ruta que se dispara en cada edición del modelo. Las LC
+ * ausentes se saltan igual (guarda `!arr`), así que el resultado no cambia.
+ */
 function comboSample(
   e: Solver2DElementResult,
   field: 'N' | 'V' | 'M' | 'w',
@@ -378,10 +632,12 @@ function comboSample(
   factors: LcFactors,
 ): number {
   let v = 0;
-  for (const lc of Object.keys(e.samples[field]) as LoadCase[]) {
-    const f = factors[lc] ?? 0;
-    if (f === 0) continue;
-    v += f * (e.samples[field][lc]?.[i] ?? 0);
+  for (const lc of LC_ORDER) {
+    const f = factors[lc];
+    if (!f) continue;
+    const arr = e.samples[field][lc];
+    if (!arr) continue;
+    v += f * (arr[i] ?? 0);
   }
   return v;
 }

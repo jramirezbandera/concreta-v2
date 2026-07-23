@@ -22,6 +22,9 @@ import {
   uniformInsets,
   withView,
 } from '../../features/fem2d/transform';
+import { beamColumn, fem2dModel, node2d, nodeLoad, support2d } from '../../features/fem2d/builder';
+import { analyzeFem2D } from '../../features/fem2d/pipeline';
+import type { Fem2DLoad } from '../../features/fem2d/types';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FEM2D_DIR = path.resolve(HERE, '../../features/fem2d');
@@ -66,6 +69,45 @@ describe('cuarentena de la cámara en el PDF', () => {
       expect(w.sy(n.y)).toBe(t.sy(n.y));
     }
     expect(w.scale).toBe(t.scale);
+  });
+
+  it('claves heredadas: ELU/ELS_c/ELS_cp existen para TODA barra (el PDF indexa por ellas)', () => {
+    // Los clones PDF (index.tsx:497/500/503) no pasan `combo` → default 'ELU'
+    // (Fem2DCanvas.tsx). Si el diseño aditivo dejara caer los alias en un
+    // refactor, las figuras N/V/M saldrían en BLANCO — y jsdom no ve los clones,
+    // así que ningún test de bytes lo detectaría. Esta guarda estructural sí.
+    const bench = (loads: Fem2DLoad[], selfWeight = false) =>
+      analyzeFem2D(
+        fem2dModel({
+          nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
+          members: [beamColumn('m1', 'n1', 'n2')],
+          supports: [support2d('n1', 'fixed')],
+          loads,
+          selfWeight,
+        }),
+      );
+    const cases = [
+      bench([nodeLoad('g', 'n2', { lc: 'G', Fy: -10 })]), // 0 variables → els_cp fuera de la lista
+      bench([
+        nodeLoad('g', 'n2', { lc: 'G', Fy: -10 }),
+        nodeLoad('q', 'n2', { lc: 'Q', useCategory: 'B', Fy: -8 }),
+        nodeLoad('w', 'n2', { lc: 'W', Fx: 5 }),
+      ]),
+      bench([], true), // sólo peso propio
+    ];
+    for (const r of cases) {
+      expect(r.ok).toBe(true);
+      for (const env of Object.values(r.checks!.envelopes)) {
+        expect(env.ELU).toBeDefined();
+        expect(env.ELS_c).toBeDefined();
+        expect(env.ELS_cp).toBeDefined();
+        // Y siguen siendo el MISMO objeto que su clave de vista (criterio 4): si
+        // se rompiera la identidad, la ficha y el PDF divergirían de la vista.
+        expect(env.ELU).toBe(env['env:ELU']);
+        expect(env.ELS_c).toBe(env['env:ELS_c']);
+        expect(env.ELS_cp).toBe(env['els_cp']);
+      }
+    }
   });
 
   it('el tamaño de los clones PDF no depende del panel en pantalla', () => {

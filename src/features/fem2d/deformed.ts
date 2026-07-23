@@ -1,22 +1,26 @@
 // FEM 2D — deformed-shape computation (pure).
 //
-// Builds a COHERENT deformed geometry for one combination group (ELU/ELS-c/
-// ELS-cp): every factor set of the group is evaluated and the GOVERNING one
-// (largest displacement peak) is drawn. Never a per-sample envelope — stitching
-// worst-abs samples from different combinations would produce a shape that
-// satisfies no equilibrium state (kinks at nodes, sway flipping sign along a
-// storey).
+// Builds a COHERENT deformed geometry from a resolved LIST of factor sets:
+// every set is evaluated and the GOVERNING one (largest displacement peak) is
+// drawn. Never a per-sample envelope — stitching worst-abs samples from
+// different combinations would produce a shape that satisfies no equilibrium
+// state (kinks at nodes, sway flipping sign along a storey).
+//
+// The caller passes the factor sets (T7/D3A): the function no longer knows about
+// combination IDS and never rebuilds them. That keeps the deliberate choice
+// VISIBLE at the call site — the δ view is handed the PLAIN CTE Tabla 4.2 factors
+// (`view.dispFactorSets`), not the αcr-amplified ones, because the sway
+// amplification of the check phase applies to design forces, not to the
+// visualized displacement field. A view labelled `1.62·W` would otherwise draw a
+// δ of `1.50·W`.
 //
 // The shape comes from the solver's per-LC local displacement fields (u axial,
 // w transverse — both INCLUDE the nodal/rigid-body part via the Hermite/linear
 // interpolation), combined linearly with the set's factors and rotated to
-// world axes. ELU here uses the plain CTE Tabla 4.2 factors — the αcr sway
-// amplification of the check phase applies to design forces, not to the
-// visualized displacement field.
+// world axes.
 
-import { buildLcCombinations, type LcFactors } from '../../lib/frame-core/lcCombinations';
+import type { LcFactors } from '../../lib/frame-core/lcCombinations';
 import type { LoadCase } from '../../lib/frame-core/types';
-import type { Fem2DComboId } from './checks';
 import type { Solver2DElementResult } from './solver2d';
 import type { Fem2DModel } from './types';
 
@@ -86,21 +90,18 @@ function peakFor(elements: Solver2DElementResult[], factors: LcFactors): number 
 export function computeDeformedShape(
   model: Fem2DModel,
   elements: Solver2DElementResult[],
-  combo: Fem2DComboId,
+  factorSets: LcFactors[],
 ): DeformedShape2D {
-  if (elements.length === 0) return EMPTY;
-  const combos = buildLcCombinations(model.loads);
-  const sets: LcFactors[] = combo === 'ELS_cp' ? [combos.ELS_cp] : combos[combo];
-  if (sets.length === 0) return EMPTY;
+  if (elements.length === 0 || factorSets.length === 0) return EMPTY;
 
-  // Governing set of the group = the one with the largest displacement peak.
-  let factors = sets[0];
+  // Governing set of the list = the one with the largest displacement peak.
+  let factors = factorSets[0];
   let peak = peakFor(elements, factors);
-  for (let k = 1; k < sets.length; k++) {
-    const p = peakFor(elements, sets[k]);
+  for (let k = 1; k < factorSets.length; k++) {
+    const p = peakFor(elements, factorSets[k]);
     if (p > peak) {
       peak = p;
-      factors = sets[k];
+      factors = factorSets[k];
     }
   }
 

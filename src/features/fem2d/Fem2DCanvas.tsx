@@ -18,7 +18,7 @@
 
 import { useMemo, useRef, type JSX } from 'react';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import type { Fem2DCheckBundle, Fem2DComboId } from './checks';
+import type { Fem2DCheckBundle, Fem2DEnvelopeKey } from './checks';
 import { computeLoadStackCounts, computeLoadStacks, strokeFor, timberBandColor } from './canvasTheme';
 import { DeformedLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph, buildDiagramLayers } from './canvasGlyphs';
 import { computeDeformedShape } from './deformed';
@@ -37,8 +37,10 @@ interface Props {
   width: number;
   height: number;
   mode?: 'screen' | 'pdf';
-  /** Combination group for the N/V/M/def views. Default ELU (PDF clones). */
-  combo?: Fem2DComboId;
+  /** Vista a dibujar en N/V/M/def. Un id de `checks.comboViews` en pantalla; los
+   *  clones PDF no pasan nada → default 'ELU' (alias heredado, sin vista → se
+   *  autonormaliza, y nunca dibujan la deformada). */
+  combo?: Fem2DEnvelopeKey;
   /** Raw solver element samples — required only by the 'def' view. */
   elements?: Solver2DElementResult[];
   /** Cámara (zoom/encuadre). Omitida ⇒ autofit — el camino del PDF. */
@@ -53,6 +55,11 @@ export function Fem2DCanvas({
   const pdf = mode === 'pdf';
   const { system } = useUnitSystem();
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // 2ª búsqueda id→vista (la 1ª, la de vista obsoleta, la hace index.tsx). En el
+  // camino PDF `combo` es un alias heredado ('ELU'): no hay vista, el diagrama se
+  // autonormaliza (scaleRef undefined) y la deformada no se dibuja.
+  const cView = checks?.comboViews.find((v) => v.id === combo) ?? null;
 
   const geom = useMemo(() => {
     const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
@@ -176,20 +183,26 @@ export function Fem2DCanvas({
   // greedy de colisión de etiquetas. Depende del transform, así que con zoom
   // correría en cada evento de rueda si no se memoizara (es, con diferencia, el
   // camino más caro del lienzo).
+  const scaleRef = cView?.scaleRef;
   const diagram = useMemo(
     () => ((view === 'N' || view === 'V' || view === 'M') && checks
       ? buildDiagramLayers({
-        model, checks, field: view, combo,
+        model, checks, field: view, combo, scaleRef,
         sx, sy, width, height, pdf, system,
       })
       : null),
-    [view, checks, model, combo, sx, sy, width, height, pdf, system],
+    [view, checks, model, combo, scaleRef, sx, sy, width, height, pdf, system],
   );
 
   // ── Deformed shape (δ) ──────────────────────────────────────────────────
+  // La deformada recibe los factores PLANOS de la vista (dispFactorSets, sin
+  // amplificar por αcr — trampa 1), no un id: la elección queda visible aquí.
+  const dispFactorSets = cView?.dispFactorSets;
   const shape = useMemo(
-    () => (view === 'def' && elements ? computeDeformedShape(model, elements, combo) : null),
-    [view, elements, model, combo],
+    () => (view === 'def' && elements && dispFactorSets
+      ? computeDeformedShape(model, elements, dispFactorSets)
+      : null),
+    [view, elements, model, dispFactorSets],
   );
   const deformed = shape ? (
     <DeformedLayer

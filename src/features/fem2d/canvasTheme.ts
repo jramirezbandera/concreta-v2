@@ -123,6 +123,32 @@ export function findLocalExtrema(arr: number[], globalMax: number, threshold = 0
   return out;
 }
 
+/**
+ * Escala en píxeles del diagrama N/V/M (trampa 3 del selector de combinaciones).
+ *
+ * `ownMax` es el pico de la vista dibujada; `scaleRefPeak` el de la vista de
+ * referencia (env:ELU para un elu:*, etc.), o el propio `ownMax` cuando la vista
+ * se autonormaliza (env:*, lc:*, clones PDF). La amplitud se toma de la
+ * referencia para que una combinación no gobernante se vea proporcionalmente
+ * MENOR que su envolvente — pero con GUARDA `Math.max(scaleRefPeak, ownMax)`:
+ * els_cp/eluperm:G pueden superar a su scaleRef (no pertenecen a su grupo) y sin
+ * la guarda se saldrían del encuadre (el margen reserva exactamente `ampPx`).
+ * Ahí degrada a autonormalización. Todo-cero ⇒ `k = 0` (sin división).
+ *
+ * NOTA: sólo fija la AMPLITUD (`k`). Los umbrales de etiquetado usan `ownMax`
+ * aparte, para que la vista pequeña conserve sus números.
+ */
+export function diagramScale(
+  ownMax: number,
+  scaleRefPeak: number,
+  ampPx: number,
+  offsetSign: number,
+): { k: number; scaleMax: number } {
+  const scaleMax = Math.max(scaleRefPeak, ownMax);
+  const k = scaleMax > 1e-9 ? (ampPx / scaleMax) * offsetSign : 0;
+  return { k, scaleMax };
+}
+
 /** One maximal run of same-sign samples, endpoints ON the axis at crossings. */
 export interface SignRun {
   sign: 1 | -1;

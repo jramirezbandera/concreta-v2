@@ -8,12 +8,13 @@
 
 import type { JSX } from 'react';
 import type { UnitSystem } from '../../lib/units/types';
-import type { Fem2DCheckBundle, Fem2DComboId } from './checks';
+import type { Fem2DCheckBundle, Fem2DEnvelopeKey } from './checks';
 import {
   FIELD_QUANTITY,
   diagColorFor,
   lcColorFor,
   ampFor,
+  diagramScale,
   findLocalExtrema,
   fmtField,
   indexOfMaxAbs,
@@ -258,7 +259,7 @@ export function LoadGlyph({
  * llamador (Fem2DCanvas) las coloca a cada lado de la capa de miembros.
  */
 export function buildDiagramLayers({
-  model, checks, field, sx, sy, width, height, pdf, system, combo = 'ELU',
+  model, checks, field, sx, sy, width, height, pdf, system, combo = 'ELU', scaleRef,
 }: {
   model: Fem2DModel;
   checks: Fem2DCheckBundle;
@@ -269,8 +270,11 @@ export function buildDiagramLayers({
   height: number;
   pdf: boolean;
   system: UnitSystem;
-  /** Combination group to plot. Default ELU (PDF clones pass nothing). */
-  combo?: Fem2DComboId;
+  /** Vista a dibujar. Default 'ELU' (los clones PDF no pasan nada → alias). */
+  combo?: Fem2DEnvelopeKey;
+  /** Vista cuya escala en píxeles usa el render (trampa 3). Omitida ⇒ la propia
+   *  `combo` (PDF clones, env:*, lc:*): escala = auto-normalización, como antes. */
+  scaleRef?: Fem2DEnvelopeKey;
 }): { bands: JSX.Element; labels: JSX.Element } {
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
   const quantity = FIELD_QUANTITY[field];
@@ -281,16 +285,33 @@ export function buildDiagramLayers({
   // the natural local-+y offset.
   const offsetSign = field === 'M' ? -1 : 1;
 
-  // Global peak for this field across all members → common amplitude scale.
-  let globalMax = 0;
-  for (const m of model.members) {
-    const env = checks.envelopes[m.id]?.[combo];
-    if (!env) continue;
-    for (const v of env[field]) globalMax = Math.max(globalMax, Math.abs(v));
-  }
+  // Pico de un campo sobre TODAS las barras de una vista.
+  const peakOf = (viewKey: Fem2DEnvelopeKey): number => {
+    let mx = 0;
+    for (const m of model.members) {
+      const env = checks.envelopes[m.id]?.[viewKey];
+      if (!env) continue;
+      for (const v of env[field]) mx = Math.max(mx, Math.abs(v));
+    }
+    return mx;
+  };
+
+  // Dos magnitudes distintas (trampa 3):
+  //   viewMax  — pico de ESTA vista. Alimenta los umbrales de etiquetado: una
+  //              combinación no gobernante conserva sus números aunque se dibuje
+  //              pequeña.
+  //   scaleMax — pico de la vista de referencia (scaleRef): la amplitud en píxeles
+  //              se toma de AHÍ, para que un elu:* se vea proporcional a su
+  //              env:ELU. Guarda de desbordamiento `Math.max(scaleRefPeak, viewMax)`:
+  //              els_cp/eluperm:G pueden superar a su scaleRef (no están en su
+  //              grupo) — ahí degrada a auto-normalización en vez de salirse del
+  //              encuadre. Para elu:*/els_c:* (viewMax ≤ scaleRefPeak) es idéntico
+  //              a scaleRefPeak. Sin scaleRef (PDF/env:*/lc:*) ⇒ scaleMax = viewMax.
+  const viewMax = peakOf(combo);
+  const scaleRefPeak = scaleRef && scaleRef !== combo ? peakOf(scaleRef) : viewMax;
   const ampPx = ampFor(width, height);
-  const k = globalMax > 1e-9 ? (ampPx / globalMax) * offsetSign : 0;
-  const labelFloor = 0.14 * globalMax; // hide near-zero noise
+  const { k } = diagramScale(viewMax, scaleRefPeak, ampPx, offsetSign);
+  const labelFloor = 0.14 * viewMax; // hide near-zero noise (umbral de la vista)
 
   const shapes: JSX.Element[] = [];
   // Candidate labels collected first, then de-duplicated + de-collided (below):
@@ -349,9 +370,9 @@ export function buildDiagramLayers({
     // members whose field varies → one label per local extremum.
     const spread = Math.max(...vals) - Math.min(...vals);
     const idxs =
-      m.elementType === 'two-force' || spread < 0.02 * globalMax
+      m.elementType === 'two-force' || spread < 0.02 * viewMax
         ? [indexOfMaxAbs(vals)]
-        : findLocalExtrema(vals, globalMax, 0.14);
+        : findLocalExtrema(vals, viewMax, 0.14);
 
     for (const idx of idxs) {
       const val = vals[idx];
