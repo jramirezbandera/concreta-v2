@@ -28,6 +28,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ImagePlus,
+  Mic,
   Minus,
   PanelRight,
   PictureInPicture2,
@@ -63,6 +64,7 @@ import type { AiResultsSummary, AiVerdict } from '../../lib/ai/resultsSummary';
 import { useAiSettings } from '../../lib/ai/useAiSettings';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useSpeechDictation } from '../../hooks/useSpeechDictation';
 import { useTheme } from '../../lib/theme/useTheme';
 import { showToast } from '../ui/Toast';
 import { ByokSettings } from './ByokSettings';
@@ -237,6 +239,10 @@ export function AiChatModal<TInputs>({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  // Texto del composer en el instante en que arrancó el dictado: cada evento de
+  // voz reescribe `base + transcrito`, de modo que el interino se ve en vivo sin
+  // pisar lo ya escrito ni duplicarse.
+  const dictationBaseRef = useRef('');
 
   // Envelope schema: solo depende del payload del adapter (memoizado). El
   // system prompt NO se memoiza: se reconstruye por turno con snapshot fresco.
@@ -267,6 +273,27 @@ export function AiChatModal<TInputs>({
   const [providerSettingsOpen, setProviderSettingsOpen] = useState(
     () => activeKey === null || anthropicUnsupported,
   );
+
+  // Dictado por voz (Web Speech API, es-ES): cada evento reescribe el composer
+  // con `base + transcrito`. Si el navegador no lo implementa, dictation.supported
+  // es false y el micro no se pinta (degradación limpia; jsdom cae aquí, así que
+  // los tests existentes no ven el botón).
+  const dictation = useSpeechDictation({
+    onTranscript: ({ final, interim }) => {
+      setText(dictationBaseRef.current + final + interim);
+    },
+    onError: (error) => {
+      if (error === 'not-allowed' || error === 'service-not-allowed') {
+        showToast('Permiso de micrófono denegado. Actívalo en el navegador para dictar.', {
+          autoDismiss: 5000,
+        });
+      } else if (error === 'audio-capture') {
+        showToast('No se detecta ningún micrófono.', { autoDismiss: 4000 });
+      } else if (error === 'network') {
+        showToast('Sin conexión para el reconocimiento de voz.', { autoDismiss: 4000 });
+      }
+    },
+  });
 
   // Persistir modo + posición flotante entre sesiones.
   useEffect(() => {
@@ -501,6 +528,7 @@ export function AiChatModal<TInputs>({
    * de sugerencia se comporta exactamente como si el usuario lo hubiera escrito.
    */
   const submit = (rawText: string, imgs: LocalImage[]) => {
+    if (dictation.listening) dictation.stop(); // el turno se va: cierra la escucha
     const trimmed = rawText.trim();
     const userItem: ChatItem<TInputs> = {
       id: nextItemId(),
@@ -520,6 +548,19 @@ export function AiChatModal<TInputs>({
   const send = () => {
     if (!canSend) return;
     submit(text, images);
+  };
+
+  /** Micro del composer: alterna la escucha. Al arrancar fija como base el texto
+   *  ya escrito (con separador para no pegar palabras), de modo que lo dictado se
+   *  añade a lo que hubiera y no lo sustituye. */
+  const toggleDictation = () => {
+    if (dictation.listening) {
+      dictation.stop();
+      return;
+    }
+    const needsSep = text !== '' && !/\s$/.test(text);
+    dictationBaseRef.current = needsSep ? `${text} ` : text;
+    dictation.start();
   };
 
   /** Camino guiado del estado vacío: envía GUIDED_PROMPT como primer turno user. */
@@ -1017,6 +1058,36 @@ export function AiChatModal<TInputs>({
           onChange={handleFileChange}
           className="hidden"
         />
+        {dictation.supported && !anthropicUnsupported && (
+          <button
+            type="button"
+            onClick={toggleDictation}
+            aria-label={dictation.listening ? 'Detener dictado' : 'Dictar por voz'}
+            aria-pressed={dictation.listening}
+            title={dictation.listening ? 'Detener dictado' : 'Dictar por voz (es-ES)'}
+            className={`w-7 h-7 rounded-[5px] grid place-items-center shrink-0 transition-colors ${
+              dictation.listening
+                ? 'text-state-fail'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+            }`}
+            style={dictation.listening ? { background: 'var(--color-tint-fail)' } : undefined}
+          >
+            {dictation.listening ? (
+              <span className="relative grid place-items-center">
+                <span
+                  className="absolute w-5 h-5 rounded-full animate-ping"
+                  style={{
+                    background: 'color-mix(in srgb, var(--color-state-fail) 35%, transparent)',
+                  }}
+                  aria-hidden="true"
+                />
+                <Mic size={16} className="relative" aria-hidden="true" />
+              </span>
+            ) : (
+              <Mic size={16} aria-hidden="true" />
+            )}
+          </button>
+        )}
         <textarea
           ref={textareaRef}
           rows={1}
@@ -1060,7 +1131,9 @@ export function AiChatModal<TInputs>({
         )}
       </div>
       <p className="text-[10.5px] text-text-disabled leading-snug">
-        Enter envía · Shift+Enter salto de línea · Ctrl+V pega capturas.
+        {dictation.listening
+          ? 'Escuchando… pulsa el micrófono para parar.'
+          : 'Enter envía · Shift+Enter salto de línea · Ctrl+V pega capturas.'}
       </p>
     </div>
   );
