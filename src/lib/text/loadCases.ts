@@ -52,3 +52,16 @@ export function lcOptionLabel(lc: LoadCase): string {
 export const LC_HELP =
   'G permanente · Q sobrecarga de uso · W viento · S nieve · E sismo. ' +
   'Valores característicos sin mayorar (el programa aplica γ y ψ).';
+
+/**
+ * Texto de ayuda de la fila «Categoría» (solo aparece para la hipótesis Q). El
+ * usuario ve códigos de la Tabla 3.1 (A1, B, E1…); esta ayuda explica *por qué*
+ * importa: fija los ψ con que la sobrecarga entra en las combinaciones. Cadena
+ * única: hoy está repetida verbatim en el Inspector y la paleta. Los nombres de
+ * cada categoría salen de `USE_CATEGORIES`/`categoryLabel` (loadGen), no de aquí.
+ */
+export const CATEGORY_HELP =
+  'Categoría de uso (CTE DB-SE-AE Tabla 3.1). Fija los ψ₀/ψ₁/ψ₂ con que la ' +
+  'sobrecarga de uso entra en cada combinación: p. ej. un almacén (E1, ψ₀=1,0) ' +
+  'pesa más que una vivienda (A1, ψ₀=0,7), y una cubierta solo de conservación ' +
+  '(G1) no se combina (ψ=0).';

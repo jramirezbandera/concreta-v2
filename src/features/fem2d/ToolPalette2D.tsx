@@ -24,7 +24,8 @@ import {
   type Tool2DId,
 } from './modelOps';
 import type { LoadCase, UseCategoryCode } from './types';
-import { lcOptionLabel, LC_HELP } from '../../lib/text/loadCases';
+import { lcOptionLabel, LC_HELP, CATEGORY_HELP } from '../../lib/text/loadCases';
+import { categoryLabel } from '../../lib/calculations/loadGen';
 
 interface ToolDef { id: Tool2DId; icon: React.ReactNode; label: string }
 
@@ -183,10 +184,10 @@ export function ToolPalette2D({ tool, setTool, loadDrafts, setLoadDraft }: Props
                     value={draft.useCategory ?? 'B'}
                     onChange={(e) => patchDraft({ useCategory: e.target.value as UseCategoryCode })}
                     className="fem2d-load-select"
-                    title="Categoría de uso CTE Tabla 3.1 — fija los coeficientes ψ de combinación."
+                    title={CATEGORY_HELP}
                   >
                     {CATEGORIAS.map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>{categoryLabel(c)}</option>
                     ))}
                   </select>
                 </div>

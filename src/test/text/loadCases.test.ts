@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LC_LABELS, LC_HELP, lcOptionLabel } from '../../lib/text/loadCases';
+import { LC_LABELS, LC_HELP, CATEGORY_HELP, lcOptionLabel } from '../../lib/text/loadCases';
 import type { LoadCase } from '../../lib/frame-core/types';
 
 // Fuente única de la copia de UI de las hipótesis de carga. El objetivo del
@@ -57,5 +57,15 @@ describe('LC_HELP — texto de ayuda de la fila «Hipótesis»', () => {
       'G permanente · Q sobrecarga de uso · W viento · S nieve · E sismo. ' +
         'Valores característicos sin mayorar (el programa aplica γ y ψ).',
     );
+  });
+});
+
+describe('CATEGORY_HELP — texto de ayuda de la fila «Categoría»', () => {
+  it('nombra la tabla normativa y explica el efecto sobre ψ', () => {
+    expect(CATEGORY_HELP).toContain('Tabla 3.1');
+    expect(CATEGORY_HELP).toContain('ψ');
+    // Debe explicar POR QUÉ importa, no solo qué es: cita casos extremos.
+    expect(CATEGORY_HELP).toContain('E1');
+    expect(CATEGORY_HELP).toContain('G1');
   });
 });

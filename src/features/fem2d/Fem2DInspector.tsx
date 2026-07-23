@@ -23,7 +23,8 @@ import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { lcOptionLabel, LC_HELP } from '../../lib/text/loadCases';
+import { lcOptionLabel, LC_HELP, CATEGORY_HELP } from '../../lib/text/loadCases';
+import { categoryLabel } from '../../lib/calculations/loadGen';
 import { DraftNumberField } from './DraftNumberField';
 import {
   AXIAL_FAMILIES,
@@ -850,7 +851,7 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
       </Row>
 
       {ld.lc === 'Q' && (
-        <Row label="Categoría" help="Categoría de uso CTE Tabla 3.1 — fija los coeficientes ψ de combinación.">
+        <Row label="Categoría" help={CATEGORY_HELP}>
           <select
             value={ld.useCategory ?? 'B'}
             onChange={(e) => patch({ useCategory: e.target.value as Fem2DLoad['useCategory'] })}
@@ -858,7 +859,7 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
             aria-label="Categoría de uso"
           >
             {CATEGORIAS.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{categoryLabel(c)}</option>
             ))}
           </select>
         </Row>
