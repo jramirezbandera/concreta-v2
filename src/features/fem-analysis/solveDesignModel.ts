@@ -30,9 +30,6 @@ import type {
 } from './types';
 import { toStatus } from '../../lib/calculations/types';
 
-const ELU_GAMMA_G = 1.35;
-const ELU_GAMMA_VAR = 1.5;
-
 /**
  * Build a BarEnvelope (xs/M/V/N arrays) by taking the worst-case absolute
  * value across multiple LC factor sets. For each sample point, evaluate every
@@ -170,40 +167,21 @@ export function solveDesignModel(model: DesignModel): SolveResult {
   let allPending = model.bars.length > 0;
 
   for (const bar of model.bars) {
-    // Build the M/V/N arrays for the bar (ELU-combined samples) so the UI
-    // can render diagrams without re-doing the combination math.
+    // El diagrama, la ficha Y el PDF leen la MISMA envolvente multi-principal ELU
+    // (CTE Tabla 4.2), no el bucket sumado `1.35·G + 1.5·(Q+W+S+E)`. El lienzo ya
+    // leía envelope.ELU (`Canvas.tsx`), pero `xs/M/V/N` y `Mmax/Vmax` salían del
+    // bucket, y el PDF imprimía esos Mmax/Vmax bajo el rótulo "ENVOLVENTE (ELU)":
+    // sobrestimaba con ≥2 variables simultáneas (el bucket omite la reducción ψ0
+    // de las acciones acompañantes). Un único origen ⇒ diagrama, ficha y PDF
+    // coinciden a mano y con CYPE.
     const elements = solved.elements.filter((e) => e.designBarId === bar.id);
-    const xsCombined: number[] = [];
-    const Mcombined: number[] = [];
-    const Vcombined: number[] = [];
-    const Ncombined: number[] = [];
-    let xOffset = 0;
-    let L = 0;
-    for (const e of elements) {
-      const xs = e.samples.xs;
-      const M_G = e.samples.M.G ?? new Array<number>(xs.length).fill(0);
-      const V_G = e.samples.V.G ?? new Array<number>(xs.length).fill(0);
-      const sumOver = ['Q', 'W', 'S', 'E'] as const;
-      for (let i = 0; i < xs.length; i++) {
-        let M_var = 0;
-        let V_var = 0;
-        for (const lc of sumOver) {
-          if (e.samples.M[lc]) M_var += e.samples.M[lc][i];
-          if (e.samples.V[lc]) V_var += e.samples.V[lc][i];
-        }
-        const M_ELU = ELU_GAMMA_G * M_G[i] + ELU_GAMMA_VAR * M_var;
-        const V_ELU = ELU_GAMMA_G * V_G[i] + ELU_GAMMA_VAR * V_var;
-        xsCombined.push(xOffset + xs[i]);
-        Mcombined.push(M_ELU);
-        Vcombined.push(V_ELU);
-        Ncombined.push(0); // V1: vigas continuas → axial = 0
-      }
-      xOffset += e.L;
-      L += e.L;
-    }
-
-    const Mmax = Mcombined.reduce((m, v) => (Math.abs(v) > Math.abs(m) ? v : m), 0);
-    const Vmax = Vcombined.reduce((m, v) => (Math.abs(v) > Math.abs(m) ? v : m), 0);
+    const envelopeELU  = buildBarEnvelope(solved.elements, bar.id, combos.ELU);
+    const envelopeFrec = buildBarEnvelope(solved.elements, bar.id, combos.ELS_frec);
+    const envelopeCp   = buildBarEnvelope(solved.elements, bar.id, [combos.ELS_cp]);
+    const L = elements.reduce((s, e) => s + e.L, 0);
+    const worstAbs = (m: number, v: number) => (Math.abs(v) > Math.abs(m) ? v : m);
+    const Mmax = envelopeELU.M.reduce(worstAbs, 0);
+    const Vmax = envelopeELU.V.reduce(worstAbs, 0);
 
     // Adapter call → check verdict.
     let eta = 0;
@@ -272,16 +250,13 @@ export function solveDesignModel(model: DesignModel): SolveResult {
 
     if (status !== 'pending') allPending = false;
 
-    // V1.1 envelope per combination group (canvas reads via view.combo).
-    const envelopeELU    = buildBarEnvelope(solved.elements, bar.id, combos.ELU);
-    const envelopeFrec   = buildBarEnvelope(solved.elements, bar.id, combos.ELS_frec);
-    const envelopeCp     = buildBarEnvelope(solved.elements, bar.id, [combos.ELS_cp]);
-
     perBar[bar.id] = {
-      xs: xsCombined,
-      M: Mcombined,
-      V: Vcombined,
-      N: Ncombined,
+      // xs/M/V/N = la envolvente ELU (mismo objeto que envelope.ELU): la clave
+      // heredada ya no miente, es la envolvente que también dibuja el lienzo.
+      xs: envelopeELU.xs,
+      M: envelopeELU.M,
+      V: envelopeELU.V,
+      N: envelopeELU.N,
       L,
       Mmax,
       Vmax,

@@ -305,9 +305,9 @@ export interface BarEnvelope {
 export interface BarResult {
   /** Concatenated x_global samples across all elements of this design bar. */
   xs: number[];
-  /** Combined M(x) for the requested envelope (typically ELU). Maintained as
-   *  the ELU envelope for backward compatibility — Canvas migrating to read
-   *  `envelope[view.combo]` instead in Lane R2. */
+  /** M(x) de la envolvente ELU multi-principal (mismo dato que `envelope.ELU.M`).
+   *  Clave heredada: el lienzo lee `envelope[view.combo]`, pero esto alimenta el
+   *  PDF y cualquier consumidor legacy — ya NO es el bucket sumado. */
   M: number[];
   V: number[];
   N: number[];

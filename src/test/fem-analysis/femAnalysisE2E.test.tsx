@@ -155,8 +155,11 @@ describe('FemAnalysisModule — verdict aggregation', () => {
     window.localStorage.setItem('concreta-fem-2d-design', JSON.stringify(model));
     renderModule();
     // Solver loads lazily — the NO_SUPPORTS error message only renders after
-    // the solver chunk import() resolves and runs. findAllByText waits for it.
-    const errors = await screen.findAllByText(/no hay apoyos definidos/i);
+    // the solver chunk import() resolves and runs. findAllByText waits for it,
+    // pero en la suite COMPLETA (Pyodide cargando numpy en paralelo) ese import()
+    // perezoso pasa de 1 s: el timeout por defecto (1000 ms) da un flake. 5 s de
+    // margen — en aislado resuelve en ~700 ms.
+    const errors = await screen.findAllByText(/no hay apoyos definidos/i, undefined, { timeout: 5000 });
     expect(errors.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -48,6 +48,37 @@ describe('solveDesignModel — end-to-end pipeline', () => {
     expect(Math.abs(r.perBar.b1.Mmax)).toBeGreaterThan(100); // ~152 kN·m for ELU 1.35·25·36/8
   });
 
+  it('multi-variable (G+Q+W): xs/M/Mmax son la envolvente ELU multi-principal, NO el bucket sumado', () => {
+    // Regresión del arreglo del diagrama 1D. Antes `xs/M/V/N` y `Mmax/Vmax`
+    // salían del bucket `1.35·G + 1.5·(Q+W+S+E)` (todas las variables a 1.5 sin
+    // ψ0), y el PDF los imprimía bajo el rótulo "ENVOLVENTE (ELU)" —números
+    // incoherentes con el diagrama en pantalla, que ya leía envelope.ELU.
+    //
+    // SS beam L=6, UDL ⇒ M_mid = w·L²/8 = 4.5·w. M_G=90, M_Q=67.5, M_W=54.
+    //   Bucket sumado (viejo):  1.35·90 + 1.5·(67.5+54)                 = 303.75
+    //   Envolvente ELU real:    max(Q-ppal, W-ppal), ψ0(A1)=0.7 ψ0(W)=0.6
+    //     W-ppal = 1.35·90 + 1.5·0.7·67.5 + 1.5·54 = 273.4  ← gobierna
+    //   El bucket sobrestimaba ~11%. (W transversal aquí = fixture de combinación.)
+    const model: DesignModel = {
+      presetCode: 'beam', combo: 'ELU', selfWeight: false,
+      nodes: [node('n1', 0), node('n2', 6)],
+      bars: [rcBar('b1', 'n1', 'n2', true)],
+      supports: [{ node: 'n1', type: 'pinned' }, { node: 'n2', type: 'roller' }],
+      loads: [
+        { id: 'g', kind: 'udl', lc: 'G', bar: 'b1', w: 20, dir: '-y' },
+        { id: 'q', kind: 'udl', lc: 'Q', bar: 'b1', w: 15, dir: '-y', useCategory: 'A1' },
+        { id: 'w', kind: 'udl', lc: 'W', bar: 'b1', w: 12, dir: '-y' },
+      ],
+    };
+    const bar = solveDesignModel(model).perBar.b1;
+    // Coherencia: la clave heredada ES la envolvente ELU que dibuja el lienzo.
+    expect(bar.M).toEqual(bar.envelope!.ELU.M);
+    expect(Math.abs(bar.Mmax)).toBeCloseTo(Math.max(...bar.envelope!.ELU.M.map(Math.abs)), 6);
+    // Y NO el bucket sumado: la reducción ψ0 de la acción acompañante se aplica.
+    expect(Math.abs(bar.Mmax)).toBeLessThan(295); // el bucket habría dado 303.75
+    expect(Math.abs(bar.Mmax)).toBeGreaterThan(260); // envolvente ~273
+  });
+
   it('SS HA beam without armado: returns pending status', () => {
     const model: DesignModel = {
       presetCode: 'beam', combo: 'ELU', selfWeight: false,
