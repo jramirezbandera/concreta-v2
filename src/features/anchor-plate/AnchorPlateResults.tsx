@@ -122,7 +122,7 @@ export function AnchorPlateResults({ result }: Props) {
     );
   }
 
-  const { checks, solver, worstUtil, overallStatus, warnings } = result;
+  const { checks, solver, worstUtil, overallStatus, warnings, noSolution } = result;
 
   // H11 — identify the governing check (the one whose util equals worstUtil),
   // restricted to checks that are actually applicable ('neutral' = no aplica).
@@ -150,13 +150,27 @@ export function AnchorPlateResults({ result }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-sub">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Resultados calculados</span>
-          <VerdictBadge status={overallStatus} />
-          {solver.mode === 'biaxial-grid' && (
+          {/* D4 — sin solución física: pill propio (patrón steel-columns), no un
+              INCUMPLE al 100% que infraestima la demanda real. */}
+          {noSolution ? (
+            <span
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] bg-state-fail/10 text-state-fail"
+              role="status"
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden="true" />
+              SIN SOLUCIÓN
+            </span>
+          ) : (
+            <VerdictBadge status={overallStatus} />
+          )}
+          {/* D2 — gating alineado con el PDF: cualquier no-convergencia sin
+              saturación es APROX (antes solo el modo biaxial-grid lo mostraba). */}
+          {!solver.converged && !noSolution && (
             <span
               className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-state-warn/15 text-state-warn border border-state-warn/40"
-              title="Solver biaxial no convergente dentro de tolerancia — resultado por rejilla de búsqueda"
+              title={solver.note}
             >
-              APROX · grid
+              {solver.mode === 'biaxial-grid' ? 'APROX · grid' : 'APROX'}
             </span>
           )}
         </div>
@@ -167,6 +181,22 @@ export function AnchorPlateResults({ result }: Props) {
           )}
         </span>
       </div>
+
+      {/* D4 — explicación del estado sin solución, encima de los checks */}
+      {noSolution && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-state-fail/5 border-b border-state-fail/30">
+          <AlertTriangle size={16} className="text-state-fail mt-0.5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="text-[12px] text-state-fail font-semibold mb-0.5">Sin equilibrio físico</p>
+            <p className="text-[11px] text-text-secondary">
+              {solver.note}. El nudo no puede equilibrar esta solicitación: las
+              utilizaciones mostradas infraestiman la demanda real. Aumenta la
+              placa, el número/diámetro de barras o la resistencia del hormigón.
+              El export PDF está deshabilitado en este estado.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Validation warnings (D3 — amber strip under header) */}
       {warnings.length > 0 && (

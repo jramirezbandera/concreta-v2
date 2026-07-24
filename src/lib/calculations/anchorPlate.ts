@@ -312,6 +312,11 @@ export interface SolverResult {
     | 'biaxial-grid'
     | 'pure-tension';
   converged: boolean;
+  /** D4 — el equilibrio es FÍSICAMENTE imposible (barras saturadas al cap
+   *  FtRd / cuadrática sin raíz real): no hay solución, no es ruido numérico.
+   *  La UI lo presenta como SIN SOLUCIÓN y el export PDF se bloquea.
+   *  `converged:false` SIN esta bandera = APROX numérico (grid-search). */
+  noSolution?: boolean;
   note: string;
   phi_NA?: number;             // rad — NA angle from +x
   d_NA?: number;               // mm — NA normal offset from plate centroid
@@ -421,6 +426,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       lifted: true,
       mode: 'partial-lift-saturated',
       converged: false,
+      noSolution: true,
       note: NEd <= 0
         ? 'NEd≤0 no soportado en solver axial — pendiente PR10 (H4)'
         : 'Sección insuficiente — sin equilibrio plástico para esta combinación',
@@ -449,6 +455,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       lifted: true,
       mode: 'partial-lift-saturated',
       converged: false,
+      noSolution: true,
       note: `Profundidad bloque y_c=${y_c.toFixed(1)} mm fuera de rango físico`,
       residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
     };
@@ -499,6 +506,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     lifted: true,
     mode: saturated ? 'partial-lift-saturated' : 'partial-lift',
     converged: !saturated,
+    noSolution: saturated,
     note: saturated
       ? `Tracción agotada — Ft/barra ${Ft_per_bar.toFixed(1)} kN > FtRd ${FtRd_kN.toFixed(1)} kN`
       : 'Tracción parcial — bloque plástico rectangular (CE Anejo 18 §6.2.5)',
@@ -541,6 +549,10 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     Mx_int_kNm: number;
     My_int_kNm: number;
     block: Pt[];
+    /** D4 — el cap FtRd limitó la distribución (alguna barra al tope): si
+     *  además el residuo no converge, el desequilibrio es por CAPACIDAD
+     *  (sin solución física), no por la rejilla. */
+    capped: boolean;
   }
 
   // CR1 (PR7b) — distribución lineal de Ft proporcional al signed distance
@@ -579,6 +591,8 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     const alpha_uncapped = S > 0 ? (Nc_N - NEd * 1000) / S : 0;
     const alpha_cap = max_sd > 0 ? FtRd_N / max_sd : Infinity;
     const alpha_eff = Math.max(0, Math.min(alpha_uncapped, alpha_cap));
+    // D4 — ΣN exige más pendiente de tracción de la que las barras pueden dar.
+    const capped = alpha_uncapped > alpha_cap;
 
     let Ft_total_kN = 0;
     let bar_Mx_kNmm = 0, bar_My_kNmm = 0;
@@ -596,7 +610,7 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     const Nc_kN = Nc_N / 1000;
     const Mx_int_kNm = (Nc_kN * Xc - bar_Mx_kNmm) / 1000;
     const My_int_kNm = (Nc_kN * Yc - bar_My_kNmm) / 1000;
-    return { A_block, Nc_kN, Ft_total_kN, alpha_eff, Mx_int_kNm, My_int_kNm, block, Xc, Yc };
+    return { A_block, Nc_kN, Ft_total_kN, alpha_eff, capped, Mx_int_kNm, My_int_kNm, block, Xc, Yc };
   }
 
   function evaluate(phi: number): Evaluation {
@@ -696,6 +710,7 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
       Mx_int_kNm: r.Mx_int_kNm,
       My_int_kNm: r.My_int_kNm,
       block: r.block,
+      capped: r.capped,
     };
   }
 
@@ -773,6 +788,10 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     lifted: n_t > 0,
     mode: converged ? 'biaxial-plastic' : 'biaxial-grid',
     converged,
+    // D4 — residuo fuera de tolerancia CON el cap de tracción activo: el
+    // desequilibrio viene de capacidad agotada, no de la rejilla → sin
+    // solución física. Sin cap activo queda como APROX numérico.
+    noSolution: !converged && best.capped,
     note: converged
       ? `Biaxial plástico — φ=${((best.phi * 180) / Math.PI).toFixed(1)}°, residuo ${bestR.toFixed(2)} kNm`
       : `Biaxial grid-search (APROX) — residuo ${bestR.toFixed(2)} kNm > tol ${tol.toFixed(2)}`,
@@ -819,7 +838,7 @@ export function solvePureTension(inp: AnchorPlateInputs): SolverResult {
   if (n === 0) {
     return {
       bolts: bars, Nc: 0, Ft_total: 0, n_t: 0, x_c: 0, lifted: true,
-      mode: 'pure-tension', converged: false,
+      mode: 'pure-tension', converged: false, noSolution: true,
       note: 'Sin barras',
       residuals: { SN_kN: -NEd, SMx_kNm: Mx, SMy_kNm: My },
     };
@@ -919,6 +938,10 @@ export function solvePureTension(inp: AnchorPlateInputs): SolverResult {
     lifted: true,
     mode: 'pure-tension',
     converged,
+    // D4 — barra al cap FtRd en tracción pura = el grupo no puede sostener
+    // |NEd|+M: sin solución física. Residuos por barras descomprimidas sin
+    // saturación quedan como APROX (refinar PR futura).
+    noSolution: saturated,
     note: saturated
       ? `Tracción pura saturada — barra al cap FtRd=${FtRd_kN.toFixed(1)} kN`
       : (converged
@@ -1773,17 +1796,45 @@ export function checkStiffener(
   const F_rib_kN = Math.max(0, Nc_kN) / (inp.rib_count + 2);
   const util_weld = F_rib_kN / Math.max(Fw_Rd_rib_kN, 1e-6);
 
-  const util = Math.max(util_slend, util_weld);
-  const governs = util_slend >= util_weld ? 'esbeltez' : 'soldadura';
+  // CM#4 (design review 2026-04-19) — APLASTAMIENTO del rigidizador: la
+  // cartela recoge F_rib y lo entrega a la placa por compresión directa en su
+  // sección de apoyo. Sección crítica = vuelo desde la cara del perfil hasta
+  // el borde de placa (c_out, la misma longitud que dibuja el alzado) ×
+  // espesor rib_t. Resistencia plástica directa Fb,Rd = fyd·t·c_out (CE
+  // Anejo 22 §6.2.4). Los rigidizadores ∥ eje fuerte vuelan (plate_a − h)/2;
+  // con rib_count=4 los ∥ eje débil vuelan (plate_b − b)/2 — gobierna el
+  // menor (F_rib se reparte por igual). Perfil fuera de catálogo → se omite
+  // (misma degradación que tStubEffectiveArea).
+  const section = makeISectionBySize(inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN', inp.sectionSize);
+  let util_bear = 0;
+  let Fb_Rd_kN: number | undefined;
+  if (section) {
+    const cStrong = (inp.plate_a - section.h) / 2;
+    const cOut = inp.rib_count === 4
+      ? Math.min(cStrong, (inp.plate_b - section.b) / 2)
+      : cStrong;
+    const fyd_plate = fyp / GAMMA_M0;
+    // c_out ≤ 0 (placa menor que el perfil) → capacidad ~0 y util dispara:
+    // el caso imposible falla ruidosamente en lugar de pasar en silencio.
+    Fb_Rd_kN = (fyd_plate * inp.rib_t * Math.max(cOut, 1e-6)) / 1000;
+    util_bear = F_rib_kN / Fb_Rd_kN;
+  }
+
+  const util = Math.max(util_slend, util_weld, util_bear);
+  const governs = util_slend >= util_weld && util_slend >= util_bear
+    ? 'esbeltez'
+    : util_weld >= util_bear ? 'soldadura' : 'aplastamiento';
 
   return {
     id: 'stiffener',
-    description: 'Rigidizadores (esbeltez + soldadura)',
+    description: 'Rigidizadores (esbeltez + soldadura + aplastamiento)',
     value: `c/t=${slend.toFixed(1)} · F_rib=${fmtF(F_rib_kN, system)}`,
-    limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)} (${governs})`,
+    limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)}${
+      Fb_Rd_kN !== undefined ? ` · Fb,Rd=${fmtF(Fb_Rd_kN, system)}` : ''
+    } (${governs})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5',
+    article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5 y §6.2.4',
   };
 }
 
@@ -2099,6 +2150,10 @@ export interface AnchorPlateResult {
   overallStatus: CheckStatus;
   warnings: ValidationWarning[];
   valid: boolean;
+  /** D4 — sin solución física (solver saturado / equilibrio imposible). La UI
+   *  muestra el verdict SIN SOLUCIÓN y el export PDF se deshabilita: un util
+   *  del 100% con Ft capado INFRAESTIMA la demanda real y no es firmable. */
+  noSolution: boolean;
 }
 
 export function calcAnchorPlate(
@@ -2130,6 +2185,7 @@ export function calcAnchorPlate(
       overallStatus: 'ok',
       warnings,
       valid: false,
+      noSolution: false,
     };
   }
 
@@ -2157,7 +2213,7 @@ export function calcAnchorPlate(
     return {
       inp, solver, checks, worstUtil,
       overallStatus: hasFailValidation ? 'fail' : toStatus(worstUtil),
-      warnings, valid: true,
+      warnings, valid: true, noSolution: false,
     };
   }
 
@@ -2214,10 +2270,13 @@ export function calcAnchorPlate(
   // descarta) y los checks pueden salir verdes. types.ts documenta la
   // decisión de modelarlo como fail + nota — ahora implementada: el estado
   // APROX nunca puede quedar en verde.
+  const noSolution = solver.noSolution === true;
   if (!solver.converged) {
     checks.push({
       id: 'solver-equilibrium',
-      description: 'Equilibrio no garantizado — solver no convergido (APROX)',
+      description: noSolution
+        ? 'Sin equilibrio físico — sección/anclaje insuficiente (SIN SOLUCIÓN)'
+        : 'Equilibrio no garantizado — solver no convergido (APROX)',
       value: solver.note ?? 'residuo > tolerancia',
       limit: 'equilibrio requerido',
       utilization: 1.0,
@@ -2228,7 +2287,9 @@ export function calcAnchorPlate(
 
   const worstUtil = checks.length > 0 ? Math.max(...checks.map((c) => c.utilization)) : 0;
   const hasFailValidation = warnings.some((w) => w.severity === 'fail');
-  const overallStatus: CheckStatus = hasFailValidation ? 'fail' : toStatus(worstUtil);
+  // D4 — noSolution fuerza fail explícito: el check sintético ya lo garantiza
+  // hoy, pero el verdict no debe depender de que ese push siga existiendo.
+  const overallStatus: CheckStatus = hasFailValidation || noSolution ? 'fail' : toStatus(worstUtil);
 
-  return { inp, solver, checks, worstUtil, overallStatus, warnings, valid: true };
+  return { inp, solver, checks, worstUtil, overallStatus, warnings, valid: true, noSolution };
 }

@@ -352,8 +352,8 @@ const HELP = {
   cY2: 'Distancia barra→borde en la cara −y.',
   mX: 'Distancia del borde de la placa al borde del pedestal (eje X); define el área de reparto.',
   mY: 'Distancia del borde de la placa al borde del pedestal (eje Y); define el área de reparto.',
-  surface: 'Acabado de la interfaz placa-hormigón: lisa (µ=0.2) o rugosa (µ=0.4).',
-  weld: 'Garganta del cordón de soldadura perfil-placa (informativo).',
+  surface: 'Acabado de la interfaz placa-hormigón. La fricción de cálculo usa Cf,d=0.20 en ambos casos (plano placa-mortero, CE Anejo 22 §6.2.2): el acabado es descriptivo, no modula µ.',
+  weld: 'Garganta del cordón de soldadura. Se usa en el check de soldadura de los rigidizadores (Fw,Rd); mínimo práctico 3 mm (EN 1993-1-8 §4.5.2).',
 } as const;
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -558,6 +558,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           options={availableFck.map((f) => ({ value: f, label: `${f} MPa` }))}
           setField={setField}
         />
+        <FieldWarn field="fck" warnings={warnings} />
         <NumField label="h"   sub="canto macizo" help={HELP.pedestalH} field="pedestal_h" value={state.pedestal_h as number} unit="mm" integer setField={setField} />
         <NumField label="cX"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c1)'} help={HELP.cX} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
         <NumField label="cY"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c2)'} help={HELP.cY} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
@@ -582,12 +583,16 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           field="surface_type"
           value={state.surface_type as string}
           options={[
-            { value: 'smooth',    label: 'lisa (µ=0.2)' },
-            { value: 'roughened', label: 'rugosa (µ=0.4)' },
+            // CM#2 — el motor usa Cf,d=0.20 SIEMPRE (junta placa-mortero, ver
+            // anchorPlate.ts checkBoltShear): las etiquetas no deben prometer
+            // un µ=0.4 que el cálculo no aplica.
+            { value: 'smooth',    label: 'lisa' },
+            { value: 'roughened', label: 'rugosa' },
           ]}
           setField={setField}
         />
-        <NumField label="aw" sub="garganta (info)" help={HELP.weld} field="weld_throat" value={state.weld_throat as number} unit="mm" integer setField={setField} />
+        <NumField label="aw" sub="garganta soldadura" help={HELP.weld} field="weld_throat" value={state.weld_throat as number} unit="mm" integer setField={setField} />
+        <FieldWarn field="weld_throat" warnings={warnings} />
       </CollapsibleSection>
 
     </div>

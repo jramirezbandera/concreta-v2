@@ -13,6 +13,10 @@ interface TitledPdfExportOptions {
   /** Persiste el título elegido (normalmente `setField('title', t)`), para
    *  pre-rellenar el próximo export, sobrevivir recarga y viajar en el enlace. */
   onTitleChange: (title: string) => void;
+  /** Mensaje del toast cuando `valid` es false. Opcional: los módulos con más
+   *  de un motivo de invalidez (p.ej. anchor-plate: sin datos vs SIN SOLUCIÓN)
+   *  pasan el motivo real en lugar del genérico. */
+  invalidMessage?: string;
 }
 
 /**
@@ -26,17 +30,17 @@ interface TitledPdfExportOptions {
  * handleDownloadPdf, closePdfPreview) para que el módulo siga renderizando el
  * `PdfPreviewModal` como hasta ahora.
  */
-export function useTitledPdfExport({ exportFn, valid, onTitleChange }: TitledPdfExportOptions) {
+export function useTitledPdfExport({ exportFn, valid, onTitleChange, invalidMessage }: TitledPdfExportOptions) {
   const pdf = usePdfPreview(exportFn, valid);
   const [titleOpen, setTitleOpen] = useState(false);
 
   const openExport = useCallback(() => {
     if (!valid) {
-      showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
+      showToast(invalidMessage ?? 'Los datos de entrada no son válidos', { autoDismiss: 3000 });
       return;
     }
     setTitleOpen(true);
-  }, [valid]);
+  }, [valid, invalidMessage]);
 
   const confirmTitle = useCallback(
     (title: string) => {

@@ -32,6 +32,10 @@ export function AnchorPlateModule() {
   // El PDF recibe deferredState/result para que ambos estén siempre en sync.
   const deferredState = useDeferredValue(state);
   const result = useMemo(() => calcAnchorPlate(deferredState, system), [deferredState, system]);
+  // D9 — mientras el solver recomputa (deferred por detrás del estado), las
+  // filas de resultados se atenúan y desactivan en vez de mostrar un spinner:
+  // el último resultado válido sigue visible pero se lee como obsoleto.
+  const isStale = state !== deferredState;
 
   // "Rellenar con IA" (ola 2)
   const [aiOpen, setAiOpen] = useState(false);
@@ -70,10 +74,16 @@ export function AnchorPlateModule() {
   // tick por detrás del estado (useDeferredValue) — igual que la pantalla.
   const aiResults = useMemo(() => summarizeAnchorPlateResults(result), [result]);
 
+  // D4 — el PDF se gatea por el resultado REAL: sin solicitación (valid=false)
+  // o sin solución física (noSolution) no hay memoria firmable que exportar.
+  // Antes `valid: true` hardcodeado exportaba siempre.
   const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
     useTitledPdfExport({
       exportFn: (title) => exportAnchorPlatePDF(deferredState, result, system, title),
-      valid: true,
+      valid: result.valid && !result.noSolution,
+      invalidMessage: result.noSolution
+        ? 'SIN SOLUCIÓN — no se puede exportar una memoria sin equilibrio físico'
+        : 'Sin solicitación — introduce esfuerzos (NEd, Mx, My o VEd) antes de exportar',
       onTitleChange: (t) => setField('title', t),
     });
 
@@ -158,7 +168,7 @@ export function AnchorPlateModule() {
             />
           </div>
 
-          <div className="px-6 py-5">
+          <div className={`px-6 py-5 transition-opacity duration-200${isStale ? ' opacity-50 pointer-events-none' : ''}`}>
             <AnchorPlateResults result={result} />
           </div>
         </div>

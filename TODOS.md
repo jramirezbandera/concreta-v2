@@ -65,11 +65,43 @@ Micropilotes (eng-review 2026-05-24): DONE — 115 tests (101 motor + 14 deeplin
 
 Sección circular CHS (tubos) en Pilares de acero: DONE (2026-04-20) — polymorphic section adapter (`SectionGeometry` + `ColumnBeamSection`), CHS hot-finished (EN 10210 curva a) + cold-formed (EN 10219 curva c), biaxial collapse via M_res = √(My²+Mz²), closed-section LTB short-circuit (Mcr → ∞ → χ_LT = 1), Class 4 "SIN SOLUCIÓN" verdict + disabled PDF, results grouping by EC3 §, 3 CHS acceptance tests. See `src/lib/sections/chs.ts` + 3 tests in `src/test/calc/steelColumns.test.ts`. Refactored all 5 callers (steelColumns, steelBeams, compositeSection, anchorPlate, SteelColumnsSVG).
 
-Placas de anclaje (anchor-plate, eng-review + design-review 2026-04-19): PR-1 scaffold + PR-2 full planned. **BLOCKS PR-2 merge:**
-- Run 3 CYPE oracle cases (HEB-200 NEd=200/Mx=45/My=10, HEA-160 axis-aligned, IPE-300 biaxial-fuerte) — record 10-check numbers into `src/test/calc/anchorPlate.test.ts`.
-- Resolve 4 Cross-Model Findings: `pedestal_cX/cY` mapping (T-stub α vs cone Ac,N), µ per EN 1992-4 §6.2.2 (0.2 smooth / 0.4 roughened, use Nc,G not Nc), compression block model (§6.2.5 T-stub effective area vs plastic uniform block — pick one and document), stiffener check (weld+bearing vs remove the h/t limit). See design doc `Javier-forjados-design-20260419-220944.md` section "Cross-Model Findings".
-- Resolve 5 CRITICAL design findings (D1–D5): results grouping (4 GroupHeader sub-bands: Placa/Pernos/Anclaje-hormigón/Rigidizadores), amber `converged:false` badge (copy `· APROX (grid)` + tooltip + PDF footer), `validateAnchorPlate()` warnings channel (field-level inline + global amber strip, not toast), solver total-failure state (`· SIN SOLUCIÓN` verdict + disabled PDF), responsive collapse <1024px (SVG sticky → Results → Inputs). See design doc "Design Review Findings" section.
-- Resolve 11 IMPORTANT design findings (D6–D16): per-bolt sub-panel promotion to own CollapsibleSection, input section reorder (Perfil→Acciones→Placa→Pernos→Rigidizadores→Pedestal), pre-fill Assignment case defaults, loading state (last-valid SVG + disabled rows, no spinner), 5-second alzado tell (column silhouette + bolts down), icon-grid glyph style (schematic stroke only), compression hatching not "sombra", keyboard nav on icon-grids (radiogroup + arrows), ambient verdict aggregation rule (worst-of-10), design tokens subsection explicit, PDF per-bolt overflow >6 bolts (page 2 with alzado header repeat).
+Placas de anclaje (anchor-plate, eng-review + design-review 2026-04-19): **FINDINGS CERRADOS
+(2026-07-24)** — auditoría de los 20 findings contra el código actual + implementación de lo
+que seguía vivo. El bloque original estaba escrito contra el estado de abril; las olas de
+auditoría de mayo (Phases 2-6, CR/H/M/L) y junio ya habían resuelto la mayoría con comentarios
+`D6`/`D7`/`D10`… citando el finding en el código. Resultado por grupo:
+- **4 Cross-Model Findings — cerrados.** (1) `pedestal_cX/cY` vs α: inputs disjuntos y
+  documentados (`plate_margin_*`→α T-stub, `pedestal_c*`→cono Ac,N). (2) Fricción: usa Nc,G
+  (segundo solver cuasi-permanente, H6) y **µ=Cf,d=0.20 fijo por decisión documentada**
+  (gobierna la junta placa-mortero, EC3 §6.2.2(6) — el 0.2/0.4 del finding no aplica a esa
+  interfaz; labels de UI corregidos 2026-07-24 para no prometer µ=0.4). (3) Bloque de
+  compresión: AMBOS modelos por rol documentado (bloque plástico uniforme en el solver, área
+  eficaz T-stub en Nc,Rd); refinamiento `b_eq`→T-stub del solver queda diferido
+  (`anchorPlate.ts:365`). (4) Rigidizadores: soldadura ya existía, h/t se conserva, y el
+  **APLASTAMIENTO se añadió 2026-07-24** (Fb,Rd = fyd·rib_t·c_out, vuelo mínimo de los ejes
+  activos, CE Anejo 22 §6.2.4) con hand-calc en tests.
+- **D1–D5 críticos — cerrados.** D1 (4 sub-bandas GroupHeader) y D3 (warnings inline + franja)
+  ya estaban; D3 ganó los FieldWarn de `fck`/`weld_throat` que faltaban. D2: badge APROX ahora
+  gatea por `!converged` (antes solo `biaxial-grid`, asimétrico con el PDF). **D4 implementado
+  2026-07-24**: `noSolution` en el solver (saturación FtRd / cuadrática sin raíz / cap+residuo
+  biaxial = sin equilibrio físico, distinto de APROX numérico) → pill `SIN SOLUCIÓN` (patrón
+  steel-columns) + tarjeta explicativa + check sintético renombrado + **PDF gateado** (antes
+  `valid:true` hardcodeado exportaba siempre; `useTitledPdfExport` ganó `invalidMessage`
+  opcional). **D5 = N/A por decisión**: el patrón MobileTabBar (3 pestañas) es la convención
+  de toda la app y supersede al apilado "SVG sticky" del finding de abril.
+- **D6–D16 importantes — cerrados.** D6/D7/D8/D10/D11/D13/D14/D15 ya estaban (con comentario
+  del finding en el código). D9: faltaba la afordancia de staleness → filas atenuadas
+  (`opacity-50` + `pointer-events-none`) mientras `useDeferredValue` recomputa (2026-07-24).
+  **D12 = cerrado por decisión M26**: hatching en PDF, tinte translúcido en pantalla (ya no es
+  la "sombra sólida" del finding). D16: la tabla por-barra ya paginaba sin clipear; ahora
+  además **repite la cabecera** tras el salto (título "(cont.)" + columnas), y la tabla de
+  verificaciones igual (2026-07-24).
+
+**Sigue pendiente (fase posterior, decisión 2026-07-24):** los 3 casos oráculo CYPE. El pack
+`anchorPlateOracle.test.ts` existe con 5 configs hand-calc (A-E) pero está en `describe.skip`
+con tolerancias anchas: son derivaciones del propio autor, no un oráculo independiente. Solo
+la config A coincide con un caso CYPE del plan (HEB-200 NEd=200/Mx=45/My=10); faltan HEA-160
+axis-aligned e IPE-300 biaxial-fuerte, y grabar los números CYPE reales antes de activar.
 
 Before shipping any module, run reference calculations by hand (or from CE code examples) and diff against the calc functions. Calc correctness is the product.
 
@@ -123,12 +155,36 @@ Update SPECS.md to reflect this decision before public launch.
 
 ### sw.js Cache-Control header
 
-**Status:** DEFERRED
+**Status:** N/A en el hosting actual — CERRADO (2026-07-24). Reabrir SOLO si se migra a un host con control de cabeceras.
 
-`sw.js` must be served with `Cache-Control: no-cache` or the PWA update mechanism breaks. Currently deferred (vercel.json out of scope for MVP). Add this before deploying to any static host:
-- Vercel: `vercel.json` headers rule for `/sw.js`
-- Netlify: `_headers` file
-- Apache/Nginx: server config
+**Premisa original (genérica):** `sw.js` debe servirse con `Cache-Control: no-cache` o el
+mecanismo de actualización de la PWA se rompe (un `sw.js` cacheado agresivamente deja al
+usuario clavado en un Service Worker viejo que sigue sirviendo el bundle viejo desde su caché
+→ nunca ve el deploy nuevo). El fix propuesto era `vercel.json` / `_headers`.
+
+**Por qué NO aplica en Concreta hoy:** el despliegue es **GitHub Pages** (`.github/workflows/deploy.yml`),
+que **no admite cabeceras HTTP personalizadas** — `vercel.json` y `_headers` se ignoran, así que
+el fix tal como está escrito no es implementable. Y además **no hace falta**, por dos redes de
+seguridad que ya cubren el caso:
+- **Spec de Service Workers:** el navegador está obligado a revalidar `sw.js` como máximo cada
+  **24 h**, ignorando cachés más largas. El escenario "congelado para siempre" no puede ocurrir
+  por diseño.
+- **GitHub Pages** sirve por defecto con `Cache-Control: max-age=600` (~**10 min**), muy por
+  debajo del tope de 24 h → el `sw.js` se revalida cada ~10 min de todas formas.
+
+Encima el flujo de update ya es controlado y correcto: `VitePWA registerType: 'prompt'` +
+`injectRegister: false` + toast "Actualizar" (`vite.config.ts:54`, `PwaUpdatePrompt.tsx`); el SW
+nuevo no toma el control hasta que el usuario pulsa el botón. **Peor caso real:** el aviso de
+actualización aparece con ~10 min de retraso. Nada se rompe.
+
+**Si algún día se migra** a un host con control de cabeceras (Vercel, Netlify, Cloudflare Pages,
+nginx propio), REABRIR y fijar entonces:
+- `sw.js` e `index.html` → `Cache-Control: no-cache`
+- assets con content-hash en el nombre (`/assets/*.js`, `.css`, fuentes) → `Cache-Control: public, max-age=31536000, immutable`
+- Vercel: regla de headers en `vercel.json` · Netlify: fichero `_headers` · Apache/Nginx: config del servidor
+
+**Pendiente opcional (no bloqueante):** confirmar en vivo con `curl -I https://<sitio>/sw.js` que
+GitHub Pages devuelve efectivamente `max-age=600` sobre el `sw.js`, para dejar el dato registrado.
 
 ---
 

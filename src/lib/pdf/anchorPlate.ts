@@ -225,16 +225,22 @@ export async function exportAnchorPlatePDF(
   const BAR_X        = M;
   const BAR_W        = CW;
 
-  setGray(doc, 100);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text('Verificacion', M, y);
-  doc.text('Ut% / Estado', PAGE_W - M, y, { align: 'right' });
-  y += 2;
-  setGray(doc, 180);
-  doc.setLineWidth(0.15);
-  doc.line(M, y, PAGE_W - M, y);
-  y += 3.2;
+  // D16 — cabecera de columnas como closure: se pinta al inicio y se REPITE
+  // tras cada salto de página (antes las filas de continuación quedaban
+  // huérfanas de cabecera).
+  const drawChecksTableHeader = () => {
+    setGray(doc, 100);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('Verificacion', M, y);
+    doc.text('Ut% / Estado', PAGE_W - M, y, { align: 'right' });
+    y += 2;
+    setGray(doc, 180);
+    doc.setLineWidth(0.15);
+    doc.line(M, y, PAGE_W - M, y);
+    y += 3.2;
+  };
+  drawChecksTableHeader();
 
   for (const c of result.checks) {
     // Measure wrapped description height to keep row compact but legible.
@@ -247,7 +253,11 @@ export async function exportAnchorPlatePDF(
     const vlLines = doc.splitTextToSize(valueLimit, COL_DESC_W) as string[];
 
     const rowH = 3.4 + descLines.length * 3 + vlLines.length * 2.8 + 2.5; // bar + padding
-    ensure(rowH + 1);
+    if (y + rowH + 1 > PAGE_H - footerMargin) {
+      doc.addPage();
+      y = M;
+      drawChecksTableHeader();
+    }
 
     // line 1 — description (left) + Ut% / status (right)
     setGray(doc, 40);
@@ -341,7 +351,10 @@ export async function exportAnchorPlatePDF(
     setGray(doc, 60);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
-    doc.text('APROX (grid-search)', M + 2, y + 1);
+    // D4 — defensivo: la UI bloquea el export con noSolution, pero si este
+    // PDF se genera igualmente (tests, llamada directa) la nota no debe
+    // decir "APROX" cuando el estado real es sin equilibrio físico.
+    doc.text(solver.noSolution ? 'SIN SOLUCION' : 'APROX (grid-search)', M + 2, y + 1);
     setGray(doc, 80);
     doc.setFont('helvetica', 'normal');
     doc.text(pdfStr(solver.note), M + 42, y + 1);
@@ -353,11 +366,6 @@ export async function exportAnchorPlatePDF(
   if (tensioned.length > 0) {
     y += 3;
     ensure(12);
-    setGray(doc, 30);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.text('TRACCION POR BARRA', M, y);
-    y += 4;
 
     const BC = {
       bar: M,
@@ -366,22 +374,37 @@ export async function exportAnchorPlatePDF(
       ft:  M + 75,
     };
 
-    setGray(doc, 100);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.text('Barra', BC.bar, y);
-    doc.text('x [mm]', BC.x, y);
-    doc.text('y [mm]', BC.ycol, y);
-    doc.text(`Ft [${system === 'si' ? 'kN' : 'Tn'}]`, BC.ft, y);
-    y += 2;
-    setGray(doc, 180);
-    doc.setLineWidth(0.15);
-    doc.line(M, y, PAGE_W - M, y);
-    y += 3;
+    // D16 — título + cabecera de columnas como closure: con >6 barras la
+    // tabla cruza de página y la continuación repite la cabecera (con
+    // marcador "cont.") en lugar de dejar filas sueltas.
+    const drawBarTableHeader = (cont: boolean) => {
+      setGray(doc, 30);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.text(cont ? 'TRACCION POR BARRA (cont.)' : 'TRACCION POR BARRA', M, y);
+      y += 4;
+      setGray(doc, 100);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.text('Barra', BC.bar, y);
+      doc.text('x [mm]', BC.x, y);
+      doc.text('y [mm]', BC.ycol, y);
+      doc.text(`Ft [${system === 'si' ? 'kN' : 'Tn'}]`, BC.ft, y);
+      y += 2;
+      setGray(doc, 180);
+      doc.setLineWidth(0.15);
+      doc.line(M, y, PAGE_W - M, y);
+      y += 3;
+      doc.setFontSize(7);
+    };
+    drawBarTableHeader(false);
 
-    doc.setFontSize(7);
     for (const b of solver.bolts) {
-      ensure(5);
+      if (y + 5 > PAGE_H - footerMargin) {
+        doc.addPage();
+        y = M;
+        drawBarTableHeader(true);
+      }
       setGray(doc, 40);
       doc.setFont('helvetica', 'normal');
       doc.text(`#${b.index + 1}`, BC.bar, y);

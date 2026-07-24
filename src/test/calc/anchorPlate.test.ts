@@ -2,7 +2,7 @@
 // Run: bun test src/test/calc/anchorPlate.test.ts
 
 import { describe, expect, it } from 'vitest';
-import { calcAnchorPlate, solveAxisAligned4 } from '../../lib/calculations/anchorPlate';
+import { calcAnchorPlate, checkStiffener, solveAxisAligned4 } from '../../lib/calculations/anchorPlate';
 import { anchorPlateDefaults } from '../../data/defaults';
 
 // Axis-aligned-solver tests assume My=0. Defaults have My≠0 for biaxial FTUX,
@@ -442,6 +442,76 @@ describe('check 10 — stiffener (CE Anejo 22 §5.5 + §4.5.3)', () => {
     const st = rS355.checks.find((c) => c.id === 'stiffener')!;
     // ε = √(235/355) ≈ 0.814 → 14·ε ≈ 11.4 < 12 (rib_h/rib_t=120/10), esbeltez NO FAIL pero alta.
     expect(st.limit).toContain('c/t≤11.4');
+  });
+});
+
+describe('CM#4 — stiffener APLASTAMIENTO (compresión directa en el vuelo)', () => {
+  it('con perfil en catálogo el limit expone Fb,Rd y la descripción lo nombra', () => {
+    const st = checkStiffener(base, 100);
+    expect(st.description).toContain('aplastamiento');
+    expect(st.limit).toContain('Fb,Rd=');
+  });
+  it('hand-calc: vuelo estrecho + Nc alto → aplastamiento gobierna, util=3.82', () => {
+    // HEB-200 (h=200) con plate_a=220 → c_out = (220−200)/2 = 10 mm.
+    // fyd = 275/1.05 = 261.905 → Fb,Rd = 261.905·10·10/1000 = 26.19 kN.
+    // Nc=400, rib_count=2 → F_rib = 400/4 = 100 kN → util = 100/26.19 = 3.82.
+    // (esbeltez 0.927 y soldadura ≪ quedan por debajo)
+    const st = checkStiffener({ ...base, plate_a: 220 }, 400);
+    expect(st.limit).toContain('(aplastamiento)');
+    expect(st.utilization).toBeCloseTo(3.82, 1);
+    expect(st.status).toBe('fail');
+  });
+  it('rib_count=4 usa el vuelo MÍNIMO de los dos ejes (gobierna el débil)', () => {
+    // HEB-200 (h=b=200), plate 320×220 → c_fuerte=60, c_débil=10 → min=10.
+    // Fb,Rd = 261.905·10·10/1000 = 26.19 kN; F_rib = 400/(4+2) = 66.67 kN
+    // → util = 66.67/26.19 = 2.55 y gobierna aplastamiento.
+    const st = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 220 }, 400);
+    expect(st.limit).toContain('(aplastamiento)');
+    expect(st.utilization).toBeCloseTo(2.55, 1);
+    // Control: con el eje débil holgado el mínimo vuelve al fuerte (60 mm) y
+    // el aplastamiento deja de gobernar (util_bear = 66.67/157.1 = 0.42 < esbeltez 0.93).
+    const ctrl = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 400 }, 400);
+    expect(ctrl.limit).toContain('(esbeltez)');
+  });
+});
+
+describe('D4 — noSolution (sin equilibrio físico ≠ APROX numérico)', () => {
+  it('axis-aligned saturado → solver.noSolution y el resultado lo propaga', () => {
+    const r = calcAnchorPlate({ ...base, Mx: 200 });
+    expect(r.solver.mode).toBe('partial-lift-saturated');
+    expect(r.solver.noSolution).toBe(true);
+    expect(r.noSolution).toBe(true);
+    expect(r.overallStatus).toBe('fail');
+    const eq = r.checks.find((c) => c.id === 'solver-equilibrium')!;
+    expect(eq.description).toContain('SIN SOLUCIÓN');
+    expect(eq.status).toBe('fail');
+  });
+  it('FTUX sano (biaxial convergido) → noSolution=false, sin check sintético', () => {
+    const r = calcAnchorPlate({ ...anchorPlateDefaults });
+    expect(r.solver.converged).toBe(true);
+    expect(r.noSolution).toBe(false);
+    expect(r.checks.find((c) => c.id === 'solver-equilibrium')).toBeUndefined();
+  });
+  it('tracción pura saturada (|NEd| > n·FtRd) → noSolution', () => {
+    // 4 barras φ20 B500S → 4·136.59 = 546.4 kN < 600 → imposible sostener.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -600, Mx: 0, My: 0 });
+    expect(r.solver.mode).toBe('pure-tension');
+    expect(r.solver.noSolution).toBe(true);
+    expect(r.noSolution).toBe(true);
+    expect(r.overallStatus).toBe('fail');
+  });
+  it('biaxial muy por encima de capacidad → cap FtRd activo + residuo = noSolution', () => {
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 300, My: 200 });
+    expect(r.solver.converged).toBe(false);
+    expect(r.noSolution).toBe(true);
+    const eq = r.checks.find((c) => c.id === 'solver-equilibrium')!;
+    expect(eq.description).toContain('SIN SOLUCIÓN');
+  });
+  it('SIN DATOS y cortante puro NO marcan noSolution', () => {
+    const sinDatos = calcAnchorPlate({ ...base, NEd: 0, Mx: 0, My: 0, VEd: 0, Vx: 0, Vy: 0 });
+    expect(sinDatos.noSolution).toBe(false);
+    const cortante = calcAnchorPlate({ ...base, NEd: 0, Mx: 0, My: 0 });
+    expect(cortante.noSolution).toBe(false);
   });
 });
 
