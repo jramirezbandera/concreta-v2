@@ -464,6 +464,74 @@ describe('AiChatModal — acumulación de propuestas no aplicadas', () => {
   });
 });
 
+describe('AiChatModal — guardarraíl de seguridad a lo largo del hilo', () => {
+  // BUG 2026-07-25: "el asistente sigue pidiendo confirmación como si el cambio
+  // fuera peligroso cuando se baja un valor que estaba EN SU DEFAULT y es la
+  // primera introducción del dato". La tarjeta pendiente se fusiona y el plan se
+  // reconstruye entero cada turno; la clave, tratada en el turno 1, ya estaba en
+  // la memoria del hilo, así que en el turno 2 el gate anti-ruido se abría y la
+  // MISMA primera introducción salía en rojo con checkbox (y así todos los
+  // turnos siguientes). El arreglo: la memoria guarda el primer VALOR y solo
+  // establece la clave cuando el hilo la mueve (lib/ai/pendingSnapshot.ts).
+  const RISK_TITLE = 'Este cambio reduce la seguridad';
+
+  /** Turno completo: envía `message`, resuelve con `envelope` y espera el reply. */
+  async function turn(message: string, envelope: ChatEnvelope) {
+    const deferred = deferChatOnce();
+    typeAndSend(message);
+    await act(async () => {
+      deferred.resolve(envelope);
+    });
+    await screen.findByText(envelope.reply);
+  }
+
+  it('primera introducción de bTrib (3.0 → 1.5, el default) → sin fila roja NI en el turno siguiente', async () => {
+    seedKey();
+    renderModal();
+
+    await turn('Las vigas van cada 1,5 m', {
+      reply: 'Anoto el ancho tributario',
+      proposal: makePayload({ bTrib_m: 1.5 }),
+    });
+    expect(screen.queryByText(RISK_TITLE)).not.toBeInTheDocument();
+
+    // Turno 2: otro dato. La fusión arrastra bTrib 1.5 y el plan se rehace…
+    await turn('Y la luz es de 8 m', {
+      reply: 'Anoto la luz',
+      proposal: makePayload({ L_m: 8 }),
+    });
+    expect(screen.getByRole('button', { name: 'Aplicar 2 cambios' })).toBeEnabled();
+    // …sin resucitar como riesgo lo que ya se juzgó al introducirlo.
+    expect(screen.queryByText(RISK_TITLE)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/He revisado/)).not.toBeInTheDocument();
+  });
+
+  it('el hilo MUEVE un valor que ya había confirmado → fila roja e interlock (fuga 1, intacta)', async () => {
+    seedKey();
+    renderModal();
+
+    // Turno 1: el modelo confirma el bTrib vigente (3.0 = el default: no cambia
+    // nada, pero deja el dato establecido en el hilo).
+    await turn('Las vigas van cada 3 m', {
+      reply: 'Confirmo el ancho tributario',
+      proposal: makePayload({ bTrib_m: 3 }),
+    });
+    expect(screen.queryByText(RISK_TITLE)).not.toBeInTheDocument();
+
+    // Turno 2: "haz que cumpla" → parte por dos la carga de la viga.
+    await turn('Haz que cumpla', {
+      reply: 'Reduzco el ancho tributario',
+      proposal: makePayload({ bTrib_m: 1.5 }),
+    });
+
+    expect(screen.getByText(RISK_TITLE)).toBeInTheDocument();
+    const apply = screen.getByRole('button', { name: 'Aplicar 1 cambio' });
+    expect(apply).toBeDisabled(); // interlock: sin marcar el checkbox no se aplica
+    fireEvent.click(screen.getByLabelText(/He revisado/));
+    expect(apply).toBeEnabled();
+  });
+});
+
 describe('AiChatModal — resultados en el system prompt', () => {
   it('el system del turno contiene la cabecera "RESULTADOS DEL CÁLCULO ACTUAL" y results.text', () => {
     chatMock.mockImplementationOnce(() => new Promise(() => {})); // en vuelo

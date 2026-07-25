@@ -44,8 +44,12 @@
  * una sola fila roja. La invariante que restaura: si el asistente considera el
  * valor establecido (no lo re-pregunta), rebajarlo ES un riesgo.
  *
- * `confirmed` viene del hilo (AiChatModal.confirmedKeysRef) y está en el espacio
- * de claves del PAYLOAD (`t_cm`), no del estado (`t`): de ahí `SafetyRule.confirmKey`.
+ * `confirmed` viene del hilo (AiChatModal.threadValuesRef → `establishedKeys`) y
+ * está en el espacio de claves del PAYLOAD (`t_cm`), no del estado (`t`): de ahí
+ * `SafetyRule.confirmKey`. Solo llegan aquí las claves que este turno MUEVE
+ * respecto del primer valor que el hilo les dio: la tarjeta pendiente se fusiona
+ * y se re-planifica entera cada turno, y sin ese filtro (fix 2026-07-25) toda
+ * primera introducción salía en rojo a partir del segundo turno.
  *
  * `alwaysCheck: true` desactiva el gate entero para los campos que reinterpretan
  * el cálculo aunque vengan del default (loadsAreFactored, los γ de fábrica).

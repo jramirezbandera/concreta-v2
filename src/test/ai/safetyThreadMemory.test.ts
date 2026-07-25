@@ -11,10 +11,13 @@
 // más frecuente.
 //
 // El arreglo añade la segunda vía de "establecido": las claves que el modelo ya
-// trató en TURNOS ANTERIORES del hilo (AiChatModal.confirmedKeysRef → buildPlan →
-// detectSafetyRisks). Estos tests recorren los adapters REALES por la misma puerta
-// que el modal, y cada uno prueba las DOS caras: sin memoria (silencio, como antes)
-// y con memoria (riesgo, la fuga cerrada).
+// trató en TURNOS ANTERIORES del hilo (AiChatModal.threadValuesRef →
+// establishedKeys → buildPlan → detectSafetyRisks). Estos tests recorren los
+// adapters REALES por la misma puerta que el modal, y cada uno prueba las DOS
+// caras: sin memoria (silencio, como antes) y con memoria (riesgo, la fuga
+// cerrada). Quién entra en ese `confirmed` —solo lo que el turno MUEVE, no lo que
+// la tarjeta pendiente arrastra igual— se prueba en pendingSnapshot.test.ts
+// (establishedKeys) y de punta a punta en AiChatModal.test.ts.
 //
 // La invariante que restaura: si el asistente considera el valor establecido (no lo
 // re-pregunta porque ya no está en `sin_confirmar`), rebajarlo ES un riesgo.

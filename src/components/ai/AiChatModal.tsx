@@ -57,7 +57,11 @@ import {
   prepareImage,
 } from '../../lib/ai/imagePrep';
 import { mergeProposalPayloads } from '../../lib/ai/mergeProposal';
-import { collectConfirmedKeys, decorateSnapshot } from '../../lib/ai/pendingSnapshot';
+import {
+  collectThreadValues,
+  decorateSnapshot,
+  establishedKeys,
+} from '../../lib/ai/pendingSnapshot';
 import type { AiApplyPlan, AiModuleAdapter } from '../../lib/ai/modules/types';
 import { runChatTurn } from '../../lib/ai/providers';
 import type { AiResultsSummary, AiVerdict } from '../../lib/ai/resultsSummary';
@@ -230,12 +234,13 @@ export function AiChatModal<TInputs>({
   // restaura su texto/imágenes al composer. null en peticiones de Reintentar
   // (el ítem user ya existía de antes y debe conservarse).
   const pendingUserRef = useRef<{ id: string; text: string; images: LocalImage[] } | null>(null);
-  // Claves de campo tratadas por el modelo en ESTE hilo (toda clave no-null de
-  // cada proposal, aplicada o no). Alimenta la decoración del snapshot: sin
-  // este registro, un valor confirmado que COINCIDE con el default de fábrica
-  // jamás saldría de `sin_confirmar` y el asistente lo re-preguntaría en bucle
-  // (ver pendingSnapshot.ts). Vive lo que el modal, como el historial.
-  const confirmedKeysRef = useRef<Set<string>>(new Set());
+  // Campos tratados por el modelo en ESTE hilo: clave → PRIMER valor propuesto
+  // (aplicado o no). Sus claves alimentan la decoración del snapshot —sin este
+  // registro, un valor confirmado que COINCIDE con el default de fábrica jamás
+  // saldría de `sin_confirmar` y el asistente lo re-preguntaría en bucle— y sus
+  // valores, el gate anti-ruido de los riesgos vía establishedKeys (ver
+  // pendingSnapshot.ts). Vive lo que el modal, como el historial.
+  const threadValuesRef = useRef<Map<string, unknown>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -415,7 +420,7 @@ export function AiChatModal<TInputs>({
       decorateSnapshot(
         adapter.snapshot(current),
         pendingItem?.payload ?? null,
-        confirmedKeysRef.current,
+        new Set(threadValuesRef.current.keys()),
         pendingItem?.plan?.skipped ?? [],
       ),
       results.text,
@@ -437,10 +442,10 @@ export function AiChatModal<TInputs>({
         // ESTA propuesta, todo campo propuesto quedaría "confirmado" por sí
         // mismo, el gate no se cerraría nunca y la primera extracción saldría
         // sembrada de rojos.
-        const confirmedBefore: ReadonlySet<string> = new Set(confirmedKeysRef.current);
-        // Registro de claves tratadas — FUERA del updater (muta un ref).
+        const threadBefore: ReadonlyMap<string, unknown> = new Map(threadValuesRef.current);
+        // Registro de campos tratados — FUERA del updater (muta un ref).
         if (envelope.proposal !== null) {
-          collectConfirmedKeys(envelope.proposal, confirmedKeysRef.current);
+          collectThreadValues(envelope.proposal, threadValuesRef.current);
         }
         const itemId = nextItemId(); // fuera del updater (mutación de contador)
         // Lectura del pendiente + fusión + marcado de reemplazadas DENTRO del
@@ -460,7 +465,16 @@ export function AiChatModal<TInputs>({
             const effectivePayload =
               pending != null ? mergeProposalPayloads(pending, envelope.proposal) : envelope.proposal;
             try {
-              plan = adapter.buildPlan(effectivePayload, current, unitSystem, confirmedBefore);
+              // `established`: de la memoria del hilo, solo lo que este turno
+              // MUEVE. Lo que la fusión arrastra igual (la propuesta pendiente
+              // re-planificada) no vuelve a juzgarse — si no, una primera
+              // introducción sin riesgo salía en rojo a partir del 2º turno.
+              plan = adapter.buildPlan(
+                effectivePayload,
+                current,
+                unitSystem,
+                establishedKeys(threadBefore, effectivePayload),
+              );
               payload = effectivePayload;
               supersede = pending != null;
             } catch {

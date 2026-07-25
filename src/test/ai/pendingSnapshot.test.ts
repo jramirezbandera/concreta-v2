@@ -7,8 +7,9 @@
 // plan pendiente se realimentan al modelo y sus claves salen de pendientes.
 import { describe, expect, it } from 'vitest';
 import {
-  collectConfirmedKeys,
+  collectThreadValues,
   decorateSnapshot,
+  establishedKeys,
   rejectedSkips,
 } from '../../lib/ai/pendingSnapshot';
 
@@ -97,10 +98,10 @@ describe('decorateSnapshot — confirmados del hilo', () => {
     // El modelo propuso {L_m:3.5, bTrib_m:3} (bTrib_m COINCIDE con el default:
     // antes era inconfirmable). Todo propuesto queda registrado como
     // confirmado; el pendiente acumulado sigue vivo sin aplicar.
-    const confirmed = new Set<string>();
-    collectConfirmedKeys({ L_m: 3.5, bTrib_m: 3, tipo: null, warnings: [] }, confirmed);
+    const thread = new Map<string, unknown>();
+    collectThreadValues({ L_m: 3.5, bTrib_m: 3, tipo: null, warnings: [] }, thread);
     const out = JSON.parse(
-      decorateSnapshot(SNAPSHOT, { L_m: 3.5, bTrib_m: 3, warnings: [] }, confirmed),
+      decorateSnapshot(SNAPSHOT, { L_m: 3.5, bTrib_m: 3, warnings: [] }, new Set(thread.keys())),
     ) as Record<string, unknown>;
     expect(out.pendientes_de_aplicar).toEqual({ L_m: 3.5, bTrib_m: 3 });
     expect(out.sin_confirmar).toEqual(['tipo']);
@@ -166,31 +167,85 @@ describe('decorateSnapshot — errores_propuesta_anterior', () => {
   });
 });
 
-describe('collectConfirmedKeys', () => {
+describe('collectThreadValues', () => {
   it('añade las claves no-null e ignora null/undefined y las META', () => {
-    const into = new Set<string>();
-    collectConfirmedKeys(
+    const into = new Map<string, unknown>();
+    collectThreadValues(
       { L_m: 3.5, bTrib_m: null, qk_kNm2: undefined, warnings: ['w'], notes: 'n' },
       into,
     );
-    expect([...into]).toEqual(['L_m']);
+    expect([...into]).toEqual([['L_m', 3.5]]);
   });
 
-  it('acumula entre llamadas (el Set es la memoria del hilo)', () => {
-    const into = new Set<string>();
-    collectConfirmedKeys({ L_m: 3.5 }, into);
-    collectConfirmedKeys({ bTrib_m: 3, L_m: null }, into);
+  it('acumula entre llamadas (el Map es la memoria del hilo)', () => {
+    const into = new Map<string, unknown>();
+    collectThreadValues({ L_m: 3.5 }, into);
+    collectThreadValues({ bTrib_m: 3, L_m: null }, into);
     expect(into.has('L_m')).toBe(true);
     expect(into.has('bTrib_m')).toBe(true);
   });
 
+  it('PRIMERO GANA: un turno posterior no reescribe la línea base de la clave', () => {
+    // Si la sobrescribiera, la propuesta arrastrada sería su propia línea base y
+    // un riesgo ya detectado desaparecería de la tarjeta acumulada.
+    const into = new Map<string, unknown>();
+    collectThreadValues({ qk_kNm2: 2 }, into);
+    collectThreadValues({ qk_kNm2: 0.2 }, into);
+    expect(into.get('qk_kNm2')).toBe(2);
+  });
+
   it('no lanza con proposal no-objeto', () => {
-    const into = new Set<string>();
+    const into = new Map<string, unknown>();
     expect(() => {
-      collectConfirmedKeys(null, into);
-      collectConfirmedKeys('texto', into);
-      collectConfirmedKeys([1, 2], into);
+      collectThreadValues(null, into);
+      collectThreadValues('texto', into);
+      collectThreadValues([1, 2], into);
     }).not.toThrow();
     expect(into.size).toBe(0);
+  });
+});
+
+describe('establishedKeys — el gate anti-ruido con memoria de VALORES', () => {
+  it('el valor arrastrado igual NO establece la clave (la primera introducción no se re-juzga)', () => {
+    // Turno 1: el modelo introduce bTrib 1.5 (gate cerrado, sin fila roja).
+    // Turno 2: la fusión arrastra el mismo 1.5 → no puede volver como riesgo.
+    const thread = new Map<string, unknown>([['bTrib_m', 1.5]]);
+    expect([...establishedKeys(thread, { bTrib_m: 1.5, L_m: 6 })]).toEqual([]);
+  });
+
+  it('mover el valor SÍ establece la clave (fuga 1: el 30×30 que se engorda a 40×40)', () => {
+    const thread = new Map<string, unknown>([['bc_cm', 30]]);
+    expect([...establishedKeys(thread, { bc_cm: 40 })]).toEqual(['bc_cm']);
+  });
+
+  it('el riesgo PERSISTE en los turnos siguientes: la línea base no se mueve', () => {
+    // Turno 1 confirma qk = 2 (el default), turno 2 lo rebaja a 0.2 (riesgo) y
+    // turno 3 lo arrastra: sigue difiriendo de la línea base ⇒ sigue en rojo.
+    const thread = new Map<string, unknown>([['qk_kNm2', 2]]);
+    expect([...establishedKeys(thread, { qk_kNm2: 0.2 })]).toEqual(['qk_kNm2']);
+    expect([...establishedKeys(thread, { qk_kNm2: 0.2, L_m: 6 })]).toEqual(['qk_kNm2']);
+  });
+
+  it('una clave que la propuesta no toca (null/ausente) sigue establecida', () => {
+    const thread = new Map<string, unknown>([['gk_kNm2', 4]]);
+    expect([...establishedKeys(thread, { gk_kNm2: null, L_m: 6 })]).toEqual(['gk_kNm2']);
+    expect([...establishedKeys(thread, { L_m: 6 })]).toEqual(['gk_kNm2']);
+  });
+
+  it('arrays y objetos se comparan en profundidad (estratos, cargas)', () => {
+    const strata = [{ h: 2, phi: 30 }, { h: 3, phi: 32 }];
+    const thread = new Map<string, unknown>([['strata', strata]]);
+    // Mismo contenido en otra instancia ⇒ arrastre, no cambio.
+    expect([...establishedKeys(thread, { strata: [{ h: 2, phi: 30 }, { h: 3, phi: 32 }] })])
+      .toEqual([]);
+    // Terreno "mejorado" ⇒ establecida (y el detector de elementos ya la juzga).
+    expect([...establishedKeys(thread, { strata: [{ h: 2, phi: 38 }, { h: 3, phi: 32 }] })])
+      .toEqual(['strata']);
+  });
+
+  it('payload no-objeto → todas las claves de la memoria siguen establecidas', () => {
+    const thread = new Map<string, unknown>([['L_m', 6]]);
+    expect([...establishedKeys(thread, null)]).toEqual(['L_m']);
+    expect([...establishedKeys(new Map(), { L_m: 6 })]).toEqual([]);
   });
 });

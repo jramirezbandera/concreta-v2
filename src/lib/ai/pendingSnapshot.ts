@@ -23,6 +23,14 @@
  * alimenta este registro. Los adapters NO cambian: la decoración es genérica
  * sobre el contrato {valores, sin_confirmar}.
  *
+ * MEMORIA DE VALORES, no solo de claves (fix 2026-07-25). El mismo registro
+ * alimenta el gate anti-ruido de safety.ts, y ahí una clave no basta: la tarjeta
+ * pendiente se fusiona y se re-planifica cada turno, así que una primera
+ * introducción legítima acababa marcada en rojo por el simple hecho de haber
+ * pasado por un turno anterior. Se guarda el PRIMER valor de cada clave y
+ * `establishedKeys` solo da por establecido lo que el hilo ha MOVIDO desde
+ * entonces (ver esa función).
+ *
  * ERRORES DE LA PROPUESTA ANTERIOR (fix 2026-07-20). SÍNTOMA: un rechazo del
  * validador (p. ej. el veto en bloque del FEM 2D) solo se pintaba en la
  * ProposalCard; el modelo no lo veía nunca — su regla "si una propuesta se
@@ -55,17 +63,89 @@ export function rejectedSkips(
 }
 
 /**
- * Añade a `into` las claves de campo con valor no-null de una proposal del
- * modelo. Se registran aunque el valor luego se descarte (skip/rango): que el
+ * Memoria del hilo: PRIMER valor que el modelo propuso para cada clave de
+ * campo. Se registra aunque el valor luego se descarte (skip/rango): que el
  * modelo haya tratado el campo en la conversación es lo que cuenta como
  * "confirmado en este hilo"; una corrección posterior viaja por la regla 5.
+ *
+ * Sus CLAVES alimentan `decorateSnapshot` (salen de `sin_confirmar` para que el
+ * modelo no re-pregunte) y el gate anti-ruido de safety.ts a través de
+ * `establishedKeys`, que es quien usa los VALORES.
+ *
+ * PRIMERO GANA (`if (!into.has(key))`): la línea base de una clave es el valor
+ * con el que el hilo la puso sobre la mesa, y no se mueve mientras el hilo dure.
+ * Si cada turno la sobrescribiera, un riesgo ya detectado desaparecería en el
+ * turno siguiente —la propuesta arrastrada pasaría a ser su propia línea base— y
+ * la tarjeta acumulada se aplicaría sin la fila roja que sí tuvo al nacer.
  */
-export function collectConfirmedKeys(proposal: unknown, into: Set<string>): void {
+export function collectThreadValues(proposal: unknown, into: Map<string, unknown>): void {
   if (typeof proposal !== 'object' || proposal === null || Array.isArray(proposal)) return;
   for (const [key, value] of Object.entries(proposal)) {
     if (META_KEYS.has(key)) continue;
-    if (value !== null && value !== undefined) into.add(key);
+    if (value === null || value === undefined) continue;
+    if (!into.has(key)) into.set(key, value);
   }
+}
+
+/** Igualdad estructural de dos valores de payload (JSON plano: escalares, arrays, objetos). */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  }
+  const objA = typeof a === 'object' && a !== null && !Array.isArray(a);
+  const objB = typeof b === 'object' && b !== null && !Array.isArray(b);
+  if (objA && objB) {
+    const ra = a as Record<string, unknown>;
+    const rb = b as Record<string, unknown>;
+    const ka = Object.keys(ra);
+    return (
+      ka.length === Object.keys(rb).length &&
+      ka.every((k) => k in rb && sameValue(ra[k], rb[k]))
+    );
+  }
+  return false;
+}
+
+/**
+ * Claves que la memoria del hilo da por ESTABLECIDAS frente a la propuesta que
+ * se va a planificar — es lo que recibe `buildPlan` como `confirmed` y lo que
+ * abre la segunda vía del gate anti-ruido (safety.ts).
+ *
+ * FALSO POSITIVO QUE CIERRA (2026-07-25). La tarjeta pendiente se FUSIONA con la
+ * propuesta de cada turno nuevo y el plan se reconstruye entero, así que un valor
+ * introducido por PRIMERA vez en el turno 1 —sin fila roja, gate cerrado: nadie
+ * lo había fijado— volvía a evaluarse en el turno 2… pero ahora su propia clave
+ * ya estaba en la memoria del hilo, el gate se abría y la primera introducción
+ * salía marcada como "este cambio reduce la seguridad", con checkbox de
+ * confirmación, en todos los turnos siguientes. Ocurría en CUALQUIER hilo de
+ * varios turnos con tarjeta viva, que es el modo guiado entero.
+ *
+ * La corrección: la memoria del hilo solo establece una clave cuando el valor que
+ * se propone AHORA difiere del que el hilo puso sobre la mesa. Arrastrar el mismo
+ * valor turno tras turno no es un cambio y no vuelve a juzgarse; MOVERLO sí —de
+ * ahí que la fuga 1 de la auditoría (el pilar existente de 30×30 que el modelo
+ * engorda a 40×40 tras confirmarlo) siga cerrada.
+ *
+ * Una clave que la propuesta no toca (`null`/ausente: ya aplicada, o de un turno
+ * anterior) sigue establecida — quitarla desprotegería lo ya acordado.
+ */
+export function establishedKeys(
+  threadValues: ReadonlyMap<string, unknown>,
+  proposal: unknown,
+): Set<string> {
+  const proposed =
+    typeof proposal === 'object' && proposal !== null && !Array.isArray(proposal)
+      ? (proposal as Record<string, unknown>)
+      : {};
+  const out = new Set<string>();
+  for (const [key, baseline] of threadValues) {
+    const now = proposed[key];
+    // Mismo valor que la línea base ⇒ re-planificación del mismo dato, no cambio.
+    if (now !== null && now !== undefined && sameValue(now, baseline)) continue;
+    out.add(key);
+  }
+  return out;
 }
 
 /**

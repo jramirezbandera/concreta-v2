@@ -488,8 +488,9 @@ disyunción, exactamente, que decide si una clave sale de `sin_confirmar` en el
 snapshot decorado:
 
 1. **difiere del de fábrica** (`current[field] !== defaults[field]`): alguien lo tocó;
-2. **el hilo ya lo trató** en un turno ANTERIOR (`confirmed`, el `confirmedKeysRef`
-   del modal que ya alimentaba `decorateSnapshot`).
+2. **el hilo ya lo trató** en un turno ANTERIOR y **este turno lo MUEVE**
+   (`confirmed`, que sale de `establishedKeys` sobre el `threadValuesRef` del modal
+   — el mismo registro que alimenta `decorateSnapshot`).
 
 La segunda es el arreglo de la **auditoría de 2026-07-14 (fuga 1)**, y es la más
 importante que se ha hecho al guardarraíl. Sin ella el gate se desarmaba justo
@@ -499,6 +500,20 @@ muro de un pie (240 mm), β = 1.0 biarticulado, ψ₂ = 0.3 de vivienda, el NF a
 El modelo podía engordar el pilar existente a 40×40 sin una sola fila roja. Los dos
 módulos de REHABILITACIÓN, cuya tesis entera es "lo medido es un DATO", tenían la
 red desarmada en su caso más frecuente.
+
+El **"y este turno lo mueve"** es el arreglo de **2026-07-25**, y es lo que
+mantiene esa segunda vía usable. La tarjeta pendiente **se fusiona** con la
+propuesta de cada turno nuevo y el plan se reconstruye entero, así que un dato
+introducido por primera vez en el turno 1 —sin fila roja, gate cerrado: nadie lo
+había fijado— volvía a evaluarse en el turno 2 con su propia clave ya en la
+memoria del hilo, y salía marcado en rojo con checkbox de confirmación. En todos
+los turnos siguientes, en cualquier hilo de varios turnos con tarjeta viva: el
+modo guiado entero. Por eso el registro guarda el **primer valor** de cada clave
+(`collectThreadValues`) y `establishedKeys` la da por establecida solo cuando lo
+que se propone ahora **difiere** de esa línea base: arrastrar el mismo valor turno
+tras turno no es un cambio y no se re-juzga; moverlo sí. Que la línea base sea la
+PRIMERA y no la última es lo que hace que un riesgo ya detectado **siga en rojo**
+en los turnos siguientes en vez de convertirse en su propia referencia.
 
 `confirmed` está en el espacio de claves del **payload** (`t_cm`), no del estado
 (`t`): de ahí `SafetyRule.confirmKey`. Un `confirmKey` mal escrito deja el gate
