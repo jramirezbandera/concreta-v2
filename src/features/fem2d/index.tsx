@@ -453,7 +453,14 @@ export function Fem2DModule(): JSX.Element {
                 «Combinaciones» y no es "la envolvente ELU"). El panel derecho no
                 cambia: esto sólo explica el dibujo. */}
             {view !== 'model' && active && comboNotice(active) && (
-              <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-bg-surface/90 px-2.5 py-1 text-[10.5px] text-text-secondary shadow-sm ring-1 ring-border-main/60 backdrop-blur-sm">
+              // Píldora centrada POR ENCIMA del grupo de zoom, que ocupa la
+              // esquina inferior derecha (32px de alto en escritorio, 42px por
+              // debajo de lg — styles.css). Anclada en bottom-2 se le metía
+              // debajo en cuanto el aviso o el lienzo se estrechaban. El ancho
+              // se mide entre left-2 y right-2 (con mx-auto + w-fit centrando):
+              // con left-1/2 sólo disponía de media columna y partía el aviso
+              // en tres líneas justo donde menos sitio hay.
+              <div className="pointer-events-none absolute bottom-16 left-2 right-2 z-10 mx-auto w-fit rounded bg-bg-surface/90 px-2.5 py-1 text-center text-[10.5px] text-text-secondary shadow-sm ring-1 ring-border-main/60 backdrop-blur-sm lg:bottom-14">
                 {comboNotice(active)}
               </div>
             )}

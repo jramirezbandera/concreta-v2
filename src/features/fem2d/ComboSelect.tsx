@@ -36,15 +36,25 @@ export function ComboSelect({
     bucket.views.push(v);
   }
 
+  // Móvil (< lg): la etiqueta de la combinación es LARGA ("ELS característica ·
+  // 1.00·G + 1.00·Q + 0.60·W" ≈ 378 px) y el <select> cerrado sólo muestra el
+  // texto de la opción, sin su optgroup: si no cabe, se corta a media cifra y
+  // deja de decir qué se dibuja. Por eso aquí el selector ocupa SU PROPIA fila
+  // completa (order-last + basis-full: los iconos suben con las pestañas), sin
+  // la píldora "Comb" (el aria-label sigue nombrando el control) y a 12 px.
+  // El `!` es necesario: index.css fija `select { font-size: 14px !important }`
+  // en < 1023px por ergonomía de toque, y ese tamaño no cabe en un teléfono.
+  // Lo que aun así desborde se corta con puntos suspensivos (truncate), nunca
+  // a mitad de un factor.
   return (
-    <div className="flex items-center gap-1 py-1 pl-3 pr-1">
-      <span className="pr-1 font-mono text-[9px] uppercase tracking-[0.05em] text-text-disabled">Comb</span>
+    <div className="flex min-w-0 items-center gap-1 py-1 pl-3 pr-1 max-lg:order-last max-lg:w-full max-lg:basis-full">
+      <span className="hidden shrink-0 pr-1 font-mono text-[9px] uppercase tracking-[0.05em] text-text-disabled lg:inline">Comb</span>
       <select
         aria-label="Combinación a dibujar"
         value={activeId ?? ''}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as Fem2DComboViewId)}
-        className="max-w-[15rem] rounded border border-border-main bg-bg-elevated px-2 py-1 font-mono text-[10.5px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus:border-accent/40 focus:text-text-primary focus:outline-none disabled:opacity-50"
+        className="min-w-0 max-w-[26rem] flex-1 truncate rounded border border-border-main bg-bg-elevated px-2 py-2 font-mono text-[12px]! font-semibold text-text-secondary transition-colors hover:text-text-primary focus:border-accent/40 focus:text-text-primary focus:outline-none disabled:opacity-50 lg:flex-none lg:py-1 lg:text-[10.5px]!"
       >
         {groups.map((g) => (
           <optgroup key={g.label} label={g.label}>

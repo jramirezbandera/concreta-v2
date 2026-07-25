@@ -159,6 +159,105 @@ function DeleteButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
+// ── Shared blocks (vector ops) ──────────────────────────────────────────────
+
+/** Δx/Δy del bloque de vector, propiedad del inspector (ver Fem2DInspector). */
+interface VectorState {
+  dx: number;
+  dy: number;
+  setDx: (v: number) => void;
+  setDy: (v: number) => void;
+}
+
+/** Título de sección de un bloque del panel (selección múltiple y vector). */
+function MultiSection({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div className="rounded border border-border-main px-3 py-2 flex flex-col gap-1">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Desplazar / copiar por vector. Vive en los TRES paneles de geometría (barra,
+ * nudo y selección múltiple) sobre el mismo id-set: un click en una barra ya
+ * puede moverla o clonarla, sin obligar a encerrarla en una ventana.
+ *
+ * Δx/Δy NO son estado propio: los tiene el inspector, porque tras "Copiar" la
+ * selección salta a la copia — y con ella cambia el panel (barra → múltiple, al
+ * clonarse los dos nudos) — y repetir el gesto debe encadenar (x·2, y·2).
+ *
+ * Se oculta cuando la selección no arrastra ningún nudo (una carga suelta).
+ */
+function VectorOps({ model, setModel, setSelected, sel, note, dx, dy, setDx, setDy }: VectorState & {
+  model: Fem2DModel;
+  setModel: (updater: (m: Fem2DModel) => Fem2DModel) => void;
+  setSelected: (s: Selected2D) => void;
+  sel: SelectionSet2D;
+  note: string;
+}): JSX.Element | null {
+  if (selectionMoveNodeIds(model, sel).size === 0) return null;
+
+  const doTranslate = () => {
+    const res = translateSelection(model, sel, dx, dy);
+    if (res.ok) setModel(() => res.model);
+    else showToast(res.reason, { autoDismiss: 4000 });
+  };
+
+  const doCopy = () => {
+    const res = duplicateSelection(model, sel, dx, dy);
+    if (res.ok) {
+      setModel(() => res.model);
+      setSelected(normalizeSelection(res.selection));
+      showToast(
+        `Copiados ${res.selection.nodes.length} nudo${res.selection.nodes.length === 1 ? '' : 's'} y ${res.selection.members.length} barra${res.selection.members.length === 1 ? '' : 's'} — la selección es la copia (repite para encadenar).`,
+        { autoDismiss: 4000 },
+      );
+    } else {
+      showToast(res.reason, { autoDismiss: 4000 });
+    }
+  };
+
+  const vectorBtnClass =
+    'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded border border-border-main text-[11.5px] text-text-secondary hover:text-accent hover:border-accent/40 transition-colors';
+
+  return (
+    <MultiSection label="Desplazar / copiar (vector)">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <DraftNumberField
+          stacked label="Δx" unit="m" value={dx} resetKey="multi:dx"
+          onCommit={setDx}
+        />
+        <DraftNumberField
+          stacked label="Δy" unit="m" value={dy} resetKey="multi:dy"
+          onCommit={setDy}
+        />
+      </div>
+      <div className="flex gap-1.5 pt-1">
+        <button type="button" onClick={doTranslate} className={vectorBtnClass}>
+          <Move size={12} aria-hidden="true" />
+          Desplazar
+        </button>
+        <button type="button" onClick={doCopy} className={vectorBtnClass}>
+          <Copy size={12} aria-hidden="true" />
+          Copiar
+        </button>
+      </div>
+      <p className="text-[10px] text-text-disabled leading-snug">{note}</p>
+    </MultiSection>
+  );
+}
+
+const VECTOR_NOTE_MEMBER =
+  'Desplazar mueve los dos nudos de la barra. La copia la clona con sus cargas y los apoyos de sus nudos, y queda seleccionada: repite Copiar para encadenar.';
+const VECTOR_NOTE_NODE =
+  'Desplazar mueve el nudo (las barras que llegan a él le siguen). La copia clona el nudo con su apoyo y sus cargas, y queda seleccionada: repite Copiar para encadenar.';
+const VECTOR_NOTE_MULTI =
+  'Una barra seleccionada arrastra sus dos nudos. La copia clona las barras entre nudos del bloque con sus cargas y apoyos, y queda seleccionada: repite Copiar para encadenar.';
+
 // ── Global (nothing selected) ────────────────────────────────────────────────
 
 function loadSummary(ld: Fem2DLoad, system: 'si' | 'tecnico'): string {
@@ -526,8 +625,8 @@ function TimberMemberEditor({ m, setModel }: RcEditorProps): JSX.Element {
 
 // ── Member panel ────────────────────────────────────────────────────────────
 
-function MemberPanel(props: Props & { memberId: string }): JSX.Element {
-  const { model, setModel, setSelected, memberId, readOnly } = props;
+function MemberPanel(props: Props & { memberId: string; vector: VectorState }): JSX.Element {
+  const { model, setModel, setSelected, memberId, readOnly, vector } = props;
   const m = model.members.find((mm) => mm.id === memberId);
   if (!m) return <GlobalPanel {...props} />;
   const a = model.nodes.find((n) => n.id === m.i);
@@ -561,6 +660,19 @@ function MemberPanel(props: Props & { memberId: string }): JSX.Element {
           <Maximize2 size={11} aria-hidden="true" />
           Ficha de cálculo
         </button>
+      )}
+
+      {/* Mismo bloque y misma posición que en la selección múltiple: una barra
+          clicada ya se mueve/clona sin tener que encerrarla en una ventana. */}
+      {!readOnly && (
+        <div className="pb-1">
+          <VectorOps
+            model={model} setModel={setModel} setSelected={setSelected}
+            sel={{ nodes: [], members: [m.id], loads: [] }}
+            note={VECTOR_NOTE_MEMBER}
+            {...vector}
+          />
+        </div>
       )}
 
       <Row label="Rol" help="Decide qué comprobación normativa se aplica (pilar → pandeo de pilar; viga/cordón → flexión + LTB; diagonal/montante → axil puro). El auto lo infiere de la geometría: cambiarlo aquí lo fija en manual. OJO: αcr detecta las plantas por los miembros con rol pilar.">
@@ -763,8 +875,8 @@ function SteelProfileRows({ profileKey, twoForce, onSelect }: {
 
 // ── Node panel ──────────────────────────────────────────────────────────────
 
-function NodePanel(props: Props & { nodeId: string }): JSX.Element {
-  const { model, setModel, setSelected, nodeId, readOnly } = props;
+function NodePanel(props: Props & { nodeId: string; vector: VectorState }): JSX.Element {
+  const { model, setModel, setSelected, nodeId, readOnly, vector } = props;
   const n = model.nodes.find((x) => x.id === nodeId);
   if (!n) return <GlobalPanel {...props} />;
   const support = model.supports.find((s) => s.node === n.id)?.type ?? 'none';
@@ -778,6 +890,17 @@ function NodePanel(props: Props & { nodeId: string }): JSX.Element {
   return (
     <fieldset disabled={readOnly} className="flex flex-col gap-1 min-w-0 border-0 p-0 m-0">
       <PanelHeader title={n.id} sub="nudo" onBack={() => setSelected(null)} />
+
+      {!readOnly && (
+        <div className="pb-1">
+          <VectorOps
+            model={model} setModel={setModel} setSelected={setSelected}
+            sel={{ nodes: [n.id], members: [], loads: [] }}
+            note={VECTOR_NOTE_NODE}
+            {...vector}
+          />
+        </div>
+      )}
 
       <DraftNumberField
         label="x" unit="m" value={n.x} resetKey={`${n.id}:x`}
@@ -938,18 +1061,6 @@ function LoadPanel(props: Props & { loadId: string }): JSX.Element {
 }
 
 // ── Multi panel (marquee selection) ─────────────────────────────────────────
-
-/** Título de sección del panel de selección múltiple. */
-function MultiSection({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
-  return (
-    <div className="rounded border border-border-main px-3 py-2 flex flex-col gap-1">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
-        {label}
-      </p>
-      {children}
-    </div>
-  );
-}
 
 /**
  * Editor de propiedades EN GRUPO de las barras seleccionadas: los mismos
@@ -1369,12 +1480,8 @@ function GroupRcEditor({ members, run, numField, common }: {
   );
 }
 
-function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
-  const { model, setModel, setSelected, sel, readOnly } = props;
-  // El vector sobrevive a los cambios de selección A PROPÓSITO: tras "Copiar"
-  // la selección salta a la copia y repetir el gesto encadena (x·2, y·2).
-  const [dx, setDx] = useState(0);
-  const [dy, setDy] = useState(0);
+function MultiPanel(props: Props & { sel: SelectionSet2D; vector: VectorState }): JSX.Element {
+  const { model, setModel, setSelected, sel, readOnly, vector } = props;
 
   const counts = [
     sel.nodes.length > 0 ? `${sel.nodes.length} nudo${sel.nodes.length === 1 ? '' : 's'}` : null,
@@ -1394,33 +1501,9 @@ function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
       </div>
     );
 
-  const moveIds = selectionMoveNodeIds(model, sel);
   const groupMembers = sel.members
     .map((id) => model.members.find((m) => m.id === id))
     .filter((m): m is Fem2DMember => m !== undefined);
-
-  const doTranslate = () => {
-    const res = translateSelection(model, sel, dx, dy);
-    if (res.ok) setModel(() => res.model);
-    else showToast(res.reason, { autoDismiss: 4000 });
-  };
-
-  const doCopy = () => {
-    const res = duplicateSelection(model, sel, dx, dy);
-    if (res.ok) {
-      setModel(() => res.model);
-      setSelected(normalizeSelection(res.selection));
-      showToast(
-        `Copiados ${res.selection.nodes.length} nudo${res.selection.nodes.length === 1 ? '' : 's'} y ${res.selection.members.length} barra${res.selection.members.length === 1 ? '' : 's'} — la selección es la copia (repite para encadenar).`,
-        { autoDismiss: 4000 },
-      );
-    } else {
-      showToast(res.reason, { autoDismiss: 4000 });
-    }
-  };
-
-  const vectorBtnClass =
-    'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded border border-border-main text-[11.5px] text-text-secondary hover:text-accent hover:border-accent/40 transition-colors';
 
   return (
     <div className="flex flex-col gap-2 min-w-0">
@@ -1432,34 +1515,11 @@ function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
         {idRow('Cargas', sel.loads)}
       </div>
 
-      {!readOnly && moveIds.size > 0 && (
-        <MultiSection label="Desplazar / copiar (vector)">
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            <DraftNumberField
-              stacked label="Δx" unit="m" value={dx} resetKey="multi:dx"
-              onCommit={setDx}
-            />
-            <DraftNumberField
-              stacked label="Δy" unit="m" value={dy} resetKey="multi:dy"
-              onCommit={setDy}
-            />
-          </div>
-          <div className="flex gap-1.5 pt-1">
-            <button type="button" onClick={doTranslate} className={vectorBtnClass}>
-              <Move size={12} aria-hidden="true" />
-              Desplazar
-            </button>
-            <button type="button" onClick={doCopy} className={vectorBtnClass}>
-              <Copy size={12} aria-hidden="true" />
-              Copiar
-            </button>
-          </div>
-          <p className="text-[10px] text-text-disabled leading-snug">
-            Una barra seleccionada arrastra sus dos nudos. La copia clona las
-            barras entre nudos del bloque con sus cargas y apoyos, y queda
-            seleccionada: repite Copiar para encadenar.
-          </p>
-        </MultiSection>
+      {!readOnly && (
+        <VectorOps
+          model={model} setModel={setModel} setSelected={setSelected}
+          sel={sel} note={VECTOR_NOTE_MULTI} {...vector}
+        />
       )}
 
       {!readOnly && groupMembers.length >= 2 && (
@@ -1490,9 +1550,16 @@ function MultiPanel(props: Props & { sel: SelectionSet2D }): JSX.Element {
 
 export function Fem2DInspector(props: Props): JSX.Element {
   const { selected } = props;
-  if (selected?.kind === 'member') return <MemberPanel {...props} memberId={selected.id} />;
-  if (selected?.kind === 'node') return <NodePanel {...props} nodeId={selected.id} />;
+  // Δx/Δy viven AQUÍ, por encima del cambio de panel: tras "Copiar" la
+  // selección salta a la copia (y una barra copiada pasa a selección múltiple),
+  // y repetir el gesto debe encadenar (x·2, y·2) sin reescribir el vector.
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+  const vector: VectorState = { dx, dy, setDx, setDy };
+
+  if (selected?.kind === 'member') return <MemberPanel {...props} memberId={selected.id} vector={vector} />;
+  if (selected?.kind === 'node') return <NodePanel {...props} nodeId={selected.id} vector={vector} />;
   if (selected?.kind === 'load') return <LoadPanel {...props} loadId={selected.id} />;
-  if (selected?.kind === 'multi') return <MultiPanel {...props} sel={selected} />;
+  if (selected?.kind === 'multi') return <MultiPanel {...props} sel={selected} vector={vector} />;
   return <GlobalPanel {...props} />;
 }

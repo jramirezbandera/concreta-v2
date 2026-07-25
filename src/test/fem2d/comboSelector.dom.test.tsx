@@ -90,4 +90,19 @@ describe('ComboSelect', () => {
     const { container } = render(<ComboSelect comboViews={[]} activeId={undefined} disabled={false} onChange={() => {}} />);
     expect(container.querySelector('select')).toBeNull();
   });
+
+  // Regresión móvil: con un ancho fijo (era max-w-[15rem]) el <select> CERRADO
+  // cortaba "ELS característica · 1.00·G + 1.00·Q + 0.60·W" a media cifra —
+  // ilegible justo donde vive el dato. jsdom no mide layout, así que el guarda
+  // fija las tres clases que dan el ancho: fila propia bajo lg, capacidad de
+  // encoger y puntos suspensivos al desbordar.
+  it('el desplegable ocupa su propia fila en móvil y trunca con puntos suspensivos', () => {
+    const { container } = render(<ComboSelect comboViews={views()} activeId="env:ELU" disabled={false} onChange={() => {}} />);
+    const row = container.firstElementChild as HTMLElement;
+    expect(row.className).toContain('max-lg:basis-full');
+    const select = screen.getByLabelText('Combinación a dibujar');
+    expect(select.className).toContain('min-w-0');
+    expect(select.className).toContain('flex-1');
+    expect(select.className).toContain('truncate');
+  });
 });
