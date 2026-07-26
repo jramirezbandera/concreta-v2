@@ -1,16 +1,19 @@
-// FEM 2D — commit-on-blur numeric field for the inspector.
+// Campo numérico que comitea al perder el foco.
 //
-// UnitNumberInput (via RawNumberInput) emits onChange on EVERY keystroke;
-// wiring it straight to setModel would mint one history entry per key — the
-// exact inconsistency the 1D InputsPanel has (NumField types → N undo steps)
-// that this module deliberately avoids. This wrapper holds a local draft and
-// commits once on blur/Enter: one gesture, one undo step.
+// UnitNumberInput (vía RawNumberInput) emite onChange en CADA pulsación;
+// cableado directo a un setModel con historial, eso acuña una entrada de undo
+// por tecla — teclear «12.5» dejaba cuatro pasos que deshacer. Este envoltorio
+// guarda un borrador local y comitea una sola vez al salir del campo o con
+// Enter: un gesto, un paso de undo.
+//
+// Nació en el editor del FEM 2D; el FEM 1D lo adoptó al homogeneizar los dos
+// módulos (era justo el módulo con el bug que este componente describe).
 //
 // `resetKey` re-seeds the draft when the selection changes (or an undo lands):
 // the field must show the NEW target's value, not the previous draft.
 
 import { useState, type JSX } from 'react';
-import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { UnitNumberInput } from './UnitNumberInput';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {

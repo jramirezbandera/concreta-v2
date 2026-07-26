@@ -21,7 +21,7 @@ import {
   makeTransform,
   uniformInsets,
   withView,
-} from '../../features/fem2d/transform';
+} from '../../lib/canvas/transform';
 import { beamColumn, fem2dModel, node2d, nodeLoad, support2d } from '../../features/fem2d/builder';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import type { Fem2DLoad } from '../../features/fem2d/types';

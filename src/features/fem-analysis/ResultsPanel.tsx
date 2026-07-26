@@ -1,29 +1,38 @@
-// FEM 1D — ResultsPanel (Lane R6 V1.1)
+// FEM 1D — panel de resultados (columna derecha).
 //
-// Right-column orchestrator. Mounts:
-//   - <ResultsHeader> always on top (h-9 inline header — DESIGN.md compliant)
-//   - When solver returns 'unsolvable': <ResultsUnsolvable> with errors
-//   - When no bar selected: model summary (bars ranked + reactions)
-//   - When HA bar selected: <RcBarResults hideSectionTabs>
-//   - When Steel bar selected: <SteelBarResults>
+// Monta, de arriba abajo:
+//   - <ResultsHeader> siempre (fila de 36 px con el veredicto vivo)
+//   - modelo irresoluble → <ErrorAmbient> (compartido con el 2D)
+//   - barra seleccionada → el módulo real embebido (RcBarResults/SteelBarResults)
+//   - sin selección     → resumen del modelo
 //
-// "Comprobar en Vigas HA →" deep-link is gone — embed real means the user is
-// already conceptually in the module's results UI.
+// El resumen habla el mismo idioma que el del FEM 2D —tarjeta de utilización
+// máxima y filas desplegables— sobre las piezas de components/checks, y añade
+// los dos bloques que el 2D no tiene: REACCIONES (por combinación) y NORMATIVA.
 
-import { ambientStyle } from '../../components/checks';
+import { GroupHeader, ValueRow } from '../../components/checks';
+import { MemberRow } from '../../components/checks/MemberRow';
+import { UtilizationCard } from '../../components/checks/UtilizationCard';
+import { ErrorAmbient } from '../../components/ui/ErrorAmbient';
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { barCheckRows, barStatusToCheck } from './checkMapping';
 import { ResultsHeader } from './embedded/ResultsHeader';
-import { ResultsUnsolvable } from './embedded/ResultsUnsolvable';
 import { RcBarResults } from './embedded/RcBarResults';
 import { SteelBarResults } from './embedded/SteelBarResults';
 import type {
   BarResult,
   DesignBar,
   DesignModel,
+  ReactionsByCombo,
   Selected,
   SolveResult,
 } from './types';
+
+/** Las cuatro envolventes que puede pedir el panel. Atada a la estructura de
+ *  reacciones — que es justo lo que indexa — y no al `ComboCode` heredado del
+ *  modelo, que solo tiene tres valores y con otros literales. */
+type ComboKey = keyof ReactionsByCombo;
 
 interface Props {
   model: DesignModel;
@@ -33,37 +42,42 @@ interface Props {
   activeSection: 'vano' | 'apoyo';
   setActiveSection: (s: 'vano' | 'apoyo') => void;
   /** Combo selected in topbar canvas — drives which reactions envelope to show. */
-  combo: 'ELU' | 'ELS_c' | 'ELS_frec' | 'ELS_cp';
+  combo: ComboKey;
 }
 
 export function ResultsPanel({
   model, result, selected, setSelected, activeSection, setActiveSection, combo,
 }: Props) {
-  const ambient = (result.status === 'ok' || result.status === 'warn' || result.status === 'fail')
-    ? ambientStyle(result.status)
-    : {};
-
   const selectedBar = selected?.kind === 'bar'
     ? model.bars.find((b) => b.id === selected.id)
     : undefined;
   const selectedBarResult = selectedBar ? result.perBar[selectedBar.id] : undefined;
 
   // Decide unsolvable: solver-level fail errors (mecanismo, sin apoyos, ...).
-  const isUnsolvable = result.errors.some((e) => e.severity === 'fail');
+  const failErrors = result.errors.filter((e) => e.severity === 'fail');
 
+  // El panel NO lleva ambiente propio: lo pone quien manda en cada estado —la
+  // tarjeta de utilización, el bloque de error o el módulo embebido—. Antes lo
+  // ponía además la raíz y salían DOS filetes de color a 36 px uno del otro.
   return (
-    <div style={{ ...ambient, height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div className="flex h-full min-h-0 flex-col">
       <ResultsHeader
         result={result}
         selectedBar={selectedBar}
         activeSection={activeSection}
         setActiveSection={setActiveSection}
+        onBack={selectedBar ? () => setSelected(null) : undefined}
       />
 
-      {isUnsolvable ? (
-        <ResultsUnsolvable errors={result.errors} />
+      {failErrors.length > 0 ? (
+        <ErrorAmbient
+          title="Modelo no resoluble"
+          message={failErrors[0]?.msg}
+          details={failErrors.slice(1).map((e) => e.msg)}
+          hint="Corrige los errores en el lienzo para recuperar las comprobaciones."
+        />
       ) : selectedBar ? (
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {selectedBar.material === 'rc'
             ? <RcBarResults barResult={selectedBarResult} activeSection={activeSection} />
             : <SteelBarResults barResult={selectedBarResult} bar={selectedBar} />}
@@ -80,16 +94,20 @@ export function ResultsPanel({
   );
 }
 
-function comboLabel(combo: 'ELU' | 'ELS_c' | 'ELS_frec' | 'ELS_cp'): string {
-  return (
-    combo === 'ELU'      ? 'ELU' :
-    combo === 'ELS_c'    ? 'ELS-c' :
-    combo === 'ELS_frec' ? 'ELS-frec' :
-                           'ELS-cp'
-  );
-}
+const COMBO_LABEL: Record<ComboKey, string> = {
+  ELU: 'ELU',
+  ELS_c: 'ELS-c',
+  ELS_frec: 'ELS-frec',
+  ELS_cp: 'ELS-cp',
+};
 
-// ── No-bar-selected: model summary view (bars list + reactions) ─────────────
+const NORMATIVA: ReadonlyArray<{ label: string; value: string }> = [
+  { label: 'Hormigón', value: 'CE 2021' },
+  { label: 'Acero',    value: 'CTE DB-SE-A · CE Anejo 22' },
+  { label: 'Acciones', value: 'CTE DB-SE' },
+];
+
+// ── Sin barra seleccionada: resumen del modelo ──────────────────────────────
 
 function ModelSummary({
   model, result, setSelected, combo,
@@ -97,142 +115,83 @@ function ModelSummary({
   model: DesignModel;
   result: SolveResult;
   setSelected: (s: Selected) => void;
-  combo: 'ELU' | 'ELS_c' | 'ELS_frec' | 'ELS_cp';
+  combo: ComboKey;
 }) {
   const { system } = useUnitSystem();
   // V1.1 R9: reactions list reflects the combo selector. Falls back to summed
   // `reactions` if the new envelope structure isn't present.
-  const reactionsForCombo =
-    result.reactionsByCombo?.[combo] ?? result.reactions;
+  const reactionsForCombo = result.reactionsByCombo?.[combo] ?? result.reactions;
   const ranked = model.bars
     .map((b) => ({ b, r: result.perBar[b.id] }))
     .filter((x): x is { b: DesignBar; r: BarResult } => !!x.r)
     .sort((a, b) => (b.r.eta || 0) - (a.r.eta || 0));
 
+  const status = barStatusToCheck(result.status);
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '14px 16px' }}>
-      <div style={{
-        fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-        letterSpacing: '0.07em', color: 'var(--color-text-disabled)',
-        padding: '0 0 7px', borderBottom: '1px solid var(--color-border-sub)',
-      }}>
-        Verificación por barra
-      </div>
-      <div style={{ marginTop: 6 }}>
-        {ranked.length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', padding: '12px 0', fontStyle: 'italic' }}>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3">
+      <UtilizationCard
+        status={status}
+        eta={status === 'neutral' ? null : result.maxEta}
+        meta={`${model.bars.length} barras · ${model.nodes.length} nudos`}
+      />
+
+      <div className="mx-2 overflow-hidden rounded border border-border-main">
+        <GroupHeader label="Verificación por barra" />
+        {ranked.length === 0 ? (
+          <p className="px-4 py-3 text-[11px] italic leading-snug text-text-disabled">
             Sin resultados todavía. Añade armado a las barras.
-          </div>
-        )}
-        {ranked.map(({ b, r }) => {
-          const statusColor =
-            r.status === 'ok' ? 'var(--color-state-ok)'
-            : r.status === 'warn' ? 'var(--color-state-warn)'
-            : r.status === 'fail' ? 'var(--color-state-fail)'
-            : 'var(--color-state-neutral)';
-          return (
-            <button
+          </p>
+        ) : (
+          ranked.map(({ b, r }) => (
+            <MemberRow
               key={b.id}
-              type="button"
-              onClick={() => setSelected({ kind: 'bar', id: b.id })}
-              style={{
-                width: '100%', textAlign: 'left',
-                padding: '7px 10px',
-                marginBottom: 2,
-                background: 'transparent',
-                border: '1px solid transparent',
-                borderRadius: 4,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8,
-                transition: 'background-color 150ms ease-in-out',
+              data={{
+                id: b.id,
+                tag: b.material === 'rc' ? 'HA' : 'Acero',
+                status: barStatusToCheck(r.status),
+                eta: r.eta,
+                checks: barCheckRows(b, r),
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--color-accent) 5%, transparent)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-primary)' }}>{b.id}</span>
-              <span style={{ fontSize: 10, color: 'var(--color-text-disabled)', textTransform: 'uppercase' }}>
-                {b.material === 'rc' ? 'HA' : 'Acero'}
-              </span>
-              <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 11, color: statusColor }}>
-                {r.status === 'pending' ? '—' : `${(r.eta * 100).toFixed(0)}%`}
-              </span>
-            </button>
-          );
-        })}
+              onOpenDetail={(id) => setSelected({ kind: 'bar', id })}
+              detailTitle="Ficha de cálculo"
+              emptyLabel="Comprobaciones pendientes — completa el armado de la barra."
+            />
+          ))
+        )}
       </div>
 
       {ranked.length > 0 && (
-        <div style={{ fontSize: 10, color: 'var(--color-text-disabled)', fontStyle: 'italic', marginTop: 8 }}>
-          Click una barra para ver detalles.
-        </div>
+        <p className="mx-2 px-2 text-[10px] leading-snug text-text-disabled">
+          Despliega una barra para ver sus comprobaciones; el icono abre la ficha completa.
+        </p>
       )}
 
       {reactionsForCombo.length > 0 && (
-        <>
-          <div style={{
-            marginTop: 14,
-            fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: '0.07em', color: 'var(--color-text-disabled)',
-            padding: '9px 0 7px', borderBottom: '1px solid var(--color-border-sub)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span>Reacciones</span>
-            <span className="font-mono" style={{ fontSize: 9, color: 'var(--color-text-disabled)', textTransform: 'none', letterSpacing: 0 }}>
-              {comboLabel(combo)}
-            </span>
-          </div>
+        <div className="mx-2 overflow-hidden rounded border border-border-main">
+          <GroupHeader label="Reacciones" right={COMBO_LABEL[combo]} />
           {reactionsForCombo.map((r, i) => (
-            <div
+            <ValueRow
               key={i}
-              style={{
-                display: 'flex', justifyContent: 'space-between',
-                padding: '6px 0', borderBottom: '1px solid var(--color-border-sub)',
-                fontSize: 11,
-              }}
-            >
-              <span style={{ color: 'var(--color-text-secondary)' }}>{r.node}</span>
-              <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>
-                Ry={formatQuantity(r.Ry, 'force', system)}{r.Mr ? ` · M=${formatQuantity(r.Mr, 'moment', system)}` : ''}
-              </span>
-            </div>
+              label={r.node}
+              value={`Ry=${formatQuantity(r.Ry, 'force', system)}${r.Mr ? ` · M=${formatQuantity(r.Mr, 'moment', system)}` : ''}`}
+            />
           ))}
-        </>
+        </div>
       )}
 
-      <NormativaFooter />
-    </div>
-  );
-}
-
-function NormativaFooter() {
-  const rows: { label: string; value: string }[] = [
-    { label: 'Hormigón',  value: 'CE 2021' },
-    { label: 'Acero',     value: 'CTE DB-SE-A · CE Anejo 22' },
-    { label: 'Acciones',  value: 'CTE DB-SE' },
-  ];
-  return (
-    <>
-      <div style={{
-        marginTop: 14,
-        fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-        letterSpacing: '0.07em', color: 'var(--color-text-disabled)',
-        padding: '9px 0 7px', borderBottom: '1px solid var(--color-border-sub)',
-      }}>
-        Normativa
+      <div className="mx-2 overflow-hidden rounded border border-border-main">
+        <GroupHeader label="Normativa" />
+        {NORMATIVA.map((r) => <ValueRow key={r.label} label={r.label} value={r.value} />)}
       </div>
-      {rows.map((r) => (
-        <div
-          key={r.label}
-          style={{
-            display: 'flex', justifyContent: 'space-between',
-            padding: '5px 0', fontSize: 11,
-          }}
-        >
-          <span style={{ color: 'var(--color-text-secondary)' }}>{r.label}</span>
-          <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{r.value}</span>
-        </div>
-      ))}
-    </>
+
+      <div className="mx-2 px-2">
+        <p className="text-[10px] leading-snug text-text-disabled">
+          Análisis lineal de viga continua (rigidez directa) · envolventes CTE ELU y ELS ·
+          comprobaciones por barra con los motores de HA y acero. Predimensionamiento —
+          no sustituye un cálculo completo.
+        </p>
+      </div>
+    </div>
   );
 }

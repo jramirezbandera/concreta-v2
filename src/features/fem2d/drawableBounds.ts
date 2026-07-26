@@ -32,7 +32,7 @@ import {
   fitMarginFor,
 } from './canvasTheme';
 import { labelHalfBox, loadGeometry, type PtPx } from './loadGeometry';
-import { makeTransform, uniformInsets, type BoundsRect, type Transform2D } from './transform';
+import { makeTransform, uniformInsets, type BoundsRect, type Transform2D } from '../../lib/canvas/transform';
 import type { Fem2DModel } from './types';
 
 /** Glifo de apoyo bajo el nudo (triángulo + rayado + posibles rodillos). */

@@ -14,7 +14,7 @@ import { render } from '@testing-library/react';
 import { Fem2DCanvas } from '../../features/fem2d/Fem2DCanvas';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import { FEM2D_TEMPLATES } from '../../features/fem2d/templates';
-import { IDENTITY_VIEW, type CanvasView2D } from '../../features/fem2d/transform';
+import { IDENTITY_VIEW, type CanvasView2D } from '../../lib/canvas/transform';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 const portal = FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());

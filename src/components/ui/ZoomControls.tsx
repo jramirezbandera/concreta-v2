@@ -1,4 +1,5 @@
-// FEM 2D — grupo flotante de zoom del lienzo (− / % / + / Encuadrar).
+// Grupo flotante de zoom del lienzo (− / % / + / Encuadrar), compartido por
+// los lienzos de análisis (FEM 2D y FEM 1D).
 //
 // Anclado al CONTENEDOR (no al SVG, que se centra y cambia de alto entre
 // vistas): espejo exacto de la paleta de herramientas, que vive en left-3 top-3.
@@ -22,7 +23,7 @@
 
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
-import { ZOOM_MAX, ZOOM_MIN } from './transform';
+import { ZOOM_MAX, ZOOM_MIN } from '../../lib/canvas/transform';
 
 interface Props {
   /** Zoom actual (1 = encuadre completo). */
@@ -61,7 +62,7 @@ export function ZoomControls({ k, onZoomIn, onZoomOut, onReset, disabled = false
 
   return (
     <div
-      className="fem2d-zoom-controls absolute right-3 bottom-3 z-10 flex items-center overflow-hidden rounded-md border border-border-main bg-bg-elevated/90"
+      className="canvas-zoom-controls absolute right-3 bottom-3 z-10 flex items-center overflow-hidden rounded-md border border-border-main bg-bg-elevated/90"
       role="group"
       aria-label="Zoom del lienzo"
     >
@@ -75,18 +76,18 @@ export function ZoomControls({ k, onZoomIn, onZoomOut, onReset, disabled = false
       >
         <Minus size={14} />
       </button>
-      <span className="fem2d-zoom-sep" aria-hidden="true" />
+      <span className="canvas-zoom-sep" aria-hidden="true" />
       <button
         type="button"
         onClick={run(onReset, 'Lienzo reencuadrado')}
         disabled={disabled || atMin}
         title="Zoom respecto al encuadre completo — clic: reencuadrar"
         aria-label={`Reencuadrar — zoom actual ${pct}`}
-        className="fem2d-zoom-pct font-mono tabular-nums text-text-secondary transition-colors hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-secondary"
+        className="canvas-zoom-pct font-mono tabular-nums text-text-secondary transition-colors hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-secondary"
       >
         {pct}
       </button>
-      <span className="fem2d-zoom-sep" aria-hidden="true" />
+      <span className="canvas-zoom-sep" aria-hidden="true" />
       <button
         type="button"
         onClick={run(onZoomIn, `Acercado, zoom ${pct}`)}
@@ -97,7 +98,7 @@ export function ZoomControls({ k, onZoomIn, onZoomOut, onReset, disabled = false
       >
         <Plus size={14} />
       </button>
-      <span className="fem2d-zoom-sep" aria-hidden="true" />
+      <span className="canvas-zoom-sep" aria-hidden="true" />
       <button
         type="button"
         onClick={run(onReset, 'Lienzo reencuadrado')}

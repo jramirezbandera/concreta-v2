@@ -21,7 +21,7 @@ import {
   withView,
   zoomAt,
   type BoundsRect,
-} from '../../features/fem2d/transform';
+} from '../../lib/canvas/transform';
 
 const NODES = [
   { x: 0, y: 0 },

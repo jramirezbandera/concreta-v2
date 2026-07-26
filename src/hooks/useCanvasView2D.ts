@@ -1,8 +1,10 @@
-// FEM 2D — dueño ÚNICO del gesto de cámara (zoom + encuadre) del lienzo.
+// Dueño ÚNICO del gesto de cámara (zoom + encuadre) de los lienzos de barras.
 //
-// Los dos lienzos (editor de Modelo y solo-lectura de N/V/M/δ) consumen este
-// hook, así que el gesto no puede divergir entre vistas: un ajuste de
-// sensibilidad de rueda o un arreglo del pan se hace una vez.
+// Lo consumen los tres lienzos del análisis —el editor 2D, el de solo lectura
+// N/V/M/δ y el strip del 1D—, así que el gesto no puede divergir: un ajuste de
+// sensibilidad de rueda o un arreglo del pan se hace una vez. Nació dentro de
+// `features/fem2d` y se promovió aquí sin tocar la mecánica cuando el 1D
+// adoptó la misma cámara.
 //
 //   index.tsx  ── view (k,tx,ty) + setView ──┐
 //                                            ▼
@@ -36,7 +38,7 @@ import {
   zoomAt,
   type BoundsRect,
   type CanvasView2D,
-} from './transform';
+} from '../lib/canvas/transform';
 
 /** Paso de los controles discretos (botones y teclas). */
 export const ZOOM_STEP = 1.25;

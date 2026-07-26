@@ -1,11 +1,14 @@
-// FEM 1D — Landing
+// FEM 1D — pantalla de arranque.
 //
-// First screen the user sees when they enter /analisis/fem with no model in
-// localStorage. Per design review Pass 1: 2 plantilla cards centered (Viga
-// continua + Ménsula + Viga simple as V1) plus a Recientes list (max 5)
-// when localStorage has prior models.
+// Primera pantalla al entrar en /analisis/fem sin modelo en localStorage: tres
+// plantillas (viga continua, ménsula, viga simple), la tarjeta del asistente y
+// la lista de recientes.
+//
+// El armazón es <TemplateLanding>, compartido con el FEM 2D: aquí solo quedan
+// los croquis de las plantillas y los textos propios del módulo.
 
-import { Sparkles } from 'lucide-react';
+import type { JSX } from 'react';
+import { TemplateLanding, type TemplateLandingItem } from '../../components/ui/TemplateLanding';
 import { DESIGN_PRESETS, type DesignPresetId } from './presets';
 
 interface RecentEntry {
@@ -22,195 +25,30 @@ interface Props {
   onStartAi?: () => void;
 }
 
-export function Landing({ onPick, recientes, onStartAi }: Props) {
-  const v1Plantillas: DesignPresetId[] = ['continuous', 'cantilever', 'beam'];
+const V1_PLANTILLAS: DesignPresetId[] = ['continuous', 'cantilever', 'beam'];
+
+export function Landing({ onPick, recientes, onStartAi }: Props): JSX.Element {
+  const items: TemplateLandingItem[] = V1_PLANTILLAS.map((id) => ({
+    id,
+    name: DESIGN_PRESETS[id].name,
+    description: DESIGN_PRESETS[id].description,
+    sketch: <PlantillaIcon id={id} />,
+  }));
 
   return (
-    <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-      <div className="canvas-dot-grid flex flex-col flex-1 overflow-y-auto px-14 py-12 max-md:px-5 max-md:py-8">
-        <div style={{ maxWidth: 880, width: '100%', margin: 'auto' }}>
-          <div style={{ marginBottom: 32 }}>
-            <div className="font-mono" style={{
-              fontSize: 11, color: 'var(--color-text-disabled)',
-              letterSpacing: '0.15em', textTransform: 'uppercase',
-            }}>
-              Análisis · FEM 1D
-            </div>
-            <h1 style={{
-              fontSize: 28, fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              margin: '8px 0 6px', letterSpacing: '-0.01em',
-            }}>
-              Empieza con una plantilla
-            </h1>
-            <p style={{
-              fontSize: 14, color: 'var(--color-text-secondary)',
-              maxWidth: 640, lineHeight: 1.5, margin: 0,
-            }}>
-              Comienza desde una geometría tipo, ajusta luces y cargas, y obtén
-              M·V·δ + comprobación HA / Acero según normativa española.
-            </p>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 14,
-          }}>
-            {v1Plantillas.map((id) => {
-              const p = DESIGN_PRESETS[id];
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onPick(id)}
-                  style={{
-                    textAlign: 'left',
-                    padding: 16,
-                    borderRadius: 6,
-                    background: 'var(--color-bg-surface)',
-                    border: '1px solid var(--color-border-main)',
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 150ms',
-                    display: 'flex', flexDirection: 'column', gap: 10,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-accent)';
-                    e.currentTarget.style.background = 'var(--color-bg-elevated)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-border-main)';
-                    e.currentTarget.style.background = 'var(--color-bg-surface)';
-                  }}
-                >
-                  <div style={{
-                    background: 'var(--color-bg-primary)',
-                    border: '1px solid var(--color-border-sub)',
-                    borderRadius: 4,
-                    padding: '10px 8px',
-                    height: 80,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <PlantillaIcon id={id} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 3 }}>
-                      {p.name}
-                    </div>
-                    <div className="font-mono" style={{
-                      fontSize: 11, color: 'var(--color-text-disabled)',
-                      lineHeight: 1.45,
-                    }}>
-                      {p.description}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-
-            {onStartAi && (
-              <button
-                type="button"
-                onClick={onStartAi}
-                style={{
-                  textAlign: 'left',
-                  padding: 16,
-                  borderRadius: 6,
-                  background: 'var(--color-bg-surface)',
-                  border: '1px dashed var(--color-border-main)',
-                  color: 'var(--color-text-secondary)',
-                  cursor: 'pointer',
-                  transition: 'all 150ms',
-                  display: 'flex', flexDirection: 'column', gap: 10,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-accent)';
-                  e.currentTarget.style.background = 'var(--color-bg-elevated)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-border-main)';
-                  e.currentTarget.style.background = 'var(--color-bg-surface)';
-                }}
-              >
-                <div style={{
-                  background: 'var(--color-bg-primary)',
-                  border: '1px solid var(--color-border-sub)',
-                  borderRadius: 4,
-                  padding: '10px 8px',
-                  height: 80,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--color-accent)',
-                }}>
-                  <Sparkles size={28} aria-hidden="true" />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 3 }}>
-                    Descríbela con IA
-                  </div>
-                  <div className="font-mono" style={{
-                    fontSize: 11, color: 'var(--color-text-disabled)',
-                    lineHeight: 1.45,
-                  }}>
-                    Cuéntale la viga al asistente y la dibuja: vanos, apoyos, cargas y secciones.
-                  </div>
-                </div>
-              </button>
-            )}
-          </div>
-
-          {recientes.length > 0 && (
-            <div style={{ marginTop: 32 }}>
-              <div className="font-mono" style={{
-                fontSize: 10, fontWeight: 600,
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                color: 'var(--color-text-disabled)',
-                paddingBottom: 6,
-                borderBottom: '1px solid var(--color-border-sub)',
-                marginBottom: 8,
-              }}>
-                Recientes
-              </div>
-              {recientes.map((r) => {
-                const p = DESIGN_PRESETS[r.preset];
-                if (!p) return null;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => onPick(r.preset)}
-                    className="max-md:min-h-11"
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      width: '100%',
-                      padding: '8px 12px', marginBottom: 4,
-                      background: 'transparent',
-                      border: '1px solid var(--color-border-sub)',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      color: 'var(--color-text-secondary)',
-                      transition: 'all 150ms',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-accent)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-sub)')}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{p.name}</span>
-                      <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-disabled)' }}>
-                        {new Date(r.ts).toLocaleString('es-ES')}
-                      </span>
-                    </div>
-                    <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-accent)' }}>
-                      Abrir →
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <TemplateLanding
+      eyebrow="Análisis · FEM 1D"
+      subtitle="Comienza desde una geometría tipo, ajusta luces y cargas, y obtén M·V·δ + comprobación HA / Acero según normativa española."
+      items={items}
+      onPick={(id) => onPick(id as DesignPresetId)}
+      ai={onStartAi ? {
+        description: 'Cuéntale la viga al asistente y la dibuja: vanos, apoyos, cargas y secciones.',
+        onStart: onStartAi,
+      } : undefined}
+      recientes={recientes
+        .filter((r) => DESIGN_PRESETS[r.preset])
+        .map((r) => ({ key: r.id, id: r.preset, name: DESIGN_PRESETS[r.preset].name, ts: r.ts }))}
+    />
   );
 }
 

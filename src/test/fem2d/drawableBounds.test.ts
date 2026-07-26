@@ -10,7 +10,7 @@ import { computeLoadStackCounts, computeLoadStacks } from '../../features/fem2d/
 import { getDrawableBounds } from '../../features/fem2d/drawableBounds';
 import { labelHalfBox, loadGeometry } from '../../features/fem2d/loadGeometry';
 import { addMemberUdl, addNodeLoad } from '../../features/fem2d/modelOps';
-import { makeTransform, uniformInsets } from '../../features/fem2d/transform';
+import { makeTransform, uniformInsets } from '../../lib/canvas/transform';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
 import type { Fem2DModel } from '../../features/fem2d/types';
 

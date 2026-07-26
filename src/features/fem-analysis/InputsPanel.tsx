@@ -1,21 +1,28 @@
-// FEM 1D — InputsPanel
+// FEM 1D — panel de datos (columna izquierda).
 //
-// Four panel states by selection (per design review Pass 1):
-//   - null (no selection)   → "Modelo global": geometry counts, combo, share button
-//   - bar selected          → bar properties (material toggle, section, armado)
-//   - node selected         → coords + support type + internal hinge toggle
-//   - load selected         → type + value + lc + position
+// Cuatro estados según la selección:
+//   - sin selección → tarjeta MODELO (recuento en una línea)
+//   - barra         → material + el panel nativo del módulo (HA / acero)
+//   - nodo          → coordenada, tipo de apoyo, articulación interna
+//   - carga         → tipo, hipótesis, magnitudes
 //
-// Plus a persistent "Cargas" + "Geometría" + "Combinación" sections at the
-// bottom (matching the legacy esqueleto layout for familiarity).
+// Debajo, siempre, la lista de cargas con el peso propio.
+//
+// Escrito con las mismas piezas que el inspector del FEM 2D (ToggleChip,
+// DraftNumberField, InputLabel): antes esto era CSS en línea y un `NumField`
+// propio que acuñaba UNA entrada de historial POR TECLA.
 
-import { useEffect, useState } from 'react';
+import type { JSX } from 'react';
+import { Trash2 } from 'lucide-react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { InputLabel } from '../../components/ui/InputLabel';
+import { ToggleChip } from '../../components/ui/ToggleChip';
+import { DraftNumberField } from '../../components/units/DraftNumberField';
+import { VerdictBadge } from '../../components/checks';
 import { USE_CATEGORIES } from '../../lib/calculations/loadGen';
-import { fromDisplay, toDisplay } from '../../lib/units/convert';
-import { formatQuantity, getUnitLabel } from '../../lib/units/format';
-import type { Quantity } from '../../lib/units/types';
+import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { barStatusToCheck } from './checkMapping';
 import { RcBarInputs } from './embedded/RcBarInputs';
 import { SteelBarInputs } from './embedded/SteelBarInputs';
 import { DEFAULT_APOYO_ARMADO, DEFAULT_VANO_ARMADO } from './presets';
@@ -57,23 +64,10 @@ export function InputsPanel({
   return (
     <fieldset
       disabled={readOnly}
-      style={{
-        padding: '12px 14px',
-        border: 'none',
-        margin: 0,
-        // fieldset defaults to inline-grid behavior; restore block flow.
-        display: 'block',
-        // <fieldset> tiene `min-width: min-content` por defecto del navegador,
-        // así que NO se encoge a su contenedor: si cualquier hijo tiene un
-        // min-content más ancho que el panel (240px), el fieldset desborda
-        // (≈3px aquí) y dispara la barra de scroll horizontal. Forzar
-        // minWidth:0 hace que sí respete el ancho del padre.
-        minWidth: 0,
-        width: '100%',
-        boxSizing: 'border-box',
-        // Visual cue when disabled (mobile read-only): everything dims.
-        opacity: readOnly ? 0.85 : 1,
-      }}
+      // <fieldset> trae `min-width: min-content` del navegador, así que NO se
+      // encoge a su contenedor: con un hijo más ancho desbordaba (≈3px) y
+      // disparaba el scroll horizontal. `min-w-0` lo obliga a respetar al padre.
+      className={`m-0 block w-full min-w-0 border-none px-3.5 py-3 ${readOnly ? 'opacity-85' : ''}`}
     >
       {/* Empty-state global verdict — only when nothing is selected. */}
       {!hasSelection && readOnly && (
@@ -94,118 +88,82 @@ export function InputsPanel({
       {selNode && <NodePanel node={selNode} model={model} setModel={setModel} />}
       {selLoad && <LoadPanel load={selLoad} setModel={setModel} />}
 
-      {/* Always-visible sections */}
-      {!selBar && !selNode && !selLoad && (
-        <CollapsibleSection label="Modelo global">
-          <Row label="Barras" value={`${model.bars.length}`} />
-          <Row label="Nodos" value={`${model.nodes.length}`} />
-          <Row label="Apoyos" value={`${model.supports.length}`} />
-          <Row label="Cargas" value={`${model.loads.length}`} />
-        </CollapsibleSection>
+      {/* Modelo: recuento en UNA línea, como la tarjeta del inspector 2D. Las
+          cuatro filas anteriores gastaban 96 px en cuatro números de un dígito. */}
+      {!hasSelection && (
+        <div className="mb-3 rounded border border-border-main px-3 py-2.5">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Modelo</p>
+          <p className="font-mono text-[11px] tabular-nums text-text-secondary">
+            {model.nodes.length} nudos · {model.bars.length} barras · {model.supports.length} apoyos · {model.loads.length} cargas
+          </p>
+          <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
+            Selecciona una barra, un nudo o una carga (en el lienzo o en la lista) para editarla aquí.
+          </p>
+        </div>
       )}
 
       {/* Loads list (always visible) */}
       <CollapsibleSection label={`Cargas (${model.loads.length})`}>
-        <Row label="Peso propio">
-          <button
-            type="button"
-            onClick={() => setModel((m) => ({ ...m, selfWeight: !m.selfWeight }))}
-            style={{
-              padding: '2px 8px', fontSize: 10, borderRadius: 4,
-              background: model.selfWeight ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'var(--color-bg-elevated)',
-              color: model.selfWeight ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              border: '1px solid ' + (model.selfWeight ? 'var(--color-accent)' : 'var(--color-border-main)'),
-              fontFamily: 'var(--font-mono)', cursor: 'pointer',
-            }}
-          >
-            {model.selfWeight ? 'ON' : 'OFF'}
-          </button>
-        </Row>
-        {model.loads.length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', marginTop: 6 }}>
-            Sin cargas. Usa «Carga distribuida» (click en barra) o «Carga puntual» (click en nodo o barra).
+        <div className="flex min-w-0 items-center justify-between gap-2 px-0.5 py-1">
+          <InputLabel label="Peso propio" help="Incluye el peso propio de las barras como una hipótesis G." />
+          <ToggleChip
+            on={model.selfWeight}
+            onToggle={() => setModel((m) => ({ ...m, selfWeight: !m.selfWeight }))}
+            onLabel="Incluido"
+            offLabel="Omitido"
+            disabled={readOnly}
+          />
+        </div>
+        {model.loads.length === 0 ? (
+          <p className="mt-1.5 text-[11px] leading-snug text-text-disabled">
+            Sin cargas. Usa las herramientas de carga del lienzo.
+          </p>
+        ) : (
+          <div className="mt-1.5 overflow-hidden rounded border border-border-main">
+            {model.loads.map((ld) => (
+              <LoadRow
+                key={ld.id}
+                load={ld}
+                setModel={setModel}
+                isSelected={selected?.kind === 'load' && selected.id === ld.id}
+                onSelect={() => setSelected({ kind: 'load', id: ld.id })}
+                readOnly={readOnly}
+              />
+            ))}
           </div>
         )}
-        {model.loads.map((ld) => (
-          <LoadRow
-            key={ld.id}
-            load={ld}
-            setModel={setModel}
-            isSelected={selected?.kind === 'load' && selected.id === ld.id}
-            onSelect={() => setSelected({ kind: 'load', id: ld.id })}
-          />
-        ))}
       </CollapsibleSection>
-
     </fieldset>
   );
 }
 
 function ReadOnlyGlobalSummary({ result, model }: { result: SolveResult; model: DesignModel }) {
   const errorCount = result.errors.length;
-  const status = result.status;
-  const eta = result.maxEta;
-
-  let badgeBg = 'var(--color-state-neutral)';
-  // Dark ink on the bright ok/warn/fail fills (white was ~2.2:1 on green/amber);
-  // the dim neutral slate keeps white.
-  let badgeFg = '#fff';
-  let badgeLabel = '—';
-  if (errorCount > 0) {
-    badgeBg = 'var(--color-state-fail)';
-    badgeFg = 'var(--color-bg-primary)';
-    badgeLabel = `${errorCount} ${errorCount === 1 ? 'error' : 'errores'}`;
-  } else if (status === 'ok') {
-    badgeBg = 'var(--color-state-ok)';
-    badgeFg = 'var(--color-bg-primary)';
-    badgeLabel = `η ${(eta * 100).toFixed(0)}% — CUMPLE`;
-  } else if (status === 'warn') {
-    badgeBg = 'var(--color-state-warn)';
-    badgeFg = 'var(--color-bg-primary)';
-    badgeLabel = `η ${(eta * 100).toFixed(0)}% — ADVERT.`;
-  } else if (status === 'fail') {
-    badgeBg = 'var(--color-state-fail)';
-    badgeFg = 'var(--color-bg-primary)';
-    badgeLabel = `η ${(eta * 100).toFixed(0)}% — INCUMPLE`;
-  }
+  const status = barStatusToCheck(result.status);
+  const showEta = errorCount === 0 && status !== 'neutral';
 
   return (
-    <div
-      style={{
-        marginBottom: 12,
-        padding: '10px 12px',
-        borderRadius: 6,
-        border: '1px solid var(--color-border-main)',
-        background: 'var(--color-bg-elevated)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}
-    >
-      <div
-        className="font-mono"
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: badgeFg,
-          background: badgeBg,
-          padding: '4px 8px',
-          borderRadius: 4,
-          alignSelf: 'flex-start',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {badgeLabel}
+    <div className="mb-3 flex flex-col gap-2 rounded border border-border-main bg-bg-elevated px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        {errorCount > 0 ? (
+          <span className="rounded bg-state-fail/10 px-1.75 py-0.5 font-mono text-[10px] font-semibold tracking-[0.05em] text-state-fail">
+            {errorCount} {errorCount === 1 ? 'error' : 'errores'}
+          </span>
+        ) : (
+          <VerdictBadge status={status} />
+        )}
+        {showEta && (
+          <span className="font-mono text-[11px] font-semibold tabular-nums text-text-secondary">
+            η {(result.maxEta * 100).toFixed(0)}%
+          </span>
+        )}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
-        Modelo con {model.bars.length} {model.bars.length === 1 ? 'barra' : 'barras'},{' '}
-        {model.nodes.length} {model.nodes.length === 1 ? 'nodo' : 'nodos'},{' '}
-        {model.supports.length} {model.supports.length === 1 ? 'apoyo' : 'apoyos'},{' '}
-        {model.loads.length} {model.loads.length === 1 ? 'carga' : 'cargas'}.
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>
+      <p className="font-mono text-[11px] leading-relaxed tabular-nums text-text-secondary">
+        {model.nodes.length} nudos · {model.bars.length} barras · {model.supports.length} apoyos · {model.loads.length} cargas
+      </p>
+      <p className="text-[11px] italic leading-snug text-text-disabled">
         Toca una barra, nodo o carga en Diagramas para inspeccionarla.
-      </div>
+      </p>
     </div>
   );
 }
@@ -222,7 +180,6 @@ function BarPanel({
   activeSection: 'vano' | 'apoyo';
   setActiveSection: (s: 'vano' | 'apoyo') => void;
 }) {
-  const family = bar.material;
   const barResult = result.perBar[bar.id];
 
   // Compute bar length from FEM geometry (mm).
@@ -237,28 +194,23 @@ function BarPanel({
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, color: 'var(--color-text-disabled)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, padding: '0 0 6px', borderBottom: '1px solid var(--color-border-sub)' }}>
+    <div className="flex flex-col gap-2">
+      <p className="border-b border-border-sub pb-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
         Barra {bar.id}
-      </div>
+      </p>
 
-      {/* Material toggle (lightweight, sits above the embed) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Material</span>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {(['rc', 'steel'] as const).map((fam) => {
-            const active = family === fam;
-            return (
-              <button
-                key={fam}
-                type="button"
-                onClick={() => setBarMaterial(setModel, bar.id, fam)}
-                style={pillStyle(active)}
-              >
-                {fam === 'rc' ? 'HORMIGÓN' : 'ACERO'}
-              </button>
-            );
-          })}
+      <div className="flex items-center justify-between gap-2 py-1">
+        <span className="text-[12px] text-text-secondary">Material</span>
+        <div className="flex gap-1">
+          {(['rc', 'steel'] as const).map((fam) => (
+            <SegmentButton
+              key={fam}
+              active={bar.material === fam}
+              onClick={() => setBarMaterial(setModel, bar.id, fam)}
+            >
+              {fam === 'rc' ? 'HORMIGÓN' : 'ACERO'}
+            </SegmentButton>
+          ))}
         </div>
       </div>
 
@@ -292,15 +244,12 @@ function NodePanel({
   model: DesignModel;
   setModel: (u: (m: DesignModel) => DesignModel) => void;
 }) {
-  void model;
   const support = model.supports.find((s) => s.node === node.id);
-  const isInteriorNode = (() => {
-    // Node is "interior" if at least 2 bars meet at it.
-    const count = model.bars.filter((b) => b.i === node.id || b.j === node.id).length;
-    return count >= 2;
-  })();
-  // For now we just expose a hinge toggle that flips the j-end of the bar
-  // ending at this node + the i-end of the bar starting at this node.
+  // Nudo «interior» = concurren al menos 2 barras.
+  const isInteriorNode = model.bars.filter((b) => b.i === node.id || b.j === node.id).length >= 2;
+
+  // Por ahora la articulación voltea el extremo j de la barra que muere aquí y
+  // el extremo i de la que arranca.
   function toggleHinge() {
     setModel((m) => ({
       ...m,
@@ -312,39 +261,35 @@ function NodePanel({
     }));
   }
   const hingeOn = nodeHasHingeFlag(model, node.id);
+
   return (
     <CollapsibleSection label={`Nodo ${node.id}`}>
       <Row label="x" value={`${node.x.toFixed(2)} m`} />
       <Row label="Apoyo">
-        <select
+        <FieldSelect
           value={support?.type ?? 'none'}
-          onChange={(e) => {
-            const v = e.target.value;
-            setModel((m) => {
-              const others = m.supports.filter((s) => s.node !== node.id);
-              return v === 'none'
-                ? { ...m, supports: others }
-                : { ...m, supports: [...others, { node: node.id, type: v as SupportType }] };
-            });
-          }}
-          className="fem-focus-ring"
-          style={fieldSelectStyle()}
+          onChange={(v) => setModel((m) => {
+            const others = m.supports.filter((s) => s.node !== node.id);
+            return v === 'none'
+              ? { ...m, supports: others }
+              : { ...m, supports: [...others, { node: node.id, type: v as SupportType }] };
+          })}
         >
           <option value="none">Ninguno</option>
           <option value="pinned">Articulado</option>
           <option value="fixed">Empotrado</option>
           <option value="roller">Deslizante</option>
-        </select>
+        </FieldSelect>
       </Row>
       {isInteriorNode && !support && (
         <Row label="Articulación">
-          <button
-            type="button"
-            onClick={toggleHinge}
-            style={pillStyle(hingeOn)}
-          >
-            {hingeOn ? 'ON' : 'OFF'}
-          </button>
+          <ToggleChip
+            on={hingeOn}
+            onToggle={toggleHinge}
+            onLabel="Rótula"
+            offLabel="Continua"
+            ariaLabel="Articulación interna"
+          />
         </Row>
       )}
     </CollapsibleSection>
@@ -367,62 +312,70 @@ function LoadPanel({
   function patch(updater: (l: Load) => Load) {
     setModel((m) => ({ ...m, loads: m.loads.map((l) => l.id === load.id ? updater(l) : l) }));
   }
+  // Clave de resiembra de los borradores: al saltar de una carga a otra el
+  // campo tiene que enseñar el valor de la NUEVA, no el borrador de la anterior.
+  const key = (field: string) => `${load.id}:${field}`;
+
   return (
     <CollapsibleSection label={`Carga ${load.id}`}>
       <Row label="Tipo">
-        <span className="font-mono" style={{ fontSize: 10 }}>
+        <span className="font-mono text-[10px] text-text-primary">
           {load.kind === 'point-node' ? 'PUNTUAL EN NODO'
             : load.kind === 'udl' ? 'REPARTIDA'
             : 'PUNTUAL EN BARRA'}
         </span>
       </Row>
       <Row label="Hipótesis">
-        <select
-          value={load.lc}
-          onChange={(e) => patch((l) => ({ ...l, lc: e.target.value as LoadCase }))}
-          className="fem-focus-ring"
-          style={fieldSelectStyle()}
-        >
+        <FieldSelect value={load.lc} onChange={(v) => patch((l) => ({ ...l, lc: v as LoadCase }))}>
           <option value="G">G — Permanente</option>
           <option value="Q">Q — Sobrecarga</option>
           <option value="W">W — Viento</option>
           <option value="S">S — Nieve</option>
           <option value="E">E — Sismo</option>
-        </select>
+        </FieldSelect>
       </Row>
       {load.lc === 'Q' && (
         <Row label="Categoría de uso">
-          <select
+          <FieldSelect
             value={load.useCategory ?? 'B'}
-            onChange={(e) => patch((l) => ({ ...l, useCategory: e.target.value as UseCategoryCode }))}
-            className="fem-focus-ring"
-            style={fieldSelectStyle()}
+            onChange={(v) => patch((l) => ({ ...l, useCategory: v as UseCategoryCode }))}
           >
             {USE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+          </FieldSelect>
         </Row>
       )}
       {load.kind === 'point-node' && (
         <>
-          <NumField label="Px" value={load.Px ?? 0} quantity="force" step={1}
-            onChange={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Px: v } : l)} />
-          <NumField label="Py" value={load.Py ?? 0} quantity="force" step={1}
-            onChange={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Py: v } : l)} />
-          <div style={{ fontSize: 10, color: 'var(--color-text-disabled)', fontStyle: 'italic', padding: '2px 0 0', lineHeight: 1.4 }}>
+          <DraftNumberField
+            label="Px" value={load.Px ?? 0} quantity="force" allowNegative resetKey={key('Px')}
+            onCommit={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Px: v } : l)}
+          />
+          <DraftNumberField
+            label="Py" value={load.Py ?? 0} quantity="force" allowNegative resetKey={key('Py')}
+            onCommit={(v) => patch((l) => l.kind === 'point-node' ? { ...l, Py: v } : l)}
+          />
+          <p className="pt-0.5 text-[10px] italic leading-snug text-text-disabled">
             Py: positivo hacia abajo (gravedad), negativo hacia arriba.
-          </div>
+          </p>
         </>
       )}
       {load.kind === 'udl' && (
-        <NumField label="q" value={load.w} quantity="linearLoad" step={1} min={0}
-          onChange={(v) => patch((l) => l.kind === 'udl' ? { ...l, w: v } : l)} />
+        <DraftNumberField
+          label="q" value={load.w} quantity="linearLoad" min={0} resetKey={key('w')}
+          onCommit={(v) => patch((l) => l.kind === 'udl' ? { ...l, w: v } : l)}
+        />
       )}
       {load.kind === 'point-bar' && (
         <>
-          <NumField label="P" value={load.P} quantity="force" step={1} min={0}
-            onChange={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, P: v } : l)} />
-          <NumField label="pos" value={load.pos} step={0.05} min={0} max={1}
-            onChange={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, pos: v } : l)} />
+          <DraftNumberField
+            label="P" value={load.P} quantity="force" min={0} resetKey={key('P')}
+            onCommit={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, P: v } : l)}
+          />
+          <DraftNumberField
+            label="pos" value={load.pos} min={0} max={1} resetKey={key('pos')}
+            help="Posición a lo largo de la barra: 0 = extremo inicial, 1 = extremo final."
+            onCommit={(v) => patch((l) => l.kind === 'point-bar' ? { ...l, pos: v } : l)}
+          />
         </>
       )}
     </CollapsibleSection>
@@ -430,12 +383,13 @@ function LoadPanel({
 }
 
 function LoadRow({
-  load, setModel, isSelected, onSelect,
+  load, setModel, isSelected, onSelect, readOnly,
 }: {
   load: Load;
   setModel: (u: (m: DesignModel) => DesignModel) => void;
   isSelected: boolean;
   onSelect: () => void;
+  readOnly?: boolean;
 }) {
   const { system } = useUnitSystem();
   const target = load.kind === 'point-node' ? `nodo ${load.node}` : `barra ${load.bar}`;
@@ -444,57 +398,35 @@ function LoadRow({
     : load.kind === 'udl'
       ? `q=${formatQuantity(load.w, 'linearLoad', system)}`
       : `P=${formatQuantity(load.P, 'force', system)}`;
+
+  // <button> nativo, no `div role="button"`: el teclado, el foco y el estado
+  // deshabilitado del <fieldset> salen gratis en vez de reimplementarse.
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      aria-selected={isSelected}
-      style={{
-        background: isSelected ? 'color-mix(in srgb, var(--color-accent) 5%, transparent)' : 'var(--color-bg-primary)',
-        border: '1px solid var(--color-border-sub)',
-        borderLeft: isSelected ? '2px solid var(--color-accent)' : '2px solid transparent',
-        borderRadius: 4,
-        padding: '6px 8px',
-        marginBottom: 4,
-        cursor: 'pointer',
-        transition: 'background-color 150ms ease-in-out, border-color 150ms ease-in-out',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-accent)' }}>{load.id}</span>
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{target}</span>
-        <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-secondary)', padding: '1px 5px', borderRadius: 4, background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-sub)' }}>
-          [{load.lc}]
+    <div className={`flex items-center gap-1.5 border-b border-border-sub transition-colors last:border-b-0 ${isSelected ? 'bg-accent/10' : ''}`}>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={isSelected}
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-bg-elevated/60 max-md:min-h-11"
+      >
+        <span className="shrink-0 rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold text-text-secondary">
+          {load.lc}
         </span>
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-text-primary)', marginLeft: 'auto' }}>{summary}</span>
+        <span className={`shrink-0 font-mono text-[10.5px] ${isSelected ? 'text-accent' : 'text-text-secondary'}`}>{load.id}</span>
+        <span className="min-w-0 truncate font-mono text-[10.5px] tabular-nums text-text-secondary">
+          {target} · {summary}
+        </span>
+      </button>
+      {!readOnly && (
         <button
           type="button"
-          onClick={(e) => {
-            // Critical (Codex catch #8): stopPropagation prevents the row's
-            // onSelect from firing when delete is clicked, which would
-            // otherwise select a load that just got deleted.
-            e.stopPropagation();
-            setModel((m) => ({ ...m, loads: m.loads.filter((l) => l.id !== load.id) }));
-          }}
-          style={{
-            color: 'var(--color-text-disabled)', background: 'none', border: 'none',
-            cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 4,
-            // Expand the hit area to ≥24px (glyph was ~7px wide); negative
-            // margin keeps the glyph in place so the row layout doesn't shift
-            // (same ≥24px hit-area pattern as DESIGN.md HelpTooltip).
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minWidth: 24, minHeight: 24, padding: 5, margin: -5,
-          }}
+          onClick={() => setModel((m) => ({ ...m, loads: m.loads.filter((l) => l.id !== load.id) }))}
           aria-label={`Borrar ${load.id}`}
-        >×</button>
-      </div>
+          className="mr-1 shrink-0 p-1.5 text-text-disabled transition-colors hover:text-state-fail max-md:min-h-11"
+        >
+          <Trash2 size={11} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -503,130 +435,48 @@ function LoadRow({
 
 function Row({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', gap: 8 }}>
-      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{label}</span>
-      {children ?? (
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-text-primary)' }}>{value}</span>
-      )}
+    <div className="flex items-center justify-between gap-2 py-1.25">
+      <span className="text-[12px] text-text-secondary">{label}</span>
+      {children ?? <span className="font-mono text-[11px] tabular-nums text-text-primary">{value}</span>}
     </div>
   );
 }
 
-function NumField({
-  label, value, unit, onChange, step = 1, min, max, quantity,
-}: {
-  label: string;
-  /** SI value when `quantity` is set, otherwise raw. */
-  value: number;
-  unit?: string;
-  /** Returns SI value when `quantity` set, otherwise raw. */
-  onChange: (v: number) => void;
-  step?: number;
-  min?: number;
-  max?: number;
-  /** When set, NumField auto-converts SI↔display según el toggle global y
-   *  el catálogo (kN↔Tn, kN/m↔kg/m, N/mm²↔kg/cm², etc.). */
-  quantity?: Quantity;
-}) {
-  const { system } = useUnitSystem();
-  const displayValue = quantity ? toDisplay(value, quantity, system) : value;
-  const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
-
-  // String local mientras se teclea: permite vaciar el campo (antes se
-  // autocompletaba a 0), acepta coma decimal y no reformatea a media escritura.
-  // type="text" + inputMode="decimal" evita además el auto-zoom de iOS.
-  const fmtDisp = (d: number) => (Number.isFinite(d) ? String(d) : '');
-  const [localStr, setLocalStr] = useState(() => fmtDisp(displayValue));
-  useEffect(() => {
-    const n = parseFloat(localStr.replace(',', '.'));
-    const parsed = isNaN(n) ? null : n;
-    if (parsed !== null && Math.abs(parsed - displayValue) < 1e-9) return;
-    setLocalStr(fmtDisp(displayValue));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayValue]);
-
+function SegmentButton({ active, onClick, children }: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}): JSX.Element {
   return (
-    <Row label={label}>
-      <div style={{ display: 'flex', alignItems: 'stretch', height: 24 }}>
-        <input
-          type="text"
-          inputMode="decimal"
-          className="fem-focus-ring"
-          value={localStr}
-          step={step}
-          min={min}
-          max={max}
-          onChange={(e) => {
-            const raw = e.target.value;
-            setLocalStr(raw);
-            const v = parseFloat(raw.replace(',', '.'));
-            if (!Number.isFinite(v)) return;
-            // Si quantity, el usuario teclea en display units; convertir a SI.
-            const si = quantity ? fromDisplay(v, quantity, system) : v;
-            onChange(si);
-          }}
-          onBlur={() => {
-            const n = parseFloat(localStr.replace(',', '.'));
-            if (isNaN(n)) setLocalStr(fmtDisp(displayValue));
-          }}
-          style={{
-            width: 60,
-            background: 'var(--color-bg-primary)',
-            border: '1px solid var(--color-border-main)',
-            borderRight: resolvedUnit ? 'none' : '1px solid var(--color-border-main)',
-            borderRadius: resolvedUnit ? '4px 0 0 4px' : 4,
-            textAlign: 'right',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 12,
-            padding: '0 6px',
-            color: 'var(--color-text-primary)',
-          }}
-        />
-        {resolvedUnit && (
-          <span style={{
-            background: 'var(--color-bg-elevated)',
-            border: '1px solid var(--color-border-main)',
-            borderRadius: '0 4px 4px 0',
-            fontSize: 10,
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--color-text-disabled)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 6px',
-            minWidth: 32,
-          }}>
-            {resolvedUnit}
-          </span>
-        )}
-      </div>
-    </Row>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded px-2.25 py-0.75 font-mono text-[11px] transition-colors ${
+        active
+          ? 'border border-accent/40 bg-accent/15 text-accent'
+          : 'border border-border-main bg-bg-elevated text-text-secondary'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-function pillStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '3px 9px',
-    fontSize: 11,
-    fontFamily: 'var(--font-mono)',
-    borderRadius: 4,
-    background: active ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'var(--color-bg-elevated)',
-    color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-    border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-border-main)'),
-    cursor: 'pointer',
-  };
-}
-
-function fieldSelectStyle(): React.CSSProperties {
-  return {
-    background: 'var(--color-bg-primary)',
-    border: '1px solid var(--color-border-main)',
-    borderRadius: 4,
-    fontFamily: 'var(--font-mono)',
-    fontSize: 12,
-    color: 'var(--color-text-primary)',
-    padding: '2px 6px',
-    height: 24,
-    width: 130,
-  };
+function FieldSelect({ value, onChange, children }: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="fem-focus-ring h-6 w-32.5 rounded border border-border-main bg-bg-primary px-1.5 font-mono text-[12px] text-text-primary"
+    >
+      {children}
+    </select>
+  );
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -667,4 +517,3 @@ function setBarMaterial(
     }),
   }));
 }
-

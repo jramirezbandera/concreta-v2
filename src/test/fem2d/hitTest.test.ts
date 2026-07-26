@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { HIT_NODE_PX, distPointSegment, hitTest, segmentIntersectsRect, selectInRect } from '../../features/fem2d/hitTest';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
-import { IDENTITY_VIEW, makeTransform, uniformInsets, withView } from '../../features/fem2d/transform';
+import { IDENTITY_VIEW, makeTransform, uniformInsets, withView } from '../../lib/canvas/transform';
 import type { Fem2DModel } from '../../features/fem2d/types';
 
 // Identity projection: world units ARE pixels (tests reason in px directly).

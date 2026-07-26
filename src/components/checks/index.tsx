@@ -169,10 +169,16 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
   );
 }
 
-export function GroupHeader({ label }: { label: string }) {
+export function GroupHeader({ label, right }: { label: string; right?: React.ReactNode }) {
+  const base = 'text-[10px] font-semibold uppercase tracking-widest text-text-disabled pt-3.5 pb-2 px-4 border-b border-border-sub';
+  // `right`: apostilla del grupo (la combinación que manda sobre las
+  // reacciones, p. ej.). Sin ella el <p> se queda EXACTAMENTE como estaba —
+  // es la cabecera de casi todos los módulos y no toca moverla.
+  if (!right) return <p className={base}>{label}</p>;
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-widest text-text-disabled pt-3.5 pb-2 px-4 border-b border-border-sub">
-      {label}
+    <p className={`flex items-baseline justify-between gap-2 ${base}`}>
+      <span>{label}</span>
+      <span className="font-mono text-[9px] normal-case tracking-normal">{right}</span>
     </p>
   );
 }

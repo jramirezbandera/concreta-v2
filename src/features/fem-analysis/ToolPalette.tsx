@@ -1,43 +1,60 @@
-import { FemIcons } from './icons';
+// FEM 1D — juego de herramientas del editor sobre la paleta COMPARTIDA
+// (components/ui/ToolPalette). Aquí solo queda lo propio de la tira: qué
+// herramientas hay y qué tipos de carga admite.
+//
+// Sin cargas horizontales: el modelo es una banda con todos los nudos en y=0 y
+// las acciones que se dibujan son verticales. El menú tiene por tanto dos
+// entradas, no las cuatro del pórtico.
+
+import { useState, type JSX } from 'react';
+import { ToolPalette as SharedToolPalette, type LoadDraft, type PaletteTool } from '../../components/ui/ToolPalette';
+import { ToolIcons } from '../../components/ui/toolIcons';
+import { isLoadTool, type LoadDrafts, type LoadToolId } from './loadDrafts';
 import type { ToolId } from './types';
 
-interface ToolDef { id: ToolId; icon: React.ReactNode; label: string }
+const TOP_TOOLS: ReadonlyArray<PaletteTool<ToolId>> = [
+  { id: 'select',  icon: <ToolIcons.Cursor />,  label: 'Seleccionar' },
+  { id: 'node',    icon: <ToolIcons.Node />,    label: 'Añadir nodo' },
+  { id: 'bar',     icon: <ToolIcons.Bar />,     label: 'Añadir barra' },
+  { id: 'support', icon: <ToolIcons.Support />, label: 'Apoyo' },
+];
 
-export function ToolPalette({ tool, setTool }: { tool: ToolId; setTool: (t: ToolId) => void }) {
-  const tools: ToolDef[] = [
-    { id: 'select',     icon: <FemIcons.Cursor />,   label: 'Seleccionar' },
-    { id: 'node',       icon: <FemIcons.Node />,     label: 'Añadir nodo' },
-    { id: 'bar',        icon: <FemIcons.Bar />,      label: 'Añadir barra' },
-    { id: 'support',    icon: <FemIcons.Support />,  label: 'Apoyo' },
-    { id: 'load-dist',  icon: <FemIcons.LoadDist />, label: 'Carga distribuida' },
-    { id: 'load-point', icon: <FemIcons.Load />,     label: 'Carga puntual' },
-    { id: 'delete',     icon: <FemIcons.Trash />,    label: 'Eliminar' },
-  ];
+const TAIL_TOOLS: ReadonlyArray<PaletteTool<ToolId>> = [
+  { id: 'delete', icon: <ToolIcons.Trash />, label: 'Eliminar' },
+];
+
+const LOAD_TOOLS: ReadonlyArray<PaletteTool<ToolId>> = [
+  { id: 'load-dist',  icon: <ToolIcons.LoadDist />, label: 'Distribuida (gravedad ↓)' },
+  { id: 'load-point', icon: <ToolIcons.Load />,     label: 'Puntual (gravedad ↓)' },
+];
+
+interface Props {
+  tool: ToolId;
+  setTool: (t: ToolId) => void;
+  loadDrafts: LoadDrafts;
+  setLoadDraft: (tool: LoadToolId, draft: LoadDraft) => void;
+}
+
+export function ToolPalette({ tool, setTool, loadDrafts, setLoadDraft }: Props): JSX.Element {
+  const [lastLoad, setLastLoad] = useState<LoadToolId>('load-dist');
+  const loadActive = isLoadTool(tool);
+  if (loadActive && tool !== lastLoad) setLastLoad(tool);
+  const armed: LoadToolId = loadActive ? tool : lastLoad;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        padding: 8,
-        background: 'var(--color-bg-surface)',
-        border: '1px solid var(--color-border-main)',
-        borderRadius: 4,
+    <SharedToolPalette
+      tools={TOP_TOOLS}
+      tailTools={TAIL_TOOLS}
+      tool={tool}
+      setTool={setTool}
+      loadFamily={{
+        tools: LOAD_TOOLS,
+        armed,
+        draft: loadDrafts[armed],
+        onDraftChange: (d) => setLoadDraft(armed, d),
+        isUdl: (id) => id === 'load-dist',
+        target: (id) => (id === 'load-dist' ? 'una barra' : 'un nudo o una barra'),
       }}
-    >
-      {tools.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => setTool(t.id)}
-          title={t.label}
-          aria-label={t.label}
-          aria-pressed={tool === t.id}
-          className="fem-tool-btn"
-          data-active={tool === t.id ? 'true' : 'false'}
-        >
-          {t.icon}
-        </button>
-      ))}
-    </div>
+    />
   );
 }

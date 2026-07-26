@@ -25,7 +25,8 @@ import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { lcOptionLabel, LC_HELP, CATEGORY_HELP } from '../../lib/text/loadCases';
 import { categoryLabel } from '../../lib/calculations/loadGen';
-import { DraftNumberField } from './DraftNumberField';
+import { DraftNumberField } from '../../components/units/DraftNumberField';
+import { ToggleChip } from '../../components/ui/ToggleChip';
 import {
   AXIAL_FAMILIES,
   BENDING_FAMILIES,
@@ -295,19 +296,13 @@ function GlobalPanel({ model, setModel, setSelected, readOnly }: Props): JSX.Ele
 
       <div className="flex items-center justify-between gap-2 min-w-0 px-0.5">
         <InputLabel label="Peso propio" help="Incluye el peso propio de los perfiles como una hipótesis G." />
-        <button
-          type="button"
+        <ToggleChip
+          on={model.selfWeight}
+          onToggle={() => setModel((m) => ({ ...m, selfWeight: !m.selfWeight }))}
+          onLabel="Incluido"
+          offLabel="Omitido"
           disabled={readOnly}
-          onClick={() => setModel((m) => ({ ...m, selfWeight: !m.selfWeight }))}
-          aria-pressed={model.selfWeight}
-          className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 disabled:opacity-50 ${
-            model.selfWeight
-              ? 'bg-accent/15 text-accent border border-accent/40'
-              : 'bg-bg-elevated text-text-disabled border border-border-main'
-          }`}
-        >
-          {model.selfWeight ? 'Incluido' : 'Omitido'}
-        </button>
+        />
       </div>
 
       {hasTimber && (
@@ -316,19 +311,13 @@ function GlobalPanel({ model, setModel, setSelected, readOnly }: Props): JSX.Ele
             label="Nieve a >1000 m"
             help="Madera: por encima de 1000 m de altitud la nieve es una acción de duración MEDIA (kmod menor, EC5 §2.3.1.2 / CTE DB-SE-M), no corta. Solo afecta a las barras de madera con hipótesis de nieve; acero y hormigón la ignoran."
           />
-          <button
-            type="button"
+          <ToggleChip
+            on={model.snowOver1000m ?? false}
+            onToggle={() => setModel((m) => ({ ...m, snowOver1000m: !(m.snowOver1000m ?? false) }))}
+            onLabel=">1000 m"
+            offLabel="≤1000 m"
             disabled={readOnly}
-            onClick={() => setModel((m) => ({ ...m, snowOver1000m: !(m.snowOver1000m ?? false) }))}
-            aria-pressed={model.snowOver1000m ?? false}
-            className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 disabled:opacity-50 ${
-              model.snowOver1000m
-                ? 'bg-accent/15 text-accent border border-accent/40'
-                : 'bg-bg-elevated text-text-disabled border border-border-main'
-            }`}
-          >
-            {model.snowOver1000m ? '>1000 m' : '≤1000 m'}
-          </button>
+          />
         </div>
       )}
 

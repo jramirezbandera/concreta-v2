@@ -58,8 +58,8 @@ import {
   type Tool2DId,
 } from './modelOps';
 import { canvasBase } from './drawableBounds';
-import { IDENTITY_VIEW, isIdentityView, withView, type CanvasView2D } from './transform';
-import { useCanvasView2D } from './useCanvasView2D';
+import { IDENTITY_VIEW, isIdentityView, withView, type CanvasView2D } from '../../lib/canvas/transform';
+import { useCanvasView2D } from '../../hooks/useCanvasView2D';
 import type { Fem2DModel } from './types';
 
 interface Props {

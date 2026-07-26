@@ -17,7 +17,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { Plus, Redo2, Undo2 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { ViewTabs, type ViewTab } from '../../components/ui/ViewTabs';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { femAnalysisAdapter, summarizeFemResults } from '../../lib/ai/modules/femAnalysis';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
@@ -33,23 +36,58 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { exportFemAnalysisPDF, femAnalysisFallbackFilename } from '../../lib/pdf/femAnalysis';
 import { Canvas } from './Canvas';
 import { EtaPill } from './EtaPill';
-import { FloatingControls } from './FloatingControls';
 import { InputsPanel } from './InputsPanel';
 import { Landing } from './Landing';
 import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { ResultsPanel } from './ResultsPanel';
 import { ToolPalette } from './ToolPalette';
+import { DEFAULT_LOAD_DRAFTS, type LoadDrafts, type LoadToolId } from './loadDrafts';
+import type { LoadDraft } from '../../components/ui/ToolPalette';
 import { cloneDesignPreset, type DesignPresetId } from './presets';
 import { useLazyDesignSolver } from './useLazyDesignSolver';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { useModelHistory } from './useModelHistory';
-import type { DesignModel, Selected, ToolId, ViewState } from './types';
+import type { DesignModel, Selected, ToolId, ViewLayer, ViewState } from './types';
 
 import './styles.css';
 
 const STORAGE_KEY = 'concreta-fem-2d-design';
 const RECENT_KEY = 'concreta-fem-2d-recent';
 const TIP_SEEN_KEY = 'concreta-fem-2d-inline-tip-seen';
+
+/** Pestañas de la barra del lienzo — mismo control que el FEM 2D. */
+const VIEW_TABS: ReadonlyArray<ViewTab<ViewLayer>> = [
+  { id: 'model', label: 'Modelo' },
+  { id: 'M', label: 'M', title: 'Diagrama de momentos' },
+  { id: 'V', label: 'V', title: 'Diagrama de cortantes' },
+  { id: 'reactions', label: 'R', title: 'Reacciones en apoyos' },
+  { id: 'deformed', label: 'δ', title: 'Deformada' },
+  { id: 'eta', label: 'η%', title: 'Utilización η%' },
+];
+
+/**
+ * Envolventes que se pueden dibujar. El 1D trabaja con ENVOLVENTES (peor caso
+ * punto a punto) y no con combinaciones individuales como el 2D: es una
+ * decisión de cálculo de cada módulo, no de interfaz, y aquí no se toca.
+ * Fórmulas por CTE Tabla 4.1/4.2 — los ψ dependen de la categoría de cada carga.
+ */
+const COMBO_META: Record<ViewState['combo'], { name: string; formula: string; tooltip: string }> = {
+  ELU: {
+    name: 'ELU fundamental',
+    formula: '1.35·G + 1.5·Q + 1.5·ψ₀·Qi',
+    tooltip: 'Estado Límite Último (CTE Tabla 4.1): γG=1.35 sobre permanente; γQ=1.5 sobre la variable principal y γQ·ψ₀ sobre las concomitantes. Se evalúa la envolvente multiprincipal.',
+  },
+  ELS_frec: {
+    name: 'ELS frecuente',
+    formula: 'G + ψ₁·Q + ψ₂·Qi',
+    tooltip: 'Estado Límite de Servicio frecuente (CTE Tabla 4.2): combinación para fisuración y deformaciones reversibles.',
+  },
+  ELS_cp: {
+    name: 'ELS cuasi-permanente',
+    formula: 'G + ψ₂·Q',
+    tooltip: 'Estado Límite de Servicio cuasi-permanente: usado para deformaciones a largo plazo y fisuración por carga sostenida.',
+  },
+};
 
 /** Result of hydrating a model from persistence — includes fallback count for
  *  the migration toast (Codex final pass #2 — silent-fallback trust bug fix). */
@@ -182,6 +220,12 @@ export function FemAnalysisModule() {
   const { model, setModel, resetModel, undo, redo, canUndo, canRedo } = useModelHistory(initialModel);
 
   const [tool, setTool] = useState<ToolId>('select');
+  // Carga armada por herramienta: valor e hipótesis de lo que soltará el
+  // próximo clic. Vive en el shell (no en la paleta) porque también lo
+  // necesita el lienzo, que es quien crea la carga.
+  const [loadDrafts, setLoadDrafts] = useState<LoadDrafts>(DEFAULT_LOAD_DRAFTS);
+  const setLoadDraft = (t: LoadToolId, draft: LoadDraft) =>
+    setLoadDrafts((prev) => ({ ...prev, [t]: draft }));
   const [selected, setSelected] = useState<Selected>(null);
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
@@ -192,10 +236,11 @@ export function FemAnalysisModule() {
   const aiSeed = useMemo(() => cloneDesignPreset('beam'), []);
   const aiCurrent = model ?? aiSeed;
   const [view, setView] = useState<ViewState>({
-    layer: 'none',           // default: cotas + cargas + bars (no overlay)
+    layer: 'model',          // pestaña de trabajo: cotas + cargas + barras
     combo: 'ELU',
     deformedScale: 1,
   });
+  const [confirmNew, setConfirmNew] = useState(false);
   // Layout strategy:
   //   - Mobile  (<768px) : MobileTabBar (Datos / Diagramas / Resultados),
   //                        canvas read-only via the `readOnly` Canvas prop.
@@ -390,7 +435,7 @@ export function FemAnalysisModule() {
           className={[
             'relative flex flex-col min-h-0 bg-bg-surface',
             'lg:border-r lg:border-border-main lg:shrink-0',
-            inputsOpen ? 'lg:w-60' : 'lg:w-8',
+            inputsOpen ? 'lg:w-72' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
             inputsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
             tab === 'inputs' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
@@ -417,40 +462,98 @@ export function FemAnalysisModule() {
           )}
         </div>
 
-        {/* Center: canvas + tool palette */}
+        {/* Center: barra de vistas + lienzo (mismo cromo que el FEM 2D) */}
         <div
           className={[
-            'flex flex-1 min-w-0 relative',
-            tab === 'diagramas' ? 'max-lg:flex-1' : 'max-lg:hidden',
-            'lg:flex',
+            'min-w-0 flex-col overflow-hidden',
+            'lg:flex lg:flex-1',
+            tab === 'diagramas' ? 'flex flex-1' : 'hidden',
           ].join(' ')}
         >
-          {/* Tool palette — desktop / tablet only. */}
-          <div className="hidden lg:flex flex-col gap-2 p-2 pr-0">
-            <ToolPalette tool={tool} setTool={setTool} />
+          <div className="flex shrink-0 flex-wrap items-center border-b border-border-main bg-bg-surface">
+            <ViewTabs
+              tabs={VIEW_TABS}
+              active={view.layer}
+              onSelect={(layer) => setView({ ...view, layer })}
+            />
+            {/* La envolvente alimenta diagramas Y reacciones, y el panel derecho
+                las lista en todas las pestañas — por eso el selector no se
+                oculta en «Modelo» como hace el del 2D. */}
+            <div className="flex min-w-0 items-center gap-1 py-1 pl-3 pr-1 max-lg:order-last max-lg:w-full max-lg:basis-full">
+              <span className="hidden shrink-0 pr-1 font-mono text-[9px] uppercase tracking-[0.05em] text-text-disabled lg:inline">Comb</span>
+              <select
+                aria-label="Combinación visual"
+                value={view.combo}
+                onChange={(e) => setView({ ...view, combo: e.target.value as ViewState['combo'] })}
+                className="min-w-0 max-w-[26rem] flex-1 truncate rounded border border-border-main bg-bg-elevated px-2 py-2 font-mono text-[12px]! font-semibold text-text-secondary transition-colors hover:text-text-primary focus:border-accent/40 focus:text-text-primary focus:outline-none disabled:opacity-50 lg:flex-none lg:py-1 lg:text-[10.5px]!"
+              >
+                {(Object.keys(COMBO_META) as ViewState['combo'][]).map((id) => (
+                  <option key={id} value={id}>{COMBO_META[id].name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1" />
+            {/* Controles de EDICIÓN — fuera en móvil, donde el lienzo es de
+                consulta (readOnly) y deshacer/rehacer serían botones muertos.
+                Las pestañas y la combinación sí se quedan: son VISTA. */}
+            {!isMobile && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmNew(true)}
+                  title="Nueva estructura — volver a las plantillas"
+                  aria-label="Nueva estructura"
+                  className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <Plus size={14} />
+                </button>
+                <span className="w-px h-4 bg-border-main mx-0.5" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title="Deshacer (Ctrl+Z)"
+                  aria-label="Deshacer"
+                  className="p-2 text-text-secondary hover:text-text-primary disabled:opacity-30 transition-colors"
+                >
+                  <Undo2 size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title="Rehacer (Ctrl+Shift+Z)"
+                  aria-label="Rehacer"
+                  className="p-2 mr-1 text-text-secondary hover:text-text-primary disabled:opacity-30 transition-colors"
+                >
+                  <Redo2 size={14} />
+                </button>
+              </>
+            )}
           </div>
-          <div className="flex-1 relative">
+
+          <div className="relative flex min-h-0 flex-1">
             {/* Mobile-only chrome:
                 - EtaPill: top-right (verdict at a glance, cross-tab).
                 - ReadOnlyBanner: bottom-center (informativo, dismissible).
-                FloatingControls está oculto en mobile para evitar superposición
-                con la η-pill. La nav back-to-landing queda por la sidebar del
-                topbar — caso de uso primario en mobile es URL-share, no
-                cambiar de plantilla. */}
+                La barra de vistas ya vive fuera del lienzo, así que no hay nada
+                flotante con lo que la píldora pueda solaparse. */}
             {isMobile && <EtaPill result={result} onClick={() => setTab('results')} />}
             {isMobile && <ReadOnlyBanner />}
 
-            {!isMobile && (
-              <FloatingControls
-                onBackToLanding={backToLanding}
-                view={view}
-                setView={setView}
-                onUndo={undo}
-                onRedo={redo}
-                canUndo={canUndo}
-                canRedo={canRedo}
-              />
+            {/* Paleta flotante sobre el lienzo, solo en la pestaña de trabajo —
+                espejo exacto de la del 2D (left-3 top-3). */}
+            {view.layer === 'model' && !isMobile && (
+              <div className="absolute left-3 top-3 z-10 hidden lg:block">
+                <ToolPalette
+                  tool={tool}
+                  setTool={setTool}
+                  loadDrafts={loadDrafts}
+                  setLoadDraft={setLoadDraft}
+                />
+              </div>
             )}
+
             <Canvas
               model={model}
               setModel={setModel}
@@ -461,11 +564,24 @@ export function FemAnalysisModule() {
               setSelected={setSelected}
               hoveredBar={hoveredBar}
               setHoveredBar={setHoveredBar}
+              loadDrafts={loadDrafts}
               view={view}
               showInlineTip={!inlineTipSeen && !isMobile}
               onDismissInlineTip={dismissInlineTip}
               readOnly={isMobile}
             />
+
+            {/* Qué envolvente se está dibujando. Píldora por encima del grupo de
+                zoom, con el mismo anclaje que el aviso de combinación del 2D.
+                Fuera en móvil: ahí abajo ya vive el banner de modo consulta. */}
+            {!isMobile && (
+            <div
+              className="pointer-events-none absolute bottom-16 left-2 right-2 z-10 mx-auto w-fit rounded bg-bg-surface/90 px-2.5 py-1 text-center font-mono text-[10.5px] text-text-secondary shadow-sm ring-1 ring-border-main/60 backdrop-blur-sm lg:bottom-14"
+              title={COMBO_META[view.combo].tooltip}
+            >
+              {COMBO_META[view.combo].name} · {COMBO_META[view.combo].formula}
+            </div>
+            )}
           </div>
         </div>
 
@@ -474,7 +590,7 @@ export function FemAnalysisModule() {
           className={[
             'relative flex flex-col min-h-0 bg-bg-surface',
             'lg:border-l lg:border-border-main lg:shrink-0',
-            resultsOpen ? 'lg:w-75' : 'lg:w-8',
+            resultsOpen ? 'lg:w-80' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
             resultsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
             tab === 'results' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
@@ -506,6 +622,19 @@ export function FemAnalysisModule() {
           )}
         </div>
       </div>
+
+      {confirmNew && (
+        <ConfirmDialog
+          title="Nueva estructura"
+          confirmLabel="Volver a plantillas"
+          icon={Plus}
+          onConfirm={() => { setConfirmNew(false); backToLanding(); }}
+          onCancel={() => setConfirmNew(false)}
+        >
+          Se cerrará el cálculo actual y volverás a la pantalla de plantillas. El
+          modelo queda guardado en «Recientes».
+        </ConfirmDialog>
+      )}
 
       {titleOpen && (
         <TitlePromptModal

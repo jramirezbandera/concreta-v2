@@ -37,10 +37,11 @@ import { loadRecent, pushRecent } from './recents';
 import { buildTemplateWithDefaults } from './templates';
 import { Fem2DCanvas, type Fem2DCanvasView } from './Fem2DCanvas';
 import { Fem2DEditorCanvas } from './Fem2DEditorCanvas';
-import { ZoomControls } from './ZoomControls';
+import { ZoomControls } from '../../components/ui/ZoomControls';
+import { ViewTabs, type ViewTab } from '../../components/ui/ViewTabs';
 import { canvasBase } from './drawableBounds';
-import { IDENTITY_VIEW, clampView, reanchorOnResize, zoomAt, type CanvasView2D } from './transform';
-import { ZOOM_STEP } from './useCanvasView2D';
+import { IDENTITY_VIEW, clampView, reanchorOnResize, zoomAt, type CanvasView2D } from '../../lib/canvas/transform';
+import { ZOOM_STEP } from '../../hooks/useCanvasView2D';
 import { Fem2DInspector } from './Fem2DInspector';
 import { Fem2DMemberDetail } from './Fem2DMemberDetail';
 import { Fem2DResults } from './Fem2DResults';
@@ -51,30 +52,13 @@ import './styles.css';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-const VIEW_TABS: { id: Fem2DCanvasView; label: string; title?: string }[] = [
+const VIEW_TABS: ReadonlyArray<ViewTab<Fem2DCanvasView>> = [
   { id: 'model', label: 'Modelo' },
   { id: 'N', label: 'N', title: 'Diagrama de axiles' },
   { id: 'V', label: 'V', title: 'Diagrama de cortantes' },
   { id: 'M', label: 'M', title: 'Diagrama de momentos' },
   { id: 'def', label: 'δ', title: 'Deformada' },
 ];
-
-function ViewTabButton({ active, label, title, onClick }: { active: boolean; label: string; title?: string; onClick: () => void }): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      title={title}
-      className={[
-        'px-3 py-2 border-r border-border-main text-[11.5px] font-medium tracking-tight whitespace-nowrap transition-colors',
-        active ? 'bg-bg-primary text-text-primary' : 'bg-bg-surface text-text-secondary hover:bg-bg-elevated/70 hover:text-text-primary',
-      ].join(' ')}
-    >
-      {label}
-    </button>
-  );
-}
 
 export function Fem2DModule(): JSX.Element {
   const { model, setModel, resetModel, undo, redo, canUndo, canRedo, startedEmpty } = useFem2DState();
@@ -352,9 +336,7 @@ export function Fem2DModule(): JSX.Element {
           ].join(' ')}
         >
           <div className="flex shrink-0 flex-wrap items-center border-b border-border-main bg-bg-surface">
-            {VIEW_TABS.map((t) => (
-              <ViewTabButton key={t.id} active={view === t.id} label={t.label} title={t.title} onClick={() => setView(t.id)} />
-            ))}
+            <ViewTabs tabs={VIEW_TABS} active={view} onSelect={setView} />
             {/* Selector de combinación — solo con una vista de resultados. */}
             {view !== 'model' && (
               <ComboSelect

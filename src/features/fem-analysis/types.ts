@@ -355,13 +355,17 @@ export interface BarResult {
  * the UI to use the per-diagram booleans directly.
  */
 /**
- * Active overlay layer (mutually exclusive). Default is 'none' — the working
- * state where dimensions (cotas) and load arrows are visible and editable.
- * Selecting any other layer hides cotas + cargas and renders that single
- * overlay; clicking the active layer button returns to 'none'.
+ * Vista activa del lienzo, EXCLUSIVA — es la pestaña seleccionada en la barra
+ * superior, igual que en el FEM 2D. 'model' es el estado de trabajo (cotas y
+ * cargas visibles y editables); cualquier otra las oculta y dibuja su capa.
+ *
+ * Antes se llamaba 'none' y los botones flotantes la conmutaban (volver a
+ * pulsar la capa activa apagaba todo). Con pestañas siempre hay una vista
+ * seleccionada: el estado limpio ES la pestaña «Modelo», no la ausencia de
+ * capa.
  */
 export type ViewLayer =
-  | 'none'      // default: cotas + cargas + bars (editable working state)
+  | 'model'     // estado de trabajo: cotas + cargas + barras, editable
   | 'M'         // moment diagram
   | 'V'         // shear diagram
   | 'reactions' // support reactions

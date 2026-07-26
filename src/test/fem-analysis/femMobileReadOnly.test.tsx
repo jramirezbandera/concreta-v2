@@ -105,16 +105,22 @@ describe('FEM mobile (<768px): read-only enforcement', () => {
     expect(screen.queryByRole('button', { name: /\+\s*vano/i })).toBeNull();
   });
 
-  it('does NOT render undo / redo controls in the FloatingControls', () => {
+  it('does NOT render the edit controls (undo / redo / nueva estructura)', () => {
     renderModule();
     expect(screen.queryByTitle(/Deshacer/i)).toBeNull();
     expect(screen.queryByTitle(/Rehacer/i)).toBeNull();
+    expect(screen.queryByLabelText('Nueva estructura')).toBeNull();
   });
 
-  it('does NOT render the layer / combo selector groups', () => {
+  it('SÍ deja las pestañas de vista y la combinación: son vista, no edición', () => {
+    // Con la barra anclada (homogeneización con el FEM 2D) el selector de capa
+    // dejó de ser un grupo flotante y pasó a ser una pestaña. En móvil el
+    // lienzo es de consulta, así que lo que se retira es la EDICIÓN; poder
+    // mirar el diagrama de momentos o cambiar de envolvente sigue disponible.
     renderModule();
-    expect(screen.queryByLabelText('Combinación visual')).toBeNull();
-    expect(screen.queryByLabelText('Capa visual')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Modelo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'M' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Combinación visual')).toBeInTheDocument();
   });
 
   it('renders the EtaPill with η% (or error count) on top of canvas', () => {
@@ -142,11 +148,15 @@ describe('FEM desktop (≥768px): regression — no mobile chrome', () => {
     expect(screen.queryByRole('button', { name: /Ver resultados/i })).toBeNull();
   });
 
-  it('renders undo / redo / layer selectors as before', () => {
+  it('renders undo / redo / pestañas de vista y combinación', () => {
     renderModule();
     expect(screen.getByTitle(/Deshacer/i)).toBeInTheDocument();
     expect(screen.getByTitle(/Rehacer/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Nueva estructura')).toBeInTheDocument();
     expect(screen.getByLabelText('Combinación visual')).toBeInTheDocument();
-    expect(screen.getByLabelText('Capa visual')).toBeInTheDocument();
+    // Las 6 pestañas de la barra anclada (antes: grupo flotante «Capa visual»).
+    for (const label of ['Modelo', 'M', 'V', 'R', 'δ', 'η%']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
   });
 });

@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ZoomControls } from '../../features/fem2d/ZoomControls';
+import { ZoomControls } from '../../components/ui/ZoomControls';
 import { Fem2DEditorCanvas } from '../../features/fem2d/Fem2DEditorCanvas';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import { FEM2D_TEMPLATES } from '../../features/fem2d/templates';
@@ -17,12 +17,12 @@ import {
   IDENTITY_VIEW,
   ZOOM_MAX,
   type CanvasView2D,
-} from '../../features/fem2d/transform';
+} from '../../lib/canvas/transform';
 import {
   isZoomIntent,
   wheelDeltaToPx,
   wheelZoomFactor,
-} from '../../features/fem2d/useCanvasView2D';
+} from '../../hooks/useCanvasView2D';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 const portal = FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());

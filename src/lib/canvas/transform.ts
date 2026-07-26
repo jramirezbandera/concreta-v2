@@ -1,4 +1,10 @@
-// FEM 2D — world ↔ screen transform (autofit + encuadre de cámara, +y up).
+// Lienzos de barras — transform mundo ↔ pantalla (autofit + encuadre de cámara).
+//
+// Compartido por FEM 2D y FEM 1D: el gesto de cámara no puede divergir entre
+// los dos módulos, así que la matemática vive aquí y cada lienzo aporta solo su
+// autofit (el 2D con `makeTransform` sobre nudos x/y; el 1D con su banda
+// horizontal). Vivía en `features/fem2d/transform.ts` hasta que el 1D pidió la
+// misma cámara — se promovió tal cual, sin cambiar una línea de la matemática.
 //
 // Dos capas, deliberadamente separadas:
 //

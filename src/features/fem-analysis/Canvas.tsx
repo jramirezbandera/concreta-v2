@@ -27,6 +27,16 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { InlineEdit } from '../../components/ui/InlineEdit';
+import { ZoomControls } from '../../components/ui/ZoomControls';
+import { useCanvasView2D, ZOOM_STEP } from '../../hooks/useCanvasView2D';
+import {
+  IDENTITY_VIEW,
+  clampView,
+  isIdentityView,
+  zoomAt,
+  type BoundsRect,
+  type CanvasView2D,
+} from '../../lib/canvas/transform';
 import { canEditBarLength, canInsertNode, MIN_NODE_SEPARATION_M } from './invariants';
 import {
   DEFAULT_APOYO_ARMADO,
@@ -34,6 +44,7 @@ import {
   DEFAULT_VANO_ARMADO,
   DESIGN_PRESETS,
 } from './presets';
+import type { LoadDrafts } from './loadDrafts';
 import type {
   BarResult,
   DesignBar,
@@ -59,6 +70,8 @@ interface Props {
   setSelected: (s: Selected) => void;
   hoveredBar: string | null;
   setHoveredBar: (id: string | null) => void;
+  /** Valor + hipótesis armados en la paleta: lo que colocará el próximo clic. */
+  loadDrafts: LoadDrafts;
   view: ViewState;
   showInlineTip: boolean;
   onDismissInlineTip: () => void;
@@ -69,7 +82,7 @@ interface Props {
 
 export function Canvas({
   model, setModel, result, tool, selected, setSelected,
-  hoveredBar, setHoveredBar, view, showInlineTip, onDismissInlineTip,
+  hoveredBar, setHoveredBar, loadDrafts, view, showInlineTip, onDismissInlineTip,
   readOnly = false,
 }: Props) {
   void hoveredBar;
@@ -109,25 +122,71 @@ export function Canvas({
   const offX = padding - bounds.minX * scaleX;
   const contentRef = useRef<SVGGElement | null>(null);
 
+  // ── Cámara (zoom + encuadre) ──────────────────────────────────────────────
+  // Misma cámara que el FEM 2D (hooks/useCanvasView2D): la geometría escala,
+  // pero trazos, glifos, textos y tolerancias de hit siguen en píxeles de
+  // pantalla, así que acercarse SEPARA las etiquetas en vez de ampliarlas.
+  const [canvasView, setCanvasView] = useState<CanvasView2D>(IDENTITY_VIEW);
+  // Rectángulo dibujable en px SIN cámara — lo consume clampView para que el
+  // encuadre no pueda sacar el modelo de la pantalla.
+  const [contentBox, setContentBox] = useState<BoundsRect | null>(null);
+
   // Re-center the strip so the structural content's vertical bbox lands on the
   // canvas center. Converges in two paint cycles (initial render with offset=0
   // gives us the natural bbox, then one shift centers it).
+  //
+  // SOLO con la cámara en identidad: el autofit se define a k=1: si se
+  // recentrase con zoom o encuadre activos, cada pan se desharía solo (el bbox
+  // medido incluye la cámara y el efecto lo compensaría).
   useLayoutEffect(() => {
     const g = contentRef.current;
     if (!g) return;
-    let bbox: DOMRect | { y: number; height: number };
+    if (!isIdentityView(canvasView)) return;
+    let bbox: DOMRect | { x: number; y: number; width: number; height: number };
     try { bbox = g.getBBox(); } catch { return; }
     if (bbox.height <= 0) return;
+    setContentBox({
+      minX: bbox.x, minY: bbox.y,
+      maxX: bbox.x + bbox.width, maxY: bbox.y + bbox.height,
+    });
     const contentCenter = bbox.y + bbox.height / 2;
     const desiredShift = size.h / 2 - contentCenter;
     if (Math.abs(desiredShift) > 0.5) {
       setYStripOffset((prev) => prev + desiredShift);
     }
-  }, [size.h, model.nodes, model.bars, model.supports, model.loads, view.layer, view.combo, view.deformedScale]);
+  }, [size.h, model.nodes, model.bars, model.supports, model.loads, view.layer, view.combo, view.deformedScale, canvasView]);
+
+  const camBounds: BoundsRect = useMemo(
+    () => contentBox ?? { minX: 0, minY: 0, maxX: size.w, maxY: size.h },
+    [contentBox, size.w, size.h],
+  );
+
+  const viewApi = useCanvasView2D({
+    svgRef,
+    view: canvasView,
+    setView: setCanvasView,
+    bounds: camBounds,
+    width: size.w,
+    height: size.h,
+    // Sin barras no hay nada que encuadrar; en móvil el lienzo es de consulta
+    // y el navegador ya da pinch-zoom nativo.
+    enabled: !readOnly && model.bars.length > 0,
+  });
+
+  const stepZoom = useCallback((factor: number) => {
+    setCanvasView((v) => clampView(
+      zoomAt(v, factor, size.w / 2, size.h / 2),
+      { width: size.w, height: size.h },
+      camBounds,
+    ));
+  }, [size.w, size.h, camBounds]);
 
   const w2s = useCallback(
-    (x: number, y: number): [number, number] => [x * scaleX + offX, yStrip - y * scaleY],
-    [scaleX, offX, yStrip],
+    (x: number, y: number): [number, number] => [
+      (x * scaleX + offX) * canvasView.k + canvasView.tx,
+      (yStrip - y * scaleY) * canvasView.k + canvasView.ty,
+    ],
+    [scaleX, offX, yStrip, canvasView],
   );
 
   // Resize observer
@@ -177,7 +236,10 @@ export function Canvas({
     const rect = svgRef.current!.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    return { sx, sy, wx: (sx - offX) / scaleX };
+    // Deshacer la cámara antes de pasar a coordenadas del modelo: sin esto,
+    // con zoom o encuadre activos se seleccionaría la barra equivocada.
+    const px = (sx - canvasView.tx) / canvasView.k;
+    return { sx, sy, wx: (px - offX) / scaleX };
   }
 
   function findBarAt(wx: number, threshold = 0.3): DesignBar | null {
@@ -198,6 +260,14 @@ export function Canvas({
     return best;
   }
 
+  // Herramienta que realmente se aplica.
+  //   · read-only (móvil): solo 'select', aunque venga otra herramienta activa
+  //     de una sesión de escritorio;
+  //   · fuera de la pestaña «Modelo»: el lienzo es de consulta y la paleta ni
+  //     se pinta, pero seleccionar sigue valiendo para abrir la ficha de una
+  //     barra mientras se mira su diagrama.
+  const effectiveTool: ToolId = readOnly || view.layer !== 'model' ? 'select' : tool;
+
   function findNodeAt(wx: number, threshold = 0.4): Node | null {
     let best: Node | null = null;
     let bestD = threshold;
@@ -212,10 +282,6 @@ export function Canvas({
     const pt = getSvgPt(e);
     const wx = pt.wx;
     if (showInlineTip) onDismissInlineTip();
-
-    // Read-only (mobile): only 'select' is allowed; ignore any other tool
-    // even if the user has it active from a previous desktop session.
-    const effectiveTool: ToolId = readOnly ? 'select' : tool;
 
     if (effectiveTool === 'select') {
       const node = findNodeAt(wx);
@@ -262,9 +328,16 @@ export function Canvas({
       // Distributed load: only acts on a bar (UDL). Ignores nodes / empty space.
       const bar = findBarAt(wx);
       if (bar) {
+        const d = loadDrafts['load-dist'];
         setModel((m) => {
           const id = nextLoadIdInModel(m);
-          const load: Load = { id, kind: 'udl', lc: 'G', bar: bar.id, w: 15, dir: '-y' };
+          // `w` va siempre en positivo y el signo lo lleva `dir`; el borrador
+          // usa el convenio del icono (positivo = hacia abajo).
+          const load: Load = {
+            id, kind: 'udl', lc: d.lc, bar: bar.id,
+            w: Math.abs(d.magnitude), dir: d.magnitude >= 0 ? '-y' : '+y',
+            ...(d.lc === 'Q' ? { useCategory: d.useCategory ?? 'B' } : {}),
+          };
           return { ...m, loads: [...m.loads, load] };
         });
       }
@@ -273,12 +346,17 @@ export function Canvas({
     if (effectiveTool === 'load-point') {
       // Point load: on an existing node, or create a node on the bar under the
       // cursor and load it (single undo step).
+      const dPoint = loadDrafts['load-point'];
+      const pointCat = dPoint.lc === 'Q' ? { useCategory: dPoint.useCategory ?? 'B' } : {};
       const node = findNodeAt(wx);
       if (node) {
         setModel((m) => {
           const id = nextLoadIdInModel(m);
           // V1.1 sign convention: Py > 0 = downward (gravity-positive engineering).
-          const load: Load = { id, kind: 'point-node', lc: 'G', node: node.id, Px: 0, Py: 10 };
+          const load: Load = {
+            id, kind: 'point-node', lc: dPoint.lc, node: node.id,
+            Px: 0, Py: dPoint.magnitude, ...pointCat,
+          };
           return { ...m, loads: [...m.loads, load] };
         });
         return;
@@ -298,7 +376,10 @@ export function Canvas({
         const newNodeId = nextNodeIdInModel(m);
         const nodes = [...m.nodes, { id: newNodeId, x: xSnap, y: 0 }];
         const loadId = nextLoadIdInModel(m);
-        const load: Load = { id: loadId, kind: 'point-node', lc: 'G', node: newNodeId, Px: 0, Py: 10 };
+        const load: Load = {
+          id: loadId, kind: 'point-node', lc: dPoint.lc, node: newNodeId,
+          Px: 0, Py: dPoint.magnitude, ...pointCat,
+        };
         return { ...m, nodes, loads: [...m.loads, load] };
       });
       return;
@@ -540,9 +621,14 @@ export function Canvas({
         style={{
           display: 'block',
           width: '100%', height: '100%',
-          // In read-only (mobile) the cursor stays neutral regardless of the
-          // active tool — no edit affordance is shown.
-          cursor: readOnly || tool === 'select' ? 'default' : 'crosshair',
+          // El encuadre manda sobre la herramienta (mismo orden que el 2D); en
+          // read-only (móvil) el cursor queda neutro sea cual sea la
+          // herramienta — no se ofrece afordancia de edición.
+          cursor:
+            viewApi.isPanning() ? 'grabbing'
+              : viewApi.isPanArmed() ? 'grab'
+                : effectiveTool === 'select' ? 'default'
+                  : 'crosshair',
           // `manipulation`: permite tap (selección) + scroll vertical de la
           // página + pinch zoom del browser. Bloquea sólo el double-tap-zoom
           // por defecto, que en un canvas de selección no aporta nada.
@@ -562,7 +648,9 @@ export function Canvas({
           </marker>
         </defs>
 
-        <GroundLine yStrip={yStrip} size={size} />
+        {/* Fondo: sigue a la banda bajo la cámara (el +24 de separación es un
+            offset en px y por tanto constante, como el resto del glifo). */}
+        <GroundLine yStrip={yStrip * canvasView.k + canvasView.ty} size={size} />
 
         {/* Structural content group — measured post-render to center the strip.
             Excludes the GroundLine (background), the +vano floating button
@@ -633,7 +721,7 @@ export function Canvas({
 
         {/* Node-gap dimensions (cota chain) — only in default layer. Editing a
             gap moves only that node (no cascade). */}
-        {view.layer === 'none' && (
+        {view.layer === 'model' && (
           <NodeChainDimensions
             model={model}
             w2s={w2s}
@@ -645,7 +733,7 @@ export function Canvas({
         {/* Loads — only in default layer (working state). Loads on the same
             target are stacked outward so they don't overlap; each load's color
             reflects its hipótesis (G/Q/W/S/E). */}
-        {view.layer === 'none' && (() => {
+        {view.layer === 'model' && (() => {
           const stack = new Map<string, number>();
           const counter = new Map<string, number>();
           for (const ld of model.loads) {
@@ -749,9 +837,19 @@ export function Canvas({
           </>
         )}
 
-        {/* Tool hint — only meaningful in editor mode (desktop/tablet). */}
-        {!readOnly && <ToolHint tool={tool} />}
+        {/* Tool hint — solo donde hay edición: escritorio y pestaña «Modelo». */}
+        {!readOnly && view.layer === 'model' && <ToolHint tool={tool} />}
       </svg>
+
+      {/* Zoom — anclado al contenedor, espejo de la paleta en left-3 top-3.
+          Mismo grupo compartido que usa el FEM 2D. */}
+      <ZoomControls
+        k={canvasView.k}
+        onZoomIn={() => stepZoom(ZOOM_STEP)}
+        onZoomOut={() => stepZoom(1 / ZOOM_STEP)}
+        onReset={() => setCanvasView(IDENTITY_VIEW)}
+        disabled={readOnly || model.bars.length === 0}
+      />
     </div>
   );
 }
@@ -934,7 +1032,7 @@ function BarRenderer({
         strokeLinecap="round"
       />
       {/* Per-bar verdict dot at midpoint — only visible in default and η% layers */}
-      {(view.layer === 'none' || view.layer === 'eta') && r && r.status !== 'pending' && r.eta > 0 && (
+      {(view.layer === 'model' || view.layer === 'eta') && r && r.status !== 'pending' && r.eta > 0 && (
         <circle
           cx={(x1 + x2) / 2} cy={(y1 + y2) / 2 - 12}
           r={3.5}
@@ -946,7 +1044,7 @@ function BarRenderer({
         />
       )}
       {/* Bar id label — visible only in default layer (working state) */}
-      {view.layer === 'none' && (
+      {view.layer === 'model' && (
         <text
           x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 22}
           textAnchor="middle"
@@ -1513,10 +1611,13 @@ function ToolHint({ tool }: { tool: ToolId }) {
     // Ambient guidance, not a control. No border + faint fill so it reads as a
     // passive hint rather than a search/input field (which the bordered box used
     // to imply). Text dimmed to text-disabled to sit below the model.
+    //
+    // Arranca en x=56 para dejar libre la paleta flotante (left-3 top-3, 48 px
+    // de ancho): pegado al borde, el primer tercio del texto quedaba debajo.
     <g style={{ pointerEvents: 'none' }}>
-      <rect x={12} y={12} rx={4} ry={4} width={Math.max(220, text.length * 7)} height={26}
+      <rect x={56} y={12} rx={4} ry={4} width={Math.max(220, text.length * 7)} height={26}
         fill="var(--color-bg-surface)" opacity="0.7" />
-      <text x={20} y={29} fontFamily="var(--font-sans)" fontSize="11" fill="var(--color-text-disabled)">{text}</text>
+      <text x={64} y={29} fontFamily="var(--font-sans)" fontSize="11" fill="var(--color-text-disabled)">{text}</text>
     </g>
   );
 }

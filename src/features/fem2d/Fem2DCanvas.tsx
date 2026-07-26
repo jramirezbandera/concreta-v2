@@ -24,8 +24,8 @@ import { DeformedLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph, buildDiagra
 import { computeDeformedShape } from './deformed';
 import type { Solver2DElementResult } from './solver2d';
 import { canvasBase } from './drawableBounds';
-import { IDENTITY_VIEW, withView, type CanvasView2D } from './transform';
-import { useCanvasView2D } from './useCanvasView2D';
+import { IDENTITY_VIEW, withView, type CanvasView2D } from '../../lib/canvas/transform';
+import { useCanvasView2D } from '../../hooks/useCanvasView2D';
 import type { Fem2DModel, Fem2DNode } from './types';
 
 export type Fem2DCanvasView = 'model' | 'N' | 'V' | 'M' | 'def';

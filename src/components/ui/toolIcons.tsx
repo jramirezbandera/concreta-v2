@@ -1,7 +1,17 @@
-// Stroke-only icons for the FEM module.
+// Iconos de las paletas de herramientas de los lienzos (trazo, sin relleno).
+//
+// Estaban duplicados byte a byte en `features/fem-analysis/icons.tsx` y
+// `features/fem2d/icons.tsx` — la cuarentena prohíbe que el 2D importe del 1D,
+// así que la copia era la única salida mientras vivieran dentro de un módulo.
+// Aquí ya no hace falta: un solo juego para los dos.
+//
+// Los que solo usa hoy el editor 2D (LoadH, LoadDistH, CopyProps) viven
+// igualmente aquí: son fuerzas y gestos genéricos de lienzo, no conceptos del
+// pórtico.
+
 type IconProps = { s?: number };
 
-export const FemIcons = {
+export const ToolIcons = {
   Cursor: ({ s = 14 }: IconProps) => (
     <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 2 L3 11 L5.5 8.5 L7 12 L8.5 11.3 L7 8 L10.5 8 Z" />
@@ -34,6 +44,13 @@ export const FemIcons = {
       <path d="M4 8 L7 11 L10 8" />
     </svg>
   ),
+  // Horizontal point force (wind →).
+  LoadH: ({ s = 14 }: IconProps) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 7 H11" />
+      <path d="M8 4 L11 7 L8 10" />
+    </svg>
+  ),
   // Distributed load: a top rail feeding a row of short down-arrows onto a bar.
   LoadDist: ({ s = 14 }: IconProps) => (
     <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,42 +61,33 @@ export const FemIcons = {
       <path d="M1.5 11 H12.5" />
     </svg>
   ),
+  // Horizontal distributed load (wind pressure): a left rail feeding a row of
+  // short right-arrows onto a (vertical) bar — LoadDist rotated 90°.
+  LoadDistH: ({ s = 14 }: IconProps) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 1.5 V12.5" />
+      <path d="M3 3 H8 M8 3 L6.5 2 M8 3 L6.5 4" />
+      <path d="M3 7 H8 M8 7 L6.5 6 M8 7 L6.5 8" />
+      <path d="M3 11 H8 M8 11 L6.5 10 M8 11 L6.5 12" />
+      <path d="M11 1.5 V12.5" />
+    </svg>
+  ),
+  // Property paint ("brocha" — AutoCAD Matchprop): a brush over a target bar.
+  CopyProps: ({ s = 14 }: IconProps) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      {/* handle + ferrule, diagonal */}
+      <path d="M12.5 1.5 L8.5 5.5" />
+      <path d="M8.5 5.5 L9.8 6.8 L6.3 10.3 Q4.9 11.2 3.8 10.2 Q2.8 9.1 3.7 7.7 L7.2 4.2 Z" fill="currentColor" fillOpacity="0.15" />
+      {/* target bar receiving the paint */}
+      <path d="M1.5 12.5 H9" />
+    </svg>
+  ),
   Trash: ({ s = 14 }: IconProps) => (
     <svg width={s} height={s} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2.5 4 H11.5" />
       <path d="M3.5 4 V11.5 A1 1 0 0 0 4.5 12.5 H9.5 A1 1 0 0 0 10.5 11.5 V4" />
       <path d="M5.5 4 V2.5 A0.5 0.5 0 0 1 6 2 H8 A0.5 0.5 0 0 1 8.5 2.5 V4" />
       <path d="M5.5 6.5 V10 M8.5 6.5 V10" />
-    </svg>
-  ),
-  Chev: ({ s = 10, dir = 'down' }: IconProps & { dir?: 'down' | 'right' | 'up' }) => (
-    <svg
-      width={s}
-      height={s}
-      viewBox="0 0 10 10"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{
-        transform: dir === 'right' ? 'rotate(-90deg)' : dir === 'up' ? 'rotate(180deg)' : 'none',
-        transition: 'transform 150ms',
-      }}
-    >
-      <path d="M2.5 4 L5 6.5 L7.5 4" />
-    </svg>
-  ),
-  X: ({ s = 12 }: IconProps) => (
-    <svg width={s} height={s} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <path d="M3 3 L9 9 M9 3 L3 9" />
-    </svg>
-  ),
-  Link: ({ s = 12 }: IconProps) => (
-    <svg width={s} height={s} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 7 L7 5" />
-      <path d="M4.5 4 L3.5 5 A1.8 1.8 0 0 0 6 7.5 L7 6.5" />
-      <path d="M7.5 8 L8.5 7 A1.8 1.8 0 0 0 6 4.5 L5 5.5" />
     </svg>
   ),
 };

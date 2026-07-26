@@ -16,7 +16,7 @@
 // without crashing and the solver pipeline produces correct results).
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { HelmetProvider } from 'react-helmet-async';
 import { MemoryRouter } from 'react-router';
 import { DrawerContext } from '../../components/layout/AppShell';
@@ -25,6 +25,17 @@ import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { encodeShareString } from '../../features/fem-analysis/serialize';
 import { UnitSystemProvider } from '../../lib/units';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
+
+// Marcador de «la columna derecha se ha montado». ANTES era el texto del badge
+// (/CUMPLE|REVISIÓN|INCUMPLE|PENDIENTE/), y solo funcionaba de rebote: en el
+// render síncrono el solver aún no ha resuelto (carga perezosa) y el badge
+// decía PENDIENTE. Con el <VerdictBadge> compartido ese estado es «—», así que
+// el aserto pasa a la región, que no depende de dónde esté el solver.
+const resultsRegion = () => screen.getByRole('region', { name: 'Resultado del modelo' });
+
+/** Palabras del badge compartido (STATUS_LABEL): 'REVISIÓN' es ahora 'ADVERT.'
+ *  y 'PENDIENTE' es '—'. */
+const VERDICT_RE = /CUMPLE|ADVERT\.|INCUMPLE|—/;
 
 function renderModule(initialEntries: string[] = ['/analisis/fem']) {
   return render(
@@ -75,11 +86,8 @@ describe('FemAnalysisModule — localStorage hydration', () => {
     const model = cloneDesignPreset('continuous');
     window.localStorage.setItem('concreta-fem-2d-design', JSON.stringify(model));
     renderModule();
-    // Workspace markers: Inputs panel header + Resultados verdict.
-    // V1.1: <ResultsHeader> renders "Modelo · ● CUMPLE/REVISIÓN/INCUMPLE 119%"
-    // (replacing the old "RESULTADOS" header). Verdict pill is the persistent
-    // marker for the right panel rendering correctly.
-    expect(screen.getAllByText(/CUMPLE|REVISIÓN|INCUMPLE|PENDIENTE/).length).toBeGreaterThanOrEqual(1);
+    // Marcador del espacio de trabajo: la columna de resultados existe.
+    expect(resultsRegion()).toBeInTheDocument();
     // Landing is gone.
     expect(screen.queryByText(/Empieza con una plantilla/i)).toBeNull();
   });
@@ -108,10 +116,7 @@ describe('FemAnalysisModule — share-URL hydration', () => {
     const encoded = encodeShareString(model);
     renderModule([`/analisis/fem?model=${encoded}`]);
     // Workspace renders.
-    // V1.1: <ResultsHeader> renders "Modelo · ● CUMPLE/REVISIÓN/INCUMPLE 119%"
-    // (replacing the old "RESULTADOS" header). Verdict pill is the persistent
-    // marker for the right panel rendering correctly.
-    expect(screen.getAllByText(/CUMPLE|REVISIÓN|INCUMPLE|PENDIENTE/).length).toBeGreaterThanOrEqual(1);
+    expect(resultsRegion()).toBeInTheDocument();
     expect(screen.queryByText(/Empieza con una plantilla/i)).toBeNull();
   });
 
@@ -131,22 +136,20 @@ describe('FemAnalysisModule — share-URL hydration', () => {
     renderModule([`/analisis/fem?model=${encoded}`]);
     // Workspace renders (one of them); the cantilever has 1 bar so b1 should
     // show but NOT b2/b3 from the continuous in localStorage.
-    // V1.1: <ResultsHeader> renders "Modelo · ● CUMPLE/REVISIÓN/INCUMPLE 119%"
-    // (replacing the old "RESULTADOS" header). Verdict pill is the persistent
-    // marker for the right panel rendering correctly.
-    expect(screen.getAllByText(/CUMPLE|REVISIÓN|INCUMPLE|PENDIENTE/).length).toBeGreaterThanOrEqual(1);
+    expect(resultsRegion()).toBeInTheDocument();
     expect(screen.queryByText('b3')).toBeNull(); // continuous would have b3
   });
 });
 
 describe('FemAnalysisModule — verdict aggregation', () => {
-  it('shows verdict badge when a model is loaded (CUMPLE / REVISIÓN / INCUMPLE / PENDIENTE)', () => {
+  it('la cabecera lleva el badge compartido, con una de sus palabras', () => {
     const model = cloneDesignPreset('continuous');
     window.localStorage.setItem('concreta-fem-2d-design', JSON.stringify(model));
     renderModule();
-    // Some verdict badge must be visible.
-    const verdictRegex = /CUMPLE|REVISIÓN|INCUMPLE|PENDIENTE/;
-    expect(screen.getAllByText(verdictRegex).length).toBeGreaterThanOrEqual(1);
+    // role="status" lo pone <VerdictBadge>: si esto encuentra el badge, el
+    // panel ya no reimplementa el suyo.
+    const badge = within(resultsRegion()).getByRole('status');
+    expect(badge.textContent).toMatch(VERDICT_RE);
   });
 
   it('models with no supports → fail status visible', async () => {

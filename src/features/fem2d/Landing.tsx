@@ -1,13 +1,16 @@
-// FEM 2D — Landing (template start screen)
+// FEM 2D — pantalla de arranque.
 //
-// First screen the user sees when they enter /analisis/fem2d with no model in
-// the URL nor localStorage (useFem2DState → startedEmpty). Mirrors the FEM 1D
-// landing: a header, one card per parametric template (built with its
-// FTUX-green defaults on pick), plus a "Descríbela con IA" card that opens the
-// assistant over the seed model. Cards are purely presentational — all wiring
-// (build-with-defaults / open-AI) lives in index.tsx.
+// Primera pantalla al entrar en /analisis/fem2d sin modelo en la URL ni en
+// localStorage (useFem2DState → startedEmpty): una tarjeta por plantilla
+// paramétrica (que al elegirla se construye con sus defaults FTUX-verde), la
+// tarjeta del asistente y la lista de recientes. El cableado (construir con
+// defaults / abrir la IA) vive en index.tsx.
+//
+// El armazón es <TemplateLanding>, compartido con el FEM 1D: aquí solo quedan
+// los croquis de las plantillas y los textos propios del módulo.
 
-import { Sparkles } from 'lucide-react';
+import type { JSX } from 'react';
+import { TemplateLanding, type TemplateLandingItem } from '../../components/ui/TemplateLanding';
 import { FEM2D_TEMPLATES } from './templates';
 import type { Fem2DRecentEntry } from './recents';
 import type { Fem2DTemplateId } from './types';
@@ -23,193 +26,28 @@ interface Props {
 // Orden de presentación: de lo más común (pórtico) a lo más específico.
 const TEMPLATE_ORDER: Fem2DTemplateId[] = ['portal-frame', 'gable', 'multistory', 'pratt-truss'];
 
-export function Landing({ onPick, recientes, onStartAi }: Props) {
+export function Landing({ onPick, recientes, onStartAi }: Props): JSX.Element {
+  const items: TemplateLandingItem[] = TEMPLATE_ORDER.map((id) => ({
+    id,
+    name: FEM2D_TEMPLATES[id].name,
+    description: FEM2D_TEMPLATES[id].description,
+    sketch: <PlantillaIcon id={id} />,
+  }));
+
   return (
-    <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-      <div className="canvas-dot-grid flex flex-col flex-1 overflow-y-auto px-14 py-12 max-md:px-5 max-md:py-8">
-        <div style={{ maxWidth: 880, width: '100%', margin: 'auto' }}>
-          <div style={{ marginBottom: 32 }}>
-            <div className="font-mono" style={{
-              fontSize: 11, color: 'var(--color-text-disabled)',
-              letterSpacing: '0.15em', textTransform: 'uppercase',
-            }}>
-              Análisis · FEM 2D
-            </div>
-            <h1 style={{
-              fontSize: 28, fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              margin: '8px 0 6px', letterSpacing: '-0.01em',
-            }}>
-              Empieza con una plantilla
-            </h1>
-            <p style={{
-              fontSize: 14, color: 'var(--color-text-secondary)',
-              maxWidth: 640, lineHeight: 1.5, margin: 0,
-            }}>
-              Comienza desde un pórtico o cercha tipo, ajusta geometría y cargas,
-              y obtén N·V·M·δ + comprobación de acero según normativa española.
-            </p>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 14,
-          }}>
-            {TEMPLATE_ORDER.map((id) => {
-              const t = FEM2D_TEMPLATES[id];
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onPick(id)}
-                  style={{
-                    textAlign: 'left',
-                    padding: 16,
-                    borderRadius: 6,
-                    background: 'var(--color-bg-surface)',
-                    border: '1px solid var(--color-border-main)',
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 150ms',
-                    display: 'flex', flexDirection: 'column', gap: 10,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-accent)';
-                    e.currentTarget.style.background = 'var(--color-bg-elevated)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-border-main)';
-                    e.currentTarget.style.background = 'var(--color-bg-surface)';
-                  }}
-                >
-                  <div style={{
-                    background: 'var(--color-bg-primary)',
-                    border: '1px solid var(--color-border-sub)',
-                    borderRadius: 4,
-                    padding: '10px 8px',
-                    height: 80,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <PlantillaIcon id={id} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 3 }}>
-                      {t.name}
-                    </div>
-                    <div className="font-mono" style={{
-                      fontSize: 11, color: 'var(--color-text-disabled)',
-                      lineHeight: 1.45,
-                    }}>
-                      {t.description}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-
-            {onStartAi && (
-              <button
-                type="button"
-                onClick={onStartAi}
-                style={{
-                  textAlign: 'left',
-                  padding: 16,
-                  borderRadius: 6,
-                  background: 'var(--color-bg-surface)',
-                  border: '1px dashed var(--color-border-main)',
-                  color: 'var(--color-text-secondary)',
-                  cursor: 'pointer',
-                  transition: 'all 150ms',
-                  display: 'flex', flexDirection: 'column', gap: 10,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-accent)';
-                  e.currentTarget.style.background = 'var(--color-bg-elevated)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--color-border-main)';
-                  e.currentTarget.style.background = 'var(--color-bg-surface)';
-                }}
-              >
-                <div style={{
-                  background: 'var(--color-bg-primary)',
-                  border: '1px solid var(--color-border-sub)',
-                  borderRadius: 4,
-                  padding: '10px 8px',
-                  height: 80,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--color-accent)',
-                }}>
-                  <Sparkles size={28} aria-hidden="true" />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 3 }}>
-                    Descríbela con IA
-                  </div>
-                  <div className="font-mono" style={{
-                    fontSize: 11, color: 'var(--color-text-disabled)',
-                    lineHeight: 1.45,
-                  }}>
-                    Cuéntale la estructura al asistente y la dibuja: nudos, barras, apoyos y cargas.
-                  </div>
-                </div>
-              </button>
-            )}
-          </div>
-
-          {recientes.length > 0 && (
-            <div style={{ marginTop: 32 }}>
-              <div className="font-mono" style={{
-                fontSize: 10, fontWeight: 600,
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                color: 'var(--color-text-disabled)',
-                paddingBottom: 6,
-                borderBottom: '1px solid var(--color-border-sub)',
-                marginBottom: 8,
-              }}>
-                Recientes
-              </div>
-              {recientes.map((r) => {
-                const t = FEM2D_TEMPLATES[r.templateId];
-                if (!t) return null;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => onPick(r.templateId)}
-                    className="max-md:min-h-11"
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      width: '100%',
-                      padding: '8px 12px', marginBottom: 4,
-                      background: 'transparent',
-                      border: '1px solid var(--color-border-sub)',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      color: 'var(--color-text-secondary)',
-                      transition: 'all 150ms',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-accent)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-sub)')}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{t.name}</span>
-                      <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-disabled)' }}>
-                        {new Date(r.ts).toLocaleString('es-ES')}
-                      </span>
-                    </div>
-                    <span className="font-mono" style={{ fontSize: 11, color: 'var(--color-accent)' }}>
-                      Abrir →
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <TemplateLanding
+      eyebrow="Análisis · FEM 2D"
+      subtitle="Comienza desde un pórtico o cercha tipo, ajusta geometría y cargas, y obtén N·V·M·δ + comprobación de acero según normativa española."
+      items={items}
+      onPick={(id) => onPick(id as Fem2DTemplateId)}
+      ai={onStartAi ? {
+        description: 'Cuéntale la estructura al asistente y la dibuja: nudos, barras, apoyos y cargas.',
+        onStart: onStartAi,
+      } : undefined}
+      recientes={recientes
+        .filter((r) => FEM2D_TEMPLATES[r.templateId])
+        .map((r) => ({ key: r.id, id: r.templateId, name: FEM2D_TEMPLATES[r.templateId].name, ts: r.ts }))}
+    />
   );
 }
 
