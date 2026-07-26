@@ -4,6 +4,7 @@
 // mode='pdf':    inline styles, grayscale
 
 import { type SteelBeamResult } from '../../lib/calculations/steelBeams';
+import { sectionOutline, outlinePathD } from '../../lib/sections';
 import { FF_MONO } from './diagramStyle';
 
 interface SteelBeamsSVGProps {
@@ -59,30 +60,21 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
     const halfTw = tw / 2;
     const cx = ox + sW / 2;
 
-    // I-shape path (simplified, no fillet)
-    const topFlangeY = oy;
-    const botFlangeY = oy + sH - tf;
     const webTop = oy + tf;
-    const webBot = oy + sH - tf;
+
+    // Contorno con los ACUERDOS alma-ala (lib/sections/outline). Antes eran
+    // tres rectángulos pegados, que es la silueta de un perfil soldado.
+    const outline = sectionOutline({ kind: 'I', ...profile });
+    const cy = oy + sH / 2;
+    const d = outline
+      ? outlinePathD(outline, (mm) => cx + mm * scale, (mm) => cy + mm * scale, (mm) => mm * scale)
+      : '';
 
     sectionG = (
       <g>
-        {/* Top flange */}
-        <rect
-          x={ox} y={topFlangeY}
-          width={sW} height={tf}
-          fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1}
-        />
-        {/* Bottom flange */}
-        <rect
-          x={ox} y={botFlangeY}
-          width={sW} height={tf}
-          fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1}
-        />
-        {/* Web */}
-        <rect
-          x={cx - halfTw} y={webTop}
-          width={tw} height={webBot - webTop}
+        <title>{`Perfil ${profile.label}`}</title>
+        <path
+          d={d}
           fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1}
         />
 
@@ -169,10 +161,13 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
       </g>
     );
   } else if (result.section) {
-    // Tubos / 2UPN — sin registro de catálogo I: se dibujan las primitivas
-    // genéricas del adapter (rect/circle/ring/line) escaladas al panel.
+    // Tubos / 2UPN — sin registro de catálogo I. El tubo rectangular se dibuja
+    // por su CONTORNO (esquinas redondeadas con el radio real del producto,
+    // igual que en pilares); el cajón de 2UPN y la corona del CHS siguen con
+    // las primitivas genéricas del adapter, que ya los resuelven bien.
     const s = result.section;
     const prims = s.getPrimitives();
+    const outline = sectionOutline(s);
     const bw = Math.max(1e-6, prims.bbox.maxX - prims.bbox.minX);
     const bh = Math.max(1e-6, prims.bbox.maxY - prims.bbox.minY);
     const scale = Math.min(drawW / bw, drawH / bh) * 0.9;
@@ -188,7 +183,14 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
 
     sectionG = (
       <g>
-        {prims.shapes.map((sh, i) => {
+        <title>{`Perfil ${s.label}`}</title>
+        {outline ? (
+          <path
+            d={outlinePathD(outline, X, Y, (mm) => mm * scale)}
+            fillRule={outline.fillRule}
+            fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={strokeW}
+          />
+        ) : prims.shapes.map((sh, i) => {
           switch (sh.type) {
             case 'rect':
               return (
@@ -225,6 +227,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
               );
           }
         })}
+
 
         {/* Dimension: h (left side) */}
         <line x1={left - 8} y1={top} x2={left - 8} y2={bottom} stroke={C.dim} strokeWidth={0.75} />

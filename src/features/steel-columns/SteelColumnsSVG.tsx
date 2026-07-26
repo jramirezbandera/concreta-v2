@@ -8,7 +8,7 @@
 
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
-import { createSection } from '../../lib/sections';
+import { createSection, sectionOutline, outlinePathD } from '../../lib/sections';
 
 interface SteelColumnsSVGProps {
   inp: SteelColumnInputs;
@@ -51,31 +51,38 @@ const PDF = {
 
 // ─── Cross-section panel ──────────────────────────────────────────────────────
 
-/** Hollow rectangular tube (SHS/RHS) — even-odd path for the wall ring, with
- *  rounded corners per the product standard (ro outer / ro−t inner approx). */
+/** Proyección mm → píxeles del panel: el contorno viene con origen en el
+ *  centroide (ver lib/sections/outline), el panel dibuja desde su esquina. */
+function projector(ox: number, oy: number, sW: number, sH: number, scale: number) {
+  return {
+    X: (mm: number) => ox + sW / 2 + mm * scale,
+    Y: (mm: number) => oy + sH / 2 + mm * scale,
+    L: (mm: number) => mm * scale,
+  };
+}
+
+/** Hollow rectangular tube (SHS/RHS) — contorno compartido con vigas
+ *  (lib/sections/outline): pared entre dos rectángulos redondeados con el
+ *  radio real del producto, perforada con even-odd. */
 function RHSShape({
-  ox, oy, sW, sH, t, r,
+  ox, oy, sW, sH, scale,
   profile, C, isPdf,
 }: {
-  ox: number; oy: number; sW: number; sH: number; t: number; r: number;
-  profile: { h: number; b: number; t: number; label: string };
+  ox: number; oy: number; sW: number; sH: number; scale: number;
+  profile: { h: number; b: number; t: number; r: number; label: string };
   C: typeof SCREEN; isPdf: boolean;
 }) {
-  const ri = Math.max(0, r - t);
-  const ix = ox + t;
-  const iy = oy + t;
-  const iW = Math.max(0, sW - 2 * t);
-  const iH = Math.max(0, sH - 2 * t);
-  const roundedRect = (x: number, y: number, w: number, h: number, rad: number) =>
-    `M ${x + rad},${y} H ${x + w - rad} A ${rad},${rad} 0 0 1 ${x + w},${y + rad} V ${y + h - rad} ` +
-    `A ${rad},${rad} 0 0 1 ${x + w - rad},${y + h} H ${x + rad} A ${rad},${rad} 0 0 1 ${x},${y + h - rad} ` +
-    `V ${y + rad} A ${rad},${rad} 0 0 1 ${x + rad},${y} Z`;
+  const t = profile.t * scale;
+  const { X, Y, L } = projector(ox, oy, sW, sH, scale);
+  const outline = sectionOutline({
+    kind: 'RHS', h: profile.h, b: profile.b, tf: profile.t, tw: profile.t, r: profile.r,
+  });
   return (
     <g>
       <title>{`Perfil ${profile.label}`}</title>
       <desc>{`Tubo estructural ${profile.h}×${profile.b}×${profile.t} mm`}</desc>
       <path
-        d={`${roundedRect(ox, oy, sW, sH, r)} ${roundedRect(ix, iy, iW, iH, ri)}`}
+        d={outline ? outlinePathD(outline, X, Y, L) : ''}
         fillRule="evenodd"
         fill={C.sectionFill}
         stroke={C.sectionStroke}
@@ -123,28 +130,29 @@ function RHSShape({
 }
 
 function ISectionShape({
-  ox, oy, sW, sH, tf, tw,
+  ox, oy, sW, sH, scale,
   profile, C, isPdf,
 }: {
-  ox: number; oy: number; sW: number; sH: number; tf: number; tw: number;
-  profile: { h: number; b: number; tf: number; tw: number; label: string };
+  ox: number; oy: number; sW: number; sH: number; scale: number;
+  profile: { h: number; b: number; tf: number; tw: number; r: number; label: string };
   C: typeof SCREEN; isPdf: boolean;
 }) {
+  const tf = profile.tf * scale;
+  const tw = profile.tw * scale;
   const halfTw = tw / 2;
   const cx = ox + sW / 2;
+  const { X, Y, L } = projector(ox, oy, sW, sH, scale);
+  // Contorno con los ACUERDOS alma-ala, compartido con vigas
+  // (lib/sections/outline). Antes eran tres rectángulos pegados, que es la
+  // silueta de un perfil soldado, no la de uno laminado.
+  const outline = sectionOutline({ kind: 'I', ...profile });
 
   return (
     <g>
       <title>{`Perfil ${profile.label}`}</title>
       <desc>{`Sección I/H de altura ${profile.h} mm y ancho ${profile.b} mm`}</desc>
-      {/* Top flange */}
-      <rect x={ox} y={oy} width={sW} height={tf}
-        fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />
-      {/* Bottom flange */}
-      <rect x={ox} y={oy + sH - tf} width={sW} height={tf}
-        fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />
-      {/* Web */}
-      <rect x={cx - halfTw} y={oy + tf} width={tw} height={sH - 2 * tf}
+      <path
+        d={outline ? outlinePathD(outline, X, Y, L) : ''}
         fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />
 
       {/* Dim h — left side */}
@@ -584,9 +592,8 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
     } else if (section.kind === 'RHS') {
       sectionShape = (
         <RHSShape
-          ox={ox} oy={oy} sW={sW} sH={sH}
-          t={section.tf * scale} r={section.r * scale}
-          profile={{ h: section.h, b: section.b, t: section.tf, label: section.label }}
+          ox={ox} oy={oy} sW={sW} sH={sH} scale={scale}
+          profile={{ h: section.h, b: section.b, t: section.tf, r: section.r, label: section.label }}
           C={C} isPdf={isPdf}
         />
       );
@@ -602,9 +609,11 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
     } else {
       sectionShape = (
         <ISectionShape
-          ox={ox} oy={oy} sW={sW} sH={sH}
-          tf={section.tf * scale} tw={section.tw * scale}
-          profile={{ h: section.h, b: section.b, tf: section.tf, tw: section.tw, label: section.label }}
+          ox={ox} oy={oy} sW={sW} sH={sH} scale={scale}
+          profile={{
+            h: section.h, b: section.b, tf: section.tf, tw: section.tw,
+            r: section.r, label: section.label,
+          }}
           C={C} isPdf={isPdf}
         />
       );

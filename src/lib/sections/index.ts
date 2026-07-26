@@ -20,6 +20,8 @@ export {
 export type { CHSProcess, CHSInputs } from './chs';
 export { RHSAdapter, makeRHS } from './rhs';
 export type { RHSProcess, RHSInputs } from './rhs';
+export { sectionOutline, outlinePathD } from './outline';
+export type { SectionOutline, OutlineContour, OutlineSegment, OutlineGeometry } from './outline';
 export {
   STEEL_FAMILIES,
   STEEL_SECTION_ENTRIES,
