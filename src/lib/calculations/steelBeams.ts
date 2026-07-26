@@ -116,11 +116,13 @@ function invalidResult(
   sectionClass: 1 | 2 | 3 | 4 = 1,
   governing: SteelBeamResult['governing'] = 'bending',
   checks: SteelCheckRow[] = [],
+  section?: ColumnBeamSection,
 ): SteelBeamResult {
   return {
     valid: false,
     error,
     profile: profile as SteelProfile,
+    section,
     sectionClass,
     Mc_Rd: 0, eta_M: 0,
     Av: 0, Vc_Rd: 0, eta_V: 0,
@@ -190,12 +192,17 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
       'CLASE 4',
       'CTE DB-SE-A 5.5',
     );
+    // La sección resuelta viaja con el resultado inválido: el bloque de
+    // propiedades se pinta junto al aviso «elija un perfil más robusto», y
+    // los dos lectores de `result.section` (SVG y etiqueta del PDF) dejan de
+    // caer al fallback `${tipo} ${size}`, que en un tubo imprime basura.
     return invalidResult(
       'Sección clase 4 — no implementado en v1',
       profile,
       4,
       'class4',
       [classRow],
+      section,
     );
   }
 

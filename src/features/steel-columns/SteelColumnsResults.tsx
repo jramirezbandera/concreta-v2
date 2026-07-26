@@ -3,6 +3,7 @@ import { type SteelColumnResult } from '../../lib/calculations/steelColumns';
 import { type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle } from '../../components/checks';
+import { SectionPropertiesBlock } from '../../components/checks/SectionPropertiesBlock';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
@@ -182,6 +183,9 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
             </p>
           </div>
         </div>
+        {/* Clase 4: la sección existe y se enseña — la guarda separa sola el
+            otro caso de esta rama, «sección no disponible». */}
+        {result.section && <SectionPropertiesBlock section={result.section} />}
         {result.checks.length > 0 && (
           <div>
             {result.checks.map((c) => <CheckRowItem key={c.id} check={c} />)}
@@ -223,6 +227,11 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
           <VerdictBadge status={status} />
         )}
       </div>
+
+      {/* Propiedades del perfil — NUNCA atenuadas por zeroLoads: la sección
+          está completamente determinada sin cargas, y ese estado es
+          justamente el modo prontuario puro. */}
+      {result.section && <SectionPropertiesBlock section={result.section} />}
 
       {/* Key values */}
       <GroupHeader label="Valores" />

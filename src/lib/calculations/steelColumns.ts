@@ -44,6 +44,13 @@ export interface SteelColumnResult {
   sectionClass: 1 | 2 | 3 | 4;
   isBox: boolean;
   kind: SectionKind;
+  /**
+   * Adaptador de sección resuelto — geometría y propiedades para el bloque de
+   * la UI. Presente en el resultado válido y también en el de clase 4 (donde
+   * el aviso pide «elija un perfil más robusto» y sin propiedades se elegiría
+   * a ciegas). Ausente cuando `createSection` no resuelve nada.
+   */
+  section?: ColumnBeamSection;
   // Key section / resistance values
   NRd: number;       // kN — section compression resistance (γM0)
   My_Rd: number;     // kNm — major-axis bending resistance (γM0)
@@ -93,10 +100,11 @@ function invalidResult(
   error: string,
   sectionClass: 1 | 2 | 3 | 4 = 1,
   kind: SectionKind = 'I',
+  section?: ColumnBeamSection,
 ): SteelColumnResult {
   return {
     valid: false, error, sectionClass,
-    kind, isBox: kind === '2UPN',
+    kind, isBox: kind === '2UPN', section,
     NRd: 0, My_Rd: 0, Mz_Rd: 0, Nb_Rd_y: 0, Nb_Rd_z: 0,
     lambda_y: 0, lambda_z: 0, chi_y: 0, chi_z: 0,
     Mcr: 0, lambda_LT: 0, chi_LT: 1, Mb_Rd: 0,
@@ -206,7 +214,10 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   const sectionClass = Math.min(4, Math.max(1, rawClass)) as 1 | 2 | 3 | 4;
 
   if (sectionClass === 4) {
-    return invalidResult('Sección Clase 4 bajo la distribución N+M aplicada — no soportado en v1 (reducir Ned o aumentar perfil)', 4, kind);
+    // La sección SÍ va en el resultado: el aviso dice «elija un perfil más
+    // robusto» y enseñarlo con cero propiedades empuja al usuario de vuelta
+    // al prontuario, justo en el momento de mayor necesidad.
+    return invalidResult('Sección Clase 4 bajo la distribución N+M aplicada — no soportado en v1 (reducir Ned o aumentar perfil)', 4, kind, section);
   }
 
   // 5. Section moduli and characteristic resistances
@@ -424,7 +435,7 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
 
   return {
     valid: true,
-    sectionClass, kind, isBox,
+    sectionClass, kind, isBox, section,
     NRd, My_Rd, Mz_Rd,
     Nb_Rd_y, Nb_Rd_z,
     lambda_y, lambda_z, chi_y, chi_z,

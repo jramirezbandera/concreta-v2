@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 import { type SteelBeamResult, type SteelCheckRow, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { LABELS, resultLabel } from '../../lib/text/labels';
 import { ambientStyle, checkValueStr, checkLimitStr } from '../../components/checks';
+import { SectionPropertiesBlock } from '../../components/checks/SectionPropertiesBlock';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatQuantity } from '../../lib/units/format';
 import type { Quantity, UnitSystem } from '../../lib/units/types';
@@ -144,6 +145,9 @@ export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelB
             </p>
           </div>
         </div>
+        {/* Propiedades del perfil rechazado — sin ellas, «elija un perfil más
+            robusto» obliga a elegir a ciegas. */}
+        {result.section && <SectionPropertiesBlock section={result.section} compact={compact} />}
         {/* Still show classification row */}
         {result.checks.length > 0 && (
           <div>
@@ -181,6 +185,9 @@ export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelB
         </span>
         <VerdictBadge status={status} />
       </div>
+
+      {/* Propiedades del perfil — dato de partida, antes de los resultados */}
+      {result.section && <SectionPropertiesBlock section={result.section} compact={compact} />}
 
       {/* Key values */}
       <GroupHeader label="Valores" />
