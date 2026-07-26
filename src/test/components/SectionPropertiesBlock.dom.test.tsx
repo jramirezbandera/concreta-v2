@@ -50,6 +50,30 @@ describe('Vigas de acero — bloque de propiedades', () => {
     expect(screen.getByText('8356')).toBeInTheDocument();    // Iy
   });
 
+  it('parte Propiedades en dos subcolumnas leyendo hacia abajo, no a lo ancho', () => {
+    // 10 filas apiladas hacían el bloque de 401 px y echaban la primera
+    // comprobación fuera de pantalla a 1080p. El reparto es DENTRO del grupo:
+    // Geometría y Propiedades siguen sin mezclarse.
+    const { container } = render(
+      <SteelBeamsResults result={calcSteelBeam(steelBeamDefaults)} deflLimit={300} />,
+    );
+    const propsGroup = [...container.querySelectorAll('div')]
+      .find((d) => d.firstElementChild?.textContent === 'Propiedades');
+    const cols = [...propsGroup!.querySelectorAll(':scope > div > div')];
+    expect(cols).toHaveLength(2);
+
+    const labels = (col: Element) =>
+      [...col.children].map((row) => row.firstElementChild?.textContent);
+    // Orden de presentación conservado: la primera mitad entera va arriba a la
+    // izquierda; un grid-cols-2 con flujo por filas daría A | peso.
+    expect(labels(cols[0])).toEqual([
+      'A (cm²)', 'peso (kg/m, derivado)', 'Iy (cm⁴)', 'Iz (cm⁴)', 'Wel,y (cm³)',
+    ]);
+    expect(labels(cols[1])).toEqual([
+      'Wel,z (cm³, derivado)', 'Wpl,y (cm³)', 'Wpl,z (cm³, derivado)', 'It (cm⁴)', 'Iw (10³ cm⁶)',
+    ]);
+  });
+
   it('sobrevive a la rama de clase 4 — junto al aviso "elija un perfil más robusto"', () => {
     const result = calcSteelBeam({
       ...steelBeamDefaults, tipo: 'CHS', ...class4Tube, tube_process: 'hot-finished',

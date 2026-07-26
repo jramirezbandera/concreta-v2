@@ -48,22 +48,36 @@ export function SectionPropertiesBlock({ section, compact = false }: Props) {
   const rows = sectionPropertyRows(section);
   const geomRows = rows.filter((r) => r.group === 'geom');
   const propRows = compact ? [] : rows.filter((r) => r.group === 'props');
+  // Reparto en DOS subcolumnas dentro del grupo, leyendo hacia abajo primero:
+  // un `grid-cols-2` con flujo por filas pondría A y peso en la misma línea y
+  // rompería el orden de presentación que fija el helper.
+  const half = Math.ceil(propRows.length / 2);
+  const propCols = [propRows.slice(0, half), propRows.slice(half)];
 
   return (
     <section aria-label="Propiedades de la sección">
       <BlockHeader label={`Sección · ${sectionHeaderLabel(section)}`} />
-      {/* Geometría en la primera columna, Propiedades en la segunda. El
-          desbalanceo (5 vs 10 filas) es intencionado: no se reparten filas
-          entre columnas para no romper la agrupación semántica. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6">
+      {/* Geometría en la primera columna, Propiedades en la segunda. En
+          pantalla ancha (xl) Propiedades ocupa dos tercios y parte SUS filas
+          en dos: con las 10 de un perfil en I apiladas el bloque medía 401 px
+          y echaba la primera comprobación fuera de pantalla a 1080p. Se
+          reparten filas DENTRO de un grupo, nunca entre grupos — la
+          agrupación semántica es lo que no se toca. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-6">
         <div className="flex flex-col">
           <BlockHeader label="Geometría" />
           {geomRows.map((r) => <PropRow key={r.label} label={r.label} value={r.value} />)}
         </div>
         {propRows.length > 0 && (
-          <div className="flex flex-col">
+          <div className="xl:col-span-2">
             <BlockHeader label="Propiedades" />
-            {propRows.map((r) => <PropRow key={r.label} label={r.label} value={r.value} />)}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-6">
+              {propCols.map((col, i) => (
+                <div key={i} className="flex flex-col">
+                  {col.map((r) => <PropRow key={r.label} label={r.label} value={r.value} />)}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
