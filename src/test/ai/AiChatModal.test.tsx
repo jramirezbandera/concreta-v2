@@ -530,6 +530,47 @@ describe('AiChatModal — guardarraíl de seguridad a lo largo del hilo', () => 
     fireEvent.click(screen.getByLabelText(/He revisado/));
     expect(apply).toBeEnabled();
   });
+
+  it('APLICADA la tarjeta, re-proponer el mismo valor vuelve a ser riesgo (regresión 2026-07-26)', async () => {
+    // El agujero que abrió el primer intento de arreglo del bug de arriba: eximir
+    // toda clave cuyo valor coincidiese con la línea base del hilo eximía también
+    // este flujo, que NO es una re-planificación de la misma tarjeta:
+    //   turno 1  propone bTrib = 1.5 (el default es 3.0) y el usuario APLICA
+    //   luego    el usuario se da cuenta y lo corrige a mano a 3.0
+    //   turno 2  "haz que cumpla" → vuelve a proponer 1.5
+    // La vía (a) del gate no puede ver esa corrección porque 3.0 ES el default —la
+    // fuga 1 entera—, así que sin la vía (b) el cambio se aplica en silencio.
+    //
+    // El arnés lo reproduce fielmente en lo que importa, que son las entradas de la
+    // decisión: `current` se queda en steelBeamDefaults (bTrib = 3.0) porque onApply
+    // es un mock que no muta el prop, exactamente el estado que deja la corrección
+    // manual. Lo decisivo es que en el turno 2 ya NO hay tarjeta pendiente.
+    seedKey();
+    const user = userEvent.setup();
+    renderModal();
+
+    await turn('Las vigas van cada 1,5 m', {
+      reply: 'Anoto el ancho tributario',
+      proposal: makePayload({ bTrib_m: 1.5 }),
+    });
+    expect(screen.queryByText(RISK_TITLE)).not.toBeInTheDocument(); // primer relleno
+
+    await user.click(screen.getByRole('button', { name: 'Aplicar 1 cambio' }));
+    expect(screen.getByText('Aplicado')).toBeInTheDocument();
+
+    await turn('Haz que cumpla', {
+      reply: 'Reduzco el ancho tributario',
+      proposal: makePayload({ bTrib_m: 1.5 }),
+    });
+
+    // Sin tarjeta viva que lo arrastre, el 1.5 es una propuesta NUEVA sobre un
+    // formulario que el usuario ha podido corregir ⇒ fila roja e interlock.
+    expect(screen.getByText(RISK_TITLE)).toBeInTheDocument();
+    const apply2 = screen.getByRole('button', { name: 'Aplicar 1 cambio' });
+    expect(apply2).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/He revisado/));
+    expect(apply2).toBeEnabled();
+  });
 });
 
 describe('AiChatModal — resultados en el system prompt', () => {

@@ -30,11 +30,17 @@
  * valor ya establecido, es exactamente el patrón del incidente. Sin este gate
  * el aviso saltaría en casi toda primera extracción y se volvería papel pintado.
  *
- * Un valor está establecido si se cumple CUALQUIERA de estas dos (misma
- * disyunción, exactamente, que decide si una clave sale de `sin_confirmar` en el
- * snapshot decorado — ver pendingSnapshot.ts):
+ * Un valor está establecido si se cumple CUALQUIERA de estas dos:
  *   (a) difiere del de fábrica (`current[field] !== defaults[field]`): alguien lo tocó;
  *   (b) el modelo ya lo trató en un turno ANTERIOR de este hilo (`confirmed`).
+ *
+ * OJO — (b) NO es el mismo criterio que decide si una clave sale de
+ * `sin_confirmar` en el snapshot decorado, aunque las dos cosas salgan del mismo
+ * registro del hilo. `decorateSnapshot` recibe TODAS las claves tratadas (para que
+ * el asistente no re-pregunte: ahí mencionar el campo basta); este gate recibe el
+ * SUBCONJUNTO que devuelve `establishedKeys`, porque "el hilo lo mencionó" no es
+ * "alguien fijó este valor" (ver pendingSnapshot.ts para las cuatro reglas y por
+ * qué se separaron en 2026-07-25).
  *
  * (b) es el arreglo de 2026-07-14 (auditoría, fuga 1). Sin él, el gate se
  * desarmaba justo cuando el valor REAL del usuario coincidía con el default —
@@ -46,10 +52,14 @@
  *
  * `confirmed` viene del hilo (AiChatModal.threadValuesRef → `establishedKeys`) y
  * está en el espacio de claves del PAYLOAD (`t_cm`), no del estado (`t`): de ahí
- * `SafetyRule.confirmKey`. Solo llegan aquí las claves que este turno MUEVE
- * respecto del primer valor que el hilo les dio: la tarjeta pendiente se fusiona
- * y se re-planifica entera cada turno, y sin ese filtro (fix 2026-07-25) toda
- * primera introducción salía en rojo a partir del segundo turno.
+ * `SafetyRule.confirmKey`. Queda fuera UNA sola situación: el valor propuesto
+ * coincide con el primero que el hilo le dio Y es la tarjeta pendiente VIVA quien
+ * lo arrastra — o sea, la misma propuesta re-planificada. Sin ese filtro (fix
+ * 2026-07-25) toda primera introducción salía en rojo a partir del segundo turno,
+ * porque la tarjeta se fusiona y el plan se rehace entero cada turno. Y con el
+ * filtro más ancho de lo debido (regresión corregida el 2026-07-26) se deshacían
+ * en silencio las correcciones MANUALES del usuario cuyo valor coincidía con el
+ * default, que es justo el caso de la fuga 1.
  *
  * `alwaysCheck: true` desactiva el gate entero para los campos que reinterpretan
  * el cálculo aunque vengan del default (loadsAreFactored, los γ de fábrica).

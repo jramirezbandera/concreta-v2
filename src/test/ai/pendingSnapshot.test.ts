@@ -206,16 +206,41 @@ describe('collectThreadValues', () => {
 });
 
 describe('establishedKeys — el gate anti-ruido con memoria de VALORES', () => {
-  it('el valor arrastrado igual NO establece la clave (la primera introducción no se re-juzga)', () => {
-    // Turno 1: el modelo introduce bTrib 1.5 (gate cerrado, sin fila roja).
-    // Turno 2: la fusión arrastra el mismo 1.5 → no puede volver como riesgo.
+  it('el valor arrastrado igual por la TARJETA VIVA no establece la clave', () => {
+    // Turno 1: el modelo introduce bTrib 1.5 (gate cerrado, sin fila roja) y el
+    // usuario NO aplica. Turno 2: la fusión arrastra el mismo 1.5 desde la tarjeta
+    // que sigue viva → es la misma propuesta re-planificada, no puede volver como
+    // riesgo. El 3er argumento (el payload pendiente) es lo que delimita la
+    // exención: sin él no se distingue de una propuesta nueva (ver el test de la
+    // corrección manual, más abajo).
     const thread = new Map<string, unknown>([['bTrib_m', 1.5]]);
-    expect([...establishedKeys(thread, { bTrib_m: 1.5, L_m: 6 })]).toEqual([]);
+    const viva = { bTrib_m: 1.5 };
+    expect([...establishedKeys(thread, { bTrib_m: 1.5, L_m: 6 }, viva)]).toEqual([]);
+  });
+
+  it('REGRESIÓN: sin tarjeta viva, re-proponer la línea base SÍ establece', () => {
+    // El caso que el primer intento de arreglo abrió (code-review 2026-07-26):
+    //   turno 1  propone bTrib = 1.5 (default 3.0) y el usuario APLICA
+    //   luego    el usuario lo corrige a mano a 3.0 — que resulta ser el default
+    //   turno 3  "haz que cumpla" → vuelve a proponer 1.5
+    // Aquí no hay tarjeta pendiente (la del turno 1 se aplicó), así que el 1.5 es
+    // una propuesta NUEVA sobre un formulario que el usuario tocó. La vía (a) del
+    // gate no puede verlo —su valor coincide con el de fábrica, que es la fuga 1
+    // entera—, así que si esta vía tampoco lo establece, la corrección MANUAL del
+    // usuario se deshace sin una sola fila roja.
+    const thread = new Map<string, unknown>([['bTrib_m', 1.5]]);
+    expect([...establishedKeys(thread, { bTrib_m: 1.5 })]).toEqual(['bTrib_m']);
+    expect([...establishedKeys(thread, { bTrib_m: 1.5 }, null)]).toEqual(['bTrib_m']);
+    // Y con una tarjeta viva que NO lleva la clave (habla de otra cosa): idem.
+    expect([...establishedKeys(thread, { bTrib_m: 1.5 }, { L_m: 6 })]).toEqual(['bTrib_m']);
   });
 
   it('mover el valor SÍ establece la clave (fuga 1: el 30×30 que se engorda a 40×40)', () => {
     const thread = new Map<string, unknown>([['bc_cm', 30]]);
     expect([...establishedKeys(thread, { bc_cm: 40 })]).toEqual(['bc_cm']);
+    // Y también cuando es la tarjeta viva la que arrastraba el 30: el turno lo
+    // MUEVE a 40, así que la exención no aplica.
+    expect([...establishedKeys(thread, { bc_cm: 40 }, { bc_cm: 30 })]).toEqual(['bc_cm']);
   });
 
   it('el riesgo PERSISTE en los turnos siguientes: la línea base no se mueve', () => {
@@ -235,9 +260,10 @@ describe('establishedKeys — el gate anti-ruido con memoria de VALORES', () => 
   it('arrays y objetos se comparan en profundidad (estratos, cargas)', () => {
     const strata = [{ h: 2, phi: 30 }, { h: 3, phi: 32 }];
     const thread = new Map<string, unknown>([['strata', strata]]);
-    // Mismo contenido en otra instancia ⇒ arrastre, no cambio.
-    expect([...establishedKeys(thread, { strata: [{ h: 2, phi: 30 }, { h: 3, phi: 32 }] })])
-      .toEqual([]);
+    const igual = [{ h: 2, phi: 30 }, { h: 3, phi: 32 }];
+    // Mismo contenido en otra instancia, arrastrado por la tarjeta viva ⇒ no es
+    // cambio. La igualdad es PROFUNDA: por referencia no coincidirían.
+    expect([...establishedKeys(thread, { strata: igual }, { strata: igual })]).toEqual([]);
     // Terreno "mejorado" ⇒ establecida (y el detector de elementos ya la juzga).
     expect([...establishedKeys(thread, { strata: [{ h: 2, phi: 38 }, { h: 3, phi: 32 }] })])
       .toEqual(['strata']);
@@ -247,5 +273,15 @@ describe('establishedKeys — el gate anti-ruido con memoria de VALORES', () => 
     const thread = new Map<string, unknown>([['L_m', 6]]);
     expect([...establishedKeys(thread, null)]).toEqual(['L_m']);
     expect([...establishedKeys(new Map(), { L_m: 6 })]).toEqual([]);
+    // `pending` basura no exime nada (defensivo: nunca lanza).
+    expect([...establishedKeys(thread, { L_m: 6 }, 'no-soy-un-objeto')]).toEqual(['L_m']);
+  });
+
+  it('la tarjeta viva solo exime SUS claves, no las de otros turnos ya aplicados', () => {
+    // Hilo con dos claves: gk se aplicó hace turnos (no está en la tarjeta viva) y
+    // bTrib es lo que la tarjeta arrastra. Solo bTrib queda exenta.
+    const thread = new Map<string, unknown>([['gk_kNm2', 1], ['bTrib_m', 1.5]]);
+    const viva = { bTrib_m: 1.5 };
+    expect([...establishedKeys(thread, { gk_kNm2: 1, bTrib_m: 1.5 }, viva)]).toEqual(['gk_kNm2']);
   });
 });

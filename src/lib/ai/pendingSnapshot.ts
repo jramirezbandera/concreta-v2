@@ -28,8 +28,13 @@
  * pendiente se fusiona y se re-planifica cada turno, así que una primera
  * introducción legítima acababa marcada en rojo por el simple hecho de haber
  * pasado por un turno anterior. Se guarda el PRIMER valor de cada clave y
- * `establishedKeys` solo da por establecido lo que el hilo ha MOVIDO desde
- * entonces (ver esa función).
+ * `establishedKeys` exime solo lo que la tarjeta VIVA arrastra sin cambio (ver esa
+ * función: la restricción "tarjeta viva" la añadió el code-review de 2026-07-26,
+ * porque sin ella también se eximían las correcciones manuales del usuario).
+ *
+ * LOS DOS CONSUMIDORES USAN CRITERIOS DISTINTOS, a propósito: `decorateSnapshot`
+ * recibe TODAS las claves tratadas (para no re-preguntar), el gate de riesgos solo
+ * el subconjunto de `establishedKeys`.
  *
  * ERRORES DE LA PROPUESTA ANTERIOR (fix 2026-07-20). SÍNTOMA: un rechazo del
  * validador (p. ej. el veto en bloque del FEM 2D) solo se pintaba en la
@@ -121,28 +126,72 @@ function sameValue(a: unknown, b: unknown): boolean {
  * confirmación, en todos los turnos siguientes. Ocurría en CUALQUIER hilo de
  * varios turnos con tarjeta viva, que es el modo guiado entero.
  *
- * La corrección: la memoria del hilo solo establece una clave cuando el valor que
- * se propone AHORA difiere del que el hilo puso sobre la mesa. Arrastrar el mismo
- * valor turno tras turno no es un cambio y no vuelve a juzgarse; MOVERLO sí —de
- * ahí que la fuga 1 de la auditoría (el pilar existente de 30×30 que el modelo
- * engorda a 40×40 tras confirmarlo) siga cerrada.
+ * REGRESIÓN QUE EVITA (2026-07-26, hallazgo del code-review). El primer intento de
+ * arreglo eximía toda clave cuyo valor propuesto coincidiese con la línea base del
+ * hilo, sin más. Pero eso también eximía este caso, que NO es una re-planificación:
  *
- * Una clave que la propuesta no toca (`null`/ausente: ya aplicada, o de un turno
- * anterior) sigue establecida — quitarla desprotegería lo ya acordado.
+ *   turno 1  el modelo propone bTrib = 1.5 (default 3.0) y el usuario APLICA
+ *   luego    el usuario se da cuenta y teclea 3.0 a mano — que es el default
+ *   turno 3  "haz que cumpla" → vuelve a proponer 1.5
+ *
+ * En el turno 3 el estado observable es idéntico al del falso positivo (`current`
+ * = default, propuesta = línea base), así que ninguna función de (línea base,
+ * propuesta, actual, defaults) puede distinguirlos: la vía (a) del gate no ve la
+ * corrección del usuario porque su valor coincide con el de fábrica —que es la
+ * fuga 1 entera— y la vía (b) quedaba cerrada por la coincidencia con la línea
+ * base. Resultado: la corrección MANUAL del usuario se deshacía sin una sola fila
+ * roja.
+ *
+ * Lo que sí los distingue es si la tarjeta que introdujo el valor SIGUE VIVA o ya
+ * se aplicó, y eso el modal lo sabe: `pending` es el payload de la propuesta
+ * pendiente no aplicada (`findPendingPayload`), o null/ausente si no hay ninguna.
+ *
+ * De ahí la regla: una clave de la memoria del hilo está establecida SALVO que se
+ * cumplan las dos cosas a la vez —el valor que se propone ahora coincide con la
+ * línea base Y es la tarjeta VIVA quien lo arrastra—. Eso es exactamente "la misma
+ * propuesta, re-planificada", y solo eso queda exento.
+ *
+ *   arrastrada igual por la tarjeta viva  ⇒ exenta (no se re-juzga)
+ *   movida respecto de la línea base      ⇒ establecida (fuga 1 cerrada)
+ *   propuesta de nuevo SIN tarjeta viva   ⇒ establecida (la regresión, cerrada)
+ *   que la propuesta no toca (null/ausente) ⇒ establecida (no se desprotege lo acordado)
+ *
+ * `pending` ausente ⇒ no hay tarjeta viva ⇒ nada se exime: es el default seguro y
+ * el que aplica a los tests unitarios y al primer turno.
+ *
+ * LO QUE SIGUE SIENDO EXENTO A PROPÓSITO: una tarjeta acumulada durante varios
+ * turnos y nunca aplicada se juzga como lo que es, un PRIMER relleno, aunque haya
+ * tardado cuatro turnos en formarse. Proponer `loadType:'custom'` en el turno 1 y
+ * `psi2Custom:0` en el turno 2, sin aplicar, da el mismo resultado que proponer
+ * las dos cosas juntas en un solo turno: sin fila roja, porque el formulario sigue
+ * intacto y nadie ha fijado nada. Es el gate anti-ruido funcionando (ver safety.ts:
+ * sin él el aviso saltaría en casi toda primera extracción), y ahora es COHERENTE
+ * entre un turno y varios — antes no lo era, y esa incoherencia era el bug.
  */
 export function establishedKeys(
   threadValues: ReadonlyMap<string, unknown>,
   proposal: unknown,
+  pending?: unknown,
 ): Set<string> {
-  const proposed =
-    typeof proposal === 'object' && proposal !== null && !Array.isArray(proposal)
-      ? (proposal as Record<string, unknown>)
+  const plain = (v: unknown): Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
       : {};
+  const proposed = plain(proposal);
+  const carried = plain(pending);
+
   const out = new Set<string>();
   for (const [key, baseline] of threadValues) {
     const now = proposed[key];
-    // Mismo valor que la línea base ⇒ re-planificación del mismo dato, no cambio.
-    if (now !== null && now !== undefined && sameValue(now, baseline)) continue;
+    // La propuesta no toca la clave (ya aplicada, o de un turno anterior).
+    if (now === null || now === undefined) { out.add(key); continue; }
+    // Movida respecto de la línea base ⇒ cambio real, se juzga.
+    if (!sameValue(now, baseline)) { out.add(key); continue; }
+    // Coincide con la línea base: solo se exime si es la tarjeta VIVA quien la
+    // arrastra. Sin tarjeta viva es una propuesta NUEVA sobre un formulario que
+    // el usuario ha podido corregir a mano, y hay que juzgarla.
+    const live = carried[key];
+    if (live !== null && live !== undefined) continue;
     out.add(key);
   }
   return out;

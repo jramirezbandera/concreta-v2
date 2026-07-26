@@ -483,14 +483,38 @@ Bajar la carga permanente del default al aportar los datos reales del problema e
 establecido, es exactamente el patrón del incidente. Sin este gate el aviso saltaría
 en casi toda primera extracción y se convertiría en papel pintado que nadie lee.
 
-Un valor está establecido si se cumple **cualquiera** de estas dos — la misma
-disyunción, exactamente, que decide si una clave sale de `sin_confirmar` en el
-snapshot decorado:
+Un valor está establecido si se cumple **cualquiera** de estas dos:
 
 1. **difiere del de fábrica** (`current[field] !== defaults[field]`): alguien lo tocó;
-2. **el hilo ya lo trató** en un turno ANTERIOR y **este turno lo MUEVE**
-   (`confirmed`, que sale de `establishedKeys` sobre el `threadValuesRef` del modal
-   — el mismo registro que alimenta `decorateSnapshot`).
+2. **el hilo ya lo trató** en un turno ANTERIOR y no es la **tarjeta viva** quien lo
+   arrastra sin cambio (`confirmed`, que sale de `establishedKeys` sobre el
+   `threadValuesRef` del modal).
+
+**Los dos consumidores del registro del hilo NO usan el mismo criterio, y es
+deliberado.** `decorateSnapshot` recibe **todas** las claves que el hilo ha tratado
+(`new Set(threadValuesRef.current.keys())`), porque su trabajo es sacarlas de
+`sin_confirmar` para que el asistente no las re-pregunte en bucle: ahí mencionar el
+campo ya basta. El gate de riesgos recibe un **subconjunto** —lo que devuelve
+`establishedKeys`—, porque «el hilo mencionó esta clave» no es «alguien fijó este
+valor». La tarjeta pendiente se fusiona y el plan se rehace entero cada turno, así
+que sin ese filtro toda primera introducción salía en rojo a partir del segundo
+turno (fix 2026-07-25).
+
+El filtro exime **una sola** situación: el valor propuesto coincide con el primero
+que el hilo le dio **y** es la tarjeta pendiente viva quien lo arrastra. Eso es «la
+misma propuesta, re-planificada». Todo lo demás establece, incluido re-proponer ese
+mismo valor cuando ya **no** hay tarjeta viva porque la anterior se aplicó: ahí es
+una propuesta nueva sobre un formulario que el usuario ha podido corregir a mano, y
+si su corrección coincide con el default (que es la fuga 1 entera) la vía 1 no puede
+verla. Ese matiz lo añadió el code-review de 2026-07-26, que encontró que el primer
+intento de arreglo deshacía correcciones manuales en silencio.
+
+Lo que **sigue exento a propósito**: una tarjeta acumulada durante varios turnos y
+nunca aplicada se juzga como el primer relleno que es, aunque haya tardado cuatro
+turnos en formarse. Proponer `loadType:'custom'` en el turno 1 y `psi2Custom:0` en el
+turno 2, sin aplicar, da el mismo resultado que proponerlos juntos en un solo turno.
+Antes eso no era coherente —un turno no avisaba y dos sí—, y esa incoherencia era el
+bug.
 
 La segunda es el arreglo de la **auditoría de 2026-07-14 (fuga 1)**, y es la más
 importante que se ha hecho al guardarraíl. Sin ella el gate se desarmaba justo
@@ -501,7 +525,7 @@ El modelo podía engordar el pilar existente a 40×40 sin una sola fila roja. Lo
 módulos de REHABILITACIÓN, cuya tesis entera es "lo medido es un DATO", tenían la
 red desarmada en su caso más frecuente.
 
-El **"y este turno lo mueve"** es el arreglo de **2026-07-25**, y es lo que
+La **exención de la tarjeta viva** es el arreglo de **2026-07-25**, y es lo que
 mantiene esa segunda vía usable. La tarjeta pendiente **se fusiona** con la
 propuesta de cada turno nuevo y el plan se reconstruye entero, así que un dato
 introducido por primera vez en el turno 1 —sin fila roja, gate cerrado: nadie lo
@@ -509,11 +533,23 @@ había fijado— volvía a evaluarse en el turno 2 con su propia clave ya en la
 memoria del hilo, y salía marcado en rojo con checkbox de confirmación. En todos
 los turnos siguientes, en cualquier hilo de varios turnos con tarjeta viva: el
 modo guiado entero. Por eso el registro guarda el **primer valor** de cada clave
-(`collectThreadValues`) y `establishedKeys` la da por establecida solo cuando lo
-que se propone ahora **difiere** de esa línea base: arrastrar el mismo valor turno
-tras turno no es un cambio y no se re-juzga; moverlo sí. Que la línea base sea la
-PRIMERA y no la última es lo que hace que un riesgo ya detectado **siga en rojo**
-en los turnos siguientes en vez de convertirse en su propia referencia.
+(`collectThreadValues`) y `establishedKeys` exime la clave cuando lo que se propone
+ahora **coincide** con esa línea base **y** es la tarjeta pendiente viva quien lo
+arrastra. Que la línea base sea la PRIMERA y no la última es lo que hace que un
+riesgo ya detectado **siga en rojo** en los turnos siguientes en vez de convertirse
+en su propia referencia.
+
+La condición **"y es la tarjeta viva quien lo arrastra"** la añadió el code-review
+de **2026-07-26**. Sin ella la exención era demasiado ancha y se comía este flujo:
+el modelo propone `bTrib = 1.5` (el default es 3.0), el usuario **aplica**, luego se
+da cuenta y **corrige a mano** a 3.0, y al turno siguiente el modelo vuelve a
+proponer 1.5. En ese punto el estado observable es idéntico al del falso positivo
+—`current` en su valor de fábrica, propuesta igual a la línea base—, así que ninguna
+función de (línea base, propuesta, actual, defaults) los distingue: la vía 1 no ve la
+corrección porque 3.0 **es** el default (la fuga 1 entera) y la vía 2 quedaba cerrada
+por la coincidencia. Resultado: la corrección manual del usuario se deshacía sin una
+sola fila roja. Lo que sí los distingue es si la tarjeta que introdujo el valor sigue
+viva o ya se aplicó, y eso el modal lo sabe (`findPendingPayload`).
 
 `confirmed` está en el espacio de claves del **payload** (`t_cm`), no del estado
 (`t`): de ahí `SafetyRule.confirmKey`. Un `confirmKey` mal escrito deja el gate

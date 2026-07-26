@@ -465,15 +465,18 @@ export function AiChatModal<TInputs>({
             const effectivePayload =
               pending != null ? mergeProposalPayloads(pending, envelope.proposal) : envelope.proposal;
             try {
-              // `established`: de la memoria del hilo, solo lo que este turno
-              // MUEVE. Lo que la fusión arrastra igual (la propuesta pendiente
-              // re-planificada) no vuelve a juzgarse — si no, una primera
-              // introducción sin riesgo salía en rojo a partir del 2º turno.
+              // `established`: de la memoria del hilo, todo SALVO lo que la
+              // tarjeta VIVA arrastra sin cambio. Esa exención es la que evita
+              // que una primera introducción salga en rojo a partir del 2º turno
+              // (la tarjeta se fusiona y el plan se rehace entero cada turno);
+              // `pending` es lo que la delimita, porque sin tarjeta viva una
+              // propuesta repetida es nueva sobre un formulario que el usuario ha
+              // podido corregir a mano, y sí hay que juzgarla.
               plan = adapter.buildPlan(
                 effectivePayload,
                 current,
                 unitSystem,
-                establishedKeys(threadBefore, effectivePayload),
+                establishedKeys(threadBefore, effectivePayload, pending),
               );
               payload = effectivePayload;
               supersede = pending != null;

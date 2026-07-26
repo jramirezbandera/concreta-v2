@@ -111,15 +111,22 @@ export interface AiModuleAdapter<TInputs> {
    */
   snapshot(current: TInputs): string;
   /**
-   * `confirmed`: claves del PAYLOAD que el modelo ya trató en turnos ANTERIORES
-   * de este hilo y que ESTE turno mueve (AiChatModal.threadValuesRef pasado por
-   * `establishedKeys` — el mismo registro que filtra `sin_confirmar`). Levanta el
-   * gate anti-ruido de los guardarraíles: un valor ya acordado en la conversación
-   * está ESTABLECIDO aunque coincida con el default de fábrica, y rebajarlo es un
-   * riesgo (ver safety.ts). Lo que la fusión de la tarjeta pendiente arrastra sin
-   * cambio NO entra: es la misma propuesta re-planificada, no un cambio nuevo, y
-   * marcarla convertía cada primera introducción en una fila roja a partir del 2º
-   * turno. Ausente ⇒ hilo virgen (tests unitarios, primer turno).
+   * `confirmed`: claves del PAYLOAD que el modelo ya trató en turnos ANTERIORES de
+   * este hilo (AiChatModal.threadValuesRef pasado por `establishedKeys`). Levanta
+   * el gate anti-ruido de los guardarraíles: un valor ya acordado en la
+   * conversación está ESTABLECIDO aunque coincida con el default de fábrica, y
+   * rebajarlo es un riesgo (ver safety.ts).
+   *
+   * Queda fuera UNA sola situación: que la tarjeta pendiente VIVA arrastre la clave
+   * con el mismo valor que el hilo le dio la primera vez. Eso es la misma propuesta
+   * re-planificada —la tarjeta se fusiona y el plan se rehace entero cada turno— y
+   * marcarla convertía cada primera introducción en fila roja a partir del 2º
+   * turno. En cambio, re-proponer ese valor SIN tarjeta viva sí entra: la anterior
+   * se aplicó y el usuario ha podido corregir el formulario a mano.
+   *
+   * NO es el mismo conjunto que filtra `sin_confirmar`: ahí van todas las claves
+   * tratadas, para no re-preguntar. Ausente ⇒ hilo virgen (tests unitarios, primer
+   * turno).
    */
   buildPlan(
     payload: unknown,
