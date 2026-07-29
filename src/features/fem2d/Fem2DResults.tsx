@@ -10,12 +10,13 @@
 // ambientStyle): MemberCheck is mapped onto CheckRow so a bar's checks render
 // exactly like every other module's.
 
-import type { JSX } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { useState, type JSX } from 'react';
+import { BookOpen, TriangleAlert } from 'lucide-react';
 import { CheckRowItem, GroupHeader } from '../../components/checks';
 import { MemberRow, type MemberRowData } from '../../components/checks/MemberRow';
 import { UtilizationCard } from '../../components/checks/UtilizationCard';
 import { ErrorAmbient } from '../../components/ui/ErrorAmbient';
+import { Fem2DMethodology } from './Fem2DMethodology';
 import { memberStatusToCheck, toCheckRow } from './checkMapping';
 import type { Fem2DAnalysisResult } from './pipeline';
 import type { MemberVerdict2D } from './checks';
@@ -55,6 +56,9 @@ const toRowData = (v: MemberVerdict2D): MemberRowData => ({
 });
 
 export function Fem2DResults({ model, result, validationErrors, selected, onSelectMember, onOpenDetail }: Props): JSX.Element {
+  // Panel «Cómo calcula este módulo» (hook ANTES de los early-returns).
+  const [methodOpen, setMethodOpen] = useState(false);
+
   // Invalid params — the model wasn't built; point back to the input banner.
   if (validationErrors.length > 0 || !model) {
     return (
@@ -112,10 +116,13 @@ export function Fem2DResults({ model, result, validationErrors, selected, onSele
         {checks.globalChecks.map((c) => (
           <CheckRowItem key={c.id} check={toCheckRow(c, 'ok')} compact />
         ))}
-        {checks.amplified && (
+        {(checks.amplified || checks.notionalApplied) && (
           <div className="px-4 py-2 border-t border-border-sub">
             <p className="text-[10px] text-text-disabled leading-snug">
-              Efectos de 2º orden: factores de viento/sismo amplificados por sensibilidad al desplome (αcr).
+              {'Efectos de 2º orden: ' + [
+                checks.amplified ? 'factores de viento/sismo amplificados por sensibilidad al desplome (αcr)' : null,
+                checks.notionalApplied ? 'imperfección de desplome como cargas nocionales H = φ·V por planta (§5.3.2)' : null,
+              ].filter(Boolean).join('; ') + '.'}
             </p>
           </div>
         )}
@@ -151,13 +158,23 @@ export function Fem2DResults({ model, result, validationErrors, selected, onSele
         ))}
       </div>
 
-      {/* Method disclaimer. */}
-      <div className="mx-2 px-2">
+      {/* Method disclaimer + documentación del motor. */}
+      <div className="mx-2 px-2 flex flex-col gap-1.5">
         <p className="text-[10px] text-text-disabled leading-snug">
           Análisis lineal de pórtico (rigidez directa, 3 GDL) · combinaciones CTE multi-principal ·
           2º orden simplificado por αcr. Predimensionamiento — no sustituye un cálculo completo.
         </p>
+        <button
+          type="button"
+          onClick={() => setMethodOpen(true)}
+          className="self-start inline-flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-hover hover:underline"
+        >
+          <BookOpen size={12} aria-hidden="true" />
+          Cómo calcula este módulo — hipótesis y limitaciones
+        </button>
       </div>
+
+      {methodOpen && <Fem2DMethodology onClose={() => setMethodOpen(false)} />}
     </div>
   );
 }
