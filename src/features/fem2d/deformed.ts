@@ -22,6 +22,7 @@
 import type { LcFactors } from '../../lib/frame-core/lcCombinations';
 import type { LoadCase } from '../../lib/frame-core/types';
 import type { Solver2DElementResult } from './solver2d';
+import { memberFormulation } from './decompose';
 import type { Fem2DModel } from './types';
 
 export interface DeformedMemberShape {
@@ -166,7 +167,7 @@ export function computeDeformedShape(
     }
 
     const mid =
-      m.elementType === 'two-force'
+      memberFormulation(model, m) === 'two-force'
         ? null
         : { ...base[midIdx], ...disp[midIdx] };
     members.push({ memberId: m.id, base, disp, mid });

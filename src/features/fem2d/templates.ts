@@ -1,7 +1,7 @@
 // FEM 2D — parametric templates (Lane A, eng-review D8: parametric-first)
 //
 // v1 has NO free 2D editor. Each template is a fixed topology whose geometry,
-// member roles, element types and load layout are GENERATED from a small,
+// member data (grupos de presentación, rótulas, límites) and load layout are GENERATED from a small,
 // validated parameter set. The four templates re-author (not reuse) the old
 // decorative presets — those lived in the deprecated FemModel shape and were
 // only ever "solved" by the quarantined mock (eng-review outside-voice #9).
@@ -123,7 +123,13 @@ export const prattTrussTemplate: Fem2DTemplate<PrattTrussParams> = buildGuard(
       height: 1.5,
       nPanels: 4,
       chordProfileKey: 'steel_IPE200',
-      webProfileKey: 'steel_L80x8',
+      // D11 (Fase 2): SHS en vez de L 80×8 — área comparable (≈12 cm²) pero
+      // CON motor de flexión, así que la historia estrella (poner una
+      // repartida sobre una diagonal y ver un resultado) funciona en la
+      // plantilla por defecto. Un alma tubular en cercha es proyecto ortodoxo.
+      // Los modelos antiguos con L 80×8 siguen abriendo (la clave vive en el
+      // catálogo) y una L con demanda de flexión lee PENDIENTE con motivo.
+      webProfileKey: 'steel_SHS80x80x4',
       steel: 'S275',
       roofDeadLoad: 3,
       roofLiveLoad: 4,
@@ -156,25 +162,26 @@ export const prattTrussTemplate: Fem2DTemplate<PrattTrussParams> = buildGuard(
     for (let i = 1; i <= n - 1; i++) nodes.push(node2d(`t${i}`, i * panel, p.height));
 
     const members: Fem2DMember[] = [];
-    // Bottom chord ci1..cin (beam-column: continuous, may carry ceiling UDL).
+    // Bottom chord ci1..cin (continuous, may carry ceiling UDL).
     for (let i = 1; i <= n; i++) {
-      members.push(beamColumn(`ci${i}`, `b${i - 1}`, `b${i}`, { role: 'cordon', steelSelection: { ...chord } }));
+      members.push(beamColumn(`ci${i}`, `b${i - 1}`, `b${i}`, { displayGroup: 'cordon', deflLimit: 300, steelSelection: { ...chord } }));
     }
     // Top chord cs1..cs(n-2).
     for (let i = 1; i <= n - 2; i++) {
-      members.push(beamColumn(`cs${i}`, `t${i}`, `t${i + 1}`, { role: 'cordon', steelSelection: { ...chord } }));
+      members.push(beamColumn(`cs${i}`, `t${i}`, `t${i + 1}`, { displayGroup: 'cordon', deflLimit: 300, steelSelection: { ...chord } }));
     }
     // Diagonals d1..dn: left end post, left interiors, right interiors, right end post.
+    // twoForce() = birrotulada + deflLimit 'none' — decompose deriva la biela.
     const diagonals: Array<[string, string]> = [[`b0`, `t1`]];
     for (let i = 1; i <= n / 2 - 1; i++) diagonals.push([`t${i}`, `b${i + 1}`]);
     for (let i = n / 2 + 1; i <= n - 1; i++) diagonals.push([`t${i}`, `b${i - 1}`]);
     diagonals.push([`t${n - 1}`, `b${n}`]);
     diagonals.forEach(([i, j], k) => {
-      members.push(twoForce(`d${k + 1}`, i, j, { role: 'diagonal', steelSelection: { ...web } }));
+      members.push(twoForce(`d${k + 1}`, i, j, { displayGroup: 'diagonal', steelSelection: { ...web } }));
     });
     // Verticals m1..m(n-1).
     for (let i = 1; i <= n - 1; i++) {
-      members.push(twoForce(`m${i}`, `b${i}`, `t${i}`, { role: 'montante', steelSelection: { ...web } }));
+      members.push(twoForce(`m${i}`, `b${i}`, `t${i}`, { displayGroup: 'montante', steelSelection: { ...web } }));
     }
 
     const supports: Fem2DSupport[] = [support2d('b0', 'pinned'), support2d(`b${n}`, 'roller')];
@@ -271,9 +278,9 @@ export const portalFrameTemplate: Fem2DTemplate<PortalFrameParams> = buildGuard(
       node2d('n4', p.span, 0),
     ];
     const members = [
-      beamColumn('p1', 'n1', 'n2', { role: 'pilar', steelSelection: { ...col } }),
-      beamColumn('v1', 'n2', 'n3', { role: 'viga', steelSelection: { ...beam }, ltbSpacing: p.beamLtbSpacing }),
-      beamColumn('p2', 'n4', 'n3', { role: 'pilar', steelSelection: { ...col } }),
+      beamColumn('p1', 'n1', 'n2', { displayGroup: 'pilar', deflLimit: 'none', steelSelection: { ...col } }),
+      beamColumn('v1', 'n2', 'n3', { displayGroup: 'viga', deflLimit: 300, steelSelection: { ...beam }, ltbSpacing: p.beamLtbSpacing }),
+      beamColumn('p2', 'n4', 'n3', { displayGroup: 'pilar', deflLimit: 'none', steelSelection: { ...col } }),
     ];
     const supports = [support2d('n1', p.baseFixity), support2d('n4', p.baseFixity)];
     const loads: Fem2DLoad[] = [];
@@ -368,12 +375,12 @@ export const multistoryTemplate: Fem2DTemplate<MultistoryParams> = buildGuard(
     const members: Fem2DMember[] = [];
     for (let c = 0; c <= p.nBays; c++) {
       for (let s = 1; s <= p.nStories; s++) {
-        members.push(beamColumn(`p${c}_${s}`, `n${c}_${s - 1}`, `n${c}_${s}`, { role: 'pilar', steelSelection: { ...col } }));
+        members.push(beamColumn(`p${c}_${s}`, `n${c}_${s - 1}`, `n${c}_${s}`, { displayGroup: 'pilar', deflLimit: 'none', steelSelection: { ...col } }));
       }
     }
     for (let l = 1; l <= p.nStories; l++) {
       for (let b = 0; b < p.nBays; b++) {
-        members.push(beamColumn(`v${b}_${l}`, `n${b}_${l}`, `n${b + 1}_${l}`, { role: 'viga', steelSelection: { ...beam }, ltbSpacing: p.beamLtbSpacing }));
+        members.push(beamColumn(`v${b}_${l}`, `n${b}_${l}`, `n${b + 1}_${l}`, { displayGroup: 'viga', deflLimit: 300, steelSelection: { ...beam }, ltbSpacing: p.beamLtbSpacing }));
       }
     }
     const supports: Fem2DSupport[] = [];
@@ -472,10 +479,10 @@ export const gableTemplate: Fem2DTemplate<GableParams> = buildGuard(
       node2d('n5', p.span, 0),
     ];
     const members = [
-      beamColumn('p1', 'n1', 'n2', { role: 'pilar', steelSelection: { ...col } }),
-      beamColumn('f1', 'n2', 'n3', { role: 'viga', steelSelection: { ...rafter }, ltbSpacing: p.rafterLtbSpacing }),
-      beamColumn('f2', 'n3', 'n4', { role: 'viga', steelSelection: { ...rafter }, ltbSpacing: p.rafterLtbSpacing }),
-      beamColumn('p2', 'n5', 'n4', { role: 'pilar', steelSelection: { ...col } }),
+      beamColumn('p1', 'n1', 'n2', { displayGroup: 'pilar', deflLimit: 'none', steelSelection: { ...col } }),
+      beamColumn('f1', 'n2', 'n3', { displayGroup: 'viga', deflLimit: 300, steelSelection: { ...rafter }, ltbSpacing: p.rafterLtbSpacing }),
+      beamColumn('f2', 'n3', 'n4', { displayGroup: 'viga', deflLimit: 300, steelSelection: { ...rafter }, ltbSpacing: p.rafterLtbSpacing }),
+      beamColumn('p2', 'n5', 'n4', { displayGroup: 'pilar', deflLimit: 'none', steelSelection: { ...col } }),
     ];
     const supports = [support2d('n1', p.baseFixity), support2d('n5', p.baseFixity)];
     const loads: Fem2DLoad[] = [];

@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { memberLength, validateModel2DBasic } from '../../features/fem2d/builder';
+import { memberFormulation } from '../../features/fem2d/decompose';
 import {
   FEM2D_TEMPLATES,
   gableTemplate,
@@ -94,11 +95,13 @@ describe('all templates', () => {
         }
       });
 
-      it('D10: two-force members never carry member loads', () => {
+      it('las barras birrotuladas de plantilla no llevan cargas de barra (derivan a biela)', () => {
         const model = template.build(template.defaults() as never);
-        const twoForceIds = new Set(model.members.filter((m) => m.elementType === 'two-force').map((m) => m.id));
+        const releasedIds = new Set(
+          model.members.filter((m) => m.releases.i && m.releases.j).map((m) => m.id),
+        );
         for (const ld of model.loads) {
-          if (ld.kind !== 'node') expect(twoForceIds.has(ld.member)).toBe(false);
+          if (ld.kind !== 'node') expect(releasedIds.has(ld.member)).toBe(false);
         }
       });
 
@@ -129,15 +132,19 @@ describe('prattTrussTemplate', () => {
     expect(byId.get('t3')).toMatchObject({ x: 6, y: 1.5 });
   });
 
-  it('chords are beam-column "cordon"; web is two-force diagonal/montante', () => {
-    const chords = model.members.filter((m) => m.role === 'cordon');
-    const diagonals = model.members.filter((m) => m.role === 'diagonal');
-    const verticals = model.members.filter((m) => m.role === 'montante');
+  it('cordones continuos con flecha exigible; alma birrotulada (biela derivada) sin flecha', () => {
+    const chords = model.members.filter((m) => m.displayGroup === 'cordon');
+    const diagonals = model.members.filter((m) => m.displayGroup === 'diagonal');
+    const verticals = model.members.filter((m) => m.displayGroup === 'montante');
     expect(chords).toHaveLength(6); // n bottom + (n−2) top
     expect(diagonals).toHaveLength(4); // 2 end posts + n−2 interior
     expect(verticals).toHaveLength(3); // n−1
-    expect(chords.every((m) => m.elementType === 'beam-column')).toBe(true);
-    expect([...diagonals, ...verticals].every((m) => m.elementType === 'two-force')).toBe(true);
+    expect(chords.every((m) => !m.releases.i && !m.releases.j)).toBe(true);
+    expect(chords.every((m) => m.deflLimit === 300)).toBe(true);
+    const web = [...diagonals, ...verticals];
+    expect(web.every((m) => m.releases.i && m.releases.j)).toBe(true);
+    expect(web.every((m) => m.deflLimit === 'none')).toBe(true);
+    expect(web.every((m) => memberFormulation(model, m) === 'two-force')).toBe(true);
   });
 
   it('Pratt connectivity: interior diagonals descend toward midspan', () => {
@@ -196,10 +203,10 @@ describe('portalFrameTemplate', () => {
 
   it('geometry: two columns bottom→top and one beam', () => {
     const byId = new Map(model.members.map((m) => [m.id, m]));
-    expect(byId.get('p1')).toMatchObject({ i: 'n1', j: 'n2', role: 'pilar' });
-    expect(byId.get('v1')).toMatchObject({ i: 'n2', j: 'n3', role: 'viga' });
-    expect(byId.get('p2')).toMatchObject({ i: 'n4', j: 'n3', role: 'pilar' });
-    expect(model.members.every((m) => m.elementType === 'beam-column')).toBe(true);
+    expect(byId.get('p1')).toMatchObject({ i: 'n1', j: 'n2', displayGroup: 'pilar' });
+    expect(byId.get('v1')).toMatchObject({ i: 'n2', j: 'n3', displayGroup: 'viga' });
+    expect(byId.get('p2')).toMatchObject({ i: 'n4', j: 'n3', displayGroup: 'pilar' });
+    expect(model.members.every((m) => memberFormulation(model, m) === 'beam-column')).toBe(true);
   });
 
   it('ΣF: gravity −w·L on G/Q, wind on W', () => {
@@ -234,8 +241,8 @@ describe('multistoryTemplate', () => {
 
   it('1 bay × 2 stories: 6 nodes, 4 columns + 2 beams', () => {
     expect(model.nodes).toHaveLength(6);
-    expect(model.members.filter((m) => m.role === 'pilar')).toHaveLength(4);
-    expect(model.members.filter((m) => m.role === 'viga')).toHaveLength(2);
+    expect(model.members.filter((m) => m.displayGroup === 'pilar')).toHaveLength(4);
+    expect(model.members.filter((m) => m.displayGroup === 'viga')).toHaveLength(2);
   });
 
   it('grid coordinates and base supports', () => {
@@ -288,11 +295,11 @@ describe('gableTemplate', () => {
   const model = gableTemplate.build(defaults);
   const rafterLen = Math.hypot(defaults.span / 2, defaults.ridgeHeight - defaults.eaveHeight);
 
-  it('geometry: ridge at midspan, rafters are viga beam-columns', () => {
+  it('geometry: ridge at midspan, rafters son vigas continuas', () => {
     const byId = new Map(model.nodes.map((n) => [n.id, n]));
     expect(byId.get('n3')).toMatchObject({ x: 4, y: 4.2 });
     const rafters = model.members.filter((m) => m.id.startsWith('f'));
-    expect(rafters.every((m) => m.role === 'viga' && m.elementType === 'beam-column')).toBe(true);
+    expect(rafters.every((m) => m.displayGroup === 'viga' && memberFormulation(model, m) === 'beam-column')).toBe(true);
     expect(model.supports.every((s) => s.type === 'pinned')).toBe(true); // old-preset default
   });
 

@@ -11,10 +11,10 @@
 //     candidate with validateModel2DBasic and rejects any op that introduces a
 //     NEW fail (two safety layers, mirroring the 1D invariants.ts split — the
 //     pipeline still gates independently).
-//   - Role auto-inference (user decision): vertical → 'pilar', anything else →
-//     'viga', re-run ONLY on geometry changes and only while the member's role
-//     is still one of {pilar, viga} and not manually overridden. Template
-//     semantic roles (cordon/diagonal/montante) are never re-inferred away.
+//   - Fase 2 (design doc 2026-07-28): el rol de barra y su re-inferencia
+//     geométrica MURIERON — ninguna op estampa ni recalcula etiquetas. Los
+//     datos que las sustituyen (rcDesignKind, deflLimit, weakAxisBracing,
+//     rótulas) son elecciones del usuario y solo cambian cuando él las cambia.
 
 import { validateModel2DBasic } from './builder';
 import {
@@ -22,13 +22,13 @@ import {
   FEM2D_MAX_NODES,
   MIN_MEMBER_LENGTH_M,
   type ArmadoHA,
+  type DeflLimit2D,
   type Fem2DLoad,
   type Fem2DMember,
   type Fem2DModel,
   type Fem2DNode,
   type Fem2DSupport,
   type LoadCase,
-  type MemberRole,
   type RcColumnCage,
   type RcSection,
   type Steel2DSelection,
@@ -164,8 +164,6 @@ export const DEFAULT_COLUMN_CAGE_2D: RcColumnCage = {
 export const DEFAULT_TIMBER_SECTION_2D: TimberSection = {
   gradeId: 'C24', b: 140, h: 240, serviceClass: 1,
 };
-/** Verticality threshold for role inference: |dx| ≤ tan(10°)·|dy| → pilar. */
-const VERTICAL_TAN = Math.tan((10 * Math.PI) / 180);
 
 export const snap = (v: number): number => Math.round(v / SNAP_M) * SNAP_M;
 
@@ -185,36 +183,6 @@ export function nextFreeId(model: Fem2DModel, prefix: 'n' | 'b' | 'l'): string {
   let i = 1;
   while (used.has(`${prefix}${i}`)) i++;
   return `${prefix}${i}`;
-}
-
-// ── Role inference ──────────────────────────────────────────────────────────
-
-/** Auto role from geometry: near-vertical (±10°) → pilar; anything else → viga.
- *  Never produces cordon/diagonal/montante (those are template/override roles). */
-export function inferRole(a: Fem2DNode, b: Fem2DNode): MemberRole {
-  const dx = Math.abs(b.x - a.x);
-  const dy = Math.abs(b.y - a.y);
-  return dx <= VERTICAL_TAN * dy ? 'pilar' : 'viga';
-}
-
-/** Re-infer roles of members touching `nodeIds` after a geometry change.
- *  Skips manual overrides and template semantic roles (only pilar↔viga flip). */
-export function reinferRoles(model: Fem2DModel, nodeIds: ReadonlySet<string>): Fem2DModel {
-  const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
-  let touched = false;
-  const members = model.members.map((m) => {
-    if (m.roleManual === true) return m;
-    if (m.role !== 'pilar' && m.role !== 'viga') return m;
-    if (!nodeIds.has(m.i) && !nodeIds.has(m.j)) return m;
-    const a = nodeById.get(m.i);
-    const b = nodeById.get(m.j);
-    if (!a || !b) return m;
-    const role = inferRole(a, b);
-    if (role === m.role) return m;
-    touched = true;
-    return { ...m, role };
-  });
-  return touched ? { ...model, members } : model;
 }
 
 // ── Guard (never hand a degenerate model to the pipeline) ───────────────────
@@ -338,9 +306,10 @@ export function splitMemberAt(model: Fem2DModel, memberId: string, t: number): O
   return applyGuard(model, custom({ ...model, nodes: [...model.nodes, node], members, loads }));
 }
 
-/** Connect two existing nodes with a new beam-column member (auto role). The
- *  profile is cloned from a member already touching either end (visual
- *  consistency), falling back to the default IPE 240 S275. */
+/** Connect two existing nodes with a new steel member. The profile is cloned
+ *  from a member already touching either end (visual consistency), falling
+ *  back to the default IPE 240 S275. `deflLimit` queda sin estampar
+ *  (≡ L/300, el default documentado en types.ts) hasta que el usuario elija. */
 export function addMember(model: Fem2DModel, i: string, j: string): OpResult {
   if (i === j) return { ok: false, reason: 'Una barra necesita dos nudos distintos.' };
   const a = model.nodes.find((n) => n.id === i);
@@ -357,8 +326,6 @@ export function addMember(model: Fem2DModel, i: string, j: string): OpResult {
     id: nextFreeId(model, 'b'),
     i,
     j,
-    role: inferRole(a, b),
-    elementType: 'beam-column',
     material: 'steel',
     steelSelection: neighbour?.steelSelection ? { ...neighbour.steelSelection } : { ...DEFAULT_STEEL_2D },
     releases: { i: false, j: false },
@@ -463,9 +430,7 @@ export function selectionMoveNodeIds(model: Fem2DModel, sel: SelectionSet2D): Se
 
 /**
  * Desplaza la selección un vector (dx, dy) en UNA op (un undo): se mueven los
- * nudos de selectionMoveNodeIds; barras y cargas siguen a sus nudos solas. Los
- * roles auto se re-infieren como en moveNode — una barra PUENTE (un extremo
- * dentro y otro fuera de la selección) sí rota; las internas no cambian.
+ * nudos de selectionMoveNodeIds; barras y cargas siguen a sus nudos solas.
  */
 export function translateSelection(
   model: Fem2DModel,
@@ -496,7 +461,7 @@ export function translateSelection(
   }
   const guarded = applyGuard(model, custom({ ...model, nodes: moved }));
   if (!guarded.ok) return guarded;
-  return { ok: true, model: reinferRoles(guarded.model, ids) };
+  return guarded;
 }
 
 /**
@@ -741,9 +706,9 @@ export function addMemberUdl(
 ): OpResult {
   const m = model.members.find((mm) => mm.id === memberId);
   if (!m) return { ok: false, reason: 'Barra inexistente.' };
-  if (m.elementType === 'two-force') {
-    return { ok: false, reason: 'Una biela (2 fuerzas) no admite cargas en la barra: aplícalas en los nudos.' };
-  }
+  // Fase 2: cargar una barra birrotulada es LEGAL — la derivación de
+  // decompose la convierte en viga-columna que flecta. Aquí murió el "una
+  // biela no admite cargas" que bloqueaba al asistente IA.
   const load: Fem2DLoad = {
     id: nextFreeId(model, 'l'),
     kind: 'udl',
@@ -767,9 +732,6 @@ export function addMemberPointLoad(
 ): OpResult {
   const m = model.members.find((mm) => mm.id === memberId);
   if (!m) return { ok: false, reason: 'Barra inexistente.' };
-  if (m.elementType === 'two-force') {
-    return { ok: false, reason: 'Una biela (2 fuerzas) no admite cargas en la barra: aplícalas en los nudos.' };
-  }
   const pos = Math.min(1, Math.max(0, Math.round(t * 100) / 100));
   const load: Fem2DLoad = {
     id: nextFreeId(model, 'l'),
@@ -812,64 +774,33 @@ function patchMember(model: Fem2DModel, memberId: string, patch: Partial<Fem2DMe
   });
 }
 
-/** Explicit role pick in the inspector → manual override (blocks re-inference). */
-export function setMemberRole(model: Fem2DModel, memberId: string, role: MemberRole): Fem2DModel {
-  return patchMember(model, memberId, { role, roleManual: true });
-}
-
-/** "Volver a auto": clear the override and re-infer from geometry. */
-export function resetMemberRoleAuto(model: Fem2DModel, memberId: string): Fem2DModel {
-  const m = model.members.find((mm) => mm.id === memberId);
-  const a = m && model.nodes.find((n) => n.id === m.i);
-  const b = m && model.nodes.find((n) => n.id === m.j);
-  if (!m || !a || !b) return model;
-  return patchMember(model, memberId, { role: inferRole(a, b), roleManual: false });
-}
-
 /**
- * Toggle biela (two-force). Enabling requires the member to carry NO member
- * loads (D10 invariant — the caller surfaces the reason; loads stay listed and
- * deletable next to the toggle, no surprise deletions). Enabling also moves
- * the role to the axial family (montante if vertical, else diagonal) as a
- * manual pick; disabling returns to the auto pilar/viga.
+ * Comprobación HA (Fase 2 — el único descendiente legítimo del rol): elige qué
+ * armado se lee y qué motor lo comprueba. Solo tiene efecto en barras de HA;
+ * `undefined` nunca se estampa desde aquí (la elección no se "des-elige").
  */
-export function setMemberTwoForce(model: Fem2DModel, memberId: string, twoForce: boolean): OpResult {
+export function setRcDesignKind(model: Fem2DModel, memberId: string, kind: 'beam' | 'column'): Fem2DModel {
   const m = model.members.find((mm) => mm.id === memberId);
-  if (!m) return { ok: false, reason: 'Barra inexistente.' };
-  if (twoForce === (m.elementType === 'two-force')) return { ok: true, model };
-  if (twoForce) {
-    if (m.material === 'rc') {
-      return {
-        ok: false,
-        reason: 'Una biela de hormigón no está soportada: el chequeo axil HA (tracción fisurada + pandeo) no está modelado. Cambia la barra a acero o madera primero.',
-      };
-    }
-    const loads = model.loads.filter((l) => l.kind !== 'node' && l.member === memberId);
-    if (loads.length > 0) {
-      return {
-        ok: false,
-        reason: `La barra tiene ${loads.length} carga${loads.length === 1 ? '' : 's'} aplicadas: una biela no admite cargas en la barra. Bórralas primero.`,
-      };
-    }
-    const a = model.nodes.find((n) => n.id === m.i);
-    const b = model.nodes.find((n) => n.id === m.j);
-    const vertical = a && b ? inferRole(a, b) === 'pilar' : false;
-    return {
-      ok: true,
-      model: patchMember(model, memberId, {
-        elementType: 'two-force',
-        role: vertical ? 'montante' : 'diagonal',
-        roleManual: true,
-        releases: { i: false, j: false }, // pin-ended by formulation; flags irrelevant
-      }),
-    };
-  }
-  // Back to beam-column: role returns to geometric auto.
-  const a = model.nodes.find((n) => n.id === m.i);
-  const b = model.nodes.find((n) => n.id === m.j);
-  const role = a && b ? inferRole(a, b) : m.role;
-  return { ok: true, model: patchMember(model, memberId, { elementType: 'beam-column', role, roleManual: false }) };
+  if (!m || m.material !== 'rc') return model;
+  return patchMember(model, memberId, { rcDesignKind: kind });
 }
+
+/** Límite de flecha por barra (D10). `undefined` ≡ L/300 legado. */
+export function setMemberDeflLimit(model: Fem2DModel, memberId: string, limit: DeflLimit2D | undefined): Fem2DModel {
+  const m = model.members.find((mm) => mm.id === memberId);
+  if (!m) return model;
+  return patchMember(model, memberId, { deflLimit: limit });
+}
+
+/** Arriostramiento del eje débil (D13), separado de las correas. `undefined` =
+ *  sin arriostrar (longitud completa). */
+export function setMemberWeakAxisBracing(model: Fem2DModel, memberId: string, spacing: number | undefined): Fem2DModel {
+  const m = model.members.find((mm) => mm.id === memberId);
+  if (!m) return model;
+  if (spacing !== undefined && !(spacing > 0)) return model;
+  return patchMember(model, memberId, { weakAxisBracing: spacing });
+}
+
 
 export function setMemberProfile(model: Fem2DModel, memberId: string, profileKey: string): Fem2DModel {
   const m = model.members.find((mm) => mm.id === memberId);
@@ -884,13 +815,15 @@ export function setMemberSteel(model: Fem2DModel, memberId: string, steel: 'S275
 }
 
 /**
- * Switch a member's material. To 'rc': stamps role-aware section defaults +
- * BOTH armado shapes (beam pair + column cage) so the verdict is live at once
- * and survives any later role flip; blocked on bielas (no HA axial engine).
- * To 'timber': stamps the C24 seed section (a timber biela IS supported — the
- * EC5 engine covers pure axial: tracción §6.2.3 y pandeo kc §6.3.2). Existing
- * material data is preserved when toggling back and forth — the previous
- * material's fields are kept, never wiped.
+ * Switch a member's material. To 'rc': stamps section defaults + BOTH armado
+ * shapes (beam pair + column cage) so the verdict is live as soon as the user
+ * picks the rcDesignKind, and survives any later flip of that choice. La
+ * SEMILLA de sección ya no mira el rol (Fase 2): sin comprobación elegida no
+ * hay pista legítima, así que siembra la sección de viga y el usuario la
+ * ajusta al elegir — el veredicto es PENDIENTE hasta entonces de todas formas.
+ * To 'timber': stamps the C24 seed section. Existing material data is
+ * preserved when toggling back and forth — the previous material's fields are
+ * kept, never wiped.
  */
 export function setMemberMaterial(
   model: Fem2DModel,
@@ -901,19 +834,11 @@ export function setMemberMaterial(
   if (!m) return { ok: false, reason: 'Barra inexistente.' };
   if (m.material === material) return { ok: true, model };
   if (material === 'rc') {
-    if (m.elementType === 'two-force') {
-      return {
-        ok: false,
-        reason: 'Una biela de hormigón no está soportada: el chequeo axil HA no está modelado. Pasa la barra a viga-columna primero.',
-      };
-    }
     return {
       ok: true,
       model: patchMember(model, memberId, {
         material: 'rc',
-        rcSection: m.rcSection ?? {
-          ...(m.role === 'pilar' ? DEFAULT_RC_COLUMN_SECTION_2D : DEFAULT_RC_BEAM_SECTION_2D),
-        },
+        rcSection: m.rcSection ?? { ...DEFAULT_RC_BEAM_SECTION_2D },
         vanoArmado: m.vanoArmado ?? { ...DEFAULT_VANO_ARMADO_2D },
         apoyoArmado: m.apoyoArmado ?? { ...DEFAULT_APOYO_ARMADO_2D },
         columnCage: m.columnCage ?? { ...DEFAULT_COLUMN_CAGE_2D },
@@ -988,12 +913,12 @@ export function setMemberLtbSpacing(model: Fem2DModel, memberId: string, spacing
 
 /**
  * "Brocha" tool: copy the inspector-editable properties of `sourceId` onto
- * `targetId` — element type (via setMemberTwoForce so the biela load-guard and
- * role transitions apply), material (perfil + acero, or sección + armado HA),
- * rótulas and correas (ltbSpacing, including the "sin arriostrar" undefined).
- * The ROLE travels only when the source carries a manual override: painting a
- * profile must never silently re-route a target's template semantic role
- * (cordon/diagonal/montante) or its geometric auto — role drives check routing.
+ * `targetId` — material (perfil + acero, o sección + armado HA, o madera),
+ * rótulas, correas (ltbSpacing), arriostramiento del eje débil, límite de
+ * flecha y — si el origen es HA con la comprobación elegida — rcDesignKind
+ * (Fase 2: la elección del usuario viaja con la brocha, igual que viajaba el
+ * override manual del rol). `displayGroup` NO viaja: es presentación estampada
+ * por la plantilla, no una propiedad de cálculo.
  */
 export function copyMemberProps(model: Fem2DModel, sourceId: string, targetId: string): OpResult {
   const src = model.members.find((m) => m.id === sourceId);
@@ -1003,27 +928,6 @@ export function copyMemberProps(model: Fem2DModel, sourceId: string, targetId: s
     return { ok: false, reason: 'Origen y destino son la misma barra.' };
   }
 
-  let base = model;
-  // Material BEFORE the element-type toggle: painting a steel/timber biela onto
-  // an HA beam-column must not trip the biela↔HA guard — the final state is a
-  // steel or timber biela (a two-force source can never be HA; the ops forbid
-  // it, and timber bielas ARE supported).
-  if (src.material !== tgt.material && src.material === 'steel') {
-    base = patchMember(base, targetId, {
-      material: 'steel',
-      steelSelection: src.steelSelection ? { ...src.steelSelection } : { ...DEFAULT_STEEL_2D },
-    });
-  } else if (src.material !== tgt.material && src.material === 'timber') {
-    base = patchMember(base, targetId, {
-      material: 'timber',
-      timberSection: src.timberSection ? { ...src.timberSection } : { ...DEFAULT_TIMBER_SECTION_2D },
-    });
-  }
-  if (src.elementType !== tgt.elementType) {
-    const r = setMemberTwoForce(base, targetId, src.elementType === 'two-force');
-    if (!r.ok) return r;
-    base = r.model;
-  }
   const patch: Partial<Fem2DMember> = {
     material: src.material,
     steelSelection: src.steelSelection ? { ...src.steelSelection } : undefined,
@@ -1032,23 +936,20 @@ export function copyMemberProps(model: Fem2DModel, sourceId: string, targetId: s
     vanoArmado: src.vanoArmado ? { ...src.vanoArmado } : undefined,
     apoyoArmado: src.apoyoArmado ? { ...src.apoyoArmado } : undefined,
     columnCage: src.columnCage ? { ...src.columnCage } : undefined,
+    rcDesignKind: src.material === 'rc' ? src.rcDesignKind : tgt.rcDesignKind,
     ltbSpacing: src.ltbSpacing,
-    // A biela is pin-ended by formulation; its release flags are meaningless
-    // and must not overwrite anything real on conversion back.
-    releases: src.elementType === 'two-force' ? { i: false, j: false } : { ...src.releases },
+    weakAxisBracing: src.weakAxisBracing,
+    deflLimit: src.deflLimit,
+    releases: { ...src.releases },
   };
-  if (src.roleManual === true) {
-    patch.role = src.role;
-    patch.roleManual = true;
-  }
-  return applyGuard(model, patchMember(base, targetId, patch));
+  return applyGuard(model, patchMember(model, targetId, patch));
 }
 
 export interface CopyManyResult {
   model: Fem2DModel;
   /** Ids that received the paint. */
   applied: string[];
-  /** Targets skipped with the op's reason (e.g. biela onto a loaded member). */
+  /** Targets skipped with the op's reason (guard rejections). */
   failures: { id: string; reason: string }[];
 }
 
@@ -1146,7 +1047,5 @@ export function moveNode(model: Fem2DModel, nodeId: string, x: number, y: number
     ...model,
     nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)),
   });
-  const guarded = applyGuard(model, moved);
-  if (!guarded.ok) return guarded;
-  return { ok: true, model: reinferRoles(guarded.model, new Set([nodeId])) };
+  return applyGuard(model, moved);
 }

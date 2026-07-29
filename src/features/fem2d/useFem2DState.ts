@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getModuleSchemaVersion } from '../../data/moduleRegistry';
 import { useHistoryState } from '../../hooks/useHistoryState';
 import { validateModel2DBasic } from './builder';
-import { decodeShareString, isPlausibleModel } from './serialize';
+import { decodeShareStringDetailed, isPlausibleModel, normalizeLegacyModel } from './serialize';
 import { FEM2D_TEMPLATES } from './templates';
 import type { Fem2DModel } from './types';
 
@@ -37,40 +37,44 @@ export function seedModel(): Fem2DModel {
   return FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());
 }
 
-function loadFromStorage(): Fem2DModel | null {
+function loadFromStorage(): { model: Fem2DModel; migrated: boolean } | null {
   try {
     if (localStorage.getItem(VERSION_KEY) !== SCHEMA) return null;
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!isPlausibleModel(parsed)) return null;
+    // El blob guardado tiene el mismo shape que los enlaces: mismo normalizador
+    // de la Fase 2 (rol/elementType antiguos → campos nuevos).
+    const normalized = normalizeLegacyModel(parsed as Fem2DModel);
     // Same gate as share links: never hydrate a degenerate model.
-    if (validateModel2DBasic(parsed).some((e) => e.severity === 'fail')) return null;
-    return parsed;
+    if (validateModel2DBasic(normalized.model).some((e) => e.severity === 'fail')) return null;
+    return normalized;
   } catch {
     return null;
   }
 }
 
-function loadFromUrl(): Fem2DModel | null {
+function loadFromUrl(): { model: Fem2DModel; migrated: boolean } | null {
   if (typeof window === 'undefined') return null;
   try {
     const param = new URLSearchParams(window.location.search).get('model');
     if (!param) return null;
-    return decodeShareString(param); // handles v2 models AND v1 parametric links
+    return decodeShareStringDetailed(param); // v2 models (pre/post Fase 2) AND v1 parametric links
   } catch {
     return null;
   }
 }
 
 /** Hydrated model plus whether it came from a real source (URL/storage) or is
- *  just the first-run seed (→ the shell opens the template landing). */
-function loadInitialWithSource(): { model: Fem2DModel; fromSaved: boolean } {
+ *  just the first-run seed (→ the shell opens the template landing), plus the
+ *  Fase-2 migration flag (→ non-dismissable banner). */
+function loadInitialWithSource(): { model: Fem2DModel; fromSaved: boolean; migrated: boolean } {
   const fromUrl = loadFromUrl();
-  if (fromUrl) return { model: fromUrl, fromSaved: true };
+  if (fromUrl) return { model: fromUrl.model, fromSaved: true, migrated: fromUrl.migrated };
   const fromStorage = loadFromStorage();
-  if (fromStorage) return { model: fromStorage, fromSaved: true };
-  return { model: seedModel(), fromSaved: false };
+  if (fromStorage) return { model: fromStorage.model, fromSaved: true, migrated: fromStorage.migrated };
+  return { model: seedModel(), fromSaved: false, migrated: false };
 }
 
 export interface Fem2DModelStore {
@@ -86,6 +90,9 @@ export interface Fem2DModelStore {
   canRedo: boolean;
   /** True on first run (no URL, no stored model): show the template landing. */
   startedEmpty: boolean;
+  /** True cuando la hidratación migró un modelo del esquema anterior a la
+   *  Fase 2 (rol de barra): la shell muestra el banner no descartable. */
+  migratedFromLegacy: boolean;
 }
 
 export function useFem2DState(): Fem2DModelStore {
@@ -141,5 +148,6 @@ export function useFem2DState(): Fem2DModelStore {
     canUndo: h.canUndo,
     canRedo: h.canRedo,
     startedEmpty: !initial.fromSaved,
+    migratedFromLegacy: initial.migrated,
   };
 }

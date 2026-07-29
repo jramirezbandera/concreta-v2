@@ -39,7 +39,7 @@ import {
 } from './utils';
 import type { Fem2DAnalysisResult } from '../../features/fem2d/pipeline';
 import type { MemberStatus, MemberVerdict2D } from '../../features/fem2d/checks';
-import type { Fem2DMember, Fem2DModel, MemberRole } from '../../features/fem2d/types';
+import type { DisplayGroup2D, Fem2DMember, Fem2DModel } from '../../features/fem2d/types';
 
 const M = 18;
 const FEM2D_ENGINE = '1.0';
@@ -60,7 +60,9 @@ const TEMPLATE_SLUG: Record<Fem2DModel['templateId'], string> = {
   custom: 'estructura',
 };
 
-const ROLE_LABEL: Record<MemberRole, string> = {
+/** Agrupado de PRESENTACIÓN (Fase 2, paso 12): displayGroup de plantilla o el
+ *  fallback pilar/viga por verticalidad. Ningún número del PDF depende de esto. */
+const GROUP_LABEL: Record<DisplayGroup2D, string> = {
   pilar: 'Pilar',
   viga: 'Viga / dintel',
   cordon: 'Cordón',
@@ -68,7 +70,17 @@ const ROLE_LABEL: Record<MemberRole, string> = {
   montante: 'Montante',
 };
 
-const ROLE_ORDER: MemberRole[] = ['pilar', 'viga', 'cordon', 'diagonal', 'montante'];
+const GROUP_ORDER: DisplayGroup2D[] = ['pilar', 'viga', 'cordon', 'diagonal', 'montante'];
+
+/** tan(10°) — mismo fallback de presentación que checks.ts. */
+const VERTICAL_TAN_DISPLAY = Math.tan((10 * Math.PI) / 180);
+
+function displayGroupOf(m: Fem2DMember, nodeById: Map<string, { x: number; y: number }>): DisplayGroup2D {
+  if (m.displayGroup) return m.displayGroup;
+  const a = nodeById.get(m.i);
+  const b = nodeById.get(m.j);
+  return a && b && Math.abs(b.x - a.x) <= VERTICAL_TAN_DISPLAY * Math.abs(b.y - a.y) ? 'pilar' : 'viga';
+}
 
 const STATUS_TO_CHECK: Record<MemberStatus, 'ok' | 'warn' | 'fail' | 'neutral'> = {
   ok: 'ok', warn: 'warn', fail: 'fail', pending: 'neutral',
@@ -101,15 +113,13 @@ const SUPPORT_LABEL: Record<string, string> = {
   roller: 'deslizante',
 };
 
-const ROLE_PLURAL: Record<MemberRole, string> = {
+const GROUP_PLURAL: Record<DisplayGroup2D, string> = {
   pilar: 'Pilares',
   viga: 'Vigas',
   cordon: 'Cordones',
   diagonal: 'Diagonales',
   montante: 'Montantes',
 };
-
-const ROLE_ORDER_DESC: MemberRole[] = ['pilar', 'viga', 'cordon', 'diagonal', 'montante'];
 
 /** Longitud y cosenos directores de un miembro (0-safe). */
 function memberGeom(m: Fem2DMember, nodeById: Map<string, { x: number; y: number }>) {
@@ -146,8 +156,8 @@ export function describeModel(model: Fem2DModel, system: UnitSystem): ParamSecti
     ],
   };
 
-  // PERFILES: agrupados por rol → perfiles/acero o secciones HA en uso.
-  const byRole = new Map<MemberRole, Set<string>>();
+  // PERFILES: agrupados por grupo de presentación → perfiles/acero o secciones HA en uso.
+  const byGroup = new Map<DisplayGroup2D, Set<string>>();
   for (const m of model.members) {
     const desc = m.material === 'rc' && m.rcSection
       ? `${m.rcSection.b}×${m.rcSection.h} cm HA-${m.rcSection.fck}`
@@ -156,14 +166,15 @@ export function describeModel(model: Fem2DModel, system: UnitSystem): ParamSecti
         : m.material === 'steel' && m.steelSelection
           ? `${profileName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
           : m.material === 'timber' ? 'madera' : 'HA';
-    const set = byRole.get(m.role) ?? new Set<string>();
+    const g = displayGroupOf(m, nodeById);
+    const set = byGroup.get(g) ?? new Set<string>();
     set.add(desc);
-    byRole.set(m.role, set);
+    byGroup.set(g, set);
   }
   const perfiles: ParamSection = {
     header: 'PERFILES',
-    lines: ROLE_ORDER_DESC.filter((r) => byRole.has(r)).map(
-      (r) => `${ROLE_PLURAL[r]}: ${[...byRole.get(r)!].join(' / ')}`,
+    lines: GROUP_ORDER.filter((r) => byGroup.has(r)).map(
+      (r) => `${GROUP_PLURAL[r]}: ${[...byGroup.get(r)!].join(' / ')}`,
     ),
   };
 
@@ -240,16 +251,16 @@ interface SummaryRow { barra: string; rol: string; eta: string; estado: string }
 interface CheckRow2D { barra: string; comprobacion: string; valor: string; art: string; eta: string }
 
 function orderedVerdicts(model: Fem2DModel, result: Fem2DAnalysisResult): MemberVerdict2D[] {
-  const byRole = new Map<MemberRole, MemberVerdict2D[]>();
+  const byGroup = new Map<DisplayGroup2D, MemberVerdict2D[]>();
   for (const m of model.members) {
     const v = result.checks?.perMember[m.id];
     if (!v) continue;
-    const arr = byRole.get(m.role) ?? [];
+    const arr = byGroup.get(v.group) ?? [];
     arr.push(v);
-    byRole.set(m.role, arr);
+    byGroup.set(v.group, arr);
   }
   const out: MemberVerdict2D[] = [];
-  for (const role of ROLE_ORDER) out.push(...(byRole.get(role) ?? []));
+  for (const group of GROUP_ORDER) out.push(...(byGroup.get(group) ?? []));
   return out;
 }
 
@@ -406,7 +417,7 @@ export async function exportFem2DPDF(
 
   const summaryCols: TableCol<SummaryRow>[] = [
     { key: 'barra', label: 'Barra', w: 30 },
-    { key: 'rol', label: 'Rol', w: 42 },
+    { key: 'rol', label: 'Grupo', w: 42 },
     { key: 'eta', label: 'Ut. max', w: 26, align: 'right' },
     { key: 'estado', label: 'Estado', w: 32, align: 'right' },
   ];
@@ -417,7 +428,7 @@ export async function exportFem2DPDF(
     cols: summaryCols,
     rows: verdicts.map((v) => ({
       barra: v.memberId,
-      rol: ROLE_LABEL[v.role],
+      rol: GROUP_LABEL[v.group],
       eta: etaStr(v),
       estado: STATUS_LABEL[STATUS_TO_CHECK[v.status]],
     })),

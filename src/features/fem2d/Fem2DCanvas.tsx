@@ -21,6 +21,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { Fem2DCheckBundle, Fem2DEnvelopeKey } from './checks';
 import { computeLoadStackCounts, computeLoadStacks, strokeFor, timberBandColor } from './canvasTheme';
 import { DeformedLayer, LoadGlyph, ReleaseHingeGlyphs, SupportGlyph, buildDiagramLayers } from './canvasGlyphs';
+import { memberFormulation } from './decompose';
 import { computeDeformedShape } from './deformed';
 import type { Solver2DElementResult } from './solver2d';
 import { canvasBase } from './drawableBounds';
@@ -122,7 +123,7 @@ export function Fem2DCanvas({
         <line
           x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)}
           stroke={strokeFor(status, pdf)}
-          strokeWidth={m.elementType === 'two-force' ? 1.6 : 2.6}
+          strokeWidth={memberFormulation(model, m) === 'two-force' ? 1.6 : 2.6}
           strokeLinecap="round"
           strokeOpacity={dim ? 0.45 : 1}
         />

@@ -12,7 +12,7 @@
 // inspector edits, coordinates are exact — the tolerance only absorbs float
 // noise, it is not a "nearby nodes" heuristic.
 
-import { applyGuard, reinferRoles, type OpResult } from './modelOps';
+import { applyGuard, type OpResult } from './modelOps';
 import { MIN_MEMBER_LENGTH_M, type Fem2DModel, type Fem2DNode } from './types';
 
 export const ALIGN_TOL_M = 1e-3;
@@ -86,5 +86,5 @@ export function moveAlignmentGap(
   };
   const guarded = applyGuard(model, candidate);
   if (!guarded.ok) return guarded;
-  return { ok: true, model: reinferRoles(guarded.model, movedSet) };
+  return guarded;
 }

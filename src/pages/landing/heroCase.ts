@@ -14,7 +14,11 @@
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { encodeShareString } from '../../features/fem-analysis/serialize';
 import type { DesignModel } from '../../features/fem-analysis/types';
+import { buildTemplateWithDefaults } from '../../features/fem2d/templates';
+import { buildShareUrl } from '../../features/fem2d/serialize';
+import { getSteelEntry } from '../../lib/sections/catalog';
 import { MODULE_LIBRARY } from './modules';
+import { FEM2D_ROUTE } from './constants';
 
 const MODEL: DesignModel = cloneDesignPreset('continuous');
 
@@ -61,7 +65,57 @@ function allEqual(xs: number[]): boolean {
 // ("Abrir este cálculo →" vs "Abrir módulo →"). Each slide draws a real schematic
 // of that module (see canvases.tsx), NOT the hand-drawn full-UI replica that drifted.
 
-export type HeroCanvasKind = 'fem' | 'rc-beam' | 'steel-beam' | 'wall';
+export type HeroCanvasKind = 'fem2d' | 'fem' | 'rc-beam' | 'steel-beam' | 'wall';
+
+// ── FEM 2D — portal frame ────────────────────────────────────────────────────
+//
+// Built from the FEM 2D "portal frame" template with its own shipped defaults —
+// derived, never hand-written, so the frame drawn in the hero is always exactly
+// what the app builds. Also feeds the assistant section's sketch→model figure.
+//
+// buildShareUrl's baseUrl is passed EXPLICITLY. Its default reads
+// window.location.pathname (serialize.ts:87-91), which on the landing is "/",
+// so omitting it would emit "/?model=…" and the hero would link to itself.
+
+const PORTAL_FRAME_MODEL = buildTemplateWithDefaults('portal-frame');
+
+export const PORTAL_FRAME_HREF = buildShareUrl(PORTAL_FRAME_MODEL, FEM2D_ROUTE);
+
+/** Geometry of the hero frame, in model units, for the canvas to draw.
+ *  Derived from PORTAL_FRAME_MODEL so the drawing can never show a frame the
+ *  deep-link doesn't open — the same anti-drift rule as HERO_CASE. */
+export const PORTAL_FRAME = (() => {
+  const xs = PORTAL_FRAME_MODEL.nodes.map((n) => n.x);
+  const ys = PORTAL_FRAME_MODEL.nodes.map((n) => n.y);
+  const byId = new Map(PORTAL_FRAME_MODEL.nodes.map((n) => [n.id, n]));
+  const labelOf = (group: 'pilar' | 'viga') => {
+    const key = PORTAL_FRAME_MODEL.members.find((m) => m.displayGroup === group)?.steelSelection?.profileKey;
+    return key ? getSteelEntry(key)?.label : undefined;
+  };
+  const span = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  const profiles = [labelOf('pilar'), labelOf('viga')].filter(Boolean).join(' + ');
+  const geom = `${span.toFixed(2)} × ${height.toFixed(2)} m`;
+  return {
+    span,
+    height,
+    nodes: PORTAL_FRAME_MODEL.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
+    members: PORTAL_FRAME_MODEL.members.flatMap((m) => {
+      const a = byId.get(m.i);
+      const b = byId.get(m.j);
+      return a && b ? [{ id: m.id, x1: a.x, y1: a.y, x2: b.x, y2: b.y }] : [];
+    }),
+    /** Node ids carrying a support — drawn as fixed bases. */
+    supports: PORTAL_FRAME_MODEL.supports.map((s) => s.node),
+    /** Member ids under a distributed load — drawn with the load rail. */
+    loadedMembers: [
+      ...new Set(PORTAL_FRAME_MODEL.loads.flatMap((l) => (l.kind === 'udl' ? [l.member] : []))),
+    ],
+    facts: profiles ? `${geom} · ${profiles}` : geom,
+  };
+})();
+
+const PORTAL_FRAME_FACTS = PORTAL_FRAME.facts;
 
 export interface HeroSlide {
   id: string;
@@ -93,6 +147,7 @@ const rcBeams = libEntry('rc-beams');
 const steelBeams = libEntry('steel-beams');
 const walls = libEntry('walls');
 const fem = libEntry('fem');
+const fem2d = libEntry('fem2d');
 
 export const HERO_SLIDES: HeroSlide[] = [
   {
@@ -142,5 +197,20 @@ export const HERO_SLIDES: HeroSlide[] = [
     tag: 'M · V · δ',
     facts: `${HERO_CASE.section} · fck ${HERO_CASE.fck}`,
     canvas: 'fem',
+  },
+  // A plain FEM 2D slide like the other four: the module, its schematic, its
+  // preloaded case. The sketch→model story lives in the assistant section,
+  // where it explains something, instead of here where it only decorated.
+  {
+    id: fem2d.id,
+    group: fem2d.group,
+    module: fem2d.name,
+    tabLabel: 'FEM 2D',
+    name: 'Pórtico simple',
+    href: PORTAL_FRAME_HREF,
+    cta: 'Abrir este cálculo',
+    tag: 'N · M · V',
+    facts: PORTAL_FRAME_FACTS,
+    canvas: 'fem2d',
   },
 ];

@@ -21,7 +21,7 @@ function beam(loads: Fem2DLoad[]): Fem2DModel {
       { id: 'n2', x: 6, y: 0 },
     ],
     members: [{
-      id: 'b1', i: 'n1', j: 'n2', role: 'viga', elementType: 'beam-column',
+      id: 'b1', i: 'n1', j: 'n2',
       material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
       releases: { i: false, j: false },
     }],

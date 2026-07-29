@@ -21,6 +21,7 @@ import {
   signRuns,
 } from './canvasTheme';
 import type { DeformedShape2D } from './deformed';
+import { memberFormulation } from './decompose';
 import { loadGeometry } from './loadGeometry';
 import type { Fem2DLoad, Fem2DModel } from './types';
 
@@ -130,7 +131,9 @@ export function ReleaseHingeGlyphs({ model, sx, sy, pdf }: {
   const color = pdf ? HINGE_COLOR_PDF : HINGE_COLOR_SCREEN;
   const items: JSX.Element[] = [];
   for (const m of model.members) {
-    if (m.elementType !== 'beam-column' || (!m.releases.i && !m.releases.j)) continue;
+    // Una biela DERIVADA (birrotulada + descargada) no pinta anillos: su trazo
+    // fino ya la señala y 2N anillos en una celosía serían puro ruido.
+    if (memberFormulation(model, m) !== 'beam-column' || (!m.releases.i && !m.releases.j)) continue;
     const a = nodeById.get(m.i);
     const b = nodeById.get(m.j);
     if (!a || !b) continue;
@@ -366,11 +369,11 @@ export function buildDiagramLayers({
     const memberMax = Math.max(...vals.map(Math.abs));
     if (memberMax < labelFloor) continue; // nothing worth labelling on this member
 
-    // Constant-force members (axial N, two-force webs) → a single mid label;
-    // members whose field varies → one label per local extremum.
+    // Constant-force members (axial N, derived two-force webs) → a single mid
+    // label; members whose field varies → one label per local extremum.
     const spread = Math.max(...vals) - Math.min(...vals);
     const idxs =
-      m.elementType === 'two-force' || spread < 0.02 * viewMax
+      memberFormulation(model, m) === 'two-force' || spread < 0.02 * viewMax
         ? [indexOfMaxAbs(vals)]
         : findLocalExtrema(vals, viewMax, 0.14);
 

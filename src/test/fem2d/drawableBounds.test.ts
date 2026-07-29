@@ -110,7 +110,8 @@ describe('getDrawableBounds', () => {
 
   it('contiene la banda y la etiqueta de una carga distribuida', () => {
     const bare = modelFor('portal-frame');
-    const beam = bare.members.find((m) => m.elementType !== 'two-force') ?? bare.members[0];
+    // El pórtico no tiene bielas: cualquier barra vale (la 1ª es un pilar).
+    const beam = bare.members[0];
     const res = addMemberUdl(bare, beam.id); // preset gravedad por defecto
     expect(res.ok).toBe(true);
     if (!res.ok) return;

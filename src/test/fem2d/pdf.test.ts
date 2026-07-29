@@ -10,7 +10,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import { describeModel, exportFem2DPDF, fem2dFallbackFilename } from '../../lib/pdf/fem2d';
-import { setMemberMaterial } from '../../features/fem2d/modelOps';
+import { setMemberMaterial, setRcDesignKind } from '../../features/fem2d/modelOps';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import { buildModelFromState, fem2dUiDefaults, TEMPLATE_ORDER, type Fem2DUiState } from '../../features/fem2d/uiState';
 import type { Fem2DModel } from '../../features/fem2d/types';
@@ -76,7 +76,8 @@ describe('exportFem2DPDF', () => {
     const rc = setMemberMaterial(base, 'v1', 'rc');
     expect(rc.ok).toBe(true);
     if (!rc.ok) return;
-    const model = rc.model;
+    // Fase 2: la comprobación HA la ELIGE el usuario (sin elegir = PENDIENTE).
+    const model = setRcDesignKind(rc.model, 'v1', 'beam');
     const result = analyzeFem2D(model);
     expect(result.ok).toBe(true);
     // La viga HA se comprueba de verdad (armado estampado por defecto).

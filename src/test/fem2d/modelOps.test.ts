@@ -28,18 +28,17 @@ import {
   deleteSelection,
   duplicateSelection,
   editMembersMany,
-  inferRole,
   nextFreeId,
   normalizeSelection,
-  reinferRoles,
-  resetMemberRoleAuto,
   selectionMoveNodeIds,
   selectionToSet,
   setLoadMagnitude,
+  setMemberDeflLimit,
   setMemberMaterial,
   setMemberProfile,
-  setMemberRole,
-  setMemberTwoForce,
+  setMemberRelease,
+  setMemberWeakAxisBracing,
+  setRcDesignKind,
   translateSelection,
   setSupport,
   splitMemberAt,
@@ -51,10 +50,11 @@ import {
   updateMemberColumnCage,
   type LoadDraft2D,
 } from '../../features/fem2d/modelOps';
+import { memberFormulation } from '../../features/fem2d/decompose';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
 import { solveFem2D } from '../../features/fem2d/pipeline';
 import { FEM2D_TEMPLATES } from '../../features/fem2d/templates';
-import type { Fem2DModel, Fem2DNode } from '../../features/fem2d/types';
+import type { Fem2DModel } from '../../features/fem2d/types';
 
 function portal(): Fem2DModel {
   return buildModelFromState({ ...fem2dUiDefaults(), templateId: 'portal-frame' }).model!;
@@ -73,8 +73,6 @@ function totalReactions(model: Fem2DModel): { Rx: number; Ry: number } {
   return { Rx, Ry };
 }
 
-const n = (id: string, x: number, y: number): Fem2DNode => ({ id, x, y });
-
 describe('nextFreeId', () => {
   it('scans nodes+members+loads together (Pratt uses b0.. as NODE ids)', () => {
     const model = pratt();
@@ -89,40 +87,43 @@ describe('nextFreeId', () => {
   });
 });
 
-describe('inferRole (auto: vertical → pilar, resto → viga)', () => {
-  it('vertical and near-vertical (≤10°) → pilar', () => {
-    expect(inferRole(n('a', 0, 0), n('b', 0, 3))).toBe('pilar');
-    // 3 m de altura, 0.4 m de desplome → ~7.6° de la vertical.
-    expect(inferRole(n('a', 0, 0), n('b', 0.4, 3))).toBe('pilar');
-  });
-  it('horizontal, rafters and diagonals → viga', () => {
-    expect(inferRole(n('a', 0, 0), n('b', 5, 0))).toBe('viga');
-    expect(inferRole(n('a', 0, 3), n('b', 4, 4.2))).toBe('viga'); // faldón
-    expect(inferRole(n('a', 0, 0), n('b', 2, 1.5))).toBe('viga'); // diagonal
-  });
-});
-
-describe('reinferRoles', () => {
-  it('never touches template semantic roles (cordon/diagonal/montante)', () => {
-    const model = pratt();
-    const allNodes = new Set(model.nodes.map((x) => x.id));
-    const out = reinferRoles(model, allNodes);
-    for (let i = 0; i < model.members.length; i++) {
-      expect(out.members[i].role).toBe(model.members[i].role);
-    }
-  });
-
-  it('respects roleManual and flips only pilar↔viga', () => {
+describe('Fase 2 — ops de los datos que sustituyen al rol', () => {
+  it('setRcDesignKind solo actúa sobre barras HA', () => {
     const model = portal();
-    // Manual override on the beam: must survive re-inference.
-    const withManual: Fem2DModel = {
-      ...model,
-      members: model.members.map((m) => (m.id === 'v1' ? { ...m, role: 'pilar' as const, roleManual: true } : m)),
-    };
-    const out = reinferRoles(withManual, new Set(withManual.nodes.map((x) => x.id)));
-    expect(out.members.find((m) => m.id === 'v1')!.role).toBe('pilar');
-    // Auto members re-infer: p1 (vertical) stays pilar.
-    expect(out.members.find((m) => m.id === 'p1')!.role).toBe('pilar');
+    // v1 es de acero: la op es un no-op.
+    expect(setRcDesignKind(model, 'v1', 'beam')).toBe(model);
+    const rcRes = setMemberMaterial(model, 'v1', 'rc');
+    expect(rcRes.ok).toBe(true);
+    if (!rcRes.ok) return;
+    const withKind = setRcDesignKind(rcRes.model, 'v1', 'column');
+    expect(withKind.members.find((m) => m.id === 'v1')!.rcDesignKind).toBe('column');
+  });
+
+  it('setMemberDeflLimit y setMemberWeakAxisBracing estampan y limpian', () => {
+    const model = portal();
+    const withLimit = setMemberDeflLimit(model, 'v1', 500);
+    expect(withLimit.members.find((m) => m.id === 'v1')!.deflLimit).toBe(500);
+    const noLimit = setMemberDeflLimit(withLimit, 'v1', 'none');
+    expect(noLimit.members.find((m) => m.id === 'v1')!.deflLimit).toBe('none');
+
+    const braced = setMemberWeakAxisBracing(model, 'v1', 1.5);
+    expect(braced.members.find((m) => m.id === 'v1')!.weakAxisBracing).toBe(1.5);
+    const free = setMemberWeakAxisBracing(braced, 'v1', undefined);
+    expect(free.members.find((m) => m.id === 'v1')!.weakAxisBracing).toBeUndefined();
+    // Un valor no positivo no se estampa.
+    expect(setMemberWeakAxisBracing(model, 'v1', 0)).toBe(model);
+  });
+
+  it('la biela es DERIVADA: rótulas ambas + sin carga de barra', () => {
+    const model = portal();
+    // El dintel v1 lleva cargas de barra: aun birrotulado NO es biela.
+    const released = setMemberRelease(setMemberRelease(model, 'v1', 'i', true), 'v1', 'j', true);
+    const v1 = released.members.find((m) => m.id === 'v1')!;
+    expect(memberFormulation(released, v1)).toBe('beam-column');
+    // El pilar p1 no lleva cargas de barra: birrotulado ⇒ biela.
+    const relP = setMemberRelease(setMemberRelease(model, 'p1', 'i', true), 'p1', 'j', true);
+    const p1 = relP.members.find((m) => m.id === 'p1')!;
+    expect(memberFormulation(relP, p1)).toBe('two-force');
   });
 });
 
@@ -146,20 +147,19 @@ describe('addFreeNode / addMember', () => {
     expect(res.ok).toBe(false);
   });
 
-  it('addMember infers role, clones a neighbouring profile, rejects duplicates', () => {
+  it('addMember clones a neighbouring profile and rejects duplicates', () => {
     const model = portal();
     const withNode = addFreeNode(model, 3, 6);
     expect(withNode.ok).toBe(true);
     if (!withNode.ok) return;
     const newNodeId = withNode.model.nodes[withNode.model.nodes.length - 1].id;
 
-    // n2 (0, 3.5) → new node (3, 6): inclinada → viga.
     const res = addMember(withNode.model, 'n2', newNodeId);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const added = res.model.members[res.model.members.length - 1];
-    expect(added.role).toBe('viga');
-    expect(added.elementType).toBe('beam-column');
+    // Sin rótulas ⇒ viga-columna por derivación.
+    expect(memberFormulation(res.model, added)).toBe('beam-column');
     // Clona el perfil de un vecino del nudo n2 (pilar HEB 200 o dintel IPE 240).
     expect(added.steelSelection).toBeDefined();
 
@@ -276,13 +276,19 @@ describe('deletion cascades', () => {
 });
 
 describe('load ops', () => {
-  it('creates default gravity loads; rejects member loads on a two-force web', () => {
+  it('creates default gravity loads; cargar una biela derivada es LEGAL (Fase 2)', () => {
     const model = pratt();
-    const web = model.members.find((m) => m.elementType === 'two-force')!;
-    expect(addMemberUdl(model, web.id).ok).toBe(false);
-    expect(addMemberPointLoad(model, web.id, 0.5).ok).toBe(false);
+    const web = model.members.find((m) => memberFormulation(model, m) === 'two-force')!;
+    // La biela ya no bloquea cargas: la barra pasa a viga-columna y flecta.
+    const onWeb = addMemberUdl(model, web.id);
+    expect(onWeb.ok).toBe(true);
+    if (onWeb.ok) {
+      const webAfter = onWeb.model.members.find((m) => m.id === web.id)!;
+      expect(memberFormulation(onWeb.model, webAfter)).toBe('beam-column');
+    }
+    expect(addMemberPointLoad(model, web.id, 0.5).ok).toBe(true);
 
-    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+    const chord = model.members.find((m) => memberFormulation(model, m) === 'beam-column')!;
     const udl = addMemberUdl(model, chord.id);
     expect(udl.ok).toBe(true);
 
@@ -304,7 +310,7 @@ describe('load ops', () => {
     expect(nl.kind === 'node' && nl.Fx).toBe(10);
     expect(nl.kind === 'node' && nl.Fy).toBe(0);
 
-    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+    const chord = model.members.find((m) => memberFormulation(model, m) === 'beam-column')!;
     const onMember = addMemberPointLoad(model, chord.id, 0.4, HORIZONTAL_PRESET);
     expect(onMember.ok).toBe(true);
     if (!onMember.ok) return;
@@ -318,7 +324,7 @@ describe('load ops', () => {
 
   it('HORIZONTAL_UDL_PRESET places a wind-→ distributed load on a member', () => {
     const model = portal();
-    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+    const chord = model.members.find((m) => memberFormulation(model, m) === 'beam-column')!;
     const res = addMemberUdl(model, chord.id, HORIZONTAL_UDL_PRESET);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -334,14 +340,11 @@ describe('load ops', () => {
     if (!grav.ok) return;
     const g = grav.model.loads[grav.model.loads.length - 1];
     expect(g.kind === 'udl' && g.wy).toBe(-10);
-    // A two-force web still rejects any member load, preset or not.
-    const web = model.members.find((m) => m.elementType === 'two-force');
-    if (web) expect(addMemberUdl(model, web.id, HORIZONTAL_UDL_PRESET).ok).toBe(false);
   });
 
   it('el borrador armado en la paleta viaja entero a la carga colocada', () => {
     const model = portal();
-    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+    const chord = model.members.find((m) => memberFormulation(model, m) === 'beam-column')!;
 
     // Distribuida vertical: 40 kN/m de sobrecarga de uso categoría C3.
     const draft: LoadDraft2D = { lc: 'Q', useCategory: 'C3', magnitude: 40 };
@@ -396,48 +399,24 @@ describe('load ops', () => {
 });
 
 describe('inspector ops', () => {
-  it('setMemberRole marks manual; resetMemberRoleAuto re-infers', () => {
+  it('la biela derivada responde a las RÓTULAS: cargada nunca es biela, descargada sí', () => {
     const model = portal();
-    const manual = setMemberRole(model, 'v1', 'cordon');
-    const v1 = manual.members.find((m) => m.id === 'v1')!;
-    expect(v1.role).toBe('cordon');
-    expect(v1.roleManual).toBe(true);
-    expect(manual.templateId).toBe('custom');
+    // v1 birrotulada pero con las UDL de la plantilla → viga-columna que flecta.
+    const released = setMemberRelease(setMemberRelease(model, 'v1', 'i', true), 'v1', 'j', true);
+    const v1 = released.members.find((m) => m.id === 'v1')!;
+    expect(memberFormulation(released, v1)).toBe('beam-column');
+    expect(released.templateId).toBe('custom');
 
-    const auto = resetMemberRoleAuto(manual, 'v1');
-    const v1b = auto.members.find((m) => m.id === 'v1')!;
-    expect(v1b.role).toBe('viga'); // horizontal
-    expect(v1b.roleManual).toBe(false);
-  });
-
-  it('setMemberTwoForce blocks while the member carries loads, then works', () => {
-    const model = portal();
-    // v1 lleva las UDL de la plantilla → bloqueo con motivo.
-    const blocked = setMemberTwoForce(model, 'v1', true);
-    expect(blocked.ok).toBe(false);
-    if (!blocked.ok) expect(blocked.reason).toMatch(/carga/i);
-
-    // Sin sus cargas → biela con rol axial manual.
+    // Sin sus cargas → la MISMA barra deriva a biela, sin tocar nada más.
     const clean: ReturnType<typeof portal> = {
-      ...model,
-      loads: model.loads.filter((l) => l.kind === 'node' || l.member !== 'v1'),
+      ...released,
+      loads: released.loads.filter((l) => l.kind === 'node' || l.member !== 'v1'),
     };
-    const res = setMemberTwoForce(clean, 'v1', true);
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const v1 = res.model.members.find((m) => m.id === 'v1')!;
-    expect(v1.elementType).toBe('two-force');
-    expect(v1.role).toBe('diagonal'); // horizontal → no montante
-    expect(v1.roleManual).toBe(true);
+    expect(memberFormulation(clean, clean.members.find((m) => m.id === 'v1')!)).toBe('two-force');
 
-    // Vuelta a pórtico → rol auto.
-    const back = setMemberTwoForce(res.model, 'v1', false);
-    expect(back.ok).toBe(true);
-    if (!back.ok) return;
-    const v1b = back.model.members.find((m) => m.id === 'v1')!;
-    expect(v1b.elementType).toBe('beam-column');
-    expect(v1b.role).toBe('viga');
-    expect(v1b.roleManual).toBe(false);
+    // Cerrar una rótula la devuelve a viga-columna.
+    const back = setMemberRelease(clean, 'v1', 'i', false);
+    expect(memberFormulation(back, back.members.find((m) => m.id === 'v1')!)).toBe('beam-column');
   });
 
   it('setSupport sets/replaces/clears', () => {
@@ -470,13 +449,16 @@ describe('inspector ops', () => {
 });
 
 describe('moveNode', () => {
-  it('moves and re-infers auto roles of touching members', () => {
+  it('moves the node and keeps member data intact (Fase 2: nada que re-inferir)', () => {
     const model = portal();
-    // Tumbar el pilar p1: n2 (0, 3.5) → (6, 0.5) lo hace casi horizontal → viga.
     const res = moveNode(model, 'n2', 6, 0.5);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.model.members.find((m) => m.id === 'p1')!.role).toBe('viga');
+    expect(res.model.nodes.find((x) => x.id === 'n2')).toMatchObject({ x: 6, y: 0.5 });
+    // La barra conserva sus datos: perfil, rótulas, displayGroup de plantilla.
+    const p1 = res.model.members.find((m) => m.id === 'p1')!;
+    expect(p1.displayGroup).toBe('pilar');
+    expect(p1.steelSelection).toBeDefined();
   });
 
   it('rejects landing on another node', () => {
@@ -533,51 +515,37 @@ describe('copyMemberProps (brocha de propiedades)', () => {
     expect(p2.steelSelection).not.toBe(src.steelSelection);
     expect(p2.ltbSpacing).toBe(2.5);
     expect(p2.releases).toEqual({ i: true, j: false });
-    // El rol NO viaja cuando el origen es auto: p2 sigue siendo pilar.
-    expect(p2.role).toBe('pilar');
+    // El displayGroup NO viaja: es presentación de plantilla, no propiedad.
+    expect(p2.displayGroup).toBe('pilar');
     expect(res.model.templateId).toBe('custom');
   });
 
-  it('a MANUAL role travels with the paint; auto never overwrites', () => {
+  it('deflLimit y weakAxisBracing viajan con la brocha (datos de proyecto)', () => {
     const base = portal();
     const model: Fem2DModel = {
       ...base,
       members: base.members.map((m) =>
-        m.id === 'v1' ? { ...m, role: 'cordon' as const, roleManual: true } : m,
+        m.id === 'v1' ? { ...m, deflLimit: 500 as const, weakAxisBracing: 2 } : m,
       ),
     };
     const res = copyMemberProps(model, 'v1', 'p1');
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const p1 = res.model.members.find((m) => m.id === 'p1')!;
-    expect(p1.role).toBe('cordon');
-    expect(p1.roleManual).toBe(true);
+    expect(p1.deflLimit).toBe(500);
+    expect(p1.weakAxisBracing).toBe(2);
   });
 
-  it('painting a biela onto a loaded member fails with the load-guard reason', () => {
+  it('pintar una birrotulada sobre una barra CARGADA es legal: queda viga-columna por derivación', () => {
     const model = portal();
-    const r1 = setMemberTwoForce(model, 'p1', true);
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    const res = copyMemberProps(r1.model, 'p1', 'v1'); // v1 lleva 2 UDL
-    expect(res.ok).toBe(false);
-    if (res.ok) return;
-    expect(res.reason).toMatch(/biela/i);
-  });
-
-  it('painting beam-column onto a biela returns the target to its geometric auto role', () => {
-    const model = portal();
-    const r1 = setMemberTwoForce(model, 'p1', true);
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    const res = copyMemberProps(r1.model, 'v1', 'p1');
+    const released = setMemberRelease(setMemberRelease(model, 'p1', 'i', true), 'p1', 'j', true);
+    const res = copyMemberProps(released, 'p1', 'v1'); // v1 lleva 2 UDL
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    const p1 = res.model.members.find((m) => m.id === 'p1')!;
-    expect(p1.elementType).toBe('beam-column');
-    expect(p1.role).toBe('pilar'); // vertical → auto pilar
-    expect(p1.roleManual).toBe(false);
-    expect(p1.ltbSpacing).toBe(1.5); // las correas de v1 viajan
+    const v1 = res.model.members.find((m) => m.id === 'v1')!;
+    expect(v1.releases).toEqual({ i: true, j: true });
+    // Con cargas de barra la formulación derivada sigue siendo viga-columna.
+    expect(memberFormulation(res.model, v1)).toBe('beam-column');
   });
 
   it('same bar or missing bar fails', () => {
@@ -589,15 +557,18 @@ describe('copyMemberProps (brocha de propiedades)', () => {
 });
 
 describe('setMemberMaterial — hormigón armado', () => {
-  it('a HA estampa sección por rol (pilar 30×30, viga 30×50) + AMBOS armados', () => {
+  it('a HA estampa la sección semilla + AMBOS armados; la comprobación queda sin elegir', () => {
     const model = portal();
     const rp = setMemberMaterial(model, 'p1', 'rc');
     expect(rp.ok).toBe(true);
     if (!rp.ok) return;
     const p1 = rp.model.members.find((m) => m.id === 'p1')!;
     expect(p1.material).toBe('rc');
-    expect(p1.rcSection).toMatchObject({ b: 30, h: 30, fck: 25, fyk: 500 });
-    // Ambas formas de armado se estampan (sobreviven a un flip de rol).
+    // Fase 2: la semilla ya no mira el rol (no existe) — siembra la de viga y
+    // el usuario la ajusta al ELEGIR la comprobación (hasta entonces, PENDIENTE).
+    expect(p1.rcSection).toMatchObject({ b: 30, h: 50, fck: 25, fyk: 500 });
+    expect(p1.rcDesignKind).toBeUndefined();
+    // Ambas formas de armado se estampan (sobreviven a un flip de comprobación).
     expect(p1.columnCage).toBeDefined();
     expect(p1.vanoArmado).toBeDefined();
     expect(p1.apoyoArmado).toBeDefined();
@@ -606,11 +577,6 @@ describe('setMemberMaterial — hormigón armado', () => {
     // LTB es concepto de acero: se limpia.
     expect(p1.ltbSpacing).toBeUndefined();
     expect(rp.model.templateId).toBe('custom');
-
-    const rv = setMemberMaterial(model, 'v1', 'rc');
-    expect(rv.ok).toBe(true);
-    if (!rv.ok) return;
-    expect(rv.model.members.find((m) => m.id === 'v1')!.rcSection).toMatchObject({ b: 30, h: 50 });
   });
 
   it('vuelta a acero restaura el perfil original y conserva los datos HA', () => {
@@ -630,20 +596,15 @@ describe('setMemberMaterial — hormigón armado', () => {
     expect(v1.vanoArmado).toBeDefined();
   });
 
-  it('biela ↛ HA y HA ↛ biela (ambas direcciones bloqueadas con motivo)', () => {
+  it('una biela derivada SÍ puede pasar a HA (Fase 2: la guarda murió con el tipo)', () => {
+    // Con el kind sin elegir lee PENDIENTE en checks — honesto, no un bloqueo
+    // de op. Eligiendo 'column' se comprueba como flexocompresión con M = 0.
     const model = pratt();
-    const biela = model.members.find((m) => m.elementType === 'two-force')!;
+    const biela = model.members.find((m) => memberFormulation(model, m) === 'two-force')!;
     const r1 = setMemberMaterial(model, biela.id, 'rc');
-    expect(r1.ok).toBe(false);
-    if (!r1.ok) expect(r1.reason).toContain('biela');
-
-    const portalModel = portal();
-    const rc = setMemberMaterial(portalModel, 'v1', 'rc');
-    expect(rc.ok).toBe(true);
-    if (!rc.ok) return;
-    const r2 = setMemberTwoForce(rc.model, 'v1', true);
-    expect(r2.ok).toBe(false);
-    if (!r2.ok) expect(r2.reason).toContain('hormigón');
+    expect(r1.ok).toBe(true);
+    if (!r1.ok) return;
+    expect(r1.model.members.find((m) => m.id === biela.id)!.material).toBe('rc');
   });
 
   it('updateMemberArmado y updateMemberColumnCage parchean sin tocar lo demás', () => {
@@ -675,21 +636,21 @@ describe('setMemberMaterial — hormigón armado', () => {
     if (!painted.ok) return;
     const p2 = painted.model.members.find((m) => m.id === 'p2')!;
     expect(p2.material).toBe('rc');
-    expect(p2.rcSection).toMatchObject({ b: 30, h: 30 });
+    // Fase 2: la semilla es única (30×50, sin mirar rol).
+    expect(p2.rcSection).toMatchObject({ b: 30, h: 50 });
     expect(p2.columnCage!.nBarsX).toBe(2);
     expect(p2.vanoArmado).toBeDefined();
   });
 
-  it('la brocha pinta una biela de acero sobre una barra HA sin tropezar con la guarda', () => {
+  it('la brocha pinta una biela de acero sobre una barra HA (deriva two-force sin cargas)', () => {
     const model = pratt();
-    // Convierte el cordón c1 (viga-columna) a HA y luego píntale la biela d1.
-    const chord = model.members.find((m) => m.elementType === 'beam-column')!;
+    // Convierte el cordón (viga-columna) a HA y luego píntale una biela.
+    const chord = model.members.find((m) => memberFormulation(model, m) === 'beam-column')!;
     const rc = setMemberMaterial(model, chord.id, 'rc');
     expect(rc.ok).toBe(true);
     if (!rc.ok) return;
-    const biela = model.members.find((m) => m.elementType === 'two-force')!;
-    // Solo si el cordón no lleva cargas de barra (la guarda de biela es previa
-    // e independiente de esta prueba): quítalas.
+    const biela = model.members.find((m) => memberFormulation(model, m) === 'two-force')!;
+    // Sin cargas de barra la derivación puede dar two-force en el destino.
     const noLoads = {
       ...rc.model,
       loads: rc.model.loads.filter((l) => l.kind === 'node' || l.member !== chord.id),
@@ -698,8 +659,9 @@ describe('setMemberMaterial — hormigón armado', () => {
     expect(painted.ok).toBe(true);
     if (!painted.ok) return;
     const tgt = painted.model.members.find((m) => m.id === chord.id)!;
-    expect(tgt.elementType).toBe('two-force');
     expect(tgt.material).toBe('steel');
+    expect(tgt.releases).toEqual({ i: true, j: true });
+    expect(memberFormulation(painted.model, tgt)).toBe('two-force');
   });
 });
 
@@ -765,20 +727,18 @@ describe('copyMemberPropsMany (brocha en ventana, un solo undo)', () => {
     expect(res.model.templateId).toBe('custom');
   });
 
-  it('collects per-target failures without sinking the batch', () => {
+  it('pintar una birrotulada sobre todo el lote es legal: la formulación deriva por barra', () => {
     const model = portal();
-    // Origen = biela; destinos = p1 (ok) y v1 (lleva 2 UDL → guarda de biela).
-    const r1 = setMemberTwoForce(model, 'p1', true);
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    const res = copyMemberPropsMany(r1.model, 'p1', ['p2', 'v1']);
-    expect(res.applied).toEqual(['p2']); // p2 convierte a biela sin cargas
-    expect(res.failures.length).toBe(1);
-    expect(res.failures[0].id).toBe('v1');
-    expect(res.failures[0].reason).toMatch(/biela/i);
-    // p2 quedó como biela; v1 intacta (sigue viga-columna con sus cargas).
-    expect(res.model.members.find((m) => m.id === 'p2')!.elementType).toBe('two-force');
-    expect(res.model.members.find((m) => m.id === 'v1')!.elementType).toBe('beam-column');
+    // Origen = p1 birrotulado (biela derivada); destinos = p2 (sin cargas → biela)
+    // y v1 (con 2 UDL → sigue siendo viga-columna que flecta). Sin guardas.
+    const released = setMemberRelease(setMemberRelease(model, 'p1', 'i', true), 'p1', 'j', true);
+    const res = copyMemberPropsMany(released, 'p1', ['p2', 'v1']);
+    expect(res.applied.sort()).toEqual(['p2', 'v1']);
+    expect(res.failures).toEqual([]);
+    const p2 = res.model.members.find((m) => m.id === 'p2')!;
+    const v1 = res.model.members.find((m) => m.id === 'v1')!;
+    expect(memberFormulation(res.model, p2)).toBe('two-force');
+    expect(memberFormulation(res.model, v1)).toBe('beam-column');
   });
 
   it('empty target list is a no-op returning the same model', () => {
@@ -815,28 +775,24 @@ describe('setMemberMaterial — madera', () => {
     expect(m.timberSection).toEqual({ gradeId: 'GL24h', b: 140, h: 400, serviceClass: 1 });
   });
 
-  it('una biela SÍ puede ser de madera (la de hormigón sigue bloqueada)', () => {
+  it('una biela derivada puede ser de madera o de HA (Fase 2: sin guardas de tipo)', () => {
     const model = pratt();
-    const diagonal = model.members.find((mm) => mm.elementType === 'two-force')!;
-    const res = setMemberMaterial(model, diagonal.id, 'timber');
-    expect(res.ok).toBe(true);
-    const rc = setMemberMaterial(model, diagonal.id, 'rc');
-    expect(rc.ok).toBe(false);
+    const diagonal = model.members.find((mm) => memberFormulation(model, mm) === 'two-force')!;
+    expect(setMemberMaterial(model, diagonal.id, 'timber').ok).toBe(true);
+    expect(setMemberMaterial(model, diagonal.id, 'rc').ok).toBe(true);
   });
 
-  it('setMemberTwoForce acepta una viga-columna de madera', () => {
+  it('una viga-columna de madera birrotulada y descargada deriva a biela', () => {
     let model = portal();
     model = (setMemberMaterial(model, 'v1', 'timber') as { ok: true; model: Fem2DModel }).model;
-    // v1 lleva cargas de plantilla — las quitamos para poder pasarla a biela.
     model = {
       ...model,
       loads: model.loads.filter((l) => l.kind === 'node' || l.member !== 'v1'),
     };
-    const res = setMemberTwoForce(model, 'v1', true);
-    expect(res.ok).toBe(true);
-    const m = (res as { ok: true; model: Fem2DModel }).model.members.find((mm) => mm.id === 'v1')!;
+    model = setMemberRelease(setMemberRelease(model, 'v1', 'i', true), 'v1', 'j', true);
+    const m = model.members.find((mm) => mm.id === 'v1')!;
     expect(m.material).toBe('timber');
-    expect(m.elementType).toBe('two-force');
+    expect(memberFormulation(model, m)).toBe('two-force');
   });
 
   it('copy-props pinta madera sobre acero (sección clonada, no compartida)', () => {
@@ -889,7 +845,7 @@ describe('translateSelection (desplazamiento en bloque por vector)', () => {
       expect(moved.y).toBeCloseTo(nd.y + 1.5, 9);
     }
     for (let i = 0; i < model.members.length; i++) {
-      expect(out.members[i].role).toBe(model.members[i].role);
+      expect(out.members[i].displayGroup).toBe(model.members[i].displayGroup);
     }
     const after = totalReactions(out);
     expect(after.Rx).toBeCloseTo(before.Rx, 6);
@@ -897,13 +853,15 @@ describe('translateSelection (desplazamiento en bloque por vector)', () => {
     expect(out.templateId).toBe('custom');
   });
 
-  it('una barra PUENTE (un extremo dentro, otro fuera) rota y re-infiere su rol auto', () => {
+  it('una barra PUENTE (un extremo dentro, otro fuera) rota y conserva sus datos', () => {
     const model = portal();
-    // Solo n2 se mueve: p1 (n1→n2) pasa de vertical a muy inclinada → viga.
+    // Solo n2 se mueve: p1 (n1→n2) queda muy inclinada — sin roles que re-inferir.
     const res = translateSelection(model, { nodes: ['n2'], members: [], loads: [] }, 3, 0);
     expect(res.ok).toBe(true);
     const out = (res as { ok: true; model: Fem2DModel }).model;
-    expect(out.members.find((m) => m.id === 'p1')!.role).toBe('viga');
+    const p1 = out.members.find((m) => m.id === 'p1')!;
+    expect(p1.displayGroup).toBe('pilar'); // presentación de plantilla, intacta
+    expect(out.nodes.find((x) => x.id === 'n2')!.x).toBeCloseTo(3, 9);
   });
 
   it('rechaza el vector nulo, la selección sin nudos y la colisión con un nudo quieto', () => {
@@ -1026,28 +984,13 @@ describe('editMembersMany (edición en grupo del inspector, un undo)', () => {
     }
   });
 
-  it('una op con guarda omite las barras incompatibles sin hundir el lote', () => {
+  it('las ops de modelo pelado cuentan como aplicadas (límite de flecha en grupo)', () => {
     const model = portal();
-    // v1 tiene cargas en barra: no puede pasar a biela; p1 sí.
-    const res = editMembersMany(model, ['p1', 'v1'], (mm, id) =>
-      setMemberTwoForce(mm, id, true),
-    );
-    expect(res.applied).toEqual(['p1']);
-    expect(res.failures).toHaveLength(1);
-    expect(res.failures[0].id).toBe('v1');
-    expect(res.failures[0].reason).toContain('cargas');
-    expect(res.model.members.find((m) => m.id === 'p1')!.elementType).toBe('two-force');
-    expect(res.model.members.find((m) => m.id === 'v1')!.elementType).toBe('beam-column');
-  });
-
-  it('las ops de modelo pelado cuentan como aplicadas (rol en grupo)', () => {
-    const model = portal();
-    const res = editMembersMany(model, ['p1', 'p2'], (mm, id) => setMemberRole(mm, id, 'cordon'));
+    const res = editMembersMany(model, ['p1', 'p2'], (mm, id) => setMemberDeflLimit(mm, id, 400));
     expect(res.applied).toEqual(['p1', 'p2']);
     for (const id of ['p1', 'p2']) {
       const m = res.model.members.find((x) => x.id === id)!;
-      expect(m.role).toBe('cordon');
-      expect(m.roleManual).toBe(true);
+      expect(m.deflLimit).toBe(400);
     }
   });
 });

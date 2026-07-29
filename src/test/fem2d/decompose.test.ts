@@ -25,7 +25,7 @@ describe('decompose2D — geometry & splits', () => {
   it('a VERTICAL column survives decompose (the 1D x-sweep dropped it)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3.5)],
-      members: [beamColumn('p1', 'n1', 'n2', { role: 'pilar' })],
+      members: [beamColumn('p1', 'n1', 'n2')],
       supports: [support2d('n1', 'fixed')],
       loads: [nodeLoad('l1', 'n2', { lc: 'W', Fx: 8 })],
     });
@@ -114,7 +114,7 @@ describe('decompose2D — self-weight (D10 lumping)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3), node2d('n3', 4, 3)],
       members: [
-        beamColumn('p1', 'n1', 'n2', { role: 'pilar' }),   // vertical
+        beamColumn('p1', 'n1', 'n2'),   // vertical
         twoForce('d1', 'n1', 'n3'),                          // diagonal, L=5
       ],
       supports: [support2d('n1', 'fixed'), support2d('n3', 'pinned')],

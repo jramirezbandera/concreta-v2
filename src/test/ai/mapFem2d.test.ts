@@ -26,7 +26,6 @@ import type {
   Fem2DMember,
   Fem2DModel,
   MemberUdl2D,
-  NodeLoad2D,
 } from "../../features/fem2d/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,7 +73,8 @@ function nudo(x: number, y: number) {
   return { x, y };
 }
 
-/** Item de `barras` con todo null (= conservar) salvo lo indicado. */
+/** Item de `barras` con todo null (= conservar) salvo lo indicado. Fase 2:
+ *  sin `tipo` ni `rol` — la biela se expresa con rotulas "ambas". */
 function barra(
   nudo_i: number,
   nudo_j: number,
@@ -83,8 +83,6 @@ function barra(
   return {
     nudo_i,
     nudo_j,
-    tipo: null,
-    rol: null,
     perfil: null,
     acero: null,
     correas_m: null,
@@ -148,17 +146,16 @@ describe("fem2d — reconstrucción del modelo", () => {
     expect(p.changes.map((c) => c.field)).toEqual(["cargas"]);
   });
 
-  it("añade una biela diagonal al pórtico (rol auto, id sin colisión)", () => {
+  it("añade una diagonal birrotulada al pórtico (biela derivada, id sin colisión)", () => {
     const p = plan({
       barras: [
         ...PORTAL_BARRAS,
-        barra(1, 3, { tipo: "biela", perfil: "L 80×8" }),
+        barra(1, 3, { rotulas: "ambas", perfil: "L 80×8" }),
       ],
     });
     expect(p.fields.members).toHaveLength(4);
     const nueva = p.fields.members![3];
-    expect(nueva.elementType).toBe("two-force");
-    expect(nueva.role).toBe("diagonal");
+    expect(nueva.releases).toEqual({ i: true, j: true });
     expect(nueva.steelSelection?.profileKey).toBe("steel_L80x8");
     // Las 3 existentes conservan id posicionalmente.
     expect(p.fields.members!.slice(0, 3).map((m) => m.id)).toEqual([
@@ -187,8 +184,8 @@ describe("fem2d — reconstrucción del modelo", () => {
         nudos: [nudo(0, 0), nudo(4, 0), nudo(2, 2)],
         barras: [
           barra(1, 2),
-          barra(1, 3, { tipo: "biela" }),
-          barra(2, 3, { tipo: "biela" }),
+          barra(1, 3, { rotulas: "ambas" }),
+          barra(2, 3, { rotulas: "ambas" }),
         ],
         apoyos: [apoyo(1, "articulado"), apoyo(2, "deslizante")],
         cargas: [carga({ tipo: "nudo", objetivo: 3, fx: 0, fy: -20 })],
@@ -203,9 +200,8 @@ describe("fem2d — reconstrucción del modelo", () => {
     // Ids de nudos preservados posicionalmente (n1..n3 del pórtico).
     expect(p.fields.nodes?.map((n) => n.id)).toEqual(["n1", "n2", "n3"]);
     expect(p.fields.members).toHaveLength(3);
-    // El cordón inferior hereda la identidad de p1 y re-infiere rol viga (horizontal).
+    // El cordón inferior hereda la identidad de p1.
     expect(p.fields.members![0].id).toBe("p1");
-    expect(p.fields.members![0].role).toBe("viga");
     const candidate = { ...current, ...p.fields } as Fem2DModel;
     expect(solveFem2D(candidate).ok).toBe(true);
   });
@@ -223,13 +219,14 @@ describe("fem2d — reconstrucción del modelo", () => {
     );
   });
 
-  it("mover un nudo re-infiere los roles auto pilar↔viga (espejo del lienzo)", () => {
-    // n4 pasa de (6,0) a (3,0): p2 deja de ser vertical ⇒ rol auto viga.
+  it("mover un nudo conserva las barras supervivientes con su identidad (sin roles que re-inferir)", () => {
+    // n4 pasa de (6,0) a (3,0): p2 sobrevive con sus datos intactos.
     const p = plan({
       nudos: [nudo(0, 0), nudo(0, 3.5), nudo(6, 3.5), nudo(3, 0)],
     });
-    expect(p.fields.members?.[2].role).toBe("viga");
-    expect(p.fields.members?.[2].id).toBe("p2");
+    // Sin lista de barras y sin huérfanas, members no cambia (nada que podar).
+    expect(p.fields.members).toBeUndefined();
+    expect(p.fields.nodes?.[3]).toMatchObject({ x: 3, y: 0 });
   });
 
   it('eco exacto de cada lista → skip "ya coincide" (sin cambios fantasma)', () => {
@@ -262,103 +259,28 @@ describe("fem2d — reconstrucción del modelo", () => {
 
 // ── Validación todo-o-nada ────────────────────────────────────────────────────
 
-describe("fem2d — carga de barra sobre biela (coacción, no veto)", () => {
-  // Antes se rechazaba y el veto en bloque tumbaba las cuatro listas: era el
-  // bucle sin salida del camino "descríbela con IA" (incidente 2026-07-20).
-  // Ahora se reparte como cargas de nudo estáticamente equivalentes — la misma
-  // idealización que el peso propio de bielas en decompose.ts.
-  function bielaFixture() {
+describe("fem2d — carga de barra sobre una biela derivada (Fase 2: legal, sin coacción)", () => {
+  // Historia: primero se VETABA (bucle sin salida del camino "descríbela con
+  // IA", incidente 2026-07-20), luego se COACCIONABA repartiéndola en los
+  // nudos (lumpBielaLoad). Con la biela derivada el estado que se parcheaba no
+  // existe: la carga se queda EN la barra, que pasa a viga-columna
+  // birrotulada y flecta — exactamente lo que el usuario pidió.
+  it("la repartida sobre el alma de la Pratt se aplica TAL CUAL y el modelo resuelve", () => {
     const current = pratt();
     const m = current.members[6];
-    expect(m.elementType).toBe("two-force"); // premisa del caso
-    const nodeById = new Map(current.nodes.map((n) => [n.id, n]));
-    const a = nodeById.get(m.i)!;
-    const b = nodeById.get(m.j)!;
-    return { current, m, a, b, L: Math.hypot(b.x - a.x, b.y - a.y) };
-  }
-
-  it("repartida sobre biela → dos cargas de nudo con la resultante w·L al 50 %, con aviso", () => {
-    const { current, m, L } = bielaFixture();
+    expect(m.releases).toEqual({ i: true, j: true }); // premisa: alma birrotulada
     const p = plan({ cargas: [carga({ objetivo: 7, fy: -5 })] }, current);
     expect(skipFor(p, "Cargas")).toBeUndefined();
-    const loads = p.fields.loads as NodeLoad2D[];
-    expect(loads).toHaveLength(2);
-    expect(loads.every((l) => l.kind === "node")).toBe(true);
-    expect(loads.map((l) => l.node).sort()).toEqual([m.i, m.j].sort());
-    const half = (-5 * L) / 2;
-    expect(loads[0].Fy).toBeCloseTo(half, 2);
-    expect(loads[1].Fy).toBeCloseTo(half, 2);
-    expect(
-      p.warnings.some((w) => w.includes("biela") && w.includes("se reparte")),
-    ).toBe(true);
-  });
-
-  it("puntual_barra sobre biela: reparto por palanca (1-pos al nudo i, pos al j)", () => {
-    const { current, m } = bielaFixture();
-    const p = plan(
-      {
-        cargas: [
-          carga({
-            tipo: "puntual_barra",
-            objetivo: 7,
-            fx: 0,
-            fy: -8,
-            pos: 0.25,
-          }),
-        ],
-      },
-      current,
-    );
-    const byNode = new Map(
-      (p.fields.loads as NodeLoad2D[]).map((l) => [l.node, l]),
-    );
-    expect(byNode.get(m.i)?.Fy).toBeCloseTo(-6, 2);
-    expect(byNode.get(m.j)?.Fy).toBeCloseTo(-2, 2);
-  });
-
-  it("puntual_barra en pos 0 → una sola carga de nudo (la componente nula no se emite)", () => {
-    const { current, m } = bielaFixture();
-    const p = plan(
-      {
-        cargas: [
-          carga({ tipo: "puntual_barra", objetivo: 7, fx: 0, fy: -8, pos: 0 }),
-        ],
-      },
-      current,
-    );
-    const loads = p.fields.loads as NodeLoad2D[];
+    const loads = p.fields.loads as MemberUdl2D[];
     expect(loads).toHaveLength(1);
-    expect(loads[0].node).toBe(m.i);
-    expect(loads[0].Fy).toBe(-8);
-  });
-
-  it("repartida en ejes LOCAL sobre biela: componentes rotadas a globales (resultante conservada)", () => {
-    const { current, a, b, L } = bielaFixture();
-    const c = (b.x - a.x) / L;
-    const s = (b.y - a.y) / L;
-    const p = plan(
-      { cargas: [carga({ objetivo: 7, fx: 0, fy: -2, ejes: "local" })] },
-      current,
-    );
-    const loads = p.fields.loads as NodeLoad2D[];
-    const sumFx = loads.reduce((t, l) => t + l.Fx, 0);
-    const sumFy = loads.reduce((t, l) => t + l.Fy, 0);
-    expect(sumFx).toBeCloseTo(2 * s * L, 1); // gx = fx·c − fy·s = 2s
-    expect(sumFy).toBeCloseTo(-2 * c * L, 1); // gy = fx·s + fy·c = −2c
-  });
-
-  it("repartida PARCIAL sobre biela: resultante en el centroide del tramo", () => {
-    const { current, m, L } = bielaFixture();
-    const W = -4 * 0.5 * L; // w · longitud cargada
-    const p = plan(
-      { cargas: [carga({ objetivo: 7, fx: 0, fy: -4, desde: 0.5, hasta: 1 })] },
-      current,
-    );
-    const byNode = new Map(
-      (p.fields.loads as NodeLoad2D[]).map((l) => [l.node, l]),
-    );
-    expect(byNode.get(m.i)?.Fy).toBeCloseTo(0.25 * W, 2);
-    expect(byNode.get(m.j)?.Fy).toBeCloseTo(0.75 * W, 2);
+    expect(loads[0].kind).toBe("udl");
+    expect(loads[0].member).toBe(m.id);
+    expect(loads[0].wy).toBe(-5);
+    // Sin avisos de reparto: la capa de coacción murió con el tipo.
+    expect(p.warnings.some((w) => w.includes("se reparte"))).toBe(false);
+    // Y el candidato resuelve: la barra flecta como viga-columna birrotulada.
+    const candidate = { ...current, ...p.fields } as Fem2DModel;
+    expect(solveFem2D(candidate).ok).toBe(true);
   });
 });
 
@@ -378,30 +300,14 @@ describe("fem2d — validación por lista (todo-o-nada)", () => {
     expect(skipFor(p, "Barras")?.reason).toContain("fuera del catálogo");
   });
 
-  it("rol de flexión sobre una biela se COACCIONA al rol axil con aviso (no tumba la lista)", () => {
-    // El modelo llama 'cordon' a los cordones-biela de una celosía una y otra
-    // vez: rechazarlo tumbaba la lista entera y con ella toda la propuesta.
+  it("un campo desconocido en la barra (p. ej. el viejo 'rol') se ignora sin romper la lista", () => {
+    // Compat: un modelo antiguo que aún envíe rol/tipo no debe tumbar nada —
+    // el parseo defensivo los descarta y la barra se construye igual.
     const p = plan({
-      barras: [...PORTAL_BARRAS, barra(1, 3, { tipo: "biela", rol: "cordon" })],
+      barras: [...PORTAL_BARRAS, barra(1, 3, { rol: "cordon", tipo: "biela" })],
     });
     expect(p.fields.members).toHaveLength(4);
-    expect(p.fields.members![3].elementType).toBe("two-force");
-    expect(p.fields.members![3].role).toBe("diagonal");
-    expect(p.fields.members![3].roleManual).toBeUndefined();
-    expect(
-      p.warnings.some(
-        (w) => w.includes("rol 'cordon'") && w.includes("'diagonal'"),
-      ),
-    ).toBe(true);
-  });
-
-  it("rol axil sobre una viga-columna también se coacciona (auto por geometría)", () => {
-    const p = plan({
-      barras: [...PORTAL_BARRAS, barra(1, 3, { rol: "montante" })],
-    });
-    expect(p.fields.members![3].elementType).toBe("beam-column");
-    expect(p.fields.members![3].role).toBe("viga");
-    expect(p.warnings.some((w) => w.includes("rol 'montante'"))).toBe(true);
+    expect(p.fields.members![3].releases).toEqual({ i: false, j: false });
   });
 
   it("objetivo fuera de rango → skip de cargas", () => {
@@ -427,8 +333,8 @@ describe("fem2d — atomicidad del bloque estructural", () => {
       nudos: [nudo(0, 0), nudo(4, 0), nudo(2, 2)],
       barras: [
         barra(1, 2, { perfil: "IPE 999" }),
-        barra(1, 3, { tipo: "biela" }),
-        barra(2, 3, { tipo: "biela" }),
+        barra(1, 3, { rotulas: "ambas" }),
+        barra(2, 3, { rotulas: "ambas" }),
       ],
       apoyos: [apoyo(1, "articulado"), apoyo(2, "deslizante")],
       cargas: [carga({ tipo: "nudo", objetivo: 3, fx: 0, fy: -20 })],
@@ -464,7 +370,7 @@ describe("fem2d — atomicidad del bloque estructural", () => {
     expect(skipFor(p, "Cargas")?.reason).toContain("forma bloque");
   });
 
-  it('repro croquis: cercha completa con bielas rol "cordon" sobre un modelo casi vacío → TODO se aplica', () => {
+  it('repro croquis: cercha completa (alma birrotulada) sobre un modelo casi vacío → TODO se aplica', () => {
     const base = portal();
     const current: Fem2DModel = {
       ...base,
@@ -494,15 +400,15 @@ describe("fem2d — atomicidad del bloque estructural", () => {
           nudo(4, 0),
         ],
         barras: [
-          barra(1, 4, { rol: "cordon" }), // faldón izq. viga-columna: lleva la repartida
-          barra(4, 3, { tipo: "biela", rol: "cordon" }), // coacción → diagonal
-          barra(3, 5, { tipo: "biela", rol: "cordon" }),
-          barra(5, 2, { tipo: "biela", rol: "cordon" }),
-          barra(1, 6, { tipo: "biela", rol: "cordon" }), // cordón inferior
-          barra(6, 2, { tipo: "biela", rol: "cordon" }),
-          barra(6, 3, { tipo: "biela", rol: "montante" }), // montante central (compatible)
-          barra(4, 6, { tipo: "biela" }),
-          barra(5, 6, { tipo: "biela" }),
+          barra(1, 4), // faldón izq. viga-columna: lleva la repartida
+          barra(4, 3, { rotulas: "ambas" }),
+          barra(3, 5, { rotulas: "ambas" }),
+          barra(5, 2, { rotulas: "ambas" }),
+          barra(1, 6, { rotulas: "ambas" }), // cordón inferior
+          barra(6, 2, { rotulas: "ambas" }),
+          barra(6, 3, { rotulas: "ambas" }), // montante central
+          barra(4, 6, { rotulas: "ambas" }),
+          barra(5, 6, { rotulas: "ambas" }),
         ],
         apoyos: [apoyo(1, "articulado"), apoyo(2, "deslizante")],
         cargas: [
@@ -522,16 +428,15 @@ describe("fem2d — atomicidad del bloque estructural", () => {
     expect(p.fields.members).toHaveLength(9);
     expect(p.fields.loads).toHaveLength(3);
     expect(p.skipped).toEqual([]);
-    // La coacción avisa pero no bloquea:
-    expect(p.warnings.some((w) => w.includes("rol 'cordon'"))).toBe(true);
     const candidate = { ...current, ...p.fields } as Fem2DModel;
     expect(solveFem2D(candidate).ok).toBe(true);
   });
 
-  it("repro incidente 2026-07-20: cercha TODO bielas con la repartida sobre un cordón-biela → TODO se aplica", () => {
-    // El caso literal del chat "modela esta estructura": Gemini dibuja la
-    // celosía entera con bielas y cuelga los 3 kN/m de la barra 1 (biela).
-    // Antes: veto de cargas → veto en bloque → "0 cambios" y bucle sin salida.
+  it("repro incidente 2026-07-20: cercha TODO birrotulada con la repartida sobre un cordón → TODO se aplica", () => {
+    // El caso literal del chat "modela esta estructura": la celosía entera
+    // articulada y los 3 kN/m colgados de la barra 1. Antes: veto → "0
+    // cambios" y bucle sin salida; luego: reparto coaccionado en nudos.
+    // Ahora: la carga se queda EN la barra, que flecta como birrotulada.
     const base = portal();
     const current: Fem2DModel = {
       ...base,
@@ -561,21 +466,21 @@ describe("fem2d — atomicidad del bloque estructural", () => {
           nudo(4, 0),
         ],
         barras: [
-          barra(1, 4, { tipo: "biela", rol: "cordon" }), // ← lleva la repartida
-          barra(4, 3, { tipo: "biela", rol: "cordon" }),
-          barra(3, 5, { tipo: "biela", rol: "cordon" }),
-          barra(5, 2, { tipo: "biela", rol: "cordon" }),
-          barra(1, 6, { tipo: "biela", rol: "cordon" }),
-          barra(6, 2, { tipo: "biela", rol: "cordon" }),
-          barra(6, 3, { tipo: "biela", rol: "montante" }),
-          barra(4, 6, { tipo: "biela" }),
-          barra(5, 6, { tipo: "biela" }),
+          barra(1, 4, { rotulas: "ambas" }), // ← lleva la repartida
+          barra(4, 3, { rotulas: "ambas" }),
+          barra(3, 5, { rotulas: "ambas" }),
+          barra(5, 2, { rotulas: "ambas" }),
+          barra(1, 6, { rotulas: "ambas" }),
+          barra(6, 2, { rotulas: "ambas" }),
+          barra(6, 3, { rotulas: "ambas" }),
+          barra(4, 6, { rotulas: "ambas" }),
+          barra(5, 6, { rotulas: "ambas" }),
         ],
         apoyos: [apoyo(1, "articulado"), apoyo(2, "deslizante")],
         cargas: [
           carga({ tipo: "nudo", objetivo: 3, fx: 0, fy: -10 }),
           carga({ tipo: "nudo", objetivo: 6, fx: 0, fy: -8 }),
-          carga({ objetivo: 1, fx: 0, fy: -3 }), // repartida sobre la biela 1
+          carga({ objetivo: 1, fx: 0, fy: -3 }), // repartida sobre la barra 1
         ],
       },
       current,
@@ -587,12 +492,9 @@ describe("fem2d — atomicidad del bloque estructural", () => {
       "nudos",
     ]);
     expect(p.skipped).toEqual([]);
-    // La repartida se reparte en los nudos 1 y 4 de la biela: 3 nudo-cargas
-    // del payload → 4 cargas de nudo reconstruidas.
-    expect(p.fields.loads).toHaveLength(4);
-    expect(
-      p.warnings.some((w) => w.includes("biela") && w.includes("se reparte")),
-    ).toBe(true);
+    // La repartida se conserva TAL CUAL: 3 cargas del payload → 3 cargas.
+    expect(p.fields.loads).toHaveLength(3);
+    expect((p.fields.loads![2] as MemberUdl2D).kind).toBe("udl");
     const candidate = { ...current, ...p.fields } as Fem2DModel;
     expect(solveFem2D(candidate).ok).toBe(true);
   });
@@ -608,12 +510,16 @@ describe("fem2d — cross-check con el solver", () => {
     expect(skipFor(p, "Apoyos")?.reason).toContain("inválido");
   });
 
-  it("pasar el dintel a biela con sus cargas vivas (cargas=null) se descarta por el validador", () => {
+  it("birrotular el dintel con sus cargas vivas es LEGAL: sigue siendo viga-columna que flecta", () => {
+    // Antes esto se descartaba por el validador (biela cargada); con la
+    // derivación no hay estado ilegal que crear.
     const p = plan({
-      barras: [barra(1, 2), barra(2, 3, { tipo: "biela" }), barra(4, 3)],
+      barras: [barra(1, 2), barra(2, 3, { rotulas: "ambas" }), barra(4, 3)],
     });
-    expect(p.fields.members).toBeUndefined();
-    expect(skipFor(p, "Barras")?.reason).toContain("inválido");
+    expect(p.fields.members).toHaveLength(3);
+    expect(p.fields.members![1].releases).toEqual({ i: true, j: true });
+    const candidate = { ...portal(), ...p.fields } as Fem2DModel;
+    expect(solveFem2D(candidate).ok).toBe(true);
   });
 });
 
@@ -825,15 +731,15 @@ describe("fem2d — rótulas editables (Fase B)", () => {
     expect(p.fields.members?.[1].releases).toEqual({ i: false, j: true });
   });
 
-  it("rotulas sobre una biela se ignora con aviso (biarticulada por formulación)", () => {
+  it('rotulas "ambas" ES la biela: se estampan las dos liberaciones sin avisos', () => {
     const p = plan({
       barras: [
         ...PORTAL_BARRAS,
-        barra(1, 3, { tipo: "biela", perfil: "L 80×8", rotulas: "ambas" }),
+        barra(1, 3, { perfil: "L 80×8", rotulas: "ambas" }),
       ],
     });
-    expect(p.fields.members?.[3].releases).toEqual({ i: false, j: false });
-    expect(p.warnings.some((w) => w.includes("biarticulada"))).toBe(true);
+    expect(p.fields.members?.[3].releases).toEqual({ i: true, j: true });
+    expect(p.warnings.some((w) => w.includes("biarticulada"))).toBe(false);
   });
 });
 
@@ -947,22 +853,22 @@ describe("fem2d — barras de hormigón", () => {
     expect(p.warnings.some((w) => w.includes("hormigón a acero"))).toBe(true);
   });
 
-  it("barra HA + tipo biela → lista descartada (espejo de la guarda del editor)", () => {
+  it("barra HA birrotulada → SE ACEPTA (Fase 2: la guarda biela↛HA murió)", () => {
     const current = portalConHA();
     const p = plan(
       {
         barras: [
           PORTAL_BARRAS[0],
-          barra(2, 3, { tipo: "biela" }),
+          barra(2, 3, { rotulas: "ambas" }),
           PORTAL_BARRAS[2],
         ],
       },
       current,
     );
-    expect(p.fields.members).toBeUndefined();
-    const skip = skipFor(p, "Barras");
-    expect(skip).toBeDefined();
-    expect(skip!.reason).toContain("hormigón");
+    expect(p.fields.members).toBeDefined();
+    const v1 = p.fields.members![1];
+    expect(v1.material).toBe("rc");
+    expect(v1.releases).toEqual({ i: true, j: true });
   });
 
   it("el snapshot describe la barra HA como comprobada pero no editable por chat", () => {
@@ -1032,15 +938,15 @@ describe("fem2d — barras de madera", () => {
     expect(p.warnings.some((w) => w.includes("madera a acero"))).toBe(true);
   });
 
-  it("barra de madera + tipo biela → SE ACEPTA (la biela de madera está soportada)", () => {
+  it("barra de madera birrotulada y sin cargas → biela de madera derivada", () => {
     const current = portalConMadera();
-    // v1 lleva cargas de barra de la plantilla: hay que retirarlas en la misma
-    // propuesta (una biela no admite cargas en la barra — cross-check solver).
+    // Sin cargas de barra la derivación da two-force; con ellas seguiría
+    // siendo viga-columna que flecta (ambas legales).
     const p = plan(
       {
         barras: [
           PORTAL_BARRAS[0],
-          barra(2, 3, { tipo: "biela" }),
+          barra(2, 3, { rotulas: "ambas" }),
           PORTAL_BARRAS[2],
         ],
         cargas: [PORTAL_CARGAS[2]],
@@ -1050,7 +956,7 @@ describe("fem2d — barras de madera", () => {
     expect(p.fields.members).toBeDefined();
     const v1 = p.fields.members![1];
     expect(v1.material).toBe("timber");
-    expect(v1.elementType).toBe("two-force");
+    expect(v1.releases).toEqual({ i: true, j: true });
   });
 
   it("el snapshot describe la barra de madera como comprobada pero no editable", () => {
@@ -1073,9 +979,9 @@ describe("fem2d — barras de madera", () => {
 // ── Límite de uniones de Anthropic ────────────────────────────────────────────
 
 describe("fem2d — presupuesto de uniones", () => {
-  it("el envelope queda en 16 uniones (= límite EXACTO, verificado en vivo con masonry): Anthropic soportado sin degradar", () => {
+  it("el envelope queda en 14 uniones (Fase 2: rol y tipo fuera): margen real bajo el límite de Anthropic", () => {
     const unions = countAnthropicUnions(buildChatSchema(FEM2D_PAYLOAD_SCHEMA));
-    expect(unions).toBe(16);
+    expect(unions).toBe(14);
     expect(unions).toBeLessThanOrEqual(ANTHROPIC_UNION_LIMIT);
   });
 });

@@ -87,7 +87,7 @@ describe('hitTest — loads (opts.loads)', () => {
         { id: 'n2', x: 6, y: 0 },
       ],
       members: [{
-        id: 'b1', i: 'n1', j: 'n2', role: 'viga', elementType: 'beam-column',
+        id: 'b1', i: 'n1', j: 'n2',
         material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
         releases: { i: false, j: false },
       }],
@@ -152,12 +152,12 @@ describe('hitTest — etiqueta de valor de una carga', () => {
       ],
       members: [
         {
-          id: 'b1', i: 'n1', j: 'n2', role: 'viga' as const, elementType: 'beam-column' as const,
+          id: 'b1', i: 'n1', j: 'n2',
           material: 'steel' as const, steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' as const },
           releases: { i: false, j: false },
         },
         ...(extraMember ? [{
-          id: 'b2', i: 'n3', j: 'n4', role: 'viga' as const, elementType: 'beam-column' as const,
+          id: 'b2', i: 'n3', j: 'n4',
           material: 'steel' as const, steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' as const },
           releases: { i: false, j: false },
         }] : []),

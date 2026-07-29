@@ -60,6 +60,7 @@ import {
 import { canvasBase } from './drawableBounds';
 import { IDENTITY_VIEW, isIdentityView, withView, type CanvasView2D } from '../../lib/canvas/transform';
 import { useCanvasView2D } from '../../hooks/useCanvasView2D';
+import { memberFormulation } from './decompose';
 import type { Fem2DModel } from './types';
 
 interface Props {
@@ -433,7 +434,7 @@ export function Fem2DEditorCanvas({
         <line
           x1={x1} y1={y1} x2={x2} y2={y2}
           stroke={isSel ? 'var(--color-accent)' : strokeFor(status, false)}
-          strokeWidth={isSel ? 4.2 : m.elementType === 'two-force' ? 1.6 : 2.6}
+          strokeWidth={isSel ? 4.2 : memberFormulation(model, m) === 'two-force' ? 1.6 : 2.6}
           strokeLinecap="round"
         />
         {isCopySrc && (

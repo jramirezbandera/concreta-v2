@@ -28,6 +28,7 @@ import { fem2dAdapter, summarizeFem2DResults } from '../../lib/ai/modules/fem2d'
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { exportFem2DPDF, fem2dFallbackFilename } from '../../lib/pdf/fem2d';
 import { useFem2DState, buildShareUrl } from './useFem2DState';
+import { memberFormulation } from './decompose';
 import { analyzeFem2D } from './pipeline';
 import type { Fem2DComboView, Fem2DComboViewId } from './checks';
 import { comboNotice } from './comboLabels';
@@ -61,7 +62,7 @@ const VIEW_TABS: ReadonlyArray<ViewTab<Fem2DCanvasView>> = [
 ];
 
 export function Fem2DModule(): JSX.Element {
-  const { model, setModel, resetModel, undo, redo, canUndo, canRedo, startedEmpty } = useFem2DState();
+  const { model, setModel, resetModel, undo, redo, canUndo, canRedo, startedEmpty, migratedFromLegacy } = useFem2DState();
   // Pantalla de plantillas (paridad con FEM 1D): en el primer arranque (sin URL
   // ni modelo guardado) se muestra sobre la semilla viva; elegir una plantilla
   // o aplicar una propuesta de IA entra al editor. El botón + del lienzo
@@ -306,6 +307,21 @@ export function Fem2DModule(): JSX.Element {
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
+      {migratedFromLegacy && (
+        /* Fase 2, paso 3: banner NO descartable — el modelo venía del esquema
+           anterior (rol de barra) y las comprobaciones se han recalculado con
+           el enrutado por mecanismo. Desaparece al guardar/compartir de nuevo
+           (el modelo ya persiste en el esquema nuevo). */
+        <div
+          role="status"
+          className="shrink-0 border-b border-state-warn/40 bg-state-warn/10 px-4 py-1.5 text-[11px] leading-snug text-state-warn"
+        >
+          Este enlace se creó con un modelo de datos anterior; las comprobaciones
+          se han recalculado. Revisa las barras de hormigón (elige su
+          comprobación en el inspector) y el límite de flecha por barra.
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left: provisional panel (selection inspector lands later) */}
         <div
@@ -499,6 +515,7 @@ export function Fem2DModule(): JSX.Element {
           member={detailMember}
           verdict={detailVerdict}
           envelopes={detailEnvelopes}
+          twoForce={memberFormulation(model, detailMember) === 'two-force'}
           amplified={result.checks?.amplified ?? false}
           onClose={() => setDetailMemberId(null)}
         />

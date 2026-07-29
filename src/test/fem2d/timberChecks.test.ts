@@ -112,10 +112,12 @@ describe('madera — §3.1.3(2): la combinación solo-permanente puede gobernar'
 });
 
 describe('madera — pilar y biela', () => {
-  it('pilar: interacción 6.23/6.24 con Lef = L en ambos ejes, sin fila de flecha', () => {
+  it('soporte: interacción 6.23/6.24 con Lef = L en ambos ejes; deflLimit "none" quita la flecha (D10)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
-      members: [beamColumn('p1', 'n1', 'n2', { role: 'pilar', timberSection: TS_C24 })],
+      // D10: el criterio de servicio de un soporte es la deriva de planta, no
+      // L/300 — y eso lo DECLARA el usuario, no una etiqueta.
+      members: [beamColumn('p1', 'n1', 'n2', { timberSection: TS_C24, deflLimit: 'none' })],
       supports: [support2d('n1', 'fixed')],
       loads: [nodeLoad('l1', 'n2', { lc: 'G', Fy: -100 })],
     });
@@ -135,7 +137,7 @@ describe('madera — pilar y biela', () => {
     expect(p.checks.some((c) => c.id === 'deflection')).toBe(false);
   });
 
-  it('biela de madera: tracción §6.2.3 (a diferencia de la biela HA, NO es pending)', () => {
+  it('biela de madera (derivada): tracción §6.2.3, sin fila de flecha', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 2, 0)],
       members: [twoForce('m1', 'n1', 'n2', { timberSection: TS_C24 })],
@@ -174,7 +176,7 @@ describe('madera — pilar y biela', () => {
     //   util 6.17 = 1.20536/6.69231 + 6.02679/11.07692 = 0.18011 + 0.54408
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 3, 0)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga', timberSection: TS_C24 })],
+      members: [beamColumn('m1', 'n1', 'n2', { timberSection: TS_C24 })],
       supports: [support2d('n1', 'fixed')],
       loads: [nodeLoad('l1', 'n2', { lc: 'G', Fx: 30, Fy: -2 })],
     });
@@ -192,13 +194,13 @@ describe('madera — pilar y biela', () => {
   });
 });
 
-describe('madera — correas arriostran el vuelco Y el pandeo fuera del plano', () => {
+describe('madera — las correas arriostran el VUELCO (kcrit); el eje débil es campo aparte (D13)', () => {
   it('una viga esbelta arriostrada tiene MENOS η de vuelco que sin arriostrar', () => {
     // Sección esbelta 100×400 (h/b = 4) → el vuelco lateral (kcrit) manda.
     const slender = { gradeId: 'C24', b: 100, h: 400, serviceClass: 1 as const };
     const build = (ltbSpacing?: number) => fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga', timberSection: slender, ltbSpacing })],
+      members: [beamColumn('m1', 'n1', 'n2', { timberSection: slender, ltbSpacing })],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
       loads: [memberUdl('l1', 'm1', { lc: 'G', wy: -8 })],
     });

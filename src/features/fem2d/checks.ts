@@ -7,24 +7,28 @@
 //   mandatory fix; unconservative-in-combination and blind to the governing
 //   lateral case).
 //
-// T5 — role routing (D9). The parametric template stamps the role, the role
-//   picks the PROVEN engine:
-//     viga / cordon (beam-column) → calcSteelBeam per ELU combination
-//         (+ a companion axial row — a chord/dintel with meaningful N gets its
-//          axial mechanism flagged; the FULL M+N interaction of a portal
-//          corner is the documented D9 limitation)
-//         (+ real relative-to-chord deflection row from solver samples,
-//          replacing the engine's closed-form single-span formula)
-//     pilar → calcSteelColumn per ELU combination (Ned = compression, My from
-//         the SAME combination, β=1 — see T7 pairing note below)
-//         (+ plastic shear row Vpl,Rd via calcSteelBeam with MEd=0 — the Av
-//          lives in the beam engine's dimensional tables; separable, one call
-//          with the max V across combos)
-//     two-force (diagonal/montante) → self-contained axial check on
-//         frame-core data: tension A·fy/γM0; compression χ·A·fy/γM1 with
-//         λ̄ from the MINOR-axis radius (catalog Iz) and buckling curve c
-//         (α=0.49 — exact for angles, conservative for I minor axis).
-//     RC viga / cordon → calcRCBeam with the 1D region split (vano
+// T5 — MECHANISM routing (Fase 2, design doc 2026-07-28 — el rol murió aquí).
+//   Ninguna comprobación se elige por etiqueta: la eligen el material, los
+//   DATOS del usuario (rcDesignKind, deflLimit, ltbSpacing, weakAxisBracing,
+//   rótulas) y la DEMANDA medida del solver.
+//     ACERO (steelChecks, tabla de propietarios del design doc):
+//         formulación derivada 'two-force' → camino axil autónomo (tracción
+//         A·fy/γM0 + pandeo χ·A·fy/γM1, curva c α=0.49; con weakAxisBracing
+//         se comprueban AMBOS ejes y gobierna el menor Nb).
+//         Perfil sin motor de flexión (L) → mismo camino axil si la demanda de
+//         flexión es despreciable; con demanda real, PENDIENTE honesto (D11).
+//         Resto → calcSteelBeam SIEMPRE (flexión, cortante, M-V §6.2.8, vuelco
+//         con Lcr = min(ltbSpacing, L), flecha real del solver contra el
+//         deflLimit del usuario) y, con COMPRESIÓN RELEVANTE (η_N eje fuerte
+//         ≥ MECH_PRESENT_MIN_ETA — el MISMO umbral del invariante), TAMBIÉN
+//         calcSteelColumn, que aporta la clase bajo N, Nby/Nbz y la
+//         interacción M+N §6.3.3 (int1/int2) que el rol 'viga' PERDÍA (el
+//         hallazgo que motivó todo esto). En la fusión cada motor cede filas
+//         según la tabla (BEAM_ROWS_CEDED / COLUMN_ROWS_CEDED); el χLT del
+//         int1/int2 va a longitud completa — conservador, documentado (OQ6).
+//     RC (por rcDesignKind del usuario — la única elección legítima del rol:
+//         cambia QUÉ ARMADO se lee, no qué fórmula):
+//       'beam' → calcRCBeam with the 1D region split (vano
 //         [0.25L,0.75L] tensión abajo · apoyo [0,0.15L]∪[0.85L,L] tensión
 //         arriba). The M sign is NORMALIZED to world-sagging via the member
 //         orientation (local +y flips when i→j points left — without this a
@@ -47,8 +51,8 @@
 //         FLECHA: fila 'deflection-cracked' = δ_cp del solver × k fisurado
 //         (crackedDeflection §7.4.3: interpolación ζ β=0.5 + fluencia
 //         Ec,eff = Ec/(1+φef) sobre la MISMA base E del solver), límite
-//         L/300 (apariencia CTE). No fisurada ⇒ k = 1+φef exacto.
-//     RC pilar → calcRCColumn per ELU combination (Nd = compression, MEdy =
+//         L/deflLimit del usuario (D10). No fisurada ⇒ k = 1+φef exacto.
+//       'column' → calcRCColumn per ELU combination (Nd = compression, MEdy =
 //         in-plane |M| from the SAME combination on the strong axis, MEdz=0,
 //         β=1 paired with the αcr amplified-sway factors — same pairing as
 //         steel — and φef=2.0 typical building creep). Net-tension combos get
@@ -57,27 +61,39 @@
 //         concurrent σcp (k1·σcp raises VRd,c under compression, lowers it
 //         under tension; αcw on VRd,max) and the COLUMN policy
 //         VRd = max(VRdc, min(VRds, VRdmax)) — §6.2.1(4).
-//     RC + two-force / axial roles → 'pending' (no HA axial engine).
-//     TIMBER (cualquier familia de rol) → calcTimberFrameMember per ELU combo
+//       sin elegir → 'pending' accionable (P1: el programa no puede deducir
+//         cómo está armada una barra; la elección es la ENTRADA del usuario).
+//     TIMBER → calcTimberFrameMember per ELU combo
 //         (EC5): cortante §6.1.7, flexocompresión §6.3.2 ecs. 6.23/6.24 +
-//         vuelco §6.3.3 ec. 6.35, flexotracción §6.2.3 ec. 6.17. A diferencia
+//         vuelco §6.3.3 ec. 6.35, flexotracción §6.2.3 ec. 6.17 — el motor
+//         hace la interacción SIEMPRE, sin separar mecanismos. A diferencia
 //         de acero/HA el kmod NO es combo-independiente: sale de la acción de
 //         duración más corta del combo (comboDuration — con la nieve a MEDIA
 //         por encima de 1000 m vía model.snowOver1000m), así que se añade una
 //         combinación sintética 1.35·G (kmod permanente 0.60) que puede
 //         gobernar con carga variable pequeña (§3.1.3(2)). Lef_y = L (β=1 +
-//         αcr); Lef_z = Lltb = separación de correas (arriostra kc,z Y kcrit).
-//         Una biela de madera SÍ se comprueba (degenera a axil puro). Vigas y
-//         cordones añaden flecha instantánea (ELS-c) y final con fluencia
-//         (δ_c + kdef·δ_cp). Sin situación de incendio (paridad acero/HA).
+//         αcr); D13: Lltb = correas (kcrit) y Lef_z = weakAxisBracing (kc,z),
+//         coacciones SEPARADAS — antes ambas salían de las correas. Una biela
+//         derivada degenera a axil puro. La flecha (instantánea ELS-c + final
+//         con fluencia δ_c + kdef·δ_cp) la gobierna deflLimit (D10). Sin
+//         situación de incendio (paridad acero/HA).
 //
 // T7 — simplified second-order (EC3 / CE Anejo 22 §5.2). Sway sensitivity per
 //   ELU combination via αcr = S·h / V_Ed (storey formula 5.2.1(4)B), where the
 //   storey lateral stiffness S = H/δ_H comes from a UNIT PROBE SOLVE (the
 //   ratio is load-magnitude independent, so gravity-only combinations get a
-//   real αcr too). When 3 ≤ αcr < 10 the LATERAL case factors (W, E) are
-//   amplified by k = 1/(1−1/αcr) (amplified-sway-moment method); αcr < 3 →
-//   fail row ("análisis de 2º orden requerido") and k capped at αcr=3.
+//   real αcr too). Storey levels come from ALL node cotes ('all-nodes', D12):
+//   no label and no geometry filter — a triangulated truss self-regulates
+//   (αcr ≫ 10) and a raked-column portal keeps its storeys, which the old
+//   role === 'pilar' filter silently lost. When 3 ≤ αcr < 10 the LATERAL case
+//   factors (W, E) are amplified by k = 1/(1−1/αcr) (amplified-sway-moment
+//   method); αcr < 3 → fail row ("análisis de 2º orden requerido") and k
+//   capped at αcr=3. SEISMIC BOUND: for combinations containing E the
+//   simplified method dies at αcr = 5, not 3 (EN 1998-1 §4.4.2.2: θ ≈ 1/αcr
+//   must not exceed 0,2) → fail row, amplification kept as belt-and-braces.
+//   APPLICABILITY GUARD (§5.2.1(4)B NOTA 2B): significant axial compression
+//   in a beam/rafter (N_Ed ≥ 0,09·N_cr in-plane) makes the storey formula
+//   OVERESTIMATE αcr → the row is degraded to warn instead of trusting green.
 //   PAIRING NOTE: amplified sway moments go with NON-sway buckling lengths —
 //   that is why pilar checks use β = 1 (EC3 5.2.2(7)(b)).
 //   Limitations (documented): no notional imperfection loads (sway from
@@ -107,8 +123,10 @@ import { formatQuantity } from '../../lib/units/format';
 import { getBarArea } from '../../data/rebar';
 import type { RCBeamInputs, RCColumnInputs, SteelBeamInputs, SteelColumnInputs } from '../../data/defaults';
 import type { Analysis2DLoadCase, Analysis2DModel } from './analysis';
+import { memberFormulation } from './decompose';
+import { auditMechanisms, MECH_PRESENT_MIN_ETA } from './mechanisms';
 import { solveAnalysis2D, type Solve2DResultBundle, type Solver2DElementResult } from './solver2d';
-import type { Fem2DMember, Fem2DModel } from './types';
+import type { DisplayGroup2D, ElementType2D, Fem2DMember, Fem2DModel } from './types';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -116,11 +134,29 @@ const GAMMA_M0 = 1.05;
 const GAMMA_M1 = 1.05;
 /** Buckling curve c (α=0.49) for the self-contained two-force check. */
 const ALPHA_CURVE_C = 0.49;
-/** Deflection limit denominator (L/300) for viga/cordon members. */
-const DEFL_LIMIT = 300;
+/** Denominador de flecha cuando la barra no declara `deflLimit` (el L/300 que
+ *  la app imponía a todo el mundo antes de D10). */
+const DEFL_LIMIT_DEFAULT = 300;
+/** Camino axil autónomo (Fase 2, paso 5): demanda de flexión/cortante por
+ *  debajo de estos suelos = "sin demanda de flexión relevante". Grandes frente
+ *  al ruido numérico (~1e-9), minúsculos frente a cualquier demanda real. */
+const NEGLIGIBLE_M_KNM = 1e-3;
+const NEGLIGIBLE_V_KN = 1e-3;
+/** tan(10°) — SOLO para el fallback de presentación pilar/viga del editor
+ *  libre (paso 12). Jamás enruta una comprobación. */
+const VERTICAL_TAN_DISPLAY = Math.tan((10 * Math.PI) / 180);
 /** αcr thresholds (CE Anejo 22 §5.2.1): ≥10 first-order OK; <3 out of scope. */
 const ALPHA_CR_FIRST_ORDER = 10;
 const ALPHA_CR_MIN_SIMPLIFIED = 3;
+/** En sismo el método simplificado muere antes: EN 1998-1 §4.4.2.2 limita el
+ *  coeficiente de sensibilidad θ ≈ 1/αcr a 0,2 para amplificar con 1/(1−θ) —
+ *  es decir, una combinación con E y αcr < 5 exige análisis de 2º orden real
+ *  (el ≥ 10 para despreciarlo sí coincide con EC3: θ ≤ 0,1). */
+const ALPHA_CR_MIN_SIMPLIFIED_SEISMIC = 5;
+/** §5.2.1(4)B NOTA 2B reordenada: compresión "significativa" en un dintel es
+ *  λ̄ ≥ 0,3·√(A·fy/N_Ed) ⟺ N_Ed ≥ 0,09·N_cr — forma sin fy que vale para
+ *  acero, HA y madera con el mismo EI del análisis. */
+const NOTA_2B_NCR_FRACTION = 0.09;
 /** Axial companion row on viga/cordon appears above this η (noise floor). */
 const AXIAL_ROW_MIN_ETA = 0.01;
 const LATERAL_LCS: LoadCase[] = ['W', 'E'];
@@ -135,10 +171,6 @@ const RC_LAMBDA_LIM_COEF = 20 * 0.7 * 1.1 * 0.7;
 const RC_MN_ROW_MIN = 0.01;
 /** Reversed-bending companion rows appear above this demand (kN·m). */
 const RC_REVERSAL_MIN_KNM = 0.5;
-/** Límite de flecha DIFERIDA cuasipermanente (apariencia, CTE DB-SE 4.3.3).
- *  Mismo denominador que DEFL_LIMIT pero semántica distinta (cp+fluencia vs
- *  característica instantánea) — constante propia a propósito. */
-const RC_DEFL_CP_LIMIT = 300;
 /** γs for the self-contained RC tension row (cracked concrete carries nothing). */
 const RC_GAMMA_S = 1.15;
 /** Coeficiente de fluencia efectivo típico de edificación (motor de pilares). */
@@ -213,7 +245,13 @@ export interface MemberDetail2D {
 
 export interface MemberVerdict2D {
   memberId: string;
-  role: Fem2DMember['role'];
+  /**
+   * Grupo de PRESENTACIÓN para resultados y PDF (Fase 2, paso 12): el
+   * `displayGroup` estampado por la plantilla o, en el editor libre, el
+   * fallback honesto pilar/viga por verticalidad. Ningún motor lo lee — se
+   * calcula DESPUÉS de las comprobaciones y no puede tocar ningún número.
+   */
+  group: DisplayGroup2D;
   eta: number;
   status: MemberStatus;
   checks: MemberCheck[];
@@ -395,7 +433,15 @@ export function checkFem2D(
     const a = nodeById.get(m.i);
     const b = nodeById.get(m.j);
     const sagSign: 1 | -1 = a && b && b.x - a.x < 0 ? -1 : 1;
-    const verdict = checkMember(m, els, eluAmplified, combos.ELS_c, combos.ELS_cp, sagSign, model.snowOver1000m ?? false);
+    // Grupo de PRESENTACIÓN (paso 12): displayGroup de plantilla o fallback
+    // pilar/viga por verticalidad (±10°, el mismo umbral visual de siempre).
+    // Se calcula aquí y nunca dentro de ningún check.
+    const group: DisplayGroup2D = m.displayGroup
+      ?? (a && b && Math.abs(b.x - a.x) <= VERTICAL_TAN_DISPLAY * Math.abs(b.y - a.y) ? 'pilar' : 'viga');
+    const formulation = memberFormulation(model, m);
+    const verdict = checkMember(
+      m, group, formulation, els, eluAmplified, combos.ELS_c, combos.ELS_cp, sagSign, model.snowOver1000m ?? false,
+    );
     perMember[m.id] = verdict;
     if (verdict.status === 'pending') anyPending = true;
     if (verdict.status === 'fail') anyFail = true;
@@ -406,11 +452,25 @@ export function checkFem2D(
   const globalChecks: MemberCheck[] = [];
   if (sway.alphaCr !== null) {
     const a = sway.alphaCr;
-    const eta = a >= ALPHA_CR_FIRST_ORDER ? 0.5 : a >= ALPHA_CR_MIN_SIMPLIFIED ? 0.97 : 1.01;
+    // NOTA 2B: con compresión significativa en un dintel la fórmula de planta
+    // SOBREESTIMA αcr — un verde no es de fiar y se degrada a ámbar.
+    const nota2b = significantBeamCompression(model, analysis, elementsByMember, eluAmplified);
+    const secondOrder = a < ALPHA_CR_MIN_SIMPLIFIED || sway.seismicSecondOrder;
+    const eta = secondOrder ? 1.01 : a >= ALPHA_CR_FIRST_ORDER && nota2b === null ? 0.5 : 0.97;
+    const verdictTxt = a < ALPHA_CR_MIN_SIMPLIFIED
+      ? ' < 3 — se requiere análisis de 2º orden'
+      : sway.seismicSecondOrder
+        ? ' < 5 con sismo — se requiere análisis de 2º orden (EN 1998-1 §4.4.2.2)'
+        : a >= ALPHA_CR_FIRST_ORDER
+          ? (a === Infinity ? '' : ' ≥ 10')
+          : ' — efectos de 2º orden amplificados';
+    const nota2bTxt = nota2b === null
+      ? ''
+      : ` — compresión significativa en el dintel «${nota2b}»: fórmula de planta fuera de rango (§5.2.1(4)B NOTA 2B)`;
     globalChecks.push({
       id: 'alpha-cr',
       name: 'Estabilidad global al desplome (αcr)',
-      val: a === Infinity ? 'αcr → ∞' : `αcr = ${a.toFixed(1)} ${a >= ALPHA_CR_FIRST_ORDER ? '≥ 10' : a >= ALPHA_CR_MIN_SIMPLIFIED ? '— efectos de 2º orden amplificados' : '< 3 — se requiere análisis de 2º orden'}`,
+      val: (a === Infinity ? 'αcr → ∞' : `αcr = ${a.toFixed(1)}`) + verdictTxt + nota2bTxt,
       eta,
       ref: 'CE Anejo 22 §5.2.1',
     });
@@ -737,7 +797,7 @@ export function worstRelativeDeflection(els: Solver2DElementResult[], combosList
 
 /**
  * Instantaneous relative-to-chord deflection (mm) of the governing ELS-c
- * combination + its label, and the row that reports it against L/DEFL_LIMIT.
+ * combination + its label, and the row that reports it against the member's L/limit.
  * Shared by the steel beam path and the timber path (the fila is normativa
  * idéntica — CTE DB-SE 4.3.3 characteristic combination, L/300 — so it lives
  * in ONE place; the timber path additionally reuses the returned δ_mm for its
@@ -753,21 +813,23 @@ function worstElsDeflectionMm(els: Solver2DElementResult[], elsCombos: LcFactors
   return { delta_mm: delta_m * 1000, combo: deltaCombo };
 }
 
-function elsDeflectionRow(delta_mm: number, adm_mm: number, combo: string): MemberCheck {
+function elsDeflectionRow(delta_mm: number, adm_mm: number, combo: string, limit: number): MemberCheck {
   return {
     id: 'deflection',
     name: 'Flecha relativa (ELS-c)',
-    val: `${delta_mm.toFixed(1)} / L/${DEFL_LIMIT} = ${adm_mm.toFixed(1)} mm`,
+    val: `${delta_mm.toFixed(1)} / L/${limit} = ${adm_mm.toFixed(1)} mm`,
     eta: adm_mm > 0 ? delta_mm / adm_mm : 0,
     ref: 'CTE DB-SE 4.3.3',
     ...(combo !== '' ? { combo } : {}),
   };
 }
 
-// ── T5: member routing ──────────────────────────────────────────────────────
+// ── T5: member routing (Fase 2 — por MECANISMO, nunca por etiqueta) ─────────
 
 function checkMember(
   m: Fem2DMember,
+  group: DisplayGroup2D,
+  formulation: ElementType2D,
   els: Solver2DElementResult[],
   eluCombos: LcFactors[],
   elsCombos: LcFactors[],
@@ -778,7 +840,7 @@ function checkMember(
   if (els.length === 0) {
     return {
       memberId: m.id,
-      role: m.role,
+      group,
       eta: 0,
       status: 'pending',
       checks: [{ id: 'pending', name: 'Comprobación pendiente', val: 'sin resultados del solver', eta: 0, ref: '' }],
@@ -786,6 +848,13 @@ function checkMember(
   }
 
   const L = els.reduce((s, e) => s + e.L, 0);
+  // Límite de flecha resuelto (D10): undefined ≡ L/300 legado; 'none' = sin
+  // fila. Solo actúa en formulación viga-columna — una biela derivada no puede
+  // flectar por formulación y su fila sería un número inventado.
+  const deflLimit: number | null =
+    m.deflLimit === 'none' || formulation === 'two-force'
+      ? null
+      : (m.deflLimit ?? DEFL_LIMIT_DEFAULT);
   // Base detail (ficha): section label + worst ELU forces with their governing
   // combination. Attached even to pending members — the ficha still shows the
   // input data and demands when no engine could run.
@@ -797,7 +866,7 @@ function checkMember(
   };
   const pending = (msg: string): MemberVerdict2D => ({
     memberId: m.id,
-    role: m.role,
+    group,
     eta: 0,
     status: 'pending',
     checks: [{ id: 'pending', name: 'Comprobación pendiente', val: msg, eta: 0, ref: '' }],
@@ -807,32 +876,31 @@ function checkMember(
   let routed: RoutedChecks;
   if (m.material === 'rc') {
     if (!m.rcSection) return pending('sección HA sin definir');
-    if (m.elementType === 'two-force') {
-      return pending('biela HA no soportada (sin motor axil de hormigón) — pásala a acero, madera o a viga-columna');
-    }
-    if (m.role === 'pilar') {
+    if (m.rcDesignKind === 'column') {
       routed = rcColumnChecks(m, L, eluCombos, els);
-    } else if (m.role === 'viga' || m.role === 'cordon') {
-      routed = rcBeamChecks(m, sagSign, eluCombos, cpFactors, els);
+    } else if (m.rcDesignKind === 'beam') {
+      routed = rcBeamChecks(m, sagSign, eluCombos, cpFactors, els, deflLimit);
     } else {
-      return pending(`rol axil '${m.role}' no soportado en HA — usa pilar/viga/cordón, acero o madera`);
+      // La ÚNICA elección que el rol hacía legítimamente (P1): qué armado se
+      // lee. El programa no puede deducir cómo está armada una barra de HA —
+      // ni por geometría ni por esfuerzos — así que sin elegirla el veredicto
+      // es PENDIENTE con la acción escrita.
+      return pending(
+        'elige la comprobación HA en el inspector: Pilar (jaula, flexocompresión §5.8) ' +
+          'o Viga (armado de vano y apoyo). El programa no puede deducir cómo está armada la barra',
+      );
     }
   } else if (m.material === 'timber') {
     if (!m.timberSection) return pending('sección de madera sin definir');
     if (!getTimberGrade(m.timberSection.gradeId)) {
       return pending(`clase resistente '${m.timberSection.gradeId}' desconocida`);
     }
-    routed = timberChecks(m, L, eluCombos, elsCombos, cpFactors, els, snowOver1000m);
+    routed = timberChecks(m, L, eluCombos, elsCombos, cpFactors, els, snowOver1000m, deflLimit);
   } else {
     const sel = m.steelSelection!;
     const cat = STEEL_CATALOG[sel.profileKey];
     if (!cat) return pending(`perfil '${sel.profileKey}' desconocido`);
-    routed =
-      m.elementType === 'two-force'
-        ? axialChecks(sel.steel, cat.A, cat.Iz, L, eluCombos, els)
-        : m.role === 'pilar'
-          ? columnChecks(m, sel.steel, cat.A, L, eluCombos, els)
-          : beamChecks(m, sel.steel, cat.A, cat.Iz, L, eluCombos, elsCombos, els);
+    routed = steelChecks(m, formulation, cat, L, eluCombos, elsCombos, els, deflLimit);
   }
 
   // F4 (auditoría): zero demand is a VALID verdict — 'pending' is reserved for
@@ -842,7 +910,7 @@ function checkMember(
   if (routed.rows.length === 0 && !routed.incomplete) {
     return {
       memberId: m.id,
-      role: m.role,
+      group,
       eta: 0,
       status: 'ok',
       checks: [{ id: 'no-forces', name: 'Sin esfuerzos apreciables', val: 'η = 0', eta: 0, ref: '' }],
@@ -850,20 +918,122 @@ function checkMember(
     };
   }
 
-  const eta = routed.rows.reduce((mx, c) => Math.max(mx, c.eta), 0);
+  // ── Fase 1 (design doc 2026-07-28): INVARIANTE DE AUDITORÍA ───────────────
+  // "Para toda barra y todo mecanismo cuya demanda supere su umbral, debe
+  // existir una fila emitida para ese mecanismo." Se evalúa AQUÍ, después de
+  // `routed` y DESPUÉS del retorno de F4: una barra sin esfuerzos ni llega, así
+  // que F4 se respeta por construcción y no por un caso especial.
+  // No lee ninguna etiqueta — solo material, datos del usuario y filas ya
+  // emitidas. Fase 2: sirvió de oráculo de la migración y ahora vigila que el
+  // enrutado por mecanismo no regrese. La flecha se audita desde D10: el dato
+  // del usuario (deflLimit) dice si es exigible, sin ninguna heurística.
+  const deflDemand = deflLimit !== null && (m.material !== 'rc' || m.rcDesignKind === 'beam')
+    ? { expected: true, etaEst: worstElsDeflectionMm(els, elsCombos).delta_mm / ((L * 1000) / deflLimit) }
+    : { expected: false, etaEst: 0 };
+  const gaps = auditMechanisms(m.material, routed.rows, {
+    etaNMajor: routed.etaNMajor,
+    deflection: deflDemand,
+  });
+  const rows = gaps.length > 0 ? [...routed.rows, ...gaps.map((g) => g.row)] : routed.rows;
+
+  const eta = rows.reduce((mx, c) => Math.max(mx, c.eta), 0);
   // Engine-declared fails that eta cannot express (MemberCheck.status).
-  const rowFail = routed.rows.some((c) => c.status === 'fail');
+  const rowFail = rows.some((c) => c.status === 'fail');
   // F1 (auditoría): any check that COULD NOT run (engine invalid, unsupported
   // profile) forces 'pending' — an η=0 row must never buy an unearned green
   // (the "plausible but wrong PDF" failure mode). Mirrors the 1D contract.
-  const status: MemberStatus = routed.incomplete ? 'pending' : rowFail ? 'fail' : toStatus(eta);
+  // Una discrepancia del invariante entra por esta misma puerta: un mecanismo
+  // que NO se comprobó es indistinguible de uno que no pudo comprobarse.
+  const incomplete = routed.incomplete || gaps.length > 0;
+  const status: MemberStatus = incomplete ? 'pending' : rowFail ? 'fail' : toStatus(eta);
   return {
     memberId: m.id,
-    role: m.role,
+    group,
     eta,
     status,
-    checks: routed.rows,
+    checks: rows,
     detail: { ...baseDetail, groups: routed.detailGroups ?? [] },
+  };
+}
+
+/**
+ * ACERO — enrutado por mecanismo (Fase 2, paso 5, tabla de propietarios):
+ *
+ *   formulación 'two-force'      → camino axil autónomo (tracción §6.2.3 +
+ *                                  pandeo §6.3.1 con curva c). M = V = 0 por
+ *                                  formulación: no hay nada más que exigir.
+ *   sin motor de flexión (L)     → si la demanda de flexión es despreciable,
+ *                                  el MISMO camino axil (una diagonal troceada
+ *                                  por un nudo intermedio deja de ser
+ *                                  birrotulada pero sigue siendo un axil);
+ *                                  con demanda real, PENDIENTE honesto (D11 —
+ *                                  la flexión de angulares es esviada y no se
+ *                                  finge con el motor de I).
+ *   resto                        → calcSteelBeam SIEMPRE (flexión, cortante,
+ *                                  M-V §6.2.8, vuelco con correas, flecha) y,
+ *                                  con COMPRESIÓN RELEVANTE (η_N,y ≥ 0.05, el
+ *                                  MISMO umbral del invariante), TAMBIÉN
+ *                                  calcSteelColumn — que aporta la clase bajo
+ *                                  N, Nby/Nbz y la interacción M+N §6.3.3
+ *                                  (int1/int2) que el rol 'viga' perdía.
+ */
+function steelChecks(
+  m: Fem2DMember,
+  formulation: ElementType2D,
+  cat: (typeof STEEL_CATALOG)[string],
+  L: number,
+  eluCombos: LcFactors[],
+  elsCombos: LcFactors[],
+  els: Solver2DElementResult[],
+  deflLimit: number | null,
+): RoutedChecks {
+  const sel = m.steelSelection!;
+  if (formulation === 'two-force') {
+    return axialChecks(sel.steel, cat.A, cat.Iz, cat.I, L, eluCombos, els, m.weakAxisBracing);
+  }
+  if (!beamProfileFields(sel.profileKey)) {
+    let M = 0;
+    let V = 0;
+    for (const factors of eluCombos) {
+      const ext = comboExtremes(els, factors);
+      if (ext.M_Ed > M) M = ext.M_Ed;
+      if (ext.V_Ed > V) V = ext.V_Ed;
+    }
+    if (M <= NEGLIGIBLE_M_KNM && V <= NEGLIGIBLE_V_KN) {
+      return axialChecks(sel.steel, cat.A, cat.Iz, cat.I, L, eluCombos, els, m.weakAxisBracing);
+    }
+    // Con demanda de flexión real, beamChecks emite el pending-profile honesto
+    // (D11) + las filas que SÍ puede dar (axiles, flecha real del solver).
+    return beamChecks(m, sel.steel, cat.A, cat.Iz, cat.I, L, eluCombos, elsCombos, els, deflLimit);
+  }
+
+  const beam = beamChecks(m, sel.steel, cat.A, cat.Iz, cat.I, L, eluCombos, elsCombos, els, deflLimit);
+  if ((beam.etaNMajor ?? 0) < MECH_PRESENT_MIN_ETA) return beam;
+  const col = columnChecks(m, sel.steel, cat.A, L, eluCombos, els);
+  return mergeSteelPaths(beam, col);
+}
+
+/** Filas que cada motor CEDE al otro en la pasada combinada (tabla de
+ *  propietarios del design doc). El de vigas cede la flexión pura y los axiles
+ *  compañeros (los sustituyen la clase bajo N, MyRd y Nby/Nbz del de pilares);
+ *  el de pilares cede su vuelco lateral (calculado a longitud completa — el de
+ *  vigas usa las correas declaradas, fila 4 de la tabla). */
+const BEAM_ROWS_CEDED = new Set(['classification', 'bending', 'axial-buckling', 'axial-tension']);
+const COLUMN_ROWS_CEDED = new Set(['LTB']);
+const AXIAL_COMPANION_GROUP_TITLE = 'Axil concomitante (mecanismo separado)';
+
+function mergeSteelPaths(beam: RoutedChecks, col: RoutedChecks): RoutedChecks {
+  return {
+    rows: [
+      ...col.rows.filter((r) => !COLUMN_ROWS_CEDED.has(r.id)),
+      ...beam.rows.filter((r) => !BEAM_ROWS_CEDED.has(r.id)),
+    ],
+    incomplete: beam.incomplete || col.incomplete,
+    etaNMajor: beam.etaNMajor,
+    detailGroups: [
+      ...(col.detailGroups ?? []),
+      ...(beam.detailGroups ?? []).filter((g) => g.title !== AXIAL_COMPANION_GROUP_TITLE),
+    ],
   };
 }
 
@@ -874,6 +1044,15 @@ interface RoutedChecks {
   incomplete: boolean;
   /** Ficha: engine intermediate values, grouped per mechanism. */
   detailGroups?: DetailGroup2D[];
+  /**
+   * Solo la ruta de vigas de acero: η_N del EJE FUERTE (χ_y), que es el que usa
+   * el primer término de la ec. 6.61. Existe porque la fila `axial-buckling`
+   * que se muestra usa el eje débil —correcto como comprobación autónoma, pero
+   * el eje equivocado para cribar la interacción— y alimentar el cribado con
+   * ella lo dispara donde no debe. Ausente ⇒ el invariante cae al valor
+   * derivado de las filas (ver mechanisms.ts).
+   */
+  etaNMajor?: number;
 }
 
 /** "IPE 240 · S275" | "HA 30×50 cm · HA-25 · B500" | "C24 140×240 mm · CS1"
@@ -942,6 +1121,31 @@ function axialResistances(steel: 'S275' | 'S355', A_cm2: number, Iz_cm4: number,
   return { Npl, Nb, chi, lambdaBar, i_mm };
 }
 
+/**
+ * Resistencia a pandeo GOBERNANTE con arriostramiento del eje débil (D13).
+ * Sin `weakAxisBracing`, el eje débil a longitud completa gobierna siempre
+ * (mismo L, radio menor) — comportamiento histórico intacto. CON él, el eje
+ * débil pandea entre puntos de arriostramiento pero el eje FUERTE sigue
+ * pandeando a longitud completa, así que hay que comprobar AMBOS y quedarse
+ * con el menor Nb — acortar solo el débil sería un verde no ganado.
+ */
+function governedAxialResistances(
+  steel: 'S275' | 'S355',
+  A_cm2: number,
+  Iz_cm4: number,
+  Imajor_cm4: number,
+  L: number,
+  weakAxisBracing: number | undefined,
+) {
+  const Lz = Math.min(weakAxisBracing ?? L, L);
+  const weak = axialResistances(steel, A_cm2, Iz_cm4, Lz);
+  if (weakAxisBracing === undefined) return { ...weak, Lcr: L, braced: false };
+  const major = axialResistances(steel, A_cm2, Imajor_cm4, L);
+  return weak.Nb <= major.Nb
+    ? { ...weak, Lcr: Lz, braced: true }
+    : { ...major, Lcr: L, braced: true };
+}
+
 /** Ficha group for the self-contained axial resistances (two-force members
  *  and the beam-column companion rows). */
 function axialDetailGroup(
@@ -954,8 +1158,8 @@ function axialDetailGroup(
     rows: [
       { label: 'Npl,Rd = A·fy / γM0', value: `${r.Npl.toFixed(1)} kN` },
       { label: 'Nb,Rd = χ·A·fy / γM1', value: `${r.Nb.toFixed(1)} kN` },
-      { label: 'Longitud de pandeo Lcr (= L, β = 1)', value: `${Lcr_m.toFixed(2)} m` },
-      { label: 'Radio de giro mínimo i (eje débil)', value: `${r.i_mm.toFixed(1)} mm` },
+      { label: 'Longitud de pandeo Lcr (β = 1)', value: `${Lcr_m.toFixed(2)} m` },
+      { label: 'Radio de giro del eje gobernante i', value: `${r.i_mm.toFixed(1)} mm` },
       { label: 'Esbeltez reducida λ̄', value: r.lambdaBar.toFixed(2) },
       { label: 'χ (curva c, α = 0.49)', value: r.chi.toFixed(2) },
     ],
@@ -966,9 +1170,11 @@ function axialChecks(
   steel: 'S275' | 'S355',
   A_cm2: number,
   Iz_cm4: number,
+  Imajor_cm4: number,
   L: number,
   eluCombos: LcFactors[],
   els: Solver2DElementResult[],
+  weakAxisBracing: number | undefined,
 ): RoutedChecks {
   let Nt = 0, NtCombo = ''; // worst tension across combos
   let Nc = 0, NcCombo = ''; // worst compression magnitude across combos
@@ -977,7 +1183,7 @@ function axialChecks(
     if (ext.Nmax > Nt) { Nt = ext.Nmax; NtCombo = formatCombo(factors); }
     if (-ext.Nmin > Nc) { Nc = -ext.Nmin; NcCombo = formatCombo(factors); }
   }
-  const res = axialResistances(steel, A_cm2, Iz_cm4, L);
+  const res = governedAxialResistances(steel, A_cm2, Iz_cm4, Imajor_cm4, L, weakAxisBracing);
   const { Npl, Nb, chi } = res;
   const rows: MemberCheck[] = [];
   if (Nt > 1e-6) {
@@ -1003,7 +1209,7 @@ function axialChecks(
   return {
     rows,
     incomplete: false,
-    detailGroups: rows.length > 0 ? [axialDetailGroup('Resistencias axiles (biela)', res, L)] : [],
+    detailGroups: rows.length > 0 ? [axialDetailGroup('Resistencias axiles (biela)', res, res.Lcr)] : [],
   };
 }
 
@@ -1067,16 +1273,18 @@ function mergeWorst(agg: Map<string, MemberCheck>, next: MemberCheck[]): void {
   }
 }
 
-/** viga / cordon: calcSteelBeam per ELU combo + axial companion + real deflection. */
+/** calcSteelBeam per ELU combo + axial companion + real deflection. */
 function beamChecks(
   m: Fem2DMember,
   steel: 'S275' | 'S355',
   A_cm2: number,
   Iz_cm4: number,
+  Imajor_cm4: number,
   L: number,
   eluCombos: LcFactors[],
   elsCombos: LcFactors[],
   els: Solver2DElementResult[],
+  deflLimit: number | null,
 ): RoutedChecks {
   const profile = beamProfileFields(m.steelSelection!.profileKey);
   const agg = new Map<string, MemberCheck>();
@@ -1106,7 +1314,7 @@ function beamChecks(
       Lcr: Math.min(m.ltbSpacing ?? L, L) * 1000,
       Mser: 0, // engine deflection row is replaced by the real-δ row below
       L: L * 1000,
-      deflLimit: DEFL_LIMIT,
+      deflLimit: DEFL_LIMIT_DEFAULT, // input formal del motor: su fila de flecha se descarta (Mser = 0)
       elsCombo: 'characteristic',
       useCategory: 'B',
       gk: 0,
@@ -1146,9 +1354,20 @@ function beamChecks(
     }]);
   }
 
-  // Axial companion row (D9 limitation: separate mechanism, not full M+N).
-  const axialRes = axialResistances(steel, A_cm2, Iz_cm4, L);
+  // Axial companion row (separate mechanism; the full M+N §6.3.3 lives in the
+  // merged column pass when compression is relevant — see steelChecks).
+  // D13: el arriostramiento del eje débil declarado acorta Lcr,z, y el helper
+  // gobernado comprueba también el eje fuerte a longitud completa.
+  const axialRes = governedAxialResistances(steel, A_cm2, Iz_cm4, Imajor_cm4, L, m.weakAxisBracing);
   const { Npl, Nb, chi } = axialRes;
+  // Cribado de la interacción M+N (Fase 1, mechanisms.ts). La fila de arriba usa
+  // el eje DÉBIL — correcto como comprobación autónoma de compresión — pero el
+  // primer término de la ec. 6.61 se divide por χ_y, el eje FUERTE. Alimentar el
+  // cribado con la fila mostrada lo dispararía por un eje que la ecuación no usa
+  // (en el dintel IPE240 del pórtico: 0.238 con Iz frente a 0.041 con Iy, factor
+  // 6). Se calcula aparte, con el MISMO helper y el eje que pide la ecuación.
+  // Es también el umbral que decide si el motor de pilares corre (steelChecks).
+  const etaNMajor = Nc / axialResistances(steel, A_cm2, Imajor_cm4, L).Nb;
   const axialRowShown = Nt / Npl >= AXIAL_ROW_MIN_ETA || Nc / Nb >= AXIAL_ROW_MIN_ETA;
   if (Nt / Npl >= AXIAL_ROW_MIN_ETA) {
     mergeWorst(agg, [{
@@ -1172,9 +1391,12 @@ function beamChecks(
   }
 
   // Real relative-to-chord deflection, with its governing ELS combination.
-  const adm_mm = (L * 1000) / DEFL_LIMIT;
-  const { delta_mm, combo: deltaCombo } = worstElsDeflectionMm(els, elsCombos);
-  mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo)]);
+  // D10: el límite es un dato del usuario; null = 'no aplica' → sin fila.
+  if (deflLimit !== null) {
+    const adm_mm = (L * 1000) / deflLimit;
+    const { delta_mm, combo: deltaCombo } = worstElsDeflectionMm(els, elsCombos);
+    mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo, deflLimit)]);
+  }
 
   // ── Ficha: resistencias de sección (combo-independientes) ────────────────
   const detailGroups: DetailGroup2D[] = [];
@@ -1197,13 +1419,19 @@ function beamChecks(
     });
   }
   if (axialRowShown) {
-    detailGroups.push(axialDetailGroup('Axil concomitante (mecanismo separado)', axialRes, L));
+    detailGroups.push(axialDetailGroup(AXIAL_COMPANION_GROUP_TITLE, axialRes, axialRes.Lcr));
   }
 
-  return { rows: Array.from(agg.values()), incomplete, detailGroups };
+  return { rows: Array.from(agg.values()), incomplete, detailGroups, etaNMajor };
 }
 
-/** pilar: calcSteelColumn per ELU combo (Ned compression + My same combo). */
+/**
+ * Pasada del motor de PILARES (calcSteelColumn) per ELU combo: clase bajo N,
+ * Nby/Nbz, MyRd y la interacción M+N §6.3.3 (int1/int2). Desde la Fase 2 SOLO
+ * corre dentro de la pasada combinada de steelChecks (compresión relevante),
+ * así que el cortante ya lo aporta la pasada de vigas — la sub-llamada Vpl que
+ * vivía aquí se eliminó para no duplicar la fila.
+ */
 function columnChecks(
   m: Fem2DMember,
   steel: 'S275' | 'S355',
@@ -1213,18 +1441,15 @@ function columnChecks(
   els: Solver2DElementResult[],
 ): RoutedChecks {
   const profile = columnProfileFields(m.steelSelection!.profileKey);
-  const beamFields = beamProfileFields(m.steelSelection!.profileKey); // Vpl run
   const agg = new Map<string, MemberCheck>();
   let incomplete = false;
   let Nt = 0, NtCombo = '';
-  let Vmax = 0, VmaxCombo = '';
   // First valid engine run, for the ficha (resistances are combo-independent).
   let eng: ReturnType<typeof calcSteelColumn> | null = null;
 
   for (const factors of eluCombos) {
     const ext = comboExtremes(els, factors);
     if (ext.Nmax > Nt) { Nt = ext.Nmax; NtCombo = formatCombo(factors); }
-    if (ext.V_Ed > Vmax) { Vmax = ext.V_Ed; VmaxCombo = formatCombo(factors); }
     if (!profile) continue;
     const inputs: SteelColumnInputs = {
       title: '',
@@ -1258,70 +1483,18 @@ function columnChecks(
     mergeWorst(agg, mapEngineChecks(result.checks ?? [], formatCombo(factors)));
   }
 
-  // Cortante plástico Vpl,Rd vía el motor de VIGAS (el Av sale del adapter de
-  // sección — el catálogo frame-core no lleva h/b/tw/tf). Vpl no depende
-  // del combo ⇒ separable: UNA llamada con el V máximo. MEd = 0 y
-  // VEd_interaction = 0 ⇒ el motor no emite interacción; solo se toma la fila
-  // 'shear'.
-  let VplRd: number | null = null; // ficha
-  if (beamFields && Vmax > 1e-6) {
-    const shearRun = calcSteelBeam({
-      title: '',
-      ...beamFields,
-      steel: m.steelSelection!.steel,
-      beamType: 'ss',
-      MEd: 0,
-      VEd: Vmax,
-      VEd_interaction: 0,
-      Lcr: L * 1000,
-      Mser: 0,
-      L: L * 1000,
-      deflLimit: DEFL_LIMIT,
-      elsCombo: 'characteristic',
-      useCategory: 'B',
-      gk: 0,
-      qk: 0,
-      bTrib: 1,
-    });
-    if (shearRun.valid) {
-      VplRd = shearRun.Vc_Rd;
-      mergeWorst(agg, mapEngineChecks((shearRun.checks ?? []).filter((c) => c.id === 'shear'), VmaxCombo));
-    } else {
-      // F1: el cortante no se pudo comprobar → el miembro no gana un verde.
-      incomplete = true;
-      mergeWorst(agg, [{
-        id: 'shear-invalid',
-        name: 'Cortante del pilar',
-        val: shearRun.error ?? 'no comprobable',
-        eta: 0,
-        ref: '',
-      }]);
-    }
-  }
-
-  // ── Ficha: resistencias del pilar (combo-independientes) ─────────────────
+  // ── Ficha: resistencias de flexocompresión (combo-independientes) ────────
   const detailGroups: DetailGroup2D[] = [];
   if (eng && eng.valid) {
     const rows: DetailRow2D[] = [
-      { label: 'Clase de sección', value: `Clase ${eng.sectionClass}` },
+      { label: 'Clase de sección (bajo N)', value: `Clase ${eng.sectionClass}` },
       { label: 'NRd (compresión de sección)', value: `${eng.NRd.toFixed(0)} kN` },
       { label: 'Nb,Rd eje y (λ̄ / χ)', value: `${eng.Nb_Rd_y.toFixed(0)} kN (${eng.lambda_y.toFixed(2)} / ${eng.chi_y.toFixed(2)})` },
       { label: 'Nb,Rd eje z (λ̄ / χ)', value: `${eng.Nb_Rd_z.toFixed(0)} kN (${eng.lambda_z.toFixed(2)} / ${eng.chi_z.toFixed(2)})` },
       { label: 'My,Rd (flexión eje fuerte)', value: `${eng.My_Rd.toFixed(1)} kN·m` },
     ];
-    if (eng.Mb_Rd > 0 && eng.lambda_LT > 0) {
-      rows.push({ label: 'Mb,Rd (pandeo lateral, λ̄LT / χLT)', value: `${eng.Mb_Rd.toFixed(1)} kN·m (${eng.lambda_LT.toFixed(2)} / ${eng.chi_LT.toFixed(2)})` });
-    }
-    if (VplRd !== null) {
-      rows.push({ label: 'Vpl,Rd (cortante plástico)', value: `${VplRd.toFixed(1)} kN` });
-    }
     rows.push({ label: 'Longitud de pandeo (β = 1, no traslacional + αcr)', value: `${L.toFixed(2)} m` });
-    detailGroups.push({ title: 'Resistencias del pilar', rows });
-  } else if (VplRd !== null) {
-    detailGroups.push({
-      title: 'Resistencias del pilar',
-      rows: [{ label: 'Vpl,Rd (cortante plástico)', value: `${VplRd.toFixed(1)} kN` }],
-    });
+    detailGroups.push({ title: 'Flexocompresión M+N (§6.3.3)', rows });
   }
 
   if (!profile) {
@@ -1403,10 +1576,15 @@ function mapTimberChecks(rows: TimberFrameCheckRow[], combo: string): MemberChec
  * kmod permanente puede gobernar con carga variable pequeña, §3.1.3(2)).
  * Emparejamiento conservador no concurrente (mismo criterio que los pilares
  * de acero/HA): |M| y |V| máximos del combo con ambos extremos de N del combo.
- * Roles: viga/cordón/pilar como viga-columna (el motor cubre flexocompresión
- * 6.23/6.24/6.35 y flexotracción 6.17); una biela entra por el mismo camino y
+ * El motor cubre flexocompresión 6.23/6.24/6.35 y flexotracción 6.17 SIEMPRE
+ * (nunca separa mecanismos); una biela derivada entra por el mismo camino y
  * degenera limpiamente a axil puro (M = V = 0 en sus muestras del solver).
- * Vigas/cordones añaden flecha instantánea (ELS-c) y FINAL con kdef.
+ *
+ * D13: el motor toma Lef_z y Lltb POR SEPARADO, así que aquí la separación de
+ * coacciones es literal — las correas (`ltbSpacing`) acortan SOLO el vuelco
+ * (kcrit) y el arriostramiento del eje débil (`weakAxisBracing`) SOLO kc,z.
+ * Antes ambos salían de las correas: kc,z ganaba una coacción que unas correas
+ * en el ala no garantizan.
  */
 function timberChecks(
   m: Fem2DMember,
@@ -1416,15 +1594,12 @@ function timberChecks(
   cpFactors: LcFactors,
   els: Solver2DElementResult[],
   snowOver1000m: boolean,
+  deflLimit: number | null,
 ): RoutedChecks {
   const sec = m.timberSection!;
   const grade = getTimberGrade(sec.gradeId)!;
-  const twoForce = m.elementType === 'two-force';
-  // Longitud arriostrada fuera del plano / de vuelco: correas para vigas y
-  // cordones (en madera arriostran AMBOS mecanismos: kc,z y kcrit); un pilar o
-  // una biela pandean con su longitud completa.
-  const braceable = !twoForce && m.role !== 'pilar';
-  const Lb = braceable ? Math.min(m.ltbSpacing ?? L, L) : L;
+  const Lltb = Math.min(m.ltbSpacing ?? L, L);
+  const Lz = Math.min(m.weakAxisBracing ?? L, L);
 
   const agg = new Map<string, MemberCheck>();
   let incomplete = false;
@@ -1457,8 +1632,8 @@ function timberChecks(
         // β = 1 en el plano: longitud de pandeo NO traslacional emparejada con
         // los momentos amplificados por αcr (mismo criterio que acero/HA).
         Lef_y: L,
-        Lef_z: Lb,
-        Lltb: Lb,
+        Lef_z: Lz,
+        Lltb,
         loadDuration: duration,
         N,
         M: ext.M_Ed,
@@ -1486,15 +1661,16 @@ function timberChecks(
     }
   }
 
-  // ── Flecha (solo familias de flexión — pilares y bielas no llevan fila δ) ──
-  if (braceable) {
-    const adm_mm = (L * 1000) / DEFL_LIMIT;
+  // ── Flecha (D10: la gobierna el dato del usuario; una biela derivada no
+  //    flecta por formulación y checkMember ya resuelve deflLimit = null) ────
+  if (deflLimit !== null) {
+    const adm_mm = (L * 1000) / deflLimit;
 
     // Instantánea característica: la δ REAL del solver relativa a la cuerda,
     // con su combinación pésima (misma fila normativa que las vigas de acero,
     // helper compartido).
     const { delta_mm, combo: deltaCombo } = worstElsDeflectionMm(els, elsCombos);
-    mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo)]);
+    mergeWorst(agg, [elsDeflectionRow(delta_mm, adm_mm, deltaCombo, deflLimit)]);
 
     // FINAL con fluencia: δ_fin = δ_c + kdef·δ_cp — COTA SUPERIOR de la
     // u_fin = u_G·(1+kdef) + u_Q·(1+ψ2·kdef) del módulo de vigas de madera
@@ -1509,7 +1685,7 @@ function timberChecks(
     mergeWorst(agg, [{
       id: 'deflection-fin',
       name: 'Flecha final con fluencia (δ_c + kdef·δ_cp)',
-      val: `δ = ${deltaFin.toFixed(1)} mm (kdef = ${kdef.toFixed(2)}) / L/${DEFL_LIMIT} = ${adm_mm.toFixed(1)} mm`,
+      val: `δ = ${deltaFin.toFixed(1)} mm (kdef = ${kdef.toFixed(2)}) / L/${deflLimit} = ${adm_mm.toFixed(1)} mm`,
       eta: adm_mm > 0 ? deltaFin / adm_mm : 0,
       ref: 'CTE DB-SE 4.3.3 · EN 1995-1-1 §2.2.3',
       combo: formatCombo(cpFactors),
@@ -1544,8 +1720,12 @@ function timberChecks(
       rows: [
         { label: 'Lef en el plano (β = 1, no traslacional + αcr)', value: `${L.toFixed(2)} m` },
         {
-          label: 'Lef fuera del plano / vuelco',
-          value: `${Lb.toFixed(2)} m${braceable ? (m.ltbSpacing !== undefined ? ' (arriostrada por correas)' : ' (sin arriostrar = L)') : ''}`,
+          label: 'Lef fuera del plano (eje débil)',
+          value: `${Lz.toFixed(2)} m${m.weakAxisBracing !== undefined ? ' (arriostramiento declarado)' : ' (sin arriostrar = L)'}`,
+        },
+        {
+          label: 'Lef de vuelco lateral',
+          value: `${Lltb.toFixed(2)} m${m.ltbSpacing !== undefined ? ' (arriostrada por correas)' : ' (sin arriostrar = L)'}`,
         },
         { label: 'λrel,y / kc,y (plano)', value: `${e.lambda_rel_y.toFixed(2)} / ${e.kc_y.toFixed(3)}` },
         { label: 'λrel,z / kc,z (fuera del plano)', value: `${e.lambda_rel_z.toFixed(2)} / ${e.kc_z.toFixed(3)}` },
@@ -1665,6 +1845,7 @@ function rcBeamChecks(
   eluCombos: LcFactors[],
   cpFactors: LcFactors,
   els: Solver2DElementResult[],
+  deflLimit: number | null,
 ): RoutedChecks {
   const sec = m.rcSection!;
   const vano = m.vanoArmado;
@@ -1936,7 +2117,8 @@ function rcBeamChecks(
   // exacto). M_cp del máx |M| de TODO el miembro vía comboExtremes (las
   // regiones de rcRegionExtremes dejan huecos en [0.15L,0.25L]∪[0.75L,0.85L]).
   // Armadura: la cara traccionada DOMINANTE del vano (la flecha es del vano).
-  {
+  // D10: el denominador es el dato del usuario; null = 'no aplica' → sin fila.
+  if (deflLimit !== null) {
     const Mcp = comboExtremes(els, cpFactors).M_Ed;
     const domSag = cp.vanoSag >= cp.vanoHog;
     const faceN = domSag ? vano.tens_nBars : vano.comp_nBars;
@@ -1953,11 +2135,11 @@ function rcBeamChecks(
     const deltaCp_mm = worstRelativeDeflection(els, [cpFactors]) * 1000;
     // 0 × ∞ (sin flecha cp pero k infinito por As=0) debe leer 0, no NaN.
     const deltaDif = deltaCp_mm === 0 ? 0 : deltaCp_mm * fis.k;
-    const admDif = (L_m * 1000) / RC_DEFL_CP_LIMIT;
+    const admDif = (L_m * 1000) / deflLimit;
     rows.push({
       id: 'deflection-cracked',
       name: 'Flecha diferida (ELS-cp, sección fisurada)',
-      val: `δ = ${deltaDif.toFixed(1)} mm (k = ${Number.isFinite(fis.k) ? fis.k.toFixed(2) : '∞'}, ζ = ${fis.zeta.toFixed(2)}) / L/${RC_DEFL_CP_LIMIT} = ${admDif.toFixed(1)} mm`,
+      val: `δ = ${deltaDif.toFixed(1)} mm (k = ${Number.isFinite(fis.k) ? fis.k.toFixed(2) : '∞'}, ζ = ${fis.zeta.toFixed(2)}) / L/${deflLimit} = ${admDif.toFixed(1)} mm`,
       eta: admDif > 0 ? deltaDif / admDif : 0,
       ref: 'CE Anejo 19 §7.4.3 · CTE DB-SE 4.3.3',
       combo: cpLabel,
@@ -2184,8 +2366,37 @@ function rcColumnChecks(
 interface SwayResult {
   alphaCr: number | null;
   amplified: boolean;
+  /** Alguna combinación con E dio αcr < 5 → EN 1998-1 §4.4.2.2 (θ > 0,2)
+   *  exige análisis de 2º orden real: fila roja aunque worstAlpha ≥ 3. */
+  seismicSecondOrder: boolean;
   /** ELU factor sets with lateral cases amplified where αcr < 10. */
   factorsPerCombo: LcFactors[];
+}
+
+/**
+ * Nudos agrupados por cota para la detección de plantas de αcr — TODOS los
+ * nudos, sin ningún filtro geométrico ni de etiqueta (D12, spike 2026-07-29):
+ * el sistema se autorregula. Una celosía triangulada apenas cede ante la sonda
+ * lateral (Pratt de plantilla: αcr ≈ 5813 ≫ 10, sin amplificar) y un pórtico
+ * con pilares inclinados conserva sus plantas — el filtro histórico por
+ * `role === 'pilar'` las perdía y la comprobación de estabilidad global
+ * desaparecía en silencio (αcr medido 6.89 con amplificación k = 1.17 que no
+ * se aplicaba). El rol murió en la Fase 2; el modo comparativo del spike, con él.
+ * Exportada para los tests de niveles.
+ */
+export function swayStoreyNodes(model: Fem2DModel): Map<number, Set<string>> {
+  const nodeY = new Map(model.nodes.map((n) => [n.id, n.y]));
+  const byY = new Map<number, Set<string>>();
+  const add = (id: string): void => {
+    const y = nodeY.get(id);
+    if (y === undefined) return;
+    const key = [...byY.keys()].find((k) => Math.abs(k - y) < 1e-6) ?? y;
+    const set = byY.get(key) ?? new Set<string>();
+    set.add(id);
+    byY.set(key, set);
+  };
+  for (const n of model.nodes) add(n.id);
+  return byY;
 }
 
 function computeSwaySensitivity(
@@ -2194,22 +2405,9 @@ function computeSwaySensitivity(
   eluCombos: LcFactors[],
   errors: ModelError[],
 ): SwayResult {
-  const passthrough: SwayResult = { alphaCr: null, amplified: false, factorsPerCombo: eluCombos };
+  const passthrough: SwayResult = { alphaCr: null, amplified: false, seismicSecondOrder: false, factorsPerCombo: eluCombos };
 
-  // Storey levels from pilar member endpoint heights.
-  const nodeY = new Map(model.nodes.map((n) => [n.id, n.y]));
-  const pilarNodeIdsByY = new Map<number, Set<string>>();
-  for (const m of model.members) {
-    if (m.role !== 'pilar') continue;
-    for (const id of [m.i, m.j]) {
-      const y = nodeY.get(id);
-      if (y === undefined) continue;
-      const key = [...pilarNodeIdsByY.keys()].find((k) => Math.abs(k - y) < 1e-6) ?? y;
-      const set = pilarNodeIdsByY.get(key) ?? new Set<string>();
-      set.add(id);
-      pilarNodeIdsByY.set(key, set);
-    }
-  }
+  const pilarNodeIdsByY = swayStoreyNodes(model);
   const levels = [...pilarNodeIdsByY.keys()].sort((a, b) => a - b);
   if (levels.length < 2) return passthrough; // no sway storeys (e.g. truss)
 
@@ -2271,6 +2469,7 @@ function computeSwaySensitivity(
 
   let worstAlpha = Infinity;
   let amplified = false;
+  let seismicSecondOrder = false;
   const factorsPerCombo = eluCombos.map((factors) => {
     let alphaCombo = Infinity;
     for (const st of storeys) {
@@ -2281,6 +2480,10 @@ function computeSwaySensitivity(
       if (a < alphaCombo) alphaCombo = a;
     }
     if (alphaCombo < worstAlpha) worstAlpha = alphaCombo;
+    // Umbral sísmico: con E en la combinación, θ = 1/αcr > 0,2 saca del rango
+    // al método simplificado (EN 1998-1 §4.4.2.2). La amplificación de abajo
+    // se mantiene como cinturón-y-tirantes, igual que en el caso αcr < 3.
+    if ((factors.E ?? 0) !== 0 && alphaCombo < ALPHA_CR_MIN_SIMPLIFIED_SEISMIC) seismicSecondOrder = true;
     if (alphaCombo >= ALPHA_CR_FIRST_ORDER) return factors;
     // Amplified-sway-moment method: scale the lateral case factors.
     const k = 1 / (1 - 1 / Math.max(alphaCombo, ALPHA_CR_MIN_SIMPLIFIED));
@@ -2299,6 +2502,60 @@ function computeSwaySensitivity(
   return {
     alphaCr: worstAlpha,
     amplified,
+    seismicSecondOrder,
     factorsPerCombo,
   };
+}
+
+/**
+ * §5.2.1(4)B NOTA 2B — la fórmula de planta solo es fiable si la compresión
+ * axil en vigas/dinteles NO es significativa. La frontera de la norma,
+ * λ̄ ≥ 0,3·√(A·fy/N_Ed), reordenada con λ̄² = A·fy/N_cr queda en
+ *
+ *     N_Ed ≥ 0,09·N_cr      N_cr = π²·EI/L² (biarticulada, longitud de
+ *                           sistema, eje del plano del pórtico)
+ *
+ * — forma sin fy que vale igual para acero, HA y madera porque usa el MISMO
+ * EI del análisis. Por encima del umbral la fórmula SOBREESTIMA αcr (lado
+ * inseguro), así que la fila se degrada a ámbar en vez de fiarse del verde.
+ *
+ * Solo barras más horizontales que verticales (|Δy| ≤ |Δx|): la compresión de
+ * un pilar — aunque esté inclinado — es el caso que la fórmula sí contempla.
+ * Las bielas se saltan (sin EI no hay rigidez de pórtico que la planta pierda;
+ * su pandeo ya lo cubre su propia fila axil). Los cordones de una celosía,
+ * troceados por los nudos de panel, tienen L de sistema corta → N_cr enorme →
+ * no disparan: la guarda no reintroduce ruido en el caso que D12 liberó.
+ *
+ * @returns id de la primera barra que dispara, o null.
+ */
+function significantBeamCompression(
+  model: Fem2DModel,
+  analysis: Analysis2DModel,
+  elementsByMember: Map<string, Solver2DElementResult[]>,
+  eluCombos: LcFactors[],
+): string | null {
+  const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
+  // EI de análisis por barra (los elementos de una barra troceada lo comparten).
+  const eiByMember = new Map<string, number>();
+  for (const el of analysis.elements) {
+    if (el.elementType === 'beam-column') eiByMember.set(el.designMemberId, el.EI);
+  }
+  for (const m of model.members) {
+    const a = nodeById.get(m.i);
+    const b = nodeById.get(m.j);
+    const EI = eiByMember.get(m.id);
+    if (!a || !b || EI === undefined || EI <= 0) continue;
+    const dx = Math.abs(b.x - a.x);
+    const dy = Math.abs(b.y - a.y);
+    if (dy > dx) continue; // más pilar que dintel
+    const L = Math.hypot(dx, dy);
+    if (L <= 0) continue;
+    const Ncr = (Math.PI * Math.PI * EI) / (L * L); // kN
+    const els = elementsByMember.get(m.id);
+    if (!els || els.length === 0) continue;
+    for (const factors of eluCombos) {
+      if (-comboExtremes(els, factors).Nmin >= NOTA_2B_NCR_FRACTION * Ncr) return m.id;
+    }
+  }
+  return null;
 }

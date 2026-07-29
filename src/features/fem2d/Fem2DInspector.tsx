@@ -50,16 +50,16 @@ import {
   editMembersMany,
   moveNode,
   normalizeSelection,
-  resetMemberRoleAuto,
   selectionMoveNodeIds,
   translateSelection,
+  setMemberDeflLimit,
   setMemberLtbSpacing,
   setMemberMaterial,
   setMemberProfile,
   setMemberRelease,
-  setMemberRole,
   setMemberSteel,
-  setMemberTwoForce,
+  setMemberWeakAxisBracing,
+  setRcDesignKind,
   setSupport,
   updateLoad,
   updateMemberArmado,
@@ -70,7 +70,8 @@ import {
   type Selected2D,
   type SelectionSet2D,
 } from './modelOps';
-import type { ArmadoHA, Fem2DLoad, Fem2DMember, Fem2DModel, MemberRole, RcColumnCage, Support2DType } from './types';
+import { memberFormulation } from './decompose';
+import type { ArmadoHA, DeflLimit2D, Fem2DLoad, Fem2DMember, Fem2DModel, RcColumnCage, Support2DType } from './types';
 import type { ServiceClass } from '../../data/timberGrades';
 
 interface Props {
@@ -83,12 +84,13 @@ interface Props {
   readOnly?: boolean;
 }
 
-const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
-  { value: 'pilar', label: 'Pilar' },
-  { value: 'viga', label: 'Viga / dintel' },
-  { value: 'cordon', label: 'Cordón' },
-  { value: 'diagonal', label: 'Diagonal' },
-  { value: 'montante', label: 'Montante' },
+/** D10 — límite de flecha por barra (CTE DB-SE 4.3.3). El value serializa el
+ *  campo: 'none' = no aplica; los números son el denominador de L/n. */
+const DEFL_OPTIONS: { value: DeflLimit2D; label: string }[] = [
+  { value: 500, label: 'L/500 · tabiques frágiles' },
+  { value: 400, label: 'L/400 · tabiques ordinarios' },
+  { value: 300, label: 'L/300 · apariencia' },
+  { value: 'none', label: 'No aplica' },
 ];
 
 const SUPPORT_OPTIONS: { value: Support2DType | 'none'; label: string }[] = [
@@ -475,9 +477,38 @@ function RcMemberEditor({ m, model, setModel }: RcEditorProps): JSX.Element {
   if (!sec) return <p className="text-[11px] text-state-fail px-0.5 py-1">Barra HA sin sección — cambia a acero y vuelve a hormigón para regenerarla.</p>;
   const patchSec = (p: Parameters<typeof updateMemberRcSection>[2]) =>
     setModel((mm) => updateMemberRcSection(mm, m.id, p));
-  const isBeamRole = m.role === 'viga' || m.role === 'cordon';
+  const kind = m.rcDesignKind;
   return (
     <>
+      {/* Fase 2 — la ÚNICA elección que heredó del rol: qué armado se lee.
+          Destacada mientras esté sin elegir (la barra lee PENDIENTE). */}
+      <Row
+        label="Comprobación HA"
+        help="Cómo está armada la barra — el programa no puede deducirlo. Pilar: jaula rectangular, flexocompresión §5.8 con pandeo. Viga: armado de vano y apoyo, flexión + cortante + fisuración + flecha."
+      >
+        <div className={`flex gap-1.5 ${kind === undefined ? 'rounded ring-2 ring-state-warn/60 p-0.5 -m-0.5' : ''}`}>
+          {([['column', 'Pilar (jaula)'], ['beam', 'Viga (vano+apoyo)']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setModel((mm) => setRcDesignKind(mm, m.id, k))}
+              aria-pressed={kind === k}
+              className={`flex-1 px-2 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+                kind === k
+                  ? 'bg-accent/15 text-accent border border-accent/40'
+                  : 'bg-bg-elevated text-text-disabled border border-border-main'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {kind === undefined && (
+          <p className="text-[10.5px] text-state-warn leading-snug">
+            Sin elegir: la barra queda PENDIENTE de comprobar.
+          </p>
+        )}
+      </Row>
       <SubHeader label="Sección de hormigón" />
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         <DraftNumberField
@@ -534,9 +565,9 @@ function RcMemberEditor({ m, model, setModel }: RcEditorProps): JSX.Element {
         </Row>
       </div>
 
-      {m.role === 'pilar' ? (
+      {kind === 'column' ? (
         <ColumnCageEditor m={m} model={model} setModel={setModel} cage={m.columnCage ?? DEFAULT_COLUMN_CAGE_2D} />
-      ) : isBeamRole ? (
+      ) : kind === 'beam' ? (
         <>
           <ArmadoRegionEditor
             m={m} model={model} setModel={setModel} region="vano"
@@ -549,13 +580,7 @@ function RcMemberEditor({ m, model, setModel }: RcEditorProps): JSX.Element {
             label="Armado apoyo" subLabel="M− (tracción arriba)"
           />
         </>
-      ) : (
-        <p className="text-[10.5px] text-text-secondary leading-snug py-1">
-          El rol axil ({m.role}) no está soportado en hormigón: la barra queda
-          pendiente de comprobar. Usa rol pilar/viga/cordón, o material acero o
-          madera.
-        </p>
-      )}
+      ) : null}
     </>
   );
 }
@@ -621,8 +646,11 @@ function MemberPanel(props: Props & { memberId: string; vector: VectorState }): 
   const a = model.nodes.find((n) => n.id === m.i);
   const b = model.nodes.find((n) => n.id === m.j);
   const L = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
-  const twoForce = m.elementType === 'two-force';
+  // Fase 2: la biela es DERIVADA — birrotulada + sin carga de barra. Ya no hay
+  // toggle: liberar ambos extremos de una barra descargada ES activarla.
+  const twoForce = memberFormulation(model, m) === 'two-force';
   const braced = m.ltbSpacing !== undefined;
+  const weakBraced = m.weakAxisBracing !== undefined;
 
   const applyRes = (res: OpResult) => {
     if (res.ok) setModel(() => res.model);
@@ -664,50 +692,15 @@ function MemberPanel(props: Props & { memberId: string; vector: VectorState }): 
         </div>
       )}
 
-      <Row label="Rol" help="Decide qué comprobación normativa se aplica (pilar → pandeo de pilar; viga/cordón → flexión + LTB; diagonal/montante → axil puro). El auto lo infiere de la geometría: cambiarlo aquí lo fija en manual. OJO: αcr detecta las plantas por los miembros con rol pilar.">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <select
-            value={m.role}
-            onChange={(e) => setModel((mm) => setMemberRole(mm, m.id, e.target.value as MemberRole))}
-            className={selectClass}
-            aria-label="Rol de la barra"
-          >
-            {ROLE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <span className="font-mono text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-bg-elevated text-text-disabled shrink-0 uppercase">
-            {m.roleManual ? 'manual' : 'auto'}
-          </span>
-        </div>
-        {m.roleManual && (
-          <button
-            type="button"
-            onClick={() => setModel((mm) => resetMemberRoleAuto(mm, m.id))}
-            className="self-start text-[10.5px] text-accent/80 hover:text-accent transition-colors"
-          >
-            Volver a rol automático
-          </button>
-        )}
-      </Row>
+      {twoForce && (
+        <p className="text-[10.5px] text-text-secondary leading-snug px-2 py-1.5 rounded bg-bg-elevated/60 border border-border-sub">
+          <span className="font-mono font-semibold uppercase text-[9.5px] text-accent mr-1.5">biela</span>
+          Birrotulada y sin cargas en la barra: trabaja solo a axil. Añadirle
+          una carga o cerrar una rótula la devuelve a viga-columna.
+        </p>
+      )}
 
-      <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-        <InputLabel label="Biela" sub="solo axil" help="Elemento de 2 fuerzas (celosías): trabaja solo a axil, articulado por formulación, y NO admite cargas en la barra." />
-        <button
-          type="button"
-          onClick={() => applyRes(setMemberTwoForce(model, m.id, !twoForce))}
-          aria-pressed={twoForce}
-          className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 ${
-            twoForce
-              ? 'bg-accent/15 text-accent border border-accent/40'
-              : 'bg-bg-elevated text-text-disabled border border-border-main'
-          }`}
-        >
-          {twoForce ? 'Biela' : 'Pórtico'}
-        </button>
-      </div>
-
-      <Row label="Material" help="Acero laminado (catálogo de perfiles), hormigón armado (sección rectangular con su armado) o madera (escuadría b×h con su clase resistente EC5). Una biela no puede ser de hormigón (el chequeo axil HA no está modelado); de madera sí.">
+      <Row label="Material" help="Acero laminado (catálogo de perfiles), hormigón armado (sección rectangular con su armado) o madera (escuadría b×h con su clase resistente EC5).">
         <div className="flex gap-1.5">
           {([['steel', 'Acero'], ['rc', 'Hormigón'], ['timber', 'Madera']] as const).map(([mat, label]) => (
             <button
@@ -753,32 +746,30 @@ function MemberPanel(props: Props & { memberId: string; vector: VectorState }): 
         <RcMemberEditor m={m} model={model} setModel={setModel} />
       )}
 
-      {!twoForce && (
-        <Row label="Rótulas" help="Liberan el momento en el extremo (M=0 exacto). Una barra con ambos extremos articulados en un pórtico se comporta como biela a flexión.">
-          <div className="flex gap-1.5">
-            {(['i', 'j'] as const).map((end) => (
-              <button
-                key={end}
-                type="button"
-                onClick={() => setModel((mm) => setMemberRelease(mm, m.id, end, !m.releases[end]))}
-                aria-pressed={m.releases[end]}
-                className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
-                  m.releases[end]
-                    ? 'bg-accent/15 text-accent border border-accent/40'
-                    : 'bg-bg-elevated text-text-disabled border border-border-main'
-                }`}
-              >
-                {end === 'i' ? `${m.i} (i)` : `${m.j} (j)`}
-              </button>
-            ))}
-          </div>
-        </Row>
-      )}
+      <Row label="Rótulas" help="Liberan el momento en el extremo (M=0 exacto). Ambas rótulas + sin cargas en la barra = biela (solo axil), derivada automáticamente.">
+        <div className="flex gap-1.5">
+          {(['i', 'j'] as const).map((end) => (
+            <button
+              key={end}
+              type="button"
+              onClick={() => setModel((mm) => setMemberRelease(mm, m.id, end, !m.releases[end]))}
+              aria-pressed={m.releases[end]}
+              className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
+                m.releases[end]
+                  ? 'bg-accent/15 text-accent border border-accent/40'
+                  : 'bg-bg-elevated text-text-disabled border border-border-main'
+              }`}
+            >
+              {end === 'i' ? `${m.i} (i)` : `${m.j} (j)`}
+            </button>
+          ))}
+        </div>
+      </Row>
 
-      {!twoForce && m.material !== 'rc' && (m.role === 'viga' || m.role === 'cordon') && (
+      {!twoForce && m.material !== 'rc' && (
         <>
           <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
-            <InputLabel label="Correas" sub="arriostr. ala" help="Separación entre puntos que arriostran el borde comprimido (correas/viguetas/forjado). Limita la longitud crítica de pandeo lateral (LTB); en madera limita también la longitud de pandeo fuera del plano (kc,z). Sin arriostrar = pandea con la luz completa." />
+            <InputLabel label="Correas" sub="arriostr. ala" help="Separación entre puntos que arriostran el ALA COMPRIMIDA (correas/viguetas/forjado). Limita la longitud crítica de vuelco lateral (LTB / kcrit). NO coacciona el eje débil de la sección entera — eso es el campo de abajo." />
             <button
               type="button"
               onClick={() => setModel((mm) => setMemberLtbSpacing(mm, m.id, braced ? undefined : 1.5))}
@@ -804,6 +795,61 @@ function MemberPanel(props: Props & { memberId: string; vector: VectorState }): 
             />
           )}
         </>
+      )}
+
+      {m.material !== 'rc' && (
+        <>
+          {/* D13 (cierra OQ7): coacción del eje débil, SEPARADA de las correas.
+              También en bielas: un tirante-puntal arriostrado a mitad pandea
+              entre puntos de arriostramiento. */}
+          <div className="flex items-center justify-between py-0.75 gap-2 min-w-0">
+            <InputLabel label="Eje débil" sub="arriostr. sección" help="Separación entre puntos que impiden la traslación lateral de la SECCIÓN ENTERA (no solo el ala): acorta la longitud de pandeo por el eje débil de la fila de compresión. Unas correas en el ala no garantizan esta coacción — por eso son dos campos." />
+            <button
+              type="button"
+              onClick={() => setModel((mm) => setMemberWeakAxisBracing(mm, m.id, weakBraced ? undefined : 1.5))}
+              aria-pressed={weakBraced}
+              className={`px-3 py-1 rounded text-[11px] font-semibold font-mono transition-colors shrink-0 ${
+                weakBraced
+                  ? 'bg-accent/15 text-accent border border-accent/40'
+                  : 'bg-bg-elevated text-text-disabled border border-border-main'
+              }`}
+            >
+              {weakBraced ? 'Arriostrada' : 'Libre'}
+            </button>
+          </div>
+          {weakBraced && (
+            <DraftNumberField
+              label="s"
+              sub="separación"
+              unit="m"
+              value={m.weakAxisBracing ?? 1.5}
+              resetKey={`${m.id}:wab`}
+              min={0.1}
+              onCommit={(v) => setModel((mm) => setMemberWeakAxisBracing(mm, m.id, Math.max(0.1, v)))}
+            />
+          )}
+        </>
+      )}
+
+      {!twoForce && (
+        /* D10 (cierra OQ2): el límite de flecha es un DATO DE PROYECTO —
+           depende de qué soporta la barra y el programa no puede deducirlo.
+           Una biela derivada no flecta por formulación: sin selector. */
+        <Row label="Límite de flecha" help="CTE DB-SE 4.3.3 según lo que soporta la barra: tabiques frágiles L/500, ordinarios L/400, solo apariencia L/300. 'No aplica' quita la fila de flecha (p. ej. un soporte cuyo criterio es la deriva de planta).">
+          <select
+            value={String(m.deflLimit ?? 300)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setModel((mm) => setMemberDeflLimit(mm, m.id, v === 'none' ? 'none' : (Number(v) as DeflLimit2D)));
+            }}
+            className={selectClass}
+            aria-label="Límite de flecha"
+          >
+            {DEFL_OPTIONS.map((o) => (
+              <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+            ))}
+          </select>
+        </Row>
       )}
 
       {!readOnly && (
@@ -1112,11 +1158,7 @@ function GroupMemberEditor({ model, setModel, members }: {
     );
   };
 
-  const commonRole = common((m) => m.role);
-  const commonTipo = common((m) => m.elementType);
   const commonMat = common((m) => m.material);
-  const anyManual = members.some((m) => m.roleManual === true);
-  const allBeamCol = members.every((m) => m.elementType === 'beam-column');
 
   const toggleClass = (pressed: boolean) =>
     `flex-1 px-2.5 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
@@ -1125,64 +1167,19 @@ function GroupMemberEditor({ model, setModel, members }: {
         : 'bg-bg-elevated text-text-disabled border border-border-main'
     }`;
 
-  // Correas: solo vigas/cordones de acero o madera en pórtico (mismo criterio
-  // que el panel individual). Se aplican SOLO a las elegibles.
-  const eligibleLtb = members.filter(
-    (m) => m.elementType === 'beam-column' && m.material !== 'rc' && (m.role === 'viga' || m.role === 'cordon'),
-  );
+  // Correas: acero o madera (una biela derivada las ignora sin daño — su
+  // demanda de flexión es 0 por formulación). Se aplican SOLO a las elegibles.
+  const eligibleLtb = members.filter((m) => m.material !== 'rc');
   const eligibleLtbIds = eligibleLtb.map((m) => m.id);
   const allBraced = eligibleLtb.length > 0 && eligibleLtb.every((m) => m.ltbSpacing !== undefined);
   const commonLtb = allBraced
     ? (eligibleLtb.every((m) => m.ltbSpacing === eligibleLtb[0].ltbSpacing) ? eligibleLtb[0].ltbSpacing : undefined)
     : undefined;
+  const commonDefl = common((m) => m.deflLimit ?? 300);
 
   return (
     <>
-      <Row label="Rol" help="Cambia el rol de TODAS las barras seleccionadas (fija manual). El rol dirige la comprobación normativa de cada barra.">
-        <select
-          value={commonRole ?? ''}
-          onChange={(e) => run(ids, (mm, id) => setMemberRole(mm, id, e.target.value as MemberRole))}
-          className={selectClass}
-          aria-label="Rol del grupo"
-        >
-          {commonRole === undefined && <option value="" disabled>— varios —</option>}
-          {ROLE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        {anyManual && (
-          <button
-            type="button"
-            onClick={() => run(ids, resetMemberRoleAuto)}
-            className="self-start text-[10.5px] text-accent/80 hover:text-accent transition-colors"
-          >
-            Volver a rol automático
-          </button>
-        )}
-      </Row>
-
-      <Row label="Tipo" help="Pórtico = viga-columna (axil + flexión). Biela = solo axil (celosías); una barra con cargas aplicadas o de hormigón no puede pasar a biela (se omite con aviso).">
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => run(ids, (mm, id) => setMemberTwoForce(mm, id, false))}
-            aria-pressed={commonTipo === 'beam-column'}
-            className={toggleClass(commonTipo === 'beam-column')}
-          >
-            Pórtico
-          </button>
-          <button
-            type="button"
-            onClick={() => run(ids, (mm, id) => setMemberTwoForce(mm, id, true))}
-            aria-pressed={commonTipo === 'two-force'}
-            className={toggleClass(commonTipo === 'two-force')}
-          >
-            Biela
-          </button>
-        </div>
-      </Row>
-
-      <Row label="Material" help="Cambia el material de todas las seleccionadas. Una biela no puede ser de hormigón (se omite con aviso). Los datos del material anterior se conservan por barra.">
+      <Row label="Material" help="Cambia el material de todas las seleccionadas. Los datos del material anterior se conservan por barra.">
         <div className="flex gap-1.5">
           {([['steel', 'Acero'], ['rc', 'Hormigón'], ['timber', 'Madera']] as const).map(([mat, label]) => (
             <button
@@ -1288,26 +1285,43 @@ function GroupMemberEditor({ model, setModel, members }: {
         </p>
       )}
 
-      {allBeamCol && (
-        <Row label="Rótulas" help="Libera el momento en ese extremo de TODAS las barras. Pulsado = todas liberadas; sin pulsar = alguna (o ninguna) — al pulsar se unifican.">
-          <div className="flex gap-1.5">
-            {(['i', 'j'] as const).map((end) => {
-              const all = members.every((m) => m.releases[end]);
-              return (
-                <button
-                  key={end}
-                  type="button"
-                  onClick={() => run(ids, (mm, id) => setMemberRelease(mm, id, end, !all))}
-                  aria-pressed={all}
-                  className={toggleClass(all)}
-                >
-                  extremo {end}
-                </button>
-              );
-            })}
-          </div>
-        </Row>
-      )}
+      <Row label="Rótulas" help="Libera el momento en ese extremo de TODAS las barras. Pulsado = todas liberadas; sin pulsar = alguna (o ninguna) — al pulsar se unifican. Ambas rótulas + sin cargas de barra = biela derivada.">
+        <div className="flex gap-1.5">
+          {(['i', 'j'] as const).map((end) => {
+            const all = members.every((m) => m.releases[end]);
+            return (
+              <button
+                key={end}
+                type="button"
+                onClick={() => run(ids, (mm, id) => setMemberRelease(mm, id, end, !all))}
+                aria-pressed={all}
+                className={toggleClass(all)}
+              >
+                extremo {end}
+              </button>
+            );
+          })}
+        </div>
+      </Row>
+
+      <Row label="Límite de flecha" help="D10 — el límite lo decide lo que soporta cada barra (CTE DB-SE 4.3.3). Se aplica a TODAS las seleccionadas; en las bielas derivadas no hay fila de flecha en ningún caso.">
+        <select
+          value={commonDefl === undefined ? '' : String(commonDefl)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') return;
+            run(ids, (mm, id) => setMemberDeflLimit(mm, id, v === 'none' ? 'none' : (Number(v) as DeflLimit2D)));
+          }}
+          className={selectClass}
+          aria-label="Límite de flecha del grupo"
+        >
+          {commonDefl === undefined && <option value="" disabled>— varios —</option>}
+          {DEFL_OPTIONS.map((o) => (
+            <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+          ))}
+        </select>
+      </Row>
+
 
       {eligibleLtb.length > 0 && (
         <>
@@ -1360,8 +1374,9 @@ function GroupRcEditor({ members, run, numField, common }: {
 }): JSX.Element {
   const ids = members.map((m) => m.id);
   const sec = (m: Fem2DMember) => m.rcSection ?? DEFAULT_RC_BEAM_SECTION_2D;
-  const allPilar = members.every((m) => m.role === 'pilar');
-  const allViga = members.every((m) => m.role === 'viga' || m.role === 'cordon');
+  const allColumnKind = members.every((m) => m.rcDesignKind === 'column');
+  const allBeamKind = members.every((m) => m.rcDesignKind === 'beam');
+  const anyUnchosen = members.some((m) => m.rcDesignKind === undefined);
 
   const armadoGrid = (region: 'vano' | 'apoyo', label: string, subLabel: string): JSX.Element => {
     const arm = (m: Fem2DMember): ArmadoHA =>
@@ -1389,6 +1404,25 @@ function GroupRcEditor({ members, run, numField, common }: {
 
   return (
     <>
+      <Row label="Comprobación HA" help="Cómo están armadas las barras del grupo — el programa no puede deducirlo. Pilar = jaula (flexocompresión §5.8); Viga = vano+apoyo (flexión, cortante, fisuración, flecha).">
+        <div className={`flex gap-1.5 ${anyUnchosen ? 'rounded ring-2 ring-state-warn/60 p-0.5 -m-0.5' : ''}`}>
+          {([['column', 'Pilar (jaula)'], ['beam', 'Viga (vano+apoyo)']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => run(ids, (mm, id) => setRcDesignKind(mm, id, k))}
+              aria-pressed={k === 'column' ? allColumnKind : allBeamKind}
+              className={`flex-1 px-2 py-1 rounded text-[11px] font-semibold font-mono transition-colors ${
+                (k === 'column' ? allColumnKind : allBeamKind)
+                  ? 'bg-accent/15 text-accent border border-accent/40'
+                  : 'bg-bg-elevated text-text-disabled border border-border-main'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Row>
       <SubHeader label="Sección de hormigón" />
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         {numField('rcb', 'b', 'ancho', 'cm', 15, false, (m) => sec(m).b, (v) => run(ids, (mm, id) => updateMemberRcSection(mm, id, { b: Math.max(15, v) })))}
@@ -1439,7 +1473,7 @@ function GroupRcEditor({ members, run, numField, common }: {
         </Row>
       </div>
 
-      {allPilar ? (
+      {allColumnKind ? (
         <>
           <SubHeader label="Armado del pilar" />
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
@@ -1453,16 +1487,16 @@ function GroupRcEditor({ members, run, numField, common }: {
             {numField('cage:ss', 's', 'cercos', 'mm', 40, true, (m) => cage(m).stirrupSpacing, (v) => patchCage({ stirrupSpacing: Math.max(40, Math.round(v)) }))}
           </div>
         </>
-      ) : allViga ? (
+      ) : allBeamKind ? (
         <>
           {armadoGrid('vano', 'Armado vano', 'M+ (tracción abajo)')}
           {armadoGrid('apoyo', 'Armado apoyo', 'M− (tracción arriba)')}
         </>
       ) : (
         <p className="text-[10.5px] text-text-secondary leading-snug py-1">
-          Roles mixtos: el armado se edita por rol (pilar usa jaula; viga/cordón
-          usan vano y apoyo). Unifica el rol del grupo o edita el armado barra a
-          barra.
+          Comprobaciones mixtas o sin elegir: el armado se edita según la
+          comprobación (pilar usa jaula; viga usa vano y apoyo). Unifícala
+          arriba o edita el armado barra a barra.
         </p>
       )}
     </>

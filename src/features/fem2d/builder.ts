@@ -15,7 +15,8 @@ import {
   MIN_MEMBER_LENGTH_M,
 } from './types';
 import type {
-  ElementType2D,
+  DeflLimit2D,
+  DisplayGroup2D,
   Fem2DLoad,
   Fem2DMember,
   Fem2DModel,
@@ -23,7 +24,6 @@ import type {
   Fem2DSupport,
   LoadCase,
   LoadFrame2D,
-  MemberRole,
   ModelError,
   RcSection,
   Steel2DSelection,
@@ -45,46 +45,52 @@ export function node2d(id: string, x: number, y: number): Fem2DNode {
 }
 
 interface MemberOpts {
-  role?: MemberRole;
   steelSelection?: Steel2DSelection;
   rcSection?: RcSection;
   timberSection?: TimberSection;
+  rcDesignKind?: 'beam' | 'column';
   releases?: { i: boolean; j: boolean };
   ltbSpacing?: number;
+  weakAxisBracing?: number;
+  deflLimit?: DeflLimit2D;
+  displayGroup?: DisplayGroup2D;
 }
 
-function member(
-  id: string,
-  i: string,
-  j: string,
-  elementType: ElementType2D,
-  defaultRole: MemberRole,
-  opts: MemberOpts = {},
-): Fem2DMember {
+function member(id: string, i: string, j: string, opts: MemberOpts = {}): Fem2DMember {
   const material = opts.rcSection ? 'rc' : opts.timberSection ? 'timber' : 'steel';
   return {
     id,
     i,
     j,
-    role: opts.role ?? defaultRole,
-    elementType,
     material,
+    rcDesignKind: opts.rcDesignKind,
     steelSelection: material === 'steel' ? (opts.steelSelection ?? { ...DEFAULT_STEEL_2D }) : undefined,
     rcSection: opts.rcSection,
     timberSection: opts.timberSection,
     releases: opts.releases ?? { i: false, j: false },
     ltbSpacing: opts.ltbSpacing,
+    weakAxisBracing: opts.weakAxisBracing,
+    deflLimit: opts.deflLimit,
+    displayGroup: opts.displayGroup,
   };
 }
 
-/** Axial + bending member (frame members, loaded chords). Default role 'viga'. */
+/** Frame member (axial + bending unless the derivation says otherwise). */
 export function beamColumn(id: string, i: string, j: string, opts: MemberOpts = {}): Fem2DMember {
-  return member(id, i, j, 'beam-column', 'viga', opts);
+  return member(id, i, j, opts);
 }
 
-/** Axial-only member (web members). Default role 'diagonal'. */
+/**
+ * Azúcar para barras de alma: birrotulada + sin flecha exigible. La "biela" ya
+ * no es un tipo — decompose deriva 'two-force' de (rótulas ambas + sin carga
+ * de barra), así que esto solo estampa los datos que lo producen.
+ */
 export function twoForce(id: string, i: string, j: string, opts: MemberOpts = {}): Fem2DMember {
-  return member(id, i, j, 'two-force', 'diagonal', opts);
+  return member(id, i, j, {
+    ...opts,
+    releases: opts.releases ?? { i: true, j: true },
+    deflLimit: opts.deflLimit ?? 'none',
+  });
 }
 
 export function support2d(node: string, type: Support2DType): Fem2DSupport {
@@ -258,15 +264,10 @@ export function validateModel2DBasic(model: Fem2DModel): ModelError[] {
       errors.push(fail('LOAD_TARGET_MISSING', `Carga ${ld.id}: barra destino '${ld.member}' no existe.`));
       continue;
     }
-    // D10 invariant: two-force members carry NO member loads (not even axial
-    // ones in v1 — apply axial forces at the nodes instead). A transverse load
-    // on a two-force member has no flexural path: local mechanism.
-    if (target.elementType === 'two-force') {
-      errors.push(fail(
-        'TWO_FORCE_MEMBER_LOAD',
-        `Carga ${ld.id} sobre la barra biela ${target.id}: un elemento de 2 fuerzas no admite cargas en la barra (aplícalas en los nudos o usa viga-columna).`,
-      ));
-    }
+    // Fase 2: el invariante D10 ("una biela no admite cargas de barra") se
+    // DISOLVIÓ — la biela es derivada, así que cargar una barra birrotulada
+    // simplemente la convierte en viga-columna que flecta. Era el bloqueo
+    // original del asistente IA y ya no es un estado representable.
     if (ld.kind === 'point-member' && (ld.pos < 0 || ld.pos > 1)) {
       errors.push(fail('LOAD_POS_OUT_OF_RANGE', `Carga ${ld.id}: posición ${ld.pos} fuera de [0, 1].`));
     }

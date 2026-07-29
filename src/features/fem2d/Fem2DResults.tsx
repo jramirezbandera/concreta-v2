@@ -20,7 +20,7 @@ import { memberStatusToCheck, toCheckRow } from './checkMapping';
 import type { Fem2DAnalysisResult } from './pipeline';
 import type { MemberVerdict2D } from './checks';
 import type { Selected2D } from './modelOps';
-import type { Fem2DModel, MemberRole } from './types';
+import type { DisplayGroup2D, Fem2DModel } from './types';
 
 interface Props {
   model: Fem2DModel | null;
@@ -34,8 +34,11 @@ interface Props {
   onOpenDetail?: (memberId: string) => void;
 }
 
-const ROLE_ORDER: MemberRole[] = ['pilar', 'viga', 'cordon', 'diagonal', 'montante'];
-const ROLE_LABEL: Record<MemberRole, string> = {
+/** Orden y etiquetas del agrupado de PRESENTACIÓN (paso 12): displayGroup de
+ *  plantilla o el fallback pilar/viga por verticalidad que estampa checks.ts.
+ *  Ningún número depende de esto. */
+const GROUP_ORDER: DisplayGroup2D[] = ['pilar', 'viga', 'cordon', 'diagonal', 'montante'];
+const GROUP_LABEL: Record<DisplayGroup2D, string> = {
   pilar: 'Pilares',
   viga: 'Vigas / dinteles',
   cordon: 'Cordones',
@@ -87,14 +90,14 @@ export function Fem2DResults({ model, result, validationErrors, selected, onSele
   const status = memberStatusToCheck(checks.status); // pending → neutral for the shared badge/ambient
   const warnings = result!.errors.filter((e) => e.severity === 'warn');
 
-  // Group members by role, preserving ROLE_ORDER and model order within a role.
-  const byRole = new Map<MemberRole, MemberVerdict2D[]>();
+  // Group members by display group, preserving GROUP_ORDER and model order.
+  const byGroup = new Map<DisplayGroup2D, MemberVerdict2D[]>();
   for (const m of model.members) {
     const v = checks.perMember[m.id];
     if (!v) continue;
-    const arr = byRole.get(m.role) ?? [];
+    const arr = byGroup.get(v.group) ?? [];
     arr.push(v);
-    byRole.set(m.role, arr);
+    byGroup.set(v.group, arr);
   }
 
   return (
@@ -130,12 +133,12 @@ export function Fem2DResults({ model, result, validationErrors, selected, onSele
         </div>
       )}
 
-      {/* Per-member verdicts, grouped by role. */}
+      {/* Per-member verdicts, grouped for presentation. */}
       <div className="mx-2 rounded border border-border-main overflow-hidden">
-        {ROLE_ORDER.filter((r) => byRole.has(r)).map((role) => (
-          <div key={role}>
-            <GroupHeader label={ROLE_LABEL[role]} />
-            {byRole.get(role)!.map((v) => (
+        {GROUP_ORDER.filter((r) => byGroup.has(r)).map((group) => (
+          <div key={group}>
+            <GroupHeader label={GROUP_LABEL[group]} />
+            {byGroup.get(group)!.map((v) => (
               <MemberRow
                 key={v.memberId}
                 data={toRowData(v)}

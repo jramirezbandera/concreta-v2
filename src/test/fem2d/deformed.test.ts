@@ -21,7 +21,7 @@ function cantilever(loads: Fem2DLoad[]): Fem2DModel {
       { id: 'n2', x: 0, y: 3 },
     ],
     members: [{
-      id: 'b1', i: 'n1', j: 'n2', role: 'pilar', elementType: 'beam-column',
+      id: 'b1', i: 'n1', j: 'n2',
       material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
       releases: { i: false, j: false },
     }],
@@ -39,7 +39,7 @@ function simpleBeam(loads: Fem2DLoad[]): Fem2DModel {
       { id: 'n2', x: 6, y: 0 },
     ],
     members: [{
-      id: 'b1', i: 'n1', j: 'n2', role: 'viga', elementType: 'beam-column',
+      id: 'b1', i: 'n1', j: 'n2',
       material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
       releases: { i: false, j: false },
     }],
@@ -123,19 +123,19 @@ describe('computeDeformedShape — analytical battery', () => {
       ],
       members: [
         {
-          id: 'b1', i: 'n1', j: 'n2', role: 'cordon', elementType: 'beam-column',
+          id: 'b1', i: 'n1', j: 'n2',
           material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
           releases: { i: false, j: false },
         },
         {
-          id: 'd1', i: 'n1', j: 'n3', role: 'diagonal', elementType: 'two-force',
+          id: 'd1', i: 'n1', j: 'n3',
           material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
-          releases: { i: false, j: false },
+          releases: { i: true, j: true }, // birrotulada + descargada ⇒ biela derivada
         },
         {
-          id: 'd2', i: 'n3', j: 'n2', role: 'diagonal', elementType: 'two-force',
+          id: 'd2', i: 'n3', j: 'n2',
           material: 'steel', steelSelection: { profileKey: 'steel_IPE240', steel: 'S275' },
-          releases: { i: false, j: false },
+          releases: { i: true, j: true }, // birrotulada + descargada ⇒ biela derivada
         },
       ],
       supports: [

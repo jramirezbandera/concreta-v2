@@ -1,4 +1,4 @@
-// FEM 2D — checks tests (Lane B Fase 4: T5 role routing, T6 multi-principal,
+// FEM 2D — checks tests (Lane B Fase 4: T5 mechanism routing, T6 multi-principal,
 // T7 αcr amplification). Each numeric assertion has an independent hand
 // derivation in a comment.
 
@@ -50,22 +50,46 @@ describe('T6 — real multi-principal combinations (never the summed bucket)', (
   });
 });
 
-describe('T5 — role routing', () => {
+describe('T5 — mechanism routing (Fase 2: sin rol)', () => {
   const portal = FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());
   const r = analyzeFem2D(portal);
 
-  it('pilar routes to the column engine (buckling/interaction rows present)', () => {
+  it('pilar de plantilla poco comprimido (η_N < 5%): pasada de vigas sola — mismo umbral que el invariante', () => {
     expect(r.ok).toBe(true);
     const p1 = r.checks!.perMember.p1;
-    expect(p1.role).toBe('pilar');
+    expect(p1.group).toBe('pilar'); // displayGroup de plantilla — presentación
     expect(p1.status).not.toBe('pending');
     expect(p1.checks.length).toBeGreaterThan(1);
     expect(p1.eta).toBeGreaterThan(0);
+    // Con η_N,y ≈ 0.04 la interacción no puede cambiar el color: flexión y
+    // axil se comprueban por separado y el invariante calla — coherente.
+    expect(p1.checks.some((c) => c.id === 'bending')).toBe(true);
+    expect(p1.checks.some((c) => c.id === 'mn-no-comprobada')).toBe(false);
   });
 
-  it('viga routes to the beam engine + real relative deflection row', () => {
+  it('con compresión RELEVANTE el motor de pilares corre y aporta int1/int2 (la fila que el rol perdía)', () => {
+    // Mismo pórtico con 300 kN bajando por cada pilar: η_N,y ≫ 5 %.
+    const base = FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());
+    const loaded = {
+      ...base,
+      loads: [
+        ...base.loads,
+        nodeLoad('lx1', 'n2', { lc: 'G', Fy: -300 }),
+        nodeLoad('lx2', 'n3', { lc: 'G', Fy: -300 }),
+      ],
+    };
+    const rl = analyzeFem2D(loaded);
+    const p1 = rl.checks!.perMember.p1;
+    expect(p1.checks.some((c) => c.id === 'int1' || c.id === 'int2')).toBe(true);
+    // El cortante lo aporta la pasada de vigas: UNA sola fila.
+    expect(p1.checks.filter((c) => c.id === 'shear').length).toBe(1);
+    // Y el vuelco del motor de pilares se CEDE al de vigas (fila 'ltb', no 'LTB').
+    expect(p1.checks.some((c) => c.id === 'LTB')).toBe(false);
+  });
+
+  it('el dintel corre el motor de vigas + fila de flecha real (deflLimit 300 de plantilla)', () => {
     const v1 = r.checks!.perMember.v1;
-    expect(v1.role).toBe('viga');
+    expect(v1.group).toBe('viga');
     expect(v1.status).not.toBe('pending');
     const defl = v1.checks.find((c) => c.id === 'deflection');
     expect(defl).toBeDefined();
@@ -73,16 +97,16 @@ describe('T5 — role routing', () => {
     expect(defl!.eta).toBeGreaterThan(0);
   });
 
-  it('two-force truss web gets the self-contained axial check, χ verified by hand', () => {
+  it('el alma de la celosía (biela DERIVADA) lleva el chequeo axil, χ verificado a mano', () => {
     const truss = FEM2D_TEMPLATES['pratt-truss'].build(FEM2D_TEMPLATES['pratt-truss'].defaults());
     const rt = analyzeFem2D(truss);
     expect(rt.ok).toBe(true);
     const d1 = rt.checks!.perMember.d1; // end post — compression (Pratt)
     const row = d1.checks.find((c) => c.id === 'axial-buckling');
     expect(row).toBeDefined();
-    // Independent Nb,Rd: L80×8, Lcr = panel diagonal √(2²+1.5²)=2.5 m,
-    // i_min = √(Iz/A), λ̄ = Lcr/i/λ1, curve c, Nb = χ·A·fy/γM1.
-    const cat = STEEL_CATALOG.steel_L80x8;
+    // Independent Nb,Rd: SHS 80×80×4 (default D11), Lcr = diagonal del panel
+    // √(2²+1.5²)=2.5 m, i_min = √(Iz/A), λ̄ = Lcr/i/λ1, curve c, Nb = χ·A·fy/γM1.
+    const cat = STEEL_CATALOG.steel_SHS80x80x4;
     const A_mm2 = cat.A * 100;
     const i_mm = Math.sqrt((cat.Iz * 1e4) / A_mm2);
     const lambdaBar = 2500 / i_mm / (93.9 * Math.sqrt(235 / 275));
@@ -94,10 +118,11 @@ describe('T5 — role routing', () => {
     expect(row!.eta).toBeCloseTo(Nc / Nb, 8);
   });
 
-  it('RC member WITHOUT armado → pending (share links / AI may carry bare HA)', () => {
+  it('RC con comprobación elegida pero SIN armado → pending-armado (share links / AI)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [beamColumn('m1', 'n1', 'n2', {
+        rcDesignKind: 'beam',
         rcSection: { b: 30, h: 50, fck: 25, fyk: 500, cover: 30, exposureClass: 'XC1', loadType: 'B' },
       })],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -115,7 +140,7 @@ describe('deflection row — exact against the SS closed form', () => {
   it('SS viga L=6, w=25 G-only: η = (5wL⁴/384EI) / (L/300)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga' })],
+      members: [beamColumn('m1', 'n1', 'n2')],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
       loads: [memberUdl('l1', 'm1', { lc: 'G', wy: -25 })],
     });
@@ -186,10 +211,18 @@ describe('T7 — αcr sway sensitivity', () => {
     expect(checks.status).toBe('fail');
   });
 
-  it('truss (no pilares): αcr not applicable, no global row', () => {
+  it('truss: la detección por cotas SÍ la sondea y es su rigidez la que la salva', () => {
+    // Contrato pre-D12: el filtro por rol la dejaba fuera (alphaCr null, sin
+    // fila). Con 'all-nodes' la sonda lateral se ejecuta de verdad y una
+    // celosía triangulada se autorregula: αcr ≫ 10, sin amplificar, fila
+    // informativa verde. (Spike 2026-07-29: la Pratt de plantilla da ≈ 5813.)
     const r = analyzeFem2D(FEM2D_TEMPLATES['pratt-truss'].build(FEM2D_TEMPLATES['pratt-truss'].defaults()));
-    expect(r.checks!.alphaCr).toBeNull();
-    expect(r.checks!.globalChecks).toHaveLength(0);
+    const checks = r.checks!;
+    expect(checks.alphaCr).not.toBeNull();
+    expect(checks.alphaCr!).toBeGreaterThanOrEqual(10);
+    expect(checks.amplified).toBe(false);
+    const row = checks.globalChecks.find((c) => c.id === 'alpha-cr')!;
+    expect(row.eta).toBeLessThan(0.95);
   });
 });
 
@@ -264,7 +297,7 @@ describe('auditoría — F4: demanda cero es un veredicto válido', () => {
     // (N = 0 exacto). La biela debe salir ok (η=0), no pending.
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0), node2d('n3', 0, 5), node2d('n4', 3, 5)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga' }), twoForce('t1', 'n3', 'n4')],
+      members: [beamColumn('m1', 'n1', 'n2'), twoForce('t1', 'n3', 'n4')],
       supports: [
         support2d('n1', 'pinned'), support2d('n2', 'roller'),
         support2d('n3', 'pinned'), support2d('n4', 'pinned'),
@@ -348,7 +381,7 @@ describe('HA — barras de hormigón', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -419,7 +452,7 @@ describe('HA — barras de hormigón', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -437,7 +470,7 @@ describe('HA — barras de hormigón', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'pilar', rcSection: { ...RC_COL } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'column', rcSection: { ...RC_COL } }),
         columnCage: { ...CAGE },
       }],
       supports: [support2d('n1', 'fixed')],
@@ -484,7 +517,7 @@ describe('HA — barras de hormigón', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -511,7 +544,7 @@ describe('HA — barras de hormigón', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 2.5, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -540,7 +573,7 @@ describe('HA — barras de hormigón', () => {
     const mk = (Fx: number) => fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -570,29 +603,36 @@ describe('HA — barras de hormigón', () => {
     expect(mnHi.val).toContain('Nt,Rd');
   });
 
-  it('biela HA → pending (sin motor axil de hormigón)', () => {
-    const model = fem2dModel({
+  it('biela HA derivada: pende hasta elegir comprobación; con "column" se comprueba (M = 0)', () => {
+    const build = (kind?: 'beam' | 'column') => fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 4, 0), node2d('n3', 2, 2)],
       members: [
         beamColumn('m1', 'n1', 'n2'),
-        twoForce('d1', 'n1', 'n3', { rcSection: { ...RC_BEAM } }),
+        {
+          ...twoForce('d1', 'n1', 'n3', { rcSection: { ...RC_BEAM }, rcDesignKind: kind }),
+          columnCage: { cornerBarDiam: 16, nBarsX: 0, barDiamX: 12, nBarsY: 0, barDiamY: 12, stirrupDiam: 6, stirrupSpacing: 150 },
+        },
         twoForce('d2', 'n2', 'n3'),
       ],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
       loads: [nodeLoad('l1', 'n3', { lc: 'G', Fy: -20 })],
     });
-    const r = analyzeFem2D(model);
-    expect(r.ok).toBe(true);
-    const d1 = r.checks!.perMember.d1;
-    expect(d1.status).toBe('pending');
-    expect(d1.checks[0].val).toContain('biela HA');
+    // Sin elegir: PENDIENTE accionable (la vieja lista negra "biela HA" murió).
+    const r1 = analyzeFem2D(build());
+    expect(r1.ok).toBe(true);
+    expect(r1.checks!.perMember.d1.status).toBe('pending');
+    expect(r1.checks!.perMember.d1.checks[0].val).toContain('comprobación HA');
+    // Eligiendo pilar: flexocompresión real con M = 0 — la barra ES comprobable.
+    const r2 = analyzeFem2D(build('column'));
+    expect(r2.ok).toBe(true);
+    expect(r2.checks!.perMember.d1.status).not.toBe('pending');
   });
 
   it('inversión por viento: succión neta → fila vano-inv:bending (tracción arriba en vano)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'viga', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'beam', rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -609,11 +649,14 @@ describe('HA — barras de hormigón', () => {
     expect(rev!.eta).toBeGreaterThan(0);
   });
 
-  it('rol axil manual sobre viga-columna HA → pending honesto', () => {
+  it('HA sin comprobación elegida (rcDesignKind undefined) → pending accionable', () => {
+    // Fase 2: la lista negra de roles axiles murió con el rol. El único
+    // PENDIENTE legítimo de HA es "el usuario aún no eligió cómo está armada"
+    // — y el mensaje nombra la acción, no solo el bloqueo (P1).
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
-        ...beamColumn('m1', 'n1', 'n2', { role: 'diagonal', rcSection: { ...RC_BEAM } }),
+        ...beamColumn('m1', 'n1', 'n2', { rcSection: { ...RC_BEAM } }),
         vanoArmado: { ...VANO }, apoyoArmado: { ...APOYO },
       }],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
@@ -622,7 +665,10 @@ describe('HA — barras de hormigón', () => {
     const r = analyzeFem2D(model);
     expect(r.ok).toBe(true);
     expect(r.checks!.perMember.m1.status).toBe('pending');
-    expect(r.checks!.perMember.m1.checks[0].val).toContain('rol axil');
+    const val = r.checks!.perMember.m1.checks[0].val;
+    expect(val).toContain('comprobación HA');
+    expect(val).toContain('Pilar');
+    expect(val).toContain('Viga');
   });
 });
 
@@ -643,8 +689,8 @@ describe('cortante de pilar', () => {
     return fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
       members: [material === 'rc'
-        ? { ...beamColumn('m1', 'n1', 'n2', { role: 'pilar', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }
-        : beamColumn('m1', 'n1', 'n2', { role: 'pilar', steelSelection: { profileKey: 'steel_HEB160', steel: 'S275' } }),
+        ? { ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'column', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }
+        : beamColumn('m1', 'n1', 'n2', { steelSelection: { profileKey: 'steel_HEB160', steel: 'S275' } }),
       ],
       supports: [support2d('n1', 'fixed')],
       loads: [
@@ -686,7 +732,7 @@ describe('cortante de pilar', () => {
     expect(expected.VRdc).toBeGreaterThan(noAxial.VRdc);
   });
 
-  it('pilar de ACERO: fila shear = calcSteelBeam(MEd=0) filtrada, sin fila de interacción', () => {
+  it('pilar de ACERO: la pasada de vigas aporta shear (paridad exacta) e interacción M-V — mecanismo GANADO en Fase 2', () => {
     const r = analyzeFem2D(columnModel('steel'));
     expect(r.ok).toBe(true);
     const v = r.checks!.perMember.m1;
@@ -702,10 +748,13 @@ describe('cortante de pilar', () => {
     });
     expect(direct.valid).toBe(true);
     const directShear = direct.checks!.find((c) => c.id === 'shear')!;
+    // La utilización de cortante no depende de MEd: paridad exacta.
     expect(row.eta).toBeCloseTo(directShear.utilization, 8);
-    // Ninguna fila espuria del motor de vigas se cuela (solo 'shear').
-    expect(v.checks.find((c) => c.id === 'interaction')).toBeUndefined();
-    expect(v.checks.find((c) => c.id === 'deflection')).toBeUndefined();
+    // La interacción M-V §6.2.8 ahora SÍ se comprueba en soportes (antes el
+    // camino de pilar la perdía — mecanismo 3 de la tabla de propietarios).
+    expect(v.checks.find((c) => c.id === 'interaction')).toBeDefined();
+    // Y una sola fila de shear (el de pilares se eliminó, no se duplica).
+    expect(v.checks.filter((c) => c.id === 'shear').length).toBe(1);
   });
 });
 
@@ -728,7 +777,7 @@ describe('pilar HA en tracción neta', () => {
   function tieModel(Fup: number, Fx: number) {
     return fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
-      members: [{ ...beamColumn('m1', 'n1', 'n2', { role: 'pilar', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }],
+      members: [{ ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'column', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }],
       supports: [support2d('n1', 'fixed')],
       loads: [
         nodeLoad('l1', 'n2', { lc: 'G', Fy: Fup }),
@@ -797,7 +846,7 @@ describe('ficha — combo gobernante por fila', () => {
     // W principal: 1.35·G + 1.5·ψ0(Q,B)=0.7 → 1.05·Q + 1.50·W (M del combo 39).
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 1, 0)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga' })],
+      members: [beamColumn('m1', 'n1', 'n2')],
       supports: [support2d('n1', 'fixed')],
       loads: [
         nodeLoad('l1', 'n2', { lc: 'G', Fy: -10 }),
@@ -819,7 +868,7 @@ describe('ficha — combo gobernante por fila', () => {
   it('viga G-only: flexión y flecha llevan sus combos (ELU vs ELS característica)', () => {
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
-      members: [beamColumn('m1', 'n1', 'n2', { role: 'viga' })],
+      members: [beamColumn('m1', 'n1', 'n2')],
       supports: [support2d('n1', 'pinned'), support2d('n2', 'roller')],
       loads: [memberUdl('l1', 'm1', { lc: 'G', wy: -25 })],
     });
@@ -860,23 +909,35 @@ describe('ficha — detail (datos + intermedios del motor)', () => {
     expect(mcRd.value).toBe(`${eng.Mc_Rd.toFixed(1)} kN·m`);
   });
 
-  it('pilar acero: grupo de resistencias con Nb,Rd por eje', () => {
-    const v = r.checks!.perMember.p1;
-    const g = v.detail!.groups.find((gr) => gr.title === 'Resistencias del pilar')!;
+  it('pilar comprimido de verdad: grupo de flexocompresión con Nb,Rd por eje', () => {
+    // El pilar de plantilla tiene η_N < 5% (no corre el motor de pilares): se
+    // carga hasta compresión relevante para que la pasada combinada emita la
+    // ficha de flexocompresión.
+    const base = FEM2D_TEMPLATES['portal-frame'].build(FEM2D_TEMPLATES['portal-frame'].defaults());
+    const loaded = {
+      ...base,
+      loads: [
+        ...base.loads,
+        nodeLoad('lx1', 'n2', { lc: 'G', Fy: -300 }),
+        nodeLoad('lx2', 'n3', { lc: 'G', Fy: -300 }),
+      ],
+    };
+    const v = analyzeFem2D(loaded).checks!.perMember.p1;
+    const g = v.detail!.groups.find((gr) => gr.title === 'Flexocompresión M+N (§6.3.3)')!;
     expect(g).toBeDefined();
     expect(g.rows.some((row) => row.label.startsWith('Nb,Rd eje y'))).toBe(true);
     expect(g.rows.some((row) => row.label.startsWith('Nb,Rd eje z'))).toBe(true);
   });
 
-  it('biela Pratt: grupo axil con Npl,Rd verificado a mano (L80×8 → 322.1 kN)', () => {
+  it('biela Pratt: grupo axil con Npl,Rd verificado a mano (SHS 80×80×4, default D11)', () => {
     const truss = FEM2D_TEMPLATES['pratt-truss'].build(FEM2D_TEMPLATES['pratt-truss'].defaults());
     const rt = analyzeFem2D(truss);
     const v = rt.checks!.perMember.d1;
     const g = v.detail!.groups.find((gr) => gr.title === 'Resistencias axiles (biela)')!;
     expect(g).toBeDefined();
-    // Npl = A·fy/γM0 = 1230·275/1.05 = 322.1 kN (L80×8, S275).
+    // Npl = A·fy/γM0 del SHS 80×80×4 (alma por defecto desde D11).
     const npl = g.rows.find((row) => row.label.startsWith('Npl,Rd'))!;
-    expect(npl.value).toBe(`${((STEEL_CATALOG.steel_L80x8.A * 100 * 275) / 1.05 / 1000).toFixed(1)} kN`);
+    expect(npl.value).toBe(`${((STEEL_CATALOG.steel_SHS80x80x4.A * 100 * 275) / 1.05 / 1000).toFixed(1)} kN`);
   });
 
   it('pendiente (HA sin armado): la ficha conserva demandas y sección', () => {
@@ -909,7 +970,7 @@ describe('ficha — detail (datos + intermedios del motor)', () => {
       nodes: [node2d('n1', 0, 0), node2d('n2', 6, 0)],
       members: [{
         ...beamColumn('m1', 'n1', 'n2', {
-          role: 'viga',
+          rcDesignKind: 'beam',
           rcSection: { b: 30, h: 50, fck: 25, fyk: 500, cover: 30, exposureClass: 'XC1', loadType: 'custom' },
         }),
         vanoArmado: { ...VANO_F }, apoyoArmado: { ...APOYO_F },
@@ -936,7 +997,7 @@ describe('ficha — detail (datos + intermedios del motor)', () => {
     };
     const model = fem2dModel({
       nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
-      members: [{ ...beamColumn('m1', 'n1', 'n2', { role: 'pilar', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }],
+      members: [{ ...beamColumn('m1', 'n1', 'n2', { rcDesignKind: 'column', rcSection: { ...RC_COL } }), columnCage: { ...CAGE } }],
       supports: [support2d('n1', 'fixed')],
       loads: [
         nodeLoad('l1', 'n2', { lc: 'G', Fy: -100 }),

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { compressToEncodedURIComponent } from 'lz-string';
-import { buildShareUrl, decodeShareString, encodeShareString, isPlausibleModel } from '../../features/fem2d/serialize';
+import { buildShareUrl, decodeShareString, decodeShareStringDetailed, encodeShareString, isPlausibleModel } from '../../features/fem2d/serialize';
 import { setMemberMaterial } from '../../features/fem2d/modelOps';
 import { buildModelFromState, fem2dUiDefaults } from '../../features/fem2d/uiState';
 import type { Fem2DModel } from '../../features/fem2d/types';
@@ -123,5 +123,82 @@ describe('fem2d serialize v2 — v1 parametric link compat', () => {
     expect('snowOver1000m' in model).toBe(false);
     const decoded = decodeShareString(encodeShareString(model))!;
     expect(decoded.snowOver1000m).toBeUndefined();
+  });
+});
+
+// ── Normalizador de la Fase 2 (paso 2): enlaces del modelo de datos con rol ──
+
+describe('fem2d serialize — normalizador de enlaces pre-Fase 2', () => {
+  /** Modelo v2 ANTIGUO tal como lo serializaba la app con rol/elementType. */
+  function legacyModel(): Record<string, unknown> {
+    const steel = { profileKey: 'steel_IPE240', steel: 'S275' };
+    return {
+      templateId: 'custom',
+      selfWeight: false,
+      nodes: [
+        { id: 'n1', x: 0, y: 0 },
+        { id: 'n2', x: 0, y: 3 },
+        { id: 'n3', x: 4, y: 3 },
+        { id: 'n4', x: 4, y: 0 },
+      ],
+      members: [
+        { id: 'p1', i: 'n1', j: 'n2', role: 'pilar', elementType: 'beam-column', material: 'rc', rcSection: { b: 30, h: 30, fck: 25, fyk: 500, cover: 30, exposureClass: 'XC1', loadType: 'B' }, releases: { i: false, j: false } },
+        { id: 'v1', i: 'n2', j: 'n3', role: 'viga', elementType: 'beam-column', material: 'steel', steelSelection: steel, releases: { i: false, j: false }, roleManual: true },
+        { id: 'd1', i: 'n1', j: 'n3', role: 'diagonal', elementType: 'two-force', material: 'steel', steelSelection: steel, releases: { i: false, j: false } },
+        { id: 'd2', i: 'n2', j: 'n4', role: 'montante', elementType: 'beam-column', material: 'rc', rcSection: { b: 30, h: 30, fck: 25, fyk: 500, cover: 30, exposureClass: 'XC1', loadType: 'B' }, releases: { i: false, j: false } },
+      ],
+      supports: [{ node: 'n1', type: 'pinned' }, { node: 'n4', type: 'pinned' }],
+      loads: [{ id: 'l1', kind: 'node', lc: 'G', node: 'n3', Fx: 0, Fy: -10 }],
+    };
+  }
+
+  it('migra rol→rcDesignKind/deflLimit/displayGroup, biela→rótulas, y marca migrated', () => {
+    const encoded = compressToEncodedURIComponent(JSON.stringify(legacyModel()));
+    const res = decodeShareStringDetailed(encoded);
+    expect(res).not.toBeNull();
+    expect(res!.migrated).toBe(true);
+    const byId = new Map(res!.model.members.map((m) => [m.id, m]));
+
+    // HA pilar → 'column'; el rol y sus satélites desaparecen del modelo.
+    const p1 = byId.get('p1')!;
+    expect(p1.rcDesignKind).toBe('column');
+    expect(p1.deflLimit).toBe('none');
+    expect(p1.displayGroup).toBe('pilar');
+    expect('role' in p1).toBe(false);
+    expect('elementType' in p1).toBe(false);
+    expect('roleManual' in p1).toBe(false);
+
+    // Viga de acero: conserva su fila de flecha (L/300 que ya tenía).
+    const v1 = byId.get('v1')!;
+    expect(v1.deflLimit).toBe(300);
+    expect(v1.displayGroup).toBe('viga');
+
+    // Biela vieja → releases ambas (la deriva decompose) + sin flecha.
+    const d1 = byId.get('d1')!;
+    expect(d1.releases).toEqual({ i: true, j: true });
+    expect(d1.deflLimit).toBe('none');
+    expect(d1.displayGroup).toBe('diagonal');
+
+    // HA 'montante' (lista negra vieja) → rcDesignKind UNDEFINED = PENDIENTE.
+    // Nunca a un valor que pueda dar verde: PENDIENTE → verde violaría P5.
+    const d2 = byId.get('d2')!;
+    expect(d2.rcDesignKind).toBeUndefined();
+    expect(d2.displayGroup).toBe('montante');
+  });
+
+  it('un modelo YA migrado pasa sin tocarse y sin banner', () => {
+    const model = buildModelFromState(fem2dUiDefaults()).model!;
+    const res = decodeShareStringDetailed(encodeShareString(model));
+    expect(res).not.toBeNull();
+    expect(res!.migrated).toBe(false);
+    expect(res!.model).toEqual(model);
+  });
+
+  it('los enlaces v1 paramétricos no marcan migrated (las plantillas ya estampan lo nuevo)', () => {
+    const v1 = { ...fem2dUiDefaults(), templateId: 'gable' as const };
+    const encoded = compressToEncodedURIComponent(JSON.stringify(v1));
+    const res = decodeShareStringDetailed(encoded);
+    expect(res).not.toBeNull();
+    expect(res!.migrated).toBe(false);
   });
 });

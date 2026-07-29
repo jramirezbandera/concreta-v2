@@ -25,26 +25,24 @@ function codes(model: Fem2DModel): string[] {
 function columnModel(): Fem2DModel {
   return fem2dModel({
     nodes: [node2d('n1', 0, 0), node2d('n2', 0, 3)],
-    members: [beamColumn('m1', 'n1', 'n2', { role: 'pilar' })],
+    members: [beamColumn('m1', 'n1', 'n2')],
     supports: [support2d('n1', 'fixed')],
     loads: [nodeLoad('l1', 'n2', { lc: 'W', Fx: 10 })],
   });
 }
 
 describe('fem2d builder factories', () => {
-  it('beamColumn defaults: viga role, default steel profile, no releases', () => {
+  it('beamColumn defaults: default steel profile, no releases', () => {
     const m = beamColumn('m1', 'a', 'b');
-    expect(m.elementType).toBe('beam-column');
-    expect(m.role).toBe('viga');
     expect(m.material).toBe('steel');
     expect(m.steelSelection).toEqual(DEFAULT_STEEL_2D);
     expect(m.releases).toEqual({ i: false, j: false });
   });
 
-  it('twoForce defaults to diagonal role', () => {
+  it('twoForce = azúcar de biela derivada: birrotulada + sin flecha exigible', () => {
     const m = twoForce('d1', 'a', 'b');
-    expect(m.elementType).toBe('two-force');
-    expect(m.role).toBe('diagonal');
+    expect(m.releases).toEqual({ i: true, j: true });
+    expect(m.deflLimit).toBe('none');
   });
 
   it('rcSection switches material to rc and drops steelSelection', () => {
@@ -128,13 +126,15 @@ describe('validateModel2DBasic', () => {
     expect(c.filter((x) => x === 'LOAD_TARGET_MISSING')).toHaveLength(2);
   });
 
-  it('D10: rejects ANY member load on a two-force member', () => {
+  it('Fase 2: una carga de barra sobre una birrotulada es LEGAL (la biela es derivada)', () => {
+    // El invariante D10 se disolvió: cargar una barra con ambas rótulas no es
+    // un error — decompose la deriva a viga-columna que flecta. Era el bloqueo
+    // original del asistente IA.
     const m = columnModel();
     m.members.push(twoForce('d1', 'n1', 'n2'));
     m.loads.push(memberUdl('l2', 'd1', { lc: 'G', wy: -5 }));
     m.loads.push(memberPointLoad('l3', 'd1', 0.5, { lc: 'G', Fy: -5 }));
-    const c = codes(m);
-    expect(c.filter((x) => x === 'TWO_FORCE_MEMBER_LOAD')).toHaveLength(2);
+    expect(codes(m)).toEqual([]);
   });
 
   it('rejects out-of-range point-member pos and invalid partial UDL ranges', () => {

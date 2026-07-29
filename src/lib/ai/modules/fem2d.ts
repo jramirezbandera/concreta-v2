@@ -31,20 +31,20 @@
  *   las aplicadas se retiran con el motivo raíz. Sin esto, "nudos aplicados +
  *   barras rechazadas" llegaba al cross-check como candidato incoherente y se
  *   descartaba todo con ids internos ('Barra cs1: nodo t2 no existe')
- *   inaccionables. Además, un rol incompatible con el tipo ya NO tumba la
- *   lista: se COACCIONA al rol automático con aviso (el modelo llama 'cordon'
- *   a los cordones-biela de una celosía; el motor enruta bielas por
- *   elementType, el rol no cambia la comprobación). Ídem una carga de barra
- *   sobre una biela (2026-07-20): se reparte como cargas de nudo equivalentes
- *   (lumpBielaLoad) en vez de vetar el bloque — era el bucle sin salida del
- *   camino "descríbela con IA" (celosía + repartida sobre un cordón-biela).
+ *   inaccionables.
+ * - FASE 2 (2026-07-29, design doc "retirar el rol"): `rol` y `tipo` SALIERON
+ *   del schema (16 → 14 uniones — de paso desatasca el límite duro de
+ *   Anthropic). La biela es un caso DERIVADO: rotulas "ambas" + sin cargas en
+ *   la barra. Una carga sobre una barra birrotulada es LEGAL — la barra pasa a
+ *   viga-columna y FLECTA: las dos capas de coacción (rol incompatible y
+ *   lumpBielaLoad) murieron porque el estado que parcheaban ya no existe. Era
+ *   el bucle sin salida original del camino "descríbela con IA".
  * - Fase B (2026-07-19): las rótulas se EDITAN por chat con `rotulas` por barra
  *   ('i'/'j'/'ambas'/'ninguna', RELATIVAS a nudo_i→nudo_j del propio payload —
  *   sin el mapeo oculto izquierda/derecha del 1D) y el arrastre posicional es
  *   consciente de la ORIENTACIÓN (reenviar una barra con los nudos invertidos
  *   mantiene la rótula en el mismo nudo físico). El resumen de resultados
  *   añade las reacciones por apoyo (envolvente ELU multi-principal).
- *   El rol admite 'auto' (inferencia geométrica ±10° → pilar, como el editor).
  * - El CHAT solo edita barras de ACERO (el límite duro de 16 uniones de
  *   Anthropic impide añadir los campos HA — o los de madera — al schema): una
  *   barra HA o de MADERA existente se conserva COMPLETA (sección + armado HA /
@@ -92,7 +92,6 @@ import {
   type Fem2DNode,
   type Fem2DSupport,
   type LoadCase,
-  type MemberRole,
   type ModelError,
   type Support2DType,
   type UseCategoryCode,
@@ -100,7 +99,6 @@ import {
 import {
   DEFAULT_STEEL_2D,
   MIN_NODE_SEPARATION_M,
-  inferRole,
 } from "../../../features/fem2d/modelOps";
 import {
   solveFem2D,
@@ -113,9 +111,9 @@ import { FEM2D_TEMPLATES } from "../../../features/fem2d/templates";
 /**
  * Perfiles proponibles por chat: nombre humano → clave del catálogo compartido
  * frame-core. Derivado del catálogo REAL para que no pueda desactualizarse.
- * Incluye 'L 80×8' (a diferencia del 1D): las bielas de celosía lo usan y el
- * chequeo axil 2D lo soporta; en una viga-columna deja la flexión PENDIENTE
- * (contrato F1: un motor que no corre nunca compra un verde).
+ * Incluye 'L 80×8' (a diferencia del 1D): las barras de axil puro (bielas
+ * derivadas) lo usan y el chequeo axil 2D lo soporta; con demanda de flexión
+ * real deja la comprobación PENDIENTE (contrato F1 + D11).
  */
 const PERFIL_CATALOG: Record<string, string> = Object.fromEntries(
   Object.entries(STEEL_CATALOG).map(([key, p]) => [p.name, key]),
@@ -123,20 +121,6 @@ const PERFIL_CATALOG: Record<string, string> = Object.fromEntries(
 const PERFIL_NAMES = Object.keys(PERFIL_CATALOG);
 
 const ACEROS = ["S275", "S355"] as const;
-const TIPOS_BARRA = ["viga-columna", "biela"] as const;
-type TipoBarra = (typeof TIPOS_BARRA)[number];
-/** 'auto' = inferencia geométrica del editor (vertical ±10° → pilar, si no viga). */
-const ROLES = [
-  "auto",
-  "pilar",
-  "viga",
-  "cordon",
-  "diagonal",
-  "montante",
-] as const;
-type RolName = (typeof ROLES)[number];
-const ROLES_AXIALES: readonly MemberRole[] = ["diagonal", "montante"];
-const ROLES_FLEXION: readonly MemberRole[] = ["pilar", "viga", "cordon"];
 const APOYOS = ["articulado", "empotrado", "deslizante"] as const;
 type ApoyoName = (typeof APOYOS)[number];
 /** Rótulas relativas a la orientación nudo_i→nudo_j DEL PAYLOAD (explícita). */
@@ -216,8 +200,6 @@ export const FEM2D_PAYLOAD_SCHEMA: Record<string, unknown> = {
         required: [
           "nudo_i",
           "nudo_j",
-          "tipo",
-          "rol",
           "perfil",
           "acero",
           "correas_m",
@@ -233,23 +215,11 @@ export const FEM2D_PAYLOAD_SCHEMA: Record<string, unknown> = {
             type: "integer",
             description: "Nº de nudo final (1-based).",
           },
-          tipo: {
-            type: ["string", "null"],
-            enum: [...TIPOS_BARRA, null],
-            description:
-              "viga-columna = axil + flexión (lo normal); biela = solo axil (celosías), biarticulada por formulación y SIN cargas en la barra. null = conservar (viga-columna en barras nuevas).",
-          },
-          rol: {
-            type: ["string", "null"],
-            enum: [...ROLES, null],
-            description:
-              'Dirige la comprobación: pilar → motor de pilares; viga/cordon → motor de vigas; diagonal/montante → axil (solo bielas). "auto" = deducir de la geometría (vertical ±10° → pilar, si no viga). null = conservar.',
-          },
           perfil: {
             type: ["string", "null"],
             enum: [...PERFIL_NAMES, null],
             description:
-              'Perfil del catálogo (nombre EXACTO: "IPE 240", "HEB 200", "L 80×8"…). "L 80×8" solo sirve para bielas. null = conservar (o heredar de la barra anterior si es nueva).',
+              'Perfil del catálogo (nombre EXACTO: "IPE 240", "HEB 200", "L 80×8"…). "L 80×8" solo trabaja a axil (sin motor de flexión). null = conservar (o heredar de la barra anterior si es nueva).',
           },
           acero: {
             type: ["string", "null"],
@@ -259,13 +229,13 @@ export const FEM2D_PAYLOAD_SCHEMA: Record<string, unknown> = {
           correas_m: {
             type: ["number", "null"],
             description:
-              "Separación (m) entre arriostramientos del ala comprimida (correas/viguetas/forjado) en vigas y cordones: limita la longitud de vuelco lateral (LTB). 0 = SIN arriostrar (lado seguro). null = conservar. Solo redúcela si el usuario confirma que esas correas existen.",
+              "Separación (m) entre arriostramientos del ala comprimida (correas/viguetas/forjado): limita la longitud de vuelco lateral (LTB). 0 = SIN arriostrar (lado seguro). null = conservar. Solo redúcela si el usuario confirma que esas correas existen.",
           },
           rotulas: {
             type: ["string", "null"],
             enum: [...ROTULAS, null],
             description:
-              'Rótula (liberación de momento) en los extremos de la barra: "i" (en nudo_i), "j" (en nudo_j), "ambas" o "ninguna". Solo viga-columna: una biela ya es biarticulada por formulación. null = conservar las actuales.',
+              'Rótula (liberación de momento) en los extremos: "i" (en nudo_i), "j" (en nudo_j), "ambas" o "ninguna". "ambas" + sin cargas en la barra = biela (solo axil, derivada) — así se modelan montantes y diagonales de celosía. null = conservar las actuales.',
           },
         },
       },
@@ -390,13 +360,13 @@ const PROMPT_RULES = `Reglas específicas del módulo FEM 2D (pórticos y cercha
 2. REEMPLAZO: cada lista se envía COMPLETA o null (= sin cambio). Conserva el ORDEN de los elementos existentes (las etiquetas del lienzo se preservan por posición) y añade los nuevos AL FINAL. Si cambias el número de nudos, envía SIEMPRE también "barras" y "apoyos" coherentes.
 3. SIGNOS: las cargas son COMPONENTES CON SIGNO en ejes del mundo: +x derecha, +y ARRIBA. La gravedad es fy NEGATIVO (una carga de 10 kN hacia abajo es fy = -10; una repartida gravitatoria de 13 kN/m es fy = -13); el viento hacia la derecha es fx positivo. ejes "local" (solo cargas de barra) expresa las componentes en los ejes de la barra: para presión de viento perpendicular a un faldón que sube hacia la derecha, usa fy negativo en ejes local.
 4. UNIDADES: m, kN y kN/m. Añade un warning por cada conversión que hagas.
-5. TIPOS DE BARRA: "viga-columna" (axil + flexión, lo normal en pórticos) y "biela" (solo axil, para montantes y diagonales de celosía). Una biela NO admite cargas en la barra: aplícalas en los nudos (si aun así envías una carga de barra sobre una biela, la app la reparte en sus dos nudos como cargas equivalentes, con aviso). Su rol es diagonal o montante. El rol dirige la comprobación: pilar → motor de pilares (β=1 con amplificación por αcr), viga/cordon → motor de vigas (+ fila de axil concomitante), diagonal/montante → tracción / pandeo axil. rol "auto" (o null en barras nuevas) deja que la app lo deduzca de la geometría.
-6. PERFILES: catálogo cerrado con nombres EXACTOS. "L 80×8" solo sirve para bielas: en una viga-columna deja la comprobación de flexión PENDIENTE.
-7. CORREAS (correas_m): separación entre puntos de arriostramiento del ala comprimida de vigas y cordones; limita la longitud de vuelco lateral (LTB). 0 = sin arriostrar (lado seguro). Sin correas casi cualquier dintel falla por vuelco lateral: pregunta por ellas antes de dar el dintel por malo, pero solo pon un valor si el usuario confirma que esas correas EXISTEN.
+5. CELOSÍAS Y BIELAS: ya NO existe un "tipo de barra" ni un "rol" — la comprobación de cada barra la deciden el material y la DEMANDA medida (el motor corre flexión, cortante, axil y la interacción M+N donde hacen falta). Una barra con rotulas "ambas" y SIN cargas en la barra trabaja como biela (solo axil) automáticamente: así se modelan montantes y diagonales de celosía. Si el usuario quiere una carga sobre una diagonal, PONLA sobre la barra sin más — la barra pasa a viga-columna birrotulada y flecta, que es lo correcto.
+6. PERFILES: catálogo cerrado con nombres EXACTOS. "L 80×8" no tiene motor de flexión: solo sirve para barras de axil puro (biela derivada o barra sin demanda de flexión); con flexión real la comprobación queda PENDIENTE.
+7. CORREAS (correas_m): separación entre puntos de arriostramiento del ala comprimida; limita la longitud de vuelco lateral (LTB). 0 = sin arriostrar (lado seguro). Sin correas casi cualquier dintel falla por vuelco lateral: pregunta por ellas antes de dar el dintel por malo, pero solo pon un valor si el usuario confirma que esas correas EXISTEN.
 8. HIPÓTESIS: G/Q/W/S/E por carga, con valores CARACTERÍSTICOS sin mayorar (la app aplica γ y ψ, las combinaciones multi-principal y la amplificación de 2º orden vía αcr). "categoria_uso" (CTE Tabla 3.1) solo con Q; si el usuario no la da, usa B con un aviso "Sugerencia:".
 9. PESO PROPIO: con peso_propio = true el programa añade solo el peso de cada barra como carga G — no lo dupliques en "cargas". Si el usuario da una "carga total", pregunta si incluye el peso propio.
-10. RÓTULAS: "rotulas" libera el momento en los extremos de una viga-columna ("i" = en nudo_i, "j" = en nudo_j, "ambas", "ninguna"; null = conservar). Úsalas para modelar uniones articuladas (viga apoyada entre pilares, correa continua…). Una biela ya es biarticulada por formulación: no le pongas rotulas. No crees mecanismos: una barra con rótulas en ambos extremos necesita que ALGO estabilice sus nudos (el solver descarta la propuesta si queda un mecanismo).
-11. HORMIGÓN Y MADERA: las barras HA y de madera se COMPRUEBAN con su sección (y armado en HA), pero el chat NO puede editarlas (se hace en el inspector del lienzo — remite ahí al usuario). Una barra HA o de madera se conserva intacta si no tocas su perfil; darle "perfil"/"acero" la CONVIERTE a acero (hazlo solo si el usuario lo pide explícitamente). Una biela puede ser de acero o de madera, nunca de hormigón.
+10. RÓTULAS: "rotulas" libera el momento en los extremos ("i" = en nudo_i, "j" = en nudo_j, "ambas", "ninguna"; null = conservar). Úsalas para modelar uniones articuladas (viga apoyada entre pilares, correa continua…) y para las celosías ("ambas" en el alma, regla 5). No crees mecanismos: una barra con rótulas en ambos extremos necesita que ALGO estabilice sus nudos (el solver descarta la propuesta si queda un mecanismo).
+11. HORMIGÓN Y MADERA: las barras HA y de madera se COMPRUEBAN con su sección (y armado en HA), pero el chat NO puede editarlas (se hace en el inspector del lienzo — remite ahí al usuario; una barra HA además necesita elegir allí su comprobación: pilar o viga). Una barra HA o de madera se conserva intacta si no tocas su perfil; darle "perfil"/"acero" la CONVIERTE a acero (hazlo solo si el usuario lo pide explícitamente).
 12. Si "modelo_de_plantilla" es true, TODO lo que ves (geometría, apoyos, cargas, perfiles) es una plantilla de la aplicación, NO datos del usuario: pregúntalos antes de dar por bueno ningún veredicto.
 13. Si una propuesta estructural se descartó con un motivo del validador o del solver (mecanismo, apoyos insuficientes…), el motivo te llega en "errores_propuesta_anterior" del estado: corrígela en el turno siguiente atendiendo a ese motivo — no la repitas igual.
 14. Lo ÚNICO que llega a la aplicación son las listas de "proposal" de ESTE turno, y solo cuando el usuario pulsa Aplicar: NUNCA afirmes en "reply" que ya has modelado, definido, configurado o aplicado algo, y "warnings" NO es un registro de acciones ("se ha aplicado…" ahí es falso siempre). Si el usuario dice que no ve la estructura, reenvía en "proposal" las CUATRO listas completas (nudos, barras, apoyos, cargas) en ese mismo turno.
@@ -417,8 +387,6 @@ interface NudoPayload {
 interface BarraPayload {
   nudo_i: number | null;
   nudo_j: number | null;
-  tipo: TipoBarra | null;
-  rol: RolName | null;
   perfil: string | null;
   acero: "S275" | "S355" | null;
   correas_m: number | null;
@@ -476,8 +444,6 @@ function parseBarra(raw: unknown): BarraPayload {
   return {
     nudo_i: finiteNumber(r.nudo_i),
     nudo_j: finiteNumber(r.nudo_j),
-    tipo: oneOf(r.tipo, TIPOS_BARRA),
-    rol: oneOf(r.rol, ROLES),
     perfil: typeof r.perfil === "string" ? r.perfil : null,
     acero: oneOf(r.acero, ACEROS),
     correas_m: finiteNumber(r.correas_m),
@@ -536,13 +502,11 @@ interface NudoProj {
 interface BarraProj {
   nudo_i: number;
   nudo_j: number;
-  tipo: TipoBarra;
-  rol: MemberRole;
   perfil: string | null;
   acero: string | null;
   /** 0 = sin arriostrar (proyección de ltbSpacing undefined). */
   correas_m: number;
-  /** Relativa a nudo_i→nudo_j; una biela proyecta siempre 'ninguna'. */
+  /** Relativa a nudo_i→nudo_j. "ambas" + sin cargas de barra ≡ biela derivada. */
   rotulas: RotulaName;
 }
 
@@ -593,24 +557,19 @@ export function projectModel2D(m: Fem2DModel): ModelProj {
   const barras: BarraProj[] = m.members.map((mm) => ({
     nudo_i: nodeIdx.get(mm.i) ?? 0,
     nudo_j: nodeIdx.get(mm.j) ?? 0,
-    tipo: mm.elementType === "two-force" ? "biela" : "viga-columna",
-    rol: mm.role,
     perfil:
       mm.material === "steel" && mm.steelSelection !== undefined
         ? perfilName(mm.steelSelection.profileKey)
         : null,
     acero: mm.material === "steel" ? (mm.steelSelection?.steel ?? null) : null,
     correas_m: mm.ltbSpacing != null ? round2(mm.ltbSpacing) : 0,
-    rotulas:
-      mm.elementType === "beam-column"
-        ? mm.releases.i && mm.releases.j
-          ? "ambas"
-          : mm.releases.i
-            ? "i"
-            : mm.releases.j
-              ? "j"
-              : "ninguna"
-        : "ninguna",
+    rotulas: mm.releases.i && mm.releases.j
+      ? "ambas"
+      : mm.releases.i
+        ? "i"
+        : mm.releases.j
+          ? "j"
+          : "ninguna",
   }));
 
   // Orden estable por nº de nudo: el array de supports del modelo no tiene
@@ -745,18 +704,18 @@ function fmtNudos(nudos: readonly NudoProj[]): string {
 function fmtBarra(b: BarraProj): string {
   // perfil null = sección no editable por chat (HA o madera — el payload no
   // distingue el material sin coste de unión; el contexto barras_ha /
-  // barras_madera del snapshot sí).
+  // barras_madera del snapshot sí). Fase 2: sin rol ni tipo — la biela es
+  // legible en la propia línea (rótula i+j) y derivable por el modelo.
   const perfil =
     b.perfil !== null
       ? `${b.perfil}${b.acero !== null ? ` ${b.acero}` : ""}`
       : "HA/madera";
-  const biela = b.tipo === "biela" ? " biela" : "";
   const correas = b.correas_m > 0 ? ` correas ${b.correas_m} m` : "";
   const rotulas =
     b.rotulas !== "ninguna"
       ? ` rótula ${b.rotulas === "ambas" ? "i+j" : b.rotulas}`
       : "";
-  return `${b.nudo_i}→${b.nudo_j} ${b.rol}${biela} ${perfil}${correas}${rotulas}`;
+  return `${b.nudo_i}→${b.nudo_j} ${perfil}${correas}${rotulas}`;
 }
 
 function fmtBarras(barras: readonly BarraProj[]): string {
@@ -894,7 +853,7 @@ export const BARRAS_ELEMENT_RULES: ReadonlyArray<ElementSafetyRule<BarraProj>> =
       format: (v) => (zeroIsOff(v) ? "sin arriostrar" : `${v as number} m`),
       why: "La separación de correas la fija la construcción real: acercarlas (o inventarlas donde no hay) acorta la longitud de vuelco lateral y hace cumplir la viga sin que exista ese arriostramiento.",
     },
-    // Perfil/acero/tipo/rol: SIN regla — son RESISTENCIA o modelización que el
+    // Perfil/acero/rótulas: SIN regla — son RESISTENCIA o modelización que el
     // motor recalcula honestamente (variable de diseño libre, igual que el 1D).
   ];
 
@@ -970,13 +929,6 @@ function mapNudos(
   return out;
 }
 
-/** Rol automático del editor: biela → montante/diagonal; resto → pilar/viga. */
-function autoRole(tipo: TipoBarra, a: Fem2DNode, b: Fem2DNode): MemberRole {
-  const vertical = inferRole(a, b) === "pilar";
-  if (tipo === "biela") return vertical ? "montante" : "diagonal";
-  return vertical ? "pilar" : "viga";
-}
-
 /** Valida y reconstruye la lista completa de barras. String = motivo (todo-o-nada). */
 function mapBarras(
   items: readonly BarraPayload[],
@@ -1027,53 +979,6 @@ function mapBarras(
       return `Barra ${n}: mide ${L.toFixed(3)} m (mínimo ${MIN_MEMBER_LENGTH_M} m)`;
     }
 
-    // --- Tipo de elemento ---
-    const prevTipo: TipoBarra | null =
-      prev !== null
-        ? prev.elementType === "two-force"
-          ? "biela"
-          : "viga-columna"
-        : null;
-    const tipo: TipoBarra = it.tipo ?? prevTipo ?? "viga-columna";
-    const tipoCambia = prevTipo !== null && tipo !== prevTipo;
-
-    // --- Rol ---
-    let role: MemberRole;
-    let roleManual: boolean;
-    if (it.rol !== null && it.rol !== "auto") {
-      const incompatible =
-        tipo === "biela"
-          ? ROLES_FLEXION.includes(it.rol)
-          : ROLES_AXIALES.includes(it.rol);
-      if (incompatible) {
-        // Coacción, no rechazo: el motor enruta las bielas por elementType
-        // (axil, ignora el rol) y el modelo llama 'cordon' a los cordones-biela
-        // de una celosía una y otra vez — rechazarlo tumbaba la lista entera y
-        // con ella toda la propuesta estructural (bucle sin salida en el chat).
-        role = autoRole(tipo, a, b);
-        roleManual = false;
-        warnings.push(
-          `Barra ${n}: el rol '${it.rol}' no corresponde a una ${tipo}; se usa '${role}' (deducido de la geometría).`,
-        );
-      } else {
-        role = it.rol;
-        roleManual = true;
-      }
-    } else if (it.rol === "auto" || prev === null || tipoCambia) {
-      role = autoRole(tipo, a, b);
-      // Espejo de setMemberTwoForce: pasar a biela fija el rol axial como
-      // manual; volver a viga-columna (o barra nueva) queda en auto.
-      roleManual = it.rol === null && tipoCambia && tipo === "biela";
-    } else {
-      // Conservar: los roles auto pilar/viga se re-infieren con la geometría
-      // final (espejo de reinferRoles tras mover nudos).
-      roleManual = prev.roleManual === true;
-      role =
-        !roleManual && (prev.role === "pilar" || prev.role === "viga")
-          ? inferRole(a, b)
-          : prev.role;
-    }
-
     // --- Material / perfil ---
     let material: Fem2DMember["material"] = "steel";
     let steelSelection: Fem2DMember["steelSelection"];
@@ -1091,9 +996,6 @@ function mapBarras(
     ) {
       // Barra HA existente sin tocar su perfil: sigue siendo HA y se comprueba
       // con su sección+armado actuales (el chat no edita el hormigón).
-      if (tipo === "biela") {
-        return `Barra ${n}: una biela no puede ser de hormigón (sin motor axil HA) — dale un perfil de acero, pásala a madera o déjala como viga-columna`;
-      }
       material = "rc";
       steelSelection = prev.steelSelection; // restaurable si vuelve a acero
     } else if (
@@ -1157,52 +1059,30 @@ function mapBarras(
       }
       ltbSpacing = round2(it.correas_m);
     }
-    if (tipo === "biela") {
-      if (it.correas_m !== null && it.correas_m !== 0) {
-        warnings.push(
-          `Barra ${n}: correas_m solo aplica a vigas/cordones; en una biela se ignora.`,
-        );
-      }
-      ltbSpacing = undefined;
-    }
 
     // --- Rótulas ---
     // Arrastre consciente de la ORIENTACIÓN: los flags i/j de prev son
     // relativos a SU i→j; si el payload reenvía la barra con los nudos
-    // invertidos, la rótula debe seguir en el mismo nudo FÍSICO. Una biela es
-    // biarticulada por formulación (flags irrelevantes → limpios).
+    // invertidos, la rótula debe seguir en el mismo nudo FÍSICO. La biela ya
+    // no es un tipo: "ambas" + sin cargas de barra la DERIVA decompose.
     let releases = { i: false, j: false };
-    if (
-      tipo !== "biela" &&
-      prev !== null &&
-      prev.elementType === "beam-column"
-    ) {
+    if (prev !== null) {
       const flipped = prev.i === b.id && prev.j === a.id;
       releases = flipped
         ? { i: prev.releases.j, j: prev.releases.i }
         : { ...prev.releases };
     }
     if (it.rotulas !== null) {
-      if (tipo === "biela") {
-        if (it.rotulas !== "ninguna") {
-          warnings.push(
-            `Barra ${n}: una biela ya es biarticulada por formulación; "rotulas" se ignora.`,
-          );
-        }
-      } else {
-        releases = {
-          i: it.rotulas === "i" || it.rotulas === "ambas",
-          j: it.rotulas === "j" || it.rotulas === "ambas",
-        };
-      }
+      releases = {
+        i: it.rotulas === "i" || it.rotulas === "ambas",
+        j: it.rotulas === "j" || it.rotulas === "ambas",
+      };
     }
 
     out.push({
       id: prev?.id ?? mintId("b", used),
       i: a.id,
       j: b.id,
-      role,
-      elementType: tipo === "biela" ? "two-force" : "beam-column",
       material,
       steelSelection,
       ...(rcSection !== undefined ? { rcSection } : {}),
@@ -1216,9 +1096,20 @@ function mapBarras(
       ...(prev?.columnCage !== undefined
         ? { columnCage: prev.columnCage }
         : {}),
+      // Fase 2: los DATOS del usuario que el chat no edita se arrastran
+      // siempre desde prev — perderlos sería destructivo, igual que el armado.
+      ...(prev?.rcDesignKind !== undefined
+        ? { rcDesignKind: prev.rcDesignKind }
+        : {}),
+      ...(prev?.deflLimit !== undefined ? { deflLimit: prev.deflLimit } : {}),
+      ...(prev?.weakAxisBracing !== undefined
+        ? { weakAxisBracing: prev.weakAxisBracing }
+        : {}),
+      ...(prev?.displayGroup !== undefined
+        ? { displayGroup: prev.displayGroup }
+        : {}),
       releases,
       ...(ltbSpacing !== undefined ? { ltbSpacing } : {}),
-      ...(roleManual ? { roleManual: true } : {}),
     });
   }
   return out;
@@ -1254,64 +1145,10 @@ function mapApoyos(
   return out;
 }
 
-/**
- * Reparto estáticamente equivalente de una carga de barra sobre una BIELA:
- * (Px, Py) kN totales en ejes globales van a los nudos extremos con brazo
- * relativo `shareJ` (0–1 desde nudo_i). Coacción, no rechazo (2026-07-20,
- * mismo criterio que los roles): rechazar la carga vetaba el bloque
- * estructural entero y el chat entraba en bucle sin salida (el modelo dibuja
- * la celosía con la repartida sobre un cordón-biela una y otra vez). Es la
- * misma idealización que usa el motor con el peso propio de las bielas
- * (decompose.ts: "lump half the member weight at each end node") — la
- * formulación two-force no puede llevar carga transversal en la barra.
- */
-function lumpBielaLoad(
-  n: number,
-  objetivo: number,
-  tipoLabel: string,
-  target: Fem2DMember,
-  Px: number,
-  Py: number,
-  shareJ: number,
-  finalNodes: readonly Fem2DNode[],
-  lc: LoadCase,
-  useCategory: UseCategoryCode | undefined,
-  used: Set<string>,
-  warnings: string[],
-): Fem2DLoad[] | string {
-  const idxI = finalNodes.findIndex((nd) => nd.id === target.i) + 1;
-  const idxJ = finalNodes.findIndex((nd) => nd.id === target.j) + 1;
-  const out: Fem2DLoad[] = [];
-  const parts: ReadonlyArray<readonly [string, number]> = [
-    [target.i, 1 - shareJ],
-    [target.j, shareJ],
-  ];
-  for (const [nodeId, share] of parts) {
-    const Fx = round2(Px * share);
-    const Fy = round2(Py * share);
-    if (Fx === 0 && Fy === 0) continue;
-    out.push({
-      id: mintId("l", used),
-      kind: "node",
-      lc,
-      ...(useCategory !== undefined ? { useCategory } : {}),
-      node: nodeId,
-      Fx,
-      Fy,
-    });
-  }
-  if (out.length === 0) {
-    return `Carga ${n}: el reparto sobre la biela deja componentes nulas en ambos nudos`;
-  }
-  warnings.push(
-    `Carga ${n}: la barra ${objetivo} es una biela (solo axil) y no admite cargas en la barra — la ${tipoLabel} se reparte como cargas de nudo estáticamente equivalentes en los nudos ${idxI} y ${idxJ} (misma idealización que el peso propio de bielas). Si buscas flexión local en esa barra, cámbiala a viga-columna.`,
-  );
-  return out;
-}
-
-/** Valida y construye una carga sobre la geometría FINAL (una carga de barra
- *  sobre una biela produce DOS cargas de nudo — ver lumpBielaLoad).
- *  String = motivo. */
+/** Valida y construye una carga sobre la geometría FINAL. Fase 2: una carga
+ *  de barra sobre una barra birrotulada es LEGAL — la formulación derivada la
+ *  convierte en viga-columna que flecta (aquí vivía lumpBielaLoad, la segunda
+ *  capa de coacción; murió con el estado que parcheaba). String = motivo. */
 function mapCarga2D(
   raw: CargaPayload2D,
   index: number,
@@ -1404,23 +1241,6 @@ function mapCarga2D(
   }
 
   const target = finalMembers[raw.objetivo - 1];
-  const esBiela = target.elementType === "two-force";
-  // Componentes en ejes GLOBALES para el reparto sobre biela (las cargas de
-  // nudo son siempre globales): x_local = i→j, y_local a su izquierda.
-  let gx = fx;
-  let gy = fy;
-  if (esBiela && ejes === "local") {
-    const a = finalNodes.find((nd) => nd.id === target.i);
-    const b = finalNodes.find((nd) => nd.id === target.j);
-    if (a === undefined || b === undefined) {
-      return `Carga ${n}: la barra ${raw.objetivo} referencia nudos inexistentes`;
-    }
-    const L = Math.hypot(b.x - a.x, b.y - a.y);
-    const c = (b.x - a.x) / L;
-    const s = (b.y - a.y) / L;
-    gx = fx * c - fy * s;
-    gy = fx * s + fy * c;
-  }
 
   if (raw.tipo === "repartida") {
     if (raw.pos !== null)
@@ -1431,30 +1251,6 @@ function mapCarga2D(
     const hasta = raw.hasta ?? 1;
     if (desde < 0 || hasta > 1 || desde >= hasta) {
       return `Carga ${n}: tramo parcial [${desde}, ${hasta}] inválido (debe estar en [0, 1] con desde < hasta)`;
-    }
-    if (esBiela) {
-      const a = finalNodes.find((nd) => nd.id === target.i);
-      const b = finalNodes.find((nd) => nd.id === target.j);
-      if (a === undefined || b === undefined) {
-        return `Carga ${n}: la barra ${raw.objetivo} referencia nudos inexistentes`;
-      }
-      // Resultante = w · longitud cargada (por metro DE BARRA en ambos ejes),
-      // aplicada en el centroide del tramo → reparto por palanca.
-      const len = (hasta - desde) * Math.hypot(b.x - a.x, b.y - a.y);
-      return lumpBielaLoad(
-        n,
-        raw.objetivo,
-        "repartida",
-        target,
-        gx * len,
-        gy * len,
-        (desde + hasta) / 2,
-        finalNodes,
-        lc,
-        useCategory,
-        used,
-        warnings,
-      );
     }
     return [
       {
@@ -1481,22 +1277,6 @@ function mapCarga2D(
     return `Carga ${n}: falta pos (posición relativa 0–1 desde nudo_i)`;
   if (raw.pos < 0 || raw.pos > 1)
     return `Carga ${n}: pos ${raw.pos} fuera del rango [0, 1]`;
-  if (esBiela) {
-    return lumpBielaLoad(
-      n,
-      raw.objetivo,
-      "puntual",
-      target,
-      gx,
-      gy,
-      raw.pos,
-      finalNodes,
-      lc,
-      useCategory,
-      used,
-      warnings,
-    );
-  }
   return [
     {
       id: mintId("l", used),
@@ -1655,30 +1435,19 @@ function buildFem2DPlan(
     }
   } else if (nudosApplied && x.barras === null) {
     // La geometría cambió sin lista de barras: sobreviven las que conservan
-    // sus dos nudos (ids posicionales), se PODAN las huérfanas y se re-infieren
-    // los roles auto pilar/viga (espejo de reinferRoles al mover nudos).
+    // sus dos nudos (ids posicionales) y se PODAN las huérfanas. (Fase 2: ya
+    // no hay roles que re-inferir al mover nudos.)
     const surviving = new Set(finalNodes.map((n) => n.id));
-    const nodeById = new Map(finalNodes.map((n) => [n.id, n]));
     const kept: Fem2DMember[] = [];
     let pruned = 0;
-    let touched = false;
     for (const m of current.members) {
       if (!surviving.has(m.i) || !surviving.has(m.j)) {
         pruned++;
-        touched = true;
         continue;
       }
-      let mm = m;
-      if (m.roleManual !== true && (m.role === "pilar" || m.role === "viga")) {
-        const role = inferRole(nodeById.get(m.i)!, nodeById.get(m.j)!);
-        if (role !== m.role) {
-          mm = { ...m, role };
-          touched = true;
-        }
-      }
-      kept.push(mm);
+      kept.push(m);
     }
-    if (touched) fields.members = kept;
+    if (pruned > 0) fields.members = kept;
     finalMembers = kept;
     if (pruned > 0) {
       warnings.push(
@@ -2011,14 +1780,6 @@ function buildSnapshot2D(c: Fem2DModel): string {
 
 // ── Resumen de resultados ─────────────────────────────────────────────────────
 
-const ROL_LABEL: Record<MemberRole, string> = {
-  pilar: "pilar",
-  viga: "viga",
-  cordon: "cordón",
-  diagonal: "diagonal",
-  montante: "montante",
-};
-
 function memberDesc(m: Fem2DMember, index: number): string {
   const perfil =
     m.material === "rc"
@@ -2032,7 +1793,7 @@ function memberDesc(m: Fem2DMember, index: number): string {
         : m.steelSelection !== undefined
           ? `${perfilName(m.steelSelection.profileKey)} ${m.steelSelection.steel}`
           : "acero";
-  return `Barra ${index + 1} '${m.id}' (${ROL_LABEL[m.role]} ${perfil})`;
+  return `Barra ${index + 1} '${m.id}' (${perfil})`;
 }
 
 /**
@@ -2171,7 +1932,7 @@ export function summarizeFem2DResults(
     const motivo =
       model.members.length === 0
         ? "el modelo no tiene barras"
-        : "hay barras sin comprobar (armado HA o sección de madera sin definir, viga HA comprimida esbelta λ > λ_lim — compruébala como pilar —, rol o perfil no soportado)";
+        : "hay barras sin comprobar (comprobación HA sin elegir en el inspector, armado HA o sección de madera sin definir, viga HA comprimida esbelta λ > λ_lim — compruébala como pilar —, o perfil sin motor de flexión con demanda real)";
     return {
       verdict: "invalid",
       text: `PENDIENTE: ${motivo} — el veredicto global no está disponible todavía.\n${summary.text}`,

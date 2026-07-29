@@ -21,9 +21,10 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { diagColorFor, findLocalExtrema, fmtField, signRuns } from './canvasTheme';
 import { memberStatusToCheck, toCheckRow } from './checkMapping';
 import type { MemberEnvelopes2D, MemberVerdict2D } from './checks';
-import type { Fem2DMember } from './types';
+import type { DisplayGroup2D, Fem2DMember } from './types';
 
-const ROLE_SINGULAR: Record<Fem2DMember['role'], string> = {
+/** Etiqueta del grupo de PRESENTACIÓN (paso 12) — nunca enruta nada. */
+const GROUP_SINGULAR: Record<DisplayGroup2D, string> = {
   pilar: 'Pilar',
   viga: 'Viga / dintel',
   cordon: 'Cordón',
@@ -35,6 +36,9 @@ interface Props {
   member: Fem2DMember;
   verdict: MemberVerdict2D;
   envelopes: MemberEnvelopes2D;
+  /** Formulación DERIVADA (memberFormulation): true = biela (birrotulada +
+   *  sin carga de barra). La calcula el llamante, que tiene el modelo. */
+  twoForce: boolean;
   /** True cuando algún combo ELU lleva los factores laterales amplificados por αcr. */
   amplified: boolean;
   onClose: () => void;
@@ -129,7 +133,7 @@ function DemandRow({ label, value, combo }: { label: string; value: string; comb
 
 // ── Modal ───────────────────────────────────────────────────────────────────
 
-export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClose }: Props): JSX.Element {
+export function Fem2DMemberDetail({ member, verdict, envelopes, twoForce, amplified, onClose }: Props): JSX.Element {
   const { system } = useUnitSystem();
 
   // Escape + scroll lock + devolver el foco al disparador (patrón de los
@@ -167,16 +171,16 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClo
     pushStrip('M', 'Momento M — envolvente ELU', eluEnv.xs, eluEnv.M, (v) => fmtField(v, 'moment', system), true);
   }
 
-  const releases = member.elementType === 'two-force'
-    ? 'i y j (biela: articulada por formulación)'
+  const releases = twoForce
+    ? 'i y j (biela derivada: birrotulada + sin carga de barra)'
     : member.releases.i && member.releases.j ? 'en i y j'
     : member.releases.i ? 'en i'
     : member.releases.j ? 'en j'
     : 'sin rótulas';
 
-  const showLtb = member.material !== 'rc'
-    && member.elementType === 'beam-column'
-    && (member.role === 'viga' || member.role === 'cordon');
+  // Fase 2, paso 11: el gate de LTB va por DEMANDA de datos, no por etiqueta —
+  // se muestra donde el dato de correas aplica (acero/madera en viga-columna).
+  const showLtb = member.material !== 'rc' && !twoForce;
 
   return (
     <div
@@ -195,8 +199,8 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClo
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border-main shrink-0 min-w-0">
           <span className="font-mono text-[14px] font-semibold text-text-primary shrink-0">{member.id}</span>
           <span className="text-[11.5px] text-text-secondary truncate min-w-0">
-            {ROLE_SINGULAR[member.role]}
-            {member.elementType === 'two-force' ? ' · biela' : ''}
+            {GROUP_SINGULAR[verdict.group]}
+            {twoForce ? ' · biela' : ''}
             {detail ? ` · ${detail.sectionLabel}` : ''}
           </span>
           <div className="flex-1" />
@@ -219,15 +223,27 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, amplified, onClo
           <ValueRow label="Barra" value={`${member.i} → ${member.j}`} />
           {detail && <ValueRow label="Longitud" value={`${detail.L.toFixed(2)} m`} />}
           <ValueRow
-            label="Rol / elemento"
-            value={`${ROLE_SINGULAR[member.role]} · ${member.elementType === 'two-force' ? 'biela (solo axil)' : 'viga-columna'}`}
+            label="Elemento"
+            value={twoForce ? 'biela (solo axil, derivada)' : 'viga-columna'}
           />
           {detail && <ValueRow label="Sección" value={detail.sectionLabel} />}
-          {member.elementType !== 'two-force' && <ValueRow label="Rótulas" value={releases} />}
+          <ValueRow label="Rótulas" value={releases} />
           {showLtb && (
             <ValueRow
               label="Arriostramiento del ala comprimida (correas)"
               value={member.ltbSpacing !== undefined ? `cada ${member.ltbSpacing.toFixed(2)} m` : 'sin arriostrar (Lcr = L)'}
+            />
+          )}
+          {member.material !== 'rc' && (
+            <ValueRow
+              label="Arriostramiento del eje débil"
+              value={member.weakAxisBracing !== undefined ? `cada ${member.weakAxisBracing.toFixed(2)} m` : 'sin arriostrar (Lcr,z = L)'}
+            />
+          )}
+          {!twoForce && (
+            <ValueRow
+              label="Límite de flecha"
+              value={member.deflLimit === 'none' ? 'no aplica' : `L/${member.deflLimit ?? 300}`}
             />
           )}
 

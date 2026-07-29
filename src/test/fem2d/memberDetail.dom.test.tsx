@@ -29,6 +29,7 @@ function renderDetail(memberId: string, onClose = vi.fn()) {
         member={member}
         verdict={checks.perMember[memberId]}
         envelopes={checks.envelopes[memberId]}
+        twoForce={false /* el pórtico no tiene bielas derivadas */}
         amplified={checks.amplified}
         onClose={onClose}
       />
@@ -52,9 +53,10 @@ describe('Fem2DMemberDetail — ficha por barra', () => {
     expect(screen.getByText('Comprobaciones')).toBeTruthy();
   });
 
-  it('pilar: grupo de resistencias del pilar presente', () => {
+  it('pilar de plantilla (η_N < 5%): ficha de la pasada de vigas con axil concomitante', () => {
     renderDetail('p1');
-    expect(screen.getByText('Resistencias del pilar')).toBeTruthy();
+    expect(screen.getByText('Sección y resistencias (flexión)')).toBeTruthy();
+    expect(screen.getByText('Axil concomitante (mecanismo separado)')).toBeTruthy();
   });
 
   it('Escape cierra la ficha', async () => {

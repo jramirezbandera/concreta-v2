@@ -41,9 +41,41 @@ import type {
   Analysis2DNodeLoad,
 } from './analysis';
 import { memberLength } from './builder';
-import type { Fem2DMember, Fem2DModel, LoadCase } from './types';
+import type { ElementType2D, Fem2DMember, Fem2DModel, LoadCase } from './types';
 
 const T_EPS = 1e-6; // anchor dedupe tolerance in length fraction
+
+/**
+ * Formulación DERIVADA de una barra (Fase 2, paso 4 — aquí muere el tipo
+ * 'two-force' como campo del miembro):
+ *
+ *   birrotulada (releases.i && releases.j) Y sin carga de barra → 'two-force'
+ *   (axial puro, 4 GDL). Cualquier otra cosa → 'beam-column'.
+ *
+ * Equivalencia medida en Fase 0: birrotulada descargada ≡ biela con error
+ * ≤ 2e-12 (la rigidez transversal se cancela EXACTAMENTE al condensar las dos
+ * filas M=0), y la formulación axial cuesta ×5.6 menos en el tope de modelo
+ * (180 vs 298 GDL, 5 vs 29 ms) — la derivación sostiene la interactividad,
+ * no es una optimización.
+ *
+ * EL PESO PROPIO NO CUENTA COMO CARGA DE BARRA (Fase 0, Resultado 3): se
+ * agrupa mitad en cada nudo, que es la idealización que la app siempre aplicó
+ * a las bielas y la que el adaptador IA ya citaba como precedente. Si contara,
+ * toda celosía con peso propio (el default de la plantilla) pagaría los 29 ms.
+ * Una carga explícita del usuario SÍ cuenta: la barra pasa a viga-columna
+ * birrotulada y flecta — el problema con el que se abrió este design doc.
+ *
+ * La derivación se evalúa sobre el MIEMBRO COMPLETO, antes del troceado: las
+ * rótulas se mapean al primer/último sub-elemento y un sub-tramo interior
+ * nunca es "birrotulado" en el sentido que interesa aquí.
+ */
+export function memberFormulation(model: Fem2DModel, m: Fem2DMember): ElementType2D {
+  if (!m.releases.i || !m.releases.j) return 'beam-column';
+  for (const ld of model.loads) {
+    if (ld.kind !== 'node' && ld.member === m.id) return 'beam-column';
+  }
+  return 'two-force';
+}
 
 export interface Decompose2DResult {
   analysis: Analysis2DModel;
@@ -52,6 +84,8 @@ export interface Decompose2DResult {
 
 interface MemberPlan {
   member: Fem2DMember;
+  /** Formulación derivada (memberFormulation) — decide el reparto del peso propio. */
+  formulation: ElementType2D;
   L: number;
   c: number;
   s: number;
@@ -111,9 +145,13 @@ export function decompose2D(model: Fem2DModel): Decompose2DResult {
       ({ EA, EI } = st);
     }
 
+    // Formulación derivada (ver memberFormulation): una two-force no tiene
+    // cargas de barra por construcción, así que tampoco tiene anclajes.
+    const formulation = memberFormulation(model, m);
+
     // Anchors along the member (fractions of L).
     const anchors: number[] = [0, 1];
-    if (m.elementType === 'beam-column') {
+    if (formulation === 'beam-column') {
       for (const ld of model.loads) {
         if (ld.kind === 'point-member' && ld.member === m.id) {
           if (ld.pos > T_EPS && ld.pos < 1 - T_EPS) anchors.push(ld.pos);
@@ -155,16 +193,16 @@ export function decompose2D(model: Fem2DModel): Decompose2DResult {
         designMemberId: m.id,
         i: nodeIds[k],
         j: nodeIds[k + 1],
-        elementType: m.elementType,
+        elementType: formulation,
         EA,
         EI,
-        releaseI: k === 0 && m.releases.i && m.elementType === 'beam-column',
-        releaseJ: k === dedup.length - 2 && m.releases.j && m.elementType === 'beam-column',
+        releaseI: k === 0 && m.releases.i && formulation === 'beam-column',
+        releaseJ: k === dedup.length - 2 && m.releases.j && formulation === 'beam-column',
       });
     }
 
     plans.set(m.id, {
-      member: m, L, c, s,
+      member: m, formulation, L, c, s,
       anchors: dedup, nodeIds,
       firstElement, elementCount: dedup.length - 1,
       selfWeight: selfW,
@@ -191,7 +229,7 @@ export function decompose2D(model: Fem2DModel): Decompose2DResult {
       for (const plan of plans.values()) {
         if (plan.selfWeight <= 0) continue;
         const { c, s } = plan;
-        if (plan.member.elementType === 'beam-column') {
+        if (plan.formulation === 'beam-column') {
           // Global (0, −w) → local: qx = s·(−w)·? — full formula below.
           const wy = -plan.selfWeight;
           const qxL = s * wy; // c·0 + s·wy
