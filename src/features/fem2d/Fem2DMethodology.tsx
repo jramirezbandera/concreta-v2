@@ -63,10 +63,16 @@ export function Fem2DMethodology({ onClose }: Props): JSX.Element {
           </button>
         </div>
 
-        {/* Contenido */}
-        <div className="overflow-y-auto flex flex-col gap-3 px-3 py-3">
+        {/* Contenido. flex-1 + min-h-0: el cuerpo se queda con el alto que sobra
+            del diálogo y SCROLLEA (la barra visible es aquí la señal de que hay
+            más secciones abajo) en vez de estirar el diálogo. */}
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 px-3 py-3">
+          {/* shrink-0: las secciones son hijos de una columna flex con scroll —
+              sin él, flex-shrink las comprime a repartirse el alto visible y el
+              overflow-hidden del borde redondeado RECORTA las viñetas (visto en
+              producción: cada sección mostraba solo su primera línea). */}
           {FEM2D_METHOD_SECTIONS.map((s) => (
-            <section key={s.id} aria-label={s.title} className="rounded border border-border-main overflow-hidden">
+            <section key={s.id} aria-label={s.title} className="shrink-0 rounded border border-border-main overflow-hidden">
               <GroupHeader label={s.title} />
               <ul className="flex flex-col gap-2 px-4 py-3">
                 {s.items.map((item, i) => (

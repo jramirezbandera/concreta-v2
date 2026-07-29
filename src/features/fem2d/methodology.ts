@@ -29,6 +29,17 @@ export const FEM2D_METHOD_SECTIONS: MethodSection[] = [
     ],
   },
   {
+    id: 'convenios',
+    title: 'Convenios, unidades y lectura de resultados',
+    items: [
+      'Ejes globales: +x a la derecha, +y hacia ARRIBA. Las cargas se introducen con signo, así que una carga gravitatoria es negativa (wy = −3 kN/m es una repartida hacia abajo). Una carga puede darse en ejes globales o LOCALES de la barra (útil para presión de viento perpendicular a un faldón).',
+      'Unidades internas: metros, kilonewtons y kN·m (secciones en mm o cm según el campo). El conmutador de unidades (SI ⇄ técnico) solo cambia la PRESENTACIÓN — el motor calcula siempre en SI.',
+      'Momento positivo = tracción en la cara inferior de la barra según su propio eje local, que va de i a j. Al dibujar el diagrama de M se traza del lado de la tracción, y la app normaliza el signo para que la cara «de abajo» sea la de abajo del MUNDO — así el reparto de armado de vano y apoyo en hormigón no depende de en qué sentido se dibujó la barra.',
+      'El selector de combinaciones distingue tres cosas: envolventes (ELU y ELS-característica, el peor valor punto a punto), combinaciones concretas (una por hipótesis principal) e hipótesis simples sin mayorar, que son la vista de depuración — útil para ver qué aporta cada acción por separado.',
+      'La flecha se mide con la combinación característica y relativa a la cuerda; los diagramas de esfuerzos ELU incluyen los efectos de 2º orden cuando aplican, pero la deformada dibujada es de primer orden.',
+    ],
+  },
+  {
     id: 'combinaciones',
     title: 'Combinaciones (CTE DB-SE 4.3.2)',
     items: [
@@ -76,6 +87,26 @@ export const FEM2D_METHOD_SECTIONS: MethodSection[] = [
       'Las resistencias dependen del kmod de la DURACIÓN de cada combinación, así que la madera se comprueba combinación a combinación, nunca con la envolvente. Flexocompresión 6.23/6.24, flexotracción, cortante y vuelco con kcrit.',
       'Correas (vuelco) y arriostramiento del eje débil (kc,z) son datos separados: unas correas en el ala no coaccionan el eje débil.',
       'Flecha diferida δ_fin = δ_c + kdef·δ_cp, con kdef de la clase de servicio.',
+    ],
+  },
+  {
+    id: 'datos',
+    title: 'Datos de partida y catálogos',
+    items: [
+      'Perfiles de acero: catálogo propio con IPE, IPN, HEA, HEB, doble UPN en cajón, tubo cuadrado y rectangular (SHS/RHS), tubo circular (CHS) y angular (L). Las propiedades de sección (A, I, Wel, Wpl, radios de giro, Iw, It) salen del catálogo; cuando el prontuario no publica un valor —es lo habitual con Wpl e Iw— se DERIVA de la geometría, no se estima.',
+      'La clave de cada perfil es inmutable porque viaja en los enlaces compartidos: un enlace antiguo abre siempre con el mismo perfil, aunque el catálogo crezca.',
+      'Hormigón y acero de armar con recubrimiento y clase de exposición por barra. Madera: clases resistentes con su tipo (aserrada o laminada encolada) y clase de servicio, que es lo que fija kmod y kdef.',
+      'Peso propio (opcional): se calcula del área real de la sección y la densidad del material, y entra como hipótesis permanente adicional. En una viga-columna actúa como repartida a lo largo de la barra; en una biela derivada se concentra mitad en cada nudo — una barra idealizada a solo axil no puede recibir carga transversal, y por eso el peso propio NO impide que una birrotulada se derive como biela.',
+      'Todo el modelo cabe en un enlace (nudos, barras, apoyos, cargas y datos de proyecto): compartir un caso no sube nada a ningún servidor.',
+    ],
+  },
+  {
+    id: 'coeficientes',
+    title: 'Coeficientes parciales y semáforo',
+    items: [
+      'Acciones: γG = 1,35 y γQ = 1,50 en ELU persistente/transitoria; en ELS, γ = 1. Cada carga variable lleva su categoría (uso A–G, viento, nieve) y de ahí salen sus ψ0/ψ1/ψ2 (CTE DB-SE tabla 4.2).',
+      'Resistencias: acero γM0 = γM1 = 1,05 (CE Anejo 22); hormigón γc = 1,50 y γs = 1,15 (CE Anejo 19); madera γM = 1,30 aserrada y 1,25 laminada encolada, siempre con su kmod por duración.',
+      'Semáforo de utilización, igual en pantalla y en el PDF: verde por debajo del 95%, ámbar del 95% al 100% (cumple, pero sin margen — merece revisión), rojo INCUMPLE desde el 100%. El veredicto global es el peor de todas las barras y filas globales.',
     ],
   },
   {

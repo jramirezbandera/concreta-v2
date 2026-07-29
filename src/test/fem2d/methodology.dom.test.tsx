@@ -60,6 +60,26 @@ describe('methodology.ts — el contenido documenta lo que el motor hace y lo qu
     expect(allText('ha')).toContain('PENDIENTE');
     expect(allText('analisis')).toMatch(/biela.*DERIVA/i);
   });
+
+  it('convenios y peso propio: las afirmaciones FÍSICAS, que no pueden divergir del motor', () => {
+    // Convenio de ejes: si algún día +y pasara a apuntar hacia abajo, este
+    // texto miente en la cara del usuario.
+    expect(allText('convenios')).toContain('+y hacia ARRIBA');
+    expect(allText('convenios')).toMatch(/ejes globales o LOCALES/i);
+    // Regla de Fase 0: el peso propio se concentra en nudos SOLO en la biela,
+    // y por eso no impide la derivación (decompose.memberFormulation).
+    expect(allText('datos')).toMatch(/repartida a lo largo de la barra/i);
+    expect(allText('datos')).toMatch(/mitad en cada nudo/i);
+    expect(allText('datos')).toContain('NO impide');
+  });
+
+  it('coeficientes parciales y semáforo: los números de la app, no genéricos', () => {
+    const c = allText('coeficientes');
+    expect(c).toContain('γM0 = γM1 = 1,05');
+    expect(c).toContain('γc = 1,50 y γs = 1,15');
+    expect(c).toContain('γM = 1,30');
+    expect(c).toContain('95%'); // WARN_UTIL = 0.95: la frontera verde/ámbar documentada
+  });
 });
 
 describe('Fem2DResults — enlace y panel de documentación', () => {
