@@ -38,7 +38,9 @@ describe('plantillas — ninguna emite campos del esquema anterior', () => {
     for (const id of TEMPLATE_ORDER) {
       const model = buildTemplateWithDefaults(id);
       for (const m of model.members) {
-        const raw = m as Record<string, unknown>;
+        // Doble paso por unknown: Fem2DMember no tiene índice de string, así que
+        // `tsc -b` (el del build) rechaza el cast directo a Record.
+        const raw = m as unknown as Record<string, unknown>;
         expect('role' in raw, `${id}/${m.id}`).toBe(false);
         expect('elementType' in raw, `${id}/${m.id}`).toBe(false);
         expect('roleManual' in raw, `${id}/${m.id}`).toBe(false);
@@ -87,7 +89,7 @@ describe('useFem2DState — el banner sigue al modelo, no a la sesión', () => {
     // Y el modelo hidratado ya viene traducido al esquema nuevo.
     const p1 = result.current.model.members.find((m) => m.id === 'p1')!;
     expect(p1.displayGroup).toBe('pilar');
-    expect('role' in (p1 as Record<string, unknown>)).toBe(false);
+    expect('role' in (p1 as unknown as Record<string, unknown>)).toBe(false);
   });
 
   it('…y elegir una plantilla lo APAGA (el modelo nuevo no tiene nada heredado)', () => {
