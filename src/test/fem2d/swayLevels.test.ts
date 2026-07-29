@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { beamColumn, fem2dModel, memberUdl, node2d, nodeLoad, support2d } from '../../features/fem2d/builder';
-import { checkFem2D, swayStoreyNodes } from '../../features/fem2d/checks';
+import { checkFem2D, formatCombo, swayStoreyNodes, type CheckFactors } from '../../features/fem2d/checks';
 import { decompose2D } from '../../features/fem2d/decompose';
 import { solveAnalysis2D } from '../../features/fem2d/solver2d';
 import { prattTrussTemplate } from '../../features/fem2d/templates';
@@ -164,5 +164,90 @@ describe('Guarda NOTA 2B — compresión significativa en el dintel', () => {
     const checks = prodSway(rakedPortal(0, { h: 6, profile: 'steel_IPE200', udl: 60 }));
     const row = checks.globalChecks.find((c) => c.id === 'alpha-cr')!;
     expect(row.val).not.toContain('NOTA 2B');
+  });
+});
+
+/** Pórtico HEB200 h=6 SOLO gravitatorio (más `Fx` de W opcional en un alero):
+ *  el escenario exacto del hallazgo H2 — sensible al desplome (αcr ≈ 3,3 con
+ *  udl=50) y, antes de la mini-fase, sin ningún factor lateral que amplificar. */
+function gravityPortal(udl: number, windFx = 0): Fem2DModel {
+  const h = 6;
+  const nodes = [node2d('n1', 0, 0), node2d('n2', 0, h), node2d('n3', 6, h), node2d('n4', 6, 0)];
+  const ss = { profileKey: 'steel_HEB200', steel: 'S275' as const };
+  return fem2dModel({
+    templateId: 'custom',
+    selfWeight: false,
+    nodes,
+    members: [
+      beamColumn('p1', 'n1', 'n2', { steelSelection: ss }),
+      beamColumn('v1', 'n2', 'n3', { steelSelection: ss, ltbSpacing: 1.5 }),
+      beamColumn('p2', 'n4', 'n3', { steelSelection: ss }),
+    ],
+    supports: [support2d('n1', 'pinned'), support2d('n4', 'pinned')],
+    loads: [
+      memberUdl('l1', 'v1', { lc: 'G', wy: -udl }),
+      ...(windFx !== 0 ? [nodeLoad('l2', 'n2', { lc: 'W' as const, Fx: windFx })] : []),
+    ],
+  });
+}
+
+const maxAbsM = (env: { M: number[] }): number => Math.max(...env.M.map(Math.abs));
+
+describe('Cargas nocionales de imperfección — §5.3.2 (auditoría H2)', () => {
+  it('combo solo-gravitatorio con 3 ≤ αcr < 10: Hφ entra en las comprobaciones, con su magnitud', () => {
+    const checks = prodSway(gravityPortal(50));
+    expect(checks.alphaCr!).toBeGreaterThanOrEqual(3);
+    expect(checks.alphaCr!).toBeLessThan(10);
+    expect(checks.notionalApplied).toBe(true);
+    const row = checks.globalChecks.find((c) => c.id === 'alpha-cr')!;
+    expect(row.val).toContain('§5.3.2');
+
+    // env:ELU lleva las DOS variantes ±Hφ del único combo (y deja de ser
+    // "colapsada": ya es una envolvente de verdad).
+    const env = checks.comboViews.find((v) => v.id === 'env:ELU')!;
+    expect(env.collapsed).toBe(false);
+    const ngs = env.forceFactorSets.map((f: CheckFactors) => f.NG ?? 0);
+    expect(ngs).toHaveLength(2);
+    expect(Math.min(...ngs)).toBeLessThan(0);
+    expect(Math.max(...ngs)).toBeGreaterThan(0);
+
+    // ORÁCULO INTERNO por linealidad: con carga SOLO G, los esfuerzos ELU son
+    // exactamente 1,35× los ELS-c — todo exceso de M en el pilar es la
+    // imperfección. En el pórtico biarticulado el H nocional (todo en cabeza:
+    // el dintel introduce ΔV entero en la cota 6) reparte H/2 por pilar y
+    // pone k·(H/2)·h en la rodilla, con k = 1/(1 − 1/αcr) y
+    // H = φ·1,35·V siendo φ = (1/200)·αh, αh = 2/√6.
+    const phi = (1 / 200) * Math.min(1, Math.max(2 / 3, 2 / Math.sqrt(6)));
+    const k = 1 / (1 - 1 / checks.alphaCr!);
+    const expected = k * ((phi * 1.35 * 50 * 6) / 2) * 6;
+    const margin = maxAbsM(checks.envelopes.p1['env:ELU'])
+      - 1.35 * maxAbsM(checks.envelopes.p1['env:ELS_c']);
+    expect(margin).toBeGreaterThan(0);
+    expect(Math.abs(margin - expected) / expected).toBeLessThan(0.02);
+  });
+
+  it('exención §5.3.2(4): con H_Ed ≥ 0,15·V_Ed el combo se queda sin Hφ y la fila lo dice', () => {
+    // V = 1,35·300 = 405 kN; H = 1,5·61 = 91,5 kN ≥ 0,15·405 = 60,75 kN.
+    const checks = prodSway(gravityPortal(50, 61));
+    expect(checks.alphaCr!).toBeLessThan(10); // sigue siendo sensible: la exención se evalúa de verdad
+    expect(checks.notionalApplied).toBe(false);
+    expect(checks.amplified).toBe(true); // el W real SÍ se amplifica
+    const row = checks.globalChecks.find((c) => c.id === 'alpha-cr')!;
+    expect(row.val).toContain('exenta');
+  });
+
+  it('control: un pórtico rígido (αcr ≥ 10) no recibe imperfección y sus números no se mueven', () => {
+    const checks = prodSway(gravityPortal(5));
+    expect(checks.alphaCr!).toBeGreaterThanOrEqual(10);
+    expect(checks.notionalApplied).toBe(false);
+    const margin = maxAbsM(checks.envelopes.p1['env:ELU'])
+      - 1.35 * maxAbsM(checks.envelopes.p1['env:ELS_c']);
+    expect(Math.abs(margin)).toBeLessThan(1e-9);
+  });
+
+  it('formatCombo etiqueta la variante con su signo: «+ Hφ» / «− Hφ»', () => {
+    expect(formatCombo({ G: 1.35, NG: 0.02 })).toBe('1.35·G + Hφ');
+    expect(formatCombo({ G: 1.35, NG: -0.02 })).toBe('1.35·G − Hφ');
+    expect(formatCombo({ G: 1.35 })).toBe('1.35·G');
   });
 });

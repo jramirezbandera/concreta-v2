@@ -256,7 +256,8 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, twoForce, amplif
           )}
           {amplified && (
             <p className="px-4 pt-2 text-[10px] text-text-disabled leading-snug">
-              Los factores de viento/sismo incluyen la amplificación de 2º orden por sensibilidad al desplome (αcr).
+              Los esfuerzos ELU incluyen los efectos de 2º orden por sensibilidad al desplome (αcr):
+              cargas laterales — reales o nocionales de imperfección (Hφ, §5.3.2) — amplificadas.
             </p>
           )}
 

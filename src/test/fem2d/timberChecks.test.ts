@@ -123,12 +123,21 @@ describe('madera — pilar y biela', () => {
     });
     const r = analyzeFem2D(model);
     expect(r.ok).toBe(true);
-    const p = r.checks!.perMember.p1;
+    const checks = r.checks!;
+    const p = checks.perMember.p1;
     expect(p.status).not.toBe('pending');
-    // N = −135 kN constante, M = V = 0 → compresión pura.
+    // El voladizo es él solito un pórtico traslacional: αcr = S·h/V ≈ 4,4 < 10
+    // y la imperfección de desplome §5.3.2 le pone H = φ·V en cabeza (φ =
+    // (1/200)·αh con αh = min(1, 2/√3) = 1), amplificada con k = 1/(1−1/αcr) y
+    // mayorada con γG. La «compresión pura» de antes era un regalo: N = −135 kN
+    // AHORA viaja con M = H·h y V = H de imperfección en 6.23/6.24.
+    const aCr = checks.alphaCr!;
+    expect(aCr).toBeLessThan(10);
+    expect(checks.notionalApplied).toBe(true);
+    const H = (1 / (1 - 1 / aCr)) * 1.35 * (1 / 200) * 100;
     const ref = calcTimberFrameMember({
       section: TS_C24, Lef_y: 3, Lef_z: 3, Lltb: 3,
-      loadDuration: 'permanent', N: -135, M: 0, V: 0,
+      loadDuration: 'permanent', N: -135, M: H * 3, V: H,
     });
     const u623 = p.checks.find((c) => c.id === 'comb-623')!;
     const u624 = p.checks.find((c) => c.id === 'comb-624')!;

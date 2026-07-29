@@ -365,8 +365,12 @@ export async function exportFem2DPDF(
   if (checks.alphaCr !== null) {
     const a = checks.alphaCr;
     const aStr = a === Infinity ? 'inf' : a.toFixed(1);
+    const secondOrder = [
+      ...(checks.amplified ? ['efectos de 2o orden amplificados'] : []),
+      ...(checks.notionalApplied ? ['imperfeccion de desplome H = phi·V incluida (§5.3.2)'] : []),
+    ];
     doc.text(
-      pdfStr(`Estabilidad al desplome: alpha_cr = ${aStr}${checks.amplified ? ' (efectos de 2o orden amplificados)' : ''}`),
+      pdfStr(`Estabilidad al desplome: alpha_cr = ${aStr}${secondOrder.length > 0 ? ` (${secondOrder.join('; ')})` : ''}`),
       M,
       by,
     );

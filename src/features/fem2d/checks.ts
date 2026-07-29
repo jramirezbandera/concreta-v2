@@ -122,7 +122,7 @@ import { toStatus, type CheckRow, type CheckStatus } from '../../lib/calculation
 import { formatQuantity } from '../../lib/units/format';
 import { getBarArea } from '../../data/rebar';
 import type { RCBeamInputs, RCColumnInputs, SteelBeamInputs, SteelColumnInputs } from '../../data/defaults';
-import type { Analysis2DLoadCase, Analysis2DModel } from './analysis';
+import type { Analysis2DLoadCase, Analysis2DModel, Analysis2DNodeLoad } from './analysis';
 import { memberFormulation } from './decompose';
 import { auditMechanisms, MECH_PRESENT_MIN_ETA } from './mechanisms';
 import { solveAnalysis2D, type Solve2DResultBundle, type Solver2DElementResult } from './solver2d';
@@ -160,6 +160,17 @@ const NOTA_2B_NCR_FRACTION = 0.09;
 /** Axial companion row on viga/cordon appears above this η (noise floor). */
 const AXIAL_ROW_MIN_ETA = 0.01;
 const LATERAL_LCS: LoadCase[] = ['W', 'E'];
+/** Imperfección global de desplome §5.3.2 (mini-fase H2 de la auditoría αcr):
+ *  φ = φ0·αh·αm con φ0 = 1/200. αh = 2/√h acotado [2/3, 1] (h = altura total);
+ *  αm = 1 SIEMPRE — su rebaja √(0,5·(1+1/m)) exige contar "pilares por fila",
+ *  una heurística geométrica de las que la Fase 2 expulsó; 1 es el lado seguro. */
+const NOTIONAL_PHI_0 = 1 / 200;
+const NOTIONAL_ALPHA_H_MIN = 2 / 3;
+/** Exención §5.3.2(4)B: con H_Ed ≥ 0,15·V_Ed en TODAS las plantas del combo la
+ *  imperfección de desplome puede despreciarse (el empuje real ya domina). */
+const NOTIONAL_EXEMPT_RATIO = 0.15;
+/** Suelo de fuerza nocional por nivel (kN) — por debajo es ruido numérico. */
+const NOTIONAL_MIN_H_KN = 1e-9;
 /** λ_lim del §5.8.3.1 con los defaults normativos A=0.7, B=1.1, C=0.7:
  *  λ_lim = 20·A·B·C/√n = 10.78/√n (n = NEd/(Ac·fcd)). SIN el cap de 25 del
  *  motor de pilares — con n→0 el límite diverge y el gate se autorregula
@@ -336,8 +347,9 @@ export interface Fem2DComboView {
   principal: PrincipalLc | null;
   /** Hipótesis de la vista simple. `null` salvo en `lc:*`. */
   lc: LoadCase | null;
-  /** Factores para N/V/M — ELU con laterales AMPLIFICADOS por αcr (trampa 4). */
-  forceFactorSets: LcFactors[];
+  /** Factores para N/V/M — ELU con laterales AMPLIFICADOS por αcr (trampa 4);
+   *  en `env:ELU` incluyen además las variantes ±Hφ de imperfección (§5.3.2). */
+  forceFactorSets: CheckFactors[];
   /** Factores para δ — ELU SIN amplificar: la deformada usa CTE plano (trampa 1). */
   dispFactorSets: LcFactors[];
   /** Vista cuya escala en píxeles usa el render de N/V/M (trampa 3). */
@@ -357,6 +369,9 @@ export interface Fem2DCheckBundle {
   alphaCr: number | null;
   /** True when any ELU combination had its lateral factors amplified. */
   amplified: boolean;
+  /** True cuando algún combo lleva cargas nocionales de imperfección Hφ
+   *  (§5.3.2) — las comprobaciones de barra las incluyen ± amplificadas. */
+  notionalApplied: boolean;
   globalChecks: MemberCheck[];
   maxEta: number;
   status: MemberStatus;
@@ -382,13 +397,19 @@ export function checkFem2D(
   }
 
   // ── T7: sway sensitivity + amplified ELU factor sets ──────────────────────
-  const sway = computeSwaySensitivity(model, analysis, combos.ELU, errors);
+  // La sonda αcr resuelve también los casos nocionales §5.3.2 y FUNDE sus
+  // muestras en bundle.elements (claves 'N<lc>') antes de cualquier envolvente.
+  const sway = computeSwaySensitivity(model, analysis, combos.ELU, errors, bundle.elements);
   const eluAmplified = sway.factorsPerCombo;
+  // Sets de COMPROBACIÓN: amplificados + variantes ±Hφ. Las vistas elu:<LC>
+  // se quedan con su set alineado sin nocional (perturbación φ·V invisible a
+  // escala de diagrama); env:ELU y TODAS las comprobaciones usan estos.
+  const eluChecks = sway.checkFactorSets;
 
   // ── T6: vistas del selector (estructura, por-modelo) ─────────────────────
   const hasTimber = model.members.some((m) => m.material === 'timber');
   const { views: comboViews, candidates } = buildComboViews(
-    combos, eluAmplified, analysis.loadCases, hasTimber, model.snowOver1000m ?? false,
+    combos, eluAmplified, eluChecks, analysis.loadCases, hasTimber, model.snowOver1000m ?? false,
   );
 
   // ── Envelopes (todas las claves candidatas, por barra) ───────────────────
@@ -397,7 +418,7 @@ export function checkFem2D(
     const els = elementsByMember.get(m.id) ?? [];
     // Anclajes obligatorios primero: un objeto por envolvente, compartido con su
     // alias heredado por IDENTIDAD (criterio 4: envelopes.ELU === envelopes['env:ELU']).
-    const eluEnv = buildEnvelope(els, eluAmplified);
+    const eluEnv = buildEnvelope(els, eluChecks);
     const elsCEnv = buildEnvelope(els, combos.ELS_c);
     const elsCpEnv = buildEnvelope(els, [combos.ELS_cp]);
     const memberEnv: MemberEnvelopes2D = {
@@ -440,7 +461,7 @@ export function checkFem2D(
       ?? (a && b && Math.abs(b.x - a.x) <= VERTICAL_TAN_DISPLAY * Math.abs(b.y - a.y) ? 'pilar' : 'viga');
     const formulation = memberFormulation(model, m);
     const verdict = checkMember(
-      m, group, formulation, els, eluAmplified, combos.ELS_c, combos.ELS_cp, sagSign, model.snowOver1000m ?? false,
+      m, group, formulation, els, eluChecks, combos.ELS_c, combos.ELS_cp, sagSign, model.snowOver1000m ?? false,
     );
     perMember[m.id] = verdict;
     if (verdict.status === 'pending') anyPending = true;
@@ -454,7 +475,7 @@ export function checkFem2D(
     const a = sway.alphaCr;
     // NOTA 2B: con compresión significativa en un dintel la fórmula de planta
     // SOBREESTIMA αcr — un verde no es de fiar y se degrada a ámbar.
-    const nota2b = significantBeamCompression(model, analysis, elementsByMember, eluAmplified);
+    const nota2b = significantBeamCompression(model, analysis, elementsByMember, eluChecks);
     const secondOrder = a < ALPHA_CR_MIN_SIMPLIFIED || sway.seismicSecondOrder;
     const eta = secondOrder ? 1.01 : a >= ALPHA_CR_FIRST_ORDER && nota2b === null ? 0.5 : 0.97;
     const verdictTxt = a < ALPHA_CR_MIN_SIMPLIFIED
@@ -464,13 +485,20 @@ export function checkFem2D(
         : a >= ALPHA_CR_FIRST_ORDER
           ? (a === Infinity ? '' : ' ≥ 10')
           : ' — efectos de 2º orden amplificados';
+    // Imperfección global §5.3.2: dice qué pasó de verdad con las Hφ — antes,
+    // un combo solo-gravitatorio con 3 ≤ αcr < 10 "amplificaba" la nada.
+    const notionalTxt = sway.notionalApplied
+      ? ' — imperfección de desplome incluida: H = φ·V por planta (§5.3.2)'
+      : sway.notionalExempt
+        ? ' — imperfección de desplome exenta: H_Ed ≥ 0,15·V_Ed (§5.3.2(4))'
+        : '';
     const nota2bTxt = nota2b === null
       ? ''
       : ` — compresión significativa en el dintel «${nota2b}»: fórmula de planta fuera de rango (§5.2.1(4)B NOTA 2B)`;
     globalChecks.push({
       id: 'alpha-cr',
       name: 'Estabilidad global al desplome (αcr)',
-      val: (a === Infinity ? 'αcr → ∞' : `αcr = ${a.toFixed(1)}`) + verdictTxt + nota2bTxt,
+      val: (a === Infinity ? 'αcr → ∞' : `αcr = ${a.toFixed(1)}`) + verdictTxt + notionalTxt + nota2bTxt,
       eta,
       ref: 'CE Anejo 22 §5.2.1',
     });
@@ -492,6 +520,7 @@ export function checkFem2D(
     comboViews,
     alphaCr: sway.alphaCr,
     amplified: sway.amplified,
+    notionalApplied: sway.notionalApplied,
     globalChecks,
     maxEta,
     status,
@@ -504,30 +533,50 @@ export function checkFem2D(
 /** Fixed display order for combination terms (CTE hypothesis order). */
 const LC_ORDER: LoadCase[] = ['G', 'Q', 'W', 'S', 'E'];
 
+/** Clave del caso nocional de imperfección (§5.3.2): 'N' + hipótesis madre.
+ *  Vive SOLO en la capa de comprobación — nunca en `model.loads`, nunca como
+ *  vista `lc:*`, nunca en los factores de desplazamiento (la deformada es
+ *  presentación y la perturbación φ·V es invisible a su escala). */
+type NotionalLc = `N${LoadCase}`;
+const NOTIONAL_ORDER: NotionalLc[] = ['NG', 'NQ', 'NW', 'NS', 'NE'];
+/** Factores de un combo de COMPROBACIÓN: los 5 canónicos + los nocionales.
+ *  `LcFactors` es asignable a esto (Partial con unión de claves más ancha),
+ *  así que los caminos ELS siguen pasando sus sets planos sin tocarlos. */
+export type CheckFactors = Partial<Record<LoadCase | NotionalLc, number>>;
+/** Orden de iteración de `comboSample`: canónicos primero, nocionales después. */
+const SAMPLE_LC_ORDER: (LoadCase | NotionalLc)[] = [...LC_ORDER, ...NOTIONAL_ORDER];
+
 /**
  * Human label of a factor set: "1.35·G + 1.50·Q + 0.90·W". Zero/absent factors
  * are skipped; amplified lateral factors print as amplified (that IS the
  * factor the check used). frame-core has no combination naming — this is the
  * single formatter for the whole 2D module.
  */
-export function formatCombo(factors: LcFactors): string {
+export function formatCombo(factors: CheckFactors): string {
   const parts: string[] = [];
   for (const lc of LC_ORDER) {
     const f = factors[lc];
     if (!f) continue;
     parts.push(`${f.toFixed(2)}·${lc}`);
   }
-  return parts.length > 0 ? parts.join(' + ') : '—';
+  let label = parts.length > 0 ? parts.join(' + ') : '—';
+  // Términos nocionales (§5.3.2): un único símbolo colectivo con el signo del
+  // vano de imperfección — todos los N* de una variante comparten signo, y el
+  // detalle numérico (φ, k) vive en la fila αcr, no en la etiqueta.
+  const notional = NOTIONAL_ORDER.map((n) => factors[n]).find((f) => f);
+  if (notional) label += notional > 0 ? ' + Hφ' : ' − Hφ';
+  return label;
 }
 
 // ── Combo views (selector) ──────────────────────────────────────────────────
 
-/** Firma canónica de una lista de factores: `LC_ORDER × toFixed(4)`, estable
- *  frente al orden de inserción de claves. Dos listas con los mismos factores
- *  (en el mismo orden de combinación) producen la misma cadena. */
-function comboSignature(sets: LcFactors[]): string {
+/** Firma canónica de una lista de factores: `SAMPLE_LC_ORDER × toFixed(4)`,
+ *  estable frente al orden de inserción de claves. Incluye los nocionales:
+ *  sin ellos, un `env:ELU` con imperfección y su `elu:<LC>` plano firmarían
+ *  igual y la deduplicación taparía una vista que ya NO es idéntica. */
+function comboSignature(sets: CheckFactors[]): string {
   return sets
-    .map((f) => LC_ORDER.map((lc) => (f[lc] ?? 0).toFixed(4)).join(','))
+    .map((f) => SAMPLE_LC_ORDER.map((lc) => (f[lc] ?? 0).toFixed(4)).join(','))
     .join('|');
 }
 
@@ -552,6 +601,7 @@ function comboSignature(sets: LcFactors[]): string {
 function buildComboViews(
   combos: LcCombinations,
   eluAmplified: LcFactors[],
+  eluChecks: CheckFactors[],
   loadCases: Analysis2DLoadCase[],
   hasTimber: boolean,
   snowOver1000m: boolean,
@@ -577,11 +627,15 @@ function buildComboViews(
 
   // #1-#2 Envolventes (siempre). `collapsed` = el grupo tenía UNA combinación:
   // la envolvente ES esa combinación (la firma coincidirá con su elu:<LC> y la
-  // deduplicación quitará la combinación individual de la LISTA).
+  // deduplicación quitará la combinación individual de la LISTA). Con
+  // imperfección §5.3.2 los sets de fuerza son los de COMPROBACIÓN (variantes
+  // ±Hφ incluidas — la envolvente enseña lo que las comprobaciones vieron), y
+  // `collapsed` pasa a exigir también un solo set: dos variantes ±Hφ del mismo
+  // combo ya son una envolvente de verdad.
   candidates.push({
     id: 'env:ELU', group: 'envelope', isEnvelope: true,
-    collapsed: eluAmplified.length === 1, principal: null, lc: null,
-    forceFactorSets: eluAmplified, dispFactorSets: combos.ELU, scaleRef: 'env:ELU',
+    collapsed: eluAmplified.length === 1 && eluChecks.length === 1, principal: null, lc: null,
+    forceFactorSets: eluChecks, dispFactorSets: combos.ELU, scaleRef: 'env:ELU',
   });
   candidates.push({
     id: 'env:ELS_c', group: 'envelope', isEnvelope: true,
@@ -689,10 +743,10 @@ function comboSample(
   e: Solver2DElementResult,
   field: 'N' | 'V' | 'M' | 'w',
   i: number,
-  factors: LcFactors,
+  factors: CheckFactors,
 ): number {
   let v = 0;
-  for (const lc of LC_ORDER) {
+  for (const lc of SAMPLE_LC_ORDER) {
     const f = factors[lc];
     if (!f) continue;
     const arr = e.samples[field][lc];
@@ -2369,8 +2423,20 @@ interface SwayResult {
   /** Alguna combinación con E dio αcr < 5 → EN 1998-1 §4.4.2.2 (θ > 0,2)
    *  exige análisis de 2º orden real: fila roja aunque worstAlpha ≥ 3. */
   seismicSecondOrder: boolean;
-  /** ELU factor sets with lateral cases amplified where αcr < 10. */
+  /** ELU factor sets with lateral cases amplified where αcr < 10.
+   *  SIEMPRE alineado 1:1 con `eluCombos` — las vistas por principal dependen
+   *  de ese emparejamiento. SIN claves nocionales. */
   factorsPerCombo: LcFactors[];
+  /** Sets para las COMPROBACIONES de barra y la envolvente `env:ELU`: los de
+   *  `factorsPerCombo`, y donde aplica la imperfección §5.3.2 el combo se
+   *  desdobla en dos variantes ±Hφ (el desplome puede caer hacia cualquier
+   *  lado y el lado pésimo es POR BARRA — un signo global infracomprobaría la
+   *  barra cuyo momento gravitatorio va al revés). NO alineado con eluCombos. */
+  checkFactorSets: CheckFactors[];
+  /** Algún combo lleva cargas nocionales Hφ (y, con αcr < 10, amplificadas). */
+  notionalApplied: boolean;
+  /** Algún combo sensible al desplome quedó exento por H_Ed ≥ 0,15·V_Ed. */
+  notionalExempt: boolean;
 }
 
 /**
@@ -2404,34 +2470,19 @@ function computeSwaySensitivity(
   analysis: Analysis2DModel,
   eluCombos: LcFactors[],
   errors: ModelError[],
+  elements: Solver2DElementResult[],
 ): SwayResult {
-  const passthrough: SwayResult = { alphaCr: null, amplified: false, seismicSecondOrder: false, factorsPerCombo: eluCombos };
+  const passthrough: SwayResult = {
+    alphaCr: null, amplified: false, seismicSecondOrder: false,
+    factorsPerCombo: eluCombos, checkFactorSets: eluCombos,
+    notionalApplied: false, notionalExempt: false,
+  };
 
   const pilarNodeIdsByY = swayStoreyNodes(model);
   const levels = [...pilarNodeIdsByY.keys()].sort((a, b) => a - b);
   if (levels.length < 2) return passthrough; // no sway storeys (e.g. truss)
 
-  // Unit probe: 1 kN split among the top-level pilar nodes → storey lateral
-  // stiffness S_i = shear/drift. With a single top load every storey carries
-  // shear 1, so S_i = 1/δ_i directly.
-  const topNodes = [...pilarNodeIdsByY.get(levels[levels.length - 1])!];
-  const probe: Analysis2DLoadCase = {
-    lc: 'W',
-    q: analysis.elements.map(() => ({ qx: 0, qy: 0 })),
-    nodeLoads: topNodes.map((node) => ({ node, Fx: 1 / topNodes.length, Fy: 0 })),
-  };
-  const probeRun = solveAnalysis2D({ ...analysis, loadCases: [probe] });
-  if (probeRun.errors.some((e) => e.severity === 'fail')) {
-    errors.push({ severity: 'warn', code: 'ALPHA_CR_PROBE_FAILED', msg: 'No se pudo estimar αcr (sonda lateral fallida).' });
-    return passthrough;
-  }
-  const probeDisp = probeRun.displacementsByLc.W;
-  const meanUx = (y: number): number => {
-    const ids = [...pilarNodeIdsByY.get(y)!];
-    return ids.reduce((s, id) => s + (probeDisp[id]?.ux ?? 0), 0) / ids.length;
-  };
-
-  // Vertical load attributed by height, per LC (downward positive).
+  // Vertical/horizontal load attributed by height, per LC (downward positive).
   const analysisNodeY = new Map(analysis.nodes.map((n) => [n.id, n.y]));
   const elementMeta = analysis.elements.map((el) => {
     const yi = analysisNodeY.get(el.i) ?? 0;
@@ -2456,20 +2507,129 @@ function computeSwaySensitivity(
     }
     return Math.max(0, -Fy); // net downward
   };
+  /** Empuje horizontal NETO (con signo) por encima de la cota — para la
+   *  exención §5.3.2(4)B, misma atribución por altura que `verticalAbove`. */
+  const horizontalAbove = (lcCase: Analysis2DLoadCase, y: number): number => {
+    let Fx = 0;
+    for (const nl of lcCase.nodeLoads) {
+      if ((analysisNodeY.get(nl.node) ?? -Infinity) >= y - 1e-6) Fx += nl.Fx;
+    }
+    for (let i = 0; i < analysis.elements.length; i++) {
+      const q = lcCase.q[i];
+      if (!q || (q.qx === 0 && q.qy === 0)) continue;
+      const meta = elementMeta[i];
+      if (meta.midY >= y - 1e-6) Fx += (meta.c * q.qx - meta.s * q.qy) * meta.L;
+    }
+    return Fx;
+  };
 
-  // Per-storey stiffness + per-LC vertical totals above the storey top.
+  // ── Cargas nocionales §5.3.2 (auditoría H2): H = φ·V por planta ──────────
+  // Un caso sintético POR HIPÓTESIS GRAVITATORIA, con φ ya plegado: por
+  // linealidad, sumarlos con los γ del combo reproduce EXACTAMENTE
+  // H_combo = φ·V_combo por planta. En cada nivel entra la fuerza que ese
+  // nivel INTRODUCE (ΔV = V_sobre(nivel) − V_sobre(nivel_superior)),
+  // repartida entre sus nudos — el cortante nocional de cada planta queda
+  // en φ·V_sobre(planta), espejo de la fórmula de αcr.
+  const hTotal = levels[levels.length - 1] - levels[0];
+  const alphaH = Math.min(1, Math.max(NOTIONAL_ALPHA_H_MIN, 2 / Math.sqrt(hTotal)));
+  const phi = NOTIONAL_PHI_0 * alphaH;
+  const notionalKeys: { nlc: NotionalLc; parent: LoadCase }[] = [];
+  const notionalCases: Analysis2DLoadCase[] = [];
+  for (const lcCase of analysis.loadCases) {
+    const nodeLoads: Analysis2DNodeLoad[] = [];
+    for (let k = 1; k < levels.length; k++) {
+      const deltaV = verticalAbove(lcCase, levels[k])
+        - (k + 1 < levels.length ? verticalAbove(lcCase, levels[k + 1]) : 0);
+      const H = phi * deltaV;
+      if (Math.abs(H) < NOTIONAL_MIN_H_KN) continue;
+      const ids = [...pilarNodeIdsByY.get(levels[k])!];
+      for (const id of ids) nodeLoads.push({ node: id, Fx: H / ids.length, Fy: 0 });
+    }
+    if (nodeLoads.length === 0) continue;
+    const nlc: NotionalLc = `N${lcCase.lc}`;
+    notionalKeys.push({ nlc, parent: lcCase.lc });
+    notionalCases.push({
+      // El solver almacena por clave string; 'N<lc>' jamás entra en
+      // model.loads ni en las vistas — el cast queda confinado aquí.
+      lc: nlc as LoadCase,
+      q: analysis.elements.map(() => ({ qx: 0, qy: 0 })),
+      nodeLoads,
+    });
+  }
+
+  // Unit probe: 1 kN split among the top-level pilar nodes → storey lateral
+  // stiffness S_i = shear/drift. With a single top load every storey carries
+  // shear 1, so S_i = 1/δ_i directly. Los casos nocionales viajan en la MISMA
+  // resolución (una retro-sustitución extra por caso, la factorización se
+  // comparte).
+  const topNodes = [...pilarNodeIdsByY.get(levels[levels.length - 1])!];
+  const probe: Analysis2DLoadCase = {
+    lc: 'W',
+    q: analysis.elements.map(() => ({ qx: 0, qy: 0 })),
+    nodeLoads: topNodes.map((node) => ({ node, Fx: 1 / topNodes.length, Fy: 0 })),
+  };
+  const probeRun = solveAnalysis2D({ ...analysis, loadCases: [probe, ...notionalCases] });
+  if (probeRun.errors.some((e) => e.severity === 'fail')) {
+    errors.push({ severity: 'warn', code: 'ALPHA_CR_PROBE_FAILED', msg: 'No se pudo estimar αcr (sonda lateral fallida).' });
+    return passthrough;
+  }
+  const probeDisp = probeRun.displacementsByLc.W;
+  const meanUx = (y: number): number => {
+    const ids = [...pilarNodeIdsByY.get(y)!];
+    return ids.reduce((s, id) => s + (probeDisp[id]?.ux ?? 0), 0) / ids.length;
+  };
+
+  // Muestras nocionales → elementos del bundle PRINCIPAL, bajo sus claves
+  // 'N<lc>'. Mutación ADITIVA sobre un bundle recién resuelto (una vez por
+  // pipeline): las claves nuevas no colisionan con ninguna hipótesis y solo
+  // las lee quien itera SAMPLE_LC_ORDER con factores nocionales presentes.
+  for (const { nlc } of notionalKeys) {
+    for (let i = 0; i < elements.length && i < probeRun.elements.length; i++) {
+      const src = probeRun.elements[i].samples;
+      const dst = elements[i].samples;
+      dst.N[nlc] = src.N[nlc];
+      dst.V[nlc] = src.V[nlc];
+      dst.M[nlc] = src.M[nlc];
+      dst.w[nlc] = src.w[nlc];
+      dst.u[nlc] = src.u[nlc];
+    }
+  }
+
+  // Per-storey stiffness + per-LC vertical/horizontal totals above the top.
   const storeys = levels.slice(1).map((yHi, k) => {
     const yLo = levels[k];
     const drift = Math.abs(meanUx(yHi) - meanUx(yLo));
     const S = drift > 1e-15 ? 1 / drift : Infinity;
     const Vlc: Partial<Record<LoadCase, number>> = {};
-    for (const lcCase of analysis.loadCases) Vlc[lcCase.lc] = verticalAbove(lcCase, yHi);
-    return { h: yHi - yLo, S, Vlc };
+    const Hlc: Partial<Record<LoadCase, number>> = {};
+    for (const lcCase of analysis.loadCases) {
+      Vlc[lcCase.lc] = verticalAbove(lcCase, yHi);
+      Hlc[lcCase.lc] = horizontalAbove(lcCase, yHi);
+    }
+    return { h: yHi - yLo, S, Vlc, Hlc };
   });
+
+  /** Exención §5.3.2(4)B del combo: H_Ed ≥ 0,15·V_Ed en TODAS las plantas con
+   *  carga vertical (basta una planta dominada por gravedad para deber Hφ). */
+  const notionalExemptFor = (factors: LcFactors): boolean => {
+    for (const st of storeys) {
+      let V = 0;
+      let H = 0;
+      for (const [lc, f] of Object.entries(factors)) {
+        V += (f ?? 0) * (st.Vlc[lc as LoadCase] ?? 0);
+        H += (f ?? 0) * (st.Hlc[lc as LoadCase] ?? 0);
+      }
+      if (V > 1e-9 && Math.abs(H) < NOTIONAL_EXEMPT_RATIO * V) return false;
+    }
+    return true;
+  };
 
   let worstAlpha = Infinity;
   let amplified = false;
   let seismicSecondOrder = false;
+  let notionalApplied = false;
+  let notionalExempt = false;
+  const checkFactorSets: CheckFactors[] = [];
   const factorsPerCombo = eluCombos.map((factors) => {
     let alphaCombo = Infinity;
     for (const st of storeys) {
@@ -2484,7 +2644,13 @@ function computeSwaySensitivity(
     // al método simplificado (EN 1998-1 §4.4.2.2). La amplificación de abajo
     // se mantiene como cinturón-y-tirantes, igual que en el caso αcr < 3.
     if ((factors.E ?? 0) !== 0 && alphaCombo < ALPHA_CR_MIN_SIMPLIFIED_SEISMIC) seismicSecondOrder = true;
-    if (alphaCombo >= ALPHA_CR_FIRST_ORDER) return factors;
+    if (alphaCombo >= ALPHA_CR_FIRST_ORDER) {
+      // Insensible al desplome (§5.2.2(3)): ni amplificación ni imperfección
+      // global — §5.3.2(1) solo la exige a pórticos sensibles al pandeo con
+      // desplome, y así los pórticos rígidos conservan sus números exactos.
+      checkFactorSets.push(factors);
+      return factors;
+    }
     // Amplified-sway-moment method: scale the lateral case factors.
     const k = 1 / (1 - 1 / Math.max(alphaCombo, ALPHA_CR_MIN_SIMPLIFIED));
     const next: LcFactors = { ...factors };
@@ -2496,7 +2662,27 @@ function computeSwaySensitivity(
       }
     }
     if (touched) amplified = true;
-    return touched ? next : factors;
+    const amp = touched ? next : factors;
+    // Imperfección global del combo: ±k·γ·Hφ, salvo exención. El nocional es
+    // carga de desplome y se amplifica con el MISMO k que W/E (con αcr < 3 la
+    // fila ya es roja y k queda capado en el de αcr = 3, cinturón-y-tirantes).
+    const keys = notionalKeys.filter(({ parent }) => factors[parent]);
+    if (keys.length === 0) {
+      checkFactorSets.push(amp);
+    } else if (notionalExemptFor(factors)) {
+      notionalExempt = true;
+      checkFactorSets.push(amp);
+    } else {
+      notionalApplied = true;
+      const plus: CheckFactors = { ...amp };
+      const minus: CheckFactors = { ...amp };
+      for (const { nlc, parent } of keys) {
+        plus[nlc] = k * factors[parent]!;
+        minus[nlc] = -k * factors[parent]!;
+      }
+      checkFactorSets.push(plus, minus);
+    }
+    return amp;
   });
 
   return {
@@ -2504,6 +2690,9 @@ function computeSwaySensitivity(
     amplified,
     seismicSecondOrder,
     factorsPerCombo,
+    checkFactorSets,
+    notionalApplied,
+    notionalExempt,
   };
 }
 

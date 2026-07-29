@@ -182,15 +182,21 @@ describe('T7 — αcr sway sensitivity', () => {
     expect(checks.alphaCr!).toBeLessThan(10);
     expect(checks.amplified).toBe(true);
 
-    // Closure: single ELU combo {G:1.35, W:1.5}. The envelope must equal
-    // 1.35·M_G + k·1.5·M_W sample-wise with k = 1/(1−1/αcr).
+    // Closure: single ELU combo {G:1.35, W:1.5}, desdoblado en ±Hφ — la W de
+    // 8 kN no llega a la exención 0,15·V_Ed, así que la imperfección §5.3.2
+    // viaja en el combo (caso NG, amplificado con el MISMO k que la W). El
+    // envelope debe ser el máximo muestra a muestra de
+    //   |1.35·M_G + k·1.5·M_W ± k·1.35·M_NG|.
+    expect(checks.notionalApplied).toBe(true);
     const k = 1 / (1 - 1 / checks.alphaCr!);
     const p1 = r.elements.filter((e) => e.designMemberId === 'p1')[0];
     const M_G = p1.samples.M.G[0];
     const M_W = p1.samples.M.W[0];
-    const expected = 1.35 * M_G + k * 1.5 * M_W;
+    const M_NG = p1.samples.M.NG[0];
+    const base = 1.35 * M_G + k * 1.5 * M_W;
+    const expected = Math.max(Math.abs(base + k * 1.35 * M_NG), Math.abs(base - k * 1.35 * M_NG));
     const got = checks.envelopes.p1.ELU.M[0];
-    expect(Math.abs(got)).toBeCloseTo(Math.abs(expected), 6);
+    expect(Math.abs(got)).toBeCloseTo(expected, 6);
   });
 
   it('very slender + heavy portal: αcr < 3 → fail row demanding 2nd-order analysis', () => {

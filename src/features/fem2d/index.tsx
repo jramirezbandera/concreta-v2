@@ -516,7 +516,7 @@ export function Fem2DModule(): JSX.Element {
           verdict={detailVerdict}
           envelopes={detailEnvelopes}
           twoForce={memberFormulation(model, detailMember) === 'two-force'}
-          amplified={result.checks?.amplified ?? false}
+          amplified={(result.checks?.amplified || result.checks?.notionalApplied) ?? false}
           onClose={() => setDetailMemberId(null)}
         />
       )}
