@@ -2,10 +2,12 @@
 // Responsive (ResizeObserver) + heat map per machón + holes + lintels.
 
 import { useEffect, useRef, useState } from 'react';
-import type {
-  MasonryWallState,
-  PlantaResult,
-  CriticoResult,
+import {
+  huecoGeom,
+  nombreHueco,
+  type MasonryWallState,
+  type PlantaResult,
+  type CriticoResult,
 } from '../../lib/calculations/masonryWalls';
 import { formatNumber, getUnitLabel } from '../../lib/units/format';
 import { WARN_UTIL } from '../../lib/calculations/types';
@@ -371,25 +373,33 @@ export function MasonryWallsSVG({
               {/* Contorno muro */}
               <rect x={ox} y={c.yTop} width={muroW} height={c.muroH} fill="none" stroke={cBorder} strokeWidth="1" pointerEvents="none" />
 
-              {/* Huecos: puerta y ventana respetan altura y alféizar. La puerta
-                  arranca siempre desde el suelo (y=0); la ventana respeta su
-                  alféizar (y > 0). En ambos casos el dintel puede tener muro
-                  encima (modelado vía h_muro_sobre = max(0, H - (y + h))). */}
+              {/* Huecos: la ventana respeta su alféizar (y > 0); la puerta
+                  arranca del suelo (y = 0); el pasante ocupa la planta entera
+                  (geometría derivada de H vía `huecoGeom`, no del `h`
+                  almacenado). Ventana y puerta pueden tener muro sobre el
+                  dintel (h_muro_sobre = max(0, H − (y + h))); el pasante nunca,
+                  y por eso su dintel se dibuja DENTRO del hueco, pegado al
+                  forjado, en vez de por encima (donde invadiría la planta de
+                  arriba). */}
               {pl.huecos.map((h) => {
-                const esPuerta = h.tipo === 'puerta';
+                const geom = huecoGeom(h, pl.H);
+                const esPasante = h.tipo === 'pasante';
+                // Arranca del suelo → sin línea de alféizar ni cruz de ventana.
+                const desdeSuelo = h.tipo === 'puerta' || esPasante;
                 const hx = ox + h.x * s;
                 const hw = h.w * s;
-                const hy = c.yBottom - (h.y + h.h) * s;
-                const hh = h.h * s;
+                const hy = c.yBottom - (geom.y + geom.h) * s;
+                const hh = geom.h * s;
                 const isSel = selectedHueco === h.id;
                 const isHov = hovered === `h:${h.id}`;
                 const dintelH = Math.max(8, Math.min(14, c.muroH * 0.05));
+                const dintelY = esPasante ? hy : hy - dintelH;
                 return (
                   <g
                     key={h.id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`${esPuerta ? 'Puerta' : 'Ventana'} ${h.id.slice(-4)} de ${pl.nombre}, ${h.w} mm × ${h.h} mm, pulsa Enter para editar`}
+                    aria-label={`${nombreHueco(pl.huecos, h.id)} de ${pl.nombre}, ${h.w} mm × ${geom.h} mm, pulsa Enter para editar`}
                     onClick={(e) => { e.stopPropagation(); onSelectHueco(h.id, i); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -404,7 +414,7 @@ export function MasonryWallsSVG({
                     onMouseLeave={() => setHovered((x) => (x === `h:${h.id}` ? null : x))}
                     style={{ cursor: 'pointer', outline: 'none' }}
                   >
-                    <title>{`${pl.nombre} · ${esPuerta ? 'puerta' : 'ventana'} ${h.id.slice(-4)} (${h.w}×${h.h} mm)`}</title>
+                    <title>{`${pl.nombre} · ${nombreHueco(pl.huecos, h.id)} (${h.w}×${geom.h} mm)`}</title>
                     <rect
                       x={hx} y={hy} width={hw} height={hh}
                       fill={huecoFill}
@@ -414,25 +424,25 @@ export function MasonryWallsSVG({
                     {/* DINTEL */}
                     <rect
                       x={hx - 4}
-                      y={hy - dintelH}
+                      y={dintelY}
                       width={hw + 8}
                       height={dintelH}
                       fill={isSel ? cAccentFill : cWarnFill}
                       stroke={isSel ? cAccent : cWarn}
                       strokeWidth="1"
                     />
-                    <line x1={hx - 4} y1={hy - dintelH} x2={hx - 4} y2={hy} stroke={isSel ? cAccent : cWarn} strokeWidth="1.5" />
-                    <line x1={hx + hw + 4} y1={hy - dintelH} x2={hx + hw + 4} y2={hy} stroke={isSel ? cAccent : cWarn} strokeWidth="1.5" />
-                    {!esPuerta && (
+                    <line x1={hx - 4} y1={dintelY} x2={hx - 4} y2={dintelY + dintelH} stroke={isSel ? cAccent : cWarn} strokeWidth="1.5" />
+                    <line x1={hx + hw + 4} y1={dintelY} x2={hx + hw + 4} y2={dintelY + dintelH} stroke={isSel ? cAccent : cWarn} strokeWidth="1.5" />
+                    {!desdeSuelo && (
                       <line x1={hx - 1} y1={hy + hh} x2={hx + hw + 1} y2={hy + hh} stroke={cDimText} strokeWidth="1" />
                     )}
-                    {!esPuerta && hw > 30 && hh > 30 && (
+                    {!desdeSuelo && hw > 30 && hh > 30 && (
                       <g stroke={isSel ? cAccent : cSection} strokeWidth="0.6" opacity="0.7">
                         <line x1={hx + hw / 2} y1={hy + 2} x2={hx + hw / 2} y2={hy + hh - 2} />
                         <line x1={hx + 2} y1={hy + hh / 2} x2={hx + hw - 2} y2={hy + hh / 2} />
                       </g>
                     )}
-                    {esPuerta && hw > 18 && hh > 30 && (
+                    {h.tipo === 'puerta' && hw > 18 && hh > 30 && (
                       <line
                         x1={hx + hw - 6}
                         y1={hy + hh / 2 - 6}
@@ -445,13 +455,13 @@ export function MasonryWallsSVG({
                     {hw > 18 && hh > 14 && (
                       <text
                         x={hx + hw / 2}
-                        y={hy + (esPuerta ? hh - 8 : hh / 2 + 3)}
+                        y={hy + (desdeSuelo ? hh - 8 : hh / 2 + 3)}
                         textAnchor="middle"
                         fill={isSel ? cAccent : cDim}
                         fontSize="8"
                         fontFamily={monoFamily}
                       >
-                        {esPuerta ? 'P' : 'V'}
+                        {esPasante ? 'H' : desdeSuelo ? 'P' : 'V'}
                       </text>
                     )}
                   </g>
@@ -462,16 +472,23 @@ export function MasonryWallsSVG({
               {calc.dinteles.map((d) => {
                 const huecoDef = pl.huecos.find((h) => h.id === d.id);
                 if (!huecoDef) return null;
-                // Misma referencia para puerta y ventana: el dintel está en
-                // el borde superior del hueco (y + h desde la base de planta).
-                const yRef = c.yBottom - (huecoDef.y + huecoDef.h) * s;
+                // Misma referencia para los tres tipos: el dintel está en el
+                // borde superior del hueco (y + h desde la base de planta).
+                const geomDef = huecoGeom(huecoDef, pl.H);
+                const yRef = c.yBottom - (geomDef.y + geomDef.h) * s;
+                // En el pasante ese borde ES el forjado, así que la etiqueta
+                // baja DENTRO del hueco: encima invadiría la planta superior.
+                const dintelH = Math.max(8, Math.min(14, c.muroH * 0.05));
+                const yLabel = huecoDef.tipo === 'pasante'
+                  ? yRef + dintelH + 9
+                  : yRef - 14;
                 const xL = ox + d.x1 * s;
                 const xR = ox + d.x2 * s;
                 return (
                   <g key={`r-${d.id}`} opacity={selectedHueco === d.id ? 1 : 0.5}>
                     <text
                       x={(xL + xR) / 2}
-                      y={yRef - 14}
+                      y={yLabel}
                       textAnchor="middle"
                       fill={cWarn}
                       fontSize="8"

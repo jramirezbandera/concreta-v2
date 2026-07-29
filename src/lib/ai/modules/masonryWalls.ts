@@ -60,10 +60,12 @@ import {
   TIPO_MURO_LABELS_SHORT,
   calcFkAnejoC,
   defaultMasonryState,
+  eApoyoForjado,
   fbValidosPara,
   fmValidosPara,
   gammaCustomPatch,
   getCriticoEdificio,
+  huecoGeom,
   lookupFk,
   masonryBuildingChecks,
   masonryPlantasSonDeFabrica,
@@ -723,12 +725,22 @@ function plantasContext(c: MasonryWallState): unknown[] {
     H_m: p.H / 1000,
     q_G_kN_m: p.q_G,
     q_Q_kN_m: p.q_Q,
-    e_apoyo_cm: p.e_apoyo / 10,
+    // e_apoyo ≤ 0 es el centinela "auto" del motor (deriva t/2 − a/3):
+    // mandar el 0 literal haría creer al modelo que la reacción está
+    // centrada. Se manda el valor RESUELTO + bandera, como plantas_por_defecto.
+    e_apoyo_cm: (p.e_apoyo > 0 ? p.e_apoyo : eApoyoForjado(c.t, p.a_apoyo)) / 10,
+    ...(p.e_apoyo > 0 ? {} : { e_apoyo_auto: true }),
     a_apoyo_cm: p.a_apoyo / 10,
     ...(p.rho_n !== undefined ? { rho_n: p.rho_n } : {}),
-    huecos: p.huecos.map((h) => ({
-      tipo: h.tipo, x_m: h.x / 1000, y_m: h.y / 1000, ancho_m: h.w / 1000, alto_m: h.h / 1000,
-    })),
+    // Geometría vertical RESUELTA (`huecoGeom`): en un hueco 'pasante' el alto
+    // lo manda la altura libre de la planta, no el `h` almacenado — mandar el
+    // almacenado le haría creer al modelo que hay fábrica sobre el dintel.
+    huecos: p.huecos.map((h) => {
+      const g = huecoGeom(h, p.H);
+      return {
+        tipo: h.tipo, x_m: h.x / 1000, y_m: g.y / 1000, ancho_m: h.w / 1000, alto_m: g.h / 1000,
+      };
+    }),
     puntuales: p.puntuales.map((q) => ({
       x_m: q.x / 1000, P_G_kN: q.P_G, P_Q_kN: q.P_Q, b_apoyo_cm: q.b_apoyo / 10,
     })),

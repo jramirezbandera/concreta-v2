@@ -11,6 +11,7 @@ import {
   blankMasonryState,
   calcularEdificio,
   defaultMasonryState,
+  detectarHuecosSolapados,
   eApoyoForjado,
   eMin,
   fbPatch,
@@ -22,6 +23,7 @@ import {
   gammaCustomPatch,
   getCriticoEdificio,
   getMachonesPlanta,
+  huecoGeom,
   isBlankMasonryState,
   lookupFk,
   lookupGammaM,
@@ -30,6 +32,7 @@ import {
   masonryMachonChecks,
   masonryPlantasSonDeFabrica,
   newId,
+  nombreHueco,
   normalizeMasonryState,
   overallStatus,
   piezaPatch,
@@ -38,6 +41,7 @@ import {
   renumberPlantas,
   repartoMomento,
   resolverFabrica,
+  sincronizarHuecosPasantes,
   tipoMuroPatch,
   type Hueco,
   type MasonryWallState,
@@ -674,6 +678,95 @@ describe('calcularEdificio — puerta vs ventana', () => {
     expect(plantas[0].dinteles[0].g_propio).toBe(0);
   });
 
+  it('pasante: h_muro_sobre = 0 y g_propio = 0, pero el dintel sigue existiendo', () => {
+    // Hueco de forjado a forjado: no queda fábrica sobre el dintel, pero el
+    // forjado superior tiene que salvar el hueco igual, así que el dintel
+    // reparte su carga a los machones laterales.
+    const s = statePB({
+      plantas: [
+        {
+          ...plantaTemplate(0, false),
+          H: 3000,
+          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h: 3000, tipo: 'pasante' }],
+          puntuales: [],
+        },
+        { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
+      ],
+    });
+    const dintel = expectPlantas(calcularEdificio(s))[0].dinteles[0];
+    expect(dintel.h_muro_sobre).toBe(0);
+    expect(dintel.g_propio).toBe(0);
+    expect(dintel.R_izq + dintel.R_dch).toBeGreaterThan(0);
+  });
+
+  it('pasante ≡ puerta de altura H (la equivalencia que hoy se hace a mano)', () => {
+    // Antes del tipo 'pasante', modelar un hueco de forjado a forjado obligaba
+    // a poner una puerta con h = H. El resultado numérico debe ser idéntico:
+    // el tipo nuevo es una forma de DECLARARLO, no un modelo distinto.
+    const conTipo = (tipo: Hueco['tipo'], h: number) => statePB({
+      plantas: [
+        {
+          ...plantaTemplate(0, false),
+          H: 3000,
+          huecos: [{ id: 'h1', x: 1000, y: 0, w: 900, h, tipo }],
+          puntuales: [],
+        },
+        { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
+      ],
+    });
+    const pasante = expectPlantas(calcularEdificio(conTipo('pasante', 3000)))[0];
+    const puerta = expectPlantas(calcularEdificio(conTipo('puerta', 3000)))[0];
+    expect(pasante.dinteles[0].q_dintel).toBeCloseTo(puerta.dinteles[0].q_dintel, 9);
+    expect(pasante.machones.map((m) => m.eta)).toEqual(puerta.machones.map((m) => m.eta));
+  });
+
+  it('pasante: el alto sale de H, NO del `h` almacenado (dato fantasma)', () => {
+    // El caso que motiva derivar la geometría: un hueco que fue ventana y se
+    // convierte en pasante, o una planta a la que se le cambia H después. Con
+    // el `h`/`y` almacenados obsoletos, la fórmula genérica devolvería una
+    // franja de fábrica sobre el dintel (y un antepecho bajo él) que en la
+    // obra no existen. Se comprueba contra el pasante ya sincronizado.
+    const con = (hueco: Hueco) => statePB({
+      plantas: [
+        { ...plantaTemplate(0, false), H: 3000, huecos: [hueco], puntuales: [] },
+        { ...plantaTemplate(1, true), huecos: [], puntuales: [] },
+      ],
+    });
+    const obsoleto = expectPlantas(calcularEdificio(
+      con({ id: 'h1', x: 1000, y: 900, w: 900, h: 1200, tipo: 'pasante' }),
+    ))[0];
+    const limpio = expectPlantas(calcularEdificio(
+      con({ id: 'h1', x: 1000, y: 0, w: 900, h: 3000, tipo: 'pasante' }),
+    ))[0];
+    expect(obsoleto.dinteles[0].h_muro_sobre).toBe(0);
+    expect(obsoleto.dinteles[0].g_propio).toBe(0);
+    // Mismo reparto a los machones: el alféizar fantasma tampoco baja peso.
+    expect(obsoleto.machones.map((m) => m.N_Ed)).toEqual(limpio.machones.map((m) => m.N_Ed));
+  });
+
+  it('pasante en planta alta: no manda antepecho a la planta inferior', () => {
+    // El antepecho (franja entre suelo y alféizar) se emite como carga a la
+    // planta de abajo. Un pasante arranca del suelo: no hay antepecho, ni
+    // siquiera con un `y` almacenado de cuando era ventana.
+    const con = (tipo: Hueco['tipo']) => statePB({
+      plantas: [
+        { ...plantaTemplate(0, false), H: 3000, huecos: [], puntuales: [] },
+        {
+          ...plantaTemplate(1, true),
+          H: 3000,
+          huecos: [{ id: 'h1', x: 1000, y: 900, w: 900, h: 1200, tipo }],
+          puntuales: [],
+        },
+      ],
+    });
+    const conPasante = expectPlantas(calcularEdificio(con('pasante')))[0];
+    const conVentana = expectPlantas(calcularEdificio(con('ventana')))[0];
+    const bajo = (pl: PlantaResult) =>
+      pl.machones.reduce((s, m) => s + m.N_heredado, 0);
+    // La ventana SÍ baja su antepecho; el pasante no tiene que bajar nada.
+    expect(bajo(conVentana)).toBeGreaterThan(bajo(conPasante));
+  });
+
   it('ventana: h_muro_sobre = H − (y+h)', () => {
     const s = statePB({
       plantas: [
@@ -689,6 +782,68 @@ describe('calcularEdificio — puerta vs ventana', () => {
     const r = calcularEdificio(s);
     const plantas = expectPlantas(r);
     expect(plantas[0].dinteles[0].h_muro_sobre).toBe(1000); // 3000 - (1000+1000)
+  });
+});
+
+// ─── 13b. Geometría derivada del hueco pasante ───────────────────────────
+
+describe('huecoGeom / sincronizarHuecosPasantes / nombreHueco', () => {
+  const pasante: Hueco = { id: 'h1', x: 0, y: 700, w: 900, h: 1200, tipo: 'pasante' };
+
+  it('huecoGeom: el pasante ocupa [0, H] e ignora el y/h almacenados', () => {
+    expect(huecoGeom(pasante, 3000)).toEqual({ y: 0, h: 3000 });
+  });
+
+  it('huecoGeom: ventana y puerta conservan su geometría', () => {
+    const v: Hueco = { id: 'h2', x: 0, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
+    const p: Hueco = { id: 'h3', x: 0, y: 0, w: 900, h: 2100, tipo: 'puerta' };
+    expect(huecoGeom(v, 3000)).toEqual({ y: 1000, h: 1300 });
+    expect(huecoGeom(p, 3000)).toEqual({ y: 0, h: 2100 });
+  });
+
+  it('sincronizarHuecosPasantes: fija y=0, h=H solo en los pasantes', () => {
+    const planta: Planta = {
+      ...plantaTemplate(0, false),
+      H: 2800,
+      huecos: [pasante, { id: 'h2', x: 2000, y: 1000, w: 900, h: 1300, tipo: 'ventana' }],
+    };
+    const out = sincronizarHuecosPasantes(planta);
+    expect(out.huecos[0]).toMatchObject({ y: 0, h: 2800 });
+    expect(out.huecos[1]).toEqual(planta.huecos[1]); // la ventana, intacta
+  });
+
+  it('sincronizarHuecosPasantes: sin cambios devuelve la MISMA planta', () => {
+    // Identidad referencial: evita re-renders y setState en cadena cuando el
+    // usuario edita cualquier otro campo de la planta.
+    const planta: Planta = {
+      ...plantaTemplate(0, false),
+      H: 3000,
+      huecos: [{ id: 'h1', x: 0, y: 0, w: 900, h: 3000, tipo: 'pasante' }],
+    };
+    expect(sincronizarHuecosPasantes(planta)).toBe(planta);
+  });
+
+  it('nombreHueco: numeración independiente por tipo', () => {
+    const huecos: Hueco[] = [
+      { id: 'a', x: 0, y: 1000, w: 900, h: 1000, tipo: 'ventana' },
+      { id: 'b', x: 2000, y: 0, w: 900, h: 2100, tipo: 'puerta' },
+      { id: 'c', x: 4000, y: 0, w: 900, h: 3000, tipo: 'pasante' },
+      { id: 'd', x: 5000, y: 0, w: 900, h: 3000, tipo: 'pasante' },
+    ];
+    expect(nombreHueco(huecos, 'a')).toBe('Ventana 1');
+    expect(nombreHueco(huecos, 'b')).toBe('Puerta 1');
+    expect(nombreHueco(huecos, 'c')).toBe('Pasante 1');
+    expect(nombreHueco(huecos, 'd')).toBe('Pasante 2');
+  });
+
+  it('detectarHuecosSolapados: un pasante solapando en x siempre avisa', () => {
+    // Arranca del suelo y llega al forjado: el solape en x es solape real,
+    // aunque el otro hueco sea una ventana alta.
+    const huecos: Hueco[] = [
+      { id: 'a', x: 1000, y: 0, w: 1000, h: 3000, tipo: 'pasante' },
+      { id: 'b', x: 1500, y: 2000, w: 900, h: 800, tipo: 'ventana' },
+    ];
+    expect(detectarHuecosSolapados(huecos)).toEqual([{ a: 'a', b: 'b' }]);
   });
 });
 
@@ -787,7 +942,11 @@ describe('calcularEdificio — Φ unificado (OV-8)', () => {
   });
 
   it('λ pequeño y excentricidad mínima → Φ próximo a 1', () => {
-    const s = statePB({ t: 500 }); // muro grueso → λ pequeño + e_total/t pequeño
+    // muro grueso → λ pequeño. La excentricidad "mínima" hay que fijarla a
+    // mano: desde que la plantilla arranca en auto (e_apoyo=0 → t/2 − a/3),
+    // t=500 con a=120 daría e_apoyo=210 mm — enorme, no mínima.
+    const s = statePB({ t: 500 });
+    s.plantas = s.plantas.map((p) => ({ ...p, e_apoyo: 60 }));
     const r = calcularEdificio(s);
     const plantas = expectPlantas(r);
     plantas.forEach((pl) => expect(pl.Phi).toBeGreaterThan(0.7));
@@ -1585,6 +1744,27 @@ describe('normalizeMasonryState — backward-compat de localStorage y share URLs
     expect(state.fk_custom).toBe(4.13);
     expect(state.gamma_custom).toBe(18);
     expect(migratedLegacy).toBe(true);
+  });
+
+  it('hueco con tipo desconocido → cae a ventana (respeta la geometría del dato)', () => {
+    const raw = defaultMasonryState();
+    (raw.plantas[0].huecos[0] as { tipo: string }).tipo = 'lucernario';
+    const { state } = normalizeMasonryState(raw);
+    expect(state.plantas[0].huecos[0].tipo).toBe('ventana');
+    // La geometría NO se toca: degradar a puerta o pasante reinterpretaría el dato.
+    expect(state.plantas[0].huecos[0].y).toBe(raw.plantas[0].huecos[0].y);
+    expect(state.plantas[0].huecos[0].h).toBe(raw.plantas[0].huecos[0].h);
+  });
+
+  it('pasante con alto obsoleto → re-sincronizado a la H de su planta', () => {
+    // Escenario real: la share-URL se generó con H=3000 y el JSON se editó a
+    // mano, o lo escribió un cliente antiguo. El motor deriva la geometría
+    // igualmente, pero el state persistido debe quedar coherente.
+    const raw = defaultMasonryState();
+    raw.plantas[0].H = 2800;
+    raw.plantas[0].huecos = [{ id: 'h1', x: 1000, y: 500, w: 900, h: 1200, tipo: 'pasante' }];
+    const { state } = normalizeMasonryState(raw);
+    expect(state.plantas[0].huecos[0]).toMatchObject({ y: 0, h: 2800 });
   });
 
   it('estado fresco completo (con todos los campos) → no marca migratedLegacy', async () => {

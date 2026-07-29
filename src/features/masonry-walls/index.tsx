@@ -25,6 +25,7 @@ import {
   renumberPlantas,
   type EdificioInvalid,
   type Hueco,
+  type HuecoTipo,
   type MasonryWallState,
   type PlantaResult,
   type Puntual,
@@ -319,21 +320,27 @@ export function MasonryWallsModule() {
     if (selectedPlantaIdx >= idx) setSelectedPlantaIdx(Math.max(0, selectedPlantaIdx - 1));
   };
 
-  const addHueco = (plIdx: number, tipo: 'puerta' | 'ventana') => {
+  const addHueco = (plIdx: number, tipo: HuecoTipo) => {
     // Generamos el id fuera del setState callback para poder seleccionar el
     // nuevo hueco inmediatamente — así su panel de edición se abre solo,
     // sin obligar al usuario a clicar otra vez para empezar a editarlo.
-    const nuevo: Hueco = tipo === 'puerta'
-      ? { id: newId('h'), x: 200, y: 0,    w: 900, h: 2100, tipo: 'puerta'  }
-      : { id: newId('h'), x: 200, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
+    const id = newId('h');
     setState((s) => ({
       ...s,
-      plantas: s.plantas.map((p, i) =>
-        i === plIdx ? { ...p, huecos: [...p.huecos, nuevo] } : p,
-      ),
+      plantas: s.plantas.map((p, i) => {
+        if (i !== plIdx) return p;
+        // El pasante nace con la altura libre de SU planta (el motor la deriva
+        // igualmente vía `huecoGeom`; guardarla mantiene coherente el JSON que
+        // viaja en la share-URL).
+        const nuevo: Hueco =
+          tipo === 'pasante' ? { id, x: 200, y: 0,    w: 900, h: p.H,  tipo: 'pasante' }
+          : tipo === 'puerta' ? { id, x: 200, y: 0,    w: 900, h: 2100, tipo: 'puerta'  }
+          :                     { id, x: 200, y: 1000, w: 900, h: 1300, tipo: 'ventana' };
+        return { ...p, huecos: [...p.huecos, nuevo] };
+      }),
     }));
     setSelectedPlantaIdx(plIdx);
-    setSelectedHueco(nuevo.id);
+    setSelectedHueco(id);
     setSelectedMachonKey(null);
   };
 

@@ -428,6 +428,25 @@ export type FabricaModo = 'tabla' | 'custom';
  *  - 'manual': fk introducido directamente por el usuario (legacy + escape hatch). */
 export type CustomMethod = 'anejoC' | 'manual';
 
+/**
+ * Tipos de hueco. Los tres se calculan con la MISMA fórmula: lo único que
+ * cambia es de dónde sale la geometría vertical (ver `huecoGeom`).
+ *
+ *   'ventana'  — alféizar y alto libres.
+ *   'puerta'   — arranca del suelo (y = 0), alto libre hasta el dintel.
+ *   'pasante'  — hueco de forjado a forjado: ocupa TODA la altura libre de la
+ *                planta. No hay fábrica sobre el dintel (h_muro_sobre = 0),
+ *                pero el dintel SIGUE existiendo: el forjado superior tiene
+ *                que salvar el hueco y descarga en los machones laterales.
+ */
+export type HuecoTipo = 'puerta' | 'ventana' | 'pasante';
+
+export const HUECO_TIPO_LABELS: Record<HuecoTipo, string> = {
+  puerta: 'Puerta',
+  ventana: 'Ventana',
+  pasante: 'Pasante',
+};
+
 export interface Hueco {
   id: string;
   x: number;       // mm desde el origen
@@ -437,7 +456,43 @@ export interface Hueco {
                    // El motor calcula el muro sobre el hueco como max(0, pl.H - (y + h))
                    // para AMBOS tipos: una puerta de 2,10 m en una planta de 3 m deja
                    // 0,90 m de muro encima que el dintel debe soportar (DB-SE-F §5.4).
-  tipo: 'puerta' | 'ventana';
+                   // En 'pasante' NO se lee: la geometría la manda la planta.
+  tipo: HuecoTipo;
+}
+
+/**
+ * Geometría vertical EFECTIVA de un hueco dentro de su planta — fuente ÚNICA
+ * para motor, lienzo SVG, panel de inputs y adaptador de IA.
+ *
+ * Para 'pasante' devuelve siempre [0, H]: los `y`/`h` almacenados se IGNORAN a
+ * propósito. Guardar el alto de un hueco que por definición vale H convierte un
+ * cambio posterior de la altura de planta en un dato fantasma — reaparecería
+ * como una franja de fábrica sobre el dintel que en la obra no existe, y con
+ * ella un g_propio y unas reacciones inventadas. El state conserva `y`/`h` solo
+ * para poder volver a 'puerta'/'ventana' sin perder lo que el usuario tecleó
+ * (y se re-sincronizan vía `sincronizarHuecosPasantes`).
+ */
+export function huecoGeom(h: Hueco, H: number): { y: number; h: number } {
+  if (h.tipo === 'pasante') return { y: 0, h: Math.max(0, H) };
+  return { y: h.y, h: h.h };
+}
+
+/**
+ * Deja los huecos 'pasante' de una planta coherentes con su altura libre
+ * (y = 0, h = H). El cálculo no lo necesita —todo el mundo pasa por
+ * `huecoGeom`— pero sí el state que se PERSISTE: localStorage y share-URL
+ * llevan el JSON crudo, y un cliente antiguo (o un futuro consumidor que lea
+ * `h.h` a pelo) vería un hueco de altura obsoleta. Se aplica al crear el hueco,
+ * al cambiar H de la planta y al normalizar un state que llega de fuera.
+ */
+export function sincronizarHuecosPasantes(p: Planta): Planta {
+  let cambiado = false;
+  const huecos = p.huecos.map((h) => {
+    if (h.tipo !== 'pasante' || (h.y === 0 && h.h === p.H)) return h;
+    cambiado = true;
+    return { ...h, y: 0, h: p.H };
+  });
+  return cambiado ? { ...p, huecos } : p;
 }
 
 export interface Puntual {
@@ -882,14 +937,28 @@ export function detectarHuecosSolapados(huecos: Hueco[]): { a: string; b: string
           const bY2 = b.y + b.h;
           if (bY1 < aY2 - 1 && aY1 < bY2 - 1) pairs.push({ a: a.id, b: b.id });
         } else {
-          // Cualquier puerta solapando con cualquier otro hueco siempre es
-          // problemático (la puerta va de 0 a H, ocupa toda la altura).
+          // Cualquier puerta o pasante solapando con otro hueco siempre es
+          // problemático: arrancan del suelo, así que el solape en x implica
+          // solape real (el pasante, además, llega hasta el forjado).
           pairs.push({ a: a.id, b: b.id });
         }
       }
     }
   }
   return pairs;
+}
+
+/**
+ * Nombre humano de un hueco ("Ventana 2", "Puerta 1", "Pasante 1"): numerado
+ * por tipo en orden de lista dentro de su planta. El id aleatorio del state
+ * jamás se enseña al usuario — panel de inputs y lienzo SVG comparten este
+ * helper para que la numeración coincida en los dos sitios.
+ */
+export function nombreHueco(huecos: Hueco[], id: string): string {
+  const target = huecos.find((h) => h.id === id);
+  if (!target) return id.slice(-4);
+  const idx = huecos.filter((h) => h.tipo === target.tipo).findIndex((h) => h.id === id);
+  return `${HUECO_TIPO_LABELS[target.tipo] ?? 'Hueco'} ${idx + 1}`;
 }
 
 function mayorarPuntual(p: Puntual, gG: number, gQ: number): number {
@@ -1068,13 +1137,17 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       const h_x2 = Math.min(L, h.x + h.w);
       const span_mm = Math.max(0, h_x2 - h_x1);
       const w_m = span_mm / 1000;
-      // Muro sobre el hueco: misma fórmula para puerta y ventana. Antes las
+      // Muro sobre el hueco: misma fórmula para los tres tipos. Antes las
       // puertas se trataban como si llegasen al forjado (h_muro_sobre=0), lo
       // cual ignoraba el peso de la franja de fábrica entre el dintel y el
       // forjado superior. Con `h` editable también para puertas (default
       // 2100 mm) esa franja queda bien modelada y el dintel recibe el peso
-      // propio correspondiente.
-      const h_muro_sobre = Math.max(0, pl.H - (h.y + h.h));
+      // propio correspondiente. El 'pasante' es el caso en que esa franja
+      // vale CERO por definición (geometría vía `huecoGeom`, no vía el `h`
+      // almacenado), pero conserva dintel: el forjado superior salva el hueco
+      // y descarga en los machones laterales.
+      const geom = huecoGeom(h, pl.H);
+      const h_muro_sobre = Math.max(0, pl.H - (geom.y + geom.h));
       const g_propio = gG * peso_propio * (t / 1000) * (h_muro_sobre / 1000);
       // q_distribuida = integral over hueco de loadsAtTop+floorUDL / w_m.
       // Reemplaza el antiguo q_planta scalar (kN/m uniforme) por la integral
@@ -1331,10 +1404,13 @@ export function calcularEdificio(state: MasonryWallState): EdificioResult {
       for (const hk of pl.huecos) {
         const hx1 = Math.max(0, hk.x);
         const hx2 = Math.min(L, hk.x + hk.w);
-        if (hx2 <= hx1 || hk.y <= 0) continue;
+        // Alféizar EFECTIVO: un 'pasante' arranca del suelo aunque el state
+        // arrastre un `y` de cuando era ventana → no hay antepecho que bajar.
+        const y_alfeizar = huecoGeom(hk, pl.H).y;
+        if (hx2 <= hx1 || y_alfeizar <= 0) continue;
         newSegments.push({
           x1: hx1, x2: hx2,
-          w: gG * peso_propio * (t / 1000) * (hk.y / 1000),
+          w: gG * peso_propio * (t / 1000) * (y_alfeizar / 1000),
           kind: 'distributed',
         });
       }
@@ -1545,8 +1621,14 @@ export function plantaTemplate(idx: number, esCubierta = false): Planta {
     H: 3000,
     q_G: esCubierta ? 5 : 8,
     q_Q: esCubierta ? 1 : 3,
-    e_apoyo: 60,
-    a_apoyo: 120,
+    // 0 = centinela "auto": el motor deriva e_apoyo = t/2 − a/3 (§5.2.3).
+    // Antes la plantilla traía 60 mm tecleados (manual) que no salían de
+    // ninguna fórmula; el default arranca ahora en modo auto. La entrega de
+    // 180 (3/4 del espesor t=240) da exactamente esos 60 mm por fórmula —
+    // el edificio de ejemplo conserva sus números y sigue CUMPLIENDO (con
+    // a=120 derivaba 80 mm y un machón se iba a 104%).
+    e_apoyo: 0,
+    a_apoyo: 180,
     huecos: idx === 0
       ? [
           { id: uid('h'), x: 800,  y: 1900, w: 900,  h: 1100, tipo: 'ventana' },
@@ -1614,8 +1696,8 @@ export function blankMasonryState(): MasonryWallState {
     H: 3000,
     q_G: 8,
     q_Q: 3,
-    e_apoyo: 60,
-    a_apoyo: 120,
+    e_apoyo: 0, // centinela "auto" → t/2 − a/3, como plantaTemplate
+    a_apoyo: 180,
     huecos: [],
     puntuales: [],
   };
@@ -1760,6 +1842,18 @@ export function normalizeMasonryState(
   // "Planta baja" + "Planta 1..N" + "Cubierta"; la convención nueva es
   // "Planta 1" en idx=0, "Planta 2..N-1" intermedias, "Cubierta" topmost.
   merged.plantas = renumberPlantas(merged.plantas);
+
+  // Huecos: el `tipo` es un enum y llega de fuera (localStorage, share-URL,
+  // JSON editado a mano). Un valor desconocido cae a 'ventana', que es el tipo
+  // que RESPETA la geometría almacenada (y, h) — degradar a puerta o pasante
+  // reinterpretaría el dato. Los 'pasante' se re-sincronizan con la altura de
+  // su planta para que el JSON persistido no arrastre un alto obsoleto.
+  merged.plantas = merged.plantas.map((p) => sincronizarHuecosPasantes({
+    ...p,
+    huecos: (Array.isArray(p.huecos) ? p.huecos : []).map((h) =>
+      h.tipo in HUECO_TIPO_LABELS ? h : { ...h, tipo: 'ventana' as HuecoTipo },
+    ),
+  }));
 
   // Terna (pieza, fb, fm) de Tabla 4.4 (auditoría 2026-07-14, 5ª familia).
   // Un estado antiguo o una share-URL pueden traer una COMBINACIÓN inexistente

@@ -219,7 +219,8 @@ export async function exportMasonryWallsPDF({
   doc.text('eta max', COL_R + 54, ry);
   ry += 1.5;
   setGray(doc, 200);
-  doc.line(COL_R, ry, COL_R + 80, ry);
+  // Hasta PAGE_W − M, no COL_R+80: eso son 199 mm, 7 mm dentro del margen.
+  doc.line(COL_R, ry, PAGE_W - M, ry);
   ry += 3.5;
   // De cubierta hacia abajo (orden visual estándar en memoria estructural)
   for (const pl of plantasCalc.slice().reverse()) {
@@ -230,7 +231,11 @@ export async function exportMasonryWallsPDF({
     doc.text(`${pl.machones.length}`, COL_R + 45, ry);
     const [r, g, b] = statusRGB(eMax);
     doc.setTextColor(r, g, b);
-    doc.text(`${pct(eMax)} ${statusLabel(eMax)}`, COL_R + 54, ry);
+    // Alineado a la derecha contra el margen: "104% INCUMPLE" left-aligned
+    // desde +54 acababa en 192.7 mm, fuera de página (layout probe C). Solo
+    // se veía con el edificio en fallo. OJO: no anclar a COL_R+80 — el borde
+    // de la tabla ya vive a 199 mm, también fuera del margen.
+    doc.text(`${pct(eMax)} ${statusLabel(eMax)}`, PAGE_W - M, ry, { align: 'right' });
     ry += 3.8;
   }
   setGray(doc, 100);
@@ -530,7 +535,10 @@ function drawDataPartida(
     { key: 'H',      label: 'H (m)',     w: 16, align: 'right', render: (p) => mToM(p.H, 2).replace(' m', '') },
     { key: 'q_G',    label: 'q_G (kN/m)', w: 22, align: 'right', render: (p) => num(p.q_G, 1) },
     { key: 'q_Q',    label: 'q_Q (kN/m)', w: 22, align: 'right', render: (p) => num(p.q_Q, 1) },
-    { key: 'e_apoyo', label: 'e_apoyo (mm)', w: 22, align: 'right', render: (p) => num(p.e_apoyo, 0) },
+    // e_apoyo ≤ 0 es el centinela "auto" (t/2 − a/3): imprimir el 0 literal
+    // parecería una excentricidad nula tecleada. El valor resuelto sale en el
+    // bloque por planta (e_apoyo = … mm).
+    { key: 'e_apoyo', label: 'e_apoyo (mm)', w: 22, align: 'right', render: (p) => (p.e_apoyo > 0 ? num(p.e_apoyo, 0) : 'auto') },
     { key: 'a_apoyo', label: 'a_apoyo (mm)', w: 22, align: 'right', render: (p) => num(p.a_apoyo, 0) },
     { key: 'rho_n',   label: 'rho_n',    w: 14, align: 'right', render: (p) => num(p.rho_n, 2) },
     { key: 'huecos',  label: 'nh', w: 10, align: 'right', render: (p) => `${p.huecos.length}` },
