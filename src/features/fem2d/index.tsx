@@ -316,9 +316,10 @@ export function Fem2DModule(): JSX.Element {
           role="status"
           className="shrink-0 border-b border-state-warn/40 bg-state-warn/10 px-4 py-1.5 text-[11px] leading-snug text-state-warn"
         >
-          Este enlace se creó con un modelo de datos anterior; las comprobaciones
-          se han recalculado. Revisa las barras de hormigón (elige su
-          comprobación en el inspector) y el límite de flecha por barra.
+          Este modelo se creó con un esquema de datos anterior (enlace o sesión
+          guardada); las comprobaciones se han recalculado. Revisa las barras de
+          hormigón (elige su comprobación en el inspector) y el límite de flecha
+          por barra.
         </div>
       )}
 

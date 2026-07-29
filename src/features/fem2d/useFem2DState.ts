@@ -91,7 +91,12 @@ export interface Fem2DModelStore {
   /** True on first run (no URL, no stored model): show the template landing. */
   startedEmpty: boolean;
   /** True cuando la hidratación migró un modelo del esquema anterior a la
-   *  Fase 2 (rol de barra): la shell muestra el banner no descartable. */
+   *  Fase 2 (rol de barra): la shell muestra el banner no descartable.
+   *  Describe la procedencia del modelo ACTUAL, no de la sesión: elegir una
+   *  plantilla o una estructura nueva (resetModel) lo apaga — el modelo pasa a
+   *  ser 100% del esquema nuevo. Las ediciones normales (setModel) lo
+   *  conservan: el recordatorio de revisar HA/flecha sigue vigente mientras el
+   *  contenido migrado siga ahí. */
   migratedFromLegacy: boolean;
 }
 
@@ -137,7 +142,14 @@ export function useFem2DState(): Fem2DModelStore {
     };
   }, [model, initial]);
 
-  const resetModel = useCallback((next: Fem2DModel) => h.reset(next), [h]);
+  // Estado (no const del montaje): el banner de migración cae cuando el modelo
+  // se reemplaza ENTERO — antes se quedaba pegado toda la sesión y salía sobre
+  // una plantilla recién elegida, que estampa el esquema nuevo por definición.
+  const [migrated, setMigrated] = useState(initial.migrated);
+  const resetModel = useCallback((next: Fem2DModel) => {
+    setMigrated(false);
+    h.reset(next);
+  }, [h]);
 
   return {
     model,
@@ -148,6 +160,6 @@ export function useFem2DState(): Fem2DModelStore {
     canUndo: h.canUndo,
     canRedo: h.canRedo,
     startedEmpty: !initial.fromSaved,
-    migratedFromLegacy: initial.migrated,
+    migratedFromLegacy: migrated,
   };
 }
