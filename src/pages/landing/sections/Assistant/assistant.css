@@ -1,0 +1,110 @@
+/* assistant.css — "Asistente" section (3 beats + trust block).
+   Consumed by ./Assistant.tsx.
+   Media queries live centrally in ../../styles/responsive.css, like every
+   other landing section. */
+
+.landing-root {
+  /* The sketch→model figure. Framed like a hero slide so it reads as a real
+     product view, not an illustration. */
+  /* A still of a real assistant thread. Bounded and centred so the chat reads
+     at a comfortable measure instead of stretching the full container. */
+  .ai-figure {
+    margin: 0 auto 40px;
+    max-width: 720px;
+  }
+  .ai-figure-frame {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 20px;
+  }
+  /* Inert: the preview contains a real "Aplicar" button, and a button that
+     does nothing is worse than no button. The affordance is the caption link. */
+  .ai-preview-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    pointer-events: none;
+    user-select: none;
+  }
+  .ai-figure-cap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 24px;
+    padding-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .beats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+  }
+  .beat {
+    padding: 32px 28px;
+    border-right: 1px solid var(--border-sub);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .beat:first-child {
+    padding-left: 0;
+  }
+  .beat:last-child {
+    padding-right: 0;
+    border-right: none;
+  }
+  .beat-n {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .beat-t {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+  .beat-d {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* The trust block. Two columns: what the AI never does, and how the model
+     tier actually works — the second one is what makes the first credible. */
+  .ai-trust {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 32px;
+  }
+  .ai-trust-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 12px;
+  }
+  .ai-trust-key-t {
+    font-size: 11px;
+    color: var(--text-disabled);
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .ai-trust-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin: 0;
+  }
+}

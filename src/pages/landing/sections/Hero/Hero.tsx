@@ -15,11 +15,18 @@ import { HERO_CANVASES } from './canvases';
 import './hero.css';
 
 // Derived from the module library so the headline count never drifts from the
-// grid (design-review T5). Today: 18.
+// grid (design-review T5). Never hardcode the number here — it is wrong within
+// a fortnight; the previous comment said "Today: 18" while 19 shipped.
 const MODULE_COUNT = MODULE_LIBRARY.length;
 
 const ROTATE_MS = 4500;
 
+// The headline leads with the product, not with the assistant (decision
+// 2026-07-27): Concreta's value is 19 audited modules with Spanish code cited
+// per check, and the AI is a feature inside that — not the identity. A draft
+// that led with "Enséñale el croquis" was reverted for exactly that reason.
+// Keep it short too: at ~50 chars this wraps to five lines and pushes the
+// hero-meta strip below the fold at 1440×900 and 1366×768.
 const HERO_TAGLINE = 'El cálculo estructural que no te frena.';
 const HERO_SUB =
   'Concreta es la herramienta de cálculo estructural pensada por arquitectos e ingenieros calculistas españoles: comprobaciones normativas rápidas, trazables y defendibles ante visado y obra.';
@@ -33,11 +40,14 @@ function HeroEyebrow() {
   );
 }
 
+// "Ver precios", not "Suscribirse": the button opens a price table, and nothing
+// on the site is purchasable yet (no licence gate, so the paid CTAs are mailto).
+// Same reason the nav button and Pricing.tsx:52 were changed.
 function HeroCTAs() {
   return (
     <div className="hero-cta">
       <Link to="/pricing" className="btn btn-primary btn-lg">
-        Suscribirse <span className="arr">→</span>
+        Ver precios <span className="arr">→</span>
       </Link>
       <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>
     </div>
@@ -55,9 +65,12 @@ function HeroMeta() {
         <div className="hero-meta-v mono">PDF</div>
         <div className="hero-meta-l">vectorial en 5&nbsp;s</div>
       </div>
+      {/* The assistant takes this slot rather than the PDF one: the PDF is the
+          wedge (it is what Pro charges for) and PWA is still argued in
+          Filosofía and in the CYPE comparison table. */}
       <div className="hero-meta-item">
-        <div className="hero-meta-v mono">PWA</div>
-        <div className="hero-meta-l">offline · sin login</div>
+        <div className="hero-meta-v mono">IA</div>
+        <div className="hero-meta-l">asistente en cada módulo</div>
       </div>
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">CE · CTE</div>

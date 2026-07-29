@@ -3,6 +3,7 @@
 import { Link } from 'react-router';
 import { ALL_POSTS } from '../../../blog/posts';
 import { PostCard } from '../../../blog/PostCard';
+import { sectionEyebrow } from '../../constants';
 import './blog-section.css';
 
 export function BlogSection() {
@@ -12,7 +13,7 @@ export function BlogSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">08 · Blog</div>
+            <div className="section-eyebrow">{sectionEyebrow('blog')}</div>
             <h2 className="section-title">Notas técnicas y de producto.</h2>
           </div>
           <p className="section-lede">

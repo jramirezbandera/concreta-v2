@@ -3,6 +3,7 @@
 
 import { Link } from 'react-router';
 import { NORM_SUMMARY } from '../../normativaData';
+import { sectionEyebrow } from '../../constants';
 import './normativa-section.css';
 
 export function NormativaSection() {
@@ -11,7 +12,7 @@ export function NormativaSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">05 · Normativa</div>
+            <div className="section-eyebrow">{sectionEyebrow('normativa')}</div>
             <h2 className="section-title">Norma española primero, eurocódigos en su sitio.</h2>
           </div>
           <p className="section-lede">

@@ -11,9 +11,118 @@
 
 import type { ReactElement } from 'react';
 import type { HeroCanvasKind } from '../../heroCase';
-import { HERO_CASE } from '../../heroCase';
+import { HERO_CASE, PORTAL_FRAME } from '../../heroCase';
 
 const VB = '0 0 520 300';
+
+// ── FEM 2D — portal frame elevation (the openable case) ──────────────────────
+//
+// Geometry comes from PORTAL_FRAME, derived from the same FEM 2D model the
+// slide's deep-link opens — the drawing cannot show a frame you can't open.
+// Static, like the other four slides.
+
+/** Caption row. Must clear the load rail, drawn 30 px above the beam. */
+const LABEL_Y = 32;
+
+function Fem2dCanvas() {
+  const x0 = 78;
+  const x1 = 442;
+  const baseY = 236;
+  const topY = 92;
+
+  const { span, height, members, nodes, supports, loadedMembers } = PORTAL_FRAME;
+  const px = (x: number) => x0 + (span === 0 ? 0 : (x / span) * (x1 - x0));
+  // Model +y is up; screen +y is down.
+  const py = (y: number) => baseY - (height === 0 ? 0 : (y / height) * (baseY - topY));
+
+  const nodeAt = (id: string) => nodes.find((n) => n.id === id);
+
+  return (
+    <svg viewBox={VB} className="hero-slide-svg" aria-hidden="true">
+      <g>
+        {loadedMembers.map((id) => {
+          const m = members.find((mm) => mm.id === id);
+          if (!m) return null;
+          const y = py(Math.max(m.y1, m.y2));
+          const ax0 = px(Math.min(m.x1, m.x2));
+          const ax1 = px(Math.max(m.x1, m.x2));
+          const railY = y - 30;
+          const n = 9;
+          return (
+            <g key={id} stroke="var(--accent)" strokeWidth="0.9">
+              <line x1={ax0} y1={railY} x2={ax1} y2={railY} strokeWidth="1.2" />
+              {Array.from({ length: n }, (_, i) => {
+                const ax = ax0 + ((i + 0.5) / n) * (ax1 - ax0);
+                return (
+                  <g key={i}>
+                    <line x1={ax} y1={railY} x2={ax} y2={y - 6} />
+                    <polygon
+                      points={`${ax},${y - 2} ${ax - 3},${y - 8} ${ax + 3},${y - 8}`}
+                      fill="var(--accent)"
+                      stroke="none"
+                    />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {members.map((m) => (
+          <line
+            key={m.id}
+            x1={px(m.x1)}
+            y1={py(m.y1)}
+            x2={px(m.x2)}
+            y2={py(m.y2)}
+            stroke="var(--text-primary)"
+            strokeWidth="3.5"
+            strokeLinecap="square"
+          />
+        ))}
+
+        {supports.map((id) => {
+          const n = nodeAt(id);
+          if (!n) return null;
+          const sx = px(n.x);
+          const sy = py(n.y);
+          return (
+            <g key={id} stroke="var(--text-secondary)" strokeWidth="1.4">
+              <line x1={sx - 16} y1={sy} x2={sx + 16} y2={sy} strokeWidth="2.4" />
+              {Array.from({ length: 5 }, (_, i) => {
+                const hx = sx - 14 + i * 7;
+                return <line key={i} x1={hx} y1={sy} x2={hx - 6} y2={sy + 8} />;
+              })}
+            </g>
+          );
+        })}
+
+        {nodes.map((n) => (
+          <circle
+            key={n.id}
+            cx={px(n.x)}
+            cy={py(n.y)}
+            r="4"
+            fill="var(--bg-canvas)"
+            stroke="var(--accent)"
+            strokeWidth="2"
+          />
+        ))}
+
+        <text
+          x={(x0 + x1) / 2}
+          y={LABEL_Y}
+          textAnchor="middle"
+          fontFamily="var(--font-mono)"
+          fontSize="12"
+          fill="var(--accent)"
+        >
+          pórtico biempotrado
+        </text>
+      </g>
+    </svg>
+  );
+}
 
 // ── FEM 1D — continuous beam elevation (the openable case) ───────────────────
 function FemCanvas() {
@@ -281,6 +390,7 @@ function WallCanvas() {
 }
 
 export const HERO_CANVASES: Record<HeroCanvasKind, () => ReactElement> = {
+  fem2d: Fem2dCanvas,
   fem: FemCanvas,
   'rc-beam': RcBeamCanvas,
   'steel-beam': SteelBeamCanvas,

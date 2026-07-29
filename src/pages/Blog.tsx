@@ -6,6 +6,7 @@ import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { PostCard } from './blog/PostCard';
 import { ALL_POSTS } from './blog/posts';
+import { sectionEyebrow } from './landing/constants';
 import './marketing.css';
 import './subpage.css';
 
@@ -32,7 +33,7 @@ export function Blog() {
 
       <section className="subpage-hero">
         <div className="container subpage-hero-inner">
-          <div className="subpage-eyebrow">08 · Blog</div>
+          <div className="subpage-eyebrow">{sectionEyebrow('blog')}</div>
           <h1 className="subpage-title">Notas técnicas y de producto.</h1>
           <p className="subpage-lede">
             Interpretaciones normativas, tutoriales con casos reales y registro

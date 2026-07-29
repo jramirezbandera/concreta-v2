@@ -4,73 +4,9 @@
 import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
-import { APP_ROUTE } from './landing/constants';
+import { PLANS, type Plan, sectionEyebrow } from './landing/constants';
 import './marketing.css';
 import './subpage.css';
-
-interface Plan {
-  name: string;
-  blurb: string;
-  price: string;
-  unit: string;
-  features: string[];
-  cta: string;
-  ctaTo: string;
-  highlight: boolean;
-}
-
-const PLANS: Plan[] = [
-  {
-    name: 'Libre',
-    blurb: 'Para probar antes de comprar.',
-    price: '0',
-    unit: '€/mes',
-    features: [
-      '2 módulos: Vigas HA, Vigas acero',
-      'Cálculo ilimitado',
-      'Enlaces compartibles',
-      'PWA offline',
-      'Calculadora global',
-    ],
-    cta: 'Empezar gratis',
-    ctaTo: APP_ROUTE,
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    blurb: 'Para el técnico individual.',
-    price: '19',
-    unit: '€/mes',
-    features: [
-      'Todos los módulos (12+)',
-      'Exportación PDF vectorial',
-      'Marca propia en informes',
-      'Sin marca de agua',
-      'Casos guardados en local',
-      'Soporte por email · 48h',
-    ],
-    cta: 'Suscribirse',
-    ctaTo: APP_ROUTE,
-    highlight: true,
-  },
-  {
-    name: 'Studio',
-    blurb: 'Para estudios pequeños (2–5).',
-    price: '49',
-    unit: '€/mes · 5 técnicos',
-    features: [
-      'Todo lo de Pro',
-      'Hasta 5 cuentas',
-      'Biblioteca de casos del estudio',
-      'Plantillas de informe compartidas',
-      'SSO Google Workspace',
-      'SLA 24h',
-    ],
-    cta: 'Hablar con nosotros',
-    ctaTo: 'mailto:hola@concreta.tools',
-    highlight: false,
-  },
-];
 
 type Cell = boolean | { text: string; ok?: boolean };
 interface CompareRow {
@@ -80,21 +16,36 @@ interface CompareRow {
 
 const COMPARE: CompareRow[] = [
   { feat: 'Vigas HA · cortante · fisuración', cells: [true, true, true] },
+  { feat: 'Vigas acero · LTB · flecha', cells: [true, true, true] },
+  { feat: 'FEM 2D · pórticos y cerchas', cells: [true, true, true] },
   { feat: 'Pilares HA · flexocompresión', cells: [false, true, true] },
   { feat: 'Punzonamiento · forjados', cells: [false, true, true] },
-  { feat: 'Vigas acero · LTB · flecha', cells: [true, true, true] },
   { feat: 'Pilares acero · empresillado', cells: [false, true, true] },
   { feat: 'Placas de anclaje', cells: [false, true, true] },
   { feat: 'Zapatas · muros · encepados', cells: [false, true, true] },
   { feat: 'FEM 1D · envolventes ELU/ELS', cells: [false, true, true] },
+  {
+    feat: 'Asistente IA · con la clave incluida',
+    cells: [
+      { text: 'rellena y explica' },
+      { text: 'rellena y explica' },
+      { text: 'diagnostica y propone', ok: true },
+    ],
+  },
+  {
+    feat: 'Asistente IA · con tu propia clave',
+    cells: [
+      { text: 'el modelo que elijas', ok: true },
+      { text: 'el modelo que elijas', ok: true },
+      { text: 'el modelo que elijas', ok: true },
+    ],
+  },
   { feat: 'Exportación PDF vectorial', cells: [false, true, true] },
   { feat: 'Marca propia en PDFs', cells: [false, true, true] },
   { feat: 'Casos guardados (local)', cells: [true, true, true] },
-  { feat: 'Biblioteca compartida del estudio', cells: [false, false, true] },
-  { feat: 'SSO Google Workspace', cells: [false, false, true] },
   {
     feat: 'Soporte',
-    cells: [{ text: 'comunidad' }, { text: '48h email' }, { text: 'SLA 24h', ok: true }],
+    cells: [{ text: 'comunidad' }, { text: '48 h email', ok: true }, { text: '48 h email', ok: true }],
   },
 ];
 
@@ -104,16 +55,24 @@ const FAQ: [string, string][] = [
     'Porque la normativa se actualiza. Cuando publican una nueva versión del CE o un anejo del CTE, lo implementamos sin que tengas que comprar nada. La suscripción paga ese mantenimiento.',
   ],
   [
+    '¿Qué diferencia hay entre la IA de Pro y la de Estudio?',
+    'La capacidad, no un contador de mensajes. Con la clave incluida el asistente rellena el formulario y te resuelve dudas del módulo. El plan Estudio le pone un modelo que además razona: lee el veredicto del cálculo, te dice qué comprobación gobierna y por qué, y te propone qué cambiar. Nunca vas a ver «te quedan 12 mensajes».',
+  ],
+  [
+    '¿Puedo usar mi propia clave de IA?',
+    'Sí, y no te cobramos nada por ello. Si conectas tu clave de Anthropic, OpenAI o Google, el asistente usa el modelo que tú elijas —incluidos los que razonan— en cualquier plan, también en el Libre. Tu consulta va directa al proveedor: no pasa por ningún servidor nuestro, porque no tenemos ninguno. El plan Estudio existe para quien prefiere no tener que traerla.',
+  ],
+  [
     '¿Mis cálculos y datos están en vuestros servidores?',
-    'No. Concreta es una PWA: todo el cálculo ocurre en tu navegador y los datos viven en localStorage. Los «enlaces compartibles» son estado serializado en la URL — no pasan por nosotros. Sólo guardamos tu email para la facturación.',
+    'No. Concreta es una PWA: todo el cálculo ocurre en tu navegador y los datos viven en localStorage. Los «enlaces compartibles» son estado serializado en la URL — no pasan por nosotros.',
   ],
   [
     '¿Puedo cancelar en cualquier momento?',
-    'Sí, desde tu cuenta. Sin llamadas, sin formularios. Mantienes acceso hasta el final del periodo facturado y después la app vuelve al plan Libre con tus datos intactos.',
+    'Sí. Nos escribes un correo y lo cancelamos: sin llamadas, sin formularios y sin retenerte. Mantienes acceso hasta el final del periodo pagado y después la app vuelve al plan Libre con tus datos intactos.',
   ],
   [
     '¿Hay descuento anual?',
-    'Sí: 10 meses al precio de 12 si pagas el año por adelantado. Aplica a Pro y Studio.',
+    'Sí: 10 meses al precio de 12 si pagas el año por adelantado. Aplica al plan Pro.',
   ],
   [
     '¿Estudiantes y educación?',
@@ -121,7 +80,7 @@ const FAQ: [string, string][] = [
   ],
   [
     '¿Factura con IVA y modelo 130?',
-    'Sí. Facturas mensuales o anuales con NIF, IVA correctamente desglosado y compatibles con tu gestoría española. Disponibles en PDF desde el panel de cuenta.',
+    'Sí. Facturas mensuales o anuales con NIF, IVA correctamente desglosado y compatibles con tu gestoría española. Te las enviamos por email en PDF.',
   ],
 ];
 
@@ -153,12 +112,13 @@ export function Pricing() {
 
       <section className="subpage-hero">
         <div className="container subpage-hero-inner">
-          <div className="subpage-eyebrow">05 · Precio</div>
+          <div className="subpage-eyebrow">{sectionEyebrow('precio')}</div>
           <h1 className="subpage-title">Suscripción mensual. Sin sorpresas.</h1>
           <p className="subpage-lede">
             Concreta es una herramienta diaria — y como tal cobramos por mes, no
-            por proyecto. Sin sobreprecios, sin «contacta con ventas», sin
-            activación manual. Pagas, abres, calculas.
+            por proyecto. Sin sobreprecios y sin «contacta con ventas». El
+            asistente escala por lo que sabe hacer, nunca por un contador de
+            mensajes.
           </p>
         </div>
       </section>
@@ -168,8 +128,9 @@ export function Pricing() {
 
           <div className="pricing-grid">
             {PLANS.map((p) => (
-              <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.name}>
+              <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
                 {p.highlight && <div className="plan-badge mono">RECOMENDADO</div>}
+                {p.soon && <div className="plan-badge plan-badge-soon mono">PRÓXIMAMENTE</div>}
                 <div className="plan-name">{p.name}</div>
                 <div className="plan-blurb">{p.blurb}</div>
                 <div className="plan-price">
@@ -181,6 +142,8 @@ export function Pricing() {
                     <li key={f}><span className="plan-check">✓</span>{f}</li>
                   ))}
                 </ul>
+                {/* A boundary, not a feature — deliberately without a check mark. */}
+                {p.note && <div className="plan-note">{p.note}</div>}
                 <Cta plan={p} />
               </div>
             ))}
@@ -195,7 +158,7 @@ export function Pricing() {
                   <th style={{ width: '50%' }}>Funcionalidad</th>
                   <th>Libre</th>
                   <th>Pro</th>
-                  <th>Studio</th>
+                  <th>Estudio</th>
                 </tr>
               </thead>
               <tbody>

@@ -1,38 +1,15 @@
-// PricingSection.tsx — 3-plan grid teaser on the landing page.
-// The full /pricing page lives at pages/Pricing.tsx.
+// PricingSection.tsx — 3-plan teaser on the landing page.
+// The full /pricing page lives at pages/Pricing.tsx; both read PLANS from
+// landing/constants.ts so the two can no longer contradict each other.
+//
+// Every card here links to /pricing — the teaser is the hook, /pricing is where
+// the decision (and the mailto) happens. That keeps the paid CTAs in one place
+// so they can be counted, and avoids a `mailto:` inside a React Router <Link>,
+// which does not navigate.
 
 import { Link } from 'react-router';
+import { PLANS, sectionEyebrow } from '../../constants';
 import './pricing-section.css';
-
-const PLANS = [
-  {
-    name: 'Libre',
-    price: '0',
-    unit: '€/mes',
-    blurb: 'Para probar antes de comprar.',
-    features: ['Vigas HA y vigas acero', 'Cálculo ilimitado', 'Sin exportación PDF', 'Enlaces compartibles', 'PWA offline'],
-    cta: 'Empezar',
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    price: '19',
-    unit: '€/mes',
-    blurb: 'El estudio de un técnico.',
-    features: ['Todos los módulos', 'Exportación PDF vectorial', 'Marca propia en informes', 'Sin marca de agua', 'Soporte por email · 48h'],
-    cta: 'Suscribirse',
-    highlight: true,
-  },
-  {
-    name: 'Studio',
-    price: '49',
-    unit: '€/mes · 5 técnicos',
-    blurb: 'Para oficinas con 2–5 técnicos.',
-    features: ['Todo lo de Pro', 'Hasta 5 cuentas', 'Biblioteca de casos compartida', 'Plantillas de informe del estudio', 'SLA 24h'],
-    cta: 'Hablar',
-    highlight: false,
-  },
-];
 
 export function PricingSection() {
   return (
@@ -40,20 +17,21 @@ export function PricingSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">07 · Precio</div>
+            <div className="section-eyebrow">{sectionEyebrow('precio')}</div>
             <h2 className="section-title">Una suscripción honesta.</h2>
           </div>
           <p className="section-lede">
             Sin trials que caducan en mal momento. Sin «contacta con ventas».
-            Cancela en un clic.{' '}
+            Cancelas escribiéndonos un correo.{' '}
             <Link to="/pricing" className="link-arrow">Comparativa y FAQ →</Link>
           </p>
         </div>
 
         <div className="plans">
           {PLANS.map((p) => (
-            <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.name}>
+            <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
               {p.highlight && <div className="plan-badge mono">RECOMENDADO</div>}
+              {p.soon && <div className="plan-badge plan-badge-soon mono">PRÓXIMAMENTE</div>}
               <div className="plan-name">{p.name}</div>
               <div className="plan-blurb">{p.blurb}</div>
               <div className="plan-price">
@@ -61,15 +39,17 @@ export function PricingSection() {
                 <span className="plan-price-u">{p.unit}</span>
               </div>
               <ul className="plan-features">
-                {p.features.map((f, i) => (
-                  <li key={i}>
+                {p.teaserFeatures.map((f) => (
+                  <li key={f}>
                     <span className="plan-check">✓</span>
                     {f}
                   </li>
                 ))}
               </ul>
+              {/* A boundary, not a feature — never rendered with a check mark. */}
+              {p.note && <div className="plan-note">{p.note}</div>}
               <Link to="/pricing" className={`btn ${p.highlight ? 'btn-primary' : ''} plan-cta`}>
-                {p.cta} <span className="arr">→</span>
+                {p.teaserCta} <span className="arr">→</span>
               </Link>
             </div>
           ))}

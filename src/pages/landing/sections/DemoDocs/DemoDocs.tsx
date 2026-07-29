@@ -1,5 +1,6 @@
 // DemoDocs.tsx — "Recursos" section: video demo card + docs/blog/changelog stack.
 
+import { sectionEyebrow } from '../../constants';
 import './demo-docs.css';
 
 export function DemoDocsSection() {
@@ -8,7 +9,7 @@ export function DemoDocsSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">06 · Recursos</div>
+            <div className="section-eyebrow">{sectionEyebrow('recursos')}</div>
             <h2 className="section-title">Vídeo y documentación.</h2>
           </div>
           <p className="section-lede">

@@ -3,6 +3,7 @@
 
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
+import { sectionEyebrow } from './landing/constants';
 import './marketing.css';
 import './subpage.css';
 
@@ -38,7 +39,7 @@ const MANIFESTO: { n: string; t: string; d: string }[] = [
   {
     n: '05 / SOBERANÍA',
     t: 'Sin backend, sin cuentas.',
-    d: 'Concreta funciona como PWA local. Tus cálculos viven en tu navegador. Los enlaces compartibles son estado serializado en la URL — no pasan por nuestros servidores. Sólo guardamos tu email para la facturación de la suscripción.',
+    d: 'Concreta funciona como PWA local. Tus cálculos viven en tu navegador. Los enlaces compartibles son estado serializado en la URL — no pasan por nuestros servidores. Cuando usas el asistente, tu consulta va directa al proveedor del modelo: tampoco pasa por un servidor nuestro, porque no tenemos ninguno.',
   },
 ];
 
@@ -80,7 +81,7 @@ export function About() {
 
       <section className="subpage-hero">
         <div className="container subpage-hero-inner">
-          <div className="subpage-eyebrow">09 · Sobre Concreta</div>
+          <div className="subpage-eyebrow">{sectionEyebrow('quien', 'Sobre Concreta')}</div>
           <h1 className="subpage-title">Una mesa de trabajo. No un dashboard.</h1>
           <p className="subpage-lede">
             Concreta es la herramienta que llevaba años queriendo tener encima

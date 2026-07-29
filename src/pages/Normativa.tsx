@@ -5,6 +5,7 @@
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import { NORM_BLOCKS, MODULE_DOCS, NORM_LEGEND } from './landing/normativaData';
+import { sectionEyebrow } from './landing/constants';
 import './marketing.css';
 import './subpage.css';
 
@@ -21,7 +22,7 @@ export function Normativa() {
 
       <section className="subpage-hero">
         <div className="container subpage-hero-inner">
-          <div className="subpage-eyebrow">04 · Normativa</div>
+          <div className="subpage-eyebrow">{sectionEyebrow('normativa')}</div>
           <h1 className="subpage-title">Norma española, artículo a artículo.</h1>
           <p className="subpage-lede">
             Cada comprobación de Concreta cita el artículo del Código Estructural

@@ -12,8 +12,10 @@ interface NavLink {
   to: string;
 }
 
+// Order mirrors SECTION_ORDER on the landing — Módulos, then Asistente.
 const NAV_LINKS: NavLink[] = [
   { label: 'Módulos', to: '/#modulos' },
+  { label: 'Asistente', to: '/#asistente' },
   { label: 'Filosofía', to: '/#filosofia' },
   { label: 'Normativa', to: '/normativa' },
   { label: 'Precio', to: '/pricing' },
@@ -57,8 +59,10 @@ export function LandingNav() {
         <div className="nav-right">
           <ThemeToggle />
           <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
+          {/* "Ver precios", not "Suscribirse": it opens a price table, and no
+              button on this site should promise more than its destination does. */}
           <Link to="/pricing" className="btn btn-primary">
-            Suscribirse <span className="arr">→</span>
+            Ver precios <span className="arr">→</span>
           </Link>
         </div>
         <button

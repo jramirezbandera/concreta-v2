@@ -99,6 +99,21 @@
     color: var(--accent);
     flex: 0 0 14px;
   }
+  /* A boundary, not a feature. Deliberately has no check mark: the old copy
+     rendered "✓ Sin exportación PDF", a tick in front of a negation. */
+  .plan-note {
+    font-size: 12px;
+    color: var(--text-disabled);
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-sub);
+  }
+  /* Announced, not purchasable — muted so it never reads as a recommendation. */
+  .plan-badge-soon {
+    background: transparent;
+    color: var(--text-disabled);
+    border: 1px dashed var(--border-main);
+    padding: 2px 7px;
+  }
   .plan-cta {
     margin-top: 4px;
     justify-content: center;

@@ -9,19 +9,20 @@ export function ClosingCTA() {
     <section className="section closing">
       <div className="container">
         <div className="closing-card dot-grid">
-          <div className="closing-eyebrow mono">/ SUSCRÍBETE AHORA</div>
+          <div className="closing-eyebrow mono">/ EMPIEZA AHORA</div>
           <h2 className="closing-title">
             Tu próxima viga, pilar o zapata, en cinco minutos.
           </h2>
           <p className="closing-sub">
-            Suscripción Pro a 19 €/mes. Plan Libre con módulos básicos sin
-            tarjeta de crédito. Cancela cuando quieras.
+            El plan Libre trae vigas de hormigón, vigas de acero, pórticos 2D y
+            el asistente, sin tarjeta de crédito. El PDF del anejo va en Pro,
+            a 19 €/mes.
           </p>
           <div className="closing-cta">
-            <Link to="/pricing" className="btn btn-primary btn-lg">
-              Suscribirse <span className="arr">→</span>
+            <Link to={APP_ROUTE} className="btn btn-primary btn-lg">
+              Abrir Concreta <span className="arr">→</span>
             </Link>
-            <Link to={APP_ROUTE} className="btn btn-lg">Abrir Concreta</Link>
+            <Link to="/pricing" className="btn btn-lg">Ver precios</Link>
           </div>
         </div>
       </div>

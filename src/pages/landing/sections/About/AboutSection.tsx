@@ -2,6 +2,7 @@
 // The full /about page lives at pages/About.tsx.
 
 import { Link } from 'react-router';
+import { sectionEyebrow } from '../../constants';
 import './about-section.css';
 
 export function AboutSection() {
@@ -10,7 +11,7 @@ export function AboutSection() {
       <div className="container">
         <div className="about-wrap">
           <div className="about-copy">
-            <div className="section-eyebrow">09 · Quién</div>
+            <div className="section-eyebrow">{sectionEyebrow('quien')}</div>
             <h2 className="section-title">Hecho por un arquitecto calculista.</h2>
             <p className="about-text">
               Concreta la escribe Javier Ramírez Bandera. Arquitecto,

@@ -1,6 +1,7 @@
 // Output.tsx — "Exportar y compartir" section (PDF card + share-link demo).
 
 import { useState } from 'react';
+import { sectionEyebrow } from '../../constants';
 import './output.css';
 
 function ShareLinkPreview() {
@@ -68,7 +69,7 @@ export function OutputSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">03 · Exportar y compartir</div>
+            <div className="section-eyebrow">{sectionEyebrow('exportar')}</div>
             <h2 className="section-title">Defendible ante visado. Compartible en un enlace.</h2>
           </div>
           <p className="section-lede">

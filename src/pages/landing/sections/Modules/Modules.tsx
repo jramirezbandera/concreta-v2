@@ -2,6 +2,7 @@
 
 import { Link } from 'react-router';
 import { MODULE_LIBRARY, type ModuleEntry } from '../../modules';
+import { sectionEyebrow } from '../../constants';
 import './modules.css';
 
 function ModuleCard({ m }: { m: ModuleEntry }) {
@@ -32,7 +33,7 @@ export function ModulesSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">02 · Módulos</div>
+            <div className="section-eyebrow">{sectionEyebrow('modulos')}</div>
             <h2 className="section-title">Todos los módulos implementados.</h2>
           </div>
           <p className="section-lede">

@@ -1,5 +1,6 @@
 // Philosophy.tsx — five product principles + competitor comparison table.
 
+import { sectionEyebrow } from '../../constants';
 import './philosophy.css';
 
 const PRINCIPLES = [
@@ -7,12 +8,25 @@ const PRINCIPLES = [
   { n: '02', t: 'Claridad antes que densidad', d: 'Explicamos sin abrumar. Un valor, su unidad, su artículo.' },
   { n: '03', t: 'Visual antes que textual', d: 'El SVG es el protagonista. La sección, el perfil, la deformada. En vivo.' },
   { n: '04', t: 'Rigor sin opacidad', d: 'Cada comprobación cita el artículo. El detalle siempre está a un clic.' },
-  { n: '05', t: 'Sin backend, sin cuentas', d: 'PWA local. Tus cálculos viven en tu navegador. Tus datos son tuyos.' },
+  // Principle 05 has to cover the assistant now. Left as it was ("tus datos
+  // son tuyos", full stop) it would be misleading — something DOES leave the
+  // browser when you use the AI: the prompt and the sketch go to the model
+  // provider. Deleting it would throw away the strongest privacy argument in
+  // the product. So it says the true, and stronger, thing: the request goes
+  // straight to the provider because there is no server of ours in between.
+  {
+    n: '05',
+    t: 'Sin backend, sin cuentas',
+    d: 'PWA local. Tus cálculos viven en tu navegador. Cuando usas el asistente, tu consulta va directa al proveedor del modelo — nunca pasa por un servidor nuestro, porque no tenemos ninguno.',
+  },
 ];
 
 const COMPARE_ROWS: [string, boolean, boolean, boolean, boolean][] = [
   ['Norma española primero (CE, CTE)', true, false, false, false],
   ['Artículo CE/CTE visible por check', true, false, false, false],
+  // One AI row, not three. The assistant is a differentiator worth naming, but
+  // three rows out of ten turned this table into an AI pitch (2026-07-27).
+  ['Asistente que rellena y explica el cálculo', true, false, false, false],
   ['PWA sin cuenta, sin backend', true, false, false, false],
   ['Enlaces compartibles del cálculo', true, false, false, true],
   ['Sin licencia anual cuatro cifras', true, false, true, true],
@@ -26,7 +40,7 @@ export function PhilosophySection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">04 · Filosofía</div>
+            <div className="section-eyebrow">{sectionEyebrow('filosofia')}</div>
             <h2 className="section-title">
               Un instrumento de precisión.<br />No un SaaS más.
             </h2>

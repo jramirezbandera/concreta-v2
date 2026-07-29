@@ -13,7 +13,7 @@ export const BASE_URL = 'https://concreta.app';
 export const routeMeta: Record<string, RouteMeta> = {
   '/': {
     title: 'Concreta — Cálculo estructural para el día a día',
-    description: 'Herramienta web de cálculo estructural para arquitectos e ingenieros. Normativa española (CE, CTE). PWA local, sin backend, sin cuentas.',
+    description: 'Cálculo estructural con norma española (CE, CTE) para arquitectos e ingenieros. Su asistente lee tu croquis y te lo deja modelado. PWA local, sin cuentas.',
   },
   '/normativa': {
     title: 'Normativa — Concreta',
@@ -25,7 +25,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/pricing': {
     title: 'Precio — Concreta',
-    description: 'Suscripción mensual a Concreta: plan Libre, Pro (19 €/mes) y Studio. Sin sorpresas, sin «contacta con ventas». Comparativa completa y preguntas frecuentes.',
+    description: 'Suscripción mensual a Concreta: Libre, Pro (19 €/mes) y Estudio. El asistente escala por lo que sabe hacer, nunca por un contador de mensajes.',
   },
   '/blog': {
     title: 'Blog — Concreta',

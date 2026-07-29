@@ -26,6 +26,31 @@
     .principle:nth-child(2n) {
       border-right: none;
     }
+    .beats {
+      grid-template-columns: 1fr;
+    }
+    /* Two columns at 390 px squeezes the caption into a narrow gutter next to
+       the link. Stack them. */
+    .ai-figure-cap {
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ai-figure-frame {
+      padding: 14px;
+    }
+    .beat {
+      border-right: none;
+      border-bottom: 1px solid var(--border-sub);
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .beat:last-child {
+      border-bottom: none;
+    }
+    .ai-trust {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
     .philo-compare-intro {
       grid-template-columns: 1fr;
       gap: 16px;
