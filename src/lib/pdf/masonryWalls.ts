@@ -55,6 +55,7 @@ import {
   embedSvgAsImage,
   inputsFingerprint,
   titledFilename,
+  truncateToWidth,
   FOOTER_RESERVE,
   type TableCol,
   type PdfResult,
@@ -473,19 +474,31 @@ function drawDataPartida(
     doc.setFontSize(9);
     setGray(doc, 50);
     doc.text(label, M, y);
-    y += 5;
+    // La regla es el SUBRAYADO del título: 2 mm bajo su línea base (1,3 mm
+    // libres bajo el descendente) y 3 mm por encima de la mayúscula de la
+    // primera fila. Antes se pintaba a y+3 con la fila a y+5: a 8 pt la
+    // mayúscula sube 2,03 mm, así que la regla nacía EXACTAMENTE en el techo de
+    // las letras y se leía pegada a la fila en vez de al título.
     setGray(doc, 200);
     doc.setLineWidth(0.2);
-    doc.line(M, y - 2, PAGE_W - M, y - 2);
+    doc.line(M, y + 2, PAGE_W - M, y + 2);
+    y += 7;
   };
-  const kv = (k: string, v: string, col = 0) => {
+  const kv = (k: string, v: string, col = 0, wide = false) => {
     const x = M + col * 90;
+    const valX = x + 35;
+    // Ancho útil del valor: hasta la columna siguiente, o hasta el margen en las
+    // filas `wide`. Se MIDE y se trunca. Sin esto, la referencia del modo Anejo C
+    // («Anejo C eq. C.1 · Una hoja · piezas macizas (grueso = tizón/soga)», 82 mm
+    // a 8 pt) acababa en 225 mm: 33 mm fuera del margen y RECORTADA por el borde
+    // del papel. Ninguna fixture de layout cubría ese modo (ver pdfCases).
+    const rightX = wide ? PAGE_W - M : Math.min(x + 90, PAGE_W - M);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     setGray(doc, 120);
     doc.text(pdfStr(k), x, y);
     setGray(doc, 30);
-    doc.text(pdfStr(v), x + 35, y);
+    doc.text(truncateToWidth(doc, pdfStr(v), rightX - valX), valX, y);
   };
 
   sectionTitle('1. Geometria global');
@@ -496,13 +509,50 @@ function drawDataPartida(
   y += 6;
 
   sectionTitle('2. Fabrica (DB-SE-F §4.6)');
+  // El modo Anejo C deriva fk de (tipo de muro, fb, fm) vía eq. C.1. Esos tres
+  // inputs son los que hacen el fk re-derivable: sin ellos el documento
+  // publicaba SOLO el fk global y nadie podía re-calcularlo. Van aquí además de
+  // en la página de trazabilidad — la página de datos de partida es la que se
+  // lee para saber qué se introdujo.
+  const esAnejoC = fab.modo === 'custom' && state.customMethod === 'anejoC';
+  const anejoC = esAnejoC
+    ? calcFkAnejoC(state.anejoC_tipoMuro, state.anejoC_fb, state.anejoC_fm)
+    : null;
   kv('Modo', fab.label, 0);
-  kv('Referencia', fab.ref, 1);
+  // `fab.ref` arrastra el tipo de muro completo en Anejo C: en la columna
+  // derecha no cabe. Aquí queda la subcláusula y el tipo baja a su propia fila
+  // a ancho completo, donde se lee entero sin truncar.
+  kv('Referencia', esAnejoC ? 'Anejo C eq. C.1' : fab.ref, 1);
   y += 4;
+  if (esAnejoC && anejoC) {
+    kv('Tipo de muro', `${TIPO_MURO_LABELS[state.anejoC_tipoMuro]}  ·  K = ${anejoC.K.toFixed(2)}`, 0, true);
+    y += 4;
+  }
   if (fab.modo === 'tabla') {
+    // Sin formatQuantity a propósito: en Tabla 4.4 fb y fm son GRADOS discretos
+    // de un desplegable, y la UI los rotula siempre en N/mm² (`${v} N/mm²`).
+    // Convertirlos a kg/cm² aquí haría que el PDF no dijera lo mismo que la
+    // pantalla. En Anejo C sí son NumField quantity="stress" → sí se convierten.
     kv('fb (pieza)', `${state.fb} N/mm2`, 0);
     kv('fm (mortero)', `${state.fm} N/mm2`, 1);
     y += 4;
+  } else if (esAnejoC && anejoC) {
+    kv('fb (pieza)', pdfStr(formatQuantity(state.anejoC_fb, 'stress', system)), 0);
+    kv('fm (mortero)', pdfStr(formatQuantity(anejoC.fmInput, 'stress', system)), 1);
+    y += 4;
+    if (anejoC.capped) {
+      // fm introducido > min(20; 0,75·fb): el fk de la fila siguiente NO se
+      // re-deriva con el fm introducido, sino con el acotado. Publicar el
+      // aplicado es lo que mantiene el documento auditable.
+      doc.setFontSize(6.5);
+      setGray(doc, 140);
+      doc.text(
+        pdfStr(`  fm aplicado en calculo: ${formatQuantity(anejoC.fmApplied, 'stress', system)}  ·  nota eq. C.1: min(20; 0,75·fb)`),
+        M,
+        y,
+      );
+      y += 4;
+    }
   }
   if (fab.fk != null) {
     kv('fk (caracteristica)', pdfStr(formatQuantity(fab.fk, 'stress', system)), 0);

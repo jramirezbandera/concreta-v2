@@ -192,6 +192,38 @@ export const PDF_CASES: PdfCase[] = [
   },
   {
     m: 18,
+    // Muros de fábrica en modo Personalizada · Anejo C eq. C.1 — la rama que
+    // NINGUNA fixture cubría, y por eso nadie vio que la referencia del motor
+    // («Anejo C eq. C.1 · Una hoja · piezas macizas (grueso = tizón/soga)»,
+    // 82 mm) se pintaba en una columna de 49 mm y se salía de la página. Añade
+    // también la página condicional de trazabilidad fk y las filas fb/fm.
+    // fm=25 fuerza el cap de la nota C.1 → mide la línea del fm aplicado.
+    name: 'masonry-walls (anejo C, fm capped)',
+    stressable: false,
+    run: () => {
+      const state = {
+        ...defaultMasonryState(),
+        fabricaModo: 'custom' as const,
+        customMethod: 'anejoC' as const,
+        anejoC_tipoMuro: 'una_hoja_macizo' as const,
+        anejoC_fb: 10,
+        anejoC_fm: 25,
+        gamma_custom: 18,
+      };
+      const r = calcularEdificio(state) as any;
+      return exportMasonryWallsPDF({
+        state,
+        plantasCalc: r.plantas,
+        critico: getCriticoEdificio(r.plantas),
+        overall: overallStatus(r.plantas),
+        invalid: null,
+        system: 'si',
+        title: T,
+      } as any);
+    },
+  },
+  {
+    m: 18,
     name: 'fem-analysis',
     // El estado va en `perBar` (resumen) y en `perBar[].checks` (por barra), no
     // en `result.checks`: se fuerza a mano en AMBOS sitios.
