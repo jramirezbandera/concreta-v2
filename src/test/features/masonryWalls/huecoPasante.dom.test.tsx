@@ -52,7 +52,7 @@ function Harness({ initial, onState, onAddHueco }: {
         selectedPlantaIdx={0} selectedHueco={state.plantas[0].huecos[0]?.id ?? null}
         setSelectedHueco={noop} setSelectedPlantaIdx={noop}
         plantasCalc={plantasCalc}
-        onAddPlanta={noop} onRemovePlanta={noop}
+        onAddPlanta={noop} onDuplicatePlanta={noop} onRemovePlanta={noop}
         onAddHueco={onAddHueco ?? noop} onRemoveHueco={noop}
         onAddPuntual={noop} onRemovePuntual={noop}
       />

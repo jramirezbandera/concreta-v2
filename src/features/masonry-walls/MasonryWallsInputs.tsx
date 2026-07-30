@@ -8,6 +8,7 @@
 // readouts de una línea (ReadoutRow) y cajas de valores derivados.
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { Copy } from 'lucide-react';
 import { WARN_UTIL } from '../../lib/calculations/types';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
@@ -561,6 +562,7 @@ interface Props {
   setSelectedPlantaIdx: (i: number) => void;
   plantasCalc: PlantaResult[];
   onAddPlanta: () => void;
+  onDuplicatePlanta: (i: number) => void;
   onRemovePlanta: (i: number) => void;
   onAddHueco: (plIdx: number, tipo: HuecoTipo) => void;
   onRemoveHueco: (plIdx: number, id: string) => void;
@@ -573,7 +575,7 @@ export function MasonryWallsInputs({
   selectedPlantaIdx, selectedHueco,
   setSelectedHueco, setSelectedPlantaIdx,
   plantasCalc,
-  onAddPlanta, onRemovePlanta,
+  onAddPlanta, onDuplicatePlanta, onRemovePlanta,
   onAddHueco, onRemoveHueco,
   onAddPuntual, onRemovePuntual,
 }: Props) {
@@ -855,6 +857,24 @@ export function MasonryWallsInputs({
         >
           + Añadir planta
         </button>
+        {/* Duplicar: la planta nueva de arriba nace vacía; esta copia los datos
+            de la planta SELECCIONADA (cargas, apoyo, altura y huecos). Se
+            nombra la planta origen en la propia etiqueta para que no haya duda
+            de qué se va a copiar — el botón actúa sobre la selección, no sobre
+            una fila concreta de la lista. Botón completo en lugar de un icono
+            por fila: la lista de plantas es estrecha y ya lleva la utilización
+            y la papelera. */}
+        {plantaSel && (
+          <button
+            type="button"
+            onClick={() => onDuplicatePlanta(selectedPlantaIdx)}
+            title={`Crea una planta nueva con los mismos datos que ${plantaSel.nombre} (cargas, geometría, apoyo, huecos y cargas puntuales) y la inserta justo encima`}
+            className="w-full mt-1.5 text-[11px] font-mono py-1.5 px-2 rounded border border-dashed border-border-main text-text-disabled hover:border-accent hover:text-accent cursor-pointer transition-colors flex items-center justify-center gap-1.5 min-w-0"
+          >
+            <Copy size={12} aria-hidden="true" className="shrink-0" />
+            <span className="truncate">Duplicar {plantaSel.nombre}</span>
+          </button>
+        )}
       </CollapsibleSection>
 
       {plantaSel && (

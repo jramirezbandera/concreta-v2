@@ -17,11 +17,12 @@ import {
   calcularEdificio,
   defaultMasonryState,
   getCriticoEdificio,
+  insertPlantaDuplicada,
+  insertPlantaVacia,
   isBlankMasonryState,
   newId,
   normalizeMasonryState,
   overallStatus,
-  plantaTemplate,
   renumberPlantas,
   type EdificioInvalid,
   type Hueco,
@@ -286,25 +287,45 @@ export function MasonryWallsModule() {
   };
 
   // CRUD
+  //
+  // Toda planta nueva nace VACÍA (`emptyPlanta`): sin huecos ni cargas
+  // puntuales. Antes se usaba `plantaTemplate`, que amuebla la planta con los
+  // huecos del edificio de ejemplo — y como su rama "vacía" es la de cubierta,
+  // la 1ª y la 2ª planta salían limpias pero la 3ª y siguientes aparecían con
+  // tres ventanas que el usuario no había dibujado.
   const addPlanta = () => {
-    setState((s) => {
-      // N=1: la planta existente queda como "Planta 1" abajo, y la nueva
-      // (vacía, sin huecos ni puntuales) se añade encima como "Cubierta".
-      // N>=2: se inserta una nueva planta intermedia justo debajo de la
-      // cubierta — la cubierta mantiene su identidad y sus cargas; el
-      // renombrado lo aplica renumberPlantas tras la inserción.
-      if (s.plantas.length === 0) {
-        return { ...s, plantas: renumberPlantas([plantaTemplate(0, false)]) };
-      }
-      if (s.plantas.length === 1) {
-        const nueva = plantaTemplate(1, true);
-        return { ...s, plantas: renumberPlantas([...s.plantas, nueva]) };
-      }
-      const cubIdx = s.plantas.length - 1;
-      const nueva = plantaTemplate(cubIdx, false);
-      const plantas = [...s.plantas.slice(0, cubIdx), nueva, ...s.plantas.slice(cubIdx)];
-      return { ...s, plantas: renumberPlantas(plantas) };
-    });
+    setState((s) => ({ ...s, plantas: insertPlantaVacia(s.plantas) }));
+  };
+
+  // Duplica una planta con TODOS sus datos (H, cargas del forjado, apoyo,
+  // ρ_n, huecos y cargas puntuales) e inserta la copia justo ENCIMA de la
+  // original. Insertar encima mantiene los dos invariantes del módulo: idx=0
+  // sigue siendo la planta apoyada en la cimentación y la topmost sigue siendo
+  // la cubierta (si se duplica la propia cubierta, la copia pasa a ser la
+  // topmost — pero al ser idéntica el edificio no cambia de forma).
+  //
+  // La copia queda SELECCIONADA: duplicar es el primer paso de "otra planta
+  // como esta, pero con un cambio", así que el panel de edición se abre ya
+  // sobre ella. Los selectores de hueco/machón apuntaban a la planta anterior
+  // y se limpian.
+  const duplicatePlanta = (idx: number) => {
+    const src = state.plantas[idx];
+    if (!src) return;
+    setState((s) => ({ ...s, plantas: insertPlantaDuplicada(s.plantas, idx) }));
+    setSelectedPlantaIdx(idx + 1);
+    setSelectedHueco(null);
+    setSelectedMachonKey(null);
+    // El nombre de la copia lo decide renumberPlantas por posición, así que el
+    // toast habla del ORIGEN (que sí conocemos) y avisa de que la selección ya
+    // es la copia — mismo patrón que "Copiar" en el editor del FEM 2D.
+    const nH = src.huecos.length;
+    const nP = src.puntuales.length;
+    showToast(
+      `Planta duplicada a partir de ${src.nombre}`
+      + ` — ${nH} hueco${nH === 1 ? '' : 's'} y ${nP} carga${nP === 1 ? '' : 's'} puntual${nP === 1 ? '' : 'es'};`
+      + ' la copia queda seleccionada.',
+      { autoDismiss: 4000 },
+    );
   };
 
   const removePlanta = (idx: number) => {
@@ -407,6 +428,7 @@ export function MasonryWallsModule() {
               setSelectedPlantaIdx={setSelectedPlantaIdx}
               plantasCalc={plantasCalc}
               onAddPlanta={addPlanta}
+              onDuplicatePlanta={duplicatePlanta}
               onRemovePlanta={removePlanta}
               onAddHueco={addHueco}
               onRemoveHueco={removeHueco}

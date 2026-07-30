@@ -1609,7 +1609,17 @@ function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function plantaTemplate(idx: number, esCubierta = false): Planta {
+/**
+ * Planta VACÍA: geometría y cargas por defecto, SIN huecos ni cargas puntuales.
+ *
+ * Es la que usa el botón "+ Añadir planta" de la UI: una planta recién creada
+ * no debe traer huecos que el usuario no ha dibujado (antes la 3ª planta y
+ * siguientes nacían con tres ventanas de la plantilla del edificio de ejemplo).
+ * `plantaTemplate` es distinta A PROPÓSITO — amuebla la planta con huecos y
+ * puntuales de muestra porque solo la consume `defaultMasonryState` (el caso
+ * de ejemplo del aviso del lienzo) y los tests.
+ */
+export function emptyPlanta(idx: number, esCubierta = false): Planta {
   return {
     id: uid('pl'),
     // Convención: planta inferior (idx=0) = "Planta 1" (la cimentación, suelo,
@@ -1629,6 +1639,38 @@ export function plantaTemplate(idx: number, esCubierta = false): Planta {
     // a=120 derivaba 80 mm y un machón se iba a 104%).
     e_apoyo: 0,
     a_apoyo: 180,
+    huecos: [],
+    puntuales: [],
+  };
+}
+
+/**
+ * Copia de una planta con ids NUEVOS (planta, huecos y puntuales). La usa el
+ * botón "Duplicar planta": el usuario quiere otra planta con las mismas cargas,
+ * geometría y huecos que la seleccionada.
+ *
+ * Los ids son las claves de selección de la UI (`selectedHueco`) y las `key` de
+ * React: reutilizarlos haría que el original y la copia se seleccionaran —y se
+ * editaran— a la vez. `nombre` se deja como venga: `renumberPlantas` lo
+ * reescribe según la posición final en el array.
+ */
+export function clonePlanta(p: Planta): Planta {
+  return {
+    ...p,
+    id: uid('pl'),
+    huecos: p.huecos.map((h) => ({ ...h, id: uid('h') })),
+    puntuales: p.puntuales.map((q) => ({ ...q, id: uid('p') })),
+  };
+}
+
+/**
+ * Planta de MUESTRA — amueblada con huecos y cargas puntuales de ejemplo.
+ * Solo para `defaultMasonryState` (el "caso de ejemplo") y los tests. Para una
+ * planta nueva creada por el usuario, usar `emptyPlanta`.
+ */
+export function plantaTemplate(idx: number, esCubierta = false): Planta {
+  return {
+    ...emptyPlanta(idx, esCubierta),
     huecos: idx === 0
       ? [
           { id: uid('h'), x: 800,  y: 1900, w: 900,  h: 1100, tipo: 'ventana' },
@@ -1683,6 +1725,50 @@ export function renumberPlantas(plantas: Planta[]): Planta[] {
 }
 
 /**
+ * Añade una planta VACÍA al edificio y devuelve el array ya renumerado.
+ *
+ * Reglas de posición (invariantes del módulo):
+ *   - N=0: nace la planta base.
+ *   - N=1: la nueva se apila ENCIMA y pasa a ser la cubierta (cargas de
+ *     cubierta), la existente se queda como "Planta 1".
+ *   - N>=2: la nueva se inserta justo DEBAJO de la cubierta, que conserva su
+ *     identidad y sus cargas.
+ *
+ * Vive en el motor —y no en el componente— porque aquí es testable: el bug de
+ * "la 3ª planta y siguientes nacían con tres ventanas" estaba en el orquestador,
+ * donde ningún test podía verlo.
+ */
+export function insertPlantaVacia(plantas: Planta[]): Planta[] {
+  if (plantas.length === 0) return renumberPlantas([emptyPlanta(0, false)]);
+  if (plantas.length === 1) return renumberPlantas([...plantas, emptyPlanta(1, true)]);
+  const cubIdx = plantas.length - 1;
+  return renumberPlantas([
+    ...plantas.slice(0, cubIdx),
+    emptyPlanta(cubIdx, false),
+    ...plantas.slice(cubIdx),
+  ]);
+}
+
+/**
+ * Duplica la planta `idx` con todos sus datos e inserta la copia justo ENCIMA
+ * de ella. Devuelve el array renumerado, o el MISMO array si `idx` no existe.
+ *
+ * Insertar encima mantiene los dos invariantes: idx=0 sigue siendo la planta
+ * apoyada en la cimentación, y la topmost sigue siendo la cubierta (al duplicar
+ * la propia cubierta la copia pasa a ser topmost, pero es idéntica al original,
+ * así que el edificio no cambia de forma).
+ */
+export function insertPlantaDuplicada(plantas: Planta[], idx: number): Planta[] {
+  const src = plantas[idx];
+  if (!src) return plantas;
+  return renumberPlantas([
+    ...plantas.slice(0, idx + 1),
+    clonePlanta(src),
+    ...plantas.slice(idx + 1),
+  ]);
+}
+
+/**
  * Estado mínimo del módulo: una sola planta sin huecos ni puntuales sobre la
  * cimentación. Sustituye al edificio de 4 plantas como punto de partida cuando
  * el usuario abre el módulo por primera vez — el "edificio de ejemplo" se
@@ -1690,18 +1776,9 @@ export function renumberPlantas(plantas: Planta[]): Planta[] {
  */
 export function blankMasonryState(): MasonryWallState {
   const base = defaultMasonryState();
-  const planta: Planta = {
-    id: uid('pl'),
-    nombre: 'Planta 1',
-    H: 3000,
-    q_G: 8,
-    q_Q: 3,
-    e_apoyo: 0, // centinela "auto" → t/2 − a/3, como plantaTemplate
-    a_apoyo: 180,
-    huecos: [],
-    puntuales: [],
-  };
-  return { ...base, plantas: [planta] };
+  // Misma planta que produce "+ Añadir planta" — una sola fuente para la forma
+  // de una planta vacía (antes estaba escrita dos veces y podía divergir).
+  return { ...base, plantas: [emptyPlanta(0, false)] };
 }
 
 /**

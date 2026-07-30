@@ -10,10 +10,12 @@ import {
   betaConcentracion,
   blankMasonryState,
   calcularEdificio,
+  clonePlanta,
   defaultMasonryState,
   detectarHuecosSolapados,
   eApoyoForjado,
   eMin,
+  emptyPlanta,
   fbPatch,
   fbValidosPara,
   findGammaMCell,
@@ -24,6 +26,8 @@ import {
   getCriticoEdificio,
   getMachonesPlanta,
   huecoGeom,
+  insertPlantaDuplicada,
+  insertPlantaVacia,
   isBlankMasonryState,
   lookupFk,
   lookupGammaM,
@@ -1181,6 +1185,126 @@ describe('defaults & utilities', () => {
     expect(plantaTemplate(0, false).nombre).toBe('Planta 1');
     expect(plantaTemplate(1, false).nombre).toBe('Planta 2');
     expect(plantaTemplate(2, false).nombre).toBe('Planta 3');
+  });
+
+  it('emptyPlanta nunca trae huecos ni cargas puntuales', () => {
+    // Regresión del bug reportado: `plantaTemplate` amuebla la planta con los
+    // huecos del caso de ejemplo, y su ÚNICA rama vacía es la de cubierta. La
+    // UI la usaba para "+ Añadir planta", así que la 3ª planta y siguientes
+    // (idx>0, esCubierta=false) nacían con tres ventanas inventadas.
+    for (const idx of [0, 1, 2, 5]) {
+      for (const esCubierta of [false, true]) {
+        const p = emptyPlanta(idx, esCubierta);
+        expect(p.huecos).toEqual([]);
+        expect(p.puntuales).toEqual([]);
+      }
+    }
+    expect(emptyPlanta(0, false).nombre).toBe('Planta 1');
+    expect(emptyPlanta(2, false).nombre).toBe('Planta 3');
+    expect(emptyPlanta(3, true).nombre).toBe('Cubierta');
+  });
+
+  it('insertPlantaVacia: TODA planta añadida sale sin huecos (incluida la 3ª+)', () => {
+    // Simula la secuencia real de clicks en "+ Añadir planta" desde el estado
+    // en blanco. Antes: 1ª y 2ª limpias, 3ª en adelante con 3 ventanas.
+    let plantas = blankMasonryState().plantas;
+    for (let n = 0; n < 5; n++) {
+      const antes = plantas;
+      plantas = insertPlantaVacia(plantas);
+      expect(plantas).toHaveLength(antes.length + 1);
+      // La planta NUEVA es la única cuyo id no estaba antes.
+      const previos = new Set(antes.map((p) => p.id));
+      const nuevas = plantas.filter((p) => !previos.has(p.id));
+      expect(nuevas).toHaveLength(1);
+      expect(nuevas[0].huecos).toEqual([]);
+      expect(nuevas[0].puntuales).toEqual([]);
+    }
+    // Y el edificio entero sigue sin un solo hueco: nada se ha inventado.
+    expect(plantas.flatMap((p) => p.huecos)).toEqual([]);
+    expect(plantas.map((p) => p.nombre)).toEqual([
+      'Planta 1', 'Planta 2', 'Planta 3', 'Planta 4', 'Planta 5', 'Cubierta',
+    ]);
+  });
+
+  it('insertPlantaVacia: la nueva va debajo de la cubierta (N>=2) y encima con N=1', () => {
+    const base = blankMasonryState().plantas;      // N=1
+    const dos = insertPlantaVacia(base);            // la nueva es la cubierta
+    expect(dos[0].id).toBe(base[0].id);             // la existente sigue abajo
+    expect(dos[1].nombre).toBe('Cubierta');
+    expect(dos[1].q_G).toBe(5);                     // cargas de cubierta
+
+    const cubId = dos[1].id;
+    const tres = insertPlantaVacia(dos);            // intermedia, cubierta intacta
+    expect(tres[0].id).toBe(dos[0].id);
+    expect(tres[2].id).toBe(cubId);                 // la cubierta conserva identidad
+    expect(tres[1].nombre).toBe('Planta 2');
+    expect(tres[1].q_G).toBe(8);                    // cargas de planta, no de cubierta
+  });
+
+  it('clonePlanta copia los datos y renueva TODOS los ids', () => {
+    const src = plantaTemplate(0, false);           // 3 huecos + 2 puntuales
+    const copia = clonePlanta(src);
+    // Datos idénticos…
+    expect(copia.H).toBe(src.H);
+    expect(copia.q_G).toBe(src.q_G);
+    expect(copia.q_Q).toBe(src.q_Q);
+    expect(copia.e_apoyo).toBe(src.e_apoyo);
+    expect(copia.a_apoyo).toBe(src.a_apoyo);
+    expect(copia.huecos.map(({ id: _id, ...h }) => h))
+      .toEqual(src.huecos.map(({ id: _id, ...h }) => h));
+    expect(copia.puntuales.map(({ id: _id, ...q }) => q))
+      .toEqual(src.puntuales.map(({ id: _id, ...q }) => q));
+    // …e ids todos nuevos: los ids son las claves de selección de la UI y las
+    // `key` de React; reutilizarlos editaría original y copia a la vez.
+    expect(copia.id).not.toBe(src.id);
+    const idsSrc = new Set([src.id, ...src.huecos.map((h) => h.id), ...src.puntuales.map((q) => q.id)]);
+    for (const id of [copia.id, ...copia.huecos.map((h) => h.id), ...copia.puntuales.map((q) => q.id)]) {
+      expect(idsSrc.has(id)).toBe(false);
+    }
+    // Copia PROFUNDA: mutar la copia no toca el original.
+    copia.huecos[0].w = 12345;
+    expect(src.huecos[0].w).not.toBe(12345);
+  });
+
+  it('insertPlantaDuplicada inserta la copia justo encima del origen', () => {
+    const plantas = defaultMasonryState().plantas;  // [P1, P2, P3, Cubierta]
+    const out = insertPlantaDuplicada(plantas, 0);
+    expect(out).toHaveLength(5);
+    expect(out.map((p) => p.nombre)).toEqual([
+      'Planta 1', 'Planta 2', 'Planta 3', 'Planta 4', 'Cubierta',
+    ]);
+    // idx 0 sigue siendo el original (invariante: la planta apoyada en la
+    // cimentación no se desplaza) y idx 1 es su copia.
+    expect(out[0].id).toBe(plantas[0].id);
+    expect(out[1].id).not.toBe(plantas[0].id);
+    expect(out[1].huecos).toHaveLength(plantas[0].huecos.length);
+    expect(out[1].puntuales).toHaveLength(plantas[0].puntuales.length);
+    expect(out[1].q_G).toBe(plantas[0].q_G);
+    // El resto del edificio se conserva en orden.
+    expect(out.slice(2).map((p) => p.id)).toEqual(plantas.slice(1).map((p) => p.id));
+    // Y el resultado sigue siendo un edificio calculable.
+    expect(calcularEdificio({ ...defaultMasonryState(), plantas: out }).invalid).toBe(false);
+  });
+
+  it('insertPlantaDuplicada de la cubierta deja la copia como topmost', () => {
+    // Duplicar la cubierta es el caso que podría romper la convención "topmost
+    // = Cubierta". No la rompe: la copia es idéntica, así que el edificio no
+    // cambia de forma — solo pasa a tener dos plantas con cargas de cubierta.
+    const plantas = defaultMasonryState().plantas;
+    const cub = plantas[plantas.length - 1];
+    const out = insertPlantaDuplicada(plantas, plantas.length - 1);
+    expect(out.map((p) => p.nombre)).toEqual([
+      'Planta 1', 'Planta 2', 'Planta 3', 'Planta 4', 'Cubierta',
+    ]);
+    expect(out[3].id).toBe(cub.id);          // el original baja a Planta 4
+    expect(out[4].id).not.toBe(cub.id);      // la copia es la nueva cubierta
+    expect(out[4].q_G).toBe(cub.q_G);
+  });
+
+  it('insertPlantaDuplicada con índice inexistente devuelve el mismo array', () => {
+    const plantas = blankMasonryState().plantas;
+    expect(insertPlantaDuplicada(plantas, 7)).toBe(plantas);
+    expect(insertPlantaDuplicada(plantas, -1)).toBe(plantas);
   });
 
   it('renumberPlantas sincroniza nombres con la posición', () => {
