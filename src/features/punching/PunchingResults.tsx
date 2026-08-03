@@ -78,6 +78,13 @@ export function PunchingResults({ result }: PunchingResultsProps) {
   );
   const shearChecks = result.checks.filter((c) => ['punz-sr-max', 'punz-ved-vrdcs'].includes(c.id));
 
+  // Red de seguridad: lo que el motor emita y no esté colocado arriba se pinta
+  // igual al final. `punz-beta-note` —la fila HIPÓTESIS que acota la validez del
+  // β simplificado («estructura arriostrada, luces adyacentes que no difieren
+  // >25%»)— salía en el PDF pero NUNCA en pantalla.
+  const placed = new Set([...alwaysChecks, ...shearChecks].map((c) => c.id));
+  const unplaced = result.checks.filter((c) => !placed.has(c.id));
+
   return (
     <div
       className="flex flex-col overflow-y-auto rounded px-4 py-3 m-2 transition-colors"
@@ -129,6 +136,12 @@ export function PunchingResults({ result }: PunchingResultsProps) {
         <>
           <GroupHeader label="Con armado de punzonamiento" />
           {shearChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+        </>
+      )}
+      {unplaced.length > 0 && (
+        <>
+          <GroupHeader label="Hipótesis y límites" />
+          {unplaced.map((c) => <CheckRowItem key={c.id} check={c} />)}
         </>
       )}
     </div>

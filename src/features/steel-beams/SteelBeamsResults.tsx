@@ -59,7 +59,7 @@ function VerdictBadge({ status }: { status: DisplayStatus }) {
 
 function NeutralCheckRow({ check }: { check: SteelCheckRow }) {
   return (
-    <div className="flex items-center justify-between py-1.75 border-b border-border-sub last:border-b-0">
+    <div className="flex items-center justify-between py-1.75 border-b border-border-sub last:border-b-0" data-check-id={check.id}>
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
       <span
         className="font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] whitespace-nowrap bg-state-neutral/10 text-state-neutral"
@@ -77,7 +77,7 @@ function ActiveCheckRow({ check, system, compact = false }: { check: SteelCheckR
   const gap = compact ? 'gap-2' : 'gap-3';
   return (
     <div className={`grid items-start ${gap} py-1.75 border-b border-border-sub last:border-b-0`}
-      style={{ gridTemplateColumns: gridCols }}>
+      style={{ gridTemplateColumns: gridCols }} data-check-id={check.id}>
       <span className="text-[12px] text-text-secondary leading-snug wrap-break-word min-w-0">{check.description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">
         <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">
@@ -175,6 +175,15 @@ export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelB
   const ltbChecks       = result.checks.filter((c) => c.id === 'ltb');
   const deflChecks      = result.checks.filter((c) => c.id === 'deflection');
 
+  // Red de seguridad: lo que el motor emita y no esté colocado arriba se pinta
+  // igual al final. `lcr-warning` —la fila REVISAR que salta cuando Lcr > L,
+  // casi siempre una errata de entrada— no estaba en ningún grupo: salía en el
+  // PDF y jamás en pantalla, que es donde se teclea el dato.
+  const placed = new Set(
+    [...sectionChecks, ...bendingChecks, ...shearChecks, ...ltbChecks, ...deflChecks].map((c) => c.id),
+  );
+  const unplaced = result.checks.filter((c) => !placed.has(c.id));
+
   return (
     <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(status)}>
 
@@ -218,6 +227,10 @@ export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelB
       {/* ELS Flecha */}
       <GroupHeader label="ELS Flecha" />
       {deflChecks.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
+
+      {/* Avisos del motor no colocados arriba: nunca invisibles. */}
+      {unplaced.length > 0 && <GroupHeader label="Avisos" />}
+      {unplaced.map((c) => <CheckRowItem key={c.id} check={c} system={system} compact={compact} />)}
     </div>
   );
 }

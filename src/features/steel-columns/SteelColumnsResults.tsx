@@ -54,7 +54,7 @@ function VerdictBadge({ status }: { status: DisplayStatus }) {
 
 function NeutralCheckRow({ check, muted }: { check: SteelCheckRow; muted?: boolean }) {
   return (
-    <div className={`flex items-center justify-between py-1.75 border-b border-border-sub last:border-b-0 ${muted ? 'opacity-50' : ''}`}>
+    <div className={`flex items-center justify-between py-1.75 border-b border-border-sub last:border-b-0 ${muted ? 'opacity-50' : ''}`} data-check-id={check.id}>
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
       <span className="font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] whitespace-nowrap bg-state-neutral/10 text-state-neutral">
         {check.tag ?? '—'}
@@ -79,6 +79,7 @@ function ActiveCheckRow({ check, muted }: { check: SteelCheckRow; muted?: boolea
     <div
       className={`grid items-center gap-3 py-1.75 border-b border-border-sub last:border-b-0 ${muted ? 'opacity-50' : ''}`}
       style={{ gridTemplateColumns: '1fr auto 112px auto' }}
+      data-check-id={check.id}
     >
       <span className="text-[12px] text-text-secondary leading-snug">{check.description}</span>
       <div className="flex flex-col items-end gap-0 shrink-0">

@@ -121,8 +121,8 @@ export async function exportEmpresalladoPDF(
   setGray(doc, 60);
   doc.text('VERIFICACIONES', M, tableY + 3);
 
-  const hasFail = result.checks.some((c) => c.status === 'fail');
-  const hasWarn = result.checks.some((c) => c.status === 'warn');
+  const hasFail = result.checks.some((c) => !c.neutral && c.status === 'fail');
+  const hasWarn = result.checks.some((c) => !c.neutral && c.status === 'warn');
   const overall = hasFail ? 'fail' : hasWarn ? 'warn' : 'ok';
 
   doc.setFontSize(11);
@@ -163,6 +163,38 @@ export async function exportEmpresalladoPDF(
   const ROW_LH = 3.1;   // interlínea a cuerpo 7.5 (7.5pt · 1.15 · 25.4/72)
 
   for (const ch of result.checks) {
+    // Fila informativa (hipótesis/límites del modelo): no tiene valor, límite
+    // ni utilización. Se pintaba por el camino normal y salía «0%  N/A», que
+    // se lee como una comprobación que no se ha podido hacer. Va con su
+    // etiqueta a la derecha y aprovecha todo el ancho, como en steelColumns.
+    if (ch.neutral || ch.status === 'neutral') {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      const tag = pdfStr(ch.tag ?? '—');
+      const tagW = doc.getTextWidth(tag);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      const noteL = doc.splitTextToSize(pdfStr(ch.description), PAGE_W - 2 * M - tagW - 6) as string[];
+      rowY = ensureSpace(doc, rowY, (noteL.length - 1) * ROW_LH + 7, M);
+
+      setGray(doc, 110);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      noteL.forEach((t, i) => doc.text(t, COL.desc, rowY + i * ROW_LH));
+
+      setGray(doc, 90);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.text(tag, COL.status, rowY, { align: 'right' });
+
+      const noteEndY = rowY + (noteL.length - 1) * ROW_LH;
+      setGray(doc, 220);
+      doc.line(M, noteEndY + 2, PAGE_W - M, noteEndY + 2);
+      rowY = noteEndY + 7;
+      continue;
+    }
+
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
 

@@ -17,7 +17,7 @@ function InfoCheckRow({ check, system }: { check: import('../../lib/calculations
   const valueStr = isNaN(util) ? '—' : isFinite(util) ? `${(util * 100).toFixed(0)}%` : '—';
 
   return (
-    <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0">
+    <div className="grid grid-cols-[1fr_auto_44px_auto] items-center gap-2.5 py-1.75 border-b border-border-sub last:border-b-0" data-check-id={check.id}>
       <span className="text-[12px] text-text-disabled leading-snug">{check.description}</span>
       <span className="font-mono text-[11px] text-text-secondary text-right whitespace-nowrap tabular-nums">
         {checkValueStr(check, system)}
@@ -97,8 +97,20 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
   const cond5a         = result.checks.find((c) => c.id === 'cond-5.38a');
   const cond5b         = result.checks.find((c) => c.id === 'cond-5.38b');
   const biaxialCheck   = result.checks.find((c) => c.id === 'biaxial-check');
-  const longChecks     = result.checks.filter((c) => ['as-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y'].includes(c.id));
+  // `as-min-mech` FALTABA aquí (sí estaba en el panel circular): con 600×600,
+  // 4Ø16 y N_Ed = 4000 kN es la ÚNICA comprobación que incumple (124%) → la
+  // cabecera se ponía en INCUMPLE sin una sola fila roja. El PDF sí la pintaba.
+  const longChecks     = result.checks.filter((c) => ['as-min', 'as-min-mech', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y'].includes(c.id));
   const transChecks    = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing'].includes(c.id));
+
+  // Red de seguridad: lo que el motor añada y este panel no coloque, se pinta
+  // igual al final. El veredicto se calcula sobre TODAS las filas, así que
+  // ninguna puede quedarse fuera de la pantalla sin más.
+  const placed = new Set([
+    ...slenderChecks.map((c) => c.id), 'nm-y', 'nm-z', 'cond-5.38a', 'cond-5.38b', 'biaxial-check',
+    ...longChecks.map((c) => c.id), ...transChecks.map((c) => c.id),
+  ]);
+  const unplaced = result.checks.filter((c) => !placed.has(c.id));
 
   const showE2y = result.lambda_y > 25;
   const showE2z = result.lambda_z > 25;
@@ -176,6 +188,10 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
       <GroupHeader label="Armadura transversal" />
       {transChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
 
+      {/* Cualquier comprobación futura no colocada arriba: nunca invisible. */}
+      {unplaced.length > 0 && <GroupHeader label="Otras comprobaciones" />}
+      {unplaced.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
       {/* Rebar footer */}
       <div className="mt-3 pt-2 border-t border-border-sub space-y-1">
         <div className="flex items-center justify-between">
@@ -203,6 +219,14 @@ function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; 
   const longChecks = result.checks.filter((c) =>
     ['as-min', 'as-min-mech', 'as-max', 'nBars-min', 'bar-spacing-circ'].includes(c.id));
   const transChecks = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing'].includes(c.id));
+
+  // Red de seguridad — ver el gemelo rectangular.
+  const placed = new Set([
+    'flexion-check', 'nm-res',
+    ...slenderChecks.map((c) => c.id), ...longChecks.map((c) => c.id), ...transChecks.map((c) => c.id),
+  ]);
+  const unplaced = result.checks.filter((c) => !placed.has(c.id));
+
   // Mostrar la fila e2 cuando el 2º orden se ha aplicado realmente (e2 > 0), no
   // por λ > 25: λ_lim puede caer por debajo de 25 con axil alto, de modo que e2
   // ya está incluido en e_tot/M_res aunque λ ≤ 25.
@@ -249,6 +273,10 @@ function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; 
       {/* Armadura transversal */}
       <GroupHeader label="Armadura transversal" />
       {transChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
+      {/* Cualquier comprobación futura no colocada arriba: nunca invisible. */}
+      {unplaced.length > 0 && <GroupHeader label="Otras comprobaciones" />}
+      {unplaced.map((c) => <CheckRowItem key={c.id} check={c} />)}
 
       {/* Rebar footer */}
       <div className="mt-3 pt-2 border-t border-border-sub space-y-1">

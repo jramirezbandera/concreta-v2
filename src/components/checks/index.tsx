@@ -81,6 +81,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
     return (
       <div className={`check-row relative grid items-center gap-3.5 py-2.5 max-md:min-h-11 ${compact ? 'px-3 pl-4' : 'px-4 pl-5'} border-b border-border-sub last:border-b-0`}
         style={{ gridTemplateColumns: '1fr minmax(60px, max-content)' }}
+        data-check-id={check.id}
       >
         <span className="check-left-rail" />
         <div className="flex flex-col gap-0.5 min-w-0">
@@ -115,7 +116,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
   // full panel width and stays readable.
   if (compact) {
     return (
-      <div className="check-row relative grid items-start gap-2 py-2.5 max-md:min-h-11 px-3 pl-4 border-b border-border-sub last:border-b-0 cursor-pointer [grid-template-columns:minmax(0,1fr)_max-content]">
+      <div className="check-row relative grid items-start gap-2 py-2.5 max-md:min-h-11 px-3 pl-4 border-b border-border-sub last:border-b-0 cursor-pointer [grid-template-columns:minmax(0,1fr)_max-content]" data-check-id={check.id}>
         <span className="check-left-rail" />
         <div className="flex flex-col gap-0.5 min-w-0">
           <span className="text-[12px] text-text-primary leading-snug wrap-break-word">{check.description}</span>
@@ -139,7 +140,7 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
   const descClass = 'text-[12px] text-text-primary leading-snug wrap-break-word lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap';
 
   return (
-    <div className="check-row relative grid items-start gap-3.5 max-lg:gap-2 py-2.5 max-md:min-h-11 px-4 pl-5 max-lg:px-3 max-lg:pl-4 border-b border-border-sub last:border-b-0 cursor-pointer lg:[grid-template-columns:1fr_140px_64px_60px] [grid-template-columns:1fr_minmax(0,1fr)_auto]">
+    <div className="check-row relative grid items-start gap-3.5 max-lg:gap-2 py-2.5 max-md:min-h-11 px-4 pl-5 max-lg:px-3 max-lg:pl-4 border-b border-border-sub last:border-b-0 cursor-pointer lg:[grid-template-columns:1fr_140px_64px_60px] [grid-template-columns:1fr_minmax(0,1fr)_auto]" data-check-id={check.id}>
       <span className="check-left-rail" />
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className={descClass}>{check.description}</span>

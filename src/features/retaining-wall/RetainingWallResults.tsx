@@ -39,12 +39,30 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
     ['fuste-bending', 'fuste-shear', 'fuste-asmin', 'fuste-asmin-ext', 'fuste-asmin-h'].includes(c.id),
   );
   const talonChecks = result.checks.filter((c) =>
-    ['talon-bending', 'talon-asmin', 'zapata-asmin-trans'].includes(c.id),
+    ['talon-bending', 'talon-asmin'].includes(c.id),
   );
   const puntaChecks = result.checks.filter((c) =>
     ['punta-bending', 'punta-asmin'].includes(c.id),
   );
+  // El motor emite `zapata-asmin-trans-INF` y `-SUP`; este panel filtraba por
+  // 'zapata-asmin-trans' a secas, un id que no existe → las DOS filas se
+  // quedaban fuera de la pantalla mientras el veredicto de arriba (que mira
+  // `result.checks` entero) sí las contaba. Con los defaults del módulo y
+  // cualquier transversal por debajo de Ø12@200 incumplen hasta el 337%.
+  // Van en grupo propio: el armado transversal recorre toda la zapata, no es
+  // ni talón ni punta.
+  const zapataTransChecks = result.checks.filter((c) =>
+    ['zapata-asmin-trans-inf', 'zapata-asmin-trans-sup'].includes(c.id),
+  );
   const structuralMissing = fusteChecks.length === 0;
+
+  // Red de seguridad: lo que el motor añada y este panel no coloque se pinta
+  // igual al final. Va FUERA del guard de `structuralMissing` a propósito.
+  const placed = new Set([
+    ...stabilityChecks, ...seismicChecks, ...fusteChecks,
+    ...talonChecks, ...puntaChecks, ...zapataTransChecks,
+  ].map((c) => c.id));
+  const unplaced = result.checks.filter((c) => !placed.has(c.id));
 
   return (
     <div className="flex flex-col gap-4" aria-label="Resultados">
@@ -209,7 +227,21 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
               {puntaChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
             </div>
           )}
+          {zapataTransChecks.length > 0 && (
+            <div className="rounded border border-border-main px-4 py-3">
+              <GroupHeader label="Armado transversal de zapata" />
+              {zapataTransChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+            </div>
+          )}
         </>
+      )}
+
+      {/* Cualquier comprobación futura no colocada arriba: nunca invisible. */}
+      {unplaced.length > 0 && (
+        <div className="rounded border border-border-main px-4 py-3">
+          <GroupHeader label="Otras comprobaciones" />
+          {unplaced.map((c) => <CheckRowItem key={c.id} check={c} />)}
+        </div>
       )}
 
     </div>
