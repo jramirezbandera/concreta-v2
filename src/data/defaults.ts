@@ -725,7 +725,7 @@ export interface TimberBeamInputs {
   title: string;
   gradeId: string;       // 'C24', 'GL28h', etc.
   b: number;             // mm — section width
-  h: number;             // mm — section height (h ≥ b)
+  h: number;             // mm — section depth (bending depth; b > h admitido: sección apaisada)
   beamType: BeamType;
   L: number;             // m — span
   gk: number;            // kN/m — permanent UDL

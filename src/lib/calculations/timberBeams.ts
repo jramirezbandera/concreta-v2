@@ -168,10 +168,18 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   if (inp.b <= 0 || inp.h <= 0) return invalidResult('Dimensiones inválidas');
   if (inp.L <= 0) return invalidResult('Luz inválida');
   if (inp.gk < 0 || inp.qk < 0) return invalidResult('Cargas negativas no permitidas');
-  if (inp.b > inp.h) return invalidResult('La sección debe tener h ≥ b (viga, no pilar)');
 
   const { b, h, L } = inp;
   const bc = inp.beamType;
+
+  // Sección APAISADA (b ≥ h): tabla, tablero, dintel plano o refuerzo adosado
+  // bajo un forjado existente. Es una geometría legítima —no se rechaza—: toda
+  // la formulación de abajo (W = bh²/6, I = bh³/12, Av = kcr·bh, kh sobre el
+  // canto de flexión h) vale igual. Lo único que cambia es el VUELCO LATERAL:
+  // §6.3.3 se deduce para h > b y con b ≥ h la rigidez lateral iguala o supera
+  // a la del plano de flexión, así que el vuelco es imposible → kcrit = 1.
+  const noLtb = b >= h;
+  const flatSection = b > h;
 
   // ── Material parameters ────────────────────────────────────────────────────
   const kmod_user = getKmod(inp.loadDuration as LoadDurationClass, inp.serviceClass as ServiceClass);
@@ -253,7 +261,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const lambda_rel_m = Math.sqrt(grade.fm_k / sigma_m_crit);
 
   let kcrit: number;
-  if (lambda_rel_m <= 0.75) {
+  if (noLtb || lambda_rel_m <= 0.75) {
     kcrit = 1.0;
   } else if (lambda_rel_m <= 1.40) {
     kcrit = 1.56 - 0.75 * lambda_rel_m;
@@ -351,8 +359,9 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   // presume tablero superior que arriostra el borde comprimido (kcrit,fi=1);
   // con 4 caras expuestas no hay arriostramiento y §6.3.3 aplica con la
   // geometría residual.
+  // Con sección residual apaisada (h_ef ≤ b_ef) tampoco hay vuelco: kcrit,fi = 1.
   let kcrit_fi = 1.0;
-  if (fireActive && inp.exposedFaces === 4 && b_ef > 0 && h_ef > 0) {
+  if (fireActive && inp.exposedFaces === 4 && b_ef > 0 && h_ef > b_ef) {
     const sigma_m_crit_fi = 0.78 * b_ef * b_ef * E0_05_Nmm2 / (h_ef * Lef);
     const lambda_rel_fi = Math.sqrt(fm_k_fi / sigma_m_crit_fi);
     kcrit_fi = lambda_rel_fi <= 0.75 ? 1.0
@@ -365,6 +374,20 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
 
   // — ELU header —
   checks.push(mkNeutral('elu-header', 'ELU — Estado Límite Último', 'EC5 §6', 'EN 1995-1-1 §6', 'elu'));
+
+  // Sección apaisada: no es un error, pero conviene que sea EXPLÍCITO en pantalla
+  // y en el PDF — quien lea el listado tiene que ver que el canto de flexión es
+  // el menor de los dos y que por eso desaparece el vuelco lateral.
+  if (flatSection) {
+    checks.push(mkNeutral(
+      'flat-section',
+      `Sección apaisada: b = ${b} mm > h = ${h} mm. La flexión se comprueba con el canto h `
+      + '(tabla, dintel plano o refuerzo adosado) y el vuelco lateral no aplica (kcrit = 1,00)',
+      'APAISADA',
+      'EN 1995-1-1 §6.1.6 — Flexión respecto al eje de canto h; §6.3.3 sin vuelco (b ≥ h)',
+      'elu',
+    ));
+  }
 
   // Combinación que gobierna (fix #113)
   if (permGoverns) {
@@ -403,9 +426,11 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
 
   // LTB
   const ltbUtil = fm_d_eff > 0 ? sigma_m / fm_d_eff : Infinity;
-  const kcritLabel = lambda_rel_m <= 0.75
-    ? `kcrit=1.0 (λrel,m=${lambda_rel_m.toFixed(2)} ≤ 0.75)`
-    : `kcrit=${kcrit.toFixed(3)} (λrel,m=${lambda_rel_m.toFixed(2)})`;
+  const kcritLabel = noLtb
+    ? 'kcrit=1.0 (sección con b ≥ h: sin vuelco lateral posible)'
+    : lambda_rel_m <= 0.75
+      ? `kcrit=1.0 (λrel,m=${lambda_rel_m.toFixed(2)} ≤ 0.75)`
+      : `kcrit=${kcrit.toFixed(3)} (λrel,m=${lambda_rel_m.toFixed(2)})`;
   checks.push({
     id: 'ltb',
     description: `Pandeo lateral σm,d ≤ kcrit·fm,d (§6.3.3) — ${kcritLabel}`,

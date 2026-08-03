@@ -337,12 +337,62 @@ describe('calcTimberBeam — input validation', () => {
     expect(calcTimberBeam({ ...baseInp, L: 0 }).valid).toBe(false);
   });
 
-  it('b > h → valid=false (not a beam orientation)', () => {
-    expect(calcTimberBeam({ ...baseInp, b: 500, h: 100 }).valid).toBe(false);
-  });
-
   it('negative load → valid=false', () => {
     expect(calcTimberBeam({ ...baseInp, gk: -1 }).valid).toBe(false);
+  });
+});
+
+// Sección APAISADA (b > h): tabla, dintel plano o refuerzo adosado bajo un
+// forjado existente. Estuvo RECHAZADA con «h ≥ b (viga, no pilar)» hasta que se
+// vio que el motor no necesita ese invariante: W, I, Av y kh valen igual y lo
+// único que cambia es que el vuelco lateral deja de ser posible.
+describe('calcTimberBeam — sección apaisada (b > h)', () => {
+  const flat: TimberBeamInputs = { ...baseInp, b: 400, h: 150 };
+
+  it('b > h calcula (no invalida el módulo)', () => {
+    const r = calcTimberBeam(flat);
+    expect(r.valid).toBe(true);
+    expect(r.error).toBeUndefined();
+  });
+
+  it('la flexión usa el canto h, no la mayor dimensión', () => {
+    // W = 400×150²/6 = 1.5e6 mm³ ; MEd = 22.50 kNm → σm = 15.0 N/mm²
+    expect(calcTimberBeam(flat).sigma_m).toBeCloseTo(15.0, 2);
+  });
+
+  it('sin vuelco lateral: kcrit = 1 y la fila lo dice', () => {
+    const r = calcTimberBeam(flat);
+    expect(r.kcrit).toBe(1.0);
+    expect(r.checks.find((c) => c.id === 'ltb')?.description).toContain('b ≥ h');
+  });
+
+  it('kcrit = 1 incluso con una sección apaisada extrema (canto mínimo)', () => {
+    // Con h ≪ b la fórmula §6.3.3 queda fuera de su rango de deducción: el
+    // clamp explícito es lo que garantiza que nunca salga un kcrit < 1 espurio.
+    expect(calcTimberBeam({ ...baseInp, b: 1000, h: 60, L: 12 }).kcrit).toBe(1.0);
+  });
+
+  it('la sección apaisada se ANOTA en el listado (no pasa en silencio)', () => {
+    const row = calcTimberBeam(flat).checks.find((c) => c.id === 'flat-section');
+    expect(row?.neutral).toBe(true);
+    expect(row?.tag).toBe('APAISADA');
+  });
+
+  it('sección de canto (h > b) NO lleva la nota de apaisada', () => {
+    expect(calcTimberBeam(baseInp).checks.find((c) => c.id === 'flat-section')).toBeUndefined();
+  });
+
+  it('la sección cuadrada tampoco tiene vuelco lateral, pero no es "apaisada"', () => {
+    const r = calcTimberBeam({ ...baseInp, b: 200, h: 200 });
+    expect(r.kcrit).toBe(1.0);
+    expect(r.checks.find((c) => c.id === 'flat-section')).toBeUndefined();
+  });
+
+  it('girar la sección de canto a apaisada es CONSERVADOR (más tensión, no menos)', () => {
+    const canto = calcTimberBeam(baseInp);
+    const apaisada = calcTimberBeam(flat);
+    expect(apaisada.sigma_m).toBeGreaterThan(canto.sigma_m);
+    expect(apaisada.u_fin).toBeGreaterThan(canto.u_fin);
   });
 });
 

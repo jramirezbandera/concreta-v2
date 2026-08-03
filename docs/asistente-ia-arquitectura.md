@@ -224,10 +224,13 @@ rompería a la mitad), y lo que no pinta se **salta con motivo**, nunca se aplic
 en silencio.
 
 Dos patrones más, que la ola 1 ha fijado:
-- **Invariantes de pareja → todo o nada.** `h ≥ b` en vigas de madera, `s > lp`
-  en empresillado: si la pareja combinada es inválida NO se aplica ninguna de
-  las dos. Aplicar solo una dejaría el cálculo en `error` sin que nadie lo haya
-  pedido.
+- **Invariantes de pareja → todo o nada.** `s > lp` en empresillado: si la pareja
+  combinada es inválida NO se aplica ninguna de las dos. Aplicar solo una dejaría
+  el cálculo en `error` sin que nadie lo haya pedido. Ojo con el reverso: la
+  sección de vigas de madera tuvo este trato por un invariante `h ≥ b` que el
+  motor NO necesitaba (b > h es una sección apaisada perfectamente calculable), y
+  el gate acabó rechazando geometrías legítimas. Antes de emparejar dos campos,
+  comprobar que el invariante es del MOTOR y no una costumbre.
 - **Campos derivados: a `fields` sin fila en `changes`.** El motor de pilares de
   acero lee `beta_y`/`beta_z` del estado, así que al cambiar `bcType` hay que
   reescribirlos (igual que hace el panel). Van al plan **sin fila propia en la

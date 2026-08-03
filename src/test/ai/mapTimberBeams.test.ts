@@ -1,9 +1,9 @@
 // Tests del adapter timber-beams (src/lib/ai/modules/timberBeams.ts, ola 1):
-// cargas LINEALES kN/m (el módulo no tiene ancho tributario), invariante h ≥ b
-// del motor (todo-o-nada sobre el estado combinado), gates (loadType='custom' →
-// psi2Custom; R0 → exposedFaces), beamType como DATO con nivel calibrado por el
-// coeficiente de MEd de BEAM_CASES, isSystem (ksys=1.10) como riesgo, y el mapeo
-// de filas informativas al resumen.
+// cargas LINEALES kN/m (el módulo no tiene ancho tributario), sección SIN
+// invariante de forma (b > h = apaisada, válida y solo avisada), gates
+// (loadType='custom' → psi2Custom; R0 → exposedFaces), beamType como DATO con
+// nivel calibrado por el coeficiente de MEd de BEAM_CASES, isSystem (ksys=1.10)
+// como riesgo, y el mapeo de filas informativas al resumen.
 //
 // current = timberBeamDefaults: C24 · 150×400 · ss · L=5 · gk=2 · qk=3 · SC1 ·
 // media duración · residencial · R0 · 3 caras · isSystem=false · ordinaria.
@@ -14,7 +14,6 @@ import {
   summarizeTimberBeamResults,
   FIRE_GATE_REASON,
   PSI2_GATE_REASON,
-  SECTION_SHAPE_REASON,
 } from '../../lib/ai/modules/timberBeams';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { AiError } from '../../lib/ai/types';
@@ -92,24 +91,40 @@ describe('timberBeams adapter — cargas lineales kN/m', () => {
   });
 });
 
-describe('timberBeams adapter — invariante h ≥ b (todo-o-nada)', () => {
-  it('sección con h < b → se saltan AMBAS dimensiones (no media sección)', () => {
+describe('timberBeams adapter — sección apaisada (b > h): se aplica y se avisa', () => {
+  it('h < b se APLICA (el motor calcula la sección apaisada, ya no la rechaza)', () => {
     const p = plan({ b_mm: 300, h_mm: 200 });
-    expect(skipFor(p, 'Ancho de sección b')?.reason).toBe(SECTION_SHAPE_REASON);
-    expect(skipFor(p, 'Canto de sección h')?.reason).toBe(SECTION_SHAPE_REASON);
-    expect(p.fields.b).toBeUndefined();
-    expect(p.fields.h).toBeUndefined();
+    expect(p.fields.b).toBe(300);
+    expect(p.fields.h).toBe(200);
+    expect(skipFor(p, 'Ancho de sección b')).toBeUndefined();
+    expect(skipFor(p, 'Canto de sección h')).toBeUndefined();
   });
 
-  it('b propuesto que supera el h VIGENTE → skip (se evalúa el combinado)', () => {
+  it('la sección apaisada resultante deja un warning (posible ancho/canto intercambiados)', () => {
+    const p = plan({ b_mm: 300, h_mm: 200 });
+    expect(p.warnings.some((w) => w.includes('apaisada'))).toBe(true);
+  });
+
+  it('el aviso se evalúa sobre el estado FINAL: basta subir b por encima del h vigente', () => {
     const p = plan({ b_mm: 500 }); // h vigente = 400
-    expect(skipFor(p, 'Ancho de sección b')?.reason).toBe(SECTION_SHAPE_REASON);
+    expect(p.fields.b).toBe(500);
+    expect(p.warnings.some((w) => w.includes('apaisada'))).toBe(true);
   });
 
-  it('subir el canto (la vía legítima) se aplica', () => {
+  it('sección de canto → sin warning de apaisada', () => {
     const p = plan({ h_mm: 500 });
     expect(p.fields.h).toBe(500);
     expect(changeFor(p, 'Canto de sección h')).toMatchObject({ before: '400 mm', after: '500 mm' });
+    expect(p.warnings.some((w) => w.includes('apaisada'))).toBe(false);
+  });
+
+  it('sin cambio de sección no se avisa aunque el estado vigente ya sea apaisado', () => {
+    const current: TimberBeamInputs = { ...timberBeamDefaults, b: 400, h: 150 };
+    expect(plan({ gk_kNm: 4 }, current).warnings).toEqual([]);
+  });
+
+  it('el rango sigue vigente: b fuera de 40–2000 mm se salta', () => {
+    expect(skipFor(plan({ b_mm: 3000 }), 'Ancho de sección b')?.reason).toContain('fuera del rango');
   });
 });
 
@@ -238,9 +253,15 @@ describe('timberBeams adapter — resumen de resultados', () => {
     expect(summarizeTimberBeamResults(r).text).toContain('GOBIERNA la combinación solo-permanente');
   });
 
-  it('sección con b > h → invalid (error != null)', () => {
-    const s = summarizeTimberBeamResults(calcTimberBeam({ ...timberBeamDefaults, b: 500, h: 200 }));
+  it('sección con dimensiones nulas → invalid (error != null)', () => {
+    const s = summarizeTimberBeamResults(calcTimberBeam({ ...timberBeamDefaults, h: 0 }));
     expect(s.verdict).toBe('invalid');
     expect(s.text).toContain('CÁLCULO NO VÁLIDO');
+  });
+
+  it('sección apaisada: el resumen la resume como cálculo válido, no como error', () => {
+    const s = summarizeTimberBeamResults(calcTimberBeam({ ...timberBeamDefaults, b: 500, h: 200 }));
+    expect(s.verdict).not.toBe('invalid');
+    expect(s.text).not.toContain('CÁLCULO NO VÁLIDO');
   });
 });

@@ -12,8 +12,9 @@
  *   los pilares de madera, que reciben esfuerzos ya mayorados.
  * - `beamType` es un DATO del problema (la condición de apoyo real), y su nivel
  *   de seguridad se calibra con el coeficiente de MEd de `BEAM_CASES`.
- * - Invariante del motor: h ≥ b (viga, no pilar). Se comprueba sobre el estado
- *   COMBINADO para no dejar aplicada una sección que invalida el cálculo.
+ * - La sección NO tiene invariante de forma: el motor acepta b > h (tabla,
+ *   dintel plano, refuerzo adosado) y solo cambia que el vuelco lateral deja de
+ *   aplicar. Por eso b_mm y h_mm ya no van todo-o-nada.
  */
 import { AiError } from '../types';
 import type { AiApplyPlan, AiFieldChange, AiModuleAdapter, AiSkippedField } from './types';
@@ -61,8 +62,8 @@ export const TIMBER_BEAM_PAYLOAD_SCHEMA: Record<string, unknown> = {
   ],
   properties: {
     gradeId: { type: ['string', 'null'], enum: [...GRADE_IDS, null], description: 'Clase resistente de la madera: C14–C40 (conífera aserrada), D30–D70 (frondosa aserrada) o GL24h–GL32h (laminada encolada). No existe GL36h.' },
-    b_mm: { type: ['number', 'null'], description: 'Ancho de la sección b en mm. Debe ser ≤ h (es una viga).' },
-    h_mm: { type: ['number', 'null'], description: 'Canto de la sección h en mm. Debe ser ≥ b.' },
+    b_mm: { type: ['number', 'null'], description: 'Ancho de la sección b en mm (dimensión horizontal).' },
+    h_mm: { type: ['number', 'null'], description: 'Canto de la sección h en mm (dimensión VERTICAL, la que trabaja a flexión). Puede ser menor que b: una sección apaisada (tabla, dintel plano, refuerzo adosado) es válida.' },
     beamType: { type: ['string', 'null'], enum: [...BEAM_TYPES, null], description: 'Condiciones de apoyo del vano: "ss" biapoyada, "cantilever" ménsula (voladizo), "fp" articulada-empotrada, "ff" biempotrada.' },
     L_m: { type: ['number', 'null'], description: 'Luz del vano en METROS (en una ménsula, el vuelo).' },
     gk_kNm: { type: ['number', 'null'], description: 'Carga PERMANENTE característica en kN/m LINEALES sobre la viga (NO kN/m²: este módulo no tiene ancho tributario). Sin mayorar.' },
@@ -85,7 +86,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Vigas de madera:
 1. LAS CARGAS SON LINEALES: gk_kNm y qk_kNm van en kN/m sobre la viga, NO en kN/m². Este módulo no tiene ancho tributario. Si el enunciado da cargas SUPERFICIALES (kN/m²) y una separación entre vigas o un ancho tributario, MULTIPLICA (carga superficial × ancho tributario = carga lineal) y añade un warning con la conversión ("2.5 kN/m² × 0.60 m de intereje = 1.5 kN/m"). Si da la carga superficial pero NO el ancho tributario, pregunta en "reply" y deja gk/qk en null: no lo inventes.
 2. Las cargas van SIN MAYORAR (características): el motor aplica γG = 1.35 y γQ = 1.50. NO las mayores tú. Es la diferencia con el módulo de Pilares de madera, que recibe esfuerzos YA MAYORADOS.
 3. El motor comprueba también la combinación SOLO PERMANENTE (1.35·gk con kmod de carga permanente, más bajo). Con una sobrecarga pequeña frente al peso propio, esa combinación puede GOBERNAR: si aparece en los resultados, explícalo — no es un error.
-4. La sección (b_mm, h_mm) va en MILÍMETROS y la luz (L_m) en METROS. El motor exige h ≥ b (es una viga, no un pilar): para ganar resistencia y rigidez sube el CANTO (h), que entra al cuadrado en la flexión y al cubo en la flecha.
+4. La sección (b_mm, h_mm) va en MILÍMETROS y la luz (L_m) en METROS. h es el CANTO (dimensión vertical, la que trabaja) y b el ancho. Para ganar resistencia y rigidez sube el CANTO (h), que entra al cuadrado en la flexión y al cubo en la flecha. Se admite h < b (sección apaisada: tabla, dintel plano, refuerzo adosado bajo un forjado): en ese caso desaparece el vuelco lateral. Si el enunciado da dos dimensiones sin decir cuál es el canto, asume la mayor como h y avisa en "warnings".
 5. beamType describe las condiciones de apoyo REALES del vano: "ss" biapoyada (M = wL²/8), "cantilever" ménsula/voladizo (M = wL²/2, la más exigente), "fp" articulada-empotrada, "ff" biempotrada (M = wL²/12). No es una variable de diseño: es cómo está construida la viga.
 6. isSystem = true SOLO si hay ≥ 4 vigas paralelas con un tablero o forjado que reparte la carga entre ellas: regala un ksys = 1.10 de resistencia a flexión. No lo actives por defecto.
 7. partitionType fija el límite de flecha activa por integridad (frágil L/500, ordinaria L/400, sin tabiques L/300): lo decide qué hay construido sobre la viga.
@@ -315,10 +316,6 @@ export const PSI2_GATE_REASON =
   'ψ₂ personalizado solo se usa con la categoría de uso "custom": con una categoría '
   + 'del CTE, ψ₂ lo fija la tabla.';
 
-export const SECTION_SHAPE_REASON =
-  'El motor exige h ≥ b (es una viga, no un pilar): la sección propuesta quedaría más '
-  + 'ancha que alta.';
-
 function buildTimberBeamPlan(
   x: TimberBeamPayload,
   current: TimberBeamInputs,
@@ -373,12 +370,9 @@ function buildTimberBeamPlan(
     String,
   );
 
-  // --- Sección: invariante h ≥ b sobre el estado COMBINADO ---
+  // --- Sección: sin invariante de forma (b > h es una sección apaisada válida) ---
   const bProposed = x.b_mm !== null && x.b_mm >= 40 && x.b_mm <= 2000 ? Math.round(x.b_mm) : null;
   const hProposed = x.h_mm !== null && x.h_mm >= 40 && x.h_mm <= 3000 ? Math.round(x.h_mm) : null;
-  const bFinal = bProposed ?? current.b;
-  const hFinal = hProposed ?? current.h;
-  const shapeBroken = hFinal < bFinal;
 
   function applySection(
     key: 'b_mm' | 'h_mm',
@@ -393,17 +387,25 @@ function buildTimberBeamPlan(
       skip(key, rangeReason(raw, min, max, 'mm'));
       return;
     }
-    // Con la sección combinada inválida (h < b) NO se aplica ninguna de las dos:
-    // media sección aplicada dejaría el cálculo en error sin que nadie lo pidiera.
-    if (shapeBroken) {
-      skip(key, SECTION_SHAPE_REASON);
-      return;
-    }
     if (rounded === current[field]) skip(key, ALREADY);
     else apply(key, field, rounded, fmtMm(current[field]), fmtMm(rounded));
   }
   applySection('b_mm', 'b', x.b_mm, bProposed, 40, 2000);
   applySection('h_mm', 'h', x.h_mm, hProposed, 40, 3000);
+
+  // La sección apaisada es válida, pero también es el síntoma de que el modelo ha
+  // INTERCAMBIADO ancho y canto. No se bloquea (bloquearla fue el error anterior):
+  // se avisa sobre el estado FINAL, y solo si la sección cambia en este turno.
+  if (fields.b !== undefined || fields.h !== undefined) {
+    const bFinal = fields.b ?? current.b;
+    const hFinal = fields.h ?? current.h;
+    if (bFinal > hFinal) {
+      warnings.push(
+        `La sección resultante queda apaisada (b = ${bFinal} mm > h = ${hFinal} mm): se comprueba `
+        + `con canto ${hFinal} mm y sin vuelco lateral. Si ancho y canto están intercambiados, corrígelo.`,
+      );
+    }
+  }
 
   // --- Tipo de viga (condición de apoyo REAL) ---
   applyEnum(
