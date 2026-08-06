@@ -144,9 +144,11 @@ function buildBeamDescriptor(inp: SteelBeamInputs): SectionDescriptor {
     case 'CHS':
       return { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.tube_process };
     case 'SHS':
-      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.tube_process };
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.tube_process, square: true };
     case 'RHS':
-      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.tube_process };
+      // `square: false` aunque salga h === b: la familia la declara el usuario
+      // en el selector y el rótulo no puede desmentirla.
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.tube_process, square: false };
     default:
       return { kind: 'I', tipo: inp.tipo, size: inp.size };
   }

@@ -118,8 +118,13 @@ describe('registry invariants', () => {
     expect(descriptorForKey('steel_NOPE123')).toBeUndefined();
     expect(descriptorForKey('steel_L80x8')).toBeNull();
     expect(descriptorForKey('steel_IPE300')).toEqual({ kind: 'I', tipo: 'IPE', size: 300 });
+    // `square` viaja en el descriptor: la familia del catálogo es la que
+    // rotula el tubo, no la comparación h === b.
     expect(descriptorForKey('steel_SHS100x100x5')).toEqual({
-      kind: 'RHS', h: 100, b: 100, t: 5, process: 'cold-formed',
+      kind: 'RHS', h: 100, b: 100, t: 5, process: 'cold-formed', square: true,
+    });
+    expect(descriptorForKey('steel_RHS150x100x5')).toEqual({
+      kind: 'RHS', h: 150, b: 100, t: 5, process: 'cold-formed', square: false,
     });
     expect(descriptorForKey('steel_CHS168.3x8')).toEqual({
       kind: 'CHS', D: 168.3, t: 8, process: 'cold-formed',

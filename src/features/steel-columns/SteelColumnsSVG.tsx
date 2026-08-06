@@ -564,6 +564,7 @@ export function SteelColumnsSVG({ inp, mode, width, height }: SteelColumnsSVGPro
           b: inp.sectionType === 'SHS' ? inp.rhs_h : inp.rhs_b,
           t: inp.rhs_t,
           process: inp.rhs_process,
+          square: inp.sectionType === 'SHS',
         }
       : { kind: 'I', tipo: inp.sectionType, size: inp.size },
   );

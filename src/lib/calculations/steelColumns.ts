@@ -120,9 +120,11 @@ function buildDescriptor(inp: SteelColumnInputs): SectionDescriptor {
     case 'CHS':
       return { kind: 'CHS', D: inp.chs_D, t: inp.chs_t, process: inp.chs_process };
     case 'SHS':
-      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.rhs_process };
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_h, t: inp.rhs_t, process: inp.rhs_process, square: true };
     case 'RHS':
-      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.rhs_process };
+      // `square: false` aunque salga h === b — mismo criterio que en vigas: la
+      // familia declarada manda sobre la geometría a la hora de rotular.
+      return { kind: 'RHS', h: inp.rhs_h, b: inp.rhs_b, t: inp.rhs_t, process: inp.rhs_process, square: false };
     default:
       return { kind: 'I', tipo: inp.sectionType, size: inp.size };
   }

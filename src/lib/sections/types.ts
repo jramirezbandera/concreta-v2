@@ -61,6 +61,14 @@ export interface SectionGeometry {
   readonly tw: number;     // web thickness    (= t for CHS)
   readonly r: number;      // fillet radius (0 for CHS)
 
+  /**
+   * SOLO `kind: 'RHS'` — designación SHS (tubo cuadrado). La declara quien
+   * construye la sección; las geometrías planas que no la fijan (p.ej. el
+   * contorno que arma SteelColumnsSVG) la dejan sin definir y el consumidor
+   * cae a h === b. Ninguna otra familia la define.
+   */
+  readonly isSquare?: boolean;
+
   /** Returns minimal primitives for the SVG renderer to draw the shape. */
   getPrimitives(): CrossSectionPrimitives;
 }

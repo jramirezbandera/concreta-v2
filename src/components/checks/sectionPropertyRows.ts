@@ -63,9 +63,14 @@ const prop = (label: string, value: string): SectionPropertyRow => ({ label, val
 const derivedProp = (label: string, value: string): SectionPropertyRow =>
   ({ label, value, group: 'props', derived: true });
 
-/** SHS es un RHS con h === b — `SectionKind` no lo distingue. */
+/**
+ * SHS es un RHS con h === b — `SectionKind` no lo distingue. La designación
+ * DECLARADA manda cuando existe: si el usuario definió un RHS 100×100, el
+ * bloque lista h y b por separado (los dos campos que rellenó) en vez de
+ * colapsarlos en «a — lado», igual que el rótulo dice RHS y no SHS.
+ */
 function isSquareTube(s: SectionGeometry): boolean {
-  return s.kind === 'RHS' && s.h === s.b;
+  return s.kind === 'RHS' && (s.isSquare ?? s.h === s.b);
 }
 
 function geometryRows(s: SectionGeometry): SectionPropertyRow[] {

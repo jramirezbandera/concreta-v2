@@ -29,6 +29,18 @@ export interface RHSInputs {
   /** Wall thickness (mm). */
   t: number;
   process: RHSProcess;
+  /**
+   * Designación DECLARADA por quien construye la sección: `true` = SHS.
+   * Se omite cuando nadie la declara (catálogo, adaptadores FEM, tests), y
+   * entonces se deriva de la geometría (h === b).
+   *
+   * Existe porque la geometría NO basta para nombrar el producto: un tubo
+   * definido a mano como RHS 100×100×8 es cuadrado, pero rotularlo «SHS»
+   * contradice el selector de familia que el usuario acaba de rellenar —y
+   * dejaba el PDF de pilares (que sí rotula por familia declarada) diciendo
+   * una cosa mientras la pantalla decía otra.
+   */
+  square?: boolean;
 }
 
 /** EC3 Table 5.2 limits for internal parts in pure compression. */
@@ -107,10 +119,14 @@ export class RHSAdapter implements ColumnBeamSection {
 
   readonly t: number;
   readonly process: RHSProcess;
-  /** True square tube (SHS designation). */
+  /**
+   * Designación SHS (tubo cuadrado). Declarada por el descriptor; derivada de
+   * h === b solo cuando no se declara. No interviene en ningún cálculo: SHS y
+   * RHS comparten fórmulas, curva de pandeo y clasificación — es rotulación.
+   */
   readonly isSquare: boolean;
 
-  constructor({ h, b, t, process }: RHSInputs) {
+  constructor({ h, b, t, process, square }: RHSInputs) {
     if (!(h > 0) || !(b > 0) || !(t > 0) || !(Math.min(h, b) > 2 * t)) {
       // Same guard philosophy as CHSAdapter: produce a harmless ZERO-valued
       // section (t = 0 ⇒ outer minus inner cancels exactly) so calc layers
@@ -123,7 +139,7 @@ export class RHSAdapter implements ColumnBeamSection {
     this.b = b;
     this.t = t;
     this.process = process;
-    this.isSquare = h === b;
+    this.isSquare = square ?? h === b;
     this.tf = t;
     this.tw = t;
 
@@ -237,6 +253,12 @@ export class RHSAdapter implements ColumnBeamSection {
   }
 }
 
-export function makeRHS(h: number, b: number, t: number, process: RHSProcess): RHSAdapter {
-  return new RHSAdapter({ h, b, t, process });
+export function makeRHS(
+  h: number,
+  b: number,
+  t: number,
+  process: RHSProcess,
+  square?: boolean,
+): RHSAdapter {
+  return new RHSAdapter({ h, b, t, process, square });
 }

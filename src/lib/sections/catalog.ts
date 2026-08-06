@@ -118,7 +118,7 @@ function buildEntries(): SteelCatalogEntry[] {
       label: `SHS ${size}×${size}×${dim(t)}`,
       sizeLabel: `${size}×${size}×${dim(t)}`,
       role: FAMILY_ROLE.SHS,
-      descriptor: { kind: 'RHS', h: size, b: size, t, process: 'cold-formed' },
+      descriptor: { kind: 'RHS', h: size, b: size, t, process: 'cold-formed', square: true },
       A: s.A, Iy: s.Iy, Iz: s.Iz,
     });
   }
@@ -131,7 +131,7 @@ function buildEntries(): SteelCatalogEntry[] {
       label: `RHS ${h}×${b}×${dim(t)}`,
       sizeLabel: `${h}×${b}×${dim(t)}`,
       role: FAMILY_ROLE.RHS,
-      descriptor: { kind: 'RHS', h, b, t, process: 'cold-formed' },
+      descriptor: { kind: 'RHS', h, b, t, process: 'cold-formed', square: false },
       A: s.A, Iy: s.Iy, Iz: s.Iz,
     });
   }

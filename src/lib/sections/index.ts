@@ -44,7 +44,8 @@ export type SectionDescriptor =
   | { kind: 'I'; tipo: 'IPE' | 'HEA' | 'HEB' | 'IPN'; size: number }
   | { kind: '2UPN'; size: number }
   | { kind: 'CHS'; D: number; t: number; process: CHSProcess }
-  | { kind: 'RHS'; h: number; b: number; t: number; process: RHSProcess };
+  // `square`: designación declarada (true = SHS). Omitida → se deriva de h === b.
+  | { kind: 'RHS'; h: number; b: number; t: number; process: RHSProcess; square?: boolean };
 
 /**
  * Factory — returns the right ColumnBeamSection adapter or `undefined` when
@@ -55,6 +56,6 @@ export function createSection(d: SectionDescriptor): ColumnBeamSection | undefin
     case 'I':    return makeISectionBySize(d.tipo, d.size);
     case '2UPN': return makeUPNBoxBySize(d.size);
     case 'CHS':  return makeCHS(d.D, d.t, d.process);
-    case 'RHS':  return makeRHS(d.h, d.b, d.t, d.process);
+    case 'RHS':  return makeRHS(d.h, d.b, d.t, d.process, d.square);
   }
 }

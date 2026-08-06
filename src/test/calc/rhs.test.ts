@@ -156,3 +156,38 @@ describe('RHSAdapter — EC3 behaviour', () => {
     expect(s?.label).toContain('RHS 120×80×5');
   });
 });
+
+describe('RHSAdapter — designación declarada vs derivada', () => {
+  // La familia la elige el usuario en el selector; un tubo definido como RHS
+  // con h = b seguía rotulándose SHS y contradecía la propia pantalla.
+  it('RHS declarado con h = b se rotula RHS, no SHS', () => {
+    const s = makeRHS(100, 100, 8, 'cold-formed', false);
+    expect(s.isSquare).toBe(false);
+    expect(s.label).toBe('RHS 100×100×8 (EN 10219)');
+  });
+
+  it('SHS declarado se rotula SHS', () => {
+    expect(makeRHS(100, 100, 8, 'cold-formed', true).label).toBe('SHS 100×100×8 (EN 10219)');
+  });
+
+  it('sin declaración se deriva de la geometría (catálogo, FEM, tests)', () => {
+    expect(makeRHS(100, 100, 8, 'cold-formed').label).toContain('SHS');
+    expect(makeRHS(150, 100, 8, 'cold-formed').label).toContain('RHS');
+  });
+
+  it('la designación NO toca la física: mismas propiedades y misma curva', () => {
+    const declaredRhs = makeRHS(100, 100, 8, 'cold-formed', false);
+    const declaredShs = makeRHS(100, 100, 8, 'cold-formed', true);
+    expect(declaredRhs.A).toBe(declaredShs.A);
+    expect(declaredRhs.Iy).toBe(declaredShs.Iy);
+    expect(declaredRhs.Wpl_y).toBe(declaredShs.Wpl_y);
+    expect(declaredRhs.It).toBe(declaredShs.It);
+    expect(declaredRhs.classify(275)).toBe(declaredShs.classify(275));
+    expect(declaredRhs.getBucklingAlpha()).toEqual(declaredShs.getBucklingAlpha());
+  });
+
+  it('createSection propaga la declaración del descriptor', () => {
+    const s = createSection({ kind: 'RHS', h: 120, b: 120, t: 6, process: 'hot-finished', square: false });
+    expect(s?.label).toBe('RHS 120×120×6 (EN 10210)');
+  });
+});

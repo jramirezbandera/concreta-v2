@@ -79,6 +79,18 @@ describe('sectionPropertyRows — recuento y etiquetas por familia', () => {
     expect(labels(shs100).some((l) => l.startsWith('h —') || l.startsWith('b —'))).toBe(false);
   });
 
+  it('RHS DECLARADO con h = b: h y b por separado, no «a — lado»', () => {
+    // El usuario rellenó dos campos en el panel; el bloque los devuelve los
+    // dos. Colapsarlos en «a — lado» era la presentación de SHS metida en una
+    // sección que la pantalla llama RHS.
+    const squareRhs = makeRHS(100, 100, 8, 'cold-formed', false);
+    expect(geom(squareRhs)).toHaveLength(4);
+    expect(labels(squareRhs)).toContain('h — canto exterior (mm)');
+    expect(labels(squareRhs)).toContain('b — ancho exterior (mm)');
+    expect(labels(squareRhs).some((l) => l.startsWith('a —'))).toBe(false);
+    expect(sectionHeaderLabel(squareRhs).startsWith('RHS ')).toBe(true);
+  });
+
   it('CHS: D y t, sin radio y sin nomenclatura de ala/alma', () => {
     expect(geom(chs168)).toHaveLength(2);
     expect(labels(chs168)).toEqual([

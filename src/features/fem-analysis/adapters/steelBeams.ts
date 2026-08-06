@@ -513,6 +513,6 @@ export function parseProfileKey(key: string): ProfileFields {
     case 'I':    return { ...base, tipo: d.tipo, size: d.size };
     case '2UPN': return { ...base, tipo: '2UPN', size: d.size };
     case 'CHS':  return { ...base, tipo: 'CHS', chs_D: d.D, chs_t: d.t, tube_process: d.process };
-    case 'RHS':  return { ...base, tipo: d.h === d.b ? 'SHS' : 'RHS', rhs_h: d.h, rhs_b: d.b, rhs_t: d.t, tube_process: d.process };
+    case 'RHS':  return { ...base, tipo: (d.square ?? d.h === d.b) ? 'SHS' : 'RHS', rhs_h: d.h, rhs_b: d.b, rhs_t: d.t, tube_process: d.process };
   }
 }
