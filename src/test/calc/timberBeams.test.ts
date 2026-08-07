@@ -45,6 +45,9 @@ const baseInp: TimberBeamInputs = {
   L: 5,
   gk: 2.0,
   qk: 3.0,
+  P_G: 0,
+  P_Q: 0,
+  aP: 2.5,
   serviceClass: 1,
   loadDuration: 'medium',
   loadType: 'residential',
@@ -294,6 +297,134 @@ describe('calcTimberBeam — beam types', () => {
     const r = calcTimberBeam({ ...baseInp, beamType: 'ff' });
     const w = 1.35 * 2 + 1.50 * 3;
     expect(r.MEd).toBeCloseTo(w * 25 / 12, 1);
+  });
+});
+
+// ── Reacciones en apoyos ─────────────────────────────────────────────────────
+describe('calcTimberBeam — reacciones en apoyos', () => {
+  const wd = 1.35 * 2 + 1.50 * 3;   // 7.20 kN/m → R = 18.0 kN por apoyo
+
+  it('biapoyada: dos reacciones iguales wL/2, sin momento y con desglose Gk/Qk', () => {
+    const r = calcTimberBeam(baseInp);
+    expect(r.reactions).toHaveLength(2);
+    for (const x of r.reactions) {
+      expect(x.kind).toBe('pinned');
+      expect(x.R_d).toBeCloseTo(wd * 5 / 2, 6);
+      expect(x.M_d).toBe(0);
+      expect(x.R_Gk).toBeCloseTo(2 * 5 / 2, 6);
+      expect(x.R_Qk).toBeCloseTo(3 * 5 / 2, 6);
+    }
+  });
+
+  it('en biapoyada la reacción coincide con VEd (lo que ya se sabía, ahora rotulado)', () => {
+    const r = calcTimberBeam(baseInp);
+    expect(r.reactions[0].R_d).toBeCloseTo(r.VEd, 6);
+  });
+
+  it('ménsula: UNA sola reacción y momento de empotramiento wL²/2', () => {
+    const r = calcTimberBeam({ ...baseInp, beamType: 'cantilever' });
+    expect(r.reactions).toHaveLength(1);
+    expect(r.reactions[0].kind).toBe('fixed');
+    expect(r.reactions[0].R_d).toBeCloseTo(wd * 5, 6);
+    expect(r.reactions[0].M_d).toBeCloseTo(wd * 25 / 2, 6);
+  });
+
+  it('articulada-empotrada: asimétrica 5/8 y 3/8', () => {
+    const r = calcTimberBeam({ ...baseInp, beamType: 'fp' });
+    expect(r.reactions[0].R_d).toBeCloseTo(5 * wd * 5 / 8, 6);
+    expect(r.reactions[1].R_d).toBeCloseTo(3 * wd * 5 / 8, 6);
+    expect(r.reactions[1].M_d).toBe(0);
+  });
+
+  it('con carga puntual descentrada las reacciones se desequilibran y ΣR = wL + P', () => {
+    const r = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 1 });
+    const Pd = 1.50 * 20;
+    expect(r.reactions[0].R_d).toBeGreaterThan(r.reactions[1].R_d);
+    expect(r.reactions[0].R_d + r.reactions[1].R_d).toBeCloseTo(wd * 5 + Pd, 6);
+    expect(r.reactions[0].R_Qk).toBeCloseTo(3 * 5 / 2 + 20 * 4 / 5, 6);
+  });
+});
+
+// ── Carga puntual ────────────────────────────────────────────────────────────
+describe('calcTimberBeam — carga puntual', () => {
+  it('P = 0 ⇒ resultados idénticos a los de siempre (el centinela es la física)', () => {
+    const a = calcTimberBeam(baseInp);
+    const b = calcTimberBeam({ ...baseInp, P_G: 0, P_Q: 0, aP: 3.7 });
+    expect(b.MEd).toBe(a.MEd);
+    expect(b.VEd).toBe(a.VEd);
+    expect(b.u_active).toBe(a.u_active);
+  });
+
+  it('centrada en biapoyada: MEd sube en Pd·L/4 y VEd en Pd/2', () => {
+    const base = calcTimberBeam(baseInp);
+    const r = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 2.5 });
+    const Pd = 1.50 * 20;
+    expect(r.MEd).toBeCloseTo(base.MEd + Pd * 5 / 4, 6);
+    expect(r.VEd).toBeCloseTo(base.VEd + Pd / 2, 6);
+    expect(r.xM).toBeCloseTo(2.5, 6);
+  });
+
+  it('la flecha crece con la carga puntual', () => {
+    const base = calcTimberBeam(baseInp);
+    const r = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 2.5 });
+    expect(r.u_active).toBeGreaterThan(base.u_active);
+    expect(r.u_confort).toBeGreaterThan(base.u_confort);
+  });
+
+  it('deja constancia del dato con una fila informativa', () => {
+    const row = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 2 }).checks.find(c => c.id === 'point-load');
+    expect(row?.neutral).toBe(true);
+    expect(row?.description).toContain('a = 2.00 m');
+    expect(calcTimberBeam(baseInp).checks.find(c => c.id === 'point-load')).toBeUndefined();
+  });
+
+  it('posición fuera del vano → valid=false', () => {
+    expect(calcTimberBeam({ ...baseInp, P_Q: 10, aP: 6 }).valid).toBe(false);
+    expect(calcTimberBeam({ ...baseInp, P_Q: 10, aP: -1 }).valid).toBe(false);
+    // sin carga puntual la posición es inerte, no invalida nada
+    expect(calcTimberBeam({ ...baseInp, aP: 99 }).valid).toBe(true);
+  });
+
+  it('carga puntual negativa → valid=false', () => {
+    expect(calcTimberBeam({ ...baseInp, P_G: -1 }).valid).toBe(false);
+  });
+
+  it('MÉNSULA: con carga concentrada Lef sube de 0.5·L a 0.8·L (EC5 Tabla 6.1)', () => {
+    // La ménsula con puntual en el extremo tabula 0.8, no el 0.5 del reparto:
+    // quedarse en 0.5 sería NO conservador (menos esbeltez ⇒ menos vuelco).
+    const sin = calcTimberBeam({ ...baseInp, b: 100, h: 500, L: 8, beamType: 'cantilever' });
+    const con = calcTimberBeam({ ...baseInp, b: 100, h: 500, L: 8, beamType: 'cantilever', P_Q: 5, aP: 8 });
+    expect(con.lambda_rel_m).toBeGreaterThan(sin.lambda_rel_m);
+    expect(con.sigma_m_crit).toBeLessThan(sin.sigma_m_crit);
+  });
+
+  it('biapoyada: la puntual NO cambia Lef (0.9 tabulado sigue siendo el conservador)', () => {
+    const sin = calcTimberBeam({ ...baseInp, b: 100, h: 500, L: 8 });
+    const con = calcTimberBeam({ ...baseInp, b: 100, h: 500, L: 8, P_Q: 5, aP: 4 });
+    expect(con.sigma_m_crit).toBeCloseTo(sin.sigma_m_crit, 9);
+  });
+
+  it('la combinación solo-permanente puede gobernar por la puntual permanente', () => {
+    // gk/qk repartidas empatadas, pero la puntual es casi toda permanente
+    const r = calcTimberBeam({ ...baseInp, gk: 8, qk: 0.2, P_G: 30, P_Q: 0.5, aP: 2.5 });
+    expect(r.permGoverns).toBe(true);
+    expect(r.checks.find(c => c.id === 'elu-perm-combo')?.description).toContain('P_G');
+  });
+
+  it('cerca del apoyo, la nota de alcance declara el margen de §6.1.7(3)', () => {
+    const near = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 0.2 });
+    expect(near.checks.find(c => c.id === 'scope-note')?.description).toContain('§6.1.7(3)');
+    const mid = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 2.5 });
+    expect(mid.checks.find(c => c.id === 'scope-note')?.description).not.toContain('§6.1.7(3)');
+  });
+
+  it('en ménsula, el extremo LIBRE no es un apoyo: la carga en punta no dispara la nota', () => {
+    // min(aP, L−aP) diría "pegada al apoyo" con la carga en la punta, que es el
+    // caso opuesto: en ménsula la distancia se mide solo al empotramiento.
+    const tip = calcTimberBeam({ ...baseInp, beamType: 'cantilever', P_Q: 20, aP: 5 });
+    expect(tip.checks.find(c => c.id === 'scope-note')?.description).not.toContain('§6.1.7(3)');
+    const root = calcTimberBeam({ ...baseInp, beamType: 'cantilever', P_Q: 20, aP: 0.2 });
+    expect(root.checks.find(c => c.id === 'scope-note')?.description).toContain('§6.1.7(3)');
   });
 });
 

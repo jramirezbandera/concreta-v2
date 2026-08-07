@@ -23,10 +23,16 @@ import { calcTimberBeam } from '../../lib/calculations/timberBeams';
 const SYSTEM = 'si' as const;
 const ALREADY = 'Ya coincide con el valor actual';
 
+// Los tests se escriben con el payload PLANO (más legible); makePayload lo
+// convierte a la forma real del esquema, donde `fuego` y `cargaPuntual` van
+// AGRUPADOS para no reventar el tope de 16 uniones de Anthropic. Al enviar solo
+// medio grupo, la otra mitad se rellena con el valor de fábrica — que es
+// exactamente lo que hace el modelo, que ve el estado actual en el snapshot.
 interface Payload {
   gradeId: string | null;
   b_mm: number | null; h_mm: number | null; beamType: string | null; L_m: number | null;
   gk_kNm: number | null; qk_kNm: number | null;
+  P_G_kN: number | null; P_Q_kN: number | null; a_m: number | null;
   serviceClass: number | null; loadDuration: string | null;
   loadType: string | null; psi2Custom: number | null;
   fireResistance: string | null; exposedFaces: number | null;
@@ -34,14 +40,34 @@ interface Payload {
   warnings: string[];
 }
 
-function makePayload(partial: Partial<Payload> = {}): Payload {
-  return {
+function makePayload(partial: Partial<Payload> = {}): Record<string, unknown> {
+  const p: Payload = {
     gradeId: null, b_mm: null, h_mm: null, beamType: null, L_m: null,
     gk_kNm: null, qk_kNm: null,
+    P_G_kN: null, P_Q_kN: null, a_m: null,
     serviceClass: null, loadDuration: null, loadType: null, psi2Custom: null,
     fireResistance: null, exposedFaces: null, isSystem: null, partitionType: null,
     warnings: [],
     ...partial,
+  };
+  const fireTouched = p.fireResistance !== null || p.exposedFaces !== null;
+  const pointTouched = p.P_G_kN !== null || p.P_Q_kN !== null || p.a_m !== null;
+  return {
+    gradeId: p.gradeId, b_mm: p.b_mm, h_mm: p.h_mm, beamType: p.beamType, L_m: p.L_m,
+    gk_kNm: p.gk_kNm, qk_kNm: p.qk_kNm,
+    cargaPuntual: pointTouched
+      ? { P_G_kN: p.P_G_kN, P_Q_kN: p.P_Q_kN, a_m: p.a_m }
+      : null,
+    serviceClass: p.serviceClass, loadDuration: p.loadDuration,
+    loadType: p.loadType, psi2Custom: p.psi2Custom,
+    fuego: fireTouched
+      ? {
+          fireResistance: p.fireResistance ?? timberBeamDefaults.fireResistance,
+          exposedFaces: p.exposedFaces ?? timberBeamDefaults.exposedFaces,
+        }
+      : null,
+    isSystem: p.isSystem, partitionType: p.partitionType,
+    warnings: p.warnings,
   };
 }
 
@@ -157,7 +183,64 @@ describe('timberBeams adapter — gates', () => {
   });
 });
 
+describe('timberBeams adapter — carga puntual (grupo todo-o-nada)', () => {
+  it('aplica los tres campos y emite UNA sola fila de cambio', () => {
+    const p = plan({ P_G_kN: 8, P_Q_kN: 12, a_m: 2 });
+    expect(p.fields).toMatchObject({ P_G: 8, P_Q: 12, aP: 2 });
+    const c = changeFor(p, 'Carga puntual');
+    expect(c?.before).toBe('sin carga puntual');
+    expect(c?.after).toContain('en a = 2.00 m');
+  });
+
+  it('ceros = quitar la carga puntual', () => {
+    const current: TimberBeamInputs = { ...timberBeamDefaults, P_G: 5, P_Q: 5, aP: 2 };
+    const p = plan({ P_G_kN: 0, P_Q_kN: 0, a_m: 2 }, current);
+    expect(p.fields).toMatchObject({ P_G: 0, P_Q: 0 });
+    expect(changeFor(p, 'Carga puntual')?.after).toBe('sin carga puntual');
+  });
+
+  it('grupo incompleto → no se aplica NADA (ni la mitad válida)', () => {
+    const p = plan({ P_G_kN: 8, P_Q_kN: null, a_m: 2 });
+    expect(p.fields.P_G).toBeUndefined();
+    expect(p.fields.aP).toBeUndefined();
+    expect(skipFor(p, 'Carga puntual')?.reason).toContain('entera');
+  });
+
+  it('posición fuera del vano → skip del grupo entero', () => {
+    const p = plan({ P_G_kN: 8, P_Q_kN: 0, a_m: 9 });
+    expect(p.fields.P_G).toBeUndefined();
+    expect(skipFor(p, 'Carga puntual')?.reason).toContain('fuera del vano');
+  });
+
+  it('la posición se valida contra la luz PROPUESTA en el mismo turno', () => {
+    const p = plan({ L_m: 10, P_G_kN: 8, P_Q_kN: 0, a_m: 9 });
+    expect(p.fields.aP).toBe(9);
+  });
+
+  it('misma carga → skip "ya coincide"', () => {
+    const current: TimberBeamInputs = { ...timberBeamDefaults, P_G: 5, P_Q: 5, aP: 2 };
+    expect(skipFor(plan({ P_G_kN: 5, P_Q_kN: 5, a_m: 2 }, current), 'Carga puntual')?.reason).toBe(ALREADY);
+  });
+});
+
 describe('timberBeams adapter — reglas de seguridad', () => {
+  it('rebajar la carga puntual → riesgo sobre el EFECTO que aporta', () => {
+    const current: TimberBeamInputs = { ...timberBeamDefaults, P_G: 0, P_Q: 40, aP: 2.5 };
+    const r = riskFor(plan({ P_G_kN: 0, P_Q_kN: 5, a_m: 2.5 }, current), 'efecto_carga_puntual');
+    expect(r?.why).toContain('dato de la obra');
+  });
+
+  it('DESLIZARLA hasta el apoyo también es riesgo, aunque no cambie su valor', () => {
+    // Es la puerta que una regla sobre P_G/P_Q sola dejaría abierta: con a = 0 la
+    // carga se va entera al apoyo y deja de producir momento.
+    const current: TimberBeamInputs = { ...timberBeamDefaults, P_Q: 40, aP: 2.5 };
+    expect(riskFor(plan({ P_G_kN: 0, P_Q_kN: 40, a_m: 0 }, current), 'efecto_carga_puntual')).toBeDefined();
+  });
+
+  it('añadir o acercar al centro una carga puntual NO es riesgo', () => {
+    expect(plan({ P_G_kN: 0, P_Q_kN: 20, a_m: 2.5 }).risks).toEqual([]);
+  });
+
   it('rebajar gk sobre un valor fijado → riesgo', () => {
     const current: TimberBeamInputs = { ...timberBeamDefaults, gk: 5 };
     expect(riskFor(plan({ gk_kNm: 1 }, current), 'gk')?.why).toContain('composición real del forjado');
@@ -218,12 +301,25 @@ describe('timberBeams adapter — reglas de seguridad', () => {
 });
 
 describe('timberBeams adapter — snapshot', () => {
-  it('defaults → 15 claves sin confirmar, beamType incluido', () => {
+  it('defaults → 16 claves sin confirmar, beamType incluido', () => {
     const snap = JSON.parse(timberBeamsAdapter.snapshot(timberBeamDefaults));
     expect(snap.valores.beamType).toBe('ss');
     expect(snap.valores.gk_kNm).toBe(2);
     expect(snap.valores.isSystem).toBe(false);
-    expect(snap.sin_confirmar).toHaveLength(15);
+    expect(snap.sin_confirmar).toHaveLength(16);
+  });
+
+  it('sin carga puntual → la clave va en null (no un objeto de ceros)', () => {
+    const snap = JSON.parse(timberBeamsAdapter.snapshot(timberBeamDefaults));
+    expect(snap.valores.cargaPuntual).toBeNull();
+  });
+
+  it('con carga puntual → sale con la MISMA forma que el payload', () => {
+    const snap = JSON.parse(timberBeamsAdapter.snapshot(
+      { ...timberBeamDefaults, P_Q: 12, aP: 2 },
+    ));
+    expect(snap.valores.cargaPuntual).toEqual({ P_G_kN: 0, P_Q_kN: 12, a_m: 2 });
+    expect(snap.sin_confirmar).not.toContain('cargaPuntual');
   });
 
   it('carga tocada → sale de sin_confirmar', () => {

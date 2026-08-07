@@ -121,7 +121,32 @@ export async function exportTimberBeamsPDF(
   lRow(`b = ${inp.b} mm`, `h = ${inp.h} mm`);
   lRow(`L = ${inp.L} m`);
   lRow(`gk = ${fmtSi(inp.gk, 'linearLoad')}`, `qk = ${fmtSi(inp.qk, 'linearLoad')}`);
+  if (inp.P_G + inp.P_Q > 0) {
+    lRow(`P_G = ${fmtSi(inp.P_G, 'force')}`, `P_Q = ${fmtSi(inp.P_Q, 'force')}`);
+    lRow(`Puntual en a = ${inp.aP} m`, `(del extremo izq.)`);
+  }
   ly += 2;
+
+  // ── Reacciones en apoyos ────────────────────────────────────────────────────
+  // No son comprobaciones (no llevan estado ni entran en el veredicto): son el
+  // dato que hay que bajar al pilar o a la zapata, y por eso va también el
+  // desglose característico Gk/Qk — es lo único que esos módulos pueden usar
+  // con SUS propias combinaciones.
+  //
+  // Van en la columna IZQUIERDA, que sobraba ~45 mm de blanco, y no en una banda
+  // a ancho completo: esta última empujaba las dos últimas comprobaciones a una
+  // segunda página en el caso por defecto, y este informe cabe en una.
+  if (result.reactions.length > 0) {
+    lSecHeader('REACCIONES EN APOYOS');
+    for (const r of result.reactions) {
+      lRow(pdfStr(r.label), `Rd = ${fmtSi(r.R_d, 'force')}`);
+      lRow(`  Gk = ${fmtSi(r.R_Gk, 'force')}`, `Qk = ${fmtSi(r.R_Qk, 'force')}`);
+      if (r.kind === 'fixed') {
+        lRow(`  Md = ${fmtSi(r.M_d, 'moment')}`, `Gk ${fmtSi(r.M_Gk, 'moment')} / Qk ${fmtSi(r.M_Qk, 'moment')}`);
+      }
+    }
+    ly += 2;
+  }
 
   if (result.fireActive) {
     lSecHeader('INCENDIO');
@@ -149,8 +174,9 @@ export async function exportTimberBeamsPDF(
   rRow(`u_fin (apariencia) = ${result.u_fin.toFixed(1)} mm <= ${result.u_fin_lim.toFixed(1)} (L/300)`);
 
   // ── Checks table ─────────────────────────────────────────────────────────────
-  // Start below whichever column ended lower
-  const tableY = Math.max(ly, ry) + 4;
+  // Start below whichever column ended lower. `ensureSpace` reserva cabecera +
+  // primera fila para que no quede huérfana al pie de página.
+  const tableY = ensureSpace(doc, Math.max(ly, ry) + 4, 20, M);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);

@@ -186,6 +186,36 @@ export function TimberBeamsResults({ result }: Props) {
       </div>
       <CheckRows checks={eluChecks} />
 
+      {/* ── Reacciones en apoyos ────────────────────────────────────────────
+          Valores INFORMATIVOS: no son comprobaciones, no llevan estado y no
+          entran en el veredicto. El desglose Gk/Qk es el que hay que llevarse
+          al pilar o a la zapata, que aplican sus propias combinaciones. */}
+      {result.reactions.length > 0 && (
+        <>
+          <GroupHeader label="Reacciones en apoyos" />
+          <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-3">
+            {result.reactions.map(r => (
+              <div key={r.id} className="py-1.75 border-b border-border-sub last:border-b-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-text-secondary">{r.label}</span>
+                  <span className="text-[11px] font-mono text-text-primary tabular-nums">
+                    R<sub>d</sub> = {fmtSi(r.R_d, 'force')}
+                    {r.kind === 'fixed' && <>{'  ·  '}M<sub>d</sub> = {fmtSi(r.M_d, 'moment')}</>}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-[11px] text-text-disabled">Característica (sin mayorar)</span>
+                  <span className="text-[10px] font-mono text-text-disabled tabular-nums">
+                    Gk {fmtSi(r.R_Gk, 'force')}  ·  Qk {fmtSi(r.R_Qk, 'force')}
+                    {r.kind === 'fixed' && `  ·  M: ${fmtSi(r.M_Gk, 'moment')} / ${fmtSi(r.M_Qk, 'moment')}`}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ── ELS ─────────────────────────────────────────────────────────── */}
       <GroupHeader label="ELS — Deformaciones  (CTE DB-SE 4.3.3)" status={groupStatus(elsChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">

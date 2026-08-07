@@ -176,7 +176,13 @@ describe.each(ENTRIES.map((e) => [e.adapter.id, e] as const))(
       const escapes: string[] = [];
       for (const rule of entry.rules) {
         const prop = props[rule.confirmKey ?? rule.field];
-        const values: unknown[] = prop?.enum ?? [];
+        // Un confirmKey puede apuntar a un OBJETO que agrupa varios campos (el
+        // `fuego` de vigas de madera, agrupado para no reventar el tope de
+        // uniones de Anthropic). El enum vive entonces un nivel más abajo, en la
+        // property que se llama como el campo del estado: sin mirar ahí, esta
+        // invariante dejaría de proteger en silencio a los campos agrupados.
+        const nested = prop?.properties?.[rule.field];
+        const values: unknown[] = prop?.enum ?? nested?.enum ?? [];
         for (const v of values) {
           if (v === null) continue; // null = "sin cambio", no es un valor
           if (rule.level(v) === null) escapes.push(`${rule.field} ← ${String(v)}`);

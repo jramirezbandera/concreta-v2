@@ -7,6 +7,7 @@
 
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
+import { beamDeflection, type PointLoad } from '../../lib/calculations/beamResponse';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
@@ -23,8 +24,13 @@ interface TimberBeamsSVGProps {
 // themes) so they stay literal — same principle as the PDF grayscale exception.
 const SCREEN = {
   bg: 'transparent',
-  sectionFill: 'var(--color-chart-section-fill)',
-  sectionStroke: 'var(--color-chart-rebar-dim)',
+  // La sección es MADERA: mismo tono que el alzado. El token de sección neutro
+  // (--color-chart-section-fill) vale #161619 en oscuro = el color del panel,
+  // así que el relleno desaparecía sobre el lienzo.
+  sectionFill: '#c8966c',
+  sectionStroke: '#d4a06e',
+  grain: '#8a6242',
+  wallFill: 'var(--color-chart-section-fill)',
   charFill: '#dc2626',
   charStroke: '#ef4444',
   residualFill: '#c8966c',
@@ -44,6 +50,8 @@ const PDF = {
   bg: '#ffffff',
   sectionFill: '#f5efe6',
   sectionStroke: '#333333',
+  grain: '#333333',
+  wallFill: '#f5efe6',
   charFill: '#cc3333',
   charStroke: '#aa0000',
   residualFill: '#e8d5b0',
@@ -113,7 +121,7 @@ function CrossSection({
         return (
           <line key={i}
             x1={rOx + 3} y1={gy} x2={rOx + b_ef_px - 3} y2={gy}
-            stroke={fireActive ? C.residualStroke : C.sectionStroke}
+            stroke={fireActive ? C.residualStroke : C.grain}
             strokeWidth={0.4} opacity={0.35}
           />
         );
@@ -201,7 +209,7 @@ function WallHatch({ x, y, w, h, C }: { x: number; y: number; w: number; h: numb
   }
   return (
     <g>
-      <rect x={x} y={y} width={w} height={h} fill={C.sectionFill} stroke={C.support} strokeWidth={1} />
+      <rect x={x} y={y} width={w} height={h} fill={C.wallFill} stroke={C.support} strokeWidth={1} />
       {lines}
     </g>
   );
@@ -279,31 +287,48 @@ function Elevation({
   const nArrows = 7;
   const arrowTop = beamTop - 18;
 
-  // Deflected shape
-  const N = 30;
+  // Carga puntual — el dato tiene que VERSE: sin la flecha en su posición, el
+  // alzado contaría una historia distinta de la que calcula el motor.
+  const hasPoint = inp.P_G + inp.P_Q > 0;
+  const tP = hasPoint && inp.L > 0 ? Math.min(Math.max(inp.aP / inp.L, 0), 1) : 0;
+  const xP = x0 + tP * availW;
+  // La flecha arranca por encima de la barra de reparto. En el SVG móvil el
+  // alto baja a ~95 px: se acorta y se queda sin etiqueta antes que salirse.
+  const pTop = Math.max(Math.min(arrowTop - 12, beamTop - 30), 16);
+
+  // Deformada REAL: la curva que sale del mismo motor que calcula la flecha, no
+  // una senoide dibujada a mano por tipo de viga (que mentía en cuanto entraba
+  // una carga puntual). Solo interesa la FORMA ⇒ EI = 1 y sin cortante; se
+  // normaliza por el máximo.
+  const N = 40;
   const amp = panelH * 0.10;
+  const wSer = inp.gk + inp.qk;
+  const pSer: PointLoad[] = hasPoint ? [{ P: inp.P_G + inp.P_Q, a: inp.aP }] : [];
+  const curve = beamDeflection(bc, inp.L, wSer, pSer, 1, 0, 0);
   const deflPts: [number, number][] = Array.from({ length: N + 1 }, (_, i) => {
     const t = i / N;
-    const x = x0 + t * availW;
-    let dy = 0;
-    if (bc === 'ss') {
-      dy = amp * Math.sin(Math.PI * t);
-    } else if (bc === 'cantilever') {
-      dy = amp * (1 - Math.cos(Math.PI * (1 - t) / 2));
-    } else if (bc === 'fp') {
-      dy = amp * 6.75 * t * Math.pow(1 - t, 2);
-    } else {
-      dy = amp * Math.pow(Math.sin(Math.PI * t), 2);
-    }
-    return [x, midY + dy];
+    const dy = curve.max > 0 ? amp * curve.at(t * inp.L) / curve.max : 0;
+    return [x0 + t * availW, midY + dy];
   });
   const deflPath = deflPts
     .map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px.toFixed(1)},${py.toFixed(1)}`)
     .join(' ');
 
-  // Load label — ULS design value, consistent with MEd/VEd shown below (γG=1.35, γQ=1.50)
+  // Load labels — ULS design values, consistent with MEd/VEd shown below (γG=1.35, γQ=1.50)
   const wEd = 1.35 * inp.gk + 1.50 * inp.qk;
   const loadLabel = wEd > 0 ? `Ed=${formatQuantity(wEd, 'linearLoad', system, { precision: 1 })}` : '';
+  const PEd = 1.35 * inp.P_G + 1.50 * inp.P_Q;
+  const pLabel = hasPoint ? `Pd=${formatQuantity(PEd, 'force', system, { precision: 1 })}` : '';
+  const showPLabel = pTop - 4 > 16;
+
+  // Cotas. Las reacciones necesitan ~48 px bajo la viga: si el panel no los
+  // tiene (el SVG móvil se escala a ~95 px de alto) se omiten del dibujo —
+  // siguen estando en el listado de resultados y en el PDF— y la cota de L
+  // vuelve a su sitio de siempre.
+  const showReactions = result.valid && panelH - beamBot >= 70;
+  const reacTail = beamBot + 28;
+  const reacHead = beamBot + 14;
+  const dimY = showReactions ? beamBot + 48 : beamBot + 16;
 
   const textStyle = isPdf ? { fontFamily: 'monospace', fontSize: '8px' } : undefined;
   const cls = isPdf ? undefined : 'font-mono text-[8px]';
@@ -339,6 +364,24 @@ function Elevation({
         </text>
       )}
 
+      {/* Carga puntual */}
+      {hasPoint && (
+        <g>
+          <line x1={xP} y1={pTop} x2={xP} y2={beamTop - 2}
+            stroke={C.loadArrow} strokeWidth={2} />
+          <polygon
+            points={`${xP},${beamTop - 1} ${xP - 3.5},${beamTop - 8} ${xP + 3.5},${beamTop - 8}`}
+            fill={C.loadArrow}
+          />
+          {showPLabel && (
+            <text x={xP} y={pTop - 4} textAnchor="middle"
+              fontSize={8} fill={C.loadArrow} style={textStyle} className={cls}>
+              {pLabel}
+            </text>
+          )}
+        </g>
+      )}
+
       {/* Deflected shape */}
       <path d={deflPath} fill="none" stroke={C.deflected} strokeWidth={1.25}
         strokeDasharray="4,3" />
@@ -347,11 +390,43 @@ function Elevation({
       <LeftSupport />
       <RightSupport />
 
+      {/* Reacciones en apoyos (solo el valor vertical; el momento de
+          empotramiento va en el listado de resultados y en el PDF) */}
+      {showReactions && result.reactions.map((r) => {
+        const rx = r.id === 'left' ? x0 : x1;
+        // Los apoyos caen a 12 px de los bordes del panel: con la etiqueta
+        // centrada en el apoyo, la mitad se salía del viewBox y se cortaba.
+        const labelX = Math.min(Math.max(rx, panelX + 26), panelX + panelW - 26);
+        return (
+          <g key={r.id}>
+            <line x1={rx} y1={reacTail} x2={rx} y2={reacHead}
+              stroke={C.deflected} strokeWidth={1.25} />
+            <polygon
+              points={`${rx},${reacHead} ${rx - 2.5},${reacHead + 5} ${rx + 2.5},${reacHead + 5}`}
+              fill={C.deflected}
+            />
+            <text x={labelX} y={reacTail + 8} textAnchor="middle"
+              fontSize={7} fill={C.deflected} style={textStyle} className={cls}>
+              R={formatQuantity(r.R_d, 'force', system, { precision: 1 })}
+            </text>
+          </g>
+        );
+      })}
+
       {/* L dimension label */}
-      <line x1={x0} y1={beamBot + 16} x2={x1} y2={beamBot + 16} stroke={C.dim} strokeWidth={0.7} />
-      <line x1={x0} y1={beamBot + 13} x2={x0} y2={beamBot + 19} stroke={C.dim} strokeWidth={0.7} />
-      <line x1={x1} y1={beamBot + 13} x2={x1} y2={beamBot + 19} stroke={C.dim} strokeWidth={0.7} />
-      <text x={(x0 + x1) / 2} y={beamBot + 26} textAnchor="middle"
+      <line x1={x0} y1={dimY} x2={x1} y2={dimY} stroke={C.dim} strokeWidth={0.7} />
+      <line x1={x0} y1={dimY - 3} x2={x0} y2={dimY + 3} stroke={C.dim} strokeWidth={0.7} />
+      <line x1={x1} y1={dimY - 3} x2={x1} y2={dimY + 3} stroke={C.dim} strokeWidth={0.7} />
+      {hasPoint && (
+        <>
+          <line x1={xP} y1={dimY - 3} x2={xP} y2={dimY + 3} stroke={C.dim} strokeWidth={0.7} />
+          <text x={(x0 + xP) / 2} y={dimY - 4} textAnchor="middle"
+            fontSize={7} fill={C.dimText} style={textStyle} className={cls}>
+            a={inp.aP}m
+          </text>
+        </>
+      )}
+      <text x={(x0 + x1) / 2} y={dimY + 10} textAnchor="middle"
         fontSize={8} fill={C.dimText} style={textStyle} className={cls}>
         L={inp.L}m
       </text>
@@ -359,7 +434,7 @@ function Elevation({
       {/* ELU/ELS summary */}
       {result.valid && (
         <>
-          <text x={(x0 + x1) / 2} y={panelH - 10} textAnchor="middle"
+          <text x={(x0 + x1) / 2} y={panelH - (showReactions ? 6 : 10)} textAnchor="middle"
             fontSize={7} fill={C.label} style={textStyle} className={cls}>
             MEd={formatQuantity(result.MEd, 'moment', system, { precision: 1 })}  VEd={formatQuantity(result.VEd, 'force', system, { precision: 1 })}
           </text>

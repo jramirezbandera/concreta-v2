@@ -38,8 +38,15 @@ export interface BeamCaseSpec {
    * Shear-deflection coefficient: δ_shear = k_shear · w · L² / (G · A_v=A/1.2)
    * con κ=1.2 (rectangular) YA incluido: δs = κ·ΔM/(G·A) evaluada en el punto
    * de flecha máxima. ss/ff: 1.2·(wL²/8)/wL² = 0.15; fp: 1.2·0.175 ≈ 0.21;
-   * ménsula: 1.2·(wL²/2)/wL² = 0.6. Usado por timberBeams (E/G≈16, ~6-10% de
-   * la flecha — auditoría #114); despreciable en acero (E/G≈2.6).
+   * ménsula: 1.2·(wL²/2)/wL² = 0.6.
+   *
+   * YA NO LO CONSUME NINGÚN MOTOR: vigas de madera pasó a `beamDeflection`
+   * (beamResponse.ts), que integra el término de cortante por trabajos
+   * virtuales para poder superponer cargas puntuales; en acero siempre fue
+   * despreciable (E/G≈2.6). Sobrevive como ANCLA DE CALIBRACIÓN —
+   * beamResponse.test.ts comprueba que el motor general reproduce estos
+   * valores EXACTAMENTE en ss, ménsula y ff. En `fp` no los reproduce, y el
+   * bueno es el del motor: ver la nota de `fp` más abajo.
    */
   k_shear: number;
 }
@@ -89,6 +96,21 @@ export const BEAM_CASES: Record<BeamType, BeamCaseSpec> = {
   // V_B   = 3wL/8  (at pinned support)
   // δ_max ≈ 0.005416wL⁴/EI at x≈0.4215L from fixed end
   //       → k = 8/185.185 ≈ 0.04320 (exact: M_A = wL²/8 → k = 8/185.185)
+  //
+  // OJO — LOS DOS COEFICIENTES DE FLECHA DE `fp` SON APROXIMACIONES, y son las
+  // ÚNICAS de la tabla que no son exactas (ss, ménsula y ff sí lo son; anclado
+  // en beamResponse.test.ts). Los valores exactos, resueltos al integrar el
+  // vano de verdad:
+  //   · máximo en x = (15−√33)L/16 = 0.5784646·L desde el empotramiento (no
+  //     0.4215·L: ese es el número medido desde el APOYO, el comentario de
+  //     arriba lo cuenta desde el lado equivocado);
+  //   · δ_max = 0.00541606·wL⁴/EI → k_defl = 8/184.636 = 0.043329. El 8/185.185
+  //     de aquí se queda un 0.3% CORTO (lado inseguro).
+  //   · k_shear exacto = 0.14630, no 0.21 (aquel salía de una regla ΔM/(G·A)
+  //     que solo vale cuando flexión y cortante pican en la misma sección).
+  // Vigas de madera ya no los usa. Vigas de acero sigue leyendo `k_defl`: no se
+  // ha tocado para no mover en silencio un resultado de otro módulo, pero el
+  // valor bueno queda escrito aquí.
   // Critical M section: fixed support, V_A = 5wL/8 = VEd → VEd_interaction = VEd
   // Lcr = 1.0L (conservative upper bound — engineer should reduce per CE Anejo 22 §6.3 if
   //             full rotational restraint is confirmed, typically 0.7L)

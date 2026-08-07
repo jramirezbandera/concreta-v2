@@ -730,6 +730,14 @@ export interface TimberBeamInputs {
   L: number;             // m — span
   gk: number;            // kN/m — permanent UDL
   qk: number;            // kN/m — variable UDL
+  /** kN — carga puntual PERMANENTE característica. P_G = P_Q = 0 ⇒ no hay carga puntual
+   *  (el centinela es la física: una puntual de valor cero no produce ningún efecto). */
+  P_G: number;
+  /** kN — carga puntual VARIABLE característica. */
+  P_Q: number;
+  /** m — posición de la carga puntual desde el extremo IZQUIERDO, que es el
+   *  empotramiento en ménsula y en articulada-empotrada. Se ignora si P_G = P_Q = 0. */
+  aP: number;
   serviceClass: 1 | 2 | 3;
   loadDuration: string;  // LoadDurationClass
   loadType: string;      // 'residential'|'office'|'storage'|'roof'|'custom'
@@ -752,6 +760,9 @@ export const timberBeamDefaults: TimberBeamInputs = {
   L: 5,
   gk: 2.0,
   qk: 3.0,
+  P_G: 0,
+  P_Q: 0,
+  aP: 2.5,
   serviceClass: 1,
   loadDuration: 'medium',
   loadType: 'residential',

@@ -12,6 +12,7 @@ import { steelBeamsAdapter } from '../../lib/ai/modules/steelBeams';
 import { isolatedFootingAdapter } from '../../lib/ai/modules/isolatedFooting';
 import { masonryWallsAdapter } from '../../lib/ai/modules/masonryWalls';
 import { punchingAdapter } from '../../lib/ai/modules/punching';
+import { timberBeamsAdapter } from '../../lib/ai/modules/timberBeams';
 
 /**
  * Envelope de chat transcrito del contrato `buildChatSchema` del plan.
@@ -366,5 +367,24 @@ describe('límite de uniones de Anthropic', () => {
     expect(exceedsAnthropicUnionLimit(buildChatSchema(steelBeamsAdapter.payloadSchema))).toBe(false);
     expect(countAnthropicUnions(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(16);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(false);
+  });
+
+  // Vigas de madera cabía justo en 16 y hubo que meterle la carga puntual. La
+  // salida fue AGRUPAR: un objeto ANULABLE con hijos NO anulables cuesta UNA
+  // unión, así que `fireResistance`+`exposedFaces` (2) pasaron a `fuego` (1) y
+  // eso pagó la `cargaPuntual` nueva (1). Centinela: el próximo campo anulable
+  // suelto vuelve a expulsar el módulo de Anthropic — hay que agrupar otro par.
+  it('vigas de madera: 13 escalares + fuego + cargaPuntual + proposal = 16', () => {
+    const envelope = buildChatSchema(timberBeamsAdapter.payloadSchema);
+    expect(countAnthropicUnions(envelope)).toBe(16);
+    expect(exceedsAnthropicUnionLimit(envelope)).toBe(false);
+  });
+
+  it('un objeto anulable con hijos NO anulables cuesta 1 unión, no una por hijo', () => {
+    const props = (timberBeamsAdapter.payloadSchema as {
+      properties: Record<string, Record<string, unknown>>;
+    }).properties;
+    expect(countAnthropicUnions(props.fuego)).toBe(1);
+    expect(countAnthropicUnions(props.cargaPuntual)).toBe(1);
   });
 });

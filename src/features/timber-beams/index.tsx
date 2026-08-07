@@ -33,6 +33,7 @@ export function TimberBeamsModule() {
   const handleAiApply = (plan: AiApplyPlan<TimberBeamInputs>) => {
     const ORDER: (keyof TimberBeamInputs)[] = [
       'gradeId', 'b', 'h', 'beamType', 'L', 'gk', 'qk',
+      'P_G', 'P_Q', 'aP',
       'serviceClass', 'loadDuration', 'loadType', 'psi2Custom',
       'fireResistance', 'exposedFaces', 'isSystem', 'partitionType',
     ];

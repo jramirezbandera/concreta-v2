@@ -32,6 +32,7 @@ import type { CheckRow } from '../../calculations/types';
 import { psi2ForLoadType, type TimberBeamResult } from '../../calculations/timberBeams';
 import { beamSchemeRules } from '../beamScheme';
 import { BEAM_CASES } from '../../calculations/beamCases';
+import { beamResponse } from '../../calculations/beamResponse';
 import { timberBeamDefaults, type BeamType, type TimberBeamInputs } from '../../../data/defaults';
 import { TIMBER_GRADES } from '../../../data/timberGrades';
 import { formatQuantity } from '../../units/format';
@@ -51,13 +52,29 @@ const PARTITION_TYPES: readonly string[] = ['fragile', 'ordinary', 'none'];
 
 // ── Payload schema (JSON Schema canónico PLANO, todo nullable) ────────────────
 
+/**
+ * PRESUPUESTO DE UNIONES DE ANTHROPIC (tope duro 16, ver schemaConvert.ts).
+ *
+ * Este payload estaba EXACTAMENTE en 16 (15 campos anulables + el envoltorio
+ * `proposal`), así que la carga puntual no cabía como campos sueltos. Un objeto
+ * ANULABLE con hijos NO anulables cuesta UNA sola unión, así que:
+ *   · `fireResistance` + `exposedFaces` (2 uniones) → objeto `fuego` (1)  −1
+ *   · la carga puntual entra como objeto `cargaPuntual`                   +1
+ * Total: 13 escalares + `fuego` + `cargaPuntual` + `proposal` = 16. Sigue justo
+ * en el límite: el próximo campo anulable expulsa el módulo de Anthropic.
+ *
+ * El agrupamiento es SOLO del esquema. Dentro del mapper, del snapshot y de las
+ * reglas de seguridad los campos siguen siendo individuales: lo único que cambia
+ * es que el modelo tiene que enviar cada grupo entero (todo-o-nada), y los
+ * valores vigentes ya se los da el snapshot.
+ */
 export const TIMBER_BEAM_PAYLOAD_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'gradeId', 'b_mm', 'h_mm', 'beamType', 'L_m', 'gk_kNm', 'qk_kNm',
+    'gradeId', 'b_mm', 'h_mm', 'beamType', 'L_m', 'gk_kNm', 'qk_kNm', 'cargaPuntual',
     'serviceClass', 'loadDuration', 'loadType', 'psi2Custom',
-    'fireResistance', 'exposedFaces', 'isSystem', 'partitionType',
+    'fuego', 'isSystem', 'partitionType',
     'warnings',
   ],
   properties: {
@@ -68,12 +85,31 @@ export const TIMBER_BEAM_PAYLOAD_SCHEMA: Record<string, unknown> = {
     L_m: { type: ['number', 'null'], description: 'Luz del vano en METROS (en una ménsula, el vuelo).' },
     gk_kNm: { type: ['number', 'null'], description: 'Carga PERMANENTE característica en kN/m LINEALES sobre la viga (NO kN/m²: este módulo no tiene ancho tributario). Sin mayorar.' },
     qk_kNm: { type: ['number', 'null'], description: 'Sobrecarga VARIABLE característica en kN/m LINEALES sobre la viga (NO kN/m²). Sin mayorar.' },
+    cargaPuntual: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['P_G_kN', 'P_Q_kN', 'a_m'],
+      description: 'Carga CONCENTRADA sobre la viga (otra viga que apoya, un pilarillo, un montante), además del reparto uniforme. null = sin cambio. Para QUITARLA, envía los tres campos con P_G_kN = 0 y P_Q_kN = 0. Se envía ENTERA: los tres campos siempre juntos.',
+      properties: {
+        P_G_kN: { type: 'number', description: 'Parte PERMANENTE característica de la carga puntual, en kN (kilonewtons, NO kN/m). Sin mayorar. 0 si no la hay.' },
+        P_Q_kN: { type: 'number', description: 'Parte VARIABLE característica de la carga puntual, en kN. Sin mayorar. 0 si no la hay.' },
+        a_m: { type: 'number', description: 'Posición de la carga en METROS desde el extremo IZQUIERDO del vano — que es el EMPOTRAMIENTO en ménsula ("cantilever") y en articulada-empotrada ("fp"). Entre 0 y L_m. En el centro del vano: a_m = L_m/2.' },
+      },
+    },
     serviceClass: { type: ['integer', 'null'], enum: [...SERVICE_CLASSES, null], description: 'Clase de servicio EC5: 1 interior seco, 2 exterior cubierto o interior húmedo, 3 exterior a la intemperie.' },
     loadDuration: { type: ['string', 'null'], enum: [...LOAD_DURATIONS, null], description: 'Clase de duración de la carga variable (fija kmod): "permanent", "long" (almacenamiento), "medium" (sobrecarga de uso), "short" (nieve, montaje), "instantaneous" (viento, sismo).' },
     loadType: { type: ['string', 'null'], enum: [...LOAD_TYPES, null], description: 'Categoría de uso, fija ψ₂ para la flecha activa: "residential" (0.30), "office" (0.30), "storage" (0.80), "roof" (0.00) o "custom".' },
     psi2Custom: { type: ['number', 'null'], description: 'Valor de ψ₂ a medida (0–1). SOLO se usa si loadType = "custom".' },
-    fireResistance: { type: ['string', 'null'], enum: [...FIRE_RESISTANCES, null], description: 'Resistencia al fuego exigida: "R0" (sin requisito), "R30", "R60", "R90" o "R120".' },
-    exposedFaces: { type: ['integer', 'null'], enum: [...EXPOSED_FACES, null], description: 'Caras expuestas al fuego: 3 (viga bajo forjado, lo habitual) o 4 (viga exenta). Solo aplica si hay requisito de fuego.' },
+    fuego: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['fireResistance', 'exposedFaces'],
+      description: 'Requisito de incendio. null = sin cambio. Se envía ENTERO: los dos campos siempre juntos (si solo quieres cambiar uno, repite el otro con su valor actual, que tienes en el estado).',
+      properties: {
+        fireResistance: { type: 'string', enum: [...FIRE_RESISTANCES], description: 'Resistencia al fuego exigida: "R0" (sin requisito), "R30", "R60", "R90" o "R120".' },
+        exposedFaces: { type: 'integer', enum: [...EXPOSED_FACES], description: 'Caras expuestas al fuego: 3 (viga bajo forjado, lo habitual) o 4 (viga exenta). Solo aplica si hay requisito de fuego.' },
+      },
+    },
     isSystem: { type: ['boolean', 'null'], description: 'true si la viga forma parte de un sistema con reparto de carga (tablero o forjado solidario sobre ≥4 vigas paralelas): aplica ksys = 1.10, que SUBE la resistencia a flexión. false = viga aislada.' },
     partitionType: { type: ['string', 'null'], enum: [...PARTITION_TYPES, null], description: 'Tabiquería soportada; fija el límite de flecha activa (integridad): "fragile" L/500, "ordinary" L/400, "none" (sin tabiques) L/300.' },
     warnings: { type: 'array', items: { type: 'string' }, description: 'Avisos: conversiones de unidades realizadas (sobre todo kN/m² × ancho tributario → kN/m), ambigüedades, datos del enunciado ignorados.' },
@@ -90,13 +126,22 @@ const PROMPT_RULES = `Reglas específicas del módulo Vigas de madera:
 5. beamType describe las condiciones de apoyo REALES del vano: "ss" biapoyada (M = wL²/8), "cantilever" ménsula/voladizo (M = wL²/2, la más exigente), "fp" articulada-empotrada, "ff" biempotrada (M = wL²/12). No es una variable de diseño: es cómo está construida la viga.
 6. isSystem = true SOLO si hay ≥ 4 vigas paralelas con un tablero o forjado que reparte la carga entre ellas: regala un ksys = 1.10 de resistencia a flexión. No lo actives por defecto.
 7. partitionType fija el límite de flecha activa por integridad (frágil L/500, ordinaria L/400, sin tabiques L/300): lo decide qué hay construido sobre la viga.
-8. En este módulo son DATOS del problema, no variables de diseño: las cargas (gk, qk), la luz (L_m), las condiciones de apoyo (beamType), la clase de servicio, la duración de la carga, la categoría de uso (ψ₂), la tabiquería, el sistema de reparto (isSystem) y la resistencia al fuego exigida. Para que la viga cumpla actúa SIEMPRE sobre la RESISTENCIA: más canto (h_mm) — es lo más eficaz, sobre todo en flecha —, más ancho (b_mm) o clase resistente superior (C24 → C30, o laminada GL). NUNCA rebajes una carga, ni acortes la luz, ni relajes el límite de flecha cambiando la tabiquería, ni actives el reparto de sistema para que salga el cálculo.`;
+8. CARGA PUNTUAL: "cargaPuntual" es para una carga CONCENTRADA (otra viga que apoya, un pilarillo, un montante, una máquina). Va en kN, NO en kN/m — no la confundas con gk_kNm/qk_kNm. "a_m" se mide desde el extremo IZQUIERDO del vano, que es el EMPOTRAMIENTO en ménsula y en articulada-empotrada. Si el enunciado NO menciona ninguna carga concentrada, deja "cargaPuntual" en null: no la inventes. Nunca la quites ni la desplaces hacia un apoyo para que el cálculo salga: es un dato de la obra.
+9. GRUPOS TODO-O-NADA: "cargaPuntual" y "fuego" se envían ENTEROS o en null. Dentro de un grupo no hay "sin cambio" por campo: si solo quieres tocar uno, repite los demás con el valor que ves en el estado.
+10. En este módulo son DATOS del problema, no variables de diseño: las cargas (gk, qk, cargaPuntual), la luz (L_m), las condiciones de apoyo (beamType), la clase de servicio, la duración de la carga, la categoría de uso (ψ₂), la tabiquería, el sistema de reparto (isSystem) y la resistencia al fuego exigida. Para que la viga cumpla actúa SIEMPRE sobre la RESISTENCIA: más canto (h_mm) — es lo más eficaz, sobre todo en flecha —, más ancho (b_mm) o clase resistente superior (C24 → C30, o laminada GL). NUNCA rebajes una carga, ni acortes la luz, ni relajes el límite de flecha cambiando la tabiquería, ni actives el reparto de sistema para que salga el cálculo.`;
 
 const PLACEHOLDER_EXAMPLE =
   'Ej.: Viga de madera C24 de 5 m de luz, biapoyada, con vigas cada 60 cm. '
   + 'Carga permanente 2.5 kN/m² y sobrecarga de uso 2 kN/m². Interior seco, tabiquería ordinaria.';
 
 // ── Parseo defensivo del payload ──────────────────────────────────────────────
+
+/** Carga puntual ya APLANADA: el agrupamiento vive solo en el JSON Schema. */
+export interface PointLoadPayload {
+  P_G_kN: number | null;
+  P_Q_kN: number | null;
+  a_m: number | null;
+}
 
 interface TimberBeamPayload {
   gradeId: string | null;
@@ -106,6 +151,8 @@ interface TimberBeamPayload {
   L_m: number | null;
   gk_kNm: number | null;
   qk_kNm: number | null;
+  /** null = sin cambio (el grupo entero no venía). */
+  cargaPuntual: PointLoadPayload | null;
   serviceClass: number | null;
   loadDuration: string | null;
   loadType: string | null;
@@ -123,12 +170,21 @@ function finiteNumber(v: unknown): number | null {
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
+function objectOrNull(v: unknown): Record<string, unknown> | null {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
 
 function parsePayload(raw: unknown): TimberBeamPayload {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new AiError('bad-response', 'La propuesta del modelo no es un objeto JSON.');
   }
   const r = raw as Record<string, unknown>;
+  // Los dos grupos se APLANAN aquí: el resto del mapper, el snapshot y las
+  // reglas de seguridad siguen razonando campo a campo.
+  const fuego = objectOrNull(r.fuego);
+  const punt = objectOrNull(r.cargaPuntual);
   return {
     gradeId: stringOrNull(r.gradeId),
     b_mm: finiteNumber(r.b_mm),
@@ -137,12 +193,17 @@ function parsePayload(raw: unknown): TimberBeamPayload {
     L_m: finiteNumber(r.L_m),
     gk_kNm: finiteNumber(r.gk_kNm),
     qk_kNm: finiteNumber(r.qk_kNm),
+    cargaPuntual: punt === null ? null : {
+      P_G_kN: finiteNumber(punt.P_G_kN),
+      P_Q_kN: finiteNumber(punt.P_Q_kN),
+      a_m: finiteNumber(punt.a_m),
+    },
     serviceClass: finiteNumber(r.serviceClass),
     loadDuration: stringOrNull(r.loadDuration),
     loadType: stringOrNull(r.loadType),
     psi2Custom: finiteNumber(r.psi2Custom),
-    fireResistance: stringOrNull(r.fireResistance),
-    exposedFaces: finiteNumber(r.exposedFaces),
+    fireResistance: fuego === null ? null : stringOrNull(fuego.fireResistance),
+    exposedFaces: fuego === null ? null : finiteNumber(fuego.exposedFaces),
     isSystem: typeof r.isSystem === 'boolean' ? r.isSystem : null,
     partitionType: stringOrNull(r.partitionType),
     warnings: Array.isArray(r.warnings)
@@ -161,6 +222,7 @@ const LABELS = {
   L_m: 'Luz L',
   gk_kNm: 'Carga permanente gk',
   qk_kNm: 'Sobrecarga qk',
+  cargaPuntual: 'Carga puntual',
   serviceClass: 'Clase de servicio',
   loadDuration: 'Duración de la carga',
   loadType: 'Categoría de uso (ψ₂)',
@@ -175,7 +237,7 @@ type PayloadKey = keyof typeof LABELS;
 
 /** ORDER del contrato: los gates (`loadType`, `fireResistance`) antes que sus dependientes. */
 const KEY_ORDER: readonly PayloadKey[] = [
-  'gradeId', 'b_mm', 'h_mm', 'beamType', 'L_m', 'gk_kNm', 'qk_kNm',
+  'gradeId', 'b_mm', 'h_mm', 'beamType', 'L_m', 'gk_kNm', 'qk_kNm', 'cargaPuntual',
   'serviceClass', 'loadDuration', 'loadType', 'psi2Custom',
   'fireResistance', 'exposedFaces', 'isSystem', 'partitionType',
 ];
@@ -257,13 +319,18 @@ export const TIMBER_BEAM_SAFETY_RULES: ReadonlyArray<SafetyRule<TimberBeamInputs
     alwaysCheck: true,
     why: 'El reparto de sistema (ksys = 1.10) exige ≥ 4 vigas paralelas con un tablero solidario que reparta la carga: activarlo sube la resistencia a flexión un 10% sin tocar la viga.',
   },
+  // Los dos campos de fuego viajan dentro del objeto `fuego` del payload: sin
+  // este confirmKey el gate anti-ruido buscaría una clave que ya no existe en el
+  // esquema y no se levantaría NUNCA (safetyRuleContract.test.ts lo asserta).
   {
     field: 'fireResistance',
+    confirmKey: 'fuego',
     level: ordinalLevel({ R0: 0, R30: 30, R60: 60, R90: 90, R120: 120 }),
     why: 'La resistencia al fuego exigida la fija el CTE DB-SI según el uso y la altura del edificio: rebajarla elimina o acorta la comprobación de incendio.',
   },
   {
     field: 'exposedFaces',
+    confirmKey: 'fuego',
     level: higherIsSafer, // 4 caras carbonizan más que 3
     why: 'Las caras expuestas al fuego las fija la posición real de la viga (exenta o bajo forjado): pasar de 4 a 3 deja una sección residual mayor sin cambiar la viga.',
   },
@@ -296,6 +363,27 @@ export const TIMBER_BEAM_RESOLVED_RULES: ReadonlyArray<ResolvedSafetyRule<Timber
     why: 'ψ₂ lo fija la categoría de uso (CTE DB-SE Tabla 4.2), no el cálculo: rebajarlo —cambiando la categoría o escribiéndolo a mano en "custom"— reduce la parte de sobrecarga que cuenta en la flecha final y en la activa (la que ven los tabiques), y en madera la flecha es quien suele mandar.',
     fields: ['loadType', 'psi2Custom'],
     confirmKeys: ['loadType', 'psi2Custom'],
+  },
+  // La carga puntual NO admite reglas por campo: `aP` no tiene dirección segura
+  // (moverla puede subir o bajar la demanda según el esquema) y una regla sobre
+  // P_G/P_Q sola dejaría abierta la puerta de deslizar la carga HASTA EL APOYO,
+  // que la anula por completo sin tocar su valor. La magnitud con sentido es el
+  // EFECTO: el momento que la carga puntual produce ella sola. Bajarlo —por
+  // valor o por posición— es el riesgo, y ahí sí hay dirección.
+  {
+    id: 'efecto_carga_puntual',
+    label: 'Efecto de la carga puntual (M que aporta)',
+    resolve: (s) => {
+      const P = s.P_G + s.P_Q;   // característica: solo importa el nivel relativo
+      if (P <= 0 || s.L <= 0) return 0;
+      const a = Math.min(Math.max(s.aP, 0), s.L);
+      return beamResponse(s.beamType, s.L, 0, [{ P, a }]).MEd;
+    },
+    level: higherIsSafer,
+    format: (v) => `${v.toFixed(2)} kNm`,
+    why: 'La carga puntual es un dato de la obra (otra viga, un pilarillo): reducir su valor —o deslizarla hacia un apoyo, que la anula sin cambiarle el valor— baja el momento, el cortante y la flecha sin tocar la viga.',
+    fields: ['P_G', 'P_Q', 'aP'],
+    confirmKeys: ['cargaPuntual'],
   },
 ];
 
@@ -440,6 +528,47 @@ function buildTimberBeamPlan(
   applyLoad('gk_kNm', 'gk', x.gk_kNm);
   applyLoad('qk_kNm', 'qk', x.qk_kNm);
 
+  // --- Carga puntual: grupo TODO-O-NADA (kN, sin mayorar) ---
+  // Los tres campos describen UNA carga: aplicar dos de tres dejaría un estado
+  // que nadie ha pedido (p. ej. la magnitud nueva en la posición vieja). Si algo
+  // no valida, no se toca ninguno.
+  if (x.cargaPuntual !== null) {
+    const { P_G_kN: pg, P_Q_kN: pq, a_m: a } = x.cargaPuntual;
+    const Lfinal = fields.L ?? current.L;
+    if (pg === null || pq === null || a === null) {
+      skip('cargaPuntual', 'La carga puntual va entera: hacen falta P_G_kN, P_Q_kN y a_m a la vez');
+    } else if (pg < 0 || pg > 5000 || pq < 0 || pq > 5000) {
+      skip('cargaPuntual', rangeReason(pg < 0 || pg > 5000 ? pg : pq, 0, 5000, 'kN'));
+    } else if (a < 0 || a > Lfinal) {
+      skip('cargaPuntual', `La posición ${a} m cae fuera del vano (0–${Lfinal} m)`);
+    } else {
+      const nPG = round2(pg);
+      const nPQ = round2(pq);
+      const nA = round2(a);
+      const same = Math.abs(nPG - current.P_G) <= EPS
+                && Math.abs(nPQ - current.P_Q) <= EPS
+                && (nPG + nPQ === 0 || Math.abs(nA - current.aP) <= EPS);
+      if (same) {
+        skip('cargaPuntual', ALREADY);
+      } else {
+        const fmtPoint = (P_G: number, P_Q: number, aP: number) =>
+          P_G + P_Q > 0
+            ? `${formatQuantity(P_G, 'force', system)} + ${formatQuantity(P_Q, 'force', system)} en a = ${aP.toFixed(2)} m`
+            : 'sin carga puntual';
+        handled.add('cargaPuntual');
+        fields.P_G = nPG;
+        fields.P_Q = nPQ;
+        fields.aP = nA;
+        changes.push({
+          field: 'P_G',
+          label: LABELS.cargaPuntual,
+          before: fmtPoint(current.P_G, current.P_Q, current.aP),
+          after: fmtPoint(nPG, nPQ, nA),
+        });
+      }
+    }
+  }
+
   // --- Condiciones de uso ---
   applyEnum(
     'serviceClass', 'serviceClass', x.serviceClass, SERVICE_CLASSES,
@@ -509,7 +638,7 @@ function buildTimberBeamPlan(
   // --- notFound ---
   const values: Record<PayloadKey, unknown> = {
     gradeId: x.gradeId, b_mm: x.b_mm, h_mm: x.h_mm, beamType: x.beamType, L_m: x.L_m,
-    gk_kNm: x.gk_kNm, qk_kNm: x.qk_kNm,
+    gk_kNm: x.gk_kNm, qk_kNm: x.qk_kNm, cargaPuntual: x.cargaPuntual,
     serviceClass: x.serviceClass, loadDuration: x.loadDuration,
     loadType: x.loadType, psi2Custom: x.psi2Custom,
     fireResistance: x.fireResistance, exposedFaces: x.exposedFaces,
@@ -536,7 +665,10 @@ function buildTimberBeamPlan(
 
 type StateKey = Exclude<keyof TimberBeamInputs, 'title'>;
 
-const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
+/** `cargaPuntual` agrupa tres campos del estado: se resuelve aparte. */
+type ScalarKey = Exclude<PayloadKey, 'cargaPuntual'>;
+
+const SNAPSHOT_FIELDS: Readonly<Record<ScalarKey, StateKey>> = {
   gradeId: 'gradeId',
   b_mm: 'b',
   h_mm: 'h',
@@ -555,9 +687,20 @@ const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
 };
 
 function buildSnapshot(c: TimberBeamInputs): string {
-  const valores: Record<string, number | string | boolean> = {};
+  const valores: Record<string, unknown> = {};
   const sinConfirmar: PayloadKey[] = [];
   for (const key of KEY_ORDER) {
+    if (key === 'cargaPuntual') {
+      // Se publica con la MISMA forma que el payload, para que el modelo pueda
+      // reenviar el grupo entero sin recomponerlo. null = no hay carga puntual.
+      valores[key] = c.P_G + c.P_Q > 0
+        ? { P_G_kN: c.P_G, P_Q_kN: c.P_Q, a_m: c.aP }
+        : null;
+      if (c.P_G === timberBeamDefaults.P_G
+        && c.P_Q === timberBeamDefaults.P_Q
+        && c.aP === timberBeamDefaults.aP) sinConfirmar.push(key);
+      continue;
+    }
     const field = SNAPSHOT_FIELDS[key];
     const value = c[field];
     valores[key] = value;
@@ -590,6 +733,13 @@ export function summarizeTimberBeamResults(r: TimberBeamResult): AiResultsSummar
     `Flechas: activa ${r.u_active.toFixed(1)} mm (límite ${r.u_active_lim.toFixed(1)}) · `
       + `final ${r.u_fin.toFixed(1)} mm (límite ${r.u_fin_lim.toFixed(1)})`,
   ];
+  if (r.reactions.length > 0) {
+    extras.push(
+      'Reacciones (ELU, positivas hacia arriba): '
+      + r.reactions.map((x) => `${x.label} R = ${x.R_d.toFixed(1)} kN`
+        + (x.kind === 'fixed' ? `, M = ${x.M_d.toFixed(1)} kNm` : '')).join(' · '),
+    );
+  }
   if (r.permGoverns) {
     extras.push(
       'GOBIERNA la combinación solo-permanente (1.35·gk con kmod permanente): la sobrecarga es '

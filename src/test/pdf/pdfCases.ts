@@ -148,6 +148,19 @@ export const PDF_CASES: PdfCase[] = [
   { m: 20, name: 'empresillado',      run: (t = ID) => exportEmpresalladoPDF(empresalladoDefaults, t(calcEmpresillado(empresalladoDefaults)) as any, 'si', T) },
   { m: 20, name: 'isolated-footing',  run: (t = ID) => exportIsolatedFootingPDF(isolatedFootingDefaults, t(calcIsolatedFooting(isolatedFootingDefaults)) as any, 'si', T) },
   { m: 20, name: 'timber-beams',      run: (t = ID) => exportTimberBeamsPDF(timberBeamDefaults, t(calcTimberBeam(timberBeamDefaults)) as any, 'si', T) },
+  // Tres ramas del exportador que los defaults NO tocan: las dos líneas de carga
+  // puntual en la columna de datos, el bloque de reacciones CON momento de
+  // empotramiento (una sola reacción, fila Md extra) y la nota larga de
+  // §6.1.7(3), que solo aparece con la carga a menos de h del apoyo y es la que
+  // pone a prueba el envoltorio del texto. PDF_CASES cubre módulos, no ramas.
+  {
+    m: 20,
+    name: 'timber-beams (mensula + carga puntual junto al apoyo)',
+    run: (t = ID) => {
+      const i = { ...timberBeamDefaults, beamType: 'cantilever' as const, L: 2.5, P_G: 8, P_Q: 12, aP: 0.2 };
+      return exportTimberBeamsPDF(i, t(calcTimberBeam(i)) as any, 'si', T);
+    },
+  },
   { m: 20, name: 'forjados',          run: (t = ID) => exportForjadosPDF(forjadosDefaults, t(calcForjados(forjadosDefaults)) as any, 'si', T) },
   { m: 20, name: 'timber-columns',    run: (t = ID) => exportTimberColumnsPDF(timberColumnDefaults, t(calcTimberColumn(timberColumnDefaults)) as any, 'si', T) },
   { m: 20, name: 'anchor-plate',      run: (t = ID) => exportAnchorPlatePDF(anchorPlateDefaults, t(calcAnchorPlate(anchorPlateDefaults)) as any, 'si', T) },

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { type BeamType, type TimberBeamInputs } from '../../data/defaults';
 import { TIMBER_GRADES, getKmod, getKdef, getTimberGrade } from '../../data/timberGrades';
 import { BEAM_CASES } from '../../lib/calculations/beamCases';
@@ -12,6 +13,10 @@ interface Props {
 }
 
 // ── Shared field components (same pattern as SteelBeamsInputs) ────────────────
+
+const SELECT_CLASS = 'w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 '
+  + 'text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated '
+  + 'focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors';
 
 function SelectField({
   labelKey, label, help, field, value, options, setField,
@@ -44,7 +49,7 @@ function SelectField({
           const n = Number(raw);
           setField(field, isNaN(n) || raw === '' ? raw : n);
         }}
-        className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        className={SELECT_CLASS}
       >
         {options.map((o) => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
       </select>
@@ -94,6 +99,14 @@ const SYSTEM_OPTIONS = [
   { value: 'true',  label: 'Tablero colaborante  (ksys = 1.10)' },
 ];
 
+const POINT_LOAD_OPTIONS = [
+  { value: 'false', label: 'Solo repartida' },
+  { value: 'true',  label: 'Con carga puntual' },
+];
+
+/** Valores de arranque al activar la carga puntual (el usuario los sobrescribe). */
+const POINT_SEED_KN = 5;
+
 const FIRE_OPTIONS = [
   { value: 'R0',   label: 'Sin requisito' },
   { value: 'R30',  label: 'R30  (30 min)'  },
@@ -123,6 +136,28 @@ export function TimberBeamsInputs({ state, setField }: Props) {
   const kdef   = grade ? getKdef(grade.type, state.serviceClass as never) : 0;
   const gammaM = grade ? (grade.type === 'glulam' ? 1.25 : 1.30) : 0;
 
+  // El estado no lleva bandera: P_G = P_Q = 0 ES "sin carga puntual". `pointOpen`
+  // solo mantiene los campos a la vista mientras el usuario los edita (si los
+  // pone a cero no queremos que desaparezcan de golpe); `hasPoint` los abre
+  // también cuando la carga llega de fuera (enlace compartido o asistente IA).
+  const hasPoint = state.P_G > 0 || state.P_Q > 0;
+  const [pointOpen, setPointOpen] = useState(false);
+  const showPoint = pointOpen || hasPoint;
+
+  const togglePointLoad = (on: boolean) => {
+    setPointOpen(on);
+    if (!on) {
+      setField('P_G', 0);
+      setField('P_Q', 0);
+      return;
+    }
+    if (state.aP <= 0 || state.aP >= state.L) setField('aP', Number((state.L / 2).toFixed(3)));
+    if (!hasPoint) {
+      setField('P_G', POINT_SEED_KN);
+      setField('P_Q', POINT_SEED_KN);
+    }
+  };
+
   return (
     <div>
       {/* ── Sección transversal ──────────────────────────────────────────── */}
@@ -133,7 +168,7 @@ export function TimberBeamsInputs({ state, setField }: Props) {
             id="tb-gradeId"
             value={state.gradeId}
             onChange={(e) => setField('gradeId', e.target.value)}
-            className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+            className={SELECT_CLASS}
           >
             <optgroup label="Conífera aserrada">
               {SOFTWOOD_IDS.map(id => <option key={id} value={id}>{id}</option>)}
@@ -180,6 +215,45 @@ export function TimberBeamsInputs({ state, setField }: Props) {
           quantity="linearLoad"
           onChange={(v) => setField('qk', v)}
         />
+
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+          <InputLabel
+            htmlFor="tb-hasPoint"
+            label="Carga puntual"
+            help="Carga concentrada sobre la viga (otra viga que apoya, un pilarillo, un montante). Se superpone al reparto uniforme: los esfuerzos, la flecha y las reacciones se recalculan con las dos a la vez."
+          />
+          <select
+            id="tb-hasPoint"
+            value={String(showPoint)}
+            onChange={(e) => togglePointLoad(e.target.value === 'true')}
+            className={SELECT_CLASS}
+          >
+            {POINT_LOAD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        {showPoint && (
+          <>
+            <UnitNumberInput
+              id="tb-P_G" label="P_G" sub="puntual permanente"
+              help="Carga puntual PERMANENTE característica, en kN (no kN/m). Sin mayorar: el motor aplica γG = 1.35."
+              value={state.P_G} quantity="force" min={0} step={1} widthClass="w-18"
+              onChange={(v) => setField('P_G', v)}
+            />
+            <UnitNumberInput
+              id="tb-P_Q" label="P_Q" sub="puntual variable"
+              help="Carga puntual VARIABLE característica, en kN (no kN/m). Sin mayorar: el motor aplica γQ = 1.50."
+              value={state.P_Q} quantity="force" min={0} step={1} widthClass="w-18"
+              onChange={(v) => setField('P_Q', v)}
+            />
+            <UnitNumberInput
+              id="tb-aP" label="a" sub="posición de la puntual" unit="m"
+              help="Distancia desde el extremo IZQUIERDO del vano, que es el empotramiento en ménsula y en articulada-empotrada. Debe estar entre 0 y L."
+              value={state.aP} min={0} max={state.L} step={0.1} widthClass="w-18"
+              onChange={(v) => setField('aP', v)}
+            />
+          </>
+        )}
       </CollapsibleSection>
 
       {/* ── Clase de servicio y duración ────────────────────────────────── */}
@@ -223,7 +297,7 @@ export function TimberBeamsInputs({ state, setField }: Props) {
             id="tb-isSystem"
             value={String(state.isSystem)}
             onChange={(e) => setField('isSystem', e.target.value === 'true')}
-            className="w-28 shrink-0 bg-bg-primary border border-border-main rounded pl-2 pr-6 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+            className={SELECT_CLASS}
           >
             {SYSTEM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>

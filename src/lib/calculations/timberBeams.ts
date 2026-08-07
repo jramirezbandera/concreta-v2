@@ -19,7 +19,11 @@ import {
   type LoadDurationClass,
   type ServiceClass,
 } from '../../data/timberGrades';
-import { BEAM_CASES } from './beamCases';
+// Los esfuerzos y la flecha ya NO salen de los coeficientes cerrados de
+// BEAM_CASES (calibrados solo para UDL): con una carga puntual no se pueden
+// superponer máximos. beamResponse resuelve el vano de verdad y reproduce esos
+// mismos coeficientes cuando no hay puntual — ver beamResponse.test.ts.
+import { beamResponse, beamDeflection, type PointLoad, type SupportKind } from './beamResponse';
 
 // γG, γQ ULS
 const γG = 1.35;
@@ -59,6 +63,25 @@ export interface TimberCheckRow {
   tag?: string;
 }
 
+/**
+ * Reacción en un apoyo. Es un valor INFORMATIVO, no una comprobación: no lleva
+ * id de check, no entra en `checks[]` y no puede alterar el veredicto.
+ * `R_d`/`M_d` son de la combinación ELU que gobierna; el desglose característico
+ * `Gk`/`Qk` es lo que hay que llevarse al pilar o a la zapata, que aplican SUS
+ * propias combinaciones.
+ */
+export interface TimberSupportReaction {
+  id: 'left' | 'right';
+  label: string;
+  kind: SupportKind;
+  R_d: number;   // kN — reacción vertical de cálculo (hacia arriba)
+  M_d: number;   // kNm — momento de empotramiento de cálculo (0 si articulado)
+  R_Gk: number;  // kN — característica permanente
+  M_Gk: number;  // kNm
+  R_Qk: number;  // kN — característica variable
+  M_Qk: number;  // kNm
+}
+
 export interface TimberBeamResult {
   valid: boolean;
   error?: string;
@@ -77,6 +100,9 @@ export interface TimberBeamResult {
   // ELU forces
   MEd: number;      // kNm
   VEd: number;      // kN
+  xM: number;       // m — sección de MEd (desde el extremo izquierdo)
+  /** Reacciones en los apoyos — 1 entrada en ménsula, 2 en el resto. */
+  reactions: TimberSupportReaction[];
   // ELU checks
   sigma_m: number;  // N/mm²
   tau_d: number;    // N/mm²
@@ -150,7 +176,7 @@ function invalidResult(error: string): TimberBeamResult {
     valid: false, error,
     kmod: 0, kdef: 0, gammaM: 0, psi2: 0, kh: 1.0, kcr: 0.67, ksys: 1.0,
     fm_d: 0, fm_d_kh: 0, fv_d: 0,
-    MEd: 0, VEd: 0, sigma_m: 0, tau_d: 0,
+    MEd: 0, VEd: 0, xM: 0, reactions: [], sigma_m: 0, tau_d: 0,
     sigma_m_crit: 0, lambda_rel_m: 0, kcrit: 0,
     u_inst: 0, u_fin: 0, u_active: 0, u_confort: 0,
     u_inst_lim: 0, u_fin_lim: 0, u_active_lim: 0, u_confort_lim: 0,
@@ -168,9 +194,22 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   if (inp.b <= 0 || inp.h <= 0) return invalidResult('Dimensiones inválidas');
   if (inp.L <= 0) return invalidResult('Luz inválida');
   if (inp.gk < 0 || inp.qk < 0) return invalidResult('Cargas negativas no permitidas');
+  if (inp.P_G < 0 || inp.P_Q < 0) return invalidResult('Cargas negativas no permitidas');
 
   const { b, h, L } = inp;
   const bc = inp.beamType;
+
+  // ── Carga puntual ─────────────────────────────────────────────────────────
+  // P_G = P_Q = 0 ⇒ no hay carga puntual (una puntual nula no produce efecto:
+  // el centinela es la física, no una bandera aparte).
+  const hasPoint = inp.P_G + inp.P_Q > 0;
+  if (hasPoint && (inp.aP < 0 || inp.aP > L)) {
+    return invalidResult('La carga puntual cae fuera del vano');
+  }
+  /** Cargas puntuales en la convención de esfuerzos (kN, m). */
+  const pt = (P: number): PointLoad[] => (P > 0 ? [{ P, a: inp.aP }] : []);
+  /** Cargas puntuales en la convención de flechas (N, mm). */
+  const ptMm = (P: number): PointLoad[] => (P > 0 ? [{ P: P * 1000, a: inp.aP * 1000 }] : []);
 
   // Sección APAISADA (b ≥ h): tabla, tablero, dintel plano o refuerzo adosado
   // bajo un forjado existente. Es una geometría legítima —no se rechaza—: toda
@@ -187,29 +226,19 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const gammaM = getGammaM(grade.type);
   const psi2   = psi2ForLoadType(inp);
 
-  // ── ELU — combinaciones (EC5 §3.1.3(2), fix auditoría #113) ───────────────
-  // Cada combinación se verifica con el kmod de su acción más corta. Además
-  // de la combinación G+Q del usuario hay que comprobar la SOLO-PERMANENTE
-  // (1.35·gk con kmod permanente): gobierna cuando qk < ~0.3·gk. Como demanda
-  // ∝ w y capacidad ∝ kmod, gobierna la combinación con mayor w/kmod.
-  const kmod_perm = getKmod('permanent', inp.serviceClass as ServiceClass);
-  const w_main = γG * inp.gk + γQ * inp.qk;   // kN/m
-  const w_perm = γG * inp.gk;                  // kN/m
-  const permGoverns = w_perm / kmod_perm > w_main / kmod_user;
-  const w_elu = permGoverns ? w_perm : w_main;
-  const kmod  = permGoverns ? kmod_perm : kmod_user;
-
-  const fm_d = kmod * grade.fm_k / gammaM;   // N/mm²  (without kh — kept for reference)
-  const fv_d = kmod * grade.fv_k / gammaM;   // N/mm²
-
   // ── Section properties ────────────────────────────────────────────────────
   const A = b * h;                    // mm²
   const W = b * h * h / 6;           // mm³
   const I = b * h * h * h / 12;      // mm⁴
 
-  const L_m   = L;                            // m (already)
-  const MEd   = BEAM_CASES[bc].MEd(w_elu, L_m);   // kNm
-  const VEd   = BEAM_CASES[bc].VEd(w_elu, L_m);   // kN
+  const L_m = L;                     // m (already)
+
+  // ── kcr — crack factor for shear area (EC5 §6.1.7(2)) ────────────────────
+  // Av_ef = kcr × b × h (rectangular section).
+  // kcr = 0.67 for solid timber and glulam (EN 1995-1-1 §6.1.7(2)).
+  // Without this the shear capacity is 1/0.67 ≈ 1.5× overestimated — unsafe.
+  const kcr   = 0.67;
+  const A_ef  = kcr * A;   // mm² — effective shear area
 
   // ── kh — size factor (EC5 §3.2 sawn / §3.3 glulam) ──────────────────────
   // For sawn timber: if h < 150mm → kh = min((150/h)^0.2, 1.3). Else kh=1.0.
@@ -221,35 +250,24 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   } else {
     kh = h < 150 ? Math.min(Math.pow(150 / h, 0.2), 1.3) : 1.0;
   }
-  const fm_d_kh = kmod * kh * grade.fm_k / gammaM;   // N/mm² — with size factor
 
   // ── ksys — system strength factor (EC5 §6.6) ─────────────────────────────
   // Applies when ≥ 4 parallel members share load via a distributing element
   // (floor/roof decking). ksys = 1.10. Only bending & axial — NOT shear, ELS, fire.
   const ksys = inp.isSystem ? 1.10 : 1.0;
-  const fm_d_sys = ksys * fm_d_kh;   // N/mm² — effective bending capacity with ksys
-
-  // ── ELU — Flexión (EC5 §6.1.6) ───────────────────────────────────────────
-  const sigma_m = MEd * 1e6 / W;   // N/mm²  (MEd kNm → Nmm)
-
-  // ── kcr — crack factor for shear area (EC5 §6.1.7(2)) ────────────────────
-  // Av_ef = kcr × b × h (rectangular section).
-  // kcr = 0.67 for solid timber and glulam (EN 1995-1-1 §6.1.7(2)).
-  // Without this the shear capacity is 1/0.67 ≈ 1.5× overestimated — unsafe.
-  const kcr   = 0.67;
-  const A_ef  = kcr * A;   // mm² — effective shear area
-
-  // ── ELU — Cortante (EC5 §6.1.7) ──────────────────────────────────────────
-  // τd = 1.5 × VEd / A_ef ≤ fv,d
-  const tau_d = 1.5 * VEd * 1e3 / A_ef;   // N/mm²
 
   // ── ELU — LTB (EC5 §6.3.3) — rectangular section ─────────────────────────
   // Lef per EC5 Tabla 6.1 CON la corrección de carga en el borde COMPRIMIDO
-  // (+2h, el caso físico habitual de UDL sobre el cordón superior): ss/ff/fp
+  // (+2h, el caso físico habitual de carga sobre el cordón superior): ss/ff/fp
   // UDL → 0.9·L + 2h; ménsula UDL → 0.5·L + 2h. Antes se usaba 1.0·L sin +2h
   // (no conservador para L < 20h) y 2.0·L en ménsula sin respaldo en la tabla
   // (fix auditoría #112).
-  const lefFactor = bc === 'cantilever' ? 0.5 : 0.9;
+  // Los factores tabulados dependen del TIPO de carga: con carga concentrada la
+  // Tabla 6.1 da 0.8 tanto en biapoyada («fuerza concentrada en el centro del
+  // vano») como en ménsula («fuerza concentrada en el extremo libre»). Para
+  // ss/fp/ff mantener 0.9 es conservador, pero en MÉNSULA quedarse en 0.5 con
+  // una carga puntual sería NO conservador ⇒ sube a 0.8.
+  const lefFactor = bc === 'cantilever' ? (hasPoint ? 0.8 : 0.5) : 0.9;
   const Lef = lefFactor * L_m * 1000 + 2 * h;   // mm
 
   // Critical bending stress (rectangular section, major axis bending):
@@ -269,28 +287,83 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     kcrit = 1.0 / (lambda_rel_m * lambda_rel_m);
   }
 
+  // ── ELU — combinaciones (EC5 §3.1.3(2), fix auditoría #113) ───────────────
+  // Cada combinación se verifica con el kmod de su acción más corta. Además
+  // de la combinación G+Q del usuario hay que comprobar la SOLO-PERMANENTE
+  // (1.35·gk con kmod permanente): gobierna cuando qk < ~0.3·gk.
+  //
+  // La regla vieja comparaba w/kmod, apoyada en que la demanda es proporcional
+  // a w. Con una carga puntual hay DOS magnitudes independientes y esa
+  // proporcionalidad se rompe, así que la comparación se hace donde siempre
+  // vale: sobre la UTILIZACIÓN. Como fm,d y fv,d son ∝ kmod, con P = 0 esta
+  // regla se reduce EXACTAMENTE a la anterior.
+  const kmod_perm = getKmod('permanent', inp.serviceClass as ServiceClass);
+  const Cm = kcrit * ksys * kh * grade.fm_k / gammaM;   // fm_d_eff = kmod · Cm
+  const Cv = grade.fv_k / gammaM;                        // fv_d     = kmod · Cv
+
+  const evalCombo = (w: number, P: number, km: number) => {
+    const resp = beamResponse(bc, L_m, w, pt(P));
+    const sm = resp.MEd * 1e6 / W;              // N/mm²
+    const td = 1.5 * resp.VEd * 1e3 / A_ef;     // N/mm²
+    const util = Math.max(
+      Cm > 0 ? sm / (km * Cm) : Infinity,
+      Cv > 0 ? td / (km * Cv) : Infinity,
+    );
+    return { resp, util };
+  };
+
+  const comboMain = evalCombo(γG * inp.gk + γQ * inp.qk, γG * inp.P_G + γQ * inp.P_Q, kmod_user);
+  const comboPerm = evalCombo(γG * inp.gk, γG * inp.P_G, kmod_perm);
+
+  const permGoverns = comboPerm.util > comboMain.util;
+  const respElu = permGoverns ? comboPerm.resp : comboMain.resp;
+  const kmod    = permGoverns ? kmod_perm : kmod_user;
+
+  const MEd = respElu.MEd;   // kNm
+  const VEd = respElu.VEd;   // kN
+  const xM  = respElu.xM;    // m
+
+  const fm_d     = kmod * grade.fm_k / gammaM;        // N/mm²  (without kh — kept for reference)
+  const fv_d     = kmod * grade.fv_k / gammaM;        // N/mm²
+  const fm_d_kh  = kmod * kh * grade.fm_k / gammaM;   // N/mm² — with size factor
+  const fm_d_sys = ksys * fm_d_kh;                    // N/mm² — with ksys
   const fm_d_eff = kcrit * fm_d_sys;   // effective bending strength after LTB (kh + ksys + kcrit)
 
+  // ── ELU — Flexión (EC5 §6.1.6) ───────────────────────────────────────────
+  const sigma_m = MEd * 1e6 / W;   // N/mm²  (MEd kNm → Nmm)
+
+  // ── ELU — Cortante (EC5 §6.1.7) ──────────────────────────────────────────
+  // τd = 1.5 × VEd / A_ef ≤ fv,d
+  const tau_d = 1.5 * VEd * 1e3 / A_ef;   // N/mm²
+
+  // ── Reacciones en apoyos ─────────────────────────────────────────────────
+  // De cálculo (combinación que gobierna) + desglose característico G/Q, que es
+  // lo que hay que llevarse al pilar o a la zapata: esos módulos aplican SUS
+  // propias combinaciones y no pueden partir de un valor ya mayorado.
+  const respGk = beamResponse(bc, L_m, inp.gk, pt(inp.P_G));
+  const respQk = beamResponse(bc, L_m, inp.qk, pt(inp.P_Q));
+  const reactions: TimberSupportReaction[] = respElu.reactions.map((r, i) => ({
+    id: r.id, label: r.label, kind: r.kind,
+    R_d: r.R,  M_d: r.M,
+    R_Gk: respGk.reactions[i].R, M_Gk: respGk.reactions[i].M,
+    R_Qk: respQk.reactions[i].R, M_Qk: respQk.reactions[i].M,
+  }));
+
   // ── ELS — Flechas (CTE DB-SE 4.3.3 — fixes auditoría #109, #110, #114) ───
-  // Flexión: δ = k_defl · Mser · L² / (E·I)  (contrato BEAM_CASES.k_defl).
-  // Cortante: δs = k_shear · w · L² / (G·A) con κ=1.2 incluido — en madera
-  // E/G ≈ 16 y vale un 6-10% de la flecha (antes omitida, #114).
+  // Flexión + cortante por trabajos virtuales (beamResponse.ts). Con κ=1.2 el
+  // término de cortante vale un 6-10% en madera (E/G ≈ 16), no es despreciable
+  // (#114). Se evalúan por separado el grupo G y el grupo Q y se SUMAN sus
+  // máximos: es lo que hacía el código anterior y es conservador si los dos
+  // máximos caen en secciones distintas.
   const E_mm2 = grade.E0_mean * 1000;   // N/mm²
   const G_mm2 = grade.G_mean * 1000;    // N/mm²
   const L_mm  = L_m * 1000;             // mm
+  const EI    = E_mm2 * I;              // N·mm²
+  const GA    = G_mm2 * A;              // N
 
-  const k_defl  = BEAM_CASES[bc].k_defl;
-  const k_shear = BEAM_CASES[bc].k_shear;
-
-  // Service-level (characteristic) moments from gk and qk separately
-  const Mser_G = BEAM_CASES[bc].MEd(inp.gk, L_m);   // kNm
-  const Mser_Q = BEAM_CASES[bc].MEd(inp.qk, L_m);   // kNm
-
-  // Instantaneous deflections (flexión + cortante) — w kN/m = N/mm
-  const u_inst_G2 = k_defl * Mser_G * 1e6 * L_mm ** 2 / (E_mm2 * I)
-                  + k_shear * inp.gk * L_mm ** 2 / (G_mm2 * A);
-  const u_inst_Q  = k_defl * Mser_Q * 1e6 * L_mm ** 2 / (E_mm2 * I)
-                  + k_shear * inp.qk * L_mm ** 2 / (G_mm2 * A);
+  // w en N/mm ≡ kN/m numéricamente; P en N; a en mm ⇒ flecha en mm
+  const u_inst_G2 = beamDeflection(bc, L_mm, inp.gk, ptMm(inp.P_G), EI, GA).max;
+  const u_inst_Q  = beamDeflection(bc, L_mm, inp.qk, ptMm(inp.P_Q), EI, GA).max;
   const u_inst    = u_inst_G2 + u_inst_Q;
 
   // Final total (combinación característica con fluencia EC5 §2.2.3)
@@ -338,9 +411,11 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const W_fi = b_ef * h_ef * h_ef / 6;
 
   // Fire combination loads (EN 1995-1-2 §4.1, γG,fi = γQ,fi = 1.0)
-  const w_fi  = inp.gk + psi2 * inp.qk;   // kN/m
-  const MEd_fi = fireActive ? BEAM_CASES[bc].MEd(w_fi, L_m) : 0;
-  const VEd_fi = fireActive ? BEAM_CASES[bc].VEd(w_fi, L_m) : 0;
+  const w_fi = inp.gk + psi2 * inp.qk;          // kN/m
+  const P_fi = inp.P_G + psi2 * inp.P_Q;        // kN
+  const respFi = fireActive ? beamResponse(bc, L_m, w_fi, pt(P_fi)) : null;
+  const MEd_fi = respFi ? respFi.MEd : 0;
+  const VEd_fi = respFi ? respFi.VEd : 0;
 
   // Fire design strengths: fd,fi = kfi·fk (percentil 20%) con kmod,fi = 1.0 y
   // γM,fi = 1.0 — EN 1995-1-2 §2.3/Tabla 2.1: kfi = 1.25 aserrada / 1.15
@@ -389,11 +464,26 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     ));
   }
 
+  // Carga puntual: el dato tiene que ser EXPLÍCITO en pantalla y en el PDF —
+  // quien lea el listado debe ver dónde está y con qué valor de cálculo.
+  if (hasPoint) {
+    const P_d = γG * inp.P_G + γQ * inp.P_Q;
+    checks.push(mkNeutral(
+      'point-load',
+      `Carga puntual Pd = ${P_d.toFixed(2)} kN (Gk ${inp.P_G.toFixed(2)} + Qk ${inp.P_Q.toFixed(2)}) `
+      + `en a = ${inp.aP.toFixed(2)} m del extremo izquierdo. MEd en x = ${xM.toFixed(2)} m`,
+      'PUNTUAL',
+      'EN 1995-1-1 §6.1.6/§6.1.7 — esfuerzos por superposición de la repartida y la puntual',
+      'elu',
+    ));
+  }
+
   // Combinación que gobierna (fix #113)
   if (permGoverns) {
     checks.push(mkNeutral(
       'elu-perm-combo',
-      `Gobierna la combinación solo-permanente: 1.35·gk con kmod=${kmod.toFixed(2)} (EC5 §3.1.3(2))`,
+      `Gobierna la combinación solo-permanente: 1.35·gk${hasPoint ? ' y 1.35·P_G' : ''} `
+      + `con kmod=${kmod.toFixed(2)} (EC5 §3.1.3(2))`,
       'G SOLO',
       'EN 1995-1-1 §3.1.3(2)',
       'elu',
@@ -537,11 +627,22 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
 
   // Límites declarados del módulo (fix auditoría #115/#116): visibles en UI
   // y PDF para que el gap de alcance no sea silencioso.
+  // Con carga puntual cerca de un apoyo, §6.1.7(3) permitiría no contar su
+  // aportación al cortante. No se aplica: mantenerlo es conservador, pero el
+  // margen tiene que estar declarado, no escondido.
+  // OJO con la ménsula: su extremo derecho es LIBRE, no un apoyo. Medir
+  // min(aP, L−aP) diría "pegada al apoyo" justo con la carga en la punta, que
+  // es el caso opuesto. La distancia se mide a los apoyos que existen.
+  const distToSupport = bc === 'cantilever' ? inp.aP : Math.min(inp.aP, L - inp.aP);
+  const nearSupport = hasPoint && distToSupport * 1000 < h;
   checks.push(mkNeutral(
     'scope-note',
-    'No incluido: compresión perpendicular en apoyos (EC5 §6.1.5) ni vibración de forjados (§7.3) — verificar aparte si aplican',
+    'No incluido: compresión perpendicular en apoyos (EC5 §6.1.5) ni vibración de forjados (§7.3) — verificar aparte si aplican'
+    + (nearSupport
+      ? '. La carga puntual está a menos de h del apoyo: §6.1.7(3) permitiría descontar su aportación al cortante, aquí se cuenta entera (lado seguro)'
+      : ''),
     'LÍMITES',
-    'EN 1995-1-1 §6.1.5 / §7.3',
+    `EN 1995-1-1 §6.1.5 / §7.3${nearSupport ? ' / §6.1.7(3)' : ''}`,
     'els',
   ));
 
@@ -549,7 +650,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     valid: true,
     kmod, kdef, gammaM, psi2, kh, kcr, ksys,
     fm_d, fm_d_kh, fv_d,
-    MEd, VEd,
+    MEd, VEd, xM, reactions,
     sigma_m, tau_d,
     sigma_m_crit, lambda_rel_m, kcrit,
     u_inst, u_fin, u_active, u_confort,
