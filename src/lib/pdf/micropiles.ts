@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../calculations/micropiles';
 import type { CheckStatus } from '../calculations/types';
+import { checkValueStr, checkLimitStr } from '../calculations/checkFormat';
 import { CUSTOM_TUBE_SENTINEL } from '../../data/micropileTubes';
 
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -282,8 +283,12 @@ export async function exportMicropilesPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     const descL = doc.splitTextToSize(pdfStr(ch.description), CW.desc)  as string[];
-    const valL  = doc.splitTextToSize(pdfStr(ch.value ?? ''), CW.value) as string[];
-    const limL  = doc.splitTextToSize(pdfStr(ch.limit ?? ''), CW.limit) as string[];
+    // checkValueStr/checkLimitStr y no `ch.value`: las filas construidas con
+    // makeCheckQty (hundimiento, tope, arranque) solo llevan el par numerico
+    // valueNum/valueQty, asi que leyendo el campo legacy las columnas Valor y
+    // Limite salian VACIAS en el PDF entregable.
+    const valL  = doc.splitTextToSize(pdfStr(checkValueStr(ch)), CW.value) as string[];
+    const limL  = doc.splitTextToSize(pdfStr(checkLimitStr(ch)), CW.limit) as string[];
     const nLines = Math.max(descL.length, valL.length, limL.length, 1);
     // Avance de fila: (n-1) interlíneas + artículo (3.5) + regla (2) + hueco (3).
     const rowH = (nLines - 1) * LH + 8.5;
@@ -299,9 +304,14 @@ export async function exportMicropilesPDF(
     valL .forEach((t, i) => doc.text(t, COL.value, y + i * LH));
     limL .forEach((t, i) => doc.text(t, COL.limit, y + i * LH));
 
-    const utilStr = isFinite(ch.utilization)
-      ? `${(ch.utilization * 100).toFixed(0)}%`
-      : '---';
+    // Las filas neutras (metodo de hundimiento no adoptado, pandeo sin
+    // penalizacion) no tienen utilizacion: imprimir "0%" las hacia parecer
+    // comprobadas y holgadas.
+    const utilStr = ch.status === 'neutral'
+      ? '---'
+      : isFinite(ch.utilization)
+        ? `${(ch.utilization * 100).toFixed(0)}%`
+        : '---';
     doc.text(utilStr, COL.utilR, y, { align: 'right' });
 
     setGray(doc, ch.status === 'ok' ? 70 : 30);

@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
+import { overallStatus } from '../../lib/calculations/checkFormat';
 import { micropilesDefaults, micropilesSoilDefaults, type SoilLayer } from '../../data/defaults';
 import { MICROPILE_TUBES, getTube, getTubeAreaGross, getTubeAreaNet } from '../../data/micropileTubes';
 import {
@@ -114,6 +115,35 @@ describe('FTUX defaults', () => {
   it('method=empirical selects RfcEmpirical as RfcAdopted', () => {
     const r = calcMicropiles({ ...baseInp, method: 'empirical' }, baseSoil);
     expect(r.RfcAdopted).toBeCloseTo(r.RfcEmpirical, 3);
+  });
+
+  // Solo el método seleccionado es una comprobación con veredicto. El otro se
+  // sigue calculando y listando, pero como fila informativa: si no, un Rfc
+  // empírico bajo sacaba "INCUMPLE" en la UI y en el PDF de un cálculo
+  // teórico (y al revés), tumbando el veredicto global de un documento válido.
+  it('el método de hundimiento NO adoptado se emite como fila neutral', () => {
+    const theo = calcMicropiles({ ...baseInp, method: 'theoretical' }, baseSoil);
+    expect(theo.checks.find((c) => c.id === 'hund-theoretical')!.status).not.toBe('neutral');
+    const empRow = theo.checks.find((c) => c.id === 'hund-empirical')!;
+    expect(empRow.status).toBe('neutral');
+    expect(empRow.neutral).toBe(true);
+    expect(empRow.utilization).toBe(0);
+    expect(empRow.description).toContain('no adoptado');
+
+    const emp = calcMicropiles({ ...baseInp, method: 'empirical' }, baseSoil);
+    expect(emp.checks.find((c) => c.id === 'hund-empirical')!.status).not.toBe('neutral');
+    const theoRow = emp.checks.find((c) => c.id === 'hund-theoretical')!;
+    expect(theoRow.status).toBe('neutral');
+    expect(theoRow.description).toContain('no adoptado');
+  });
+
+  it('el método no adoptado no arrastra el veredicto global a fail', () => {
+    // designLoad alto: ambos métodos quedarían por encima de su Rfc. Con
+    // method=empirical, la fila teórica debe quedar fuera del veredicto.
+    const r = calcMicropiles({ ...baseInp, method: 'empirical', designLoad: 2000 }, baseSoil);
+    const theoRow = r.checks.find((c) => c.id === 'hund-theoretical')!;
+    expect(theoRow.status).toBe('neutral');
+    expect(overallStatus([theoRow])).toBe('ok');
   });
 
   it('ih and ic utilizations < 1 (CUMPLE)', () => {

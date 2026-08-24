@@ -605,18 +605,48 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   // ── 8. Construcción de CheckRow[] con artículos normativos ──────────────
   const checks: CheckRow[] = [];
 
-  // Hundimiento por fuste — siempre se evalúan ambos métodos.
-  checks.push(makeCheckQty(
+  // Hundimiento por fuste — se calculan SIEMPRE los dos métodos (teórico y
+  // empírico) porque el proyectista quiere ver ambos números, pero solo el
+  // seleccionado en `inp.method` es una COMPROBACIÓN con veredicto: es el que
+  // fija Rfc,d adoptado y, con él, ih. El método descartado se emite como fila
+  // informativa (neutral) para que no ensucie el veredicto global ni salga como
+  // "INCUMPLE" en el PDF entregable — un Rfc empírico bajo (rflim conservador o
+  // sin dato de ensayo) tumbaba el documento aunque el cálculo fuese el teórico.
+  const shaftCheck = (
+    id: string,
+    label: string,
+    Rfc: number,
+    article: string,
+    adopted: boolean,
+  ): CheckRow => {
+    const row = makeCheckQty(id, `${label}${adopted ? '' : ' — no adoptado'}`,
+      inp.designLoad, Rfc, 'force', article);
+    if (adopted) return row;
+    // Neutral: sin utilización ni estado. `tag` lleva el número para que la
+    // fila siga informando en la UI (las filas neutras solo pintan el tag).
+    return {
+      ...row,
+      utilization: 0,
+      status: 'neutral',
+      neutral: true,
+      tag: `Rfc = ${Rfc.toFixed(0)} kN`,
+    };
+  };
+
+  const theoreticalAdopted = inp.method === 'theoretical';
+  checks.push(shaftCheck(
     'hund-theoretical',
     'Hundimiento por fuste (teórico)',
-    inp.designLoad, RfcTheoretical, 'force',
+    RfcTheoretical,
     'Guía Fomento cap. 3.4',
+    theoreticalAdopted,
   ));
-  checks.push(makeCheckQty(
+  checks.push(shaftCheck(
     'hund-empirical',
     'Hundimiento por fuste (empírico)',
-    inp.designLoad, RfcEmpirical, 'force',
+    RfcEmpirical,
     'Guía Fomento cap. 3.5',
+    !theoreticalAdopted,
   ));
 
   // Tope estructural compresión
