@@ -2,13 +2,23 @@
 // The full /pricing page lives at pages/Pricing.tsx; both read PLANS from
 // landing/constants.ts so the two can no longer contradict each other.
 //
-// Every card here links to /pricing — the teaser is the hook, /pricing is where
+// The paid cards link to /pricing — the teaser is the hook, /pricing is where
 // the decision (and the mailto) happens. That keeps the paid CTAs in one place
 // so they can be counted, and avoids a `mailto:` inside a React Router <Link>,
-// which does not navigate.
+// which does not navigate. The free tier is the exception: its button says
+// "Acceder gratis", so it opens the app.
 
 import { Link } from 'react-router';
-import { PLANS, sectionEyebrow } from '../../constants';
+import {
+  APP_ROUTE,
+  BETA,
+  BETA_CTA,
+  BETA_LINE,
+  BETA_TAG,
+  PLANS,
+  planBadge,
+  sectionEyebrow,
+} from '../../constants';
 import './pricing-section.css';
 
 export function PricingSection() {
@@ -27,32 +37,52 @@ export function PricingSection() {
           </p>
         </div>
 
+        {BETA && (
+          <div className="beta-banner">
+            <span className="beta-tag mono">{BETA_TAG}</span>
+            <p className="beta-banner-text">
+              <strong>Ahora mismo no se cobra nada.</strong> {BETA_LINE}
+            </p>
+            <Link to={APP_ROUTE} className="btn btn-primary">
+              {BETA_CTA} <span className="arr">→</span>
+            </Link>
+          </div>
+        )}
+
         <div className="plans">
-          {PLANS.map((p) => (
-            <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
-              {p.highlight && <div className="plan-badge mono">RECOMENDADO</div>}
-              {p.soon && <div className="plan-badge plan-badge-soon mono">PRÓXIMAMENTE</div>}
-              <div className="plan-name">{p.name}</div>
-              <div className="plan-blurb">{p.blurb}</div>
-              <div className="plan-price">
-                <span className="plan-price-v mono">{p.price}</span>
-                <span className="plan-price-u">{p.unit}</span>
+          {PLANS.map((p) => {
+            const badge = planBadge(p);
+            // A `mailto:` inside <Link> does not navigate — those stay on /pricing.
+            const to = p.ctaTo.startsWith('mailto:') ? '/pricing' : p.ctaTo;
+            return (
+              <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
+                {badge && (
+                  <div className={`plan-badge mono ${badge.soon ? 'plan-badge-soon' : ''}`}>
+                    {badge.text}
+                  </div>
+                )}
+                <div className="plan-name">{p.name}</div>
+                <div className="plan-blurb">{p.blurb}</div>
+                <div className="plan-price">
+                  <span className="plan-price-v mono">{p.price}</span>
+                  <span className="plan-price-u">{p.unit}</span>
+                </div>
+                <ul className="plan-features">
+                  {p.teaserFeatures.map((f) => (
+                    <li key={f}>
+                      <span className="plan-check">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                {/* A boundary, not a feature — never rendered with a check mark. */}
+                {p.note && <div className="plan-note">{p.note}</div>}
+                <Link to={to} className={`btn ${p.highlight ? 'btn-primary' : ''} plan-cta`}>
+                  {p.teaserCta} <span className="arr">→</span>
+                </Link>
               </div>
-              <ul className="plan-features">
-                {p.teaserFeatures.map((f) => (
-                  <li key={f}>
-                    <span className="plan-check">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {/* A boundary, not a feature — never rendered with a check mark. */}
-              {p.note && <div className="plan-note">{p.note}</div>}
-              <Link to="/pricing" className={`btn ${p.highlight ? 'btn-primary' : ''} plan-cta`}>
-                {p.teaserCta} <span className="arr">→</span>
-              </Link>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

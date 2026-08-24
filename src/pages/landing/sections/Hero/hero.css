@@ -78,11 +78,28 @@
     max-width: 52ch;
     text-wrap: pretty;
   }
+  /* The 48px gap to the meta strip lives on the wrapper, not on the buttons:
+     the beta line sits between them and has to ride inside that gap. */
+  .hero-actions {
+    margin-bottom: 48px;
+  }
   .hero-cta {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
-    margin-bottom: 48px;
+  }
+  .hero-beta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .hero-beta-text {
+    max-width: 48ch;
   }
   .hero-meta {
     display: grid;

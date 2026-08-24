@@ -22,4 +22,5 @@
 @import "./landing/styles/section-helpers.css";
 @import "./landing/styles/footer.css";
 @import "./landing/styles/section.css";
+@import "./landing/styles/beta.css";
 @import "./landing/styles/responsive.css"; /* MUST stay last — cascade order */

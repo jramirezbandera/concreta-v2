@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { APP_ROUTE } from './constants';
+import { APP_ROUTE, BETA, BETA_CTA } from './constants';
 import { ThemeToggle } from '../../components/theme/ThemeToggle';
 
 interface NavLink {
@@ -58,11 +58,14 @@ export function LandingNav() {
         </nav>
         <div className="nav-right">
           <ThemeToggle />
-          <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
-          {/* "Ver precios", not "Suscribirse": it opens a price table, and no
-              button on this site should promise more than its destination does. */}
-          <Link to="/pricing" className="btn btn-primary">
-            Ver precios <span className="arr">→</span>
+          {/* Nothing is purchasable during the beta, so the loud button is the
+              one that actually delivers something: it opens the app. "Ver
+              precios" keeps its slot but steps down to the quiet style — it
+              opens a price table, and no button on this site should promise
+              more than its destination does. */}
+          <Link to="/pricing" className="btn btn-ghost">Ver precios</Link>
+          <Link to={APP_ROUTE} className="btn btn-primary">
+            {BETA ? BETA_CTA : 'Acceder'} <span className="arr">→</span>
           </Link>
         </div>
         <button
@@ -102,9 +105,9 @@ export function LandingNav() {
           ))}
           <div className="nav-mobile-actions">
             <ThemeToggle />
-            <Link to={APP_ROUTE} className="btn btn-ghost">Acceder</Link>
-            <Link to="/pricing" className="btn btn-primary">
-              Suscribirse <span className="arr">→</span>
+            <Link to="/pricing" className="btn btn-ghost">Ver precios</Link>
+            <Link to={APP_ROUTE} className="btn btn-primary">
+              {BETA ? BETA_CTA : 'Acceder'} <span className="arr">→</span>
             </Link>
           </div>
         </nav>

@@ -40,9 +40,9 @@ function renderAt(initial: string) {
 describe('Pricing page', () => {
   it('renders plans, comparison table and FAQ', () => {
     renderAt('/pricing');
-    expect(
-      screen.getByRole('heading', { name: /Suscripción mensual\. Sin sorpresas/i }),
-    ).toBeInTheDocument();
+    // The h1 is beta-dependent (constants.ts BETA) — assert the page's identity
+    // instead, so flipping the flag does not fail a test about rendering.
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     expect(screen.getByText('Para el técnico individual.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Comparativa completa/i })).toBeInTheDocument();
     expect(

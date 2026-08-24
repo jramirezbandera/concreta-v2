@@ -53,15 +53,39 @@ export function sectionEyebrow(id: SectionId, label?: string): string {
   return `${n} · ${label ?? SECTION_ORDER[i].label}`;
 }
 
+// ── Public beta ─────────────────────────────────────────────────────────────
+
+/** There is no payment gateway and no licence gate: every module, the PDF and
+ *  the assistant are open to everyone who opens the app. So the site says that
+ *  instead of showing three price cards nobody can buy — the loud CTA opens the
+ *  app, "Ver precios" steps down to a quiet button, and the paid tiers are
+ *  marked PRÓXIMAMENTE.
+ *
+ *  Flip this to `false` the day checkout ships. Everything the beta changes is
+ *  derived from it, and every `BETA_*` string below is copy to retire. */
+// Typed as `boolean`, not inferred as `true`: the literal type would make
+// every `!BETA` branch unreachable to TypeScript and flag the post-beta copy
+// as dead code before it is ever used.
+export const BETA: boolean = true;
+
+/** One wording for every beta surface — nav, hero, pricing and closing used to
+ *  drift (the mobile menu still said "Suscribirse" while the desktop nav said
+ *  "Ver precios"), and a CTA that promises more than its destination delivers
+ *  is exactly what this page is not allowed to do. */
+export const BETA_CTA = 'Acceder gratis';
+export const BETA_TAG = 'BETA PÚBLICA · GRATIS';
+export const BETA_LINE =
+  'Todos los módulos abiertos, sin tarjeta y sin límite de cálculo. Los planes de pago llegan cuando termine la beta.';
+
 // ── Pricing ─────────────────────────────────────────────────────────────────
 
 /** Where a plan's CTA goes. No payment link exists yet and no licence gate
- *  exists either, so paid plans open a prefilled email instead of pretending to
- *  charge for something that is not gated. Subjects are ASCII on purpose: they
- *  are the measurement instrument, and a `€` survives neither every mail client
- *  nor an inbox filter. */
-export const MAILTO_PRO = 'mailto:pro@concreta.tools?subject=Pro%2019';
-export const MAILTO_ESTUDIO = 'mailto:estudio@concreta.tools?subject=Estudio%2049';
+ *  exists either, so paid plans open a prefilled email — a waiting list, not a
+ *  checkout — instead of pretending to charge for something that is not gated.
+ *  Subjects are ASCII on purpose: they are the measurement instrument, and a
+ *  `€` survives neither every mail client nor an inbox filter. */
+export const MAILTO_PRO = 'mailto:pro@concreta.tools?subject=Aviso%20Pro%2019';
+export const MAILTO_ESTUDIO = 'mailto:estudio@concreta.tools?subject=Aviso%20Estudio%2049';
 
 export interface Plan {
   id: 'libre' | 'pro' | 'estudio';
@@ -79,18 +103,31 @@ export interface Plan {
   /** CTA on /pricing, where the decision happens. */
   cta: string;
   ctaTo: string;
-  /** CTA on the landing teaser, which only ever leads to /pricing. */
+  /** CTA on the landing teaser. */
   teaserCta: string;
+  /** The one plan the page pushes: accent border and a filled badge. During the
+   *  beta that is the free tier, because it is the only one you can act on. */
   highlight: boolean;
-  /** Announced but not purchasable. */
+  /** Announced but not purchasable — dashed PRÓXIMAMENTE badge. While `BETA`
+   *  holds, that is every paid tier. */
   soon: boolean;
+}
+
+/** The badge over a card's top border, or none. Derived here so the landing
+ *  teaser and /pricing can never label the same plan two different ways. */
+export function planBadge(p: Plan): { text: string; soon: boolean } | null {
+  if (p.soon) return { text: 'PRÓXIMAMENTE', soon: true };
+  if (p.highlight) return { text: BETA ? 'GRATIS EN BETA' : 'RECOMENDADO', soon: false };
+  return null;
 }
 
 export const PLANS: Plan[] = [
   {
     id: 'libre',
     name: 'Libre',
-    blurb: 'Para probar antes de comprar.',
+    // "Para probar antes de comprar" describes a decision nobody can make yet:
+    // there is nothing to buy during the beta.
+    blurb: BETA ? 'Gratis ahora, y gratis después.' : 'Para probar antes de comprar.',
     price: '0',
     unit: '€/mes',
     features: [
@@ -108,11 +145,16 @@ export const PLANS: Plan[] = [
       'Enlaces compartibles',
       'PWA offline',
     ],
-    note: 'El PDF del anejo va en Pro.',
-    cta: 'Empezar gratis',
+    // The note is the plan's boundary, and during the beta that boundary is not
+    // enforced — saying "el PDF va en Pro" to a beta tester is telling them not
+    // to use something they already have.
+    note: BETA
+      ? 'Durante la beta también tienes el resto de módulos y el PDF, sin coste.'
+      : 'El PDF del anejo va en Pro.',
+    cta: BETA ? BETA_CTA : 'Empezar gratis',
     ctaTo: APP_ROUTE,
-    teaserCta: 'Empezar',
-    highlight: false,
+    teaserCta: BETA ? BETA_CTA : 'Empezar',
+    highlight: BETA,
     soon: false,
   },
   {
@@ -137,11 +179,11 @@ export const PLANS: Plan[] = [
       'Sin marca de agua',
       'Soporte por email · 48 h',
     ],
-    cta: 'Quiero suscribirme',
+    cta: BETA ? 'Avísame cuando esté' : 'Quiero suscribirme',
     ctaTo: MAILTO_PRO,
     teaserCta: 'Ver el plan Pro',
-    highlight: true,
-    soon: false,
+    highlight: !BETA,
+    soon: BETA,
   },
   {
     id: 'estudio',

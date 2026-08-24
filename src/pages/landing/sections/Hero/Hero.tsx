@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
+import { APP_ROUTE, BETA, BETA_CTA, BETA_LINE, BETA_TAG } from '../../constants';
 import { MODULE_LIBRARY } from '../../modules';
 import { HERO_SLIDES } from '../../heroCase';
 import { HERO_CANVASES } from './canvases';
@@ -40,16 +41,25 @@ function HeroEyebrow() {
   );
 }
 
-// "Ver precios", not "Suscribirse": the button opens a price table, and nothing
-// on the site is purchasable yet (no licence gate, so the paid CTAs are mailto).
-// Same reason the nav button and Pricing.tsx:52 were changed.
+// The loud button opens the app, not the price table: nothing is purchasable
+// yet (no payment gateway and no licence gate), so "Ver precios" would send the
+// visitor to three cards they cannot buy. The beta line under the buttons says
+// what "gratis" means here, so the word never has to be taken on trust.
 function HeroCTAs() {
   return (
-    <div className="hero-cta">
-      <Link to="/pricing" className="btn btn-primary btn-lg">
-        Ver precios <span className="arr">→</span>
-      </Link>
-      <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>
+    <div className="hero-actions">
+      <div className="hero-cta">
+        <Link to={APP_ROUTE} className="btn btn-primary btn-lg">
+          {BETA ? BETA_CTA : 'Abrir Concreta'} <span className="arr">→</span>
+        </Link>
+        <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>
+      </div>
+      {BETA && (
+        <p className="hero-beta">
+          <span className="beta-tag mono">{BETA_TAG}</span>
+          <span className="hero-beta-text">{BETA_LINE}</span>
+        </p>
+      )}
     </div>
   );
 }

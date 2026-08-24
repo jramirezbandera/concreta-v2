@@ -4,7 +4,17 @@
 import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
-import { PLANS, type Plan, sectionEyebrow } from './landing/constants';
+import {
+  APP_ROUTE,
+  BETA,
+  BETA_CTA,
+  BETA_LINE,
+  BETA_TAG,
+  PLANS,
+  type Plan,
+  planBadge,
+  sectionEyebrow,
+} from './landing/constants';
 import './marketing.css';
 import './subpage.css';
 
@@ -47,6 +57,20 @@ const COMPARE: CompareRow[] = [
     feat: 'Soporte',
     cells: [{ text: 'comunidad' }, { text: '48 h email', ok: true }, { text: '48 h email', ok: true }],
   },
+];
+
+// Asked first because it is the question a beta tester actually has: they are
+// looking at three price cards while paying nothing, and deserve to know what
+// happens the day that stops being true.
+const BETA_FAQ: [string, string][] = [
+  [
+    '¿Qué pasa cuando termine la beta?',
+    'Te avisamos por email antes, con fecha. Nadie se va a encontrar un cobro sorpresa: no tenemos tu tarjeta y no hay pasarela de pago conectada. Cuando la haya, decides si te suscribes; si no, la app se queda en el plan Libre con tus casos intactos, porque viven en tu navegador y no en un servidor nuestro.',
+  ],
+  [
+    '¿Y qué me cuesta ahora mismo?',
+    'Nada, y no hay letra pequeña: durante la beta están abiertos los módulos de todos los planes, el PDF y el asistente. Lo que te pedimos a cambio es que nos cuentes lo que falla — a eso responde el correo de soporte.',
+  ],
 ];
 
 const FAQ: [string, string][] = [
@@ -98,6 +122,14 @@ function Cta({ plan }: { plan: Plan }) {
   );
 }
 
+function PlanBadge({ plan }: { plan: Plan }) {
+  const badge = planBadge(plan);
+  if (!badge) return null;
+  return (
+    <div className={`plan-badge mono ${badge.soon ? 'plan-badge-soon' : ''}`}>{badge.text}</div>
+  );
+}
+
 function CompareCell({ cell }: { cell: Cell }) {
   if (cell === true) return <td className="check">✓</td>;
   if (cell === false) return <td className="dash">—</td>;
@@ -113,12 +145,13 @@ export function Pricing() {
       <section className="subpage-hero">
         <div className="container subpage-hero-inner">
           <div className="subpage-eyebrow">{sectionEyebrow('precio')}</div>
-          <h1 className="subpage-title">Suscripción mensual. Sin sorpresas.</h1>
+          <h1 className="subpage-title">
+            {BETA ? 'Gratis mientras dure la beta.' : 'Suscripción mensual. Sin sorpresas.'}
+          </h1>
           <p className="subpage-lede">
-            Concreta es una herramienta diaria — y como tal cobramos por mes, no
-            por proyecto. Sin sobreprecios y sin «contacta con ventas». El
-            asistente escala por lo que sabe hacer, nunca por un contador de
-            mensajes.
+            {BETA
+              ? 'Concreta está en beta pública: no hay pasarela de pago y no hay nada bloqueado, así que estos planes son lo que costará, no lo que cuesta hoy. Cuando llegue el momento lo diremos con antelación — nunca vas a encontrarte un cobro que no hayas aceptado.'
+              : 'Concreta es una herramienta diaria — y como tal cobramos por mes, no por proyecto. Sin sobreprecios y sin «contacta con ventas». El asistente escala por lo que sabe hacer, nunca por un contador de mensajes.'}
           </p>
         </div>
       </section>
@@ -126,11 +159,22 @@ export function Pricing() {
       <main className="subpage-body">
         <div className="container">
 
+          {BETA && (
+            <div className="beta-banner">
+              <span className="beta-tag mono">{BETA_TAG}</span>
+              <p className="beta-banner-text">
+                <strong>Ahora mismo no se cobra nada.</strong> {BETA_LINE}
+              </p>
+              <Link to={APP_ROUTE} className="btn btn-primary">
+                {BETA_CTA} <span className="arr">→</span>
+              </Link>
+            </div>
+          )}
+
           <div className="pricing-grid">
             {PLANS.map((p) => (
               <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
-                {p.highlight && <div className="plan-badge mono">RECOMENDADO</div>}
-                {p.soon && <div className="plan-badge plan-badge-soon mono">PRÓXIMAMENTE</div>}
+                <PlanBadge plan={p} />
                 <div className="plan-name">{p.name}</div>
                 <div className="plan-blurb">{p.blurb}</div>
                 <div className="plan-price">
@@ -150,7 +194,10 @@ export function Pricing() {
           </div>
 
           <h2 className="subsec-title">Comparativa completa</h2>
-          <p className="subsec-lede">Lo mismo en formato denso para revisar a un golpe.</p>
+          <p className="subsec-lede">
+            Lo mismo en formato denso para revisar a un golpe.
+            {BETA && ' Es el reparto que habrá cuando haya planes: durante la beta las tres columnas están abiertas.'}
+          </p>
           <div className="table-scroll">
             <table className="compare-table">
               <thead>
@@ -174,7 +221,7 @@ export function Pricing() {
 
           <h2 className="subsec-title subsec-title-spaced">Preguntas frecuentes</h2>
           <div className="faq">
-            {FAQ.map(([q, a]) => (
+            {[...(BETA ? BETA_FAQ : []), ...FAQ].map(([q, a]) => (
               <div className="faq-item" key={q}>
                 <h3 className="faq-q">{q}</h3>
                 <p className="faq-a">{a}</p>

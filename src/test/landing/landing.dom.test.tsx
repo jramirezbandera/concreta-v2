@@ -16,9 +16,12 @@ import { moduleRegistry } from '../../data/moduleRegistry';
 import { Landing } from '../../pages/Landing';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import {
+  APP_ROUTE,
+  BETA,
   FEM2D_ROUTE,
   PLANS,
   SECTION_ORDER,
+  planBadge,
   sectionEyebrow,
 } from '../../pages/landing/constants';
 import { PORTAL_FRAME, PORTAL_FRAME_HREF } from '../../pages/landing/heroCase';
@@ -151,10 +154,34 @@ describe('pricing plans', () => {
     }
   });
 
-  it('only the announced tier is marked soon, and it is never the recommended one', () => {
+  it('marks every tier that cannot be bought as soon, and never pushes one', () => {
+    // There is no payment gateway and no licence gate during the beta, so Pro
+    // is an announcement too — a RECOMENDADO badge on a card you cannot buy is
+    // the exact promise this page refuses to make.
     const soon = PLANS.filter((p) => p.soon);
-    expect(soon.map((p) => p.id)).toEqual(['estudio']);
+    expect(soon.map((p) => p.id)).toEqual(BETA ? ['pro', 'estudio'] : ['estudio']);
     expect(soon.every((p) => !p.highlight)).toBe(true);
+  });
+
+  it('gives every card at most one badge, and never a filled one to a soon tier', () => {
+    for (const p of PLANS) {
+      const badge = planBadge(p);
+      if (p.soon) expect(badge).toEqual({ text: 'PRÓXIMAMENTE', soon: true });
+      else if (p.highlight) expect(badge?.soon).toBe(false);
+      else expect(badge).toBeNull();
+    }
+  });
+
+  it('the highlighted plan is one the visitor can act on right now', () => {
+    // Whatever the loud button says, it has to lead somewhere that delivers it:
+    // during the beta that means the app, never a mailto waiting list.
+    const hi = PLANS.filter((p) => p.highlight);
+    expect(hi.length).toBe(1);
+    if (BETA) {
+      expect(hi[0].id).toBe('libre');
+      expect(hi[0].ctaTo).toBe(APP_ROUTE);
+      expect(hi[0].cta).toMatch(/gratis/i);
+    }
   });
 
   it('paid CTAs open a prefilled email, with an ASCII subject', () => {

@@ -1,0 +1,73 @@
+/* beta.css — everything the public beta adds to the marketing site.
+   Kept in one file on purpose: when checkout ships and `BETA` flips to false in
+   landing/constants.ts, this stylesheet and its two classes are what goes.
+
+   `.beta-tag` is the pill ("BETA PÚBLICA · GRATIS"); `.beta-banner` is the
+   callout above the plan grids on the landing teaser and on /pricing. */
+
+.landing-root {
+  .beta-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: none;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    background: var(--color-tint-accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 3px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+  .beta-tag::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: var(--glow-dot);
+  }
+
+  .beta-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--color-tint-accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .beta-banner-text {
+    flex: 1 1 32ch;
+    margin: 0;
+  }
+  .beta-banner-text strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .beta-banner .btn {
+    flex: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-root {
+    .beta-banner {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 12px;
+    }
+    /* Stacked, the flex-grow that shares the row with the button instead
+       stretches the paragraph down the column and opens a void above it. */
+    .beta-banner-text {
+      flex: none;
+    }
+  }
+}
