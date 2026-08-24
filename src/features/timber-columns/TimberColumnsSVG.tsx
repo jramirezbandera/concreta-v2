@@ -24,8 +24,12 @@ interface TimberColumnsSVGProps {
 // themes) so they stay literal — same principle as the PDF grayscale exception.
 const SCREEN = {
   bg: 'transparent',
-  sectionFill: 'var(--color-chart-section-fill)',
-  sectionStroke: 'var(--color-chart-rebar-dim)',
+  // La sección es MADERA: mismo tono que el alzado. El token de sección neutro
+  // (--color-chart-section-fill) vale #161619 en oscuro = el color del panel,
+  // así que el relleno desaparecía sobre el lienzo.
+  sectionFill: '#c8966c',
+  sectionStroke: '#d4a06e',
+  grain: '#8a6242',
   charFill: '#dc2626',
   charStroke: '#ef4444',
   residualFill: '#c8966c',
@@ -36,7 +40,6 @@ const SCREEN = {
   column: '#c8966c',
   columnStroke: '#d4a06e',
   support: 'var(--color-chart-stirrup)',
-  hatch: 'var(--color-chart-rebar-dim)',
   label: 'var(--color-chart-rebar-faint)',
   momentCurve: 'var(--color-accent)',
 };
@@ -45,6 +48,7 @@ const PDF = {
   bg: '#ffffff',
   sectionFill: '#f5efe6',
   sectionStroke: '#333333',
+  grain: '#666666',
   charFill: '#cc3333',
   charStroke: '#aa0000',
   residualFill: '#e8d5b0',
@@ -55,7 +59,6 @@ const PDF = {
   column: '#d4a96a',
   columnStroke: '#8B6914',
   support: '#333333',
-  hatch: '#666666',
   label: '#666666',
   momentCurve: '#1d4ed8',
 };
@@ -103,7 +106,7 @@ function CrossSection({
     const gy = oy + (sH * i) / (grainCount + 1);
     grainLines.push(
       <line key={i} x1={ox + 2} y1={gy} x2={ox + sW - 2} y2={gy}
-        stroke={C.hatch} strokeWidth={isPdf ? 0.5 : 0.6} strokeDasharray="4 3" opacity={0.5} />,
+        stroke={C.grain} strokeWidth={isPdf ? 0.5 : 0.6} strokeDasharray="4 3" opacity={0.5} />,
     );
   }
 
