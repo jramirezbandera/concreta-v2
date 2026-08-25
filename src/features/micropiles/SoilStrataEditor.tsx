@@ -39,7 +39,10 @@ interface FieldProps {
   label: string;
   /** SI value (catalog base) when `quantity` is set; raw number otherwise. */
   value: number;
-  /** Fixed unit suffix when `quantity` is omitted (m, °, NSPT=""). */
+  /** Fixed unit suffix when `quantity` is omitted (m, °, golpes, adim.).
+   *  Los adimensionales (NSPT, Cu) llevan chip EXPLÍCITO: dejarlo vacío se
+   *  leía como "falta el dato", no como "no tiene unidad", y el usuario no
+   *  sabía en qué unidad teclear el valor. */
   unit?: string;
   /** When set, value + label convert with the unit system (γ kN/m³↔t/m³,
    *  c′/su kPa↔kg/cm², rfℓim N/mm²↔kg/cm²). min/max stay in SI. */
@@ -76,7 +79,9 @@ function MiniNumField({ label, value, unit, quantity, precision, min, max, hint,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, system]);
 
-  const unitText = quantity ? getUnitLabel(quantity, system) : (unit ?? '');
+  // Nunca en blanco: sin `quantity` ni `unit` el chip cae a — (adimensional).
+  // Un chip vacío no distingue "magnitud sin unidad" de "se nos olvidó ponerla".
+  const unitText = quantity ? getUnitLabel(quantity, system) : (unit ?? '—');
   const fmtBound = (b: number) => fmt(b);
 
   const parsedSi = toSi(local);
@@ -124,11 +129,12 @@ function MiniNumField({ label, value, unit, quantity, precision, min, max, hint,
                 : 'bg-bg-primary border border-border-main hover:border-accent/40 focus:border-accent',
             ].join(' ')}
           />
-          {/* Chip de unidad: SIEMPRE se renderiza, también cuando no hay
-              unidad (NSPT), porque el ancho fijo (min-w-10 = 40 px) es lo
-              que alinea verticalmente todos los inputs de los estratos.
-              Antes con `{unit && ...}`, NSPT se quedaba sin chip y su input
-              "saltaba" hacia la derecha rompiendo la columna. */}
+          {/* Chip de unidad: SIEMPRE se renderiza — el ancho fijo
+              (min-w-10 = 40 px) es lo que alinea verticalmente todos los
+              inputs de los estratos. Antes con `{unit && ...}`, NSPT se
+              quedaba sin chip y su input "saltaba" hacia la derecha rompiendo
+              la columna. Los adimensionales ya no se pintan vacíos: llevan su
+              propio texto (golpes, adim.) o el — de `unitText`. */}
           <span className={[
             'border border-l-0 rounded-r px-1 py-1 text-[9.5px] font-mono whitespace-nowrap inline-flex items-center justify-center min-w-10',
             outOfRange ? 'bg-bg-elevated border-state-fail text-state-fail' : 'bg-bg-elevated border-border-main text-text-disabled',
@@ -236,20 +242,27 @@ function StrataCard({
           )}
           <MiniNumField label="φ"      unit="°"     value={layer.phi}       {...SOIL_LIMITS.phi}       onChange={(n) => onUpdate(layer.id, 'phi', n)} />
           {!hide('Nspt') && (
-            <MiniNumField label="NSPT"               value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
+            <MiniNumField label="NSPT" unit="N30" hint="Golpeo del ensayo SPT: número de golpes para hincar 30 cm. Adimensional." value={layer.Nspt}      {...SOIL_LIMITS.Nspt}      onChange={(n) => onUpdate(layer.id, 'Nspt', n)} />
           )}
           {layer.type === 'cohesive' && (
-            <MiniNumField label="su" quantity="cohesion" hint="Resistencia al corte sin drenaje del terreno cohesivo." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
+            <MiniNumField label="su" quantity="cohesion" hint="Resistencia al corte sin drenaje del terreno cohesivo (su, también escrita cu). No confundir con Cu = D60/D10, que es el coef. de uniformidad de los granulares." value={layer.su} {...SOIL_LIMITS.su} onChange={(n) => onUpdate(layer.id, 'su', n)} />
           )}
           {/* Cu = D60/D10 — solo granulares. Condiciona el pandeo (Tabla 3.6):
               en arena de compacidad media activa la comprobación si Cu≥2, y en
               arena floja saturada Cu<2 la clasifica como terreno inestable.
-              Vacío (0) ⇒ se trata como Cu<2 (sin dato granulométrico). */}
+              Vacío (0) ⇒ se trata como Cu<2 (sin dato granulométrico).
+
+              El rótulo lleva D60/D10 A LA VISTA, no solo en el tooltip: en
+              geotecnia española "cu" es casi siempre la cohesión sin drenaje
+              (kPa) — que en este mismo editor es el campo `su` — y un usuario
+              con la etiqueta a secas no podía saber qué magnitud, ni en qué
+              unidad, tenía que teclear aquí. */}
           {layer.type === 'granular' && !hide('Cu') && (
             <MiniNumField
-              label="Cu (opc.)"
+              label="Cu = D60/D10"
+              unit="adim."
               value={layer.Cu ?? 0}
-              hint="Coef. uniformidad D60/D10 (opcional). Vacío o 0 ⇒ se asume Cu<2. Solo afecta al pandeo en arenas (Guía 3.6.1)."
+              hint="Coef. de uniformidad D60/D10 (adimensional, opcional). NO es la cohesión sin drenaje — esa es su, en cohesivos. Vacío o 0 ⇒ se asume Cu<2. Solo afecta al pandeo en arenas (Guía 3.6.1)."
               {...SOIL_LIMITS.Cu}
               onChange={(n) => onUpdate(layer.id, 'Cu', n)}
             />
