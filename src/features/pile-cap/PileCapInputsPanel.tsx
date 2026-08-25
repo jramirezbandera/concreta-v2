@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type PileCapInputs } from '../../data/defaults';
+import { autoCapDims, minEdgeDistance } from '../../lib/calculations/pileCap';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
@@ -113,6 +114,15 @@ const N_OPTIONS = [2, 3, 4] as const;
 
 export function PileCapInputsPanel({ state, setField }: Props) {
   const n = state.n as number;
+  const plateOn = (state.plate_on as boolean | undefined) ?? false;
+  const dimsAuto = (state.dims_auto as boolean | undefined) ?? true;
+  // Dimensiones auto vigentes: se muestran en modo auto y siembran los campos
+  // manuales al cambiar de modo (punto de partida redondeado a 5 cm).
+  const auto = autoCapDims(
+    n, state.s as number, state.d_p as number,
+    state.b_col as number, state.h_col as number,
+  );
+  const eMin = minEdgeDistance(state.d_p as number);
 
   const fckOptions = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
   const fykOptions = [{ value: 500, label: '500 MPa' }, { value: 400, label: '400 MPa' }];
@@ -155,11 +165,142 @@ export function PileCapInputsPanel({ state, setField }: Props) {
       <CollapsibleSection label="Geometría">
         <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField}
           help="Diámetro del pilote. Define la geometría del grupo y la posición de los nudos del modelo." />
+
+        {/* Placa de reparto en cabeza de micro: agranda el apoyo del nodo
+          * comprimido (la biela se comprueba sobre la placa, no sobre el tubo) */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+          <InputLabel
+            htmlFor="pc-plate-mode"
+            label="Placa reparto"
+            sub="Cabeza de micro"
+            help="Placa soldada en la cabeza del micropilote (con cartelas) que reparte la carga: el nodo comprimido de la biela se comprueba sobre el área de la placa en lugar de la sección del tubo. Su espesor, cartelas y soldadura se dimensionan aparte."
+          />
+          <div
+            id="pc-plate-mode"
+            role="radiogroup"
+            aria-label="Placa de reparto en cabeza de micropilote"
+            className="flex rounded border border-border-main overflow-hidden shrink-0"
+          >
+            {([
+              { on: false, label: 'No' },
+              { on: true,  label: 'Sí' },
+            ] as const).map((opt) => {
+              const isActive = plateOn === opt.on;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={() => {
+                    if (plateOn === opt.on) return;
+                    setField('plate_on', opt.on);
+                    if (opt.on && (state.d_plate as number) < (state.d_p as number)) {
+                      // Semilla: placa que cubre el micro con vuelo razonable
+                      setField('d_plate', Math.ceil(((state.d_p as number) + 100) / 10) * 10);
+                    }
+                  }}
+                  className={[
+                    'px-2.5 py-1 text-[11px] font-mono transition-colors border-r border-border-main last:border-r-0',
+                    isActive
+                      ? 'bg-accent/10 text-accent font-semibold'
+                      : 'text-text-disabled hover:text-text-secondary',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {plateOn && (
+          <>
+            <SelectField
+              label="Forma placa" field="plate_shape"
+              value={state.plate_shape as string}
+              options={[
+                { value: 'circ', label: 'Circular (Ø)' },
+                { value: 'cuad', label: 'Cuadrada (lado)' },
+              ]}
+              setField={setField}
+              help="Forma de la placa de reparto. El área del nodo es π·Ø²/4 (circular) o lado² (cuadrada)."
+            />
+            <NumField
+              label={state.plate_shape === 'cuad' ? 'a_placa' : 'Ø_placa'}
+              sub={state.plate_shape === 'cuad' ? 'Lado placa' : 'Diám. placa'}
+              field="d_plate" value={state.d_plate as number} unit="mm" setField={setField}
+              help="Dimensión de la placa de reparto (Ø si es circular, lado si es cuadrada). Debe cubrir la cabeza del micro (≥ d_p), no solaparse con la placa contigua (≤ s) y caber en planta."
+            />
+          </>
+        )}
+
         <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField}
           help="Separación entre ejes de pilotes (centro a centro). Determina el brazo del tirante." />
         <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
         <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
         <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
+
+        {/* Dimensiones en planta: auto (e_min a borde + redondeo 5 cm) o manual */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
+          <InputLabel
+            htmlFor="pc-dims-mode"
+            label="Lx × Ly"
+            sub="Dims. en planta"
+            help={`Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
+          />
+          <div
+            id="pc-dims-mode"
+            role="radiogroup"
+            aria-label="Modo de dimensiones en planta"
+            className="flex rounded border border-border-main overflow-hidden shrink-0"
+          >
+            {([
+              { auto: true,  label: 'Auto' },
+              { auto: false, label: 'Manual' },
+            ] as const).map((opt) => {
+              const isActive = dimsAuto === opt.auto;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={() => {
+                    if (dimsAuto === opt.auto) return;
+                    setField('dims_auto', opt.auto);
+                    if (!opt.auto) {
+                      // Al pasar a manual, partir de las dims auto vigentes
+                      setField('L_x', auto.L_x);
+                      setField('L_y', auto.L_y);
+                    }
+                  }}
+                  className={[
+                    'px-2.5 py-1 text-[11px] font-mono transition-colors border-r border-border-main last:border-r-0',
+                    isActive
+                      ? 'bg-accent/10 text-accent font-semibold'
+                      : 'text-text-disabled hover:text-text-secondary',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {dimsAuto ? (
+          <p className="text-[10px] text-text-secondary leading-relaxed py-0.75">
+            Auto: {auto.L_x} × {auto.L_y} mm (e ≥ {eMin.toFixed(0)} mm a borde, redondeo a 5 cm)
+          </p>
+        ) : (
+          <>
+            <NumField label="L_x" sub="Ancho planta (x)" field="L_x" value={state.L_x as number} unit="mm" setField={setField}
+              help="Dimensión del encepado en la dirección x (la de los pilotes con n=2). La distancia de eje de pilote a borde resultante se comprueba en resultados." />
+            <NumField label="L_y" sub="Largo planta (y)" field="L_y" value={state.L_y as number} unit="mm" setField={setField}
+              help="Dimensión del encepado en la dirección y. Debe alojar el pilar y respetar la distancia a borde." />
+          </>
+        )}
       </CollapsibleSection>
 
       {/* Loads — Mx y My SIEMPRE visibles (fix auditoría #76: con n=2 el campo

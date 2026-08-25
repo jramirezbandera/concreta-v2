@@ -31,8 +31,13 @@
 // CE Anejo 19 §8.2 — maximum bar spacing
 // CTE DB-SE-C §5.1.4 — geometric requirements (spacing, edge, depth)
 //
-// IMPORTANT: A_node = π·d_p²/4 (circular pile cross-section).
-// Using d_p² (square) would be non-conservative — overestimates area → underestimates stress.
+// IMPORTANT — área del nodo comprimido (A_node):
+//   - Sin placa de reparto: π·d_p²/4 (sección circular del micro). Usar d_p²
+//     sería inseguro: infla el área → subestima la tensión.
+//   - Con placa de reparto en cabeza (práctica habitual): la biela apoya en la
+//     placa → A_node = π·d_plate²/4 (circular) o d_plate² (cuadrada). El
+//     dimensionado de la propia placa (espesor, cartelas, soldadura) NO se
+//     comprueba aquí — se avisa con una fila informativa.
 
 import { type PileCapInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
@@ -62,7 +67,7 @@ export interface PileCapResult {
   // Cap dimensions [mm]
   L_x: number;
   L_y: number;
-  e_borde: number;  // actual edge distance (= e_min by construction)
+  e_borde: number;  // actual MIN axis-to-edge distance (≥ e_min en modo auto)
   e_min: number;
   s_min: number;
   h_min: number;
@@ -179,29 +184,40 @@ function getPilePositions(n: number, s: number): PilePos[] {
 
 // ── Cap dimensions ─────────────────────────────────────────────────────────
 
-function getCapDimensions(
-  n: number, s: number, d_p: number, b_col: number, h_col: number,
-): { L_x: number; L_y: number; e_borde: number } {
-  // Edge distance: regla de buena práctica española (tradición ex-EHE 58.8.2) eje de
-  // pilote a borde ≥ d_p/2 + 250 mm — antes max(1.5·d_p, 300) quedaba corto
-  // para d_p < 250, reduciendo confinamiento del nodo y anclaje horizontal
-  // (fix auditoría #87).
-  const e = Math.max(d_p / 2 + 250, 1.5 * d_p, 300);  // edge distance (= e_min)
+// Edge distance mínima: regla de buena práctica española (tradición ex-EHE
+// 58.8.2) eje de pilote a borde ≥ d_p/2 + 250 mm — antes max(1.5·d_p, 300)
+// quedaba corto para d_p < 250, reduciendo confinamiento del nodo y anclaje
+// horizontal (fix auditoría #87).
+export function minEdgeDistance(d_p: number): number {
+  return Math.max(d_p / 2 + 250, 1.5 * d_p, 300);
+}
 
-  if (n === 2) {
-    // Piles aligned in x; cap y based on column width
-    const L_x = s + 2 * e;
-    const L_y = Math.max(b_col, h_col, d_p) + 2 * e;
-    return { L_x, L_y, e_borde: e };
-  }
-  if (n === 3) {
-    const h_tri = s * Math.sqrt(3) / 2;
-    const extent_x = s;
-    const extent_y = h_tri;             // from bottom row to top pile = s√3/2
-    return { L_x: extent_x + 2 * e, L_y: extent_y + 2 * e, e_borde: e };
-  }
-  // n === 4
-  return { L_x: s + 2 * e, L_y: s + 2 * e, e_borde: e };
+/** Bounding box de los EJES de pilotes [mm]. El encepado se centra en esta caja. */
+function pileExtents(n: number, s: number): { ext_x: number; ext_y: number } {
+  if (n === 2) return { ext_x: s, ext_y: 0 };
+  if (n === 3) return { ext_x: s, ext_y: s * Math.sqrt(3) / 2 };
+  return { ext_x: s, ext_y: s };  // n === 4
+}
+
+/** Redondeo hacia ARRIBA a múltiplo de 50 mm (cota ejecutable en obra). */
+const roundUp50 = (v: number) => Math.ceil(v / 50) * 50;
+
+/**
+ * Dimensiones en planta AUTOMÁTICAS: extensión del grupo + 2·e_min por
+ * dirección, redondeadas hacia arriba a 5 cm. Para n=2 la dirección y no tiene
+ * pilotes: manda el mayor de pilar y pilote. Exportada para que el panel de
+ * entradas muestre el valor auto y lo siembre al pasar a modo manual.
+ */
+export function autoCapDims(
+  n: number, s: number, d_p: number, b_col: number, h_col: number,
+): { L_x: number; L_y: number } {
+  const e = minEdgeDistance(d_p);
+  const { ext_x, ext_y } = pileExtents(n, s);
+  const L_x = roundUp50(ext_x + 2 * e);
+  const L_y = n === 2
+    ? roundUp50(Math.max(b_col, h_col, d_p) + 2 * e)
+    : roundUp50(ext_y + 2 * e);
+  return { L_x, L_y };
 }
 
 // ── As_min (CE Anejo 19 §9.2.1.1) ───────────────────────────────────────────────────
@@ -220,6 +236,13 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const d_p     = inp.d_p as number;
   const s       = inp.s as number;
   const h_enc   = inp.h_enc as number;
+  // dims_auto puede faltar en estados guardados anteriores a este campo → auto.
+  const dims_auto = (inp.dims_auto as boolean | undefined) ?? true;
+  // Placa de reparto en cabeza de micro (puede faltar en estados antiguos →
+  // sin placa). Forma defensiva: cualquier valor ≠ 'cuad' se trata como 'circ'.
+  const plate_on = (inp.plate_on as boolean | undefined) ?? false;
+  const plate_shape: 'circ' | 'cuad' = inp.plate_shape === 'cuad' ? 'cuad' : 'circ';
+  const d_plate = (inp.d_plate as number | undefined) ?? 0;
   const b_col   = inp.b_col as number;
   const h_col   = inp.h_col as number;
   const fck     = inp.fck as number;
@@ -241,6 +264,15 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   if (fck < 20 || fck > 50) return invalid('fck fuera de rango (20–50 MPa)');
   if (cover <= 0) return invalid('Recubrimiento debe ser > 0');
   if (phi_tie <= 0) return invalid('Diámetro tirante debe ser > 0');
+  if (plate_on) {
+    if (!(d_plate > 0)) return invalid('Dimensión de la placa de reparto debe ser > 0');
+    if (d_plate < d_p) {
+      return invalid('La placa de reparto debe cubrir la cabeza del micro: Ø/lado ≥ d_p');
+    }
+    if (d_plate > s) {
+      return invalid('Las placas de pilotes contiguos se solapan: Ø/lado de placa ≤ s');
+    }
+  }
 
   // For n=2 aligned in x: Σyi²=0 → Mx is statically inadmissible
   if (n === 2 && Math.abs(Mx_Ed) > 0) {
@@ -257,8 +289,36 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
 
   // ── Pile positions & cap dimensions ──────────────────────────────────────
   const pilePos = getPilePositions(n, s);
-  const { L_x, L_y, e_borde } = getCapDimensions(n, s, d_p, b_col, h_col);
-  const e_min = e_borde;  // same formula, always equal
+  const e_min = minEdgeDistance(d_p);
+  const { ext_x, ext_y } = pileExtents(n, s);
+
+  // Dimensiones en planta: automáticas (e_min a borde, redondeo a 5 cm) o
+  // definidas por el usuario. En manual NO se impone e_min: se comprueba como
+  // check ('edge-distance') para que el usuario decida cotas de obra exactas.
+  let L_x: number;
+  let L_y: number;
+  if (dims_auto) {
+    ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
+  } else {
+    L_x = inp.L_x as number;
+    L_y = inp.L_y as number;
+    if (!(L_x > 0) || !(L_y > 0)) return invalid('Dimensiones en planta Lx y Ly deben ser > 0');
+    if (b_col > L_x || h_col > L_y) {
+      return invalid('El pilar no cabe en planta: se requiere Lx ≥ b_col y Ly ≥ h_col');
+    }
+  }
+
+  // Distancia REAL de eje de pilote a borde por dirección (encepado centrado
+  // en la caja de ejes de pilotes; para n=2, e_y = L_y/2).
+  const e_x = (L_x - ext_x) / 2;
+  const e_y = (L_y - ext_y) / 2;
+  const e_borde = Math.min(e_x, e_y);
+  if (e_x < d_p / 2 || e_y < d_p / 2) {
+    return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+  }
+  if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
+    return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
+  }
 
   // ── Navier reactions ──────────────────────────────────────────────────────
   // Incluyen el peso propio del encepado (25 kN/m³, mayorado γG=1.35) —
@@ -311,7 +371,11 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // seguro frente al nodo C-C-T de §6.5.4 (k2 = 0.85·ν'·fcd). La etiqueta
   // anterior («C-C-T node, k=0.60») citaba mal la norma (fix auditoría #83).
   const Fs_max = R_max / Math.sin(theta_rad);          // [kN]
-  const A_node = Math.PI * d_p * d_p / 4;             // circular micropile cross-section [mm²]
+  // Área del nodo comprimido: con placa de reparto en cabeza la biela apoya en
+  // la placa (Ø o lado d_plate); sin placa, en la sección circular del micro.
+  const A_node = plate_on
+    ? (plate_shape === 'cuad' ? d_plate * d_plate : Math.PI * d_plate * d_plate / 4)
+    : Math.PI * d_p * d_p / 4;                        // [mm²]
   const sigma_strut = (Fs_max * 1000) / A_node;       // [MPa]
   const nu_prime = 1 - fck / 250;
   const sigma_Rd_max = 0.60 * nu_prime * fcd;         // [MPa] — biela §6.5.2 (lado seguro)
@@ -420,7 +484,20 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CTE DB-SE-C §5.1.4',
   ));
 
-  // 2. Cap depth
+  // 2. Edge distance — mínimo de buena práctica (ex-EHE 58.8.2). Binario
+  //    ok/fail: en modo auto e_borde queda por construcción a ≤5 cm de e_min y
+  //    el warn de 95% saltaría siempre sin margen real que señalar.
+  checks.push({
+    id: 'edge-distance',
+    description: 'Distancia eje pilote a borde e',
+    value: `${e_min.toFixed(0)} mm`,
+    limit: `${e_borde.toFixed(0)} mm`,
+    utilization: e_borde > 0 ? e_min / e_borde : Infinity,
+    status: e_borde + 1e-9 >= e_min ? 'ok' : 'fail',
+    article: 'Práctica ex-EHE 58.8.2',
+  });
+
+  // 3. Cap depth
   checks.push(makeCheck(
     'cap-depth',
     'Canto mínimo encepado h',
@@ -430,7 +507,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CTE DB-SE-C §5.1',
   ));
 
-  // 3. Pile reaction vs R_adm
+  // 4. Pile reaction vs R_adm
   checks.push(makeCheck(
     'pile-react-max',
     'Reacción máxima pilote R_max',
@@ -440,7 +517,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     '—',
   ));
 
-  // 4. Tension pile (conditional warn — micropiles can resist tension).
+  // 5. Tension pile (conditional warn — micropiles can resist tension).
   //    Sin ratio numérico: R_adm es capacidad a COMPRESIÓN y usarla como
   //    denominador de una tracción era engañoso (fix auditoría #84).
   if (R_min < 0) {
@@ -455,7 +532,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     });
   }
 
-  // 5. Strut angle
+  // 6. Strut angle
   {
     const theta_min_deg = 26.5;
     const theta_max_deg = 63.5;
@@ -482,17 +559,36 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     });
   }
 
-  // 6. Strut capacity — CE Anejo 19 §6.5
+  // 7. Strut capacity — CE Anejo 19 §6.5
   checks.push(makeCheck(
     'strut-capacity',
-    'Tensión nodal biela (nodo C-C-T)',
+    plate_on
+      ? `Tensión nodal biela (nodo C-C-T, placa ${plate_shape === 'cuad' ? '□' : 'Ø'}${d_plate.toFixed(0)})`
+      : 'Tensión nodal biela (nodo C-C-T, micro Ø' + d_p.toFixed(0) + ')',
     sigma_strut, sigma_Rd_max,
     `${sigma_strut.toFixed(2)} MPa`,
     `${sigma_Rd_max.toFixed(2)} MPa`,
     'CE Anejo 19 §6.5',
   ));
 
-  // 7. Tie reinforcement x
+  // 7b. Placa de reparto — informativa: agranda el apoyo del nodo, pero su
+  //     propio dimensionado (espesor, cartelas, soldadura al tubo) es un
+  //     cálculo de estructura metálica que este módulo no realiza.
+  if (plate_on) {
+    checks.push({
+      id: 'plate-info',
+      description: `Placa de reparto ${plate_shape === 'cuad' ? 'cuadrada, lado' : 'circular, Ø'} ${d_plate.toFixed(0)} mm (A_nodo = ${A_node.toFixed(0)} mm²) — dimensionar espesor, cartelas y soldadura aparte`,
+      value: '',
+      limit: '',
+      utilization: 0,
+      status: 'neutral',
+      article: '—',
+      neutral: true,
+      tag: 'PLACA',
+    });
+  }
+
+  // 8. Tie reinforcement x
   {
     // Utilización = demanda del tirante vs acero dispuesto (fix auditoría #82:
     // antes comparaba As_min vs As_prov, siempre verde por construcción y sin
@@ -512,7 +608,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     ));
   }
 
-  // 8. Tie reinforcement y (n=4 only)
+  // 9. Tie reinforcement y (n=4 only)
   if (n === 4 && As_tie_y !== null && As_prov_y !== null) {
     checks.push(makeCheck(
       'tie-steel-y',
@@ -524,7 +620,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     ));
   }
 
-  // 9. Bar spacing — máxima y MÍNIMA (congestión, fix auditoría #82), peor
+  // 10. Bar spacing — máxima y MÍNIMA (congestión, fix auditoría #82), peor
   //    dirección cuando n=4.
   {
     const s_bar_worst = s_bar_y !== null ? Math.min(s_bar_x, s_bar_y) : s_bar_x;
@@ -558,7 +654,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     }
   }
 
-  // 10. Anchorage — demanda lbd (patilla α1=0.7) vs horizontal + rama vertical
+  // 11. Anchorage — demanda lbd (patilla α1=0.7) vs horizontal + rama vertical
   checks.push(makeCheck(
     'anchorage',
     'Longitud de anclaje tirante (lbd patilla)',
@@ -568,7 +664,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CE Anejo 19 §8.4.4',
   ));
 
-  // 11. Column node C-C-C (CE Anejo 19 §6.5.4, k1 = 1.0) — fix auditoría #83
+  // 12. Column node C-C-C (CE Anejo 19 §6.5.4, k1 = 1.0) — fix auditoría #83
   checks.push(makeCheck(
     'node-column',
     'Tensión nodal bajo pilar (nodo C-C-C)',
@@ -578,7 +674,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CE Anejo 19 §6.5.4',
   ));
 
-  // 12. Armadura secundaria (informativa) — fix auditoría #79. Bajo CE es
+  // 13. Armadura secundaria (informativa) — fix auditoría #79. Bajo CE es
   //     RECOMENDACIÓN de buena práctica (CE Anejo 19 §9.8.1 no la exige con
   //     carácter general); los valores siguen la tradición ex-EHE 58.4.1.4.
   checks.push({

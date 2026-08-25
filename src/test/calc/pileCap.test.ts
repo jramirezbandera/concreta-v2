@@ -7,16 +7,17 @@
 // con γG=1.35, anclaje fctd = 0.7·fctm/1.5 y demanda lbd de patilla (α1=0.7).
 //
 // Defaults (n=2, d_p=220, s=1200, h=800, col 400×400, C25, B500, c=60, φ12,
-// N=300, R_adm=250):
-//   e = max(110+250, 330, 300) = 360 → L_x = 1920, L_y = 1120
-//   W_cap = 25e-9·1920·1120·800 = 43.008 kN → R = (300+58.06)/2 = 179.03 kN
+// N=300, R_adm=250, dims AUTO con redondeo a 5 cm):
+//   e_min = max(110+250, 330, 300) = 360 → raw L_x = 1920, L_y = 1120
+//   redondeo ↑50 → L_x = 1950, L_y = 1150 ; e_borde = (1950−1200)/2 = 375
+//   W_cap = 25e-9·1950·1150·800 = 44.85 kN → R = (300+60.55)/2 = 180.27 kN
 //   d = 800−60−6 = 734 → z = 623.9 ; a_eff = 600−100 = 500 → θ = 51.3°
-//   Fs = 179.03/sin51.3° = 229.4 kN ; A_node = π·110² = 38013 mm²
-//   σ_strut = 6.04 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
-//   Ft = 179.03·500/623.9 = 143.5 kN → As_tie = 330.0 mm² (fyd=434.78)
-//   As_min = 0.26·(2.56/500)·1120·734 = 1094 mm² → 10Ø12 = 1131 mm²
-//   lb = 3·434.78/2.688 = 485.2 ; lb,req = 0.7·485.2·(1094/1131) = 328.7 mm
-//   lb,disp = (360−60) + (800−60−40) = 1000 mm
+//   Fs = 180.27/sin51.3° = 231.0 kN ; A_node = π·110² = 38013 mm²
+//   σ_strut = 6.08 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
+//   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 332.3 mm² (fyd=434.78)
+//   As_min = 0.26·(2.56/500)·1150·734 = 1123.7 mm² → 10Ø12 = 1131 mm²
+//   lb = 3·434.78/2.688 = 485.2 ; lb,req = 0.7·485.2·(1123.7/1131) = 337.5 mm
+//   lb,disp = (375−60) + (800−60−40) = 1015 mm
 
 import { describe, expect, it } from 'vitest';
 import { calcPileCap } from '../../lib/calculations/pileCap';
@@ -33,15 +34,16 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.error).toBeUndefined();
   });
 
-  it('cap dims: e=360, L_x=1920, L_y=1120 (e = d_p/2 + 250, fix #87)', () => {
-    expect(r.e_borde).toBe(360);
-    expect(r.L_x).toBe(1920);
-    expect(r.L_y).toBe(1120);
+  it('cap dims auto: e_min=360, L_x=1950, L_y=1150 (redondeo ↑5 cm), e_borde=375', () => {
+    expect(r.e_min).toBe(360);
+    expect(r.L_x).toBe(1950);
+    expect(r.L_y).toBe(1150);
+    expect(r.e_borde).toBe(375);
   });
 
-  it('W_cap ≈ 43.0 kN y reacciones con peso propio: R_max ≈ 179.0 kN (fix #77)', () => {
-    expect(r.W_cap).toBeCloseTo(43.008, 2);
-    expect(r.R_max).toBeCloseTo(179.03, 1);
+  it('W_cap ≈ 44.85 kN y reacciones con peso propio: R_max ≈ 180.3 kN (fix #77)', () => {
+    expect(r.W_cap).toBeCloseTo(44.85, 2);
+    expect(r.R_max).toBeCloseTo(180.27, 1);
     expect(r.R_max).toBeCloseTo((base.N_Ed + 1.35 * r.W_cap) / 2, 3);
   });
 
@@ -60,8 +62,8 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'strut-angle')!.status).toBe('ok');
   });
 
-  it('σ_strut ≈ 6.04 MPa vs σ_Rd ≈ 9.02 MPa (biela §6.5.2)', () => {
-    expect(r.sigma_strut).toBeCloseTo(6.04, 2);
+  it('σ_strut ≈ 6.08 MPa vs σ_Rd ≈ 9.02 MPa (biela §6.5.2)', () => {
+    expect(r.sigma_strut).toBeCloseTo(6.08, 2);
     expect(r.sigma_Rd_max).toBeCloseTo(9.02, 2);
   });
 
@@ -71,17 +73,17 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'node-column')!.status).toBe('ok');
   });
 
-  it('tirante: Ft ≈ 143.5 kN, As_tie ≈ 330 mm², 10Ø12 = 1131 mm²', () => {
-    expect(r.Ft_x).toBeCloseTo(143.5, 1);
-    expect(r.As_tie_x).toBeCloseTo(330.0, 1);
-    expect(r.As_min_x).toBeCloseTo(1094.3, 0);
+  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 332 mm², 10Ø12 = 1131 mm²', () => {
+    expect(r.Ft_x).toBeCloseTo(144.47, 1);
+    expect(r.As_tie_x).toBeCloseTo(332.3, 1);
+    expect(r.As_min_x).toBeCloseTo(1123.7, 0);
     expect(r.n_bars_x).toBe(10);
     expect(r.As_prov_x).toBeCloseTo(1131, 0);
   });
 
   it('check de tirante usa la DEMANDA As_tie, no As_min (fix #82)', () => {
     const c = r.checks.find((ch) => ch.id === 'tie-steel-x')!;
-    expect(c.utilization).toBeCloseTo(330.0 / 1131, 2);
+    expect(c.utilization).toBeCloseTo(332.3 / 1131, 2);
     expect(c.status).toBe('ok');
   });
 
@@ -90,10 +92,10 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.s_bar_x).toBeCloseTo(340 / 9, 1);
   });
 
-  it('anclaje: lb ≈ 485.2 (fctd con 0.7), lb,req ≈ 328.7, lb,disp = 1000 (fix #75)', () => {
+  it('anclaje: lb ≈ 485.2 (fctd con 0.7), lb,req ≈ 337.5, lb,disp = 1015 (fix #75)', () => {
     expect(r.lb).toBeCloseTo(485.2, 1);
-    expect(r.lb_net).toBeCloseTo(328.7, 1);
-    expect(r.lb_avail).toBe(1000);
+    expect(r.lb_net).toBeCloseTo(337.5, 1);
+    expect(r.lb_avail).toBe(1015);
   });
 
   it('demanda de anclaje es de escala lbd (no el mínimo 0.3·lb del bug #75)', () => {
@@ -102,8 +104,8 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
 
   it('armadura secundaria recomendada (fix #79, práctica ex-EHE): sup ≥ 10% inf, retícula 4‰', () => {
     expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);
-    expect(r.As_grid_v).toBeCloseTo(4 * Math.min(1120, 400), 1);  // 1600 mm²/m
-    expect(r.As_grid_h).toBeCloseTo(4 * Math.min(800, 560), 1);   // 2240 mm²/m
+    expect(r.As_grid_v).toBeCloseTo(4 * Math.min(1150, 400), 1);  // 1600 mm²/m
+    expect(r.As_grid_h).toBeCloseTo(4 * Math.min(800, 575), 1);   // 2300 mm²/m
     const row = r.checks.find((c) => c.id === 'secondary-rebar')!;
     expect(row.status).toBe('neutral');
     expect(row.article).toMatch(/58\.4\.1\.4/);
@@ -117,7 +119,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
 
   it('lista completa de checks', () => {
     const ids = r.checks.map((c) => c.id);
-    for (const id of ['spacing', 'cap-depth', 'pile-react-max', 'strut-angle',
+    for (const id of ['spacing', 'edge-distance', 'cap-depth', 'pile-react-max', 'strut-angle',
       'strut-capacity', 'tie-steel-x', 'bar-spacing', 'bar-spacing-min',
       'anchorage', 'node-column', 'secondary-rebar']) {
       expect(ids).toContain(id);
@@ -182,15 +184,126 @@ describe('Geometría generada', () => {
     expect(calcPileCap({ ...base, d_p: 300, s: 1200 }).s_min).toBe(900);
   });
 
-  it('n=3: L_y = s·√3/2 + 2e', () => {
+  it('n=3: L_y = s·√3/2 + 2e redondeado ↑ a 50 mm (1759.2 → 1800)', () => {
     const r = calcPileCap({ ...base, n: 3 });
-    expect(r.L_y).toBeCloseTo(1200 * Math.sqrt(3) / 2 + 2 * 360, 1);
+    expect(r.L_y).toBe(1800);
   });
 
-  it('n=4: L_x = L_y = s + 2e', () => {
+  it('n=4: L_x = L_y = s + 2e redondeado ↑ a 50 mm (1920 → 1950)', () => {
     const r = calcPileCap({ ...base, n: 4 });
-    expect(r.L_x).toBe(1920);
-    expect(r.L_y).toBe(1920);
+    expect(r.L_x).toBe(1950);
+    expect(r.L_y).toBe(1950);
+  });
+});
+
+// ── Dimensiones en planta (auto/manual) ───────────────────────────────────
+describe('Dimensiones en planta', () => {
+  it('auto: siempre múltiplos de 50 mm, nunca por debajo del valor sin redondear', () => {
+    const r = calcPileCap({ ...base, d_p: 225, s: 1210 });
+    // e_min = max(112.5+250, 337.5, 300) = 362.5 → raw L_x = 1935 → 1950
+    expect(r.L_x).toBe(1950);
+    expect(r.L_x % 50).toBe(0);
+    expect(r.L_y % 50).toBe(0);
+    expect(r.e_borde).toBeGreaterThanOrEqual(r.e_min);
+    expect(r.checks.find((c) => c.id === 'edge-distance')!.status).toBe('ok');
+  });
+
+  it('manual: usa Lx/Ly del usuario y recalcula e_borde y peso propio', () => {
+    const r = calcPileCap({ ...base, dims_auto: false, L_x: 2000, L_y: 1200 });
+    expect(r.valid).toBe(true);
+    expect(r.L_x).toBe(2000);
+    expect(r.L_y).toBe(1200);
+    expect(r.e_borde).toBe(400);  // (2000 − 1200)/2
+    expect(r.W_cap).toBeCloseTo(25e-9 * 2000 * 1200 * 800, 3);
+    expect(r.checks.find((c) => c.id === 'edge-distance')!.status).toBe('ok');
+  });
+
+  it('manual con e_borde < e_min: cálculo válido pero edge-distance INCUMPLE', () => {
+    const r = calcPileCap({ ...base, dims_auto: false, L_x: 1700, L_y: 1200 });
+    // e_x = 250 < e_min = 360 pero ≥ d_p/2 = 110 → no invalida, señala fail
+    expect(r.valid).toBe(true);
+    expect(r.e_borde).toBe(250);
+    expect(r.checks.find((c) => c.id === 'edge-distance')!.status).toBe('fail');
+  });
+
+  it('manual: anclaje horizontal crece con e_borde (lb_avail usa el e real)', () => {
+    const r = calcPileCap({ ...base, dims_auto: false, L_x: 2200, L_y: 1200 });
+    // e_borde = 500 → lb_avail = (500−60) + (800−60−40) = 1140
+    expect(r.lb_avail).toBe(1140);
+  });
+
+  it('manual: pilote fuera de planta (e < d_p/2) → invalid', () => {
+    const r = calcPileCap({ ...base, dims_auto: false, L_x: 1350, L_y: 1200 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/no caben/);
+  });
+
+  it('manual: pilar que no cabe en planta → invalid', () => {
+    const r = calcPileCap({ ...base, dims_auto: false, L_x: 2000, L_y: 300 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/pilar/);
+  });
+
+  it('manual: Lx ≤ 0 → invalid', () => {
+    expect(calcPileCap({ ...base, dims_auto: false, L_x: 0, L_y: 1200 }).valid).toBe(false);
+  });
+});
+
+// ── Placa de reparto en cabeza de micro ───────────────────────────────────
+// Con placa el nodo comprimido apoya en la placa (área mayor), no en la
+// sección del tubo: es la vía real de obra para descargar la biela sin subir
+// fck ni el diámetro del micro.
+describe('Placa de reparto (nodo comprimido)', () => {
+  it('sin placa: A_node = π·d_p²/4 (sección del micro)', () => {
+    const r = calcPileCap(base);
+    expect(r.A_node).toBeCloseTo(Math.PI * 110 * 110, 1);  // π·(220/2)²
+  });
+
+  it('placa circular Ø320: A_node = π·320²/4 y σ_biela baja de 6.08 a 2.87 MPa', () => {
+    const r = calcPileCap({ ...base, plate_on: true, plate_shape: 'circ', d_plate: 320 });
+    expect(r.valid).toBe(true);
+    expect(r.A_node).toBeCloseTo(Math.PI * 320 * 320 / 4, 1);  // 80425 mm²
+    expect(r.sigma_strut).toBeCloseTo(2.87, 2);
+    // Fs no cambia (misma geometría de biela): solo cambia el área de apoyo
+    expect(r.Fs_max).toBeCloseTo(calcPileCap(base).Fs_max, 6);
+  });
+
+  it('placa cuadrada lado 320: A_node = 320² (mayor que la circular)', () => {
+    const r = calcPileCap({ ...base, plate_on: true, plate_shape: 'cuad', d_plate: 320 });
+    expect(r.A_node).toBe(320 * 320);
+    expect(r.sigma_strut).toBeCloseTo(2.26, 2);
+  });
+
+  it('con placa aparece la fila informativa plate-info (dimensionar placa aparte)', () => {
+    const con = calcPileCap({ ...base, plate_on: true, d_plate: 320 });
+    const sin = calcPileCap(base);
+    expect(con.checks.find((c) => c.id === 'plate-info')?.status).toBe('neutral');
+    expect(sin.checks.find((c) => c.id === 'plate-info')).toBeUndefined();
+  });
+
+  it('placa menor que la cabeza del micro (d_plate < d_p) → invalid', () => {
+    const r = calcPileCap({ ...base, plate_on: true, d_plate: 200 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/placa/i);
+  });
+
+  it('placas contiguas solapadas (d_plate > s) → invalid', () => {
+    const r = calcPileCap({ ...base, plate_on: true, d_plate: 1250 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/solapan/);
+  });
+
+  it('placa que no cabe en planta (d_plate/2 > e_borde) → invalid', () => {
+    // dims auto: e_x = 375 → placa Ø800 requiere 400 mm de eje a borde
+    const r = calcPileCap({ ...base, plate_on: true, d_plate: 800 });
+    expect(r.valid).toBe(false);
+    expect(r.error).toMatch(/no cabe/);
+  });
+
+  it('plate_on false ignora d_plate aunque sea inválido (estados antiguos)', () => {
+    const r = calcPileCap({ ...base, plate_on: false, d_plate: 0 });
+    expect(r.valid).toBe(true);
+    expect(r.A_node).toBeCloseTo(Math.PI * 110 * 110, 1);
   });
 });
 

@@ -40,6 +40,9 @@ function PlanView({
   const d_p   = inp.d_p as number;
   const b_col = inp.b_col as number;
   const h_col = inp.h_col as number;
+  const plateOn = (inp.plate_on as boolean | undefined) ?? false;
+  const plateSq = inp.plate_shape === 'cuad';
+  const d_plate = (inp.d_plate as number | undefined) ?? 0;
 
   // Scale: fit cap dimensions + small margin
   const margin = 20;
@@ -101,8 +104,24 @@ function PlanView({
       {/* Piles */}
       {pilePos.map((p, i) => {
         const isCrit = reactions[i] === R_max;
+        // Placa de reparto en cabeza: contorno discontinuo a escala real
+        const r_plate_px = (d_plate / 2) * scale;
         return (
           <g key={`pile-${i}`}>
+            {plateOn && (plateSq ? (
+              <rect
+                x={px(p.x) - r_plate_px} y={py(p.y) - r_plate_px}
+                width={2 * r_plate_px} height={2 * r_plate_px}
+                fill="none" stroke={c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
+                opacity={0.8}
+              />
+            ) : (
+              <circle
+                cx={px(p.x)} cy={py(p.y)} r={r_plate_px}
+                fill="none" stroke={c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
+                opacity={0.8}
+              />
+            ))}
             <circle
               cx={px(p.x)} cy={py(p.y)} r={r_px}
               fill={c.pileFill}
@@ -161,6 +180,8 @@ function SectionView({
   const n      = inp.n as number;
   const d_p    = inp.d_p as number;
   const cover  = inp.cover as number;
+  const plateOn = (inp.plate_on as boolean | undefined) ?? false;
+  const d_plate = (inp.d_plate as number | undefined) ?? 0;
   const { L_x, z_eff, theta_deg } = result;
 
   const height = Math.round(width * 0.55);
@@ -284,6 +305,17 @@ function SectionView({
       {/* Piles (circles below cap) */}
       {[pile_x_left, pile_x_right].map((px, i) => (
         <g key={`sec-pile-${i}`}>
+          {/* Placa de reparto en cabeza (a escala, embebida en la base del encepado) */}
+          {plateOn && (
+            <rect
+              x={px - (d_plate / 2) * scale}
+              y={oy + capH - 4}
+              width={d_plate * scale}
+              height={4}
+              fill={c.pileStroke}
+              opacity={0.85}
+            />
+          )}
           <circle cx={px} cy={pile_y} r={r_pile}
             fill={c.pileFill} stroke={c.pileStroke} strokeWidth={1.5} />
           {n > 2 && (

@@ -86,16 +86,24 @@ export async function exportPileCapPDF(
   const gap = () => { ry += 2; };
 
   // ENTRADA
+  const plateOn = (inp.plate_on as boolean | undefined) ?? false;
   secHeader('ENTRADA');
   twoCol(`n = ${n} pilotes`, `d_p = ${inp.d_p} mm`);
+  if (plateOn) {
+    twoCol(
+      `Placa reparto: ${inp.plate_shape === 'cuad' ? 'cuadrada' : 'circular'}`,
+      `${inp.plate_shape === 'cuad' ? 'lado' : 'D'} = ${inp.d_plate} mm`,
+    );
+  }
   twoCol(`s = ${inp.s} mm`, `h = ${inp.h_enc} mm`);
   twoCol(`fck = ${inp.fck} MPa`, `fyk = ${inp.fyk} MPa`);
   twoCol(`N_Ed = ${fmtSi(inp.N_Ed, 'force')}`, `R_adm = ${fmtSi(inp.R_adm, 'force')}`);
   if (inp.Mx_Ed !== 0) twoCol(`Mx = ${fmtSi(inp.Mx_Ed, 'moment', 2)}`, `My = ${fmtSi(inp.My_Ed, 'moment', 2)}`);
   gap();
 
-  // GEOMETRIA ENCEPADO
-  secHeader('GEOMETRIA ENCEPADO');
+  // GEOMETRIA ENCEPADO — indica si las dims en planta son auto o del usuario
+  const dimsAuto = (inp.dims_auto as boolean | undefined) ?? true;
+  secHeader(dimsAuto ? 'GEOMETRIA ENCEPADO (DIMS. AUTO)' : 'GEOMETRIA ENCEPADO (DIMS. USUARIO)');
   twoCol(`Lx = ${result.L_x.toFixed(0)} mm`, `Ly = ${result.L_y.toFixed(0)} mm`);
   twoCol(`e_borde = ${result.e_borde.toFixed(0)} mm`, `h_min = ${result.h_min.toFixed(0)} mm`);
   gap();
@@ -103,6 +111,13 @@ export async function exportPileCapPDF(
   // BIELAS Y TIRANTES
   secHeader('BIELAS Y TIRANTES (CE Anejo 19 §6.5)');
   twoCol(`th = ${result.theta_deg.toFixed(1)} deg`, `z_eff = ${result.z_eff.toFixed(0)} mm`);
+  // Apoyo del nodo comprimido: placa de reparto o seccion del micro
+  twoCol(
+    plateOn
+      ? `Nodo: placa ${inp.plate_shape === 'cuad' ? 'cuadrada' : 'circular'} ${inp.d_plate} mm`
+      : `Nodo: micro d_p = ${inp.d_p} mm`,
+    `A_nodo = ${result.A_node.toFixed(0)} mm2`,
+  );
   twoCol(`sigma_biela = ${result.sigma_strut.toFixed(2)} MPa`, `sigma_Rd = ${result.sigma_Rd_max.toFixed(2)} MPa`);
   twoCol(`Ft,x = ${fmtSi(result.Ft_x, 'force')}`,
     result.Ft_y !== null ? `Ft,y = ${fmtSi(result.Ft_y, 'force')}` : '');

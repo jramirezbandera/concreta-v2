@@ -566,8 +566,18 @@ export interface PileCapInputs {
   title:    string;
   n:        number;  // 2 | 3 | 4 — number of micropiles
   d_p:      number;  // mm — pile diameter
+  /** true → placa de reparto en cabeza de micro: el nodo comprimido de la biela
+   *  apoya en la placa (área mayor), no en la sección del tubo. */
+  plate_on: boolean;
+  /** Forma de la placa de reparto: 'circ' (Ø d_plate) o 'cuad' (lado d_plate). */
+  plate_shape: 'circ' | 'cuad';
+  d_plate:  number;  // mm — Ø (circ) o lado (cuad) de la placa de reparto
   s:        number;  // mm — pile spacing c/c
   h_enc:    number;  // mm — cap depth
+  /** true → Lx/Ly automáticas (e_min a borde, redondeo a 5 cm); false → usa L_x/L_y. */
+  dims_auto: boolean;
+  L_x:      number;  // mm — cap plan dimension x (solo modo manual)
+  L_y:      number;  // mm — cap plan dimension y (solo modo manual)
   b_col:    number;  // mm — column width (x)
   h_col:    number;  // mm — column depth (y)
   fck:      number;  // MPa
@@ -582,15 +592,23 @@ export interface PileCapInputs {
 
 // FTUX defaults: all checks CUMPLE at ~60-75% utilization on first open.
 // Verified hand-calc (modelo B&T CE Anejo 19 §6.5, geometría ex-EHE, fix
-// adenda 2): W_cap=43.0 kN → R_max=179.0 kN (72% de R_adm); θ=51.3°;
-// σ_strut=6.04 vs σ_Rd=9.02 → 67%; tirante 330/1131 mm² → 29% (fyd=fyk/γs,
-// sin tope EHE); anclaje lb,req≈329 vs 1000 mm → 33%.
+// adenda 2 + dims auto redondeadas a 5 cm): Lx×Ly = 1950×1150, e_borde=375;
+// W_cap=44.85 kN → R_max=180.3 kN (72% de R_adm); θ=51.3°; σ_strut=6.08 vs
+// σ_Rd=9.02 → 67%; tirante 332/1131 mm² → 29% (fyd=fyk/γs, sin tope EHE);
+// anclaje lb,req≈337 vs 1015 mm → 33%.
+// L_x/L_y por defecto = valores auto (semilla al pasar a modo manual).
 export const pileCapDefaults: PileCapInputs = {
   title:   '',
   n:       2,
   d_p:     220,
+  plate_on: false,
+  plate_shape: 'circ',
+  d_plate: 320,      // semilla al activar la placa (≈ d_p + 100, redondeado)
   s:       1200,
   h_enc:   800,
+  dims_auto: true,
+  L_x:     1950,
+  L_y:     1150,
   b_col:   400,
   h_col:   400,
   fck:     25,
