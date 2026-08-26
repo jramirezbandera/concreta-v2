@@ -1066,3 +1066,35 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** decisión de la review: FEM 1D fuera del alcance de la PR del zoom 2D. El plan del 2D vive en `~/.claude/plans/fem2d-canvas-zoom.md`; la envoltura `withView` deja `makeTransform` intacto (PDF byte-stable por construcción) — misma técnica aplicable al 1D.
 
 **Depends on / blocked by:** zoom FEM 2D en producción; decidir si el 1D adopta también la rueda-CAD o mantiene solo botones.
+
+## Sismo NCSE-02 — exportar el caso E al FEM 2D
+
+**Status:** DIFERIDO — plan-eng-review del módulo de sismo NCSE-02 (2026-08-26). Sacado de la v1 por radio de explosión, no por falta de valor.
+
+**What:** exportar las fuerzas sísmicas por planta que calcula el módulo `seismic-ncse02` como caso de carga `E` consumible por `features/fem2d`, para leer momentos y cortantes reales en cada barra del pórtico en vez de quedarse en el reparto por rigideces del art. 3.7.4.
+
+**Why:** es el resultado más potente de todo el módulo y el único que da esfuerzos de verdad barra a barra. El reparto `f_kj = F_k·k_kj/Σk_kj` que sí entra en la v1 asume que el edificio se comporta como un conjunto de elementos en paralelo; el pórtico resuelto no lo asume.
+
+**Pros:** cierra el círculo "defino el edificio → veo los esfuerzos"; aprovecha un motor de pórticos que ya existe y está auditado; el usuario deja de tener que reintroducir nada.
+
+**Cons:** exige la familia de combinación accidental `ACC` en `lib/frame-core/lcCombinations.ts`, que hoy no existe. Ese fichero lo consumen `fem2d/checks.ts`, `fem-analysis/solveDesignModel.ts`, `adapters/steelBeams.ts` y `ai/modules/fem2d.ts`, así que cualquier error se propaga a los cuatro.
+
+**Context:** hoy `lcCombinations` trata `E` como acción variable, con `GAMMA_G_ELU`=1,35 y `GAMMA_VAR_ELU`=1,5 (ver el comentario de `combinations.ts:21`: `E: psi0=0, psi1=0, psi2=0 — sismo (treated as variable for V1)`). Exportar `E` hoy produciría `1,35·G + 1,5·E`, que sobrefactoriza el sismo un 50% y no aplica el `1,0·G` que exige la situación accidental. El art. 3.4 de la NCSE-02 remite a la norma de material para los coeficientes, y solo fija `1,0·G + 1,0·Q_desf` como reserva "en el caso de que dichos coeficientes no estén fijados expresamente"; el CTE DB-SE sí los fija, luego manda el CTE.
+
+**Depends on / blocked by:** la familia `ACC` genérica. **La introduce la PR de INCENDIO de arriba**, que la necesita igualmente (`γG,fi = γQ,fi = 1,0`, ψ para las variables). AVISO PARA ESA PR: `ACC` tiene dos clientes con políticas de ψ **distintas** (incendio y sismo), así que debe nacer parametrizada por política, no cableada al caso de incendio. Si se cablea, esta entrada obliga a reescribirla.
+
+## frame-core — `buildCombinations` es código muerto
+
+**Status:** DETECTADO — plan-eng-review del módulo de sismo (2026-08-26). No tocado en esa PR para no mezclar limpieza con feature nueva.
+
+**What:** `src/lib/frame-core/combinations.ts` exporta `buildCombinations` y `countQLoadsWithoutCategory` sin ningún consumidor de producción. El único importador de ambas es `src/test/fem-analysis/combinations.test.ts`. Lo que sí está vivo del fichero es `getPsi` y la tabla `PSI_LC_FIXED`, que importa `lcCombinations.ts`.
+
+**Why:** son ~100 de las 154 líneas del fichero, con su batería de tests, sosteniendo la impresión de que ahí vive el motor de combinaciones. El motor real es `buildLcCombinations` en `lcCombinations.ts`. El design doc del módulo de sismo apuntó al fichero equivocado precisamente por esto, y costó una ronda de revisión detectarlo.
+
+**Pros:** el fichero baja de 154 a ~55 líneas y deja de desorientar a quien busque dónde se combinan las acciones.
+
+**Cons:** borrar tests siempre da vértigo; hay que estar seguro.
+
+**Context:** VERIFICAR ANTES DE BORRAR `countQLoadsWithoutCategory`. Su comentario dice que existe para que la hidratación (`loadFromStorage` / `decodeShareString`) muestre un toast cuando se aplicaron categorías por defecto, y lo documenta como arreglo de un *trust bug* señalado por Codex ("silent fallback was a trust bug"). Que hoy no tenga consumidores puede significar dos cosas muy distintas: que la función se quedó huérfana en un refactor, o **que el bug ha vuelto** porque su llamador desapareció. Si es lo segundo, lo que hay que hacer no es borrarla sino volver a llamarla.
+
+**Depends on / blocked by:** nada. PR propia, pequeña.
