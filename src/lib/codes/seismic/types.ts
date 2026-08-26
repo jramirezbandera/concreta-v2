@@ -163,3 +163,213 @@ export interface ApplicabilityResult {
   puedeCalcular: boolean;
   avisos: AvisoNorma[];
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CADENA DE FUERZAS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Emplazamiento (cap. 2) ───────────────────────────────────────────────────
+
+/** Estrato para ponderar C en los 30 m superiores (art. 2.4). */
+export interface Estrato {
+  C: number;
+  /** Espesor [m]. */
+  espesor: number;
+}
+
+export interface EmplazamientoInput {
+  /** ab/g, adimensional. */
+  ab: number;
+  K: number;
+  importancia: Importancia;
+  /** Tipo tabulado I-IV, o perfil de estratos a ponderar. */
+  terreno: TipoTerreno | Estrato[];
+}
+
+export interface EmplazamientoResult {
+  ab: number;
+  K: number;
+  /** Coeficiente de riesgo: 1,0 normal / 1,3 especial. */
+  rho: number;
+  C: number;
+  S: number;
+  /** ac/g, adimensional. */
+  ac: number;
+  TA: number;
+  TB: number;
+}
+
+// ── Masas (art. 3.2) ─────────────────────────────────────────────────────────
+
+/**
+ * Categorías del art. 3.2. La fracción que llevan asociada gobierna qué parte
+ * de la carga es MASA sísmica. NO es el psi_2 del CTE, que gobierna la carga
+ * gravitatoria concomitante del art. 3.4. Confundirlas es el error natural.
+ */
+export type CategoriaMasa =
+  | "permanente"
+  | "tabiqueria"
+  | "uso-residencial"
+  | "uso-publico"
+  | "uso-aglomeracion"
+  | "uso-almacen"
+  | "nieve-persistente"
+  | "agua";
+
+export interface ComponenteCarga {
+  categoria: CategoriaMasa;
+  /** Carga superficial [kN/m²]. */
+  q: number;
+  /**
+   * Art. 3.2: las sobrecargas cuentan "siempre que tengan un efecto
+   * desfavorable". Excluir una es decisión del proyectista, y el PDF la recoge
+   * como declarada.
+   */
+  excluida?: boolean;
+}
+
+export interface PlantaInput {
+  id?: string;
+  /** Altura de la planta SOBRE RASANTE [m]. */
+  h: number;
+  /** Superficie en planta [m²]. Sólo para el asistente de cargas. */
+  area?: number;
+  componentes?: ComponenteCarga[];
+  /** Peso sísmico [kN]. Si se da, manda sobre area × componentes. */
+  P?: number;
+}
+
+export interface PlantaResuelta {
+  h: number;
+  /** Peso sísmico [kN]. */
+  P: number;
+}
+
+// ── Estructura y direcciones ─────────────────────────────────────────────────
+
+export interface ElementoResistente {
+  id: string;
+  /**
+   * Coordenada FIRMADA respecto al centro, perpendicular a la dirección
+   * analizada [m]. El signo se guarda; abs() sólo se aplica dentro de gamma_a.
+   */
+  x: number;
+  /** Rigidez, relativa (adimensional) o absoluta [kN/m]. */
+  k: number;
+}
+
+export interface DireccionInput {
+  /** Dimensión en planta en el sentido de la oscilación [m]. Expresión (1). */
+  L: number;
+  /** Dimensión de pantallas o planos triangulados en ese sentido [m]. Expr. (3) y (5). */
+  B: number;
+  elementos: ElementoResistente[];
+  /** Override de T_F para esta dirección [s]. Art. 3.6.2.3.2. */
+  TFManual?: number;
+}
+
+export interface EstructuraInput {
+  sistema: SistemaEstructural;
+  /** Plantas sobre rasante. */
+  n: number;
+  /** Altura sobre rasante [m]. */
+  H: number;
+  /** Amortiguamiento [%]. */
+  omega: number;
+  /** Ductilidad, art. 3.7.3.1. */
+  mu: number;
+  /** Override del número de modos. Sin él se aplica el art. 3.7.2.1. */
+  nModos?: number;
+}
+
+// ── Resultados ───────────────────────────────────────────────────────────────
+
+export interface ModoResult {
+  i: number;
+  /** T_i = T_F/(2i−1) [s]. */
+  T: number;
+  /** alpha_i del art. 3.7.3. NO el espectro elástico del art. 2.3. */
+  alpha: number;
+  Phi: number[];
+  eta: number[];
+  /** Coeficiente sísmico, adimensional. */
+  s: number[];
+  /** Fuerza por planta en este modo [kN]. */
+  F: number[];
+  /** Cortante por planta en este modo [kN]. */
+  V: number[];
+  /** Fracción de la masa total movilizada por el modo. */
+  participacion: number;
+}
+
+export interface RepartoElemento {
+  id: string;
+  x: number;
+  k: number;
+  /** Antes de torsión [kN]. */
+  fBase: number;
+  gamma: number;
+  /** Después de torsión [kN]. */
+  f: number;
+}
+
+export interface RepartoPlanta {
+  /** Índice de planta, 1 = la más baja sobre rasante. */
+  k: number;
+  Fk: number;
+  elementos: RepartoElemento[];
+}
+
+export interface DireccionResult {
+  TF: number;
+  /** true si T_F lo impuso el proyectista. */
+  TFManual: boolean;
+  nModos: number;
+  modos: ModoResult[];
+  /** Cortante de planta combinado por SRSS [kN]. */
+  Vk: number[];
+  /** F_k = V_k − V_(k+1) [kN]. Puede ser negativo: el SRSS destruye el signo. */
+  Fk: number[];
+  cortanteBasal: number;
+  participacionTotal: number;
+  /** Distancia entre los dos elementos más extremos [m]. */
+  Le: number;
+  reparto: RepartoPlanta[];
+  avisos: AvisoNorma[];
+}
+
+/** Uno de los ocho casos del art. 3.4. Los factores van con signo. */
+export interface CasoDireccional {
+  id: string;
+  /** Factor sobre la acción en X. */
+  fx: number;
+  /** Factor sobre la acción en Y. */
+  fy: number;
+  /** Cortante basal resultante en X [kN]. */
+  Vx: number;
+  /** Cortante basal resultante en Y [kN]. */
+  Vy: number;
+}
+
+export interface SeismicInput {
+  emplazamiento: EmplazamientoInput;
+  estructura: EstructuraInput;
+  plantas: PlantaInput[];
+  x: DireccionInput;
+  y: DireccionInput;
+}
+
+export interface SeismicResult {
+  emplazamiento: EmplazamientoResult;
+  /** Factor de amortiguamiento, art. 2.5. */
+  nu: number;
+  /** Coeficiente de respuesta beta = nu/mu, art. 3.7.3.1. */
+  beta: number;
+  plantas: PlantaResuelta[];
+  /** Suma de P_k [kN]. */
+  pesoSismico: number;
+  x: DireccionResult;
+  y: DireccionResult;
+  direccionales: CasoDireccional[];
+  avisos: AvisoNorma[];
+}

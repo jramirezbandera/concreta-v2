@@ -463,3 +463,157 @@ export const TF_FORMULAS_MODOS_XLSX = {
     aceroTriangulado: 0.085 * 8 * Math.sqrt(16 / (16 + 16)),
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CASO 3 · Granada, 10 plantas · REGRESIÓN PURA, sin hoja detrás
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// POR QUÉ EXISTE. Al calcular el caso del mockup salió un hueco de cobertura
+// que ninguno de los dos fixtures anteriores tapa:
+//
+//     Modos.xlsx      T = 0,440 · 0,147 · 0,088    con T_B = 0,64
+//     Sismo_ISA.xlsx  T = 0,450                    con T_B = 0,52
+//
+// Los cinco períodos de las dos hojas caen POR DEBAJO de T_B. Es decir: ambas
+// ejercitan `alpha_i = 2,5` y NINGUNA ejercita `alpha_i = 2,5·T_B/T_i`. La rama
+// descendente del art. 3.7.3 no tenía ni un solo test, y es la mitad de la
+// función. Este caso la cubre, y cubre las dos ramas a la vez.
+//
+// ESTÁNDAR DE EVIDENCIA. Igual que el SRSS de tres modos de `Modos.xlsx`: es un
+// fixture de REGRESIÓN, no paridad contra una autoridad. Su única fuente es la
+// aritmética de la sesión que lo escribió. Congela el mecanismo de la rama
+// descendente, que es más de lo que había, pero no se presenta como oráculo.
+//
+// Es además el caso dibujado en `docs/mockup-sismo-ncse02.html`, con el peso
+// sísmico desglosado en cargas por planta (300 m², 8,00 kN/m² en planta tipo y
+// 6,00 en cubierta → 2.400 y 1.800 kN, total 23.400 kN).
+//
+// Ojo con T_F: es `0,09 · 10`, que en coma flotante NO es 0,9 exacto. El fixture
+// guarda el valor que produce la propia expresión, no el redondeo bonito.
+
+export const CASO_GRANADA = {
+  id: "granada-10-plantas-rama-descendente",
+  origen: "calculado en esta sesión · docs/mockup-sismo-ncse02.html",
+  descripcion:
+    "10 plantas de pórticos de HA en Granada, terreno II. T_F = 0,90 s por " +
+    "encima de T_B = 0,52 s: el modo 1 cae en la rama descendente de alpha y " +
+    "el modo 2 en el tramo plano.",
+
+  entrada: {
+    ab: 0.23,
+    K: 1.0,
+    C: 1.3,
+    rho: 1.0,
+    TF: 0.8999999999999999, // 0,09 · 10
+    omega: 5,
+    mu: 3,
+    h: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30],
+    P: [2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 1800],
+    nModos: 2,
+  } satisfies EntradaSismo,
+
+  esperado: {
+    S: 1.022684,
+    ac: 0.23521731999999998,
+    TA: 0.13,
+    TB: 0.52,
+    nu: 1.0,
+    beta: 0.3333333333333333,
+    H: 30,
+    modos: [
+      {
+        i: 1,
+        T: 0.8999999999999999,
+        // T_1 > T_B: RAMA DESCENDENTE. 2,5·0,52/0,90.
+        alpha: 1.4444444444444446,
+        Phi: [
+          0.15643446504023087, 0.3090169943749474, 0.45399049973954675,
+          0.5877852522924731, 0.7071067811865475, 0.8090169943749475,
+          0.8910065241883678, 0.9510565162951535, 0.9876883405951378, 1.0,
+        ],
+        eta: [
+          0.19675291172526221, 0.3886611137783717, 0.5709991893179738,
+          0.739277369778905, 0.8893520878749558, 1.0175280059771674,
+          1.1206490075903797, 1.1961759114158927, 1.2422489944220996,
+          1.257733784397591,
+        ],
+        s: [
+          0.02228281495469503, 0.044016953052782505, 0.06466724768281865,
+          0.08372522005661331, 0.10072159964453965, 0.11523787917339307,
+          0.12691661966440348, 0.13547025176716473, 0.14068815667142948,
+          0.14244185224122108,
+        ],
+        F: [
+          53.47875589126807, 105.640687326678, 155.20139443876474,
+          200.94052813587194, 241.73183914689517, 276.57091001614333,
+          304.59988719456834, 325.1286042411954, 337.65157601143073,
+          256.39533403419796,
+        ],
+        V: [
+          2257.3395164370136, 2203.8607605457455, 2098.2200732190677,
+          1943.018678780303, 1742.078150644431, 1500.3463114975357,
+          1223.7754014813925, 919.1755142868241, 594.0469100456287,
+          256.39533403419796,
+        ],
+      },
+      {
+        i: 2,
+        T: 0.3,
+        // T_2 entre T_A y T_B: TRAMO PLANO.
+        alpha: 2.5,
+        Phi: [
+          0.45399049973954675, 0.8090169943749475, 0.9876883405951378,
+          0.9510565162951536, 0.7071067811865476, 0.3090169943749475,
+          -0.15643446504023073, -0.587785252292473, -0.8910065241883678, -1.0,
+        ],
+        eta: [
+          0.15847726422081854, 0.2824085527125463, 0.3447784616861281,
+          0.3319911648113924, 0.2468341259535646, 0.1078704684225264,
+          -0.054607543690111934, -0.20518182381810857, -0.311029143643494,
+          -0.3490761685800398,
+        ],
+        s: [
+          0.031063831142460682, 0.05535615242843654, 0.06758155479294475,
+          0.06507506004217835, 0.04838305132611658, 0.021144168741242735,
+          -0.010703866732142532, -0.04021859892600638, -0.060966201341431395,
+          -0.06842396737438763,
+        ],
+        F: [
+          74.55319474190564, 132.8547658282477, 162.1957315030674,
+          156.18014410122802, 116.11932318267979, 50.74600497898256,
+          -25.689280157142075, -96.52463742241531, -146.31888321943535,
+          -123.16314127389774,
+        ],
+        V: [
+          300.95322226322065, 226.40002752131502, 93.54526169306732,
+          -68.65046981000009, -224.8306139112281, -340.9499370939079,
+          -391.6959420728905, -366.0066619157484, -269.4820244933331,
+          -123.16314127389774,
+        ],
+      },
+    ],
+    Vk: [
+      2277.313007572456, 2215.4591452642326, 2100.304309295359,
+      1944.2310750253653, 1756.5264267594782, 1538.5986851770672,
+      1284.932661390204, 989.3657072241571, 652.3130328759228,
+      284.4428355275661,
+    ],
+    Fk: [
+      61.8538623082236, 115.15483596887361, 156.0732342699937,
+      187.70464826588704, 217.92774158241104, 253.6660237868632,
+      295.5669541660469, 337.0526743482343, 367.87019734835667,
+      284.4428355275661,
+    ],
+  } satisfies EsperadoSismo,
+
+  /** Participación modal, para el pie de la tabla de modos. */
+  participacion: [0.8517892236081233, 0.0656137846379725],
+
+  /** Desglose de cargas que produce los P_k. Reproduce el del mockup. */
+  cargas: {
+    area: 300,
+    tipo: { pesoPropio: 4.5, permanente: 1.5, tabiqueria: 1.0, uso: 2.0 },
+    cubierta: { pesoPropio: 4.5, permanente: 1.5, usoExcluida: 1.0 },
+    pesoSismicoTotal: 23400,
+  },
+};
