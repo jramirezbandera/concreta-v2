@@ -1,0 +1,874 @@
+<title>Sismo NCSE-02</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --surface:#f8fafc; --elev:#f1f5f9; --canvas:#ffffff;
+  --bd:#cbd5e1; --bd2:#e2e8f0;
+  --fg:#0f172a; --fg2:#475569; --fg3:#64748b;
+  --acc:#0284c7; --acc2:#0369a1; --accfg:#ffffff;
+  --ok:#15803d; --warn:#b45309; --fail:#dc2626; --neu:#64748b;
+  --c-section:#475569; --c-section-fill:#f1f5f9; --c-dim:#64748b; --c-axis:#0284c7; --c-grid:#e2e8f0;
+  --c-seismic:#dc2626; --c-seismic-fill:rgba(220,38,38,.10);
+  --c-elastic:#7c3aed; --c-fail:#dc2626; --dot:#e2e8f0;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c0c0e; --surface:#161619; --elev:#202024; --canvas:#0c0c0e;
+    --bd:#2c2c34; --bd2:#202027;
+    --fg:#fafafa; --fg2:#9a9ea7; --fg3:#6b6f79;
+    --acc:#38bdf8; --acc2:#0ea5e9; --accfg:#052238;
+    --ok:#22c55e; --warn:#f59e0b; --fail:#f56565; --neu:#64748b;
+    --c-section:#4b4f59; --c-section-fill:#161619; --c-dim:#9a9ea7; --c-axis:#38bdf8; --c-grid:#25252c;
+    --c-seismic:#ef4444; --c-seismic-fill:rgba(239,68,68,.14);
+    --c-elastic:#a78bfa; --c-fail:#f56565; --dot:#1f1f26;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 28px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c0c0e; --surface:#161619; --elev:#202024; --canvas:#0c0c0e;
+  --bd:#2c2c34; --bd2:#202027;
+  --fg:#fafafa; --fg2:#9a9ea7; --fg3:#6b6f79;
+  --acc:#38bdf8; --acc2:#0ea5e9; --accfg:#052238;
+  --ok:#22c55e; --warn:#f59e0b; --fail:#f56565; --neu:#64748b;
+  --c-section:#4b4f59; --c-section-fill:#161619; --c-dim:#9a9ea7; --c-axis:#38bdf8; --c-grid:#25252c;
+  --c-seismic:#ef4444; --c-seismic-fill:rgba(239,68,68,.14);
+  --c-elastic:#a78bfa; --c-fail:#f56565; --dot:#1f1f26;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 28px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;}
+:focus-visible{outline:2px solid var(--acc); outline-offset:2px; border-radius:2px;}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:"Geist","Geist Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:"Geist Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;}
+.wrap{max-width:1240px; margin:0 auto; padding:0 24px 96px;}
+
+/* ── cabecera ───────────────────────────────────────────────── */
+.top{padding:56px 0 28px; border-bottom:1px solid var(--bd2);}
+.eyebrow{
+  font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; font-weight:500;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--fg3); margin:0 0 14px;
+}
+h1{font-size:34px; line-height:1.15; font-weight:600; letter-spacing:-.02em; margin:0 0 12px; text-wrap:balance;}
+.lede{font-size:15px; color:var(--fg2); max-width:62ch; margin:0 0 22px;}
+.chips{display:flex; flex-wrap:wrap; gap:6px;}
+.chip{
+  font-family:"Geist Mono",ui-monospace,monospace; font-size:10.5px; color:var(--fg2);
+  background:var(--elev); border:1px solid var(--bd2); border-radius:3px; padding:3px 8px;
+  font-variant-numeric:tabular-nums;
+}
+.chip b{color:var(--fg); font-weight:500;}
+
+/* ── secciones ──────────────────────────────────────────────── */
+section{padding-top:52px;}
+h2{
+  font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0 0 6px; text-wrap:balance;
+}
+h2 .idx{
+  font-family:"Geist Mono",ui-monospace,monospace; font-size:11px; font-weight:500;
+  color:var(--acc); margin-right:10px; letter-spacing:.06em;
+}
+.sub{font-size:13.5px; color:var(--fg2); max-width:66ch; margin:0 0 20px;}
+.sub b{color:var(--fg); font-weight:500;}
+.sub code, p code, li code{
+  font-family:"Geist Mono",ui-monospace,monospace; font-size:.9em;
+  background:var(--elev); padding:1px 4px; border-radius:3px; color:var(--fg);
+}
+
+/* ── chrome de la app ───────────────────────────────────────── */
+.frame{
+  border:1px solid var(--bd); border-radius:8px; overflow:hidden;
+  background:var(--bg); box-shadow:var(--shadow);
+}
+.scroll{overflow-x:auto;}
+.app{display:flex; min-width:1140px; min-height:760px; background:var(--bg);}
+
+.side{width:204px; flex:none; background:var(--surface); border-right:1px solid var(--bd);
+      display:flex; flex-direction:column; padding-bottom:8px;}
+.brand{height:48px; display:flex; align-items:center; gap:8px; padding:0 14px;
+       border-bottom:1px solid var(--bd);}
+.brand .mk{width:16px; height:16px; border-radius:3px; background:var(--acc); flex:none;}
+.brand span{font-size:13px; font-weight:600; letter-spacing:.01em;}
+.navg{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+      letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);
+      padding:12px 14px 4px;}
+.nav{display:flex; align-items:center; gap:8px; padding:5px 14px; font-size:12px; color:var(--fg2);}
+.nav .d{width:4px; height:4px; border-radius:50%; background:var(--bd); flex:none;}
+.nav.on{color:var(--acc); background:color-mix(in srgb, var(--acc) 10%, transparent);
+        box-shadow:inset 2px 0 0 var(--acc); font-weight:500;}
+.nav.on .d{background:var(--acc);}
+.nav.new::after{content:"NUEVO"; margin-left:auto; font-family:"Geist Mono",ui-monospace,monospace;
+        font-size:8px; letter-spacing:.08em; color:var(--acc);
+        border:1px solid color-mix(in srgb, var(--acc) 40%, transparent);
+        border-radius:2px; padding:0 3px;}
+
+.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.bar{height:48px; flex:none; display:flex; align-items:center; justify-content:space-between;
+     padding:0 16px; background:var(--surface); border-bottom:1px solid var(--bd);}
+.bcrumb{display:flex; align-items:center; gap:8px; min-width:0;}
+.bcrumb .k{font-family:"Geist Mono",ui-monospace,monospace; font-size:10.5px;
+           letter-spacing:.07em; text-transform:uppercase; color:var(--fg3);}
+.bcrumb .sl{color:var(--fg3);}
+.bcrumb .t{font-size:13px; font-weight:500;}
+.acts{display:flex; align-items:center; gap:6px;}
+.btn{font-size:11.5px; color:var(--fg2); border:1px solid var(--bd); border-radius:4px;
+     padding:4px 9px; background:var(--bg);}
+.btn.pri{background:var(--acc); border-color:var(--acc); color:var(--accfg); font-weight:500;}
+
+.cols{flex:1; display:flex; min-height:0;}
+.pin{width:288px; flex:none; border-right:1px solid var(--bd); background:var(--bg);
+     padding:2px 12px 16px;}
+.pout{width:300px; flex:none; border-left:1px solid var(--bd); background:var(--surface);}
+.cv{flex:1; min-width:0; background:var(--canvas); position:relative;
+    background-image:radial-gradient(circle, var(--dot) 1px, transparent 1px);
+    background-size:22px 22px; display:flex; flex-direction:column;}
+
+/* ── campos ─────────────────────────────────────────────────── */
+.grp{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+     letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);
+     padding:12px 2px 5px; border-bottom:1px solid var(--bd2); margin-bottom:4px;}
+.gn{font-family:"Geist",system-ui,sans-serif; font-size:9.5px; letter-spacing:0;
+    text-transform:none; color:var(--fg3); margin-top:2px;}
+.fld{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 2px;}
+.fld.col{display:block; padding:5px 2px;}
+.fl{min-width:0;}
+.fn{font-family:"Geist Mono",ui-monospace,monospace; font-size:11.5px; color:var(--fg2);}
+.s{font-size:11px; color:var(--fg3);}
+.ref{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3); line-height:1.3;}
+.fi{display:flex; flex:none;}
+.val{font-family:"Geist Mono",ui-monospace,monospace; font-size:11.5px; color:var(--fg);
+     background:var(--bg); border:1px solid var(--bd); border-right:0;
+     border-radius:3px 0 0 3px; padding:2px 7px; min-width:62px; text-align:right;
+     font-variant-numeric:tabular-nums;}
+.val.ro{background:var(--elev); color:var(--fg2); border-style:dashed;}
+.val.acc{color:var(--acc); font-weight:500;}
+.un{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3);
+    background:var(--elev); border:1px solid var(--bd); border-radius:0 3px 3px 0;
+    padding:2px 5px; display:flex; align-items:center; min-width:20px; justify-content:center;}
+.row2{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px;}
+.seg{display:flex; gap:0; margin-top:4px;}
+.sg{font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--fg3);
+    background:var(--bg); border:1px solid var(--bd); padding:3px 8px; flex:1;
+    border-right-width:0; text-align:center;}
+.sg:first-child{border-radius:3px 0 0 3px;}
+.sg:last-child{border-radius:0 3px 3px 0; border-right-width:1px;}
+.sg.on{background:color-mix(in srgb, var(--acc) 12%, transparent); color:var(--acc);
+       border-color:color-mix(in srgb, var(--acc) 45%, transparent); font-weight:500;}
+.seg.sm .sg{font-size:9.5px; padding:2.5px 5px;}
+.sel{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-top:4px;
+     font-size:11px; color:var(--fg); background:var(--bg); border:1px solid var(--bd);
+     border-radius:3px; padding:4px 8px;}
+.sel .chv{width:9px; height:6px; flex:none; color:var(--fg3);}
+.search{display:flex; align-items:center; gap:7px; margin-top:4px; background:var(--bg);
+        border:1px solid var(--acc); border-radius:3px; padding:5px 8px;}
+.search .ico{width:12px; height:12px; color:var(--fg3); flex:none;}
+.sv{font-size:12px; color:var(--fg); flex:1;}
+.sp{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3);}
+
+/* ── resultados ─────────────────────────────────────────────── */
+.verdict{border-top:2px solid var(--ok); padding:12px 14px 13px;
+         background:linear-gradient(180deg, color-mix(in srgb, var(--ok) 9%, transparent) 0%, transparent 82px);}
+.vh{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--fg3); margin-bottom:5px;}
+.vv{font-family:"Geist Mono",ui-monospace,monospace; font-size:25px; font-weight:600;
+    color:var(--ok); letter-spacing:-.01em; font-variant-numeric:tabular-nums;}
+.vu{font-size:13px; color:var(--fg3); margin-left:5px; font-weight:400;}
+.vm{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3); margin-top:3px;}
+.rgrp{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+      letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);
+      padding:11px 14px 5px; border-bottom:1px solid var(--bd2);}
+.rq{display:flex; align-items:flex-start; gap:8px; padding:5px 14px;
+    border-bottom:1px solid var(--bd2);}
+.rn{font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--fg3);
+    flex:none; width:9px; padding-top:1px;}
+.rt{flex:1; min-width:0; font-size:10.5px; color:var(--fg); line-height:1.35;}
+.rd{display:block; font-family:"Geist Mono",ui-monospace,monospace; font-size:9px; color:var(--fg3);}
+.tg{font-family:"Geist Mono",ui-monospace,monospace; font-size:8.5px; font-weight:500;
+    letter-spacing:.04em; border-radius:2px; padding:1px 4px; flex:none; align-self:flex-start;
+    white-space:nowrap;}
+.tg.ok{color:var(--ok); background:color-mix(in srgb, var(--ok) 10%, transparent);
+       border:1px solid color-mix(in srgb, var(--ok) 32%, transparent);}
+.tg.neutral{color:var(--neu); background:color-mix(in srgb, var(--neu) 10%, transparent);
+       border:1px solid color-mix(in srgb, var(--neu) 32%, transparent);}
+.tg.warn{color:var(--warn); background:color-mix(in srgb, var(--warn) 10%, transparent);
+       border:1px solid color-mix(in srgb, var(--warn) 32%, transparent);}
+.tg.fail{color:var(--fail); background:color-mix(in srgb, var(--fail) 10%, transparent);
+       border:1px solid color-mix(in srgb, var(--fail) 32%, transparent);}
+
+/* ── tablas ─────────────────────────────────────────────────── */
+table{border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums;}
+th,td{font-family:"Geist Mono",ui-monospace,monospace; font-size:10.5px; text-align:right;
+      padding:4px 9px; border-bottom:1px solid var(--bd2); white-space:nowrap;}
+th{font-size:9px; font-weight:500; letter-spacing:.05em; text-transform:uppercase;
+   color:var(--fg3); border-bottom:1px solid var(--bd);}
+td{color:var(--fg2);}
+td.c,th.c{text-align:center; color:var(--fg3);}
+td.em{color:var(--fg); font-weight:500;}
+td.sep,th.sep{border-right:1px solid var(--bd2);}
+tbody tr:last-child td{border-bottom:0;}
+.tblbox{border:1px solid var(--bd); border-radius:6px; overflow:hidden; background:var(--surface);}
+.tblbox .scroll{overflow-x:auto;}
+.thead{display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+       padding:9px 12px; border-bottom:1px solid var(--bd); background:var(--elev);}
+.thead .tt{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+           letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);}
+.thead .tr2{font-size:11px; color:var(--fg3);}
+.tnote{font-size:11.5px; color:var(--fg3); padding:8px 12px; border-top:1px solid var(--bd2);
+       background:var(--bg);}
+
+/* ── crops ──────────────────────────────────────────────────── */
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:18px;}
+.card{border:1px solid var(--bd); border-radius:7px; background:var(--surface); overflow:hidden;
+      display:flex; flex-direction:column;}
+.ch{display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 12px; border-bottom:1px solid var(--bd); background:var(--elev);}
+.ch .ct{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+        letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);}
+.cb{padding:12px; flex:1;}
+.cb.tight{padding:0;}
+.cnote{font-size:12px; color:var(--fg2); padding:10px 12px; border-top:1px solid var(--bd2);
+       background:var(--bg); line-height:1.5;}
+.cnote b{color:var(--fg); font-weight:500;}
+.blk{border:1px solid var(--bd); border-radius:5px; background:var(--bg); padding:10px 11px;}
+.blk + .blk{margin-top:9px;}
+.bt{display:flex; align-items:center; gap:7px; margin-bottom:5px;}
+.bl{font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--fg3);}
+.bm{font-size:11.5px; color:var(--fg2); line-height:1.45;}
+.bm b{color:var(--fg); font-weight:500;}
+
+/* ── dibujos ────────────────────────────────────────────────── */
+.dwg{width:100%; height:auto; display:block;}
+.dwg .lbl{font-family:"Geist Mono",ui-monospace,monospace; font-size:7.5px; fill:var(--fg2);}
+.dwg .dim{fill:var(--c-dim);}
+.dwg .seis{fill:var(--c-seismic);}
+.dwg .axis{fill:var(--c-axis);}
+.dwg .elas{fill:var(--c-elastic);}
+.dwg .fail{fill:var(--c-fail); font-weight:500;}
+.leg{display:flex; flex-wrap:wrap; gap:14px; padding:8px 14px 12px;
+     font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3);}
+.leg i{display:inline-block; width:14px; height:2px; margin-right:5px; vertical-align:middle;}
+.cvh{display:flex; align-items:center; justify-content:space-between; padding:8px 14px 0;}
+.cvt{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; font-weight:500;
+     letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);}
+.cvbody{flex:none; display:flex; align-items:center; justify-content:center; padding:4px 14px;}
+.cvsep{border-top:1px solid var(--bd2); margin-top:6px;}
+.chain{display:flex; flex-direction:column; gap:4px; border:1px solid var(--bd);
+       border-radius:7px; background:var(--surface); padding:12px;}
+.cs{display:grid; grid-template-columns:52px minmax(0,1fr) max-content; gap:12px;
+    align-items:baseline; padding:6px 10px; border-radius:4px; background:var(--bg);
+    border:1px solid var(--bd2);}
+.cl{font-family:"Geist Mono",ui-monospace,monospace; font-size:8.5px; font-weight:500;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--fg3);}
+.cx{font-size:12.5px; color:var(--fg);}
+.cy{font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--fg3);
+    text-align:right;}
+.cs.calc{background:var(--elev); border-style:dashed;}
+.cs.out{border-color:color-mix(in srgb, var(--ok) 34%, transparent);
+        background:color-mix(in srgb, var(--ok) 6%, transparent);}
+.cs.out .cl{color:var(--ok);}
+.cs.after{opacity:.72;}
+.cstop{display:flex; align-items:center; gap:10px; margin:7px 2px;
+       font-family:"Geist Mono",ui-monospace,monospace; font-size:9px; font-weight:500;
+       letter-spacing:.12em; text-transform:uppercase; color:var(--fail);}
+.cstop::before,.cstop::after{content:""; flex:1; height:0;
+       border-top:1.5px dashed color-mix(in srgb, var(--fail) 55%, transparent);}
+@media (max-width:560px){ .cs{grid-template-columns:1fr; gap:2px;} .cy{text-align:left;} }
+.openbtn{display:flex; align-items:center; justify-content:space-between; gap:8px;
+         margin-top:9px; padding:6px 9px; border:1px solid var(--acc); border-radius:4px;
+         background:color-mix(in srgb, var(--acc) 8%, transparent);
+         font-size:11px; color:var(--acc); font-weight:500;}
+.xtag{font-family:"Geist Mono",ui-monospace,monospace; font-size:8px; color:var(--fg3);
+      border:1px solid var(--bd); border-radius:2px; padding:0 3px; margin-left:5px;}
+td.l,th.l{text-align:left;}
+tr.tot td{border-top:1px solid var(--bd); background:var(--elev); color:var(--fg);}
+.sub2{display:flex; align-items:center; gap:7px; margin:11px 0 2px;
+      font-family:"Geist Mono",ui-monospace,monospace; font-size:9px; font-weight:500;
+      letter-spacing:.07em; text-transform:uppercase; color:var(--fg3);}
+.sub2::after{content:""; flex:1; height:1px; background:var(--bd2);}
+.fnote{font-size:10px; line-height:1.5; color:var(--fg3); margin:7px 0 0;
+       padding-left:9px; border-left:2px solid var(--bd2);}
+.fnote b{color:var(--fg2); font-weight:500;}
+.dwg .lbl.zone{font-size:6.8px; fill:var(--fg3);}
+.dwg .lbl.acc{fill:var(--acc); font-weight:500;}
+.rnote{font-size:10px; line-height:1.5; color:var(--fg3); padding:7px 14px 10px;
+       border-bottom:1px solid var(--bd2);}
+.rnote b{color:var(--fg2); font-weight:500;}
+.cvbody .dwg{max-height:100%; width:auto; max-width:100%;}
+
+/* ── listas ─────────────────────────────────────────────────── */
+ul.plain{list-style:none; padding:0; margin:0; display:grid; gap:9px;}
+ul.plain li{display:flex; gap:10px; font-size:13px; color:var(--fg2); line-height:1.5;}
+ul.plain li .m{font-family:"Geist Mono",ui-monospace,monospace; font-size:9.5px; color:var(--fg3);
+               flex:none; width:64px; padding-top:3px; text-align:right;}
+ul.plain li b{color:var(--fg); font-weight:500;}
+.foot{margin-top:56px; padding-top:20px; border-top:1px solid var(--bd2);
+      font-size:12px; color:var(--fg3); display:flex; flex-wrap:wrap; gap:8px 20px;}
+.foot code{font-family:"Geist Mono",ui-monospace,monospace;}
+@media (max-width:720px){ h1{font-size:27px;} .wrap{padding:0 16px 72px;} }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Concreta &#183; m&#243;dulo nuevo &#183; mockup</p>
+  <h1>Acci&#243;n s&#237;smica NCSE-02</h1>
+  <p class="lede">C&#243;mo queda el m&#243;dulo con la cadena completa: municipio &#8594; espectro &#8594;
+  modos &#8594; cortante por planta &#8594; cortante basal &#8594; reparto por elemento. Todas las cifras
+  de esta p&#225;gina est&#225;n calculadas con las expresiones de la Norma, no puestas a ojo.</p>
+  <div class="chips">
+    <span class="chip">Granada &#183; <b>18087</b></span>
+    <span class="chip">ab <b>0,23 g</b></span>
+    <span class="chip">K <b>1,0</b></span>
+    <span class="chip">terreno <b>II</b></span>
+    <span class="chip">10 plantas &#183; <b>H 30 m</b></span>
+    <span class="chip">p&#243;rticos HA</span>
+    <span class="chip">T_F <b>0,90 s</b> &#183; 2 modos</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="idx">01</span>La pantalla</h2>
+  <p class="sub">Mismo esqueleto que el resto de Concreta: entradas a la izquierda, lienzo en medio,
+  resultados y comprobaciones a la derecha. Lo &#250;nico nuevo es el contenido.</p>
+  <div class="frame scroll">
+    <div class="app">
+
+      <aside class="side">
+        <div class="brand"><span class="mk"></span><span>Concreta</span></div>
+        <div class="navg">Hormig&#243;n</div>
+        <div class="nav"><span class="d"></span>Vigas</div>
+        <div class="nav"><span class="d"></span>Pilares</div>
+        <div class="nav"><span class="d"></span>Punzonamiento</div>
+        <div class="navg">Acero</div>
+        <div class="nav"><span class="d"></span>Vigas laminadas</div>
+        <div class="nav"><span class="d"></span>Pilares</div>
+        <div class="navg">Cimentaci&#243;n</div>
+        <div class="nav"><span class="d"></span>Zapata aislada</div>
+        <div class="nav"><span class="d"></span>Muro de contenci&#243;n</div>
+        <div class="navg">Acciones</div>
+        <div class="nav on new"><span class="d"></span>Sismo NCSE-02</div>
+        <div class="navg">Rehabilitaci&#243;n</div>
+        <div class="nav"><span class="d"></span>Muros de f&#225;brica</div>
+        <div class="nav"><span class="d"></span>Forjados</div>
+      </aside>
+
+      <div class="main">
+        <div class="bar">
+          <div class="bcrumb">
+            <span class="k">Concreta</span><span class="sl">/</span>
+            <span class="t">Sismo NCSE-02 &#183; Edificio Recogidas</span>
+          </div>
+          <div class="acts">
+            <span class="btn">Compartir</span>
+            <span class="btn">IA</span>
+            <span class="btn pri">Exportar PDF</span>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="pin"><div class="grp">EMPLAZAMIENTO<div class="gn">Tres datos. El resto se deduce de ellos.</div></div><div class="fld col"><div class="fl"><span class="fn">Municipio</span></div><div class="search"><svg viewBox="0 0 16 16" class="ico" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="10.4" y1="10.4" x2="14" y2="14" stroke="currentColor" stroke-width="1.4"/></svg><span class="sv">Granada</span><span class="sp">18087</span></div></div><div class="fld col"><div class="fl"><span class="fn">Importancia</span><div class="ref">art. 1.2.2</div></div><div class="seg sm"><button type="button" class="sg">moderada</button><button type="button" class="sg on">normal</button><button type="button" class="sg">especial</button></div></div><div class="fld col"><div class="fl"><span class="fn">Terreno</span><div class="ref">art. 2.4</div></div><div class="seg"><button type="button" class="sg">I</button><button type="button" class="sg on">II</button><button type="button" class="sg">III</button><button type="button" class="sg">IV</button></div></div><div class="sub2"><span>se deduce &#183; cap. 2</span></div><div class="fld"><div class="fl"><span class="fn">ab</span><span class="s">&#183; aceler. b&#225;sica</span><div class="ref">Anejo 1</div></div><div class="fi"><span class="val ro">0,23</span><span class="un">g</span></div></div><div class="fld"><div class="fl"><span class="fn">K</span><span class="s">&#183; contribuci&#243;n</span><div class="ref">Anejo 1</div></div><div class="fi"><span class="val ro">1,00</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">&#961;</span><span class="s">&#183; coef. de riesgo</span><div class="ref">importancia normal</div></div><div class="fi"><span class="val ro">1,00</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">C</span><span class="s">&#183; coef. del terreno</span><div class="ref">terreno II</div></div><div class="fi"><span class="val ro">1,30</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">S</span><span class="s">&#183; amplificaci&#243;n</span><div class="ref">art. 2.2</div></div><div class="fi"><span class="val ro">1,0227</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">ac</span><span class="s">&#183; aceler. de c&#225;lculo</span><div class="ref">S &#183; &#961; &#183; ab</div></div><div class="fi"><span class="val ro acc">0,2352</span><span class="un">g</span></div></div><div class="fld"><div class="fl"><span class="fn">T_A</span><span class="s">&#183; inicio del tramo plano</span><div class="ref">K&#183;C/10</div></div><div class="fi"><span class="val ro">0,13</span><span class="un">s</span></div></div><div class="fld"><div class="fl"><span class="fn">T_B</span><span class="s">&#183; fin del tramo plano</span><div class="ref">K&#183;C/2,5</div></div><div class="fi"><span class="val ro">0,52</span><span class="un">s</span></div></div><p class="fnote">De los dos per&#237;odos, s&#243;lo <b>T_B</b> interviene en las fuerzas: por debajo &#945;_i = 2,5, por encima 2,5&#183;T_B/T_i. <b>T_A</b> es la esquina del espectro el&#225;stico que se dibuja.</p><div class="grp">ESTRUCTURA</div><div class="fld col"><div class="fl"><span class="fn">Sistema</span><div class="ref">art. 3.7.2.2</div></div><div class="sel">P&#243;rticos de HA sin pantallas<svg viewBox="0 0 10 6" class="chv" aria-hidden="true"><path d="M1 1 L5 5 L9 1" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></div></div><div class="fld"><div class="fl"><span class="fn">n</span><span class="s">&#183; sobre rasante</span></div><div class="fi"><span class="val">10</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">n total</span><span class="s">&#183; s&#243;tanos incl.</span><div class="ref">art. 3.5.1</div></div><div class="fi"><span class="val">10</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">H</span><span class="s">&#183; altura</span></div><div class="fi"><span class="val">30,00</span><span class="un">m</span></div></div><div class="fld"><div class="fl"><span class="fn">L / B</span><span class="s">&#183; en planta</span></div><div class="fi"><span class="val">20,0 / 15,0</span><span class="un">m</span></div></div><div class="fld"><div class="fl"><span class="fn">&#937;</span><span class="s">&#183; amortiguamiento</span></div><div class="fi"><span class="val">5,0</span><span class="un">%</span></div></div><div class="fld"><div class="fl"><span class="fn">&#956;</span><span class="s">&#183; ductilidad</span><div class="ref">art. 3.7.3.1</div></div><div class="fi"><span class="val">3</span><span class="un"></span></div></div><div class="sub2"><span>se deduce &#183; art. 3.7</span></div><div class="fld col"><div class="fl"><span class="fn">T_F</span><span class="s">&#183; per&#237;odo fundamental</span><div class="ref">0,09 &#183; n</div></div><div class="row2"><div class="seg sm"><button type="button" class="sg on">auto</button><button type="button" class="sg">manual</button></div><div class="fi"><span class="val acc">0,90</span><span class="un">s</span></div></div></div><div class="fld"><div class="fl"><span class="fn">Modos</span><span class="s">&#183; T_F &#8804; 1,25 s</span><div class="ref">art. 3.7.2.1</div></div><div class="fi"><span class="val ro">2</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">&#957; / &#946;</span><span class="s">&#183; amortig. / ductilidad</span><div class="ref">&#957;/&#956;</div></div><div class="fi"><span class="val ro">1,000 / 0,3333</span><span class="un"></span></div></div><div class="grp">PLANTAS<div class="gn">art. 3.2 &#183; masa s&#237;smica</div></div><div class="fld"><div class="fl"><span class="fn">Plantas</span><span class="s">&#183; con carga</span></div><div class="fi"><span class="val ro">10</span><span class="un"></span></div></div><div class="fld"><div class="fl"><span class="fn">&#931; P_k</span><span class="s">&#183; peso s&#237;smico</span><div class="ref">art. 3.2</div></div><div class="fi"><span class="val ro acc">23.400</span><span class="un">kN</span></div></div><div class="openbtn"><span>Editar cargas por planta</span><span aria-hidden="true">&#8594;</span></div></div>
+
+          <div class="cv">
+            <div class="cvh"><span class="cvt">Alzado &#183; fuerzas y cortantes</span>
+              <span class="cvt" style="color:var(--c-seismic)">direcci&#243;n X</span></div>
+            <div class="cvbody"><svg viewBox="0 0 360 300" class="dwg" role="img" aria-label="Alzado con las fuerzas sismicas por planta y diagrama de cortantes">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="var(--c-seismic)"/></marker></defs>
+<line x1="86" y1="258.0" x2="316.0" y2="258.0" stroke="var(--c-dim)" stroke-width="1"/>
+<line x1="88" y1="258.0" x2="83" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="98" y1="258.0" x2="93" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="108" y1="258.0" x2="103" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="118" y1="258.0" x2="113" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="128" y1="258.0" x2="123" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="138" y1="258.0" x2="133" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="148" y1="258.0" x2="143" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="158" y1="258.0" x2="153" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="168" y1="258.0" x2="163" y2="263.0" stroke="var(--c-dim)" stroke-width="0.7"/>
+<line x1="118.0" y1="258.0" x2="118.0" y2="46.0" stroke="var(--c-section)" stroke-width="1.6"/>
+<line x1="176.0" y1="258.0" x2="176.0" y2="46.0" stroke="var(--c-section)" stroke-width="1.6"/>
+<line x1="114.0" y1="236.8" x2="180.0" y2="236.8" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="87.27438180596612" y1="236.8" x2="110.0" y2="236.8" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="83.27438180596612" y="233.8" text-anchor="end" class="lbl">62</text>
+<text x="185.0" y="239.8" class="lbl dim">1</text>
+<line x1="114.0" y1="215.6" x2="180.0" y2="215.6" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="81.47875345174242" y1="215.6" x2="110.0" y2="215.6" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="77.47875345174242" y="212.6" text-anchor="end" class="lbl">115</text>
+<text x="185.0" y="218.6" class="lbl dim">2</text>
+<line x1="114.0" y1="194.4" x2="180.0" y2="194.4" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="77.0295321126871" y1="194.4" x2="110.0" y2="194.4" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="73.0295321126871" y="191.4" text-anchor="end" class="lbl">156</text>
+<text x="185.0" y="197.4" class="lbl dim">3</text>
+<line x1="114.0" y1="173.2" x2="180.0" y2="173.2" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="73.5901217745955" y1="173.2" x2="110.0" y2="173.2" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="69.5901217745955" y="170.2" text-anchor="end" class="lbl">188</text>
+<text x="185.0" y="176.2" class="lbl dim">4</text>
+<line x1="114.0" y1="152.0" x2="180.0" y2="152.0" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="70.30384378476377" y1="152.0" x2="110.0" y2="152.0" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="66.30384378476377" y="149.0" text-anchor="end" class="lbl">218</text>
+<text x="185.0" y="155.0" class="lbl dim">5</text>
+<line x1="114.0" y1="130.8" x2="180.0" y2="130.8" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="66.41787721698446" y1="130.8" x2="110.0" y2="130.8" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="62.417877216984465" y="127.80000000000001" text-anchor="end" class="lbl">254</text>
+<text x="185.0" y="133.8" class="lbl dim">6</text>
+<line x1="114.0" y1="109.6" x2="180.0" y2="109.6" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="61.861821229714" y1="109.6" x2="110.0" y2="109.6" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="57.861821229714" y="106.6" text-anchor="end" class="lbl">296</text>
+<text x="185.0" y="112.6" class="lbl dim">7</text>
+<line x1="114.0" y1="88.4" x2="180.0" y2="88.4" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="57.35091271021768" y1="88.4" x2="110.0" y2="88.4" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="53.35091271021768" y="85.4" text-anchor="end" class="lbl">337</text>
+<text x="185.0" y="91.4" class="lbl dim">8</text>
+<line x1="114.0" y1="67.20000000000002" x2="180.0" y2="67.20000000000002" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="54.0" y1="67.20000000000002" x2="110.0" y2="67.20000000000002" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="50.0" y="64.20000000000002" text-anchor="end" class="lbl">368</text>
+<text x="185.0" y="70.20000000000002" class="lbl dim">9</text>
+<line x1="114.0" y1="46.0" x2="180.0" y2="46.0" stroke="var(--c-section)" stroke-width="2.2"/>
+<line x1="63.07139120506558" y1="46.0" x2="110.0" y2="46.0" stroke="var(--c-seismic)" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="59.07139120506558" y="43.0" text-anchor="end" class="lbl">284</text>
+<text x="185.0" y="49.0" class="lbl dim">10</text>
+<text x="110.0" y="30.0" text-anchor="end" class="lbl seis">F_k [kN]</text>
+<text x="147.0" y="276.0" text-anchor="middle" class="lbl dim">H = 30,00 m &#183; n = 10</text>
+<polygon points="210.0,258.0 302.0,258.0 302.0,236.8 299.5,236.8 299.5,215.6 294.8,215.6 294.8,194.4 288.5,194.4 288.5,173.2 281.0,173.2 281.0,152.0 272.2,152.0 272.2,130.8 261.9,130.8 261.9,109.6 250.0,109.6 250.0,88.4 236.4,88.4 236.4,67.2 221.5,67.2 221.5,46.0 210.0,46.0" fill="var(--c-seismic-fill)" stroke="var(--c-seismic)" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="210.0" y1="258.0" x2="210.0" y2="38.0" stroke="var(--c-axis)" stroke-width="1"/>
+<text x="210.0" y="30.0" class="lbl axis">V_k [kN]</text>
+<text x="307.0" y="254.0" class="lbl seis">2277</text>
+<text x="226.4910602018785" y="42.0" class="lbl dim">284</text>
+</svg></div>
+            <div class="leg">
+              <span><i style="background:var(--c-seismic)"></i>F_k fuerza de planta</span>
+              <span><i style="background:var(--c-seismic);opacity:.35"></i>V_k cortante (SRSS)</span>
+              <span><i style="background:var(--c-section)"></i>estructura</span>
+            </div>
+            <div class="cvh cvsep"><span class="cvt">Espectro de respuesta</span>
+              <span class="cvt">&#937; = 5 % &#183; &#957; = 1,000</span></div>
+            <div class="cvbody"><svg viewBox="0 0 340 198" class="dwg" role="img" aria-label="Espectro de respuesta">
+<line x1="34" y1="113.3" x2="326" y2="113.3" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="116.3" text-anchor="end" class="lbl dim">1</text>
+<line x1="34" y1="64.7" x2="326" y2="64.7" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="67.7" text-anchor="end" class="lbl dim">2</text>
+<line x1="34" y1="16.0" x2="326" y2="16.0" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="19.0" text-anchor="end" class="lbl dim">3</text>
+<line x1="53.0" y1="16" x2="53.0" y2="162" stroke="var(--c-grid)" stroke-width="0.6" stroke-dasharray="2 2"/>
+<text x="53.0" y="173" text-anchor="middle" class="lbl dim">T_A</text>
+<text x="53.0" y="182" text-anchor="middle" class="lbl dim">0,13</text>
+<line x1="109.9" y1="16" x2="109.9" y2="162" stroke="var(--c-grid)" stroke-width="0.6" stroke-dasharray="2 2"/>
+<text x="109.9" y="173" text-anchor="middle" class="lbl dim">T_B</text>
+<text x="109.9" y="182" text-anchor="middle" class="lbl dim">0,52</text>
+<polyline points="34.0,113.3 35.2,108.7 36.4,104.0 37.6,99.3 38.9,94.6 40.1,89.9 41.3,85.3 42.5,80.6 43.7,75.9 45.0,71.2 46.2,66.5 47.4,61.9 48.6,57.2 49.8,52.5 51.0,47.8 52.2,43.1 53.5,40.3 54.7,40.3 55.9,40.3 57.1,40.3 58.3,40.3 59.5,40.3 60.8,40.3 62.0,40.3 63.2,40.3 64.4,40.3 65.6,40.3 66.8,40.3 68.1,40.3 69.3,40.3 70.5,40.3 71.7,40.3 72.9,40.3 74.2,40.3 75.4,40.3 76.6,40.3 77.8,40.3 79.0,40.3 80.2,40.3 81.5,40.3 82.7,40.3 83.9,40.3 85.1,40.3 86.3,40.3 87.5,40.3 88.8,40.3 90.0,40.3 91.2,40.3 92.4,40.3 93.6,40.3 94.8,40.3 96.0,40.3 97.3,40.3 98.5,40.3 99.7,40.3 100.9,40.3 102.1,40.3 103.3,40.3 104.6,40.3 105.8,40.3 107.0,40.3 108.2,40.3 109.4,40.3 110.7,41.5 111.9,43.4 113.1,45.2 114.3,47.0 115.5,48.7 116.7,50.4 117.9,52.0 119.2,53.5 120.4,55.1 121.6,56.6 122.8,58.0 124.0,59.4 125.2,60.8 126.5,62.1 127.7,63.4 128.9,64.7 130.1,65.9 131.3,67.1 132.6,68.3 133.8,69.4 135.0,70.5 136.2,71.6 137.4,72.7 138.6,73.7 139.8,74.7 141.1,75.7 142.3,76.7 143.5,77.6 144.7,78.6 145.9,79.5 147.2,80.4 148.4,81.2 149.6,82.1 150.8,82.9 152.0,83.7 153.2,84.5 154.4,85.3 155.7,86.1 156.9,86.8 158.1,87.6 159.3,88.3 160.5,89.0 161.8,89.7 163.0,90.4 164.2,91.0 165.4,91.7 166.6,92.3 167.8,93.0 169.1,93.6 170.3,94.2 171.5,94.8 172.7,95.4 173.9,96.0 175.1,96.6 176.3,97.1 177.6,97.7 178.8,98.2 180.0,98.7 181.2,99.3 182.4,99.8 183.6,100.3 184.9,100.8 186.1,101.3 187.3,101.7 188.5,102.2 189.7,102.7 190.9,103.1 192.2,103.6 193.4,104.0 194.6,104.5 195.8,104.9 197.0,105.3 198.2,105.8 199.5,106.2 200.7,106.6 201.9,107.0 203.1,107.4 204.3,107.8 205.6,108.2 206.8,108.5 208.0,108.9 209.2,109.3 210.4,109.6 211.6,110.0 212.9,110.4 214.1,110.7 215.3,111.0 216.5,111.4 217.7,111.7 218.9,112.1 220.1,112.4 221.4,112.7 222.6,113.0 223.8,113.3 225.0,113.6 226.2,113.9 227.4,114.3 228.7,114.6 229.9,114.8 231.1,115.1 232.3,115.4 233.5,115.7 234.8,116.0 236.0,116.3 237.2,116.5 238.4,116.8 239.6,117.1 240.8,117.3 242.1,117.6 243.3,117.9 244.5,118.1 245.7,118.4 246.9,118.6 248.1,118.9 249.4,119.1 250.6,119.3 251.8,119.6 253.0,119.8 254.2,120.1 255.4,120.3 256.6,120.5 257.9,120.7 259.1,121.0 260.3,121.2 261.5,121.4 262.7,121.6 263.9,121.8 265.2,122.0 266.4,122.3 267.6,122.5 268.8,122.7 270.0,122.9 271.2,123.1 272.5,123.3 273.7,123.5 274.9,123.7 276.1,123.8 277.3,124.0 278.6,124.2 279.8,124.4 281.0,124.6 282.2,124.8 283.4,125.0 284.6,125.1 285.9,125.3 287.1,125.5 288.3,125.7 289.5,125.8 290.7,126.0 291.9,126.2 293.1,126.4 294.4,126.5 295.6,126.7 296.8,126.9 298.0,127.0 299.2,127.2 300.4,127.3 301.7,127.5 302.9,127.6 304.1,127.8 305.3,128.0 306.5,128.1 307.8,128.3 309.0,128.4 310.2,128.6 311.4,128.7 312.6,128.8 313.8,129.0 315.1,129.1 316.3,129.3 317.5,129.4 318.7,129.6 319.9,129.7 321.1,129.8 322.4,130.0 323.6,130.1 324.8,130.2 326.0,130.4" fill="none" stroke="var(--c-elastic)" stroke-width="1.5"/>
+<text x="105.9" y="24" text-anchor="end" class="lbl zone">&#945; = 2,5</text>
+<text x="113.9" y="24" text-anchor="start" class="lbl zone">&#945; = 2,5&#183;T_B/T</text>
+<line x1="34" y1="162" x2="326" y2="162" stroke="var(--c-dim)" stroke-width="1"/>
+<line x1="34" y1="10" x2="34" y2="162" stroke="var(--c-dim)" stroke-width="1"/>
+<text x="326" y="173" text-anchor="end" class="lbl dim">T [s]</text>
+<text x="29" y="12" text-anchor="end" class="lbl dim">&#945;</text>
+<line x1="77.8" y1="40.3" x2="77.8" y2="162" stroke="var(--c-seismic)" stroke-width="1" stroke-dasharray="3 2"/>
+<circle cx="77.8" cy="40.3" r="3.4" fill="var(--c-seismic)"/>
+<text x="83.8" y="35.3" class="lbl seis">modo 2 &#183; 2,500</text>
+<line x1="165.4" y1="91.7" x2="165.4" y2="162" stroke="var(--c-seismic)" stroke-width="1" stroke-dasharray="3 2"/>
+<circle cx="165.4" cy="91.7" r="3.4" fill="var(--c-seismic)"/>
+<text x="171.4" y="86.7" class="lbl seis">modo 1 &#183; 1,444</text>
+</svg></div>
+            <div class="leg">
+              <span><i style="background:var(--c-elastic)"></i>el&#225;stico &#183; art. 2.3</span>
+              <span><i style="background:var(--c-seismic)"></i>&#945;_i de dise&#241;o &#183; art. 3.7.3</span>
+            </div>
+          </div>
+
+          <aside class="pout">
+            <div class="verdict">
+              <div class="vh">Cortante basal &#183; direcci&#243;n X</div>
+              <div><span class="vv">2.277,31</span><span class="vu">kN</span></div>
+              <div class="vm">9,73 % del peso s&#237;smico total (23.400 kN)</div>
+            </div>
+            <div class="rgrp">Aplicabilidad</div>
+            <div class="rq"><span class="rn">&#183;</span>
+              <div class="rt">La Norma es de aplicaci&#243;n obligatoria
+              <span class="rd">art. 1.2.3 &#183; ab = 0,23 g &#8805; 0,04 g</span></div>
+              <span class="tg ok">obligatoria</span></div>
+            <div class="rgrp">M&#233;todo simplificado &#183; art. 3.5.1</div>
+            <div class="rq"><span class="rn">1</span><div class="rt">Menos de veinte plantas sobre rasante<span class="rd">n = 10</span></div><span class="tg ok">cumple</span></div><div class="rq"><span class="rn">2</span><div class="rt">Altura inferior a sesenta metros<span class="rd">H = 30,00 m</span></div><span class="tg ok">cumple</span></div><div class="rq"><span class="rn">3</span><div class="rt">Regularidad geom&#233;trica en planta y alzado</div><span class="tg neutral">declarado</span></div><div class="rq"><span class="rn">4</span><div class="rt">Soportes continuos hasta cimentaci&#243;n</div><span class="tg neutral">declarado</span></div><div class="rq"><span class="rn">5</span><div class="rt">Regularidad mec&#225;nica de rigideces y masas</div><span class="tg neutral">declarado</span></div><div class="rq"><span class="rn">6</span><div class="rt">Excentricidad inferior al 10% en cada direcci&#243;n<span class="rd">X 3,0% &#183; Y 6,0%</span></div><span class="tg ok">cumple</span></div>
+            <div class="rgrp">Modos &#183; art. 3.7.2.1</div>
+            <table><thead><tr><th class="c">i</th><th>T_i [s]</th><th>&#945;_i</th><th>Particip.</th></tr></thead>
+            <tbody><tr><td class="c">1</td><td>0,900</td><td>1,4444</td><td>85,18</td></tr><tr><td class="c">2</td><td>0,300</td><td>2,5000</td><td>6,56</td></tr></tbody></table>
+            <p class="rnote">&#945;_1 cae en la <b>rama descendente</b> (T_1 = 0,90 s &#62; T_B), &#945;_2 en el <b>tramo plano</b>. Masa movilizada por los dos modos: <b>91,74 %</b>.</p>
+            <div class="rgrp">Cortantes por planta</div>
+            <table><thead><tr><th class="c">k</th><th>V_k [kN]</th><th>F_k [kN]</th></tr></thead>
+            <tbody><tr><td class="c">10</td><td>284,44</td><td>284,44</td></tr><tr><td class="c">9</td><td>652,31</td><td>367,87</td></tr><tr><td class="c">8</td><td>989,37</td><td>337,05</td></tr><tr><td class="c">7</td><td>1.284,93</td><td>295,57</td></tr><tr><td class="c">6</td><td>1.538,60</td><td>253,67</td></tr><tr><td class="c">5</td><td>1.756,53</td><td>217,93</td></tr><tr><td class="c">4</td><td>1.944,23</td><td>187,70</td></tr><tr><td class="c">3</td><td>2.100,30</td><td>156,07</td></tr><tr><td class="c">2</td><td>2.215,46</td><td>115,15</td></tr><tr><td class="c">1</td><td>2.277,31</td><td>61,85</td></tr></tbody></table>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">02</span>De d&#243;nde sale el peso</h2>
+  <p class="sub">Nada de lo anterior sirve sin esto: el cortante basal es una fracci&#243;n del
+  peso s&#237;smico, as&#237; que <b>primero se introducen las cargas por planta</b>. El asistente
+  multiplica &#225;rea por carga superficial y rellena P_k, que queda editable a mano
+  &#8212; algunas plantas es m&#225;s r&#225;pido meterlas directamente en kN.</p>
+  <div class="tblbox">
+    <div class="thead">
+      <span class="tt">Cargas por planta</span>
+      <span class="tr2">P_k = &#225;rea &#215; (peso propio + permanente + tabiquer&#237;a + fracci&#243;n &#215; sobrecarga)</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th class="c">k</th><th class="l">Uso</th><th>&#193;rea [m&#178;]</th>
+          <th>Peso propio</th><th>C. permanente</th><th>Tabiquer&#237;a</th>
+          <th>Sobrecarga</th><th class="sep">Fracci&#243;n</th><th>P_k [kN]</th>
+        </tr></thead>
+        <tbody><tr><td class="c">10</td><td class="l">Cubierta</td><td>300</td><td>4,50</td><td>1,50</td><td>&#8212;</td><td>1,00<span class="xtag">excluida</span></td><td>0,00</td><td class="em">1.800</td></tr><tr><td class="c">9</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">8</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">7</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">6</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">5</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">4</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">3</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">2</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr><td class="c">1</td><td class="l">Vivienda</td><td>300</td><td>4,50</td><td>1,50</td><td>1,00</td><td>2,00</td><td>0,50</td><td class="em">2.400</td></tr><tr class="tot"><td class="c">&#931;</td><td class="l">10 plantas</td><td>3.000</td><td colspan="5"></td><td class="em">23.400</td></tr></tbody>
+      </table>
+    </div>
+    <p class="tnote">Las cuatro columnas de carga van en kN/m&#178;. En la cubierta, la sobrecarga
+    de mantenimiento se ha <b>excluido</b>: el art. 3.2 s&#243;lo cuenta las sobrecargas
+    &#8220;siempre que tengan un efecto desfavorable sobre la estructura&#8221;, y esa exclusi&#243;n
+    es una decisi&#243;n del proyectista que el PDF recoge.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="card">
+      <div class="ch"><span class="ct">Fracci&#243;n de sobrecarga</span><span class="ct">art. 3.2</span></div>
+      <div class="cb tight">
+        <table><tbody><tr><td class="l">Peso propio y cargas permanentes</td><td class="em">1,0</td></tr><tr><td class="l">Sobrecarga de tabiquer&#237;a</td><td class="em">1,0</td></tr><tr><td class="l">Almacenes y archivos</td><td class="em">1,0</td></tr><tr><td class="l">Piscinas o grandes dep&#243;sitos de agua</td><td class="em">1,0</td></tr><tr><td class="l">P&#250;blicos, oficinas, comercios</td><td class="em">0,6</td></tr><tr><td class="l">Aglomeraci&#243;n y espect&#225;culos</td><td class="em">0,6</td></tr><tr><td class="l">Viviendas, hoteles, residencias</td><td class="em">0,5</td></tr><tr><td class="l">Nieve, si permanece m&#225;s de 30 d&#237;as al a&#241;o</td><td class="em">0,5</td></tr></tbody></table>
+      </div>
+      <p class="cnote">La <b>categor&#237;a de uso</b> sale de las mismas del CTE que Concreta ya
+      maneja en el resto de m&#243;dulos. La <b>fracci&#243;n</b>, en cambio, es la del art. 3.2 de la
+      NCSE-02 y <b>no es el &#968;&#8322; del CTE</b>: son tablas distintas y confundirlas cambia el peso.</p>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">El error natural</span><span class="ct">art. 3.2 vs 3.4</span></div>
+      <div class="cb">
+        <div class="blk">
+          <div class="bl" style="margin-bottom:4px">MASA S&#205;SMICA &#183; art. 3.2</div>
+          <p class="bm">Qu&#233; <b>masa</b> se sacude, y por tanto qu&#233; fuerzas salen.
+          La sobrecarga entra <b>fraccionada</b>: 0,5 en vivienda.</p>
+        </div>
+        <div class="blk">
+          <div class="bl" style="margin-bottom:4px">CARGA CONCOMITANTE &#183; art. 3.4</div>
+          <p class="bm">Qu&#233; <b>gravedad</b> act&#250;a a la vez que el sismo, para combinar.
+          Ah&#237; la variable desfavorable entra <b>entera</b>: 1,0&#183;G + 1,0&#183;Q.</p>
+        </div>
+      </div>
+      <p class="cnote">Son dos cosas distintas y el error natural es aplicar 0,5&#183;Q en las dos.
+      Una memoria con ese fallo est&#225; mal, y no lo canta ning&#250;n n&#250;mero raro.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">03</span>La geometr&#237;a que hace falta, y la que no</h2>
+  <p class="sub">Aqu&#237; est&#225; la respuesta corta a &#8220;&#191;c&#243;mo meto los pilares?&#8221;:
+  <b>no se meten</b>. El m&#233;todo simplificado no construye un modelo estructural. Por cada
+  direcci&#243;n s&#243;lo necesita la lista de <b>planos resistentes</b> &#8212; p&#243;rticos o
+  pantallas &#8212; con su posici&#243;n y su rigidez relativa. Nada m&#225;s.</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="ch"><span class="ct">Planta &#183; direcci&#243;n Y</span>
+        <span class="ct">art. 3.7.4 y 3.7.5</span></div>
+      <div class="cb"><svg viewBox="0 0 420 300" class="dwg" role="img" aria-label="Planta con los planos resistentes, el centro de masas y el centro de torsion">
+<rect x="60.0" y="46.0" width="300.0" height="225.0" fill="var(--c-section-fill)" stroke="var(--c-section)" stroke-width="1.4"/>
+<line x1="60.0" y1="46.0" x2="60.0" y2="271.0" stroke="var(--c-axis)" stroke-width="2.4" opacity="0.85"/>
+<text x="60.0" y="30.0" text-anchor="middle" class="lbl acc">P-1</text>
+<text x="60.0" y="39.0" text-anchor="middle" class="lbl dim">-10,0</text>
+<line x1="135.0" y1="46.0" x2="135.0" y2="271.0" stroke="var(--c-axis)" stroke-width="2.4" opacity="0.85"/>
+<text x="135.0" y="30.0" text-anchor="middle" class="lbl acc">P-2</text>
+<text x="135.0" y="39.0" text-anchor="middle" class="lbl dim">-5,0</text>
+<line x1="210.0" y1="46.0" x2="210.0" y2="271.0" stroke="var(--c-axis)" stroke-width="2.4" opacity="0.85"/>
+<text x="210.0" y="30.0" text-anchor="middle" class="lbl acc">P-3</text>
+<text x="210.0" y="39.0" text-anchor="middle" class="lbl dim">0,0</text>
+<line x1="285.0" y1="46.0" x2="285.0" y2="271.0" stroke="var(--c-axis)" stroke-width="2.4" opacity="0.85"/>
+<text x="285.0" y="30.0" text-anchor="middle" class="lbl acc">P-4</text>
+<text x="285.0" y="39.0" text-anchor="middle" class="lbl dim">+5,0</text>
+<line x1="360.0" y1="46.0" x2="360.0" y2="271.0" stroke="var(--c-axis)" stroke-width="2.4" opacity="0.85"/>
+<text x="360.0" y="30.0" text-anchor="middle" class="lbl acc">P-5</text>
+<text x="360.0" y="39.0" text-anchor="middle" class="lbl dim">+10,0</text>
+<line x1="60.0" y1="271.0" x2="360.0" y2="271.0" stroke="var(--c-dim)" stroke-width="0.7" stroke-dasharray="3 2.5"/>
+<line x1="60.0" y1="196.0" x2="360.0" y2="196.0" stroke="var(--c-dim)" stroke-width="0.7" stroke-dasharray="3 2.5"/>
+<line x1="60.0" y1="121.0" x2="360.0" y2="121.0" stroke="var(--c-dim)" stroke-width="0.7" stroke-dasharray="3 2.5"/>
+<line x1="60.0" y1="46.0" x2="360.0" y2="46.0" stroke="var(--c-dim)" stroke-width="0.7" stroke-dasharray="3 2.5"/>
+<rect x="56.8" y="267.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="56.8" y="192.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="56.8" y="117.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="56.8" y="42.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="131.8" y="267.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="131.8" y="192.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="131.8" y="117.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="131.8" y="42.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="206.8" y="267.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="206.8" y="192.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="206.8" y="117.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="206.8" y="42.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="281.8" y="267.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="281.8" y="192.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="281.8" y="117.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="281.8" y="42.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="356.8" y="267.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="356.8" y="192.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="356.8" y="117.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<rect x="356.8" y="42.8" width="6.4" height="6.4" fill="var(--c-section)"/>
+<line x1="203.0" y1="158.5" x2="217.0" y2="158.5" stroke="var(--c-dim)" stroke-width="1.3"/>
+<line x1="210.0" y1="151.5" x2="210.0" y2="165.5" stroke="var(--c-dim)" stroke-width="1.3"/>
+<text x="200.0" y="171.5" text-anchor="end" class="lbl dim">C. torsi&#243;n</text>
+<circle cx="219.0" cy="145.0" r="4" fill="var(--c-seismic)"/>
+<text x="226.0" y="140.0" class="lbl seis">C. masas</text>
+<text x="226.0" y="149.0" class="lbl seis">e = 0,6 / 0,9 m</text>
+<line x1="60.0" y1="293.0" x2="360.0" y2="293.0" stroke="var(--c-dim)" stroke-width="0.9"/>
+<line x1="60.0" y1="289.0" x2="60.0" y2="297.0" stroke="var(--c-dim)" stroke-width="0.9"/>
+<line x1="360.0" y1="289.0" x2="360.0" y2="297.0" stroke="var(--c-dim)" stroke-width="0.9"/>
+<text x="210.0" y="289.0" text-anchor="middle" class="lbl dim">L_e = 20,0 m</text>
+<line x1="380.0" y1="46.0" x2="380.0" y2="271.0" stroke="var(--c-dim)" stroke-width="0.9"/>
+<text x="384.0" y="158.5" class="lbl dim">B = 15,0</text>
+<line x1="34.0" y1="271.0" x2="34.0" y2="76.0" stroke="var(--c-seismic)" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="30.0" y="72.0" text-anchor="end" class="lbl seis">sismo Y</text>
+</svg></div>
+      <p class="cnote">Los cinco p&#243;rticos que corren en Y son los que resisten el sismo en Y.
+      Su coordenada se mide <b>perpendicular a la direcci&#243;n analizada</b> y <b>con signo</b>:
+      guardar el valor absoluto destruir&#237;a la geometr&#237;a y dejar&#237;a al m&#243;dulo sin
+      poder situar el centro de torsi&#243;n.</p>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">Planos resistentes</span>
+        <span class="ct">rigideces relativas</span></div>
+      <div class="cb tight">
+        <table>
+          <thead><tr><th class="c">j</th><th class="l">Elemento</th><th>x [m]</th>
+          <th>k_kj</th><th>&#947;_a</th></tr></thead>
+          <tbody><tr><td class="c">1</td><td class="l">P-1</td><td>-10,0</td><td>1,00</td><td class="em">1,300</td></tr><tr><td class="c">2</td><td class="l">P-2</td><td>-5,0</td><td>1,00</td><td class="em">1,150</td></tr><tr><td class="c">3</td><td class="l">P-3</td><td>0,0</td><td>1,00</td><td class="em">1,000</td></tr><tr><td class="c">4</td><td class="l">P-4</td><td>+5,0</td><td>1,00</td><td class="em">1,150</td></tr><tr><td class="c">5</td><td class="l">P-5</td><td>+10,0</td><td>1,00</td><td class="em">1,300</td></tr></tbody>
+        </table>
+      </div>
+      <p class="cnote">L_e = 20,0 m sale solo, de los dos elementos m&#225;s extremos. Por defecto
+      todas las rigideces valen 1,00 y el reparto degenera en F_k dividido entre cinco &#8212; que
+      es justo lo que hace tu Excel. Si metes rigideces <b>absolutas</b> en kN/m, adem&#225;s se
+      activan los desplazamientos y el art. 3.8.</p>
+    </div>
+  </div>
+  <div class="tblbox" style="margin-top:18px">
+    <div class="thead"><span class="tt">Lo que el m&#243;dulo NO te pide</span>
+      <span class="tr2">porque el m&#233;todo simplificado no lo usa</span></div>
+    <div style="padding:12px 14px">
+      <ul class="plain">
+        <li><span class="m">secciones</span><span>Dimensiones de pilares y vigas, armado, material,
+        m&#243;dulo el&#225;stico. La rigidez entra como <b>un n&#250;mero relativo por plano</b>,
+        no como una secci&#243;n.</span></li>
+        <li><span class="m">luces</span><span>Vanos, nudos, apoyos. No hay modelo de barras: no hay
+        nada que resolver.</span></li>
+        <li><span class="m">alturas</span><span>Altura de cada pilar. S&#243;lo la altura de planta
+        h_k, y &#916;h_k si activas el art. 3.8. <b>No son lo mismo</b> y confundirlas es el error
+        cl&#225;sico.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">04</span>La tabla que sustituye al Excel</h2>
+  <p class="sub">Es el coraz&#243;n del m&#243;dulo y lo que hoy resuelves a mano. Cada columna es una
+  expresi&#243;n del art. 3.7.3, y las dos &#250;ltimas salen del SRSS del art. 3.7.4.
+  Se despliega bajo el lienzo o en pesta&#241;a propia.</p>
+  <div class="tblbox">
+    <div class="thead">
+      <span class="tt">Plantas &#183; direcci&#243;n X</span>
+      <span class="tr2">&#916;_ik = sen[(2i&#8722;1)&#183;&#960;&#183;h_k/2H] &#183; &#951;_ik = &#916;&#183;&#931;(P&#183;&#916;)/&#931;(P&#183;&#916;&#178;) &#183; s_ik = (ac/g)&#183;&#945;_i&#183;&#946;&#183;&#951; &#183; F = s&#183;P</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th class="c">k</th><th>h_k [m]</th><th>P_k [kN]</th>
+          <th>&#934;_1k</th><th>&#951;_1k</th><th>s_1k</th><th class="sep">F_1k [kN]</th>
+          <th>&#934;_2k</th><th>s_2k</th><th class="sep">F_2k [kN]</th>
+          <th>V_k [kN]</th><th>F_k [kN]</th>
+        </tr></thead>
+        <tbody><tr><td class="c">10</td><td>30,00</td><td>1.800</td><td>1,0000</td><td>1,2577</td><td>0,1424</td><td class="sep">256,40</td><td>-1,0000</td><td>-0,0684</td><td class="sep">-123,16</td><td class="em">284,44</td><td class="em">284,44</td></tr><tr><td class="c">9</td><td>27,00</td><td>2.400</td><td>0,9877</td><td>1,2422</td><td>0,1407</td><td class="sep">337,65</td><td>-0,8910</td><td>-0,0610</td><td class="sep">-146,32</td><td class="em">652,31</td><td class="em">367,87</td></tr><tr><td class="c">8</td><td>24,00</td><td>2.400</td><td>0,9511</td><td>1,1962</td><td>0,1355</td><td class="sep">325,13</td><td>-0,5878</td><td>-0,0402</td><td class="sep">-96,52</td><td class="em">989,37</td><td class="em">337,05</td></tr><tr><td class="c">7</td><td>21,00</td><td>2.400</td><td>0,8910</td><td>1,1206</td><td>0,1269</td><td class="sep">304,60</td><td>-0,1564</td><td>-0,0107</td><td class="sep">-25,69</td><td class="em">1.284,93</td><td class="em">295,57</td></tr><tr><td class="c">6</td><td>18,00</td><td>2.400</td><td>0,8090</td><td>1,0175</td><td>0,1152</td><td class="sep">276,57</td><td>0,3090</td><td>0,0211</td><td class="sep">50,75</td><td class="em">1.538,60</td><td class="em">253,67</td></tr><tr><td class="c">5</td><td>15,00</td><td>2.400</td><td>0,7071</td><td>0,8894</td><td>0,1007</td><td class="sep">241,73</td><td>0,7071</td><td>0,0484</td><td class="sep">116,12</td><td class="em">1.756,53</td><td class="em">217,93</td></tr><tr><td class="c">4</td><td>12,00</td><td>2.400</td><td>0,5878</td><td>0,7393</td><td>0,0837</td><td class="sep">200,94</td><td>0,9511</td><td>0,0651</td><td class="sep">156,18</td><td class="em">1.944,23</td><td class="em">187,70</td></tr><tr><td class="c">3</td><td>9,00</td><td>2.400</td><td>0,4540</td><td>0,5710</td><td>0,0647</td><td class="sep">155,20</td><td>0,9877</td><td>0,0676</td><td class="sep">162,20</td><td class="em">2.100,30</td><td class="em">156,07</td></tr><tr><td class="c">2</td><td>6,00</td><td>2.400</td><td>0,3090</td><td>0,3887</td><td>0,0440</td><td class="sep">105,64</td><td>0,8090</td><td>0,0554</td><td class="sep">132,85</td><td class="em">2.215,46</td><td class="em">115,15</td></tr><tr><td class="c">1</td><td>3,00</td><td>2.400</td><td>0,1564</td><td>0,1968</td><td>0,0223</td><td class="sep">53,48</td><td>0,4540</td><td>0,0311</td><td class="sep">74,55</td><td class="em">2.277,31</td><td class="em">61,85</td></tr></tbody>
+      </table>
+    </div>
+    <p class="tnote">El modo 2 da fuerzas negativas en las plantas altas: es correcto, la forma modal
+    cambia de signo. Tras el SRSS, F_k tambi&#233;n puede salir negativa en alguna planta &#8212; la tabla
+    lo muestra tal cual, no lo pone a cero.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">05</span>Cuatro decisiones que conviene que mires</h2>
+  <p class="sub">No son detalles de maquetaci&#243;n: cada una sali&#243; de la revisi&#243;n y cambia lo que
+  el m&#243;dulo hace. Si alguna no te convence, mejor cambiarla ahora.</p>
+
+  <div class="grid2">
+
+    <div class="card">
+      <div class="ch"><span class="ct">A &#183; La puerta normativa</span>
+        <span class="ct">art. 1.2.3 + 3.5.1</span></div>
+      <div class="cb">
+        <div class="blk">
+          <div class="bt"><span class="bl">EDIFICIO EXENTO</span><span class="tg neutral">exento</span></div>
+          <p class="bm">Con <b>ab = 0,03 g</b> la Norma no es de aplicaci&#243;n por el art. 1.2.3.
+          El m&#243;dulo lo dice y <b>no calcula</b>: emite la justificaci&#243;n de la exenci&#243;n para
+          la memoria.</p>
+        </div>
+        <div class="blk">
+          <div class="bt"><span class="bl">FUERA DEL M&#201;TODO</span><span class="tg fail">bloqueado</span></div>
+          <p class="bm">Quedan sin declarar los requisitos <b>(3), (4) y (5)</b> del art. 3.5.1.
+          El m&#243;dulo bloquea y remite al an&#225;lisis modal completo del art. 3.6.2, en vez de
+          calcular igualmente.</p>
+        </div>
+        <div class="blk">
+          <div class="bt"><span class="bl">PASARELA &#8804; 4 PLANTAS</span><span class="tg warn">con aviso</span></div>
+          <p class="bm">Importancia normal y <b>4 plantas en total</b>: entra aunque no cumpla
+          (3)-(6), con el aviso de torsi&#243;n del art. 3.7.5. Cuenta los <b>s&#243;tanos</b>: con dos,
+          son 6 y ya no entra.</p>
+        </div>
+      </div>
+      <p class="cnote">Ninguna de tus cinco hojas comprueba esto. Es lo que separa un c&#225;lculo de
+      un <b>apartado de memoria firmable</b>.</p>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="ct">B &#183; El espectro dice la verdad</span>
+        <span class="ct">art. 2.3 vs 3.7.3</span></div>
+      <div class="cb"><svg viewBox="0 0 340 198" class="dwg" role="img" aria-label="Espectro de respuesta">
+<line x1="34" y1="113.3" x2="326" y2="113.3" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="116.3" text-anchor="end" class="lbl dim">1</text>
+<line x1="34" y1="64.7" x2="326" y2="64.7" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="67.7" text-anchor="end" class="lbl dim">2</text>
+<line x1="34" y1="16.0" x2="326" y2="16.0" stroke="var(--c-grid)" stroke-width="0.6"/>
+<text x="29" y="19.0" text-anchor="end" class="lbl dim">3</text>
+<line x1="76.2" y1="16" x2="76.2" y2="162" stroke="var(--c-grid)" stroke-width="0.6" stroke-dasharray="2 2"/>
+<text x="76.2" y="173" text-anchor="middle" class="lbl dim">T_A</text>
+<text x="76.2" y="182" text-anchor="middle" class="lbl dim">0,13</text>
+<line x1="202.7" y1="16" x2="202.7" y2="162" stroke="var(--c-grid)" stroke-width="0.6" stroke-dasharray="2 2"/>
+<text x="202.7" y="173" text-anchor="middle" class="lbl dim">T_B</text>
+<text x="202.7" y="182" text-anchor="middle" class="lbl dim">0,52</text>
+<polyline points="34.0,113.3 35.2,111.2 36.4,109.1 37.6,107.0 38.9,104.9 40.1,102.8 41.3,100.7 42.5,98.6 43.7,96.5 44.9,94.4 46.2,92.3 47.4,90.2 48.6,88.1 49.8,86.0 51.0,83.9 52.2,81.7 53.5,79.6 54.7,77.5 55.9,75.4 57.1,73.3 58.3,71.2 59.6,69.1 60.8,67.0 62.0,64.9 63.2,62.8 64.4,60.7 65.6,58.6 66.8,56.5 68.1,54.4 69.3,52.3 70.5,50.2 71.7,48.1 72.9,45.9 74.2,43.8 75.4,41.7 76.6,40.3 77.8,40.3 79.0,40.3 80.2,40.3 81.5,40.3 82.7,40.3 83.9,40.3 85.1,40.3 86.3,40.3 87.5,40.3 88.8,40.3 90.0,40.3 91.2,40.3 92.4,40.3 93.6,40.3 94.8,40.3 96.0,40.3 97.3,40.3 98.5,40.3 99.7,40.3 100.9,40.3 102.1,40.3 103.4,40.3 104.6,40.3 105.8,40.3 107.0,40.3 108.2,40.3 109.4,40.3 110.6,40.3 111.9,40.3 113.1,40.3 114.3,40.3 115.5,40.3 116.7,40.3 117.9,40.3 119.2,40.3 120.4,40.3 121.6,40.3 122.8,40.3 124.0,40.3 125.2,40.3 126.5,40.3 127.7,40.3 128.9,40.3 130.1,40.3 131.3,40.3 132.6,40.3 133.8,40.3 135.0,40.3 136.2,40.3 137.4,40.3 138.6,40.3 139.8,40.3 141.1,40.3 142.3,40.3 143.5,40.3 144.7,40.3 145.9,40.3 147.2,40.3 148.4,40.3 149.6,40.3 150.8,40.3 152.0,40.3 153.2,40.3 154.4,40.3 155.7,40.3 156.9,40.3 158.1,40.3 159.3,40.3 160.5,40.3 161.8,40.3 163.0,40.3 164.2,40.3 165.4,40.3 166.6,40.3 167.8,40.3 169.1,40.3 170.3,40.3 171.5,40.3 172.7,40.3 173.9,40.3 175.1,40.3 176.3,40.3 177.6,40.3 178.8,40.3 180.0,40.3 181.2,40.3 182.4,40.3 183.7,40.3 184.9,40.3 186.1,40.3 187.3,40.3 188.5,40.3 189.7,40.3 190.9,40.3 192.2,40.3 193.4,40.3 194.6,40.3 195.8,40.3 197.0,40.3 198.2,40.3 199.5,40.3 200.7,40.3 201.9,40.3 203.1,40.6 204.3,41.5 205.6,42.3 206.8,43.2 208.0,44.0 209.2,44.8 210.4,45.6 211.6,46.4 212.8,47.2 214.1,48.0 215.3,48.8 216.5,49.5 217.7,50.3 218.9,51.0 220.2,51.7 221.4,52.4 222.6,53.2 223.8,53.9 225.0,54.5 226.2,55.2 227.4,55.9 228.7,56.6 229.9,57.2 231.1,57.9 232.3,58.5 233.5,59.1 234.8,59.8 236.0,60.4 237.2,61.0 238.4,61.6 239.6,62.2 240.8,62.8 242.1,63.3 243.3,63.9 244.5,64.5 245.7,65.0 246.9,65.6 248.1,66.1 249.4,66.7 250.6,67.2 251.8,67.7 253.0,68.3 254.2,68.8 255.4,69.3 256.6,69.8 257.9,70.3 259.1,70.8 260.3,71.3 261.5,71.8 262.7,72.3 263.9,72.7 265.2,73.2 266.4,73.7 267.6,74.1 268.8,74.6 270.0,75.0 271.2,75.5 272.5,75.9 273.7,76.4 274.9,76.8 276.1,77.2 277.3,77.6 278.5,78.1 279.8,78.5 281.0,78.9 282.2,79.3 283.4,79.7 284.6,80.1 285.9,80.5 287.1,80.9 288.3,81.3 289.5,81.7 290.7,82.0 291.9,82.4 293.2,82.8 294.4,83.2 295.6,83.5 296.8,83.9 298.0,84.3 299.2,84.6 300.4,85.0 301.7,85.3 302.9,85.7 304.1,86.0 305.3,86.3 306.5,86.7 307.8,87.0 309.0,87.3 310.2,87.7 311.4,88.0 312.6,88.3 313.8,88.6 315.1,89.0 316.3,89.3 317.5,89.6 318.7,89.9 319.9,90.2 321.1,90.5 322.3,90.8 323.6,91.1 324.8,91.4 326.0,91.7" fill="none" stroke="var(--c-elastic)" stroke-width="1.5"/>
+<text x="198.7" y="24" text-anchor="end" class="lbl zone">&#945; = 2,5</text>
+<text x="206.7" y="24" text-anchor="start" class="lbl zone">&#945; = 2,5&#183;T_B/T</text>
+<line x1="34" y1="162" x2="326" y2="162" stroke="var(--c-dim)" stroke-width="1"/>
+<line x1="34" y1="10" x2="34" y2="162" stroke="var(--c-dim)" stroke-width="1"/>
+<text x="326" y="173" text-anchor="end" class="lbl dim">T [s]</text>
+<text x="29" y="12" text-anchor="end" class="lbl dim">&#945;</text>
+<line x1="59.1" y1="40.3" x2="59.1" y2="162" stroke="var(--c-seismic)" stroke-width="1" stroke-dasharray="3 2"/>
+<circle cx="59.1" cy="40.3" r="3.4" fill="var(--c-seismic)"/>
+<text x="65.1" y="35.3" class="lbl seis">2,500 dise&#241;o</text>
+<circle cx="59.1" cy="69.9" r="3" fill="none" stroke="var(--c-elastic)" stroke-width="1.5"/>
+<line x1="59.1" y1="69.9" x2="59.1" y2="40.3" stroke="var(--c-fail)" stroke-width="2"/>
+<text x="66.1" y="58.1" class="lbl fail">&#8722;24&#37;</text>
+<text x="65.1" y="81.9" class="lbl elas">1.892 el&#225;stico</text>
+</svg>
+        <div class="leg" style="padding:4px 0 0">
+          <span><i style="background:var(--c-elastic)"></i>espectro el&#225;stico, art. 2.3</span>
+          <span><i style="background:var(--c-seismic)"></i>&#945;_i de dise&#241;o, art. 3.7.3</span>
+        </div>
+      </div>
+      <p class="cnote">Hay <b>dos alphas</b> en la NCSE-02 y s&#243;lo coinciden por encima de T_A.
+      En f&#225;brica achaparrada (H 12 m, L 20 m) el per&#237;odo cae a 0,077 s y usar la el&#225;stica dar&#237;a
+      fuerzas un <b>24 % bajas</b>. La gr&#225;fica dibuja las dos para no contradecirse a s&#237; misma.</p>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="ct">C &#183; El buscador de municipios</span>
+        <span class="ct">Anejo 1 &#183; IGN</span></div>
+      <div class="cb">
+        <div class="blk">
+          <div class="bl" style="margin-bottom:4px">TECLEAS &#8220;aguilas&#8221;</div>
+          <p class="bm mono" style="font-size:12px">&#193;guilas <span style="color:var(--fg3)">&#183; Murcia &#183; 30003 &#183; ab 0,19 g &#183; K 1,0</span></p>
+        </div>
+        <div class="blk">
+          <div class="bl" style="margin-bottom:4px">TECLEAS &#8220;la union&#8221;</div>
+          <p class="bm mono" style="font-size:12px">Uni&#243;n (La) <span style="color:var(--fg3)">&#183; Murcia &#183; 30039 &#183; ab 0,17 g &#183; K 1,0</span></p>
+        </div>
+        <div class="blk">
+          <div class="bt"><span class="bl">TECLEAS &#8220;Oviedo&#8221;</span><span class="tg neutral">no listado</span></div>
+          <p class="bm">No figura en el Anejo 1, lo que significa <b>ab &#60; 0,04 g</b> y que la
+          Norma no es obligatoria por el art. 1.2.3. Comprueba la ortograf&#237;a o introduce
+          ab y K a mano.</p>
+        </div>
+      </div>
+      <p class="cnote">El 29 % de los nombres del Anejo llevan tilde o e&#241;e, y el IGN usa el
+      art&#237;culo invertido del INE. Sin plegado de acentos, uno de cada tres usuarios cree que
+      su pueblo no est&#225;.</p>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="ct">D &#183; Combinaci&#243;n direccional</span>
+        <span class="ct">art. 3.4</span></div>
+      <div class="cb tight">
+        <table>
+          <thead><tr><th class="c">Caso</th><th>Combinaci&#243;n</th><th>V_x [kN]</th><th>V_y [kN]</th></tr></thead>
+          <tbody><tr><td class="c">E1</td><td>+Ex + 0,30 Ey</td><td>2.277,31</td><td>683,19</td></tr><tr><td class="c">E2</td><td>+Ex &#8722; 0,30 Ey</td><td>2.277,31</td><td>-683,19</td></tr><tr><td class="c">E3</td><td>&#8722;Ex + 0,30 Ey</td><td>-2.277,31</td><td>683,19</td></tr><tr><td class="c">E4</td><td>&#8722;Ex &#8722; 0,30 Ey</td><td>-2.277,31</td><td>-683,19</td></tr><tr><td class="c">E5</td><td>+Ey + 0,30 Ex</td><td>683,19</td><td>2.277,31</td></tr><tr><td class="c">E6</td><td>+Ey &#8722; 0,30 Ex</td><td>-683,19</td><td>2.277,31</td></tr><tr><td class="c">E7</td><td>&#8722;Ey + 0,30 Ex</td><td>683,19</td><td>-2.277,31</td></tr><tr><td class="c">E8</td><td>&#8722;Ey &#8722; 0,30 Ex</td><td>-683,19</td><td>-2.277,31</td></tr></tbody>
+        </table>
+      </div>
+      <p class="cnote">Son <b>ocho casos con signo</b>, no cuatro. El sismo es reversible: una
+      acci&#243;n que descarga un pilar y otra que lo carga no dan el mismo resultado al combinarse
+      con la gravedad. Ninguna de tus hojas hace esta combinaci&#243;n.</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">06</span>Reparto por elemento y torsi&#243;n</h2>
+  <p class="sub">Donde el m&#243;dulo mejora la hoja sin discusi&#243;n: <code>Sismo_ISA.xlsx</code> divide
+  la fuerza de planta entre el n&#250;mero de pilares, lo que da por hecho que todos tienen la misma
+  rigidez. El art. 3.7.4 reparte por rigidez, y el 3.7.5 amplifica por torsi&#243;n.</p>
+  <div class="tblbox" style="max-width:620px">
+    <div class="thead">
+      <span class="tt">Planta 9 &#183; direcci&#243;n Y &#183; F_k = 367,87 kN</span>
+      <span class="tr2">f_kj = &#947;_a &#183; F_k &#183; k_kj / &#931;k_kj &#183; &#947;_a = 1 + 0,6&#183;|x|/L_e</span>
+    </div>
+    <table>
+      <thead><tr><th class="c">P&#243;rtico</th><th>x [m]</th><th>F_k/&#931;k [kN]</th><th>&#947;_a</th><th>f_kj [kN]</th></tr></thead>
+      <tbody><tr><td class="c">P1</td><td>-10,0</td><td>73,57</td><td>1,300</td><td class="em">95,65</td></tr><tr><td class="c">P2</td><td>-5,0</td><td>73,57</td><td>1,150</td><td class="em">84,61</td></tr><tr><td class="c">P3</td><td>0,0</td><td>73,57</td><td>1,000</td><td class="em">73,57</td></tr><tr><td class="c">P4</td><td>5,0</td><td>73,57</td><td>1,150</td><td class="em">84,61</td></tr><tr><td class="c">P5</td><td>10,0</td><td>73,57</td><td>1,300</td><td class="em">95,65</td></tr></tbody>
+    </table>
+    <p class="tnote">L_e = 20,0 m, los mismos cinco p&#243;rticos de la planta de arriba. La suma de f_kj supera F_k: <b>&#947;_a amplifica, no redistribuye</b>.
+    Es lo que dice la Norma y el PDF lo hace constar.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="idx">07</span>Hasta d&#243;nde llega el m&#243;dulo</h2>
+  <p class="sub">El corte est&#225; en la <b>fuerza que le toca a cada plano resistente</b>. De ah&#237;
+  para abajo &#8212; esfuerzos en cada pilar, comprobaci&#243;n de secciones, detalle &#8212; ya
+  son otros m&#243;dulos. Dicho aqu&#237; y dicho en el PDF: un apartado de memoria que no declara
+  lo que no ha calculado miente por omisi&#243;n.</p>
+  <div class="chain">
+    <div class="cs in"><span class="cl">entra</span><span class="cx">Municipio &#183; importancia &#183; terreno</span><span class="cy">ab, K, &#961;, C, S, ac, T_A, T_B</span></div>
+    <div class="cs in"><span class="cl">entra</span><span class="cx">Cargas por planta</span><span class="cy">P_k &#183; peso s&#237;smico</span></div>
+    <div class="cs in"><span class="cl">entra</span><span class="cx">Sistema &#183; n &#183; H &#183; L &#183; B</span><span class="cy">T_F, n&#186; de modos, &#957;, &#946;</span></div>
+    <div class="cs in"><span class="cl">entra</span><span class="cx">Planos resistentes: x_j, k_kj</span><span class="cy">L_e, centro de torsi&#243;n, &#947;_a</span></div>
+    <div class="cs calc"><span class="cl">calcula</span><span class="cx">&#934;_ik &#8594; &#951;_ik &#8594; s_ik &#8594; F_ik &#8594; V_ik &#8594; SRSS</span><span class="cy">art. 3.7.3 y 3.7.4</span></div>
+    <div class="cs out"><span class="cl">sale</span><span class="cx">F_k y V_k por planta &#183; cortante basal</span><span class="cy">2.277,31 kN</span></div>
+    <div class="cs out"><span class="cl">sale</span><span class="cx">f_kj por plano resistente, con torsi&#243;n</span><span class="cy">art. 3.7.5</span></div>
+    <div class="cs out"><span class="cl">sale</span><span class="cx">Ocho combinaciones direccionales &#183; PDF de memoria</span><span class="cy">art. 3.4</span></div>
+    <div class="cstop">aqu&#237; termina el m&#243;dulo</div>
+    <div class="cs after"><span class="cl">luego</span><span class="cx">Esfuerzos N, V, M en cada pilar</span><span class="cy">FEM 2D, a mano en la v1</span></div>
+    <div class="cs after"><span class="cl">luego</span><span class="cx">Comprobaci&#243;n de secciones</span><span class="cy">m&#243;dulos de vigas y pilares</span></div>
+    <div class="cs after"><span class="cl">luego</span><span class="cx">Ductilidad y reglas de detalle</span><span class="cy">cap. 4, fuera de alcance</span></div>
+  </div>
+  <p class="sub" style="margin:22px 0 16px">Y dentro de su propio alcance, lo que la v1 tampoco hace:</p>
+  <ul class="plain">
+    <li><span class="m">art. 3.4</span><span><b>Componente vertical del sismo.</b> La Norma permite
+    tratarla como caso independiente, as&#237; que el corte es leg&#237;timo &#8212; pero se declara.</span></li>
+    <li><span class="m">art. 3.8</span><span><b>Desplazamientos y segundo orden.</b> S&#243;lo si
+    introduces rigideces <b>absolutas</b>. Con rigideces relativas el reparto funciona igual,
+    y el PDF imprime &#8220;no evaluados&#8221; en vez de un veredicto sobre una forma supuesta.</span></li>
+    <li><span class="m">FEM 2D</span><span><b>Exportar el caso E al p&#243;rtico.</b> Aplazado: es el
+    &#250;nico cambio que sale del m&#243;dulo y toca un fichero con cuatro consumidores.</span></li>
+    <li><span class="m">art. 3.6.2</span><span><b>An&#225;lisis modal completo.</b> Fuera de alcance por
+    definici&#243;n: cuando el edificio lo necesita, el m&#243;dulo lo dice y para.</span></li>
+    <li><span class="m">secci&#243;n</span><span><b>Ductilidad y reglas de detalle.</b> Son de secci&#243;n,
+    su sitio son los m&#243;dulos de vigas y pilares.</span></li>
+  </ul>
+</section>
+
+<div class="foot">
+  <span>Caso: <code>Granada &#183; 10 plantas &#183; p&#243;rticos de HA</code></span>
+  <span>Cortante basal <code>2.277,31 kN</code></span>
+  <span>Mockup, no captura: el m&#243;dulo a&#250;n no est&#225; implementado</span>
+</div>
+
+</div>
