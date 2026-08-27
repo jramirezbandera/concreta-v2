@@ -19,7 +19,7 @@
 // ella es donde las dos curvas se separan. Por eso salen como derivados y las
 // zonas de α se rotulan sobre la propia gráfica, no aquí.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { FRACCION_MASA } from '../../lib/codes/seismic/ncse02';
@@ -189,11 +189,17 @@ function Num({
   ancho?: string;
 }) {
   const campo = useCampoNumerico(value, onChange, { min, max });
+  // `htmlFor`/`id` de verdad: sin ellos el rótulo era decorativo y pulsarlo no
+  // llevaba el foco al campo, que es la única forma cómoda de acertar en un
+  // input de 60 píxeles. El `aria-label` se mantiene porque lleva la unidad, que
+  // el rótulo visible no dice.
+  const id = useId();
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel label={label} sub={sub} help={help} />
+      <InputLabel htmlFor={id} label={label} sub={sub} help={help} />
       <div className="flex shrink-0">
         <input
+          id={id}
           type="text"
           inputMode="decimal"
           {...campo}
@@ -221,10 +227,12 @@ function Sel<T extends string>({
   options: { v: T; t: string }[];
   onChange: (v: T) => void;
 }) {
+  const id = useId();
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel label={label} sub={sub} help={help} />
+      <InputLabel htmlFor={id} label={label} sub={sub} help={help} />
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={`${SELECT_CLS} max-w-40 shrink-0`}
@@ -300,11 +308,15 @@ function Declaracion({
   value: boolean | null;
   onChange: (v: boolean | null) => void;
 }) {
+  // El nombre accesible lleva el requisito: tres botones rotulados «Sí», «No» y
+  // «—» repetidos cinco veces no se distinguen entre sí fuera de su contexto
+  // visual, y la lista de controles de un lector de pantalla es exactamente eso.
   const btn = (v: boolean | null, t: string) => (
     <button
       type="button"
       onClick={() => onChange(v)}
       aria-pressed={value === v}
+      aria-label={`${label}: ${v === null ? 'sin contestar' : t}`}
       className={[
         'px-2 py-1 text-[11px] rounded border transition-colors cursor-pointer',
         value === v
@@ -343,7 +355,11 @@ function BuscadorMunicipio({
   const [abierto, setAbierto] = useState(false);
   const [resultados, setResultados] = useState<Municipio[]>([]);
   const [buscando, setBuscando] = useState(false);
+  const [fallo, setFallo] = useState(false);
+  /** Opción resaltada por teclado. −1 = ninguna. */
+  const [activo, setActivo] = useState(-1);
   const caja = useRef<HTMLDivElement>(null);
+  const idLista = useId();
 
   useEffect(() => {
     if (!q.trim()) return;
@@ -355,11 +371,27 @@ function BuscadorMunicipio({
     const t = setTimeout(() => {
       if (!vivo) return;
       setBuscando(true);
-      buscarMunicipios(q, 12).then((r) => {
-        if (!vivo) return;
-        setResultados(r);
-        setBuscando(false);
-      });
+      buscarMunicipios(q, 12).then(
+        (r) => {
+          if (!vivo) return;
+          setResultados(r);
+          setActivo(-1);
+          setFallo(false);
+          setBuscando(false);
+        },
+        // Sin esta rama el fallo era una promesa rechazada sin dueño: `buscando`
+        // se quedaba en true para siempre —lo que además SUPRIME el mensaje de
+        // «no figura»—, y el usuario veía un buscador que no responde sin saber
+        // por qué. `cargarHazard` suelta su memoización al fallar, así que
+        // volver a teclear reintenta de verdad.
+        () => {
+          if (!vivo) return;
+          setResultados([]);
+          setActivo(-1);
+          setFallo(true);
+          setBuscando(false);
+        },
+      );
     }, 120);
     return () => {
       vivo = false;
@@ -390,6 +422,38 @@ function BuscadorMunicipio({
     }));
     setQ('');
     setAbierto(false);
+    setActivo(-1);
+  };
+
+  /**
+   * Patrón combobox del teclado. Sin esto la lista sólo se podía usar con el
+   * ratón: quien navega con teclado tabulaba desde la caja de búsqueda hasta el
+   * siguiente campo sin poder llegar a ninguna de las opciones que acababa de
+   * pedir.
+   */
+  const teclas = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      setAbierto(false);
+      setActivo(-1);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (visibles.length === 0) return;
+      e.preventDefault(); // que no mueva el cursor dentro del texto
+      setAbierto(true);
+      const paso = e.key === 'ArrowDown' ? 1 : -1;
+      setActivo((i) => {
+        const n = visibles.length;
+        // Desde "ninguna", abajo lleva a la primera y arriba a la última.
+        if (i < 0) return paso === 1 ? 0 : n - 1;
+        return (i + paso + n) % n;
+      });
+      return;
+    }
+    if (e.key === 'Enter' && abierto && activo >= 0 && visibles[activo]) {
+      e.preventDefault();
+      elegir(visibles[activo]);
+    }
   };
 
   /**
@@ -405,7 +469,8 @@ function BuscadorMunicipio({
     setAbierto(false);
   };
 
-  const sinResultados = abierto && q.trim().length >= 2 && !buscando && visibles.length === 0;
+  const sinResultados =
+    abierto && q.trim().length >= 2 && !buscando && !fallo && visibles.length === 0;
 
   return (
     <div className="py-0.75" ref={caja}>
@@ -423,6 +488,15 @@ function BuscadorMunicipio({
           setAbierto(true);
         }}
         onFocus={() => setAbierto(true)}
+        onKeyDown={teclas}
+        role="combobox"
+        aria-expanded={abierto && visibles.length > 0}
+        aria-controls={idLista}
+        aria-autocomplete="list"
+        autoComplete="off"
+        {...(activo >= 0 && visibles[activo]
+          ? { 'aria-activedescendant': `${idLista}-${activo}` }
+          : {})}
         className={
           'w-full bg-bg-primary border border-border-main rounded px-2 py-1.5 text-[12px] ' +
           'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors'
@@ -462,23 +536,73 @@ function BuscadorMunicipio({
         </div>
       ) : null}
 
-      {abierto && visibles.length > 0 ? (
-        <ul className="mt-1 max-h-56 overflow-y-auto scroll-hide border border-border-main rounded bg-bg-elevated">
-          {visibles.map((m) => (
-            <li key={m.ine}>
-              <button
-                type="button"
-                onClick={() => elegir(m)}
-                className="w-full text-left px-2 py-1.5 hover:bg-bg-primary transition-colors cursor-pointer"
-              >
-                <span className="text-[12px] text-text-primary">{m.nombre}</span>
-                <span className="text-[10px] text-text-disabled font-mono float-right">
-                  ab {m.ab.toFixed(2)} · K {m.k.toFixed(1)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+      {/*
+        Cada opción enseña su PROVINCIA. Hay homónimos con peligrosidades muy
+        distintas —los dos «Torrent», Girona 0,05 g y Valencia 0,07 g— y sin
+        ella el desplegable ofrecía dos filas idénticas: elegir la que no era
+        rebaja el cortante basal un 30 % sin que nada lo delate.
+      */}
+      <ul
+        id={idLista}
+        role="listbox"
+        aria-label="Resultados de la búsqueda"
+        className={
+          abierto && visibles.length > 0
+            ? 'mt-1 max-h-56 overflow-y-auto scroll-hide border border-border-main rounded bg-bg-elevated'
+            : 'hidden'
+        }
+      >
+        {visibles.map((m, i) => (
+          <li
+            key={m.ine}
+            id={`${idLista}-${i}`}
+            role="option"
+            aria-selected={i === activo}
+            onClick={() => elegir(m)}
+            onMouseEnter={() => setActivo(i)}
+            className={[
+              'px-2 py-1.5 cursor-pointer transition-colors',
+              i === activo ? 'bg-bg-primary' : 'hover:bg-bg-primary',
+            ].join(' ')}
+          >
+            <span className="text-[12px] text-text-primary">{m.nombre}</span>
+            <span className="text-[10px] text-text-disabled font-mono float-right">
+              ab {m.ab.toFixed(2)} · K {m.k.toFixed(1)}
+            </span>
+            {/* Ceuta, Melilla y las capitales se llaman como su provincia: repetirlo sobra. */}
+            {m.provincia && m.provincia !== m.nombre ? (
+              <div className="text-[10px] text-text-disabled">{m.provincia}</div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {/*
+        Lo que pasa mientras tanto, dicho en voz alta. `role="status"` lo anuncia
+        sin robar el foco, que es lo que hace falta en un buscador: quien no ve
+        la lista necesita enterarse de que hay ocho resultados, o de que la tabla
+        no ha cargado.
+      */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {fallo
+          ? 'No se han podido cargar los municipios.'
+          : buscando
+            ? 'Buscando…'
+            : visibles.length > 0
+              ? `${visibles.length} municipio${visibles.length === 1 ? '' : 's'} encontrado${visibles.length === 1 ? '' : 's'}`
+              : ''}
+      </div>
+
+      {/*
+        El fallo de carga NO se puede confundir con «no figura en el Anejo 1»,
+        que en esta pantalla significa que la Norma no obliga. Por eso tiene
+        mensaje propio y precede al otro.
+      */}
+      {fallo ? (
+        <p className="mt-1.5 text-[10px] leading-snug text-state-fail">
+          No se ha podido cargar la tabla del Anejo 1. Esto <strong>no</strong> significa que el
+          municipio no figure: vuelve a teclear para reintentar, o introduce ab y K a mano.
+        </p>
       ) : null}
 
       {sinResultados ? (

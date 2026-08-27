@@ -74,12 +74,51 @@ export interface Municipio {
   ine: string;
   /** Nombre oficial. Puede ser bilingüe (`Alicante/Alacant`). */
   nombre: string;
+  /**
+   * Provincia, deducida de los dos primeros dígitos del código INE.
+   *
+   * No es adorno: hay municipios HOMÓNIMOS con peligrosidades muy distintas, y
+   * sin la provincia el desplegable los presenta como dos filas idénticas. Los
+   * dos «Torrent» —Girona 0,05 g y Valencia 0,07 g— se diferencian sólo en
+   * esto, y elegir el que no era rebaja el cortante basal un 30 % sin que nada
+   * lo delate.
+   */
+  provincia: string;
   /** Aceleración sísmica básica, adimensional (múltiplo de g). */
   ab: number;
   /** Coeficiente de contribución K, adimensional. */
   k: number;
   /** `null` cuando `ab` y `K` salen tal cual de la capa del IGN. */
   procedencia: Procedencia | null;
+}
+
+/**
+ * Provincias por los dos primeros dígitos del código INE.
+ *
+ * La tabla va entera aunque el Anejo 1 sólo liste municipios de ab >= 0,04 g:
+ * cuesta menos de un kilobyte y no hay que revisarla si algún día entra otra
+ * provincia por un suplemento.
+ */
+const PROVINCIAS: Record<string, string> = {
+  '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería',
+  '05': 'Ávila', '06': 'Badajoz', '07': 'Baleares', '08': 'Barcelona',
+  '09': 'Burgos', '10': 'Cáceres', '11': 'Cádiz', '12': 'Castellón',
+  '13': 'Ciudad Real', '14': 'Córdoba', '15': 'A Coruña', '16': 'Cuenca',
+  '17': 'Girona', '18': 'Granada', '19': 'Guadalajara', '20': 'Gipuzkoa',
+  '21': 'Huelva', '22': 'Huesca', '23': 'Jaén', '24': 'León',
+  '25': 'Lleida', '26': 'La Rioja', '27': 'Lugo', '28': 'Madrid',
+  '29': 'Málaga', '30': 'Murcia', '31': 'Navarra', '32': 'Ourense',
+  '33': 'Asturias', '34': 'Palencia', '35': 'Las Palmas', '36': 'Pontevedra',
+  '37': 'Salamanca', '38': 'Santa Cruz de Tenerife', '39': 'Cantabria',
+  '40': 'Segovia', '41': 'Sevilla', '42': 'Soria', '43': 'Tarragona',
+  '44': 'Teruel', '45': 'Toledo', '46': 'Valencia', '47': 'Valladolid',
+  '48': 'Bizkaia', '49': 'Zamora', '50': 'Zaragoza', '51': 'Ceuta',
+  '52': 'Melilla',
+};
+
+/** Provincia de un código INE. Cadena vacía si el prefijo no está en la tabla. */
+export function provinciaDe(ine: string): string {
+  return PROVINCIAS[ine.slice(0, 2)] ?? '';
 }
 
 /**
@@ -135,9 +174,22 @@ let promesa: Promise<HazardColumnar> | null = null;
 /**
  * Carga la tabla. Memoizada: la segunda llamada devuelve la misma promesa, así
  * que teclear en el buscador no dispara una descarga por pulsación.
+ *
+ * La memoización SUELTA la promesa si falla. Antes se quedaba con el rechazo
+ * cacheado, y una caída de red al teclear la primera letra dejaba el buscador
+ * muerto hasta recargar la página: toda búsqueda posterior reutilizaba aquel
+ * fallo. Con el service worker sirviendo el chunk esto es raro, pero «raro» y
+ * «silencioso» juntos es justo la combinación que hay que evitar aquí, porque
+ * el usuario no distingue un buscador roto de un municipio que no figura — y lo
+ * segundo, en esta pantalla, se lee como una exención.
  */
 export function cargarHazard(): Promise<HazardColumnar> {
-  promesa ??= import('./ncse02.hazard.json').then((m) => m.default as HazardColumnar);
+  promesa ??= import('./ncse02.hazard.json')
+    .then((m) => m.default as HazardColumnar)
+    .catch((e: unknown) => {
+      promesa = null;
+      throw e;
+    });
   return promesa;
 }
 
@@ -163,6 +215,7 @@ function filaA(d: HazardColumnar, i: number): Municipio {
   return {
     ine,
     nombre: d.nombre[i],
+    provincia: provinciaDe(ine),
     ab: d.abValores[d.ab[i]],
     k: d.kValores[d.k[i]],
     procedencia: d.procedencia[ine] ?? null,
@@ -172,22 +225,43 @@ function filaA(d: HazardColumnar, i: number): Municipio {
 /**
  * Busca municipios por nombre. Devuelve como mucho `limite` resultados.
  *
- * Prefiere los que empiezan por la consulta y deja después los que la contienen,
- * porque quien teclea "cor" busca antes Córdoba que Alcorcón.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CUATRO NIVELES, Y EL DE ARRIBA ES EL NOMBRE COMPLETO
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Antes eran dos —empiezan por, contienen— y dentro de cada uno mandaba el
+ * orden del dataset, que es el del código INE. Así, quien teclea "granada"
+ * recibía primero «Granada (La)» (Barcelona, 08, ab 0,04 g) que Granada capital
+ * (18, ab 0,23 g), sólo porque su provincia tiene un número menor. Un factor
+ * SEIS en la aceleración, decidido por el orden alfabético de las provincias.
+ *
+ * No basta con exigir coincidencia exacta contra las CLAVES: el harvester
+ * indexa también la forma sin artículo, así que «granada» es clave exacta de
+ * las dos. Lo que las separa es el NOMBRE OFICIAL COMPLETO plegado, y por eso
+ * ese es el primer nivel. Se pliega sólo el puñado de filas que ya han empatado
+ * en clave exacta, no las 2.635.
+ *
+ * Tampoco se corta el barrido al llenar el primer nivel: con 2.635 filas el
+ * recorrido completo no se nota, y pararse antes escondía coincidencias
+ * exactas de código INE alto detrás de prefijos de código bajo.
  */
 export async function buscarMunicipios(consulta: string, limite = 20): Promise<Municipio[]> {
   const q = plegarConsulta(consulta);
   if (!q) return [];
   const d = await cargarHazard();
+  const exactas: number[] = [];
   const empiezan: number[] = [];
   const contienen: number[] = [];
   for (let i = 0; i < d.ine.length; i++) {
     const claves = d.clave[i].split('|');
-    if (claves.some((c) => c.startsWith(q))) empiezan.push(i);
+    if (claves.some((c) => c === q)) exactas.push(i);
+    else if (claves.some((c) => c.startsWith(q))) empiezan.push(i);
     else if (claves.some((c) => c.includes(q))) contienen.push(i);
-    if (empiezan.length >= limite) break;
   }
-  return [...empiezan, ...contienen].slice(0, limite).map((i) => filaA(d, i));
+  const nombreExacto = exactas.filter((i) => plegarConsulta(d.nombre[i]) === q);
+  const porClave = exactas.filter((i) => plegarConsulta(d.nombre[i]) !== q);
+  return [...nombreExacto, ...porClave, ...empiezan, ...contienen]
+    .slice(0, limite)
+    .map((i) => filaA(d, i));
 }
 
 /**

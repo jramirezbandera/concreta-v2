@@ -98,7 +98,19 @@ describe('arranque', () => {
 
   it('dibuja el alzado con fuerzas y el diagrama de cortantes', () => {
     montar();
-    expect(screen.getByRole('img', { name: /dirección X/i })).toBeTruthy();
+    // Por el nombre completo: el espectro también dice de qué dirección son sus
+    // modos, y antes no lo decía — pintaba siempre los de X sin rotularlo.
+    expect(screen.getByRole('img', { name: /Fuerzas y cortantes en dirección X/i })).toBeTruthy();
+  });
+
+  it('el espectro dice de qué dirección son los modos que marca', () => {
+    // M12. En los sistemas con T_F dependiente de la dimensión en planta
+    // —fábrica, pantallas, acero triangulado— X e Y caen en puntos distintos de
+    // la curva, y los de Y no se veían nunca.
+    montar();
+    const svg = screen.getByRole('img', { name: /espectro/i });
+    expect(svg.getAttribute('aria-label')).toMatch(/dirección X/i);
+    expect(svg.textContent).toMatch(/T_F · X/);
   });
 });
 

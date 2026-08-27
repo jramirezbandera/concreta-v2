@@ -27,12 +27,23 @@ const FUERZA = '#f59e0b';
 
 // ── Espectro ─────────────────────────────────────────────────────────────────
 
+/**
+ * @param eje Dirección cuyos modos y T_F se marcan sobre la curva.
+ *
+ * La curva es del EMPLAZAMIENTO y no depende de la dirección, pero los puntos
+ * que se marcan encima sí: en los sistemas cuyo T_F depende de la dimensión en
+ * planta —fábrica, pantallas, acero triangulado— X e Y caen en sitios distintos
+ * de la gráfica. Antes se pintaba siempre X, sin decirlo y sin reaccionar al
+ * selector de eje, así que los modos de Y no se veían nunca.
+ */
 export function EspectroSVG({
   evaluacion,
   width = 360,
+  eje = 'x',
 }: {
   evaluacion: SeismicEvaluation;
   width?: number;
+  eje?: 'x' | 'y';
 }) {
   const { TA, TB } = evaluacion.emplazamiento;
   const h = Math.round(width * 0.62);
@@ -57,14 +68,22 @@ export function EspectroSVG({
     return d;
   };
 
-  const TF = evaluacion.resultado?.x.TF;
-  const modos = evaluacion.resultado?.x.modos ?? [];
+  const TF = evaluacion.resultado?.[eje].TF;
+  const modos = evaluacion.resultado?.[eje].modos ?? [];
+  const EJE_ROTULO = eje.toUpperCase();
 
   return (
-    <svg width={width} height={h} viewBox={`0 0 ${width} ${h}`} role="img" aria-label="Espectro de respuesta">
+    <svg
+      width={width}
+      height={h}
+      viewBox={`0 0 ${width} ${h}`}
+      role="img"
+      aria-label={`Espectro de respuesta, dirección ${EJE_ROTULO}`}
+    >
       <title>
         Espectro de respuesta: la curva elástica del art. 2.3 y la alpha de las fuerzas del art.
-        3.7.3, que sólo difieren por debajo de T_A.
+        3.7.3, que sólo difieren por debajo de T_A. Los modos marcados son los de la dirección{' '}
+        {EJE_ROTULO}.
       </title>
 
       {/* ejes */}
@@ -130,9 +149,14 @@ export function EspectroSVG({
           </text>
         </g>
       ))}
+      {/*
+        El eje va EN el rótulo. Sin él, un edificio de fábrica con L distinta en
+        cada dirección enseñaba un T_F sin decir de cuál de las dos, y la otra no
+        aparecía en ninguna parte.
+      */}
       {TF !== undefined && TF > 0 ? (
         <text x={m.l + 3} y={m.t + 8} fontSize={8} fill={ACENTO} fontFamily="monospace">
-          T_F = {TF.toFixed(2)} s
+          T_F · {EJE_ROTULO} = {TF.toFixed(2)} s
         </text>
       ) : null}
     </svg>

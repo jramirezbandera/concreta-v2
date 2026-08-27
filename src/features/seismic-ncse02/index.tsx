@@ -293,7 +293,9 @@ export function SeismicNCSE02Module() {
         >
           <div ref={lienzoRef} className="px-4 py-4 space-y-4">
             <div className="flex flex-wrap gap-4 items-start">
-              <EspectroSVG evaluacion={evaluacion} width={anchoSvg} />
+              {/* El selector de eje manda sobre los DOS dibujos: los modos que
+                  se marcan sobre el espectro son los de esa misma direccion. */}
+              <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />
               {evaluacion.resultado ? (
                 <div>
                   <div className="flex gap-1 pb-1">
@@ -303,6 +305,7 @@ export function SeismicNCSE02Module() {
                         type="button"
                         onClick={() => setEjeDibujo(e)}
                         aria-pressed={ejeDibujo === e}
+                        aria-label={`Dibujar la dirección ${e.toUpperCase()}`}
                         className={[
                           'px-2 py-0.5 text-[11px] rounded border transition-colors cursor-pointer',
                           ejeDibujo === e

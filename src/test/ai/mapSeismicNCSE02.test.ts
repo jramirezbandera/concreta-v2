@@ -357,8 +357,28 @@ describe('snapshot', () => {
     const d = v.declaraciones as Record<string, string>;
     expect(d.regularidad_geometrica_req_3).toBe('SIN DECLARAR');
     expect(d.porticos_bien_arriostrados_art_1_2_3).toBe('SIN DECLARAR');
-    expect(d.soportes_continuos_req_4).toBe('sí');
     expect(String(d.nota)).toMatch(/NO son campos de tu propuesta/);
+  });
+
+  it('una declaración que sigue en el valor de la plantilla se marca como tal', () => {
+    // M8. El caso de arranque trae cuatro de las cinco en `true`, y el snapshot
+    // las servía como «sí» a secas: el asistente afirmaba entonces que los
+    // requisitos (3) a (6) estaban declarados sobre casillas que nadie había
+    // tocado. Las plantas ya llevaban `plantas_por_defecto` justo por esto.
+    const d = snap(D()).valores.declaraciones as Record<string, string>;
+    expect(d.soportes_continuos_req_4).toMatch(/VALOR DE LA PLANTILLA/);
+    expect(d.regularidad_mecanica_req_5).toMatch(/VALOR DE LA PLANTILLA/);
+    expect(String(d.nota)).toMatch(/no la des por buena/i);
+  });
+
+  it('y una que el proyectista SÍ ha tocado viaja limpia', () => {
+    // Lo contrario también importa: marcar de plantilla algo que el técnico ha
+    // declarado le quitaría valor a su firma.
+    const d = snap({ ...D(), soportesContinuos: false }).valores.declaraciones as Record<
+      string,
+      string
+    >;
+    expect(d.soportes_continuos_req_4).toBe('no');
   });
 
   it('los planos resistentes viajan de solo lectura, con x y rigidez', () => {

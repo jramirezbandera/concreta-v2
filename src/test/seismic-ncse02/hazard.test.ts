@@ -15,6 +15,7 @@ import {
   cargarHazard,
   municipioPorIne,
   plegarConsulta,
+  provinciaDe,
 } from '../../features/seismic-ncse02/hazard';
 
 describe('plegarConsulta', () => {
@@ -43,11 +44,30 @@ describe('buscarMunicipios', () => {
     expect(await buscarMunicipios('   ')).toEqual([]);
   });
 
+  it('la coincidencia EXACTA manda sobre el orden del codigo INE', async () => {
+    // M5: "granada" listaba antes «Granada (La)» —Barcelona, 08, ab 0,04 g—
+    // que Granada capital —18, ab 0,23 g—, porque las dos empiezan igual y
+    // dentro del nivel mandaba el codigo INE. Un factor SEIS en la
+    // aceleracion, decidido por el numero de la provincia.
+    const r = await buscarMunicipios('granada', 20);
+    expect(r[0].ine).toBe('18087');
+    expect(r[0].ab).toBe(0.23);
+    // Y la otra sigue estando: no se trata de esconderla, sino de ordenar.
+    expect(r.some((m) => m.nombre.startsWith('Granada (La)'))).toBe(true);
+  });
+
   it('encuentra Granada con los valores que calibran el barrido', async () => {
     const r = await buscarMunicipios('granada');
     const g = r.find((m) => m.ine === '18087');
     // `procedencia: null` = sale de la capa del IGN tal cual, sin suplemento.
-    expect(g).toEqual({ ine: '18087', nombre: 'Granada', ab: 0.23, k: 1.0, procedencia: null });
+    expect(g).toEqual({
+      ine: '18087',
+      nombre: 'Granada',
+      provincia: 'Granada',
+      ab: 0.23,
+      k: 1.0,
+      procedencia: null,
+    });
   });
 
   it('devuelve la procedencia de un municipio que no sale de la capa', async () => {
@@ -116,10 +136,34 @@ describe('municipioPorIne', () => {
     expect(await municipioPorIne('18087')).toEqual({
       ine: '18087',
       nombre: 'Granada',
+      provincia: 'Granada',
       ab: 0.23,
       k: 1.0,
       procedencia: null,
     });
+  });
+
+  it('la provincia sale de los dos primeros digitos del codigo INE', async () => {
+    // Sin ella los homonimos son indistinguibles en el desplegable, y hay
+    // pares con peligrosidades muy distintas.
+    expect(provinciaDe('17199')).toBe('Girona');
+    expect(provinciaDe('46244')).toBe('Valencia');
+    expect(provinciaDe('51001')).toBe('Ceuta');
+    expect(provinciaDe('52001')).toBe('Melilla');
+    // Prefijo que no existe: cadena vacia, nunca "undefined" pintado en la UI.
+    expect(provinciaDe('99999')).toBe('');
+  });
+
+  it('los dos Torrent se distinguen por provincia, y no tienen el mismo ab', async () => {
+    // El caso de M5, con numeros: elegir el que no era rebaja el cortante
+    // basal un 30 % y no hay nada en pantalla que lo delate.
+    const r = await buscarMunicipios('torrent', 20);
+    const torrents = r.filter((m) => m.nombre.toLowerCase().startsWith('torrent'));
+    const girona = torrents.find((m) => m.provincia === 'Girona');
+    const valencia = torrents.find((m) => m.provincia === 'Valencia');
+    expect(girona).toBeTruthy();
+    expect(valencia).toBeTruthy();
+    expect(girona!.ab).not.toBe(valencia!.ab);
   });
 
   it('la busqueda binaria acierta en todo el rango, no solo en el centro', async () => {

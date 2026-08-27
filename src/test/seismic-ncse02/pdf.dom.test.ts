@@ -505,3 +505,51 @@ describe('nombre del archivo', () => {
     expect(filename).toBe('torre-norte.pdf');
   });
 });
+
+describe('el documento se puede rehacer con sus propios numeros', () => {
+  // M6. Un documento de justificacion que redondea los datos de entrada pero
+  // calcula con los originales no se puede comprobar: quien rehaga la cadena
+  // con lo impreso obtiene otro resultado, y no hay forma de saber cual de los
+  // dos esta mal.
+
+  it('un ab manual de 0,045 g no se imprime como 0,05', async () => {
+    const { texto } = await exportar({
+      ...defaultSeismicState(),
+      municipioIne: null,
+      municipioNombre: '',
+      municipioProcedencia: null,
+      ab: 0.045,
+    });
+    expect(texto).toContain('0,045 g');
+    expect(texto).not.toMatch(/\b0,05 g/);
+  });
+
+  it('los municipios del Anejo 1 siguen saliendo con sus dos decimales', async () => {
+    // El dataset trae dos decimales, asi que no cambia nada: la precision se
+    // añade solo cuando redondear perderia informacion.
+    const { texto } = await exportar(defaultSeismicState());
+    expect(texto).toContain('0,23 g');
+  });
+
+  it('el C ponderado de un perfil sale con los decimales que tiene', async () => {
+    // Media en 30 m de 1,3 (10 m) y 1,6 (20 m) = 1,5 exacto; con 12 m y 18 m
+    // sale 1,48 exacto. Se usa un reparto que NO cae en dos decimales.
+    const { texto } = await exportar({
+      ...defaultSeismicState(),
+      terrenoModo: 'perfil',
+      estratos: [
+        { C: 1.3, espesor: 7 },
+        { C: 1.6, espesor: 23 },
+      ],
+    });
+    // C = (1,3·7 + 1,6·23) / 30 = 1,53 exacto → dos decimales bastan.
+    expect(texto).toContain('1,53');
+  });
+
+  it('una superficie con decimales no se redondea al entero', async () => {
+    const s = defaultSeismicState();
+    const plantas = s.plantas.map((p, i) => (i === 0 ? { ...p, area: 312.5 } : p));
+    const { texto } = await exportar({ ...s, plantas });
+    expect(texto).toContain('312,5 m²');
+  });
+});

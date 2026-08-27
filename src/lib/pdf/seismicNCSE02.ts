@@ -157,6 +157,31 @@ const num = (v: number, dec = 0): string =>
 
 const pct = (v: number, dec = 1): string => `${num(v * 100, dec)} %`;
 
+/**
+ * Número con los decimales que hagan falta para que lo IMPRESO sea lo USADO.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * UN DOCUMENTO QUE NO SE PUEDE REHACER CON SUS PROPIOS NÚMEROS NO JUSTIFICA
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `ab` iba con dos decimales fijos, que es exacto para todo el Anejo 1 —el
+ * dataset trae dos— pero no para una entrada manual: un 0,045 salía impreso
+ * como «0,05 g» mientras `ac = S·ρ·ab` se calculaba con el 0,045. Quien
+ * comprobase la memoria rehaciendo esa multiplicación con los números que tenía
+ * delante obtenía otro resultado, y no habría forma de saber cuál de los dos
+ * está mal. Lo mismo con el C ponderado de un perfil de estratos, que casi
+ * nunca cae en dos decimales.
+ *
+ * Se empieza por los decimales de siempre y sólo se añaden si redondear ahí
+ * pierde información: los casos del Anejo 1 salen exactamente igual que antes.
+ */
+const numFiel = (v: number, dec: number, maxDec = 6): string => {
+  if (!Number.isFinite(v)) return '—';
+  for (let d = dec; d < maxDec; d++) {
+    if (Math.abs(Number(v.toFixed(d)) - v) <= 1e-9) return num(v, d);
+  }
+  return num(v, maxDec);
+};
+
 // ── Puerta de exportación ────────────────────────────────────────────────────
 
 /**
@@ -440,8 +465,8 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
           : `Anejo 1 de la NCSE-02 · ${manifiesto.attribution}, capa ${manifiesto.layer}`;
 
   const filas: FilaParam[] = [
-    { p: 'ab', v: `${num(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
-    { p: 'K', v: num(e.K, 1), o: `Coeficiente de contribución. ${origenAb}` },
+    { p: 'ab', v: `${numFiel(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
+    { p: 'K', v: numFiel(e.K, 1), o: `Coeficiente de contribución. ${origenAb}` },
     {
       p: 'ρ',
       v: num(e.rho, 1),
@@ -449,7 +474,7 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
     },
     {
       p: 'C',
-      v: num(e.C, 2),
+      v: numFiel(e.C, 2),
       o:
         state.terrenoModo === 'perfil'
           ? 'Coeficiente del terreno (art. 2.4) · media ponderada en los 30 m superiores'
@@ -471,8 +496,10 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
       M,
       cols: [
         { key: 'i', label: '#', w: 14, align: 'right', render: (r: { i: number; C: number; esp: number }) => String(r.i) },
-        { key: 'C', label: 'C', w: 28, align: 'right', render: (r) => num(r.C, 2) },
-        { key: 'esp', label: 'Espesor (m)', w: 32, align: 'right', render: (r) => num(r.esp, 2) },
+        // Los estratos son datos del usuario: se imprimen tal cual, para que la
+        // media ponderada de la fila C se pueda rehacer con esta misma tabla.
+        { key: 'C', label: 'C', w: 28, align: 'right', render: (r) => numFiel(r.C, 2) },
+        { key: 'esp', label: 'Espesor (m)', w: 32, align: 'right', render: (r) => numFiel(r.esp, 2) },
         {
           key: 'nota',
           label: 'Nota',
@@ -571,7 +598,10 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
       P: p.P,
       origen: ui?.pesoManual
         ? 'Peso introducido a mano'
-        : `${num(ui?.area ?? 0, 0)} m² · ${(ui?.componentes ?? []).filter((c) => !c.excluida).length} componentes`,
+        : // Con cero decimales, una planta de 312,5 m² salía como «313 m²» y el
+          // P_k impreso no cuadraba al rehacerlo. La superficie es un dato del
+          // usuario, no un valor tabulado: no hay ninguna razón para redondearla.
+          `${numFiel(ui?.area ?? 0, 0, 2)} m² · ${(ui?.componentes ?? []).filter((c) => !c.excluida).length} componentes`,
     };
   });
 

@@ -222,7 +222,7 @@ export const SEISMIC_PAYLOAD_SCHEMA: Record<string, unknown> = {
 const PROMPT_RULES = `Reglas específicas del módulo Acción sísmica (NCSE-02, RD 997/2002, método simplificado):
 1. UNIDADES: H_m, L y B en METROS; omega_pct en PORCENTAJE (5, no 0.05); n y n_total son enteros. Las fuerzas del resultado van en kN. Añade un warning con cada conversión que hagas.
 2. LA PELIGROSIDAD DEL SITIO NO LA PONES TÚ. La aceleración sísmica básica ab y el coeficiente de contribución K salen del Anejo 1 de la Norma, y esta aplicación los lee de la cartografía oficial del Instituto Geográfico Nacional. NO son campos de tu propuesta y NO los puedes escribir. Si el usuario te dice el municipio, dile que lo escriba en el buscador "Municipio" del panel izquierdo. NUNCA cites de memoria la ab de un municipio: el documento que genera esta herramienta afirma que ese valor viene del IGN, y si viene de ti, la herramienta estaría firmando un dato inventado. Di que no lo sabes y que lo busque.
-3. LAS DECLARACIONES LAS FIRMA EL PROYECTISTA. Los requisitos (3) regularidad geométrica, (4) soportes continuos y (5) regularidad mecánica del art. 3.5.1, la excentricidad declarada y el arriostramiento del art. 1.2.3 son juicios del técnico, no datos, y NO son campos de tu propuesta. Puedes explicarle qué significa cada uno y en qué fijarse (entrantes y salientes en planta, retranqueos en alzado, pilares que mueren en una viga, plantas diáfanas, cambios bruscos de rigidez), pero la casilla la marca él en la sección "Declaraciones". El módulo NO calcula mientras alguna esté sin contestar, y eso es intencionado.
+3. LAS DECLARACIONES LAS FIRMA EL PROYECTISTA. Los requisitos (3) regularidad geométrica, (4) soportes continuos y (5) regularidad mecánica del art. 3.5.1, la excentricidad declarada y el arriostramiento del art. 1.2.3 son juicios del técnico, no datos, y NO son campos de tu propuesta. Puedes explicarle qué significa cada uno y en qué fijarse (entrantes y salientes en planta, retranqueos en alzado, pilares que mueren en una viga, plantas diáfanas, cambios bruscos de rigidez), pero la casilla la marca él en la sección "Declaraciones". El módulo NO calcula mientras alguna esté sin contestar, y eso es intencionado. Y cuidado: una declaración marcada "VALOR DE LA PLANTILLA" NO la ha hecho nadie — es el caso de ejemplo con el que arranca la aplicación. No digas que ese requisito está declarado: pregúntaselo.
 4. EL PERÍODO FUNDAMENTAL SE DEDUCE. T_F sale de la expresión del art. 3.7.2.2 que corresponde al sistema estructural. El art. 3.6.2.3.2 permite imponerlo por otros medios, pero eso es un resultado que el proyectista TRAE de un análisis modal, no algo que se estime conversando: no es un campo de tu propuesta. Si el usuario tiene un T_F justificado, que lo introduzca a mano en la dirección correspondiente.
 5. LAS PLANTAS Y LOS PLANOS RESISTENTES SON DE SOLO LECTURA. En el estado ves "plantas" (altura, superficie y componentes de carga de cada una, con lo que está excluido de la masa sísmica) y "direcciones" (los planos resistentes con su posición x y su rigidez), para poder explicar los resultados. NO puedes modificarlos: si el usuario quiere cambiar una planta, una carga o un plano, dile que lo haga en el panel izquierdo. Y si "plantas_por_defecto" es true, lo que ves es una PLANTILLA de la aplicación (diez plantas de 300 m² inventadas), NO datos del usuario: pregúntaselos antes de dar ningún número por bueno.
 6. LA MASA SÍSMICA NO ES LA COMBINACIÓN CUASIPERMANENTE. Las fracciones del art. 3.2 (permanente 1,0 · tabiquería 1,0 · almacén 1,0 · agua 1,0 · público y aglomeración 0,6 · residencial 0,5 · nieve persistente 0,5) dicen qué parte de la carga es MASA que se sacude. NO son el psi2 del CTE, que gobierna la gravedad que actúa a la vez que el sismo (art. 3.4), donde la variable desfavorable entra ENTERA. Confundirlas es el error natural de este cálculo y no lo delata ningún número raro.
@@ -589,8 +589,29 @@ function buildSeismicPlan(
   applyEntero('sotanos', 'sotanos', x.sotanos, 0, 20);
 
   applyNumber('H_m', x.H_m, 0.1, 500, ' m', current.H, (v) => { fields.H = v; }, (v) => `${v} m`);
-  applyNumber('omega_pct', x.omega_pct, 0.1, 30, ' %', current.omega, (v) => { fields.omega = v; }, (v) => `${v} %`);
-  applyNumber('mu', x.mu, 1, 6, '', current.mu, (v) => { fields.mu = v; }, (v) => `${v}`);
+  // ── Los dos factores que rebajan la fuerza, acotados a su catálogo ─────────
+  // beta = nu/mu, y los dos suben con el numerador equivocado. Los rangos que
+  // había —Omega hasta 30 % (nu ~ 0,49) y mu hasta 6— no salen de ninguna parte
+  // de la Norma; el de mu contradecía ademas la DESCRIPCION DEL PROPIO SCHEMA,
+  // que enumera 1, 2, 3 y 4. Un mu = 6 divide la accion sismica por seis, y en
+  // un primer relleno el filtro anti-ruido puede suprimir la fila de beta: la
+  // rebaja mas grande del modulo, entrando sin que nadie la vea.
+  // Omega: 2 % es el mínimo tabulado del art. 2.5 (acero soldado) y 10 % deja
+  // nu >= 0,76. El tope de 30 % que había daba nu ~ 0,49 —media acción sísmica—
+  // por un número que la Norma no contempla en ningún sitio.
+  applyNumber('omega_pct', x.omega_pct, 2, 10, ' %', current.omega, (v) => { fields.omega = v; }, (v) => `${v} %`);
+  applyNumber('mu', x.mu, 1, 4, '', current.mu, (v) => { fields.mu = v; }, (v) => `${v}`);
+
+  // La fabrica no tiene ductilidad que declarar. No se bloquea —la Norma no da
+  // una tabla cerrada de mu por sistema— pero no puede pasar en silencio.
+  const sistemaFinal = fields.sistema ?? current.sistema;
+  const muFinal = fields.mu ?? current.mu;
+  if (sistemaFinal === 'fabrica' && muFinal > 2) {
+    warnings.push(
+      `mu = ${muFinal} con muros de fábrica: la ductilidad del art. 3.7.3.1 exige el detalle `
+        + 'constructivo del cap. 4, que la fábrica no tiene. Revisa el valor.',
+    );
+  }
 
   // ── Direcciones: sólo L y B. Los planos resistentes son de solo lectura. ────
   for (const eje of ['x', 'y'] as const) {
@@ -734,16 +755,43 @@ function emplazamientoContext(c: SeismicState): unknown {
   };
 }
 
-/** Declaraciones del proyectista — de solo lectura, y con su estado real. */
+/**
+ * Declaraciones del proyectista — de solo lectura, y con su estado real.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * UNA DECLARACIÓN DE PLANTILLA NO ES UNA DECLARACIÓN
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El caso de arranque trae cuatro de las cinco en `true`, y el snapshot las
+ * servía como «sí» a secas. El asistente afirmaba entonces que los requisitos
+ * (3) a (6) estaban declarados sobre casillas que nadie había tocado — que es
+ * exactamente el fallo que el módulo entero existe para evitar, y encima con la
+ * herramienta de por medio dándolo por bueno. Las plantas ya llevaban su
+ * `plantas_por_defecto` precisamente por esto; esto es lo mismo, por campo.
+ */
 function declaracionesContext(c: SeismicState): unknown {
-  const tri = (v: boolean | null) => (v === null ? 'SIN DECLARAR' : v ? 'sí' : 'no');
+  const campo = (
+    v: boolean | null,
+    porDefecto: boolean | null,
+  ): string => {
+    if (v === null) return 'SIN DECLARAR';
+    const dicho = v ? 'sí' : 'no';
+    return v === porDefecto
+      ? `${dicho} · VALOR DE LA PLANTILLA, nadie lo ha tocado`
+      : dicho;
+  };
+  const d = SEISMIC_DEFAULTS;
   return {
-    porticos_bien_arriostrados_art_1_2_3: tri(c.porticosBienArriostrados),
-    regularidad_geometrica_req_3: tri(c.regularidadGeometrica),
-    soportes_continuos_req_4: tri(c.soportesContinuos),
-    regularidad_mecanica_req_5: tri(c.regularidadMecanica),
-    excentricidad_declarada_req_6: tri(c.excentricidadDeclarada),
-    nota: 'Las firma el proyectista en el panel. NO son campos de tu propuesta.',
+    porticos_bien_arriostrados_art_1_2_3: campo(
+      c.porticosBienArriostrados,
+      d.porticosBienArriostrados,
+    ),
+    regularidad_geometrica_req_3: campo(c.regularidadGeometrica, d.regularidadGeometrica),
+    soportes_continuos_req_4: campo(c.soportesContinuos, d.soportesContinuos),
+    regularidad_mecanica_req_5: campo(c.regularidadMecanica, d.regularidadMecanica),
+    excentricidad_declarada_req_6: campo(c.excentricidadDeclarada, d.excentricidadDeclarada),
+    nota:
+      'Las firma el proyectista en el panel. NO son campos de tu propuesta. Una marcada '
+      + 'como VALOR DE LA PLANTILLA no la ha declarado nadie: no la des por buena y pregunta.',
   };
 }
 

@@ -1,0 +1,36 @@
+# Finales de línea: LF en el repositorio Y en el árbol de trabajo.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# POR QUÉ ESTO NO ES COSMÉTICA
+# ─────────────────────────────────────────────────────────────────────────────
+# Git for Windows trae `core.autocrlf=true` por defecto, así que materializa los
+# ficheros con CRLF aunque el repositorio los guarde con LF. Aquí eso rompe DOS
+# cosas, y las dos en silencio hasta que uno mira de cerca:
+#
+#   1. `ncse02.hazard.json` lleva su sha256 en el manifiesto de al lado, y un
+#      test comprueba que ese hash sea el del fichero que hay EN DISCO — es la
+#      prueba de que el dataset del Anejo 1 no se ha tocado a mano desde que lo
+#      cosechó el harvester. Con CRLF el contenido es el mismo pero los bytes no,
+#      así que el hash deja de cuadrar.
+#   2. Los `.mjs` de `scripts/` los carga `harvestIgnHazard.golden.test.ts` a
+#      través del transformador de Vite, que con CRLF falla con un
+#      «SyntaxError: Invalid or unexpected token» sin fichero ni línea. Se caen
+#      los 23 tests del golden del harvester.
+#
+# Y como el hook de pre-commit ejecuta la suite entera, un clon nuevo hecho en
+# Windows no puede hacer ni un commit hasta averiguar por qué. En CI (Linux) no
+# pasa nada de esto, así que el fallo no se ve donde se mira.
+#
+# `text=auto eol=lf` no cambia nada de lo ya almacenado —el repositorio ya
+# guarda LF—: fija que la copia de trabajo también lo use, en cualquier sistema.
+* text=auto eol=lf
+
+# Explícitos, por si alguien afloja la regla de arriba: estos dos no admiten
+# discusión, porque su contenido byte a byte está bajo hash.
+src/features/seismic-ncse02/ncse02.hazard.json text eol=lf
+src/features/seismic-ncse02/ncse02.hazard.manifest.json text eol=lf
+
+# Binarios: sin conversión ni diff de texto.
+*.png binary
+*.jpg binary
+*.woff2 binary
