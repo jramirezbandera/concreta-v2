@@ -17,6 +17,7 @@ import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
+import { ToastContainer } from '../../components/ui/Toast';
 
 import { SeismicNCSE02Module } from '../../features/seismic-ncse02';
 import { moduleRegistry } from '../../data/moduleRegistry';
@@ -34,6 +35,9 @@ function montar() {
       <ThemeProvider>
         <UnitSystemProvider>
           <SeismicNCSE02Module />
+          {/* El aviso de «no se puede exportar» viaja por showToast, que
+              necesita un contenedor montado para llegar al DOM. */}
+          <ToastContainer />
         </UnitSystemProvider>
       </ThemeProvider>
     </MemoryRouter>,
@@ -182,6 +186,53 @@ describe('persistencia y enlace', () => {
     fireEvent.click(await screen.findByText('Copiar enlace'));
     await waitFor(() => expect(escribir).toHaveBeenCalled());
     expect(String(escribir.mock.calls[0][0])).toContain('?model=');
+  });
+});
+
+describe('exportación a PDF', () => {
+  it('el botón está en la barra y abre el modal de título', async () => {
+    montar();
+    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo.getAttribute('aria-labelledby')).toBe('title-prompt-heading');
+    // La vista previa del nombre sale del MISMO fallback que usa el
+    // exportador: si se separasen, el usuario vería un nombre y descargaría
+    // otro.
+    expect(dialogo.textContent).toMatch(/sismo-ncse02-granada-\d{4}-\d{2}-\d{2}\.pdf/);
+  });
+
+  it('con un requisito sin declarar NO abre el modal, y dice por qué', async () => {
+    montar();
+    fireEvent.click(screen.getByText('Declaraciones'));
+    const fila = screen.getByText('Regularidad geométrica').closest('div.flex.items-start');
+    fireEvent.click(within(fila as HTMLElement).getByText('—'));
+
+    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+
+    // Un PDF con la puerta sin resolver parecería una justificación sin serlo.
+    await waitFor(() => {
+      expect(screen.getByText(/Quedan sin declarar los requisitos/)).toBeTruthy();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('un caso EXENTO sí exporta: ese papel es el que se adjunta a la memoria', async () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Importancia'), { target: { value: 'moderada' } });
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('no es de aplicación obligatoria');
+    });
+    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+  });
+
+  it('monta los clones fuera de pantalla que el exportador rasteriza', () => {
+    montar();
+    for (const id of ['seismic-espectro-svg-pdf', 'seismic-alzado-x-svg-pdf', 'seismic-alzado-y-svg-pdf']) {
+      const nodo = document.getElementById(id);
+      expect(nodo, `falta el clon ${id}: el PDF saldría sin esa figura`).toBeTruthy();
+      expect(nodo!.querySelector('svg')).toBeTruthy();
+    }
   });
 });
 

@@ -52,6 +52,10 @@ export function pdfStr(s: string): string {
     .replace(/Φ/g, 'Phi')
     .replace(/Σ/g, 'Sum')
     .replace(/Δ/g, 'Delta')
+    // Ω: amortiguamiento en % de la NCSE-02 (art. 2.5). Sin este mapeo caía en
+    // el catch-all y el PDF de sismo imprimía «? = 5,0 %» — un dato normativo
+    // convertido en interrogante, que es peor que no imprimirlo.
+    .replace(/Ω/g, 'Omega')
     // Greek lowercase — lambda-bar (λ + combining macron) before plain λ
     .replace(/λ̄/g, 'lam')
     .replace(/λ/g, 'lam')

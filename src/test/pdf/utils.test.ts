@@ -70,10 +70,13 @@ describe('pdfStr', () => {
     expect(pdfStr('a ≈ b, c ≠ d')).toBe('a ~= b, c != d');
   });
 
-  it('replaces uppercase Greek letters Φ/Σ/Δ (used in formulas)', () => {
+  it('replaces uppercase Greek letters Φ/Σ/Δ/Ω (used in formulas)', () => {
     expect(pdfStr('Φ = 0.66')).toBe('Phi = 0.66');
     expect(pdfStr('Σ Fi')).toBe('Sum Fi');
     expect(pdfStr('Δh = 5 mm')).toBe('Deltah = 5 mm');
+    // Ω es el amortiguamiento en % del art. 2.5 de la NCSE-02. Sin mapeo caía
+    // en el catch-all y el PDF de sismo escribía «? = 5,0 %».
+    expect(pdfStr('Ω = 5 %')).toBe('Omega = 5 %');
   });
 
   it('does not double-replace when uppercase precedes lowercase', () => {

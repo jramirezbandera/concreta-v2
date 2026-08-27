@@ -50,6 +50,16 @@ import type {
 
 // ── Constantes y tablas ──────────────────────────────────────────────────────
 
+/**
+ * Versión del motor de norma. Va impresa en la cabecera y en TODOS los pies del
+ * PDF, junto al hash de los datos de entrada: dos memorias que citen la misma
+ * versión y el mismo hash tienen detrás exactamente el mismo cálculo.
+ *
+ * Sube cuando cambie un número que salga en un PDF ya emitido — no por refactor
+ * ni por texto. El valor es la promesa que se le hace a quien lo revise.
+ */
+export const NCSE02_ENGINE_VERSION = "1.0.0";
+
 /** Art. 2.4. Coeficiente del terreno por tipo. */
 export const COEF_TERRENO: Record<TipoTerreno, number> = {
   I: 1.0,

@@ -95,6 +95,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'FEM 1D — Concreta',
     description: 'Análisis FEM 1D real — viga continua y ménsula con comprobación HA + Acero según normativa española.',
   },
+  '/analisis/sismo': {
+    title: 'Acción sísmica — Concreta · NCSE-02',
+    description: 'Acción sísmica por el método simplificado de la NCSE-02: obligatoriedad (art. 1.2.3), ámbito del art. 3.5.1, espectro, fuerzas por planta y reparto con torsión.',
+  },
   '/geotec/taludes': {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',

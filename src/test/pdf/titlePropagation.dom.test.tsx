@@ -3,7 +3,7 @@
 // Cada módulo expone una `*FallbackFilename()` (fuente única del nombre por
 // defecto, usada por el exportador Y por el preview del TitlePromptModal) y
 // construye el filename con `titledFilename(title, fallback)`. Aquí se verifica,
-// para los 18 módulos, que:
+// para los 19 módulos, que:
 //   · el fallback es un .pdf estable,
 //   · un título con texto SIEMPRE gana (slug .pdf), sin importar el fallback,
 //   · un título vacío / solo-símbolos cae al fallback.
@@ -31,13 +31,15 @@ import { compositeSectionFallbackFilename } from '../../lib/pdf/compositeSection
 import { masonryWallsFallbackFilename } from '../../lib/pdf/masonryWalls';
 import { slopeStabilityFallbackFilename } from '../../lib/pdf/slopeStability';
 import { femAnalysisFallbackFilename } from '../../lib/pdf/femAnalysis';
+import { seismicNCSE02FallbackFilename } from '../../lib/pdf/seismicNCSE02';
 
 import { rcBeamDefaults, rcColumnDefaults, pileCapDefaults, anchorPlateDefaults, steelColumnDefaults } from '../../data/defaults';
 import { calcRCColumn } from '../../lib/calculations/rcColumns';
 import { exportRCColumnsPDF } from '../../lib/pdf/rcColumns';
 
-// (módulo, fallback) para los 18 módulos. Los que dependen de inputs usan sus
-// defaults; forjados depende del `result.variant`.
+// (módulo, fallback) para los 19 módulos. Los que dependen de inputs usan sus
+// defaults; forjados depende del `result.variant`, y sismo del municipio (se
+// pasa sin estado: el fallback sin sitio sigue siendo un .pdf válido).
 const FALLBACKS: Array<[string, string]> = [
   ['rc-beams', rcBeamsFallbackFilename(rcBeamDefaults)],
   ['rc-columns', rcColumnsFallbackFilename()],
@@ -57,11 +59,12 @@ const FALLBACKS: Array<[string, string]> = [
   ['masonry', masonryWallsFallbackFilename()],
   ['slope', slopeStabilityFallbackFilename()],
   ['fem', femAnalysisFallbackFilename()],
+  ['seismic-ncse02', seismicNCSE02FallbackFilename()],
 ];
 
 describe('propagación título PDF — fallback filenames por módulo', () => {
-  it('los 18 módulos exponen un fallback .pdf estable', () => {
-    expect(FALLBACKS).toHaveLength(18);
+  it('los 19 módulos exponen un fallback .pdf estable', () => {
+    expect(FALLBACKS).toHaveLength(19);
     for (const [, fb] of FALLBACKS) {
       expect(fb).toMatch(/\.pdf$/);
       expect(fb.length).toBeGreaterThan(4);

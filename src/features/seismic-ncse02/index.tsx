@@ -9,9 +9,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { showToast } from '../../components/ui/Toast';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDocTitle } from '../../hooks/useDocTitle';
+import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import {
+  exportSeismicNCSE02PDF,
+  seismicNCSE02FallbackFilename,
+  seismicPdfBlocker,
+} from '../../lib/pdf/seismicNCSE02';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { SeismicInputs } from './SeismicInputs';
 import { SeismicResults } from './SeismicResults';
@@ -57,7 +65,10 @@ export function SeismicNCSE02Module() {
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [ejeDibujo, setEjeDibujo] = useState<'x' | 'y'>('x');
 
-  useDocTitle('Acción sísmica NCSE-02');
+  // Nombre del elemento para el PDF. Vive FUERA del estado del edificio: si
+  // estuviera dentro, teclearlo recalcularía la evaluación en cada pulsación y
+  // contaminaría el hash de procedencia que va impreso en el documento.
+  const [docTitle, setDocTitle] = useDocTitle('concreta-seismic-title');
 
   useEffect(() => {
     if (!enlaceCorrupto) return;
@@ -79,6 +90,28 @@ export function SeismicNCSE02Module() {
 
   const evaluacion = useMemo(() => evaluarSismo(state), [state]);
 
+  // El botón NO se deshabilita por «no hay resultado»: un caso exento produce
+  // un documento completo y valioso —la justificación de que la Norma no rige—
+  // y negárselo al usuario sería el error opuesto al que se quiere evitar. Sólo
+  // se bloquea con la puerta SIN resolver, y `seismicPdfBlocker` es la única
+  // regla: el mismo texto que avisa es el que decide.
+  const bloqueoPdf = seismicPdfBlocker(evaluacion);
+  const {
+    pdfExporting,
+    pdfPreview,
+    handleDownloadPdf,
+    closePdfPreview,
+    titleOpen,
+    openExport,
+    confirmTitle,
+    closeTitle,
+  } = useTitledPdfExport({
+    exportFn: (title) => exportSeismicNCSE02PDF({ state, evaluacion, title }),
+    valid: !bloqueoPdf,
+    onTitleChange: setDocTitle,
+    ...(bloqueoPdf ? { invalidMessage: bloqueoPdf } : {}),
+  });
+
   const [lienzoRef, anchoLienzo] = useContainerWidth();
   const anchoSvg = anchoLienzo && anchoLienzo > 0 ? Math.max(220, Math.min(520, anchoLienzo - 32)) : 360;
 
@@ -98,6 +131,8 @@ export function SeismicNCSE02Module() {
         moduleGroup="NCSE-02"
         onMenuOpen={openDrawer}
         onCopyLink={copiarEnlace}
+        onExportPdf={openExport}
+        pdfExporting={pdfExporting}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -166,6 +201,45 @@ export function SeismicNCSE02Module() {
           </div>
         </div>
       </div>
+
+      {/*
+        Clones fuera de pantalla para el PDF. Van con medidas FIJAS y no con el
+        ancho del contenedor: la figura del documento tiene que salir igual en
+        un portátil y en un monitor de 32", y el exportador las busca por id.
+        `AlzadoSVG` devuelve null sin resultado — el caso exento simplemente no
+        lleva figuras, y el exportador lo tolera.
+      */}
+      <div className="overflow-hidden w-0 h-0" aria-hidden="true">
+        <div id="seismic-espectro-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <EspectroSVG evaluacion={evaluacion} width={680} />
+        </div>
+        <div id="seismic-alzado-x-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <AlzadoSVG evaluacion={evaluacion} eje="x" width={520} />
+        </div>
+        <div id="seismic-alzado-y-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <AlzadoSVG evaluacion={evaluacion} eje="y" width={520} />
+        </div>
+      </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={docTitle}
+          fallbackFilename={seismicNCSE02FallbackFilename(state)}
+          exporting={pdfExporting}
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          blobUrl={pdfPreview.blobUrl}
+          filename={pdfPreview.filename}
+          pageCount={pdfPreview.pageCount}
+          onDownload={handleDownloadPdf}
+          onClose={closePdfPreview}
+        />
+      )}
     </div>
   );
 }

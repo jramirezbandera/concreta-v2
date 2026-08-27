@@ -54,6 +54,8 @@ import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { solveDesignModel } from '../../features/fem-analysis/solveDesignModel';
 import { exportFem2DPDF } from '../../lib/pdf/fem2d';
+import { exportSeismicNCSE02PDF } from '../../lib/pdf/seismicNCSE02';
+import { defaultSeismicState, evaluarSismo, newId, type SeismicState } from '../../features/seismic-ncse02/state';
 import { fem2dUiDefaults, buildModelFromState } from '../../features/fem2d/uiState';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import { setMemberMaterial } from '../../features/fem2d/modelOps';
@@ -317,4 +319,43 @@ export const PDF_CASES: PdfCase[] = [
       return exportFem2DPDF(model, analyzeFem2D(model), 'si', T);
     },
   },
+
+  // ── Sismo NCSE-02 ──────────────────────────────────────────────────────────
+  //
+  // Cuatro casos porque el módulo emite CUATRO documentos distintos, no cuatro
+  // variantes del mismo: el completo, el de exención (sin cadena de fuerzas), el
+  // de «la Norma rige pero el método simplificado no sirve» (sin números) y el
+  // de reparto en forma larga. Registrar sólo el completo dejaría tres
+  // maquetaciones enteras sin auditar — y la de exención es justamente la que
+  // más se va a imprimir.
+  //
+  // `stressable: false`: el módulo no expone `result.checks` (su «estado» son
+  // las dos puertas normativas), así que allWarn/allFail no tienen dónde morder.
+  { m: 20, name: 'seismic-ncse02 (Granada, completo)', stressable: false,
+    run: () => seismicPdf(defaultSeismicState()) },
+
+  { m: 20, name: 'seismic-ncse02 (exento por importancia moderada)', stressable: false,
+    run: () => seismicPdf({ ...defaultSeismicState(), importancia: 'moderada' }) },
+
+  // H = 80 m incumple el requisito (2) del art. 3.5.1 → la Norma rige, el método
+  // simplificado no, y el documento sale sin cadena de fuerzas.
+  { m: 20, name: 'seismic-ncse02 (metodo simplificado no aplicable)', stressable: false,
+    run: () => seismicPdf({ ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 }) },
+
+  // Diez planos resistentes: la matriz f_kj no cabe a lo ancho y el exportador
+  // cae a la forma larga. Es otra tabla, y sin este caso nunca se mediría.
+  { m: 20, name: 'seismic-ncse02 (reparto en forma larga, 10 planos)', stressable: false,
+    run: () => {
+      const base = defaultSeismicState();
+      const elementos = Array.from({ length: 10 }, (_, j) => ({
+        id: newId(), x: -10 + j * (20 / 9), k: 1 + j * 0.1,
+      }));
+      return seismicPdf({ ...base, x: { ...base.x, elementos } });
+    },
+  },
 ];
+
+/** Ceba el exportador de sismo desde un estado: evalúa y exporta con título. */
+function seismicPdf(state: SeismicState) {
+  return exportSeismicNCSE02PDF({ state, evaluacion: evaluarSismo(state), title: T });
+}
