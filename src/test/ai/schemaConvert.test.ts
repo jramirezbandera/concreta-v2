@@ -13,6 +13,7 @@ import { isolatedFootingAdapter } from '../../lib/ai/modules/isolatedFooting';
 import { masonryWallsAdapter } from '../../lib/ai/modules/masonryWalls';
 import { punchingAdapter } from '../../lib/ai/modules/punching';
 import { timberBeamsAdapter } from '../../lib/ai/modules/timberBeams';
+import { seismicNCSE02Adapter } from '../../lib/ai/modules/seismicNCSE02';
 
 /**
  * Envelope de chat transcrito del contrato `buildChatSchema` del plan.
@@ -367,6 +368,16 @@ describe('límite de uniones de Anthropic', () => {
     expect(exceedsAnthropicUnionLimit(buildChatSchema(steelBeamsAdapter.payloadSchema))).toBe(false);
     expect(countAnthropicUnions(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(16);
     expect(exceedsAnthropicUnionLimit(buildChatSchema(masonryWallsAdapter.payloadSchema))).toBe(false);
+  });
+
+  // Sismo NCSE-02 es el payload más pequeño del catálogo, y no por casualidad:
+  // fuera quedaron la peligrosidad del sitio (la trae el IGN), las cinco
+  // declaraciones del proyectista y el T_F impuesto. El margen hasta 16 es real
+  // — si alguien mete tres campos anulables más, el módulo sale de Anthropic.
+  it('sismo NCSE-02: 12 escalares + proposal = 13, con margen', () => {
+    const envelope = buildChatSchema(seismicNCSE02Adapter.payloadSchema);
+    expect(countAnthropicUnions(envelope)).toBe(13);
+    expect(exceedsAnthropicUnionLimit(envelope)).toBe(false);
   });
 
   // Vigas de madera cabía justo en 16 y hubo que meterle la carga puntual. La

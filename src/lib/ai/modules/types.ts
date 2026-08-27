@@ -37,7 +37,13 @@ export type AiModuleId =
   // Ola 6 — topología LIBRE 2D (pórticos y cerchas): el payload es la
   // proyección plana del Fem2DModel completo con referencias por índice
   // 1-based; cargas en componentes CON SIGNO y cross-check con el solver real
-  | 'fem-2d';
+  | 'fem-2d'
+  // Ola 7 — NORMA con puertas de aplicabilidad. El payload es el subconjunto
+  // más reducido de todos los adapters a propósito: quedan FUERA la
+  // peligrosidad del emplazamiento (sale del IGN, no de la memoria del
+  // modelo), las declaraciones del proyectista (las firma él) y el T_F
+  // impuesto del art. 3.6.2.3.2. Ver la cabecera de `seismicNCSE02.ts`.
+  | 'seismic-ncse02';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)

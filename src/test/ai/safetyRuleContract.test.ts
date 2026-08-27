@@ -1,4 +1,4 @@
-// Contrato de las TABLAS DE SEGURIDAD de los 17 adapters (auditoría 2026-07-14).
+// Contrato de las TABLAS DE SEGURIDAD de los 20 adapters (auditoría 2026-07-14).
 //
 // El gate anti-ruido de safety.ts levanta la protección de un campo cuando el
 // hilo ya lo trató, y busca la clave en el espacio del PAYLOAD (`t_cm`), no del
@@ -9,7 +9,7 @@
 // real del usuario coincidiendo con el default de fábrica.
 //
 // Ningún test unitario del mapper lo vería (el riesgo simplemente no sale), así
-// que la invariante se asserta aquí, sobre los 17 adapters a la vez:
+// que la invariante se asserta aquí, sobre los 20 adapters a la vez:
 //
 //   toda regla: (confirmKey ?? field) ∈ payloadSchema.properties
 //
@@ -62,8 +62,11 @@ import {
   NUDOS_ELEMENT_RULES, NUDOS_RISK_CTX, BARRAS_ELEMENT_RULES, BARRAS_RISK_CTX,
   CARGAS2D_ELEMENT_RULES, CARGAS2D_RISK_CTX,
 } from '../../lib/ai/modules/fem2d';
+import {
+  seismicNCSE02Adapter, SEISMIC_SAFETY_RULES, SEISMIC_RESOLVED_RULES,
+} from '../../lib/ai/modules/seismicNCSE02';
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 17 TInputs distintos */
+/* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 20 TInputs distintos */
 
 interface Entry {
   adapter: AiModuleAdapter<any>;
@@ -123,6 +126,11 @@ const ENTRIES: readonly Entry[] = [
       { ctx: CARGAS2D_RISK_CTX, rules: CARGAS2D_ELEMENT_RULES },
     ],
   },
+  {
+    adapter: seismicNCSE02Adapter,
+    rules: SEISMIC_SAFETY_RULES,
+    resolved: SEISMIC_RESOLVED_RULES,
+  },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -130,10 +138,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 19 adapters están en el contrato', () => {
+describe('los 20 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(19);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(19);
+    expect(ENTRIES).toHaveLength(20);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(20);
   });
 });
 

@@ -18,6 +18,7 @@ import { MemoryRouter } from 'react-router';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { ToastContainer } from '../../components/ui/Toast';
+import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 
 import { SeismicNCSE02Module } from '../../features/seismic-ncse02';
 import { moduleRegistry } from '../../data/moduleRegistry';
@@ -34,7 +35,10 @@ function montar() {
     <MemoryRouter initialEntries={['/analisis/sismo']}>
       <ThemeProvider>
         <UnitSystemProvider>
-          <SeismicNCSE02Module />
+          {/* El chat del asistente lee sus ajustes del contexto. */}
+          <AiSettingsProvider>
+            <SeismicNCSE02Module />
+          </AiSettingsProvider>
           {/* El aviso de «no se puede exportar» viaja por showToast, que
               necesita un contenedor montado para llegar al DOM. */}
           <ToastContainer />
@@ -233,6 +237,22 @@ describe('exportación a PDF', () => {
       expect(nodo, `falta el clon ${id}: el PDF saldría sin esa figura`).toBeTruthy();
       expect(nodo!.querySelector('svg')).toBeTruthy();
     }
+  });
+});
+
+describe('asistente IA', () => {
+  it('el botón está en la barra y abre el chat del módulo de sismo', async () => {
+    montar();
+    fireEvent.click(screen.getAllByLabelText('Abrir asistente IA')[0]);
+    const chat = await screen.findByRole('dialog');
+    expect(chat.textContent).toContain('Acción sísmica NCSE-02');
+  });
+
+  it('el placeholder del chat es un enunciado de sismo, no de otro módulo', async () => {
+    montar();
+    fireEvent.click(screen.getAllByLabelText('Abrir asistente IA')[0]);
+    await screen.findByRole('dialog');
+    expect(document.body.textContent).toMatch(/plantas/i);
   });
 });
 

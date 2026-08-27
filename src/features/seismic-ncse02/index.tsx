@@ -9,12 +9,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { showToast } from '../../components/ui/Toast';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import {
+  seismicNCSE02Adapter,
+  summarizeSeismicResults,
+} from '../../lib/ai/modules/seismicNCSE02';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import {
   exportSeismicNCSE02PDF,
   seismicNCSE02FallbackFilename,
@@ -112,6 +118,25 @@ export function SeismicNCSE02Module() {
     ...(bloqueoPdf ? { invalidMessage: bloqueoPdf } : {}),
   });
 
+  // ── Asistente ──────────────────────────────────────────────────────────────
+  // El adapter sólo escribe ESCALARES globales, así que un `spread` basta: las
+  // plantas, los estratos y los planos resistentes viajan de solo lectura y el
+  // plan nunca los toca. Las direcciones sí se reemplazan enteras (L y B), pero
+  // el propio plan las reconstruye a partir de la vigente.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeSeismicResults(evaluacion), [evaluacion]);
+
+  const handleAiApply = (plan: AiApplyPlan<SeismicState>) => {
+    setState((s) => ({ ...s, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} campo${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+        + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
+
   const [lienzoRef, anchoLienzo] = useContainerWidth();
   const anchoSvg = anchoLienzo && anchoLienzo > 0 ? Math.max(220, Math.min(520, anchoLienzo - 32)) : 360;
 
@@ -133,6 +158,7 @@ export function SeismicNCSE02Module() {
         onCopyLink={copiarEnlace}
         onExportPdf={openExport}
         pdfExporting={pdfExporting}
+        onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -220,6 +246,16 @@ export function SeismicNCSE02Module() {
           <AlzadoSVG evaluacion={evaluacion} eje="y" width={520} />
         </div>
       </div>
+
+      {aiOpen && (
+        <AiChatModal
+          adapter={seismicNCSE02Adapter}
+          current={state}
+          results={aiResults}
+          onApply={handleAiApply}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {titleOpen && (
         <TitlePromptModal
