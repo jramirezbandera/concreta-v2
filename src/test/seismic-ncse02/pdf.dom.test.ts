@@ -553,3 +553,53 @@ describe('el documento se puede rehacer con sus propios numeros', () => {
     expect(texto).toContain('312,5 m²');
   });
 });
+
+describe('la puerta vive en el exportador, no solo en el boton', () => {
+  it('con un requisito sin declarar se niega a generar', async () => {
+    // B5. `seismicPdfBlocker` alimentaba el `valid` del boton y nada mas: la
+    // regla vivia en el llamador. Cualquier otra via —un atajo, una prueba, un
+    // modulo que reutilice el exportador— producia un documento con la puerta
+    // sin resolver, que es justo lo que la funcion existe para impedir.
+    const s = { ...defaultSeismicState(), regularidadGeometrica: null };
+    await expect(
+      exportSeismicNCSE02PDF({ state: s, evaluacion: evaluarSismo(s), title: 'X' }),
+    ).rejects.toThrow(/sin declarar/i);
+  });
+
+  it('y el mensaje del error es EL MISMO que el del aviso', async () => {
+    const s = { ...defaultSeismicState(), regularidadGeometrica: null };
+    const ev = evaluarSismo(s);
+    await expect(
+      exportSeismicNCSE02PDF({ state: s, evaluacion: ev, title: 'X' }),
+    ).rejects.toThrow(seismicPdfBlocker(ev)!);
+  });
+});
+
+describe('la huella identifica el caso, no la sesion', () => {
+  it('dos casos identicos con ids distintos dan la MISMA huella', async () => {
+    // B6. Los `id` de planta y de plano los genera `newId()` en cada sesion, y
+    // entraban en el hash: el mismo edificio reconstruido —o el mismo enlace
+    // abierto dos veces— daba huellas distintas, con lo que la pregunta que la
+    // huella responde («¿es este el mismo caso que exporte?») era siempre no.
+    const a = defaultSeismicState();
+    const b: SeismicState = {
+      ...a,
+      plantas: a.plantas.map((p) => ({ ...p, id: newId() })),
+      x: { ...a.x, elementos: a.x.elementos.map((e) => ({ ...e, id: newId() })) },
+      y: { ...a.y, elementos: a.y.elementos.map((e) => ({ ...e, id: newId() })) },
+    };
+    const huella = (t: string) => /Inputs ([0-9a-f]{8})/.exec(t)?.[1];
+
+    const ha = huella((await exportar(a)).texto);
+    const hb = huella((await exportar(b)).texto);
+    expect(ha).toBeTruthy();
+    expect(hb).toBe(ha);
+  });
+
+  it('pero un dato distinto SI cambia la huella', async () => {
+    const huella = (t: string) => /Inputs ([0-9a-f]{8})/.exec(t)?.[1];
+    const ha = huella((await exportar(defaultSeismicState())).texto);
+    const hb = huella((await exportar({ ...defaultSeismicState(), H: 31 })).texto);
+    expect(hb).not.toBe(ha);
+  });
+});

@@ -23,6 +23,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { FRACCION_MASA } from '../../lib/codes/seismic/ncse02';
+import { dec, textoEditable } from './formato';
 import type {
   CategoriaMasa,
   Importancia,
@@ -118,13 +119,13 @@ const dentro = (n: number, { min, max }: Rango) =>
  *     mientras el cálculo seguía con el anterior.
  */
 function useCampoNumerico(value: number, onChange: (v: number) => void, rango: Rango = {}) {
-  const [txt, setTxt] = useState(() => String(value));
+  const [txt, setTxt] = useState(() => textoEditable(value));
   const [previo, setPrevio] = useState(value);
   if (previo !== value) {
     setPrevio(value);
     // Si el texto en pantalla ya representa ese número no se toca: así "0,05"
     // sobrevive a su propio commit en vez de reescribirse como "0.05".
-    if (parsearDecimal(txt) !== value) setTxt(String(value));
+    if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
   }
   return {
     value: txt,
@@ -134,7 +135,7 @@ function useCampoNumerico(value: number, onChange: (v: number) => void, rango: R
       if (n !== null && dentro(n, rango)) onChange(n);
     },
     onBlur: () => {
-      if (parsearDecimal(txt) !== value) setTxt(String(value));
+      if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
     },
   };
 }
@@ -567,7 +568,7 @@ function BuscadorMunicipio({
           >
             <span className="text-[12px] text-text-primary">{m.nombre}</span>
             <span className="text-[10px] text-text-disabled font-mono float-right">
-              ab {m.ab.toFixed(2)} · K {m.k.toFixed(1)}
+              ab {dec(m.ab, 2)} · K {dec(m.k, 1)}
             </span>
             {/* Ceuta, Melilla y las capitales se llaman como su provincia: repetirlo sobra. */}
             {m.provincia && m.provincia !== m.nombre ? (
@@ -702,11 +703,15 @@ function TablaPlantas({
             </button>
           </div>
 
+          {/* Ninguna de las tres admite negativos: una altura, una superficie
+              y un peso por debajo de cero no son casos límite, son datos rotos
+              que el motor propaga sin quejarse hasta el cortante basal. */}
           <Num
             label="h"
             sub="altura sobre rasante"
             unit="m"
             value={p.h}
+            min={0}
             onChange={(v) => cambiar(p.id, (x) => ({ ...x, h: v }))}
           />
 
@@ -725,6 +730,7 @@ function TablaPlantas({
               sub="peso sísmico"
               unit="kN"
               value={p.P ?? 0}
+              min={0}
               onChange={(v) => cambiar(p.id, (x) => ({ ...x, P: v }))}
             />
           ) : (
@@ -733,6 +739,7 @@ function TablaPlantas({
                 label="Área"
                 unit="m²"
                 value={p.area ?? 0}
+                min={0}
                 onChange={(v) => cambiar(p.id, (x) => ({ ...x, area: v }))}
               />
               {(p.componentes ?? []).map((c, j) => (
@@ -769,7 +776,7 @@ function TablaPlantas({
                     }
                   />
                   <span className="text-[9px] text-text-disabled font-mono w-9 shrink-0">
-                    ×{FRACCION_MASA[c.categoria].toFixed(1)}
+                    ×{dec(FRACCION_MASA[c.categoria], 1)}
                   </span>
                   {/*
                     La exclusión es POR PLANTA y es una decisión declarada: el
@@ -957,7 +964,7 @@ const SISTEMAS: { v: SistemaEstructural; t: string }[] = [
   { v: 'otro', t: 'Otro' },
 ];
 
-const f = (v: number | undefined, d = 2) => (v === undefined ? '—' : v.toFixed(d));
+const f = (v: number | undefined, d = 2) => (v === undefined ? '—' : dec(v, d));
 
 /**
  * Rótulo de procedencia de `ab` y `K` bajo "se deduce". Un municipio segregado

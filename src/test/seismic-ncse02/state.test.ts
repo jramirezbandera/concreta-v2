@@ -414,6 +414,33 @@ describe('n y n total son derivados: no se pueden contradecir', () => {
 });
 
 describe('normalizeSeismicState', () => {
+  it('el conmutador de T_F no puede quedar cruzado entre X e Y', () => {
+    // B2. El panel enseña UN solo conmutador —el de X— y el botón cambia las
+    // dos direcciones a la vez, así que X manual con Y auto no se alcanza
+    // tecleando... pero sí abriendo un enlace, porque cada dirección se
+    // normalizaba por su cuenta. Y una vez dentro no había salida: la pantalla
+    // enseña el modo de X y el botón alterna los dos.
+    const d = defaultSeismicState();
+    const s = normalizeSeismicState({
+      ...d,
+      x: { ...d.x, TFModo: 'manual', TFManual: 1.4 },
+      y: { ...d.y, TFModo: 'auto', TFManual: 0 },
+    });
+    expect(s.y.TFModo).toBe('manual');
+    expect(s.y.TFManual).toBe(1.4);
+  });
+
+  it('y un T_F manual sin valor cae a auto en las dos', () => {
+    const d = defaultSeismicState();
+    const s = normalizeSeismicState({
+      ...d,
+      x: { ...d.x, TFModo: 'manual', TFManual: 0 },
+      y: { ...d.y, TFModo: 'manual', TFManual: 2.2 },
+    });
+    expect(s.x.TFModo).toBe('auto');
+    expect(s.y.TFModo).toBe('auto');
+  });
+
   it('migra un caso guardado con el modelo antiguo de n y nTotal', () => {
     // Los casos archivados llevan `n` y `nTotal` sueltos. La conversion honesta
     // es sotanos = nTotal - plantas.length.

@@ -16,7 +16,10 @@
 // Por eso se pintan las dos y se rotulan las zonas SOBRE la curva. Se descartó
 // un diagrama aparte de "dónde cae tu período": duplicaba esta misma gráfica.
 
+import { useId } from 'react';
+
 import type { SeismicEvaluation } from './state';
+import { dec } from './formato';
 import { elasticSpectrum, staticForceAlpha } from '../../lib/codes/seismic/ncse02';
 
 const EJE = '#2c2c34';
@@ -24,6 +27,8 @@ const TEXTO = '#6b6f79';
 const ACENTO = '#38bdf8';
 const ELASTICO = '#9a9ea7';
 const FUERZA = '#f59e0b';
+/** F_k negativa: el SRSS destruye el signo y el perfil no tiene por qué serlo. */
+const NEGATIVA = '#f59e0b';
 
 // ── Espectro ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +57,15 @@ export function EspectroSVG({
   const hh = h - m.t - m.b;
   if (!(TA > 0) || !(TB > 0) || w <= 0 || hh <= 0) return null;
 
-  const TMax = Math.max(2, TB * 3);
+  const TF = evaluacion.resultado?.[eje].TF;
+  const modos = evaluacion.resultado?.[eje].modos ?? [];
+
+  // El eje llega hasta donde caigan los modos. Con el ancho fijo de antes
+  // —max(2, 3·T_B)— un edificio alto de acero (n = 19 → T_F = 2,09 s) tenía el
+  // modo 1 fuera de la gráfica: el punto que más importa, el único que el
+  // usuario busca ahí, dibujado en ninguna parte.
+  const TModoMax = modos.reduce((a, mo) => Math.max(a, mo.T), 0);
+  const TMax = Math.max(2, TB * 3, TModoMax * 1.15);
   const aMax = 3;
   const px = (T: number) => m.l + (T / TMax) * w;
   const py = (a: number) => m.t + hh - (a / aMax) * hh;
@@ -68,8 +81,6 @@ export function EspectroSVG({
     return d;
   };
 
-  const TF = evaluacion.resultado?.[eje].TF;
-  const modos = evaluacion.resultado?.[eje].modos ?? [];
   const EJE_ROTULO = eje.toUpperCase();
 
   return (
@@ -120,7 +131,7 @@ export function EspectroSVG({
             {v.t}
           </text>
           <text x={px(v.T)} y={h - 5} fontSize={7} fill={TEXTO} textAnchor="middle" fontFamily="monospace">
-            {v.T.toFixed(2)}
+            {dec(v.T, 2)}
           </text>
         </g>
       ))}
@@ -156,7 +167,7 @@ export function EspectroSVG({
       */}
       {TF !== undefined && TF > 0 ? (
         <text x={m.l + 3} y={m.t + 8} fontSize={8} fill={ACENTO} fontFamily="monospace">
-          T_F · {EJE_ROTULO} = {TF.toFixed(2)} s
+          T_F · {EJE_ROTULO} = {dec(TF, 2)} s
         </text>
       ) : null}
     </svg>
@@ -174,6 +185,14 @@ export function AlzadoSVG({
   eje?: 'x' | 'y';
   width?: number;
 }) {
+  // Identificadores propios para los marcadores de punta de flecha. El `id`
+  // fijo de antes salía TRES veces en el mismo documento —la figura de pantalla
+  // y los dos clones que el exportador busca por id—, y `url(#punta)` resuelve
+  // siempre al primero: ids duplicados en el DOM, que además es HTML inválido.
+  const uid = useId().replace(/:/g, '');
+  const puntaPos = `punta-pos-${uid}`;
+  const puntaNeg = `punta-neg-${uid}`;
+
   const r = evaluacion.resultado;
   if (!r || !r.plantas.length) return null;
   const d = r[eje];
@@ -221,9 +240,12 @@ export function AlzadoSVG({
               y1={y}
               x2={negativa ? x0 - largo : x0 + largo}
               y2={y}
-              stroke={negativa ? '#f59e0b' : ACENTO}
+              stroke={negativa ? NEGATIVA : ACENTO}
               strokeWidth={2}
-              markerEnd="url(#punta)"
+              // Cada color con su punta: la flecha ámbar de una F_k negativa
+              // acababa en una punta azul, que sugiere lo contrario de lo que
+              // el color del trazo está diciendo.
+              markerEnd={`url(#${negativa ? puntaNeg : puntaPos})`}
             />
           </g>
         );
@@ -253,15 +275,18 @@ export function AlzadoSVG({
         V_k
       </text>
       <text x={xCortante + anchoCortante} y={h - 14} fontSize={8} fill={TEXTO} textAnchor="end" fontFamily="monospace">
-        {Vmax.toLocaleString('es-ES', { maximumFractionDigits: 0 })} kN
+        {dec(Vmax, 0)} kN
       </text>
       <text x={xAlzado} y={h - 14} fontSize={8} fill={TEXTO} fontFamily="monospace">
         F_k · {eje.toUpperCase()}
       </text>
 
       <defs>
-        <marker id="punta" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <marker id={puntaPos} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 Z" fill={ACENTO} />
+        </marker>
+        <marker id={puntaNeg} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill={NEGATIVA} />
         </marker>
       </defs>
     </svg>

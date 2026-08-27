@@ -187,6 +187,14 @@ async function sondear(lon, lat) {
       });
       const texto = await r.text();
       await esperar(PAUSA_MS);
+      // El status HTTP, antes que el cuerpo. Un 500 o un 429 con un cuerpo que
+      // por casualidad empiece por '{' se colaba como respuesta buena y el
+      // sondeo devolvia cero features: un hueco silencioso en el barrido, que es
+      // exactamente lo que la auditoria de gid existe para detectar DESPUES.
+      // Mejor pararlo aqui, donde ademas entra el reintento con backoff.
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status} ${r.statusText}: ${texto.replace(/\s+/g, ' ').slice(0, 120)}`);
+      }
       if (!texto.trimStart().startsWith('{')) {
         // El servicio devuelve XML de excepcion en texto plano ante un error.
         throw new Error(`respuesta no JSON: ${texto.replace(/\s+/g, ' ').slice(0, 180)}`);
@@ -620,7 +628,14 @@ export function parsearFila(props) {
 
   const ab = Number(String(crudoAb).trim());
   const mk = /^\(?\s*([\d.]+)\s*\)?$/.exec(String(crudoK).trim());
+  // Cota por arriba, no solo por abajo. La NCSE-02 no pasa de 0,24 g en ningun
+  // municipio del Anejo 1; se deja margen hasta 0,50 g para no reventar si el
+  // IGN republica la capa con una revision al alza, pero un 2,3 —un punto
+  // decimal desplazado, o metros por segundo al cuadrado en vez de fraccion de
+  // g— tiene que parar AQUI, junto a su causa, y no tres pasos mas abajo en un
+  // test de dataset que solo dira que el hash no cuadra.
   if (!Number.isFinite(ab) || ab <= 0) throw new Error(`municipio ${ine} con ab ilegible: ${crudoAb}`);
+  if (ab > 0.5) throw new Error(`municipio ${ine} con ab fuera de rango: ${crudoAb} (la NCSE-02 no pasa de 0,24 g)`);
   if (!mk) throw new Error(`municipio ${ine} con K ilegible: ${crudoK}`);
   const k = Number(mk[1]);
   if (!Number.isFinite(k) || k < 1 || k > 2) throw new Error(`municipio ${ine} con K fuera de rango: ${crudoK}`);

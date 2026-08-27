@@ -147,6 +147,22 @@ function findPendingPayload<TInputs>(items: ReadonlyArray<ChatItem<TInputs>>): u
 }
 
 /** Warning sintético cuando buildPlan rechaza la propuesta del modelo. */
+/**
+ * Claves declaradas por el `payloadSchema` del adapter, memoizadas por schema.
+ * Se usan para no devolverle al modelo, como «pendiente de aplicar», una clave
+ * que él mismo se ha inventado (ver `decorateSnapshot`).
+ */
+const cacheClaves = new WeakMap<object, ReadonlySet<string>>();
+function clavesDelSchema(schema: Record<string, unknown>): ReadonlySet<string> | undefined {
+  const cacheada = cacheClaves.get(schema);
+  if (cacheada) return cacheada;
+  const props = schema.properties;
+  if (typeof props !== 'object' || props === null) return undefined;
+  const claves = new Set(Object.keys(props));
+  cacheClaves.set(schema, claves);
+  return claves;
+}
+
 const PROPOSAL_UNREADABLE_WARNING = 'La propuesta del modelo no se pudo interpretar.';
 
 /** Primer mensaje user del camino guiado: el asistente conduce la entrevista. */
@@ -422,6 +438,9 @@ export function AiChatModal<TInputs>({
         pendingItem?.payload ?? null,
         new Set(threadValuesRef.current.keys()),
         pendingItem?.plan?.skipped ?? [],
+        // Las claves que el adapter declara. Lo que el modelo invente fuera de
+        // ellas no vuelve a su contexto como «pendiente de aplicar».
+        clavesDelSchema(adapter.payloadSchema),
       ),
       results.text,
       adapter.resultsRecalc, // undefined ⇒ 'auto' (reglas de siempre)

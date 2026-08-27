@@ -17,10 +17,11 @@ import type {
   Requisito,
 } from '../../lib/codes/seismic/types';
 import type { SeismicEvaluation, SeismicState } from './state';
+import { dec, pct } from './formato';
 
-const n0 = (v: number) => v.toLocaleString('es-ES', { maximumFractionDigits: 0 });
-const n1 = (v: number) => v.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const pct = (v: number) => `${(v * 100).toFixed(1).replace('.', ',')} %`;
+// Una sola convención decimal en todo el módulo: ver `formato.ts`.
+const n0 = (v: number) => dec(v, 0);
+const n1 = (v: number) => dec(v, 1);
 
 const MOTIVOS: Record<string, string> = {
   'importancia-moderada': 'importancia moderada (art. 1.2.2)',
@@ -118,7 +119,7 @@ function Requisitos({ reqs }: { reqs: Requisito[] }) {
 function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
   return (
     <Bloque titulo={`Dirección ${eje}`} ref="art. 3.7.3">
-      <Fila k="T_F" sub={d.TFManual ? 'impuesto' : 'art. 3.7.2.2'} v={`${d.TF.toFixed(3)} s`} />
+      <Fila k="T_F" sub={d.TFManual ? 'impuesto' : 'art. 3.7.2.2'} v={`${dec(d.TF, 3)} s`} />
       <Fila k="Modos" sub="art. 3.7.2.1" v={String(d.nModos)} />
       <Fila k="Cortante basal" v={`${n0(d.cortanteBasal)} kN`} />
       <Fila k="Masa movilizada" sub="Σ participación" v={pct(d.participacionTotal)} />
@@ -176,7 +177,7 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
                         {p.k}·{j + 1}
                       </td>
                       <td className="px-1 py-1 text-right text-text-secondary">{n1(el.x)}</td>
-                      <td className="px-1 py-1 text-right text-text-secondary">{el.gamma.toFixed(3)}</td>
+                      <td className="px-1 py-1 text-right text-text-secondary">{dec(el.gamma, 3)}</td>
                       <td className="px-1 py-1 text-right text-text-primary">{n0(el.f)}</td>
                     </tr>
                   )),
@@ -219,8 +220,8 @@ function Direccionales({ casos }: { casos: CasoDireccional[] }) {
             {casos.map((c) => (
               <tr key={c.id} className="border-t border-border-sub">
                 <td className="px-1 py-1 text-text-secondary">{c.id}</td>
-                <td className="px-1 py-1 text-right text-text-primary">{c.fx.toFixed(2)}</td>
-                <td className="px-1 py-1 text-right text-text-primary">{c.fy.toFixed(2)}</td>
+                <td className="px-1 py-1 text-right text-text-primary">{dec(c.fx, 2)}</td>
+                <td className="px-1 py-1 text-right text-text-primary">{dec(c.fy, 2)}</td>
               </tr>
             ))}
           </tbody>
@@ -317,22 +318,22 @@ export function SeismicResults({
       {/* ── Emplazamiento ─────────────────────────────────────────────────── */}
       <Bloque titulo="Emplazamiento" ref="art. 2.2 · 2.3">
         <Fila k="Municipio" v={state.municipioNombre || 'entrada manual'} />
-        <Fila k="ab" sub="Anejo 1" v={`${e.ab.toFixed(2)} g`} />
-        <Fila k="K" sub="contribución" v={e.K.toFixed(1)} />
-        <Fila k="ρ" sub="riesgo" v={e.rho.toFixed(1)} />
-        <Fila k="C" sub="terreno" v={e.C.toFixed(2)} />
-        <Fila k="S" sub="amplificación" v={e.S.toFixed(4)} />
-        <Fila k="ac" sub="S · ρ · ab" v={`${e.ac.toFixed(4)} g`} />
-        <Fila k="T_A" sub="esquina del espectro elástico" v={`${e.TA.toFixed(3)} s`} />
-        <Fila k="T_B" sub="decide la rama de α" v={`${e.TB.toFixed(3)} s`} />
+        <Fila k="ab" sub="Anejo 1" v={`${dec(e.ab, 2)} g`} />
+        <Fila k="K" sub="contribución" v={dec(e.K, 1)} />
+        <Fila k="ρ" sub="riesgo" v={dec(e.rho, 1)} />
+        <Fila k="C" sub="terreno" v={dec(e.C, 2)} />
+        <Fila k="S" sub="amplificación" v={dec(e.S, 4)} />
+        <Fila k="ac" sub="S · ρ · ab" v={`${dec(e.ac, 4)} g`} />
+        <Fila k="T_A" sub="esquina del espectro elástico" v={`${dec(e.TA, 3)} s`} />
+        <Fila k="T_B" sub="decide la rama de α" v={`${dec(e.TB, 3)} s`} />
       </Bloque>
 
       {r ? (
         <>
           <Bloque titulo="Masa sísmica" ref="art. 3.2">
             <Fila k="Peso sísmico" sub="Σ P_k" v={`${n0(r.pesoSismico)} kN`} />
-            <Fila k="ν" sub="amortiguamiento" v={r.nu.toFixed(3)} />
-            <Fila k="β" sub="ν / μ" v={r.beta.toFixed(3)} />
+            <Fila k="ν" sub="amortiguamiento" v={dec(r.nu, 3)} />
+            <Fila k="β" sub="ν / μ" v={dec(r.beta, 3)} />
           </Bloque>
 
           <Direccion eje="X" d={r.x} />

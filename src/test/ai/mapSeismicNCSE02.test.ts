@@ -499,3 +499,49 @@ describe('resumen para el prompt', () => {
     expect(r.text).toMatch(/análisis modal/);
   });
 });
+
+describe('lo que no aplica tambien se dice', () => {
+  it('los campos que el modelo no saco del enunciado se listan', () => {
+    // B12. Era el unico adapter de los veinte que devolvia notFound vacio: los
+    // campos que el modelo no encuentra desaparecian del bloque «No aplicados»
+    // en vez de decirse.
+    const r = plan(p({ importancia: 'especial' }), D());
+    expect(r.notFound.length).toBeGreaterThan(0);
+    expect(r.notFound.join(' ')).toMatch(/altura/i);
+    // Lo que SI aplico no puede salir tambien como no encontrado.
+    expect(r.notFound.join(' ')).not.toMatch(/Importancia/);
+  });
+
+  it('un campo descartado con motivo NO se lista como no encontrado', () => {
+    // Tiene su propia fila, con la razon. Aparecer en las dos seria contarlo
+    // dos veces y contradecirse.
+    const r = plan(p({ mu: 99 }), D());
+    expect(r.skipped.some((s) => s.field === 'mu')).toBe(true);
+    expect(r.notFound.join(' ')).not.toMatch(/ductilidad/i);
+  });
+});
+
+describe('el espacio de nombres de changes.field', () => {
+  it('es la clave del ESTADO, no la del payload', () => {
+    // B13. `AiFieldChange.field` esta documentado como «clave de TInputs», y
+    // `detectSafetyRisks` empareja cada cambio con su regla por ahi y luego usa
+    // esa clave para leer `fields` y `current`. Con `H_m` en lugar de `H`, una
+    // futura SafetyRule sobre la altura no habria casado nunca: naceria muerta
+    // y en silencio.
+    const r = plan(p({ H_m: 33, omega_pct: 4, mu: 2 }), D());
+    const campos = r.changes.map((c) => c.field);
+    expect(campos).toContain('H');
+    expect(campos).toContain('omega');
+    expect(campos).toContain('mu');
+    expect(campos).not.toContain('H_m');
+    expect(campos).not.toContain('omega_pct');
+  });
+
+  it('y toda clave de un cambio existe de verdad en el estado', () => {
+    const estado = D() as unknown as Record<string, unknown>;
+    const r = plan(p({ importancia: 'especial', H_m: 33, L_x_m: 24 }), D());
+    for (const c of r.changes) {
+      expect(Object.prototype.hasOwnProperty.call(estado, c.field)).toBe(true);
+    }
+  });
+});

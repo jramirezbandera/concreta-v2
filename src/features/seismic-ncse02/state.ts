@@ -611,13 +611,36 @@ export function normalizeSeismicState(x: unknown): SeismicState {
     nModosModo: s.nModosModo === 'manual' ? 'manual' : 'auto',
     nModosManual: num(s.nModosManual, d.nModosManual),
     plantas: plantas.length ? plantas : d.plantas,
-    x: normalizarDireccion(s.x, d.x),
-    y: normalizarDireccion(s.y, d.y),
+    ...conTFAcorde(normalizarDireccion(s.x, d.x), normalizarDireccion(s.y, d.y)),
     porticosBienArriostrados: boolNull(s.porticosBienArriostrados),
     regularidadGeometrica: boolNull(s.regularidadGeometrica),
     soportesContinuos: boolNull(s.soportesContinuos),
     regularidadMecanica: boolNull(s.regularidadMecanica),
     excentricidadDeclarada: boolNull(s.excentricidadDeclarada),
+  };
+}
+
+/**
+ * El conmutador de T_F es UNO para las dos direcciones, y aquí se hace cumplir.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUÉ NO PUEDEN IR POR LIBRE
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El panel enseña un solo conmutador —el de X— y el botón cambia las dos a la
+ * vez, así que el estado con X en manual e Y en auto no se puede alcanzar
+ * tecleando... pero sí abriendo un enlace, porque cada dirección se normalizaba
+ * por su cuenta. Y una vez dentro no había salida: la pantalla enseña el modo
+ * de X, el botón alterna los dos, y las dos se quedan cruzadas para siempre.
+ *
+ * Manda `x`, que es la que se ve. Si X viene en manual con un período válido,
+ * Y adopta el mismo; si no, las dos a auto.
+ */
+function conTFAcorde(x: DireccionUI, y: DireccionUI): { x: DireccionUI; y: DireccionUI } {
+  const modo = x.TFModo === 'manual' && x.TFManual > 0 ? 'manual' : 'auto';
+  const manual = modo === 'manual' ? x.TFManual : 0;
+  return {
+    x: { ...x, TFModo: modo, TFManual: manual },
+    y: { ...y, TFModo: modo, TFManual: manual },
   };
 }
 

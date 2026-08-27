@@ -216,6 +216,23 @@ export function decorateSnapshot(
   pendingPayload: unknown,
   confirmedKeys: ReadonlySet<string>,
   lastPlanSkipped: ReadonlyArray<AiSkippedField> = [],
+  /**
+   * Claves que el schema del adapter declara. Cuando se pasa, lo que el modelo
+   * haya inventado FUERA de ese conjunto no se le devuelve como pendiente.
+   *
+   * ───────────────────────────────────────────────────────────────────────────
+   * NO ES HIGIENE: ES NO REALIMENTAR UNA ALUCINACIÓN
+   * ───────────────────────────────────────────────────────────────────────────
+   * `pendientes_de_aplicar` se construía con TODO lo que trajera el payload. Si
+   * el modelo emitía una clave que el adapter no admite, el turno siguiente se
+   * la encontraba en su propio contexto como si fuera un campo real a medio
+   * aplicar, y con toda la autoridad de venir del sistema. En el módulo de
+   * sismo eso es grave y concreto: `ab` y `K` están fuera del schema a
+   * propósito —el PDF los imprime citando al IGN— y un `ab` inventado
+   * reapareciendo como «pendiente» es la herramienta insistiéndole al modelo en
+   * su propio invento.
+   */
+  knownKeys?: ReadonlySet<string>,
 ): string {
   const rejections = rejectedSkips(lastPlanSkipped);
   const rejectedKeys = new Set(
@@ -227,6 +244,7 @@ export function decorateSnapshot(
   if (typeof pendingPayload === 'object' && pendingPayload !== null && !Array.isArray(pendingPayload)) {
     for (const [key, value] of Object.entries(pendingPayload)) {
       if (META_KEYS.has(key) || rejectedKeys.has(key)) continue;
+      if (knownKeys && !knownKeys.has(key)) continue;
       if (value !== null && value !== undefined) pendientes[key] = value;
     }
   }

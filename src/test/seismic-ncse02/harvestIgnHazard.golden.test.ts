@@ -12,6 +12,9 @@
  * significa "la Norma no te obliga". Un fallo de indexado se disfraza de
  * exencion normativa.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error - script de desarrollo en JS, sin tipos
@@ -19,17 +22,20 @@ import { clavesDe, parsearFila, plegar } from '../../../scripts/harvest-ign-haza
 // @ts-expect-error - script de desarrollo en JS, sin tipos
 import { suplementar } from '../../../scripts/ncse02-suplemento.mjs';
 
-/** Fila tal cual la devuelve el servicio del IGN (verificada el 2026-08-26). */
-const GRANADA = {
-  gid: 1599,
-  ine_mun: '18087',
-  ine_pro: '18',
-  nombre: 'Granada',
-  x: '-33555.46',
-  y: '371039.63',
-  aceleracion: '0.23',
-  coeficient: '(1.0)',
-};
+/**
+ * Fila tal cual la devuelve el servicio del IGN, LEIDA DEL FIXTURE CRUDO.
+ *
+ * El harvester escribe `src/test/fixtures/ign-getfeatureinfo.crudo.json`
+ * diciendo en su codigo que es "para el test del parser", y hasta ahora ningun
+ * test lo abria: el fixture era huerfano y la fila de Granada estaba copiada a
+ * mano aqui. Una copia a mano de la respuesta de un servicio externo envejece
+ * sin avisar — y el dia que el IGN cambie el formato, el test seguiria pasando
+ * contra la copia mientras el harvester real se rompe.
+ */
+const CRUDO = JSON.parse(
+  readFileSync(join('src', 'test', 'fixtures', 'ign-getfeatureinfo.crudo.json'), 'utf8'),
+) as { properties: Record<string, unknown> };
+const GRANADA = CRUDO.properties;
 
 describe('parsearFila', () => {
   it('lee la fila real de Granada', () => {
@@ -219,5 +225,25 @@ describe('suplementar', () => {
     suplementar(entrada);
     expect(entrada.find((f) => f.ine === '11901')?.k).toBe(1.4);
     expect(entrada).toHaveLength(4);
+  });
+});
+
+describe('cotas del parser', () => {
+  it('un ab disparatado para AQUI, no tres pasos mas abajo', () => {
+    // B10. La NCSE-02 no pasa de 0,24 g en ningun municipio. Un 2,3 —un punto
+    // decimal desplazado, o m/s2 en vez de fraccion de g— entraba sin queja y
+    // lo habria delatado, si acaso, un test de dataset diciendo que el hash no
+    // cuadra: lejos de su causa y sin nombrarla.
+    expect(() => parsearFila({ ...GRANADA, aceleracion: '2.3' })).toThrow(/fuera de rango/i);
+    // Y el margen hasta 0,50 g sigue abierto por si el IGN republica al alza.
+    expect(parsearFila({ ...GRANADA, aceleracion: '0.4' }).ab).toBe(0.4);
+  });
+
+  it('el fixture crudo es el que el harvester dice que escribe', () => {
+    // B9. Si el fixture deja de tener la forma que el parser espera, esto salta
+    // aqui en vez de dejar el fichero muerto en el arbol.
+    expect(GRANADA).toHaveProperty('ine_mun');
+    expect(GRANADA).toHaveProperty('aceleracion');
+    expect(GRANADA).toHaveProperty('coeficient');
   });
 });

@@ -262,7 +262,7 @@ describe('buscador de municipios', () => {
     fireEvent.click(opcion);
 
     await waitFor(() => expect(container.textContent).toContain('Melilla'));
-    expect(container.textContent).toContain('0.08 g');
+    expect(container.textContent).toContain('0,08 g');
     // Y el veredicto no puede ser de exención.
     expect(container.textContent).not.toContain('La Norma no es de aplicación obligatoria');
     expect(container.textContent).toContain('La Norma rige');
@@ -278,7 +278,7 @@ describe('buscador de municipios', () => {
     const opcion = await screen.findByText('Fornes', {}, { timeout: 3000 });
     fireEvent.click(opcion);
 
-    await waitFor(() => expect(container.textContent).toContain('0.24 g'));
+    await waitFor(() => expect(container.textContent).toContain('0,24 g'));
     expect(container.textContent).toMatch(/Heredado de Arenas del Rey/i);
     expect(container.textContent).toContain('2018');
   });

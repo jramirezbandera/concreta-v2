@@ -702,8 +702,21 @@ describe("NCSE-02 art. 3.7.5 · torsión", () => {
     expect(gammaTorsion(0, 18)).toBe(1);
   });
 
-  it("no puede pasar de 1,3, porque |x| <= L_e/2", () => {
+  it("vale 1,3 justo en el plano extremo, |x| = L_e/2", () => {
     expect(gammaTorsion(9, 18)).toBeCloseTo(1.3, 12);
+  });
+
+  it("y SÍ pasa de 1,3 cuando el centro de rigidez no está centrado", () => {
+    // El título anterior decía "no puede pasar de 1,3, porque |x| <= L_e/2", y
+    // eso es falso: `x` se mide respecto al CENTRO DE TORSIÓN, no respecto al
+    // punto medio de los planos extremos. Con un reparto asimétrico de
+    // rigideces el centro se desplaza y el plano de un extremo queda a más de
+    // L_e/2. El propio fixture ISA lo enseña: 1,3014.
+    //
+    // Que el invariante fuera falso no era grave por sí solo —el motor calcula
+    // bien—, pero un test que afirma un invariante inexistente es peor que no
+    // tenerlo: invita a "corregir" el motor hacia el tope equivocado.
+    expect(gammaTorsion(9.01, 18)).toBeGreaterThan(1.3);
   });
 
   it("con L_e = 0 no aplica torsión en vez de dividir por cero", () => {

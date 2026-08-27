@@ -492,7 +492,11 @@ function buildSeismicPlan(
   const skipped: AiSkippedField[] = [];
   const warnings: string[] = [...x.warnings];
 
+  /** Claves del payload que el mapper ha llegado a tratar (aplicadas o no). */
+  const tratadas = new Set<PayloadKey>();
+
   function skip(key: PayloadKey, reason: string): void {
+    tratadas.add(key);
     skipped.push({ field: key, label: LABELS[key], reason });
   }
 
@@ -503,6 +507,7 @@ function buildSeismicPlan(
     before: string,
     after: string,
   ): void {
+    tratadas.add(key);
     fields[field] = value;
     changes.push({ field, label: LABELS[key], before, after });
   }
@@ -526,9 +531,20 @@ function buildSeismicPlan(
     else apply(key, field, v as unknown as SeismicState[K], label[vigente], label[v]);
   }
 
-  /** Numérico continuo con rango y formato. */
+  /**
+   * Numérico continuo con rango y formato.
+   *
+   * `campo` es la clave del ESTADO, y no es lo mismo que `key`, que es la del
+   * payload. `AiFieldChange.field` está documentado como «clave de TInputs», y
+   * `detectSafetyRisks` empareja cada cambio con su regla por ahí y luego usa
+   * esa misma clave para leer `fields` y `current`. Aquí se empujaba `key`, así
+   * que una futura SafetyRule sobre `H` o `omega` no habría casado nunca con
+   * los cambios `H_m` y `omega_pct`: nacería muerta, y en silencio, que es la
+   * peor forma de que nazca una regla de seguridad.
+   */
   function applyNumber(
     key: PayloadKey,
+    campo: keyof SeismicState,
     value: number | null,
     min: number,
     max: number,
@@ -547,8 +563,9 @@ function buildSeismicPlan(
       skip(key, ALREADY);
       return;
     }
+    tratadas.add(key);
     escribir(v);
-    changes.push({ field: key, label: LABELS[key], before: fmt(vigente), after: fmt(v) });
+    changes.push({ field: campo, label: LABELS[key], before: fmt(vigente), after: fmt(v) });
   }
 
   /** Entero: se exige entero de verdad, no un 8,4 redondeado en silencio. */
@@ -588,7 +605,7 @@ function buildSeismicPlan(
 
   applyEntero('sotanos', 'sotanos', x.sotanos, 0, 20);
 
-  applyNumber('H_m', x.H_m, 0.1, 500, ' m', current.H, (v) => { fields.H = v; }, (v) => `${v} m`);
+  applyNumber('H_m', 'H', x.H_m, 0.1, 500, ' m', current.H, (v) => { fields.H = v; }, (v) => `${v} m`);
   // ── Los dos factores que rebajan la fuerza, acotados a su catálogo ─────────
   // beta = nu/mu, y los dos suben con el numerador equivocado. Los rangos que
   // había —Omega hasta 30 % (nu ~ 0,49) y mu hasta 6— no salen de ninguna parte
@@ -599,8 +616,8 @@ function buildSeismicPlan(
   // Omega: 2 % es el mínimo tabulado del art. 2.5 (acero soldado) y 10 % deja
   // nu >= 0,76. El tope de 30 % que había daba nu ~ 0,49 —media acción sísmica—
   // por un número que la Norma no contempla en ningún sitio.
-  applyNumber('omega_pct', x.omega_pct, 2, 10, ' %', current.omega, (v) => { fields.omega = v; }, (v) => `${v} %`);
-  applyNumber('mu', x.mu, 1, 4, '', current.mu, (v) => { fields.mu = v; }, (v) => `${v}`);
+  applyNumber('omega_pct', 'omega', x.omega_pct, 2, 10, ' %', current.omega, (v) => { fields.omega = v; }, (v) => `${v} %`);
+  applyNumber('mu', 'mu', x.mu, 1, 4, '', current.mu, (v) => { fields.mu = v; }, (v) => `${v}`);
 
   // La fabrica no tiene ductilidad que declarar. No se bloquea —la Norma no da
   // una tabla cerrada de mu por sistema— pero no puede pasar en silencio.
@@ -621,10 +638,10 @@ function buildSeismicPlan(
     const valL = eje === 'x' ? x.L_x_m : x.L_y_m;
     const valB = eje === 'x' ? x.B_x_m : x.B_y_m;
 
-    applyNumber(keyL, valL, 0.1, 500, ' m', dir.L,
+    applyNumber(keyL, eje, valL, 0.1, 500, ' m', dir.L,
       (v) => { fields[eje] = { ...(fields[eje] ?? dir), L: v }; },
       (v) => `${v} m`);
-    applyNumber(keyB, valB, 0, 500, ' m', dir.B,
+    applyNumber(keyB, eje, valB, 0, 500, ' m', dir.B,
       (v) => { fields[eje] = { ...(fields[eje] ?? dir), B: v }; },
       (v) => `${v} m`);
   }
@@ -635,6 +652,29 @@ function buildSeismicPlan(
   // ningún cálculo lo delatara —T_F subía y la masa se quedaba—, y el
   // asistente sólo podía avisar de un lío que no estaba en su mano arreglar.
 
+  // ── No encontrados ─────────────────────────────────────────────────────────
+  // Este era el único adapter de los veinte que devolvía `notFound` vacío, y el
+  // bloque «No aplicados» de la tarjeta se quedaba corto: los campos que el
+  // modelo no ha sacado del enunciado desaparecían en vez de decirse. Se listan
+  // los que llegan a null sin que el mapper los haya tratado — ni aplicado ni
+  // descartado con motivo, que ésos ya tienen su fila.
+  const recibido: Record<PayloadKey, unknown> = {
+    importancia: x.importancia,
+    terreno_tipo: x.terreno_tipo,
+    sistema: x.sistema,
+    sotanos: x.sotanos,
+    H_m: x.H_m,
+    omega_pct: x.omega_pct,
+    mu: x.mu,
+    L_x_m: x.L_x_m,
+    B_x_m: x.B_x_m,
+    L_y_m: x.L_y_m,
+    B_y_m: x.B_y_m,
+  };
+  const notFound = KEY_ORDER.filter(
+    (key) => recibido[key] === null && !tratadas.has(key),
+  ).map((key) => LABELS[key]);
+
   // ── Riesgos ────────────────────────────────────────────────────────────────
   const final = { ...current, ...fields } as SeismicState;
   const risks: AiSafetyRisk[] = [
@@ -643,7 +683,7 @@ function buildSeismicPlan(
     ...puertaRisks(current, final),
   ];
 
-  return { fields, changes, skipped, notFound: [], warnings, risks };
+  return { fields, changes, skipped, notFound, warnings, risks };
 }
 
 /**

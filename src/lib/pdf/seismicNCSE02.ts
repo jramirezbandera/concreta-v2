@@ -71,6 +71,7 @@ import {
   type SeismicEvaluation,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
+import { dec, decFiel, pct as pctFmt } from '../../features/seismic-ncse02/formato';
 import manifiesto from '../../features/seismic-ncse02/ncse02.hazard.manifest.json';
 
 const M = 20;
@@ -146,41 +147,36 @@ const ESTADO_REQUISITO: Record<string, string> = {
 
 // ── Formato numérico ─────────────────────────────────────────────────────────
 //
-// Coma decimal y punto de millar, como en pantalla. `toLocaleString('es-ES')`
-// NO agrupa los números de cuatro cifras (minimumGroupingDigits = 2): un
-// cortante de 2277 kN sale «2277» y está bien.
+// Coma decimal y punto de millar, como en pantalla — y de la MISMA función que
+// la pantalla (`features/seismic-ncse02/formato.ts`). El papel no puede escribir
+// los números de otra forma que la ventana de la que salen.
+//
+// `decFiel` es la que imprime los decimales que hagan falta para que lo impreso
+// SEA lo usado: ver su comentario. Un documento de justificación que redondea
+// los datos de entrada pero calcula con los originales no se puede comprobar.
 
-const num = (v: number, dec = 0): string =>
-  Number.isFinite(v)
-    ? v.toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec })
-    : '—';
-
-const pct = (v: number, dec = 1): string => `${num(v * 100, dec)} %`;
+const num = dec;
+const pct = pctFmt;
 
 /**
- * Número con los decimales que hagan falta para que lo IMPRESO sea lo USADO.
+ * El caso SIN sus identificadores volátiles, para la huella del encabezado.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * UN DOCUMENTO QUE NO SE PUEDE REHACER CON SUS PROPIOS NÚMEROS NO JUSTIFICA
- * ─────────────────────────────────────────────────────────────────────────────
- * `ab` iba con dos decimales fijos, que es exacto para todo el Anejo 1 —el
- * dataset trae dos— pero no para una entrada manual: un 0,045 salía impreso
- * como «0,05 g» mientras `ac = S·ρ·ab` se calculaba con el 0,045. Quien
- * comprobase la memoria rehaciendo esa multiplicación con los números que tenía
- * delante obtenía otro resultado, y no habría forma de saber cuál de los dos
- * está mal. Lo mismo con el C ponderado de un perfil de estratos, que casi
- * nunca cae en dos decimales.
- *
- * Se empieza por los decimales de siempre y sólo se añaden si redondear ahí
- * pierde información: los casos del Anejo 1 salen exactamente igual que antes.
+ * `id` de planta y de plano resistente los genera `newId()` en cada sesión: no
+ * son datos del edificio y no pueden entrar en un hash que dice si dos
+ * exportaciones son del mismo caso.
  */
-const numFiel = (v: number, dec: number, maxDec = 6): string => {
-  if (!Number.isFinite(v)) return '—';
-  for (let d = dec; d < maxDec; d++) {
-    if (Math.abs(Number(v.toFixed(d)) - v) <= 1e-9) return num(v, d);
-  }
-  return num(v, maxDec);
-};
+function huellaDe(s: SeismicState): unknown {
+  const sinId = <T extends { id: string }>(o: T) => {
+    const { id: _id, ...resto } = o;
+    return resto;
+  };
+  return {
+    ...s,
+    plantas: s.plantas.map(sinId),
+    x: { ...s.x, elementos: s.x.elementos.map(sinId) },
+    y: { ...s.y, elementos: s.y.elementos.map(sinId) },
+  };
+}
 
 // ── Puerta de exportación ────────────────────────────────────────────────────
 
@@ -465,8 +461,8 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
           : `Anejo 1 de la NCSE-02 · ${manifiesto.attribution}, capa ${manifiesto.layer}`;
 
   const filas: FilaParam[] = [
-    { p: 'ab', v: `${numFiel(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
-    { p: 'K', v: numFiel(e.K, 1), o: `Coeficiente de contribución. ${origenAb}` },
+    { p: 'ab', v: `${decFiel(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
+    { p: 'K', v: decFiel(e.K, 1), o: `Coeficiente de contribución. ${origenAb}` },
     {
       p: 'ρ',
       v: num(e.rho, 1),
@@ -474,7 +470,7 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
     },
     {
       p: 'C',
-      v: numFiel(e.C, 2),
+      v: decFiel(e.C, 2),
       o:
         state.terrenoModo === 'perfil'
           ? 'Coeficiente del terreno (art. 2.4) · media ponderada en los 30 m superiores'
@@ -498,8 +494,8 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
         { key: 'i', label: '#', w: 14, align: 'right', render: (r: { i: number; C: number; esp: number }) => String(r.i) },
         // Los estratos son datos del usuario: se imprimen tal cual, para que la
         // media ponderada de la fila C se pueda rehacer con esta misma tabla.
-        { key: 'C', label: 'C', w: 28, align: 'right', render: (r) => numFiel(r.C, 2) },
-        { key: 'esp', label: 'Espesor (m)', w: 32, align: 'right', render: (r) => numFiel(r.esp, 2) },
+        { key: 'C', label: 'C', w: 28, align: 'right', render: (r) => decFiel(r.C, 2) },
+        { key: 'esp', label: 'Espesor (m)', w: 32, align: 'right', render: (r) => decFiel(r.esp, 2) },
         {
           key: 'nota',
           label: 'Nota',
@@ -601,7 +597,7 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
         : // Con cero decimales, una planta de 312,5 m² salía como «313 m²» y el
           // P_k impreso no cuadraba al rehacerlo. La superficie es un dato del
           // usuario, no un valor tabulado: no hay ninguna razón para redondearla.
-          `${numFiel(ui?.area ?? 0, 0, 2)} m² · ${(ui?.componentes ?? []).filter((c) => !c.excluida).length} componentes`,
+          `${decFiel(ui?.area ?? 0, 0, 2)} m² · ${(ui?.componentes ?? []).filter((c) => !c.excluida).length} componentes`,
     };
   });
 
@@ -1067,6 +1063,15 @@ export async function exportSeismicNCSE02PDF({
   evaluacion,
   title,
 }: SeismicPdfArgs): Promise<PdfResult> {
+  // La puerta, aquí también. Hoy la respeta el único llamador —`seismicPdfBlocker`
+  // alimenta el `valid` de `useTitledPdfExport`— pero la regla vivía SÓLO en el
+  // botón: cualquier otra llamada (un atajo, una prueba, un módulo futuro que
+  // reutilice el exportador) producía un documento con la puerta sin resolver,
+  // que es exactamente lo que la función existe para impedir. La comprobación no
+  // cuesta nada y deja de depender de que quien llame se acuerde.
+  const bloqueo = seismicPdfBlocker(evaluacion);
+  if (bloqueo) throw new Error(bloqueo);
+
   const elementTitle = title ?? '';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -1079,8 +1084,13 @@ export async function exportSeismicNCSE02PDF({
       elementTitle,
       engineVersion: NCSE02_ENGINE_VERSION,
       // El título es metadato del documento y NO entra en el hash: teclearlo no
-      // puede cambiar la huella del caso de cálculo.
-      inputsHash: inputsFingerprint(state),
+      // puede cambiar la huella del caso de cálculo. Los identificadores de
+      // planta y de plano tampoco: son `newId()`, distintos en cada sesión, y
+      // dejaban que dos casos IDÉNTICOS —el mismo edificio reconstruido, o el
+      // mismo enlace abierto dos veces— dieran huellas distintas. La huella
+      // sirve para responder «¿es este el mismo caso que exporté?», y con ellos
+      // dentro la respuesta era siempre que no.
+      inputsHash: inputsFingerprint(huellaDe(state)),
     },
     M,
   );
@@ -1131,7 +1141,14 @@ export async function exportSeismicNCSE02PDF({
 
   drawFootersAllPages(
     doc,
-    { engineVersion: NCSE02_ENGINE_VERSION, proyecto: state.municipioNombre || undefined },
+    // El pie lleva el nombre que el usuario le dio al documento; el municipio
+    // sólo si no hay ninguno. Antes iba siempre el municipio, que identifica el
+    // EMPLAZAMIENTO y no el elemento calculado — y el emplazamiento ya tiene su
+    // sección entera, con procedencia y todo.
+    {
+      engineVersion: NCSE02_ENGINE_VERSION,
+      proyecto: elementTitle || state.municipioNombre || undefined,
+    },
     M,
   );
 
