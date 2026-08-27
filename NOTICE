@@ -21,3 +21,23 @@ The plotting paths (plotly/tqdm/colour) are never executed: Concreta consumes
 only the numeric results and renders its own SVG. Those imports are satisfied by
 lightweight stubs at runtime (numpy-only). The full MIT license text is preserved
 in vendor/pyslope/LICENSE.txt.
+
+Seismic hazard table (NCSE-02, Anejo 1)
+---------------------------------------
+This product redistributes the seismic hazard values (basic seismic
+acceleration ab and contribution coefficient K, per municipality) published by
+the Instituto Geográfico Nacional as the INSPIRE layer HazardArea2002.NCSE-02.
+
+  Source:       https://www.ign.es/wms-inspire/geofisica
+  Layer:        HazardArea2002.NCSE-02
+  License:      CC BY 4.0 ign.es
+  Attribution:  Instituto Geográfico Nacional (IGN)
+
+Generated files (src/features/seismic-ncse02/):
+  ncse02.hazard.json           — harvested table, columnar form
+  ncse02.hazard.manifest.json  — provenance, license, SHA-256, record counts
+
+The table is harvested by scripts/harvest-ign-hazard.mjs and committed as data.
+Only the rows listed in Anejo 1 of NCSE-02 are kept; municipalities the layer
+publishes with a null acceleration are outside Anejo 1 (ab < 0.04 g) and are
+counted in the manifest but not shipped.
