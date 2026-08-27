@@ -201,6 +201,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-seismic',
+    route: '/analisis/sismo',
+    label: 'Acción sísmica',
+    group: 'Análisis',
+    // El modelo es anidado (plantas → componentes de carga, direcciones →
+    // planos resistentes) y vive en el localStorage del propio módulo, como
+    // FEM 2D y taludes. El registro sólo necesita las banderas ligeras.
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-slope-stability',
     route: '/geotec/taludes',
     label: 'Taludes',

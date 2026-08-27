@@ -192,6 +192,17 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     icon: <ModuleIcon moduleKey="concreta-fem2d" size={ICON_SIZE} />,
   },
 
+  {
+    id: 'seismic-ncse02',
+    group: 'ANÁLISIS',
+    name: 'Acción sísmica',
+    ref: 'NCSE-02 art. 3.7',
+    short:
+      'Espectro, modos, cortantes por planta y reparto con torsión. Anejo 1 del IGN.',
+    route: '/analisis/sismo',
+    icon: <ModuleIcon moduleKey="concreta-seismic" size={ICON_SIZE} />,
+  },
+
   // ── GEOTECNIA
   {
     id: 'slope-stability',

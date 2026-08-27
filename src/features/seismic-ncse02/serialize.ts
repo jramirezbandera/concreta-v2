@@ -57,7 +57,7 @@ export function buildShareUrl(state: SeismicState, baseUrl?: string): string {
 }
 
 function urlBase(): string {
-  if (typeof window === 'undefined') return '/ciment/sismo';
+  if (typeof window === 'undefined') return '/analisis/sismo';
   const { origin, pathname } = window.location;
   return `${origin}${pathname}`;
 }

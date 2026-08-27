@@ -150,6 +150,10 @@ const router = createBrowserRouter([
             path: 'analisis/fem2d',
             lazy: lazyComponent(() => import('./features/fem2d'), 'Fem2DModule'),
           },
+          {
+            path: 'analisis/sismo',
+            lazy: lazyComponent(() => import('./features/seismic-ncse02'), 'SeismicNCSE02Module'),
+          },
           // Geotecnia / Taludes — Phase 2 (shipped:true). Ruta de producción:
           // se registra SIEMPRE (ya no dev-gated). El chunk de slope-stability +
           // su worker entran en el bundle, pero los assets de Pyodide (~16 MB)

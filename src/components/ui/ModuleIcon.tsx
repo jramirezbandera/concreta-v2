@@ -186,6 +186,19 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M4 4a8 8 0 0 0 9 9" strokeWidth="0.75" strokeOpacity="0.55" strokeDasharray="2 1.5"/>
         </svg>
       );
+    // Acción sísmica: edificio de plantas con las fuerzas equivalentes creciendo
+    // hacia arriba, que es la firma del reparto del art. 3.7.4
+    case 'concreta-seismic':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Rasante y eje del edificio */}
+          <path d="M4 14h8M8 14V3"/>
+          {/* Forjados */}
+          <path d="M6 11h4M6 8h4M6 5h4" strokeWidth="0.75"/>
+          {/* Fuerzas por planta, más largas cuanto más alto */}
+          <path d="M10 11h1.5M10 8h2.5M10 5h3.5" strokeWidth="0.75" strokeOpacity="0.7"/>
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }
