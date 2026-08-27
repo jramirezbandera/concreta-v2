@@ -237,38 +237,57 @@ export function SeismicResults({
   state: SeismicState;
   evaluacion: SeismicEvaluation;
 }) {
-  const { emplazamiento: e, aplicabilidad: ap, resultado: r } = evaluacion;
+  const { emplazamiento: e, aplicabilidad: ap, resultado: r, impedimento: imp } = evaluacion;
   const obl = ap.obligatoriedad;
 
   return (
     <div className="space-y-3">
       {/* ── Veredicto ─────────────────────────────────────────────────────── */}
       <Bloque titulo="Aplicabilidad" ref="art. 1.2.3 · 3.5.1">
+        {/*
+          El veredicto sale del `impedimento` que declara la puerta, no de
+          deducirlo aquí: un edificio de adobe cumple los seis requisitos del
+          art. 3.5.1 y no se calcula igual, porque el art. 1.2.3 prohíbe el
+          material. Decir ahí «el método simplificado NO es aplicable» sería
+          falso, y la lista de requisitos en verde que viene debajo lo
+          desmentiría a la vista.
+        */}
         <div
           className={[
             'text-[13px] font-medium pb-1.5',
-            obl.estado === 'obligatoria'
-              ? ap.puedeCalcular
-                ? 'text-state-ok'
-                : 'text-state-fail'
-              : obl.estado === 'exenta'
+            !imp
+              ? 'text-state-ok'
+              : imp.motivo === 'norma-no-obligatoria'
                 ? 'text-text-secondary'
-                : 'text-state-warn',
+                : imp.motivo === 'obligatoriedad-indeterminada' ||
+                    imp.motivo === 'faltan-datos-de-calculo'
+                  ? 'text-state-warn'
+                  : 'text-state-fail',
           ].join(' ')}
         >
-          {obl.estado === 'exenta'
-            ? `La Norma no es de aplicación obligatoria — ${MOTIVOS[obl.motivo ?? ''] ?? 'exenta'}`
-            : obl.estado === 'indeterminada'
-              ? `No se puede decidir todavía: falta ${obl.falta}`
-              : ap.puedeCalcular
-                ? 'La Norma rige y el método simplificado es aplicable'
-                : 'La Norma rige, pero el método simplificado NO es aplicable'}
+          {!imp
+            ? 'La Norma rige y el método simplificado es aplicable'
+            : imp.motivo === 'norma-no-obligatoria'
+              ? `La Norma no es de aplicación obligatoria — ${MOTIVOS[obl.motivo ?? ''] ?? 'exenta'}`
+              : imp.motivo === 'obligatoriedad-indeterminada'
+                ? `No se puede decidir todavía: falta ${obl.falta}`
+                : imp.motivo === 'prohibicion-art-1.2.3'
+                  ? 'La Norma rige y PROHÍBE esta construcción'
+                  : imp.motivo === 'faltan-datos-de-calculo'
+                    ? 'La Norma rige y el método vale, pero faltan datos para calcular'
+                    : 'La Norma rige, pero el método simplificado NO es aplicable'}
         </div>
 
-        {obl.estado === 'exenta' ? (
+        {imp?.motivo === 'norma-no-obligatoria' ? (
           <p className="text-[11px] leading-snug text-text-disabled">
             Que no sea obligatoria no impide calcular la acción sísmica si el proyectista quiere
             hacerlo; lo que no hay es obligación de justificarla.
+          </p>
+        ) : null}
+
+        {imp?.motivo === 'prohibicion-art-1.2.3' || imp?.motivo === 'faltan-datos-de-calculo' ? (
+          <p className="text-[11px] leading-snug text-state-fail border-l-2 border-state-fail pl-2">
+            {imp.texto}
           </p>
         ) : null}
 
@@ -340,10 +359,15 @@ export function SeismicResults({
           </Bloque>
         </>
       ) : (
-        <Bloque titulo="Sin cálculo">
-          <p className="text-[11px] leading-snug text-text-disabled">
-            No se calcula la acción sísmica mientras alguna de las dos puertas lo impida. Resuelve
-            lo que marca el bloque de aplicabilidad y el resultado aparece aquí.
+        <Bloque titulo="Sin cálculo" ref={imp?.articulo ? `art. ${imp.articulo}` : undefined}>
+          <p className="text-[11px] leading-snug text-text-secondary">
+            {imp?.texto ??
+              'No se calcula la acción sísmica mientras alguna de las dos puertas lo impida.'}
+          </p>
+          <p className="text-[11px] leading-snug text-text-disabled mt-1.5">
+            {imp?.motivo === 'faltan-datos-de-calculo'
+              ? 'En cuanto haya período fundamental, el resultado aparece aquí.'
+              : 'Resuelve lo que marca el bloque de aplicabilidad y el resultado aparece aquí.'}
           </p>
         </Bloque>
       )}

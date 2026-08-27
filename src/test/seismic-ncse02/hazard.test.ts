@@ -46,7 +46,25 @@ describe('buscarMunicipios', () => {
   it('encuentra Granada con los valores que calibran el barrido', async () => {
     const r = await buscarMunicipios('granada');
     const g = r.find((m) => m.ine === '18087');
-    expect(g).toEqual({ ine: '18087', nombre: 'Granada', ab: 0.23, k: 1.0 });
+    // `procedencia: null` = sale de la capa del IGN tal cual, sin suplemento.
+    expect(g).toEqual({ ine: '18087', nombre: 'Granada', ab: 0.23, k: 1.0, procedencia: null });
+  });
+
+  it('devuelve la procedencia de un municipio que no sale de la capa', async () => {
+    // Ceuta no la publica la capa del IGN: sale del texto del BOE. El buscador
+    // tiene que decirlo, porque de aqui lo toman el panel y el PDF.
+    const ceuta = (await buscarMunicipios('ceuta')).find((m) => m.ine === '51001');
+    expect(ceuta?.ab).toBe(0.05);
+    expect(ceuta?.k).toBe(1.2);
+    expect(ceuta?.procedencia?.tipo).toBe('anejo1-texto');
+
+    // Y un municipio creado despues de 2002 nombra a aquel del que hereda.
+    const fornes = (await buscarMunicipios('fornes')).find((m) => m.ine === '18077');
+    expect(fornes?.ab).toBe(0.24);
+    expect(fornes?.procedencia).toMatchObject({
+      tipo: 'segregado',
+      padre: { ine: '18020', nombre: 'Arenas del Rey' },
+    });
   });
 
   it('encuentra sin que el usuario escriba los acentos', async () => {
@@ -100,6 +118,7 @@ describe('municipioPorIne', () => {
       nombre: 'Granada',
       ab: 0.23,
       k: 1.0,
+      procedencia: null,
     });
   });
 
@@ -124,13 +143,29 @@ describe('municipioPorIne', () => {
 });
 
 describe('mensaje de "no encontrado"', () => {
-  it('cubre los DOS casos, exencion y errata', () => {
+  it('cubre las TRES causas: exencion, errata y municipio posterior a 2002', () => {
     // Si solo dijera "revisa la ortografia", el exento seguiria buscando algo
     // que no existe. Si solo dijera "la Norma no te obliga", una falta de
-    // ortografia se leeria como exencion normativa.
+    // ortografia se leeria como exencion normativa. Y si callara la tercera,
+    // un municipio segregado despues de 2002 —que el Anejo 1 no puede nombrar
+    // porque no existia— se leeria tambien como exento.
     expect(MENSAJE_NO_ENCONTRADO).toContain('Anejo 1');
     expect(MENSAJE_NO_ENCONTRADO).toContain('art. 1.2.3');
-    expect(MENSAJE_NO_ENCONTRADO).toMatch(/ortograf/i);
+    expect(MENSAJE_NO_ENCONTRADO).toMatch(/errata/i);
     expect(MENSAJE_NO_ENCONTRADO).toMatch(/0,04/);
+    expect(MENSAJE_NO_ENCONTRADO).toMatch(/2002/);
+    expect(MENSAJE_NO_ENCONTRADO).toMatch(/segreg/i);
+  });
+
+  it('NO afirma la exencion: la ofrece como una posibilidad entre tres', () => {
+    // La regresion que este test existe para impedir. La version anterior decia
+    // "si el nombre es correcto, SIGNIFICA ab < 0,04 g y la Norma no es de
+    // aplicacion obligatoria": una conclusion normativa deducida de un fallo de
+    // busqueda. Con Ceuta, Melilla y los segregados posteriores a 2002 fuera de
+    // la capa del IGN, esa frase convertia un hueco de datos en una exencion.
+    expect(MENSAJE_NO_ENCONTRADO).not.toMatch(/significa/i);
+    expect(MENSAJE_NO_ENCONTRADO).toMatch(/puede ser|compru[eé]balo/i);
+    // Y ofrece la salida, en vez de dejar al usuario en un callejon.
+    expect(MENSAJE_NO_ENCONTRADO).toMatch(/a mano/i);
   });
 });

@@ -21,6 +21,8 @@ import { ToastContainer } from '../../components/ui/Toast';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 
 import { SeismicNCSE02Module } from '../../features/seismic-ncse02';
+import { encodeShareString } from '../../features/seismic-ncse02/serialize';
+import { defaultSeismicState, type SeismicState } from '../../features/seismic-ncse02/state';
 import { moduleRegistry } from '../../data/moduleRegistry';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
 
@@ -35,13 +37,18 @@ function montar() {
     <MemoryRouter initialEntries={['/analisis/sismo']}>
       <ThemeProvider>
         <UnitSystemProvider>
+          {/* El aviso de «no se puede exportar» viaja por showToast, que
+              necesita un contenedor montado para llegar al DOM. Va ANTES que el
+              módulo porque `showToast` reparte entre los suscriptores del
+              momento, sin cola: los efectos corren en orden de árbol, así que un
+              aviso emitido al montar —el del enlace corrupto— se perdería si el
+              contenedor se suscribiera después. En la app real lo cubre la carga
+              perezosa de la ruta, que monta el módulo mucho más tarde. */}
+          <ToastContainer />
           {/* El chat del asistente lee sus ajustes del contexto. */}
           <AiSettingsProvider>
             <SeismicNCSE02Module />
           </AiSettingsProvider>
-          {/* El aviso de «no se puede exportar» viaja por showToast, que
-              necesita un contenedor montado para llegar al DOM. */}
-          <ToastContainer />
         </UnitSystemProvider>
       </ThemeProvider>
     </MemoryRouter>,
@@ -116,16 +123,62 @@ describe('las puertas cortan en pantalla, no solo en el motor', () => {
   });
 
   it('bajar ab por debajo de 0,04 g exime y retira el cálculo', async () => {
+    // Este test antes decía esto en el título y comprobaba otra cosa: subía n a
+    // 25, o sea el requisito (1) del art. 3.5.1, y la exención por ab no
+    // quedaba cubierta en integración. Ahora se prueba de verdad, por la vía de
+    // la entrada manual.
     const { container } = montar();
-    // El municipio fija ab; se cambia a entrada manual desde el propio campo
-    // derivado no es posible, así que se comprueba por la vía del sistema:
-    // 25 plantas invalidan el método simplificado.
-    const n = screen.getByLabelText('n');
-    fireEvent.change(n, { target: { value: '25' } });
+    fireEvent.click(screen.getByText(/introducir a mano/i));
+
+    const ab = screen.getByLabelText('ab (g)');
+    fireEvent.change(ab, { target: { value: '0.03' } });
 
     await waitFor(() => {
-      expect(container.textContent).toContain('NO es aplicable');
+      expect(container.textContent).toMatch(/no es de aplicación obligatoria/i);
     });
+    expect(container.textContent).not.toContain('Cortante basal');
+  });
+});
+
+describe('n sale de la tabla de plantas, no de un campo aparte', () => {
+  // El escenario de C4: «+ planta» subía `n` y dejaba `n total` quieto, y
+  // borrar una fila no tocaba ninguno de los dos. Con `n total` por debajo de
+  // `n` —imposible, porque los sótanos suman— la pasarela de las cuatro plantas
+  // del art. 3.5.1 se abría para edificios que no le corresponden.
+
+  /** «Plantas y cargas» viene plegada y su contenido no se monta hasta abrirla. */
+  const abrirPlantas = () => fireEvent.click(screen.getByText(/Plantas y cargas/i));
+
+  it('añadir una planta mueve n, que ya no es un campo aparte', async () => {
+    const { container } = montar();
+    abrirPlantas();
+    // El caso por defecto son diez plantas.
+    await waitFor(() => expect(container.textContent).toContain('10 plantas'));
+
+    fireEvent.click(screen.getByText('+ planta'));
+    await waitFor(() => expect(container.textContent).toContain('11 plantas'));
+  });
+
+  it('borrar una planta también lo mueve: antes sólo lo hacía añadir', async () => {
+    // La mitad exacta del fallo. «+ planta» actualizaba `n` a mano y el botón
+    // de borrar no tocaba nada, así que quitar filas dejaba `n` inflado y con
+    // él T_F, el número de modos y el requisito (1) del art. 3.5.1.
+    const { container } = montar();
+    abrirPlantas();
+    await waitFor(() => expect(container.textContent).toContain('10 plantas'));
+
+    fireEvent.click(screen.getAllByLabelText(/^Eliminar /)[0]);
+    await waitFor(() => expect(container.textContent).toContain('9 plantas'));
+  });
+
+  it('unos sótanos negativos no bajan el total por debajo de n', async () => {
+    const { container } = montar();
+    fireEvent.change(screen.getByLabelText('Sótanos'), { target: { value: '-5' } });
+
+    abrirPlantas();
+    await waitFor(() => expect(container.textContent).toContain('10 plantas'));
+    // El recuento se acota a cero sótanos: n total = n = 10, nunca menos.
+    expect(container.textContent).not.toMatch(/\b[1-9] plantas\b/);
   });
 });
 
@@ -143,7 +196,7 @@ describe('buscador de municipios', () => {
     );
   });
 
-  it('un nombre que no está da el mensaje que cubre exención Y errata', async () => {
+  it('un nombre que no está da el mensaje de las tres causas, sin afirmar la exención', async () => {
     montar();
     fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'zzzzqqq' } });
 
@@ -155,7 +208,86 @@ describe('buscador de municipios', () => {
     );
     const aviso = screen.getByText(/No figura en el Anejo 1/).textContent ?? '';
     expect(aviso).toMatch(/art\. 1\.2\.3/);
-    expect(aviso).toMatch(/ortograf/i);
+    expect(aviso).toMatch(/errata/i);
+    expect(aviso).toMatch(/2002/);
+    expect(aviso).not.toMatch(/significa/i);
+  });
+
+  it('un material prohibido se anuncia como prohibición, no como fallo del método', async () => {
+    // Los seis requisitos del art. 3.5.1 salen en CUMPLE en la misma pantalla,
+    // así que el veredicto no puede decir que el método falle: se desmentiría
+    // a sí mismo a dos centímetros de distancia.
+    const { container } = montar();
+    fireEvent.change(screen.getByLabelText(/Sistema/i), { target: { value: 'adobe' } });
+
+    await waitFor(() => expect(container.textContent).toMatch(/PROHÍBE/));
+    expect(container.textContent).not.toMatch(/método simplificado NO es aplicable/);
+    expect(container.textContent).toMatch(/adobe/i);
+    // Y no se publica acción sísmica.
+    expect(container.textContent).not.toMatch(/Cortante basal/);
+  });
+
+  it('un sistema sin expresión de T_F no publica una cadena de fuerzas', async () => {
+    // Antes calculaba con T_F = 0, que da alpha = 2,5 y unas fuerzas de aspecto
+    // impecable levantadas sobre nada.
+    const { container } = montar();
+    fireEvent.change(screen.getByLabelText(/Sistema/i), { target: { value: 'otro' } });
+
+    await waitFor(() => expect(container.textContent).toMatch(/faltan datos para calcular/i));
+    expect(container.textContent).toMatch(/3\.7\.2\.2/);
+    expect(container.textContent).not.toMatch(/Cortante basal/);
+  });
+
+  it('MELILLA existe, y la Norma le resulta OBLIGATORIA', async () => {
+    // El fallo más grave que tenía el módulo, de extremo a extremo. La capa del
+    // IGN publica Melilla sin aceleración, así que el buscador respondía "no
+    // figura en el Anejo 1" — leído como exención. El Anejo 1 le da 0,08 g, que
+    // además cae JUSTO en el umbral: la exención de pórticos arriostrados del
+    // art. 1.2.3 pide ab < 0,08 g, y con 0,08 g exactamente no aplica.
+    const { container } = montar();
+    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'melilla' } });
+    const opcion = await screen.findByText('Melilla', {}, { timeout: 3000 });
+    fireEvent.click(opcion);
+
+    await waitFor(() => expect(container.textContent).toContain('Melilla'));
+    expect(container.textContent).toContain('0.08 g');
+    // Y el veredicto no puede ser de exención.
+    expect(container.textContent).not.toContain('La Norma no es de aplicación obligatoria');
+    expect(container.textContent).toContain('La Norma rige');
+  });
+
+  it('un municipio creado después de 2002 declara de quién hereda', async () => {
+    // Fornes se segregó de Arenas del Rey en 2018 y hereda sus 0,24 g, de las
+    // aceleraciones más altas de España. Heredar es exacto —la Norma clasificó
+    // ese mismo territorio bajo el término de origen— pero no es lo que dice el
+    // Anejo 1 con este nombre, así que la pantalla tiene que decirlo.
+    const { container } = montar();
+    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'fornes' } });
+    const opcion = await screen.findByText('Fornes', {}, { timeout: 3000 });
+    fireEvent.click(opcion);
+
+    await waitFor(() => expect(container.textContent).toContain('0.24 g'));
+    expect(container.textContent).toMatch(/Heredado de Arenas del Rey/i);
+    expect(container.textContent).toContain('2018');
+  });
+
+  it('el "no encontrado" ofrece la salida a mano, y usarla deja ab y K editables', async () => {
+    // Sin esta salida, un municipio que la capa del IGN no publica —Ceuta,
+    // Melilla, cualquier segregación posterior a 2002— deja el módulo
+    // inservible: no hay forma de introducir su peligrosidad.
+    montar();
+    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'zzzzqqq' } });
+
+    const boton = await screen.findByText(/Introducir ab y K a mano/i, {}, { timeout: 3000 });
+    fireEvent.click(boton);
+
+    // ab y K pasan de derivados de sólo lectura a campos con los que se decide.
+    const ab = screen.getByLabelText('ab (g)') as HTMLInputElement;
+    const k = screen.getByLabelText('K') as HTMLInputElement;
+    fireEvent.change(ab, { target: { value: '0.08' } });
+    fireEvent.change(k, { target: { value: '1.3' } });
+    expect(ab.value).toBe('0.08');
+    expect(k.value).toBe('1.3');
   });
 
   it('elegir un municipio actualiza ab y K', async () => {
@@ -166,6 +298,147 @@ describe('buscador de municipios', () => {
 
     await waitFor(() => {
       expect(container.textContent).toContain('Lorca');
+    });
+  });
+});
+
+describe('entrada de datos', () => {
+  /** «Plantas y cargas» viene plegada y su contenido no se monta hasta abrirla. */
+  const abrirPlantas = () => fireEvent.click(screen.getByText(/Plantas y cargas/i));
+
+  /**
+   * Tecleo de verdad: el campo se vacía y luego entra UNA pulsación por
+   * carácter. Con un solo `change` al valor final no se reproduce nada, porque
+   * el fallo estaba justo en los estados intermedios: «4,» no es un número, y
+   * «4,5» sólo lo es si alguien traduce la coma. Ahí desaparecía el separador.
+   */
+  const teclear = (el: HTMLElement, texto: string) => {
+    fireEvent.change(el, { target: { value: '' } });
+    for (let i = 1; i <= texto.length; i++) {
+      fireEvent.change(el, { target: { value: texto.slice(0, i) } });
+    }
+  };
+
+  it('la coma decimal sobrevive al tecleo', async () => {
+    montar();
+    const h = screen.getByLabelText('H (m)') as HTMLInputElement;
+    teclear(h, '32,5');
+    expect(h.value).toBe('32,5');
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!).H).toBe(32.5);
+    });
+  });
+
+  it('y también en los campos en línea: «4,5» kN/m² ya no se guarda como 45', async () => {
+    // A1, en el campo más editado del módulo. Los seis campos en línea hacían
+    // parseFloat sobre el value controlado, así que la coma se borraba bajo el
+    // cursor y la cifra siguiente se pegaba a la anterior: un factor diez en la
+    // carga de una planta, sin ningún aviso.
+    montar();
+    abrirPlantas();
+    const q = screen.getAllByLabelText(/Carga del componente 1 en kN\/m²/)[0] as HTMLInputElement;
+    teclear(q, '4,5');
+    expect(q.value).toBe('4,5');
+    await waitFor(() => {
+      const guardado = JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!);
+      expect(guardado.plantas[0].componentes[0].q).toBe(4.5);
+    });
+  });
+
+  it('un texto que no es un número no llega al estado ni se queda a la vista', () => {
+    // `parseFloat('4x')` vale 4: el estado se quedaba con 4 y la pantalla con
+    // «4x», dos cosas distintas a la vez.
+    montar();
+    const h = screen.getByLabelText('H (m)') as HTMLInputElement;
+    fireEvent.change(h, { target: { value: '4x' } });
+    fireEvent.blur(h);
+    expect(h.value).toBe('30');
+  });
+
+  it('un valor fuera de rango no se queda contradiciendo al cálculo', () => {
+    // M11: el commit no pasaba del mínimo y el blur sólo restauraba con NaN, así
+    // que un «-2» en Ω se quedaba a la vista indefinidamente mientras la cadena
+    // seguía calculando con el 5 % anterior.
+    const { container } = montar();
+    const omega = screen.getByLabelText('Ω (%)') as HTMLInputElement;
+    fireEvent.change(omega, { target: { value: '-2' } });
+    // Mientras se teclea manda el texto: nada se corrige bajo el cursor.
+    expect(omega.value).toBe('-2');
+    expect(container.textContent).toContain('Ω = 5 %');
+    // Al salir del campo manda el estado.
+    fireEvent.blur(omega);
+    expect(omega.value).toBe('5');
+  });
+});
+
+describe('el enlace compartido se consume una sola vez', () => {
+  const conEnlace = (s: SeismicState) =>
+    window.history.replaceState({}, '', `/analisis/sismo?model=${encodeShareString(s)}`);
+
+  it('retira ?model= de la barra de direcciones al abrirlo', async () => {
+    conEnlace({ ...defaultSeismicState(), H: 41 });
+    montar();
+    await waitFor(() => expect(window.location.search).toBe(''));
+    expect((screen.getByLabelText('H (m)') as HTMLInputElement).value).toBe('41');
+  });
+
+  it('editar tras abrir un enlace y recargar ya no revierte a la URL', async () => {
+    // A2 de extremo a extremo. La carga da prioridad a la URL sobre lo guardado
+    // y el módulo no la limpiaba nunca, así que F5 volvía a hidratar del enlace
+    // y el autoguardado escribía encima: las ediciones desaparecían sin aviso.
+    conEnlace({ ...defaultSeismicState(), H: 41 });
+    const { unmount } = montar();
+    await waitFor(() => expect(window.location.search).toBe(''));
+
+    fireEvent.change(screen.getByLabelText('H (m)'), { target: { value: '52' } });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!).H).toBe(52),
+    );
+    unmount();
+
+    montar(); // la recarga
+    expect((screen.getByLabelText('H (m)') as HTMLInputElement).value).toBe('52');
+  });
+
+  it('refresca ab y K contra la tabla instalada, y con eso se cae una exención', async () => {
+    // M4. El enlace manda el municipio por su código INE y ab/K sólo de copia
+    // —lo dice `serialize.ts` desde el primer día—, pero el refresco prometido
+    // no estaba escrito. Un enlace con la copia vieja o manipulada se pintaba y
+    // se imprimía rotulado «Anejo 1» con valores que el Anejo 1 no dice; aquí,
+    // con 0,01 g, declarando exento el mismo Granada que la Norma obliga.
+    conEnlace({ ...defaultSeismicState(), ab: 0.01 });
+    const { container } = montar();
+    expect(container.textContent).toMatch(/no es de aplicación obligatoria/i);
+
+    await waitFor(() => expect(container.textContent).toContain('La Norma rige'), {
+      timeout: 3000,
+    });
+    expect(container.textContent).toContain('0.23');
+  });
+
+  it('un enlace corrupto avisa, en vez de abrir otro caso en silencio', async () => {
+    // El aviso viajaba por una variable de módulo que el initializer de
+    // `useState` escribía y un efecto leía. Con el compilador de React (activo
+    // en este repo) esa comunicación NO llega: el efecto lee antes de que el
+    // initializer escriba. El usuario veía un caso que no era el del enlace y
+    // nada se lo decía. No tenía ninguna prueba.
+    window.history.replaceState({}, '', '/analisis/sismo?model=esto-no-es-un-caso');
+    montar();
+    expect(await screen.findByText(/no traía un caso de sismo válido/i)).toBeTruthy();
+  });
+
+  it('un municipio que la tabla instalada no tiene deja de atribuirse al Anejo 1', async () => {
+    // Puede pasar con un enlace hecho por una versión más reciente del
+    // suplemento. Los números se conservan; lo que no se sostiene es seguir
+    // llamando Anejo 1 a lo que la tabla instalada no dice.
+    conEnlace({
+      ...defaultSeismicState(),
+      municipioIne: '99999',
+      municipioNombre: 'Término Nuevo',
+    });
+    const { container } = montar();
+    await waitFor(() => expect(container.textContent).toMatch(/sin municipio del Anejo 1/i), {
+      timeout: 3000,
     });
   });
 });

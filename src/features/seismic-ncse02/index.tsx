@@ -17,6 +17,7 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import {
+  aplicarPlanSismo,
   seismicNCSE02Adapter,
   summarizeSeismicResults,
 } from '../../lib/ai/modules/seismicNCSE02';
@@ -26,6 +27,7 @@ import {
   seismicNCSE02FallbackFilename,
   seismicPdfBlocker,
 } from '../../lib/pdf/seismicNCSE02';
+import { municipioPorIne } from './hazard';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { SeismicInputs } from './SeismicInputs';
 import { SeismicResults } from './SeismicResults';
@@ -41,20 +43,52 @@ const STORAGE_KEY = 'concreta-seismic-ncse02-model';
 const SCHEMA_VERSION_KEY = 'concreta-seismic-ncse02-model-version';
 const SCHEMA_VERSION = '1';
 
-/** Marcador para avisar del enlace corrupto: `showToast` no puede correr en el initializer. */
-let enlaceCorrupto = false;
+/**
+ * Lo que hay que hacer al abrir el módulo, resuelto de una vez.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ESTO NO PUEDE VIAJAR EN UNA VARIABLE DE MÓDULO
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La versión anterior devolvía sólo el estado y dejaba los encargos —«avisa del
+ * enlace corrupto»— en un `let` de módulo que el initializer de `useState`
+ * escribía y un efecto leía. Con el compilador de React (activo en este repo,
+ * `reactCompilerPreset`) esa comunicación NO se sostiene: el efecto llegaba a
+ * leer la variable ANTES de que el initializer la escribiese, y se quedaba sin
+ * nada que hacer. Falla en silencio y sólo en el bundle compilado.
+ *
+ * Ahora los encargos son parte del valor inicial y viajan por React.
+ */
+interface CasoInicial {
+  estado: SeismicState;
+  /** El enlace traía algo que no era un caso de sismo. */
+  corrupto: boolean;
+  /** Municipio del enlace, para refrescar ab y K contra la tabla instalada. */
+  municipio: { ine: string; ab: number; K: number } | null;
+}
 
-function cargar(): SeismicState {
+function cargar(): CasoInicial {
   // Prioridad: URL > localStorage > caso por defecto. La URL gana porque quien
   // pega un enlace compartido espera ver ESE caso, no el suyo guardado.
   if (typeof window !== 'undefined') {
     const codificado = new URLSearchParams(window.location.search).get('model');
     if (codificado) {
       const deUrl = decodeShareString(codificado);
-      if (deUrl) return deUrl;
-      enlaceCorrupto = true;
+      if (deUrl) {
+        return {
+          estado: deUrl,
+          corrupto: false,
+          municipio: deUrl.municipioIne
+            ? { ine: deUrl.municipioIne, ab: deUrl.ab, K: deUrl.K }
+            : null,
+        };
+      }
+      return { estado: guardado(), corrupto: true, municipio: null };
     }
   }
+  return { estado: guardado(), corrupto: false, municipio: null };
+}
+
+function guardado(): SeismicState {
   try {
     if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultSeismicState();
     const bruto = localStorage.getItem(STORAGE_KEY);
@@ -67,7 +101,8 @@ function cargar(): SeismicState {
 
 export function SeismicNCSE02Module() {
   const { openDrawer } = useDrawer();
-  const [state, setState] = useState<SeismicState>(cargar);
+  const [inicial] = useState(cargar);
+  const [state, setState] = useState<SeismicState>(inicial.estado);
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [ejeDibujo, setEjeDibujo] = useState<'x' | 'y'>('x');
 
@@ -77,12 +112,73 @@ export function SeismicNCSE02Module() {
   const [docTitle, setDocTitle] = useDocTitle('concreta-seismic-title');
 
   useEffect(() => {
-    if (!enlaceCorrupto) return;
-    enlaceCorrupto = false;
+    if (!inicial.corrupto) return;
     showToast('El enlace no traía un caso de sismo válido: se ha abierto el guardado.', {
       autoDismiss: 5000,
     });
+  }, [inicial]);
+
+  // ── El `?model=` se retira en cuanto se ha leído ────────────────────────────
+  // Mismo patrón que muros de fábrica y taludes. Sin esto la URL seguía ahí, y
+  // como la carga da prioridad a la URL sobre lo guardado, recargar la página
+  // volvía a hidratar desde ella: quien abría un enlace, editaba y pulsaba F5
+  // perdía sus cambios en silencio —y el autoguardado, que escribe en cada
+  // cambio, ya los había machacado en localStorage—.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('model')) return;
+    url.searchParams.delete('model');
+    window.history.replaceState(window.history.state, '', url.toString());
   }, []);
+
+  // ── ab y K del enlace, refrescados contra la tabla instalada ────────────────
+  // `serialize.ts` lo dice desde el primer día: el enlace manda el municipio por
+  // su código INE y `ab`/`K` sólo de copia, porque "el enlace identifica un
+  // edificio en un sitio, no una foto de la peligrosidad de aquel día"; al
+  // abrirlo, la UI los refresca. La promesa estaba en el comentario y no en el
+  // código, así que un enlace con la copia vieja —o manipulada— se pintaba y se
+  // IMPRIMÍA rotulado «Anejo 1» con valores que el Anejo 1 no dice.
+  useEffect(() => {
+    const entrante = inicial.municipio;
+    if (!entrante) return;
+    void municipioPorIne(entrante.ine).then((m) => {
+      // El código INE no está en la tabla instalada: puede ser un enlace hecho
+      // con una versión más reciente del suplemento. Los números se conservan,
+      // pero dejan de atribuirse al Anejo 1, que es lo único que no se puede
+      // sostener.
+      if (!m) {
+        setState((s) =>
+          s.municipioIne === entrante.ine
+            ? { ...s, municipioIne: null, municipioProcedencia: null }
+            : s,
+        );
+        showToast(
+          `El municipio del enlace (INE ${entrante.ine}) no figura en el Anejo 1 instalado: `
+            + 'ab y K quedan como entrada manual.',
+          { autoDismiss: 6000 },
+        );
+        return;
+      }
+      if (m.ab === entrante.ab && m.k === entrante.K) return;
+      setState((s) =>
+        s.municipioIne === entrante.ine
+          ? {
+              ...s,
+              municipioNombre: m.nombre,
+              municipioProcedencia: m.procedencia,
+              ab: m.ab,
+              K: m.k,
+            }
+          : s,
+      );
+      showToast(
+        `${m.nombre}: ab y K del enlace actualizados contra el Anejo 1 instalado `
+          + `(ab ${m.ab.toFixed(2)} g · K ${m.k.toFixed(1)}).`,
+        { autoDismiss: 6000 },
+      );
+    });
+  }, [inicial]);
 
   useEffect(() => {
     try {
@@ -119,15 +215,15 @@ export function SeismicNCSE02Module() {
   });
 
   // ── Asistente ──────────────────────────────────────────────────────────────
-  // El adapter sólo escribe ESCALARES globales, así que un `spread` basta: las
-  // plantas, los estratos y los planos resistentes viajan de solo lectura y el
-  // plan nunca los toca. Las direcciones sí se reemplazan enteras (L y B), pero
-  // el propio plan las reconstruye a partir de la vigente.
+  // Las plantas, los estratos y los planos resistentes viajan de solo lectura y
+  // el plan nunca los toca. Las direcciones sí llegan enteras —L y B viven
+  // dentro de ellas—, y por eso el estado vivo se mezcla en `aplicarPlanSismo`
+  // en vez de a spread: la copia que trae el plan quedó congelada al proponerlo.
   const [aiOpen, setAiOpen] = useState(false);
   const aiResults = useMemo(() => summarizeSeismicResults(evaluacion), [evaluacion]);
 
   const handleAiApply = (plan: AiApplyPlan<SeismicState>) => {
-    setState((s) => ({ ...s, ...plan.fields }));
+    setState((s) => aplicarPlanSismo(s, plan.fields));
     const n = plan.changes.length;
     const w = plan.warnings.length;
     showToast(

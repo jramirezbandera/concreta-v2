@@ -372,11 +372,13 @@ describe('límite de uniones de Anthropic', () => {
 
   // Sismo NCSE-02 es el payload más pequeño del catálogo, y no por casualidad:
   // fuera quedaron la peligrosidad del sitio (la trae el IGN), las cinco
-  // declaraciones del proyectista y el T_F impuesto. El margen hasta 16 es real
-  // — si alguien mete tres campos anulables más, el módulo sale de Anthropic.
-  it('sismo NCSE-02: 12 escalares + proposal = 13, con margen', () => {
+  // declaraciones del proyectista, el T_F impuesto y el número de plantas sobre
+  // rasante (sale de contar la tabla, que el asistente no puede tocar). El
+  // margen hasta 16 es real — si alguien mete cuatro campos anulables más, el
+  // módulo sale de Anthropic.
+  it('sismo NCSE-02: 11 escalares + proposal = 12, con margen', () => {
     const envelope = buildChatSchema(seismicNCSE02Adapter.payloadSchema);
-    expect(countAnthropicUnions(envelope)).toBe(13);
+    expect(countAnthropicUnions(envelope)).toBe(12);
     expect(exceedsAnthropicUnionLimit(envelope)).toBe(false);
   });
 

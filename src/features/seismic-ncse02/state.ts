@@ -12,7 +12,13 @@
 // habría obligado al motor a cargar con datos que no usa.
 
 import { checkApplicability } from '../../lib/codes/seismic/applicability';
-import { calcularSismo, resolverEmplazamiento } from '../../lib/codes/seismic/ncse02';
+import {
+  TEXTO_SIN_TF,
+  calcularSismo,
+  resolverEmplazamiento,
+  resolverTF,
+} from '../../lib/codes/seismic/ncse02';
+import type { Procedencia } from './hazard';
 import type {
   ApplicabilityResult,
   ComponenteCarga,
@@ -20,6 +26,7 @@ import type {
   EmplazamientoResult,
   Estrato,
   ExcentricidadDireccion,
+  Impedimento,
   Importancia,
   PlantaInput,
   SeismicInput,
@@ -60,6 +67,16 @@ export interface SeismicState {
   municipioIne: string | null;
   /** Nombre para enseñar y para el PDF. Vacío en entrada manual. */
   municipioNombre: string;
+  /**
+   * De dónde salen `ab` y `K` cuando no es la cosecha directa de la capa del
+   * IGN. `null` en la inmensa mayoría de municipios y en entrada manual.
+   *
+   * Viaja EN EL ESTADO, y no se vuelve a consultar al pintar, porque el PDF la
+   * necesita de forma síncrona y porque es parte de lo que se justifica: un
+   * valor heredado del municipio de origen no es lo mismo que uno escrito en el
+   * Anejo 1, y el documento tiene que poder decir cuál de los dos es.
+   */
+  municipioProcedencia: Procedencia | null;
   /** ab/g, adimensional. */
   ab: number;
   K: number;
@@ -71,10 +88,28 @@ export interface SeismicState {
 
   // — estructura —
   sistema: SistemaEstructural;
-  /** Plantas SOBRE RASANTE. */
-  n: number;
-  /** Plantas TOTALES, sótanos incluidos. Sólo entra en la pasarela del art. 3.5.1. */
-  nTotal: number;
+  /**
+   * Sótanos, o cualquier planta bajo rasante. Cero o más.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * POR QUÉ SE PIDEN LOS SÓTANOS Y NO EL TOTAL DE PLANTAS
+   * ─────────────────────────────────────────────────────────────────────────
+   * Antes el estado guardaba `n` (sobre rasante) y `nTotal` (con sótanos) como
+   * dos números libres, y nada impedía que se separaran de la realidad ni entre
+   * sí. El botón «+ planta» subía `n` y no tocaba `nTotal`; borrar una fila no
+   * tocaba ninguno de los dos. Con `n = 5` y `nTotal = 3` —imposible, porque
+   * los sótanos SUMAN— la pasarela del art. 3.5.1, que mira `nTotal <= 4`,
+   * declaraba aplicable el método simplificado a un edificio de cinco plantas
+   * sin ninguna declaración de regularidad.
+   *
+   * Ahora los dos son derivados y no se pueden contradecir:
+   *
+   *   n      = plantas.length          (la tabla ES las plantas sobre rasante)
+   *   nTotal = plantas.length + sotanos
+   *
+   * `nTotal >= n` deja de ser una regla que validar y pasa a ser aritmética.
+   */
+  sotanos: number;
   /** Altura sobre rasante [m]. */
   H: number;
   /** Amortiguamiento [%]. */
@@ -159,6 +194,8 @@ export function defaultSeismicState(): SeismicState {
   return {
     municipioIne: '18087',
     municipioNombre: 'Granada',
+    // Granada sale de la capa del IGN sin suplemento ninguno.
+    municipioProcedencia: null,
     ab: 0.23,
     K: 1.0,
     importancia: 'normal',
@@ -166,8 +203,8 @@ export function defaultSeismicState(): SeismicState {
     terreno: 'II',
     estratos: [{ C: 1.3, espesor: 30 }],
     sistema: 'porticos-ha',
-    n: 10,
-    nTotal: 10,
+    // n = 10 sale de las diez filas de `plantas`; sin sótanos, nTotal = 10.
+    sotanos: 0,
     H: 30,
     omega: 5,
     // mu = 3 no es un valor de relleno: es el del caso que congela
@@ -177,8 +214,10 @@ export function defaultSeismicState(): SeismicState {
     nModosModo: 'auto',
     nModosManual: 2,
     plantas,
-    x: direccionPorDefecto(20, 0),
-    y: direccionPorDefecto(15, 0),
+    // Planta de 20 × 15 m. Los planos de X se reparten sobre los 15 m del eje
+    // Y, y los de Y sobre los 20 m del eje X.
+    x: direccionPorDefecto(20, 0, 15),
+    y: direccionPorDefecto(15, 0, 20),
     porticosBienArriostrados: null,
     regularidadGeometrica: true,
     soportesContinuos: true,
@@ -187,7 +226,17 @@ export function defaultSeismicState(): SeismicState {
   };
 }
 
-function direccionPorDefecto(L: number, B: number): DireccionUI {
+/**
+ * @param L      dimensión EN EL SENTIDO DE LA OSCILACIÓN. Es la que entra en las
+ *               expresiones de T_F del art. 3.7.2.2.
+ * @param B      pantallas o planos triangulados, para las expresiones (3) y (5).
+ * @param ancho  dimensión PERPENDICULAR, que es sobre la que se reparten los
+ *               planos resistentes de esta dirección. Antes se usaba `L` para
+ *               las dos cosas y la geometría por defecto salía imposible: los
+ *               cuatro planos de X caían en ±10 y ±5 sobre un eje que mide 15 m,
+ *               o sea dos de ellos fuera del edificio.
+ */
+function direccionPorDefecto(L: number, B: number, ancho: number): DireccionUI {
   return {
     L,
     B,
@@ -195,10 +244,10 @@ function direccionPorDefecto(L: number, B: number): DireccionUI {
     // que es exactamente lo que hacen las hojas de cálculo al uso. Dar
     // rigideces es una MEJORA opcional, no un requisito para empezar.
     elementos: [
-      { id: newId(), x: -L / 2, k: 1 },
-      { id: newId(), x: -L / 4, k: 1 },
-      { id: newId(), x: L / 4, k: 1 },
-      { id: newId(), x: L / 2, k: 1 },
+      { id: newId(), x: -ancho / 2, k: 1 },
+      { id: newId(), x: -ancho / 4, k: 1 },
+      { id: newId(), x: ancho / 4, k: 1 },
+      { id: newId(), x: ancho / 2, k: 1 },
     ],
     TFModo: 'auto',
     TFManual: 0,
@@ -212,17 +261,40 @@ export function blankSeismicState(): SeismicState {
     ...s,
     municipioIne: null,
     municipioNombre: '',
+    municipioProcedencia: null,
     ab: 0,
     K: 1.0,
-    n: 1,
-    nTotal: 1,
+    sotanos: 0,
     H: 3,
+    // Una sola planta: n = 1 y, sin sótanos, nTotal = 1.
     plantas: [plantaTipo('Planta 1', 3, 100)],
     regularidadGeometrica: null,
     soportesContinuos: null,
     regularidadMecanica: null,
     excentricidadDeclarada: null,
   };
+}
+
+// ── Derivadas del recuento de plantas ────────────────────────────────────────
+
+/**
+ * `n` de la Norma: plantas SOBRE RASANTE. Es la tabla de plantas, contada.
+ *
+ * Sale de aquí y de ningún otro sitio. Alimenta T_F (0,09·n y las otras cuatro
+ * expresiones), el número de modos y el requisito (1) del art. 3.5.1, mientras
+ * la masa sale de esas mismas filas: que pudieran no coincidir era un fallo
+ * silencioso —T_F subía y la masa se quedaba— que ningún número delataba.
+ */
+export function plantasSobreRasante(s: Pick<SeismicState, 'plantas'>): number {
+  return s.plantas.length;
+}
+
+/**
+ * `nTotal`: plantas totales, sótanos incluidos. El ÚNICO sitio de la Norma que
+ * cuenta así es la pasarela de las cuatro plantas del art. 3.5.1.
+ */
+export function plantasTotales(s: Pick<SeismicState, 'plantas' | 'sotanos'>): number {
+  return s.plantas.length + Math.max(0, Math.trunc(s.sotanos));
 }
 
 // ── Traducción al motor ──────────────────────────────────────────────────────
@@ -248,7 +320,7 @@ export function toSeismicInput(s: SeismicState): SeismicInput {
     },
     estructura: {
       sistema: s.sistema,
-      n: s.n,
+      n: plantasSobreRasante(s),
       H: s.H,
       omega: s.omega,
       mu: s.mu,
@@ -271,12 +343,31 @@ export function toSeismicInput(s: SeismicState): SeismicInput {
  * `x` pesadas por rigidez, y el centro de masas se toma en el centro geométrico
  * (`x = 0`), que es la convención con la que se introducen las coordenadas.
  * Devuelve `null` cuando no hay rigidez que repartir y hay que declararla.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA DIMENSIÓN QUE NORMALIZA ES LA PERPENDICULAR, NO LA DE LA PROPIA DIRECCIÓN
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La coordenada de los planos se mide PERPENDICULARMENTE al sismo (es la
+ * convención de γ_a del art. 3.7.5, y sin ella no habría brazo de torsión). Los
+ * planos que resisten el sismo en X se reparten a lo largo del eje Y, así que la
+ * excentricidad que sale de ellos es un desplazamiento EN Y, y el 10 % del
+ * requisito (6) hay que medirlo contra la dimensión en planta EN Y — que es
+ * `L` de la dirección Y.
+ *
+ * Antes se normalizaba con `d.L`, la dimensión en el sentido de la oscilación:
+ * se comparaba un desplazamiento en Y con una longitud en X. En una planta de
+ * 20 × 15 m con e = 1,60 m eso daba 8,0 % (pasaba) donde la lectura de mismo eje
+ * da 10,7 % (no pasa). El error caía siempre del lado INSEGURO en plantas
+ * alargadas: abría el método simplificado a edificios que no le corresponden.
  */
-export function excentricidadDe(d: DireccionUI): ExcentricidadDireccion | null {
+export function excentricidadDe(
+  d: DireccionUI,
+  dimensionPerpendicular: number,
+): ExcentricidadDireccion | null {
   const suma = d.elementos.reduce((a, el) => a + el.k, 0);
-  if (!(suma > 0) || !(d.L > 0) || d.elementos.length === 0) return null;
+  if (!(suma > 0) || !(dimensionPerpendicular > 0) || d.elementos.length === 0) return null;
   const centroRigidez = d.elementos.reduce((a, el) => a + el.k * el.x, 0) / suma;
-  return { e: Math.abs(centroRigidez), dimension: d.L };
+  return { e: Math.abs(centroRigidez), dimension: dimensionPerpendicular };
 }
 
 // ── Evaluación completa ──────────────────────────────────────────────────────
@@ -285,8 +376,16 @@ export interface SeismicEvaluation {
   /** Siempre presente: de aquí sale `ac`, que la puerta del art. 1.2.3 necesita. */
   emplazamiento: EmplazamientoResult;
   aplicabilidad: ApplicabilityResult;
-  /** `null` cuando alguna de las dos puertas lo impide. */
+  /** `null` cuando alguna de las dos puertas lo impide, o cuando faltan datos. */
   resultado: SeismicResult | null;
+  /**
+   * Por qué no hay `resultado`. `null` exactamente cuando lo hay.
+   *
+   * Une los impedimentos de la puerta con los que sólo se ven con la geometría
+   * delante —hoy, la falta de T_F—, para que pantalla, PDF y asistente lean un
+   * único sitio en vez de reconstruir el motivo cada uno por su cuenta.
+   */
+  impedimento: Impedimento | null;
 }
 
 /**
@@ -299,15 +398,21 @@ export function evaluarSismo(s: SeismicState): SeismicEvaluation {
   const input = toSeismicInput(s);
   const emplazamiento = resolverEmplazamiento(input.emplazamiento);
 
-  const ex = excentricidadDe(s.x);
-  const ey = excentricidadDe(s.y);
+  // Cruzadas a propósito: los planos de X se reparten sobre el eje Y, así que
+  // su excentricidad se mide contra la dimensión en planta de Y. Ver
+  // `excentricidadDe`.
+  const ex = excentricidadDe(s.x, s.y.L);
+  const ey = excentricidadDe(s.y, s.x.L);
+  // Contadas, no declaradas: ver `plantasSobreRasante`.
+  const n = plantasSobreRasante(s);
+  const nTotal = plantasTotales(s);
 
   const aplicabilidad = checkApplicability(
     {
       importancia: s.importancia,
       ab: s.ab,
       ac: emplazamiento.ac,
-      n: s.n,
+      n,
       ...(s.porticosBienArriostrados == null
         ? {}
         : { porticosBienArriostrados: s.porticosBienArriostrados }),
@@ -315,8 +420,8 @@ export function evaluarSismo(s: SeismicState): SeismicEvaluation {
     },
     {
       importancia: s.importancia,
-      n: s.n,
-      nTotal: s.nTotal,
+      n,
+      nTotal,
       H: s.H,
       regularidadGeometrica: s.regularidadGeometrica,
       soportesContinuos: s.soportesContinuos,
@@ -333,11 +438,33 @@ export function evaluarSismo(s: SeismicState): SeismicEvaluation {
     },
   );
 
-  return {
-    emplazamiento,
-    aplicabilidad,
-    resultado: aplicabilidad.puedeCalcular ? calcularSismo(input) : null,
-  };
+  if (!aplicabilidad.puedeCalcular) {
+    return { emplazamiento, aplicabilidad, resultado: null, impedimento: aplicabilidad.impedimento };
+  }
+
+  // Segunda puerta, la que la aplicabilidad no puede ver: sin T_F no hay cadena
+  // de fuerzas. Se comprueba ANTES de calcular y con la misma función que usa
+  // el motor, porque calcular igualmente producía un documento entero —modos,
+  // cortantes, reparto, ocho combinaciones— levantado sobre T_F = 0.
+  const ejesSinTF = (['x', 'y'] as const).filter(
+    (eje) => resolverTF(input[eje], input.estructura) === null,
+  );
+  if (ejesSinTF.length > 0) {
+    return {
+      emplazamiento,
+      aplicabilidad,
+      resultado: null,
+      impedimento: {
+        motivo: 'faltan-datos-de-calculo',
+        articulo: '3.7.2.2',
+        texto:
+          `No hay período fundamental en ${ejesSinTF.length === 2 ? 'ninguna de las dos direcciones' : `la dirección ${ejesSinTF[0].toUpperCase()}`}. ` +
+          TEXTO_SIN_TF,
+      },
+    };
+  }
+
+  return { emplazamiento, aplicabilidad, resultado: calcularSismo(input), impedimento: null };
 }
 
 // ── Normalización ────────────────────────────────────────────────────────────
@@ -369,6 +496,58 @@ const CATEGORIAS: ComponenteCarga['categoria'][] = [
 const num = (v: unknown, porDefecto: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : porDefecto;
 const boolNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null);
+
+/**
+ * Sótanos, incluida la migración de los casos guardados con el modelo anterior.
+ *
+ * Aquellos llevaban `n` y `nTotal` sueltos. La conversión honesta es
+ * `sotanos = nTotal - n`, y se acota a cero por abajo porque los estados
+ * viejos PODÍAN traer `nTotal < n`: eso era justamente el fallo, y un caso
+ * archivado con esa incoherencia no puede reaparecer con sótanos negativos.
+ *
+ * Se prefiere `nTotal - plantas.length` sobre `nTotal - n` porque `plantas` es
+ * lo que de verdad describe el edificio; un `n` desincronizado del modelo viejo
+ * no debe sobrevivir a la migración.
+ */
+function sotanosNorm(s: Record<string, unknown>, nPlantas: number): number {
+  if (typeof s.sotanos === 'number' && Number.isFinite(s.sotanos)) {
+    return Math.max(0, Math.trunc(s.sotanos));
+  }
+  if (typeof s.nTotal === 'number' && Number.isFinite(s.nTotal)) {
+    return Math.max(0, Math.trunc(s.nTotal) - nPlantas);
+  }
+  return 0;
+}
+
+/**
+ * La procedencia viene de localStorage o de una share-URL, así que se valida
+ * campo a campo. Ante cualquier duda se devuelve `null`, y `null` significa
+ * "de la capa del IGN": es el caso de 2.609 de los 2.635 municipios, y además
+ * es el que NO añade advertencias al PDF. Degradar hacia el silencio es seguro
+ * aquí porque `ab` y `K` viajan aparte y no dependen de esto.
+ */
+function procedenciaNorm(v: unknown): Procedencia | null {
+  if (!v || typeof v !== 'object') return null;
+  const p = v as Record<string, unknown>;
+  if (p.tipo === 'anejo1-texto') {
+    return typeof p.boe === 'string' ? { tipo: 'anejo1-texto', boe: p.boe } : null;
+  }
+  if (p.tipo === 'correccion') {
+    return typeof p.motivo === 'string' ? { tipo: 'correccion', motivo: p.motivo } : null;
+  }
+  if (p.tipo === 'segregado') {
+    const padre = (p.padre ?? {}) as Record<string, unknown>;
+    if (typeof padre.ine !== 'string' || typeof padre.nombre !== 'string') return null;
+    if (typeof p.anio !== 'number' || !Number.isFinite(p.anio)) return null;
+    return {
+      tipo: 'segregado',
+      padre: { ine: padre.ine, nombre: padre.nombre },
+      anio: p.anio,
+      ...(p.fusion === true ? { fusion: true } : {}),
+    };
+  }
+  return null;
+}
 
 /**
  * Deja cualquier objeto en un `SeismicState` utilizable. Se aplica a lo que
@@ -408,6 +587,7 @@ export function normalizeSeismicState(x: unknown): SeismicState {
   return {
     municipioIne: typeof s.municipioIne === 'string' ? s.municipioIne : null,
     municipioNombre: typeof s.municipioNombre === 'string' ? s.municipioNombre : '',
+    municipioProcedencia: procedenciaNorm(s.municipioProcedencia),
     ab: num(s.ab, d.ab),
     K: num(s.K, d.K),
     importancia: IMPORTANCIAS.includes(s.importancia as Importancia)
@@ -424,8 +604,7 @@ export function normalizeSeismicState(x: unknown): SeismicState {
     sistema: SISTEMAS.includes(s.sistema as SistemaEstructural)
       ? (s.sistema as SistemaEstructural)
       : d.sistema,
-    n: num(s.n, plantas.length || d.n),
-    nTotal: num(s.nTotal, num(s.n, plantas.length || d.n)),
+    sotanos: sotanosNorm(s, plantas.length),
     H: num(s.H, d.H),
     omega: num(s.omega, d.omega),
     mu: num(s.mu, d.mu),

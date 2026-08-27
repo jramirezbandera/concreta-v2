@@ -421,6 +421,15 @@ describe("NCSE-02 art. 3.5.1 · requisito (6), la excentricidad", () => {
     expect(r.requisitos[5].detalle).toContain("Y");
   });
 
+  it("el detalle deja ver la dimensión con la que ha dividido", () => {
+    // No es la de la propia dirección: los planos se reparten sobre el eje
+    // transversal, así que la excentricidad que sale de ellos se mide contra la
+    // dimensión en planta de ESE eje. Con «e/dim = 9,9 %» a secas, quien firma
+    // la memoria no puede rehacer la división.
+    const r = conExc(1.5, 1.5, 15);
+    expect(r.requisitos[5].detalle).toContain("transversal 15,00 m");
+  });
+
   it("usa el valor absoluto: la excentricidad negativa cuenta igual", () => {
     expect(conExc(-2.5, 1.0).aplicable).toBe(false);
   });
@@ -574,6 +583,125 @@ describe("NCSE-02 · puerta completa", () => {
     const r = checkApplicability(obl({ sistema: "adobe" }), met());
     expect(r.metodoSimplificado?.aplicable).toBe(true);
     expect(r.puedeCalcular).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// El MOTIVO de no poder calcular, que no se puede deducir del booleano
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Cinco causas distintas colapsaban en un unico `puedeCalcular === false`, y
+// cada consumidor las volvia a inferir por su cuenta. El PDF infirio mal: con
+// un edificio de adobe anunciaba "el metodo simplificado NO es aplicable" —que
+// es falso, el metodo vale— y a continuacion imprimia los seis requisitos del
+// art. 3.5.1 en CUMPLE. Un documento normativo contradiciendose en una pagina.
+
+describe("NCSE-02 · el impedimento dice POR QUE, no solo que no", () => {
+  it("es null exactamente cuando se puede calcular", () => {
+    const r = checkApplicability(obl(), met());
+    expect(r.puedeCalcular).toBe(true);
+    expect(r.impedimento).toBeNull();
+  });
+
+  it("una prohibicion del art. 1.2.3 NO se presenta como fallo del art. 3.5.1", () => {
+    for (const sistema of ["adobe", "tapial", "mamposteria-seco"] as const) {
+      const r = checkApplicability(obl({ sistema }), met());
+      // El metodo simplificado SI vale: el edificio cumple los seis requisitos.
+      expect(r.metodoSimplificado?.aplicable, sistema).toBe(true);
+      // Lo que impide calcular es el material, y el motivo lo dice.
+      expect(r.impedimento?.motivo, sistema).toBe("prohibicion-art-1.2.3");
+      expect(r.impedimento?.articulo, sistema).toBe("1.2.3");
+      expect(r.impedimento?.texto, sistema).toMatch(/adobe|tapial|mamposter/i);
+    }
+  });
+
+  it("la fabrica por encima de sus alturas tambien es prohibicion, no metodo", () => {
+    // Art. 1.2.3: con ab >= 0,12 g la fabrica no pasa de dos alturas.
+    const r = checkApplicability(
+      obl({ sistema: "fabrica", ab: 0.13, n: 4 }),
+      met({ n: 4, nTotal: 4, H: 12 }),
+    );
+    expect(r.metodoSimplificado?.aplicable).toBe(true);
+    expect(r.impedimento?.motivo).toBe("prohibicion-art-1.2.3");
+    expect(r.impedimento?.texto).toMatch(/dos alturas/i);
+  });
+
+  it("distingue exenta de indeterminada, que no son lo mismo", () => {
+    const exenta = checkApplicability(obl({ importancia: "moderada" }), met());
+    expect(exenta.impedimento?.motivo).toBe("norma-no-obligatoria");
+    expect(exenta.impedimento?.texto).toMatch(/importancia moderada/i);
+
+    const indet = checkApplicability(
+      obl({ ab: 0.07, porticosBienArriostrados: true, n: 8 }),
+      met({ n: 8, nTotal: 8, H: 25 }),
+    );
+    expect(indet.impedimento?.motivo).toBe("obligatoriedad-indeterminada");
+    expect(indet.impedimento?.texto).toMatch(/ac/);
+  });
+
+  it("un incumplimiento real del art. 3.5.1 si es del art. 3.5.1", () => {
+    const r = checkApplicability(obl({ n: 25 }), met({ n: 25, nTotal: 25, H: 80 }));
+    expect(r.impedimento?.motivo).toBe("metodo-simplificado-no-aplicable");
+    expect(r.impedimento?.articulo).toBe("3.5.1");
+    expect(r.impedimento?.texto).toBe(r.metodoSimplificado?.bloqueo);
+  });
+
+  it("la prohibicion del material manda sobre el fallo del metodo", () => {
+    // Con las dos cosas mal, lo que se nombra es la prohibicion: es la que no
+    // se arregla declarando nada ni cambiando de metodo de calculo.
+    const r = checkApplicability(
+      obl({ sistema: "adobe", n: 25 }),
+      met({ n: 25, nTotal: 25, H: 80 }),
+    );
+    expect(r.metodoSimplificado?.aplicable).toBe(false);
+    expect(r.impedimento?.motivo).toBe("prohibicion-art-1.2.3");
+  });
+
+  it("barrido: impedimento y puedeCalcular son exactamente lo contrario", () => {
+    // La invariante que sostiene todo esto. Si un dia se pudieran dar a la vez
+    // —o faltar los dos—, cada consumidor volveria a inventarse el motivo, que
+    // es de donde salio el veredicto falso del PDF.
+    const SISTEMAS = ["porticos-ha", "fabrica", "adobe", "tapial", "otro"] as const;
+    const IMPORTANCIAS = ["moderada", "normal", "especial"] as const;
+    const ABS = [0.03, 0.04, 0.09, 0.13, 0.24];
+    const NS = [2, 4, 8, 25];
+    const DECLS = [true, false, null];
+
+    let combinaciones = 0;
+    let conImpedimento = 0;
+    for (const sistema of SISTEMAS)
+      for (const importancia of IMPORTANCIAS)
+        for (const ab of ABS)
+          for (const n of NS)
+            for (const decl of DECLS) {
+              combinaciones++;
+              const r = checkApplicability(
+                obl({ sistema, importancia, ab, n, ac: ab }),
+                met({
+                  importancia,
+                  n,
+                  nTotal: n,
+                  H: n * 3,
+                  regularidadGeometrica: decl,
+                  soportesContinuos: decl,
+                  regularidadMecanica: decl,
+                  excentricidadDeclarada: decl,
+                }),
+              );
+              const etiqueta = `${sistema}/${importancia}/${ab}/${n}/${decl}`;
+              expect(r.puedeCalcular === (r.impedimento === null), etiqueta).toBe(true);
+              if (r.impedimento) {
+                conImpedimento++;
+                // Un impedimento sin texto no sirve de nada a quien lo lee.
+                expect(r.impedimento.texto.length, etiqueta).toBeGreaterThan(20);
+                expect(r.impedimento.articulo, etiqueta).toMatch(/^\d/);
+              }
+            }
+
+    expect(combinaciones).toBe(900);
+    // Y el barrido ejercita de verdad las dos ramas, no solo una.
+    expect(conImpedimento).toBeGreaterThan(0);
+    expect(conImpedimento).toBeLessThan(combinaciones);
   });
 
   it("acumula los avisos de las dos puertas", () => {

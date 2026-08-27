@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Qué DICE el PDF de sismo, no cómo está maquetado.
  *
  * La maquetación ya la barren `pdfLayout` y `latin1Encoding` sobre los cuatro
@@ -48,6 +48,21 @@ import {
   newId,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
+
+/**
+ * Estado con `nPlantas` plantas reales. `n` no es un campo declarable: es la
+ * tabla, contada. Un edificio de veinticinco plantas hay que construirlo.
+ */
+function conPlantas(nPlantas: number, extra: Partial<SeismicState> = {}): SeismicState {
+  const s = defaultSeismicState();
+  const plantas = Array.from({ length: nPlantas }, (_, k) => ({
+    ...s.plantas[Math.min(k, s.plantas.length - 1)],
+    id: newId(),
+    nombre: `Planta ${k + 1}`,
+    h: 3 * (k + 1),
+  }));
+  return { ...s, plantas, H: 3 * nPlantas, ...extra };
+}
 
 /**
  * Texto emitido, en orden. `splitTextToSize` parte por espacios y los descarta,
@@ -111,9 +126,126 @@ describe('el documento de exencion es un documento completo', () => {
   });
 });
 
+describe('un material prohibido por el art. 1.2.3 no es un fallo del art. 3.5.1', () => {
+  // El documento que se contradecia a si mismo. Con adobe, el metodo
+  // simplificado SI es aplicable —el edificio cumple los seis requisitos— y el
+  // PDF anunciaba "el metodo simplificado del art. 3.5.1 NO es aplicable",
+  // para imprimir a continuacion esos seis requisitos en CUMPLE. La causa real,
+  // que el art. 1.2.3 prohibe construir asi, quedaba como una fila de avisos.
+  const conAdobe = { ...defaultSeismicState(), sistema: 'adobe' as const };
+
+  it('el titular dice que la Norma PROHIBE, no que el metodo falle', async () => {
+    const { texto } = await exportar(conAdobe);
+    expect(texto).toMatch(/PROHÍBE esta construcción/);
+    expect(texto).not.toContain('método simplificado del art. 3.5.1 NO es aplicable');
+  });
+
+  it('nombra el material y el articulo que lo prohibe', async () => {
+    const { texto } = await exportar(conAdobe);
+    expect(texto).toMatch(/adobe/i);
+    expect(texto).toContain('1.2.3');
+  });
+
+  it('advierte de que cumplir el art. 3.5.1 no levanta la prohibicion', async () => {
+    // Sin esta frase, la tabla de seises en CUMPLE que sigue se lee como una
+    // autorizacion.
+    const { texto } = await exportar(conAdobe);
+    expect(texto).toMatch(/NO levanta la prohibición/);
+    expect(texto).toContain('REQUISITOS DEL METODO SIMPLIFICADO');
+  });
+
+  it('no imprime accion sismica', async () => {
+    const { texto } = await exportar(conAdobe);
+    expect(texto).not.toContain('CORTANTE BASAL');
+    expect(texto).not.toContain('COMBINACION DIRECCIONAL');
+  });
+
+  it('la fabrica por encima de sus alturas recibe el mismo trato', async () => {
+    const { texto } = await exportar(conPlantas(6, { sistema: 'fabrica' }));
+    expect(texto).toMatch(/PROHÍBE esta construcción/);
+    expect(texto).toMatch(/alturas/i);
+  });
+});
+
+describe('las plantas se emparejan por ID, no por posicion', () => {
+  // `calcularSismo` ORDENA las plantas por altura antes de nada, asi que
+  // `state.plantas[i]` deja de ser la planta i del resultado en cuanto las
+  // alturas no van en orden creciente — al editar la h de una intermedia, o al
+  // meter un entresuelo. Emparejando por indice, la tabla de masa imprimia el
+  // nombre y el origen del peso de una planta junto a la altura y el P_k de
+  // otra, y la de fuerzas cada F_k con la h_k equivocada. El calculo estaba
+  // bien; el papel mentia.
+
+  /** Tres plantas con las alturas AL REVES del orden de la tabla. */
+  function desordenado(): SeismicState {
+    const s = defaultSeismicState();
+    const base = s.plantas[0];
+    return {
+      ...s,
+      H: 9,
+      plantas: [
+        { ...base, id: newId(), nombre: 'ARRIBA', h: 9, area: 100, pesoManual: true, P: 1000 },
+        { ...base, id: newId(), nombre: 'ENMEDIO', h: 6, area: 200, pesoManual: true, P: 2000 },
+        { ...base, id: newId(), nombre: 'ABAJO', h: 3, area: 300, pesoManual: true, P: 3000 },
+      ],
+    };
+  }
+
+  it('cada nombre viaja con SU peso, aunque la tabla no vaya ordenada', async () => {
+    const { texto } = await exportar(desordenado());
+    // La planta baja pesa 3000 kN y se llama ABAJO: tienen que salir juntas.
+    // El orden del documento es el del motor (de abajo arriba), asi que la
+    // primera fila de la tabla es ABAJO con 3000.
+    const iAbajo = texto.indexOf('ABAJO');
+    const iArriba = texto.indexOf('ARRIBA');
+    expect(iAbajo).toBeGreaterThanOrEqual(0);
+    expect(iArriba).toBeGreaterThanOrEqual(0);
+    // ABAJO (h = 3) sale antes que ARRIBA (h = 9) porque el motor ordena por
+    // altura; si se emparejara por posicion, saldrian al reves.
+    expect(iAbajo).toBeLessThan(iArriba);
+  });
+
+  it('el peso sismico total no cambia por reordenar: el calculo ya estaba bien', async () => {
+    const { texto } = await exportar(desordenado());
+    expect(texto).toContain('6000');
+  });
+});
+
+describe('sin periodo fundamental no se imprime cadena de fuerzas', () => {
+  // Con un sistema sin expresion de T_F, el motor emitia un aviso de severidad
+  // "bloqueo" y calculaba igual con T_F = 0: alpha = 2,5 y una cadena entera de
+  // numeros verosimiles. El PDF los imprimia atribuyendo el periodo al art.
+  // 3.7.2.2, que para ese sistema no tiene expresion ninguna.
+  const sinTF = { ...defaultSeismicState(), sistema: 'otro' as const };
+
+  it('lo dice en el veredicto en vez de publicar numeros vacios', async () => {
+    const { texto } = await exportar(sinTF);
+    expect(texto).toMatch(/faltan datos para calcular/i);
+    expect(texto).toContain('3.7.2.2');
+  });
+
+  it('no imprime ni T_F ni cortante basal', async () => {
+    const { texto } = await exportar(sinTF);
+    expect(texto).not.toContain('CORTANTE BASAL');
+    expect(texto).not.toContain('0,000 s');
+  });
+
+  it('con T_F impuesto a mano el documento vuelve a estar completo', async () => {
+    const s = defaultSeismicState();
+    const { texto } = await exportar({
+      ...s,
+      sistema: 'otro',
+      x: { ...s.x, TFModo: 'manual', TFManual: 0.3 },
+      y: { ...s.y, TFModo: 'manual', TFManual: 0.3 },
+    });
+    expect(texto).toContain('CORTANTE BASAL');
+    expect(texto).toMatch(/3\.6\.2\.3\.2|impuesto/i);
+  });
+});
+
 describe('la Norma rige pero el metodo simplificado no', () => {
   it('lo dice, y no enseña numeros que nadie debe usar', async () => {
-    const { texto } = await exportar({ ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 });
+    const { texto } = await exportar(conPlantas(25));
     expect(texto).toContain('NO es aplicable');
     expect(texto).toContain('análisis modal');
     expect(texto).not.toContain('CORTANTE BASAL');
@@ -133,7 +265,7 @@ describe('declarado no es comprobado', () => {
   });
 
   it('un requisito incumplido sale como NO CUMPLE, sin truncar', async () => {
-    const { texto } = await exportar({ ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 });
+    const { texto } = await exportar(conPlantas(25));
     expect(texto).toContain('NO CUMPLE');
     expect(texto).toContain('CUMPLE');
   });
@@ -266,7 +398,7 @@ describe('ningun glifo se pierde por el camino', () => {
     for (const state of [
       defaultSeismicState(),
       { ...defaultSeismicState(), importancia: 'moderada' as const },
-      { ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 },
+      conPlantas(25),
     ]) {
       const { texto } = await exportar(state);
       expect(/\s\?/.test(texto), `interrogante suelto: ${/.{0,40}\s\?.{0,40}/.exec(texto)?.[0]}`).toBe(
@@ -291,7 +423,7 @@ describe('la puerta de exportacion', () => {
 
   it('tampoco bloquea cuando el metodo simplificado no vale: ese papel tambien sirve', () => {
     expect(
-      seismicPdfBlocker(evaluarSismo({ ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 })),
+      seismicPdfBlocker(evaluarSismo(conPlantas(25))),
     ).toBeNull();
   });
 
@@ -305,6 +437,39 @@ describe('la puerta de exportacion', () => {
     );
     expect(motivo).toContain('3, 4');
     expect(motivo).toContain('art. 3.5.1');
+  });
+
+  it('NO bloquea el caso pasarela, que tiene los (3)-(6) sin declarar por diseño', () => {
+    // La pasarela de las cuatro plantas LEVANTA los requisitos (3) a (6): que
+    // esten sin contestar es su regimen normal. Bloquear ahi negaba el PDF a un
+    // caso que el modulo calcula entero y muestra en pantalla, y ademas con un
+    // mensaje —"el PDF no puede recogerlos como justificados"— que no venia a
+    // cuento, porque nadie pretende justificarlos.
+    const pasarela = conPlantas(3, {
+      regularidadGeometrica: null,
+      soportesContinuos: null,
+      regularidadMecanica: null,
+      excentricidadDeclarada: null,
+    });
+    const ev = evaluarSismo(pasarela);
+    expect(ev.aplicabilidad.metodoSimplificado?.via).toBe('pasarela-4-plantas');
+    expect(ev.resultado).not.toBeNull();
+    expect(seismicPdfBlocker(ev)).toBeNull();
+  });
+
+  it('y el PDF de la pasarela sale, con su aviso de torsion', async () => {
+    const { texto } = await exportar(
+      conPlantas(3, {
+        regularidadGeometrica: null,
+        soportesContinuos: null,
+        regularidadMecanica: null,
+        excentricidadDeclarada: null,
+      }),
+    );
+    expect(texto).toContain('CORTANTE BASAL');
+    expect(texto).toMatch(/cuatro plantas/i);
+    // El art. 3.7.5 pide estudio especial de torsion al entrar por esta via.
+    expect(texto).toMatch(/torsión/i);
   });
 
   it('bloquea con la obligatoriedad indeterminada', () => {

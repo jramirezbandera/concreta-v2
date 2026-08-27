@@ -86,6 +86,7 @@ import type {
 import {
   defaultSeismicState,
   evaluarSismo,
+  plantasSobreRasante,
   toSeismicInput,
   type SeismicEvaluation,
   type SeismicState,
@@ -153,7 +154,7 @@ export const SEISMIC_PAYLOAD_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
   required: [
     'importancia', 'terreno_tipo', 'sistema',
-    'n', 'n_total', 'H_m', 'omega_pct', 'mu',
+    'sotanos', 'H_m', 'omega_pct', 'mu',
     'L_x_m', 'B_x_m', 'L_y_m', 'B_y_m',
     'warnings',
   ],
@@ -176,15 +177,10 @@ export const SEISMIC_PAYLOAD_SCHEMA: Record<string, unknown> = {
       description:
         'Sistema estructural. Decide QUÉ EXPRESIÓN del art. 3.7.2.2 da el período fundamental: "fabrica" (muros de fábrica de ladrillo o bloques) T_F = 0,06·H·raiz(H/(2L+H))/raizL; "porticos-ha" (pórticos de hormigón sin pantallas) T_F = 0,09·n; "porticos-ha-pantallas" T_F = 0,07·n·raiz(H/(B+H)); "porticos-acero" T_F = 0,11·n; "acero-triangulado" T_F = 0,085·n·raiz(H/(B+H)). Los tres restantes —"mamposteria-seco", "adobe", "tapial"— NO tienen expresión y además el art. 1.2.3 los PROHÍBE en construcciones de importancia normal o especial cuando la Norma es de aplicación. "otro" tampoco tiene expresión: exige un T_F justificado por el proyectista.',
     },
-    n: {
+    sotanos: {
       type: ['number', 'null'],
       description:
-        'Número de plantas SOBRE RASANTE (entero). No incluye sótanos. Es la n de las expresiones de T_F y del requisito (1) del art. 3.5.1 (debe ser inferior a veinte). Es una medida del edificio, no una variable de diseño.',
-    },
-    n_total: {
-      type: ['number', 'null'],
-      description:
-        'Número TOTAL de plantas, SÓTANOS INCLUIDOS (entero). Aparece en un solo sitio de toda la Norma: la pasarela del art. 3.5.1 para edificios de pisos de importancia normal de hasta cuatro plantas en total, que levanta los requisitos (3) a (6). Un edificio de 4 plantas sobre rasante con dos sótanos tiene n = 4 y n_total = 6, y NO entra por la pasarela. Si no hay sótanos, n_total = n.',
+        'Número de plantas BAJO RASANTE (entero, 0 o más). Sólo interviene en la pasarela del art. 3.5.1 para edificios de pisos de importancia normal de hasta CUATRO PLANTAS EN TOTAL, que levanta los requisitos (3) a (6): un edificio de 4 plantas sobre rasante con dos sótanos suma 6 y NO entra por esa vía. El número de plantas SOBRE rasante (la n de las expresiones de T_F y del requisito (1)) no es un campo de tu propuesta: sale de contar la tabla de plantas, que es de solo lectura para ti. Si el usuario quiere cambiarlo, tiene que añadir o quitar plantas en el panel.',
     },
     H_m: {
       type: ['number', 'null'],
@@ -245,8 +241,7 @@ interface SeismicPayload {
   importancia: string | null;
   terreno_tipo: string | null;
   sistema: string | null;
-  n: number | null;
-  n_total: number | null;
+  sotanos: number | null;
   H_m: number | null;
   omega_pct: number | null;
   mu: number | null;
@@ -274,8 +269,7 @@ function parsePayload(raw: unknown): SeismicPayload {
     importancia: str(r.importancia),
     terreno_tipo: str(r.terreno_tipo),
     sistema: str(r.sistema),
-    n: finiteNumber(r.n),
-    n_total: finiteNumber(r.n_total),
+    sotanos: finiteNumber(r.sotanos),
     H_m: finiteNumber(r.H_m),
     omega_pct: finiteNumber(r.omega_pct),
     mu: finiteNumber(r.mu),
@@ -295,8 +289,7 @@ const LABELS = {
   importancia: 'Importancia de la construcción',
   terreno_tipo: 'Tipo de terreno',
   sistema: 'Sistema estructural',
-  n: 'n · plantas sobre rasante',
-  n_total: 'n total · sótanos incluidos',
+  sotanos: 'Sótanos · plantas bajo rasante',
   H_m: 'H · altura sobre rasante',
   omega_pct: 'Omega · amortiguamiento',
   mu: 'mu · ductilidad',
@@ -310,7 +303,7 @@ type PayloadKey = keyof typeof LABELS;
 
 const KEY_ORDER: readonly PayloadKey[] = [
   'importancia', 'terreno_tipo', 'sistema',
-  'n', 'n_total', 'H_m', 'omega_pct', 'mu',
+  'sotanos', 'H_m', 'omega_pct', 'mu',
   'L_x_m', 'B_x_m', 'L_y_m', 'B_y_m',
 ];
 
@@ -324,24 +317,28 @@ export const PERFIL_INERT_REASON =
 // ── Seguridad ─────────────────────────────────────────────────────────────────
 
 /**
- * Única regla ESCALAR. `n_total` no mueve ninguna fuerza: mueve una PUERTA.
- * Bajarlo a cuatro o menos mete al edificio por la pasarela del art. 3.5.1, que
- * levanta los requisitos (3) a (6) sin que nadie los cumpla. Es monótona —bajar
- * siempre abre— y por eso cabe en una regla de nivel, al revés que `n` y `H`,
- * cuyo peligro va en los dos sentidos (subirlos alarga T_F y rebaja alpha;
- * bajarlos abre los requisitos (1) y (2)). Esos dos los cubren `alpha` por el
- * lado de la fuerza y `puertaRisks` por el lado de la puerta.
+ * Única regla ESCALAR. `sotanos` no mueve ninguna fuerza: mueve una PUERTA.
+ * Bajarlo acerca el total de plantas a cuatro, y a cuatro o menos el edificio
+ * entra por la pasarela del art. 3.5.1, que levanta los requisitos (3) a (6)
+ * sin que nadie los cumpla. Es monótona —bajar siempre acerca la pasarela— y
+ * por eso cabe en una regla de nivel, al revés que `H`, cuyo peligro va en los
+ * dos sentidos (subirlo alarga T_F y rebaja alpha; bajarlo abre el requisito
+ * (2)). Ese lo cubren `alpha` por el lado de la fuerza y `puertaRisks` por el
+ * de la puerta.
+ *
+ * El número de plantas SOBRE rasante ya no aparece por ninguna parte: sale de
+ * contar la tabla, que el asistente no puede tocar.
  */
 export const SEISMIC_SAFETY_RULES: ReadonlyArray<SafetyRule<SeismicState>> = [
   {
-    field: 'nTotal',
-    confirmKey: 'n_total',
+    field: 'sotanos',
+    confirmKey: 'sotanos',
     level: higherIsSafer,
     why:
-      'El número total de plantas sólo interviene en la pasarela del art. 3.5.1 (edificios '
-      + 'de pisos de importancia normal de hasta CUATRO plantas en total, sótanos incluidos), '
-      + 'que permite usar el método simplificado sin cumplir los requisitos (3) a (6). '
-      + 'Bajarlo abre esa pasarela.',
+      'Los sótanos cuentan en la pasarela del art. 3.5.1 (edificios de pisos de importancia '
+      + 'normal de hasta CUATRO plantas EN TOTAL, sótanos incluidos), que permite usar el '
+      + 'método simplificado sin cumplir los requisitos (3) a (6). Quitar sótanos baja el '
+      + 'total de plantas y puede abrir esa pasarela.',
   },
 ];
 
@@ -357,7 +354,7 @@ function alphaDe(s: SeismicState, eje: 'x' | 'y'): number | null {
   const d = s[eje];
   const TF = d.TFModo === 'manual' && d.TFManual > 0
     ? d.TFManual
-    : periodoFundamental(s.sistema, { n: s.n, H: s.H, L: d.L, B: d.B });
+    : periodoFundamental(s.sistema, { n: plantasSobreRasante(s), H: s.H, L: d.L, B: d.B });
   if (TF === null || !(TF > 0)) return null;
   const { TB } = resolverEmplazamiento(toSeismicInput(s).emplazamiento);
   return staticForceAlpha(TF, TB);
@@ -414,8 +411,8 @@ export const SEISMIC_RESOLVED_RULES: ReadonlyArray<ResolvedSafetyRule<SeismicSta
     level: higherIsSafer,
     format: (v) => v.toFixed(3),
     why: ALPHA_WHY,
-    fields: ['n', 'H', 'sistema', 'terreno'],
-    confirmKeys: ['n', 'H_m', 'sistema', 'L_x_m', 'B_x_m'],
+    fields: ['H', 'sistema', 'terreno'],
+    confirmKeys: ['H_m', 'sistema', 'L_x_m', 'B_x_m'],
   },
   {
     id: 'alpha_y',
@@ -424,8 +421,8 @@ export const SEISMIC_RESOLVED_RULES: ReadonlyArray<ResolvedSafetyRule<SeismicSta
     level: higherIsSafer,
     format: (v) => v.toFixed(3),
     why: ALPHA_WHY,
-    fields: ['n', 'H', 'sistema', 'terreno'],
-    confirmKeys: ['n', 'H_m', 'sistema', 'L_y_m', 'B_y_m'],
+    fields: ['H', 'sistema', 'terreno'],
+    confirmKeys: ['H_m', 'sistema', 'L_y_m', 'B_y_m'],
   },
 ];
 
@@ -557,7 +554,7 @@ function buildSeismicPlan(
   /** Entero: se exige entero de verdad, no un 8,4 redondeado en silencio. */
   function applyEntero(
     key: PayloadKey,
-    field: 'n' | 'nTotal',
+    field: 'sotanos',
     value: number | null,
     min: number,
     max: number,
@@ -589,8 +586,7 @@ function buildSeismicPlan(
   // ── Estructura ─────────────────────────────────────────────────────────────
   applyEnum('sistema', 'sistema', x.sistema, SISTEMAS, current.sistema, SISTEMA_LABEL);
 
-  applyEntero('n', 'n', x.n, 1, 200);
-  applyEntero('n_total', 'nTotal', x.n_total, 1, 200);
+  applyEntero('sotanos', 'sotanos', x.sotanos, 0, 20);
 
   applyNumber('H_m', x.H_m, 0.1, 500, ' m', current.H, (v) => { fields.H = v; }, (v) => `${v} m`);
   applyNumber('omega_pct', x.omega_pct, 0.1, 30, ' %', current.omega, (v) => { fields.omega = v; }, (v) => `${v} %`);
@@ -612,18 +608,11 @@ function buildSeismicPlan(
       (v) => `${v} m`);
   }
 
-  // ── Coherencia entre `n` y la tabla de plantas ─────────────────────────────
-  // `n` alimenta T_F y el requisito (1); la MASA sale de `plantas`, que es de
-  // solo lectura para el asistente. Son dos campos independientes del estado, y
-  // que se separen no lo detecta ningún cálculo: T_F sube y la masa se queda.
-  const nFinal = fields.n ?? current.n;
-  if (nFinal !== current.plantas.length) {
-    warnings.push(
-      `n = ${nFinal} pero la tabla tiene ${current.plantas.length} plantas. El período `
-      + 'fundamental y el requisito (1) del art. 3.5.1 usan n; la masa sísmica sale de la '
-      + 'tabla. Añade o quita plantas en el panel para que cuadren.',
-    );
-  }
+  // El aviso de coherencia entre `n` y la tabla de plantas ya no existe porque
+  // la incoherencia tampoco: `n` es `plantas.length`, contado en el momento de
+  // usarlo. Antes eran dos campos del estado que podían separarse sin que
+  // ningún cálculo lo delatara —T_F subía y la masa se quedaba—, y el
+  // asistente sólo podía avisar de un lío que no estaba en su mano arreglar.
 
   // ── Riesgos ────────────────────────────────────────────────────────────────
   const final = { ...current, ...fields } as SeismicState;
@@ -636,14 +625,47 @@ function buildSeismicPlan(
   return { fields, changes, skipped, notFound: [], warnings, risks };
 }
 
+/**
+ * Aplica al estado VIVO los campos de un plan ya aceptado.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LAS DIRECCIONES NO SE PUEDEN COPIAR ENTERAS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `fields.x` y `fields.y` son objetos COMPLETOS: `AiApplyPlan.fields` es un
+ * `Partial<SeismicState>` y una dirección no admite mitades. Pero el plan los
+ * construye a partir de la dirección vigente EN EL MOMENTO DE PROPONERLA, y de
+ * una dirección el asistente sólo puede escribir `L` y `B` — los planos
+ * resistentes, el conmutador de T_F y el T_F impuesto viajan de solo lectura.
+ *
+ * Un `{ ...s, ...fields }` a secas devolvía por tanto la copia congelada. Quien
+ * minimizara el modal, tocara los planos o impusiera T_F —justo lo que el propio
+ * prompt le manda hacer— y después aplicara, veía sus ediciones revertidas sin
+ * ninguna fila de cambio que lo delatase.
+ *
+ * Si algún día el asistente pasa a escribir algo más de una dirección, hay que
+ * añadirlo aquí: un contract-test comprueba que las únicas subclaves que el plan
+ * cambia son `L` y `B`, y salta si eso deja de ser cierto.
+ */
+export function aplicarPlanSismo(
+  s: SeismicState,
+  fields: Partial<SeismicState>,
+): SeismicState {
+  const { x, y, ...escalares } = fields;
+  return {
+    ...s,
+    ...escalares,
+    ...(x ? { x: { ...s.x, L: x.L, B: x.B } } : {}),
+    ...(y ? { y: { ...s.y, L: y.L, B: y.B } } : {}),
+  };
+}
+
 // ── Snapshot del estado ───────────────────────────────────────────────────────
 
 const SNAPSHOT_READ: Record<PayloadKey, (c: SeismicState) => number | string> = {
   importancia: (c) => c.importancia,
   terreno_tipo: (c) => c.terreno,
   sistema: (c) => c.sistema,
-  n: (c) => c.n,
-  n_total: (c) => c.nTotal,
+  sotanos: (c) => c.sotanos,
   H_m: (c) => c.H,
   omega_pct: (c) => c.omega,
   mu: (c) => c.mu,
@@ -790,7 +812,7 @@ function requisitosChecks(ev: SeismicEvaluation): CheckRow[] {
  * exención incluido: «la Norma no rige» es una respuesta completa.
  */
 export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary {
-  const { obligatoriedad: obl, metodoSimplificado: met, puedeCalcular } = ev.aplicabilidad;
+  const { obligatoriedad: obl, metodoSimplificado: met } = ev.aplicabilidad;
   const e = ev.emplazamiento;
 
   if (obl.estado === 'indeterminada') {
@@ -804,7 +826,13 @@ export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary
     });
   }
 
-  const sinDeclarar = (met?.requisitos ?? []).filter((r) => r.cumple === null).map((r) => r.id);
+  // La pasarela de las cuatro plantas levanta los requisitos (3)-(6): que estén
+  // sin declarar es su régimen normal, no una puerta a medio resolver. Mismo
+  // criterio que `seismicPdfBlocker`, y por la misma razón.
+  const sinDeclarar =
+    met?.via === 'pasarela-4-plantas'
+      ? []
+      : (met?.requisitos ?? []).filter((r) => r.cumple === null).map((r) => r.id);
   if (sinDeclarar.length > 0) {
     return summarizeCalcResults({
       valid: false,
@@ -866,11 +894,19 @@ export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary
   }
 
   const r = ev.resultado;
-  if (!puedeCalcular || !r) {
+  if (!r) {
+    // El motivo lo declara la puerta; el asistente NO lo deduce. Con adobe, el
+    // método simplificado es aplicable y aun así no se calcula, porque el art.
+    // 1.2.3 prohíbe el material: decir aquí «el método no es aplicable» pondría
+    // al asistente a explicarle al usuario un problema que no tiene, y a
+    // ocultarle el que sí tiene.
     extras.push(
-      met?.bloqueo
+      ev.impedimento?.texto
         ?? 'El método simplificado no es aplicable; el edificio requiere un análisis modal completo (art. 3.6.2).',
-      'NO hay acción sísmica calculada: este módulo sólo implementa el método simplificado.',
+      ev.impedimento?.motivo === 'prohibicion-art-1.2.3'
+        ? 'NO hay acción sísmica calculada, y cumplir el art. 3.5.1 no levantaría la prohibición: '
+          + 'lo que hay que cambiar es la construcción, no el método de cálculo.'
+        : 'NO hay acción sísmica calculada: este módulo sólo implementa el método simplificado.',
     );
     extras.push(...ev.aplicabilidad.avisos.map((a) => `Aviso (art. ${a.articulo}): ${a.texto}`));
     extras.push(ALCANCE_LINEA);

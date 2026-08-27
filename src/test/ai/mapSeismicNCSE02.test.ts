@@ -19,6 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  aplicarPlanSismo,
   seismicNCSE02Adapter,
   summarizeSeismicResults,
   PERFIL_INERT_REASON,
@@ -154,10 +155,20 @@ describe('clasificaciones', () => {
 });
 
 describe('geometría', () => {
-  it('n exige un entero de verdad, no un 8,4 redondeado en silencio', () => {
-    const r = plan(p({ n: 8.4 }), D());
-    expect(r.fields.n).toBeUndefined();
-    expect(skipOf(r, 'n')?.reason).toMatch(/entero/);
+  it('los sótanos exigen un entero de verdad, no un 2,4 redondeado en silencio', () => {
+    const r = plan(p({ sotanos: 2.4 }), D());
+    expect(r.fields.sotanos).toBeUndefined();
+    expect(skipOf(r, 'sotanos')?.reason).toMatch(/entero/);
+  });
+
+  it('el asistente NO puede fijar el número de plantas sobre rasante', () => {
+    // `n` sale de contar la tabla de plantas, que es de solo lectura para el
+    // asistente: fijarlo aparte era lo que permitía que se separaran —T_F subía
+    // y la masa se quedaba— sin que ningún cálculo lo delatara. La clave ya no
+    // existe en el contrato, y si el modelo la alucina no toca nada.
+    const r = plan({ ...p(), n: 25 } as never, D());
+    expect((r.fields as Record<string, unknown>).n).toBeUndefined();
+    expect(r.changes.some((c) => c.field === 'n')).toBe(false);
   });
 
   it('L y B de una dirección se funden en UN solo objeto y respetan los planos', () => {
@@ -171,16 +182,57 @@ describe('geometría', () => {
     expect(r.fields.y).toBeUndefined();
   });
 
-  it('avisa cuando n y la tabla de plantas se separan', () => {
-    // Son campos independientes del estado: T_F usa n, la masa sale de la tabla.
-    // Que se separen no lo detecta ningún cálculo.
-    const r = plan(p({ n: 14 }), D());
-    expect(r.warnings.join(' ')).toMatch(/n = 14 pero la tabla tiene 10 plantas/);
+  it('aplicar una propuesta vieja NO revierte los planos ni el T_F impuesto', () => {
+    // A3. El plan congela la dirección ENTERA al construirse, y sólo puede
+    // escribir L y B. Si el usuario minimiza el modal, toca los planos o impone
+    // T_F —justo lo que el prompt le manda hacer— y después aplica, un spread a
+    // secas le devolvía la copia vieja sin ninguna fila de cambio que lo
+    // delatase.
+    const alProponer = D();
+    const r = plan(p({ L_x_m: 24 }), alProponer);
+
+    // Entre la propuesta y el «Aplicar», el usuario edita.
+    const vivo: SeismicState = {
+      ...alProponer,
+      x: {
+        ...alProponer.x,
+        elementos: [{ id: 'nuevo', x: 0, k: 1 }],
+        TFModo: 'manual',
+        TFManual: 1.25,
+      },
+    };
+
+    const final = aplicarPlanSismo(vivo, r.fields);
+    expect(final.x.L).toBe(24); // lo que sí propuso el asistente
+    expect(final.x.elementos).toEqual(vivo.x.elementos); // lo que era del usuario
+    expect(final.x.TFModo).toBe('manual');
+    expect(final.x.TFManual).toBe(1.25);
   });
 
-  it('sin separación no hay aviso', () => {
+  it('el asistente no escribe de una dirección nada más que L y B', () => {
+    // Guarda del merge de arriba: si algún día el adapter empieza a escribir
+    // otra subclave, `aplicarPlanSismo` la tiraría en silencio. Este test salta
+    // primero.
+    const current = D();
+    const r = plan(p({ L_x_m: 24, B_x_m: 6, L_y_m: 18, B_y_m: 2 }), current);
+    for (const eje of ['x', 'y'] as const) {
+      const propuesta = r.fields[eje];
+      expect(propuesta).toBeTruthy();
+      const distintas = (Object.keys(propuesta!) as (keyof typeof propuesta)[]).filter(
+        (k) => propuesta![k] !== current[eje][k],
+      );
+      expect(distintas.sort()).toEqual(['B', 'L']);
+    }
+  });
+
+  it('n y la tabla de plantas ya no se pueden separar', () => {
+    // Antes eran dos campos independientes del estado —T_F usaba n, la masa
+    // salía de la tabla— y que se separasen no lo detectaba ningún cálculo: el
+    // adapter sólo podía avisar de un lío que no estaba en su mano arreglar.
+    // Ahora n ES la tabla contada, así que no hay nada de lo que avisar.
     const r = plan(p({ H_m: 33 }), D());
     expect(r.warnings.filter((w) => w.includes('la tabla tiene'))).toHaveLength(0);
+    expect(r.warnings.join(' ')).not.toMatch(/plantas/);
   });
 });
 
@@ -213,8 +265,12 @@ describe('los tres factores del coeficiente sísmico', () => {
     expect(riskIds(r)).toContain('alpha_x');
   });
 
-  it('subir n alarga T_F y rebaja alpha → RIESGO en las dos direcciones', () => {
-    const r = plan(p({ n: 14 }), D(), ['n']);
+  it('cambiar el sistema alarga T_F y rebaja alpha → RIESGO en las dos direcciones', () => {
+    // Con pórticos de acero, T_F = 0,11·n en vez de 0,09·n: el período se
+    // alarga un 22 % y, por encima de T_B, alpha baja en la misma proporción.
+    // (Subir `n` hacía lo mismo, pero ya no es un campo del asistente: sale de
+    // contar la tabla de plantas, que no puede tocar.)
+    const r = plan(p({ sistema: 'porticos-acero' }), D(), ['sistema']);
     expect(riskIds(r)).toContain('alpha_x');
     expect(riskIds(r)).toContain('alpha_y');
   });
@@ -241,14 +297,22 @@ describe('las puertas normativas', () => {
     expect(riskIds(r)).not.toContain('ac');
   });
 
-  it('bajar n_total a cuatro abre la pasarela del art. 3.5.1 → DOS riesgos', () => {
-    // Un edificio que incumple el requisito (3) y que, bajando n_total, entra
-    // por la pasarela de las cuatro plantas EN TOTAL sin cumplirlo.
-    const current: SeismicState = { ...D(), regularidadGeometrica: false };
+  it('quitar sótanos abre la pasarela del art. 3.5.1 → DOS riesgos', () => {
+    // Un edificio de cuatro plantas sobre rasante con dos sótanos suma seis y
+    // NO entra por la pasarela. Quitarle los sótanos lo baja a cuatro en total
+    // y lo mete por ella sin cumplir el requisito (3).
+    const base = D();
+    const current: SeismicState = {
+      ...base,
+      plantas: base.plantas.slice(0, 4),
+      H: 12,
+      sotanos: 2,
+      regularidadGeometrica: false,
+    };
     expect(evaluarSismo(current).aplicabilidad.metodoSimplificado?.aplicable).toBe(false);
 
-    const r = plan(p({ n_total: 4 }), current, ['n_total']);
-    expect(riskIds(r)).toContain('nTotal');
+    const r = plan(p({ sotanos: 0 }), current, ['sotanos']);
+    expect(riskIds(r)).toContain('sotanos');
     expect(riskIds(r)).toContain('puerta_metodo_simplificado');
     expect(evaluarSismo({ ...current, ...r.fields }).aplicabilidad.metodoSimplificado?.aplicable).toBe(true);
   });
@@ -348,6 +412,45 @@ describe('resumen para el prompt', () => {
     expect(r.text).toMatch(/Sum P_k = 23400 kN/);
   });
 
+  it('un material prohibido se explica como prohibición, no como fallo del método', () => {
+    // Tercer sitio donde se deducía mal el motivo, tras la pantalla y el PDF.
+    // Diciendo «el método simplificado no es aplicable», el asistente se ponía
+    // a explicarle al usuario un problema que no tiene —el método vale— y le
+    // ocultaba el que sí: que el art. 1.2.3 prohíbe construir de adobe.
+    const r = summarizeSeismicResults(evaluarSismo({ ...D(), sistema: 'adobe' }));
+    expect(r.text).toMatch(/adobe/i);
+    expect(r.text).toMatch(/1\.2\.3/);
+    expect(r.text).toMatch(/no levantaría la prohibición|cambiar es la construcción/i);
+    expect(r.text).not.toMatch(/el método simplificado no es aplicable/i);
+  });
+
+  it('sin período fundamental lo dice, en vez de resumir números vacíos', () => {
+    const r = summarizeSeismicResults(evaluarSismo({ ...D(), sistema: 'otro' }));
+    expect(r.text).toMatch(/3\.7\.2\.2/);
+    expect(r.text).toMatch(/T_F/);
+    expect(r.text).not.toMatch(/cortante basal = /);
+  });
+
+  it('el caso pasarela SÍ se resume, aunque tenga los (3)-(6) sin declarar', () => {
+    // Con la vía de las cuatro plantas, esos requisitos están levantados: no es
+    // una puerta a medio resolver y el asistente tiene todo lo que necesita.
+    const s = D();
+    const r = summarizeSeismicResults(
+      evaluarSismo({
+        ...s,
+        H: 9,
+        plantas: s.plantas.slice(0, 3),
+        regularidadGeometrica: null,
+        soportesContinuos: null,
+        regularidadMecanica: null,
+        excentricidadDeclarada: null,
+      }),
+    );
+    expect(r.verdict).not.toBe('invalid');
+    expect(r.text).toMatch(/PASARELA/);
+    expect(r.text).toMatch(/cortante basal = /);
+  });
+
   it('avisa de que las comprobaciones son de APLICABILIDAD, no de resistencia', () => {
     // Sin esta línea, un veredicto «CUMPLE» se lee como «el edificio aguanta el
     // sismo», que es falso: este módulo no comprueba ninguna sección.
@@ -363,7 +466,14 @@ describe('resumen para el prompt', () => {
   });
 
   it('sin método simplificado dice que no hay acción sísmica calculada', () => {
-    const r = summarizeSeismicResults(evaluarSismo({ ...D(), H: 80, n: 25, nTotal: 25 }));
+    const s = D();
+    // 25 plantas de verdad: `n` sale de contar la tabla, no se declara.
+    const alto = {
+      ...s,
+      H: 75,
+      plantas: Array.from({ length: 25 }, (_, k) => ({ ...s.plantas[0], id: `p${k}`, h: 3 * (k + 1) })),
+    };
+    const r = summarizeSeismicResults(evaluarSismo(alto));
     expect(r.verdict).toBe('fail');
     expect(r.text).toMatch(/NO hay acción sísmica calculada/);
     expect(r.text).toMatch(/análisis modal/);

@@ -89,6 +89,19 @@ function fmtRatio(v: number): string {
 const MATERIALES_PROHIBIDOS = ["mamposteria-seco", "adobe", "tapial"];
 
 /**
+ * Las tres exenciones, redactadas para citarlas. Viven aquí y no en el
+ * exportador porque son el texto del artículo, no una decisión de maquetación:
+ * el PDF las importa en vez de mantener su propia copia.
+ */
+export const MOTIVO_EXENCION: Record<string, string> = {
+  "importancia-moderada": "la construcción es de importancia moderada (art. 1.2.2)",
+  "ab-inferior-0.04g": "la aceleración sísmica básica es inferior a 0,04 g",
+  "porticos-arriostrados-ab-inferior-0.08g":
+    "es una construcción de importancia normal con pórticos bien arriostrados " +
+    "entre sí en todas las direcciones y ab inferior a 0,08 g",
+};
+
+/**
  * Avisos y prohibiciones del art. 1.2.3 que NO deciden la obligatoriedad pero
  * viajan con ella. Las prohibiciones de material y los límites de altura de la
  * fábrica sólo rigen cuando la Norma es de aplicación; el aviso de terrenos
@@ -273,10 +286,10 @@ function requisito6(input: MetodoSimplificadoInput): Requisito {
     ["Y", input.excentricidad?.y],
   ] as const;
 
-  const medidas: Array<{ dir: string; ratio: number }> = [];
+  const medidas: Array<{ dir: string; ratio: number; dimension: number }> = [];
   for (const [dir, d] of dirs) {
     if (!d || !(d.dimension > 0)) continue; // guarda: dimensión nula o ausente
-    medidas.push({ dir, ratio: Math.abs(d.e) / d.dimension });
+    medidas.push({ dir, ratio: Math.abs(d.e) / d.dimension, dimension: d.dimension });
   }
 
   if (medidas.length === 0) {
@@ -289,7 +302,20 @@ function requisito6(input: MetodoSimplificadoInput): Requisito {
   }
 
   const detalle = medidas
-    .map((m) => m.dir + ": e/dim = " + fmtRatio(m.ratio))
+    // La dimensión va a la vista porque NO es la de la propia dirección: los
+    // planos se reparten sobre el eje transversal, así que la excentricidad
+    // que sale de ellos se mide contra la dimensión en planta de ESE eje. Quien
+    // firma la memoria tiene que poder comprobar la división que ha salido
+    // impresa, y con «e/dim = 10,7 %» a secas no puede.
+    .map(
+      (m) =>
+        m.dir +
+        ": e/dim = " +
+        fmtRatio(m.ratio) +
+        " (transversal " +
+        m.dimension.toFixed(2).replace(".", ",") +
+        " m)",
+    )
     .join(" · ");
   const algunaFalla = medidas.some(
     (m) => !esInferior(m.ratio, LIMITE_EXCENTRICIDAD),
@@ -461,17 +487,61 @@ export function checkApplicability(
       obligatoriedad: obl,
       metodoSimplificado: null,
       puedeCalcular: false,
+      impedimento:
+        obl.estado === "exenta"
+          ? {
+              motivo: "norma-no-obligatoria",
+              articulo: "1.2.3",
+              texto:
+                "La NCSE-02 no es de aplicación obligatoria a esta construcción: " +
+                (MOTIVO_EXENCION[obl.motivo ?? ""] ?? "exenta por el art. 1.2.3") +
+                ".",
+            }
+          : {
+              motivo: "obligatoriedad-indeterminada",
+              articulo: "1.2.3",
+              texto:
+                "Todavía no se puede decidir si la NCSE-02 es de aplicación: falta " +
+                (obl.falta ?? "un dato del emplazamiento") +
+                ". Es la contraexcepción de los edificios de más de siete plantas, " +
+                "que depende de ac.",
+            },
       avisos: obl.avisos,
     };
   }
 
   const met = checkMetodoSimplificado(simplificado);
-  const bloqueado = obl.avisos.some((a) => a.severidad === "bloqueo");
+
+  // Las prohibiciones del art. 1.2.3 —material, alturas de la fábrica— NO son
+  // un problema del método simplificado: el edificio puede cumplir los seis
+  // requisitos del art. 3.5.1 y estar prohibido igual. Por eso se miran ANTES,
+  // y por eso el impedimento las nombra por su artículo.
+  const prohibicion = obl.avisos.find((a) => a.severidad === "bloqueo");
+  if (prohibicion) {
+    return {
+      obligatoriedad: obl,
+      metodoSimplificado: met,
+      puedeCalcular: false,
+      impedimento: {
+        motivo: "prohibicion-art-1.2.3",
+        articulo: prohibicion.articulo,
+        texto: prohibicion.texto,
+      },
+      avisos: [...obl.avisos, ...met.avisos],
+    };
+  }
 
   return {
     obligatoriedad: obl,
     metodoSimplificado: met,
-    puedeCalcular: met.aplicable && !bloqueado,
+    puedeCalcular: met.aplicable,
+    impedimento: met.aplicable
+      ? null
+      : {
+          motivo: "metodo-simplificado-no-aplicable",
+          articulo: "3.5.1",
+          texto: met.bloqueo ?? "No es aplicable el método simplificado del art. 3.5.1.",
+        },
     avisos: [...obl.avisos, ...met.avisos],
   };
 }

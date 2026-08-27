@@ -81,6 +81,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { suplementar } from './ncse02-suplemento.mjs';
+
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ = join(AQUI, '..');
 const DESTINO = join(RAIZ, 'src', 'features', 'seismic-ncse02');
@@ -647,20 +649,29 @@ export function plegar(s) {
 }
 
 /**
- * Variantes de busqueda de un nombre oficial. Tres formas que el nombre del IGN
- * obliga a tratar, medidas sobre 506 nombres reales:
+ * Variantes de busqueda de un nombre oficial. Cuatro formas que el nombre del
+ * IGN obliga a tratar, medidas sobre los 2.610 nombres reales:
  *
  *   26,9 % llevan acento o enye         -> se pliegan
  *    8,5 % llevan el articulo al final  -> `Union (La)` se indexa como `union` y
  *                                          como `la union`, que son las dos
- *                                          formas en que se teclea. La forma
- *                                          invertida `union la` no se indexa
- *                                          porque nadie la escribe.
+ *                                          formas en que se TECLEA.
  *    1,4 % son bilingues con barra      -> `Alicante/Alacant` se indexa por las
  *                                          DOS formas. Sin esto, quien escribe
  *                                          "Alacant" no encuentra Alicante, y
  *                                          Alicante es capital de provincia con
  *                                          ab alta.
+ *   11,3 % NO SE ENCONTRABAN PEGADOS    -> ver abajo.
+ *
+ * La cuarta forma es el nombre oficial ENTERO, plegado tal cual: `union la`,
+ * `alicante alacant`. La version anterior no la indexaba, razonando que nadie
+ * escribe "Union La". Cierto mientras el usuario TECLEE — y falso en cuanto
+ * PEGA, que es lo que hace quien copia el nombre del BOE, de un pliego o del
+ * propio rotulo de la app, que muestra el nombre oficial. Medido: 295 de los
+ * 2.610 nombres (11,3 %) no se encontraban pegados verbatim, la capital
+ * Alicante entre ellos, y el "no encontrado" de este modulo no es inocuo:
+ * significa "la Norma no te obliga". Un nombre sin barra ni articulo produce
+ * aqui la misma clave que ya tenia, asi que el coste real son esas 295 filas.
  */
 export function clavesDe(nombre) {
   const claves = new Set();
@@ -675,6 +686,8 @@ export function clavesDe(nombre) {
       claves.add(plegar(bruto));
     }
   }
+  // El nombre oficial completo, para quien lo pega en vez de teclearlo.
+  claves.add(plegar(nombre));
   return [...claves].filter(Boolean);
 }
 
@@ -684,9 +697,15 @@ function escribir(licencia, muestraCruda) {
   const filas = [...encontrados.values()].map((m) => parsearFila(m.props));
   const gids = filas.map((f) => f.gid).filter(Number.isFinite);
   const gidMax = gids.length ? Math.max(...gids) : 0;
-  const conDato = filas.filter((f) => f.ab != null).sort((a, b) => a.ine.localeCompare(b.ine));
+  const cosechadas = filas.filter((f) => f.ab != null);
   const noMunicipales = filas.filter((f) => f.noMunicipal).length;
-  const sinDato = filas.length - conDato.length - noMunicipales;
+  const sinDato = filas.length - cosechadas.length - noMunicipales;
+
+  // La capa NO es el Anejo 1: le faltan seis municipios (Ceuta y Melilla entre
+  // ellos), contradice al BOE en el K de uno, y no conoce las 28 segregaciones
+  // posteriores a 2002. Ver `ncse02-suplemento.mjs`.
+  const sup = suplementar(cosechadas.map(({ ine, nombre, ab, k }) => ({ ine, nombre, ab, k })));
+  const conDato = sup.filas.sort((a, b) => a.ine.localeCompare(b.ine));
 
   const abValores = [...new Set(conDato.map((f) => f.ab))].sort((a, b) => a - b);
   const kValores = [...new Set(conDato.map((f) => f.k))].sort((a, b) => a - b);
@@ -695,8 +714,13 @@ function escribir(licencia, muestraCruda) {
   }
 
   // Formato columnar (decision 2 del design doc): arrays paralelos con
-  // diccionario de los valores repetidos. Medido sobre los datos reales: 20
+  // diccionario de los valores repetidos. Medido sobre los datos reales: 22
   // valores distintos de ab y 4 de K, asi que ambos entran como indice de byte.
+  //
+  // `procedencia` es un mapa DISPERSO, no una columna: solo llevan entrada las
+  // pocas filas que no son cosecha directa de la capa. Una columna de 2.600
+  // cadenas vacias costaria mas que las ~35 entradas que de verdad hay, y el
+  // formato de las demas filas no cambia.
   const datos = {
     ine: conDato.map((f) => f.ine),
     nombre: conDato.map((f) => f.nombre),
@@ -705,6 +729,7 @@ function escribir(licencia, muestraCruda) {
     k: conDato.map((f) => kValores.indexOf(f.k)),
     abValores,
     kValores,
+    procedencia: sup.procedencia,
   };
 
   const json = `${JSON.stringify(datos)}\n`;
@@ -715,17 +740,29 @@ function escribir(licencia, muestraCruda) {
     layer: CAPA,
     infoFormat: INFO_FORMAT,
     parserVersion: PARSER_VERSION,
-    harvestedAt: new Date().toISOString(),
+    // La fecha DEL BARRIDO, no la de esta escritura. Sobrevive a un
+    // `--solo-escribir` por la cache, igual que el coste: reescribir el dataset
+    // no vuelve a preguntarle nada al IGN, asi que declarar la fecha de hoy
+    // seria decir que los datos son de hoy cuando pueden ser de hace meses.
+    harvestedAt: fechaBarrido,
     license: licencia,
     attribution: 'Instituto Geográfico Nacional (IGN)',
     sha256,
     layerRecordCount: filas.length,
     anejo1RecordCount: conDato.length,
+    harvestedRecordCount: cosechadas.length,
     outsideAnejo1RecordCount: sinDato,
     // Facerias, entidades locales menores y mancomunidades: poligonos de la capa
     // que no son municipios. Ni son Anejo 1 ni cuentan como municipio ausente.
     nonMunicipalRecordCount: noMunicipales,
-    syntheticRecordCount: 0,
+    // Filas que NO salen de la capa. No son invenciones: son el texto del BOE
+    // (municipios que la capa no resuelve) y la herencia de los municipios
+    // segregados despues de 2002. Ver `ncse02-suplemento.mjs`.
+    syntheticRecordCount: sup.informe.ausentes + sup.informe.heredadas,
+    fromBoeRecordCount: sup.informe.ausentes,
+    inheritedRecordCount: sup.informe.heredadas,
+    correctedRecordCount: sup.informe.corregidas,
+    supplementSource: 'BOE núm. 244 de 11/10/2002 (RD 997/2002) · registro INE de municipios',
     // Oraculo de completitud: `gid` es clave serie densa de la capa, asi que los
     // huecos de la secuencia miden lo que falta sin depender de ningun registro
     // externo. Sustituye al `ineRegisterVersion` que planteaba el design doc.
@@ -743,7 +780,7 @@ function escribir(licencia, muestraCruda) {
   mkdirSync(FIXTURES, { recursive: true });
   writeFileSync(join(FIXTURES, 'ign-getfeatureinfo.crudo.json'), `${JSON.stringify(muestraCruda, null, 2)}\n`);
 
-  return manifest;
+  return { manifest, informe: sup.informe };
 }
 
 // --- cache ------------------------------------------------------------------
@@ -755,6 +792,13 @@ function escribir(licencia, muestraCruda) {
  * que rehacerlo es barato.
  */
 let costeAcumulado = { probeCount: 0, emptinessMapCount: 0, requestCount: 0, retryCount: 0, wastedProbeCount: 0 };
+
+/**
+ * Cuando se cosecharon los datos. Se fija al guardar la cache y se recupera al
+ * cargarla, por la misma razon que el coste: un `--solo-escribir` no vuelve a
+ * consultar al IGN y no puede declarar que los datos son de hoy.
+ */
+let fechaBarrido = new Date().toISOString();
 
 const costeTotal = () => ({
   probeCount: costeAcumulado.probeCount + nSondeos,
@@ -770,6 +814,7 @@ function guardarCache() {
     CACHE,
     JSON.stringify({
       coste: costeTotal(),
+      harvestedAt: fechaBarrido,
       filas: [...encontrados.values()].map((m) => ({ props: m.props, geom: m.geom })),
     }),
   );
@@ -780,6 +825,20 @@ function cargarCache() {
   const c = JSON.parse(readFileSync(CACHE, 'utf8'));
   const filas = Array.isArray(c) ? c : c.filas;
   if (!Array.isArray(c) && c.coste) costeAcumulado = c.coste;
+  // Una cache escrita antes de que se guardara la fecha no la trae. Antes de
+  // estampar la de hoy —que seria falsa— se rescata la del manifest anterior,
+  // que es la del barrido que produjo esa misma cache.
+  if (!Array.isArray(c) && c.harvestedAt) fechaBarrido = c.harvestedAt;
+  else {
+    const previo = join(DESTINO, 'ncse02.hazard.manifest.json');
+    if (existsSync(previo)) {
+      const m = JSON.parse(readFileSync(previo, 'utf8'));
+      if (m.harvestedAt) {
+        fechaBarrido = m.harvestedAt;
+        console.log(`  fecha del barrido recuperada del manifest anterior: ${fechaBarrido}`);
+      }
+    }
+  }
   for (const f of filas) encontrados.set(f.props.ine_mun, { props: f.props, geom: f.geom });
   console.log(`  cache: ${encontrados.size} municipios ya cosechados`);
   return true;
@@ -870,7 +929,7 @@ async function main() {
     }
   }
 
-  const manifest = escribir(licencia, granada);
+  const { manifest, informe } = escribir(licencia, granada);
 
   console.log('\nResumen');
   console.log(
@@ -878,7 +937,7 @@ async function main() {
       `${manifest.requestCount} (${nReintentos} reintentos)`,
   );
   console.log(`  filas de la capa      : ${manifest.layerRecordCount}`);
-  console.log(`  en el Anejo 1         : ${manifest.anejo1RecordCount}`);
+  console.log(`  cosechadas con ab     : ${manifest.harvestedRecordCount}`);
   console.log(`  fuera del Anejo 1     : ${manifest.outsideAnejo1RecordCount} (ab < 0,04 g)`);
   console.log(`  no municipales        : ${manifest.nonMunicipalRecordCount} (facerias, ELM, mancomunidades)`);
   console.log(`  gid vistos / gid max  : ${manifest.gidSeen} / ${manifest.gidMax}`);
@@ -889,7 +948,13 @@ async function main() {
         ? '  <-- REVISAR: o son gid inexistentes, o son municipios sin encontrar'
         : '  (secuencia completa)'),
   );
-  console.log(`  sha256                : ${manifest.sha256}`);
+  console.log('\n  Suplemento (lo que la capa no resuelve, del BOE y del registro INE)');
+  console.log(`    del texto del BOE   : ${manifest.fromBoeRecordCount} (Ceuta, Melilla y demas ausentes)`);
+  console.log(`    heredadas del padre : ${manifest.inheritedRecordCount} (segregaciones posteriores a 2002)`);
+  console.log(`    valores corregidos  : ${manifest.correctedRecordCount} (la capa contradice al BOE)`);
+  console.log(`  en el Anejo 1 (total) : ${manifest.anejo1RecordCount}`);
+  for (const a of informe.avisos) console.log(`    ! ${a}`);
+  console.log(`\n  sha256                : ${manifest.sha256}`);
 }
 
 // Solo barre si se invoca como programa. Importado desde un test, el fichero

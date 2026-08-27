@@ -29,9 +29,16 @@ import type {
   SistemaEstructural,
   TipoTerreno,
 } from '../../lib/codes/seismic/types';
-import { MENSAJE_NO_ENCONTRADO, buscarMunicipios, type Municipio } from './hazard';
+import {
+  MENSAJE_NO_ENCONTRADO,
+  buscarMunicipios,
+  textoProcedencia,
+  type Municipio,
+} from './hazard';
 import {
   newId,
+  plantasSobreRasante,
+  plantasTotales,
   type DireccionUI,
   type PlantaUI,
   type SeismicEvaluation,
@@ -57,6 +64,109 @@ const SELECT_CLS =
   'bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] ' +
   'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors';
 
+// ── Campos numéricos ─────────────────────────────────────────────────────────
+//
+// TODO input numérico del panel pasa por `useCampoNumerico`. Antes había dos
+// comportamientos distintos: `Num` guardaba el texto tecleado en estado local,
+// y los seis campos en línea —las cargas q, la coordenada y la rigidez de cada
+// plano, los dos de cada estrato y el T_F impuesto— hacían `parseFloat` sobre
+// el value controlado en cada pulsación. En esos seis el separador decimal
+// desaparecía bajo el cursor: teclear "4,5" dejaba "45" en pantalla Y 45 en el
+// estado. Un factor diez en la carga de una planta, sin ningún aviso, en los
+// campos más editados del módulo.
+
+/**
+ * Parseo ESTRICTO de un decimal, con coma o con punto.
+ *
+ * `parseFloat` no vale aquí: se traga la cola y devuelve un número para textos
+ * que no lo son ("4x" → 4, y con la coma sin traducir "1,5" → 1). Eso deja en
+ * pantalla algo distinto de lo que se ha guardado, que es justo lo que estos
+ * campos tienen que dejar de hacer.
+ *
+ * Devuelve `null` para todo lo que no sea un decimal completo. Ahí caen también
+ * los estados intermedios legítimos de tecleo —"", "-", "3,"—, que no se comiten
+ * pero tampoco se corrigen bajo el cursor.
+ */
+function parsearDecimal(txt: string): number | null {
+  const t = txt.trim().replace(',', '.');
+  if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+interface Rango {
+  min?: number;
+  max?: number;
+}
+
+const dentro = (n: number, { min, max }: Rango) =>
+  (min === undefined || n >= min) && (max === undefined || n <= max);
+
+/**
+ * Estado de texto de un campo numérico. Devuelve las tres props del `<input>`.
+ *
+ * Dos invariantes:
+ *
+ *  1. Mientras se teclea manda el texto, para que un decimal a medio escribir no
+ *     se reformatee bajo el cursor. Cuando el valor cambia DESDE FUERA (cargar
+ *     un caso, elegir municipio, aplicar el asistente) se resincroniza, y se
+ *     hace ajustando en render contra el valor anterior —el patrón de React para
+ *     esto— y no con un efecto, que encadenaría un render de más.
+ *  2. Al salir del campo, lo que se ve ES lo que hay en el estado. Antes el
+ *     `onBlur` sólo restauraba con NaN, así que un valor rechazado por el rango
+ *     —"0" en K, que tiene mínimo 1— se quedaba en pantalla indefinidamente
+ *     mientras el cálculo seguía con el anterior.
+ */
+function useCampoNumerico(value: number, onChange: (v: number) => void, rango: Rango = {}) {
+  const [txt, setTxt] = useState(() => String(value));
+  const [previo, setPrevio] = useState(value);
+  if (previo !== value) {
+    setPrevio(value);
+    // Si el texto en pantalla ya representa ese número no se toca: así "0,05"
+    // sobrevive a su propio commit en vez de reescribirse como "0.05".
+    if (parsearDecimal(txt) !== value) setTxt(String(value));
+  }
+  return {
+    value: txt,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      setTxt(e.target.value);
+      const n = parsearDecimal(e.target.value);
+      if (n !== null && dentro(n, rango)) onChange(n);
+    },
+    onBlur: () => {
+      if (parsearDecimal(txt) !== value) setTxt(String(value));
+    },
+  };
+}
+
+/** Input numérico desnudo, para las tablas. Mismo comportamiento que `Num`. */
+function NumIn({
+  value,
+  onChange,
+  etiqueta,
+  min,
+  max,
+  ancho = 'w-14',
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  etiqueta: string;
+  min?: number;
+  max?: number;
+  ancho?: string;
+}) {
+  const campo = useCampoNumerico(value, onChange, { min, max });
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      {...campo}
+      className={`${INPUT_CLS} ${ancho} rounded`}
+      aria-label={etiqueta}
+    />
+  );
+}
+
 function Num({
   label,
   sub,
@@ -65,6 +175,7 @@ function Num({
   unit,
   onChange,
   min,
+  max,
   ancho = 'w-15',
 }: {
   label: string;
@@ -74,19 +185,10 @@ function Num({
   unit?: string;
   onChange: (v: number) => void;
   min?: number;
+  max?: number;
   ancho?: string;
 }) {
-  // El campo guarda el texto tal cual se teclea, para que "3," o "3." a medio
-  // escribir no se reformateen bajo el cursor. Cuando el valor cambia DESDE
-  // FUERA (cargar un caso, elegir municipio) hay que resincronizar: se hace
-  // ajustando en render con el valor anterior, que es el patrón de React para
-  // esto, y no con un efecto que provocaría un render en cascada.
-  const [txt, setTxt] = useState(() => String(value));
-  const [previo, setPrevio] = useState(value);
-  if (previo !== value) {
-    setPrevio(value);
-    setTxt(String(value));
-  }
+  const campo = useCampoNumerico(value, onChange, { min, max });
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel label={label} sub={sub} help={help} />
@@ -94,16 +196,7 @@ function Num({
         <input
           type="text"
           inputMode="decimal"
-          value={txt}
-          onChange={(e) => {
-            setTxt(e.target.value);
-            const n = parseFloat(e.target.value.replace(',', '.'));
-            if (!Number.isNaN(n) && (min === undefined || n >= min)) onChange(n);
-          }}
-          onBlur={() => {
-            const n = parseFloat(txt.replace(',', '.'));
-            if (Number.isNaN(n)) setTxt(String(value));
-          }}
+          {...campo}
           className={`${INPUT_CLS} ${ancho}`}
           aria-label={`${label}${unit ? ` (${unit})` : ''}`}
         />
@@ -291,9 +384,23 @@ function BuscadorMunicipio({
       ...s,
       municipioIne: m.ine,
       municipioNombre: m.nombre,
+      municipioProcedencia: m.procedencia,
       ab: m.ab,
       K: m.k,
     }));
+    setQ('');
+    setAbierto(false);
+  };
+
+  /**
+   * Suelta el municipio y deja ab y K editables. Es la salida para los dos
+   * casos que el Anejo 1 no puede resolver por nombre: un municipio creado
+   * después de 2002 que la tabla de suplemento todavía no cubra, y cualquier
+   * emplazamiento cuya peligrosidad venga de un estudio propio. Sin esto, un
+   * "no figura" deja al usuario sin ninguna forma de seguir.
+   */
+  const pasarAManual = () => {
+    setState((s) => ({ ...s, municipioIne: null, municipioNombre: '', municipioProcedencia: null }));
     setQ('');
     setAbierto(false);
   };
@@ -322,8 +429,36 @@ function BuscadorMunicipio({
         }
       />
       {state.municipioIne && !q ? (
-        <div className="text-[10px] text-text-disabled font-mono mt-1">
-          {state.municipioNombre} · INE {state.municipioIne}
+        <>
+          <div className="flex items-baseline justify-between gap-2 mt-1">
+            <span className="text-[10px] text-text-disabled font-mono truncate">
+              {state.municipioNombre} · INE {state.municipioIne}
+            </span>
+            <button
+              type="button"
+              onClick={pasarAManual}
+              className="text-[10px] text-text-disabled hover:text-accent transition-colors cursor-pointer shrink-0"
+            >
+              introducir a mano
+            </button>
+          </div>
+          {/*
+            Un municipio creado después de 2002 no está en el Anejo 1 y hereda
+            de aquel del que se segregó. Es exacto —la Norma clasificó ese mismo
+            territorio bajo el término de origen— pero NO es lo que dice la
+            Norma con este nombre, y quien firma tiene que verlo aquí y en el
+            PDF, no descubrirlo cuando se lo pregunten.
+          */}
+          {state.municipioProcedencia ? (
+            <p className="mt-1 text-[10px] leading-snug text-state-warn">
+              {textoProcedencia(state.municipioProcedencia)}.
+            </p>
+          ) : null}
+        </>
+      ) : null}
+      {!state.municipioIne && !q ? (
+        <div className="text-[10px] text-state-warn font-mono mt-1">
+          ab y K introducidos a mano · sin municipio del Anejo 1
         </div>
       ) : null}
 
@@ -347,9 +482,23 @@ function BuscadorMunicipio({
       ) : null}
 
       {sinResultados ? (
-        // El dataset lleva SOLO el Anejo 1, así que "no encontrado" no distingue
-        // exento de errata. El mensaje cubre los dos casos a propósito.
-        <p className="mt-1.5 text-[10px] leading-snug text-state-warn">{MENSAJE_NO_ENCONTRADO}</p>
+        // El dataset lleva SOLO el Anejo 1, así que "no encontrado" tiene tres
+        // causas y ninguna se puede dar por supuesta: ver MENSAJE_NO_ENCONTRADO.
+        // El botón es la salida, y sin él el mensaje sería un callejón.
+        <div className="mt-1.5">
+          <p className="text-[10px] leading-snug text-state-warn">{MENSAJE_NO_ENCONTRADO}</p>
+          <button
+            type="button"
+            onClick={pasarAManual}
+            className={
+              'mt-1.5 text-[10px] px-1.5 py-1 rounded border border-border-main ' +
+              'text-text-secondary hover:border-accent/40 hover:text-text-primary ' +
+              'transition-colors cursor-pointer'
+            }
+          >
+            Introducir ab y K a mano
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -377,7 +526,15 @@ function TablaPlantas({
   setState: SeismicInputsProps['setState'];
   evaluacion: SeismicEvaluation;
 }) {
-  const pesos = evaluacion.resultado?.plantas.map((p) => p.P) ?? [];
+  // Por ID, no por posición: la cadena ORDENA las plantas por altura, así que
+  // el índice i del resultado no es el de la fila i de la tabla en cuanto las
+  // alturas dejan de ir en orden creciente. Emparejando por posición, cada fila
+  // enseñaba el peso de otra planta.
+  const pesos = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of evaluacion.resultado?.plantas ?? []) if (p.id) m.set(p.id, p.P);
+    return m;
+  }, [evaluacion.resultado]);
 
   const cambiar = (id: string, fn: (p: PlantaUI) => PlantaUI) =>
     setState((s) => ({ ...s, plantas: s.plantas.map((p) => (p.id === id ? fn(p) : p)) }));
@@ -409,7 +566,7 @@ function TablaPlantas({
               aria-label={`Nombre de la planta ${i + 1}`}
             />
             <span className="text-[11px] font-mono text-accent shrink-0">
-              {(pesos[i] ?? 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} kN
+              {(pesos.get(p.id) ?? 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} kN
             </span>
             <button
               type="button"
@@ -475,20 +632,17 @@ function TablaPlantas({
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={String(c.q)}
-                    onChange={(e) => {
-                      const n = parseFloat(e.target.value.replace(',', '.'));
-                      if (Number.isNaN(n)) return;
+                  <NumIn
+                    value={c.q}
+                    min={0}
+                    ancho="w-12"
+                    etiqueta={`Carga del componente ${j + 1} en kN/m²`}
+                    onChange={(n) =>
                       cambiar(p.id, (x) => ({
                         ...x,
                         componentes: (x.componentes ?? []).map((y, m) => (m === j ? { ...y, q: n } : y)),
-                      }));
-                    }}
-                    className={`${INPUT_CLS} w-12 rounded`}
-                    aria-label={`Carga del componente ${j + 1} en kN/m²`}
+                      }))
+                    }
                   />
                   <span className="text-[9px] text-text-disabled font-mono w-9 shrink-0">
                     ×{FRACCION_MASA[c.categoria].toFixed(1)}
@@ -549,7 +703,10 @@ function TablaPlantas({
               nombre: `Planta ${s.plantas.length + 1}`,
               h: (ultima?.h ?? 0) + 3,
             };
-            return { ...s, plantas: [...s.plantas, nueva], n: s.plantas.length + 1 };
+            // `n` ya no se toca aquí: sale de contar `plantas`. Actualizarlo a
+            // mano en el botón de añadir —y no en el de borrar— era la mitad de
+            // la desincronización que hacía saltar la pasarela del art. 3.5.1.
+            return { ...s, plantas: [...s.plantas, nueva] };
           })
         }
         className="text-[11px] text-text-disabled hover:text-accent transition-colors cursor-pointer"
@@ -606,42 +763,36 @@ function PlanosResistentes({
         <span className="font-mono">x</span> es la coordenada{' '}
         <strong className="text-text-secondary">con signo</strong> respecto al centro, medida
         perpendicularmente al sismo. De aquí salen solos L<sub>e</sub>, el centro de torsión y γ
-        <sub>a</sub>.
+        <sub>a</sub>. Como se reparten sobre el eje transversal, el requisito (6) del art. 3.5.1
+        compara su excentricidad con la <span className="font-mono">L</span> de{' '}
+        <strong className="text-text-secondary">la otra dirección</strong>.
       </p>
 
       {dir.elementos.map((el, i) => (
         <div key={el.id} className="flex items-center gap-1.5 py-0.5">
           <span className="text-[10px] text-text-disabled font-mono w-4 shrink-0">{i + 1}</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={String(el.x)}
-            onChange={(e) => {
-              const n = parseFloat(e.target.value.replace(',', '.'));
-              if (Number.isNaN(n)) return;
+          {/* `x` va CON SIGNO: es el único campo del panel sin mínimo. */}
+          <NumIn
+            value={el.x}
+            etiqueta={`Coordenada x del plano ${i + 1}`}
+            onChange={(n) =>
               onChange((d) => ({
                 ...d,
                 elementos: d.elementos.map((y, m) => (m === i ? { ...y, x: n } : y)),
-              }));
-            }}
-            className={`${INPUT_CLS} w-14 rounded`}
-            aria-label={`Coordenada x del plano ${i + 1}`}
+              }))
+            }
           />
           <span className="text-[9px] text-text-disabled font-mono shrink-0">m</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={String(el.k)}
-            onChange={(e) => {
-              const n = parseFloat(e.target.value.replace(',', '.'));
-              if (Number.isNaN(n)) return;
+          <NumIn
+            value={el.k}
+            min={0}
+            etiqueta={`Rigidez relativa del plano ${i + 1}`}
+            onChange={(n) =>
               onChange((d) => ({
                 ...d,
                 elementos: d.elementos.map((y, m) => (m === i ? { ...y, k: n } : y)),
-              }));
-            }}
-            className={`${INPUT_CLS} w-14 rounded`}
-            aria-label={`Rigidez relativa del plano ${i + 1}`}
+              }))
+            }
           />
           <span className="text-[9px] text-text-disabled font-mono shrink-0">k</span>
           <button
@@ -684,6 +835,17 @@ const SISTEMAS: { v: SistemaEstructural; t: string }[] = [
 
 const f = (v: number | undefined, d = 2) => (v === undefined ? '—' : v.toFixed(d));
 
+/**
+ * Rótulo de procedencia de `ab` y `K` bajo "se deduce". Un municipio segregado
+ * después de 2002 hereda de su término de origen, y llamar a eso "Anejo 1"
+ * sería atribuir a la Norma un nombre de municipio que no contiene.
+ */
+function origenPeligrosidad(state: SeismicState): string {
+  const p = state.municipioProcedencia;
+  if (p?.tipo === 'segregado') return `${state.municipioNombre} · hereda de ${p.padre.nombre}`;
+  return `${state.municipioNombre} · Anejo 1`;
+}
+
 export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProps) {
   const e = evaluacion.emplazamiento;
   const r = evaluacion.resultado;
@@ -699,6 +861,36 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
     <div className="space-y-1">
       <CollapsibleSection label="Emplazamiento" refNorma="art. 2.2 · 2.4">
         <BuscadorMunicipio state={state} setState={setState} />
+        {/*
+          Sin municipio del Anejo 1, `ab` y `K` dejan de ser derivados y pasan a
+          ser DECISIONES del proyectista: por eso salen aquí arriba, entre lo que
+          se decide, y no bajo el separador "se deduce". El estado ya lo preveía
+          (`municipioIne: null` significa "metidos a mano"); lo que faltaba era
+          la forma de introducirlos, sin la cual un municipio ausente del Anejo 1
+          —Ceuta, Melilla, cualquier segregación posterior a 2002— dejaba el
+          módulo inservible.
+        */}
+        {state.municipioIne === null ? (
+          <>
+            <Num
+              label="ab"
+              sub="aceleración básica"
+              help="Aceleración sísmica básica en fracción de g, según el Anejo 1 de la NCSE-02 o estudio propio. Por debajo de 0,04 g la Norma no es de aplicación obligatoria."
+              value={state.ab}
+              unit="g"
+              min={0}
+              onChange={(v) => setState((s) => ({ ...s, ab: v }))}
+            />
+            <Num
+              label="K"
+              sub="contribución"
+              help="Coeficiente de contribución. Vale 1,0 salvo en el sur y sureste peninsular, donde llega a 1,3 (y a 1,4 en un único municipio)."
+              value={state.K}
+              min={1}
+              onChange={(v) => setState((s) => ({ ...s, K: v }))}
+            />
+          </>
+        ) : null}
         <Sel<Importancia>
           label="Importancia"
           sub="art. 1.2.2"
@@ -741,36 +933,30 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
             </p>
             {state.estratos.map((es, i) => (
               <div key={i} className="flex items-center gap-1.5 py-0.5">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={String(es.C)}
-                  onChange={(ev) => {
-                    const n = parseFloat(ev.target.value.replace(',', '.'));
-                    if (Number.isNaN(n)) return;
+                {/* El art. 2.4 tabula C entre 1,0 (roca compacta) y 2,0 (suelo blando). */}
+                <NumIn
+                  value={es.C}
+                  min={1}
+                  max={2}
+                  etiqueta={`C del estrato ${i + 1}`}
+                  onChange={(n) =>
                     setState((s) => ({
                       ...s,
                       estratos: s.estratos.map((y, m) => (m === i ? { ...y, C: n } : y)),
-                    }));
-                  }}
-                  className={`${INPUT_CLS} w-14 rounded`}
-                  aria-label={`C del estrato ${i + 1}`}
+                    }))
+                  }
                 />
                 <span className="text-[9px] text-text-disabled font-mono">C</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={String(es.espesor)}
-                  onChange={(ev) => {
-                    const n = parseFloat(ev.target.value.replace(',', '.'));
-                    if (Number.isNaN(n)) return;
+                <NumIn
+                  value={es.espesor}
+                  min={0}
+                  etiqueta={`Espesor del estrato ${i + 1}`}
+                  onChange={(n) =>
                     setState((s) => ({
                       ...s,
                       estratos: s.estratos.map((y, m) => (m === i ? { ...y, espesor: n } : y)),
-                    }));
-                  }}
-                  className={`${INPUT_CLS} w-14 rounded`}
-                  aria-label={`Espesor del estrato ${i + 1}`}
+                    }))
+                  }
                 />
                 <span className="text-[9px] text-text-disabled font-mono">m</span>
                 <button
@@ -798,8 +984,13 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         )}
 
         <SeDeduce />
-        <Derivado label="ab" origen={state.municipioNombre || 'entrada manual'} valor={f(state.ab)} unit="g" />
-        <Derivado label="K" origen={state.municipioNombre || 'entrada manual'} valor={f(state.K, 1)} />
+        {state.municipioIne !== null ? (
+          <>
+            {/* Un valor heredado no puede rotularse "Anejo 1": no lo es. */}
+            <Derivado label="ab" origen={origenPeligrosidad(state)} valor={f(state.ab)} unit="g" />
+            <Derivado label="K" origen={origenPeligrosidad(state)} valor={f(state.K, 1)} />
+          </>
+        ) : null}
         <Derivado label="ρ" origen={`importancia ${state.importancia}`} valor={f(e.rho, 1)} />
         <Derivado
           label="C"
@@ -819,20 +1010,21 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
           options={SISTEMAS}
           onChange={(v) => setState((s) => ({ ...s, sistema: v }))}
         />
+        {/*
+          Los sótanos son el único dato de recuento que se introduce: `n` sale
+          de contar la tabla de plantas y `n total` es la suma. Antes los tres
+          eran independientes y podían contradecirse —«+ planta» subía n y
+          dejaba n total quieto—, y con n total por debajo de n la pasarela de
+          las cuatro plantas del art. 3.5.1 se abría para edificios que no le
+          corresponden.
+        */}
         <Num
-          label="n"
-          sub="plantas sobre rasante"
-          value={state.n}
-          min={1}
-          onChange={(v) => setState((s) => ({ ...s, n: v }))}
-        />
-        <Num
-          label="n total"
-          sub="sótanos incluidos"
-          help="Sólo interviene en la pasarela de ≤4 plantas del art. 3.5.1. Un edificio de 4 plantas sobre rasante con dos sótanos tiene n = 4 pero n_total = 6, y NO entra por la pasarela."
-          value={state.nTotal}
-          min={1}
-          onChange={(v) => setState((s) => ({ ...s, nTotal: v }))}
+          label="Sótanos"
+          sub="plantas bajo rasante"
+          help="Sólo intervienen en la pasarela de ≤4 plantas del art. 3.5.1, que cuenta las plantas TOTALES. Un edificio de 4 plantas sobre rasante con dos sótanos suma 6 y NO entra por esa vía."
+          value={state.sotanos}
+          min={0}
+          onChange={(v) => setState((s) => ({ ...s, sotanos: Math.max(0, Math.trunc(v)) }))}
         />
         <Num
           label="H"
@@ -859,6 +1051,20 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         />
 
         <SeDeduce />
+        <Derivado
+          label="n"
+          origen="plantas sobre rasante · de la tabla"
+          valor={String(plantasSobreRasante(state))}
+        />
+        <Derivado
+          label="n total"
+          origen={
+            state.sotanos > 0
+              ? `n + ${state.sotanos} sótano${state.sotanos === 1 ? '' : 's'} · pasarela art. 3.5.1`
+              : 'sin sótanos · pasarela art. 3.5.1'
+          }
+          valor={String(plantasTotales(state))}
+        />
         {/*
           T_F es DERIVADO. El conmutador existe porque el art. 3.6.2.3.2 permite
           justificarlo por otra vía, no porque haya que elegirlo cada vez.
@@ -885,21 +1091,18 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
               {state.x.TFModo === 'auto' ? 'auto' : 'manual'}
             </button>
             {state.x.TFModo === 'manual' ? (
-              <input
-                type="text"
-                inputMode="decimal"
-                value={String(state.x.TFManual)}
-                onChange={(ev) => {
-                  const n = parseFloat(ev.target.value.replace(',', '.'));
-                  if (Number.isNaN(n)) return;
+              <NumIn
+                value={state.x.TFManual}
+                min={0}
+                ancho="w-15"
+                etiqueta="T_F impuesto, en segundos"
+                onChange={(n) =>
                   setState((s) => ({
                     ...s,
                     x: { ...s.x, TFManual: n },
                     y: { ...s.y, TFManual: n },
-                  }));
-                }}
-                className={`${INPUT_CLS} w-15 rounded`}
-                aria-label="T_F impuesto, en segundos"
+                  }))
+                }
               />
             ) : (
               <span className="w-15 text-right border border-dashed border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary">

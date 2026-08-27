@@ -52,20 +52,24 @@ import {
   type TableCol,
 } from './utils';
 import { FRACCION_MASA, NCSE02_ENGINE_VERSION } from '../codes/seismic/ncse02';
+import { MOTIVO_EXENCION } from '../codes/seismic/applicability';
 import type {
   AvisoNorma,
   CasoDireccional,
   CategoriaMasa,
+  MotivoImpedimento,
+  PlantaResuelta,
   DireccionResult,
   Importancia,
   Requisito,
   SistemaEstructural,
   TipoTerreno,
 } from '../codes/seismic/types';
-import type {
-  DireccionUI,
-  SeismicEvaluation,
-  SeismicState,
+import {
+  plantasSobreRasante,
+  type DireccionUI,
+  type SeismicEvaluation,
+  type SeismicState,
 } from '../../features/seismic-ncse02/state';
 import manifiesto from '../../features/seismic-ncse02/ncse02.hazard.manifest.json';
 
@@ -112,14 +116,8 @@ const CATEGORIA_LABEL: Record<CategoriaMasa, string> = {
   agua: 'Agua',
 };
 
-const MOTIVO_EXENCION: Record<string, string> = {
-  'importancia-moderada':
-    'la construcción es de importancia moderada (art. 1.2.2)',
-  'ab-inferior-0.04g': 'la aceleración sísmica básica es inferior a 0,04 g',
-  'porticos-arriostrados-ab-inferior-0.08g':
-    'es una construcción de importancia normal con pórticos bien arriostrados ' +
-    'entre sí en todas las direcciones y ab inferior a 0,08 g',
-};
+// MOTIVO_EXENCION vive en `lib/codes/seismic/applicability.ts`: es el texto del
+// artículo, no una decisión de este exportador.
 
 /**
  * Las cinco expresiones del art. 3.7.2.2, para que el PDF diga por CUÁL se ha
@@ -174,7 +172,7 @@ const pct = (v: number, dec = 1): string => `${num(v * 100, dec)} %`;
  * justamente lo que el papel tiene que decir.
  */
 export function seismicPdfBlocker(evaluacion: SeismicEvaluation): string | null {
-  const obl = evaluacion.aplicabilidad.obligatoriedad;
+  const { obligatoriedad: obl, metodoSimplificado: met } = evaluacion.aplicabilidad;
   if (obl.estado === 'indeterminada') {
     return (
       'Todavía no se puede decidir si la NCSE-02 es de aplicación: falta ' +
@@ -182,14 +180,20 @@ export function seismicPdfBlocker(evaluacion: SeismicEvaluation): string | null 
       'parecería una justificación sin serlo.'
     );
   }
-  const sinDeclarar = (evaluacion.aplicabilidad.metodoSimplificado?.requisitos ?? [])
-    .filter((r) => r.cumple === null)
-    .map((r) => r.id);
-  if (sinDeclarar.length > 0) {
-    return (
-      `Quedan sin declarar los requisitos (${sinDeclarar.join(', ')}) del art. 3.5.1. ` +
-      'El PDF no puede recogerlos como justificados mientras nadie los declare.'
-    );
+  // La pasarela de las cuatro plantas LEVANTA los requisitos (3) a (6): que
+  // estén sin declarar es su régimen normal, no un descuido. Bloquear ahí
+  // negaba el documento a un caso que el módulo calcula entero y enseña en
+  // pantalla, y con un mensaje que además no venía a cuento.
+  if (met?.via !== 'pasarela-4-plantas') {
+    const sinDeclarar = (met?.requisitos ?? [])
+      .filter((r) => r.cumple === null)
+      .map((r) => r.id);
+    if (sinDeclarar.length > 0) {
+      return (
+        `Quedan sin declarar los requisitos (${sinDeclarar.join(', ')}) del art. 3.5.1. ` +
+        'El PDF no puede recogerlos como justificados mientras nadie los declare.'
+      );
+    }
   }
   return null;
 }
@@ -302,21 +306,41 @@ const COLS_PARAM: TableCol<FilaParam>[] = [
 
 // ── Bloques del documento ────────────────────────────────────────────────────
 
+/**
+ * Titular del veredicto, uno por motivo.
+ *
+ * NO se deduce de `puedeCalcular`. Un edificio de adobe cumple los seis
+ * requisitos del art. 3.5.1 y no se calcula igualmente, porque el art. 1.2.3
+ * prohíbe el material: anunciar ahí «el método simplificado NO es aplicable»
+ * es falso, y encima el documento imprime a continuación esos seis requisitos
+ * en CUMPLE. El motivo lo declara la puerta y aquí sólo se rotula.
+ */
+const TITULAR: Record<MotivoImpedimento, string> = {
+  'norma-no-obligatoria': 'La NCSE-02 NO es de aplicación obligatoria a esta construcción.',
+  'obligatoriedad-indeterminada':
+    'No se puede determinar todavía si la NCSE-02 es de aplicación a esta construcción.',
+  'prohibicion-art-1.2.3':
+    'La NCSE-02 es de aplicación y PROHÍBE esta construcción tal como está definida.',
+  'metodo-simplificado-no-aplicable':
+    'La NCSE-02 es de aplicación, pero el método simplificado del art. 3.5.1 NO es aplicable.',
+  'faltan-datos-de-calculo':
+    'La NCSE-02 es de aplicación y el método simplificado del art. 3.5.1 es aplicable, ' +
+    'pero faltan datos para calcular la acción sísmica.',
+};
+
 function veredicto(doc: jsPDF, y: number, ev: SeismicEvaluation): number {
-  const { obligatoriedad: obl, metodoSimplificado: met, puedeCalcular } = ev.aplicabilidad;
+  const { obligatoriedad: obl, metodoSimplificado: met } = ev.aplicabilidad;
+  const imp = ev.impedimento;
 
   let ny = seccion(doc, y, 'VEREDICTO', 'art. 1.2.3 · 3.5.1');
 
-  const titular =
-    obl.estado === 'exenta'
-      ? 'La NCSE-02 NO es de aplicación obligatoria a esta construcción.'
-      : puedeCalcular
-        ? 'La NCSE-02 es de aplicación y el método simplificado del art. 3.5.1 es aplicable.'
-        : 'La NCSE-02 es de aplicación, pero el método simplificado del art. 3.5.1 NO es aplicable.';
+  const titular = imp
+    ? TITULAR[imp.motivo]
+    : 'La NCSE-02 es de aplicación y el método simplificado del art. 3.5.1 es aplicable.';
 
   ny = parrafo(doc, ny, titular, { size: 11, bold: true, gray: 20 });
 
-  if (obl.estado === 'exenta') {
+  if (imp?.motivo === 'norma-no-obligatoria') {
     ny = parrafo(
       doc,
       ny + 1,
@@ -325,17 +349,31 @@ function veredicto(doc: jsPDF, y: number, ev: SeismicEvaluation): number {
         'quiere hacerlo; lo que no hay es obligación de justificarla.',
       { size: 8, gray: 80 },
     );
-  } else if (!puedeCalcular) {
-    ny = parrafo(doc, ny + 1, met?.bloqueo ?? 'El método simplificado no es aplicable.', {
-      size: 8,
-      gray: 80,
-    });
+  } else if (imp?.motivo === 'prohibicion-art-1.2.3') {
+    // La causa, literal, y la advertencia de que los requisitos que vienen
+    // después NO levantan la prohibición: sin esto, la tabla de seises en
+    // CUMPLE que sigue se lee como una autorización.
+    ny = parrafo(doc, ny + 1, imp.texto, { size: 8, gray: 80 });
     ny = parrafo(
       doc,
       ny,
-      'Este documento recoge la comprobación de las dos puertas y los datos del ' +
-        'emplazamiento. NO contiene la acción sísmica: el edificio requiere un ' +
-        'análisis modal completo, que esta herramienta no realiza.',
+      'La comprobación del art. 3.5.1 que sigue se recoge a título informativo: ' +
+        'cumplirla NO levanta la prohibición del art. 1.2.3. Este documento NO ' +
+        'contiene la acción sísmica.',
+      { size: 8, gray: 80, italic: true },
+    );
+  } else if (imp) {
+    ny = parrafo(doc, ny + 1, imp.texto, { size: 8, gray: 80 });
+    ny = parrafo(
+      doc,
+      ny,
+      imp.motivo === 'faltan-datos-de-calculo'
+        ? 'Este documento recoge la comprobación de las dos puertas y los datos del ' +
+            'emplazamiento. NO contiene la acción sísmica: falta el dato que se indica ' +
+            'arriba.'
+        : 'Este documento recoge la comprobación de las dos puertas y los datos del ' +
+            'emplazamiento. NO contiene la acción sísmica: el edificio requiere un ' +
+            'análisis modal completo, que esta herramienta no realiza.',
       { size: 8, gray: 80, italic: true },
     );
   } else if (met?.via === 'pasarela-4-plantas') {
@@ -375,13 +413,31 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
     },
     {
       header: 'SISTEMA',
-      lines: [SISTEMA_LABEL[state.sistema], `n = ${state.n} · H = ${num(state.H, 2)} m`],
+      lines: [
+        SISTEMA_LABEL[state.sistema],
+        `n = ${plantasSobreRasante(state)} · H = ${num(state.H, 2)} m`,
+      ],
     },
   ]);
 
+  // Cuatro procedencias posibles, y el documento tiene que decir cuál es. La
+  // que más importa es `segregado`: el municipio se creó después de 2002, el
+  // Anejo 1 no lo nombra, y su peligrosidad es la del término del que salió.
+  // Imprimir eso como "Anejo 1 de la NCSE-02" sería atribuirle a la Norma algo
+  // que no dice.
+  const proc = state.municipioProcedencia;
   const origenAb = manual
     ? 'Introducida a mano por el proyectista'
-    : `Anejo 1 de la NCSE-02 · ${manifiesto.attribution}, capa ${manifiesto.layer}`;
+    : proc?.tipo === 'segregado'
+      ? `Heredada de ${proc.padre.nombre} (INE ${proc.padre.ine}): ${state.municipioNombre} se ` +
+        `constituyó en ${proc.anio} y el Anejo 1, de 2002, no lo nombra. La NCSE-02 clasificó ` +
+        'ese mismo territorio dentro del término de origen.'
+      : proc?.tipo === 'anejo1-texto'
+        ? `Anejo 1 de la NCSE-02, leída del texto del BOE núm. 244 de 11/10/2002 (${proc.boe}). ` +
+          `La capa ${manifiesto.layer} del ${manifiesto.attribution} no publica su aceleración.`
+        : proc?.tipo === 'correccion'
+          ? `Anejo 1 de la NCSE-02, texto del BOE núm. 244 de 11/10/2002. ${proc.motivo}`
+          : `Anejo 1 de la NCSE-02 · ${manifiesto.attribution}, capa ${manifiesto.layer}`;
 
   const filas: FilaParam[] = [
     { p: 'ab', v: `${num(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
@@ -500,8 +556,14 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
     origen: string;
   }
 
+  // Por ID, no por posición: `calcularSismo` ordena las plantas por altura, así
+  // que `state.plantas[i]` deja de ser la planta i del resultado en cuanto las
+  // alturas no van en orden creciente. Emparejando por índice, la tabla
+  // imprimía el nombre y el origen del peso de una planta junto a la altura y
+  // el P_k de otra.
+  const porId = new Map(state.plantas.map((p) => [p.id, p]));
   const filas: FilaPlanta[] = r.plantas.map((p, i) => {
-    const ui = state.plantas[i];
+    const ui = p.id === undefined ? undefined : porId.get(p.id);
     return {
       k: i + 1,
       nombre: ui?.nombre ?? `Planta ${i + 1}`,
@@ -659,6 +721,8 @@ async function direccion(
   ui: DireccionUI,
   state: SeismicState,
   pesoSismico: number,
+  /** Plantas YA ORDENADAS por altura, en el mismo orden que `d.Vk` y `d.Fk`. */
+  plantas: PlantaResuelta[],
 ): Promise<number> {
   const E = eje.toUpperCase();
   let ny = seccion(doc, y, `DIRECCION ${E}`, 'art. 3.7.2 · 3.7.3 · 3.7.4 · 3.7.5');
@@ -728,9 +792,14 @@ async function direccion(
     V: number;
   }
   // De cubierta a planta baja, que es como se lee un alzado.
+  //
+  // La altura sale de `plantas`, que viene ORDENADA por el motor igual que
+  // `Vk` y `Fk`. Tomarla de `state.plantas[k]` —sin ordenar— emparejaba cada
+  // cortante con la altura de otra planta en cuanto las filas de la tabla no
+  // iban ya en orden creciente.
   const filasFV: FilaFV[] = d.Vk
     .map((_, i) => d.Vk.length - 1 - i)
-    .map((k) => ({ k: k + 1, h: state.plantas[k]?.h ?? 0, F: d.Fk[k], V: d.Vk[k] }));
+    .map((k) => ({ k: k + 1, h: plantas[k]?.h ?? 0, F: d.Fk[k], V: d.Vk[k] }));
 
   ny = drawTable(doc, {
     x: M,
@@ -1022,8 +1091,8 @@ export async function exportSeismicNCSE02PDF({
   if (r) {
     y = masaSismica(doc, y, state, evaluacion);
     y = await espectro(doc, y);
-    y = await direccion(doc, y, 'x', r.x, state.x, state, r.pesoSismico);
-    y = await direccion(doc, y, 'y', r.y, state.y, state, r.pesoSismico);
+    y = await direccion(doc, y, 'x', r.x, state.x, state, r.pesoSismico, r.plantas);
+    y = await direccion(doc, y, 'y', r.y, state.y, state, r.pesoSismico, r.plantas);
     y = direccionales(doc, y, r.direccionales);
     y = avisos(doc, y, r.avisos, 'Avisos del calculo');
   }

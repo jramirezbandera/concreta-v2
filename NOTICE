@@ -31,13 +31,33 @@ the Instituto Geográfico Nacional as the INSPIRE layer HazardArea2002.NCSE-02.
   Source:       https://www.ign.es/wms-inspire/geofisica
   Layer:        HazardArea2002.NCSE-02
   License:      CC BY 4.0 ign.es
+  License text: https://creativecommons.org/licenses/by/4.0/
   Attribution:  Instituto Geográfico Nacional (IGN)
 
+The bulk of the table (2,610 of 2,635 rows) is harvested from that layer by
+scripts/harvest-ign-hazard.mjs. The remaining rows, and one corrected value,
+do not come from the layer — they are transcribed from the legal text itself
+and from the official municipal register:
+
+  Legal text:   Real Decreto 997/2002, Anejo 1
+                BOE núm. 244, 11/10/2002, pages 35949-35967
+                https://www.boe.es/boe/dias/2002/10/11/pdfs/A35898-35967.pdf
+                (Spanish law; official texts are not subject to copyright —
+                Ley de Propiedad Intelectual, art. 13)
+  Municipal register (INE), used only for 5-digit municipality codes and for
+  the list of municipalities created after 2002:
+                https://www.ine.es/daco/daco42/codmun/codmun_anual.htm
+                Reuse permitted under the INE's terms, attribution required.
+                Attribution: Instituto Nacional de Estadística (INE)
+
 Generated files (src/features/seismic-ncse02/):
-  ncse02.hazard.json           — harvested table, columnar form
+  ncse02.hazard.json           — table, columnar form, with a per-row
+                                 provenance map for the supplemented rows
   ncse02.hazard.manifest.json  — provenance, license, SHA-256, record counts
 
-The table is harvested by scripts/harvest-ign-hazard.mjs and committed as data.
-Only the rows listed in Anejo 1 of NCSE-02 are kept; municipalities the layer
+Only municipalities listed in Anejo 1 of NCSE-02 are kept; those the layer
 publishes with a null acceleration are outside Anejo 1 (ab < 0.04 g) and are
-counted in the manifest but not shipped.
+counted in the manifest but not shipped. See scripts/ncse02-suplemento.mjs for
+why six municipalities — Ceuta and Melilla among them — are read from the BOE
+rather than from the layer, and how municipalities created after 2002 inherit
+from the term they were split from.

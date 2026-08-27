@@ -13,13 +13,35 @@ import {
   defaultSeismicState,
   evaluarSismo,
   excentricidadDe,
+  newId,
   normalizeSeismicState,
+  plantasSobreRasante,
+  plantasTotales,
   toSeismicInput,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
 import { CASO_GRANADA } from '../fixtures/ncse02.fixtures';
 
 const cerca = (a: number, b: number, tol = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(tol);
+
+/**
+ * Estado con `nPlantas` plantas de verdad.
+ *
+ * `n` ya no es un campo que se pueda declarar: es la tabla, contada. Un test
+ * que quiera un edificio de veinticinco plantas tiene que construirlo, y eso es
+ * exactamente lo que se pretende — declarar `n: 25` sobre diez filas de plantas
+ * era lo que producía estados imposibles.
+ */
+export function conPlantas(nPlantas: number, extra: Partial<SeismicState> = {}): SeismicState {
+  const s = defaultSeismicState();
+  const plantas = Array.from({ length: nPlantas }, (_, k) => ({
+    ...s.plantas[Math.min(k, s.plantas.length - 1)],
+    id: newId(),
+    nombre: `Planta ${k + 1}`,
+    h: 3 * (k + 1),
+  }));
+  return { ...s, plantas, H: 3 * nPlantas, ...extra };
+}
 
 describe('el estado por defecto ES el caso congelado en los fixtures', () => {
   const ev = evaluarSismo(defaultSeismicState());
@@ -125,27 +147,68 @@ describe('excentricidadDe', () => {
   });
 
   it('un reparto simetrico no tiene excentricidad', () => {
-    const e = excentricidadDe(dir([
-      { id: 'a', x: -10, k: 1 },
-      { id: 'b', x: 10, k: 1 },
-    ]));
-    expect(e).toEqual({ e: 0, dimension: 20 });
+    const e = excentricidadDe(
+      dir([
+        { id: 'a', x: -10, k: 1 },
+        { id: 'b', x: 10, k: 1 },
+      ]),
+      15,
+    );
+    expect(e).toEqual({ e: 0, dimension: 15 });
   });
 
   it('la rigidez desplaza el centro de torsion', () => {
     // Centro de rigidez = (1·(−10) + 3·10) / 4 = +5 m.
-    const e = excentricidadDe(dir([
-      { id: 'a', x: -10, k: 1 },
-      { id: 'b', x: 10, k: 3 },
-    ]));
+    const e = excentricidadDe(
+      dir([
+        { id: 'a', x: -10, k: 1 },
+        { id: 'b', x: 10, k: 3 },
+      ]),
+      15,
+    );
     cerca(e!.e, 5);
-    expect(e!.dimension).toBe(20);
+    expect(e!.dimension).toBe(15);
+  });
+
+  it('normaliza con la dimension PERPENDICULAR, no con la de la propia direccion', () => {
+    // El caso de la auditoría (A4). Planta de 20 × 15 m: los planos que
+    // resisten el sismo en X se reparten sobre el eje Y, así que la
+    // excentricidad que sale de ellos es un desplazamiento EN Y y se compara
+    // con los 15 m de Y, no con los 20 m de X.
+    //
+    // Centro de rigidez = (1·(−7,5) + 1,5·7,5) / 2,5 = +1,5 m.
+    const e = excentricidadDe(
+      dir(
+        [
+          { id: 'a', x: -7.5, k: 1 },
+          { id: 'b', x: 7.5, k: 1.5 },
+        ],
+        20, // L de la propia dirección: ya NO interviene
+      ),
+      15,
+    );
+    cerca(e!.e, 1.5);
+    expect(e!.dimension).toBe(15);
+    // 1,5 / 15 = 10,0 % → incumple. Con la L propia habría dado 7,5 % y habría
+    // pasado: el convenio cruzado caía siempre del lado inseguro.
+    expect(e!.e / e!.dimension).toBeGreaterThanOrEqual(0.1);
   });
 
   it('devuelve null cuando no hay rigidez que repartir', () => {
-    expect(excentricidadDe(dir([]))).toBeNull();
-    expect(excentricidadDe(dir([{ id: 'a', x: 0, k: 0 }]))).toBeNull();
-    expect(excentricidadDe(dir([{ id: 'a', x: 0, k: 1 }], 0))).toBeNull();
+    expect(excentricidadDe(dir([]), 15)).toBeNull();
+    expect(excentricidadDe(dir([{ id: 'a', x: 0, k: 0 }]), 15)).toBeNull();
+    expect(excentricidadDe(dir([{ id: 'a', x: 0, k: 1 }]), 0)).toBeNull();
+  });
+
+  it('los planos por defecto caben dentro del edificio', () => {
+    // La geometría de arranque repartía los cuatro planos de X sobre 20 m
+    // —la dimensión de X— a lo largo de un eje que mide 15: dos de ellos
+    // quedaban FUERA del edificio.
+    const s = defaultSeismicState();
+    const semiancho = (d: { elementos: { x: number }[] }) =>
+      Math.max(...d.elementos.map((e) => Math.abs(e.x)));
+    expect(semiancho(s.x)).toBeLessThanOrEqual(s.y.L / 2);
+    expect(semiancho(s.y)).toBeLessThanOrEqual(s.x.L / 2);
   });
 });
 
@@ -166,7 +229,7 @@ describe('las puertas cortan antes de calcular', () => {
   });
 
   it('pasarse de plantas invalida el metodo simplificado', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), n: 25, nTotal: 25 });
+    const ev = evaluarSismo(conPlantas(25));
     expect(ev.aplicabilidad.obligatoriedad.estado).toBe('obligatoria');
     expect(ev.aplicabilidad.metodoSimplificado?.aplicable).toBe(false);
     expect(ev.resultado).toBeNull();
@@ -176,9 +239,202 @@ describe('las puertas cortan antes de calcular', () => {
     const ev = evaluarSismo({ ...defaultSeismicState(), regularidadGeometrica: null });
     expect(ev.aplicabilidad.puedeCalcular).toBe(false);
   });
+
+  it('cada corte dice POR QUE, y solo hay impedimento cuando no hay resultado', () => {
+    const ok = evaluarSismo(defaultSeismicState());
+    expect(ok.resultado).not.toBeNull();
+    expect(ok.impedimento).toBeNull();
+
+    const casos: Array<[SeismicState, string]> = [
+      [{ ...defaultSeismicState(), ab: 0.03 }, 'norma-no-obligatoria'],
+      [{ ...defaultSeismicState(), importancia: 'moderada' }, 'norma-no-obligatoria'],
+      [conPlantas(25), 'metodo-simplificado-no-aplicable'],
+      [{ ...defaultSeismicState(), sistema: 'adobe' }, 'prohibicion-art-1.2.3'],
+      [{ ...defaultSeismicState(), sistema: 'otro' }, 'faltan-datos-de-calculo'],
+    ];
+    for (const [estado, motivo] of casos) {
+      const ev = evaluarSismo(estado);
+      expect(ev.resultado, motivo).toBeNull();
+      expect(ev.impedimento?.motivo, motivo).toBe(motivo);
+      expect(ev.impedimento?.texto.length, motivo).toBeGreaterThan(20);
+    }
+  });
+});
+
+describe('sin periodo fundamental NO se calcula', () => {
+  // El fallo que esto impide: el aviso `sin-expresion-tf` tiene severidad
+  // "bloqueo" y nadie lo honraba. El motor seguia con T_F = 0, que en la
+  // expresion de alpha da 2,5 —el maximo del espectro—, y salia una cadena
+  // entera de fuerzas con aspecto razonable levantada sobre nada. El PDF la
+  // imprimia atribuyendo el T_F al art. 3.7.2.2, que para ese sistema no
+  // tiene expresion ninguna.
+
+  it('un sistema sin expresion de T_F no produce resultado', () => {
+    const ev = evaluarSismo({ ...defaultSeismicState(), sistema: 'otro' });
+    // La Norma rige y el metodo simplificado vale: el problema es otro.
+    expect(ev.aplicabilidad.puedeCalcular).toBe(true);
+    expect(ev.aplicabilidad.metodoSimplificado?.aplicable).toBe(true);
+    // Y aun asi no se calcula, porque no hay periodo fundamental.
+    expect(ev.resultado).toBeNull();
+    expect(ev.impedimento?.motivo).toBe('faltan-datos-de-calculo');
+    expect(ev.impedimento?.articulo).toBe('3.7.2.2');
+  });
+
+  it('con T_F impuesto a mano SI calcula: es la salida del art. 3.6.2.3.2', () => {
+    const s = defaultSeismicState();
+    const ev = evaluarSismo({
+      ...s,
+      sistema: 'otro',
+      x: { ...s.x, TFModo: 'manual', TFManual: 0.3 },
+      y: { ...s.y, TFModo: 'manual', TFManual: 0.3 },
+    });
+    expect(ev.resultado).not.toBeNull();
+    expect(ev.impedimento).toBeNull();
+    expect(ev.resultado?.x.TF).toBeCloseTo(0.3, 12);
+    expect(ev.resultado?.x.TFManual).toBe(true);
+  });
+
+  it('un T_F manual de cero no vale como T_F', () => {
+    const s = defaultSeismicState();
+    const ev = evaluarSismo({
+      ...s,
+      sistema: 'otro',
+      x: { ...s.x, TFModo: 'manual', TFManual: 0 },
+      y: { ...s.y, TFModo: 'manual', TFManual: 0 },
+    });
+    expect(ev.resultado).toBeNull();
+    expect(ev.impedimento?.motivo).toBe('faltan-datos-de-calculo');
+  });
+
+  it('la fabrica sin dimension en planta tampoco tiene T_F', () => {
+    // La expresion (1) lleva un /sqrt(L): con L = 0 no hay periodo, aunque el
+    // sistema si tenga expresion tabulada.
+    //
+    // El edificio es de dos alturas a proposito: con ab = 0,23 g el art. 1.2.3
+    // limita la fabrica a dos, y una prohibicion de material manda sobre la
+    // falta de datos. Lo que se prueba aqui es lo segundo.
+    const dos = conPlantas(2, { sistema: 'fabrica' });
+    const ev = evaluarSismo({ ...dos, x: { ...dos.x, L: 0 } });
+    expect(ev.aplicabilidad.puedeCalcular).toBe(true);
+    expect(ev.resultado).toBeNull();
+    expect(ev.impedimento?.motivo).toBe('faltan-datos-de-calculo');
+    // Y nombra la direccion que falla, que es la mitad del trabajo de arreglarlo.
+    expect(ev.impedimento?.texto).toMatch(/direcci.n X/i);
+  });
+
+  it('nombra las dos direcciones cuando fallan las dos', () => {
+    const ev = evaluarSismo({ ...defaultSeismicState(), sistema: 'otro' });
+    expect(ev.impedimento?.texto).toMatch(/ninguna de las dos direcciones/i);
+  });
+});
+
+describe('n y n total son derivados: no se pueden contradecir', () => {
+  // El fallo que esto impide: `n`, `nTotal` y la tabla de plantas eran tres
+  // numeros independientes. «+ planta» subia `n` y no tocaba `nTotal`; borrar
+  // una fila no tocaba ninguno. Con `n = 5` y `nTotal = 3` —imposible, porque
+  // los sotanos SUMAN— la pasarela del art. 3.5.1, que mira `nTotal <= 4`,
+  // declaraba aplicable el metodo simplificado a un edificio de cinco plantas
+  // sin una sola declaracion de regularidad.
+
+  it('n es la tabla de plantas, contada', () => {
+    for (const k of [1, 3, 10, 25]) {
+      const s = conPlantas(k);
+      expect(plantasSobreRasante(s)).toBe(k);
+      expect(toSeismicInput(s).estructura.n).toBe(k);
+    }
+  });
+
+  it('n total es n mas los sotanos, y nunca puede quedar por debajo', () => {
+    for (const nP of [1, 4, 10])
+      for (const sotanos of [0, 1, 2, 5]) {
+        const s = conPlantas(nP, { sotanos });
+        expect(plantasTotales(s)).toBe(nP + sotanos);
+        expect(plantasTotales(s)).toBeGreaterThanOrEqual(plantasSobreRasante(s));
+      }
+  });
+
+  it('un sotanos negativo o fraccionario no rompe el recuento', () => {
+    expect(plantasTotales(conPlantas(4, { sotanos: -3 }))).toBe(4);
+    expect(plantasTotales(conPlantas(4, { sotanos: 1.7 }))).toBe(5);
+  });
+
+  it('la pasarela NO se abre para un edificio de cinco plantas', () => {
+    // El escenario exacto del fallo: cinco plantas de verdad, con las
+    // declaraciones sin contestar. Antes bastaba con que `nTotal` se hubiera
+    // quedado en 3 para que el modulo calculara como si fueran cuatro.
+    const cinco = conPlantas(5, {
+      regularidadGeometrica: null,
+      soportesContinuos: null,
+      regularidadMecanica: null,
+      excentricidadDeclarada: null,
+    });
+    const ev = evaluarSismo(cinco);
+    expect(plantasTotales(cinco)).toBe(5);
+    expect(ev.aplicabilidad.metodoSimplificado?.via).not.toBe('pasarela-4-plantas');
+    expect(ev.aplicabilidad.puedeCalcular).toBe(false);
+    expect(ev.resultado).toBeNull();
+  });
+
+  it('y SI se abre para cuatro plantas sin sotanos, que es su caso', () => {
+    const cuatro = conPlantas(4, {
+      regularidadGeometrica: null,
+      soportesContinuos: null,
+      regularidadMecanica: null,
+      excentricidadDeclarada: null,
+    });
+    const ev = evaluarSismo(cuatro);
+    expect(ev.aplicabilidad.metodoSimplificado?.via).toBe('pasarela-4-plantas');
+    expect(ev.resultado).not.toBeNull();
+  });
+
+  it('dos sotanos cierran la pasarela a un edificio de cuatro plantas', () => {
+    // El caso que la Norma distingue y que el modulo documenta desde el
+    // principio: 4 sobre rasante + 2 sotanos = 6 en total, y NO entra.
+    const conSotanos = conPlantas(4, {
+      sotanos: 2,
+      regularidadGeometrica: null,
+      soportesContinuos: null,
+      regularidadMecanica: null,
+      excentricidadDeclarada: null,
+    });
+    expect(plantasTotales(conSotanos)).toBe(6);
+    const ev = evaluarSismo(conSotanos);
+    expect(ev.aplicabilidad.metodoSimplificado?.via).not.toBe('pasarela-4-plantas');
+    expect(ev.resultado).toBeNull();
+  });
+
+  it('anadir o quitar plantas mueve n sin que nadie lo mantenga a mano', () => {
+    const s = conPlantas(3);
+    const masUna: SeismicState = { ...s, plantas: [...s.plantas, { ...s.plantas[0], id: newId(), h: 12 }] };
+    const menosUna: SeismicState = { ...s, plantas: s.plantas.slice(0, 2) };
+    expect(plantasSobreRasante(masUna)).toBe(4);
+    expect(plantasSobreRasante(menosUna)).toBe(2);
+    expect(toSeismicInput(menosUna).estructura.n).toBe(2);
+  });
 });
 
 describe('normalizeSeismicState', () => {
+  it('migra un caso guardado con el modelo antiguo de n y nTotal', () => {
+    // Los casos archivados llevan `n` y `nTotal` sueltos. La conversion honesta
+    // es sotanos = nTotal - plantas.length.
+    const s = normalizeSeismicState({
+      ...defaultSeismicState(),
+      n: 10,
+      nTotal: 12,
+      sotanos: undefined,
+    });
+    expect(s.sotanos).toBe(2);
+    expect(plantasTotales(s)).toBe(12);
+  });
+
+  it('un estado antiguo INCOHERENTE no revive con sotanos negativos', () => {
+    // `nTotal < n` era justamente el fallo. Al migrarlo se acota a cero: el
+    // edificio pasa a no tener sotanos, que es lo unico que puede afirmarse.
+    const s = normalizeSeismicState({ ...defaultSeismicState(), n: 10, nTotal: 3, sotanos: undefined });
+    expect(s.sotanos).toBe(0);
+    expect(plantasTotales(s)).toBe(plantasSobreRasante(s));
+  });
+
   it('sobrevive a basura sin producir NaN', () => {
     for (const basura of [null, undefined, 42, 'x', [], {}]) {
       const s = normalizeSeismicState(basura);
@@ -198,12 +454,12 @@ describe('normalizeSeismicState', () => {
       ...defaultSeismicState(),
       ab: 'mucho',
       H: null,
-      n: NaN,
+      sotanos: NaN,
       omega: undefined,
     });
     expect(Number.isFinite(s.ab)).toBe(true);
     expect(Number.isFinite(s.H)).toBe(true);
-    expect(Number.isFinite(s.n)).toBe(true);
+    expect(Number.isFinite(s.sotanos)).toBe(true);
     expect(Number.isFinite(s.omega)).toBe(true);
   });
 

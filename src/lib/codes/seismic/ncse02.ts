@@ -36,6 +36,7 @@ import type {
   EmplazamientoResult,
   ElementoResistente,
   Estrato,
+  EstructuraInput,
   Importancia,
   ModoResult,
   PlantaInput,
@@ -106,6 +107,16 @@ export const TF_OTROS_HASTA_4_PLANTAS = 0.3;
 
 /** Art. 3.7.5. Coeficiente del término de torsión. */
 const COEF_TORSION = 0.6;
+
+/**
+ * Lo que se dice cuando no hay T_F. Compartido entre el aviso del motor y el
+ * impedimento que corta el cálculo, para que digan lo mismo.
+ */
+export const TEXTO_SIN_TF =
+  "El sistema estructural elegido no tiene expresión de T_F en el art. 3.7.2.2, " +
+  "y sin período fundamental no hay acción sísmica que calcular. Introduzca T_F " +
+  "a mano (art. 3.6.2.3.2) o, si el edificio no pasa de cuatro plantas, tome " +
+  "T_F = 0,3 s.";
 
 // ── Emplazamiento (cap. 2) ───────────────────────────────────────────────────
 
@@ -178,7 +189,13 @@ export function pesoSismicoPlanta(planta: PlantaInput): number {
 }
 
 export function resolverPlantas(plantas: PlantaInput[]): PlantaResuelta[] {
-  return plantas.map((p) => ({ h: p.h, P: pesoSismicoPlanta(p) }));
+  // El `id` viaja con la planta para que quien la pinte pueda volver a la fila
+  // de origen después de que la cadena las ordene por altura. Ver PlantaResuelta.
+  return plantas.map((p) => ({
+    ...(p.id === undefined ? {} : { id: p.id }),
+    h: p.h,
+    P: pesoSismicoPlanta(p),
+  }));
 }
 
 // ── Período fundamental (art. 3.7.2.2) ───────────────────────────────────────
@@ -218,6 +235,36 @@ export function periodoFundamental(
     default:
       return null;
   }
+}
+
+/**
+ * T_F utilizable de una dirección, o `null` si no hay ninguno.
+ *
+ * FUENTE ÚNICA a propósito. Sin ella, quien decide si se puede calcular y quien
+ * calcula responden por separado a la misma pregunta, y basta que uno de los
+ * dos cambie para que el módulo empiece a publicar una cadena de fuerzas
+ * levantada sobre `T_F = 0`, que es lo que hacía: con `T_F = 0` la expresión de
+ * alpha da 2,5 —el máximo del espectro— y salen unas fuerzas de aspecto
+ * perfectamente razonable que no significan nada.
+ *
+ * Se exige `> 0` y no sólo "no nulo": `0,09 · n` con `n = 0` devuelve cero sin
+ * ser un error de la expresión, y cero no es un período.
+ */
+export function resolverTF(
+  dir: DireccionInput,
+  estructura: Pick<EstructuraInput, "sistema" | "n" | "H">,
+): { TF: number; manual: boolean } | null {
+  if (dir.TFManual !== undefined && dir.TFManual > 0) {
+    return { TF: dir.TFManual, manual: true };
+  }
+  const calculado = periodoFundamental(estructura.sistema, {
+    n: estructura.n,
+    H: estructura.H,
+    L: dir.L,
+    B: dir.B,
+  });
+  if (calculado === null || !(calculado > 0)) return null;
+  return { TF: calculado, manual: false };
 }
 
 /** Art. 3.7.2.1. */
@@ -463,24 +510,17 @@ export function calcularDireccion(
   const avisos: AvisoNorma[] = [];
   const { sistema, n, H, nModos: nModosForzado } = estructura;
 
-  const TFCalculado = periodoFundamental(sistema, {
-    n,
-    H,
-    L: dir.L,
-    B: dir.B,
-  });
-  const TFManual = dir.TFManual !== undefined;
-  const TF = dir.TFManual ?? TFCalculado ?? 0;
+  // Misma fuente que usa la puerta para decidir si se calcula: ver `resolverTF`.
+  const resuelto = resolverTF(dir, { sistema, n, H });
+  const TF = resuelto?.TF ?? 0;
+  const TFManual = resuelto?.manual ?? false;
 
-  if (!TFManual && TFCalculado === null) {
+  if (!resuelto) {
     avisos.push({
       id: "sin-expresion-tf",
       articulo: "3.7.2.2",
       severidad: "bloqueo",
-      texto:
-        "El sistema estructural elegido no tiene expresión de T_F en el art. " +
-        "3.7.2.2. Introduzca T_F a mano (art. 3.6.2.3.2) o, si el edificio no " +
-        "pasa de cuatro plantas, tome T_F = 0,3 s.",
+      texto: TEXTO_SIN_TF,
     });
   }
 

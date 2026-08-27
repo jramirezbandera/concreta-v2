@@ -116,9 +116,17 @@ export interface Requisito {
 }
 
 export interface ExcentricidadDireccion {
-  /** Excentricidad entre centro de masas y centro de torsión [m]. */
+  /**
+   * Excentricidad entre centro de masas y centro de torsión [m], medida
+   * PERPENDICULARMENTE a la dirección del sismo — que es donde está el brazo
+   * que produce torsión, y la misma convención que la `x` de γ_a (art. 3.7.5).
+   */
   e: number;
-  /** Dimensión en planta del edificio en esa dirección [m]. */
+  /**
+   * Dimensión en planta [m] con la que se compara, sobre EL MISMO EJE en el que
+   * está medida `e`: la perpendicular a la dirección analizada. Para la
+   * dirección X es, por tanto, la dimensión en Y.
+   */
   dimension: number;
 }
 
@@ -155,12 +163,52 @@ export interface MetodoSimplificadoResult {
 
 // ── Puerta completa ──────────────────────────────────────────────────────────
 
+/**
+ * POR QUÉ no se entrega acción sísmica. Son cinco motivos distintos y NO se
+ * pueden deducir de `puedeCalcular === false`.
+ *
+ * Existe porque deducirlos es exactamente lo que se hacía mal. Un edificio de
+ * adobe cumple los seis requisitos del art. 3.5.1 y aun así no se calcula,
+ * porque el art. 1.2.3 prohíbe el material; el PDF, viendo sólo el booleano,
+ * anunciaba «el método simplificado NO es aplicable» y a renglón seguido
+ * imprimía los seis requisitos en CUMPLE. Un documento normativo que se
+ * contradice en la misma página.
+ *
+ * Cada consumidor —pantalla, PDF, asistente— lee el mismo motivo y ninguno
+ * vuelve a inferirlo por su cuenta.
+ */
+export type MotivoImpedimento =
+  /** Art. 1.2.3: alguna de las tres exenciones. */
+  | "norma-no-obligatoria"
+  /** Falta `ac` para resolver la contraexcepción de las siete plantas. */
+  | "obligatoriedad-indeterminada"
+  /** Art. 1.2.3: material prohibido, o fábrica por encima de sus alturas. */
+  | "prohibicion-art-1.2.3"
+  /** Art. 3.5.1: no se cumplen los requisitos, o están sin declarar. */
+  | "metodo-simplificado-no-aplicable"
+  /** El método vale, pero falta un dato sin el cual la cadena no se sostiene. */
+  | "faltan-datos-de-calculo";
+
+export interface Impedimento {
+  motivo: MotivoImpedimento;
+  /** Artículo que lo funda, para citarlo. */
+  articulo: string;
+  /** Explicación lista para enseñar, sin más elaboración. */
+  texto: string;
+}
+
 export interface ApplicabilityResult {
   obligatoriedad: ObligatoriedadResult;
   /** null cuando la Norma no es de aplicación o falta ac: no se llega a evaluar. */
   metodoSimplificado: MetodoSimplificadoResult | null;
   /** true sólo si la Norma es de aplicación Y el método simplificado es válido. */
   puedeCalcular: boolean;
+  /**
+   * `null` exactamente cuando `puedeCalcular` es true. Lo que la puerta puede
+   * saber; los impedimentos que sólo aparecen al calcular (falta de T_F) los
+   * añade `evaluarSismo`, que es quien tiene la geometría delante.
+   */
+  impedimento: Impedimento | null;
   avisos: AvisoNorma[];
 }
 
@@ -240,6 +288,17 @@ export interface PlantaInput {
 }
 
 export interface PlantaResuelta {
+  /**
+   * El `id` de la `PlantaInput` que la originó.
+   *
+   * Existe porque `calcularSismo` ORDENA las plantas por altura antes de nada,
+   * y sin el id la única forma de volver a la planta de origen es la posición,
+   * que ya no es la misma. Emparejar por posición hacía que la pantalla y el
+   * PDF pusieran el nombre de una planta junto al peso y la altura de otra en
+   * cuanto las alturas dejaban de estar en orden creciente — al editar la h de
+   * una intermedia, o al meter un entresuelo.
+   */
+  id?: string;
   h: number;
   /** Peso sísmico [kN]. */
   P: number;

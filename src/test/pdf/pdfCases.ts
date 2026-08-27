@@ -337,10 +337,22 @@ export const PDF_CASES: PdfCase[] = [
   { m: 20, name: 'seismic-ncse02 (exento por importancia moderada)', stressable: false,
     run: () => seismicPdf({ ...defaultSeismicState(), importancia: 'moderada' }) },
 
-  // H = 80 m incumple el requisito (2) del art. 3.5.1 → la Norma rige, el método
-  // simplificado no, y el documento sale sin cadena de fuerzas.
+  // 25 plantas incumplen el requisito (1) del art. 3.5.1 («inferior a veinte») y
+  // su altura el (2) → la Norma rige, el método simplificado no, y el documento
+  // sale sin cadena de fuerzas. Las plantas se construyen de verdad: `n` sale de
+  // contar la tabla, no es un campo que se pueda declarar aparte.
   { m: 20, name: 'seismic-ncse02 (metodo simplificado no aplicable)', stressable: false,
-    run: () => seismicPdf({ ...defaultSeismicState(), H: 80, n: 25, nTotal: 25 }) },
+    run: () => {
+      const base = defaultSeismicState();
+      return seismicPdf({
+        ...base,
+        H: 75,
+        plantas: Array.from({ length: 25 }, (_, k) => ({
+          ...base.plantas[0], id: newId(), nombre: `Planta ${k + 1}`, h: 3 * (k + 1),
+        })),
+      });
+    },
+  },
 
   // Diez planos resistentes: la matriz f_kj no cabe a lo ancho y el exportador
   // cae a la forma larga. Es otra tabla, y sin este caso nunca se mediría.
