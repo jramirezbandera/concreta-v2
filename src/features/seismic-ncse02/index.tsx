@@ -28,10 +28,12 @@ import {
   seismicPdfBlocker,
 } from '../../lib/pdf/seismicNCSE02';
 import { municipioPorIne } from './hazard';
+import { GeometriaModal } from './GeometriaModal';
+import { PlantasModal } from './PlantasModal';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { SeismicInputs } from './SeismicInputs';
 import { SeismicResults } from './SeismicResults';
-import { AlzadoSVG, EspectroSVG } from './SeismicSVG';
+import { AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
 import {
   defaultSeismicState,
   evaluarSismo,
@@ -105,6 +107,12 @@ export function SeismicNCSE02Module() {
   const [state, setState] = useState<SeismicState>(inicial.estado);
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [ejeDibujo, setEjeDibujo] = useState<'x' | 'y'>('x');
+  // El cuadro de plantas se monta aquí, con los demás modales, y no dentro del
+  // panel: la barra lateral vive bajo varios `overflow-hidden`, y un `fixed`
+  // que nazca ahí depende de que ningún antepasado tenga transform para no
+  // quedarse recortado. Al nivel del módulo eso no puede pasar.
+  const [plantasOpen, setPlantasOpen] = useState(false);
+  const [geometriaOpen, setGeometriaOpen] = useState(false);
 
   // Nombre del elemento para el PDF. Vive FUERA del estado del edificio: si
   // estuviera dentro, teclearlo recalcularía la evaluación en cada pulsación y
@@ -269,7 +277,13 @@ export function SeismicNCSE02Module() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
-            <SeismicInputs state={state} setState={setState} evaluacion={evaluacion} />
+            <SeismicInputs
+              state={state}
+              setState={setState}
+              evaluacion={evaluacion}
+              onEditPlantas={() => setPlantasOpen(true)}
+              onEditGeometria={() => setGeometriaOpen(true)}
+            />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button
@@ -291,37 +305,65 @@ export function SeismicNCSE02Module() {
             'lg:block',
           ].join(' ')}
         >
-          <div ref={lienzoRef} className="px-4 py-4 space-y-4">
-            <div className="flex flex-wrap gap-4 items-start">
-              {/* El selector de eje manda sobre los DOS dibujos: los modos que
-                  se marcan sobre el espectro son los de esa misma direccion. */}
-              <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />
-              {evaluacion.resultado ? (
-                <div>
-                  <div className="flex gap-1 pb-1">
-                    {(['x', 'y'] as const).map((e) => (
-                      <button
-                        key={e}
-                        type="button"
-                        onClick={() => setEjeDibujo(e)}
-                        aria-pressed={ejeDibujo === e}
-                        aria-label={`Dibujar la dirección ${e.toUpperCase()}`}
-                        className={[
-                          'px-2 py-0.5 text-[11px] rounded border transition-colors cursor-pointer',
-                          ejeDibujo === e
-                            ? 'border-accent text-text-primary'
-                            : 'border-border-main text-text-disabled hover:border-accent/40',
-                        ].join(' ')}
-                      >
-                        {e.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                  <AlzadoSVG evaluacion={evaluacion} eje={ejeDibujo} width={anchoSvg} />
-                </div>
-              ) : null}
+          {/* Lienzo con la retícula de puntos, como en todos los módulos: los
+              dibujos son el protagonista y los resultados van debajo, en su
+              propio bloque. */}
+          <div
+            ref={lienzoRef}
+            className="canvas-dot-grid border-b border-border-main px-4 py-4 space-y-4"
+          >
+            {/*
+              El selector de eje manda sobre los TRES dibujos —espectro, planta y
+              alzado— y por eso vive fuera de ellos, arriba y una sola vez.
+              Colgado del alzado, como estaba, parecía gobernar sólo esa figura,
+              y encima desaparecía con él en cuanto no había resultado: la planta
+              es geometría introducida y se dibuja igual, haya cálculo o no.
+            */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-[0.07em] text-text-disabled">
+                Dirección
+              </span>
+              {(['x', 'y'] as const).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => setEjeDibujo(e)}
+                  aria-pressed={ejeDibujo === e}
+                  aria-label={`Dibujar la dirección ${e.toUpperCase()}`}
+                  className={[
+                    'px-2 py-0.5 text-[11px] rounded border transition-colors cursor-pointer',
+                    ejeDibujo === e
+                      ? 'border-accent text-text-primary'
+                      : 'border-border-main text-text-disabled hover:border-accent/40',
+                  ].join(' ')}
+                >
+                  {e.toUpperCase()}
+                </button>
+              ))}
             </div>
 
+            <div className="flex flex-wrap gap-4 items-start">
+              {/* La planta va DEBAJO del espectro: son las dos figuras que no
+                  dependen de que haya cálculo, y juntas equilibran la altura del
+                  alzado en la columna de al lado. */}
+              <div className="space-y-4">
+                <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />
+                <PlantaSVG
+                  state={state}
+                  evaluacion={evaluacion}
+                  width={anchoSvg}
+                  eje={ejeDibujo}
+                />
+              </div>
+              {evaluacion.resultado ? (
+                <AlzadoSVG evaluacion={evaluacion} eje={ejeDibujo} width={anchoSvg} />
+              ) : null}
+            </div>
+          </div>
+
+          {/* Resultados — mismo marco que el resto de módulos (px-6 py-5 bajo
+              el lienzo; la cabecera con veredicto la pone SeismicResults). */}
+          <div className="px-6 py-5">
             <SeismicResults state={state} evaluacion={evaluacion} />
           </div>
         </div>
@@ -336,15 +378,36 @@ export function SeismicNCSE02Module() {
       */}
       <div className="overflow-hidden w-0 h-0" aria-hidden="true">
         <div id="seismic-espectro-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <EspectroSVG evaluacion={evaluacion} width={680} />
+          <EspectroSVG evaluacion={evaluacion} width={680} modo="pdf" />
+        </div>
+        {/*
+          En el papel la planta se dibuja SIN dirección destacada: documenta la
+          geometría una vez, antes de las dos secciones de dirección, y la fuerza
+          que se lleva cada plano ya va en la tabla de reparto de cada una.
+        */}
+        <div id="seismic-planta-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <PlantaSVG state={state} evaluacion={evaluacion} eje="ambas" width={600} modo="pdf" />
         </div>
         <div id="seismic-alzado-x-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <AlzadoSVG evaluacion={evaluacion} eje="x" width={520} />
+          <AlzadoSVG evaluacion={evaluacion} eje="x" width={520} modo="pdf" />
         </div>
         <div id="seismic-alzado-y-svg-pdf" style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <AlzadoSVG evaluacion={evaluacion} eje="y" width={520} />
+          <AlzadoSVG evaluacion={evaluacion} eje="y" width={520} modo="pdf" />
         </div>
       </div>
+
+      {plantasOpen && (
+        <PlantasModal state={state} setState={setState} onClose={() => setPlantasOpen(false)} />
+      )}
+
+      {geometriaOpen && (
+        <GeometriaModal
+          state={state}
+          setState={setState}
+          evaluacion={evaluacion}
+          onClose={() => setGeometriaOpen(false)}
+        />
+      )}
 
       {aiOpen && (
         <AiChatModal

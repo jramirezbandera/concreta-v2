@@ -9,13 +9,25 @@
 // toca a cada plano resistente: lo que sigue —esfuerzos por pilar, comprobación
 // de secciones, ductilidad del cap. 4— no lo hace, y decirlo en voz alta evita
 // que alguien dé por comprobado lo que sólo está repartido.
+//
+// La presentación es la MISMA que la del resto de módulos: cabecera
+// «Resultados calculados» con badge de veredicto y ambientStyle, grupos con
+// cabecera de 10px CAPS y referencia normativa a la derecha, y filas
+// rótulo/valor con separador `border-sub` (DESIGN.md prohíbe expresamente las
+// tarjetas decorativas y `rounded-lg`, que es como nació este panel). Los
+// grupos de filas escalares van a dos columnas en pantalla ancha —el patrón de
+// SectionPropertiesBlock— para que el valor no quede a medio metro de su
+// rótulo.
 
 import type {
   AvisoNorma,
   CasoDireccional,
   DireccionResult,
+  MotivoImpedimento,
   Requisito,
 } from '../../lib/codes/seismic/types';
+import type { CheckStatus } from '../../lib/calculations/types';
+import { ambientStyle } from '../../components/checks';
 import type { SeismicEvaluation, SeismicState } from './state';
 import { dec, pct } from './formato';
 
@@ -29,28 +41,49 @@ const MOTIVOS: Record<string, string> = {
   'porticos-arriostrados-ab-inferior-0.08g': 'pórticos bien arriostrados con ab < 0,08 g',
 };
 
-function Bloque({ titulo, ref: refNorma, children }: { titulo: string; ref?: string; children: React.ReactNode }) {
+/**
+ * El veredicto de la puerta, condensado en el badge de la cabecera. El vocabulario
+ * de los demás módulos (CUMPLE/INCUMPLE) aquí sería falso: la pregunta no es si
+ * una sección resiste, sino si la Norma rige y el método vale.
+ */
+const VEREDICTO: Record<MotivoImpedimento, { status: CheckStatus; tag: string }> = {
+  'norma-no-obligatoria': { status: 'neutral', tag: 'NO OBLIGATORIA' },
+  'obligatoriedad-indeterminada': { status: 'warn', tag: 'FALTAN DATOS' },
+  'prohibicion-art-1.2.3': { status: 'fail', tag: 'PROHIBIDA' },
+  'metodo-simplificado-no-aplicable': { status: 'fail', tag: 'NO APLICABLE' },
+  'faltan-datos-de-calculo': { status: 'warn', tag: 'FALTAN DATOS' },
+};
+
+const TAG_CLS: Record<CheckStatus, string> = {
+  ok: 'bg-state-ok/10 text-state-ok',
+  warn: 'bg-state-warn/10 text-state-warn',
+  fail: 'bg-state-fail/10 text-state-fail',
+  neutral: 'bg-state-neutral/10 text-state-neutral',
+};
+
+/** Cabecera de grupo — el mismo dibujo que GroupHeader en acero/madera. */
+function Cabecera({ titulo, refNorma }: { titulo: string; refNorma?: string }) {
   return (
-    <section className="border border-border-sub rounded-lg bg-bg-surface p-3">
-      <header className="flex items-baseline justify-between pb-2 mb-2 border-b border-border-sub">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
-          {titulo}
-        </h3>
-        {refNorma ? <span className="text-[10px] font-mono text-text-disabled">{refNorma}</span> : null}
-      </header>
-      {children}
-    </section>
+    <div className="flex items-baseline justify-between gap-2 pt-3.5 pb-1.75 border-b border-border-sub mb-1">
+      <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-disabled">
+        {titulo}
+      </h3>
+      {refNorma ? (
+        <span className="text-[9px] font-mono text-text-disabled whitespace-nowrap">{refNorma}</span>
+      ) : null}
+    </div>
   );
 }
 
+/** Fila rótulo/valor con las métricas del ValueRow común (12/11px, border-sub). */
 function Fila({ k, v, sub }: { k: string; v: string; sub?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-0.5">
+    <div className="flex items-center justify-between gap-3 py-1.75 border-b border-border-sub last:border-b-0">
       <span className="text-[12px] text-text-secondary min-w-0 truncate">
         {k}
         {sub ? <span className="text-[10px] text-text-disabled font-mono ml-1.5">{sub}</span> : null}
       </span>
-      <span className="text-[12px] font-mono text-text-primary shrink-0 tabular-nums">{v}</span>
+      <span className="text-[11px] font-mono text-text-primary shrink-0 tabular-nums">{v}</span>
     </div>
   );
 }
@@ -118,14 +151,15 @@ function Requisitos({ reqs }: { reqs: Requisito[] }) {
 
 function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
   return (
-    <Bloque titulo={`Dirección ${eje}`} ref="art. 3.7.3">
+    <section>
+      <Cabecera titulo={`Dirección ${eje}`} refNorma="art. 3.7.3" />
       <Fila k="T_F" sub={d.TFManual ? 'impuesto' : 'art. 3.7.2.2'} v={`${dec(d.TF, 3)} s`} />
       <Fila k="Modos" sub="art. 3.7.2.1" v={String(d.nModos)} />
       <Fila k="Cortante basal" v={`${n0(d.cortanteBasal)} kN`} />
       <Fila k="Masa movilizada" sub="Σ participación" v={pct(d.participacionTotal)} />
       <Fila k="L_e" sub="planos extremos" v={`${n1(d.Le)} m`} />
 
-      <div className="mt-2 -mx-1 overflow-x-auto">
+      <div className="mt-2 overflow-x-auto">
         <table className="w-full text-[11px] font-mono tabular-nums">
           <thead>
             <tr className="text-text-disabled">
@@ -159,7 +193,7 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
           <summary className="text-[11px] text-text-disabled cursor-pointer hover:text-text-secondary">
             Reparto por plano resistente, con torsión
           </summary>
-          <div className="mt-1.5 -mx-1 overflow-x-auto">
+          <div className="mt-1.5 overflow-x-auto">
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead>
                 <tr className="text-text-disabled">
@@ -189,25 +223,26 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
       ) : null}
 
       <Avisos avisos={d.avisos} />
-    </Bloque>
+    </section>
   );
 }
 
 function Direccionales({ casos }: { casos: CasoDireccional[] }) {
   return (
-    <Bloque titulo="Combinación direccional" ref="art. 3.4">
+    <section>
+      <Cabecera titulo="Combinación direccional" refNorma="art. 3.4" />
       {/*
         Son OCHO, no cuatro. El signo de la dirección principal también se
         recorre, porque el sismo se combina con la gravedad y +30 % y −30 % no
         producen el mismo efecto. Una envolvente sin signo evalúa cada pilar con
         el signo equivocado frente a la gravedad, y no se nota en ningún número.
       */}
-      <p className="text-[10px] leading-snug text-text-disabled pb-1.5">
+      <p className="text-[10px] leading-snug text-text-disabled pt-1 pb-1.5">
         Ocho casos con signo. El 30 % transversal se recorre en los dos sentidos porque el sismo se
         combina con la gravedad: <span className="font-mono">+0,3</span> y{' '}
         <span className="font-mono">−0,3</span> no dan el mismo efecto.
       </p>
-      <div className="-mx-1 overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full text-[11px] font-mono tabular-nums">
           <thead>
             <tr className="text-text-disabled">
@@ -227,7 +262,7 @@ function Direccionales({ casos }: { casos: CasoDireccional[] }) {
           </tbody>
         </table>
       </div>
-    </Bloque>
+    </section>
   );
 }
 
@@ -240,11 +275,27 @@ export function SeismicResults({
 }) {
   const { emplazamiento: e, aplicabilidad: ap, resultado: r, impedimento: imp } = evaluacion;
   const obl = ap.obligatoriedad;
+  const veredicto = imp ? VEREDICTO[imp.motivo] : { status: 'ok' as CheckStatus, tag: 'APLICABLE' };
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(veredicto.status)}>
+      {/* ── Cabecera con veredicto, como en todos los módulos ─────────────── */}
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-main">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+          Resultados calculados
+        </span>
+        <span
+          className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.02em] ${TAG_CLS[veredicto.status]}`}
+          role="status"
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden="true" />
+          {veredicto.tag}
+        </span>
+      </div>
+
       {/* ── Veredicto ─────────────────────────────────────────────────────── */}
-      <Bloque titulo="Aplicabilidad" ref="art. 1.2.3 · 3.5.1">
+      <section>
+        <Cabecera titulo="Aplicabilidad" refNorma="art. 1.2.3 · 3.5.1" />
         {/*
           El veredicto sale del `impedimento` que declara la puerta, no de
           deducirlo aquí: un edificio de adobe cumple los seis requisitos del
@@ -255,7 +306,7 @@ export function SeismicResults({
         */}
         <div
           className={[
-            'text-[13px] font-medium pb-1.5',
+            'text-[13px] font-medium pt-1.5 pb-1.5',
             !imp
               ? 'text-state-ok'
               : imp.motivo === 'norma-no-obligatoria'
@@ -313,55 +364,73 @@ export function SeismicResults({
             <Avisos avisos={ap.metodoSimplificado.avisos} />
           </div>
         ) : null}
-      </Bloque>
+      </section>
 
-      {/* ── Emplazamiento ─────────────────────────────────────────────────── */}
-      <Bloque titulo="Emplazamiento" ref="art. 2.2 · 2.3">
-        <Fila k="Municipio" v={state.municipioNombre || 'entrada manual'} />
-        <Fila k="ab" sub="Anejo 1" v={`${dec(e.ab, 2)} g`} />
-        <Fila k="K" sub="contribución" v={dec(e.K, 1)} />
-        <Fila k="ρ" sub="riesgo" v={dec(e.rho, 1)} />
-        <Fila k="C" sub="terreno" v={dec(e.C, 2)} />
-        <Fila k="S" sub="amplificación" v={dec(e.S, 4)} />
-        <Fila k="ac" sub="S · ρ · ab" v={`${dec(e.ac, 4)} g`} />
-        <Fila k="T_A" sub="esquina del espectro elástico" v={`${dec(e.TA, 3)} s`} />
-        <Fila k="T_B" sub="decide la rama de α" v={`${dec(e.TB, 3)} s`} />
-      </Bloque>
+      {/* ── Emplazamiento y masa, a dos columnas en pantalla ancha ────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 items-start">
+        <section>
+          <Cabecera titulo="Emplazamiento" refNorma="art. 2.2 · 2.3" />
+          <Fila k="Municipio" v={state.municipioNombre || 'entrada manual'} />
+          <Fila k="ab" sub="Anejo 1" v={`${dec(e.ab, 2)} g`} />
+          <Fila k="K" sub="contribución" v={dec(e.K, 1)} />
+          <Fila k="ρ" sub="riesgo" v={dec(e.rho, 1)} />
+          <Fila k="C" sub="terreno" v={dec(e.C, 2)} />
+          <Fila k="S" sub="amplificación" v={dec(e.S, 4)} />
+          <Fila k="ac" sub="S · ρ · ab" v={`${dec(e.ac, 4)} g`} />
+          <Fila k="T_A" sub="esquina del espectro elástico" v={`${dec(e.TA, 3)} s`} />
+          <Fila k="T_B" sub="decide la rama de α" v={`${dec(e.TB, 3)} s`} />
+        </section>
 
-      {r ? (
-        <>
-          <Bloque titulo="Masa sísmica" ref="art. 3.2">
+        {r ? (
+          <section>
+            <Cabecera titulo="Masa sísmica" refNorma="art. 3.2" />
             <Fila k="Peso sísmico" sub="Σ P_k" v={`${n0(r.pesoSismico)} kN`} />
             <Fila k="ν" sub="amortiguamiento" v={dec(r.nu, 3)} />
             <Fila k="β" sub="ν / μ" v={dec(r.beta, 3)} />
-          </Bloque>
+          </section>
+        ) : null}
+      </div>
 
-          <Direccion eje="X" d={r.x} />
-          <Direccion eje="Y" d={r.y} />
-          <Direccionales casos={r.direccionales} />
+      {r ? (
+        <>
+          {/* Las dos direcciones en paralelo: son la misma estructura y se leen
+              comparándolas. En panel estrecho vuelven a apilarse. */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-6 items-start">
+            <Direccion eje="X" d={r.x} />
+            <Direccion eje="Y" d={r.y} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 items-start">
+            <Direccionales casos={r.direccionales} />
+
+            {/* ── Límite de alcance ─────────────────────────────────────── */}
+            <section>
+              <Cabecera titulo="Hasta aquí llega el módulo" />
+              <p className="text-[11px] leading-snug text-text-secondary pt-1.5">
+                Entra emplazamiento, cargas, estructura y planos resistentes. Sale{' '}
+                <span className="font-mono">F_k</span>, <span className="font-mono">V_k</span>, el
+                cortante basal, <span className="font-mono">f_kj</span> con torsión y las ocho
+                combinaciones direccionales.{' '}
+                <strong className="text-text-primary">
+                  El módulo termina en la fuerza que le toca a cada plano resistente.
+                </strong>
+              </p>
+              <p className="text-[11px] leading-snug text-text-disabled mt-1.5">
+                Lo que NO hace: esfuerzos <span className="font-mono">N/V/M</span> por pilar,
+                comprobación de secciones y ductilidad del cap. 4. Eso es otro cálculo.
+              </p>
+            </section>
+          </div>
 
           <Avisos avisos={r.avisos} />
-
-          {/* ── Límite de alcance ───────────────────────────────────────── */}
-          <Bloque titulo="Hasta aquí llega el módulo">
-            <p className="text-[11px] leading-snug text-text-secondary">
-              Entra emplazamiento, cargas, estructura y planos resistentes. Sale{' '}
-              <span className="font-mono">F_k</span>, <span className="font-mono">V_k</span>, el
-              cortante basal, <span className="font-mono">f_kj</span> con torsión y las ocho
-              combinaciones direccionales.{' '}
-              <strong className="text-text-primary">
-                El módulo termina en la fuerza que le toca a cada plano resistente.
-              </strong>
-            </p>
-            <p className="text-[11px] leading-snug text-text-disabled mt-1.5">
-              Lo que NO hace: esfuerzos <span className="font-mono">N/V/M</span> por pilar,
-              comprobación de secciones y ductilidad del cap. 4. Eso es otro cálculo.
-            </p>
-          </Bloque>
         </>
       ) : (
-        <Bloque titulo="Sin cálculo" ref={imp?.articulo ? `art. ${imp.articulo}` : undefined}>
-          <p className="text-[11px] leading-snug text-text-secondary">
+        <section>
+          <Cabecera
+            titulo="Sin cálculo"
+            {...(imp?.articulo ? { refNorma: `art. ${imp.articulo}` } : {})}
+          />
+          <p className="text-[11px] leading-snug text-text-secondary pt-1.5">
             {imp?.texto ??
               'No se calcula la acción sísmica mientras alguna de las dos puertas lo impida.'}
           </p>
@@ -370,7 +439,7 @@ export function SeismicResults({
               ? 'En cuanto haya período fundamental, el resultado aparece aquí.'
               : 'Resuelve lo que marca el bloque de aplicabilidad y el resultado aparece aquí.'}
           </p>
-        </Bloque>
+        </section>
       )}
     </div>
   );

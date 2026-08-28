@@ -20,12 +20,13 @@
 // zonas de α se rotulan sobre la propia gráfica, no aquí.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Layers, Ruler } from 'lucide-react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
+import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { InputLabel } from '../../components/ui/InputLabel';
-import { FRACCION_MASA } from '../../lib/codes/seismic/ncse02';
-import { dec, textoEditable } from './formato';
+import { Num, NumIn, SELECT_CLS, UNIT_CLS } from './campos';
+import { dec } from './formato';
 import type {
-  CategoriaMasa,
   Importancia,
   SistemaEstructural,
   TipoTerreno,
@@ -37,11 +38,9 @@ import {
   type Municipio,
 } from './hazard';
 import {
-  newId,
+  pesoSismicoTotal,
   plantasSobreRasante,
   plantasTotales,
-  type DireccionUI,
-  type PlantaUI,
   type SeismicEvaluation,
   type SeismicState,
 } from './state';
@@ -50,168 +49,31 @@ export interface SeismicInputsProps {
   state: SeismicState;
   setState: (fn: (s: SeismicState) => SeismicState) => void;
   evaluacion: SeismicEvaluation;
+  /**
+   * Abre el cuadro de plantas y cargas, que lo monta el módulo junto al resto
+   * de modales. Aquí sólo queda el resumen y la puerta: ver PlantasModal.tsx.
+   */
+  onEditPlantas: () => void;
+  /** Ídem para la geometría en planta: ver GeometriaModal.tsx. */
+  onEditGeometria: () => void;
 }
+
+// ── Textos de ayuda ──────────────────────────────────────────────────────────
+//
+// Cada campo del panel lleva su ⓘ (HelpTooltip, el mecanismo por defecto de
+// DESIGN.md): quien abre el módulo por primera vez no tiene por qué saber qué
+// es `ab` o `K`, y la sigla sola convierte el panel en un examen. Los textos de
+// `ab` y `K` viven aquí como constantes porque se usan DOS veces: en los campos
+// manuales (sin municipio del Anejo 1) y en los derivados (con municipio) — y
+// dos redacciones distintas de la misma magnitud sería exactamente el tipo de
+// deriva que un catálogo evita.
+
+const AYUDA_AB =
+  'Aceleración sísmica básica del emplazamiento, en fracción de g: el punto de partida de todo el cálculo. La fija el Anejo 1 de la NCSE-02 (o un estudio propio). Por debajo de 0,04 g la Norma no es de aplicación obligatoria.';
+const AYUDA_K =
+  'Coeficiente de contribución del Anejo 1: recoge cuánto pesan los terremotos lejanos (falla Azores–Gibraltar) en la peligrosidad del municipio. Vale 1,0 en casi toda España; llega a 1,3 en el sur y sureste peninsular (y a 1,4 en un único municipio).';
 
 // ── Piezas ───────────────────────────────────────────────────────────────────
-
-const INPUT_CLS =
-  'w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 ' +
-  'text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 ' +
-  'hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors';
-const UNIT_CLS =
-  'bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 ' +
-  'text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center';
-const SELECT_CLS =
-  'bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] ' +
-  'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors';
-
-// ── Campos numéricos ─────────────────────────────────────────────────────────
-//
-// TODO input numérico del panel pasa por `useCampoNumerico`. Antes había dos
-// comportamientos distintos: `Num` guardaba el texto tecleado en estado local,
-// y los seis campos en línea —las cargas q, la coordenada y la rigidez de cada
-// plano, los dos de cada estrato y el T_F impuesto— hacían `parseFloat` sobre
-// el value controlado en cada pulsación. En esos seis el separador decimal
-// desaparecía bajo el cursor: teclear "4,5" dejaba "45" en pantalla Y 45 en el
-// estado. Un factor diez en la carga de una planta, sin ningún aviso, en los
-// campos más editados del módulo.
-
-/**
- * Parseo ESTRICTO de un decimal, con coma o con punto.
- *
- * `parseFloat` no vale aquí: se traga la cola y devuelve un número para textos
- * que no lo son ("4x" → 4, y con la coma sin traducir "1,5" → 1). Eso deja en
- * pantalla algo distinto de lo que se ha guardado, que es justo lo que estos
- * campos tienen que dejar de hacer.
- *
- * Devuelve `null` para todo lo que no sea un decimal completo. Ahí caen también
- * los estados intermedios legítimos de tecleo —"", "-", "3,"—, que no se comiten
- * pero tampoco se corrigen bajo el cursor.
- */
-function parsearDecimal(txt: string): number | null {
-  const t = txt.trim().replace(',', '.');
-  if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-
-interface Rango {
-  min?: number;
-  max?: number;
-}
-
-const dentro = (n: number, { min, max }: Rango) =>
-  (min === undefined || n >= min) && (max === undefined || n <= max);
-
-/**
- * Estado de texto de un campo numérico. Devuelve las tres props del `<input>`.
- *
- * Dos invariantes:
- *
- *  1. Mientras se teclea manda el texto, para que un decimal a medio escribir no
- *     se reformatee bajo el cursor. Cuando el valor cambia DESDE FUERA (cargar
- *     un caso, elegir municipio, aplicar el asistente) se resincroniza, y se
- *     hace ajustando en render contra el valor anterior —el patrón de React para
- *     esto— y no con un efecto, que encadenaría un render de más.
- *  2. Al salir del campo, lo que se ve ES lo que hay en el estado. Antes el
- *     `onBlur` sólo restauraba con NaN, así que un valor rechazado por el rango
- *     —"0" en K, que tiene mínimo 1— se quedaba en pantalla indefinidamente
- *     mientras el cálculo seguía con el anterior.
- */
-function useCampoNumerico(value: number, onChange: (v: number) => void, rango: Rango = {}) {
-  const [txt, setTxt] = useState(() => textoEditable(value));
-  const [previo, setPrevio] = useState(value);
-  if (previo !== value) {
-    setPrevio(value);
-    // Si el texto en pantalla ya representa ese número no se toca: así "0,05"
-    // sobrevive a su propio commit en vez de reescribirse como "0.05".
-    if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
-  }
-  return {
-    value: txt,
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-      setTxt(e.target.value);
-      const n = parsearDecimal(e.target.value);
-      if (n !== null && dentro(n, rango)) onChange(n);
-    },
-    onBlur: () => {
-      if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
-    },
-  };
-}
-
-/** Input numérico desnudo, para las tablas. Mismo comportamiento que `Num`. */
-function NumIn({
-  value,
-  onChange,
-  etiqueta,
-  min,
-  max,
-  ancho = 'w-14',
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  etiqueta: string;
-  min?: number;
-  max?: number;
-  ancho?: string;
-}) {
-  const campo = useCampoNumerico(value, onChange, { min, max });
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      {...campo}
-      className={`${INPUT_CLS} ${ancho} rounded`}
-      aria-label={etiqueta}
-    />
-  );
-}
-
-function Num({
-  label,
-  sub,
-  help,
-  value,
-  unit,
-  onChange,
-  min,
-  max,
-  ancho = 'w-15',
-}: {
-  label: string;
-  sub?: string;
-  help?: string;
-  value: number;
-  unit?: string;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-  ancho?: string;
-}) {
-  const campo = useCampoNumerico(value, onChange, { min, max });
-  // `htmlFor`/`id` de verdad: sin ellos el rótulo era decorativo y pulsarlo no
-  // llevaba el foco al campo, que es la única forma cómoda de acertar en un
-  // input de 60 píxeles. El `aria-label` se mantiene porque lleva la unidad, que
-  // el rótulo visible no dice.
-  const id = useId();
-  return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
-      <InputLabel htmlFor={id} label={label} sub={sub} help={help} />
-      <div className="flex shrink-0">
-        <input
-          id={id}
-          type="text"
-          inputMode="decimal"
-          {...campo}
-          className={`${INPUT_CLS} ${ancho}`}
-          aria-label={`${label}${unit ? ` (${unit})` : ''}`}
-        />
-        {unit ? <span className={UNIT_CLS}>{unit}</span> : null}
-      </div>
-    </div>
-  );
-}
 
 function Sel<T extends string>({
   label,
@@ -270,16 +132,24 @@ function Derivado({
   origen,
   valor,
   unit,
+  help,
 }: {
   label: string;
   origen: string;
   valor: string;
   unit?: string;
+  help?: string;
 }) {
   return (
     <div className="flex items-center justify-between py-0.75 gap-2">
       <div className="min-w-0">
-        <div className="text-[12px] text-text-secondary truncate">{label}</div>
+        {/* El ⓘ también en los derivados: `ab`, `K` o `β` son justo las siglas
+            que el usuario nuevo no conoce, y con municipio elegido SOLO
+            aparecen aquí. */}
+        <span className="flex items-center gap-1 min-w-0">
+          <span className="text-[12px] text-text-secondary truncate">{label}</span>
+          {help ? <HelpTooltip text={help} fieldLabel={label} /> : null}
+        </span>
         <div className="text-[10px] text-text-disabled truncate font-mono">{origen}</div>
       </div>
       <div className="flex shrink-0">
@@ -301,11 +171,13 @@ function Derivado({
 function Declaracion({
   label,
   sub,
+  help,
   value,
   onChange,
 }: {
   label: string;
   sub?: string;
+  help?: string;
   value: boolean | null;
   onChange: (v: boolean | null) => void;
 }) {
@@ -331,7 +203,13 @@ function Declaracion({
   return (
     <div className="flex items-start justify-between py-1 gap-2">
       <div className="min-w-0 pt-0.5">
-        <div className="text-[12px] text-text-secondary">{label}</div>
+        {/* Wrapper en <span> a propósito: el test de integración localiza la
+            fila con closest('div.flex.items-start') y un div flex interior se
+            la robaría. */}
+        <span className="flex items-center gap-1">
+          <span className="text-[12px] text-text-secondary">{label}</span>
+          {help ? <HelpTooltip text={help} fieldLabel={label} /> : null}
+        </span>
         {sub ? <div className="text-[10px] text-text-disabled">{sub}</div> : null}
       </div>
       <div className="flex gap-1 shrink-0">
@@ -475,10 +353,18 @@ function BuscadorMunicipio({
 
   return (
     <div className="py-0.75" ref={caja}>
-      <label className="text-[12px] text-text-secondary block mb-1" htmlFor="sismo-municipio">
-        Municipio
-        <span className="text-[10px] text-text-disabled font-mono ml-1.5">Anejo 1</span>
-      </label>
+      {/* El ⓘ va FUERA del <label>: dentro, pulsarlo llevaría el foco al campo
+          de búsqueda en vez de abrir la ayuda. */}
+      <span className="flex items-center gap-1 mb-1">
+        <label className="text-[12px] text-text-secondary" htmlFor="sismo-municipio">
+          Municipio
+          <span className="text-[10px] text-text-disabled font-mono ml-1.5">Anejo 1</span>
+        </label>
+        <HelpTooltip
+          text="Municipio del emplazamiento de la obra. De él salen ab y K según el Anejo 1 de la NCSE-02. Si no figura —municipio creado después de 2002, o peligrosidad de un estudio propio—, introduce ab y K a mano."
+          fieldLabel="Municipio"
+        />
+      </span>
       <input
         id="sismo-municipio"
         type="text"
@@ -629,327 +515,6 @@ function BuscadorMunicipio({
   );
 }
 
-// ── Tabla de plantas ─────────────────────────────────────────────────────────
-
-const CATEGORIAS: { v: CategoriaMasa; t: string }[] = [
-  { v: 'permanente', t: 'Permanente' },
-  { v: 'tabiqueria', t: 'Tabiquería' },
-  { v: 'uso-residencial', t: 'Uso · residencial' },
-  { v: 'uso-publico', t: 'Uso · público' },
-  { v: 'uso-aglomeracion', t: 'Uso · aglomeración' },
-  { v: 'uso-almacen', t: 'Uso · almacén' },
-  { v: 'nieve-persistente', t: 'Nieve persistente' },
-  { v: 'agua', t: 'Agua' },
-];
-
-function TablaPlantas({
-  state,
-  setState,
-  evaluacion,
-}: {
-  state: SeismicState;
-  setState: SeismicInputsProps['setState'];
-  evaluacion: SeismicEvaluation;
-}) {
-  // Por ID, no por posición: la cadena ORDENA las plantas por altura, así que
-  // el índice i del resultado no es el de la fila i de la tabla en cuanto las
-  // alturas dejan de ir en orden creciente. Emparejando por posición, cada fila
-  // enseñaba el peso de otra planta.
-  const pesos = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of evaluacion.resultado?.plantas ?? []) if (p.id) m.set(p.id, p.P);
-    return m;
-  }, [evaluacion.resultado]);
-
-  const cambiar = (id: string, fn: (p: PlantaUI) => PlantaUI) =>
-    setState((s) => ({ ...s, plantas: s.plantas.map((p) => (p.id === id ? fn(p) : p)) }));
-
-  return (
-    <div className="space-y-2">
-      {/*
-        La fracción del art. 3.2 NO es el psi_2 del CTE. Se reutiliza la
-        taxonomía de categorías de uso, no sus valores: psi gobierna la
-        COMBINACIÓN de acciones y la fracción gobierna qué parte de la
-        sobrecarga es MASA. Aplicar 0,5·Q en las dos es el error natural, y no
-        lo delata ningún número raro.
-      */}
-      <p className="text-[10px] leading-snug text-text-disabled border border-border-sub rounded px-2 py-1.5">
-        La fracción es la del <span className="font-mono">art. 3.2</span> y decide qué parte de la
-        sobrecarga es <strong className="text-text-secondary">masa</strong>. No es el{' '}
-        <span className="font-mono">ψ₂</span> del CTE, que gobierna la gravedad concomitante del art.
-        3.4 y entra entera.
-      </p>
-
-      {state.plantas.map((p, i) => (
-        <div key={p.id} className="border border-border-sub rounded p-2 space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <input
-              type="text"
-              value={p.nombre}
-              onChange={(e) => cambiar(p.id, (x) => ({ ...x, nombre: e.target.value }))}
-              className="bg-transparent text-[12px] text-text-primary outline-none min-w-0 flex-1"
-              aria-label={`Nombre de la planta ${i + 1}`}
-            />
-            <span className="text-[11px] font-mono text-accent shrink-0">
-              {(pesos.get(p.id) ?? 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} kN
-            </span>
-            <button
-              type="button"
-              onClick={() => setState((s) => ({ ...s, plantas: s.plantas.filter((q) => q.id !== p.id) }))}
-              className="text-[11px] text-text-disabled hover:text-state-fail transition-colors cursor-pointer shrink-0"
-              aria-label={`Eliminar ${p.nombre}`}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Ninguna de las tres admite negativos: una altura, una superficie
-              y un peso por debajo de cero no son casos límite, son datos rotos
-              que el motor propaga sin quejarse hasta el cortante basal. */}
-          <Num
-            label="h"
-            sub="altura sobre rasante"
-            unit="m"
-            value={p.h}
-            min={0}
-            onChange={(v) => cambiar(p.id, (x) => ({ ...x, h: v }))}
-          />
-
-          <label className="flex items-center gap-1.5 text-[11px] text-text-disabled py-0.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={p.pesoManual}
-              onChange={(e) => cambiar(p.id, (x) => ({ ...x, pesoManual: e.target.checked }))}
-            />
-            Meter el peso directamente en kN
-          </label>
-
-          {p.pesoManual ? (
-            <Num
-              label="P"
-              sub="peso sísmico"
-              unit="kN"
-              value={p.P ?? 0}
-              min={0}
-              onChange={(v) => cambiar(p.id, (x) => ({ ...x, P: v }))}
-            />
-          ) : (
-            <>
-              <Num
-                label="Área"
-                unit="m²"
-                value={p.area ?? 0}
-                min={0}
-                onChange={(v) => cambiar(p.id, (x) => ({ ...x, area: v }))}
-              />
-              {(p.componentes ?? []).map((c, j) => (
-                <div key={j} className="flex items-center gap-1.5 py-0.5">
-                  <select
-                    value={c.categoria}
-                    onChange={(e) =>
-                      cambiar(p.id, (x) => ({
-                        ...x,
-                        componentes: (x.componentes ?? []).map((y, m) =>
-                          m === j ? { ...y, categoria: e.target.value as CategoriaMasa } : y,
-                        ),
-                      }))
-                    }
-                    className={`${SELECT_CLS} flex-1 min-w-0`}
-                    aria-label={`Categoría del componente ${j + 1}`}
-                  >
-                    {CATEGORIAS.map((o) => (
-                      <option key={o.v} value={o.v}>
-                        {o.t}
-                      </option>
-                    ))}
-                  </select>
-                  <NumIn
-                    value={c.q}
-                    min={0}
-                    ancho="w-12"
-                    etiqueta={`Carga del componente ${j + 1} en kN/m²`}
-                    onChange={(n) =>
-                      cambiar(p.id, (x) => ({
-                        ...x,
-                        componentes: (x.componentes ?? []).map((y, m) => (m === j ? { ...y, q: n } : y)),
-                      }))
-                    }
-                  />
-                  <span className="text-[9px] text-text-disabled font-mono w-9 shrink-0">
-                    ×{dec(FRACCION_MASA[c.categoria], 1)}
-                  </span>
-                  {/*
-                    La exclusión es POR PLANTA y es una decisión declarada: el
-                    art. 3.2 sólo cuenta las sobrecargas "siempre que tengan un
-                    efecto desfavorable". El PDF la recoge como declaración del
-                    proyectista, no como cálculo.
-                  */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      cambiar(p.id, (x) => ({
-                        ...x,
-                        componentes: (x.componentes ?? []).map((y, m) =>
-                          m === j ? { ...y, excluida: !y.excluida } : y,
-                        ),
-                      }))
-                    }
-                    title={c.excluida ? 'Excluida por el proyectista' : 'Incluida'}
-                    className={[
-                      'text-[10px] px-1 rounded border transition-colors cursor-pointer shrink-0',
-                      c.excluida
-                        ? 'border-state-warn text-state-warn'
-                        : 'border-border-main text-text-disabled hover:border-accent/40',
-                    ].join(' ')}
-                  >
-                    {c.excluida ? 'excl.' : 'incl.'}
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() =>
-                  cambiar(p.id, (x) => ({
-                    ...x,
-                    componentes: [...(x.componentes ?? []), { categoria: 'permanente', q: 0 }],
-                  }))
-                }
-                className="text-[10px] text-text-disabled hover:text-accent transition-colors cursor-pointer"
-              >
-                + componente
-              </button>
-            </>
-          )}
-        </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={() =>
-          setState((s) => {
-            const ultima = s.plantas[s.plantas.length - 1];
-            const nueva: PlantaUI = {
-              ...(ultima ?? { h: 0, area: 100, componentes: [], P: 0, pesoManual: false }),
-              id: newId(),
-              nombre: `Planta ${s.plantas.length + 1}`,
-              h: (ultima?.h ?? 0) + 3,
-            };
-            // `n` ya no se toca aquí: sale de contar `plantas`. Actualizarlo a
-            // mano en el botón de añadir —y no en el de borrar— era la mitad de
-            // la desincronización que hacía saltar la pasarela del art. 3.5.1.
-            return { ...s, plantas: [...s.plantas, nueva] };
-          })
-        }
-        className="text-[11px] text-text-disabled hover:text-accent transition-colors cursor-pointer"
-      >
-        + planta
-      </button>
-    </div>
-  );
-}
-
-// ── Planos resistentes ───────────────────────────────────────────────────────
-
-/**
- * La ÚNICA geometría que pide el módulo.
- *
- * El método simplificado no construye modelo estructural: no hacen falta
- * secciones, armado, material, módulo elástico, luces, nudos ni altura de cada
- * pilar. Por cada dirección basta la lista de planos resistentes con su
- * coordenada firmada y una rigidez relativa. Con todas las rigideces a 1,00 el
- * reparto degenera en F_k / nº de planos, que es exactamente lo que hacen las
- * hojas de cálculo al uso: dar rigideces es una mejora opcional.
- */
-function PlanosResistentes({
-  dir,
-  eje,
-  onChange,
-}: {
-  dir: DireccionUI;
-  eje: 'X' | 'Y';
-  onChange: (fn: (d: DireccionUI) => DireccionUI) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <Num
-        label="L"
-        sub="dimensión en el sentido de oscilación"
-        unit="m"
-        value={dir.L}
-        onChange={(v) => onChange((d) => ({ ...d, L: v }))}
-      />
-      <Num
-        label="B"
-        sub="pantallas o planos triangulados"
-        help="Sólo entra en las expresiones (3) y (5) del art. 3.7.2.2. Cero si no hay."
-        unit="m"
-        value={dir.B}
-        onChange={(v) => onChange((d) => ({ ...d, B: v }))}
-      />
-
-      <div className="pt-1.5 text-[10px] uppercase tracking-[0.07em] text-text-disabled">
-        Planos resistentes · {eje}
-      </div>
-      <p className="text-[10px] leading-snug text-text-disabled">
-        <span className="font-mono">x</span> es la coordenada{' '}
-        <strong className="text-text-secondary">con signo</strong> respecto al centro, medida
-        perpendicularmente al sismo. De aquí salen solos L<sub>e</sub>, el centro de torsión y γ
-        <sub>a</sub>. Como se reparten sobre el eje transversal, el requisito (6) del art. 3.5.1
-        compara su excentricidad con la <span className="font-mono">L</span> de{' '}
-        <strong className="text-text-secondary">la otra dirección</strong>.
-      </p>
-
-      {dir.elementos.map((el, i) => (
-        <div key={el.id} className="flex items-center gap-1.5 py-0.5">
-          <span className="text-[10px] text-text-disabled font-mono w-4 shrink-0">{i + 1}</span>
-          {/* `x` va CON SIGNO: es el único campo del panel sin mínimo. */}
-          <NumIn
-            value={el.x}
-            etiqueta={`Coordenada x del plano ${i + 1}`}
-            onChange={(n) =>
-              onChange((d) => ({
-                ...d,
-                elementos: d.elementos.map((y, m) => (m === i ? { ...y, x: n } : y)),
-              }))
-            }
-          />
-          <span className="text-[9px] text-text-disabled font-mono shrink-0">m</span>
-          <NumIn
-            value={el.k}
-            min={0}
-            etiqueta={`Rigidez relativa del plano ${i + 1}`}
-            onChange={(n) =>
-              onChange((d) => ({
-                ...d,
-                elementos: d.elementos.map((y, m) => (m === i ? { ...y, k: n } : y)),
-              }))
-            }
-          />
-          <span className="text-[9px] text-text-disabled font-mono shrink-0">k</span>
-          <button
-            type="button"
-            onClick={() => onChange((d) => ({ ...d, elementos: d.elementos.filter((_, m) => m !== i) }))}
-            className="text-[11px] text-text-disabled hover:text-state-fail transition-colors cursor-pointer ml-auto"
-            aria-label={`Eliminar el plano ${i + 1}`}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={() =>
-          onChange((d) => ({ ...d, elementos: [...d.elementos, { id: newId(), x: 0, k: 1 }] }))
-        }
-        className="text-[11px] text-text-disabled hover:text-accent transition-colors cursor-pointer"
-      >
-        + plano resistente
-      </button>
-    </div>
-  );
-}
-
 // ── Panel ────────────────────────────────────────────────────────────────────
 
 const SISTEMAS: { v: SistemaEstructural; t: string }[] = [
@@ -977,16 +542,19 @@ function origenPeligrosidad(state: SeismicState): string {
   return `${state.municipioNombre} · Anejo 1`;
 }
 
-export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProps) {
+export function SeismicInputs({
+  state,
+  setState,
+  evaluacion,
+  onEditPlantas,
+  onEditGeometria,
+}: SeismicInputsProps) {
   const e = evaluacion.emplazamiento;
   const r = evaluacion.resultado;
-  const sumaP = useMemo(
-    () => r?.plantas.reduce((a, p) => a + p.P, 0) ?? 0,
-    [r],
-  );
-
-  const setDir = (eje: 'x' | 'y', fn: (d: DireccionUI) => DireccionUI) =>
-    setState((s) => ({ ...s, [eje]: fn(s[eje]) }));
+  // Sale de la tabla y no de `resultado`: un caso exento del art. 1.2.3 no tiene
+  // resultado, y con él como única fuente el resumen decía «Σ P = 0 kN» para un
+  // edificio con diez plantas de masa dentro.
+  const sumaP = useMemo(() => pesoSismicoTotal(state), [state]);
 
   return (
     <div className="space-y-1">
@@ -1006,7 +574,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
             <Num
               label="ab"
               sub="aceleración básica"
-              help="Aceleración sísmica básica en fracción de g, según el Anejo 1 de la NCSE-02 o estudio propio. Por debajo de 0,04 g la Norma no es de aplicación obligatoria."
+              help={AYUDA_AB}
               value={state.ab}
               unit="g"
               min={0}
@@ -1015,7 +583,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
             <Num
               label="K"
               sub="contribución"
-              help="Coeficiente de contribución. Vale 1,0 salvo en el sur y sureste peninsular, donde llega a 1,3 (y a 1,4 en un único municipio)."
+              help={AYUDA_K}
               value={state.K}
               min={1}
               onChange={(v) => setState((s) => ({ ...s, K: v }))}
@@ -1025,6 +593,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Sel<Importancia>
           label="Importancia"
           sub="art. 1.2.2"
+          help="Clasificación del art. 1.2.2 según lo que arriesga el edificio en un sismo: moderada (la Norma no obliga), normal (viviendas, oficinas…) o especial (hospitales, bomberos, servicios esenciales). Decide el coeficiente de riesgo ρ."
           value={state.importancia}
           options={[
             { v: 'moderada', t: 'Moderada' },
@@ -1036,6 +605,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Sel<'tipo' | 'perfil'>
           label="Terreno"
           sub="art. 2.4"
+          help="Cómo describir el terreno del emplazamiento: eligiendo directamente un tipo tabulado del art. 2.4, o introduciendo el perfil de estratos (C y espesor de cada uno), que se pondera en los 30 m superiores."
           value={state.terrenoModo}
           options={[
             { v: 'tipo', t: 'Tipo tabulado' },
@@ -1047,6 +617,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
           <Sel<TipoTerreno>
             label="Tipo"
             sub="I · II · III · IV"
+            help="Clasificación del terreno del art. 2.4, de más rígido a más blando: I roca compacta, II roca fracturada o suelo muy denso, III suelo granular medio, IV suelo blando. Decide el coeficiente C: cuanto más blando, más amplifica."
             value={state.terreno}
             options={[
               { v: 'I', t: 'I · roca compacta' },
@@ -1118,25 +689,66 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         {state.municipioIne !== null ? (
           <>
             {/* Un valor heredado no puede rotularse "Anejo 1": no lo es. */}
-            <Derivado label="ab" origen={origenPeligrosidad(state)} valor={f(state.ab)} unit="g" />
-            <Derivado label="K" origen={origenPeligrosidad(state)} valor={f(state.K, 1)} />
+            <Derivado
+              label="ab"
+              origen={origenPeligrosidad(state)}
+              valor={f(state.ab)}
+              unit="g"
+              help={AYUDA_AB}
+            />
+            <Derivado
+              label="K"
+              origen={origenPeligrosidad(state)}
+              valor={f(state.K, 1)}
+              help={AYUDA_K}
+            />
           </>
         ) : null}
-        <Derivado label="ρ" origen={`importancia ${state.importancia}`} valor={f(e.rho, 1)} />
+        <Derivado
+          label="ρ"
+          origen={`importancia ${state.importancia}`}
+          valor={f(e.rho, 1)}
+          help="Coeficiente adimensional de riesgo (art. 2.2), según la importancia del edificio: 1,0 para importancia normal y 1,3 para especial. Multiplica a ab en la aceleración de cálculo."
+        />
         <Derivado
           label="C"
           origen={state.terrenoModo === 'tipo' ? `terreno ${state.terreno}` : 'perfil ponderado'}
           valor={f(e.C)}
+          help="Coeficiente del terreno (art. 2.4): de 1,0 (roca compacta) a 2,0 (suelo blando). Con perfil de estratos es la media ponderada de los 30 m superiores."
         />
-        <Derivado label="S" origen="art. 2.2" valor={f(e.S, 3)} />
-        <Derivado label="ac" origen="S · ρ · ab" valor={f(e.ac, 3)} unit="g" />
-        <Derivado label="T_A" origen="K·C/10 · esquina del espectro elástico" valor={f(e.TA)} unit="s" />
-        <Derivado label="T_B" origen="K·C/2,5 · decide la rama de α" valor={f(e.TB)} unit="s" />
+        <Derivado
+          label="S"
+          origen="art. 2.2"
+          valor={f(e.S, 3)}
+          help="Coeficiente de amplificación del terreno (art. 2.2). Sale de C y de ρ·ab: para aceleraciones bajas amplifica más, y a partir de 0,4 g deja de amplificar."
+        />
+        <Derivado
+          label="ac"
+          origen="S · ρ · ab"
+          valor={f(e.ac, 3)}
+          unit="g"
+          help="Aceleración sísmica de cálculo: ac = S · ρ · ab (art. 2.2). Es la aceleración con la que se construyen el espectro y las fuerzas."
+        />
+        <Derivado
+          label="T_A"
+          origen="K·C/10 · esquina del espectro elástico"
+          valor={f(e.TA)}
+          unit="s"
+          help="Período característico del espectro elástico (art. 2.3): T_A = K·C/10, en segundos. Por debajo de él el espectro elástico crece con T; no interviene en las fuerzas del método simplificado."
+        />
+        <Derivado
+          label="T_B"
+          origen="K·C/2,5 · decide la rama de α"
+          valor={f(e.TB)}
+          unit="s"
+          help="Período característico del espectro (art. 2.3): T_B = K·C/2,5, en segundos. Decide la rama del coeficiente α: por debajo α = 2,5 y por encima α = 2,5·T_B/T."
+        />
       </CollapsibleSection>
 
       <CollapsibleSection label="Estructura" refNorma="art. 3.7.2">
         <Sel<SistemaEstructural>
           label="Sistema"
+          help="Sistema estructural resistente del edificio. Decide con qué expresión se estima el período fundamental T_F (art. 3.7.2.2) y, con ab, si el material está prohibido por el art. 1.2.3 (adobe, tapial, mampostería en seco). Con pantallas o triangulaciones, su ancho B se pide en «Geometría en planta»."
           value={state.sistema}
           options={SISTEMAS}
           onChange={(v) => setState((s) => ({ ...s, sistema: v }))}
@@ -1160,6 +772,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Num
           label="H"
           sub="altura sobre rasante"
+          help="Altura del edificio sobre rasante, en metros. Entra en la estimación del período fundamental T_F y en el requisito del método simplificado (menos de 60 m, art. 3.5.1)."
           unit="m"
           value={state.H}
           min={0}
@@ -1168,6 +781,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Num
           label="Ω"
           sub="amortiguamiento"
+          help="Amortiguamiento de la estructura, en % del crítico, según el tipo estructural y su compartimentación. El espectro de referencia corresponde al 5 %; otros valores lo corrigen mediante ν = (5/Ω)^0,4 (art. 2.5)."
           unit="%"
           value={state.omega}
           min={0}
@@ -1176,6 +790,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Num
           label="μ"
           sub="ductilidad · art. 3.7.3.1"
+          help="Coeficiente de comportamiento por ductilidad (art. 3.7.3.1): 1 sin ductilidad, 2 baja, 3 alta y 4 muy alta. A más ductilidad, menores fuerzas de cálculo — pero exige que el proyecto cumpla las condiciones de diseño correspondientes."
           value={state.mu}
           min={1}
           onChange={(v) => setState((s) => ({ ...s, mu: v }))}
@@ -1186,6 +801,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
           label="n"
           origen="plantas sobre rasante · de la tabla"
           valor={String(plantasSobreRasante(state))}
+          help="Número de plantas sobre rasante. No se teclea: se cuenta de la tabla de plantas y cargas, y limita el método simplificado (menos de veinte)."
         />
         <Derivado
           label="n total"
@@ -1195,6 +811,7 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
               : 'sin sótanos · pasarela art. 3.5.1'
           }
           valor={String(plantasTotales(state))}
+          help="Plantas totales del edificio, sótanos incluidos. Es el recuento que usa la pasarela de ≤ 4 plantas del art. 3.5.1 para dar por cumplidos los requisitos sin declararlos."
         />
         {/*
           T_F es DERIVADO. El conmutador existe porque el art. 3.6.2.3.2 permite
@@ -1202,7 +819,13 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         */}
         <div className="flex items-center justify-between py-0.75 gap-2">
           <div className="min-w-0">
-            <div className="text-[12px] text-text-secondary">T_F</div>
+            <span className="flex items-center gap-1 min-w-0">
+              <span className="text-[12px] text-text-secondary">T_F</span>
+              <HelpTooltip
+                text="Período fundamental de oscilación del edificio, en segundos, estimado según el sistema estructural (art. 3.7.2.2). Sitúa al edificio en el espectro. Puede imponerse un valor justificado por otro procedimiento (art. 3.6.2.3.2)."
+                fieldLabel="T_F"
+              />
+            </span>
             <div className="text-[10px] text-text-disabled font-mono truncate">
               {state.x.TFModo === 'manual' ? 'impuesto · art. 3.6.2.3.2' : 'art. 3.7.2.2'}
             </div>
@@ -1243,27 +866,92 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
             <span className="text-[9px] text-text-disabled font-mono">s</span>
           </div>
         </div>
-        <Derivado label="Nº de modos" origen="art. 3.7.2.1" valor={r ? String(r.x.nModos) : '—'} />
-        <Derivado label="ν" origen={`art. 2.5 · Ω = ${state.omega} %`} valor={f(evaluacion.resultado?.nu, 3)} />
-        <Derivado label="β" origen="ν / μ · art. 3.7.3.1" valor={f(evaluacion.resultado?.beta, 3)} />
+        <Derivado
+          label="Nº de modos"
+          origen="art. 3.7.2.1"
+          valor={r ? String(r.x.nModos) : '—'}
+          help="Modos de vibración que exige considerar el art. 3.7.2.1 según T_F: 1 hasta 0,75 s, 2 hasta 1,25 s y 3 por encima."
+        />
+        <Derivado
+          label="ν"
+          origen={`art. 2.5 · Ω = ${state.omega} %`}
+          valor={f(evaluacion.resultado?.nu, 3)}
+          help="Factor de modificación del espectro por amortiguamiento distinto del 5 % de referencia: ν = (5/Ω)^0,4 (art. 2.5)."
+        />
+        <Derivado
+          label="β"
+          origen="ν / μ · art. 3.7.3.1"
+          valor={f(evaluacion.resultado?.beta, 3)}
+          help="Coeficiente de respuesta β = ν/μ (art. 3.7.3.1): condensa amortiguamiento y ductilidad en un solo factor que multiplica a las fuerzas sísmicas."
+        />
       </CollapsibleSection>
 
-      <CollapsibleSection label="Plantas y cargas" refNorma="art. 3.2" defaultOpen={false}>
-        <div className="flex items-center justify-between pb-1.5">
-          <span className="text-[11px] text-text-disabled">{state.plantas.length} plantas</span>
+      {/*
+        Las plantas se editan en su propio cuadro y no aquí: cuarenta filas de
+        cuatro controles no caben en 288 px sin cortarse. Ver PlantasModal.tsx.
+        En la barra queda lo que se lee de un vistazo —cuántas plantas y cuánta
+        masa— y la puerta para entrar a tocarlas.
+      */}
+      <CollapsibleSection label="Plantas y cargas" refNorma="art. 3.2">
+        <div className="flex items-center justify-between pb-2">
+          <span className="text-[11px] text-text-disabled">
+            {state.plantas.length} planta{state.plantas.length === 1 ? '' : 's'}
+          </span>
+          <span className="text-[11px] font-mono text-accent">Σ P = {dec(sumaP, 0)} kN</span>
+        </div>
+        <button
+          type="button"
+          onClick={onEditPlantas}
+          className={
+            'w-full flex items-center justify-center gap-1.5 py-2 max-lg:min-h-11 rounded border ' +
+            'border-border-main text-[11px] text-text-secondary hover:border-accent ' +
+            'hover:text-accent transition-colors cursor-pointer'
+          }
+        >
+          <Layers size={12} aria-hidden="true" />
+          Editar plantas y cargas
+        </button>
+        <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
+          Cotas, superficies y cargas del <span className="font-mono">art. 3.2</span>, sobre el
+          alzado del edificio.
+        </p>
+      </CollapsibleSection>
+
+      {/*
+        La ÚNICA geometría que pide el módulo, y se edita en su propio cuadro:
+        el método simplificado no construye modelo estructural —ni secciones, ni
+        material, ni nudos—, por cada dirección basta la lista de planos
+        resistentes con su posición y una rigidez relativa. En la barra queda lo
+        que se lee de un vistazo y la puerta para entrar a tocarla; dentro, las
+        posiciones se miden desde la fachada y la planta se dibuja en vivo. Ver
+        GeometriaModal.tsx.
+      */}
+      <CollapsibleSection label="Geometría en planta" refNorma="art. 3.7.5">
+        <div className="flex items-center justify-between pb-2">
+          <span className="text-[11px] text-text-disabled">
+            {state.x.elementos.length} plano{state.x.elementos.length === 1 ? '' : 's'} en X ·{' '}
+            {state.y.elementos.length} en Y
+          </span>
           <span className="text-[11px] font-mono text-accent">
-            Σ P = {sumaP.toLocaleString('es-ES', { maximumFractionDigits: 0 })} kN
+            {dec(state.x.L, 2)} × {dec(state.y.L, 2)} m
           </span>
         </div>
-        <TablaPlantas state={state} setState={setState} evaluacion={evaluacion} />
-      </CollapsibleSection>
-
-      <CollapsibleSection label="Dirección X" refNorma="art. 3.7.5" defaultOpen={false}>
-        <PlanosResistentes dir={state.x} eje="X" onChange={(fn) => setDir('x', fn)} />
-      </CollapsibleSection>
-
-      <CollapsibleSection label="Dirección Y" refNorma="art. 3.7.5" defaultOpen={false}>
-        <PlanosResistentes dir={state.y} eje="Y" onChange={(fn) => setDir('y', fn)} />
+        <button
+          type="button"
+          onClick={onEditGeometria}
+          className={
+            'w-full flex items-center justify-center gap-1.5 py-2 max-lg:min-h-11 rounded border ' +
+            'border-border-main text-[11px] text-text-secondary hover:border-accent ' +
+            'hover:text-accent transition-colors cursor-pointer'
+          }
+        >
+          <Ruler size={12} aria-hidden="true" />
+          Editar geometría en planta
+        </button>
+        <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
+          Dimensiones y planos resistentes del <span className="font-mono">art. 3.7.5</span>, sobre
+          la planta dibujada y midiendo desde la fachada.
+        </p>
       </CollapsibleSection>
 
       <CollapsibleSection label="Declaraciones" refNorma="art. 1.2.3 · 3.5.1" defaultOpen={false}>
@@ -1280,30 +968,35 @@ export function SeismicInputs({ state, setState, evaluacion }: SeismicInputsProp
         <Declaracion
           label="Pórticos bien arriostrados"
           sub="art. 1.2.3 · en todas las direcciones"
+          help="Pórticos capaces de resistir acciones horizontales en todas las direcciones. Con ab < 0,08 g esta condición exime de aplicar la Norma en construcciones de importancia normal (art. 1.2.3)."
           value={state.porticosBienArriostrados}
           onChange={(v) => setState((s) => ({ ...s, porticosBienArriostrados: v }))}
         />
         <Declaracion
           label="Regularidad geométrica"
           sub="requisito (3)"
+          help="Planta y alzado regulares, sin entrantes ni salientes importantes. Es el requisito (3) del art. 3.5.1: el módulo no puede comprobarlo con sus datos, así que lo declara el proyectista."
           value={state.regularidadGeometrica}
           onChange={(v) => setState((s) => ({ ...s, regularidadGeometrica: v }))}
         />
         <Declaracion
           label="Soportes continuos hasta cimentación"
           sub="requisito (4)"
+          help="Soportes que bajan hasta la cimentación sin cambios bruscos de rigidez, repartidos uniformemente en planta. Requisito (4) del art. 3.5.1, declarado por el proyectista."
           value={state.soportesContinuos}
           onChange={(v) => setState((s) => ({ ...s, soportesContinuos: v }))}
         />
         <Declaracion
           label="Regularidad mecánica"
           sub="requisito (5)"
+          help="Rigideces, resistencias y masas repartidas de modo que los centros de gravedad y de torsión de todas las plantas queden, aproximadamente, en la misma vertical. Requisito (5) del art. 3.5.1, declarado."
           value={state.regularidadMecanica}
           onChange={(v) => setState((s) => ({ ...s, regularidadMecanica: v }))}
         />
         <Declaracion
           label="Excentricidad ≤ 10 %"
           sub="requisito (6) · declarada, si no hay planos suficientes"
+          help="Excentricidad del centro de masas respecto al de torsión inferior al 10 % de la dimensión en planta, en cada dirección. Con los planos resistentes introducidos se comprueba sola; esta declaración sólo cuenta cuando faltan."
           value={state.excentricidadDeclarada}
           onChange={(v) => setState((s) => ({ ...s, excentricidadDeclarada: v }))}
         />

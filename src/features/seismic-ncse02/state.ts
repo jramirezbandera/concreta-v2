@@ -15,6 +15,7 @@ import { checkApplicability } from '../../lib/codes/seismic/applicability';
 import {
   TEXTO_SIN_TF,
   calcularSismo,
+  pesoSismicoPlanta,
   resolverEmplazamiento,
   resolverTF,
 } from '../../lib/codes/seismic/ncse02';
@@ -295,6 +296,32 @@ export function plantasSobreRasante(s: Pick<SeismicState, 'plantas'>): number {
  */
 export function plantasTotales(s: Pick<SeismicState, 'plantas' | 'sotanos'>): number {
   return s.plantas.length + Math.max(0, Math.trunc(s.sotanos));
+}
+
+/**
+ * Peso sísmico de una planta [kN], tal y como lo verá el motor.
+ *
+ * El estado guarda a la vez `P` y el asistente de superficie, y `pesoManual`
+ * decide cuál manda; `pesoSismicoPlanta` sólo entiende `PlantaInput`, donde eso
+ * se expresa por la PRESENCIA de `P`. La traducción es la misma que hace
+ * `toSeismicInput`, y por eso se escribe una vez: si las dos se separan, el
+ * peso que se dibuja deja de ser el que se calcula.
+ *
+ * Existe para PINTAR, y por eso no pasa por `evaluacion.resultado`: un caso
+ * exento del art. 1.2.3 no tiene resultado, y con él como única fuente las
+ * plantas se enseñaban a «0 kN», como si no pesaran nada.
+ */
+export function pesoDePlanta(p: PlantaUI): number {
+  return pesoSismicoPlanta(
+    p.pesoManual
+      ? { h: p.h, P: p.P ?? 0 }
+      : { h: p.h, area: p.area, componentes: p.componentes },
+  );
+}
+
+/** Σ P_k [kN] de la tabla de plantas, esté o no exento el caso. */
+export function pesoSismicoTotal(s: Pick<SeismicState, 'plantas'>): number {
+  return s.plantas.reduce((a, p) => a + pesoDePlanta(p), 0);
 }
 
 // ── Traducción al motor ──────────────────────────────────────────────────────

@@ -158,8 +158,8 @@ describe('n sale de la tabla de plantas, no de un campo aparte', () => {
   // `n` —imposible, porque los sótanos suman— la pasarela de las cuatro plantas
   // del art. 3.5.1 se abría para edificios que no le corresponden.
 
-  /** «Plantas y cargas» viene plegada y su contenido no se monta hasta abrirla. */
-  const abrirPlantas = () => fireEvent.click(screen.getByText(/Plantas y cargas/i));
+  /** Las plantas se editan en su cuadro: la barra sólo lleva el resumen. */
+  const abrirPlantas = () => fireEvent.click(screen.getByText('Editar plantas y cargas'));
 
   it('añadir una planta mueve n, que ya no es un campo aparte', async () => {
     const { container } = montar();
@@ -194,10 +194,168 @@ describe('n sale de la tabla de plantas, no de un campo aparte', () => {
   });
 });
 
+describe('cuadro de plantas y cargas', () => {
+  // Las plantas se editaban en la barra de 288 px: el desplegable de categoria
+  // se cortaba a mitad de palabra y no habia forma de ver dos plantas a la vez.
+  // Ahora tienen cuadro propio, con el alzado del edificio a la izquierda. Lo
+  // que sigue es lo que ese cambio tenia que conservar, y lo que anade.
+
+  const abrir = () => fireEvent.click(screen.getByText('Editar plantas y cargas'));
+  const guardado = () => JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!);
+
+  it('se abre desde la barra y trae el edificio entero en el alzado', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    // Una banda por planta: el caso por defecto son diez.
+    expect(within(cuadro).getAllByLabelText(/: cota .+ m, peso /)).toHaveLength(10);
+  });
+
+  it('se edita la planta resaltada, y la selecciona el alzado', async () => {
+    // El detalle es de UNA planta, asi que apuntar a la equivocada seria un
+    // fallo mudo: el area entraria en otra fila y el peso cuadraria igual.
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.click(within(cuadro).getByLabelText(/^Planta 3:/));
+    fireEvent.change(within(cuadro).getByLabelText('Área (m²)'), { target: { value: '250' } });
+    await waitFor(() => {
+      const g = guardado();
+      expect(g.plantas[2].area).toBe(250);
+      expect(g.plantas[0].area).toBe(300);
+    });
+  });
+
+  it('copiar las cargas a las demas alcanza a todas las plantas', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.change(within(cuadro).getByLabelText('Área (m²)'), { target: { value: '250' } });
+    fireEvent.click(within(cuadro).getByText('Copiar cargas a las demás'));
+    // En dos pasos: sobrescribe nueve plantas y no hay deshacer en el modulo.
+    fireEvent.click(within(cuadro).getByText(/^Sobrescribir las 9 restantes$/));
+    await waitFor(() => {
+      const g = guardado();
+      expect(g.plantas.map((p: { area: number }) => p.area)).toEqual(Array(10).fill(250));
+      // La cubierta traia una sobrecarga excluida: la copia la lleva tambien,
+      // porque va la definicion de peso ENTERA y no solo las cargas.
+      expect(g.plantas[9].componentes).toHaveLength(4);
+    });
+  });
+
+  it('un componente se puede quitar: antes solo se podian anadir', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    expect(guardado().plantas[0].componentes).toHaveLength(4);
+    fireEvent.click(within(cuadro).getByLabelText('Quitar componente 4'));
+    await waitFor(() => expect(guardado().plantas[0].componentes).toHaveLength(3));
+  });
+});
+
+describe('cuadro de geometría en planta', () => {
+  // Las direcciones se editaban en la barra con la coordenada FIRMADA respecto
+  // al centro: la convención del motor (art. 3.7.5), no la de quien mide un
+  // plano desde la fachada. Un signo cambiado no lo delata ningún número. En el
+  // cuadro la posición se teclea desde el borde y el signo es un derivado; lo
+  // que sigue comprueba que esa traducción guarda EXACTAMENTE lo de antes.
+
+  const abrir = () => fireEvent.click(screen.getByText('Editar geometría en planta'));
+  const guardado = () => JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!);
+
+  it('se abre desde la barra, con la planta dibujada y las posiciones desde el borde', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    expect(within(cuadro).getByRole('img', { name: /planta con los planos/i })).toBeTruthy();
+    // Los planos de X (sismo en X) se reparten sobre los 15 m de Y: el primero
+    // está guardado en x = −7,5, que desde el borde inferior es 0.
+    const campo = within(cuadro).getByLabelText(
+      'Plano 1: posición desde el borde inferior, en metros',
+    ) as HTMLInputElement;
+    expect(campo.value).toBe('0');
+    // Y la lectura ordenada de la crujía, para comprobarla contra el plano.
+    expect(cuadro.textContent).toContain('vanos: 3,75 · 7,50 · 3,75 m');
+  });
+
+  it('teclear desde el borde guarda la coordenada firmada del motor', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.change(
+      within(cuadro).getByLabelText('Plano 1: posición desde el borde inferior, en metros'),
+      { target: { value: '3' } },
+    );
+    // 3 m desde el borde inferior de una planta de 15 m es −4,5 del centro.
+    await waitFor(() => expect(guardado().x.elementos[0].x).toBe(-4.5));
+    // El derivado con signo queda a la vista, que es donde se reconoce la
+    // convención de la Norma.
+    expect(within(cuadro).getByText('x = -4,50 m')).toBeTruthy();
+  });
+
+  it('el selector de dirección cambia de lista y de borde de referencia', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.click(within(cuadro).getByText('Sismo en Y'));
+    // Los planos de Y se reparten sobre los 20 m de X, desde el borde izquierdo.
+    const campo = within(cuadro).getByLabelText(
+      'Plano 2: posición desde el borde izquierdo, en metros',
+    ) as HTMLInputElement;
+    expect(campo.value).toBe('5'); // guardado: x = −5 sobre L_X = 20
+    fireEvent.change(campo, { target: { value: '4' } });
+    await waitFor(() => expect(guardado().y.elementos[1].x).toBe(-6));
+    // La dirección X no se ha tocado.
+    expect(guardado().x.elementos[1].x).toBe(-3.75);
+  });
+
+  it('el reparto uniforme sustituye la lista en dos pasos', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.change(
+      within(cuadro).getByLabelText('Número de planos a repartir uniformemente'),
+      { target: { value: '5' } },
+    );
+    fireEvent.click(within(cuadro).getByText('Repartir uniformemente'));
+    // En dos pasos: machaca los cuatro planos actuales y no hay deshacer.
+    expect(guardado().x.elementos).toHaveLength(4);
+    fireEvent.click(within(cuadro).getByText(/^Sustituir los 4 actuales$/));
+    await waitFor(() => {
+      const els = guardado().x.elementos as { x: number; k: number }[];
+      // Cinco planos de fachada a fachada sobre los 15 m de Y, con k = 1.
+      expect(els.map((e) => e.x)).toEqual([-7.5, -3.75, 0, 3.75, 7.5]);
+      expect(els.every((e) => e.k === 1)).toBe(true);
+    });
+  });
+
+  it('quitar un plano lo quita del estado, no sólo de la tabla', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.click(within(cuadro).getByLabelText('Quitar el plano 4'));
+    await waitFor(() => expect(guardado().x.elementos).toHaveLength(3));
+  });
+
+  it('descentrar la rigidez enseña la excentricidad del requisito (6) en vivo', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    // Todo simétrico: e = 0 sobre L_Y.
+    expect(cuadro.textContent).toContain('e = 0,00 m');
+    fireEvent.change(within(cuadro).getByLabelText('Rigidez relativa del plano 4'), {
+      target: { value: '9' },
+    });
+    // CR = (−7,5 − 3,75 + 3,75 + 9·7,5)/12 = 5,00 m → 33,3 % de L_Y = 15.
+    await waitFor(() => expect(cuadro.textContent).toContain('e = 5,00 m'));
+    expect(cuadro.textContent).toContain('33,3 %');
+  });
+});
+
 describe('buscador de municipios', () => {
   it('encuentra Alicante tecleando su forma valenciana', async () => {
     montar();
-    const caja = screen.getByLabelText(/Municipio/i);
+    const caja = screen.getByLabelText(/^Municipio/i);
     fireEvent.change(caja, { target: { value: 'alacant' } });
 
     await waitFor(
@@ -210,7 +368,7 @@ describe('buscador de municipios', () => {
 
   it('un nombre que no está da el mensaje de las tres causas, sin afirmar la exención', async () => {
     montar();
-    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'zzzzqqq' } });
+    fireEvent.change(screen.getByLabelText(/^Municipio/i), { target: { value: 'zzzzqqq' } });
 
     await waitFor(
       () => {
@@ -230,7 +388,7 @@ describe('buscador de municipios', () => {
     // así que el veredicto no puede decir que el método falle: se desmentiría
     // a sí mismo a dos centímetros de distancia.
     const { container } = montar();
-    fireEvent.change(screen.getByLabelText(/Sistema/i), { target: { value: 'adobe' } });
+    fireEvent.change(screen.getByLabelText(/^Sistema/i), { target: { value: 'adobe' } });
 
     await waitFor(() => expect(container.textContent).toMatch(/PROHÍBE/));
     expect(container.textContent).not.toMatch(/método simplificado NO es aplicable/);
@@ -243,7 +401,7 @@ describe('buscador de municipios', () => {
     // Antes calculaba con T_F = 0, que da alpha = 2,5 y unas fuerzas de aspecto
     // impecable levantadas sobre nada.
     const { container } = montar();
-    fireEvent.change(screen.getByLabelText(/Sistema/i), { target: { value: 'otro' } });
+    fireEvent.change(screen.getByLabelText(/^Sistema/i), { target: { value: 'otro' } });
 
     await waitFor(() => expect(container.textContent).toMatch(/faltan datos para calcular/i));
     expect(container.textContent).toMatch(/3\.7\.2\.2/);
@@ -257,7 +415,7 @@ describe('buscador de municipios', () => {
     // además cae JUSTO en el umbral: la exención de pórticos arriostrados del
     // art. 1.2.3 pide ab < 0,08 g, y con 0,08 g exactamente no aplica.
     const { container } = montar();
-    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'melilla' } });
+    fireEvent.change(screen.getByLabelText(/^Municipio/i), { target: { value: 'melilla' } });
     const opcion = await screen.findByText('Melilla', {}, { timeout: 3000 });
     fireEvent.click(opcion);
 
@@ -274,7 +432,7 @@ describe('buscador de municipios', () => {
     // ese mismo territorio bajo el término de origen— pero no es lo que dice el
     // Anejo 1 con este nombre, así que la pantalla tiene que decirlo.
     const { container } = montar();
-    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'fornes' } });
+    fireEvent.change(screen.getByLabelText(/^Municipio/i), { target: { value: 'fornes' } });
     const opcion = await screen.findByText('Fornes', {}, { timeout: 3000 });
     fireEvent.click(opcion);
 
@@ -288,7 +446,7 @@ describe('buscador de municipios', () => {
     // Melilla, cualquier segregación posterior a 2002— deja el módulo
     // inservible: no hay forma de introducir su peligrosidad.
     montar();
-    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'zzzzqqq' } });
+    fireEvent.change(screen.getByLabelText(/^Municipio/i), { target: { value: 'zzzzqqq' } });
 
     const boton = await screen.findByText(/Introducir ab y K a mano/i, {}, { timeout: 3000 });
     fireEvent.click(boton);
@@ -304,7 +462,7 @@ describe('buscador de municipios', () => {
 
   it('elegir un municipio actualiza ab y K', async () => {
     const { container } = montar();
-    fireEvent.change(screen.getByLabelText(/Municipio/i), { target: { value: 'lorca' } });
+    fireEvent.change(screen.getByLabelText(/^Municipio/i), { target: { value: 'lorca' } });
     const opcion = await screen.findByText('Lorca', {}, { timeout: 3000 });
     fireEvent.click(opcion);
 
@@ -315,8 +473,8 @@ describe('buscador de municipios', () => {
 });
 
 describe('entrada de datos', () => {
-  /** «Plantas y cargas» viene plegada y su contenido no se monta hasta abrirla. */
-  const abrirPlantas = () => fireEvent.click(screen.getByText(/Plantas y cargas/i));
+  /** Las plantas se editan en su cuadro: la barra sólo lleva el resumen. */
+  const abrirPlantas = () => fireEvent.click(screen.getByText('Editar plantas y cargas'));
 
   /**
    * Tecleo de verdad: el campo se vacía y luego entra UNA pulsación por

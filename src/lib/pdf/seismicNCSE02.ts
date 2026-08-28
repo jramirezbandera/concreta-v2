@@ -66,6 +66,7 @@ import type {
   TipoTerreno,
 } from '../codes/seismic/types';
 import {
+  excentricidadDe,
   plantasSobreRasante,
   type DireccionUI,
   type SeismicEvaluation,
@@ -739,6 +740,90 @@ async function espectro(doc: jsPDF, y: number): Promise<number> {
   return Math.max(ny + FIG_H, ny + alturaNota) + 4;
 }
 
+/**
+ * La planta introducida, dibujada UNA vez y antes de las dos direcciones.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUÉ ESTA FIGURA ESTÁ EN EL DOCUMENTO
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El resto del PDF justifica NÚMEROS. Éste es el único sitio donde se puede
+ * revisar el DATO: que los planos resistentes caen donde el proyectista dice, y
+ * que el centro de rigidez está donde la tabla de γ_a supone. Un signo cambiado
+ * en una coordenada no rompe ningún cálculo —sale un γ_a y a correr— y sin
+ * dibujo no lo ve nadie, ni el que firma ni el que revisa.
+ *
+ * La altura de la caja se saca del propio SVG: la figura es una planta a escala
+ * única y su relación de aspecto es la del edificio, no una que se pueda fijar
+ * aquí. Con una caja de proporción fija, `preserveAspectRatio` la centraría
+ * dejando franjas en blanco, y una nave alargada saldría minúscula.
+ */
+async function planta(doc: jsPDF, y: number, state: SeismicState): Promise<number> {
+  const svg = document
+    .getElementById('seismic-planta-svg-pdf')
+    ?.querySelector('svg') as SVGSVGElement | null;
+
+  let ny = seccion(doc, y, 'GEOMETRIA EN PLANTA', 'art. 3.5.1 (6) · art. 3.7.5');
+
+  // Cruzadas a propósito: los planos de X se reparten sobre el eje Y, así que su
+  // excentricidad se mide contra la dimensión en planta de Y. Es la misma
+  // llamada que hace `evaluarSismo`, y por la misma razón.
+  const ex = excentricidadDe(state.x, state.y.L);
+  const ey = excentricidadDe(state.y, state.x.L);
+  const rel = (e: { e: number; dimension: number } | null) =>
+    e ? `e = ${num(e.e, 2)} m · ${pct(e.e / e.dimension)}` : 'sin rigideces · declarada';
+
+  ny = banda(doc, ny, [
+    {
+      header: 'DIMENSIONES EN PLANTA',
+      lines: [`L_X = ${num(state.x.L, 2)} m`, `L_Y = ${num(state.y.L, 2)} m`],
+    },
+    {
+      header: 'PLANOS RESISTENTES',
+      lines: [
+        `${state.x.elementos.length} en X · ${state.y.elementos.length} en Y`,
+        `B_X = ${num(state.x.B, 2)} m · B_Y = ${num(state.y.B, 2)} m`,
+      ],
+    },
+    { header: 'EXCENTRICIDAD X · SOBRE L_Y', lines: [rel(ex), 'límite 10 % · requisito (6)'] },
+    { header: 'EXCENTRICIDAD Y · SOBRE L_X', lines: [rel(ey), 'límite 10 % · requisito (6)'] },
+  ]);
+
+  const FIG_W = 96;
+  // Tope arriba y abajo: una planta muy alargada no puede comerse la página, y
+  // una muy achatada no puede quedarse en una raya.
+  const wSvg = Number(svg?.getAttribute('width')) || 1;
+  const hSvg = Number(svg?.getAttribute('height')) || 1;
+  const FIG_H = Math.min(96, Math.max(46, (FIG_W * hSvg) / wSvg));
+
+  if (svg) {
+    ny = ensureSpace(doc, ny, FIG_H + 4, M);
+    await embedSvgAsImage(doc, svg, { x: M, y: ny, width: FIG_W, height: FIG_H });
+  }
+
+  const notaX = svg ? M + FIG_W + 6 : M;
+  const notaW = svg ? ANCHO - FIG_W - 6 : ANCHO;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  setGray(doc, 110);
+  const nota = doc.splitTextToSize(
+    pdfStr(
+      'La coordenada de un plano se mide PERPENDICULARMENTE al sismo que resiste ' +
+        '(convención de gamma_a, art. 3.7.5). Los que resisten en X se reparten a lo ' +
+        'largo del eje Y y se dibujan horizontales; los de Y, verticales. Por eso el ' +
+        'centro de rigidez sale cruzado —su Y lo fijan los planos de X y su X los de ' +
+        'Y— y por eso la excentricidad de X se compara con L_Y, y no con L_X.  ·  ' +
+        'CM es el centro de masas, tomado en el centro geométrico, que es la ' +
+        'convención con la que se introducen las coordenadas. CR es el centro de ' +
+        'rigidez, media de las coordenadas pesada por rigidez.',
+    ),
+    notaW,
+  ) as string[];
+  doc.text(nota, notaX, ny + 4);
+
+  const alturaNota = 4 + nota.length * 7 * 1.15 * PT2MM;
+  return Math.max(svg ? ny + FIG_H : ny, ny + alturaNota) + 4;
+}
+
 async function direccion(
   doc: jsPDF,
   y: number,
@@ -786,8 +871,8 @@ async function direccion(
     .getElementById(`seismic-alzado-${eje}-svg-pdf`)
     ?.querySelector('svg') as SVGSVGElement | null;
 
-  const FIG_W = 78;
-  const FIG_H = 70;
+  const FIG_W = 82;
+  const FIG_H = 75;
   if (svg) {
     ny = ensureSpace(doc, ny, FIG_H + 4, M);
     await embedSvgAsImage(doc, svg, { x: M, y: ny, width: FIG_W, height: FIG_H });
@@ -1131,6 +1216,7 @@ export async function exportSeismicNCSE02PDF({
   if (r) {
     y = masaSismica(doc, y, state, evaluacion);
     y = await espectro(doc, y);
+    y = await planta(doc, y, state);
     y = await direccion(doc, y, 'x', r.x, state.x, state, r.pesoSismico, r.plantas);
     y = await direccion(doc, y, 'y', r.y, state.y, state, r.pesoSismico, r.plantas);
     y = direccionales(doc, y, r.direccionales);

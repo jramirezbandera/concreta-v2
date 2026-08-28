@@ -44,7 +44,13 @@ const TORRENTS = [M('17199', 'Torrent', 'Girona', 0.05), M('46244', 'Torrent', '
 function Anfitrion() {
   const [state, setState] = useState<SeismicState>(defaultSeismicState);
   return (
-    <SeismicInputs state={state} setState={setState} evaluacion={evaluarSismo(state)} />
+    <SeismicInputs
+      state={state}
+      setState={setState}
+      evaluacion={evaluarSismo(state)}
+      onEditPlantas={() => {}}
+      onEditGeometria={() => {}}
+    />
   );
 }
 
