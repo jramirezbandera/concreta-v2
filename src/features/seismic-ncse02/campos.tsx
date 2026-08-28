@@ -9,6 +9,10 @@
 import { useId, useState, type ChangeEvent } from 'react';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { InputLabel } from '../../components/ui/InputLabel';
+import { fromDisplay, toDisplay } from '../../lib/units/convert';
+import { getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { textoEditable } from './formato';
 
 export const INPUT_CLS =
@@ -61,6 +65,15 @@ const dentro = (n: number, { min, max }: Rango) =>
   (min === undefined || n >= min) && (max === undefined || n <= max);
 
 /**
+ * Redondeo a seis decimales del valor de PRESENTACIÓN de un campo con unidades.
+ *
+ * `toDisplay(fromDisplay(x))` no devuelve `x` exacto en IEEE, y sin esto el
+ * resincronizado reescribía «204» como «203,99999999999997» bajo el cursor.
+ * Mismo argumento y misma cifra que `redondear` en GeometriaModal.
+ */
+const redondearDisplay = (v: number) => Math.round(v * 1e6) / 1e6;
+
+/**
  * Estado de texto de un campo numérico. Devuelve las tres props del `<input>`.
  *
  * Dos invariantes:
@@ -74,29 +87,41 @@ const dentro = (n: number, { min, max }: Rango) =>
  *     `onBlur` sólo restauraba con NaN, así que un valor rechazado por el rango
  *     —"0" en K, que tiene mínimo 1— se quedaba en pantalla indefinidamente
  *     mientras el cálculo seguía con el anterior.
+ *
+ * Con `quantity`, la caja trabaja en el SISTEMA ACTIVO y el estado sigue en SI
+ * (kN, kN/m²): lo tecleado se convierte al guardar y lo guardado al enseñar.
+ * Los invariantes se sostienen en el espacio de presentación —redondeado a seis
+ * decimales, ver `redondearDisplay`—, y `rango` se aplica sobre lo tecleado
+ * (hoy sólo hay mínimos en cero, idénticos en los dos sistemas). Al cambiar de
+ * sistema, `previo !== display` dispara solo el reformateo de la caja.
  */
 export function useCampoNumerico(
   value: number,
   onChange: (v: number) => void,
   rango: Rango = {},
+  quantity?: Quantity,
 ) {
-  const [txt, setTxt] = useState(() => textoEditable(value));
-  const [previo, setPrevio] = useState(value);
-  if (previo !== value) {
-    setPrevio(value);
+  const { system } = useUnitSystem();
+  const display = quantity ? redondearDisplay(toDisplay(value, quantity, system)) : value;
+  const [txt, setTxt] = useState(() => textoEditable(display));
+  const [previo, setPrevio] = useState(display);
+  if (previo !== display) {
+    setPrevio(display);
     // Si el texto en pantalla ya representa ese número no se toca: así "0,05"
     // sobrevive a su propio commit en vez de reescribirse como "0.05".
-    if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
+    if (parsearDecimal(txt) !== display) setTxt(textoEditable(display));
   }
   return {
     value: txt,
     onChange: (e: ChangeEvent<HTMLInputElement>) => {
       setTxt(e.target.value);
       const n = parsearDecimal(e.target.value);
-      if (n !== null && dentro(n, rango)) onChange(n);
+      if (n !== null && dentro(n, rango)) {
+        onChange(quantity ? fromDisplay(n, quantity, system) : n);
+      }
     },
     onBlur: () => {
-      if (parsearDecimal(txt) !== value) setTxt(textoEditable(value));
+      if (parsearDecimal(txt) !== display) setTxt(textoEditable(display));
     },
   };
 }
@@ -109,6 +134,7 @@ export function NumIn({
   min,
   max,
   ancho = 'w-14',
+  quantity,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -116,8 +142,10 @@ export function NumIn({
   min?: number;
   max?: number;
   ancho?: string;
+  /** Con `quantity`, `value`/`onChange` van en SI y la caja en el sistema activo. */
+  quantity?: Quantity;
 }) {
-  const campo = useCampoNumerico(value, onChange, { min, max });
+  const campo = useCampoNumerico(value, onChange, { min, max }, quantity);
   return (
     <input
       type="text"
@@ -188,6 +216,7 @@ export function Campo({
   min,
   onChange,
   ancho = 'w-24',
+  quantity,
 }: {
   label: string;
   sub?: string;
@@ -197,9 +226,14 @@ export function Campo({
   min?: number;
   onChange: (v: number) => void;
   ancho?: string;
+  /** Con `quantity`, `value`/`onChange` van en SI, la caja en el sistema activo
+   *  y el sufijo de unidad sale del sistema (ignora `unit`). */
+  quantity?: Quantity;
 }) {
   const id = useId();
-  const campo = useCampoNumerico(value, onChange, { min });
+  const { system } = useUnitSystem();
+  const campo = useCampoNumerico(value, onChange, { min }, quantity);
+  const unidad = quantity ? getUnitLabel(quantity, system) : unit;
   return (
     <div className="flex flex-col gap-1 min-w-0">
       <span className="flex items-center gap-1 min-w-0">
@@ -219,9 +253,9 @@ export function Campo({
           inputMode="decimal"
           {...campo}
           className={`${INPUT_CLS} ${ancho}`}
-          aria-label={`${label}${unit ? ` (${unit})` : ''}`}
+          aria-label={`${label}${unidad ? ` (${unidad})` : ''}`}
         />
-        {unit ? <span className={UNIT_CLS}>{unit}</span> : null}
+        {unidad ? <span className={UNIT_CLS}>{unidad}</span> : null}
       </div>
     </div>
   );

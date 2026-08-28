@@ -6,6 +6,7 @@
 // clave propia en localStorage y estado manejado a mano.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -200,6 +201,10 @@ export function SeismicNCSE02Module() {
 
   const evaluacion = useMemo(() => evaluarSismo(state), [state]);
 
+  // El sistema de unidades sólo viaja al PDF: la pantalla y los dibujos lo leen
+  // cada uno del contexto, y el estado y el motor viven siempre en kN.
+  const { system } = useUnitSystem();
+
   // El botón NO se deshabilita por «no hay resultado»: un caso exento produce
   // un documento completo y valioso —la justificación de que la Norma no rige—
   // y negárselo al usuario sería el error opuesto al que se quiere evitar. Sólo
@@ -216,7 +221,7 @@ export function SeismicNCSE02Module() {
     confirmTitle,
     closeTitle,
   } = useTitledPdfExport({
-    exportFn: (title) => exportSeismicNCSE02PDF({ state, evaluacion, title }),
+    exportFn: (title) => exportSeismicNCSE02PDF({ state, evaluacion, title, system }),
     valid: !bloqueoPdf,
     onTitleChange: setDocTitle,
     ...(bloqueoPdf ? { invalidMessage: bloqueoPdf } : {}),

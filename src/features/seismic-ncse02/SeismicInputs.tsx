@@ -24,8 +24,9 @@ import { Layers, Ruler } from 'lucide-react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { InputLabel } from '../../components/ui/InputLabel';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Num, NumIn, SELECT_CLS, UNIT_CLS } from './campos';
-import { dec } from './formato';
+import { dec, fuerza, unidadFuerza } from './formato';
 import type {
   Importancia,
   SistemaEstructural,
@@ -555,6 +556,7 @@ export function SeismicInputs({
   // resultado, y con él como única fuente el resumen decía «Σ P = 0 kN» para un
   // edificio con diez plantas de masa dentro.
   const sumaP = useMemo(() => pesoSismicoTotal(state), [state]);
+  const { system } = useUnitSystem();
 
   return (
     <div className="space-y-1">
@@ -897,7 +899,9 @@ export function SeismicInputs({
           <span className="text-[11px] text-text-disabled">
             {state.plantas.length} planta{state.plantas.length === 1 ? '' : 's'}
           </span>
-          <span className="text-[11px] font-mono text-accent">Σ P = {dec(sumaP, 0)} kN</span>
+          <span className="text-[11px] font-mono text-accent">
+            Σ P = {fuerza(sumaP, system)} {unidadFuerza(system)}
+          </span>
         </div>
         <button
           type="button"

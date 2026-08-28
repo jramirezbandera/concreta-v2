@@ -28,11 +28,13 @@ import type {
 } from '../../lib/codes/seismic/types';
 import type { CheckStatus } from '../../lib/calculations/types';
 import { ambientStyle } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { SeismicEvaluation, SeismicState } from './state';
-import { dec, pct } from './formato';
+import { dec, fuerza, pct, unidadFuerza } from './formato';
 
-// Una sola convención decimal en todo el módulo: ver `formato.ts`.
-const n0 = (v: number) => dec(v, 0);
+// Una sola convención decimal en todo el módulo: ver `formato.ts`. Las fuerzas
+// pasan por `fuerza()`/`unidadFuerza()`, que además convierten al sistema de
+// unidades activo (kN ↔ Tn); metros y adimensionales son iguales en los dos.
 const n1 = (v: number) => dec(v, 1);
 
 const MOTIVOS: Record<string, string> = {
@@ -150,12 +152,14 @@ function Requisitos({ reqs }: { reqs: Requisito[] }) {
 }
 
 function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
+  const { system } = useUnitSystem();
+  const uF = unidadFuerza(system);
   return (
     <section>
       <Cabecera titulo={`Dirección ${eje}`} refNorma="art. 3.7.3" />
       <Fila k="T_F" sub={d.TFManual ? 'impuesto' : 'art. 3.7.2.2'} v={`${dec(d.TF, 3)} s`} />
       <Fila k="Modos" sub="art. 3.7.2.1" v={String(d.nModos)} />
-      <Fila k="Cortante basal" v={`${n0(d.cortanteBasal)} kN`} />
+      <Fila k="Cortante basal" v={`${fuerza(d.cortanteBasal, system)} ${uF}`} />
       <Fila k="Masa movilizada" sub="Σ participación" v={pct(d.participacionTotal)} />
       <Fila k="L_e" sub="planos extremos" v={`${n1(d.Le)} m`} />
 
@@ -164,8 +168,8 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
           <thead>
             <tr className="text-text-disabled">
               <th className="text-left font-normal px-1 py-1">k</th>
-              <th className="text-right font-normal px-1 py-1">F_k [kN]</th>
-              <th className="text-right font-normal px-1 py-1">V_k [kN]</th>
+              <th className="text-right font-normal px-1 py-1">F_k [{uF}]</th>
+              <th className="text-right font-normal px-1 py-1">V_k [{uF}]</th>
             </tr>
           </thead>
           <tbody>
@@ -179,9 +183,9 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
                   marca en ámbar para que se vea, no se recorta a cero.
                 */}
                 <td className={`px-1 py-1 text-right ${d.Fk[k] < 0 ? 'text-state-warn' : 'text-text-primary'}`}>
-                  {n0(d.Fk[k])}
+                  {fuerza(d.Fk[k], system)}
                 </td>
-                <td className="px-1 py-1 text-right text-text-primary">{n0(d.Vk[k])}</td>
+                <td className="px-1 py-1 text-right text-text-primary">{fuerza(d.Vk[k], system)}</td>
               </tr>
             ))}
           </tbody>
@@ -200,7 +204,7 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
                   <th className="text-left font-normal px-1 py-1">k · j</th>
                   <th className="text-right font-normal px-1 py-1">x [m]</th>
                   <th className="text-right font-normal px-1 py-1">γ_a</th>
-                  <th className="text-right font-normal px-1 py-1">f [kN]</th>
+                  <th className="text-right font-normal px-1 py-1">f [{uF}]</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,7 +216,7 @@ function Direccion({ eje, d }: { eje: 'X' | 'Y'; d: DireccionResult }) {
                       </td>
                       <td className="px-1 py-1 text-right text-text-secondary">{n1(el.x)}</td>
                       <td className="px-1 py-1 text-right text-text-secondary">{dec(el.gamma, 3)}</td>
-                      <td className="px-1 py-1 text-right text-text-primary">{n0(el.f)}</td>
+                      <td className="px-1 py-1 text-right text-text-primary">{fuerza(el.f, system)}</td>
                     </tr>
                   )),
                 )}
@@ -275,6 +279,7 @@ export function SeismicResults({
 }) {
   const { emplazamiento: e, aplicabilidad: ap, resultado: r, impedimento: imp } = evaluacion;
   const obl = ap.obligatoriedad;
+  const { system } = useUnitSystem();
   const veredicto = imp ? VEREDICTO[imp.motivo] : { status: 'ok' as CheckStatus, tag: 'APLICABLE' };
 
   return (
@@ -384,7 +389,11 @@ export function SeismicResults({
         {r ? (
           <section>
             <Cabecera titulo="Masa sísmica" refNorma="art. 3.2" />
-            <Fila k="Peso sísmico" sub="Σ P_k" v={`${n0(r.pesoSismico)} kN`} />
+            <Fila
+              k="Peso sísmico"
+              sub="Σ P_k"
+              v={`${fuerza(r.pesoSismico, system)} ${unidadFuerza(system)}`}
+            />
             <Fila k="ν" sub="amortiguamiento" v={dec(r.nu, 3)} />
             <Fila k="β" sub="ν / μ" v={dec(r.beta, 3)} />
           </section>

@@ -30,9 +30,10 @@
 // avisa en vez de generar. Los otros tres estados SÍ producen documento, el de
 // exención incluido.
 //
-// Sin conversión de unidades, a propósito: el módulo trabaja en kN y m en
-// pantalla y no ofrece sistema técnico. Un PDF que convirtiera lo que la
-// pantalla no convierte enseñaría números distintos de los que el usuario vio.
+// Unidades: el estado y el motor viven en kN y m, y `system` decide cómo se
+// ENSEÑAN — kN/kN·m⁻² en SI, Tn/kg·m⁻² en técnico, por los mismos helpers de
+// `formato.ts` que usa la pantalla. La regla de siempre se mantiene: el papel
+// enseña exactamente los números que el usuario estaba viendo.
 
 import jsPDF from 'jspdf';
 
@@ -72,7 +73,16 @@ import {
   type SeismicEvaluation,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
-import { dec, decFiel, pct as pctFmt } from '../../features/seismic-ncse02/formato';
+import {
+  cargaSup,
+  dec,
+  decFiel,
+  fuerza,
+  pct as pctFmt,
+  unidadCargaSup,
+  unidadFuerza,
+} from '../../features/seismic-ncse02/formato';
+import type { UnitSystem } from '../units/types';
 import manifiesto from '../../features/seismic-ncse02/ncse02.hazard.manifest.json';
 
 const M = 20;
@@ -566,7 +576,13 @@ function requisitos(doc: jsPDF, y: number, reqs: Requisito[], via: string | null
   return drawTable(doc, { x: M, y: ny, M, cols, rows: reqs });
 }
 
-function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEvaluation): number {
+function masaSismica(
+  doc: jsPDF,
+  y: number,
+  state: SeismicState,
+  ev: SeismicEvaluation,
+  sys: UnitSystem,
+): number {
   const r = ev.resultado;
   if (!r) return y;
 
@@ -610,7 +626,7 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
       { key: 'k', label: 'k', w: 10, align: 'right', render: (f: FilaPlanta) => String(f.k) },
       { key: 'nombre', label: 'Planta', w: 42, wrap: true, render: (f) => f.nombre },
       { key: 'h', label: 'h (m)', w: 24, align: 'right', render: (f) => num(f.h, 2) },
-      { key: 'P', label: 'P_k (kN)', w: 30, align: 'right', render: (f) => num(f.P, 0) },
+      { key: 'P', label: `P_k (${unidadFuerza(sys)})`, w: 30, align: 'right', render: (f) => fuerza(f.P, sys) },
       { key: 'origen', label: 'Origen del peso', w: 64, wrap: true, render: (f) => f.origen },
     ] as TableCol<FilaPlanta>[],
     rows: filas,
@@ -619,7 +635,7 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
   ny = parrafo(
     doc,
     ny + 1,
-    `Peso sísmico total: Σ P_k = ${num(r.pesoSismico, 0)} kN.  ` +
+    `Peso sísmico total: Σ P_k = ${fuerza(r.pesoSismico, sys)} ${unidadFuerza(sys)}.  ` +
       `ν = ${num(r.nu, 3)} (art. 2.5, Ω = ${num(state.omega, 1)} %)  ·  ` +
       `μ = ${num(state.mu, 1)} (art. 3.7.3.1)  ·  β = ν/μ = ${num(r.beta, 3)}`,
     { size: 8, gray: 40, bold: true },
@@ -650,7 +666,7 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
       cols: [
         { key: 'planta', label: 'Planta', w: 40, wrap: true, render: (c: FilaComp) => c.planta },
         { key: 'cat', label: 'Categoria', w: 40, wrap: true, render: (c) => CATEGORIA_LABEL[c.cat] },
-        { key: 'q', label: 'q (kN/m²)', w: 26, align: 'right', render: (c) => num(c.q, 2) },
+        { key: 'q', label: `q (${unidadCargaSup(sys)})`, w: 26, align: 'right', render: (c) => cargaSup(c.q, sys) },
         {
           key: 'fr',
           label: 'Fraccion',
@@ -665,7 +681,10 @@ function masaSismica(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEval
           align: 'right',
           bold: (c) => c.excluida,
           color: (c) => (c.excluida ? 30 : 80),
-          render: (c) => (c.excluida ? 'EXCLUIDA' : `${num(FRACCION_MASA[c.cat] * c.q, 2)} kN/m²`),
+          render: (c) =>
+            c.excluida
+              ? 'EXCLUIDA'
+              : `${cargaSup(FRACCION_MASA[c.cat] * c.q, sys)} ${unidadCargaSup(sys)}`,
         },
       ] as TableCol<FilaComp>[],
       rows: comps,
@@ -834,6 +853,7 @@ async function direccion(
   pesoSismico: number,
   /** Plantas YA ORDENADAS por altura, en el mismo orden que `d.Vk` y `d.Fk`. */
   plantas: PlantaResuelta[],
+  sys: UnitSystem,
 ): Promise<number> {
   const E = eje.toUpperCase();
   let ny = seccion(doc, y, `DIRECCION ${E}`, 'art. 3.7.2 · 3.7.3 · 3.7.4 · 3.7.5');
@@ -851,7 +871,7 @@ async function direccion(
     {
       header: 'CORTANTE BASAL',
       lines: [
-        `${num(d.cortanteBasal, 0)} kN`,
+        `${fuerza(d.cortanteBasal, sys)} ${unidadFuerza(sys)}`,
         // Frente al peso sísmico: es el número con el que un proyectista
         // reconoce de un vistazo si el orden de magnitud es el suyo.
         `${pct(d.cortanteBasal / Math.max(1e-9, pesoSismico))} de Sum P_k`,
@@ -921,7 +941,7 @@ async function direccion(
       { key: 'h', label: 'h_k (m)', w: 26, align: 'right', render: (f) => num(f.h, 2) },
       {
         key: 'F',
-        label: 'F_k (kN)',
+        label: `F_k (${unidadFuerza(sys)})`,
         w: 32,
         align: 'right',
         // Una F_k negativa NO es un error: el SRSS destruye el signo y el perfil
@@ -929,9 +949,9 @@ async function direccion(
         // se vea; recortarla a cero ocultaría un caso legítimo.
         bold: (f) => f.F < 0,
         color: (f) => (f.F < 0 ? 20 : 80),
-        render: (f) => num(f.F, 0),
+        render: (f) => fuerza(f.F, sys),
       },
-      { key: 'V', label: 'V_k (kN)', w: 32, align: 'right', render: (f) => num(f.V, 0) },
+      { key: 'V', label: `V_k (${unidadFuerza(sys)})`, w: 32, align: 'right', render: (f) => fuerza(f.V, sys) },
       {
         key: 'r',
         label: 'V_k / Sum P_k',
@@ -954,7 +974,7 @@ async function direccion(
     );
   }
 
-  ny = repartoDireccion(doc, ny + 1, d, E);
+  ny = repartoDireccion(doc, ny + 1, d, E, sys);
   ny = avisos(doc, ny, d.avisos, `Avisos de la dirección ${E}`);
   return ny;
 }
@@ -967,7 +987,13 @@ async function direccion(
  * matriz de fuerzas después. Con más de ocho planos la matriz no cabe a lo
  * ancho y se cae a la forma larga, que siempre entra.
  */
-function repartoDireccion(doc: jsPDF, y: number, d: DireccionResult, E: string): number {
+function repartoDireccion(
+  doc: jsPDF,
+  y: number,
+  d: DireccionResult,
+  E: string,
+  sys: UnitSystem,
+): number {
   const primera = d.reparto[0];
   if (!primera || primera.elementos.length === 0) return y;
 
@@ -1008,7 +1034,7 @@ function repartoDireccion(doc: jsPDF, y: number, d: DireccionResult, E: string):
         label: String(j + 1),
         w: colW,
         align: 'right' as const,
-        render: (r: { k: number; f: number[] }) => num(r.f[j], 0),
+        render: (r: { k: number; f: number[] }) => fuerza(r.f[j], sys),
       })),
     ];
     ny = drawTable(doc, {
@@ -1020,10 +1046,12 @@ function repartoDireccion(doc: jsPDF, y: number, d: DireccionResult, E: string):
         .map((_, i) => d.reparto.length - 1 - i)
         .map((i) => ({ k: d.reparto[i].k, f: d.reparto[i].elementos.map((e) => e.f) })),
     });
-    ny = parrafo(doc, ny, 'f_kj en kN, torsión incluida. Las columnas son los planos j de la tabla anterior.', {
-      size: 6.5,
-      gray: 140,
-    });
+    ny = parrafo(
+      doc,
+      ny,
+      `f_kj en ${unidadFuerza(sys)}, torsión incluida. Las columnas son los planos j de la tabla anterior.`,
+      { size: 6.5, gray: 140 },
+    );
   } else {
     // Más de ocho planos: la matriz no cabe a lo ancho y se lista fila a fila.
     interface FilaLarga {
@@ -1047,9 +1075,9 @@ function repartoDireccion(doc: jsPDF, y: number, d: DireccionResult, E: string):
       cols: [
         { key: 'k', label: 'k', w: 20, align: 'right', render: (r: FilaLarga) => String(r.k) },
         { key: 'j', label: 'j', w: 20, align: 'right', render: (r) => String(r.j) },
-        { key: 'fb', label: 'f base (kN)', w: 42, align: 'right', render: (r) => num(r.fBase, 0) },
+        { key: 'fb', label: `f base (${unidadFuerza(sys)})`, w: 42, align: 'right', render: (r) => fuerza(r.fBase, sys) },
         { key: 'g', label: 'gamma_a', w: 40, align: 'right', render: (r) => num(r.g, 3) },
-        { key: 'f', label: 'f_kj (kN)', w: 48, align: 'right', render: (r) => num(r.f, 0) },
+        { key: 'f', label: `f_kj (${unidadFuerza(sys)})`, w: 48, align: 'right', render: (r) => fuerza(r.f, sys) },
       ] as TableCol<FilaLarga>[],
       rows: filas,
     });
@@ -1058,7 +1086,7 @@ function repartoDireccion(doc: jsPDF, y: number, d: DireccionResult, E: string):
   return ny;
 }
 
-function direccionales(doc: jsPDF, y: number, casos: CasoDireccional[]): number {
+function direccionales(doc: jsPDF, y: number, casos: CasoDireccional[], sys: UnitSystem): number {
   let ny = seccion(doc, y, 'COMBINACION DIRECCIONAL', 'art. 3.4');
 
   ny = parrafo(
@@ -1079,8 +1107,8 @@ function direccionales(doc: jsPDF, y: number, casos: CasoDireccional[]): number 
       { key: 'id', label: 'Caso', w: 34, render: (c: CasoDireccional) => c.id },
       { key: 'fx', label: 'f_x', w: 24, align: 'right', render: (c) => num(c.fx, 2) },
       { key: 'fy', label: 'f_y', w: 24, align: 'right', render: (c) => num(c.fy, 2) },
-      { key: 'Vx', label: 'V_x basal (kN)', w: 44, align: 'right', render: (c) => num(c.Vx, 0) },
-      { key: 'Vy', label: 'V_y basal (kN)', w: 44, align: 'right', render: (c) => num(c.Vy, 0) },
+      { key: 'Vx', label: `V_x basal (${unidadFuerza(sys)})`, w: 44, align: 'right', render: (c) => fuerza(c.Vx, sys) },
+      { key: 'Vy', label: `V_y basal (${unidadFuerza(sys)})`, w: 44, align: 'right', render: (c) => fuerza(c.Vy, sys) },
     ] as TableCol<CasoDireccional>[],
     rows: casos,
   });
@@ -1141,12 +1169,20 @@ export interface SeismicPdfArgs {
   evaluacion: SeismicEvaluation;
   /** Nombre del elemento, del `TitlePromptModal`. Fuera del hash de procedencia. */
   title?: string;
+  /**
+   * Sistema de unidades ACTIVO en pantalla, para que el papel enseñe los mismos
+   * números que el usuario vio. Opcional con SI por defecto: el hash de
+   * procedencia no lo incluye porque las unidades no cambian el caso, sólo su
+   * presentación.
+   */
+  system?: UnitSystem;
 }
 
 export async function exportSeismicNCSE02PDF({
   state,
   evaluacion,
   title,
+  system = 'si',
 }: SeismicPdfArgs): Promise<PdfResult> {
   // La puerta, aquí también. Hoy la respeta el único llamador —`seismicPdfBlocker`
   // alimenta el `valid` de `useTitledPdfExport`— pero la regla vivía SÓLO en el
@@ -1187,7 +1223,7 @@ export async function exportSeismicNCSE02PDF({
     pdfStr(
       'NCSE-02, Norma de Construcción Sismorresistente: Parte general y edificación ' +
         '(RD 997/2002)  ·  Método simplificado de cálculo, art. 3.5  ·  ' +
-        `Motor NCSE-02 v${NCSE02_ENGINE_VERSION}  ·  Datos en kN y m`,
+        `Motor NCSE-02 v${NCSE02_ENGINE_VERSION}  ·  Datos en ${unidadFuerza(system)} y m`,
     ),
     ANCHO,
   ) as string[];
@@ -1214,12 +1250,12 @@ export async function exportSeismicNCSE02PDF({
   y = avisos(doc, y, ap.avisos, 'Avisos de aplicabilidad');
 
   if (r) {
-    y = masaSismica(doc, y, state, evaluacion);
+    y = masaSismica(doc, y, state, evaluacion, system);
     y = await espectro(doc, y);
     y = await planta(doc, y, state);
-    y = await direccion(doc, y, 'x', r.x, state.x, state, r.pesoSismico, r.plantas);
-    y = await direccion(doc, y, 'y', r.y, state.y, state, r.pesoSismico, r.plantas);
-    y = direccionales(doc, y, r.direccionales);
+    y = await direccion(doc, y, 'x', r.x, state.x, state, r.pesoSismico, r.plantas, system);
+    y = await direccion(doc, y, 'y', r.y, state.y, state, r.pesoSismico, r.plantas, system);
+    y = direccionales(doc, y, r.direccionales, system);
     y = avisos(doc, y, r.avisos, 'Avisos del calculo');
   }
 

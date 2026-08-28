@@ -699,6 +699,35 @@ describe('asistente IA', () => {
   });
 });
 
+describe('sistema de unidades', () => {
+  // El estado y el motor viven SIEMPRE en kN: el conmutador sólo cambia lo que
+  // se enseña y lo que se teclea. Antes el módulo lo ignoraba por completo.
+
+  it('en técnico las fuerzas salen en Tn, en pantalla y en los dibujos', () => {
+    localStorage.setItem('unitSystem', 'tecnico');
+    const { container } = montar();
+    // El cortante basal del caso congelado: 2277 kN → 232,2 Tn. Que no quede
+    // NINGÚN 2277 a la vista: también los dibujos convierten.
+    expect(container.textContent).toContain('232,2');
+    expect(container.textContent).toContain('Tn');
+    expect(container.textContent).not.toContain('2277');
+  });
+
+  it('en técnico las cargas se teclean en kg/m² y el estado sigue en kN/m²', async () => {
+    localStorage.setItem('unitSystem', 'tecnico');
+    montar();
+    fireEvent.click(screen.getByText('Editar plantas y cargas'));
+    await screen.findByRole('dialog');
+    const q = screen.getAllByLabelText(/Carga del componente 1 en kg\/m²/)[0] as HTMLInputElement;
+    fireEvent.change(q, { target: { value: '102' } });
+    await waitFor(() => {
+      const guardado = JSON.parse(localStorage.getItem('concreta-seismic-ncse02-model')!);
+      // Lo guardado es el SI exacto de lo tecleado: 102 kg/m² = 102/101,97… kN/m².
+      expect(guardado.plantas[0].componentes[0].q).toBeCloseTo(102 / 101.971621, 9);
+    });
+  });
+});
+
 describe('registro del módulo', () => {
   it('está en moduleRegistry con su ruta y su grupo', () => {
     const e = moduleRegistry.find((m) => m.key === 'concreta-seismic');

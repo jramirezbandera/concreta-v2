@@ -52,7 +52,8 @@ import { useId } from 'react';
 
 import type { SeismicEvaluation, SeismicState } from './state';
 import type { ElementoResistente } from '../../lib/codes/seismic/types';
-import { dec, pct } from './formato';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { dec, fuerza, pct, unidadFuerza } from './formato';
 import { elasticSpectrum, staticForceAlpha } from '../../lib/codes/seismic/ncse02';
 
 export type ModoDibujo = 'screen' | 'pdf';
@@ -518,6 +519,10 @@ export function PlantaSVG({
   // primero.
   const uid = useId().replace(/:/g, '');
   const acot = `planta-acot-${uid}`;
+  // Antes del primer `return null`: es un hook, y saltárselo en un render rompe
+  // el orden. Los clones del PDF viven bajo el mismo provider: el papel enseña
+  // las fuerzas en el sistema que el usuario estaba viendo.
+  const { system } = useUnitSystem();
 
   const C = paletaDe(modo);
   const f = 10.5 * escala(width);
@@ -591,7 +596,9 @@ export function PlantaSVG({
     // hay que corregir es ése.
     if (malo) return `${i + 1} · x = ${dec(el.x, 2)} m`;
     const v = activo ? carga.get(el.id) : undefined;
-    return v === undefined ? `${i + 1}` : `${i + 1} · ${dec(v, 0)} kN`;
+    return v === undefined
+      ? `${i + 1}`
+      : `${i + 1} · ${fuerza(v, system)} ${unidadFuerza(system)}`;
   };
 
   /**
@@ -608,7 +615,7 @@ export function PlantaSVG({
   const sumaF = [...carga.values()].reduce((a, v) => a + v, 0);
   const cabecera =
     d && sumaF > 0
-      ? `Σ f = ${dec(sumaF, 0)} kN · V_base = ${dec(d.cortanteBasal, 0)} kN`
+      ? `Σ f = ${fuerza(sumaF, system)} ${unidadFuerza(system)} · V_base = ${fuerza(d.cortanteBasal, system)} ${unidadFuerza(system)}`
       : `planta ${dec(Lx, 2)} × ${dec(Ly, 2)} m`;
 
   return (
@@ -959,6 +966,8 @@ export function AlzadoSVG({
   const puntaPos = `punta-pos-${uid}`;
   const puntaNeg = `punta-neg-${uid}`;
   const rayado = `suelo-${uid}`;
+  // Antes del primer `return null`, que es un hook. Ver PlantaSVG.
+  const { system } = useUnitSystem();
 
   const C = paletaDe(modo);
   const f = 10.5 * escala(width);
@@ -1055,10 +1064,10 @@ export function AlzadoSVG({
 
       {/* encabezados: cada bloque dice qué es y en qué unidad */}
       <text x={m.l} y={f * 1.15} fontSize={f * 0.95} fill={C.rotulo} fontFamily={MONO}>
-        F_k · {E} [kN]
+        F_k · {E} [{unidadFuerza(system)}]
       </text>
       <text x={xV} y={f * 1.15} fontSize={f * 0.95} fill={C.rotulo} fontFamily={MONO}>
-        V_k · {E} [kN]
+        V_k · {E} [{unidadFuerza(system)}]
       </text>
 
       {/* edificio */}
@@ -1114,7 +1123,7 @@ export function AlzadoSVG({
                 textAnchor="end"
                 fontFamily={MONO}
               >
-                {dec(F, 0)}
+                {fuerza(F, system)}
               </text>
             ) : null}
             {cabe ? (
@@ -1167,7 +1176,7 @@ export function AlzadoSVG({
             fill={C.rotulo}
             fontFamily={MONO}
           >
-            {dec(V, 0)}
+            {fuerza(V, system)}
           </text>
         );
       })}

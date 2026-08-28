@@ -13,6 +13,10 @@
 //
 // Aquí se resuelve una vez y lo usan pantalla, dibujos y PDF.
 
+import { toDisplay } from '../../lib/units/convert';
+import { getUnitLabel } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
+
 /** Decimal con coma y punto de millar, con `dec` decimales fijos. */
 export function dec(v: number, n = 0): string {
   return Number.isFinite(v)
@@ -51,4 +55,36 @@ export function textoEditable(v: number): string {
   return Number.isFinite(v)
     ? v.toLocaleString('es-ES', { maximumFractionDigits: 20, useGrouping: false })
     : '';
+}
+
+// ── Sistema de unidades ──────────────────────────────────────────────────────
+//
+// El estado, el motor, el enlace compartido y el asistente viven SIEMPRE en kN
+// y kN/m²: sólo la vista convierte. Estas cuatro funciones son la única puerta
+// por la que el sistema técnico entra al módulo — pantalla, dibujos y PDF pasan
+// por aquí, de modo que el papel enseña exactamente los números que el usuario
+// vio.
+//
+// Los decimales cambian con el sistema a propósito: un cortante de 2277 kN se
+// lee entero, pero sus 232,2 Tn perderían el primer decimal —que en toneladas
+// ya es una cifra que se comprueba— si se redondeara igual.
+
+/** Fuerza en kN → número en el sistema activo. 0 decimales en kN, 1 en Tn. */
+export function fuerza(vKN: number, system: UnitSystem, nSi = 0, nTec = 1): string {
+  return dec(toDisplay(vKN, 'force', system), system === 'si' ? nSi : nTec);
+}
+
+/** «kN» o «Tn», según el sistema activo. */
+export function unidadFuerza(system: UnitSystem): string {
+  return getUnitLabel('force', system);
+}
+
+/** Carga superficial en kN/m² → número en el sistema activo (kg/m² en técnico). */
+export function cargaSup(vKNm2: number, system: UnitSystem, nSi = 2, nTec = 0): string {
+  return dec(toDisplay(vKNm2, 'areaLoad', system), system === 'si' ? nSi : nTec);
+}
+
+/** «kN/m²» o «kg/m²», según el sistema activo. */
+export function unidadCargaSup(system: UnitSystem): string {
+  return getUnitLabel('areaLoad', system);
 }

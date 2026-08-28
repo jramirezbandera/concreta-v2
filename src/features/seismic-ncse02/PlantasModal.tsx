@@ -30,8 +30,9 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Layers, Plus, Trash2, X } from 'lucide-react';
 import { FRACCION_MASA } from '../../lib/codes/seismic/ncse02';
 import type { CategoriaMasa } from '../../lib/codes/seismic/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Campo, NumIn, SELECT_CLS } from './campos';
-import { dec } from './formato';
+import { cargaSup, dec, fuerza, unidadCargaSup, unidadFuerza } from './formato';
 import {
   newId,
   pesoDePlanta,
@@ -77,6 +78,7 @@ function Alzado({
   selId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { system } = useUnitSystem();
   // Ordenadas por altura, que es el orden en que se mira un edificio. El array
   // del estado NO tiene por qué estarlo —el motor las ordena por su cuenta— y
   // dibujarlo tal cual pone la cubierta en medio en cuanto se edita una cota.
@@ -107,7 +109,7 @@ function Alzado({
               type="button"
               onClick={() => onSelect(p.id)}
               aria-pressed={sel}
-              aria-label={`${p.nombre}: cota ${dec(p.h, 2)} m, peso ${dec(P, 0)} kN`}
+              aria-label={`${p.nombre}: cota ${dec(p.h, 2)} m, peso ${fuerza(P, system)} ${unidadFuerza(system)}`}
               title={
                 malaCota
                   ? 'Esta planta no queda por encima de la de debajo: revisa su cota h'
@@ -144,7 +146,7 @@ function Alzado({
                   {p.nombre}
                 </span>
                 <span className="shrink-0 text-[10px] font-mono text-text-disabled">
-                  {dec(P, 0)} kN
+                  {fuerza(P, system)} {unidadFuerza(system)}
                 </span>
               </span>
             </button>
@@ -231,6 +233,7 @@ export function PlantasModal({
     [state.plantas],
   );
   const sumaP = useMemo(() => pesoSismicoTotal(state), [state]);
+  const { system } = useUnitSystem();
 
   // La selección se sigue por ID y NO por posición: duplicar, borrar o mover una
   // cota reordena el alzado, y con un índice se acabaría editando una planta
@@ -363,7 +366,9 @@ export function PlantasModal({
           <span className="text-[11px] text-text-disabled shrink-0 max-sm:hidden">
             {state.plantas.length} planta{state.plantas.length === 1 ? '' : 's'}
           </span>
-          <span className="text-[11px] font-mono text-accent shrink-0">Σ P = {dec(sumaP, 0)} kN</span>
+          <span className="text-[11px] font-mono text-accent shrink-0">
+            Σ P = {fuerza(sumaP, system)} {unidadFuerza(system)}
+          </span>
           <button
             type="button"
             onClick={onClose}
@@ -454,7 +459,7 @@ export function PlantasModal({
                       P · peso sísmico
                     </span>
                     <span className="text-[15px] font-mono text-accent tabular-nums py-0.5">
-                      {dec(Psel, 0)} kN
+                      {fuerza(Psel, system)} {unidadFuerza(system)}
                     </span>
                   </div>
                 </div>
@@ -463,7 +468,7 @@ export function PlantasModal({
                 <div className="flex items-center gap-1.5">
                   {[
                     { manual: false, t: 'Área × cargas' },
-                    { manual: true, t: 'Peso directo en kN' },
+                    { manual: true, t: `Peso directo en ${unidadFuerza(system)}` },
                   ].map((o) => (
                     <button
                       key={o.t}
@@ -486,7 +491,7 @@ export function PlantasModal({
                   <Campo
                     label="P"
                     sub="peso sísmico de la planta"
-                    unit="kN"
+                    quantity="force"
                     value={sel.P ?? 0}
                     min={0}
                     onChange={(v) => cambiar(sel.id, (x) => ({ ...x, P: v }))}
@@ -525,7 +530,7 @@ export function PlantasModal({
                         Componente
                       </span>
                       <span className="text-[9px] uppercase tracking-[0.07em] text-text-disabled text-right">
-                        q · kN/m²
+                        q · {unidadCargaSup(system)}
                       </span>
                       <span className="text-[9px] uppercase tracking-[0.07em] text-text-disabled text-center">
                         fracc.
@@ -561,7 +566,8 @@ export function PlantasModal({
                             value={c.q}
                             min={0}
                             ancho="w-16"
-                            etiqueta={`Carga del componente ${j + 1} en kN/m²`}
+                            quantity="areaLoad"
+                            etiqueta={`Carga del componente ${j + 1} en ${unidadCargaSup(system)}`}
                             onChange={(n) =>
                               cambiar(sel.id, (x) => ({
                                 ...x,
@@ -582,7 +588,7 @@ export function PlantasModal({
                                 : 'text-text-secondary',
                             ].join(' ')}
                           >
-                            {dec(FRACCION_MASA[c.categoria] * c.q, 2)}
+                            {cargaSup(FRACCION_MASA[c.categoria] * c.q, system)}
                           </span>
                           {/*
                             La exclusión es POR PLANTA y es una decisión
@@ -649,9 +655,11 @@ export function PlantasModal({
                     {/* El peso, con el cálculo a la vista: el número que sale al
                         alzado y el que sube al cortante basal es este mismo. */}
                     <div className="border-t border-border-sub pt-2.5 text-[11px] font-mono tabular-nums text-text-secondary">
-                      Σ q·fracc. = {dec(sumaQ, 2)} kN/m²
+                      Σ q·fracc. = {cargaSup(sumaQ, system)} {unidadCargaSup(system)}
                       <span className="text-text-disabled"> × {dec(sel.area ?? 0, 0)} m² = </span>
-                      <span className="text-accent">{dec(Psel, 0)} kN</span>
+                      <span className="text-accent">
+                        {fuerza(Psel, system)} {unidadFuerza(system)}
+                      </span>
                     </div>
                   </div>
                 )}
