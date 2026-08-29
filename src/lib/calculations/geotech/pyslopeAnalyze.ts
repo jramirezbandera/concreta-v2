@@ -11,6 +11,35 @@ export const ANALYZE_PY = `
 import json, math
 from pyslope import Slope, Material, Udl, LineLoad
 
+def _clears_rigid_block(plane, x0, x1, y_base):
+    """True si la SUPERFICIE DE ROTURA pasa BAJO y_base en todo el tramo en que
+    cruza la huella [x0, x1] — es decir, no invade el bloque rigido (el muro).
+
+    Ojo con el dominio: la superficie de rotura NO es el circulo entero, solo el
+    arco entre su punto de entrada (l_c) y el de salida (r_c). Fuera de ese
+    tramo el circulo va por encima del terreno y no significa nada; evaluarlo
+    ahi da falsos positivos (puntos por encima de la coronacion) y falsos
+    negativos (con una huella mas ancha que el circulo, ninguna abscisa de la
+    huella lo alcanza y el plano se colaba sin filtrar).
+
+    Se evalua por tanto sobre la INTERSECCION de la huella con [l_c.x, r_c.x].
+    El arco inferior y(x) = c_y - sqrt(r^2 - (x-c_x)^2) es convexo hacia abajo:
+    su MAXIMO sobre un intervalo cae siempre en un extremo, asi que bastan dos
+    evaluaciones (exacto, no muestreo).
+    """
+    cx = plane['c_x']; cy = plane['c_y']; r = plane['radius']
+    a = max(x0, plane['l_c'][0])
+    b = min(x1, plane['r_c'][0])
+    if a > b:
+        return True          # el arco no llega a cruzar la huella
+    for x in (a, b):
+        d = r * r - (x - cx) ** 2
+        if d <= 0:
+            continue
+        if cy - math.sqrt(d) > y_base:
+            return False
+    return True
+
 def _analyze(inputs_json, opts_json):
     inp = json.loads(inputs_json)
     opts = json.loads(opts_json)
@@ -65,6 +94,44 @@ def _analyze(inputs_json, opts_json):
     right = min(float(s._external_length), s.get_bottom_coordinates()[0] + 5)
     s.set_analysis_limits(left, right)
     s.update_analysis_options(slices=slices, iterations=iterations)
+
+    # Bloque rigido: excluye del dominio de rotura la huella de un muro que ya
+    # ha superado sus comprobaciones internas y de conjunto. Se apoya en la rama
+    # _individual_planes de analyse_slope (pyslope.py:1236-1242): si la lista no
+    # esta vacia, PySlope la usa TAL CUAL y se salta _set_entry_exit_planes().
+    # Asi el filtro vive aqui, en codigo nuestro, sin parchear el vendor (el
+    # patchHash del manifest no cambia y los golden tests siguen validos).
+    #
+    # Va DESPUES de set_materials/set_udls/set_lls: esos re-ejecutan
+    # set_external_boundary -> remove_analysis_limits() y desplazan top_x /
+    # external_length, asi que las coordenadas hay que leerlas aqui.
+    blk = inp.get('rigidBlock')
+    kept_n = None
+    total_n = None
+    block_out = None
+    if blk:
+        top_c = s.get_top_coordinates(); bot_c = s.get_bottom_coordinates()
+        top_x = float(top_c[0]); top_y = float(top_c[1]); bot_x = float(bot_c[0])
+        ext_l = float(s._external_length)
+        bx0 = max(0.0, top_x - float(blk['padHeel']))
+        bx1 = min(ext_l, bot_x + float(blk['padToe']))
+        by = top_y - float(blk['depth'])
+        s._set_entry_exit_planes()
+        planes = list(s._search)
+        total_n = len(planes)
+        kept = [p for p in planes if _clears_rigid_block(p, bx0, bx1, by)]
+        kept_n = len(kept)
+        if not kept:
+            # get_min_FOS hace self._search[0] (pyslope.py:2219) -> IndexError.
+            # Cortamos antes con un mensaje accionable; slope.ts lo envuelve y
+            # useSlopeSolver ya pinta el estado de error.
+            raise ValueError(
+                'No se encontro ninguna superficie de rotura admisible por debajo '
+                'del muro. Revisa la geometria o aumenta el numero de iteraciones.'
+            )
+        s._individual_planes = kept
+        block_out = {'x0': bx0, 'x1': bx1, 'yBase': by}
+
     s.analyse_slope(method=method)
 
     fos = float(s.get_min_FOS())
@@ -167,5 +234,12 @@ def _analyze(inputs_json, opts_json):
         'slicesN': slices,
         'method': inp.get('method', 'bishop'),
         'searchCircles': search_circles,
+        # Diagnostico del bloque rigido: la huella excluida (para pintarla) y
+        # cuantos circulos sobrevivieron al filtro. Si quedan pocos, la malla
+        # efectiva es pobre y el FoS es menos fiable — que se vea, no que pase
+        # en silencio.
+        'rigidBlock': block_out,
+        'keptCircles': kept_n,
+        'totalCircles': total_n,
     })
 `;

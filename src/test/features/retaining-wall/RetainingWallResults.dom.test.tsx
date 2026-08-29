@@ -11,6 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { RetainingWallResults } from '../../../features/retaining-wall/RetainingWallResults';
 import { calcRetainingWall } from '../../../lib/calculations/retainingWall';
 import { retainingWallDefaults, type RetainingWallInputs } from '../../../data/defaults';
@@ -19,9 +20,12 @@ import { UnitSystemProvider } from '../../../lib/units/UnitSystemProvider';
 function renderPanel(overrides: Partial<RetainingWallInputs> = {}) {
   const inp = { ...retainingWallDefaults, ...overrides };
   const result = calcRetainingWall(inp);
+  // MemoryRouter: el panel enlaza al módulo Taludes (estabilidad global).
   const { container } = render(
     <UnitSystemProvider>
-      <RetainingWallResults result={result} inp={inp} />
+      <MemoryRouter>
+        <RetainingWallResults result={result} inp={inp} />
+      </MemoryRouter>
     </UnitSystemProvider>,
   );
   return { container, result };

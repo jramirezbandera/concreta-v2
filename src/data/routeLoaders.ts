@@ -26,6 +26,7 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/analisis/fem': () => import('../features/fem-analysis'),
   '/analisis/fem2d': () => import('../features/fem2d'),
   '/geotec/taludes': () => import('../features/slope-stability'),
+  '/geotec/escollera': () => import('../features/rockfill-wall'),
 };
 
 export function getRouteLoader(route: string): (() => Promise<unknown>) | undefined {

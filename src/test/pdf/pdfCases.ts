@@ -13,6 +13,7 @@ import {
   retainingWallDefaults, punchingDefaults, compositeSectionDefaults, pileCapDefaults,
   empresalladoDefaults, isolatedFootingDefaults, timberBeamDefaults, forjadosDefaults,
   timberColumnDefaults, anchorPlateDefaults, micropilesDefaults, micropilesSoilDefaults,
+  rockfillWallDefaults,
 } from '../../data/defaults';
 
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
@@ -30,6 +31,7 @@ import { calcForjados } from '../../lib/calculations/rcSlabs';
 import { calcTimberColumn } from '../../lib/calculations/timberColumns';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
+import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
 import {
   calcularEdificio, getCriticoEdificio, overallStatus, defaultMasonryState,
 } from '../../lib/calculations/masonryWalls';
@@ -49,6 +51,7 @@ import { exportForjadosPDF } from '../../lib/pdf/forjados';
 import { exportTimberColumnsPDF } from '../../lib/pdf/timberColumns';
 import { exportAnchorPlatePDF } from '../../lib/pdf/anchorPlate';
 import { exportMicropilesPDF } from '../../lib/pdf/micropiles';
+import { exportRockfillWallPDF } from '../../lib/pdf/rockfillWall';
 import { exportMasonryWallsPDF } from '../../lib/pdf/masonryWalls';
 import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
@@ -182,6 +185,19 @@ export const PDF_CASES: PdfCase[] = [
       const i = { ...armedWall, H: 8, hf: 1.0, tFuste: 0.6, bPunta: 1.2, bTalon: 3.0, df: 1.0,
                   usePassive: true, hasWater: true, hw: 5, Ab: 0.2, S: 1.3 };
       return exportRetainingWallPDF(i, t(calcRetainingWall(i)) as any, 'si', T);
+    },
+  },
+
+  // Muro de escollera / gaviones — el clon SVG no existe en jsdom (el exportador
+  // lo tolera y omite la imagen); la tabla de checks y la de cortes sí se auditan.
+  { m: 18, name: 'rockfill-wall (escollera)', run: (t = ID) => exportRockfillWallPDF(rockfillWallDefaults, t(calcRockfillWall(rockfillWallDefaults)) as any, 'si', T) },
+  {
+    m: 18,
+    name: 'rockfill-wall (gaviones + agua + sismo)',
+    run: (t = ID) => {
+      const i = { ...rockfillWallDefaults, wallType: 'gaviones' as const, gammaAp: 16,
+                  hasWater: true, hw: 2, Ab: 0.12, S: 1.0, q: 10 };
+      return exportRockfillWallPDF(i, t(calcRockfillWall(i)) as any, 'si', T);
     },
   },
 

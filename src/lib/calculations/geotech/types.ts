@@ -69,6 +69,13 @@ export interface SlopeRun {
   /** Todos los círculos de prueba de la malla de búsqueda con su FoS (≈ iterations).
    *  Lo dibuja la vista 2 (malla de centros / mapa de FoS). */
   searchCircles: SlopeCircleFoS[];
+  /** Huella del bloque rígido excluido (muro idealizado como sólido rígido), en
+   *  coordenadas absolutas del modelo. `null` cuando no hay exclusión. */
+  rigidBlock: { x0: number; x1: number; yBase: number } | null;
+  /** Círculos que sobrevivieron al filtro del bloque rígido / círculos generados.
+   *  `null` sin exclusión. Si kept/total es bajo, la malla efectiva es pobre. */
+  keptCircles: number | null;
+  totalCircles: number | null;
 }
 
 /** Trazabilidad del cálculo — va a la cabecera y footers del PDF (§9.2 #3). */

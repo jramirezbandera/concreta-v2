@@ -49,4 +49,52 @@ describe("validateSlope — invariantes por estrato", () => {
   it("sigue aceptando NF a 0 m (coronación) — caso que el motor ya no ignora", () => {
     expect(validateSlope({ ...slopeDefaults, waterTableDepth: 0 }).valid).toBe(true);
   });
+
+  // ── Bloque rígido (muro traspasado desde otro módulo) ────────────────────
+  // Sólo se validan los invariantes RELATIVOS: lo absoluto (contra top_x /
+  // external_length) lo clampea el motor, y bloquear el módulo aquí por algo
+  // que se corrige solo sería peor.
+
+  it("acepta un modelo SIN bloque rígido (taludes usado por sí solo)", () => {
+    expect(validateSlope({ ...slopeDefaults, rigidBlock: undefined }).valid).toBe(true);
+  });
+
+  it("acepta un bloque rígido bien formado, con vuelos a cero", () => {
+    const v = validateSlope({
+      ...slopeDefaults,
+      rigidBlock: { padHeel: 0, padToe: 0, depth: 4.5 },
+    });
+    expect(v.valid).toBe(true);
+  });
+
+  it("rechaza vuelos negativos del bloque rígido", () => {
+    for (const blk of [
+      { padHeel: -1, padToe: 0.5, depth: 4 },
+      { padHeel: 0.5, padToe: -1, depth: 4 },
+    ]) {
+      const v = validateSlope({ ...slopeDefaults, rigidBlock: blk });
+      expect(v.valid).toBe(false);
+      expect(v.error).toContain("vuelos");
+    }
+  });
+
+  it("rechaza profundidad no positiva (no habría bloque que excluir)", () => {
+    for (const depth of [0, -2]) {
+      const v = validateSlope({
+        ...slopeDefaults,
+        rigidBlock: { padHeel: 0.2, padToe: 0.2, depth },
+      });
+      expect(v.valid).toBe(false);
+      expect(v.error).toContain("profundidad");
+    }
+  });
+
+  it("rechaza valores no finitos (enlace corrupto)", () => {
+    const v = validateSlope({
+      ...slopeDefaults,
+      rigidBlock: { padHeel: 0.2, padToe: NaN, depth: 4 },
+    });
+    expect(v.valid).toBe(false);
+    expect(v.error).toContain("no numéricos");
+  });
 });

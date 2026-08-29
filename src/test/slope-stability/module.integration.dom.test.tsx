@@ -70,6 +70,9 @@ const MOCK_RESULT: SlopeResult = {
       { cx: 6, cy: 9, r: 8, fos: 2.1 },
       { cx: 4, cy: 7, r: 6, fos: 1.2 },
     ],
+    rigidBlock: null,
+    keptCircles: null,
+    totalCircles: null,
   },
   checks: mockChecks,
   engine: {

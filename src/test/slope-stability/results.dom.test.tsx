@@ -46,6 +46,9 @@ const mockResult: SlopeResult = {
     slicesN: 3,
     method: "bishop",
     searchCircles: [],
+    rigidBlock: null,
+    keptCircles: null,
+    totalCircles: null,
   },
   checks,
   engine: {

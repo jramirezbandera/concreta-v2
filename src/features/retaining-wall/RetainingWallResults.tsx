@@ -1,5 +1,9 @@
+import { useMemo } from 'react';
+import { Link } from 'react-router';
 import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
 import { type RetainingWallInputs } from '../../data/defaults';
+import { slopeModelFromRetaining, FOUNDATION_PLACEHOLDER } from '../../lib/calculations/geotech/slopePrefill';
+import { buildShareUrl } from '../slope-stability/serialize';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
@@ -17,6 +21,17 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
   // Momento por metro de muro: el factor de conversión es el de 'moment'; el
   // sufijo "/m" se añade a la etiqueta (la longitud no convierte).
   const fmtMomPerM = (v: number) => `${formatNumber(v, 'moment', system, 1)} ${getUnitLabel('moment', system)}/m`;
+
+  // Enlace a Taludes con el modelo prefabricado. Sólo se ofrece si el muro ya
+  // cumple sus propias comprobaciones: la idealización de sólido rígido (que es
+  // lo que permite excluirlo del dominio de rotura) no está justificada en un
+  // muro que todavía falla por dentro o como conjunto.
+  // Va ANTES del guard de `result.valid` — regla de hooks.
+  const slopeHref = useMemo(() => {
+    if (!result.valid || overallStatus(result.checks) === 'fail') return null;
+    const model = slopeModelFromRetaining(inp);
+    return model ? buildShareUrl(model, '/geotec/taludes') : null;
+  }, [inp, result]);
 
   if (!result.valid) {
     return (
@@ -54,13 +69,16 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
   const zapataTransChecks = result.checks.filter((c) =>
     ['zapata-asmin-trans-inf', 'zapata-asmin-trans-sup'].includes(c.id),
   );
+  const globalChecks = result.checks.filter((c) => c.id === 'estabilidad-global');
   const structuralMissing = fusteChecks.length === 0;
 
   // Red de seguridad: lo que el motor añada y este panel no coloque se pinta
   // igual al final. Va FUERA del guard de `structuralMissing` a propósito.
+  // OJO: todo grupo nuevo debe entrar aquí, o su check se pinta DOS veces (en
+  // su bloque y otra vez en «Otras comprobaciones»).
   const placed = new Set([
     ...stabilityChecks, ...seismicChecks, ...fusteChecks,
-    ...talonChecks, ...puntaChecks, ...zapataTransChecks,
+    ...talonChecks, ...puntaChecks, ...zapataTransChecks, ...globalChecks,
   ].map((c) => c.id));
   const unplaced = result.checks.filter((c) => !placed.has(c.id));
 
@@ -196,6 +214,49 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
         <div className="rounded border border-border-main px-4 py-3">
           <GroupHeader label="Sísmico (Mononobe-Okabe)" />
           {seismicChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+        </div>
+      )}
+
+      {/* Estabilidad global → módulo Taludes */}
+      {globalChecks.length > 0 && (
+        <div className="rounded border border-border-main px-4 py-3">
+          <GroupHeader label="Estabilidad global" />
+          {globalChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+          {slopeHref ? (
+            <div className="text-[11px] text-text-disabled mt-1.5 leading-relaxed flex flex-col gap-1.5">
+              <p>
+                El fallo global (superficie que engloba muro y cimiento) se analiza por equilibrio
+                límite.{' '}
+                <Link to={slopeHref} className="text-accent hover:underline">
+                  Abrir en Taludes con el modelo preparado
+                </Link>
+                : se trasladan geometría, nivel freático y sobrecarga, y el muro se excluye del
+                dominio de rotura como sólido rígido — las superficies pasan por debajo de la
+                zapata, que es el mecanismo global real.
+              </p>
+              <p className="text-state-warn">
+                Revisa el estrato de cimentación antes de calcular: va con un valor genérico
+                (φ′ = {FOUNDATION_PLACEHOLDER.phi}°, c′ = {FOUNDATION_PLACEHOLDER.c} kPa) porque
+                este módulo no pide los parámetros del terreno. Es el dato que gobierna el resultado.
+              </p>
+              <p>
+                Cribado aproximado: el modelo sustituye el hormigón por relleno
+                (φ = {inp.phi}°), lo que altera fuerzas estabilizadoras y desestabilizadoras a la
+                vez. No es una comprobación conservadora por construcción.
+              </p>
+              {result.kh_derived > 0 && (
+                <p>
+                  El modelo sale estático: la estabilidad global sísmica no se comprueba en Taludes.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11px] text-text-disabled mt-1.5 leading-relaxed">
+              Resuelve primero las comprobaciones del propio muro. Tratarlo como sólido rígido en
+              el análisis global sólo está justificado cuando su estabilidad interna y de conjunto
+              ya cumple.
+            </p>
+          )}
         </div>
       )}
 

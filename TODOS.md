@@ -18,6 +18,14 @@ Items deferred from the CEO review and design doc. Work these before public laun
 
 **Depends on / blocked by:** decisión de producto: ¿el FEM 2D gana incendio solo para madera, o para los 3 materiales a la vez? (coherencia de UI/veredicto).
 
+## ~~Traspaso muros → taludes: trasladar γ saturado bajo el nivel freático~~
+
+**Status:** HECHO (2026-08-30). El núcleo `buildSlopeModel` parte el estrato del cuerpo en la cota del NF y asigna `gammaSat` a la banda inferior (`bodyStrata()` en `src/lib/calculations/geotech/slopePrefill.ts`).
+
+Resuelto: bandas por debajo de 5 cm se colapsan a una sola (`MIN_BAND_M`) para no generar espesores degenerados con el NF en coronación o a ras de la base. El estrato de cimentación placeholder NO se parte — si el NF cae por debajo de la base del cimiento queda dentro de ese estrato y se ignora, porque partirlo exigiría inventar un γsat que nadie ha dado; es una razón más para revisarlo a mano, y así lo dice la cabecera del builder.
+
+Cobertura: bloque `reparto seco / saturado por el NF` en `src/test/calc/slopePrefill.test.ts` (bordes hw = 0 / a ras de base / bajo el cimiento), el barrido en matriz recorre ahora 6 profundidades de NF, y `pyslopeAnalyze.golden.test.ts` comprueba contra el motor real que γsat cambia el FoS (si no llegara a la física, ambas corridas coincidirían).
+
 ## P1 — Must resolve before launch
 
 ### Monetization model decision

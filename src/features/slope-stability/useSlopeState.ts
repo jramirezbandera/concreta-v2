@@ -48,19 +48,28 @@ function loadFromUrl(): SlopeInputs | null {
   }
 }
 
-/** Hidratación inicial: URL (?model=) > localStorage > defaults. */
-function load(): SlopeInputs {
-  return loadFromUrl() ?? loadFromStorage();
+/** Hidratación inicial: URL (?model=) > localStorage > defaults.
+ *  Devuelve también el ORIGEN: `useState(load)` descartaría esa información, y
+ *  la persistencia la necesita para no pisar el modelo guardado (ver abajo). */
+function load(): { state: SlopeInputs; fromUrl: boolean } {
+  const url = loadFromUrl();
+  if (url) return { state: url, fromUrl: true };
+  return { state: loadFromStorage(), fromUrl: false };
 }
 
 export interface SlopeStateStore {
   state: SlopeInputs;
   setState: (next: SlopeInputs) => void;
   reset: () => void;
+  /** El estado inicial vino de un enlace `?model=` (traspaso desde un módulo de
+   *  muro o enlace compartido). La UI lo usa para avisar de que hay que revisar
+   *  el estrato de cimentación del modelo prefabricado. */
+  hydratedFromUrl: boolean;
 }
 
 export function useSlopeState(): SlopeStateStore {
-  const [state, setState] = useState<SlopeInputs>(load);
+  const [initial] = useState(load);
+  const [state, setState] = useState<SlopeInputs>(initial.state);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Tras consumir ?model= al montar, lo retiramos para dejar la URL limpia
@@ -74,7 +83,16 @@ export function useSlopeState(): SlopeStateStore {
     }
   }, []);
 
+  // Un modelo llegado por URL es un BORRADOR de traspaso, no trabajo guardado:
+  // si se persistiera al montar pisaría para siempre el modelo del usuario, y
+  // con un botón "VER TALUDES" en cada módulo de muro eso pasa de rareza a
+  // rutina. Mientras `state` siga siendo EL MISMO OBJETO que llegó del enlace,
+  // no se escribe; el primer setState lo sustituye por otra referencia y a
+  // partir de ahí persiste con normalidad (también en reset(), que pasa a
+  // slopeDefaults). La comparación por identidad —en vez de una bandera de un
+  // solo uso— es idempotente ante el doble montaje de StrictMode.
   useEffect(() => {
+    if (initial.fromUrl && state === initial.state) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       try {
@@ -87,7 +105,7 @@ export function useSlopeState(): SlopeStateStore {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [state]);
+  }, [state, initial]);
 
   const reset = useCallback(() => {
     try {
@@ -98,5 +116,5 @@ export function useSlopeState(): SlopeStateStore {
     setState(slopeDefaults);
   }, []);
 
-  return { state, setState, reset };
+  return { state, setState, reset, hydratedFromUrl: initial.fromUrl };
 }

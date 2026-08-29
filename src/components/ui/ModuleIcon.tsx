@@ -186,6 +186,19 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M4 4a8 8 0 0 0 9 9" strokeWidth="0.75" strokeOpacity="0.55" strokeDasharray="2 1.5"/>
         </svg>
       );
+    // Muro de escollera: trapecio de gravedad con las juntas de las hiladas
+    // contrainclinadas (la comprobación piedra sobre piedra es su firma)
+    case 'concreta-rockfill-wall':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Trapecio del muro sobre cimiento */}
+          <path d="M5.5 2.5H9.5L11.5 13.5H3.5Z"/>
+          {/* Hiladas contrainclinadas */}
+          <path d="M4.6 10.4l6.1 -0.9M5.1 7.6l4.9 -0.7M5.7 4.9l3.6 -0.5" strokeWidth="0.75" strokeOpacity="0.6"/>
+          {/* Terreno contenido al trasdós */}
+          <path d="M11 2.5h2.5" strokeWidth="0.9" strokeOpacity="0.7"/>
+        </svg>
+      );
     // Acción sísmica: edificio de plantas con las fuerzas equivalentes creciendo
     // hacia arriba, que es la firma del reparto del art. 3.7.4
     case 'concreta-seismic':

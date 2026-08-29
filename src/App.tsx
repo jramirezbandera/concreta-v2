@@ -164,6 +164,10 @@ const router = createBrowserRouter([
             path: 'geotec/taludes',
             lazy: lazyComponent(() => import('./features/slope-stability'), 'SlopeStabilityModule'),
           },
+          {
+            path: 'geotec/escollera',
+            lazy: lazyComponent(() => import('./features/rockfill-wall'), 'RockfillWallModule'),
+          },
         ],
       },
 

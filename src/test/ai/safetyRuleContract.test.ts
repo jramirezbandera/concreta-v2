@@ -65,6 +65,7 @@ import {
 import {
   seismicNCSE02Adapter, SEISMIC_SAFETY_RULES, SEISMIC_RESOLVED_RULES,
 } from '../../lib/ai/modules/seismicNCSE02';
+import { rockfillWallAdapter, ROCKFILL_WALL_SAFETY_RULES } from '../../lib/ai/modules/rockfillWall';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 20 TInputs distintos */
 
@@ -131,6 +132,7 @@ const ENTRIES: readonly Entry[] = [
     rules: SEISMIC_SAFETY_RULES,
     resolved: SEISMIC_RESOLVED_RULES,
   },
+  { adapter: rockfillWallAdapter, rules: ROCKFILL_WALL_SAFETY_RULES },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -138,10 +140,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 20 adapters están en el contrato', () => {
+describe('los 21 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(20);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(20);
+    expect(ENTRIES).toHaveLength(21);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(21);
   });
 });
 

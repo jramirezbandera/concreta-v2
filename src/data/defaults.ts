@@ -415,6 +415,108 @@ export const retainingWallDefaults: RetainingWallInputs = {
   diam_zt_sup: 0, sep_zt_sup: 200,
 };
 
+// ── Muro de escollera / gaviones (Guía Fomento 2006 + CTE DB-SE-C) ───────────────
+
+export type RockfillWallType = 'escollera' | 'gaviones';
+/** Cómo se define el ángulo de rozamiento interno del material del muro:
+ *  'directo' = valor introducido por el proyectista; 'guia' = φ = φb + Δφe − Δφn
+ *  según la Guía de escolleras Fomento 2006 §4.1.3 (φb por litología, Δφn por
+ *  tensión normal en la base). */
+export type RockfillPhiMode = 'directo' | 'guia';
+/** Litologías de la tabla 4.2 de la Guía Fomento 2006 (ángulo básico φb). */
+export type RockfillLitologia =
+  | 'granito' | 'gneis' | 'cuarcita' | 'basalto' | 'riolita'
+  | 'granodiorita' | 'caliza' | 'conglomerado' | 'arenisca';
+/** Alineación de las filas de cajas de gaviones: 'front' = paramento visto plano
+ *  (escalones al trasdós); 'back' = trasdós plano (escalones vistos). */
+export type GavionAlign = 'front' | 'back';
+
+export interface RockfillWallInputs {
+  /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
+  title: string;
+  wallType: RockfillWallType;
+  // Cuerpo del muro (m, común)
+  H: number;            // altura del cuerpo sobre la cara superior del cimiento
+  a: number;            // ancho de coronación
+  // Cuerpo — escollera (taludes en m de avance horizontal por m de altura)
+  mIntra: number;       // batter del intradós hacia el trasdós subiendo (0.33 = 1H:3V)
+  mTras: number;        // batter del trasdós hacia el relleno subiendo (0 = vertical)
+  alphaHiladas: number; // contrainclinación de las hiladas (°); 18.4 = 3H:1V
+  // Cuerpo — gaviones
+  hCaja: number;        // altura de cada fila de cajas (m), típ. 0.5 o 1.0
+  stepCaja: number;     // incremento de ancho por fila hacia abajo (m)
+  stepAlign: GavionAlign;
+  alphaBatter: number;  // contrainclinación global de la pila de cajas (°), típ. 6–10
+  // Cimiento (escollera hormigonada — bloque rígido)
+  hz: number;           // canto (m); la Guía recomienda ≥ 1 m
+  x0: number;           // vuelo de puntera (m)
+  xT: number;           // vuelo de talón (m)
+  alphaBase: number;    // contrainclinación del plano de apoyo (°); 18.4 = 3H:1V
+  df: number;           // empotramiento frontal sobre cara superior del cimiento (m)
+  // Material del muro
+  gammaAp: number;      // peso específico aparente γap = γd·(1−n) (kN/m³)
+  phiMode: RockfillPhiMode;
+  phi: number;          // φ del material del muro, modo 'directo' (°)
+  litologia: RockfillLitologia;  // modo 'guia' → φb (tabla 4.2)
+  dPhiE: number;        // Δφe por características de la colocación (°), 1–3
+  contactoMejorado: boolean;  // true → rozamiento entre hiladas tan(φ); false → tan(⅔φ)
+  // Relleno del trasdós / terreno
+  gammaSuelo: number;   // peso específico del relleno (kN/m³)
+  gammaSat: number;     // peso específico saturado (kN/m³)
+  phiRelleno: number;   // φ del relleno del trasdós (°)
+  delta: number;        // rozamiento muro-relleno δ en el plano virtual (°)
+  beta: number;         // inclinación del terreno sobre coronación (°)
+  q: number;            // sobrecarga uniforme en trasdós (kN/m²)
+  sigmaAdm: number;     // tensión admisible del terreno (kPa)
+  muBase: number;       // coef. rozamiento cimiento-terreno (≈ tan ⅔·φ apoyo)
+  // Empuje pasivo frontal (CTE DB-SE-C §9.3.3 — decisión del proyectista)
+  usePassive: boolean;
+  // Nivel freático
+  hasWater: boolean;
+  hw: number;           // profundidad del NF desde coronación (m)
+  // Sismo (NCSE-02 / NCSP-07) — kh y kv derivados internamente
+  Ab: number;           // aceleración sísmica básica (fracción de g)
+  S: number;            // coeficiente de amplificación del terreno
+}
+
+export const rockfillWallDefaults: RockfillWallInputs = {
+  title: '',
+  wallType: 'escollera',
+  H: 4.0,
+  a: 2.0,
+  mIntra: 0.34,
+  mTras: 0,
+  alphaHiladas: 18.43,
+  hCaja: 1.0,
+  stepCaja: 0.5,
+  stepAlign: 'back',
+  alphaBatter: 6,
+  hz: 1.0,
+  x0: 0.15,
+  xT: 0,
+  alphaBase: 18.43,
+  df: 0,
+  gammaAp: 18,
+  phiMode: 'directo',
+  phi: 40,
+  litologia: 'caliza',
+  dPhiE: 2,
+  contactoMejorado: false,
+  gammaSuelo: 18,
+  gammaSat: 20,
+  phiRelleno: 30,
+  delta: 20,
+  beta: 0,
+  q: 0,
+  sigmaAdm: 200,
+  muBase: 0.43,
+  usePassive: false,
+  hasWater: false,
+  hw: 2.0,
+  Ab: 0,
+  S: 1.0,
+};
+
 // ── Punching shear (CE Anejo 19 §6.4) ─────────────────────────────────────────────
 
 export type PunchingMode = 'pilar' | 'carga-puntual' | 'pilar-cruceta';
@@ -1292,6 +1394,36 @@ export interface SlopeInputs {
   //  'excavation'        = talud de excavación (CTE DB-SE-C art. 7.2.2.1, γ_R=1,5)
   //  'global-foundation' = estabilidad global de cimentación (CTE DB-SE-C Tabla 2.1, γ_M=1,8)
   context: 'excavation' | 'global-foundation';
+  /**
+   * Bloque rígido excluido del dominio de rotura: la huella de un muro que YA ha
+   * superado sus comprobaciones internas (hilada a hilada / juntas) y de conjunto,
+   * y que por tanto puede idealizarse como sólido rígido en el análisis global.
+   * Los círculos que suban por encima de `depth` dentro de la huella se descartan,
+   * de modo que la superficie crítica pasa BAJO la zapata, por el terreno de
+   * cimentación, mientras el muro aporta su peso como bloque.
+   *
+   * Por qué es necesario: PySlope sólo admite estratos HORIZONTALES, así que no se
+   * puede dar resistencia al muro sin dársela también al relleno del trasdós (por
+   * donde entran los círculos). Modelar el muro como estrato de c=0 produce un
+   * talud sin cohesión a 71-85°, que no se sostiene: FoS ≈ tanφ/tanβ ≈ 0,20.
+   *
+   * Distancias en m, RELATIVAS a la coronación y al pie del talud: las abscisas
+   * absolutas del modelo PySlope no son estables (top_x = (tot_l − length)/2 se
+   * desplaza al cambiar geometría, materiales o cargas). Se resuelven dentro de
+   * Python, donde top_x/bot_x son autoritativos.
+   *
+   * NO es un campo de UI: sólo lo fija el builder de traspaso desde un módulo de
+   * muro (lib/calculations/geotech/slopePrefill.ts). Ausente ⇒ búsqueda sin
+   * exclusión, que es el comportamiento del módulo de taludes usado por sí solo.
+   */
+  rigidBlock?: {
+    /** m tras la coronación → huella = [top_x − padHeel, …] (vuelo de talón). */
+    padHeel: number;
+    /** m pasado el pie → huella = […, bot_x + padToe] (vuelo de puntera). */
+    padToe: number;
+    /** m bajo la coronación → cota de base = top_y − depth (base del cimiento). */
+    depth: number;
+  };
 }
 
 /** FTUX: talud cohesivo-friccional moderado, sin NF ni sobrecargas → FoS holgado

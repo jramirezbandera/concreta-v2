@@ -763,3 +763,24 @@ describe('input validation', () => {
     expect(r.valid).toBe(true);
   });
 });
+
+describe('estabilidad global', () => {
+  // El fallo por una superficie que engloba muro y cimiento no lo cubre ninguna
+  // comprobación de sólido rígido del motor: se remite al módulo de Taludes.
+  // Antes faltaba incluso el recordatorio (hueco normativo frente al módulo de
+  // escollera, que sí lo tenía).
+  it('emite un check neutral que remite a Taludes', () => {
+    const r = calcRetainingWall(base);
+    const global = r.checks.find((c) => c.id === 'estabilidad-global');
+    expect(global).toBeDefined();
+    expect(global!.status).toBe('neutral');
+    expect(global!.tag).toBe('VER TALUDES');
+    expect(global!.article).toContain('Tabla 2.1');
+  });
+
+  it('el check neutral no altera el veredicto global', () => {
+    const r = calcRetainingWall(base);
+    const global = r.checks.find((c) => c.id === 'estabilidad-global')!;
+    expect(global.utilization).toBe(0);
+  });
+});

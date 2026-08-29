@@ -34,6 +34,7 @@ import { masonryWallsAdapter } from '../../lib/ai/modules/masonryWalls';
 import { femAnalysisAdapter } from '../../lib/ai/modules/femAnalysis';
 import { fem2dAdapter } from '../../lib/ai/modules/fem2d';
 import { seismicNCSE02Adapter } from '../../lib/ai/modules/seismicNCSE02';
+import { rockfillWallAdapter } from '../../lib/ai/modules/rockfillWall';
 
 const ADAPTERS = [
   steelBeamsAdapter, rcColumnsAdapter, isolatedFootingAdapter,
@@ -42,6 +43,7 @@ const ADAPTERS = [
   steelColumnsAdapter, empresalladoAdapter, punchingAdapter,
   rcBeamsAdapter, forjadosAdapter, retainingWallAdapter, anchorPlateAdapter,
   masonryWallsAdapter, femAnalysisAdapter, fem2dAdapter, seismicNCSE02Adapter,
+  rockfillWallAdapter,
 ] as const;
 
 interface SchemaLike {

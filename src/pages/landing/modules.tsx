@@ -213,4 +213,13 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/geotec/taludes',
     icon: <ModuleIcon moduleKey="concreta-slope-stability" size={ICON_SIZE} />,
   },
+  {
+    id: 'rockfill-wall',
+    group: 'GEOTECNIA',
+    name: 'Muros de escollera y gaviones',
+    ref: 'Guía Fomento 2006',
+    short: 'Muro de gravedad: deslizamiento entre hiladas, vuelco, hundimiento y sismo.',
+    route: '/geotec/escollera',
+    icon: <ModuleIcon moduleKey="concreta-rockfill-wall" size={ICON_SIZE} />,
+  },
 ];

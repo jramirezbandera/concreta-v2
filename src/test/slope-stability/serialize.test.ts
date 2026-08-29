@@ -3,6 +3,7 @@
 // context) y que las entradas corruptas devuelven null.
 
 import { describe, expect, it } from "vitest";
+import { compressToEncodedURIComponent } from "lz-string";
 import { buildShareUrl, decodeShareString, encodeShareString } from "../../features/slope-stability/serialize";
 import { slopeDefaults, type SlopeInputs } from "../../data/defaults";
 
@@ -110,5 +111,35 @@ describe("slope buildShareUrl", () => {
     const encoded = new URL(url).searchParams.get("model");
     expect(encoded).not.toBeNull();
     expect(decodeShareString(encoded!)).toEqual(rich);
+  });
+
+  it("acepta una ruta relativa como base (traspaso desde un módulo de muro)", () => {
+    const url = buildShareUrl(rich, "/geotec/taludes");
+    expect(url).toMatch(/^\/geotec\/taludes\?model=/);
+  });
+});
+
+describe("slope serialize — bloque rígido", () => {
+  const withBlock = {
+    ...slopeDefaults,
+    context: "global-foundation" as const,
+    rigidBlock: { padHeel: 1.5, padToe: 0.6, depth: 3.5 },
+  };
+
+  it("round-trip conserva el bloque rígido", () => {
+    const back = decodeShareString(encodeShareString(withBlock));
+    expect(back).toEqual(withBlock);
+    expect(back!.rigidBlock).toEqual({ padHeel: 1.5, padToe: 0.6, depth: 3.5 });
+  });
+
+  it("el merge tolera enlaces ANTIGUOS sin rigidBlock", () => {
+    // Enlace generado antes de que el campo existiera: no debe romper, y el
+    // campo queda ausente (⇒ búsqueda sin exclusión, comportamiento previo).
+    const legacy = { ...slopeDefaults } as Record<string, unknown>;
+    delete legacy.rigidBlock;
+    const encoded = compressToEncodedURIComponent(JSON.stringify(legacy));
+    const back = decodeShareString(encoded);
+    expect(back).not.toBeNull();
+    expect(back!.rigidBlock).toBeUndefined();
   });
 });

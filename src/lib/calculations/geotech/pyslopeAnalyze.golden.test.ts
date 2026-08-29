@@ -37,6 +37,10 @@ interface Run {
   slicesN: number;
   method: string;
   searchCircles: { cx: number; cy: number; r: number; fos: number }[];
+  limits: { left: number; right: number };
+  rigidBlock: { x0: number; x1: number; yBase: number } | null;
+  keptCircles: number | null;
+  totalCircles: number | null;
 }
 
 describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
@@ -45,6 +49,15 @@ describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
   const analyze = (opts: Record<string, number>): Run => {
     const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
     const json = fn(JSON.stringify(slopeDefaults), JSON.stringify({ slices: 25, iterations: ITERATIONS, ...opts }));
+    return JSON.parse(json) as Run;
+  };
+  /** Igual que `analyze`, pero permite alterar los INPUTS (no sólo las opts). */
+  const analyzeWith = (inputs: Record<string, unknown>, opts: Record<string, number> = {}): Run => {
+    const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
+    const json = fn(
+      JSON.stringify({ ...slopeDefaults, ...inputs }),
+      JSON.stringify({ slices: 25, iterations: ITERATIONS, ...opts }),
+    );
     return JSON.parse(json) as Run;
   };
 
@@ -180,5 +193,103 @@ describe("ANALYZE_PY — mapeo SlopeInputs → PySlope", () => {
     // Límites emitidos = límites usados: dentro del modelo, bien ordenados.
     expect(r.limits.left).toBeGreaterThanOrEqual(0);
     expect(r.limits.right).toBeGreaterThan(r.limits.left);
+  });
+
+  // ── Bloque rígido: el muro excluido del dominio de rotura ────────────────
+  //
+  // Un muro que ya cumple sus comprobaciones internas y de conjunto se idealiza
+  // como sólido rígido: las superficies de rotura deben pasar BAJO la zapata en
+  // toda la huella, por el terreno de cimentación. Sin esto, modelar el muro
+  // como estrato de c=0 da un talud sin cohesión a 71-85°, que no se sostiene
+  // (FoS ≈ tanφ/tanβ ≈ 0,20) y suspende muros correctos por factor ~7.
+  //
+  // Se apoya en la rama _individual_planes de analyse_slope (pyslope.py:1236),
+  // así que NO parchea el vendor: el patchHash del manifest no cambia.
+
+  describe("bloque rígido", () => {
+    // Huella centrada en la cara del talud de los defaults (H=5, β=30°).
+    const BLOCK = { padHeel: 1, padToe: 1, depth: 2.5 };
+
+    it("sin rigidBlock la corrida es IDÉNTICA a la de hoy (paridad)", () => {
+      const base = analyze({ gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      const explicit = analyzeWith({ rigidBlock: undefined }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      expect(explicit.fos).toBeCloseTo(base.fos, 10);
+      expect(explicit.rigidBlock).toBeNull();
+      expect(explicit.keptCircles).toBeNull();
+      expect(explicit.totalCircles).toBeNull();
+    });
+
+    it("emite la huella y el recuento de círculos supervivientes", () => {
+      const r = analyzeWith({ rigidBlock: BLOCK }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      expect(r.rigidBlock).not.toBeNull();
+      expect(r.rigidBlock!.x1).toBeGreaterThan(r.rigidBlock!.x0);
+      expect(r.totalCircles).toBeGreaterThan(0);
+      expect(r.keptCircles).toBeGreaterThan(0);
+      // El filtro debe descartar algo: si no, no está haciendo nada.
+      expect(r.keptCircles!).toBeLessThan(r.totalCircles!);
+    });
+
+    it("el círculo crítico pasa BAJO la base del bloque donde cruza la huella", () => {
+      const r = analyzeWith({ rigidBlock: BLOCK }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      const { cx, cy, r: rad } = r.circle;
+      const { x0, x1, yBase } = r.rigidBlock!;
+      // El dominio es la superficie de rotura real (entrada→salida) intersecada
+      // con la huella, no el círculo entero: fuera de ese tramo el círculo va
+      // por encima del terreno y no representa nada.
+      const a = Math.max(x0, r.entry.x);
+      const b = Math.min(x1, r.exit.x);
+      expect(b).toBeGreaterThan(a); // el caso interesante: sí cruza la huella
+      for (let i = 0; i <= 40; i++) {
+        const x = a + ((b - a) * i) / 40;
+        const d = rad * rad - (x - cx) ** 2;
+        if (d <= 0) continue;
+        expect(cy - Math.sqrt(d)).toBeLessThanOrEqual(yBase + 1e-6);
+      }
+    });
+
+    it("excluir el muro sube el FoS: los círculos superficiales desaparecen", () => {
+      const libre = analyze({ gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      const conBloque = analyzeWith({ rigidBlock: BLOCK }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      expect(conBloque.fos).toBeGreaterThanOrEqual(libre.fos);
+    });
+
+    // El builder parte el estrato del cuerpo en el NF (banda seca + saturada)
+    // porque PySlope tiene un único unit_weight por material y resta u = γw·h
+    // aparte: bajo el NF el peso correcto es el saturado. Aquí se comprueba que
+    // ese reparto llega de verdad a la física del motor, no sólo que el objeto
+    // esté bien formado.
+    it("el reparto seco/saturado por el NF llega a la física del motor", () => {
+      const dryBand = { id: 1, type: "granular", thickness: 2, gamma: 18, c: 0, phi: 30, Nspt: 0, su: 0, rflim: 0 };
+      const foundation = { id: 3, type: "granular", thickness: 20, gamma: 18, c: 0, phi: 28, Nspt: 0, su: 0, rflim: 0 };
+      const common = { waterTableDepth: 2, height: 5, angle: 30 };
+
+      // Mismo modelo, cambiando SÓLO el peso de la banda bajo el NF.
+      const conSat = analyzeWith({
+        ...common,
+        strata: [dryBand, { ...dryBand, id: 2, thickness: 3, gamma: 20 }, foundation],
+      }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+      const sinSat = analyzeWith({
+        ...common,
+        strata: [dryBand, { ...dryBand, id: 2, thickness: 3, gamma: 18 }, foundation],
+      }, { gammaC: 1, gammaPhi: 1, loadFactor: 1 });
+
+      expect(Number.isFinite(conSat.fos)).toBe(true);
+      expect(conSat.fos).toBeGreaterThan(0);
+      // Si el γ saturado no llegara a la física, ambos FoS coincidirían.
+      expect(conSat.fos).not.toBeCloseTo(sinSat.fos, 6);
+      // Y las dovelas registran presión intersticial bajo el NF.
+      expect(Math.max(...conSat.slices.map((s) => s.u ?? 0))).toBeGreaterThan(0);
+    });
+
+    it("una huella imposible NO revienta con IndexError: da error accionable", () => {
+      const fn = py.globals.get("_analyze") as (a: string, b: string) => string;
+      // Profundidad enorme: ningún círculo puede pasar por debajo del bloque.
+      const inputs = JSON.stringify({
+        ...slopeDefaults,
+        rigidBlock: { padHeel: 50, padToe: 50, depth: 500 },
+      });
+      const opts = JSON.stringify({ slices: 25, iterations: ITERATIONS });
+      expect(() => fn(inputs, opts)).toThrow(/superficie de rotura admisible/i);
+    });
   });
 });

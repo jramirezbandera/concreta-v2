@@ -51,5 +51,34 @@ export function validateSlope(inp: SlopeInputs): SlopeValidation {
   if (inp.waterTableDepth !== null && inp.waterTableDepth < 0) {
     return { valid: false, error: "El nivel freático no puede ser negativo.", fix: "Introduce una profundidad de NF ≥ 0 m o déjalo vacío." };
   }
+  // Bloque rígido (muro traspasado desde otro módulo). Sólo se validan los
+  // invariantes RELATIVOS: lo absoluto (contra top_x / external_length) depende
+  // de la geometría que PySlope sintetiza y se clampea dentro del motor —
+  // bloquear el módulo aquí por algo que el motor corrige solo sería peor.
+  const blk = inp.rigidBlock;
+  if (blk !== undefined) {
+    const finite = (v: number) => Number.isFinite(v);
+    if (!finite(blk.padHeel) || !finite(blk.padToe) || !finite(blk.depth)) {
+      return {
+        valid: false,
+        error: "El bloque rígido tiene valores no numéricos.",
+        fix: "Vuelve a generar el modelo desde el módulo del muro.",
+      };
+    }
+    if (blk.padHeel < 0 || blk.padToe < 0) {
+      return {
+        valid: false,
+        error: "Los vuelos del bloque rígido no pueden ser negativos.",
+        fix: "Revisa los vuelos de puntera y talón en el módulo del muro.",
+      };
+    }
+    if (!(blk.depth > 0)) {
+      return {
+        valid: false,
+        error: "La profundidad del bloque rígido debe ser mayor que 0.",
+        fix: "Revisa la altura del muro y el canto del cimiento en el módulo de origen.",
+      };
+    }
+  }
   return { valid: true };
 }

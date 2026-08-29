@@ -583,6 +583,34 @@ export function SlopeStabilitySVG({
             </g>
           )}
 
+          {/* Bloque rígido excluido (muro traspasado desde un módulo de muro):
+              la banda que ninguna superficie de rotura puede atravesar. Se pinta
+              ANTES de los marcadores de límites para quedar por debajo. */}
+          {run.rigidBlock && (
+            <g>
+              <rect
+                x={sx(run.rigidBlock.x0)}
+                y={padTop}
+                width={Math.max(sx(run.rigidBlock.x1) - sx(run.rigidBlock.x0), 1)}
+                height={Math.max(sy(run.rigidBlock.yBase) - padTop, 1)}
+                fill={P.accent}
+                opacity={0.07}
+              />
+              <line
+                x1={sx(run.rigidBlock.x0)} y1={sy(run.rigidBlock.yBase)}
+                x2={sx(run.rigidBlock.x1)} y2={sy(run.rigidBlock.yBase)}
+                stroke={P.accent} strokeWidth={1} strokeDasharray="4 2" opacity={0.55}
+              />
+              <text
+                x={(sx(run.rigidBlock.x0) + sx(run.rigidBlock.x1)) / 2}
+                y={sy(run.rigidBlock.yBase) - 4}
+                fontSize={8} fill={P.accent} textAnchor="middle" fontFamily={FONT_MONO}
+              >
+                {svgText('muro — bloque rigido', isPdf)}
+              </text>
+            </g>
+          )}
+
           {/* Marcadores de límites de análisis ◄ ► en la rasante */}
           {(() => {
             const yl = sy(0);   // referencia a cota del pie/llano

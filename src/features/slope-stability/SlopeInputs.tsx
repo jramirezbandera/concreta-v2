@@ -12,7 +12,7 @@
 // (Nspt/rfℓim/Cu) se OCULTAN vía hiddenFields (Phase 2) para no mostrar siempre 0.
 
 import type { JSX } from 'react';
-import { Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Landmark } from 'lucide-react';
 import type { SlopeInputs, SlopeLoad, SoilLayer } from '../../data/defaults';
 import type { SoilType } from '../../data/micropileLookups';
 import type { SlopeValidation } from '../../lib/calculations/geotech/validate';
@@ -257,6 +257,49 @@ export function SlopeInputs(props: SlopeInputsPanelProps): JSX.Element {
                   <div className="text-[11px] text-text-secondary leading-snug">{validation.fix}</div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner del bloque rígido — modelo traspasado desde un módulo de muro.
+          Sin esto el traspaso era ilegible: el usuario aterrizaba ante un talud
+          a 85° sin saber por qué, con una restricción invisible sobre los
+          círculos y sin manera de quitarla si luego quería un talud normal. */}
+      {value.rigidBlock && (
+        <div className="mb-1 rounded border border-accent/30 bg-accent/5 px-2.5 py-2">
+          <div className="flex items-start gap-1.5">
+            <Landmark size={13} className="text-accent mt-0.5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex flex-col gap-1">
+              <div className="text-[12px] font-semibold text-accent leading-snug">
+                Modelo de muro — sólido rígido
+              </div>
+              <p className="text-[11px] text-text-secondary leading-snug">
+                Este modelo viene de un módulo de muro: el talud representa la <b>cara del
+                muro</b> (por eso β puede llegar a 85°) y el primer estrato aporta su peso.
+                Las superficies de rotura se fuerzan a pasar <b>bajo la huella del muro</b>
+                {' '}(talón +{value.rigidBlock.padHeel.toFixed(2)} m · puntera +
+                {value.rigidBlock.padToe.toFixed(2)} m · base a {value.rigidBlock.depth.toFixed(2)} m
+                bajo coronación): el muro ya está comprobado en su módulo y aquí se analiza
+                el fallo global por el terreno.
+              </p>
+              <p className="text-[11px] text-state-warn leading-snug">
+                Revisa el <b>último estrato</b> (terreno de cimentación): llega con valores
+                genéricos y es el que gobierna el resultado.
+              </p>
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, rigidBlock: undefined })}
+                className="self-start mt-0.5 px-2.5 py-1 rounded text-[11px] font-semibold font-mono
+                  bg-bg-elevated text-text-secondary border border-border-main
+                  hover:text-text-primary hover:border-accent/40 transition-colors"
+              >
+                Quitar bloque rígido
+              </button>
+              <p className="text-[10px] text-text-disabled leading-snug">
+                Al quitarlo, los círculos vuelven a ser libres (talud normal) y podrán
+                atravesar la zona del muro.
+              </p>
             </div>
           </div>
         </div>

@@ -16,7 +16,7 @@
 import { type RetainingWallInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { GAMMA_S } from '../../data/factors';
-import { makeCheck, makeCheckQty, toStatus, solveRCBending, type CheckRow } from './types';
+import { makeCheck, makeCheckQty, makeCheckNeutral, toStatus, solveRCBending, type CheckRow } from './types';
 import { GAMMA_G, GAMMA_Q } from './loadGen';
 
 export type { CheckRow } from './types';
@@ -369,6 +369,16 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     status: sigmaMinFail ? 'fail' : 'ok',
     article: 'CTE DB-SE-C §4.4.4',
   });
+
+  // Estabilidad global — remite al módulo de Taludes (equilibrio límite). El
+  // fallo por una superficie que engloba muro y cimiento no lo cubre ninguna de
+  // las comprobaciones de sólido rígido de arriba; se verifica aparte.
+  checks.push(makeCheckNeutral(
+    'estabilidad-global',
+    'Estabilidad global del conjunto — verificar con el módulo Taludes (equilibrio límite)',
+    'VER TALUDES',
+    'CTE DB-SE-C Tabla 2.1 / §4.4.5',
+  ));
 
   // ── 10. Mononobe-Okabe (seismic) — kh > 0 ───────────────────────────────
   let KAD: number | undefined;

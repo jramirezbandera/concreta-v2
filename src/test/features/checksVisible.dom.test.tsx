@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import { MemoryRouter } from 'react-router';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 import { MicropilesResults } from '../../features/micropiles/MicropilesResults';
@@ -27,22 +28,37 @@ import { PunchingResults } from '../../features/punching/PunchingResults';
 import { RCBeamsResults } from '../../features/rc-beams/RCBeamsResults';
 import { SteelBeamsResults } from '../../features/steel-beams/SteelBeamsResults';
 import { SteelColumnsResults } from '../../features/steel-columns/SteelColumnsResults';
+import { RockfillWallResults } from '../../features/rockfill-wall/RockfillWallResults';
+import { RetainingWallResults } from '../../features/retaining-wall/RetainingWallResults';
 
 import { calcMicropiles } from '../../lib/calculations/micropiles';
+import { calcRetainingWall } from '../../lib/calculations/retainingWall';
 import { calcPunching } from '../../lib/calculations/punching';
 import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
+import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
 
 import {
   micropilesDefaults, micropilesSoilDefaults, punchingDefaults,
   rcBeamDefaults, steelBeamDefaults, steelColumnDefaults,
+  rockfillWallDefaults, retainingWallDefaults,
 } from '../../data/defaults';
 
 interface Case {
   name: string;
   /** Ids que el motor emite y que el panel oculta A PROPÓSITO, con el porqué. */
   exempt?: Record<string, string>;
+  /**
+   * El panel reparte los checks por id en grupos y pinta en «Otras
+   * comprobaciones» lo que ningún grupo colocó (patrón `placed`/`unplaced`).
+   * Sólo esos paneles pueden duplicar una fila al añadir un grupo nuevo sin
+   * registrarlo en `placed` — y sólo ellos pintan cada id UNA vez.
+   *
+   * No lo llevan los paneles que renderizan varias secciones a la vez con los
+   * mismos ids (rc-beams pinta vano Y apoyo), donde la repetición es correcta.
+   */
+  partitioned?: true;
   build: () => { ui: ReactElement; checks: { id: string; status: string; neutral?: boolean; utilization: number }[] };
 }
 
@@ -116,6 +132,54 @@ const CASES: Case[] = [
       return { ui: <SteelColumnsResults result={r} zeroLoads={false} />, checks: r?.checks ?? [] };
     },
   },
+  {
+    // MemoryRouter: el panel enlaza al módulo Taludes (estabilidad global).
+    name: 'rockfill-wall (escollera)',
+    partitioned: true,
+    build: () => {
+      const r = calcRockfillWall(rockfillWallDefaults);
+      return {
+        ui: <MemoryRouter><RockfillWallResults result={r} inp={rockfillWallDefaults} /></MemoryRouter>,
+        checks: r.checks,
+      };
+    },
+  },
+  {
+    name: 'rockfill-wall (gaviones + sismo)',
+    partitioned: true,
+    build: () => {
+      const inp = { ...rockfillWallDefaults, wallType: 'gaviones' as const, gammaAp: 16, Ab: 0.12, S: 1.0 };
+      const r = calcRockfillWall(inp);
+      return {
+        ui: <MemoryRouter><RockfillWallResults result={r} inp={inp} /></MemoryRouter>,
+        checks: r.checks,
+      };
+    },
+  },
+  {
+    name: 'rockfill-wall (φ modo guía + agua)',
+    partitioned: true,
+    build: () => {
+      const inp = { ...rockfillWallDefaults, phiMode: 'guia' as const, hasWater: true, hw: 1.5 };
+      const r = calcRockfillWall(inp);
+      return {
+        ui: <MemoryRouter><RockfillWallResults result={r} inp={inp} /></MemoryRouter>,
+        checks: r.checks,
+      };
+    },
+  },
+  {
+    // MemoryRouter: el panel enlaza al módulo Taludes (estabilidad global).
+    name: 'retaining-wall (muro HA)',
+    partitioned: true,
+    build: () => {
+      const r = calcRetainingWall(retainingWallDefaults);
+      return {
+        ui: <MemoryRouter><RetainingWallResults result={r} inp={retainingWallDefaults} /></MemoryRouter>,
+        checks: r.checks,
+      };
+    },
+  },
 ];
 
 describe('Todos los paneles: ninguna comprobación invisible', () => {
@@ -132,6 +196,25 @@ describe('Todos los paneles: ninguna comprobación invisible', () => {
         .filter((ch) => !(c.exempt && ch.id in c.exempt))
         .map((ch) => `${ch.id} (${ch.status}, ${(ch.utilization * 100).toFixed(0)}%)`);
       expect(missing, `comprobaciones que el veredicto cuenta pero la pantalla no pinta`).toEqual([]);
+    });
+  }
+});
+
+// La otra cara de la red de seguridad: los paneles reparten los checks por id en
+// grupos y luego pintan en «Otras comprobaciones» lo que ningún grupo colocó. Un
+// grupo nuevo que no se añada al Set de `placed` hace que su check salga DOS
+// veces — una en su bloque y otra en el cajón de sastre.
+describe('Paneles con reparto por id: ninguna comprobación duplicada', () => {
+  for (const c of CASES.filter((x) => x.partitioned)) {
+    it(`${c.name}: cada check aparece una sola vez`, () => {
+      const { ui } = c.build();
+      const { container } = render(<UnitSystemProvider>{ui}</UnitSystemProvider>);
+      const ids = Array.from(container.querySelectorAll('[data-check-id]'))
+        .map((el) => el.getAttribute('data-check-id')!);
+      const seen = new Map<string, number>();
+      for (const id of ids) seen.set(id, (seen.get(id) ?? 0) + 1);
+      const dupes = [...seen.entries()].filter(([, n]) => n > 1).map(([id, n]) => `${id} ×${n}`);
+      expect(dupes, 'checks pintados más de una vez (¿falta el grupo en `placed`?)').toEqual([]);
     });
   }
 });

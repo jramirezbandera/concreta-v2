@@ -18,6 +18,7 @@ import {
   fem2dDefaults,
   micropilesDefaults,
   slopeDefaults,
+  rockfillWallDefaults,
   type RCBeamInputs,
   type RCColumnInputs,
   type SteelBeamInputs,
@@ -36,9 +37,10 @@ import {
   type FemAnalysisInputs,
   type MicropilesInputs,
   type SlopeInputs,
+  type RockfillWallInputs,
 } from './defaults';
 
-export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs | SlopeInputs;
+export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs | SlopeInputs | RockfillWallInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
   key: string;       // localStorage key: 'concreta-rc-beams'
@@ -222,6 +224,14 @@ export const moduleRegistry: ModuleEntry[] = [
     defaults: slopeDefaults as unknown as ModuleInputs,
     shipped: true,
   },
+  {
+    key: 'concreta-rockfill-wall',
+    route: '/geotec/escollera',
+    label: 'Escollera',
+    group: 'Geotecnia',
+    defaults: rockfillWallDefaults,
+    shipped: true,
+  },
 ] as const;
 
 // Per-module schema versions. Keys MUST match the literal passed to
@@ -248,6 +258,7 @@ export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
   'fem-2d': '1',
   'fem2d': '2', // bumped 2026-07-18: editor libre — el blob pasa de Fem2DUiState paramétrico al Fem2DModel completo
   'slope-stability': '2', // bumped Phase 2 (2026-06-24): SlopeInputs ganó `context` (excavation|global-foundation); el bump descarta el localStorage de Phase 1 en la próxima carga.
+  'rockfill-wall': '1',
 };
 
 export function getModuleSchemaVersion(moduleKey: string): string {

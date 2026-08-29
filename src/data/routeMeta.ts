@@ -103,6 +103,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',
   },
+  '/geotec/escollera': {
+    title: 'Escollera — Muros de escollera y gaviones · Concreta',
+    description: 'Muro de gravedad de escollera colocada o gaviones: deslizamiento piedra sobre piedra, vuelco, hundimiento y sismo según la Guía de Fomento 2006 y CTE DB-SE-C.',
+  },
 };
 
 export const DEFAULT_META: RouteMeta = routeMeta['/'];

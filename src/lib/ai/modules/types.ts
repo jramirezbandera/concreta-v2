@@ -43,7 +43,10 @@ export type AiModuleId =
   // peligrosidad del emplazamiento (sale del IGN, no de la memoria del
   // modelo), las declaraciones del proyectista (las firma él) y el T_F
   // impuesto del art. 3.6.2.3.2. Ver la cabecera de `seismicNCSE02.ts`.
-  | 'seismic-ncse02';
+  | 'seismic-ncse02'
+  // Muro de gravedad de escollera/gaviones: estado plano con DOS tipologías
+  // gateadas por `wallType` y φ del muro con dos modos (directo | guía 2006).
+  | 'rockfill-wall';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)
