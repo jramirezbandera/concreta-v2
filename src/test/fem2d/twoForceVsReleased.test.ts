@@ -286,14 +286,22 @@ describe('Fase 0 — coste en el tope de modelo', () => {
     expect(model.members.length).toBe(117); // ≤ FEM2D_MAX_MEMBERS (120)
     const { base, rel } = bothVariants(model);
 
-    const time = (analysis: Analysis2DModel): number => {
-      // Precalentado: la primera pasada paga el JIT y falsearía la comparación.
-      for (let k = 0; k < 3; k++) solveAnalysis2D(analysis, { samplesPerElement: 41 });
+    // Muestreo INTERCALADO con MEDIANA, no media de una tanda seguida.
+    //
+    // Con la media, UNA sola pasada contaminada de diez (una pausa del GC, otro
+    // job del runner compartido) arrastra el resultado: en CI se vio saltar la
+    // birrotulada de 24 a 46 ms con la biela intacta en 4.1 ms → ×11.3 y test
+    // en rojo, sin regresión ninguna (el techo absoluto de 250 ms ni se
+    // acercó). La mediana descarta esa muestra en vez de promediarla, y
+    // alternar A/B evita que una deriva del runner —turbo que decae, otro job
+    // arrancando— castigue siempre a la serie que se mida en segundo lugar.
+    const once = (analysis: Analysis2DModel): number => {
       const t0 = performance.now();
-      const REPS = 10;
-      for (let k = 0; k < REPS; k++) solveAnalysis2D(analysis, { samplesPerElement: 41 });
-      return (performance.now() - t0) / REPS;
+      solveAnalysis2D(analysis, { samplesPerElement: 41 });
+      return performance.now() - t0;
     };
+    const median = (xs: number[]): number =>
+      [...xs].sort((p, q) => p - q)[(xs.length - 1) >> 1]; // nº impar de muestras
 
     const a = solveAnalysis2D(base, { samplesPerElement: 41 });
     const b = solveAnalysis2D(rel, { samplesPerElement: 41 });
@@ -302,12 +310,19 @@ describe('Fase 0 — coste en el tope de modelo', () => {
     // La equivalencia también se sostiene en el tope, no solo en el barrido.
     expect(relNorm(vectors(base).v.N, vectors(rel).v.N)).toBeLessThan(TOL);
 
-    const tA = time(base);
-    const tB = time(rel);
+    // Precalentado: las primeras pasadas pagan el JIT y falsearían la medida.
+    for (let k = 0; k < 3; k++) { once(base); once(rel); }
+    const SAMPLES = 11;
+    const sA: number[] = [];
+    const sB: number[] = [];
+    for (let k = 0; k < SAMPLES; k++) { sA.push(once(base)); sB.push(once(rel)); }
+
+    const tA = median(sA);
+    const tB = median(sB);
     const ratio = tB / tA;
     const msg =
-      `[Fase 0 coste] biela ${tA.toFixed(1)} ms · birrotulada ${tB.toFixed(1)} ms ` +
-      `· ×${ratio.toFixed(2)} (180 → 298 GDL)`;
+      `[Fase 0 coste] mediana de ${SAMPLES}: biela ${tA.toFixed(1)} ms · ` +
+      `birrotulada ${tB.toFixed(1)} ms · ×${ratio.toFixed(2)} (180 → 298 GDL)`;
      
     console.log(msg);
 
