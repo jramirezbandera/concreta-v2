@@ -505,9 +505,13 @@ describe('HA — barras de hormigón', () => {
       // exactamente al límite ("4 barras / ≥ 4" → ratio 1.0 con status 'ok'
       // del motor) → 0 (una condición no es una utilización de capacidad y no
       // debe teñir de INCUMPLE el badge del miembro — bug cazado en QA vivo).
+      // Aviso del motor con ratio ≥ 1 (densificación de cercos §9.5.3(4)) →
+      // conserva 'warn' y recorta η a WARN_UTIL: un aviso nunca pinta INCUMPLE.
       const engineOk = exp.status === 'ok' || exp.status === 'neutral';
       const sane = Number.isNaN(exp.utilization) ? 0 : exp.utilization;
-      const expEta = engineOk && sane >= 0.95 ? 0 : sane;
+      const expEta = engineOk && sane >= 0.95 ? 0
+        : exp.status === 'warn' && sane >= 1 ? 0.95
+        : sane;
       expect(got!.eta, `fila ${exp.id}`).toBeCloseTo(expEta, 8);
     }
     expect(Number.isFinite(v.eta)).toBe(true);

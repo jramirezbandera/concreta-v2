@@ -1,6 +1,6 @@
 // Tests for RC Columns calculation engine — CE Spain (biaxial bending)
 // All defaults: b=300, h=300, cover=30, cornerBarDiam=16, nBarsX=0, nBarsY=0,
-//   barDiamX=12, barDiamY=12, stirrupDiam=6, stirrupSpacing=150,
+//   barDiamX=12, barDiamY=12, stirrupDiam=6, stirrupSpacing=140,
 //   fck=25, fyk=500, Nd=500kN, MEdy=30kNm, MEdz=10kNm, L=3.5m, beta=1
 
 import { describe, it, expect } from 'vitest';
@@ -62,7 +62,7 @@ describe('RC Columns — FTUX defaults', () => {
     expect(r.valid).toBe(true);
     const governingIds = ['biaxial-check', 'lambda-y', 'lambda-z', 'nd-max',
       'as-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
-      'stirrup-diam', 'stirrup-spacing'];
+      'stirrup-diam', 'stirrup-spacing', 'stirrup-densification'];
     for (const id of governingIds) {
       const ch = r.checks.find((c) => c.id === id);
       expect(ch, `check ${id} missing`).toBeDefined();
@@ -92,9 +92,9 @@ describe('RC Columns — FTUX defaults', () => {
     expect(r.lapLength).toBeGreaterThan(0);
   });
 
-  it('checks array has 15 entries', () => {
+  it('checks array has 17 entries', () => {
     const r = calcRCColumn(inp());
-    expect(r.checks).toHaveLength(16);
+    expect(r.checks).toHaveLength(17);
   });
 
   it('result has all required fields', () => {
@@ -184,11 +184,11 @@ describe('RC Columns — Slender column (lambda > 25)', () => {
 
   it('separación máx. de cercos usa Ømin longitudinal (fix auditoría #36)', () => {
     // Esquinas Ø25 + intermedias Ø12: el cerco arriostra la barra MÁS FINA →
-    // sMax = min(12·12, min(b,h), 300) = 144 mm. Pre-fix usaba el Ø de
-    // esquina (12·25 → cap 300) y s=250 con intermedias Ø12 pasaba en verde.
+    // sMax = min(15·12, min(b,h), 300) = 180 mm. Pre-fix usaba el Ø de
+    // esquina (15·25 → cap 300) y s=250 con intermedias Ø12 pasaba en verde.
     const r = calcRCColumn(inp({ cornerBarDiam: 25, nBarsX: 2, barDiamX: 12, stirrupSpacing: 250 }));
     const c = r.checks.find((ch) => ch.id === 'stirrup-spacing')!;
-    expect(c.limit).toContain('144');
+    expect(c.limit).toContain('180');
     expect(c.status).toBe('fail');
   });
 });
@@ -402,8 +402,8 @@ describe('RC Columns — Transverse reinforcement checks', () => {
     expect(ch?.status).toBe('fail');
   });
 
-  it('stirrup-spacing fails when spacing > min(12φ_corner, min(b,h), 300)', () => {
-    // sMax = min(12*16, 300, 300) = 192mm. spacing=250 → fail
+  it('stirrup-spacing fails when spacing > min(15φ_corner, min(b,h), 300)', () => {
+    // sMax = min(15*16, 300, 300) = 240mm. spacing=250 → fail
     const r = calcRCColumn(inp({ stirrupSpacing: 250 }));
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'stirrup-spacing');
@@ -414,6 +414,40 @@ describe('RC Columns — Transverse reinforcement checks', () => {
     const r = calcRCColumn(inp({ stirrupSpacing: 150 }));
     const ch = r.checks.find((c) => c.id === 'stirrup-spacing');
     expect(ch?.status).toBe('ok');
+  });
+
+  it('stirrup-spacing usa 15φ del anejo español, no 12φ (caso CYPE P16)', () => {
+    // 30×30, esquinas Ø25 + 2Ø16 por dirección, Ø8c/200: sMax = min(15·16,
+    // 300, 300) = 240 → CUMPLE (con el viejo 12φ el límite era 192 y este
+    // armado, aceptado por CypeCAD conforme al A19.9.5.3(3), salía INCUMPLE).
+    const r = calcRCColumn(inp({
+      cornerBarDiam: 25, nBarsX: 2, barDiamX: 16, nBarsY: 2, barDiamY: 16,
+      stirrupDiam: 8, stirrupSpacing: 200,
+    }));
+    const ch = r.checks.find((c) => c.id === 'stirrup-spacing')!;
+    expect(ch.limit).toContain('240');
+    expect(ch.status).toBe('ok');
+  });
+
+  it('stirrup-densification avisa (warn, nunca fail) cuando s > 0.6·sMax', () => {
+    // Mismo caso P16: 0.6·240 = 144 < 200 → hay que densificar junto a
+    // vigas/forjados y en solapes (A19.9.5.3(4)); es aviso, no incumplimiento.
+    const r = calcRCColumn(inp({
+      cornerBarDiam: 25, nBarsX: 2, barDiamX: 16, nBarsY: 2, barDiamY: 16,
+      stirrupDiam: 8, stirrupSpacing: 200,
+    }));
+    const ch = r.checks.find((c) => c.id === 'stirrup-densification')!;
+    expect(ch.limit).toContain('144');
+    expect(ch.status).toBe('warn');
+  });
+
+  it('stirrup-densification ok cuando el estribado corrido ya cumple 0.6·sMax', () => {
+    const r = calcRCColumn(inp({
+      cornerBarDiam: 25, nBarsX: 2, barDiamX: 16, nBarsY: 2, barDiamY: 16,
+      stirrupDiam: 8, stirrupSpacing: 140,
+    }));
+    const ch = r.checks.find((c) => c.id === 'stirrup-densification')!;
+    expect(ch.status).toBe('ok');
   });
 });
 

@@ -160,6 +160,7 @@ export const NON_MECHANISM_ROWS: readonly string[] = [
   'bar-spacing', 'bar-spacing-x', 'bar-spacing-y', 'bar-spacing-circ',
   'bar-spacing-impossible', 'rho-w-min', 'stirrup-spacing-max',
   'stirrup-legs-spacing', 'stirrup-diam', 'stirrup-spacing',
+  'stirrup-densification',
   // Compresión de sección (acreditada por pandeo, que es más restrictiva)
   'NRd',
   // Fuego (madera)

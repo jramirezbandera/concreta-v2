@@ -153,7 +153,9 @@ export const DEFAULT_APOYO_ARMADO_2D: ArmadoHA = {
 };
 export const DEFAULT_COLUMN_CAGE_2D: RcColumnCage = {
   cornerBarDiam: 16, nBarsX: 0, barDiamX: 12, nBarsY: 0, barDiamY: 12,
-  stirrupDiam: 6, stirrupSpacing: 150,
+  // c/140 ≤ 144 = 0.6·15·Ø16: cumple también la zona densificada (§9.5.3(4)),
+  // el pilar semilla nace verde y sin el aviso de densificación.
+  stirrupDiam: 6, stirrupSpacing: 140,
 };
 /**
  * Madera: semilla al cambiar una barra a madera (misma filosofía que el HA —

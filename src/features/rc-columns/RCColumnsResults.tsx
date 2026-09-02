@@ -101,7 +101,7 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
   // 4Ø16 y N_Ed = 4000 kN es la ÚNICA comprobación que incumple (124%) → la
   // cabecera se ponía en INCUMPLE sin una sola fila roja. El PDF sí la pintaba.
   const longChecks     = result.checks.filter((c) => ['as-min', 'as-min-mech', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y'].includes(c.id));
-  const transChecks    = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing'].includes(c.id));
+  const transChecks    = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing', 'stirrup-densification'].includes(c.id));
 
   // Red de seguridad: lo que el motor añada y este panel no coloque, se pinta
   // igual al final. El veredicto se calcula sobre TODAS las filas, así que
@@ -218,7 +218,7 @@ function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; 
   const slenderChecks = result.checks.filter((c) => ['lambda', 'nd-max'].includes(c.id));
   const longChecks = result.checks.filter((c) =>
     ['as-min', 'as-min-mech', 'as-max', 'nBars-min', 'bar-spacing-circ'].includes(c.id));
-  const transChecks = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing'].includes(c.id));
+  const transChecks = result.checks.filter((c) => ['stirrup-diam', 'stirrup-spacing', 'stirrup-densification'].includes(c.id));
 
   // Red de seguridad — ver el gemelo rectangular.
   const placed = new Set([

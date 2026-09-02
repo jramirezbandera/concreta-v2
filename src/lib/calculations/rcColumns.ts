@@ -638,27 +638,51 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // stirrup-spacing: ≤ min(12·φ_min, min(b,h), 300mm) — CE Anejo 19 §9.5.3
+  // stirrup-spacing: ≤ min(15·φ_min, min(b,h), 300mm) — CE Anejo 19 §9.5.3(3)
   // El cerco arriostra la barra longitudinal MÁS FINA (la más propensa a
-  // pandear): el límite usa el Ø mínimo presente, no el de esquina. Con
-  // esquinas Ø25 e intermedias Ø12, 12·Ømin = 144 mm, no 300.
+  // pandear): el límite usa el Ø mínimo presente, no el de esquina.
+  // 15·φ y el techo de 300 mm son los valores del anejo español (el EC2 base
+  // recomienda 20·φ/400 mm). Antes se usaba 12·φ "por conservadurismo", pero
+  // suspendía como INCUMPLE armados que el CE acepta (p. ej. Ø8c/200 con
+  // Ømin=16: límite real 240 mm, no 192).
   {
     const minLongDiam = Math.min(
       cornerBarDiam,
       ...(nBarsX > 0 ? [barDiamX] : []),
       ...(nBarsY > 0 ? [barDiamY] : []),
     );
-    const sMax = Math.min(12 * minLongDiam, Math.min(b, h), 300);
+    const sMax = Math.min(15 * minLongDiam, Math.min(b, h), 300);
     const status: CheckStatus = stirrupSpacing <= sMax ? 'ok' : 'fail';
     checks.push({
       id: 'stirrup-spacing',
-      description: 'Separaci\u00f3n m\u00e1xima de estribos \u2264 min(12\u03c6c, min(b,h), 300 mm)',
+      description: 'Separaci\u00f3n m\u00e1xima de estribos \u2264 min(15\u03c6c, min(b,h), 300 mm)',
       value: `${stirrupSpacing} mm`,
       limit: `\u2264 ${sMax} mm`,
       utilization: stirrupSpacing / sMax,
       status,
-      article: 'CE Anejo 19 §9.5.3',
+      article: 'CE Anejo 19 §9.5.3(3)',
     });
+
+    // stirrup-densification: §9.5.3(4) — en una longitud igual a la mayor
+    // dimensión de la sección por encima y por debajo de viga o forjado (y en
+    // los solapes de barras de φ > 14 mm) la separación se reduce con el
+    // factor 0.6. El módulo modela UN estribado corrido, así que si
+    // s > 0.6·sMax se AVISA ('warn', nunca 'fail'): el despiece habitual
+    // resuelve esas zonas densificando los extremos, no incumpliendo.
+    {
+      const sMaxDens = 0.6 * sMax;
+      const densZone = Math.max(b, h);
+      const densStatus: CheckStatus = stirrupSpacing <= sMaxDens ? 'ok' : 'warn';
+      checks.push({
+        id: 'stirrup-densification',
+        description: `Densificación de estribos junto a vigas/forjados (${densZone.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0.6·smax`,
+        value: `${stirrupSpacing} mm`,
+        limit: `≤ ${sMaxDens.toFixed(0)} mm`,
+        utilization: stirrupSpacing / sMaxDens,
+        status: densStatus,
+        article: 'CE Anejo 19 §9.5.3(4)',
+      });
+    }
   }
 
   return {
@@ -1036,22 +1060,38 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // stirrup-spacing: ≤ min(12·φ, D, 300 mm)
-  // El término least-dimension es D para sección circular. Se mantiene el
-  // coeficiente 12 del módulo rectangular por coherencia (Anejo 19 §9.5.3(3)
-  // permite 15·φ; 12 es conservador y consistente entre ambas formas).
+  // stirrup-spacing: ≤ min(15·φ, D, 300 mm) — CE Anejo 19 §9.5.3(3)
+  // El término least-dimension es D para sección circular. 15·φ y 300 mm son
+  // los valores del anejo español (antes se usaba 12·φ "por conservadurismo",
+  // pero suspendía como INCUMPLE armados que el CE acepta).
   {
-    const sMax = Math.min(12 * circBarDiam, D, 300);
+    const sMax = Math.min(15 * circBarDiam, D, 300);
     const status: CheckStatus = stirrupSpacing <= sMax ? 'ok' : 'fail';
     checks.push({
       id: 'stirrup-spacing',
-      description: 'Separación máxima de cercos ≤ min(12φ, D, 300 mm)',
+      description: 'Separación máxima de cercos ≤ min(15φ, D, 300 mm)',
       value: `${stirrupSpacing} mm`,
       limit: `≤ ${sMax} mm`,
       utilization: stirrupSpacing / sMax,
       status,
-      article: 'CE Anejo 19 §9.5.3',
+      article: 'CE Anejo 19 §9.5.3(3)',
     });
+
+    // stirrup-densification: §9.5.3(4) — mismo aviso que en rectangular; la
+    // longitud de la zona densificada junto a vigas/forjados es D.
+    {
+      const sMaxDens = 0.6 * sMax;
+      const densStatus: CheckStatus = stirrupSpacing <= sMaxDens ? 'ok' : 'warn';
+      checks.push({
+        id: 'stirrup-densification',
+        description: `Densificación de cercos junto a vigas/forjados (${D.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0.6·smax`,
+        value: `${stirrupSpacing} mm`,
+        limit: `≤ ${sMaxDens.toFixed(0)} mm`,
+        utilization: stirrupSpacing / sMaxDens,
+        status: densStatus,
+        article: 'CE Anejo 19 §9.5.3(4)',
+      });
+    }
   }
 
   return {

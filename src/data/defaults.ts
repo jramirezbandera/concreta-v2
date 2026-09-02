@@ -234,7 +234,10 @@ export const rcColumnDefaults: RCColumnInputs = {
   nBarsY: 0,
   barDiamY: 12,
   stirrupDiam: 6,
-  stirrupSpacing: 150,
+  // c/140 ≤ 0.6·min(15·16, 300, 300) = 144 mm: el estribado corrido por
+  // defecto cumple también la zona densificada junto a vigas/forjados
+  // (A19.9.5.3(4)) → FTUX verde, sin el aviso de densificación.
+  stirrupSpacing: 140,
   fck: 25,
   fyk: 500,
   Nd: 500,

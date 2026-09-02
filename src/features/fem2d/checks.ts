@@ -118,7 +118,7 @@ import {
   type TimberFrameResult,
 } from '../../lib/calculations/timberFrameMember';
 import { getKdef, getTimberGrade, type LoadDurationClass } from '../../data/timberGrades';
-import { toStatus, type CheckRow, type CheckStatus } from '../../lib/calculations/types';
+import { toStatus, WARN_UTIL, type CheckRow, type CheckStatus } from '../../lib/calculations/types';
 import { formatQuantity } from '../../lib/units/format';
 import { getBarArea } from '../../data/rebar';
 import type { RCBeamInputs, RCColumnInputs, SteelBeamInputs, SteelColumnInputs } from '../../data/defaults';
@@ -193,7 +193,7 @@ const RC_PHI_EF = 2.0;
  *  nm-*, nd-max, 5.38, biaxial) SÍ se etiquetan. */
 const RC_COL_COMBO_INDEPENDENT = new Set([
   'as-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
-  'bar-spacing-circ', 'stirrup-diam', 'stirrup-spacing',
+  'bar-spacing-circ', 'stirrup-diam', 'stirrup-spacing', 'stirrup-densification',
 ]);
 
 // ── Public shapes ───────────────────────────────────────────────────────────
@@ -1831,6 +1831,13 @@ function mapRcChecks(rows: CheckRow[], idPrefix: string, namePrefix: string): Me
       // Engine-declared fail that eta cannot express (e.g. the N/A row when
       // aplastamiento governs) — carry it explicitly.
       status = 'fail';
+    } else if (c.status === 'warn' && toStatus(eta) === 'fail') {
+      // Aviso declarado por el motor con ratio ≥ 1 (p. ej. densificación de
+      // cercos §9.5.3(4)): es advertencia, no fallo — se conserva 'warn' y η
+      // se recorta al umbral para no arrastrar el max-η del miembro a
+      // INCUMPLE. Los números reales siguen visibles en la columna val.
+      status = 'warn';
+      eta = WARN_UTIL;
     }
     return {
       id: `${idPrefix}${c.id}`,

@@ -247,7 +247,8 @@ describe('Circular column — checks', () => {
   it('has circular checks and omits rectangular ones', () => {
     const present = ids();
     for (const id of ['lambda', 'flexion-check', 'nm-res', 'bar-spacing-circ',
-      'as-min', 'as-max', 'nBars-min', 'stirrup-diam', 'stirrup-spacing', 'nd-max']) {
+      'as-min', 'as-max', 'nBars-min', 'stirrup-diam', 'stirrup-spacing',
+      'stirrup-densification', 'nd-max']) {
       expect(present).toContain(id);
     }
     for (const id of ['lambda-z', 'cond-5.38a', 'cond-5.38b', 'bar-spacing-y',
@@ -265,8 +266,29 @@ describe('Circular column — checks', () => {
   it('stirrup-spacing least dimension is D for circular', () => {
     const r = calcRCColumn(circ({ D: 200, circBarDiam: 20, stirrupSpacing: 210 }));
     const c = r.checks.find((ch) => ch.id === 'stirrup-spacing')!;
-    expect(c.limit).toContain('200'); // min(12·20=240, D=200, 300) = 200
+    expect(c.limit).toContain('200'); // min(15·20=300, D=200, 300) = 200
     expect(c.status).toBe('fail');    // 210 > 200
+  });
+
+  it('stirrup-spacing usa 15φ del anejo español, no 12φ', () => {
+    // Ø16: sMax = min(15·16=240, D=350, 300) = 240 → s=220 CUMPLE (con el
+    // viejo 12φ el límite era 192 y este estribado salía INCUMPLE).
+    const r = calcRCColumn(circ({ circBarDiam: 16, stirrupSpacing: 220 }));
+    const c = r.checks.find((ch) => ch.id === 'stirrup-spacing')!;
+    expect(c.limit).toContain('240');
+    expect(c.status).toBe('ok');
+  });
+
+  it('stirrup-densification avisa (warn) cuando s > 0.6·sMax', () => {
+    // 0.6·240 = 144 < 220 → densificar junto a vigas/forjados (§9.5.3(4)).
+    const r = calcRCColumn(circ({ circBarDiam: 16, stirrupSpacing: 220 }));
+    const c = r.checks.find((ch) => ch.id === 'stirrup-densification')!;
+    expect(c.limit).toContain('144');
+    expect(c.status).toBe('warn');
+
+    // Estribado corrido que ya cumple 0.6·sMax → sin aviso.
+    const ok = calcRCColumn(circ({ circBarDiam: 16, stirrupSpacing: 140 }));
+    expect(ok.checks.find((ch) => ch.id === 'stirrup-densification')!.status).toBe('ok');
   });
 
   it('nBars-min enforces the Anejo 19 minimum of 4', () => {

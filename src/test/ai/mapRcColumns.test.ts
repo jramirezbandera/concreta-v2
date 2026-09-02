@@ -360,7 +360,7 @@ describe('rcColumnsAdapter — snapshot y superficie del adapter', () => {
       b_mm: 300, h_mm: 300, D_mm: 350, cover_mm: 30,
       L_m: 3.5, beta: 1, fck_MPa: 25, fyk_MPa: 500,
       cornerBarDiam_mm: 16, nBarsX: 0, barDiamX_mm: 12, nBarsY: 0, barDiamY_mm: 12,
-      nBarsCirc: 6, circBarDiam_mm: 16, stirrupDiam_mm: 6, stirrupSpacing_mm: 150,
+      nBarsCirc: 6, circBarDiam_mm: 16, stirrupDiam_mm: 6, stirrupSpacing_mm: 140,
       Nd_kN: 500, MEdy_kNm: 30, MEdz_kNm: 10,
     });
     // Formulario recién abierto: nadie ha tocado nada → todas las claves, en el orden de `valores`.
@@ -534,7 +534,7 @@ describe('summarizeRCColumnResults — resumen de resultados (motor real)', () =
     expect(s.verdict).toBe('ok');
     expect(s.text).toContain('VEREDICTO GLOBAL: CUMPLE');
     // La línea extra del módulo va al final, con el despiece literal del motor.
-    expect(r.rebarSchedule).toBe('4Ø16c (Ø6/c150)');
+    expect(r.rebarSchedule).toBe('4Ø16c (Ø6/c140)');
     expect(s.text.split('\n').at(-1)).toBe(`Armado resultante: ${r.rebarSchedule}`);
   });
 
@@ -557,7 +557,7 @@ describe('summarizeRCColumnResults — resumen de resultados (motor real)', () =
     const s = summarizeRCColumnResults(r);
     expect(s.verdict).toBe(overallStatus(r.checks));
     expect(s.verdict).toBe('ok');
-    expect(r.rebarSchedule).toBe('6Ø16 (Ø6/c150)');
+    expect(r.rebarSchedule).toBe('6Ø16 (Ø6/c140)');
     expect(s.text.split('\n').at(-1)).toBe(`Armado resultante: ${r.rebarSchedule}`);
   });
 
