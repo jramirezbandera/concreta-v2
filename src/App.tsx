@@ -79,6 +79,10 @@ const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           {
+            path: 'memorias/materiales',
+            lazy: lazyComponent(() => import('./features/materiales'), 'MaterialesModule'),
+          },
+          {
             path: 'horm/vigas',
             lazy: lazyComponent(() => import('./features/rc-beams'), 'RCBeamsModule'),
           },

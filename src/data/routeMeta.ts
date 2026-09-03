@@ -99,6 +99,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Acción sísmica — Concreta · NCSE-02',
     description: 'Acción sísmica por el método simplificado de la NCSE-02: obligatoriedad (art. 1.2.3), ámbito del art. 3.5.1, espectro, fuerzas por planta y reparto con torsión.',
   },
+  '/memorias/materiales': {
+    title: 'Cuadro de materiales — Concreta · Código Estructural',
+    description: 'Cuadro de materiales para plano y memoria: clase de exposición, recubrimiento, cemento y a/c derivados del Código Estructural, más el cuadro de madera del DB SE-M y las longitudes de anclaje.',
+  },
   '/geotec/taludes': {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',

@@ -7,6 +7,7 @@
 // defaults, schema versions) doesn't get coupled to bundling concerns.
 
 export const routeLoaders: Record<string, () => Promise<unknown>> = {
+  '/memorias/materiales': () => import('../features/materiales'),
   '/horm/vigas': () => import('../features/rc-beams'),
   '/horm/pilares': () => import('../features/rc-columns'),
   '/horm/punzonamiento': () => import('../features/punching'),
@@ -25,6 +26,10 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/madera/pilares': () => import('../features/timber-columns'),
   '/analisis/fem': () => import('../features/fem-analysis'),
   '/analisis/fem2d': () => import('../features/fem2d'),
+  // Faltaba desde que se publicó el módulo: sin entrada aquí el Sidebar no
+  // precarga su chunk al pasar el ratón, y la ruta se resolvía sólo desde
+  // App.tsx. Lo detectó el guardia de src/test/materiales/registro.test.ts.
+  '/analisis/sismo': () => import('../features/seismic-ncse02'),
   '/geotec/taludes': () => import('../features/slope-stability'),
   '/geotec/escollera': () => import('../features/rockfill-wall'),
 };

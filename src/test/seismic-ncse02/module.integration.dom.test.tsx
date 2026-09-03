@@ -732,8 +732,10 @@ describe('registro del módulo', () => {
   it('está en moduleRegistry con su ruta y su grupo', () => {
     const e = moduleRegistry.find((m) => m.key === 'concreta-seismic');
     expect(e).toBeTruthy();
+    // La URL NO cambió al mover el módulo de grupo: hay enlaces compartidos
+    // vivos apuntando a /analisis/sismo (decisión D7 del diseño de Memorias).
     expect(e?.route).toBe('/analisis/sismo');
-    expect(e?.group).toBe('Análisis');
+    expect(e?.group).toBe('Acciones');
     expect(e?.shipped).toBe(true);
   });
 

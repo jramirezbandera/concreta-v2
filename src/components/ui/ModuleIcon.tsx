@@ -212,6 +212,17 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M10 11h1.5M10 8h2.5M10 5h3.5" strokeWidth="0.75" strokeOpacity="0.7"/>
         </svg>
       );
+    // Cuadro de materiales: una tabla — cabecera y tres filas. El módulo no
+    // dibuja una pieza, dibuja el cuadro que va al plano.
+    case 'concreta-materiales':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" aria-hidden="true" className="shrink-0">
+          <rect x="2" y="3" width="12" height="10" rx="0.5"/>
+          <path d="M2 6h12" />
+          <path d="M6.5 6v7" strokeWidth="0.75" strokeOpacity="0.7"/>
+          <path d="M2 9.5h12" strokeWidth="0.75" strokeOpacity="0.7"/>
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }

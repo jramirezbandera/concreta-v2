@@ -18,6 +18,30 @@ export interface ModuleEntry {
 const ICON_SIZE = 24;
 
 export const MODULE_LIBRARY: ModuleEntry[] = [
+  // ── MEMORIAS
+  {
+    id: 'materiales',
+    group: 'MEMORIAS',
+    name: 'Cuadro de materiales',
+    ref: 'CE art. 27 · 43 · 44 · DB SE-M',
+    short:
+      'Clase de exposición, recubrimiento, cemento y a/c derivados de la situación de obra. Cuadro de plano, de memoria y longitudes de anclaje.',
+    route: '/memorias/materiales',
+    icon: <ModuleIcon moduleKey="concreta-materiales" size={ICON_SIZE} />,
+  },
+
+  // ── ACCIONES
+  {
+    id: 'seismic-ncse02',
+    group: 'ACCIONES',
+    name: 'Acción sísmica',
+    ref: 'NCSE-02 art. 3.7',
+    short:
+      'Espectro, modos, cortantes por planta y reparto con torsión. Anejo 1 del IGN.',
+    route: '/analisis/sismo',
+    icon: <ModuleIcon moduleKey="concreta-seismic" size={ICON_SIZE} />,
+  },
+
   // ── HORMIGÓN ARMADO
   {
     id: 'rc-beams',
@@ -190,17 +214,6 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     short: 'Pórticos y cerchas paramétricos: N/V/M, pandeo, αcr de 2º orden.',
     route: '/analisis/fem2d',
     icon: <ModuleIcon moduleKey="concreta-fem2d" size={ICON_SIZE} />,
-  },
-
-  {
-    id: 'seismic-ncse02',
-    group: 'ANÁLISIS',
-    name: 'Acción sísmica',
-    ref: 'NCSE-02 art. 3.7',
-    short:
-      'Espectro, modos, cortantes por planta y reparto con torsión. Anejo 1 del IGN.',
-    route: '/analisis/sismo',
-    icon: <ModuleIcon moduleKey="concreta-seismic" size={ICON_SIZE} />,
   },
 
   // ── GEOTECNIA

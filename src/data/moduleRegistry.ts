@@ -51,7 +51,36 @@ export interface ModuleEntry<T = ModuleInputs> {
   shipped: boolean;  // false = show "Próximamente" placeholder
 }
 
+// El orden de este array decide el orden de los grupos en la barra lateral
+// (Sidebar deriva `groups` de la primera aparición de cada uno). Memorias y
+// Acciones van primero: son el capítulo por el que se empieza un proyecto —
+// materiales y acciones antes que el dimensionado de cada elemento.
 export const moduleRegistry: ModuleEntry[] = [
+  {
+    key: 'concreta-materiales',
+    route: '/memorias/materiales',
+    label: 'Cuadro de materiales',
+    group: 'Memorias',
+    // Estado anidado (elementos → situación, grupos de madera, acero), con
+    // clave propia en localStorage como el módulo de sismo. El registro sólo
+    // necesita las banderas ligeras.
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
+    key: 'concreta-seismic',
+    route: '/analisis/sismo',
+    label: 'Acción sísmica',
+    // Movido de «Análisis» a «Acciones» (decisión D7): es un generador de
+    // acciones, no un análisis. La URL NO cambia — hay enlaces compartidos
+    // vivos apuntando a /analisis/sismo.
+    group: 'Acciones',
+    // El modelo es anidado (plantas → componentes de carga, direcciones →
+    // planos resistentes) y vive en el localStorage del propio módulo, como
+    // FEM 2D y taludes. El registro sólo necesita las banderas ligeras.
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
   {
     key: 'concreta-rc-beams',
     route: '/horm/vigas',
@@ -200,17 +229,6 @@ export const moduleRegistry: ModuleEntry[] = [
     // like FEM 1D; the registry only needs lightweight flags. Cast as the other
     // rich-state modules do (compositeSection/slope).
     defaults: fem2dDefaults as unknown as ModuleInputs,
-    shipped: true,
-  },
-  {
-    key: 'concreta-seismic',
-    route: '/analisis/sismo',
-    label: 'Acción sísmica',
-    group: 'Análisis',
-    // El modelo es anidado (plantas → componentes de carga, direcciones →
-    // planos resistentes) y vive en el localStorage del propio módulo, como
-    // FEM 2D y taludes. El registro sólo necesita las banderas ligeras.
-    defaults: {} as unknown as ModuleInputs,
     shipped: true,
   },
   {
