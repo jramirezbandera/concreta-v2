@@ -32,17 +32,29 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       ].join(' ')}
       aria-label="Navegación de módulos"
     >
-      {/* Logo — favicon I-beam mark + brand */}
-      <div className="flex items-center gap-2 px-4 h-12 border-b border-border-main">
-        <img
-          src="/favicon.svg"
-          alt=""
-          width={20}
-          height={20}
-          className="shrink-0 rounded-sm"
-          aria-hidden="true"
-        />
-        <span className="text-[15px] font-semibold text-text-primary" style={{ letterSpacing: '-0.01em' }}>Concreta</span>
+      {/* Logo — favicon I-beam mark + lowercase wordmark.
+          items-baseline puts the mark's bottom edge on the wordmark's baseline
+          (a replaced element's baseline is its bottom margin edge), so the two
+          share a bottom line instead of a centre line. h-5 pins the lockup to
+          the mark's own height so the descender slack below the baseline does
+          not push the pair off the header's centre line. */}
+      <div className="flex items-center px-4 h-12 border-b border-border-main">
+        <span className="flex items-baseline gap-2 h-5">
+          <img
+            src="/favicon.svg"
+            alt=""
+            width={20}
+            height={20}
+            className="shrink-0 rounded-sm"
+            aria-hidden="true"
+          />
+          <span
+            className="text-[15px] font-semibold leading-none text-text-primary"
+            style={{ letterSpacing: '-0.02em' }}
+          >
+            concreta<span className="text-accent" aria-hidden="true">.</span>
+          </span>
+        </span>
         {/* Close button — mobile only */}
         {onClose && (
           <button
