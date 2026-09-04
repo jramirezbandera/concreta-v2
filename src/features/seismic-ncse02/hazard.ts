@@ -92,34 +92,12 @@ export interface Municipio {
   procedencia: Procedencia | null;
 }
 
-/**
- * Provincias por los dos primeros dígitos del código INE.
- *
- * La tabla va entera aunque el Anejo 1 sólo liste municipios de ab >= 0,04 g:
- * cuesta menos de un kilobyte y no hay que revisarla si algún día entra otra
- * provincia por un suplemento.
- */
-const PROVINCIAS: Record<string, string> = {
-  '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería',
-  '05': 'Ávila', '06': 'Badajoz', '07': 'Baleares', '08': 'Barcelona',
-  '09': 'Burgos', '10': 'Cáceres', '11': 'Cádiz', '12': 'Castellón',
-  '13': 'Ciudad Real', '14': 'Córdoba', '15': 'A Coruña', '16': 'Cuenca',
-  '17': 'Girona', '18': 'Granada', '19': 'Guadalajara', '20': 'Gipuzkoa',
-  '21': 'Huelva', '22': 'Huesca', '23': 'Jaén', '24': 'León',
-  '25': 'Lleida', '26': 'La Rioja', '27': 'Lugo', '28': 'Madrid',
-  '29': 'Málaga', '30': 'Murcia', '31': 'Navarra', '32': 'Ourense',
-  '33': 'Asturias', '34': 'Palencia', '35': 'Las Palmas', '36': 'Pontevedra',
-  '37': 'Salamanca', '38': 'Santa Cruz de Tenerife', '39': 'Cantabria',
-  '40': 'Segovia', '41': 'Sevilla', '42': 'Soria', '43': 'Tarragona',
-  '44': 'Teruel', '45': 'Toledo', '46': 'Valencia', '47': 'Valladolid',
-  '48': 'Bizkaia', '49': 'Zamora', '50': 'Zaragoza', '51': 'Ceuta',
-  '52': 'Melilla',
-};
+// La tabla de provincias vive ahora en `lib/acciones/provincias.ts`, que es
+// donde la comparten sismo y viento/nieve. Se reexporta para que el resto del
+// módulo y sus tests sigan importándola de aquí.
+import { provinciaDe } from '../../lib/acciones/provincias';
 
-/** Provincia de un código INE. Cadena vacía si el prefijo no está en la tabla. */
-export function provinciaDe(ine: string): string {
-  return PROVINCIAS[ine.slice(0, 2)] ?? '';
-}
+export { provinciaDe };
 
 /**
  * Cómo se le cuenta al usuario de dónde sale la peligrosidad de un municipio.
