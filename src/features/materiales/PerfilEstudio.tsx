@@ -133,7 +133,8 @@ export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
             Marque lo que lleva esta obra. El hormigón está casi siempre, aunque sólo sea la
             cimentación; acero y madera, según el proyecto. Lo que no se marca desaparece del
             formulario y del documento. La resistencia al fuego la fija el DB SI según el uso y la
-            altura del edificio: sólo se imprime si la indica.
+            altura del edificio: sólo se imprime si la indica, y el cuadro aclara que puede
+            cumplirse por la propia sección o con protecciones añadidas, sin comprometer una u otra.
           </p>
         )}
       </section>

@@ -427,18 +427,39 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     expect(DURABILIDAD_ESPECIES['Pinus pinaster'].impregnabilidadDuramen).toBe('4');
   });
 
+  const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
+    const n = blocks.find((b) => b.kind === 'notes');
+    if (n?.kind !== 'notes') throw new Error('sin notas');
+    return n.items.join(' ');
+  };
+
   it('la nota «R30» del cuadro de acciones sólo se imprime si la obra lo indica', () => {
     // El oráculo dice «La estructura será R30 acorde al CTE DB SI» y así salía
     // en todo documento. La R la fija el DB SI 6 por uso y altura: es un dato.
-    const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
-      const n = blocks.find((b) => b.kind === 'notes');
-      if (n?.kind !== 'notes') throw new Error('sin notas');
-      return n.items.join(' ');
-    };
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }))).not.toContain('R30');
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 30))).toContain(
-      'La estructura será R30 acorde al CTE DB SI.',
+      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6 (tabla 3.1).',
     );
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 90))).toContain('R90');
+  });
+
+  it('la nota de fuego deja abiertas las dos vías del DB SI 6 y no certifica que la estructura «será R30» por sí sola', () => {
+    // DB SI 6 §6.1: la R se justifica con las tablas o los métodos de los anejos
+    // C a F; y esos anejos (C.2.4 capas protectoras, D acero revestido, E.2.3.2
+    // madera protegida) la admiten con protecciones añadidas. El oráculo
+    // comprometía la sección desnuda; el cuadro dice que vale cualquiera de
+    // las dos y cita sólo los anejos de los materiales presentes.
+    const soloHormigon = notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 30));
+    expect(soloHormigon).not.toContain('La estructura será R30');
+    expect(soloHormigon).toContain('por su propia configuración');
+    expect(soloHormigon).toContain('protecciones adicionales');
+    expect(soloHormigon).toContain('que garanticen R30');
+    expect(soloHormigon).toContain('el anejo C del DB SI');
+
+    const mixta = notasDe(
+      cuadroCoeficientesMinoracion({ hormigon: true, aceroLaminado: true, maderaMaciza: true }, 60),
+    );
+    expect(mixta).toContain('los anejos C, D y E del DB SI');
+    expect(mixta).toContain('que garanticen R60');
   });
 });

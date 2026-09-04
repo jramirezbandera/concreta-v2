@@ -406,6 +406,24 @@ export interface MaterialesPresentes {
 }
 
 /**
+ * Anejo del DB SI que trae las tablas y los métodos simplificados de cada
+ * material. La nota de fuego cita sólo los de los materiales presentes.
+ */
+const ANEJO_FUEGO_DB_SI: [keyof MaterialesPresentes, string][] = [
+  ['hormigon', 'C'],
+  ['aceroLaminado', 'D'],
+  ['maderaLaminada', 'E'],
+  ['maderaMaciza', 'E'],
+];
+
+function anejosFuego(presentes: MaterialesPresentes): string {
+  const letras = [...new Set(ANEJO_FUEGO_DB_SI.filter(([c]) => presentes[c]).map(([, l]) => l))];
+  if (letras.length === 0) return 'los anejos C a F';
+  if (letras.length === 1) return `el anejo ${letras[0]}`;
+  return `los anejos ${letras.slice(0, -1).join(', ')} y ${letras[letras.length - 1]}`;
+}
+
+/**
  * El cuadro de acciones lleva una tabla de coeficientes de minoración con
  * columna de INCENDIO, filtrada a los materiales realmente presentes en la
  * obra. En incendio todos valen 1,00 (situación extraordinaria).
@@ -413,6 +431,13 @@ export interface MaterialesPresentes {
  * La resistencia al fuego exigida (R30, R60…) la fija el DB SI 6 según uso y
  * altura de evacuación, y es un dato de la obra: sólo se imprime si se ha
  * indicado. El oráculo decía «R30» y así salía en todos los documentos.
+ *
+ * La nota NO certifica que «la estructura será R30»: el DB SI 6 §6.1 admite
+ * justificar la R con las tablas o los métodos de los anejos C a F, y esos
+ * mismos anejos (C.2.4 capas protectoras, D acero revestido, E.2.3.2 madera
+ * protegida) permiten alcanzarla con protecciones añadidas. Las dos vías son
+ * válidas y cuál se adopta lo decide el proyecto elemento a elemento, así que
+ * el cuadro deja las dos abiertas en vez de comprometer la sección desnuda.
  */
 export function cuadroCoeficientesMinoracion(
   presentes: MaterialesPresentes,
@@ -432,7 +457,11 @@ export function cuadroCoeficientesMinoracion(
 
   const items = ['Aplicable a los valores característicos.'];
   if (resistenciaFuego !== null) {
-    items.push(`La estructura será R${resistenciaFuego} acorde al CTE DB SI.`);
+    const R = `R${resistenciaFuego}`;
+    items.push(
+      `Resistencia al fuego exigida a la estructura: ${R}, según el CTE DB SI 6 (tabla 3.1).`,
+      `La estructura alcanzará dicha resistencia bien por su propia configuración —dimensiones de la sección y recubrimientos, comprobados con las tablas o los métodos simplificados ${anejosFuego(presentes)} del DB SI—, bien disponiendo protecciones adicionales (morteros o placas de protección, pinturas intumescentes u otros revestimientos) que garanticen ${R} en los elementos que no la alcancen por sí mismos. Ambas vías son válidas; la contribución de las protecciones se justificará por ensayo (UNE-EN 13381) o por su marcado CE.`,
+    );
   }
 
   return [

@@ -392,11 +392,12 @@ describe('integración con los cuadros reales', () => {
     expect(tabla.filas).toHaveLength(4);
     expect(tabla.anchos.reduce((a, b) => a + b, 0)).toBe(100);
 
-    // Las dos notas, en Caption y con la resistencia al fuego declarada.
+    // Las tres notas, en Caption: la general, la R exigida y las dos vías para cumplirla.
     const captions = parrafos(plan).filter((p) => p.estilo === 'Caption');
     expect(captions.map((p) => p.texto)).toEqual([
       'Aplicable a los valores característicos.',
-      'La estructura será R30 acorde al CTE DB SI.',
+      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6 (tabla 3.1).',
+      expect.stringContaining('protecciones adicionales'),
     ]);
   });
 

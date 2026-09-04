@@ -230,11 +230,11 @@ describe('conmutadores de material', () => {
   it('la resistencia al fuego sólo sale en el documento si se indica', () => {
     montar();
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.queryByText(/La estructura será R/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Resistencia al fuego exigida/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Datos' }));
     fireEvent.change(screen.getByLabelText('Resistencia al fuego'), { target: { value: '60' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByText(/La estructura será R60/)).toBeInTheDocument();
+    expect(screen.getByText(/Resistencia al fuego exigida a la estructura: R60/)).toBeInTheDocument();
   });
 
   it('encender acero estructural deriva la clase de ejecución', () => {
