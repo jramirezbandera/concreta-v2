@@ -1,7 +1,18 @@
 /**
  * Longitudes de anclaje en prolongación recta y de solape.
  *
- * El Código Estructural trae DOS métodos y no dan lo mismo:
+ * El Código Estructural trae DOS métodos, y el artículo 49.5 dice cuál toca:
+ * no se elige, depende de cómo esté certificada la adherencia de la barra.
+ *
+ *   «Si las características de adherencia de la barra están certificadas a
+ *   partir del ensayo de la viga [...] será de aplicación todo lo reseñado a
+ *   continuación en los subapartados del presente apartado 49.5.
+ *   Si las características de adherencia de las barras se comprueban a partir
+ *   de la geometría de corrugas o grafilas [...] será de aplicación, EN
+ *   SUSTITUCIÓN de lo reflejado en los subapartados del presente apartado 49.5,
+ *   lo indicado en los apartados 8.4 a 8.9 del Anejo 19.»
+ *
+ * Los dos métodos:
  *
  *  A) Anejo 19, apartados 8.4.2 a 8.4.4 (el de la EN 1992-1-1):
  *       fbd = 2,25·η1·η2·fctd          con fctd = fctk;0,05/γc
@@ -97,13 +108,22 @@ export function longitudMinimaAnclaje(
 }
 
 /**
- * CE Anejo 19, 8.7.3: longitud de solape l0 = α6·lb,rqd (con α1..α5 = 1 en
- * prolongación recta y recubrimiento normal). α6 = 1,5 cuando se solapa más
- * del 50 % de las barras en la misma sección, que es el caso que se tabula en
- * plano.
+ * CE Anejo 19, expresión (8.11): longitud mínima de solape,
+ * l0,min ≥ max{0,3·α6·lb,rqd; 15ø; 200 mm}.
+ */
+export function longitudMinimaSolape(lbRqd: number, phi: number, alpha6: number): number {
+  return Math.max(0.3 * alpha6 * lbRqd, 15 * phi, 200);
+}
+
+/**
+ * CE Anejo 19, 8.7.3, expresión (8.10): l0 = α1·α2·α3·α5·α6·lb,rqd ≥ l0,min
+ * (con α1..α5 = 1 en prolongación recta y recubrimiento normal). α6 = 1,5
+ * cuando se solapa más del 50 % de las barras en la misma sección —tabla
+ * A19.8.3—, que es el caso que se tabula en plano.
  */
 export function longitudSolape(p: ParametrosAnclaje, alpha6 = 1.5): number {
-  return alpha6 * longitudBasicaAnclaje(p);
+  const lbRqd = longitudBasicaAnclaje(p);
+  return Math.max(alpha6 * lbRqd, longitudMinimaSolape(lbRqd, p.phi, alpha6));
 }
 
 /** CE artículo 49.5.1.2: método simplificado. Se conserva para poder compararlo. */
@@ -140,6 +160,11 @@ export interface TablaAnclajes {
  * Las dos tablas que van al plano, en cm. El redondeo se hace sobre el valor
  * exacto en mm y de forma independiente para anclaje y solape: por eso HA-25
  * ø16 sale 64 cm de anclaje y 97 cm de solape, y no 96 (= 64·1,5).
+ *
+ * Se aplican los mínimos (8.6) y (8.11). Con los seis diámetros y los dos
+ * hormigones que se tabulan en un plano de edificación no gobiernan nunca
+ * —hay test que lo comprueba—, pero dejarlos fuera hacía que la función sólo
+ * fuese correcta dentro del rango que se probó.
  */
 export function tablaAnclajes(
   fck: number,
@@ -152,9 +177,10 @@ export function tablaAnclajes(
   const solape = {} as Record<PosicionAdherencia, number[]>;
 
   for (const posicion of posiciones) {
-    anclaje[posicion] = diametros.map((phi) =>
-      aCm(longitudBasicaAnclaje({ fck, fyk, phi, posicion })),
-    );
+    anclaje[posicion] = diametros.map((phi) => {
+      const lbRqd = longitudBasicaAnclaje({ fck, fyk, phi, posicion });
+      return aCm(Math.max(lbRqd, longitudMinimaAnclaje(lbRqd, phi, 'traccion')));
+    });
     solape[posicion] = diametros.map((phi) =>
       aCm(longitudSolape({ fck, fyk, phi, posicion }, alpha6)),
     );
@@ -165,9 +191,11 @@ export function tablaAnclajes(
 
 /** Las notas al pie que acompañan a la tabla en el plano. */
 export const NOTAS_ANCLAJE = [
-  'POSICIÓN I: adherencia buena, armaduras que forman un ángulo entre 45° y 90° con la horizontal, o que estén situadas en la mitad inferior de la sección o a una distancia igual o mayor a 30 cm de la cara superior de una capa de hormigonado.',
+  'Longitudes obtenidas por el método de los apartados 8.4 y 8.7 del Anejo 19 del Código Estructural, aplicable a barras cuya adherencia se comprueba a partir de la geometría de corrugas o grafilas (artículo 49.5). Se han calculado para σsd = fyd, es decir, para el anclaje de la capacidad mecánica total de la barra.',
+  'POSICIÓN I: adherencia buena, según la figura A19.8.2 del Anejo 19: armaduras que durante el hormigonado forman con la horizontal un ángulo entre 45° y 90°; todas las de una pieza de canto h ≤ 250 mm; y las situadas en los 250 mm inferiores de una pieza de canto mayor. En piezas de canto h > 600 mm, únicamente los 300 mm superiores son de adherencia deficiente.',
   'POSICIÓN II: adherencia deficiente, para las armaduras que no se encuentran en ninguno de los casos anteriores.',
-  'Las longitudes de la tabla son para anclajes en prolongación recta. Si el anclaje se realiza en patilla, gancho o gancho en U, el valor se multiplicará por 0,7 para barras a tracción y por 1 para barras a compresión.',
+  'Las longitudes de la tabla son para anclajes en prolongación recta. Si el anclaje se realiza en patilla, gancho o gancho en U, el valor se multiplicará por 0,7 para barras a tracción —siempre que el recubrimiento perpendicular al plano de la patilla sea mayor de 3ø— y por 1 para barras a compresión, según la tabla A19.8.2.',
   'Si no se indica nada en planos, se dispondrá una patilla mínima de 15 cm cuando la armadura acometa a extremos de elementos estructurales.',
   'El solape de las armaduras inferiores se realizará en las zonas sobre los pilares, y las armaduras superiores se solaparán en las zonas de centro de vano.',
+  'Las longitudes de solape corresponden a α6 = 1,5, esto es, a solapar más del 50 % de las barras en la misma sección (tabla A19.8.3). Si se escalonan los solapes, α6 baja hasta 1,0 con menos del 25 % de barras solapadas.',
 ];

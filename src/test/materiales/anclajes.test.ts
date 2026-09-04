@@ -19,6 +19,9 @@ import { describe, expect, it } from 'vitest';
 import {
   longitudBasicaAnclaje,
   longitudBasicaSimplificada,
+  longitudMinimaAnclaje,
+  longitudMinimaSolape,
+  longitudSolape,
   tablaAnclajes,
   tensionAdherencia,
 } from '../../lib/materiales/anclajes';
@@ -104,9 +107,57 @@ describe('el bloque de anclajes que va al plano', () => {
   it('arrastra las notas de posición I/II y patilla del plano', () => {
     const notas = blocks.find((b) => b.kind === 'notes');
     if (notas?.kind !== 'notes') throw new Error('sin notas');
-    expect(notas.items[0]).toContain('POSICIÓN I');
-    expect(notas.items.join(' ')).toContain('0,7');
-    expect(notas.items.join(' ')).toContain('patilla mínima de 15 cm');
+    const texto = notas.items.join(' ');
+    expect(texto).toContain('POSICIÓN I');
+    expect(texto).toContain('0,7');
+    expect(texto).toContain('patilla mínima de 15 cm');
+  });
+
+  it('declara el método y su condición de aplicación, que no se elige a gusto', () => {
+    // El artículo 49.5 reparte los dos métodos según cómo esté certificada la
+    // adherencia de la barra. Una tabla de plano que no lo diga no se puede
+    // defender en obra: no se sabe cuál de los dos se ha usado.
+    const notas = blocks.find((b) => b.kind === 'notes');
+    if (notas?.kind !== 'notes') throw new Error('sin notas');
+    const texto = notas.items.join(' ');
+    expect(texto).toContain('Anejo 19');
+    expect(texto).toContain('geometría de corrugas');
+    expect(texto).toContain('σsd = fyd');
+  });
+
+  it('la posición I se define por la figura A19.8.2, no por el artículo 49.5.1.1', () => {
+    // No son lo mismo: el 49.5.1.1 da por buena la mitad inferior de la pieza;
+    // la figura A19.8.2 da los 250 mm inferiores. En un forjado de 300 mm eso
+    // son 150 mm frente a 250. Citar el artículo junto a números del Anejo 19
+    // dejaba el cuadro descuadrado consigo mismo.
+    const notas = blocks.find((b) => b.kind === 'notes');
+    if (notas?.kind !== 'notes') throw new Error('sin notas');
+    const posicionI = notas.items.find((n) => n.startsWith('POSICIÓN I'))!;
+    expect(posicionI).toContain('A19.8.2');
+    expect(posicionI).toContain('250 mm');
+    expect(posicionI).not.toContain('mitad inferior');
+  });
+});
+
+describe('longitudes mínimas — expresiones (8.6) y (8.11)', () => {
+  it('con los diámetros del plano no gobierna ninguna: los 48 valores no se mueven', () => {
+    for (const fck of [25, 30] as const) {
+      for (const posicion of ['I', 'II'] as const) {
+        for (const phi of DIAMETROS) {
+          const lb = longitudBasicaAnclaje({ fck, fyk: FYK, phi, posicion });
+          expect(longitudMinimaAnclaje(lb, phi, 'traccion')).toBeLessThan(lb);
+          expect(longitudMinimaSolape(lb, phi, 1.5)).toBeLessThan(1.5 * lb);
+        }
+      }
+    }
+  });
+
+  it('pero cuando la barra trabaja lejos de fyd, el mínimo sí manda', () => {
+    // σsd = 100 N/mm² en HA-30 posición I: lb,rqd = 66,7 mm para un ø8, y el
+    // solape se va a los 200 mm de la expresión (8.11) en lugar de a 100.
+    const p = { fck: 30, fyk: FYK, phi: 8, posicion: 'I' as const, sigmaSd: 100 };
+    expect(longitudBasicaAnclaje(p)).toBeCloseTo(66.67, 2);
+    expect(longitudSolape(p)).toBe(200);
   });
 });
 
