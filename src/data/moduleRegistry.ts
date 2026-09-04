@@ -82,6 +82,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-viento-nieve',
+    route: '/acciones/viento-nieve',
+    label: 'Viento y nieve',
+    group: 'Acciones',
+    // Estado anidado (plantas, faldones) con clave propia en localStorage,
+    // como sismo y materiales. Es el primer módulo que publica su resultado
+    // (`concreta-pub-viento-nieve`, ver src/lib/pub).
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-rc-beams',
     route: '/horm/vigas',
     label: 'Vigas',

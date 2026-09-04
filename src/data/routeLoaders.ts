@@ -30,6 +30,7 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   // precarga su chunk al pasar el ratón, y la ruta se resolvía sólo desde
   // App.tsx. Lo detectó el guardia de src/test/materiales/registro.test.ts.
   '/analisis/sismo': () => import('../features/seismic-ncse02'),
+  '/acciones/viento-nieve': () => import('../features/viento-nieve'),
   '/geotec/taludes': () => import('../features/slope-stability'),
   '/geotec/escollera': () => import('../features/rockfill-wall'),
 };

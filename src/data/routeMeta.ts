@@ -103,6 +103,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Cuadro de materiales — Concreta · Código Estructural',
     description: 'Cuadro de materiales para plano y memoria: clase de exposición, recubrimiento, cemento y a/c derivados del Código Estructural, más el cuadro de madera del DB SE-M y las longitudes de anclaje.',
   },
+  '/acciones/viento-nieve': {
+    title: 'Viento y nieve — Concreta · DB SE-AE',
+    description: 'Acción del viento por planta (presión dinámica por zona, coeficiente de exposición del Anejo D, coeficientes eólicos de la tabla 3.5) y carga de nieve por faldón (zona de clima invernal, altitud, coeficiente de forma, acumulación) según el CTE DB SE-AE.',
+  },
   '/geotec/taludes': {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',

@@ -223,6 +223,19 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M2 9.5h12" strokeWidth="0.75" strokeOpacity="0.7"/>
         </svg>
       );
+    // Viento y nieve: tres flechas de viento contra una cubierta a dos aguas
+    // con la nieve encima. Los dos climas del DB SE-AE en un cuadrado.
+    case 'concreta-viento-nieve':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Cubierta a dos aguas y muros */}
+          <path d="M7 6.5l3.5-3 3.5 3M8 6.5v6h5v-6"/>
+          {/* Nieve sobre el faldón */}
+          <path d="M8.2 5.2l2.3-2 2.3 2" strokeWidth="1.6" strokeOpacity="0.6"/>
+          {/* Viento */}
+          <path d="M1.5 5.5h3M1.5 8h4M1.5 10.5h3" strokeWidth="0.9" strokeOpacity="0.8"/>
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }
