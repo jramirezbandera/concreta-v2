@@ -1,27 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { showToast } from '../components/ui/Toast';
 import type { PdfResult } from '../lib/pdf/utils';
-
-/**
- * Dispara la descarga del blob con el nombre elegido por el usuario.
- *
- * El ancla DEBE estar insertada en el documento antes del `click()`: Firefox
- * (y Safari) ignoran el atributo `download` — y a veces el click entero — en
- * anclas desconectadas del DOM, y el archivo acaba con el UUID del blob.
- */
-function triggerDownload(url: string, filename: string): void {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.rel = 'noopener';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-/** Margen para que el navegador lea el blob antes de que lo revoquemos. */
-const REVOKE_DELAY_MS = 1000;
+// El ancla conectada al DOM y el revoke diferido son comunes a todos los
+// formatos: viven en `lib/export/descargar` desde que el cuadro de materiales
+// exporta Word por el mismo camino.
+import { REVOKE_DELAY_MS, triggerDownload } from '../lib/export/descargar';
 
 export function usePdfPreview(
   exportFn: (title?: string) => Promise<PdfResult>,

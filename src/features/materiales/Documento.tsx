@@ -1,9 +1,10 @@
 /**
  * Pinta un `Block[]` como la hoja que se va a entregar.
  *
- * Es el tercer renderer de la frontera `Block[]` (los otros dos, .docx y .pdf,
- * llegan en las fases 3 y 4). Por eso no toma el estado del módulo sino los
- * bloques ya compuestos: lo que se ve aquí es literalmente lo que se exportará.
+ * Es el primero de los renderers de la frontera `Block[]`; el de Word ya existe
+ * (`src/lib/docx/`), y detrás vienen los del cuadro de plano a Excel y DXF. Por
+ * eso no toma el estado del módulo sino los bloques ya compuestos: lo que se ve
+ * aquí es literalmente lo que se exporta.
  */
 
 import type { Block } from '../../lib/materiales/cuadros';

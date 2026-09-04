@@ -20,6 +20,8 @@ function setup(props: Partial<React.ComponentProps<typeof TitlePromptModal>> = {
       initialTitle={props.initialTitle ?? ''}
       fallbackFilename={props.fallbackFilename ?? FALLBACK}
       exporting={props.exporting}
+      formatLabel={props.formatLabel}
+      extension={props.extension}
       onConfirm={onConfirm}
       onCancel={onCancel}
     />,
@@ -46,6 +48,29 @@ describe('TitlePromptModal', () => {
   it('título vacío → preview muestra el fallback con fecha', () => {
     setup({ initialTitle: '' });
     expect(screen.getByText(FALLBACK)).toBeInTheDocument();
+  });
+
+  // El formato es una prop, no un fork del componente. Estos dos tests son el
+  // par que importa: el segundo protege a los 21 módulos de PDF de que el
+  // cuadro de materiales, al pedir Word, les cambie el nombre del fichero.
+  it('con formatLabel/extension el modal habla y promete el formato pedido', async () => {
+    const { input } = setup({
+      formatLabel: 'Word',
+      extension: 'docx',
+      fallbackFilename: 'cuadro-de-materiales.docx',
+    });
+    const user = userEvent.setup();
+    await user.type(input, 'Nave taller');
+    expect(screen.getByText('nave-taller.docx')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar Word' })).toBeInTheDocument();
+  });
+
+  it('sin esas props sigue diciendo PDF y prometiendo .pdf', async () => {
+    const { input } = setup();
+    const user = userEvent.setup();
+    await user.type(input, 'Nave taller');
+    expect(screen.getByText('nave-taller.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar PDF' })).toBeInTheDocument();
   });
 
   it('solo símbolos → slug vacío → preview cae al fallback', async () => {

@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
@@ -26,6 +26,21 @@ import { STORAGE_KEY } from '../../features/materiales/state';
 // contexto. Doble mínimo para poder montarlo solo.
 vi.mock('../../components/layout/AppShell', () => ({
   useDrawer: () => ({ openDrawer: vi.fn() }),
+}));
+
+// El empaquetado del .docx tiene su propio test (`docxEmpaquetado.test.ts`).
+// Aquí sólo se prueba el CABLE: que el botón abre el modal, que el título llega
+// al exportador y que la descarga sale con el nombre prometido. Empaquetar un
+// zip de verdad en cada caso costaría segundos y no probaría nada más.
+const exportarMaterialesDocx = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['x'], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.docx` : 'cuadro-de-materiales.docx',
+}));
+vi.mock('../../lib/docx/materiales', () => ({
+  exportarMaterialesDocx: (blocks: unknown, titulo?: string) =>
+    exportarMaterialesDocx(blocks, titulo),
 }));
 
 function montar() {
@@ -51,6 +66,7 @@ function filaDe(nombre: string): HTMLElement {
 
 beforeEach(() => {
   localStorage.clear();
+  exportarMaterialesDocx.mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -171,7 +187,7 @@ describe('heladas y terreno agresivo', () => {
     expect(within(cimentacion).getByText('XC2 + XA2')).toBeInTheDocument();
     // Anclado: las opciones de consistencia también dicen «(50-90 mm)».
     expect(within(cimentacion).queryByText(/^\d+ mm$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
     expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
   });
 });
@@ -306,15 +322,54 @@ describe('las pestañas del documento', () => {
     expect(screen.getAllByRole('table').length).toBe(enPlano);
   });
 
-  it('la de anclajes trae la tabla del plano y sólo los hormigones de la obra', () => {
+  it('los anclajes salen en plano Y en memoria, sin apartado propio', () => {
+    // No son una pregunta que se conteste: caen del acero corrugado y de los
+    // hormigones que ya hay en la obra, así que viajan con los dos documentos.
     montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Anclajes' }));
-    // Las cuatro filas por defecto son todas HA-30: no debe salir HA-25.
-    expect(screen.getAllByText('HA-30/B500SD')).toHaveLength(2); // anclaje y solape
-    expect(screen.queryByText('HA-25/B500SD')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Ø25')).toHaveLength(2); // cabecera de anclaje y de solape
+    expect(screen.queryByRole('tab', { name: 'Anclajes' })).not.toBeInTheDocument();
+
+    for (const pestana of ['Plano', 'Memoria']) {
+      fireEvent.click(screen.getByRole('tab', { name: pestana }));
+      expect(
+        screen.getByText('LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('LONGITUDES DE SOLAPE (CÓD-E)')).toBeInTheDocument();
+      // Las cuatro filas por defecto son todas HA-30: no debe salir HA-25.
+      expect(screen.getAllByText('HA-30/B500SD')).toHaveLength(2); // anclaje y solape
+      expect(screen.queryByText('HA-25/B500SD')).not.toBeInTheDocument();
+      expect(screen.getAllByText('Ø25')).toHaveLength(2); // cabecera de anclaje y de solape
+    }
+  });
+
+  it('bajar a B 400 SD reescribe las longitudes: el fyk las gobierna', () => {
+    montar();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    const conB500 = anclajePosicionI();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Datos' }));
+    fireEvent.change(screen.getByDisplayValue('B 500 SD — alta ductilidad'), {
+      target: { value: 'B400SD' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+
+    expect(screen.getAllByText('HA-30/B400SD')).toHaveLength(2);
+    expect(screen.queryByText('HA-30/B500SD')).not.toBeInTheDocument();
+    const conB400 = anclajePosicionI();
+    expect(conB400).not.toEqual(conB500);
+    // σsd = fyd, así que un acero más blando ancla en menos longitud.
+    conB400.forEach((cm, i) => expect(Number(cm)).toBeLessThan(Number(conB500[i])));
   });
 });
+
+/** Fila «Posición I» de la primera tabla de anclajes del documento abierto. */
+function anclajePosicionI(): string[] {
+  const tabla = screen
+    .getAllByRole('table')
+    .find((t) => within(t).queryByText('Posición I') !== null);
+  if (!tabla) throw new Error('no hay tabla de anclajes');
+  const fila = within(tabla).getByText('Posición I').closest('tr')!;
+  return [...fila.querySelectorAll('td')].slice(1).map((c) => c.textContent!.trim());
+}
 
 /** Abre el menú de añadir y elige una de sus opciones. */
 function anadir(boton: string, opcion: string) {
@@ -363,8 +418,56 @@ describe('huecos y exportación', () => {
   it('con huecos, exportar avisa en vez de exportar', () => {
     montar();
     anadir('+ Añadir elemento', 'Otro… (fila en blanco)');
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
     expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
+    // Y NO se abre el modal: escribir un título para chocar después con el aviso
+    // es justo el orden que el gate de validez existe para evitar.
+    expect(screen.queryByLabelText('Título del elemento')).not.toBeInTheDocument();
+  });
+
+  it('sin huecos, exportar abre el modal y promete un .docx', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    expect(screen.getByLabelText('Título del elemento')).toBeInTheDocument();
+    // La línea de preview es la misma `titledFilename` que usa el exportador:
+    // si aquí pusiera «.pdf», el botón estaría mintiendo sobre el fichero.
+    expect(screen.getByText('cuadro-de-materiales.docx')).toBeInTheDocument();
+  });
+
+  it('el título confirmado llega al exportador y dispara la descarga', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      descargado = this.download;
+    });
+    let descargado = '';
+
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    fireEvent.change(screen.getByLabelText('Título del elemento'), {
+      target: { value: 'Nave taller' },
+    });
+    // Con el modal abierto hay DOS botones «Exportar Word»: el de la barra y el
+    // de confirmar. El que cuenta es el del diálogo.
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Exportar Word' }));
+
+    await waitFor(() => expect(exportarMaterialesDocx).toHaveBeenCalled());
+    expect(exportarMaterialesDocx.mock.calls[0][1]).toBe('Nave taller');
+    // Los bloques que se exportan son los de MEMORIA, no los de plano: el
+    // cuadro transpuesto abre por «Elementos de hormigón armado».
+    const bloques = exportarMaterialesDocx.mock.calls[0][0] as { text?: string }[];
+    expect(bloques.some((b) => b.text === 'Elementos de hormigón armado')).toBe(true);
+    await waitFor(() => expect(descargado).toBe('nave-taller.docx'));
+
+    click.mockRestore();
+  });
+
+  it('sin ningún material encendido no deja exportar un documento vacío', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Hormigón' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    expect(screen.getByText('Añada algún material antes de exportar')).toBeInTheDocument();
   });
 });
 

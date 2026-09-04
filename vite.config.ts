@@ -41,6 +41,16 @@ export default defineConfig({
               name: "ai-vendor",
               test: /node_modules[\\/](@anthropic-ai[\\/]sdk|openai|@google[\\/]genai)[\\/]/,
             },
+            // La librería `docx` y su cadena de zip/XML, sólo alcanzables por el
+            // `import()` de src/features/materiales al pulsar "Exportar Word".
+            // Nombre estable para poder medir su peso en cada build con un grep,
+            // que es la puerta que decidió usar la librería en vez de escribir el
+            // OOXML a mano. A DIFERENCIA de ai-vendor, este chunk SÍ se precachea:
+            // ver el comentario de globIgnores más abajo.
+            {
+              name: "docx-vendor",
+              test: /node_modules[\\/](docx|jszip|pako|xml|xml-js|sax|nanoid|hash\.js|lie|setimmediate)[\\/]/,
+            },
           ],
         },
       },
@@ -105,6 +115,15 @@ export default defineConfig({
         // el chunk cacheado no sirve —la IA llama al proveedor por red igualmente—
         // y el único borde (abrir la IA justo tras un deploy, con el chunk viejo
         // purgado y el SW aún sin actualizar) lo cubre el toast "Actualizar".
+        // `docx-vendor` NO se excluye: la decisión es la CONTRARIA a la de
+        // ai-vendor, y sin explicarlo parecerían incoherentes. ai-vendor se
+        // excluye porque la IA necesita red igualmente, así que un chunk
+        // cacheado no sirve de nada offline. Exportar la memoria en obra sin
+        // cobertura es el caso de uso del cuadro de materiales, no el borde. Y
+        // excluirlo reintroduciría el 404 descrito arriba: el arranque no
+        // depende de él, pero el módulo sí, y tras un deploy el SW viejo
+        // pediría un `docx-vendor-<hashViejo>.js` ya purgado. Cabe de sobra
+        // bajo el maximumFileSizeToCacheInBytes de 4 MiB.
         globIgnores: ["**/ai-vendor-*.js"],
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.

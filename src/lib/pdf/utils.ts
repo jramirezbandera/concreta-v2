@@ -119,38 +119,12 @@ export interface PdfResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Slugify a user-entered element title into a filesystem-safe, lowercase,
- * hyphenated string. NFD-normalizes and strips combining diacritics (so accents
- * survive as their base letter), maps any run of non-alphanumeric characters to
- * a single hyphen, and trims edge hyphens. Returns `''` when the title has no
- * usable alphanumeric content (e.g. only symbols) — callers fall back to a
- * default filename via `titledFilename`.
- *
- *   "Dintel de ventana"   → "dintel-de-ventana"
- *   "Viga N.º 1 (P-baja)" → "viga-n-1-p-baja"
- *   "Ñoño & Cía"          → "nono-cia"
- *   "/// ??? ///"         → ""
+ * El nombre del fichero descargado ya no es cosa del PDF: el capítulo Memorias
+ * entrega Word, y detrás vienen Excel y DXF. `slugTitle` y `titledFilename`
+ * viven ahora en `src/lib/export/filename.ts`, neutro respecto al formato. Se
+ * re-exportan desde aquí para no tocar los 71 puntos de llamada existentes.
  */
-export function slugTitle(title: string): string {
-  return title
-    .normalize('NFD')
-    .replace(/\p{Mn}/gu, '') // strip combining diacritics (Mark, nonspacing)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')     // any non-alphanumeric run → single hyphen
-    .replace(/^-+|-+$/g, '');        // trim leading/trailing hyphens
-}
-
-/**
- * Build the PDF download filename from a user title. A non-empty slug yields
- * `<slug>.pdf`; otherwise `fallback` (each module's dated default, e.g.
- * `concreta-viga-2026-07-08.pdf`). This is the SINGLE source of truth for the
- * download name — the export functions AND the TitlePromptModal preview both
- * call it, so the preview can never disagree with the actual file.
- */
-export function titledFilename(title: string, fallback: string): string {
-  const slug = slugTitle(title);
-  return slug ? `${slug}.pdf` : fallback;
-}
+export { slugTitle, titledFilename } from '../export/filename';
 
 /**
  * Truncate `text` (already sanitized with pdfStr) to `maxW` mm by the MEASURED

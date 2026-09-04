@@ -10,6 +10,14 @@ interface TopbarProps {
   moduleGroup: string;
   onExportPdf?: () => void;
   pdfExporting?: boolean;
+  /**
+   * Etiqueta del botón de exportar. Por defecto «Exportar PDF»: los 21 módulos
+   * que no la pasan siguen exactamente igual. El cuadro de materiales entrega
+   * Word, y detrás vienen Excel y DXF del cuadro de plano — cuando existan de
+   * verdad, este botón se convertirá en un menú de formatos. Construirlo hoy
+   * sería especular sobre tres salidas que aún no están escritas.
+   */
+  exportLabel?: string;
   onMenuOpen?: () => void;
   /**
    * Override for the "Copiar enlace" button. Modules that need a richer share
@@ -25,7 +33,7 @@ interface TopbarProps {
   onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF' }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -74,13 +82,13 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
           <button
             onClick={onExportPdf}
             disabled={pdfExporting}
-            title="Exportar PDF"
+            title={exportLabel}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 transition-all"
             style={{
               border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
               background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
             }}
-            aria-label="Exportar PDF"
+            aria-label={exportLabel}
           >
             {pdfExporting ? (
               <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" aria-hidden="true" />
@@ -89,7 +97,7 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
                 <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
               </svg>
             )}
-            <span className="hidden lg:inline">Exportar PDF</span>
+            <span className="hidden lg:inline">{exportLabel}</span>
           </button>
         )}
       </div>

@@ -1,5 +1,5 @@
 /**
- * M0 y M1 — de qué es la estructura, y el perfil del estudio.
+ * M0 y M1 — de qué es la estructura, y los datos generales.
  *
  * M0 poda: lo que no se marca desaparece del formulario Y del documento. Sólo
  * se ven campos que se van a imprimir.
@@ -143,10 +143,7 @@ export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
           <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-disabled">
             M1
           </span>
-          <h2 className="text-[13px] font-semibold text-text-primary">Perfil del estudio</h2>
-          <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] text-text-disabled">
-            viaja de obra en obra
-          </span>
+          <h2 className="text-[13px] font-semibold text-text-primary">Datos generales</h2>
         </header>
 
         <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">

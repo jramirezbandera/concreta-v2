@@ -397,6 +397,20 @@ describe('titledFilename', () => {
     // always maps to one filename — the preview cannot disagree with the export.
     expect(titledFilename('Zapata P3', FALLBACK)).toBe('zapata-p3.pdf');
   });
+
+  // El cuadro de materiales exporta .docx por la MISMA función. Estos dos tests
+  // son los que protegen a los 21 módulos de PDF: la extensión es un parámetro
+  // nuevo con valor por defecto, no un cambio de comportamiento.
+  it('acepta otra extensión sin tocar a quien llama con dos argumentos', () => {
+    expect(titledFilename('Nave taller', FALLBACK, 'docx')).toBe('nave-taller.docx');
+    expect(titledFilename('Nave taller', FALLBACK)).toBe('nave-taller.pdf');
+  });
+
+  it('con slug vacío devuelve el fallback, sea cual sea la extensión', () => {
+    expect(titledFilename('/// ???', 'cuadro-de-materiales.docx', 'docx')).toBe(
+      'cuadro-de-materiales.docx',
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

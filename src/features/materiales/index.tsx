@@ -1,20 +1,27 @@
 /**
  * Cuadro de materiales — orquestador del módulo.
  *
- * Primer módulo del capítulo Memorias. Cuatro pestañas: Datos (el formulario) y
- * tres vistas del documento (Plano, Memoria, Anclajes) a todo el ancho. No hay
+ * Primer módulo del capítulo Memorias. Tres pestañas: Datos (el formulario) y
+ * dos vistas del documento (Plano, Memoria) a todo el ancho. No hay
  * previsualización lateral permanente: en un módulo cuyo resultado ES una
  * tabla, lo «vivo» son las columnas derivadas dentro del propio editor.
  *
  * El estado es anidado, así que no usa `useModuleState` (que sólo maneja
  * primitivos planos): clave propia en localStorage, como el módulo de sismo.
  * Ver `state.ts`.
+ *
+ * De las dos vistas, sólo la de MEMORIA se exporta a Word: es la que se pega en
+ * la memoria del proyecto. La de plano saldrá a Excel y a DXF, que es como se
+ * mete en un plano y en el CAD; un Word del cuadro de plano no le sirve a nadie.
  */
 
 import { useMemo, useState } from 'react';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
-import { showToast } from '../../components/ui/Toast';
+import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
+import { useDocTitle } from '../../hooks/useDocTitle';
+import { useTitledDocxExport } from '../../hooks/useTitledDocxExport';
+import { MATERIALES_FALLBACK_FILENAME } from '../../lib/export/filename';
 import {
   cuadroAceroEstructural,
   cuadroAceros,
@@ -47,13 +54,12 @@ import {
   type PerfilEstudio as Perfil,
 } from './state';
 
-type Vista = 'datos' | 'plano' | 'memoria' | 'anclajes';
+type Vista = 'datos' | 'plano' | 'memoria';
 
 const VISTAS: { id: Vista; etiqueta: string }[] = [
   { id: 'datos', etiqueta: 'Datos' },
   { id: 'plano', etiqueta: 'Plano' },
   { id: 'memoria', etiqueta: 'Memoria' },
-  { id: 'anclajes', etiqueta: 'Anclajes' },
 ];
 
 export function MaterialesModule() {
@@ -100,6 +106,28 @@ export function MaterialesModule() {
         nivelControl: state.estudio.nivelControlAcero,
       }),
     );
+    if (state.usaHormigon) {
+      // Los anclajes no son un apartado que se pida: salen solos del acero
+      // corrugado elegido —un B 400 tiene otras longitudes que un B 500— y de
+      // los hormigones que la obra usa de verdad. Van pegados al cuadro de
+      // acero, que es de donde sale el fyk que los gobierna.
+      //
+      // Los hormigones que se tabulan son los de los elementos; el par por
+      // defecto sólo cubre el arranque, cuando aún no hay ninguno resuelto:
+      // una tabla de anclajes de un HA que no aparece en ningún elemento es
+      // ruido en el plano.
+      const enObra = [...new Set(evaluacion.hormigon.map((h) => h.derivacion.fckAdoptada))].sort(
+        (a, b) => a - b,
+      );
+      bloques.push(
+        ...cuadroAnclajes(
+          enObra.length > 0 ? enObra : state.hormigonesAnclaje,
+          FYK_ACERO_PASIVO[state.estudio.aceroPasivo],
+          state.diametrosAnclaje,
+          state.estudio.aceroPasivo,
+        ),
+      );
+    }
     if (state.usaAceroEstructural && evaluacion.acero) {
       bloques.push(...cuadroAceroEstructural(evaluacion.acero, state.estudio.vidaUtilAnios));
     }
@@ -152,22 +180,6 @@ export function MaterialesModule() {
         ];
   }, [state.usaHormigon, evaluacion, bloquesComunes]);
 
-  const bloquesAnclajes = useMemo<Block[]>(() => {
-    // Los hormigones que se tabulan son los que la obra usa de verdad, más los
-    // del perfil por defecto: una tabla de anclajes de un HA que no aparece en
-    // ningún elemento es ruido en el plano.
-    const enObra = [...new Set(evaluacion.hormigon.map((h) => h.derivacion.fckAdoptada))].sort(
-      (a, b) => a - b,
-    );
-    const hormigones = enObra.length > 0 ? enObra : state.hormigonesAnclaje;
-    return cuadroAnclajes(
-      hormigones,
-      FYK_ACERO_PASIVO[state.estudio.aceroPasivo],
-      state.diametrosAnclaje,
-      state.estudio.aceroPasivo,
-    );
-  }, [evaluacion, state.diametrosAnclaje, state.estudio.aceroPasivo, state.hormigonesAnclaje]);
-
   // ── Acciones del formulario ───────────────────────────────────────────────
 
   const cambiarFila = (id: string, cambio: Partial<FilaHormigon>) =>
@@ -191,15 +203,34 @@ export function MaterialesModule() {
       },
     }));
 
-  const exportarBloqueado = !evaluacion.listo;
+  // ── Exportación a Word ───────────────────────────────────────
 
-  const avisarExportacion = () => {
-    if (exportarBloqueado) {
-      showToast('Resuelva los huecos rojos antes de exportar', { autoDismiss: 3000 });
-      return;
-    }
-    showToast('La exportación a .docx y .pdf llega en la próxima entrega', { autoDismiss: 3000 });
-  };
+  // El título vive FUERA de `MaterialesState`: metido ahí, cada tecla del nombre
+  // del documento reejecutaría `evaluar()` sobre toda la obra y obligaría a
+  // versionar el esquema persistido por un dato que no es de cálculo.
+  const [docTitle, setDocTitle] = useDocTitle('concreta-materiales-title');
+
+  // Un cuadro sin un solo material resuelto sí está «listo» —no hay huecos que
+  // resolver— pero su documento es la frase «Sin materiales resueltos…». Eso no
+  // es un Word que entregar, así que la puerta pide además que haya algo dentro.
+  const hayContenido =
+    evaluacion.hormigon.length + evaluacion.madera.length > 0 || evaluacion.acero !== null;
+  const exportarBloqueado = !evaluacion.listo || !hayContenido;
+
+  const { docxExporting, titleOpen, openExport, confirmTitle, closeTitle } = useTitledDocxExport({
+    // El `import()` va DENTRO del manejador, nunca memoizado durante el render:
+    // así la librería `docx` sigue en su chunk perezoso y sólo la descarga quien
+    // exporta de verdad.
+    exportFn: async (titulo) => {
+      const { exportarMaterialesDocx } = await import('../../lib/docx/materiales');
+      return exportarMaterialesDocx(bloquesMemoria, titulo);
+    },
+    valid: !exportarBloqueado,
+    onTitleChange: setDocTitle,
+    invalidMessage: evaluacion.listo
+      ? 'Añada algún material antes de exportar'
+      : 'Resuelva los huecos rojos antes de exportar',
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -213,7 +244,9 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
-        onExportPdf={avisarExportacion}
+        onExportPdf={openExport}
+        pdfExporting={docxExporting}
+        exportLabel="Exportar Word"
       />
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-main bg-bg-surface px-4 py-1.5">
@@ -405,18 +438,29 @@ export function MaterialesModule() {
                 XC2 (enterrado).
               </p>
             )}
-            <Documento
-              blocks={
-                vista === 'plano'
-                  ? bloquesPlano
-                  : vista === 'memoria'
-                    ? bloquesMemoria
-                    : bloquesAnclajes
-              }
-            />
+            {state.ayuda && vista === 'memoria' && (
+              <p className="mx-auto mb-3 max-w-[1100px] text-[11.5px] leading-snug text-text-disabled">
+                «Exportar Word» entrega <b className="text-text-secondary">este</b> cuadro, el de
+                memoria, con los estilos de Título de Word para que se pegue en la memoria del
+                proyecto y herede su numeración. El cuadro de plano saldrá a Excel y a DXF.
+              </p>
+            )}
+            <Documento blocks={vista === 'plano' ? bloquesPlano : bloquesMemoria} />
           </>
         )}
       </div>
+
+      {titleOpen && (
+        <TitlePromptModal
+          initialTitle={docTitle}
+          fallbackFilename={MATERIALES_FALLBACK_FILENAME}
+          exporting={docxExporting}
+          formatLabel="Word"
+          extension="docx"
+          onConfirm={confirmTitle}
+          onCancel={closeTitle}
+        />
+      )}
     </div>
   );
 }

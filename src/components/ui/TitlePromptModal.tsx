@@ -13,16 +13,24 @@ interface TitlePromptModalProps {
   onConfirm: (title: string) => void;
   /** Cancelar: cierra sin generar. */
   onCancel: () => void;
+  /** Rótulo del formato: «Exportar {formatLabel}». Por defecto 'PDF'. */
+  formatLabel?: string;
+  /** Extensión del fichero, sin punto. Por defecto 'pdf'. */
+  extension?: string;
 }
 
 /**
  * Modal de "preguntar al exportar": pide el nombre del elemento ANTES de generar
- * el PDF (el título se hornea en la cabecera y en el nombre de archivo, así que
- * debe conocerse antes de construir el documento). Mismo lenguaje visual que
+ * el documento (el título se hornea en la cabecera y en el nombre de archivo,
+ * así que debe conocerse antes de construirlo). Mismo lenguaje visual que
  * PdfPreviewModal (slate, backdrop, Escape).
  *
  * La línea de preview usa `titledFilename` — la MISMA función que el exportador —
- * así que el nombre mostrado nunca miente sobre el fichero real.
+ * así que el nombre mostrado nunca miente sobre el fichero real. Por eso el
+ * formato es una PROP y no un fork del componente: el cuadro de materiales
+ * exporta Word, y un modal clonado que prometiera `.pdf` y descargara `.docx`
+ * sería exactamente el fallo que esta invariante existe para impedir. Los 21
+ * módulos de PDF no pasan ninguna de las dos props y no notan el cambio.
  *
  * a11y: autofocus + seleccionar-todo al abrir (una tecla sobrescribe el
  * pre-relleno), Enter = confirmar, Escape / X / Cancelar = cerrar. El clic en el
@@ -37,6 +45,8 @@ export function TitlePromptModal({
   exporting = false,
   onConfirm,
   onCancel,
+  formatLabel = 'PDF',
+  extension = 'pdf',
 }: TitlePromptModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +82,7 @@ export function TitlePromptModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel, exporting]);
 
-  const filename = titledFilename(title, fallbackFilename);
+  const filename = titledFilename(title, fallbackFilename, extension);
   const isFallback = slugTitle(title) === '';
 
   const confirm = () => {
@@ -96,7 +106,7 @@ export function TitlePromptModal({
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border-main">
           <FileText size={16} className="text-text-secondary" aria-hidden="true" />
           <span id="title-prompt-heading" className="text-sm font-medium text-text-primary">
-            Exportar PDF
+            Exportar {formatLabel}
           </span>
           <div className="flex-1" />
           <button
@@ -164,7 +174,7 @@ export function TitlePromptModal({
                 Generando…
               </>
             ) : (
-              'Exportar PDF'
+              `Exportar ${formatLabel}`
             )}
           </button>
         </div>
