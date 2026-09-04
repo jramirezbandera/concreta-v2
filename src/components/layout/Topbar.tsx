@@ -18,6 +18,14 @@ interface TopbarProps {
    * sería especular sobre tres salidas que aún no están escritas.
    */
   exportLabel?: string;
+  /**
+   * Segunda salida de la misma vista, en un botón de menos peso a la izquierda
+   * del principal. Lo estrena el cuadro de materiales: su vista de plano tiene
+   * DOS destinos —Excel para capturar y DXF para el CAD— y nombrarlos es más
+   * claro que esconderlos en un desplegable de formatos.
+   */
+  onExportSecondary?: () => void;
+  exportSecondaryLabel?: string;
   onMenuOpen?: () => void;
   /**
    * Override for the "Copiar enlace" button. Modules that need a richer share
@@ -33,7 +41,7 @@ interface TopbarProps {
   onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF' }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF', onExportSecondary, exportSecondaryLabel }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -77,7 +85,22 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         {/* Ajustes: recoge Unidades, Tema y Copiar enlace. */}
         <AjustesMenu onCopyLink={handleCopyUrl} />
-        {/* PDF export — resaltado sutil (accent-outline). */}
+        {/* Salida secundaria de la vista: mismo tamaño, sin el realce. */}
+        {onExportSecondary && (
+          <button
+            onClick={onExportSecondary}
+            disabled={pdfExporting}
+            title={exportSecondaryLabel}
+            aria-label={exportSecondaryLabel}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-elevated disabled:opacity-40 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
+              <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
+            </svg>
+            <span className="hidden lg:inline">{exportSecondaryLabel}</span>
+          </button>
+        )}
+        {/* Salida principal de la vista — resaltado sutil (accent-outline). */}
         {onExportPdf && (
           <button
             onClick={onExportPdf}

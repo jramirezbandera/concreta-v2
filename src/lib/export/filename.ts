@@ -52,11 +52,12 @@ export function titledFilename(title: string, fallback: string, extension = 'pdf
  * `lib/docx/materiales` metería la librería entera en el chunk del módulo y
  * mataría la carga perezosa.
  *
- * Uno por vista, porque cada vista tiene su formato: la de memoria sale a Word
- * y la de plano a Excel (y más adelante a DXF).
+ * Uno por formato, porque cada vista tiene el suyo: la de memoria sale a Word y
+ * la de plano a Excel (para capturar) y a DXF (para el CAD).
  */
 export const MATERIALES_FALLBACK_DOCX = 'cuadro-de-materiales.docx';
 export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';
+export const MATERIALES_FALLBACK_DXF = 'cuadro-de-materiales.dxf';
 
 /** Los de «Viento y nieve», con el mismo reparto: memoria a Word, plano a Excel. */
 export const VIENTO_NIEVE_FALLBACK_DOCX = 'viento-y-nieve.docx';

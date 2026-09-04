@@ -23,7 +23,11 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
-import { MATERIALES_FALLBACK_DOCX, MATERIALES_FALLBACK_XLSX } from '../../lib/export/filename';
+import {
+  MATERIALES_FALLBACK_DOCX,
+  MATERIALES_FALLBACK_DXF,
+  MATERIALES_FALLBACK_XLSX,
+} from '../../lib/export/filename';
 import {
   cuadroAceroEstructural,
   cuadroAceros,
@@ -63,6 +67,28 @@ const VISTAS: { id: Vista; etiqueta: string }[] = [
   { id: 'plano', etiqueta: 'Plano' },
   { id: 'memoria', etiqueta: 'Memoria' },
 ];
+
+type FormatoId = 'docx' | 'xlsx' | 'dxf';
+
+/** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
+const FORMATOS: Record<
+  FormatoId,
+  { etiqueta: string; fallback: string; extension: string; enError: string }
+> = {
+  docx: {
+    etiqueta: 'Word',
+    fallback: MATERIALES_FALLBACK_DOCX,
+    extension: 'docx',
+    enError: 'documento de Word',
+  },
+  xlsx: {
+    etiqueta: 'Excel',
+    fallback: MATERIALES_FALLBACK_XLSX,
+    extension: 'xlsx',
+    enError: 'Excel',
+  },
+  dxf: { etiqueta: 'DXF', fallback: MATERIALES_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
+};
 
 export function MaterialesModule() {
   const { openDrawer } = useDrawer();
@@ -220,7 +246,7 @@ export function MaterialesModule() {
       },
     }));
 
-  // ── Exportación a Word ───────────────────────────────────────
+  // ── Exportación ───────────────────────────────────────────────
 
   // El título vive FUERA de `MaterialesState`: metido ahí, cada tecla del nombre
   // del documento reejecutaría `evaluar()` sobre toda la obra y obligaría a
@@ -234,19 +260,24 @@ export function MaterialesModule() {
     evaluacion.hormigon.length + evaluacion.madera.length > 0 || evaluacion.acero !== null;
   const exportarBloqueado = !evaluacion.listo || !hayContenido;
 
-  // El formato lo decide la pestaña. En «Datos» no hay documento a la vista, así
-  // que se ofrece el Word de la memoria, que es el entregable principal.
-  const aExcel = vista === 'plano';
-  const formato = aExcel
-    ? { etiqueta: 'Excel', fallback: MATERIALES_FALLBACK_XLSX, extension: 'xlsx' }
-    : { etiqueta: 'Word', fallback: MATERIALES_FALLBACK_DOCX, extension: 'docx' };
+  /**
+   * Qué se exporta lo decide la pestaña, porque cada vista tiene su destino. La
+   * de memoria sólo tiene uno, el Word que se pega en la memoria del proyecto;
+   * la de plano tiene DOS, el Excel para capturar y el DXF para el CAD, y por
+   * eso ahí la barra enseña dos botones en vez de esconderlos en un desplegable.
+   * En «Datos» no hay documento a la vista, así que se ofrece el Word, que es el
+   * entregable principal.
+   */
+  const enPlano = vista === 'plano';
+  const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
+  const formato = FORMATOS[formatoElegido];
 
   const { exportando, titleOpen, openExport, confirmTitle, closeTitle } = useTitledFileExport({
     // El `import()` va DENTRO del manejador, nunca memoizado durante el render:
     // así cada exportador sigue en su chunk perezoso y sólo lo descarga quien
     // exporta de verdad.
     exportFn: async (titulo) => {
-      if (aExcel) {
+      if (formatoElegido === 'xlsx') {
         const { exportarMaterialesXlsx } = await import('../../lib/xlsx/materiales');
         // Dos pestañas: una columna de Excel tiene UN ancho, y los anclajes
         // compartiendo columna con el cuadro de hormigón salían estirados.
@@ -258,16 +289,26 @@ export function MaterialesModule() {
           titulo,
         );
       }
+      if (formatoElegido === 'dxf') {
+        const { exportarMaterialesDxf } = await import('../../lib/dxf/materiales');
+        return exportarMaterialesDxf(bloquesPlano, titulo);
+      }
       const { exportarMaterialesDocx } = await import('../../lib/docx/materiales');
       return exportarMaterialesDocx(bloquesMemoria, titulo);
     },
     valid: !exportarBloqueado,
     onTitleChange: setDocTitle,
-    formatoLabel: aExcel ? 'Excel' : 'documento de Word',
+    formatoLabel: formato.enError,
     invalidMessage: evaluacion.listo
       ? 'Añada algún material antes de exportar'
       : 'Resuelva los huecos rojos antes de exportar',
   });
+
+  /** Fija el formato ANTES de abrir el modal: la preview del nombre lo usa. */
+  const exportarComo = (id: FormatoId) => {
+    setFormatoElegido(id);
+    openExport();
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -281,9 +322,11 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
-        onExportPdf={openExport}
+        onExportPdf={() => exportarComo(enPlano ? 'xlsx' : 'docx')}
         pdfExporting={exportando}
-        exportLabel={`Exportar ${formato.etiqueta}`}
+        exportLabel={enPlano ? 'Exportar Excel' : 'Exportar Word'}
+        onExportSecondary={enPlano ? () => exportarComo('dxf') : undefined}
+        exportSecondaryLabel="Exportar DXF"
       />
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-main bg-bg-surface px-4 py-1.5">
@@ -484,9 +527,12 @@ export function MaterialesModule() {
             )}
             {state.ayuda && vista === 'plano' && (
               <p className="mx-auto mb-3 max-w-[1100px] text-[11.5px] leading-snug text-text-disabled">
-                «Exportar Excel» entrega <b className="text-text-secondary">este</b> cuadro, el de
-                plano, en una hoja sin cuadrícula y con los anchos ya ajustados: se selecciona, se
-                captura y se pega en el plano.
+                Este cuadro, el de plano, tiene dos salidas.{' '}
+                <b className="text-text-secondary">Excel</b> lo entrega en una hoja sin cuadrícula y
+                con los anchos ajustados, para seleccionar, capturar y pegar la imagen.{' '}
+                <b className="text-text-secondary">DXF</b> lo entrega dibujado —líneas y textos en
+                tres capas— para insertarlo en el CAD: va en metros y con el rótulo a 2,5 mm, así
+                que se escala por la escala del plano.
               </p>
             )}
             <Documento blocks={vista === 'plano' ? bloquesPlano : bloquesMemoria} />

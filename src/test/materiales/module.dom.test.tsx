@@ -52,6 +52,14 @@ vi.mock('../../lib/xlsx/materiales', () => ({
   exportarMaterialesXlsx: (blocks: unknown, titulo?: string) =>
     exportarMaterialesXlsx(blocks, titulo),
 }));
+const exportarMaterialesDxf = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['0\r\nEOF\r\n'], { type: 'image/vnd.dxf' }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.dxf` : 'cuadro-de-materiales.dxf',
+}));
+vi.mock('../../lib/dxf/materiales', () => ({
+  exportarMaterialesDxf: (blocks: unknown, titulo?: string) =>
+    exportarMaterialesDxf(blocks, titulo),
+}));
 
 function montar() {
   return render(
@@ -78,6 +86,7 @@ beforeEach(() => {
   localStorage.clear();
   exportarMaterialesDocx.mockClear();
   exportarMaterialesXlsx.mockClear();
+  exportarMaterialesDxf.mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -520,6 +529,50 @@ describe('huecos y exportación', () => {
     expect(
       screen.getByText('LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)'),
     ).toBeInTheDocument();
+  });
+
+  it('la vista de plano ofrece SUS DOS salidas: Excel y DXF', () => {
+    // Cada vista tiene su destino, y la de plano tiene dos: capturar y CAD. Se
+    // nombran los dos en la barra en vez de esconderlos en un desplegable.
+    montar();
+    expect(screen.queryByRole('button', { name: 'Exportar DXF' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar DXF' })).toBeInTheDocument();
+  });
+
+  it('el DXF exporta los bloques de plano y promete un .dxf', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      descargado = this.download;
+    });
+    let descargado = '';
+
+    montar();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar DXF' }));
+    // La preview del modal usa el formato ya elegido: si no, prometería .xlsx.
+    expect(screen.getByText('cuadro-de-materiales.dxf')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Título del elemento'), {
+      target: { value: 'Nave taller' },
+    });
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Exportar DXF' }));
+
+    await waitFor(() => expect(exportarMaterialesDxf).toHaveBeenCalled());
+    expect(exportarMaterialesXlsx).not.toHaveBeenCalled();
+    const bloques = exportarMaterialesDxf.mock.calls[0][0] as { text?: string }[];
+    // El DXF lleva el cuadro de plano ENTERO, anclajes incluidos: en el CAD no
+    // hay pestañas que separar, es un solo dibujo.
+    expect(bloques.some((b) => b.text === 'HORMIGÓN (CÓDIGO ESTRUCTURAL)')).toBe(true);
+    expect(
+      bloques.some((b) => b.text === 'LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)'),
+    ).toBe(true);
+    await waitFor(() => expect(descargado).toBe('nave-taller.dxf'));
+
+    click.mockRestore();
   });
 
   it('vuelto a Memoria, el botón es Word otra vez', () => {
