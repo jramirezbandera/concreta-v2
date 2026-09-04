@@ -250,3 +250,106 @@ export const ANCHO_ACUMULACION = 2.0;
 
 /** Art. 3.5.2-4 (p. 15): peso específico de la nieve acumulada, kN/m³. */
 export const DENSIDAD_NIEVE = { recienCaida: 1.2, prensada: 2.0, conGranizo: 4.0 };
+
+// ── Cubiertas a dos aguas ───────────────────────────────────────────────────
+
+export type ZonaDosAguas = 'F' | 'G' | 'H' | 'I' | 'J';
+
+/**
+ * Una casilla de las tablas de coeficientes de presión exterior del Anejo D:
+ * [succión, presión]. La norma imprime unas veces un valor y otras dos de
+ * distinto signo (D.3-2: «deben considerarse las dos posibilidades»), y los
+ * «−0,0» y «+0,0» llevan su signo porque están «para poder interpolar» cada
+ * serie por separado: aquí el signo lo pone la posición en la pareja y el
+ * cero se escribe como 0. `null` = esa serie no aparece en la casilla.
+ */
+export type CeldaCpe = readonly [succion: number | null, presion: number | null];
+
+export interface FilaD6 {
+  /** Pendiente α de la fila, grados. Negativa: faldones que bajan hacia el centro (alzado α < 0 de la figura). */
+  alpha: number;
+  /** cpe,10 (A ≥ 10 m²), en el orden de las zonas de la tabla. */
+  A10: CeldaCpe[];
+  /** cpe,1 (A ≤ 1 m²). */
+  A1: CeldaCpe[];
+}
+
+/** Zonas de la figura D.6 a): viento perpendicular a la cumbrera. */
+export const ZONAS_D6_PERPENDICULAR: ZonaDosAguas[] = ['F', 'G', 'H', 'I', 'J'];
+
+/**
+ * Tabla D.6 a) (p. 34): cubiertas a dos aguas, dirección del viento
+ * −45º ≤ θ ≤ 45º (perpendicular a la cumbrera). Zonas F, G, H, I, J.
+ */
+export const TABLA_D6_PERPENDICULAR: FilaD6[] = [
+  //                    F             G             H             I             J
+  { alpha: -45, A10: [[-0.6, null], [-0.6, null], [-0.8, null], [-0.7, null], [-1, null]],
+                A1:  [[-0.6, null], [-0.6, null], [-0.8, null], [-0.7, null], [-1.5, null]] },
+  { alpha: -30, A10: [[-1.1, null], [-0.8, null], [-0.8, null], [-0.6, null], [-0.8, null]],
+                A1:  [[-2, null],   [-1.5, null], [-0.8, null], [-0.6, null], [-1.4, null]] },
+  { alpha: -15, A10: [[-2.5, null], [-1.3, null], [-0.9, null], [-0.5, null], [-0.7, null]],
+                A1:  [[-2.8, null], [-2, null],   [-1.2, null], [-0.5, null], [-1.2, null]] },
+  { alpha: -5,  A10: [[-2.3, null], [-1.2, null], [-0.8, null], [-0.6, 0.2],  [-0.6, 0.2]],
+                A1:  [[-2.5, null], [-2, null],   [-1.2, null], [-0.6, 0.2],  [-0.6, 0.2]] },
+  { alpha: 5,   A10: [[-1.7, 0],    [-1.2, 0],    [-0.6, 0],    [-0.6, null], [-0.6, 0.2]],
+                A1:  [[-2.5, 0],    [-2, 0],      [-1.2, 0],    [-0.6, null], [-0.6, 0.2]] },
+  { alpha: 15,  A10: [[-0.9, 0.2],  [-0.8, 0.2],  [-0.3, 0.2],  [-0.4, 0],    [-1, 0]],
+                A1:  [[-2, 0.2],    [-1.5, 0.2],  [-0.3, 0.2],  [-0.4, 0],    [-1.5, 0]] },
+  { alpha: 30,  A10: [[-0.5, 0.7],  [-0.5, 0.7],  [-0.2, 0.4],  [-0.4, 0],    [-0.5, 0]],
+                A1:  [[-1.5, 0.7],  [-1.5, 0.7],  [-0.2, 0.4],  [-0.4, 0],    [-0.5, 0]] },
+  { alpha: 45,  A10: [[0, 0.7],     [0, 0.7],     [0, 0.6],     [-0.2, 0],    [-0.3, 0]],
+                A1:  [[0, 0.7],     [0, 0.7],     [0, 0.6],     [-0.2, 0],    [-0.3, 0]] },
+  { alpha: 60,  A10: [[null, 0.7],  [null, 0.7],  [null, 0.7],  [-0.2, null], [-0.3, null]],
+                A1:  [[null, 0.7],  [null, 0.7],  [null, 0.7],  [-0.2, null], [-0.3, null]] },
+  { alpha: 75,  A10: [[null, 0.8],  [null, 0.8],  [null, 0.8],  [-0.2, null], [-0.3, null]],
+                A1:  [[null, 0.8],  [null, 0.8],  [null, 0.8],  [-0.2, null], [-0.3, null]] },
+];
+
+/** Zonas de la figura D.6 b): viento paralelo a la cumbrera (no hay J). */
+export const ZONAS_D6_PARALELA: ZonaDosAguas[] = ['F', 'G', 'H', 'I'];
+
+/**
+ * Tabla D.6 b) (p. 35): cubiertas a dos aguas, dirección del viento
+ * 45º ≤ θ ≤ 135º (paralelo a la cumbrera). Zonas F, G, H, I; todo succión.
+ * (La cabecera de la tabla en el PDF repite «−45º ≤ θ ≤ 45º» por errata.)
+ */
+export const TABLA_D6_PARALELA: FilaD6[] = [
+  //                    F             G             H             I
+  { alpha: -45, A10: [[-1.4, null], [-1.2, null], [-1.0, null], [-0.9, null]],
+                A1:  [[-2.0, null], [-2.0, null], [-1.3, null], [-1.2, null]] },
+  { alpha: -30, A10: [[-1.5, null], [-1.2, null], [-1.0, null], [-0.9, null]],
+                A1:  [[-2.1, null], [-2.0, null], [-1.3, null], [-1.2, null]] },
+  { alpha: -15, A10: [[-1.9, null], [-1.2, null], [-0.8, null], [-0.8, null]],
+                A1:  [[-2.5, null], [-2.0, null], [-1.2, null], [-1.2, null]] },
+  { alpha: -5,  A10: [[-1.8, null], [-1.2, null], [-0.7, null], [-0.6, null]],
+                A1:  [[-2.5, null], [-2.0, null], [-1.2, null], [-1.2, null]] },
+  { alpha: 5,   A10: [[-1.6, null], [-1.3, null], [-0.7, null], [-0.6, null]],
+                A1:  [[-2.2, null], [-2.0, null], [-1.2, null], [-0.6, null]] },
+  { alpha: 15,  A10: [[-1.3, null], [-1.3, null], [-0.6, null], [-0.5, null]],
+                A1:  [[-2.0, null], [-2.0, null], [-1.2, null], [-0.5, null]] },
+  { alpha: 30,  A10: [[-1.1, null], [-1.4, null], [-0.8, null], [-0.5, null]],
+                A1:  [[-1.5, null], [-2.0, null], [-1.2, null], [-0.5, null]] },
+  { alpha: 45,  A10: [[-1.1, null], [-1.4, null], [-0.9, null], [-0.5, null]],
+                A1:  [[-1.5, null], [-2.0, null], [-1.2, null], [-0.5, null]] },
+  { alpha: 60,  A10: [[-1.1, null], [-1.2, null], [-0.8, null], [-0.5, null]],
+                A1:  [[-1.5, null], [-2.0, null], [-1.0, null], [-0.5, null]] },
+  { alpha: 75,  A10: [[-1.1, null], [-1.2, null], [-0.8, null], [-0.5, null]],
+                A1:  [[-1.5, null], [-2.0, null], [-1.0, null], [-0.5, null]] },
+];
+
+/** Anejo D.3-4 (p. 28): cpe,1 para áreas de influencia A ≤ 1 m², cpe,10 para A ≥ 10 m²; entre medias, la fórmula D.4. */
+export const AREA_CPE = { local: 1, global: 10 };
+
+/** La tabla D.6 va de −45º a 75º de pendiente: fuera no hay coeficiente. */
+export const PENDIENTE_D6 = { min: -45, max: 75 };
+
+/** Entre las filas de −5º y 5º la tabla no tiene valores: la cubierta es casi plana (tabla D.4). */
+export const PENDIENTE_CASI_PLANA = 5;
+
+/**
+ * Figura de la tabla D.6 (p. 34-35): e = min(b, 2h); los rincones F miden e/4
+ * de ancho, las bandas de borde (F, G y J) e/10 de fondo, y con viento
+ * paralelo a la cumbrera H llega hasta e/2 del hastial. Se guardan como
+ * divisores para que e/10 salga exacto.
+ */
+export const GEOMETRIA_D6 = { divisorF: 4, divisorBanda: 10, divisorH: 2 };

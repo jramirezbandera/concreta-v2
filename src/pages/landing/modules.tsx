@@ -47,7 +47,7 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     name: 'Viento y nieve',
     ref: 'DB SE-AE art. 3.3 · 3.5 · Anejos D y E',
     short:
-      'Fuerza de viento por planta y carga de nieve por faldón a partir de la provincia, la altitud y el entorno. Bloque de acciones para el plano y derivación para la memoria.',
+      'Fuerza de viento por planta, presión por zonas en cubiertas a dos aguas y carga de nieve por faldón a partir de la provincia, la altitud y el entorno. Bloque de acciones para el plano y derivación para la memoria.',
     route: '/acciones/viento-nieve',
     icon: <ModuleIcon moduleKey="concreta-viento-nieve" size={ICON_SIZE} />,
   },

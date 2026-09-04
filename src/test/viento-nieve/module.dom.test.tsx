@@ -186,3 +186,25 @@ describe('exportación', () => {
     expect(secciones[0].blocks.map((b) => b.text)).toContain('VIENTO (SEGÚN DB SE-AE)');
   });
 });
+
+describe('cubierta a dos aguas', () => {
+  it('incluirla despliega las zonas de las dos direcciones y las lleva al plano', () => {
+    montar();
+    rellenarMadrid();
+    expect(screen.queryByLabelText('Pendiente de los faldones')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Incluir la cubierta a dos aguas' }));
+    expect(screen.getByLabelText('Pendiente de los faldones')).toBeInTheDocument();
+    expect(screen.getByText(/Viento perpendicular a la cumbrera \(θ = 0º, según Y\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Viento paralelo a la cumbrera \(θ = 90º, según X\)/)).toBeInTheDocument();
+    // La zona J sólo existe con viento perpendicular: una fila; F está en las dos tablas.
+    expect(screen.getAllByText('J')).toHaveLength(1);
+    expect(screen.getAllByText('F')).toHaveLength(2);
+    // La altura de coronación sale deducida del último forjado.
+    expect(screen.getByText('último forjado + pendiente')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.getByText('CUBIERTA A DOS AGUAS (SEGÚN DB SE-AE)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
+    expect(screen.getByText(/Cubierta a dos aguas — tabla D\.6/)).toBeInTheDocument();
+  });
+});

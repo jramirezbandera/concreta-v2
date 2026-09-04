@@ -4,7 +4,8 @@
  * Como en el cuadro de materiales, los valores derivados son columnas de la
  * propia tabla de plantas: a la izquierda lo que se contesta (nombre, altura),
  * a la derecha lo que pone la norma (ce, qb·ce y la fuerza en cada dirección).
- * Debajo, el resumen por dirección: esbeltez, coeficientes y fuerza total.
+ * Debajo, el resumen por dirección: esbeltez, coeficientes y fuerza total, y
+ * el bloque opcional de la cubierta a dos aguas (`Cubierta.tsx`).
  */
 
 import { Trash2 } from 'lucide-react';
@@ -17,7 +18,8 @@ import { getPrecision, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { ASPEREZA_OPCIONES, QB_MODO_OPCIONES, type QbModo } from './catalogos';
-import type { PlantaUI, VientoUI } from './state';
+import { Cubierta } from './Cubierta';
+import { alturaCoronacionDerivada, type PlantaUI, type VientoUI } from './state';
 
 const INPUT =
   'w-full min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
@@ -229,6 +231,14 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
               </span>
             )}
           </div>
+
+          <Cubierta
+            v={v}
+            resultado={resultado?.cubierta ?? null}
+            hDerivada={alturaCoronacionDerivada(v)}
+            ayuda={ayuda}
+            onCambiar={(cambio) => onCambiar({ cubierta: { ...v.cubierta, ...cambio } })}
+          />
 
           {motivoSinResultado && <p className="px-4 pb-3 text-[12px] text-state-fail">{motivoSinResultado}</p>}
           {resultado?.errores.map((e) => (

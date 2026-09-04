@@ -123,3 +123,47 @@ export const PLANTAS_INICIALES: { nombre: string; h: number }[] = [
 
 /** Altura que se le da a la siguiente planta al añadirla: la última más 3 m. */
 export const ALTURA_PLANTA_TIPO = 3;
+
+// ── Cubierta a dos aguas ────────────────────────────────────────────────────
+
+export type EjeCumbrera = 'x' | 'y';
+
+export const CUMBRERA_OPCIONES: Opcion<EjeCumbrera>[] = [
+  {
+    id: 'x',
+    etiqueta: 'Paralela al lado X',
+    ayuda: 'La cumbrera corre a lo largo del lado X y los faldones vierten hacia las fachadas Y. El viento según Y la ataca de frente (θ = 0º) y el viento según X, de lado (θ = 90º).',
+  },
+  {
+    id: 'y',
+    etiqueta: 'Paralela al lado Y',
+    ayuda: 'La cumbrera corre a lo largo del lado Y y los faldones vierten hacia las fachadas X. El viento según X la ataca de frente (θ = 0º) y el viento según Y, de lado (θ = 90º).',
+  },
+];
+
+/** Anejo D.3-3: qué área de influencia manda en el coeficiente. */
+export type AreaModo = 'zona' | 'local' | 'propia';
+
+export const AREA_MODO_OPCIONES: Opcion<AreaModo>[] = [
+  {
+    id: 'zona',
+    etiqueta: 'La estructura de la cubierta (área de cada zona)',
+    ayuda: 'Cerchas, pórticos y correas principales: el área de influencia es la de cada zona en planta, y el coeficiente cpe,10 en cuanto llega a 10 m² (Anejo D.3-3).',
+  },
+  {
+    id: 'local',
+    etiqueta: 'Correas, paneles y anclajes (A ≤ 1 m²)',
+    ayuda: 'Comprobaciones locales de elementos pequeños: el coeficiente cpe,1, el más desfavorable de la tabla (Anejo D.3-3).',
+  },
+  {
+    id: 'propia',
+    etiqueta: 'Un elemento con su área',
+    ayuda: 'Teclee el área de asignación de carga del elemento: entre 1 y 10 m² la norma interpola con la fórmula D.4 (Anejo D.3-4).',
+  },
+];
+
+/** Pendiente con la que arranca la cubierta al incluirla: la teja corriente. */
+export const PENDIENTE_INICIAL = 20;
+
+/** Área con la que arranca la opción «un elemento con su área», m². */
+export const AREA_PROPIA_INICIAL = 5;

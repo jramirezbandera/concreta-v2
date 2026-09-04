@@ -259,3 +259,51 @@ describe('calcularViento — límites del DB y entradas inválidas', () => {
     expect(calcularViento({ ...base, qbManual: 0.5 }).notas.join()).toMatch(/3\.3\.2-1/);
   });
 });
+
+describe('calcularViento — cubierta a dos aguas', () => {
+  const base = { zona: 'A' as const, aspereza: 'IV' as const, plantas: [{ h: 3 }, { h: 6 }, { h: 9 }], dimensiones: { x: 20, y: 12 } };
+
+  it('sin cubierta: null, y la nota de cubierta plana', () => {
+    const r = calcularViento(base);
+    expect(r.cubierta).toBeNull();
+    expect(r.notas.join()).toMatch(/3\.3\.4-2/);
+  });
+
+  it('con cubierta: ce a la coronación, cumbrera y ancho según el eje, y las notas de la D.6 en vez de la de cubierta plana', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 11.2, cumbrera: 'x' } });
+    const c = r.cubierta!;
+    expect(c.cumbrera).toBe('x');
+    expect(c.ce).toBeCloseTo(coeficienteExposicion(11.2, 'IV'), 12);
+    expect(c.qe).toBeCloseTo(0.42 * c.ce, 12);
+    expect(c.perpendicular.b).toBe(20);
+    expect(c.perpendicular.d).toBe(12);
+    expect(c.paralela.b).toBe(12);
+    expect(c.paralela.d).toBe(20);
+    expect(r.notas.join()).toMatch(/tabla D\.6/);
+    expect(r.notas.join()).not.toMatch(/3\.3\.4-2/);
+    expect(r.errores).toEqual([]);
+    expect(r.x.plantas).toHaveLength(3);
+  });
+
+  it('la cumbrera según Y intercambia los lados', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 15, cumbrera: 'y' } });
+    expect(r.cubierta!.perpendicular.b).toBe(12);
+    expect(r.cubierta!.perpendicular.d).toBe(20);
+  });
+
+  it('la coronación por debajo del último forjado es un error, y los errores de la cubierta bloquean el viento', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 8, cumbrera: 'y' } });
+    expect(r.errores.join()).toMatch(/último forjado/);
+    const p = calcularViento({ ...base, cubierta: { pendiente: 80, alturaCoronacion: 12, cumbrera: 'y' } });
+    expect(p.errores.join()).toMatch(/75º/);
+    const casi = calcularViento({ ...base, cubierta: { pendiente: 2, alturaCoronacion: 9, cumbrera: 'x' } });
+    expect(casi.errores).toEqual([]);
+    expect(casi.avisos.join()).toMatch(/casi plana/);
+  });
+
+  it('el área de influencia tecleada llega a las zonas', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 12, cumbrera: 'x', areaInfluencia: 1 } });
+    expect(r.cubierta!.areaInfluencia).toBe(1);
+    expect(r.cubierta!.perpendicular.zonas.every((z) => z.A === 1)).toBe(true);
+  });
+});

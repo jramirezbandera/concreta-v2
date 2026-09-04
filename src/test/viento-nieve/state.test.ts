@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  alturaCoronacionDerivada,
   cargarEstado,
   datosPublicacion,
   defaultVientoNieveState,
@@ -227,5 +228,59 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.nieve.faldones[0]).toMatchObject({ inclinacion: 45, limahoya: 'ninguna', L: null, inclinacionOtro: 45 });
     expect(s.ayuda).toBe(true);
     expect(normalizar(null).viento.plantas).toHaveLength(3);
+  });
+});
+
+describe('cubierta a dos aguas', () => {
+  it('arranca omitida y no entra en el motor', () => {
+    const s = madrid();
+    expect(s.viento.cubierta.activa).toBe(false);
+    expect(entradaViento(s, zonasEfectivas(s.emplazamiento))?.cubierta).toBeUndefined();
+    expect(evaluar(s).viento?.cubierta).toBeNull();
+  });
+
+  it('activa: la altura de coronación se deduce del último forjado y la pendiente, y se puede teclear', () => {
+    const s = madrid();
+    s.viento.cubierta = { ...s.viento.cubierta, activa: true, pendiente: 20, cumbrera: 'x' };
+    // Cubierta a 9 m y 12 m de ancho perpendicular a la cumbrera: 9 + 6·tan 20º.
+    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(9 + 6 * Math.tan(Math.PI / 9), 12);
+    const z = zonasEfectivas(s.emplazamiento);
+    const e = entradaViento(s, z)!;
+    expect(e.cubierta).toMatchObject({ pendiente: 20, cumbrera: 'x' });
+    expect(e.cubierta?.alturaCoronacion).toBeCloseTo(alturaCoronacionDerivada(s.viento), 12);
+    expect(e.cubierta?.areaInfluencia).toBeUndefined();
+
+    s.viento.cubierta.alturaCoronacion = 13;
+    expect(entradaViento(s, z)?.cubierta?.alturaCoronacion).toBe(13);
+    s.viento.cubierta.areaModo = 'local';
+    expect(entradaViento(s, z)?.cubierta?.areaInfluencia).toBe(1);
+    s.viento.cubierta.areaModo = 'propia';
+    s.viento.cubierta.areaPropia = 4;
+    expect(entradaViento(s, z)?.cubierta?.areaInfluencia).toBe(4);
+    s.viento.cubierta.cumbrera = 'y';
+    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(9 + 10 * Math.tan(Math.PI / 9), 12);
+  });
+
+  it('se publica dentro del viento, con las zonas de las dos direcciones', () => {
+    const s = madrid();
+    s.viento.cubierta = { ...s.viento.cubierta, activa: true };
+    const ev = evaluar(s);
+    expect(ev.errores).toBe(0);
+    expect(ev.listo).toBe(true);
+    const d = datosPublicacion(s, ev)!;
+    expect(d.viento?.cubierta?.perpendicular.zonas.map((z) => z.zona)).toEqual(['F', 'G', 'H', 'I', 'J']);
+    expect(d.viento?.cubierta?.paralela.zonas).toHaveLength(4);
+    expect(d.viento?.cubierta?.cumbrera).toBe('x');
+    expect(d.viento?.cubierta?.areaInfluencia).toBeNull();
+    const sin = madrid();
+    expect(datosPublicacion(sin, evaluar(sin))!.viento?.cubierta).toBeUndefined();
+  });
+
+  it('normalizar rellena la cubierta que falta y descarta lo raro', () => {
+    const s = normalizar({ viento: { cubierta: { activa: 'sí', pendiente: 'mucha', cumbrera: 'z', alturaCoronacion: 'alta', areaModo: 'raro', areaPropia: 'grande' } } });
+    expect(s.viento.cubierta).toEqual({ activa: false, pendiente: 20, cumbrera: 'x', alturaCoronacion: null, areaModo: 'zona', areaPropia: 5 });
+    expect(normalizar({ viento: {} }).viento.cubierta.activa).toBe(false);
+    const t = normalizar({ viento: { cubierta: { activa: true, pendiente: 25, cumbrera: 'y', alturaCoronacion: 12.5, areaModo: 'local' } } });
+    expect(t.viento.cubierta).toMatchObject({ activa: true, pendiente: 25, cumbrera: 'y', alturaCoronacion: 12.5, areaModo: 'local' });
   });
 });

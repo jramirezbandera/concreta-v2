@@ -321,8 +321,8 @@ export function VientoNieveModule() {
               <p className="mx-auto mb-3 max-w-[1100px] text-[11.5px] leading-snug text-text-disabled">
                 El bloque de acciones horizontales del cuadro del plano —zona eólica, velocidad básica, grado de
                 aspereza— y la fuerza por planta que se lleva al programa de cálculo. «Exportar Excel» entrega{' '}
-                <b className="text-text-secondary">esto</b> en tres pestañas sin cuadrícula (viento, fuerzas por
-                planta, nieve): se selecciona, se captura y se pega en el plano.
+                <b className="text-text-secondary">esto</b> en pestañas sin cuadrícula (viento, fuerzas por
+                planta, cubierta a dos aguas si la hay, nieve): se selecciona, se captura y se pega en el plano.
               </p>
             )}
             {state.ayuda && vista === 'memoria' && (

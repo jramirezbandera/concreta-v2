@@ -12,12 +12,17 @@
  */
 
 import {
+  alturaCoronacionDesdeForjado,
+  AREA_CPE,
   calcularNieve,
   calcularViento,
   ORDEN_ASPEREZAS,
   provinciaPorIne,
   QB_SIMPLIFICADO,
   ZONAS_INVERNALES,
+  type Cpe,
+  type CubiertaResuelta,
+  type DireccionResuelta,
   type ExposicionNieve,
   type GradoAspereza,
   type NieveInput,
@@ -32,7 +37,11 @@ import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
 import {
   ALTURA_PLANTA_TIPO,
+  AREA_PROPIA_INICIAL,
+  PENDIENTE_INICIAL,
   PLANTAS_INICIALES,
+  type AreaModo,
+  type EjeCumbrera,
   type LimahoyaUI,
   type QbModo,
   type SkModo,
@@ -69,6 +78,19 @@ export interface PlantaUI {
   h: number;
 }
 
+/** Cubierta a dos aguas (Anejo D.6): opcional, la mayoría de edificios de pisos van con cubierta plana. */
+export interface CubiertaUI {
+  activa: boolean;
+  /** Pendiente de los faldones, grados; negativa si bajan hacia el centro. */
+  pendiente: number;
+  cumbrera: EjeCumbrera;
+  /** Altura de coronación, m. null = la del último forjado más lo que sube el faldón. */
+  alturaCoronacion: number | null;
+  areaModo: AreaModo;
+  /** m². Sólo cuenta con `areaModo = 'propia'`. */
+  areaPropia: number;
+}
+
 export interface VientoUI {
   activo: boolean;
   qbModo: QbModo;
@@ -77,6 +99,7 @@ export interface VientoUI {
   aspereza: GradoAspereza;
   plantas: PlantaUI[];
   dimensiones: { x: number; y: number };
+  cubierta: CubiertaUI;
 }
 
 export interface FaldonUI {
@@ -135,6 +158,29 @@ export function nuevoFaldon(nombre: string, inclinacion: number): FaldonUI {
   };
 }
 
+export function cubiertaPorDefecto(): CubiertaUI {
+  return {
+    activa: false,
+    pendiente: PENDIENTE_INICIAL,
+    cumbrera: 'x',
+    alturaCoronacion: null,
+    areaModo: 'zona',
+    areaPropia: AREA_PROPIA_INICIAL,
+  };
+}
+
+/** Altura de coronación deducida: el forjado más alto más lo que sube el faldón hasta la cumbrera. */
+export function alturaCoronacionDerivada(v: VientoUI): number {
+  const H = v.plantas.reduce((m, p) => Math.max(m, p.h), 0);
+  const ancho = v.dimensiones[v.cubierta.cumbrera === 'x' ? 'y' : 'x'];
+  return alturaCoronacionDesdeForjado(H, ancho, v.cubierta.pendiente);
+}
+
+/** La tecleada si la hay; si no, la deducida. */
+export function alturaCoronacionEfectiva(v: VientoUI): number {
+  return v.cubierta.alturaCoronacion ?? alturaCoronacionDerivada(v);
+}
+
 /** La planta que se añade detrás de la última: su altura más una planta tipo. */
 export function siguientePlanta(plantas: PlantaUI[]): PlantaUI {
   const ultima = plantas.reduce((m, p) => Math.max(m, p.h), 0);
@@ -164,6 +210,7 @@ export function defaultVientoNieveState(): VientoNieveState {
       aspereza: 'IV',
       plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.h)),
       dimensiones: { x: 20, y: 12 },
+      cubierta: cubiertaPorDefecto(),
     },
     nieve: {
       activo: true,
@@ -199,6 +246,7 @@ export function normalizar(bruto: unknown): VientoNieveState {
   const v = esObjeto(bruto.viento) ? bruto.viento : {};
   const n = esObjeto(bruto.nieve) ? bruto.nieve : {};
   const dims = esObjeto(v.dimensiones) ? v.dimensiones : {};
+  const cub = esObjeto(v.cubierta) ? v.cubierta : {};
 
   const plantas = Array.isArray(v.plantas)
     ? v.plantas.filter(esObjeto).map(
@@ -245,6 +293,14 @@ export function normalizar(bruto: unknown): VientoNieveState {
       aspereza: uno(v.aspereza, ORDEN_ASPEREZAS, 'IV'),
       plantas,
       dimensiones: { x: numero(dims.x, 20), y: numero(dims.y, 12) },
+      cubierta: {
+        activa: bool(cub.activa, false),
+        pendiente: numero(cub.pendiente, PENDIENTE_INICIAL),
+        cumbrera: uno(cub.cumbrera, ['x', 'y'] as const, 'x'),
+        alturaCoronacion: typeof cub.alturaCoronacion === 'number' && Number.isFinite(cub.alturaCoronacion) ? cub.alturaCoronacion : null,
+        areaModo: uno(cub.areaModo, ['zona', 'local', 'propia'] as const, 'zona'),
+        areaPropia: numero(cub.areaPropia, AREA_PROPIA_INICIAL),
+      },
     },
     nieve: {
       activo: bool(n.activo, true),
@@ -315,6 +371,17 @@ export function entradaViento(state: VientoNieveState, zonas: Zonas): VientoInpu
     ...(state.emplazamiento.altitud !== null ? { altitud: state.emplazamiento.altitud } : {}),
     plantas: v.plantas.map((p) => ({ id: p.id, nombre: p.nombre.trim() || 'Planta', h: p.h })),
     dimensiones: { ...v.dimensiones },
+    ...(v.cubierta.activa
+      ? {
+          cubierta: {
+            pendiente: v.cubierta.pendiente,
+            alturaCoronacion: alturaCoronacionEfectiva(v),
+            cumbrera: v.cubierta.cumbrera,
+            ...(v.cubierta.areaModo === 'local' ? { areaInfluencia: AREA_CPE.local } : {}),
+            ...(v.cubierta.areaModo === 'propia' ? { areaInfluencia: v.cubierta.areaPropia } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -385,7 +452,42 @@ export function evaluar(state: VientoNieveState): Evaluacion {
 
 // ── Publicación ─────────────────────────────────────────────────────────────
 
-/** Esquema v1 de lo que este módulo publica. Cambiarlo obliga a subir `PUB_VERSION`. */
+export interface PubZonaCubierta {
+  zona: string;
+  /** Área en planta de una pieza, m². */
+  area: number;
+  /** Área de influencia usada, m². */
+  A: number;
+  cpe: Cpe;
+  /** qe · cpe, kN/m². */
+  succion: number | null;
+  presion: number | null;
+}
+
+export interface PubDireccionCubierta {
+  theta: 0 | 90;
+  b: number;
+  d: number;
+  e: number;
+  zonas: PubZonaCubierta[];
+}
+
+/**
+ * La cubierta a dos aguas dentro de `viento`. Se añadió en la v1.1 sin subir
+ * `PUB_VERSION`: es opcional y aditivo, y un lector de la v1 lo ignora.
+ */
+export interface PubCubierta {
+  pendiente: number;
+  alturaCoronacion: number;
+  cumbrera: EjeCumbrera;
+  ce: number;
+  qe: number;
+  areaInfluencia: number | null;
+  perpendicular: PubDireccionCubierta;
+  paralela: PubDireccionCubierta;
+}
+
+/** Esquema v1 de lo que este módulo publica. Cambiarlo (salvo añadir campos opcionales) obliga a subir `PUB_VERSION`. */
 export interface PubVientoNieve {
   provincia: string;
   provinciaIne: string;
@@ -401,6 +503,7 @@ export interface PubVientoNieve {
     x: { esbeltez: number; cp: number; cs: number; Ftotal: number };
     y: { esbeltez: number; cp: number; cs: number; Ftotal: number };
     fuerzas: { nombre: string; z: number; Fx: number; Fy: number }[];
+    cubierta?: PubCubierta;
   } | null;
   nieve: {
     zonaInvernal: ZonaInvernal;
@@ -410,6 +513,26 @@ export interface PubVientoNieve {
     qnMax: number;
     faldones: { nombre: string; inclinacion: number; mu: number; qn: number }[];
   } | null;
+}
+
+function pubCubierta(c: CubiertaResuelta): PubCubierta {
+  const direccion = (d: DireccionResuelta): PubDireccionCubierta => ({
+    theta: d.theta,
+    b: d.b,
+    d: d.d,
+    e: d.e,
+    zonas: d.zonas.map((z) => ({ zona: z.zona, area: z.area, A: z.A, cpe: z.cpe, succion: z.succion, presion: z.presion })),
+  });
+  return {
+    pendiente: c.pendiente,
+    alturaCoronacion: c.alturaCoronacion,
+    cumbrera: c.cumbrera,
+    ce: c.ce,
+    qe: c.qe,
+    areaInfluencia: c.areaInfluencia,
+    perpendicular: direccion(c.perpendicular),
+    paralela: direccion(c.paralela),
+  };
 }
 
 export function datosPublicacion(state: VientoNieveState, ev: Evaluacion): PubVientoNieve | null {
@@ -439,6 +562,7 @@ export function datosPublicacion(state: VientoNieveState, ev: Evaluacion): PubVi
               Fx: p.F,
               Fy: viento.y.plantas[i].F,
             })),
+            ...(viento.cubierta ? { cubierta: pubCubierta(viento.cubierta) } : {}),
           }
         : null,
     nieve:

@@ -24,6 +24,7 @@
  * de `tablasAE.ts`.
  */
 
+import { calcularDosAguas, type DosAguasResultado } from './dosAguas';
 import { interpolar } from './interp';
 import {
   ALTITUD_MAX_VIENTO,
@@ -49,6 +50,18 @@ export interface PlantaViento {
   h: number;
 }
 
+/** Cubierta a dos aguas del edificio (Anejo D.6), si la tiene. */
+export interface CubiertaDosAguasInput {
+  /** Pendiente de los faldones, grados; negativa si bajan hacia el centro. */
+  pendiente: number;
+  /** Altura de coronación (el punto más alto de la cubierta) sobre rasante, m. */
+  alturaCoronacion: number;
+  /** Eje al que es paralela la cumbrera. */
+  cumbrera: 'x' | 'y';
+  /** Área de influencia del elemento comprobado, m². Si falta, la de cada zona. */
+  areaInfluencia?: number;
+}
+
 export interface VientoInput {
   zona: ZonaEolica;
   /**
@@ -62,6 +75,8 @@ export interface VientoInput {
   plantas: PlantaViento[];
   /** Dimensiones del edificio en planta, m. */
   dimensiones: { x: number; y: number };
+  /** Cubierta a dos aguas, para las presiones por zonas de la tabla D.6. Sin ella, cubierta plana. */
+  cubierta?: CubiertaDosAguasInput;
 }
 
 // ── Salida ──────────────────────────────────────────────────────────────────
@@ -103,6 +118,9 @@ export interface DireccionViento {
   excentricidad: number;
 }
 
+/** La cubierta resuelta, con el ce de su coronación y a qué eje va la cumbrera. */
+export type CubiertaResuelta = DosAguasResultado & { ce: number; cumbrera: 'x' | 'y' };
+
 export interface VientoResultado {
   qb: number;
   qbOrigen: OrigenQb;
@@ -114,6 +132,8 @@ export interface VientoResultado {
   H: number;
   x: DireccionViento;
   y: DireccionViento;
+  /** Presiones por zonas de la cubierta a dos aguas (Anejo D.6); null con cubierta plana. */
+  cubierta: CubiertaResuelta | null;
   /** Recordatorios normativos que van a la memoria tal cual. */
   notas: string[];
   /** Cosas que el usuario debe mirar; no bloquean. */
@@ -261,15 +281,44 @@ export function calcularViento(input: VientoInput): VientoResultado {
     }
   }
 
+  // La cubierta a dos aguas: ce a su coronación, y la cumbrera decide qué
+  // lado del edificio es b y cuál d en cada dirección de la tabla D.6.
+  let cubierta: CubiertaResuelta | null = null;
+  if (input.cubierta) {
+    const c = input.cubierta;
+    const ce = coeficienteExposicion(c.alturaCoronacion, input.aspereza);
+    const r = calcularDosAguas({
+      pendiente: c.pendiente,
+      alturaCoronacion: c.alturaCoronacion,
+      longitudCumbrera: input.dimensiones[c.cumbrera],
+      anchoCubierta: input.dimensiones[c.cumbrera === 'x' ? 'y' : 'x'],
+      qe: qb * ce,
+      ...(c.areaInfluencia !== undefined ? { areaInfluencia: c.areaInfluencia } : {}),
+    });
+    if (H > 0 && c.alturaCoronacion < H) {
+      r.errores.push(`La coronación de la cubierta (${c.alturaCoronacion} m) está por debajo del último forjado (${H} m).`);
+    }
+    errores.push(...r.errores);
+    avisos.push(...r.avisos);
+    cubierta = { ...r, ce, cumbrera: c.cumbrera };
+  }
+
   if (origen === 'simplificado') {
     notas.push('Presión dinámica simplificada de 0,5 kN/m², válida en cualquier punto del territorio (art. 3.3.2-1).');
   }
   notas.push(
     'Coeficientes eólicos globales de la tabla 3.5, aplicados a la proyección del edificio sobre un plano perpendicular al viento (art. 3.3.4-1).',
     `La acción se considera aplicada con una excentricidad del ${EXCENTRICIDAD_VIENTO * 100} % de la dimensión máxima perpendicular al viento, del lado desfavorable (art. 3.3.2-2).`,
-    'En cubierta plana la acción del viento, generalmente de succión, opera del lado de la seguridad y se puede despreciar (art. 3.3.4-2).',
-    'La cubierta recibe sólo la media planta inferior: petos y casetones se añaden a mano.',
   );
+  if (cubierta) {
+    notas.push(
+      ...cubierta.notas,
+      'La fuerza por planta recoge las fachadas: la resultante del viento sobre los faldones (tabla D.6) no está incluida y se lleva aparte a la estructura de cubierta.',
+    );
+  } else {
+    notas.push('En cubierta plana la acción del viento, generalmente de succión, opera del lado de la seguridad y se puede despreciar (art. 3.3.4-2).');
+  }
+  notas.push('La cubierta recibe sólo la media planta inferior: petos y casetones se añaden a mano.');
 
   return {
     qb,
@@ -280,6 +329,7 @@ export function calcularViento(input: VientoInput): VientoResultado {
     H,
     x,
     y,
+    cubierta,
     notas,
     avisos,
     errores,

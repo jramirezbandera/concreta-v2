@@ -19,6 +19,7 @@ import {
   cuadroNieveMemoria,
   cuadroVientoMemoria,
   seccionesPlanoXlsx,
+  TITULO_CUBIERTA_PLANO,
   TITULO_FUERZAS_XLSX,
   type EmplazamientoCuadro,
 } from '../../lib/acciones/cuadros';
@@ -192,5 +193,61 @@ describe('ficheros de verdad', () => {
     expect(xlsx.blob.size).toBeGreaterThan(1000);
     const zip = await JSZip.loadAsync(await xlsx.blob.arrayBuffer());
     expect(Object.keys(zip.files).filter((f) => f.startsWith('xl/worksheets/sheet'))).toHaveLength(3);
+  });
+});
+
+describe('cubierta a dos aguas en las exportaciones', () => {
+  /** Ávila con cubierta a 25º y la cumbrera según X. */
+  function conCubierta() {
+    const s = avila();
+    s.viento.cubierta = { ...s.viento.cubierta, activa: true, pendiente: 25 };
+    return s;
+  }
+
+  it('el plano gana una pestaña «Cubierta» entre las fuerzas y la nieve, con sus dos tablas', () => {
+    const { plano } = cuadros(conCubierta());
+    const secciones = seccionesPlanoXlsx(plano);
+    expect(secciones.map((s) => s.nombre)).toEqual(['Viento', 'Fuerzas por planta', 'Cubierta', 'Nieve']);
+    const cubierta = secciones[2].blocks;
+    expect(textos(cubierta)[0]).toBe(TITULO_CUBIERTA_PLANO);
+    const tablas = cubierta.filter((b): b is Extract<Block, { kind: 'table' }> => b.kind === 'table');
+    expect(tablas).toHaveLength(2);
+    expect(tablas[0].caption).toMatch(/perpendicular a la cumbrera \(θ = 0º, según Y\)/);
+    expect(tablas[1].caption).toMatch(/paralelo a la cumbrera \(θ = 90º, según X\)/);
+    expect(tablas[0].rows.map((r) => r[0])).toEqual(['F', 'G', 'H', 'I', 'J']);
+    expect(tablas[1].rows.map((r) => r[0])).toEqual(['F', 'G', 'H', 'I']);
+    // El bloque de viento no se lleva la cubierta y la nieve sigue intacta.
+    expect(secciones[0].blocks.some((b) => b.kind === 'table')).toBe(false);
+    expect(textos(secciones[3].blocks)[0]).toBe('NIEVE (SEGÚN DB SE-AE)');
+  });
+
+  it('las etiquetas del bloque caben en su columna y ninguna pestaña se dispara de ancho', () => {
+    const secciones = seccionesPlanoXlsx(cuadros(conCubierta()).plano);
+    const kv = secciones[2].blocks.find((b) => b.kind === 'kvTable') as { rows: [string, string][] };
+    for (const [etiqueta] of kv.rows) expect(etiqueta.length, etiqueta).toBeLessThanOrEqual(33);
+    for (const s of secciones) {
+      const hoja = planificarHoja(s.blocks, s.nombre);
+      for (const a of hoja.anchos) expect(a).toBeLessThanOrEqual(34);
+      expect(hoja.anchos.reduce((a, b) => a + b, 0)).toBeLessThan(120);
+    }
+  });
+
+  it('la memoria añade su cuadro y dos tablas de ocho columnas que caben sin trocearse', () => {
+    const plan = planificarDocx(cuadros(conCubierta()).memoria, 'Ávila');
+    const tablas = plan.bloques.filter((b): b is Extract<BloquePlan, { tipo: 'tabla' }> => b.tipo === 'tabla');
+    expect(tablas).toHaveLength(8);
+    const zonas = tablas.filter((t) => t.caption?.includes('cumbrera'));
+    expect(zonas).toHaveLength(2);
+    for (const t of zonas) {
+      expect(t.filas[0].celdas).toHaveLength(8);
+      expect(t.filas[0].celdas[0].texto).toBe('Zona');
+      expect(t.anchos.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 6);
+    }
+    const h3 = plan.bloques.filter((b) => b.tipo === 'parrafo' && b.estilo === 'Heading3').map((b) => (b as { texto: string }).texto);
+    expect(h3.some((t) => t.includes('Cubierta a dos aguas'))).toBe(true);
+  });
+
+  it('sin cubierta nada cambia', () => {
+    expect(seccionesPlanoXlsx(cuadros().plano).map((s) => s.nombre)).toEqual(['Viento', 'Fuerzas por planta', 'Nieve']);
   });
 });

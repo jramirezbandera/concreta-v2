@@ -18,6 +18,7 @@
  */
 
 import type { Block } from '../materiales/cuadros';
+import type { Cpe, DireccionResuelta } from './dosAguas';
 import type { NieveResultado, OrigenSk } from './nieve';
 import {
   ASPEREZAS,
@@ -25,7 +26,7 @@ import {
   type ZonaEolica,
   type ZonaInvernal,
 } from './tablasAE';
-import type { DireccionViento, OrigenQb, VientoResultado } from './viento';
+import type { CubiertaResuelta, DireccionViento, OrigenQb, VientoResultado } from './viento';
 
 export interface EmplazamientoCuadro {
   /** Nombre de la provincia. */
@@ -115,8 +116,113 @@ export function cuadroVientoMemoria(r: VientoResultado, e: EmplazamientoCuadro):
     { kind: 'kvTable', rows },
     ...tablaDireccion(r.x),
     ...tablaDireccion(r.y),
+    ...(r.cubierta ? cuadroCubiertaMemoria(r.cubierta) : []),
     { kind: 'notes', items: r.notas },
   ];
+}
+
+// ── Cubierta a dos aguas ────────────────────────────────────────────────────
+
+/** Un coeficiente con sus dos posibilidades: «-0,85 / +0,27»; con una sola, «-0,40» o «+0,70». */
+export function textoCpe(c: Cpe, decimales = 2): string {
+  const s = c.succion === null ? null : num(c.succion, decimales);
+  const p = c.presion === null ? null : `+${num(c.presion, decimales)}`;
+  if (s !== null && p !== null) return `${s} / ${p}`;
+  return s ?? p ?? GUION;
+}
+
+/** Una presión con su signo (la succión ya viene negativa), o guion si esa posibilidad no existe. */
+function conSigno(valor: number | null, decimales: number): string {
+  if (valor === null) return GUION;
+  return valor > 0 ? `+${num(valor, decimales)}` : num(valor, decimales);
+}
+
+/** «20º» o «17,5º». */
+function grados(pendiente: number): string {
+  return `${num(pendiente, Number.isInteger(pendiente) ? 0 : 1)}º`;
+}
+
+/** «Viento perpendicular a la cumbrera (θ = 0º, según Y)»: la dirección de la norma y el eje del módulo que le corresponde. */
+export function rotuloDireccionCubierta(d: DireccionResuelta, cumbrera: 'x' | 'y'): string {
+  const eje = d.direccion === 'perpendicular' ? (cumbrera === 'x' ? 'Y' : 'X') : cumbrera.toUpperCase();
+  return d.direccion === 'perpendicular'
+    ? `Viento perpendicular a la cumbrera (θ = 0º, según ${eje})`
+    : `Viento paralelo a la cumbrera (θ = 90º, según ${eje})`;
+}
+
+function leyendaZonas(d: DireccionResuelta): Block {
+  const quien = d.direccion === 'perpendicular' ? 'perpendicular' : 'paralelo';
+  return {
+    kind: 'paragraph',
+    text: `Zonas de la figura D.6 con viento ${quien} a la cumbrera: ${d.zonas.map((z) => `${z.zona}, ${z.descripcion}`).join('; ')}.`,
+  };
+}
+
+function tablaZonasMemoria(d: DireccionResuelta, cumbrera: 'x' | 'y'): Block {
+  return {
+    kind: 'table',
+    caption: `${rotuloDireccionCubierta(d, cumbrera)} — b = ${num(d.b, 2)} m, d = ${num(d.d, 2)} m, e = min(b, 2h) = ${num(d.e, 2)} m`,
+    head: ['Zona', 'Piezas y medidas (m)', 'Área (m²)', 'cpe,10', 'cpe,1', 'cpe (A, m²)', 'Succión (kN/m²)', 'Presión (kN/m²)'],
+    rows: d.zonas.map((z) => [
+      z.zona,
+      `${z.piezas} × ${num(z.ancho, 2)} × ${num(z.fondo, 2)}`,
+      num(z.area, 2),
+      textoCpe(z.cpe10),
+      textoCpe(z.cpe1),
+      `${textoCpe(z.cpe)} (${num(z.A, 1)})`,
+      conSigno(z.succion, 3),
+      conSigno(z.presion, 3),
+    ]),
+  };
+}
+
+function cuadroCubiertaMemoria(c: CubiertaResuelta): Block[] {
+  const rows: [string, string][] = [
+    ['Pendiente de los faldones α', grados(c.pendiente)],
+    ['Altura de coronación h', `${num(c.alturaCoronacion, 2)} m (el punto más alto de la cubierta)`],
+    ['Cumbrera', `paralela al eje ${c.cumbrera.toUpperCase()}, ${num(c.perpendicular.b, 2)} m; ancho perpendicular ${num(c.perpendicular.d, 2)} m`],
+    ['Coeficiente de exposición en coronación', `ce = ${num(c.ce, 3)} (Anejo D.2, z = h)`],
+    ['Presión en coronación', `qb·ce = ${num(c.qe, 3)} kN/m²`],
+    [
+      'Área de influencia A',
+      c.areaInfluencia === null
+        ? 'la de cada zona en planta (estructura general, Anejo D.3-3)'
+        : `${num(c.areaInfluencia, 2)} m² (la del elemento comprobado, Anejo D.3-3)`,
+    ],
+    ['Coeficiente adoptado', 'cpe,10 si A ≥ 10 m², cpe,1 si A ≤ 1 m² y entre medias cpe,A = cpe,1 + (cpe,10 − cpe,1)·log10 A (fórmula D.4)'],
+  ];
+  return [
+    { kind: 'heading', level: 3, text: `Cubierta a dos aguas — tabla D.6, pendiente ${grados(c.pendiente)}` },
+    { kind: 'kvTable', rows },
+    tablaZonasMemoria(c.perpendicular, c.cumbrera),
+    leyendaZonas(c.perpendicular),
+    tablaZonasMemoria(c.paralela, c.cumbrera),
+    leyendaZonas(c.paralela),
+  ];
+}
+
+export const TITULO_CUBIERTA_PLANO = 'CUBIERTA A DOS AGUAS (SEGÚN DB SE-AE)';
+
+/**
+ * El bloque de cubierta del plano: cinco datos y una tabla por dirección con
+ * la presión de cada zona. Etiquetas cortas (≤ 33 caracteres) por el ancho
+ * de columna del Excel, como en el bloque de nieve.
+ */
+function cuadroCubiertaPlano(c: CubiertaResuelta): Block[] {
+  const rows: [string, string][] = [
+    ['Pendiente de los faldones', grados(c.pendiente)],
+    ['Altura de coronación', `h = ${num(c.alturaCoronacion, 2)} m`],
+    ['Cumbrera', `paralela a ${c.cumbrera.toUpperCase()} (${num(c.perpendicular.b, 2)} m); ancho ${num(c.perpendicular.d, 2)} m`],
+    ['Presión en coronación', `qb·ce = ${num(c.qe, 3)} kN/m² (ce = ${num(c.ce, 3)})`],
+    ['Coeficientes de presión', c.areaInfluencia === null ? 'tabla D.6; A = la de cada zona' : `tabla D.6; A = ${num(c.areaInfluencia, 2)} m²`],
+  ];
+  const tabla = (d: DireccionResuelta): Block => ({
+    kind: 'table',
+    caption: rotuloDireccionCubierta(d, c.cumbrera),
+    head: ['Zona', 'Área (m²)', 'cpe', 'Succión (kN/m²)', 'Presión (kN/m²)'],
+    rows: d.zonas.map((z) => [z.zona, num(z.area, 2), textoCpe(z.cpe), conSigno(z.succion, 2), conSigno(z.presion, 2)]),
+  });
+  return [{ kind: 'heading', level: 2, text: TITULO_CUBIERTA_PLANO }, { kind: 'kvTable', rows }, tabla(c.perpendicular), tabla(c.paralela)];
 }
 
 // ── Nieve ───────────────────────────────────────────────────────────────────
@@ -212,6 +318,7 @@ export function cuadroAccionesPlano(
         ],
       },
     );
+    if (viento.cubierta) blocks.push(...cuadroCubiertaPlano(viento.cubierta));
   }
 
   if (nieve) {
@@ -246,8 +353,8 @@ export function cuadroAccionesPlano(
 
 /**
  * Las pestañas del Excel del plano, por SUSTRACCIÓN de los bloques que se ven
- * en pantalla: viento, la tabla de fuerzas por planta y nieve, cada uno en la
- * suya. Una columna de Excel tiene un ancho: la columna de valores del bloque
+ * en pantalla: viento, la tabla de fuerzas por planta, la cubierta a dos
+ * aguas si la hay y nieve, cada uno en la suya. Una columna de Excel tiene un ancho: la columna de valores del bloque
  * de viento («IV (zona urbana, industrial o forestal)») dejaría estirada la
  * columna «z (m)» de la tabla de fuerzas si compartieran hoja.
  *
@@ -261,10 +368,12 @@ export const TITULO_FUERZAS_XLSX = 'FUERZAS DE VIENTO POR PLANTA';
 export function seccionesPlanoXlsx(blocks: Block[]): { nombre: string; blocks: Block[] }[] {
   const viento: Block[] = [];
   const fuerzas: Block[] = [];
+  const cubierta: Block[] = [];
   const nieve: Block[] = [];
   let actual = viento;
   for (const b of blocks) {
     if (b.kind === 'heading' && b.text === TITULO_NIEVE_PLANO) actual = nieve;
+    else if (b.kind === 'heading' && b.text === TITULO_CUBIERTA_PLANO) actual = cubierta;
     else if (b.kind === 'heading' && b.text === TITULO_VIENTO_PLANO) actual = viento;
     if (b.kind === 'table' && b.caption === CAPTION_FUERZAS) {
       if (fuerzas.length === 0) fuerzas.push({ kind: 'heading', level: 2, text: TITULO_FUERZAS_XLSX });
@@ -276,6 +385,7 @@ export function seccionesPlanoXlsx(blocks: Block[]): { nombre: string; blocks: B
   return [
     { nombre: 'Viento', blocks: viento },
     { nombre: 'Fuerzas por planta', blocks: fuerzas },
+    { nombre: 'Cubierta', blocks: cubierta },
     { nombre: 'Nieve', blocks: nieve },
   ].filter((s) => s.blocks.length > 0);
 }

@@ -10,5 +10,6 @@ export * from './tablasAE';
 export * from './provincias';
 export * from './interp';
 export * from './viento';
+export * from './dosAguas';
 export * from './nieve';
 export * from './cuadros';
