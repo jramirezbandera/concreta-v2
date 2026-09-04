@@ -46,10 +46,14 @@ export function titledFilename(title: string, fallback: string, extension = 'pdf
 }
 
 /**
- * Nombre por defecto del cuadro de materiales cuando el usuario no teclea
- * título. Vive aquí, y no en `src/lib/docx/materiales.ts`, porque lo necesita el
- * `TitlePromptModal` para pintar la línea de previsualización: importarlo del
- * módulo de docx metería la librería entera en el chunk del módulo y mataría la
- * carga perezosa.
+ * Nombres por defecto del cuadro de materiales cuando el usuario no teclea
+ * título. Viven aquí, y no junto a cada exportador, porque los necesita el
+ * `TitlePromptModal` para pintar la línea de previsualización: importarlos de
+ * `lib/docx/materiales` metería la librería entera en el chunk del módulo y
+ * mataría la carga perezosa.
+ *
+ * Uno por vista, porque cada vista tiene su formato: la de memoria sale a Word
+ * y la de plano a Excel (y más adelante a DXF).
  */
-export const MATERIALES_FALLBACK_FILENAME = 'cuadro-de-materiales.docx';
+export const MATERIALES_FALLBACK_DOCX = 'cuadro-de-materiales.docx';
+export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';

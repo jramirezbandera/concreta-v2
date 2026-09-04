@@ -42,6 +42,16 @@ vi.mock('../../lib/docx/materiales', () => ({
   exportarMaterialesDocx: (blocks: unknown, titulo?: string) =>
     exportarMaterialesDocx(blocks, titulo),
 }));
+const exportarMaterialesXlsx = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['x'], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.xlsx` : 'cuadro-de-materiales.xlsx',
+}));
+vi.mock('../../lib/xlsx/materiales', () => ({
+  exportarMaterialesXlsx: (blocks: unknown, titulo?: string) =>
+    exportarMaterialesXlsx(blocks, titulo),
+}));
 
 function montar() {
   return render(
@@ -67,6 +77,7 @@ function filaDe(nombre: string): HTMLElement {
 beforeEach(() => {
   localStorage.clear();
   exportarMaterialesDocx.mockClear();
+  exportarMaterialesXlsx.mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -461,6 +472,61 @@ describe('huecos y exportación', () => {
     await waitFor(() => expect(descargado).toBe('nave-taller.docx'));
 
     click.mockRestore();
+  });
+
+  // El botón entrega lo que se está mirando: cada vista tiene su formato porque
+  // tiene su destino. El fallo que busca: que la pestaña cambie y el botón siga
+  // bajando el documento de la otra.
+  it('en la pestaña Plano el botón pasa a Excel y exporta los bloques de plano', async () => {
+    montar();
+    expect(screen.getByRole('button', { name: 'Exportar Word' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar Word' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+    expect(screen.getByText('cuadro-de-materiales.xlsx')).toBeInTheDocument();
+
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Exportar Excel' }));
+
+    await waitFor(() => expect(exportarMaterialesXlsx).toHaveBeenCalled());
+    expect(exportarMaterialesDocx).not.toHaveBeenCalled();
+
+    // Dos pestañas, y los anclajes en la SUYA: sus celdas son números de dos
+    // cifras y compartir columna con el cuadro de hormigón los dejaba estirados.
+    const secciones = exportarMaterialesXlsx.mock.calls[0][0] as {
+      nombre: string;
+      blocks: { text?: string }[];
+    }[];
+    expect(secciones.map((s) => s.nombre)).toEqual(['Cuadro de materiales', 'Anclajes']);
+
+    const principal = secciones[0].blocks.map((b) => b.text);
+    const anclajes = secciones[1].blocks.map((b) => b.text);
+    // Los bloques del PLANO, no los de memoria.
+    expect(principal).toContain('HORMIGÓN (CÓDIGO ESTRUCTURAL)');
+    expect(anclajes).toContain('LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)');
+    // Y ninguno de los dos se cuela en la hoja del otro.
+    expect(principal).not.toContain('LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)');
+    expect(anclajes).not.toContain('HORMIGÓN (CÓDIGO ESTRUCTURAL)');
+  });
+
+  it('en pantalla y en el Word los anclajes siguen pegados al cuadro de acero', () => {
+    // La separación en pestañas es SOLO del Excel: quitarlos también de la vista
+    // de plano sería perder una tabla del cuadro que ya se entrega.
+    montar();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(
+      screen.getByText('LONGITUDES DE ANCLAJE EN PROLONGACIÓN RECTA (CÓD-E)'),
+    ).toBeInTheDocument();
+  });
+
+  it('vuelto a Memoria, el botón es Word otra vez', () => {
+    montar();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
+    expect(screen.getByRole('button', { name: 'Exportar Word' })).toBeInTheDocument();
   });
 
   it('sin ningún material encendido no deja exportar un documento vacío', () => {

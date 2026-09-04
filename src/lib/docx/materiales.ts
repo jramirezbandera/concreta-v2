@@ -14,7 +14,7 @@
 
 import { Packer } from 'docx';
 import type { Block } from '../materiales/cuadros';
-import { MATERIALES_FALLBACK_FILENAME, titledFilename } from '../export/filename';
+import { MATERIALES_FALLBACK_DOCX, titledFilename } from '../export/filename';
 import type { ResultadoExport } from '../export/descargar';
 import { documentoDeBloques } from './render';
 
@@ -26,6 +26,6 @@ export async function exportarMaterialesDocx(
   const blob = await Packer.toBlob(doc);
   return {
     blob,
-    filename: titledFilename(titulo ?? '', MATERIALES_FALLBACK_FILENAME, 'docx'),
+    filename: titledFilename(titulo ?? '', MATERIALES_FALLBACK_DOCX, 'docx'),
   };
 }
