@@ -6,11 +6,16 @@
  * puro y se testea sin abrir un zip. Aquí sólo queda el mapeo mecánico a
  * `Paragraph` / `Table` y las tres decisiones que SÍ son de este piso:
  *
- *  1. **Ni una fuente, ni un tamaño, ni un color.** No hay `styles.default`.
- *     Los estilos son los integrados de Word (`Heading1..3`, `Caption`,
- *     `TableGrid`), que Word materializa contra la plantilla del usuario. Ése
- *     es todo el diseño: el cuadro se pega en la memoria del proyecto y hereda
- *     su tipografía, su numeración y su índice.
+ *  1. **Tipografía propia, calcada de las memorias del estudio.** La primera
+ *     versión no definía ni una fuente, apostando a que el documento heredaría
+ *     la plantilla del usuario. Falso: un .docx recién creado no tiene plantilla,
+ *     tiene la de Word, y salía con títulos azules de Calibri Light que no se
+ *     parecen a nada de lo que firma un proyectista. Los tamaños salen de medir
+ *     dos memorias entregadas del estudio: **Arial**, cuerpo 10 pt, títulos en
+ *     **negrita y NEGRO** (14 y 12 pt) y tablas a **8 pt** con márgenes de celda
+ *     de 70 twips. Se siguen usando los IDs integrados (`Heading1..3`, `Caption`,
+ *     `TableGrid`), así que el esquema y el índice automático siguen funcionando
+ *     y, al pegar con «Combinar formato», Word adopta la plantilla de destino.
  *  2. **A4 vertical explícito.** Un .docx sin `sectPr` lo abre Word en Letter
  *     en instalaciones en-US, y el cuadro se sale por la derecha.
  *  3. **Una sola sección.** Nada de apaisado: una sección apaisada arrastra su
@@ -26,6 +31,7 @@ import {
   HeadingLevel,
   PageOrientation,
   Paragraph,
+  ShadingType,
   Table,
   TableCell,
   TableLayoutType,
@@ -48,6 +54,52 @@ export interface MetaDocx {
 /** A4 vertical en twips (1/1440"), y márgenes de 2 cm. */
 const A4 = { width: 11906, height: 16838 };
 const MARGEN = 1134;
+
+/**
+ * La tipografía del estudio, medida sobre sus memorias entregadas. Los tamaños
+ * van en medios puntos, que es la unidad de OOXML: 20 = 10 pt.
+ */
+const FUENTE = 'Arial';
+const CUERPO = 20; // 10 pt
+const TABLA = 16; // 8 pt — el de las tablas de la memoria de Abayalde
+const NEGRO = '000000';
+const GRIS_CABECERA = 'EFEFEF';
+/** Márgenes de celda en twips: el texto no puede ir pegado al borde. */
+const MARGEN_CELDA = { top: 40, bottom: 40, left: 70, right: 70 };
+
+const ESTILOS = {
+  default: {
+    document: {
+      run: { font: FUENTE, size: CUERPO, color: NEGRO },
+      paragraph: { spacing: { after: 120 } },
+    },
+    heading1: {
+      run: { font: FUENTE, size: 28, bold: true, color: NEGRO },
+      paragraph: { spacing: { before: 280, after: 140 } },
+    },
+    heading2: {
+      run: { font: FUENTE, size: 24, bold: true, color: NEGRO },
+      paragraph: { spacing: { before: 240, after: 120 } },
+    },
+    heading3: {
+      run: { font: FUENTE, size: 22, bold: true, color: NEGRO },
+      paragraph: { spacing: { before: 200, after: 100 } },
+    },
+  },
+  paragraphStyles: [
+    {
+      // El `Caption` integrado de Word es azul y cursiva. Las llamadas al pie de
+      // un cuadro no son un pie de figura de folleto: negro, 8 pt y quietas.
+      id: 'Caption',
+      name: 'Caption',
+      basedOn: 'Normal',
+      next: 'Normal',
+      quickFormat: true,
+      run: { font: FUENTE, size: TABLA, color: NEGRO, italics: false },
+      paragraph: { spacing: { before: 0, after: 60 } },
+    },
+  ],
+};
 
 const NIVEL: Record<'Heading1' | 'Heading2' | 'Heading3', (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
   Heading1: HeadingLevel.HEADING_1,
@@ -72,17 +124,29 @@ function parrafo(estilo: EstiloParrafo, texto: string): Paragraph {
  * Una celda. Word exige que toda celda contenga al menos un párrafo, así que
  * las vacías (la esquina superior izquierda de los cuadros transpuestos) llevan
  * un párrafo con una cadena vacía, no `children: []`.
+ *
+ * El `spacing.after` del cuerpo se anula dentro de la tabla: 120 twips debajo de
+ * cada celda dejaba las filas el doble de altas de lo necesario.
  */
-function celda(texto: string, negrita: boolean, ancho: number): TableCell {
+function celda(texto: string, negrita: boolean, ancho: number, cabecera: boolean): TableCell {
   return new TableCell({
     width: { size: ancho, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({ children: [new TextRun({ text: texto, bold: negrita })] })],
+    shading: cabecera
+      ? { type: ShadingType.CLEAR, color: 'auto', fill: GRIS_CABECERA }
+      : undefined,
+    margins: MARGEN_CELDA,
+    children: [
+      new Paragraph({
+        spacing: { before: 0, after: 0 },
+        children: [new TextRun({ text: texto, bold: negrita, size: TABLA })],
+      }),
+    ],
   });
 }
 
 function fila(f: FilaPlan, anchos: number[]): TableRow {
   return new TableRow({
-    children: f.celdas.map((c, j) => celda(c.texto, c.negrita, anchos[j])),
+    children: f.celdas.map((c, j) => celda(c.texto, c.negrita, anchos[j], f.cabecera)),
     // La cabecera se repite en cada página; ninguna fila se parte por la mitad
     // entre dos páginas. Es la misma invariante «atomic row» que ya respeta
     // `drawTable` en los PDF del resto de la app.
@@ -101,6 +165,7 @@ function tabla(b: Extract<BloquePlan, { tipo: 'tabla' }>): Table {
     // cálculo de `plan.ts` no sirve de nada.
     layout: TableLayoutType.FIXED,
     style: 'TableGrid',
+    margins: { marginUnitType: WidthType.DXA, ...MARGEN_CELDA },
   });
 }
 
@@ -127,6 +192,7 @@ export function documentoDeBloques(blocks: Block[], meta: MetaDocx): Document {
   }
 
   return new Document({
+    styles: ESTILOS,
     title: plan.titulo || 'Cuadro de materiales',
     subject: meta.asunto ?? 'Cuadro de materiales',
     creator: meta.autor ?? 'Concreta',

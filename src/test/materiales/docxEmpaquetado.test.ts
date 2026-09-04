@@ -42,7 +42,12 @@ function bloquesMemoria(): Block[] {
 async function empaquetar(blocks: Block[], titulo = '') {
   const b64 = await Packer.toBase64String(documentoDeBloques(blocks, { titulo }));
   const zip = await JSZip.loadAsync(b64, { base64: true });
-  return { b64, zip, xml: await zip.file('word/document.xml')!.async('string') };
+  return {
+    b64,
+    zip,
+    xml: await zip.file('word/document.xml')!.async('string'),
+    estilos: await zip.file('word/styles.xml')!.async('string'),
+  };
 }
 
 describe('empaquetado del .docx', () => {
@@ -75,6 +80,33 @@ describe('empaquetado del .docx', () => {
     expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
     expect(xml).toContain('<w:pStyle w:val="Heading2"/>');
     expect(xml).toContain('w:val="TableGrid"');
+  });
+
+  it('lleva la tipografía del estudio, no la de Word', async () => {
+    // La primera versión no definía fuentes, apostando a heredar la plantilla
+    // del usuario. Un .docx recién creado no tiene plantilla: salía con títulos
+    // AZULES de Calibri Light. Estos números están medidos sobre dos memorias
+    // entregadas del estudio — Arial, cuerpo 10 pt, títulos negros de 14 y 12.
+    const { estilos } = await empaquetar(bloquesMemoria(), 'Nave taller');
+    expect(estilos).toContain('w:ascii="Arial"');
+    expect(estilos).toContain('<w:sz w:val="20"/>'); // cuerpo 10 pt
+    expect(estilos).toContain('<w:sz w:val="28"/>'); // Título 1, 14 pt
+    expect(estilos).toContain('<w:sz w:val="24"/>'); // Título 2, 12 pt
+    expect(estilos).toContain('w:val="000000"'); // negro, nunca el azul del tema
+    expect(estilos).not.toMatch(/w:val="[0-9A-F]*[1-9A-F]F"/); // ningún azul de tema
+  });
+
+  it('el texto de las tablas va a 8 pt y con margen dentro de la celda', async () => {
+    // A 10 pt las columnas rompían palabras: «CIMENTACIÓ/N», «SOLDAD/URA».
+    const { xml } = await empaquetar(bloquesMemoria());
+    expect(xml).toContain('<w:sz w:val="16"/>');
+    expect(xml).toContain('<w:tblCellMar>');
+    expect(xml).toContain('w:w="70"');
+  });
+
+  it('la fila de cabecera va sombreada', async () => {
+    const { xml } = await empaquetar(bloquesMemoria());
+    expect(xml).toContain('w:fill="EFEFEF"');
   });
 
   it('la cabecera de cada tabla se repite al partir la página', async () => {
