@@ -9,7 +9,7 @@
  * reparto que evita la fatiga de confirmación.
  */
 
-import { CONSISTENCIAS, ETIQUETA_CONTROL_EJECUCION } from '../../lib/materiales/tablasCE';
+import { CONTROL_EJECUCION_OPCIONES, RESISTENCIA_FUEGO_OPCIONES } from './catalogos';
 import type { MaterialesState, PerfilEstudio as Perfil } from './state';
 
 const INPUT =
@@ -33,7 +33,11 @@ const CEMENTOS: { id: Perfil['cemento']; etiqueta: string }[] = [
 interface Props {
   state: MaterialesState;
   ayuda: boolean;
-  onMaterial: (cambio: Partial<Pick<MaterialesState, 'usaHormigon' | 'usaAceroEstructural' | 'usaMadera'>>) => void;
+  onMaterial: (
+    cambio: Partial<
+      Pick<MaterialesState, 'usaHormigon' | 'usaAceroEstructural' | 'usaMadera' | 'resistenciaFuego'>
+    >,
+  ) => void;
   onEstudio: (cambio: Partial<Perfil>) => void;
 }
 
@@ -103,11 +107,33 @@ export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
             onToggle={() => onMaterial({ usaMadera: !state.usaMadera })}
           />
         </div>
+        <div className="px-4 pb-3">
+          <Fila etiqueta="Resistencia al fuego exigida (DB SI 6)">
+            <select
+              value={state.resistenciaFuego ?? ''}
+              aria-label="Resistencia al fuego"
+              className={INPUT}
+              onChange={(ev) =>
+                onMaterial({
+                  resistenciaFuego: ev.target.value === '' ? null : Number(ev.target.value),
+                })
+              }
+            >
+              <option value="">Sin indicar</option>
+              {RESISTENCIA_FUEGO_OPCIONES.map((r) => (
+                <option key={r} value={r}>
+                  R{r}
+                </option>
+              ))}
+            </select>
+          </Fila>
+        </div>
         {ayuda && (
           <p className="px-4 pb-3 text-[11px] leading-snug text-text-disabled">
             Marque lo que lleva esta obra. El hormigón está casi siempre, aunque sólo sea la
             cimentación; acero y madera, según el proyecto. Lo que no se marca desaparece del
-            formulario y del documento.
+            formulario y del documento. La resistencia al fuego la fija el DB SI según el uso y la
+            altura del edificio: sólo se imprime si la indica.
           </p>
         )}
       </section>
@@ -232,18 +258,12 @@ export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
                 })
               }
             >
-              {(['normal', 'in_situ_intenso', 'prefabricado_intenso'] as const).map((id) => (
-                <option key={id} value={id}>
-                  {ETIQUETA_CONTROL_EJECUCION[id]}
+              {CONTROL_EJECUCION_OPCIONES.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.etiqueta}
                 </option>
               ))}
             </select>
-          </Fila>
-
-          <Fila etiqueta="Consistencias disponibles">
-            <span className="px-2 py-1 font-mono text-[12px] text-text-disabled">
-              {CONSISTENCIAS.blanda.etiqueta} · {CONSISTENCIAS.fluida.etiqueta}
-            </span>
           </Fila>
         </div>
 

@@ -28,6 +28,7 @@ import {
   DURABILIDAD_EXIGIDA_EN460,
   ETIQUETA_TIPO_MADERA,
   GAMMA_M_EXTRAORDINARIA,
+  GAMMA_M_MADERA,
 } from './tablasMadera';
 import type {
   DerivacionAcero,
@@ -71,6 +72,15 @@ function gammaDoble(g: { persistente: number; accidental: number }, decimales = 
 /** (*), (**), (***)… en orden de aparición. */
 function marcador(indice: number): string {
   return `(${'*'.repeat(indice + 1)})`;
+}
+
+/**
+ * La celda del recubrimiento. Guion tanto para el hormigón en masa (0, no hay
+ * armadura) como para el recubrimiento indeterminado (`null`, la norma no lo
+ * tabula): en el segundo caso la nota que lo explica va pegada a esta celda.
+ */
+function recubrimiento(cnom: number | null, unidad = ' mm'): string {
+  return cnom !== null && cnom > 0 ? `${cnom}${unidad}` : GUION;
 }
 
 /**
@@ -125,7 +135,7 @@ export function cuadroHormigonPlano(
     `${num(d.fcd, 1)} N/mm²`,
     d.cementoMin !== null ? `${d.cementoMin} kg` : GUION,
     d.acMax !== null ? num(d.acMax, 2) : GUION,
-    (d.cnom > 0 ? `${d.cnom} mm` : GUION) + notas.marca(d.elemento.id, 'recubrimiento'),
+    recubrimiento(d.cnom) + notas.marca(d.elemento.id, 'recubrimiento'),
     ETIQUETA_NIVEL_CONTROL[d.elemento.nivelControl ?? 'estadistico'],
     gammaC,
   ]);
@@ -152,6 +162,18 @@ export function cuadroHormigonPlano(
     },
   ];
 
+  // El encabezado dice «nominal», pero en obra eso se lee como «el
+  // recubrimiento» y el margen por control de ejecución queda invisible. Se
+  // declara: es la diferencia entre 20 y 30 mm en un XC2 corriente.
+  const deltas = [
+    ...new Set(derivaciones.filter((d) => d.cnom !== null && d.cnom > 0).map((d) => d.deltaCdev)),
+  ];
+  if (deltas.length === 1) {
+    notas.items.push(
+      `Los recubrimientos son NOMINALES: al mínimo exigido por el ambiente se le ha sumado el margen por control de ejecución Δcdev = ${deltas[0]} mm (CE tabla 43.4.1).`,
+    );
+  }
+
   if (notas.items.length) blocks.push({ kind: 'notes', items: notas.items });
   return blocks;
 }
@@ -171,7 +193,7 @@ export function cuadroHormigonMemoria(derivaciones: DerivacionHormigon[]): Block
     ['Máxima relación agua/cemento', (d) => (d.acMax !== null ? num(d.acMax, 2) : GUION)],
     [
       'Recubrimiento nominal de las armaduras (mm)',
-      (d) => (d.cnom > 0 ? String(d.cnom) : GUION) + notas.marca(d.elemento.id, 'recubrimiento'),
+      (d) => recubrimiento(d.cnom, '') + notas.marca(d.elemento.id, 'recubrimiento'),
     ],
   ];
 
@@ -321,7 +343,7 @@ export function cuadroMadera(derivaciones: DerivacionMadera[]): Block[] {
     ['Tipo de madera', (d) => ETIQUETA_TIPO_MADERA[d.grupo.tipo]],
     ['Clase resistente', (d) => d.grupo.claseResistente],
     ['Especie', (d) => d.grupo.especie ?? GUION],
-    ['Calidad', (d) => d.grupo.calidad ?? GUION],
+    ['Calidad', (d) => d.calidad ?? GUION],
     ['Clase resistente de las láminas', (d) => d.grupo.claseLaminas ?? GUION],
   ];
 
@@ -387,11 +409,18 @@ export interface MaterialesPresentes {
  * El cuadro de acciones lleva una tabla de coeficientes de minoración con
  * columna de INCENDIO, filtrada a los materiales realmente presentes en la
  * obra. En incendio todos valen 1,00 (situación extraordinaria).
+ *
+ * La resistencia al fuego exigida (R30, R60…) la fija el DB SI 6 según uso y
+ * altura de evacuación, y es un dato de la obra: sólo se imprime si se ha
+ * indicado. El oráculo decía «R30» y así salía en todos los documentos.
  */
-export function cuadroCoeficientesMinoracion(presentes: MaterialesPresentes): Block[] {
+export function cuadroCoeficientesMinoracion(
+  presentes: MaterialesPresentes,
+  resistenciaFuego: number | null = null,
+): Block[] {
   const todos: [keyof MaterialesPresentes, string, number][] = [
-    ['maderaLaminada', 'Madera laminada', 1.25],
-    ['maderaMaciza', 'Madera maciza', 1.3],
+    ['maderaLaminada', 'Madera laminada', GAMMA_M_MADERA.laminada],
+    ['maderaMaciza', 'Madera maciza', GAMMA_M_MADERA.maciza],
     ['aceroLaminado', 'Acero laminado', GAMMA_MATERIALES.aceroEstructural.persistente],
     ['aceroDeArmar', 'Acero de armar', GAMMA_MATERIALES.armaduraPasiva.persistente],
     ['hormigon', 'Hormigón', GAMMA_MATERIALES.hormigon.persistente],
@@ -401,15 +430,15 @@ export function cuadroCoeficientesMinoracion(presentes: MaterialesPresentes): Bl
     .filter(([clave]) => presentes[clave])
     .map(([, etiqueta, gamma]) => [etiqueta, num(gamma, 2), num(GAMMA_M_EXTRAORDINARIA, 2)]);
 
+  const items = ['Aplicable a los valores característicos.'];
+  if (resistenciaFuego !== null) {
+    items.push(`La estructura será R${resistenciaFuego} acorde al CTE DB SI.`);
+  }
+
   return [
     { kind: 'heading', level: 2, text: 'COEFICIENTES DE MINORACIÓN' },
     { kind: 'table', head: ['Materiales', 'Ordinaria', 'Incendio'], rows: filas },
-    {
-      kind: 'notes',
-      items: [
-        'Aplicable a los valores característicos. La estructura será R30 acorde al CTE DB SI.',
-      ],
-    },
+    { kind: 'notes', items },
   ];
 }
 

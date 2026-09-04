@@ -125,7 +125,7 @@ describe('cambiar la respuesta mueve los derivados', () => {
 describe('el interruptor de costa', () => {
   it('endurece el muro con cara vista y no toca la cimentación', () => {
     montar();
-    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /en la costa/ }));
 
     const muro = filaDe('Muros de sótano');
     expect(within(muro).getByText('XC2 + XS1')).toBeInTheDocument();
@@ -139,8 +139,40 @@ describe('el interruptor de costa', () => {
 
   it('explica que los 40 mm son de la cara marina', () => {
     montar();
-    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /en la costa/ }));
     expect(screen.getByText(/caras no expuestas a ese ambiente bastaría 30 mm/)).toBeInTheDocument();
+  });
+});
+
+describe('heladas y terreno agresivo', () => {
+  it('marcar «heladas» añade XF1 al muro con cara vista', () => {
+    montar();
+    fireEvent.click(screen.getByRole('checkbox', { name: /heladas/ }));
+    expect(within(filaDe('Muros de sótano')).getByText('XC2 + XF1')).toBeInTheDocument();
+    expect(within(filaDe('Cimentación')).getByText('XC2')).toBeInTheDocument();
+  });
+
+  it('un terreno XA1 sube la cimentación a XC2 + XA1 y 50 mm', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Agresividad del terreno'), {
+      target: { value: 'debil' },
+    });
+    const cimentacion = filaDe('Cimentación');
+    expect(within(cimentacion).getByText('XC2 + XA1')).toBeInTheDocument();
+    expect(within(cimentacion).getByText('50 mm')).toBeInTheDocument();
+  });
+
+  it('un terreno XA2 deja el recubrimiento en guion y bloquea exportar', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Agresividad del terreno'), {
+      target: { value: 'moderada' },
+    });
+    const cimentacion = filaDe('Cimentación');
+    expect(within(cimentacion).getByText('XC2 + XA2')).toBeInTheDocument();
+    // Anclado: las opciones de consistencia también dicen «(50-90 mm)».
+    expect(within(cimentacion).queryByText(/^\d+ mm$/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
+    expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
   });
 });
 
@@ -151,13 +183,31 @@ describe('conmutadores de material', () => {
     expect(screen.getByText('Elementos de madera')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '+ Añadir grupo' }));
-    const nombre = screen.getByLabelText('Nombre del grupo');
-    fireEvent.change(nombre, { target: { value: 'Vigas y pilares' } });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Vigas y pilares' }));
 
+    const nombre = screen.getByLabelText('Nombre del grupo') as HTMLInputElement;
+    expect(nombre.value).toBe('Vigas y pilares');
     const fila = nombre.closest('tr')!;
     expect(within(fila).getByText('II')).toBeInTheDocument(); // clase de servicio
     expect(within(fila).getByText('NP1')).toBeInTheDocument(); // tratamiento
     expect(within(fila).getByText('1,25')).toBeInTheDocument(); // γM de la laminada
+  });
+
+  it('con S355 soldado, el formulario avisa de que la categoría es PC2', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Acero estructural' }));
+    fireEvent.change(screen.getByDisplayValue('S275 JR'), { target: { value: 'S355JR' } });
+    expect(screen.getByText(/son categoría de ejecución PC2/)).toBeInTheDocument();
+  });
+
+  it('la resistencia al fuego sólo sale en el documento si se indica', () => {
+    montar();
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.queryByText(/La estructura será R/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Datos' }));
+    fireEvent.change(screen.getByLabelText('Resistencia al fuego'), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.getByText(/La estructura será R60/)).toBeInTheDocument();
   });
 
   it('encender acero estructural deriva la clase de ejecución', () => {
@@ -170,6 +220,40 @@ describe('conmutadores de material', () => {
     fireEvent.change(screen.getByLabelText(/tipo de cargas/i), { target: { value: 'SC2' } });
     fireEvent.change(screen.getByLabelText(/se fabrica/i), { target: { value: 'PC2' } });
     expect(screen.getByText('EXC4')).toBeInTheDocument();
+  });
+});
+
+describe('consistencia — CE 33.5', () => {
+  it('el desplegable ofrece las cinco clases de la tabla 33.5.a, con su cono', () => {
+    montar();
+    const select = within(filaDe('Forjados')).getByLabelText(
+      'Consistencia',
+    ) as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([
+      'seca',
+      'plastica',
+      'blanda',
+      'fluida',
+      'liquida',
+    ]);
+    expect([...select.options].map((o) => o.textContent)).toContain('Blanda (50-90 mm)');
+  });
+
+  it('bajar un forjado de fluida a blanda avisa, y la tipificación cambia de letra', () => {
+    montar();
+    fireEvent.change(within(filaDe('Forjados')).getByLabelText('Consistencia'), {
+      target: { value: 'blanda' },
+    });
+    expect(within(filaDe('Forjados')).getByText('HA-30/B/20/XC1')).toBeInTheDocument();
+    expect(screen.getAllByText(/pilares, forjados y vigas/i).length).toBeGreaterThan(0);
+  });
+
+  it('la consistencia seca avisa de que necesita justificación específica', () => {
+    montar();
+    fireEvent.change(within(filaDe('Cimentación')).getByLabelText('Consistencia'), {
+      target: { value: 'seca' },
+    });
+    expect(screen.getAllByText(/justificación específica/i).length).toBeGreaterThan(0);
   });
 });
 
@@ -194,6 +278,34 @@ describe('las pestañas del documento', () => {
     expect(screen.getByText('Recubrimiento nominal de las armaduras (mm)')).toBeInTheDocument();
   });
 
+  it('la Memoria lleva TODOS los materiales, no sólo el hormigón', () => {
+    // El fallo que arregla este test: `bloquesMemoria` sólo construía el cuadro
+    // de hormigón, así que encender acero o madera no cambiaba nada en esa
+    // pestaña. Se veía como un problema de renderizado y era de construcción.
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Acero estructural' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Madera' }));
+    anadir('+ Añadir grupo', 'Vigas y pilares');
+    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
+
+    expect(screen.getByText('ELEMENTO ESTRUCTURAL')).toBeInTheDocument();
+    expect(screen.getByText('ACERO (SEGÚN CÓDIGO ESTRUCTURAL / DB-SE-A)')).toBeInTheDocument();
+    expect(screen.getByText(/ELEMENTOS ESTRUCTURALES DE ACERO/)).toBeInTheDocument();
+    expect(screen.getByText('MADERA')).toBeInTheDocument();
+    expect(screen.getByText('DURABILIDAD MADERA')).toBeInTheDocument();
+    expect(screen.getByText('COEFICIENTES DE MINORACIÓN')).toBeInTheDocument();
+  });
+
+  it('plano y memoria enseñan los mismos materiales, sólo cambia el hormigón', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Acero estructural' }));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    const enPlano = screen.getAllByRole('table').length;
+    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
+    expect(screen.getAllByRole('table').length).toBe(enPlano);
+  });
+
   it('la de anclajes trae la tabla del plano y sólo los hormigones de la obra', () => {
     montar();
     fireEvent.click(screen.getByRole('tab', { name: 'Anclajes' }));
@@ -204,16 +316,53 @@ describe('las pestañas del documento', () => {
   });
 });
 
+/** Abre el menú de añadir y elige una de sus opciones. */
+function anadir(boton: string, opcion: string) {
+  fireEvent.click(screen.getByRole('button', { name: boton }));
+  fireEvent.click(screen.getByRole('menuitem', { name: opcion }));
+}
+
+describe('añadir elementos', () => {
+  it('el nombre es texto libre: no le cuelga ninguna lista cerrada', () => {
+    // Regresión del datalist que se retiró: la flecha hacía parecer que el
+    // nombre se elegía de una lista, como los desplegables de al lado, cuando
+    // una fila se puede llamar «Brochal del hueco de la escalera».
+    montar();
+    for (const i of screen.getAllByLabelText('Nombre del elemento')) {
+      expect(i).not.toHaveAttribute('list');
+    }
+  });
+
+  it('elegir un elemento habitual trae la fila ya resuelta', () => {
+    montar();
+    anadir('+ Añadir elemento', 'Pilares');
+
+    const fila = filaDe('Pilares');
+    expect((within(fila).getByLabelText('Dónde va a estar') as HTMLSelectElement).value).toBe(
+      'interior_seco',
+    );
+    expect(within(fila).getByText('XC1')).toBeInTheDocument();
+    // Con dígito delante: la leyenda del pie también dice «sin resolver».
+    expect(screen.queryByText(/\d+ sin resolver/)).not.toBeInTheDocument();
+  });
+
+  it('el menú se cierra al elegir', () => {
+    montar();
+    anadir('+ Añadir elemento', 'Pilares');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
 describe('huecos y exportación', () => {
   it('una fila nueva sin situación se cuenta como hueco', () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: '+ Añadir elemento' }));
+    anadir('+ Añadir elemento', 'Otro… (fila en blanco)');
     expect(screen.getByText(/1 sin resolver/)).toBeInTheDocument();
   });
 
   it('con huecos, exportar avisa en vez de exportar', () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: '+ Añadir elemento' }));
+    anadir('+ Añadir elemento', 'Otro… (fila en blanco)');
     fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
     expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
   });

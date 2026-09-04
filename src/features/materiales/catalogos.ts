@@ -12,6 +12,8 @@
  * obra, no una casilla técnica escondida.
  */
 
+import { TIMBER_GRADES, type TimberSubtype, type TimberType } from '../../data/timberGrades';
+import { CONSISTENCIAS } from '../../lib/materiales/tablasCE';
 import type {
   Consistencia,
   SituacionElemento,
@@ -130,6 +132,8 @@ export interface PresetHormigon {
   situacion: SituacionId;
   consistencia: Consistencia;
   fck: number;
+  /** Pilar, viga o forjado: el CE 33.5 les prescribe consistencia fluida. */
+  prescripcionFluida?: boolean;
 }
 
 /**
@@ -142,10 +146,10 @@ export const PRESETS_HORMIGON: Record<string, PresetHormigon> = {
   'Enanos de cimentación': { situacion: 'enterrado', consistencia: 'blanda', fck: 30 },
   'Muros de sótano': { situacion: 'muro_terreno', consistencia: 'blanda', fck: 30 },
   'Muros de contención': { situacion: 'muro_terreno', consistencia: 'blanda', fck: 30 },
-  'Forjados': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30 },
-  'Pilares': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30 },
-  'Vigas': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30 },
-  'Losa de escalera': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30 },
+  'Forjados': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30, prescripcionFluida: true },
+  'Pilares': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30, prescripcionFluida: true },
+  'Vigas': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30, prescripcionFluida: true },
+  'Losa de escalera': { situacion: 'interior_seco', consistencia: 'fluida', fck: 30, prescripcionFluida: true },
   'Vaso de piscina': { situacion: 'piscina', consistencia: 'fluida', fck: 30 },
   'Aljibe / depósito de agua': { situacion: 'deposito', consistencia: 'fluida', fck: 30 },
   'Losa de aparcamiento': { situacion: 'aparcamiento', consistencia: 'fluida', fck: 30 },
@@ -156,10 +160,17 @@ export const PRESETS_HORMIGON: Record<string, PresetHormigon> = {
 /** Resistencias que ofrece el desplegable. La durabilidad puede subirla sola. */
 export const FCK_OPCIONES = [25, 30, 35, 40];
 
-export const CONSISTENCIA_OPCIONES: { id: Consistencia; etiqueta: string }[] = [
-  { id: 'blanda', etiqueta: 'Blanda' },
-  { id: 'fluida', etiqueta: 'Fluida' },
-];
+/**
+ * Las cinco clases de la tabla 33.5.a, no dos. El asentamiento va en la
+ * etiqueta porque es lo que se pide en central: nadie encarga «blanda», se
+ * encarga un cono. Cuál conviene lo dice el motor con los avisos del 33.5.
+ */
+export const CONSISTENCIA_OPCIONES: { id: Consistencia; etiqueta: string }[] = (
+  ['seca', 'plastica', 'blanda', 'fluida', 'liquida'] as Consistencia[]
+).map((id) => ({
+  id,
+  etiqueta: `${CONSISTENCIAS[id].etiqueta} (${CONSISTENCIAS[id].asentamiento})`,
+}));
 
 // ── Madera ──────────────────────────────────────────────────────────────────
 
@@ -167,6 +178,7 @@ export type SituacionMaderaId =
   | 'interior'
   | 'interior_humedo'
   | 'cubierto'
+  | 'cubierta_no_ventilada'
   | 'exterior_protegido'
   | 'exterior'
   | 'suelo';
@@ -189,9 +201,16 @@ export const SITUACIONES_MADERA: Record<SituacionMaderaId, OpcionSituacionMadera
     situacion: 'interior_humedo',
   },
   cubierto: {
-    etiqueta: 'A cubierto, abierto al exterior (cobertizo, visera)',
-    ayuda: 'No se moja, pero respira el aire de fuera. Es el caso habitual de las cubiertas de madera.',
+    etiqueta: 'A cubierto, abierto al exterior o bajo cubierta ventilada',
+    ayuda:
+      'No se moja, pero respira el aire de fuera. Es el caso habitual de las cubiertas de madera, siempre que estén ventiladas o lleven lámina impermeabilizante; si no, elija la opción siguiente (DB SE-M tabla 3.1, nota 3).',
     situacion: 'cubierto_abierto',
+  },
+  cubierta_no_ventilada: {
+    etiqueta: 'Bajo cubierta no ventilada y sin lámina, o con condensaciones',
+    ayuda:
+      'El DB SE-M manda a clase de uso 3.1 la madera de cubiertas no ventiladas sin lámina impermeabilizante, y la de interiores con puntos de condensación que el diseño no evita. El tratamiento sube a NP2.',
+    situacion: 'cubierta_no_ventilada',
   },
   exterior_protegido: {
     etiqueta: 'Al exterior, protegido (albardilla, pieza de sacrificio)',
@@ -214,24 +233,110 @@ export const ORDEN_SITUACIONES_MADERA: SituacionMaderaId[] = [
   'interior',
   'interior_humedo',
   'cubierto',
+  'cubierta_no_ventilada',
   'exterior_protegido',
   'exterior',
   'suelo',
 ];
 
-export const TIPOS_MADERA: { id: TipoMadera; etiqueta: string; clases: string[] }[] = [
-  { id: 'maciza', etiqueta: 'Aserrada', clases: ['C18', 'C24', 'C27', 'C30'] },
-  { id: 'laminada', etiqueta: 'Laminada encolada', clases: ['GL24h', 'GL28h', 'GL32h'] },
+/**
+ * Las clases resistentes salen de `src/data/timberGrades.ts`, el mismo catálogo
+ * que usan los módulos de vigas y pilares de madera. Antes había aquí una lista
+ * corta escrita a mano (C18/C24/C27/C30) que no coincidía con la del resto de
+ * la aplicación: un pilar calculado en C14 no se podía declarar en el cuadro.
+ *
+ * Allí van todas en un mismo desplegable; aquí el tipo ya está elegido en su
+ * propia columna, así que sólo se ofrece el subconjunto que le toca, separado
+ * en coníferas (C) y frondosas (D) como en las tablas E.1 y E.2 del DB SE-M.
+ */
+const clasesDe = (type: TimberType, subtype?: TimberSubtype): string[] =>
+  TIMBER_GRADES.filter((g) => g.type === type && (!subtype || g.subtype === subtype)).map(
+    (g) => g.id,
+  );
+
+export interface TipoMaderaOpcion {
+  id: TipoMadera;
+  etiqueta: string;
+  /** Los optgroup del desplegable. */
+  grupos: { etiqueta: string; clases: string[] }[];
+  /** Todas las clases del tipo, para validar. */
+  clases: string[];
+  /** La que se adopta al cambiar de tipo si la anterior no existe en el nuevo. */
+  porDefecto: string;
+}
+
+const tipoMadera = (
+  id: TipoMadera,
+  etiqueta: string,
+  grupos: { etiqueta: string; clases: string[] }[],
+  porDefecto: string,
+): TipoMaderaOpcion => ({
+  id,
+  etiqueta,
+  grupos,
+  clases: grupos.flatMap((g) => g.clases),
+  porDefecto,
+});
+
+export const TIPOS_MADERA: TipoMaderaOpcion[] = [
+  tipoMadera(
+    'maciza',
+    'Aserrada',
+    [
+      { etiqueta: 'Conífera y chopo', clases: clasesDe('sawn', 'softwood') },
+      { etiqueta: 'Frondosa', clases: clasesDe('sawn', 'hardwood') },
+    ],
+    'C24',
+  ),
+  tipoMadera(
+    'laminada',
+    'Laminada encolada',
+    [{ etiqueta: 'Laminada encolada homogénea', clases: clasesDe('glulam') }],
+    'GL24h',
+  ),
 ];
 
-/** DB SE-M Anejo D: la clase resistente de las láminas que sostiene cada GL. */
+/**
+ * DB SE-M tabla D.2: «correspondencias conocidas entre las clases resistentes
+ * de la madera laminada encolada y las clases resistentes de la madera aserrada
+ * con las que se fabrican las láminas». Son clases C, no T: aquí ponía T14/T18/
+ * T22, que es la nomenclatura de láminas traccionadas de la EN 14080 y no lo
+ * que declara el DB SE-M. GL30h no figura en la tabla —es explícitamente no
+ * exhaustiva— y sale con guion en el cuadro.
+ */
 export const LAMINAS_POR_GL: Record<string, string> = {
-  GL24h: 'T14',
-  GL28h: 'T18',
-  GL32h: 'T22',
+  GL24h: 'C24',
+  GL28h: 'C30',
+  GL32h: 'C40',
 };
 
-export const ESPECIES = ['Pinus sylvestris', 'Pinus pinaster', 'Pinus radiata', 'Pinus nigra'];
+/**
+ * Las especies que contempla el propio DB SE-M: tabla C.3 del anejo C, la
+ * relación de las citadas en la tabla C.1 de asignación de clase resistente.
+ * Se guarda el nombre botánico —es la clave de DURABILIDAD_ESPECIES— y se
+ * enseña el común, que es como se pide la madera en el almacén.
+ *
+ * Las cuatro primeras son las clasificables en España por la UNE 56544:2011;
+ * el resto entran por la norma de clasificación de su procedencia.
+ */
+export const ESPECIES: { id: string; etiqueta: string }[] = [
+  { id: 'Pinus sylvestris', etiqueta: 'Pino silvestre (Pinus sylvestris)' },
+  { id: 'Pinus pinaster', etiqueta: 'Pino pinaster (Pinus pinaster)' },
+  { id: 'Pinus radiata', etiqueta: 'Pino insignis (Pinus radiata)' },
+  { id: 'Pinus nigra', etiqueta: 'Pino laricio (Pinus nigra)' },
+  // Frondosas españolas de la UNE 56546:2013, que la tabla C.3 no recoge
+  // porque es posterior. Son las dos únicas con norma de clasificación visual
+  // propia en España.
+  { id: 'Eucalyptus globulus', etiqueta: 'Eucalipto (Eucalyptus globulus)' },
+  { id: 'Castanea sativa', etiqueta: 'Castaño (Castanea sativa)' },
+  { id: 'Picea abies', etiqueta: 'Falso abeto o abeto rojo (Picea abies)' },
+  { id: 'Abies alba', etiqueta: 'Abeto (Abies alba)' },
+  { id: 'Pseudotsuga menziesii', etiqueta: 'Pino Oregón (Pseudotsuga menziesii)' },
+  { id: 'Populus sp.', etiqueta: 'Chopo (Populus sp.)' },
+  { id: 'Milicia excelsa', etiqueta: 'Iroko (Milicia excelsa)' },
+  { id: 'Eucalyptus marginata', etiqueta: 'Jarrah (Eucalyptus marginata)' },
+  { id: 'Tectona grandis', etiqueta: 'Teca (Tectona grandis)' },
+];
 
 export interface PresetMadera {
   situacion: SituacionMaderaId;
@@ -275,14 +380,51 @@ export const NIVEL_RIESGO_OPCIONES = [
   { id: 'CC3', etiqueta: 'CC3 — mucha ocupación: auditorios, hospitales' },
 ] as const;
 
+/** CE 91.2.2.1. */
 export const CATEGORIA_USO_OPCIONES = [
-  { id: 'SC1', etiqueta: 'SC1 — cargas tranquilas (edificación)' },
-  { id: 'SC2', etiqueta: 'SC2 — fatiga: puentes grúa, vibraciones' },
+  { id: 'SC1', etiqueta: 'SC1 — cargas casi estáticas (edificación)' },
+  {
+    id: 'SC2',
+    etiqueta: 'SC2 — fatiga o vibraciones (puentes grúa, maquinaria) o uniones con ductilidad sísmica',
+  },
 ] as const;
 
+/**
+ * CE 91.2.2.2. Ojo: PC2 no es sólo «soldar en obra». Soldar acero S355 o
+ * superior es PC2 aunque se haga en taller, y eso el motor lo comprueba solo
+ * con el acero del perfil y las uniones de las filas (`deriveAcero`).
+ */
 export const CATEGORIA_EJECUCION_OPCIONES = [
-  { id: 'PC1', etiqueta: 'PC1 — sin soldadura estructural en obra' },
-  { id: 'PC2', etiqueta: 'PC2 — con soldadura estructural en obra' },
+  { id: 'PC1', etiqueta: 'PC1 — sin soldaduras, o soldadas en taller con acero por debajo de S355' },
+  {
+    id: 'PC2',
+    etiqueta: 'PC2 — soldadura en S355 o superior, en obra de elementos principales, tratamiento térmico o huecos con boca de lobo',
+  },
+] as const;
+
+/**
+ * DB SI 6, tabla 3.1: la resistencia al fuego exigida a la estructura depende
+ * del uso y de la altura de evacuación, y la fija el proyecto de incendios. El
+ * cuadro sólo la imprime si se ha indicado; antes decía «R30» en toda obra.
+ */
+export const RESISTENCIA_FUEGO_OPCIONES = [30, 60, 90, 120, 180, 240] as const;
+
+/** CE tabla 27.1.b, resumida para el desplegable: lo dice el informe geotécnico. */
+export const TERRENO_OPCIONES = [
+  { id: 'ninguna', etiqueta: 'Terreno no agresivo' },
+  { id: 'debil', etiqueta: 'Terreno débilmente agresivo (XA1)' },
+  { id: 'moderada', etiqueta: 'Terreno moderadamente agresivo (XA2)' },
+  { id: 'alta', etiqueta: 'Terreno altamente agresivo (XA3)' },
+] as const;
+
+/**
+ * CE tabla 43.4.1 en lenguaje de obra. «Otros casos», que es el literal de la
+ * norma, no le dice nada a quien rellena el perfil; el margen sí.
+ */
+export const CONTROL_EJECUCION_OPCIONES = [
+  { id: 'normal', etiqueta: 'Normal, obra corriente (+10 mm de recubrimiento)' },
+  { id: 'in_situ_intenso', etiqueta: 'In situ con control intenso (+5 mm)' },
+  { id: 'prefabricado_intenso', etiqueta: 'Prefabricado con control intenso (+0 mm)' },
 ] as const;
 
 export const CORROSIVIDAD_OPCIONES = [

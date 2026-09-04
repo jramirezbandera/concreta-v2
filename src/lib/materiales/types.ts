@@ -142,6 +142,12 @@ export interface ElementoHormigon {
   expuestoAireExterior?: boolean;
   /** Nota de proyecto: hormigón hidrófugo (vasos de piscina, aljibes). */
   hidrofugo?: boolean;
+  /**
+   * Pilar, viga o forjado de una obra de edificación: el CE 33.5 les prescribe
+   * consistencia fluida. Lo traen los presets del catálogo; una fila creada en
+   * blanco no lo lleva y no se le exige nada.
+   */
+  prescripcionFluida?: boolean;
   nivelControl?: NivelControlHormigon;
 }
 
@@ -160,6 +166,17 @@ export interface OpcionesObra {
    * ABAYALDE: endurece dosificación y recubrimiento de varios elementos a la vez.
    */
   costa?: boolean;
+  /**
+   * Zona con heladas. Añade XF1 a las caras al aire libre que reciben lluvia
+   * (CE tabla 27.1.a: «superficies verticales expuestas a la lluvia y a
+   * heladas»). Lo protegido de la lluvia no se satura y no lo lleva.
+   */
+  heladas?: boolean;
+  /**
+   * Agresividad química del terreno según el informe geotécnico (CE tabla
+   * 27.1.b). Añade XA1/XA2/XA3 a todo lo enterrado.
+   */
+  terrenoAgresivo?: AgresividadQuimica;
 }
 
 /** De dónde sale un valor derivado: para el tooltip del modo Ayuda. */
@@ -211,8 +228,14 @@ export interface DerivacionHormigon {
   cmin: number;
   /** CE tabla 43.4.1. */
   deltaCdev: number;
-  /** cnom = cmin + Δcdev, redondeado a 5 mm hacia arriba. */
-  cnom: number;
+  /**
+   * cnom = cmin + Δcdev, redondeado a 5 mm hacia arriba. `null` cuando la
+   * norma no tabula recubrimiento para alguna de las clases presentes (casilla
+   * «*» de las tablas 44.2.1.1.b, 44.3 y 44.4, o XA2/XA3): el cuadro imprime
+   * un guion y una nota, nunca un número sacado de las otras clases. 0 en
+   * hormigón en masa, que no tiene armadura que proteger.
+   */
+  cnom: number | null;
   /** CE 33.6 — T-R/C/TM/A. */
   tipificacion: string;
   /** fcd = fck/γc con γc = 1,50 (situación persistente o transitoria, CE tabla A19.2.1). */
@@ -260,9 +283,17 @@ export interface ElementoAcero {
 export interface DerivacionAcero {
   nivelRiesgo: NivelRiesgo;
   categoriaUso: CategoriaUso;
+  /** La que se contestó en el formulario. */
+  categoriaEjecucionDeclarada: CategoriaEjecucion;
+  /**
+   * La efectiva, que es la que va al cuadro. CE 91.2.2.2: si algún elemento
+   * soldado es de grado S355 o superior, la categoría es PC2 aunque se haya
+   * declarado PC1 (y el motor lo dice en `mensajes`).
+   */
   categoriaEjecucion: CategoriaEjecucion;
   claseEjecucion: ClaseEjecucion;
   elementos: ElementoAcero[];
+  mensajes: Mensaje[];
   trazas: Traza[];
 }
 
@@ -290,6 +321,11 @@ export type SituacionMadera =
   | 'interior_humedo'
   /** A cubierto pero abierto al ambiente exterior (cobertizos, viseras). */
   | 'cubierto_abierto'
+  /**
+   * Bajo cubierta no ventilada y sin lámina impermeabilizante, o interior con
+   * puntos de condensación no evitables (DB SE-M tabla 3.1, nota 3).
+   */
+  | 'cubierta_no_ventilada'
   /** Al exterior, por encima del suelo, protegido por albardilla o piezas de sacrificio. */
   | 'exterior_protegido'
   /** Al exterior, por encima del suelo y sin proteger. */
@@ -309,8 +345,6 @@ export interface GrupoMadera {
   claseResistente: string;
   /** Nombre comercial o botánico. Opcional: la clase resistente no obliga a especie (DB SE-M 3.2.3). */
   especie?: string;
-  /** Calidad de la madera aserrada (ME-1, ME-2, MEG…). */
-  calidad?: string;
   /** Clase resistente de las láminas en laminada encolada (T14…). */
   claseLaminas?: string;
   /** Override de la clase de servicio cuando el proyectista quiera forzarla. */
@@ -332,6 +366,11 @@ export interface DerivacionMadera {
   gammaMExtraordinaria: number;
   /** DB SE-M tabla 3.2 — protección mínima de los herrajes para esa clase de servicio. */
   proteccionHerrajes: string;
+  /**
+   * Calidad visual que hay que exigir para alcanzar la clase resistente con esa
+   * especie (DB SE-M tabla C.1). No se teclea: se deduce del par especie-clase.
+   */
+  calidad?: string;
   notas: string[];
   mensajes: Mensaje[];
   trazas: Traza[];

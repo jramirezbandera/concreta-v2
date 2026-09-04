@@ -8,7 +8,7 @@
  */
 
 import { Trash2 } from 'lucide-react';
-import type { DerivacionAcero } from '../../lib/materiales/types';
+import type { DerivacionAcero, ProteccionAcero } from '../../lib/materiales/types';
 import {
   CATEGORIA_EJECUCION_OPCIONES,
   CATEGORIA_USO_OPCIONES,
@@ -21,8 +21,6 @@ import type { FilaAcero, MaterialesState } from './state';
 
 const TH =
   'border-b border-border-main px-2 py-1.5 text-left text-[10px] font-semibold uppercase text-text-disabled';
-const TH_DER =
-  'border-b border-border-main px-2 py-1.5 text-left text-[10px] font-semibold uppercase text-accent';
 const INPUT =
   'w-full min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
 
@@ -128,6 +126,27 @@ export function AceroEstructural({
         </div>
       )}
 
+      {/* El motor corrige la categoría de ejecución cuando el acero soldado es
+          S355 o superior (CE 91.2.2.2): hay que decirlo donde se contestó. */}
+      {derivacion && derivacion.mensajes.length > 0 && (
+        <ul className="mx-4 mb-3 space-y-1">
+          {derivacion.mensajes.map((m, i) => (
+            <li
+              key={i}
+              className={[
+                'text-[11px] leading-snug',
+                m.severidad === 'error' ? 'text-state-fail' : 'text-state-warn',
+              ].join(' ')}
+            >
+              {m.texto}
+              {m.referencia && (
+                <span className="ml-1 font-mono text-text-disabled">({m.referencia})</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[12px]">
           <thead>
@@ -136,9 +155,10 @@ export function AceroEstructural({
               <th className={TH}>Medio de unión</th>
               <th className={TH}>Características</th>
               <th className={TH}>Ambiente</th>
-              <th className={TH_DER} title="Sistema de protección sugerido para esa corrosividad">
+              <th className={TH} title="Sistema de protección: viene sugerido para esa corrosividad y se puede cambiar">
                 Protección
               </th>
+              <th className={TH}>Características</th>
               <th className={TH} aria-label="Acciones" />
             </tr>
           </thead>
@@ -198,9 +218,32 @@ export function AceroEstructural({
                       ))}
                     </select>
                   </td>
-                  <td className="px-2 py-1.5 font-mono text-[12px] text-text-primary">
-                    {sugerida.proteccion === 'galvanizado' ? 'Galvanizado' : 'Pintura'} ·{' '}
-                    {sugerida.detalle}
+                  {/* Sugerido por la clase de corrosividad, pero es lo que se
+                      imprime como prescripción: se puede cambiar en la fila. */}
+                  <td className="px-2 py-1.5" style={{ minWidth: 120 }}>
+                    <select
+                      value={fila.proteccion ?? sugerida.proteccion}
+                      aria-label="Sistema de protección"
+                      className={INPUT}
+                      onChange={(e) =>
+                        onCambiarFila(fila.id, { proteccion: e.target.value as ProteccionAcero })
+                      }
+                    >
+                      <option value="pintura">Pintura</option>
+                      <option value="galvanizado">Galvanizado</option>
+                      <option value="ninguna">Sin protección</option>
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5" style={{ minWidth: 120 }}>
+                    <input
+                      value={fila.caracteristicasProteccion ?? sugerida.detalle}
+                      aria-label="Características de la protección"
+                      placeholder="Doble capa, en fábrica…"
+                      className={INPUT}
+                      onChange={(e) =>
+                        onCambiarFila(fila.id, { caracteristicasProteccion: e.target.value })
+                      }
+                    />
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <button

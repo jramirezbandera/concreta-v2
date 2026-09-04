@@ -135,6 +135,20 @@ export const SITUACION_MADERA: Record<
     claseUso: '2',
     etiqueta: 'A cubierto pero abierto al exterior (cobertizo, visera)',
   },
+  // DB SE-M tabla 3.1, nota (3): «Los elementos situados en cubiertas
+  // ventiladas se asignarán a la clase 2. En cubiertas no ventiladas, se
+  // asignarán a la clase 3.1, salvo que se incorpore una lámina de
+  // impermeabilización, en cuyo caso se asignarán a la clase 2. Asimismo, se
+  // considerarán de clase 3.1 aquellos casos en los que en el interior de
+  // edificaciones exista riesgo de generación de puntos de condensación no
+  // evitables mediante medidas de diseño y evacuación de vapor de agua». La
+  // clase de servicio sigue siendo la 2: el elemento está a cubierto.
+  cubierta_no_ventilada: {
+    claseServicio: 2,
+    claseUso: '3.1',
+    etiqueta:
+      'Bajo cubierta no ventilada sin lámina impermeabilizante, o interior con condensaciones no evitables',
+  },
   exterior_protegido: {
     claseServicio: 3,
     claseUso: '3.1',
@@ -174,13 +188,26 @@ export interface DurabilidadEspecie {
   impregnabilidadDuramen: string;
 }
 
+/**
+ * Fuente: UNE-EN 350-2:1995, tal como la reproduce el anexo I de «Madera en el
+ * exterior: tratamientos y conservación» (AITIM / ADEPAP, 2024) y la ficha de
+ * especie del Grupo Gámiz para el radiata. La norma no está en local, así que
+ * cada fila dice de dónde sale. Silvestre y pinaster coinciden además con el
+ * cuadro de durabilidad del estudio, salvo la impregnabilidad del duramen del
+ * silvestre, que el cuadro escribe «4» y la norma da «3-4».
+ *
+ * El laricio no aparece en esas tablas: sus valores vienen de la ficha de AEIM
+ * («medianamente durable a poco durable»; albura impregnable, duramen no
+ * impregnable), traducida a las clases de la EN 350-2. Es la fila menos
+ * respaldada de las cuatro.
+ */
 export const DURABILIDAD_ESPECIES: Record<string, DurabilidadEspecie> = {
   'Pinus sylvestris': {
     nombre: 'Pino silvestre',
     botanico: 'Pinus sylvestris L.',
     durabilidadDuramen: '3-4',
     impregnabilidadAlbura: '1',
-    impregnabilidadDuramen: '4',
+    impregnabilidadDuramen: '3-4',
   },
   'Pinus pinaster': {
     nombre: 'Pino pinaster',
@@ -194,7 +221,7 @@ export const DURABILIDAD_ESPECIES: Record<string, DurabilidadEspecie> = {
     botanico: 'Pinus radiata D. Don.',
     durabilidadDuramen: '4-5',
     impregnabilidadAlbura: '1',
-    impregnabilidadDuramen: '2',
+    impregnabilidadDuramen: '2-3',
   },
   'Pinus nigra': {
     nombre: 'Pino laricio',
@@ -206,16 +233,197 @@ export const DURABILIDAD_ESPECIES: Record<string, DurabilidadEspecie> = {
 };
 
 /**
- * UNE-EN 460:1995 — clase de durabilidad natural suficiente, sin tratamiento,
- * para cada clase de uso. Es el número que el cuadro de durabilidad llama
- * «EXIGIDA»: si la durabilidad natural de la especie es igual o menor (más
- * durable) que este valor, no hace falta tratamiento por durabilidad.
+ * UNE-EN 460:1995, tabla 2 — clase de durabilidad natural del duramen que
+ * basta, sin tratamiento, para cada clase de uso. Es el número que el cuadro
+ * de durabilidad llama «EXIGIDA»: si la durabilidad natural de la especie es
+ * igual o menor (más durable) que este valor, no hace falta tratar.
+ *
+ * La tabla de la norma cruza clase de uso con clase de durabilidad y marca
+ * cada casilla con «o» (basta), «(o)» (basta en general), «(o)-(x)» (puede
+ * bastar según especie y uso), «(x)» (tratamiento aconsejable) o «x»
+ * (tratamiento necesario). Aquí se toma como suficiente hasta «(o)», que es
+ * la lectura del cuadro del estudio para las clases 1 y 2 (ambas → 5):
+ *
+ *   uso 1 → 5 · uso 2 → 5 · uso 3 → 3 · uso 4 → 2 · uso 5 → 1
+ *
+ * Las de las clases 3, 4 y 5 no se han podido cotejar con la norma en papel
+ * (ni la EN 460 ni la EN 350:2016 que la sustituye están en local); antes
+ * decían 4, 2 y 2, que daban por suficiente una madera «poco durable» al
+ * exterior y una «durable» en agua salada, y eso la tabla no lo dice.
  */
 export const DURABILIDAD_EXIGIDA_EN460: Record<ClaseUso, number> = {
   '1': 5,
   '2': 5,
-  '3.1': 4,
-  '3.2': 4,
+  '3.1': 3,
+  '3.2': 3,
   '4': 2,
-  '5': 2,
+  '5': 1,
 };
+
+// ── DB SE-M anejo C — asignación de clase resistente a la madera aserrada ────
+
+/**
+ * Tabla C.1 del DB SE-M, íntegra. Da la vuelta a lo que uno espera: no dice qué
+ * clase alcanza una calidad, sino qué CALIDAD hace falta para llegar a una clase
+ * resistente, para una especie y una procedencia concretas.
+ *
+ * Por eso está aquí: la calidad de un cuadro de materiales no es un dato que se
+ * teclee —antes se escribía «ME-1» fijo en todas las filas—, sino la consecuencia
+ * de haber calculado la pieza en, pongamos, C27. Y al revés: hay combinaciones
+ * que sencillamente no existen. Un pino silvestre español clasificado visualmente
+ * no pasa de C27; pedirle C30 obliga a otra procedencia o a clasificación
+ * mecánica, y eso hay que decirlo en el cuadro y no descubrirlo en obra.
+ *
+ * La tabla es «informativa y no exhaustiva» según el propio DB, y es una
+ * selección de la UNE-EN 1912:2012 y la UNE 56544:2011.
+ */
+export interface AsignacionClaseResistente {
+  norma: string;
+  /** Nombre botánico, la misma clave que DURABILIDAD_ESPECIES. */
+  especie: string;
+  procedencia: string;
+  /** Clase resistente → calidad visual que la produce. */
+  clases: Record<string, string>;
+}
+
+export const ASIGNACION_CLASE_RESISTENTE: AsignacionClaseResistente[] = [
+  // UNE 56544:2011 — coníferas españolas. ME = Madera Estructural; MEG, gruesa
+  // escuadría (b > 70 mm), que es una calidad aparte y no una ME-1 de más canto.
+  { norma: 'UNE 56544:2011', especie: 'Pinus sylvestris', procedencia: 'España',
+    clases: { C18: 'ME-2', C22: 'MEG', C27: 'ME-1' } },
+  { norma: 'UNE 56544:2011', especie: 'Pinus pinaster', procedencia: 'España',
+    clases: { C18: 'ME-2', C24: 'ME-1' } },
+  { norma: 'UNE 56544:2011', especie: 'Pinus radiata', procedencia: 'España',
+    clases: { C18: 'ME-2', C24: 'ME-1' } },
+  { norma: 'UNE 56544:2011', especie: 'Pinus nigra', procedencia: 'España',
+    clases: { C18: 'ME-2', C22: 'MEG', C30: 'ME-1' } },
+
+  // NF B 52.001-4 — Francia.
+  { norma: 'NF B 52.001-4', especie: 'Abies alba', procedencia: 'Francia',
+    clases: { C22: 'ST-III', C24: 'ST-II', C30: 'ST-I' } },
+  { norma: 'NF B 52.001-4', especie: 'Picea abies', procedencia: 'Francia',
+    clases: { C22: 'ST-III', C24: 'ST-II', C30: 'ST-I' } },
+  { norma: 'NF B 52.001-4', especie: 'Pseudotsuga menziesii', procedencia: 'Francia',
+    clases: { C22: 'ST-III', C24: 'ST-II' } },
+  { norma: 'NF B 52.001-4', especie: 'Pinus pinaster', procedencia: 'Francia',
+    clases: { C18: 'ST-III', C24: 'ST-II' } },
+
+  // DIN 4074 — Europa Central, Norte y Este.
+  { norma: 'DIN 4074', especie: 'Abies alba', procedencia: 'Europa: Central, N y E',
+    clases: { C16: 'S7', C24: 'S10', C30: 'S13' } },
+  { norma: 'DIN 4074', especie: 'Picea abies', procedencia: 'Europa: Central, N y E',
+    clases: { C16: 'S7', C24: 'S10', C30: 'S13' } },
+  { norma: 'DIN 4074', especie: 'Pinus sylvestris', procedencia: 'Europa: Central, N y E',
+    clases: { C16: 'S7', C24: 'S10', C30: 'S13' } },
+
+  // INSTA 142 — Europa Norte y Nordeste.
+  { norma: 'INSTA 142', especie: 'Abies alba', procedencia: 'Europa: N y NE',
+    clases: { C14: 'T0', C18: 'T1', C24: 'T2', C30: 'T3' } },
+  { norma: 'INSTA 142', especie: 'Picea abies', procedencia: 'Europa: N y NE',
+    clases: { C14: 'T0', C18: 'T1', C24: 'T2', C30: 'T3' } },
+  { norma: 'INSTA 142', especie: 'Pinus sylvestris', procedencia: 'Europa: N y NE',
+    clases: { C14: 'T0', C18: 'T1', C24: 'T2', C30: 'T3' } },
+
+  // BS 4978 — Reino Unido.
+  { norma: 'BS 4978', especie: 'Abies alba', procedencia: 'Reino Unido',
+    clases: { C16: 'GS', C24: 'SS' } },
+  { norma: 'BS 4978', especie: 'Pinus sylvestris', procedencia: 'Reino Unido',
+    clases: { C16: 'GS', C24: 'SS' } },
+
+  // BS 5756 — frondosas tropicales.
+  { norma: 'BS 5756', especie: 'Milicia excelsa', procedencia: 'África',
+    clases: { D40: 'HS' } },
+  { norma: 'BS 5756', especie: 'Eucalyptus marginata', procedencia: 'Australia',
+    clases: { D40: 'HS' } },
+  { norma: 'BS 5756', especie: 'Tectona grandis', procedencia: 'África y Asia SE',
+    clases: { D40: 'HS' } },
+];
+
+/**
+ * UNE 56546:2013 §7 — las calidades de las dos frondosas estructurales
+ * españolas. La norma las define y tabula sus valores característicos (anejo A),
+ * pero la asignación de clase resistente la hace la UNE-EN 1912 y NO figura en
+ * la tabla C.1 del DB SE-M. Se guarda lo que sí está establecido —el nombre de
+ * la calidad y su límite de escuadría— y el motor dice que la clase hay que
+ * tomarla de la UNE-EN 1912.
+ */
+export const CALIDADES_FRONDOSA_ESPANOLA: Record<string, { calidad: string; alcance: string }[]> = {
+  'Eucalyptus globulus': [{ calidad: 'MEF', alcance: 'secciones b ≤ 60 mm y h ≤ 200 mm' }],
+  'Castanea sativa': [
+    { calidad: 'MEF', alcance: 'pequeña escuadría, b ≤ 70 mm' },
+    { calidad: 'MEF-G', alcance: 'gran escuadría, b > 70 mm; sección ≤ 140 × 140 mm' },
+  ],
+};
+
+/** Lo que sale de buscar una especie y una clase resistente en la tabla C.1. */
+export interface CalidadVisual {
+  /** La calidad si la pareja existe con procedencia española. */
+  calidad?: string;
+  norma?: string;
+  procedencia?: string;
+  /**
+   * Cuando la pareja exacta no existe pero la misma especie y procedencia sí
+   * alcanzan una clase superior: la calidad que la da. Pedir C24 a un pino
+   * silvestre español se resuelve con ME-1, que es C27 y la cubre.
+   */
+  superior?: { clase: string; calidad: string; norma: string; procedencia: string };
+  /** Otras procedencias que sí alcanzan esa clase, para poder sugerirlas. */
+  alternativas: { norma: string; procedencia: string; calidad: string }[];
+  /** Las clases que la especie sí alcanza en España, para el mensaje de error. */
+  clasesEnEspana: string[];
+  /** La especie no está en la tabla: no se puede decir nada. */
+  desconocida: boolean;
+}
+
+/** «C24» → { letra: 'C', n: 24 }. Sólo aserrada: coníferas (C) y frondosas (D). */
+function numeroClase(clase: string): { letra: string; n: number } | null {
+  const m = /^([CD])(\d+)$/.exec(clase);
+  return m ? { letra: m[1], n: Number(m[2]) } : null;
+}
+
+export function calidadVisual(especie: string, claseResistente: string): CalidadVisual {
+  const filas = ASIGNACION_CLASE_RESISTENTE.filter((f) => f.especie === especie);
+  if (filas.length === 0) {
+    return { alternativas: [], clasesEnEspana: [], desconocida: true };
+  }
+
+  // España primero: es la procedencia por defecto de una obra española. Si la
+  // especie no se clasifica aquí (el iroko, la teca), vale su única fila.
+  const nacional = filas.find((f) => f.procedencia === 'España');
+  const preferida = nacional ?? (filas.length === 1 ? filas[0] : undefined);
+
+  const alternativas = filas
+    .filter((f) => f !== preferida && f.clases[claseResistente])
+    .map((f) => ({ norma: f.norma, procedencia: f.procedencia, calidad: f.clases[claseResistente] }));
+
+  const calidad = preferida?.clases[claseResistente];
+
+  // Sin pareja exacta, la clase tabulada inmediatamente superior de la misma
+  // fila cubre la pedida (misma letra: una C no se cubre con una D).
+  let superior: CalidadVisual['superior'];
+  const pedida = numeroClase(claseResistente);
+  if (!calidad && preferida && pedida) {
+    const candidata = Object.entries(preferida.clases)
+      .map(([clase, cal]) => ({ clase, calidad: cal, n: numeroClase(clase) }))
+      .filter((c) => c.n !== null && c.n.letra === pedida.letra && c.n.n > pedida.n)
+      .sort((a, b) => a.n!.n - b.n!.n)[0];
+    if (candidata) {
+      superior = {
+        clase: candidata.clase,
+        calidad: candidata.calidad,
+        norma: preferida.norma,
+        procedencia: preferida.procedencia,
+      };
+    }
+  }
+
+  return {
+    calidad,
+    norma: calidad ? preferida?.norma : undefined,
+    procedencia: calidad ? preferida?.procedencia : undefined,
+    superior,
+    alternativas,
+    clasesEnEspana: preferida ? Object.keys(preferida.clases) : [],
+    desconocida: false,
+  };
+}

@@ -392,6 +392,23 @@ export const CONSISTENCIAS: Record<
   liquida: { letra: 'L', etiqueta: 'Líquida', asentamiento: '160-210 mm' },
 };
 
+/**
+ * CE 33.5, párrafos que siguen a la tabla 33.5.a. La tabla enumera las cinco
+ * clases, pero el texto restringe tres de ellas y prescribe una cuarta; sin
+ * esto, la tabla sola haría creer que las cinco están igual de disponibles.
+ *
+ *   «Salvo justificación específica en aplicaciones que así lo requieran, no se
+ *   empleará las consistencias seca y plástica. Además, no podrá emplearse la
+ *   consistencia líquida, salvo que se consiga mediante el empleo de aditivos
+ *   superplastificantes.»
+ *
+ *   «En obras de edificación, para pilares, forjados y vigas se utilizará un
+ *   hormigón de consistencia fluida salvo justificación en contra.»
+ */
+export const CONSISTENCIAS_DESACONSEJADAS: Consistencia[] = ['seca', 'plastica'];
+export const CONSISTENCIA_CON_SUPERPLASTIFICANTE: Consistencia = 'liquida';
+export const CONSISTENCIA_EDIFICACION: Consistencia = 'fluida';
+
 /** CE 33.6 — serie recomendada de resistencias características especificadas. */
 export const SERIE_FCK = [20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100];
 
@@ -460,6 +477,16 @@ export const CLASE_EJECUCION: Record<string, ClaseEjecucion> = {
   'CC3|SC2|PC1': 3,
   'CC3|SC2|PC2': 4,
 };
+
+/**
+ * CE 91.2.2.2 — categoría de ejecución. PC1: componentes sin uniones soldadas,
+ * o con soldaduras hechas en taller en acero de grado inferior a S355. PC2:
+ * soldaduras en acero de grado S355 o superior, soldadura en obra de elementos
+ * principales, tratamiento térmico durante la fabricación, o perfiles huecos
+ * con recortes en boca de lobo. Aquí sólo vive el umbral de grado, que es lo
+ * único que el motor puede comprobar con los datos del cuadro.
+ */
+export const GRADO_ACERO_PC2 = 355;
 
 // ── CE tabla 80.1.a — corrosividad atmosférica del acero estructural ────────
 

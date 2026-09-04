@@ -8,10 +8,13 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SITUACIONES } from '../../features/materiales/catalogos';
+import { TIMBER_GRADES } from '../../data/timberGrades';
+import { deriveMadera } from '../../lib/materiales/derive';
+import { ESPECIES, SITUACIONES, TIPOS_MADERA } from '../../features/materiales/catalogos';
 import {
   cargarEstado,
   defaultMaterialesState,
+  elementoAceroDeMotor,
   elementoDeMotor,
   evaluar,
   filaDesdePreset,
@@ -86,14 +89,22 @@ describe('la situación de obra llega al motor', () => {
     }
   });
 
-  it('la madera aserrada lleva calidad y la laminada, clase de láminas', () => {
+  it('sólo la laminada lleva clase de láminas', () => {
     const aserrada = grupoDeMotor(filaMaderaDesdePreset('Correas y riostras'))!;
-    expect(aserrada.calidad).toBe('ME-1');
     expect(aserrada.claseLaminas).toBeUndefined();
 
     const laminada = grupoDeMotor(filaMaderaDesdePreset('Vigas y pilares'))!;
-    expect(laminada.claseLaminas).toBe('T14');
-    expect(laminada.calidad).toBeUndefined();
+    // C24, no T14: la tabla D.2 del DB SE-M da las láminas en clases de madera
+    // aserrada. Las T son la nomenclatura de la EN 14080, que el DB no usa.
+    expect(laminada.claseLaminas).toBe('C24');
+  });
+
+  it('la calidad ya no es una entrada: la pone la tabla C.1', () => {
+    // Antes el estado escribía «ME-1» en toda fila aserrada, fuese cual fuese
+    // la especie y la clase. Ahora el grupo que llega al motor no la trae.
+    const aserrada = grupoDeMotor(filaMaderaDesdePreset('Correas y riostras'))!;
+    expect('calidad' in aserrada).toBe(false);
+    expect(deriveMadera(aserrada).calidad).toBe('ME-1'); // Pinus pinaster C24
   });
 });
 
@@ -116,6 +127,82 @@ describe('evaluación del estado por defecto', () => {
   it('sin materiales de acero ni madera marcados, sus bloques no se evalúan', () => {
     expect(ev.acero).toBeNull();
     expect(ev.madera).toHaveLength(0);
+  });
+
+  it('con la fila de hormigón de limpieza, la nota de los 70 mm se matiza', () => {
+    // Antes el motor tenía el indicador y la UI nunca lo ponía: la cimentación
+    // decía «70 mm» a secas aunque el mismo cuadro llevase el HL.
+    const cimentacion = ev.hormigon.find((h) => h.fila.nombre === 'Cimentación')!.derivacion;
+    const nota = cimentacion.notas.find((n) => n.texto.startsWith('Contra el terreno'))!;
+    expect(nota.texto).toContain('no rige sobre el hormigón de limpieza');
+
+    const sinHL = evaluar({
+      ...state,
+      elementos: state.elementos.filter((f) => f.situacion !== 'limpieza'),
+    });
+    const notaSinHL = sinHL.hormigon
+      .find((h) => h.fila.nombre === 'Cimentación')!
+      .derivacion.notas.find((n) => n.texto.startsWith('Contra el terreno'))!;
+    expect(notaSinHL.texto).toBe('Contra el terreno: 70 mm.');
+  });
+});
+
+describe('heladas y terreno agresivo', () => {
+  const base = defaultMaterialesState();
+  const porNombre = (ev: ReturnType<typeof evaluar>) =>
+    new Map(ev.hormigon.map((h) => [h.fila.nombre, h.derivacion]));
+
+  it('«heladas» alcanza al muro con cara vista y no a la cimentación ni al forjado', () => {
+    const d = porNombre(evaluar({ ...base, heladas: true }));
+    expect(d.get('Muros de sótano')!.clases).toEqual(['XC2', 'XF1']);
+    expect(d.get('Cimentación')!.clases).toEqual(['XC2']);
+    expect(d.get('Forjados')!.clases).toEqual(['XC1']);
+  });
+
+  it('el terreno agresivo alcanza a todo lo enterrado', () => {
+    const d = porNombre(evaluar({ ...base, terrenoAgresivo: 'debil' }));
+    expect(d.get('Cimentación')!.clases).toEqual(['XC2', 'XA1']);
+    expect(d.get('Muros de sótano')!.clases).toEqual(['XC2', 'XA1']);
+    expect(d.get('Cimentación')!.cnom).toBe(50);
+    expect(d.get('Forjados')!.clases).toEqual(['XC1']);
+  });
+
+  it('un terreno XA2 deja el recubrimiento sin determinar y bloquea exportar', () => {
+    const ev = evaluar({ ...base, terrenoAgresivo: 'moderada' });
+    expect(porNombre(ev).get('Cimentación')!.cnom).toBeNull();
+    expect(ev.errores).toBeGreaterThan(0);
+    expect(ev.listo).toBe(false);
+  });
+
+  it('viajan al motor por `opcionesObra`', () => {
+    const o = opcionesObra({ ...base, heladas: true, terrenoAgresivo: 'alta' });
+    expect(o.heladas).toBe(true);
+    expect(o.terrenoAgresivo).toBe('alta');
+  });
+});
+
+describe('acero estructural', () => {
+  it('S355 soldado con PC1 declarado sale PC2 y cuenta como aviso de la obra', () => {
+    const base = defaultMaterialesState();
+    const ev = evaluar({
+      ...base,
+      usaAceroEstructural: true,
+      estudio: { ...base.estudio, aceroEstructural: 'S355JR' },
+    });
+    expect(ev.acero?.categoriaEjecucionDeclarada).toBe('PC1');
+    expect(ev.acero?.categoriaEjecucion).toBe('PC2');
+    expect(ev.avisos).toBeGreaterThan(0);
+  });
+
+  it('la protección se sugiere por corrosividad y se puede cambiar en la fila', () => {
+    const fila = defaultMaterialesState().aceroEstr.elementos[0];
+    expect(elementoAceroDeMotor(fila, 'S275JR').proteccion).toBe('pintura');
+    const cambiada = elementoAceroDeMotor(
+      { ...fila, proteccion: 'galvanizado', caracteristicasProteccion: 'Z275' },
+      'S275JR',
+    );
+    expect(cambiada.proteccion).toBe('galvanizado');
+    expect(cambiada.caracteristicasProteccion).toBe('Z275');
   });
 });
 
@@ -205,5 +292,123 @@ describe('lectura defensiva', () => {
 
   it('un cemento inventado cae al del perfil por defecto', () => {
     expect(normalizar({ estudio: { cemento: 'CEM XIV' } }).estudio.cemento).toBe('CEM II/B-S');
+  });
+
+  it('una clase resistente que no es del tipo, o una especie desconocida, caen a las habituales', () => {
+    const s = normalizar({
+      maderaGrupos: [
+        { id: 'a', nombre: 'A', situacion: 'interior', tipo: 'maciza', claseResistente: 'GL24h', especie: 'Pinus sylvestris' },
+        { id: 'b', nombre: 'B', situacion: 'interior', tipo: 'laminada', claseResistente: 'C24', especie: 'Quercus lunaris' },
+      ],
+    });
+    expect(s.maderaGrupos[0].claseResistente).toBe('C24');
+    expect(s.maderaGrupos[1].claseResistente).toBe('GL24h');
+    expect(s.maderaGrupos[1].especie).toBe('Pinus sylvestris');
+  });
+
+  it('un fck de anclaje fuera de la tabla A19.3.1 no llega al render', () => {
+    // Con [27] guardado, `fctd` lanzaba al pintar la pestaña de anclajes.
+    expect(normalizar({ hormigonesAnclaje: [27] }).hormigonesAnclaje).toEqual([25, 30]);
+    expect(normalizar({ hormigonesAnclaje: [35, 27] }).hormigonesAnclaje).toEqual([35]);
+    expect(normalizar({ diametrosAnclaje: [] }).diametrosAnclaje).toEqual([8, 10, 12, 16, 20, 25]);
+  });
+
+  it('los modificadores de obra nuevos se leen y se validan', () => {
+    const s = normalizar({ heladas: true, terrenoAgresivo: 'moderada', resistenciaFuego: 60 });
+    expect(s.heladas).toBe(true);
+    expect(s.terrenoAgresivo).toBe('moderada');
+    expect(s.resistenciaFuego).toBe(60);
+    const malo = normalizar({ heladas: 'sí', terrenoAgresivo: 'mucho', resistenciaFuego: 45 });
+    expect(malo.heladas).toBe(false);
+    expect(malo.terrenoAgresivo).toBe('ninguna');
+    expect(malo.resistenciaFuego).toBeNull();
+  });
+});
+
+describe('consistencia', () => {
+  it('los presets de pilares, vigas y forjados arrastran la prescripción del 33.5', () => {
+    for (const n of ['Forjados', 'Pilares', 'Vigas', 'Losa de escalera']) {
+      const fila = filaDesdePreset(n);
+      expect(fila.consistencia, n).toBe('fluida');
+      expect(fila.prescripcionFluida, n).toBe(true);
+    }
+    // La cimentación no: ahí la blanda es lo normal y no hay nada que avisar.
+    expect(filaDesdePreset('Cimentación').prescripcionFluida).toBeUndefined();
+  });
+
+  it('la marca llega al motor con la fila', () => {
+    const e = elementoDeMotor(filaDesdePreset('Forjados'), defaultMaterialesState().estudio)!;
+    expect(e.prescripcionFluida).toBe(true);
+  });
+
+  it('una consistencia seca sobrevive a recargar', () => {
+    // Antes, `normalizar` colapsaba a blanda todo lo que no fuera fluida: una
+    // consistencia elegida a conciencia se cambiaba sola al volver al módulo.
+    const base = defaultMaterialesState();
+    const elementos = base.elementos.map((e) => ({ ...e, consistencia: 'seca' as const }));
+    guardarEstado({ ...base, elementos });
+    expect(cargarEstado().elementos.map((e) => e.consistencia)).toEqual(
+      elementos.map(() => 'seca'),
+    );
+  });
+
+  it('un valor que no es una consistencia cae a blanda', () => {
+    const s = normalizar({
+      elementos: [{ id: 'x', nombre: 'Muro', situacion: 'enterrado', consistencia: 'gelatinosa' }],
+    });
+    expect(s.elementos[0].consistencia).toBe('blanda');
+  });
+});
+
+describe('catálogo de madera', () => {
+  it('las clases resistentes son las mismas que las de vigas y pilares de madera', () => {
+    // El cuadro tiene que poder declarar cualquier clase con la que se haya
+    // calculado un elemento. Si las dos listas se separan, hay piezas que se
+    // calculan pero no se pueden escribir en el cuadro.
+    const enElCuadro = TIPOS_MADERA.flatMap((t) => t.clases).sort();
+    const enLosModulos = TIMBER_GRADES.map((g) => g.id).sort();
+    expect(enElCuadro).toEqual(enLosModulos);
+  });
+
+  it('aserrada separa conífera de frondosa, y laminada va aparte', () => {
+    const aserrada = TIPOS_MADERA.find((t) => t.id === 'maciza')!;
+    expect(aserrada.grupos.map((g) => g.etiqueta)).toEqual(['Conífera y chopo', 'Frondosa']);
+    expect(aserrada.grupos[0].clases).toContain('C14');
+    expect(aserrada.grupos[1].clases).toContain('D30');
+    expect(aserrada.clases).not.toContain('GL24h');
+
+    const laminada = TIPOS_MADERA.find((t) => t.id === 'laminada')!;
+    expect(laminada.clases.every((c) => c.startsWith('GL'))).toBe(true);
+  });
+
+  it('cambiar de tipo recoloca la clase en la habitual, no en la primera', () => {
+    // La primera de aserrada es ahora C14; caer ahí al cambiar de laminada a
+    // aserrada sería degradar la pieza sin decírselo a nadie.
+    expect(TIPOS_MADERA.find((t) => t.id === 'maciza')!.porDefecto).toBe('C24');
+    expect(TIPOS_MADERA.find((t) => t.id === 'laminada')!.porDefecto).toBe('GL24h');
+  });
+
+  it('las especies son las de la tabla C.3 del DB SE-M más las dos frondosas españolas', () => {
+    const ids = ESPECIES.map((e) => e.id);
+    // Tabla C.3 del DB SE-M, once especies.
+    for (const e of [
+      'Pinus sylvestris', 'Pinus pinaster', 'Pinus radiata', 'Pinus nigra',
+      'Picea abies', 'Abies alba', 'Pseudotsuga menziesii', 'Populus sp.',
+      'Milicia excelsa', 'Eucalyptus marginata', 'Tectona grandis',
+    ]) expect(ids, e).toContain(e);
+    // UNE 56546:2013, posterior al DB: las dos frondosas con norma española.
+    expect(ids).toContain('Eucalyptus globulus');
+    expect(ids).toContain('Castanea sativa');
+    expect(ESPECIES).toHaveLength(13);
+    // La etiqueta lleva el nombre común delante: es como se pide la madera.
+    expect(ESPECIES[0].etiqueta).toBe('Pino silvestre (Pinus sylvestris)');
+  });
+
+  it('las especies sin datos de durabilidad avisan en vez de callar', () => {
+    // Sólo los cuatro pinos españoles traen los valores de UNE-EN 350. Del
+    // resto no hay dato cargado, y el cuadro de durabilidad tiene que decirlo.
+    const grupo = { ...grupoDeMotor(filaMaderaDesdePreset('Correas y riostras'))!, especie: 'Tectona grandis' };
+    const avisos = deriveMadera(grupo).mensajes.map((m) => m.texto);
+    expect(avisos.some((t) => /No hay datos de durabilidad natural/.test(t))).toBe(true);
   });
 });

@@ -23,6 +23,7 @@ import {
 import type {
   AceroEstructural,
   AceroPasivo,
+  AgresividadQuimica,
   CategoriaEjecucion,
   CategoriaUso,
   ClaseCorrosividad,
@@ -35,18 +36,22 @@ import type {
   NivelControlHormigon,
   NivelRiesgo,
   OpcionesObra,
+  ProteccionAcero,
   TipoCemento,
   TipoMadera,
   VidaUtil,
 } from '../../lib/materiales/types';
-import { CEMENTO_MIN_HL, CONSISTENCIAS } from '../../lib/materiales/tablasCE';
+import { CEMENTO_MIN_HL, CONSISTENCIAS, FCTK_005 } from '../../lib/materiales/tablasCE';
 import {
+  ESPECIES,
   LAMINAS_POR_GL,
   PRESETS_HORMIGON,
   PRESETS_MADERA,
   PROTECCION_SUGERIDA,
+  RESISTENCIA_FUEGO_OPCIONES,
   SITUACIONES,
   SITUACIONES_MADERA,
+  TIPOS_MADERA,
   type SituacionId,
   type SituacionMaderaId,
 } from './catalogos';
@@ -80,6 +85,8 @@ export interface FilaHormigon {
   consistencia: Consistencia;
   /** Recubrimiento forzado a mano, mm. Sobrevive pero queda marcado. */
   recubrimientoManual: number | null;
+  /** Pilar, viga o forjado: CE 33.5 les prescribe fluida. Lo pone el preset. */
+  prescripcionFluida?: boolean;
 }
 
 export interface FilaMadera {
@@ -97,6 +104,14 @@ export interface FilaAcero {
   union: 'soldadura' | 'atornillado';
   caracteristicasUnion: string;
   corrosividad: ClaseCorrosividad;
+  /**
+   * Protección frente a la corrosión. Sin valor se toma la sugerida para la
+   * clase de corrosividad (PROTECCION_SUGERIDA); con valor manda lo escrito,
+   * porque lo que se imprime en el cuadro es una prescripción y tiene que
+   * poder cambiarse.
+   */
+  proteccion?: ProteccionAcero;
+  caracteristicasProteccion?: string;
 }
 
 export interface MaterialesState {
@@ -107,6 +122,12 @@ export interface MaterialesState {
   estudio: PerfilEstudio;
   /** Modificador de obra: añade XS1 a lo que tenga caras al aire libre. */
   costa: boolean;
+  /** Modificador de obra: zona con heladas, XF1 en las caras al aire libre que reciben lluvia. */
+  heladas: boolean;
+  /** Agresividad química del terreno según el geotécnico: XA1/XA2/XA3 en lo enterrado. */
+  terrenoAgresivo: AgresividadQuimica;
+  /** Resistencia al fuego exigida a la estructura (DB SI 6), en minutos. null = sin indicar. */
+  resistenciaFuego: number | null;
   elementos: FilaHormigon[];
   aceroEstr: {
     nivelRiesgo: NivelRiesgo;
@@ -138,6 +159,7 @@ export function filaDesdePreset(nombre: string): FilaHormigon {
     fck: preset ? preset.fck : 30,
     consistencia: preset ? preset.consistencia : 'blanda',
     recubrimientoManual: null,
+    prescripcionFluida: preset?.prescripcionFluida,
   };
 }
 
@@ -174,6 +196,9 @@ export function defaultMaterialesState(): MaterialesState {
       vidaUtilAnios: 50,
     },
     costa: false,
+    heladas: false,
+    terrenoAgresivo: 'ninguna',
+    resistenciaFuego: null,
     elementos: [
       filaDesdePreset('Cimentación'),
       filaDesdePreset('Muros de sótano'),
@@ -217,6 +242,9 @@ export function defaultMaterialesState(): MaterialesState {
 
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
+const esConsistencia = (v: unknown): v is Consistencia =>
+  typeof v === 'string' && v in CONSISTENCIAS;
+
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -240,26 +268,42 @@ export function normalizar(bruto: unknown): MaterialesState {
             ? (e.situacion as SituacionId)
             : '',
         fck: typeof e.fck === 'number' && e.fck > 0 ? e.fck : 30,
-        consistencia: e.consistencia === 'fluida' ? 'fluida' : 'blanda',
+        // Las cinco de la tabla 33.5.a. Antes esto colapsaba todo lo que no
+        // fuera fluida a blanda: al recargar, una consistencia seca elegida a
+        // conciencia se convertía en otra cosa sin avisar.
+        consistencia: esConsistencia(e.consistencia) ? e.consistencia : 'blanda',
         recubrimientoManual:
           typeof e.recubrimientoManual === 'number' && e.recubrimientoManual > 0
             ? e.recubrimientoManual
             : null,
+        prescripcionFluida: e.prescripcionFluida === true,
       }))
     : base.elementos;
 
   const maderaGrupos = Array.isArray(bruto.maderaGrupos)
-    ? bruto.maderaGrupos.filter(esObjeto).map((g): FilaMadera => ({
-        id: typeof g.id === 'string' ? g.id : nuevoId('m'),
-        nombre: typeof g.nombre === 'string' ? g.nombre : '',
-        situacion:
-          typeof g.situacion === 'string' && g.situacion in SITUACIONES_MADERA
-            ? (g.situacion as SituacionMaderaId)
-            : '',
-        tipo: g.tipo === 'laminada' ? 'laminada' : 'maciza',
-        claseResistente: typeof g.claseResistente === 'string' ? g.claseResistente : 'C24',
-        especie: typeof g.especie === 'string' ? g.especie : 'Pinus sylvestris',
-      }))
+    ? bruto.maderaGrupos.filter(esObjeto).map((g): FilaMadera => {
+        const tipo: TipoMadera = g.tipo === 'laminada' ? 'laminada' : 'maciza';
+        const opcion = TIPOS_MADERA.find((t) => t.id === tipo) ?? TIPOS_MADERA[0];
+        return {
+          id: typeof g.id === 'string' ? g.id : nuevoId('m'),
+          nombre: typeof g.nombre === 'string' ? g.nombre : '',
+          situacion:
+            typeof g.situacion === 'string' && g.situacion in SITUACIONES_MADERA
+              ? (g.situacion as SituacionMaderaId)
+              : '',
+          tipo,
+          // Una clase que no es del tipo (GL24h en aserrada) o una especie fuera
+          // del catálogo llegarían al cuadro sin que ningún desplegable las
+          // ofrezca. Caen a la clase habitual del tipo y al pino silvestre.
+          claseResistente:
+            typeof g.claseResistente === 'string' && opcion.clases.includes(g.claseResistente)
+              ? g.claseResistente
+              : opcion.porDefecto,
+          especie: ESPECIES.some((e) => e.id === g.especie)
+            ? (g.especie as string)
+            : 'Pinus sylvestris',
+        };
+      })
     : base.maderaGrupos;
 
   const elementosAcero = Array.isArray(acero.elementos)
@@ -272,8 +316,22 @@ export function normalizar(bruto: unknown): MaterialesState {
         corrosividad: ['C1', 'C2', 'C3', 'C4', 'C5'].includes(a.corrosividad as string)
           ? (a.corrosividad as ClaseCorrosividad)
           : 'C1',
+        proteccion: ['pintura', 'galvanizado', 'ninguna'].includes(a.proteccion as string)
+          ? (a.proteccion as ProteccionAcero)
+          : undefined,
+        caracteristicasProteccion:
+          typeof a.caracteristicasProteccion === 'string' ? a.caracteristicasProteccion : undefined,
       }))
     : base.aceroEstr.elementos;
+
+  // Un fck fuera de la tabla A19.3.1 haría lanzar a `fctd` en pleno render del
+  // cuadro de anclajes; y una lista vacía dejaría la tabla sin columnas.
+  const hormigonesAnclaje = Array.isArray(bruto.hormigonesAnclaje)
+    ? bruto.hormigonesAnclaje.filter((d): d is number => typeof d === 'number' && d in FCTK_005)
+    : [];
+  const diametrosAnclaje = Array.isArray(bruto.diametrosAnclaje)
+    ? bruto.diametrosAnclaje.filter((d): d is number => typeof d === 'number' && d > 0)
+    : [];
 
   const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
   const num = (v: unknown, def: number) => (typeof v === 'number' && v > 0 ? v : def);
@@ -328,6 +386,17 @@ export function normalizar(bruto: unknown): MaterialesState {
       vidaUtilAnios: num(estudio.vidaUtilAnios, base.estudio.vidaUtilAnios),
     },
     costa: bool(bruto.costa, base.costa),
+    heladas: bool(bruto.heladas, base.heladas),
+    terrenoAgresivo: str(
+      bruto.terrenoAgresivo,
+      ['ninguna', 'debil', 'moderada', 'alta'] as const,
+      base.terrenoAgresivo,
+    ),
+    resistenciaFuego: (RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(
+      bruto.resistenciaFuego as number,
+    )
+      ? (bruto.resistenciaFuego as number)
+      : null,
     elementos,
     aceroEstr: {
       nivelRiesgo: str(acero.nivelRiesgo, ['CC1', 'CC2', 'CC3'] as const, base.aceroEstr.nivelRiesgo),
@@ -340,12 +409,8 @@ export function normalizar(bruto: unknown): MaterialesState {
       elementos: elementosAcero,
     },
     maderaGrupos,
-    diametrosAnclaje: Array.isArray(bruto.diametrosAnclaje)
-      ? bruto.diametrosAnclaje.filter((d): d is number => typeof d === 'number' && d > 0)
-      : base.diametrosAnclaje,
-    hormigonesAnclaje: Array.isArray(bruto.hormigonesAnclaje)
-      ? bruto.hormigonesAnclaje.filter((d): d is number => typeof d === 'number' && d > 0)
-      : base.hormigonesAnclaje,
+    diametrosAnclaje: diametrosAnclaje.length ? diametrosAnclaje : base.diametrosAnclaje,
+    hormigonesAnclaje: hormigonesAnclaje.length ? hormigonesAnclaje : base.hormigonesAnclaje,
     ayuda: bool(bruto.ayuda, base.ayuda),
   };
 }
@@ -378,13 +443,22 @@ export function opcionesObra(state: MaterialesState): OpcionesObra {
     cemento: state.estudio.cemento,
     nivelControlEjecucion: state.estudio.nivelControlEjecucion,
     costa: state.costa,
+    heladas: state.heladas,
+    terrenoAgresivo: state.terrenoAgresivo,
   };
 }
 
-/** Una fila con situación resuelta y derivable. El HL y los huecos quedan fuera. */
+/**
+ * Una fila con situación resuelta y derivable. El HL y los huecos quedan fuera.
+ *
+ * `conHormigonLimpieza` es un hecho del cuadro, no de la fila: si la obra
+ * lleva una fila de hormigón de limpieza, los elementos contra el terreno
+ * apoyan sobre él y la nota de los 70 mm del CE 44.2.1.1 cambia de redacción.
+ */
 export function elementoDeMotor(
   fila: FilaHormigon,
   estudio: PerfilEstudio,
+  conHormigonLimpieza = false,
 ): ElementoHormigon | null {
   if (!fila.situacion) return null;
   const opcion = SITUACIONES[fila.situacion];
@@ -397,7 +471,9 @@ export function elementoDeMotor(
     fckEspecificada: fila.fck,
     consistencia: fila.consistencia,
     tamMaxArido: estudio.tamMaxArido,
+    prescripcionFluida: fila.prescripcionFluida,
     contraTerreno: opcion.contraTerreno,
+    conHormigonLimpieza: opcion.contraTerreno ? conHormigonLimpieza : undefined,
     expuestoAireExterior: opcion.expuestoAireExterior,
     hidrofugo: opcion.hidrofugo,
     nivelControl: estudio.nivelControlHormigon,
@@ -422,7 +498,6 @@ export function grupoDeMotor(fila: FilaMadera): GrupoMadera | null {
     tipo: fila.tipo,
     claseResistente: fila.claseResistente,
     especie: fila.especie,
-    calidad: fila.tipo === 'maciza' ? 'ME-1' : undefined,
     claseLaminas: fila.tipo === 'laminada' ? LAMINAS_POR_GL[fila.claseResistente] : undefined,
   };
 }
@@ -439,8 +514,8 @@ export function elementoAceroDeMotor(
     union: fila.union,
     caracteristicasUnion: fila.caracteristicasUnion,
     corrosividad: fila.corrosividad,
-    proteccion: sugerida.proteccion,
-    caracteristicasProteccion: sugerida.detalle,
+    proteccion: fila.proteccion ?? sugerida.proteccion,
+    caracteristicasProteccion: fila.caracteristicasProteccion ?? sugerida.detalle,
   };
 }
 
@@ -471,12 +546,13 @@ export function evaluar(state: MaterialesState): Evaluacion {
   const huecos: FilaHormigon[] = [];
 
   if (state.usaHormigon) {
+    const hayLimpieza = state.elementos.some((f) => f.situacion === 'limpieza');
     for (const fila of state.elementos) {
       if (fila.situacion === 'limpieza') {
         limpieza.push(fila);
         continue;
       }
-      const entrada = elementoDeMotor(fila, state.estudio);
+      const entrada = elementoDeMotor(fila, state.estudio, hayLimpieza);
       if (!entrada) {
         huecos.push(fila);
         continue;
@@ -512,6 +588,7 @@ export function evaluar(state: MaterialesState): Evaluacion {
   const mensajes = [
     ...hormigon.flatMap((h) => h.derivacion.mensajes),
     ...madera.flatMap((m) => m.derivacion.mensajes),
+    ...(acero?.mensajes ?? []),
   ];
   const avisos = mensajes.filter((m) => m.severidad === 'aviso').length;
   const errores = mensajes.filter((m) => m.severidad === 'error').length;

@@ -83,20 +83,15 @@ export function MaterialesModule() {
 
   // ── Documento ─────────────────────────────────────────────────────────────
 
-  const bloquesPlano = useMemo<Block[]>(() => {
+  /**
+   * Lo que llevan las DOS vistas del documento: aceros, madera y coeficientes.
+   * Plano y memoria sólo se diferencian en la tabla de hormigón —una fila por
+   * elemento frente a una columna—, así que el resto se construye una vez. Que
+   * estuviera escrito sólo dentro del plano era el motivo de que la memoria
+   * saliera con el hormigón y nada más.
+   */
+  const bloquesComunes = useMemo<Block[]>(() => {
     const bloques: Block[] = [];
-    if (state.usaHormigon) {
-      bloques.push(
-        ...cuadroHormigonPlano(
-          evaluacion.hormigon.map((h) => h.derivacion),
-          evaluacion.limpieza.map((f) => ({
-            nombre: f.nombre.trim() || 'Hormigón de limpieza',
-            tipificacion: tipificacionLimpieza(f.consistencia, state.estudio.tamMaxArido),
-            nivelControl: 'Según capítulos 13 y 14',
-          })),
-        ),
-      );
-    }
     bloques.push(
       ...cuadroAceros({
         aceroPasivo: state.estudio.aceroPasivo,
@@ -119,22 +114,43 @@ export function MaterialesModule() {
         aceroLaminado: state.usaAceroEstructural,
         aceroDeArmar: state.usaHormigon,
         hormigon: state.usaHormigon,
-      }),
+      }, state.resistenciaFuego),
     );
     return bloques;
   }, [state, evaluacion]);
 
-  const bloquesMemoria = useMemo<Block[]>(() => {
-    if (!state.usaHormigon || evaluacion.hormigon.length === 0) {
-      return [
-        {
-          kind: 'paragraph',
-          text: 'Sin elementos de hormigón resueltos: el cuadro de memoria aparecerá aquí en cuanto haya alguno.',
-        },
-      ];
+  const bloquesPlano = useMemo<Block[]>(() => {
+    const bloques: Block[] = [];
+    if (state.usaHormigon) {
+      bloques.push(
+        ...cuadroHormigonPlano(
+          evaluacion.hormigon.map((h) => h.derivacion),
+          evaluacion.limpieza.map((f) => ({
+            nombre: f.nombre.trim() || 'Hormigón de limpieza',
+            tipificacion: tipificacionLimpieza(f.consistencia, state.estudio.tamMaxArido),
+            nivelControl: 'Según capítulos 13 y 14',
+          })),
+        ),
+      );
     }
-    return cuadroHormigonMemoria(evaluacion.hormigon.map((h) => h.derivacion));
-  }, [state.usaHormigon, evaluacion]);
+    return [...bloques, ...bloquesComunes];
+  }, [state, evaluacion, bloquesComunes]);
+
+  const bloquesMemoria = useMemo<Block[]>(() => {
+    const bloques: Block[] = [];
+    if (state.usaHormigon && evaluacion.hormigon.length > 0) {
+      bloques.push(...cuadroHormigonMemoria(evaluacion.hormigon.map((h) => h.derivacion)));
+    }
+    const todos = [...bloques, ...bloquesComunes];
+    return todos.length > 0
+      ? todos
+      : [
+          {
+            kind: 'paragraph',
+            text: 'Sin materiales resueltos: los cuadros de memoria aparecerán aquí en cuanto haya alguno.',
+          },
+        ];
+  }, [state.usaHormigon, evaluacion, bloquesComunes]);
 
   const bloquesAnclajes = useMemo<Block[]>(() => {
     // Los hormigones que se tabulan son los que la obra usa de verdad, más los
@@ -276,15 +292,19 @@ export function MaterialesModule() {
                 tamMaxArido={state.estudio.tamMaxArido}
                 derivaciones={derivacionesHormigon}
                 costa={state.costa}
+                heladas={state.heladas}
+                terrenoAgresivo={state.terrenoAgresivo}
                 ayuda={state.ayuda}
                 onCambiar={cambiarFila}
                 onBorrar={(id) =>
                   actualizar((p) => ({ ...p, elementos: p.elementos.filter((f) => f.id !== id) }))
                 }
-                onAnadir={() =>
-                  actualizar((p) => ({ ...p, elementos: [...p.elementos, filaDesdePreset('')] }))
+                onAnadir={(nombre) =>
+                  actualizar((p) => ({ ...p, elementos: [...p.elementos, filaDesdePreset(nombre)] }))
                 }
                 onCosta={(costa) => actualizar((p) => ({ ...p, costa }))}
+                onHeladas={(heladas) => actualizar((p) => ({ ...p, heladas }))}
+                onTerreno={(terrenoAgresivo) => actualizar((p) => ({ ...p, terrenoAgresivo }))}
               />
             )}
 
@@ -339,10 +359,10 @@ export function MaterialesModule() {
                     maderaGrupos: p.maderaGrupos.filter((f) => f.id !== id),
                   }))
                 }
-                onAnadir={() =>
+                onAnadir={(nombre) =>
                   actualizar((p) => ({
                     ...p,
-                    maderaGrupos: [...p.maderaGrupos, filaMaderaDesdePreset('')],
+                    maderaGrupos: [...p.maderaGrupos, filaMaderaDesdePreset(nombre)],
                   }))
                 }
               />

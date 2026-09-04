@@ -28,6 +28,7 @@ import {
   cuadroHormigonPlano,
 } from '../../lib/materiales/cuadros';
 import { TIPIFICACION_HORMIGON_LIMPIEZA } from '../../lib/materiales/tablasCE';
+import { DURABILIDAD_ESPECIES } from '../../lib/materiales/tablasMadera';
 import type { ElementoHormigon, GrupoMadera, OpcionesObra } from '../../lib/materiales/types';
 
 const OBRA: OpcionesObra = {
@@ -373,7 +374,6 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     tipo: 'maciza',
     claseResistente: 'C24',
     especie: 'Pinus pinaster',
-    calidad: 'ME-1',
   };
 
   const dVigas = deriveMadera(vigas);
@@ -418,5 +418,27 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     // DB SE-M tabla 3.1, nota (2): «el elemento de madera deberá recibir un
     // tratamiento superficial con un producto insecticida y fungicida».
     expect(dVigas.notas.join(' ')).toContain('insecticida y fungicida');
+  });
+
+  it('DISCREPANCIA 8 — el cuadro da impregnabilidad 4 al duramen del silvestre; la EN 350-2 da 3-4', () => {
+    // Anexo I de «Madera en el exterior» (AITIM/ADEPAP), transcripción de la
+    // UNE-EN 350-2:1995: Pinus sylvestris, albura 1, duramen 3-4, hongos 3-4.
+    expect(DURABILIDAD_ESPECIES['Pinus sylvestris'].impregnabilidadDuramen).toBe('3-4');
+    expect(DURABILIDAD_ESPECIES['Pinus pinaster'].impregnabilidadDuramen).toBe('4');
+  });
+
+  it('la nota «R30» del cuadro de acciones sólo se imprime si la obra lo indica', () => {
+    // El oráculo dice «La estructura será R30 acorde al CTE DB SI» y así salía
+    // en todo documento. La R la fija el DB SI 6 por uso y altura: es un dato.
+    const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
+      const n = blocks.find((b) => b.kind === 'notes');
+      if (n?.kind !== 'notes') throw new Error('sin notas');
+      return n.items.join(' ');
+    };
+    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }))).not.toContain('R30');
+    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 30))).toContain(
+      'La estructura será R30 acorde al CTE DB SI.',
+    );
+    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 90))).toContain('R90');
   });
 });

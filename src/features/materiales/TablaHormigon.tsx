@@ -12,18 +12,18 @@
 
 import { Trash2, TriangleAlert } from 'lucide-react';
 import { num } from '../../lib/materiales/cuadros';
-import type { DerivacionHormigon } from '../../lib/materiales/types';
+import type { AgresividadQuimica, DerivacionHormigon } from '../../lib/materiales/types';
 import {
   CONSISTENCIA_OPCIONES,
   FCK_OPCIONES,
   ORDEN_SITUACIONES,
   PRESETS_HORMIGON,
   SITUACIONES,
+  TERRENO_OPCIONES,
   type SituacionId,
 } from './catalogos';
+import { MenuAnadir } from './MenuAnadir';
 import { tipificacionLimpieza, type FilaHormigon } from './state';
-
-const LISTA_NOMBRES = 'materiales-nombres-hormigon';
 
 interface Props {
   filas: FilaHormigon[];
@@ -32,11 +32,16 @@ interface Props {
   /** Derivación por id de fila. Las filas sin situación no aparecen. */
   derivaciones: Map<string, DerivacionHormigon>;
   costa: boolean;
+  heladas: boolean;
+  terrenoAgresivo: AgresividadQuimica;
   ayuda: boolean;
   onCambiar: (id: string, cambio: Partial<FilaHormigon>) => void;
   onBorrar: (id: string) => void;
-  onAnadir: () => void;
+  /** Recibe el nombre elegido en el menú, o '' para una fila en blanco. */
+  onAnadir: (nombre: string) => void;
   onCosta: (valor: boolean) => void;
+  onHeladas: (valor: boolean) => void;
+  onTerreno: (valor: AgresividadQuimica) => void;
 }
 
 const TH_DER =
@@ -52,11 +57,15 @@ export function TablaHormigon({
   tamMaxArido,
   derivaciones,
   costa,
+  heladas,
+  terrenoAgresivo,
   ayuda,
   onCambiar,
   onBorrar,
   onAnadir,
   onCosta,
+  onHeladas,
+  onTerreno,
 }: Props) {
   return (
     <section className="rounded border border-border-main bg-bg-surface">
@@ -65,24 +74,56 @@ export function TablaHormigon({
           M2
         </span>
         <h2 className="text-[13px] font-semibold text-text-primary">Elementos de hormigón</h2>
-        <label className="ml-auto flex items-center gap-2 text-[12px] text-text-secondary">
-          <input
-            type="checkbox"
-            checked={costa}
-            onChange={(e) => onCosta(e.target.checked)}
-            className="accent-[var(--color-accent)]"
-          />
-          <span>
-            La obra está <b className="font-semibold text-text-primary">en la costa</b>
-          </span>
-        </label>
+        {/* Los tres modificadores de obra: alcanzan a varios elementos a la vez y
+            por eso viven aquí y no en cada fila. */}
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-secondary">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={costa}
+              onChange={(e) => onCosta(e.target.checked)}
+              className="accent-[var(--color-accent)]"
+            />
+            <span>
+              La obra está <b className="font-semibold text-text-primary">en la costa</b>
+            </span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={heladas}
+              onChange={(e) => onHeladas(e.target.checked)}
+              className="accent-[var(--color-accent)]"
+            />
+            <span>
+              Zona con <b className="font-semibold text-text-primary">heladas</b>
+            </span>
+          </label>
+          <label className="flex items-center gap-2">
+            <span>Terreno</span>
+            <select
+              value={terrenoAgresivo}
+              aria-label="Agresividad del terreno"
+              className={INPUT}
+              onChange={(e) => onTerreno(e.target.value as AgresividadQuimica)}
+            >
+              {TERRENO_OPCIONES.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.etiqueta}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </header>
 
       {ayuda && (
         <p className="border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
           Conteste dónde va a estar cada elemento; las columnas azules las pone el Código
           Estructural. Marcar «en la costa» añade el ambiente marino (XS1) a todo lo que tenga caras
-          al aire libre: sube el cemento, baja el agua y engorda el recubrimiento.
+          al aire libre: sube el cemento, baja el agua y engorda el recubrimiento. «Heladas» añade
+          XF1 a las caras que reciben lluvia. El terreno agresivo lo dice el informe geotécnico
+          (sulfatos, acidez, CO₂ agresivo) y añade XA1, XA2 o XA3 a todo lo enterrado.
         </p>
       )}
 
@@ -131,30 +172,16 @@ export function TablaHormigon({
                   }
                 >
                   <td className="px-2 py-1.5" style={{ minWidth: 150 }}>
+                    {/* Texto libre a secas: el nombre es del usuario y puede ser
+                        «Brochal del hueco de la escalera». Los elementos
+                        habituales se eligen al añadir la fila, en el menú de
+                        abajo, no escribiendo aquí. */}
                     <input
                       value={fila.nombre}
-                      list={LISTA_NOMBRES}
-                      placeholder="Nombre o elegir…"
+                      placeholder="Nombre del elemento"
                       aria-label="Nombre del elemento"
                       className={INPUT}
-                      onChange={(e) => {
-                        const nombre = e.target.value;
-                        const preset = PRESETS_HORMIGON[nombre];
-                        // Elegir un nombre conocido rellena la fila entera; sólo
-                        // se autorrellena si la fila estaba en blanco, para no
-                        // pisar decisiones ya tomadas.
-                        onCambiar(
-                          fila.id,
-                          preset && fila.situacion === ''
-                            ? {
-                                nombre,
-                                situacion: preset.situacion,
-                                fck: preset.fck,
-                                consistencia: preset.consistencia,
-                              }
-                            : { nombre },
-                        );
-                      }}
+                      onChange={(e) => onCambiar(fila.id, { nombre: e.target.value })}
                     />
                   </td>
 
@@ -226,7 +253,9 @@ export function TablaHormigon({
                   ) : (
                     <>
                       <td className={TD_DER}>{d ? d.clases.join(' + ') : '—'}</td>
-                      <td className={TD_DER}>{d && d.cnom > 0 ? `${d.cnom} mm` : '—'}</td>
+                      <td className={TD_DER}>
+                        {d && d.cnom !== null && d.cnom > 0 ? `${d.cnom} mm` : '—'}
+                      </td>
                       <td className={TD_DER}>
                         {d?.cementoMin != null ? `${d.cementoMin} kg` : '—'}
                       </td>
@@ -300,25 +329,18 @@ export function TablaHormigon({
       )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-main px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onAnadir}
-          className="rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
-        >
-          + Añadir elemento
-        </button>
+        <MenuAnadir
+          etiqueta="+ Añadir elemento"
+          nombres={Object.keys(PRESETS_HORMIGON)}
+          etiquetaLibre="Otro… (fila en blanco)"
+          onElegir={onAnadir}
+        />
         {ayuda && (
           <span className="text-[11px] text-text-disabled">
-            Escriba el nombre o elija uno sugerido: si es conocido, la fila se rellena sola.
+            Elegir un elemento habitual trae la fila rellena; «Otro…» la deja en blanco.
           </span>
         )}
       </div>
-
-      <datalist id={LISTA_NOMBRES}>
-        {Object.keys(PRESETS_HORMIGON).map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
     </section>
   );
 }

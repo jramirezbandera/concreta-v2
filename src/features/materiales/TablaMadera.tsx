@@ -18,9 +18,9 @@ import {
   TIPOS_MADERA,
   type SituacionMaderaId,
 } from './catalogos';
+import { MenuAnadir } from './MenuAnadir';
 import type { FilaMadera } from './state';
 
-const LISTA_NOMBRES = 'materiales-nombres-madera';
 const ROMANO: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III' };
 
 const TH_DER =
@@ -37,7 +37,8 @@ interface Props {
   ayuda: boolean;
   onCambiar: (id: string, cambio: Partial<FilaMadera>) => void;
   onBorrar: (id: string) => void;
-  onAnadir: () => void;
+  /** Recibe el nombre elegido en el menú, o '' para una fila en blanco. */
+  onAnadir: (nombre: string) => void;
 }
 
 export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, onAnadir }: Props) {
@@ -107,26 +108,10 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
                     <td className="px-2 py-1.5" style={{ minWidth: 150 }}>
                       <input
                         value={fila.nombre}
-                        list={LISTA_NOMBRES}
-                        placeholder="Nombre o elegir…"
+                        placeholder="Nombre del grupo"
                         aria-label="Nombre del grupo"
                         className={INPUT}
-                        onChange={(e) => {
-                          const nombre = e.target.value;
-                          const preset = PRESETS_MADERA[nombre];
-                          onCambiar(
-                            fila.id,
-                            preset && fila.situacion === ''
-                              ? {
-                                  nombre,
-                                  situacion: preset.situacion,
-                                  tipo: preset.tipo,
-                                  claseResistente: preset.claseResistente,
-                                  especie: preset.especie,
-                                }
-                              : { nombre },
-                          );
-                        }}
+                        onChange={(e) => onCambiar(fila.id, { nombre: e.target.value })}
                       />
                     </td>
 
@@ -164,7 +149,7 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
                             tipo: nuevo.id,
                             claseResistente: nuevo.clases.includes(fila.claseResistente)
                               ? fila.claseResistente
-                              : nuevo.clases[0],
+                              : nuevo.porDefecto,
                           });
                         }}
                       >
@@ -183,10 +168,14 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
                         className={INPUT}
                         onChange={(e) => onCambiar(fila.id, { claseResistente: e.target.value })}
                       >
-                        {tipo.clases.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
+                        {tipo.grupos.map((g) => (
+                          <optgroup key={g.etiqueta} label={g.etiqueta}>
+                            {g.clases.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                     </td>
@@ -199,8 +188,8 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
                         onChange={(e) => onCambiar(fila.id, { especie: e.target.value })}
                       >
                         {ESPECIES.map((e) => (
-                          <option key={e} value={e}>
-                            {e}
+                          <option key={e.id} value={e.id}>
+                            {e.etiqueta}
                           </option>
                         ))}
                       </select>
@@ -237,26 +226,49 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
         </div>
       )}
 
+      {/* Los mensajes en largo, como en el hormigón. Aquí importan también los
+          de información: «C24 no está tabulada, se pide ME-1» o «sin datos de
+          durabilidad para esta especie» son cosas que hay que leer. */}
+      {filas.some((f) => (derivaciones.get(f.id)?.mensajes.length ?? 0) > 0) && (
+        <ul className="space-y-1 border-t border-border-sub px-4 py-2">
+          {filas.flatMap((f) => {
+            const d = derivaciones.get(f.id);
+            if (!d) return [];
+            return d.mensajes.map((m, i) => (
+              <li
+                key={`${f.id}-m${i}`}
+                className={[
+                  'text-[11px] leading-snug',
+                  m.severidad === 'error'
+                    ? 'text-state-fail'
+                    : m.severidad === 'aviso'
+                      ? 'text-state-warn'
+                      : 'text-text-disabled',
+                ].join(' ')}
+              >
+                <b className="font-semibold">{d.grupo.nombre}:</b> {m.texto}
+                {m.referencia && (
+                  <span className="ml-1 font-mono text-text-disabled">({m.referencia})</span>
+                )}
+              </li>
+            ));
+          })}
+        </ul>
+      )}
+
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-main px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onAnadir}
-          className="rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
-        >
-          + Añadir grupo
-        </button>
+        <MenuAnadir
+          etiqueta="+ Añadir grupo"
+          nombres={Object.keys(PRESETS_MADERA)}
+          etiquetaLibre="Otro… (fila en blanco)"
+          onElegir={onAnadir}
+        />
         {ayuda && (
           <span className="text-[11px] text-text-disabled">
-            «Vigas y pilares», «Correas y riostras»… los nombres conocidos rellenan la fila sola.
+            Elegir un grupo habitual trae la fila rellena; «Otro…» la deja en blanco.
           </span>
         )}
       </div>
-
-      <datalist id={LISTA_NOMBRES}>
-        {Object.keys(PRESETS_MADERA).map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
     </section>
   );
 }
