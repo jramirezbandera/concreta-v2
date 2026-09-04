@@ -26,6 +26,7 @@ import {
   getTimberGrade,
   getKmod,
   getGammaM,
+  getKh,
   type LoadDurationClass,
   type ServiceClass,
 } from '../../data/timberGrades';
@@ -128,11 +129,10 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
   const betaC = grade.type === 'glulam' ? 0.1 : 0.2;
   const E0_05_Nmm2 = grade.E0_05 * 1000;
 
-  // kh — factor de tamaño (EC5 §3.2 aserrada / §3.3 laminada) sobre el canto
-  // de flexión h. Solo a fm (a ft0 se omite: lado seguro).
-  const kh = grade.type === 'glulam'
-    ? (h < 600 ? Math.min(Math.pow(600 / h, 0.1), 1.1) : 1.0)
-    : (h < 150 ? Math.min(Math.pow(150 / h, 0.2), 1.3) : 1.0);
+  // kh — factor de tamaño (EC5 §3.2(3) aserrada con ρk ≤ 700 / §3.3(3)
+  // laminada) sobre el canto de flexión h. Solo a fm (a ft0 se omite: lado
+  // seguro).
+  const kh = getKh(grade, h);
 
   const fm_d = kmod * kh * grade.fm_k / gammaM;
   const fc0_d = kmod * grade.fc0_k / gammaM;

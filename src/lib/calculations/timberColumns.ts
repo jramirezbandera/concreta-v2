@@ -16,6 +16,7 @@ import {
   getKmod,
   getGammaM,
   getBetaN,
+  getKh,
   type LoadDurationClass,
   type ServiceClass,
 } from '../../data/timberGrades';
@@ -189,9 +190,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   // For columns with single-axis moment: use h (strong axis) or b (weak axis).
   // For stability/compression only (no bending), kh does not apply to fc0.
   const bendingDim = inp.momentAxis === 'strong' ? inp.h : inp.b;  // mm
-  const kh = grade.type === 'glulam'
-    ? (bendingDim < 600 ? Math.min(Math.pow(600 / bendingDim, 0.1), 1.1) : 1.0)
-    : (bendingDim < 150 ? Math.min(Math.pow(150 / bendingDim, 0.2), 1.3) : 1.0);
+  const kh = getKh(grade, bendingDim);   // §3.2(3): sin bonificación si ρk > 700
 
   const fm_d  = kmod * kh * grade.fm_k / gammaM;  // N/mm² — with size factor
 

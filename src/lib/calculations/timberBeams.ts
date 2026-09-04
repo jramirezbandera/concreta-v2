@@ -16,6 +16,7 @@ import {
   getKdef,
   getGammaM,
   getBetaN,
+  getKh,
   type LoadDurationClass,
   type ServiceClass,
 } from '../../data/timberGrades';
@@ -240,16 +241,10 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const kcr   = 0.67;
   const A_ef  = kcr * A;   // mm² — effective shear area
 
-  // ── kh — size factor (EC5 §3.2 sawn / §3.3 glulam) ──────────────────────
-  // For sawn timber: if h < 150mm → kh = min((150/h)^0.2, 1.3). Else kh=1.0.
-  // For glulam:      if h < 600mm → kh = min((600/h)^0.1, 1.1). Else kh=1.0.
-  // Applied to fm,k before dividing by γM.
-  let kh: number;
-  if (grade.type === 'glulam') {
-    kh = h < 600 ? Math.min(Math.pow(600 / h, 0.1), 1.1) : 1.0;
-  } else {
-    kh = h < 150 ? Math.min(Math.pow(150 / h, 0.2), 1.3) : 1.0;
-  }
+  // ── kh — size factor (EC5 §3.2(3) sawn, ρk ≤ 700 / §3.3(3) glulam) ───────
+  // Centralizado en timberGrades.getKh: la condición de densidad del §3.2(3)
+  // se había perdido en las tres copias del cálculo.
+  const kh = getKh(grade, h);
 
   // ── ksys — system strength factor (EC5 §6.6) ─────────────────────────────
   // Applies when ≥ 4 parallel members share load via a distributing element
