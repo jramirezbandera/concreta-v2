@@ -3,10 +3,17 @@
  * contestan. Cada una resume en una línea lo que tiene cuando está cerrada,
  * para que el usuario que trabaja en la cubierta siga viendo dónde está la
  * obra sin abrir el emplazamiento.
+ *
+ * El lienzo SIGUE a la sección que se está tocando: tocar un faldón enseña la
+ * vista Nieve, tocar la pendiente enseña la Cubierta. Sin eso, teclear en una
+ * sección no se veía en ninguna parte —que era justo lo que este módulo tenía
+ * que arreglar—. El emplazamiento no cambia de vista: afecta a las cuatro.
  */
 
+import type { ReactNode } from 'react';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import type { Obra } from '../../lib/obra';
+import type { VistaLienzo } from './catalogos';
 import { Cubierta } from './Cubierta';
 import { Emplazamiento } from './Emplazamiento';
 import { Nieve } from './Nieve';
@@ -52,9 +59,26 @@ interface Props extends AccionesDatos {
   faldonSel: string | null;
   onSelectPlanta: (id: string | null) => void;
   onSelectFaldon: (id: string | null) => void;
+  /** Pone el lienzo en la vista de la sección que se está tocando. */
+  onVista: (v: VistaLienzo) => void;
 }
 
-export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectPlanta, onSelectFaldon, ...a }: Props) {
+/**
+ * Envuelve una sección para que, en cuanto se toque algo dentro —pulsar,
+ * enfocar con el ratón o llegar tabulando—, el lienzo salte a su vista. Se
+ * escucha en captura y antes del cambio, así el dibujo ya está delante cuando
+ * el valor cambia.
+ */
+function SeccionVista({ vista, onVista, children }: { vista: VistaLienzo; onVista: (v: VistaLienzo) => void; children: ReactNode }) {
+  const ir = () => onVista(vista);
+  return (
+    <div onFocusCapture={ir} onPointerDownCapture={ir}>
+      {children}
+    </div>
+  );
+}
+
+export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectPlanta, onSelectFaldon, onVista, ...a }: Props) {
   const { emplazamiento: e, viento: v, nieve: n, ayuda } = state;
   const { zonas } = evaluacion;
   const H = cotasPlantas(v.plantas).reduce((m, z) => Math.max(m, z), 0);
@@ -79,25 +103,33 @@ export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectP
         <Emplazamiento e={e} zonas={zonas} ayuda={ayuda} obra={obra} onCambiar={a.onEmplazamiento} onUsarObra={a.onUsarObra} onGuardarObra={a.onGuardarObra} />
       </CollapsibleSection>
 
-      <CollapsibleSection label="Viento" refNorma="art. 3.3" summary={resumenViento}>
-        <Viento v={v} ayuda={ayuda} plantaSel={plantaSel} onSelectPlanta={onSelectPlanta} onCambiar={a.onViento} onPlanta={a.onPlanta} onAnadirPlanta={a.onAnadirPlanta} onBorrarPlanta={a.onBorrarPlanta} />
-      </CollapsibleSection>
+      <SeccionVista vista="edificio" onVista={onVista}>
+        <CollapsibleSection label="Viento" refNorma="art. 3.3" summary={resumenViento}>
+          <Viento v={v} ayuda={ayuda} plantaSel={plantaSel} onSelectPlanta={onSelectPlanta} onCambiar={a.onViento} onPlanta={a.onPlanta} onAnadirPlanta={a.onAnadirPlanta} onBorrarPlanta={a.onBorrarPlanta} />
+        </CollapsibleSection>
+      </SeccionVista>
 
       {v.activo && (
         <>
-          <CollapsibleSection label="Cubierta a dos aguas" refNorma="Anejo D.6" summary={resumenCubierta}>
-            <Cubierta v={v} hDerivada={alturaCoronacionEfectiva({ ...v, cubierta: { ...v.cubierta, alturaCoronacion: null } })} ayuda={ayuda} onCambiar={a.onCubierta} />
-          </CollapsibleSection>
+          <SeccionVista vista="cubierta" onVista={onVista}>
+            <CollapsibleSection label="Cubierta a dos aguas" refNorma="Anejo D.6" summary={resumenCubierta}>
+              <Cubierta v={v} hDerivada={alturaCoronacionEfectiva({ ...v, cubierta: { ...v.cubierta, alturaCoronacion: null } })} ayuda={ayuda} onCambiar={a.onCubierta} />
+            </CollapsibleSection>
+          </SeccionVista>
 
-          <CollapsibleSection label="Fachadas por zonas" refNorma="tabla D.3" summary={resumenFachadas}>
-            <Paramentos v={v} resultado={evaluacion.viento?.paramentos ?? null} ayuda={ayuda} onCambiar={a.onParamentos} />
-          </CollapsibleSection>
+          <SeccionVista vista="fachadas" onVista={onVista}>
+            <CollapsibleSection label="Fachadas por zonas" refNorma="tabla D.3" summary={resumenFachadas}>
+              <Paramentos v={v} resultado={evaluacion.viento?.paramentos ?? null} ayuda={ayuda} onCambiar={a.onParamentos} />
+            </CollapsibleSection>
+          </SeccionVista>
         </>
       )}
 
-      <CollapsibleSection label="Nieve" refNorma="art. 3.5 · Anejo E" summary={resumenNieve}>
-        <Nieve n={n} ayuda={ayuda} faldonSel={faldonSel} onSelectFaldon={onSelectFaldon} onCambiar={a.onNieve} onFaldon={a.onFaldon} onAnadirFaldon={a.onAnadirFaldon} onBorrarFaldon={a.onBorrarFaldon} />
-      </CollapsibleSection>
+      <SeccionVista vista="nieve" onVista={onVista}>
+        <CollapsibleSection label="Nieve" refNorma="art. 3.5 · Anejo E" summary={resumenNieve}>
+          <Nieve n={n} ayuda={ayuda} faldonSel={faldonSel} onSelectFaldon={onSelectFaldon} onCambiar={a.onNieve} onFaldon={a.onFaldon} onAnadirFaldon={a.onAnadirFaldon} onBorrarFaldon={a.onBorrarFaldon} />
+        </CollapsibleSection>
+      </SeccionVista>
     </div>
   );
 }

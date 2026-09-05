@@ -153,7 +153,13 @@ export function VientoNieveModule() {
     onViento: (cambio: Partial<VientoNieveState['viento']>) => actualizar((p) => ({ ...p, viento: { ...p.viento, ...cambio } })),
     onPlanta: (id: string, cambio: Partial<PlantaUI>) =>
       actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: p.viento.plantas.map((f) => (f.id === id ? { ...f, ...cambio } : f)) } })),
-    onAnadirPlanta: () => actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: [...p.viento.plantas, siguientePlanta(p.viento.plantas)] } })),
+    // La planta nueva queda seleccionada: se ve resaltada en el alzado, que es
+    // adónde mira el usuario después de pulsar «Añadir».
+    onAnadirPlanta: () => {
+      const nueva = siguientePlanta(state.viento.plantas);
+      setPlantaSel(nueva.id);
+      actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: [...p.viento.plantas, nueva] } }));
+    },
     onBorrarPlanta: (id: string) => {
       if (plantaSel === id) setPlantaSel(null);
       actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: p.viento.plantas.filter((f) => f.id !== id) } }));
@@ -163,7 +169,11 @@ export function VientoNieveModule() {
     onNieve: (cambio: Partial<VientoNieveState['nieve']>) => actualizar((p) => ({ ...p, nieve: { ...p.nieve, ...cambio } })),
     onFaldon: (id: string, cambio: Partial<FaldonUI>) =>
       actualizar((p) => ({ ...p, nieve: { ...p.nieve, faldones: p.nieve.faldones.map((f) => (f.id === id ? { ...f, ...cambio } : f)) } })),
-    onAnadirFaldon: () => actualizar((p) => ({ ...p, nieve: { ...p.nieve, faldones: [...p.nieve.faldones, nuevoFaldon(`Faldón ${p.nieve.faldones.length + 1}`, 30)] } })),
+    onAnadirFaldon: () => {
+      const nuevo = nuevoFaldon(`Faldón ${state.nieve.faldones.length + 1}`, 30);
+      setFaldonSel(nuevo.id);
+      actualizar((p) => ({ ...p, nieve: { ...p.nieve, faldones: [...p.nieve.faldones, nuevo] } }));
+    },
     onBorrarFaldon: (id: string) => {
       if (faldonSel === id) setFaldonSel(null);
       actualizar((p) => ({ ...p, nieve: { ...p.nieve, faldones: p.nieve.faldones.filter((f) => f.id !== id) } }));
@@ -271,7 +281,7 @@ export function VientoNieveModule() {
         {/* Datos (izquierda) — patrón estándar del repo: lg:w-72 + shrink-0. */}
         <div className={['flex min-h-0 flex-col overflow-hidden bg-bg-surface', 'lg:flex lg:w-72 lg:shrink-0 lg:border-r lg:border-border-main', tab === 'inputs' ? 'max-lg:flex-1' : 'max-lg:hidden'].join(' ')}>
           <div className="scroll-hide flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-3.5">
-            <Datos state={state} evaluacion={evaluacion} obra={obra} plantaSel={plantaSel} faldonSel={faldonSel} onSelectPlanta={setPlantaSel} onSelectFaldon={setFaldonSel} {...acciones} />
+            <Datos state={state} evaluacion={evaluacion} obra={obra} plantaSel={plantaSel} faldonSel={faldonSel} onSelectPlanta={setPlantaSel} onSelectFaldon={setFaldonSel} onVista={setVista} {...acciones} />
           </div>
         </div>
 

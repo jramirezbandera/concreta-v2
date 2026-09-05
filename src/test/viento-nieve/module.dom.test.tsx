@@ -157,6 +157,38 @@ describe('Viento y nieve — módulo', () => {
     expect(within(filasQueEmpiezan('Cubierta')[0]).getAllByRole('cell')[1].textContent).toBe('10,00');
   });
 
+  it('el lienzo sigue a la sección que se toca: tocar un faldón enseña la nieve', () => {
+    montar();
+    rellenarMadrid();
+    expect(screen.getByRole('img', { name: /Alzado del edificio/ })).toBeInTheDocument();
+
+    // Tocar un campo de la nieve trae su dibujo delante, sin ir a la pestaña.
+    fireEvent.focus(screen.getByLabelText('Nombre del faldón'));
+    expect(screen.getByRole('img', { name: /Nieve por faldón/ })).toBeInTheDocument();
+
+    // Y volver a un campo del viento devuelve el alzado.
+    fireEvent.focus(screen.getByLabelText('Dimensión en planta según X'));
+    expect(screen.getByRole('img', { name: /Alzado del edificio/ })).toBeInTheDocument();
+
+    // La cubierta y las fachadas, igual, aunque estén omitidas.
+    fireEvent.focus(screen.getByRole('button', { name: 'Incluir la cubierta a dos aguas' }));
+    expect(screen.getByRole('img', { name: /cubierta/i })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'Incluir los paramentos verticales' }));
+    expect(screen.getByRole('img', { name: /fachadas/i })).toBeInTheDocument();
+  });
+
+  it('el faldón y la planta recién añadidos quedan seleccionados en el dibujo', () => {
+    montar();
+    rellenarMadrid();
+    vista('Nieve');
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir faldón' }));
+    expect(screen.getByRole('button', { name: 'Seleccionar Faldón 2' })).toHaveAttribute('aria-pressed', 'true');
+
+    vista('Edificio');
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir planta' }));
+    expect(screen.getByRole('button', { name: 'Seleccionar Planta 4' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('omitir el viento lo quita de resultados y de la publicación', async () => {
     montar();
     rellenarMadrid();
