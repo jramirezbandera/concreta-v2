@@ -10,9 +10,16 @@ interface CollapsibleSectionProps {
    * backing each input block.
    */
   refNorma?: string;
+  /**
+   * Resumen de una línea que se enseña bajo la cabecera SOLO cuando la sección
+   * está cerrada («Burgos · eólica B · 860 m»): el usuario ve lo que hay dentro
+   * sin abrirla. Lo estrena Viento y nieve; los módulos que no lo pasan no
+   * cambian.
+   */
+  summary?: ReactNode;
 }
 
-export function CollapsibleSection({ label, children, defaultOpen = true, refNorma }: CollapsibleSectionProps) {
+export function CollapsibleSection({ label, children, defaultOpen = true, refNorma, summary }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const contentId = useId();
 
@@ -45,6 +52,7 @@ export function CollapsibleSection({ label, children, defaultOpen = true, refNor
         {refNorma && <span className="font-mono normal-case tracking-normal text-text-disabled">{refNorma}</span>}
       </button>
       {open && <div id={contentId} className="animate-[fadeIn_150ms_ease-out]">{children}</div>}
+      {!open && summary && <p className="-mt-1 mb-1 font-mono text-[10.5px] leading-snug text-text-secondary">{summary}</p>}
     </div>
   );
 }
