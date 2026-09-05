@@ -202,56 +202,55 @@ export function Tabla({
 
           <tbody>
             {plantas.map((planta, iPlanta) => {
-              const plantaTocada = planta.zonas.some((z) => z.id === zonaSel);
+              const zonaAbierta = planta.zonas.find((z) => z.id === zonaSel);
+              const plantaTocada = zonaAbierta !== undefined;
               return (
                 <Fragment key={planta.id}>
-                  {planta.zonas.map((z, i) => {
-                    const quien = rotulo(planta.nombre, z.nombre);
-                    const seleccionada = z.id === zonaSel;
-                    return (
-                      <Fragment key={z.id}>
-                        <FilaZona
+                  {planta.zonas.map((z, i) => (
+                    <FilaZona
+                      key={z.id}
+                      planta={planta}
+                      z={z}
+                      r={porId.get(z.id)}
+                      indice={i}
+                      columnas={columnas}
+                      quien={rotulo(planta.nombre, z.nombre)}
+                      seleccionada={z.id === zonaSel}
+                      plantaTocada={plantaTocada}
+                      nievePubHay={nievePub !== null}
+                      onSeleccionar={() => onSeleccionar(z.id === zonaSel ? null : z.id)}
+                      onZona={(cambio) => onZona(planta.id, z.id, cambio)}
+                      onPlanta={(cambio) => onPlanta(planta.id, cambio)}
+                      onDuplicarPlanta={() => onDuplicarPlanta(planta.id)}
+                      onBorrarPlanta={() => onBorrarPlanta(planta.id)}
+                      onAnadirZona={() => onAnadirZona(planta.id)}
+                      onMoverPlanta={(sentido) => onMoverPlanta(planta.id, sentido)}
+                      puedeSubir={iPlanta > 0}
+                      puedeBajar={iPlanta < plantas.length - 1}
+                    />
+                  ))}
+
+                  {/* La ficha va DETRÁS de todas las zonas de su planta: metida entre
+                      dos de ellas partiría el `rowSpan` de la celda de la planta. */}
+                  {zonaAbierta && (
+                    <tr data-ficha={zonaAbierta.id}>
+                      <td colSpan={anchoTotal} className="p-0">
+                        <Ficha
                           planta={planta}
-                          z={z}
-                          r={porId.get(z.id)}
-                          indice={i}
-                          columnas={columnas}
-                          quien={quien}
-                          seleccionada={seleccionada}
-                          plantaTocada={plantaTocada}
-                          nievePubHay={nievePub !== null}
-                          onSeleccionar={() => onSeleccionar(seleccionada ? null : z.id)}
-                          onZona={(cambio) => onZona(planta.id, z.id, cambio)}
+                          z={zonaAbierta}
+                          r={porId.get(zonaAbierta.id)}
+                          quien={rotulo(planta.nombre, zonaAbierta.nombre)}
+                          unica={planta.zonas.length === 1 && !zonaAbierta.nombre}
+                          ayuda={ayuda}
+                          nievePub={nievePub}
+                          onZona={(cambio) => onZona(planta.id, zonaAbierta.id, cambio)}
                           onPlanta={(cambio) => onPlanta(planta.id, cambio)}
-                          onDuplicarPlanta={() => onDuplicarPlanta(planta.id)}
-                          onBorrarPlanta={() => onBorrarPlanta(planta.id)}
-                          onAnadirZona={() => onAnadirZona(planta.id)}
-                          onMoverPlanta={(sentido) => onMoverPlanta(planta.id, sentido)}
-                          puedeSubir={iPlanta > 0}
-                          puedeBajar={iPlanta < plantas.length - 1}
+                          onBorrarZona={() => onBorrarZona(planta.id, zonaAbierta.id)}
+                          onUsarNieve={(faldon) => onUsarNieve(planta.id, faldon)}
                         />
-                        {seleccionada && (
-                          <tr data-ficha={z.id}>
-                            <td colSpan={anchoTotal} className="p-0">
-                              <Ficha
-                                planta={planta}
-                                z={z}
-                                r={porId.get(z.id)}
-                                quien={quien}
-                                unica={planta.zonas.length === 1 && !z.nombre}
-                                ayuda={ayuda}
-                                nievePub={nievePub}
-                                onZona={(cambio) => onZona(planta.id, z.id, cambio)}
-                                onPlanta={(cambio) => onPlanta(planta.id, cambio)}
-                                onBorrarZona={() => onBorrarZona(planta.id, z.id)}
-                                onUsarNieve={(faldon) => onUsarNieve(planta.id, faldon)}
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               );
             })}
