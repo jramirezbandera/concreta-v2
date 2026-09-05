@@ -162,6 +162,10 @@ const router = createBrowserRouter([
             path: 'acciones/viento-nieve',
             lazy: lazyComponent(() => import('./features/viento-nieve'), 'VientoNieveModule'),
           },
+          {
+            path: 'acciones/cargas-planta',
+            lazy: lazyComponent(() => import('./features/cargas-planta'), 'CargasPlantaModule'),
+          },
           // Geotecnia / Taludes — Phase 2 (shipped:true). Ruta de producción:
           // se registra SIEMPRE (ya no dev-gated). El chunk de slope-stability +
           // su worker entran en el bundle, pero los assets de Pyodide (~16 MB)

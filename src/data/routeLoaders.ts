@@ -31,6 +31,7 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   // App.tsx. Lo detectó el guardia de src/test/materiales/registro.test.ts.
   '/analisis/sismo': () => import('../features/seismic-ncse02'),
   '/acciones/viento-nieve': () => import('../features/viento-nieve'),
+  '/acciones/cargas-planta': () => import('../features/cargas-planta'),
   '/geotec/taludes': () => import('../features/slope-stability'),
   '/geotec/escollera': () => import('../features/rockfill-wall'),
 };
