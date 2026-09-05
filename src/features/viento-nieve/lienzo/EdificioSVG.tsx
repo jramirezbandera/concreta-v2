@@ -126,9 +126,11 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         <Marcadores id={m.id} />
 
         <Rotulo x={0} y={14} tam={11} mono color={COLOR.secundario}>
-          {resultado
-            ? `ALZADO · viento según ${D} · empuja la fachada de ${dec(viento.dimensiones[direccion === 'x' ? 'y' : 'x'], 0)} m${hastialVisible ? ' · perpendicular a la cumbrera' : conCubierta ? ' · paralelo a la cumbrera' : ''}`
-            : `ALZADO · viento según ${D} · sin resultado: falta la provincia o la altitud`}
+          {estrecho
+            ? `ALZADO · viento según ${D}${resultado ? '' : ' · sin resultado'}`
+            : resultado
+              ? `ALZADO · viento según ${D} · empuja la fachada de ${dec(viento.dimensiones[direccion === 'x' ? 'y' : 'x'], 0)} m${hastialVisible ? ' · perpendicular a la cumbrera' : conCubierta ? ' · paralelo a la cumbrera' : ''}`
+              : `ALZADO · viento según ${D} · sin resultado: falta la provincia o la altitud`}
         </Rotulo>
 
         {/* Viento entrante */}
@@ -193,22 +195,23 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
                 </g>
               );
             })}
-            {zona('H')?.presion != null && (
+            {/* En estrecho las flechas bastan: los rótulos se pisarían con los de las plantas. */}
+            {!estrecho && zona('H')?.presion != null && (
               <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.5) - 8} tam={10} mono color={COLOR.presion} ancla="end">
                 presión +{dec(zona('H')!.presion!, 2)}
               </Rotulo>
             )}
-            {zona('F')?.presion != null && (
+            {!estrecho && zona('F')?.presion != null && (
               <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.5) + 4} tam={10} mono color={COLOR.presion} ancla="end">
                 alero +{dec(zona('F')!.presion!, 2)}
               </Rotulo>
             )}
-            {zona('J')?.succion != null && (
+            {!estrecho && zona('J')?.succion != null && (
               <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) - 8} tam={10} mono color={COLOR.accent}>
                 succión {dec(zona('J')!.succion!, 2)}
               </Rotulo>
             )}
-            {zona('I')?.succion != null && (
+            {!estrecho && zona('I')?.succion != null && (
               <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) + 4} tam={10} mono color={COLOR.accent}>
                 resto {dec(zona('I')!.succion!, 2)}
               </Rotulo>
@@ -217,7 +220,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         )}
         {dir?.encima && (
           <Rotulo x={apexX} y={yz(hc) - 8} tam={10} mono color={COLOR.accent} ancla="middle" peso={600}>
-            {dir.encima.tipo}: +{f.fuerza(dir.encima.F)} {f.uF} a la planta de cubierta
+            {estrecho ? `${dir.encima.tipo} +${f.fuerza(dir.encima.F)} ${f.uF}` : `${dir.encima.tipo}: +${f.fuerza(dir.encima.F)} ${f.uF} a la planta de cubierta`}
           </Rotulo>
         )}
 
@@ -295,7 +298,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
             <Rotulo x={bx + bw + 14} y={yz(hc) + 17} tam={10} mono color={COLOR.atenuado}>
               {dec(hc, 2)} m
             </Rotulo>
-            {dir?.encima && (
+            {dir?.encima && !estrecho && (
               <Rotulo x={bx + bw + 14} y={yz(hc) + 29} tam={10} mono color={COLOR.atenuado}>
                 ce {dec(dir.encima.ce, 3)}
               </Rotulo>
