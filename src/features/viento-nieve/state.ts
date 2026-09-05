@@ -77,8 +77,14 @@ export interface Emplazamiento {
 export interface PlantaUI {
   id: string;
   nombre: string;
-  /** Altura del forjado sobre rasante, m. */
-  h: number;
+  /**
+   * Altura de la planta, de forjado a forjado, m. Es lo que se teclea: la cota
+   * del forjado sobre rasante —lo que necesita el motor— se acumula en el
+   * orden de la lista (`cotasPlantas`), la primera planta apoyada en la
+   * rasante. Hasta el 2026-09-05 se guardaba la cota (`h`); `normalizar`
+   * convierte los estados viejos.
+   */
+  altura: number;
 }
 
 /** Cubierta a dos aguas (Anejo D.6): opcional, la mayoría de edificios de pisos van con cubierta plana. */
@@ -155,8 +161,17 @@ export function nuevoId(prefijo = 'p'): string {
   return `${prefijo}${Date.now().toString(36)}${contador.toString(36)}`;
 }
 
-export function nuevaPlanta(nombre: string, h: number): PlantaUI {
-  return { id: nuevoId('p'), nombre, h };
+export function nuevaPlanta(nombre: string, altura: number): PlantaUI {
+  return { id: nuevoId('p'), nombre, altura };
+}
+
+/** Cota de cada forjado sobre rasante, m: las alturas acumuladas en el orden de la lista. */
+export function cotasPlantas(plantas: readonly PlantaUI[]): number[] {
+  let cota = 0;
+  return plantas.map((p) => {
+    cota += p.altura;
+    return cota;
+  });
 }
 
 export function nuevoFaldon(nombre: string, inclinacion: number): FaldonUI {
@@ -196,7 +211,7 @@ function areaInfluenciaDe(o: { areaModo: AreaModo; areaPropia: number }): { area
 
 /** Altura de coronación deducida: el forjado más alto más lo que sube el faldón hasta la cumbrera. */
 export function alturaCoronacionDerivada(v: VientoUI): number {
-  const H = v.plantas.reduce((m, p) => Math.max(m, p.h), 0);
+  const H = cotasPlantas(v.plantas).reduce((m, z) => Math.max(m, z), 0);
   const ancho = v.dimensiones[v.cubierta.cumbrera === 'x' ? 'y' : 'x'];
   return alturaCoronacionDesdeForjado(H, ancho, v.cubierta.pendiente);
 }
@@ -206,10 +221,9 @@ export function alturaCoronacionEfectiva(v: VientoUI): number {
   return v.cubierta.alturaCoronacion ?? alturaCoronacionDerivada(v);
 }
 
-/** La planta que se añade detrás de la última: su altura más una planta tipo. */
+/** La planta que se añade detrás de la última: una planta tipo encima. */
 export function siguientePlanta(plantas: PlantaUI[]): PlantaUI {
-  const ultima = plantas.reduce((m, p) => Math.max(m, p.h), 0);
-  return nuevaPlanta(`Planta ${plantas.length + 1}`, ultima + ALTURA_PLANTA_TIPO);
+  return nuevaPlanta(`Planta ${plantas.length + 1}`, ALTURA_PLANTA_TIPO);
 }
 
 /**
@@ -234,7 +248,7 @@ export function defaultVientoNieveState(): VientoNieveState {
       qbManual: QB_SIMPLIFICADO,
       aspereza: 'IV',
       superficie: 'rugosa',
-      plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.h)),
+      plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.altura)),
       dimensiones: { x: 20, y: 12 },
       cubierta: cubiertaPorDefecto(),
       paramentos: paramentosPorDefecto(),
@@ -250,6 +264,57 @@ export function defaultVientoNieveState(): VientoNieveState {
   };
 }
 
+/**
+ * Caso de ejemplo para quien quiere ver el módulo lleno antes de teclear el
+ * suyo: Aranda de Duero (Burgos, zona eólica B, clima invernal 3) a 800 m,
+ * tres plantas de 3 m, cubierta a dos aguas a 40º con las fachadas por zonas,
+ * y tres faldones de nieve: los dos de la cubierta, el sur descargando sobre
+ * un cuerpo bajo con petos. A 40º la nieve desliza y se ve la acumulación.
+ * Pisa el emplazamiento que hubiera: la banda que lo ofrece lo dice.
+ */
+export function ejemploVientoNieveState(): VientoNieveState {
+  const base = defaultVientoNieveState();
+  const sur = nuevoFaldon('Faldón sur', 40);
+  const baja = nuevoFaldon('Cubierta baja', 0);
+  return {
+    ...base,
+    emplazamiento: { provincia: '09', municipio: 'Aranda de Duero', altitud: 800, esCapital: false, zonaEolica: null, zonaInvernal: null },
+    viento: {
+      ...base.viento,
+      plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.altura)),
+      cubierta: { ...cubiertaPorDefecto(), activa: true, pendiente: 40, cumbrera: 'x' },
+      paramentos: { ...paramentosPorDefecto(), activos: true },
+    },
+    nieve: {
+      ...base.nieve,
+      faldones: [nuevoFaldon('Faldón norte', 40), { ...sur, L: 6, limahoya: 'cambioNivel' }, { ...baja, impedimento: true }],
+    },
+  };
+}
+
+/**
+ * ¿El edificio sigue tal cual arranca? Sólo mira la estructura (plantas,
+ * dimensiones, cubierta, fachadas, faldones): el emplazamiento se hereda de
+ * la obra y no dice nada de si el usuario ha empezado a modelar. Sirve para
+ * ofrecer el caso de ejemplo sin estorbar a quien ya está trabajando.
+ */
+export function esEstadoInicial(s: VientoNieveState): boolean {
+  const v = s.viento;
+  const f = s.nieve.faldones;
+  return (
+    v.plantas.length === PLANTAS_INICIALES.length &&
+    v.plantas.every((p, i) => p.altura === PLANTAS_INICIALES[i].altura) &&
+    v.dimensiones.x === 20 &&
+    v.dimensiones.y === 12 &&
+    !v.cubierta.activa &&
+    !v.paramentos.activos &&
+    f.length === 1 &&
+    f[0].inclinacion === 0 &&
+    f[0].limahoya === 'ninguna' &&
+    f[0].L === null
+  );
+}
+
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
@@ -260,6 +325,31 @@ const numero = (v: unknown, def: number) => (typeof v === 'number' && Number.isF
 const texto = (v: unknown, def: string) => (typeof v === 'string' ? v : def);
 const uno = <T extends string>(v: unknown, permitidos: readonly T[], def: T): T =>
   permitidos.includes(v as T) ? (v as T) : def;
+
+/**
+ * Las plantas guardadas. Hasta el 2026-09-05 cada una llevaba su cota `h`;
+ * desde entonces lleva su altura de forjado a forjado. Un estado viejo se
+ * reconoce por LISTA —basta una planta sin `altura`— y se convierte como lo
+ * habría leído el motor: ordenadas por cota y diferenciadas. Una cota que no
+ * sube da altura cero, que el motor reporta como planta sin altura.
+ */
+function plantasNormalizadas(brutas: Record<string, unknown>[]): PlantaUI[] {
+  const planta = (p: Record<string, unknown>, i: number, altura: number): PlantaUI => ({
+    id: texto(p.id, nuevoId('p')),
+    nombre: texto(p.nombre, `Planta ${i + 1}`),
+    altura,
+  });
+  const legado = brutas.some((p) => typeof p.altura !== 'number' || !Number.isFinite(p.altura));
+  if (!legado) return brutas.map((p, i) => planta(p, i, numero(p.altura, 0)));
+
+  const ordenadas = brutas.map((p, i) => ({ p, i, h: numero(p.h, 0) })).sort((a, b) => a.h - b.h);
+  let anterior = 0;
+  return ordenadas.map(({ p, i, h }) => {
+    const altura = Math.max(0, h - anterior);
+    anterior = Math.max(anterior, h);
+    return planta(p, i, altura);
+  });
+}
 
 /**
  * Un estado guardado por una versión anterior, o manipulado a mano, no puede
@@ -276,15 +366,7 @@ export function normalizar(bruto: unknown): VientoNieveState {
   const cub = esObjeto(v.cubierta) ? v.cubierta : {};
   const par = esObjeto(v.paramentos) ? v.paramentos : {};
 
-  const plantas = Array.isArray(v.plantas)
-    ? v.plantas.filter(esObjeto).map(
-        (p, i): PlantaUI => ({
-          id: texto(p.id, nuevoId('p')),
-          nombre: texto(p.nombre, `Planta ${i + 1}`),
-          h: numero(p.h, 0),
-        }),
-      )
-    : base.viento.plantas;
+  const plantas = Array.isArray(v.plantas) ? plantasNormalizadas(v.plantas.filter(esObjeto)) : base.viento.plantas;
 
   const faldones = Array.isArray(n.faldones)
     ? n.faldones.filter(esObjeto).map(
@@ -404,7 +486,8 @@ export function entradaViento(state: VientoNieveState, zonas: Zonas): VientoInpu
     aspereza: v.aspereza,
     superficie: v.superficie,
     ...(state.emplazamiento.altitud !== null ? { altitud: state.emplazamiento.altitud } : {}),
-    plantas: v.plantas.map((p) => ({ id: p.id, nombre: p.nombre.trim() || 'Planta', h: p.h })),
+    // El motor quiere cotas: las alturas se acumulan en el orden de la lista.
+    plantas: cotasPlantas(v.plantas).map((h, i) => ({ id: v.plantas[i].id, nombre: v.plantas[i].nombre.trim() || 'Planta', h })),
     dimensiones: { ...v.dimensiones },
     ...(v.cubierta.activa
       ? {

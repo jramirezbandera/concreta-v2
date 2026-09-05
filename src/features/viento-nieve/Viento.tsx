@@ -190,7 +190,7 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <RawNumberInput value={p.h} onChange={(h) => onPlanta(p.id, { h })} ariaLabel={`Altura de ${p.nombre || 'la planta'}`} unit="m" min={0} widthClass="w-20" />
+                        <RawNumberInput value={p.altura} onChange={(altura) => onPlanta(p.id, { altura })} ariaLabel={`Altura de ${p.nombre || 'la planta'}`} unit="m" min={0} widthClass="w-20" />
                       </td>
                       <td className={TD_DER}>{r ? dec(r.x.ce, 3) : '—'}</td>
                       <td className={TD_DER}>{r ? mostrar(r.x.qe, 'areaLoad') : '—'}</td>

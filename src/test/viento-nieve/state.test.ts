@@ -7,10 +7,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   alturaCoronacionDerivada,
   cargarEstado,
+  cotasPlantas,
   datosPublicacion,
   defaultVientoNieveState,
+  ejemploVientoNieveState,
   entradaNieve,
   entradaViento,
+  esEstadoInicial,
   evaluar,
   guardarEstado,
   MODULO_PUB,
@@ -53,10 +56,82 @@ describe('estado por defecto', () => {
     expect(s.emplazamiento).toMatchObject({ provincia: '41', municipio: 'Sevilla', altitud: 10 });
   });
 
-  it('la siguiente planta va tres metros por encima de la más alta', () => {
+  it('las plantas se teclean por altura y la cota se acumula en el orden de la lista', () => {
     const s = defaultVientoNieveState();
-    expect(siguientePlanta(s.viento.plantas).h).toBe(12);
-    expect(siguientePlanta([]).h).toBe(3);
+    expect(s.viento.plantas.map((p) => p.altura)).toEqual([3, 3, 3]);
+    expect(cotasPlantas(s.viento.plantas)).toEqual([3, 6, 9]);
+    expect(siguientePlanta(s.viento.plantas)).toMatchObject({ nombre: 'Planta 4', altura: 3 });
+    expect(siguientePlanta([]).altura).toBe(3);
+    expect(cotasPlantas([])).toEqual([]);
+  });
+
+  it('borrar una planta intermedia baja las de encima', () => {
+    const s = defaultVientoNieveState();
+    const sinSegunda = s.viento.plantas.filter((_, i) => i !== 1);
+    expect(cotasPlantas(sinSegunda)).toEqual([3, 6]);
+  });
+});
+
+describe('alturas relativas (2026-09-05)', () => {
+  it('un estado guardado con cotas se convierte en alturas y publica las mismas fuerzas', () => {
+    const viejo = normalizar({
+      ...madrid(),
+      viento: {
+        ...madrid().viento,
+        // Desordenadas a propósito: el estado viejo se leía por cota, no por posición.
+        plantas: [
+          { id: 'c', nombre: 'Cubierta', h: 9 },
+          { id: 'a', nombre: 'Planta 1', h: 3 },
+          { id: 'b', nombre: 'Planta 2', h: 6 },
+        ],
+      },
+    });
+    expect(viejo.viento.plantas.map((p) => [p.nombre, p.altura])).toEqual([
+      ['Planta 1', 3],
+      ['Planta 2', 3],
+      ['Cubierta', 3],
+    ]);
+    const fuerzas = (s: VientoNieveState) => datosPublicacion(s, evaluar(s))!.viento!.fuerzas.map((f) => [f.nombre, f.z, f.Fx, f.Fy]);
+    expect(fuerzas(viejo)).toEqual(fuerzas(madrid()));
+  });
+
+  it('una lista con alguna planta sin altura se trata entera como vieja; una cota que no sube da altura cero', () => {
+    const s = normalizar({ viento: { plantas: [{ h: 3, altura: 3 }, { h: 3 }] } });
+    expect(s.viento.plantas.map((p) => p.altura)).toEqual([3, 0]);
+    const t = normalizar({ viento: { plantas: [{ altura: 4 }, { altura: 2.5 }] } });
+    expect(cotasPlantas(t.viento.plantas)).toEqual([4, 6.5]);
+  });
+
+  it('el motor recibe cotas, no alturas', () => {
+    const s = madrid();
+    s.viento.plantas[1].altura = 4;
+    expect(entradaViento(s, zonasEfectivas(s.emplazamiento))?.plantas.map((p) => p.h)).toEqual([3, 7, 10]);
+    // La coronación deducida parte del forjado más alto (10 m) y sube con la pendiente por defecto.
+    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(10 + 6 * Math.tan(Math.PI / 9), 12);
+  });
+
+  it('el ejemplo es Aranda de Duero a 800 m, con cubierta a 40º, fachadas y acumulación de nieve, y está listo', () => {
+    const s = ejemploVientoNieveState();
+    const ev = evaluar(s);
+    expect(ev.listo).toBe(true);
+    expect(ev.zonas.zonaEolica).toBe('B');
+    expect(ev.zonas.zonaInvernal).toBe(3);
+    expect(ev.viento?.cubierta?.pendiente).toBe(40);
+    expect(ev.viento?.paramentos).not.toBeNull();
+    expect(ev.nieve?.sk).toBeCloseTo(0.5, 12);
+    expect(ev.nieve?.faldones[1].acumulacion?.pd).toBeCloseTo((1 - 2 / 3) * 6 * 0.5, 9);
+    expect(esEstadoInicial(s)).toBe(false);
+  });
+
+  it('esEstadoInicial mira la estructura del edificio, no el emplazamiento', () => {
+    expect(esEstadoInicial(defaultVientoNieveState())).toBe(true);
+    expect(esEstadoInicial(madrid())).toBe(true);
+    const t = madrid();
+    t.viento.plantas[0].altura = 4;
+    expect(esEstadoInicial(t)).toBe(false);
+    const u = madrid();
+    u.viento.cubierta.activa = true;
+    expect(esEstadoInicial(u)).toBe(false);
   });
 });
 
@@ -96,6 +171,7 @@ describe('traducción al motor', () => {
     s.viento.qbManual = 0.61;
     expect(entradaViento(s, z)?.qbManual).toBe(0.61);
     expect(entradaViento(s, z)?.plantas.map((p) => p.id)).toEqual(s.viento.plantas.map((p) => p.id));
+    expect(entradaViento(s, z)?.plantas.map((p) => p.h)).toEqual([3, 6, 9]);
     s.viento.activo = false;
     expect(entradaViento(s, z)).toBeNull();
   });
@@ -221,8 +297,9 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.viento.qbModo).toBe('zona');
     expect(s.viento.aspereza).toBe('IV');
     expect(s.viento.plantas).toHaveLength(2);
-    expect(s.viento.plantas[0].nombre).toBe('Planta 1');
-    expect(s.viento.plantas[1]).toMatchObject({ id: 'a', nombre: 'Ático', h: 6 });
+    // Plantas viejas, por cota: 3 y 6 m se convierten en dos alturas de 3 m.
+    expect(s.viento.plantas[0]).toMatchObject({ nombre: 'Planta 1', altura: 3 });
+    expect(s.viento.plantas[1]).toMatchObject({ id: 'a', nombre: 'Ático', altura: 3 });
     expect(s.viento.dimensiones).toEqual({ x: 20, y: 12 });
     expect(s.nieve.exposicion).toBe('normal');
     expect(s.nieve.faldones[0]).toMatchObject({ inclinacion: 45, limahoya: 'ninguna', L: null, inclinacionOtro: 45 });
