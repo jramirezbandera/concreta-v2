@@ -7,7 +7,7 @@
  */
 
 import { PROVINCIAS, type Provincia } from '../../lib/acciones/provincias';
-import type { ExposicionNieve, GradoAspereza } from '../../lib/acciones/tablasAE';
+import type { ExposicionNieve, GradoAspereza, SuperficieExterior } from '../../lib/acciones/tablasAE';
 
 export interface Opcion<T extends string> {
   id: T;
@@ -78,19 +78,44 @@ export const EXPOSICION_OPCIONES: Opcion<ExposicionNieve>[] = [
   },
 ];
 
-export type LimahoyaUI = 'ninguna' | 'contrario' | 'mismoSentido';
+export type LimahoyaUI = 'ninguna' | 'contrario' | 'mismoSentido' | 'cambioNivel';
 
+/** «¿Qué hay al pie del faldón?»: decide la banda de μ (3.5.3-3) y si la descarga se acumula en algún sitio (3.5.4). */
 export const LIMAHOYA_OPCIONES: Opcion<LimahoyaUI>[] = [
-  { id: 'ninguna', etiqueta: 'No', ayuda: 'El faldón termina en un alero o en una limatesa: la nieve puede deslizar.' },
+  { id: 'ninguna', etiqueta: 'Un alero: la nieve cae fuera', ayuda: 'El faldón termina en un alero o en una limatesa: la nieve que desliza cae fuera del edificio y no se acumula en ninguna parte.' },
   {
     id: 'contrario',
-    etiqueta: 'Sí, con el faldón de enfrente',
-    ayuda: 'Los dos faldones bajan uno hacia el otro. En la banda de 2 m de la limahoya μ sube a 1 + β/30 (β = semisuma de inclinaciones), hasta 2,0.',
+    etiqueta: 'Limahoya con el faldón de enfrente',
+    ayuda: 'Los dos faldones bajan uno hacia el otro. En la banda de 2 m de la limahoya μ sube a 1 + β/30 (β = semisuma de inclinaciones), hasta 2,0, y la descarga del faldón se acumula ahí.',
   },
   {
     id: 'mismoSentido',
-    etiqueta: 'Sí, con otro faldón que sigue bajando',
-    ayuda: 'El faldón de debajo baja en el mismo sentido: en la banda de 2 m se toma el μ de ese faldón inferior.',
+    etiqueta: 'Limahoya con otro faldón que sigue bajando',
+    ayuda: 'El faldón de debajo baja en el mismo sentido: en la banda de 2 m se toma el μ de ese faldón inferior, y la descarga se acumula ahí.',
+  },
+  {
+    id: 'cambioNivel',
+    etiqueta: 'Un cambio de nivel: una cubierta más baja',
+    ayuda: 'El faldón descarga sobre una cubierta más baja. No hay banda de μ propio, pero la descarga (1 − μ)·L·sk se acumula en 2 m junto al cambio de nivel (art. 3.5.4-2).',
+  },
+];
+
+/** Art. 3.3.2-3: cómo es la superficie exterior, para el coeficiente de rozamiento. */
+export const SUPERFICIE_OPCIONES: Opcion<SuperficieExterior>[] = [
+  {
+    id: 'rugosa',
+    etiqueta: 'Rugosa: hormigón, revoco, ladrillo',
+    ayuda: 'Coeficiente de rozamiento 0,02. Es el caso habitual en edificación.',
+  },
+  {
+    id: 'lisa',
+    etiqueta: 'Muy lisa: acero, aluminio, vidrio',
+    ayuda: 'Coeficiente de rozamiento 0,01: muros cortina, chapa lisa, paneles metálicos.',
+  },
+  {
+    id: 'muyRugosa',
+    etiqueta: 'Muy rugosa: ondas, nervaduras, pliegues',
+    ayuda: 'Coeficiente de rozamiento 0,04: chapa grecada, fachadas con nervios o pliegues marcados.',
   },
 ];
 

@@ -21,6 +21,7 @@ import {
   calcularViento,
   coeficienteExposicion,
   coeficientesEolicos,
+  fuerzaHastial,
   fuerzaPlanta,
   presionDinamicaDesdeVelocidad,
 } from '../../lib/acciones/viento';
@@ -258,6 +259,73 @@ describe('calcularViento — límites del DB y entradas inválidas', () => {
     expect(r.vb).toBeNull();
     expect(calcularViento({ ...base, qbManual: 0.5 }).notas.join()).toMatch(/3\.3\.2-1/);
   });
+
+  it('qb tecleado nulo o negativo, o una dimensión que no es un número: error (auditoría M3 y B11)', () => {
+    expect(calcularViento({ ...base, qbManual: 0 }).errores.join()).toMatch(/presión dinámica tecleada/);
+    expect(calcularViento({ ...base, qbManual: -0.3 }).errores.join()).toMatch(/presión dinámica tecleada/);
+    expect(calcularViento({ ...base, dimensiones: { x: NaN, y: 10 } }).errores.join()).toMatch(/dimensiones/);
+    expect(calcularViento({ ...base, qbManual: 0.4 }).errores).toEqual([]);
+  });
+
+  it('las notas recuerdan las condiciones de la tabla 3.5, la banda de la planta baja, la aspereza por dirección y los acantilados', () => {
+    const notas = calcularViento(base).notas.join();
+    expect(notas).toMatch(/3\.3\.4-1/);
+    expect(notas).toMatch(/cimentación/);
+    expect(notas).toMatch(/3\.3\.3-3/);
+    expect(notas).toMatch(/3\.3\.3-2/);
+  });
+});
+
+describe('calcularViento — rozamiento (art. 3.3.2-3)', () => {
+  const alargado = {
+    zona: 'A' as const,
+    aspereza: 'IV' as const,
+    plantas: [{ h: 3 }, { h: 6 }, { h: 9 }, { h: 12 }],
+    dimensiones: { x: 40, y: 8 },
+  };
+
+  it('sin superficie no se calcula y las fuerzas son las de la banda', () => {
+    const r = calcularViento(alargado);
+    expect(r.x.rozamiento).toBeNull();
+    for (const p of r.x.plantas) {
+      expect(p.Frozamiento).toBe(0);
+      expect(p.F).toBe(p.Fbanda);
+    }
+    expect(r.notas.join()).not.toMatch(/3\.3\.2-3/);
+  });
+
+  it('bloque de 40 × 8 según X: pasa del 10 % y se reparte por bandas, con la cubierta llevándose además la suya', () => {
+    const r = calcularViento({ ...alargado, superficie: 'rugosa' });
+    const roz = r.x.rozamiento!;
+    expect(roz.cfr).toBe(0.02);
+    // Dos fachadas de 40 m por las bandas (12 − 1,5 = 10,5 m) más la cubierta 40 × 8.
+    expect(roz.area).toBeCloseTo(2 * 40 * 10.5 + 40 * 8, 9);
+    const esperado = r.x.plantas.reduce((s, p, i) => s + 0.02 * p.qe * (2 * 40 * p.hTrib + (i === 3 ? 320 : 0)), 0);
+    expect(roz.F).toBeCloseTo(esperado, 9);
+    expect(roz.fraccion).toBeCloseTo(roz.F / r.x.plantas.reduce((s, p) => s + p.Fbanda, 0), 12);
+    expect(roz.fraccion).toBeGreaterThan(0.2);
+    expect(roz.aplicado).toBe(true);
+    for (const p of r.x.plantas) expect(p.F).toBeCloseTo(p.Fbanda + p.Frozamiento, 12);
+    expect(r.x.plantas.reduce((s, p) => s + p.Frozamiento, 0)).toBeCloseTo(roz.F, 9);
+    expect(r.x.Ftotal).toBeCloseTo(r.x.plantas.reduce((s, p) => s + p.F, 0), 9);
+    expect(r.avisos.join()).toMatch(/Según X el rozamiento/);
+    expect(r.notas.join()).toMatch(/3\.3\.2-3/);
+  });
+
+  it('según Y (fachada de 40 m, fondo 8) no llega al 10 %: se anota y se desprecia', () => {
+    const r = calcularViento({ ...alargado, superficie: 'rugosa' });
+    const roz = r.y.rozamiento!;
+    expect(roz.aplicado).toBe(false);
+    expect(roz.fraccion).toBeLessThan(0.1);
+    for (const p of r.y.plantas) expect(p.Frozamiento).toBe(0);
+    expect(r.avisos.join()).not.toMatch(/Según Y el rozamiento/);
+  });
+
+  it('la superficie muy lisa da la mitad y la muy rugosa el doble que la rugosa', () => {
+    const rugosa = calcularViento({ ...alargado, superficie: 'rugosa' }).x.rozamiento!.F;
+    expect(calcularViento({ ...alargado, superficie: 'lisa' }).x.rozamiento!.F).toBeCloseTo(rugosa / 2, 9);
+    expect(calcularViento({ ...alargado, superficie: 'muyRugosa' }).x.rozamiento!.F).toBeCloseTo(rugosa * 2, 9);
+  });
 });
 
 describe('calcularViento — cubierta a dos aguas', () => {
@@ -305,6 +373,76 @@ describe('calcularViento — cubierta a dos aguas', () => {
     const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 12, cumbrera: 'x', areaInfluencia: 1 } });
     expect(r.cubierta!.areaInfluencia).toBe(1);
     expect(r.cubierta!.perpendicular.zonas.every((z) => z.A === 1)).toBe(true);
+  });
+
+  it('la altura del edificio es la coronación: la esbeltez de la 3.5 va con ella y el último forjado se rotula aparte (auditoría B1, M4)', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 11.2, cumbrera: 'x' } });
+    expect(r.H).toBe(9);
+    expect(r.alturaEdificio).toBe(11.2);
+    expect(r.x.esbeltez).toBeCloseTo(11.2 / 20, 12);
+    expect(r.y.esbeltez).toBeCloseTo(11.2 / 12, 12);
+    expect(calcularViento(base).alturaEdificio).toBe(9);
+    // Una coronación por debajo del forjado es un error y no rebaja el edificio.
+    expect(calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 8, cumbrera: 'x' } }).alturaEdificio).toBe(9);
+  });
+
+  it('viento paralelo a la cumbrera: el hastial se suma a la planta de cubierta con los coeficientes de la 3.5 (auditoría A1)', () => {
+    const hc = 9 + 6 * Math.tan(Math.PI / 9);
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: hc, cumbrera: 'x' } });
+    const h = r.x.encima!;
+    expect(h.tipo).toBe('hastial');
+    expect(h.ancho).toBe(12);
+    expect(h.altura).toBeCloseTo(hc - 9, 12);
+    expect(h.area).toBeCloseTo((12 * (hc - 9)) / 2, 12);
+    expect(h.z).toBe(hc);
+    expect(h.ce).toBeCloseTo(coeficienteExposicion(hc, 'IV'), 12);
+    expect(h.qe).toBeCloseTo(0.42 * h.ce, 12);
+    expect(h.coeficiente).toBeCloseTo(r.x.cp - r.x.cs, 12);
+    expect(h.F).toBeCloseTo(fuerzaHastial(12, hc - 9, r.x.cp, r.x.cs, h.qe), 12);
+    // Edificio de referencia de la auditoría: 13,1 m² y unos 11,5 kN.
+    expect(h.area).toBeCloseTo(13.1, 1);
+    expect(h.F).toBeCloseTo(11.5, 0);
+    const cubierta = r.x.plantas[2];
+    expect(cubierta.Fencima).toBeCloseTo(h.F, 12);
+    expect(cubierta.F).toBeCloseTo(cubierta.Fbanda + cubierta.Frozamiento + h.F, 12);
+    expect(r.x.plantas[0].Fencima).toBe(0);
+    expect(r.x.plantas[1].Fencima).toBe(0);
+    expect(r.x.Ftotal).toBeCloseTo(r.x.plantas.reduce((s, p) => s + p.F, 0), 12);
+    expect(r.notas.join()).toMatch(/hastial/);
+  });
+
+  it('viento perpendicular a la cumbrera: la resultante de los faldones (D.6) se suma a la cubierta (auditoría M1)', () => {
+    const hc = 9 + 6 * Math.tan(Math.PI / 9);
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: hc, cumbrera: 'x' } });
+    const f = r.y.encima!;
+    expect(f.tipo).toBe('faldones');
+    const res = r.cubierta!.perpendicular.resultante!;
+    expect(f.F).toBe(res.haciaSotavento);
+    expect(f.Fcontraria).toBe(res.haciaBarlovento);
+    expect(f.area).toBeCloseTo(res.area, 12);
+    expect(f.area).toBeCloseTo(20 * (hc - 9), 9); // b · (d/2) · tan α
+    expect(f.ancho).toBe(20);
+    expect(f.coeficiente).toBeCloseTo(f.F / (f.qe * f.area), 12);
+    // Edificio de referencia: del orden de la fuerza de la propia planta de cubierta.
+    expect(f.F).toBeGreaterThan(20);
+    expect(f.F).toBeLessThan(35);
+    expect(r.y.plantas[2].Fencima).toBe(f.F);
+    expect(r.y.plantas[2].F).toBeCloseTo(r.y.plantas[2].Fbanda + r.y.plantas[2].Frozamiento + f.F, 12);
+    expect(r.y.Ftotal).toBeCloseTo(r.y.plantas.reduce((s, p) => s + p.F, 0), 12);
+  });
+
+  it('con la cumbrera según Y se intercambian: hastial según Y, faldones según X', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 12, cumbrera: 'y' } });
+    expect(r.y.encima?.tipo).toBe('hastial');
+    expect(r.y.encima?.ancho).toBe(20);
+    expect(r.x.encima?.tipo).toBe('faldones');
+  });
+
+  it('con la coronación en el propio forjado no hay nada encima', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 2, alturaCoronacion: 9, cumbrera: 'x' } });
+    expect(r.x.encima).toBeNull();
+    expect(r.y.encima).toBeNull();
+    expect(r.x.plantas[2].F).toBe(r.x.plantas[2].Fbanda + r.x.plantas[2].Frozamiento);
   });
 });
 

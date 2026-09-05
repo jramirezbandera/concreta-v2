@@ -99,6 +99,8 @@ export function VientoNieveModule() {
       altitud: state.emplazamiento.altitud,
       zonaEolica: evaluacion.zonas.zonaEolica,
       zonaInvernal: evaluacion.zonas.zonaInvernal,
+      zonaEolicaProvincia: evaluacion.zonas.provincia?.zonaEolica ?? null,
+      zonaInvernalProvincia: evaluacion.zonas.provincia?.zonaInvernal ?? null,
     }),
     [evaluacion.zonas, state.emplazamiento.municipio, state.emplazamiento.altitud],
   );

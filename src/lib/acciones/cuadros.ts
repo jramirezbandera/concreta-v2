@@ -34,8 +34,20 @@ export interface EmplazamientoCuadro {
   provincia: string;
   municipio?: string;
   altitud: number | null;
+  /** Las zonas efectivas: las de la provincia o las forzadas por el proyectista. */
   zonaEolica: ZonaEolica | null;
   zonaInvernal: ZonaInvernal | null;
+  /** Las zonas que da la provincia. Cuando no coinciden con las efectivas, el documento dice que están forzadas. */
+  zonaEolicaProvincia?: ZonaEolica | null;
+  zonaInvernalProvincia?: ZonaInvernal | null;
+}
+
+/** «(forzada por el proyectista; la provincia da la zona B)» o nada. */
+function forzada(e: EmplazamientoCuadro, cual: 'eolica' | 'invernal', corta = false): string {
+  const efectiva = cual === 'eolica' ? e.zonaEolica : e.zonaInvernal;
+  const provincia = cual === 'eolica' ? e.zonaEolicaProvincia : e.zonaInvernalProvincia;
+  if (efectiva === null || provincia === undefined || provincia === null || provincia === efectiva) return '';
+  return corta ? ` (forzada; la provincia da ${provincia})` : ` (forzada por el proyectista; la provincia da la zona ${provincia})`;
 }
 
 /** Números a la española: coma decimal. */
@@ -70,31 +82,71 @@ function lugar(e: EmplazamientoCuadro): string {
 
 // ── Viento ──────────────────────────────────────────────────────────────────
 
+/**
+ * La tabla de una dirección desglosa: una fila por planta con la fuerza de su
+ * banda, y debajo, si los hay, el rozamiento repartido y lo que hay por encima
+ * del último forjado (hastial o faldones). Las filas suman el total; el plano
+ * lleva la suma por planta, que es lo que va al programa.
+ */
 function tablaDireccion(d: DireccionViento): Block[] {
   const eje = d.eje.toUpperCase();
+  const rows: string[][] = d.plantas.map((p) => [
+    p.nombre,
+    num(p.z, 2),
+    num(p.hTrib, 2),
+    num(p.ce, 3),
+    num(p.qe, 3),
+    num(p.presion, 3),
+    num(p.succion, 3),
+    num(p.Fbanda, 1),
+  ]);
+  const detalle: Block[] = [];
+  if (d.rozamiento) {
+    const r = d.rozamiento;
+    const pct = num(r.fraccion * 100, 0);
+    if (r.aplicado) {
+      rows.push([`Rozamiento (cfr ${num(r.cfr, 2)}, ${num(r.area, 1)} m²)`, '', '', '', '', '', '', num(r.F, 1)]);
+      detalle.push({
+        kind: 'paragraph',
+        text: `Rozamiento según ${eje} (art. 3.3.2-3): ${num(r.F, 1)} kN sobre ${num(r.area, 1)} m² de fachadas laterales y cubierta, el ${pct} % de la fuerza perpendicular, más del 10 %: repartido entre las plantas en proporción a su banda, y la cubierta lleva además el de la propia cubierta.`,
+      });
+    } else {
+      detalle.push({
+        kind: 'paragraph',
+        text: `Rozamiento según ${eje} (art. 3.3.2-3): ${num(r.F, 1)} kN, el ${pct} % de la fuerza perpendicular, no llega al 10 %: se desprecia.`,
+      });
+    }
+  }
+  if (d.encima) {
+    const c = d.encima;
+    if (c.tipo === 'hastial') {
+      rows.push([`Hastial → cubierta (${num(c.area, 2)} m²)`, num(c.z, 2), '', num(c.ce, 3), num(c.qe, 3), num(c.qe * d.cp, 3), num(c.qe * d.cs, 3), num(c.F, 1)]);
+      detalle.push({
+        kind: 'paragraph',
+        text: `Hastial con viento según ${eje}: triángulo de ${num(c.ancho, 2)} m de base y ${num(c.altura, 2)} m hasta la coronación (${num(c.area, 2)} m²), con cp − cs = ${num(c.coeficiente, 2)} de la tabla 3.5 y qb·ce a ${num(c.z, 2)} m: F = ${num(c.F, 1)} kN, sumada al forjado de cubierta.`,
+      });
+    } else {
+      rows.push([`Faldones D.6 → cubierta (${num(c.area, 2)} m² proy.)`, num(c.z, 2), '', num(c.ce, 3), num(c.qe, 3), '', '', num(c.F, 1)]);
+      const contraria = c.Fcontraria !== undefined && c.Fcontraria < 0 ? ` y ${num(-c.Fcontraria, 1)} kN hacia barlovento con las posibilidades contrarias` : '';
+      detalle.push({
+        kind: 'paragraph',
+        text: `Faldones con viento según ${eje}: resultante horizontal de las presiones de la tabla D.6 (Σ cpe·A·tan α) sobre ${num(c.area, 2)} m² de proyección vertical: ${num(c.F, 1)} kN hacia sotavento (coeficiente global equivalente ${num(c.coeficiente, 2)})${contraria}; la de sotavento se suma al forjado de cubierta.`,
+      });
+    }
+  }
+  rows.push(['Total', '', '', '', '', '', '', num(d.Ftotal, 1)]);
   return [
     {
       kind: 'heading',
       level: 3,
-      text: `Viento según ${eje} — esbeltez H/d = ${num(d.esbeltez, 2)} → cp = ${num(d.cp, 2)}, cs = ${num(d.cs, 2)} (tabla 3.5)`,
+      text: `Viento según ${eje} — esbeltez h/d = ${num(d.esbeltez, 2)} → cp = ${num(d.cp, 2)}, cs = ${num(d.cs, 2)} (tabla 3.5); excentricidad ${num(d.excentricidad, 2)} m (3.3.2-2)`,
     },
     {
       kind: 'table',
       head: ['Planta', 'z (m)', 'h trib. (m)', 'ce', 'qb·ce (kN/m²)', 'Presión (kN/m²)', 'Succión (kN/m²)', 'F (kN)'],
-      rows: [
-        ...d.plantas.map((p) => [
-          p.nombre,
-          num(p.z, 2),
-          num(p.hTrib, 2),
-          num(p.ce, 3),
-          num(p.qe, 3),
-          num(p.presion, 3),
-          num(p.succion, 3),
-          num(p.F, 1),
-        ]),
-        ['Total', '', '', '', '', '', '', num(d.Ftotal, 1)],
-      ],
+      rows,
     },
+    ...detalle,
   ];
 }
 
@@ -103,14 +155,20 @@ export function cuadroVientoMemoria(r: VientoResultado, e: EmplazamientoCuadro):
   const zona = e.zonaEolica ?? GUION;
   const rows: [string, string][] = [
     ['Emplazamiento', lugar(e)],
-    ['Zona eólica (figura D.1)', r.vb !== null ? `${zona} — velocidad básica vb = ${r.vb} m/s` : zona],
+    ['Zona eólica (figura D.1)', `${r.vb !== null ? `${zona} — velocidad básica vb = ${r.vb} m/s` : zona}${forzada(e, 'eolica')}`],
     ['Presión dinámica qb', `${num(r.qb, 2)} kN/m² (${ORIGEN_QB[r.qbOrigen]})`],
     ['Grado de aspereza del entorno', `${r.aspereza} — ${a.descripcion}`],
     ['Parámetros del entorno (tabla D.2)', `k = ${num(r.parametros.k, 3)}; L = ${num(r.parametros.L, 3)} m; Z = ${num(r.parametros.Z, 1)} m`],
     ['Coeficiente de exposición', 'ce = F·(F + 7k), F = k·ln(max(z, Z)/L), a la altura z de cada forjado (Anejo D.2)'],
-    ['Altura de coronación H', `${num(r.H, 2)} m`],
+    ['Altura del último forjado H', `${num(r.H, 2)} m`],
+    ...(r.alturaEdificio !== r.H
+      ? [['Altura del edificio h', `${num(r.alturaEdificio, 2)} m (la coronación de la cubierta; es la h de la esbeltez y de las figuras del Anejo D)`] as [string, string]]
+      : []),
     ['Dimensiones en planta', `${num(r.x.profundidad, 2)} × ${num(r.y.profundidad, 2)} m`],
-    ['Fuerza por planta', 'F = (cp − cs) · qb · ce(z) · b · h_trib, con b la fachada perpendicular al viento'],
+    [
+      'Fuerza por planta',
+      'F = (cp − cs) · qb · ce(z) · b · h_trib, con b la fachada perpendicular al viento y h_trib la banda de media planta por debajo y por encima del forjado; se le suma el rozamiento repartido y, en cubierta, el hastial o los faldones. La tabla de cada dirección desglosa los términos y el plano lleva la suma por planta.',
+    ],
   ];
   return [
     { kind: 'heading', level: 2, text: 'ACCIÓN DEL VIENTO (DB SE-AE, art. 3.3 y Anejo D)' },
@@ -193,11 +251,20 @@ function cuadroCubiertaMemoria(c: CubiertaResuelta): Block[] {
     ],
     ['Coeficiente adoptado', 'cpe,10 si A ≥ 10 m², cpe,1 si A ≤ 1 m² y entre medias cpe,A = cpe,1 + (cpe,10 − cpe,1)·log10 A (fórmula D.4)'],
   ];
+  const resultante: Block[] = [];
+  const res = c.perpendicular.resultante;
+  if (res && res.area > 0) {
+    resultante.push({
+      kind: 'paragraph',
+      text: `Resultante horizontal de los faldones con viento perpendicular a la cumbrera: ${num(res.haciaSotavento, 1)} kN hacia sotavento y ${num(-res.haciaBarlovento, 1)} kN hacia barlovento, sobre ${num(res.area, 2)} m² de proyección vertical (Σ cpe·A·tan α, cada cara entera en presión o en succión). La de sotavento va sumada al forjado de cubierta en la tabla de fuerzas por planta.`,
+    });
+  }
   return [
     { kind: 'heading', level: 3, text: `Cubierta a dos aguas — tabla D.6, pendiente ${grados(c.pendiente)}` },
     { kind: 'kvTable', rows },
     tablaZonasMemoria(c.perpendicular, c.cumbrera),
     leyendaZonas(c.perpendicular),
+    ...resultante,
     tablaZonasMemoria(c.paralela, c.cumbrera),
     leyendaZonas(c.paralela),
   ];
@@ -300,7 +367,7 @@ function cuadroParamentosPlano(p: ParamentosResueltos): Block[] {
 export function cuadroNieveMemoria(r: NieveResultado, e: EmplazamientoCuadro): Block[] {
   const rows: [string, string][] = [
     ['Emplazamiento', lugar(e)],
-    ['Zona de clima invernal (figura E.2)', e.zonaInvernal !== null ? String(e.zonaInvernal) : GUION],
+    ['Zona de clima invernal (figura E.2)', e.zonaInvernal !== null ? `${e.zonaInvernal}${forzada(e, 'invernal')}` : GUION],
     ['Altitud', e.altitud !== null ? `${num(e.altitud)} m` : GUION],
     [
       'Sobrecarga de nieve sobre terreno horizontal sk',
@@ -361,6 +428,14 @@ export function cuadroAccionesPlano(
 
   if (viento) {
     const a = ASPEREZAS[viento.aspereza];
+    // Lo que la fuerza por planta lleva además de la banda de fachada, para
+    // que el plano no parezca que se contradice con la memoria.
+    const composicion: string[] = [];
+    for (const d of [viento.x, viento.y]) {
+      const eje = d.eje.toUpperCase();
+      if (d.rozamiento?.aplicado) composicion.push(`rozamiento (${num(d.rozamiento.fraccion * 100, 0)} %) según ${eje}`);
+      if (d.encima) composicion.push(`${d.encima.tipo === 'hastial' ? 'hastial' : 'faldones'} en cubierta según ${eje}`);
+    }
     blocks.push(
       { kind: 'heading', level: 2, text: TITULO_VIENTO_PLANO },
       {
@@ -368,7 +443,7 @@ export function cuadroAccionesPlano(
         rows: [
           [
             'Zona eólica',
-            viento.vb !== null ? `${e.zonaEolica ?? GUION} (velocidad básica ${viento.vb} m/s)` : `${e.zonaEolica ?? GUION}`,
+            `${viento.vb !== null ? `${e.zonaEolica ?? GUION} (velocidad básica ${viento.vb} m/s)` : `${e.zonaEolica ?? GUION}`}${forzada(e, 'eolica', true)}`,
           ],
           ['Presión dinámica', `qb = ${num(viento.qb, 2)} kN/m²`],
           ['Grado de aspereza', `${viento.aspereza} (${a.corta.toLowerCase()})`],
@@ -376,6 +451,7 @@ export function cuadroAccionesPlano(
           // tiene un ancho, y las dos direcciones en una celda se salían.
           ['Coeficientes eólicos según X', `cp = ${num(viento.x.cp, 2)} · cs = ${num(viento.x.cs, 2)}`],
           ['Coeficientes eólicos según Y', `cp = ${num(viento.y.cp, 2)} · cs = ${num(viento.y.cs, 2)}`],
+          ...(composicion.length ? [['En la fuerza por planta', `banda de fachada más ${composicion.join(', ')}`] as [string, string]] : []),
         ],
       },
       {
@@ -394,10 +470,13 @@ export function cuadroAccionesPlano(
 
   if (nieve) {
     const rows: [string, string][] = [
-      ['Zona de clima invernal', e.zonaInvernal !== null ? String(e.zonaInvernal) : GUION],
+      ['Zona de clima invernal', e.zonaInvernal !== null ? `${e.zonaInvernal}${forzada(e, 'invernal', true)}` : GUION],
       ['Altitud', e.altitud !== null ? `${num(e.altitud)} m` : GUION],
       ['Nieve sobre terreno horizontal', nieve.sk !== null ? `sk = ${num(nieve.sk, 2)} kN/m²` : GUION],
     ];
+    if (nieve.factorExposicion !== 1 && nieve.skEfectiva !== null) {
+      rows.push(['Exposición', `${EXPOSICION[exposicionDe(nieve)]}: sk × ${num(nieve.factorExposicion, 1)} = ${num(nieve.skEfectiva, 2)} kN/m²`]);
+    }
     // Una fila por faldón, y sus bandas de limahoya y acumulación debajo. Las
     // etiquetas van cortas (≤ 33 caracteres) y los parámetros en la celda del
     // valor: en el Excel del plano la columna de etiquetas tiene un tope de

@@ -164,6 +164,27 @@ describe('zonas laterales (figura D.3)', () => {
   });
 });
 
+describe('hastiales con cubierta a dos aguas (auditoría B10, I1)', () => {
+  const con = calcularParamentos({ h: 11.2, alturaFachada: 9, dimensiones: { x: 20, y: 12 }, qe: 0.8, cumbrera: 'x' });
+  const zona = (d: DireccionParamentos, z: string) => d.zonas.find((q) => q.zona === z)!;
+
+  it('con la cumbrera paralela al viento, D y E llevan el triángulo hasta la coronación; las laterales y la otra dirección no', () => {
+    expect(zona(con.x, 'D').area).toBeCloseTo(12 * 9 + (12 * 2.2) / 2, 9);
+    expect(zona(con.x, 'E').area).toBeCloseTo(zona(con.x, 'D').area, 9);
+    expect(zona(con.x, 'A').area).toBeCloseTo(zona(con.x, 'A').ancho * 9, 9);
+    expect(zona(con.y, 'D').area).toBeCloseTo(20 * 9, 9);
+    expect(con.notas.join()).toMatch(/hastiales/);
+    const sin = calcularParamentos({ h: 11.2, alturaFachada: 9, dimensiones: { x: 20, y: 12 }, qe: 0.8 });
+    expect(zona(sin.x, 'D').area).toBeCloseTo(12 * 9, 9);
+    expect(sin.notas.join()).not.toMatch(/hastiales/);
+  });
+
+  it('las notas dicen que la zona A es e/10 por el DB (e/5 en el Eurocódigo) y que el viento va en los dos sentidos', () => {
+    expect(con.notas.join()).toMatch(/e\/5/);
+    expect(con.notas.join()).toMatch(/dos sentidos/);
+  });
+});
+
 describe('calcularParamentos — composición', () => {
   const base = { h: 9, alturaFachada: 9, dimensiones: { x: 20, y: 12 }, qe: 0.8 };
 

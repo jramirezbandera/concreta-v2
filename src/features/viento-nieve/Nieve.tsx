@@ -89,7 +89,8 @@ export function Nieve({ n, resultado, motivoSinResultado, ayuda, onCambiar, onFa
               La sobrecarga sobre terreno horizontal sk la fija la norma por zona y altitud. Cada faldón la
               multiplica por su coeficiente de forma μ: 1 hasta 30º de pendiente, 0 a partir de 60º, y 1 siempre
               que algo impida deslizar la nieve (petos, limatesas). Si un faldón inclinado descarga nieve hacia una
-              limahoya o un cambio de nivel, indique su proyección horizontal L para calcular la acumulación.
+              limahoya o un cambio de nivel, dígalo en «¿Qué hay al pie?» e indique su proyección horizontal L para
+              calcular la acumulación; con alero la nieve cae fuera y no se acumula.
             </p>
           )}
 
@@ -146,7 +147,7 @@ export function Nieve({ n, resultado, motivoSinResultado, ayuda, onCambiar, onFa
                   <th className={TH}>Pendiente</th>
                   <th className={TH} title="Petos, limatesas u otros elementos que impidan que la nieve deslice">¿Algo impide deslizar?</th>
                   <th className={TH} title="Proyección horizontal de la línea de máxima pendiente, para la acumulación">L</th>
-                  <th className={TH} title="Si el faldón termina abajo en una limahoya">¿Acaba en limahoya?</th>
+                  <th className={TH} title="Qué hay al pie del faldón: un alero por el que la nieve cae fuera, una limahoya o una cubierta más baja">¿Qué hay al pie?</th>
                   <th className={TH}>Voladizo</th>
                   <th className={TH_DER} title="Coeficiente de forma">μ</th>
                   <th className={TH_DER} title="Carga de nieve en proyección horizontal">qn ({uQ})</th>
@@ -187,7 +188,7 @@ export function Nieve({ n, resultado, motivoSinResultado, ayuda, onCambiar, onFa
                               </option>
                             ))}
                           </select>
-                          {f.limahoya !== 'ninguna' && (
+                          {(f.limahoya === 'contrario' || f.limahoya === 'mismoSentido') && (
                             <span className="flex items-center gap-1 text-[11px] text-text-secondary">
                               el otro:
                               <RawNumberInput value={f.inclinacionOtro} onChange={(inclinacionOtro) => onFaldon(f.id, { inclinacionOtro })} ariaLabel="Pendiente del otro faldón" unit="º" min={0} max={89} widthClass="w-12" />

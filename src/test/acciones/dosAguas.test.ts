@@ -278,6 +278,42 @@ describe('zonas en planta (figura D.6)', () => {
   });
 });
 
+describe('resultante horizontal de los faldones (auditoría M1)', () => {
+  it('golden vientoCTE a 17º: Σ cpe·A·tan α con cada cara entera, hacia sotavento y hacia barlovento', () => {
+    const d = hoja.perpendicular;
+    const res = d.resultante!;
+    const tan = Math.tan((17 * Math.PI) / 180);
+    expect(res.area).toBeCloseTo(20.5 * 6 * tan, 9);
+    const A = (z: string) => zona(d.zonas, z).piezas * zona(d.zonas, z).area;
+    const c = (z: string) => zona(d.zonas, z).cpe;
+    const barloventoPresion = c('F').presion! * A('F') + c('G').presion! * A('G') + c('H').presion! * A('H');
+    const barloventoSuccion = c('F').succion! * A('F') + c('G').succion! * A('G') + c('H').succion! * A('H');
+    const sotaventoPresion = c('I').presion! * A('I') + c('J').presion! * A('J');
+    const sotaventoSuccion = c('I').succion! * A('I') + c('J').succion! * A('J');
+    expect(res.haciaSotavento).toBeCloseTo(tan * qe * (barloventoPresion - sotaventoSuccion), 9);
+    expect(res.haciaBarlovento).toBeCloseTo(tan * qe * (barloventoSuccion - sotaventoPresion), 9);
+    expect(res.haciaSotavento).toBeGreaterThan(0);
+    expect(res.haciaBarlovento).toBeLessThan(0);
+    expect(hoja.paralela.resultante).toBeNull();
+    expect(hoja.notas.join()).toMatch(/Resultante horizontal/);
+  });
+
+  it('con los faldones hacia el centro (α < 0) los signos se invierten solos y la resultante sigue acotada', () => {
+    const r = calcularDosAguas({ pendiente: -15, alturaCoronacion: 9, longitudCumbrera: 20, anchoCubierta: 12, qe: 0.8 });
+    const res = r.perpendicular.resultante!;
+    expect(res.area).toBeCloseTo(20 * 6 * Math.tan((15 * Math.PI) / 180), 9);
+    expect(res.haciaSotavento).toBeGreaterThanOrEqual(0);
+    expect(res.haciaBarlovento).toBeLessThanOrEqual(0);
+  });
+
+  it('las zonas sin sitio no salen (auditoría B8)', () => {
+    const r = calcularDosAguas({ pendiente: 20, alturaCoronacion: 10, longitudCumbrera: 20, anchoCubierta: 3, qe: 0.8 });
+    expect(r.perpendicular.zonas.map((z) => z.zona)).toEqual(['F', 'G', 'J']);
+    expect(r.perpendicular.zonas.every((z) => z.area > 0)).toBe(true);
+    expect(r.notas.join()).toMatch(/dos sentidos/);
+  });
+});
+
 describe('calcularDosAguas — límites y notas', () => {
   const base = { pendiente: 20, alturaCoronacion: 9, longitudCumbrera: 20, anchoCubierta: 12, qe: 0.8 };
 
