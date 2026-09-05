@@ -14,3 +14,6 @@ export * from './dosAguas';
 export * from './paramentos';
 export * from './nieve';
 export * from './cuadros';
+export * from './tablasCargas';
+export * from './cargas';
+export * from './cuadrosCargas';

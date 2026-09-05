@@ -236,6 +236,16 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M1.5 5.5h3M1.5 8h4M1.5 10.5h3" strokeWidth="0.9" strokeOpacity="0.8"/>
         </svg>
       );
+    case 'concreta-cargas-planta':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Tres forjados apilados */}
+          <path d="M2.5 5.5h11M2.5 9.5h11M2.5 13.5h11"/>
+          {/* Cargas bajando sobre el de arriba */}
+          <path d="M5 1.5v2.5M8 1.5v2.5M11 1.5v2.5" strokeWidth="0.9" strokeOpacity="0.8"/>
+          <path d="M4.2 3.2l.8.8.8-.8M7.2 3.2l.8.8.8-.8M10.2 3.2l.8.8.8-.8" strokeWidth="0.9" strokeOpacity="0.8"/>
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }

@@ -107,6 +107,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Viento y nieve — Concreta · DB SE-AE',
     description: 'Acción del viento por planta (presión dinámica por zona, coeficiente de exposición del Anejo D, coeficientes eólicos de la tabla 3.5) y carga de nieve por faldón (zona de clima invernal, altitud, coeficiente de forma, acumulación) según el CTE DB SE-AE.',
   },
+  '/acciones/cargas-planta': {
+    title: 'Cargas por planta — Concreta · DB SE-AE',
+    description: 'Cuadro de cargas por planta según el CTE DB SE-AE: peso propio del forjado (Anejo C), cargas permanentes, sobrecarga de uso de la tabla 3.1 y nieve en cubiertas, con los valores de cálculo Gd, Qd y qd. Tabla para la memoria y cuadro de acciones para el plano.',
+  },
   '/geotec/taludes': {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',
