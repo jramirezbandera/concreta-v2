@@ -124,6 +124,23 @@ export const TABLA_3_5 = {
 /** Art. 3.3.2-2 (p. 11): excentricidad en planta del 5 % de la dimensión máxima perpendicular al viento. */
 export const EXCENTRICIDAD_VIENTO = 0.05;
 
+export type SuperficieExterior = 'lisa' | 'rugosa' | 'muyRugosa';
+
+/**
+ * Art. 3.3.2-3 (p. 12): coeficiente de rozamiento de las fuerzas tangenciales,
+ * «0,01 si la superficie es muy lisa, por ejemplo de acero o aluminio, 0,02 si
+ * es rugosa como en el caso de hormigón, y 0,04 si es muy rugosa, como en el
+ * caso de existencia de ondas, nervadura o pliegues».
+ */
+export const ROZAMIENTO: Record<SuperficieExterior, { cfr: number; descripcion: string }> = {
+  lisa: { cfr: 0.01, descripcion: 'muy lisa (acero, aluminio)' },
+  rugosa: { cfr: 0.02, descripcion: 'rugosa (hormigón)' },
+  muyRugosa: { cfr: 0.04, descripcion: 'muy rugosa (ondas, nervaduras o pliegues)' },
+};
+
+/** Art. 3.3.2-3 (p. 12): el rozamiento se puede despreciar si no supera el 10 % de la fuerza perpendicular. */
+export const ROZAMIENTO_DESPRECIABLE = 0.1;
+
 // ── Nieve ───────────────────────────────────────────────────────────────────
 
 export type ZonaInvernal = 1 | 2 | 3 | 4 | 5 | 6 | 7;

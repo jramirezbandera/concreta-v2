@@ -17,7 +17,7 @@ import { toDisplay } from '../../lib/units/convert';
 import { getPrecision, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { ASPEREZA_OPCIONES, QB_MODO_OPCIONES, type QbModo } from './catalogos';
+import { ASPEREZA_OPCIONES, QB_MODO_OPCIONES, SUPERFICIE_OPCIONES, type QbModo } from './catalogos';
 import { Cubierta } from './Cubierta';
 import { Paramentos } from './Paramentos';
 import { alturaCoronacionDerivada, type PlantaUI, type VientoUI } from './state';
@@ -70,6 +70,7 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
   }
   const aspereza = ASPEREZA_OPCIONES.find((o) => o.id === v.aspereza);
   const qbModo = QB_MODO_OPCIONES.find((o) => o.id === v.qbModo);
+  const superficie = SUPERFICIE_OPCIONES.find((o) => o.id === v.superficie);
 
   return (
     <section className="rounded border border-border-main bg-bg-surface">
@@ -144,6 +145,20 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
             </Fila>
             <Fila etiqueta="Dimensión en planta según Y" ayuda="Lado del edificio paralelo al eje Y. El viento «según Y» sopla a lo largo de este lado y empuja la fachada X.">
               <RawNumberInput value={v.dimensiones.y} onChange={(y) => onCambiar({ dimensiones: { ...v.dimensiones, y } })} ariaLabel="Dimensión en planta según Y" unit="m" min={0} widthClass="w-20" />
+            </Fila>
+            <Fila etiqueta="¿Cómo es la superficie exterior?" ayuda={`${superficie?.ayuda ?? ''} El rozamiento del viento sobre las fachadas laterales y la cubierta (art. 3.3.2-3) se suma a las fuerzas por planta cuando pasa del 10 % de la fuerza perpendicular.`}>
+              <select
+                value={v.superficie}
+                aria-label="Superficie exterior"
+                className={INPUT}
+                onChange={(ev) => onCambiar({ superficie: ev.target.value as VientoUI['superficie'] })}
+              >
+                {SUPERFICIE_OPCIONES.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.etiqueta}
+                  </option>
+                ))}
+              </select>
             </Fila>
           </div>
 
@@ -222,9 +237,15 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
               <span className="font-mono text-[11px] text-text-secondary">
                 {(['x', 'y'] as const).map((eje) => {
                   const d = resultado[eje];
+                  const roz = d.rozamiento
+                    ? ` · rozamiento ${dec(d.rozamiento.fraccion * 100, 0)} %${d.rozamiento.aplicado ? ', sumado' : ', despreciado'}`
+                    : '';
+                  const encima = d.encima ? ` · ${d.encima.tipo} +${mostrar(d.encima.F, 'force')} ${uF} en cubierta` : '';
                   return (
                     <span key={eje} className="mr-4">
                       Según {eje.toUpperCase()}: esbeltez {dec(d.esbeltez, 2)} → cp {dec(d.cp, 2)} / cs {dec(d.cs, 2)}
+                      {roz}
+                      {encima}
                     </span>
                   );
                 })}

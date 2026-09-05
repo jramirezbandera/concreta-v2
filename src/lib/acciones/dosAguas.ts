@@ -92,6 +92,24 @@ export interface ZonaResuelta extends ZonaEnPlanta {
   presion: number | null;
 }
 
+/**
+ * Resultante horizontal de las presiones sobre los faldones, kN. La presión
+ * sobre un faldón de pendiente α tiene una componente horizontal
+ * cpe·qe·A_planta·tan α (A en planta, con todas las piezas de la zona): a
+ * sotavento si es presión en el faldón de barlovento o succión en el de
+ * sotavento, y al revés. Como en una misma cara no se mezclan signos (nota de
+ * la tabla D.6), se prueban las cuatro combinaciones cara a cara y se guardan
+ * la mayor hacia sotavento y la mayor hacia barlovento (≤ 0).
+ */
+export interface ResultanteFaldones {
+  /** Proyección vertical de los faldones, m²: b · (d/2) · |tan α|. */
+  area: number;
+  /** Resultante hacia sotavento, kN (≥ 0): la que empuja al edificio en el sentido del viento. */
+  haciaSotavento: number;
+  /** Resultante hacia barlovento, kN (≤ 0). */
+  haciaBarlovento: number;
+}
+
 export interface DireccionResuelta {
   direccion: DireccionCubierta;
   /** Ángulo θ de la norma. */
@@ -102,7 +120,10 @@ export interface DireccionResuelta {
   d: number;
   /** e = min(b, 2h), m. */
   e: number;
+  /** Sólo las zonas que existen: una banda que no cabe en el faldón no sale. */
   zonas: ZonaResuelta[];
+  /** Con viento perpendicular a la cumbrera; null con viento paralelo (los faldones son simétricos y no empujan a lo largo de la cumbrera). */
+  resultante: ResultanteFaldones | null;
 }
 
 export interface DosAguasResultado {
@@ -246,6 +267,36 @@ export function alturaCoronacionDesdeForjado(H: number, anchoCubierta: number, p
   return H + (anchoCubierta / 2) * Math.tan((Math.max(pendiente, 0) * Math.PI) / 180);
 }
 
+/** Zonas del faldón de barlovento con viento perpendicular a la cumbrera; el resto (I, J) están a sotavento. */
+const ZONAS_BARLOVENTO: readonly ZonaDosAguas[] = ['F', 'G', 'H'];
+
+/**
+ * Resultante horizontal de los faldones con viento perpendicular a la
+ * cumbrera. Cada cara (barlovento F+G+H, sotavento I+J) va entera en presión o
+ * entera en succión; de las cuatro combinaciones se devuelven la mayor hacia
+ * sotavento y la mayor hacia barlovento. Con tan α negativo (faldones hacia el
+ * centro) los signos se invierten solos, que es lo que pasa en la realidad.
+ */
+export function resultanteFaldones(zonas: ZonaResuelta[], b: number, d: number, pendiente: number, qe: number): ResultanteFaldones {
+  const tan = Math.tan((pendiente * Math.PI) / 180);
+  const suma = (cara: 'barlovento' | 'sotavento', lado: 'presion' | 'succion'): number =>
+    zonas
+      .filter((z) => ZONAS_BARLOVENTO.includes(z.zona) === (cara === 'barlovento'))
+      .reduce((s, z) => s + (z.cpe[lado] ?? 0) * z.piezas * z.area, 0);
+  const combinaciones: number[] = [];
+  for (const barlovento of ['presion', 'succion'] as const) {
+    for (const sotavento of ['presion', 'succion'] as const) {
+      // Presión a barlovento empuja a sotavento; presión a sotavento empuja a barlovento.
+      combinaciones.push(tan * qe * (suma('barlovento', barlovento) - suma('sotavento', sotavento)));
+    }
+  }
+  return {
+    area: b * (d / 2) * Math.abs(tan),
+    haciaSotavento: Math.max(0, ...combinaciones),
+    haciaBarlovento: Math.min(0, ...combinaciones),
+  };
+}
+
 // ── Cálculo ─────────────────────────────────────────────────────────────────
 
 export function calcularDosAguas(input: DosAguasInput): DosAguasResultado {
@@ -274,13 +325,11 @@ export function calcularDosAguas(input: DosAguasInput): DosAguasResultado {
     const b = direccion === 'perpendicular' ? longitudCumbrera : anchoCubierta;
     const d = direccion === 'perpendicular' ? anchoCubierta : longitudCumbrera;
     const { e, zonas } = zonasEnPlanta(direccion, b, d, h);
-    return {
-      direccion,
-      theta: direccion === 'perpendicular' ? 0 : 90,
-      b,
-      d,
-      e,
-      zonas: zonas.map((z): ZonaResuelta => {
+    const resueltas = zonas
+      // Una zona sin sitio (fondo o ancho cero) no existe: fuera, en vez de
+      // salir con A = 0 y el coeficiente de 1 m².
+      .filter((z) => z.area > 0)
+      .map((z): ZonaResuelta => {
         const cpe10 = coeficienteTabulado(direccion, z.zona, pendiente, 'A10');
         const cpe1 = coeficienteTabulado(direccion, z.zona, pendiente, 'A1');
         const A = input.areaInfluencia ?? z.area;
@@ -295,7 +344,15 @@ export function calcularDosAguas(input: DosAguasInput): DosAguasResultado {
           succion: cpe.succion === null ? null : cpe.succion * qe,
           presion: cpe.presion === null ? null : cpe.presion * qe,
         };
-      }),
+      });
+    return {
+      direccion,
+      theta: direccion === 'perpendicular' ? 0 : 90,
+      b,
+      d,
+      e,
+      zonas: resueltas,
+      resultante: direccion === 'perpendicular' ? resultanteFaldones(resueltas, b, d, pendiente, qe) : null,
     };
   };
   const perpendicular = resolver('perpendicular');
@@ -304,7 +361,13 @@ export function calcularDosAguas(input: DosAguasInput): DosAguasResultado {
   notas.push(
     'Coeficientes de presión exterior de la tabla D.6 (Anejo D.3), que recogen el pésimo de las direcciones de viento de cada caso, aplicados a la presión dinámica por el coeficiente de exposición a la altura de coronación (art. 3.3.5-2).',
     'Donde la tabla da dos valores de distinto signo la zona puede pasar de succión a presión: se consideran las dos posibilidades y no se mezclan en una misma cara (Anejo D.3-2 y nota de la tabla D.6).',
+    'El viento se considera en los dos sentidos de cada dirección (art. 3.3.2-2): las zonas se espejan respecto a la cumbrera o al hastial de barlovento según de dónde sople.',
   );
+  if (perpendicular.resultante && perpendicular.resultante.area > 0) {
+    notas.push(
+      'Resultante horizontal de los faldones con viento perpendicular a la cumbrera: Σ cpe·A·tan α sobre cada cara entera en presión o en succión, con A en planta y todas las piezas de la zona; se dan la mayor hacia sotavento y la mayor hacia barlovento.',
+    );
+  }
   if (input.areaInfluencia === undefined) {
     notas.push('El área de influencia de cada zona es la de la propia zona en planta, que es lo que ve la estructura general; para correas, paneles o anclajes se toma la del elemento (Anejo D.3-3).');
   } else {

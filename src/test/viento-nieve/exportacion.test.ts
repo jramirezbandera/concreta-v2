@@ -37,7 +37,7 @@ function avila(): VientoNieveState {
   s.emplazamiento = { ...s.emplazamiento, provincia: '05', municipio: 'Ávila', altitud: 1130 };
   s.nieve.faldones = [
     { ...nuevoFaldon('Faldón norte', 25), limahoya: 'contrario', inclinacionOtro: 25, L: 6 },
-    { ...nuevoFaldon('Faldón sur', 45), L: 8, voladizo: true },
+    { ...nuevoFaldon('Faldón sur', 45), L: 8, voladizo: true, limahoya: 'cambioNivel' },
   ];
   return s;
 }

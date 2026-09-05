@@ -231,6 +231,47 @@ describe('persistencia y lectura defensiva', () => {
   });
 });
 
+describe('auditoría 2026-09-05', () => {
+  it('la superficie exterior arranca rugosa, viaja al motor y normalizar la rellena', () => {
+    const s = madrid();
+    expect(s.viento.superficie).toBe('rugosa');
+    expect(entradaViento(s, zonasEfectivas(s.emplazamiento))?.superficie).toBe('rugosa');
+    expect(normalizar({ viento: { superficie: 'lisa' } }).viento.superficie).toBe('lisa');
+    expect(normalizar({ viento: { superficie: 'áspera' } }).viento.superficie).toBe('rugosa');
+    expect(evaluar(s).viento?.x.rozamiento).not.toBeNull();
+  });
+
+  it('el cambio de nivel llega al motor como limahoya sin inclinación, y la capital lleva su altitud', () => {
+    const s = madrid();
+    s.nieve.faldones[0] = { ...s.nieve.faldones[0], inclinacion: 40, limahoya: 'cambioNivel', L: 5 };
+    s.emplazamiento.esCapital = true;
+    const e = entradaNieve(s, zonasEfectivas(s.emplazamiento))!;
+    expect(e.faldones[0].limahoya).toEqual({ tipo: 'cambioNivel' });
+    expect(e.skCapital).toBe(0.6);
+    expect(e.altitudCapital).toBe(660);
+    expect(normalizar({ nieve: { faldones: [{ inclinacion: 30, limahoya: 'cambioNivel' }] } }).nieve.faldones[0].limahoya).toBe('cambioNivel');
+    s.emplazamiento.esCapital = false;
+    expect(entradaNieve(s, zonasEfectivas(s.emplazamiento))?.altitudCapital).toBeUndefined();
+  });
+
+  it('la publicación lleva la altura del edificio, el rozamiento y lo que hay encima de la cubierta', () => {
+    const s = madrid();
+    s.viento.cubierta = { ...s.viento.cubierta, activa: true };
+    const ev = evaluar(s);
+    const v = ev.viento!;
+    const d = datosPublicacion(s, ev)!;
+    expect(d.viento?.alturaEdificio).toBeCloseTo(v.alturaEdificio, 12);
+    expect(d.viento?.alturaEdificio).toBeGreaterThan(d.viento!.H);
+    expect(d.viento?.x.encima).toEqual({ tipo: 'hastial', F: v.x.encima!.F });
+    expect(d.viento?.y.encima).toEqual({ tipo: 'faldones', F: v.y.encima!.F });
+    expect(d.viento?.x.rozamiento).toEqual({ cfr: 0.02, F: v.x.rozamiento!.F, aplicado: v.x.rozamiento!.aplicado });
+    expect(d.viento?.fuerzas[2].Fx).toBeCloseTo(v.x.plantas[2].F, 12);
+    expect(d.viento?.x.Ftotal).toBeCloseTo(v.x.Ftotal, 12);
+    const plana = madrid();
+    expect(datosPublicacion(plana, evaluar(plana))!.viento?.x.encima).toBeUndefined();
+  });
+});
+
 describe('cubierta a dos aguas', () => {
   it('arranca omitida y no entra en el motor', () => {
     const s = madrid();

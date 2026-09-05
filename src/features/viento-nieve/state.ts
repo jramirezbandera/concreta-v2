@@ -30,6 +30,7 @@ import {
   type NieveInput,
   type NieveResultado,
   type Provincia,
+  type SuperficieExterior,
   type VientoInput,
   type VientoResultado,
   type ZonaEolica,
@@ -107,6 +108,8 @@ export interface VientoUI {
   /** kN/m². Sólo cuenta con `qbModo = 'manual'`. */
   qbManual: number;
   aspereza: GradoAspereza;
+  /** Superficie exterior, para el rozamiento del art. 3.3.2-3. */
+  superficie: SuperficieExterior;
   plantas: PlantaUI[];
   dimensiones: { x: number; y: number };
   cubierta: CubiertaUI;
@@ -230,6 +233,7 @@ export function defaultVientoNieveState(): VientoNieveState {
       qbModo: 'zona',
       qbManual: QB_SIMPLIFICADO,
       aspereza: 'IV',
+      superficie: 'rugosa',
       plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.h)),
       dimensiones: { x: 20, y: 12 },
       cubierta: cubiertaPorDefecto(),
@@ -290,7 +294,7 @@ export function normalizar(bruto: unknown): VientoNieveState {
           inclinacion: numero(f.inclinacion, 0),
           impedimento: bool(f.impedimento, false),
           L: typeof f.L === 'number' && Number.isFinite(f.L) ? f.L : null,
-          limahoya: uno(f.limahoya, ['ninguna', 'contrario', 'mismoSentido'] as const, 'ninguna'),
+          limahoya: uno(f.limahoya, ['ninguna', 'contrario', 'mismoSentido', 'cambioNivel'] as const, 'ninguna'),
           inclinacionOtro: numero(f.inclinacionOtro, numero(f.inclinacion, 0)),
           voladizo: bool(f.voladizo, false),
         }),
@@ -315,6 +319,7 @@ export function normalizar(bruto: unknown): VientoNieveState {
       qbModo: uno(v.qbModo, ['zona', 'simplificado', 'manual'] as const, 'zona'),
       qbManual: numero(v.qbManual, QB_SIMPLIFICADO),
       aspereza: uno(v.aspereza, ORDEN_ASPEREZAS, 'IV'),
+      superficie: uno(v.superficie, ['lisa', 'rugosa', 'muyRugosa'] as const, 'rugosa'),
       plantas,
       dimensiones: { x: numero(dims.x, 20), y: numero(dims.y, 12) },
       cubierta: {
@@ -397,6 +402,7 @@ export function entradaViento(state: VientoNieveState, zonas: Zonas): VientoInpu
     ...(v.qbModo === 'simplificado' ? { qbManual: QB_SIMPLIFICADO } : {}),
     ...(v.qbModo === 'manual' ? { qbManual: v.qbManual } : {}),
     aspereza: v.aspereza,
+    superficie: v.superficie,
     ...(state.emplazamiento.altitud !== null ? { altitud: state.emplazamiento.altitud } : {}),
     plantas: v.plantas.map((p) => ({ id: p.id, nombre: p.nombre.trim() || 'Planta', h: p.h })),
     dimensiones: { ...v.dimensiones },
@@ -421,7 +427,9 @@ export function entradaNieve(state: VientoNieveState, zonas: Zonas): NieveInput 
   return {
     zona: zonas.zonaInvernal,
     altitud: e.altitud,
-    ...(zonas.skCapital !== null ? { skCapital: zonas.skCapital } : {}),
+    ...(zonas.skCapital !== null && zonas.provincia
+      ? { skCapital: zonas.skCapital, altitudCapital: zonas.provincia.capital.altitud }
+      : {}),
     ...(n.skModo === 'manual' ? { skManual: n.skManual } : {}),
     exposicion: n.exposicion,
     faldones: n.faldones.map((f) => ({
@@ -436,6 +444,7 @@ export function entradaNieve(state: VientoNieveState, zonas: Zonas): NieveInput 
       ...(f.limahoya === 'mismoSentido'
         ? { limahoya: { tipo: 'mismoSentido' as const, inclinacionInferior: f.inclinacionOtro } }
         : {}),
+      ...(f.limahoya === 'cambioNivel' ? { limahoya: { tipo: 'cambioNivel' as const } } : {}),
       voladizo: f.voladizo,
     })),
   };
@@ -536,6 +545,19 @@ export interface PubParamentos {
   y: PubDireccionParamentos;
 }
 
+/** El resumen de una dirección. `rozamiento` y `encima` se añadieron en la v1.2 como opcionales. */
+export interface PubDireccionViento {
+  esbeltez: number;
+  cp: number;
+  cs: number;
+  /** Suma de las fuerzas por planta, con rozamiento y lo de encima de la cubierta incluidos. */
+  Ftotal: number;
+  /** Rozamiento del art. 3.3.2-3; `aplicado` dice si está dentro de las fuerzas. */
+  rozamiento?: { cfr: number; F: number; aplicado: boolean };
+  /** Hastial o faldones sumados a la planta de cubierta. */
+  encima?: { tipo: 'hastial' | 'faldones'; F: number };
+}
+
 /** Esquema v1 de lo que este módulo publica. Cambiarlo (salvo añadir campos opcionales) obliga a subir `PUB_VERSION`. */
 export interface PubVientoNieve {
   provincia: string;
@@ -548,9 +570,13 @@ export interface PubVientoNieve {
     qb: number;
     qbOrigen: VientoResultado['qbOrigen'];
     aspereza: GradoAspereza;
+    /** Altura del último forjado, m. */
     H: number;
-    x: { esbeltez: number; cp: number; cs: number; Ftotal: number };
-    y: { esbeltez: number; cp: number; cs: number; Ftotal: number };
+    /** Altura del edificio, m: la coronación con cubierta inclinada. Opcional desde la v1.2. */
+    alturaEdificio?: number;
+    x: PubDireccionViento;
+    y: PubDireccionViento;
+    /** Fuerza por planta que va al programa: banda, rozamiento repartido y, en cubierta, el hastial o los faldones. */
     fuerzas: { nombre: string; z: number; Fx: number; Fy: number }[];
     cubierta?: PubCubierta;
     paramentos?: PubParamentos;
@@ -601,7 +627,14 @@ export function datosPublicacion(state: VientoNieveState, ev: Evaluacion): PubVi
   const provincia = ev.zonas.provincia;
   if (!ev.listo || !provincia) return null;
   const { viento, nieve, zonas } = ev;
-  const resumen = (d: VientoResultado['x']) => ({ esbeltez: d.esbeltez, cp: d.cp, cs: d.cs, Ftotal: d.Ftotal });
+  const resumen = (d: VientoResultado['x']): PubDireccionViento => ({
+    esbeltez: d.esbeltez,
+    cp: d.cp,
+    cs: d.cs,
+    Ftotal: d.Ftotal,
+    ...(d.rozamiento ? { rozamiento: { cfr: d.rozamiento.cfr, F: d.rozamiento.F, aplicado: d.rozamiento.aplicado } } : {}),
+    ...(d.encima ? { encima: { tipo: d.encima.tipo, F: d.encima.F } } : {}),
+  });
   return {
     provincia: provincia.nombre,
     provinciaIne: provincia.ine,
@@ -616,6 +649,7 @@ export function datosPublicacion(state: VientoNieveState, ev: Evaluacion): PubVi
             qbOrigen: viento.qbOrigen,
             aspereza: viento.aspereza,
             H: viento.H,
+            alturaEdificio: viento.alturaEdificio,
             x: resumen(viento.x),
             y: resumen(viento.y),
             fuerzas: viento.x.plantas.map((p, i) => ({

@@ -94,7 +94,8 @@ describe('hielo en voladizos (3.5.1-4)', () => {
 describe('calcularNieve — composición', () => {
   const faldones = [
     { id: 'n', nombre: 'Faldón norte', inclinacion: 20, limahoya: { tipo: 'contrario' as const, inclinacionOtro: 20 } },
-    { id: 's', nombre: 'Faldón sur', inclinacion: 45, L: 8, voladizo: true },
+    // Descarga sobre una cubierta más baja: sin ese dato la nieve caería fuera y no habría acumulación.
+    { id: 's', nombre: 'Faldón sur', inclinacion: 45, L: 8, voladizo: true, limahoya: { tipo: 'cambioNivel' as const } },
     { id: 'p', nombre: 'Terraza', inclinacion: 0 },
   ];
 
@@ -154,11 +155,64 @@ describe('calcularNieve — composición', () => {
     expect(r.faldones[1].hielo).toBeUndefined();
   });
 
-  it('faldón que descarga (μ < 1) sin L: aviso, no error', () => {
-    const r = calcularNieve({ zona: 6, altitud: 690, exposicion: 'normal', faldones: [{ inclinacion: 45 }] });
+  it('faldón que descarga (μ < 1) sobre una discontinuidad sin L: aviso, no error', () => {
+    const r = calcularNieve({ zona: 6, altitud: 690, exposicion: 'normal', faldones: [{ inclinacion: 45, limahoya: { tipo: 'cambioNivel' } }] });
     expect(r.errores).toEqual([]);
     expect(r.avisos.join()).toMatch(/3\.5\.4/);
+    expect(r.avisos.join()).toMatch(/cubierta más baja/);
     expect(r.faldones[0].nombre).toBe('Faldón 1');
+    expect(r.faldones[0].acumulacion).toBeUndefined();
+  });
+
+  it('faldón que descarga con alero (sin limahoya ni cambio de nivel): ni aviso ni acumulación, la nieve cae fuera (auditoría B7)', () => {
+    const sinL = calcularNieve({ zona: 6, altitud: 690, exposicion: 'normal', faldones: [{ inclinacion: 45 }] });
+    expect(sinL.avisos).toEqual([]);
+    expect(sinL.faldones[0].acumulacion).toBeUndefined();
+    const conL = calcularNieve({ zona: 6, altitud: 690, exposicion: 'normal', faldones: [{ inclinacion: 45, L: 8 }] });
+    expect(conL.faldones[0].acumulacion).toBeUndefined();
+    expect(conL.avisos.join()).toMatch(/cae fuera del edificio/);
+    expect(conL.errores).toEqual([]);
+  });
+
+  it('cambio de nivel: acumulación con μi = 1 y sin banda de limahoya; la nota del 3.5.4-4 acompaña', () => {
+    const r = calcularNieve({ zona: 4, altitud: 660, exposicion: 'normal', faldones: [{ inclinacion: 45, L: 8, limahoya: { tipo: 'cambioNivel' } }] });
+    expect(r.faldones[0].limahoya).toBeUndefined();
+    expect(r.faldones[0].acumulacion!.pd).toBeCloseTo(0.5 * 8 * 0.56, 12);
+    expect(r.faldones[0].acumulacion!.pa).toBeCloseTo(0.5 * 8 * 0.56, 12);
+    expect(r.notas.join()).toMatch(/3\.5\.4-4/);
+    expect(calcularNieve({ zona: 4, altitud: 660, exposicion: 'normal', faldones: [{ inclinacion: 0 }] }).notas.join()).not.toMatch(/3\.5\.4-4/);
+  });
+
+  it('sk tecleado nulo: error (auditoría M3)', () => {
+    expect(calcularNieve({ zona: 4, altitud: 660, skManual: 0, exposicion: 'normal', faldones: [{ inclinacion: 0 }] }).errores.join()).toMatch(/mayor que cero/);
+    expect(calcularNieve({ zona: 4, altitud: 660, skManual: -0.2, exposicion: 'normal', faldones: [{ inclinacion: 0 }] }).errores.join()).toMatch(/mayor que cero/);
+    expect(calcularNieve({ zona: 4, altitud: 660, skManual: 0.8, exposicion: 'normal', faldones: [{ inclinacion: 0 }] }).errores).toEqual([]);
+  });
+
+  it('la inclinación del otro faldón de la limahoya tiene que estar entre 0º y 90º (auditoría M3)', () => {
+    const r = calcularNieve({ zona: 4, altitud: 660, exposicion: 'normal', faldones: [{ inclinacion: 20, limahoya: { tipo: 'contrario', inclinacionOtro: -50 } }] });
+    expect(r.errores.join()).toMatch(/otro faldón/);
+    const s = calcularNieve({ zona: 4, altitud: 660, exposicion: 'normal', faldones: [{ inclinacion: 20, limahoya: { tipo: 'mismoSentido', inclinacionInferior: 95 } }] });
+    expect(s.errores.join()).toMatch(/otro faldón/);
+  });
+
+  it('León (zona 1, 820 m): la nota del 3.5.1-1 no dice «basta 1,0» cuando la tabla da más (auditoría M5)', () => {
+    const leon = calcularNieve({ zona: 1, altitud: 820, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
+    expect(leon.faldones[0].qn).toBeCloseTo(1.24, 12);
+    const nota = leon.notas.find((n) => n.includes('3.5.1-1'))!;
+    expect(nota).toMatch(/la tabla da más/);
+    expect(nota).not.toMatch(/basta/);
+    const madrid = calcularNieve({ zona: 4, altitud: 660, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
+    expect(madrid.notas.find((n) => n.includes('3.5.1-1'))).toMatch(/basta considerar 1,0 kN\/m²/);
+  });
+
+  it('capital con la altitud cambiada: aviso con lo que daría la E.2 (auditoría B6)', () => {
+    const r = calcularNieve({ zona: 4, altitud: 1200, skCapital: 0.6, altitudCapital: 660, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
+    expect(r.sk).toBe(0.6);
+    expect(r.avisos.join()).toMatch(/capital a 660 m/);
+    expect(r.avisos.join()).toMatch(/1,90 kN\/m²/);
+    const igual = calcularNieve({ zona: 4, altitud: 660, skCapital: 0.6, altitudCapital: 660, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
+    expect(igual.avisos).toEqual([]);
   });
 
   it('altitud no tabulada para la zona: sk null y error del 3.5.2-3', () => {
@@ -170,7 +224,7 @@ describe('calcularNieve — composición', () => {
   });
 
   it('entradas inválidas', () => {
-    const r = calcularNieve({ zona: 2, altitud: 200, exposicion: 'normal', faldones: [{ inclinacion: 95 }, { inclinacion: 40, L: 0 }] });
+    const r = calcularNieve({ zona: 2, altitud: 200, exposicion: 'normal', faldones: [{ inclinacion: 95 }, { inclinacion: 40, L: 0, limahoya: { tipo: 'cambioNivel' } }] });
     expect(r.errores.join()).toMatch(/entre 0º y 90º/);
     expect(r.errores.join()).toMatch(/mayor que cero/);
     expect(calcularNieve({ zona: 2, altitud: 200, exposicion: 'normal', faldones: [] }).errores.join()).toMatch(/al menos un faldón/);

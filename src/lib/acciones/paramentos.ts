@@ -44,6 +44,12 @@ export interface ParamentosInput {
   dimensiones: { x: number; y: number };
   /** qb · ce a la altura h, kN/m². */
   qe: number;
+  /**
+   * Eje al que es paralela la cumbrera, si la cubierta es a dos aguas: las
+   * fachadas D y E de esa dirección son los hastiales y su área lleva el
+   * triángulo hasta la coronación (h − alturaFachada).
+   */
+  cumbrera?: 'x' | 'y';
   /** Área de influencia del elemento comprobado, m² (Anejo D.3-3). Si falta, la de cada zona. */
   areaInfluencia?: number;
 }
@@ -153,8 +159,11 @@ export function calcularParamentos(input: ParamentosInput): ParamentosResultado 
     const b = input.dimensiones[eje === 'x' ? 'y' : 'x'];
     const { e, A, B, C } = zonasLaterales(b, d, h);
     const esbeltez = d > 0 ? h / d : 0;
+    // Con la cumbrera paralela al viento, D y E son los hastiales: su área
+    // añade el triángulo entre el alero y la coronación.
+    const triangulo = input.cumbrera === eje && h > alturaFachada ? (b * (h - alturaFachada)) / 2 : 0;
     const zona = (z: ZonaParamento, piezas: number, ancho: number): ZonaParamentoResuelta => {
-      const area = ancho * alturaFachada;
+      const area = ancho * alturaFachada + (z === 'D' || z === 'E' ? triangulo : 0);
       const areaInfluencia = input.areaInfluencia ?? area;
       const cpe = coeficienteParamento(z, esbeltez, areaInfluencia);
       return { zona: z, descripcion: DESCRIPCION_ZONAS_D3[z], piezas, ancho, area, A: areaInfluencia, cpe, presion: cpe * qe };
@@ -167,7 +176,14 @@ export function calcularParamentos(input: ParamentosInput): ParamentosResultado 
     'Coeficientes de presión exterior de la tabla D.3 (Anejo D.3) para −45º < θ < 45º alrededor de la normal a cada fachada, aplicados a la presión qb·ce a la altura del edificio, del lado de la seguridad para los elementos más bajos.',
     'Las zonas de fachada son para las comprobaciones locales —carpinterías, acristalamientos, aplacados, anclajes, correas— (art. 3.3.4-3) y para naves sin forjados (art. 3.3.5); la estructura del edificio de pisos va con los coeficientes globales de la tabla 3.5.',
     'Entre las filas de área (10, 5, 2 y 1 m²) y entre las columnas de h/d (5, 1 y 0,25) de la tabla D.3 se interpola linealmente (Anejo D.3-2).',
+    'La zona A mide e/10 desde la arista de barlovento, como dibuja la figura de la tabla D.3 del DB; la figura 7.5 del EN 1991-1-4, de donde salen los coeficientes, le da e/5, que es más desfavorable (el Anejo D.3-6 admite las dos).',
+    'El viento se considera en los dos sentidos de cada dirección (art. 3.3.2-2): las zonas D y E se intercambian y A, B y C se miden desde la arista que quede a barlovento.',
   );
+  if (input.cumbrera && h > alturaFachada) {
+    notas.push(
+      `Las fachadas de barlovento y sotavento con viento según ${input.cumbrera.toUpperCase()} son los hastiales: su área incluye el triángulo hasta la coronación (h − ${alturaFachada.toFixed(2).replace('.', ',')} m).`,
+    );
+  }
   if (input.areaInfluencia === undefined) {
     notas.push('El área de influencia de cada zona de fachada es la de la propia zona (ancho por altura de fachada), que es lo que ve un cerramiento grande; para carpinterías o anclajes se toma la del elemento (Anejo D.3-3).');
   } else {
