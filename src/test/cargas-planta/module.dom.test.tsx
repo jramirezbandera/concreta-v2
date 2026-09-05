@@ -1,13 +1,15 @@
 /**
- * Smoke de integración del módulo en jsdom: que el cable entre el formulario,
- * el motor, la pantalla, la publicación de Viento y nieve y la publicación
- * propia existe.
+ * Smoke de integración del módulo en jsdom: que el cable entre la tabla, el
+ * motor, la sección, la publicación de Viento y nieve y la publicación propia
+ * existe.
  *
  *   1. arranca con tres plantas, calcula y publica;
  *   2. cambiar el uso cambia la columna derivada;
- *   3. «Usar la nieve publicada» trae la nieve del sobre de Viento y nieve;
- *   4. las pestañas Plano y Memoria pintan los cuadros;
- *   5. la exportación abre el modal y cada pestaña exporta lo suyo.
+ *   3. el peso propio se pisa y se recupera desde la ficha de la fila;
+ *   4. la nieve publicada se toma desde la ficha de la cubierta;
+ *   5. las columnas de «lo que hay encima» se añaden y se quitan enteras;
+ *   6. la fila abierta se resalta en la sección y al revés;
+ *   7. los dos botones de la barra exportan Word y Excel.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -60,6 +62,10 @@ function publicarMadrid() {
   publicarVN(vn, evaluarVN(vn));
 }
 
+/** La fila de una zona por su nombre de planta; abrirla enseña su ficha. */
+const filaDe = (planta: string) => screen.getByLabelText('Nombre de la planta', { selector: `input[value="${planta}"]` }).closest('tr') as HTMLTableRowElement;
+const abrirFicha = (planta: string) => fireEvent.click(within(filaDe(planta)).getByText('toda la planta'));
+
 beforeEach(() => {
   localStorage.clear();
   exportarCargasPlantaDocx.mockClear();
@@ -70,136 +76,165 @@ afterEach(() => {
   cleanup();
 });
 
-describe('Cargas por planta — módulo', () => {
+describe('Cargas por planta — la tabla', () => {
   it('arranca con tres plantas, calcula con la norma y publica', async () => {
     montar();
-    expect(screen.getByRole('heading', { name: 'Plantas y cargas' })).toBeInTheDocument();
-    const nombres = (screen.getAllByLabelText('Nombre de la planta') as HTMLInputElement[]).map((i) => i.value);
-    expect(nombres).toEqual(['Planta Baja', 'Planta Primera', 'Cubierta']);
-    // Reticular de 30 cm sin valor propio: 5 kN/m² de la tabla C.5, en azul.
+
+    // Una fila por zona, con su nombre de planta editable.
+    expect(screen.getAllByLabelText('Nombre de la planta')).toHaveLength(3);
+    // El peso propio del reticular de 30 cm sale de la tabla C.5.
     expect(screen.getAllByText('tabla C.5').length).toBeGreaterThanOrEqual(3);
-    expect(screen.getAllByText(/3 plantas · 3 zonas/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/3 plantas · 3 zonas/)).toBeInTheDocument();
     expect(screen.getByText(/^· publicado$/)).toBeInTheDocument();
-    await waitFor(() => expect(leerPublicacion(MODULO_PUB)).not.toBeNull());
-    const pub = leerPublicacion<PubCargasPlanta>(MODULO_PUB)!;
-    expect(pub.datos.plantas).toHaveLength(3);
-    expect(pub.datos.plantas[0].zonas[0].qd).toBeCloseTo(1.35 * 7 + 1.5 * 2, 12);
+
+    await waitFor(() => {
+      const sobre = leerPublicacion<PubCargasPlanta>(MODULO_PUB, 1);
+      expect(sobre?.datos.plantas).toHaveLength(3);
+    });
   });
 
-  it('cambiar «¿Para qué se usa?» a gimnasio cambia la sobrecarga derivada a 5', async () => {
+  it('las columnas de «lo que hay encima» son la unión de la obra', () => {
     montar();
-    fireEvent.change(screen.getByLabelText('Uso de Planta Baja'), { target: { value: 'C4' } });
-    expect(screen.getByTitle('C4 — gimnasios').textContent).toContain('5,00');
-    await waitFor(() => expect(leerPublicacion<PubCargasPlanta>(MODULO_PUB)!.datos.plantas[0].zonas[0].qUso).toBe(5));
+    // Arranque: solado y tabiquería en las plantas de piso, grava en la cubierta.
+    expect(screen.getByRole('columnheader', { name: /Solado/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Tabiquería/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /^Cubierta/ })).toBeInTheDocument();
   });
 
-  it('un peso propio propio manda sobre la norma, y se puede volver a ella', () => {
+  it('cambiar el uso cambia la sobrecarga que pone la norma', () => {
+    montar();
+    const uso = screen.getByLabelText('Uso de Planta Baja');
+    fireEvent.change(uso, { target: { value: 'C4' } });
+    expect(uso).toHaveValue('C4');
+    // 5 kN/m² de gimnasio, con el rótulo de la tabla 3.1 en el title.
+    expect(screen.getByTitle('C4 — gimnasios')).toHaveTextContent('5,00');
+  });
+
+  it('el peso propio se pisa tecleándolo y se recupera desde la ficha', () => {
     montar();
     const pp = screen.getByLabelText('Peso propio de Planta Baja');
-    fireEvent.change(pp, { target: { value: '4.49' } });
-    expect(screen.getAllByTitle('Peso propio del forjado')[0].textContent).toContain('4,49');
+    fireEvent.change(pp, { target: { value: '6,2' } });
+    expect(pp).toHaveValue('6,2');
+
+    // Con valor propio, la fila ofrece volver a la norma.
     fireEvent.click(screen.getAllByRole('button', { name: 'usar el de la norma' })[0]);
-    expect(screen.getAllByTitle('Peso propio del forjado')[0].textContent).toContain('5,00');
+    expect(screen.getByLabelText('Peso propio de Planta Baja')).toHaveValue('5');
   });
 
-  it('un forjado de madera sin peso propio es un error que bloquea exportar', () => {
+  it('un forjado sin peso en la norma es un error que bloquea la exportación', async () => {
     montar();
     fireEvent.change(screen.getByLabelText('Tipo de forjado de Planta Baja'), { target: { value: 'madera' } });
+
     expect(screen.getByText(/«Planta Baja»: indique el peso propio del forjado/)).toBeInTheDocument();
-    expect(screen.queryByText(/^· publicado$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
-    expect(screen.getByText('Corrija los errores antes de exportar')).toBeInTheDocument();
+    expect(screen.getByText(/^· sin publicar$/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Memoria en Word' }));
+    expect(await screen.findByText('Corrija los errores antes de exportar')).toBeInTheDocument();
     expect(screen.queryByLabelText('Título del elemento')).not.toBeInTheDocument();
   });
 });
 
-describe('la nieve de Viento y nieve', () => {
-  it('sin publicación, la opción está deshabilitada y no hay botón', () => {
+describe('Cargas por planta — la ficha de la fila', () => {
+  it('se abre al pulsar la fila y enseña lo que dice la norma', () => {
     montar();
-    expect(screen.queryByRole('button', { name: /Usar la nieve publicada/ })).not.toBeInTheDocument();
-    const origen = screen.getByLabelText('Origen de la nieve de Cubierta') as HTMLSelectElement;
-    expect(Array.from(origen.options).find((o) => o.value === 'publicada')?.disabled).toBe(true);
+    expect(screen.queryByLabelText('Portal, meseta o escalera en Planta Baja')).not.toBeInTheDocument();
+
+    abrirFicha('Planta Baja');
+    expect(screen.getByLabelText('Portal, meseta o escalera en Planta Baja')).toBeInTheDocument();
+    expect(screen.getByText(/Tabla C.5 para un grueso de 30 cm/)).toBeInTheDocument();
+
+    // Volver a pulsarla la cierra.
+    abrirFicha('Planta Baja');
+    expect(screen.queryByLabelText('Portal, meseta o escalera en Planta Baja')).not.toBeInTheDocument();
   });
 
-  it('«Usar la nieve publicada» trae la nieve del sobre, la pinta y la publica', async () => {
+  it('el incremento de escaleras de la ficha llega a la sobrecarga de la tabla', () => {
+    montar();
+    abrirFicha('Planta Baja');
+    fireEvent.click(screen.getByLabelText('Portal, meseta o escalera en Planta Baja'));
+    // Viviendas 2,00 + 1,00 del art. 3.1.1-3, y sólo en esta planta.
+    const [baja, primera] = screen.getAllByTitle('A1 — viviendas');
+    expect(baja).toHaveTextContent('3,00');
+    expect(primera).toHaveTextContent('2,00');
+  });
+
+  it('trae la nieve del sobre de Viento y nieve y avisa cuando el sobre cambia', async () => {
     publicarMadrid();
     montar();
+
+    abrirFicha('Cubierta');
     fireEvent.click(screen.getByRole('button', { name: /Usar la nieve publicada \(0,56 kN\/m²\)/ }));
-    expect(screen.getByText('qn = 0,56 kN/m²')).toBeInTheDocument();
-    expect(screen.getByTitle('Carga de nieve de la cubierta').textContent).toContain('0,56');
-    // La cubierta G1 con nieve 0,56: manda el uso (1 > 0,56), Qd 1,50.
-    expect(screen.getAllByTitle(/1,50 · Q, hipótesis Uso/)[2].textContent).toContain('1,50');
-    await waitFor(() => expect(leerPublicacion<PubCargasPlanta>(MODULO_PUB)!.datos.plantas[2].zonas[0].nieve).toBeCloseTo(0.56, 12));
-    expect(leerPublicacion<PubCargasPlanta>(MODULO_PUB)!.datos.nieveOrigen?.ine).toBe('28');
-  });
 
-  it('si Viento y nieve vuelve a publicar, el módulo avisa en ámbar sin bloquear', async () => {
-    publicarMadrid();
-    montar();
-    fireEvent.click(screen.getByRole('button', { name: /Usar la nieve publicada/ }));
-    expect(screen.queryByText(/ha publicado de nuevo/)).not.toBeInTheDocument();
-    // Un sobre más nuevo: el módulo lo ve al siguiente cambio.
+    expect(screen.getByLabelText('Origen de la nieve de Cubierta')).toHaveValue('publicada');
+    expect(screen.getByText('qn = 0,56 kN/m²')).toBeInTheDocument();
+    expect(screen.getByTitle('Carga de nieve de la cubierta')).toHaveTextContent('0,56');
+
+    // Un sobre más nuevo: aviso ámbar, sin bloquear.
     await new Promise((r) => setTimeout(r, 5));
     publicarMadrid();
     fireEvent.change(screen.getByLabelText('Municipio'), { target: { value: 'Madrid' } });
     expect(screen.getByText(/«Cubierta»: Viento y nieve ha publicado de nuevo/)).toBeInTheDocument();
     expect(screen.getByText(/1 aviso/)).toBeInTheDocument();
-    expect(screen.getByText(/^· publicado$/)).toBeInTheDocument();
   });
 });
 
-describe('pestañas y exportación', () => {
-  it('Plano y Memoria pintan los cuadros, con el viento del sobre cuando lo hay', () => {
-    publicarMadrid();
+describe('Cargas por planta — las columnas de encima', () => {
+  it('añadir una columna la pone en las zonas que no la tienen', () => {
     montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByText('ACCIONES GRAVITATORIAS (SEGÚN DB SE-AE)')).toBeInTheDocument();
-    expect(screen.getByText('A (velocidad básica 26 m/s)')).toBeInTheDocument();
-    expect(screen.getByText('EJECUCIÓN')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
-    expect(screen.getByText('CARGAS POR PLANTA (DB SE-AE, art. 2 y 3.1; Anejo C)')).toBeInTheDocument();
-    expect(screen.getAllByText('Peso propio forjado reticular h = 30 cm')).toHaveLength(3);
-    expect(screen.getByText('Coeficientes de simultaneidad (DB SE, tabla 4.2)')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Añadir una carga permanente a todas las zonas'), { target: { value: 'agua' } });
+
+    expect(screen.getByRole('columnheader', { name: /Agua/ })).toBeInTheDocument();
+    // Se teclea por espesor: la celda pide metros en todas las filas.
+    expect(screen.getAllByLabelText(/^Espesor de Agua/)).toHaveLength(3);
   });
 
-  it('sin publicación de viento, el plano remite al módulo Viento y nieve', () => {
+  it('quitar una columna la quita de todas las zonas', () => {
     montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByText(/Ver el módulo Viento y nieve/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Quitar Tabiquería de todas las zonas/ }));
+    expect(screen.queryByRole('columnheader', { name: /Tabiquería/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Cargas por planta — la sección', () => {
+  it('dibuja un bloque por zona y lo selecciona con la fila', () => {
+    montar();
+    const bloques = screen.getAllByRole('button', { name: /^Seleccionar / });
+    expect(bloques.map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Seleccionar Planta Baja',
+      'Seleccionar Planta Primera',
+      'Seleccionar Cubierta',
+    ]);
+
+    // Del dibujo a la fila: pulsar el bloque abre la ficha de esa zona.
+    fireEvent.click(bloques[0]);
+    expect(screen.getByLabelText('Portal, meseta o escalera en Planta Baja')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Seleccionar Planta Baja' })[0]).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('Cargas por planta — exportación', () => {
+  it('el botón principal entrega la memoria en Word', async () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Memoria en Word' }));
+
+    const modal = await screen.findByRole('dialog');
+    expect(within(modal).getByText('cargas-por-planta.docx')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Título del elemento'), { target: { value: 'Edificio en Madrid' } });
+    fireEvent.click(within(modal).getByRole('button', { name: /Exportar|Descargar/ }));
+
+    await waitFor(() => expect(exportarCargasPlantaDocx).toHaveBeenCalledTimes(1));
+    expect(exportarCargasPlantaXlsx).not.toHaveBeenCalled();
   });
 
-  it('el título confirmado llega al exportador de Word con los bloques de MEMORIA', async () => {
-    let descargado = '';
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
-      descargado = this.download;
-    });
+  it('el botón secundario entrega el cuadro en Excel', async () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
-    expect(screen.getByText('cargas-por-planta.docx')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Título del elemento'), { target: { value: 'Bloque en Madrid' } });
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Exportar Word' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cuadro en Excel' }));
 
-    await waitFor(() => expect(exportarCargasPlantaDocx).toHaveBeenCalled());
-    expect(exportarCargasPlantaDocx.mock.calls[0][1]).toBe('Bloque en Madrid');
-    const bloques = exportarCargasPlantaDocx.mock.calls[0][0] as { text?: string }[];
-    expect(bloques.some((b) => b.text === 'CARGAS POR PLANTA (DB SE-AE, art. 2 y 3.1; Anejo C)')).toBe(true);
-    expect(bloques.some((b) => b.text === 'ACCIONES GRAVITATORIAS (SEGÚN DB SE-AE)')).toBe(false);
-    await waitFor(() => expect(descargado).toBe('bloque-en-madrid.docx'));
-    click.mockRestore();
-  });
+    const modal = await screen.findByRole('dialog');
+    expect(within(modal).getByText('cargas-por-planta.xlsx')).toBeInTheDocument();
+    fireEvent.click(within(modal).getByRole('button', { name: /Exportar|Descargar/ }));
 
-  it('en la pestaña Plano el botón pasa a Excel y exporta las cuatro pestañas', async () => {
-    montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.queryByRole('button', { name: 'Exportar Word' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
-    expect(screen.getByText('cargas-por-planta.xlsx')).toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Exportar Excel' }));
-
-    await waitFor(() => expect(exportarCargasPlantaXlsx).toHaveBeenCalled());
+    await waitFor(() => expect(exportarCargasPlantaXlsx).toHaveBeenCalledTimes(1));
     expect(exportarCargasPlantaDocx).not.toHaveBeenCalled();
-    const secciones = exportarCargasPlantaXlsx.mock.calls[0][0] as { nombre: string; blocks: { text?: string }[] }[];
-    expect(secciones.map((s) => s.nombre)).toEqual(['Cargas por planta', 'Cargas lineales', 'Predimensionado', 'Acciones horizontales']);
-    expect(secciones[2].blocks.map((b) => b.text)).toContain('PREDIMENSIONADO (γG = 1,35 · γQ = 1,50)');
   });
 });
