@@ -16,6 +16,7 @@ import { alturaCoronacionEfectiva, cotasPlantas, type VientoUI } from '../state'
 import { Marcadores } from './Marcadores';
 import { COLOR, dec, mezcla } from './paleta';
 import { Cabecera, CotaH, Flecha, PlantaLocalizador, Rotulo, Suelo } from './primitivas';
+import { useFormato } from './useFormato';
 import { useMarcadores } from './useMarcadores';
 import { useMedida } from './useMedida';
 
@@ -35,6 +36,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectPlanta, onDireccion, forceWidth, forceHeight }: Props) {
   const { ref, width, height } = useMedida(forceWidth, forceHeight);
   const m = useMarcadores();
+  const f = useFormato();
 
   const D = direccion.toUpperCase();
   const cotas = cotasPlantas(viento.plantas);
@@ -46,7 +48,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
   const hastialVisible = conCubierta && (viento.cubierta.cumbrera === 'x') === (direccion === 'y');
 
   // ── Escala y sitio ──────────────────────────────────────────────────────
-  const estrecho = width < 640;
+  const estrecho = width < 600;
   const margenIzq = estrecho ? 150 : 200;
   const margenDer = estrecho ? 96 : 130;
   const arriba = 52;
@@ -62,7 +64,8 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
   const dir = resultado ? resultado[direccion] : null;
   const porId = new Map(dir?.plantas.map((p) => [p.id, p]) ?? []);
   const Fmax = dir ? dir.plantas.reduce((a, p) => Math.max(a, p.F), 0) : 0;
-  const largoMax = Math.min(150, margenIzq - 56);
+  // La flecha más larga deja sitio a su rótulo («112,9 kN») a la izquierda.
+  const largoMax = Math.max(40, Math.min(150, bx - 96));
 
   // Bandas tributarias: la de cada forjado va de la mitad de la planta de abajo a la mitad de la de arriba;
   // lo que queda entre la rasante y la mitad de la planta baja se va a cimentación.
@@ -95,7 +98,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
     return alto >= 44 ? 4 : alto >= 26 ? 2 : 1;
   };
 
-  const rotuloDireccion = (eje: 'x' | 'y', r: { Ftotal: number } | null) => `según ${eje.toUpperCase()} · ${r ? `${dec(r.Ftotal, 1)} kN` : '—'}`;
+  const rotuloDireccion = (eje: 'x' | 'y', r: { Ftotal: number } | null) => `según ${eje.toUpperCase()} · ${r ? `${f.fuerza(r.Ftotal)} ${f.uF}` : '—'}`;
   const pct = (r: { fraccion: number; aplicado: boolean } | null | undefined) => (r ? `${dec(r.fraccion * 100, 0)} % (${r.aplicado ? 'sumado' : 'despreciado'})` : '—');
 
   const explicacion: string[] = resultado
@@ -105,9 +108,9 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         `Rozamiento (3.3.2-3): según X ${pct(resultado.x.rozamiento)},`,
         `según Y ${pct(resultado.y.rozamiento)}; se suma si pasa del 10 %.`,
         conCubierta
-          ? `Sobre el último forjado: según Y ${resultado.y.encima?.tipo ?? '—'} +${dec(resultado.y.encima?.F ?? 0, 1)} kN,`
+          ? `Sobre el último forjado: según Y ${resultado.y.encima?.tipo ?? '—'} +${f.fuerza(resultado.y.encima?.F ?? 0)} ${f.uF},`
           : 'Cubierta plana: nada por encima del último forjado.',
-        conCubierta ? `según X ${resultado.x.encima?.tipo ?? '—'} +${dec(resultado.x.encima?.F ?? 0, 1)} kN.` : '',
+        conCubierta ? `según X ${resultado.x.encima?.tipo ?? '—'} +${f.fuerza(resultado.x.encima?.F ?? 0)} ${f.uF}.` : '',
         `Excentricidad del 5 % de b: ${dec(resultado[direccion].excentricidad, 2)} m según ${D}.`,
       ].filter(Boolean)
     : ['Elija la provincia y la altitud en la columna de', 'datos: la norma pone la zona, la presión dinámica', 'y el coeficiente de exposición de cada forjado.', '', 'El edificio ya se dibuja con lo que teclee:', 'alturas, lados en planta y cubierta.'];
@@ -191,22 +194,22 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
               );
             })}
             {zona('H')?.presion != null && (
-              <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.8) - 14} tam={10} mono color={COLOR.presion} ancla="end">
+              <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.5) - 8} tam={10} mono color={COLOR.presion} ancla="end">
                 presión +{dec(zona('H')!.presion!, 2)}
               </Rotulo>
             )}
             {zona('F')?.presion != null && (
-              <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.8) - 2} tam={10} mono color={COLOR.presion} ancla="end">
+              <Rotulo x={bx - 8} y={yz(H + (hc - H) * 0.5) + 4} tam={10} mono color={COLOR.presion} ancla="end">
                 alero +{dec(zona('F')!.presion!, 2)}
               </Rotulo>
             )}
             {zona('J')?.succion != null && (
-              <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.45) - 4} tam={10} mono color={COLOR.accent}>
+              <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) - 8} tam={10} mono color={COLOR.accent}>
                 succión {dec(zona('J')!.succion!, 2)}
               </Rotulo>
             )}
             {zona('I')?.succion != null && (
-              <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.45) + 8} tam={10} mono color={COLOR.accent}>
+              <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) + 4} tam={10} mono color={COLOR.accent}>
                 resto {dec(zona('I')!.succion!, 2)}
               </Rotulo>
             )}
@@ -214,7 +217,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         )}
         {dir?.encima && (
           <Rotulo x={apexX} y={yz(hc) - 8} tam={10} mono color={COLOR.accent} ancla="middle" peso={600}>
-            {dir.encima.tipo}: +{dec(dir.encima.F, 1)} kN a la planta de cubierta
+            {dir.encima.tipo}: +{f.fuerza(dir.encima.F)} {f.uF} a la planta de cubierta
           </Rotulo>
         )}
 
@@ -232,11 +235,11 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
                 <g key={`F-${p.id}`}>
                   <Flecha x1={bx - 8 - L} y1={y} x2={bx - 3} y2={y} punta={m.punta('accent')} color={COLOR.accent} grosor={sel ? 2.5 : 2} />
                   <Rotulo x={bx - 14 - L} y={y - 5} tam={12} mono color={COLOR.accent} ancla="end" peso={600}>
-                    {dec(r.F, 1)} kN
+                    {f.fuerza(r.F)} {f.uF}
                   </Rotulo>
                   {r.Fencima > 0 && (
                     <Rotulo x={bx - 14 - L} y={y + 8} tam={9.5} mono color={COLOR.atenuado} ancla="end">
-                      {dec(r.Fbanda + r.Frozamiento, 1)} + {dec(r.Fencima, 1)}
+                      {f.fuerza(r.Fbanda + r.Frozamiento)} + {f.fuerza(r.Fencima)}
                     </Rotulo>
                   )}
                 </g>
@@ -277,7 +280,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
                     ce {dec(r.ce, 3)}
                   </Rotulo>
                   <Rotulo x={bx + bw + 14} y={y + 35} tam={10} mono color={COLOR.atenuado}>
-                    {dec(r.qe, 3)} kN/m²
+                    {f.presion(r.qe)} {f.uQ}
                   </Rotulo>
                 </>
               )}
@@ -290,8 +293,13 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
               coronación
             </Rotulo>
             <Rotulo x={bx + bw + 14} y={yz(hc) + 17} tam={10} mono color={COLOR.atenuado}>
-              {dec(hc, 2)} m{dir?.encima ? ` · ce ${dec(dir.encima.ce, 3)}` : ''}
+              {dec(hc, 2)} m
             </Rotulo>
+            {dir?.encima && (
+              <Rotulo x={bx + bw + 14} y={yz(hc) + 29} tam={10} mono color={COLOR.atenuado}>
+                ce {dec(dir.encima.ce, 3)}
+              </Rotulo>
+            )}
           </>
         )}
 

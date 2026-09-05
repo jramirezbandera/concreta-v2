@@ -138,7 +138,7 @@ export function PlantaLocalizador({ x, y, dimensiones, cumbrera, direccion, punt
       <rect x={x} y={y} width={w} height={h} fill={COLOR.fondo} stroke={COLOR.seccion} strokeWidth={1.25} />
       {cumbrera === 'x' && <line x1={x} y1={y + h / 2} x2={x + w} y2={y + h / 2} stroke={COLOR.cota} strokeWidth={1} strokeDasharray="4 3" />}
       {cumbrera === 'y' && <line x1={x + w / 2} y1={y} x2={x + w / 2} y2={y + h} stroke={COLOR.cota} strokeWidth={1} strokeDasharray="4 3" />}
-      <Rotulo x={x + w / 2} y={y + h / 2 + 4} tam={9.5} color={COLOR.atenuado} mono ancla="middle">
+      <Rotulo x={x + w / 2} y={y + h - 5} tam={9.5} color={COLOR.atenuado} mono ancla="middle">
         {dec(dimensiones.x, 0)} × {dec(dimensiones.y, 0)} m
       </Rotulo>
       <g {...boton('y')}>

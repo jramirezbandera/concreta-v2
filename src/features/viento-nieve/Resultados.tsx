@@ -274,7 +274,7 @@ function TablaFachadas({ d }: { d: DireccionParamentos }) {
   const { mostrar } = useMostrar();
   return (
     <Tabla
-      caption={`${rotuloParamentos(d)} · d ${dec(d.d, 0)} · b ${dec(d.b, 0)} · h/d ${dec(d.esbeltez, 2)}`}
+      caption={`${rotuloParamentos(d)} · d ${dec(d.d, 0)} · b ${dec(d.b, 0)} m`}
       columnas={['Zona', 'Ancho', 'm²', 'cpe', 'kN/m²']}
       filas={d.zonas.map((z) => ({
         clave: z.zona,

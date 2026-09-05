@@ -27,8 +27,10 @@ import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { VISTAS_LIENZO, type VistaLienzo } from './catalogos';
 import { Datos } from './Datos';
+import { CubiertaSVG } from './lienzo/CubiertaSVG';
 import { EdificioSVG } from './lienzo/EdificioSVG';
-import { LienzoPendiente } from './lienzo/LienzoPendiente';
+import { FachadasSVG } from './lienzo/FachadasSVG';
+import { NieveSVG } from './lienzo/NieveSVG';
 import { Resultados } from './Resultados';
 import {
   cargarEstado,
@@ -230,7 +232,6 @@ export function VientoNieveModule() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const nHuecos = evaluacion.huecos.length;
-  const tituloVista = VISTAS_LIENZO.find((v) => v.id === vista)?.titulo ?? '';
   const cumbrera = state.viento.cubierta.activa ? state.viento.cubierta.cumbrera : null;
   const botonDireccion = (d: 'x' | 'y', etiqueta: string) => (
     <button
@@ -276,12 +277,11 @@ export function VientoNieveModule() {
 
         {/* Lienzo (centro) */}
         <div className={['flex min-w-0 flex-col overflow-hidden', 'lg:flex lg:flex-1', tab === 'diagramas' ? 'flex flex-1' : 'hidden lg:flex'].join(' ')}>
-          <div className="flex shrink-0 flex-wrap items-center border-b border-border-main bg-bg-surface">
-            <div role="group" aria-label="Vistas del lienzo" className="flex">
+          <div className="flex shrink-0 items-center border-b border-border-main bg-bg-surface">
+            <div role="group" aria-label="Vistas del lienzo" className="flex shrink-0">
               <ViewTabs tabs={VISTAS_LIENZO.map((v) => ({ id: v.id, label: v.etiqueta, title: v.titulo }))} active={vista} onSelect={setVista} />
             </div>
-            <div className="flex-1" />
-            <span className="px-3 font-mono text-[11px] text-text-disabled">
+            <span className="min-w-0 flex-1 truncate px-3 text-right font-mono text-[11px] text-text-disabled">
               {evaluacion.viento && evaluacion.nieve ? 'viento y nieve' : evaluacion.viento ? 'viento' : evaluacion.nieve ? 'nieve' : 'sin resultado'}
               {nHuecos > 0 && <span className="text-state-fail">{' · '}falta {frase(evaluacion.huecos)}</span>}
               {evaluacion.errores > 0 && (
@@ -314,7 +314,11 @@ export function VientoNieveModule() {
             {vista === 'edificio' && (
               <EdificioSVG viento={state.viento} resultado={evaluacion.viento} direccion={direccion} plantaSel={plantaSel} onSelectPlanta={setPlantaSel} onDireccion={setDireccionElegida} />
             )}
-            {vista !== 'edificio' && <LienzoPendiente titulo={tituloVista} />}
+            {vista === 'cubierta' && <CubiertaSVG viento={state.viento} cubierta={evaluacion.viento?.cubierta ?? null} direccion={direccion} />}
+            {vista === 'fachadas' && <FachadasSVG viento={state.viento} paramentos={evaluacion.viento?.paramentos ?? null} cumbrera={cumbrera} direccion={direccion} />}
+            {vista === 'nieve' && (
+              <NieveSVG nieve={state.nieve} resultado={evaluacion.nieve} zona={evaluacion.zonas.zonaInvernal} altitud={state.emplazamiento.altitud} faldonSel={faldonSel} onSelectFaldon={setFaldonSel} />
+            )}
 
             {mostrarEjemplo && (
               // Banda de bienvenida sobre el lienzo (patrón de Muros de fábrica):
