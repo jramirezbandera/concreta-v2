@@ -11,12 +11,12 @@
 import type { ParamentosResueltos } from '../../../lib/acciones/viento';
 import type { VientoUI } from '../state';
 import { desarrolloFachadas } from './geometria';
-import { Marcadores } from './Marcadores';
+import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla, rellenoZona } from './paleta';
 import { Cabecera, CotaH, CotaV, Flecha, Rotulo, Suelo } from './primitivas';
 import { useFormato } from './useFormato';
-import { useMarcadores } from './useMarcadores';
-import { useMedida } from './useMedida';
+import { useMarcadores } from '../../../components/canvas/useMarcadores';
+import { useMedida } from '../../../components/canvas/useMedida';
 
 interface Props {
   viento: VientoUI;

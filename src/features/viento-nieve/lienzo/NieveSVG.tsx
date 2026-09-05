@@ -13,12 +13,12 @@ import type { KeyboardEvent } from 'react';
 import { ALTITUDES_TABLA_E2, cargaNieveTerreno, TABLA_E2, type ZonaInvernal } from '../../../lib/acciones';
 import type { FaldonResuelto, NieveResultado } from '../../../lib/acciones/nieve';
 import type { FaldonUI, NieveUI } from '../state';
-import { Marcadores } from './Marcadores';
+import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla } from './paleta';
 import { Cabecera, CotaH, Flecha, Rotulo } from './primitivas';
 import { useFormato } from './useFormato';
-import { useMarcadores } from './useMarcadores';
-import { useMedida } from './useMedida';
+import { useMarcadores } from '../../../components/canvas/useMarcadores';
+import { useMedida } from '../../../components/canvas/useMedida';
 
 interface Props {
   nieve: NieveUI;

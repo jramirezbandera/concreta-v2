@@ -12,12 +12,12 @@
 import type { CubiertaResuelta } from '../../../lib/acciones/viento';
 import type { VientoUI } from '../state';
 import { escalaQueCabe, zonasCubiertaEnPlanta, type RectZonaCubierta } from './geometria';
-import { Marcadores } from './Marcadores';
+import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla, rellenoZona } from './paleta';
 import { Cabecera, CotaH, CotaV, Flecha, Rotulo } from './primitivas';
 import { useFormato } from './useFormato';
-import { useMarcadores } from './useMarcadores';
-import { useMedida } from './useMedida';
+import { useMarcadores } from '../../../components/canvas/useMarcadores';
+import { useMedida } from '../../../components/canvas/useMedida';
 
 interface Props {
   viento: VientoUI;

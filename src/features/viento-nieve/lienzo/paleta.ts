@@ -1,34 +1,20 @@
 /**
- * Colores y escalas de los dibujos de Viento y nieve.
+ * Lo que este módulo añade a la paleta común de los lienzos
+ * (`components/canvas/paleta.ts`): la escala de opacidad del mapa de
+ * presiones.
  *
- * Todo por `var(--color-*)`: los dibujos siguen al tema como el resto de la
- * app y no hay modo PDF que pida literales (el módulo exporta Word y Excel).
  * La presión (hacia dentro) va en naranja —token propio, `--color-chart-
  * presion`— y la succión (hacia fuera) en el acento, con la intensidad en la
  * transparencia. Los colores de estado quedan para el estado: nunca para el
  * mapa de presiones (DESIGN.md).
+ *
+ * Re-exporta `COLOR`, `mezcla`, `dec` y las fuentes para que los cuatro
+ * dibujos del módulo sigan pidiéndole todo a un solo sitio.
  */
 
-export const COLOR = {
-  presion: 'var(--color-chart-presion)',
-  succion: 'var(--color-accent)',
-  accent: 'var(--color-accent)',
-  seccion: 'var(--color-chart-section)',
-  cota: 'var(--color-chart-dim)',
-  cotaTexto: 'var(--color-chart-dim-text)',
-  rotulo: 'var(--color-chart-label)',
-  secundario: 'var(--color-text-secondary)',
-  atenuado: 'var(--color-text-disabled)',
-  borde: 'var(--color-border-main)',
-  fallo: 'var(--color-state-fail)',
-  fondo: 'var(--color-bg-canvas)',
-  superficie: 'var(--color-bg-surface)',
-} as const;
+import { COLOR, mezcla } from '../../../components/canvas/paleta';
 
-/** Un color a un tanto por ciento de opacidad sobre lo que haya debajo. */
-export function mezcla(color: string, porcentaje: number): string {
-  return `color-mix(in srgb, ${color} ${Math.round(porcentaje)}%, transparent)`;
-}
+export { COLOR, mezcla, dec, FUENTE_MONO, FUENTE_SANS } from '../../../components/canvas/paleta';
 
 const ALFA_MIN = 12;
 const ALFA_MAX = 50;
@@ -54,10 +40,3 @@ export function rellenoZona(succion: number | null, presion: number | null, maxi
   const p = presion ?? 0;
   return p >= Math.abs(s) ? rellenoPresion(p, maximo) : rellenoSuccion(s, maximo);
 }
-
-/** Fuente de los rótulos: la mono de la app, heredada por los `<text>` del dibujo. */
-export const FUENTE_MONO = 'var(--font-mono)';
-export const FUENTE_SANS = 'var(--font-sans)';
-
-/** Número con coma decimal, como en toda la interfaz. */
-export const dec = (v: number, n: number): string => v.toFixed(n).replace('.', ',');

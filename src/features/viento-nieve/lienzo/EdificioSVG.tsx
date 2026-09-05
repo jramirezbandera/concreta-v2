@@ -13,12 +13,12 @@
 import type { KeyboardEvent } from 'react';
 import type { VientoResultado } from '../../../lib/acciones/viento';
 import { alturaCoronacionEfectiva, cotasPlantas, type VientoUI } from '../state';
-import { Marcadores } from './Marcadores';
+import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla } from './paleta';
 import { Cabecera, CotaH, Flecha, PlantaLocalizador, Rotulo, Suelo } from './primitivas';
 import { useFormato } from './useFormato';
-import { useMarcadores } from './useMarcadores';
-import { useMedida } from './useMedida';
+import { useMarcadores } from '../../../components/canvas/useMarcadores';
+import { useMedida } from '../../../components/canvas/useMedida';
 
 interface Props {
   viento: VientoUI;
