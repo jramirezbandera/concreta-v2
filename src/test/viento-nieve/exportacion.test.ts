@@ -21,6 +21,7 @@ import {
   seccionesPlanoXlsx,
   TITULO_CUBIERTA_PLANO,
   TITULO_FUERZAS_XLSX,
+  TITULO_PARAMENTOS_PLANO,
   type EmplazamientoCuadro,
 } from '../../lib/acciones/cuadros';
 import { MAX_COLUMNAS, planificarDocx, type BloquePlan } from '../../lib/docx/plan';
@@ -249,5 +250,57 @@ describe('cubierta a dos aguas en las exportaciones', () => {
 
   it('sin cubierta nada cambia', () => {
     expect(seccionesPlanoXlsx(cuadros().plano).map((s) => s.nombre)).toEqual(['Viento', 'Fuerzas por planta', 'Nieve']);
+  });
+});
+
+describe('paramentos verticales en las exportaciones', () => {
+  function conParamentos(cubierta = false) {
+    const s = avila();
+    s.viento.paramentos = { ...s.viento.paramentos, activos: true };
+    if (cubierta) s.viento.cubierta = { ...s.viento.cubierta, activa: true, pendiente: 25 };
+    return s;
+  }
+
+  it('pestaña «Paramentos» detrás de la cubierta y delante de la nieve, con una tabla por dirección', () => {
+    expect(seccionesPlanoXlsx(cuadros(conParamentos(true)).plano).map((s) => s.nombre)).toEqual(['Viento', 'Fuerzas por planta', 'Cubierta', 'Paramentos', 'Nieve']);
+    const secciones = seccionesPlanoXlsx(cuadros(conParamentos()).plano);
+    expect(secciones.map((s) => s.nombre)).toEqual(['Viento', 'Fuerzas por planta', 'Paramentos', 'Nieve']);
+    const par = secciones[2].blocks;
+    expect(textos(par)[0]).toBe(TITULO_PARAMENTOS_PLANO);
+    const tablas = par.filter((b): b is Extract<Block, { kind: 'table' }> => b.kind === 'table');
+    expect(tablas).toHaveLength(2);
+    expect(tablas[0].caption).toMatch(/^Paramentos con viento según X/);
+    expect(tablas[1].caption).toMatch(/^Paramentos con viento según Y/);
+    // Ávila: 20 × 12 y 9 m → según X e = 12 < d = 20 (hay C); según Y e = 18 > d = 12 (no hay C).
+    expect(tablas[0].rows.map((r) => r[0])).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(tablas[1].rows.map((r) => r[0])).toEqual(['A', 'B', 'D', 'E']);
+    expect(textos(secciones[3].blocks)[0]).toBe('NIEVE (SEGÚN DB SE-AE)');
+  });
+
+  it('las etiquetas caben en su columna y ninguna pestaña se dispara de ancho', () => {
+    const secciones = seccionesPlanoXlsx(cuadros(conParamentos(true)).plano);
+    const kv = secciones[3].blocks.find((b) => b.kind === 'kvTable') as { rows: [string, string][] };
+    for (const [etiqueta] of kv.rows) expect(etiqueta.length, etiqueta).toBeLessThanOrEqual(33);
+    for (const s of secciones) {
+      const hoja = planificarHoja(s.blocks, s.nombre);
+      for (const a of hoja.anchos) expect(a).toBeLessThanOrEqual(34);
+      expect(hoja.anchos.reduce((a, b) => a + b, 0)).toBeLessThan(120);
+    }
+  });
+
+  it('la memoria añade su cuadro y dos tablas de siete columnas', () => {
+    const plan = planificarDocx(cuadros(conParamentos()).memoria, 'Ávila');
+    const tablas = plan.bloques.filter((b): b is Extract<BloquePlan, { tipo: 'tabla' }> => b.tipo === 'tabla');
+    expect(tablas).toHaveLength(8);
+    const zonas = tablas.filter((t) => t.caption?.startsWith('Paramentos con viento'));
+    expect(zonas).toHaveLength(2);
+    for (const t of zonas) {
+      expect(t.filas[0].celdas).toHaveLength(7);
+      expect(t.filas[0].celdas[0].texto).toBe('Zona');
+    }
+    const h3 = plan.bloques.filter((b) => b.tipo === 'parrafo' && b.estilo === 'Heading3').map((b) => (b as { texto: string }).texto);
+    expect(h3).toContain('Paramentos verticales — tabla D.3');
+    // Con cubierta y paramentos: 5 + 3 + 3 tablas.
+    expect(planificarDocx(cuadros(conParamentos(true)).memoria, 'Ávila').bloques.filter((b) => b.tipo === 'tabla')).toHaveLength(11);
   });
 });

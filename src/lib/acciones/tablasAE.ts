@@ -353,3 +353,62 @@ export const PENDIENTE_CASI_PLANA = 5;
  * divisores para que e/10 salga exacto.
  */
 export const GEOMETRIA_D6 = { divisorF: 4, divisorBanda: 10, divisorH: 2 };
+
+// ── Paramentos verticales ───────────────────────────────────────────────────
+
+export type ZonaParamento = 'A' | 'B' | 'C' | 'D' | 'E';
+
+export const ZONAS_D3: ZonaParamento[] = ['A', 'B', 'C', 'D', 'E'];
+
+/** Áreas de influencia de las filas de la tabla D.3, m² («≥ 10» y «≤ 1» en los extremos). */
+export const AREAS_TABLA_D3 = [10, 5, 2, 1];
+
+/** Esbelteces h/d de las columnas de cada fila («≤ 0,25» en el extremo). */
+export const ESBELTECES_TABLA_D3 = [5, 1, 0.25];
+
+/**
+ * Tabla D.3 (p. 29): paramentos verticales, −45º < θ < 45º. Por zona, una
+ * fila por área de influencia (10, 5, 2, 1 m²) y en cada una los tres valores
+ * de h/d (5, 1, 0,25). Las comillas del PDF («igual que la casilla de
+ * arriba») están resueltas.
+ */
+export const TABLA_D3: Record<ZonaParamento, number[][]> = {
+  //   h/d:  5     1     0,25          A (m²)
+  A: [
+    [-1.2, -1.2, -1.2], // ≥ 10
+    [-1.3, -1.3, -1.3], // 5
+    [-1.3, -1.3, -1.3], // 2
+    [-1.4, -1.4, -1.4], // ≤ 1
+  ],
+  B: [
+    [-0.8, -0.8, -0.8],
+    [-0.9, -0.9, -0.9],
+    [-1.0, -1.0, -1.0],
+    [-1.1, -1.1, -1.1],
+  ],
+  C: [
+    [-0.5, -0.5, -0.5],
+    [-0.5, -0.5, -0.5],
+    [-0.5, -0.5, -0.5],
+    [-0.5, -0.5, -0.5],
+  ],
+  D: [
+    [0.8, 0.8, 0.7],
+    [0.9, 0.9, 0.8],
+    [0.9, 0.9, 0.7],
+    [1.0, 1.0, 1.0],
+  ],
+  E: [
+    [-0.7, -0.5, -0.3],
+    [-0.7, -0.5, -0.3],
+    [-0.7, -0.5, -0.3],
+    [-0.7, -0.5, -0.3],
+  ],
+};
+
+/**
+ * Figura de la tabla D.3 (p. 29): e = min(b, 2h); en las fachadas paralelas al
+ * viento la zona A mide e/10 desde la arista de barlovento (la EN 1991-1-4
+ * dice e/5: aquí manda el DB), B llega hasta e y C es el resto, d − e.
+ */
+export const GEOMETRIA_D3 = { divisorA: 10 };

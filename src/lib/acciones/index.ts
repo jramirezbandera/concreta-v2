@@ -11,5 +11,6 @@ export * from './provincias';
 export * from './interp';
 export * from './viento';
 export * from './dosAguas';
+export * from './paramentos';
 export * from './nieve';
 export * from './cuadros';

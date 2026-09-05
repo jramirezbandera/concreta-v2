@@ -284,3 +284,48 @@ describe('cubierta a dos aguas', () => {
     expect(t.viento.cubierta).toMatchObject({ activa: true, pendiente: 25, cumbrera: 'y', alturaCoronacion: 12.5, areaModo: 'local' });
   });
 });
+
+describe('paramentos verticales', () => {
+  it('arrancan omitidos y no entran en el motor', () => {
+    const s = madrid();
+    expect(s.viento.paramentos).toEqual({ activos: false, areaModo: 'zona', areaPropia: 5 });
+    expect(entradaViento(s, zonasEfectivas(s.emplazamiento))?.paramentos).toBeUndefined();
+    expect(evaluar(s).viento?.paramentos).toBeNull();
+  });
+
+  it('activos: el área de influencia según el modo', () => {
+    const s = madrid();
+    s.viento.paramentos = { ...s.viento.paramentos, activos: true };
+    const z = zonasEfectivas(s.emplazamiento);
+    expect(entradaViento(s, z)?.paramentos).toEqual({});
+    s.viento.paramentos.areaModo = 'local';
+    expect(entradaViento(s, z)?.paramentos).toEqual({ areaInfluencia: 1 });
+    s.viento.paramentos.areaModo = 'propia';
+    s.viento.paramentos.areaPropia = 3;
+    expect(entradaViento(s, z)?.paramentos).toEqual({ areaInfluencia: 3 });
+  });
+
+  it('se publican dentro del viento, con las zonas de las dos direcciones', () => {
+    const s = madrid();
+    s.viento.paramentos = { ...s.viento.paramentos, activos: true };
+    const ev = evaluar(s);
+    expect(ev.errores).toBe(0);
+    expect(ev.listo).toBe(true);
+    const d = datosPublicacion(s, ev)!;
+    expect(d.viento?.paramentos?.h).toBe(9);
+    expect(d.viento?.paramentos?.x.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(d.viento?.paramentos?.y.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'D', 'E']);
+    expect(d.viento?.paramentos?.areaInfluencia).toBeNull();
+    expect(d.viento?.cubierta).toBeUndefined();
+    const sin = madrid();
+    expect(datosPublicacion(sin, evaluar(sin))!.viento?.paramentos).toBeUndefined();
+  });
+
+  it('normalizar rellena los paramentos que faltan y descarta lo raro', () => {
+    const s = normalizar({ viento: { paramentos: { activos: 'sí', areaModo: 'raro', areaPropia: 'grande' } } });
+    expect(s.viento.paramentos).toEqual({ activos: false, areaModo: 'zona', areaPropia: 5 });
+    expect(normalizar({ viento: {} }).viento.paramentos.activos).toBe(false);
+    const t = normalizar({ viento: { paramentos: { activos: true, areaModo: 'propia', areaPropia: 2.5 } } });
+    expect(t.viento.paramentos).toEqual({ activos: true, areaModo: 'propia', areaPropia: 2.5 });
+  });
+});

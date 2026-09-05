@@ -208,3 +208,23 @@ describe('cubierta a dos aguas', () => {
     expect(screen.getByText(/Cubierta a dos aguas — tabla D\.6/)).toBeInTheDocument();
   });
 });
+
+describe('paramentos verticales', () => {
+  it('incluirlos despliega las zonas de las fachadas en las dos direcciones y las lleva al plano', () => {
+    montar();
+    rellenarMadrid();
+    expect(screen.queryByLabelText('Área de influencia de las fachadas')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Incluir los paramentos verticales' }));
+    expect(screen.getByLabelText('Área de influencia de las fachadas')).toBeInTheDocument();
+    expect(screen.getByText(/Paramentos con viento según X/)).toBeInTheDocument();
+    expect(screen.getByText(/Paramentos con viento según Y/)).toBeInTheDocument();
+    // Madrid 20 × 12 y 9 m: según X hay zona C (e = 12 < d = 20); según Y no (e = 18 > d = 12).
+    expect(screen.getAllByRole('cell', { name: 'E' })).toHaveLength(2);
+    expect(screen.getAllByRole('cell', { name: 'C' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(screen.getByText('PARAMENTOS VERTICALES (SEGÚN DB SE-AE)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
+    expect(screen.getByText('Paramentos verticales — tabla D.3')).toBeInTheDocument();
+  });
+});

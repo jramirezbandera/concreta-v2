@@ -167,3 +167,24 @@ export const PENDIENTE_INICIAL = 20;
 
 /** Área con la que arranca la opción «un elemento con su área», m². */
 export const AREA_PROPIA_INICIAL = 5;
+
+// ── Paramentos verticales ───────────────────────────────────────────────────
+
+/** Anejo D.3-3 para las fachadas: el mismo `AreaModo`, con las palabras de fachada. */
+export const AREA_MODO_PARAMENTOS_OPCIONES: Opcion<AreaModo>[] = [
+  {
+    id: 'zona',
+    etiqueta: 'Cerramientos grandes (área de cada zona)',
+    ayuda: 'Paneles, muros cortina o correas de fachada que abarcan una zona entera: el área de influencia es la de la zona (ancho por altura de fachada) y el coeficiente el de la fila de 10 m² en cuanto la alcanza (Anejo D.3-3).',
+  },
+  {
+    id: 'local',
+    etiqueta: 'Carpinterías, aplacados y anclajes (A ≤ 1 m²)',
+    ayuda: 'Comprobaciones locales de elementos pequeños: la fila de 1 m² de la tabla D.3, la más desfavorable (art. 3.3.4-3).',
+  },
+  {
+    id: 'propia',
+    etiqueta: 'Un elemento con su área',
+    ayuda: 'Teclee el área de asignación de carga del elemento: entre las filas de 1, 2, 5 y 10 m² la norma interpola (Anejo D.3-2).',
+  },
+];

@@ -19,6 +19,7 @@
 
 import type { Block } from '../materiales/cuadros';
 import type { Cpe, DireccionResuelta } from './dosAguas';
+import type { DireccionParamentos } from './paramentos';
 import type { NieveResultado, OrigenSk } from './nieve';
 import {
   ASPEREZAS,
@@ -26,7 +27,7 @@ import {
   type ZonaEolica,
   type ZonaInvernal,
 } from './tablasAE';
-import type { CubiertaResuelta, DireccionViento, OrigenQb, VientoResultado } from './viento';
+import type { CubiertaResuelta, DireccionViento, OrigenQb, ParamentosResueltos, VientoResultado } from './viento';
 
 export interface EmplazamientoCuadro {
   /** Nombre de la provincia. */
@@ -117,6 +118,7 @@ export function cuadroVientoMemoria(r: VientoResultado, e: EmplazamientoCuadro):
     ...tablaDireccion(r.x),
     ...tablaDireccion(r.y),
     ...(r.cubierta ? cuadroCubiertaMemoria(r.cubierta) : []),
+    ...(r.paramentos ? cuadroParamentosMemoria(r.paramentos) : []),
     { kind: 'notes', items: r.notas },
   ];
 }
@@ -225,6 +227,74 @@ function cuadroCubiertaPlano(c: CubiertaResuelta): Block[] {
   return [{ kind: 'heading', level: 2, text: TITULO_CUBIERTA_PLANO }, { kind: 'kvTable', rows }, tabla(c.perpendicular), tabla(c.paralela)];
 }
 
+// ── Paramentos verticales ───────────────────────────────────────────────────
+
+/** «Paramentos con viento según X (h/d = 0,45; e = min(b, 2h) = 12,00 m)». */
+export function rotuloParamentos(d: DireccionParamentos): string {
+  return `Paramentos con viento según ${d.eje.toUpperCase()} (h/d = ${num(d.esbeltez, 2)}; e = min(b, 2h) = ${num(d.e, 2)} m)`;
+}
+
+function tablaParamentosMemoria(d: DireccionParamentos): Block {
+  return {
+    kind: 'table',
+    caption: `${rotuloParamentos(d)} — d = ${num(d.d, 2)} m, b = ${num(d.b, 2)} m`,
+    head: ['Zona', 'Dónde', 'Ancho (m)', 'Área (m²)', 'A (m²)', 'cpe', 'Presión (kN/m²)'],
+    rows: d.zonas.map((z) => [
+      z.zona,
+      `${z.descripcion}${z.piezas > 1 ? ` (×${z.piezas})` : ''}`,
+      num(z.ancho, 2),
+      num(z.area, 2),
+      num(z.A, 1),
+      num(z.cpe, 2),
+      conSigno(z.presion, 3),
+    ]),
+  };
+}
+
+function cuadroParamentosMemoria(p: ParamentosResueltos): Block[] {
+  const rows: [string, string][] = [
+    ['Altura del edificio h', `${num(p.h, 2)} m (la coronación)`],
+    ['Altura de las fachadas', `${num(p.alturaFachada, 2)} m, hasta el último forjado (para las áreas)`],
+    ['Coeficiente de exposición', `ce = ${num(p.ce, 3)} (Anejo D.2, z = h)`],
+    ['Presión de referencia', `qb·ce = ${num(p.qe, 3)} kN/m²`],
+    [
+      'Área de influencia A',
+      p.areaInfluencia === null
+        ? 'la de cada zona (cerramientos grandes, Anejo D.3-3)'
+        : `${num(p.areaInfluencia, 2)} m² (la del elemento comprobado, Anejo D.3-3)`,
+    ],
+    ['Coeficiente adoptado', 'tabla D.3 interpolada en h/d (5, 1, 0,25) y en A (10, 5, 2, 1 m²), Anejo D.3-2'],
+  ];
+  return [
+    { kind: 'heading', level: 3, text: 'Paramentos verticales — tabla D.3' },
+    { kind: 'kvTable', rows },
+    tablaParamentosMemoria(p.x),
+    tablaParamentosMemoria(p.y),
+    {
+      kind: 'paragraph',
+      text: 'Zonas de la figura D.3: D, fachada de barlovento; E, fachada de sotavento; en las dos fachadas paralelas al viento, A los primeros e/10 desde la arista de barlovento, B hasta e y C el resto (d − e).',
+    },
+  ];
+}
+
+export const TITULO_PARAMENTOS_PLANO = 'PARAMENTOS VERTICALES (SEGÚN DB SE-AE)';
+
+/** El bloque de fachadas del plano: tres datos y una tabla por dirección. Etiquetas ≤ 33 caracteres. */
+function cuadroParamentosPlano(p: ParamentosResueltos): Block[] {
+  const rows: [string, string][] = [
+    ['Altura del edificio', `h = ${num(p.h, 2)} m`],
+    ['Presión de referencia', `qb·ce = ${num(p.qe, 3)} kN/m² (ce = ${num(p.ce, 3)})`],
+    ['Coeficientes de presión', p.areaInfluencia === null ? 'tabla D.3; A = la de cada zona' : `tabla D.3; A = ${num(p.areaInfluencia, 2)} m²`],
+  ];
+  const tabla = (d: DireccionParamentos): Block => ({
+    kind: 'table',
+    caption: rotuloParamentos(d),
+    head: ['Zona', 'Ancho (m)', 'cpe', 'Presión (kN/m²)'],
+    rows: d.zonas.map((z) => [z.zona, num(z.ancho, 2), num(z.cpe, 2), conSigno(z.presion, 2)]),
+  });
+  return [{ kind: 'heading', level: 2, text: TITULO_PARAMENTOS_PLANO }, { kind: 'kvTable', rows }, tabla(p.x), tabla(p.y)];
+}
+
 // ── Nieve ───────────────────────────────────────────────────────────────────
 
 export function cuadroNieveMemoria(r: NieveResultado, e: EmplazamientoCuadro): Block[] {
@@ -319,6 +389,7 @@ export function cuadroAccionesPlano(
       },
     );
     if (viento.cubierta) blocks.push(...cuadroCubiertaPlano(viento.cubierta));
+    if (viento.paramentos) blocks.push(...cuadroParamentosPlano(viento.paramentos));
   }
 
   if (nieve) {
@@ -354,7 +425,7 @@ export function cuadroAccionesPlano(
 /**
  * Las pestañas del Excel del plano, por SUSTRACCIÓN de los bloques que se ven
  * en pantalla: viento, la tabla de fuerzas por planta, la cubierta a dos
- * aguas si la hay y nieve, cada uno en la suya. Una columna de Excel tiene un ancho: la columna de valores del bloque
+ * aguas y los paramentos si los hay, y nieve, cada uno en la suya. Una columna de Excel tiene un ancho: la columna de valores del bloque
  * de viento («IV (zona urbana, industrial o forestal)») dejaría estirada la
  * columna «z (m)» de la tabla de fuerzas si compartieran hoja.
  *
@@ -369,11 +440,13 @@ export function seccionesPlanoXlsx(blocks: Block[]): { nombre: string; blocks: B
   const viento: Block[] = [];
   const fuerzas: Block[] = [];
   const cubierta: Block[] = [];
+  const paramentos: Block[] = [];
   const nieve: Block[] = [];
   let actual = viento;
   for (const b of blocks) {
     if (b.kind === 'heading' && b.text === TITULO_NIEVE_PLANO) actual = nieve;
     else if (b.kind === 'heading' && b.text === TITULO_CUBIERTA_PLANO) actual = cubierta;
+    else if (b.kind === 'heading' && b.text === TITULO_PARAMENTOS_PLANO) actual = paramentos;
     else if (b.kind === 'heading' && b.text === TITULO_VIENTO_PLANO) actual = viento;
     if (b.kind === 'table' && b.caption === CAPTION_FUERZAS) {
       if (fuerzas.length === 0) fuerzas.push({ kind: 'heading', level: 2, text: TITULO_FUERZAS_XLSX });
@@ -386,6 +459,7 @@ export function seccionesPlanoXlsx(blocks: Block[]): { nombre: string; blocks: B
     { nombre: 'Viento', blocks: viento },
     { nombre: 'Fuerzas por planta', blocks: fuerzas },
     { nombre: 'Cubierta', blocks: cubierta },
+    { nombre: 'Paramentos', blocks: paramentos },
     { nombre: 'Nieve', blocks: nieve },
   ].filter((s) => s.blocks.length > 0);
 }

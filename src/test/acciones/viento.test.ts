@@ -307,3 +307,44 @@ describe('calcularViento — cubierta a dos aguas', () => {
     expect(r.cubierta!.perpendicular.zonas.every((z) => z.A === 1)).toBe(true);
   });
 });
+
+describe('calcularViento — paramentos verticales', () => {
+  const base = { zona: 'A' as const, aspereza: 'IV' as const, plantas: [{ h: 3 }, { h: 6 }, { h: 9 }], dimensiones: { x: 20, y: 12 } };
+
+  it('sin pedirlos: null', () => {
+    expect(calcularViento(base).paramentos).toBeNull();
+  });
+
+  it('con cubierta plana: h es el último forjado, ce a esa altura, y d/b según el eje del viento', () => {
+    const r = calcularViento({ ...base, paramentos: {} });
+    const p = r.paramentos!;
+    expect(p.h).toBe(9);
+    expect(p.alturaFachada).toBe(9);
+    expect(p.ce).toBeCloseTo(coeficienteExposicion(9, 'IV'), 12);
+    expect(p.qe).toBeCloseTo(0.42 * p.ce, 12);
+    expect(p.x).toMatchObject({ eje: 'x', d: 20, b: 12, e: 12 });
+    expect(p.x.esbeltez).toBeCloseTo(0.45, 12);
+    expect(p.y).toMatchObject({ eje: 'y', d: 12, b: 20, e: 18 });
+    expect(p.x.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(p.y.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'D', 'E']);
+    expect(r.notas.join()).toMatch(/tabla D\.3/);
+    expect(r.errores).toEqual([]);
+    expect(r.cubierta).toBeNull();
+  });
+
+  it('con cubierta a dos aguas: h es la coronación y las áreas siguen midiendo hasta el último forjado', () => {
+    const r = calcularViento({ ...base, cubierta: { pendiente: 20, alturaCoronacion: 11.2, cumbrera: 'x' }, paramentos: {} });
+    const p = r.paramentos!;
+    expect(p.h).toBe(11.2);
+    expect(p.alturaFachada).toBe(9);
+    expect(p.ce).toBeCloseTo(r.cubierta!.ce, 12);
+    expect(p.y.e).toBe(20); // min(20, 22,4)
+  });
+
+  it('el área de influencia tecleada llega a las zonas', () => {
+    const r = calcularViento({ ...base, paramentos: { areaInfluencia: 1 } });
+    expect(r.paramentos!.areaInfluencia).toBe(1);
+    expect([...r.paramentos!.x.zonas, ...r.paramentos!.y.zonas].every((z) => z.A === 1)).toBe(true);
+    expect(r.paramentos!.x.zonas[0].cpe).toBeCloseTo(-1.4, 12);
+  });
+});

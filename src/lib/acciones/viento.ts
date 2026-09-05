@@ -25,6 +25,7 @@
  */
 
 import { calcularDosAguas, type DosAguasResultado } from './dosAguas';
+import { calcularParamentos, type ParamentosResultado } from './paramentos';
 import { interpolar } from './interp';
 import {
   ALTITUD_MAX_VIENTO,
@@ -62,6 +63,12 @@ export interface CubiertaDosAguasInput {
   areaInfluencia?: number;
 }
 
+/** Presiones por zonas de las fachadas (tabla D.3), para las comprobaciones locales. */
+export interface ParamentosVientoInput {
+  /** Área de influencia del elemento comprobado, m². Si falta, la de cada zona. */
+  areaInfluencia?: number;
+}
+
 export interface VientoInput {
   zona: ZonaEolica;
   /**
@@ -77,6 +84,8 @@ export interface VientoInput {
   dimensiones: { x: number; y: number };
   /** Cubierta a dos aguas, para las presiones por zonas de la tabla D.6. Sin ella, cubierta plana. */
   cubierta?: CubiertaDosAguasInput;
+  /** Paramentos verticales por zonas de la tabla D.3, si se piden. */
+  paramentos?: ParamentosVientoInput;
 }
 
 // ── Salida ──────────────────────────────────────────────────────────────────
@@ -121,6 +130,9 @@ export interface DireccionViento {
 /** La cubierta resuelta, con el ce de su coronación y a qué eje va la cumbrera. */
 export type CubiertaResuelta = DosAguasResultado & { ce: number; cumbrera: 'x' | 'y' };
 
+/** Los paramentos resueltos, con el ce de la altura del edificio. */
+export type ParamentosResueltos = ParamentosResultado & { ce: number };
+
 export interface VientoResultado {
   qb: number;
   qbOrigen: OrigenQb;
@@ -134,6 +146,8 @@ export interface VientoResultado {
   y: DireccionViento;
   /** Presiones por zonas de la cubierta a dos aguas (Anejo D.6); null con cubierta plana. */
   cubierta: CubiertaResuelta | null;
+  /** Presiones por zonas de las fachadas (tabla D.3); null si no se piden. */
+  paramentos: ParamentosResueltos | null;
   /** Recordatorios normativos que van a la memoria tal cual. */
   notas: string[];
   /** Cosas que el usuario debe mirar; no bloquean. */
@@ -303,6 +317,24 @@ export function calcularViento(input: VientoInput): VientoResultado {
     cubierta = { ...r, ce, cumbrera: c.cumbrera };
   }
 
+  // Los paramentos: h es la del edificio (la coronación si hay cubierta
+  // inclinada) y las áreas se miden hasta el último forjado.
+  let paramentos: ParamentosResueltos | null = null;
+  if (input.paramentos) {
+    const h = input.cubierta ? input.cubierta.alturaCoronacion : H;
+    const ce = coeficienteExposicion(h, input.aspereza);
+    const r = calcularParamentos({
+      h,
+      alturaFachada: H,
+      dimensiones: input.dimensiones,
+      qe: qb * ce,
+      ...(input.paramentos.areaInfluencia !== undefined ? { areaInfluencia: input.paramentos.areaInfluencia } : {}),
+    });
+    errores.push(...r.errores);
+    avisos.push(...r.avisos);
+    paramentos = { ...r, ce };
+  }
+
   if (origen === 'simplificado') {
     notas.push('Presión dinámica simplificada de 0,5 kN/m², válida en cualquier punto del territorio (art. 3.3.2-1).');
   }
@@ -318,6 +350,7 @@ export function calcularViento(input: VientoInput): VientoResultado {
   } else {
     notas.push('En cubierta plana la acción del viento, generalmente de succión, opera del lado de la seguridad y se puede despreciar (art. 3.3.4-2).');
   }
+  if (paramentos) notas.push(...paramentos.notas);
   notas.push('La cubierta recibe sólo la media planta inferior: petos y casetones se añaden a mano.');
 
   return {
@@ -330,6 +363,7 @@ export function calcularViento(input: VientoInput): VientoResultado {
     x,
     y,
     cubierta,
+    paramentos,
     notas,
     avisos,
     errores,

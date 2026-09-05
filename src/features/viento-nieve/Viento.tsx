@@ -19,6 +19,7 @@ import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { ASPEREZA_OPCIONES, QB_MODO_OPCIONES, type QbModo } from './catalogos';
 import { Cubierta } from './Cubierta';
+import { Paramentos } from './Paramentos';
 import { alturaCoronacionDerivada, type PlantaUI, type VientoUI } from './state';
 
 const INPUT =
@@ -238,6 +239,13 @@ export function Viento({ v, resultado, motivoSinResultado, ayuda, onCambiar, onP
             hDerivada={alturaCoronacionDerivada(v)}
             ayuda={ayuda}
             onCambiar={(cambio) => onCambiar({ cubierta: { ...v.cubierta, ...cambio } })}
+          />
+
+          <Paramentos
+            v={v}
+            resultado={resultado?.paramentos ?? null}
+            ayuda={ayuda}
+            onCambiar={(cambio) => onCambiar({ paramentos: { ...v.paramentos, ...cambio } })}
           />
 
           {motivoSinResultado && <p className="px-4 pb-3 text-[12px] text-state-fail">{motivoSinResultado}</p>}
