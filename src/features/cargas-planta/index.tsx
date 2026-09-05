@@ -44,6 +44,8 @@ import { useCotasFilas } from './useCotasFilas';
 import {
   cargarEstado,
   duplicarPlanta,
+  ejemploCargasState,
+  esEstadoInicial,
   evaluar,
   guardarEstado,
   nuevaZona,
@@ -54,6 +56,18 @@ import {
   type PlantaUI,
   type ZonaUI,
 } from './state';
+
+// Persistencia del aviso «¿Quiere ver un caso de ejemplo?»: una vez aceptado
+// o descartado, la banda no vuelve a aparecer (patrón de Muros de fábrica).
+const EJEMPLO_DESCARTADO_KEY = 'concreta-cargas-planta-example-dismissed';
+
+function leerDescartado(): boolean {
+  try {
+    return localStorage.getItem(EJEMPLO_DESCARTADO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type FormatoId = 'docx' | 'xlsx';
 
@@ -82,6 +96,8 @@ export function CargasPlantaModule() {
 
   // Estado de interfaz: no se guarda, no entra en el cálculo.
   const [zonaSel, setZonaSel] = useState<string | null>(null);
+  const [descartado, setDescartado] = useState(leerDescartado);
+  const mostrarEjemplo = !descartado && esEstadoInicial(state);
   // La sección dibuja cada forjado a la altura de su fila; las cotas se miden
   // SOBRE LA TABLA, no sobre la mesa entera: si el dibujo estuviera dentro de
   // lo medido, crecer lo haría crecer otra vez.
@@ -136,6 +152,20 @@ export function CargasPlantaModule() {
   const guardarComoObra = () => {
     const e = state.emplazamiento;
     setObra(guardarObra({ provincia: e.provincia, municipio: e.municipio, altitud: e.altitud }));
+  };
+
+  const descartarEjemplo = () => {
+    setDescartado(true);
+    try {
+      localStorage.setItem(EJEMPLO_DESCARTADO_KEY, '1');
+    } catch {
+      /* modo privado: la banda vuelve la próxima vez, sin más */
+    }
+  };
+  const verEjemplo = () => {
+    descartarEjemplo();
+    setZonaSel(null);
+    actualizar(() => ejemploCargasState());
   };
 
   // ── Exportación: dos salidas, cada una con su botón ───────────────────────
@@ -247,6 +277,27 @@ export function CargasPlantaModule() {
 
       <div className="scroll-hide min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4">
+          {mostrarEjemplo && (
+            <div role="region" aria-label="Aviso de caso de ejemplo" className="flex flex-col gap-2 rounded border border-accent/40 bg-accent/5 px-3 py-2 md:flex-row md:flex-wrap md:items-center md:gap-x-3">
+              <span className="shrink-0 font-mono text-[10px] uppercase text-accent" style={{ letterSpacing: '0.07em' }}>
+                Empiece por las plantas
+              </span>
+              <p className="text-[12px] leading-snug text-text-secondary md:min-w-0 md:flex-1">
+                Cada fila es una planta: diga qué forjado tiene, qué hay encima y para qué se usa. La norma pone el resto
+                en azul y la sección de la derecha lo dibuja. ¿Prefiere ver un caso completo? Carga un edificio de
+                viviendas en Aranda de Duero con un vaso de piscina en planta baja.
+              </p>
+              <div className="flex shrink-0 gap-1.5">
+                <button type="button" onClick={verEjemplo} className="cursor-pointer rounded border border-accent bg-accent/10 px-2.5 py-1 font-mono text-[11px] text-accent transition-colors hover:bg-accent/15">
+                  Ver ejemplo
+                </button>
+                <button type="button" onClick={descartarEjemplo} className="cursor-pointer rounded border border-border-main px-2.5 py-1 font-mono text-[11px] text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary">
+                  Descartar
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* La mesa: la tabla y, a su derecha, la sección alineada con sus filas. */}
           <div className={estrecho ? 'flex min-w-0 flex-col gap-3' : 'flex min-w-0 items-start'}>
             <div ref={refTabla} className="min-w-0 flex-1">
@@ -269,6 +320,16 @@ export function CargasPlantaModule() {
                   })
                 }
                 onBorrarPlanta={(id) => cambiarPlantas((plantas) => plantas.filter((x) => x.id !== id))}
+                onMoverPlanta={(id, sentido) =>
+                  cambiarPlantas((plantas) => {
+                    const i = plantas.findIndex((x) => x.id === id);
+                    const j = i + sentido;
+                    if (i < 0 || j < 0 || j >= plantas.length) return plantas;
+                    const siguiente = [...plantas];
+                    [siguiente[i], siguiente[j]] = [siguiente[j], siguiente[i]];
+                    return siguiente;
+                  })
+                }
                 onAnadirZona={(plantaId) =>
                   cambiarPlantas((plantas) => plantas.map((x) => (x.id === plantaId ? { ...x, zonas: [...x.zonas, nuevaZona(x.esCubierta, `Zona ${x.zonas.length + 1}`)] } : x)))
                 }

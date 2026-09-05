@@ -64,7 +64,7 @@ function publicarMadrid() {
 
 /** La fila de una zona por su nombre de planta; abrirla enseña su ficha. */
 const filaDe = (planta: string) => screen.getByLabelText('Nombre de la planta', { selector: `input[value="${planta}"]` }).closest('tr') as HTMLTableRowElement;
-const abrirFicha = (planta: string) => fireEvent.click(within(filaDe(planta)).getByText('toda la planta'));
+const abrirFicha = (planta: string) => fireEvent.click(within(filaDe(planta)).getByText('toda'));
 
 beforeEach(() => {
   localStorage.clear();
@@ -117,7 +117,7 @@ describe('Cargas por planta — la tabla', () => {
     expect(pp).toHaveValue('6,2');
 
     // Con valor propio, la fila ofrece volver a la norma.
-    fireEvent.click(screen.getAllByRole('button', { name: 'usar el de la norma' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Usar el peso propio de la norma en Planta Baja' }));
     expect(screen.getByLabelText('Peso propio de Planta Baja')).toHaveValue('5');
   });
 
@@ -153,7 +153,7 @@ describe('Cargas por planta — la ficha de la fila', () => {
     abrirFicha('Planta Baja');
     fireEvent.click(screen.getByLabelText('Portal, meseta o escalera en Planta Baja'));
     // Viviendas 2,00 + 1,00 del art. 3.1.1-3, y sólo en esta planta.
-    const [baja, primera] = screen.getAllByTitle('A1 — viviendas');
+    const [primera, baja] = screen.getAllByTitle('A1 — viviendas');
     expect(baja).toHaveTextContent('3,00');
     expect(primera).toHaveTextContent('2,00');
   });
@@ -199,16 +199,17 @@ describe('Cargas por planta — la sección', () => {
   it('dibuja un bloque por zona y lo selecciona con la fila', () => {
     montar();
     const bloques = screen.getAllByRole('button', { name: /^Seleccionar / });
+    // En el orden de la tabla, que es el de la sección: de la cubierta abajo.
     expect(bloques.map((b) => b.getAttribute('aria-label'))).toEqual([
-      'Seleccionar Planta Baja',
-      'Seleccionar Planta Primera',
       'Seleccionar Cubierta',
+      'Seleccionar Planta Primera',
+      'Seleccionar Planta Baja',
     ]);
 
     // Del dibujo a la fila: pulsar el bloque abre la ficha de esa zona.
-    fireEvent.click(bloques[0]);
+    fireEvent.click(bloques[2]);
     expect(screen.getByLabelText('Portal, meseta o escalera en Planta Baja')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Seleccionar Planta Baja' })[0]).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Seleccionar Planta Baja' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

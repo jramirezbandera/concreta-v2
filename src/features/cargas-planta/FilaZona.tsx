@@ -11,7 +11,7 @@
  * no compartan nombre accesible.
  */
 
-import { Copy, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, Trash2 } from 'lucide-react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { TipoForjado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import { HIPOTESIS_TEXTO } from '../../lib/acciones/cuadrosCargas';
@@ -43,6 +43,10 @@ interface Props {
   onDuplicarPlanta: () => void;
   onBorrarPlanta: () => void;
   onAnadirZona: () => void;
+  /** Mover la planta en el orden de la tabla, que es el orden de la sección. */
+  onMoverPlanta: (sentido: -1 | 1) => void;
+  puedeSubir: boolean;
+  puedeBajar: boolean;
 }
 
 /** Un valor que pone la norma: azul, mono, sin caja. */
@@ -71,12 +75,16 @@ export function FilaZona({
   onDuplicarPlanta,
   onBorrarPlanta,
   onAnadirZona,
+  onMoverPlanta,
+  puedeSubir,
+  puedeBajar,
 }: Props) {
   const { system } = useUnitSystem();
   const mostrar = (v: number) => dec(toDisplay(v, 'areaLoad', system), getPrecision('areaLoad', system));
   const nZonas = planta.zonas.length;
   const primera = indice === 0;
   const uso = USO_OPCIONES.find((o) => o.id === z.uso.categoria);
+  const forjado = FORJADO_OPCIONES.find((o) => o.id === z.forjado.tipo);
   const sinCanto = z.forjado.tipo === 'madera' || z.forjado.tipo === 'otro';
   const huecoPP = r?.forjado.ppOrigen === 'sinDato';
   const tinte = seleccionada ? SELECCION : undefined;
@@ -90,12 +98,13 @@ export function FilaZona({
     if (c.porEspesor !== null) {
       return (
         <span className="flex flex-col items-end gap-0.5">
-          <RawNumberInput value={p?.espesor ?? 0} onChange={(espesor) => onZona({ permanentes: ponerEspesor(z, c, espesor).permanentes })} ariaLabel={`Espesor de ${etiqueta}`} unit="m" min={0} widthClass="w-10" />
+          <RawNumberInput value={p ? (p.espesor ?? 0) : NaN} onChange={(espesor) => onZona({ permanentes: ponerEspesor(z, c, espesor).permanentes })} ariaLabel={`Espesor de ${etiqueta}`} unit="m" min={0} widthClass="w-10" />
           {p && <span className="font-mono text-[9px] text-accent">= {mostrar(p.valor)}</span>}
         </span>
       );
     }
-    return <RawNumberInput value={p?.valor ?? 0} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />;
+    // Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y pesa cero.
+    return <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />;
   };
 
   return (
@@ -129,6 +138,26 @@ export function FilaZona({
                 <button type="button" onClick={onAnadirZona} className="rounded px-1 text-[10px] text-text-secondary hover:text-text-primary" title="Otra parte de la misma planta con distinto uso o forjado">
                   + zona
                 </button>
+                <button
+                  type="button"
+                  onClick={() => onMoverPlanta(-1)}
+                  disabled={!puedeSubir}
+                  aria-label={`Subir ${planta.nombre || 'la planta'}`}
+                  title="Subirla en la tabla y en la sección"
+                  className="rounded p-0.5 text-text-disabled hover:text-text-primary disabled:opacity-30"
+                >
+                  <ChevronUp size={12} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onMoverPlanta(1)}
+                  disabled={!puedeBajar}
+                  aria-label={`Bajar ${planta.nombre || 'la planta'}`}
+                  title="Bajarla en la tabla y en la sección"
+                  className="rounded p-0.5 text-text-disabled hover:text-text-primary disabled:opacity-30"
+                >
+                  <ChevronDown size={12} aria-hidden="true" />
+                </button>
                 <button type="button" onClick={onDuplicarPlanta} aria-label={`Duplicar ${planta.nombre || 'la planta'}`} title="Duplicar la planta" className="rounded p-0.5 text-text-disabled hover:text-text-primary">
                   <Copy size={12} aria-hidden="true" />
                 </button>
@@ -144,7 +173,9 @@ export function FilaZona({
       {/* Zona */}
       <td className={TD}>
         {nZonas === 1 && !z.nombre ? (
-          <span className="text-[11px] text-text-disabled">toda la planta</span>
+          <span className="whitespace-nowrap text-[11px] text-text-disabled" title="Toda la planta: no tiene partes con distinto uso o forjado">
+            toda
+          </span>
         ) : (
           <input type="text" value={z.nombre} aria-label={`Nombre de la zona de ${planta.nombre || 'la planta'}`} placeholder="Zona" className={INPUT} onClick={(ev) => ev.stopPropagation()} onChange={(ev) => onZona({ nombre: ev.target.value })} />
         )}
@@ -152,10 +183,10 @@ export function FilaZona({
 
       {/* Forjado */}
       <td className={TD} onClick={(ev) => ev.stopPropagation()}>
-        <select value={z.forjado.tipo} aria-label={`Tipo de forjado de ${quien}`} className={INPUT} onChange={(ev) => cambiarTipo(ev.target.value as TipoForjado)}>
+        <select value={z.forjado.tipo} aria-label={`Tipo de forjado de ${quien}`} title={forjado?.etiqueta} className={INPUT} onChange={(ev) => cambiarTipo(ev.target.value as TipoForjado)}>
           {FORJADO_OPCIONES.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.etiqueta}
+            <option key={o.id} value={o.id} title={o.ayuda}>
+              {o.corta ?? o.etiqueta}
             </option>
           ))}
         </select>
@@ -181,13 +212,22 @@ export function FilaZona({
             sinCanto ? (
               <span className="font-mono text-[8.5px] text-text-disabled">tecleado</span>
             ) : (
-              <button type="button" onClick={() => onZona({ forjado: { ...z.forjado, ppManual: null } })} className="font-mono text-[8.5px] text-text-disabled underline decoration-dotted hover:text-text-secondary">
-                usar el de la norma
+              <button
+                type="button"
+                onClick={() => onZona({ forjado: { ...z.forjado, ppManual: null } })}
+                aria-label={`Usar el peso propio de la norma en ${quien}`}
+                title="usar el de la norma"
+                className="font-mono text-[8.5px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
+              >
+                ↺ norma
               </button>
             )
           ) : (
-            <span className="font-mono text-[8.5px] text-accent" title="Peso propio del forjado">
-              {r?.forjado.ppOrigen === 'densidad' ? '25 · canto' : r?.forjado.ppOrigen === 'tablaC5' ? 'tabla C.5' : 'tecléelo'}
+            <span
+              className="whitespace-nowrap font-mono text-[8.5px] text-accent"
+              title={r?.forjado.ppOrigen === 'densidad' ? 'Peso propio del forjado · 25 kN/m³ por el canto (tabla C.1)' : 'Peso propio del forjado · tabla C.5'}
+            >
+              {r?.forjado.ppOrigen === 'densidad' ? '25·h' : r?.forjado.ppOrigen === 'tablaC5' ? 'tabla C.5' : 'tecléelo'}
             </span>
           )}
         </span>
@@ -203,10 +243,10 @@ export function FilaZona({
       {/* Uso */}
       <td className={TD} onClick={(ev) => ev.stopPropagation()}>
         <div className="flex items-center gap-1">
-          <select value={z.uso.categoria} aria-label={`Uso de ${quien}`} className={INPUT} onChange={(ev) => onZona({ uso: { ...z.uso, categoria: ev.target.value as ZonaUI['uso']['categoria'] } })}>
+          <select value={z.uso.categoria} aria-label={`Uso de ${quien}`} title={uso?.etiqueta} className={INPUT} onChange={(ev) => onZona({ uso: { ...z.uso, categoria: ev.target.value as ZonaUI['uso']['categoria'] } })}>
             {USO_OPCIONES.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.etiqueta}
+              <option key={o.id} value={o.id} title={o.etiqueta}>
+                {o.corta ?? o.etiqueta}
               </option>
             ))}
           </select>
@@ -225,7 +265,7 @@ export function FilaZona({
           {!planta.esCubierta ? (
             <span className="font-mono text-[11px] text-text-disabled">—</span>
           ) : planta.nieve.modo === 'ninguna' ? (
-            <span className="text-[10px] text-text-disabled underline decoration-dotted" title={nievePubHay ? 'Abra la ficha de la fila para tomar la nieve publicada' : 'Viento y nieve todavía no ha publicado'}>
+            <span className="whitespace-nowrap text-[10px] text-text-disabled underline decoration-dotted" title={nievePubHay ? 'Abra la ficha de la fila para tomar la nieve publicada' : 'Viento y nieve todavía no ha publicado'}>
               sin nieve
             </span>
           ) : (

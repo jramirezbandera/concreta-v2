@@ -210,6 +210,56 @@ export function defaultCargasState(): CargasState {
   };
 }
 
+/**
+ * El caso de ejemplo que ofrece la banda de bienvenida: un edificio de
+ * viviendas en Aranda de Duero con un vaso de piscina en planta baja, que es
+ * el que enseña de una vez las tres cosas que este módulo hace y el formulario
+ * no dejaba ver: dos zonas en la misma planta, un peso propio tecleado que
+ * pisa al de la norma, y la nieve de una cubierta. Los números son los del
+ * cuadro del estudio: 12,45 en vivienda, 11,63 en cubierta y 25,95 en el vaso.
+ *
+ * Las plantas van de la cubierta a la planta baja, que es el orden en que se
+ * dibuja la sección y en el que se leen los cuadros del plano.
+ */
+export function ejemploCargasState(): CargasState {
+  const cubierta = nuevaPlanta('Cubierta', true);
+  const segunda = nuevaPlanta('Planta Segunda');
+  const primera = nuevaPlanta('Planta Primera');
+  const baja = nuevaPlanta('Planta Baja');
+  const vivienda = { ...baja.zonas[0], nombre: 'Vivienda' };
+  const piscina: ZonaUI = {
+    ...nuevaZona(false, 'Vaso piscina'),
+    forjado: { tipo: 'losa', canto: 20, ppManual: null },
+    permanentes: [nuevoPermanente('agua', 1.2)],
+  };
+  return {
+    emplazamiento: { provincia: '09', municipio: 'Aranda de Duero', altitud: 800 },
+    plantas: [
+      cubierta,
+      // Un peso propio tecleado, el del programa de cálculo, que pisa al de la tabla C.5.
+      { ...segunda, zonas: [{ ...segunda.zonas[0], forjado: { ...segunda.zonas[0].forjado, ppManual: 4.8 } }] },
+      primera,
+      { ...baja, zonas: [vivienda, piscina] },
+    ],
+    lineales: [nuevoLineal('fachada'), nuevoLineal('peto')],
+    ayuda: true,
+  };
+}
+
+/**
+ * ¿El edificio sigue tal cual arranca? Sólo mira las plantas y sus zonas: el
+ * emplazamiento se hereda de la obra y no dice nada de si el usuario ha
+ * empezado. Sirve para ofrecer el ejemplo sin estorbar a quien ya trabaja.
+ */
+export function esEstadoInicial(s: CargasState): boolean {
+  return (
+    s.plantas.length === PLANTAS_INICIALES.length &&
+    s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && p.zonas.length === 1) &&
+    s.plantas.every((p) => p.zonas[0].forjado.ppManual === null && p.zonas[0].forjado.tipo === 'reticular') &&
+    s.lineales.length === 1
+  );
+}
+
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

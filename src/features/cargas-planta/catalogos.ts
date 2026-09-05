@@ -26,6 +26,11 @@ export interface Opcion<T extends string> {
   id: T;
   etiqueta: string;
   ayuda: string;
+  /**
+   * Nombre corto para la celda de la tabla, donde no cabe la etiqueta entera.
+   * La etiqueta larga sigue siendo la del desplegable abierto y la ayuda.
+   */
+  corta?: string;
 }
 
 const kNm2 = (v: number) => `${String(v).replace('.', ',')} kN/m²`;
@@ -33,20 +38,20 @@ const q = (fila: FilaTabla31) => kNm2(TABLA_3_1[fila].uniforme);
 
 /** Tabla 3.1, preguntada como «¿Para qué se usa esta planta?». */
 export const USO_OPCIONES: Opcion<CategoriaUso | 'otro'>[] = [
-  { id: 'A1', etiqueta: 'Viviendas, habitaciones de hotel u hospital — A1', ayuda: `${TABLA_3_1.A1.descripcion}: ${q('A1')} (tabla 3.1). Es el caso habitual en edificación residencial.` },
-  { id: 'A2', etiqueta: 'Trasteros — A2', ayuda: `${TABLA_3_1.A2.descripcion}: ${q('A2')} (tabla 3.1).` },
-  { id: 'B', etiqueta: 'Oficinas y despachos — B', ayuda: `${TABLA_3_1.B.descripcion}: ${q('B')} (tabla 3.1).` },
-  { id: 'C1', etiqueta: 'Cafeterías, restaurantes, aulas (mesas y sillas) — C1', ayuda: `${TABLA_3_1.C1.descripcion}: ${q('C1')} (tabla 3.1).` },
-  { id: 'C2', etiqueta: 'Salones de actos, iglesias, cines (asientos fijos) — C2', ayuda: `${TABLA_3_1.C2.descripcion}: ${q('C2')} (tabla 3.1).` },
-  { id: 'C3', etiqueta: 'Vestíbulos, pasillos y zonas de paso públicas — C3', ayuda: `${TABLA_3_1.C3.descripcion}: ${q('C3')} (tabla 3.1).` },
-  { id: 'C4', etiqueta: 'Gimnasios y salas de actividades físicas — C4', ayuda: `${TABLA_3_1.C4.descripcion}: ${q('C4')} (tabla 3.1).` },
-  { id: 'C5', etiqueta: 'Salas de conciertos, estadios, aglomeraciones — C5', ayuda: `${TABLA_3_1.C5.descripcion}: ${q('C5')} (tabla 3.1).` },
-  { id: 'D1', etiqueta: 'Locales comerciales — D1', ayuda: `${TABLA_3_1.D1.descripcion}: ${q('D1')} (tabla 3.1).` },
-  { id: 'D2', etiqueta: 'Supermercados y grandes superficies — D2', ayuda: `${TABLA_3_1.D2.descripcion}: ${q('D2')} (tabla 3.1).` },
-  { id: 'E', etiqueta: 'Garaje de vehículos ligeros — E', ayuda: `${TABLA_3_1.E.descripcion}: ${q('E')} y una carga concentrada de ${TABLA_3_1.E.concentrada} kN (tabla 3.1).` },
-  { id: 'F', etiqueta: 'Terraza transitable privada — F', ayuda: `${TABLA_3_1.F.descripcion}: ${q('F')} (tabla 3.1). Si el acceso es público, la sobrecarga es la de la zona desde la que se accede (nota 2); en todo caso los coeficientes ψ son los de ese uso.` },
-  { id: 'G', etiqueta: 'Cubierta no transitable (sólo conservación) — G', ayuda: `${q('G1')} hasta 20º de inclinación, nada a partir de 40º e interpolado entre medias; ${q('G1ligera')} si es una cubierta ligera sobre correas sin forjado (tabla 3.1, notas 3 y 5). No es concomitante con la nieve ni con el viento (nota 7).` },
-  { id: 'otro', etiqueta: 'Otro uso: un valor propio', ayuda: 'Almacenes, bibliotecas, equipos pesados, centros de transformación, helipuertos: la norma remite al suministrador o a la propiedad y obliga a consignar el valor adoptado en la memoria (art. 3.1-2 y 3.1.1-5).' },
+  { id: 'A1', etiqueta: 'Viviendas, habitaciones de hotel u hospital — A1', ayuda: `${TABLA_3_1.A1.descripcion}: ${q('A1')} (tabla 3.1). Es el caso habitual en edificación residencial.`, corta: 'Viviendas' },
+  { id: 'A2', etiqueta: 'Trasteros — A2', ayuda: `${TABLA_3_1.A2.descripcion}: ${q('A2')} (tabla 3.1).`, corta: 'Trasteros' },
+  { id: 'B', etiqueta: 'Oficinas y despachos — B', ayuda: `${TABLA_3_1.B.descripcion}: ${q('B')} (tabla 3.1).`, corta: 'Oficinas' },
+  { id: 'C1', etiqueta: 'Cafeterías, restaurantes, aulas (mesas y sillas) — C1', ayuda: `${TABLA_3_1.C1.descripcion}: ${q('C1')} (tabla 3.1).`, corta: 'Mesas y sillas' },
+  { id: 'C2', etiqueta: 'Salones de actos, iglesias, cines (asientos fijos) — C2', ayuda: `${TABLA_3_1.C2.descripcion}: ${q('C2')} (tabla 3.1).`, corta: 'Asientos fijos' },
+  { id: 'C3', etiqueta: 'Vestíbulos, pasillos y zonas de paso públicas — C3', ayuda: `${TABLA_3_1.C3.descripcion}: ${q('C3')} (tabla 3.1).`, corta: 'Vestíbulos y pasos' },
+  { id: 'C4', etiqueta: 'Gimnasios y salas de actividades físicas — C4', ayuda: `${TABLA_3_1.C4.descripcion}: ${q('C4')} (tabla 3.1).`, corta: 'Gimnasios' },
+  { id: 'C5', etiqueta: 'Salas de conciertos, estadios, aglomeraciones — C5', ayuda: `${TABLA_3_1.C5.descripcion}: ${q('C5')} (tabla 3.1).`, corta: 'Aglomeración' },
+  { id: 'D1', etiqueta: 'Locales comerciales — D1', ayuda: `${TABLA_3_1.D1.descripcion}: ${q('D1')} (tabla 3.1).`, corta: 'Locales comerciales' },
+  { id: 'D2', etiqueta: 'Supermercados y grandes superficies — D2', ayuda: `${TABLA_3_1.D2.descripcion}: ${q('D2')} (tabla 3.1).`, corta: 'Grandes superficies' },
+  { id: 'E', etiqueta: 'Garaje de vehículos ligeros — E', ayuda: `${TABLA_3_1.E.descripcion}: ${q('E')} y una carga concentrada de ${TABLA_3_1.E.concentrada} kN (tabla 3.1).`, corta: 'Garaje' },
+  { id: 'F', etiqueta: 'Terraza transitable privada — F', ayuda: `${TABLA_3_1.F.descripcion}: ${q('F')} (tabla 3.1). Si el acceso es público, la sobrecarga es la de la zona desde la que se accede (nota 2); en todo caso los coeficientes ψ son los de ese uso.`, corta: 'Terraza privada' },
+  { id: 'G', etiqueta: 'Cubierta no transitable (sólo conservación) — G', ayuda: `${q('G1')} hasta 20º de inclinación, nada a partir de 40º e interpolado entre medias; ${q('G1ligera')} si es una cubierta ligera sobre correas sin forjado (tabla 3.1, notas 3 y 5). No es concomitante con la nieve ni con el viento (nota 7).`, corta: 'Sólo conservación' },
+  { id: 'otro', etiqueta: 'Otro uso: un valor propio', ayuda: 'Almacenes, bibliotecas, equipos pesados, centros de transformación, helipuertos: la norma remite al suministrador o a la propiedad y obliga a consignar el valor adoptado en la memoria (art. 3.1-2 y 3.1.1-5).', corta: 'Valor propio' },
 ];
 
 /** Para un uso adoptado: con qué fila de la tabla 4.2 van sus ψ. */
@@ -61,13 +66,13 @@ export const FAMILIA_PSI_OPCIONES: Opcion<FamiliaPsi>[] = [
 
 /** «¿Qué forjado tiene?», con el peso propio que propondrá la app. */
 export const FORJADO_OPCIONES: Opcion<TipoForjado>[] = [
-  { id: 'reticular', etiqueta: 'Reticular (casetones)', ayuda: 'Forjado bidireccional de nervios y casetones. La tabla C.5 da 4 kN/m² por debajo de 30 cm y 5 por debajo de 35; si tiene el peso del programa o del fabricante, tecléelo.' },
-  { id: 'losa', etiqueta: 'Losa maciza', ayuda: 'Hormigón armado macizo: 25 kN/m³ por el canto (tabla C.1). Una losa de 30 cm pesa 7,5 kN/m².' },
-  { id: 'unidireccional', etiqueta: 'Unidireccional (viguetas y bovedillas)', ayuda: 'Viguetas con bovedillas y capa de compresión. La tabla C.5 da 3 kN/m² hasta 5 m de luz y canto menor de 28 cm, y 4 por debajo de 30 cm.' },
-  { id: 'chapa', etiqueta: 'Chapa colaborante', ayuda: 'Chapa grecada con capa de hormigón. La tabla C.5 da 2 kN/m² por debajo de 12 cm; para cantos mayores teclee el peso del fabricante.' },
-  { id: 'solera', etiqueta: 'Solera sobre terreno', ayuda: 'Losa de hormigón apoyada en el terreno: 25 kN/m³ por el canto. Una solera de 30 cm pesa 7,5 kN/m².' },
-  { id: 'madera', etiqueta: 'Madera (viguetas y tablero)', ayuda: 'La norma no da un valor: teclee el peso propio de viguetas y tablero.' },
-  { id: 'otro', etiqueta: 'Otro o existente', ayuda: 'Un forjado existente o de otro tipo: teclee su peso propio.' },
+  { id: 'reticular', etiqueta: 'Reticular (casetones)', ayuda: 'Forjado bidireccional de nervios y casetones. La tabla C.5 da 4 kN/m² por debajo de 30 cm y 5 por debajo de 35; si tiene el peso del programa o del fabricante, tecléelo.', corta: 'Reticular' },
+  { id: 'losa', etiqueta: 'Losa maciza', ayuda: 'Hormigón armado macizo: 25 kN/m³ por el canto (tabla C.1). Una losa de 30 cm pesa 7,5 kN/m².', corta: 'Losa maciza' },
+  { id: 'unidireccional', etiqueta: 'Unidireccional (viguetas y bovedillas)', ayuda: 'Viguetas con bovedillas y capa de compresión. La tabla C.5 da 3 kN/m² hasta 5 m de luz y canto menor de 28 cm, y 4 por debajo de 30 cm.', corta: 'Unidireccional' },
+  { id: 'chapa', etiqueta: 'Chapa colaborante', ayuda: 'Chapa grecada con capa de hormigón. La tabla C.5 da 2 kN/m² por debajo de 12 cm; para cantos mayores teclee el peso del fabricante.', corta: 'Chapa' },
+  { id: 'solera', etiqueta: 'Solera sobre terreno', ayuda: 'Losa de hormigón apoyada en el terreno: 25 kN/m³ por el canto. Una solera de 30 cm pesa 7,5 kN/m².', corta: 'Solera' },
+  { id: 'madera', etiqueta: 'Madera (viguetas y tablero)', ayuda: 'La norma no da un valor: teclee el peso propio de viguetas y tablero.', corta: 'Madera' },
+  { id: 'otro', etiqueta: 'Otro o existente', ayuda: 'Un forjado existente o de otro tipo: teclee su peso propio.', corta: 'Otro o existente' },
 ];
 
 /** Canto con el que arranca cada tipo, cm. */
@@ -129,11 +134,15 @@ export const NIEVE_MODO_OPCIONES: Opcion<NieveModo>[] = [
   { id: 'manual', etiqueta: 'Un valor propio', ayuda: 'Teclee la carga de nieve en proyección horizontal, kN/m².' },
 ];
 
-/** Plantas con las que arranca un edificio nuevo. */
+/**
+ * Plantas con las que arranca un edificio nuevo, de arriba abajo: es el orden
+ * en que las dibuja la sección y en el que se lee un cuadro de acciones en el
+ * plano. Las flechas de cada planta lo cambian.
+ */
 export const PLANTAS_INICIALES: { nombre: string; esCubierta: boolean }[] = [
-  { nombre: 'Planta Baja', esCubierta: false },
-  { nombre: 'Planta Primera', esCubierta: false },
   { nombre: 'Cubierta', esCubierta: true },
+  { nombre: 'Planta Primera', esCubierta: false },
+  { nombre: 'Planta Baja', esCubierta: false },
 ];
 
 /** Lo que hay encima del forjado en una planta nueva, por tipo de planta. */

@@ -14,13 +14,17 @@ import { exportarCargasPlantaDocx } from '../../lib/docx/cargasPlanta';
 import { documentoDeBloques } from '../../lib/docx/render';
 import { exportarCargasPlantaXlsx } from '../../lib/xlsx/cargasPlanta';
 
+/** La planta por su nombre: el orden del arranque es cosa de los catálogos. */
+const planta = (s: CargasState, nombre: string) => s.plantas.find((p) => p.nombre === nombre)!;
+
 /** Madrid con nieve en la cubierta y una piscina en planta baja. */
 function madrid(): CargasState {
   const s = defaultCargasState();
   s.emplazamiento = { provincia: '28', municipio: 'Madrid', altitud: 660 };
-  s.plantas[2].nieve = { modo: 'manual', valor: 0.56, tsPub: null, inePub: null, faldon: null };
-  s.plantas[0].zonas.push({
-    ...s.plantas[0].zonas[0],
+  planta(s, 'Cubierta').nieve = { modo: 'manual', valor: 0.56, tsPub: null, inePub: null, faldon: null };
+  const baja = planta(s, 'Planta Baja');
+  baja.zonas.push({
+    ...baja.zonas[0],
     id: 'piscina',
     nombre: 'Vaso piscina',
     forjado: { tipo: 'losa', canto: 30, ppManual: null },
@@ -71,7 +75,7 @@ describe('ficheros de verdad', () => {
   it('el estado real llega al cuadro: la piscina con 16 de agua y la cubierta con nieve', () => {
     const { ev, plano } = cuadros();
     expect(ev.errores).toBe(0);
-    const piscina = ev.resultado.plantas[0].zonas[1];
+    const piscina = ev.resultado.plantas.find((p) => p.nombre === 'Planta Baja')!.zonas[1];
     expect(piscina.rotulo).toBe('Planta Baja (Vaso piscina)');
     expect(piscina.forjado.pp).toBe(7.5);
     expect(piscina.G).toBe(23.5);

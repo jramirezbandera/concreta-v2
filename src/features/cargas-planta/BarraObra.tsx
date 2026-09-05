@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { Obra } from '../../lib/obra';
 import { PROVINCIA_OPCIONES } from '../viento-nieve/catalogos';
-import { BOTON_MENOR, INPUT_ANCHO } from './estilos';
+import { BOTON_MENOR, INPUT_SUELTO } from './estilos';
 import type { Emplazamiento } from './state';
 
 interface Props {
@@ -36,7 +36,7 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
       <select
         value={e.provincia}
         aria-label="Provincia"
-        className={INPUT_ANCHO + ' w-36 shrink-0'}
+        className={INPUT_SUELTO + ' w-36 shrink-0'}
         onChange={(ev) => onCambiar({ provincia: ev.target.value })}
       >
         <option value="">Sin decir</option>
@@ -52,7 +52,7 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
         value={e.municipio}
         aria-label="Municipio"
         placeholder="Se imprime en el cuadro"
-        className={INPUT_ANCHO + ' w-44 shrink-0'}
+        className={INPUT_SUELTO + ' w-44 shrink-0'}
         onChange={(ev) => onCambiar({ municipio: ev.target.value })}
       />
 

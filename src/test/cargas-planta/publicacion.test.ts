@@ -12,11 +12,15 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+/** La planta por su nombre: el orden del arranque es cosa de los catálogos. */
+const planta = <T extends { nombre: string }>(ps: T[], nombre: string) => ps.find((p) => p.nombre === nombre)!;
+
 function datos() {
   const s = defaultCargasState();
   s.emplazamiento = { provincia: '28', municipio: 'Madrid', altitud: 660 };
-  s.plantas[2].nieve = { modo: 'manual', valor: 0.56, tsPub: null, inePub: null, faldon: null };
-  s.plantas[0].zonas[0].uso = { ...s.plantas[0].zonas[0].uso, escalera: true, balcon: true };
+  planta(s.plantas, 'Cubierta').nieve = { modo: 'manual', valor: 0.56, tsPub: null, inePub: null, faldon: null };
+  const baja = planta(s.plantas, 'Planta Baja');
+  baja.zonas[0].uso = { ...baja.zonas[0].uso, escalera: true, balcon: true };
   return datosPublicacion(s, evaluar(s, null))!;
 }
 
@@ -36,12 +40,12 @@ describe('hechos, no prosa', () => {
 
   it('viaja ya derivado: peso propio de la norma, sumas, ψ y qd, sin que el consumidor tenga el motor', () => {
     const d = datos();
-    const baja = d.plantas[0].zonas[0];
+    const baja = planta(d.plantas, 'Planta Baja').zonas[0];
     expect(baja.pp).toBe(5);
     expect(baja.qUso).toBe(3); // A1 con escaleras: 2 + 1
     expect(baja.psi).toEqual({ psi0: 0.7, psi1: 0.5, psi2: 0.3 });
     expect(baja.qd).toBeCloseTo(1.35 * 7 + 1.5 * 3, 12);
-    const cubierta = d.plantas[2].zonas[0];
+    const cubierta = planta(d.plantas, 'Cubierta').zonas[0];
     expect(cubierta).toMatchObject({ categoria: 'G', fila: 'G1', qUso: 1, nieve: 0.56 });
     expect(cubierta.Qd).toBeCloseTo(1.5, 12);
     expect(d.nieveOrigen).toBeNull();

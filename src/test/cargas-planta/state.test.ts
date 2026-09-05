@@ -48,25 +48,34 @@ function publicarMadrid() {
   publicarVN(vn, evaluarVN(vn));
 }
 
+/** Las plantas por su nombre: el orden del arranque es cosa de los catálogos. */
+const planta = <T extends { nombre: string }>(ps: T[], nombre: string) => ps.find((p) => p.nombre === nombre)!;
+const CUBIERTA = 'Cubierta';
+const BAJA = 'Planta Baja';
+const PRIMERA = 'Planta Primera';
+
 describe('estado por defecto', () => {
   it('sin obra guardada, el emplazamiento queda vacío: nada de municipio fantasma', () => {
     const s = defaultCargasState();
     expect(s.emplazamiento).toEqual({ provincia: '', municipio: '', altitud: null });
+    // De arriba abajo, que es como las dibuja la sección y como se lee un plano.
     expect(s.plantas.map((p) => [p.nombre, p.esCubierta])).toEqual([
-      ['Planta Baja', false],
-      ['Planta Primera', false],
       ['Cubierta', true],
+      ['Planta Primera', false],
+      ['Planta Baja', false],
     ]);
-    expect(s.plantas[0].zonas).toHaveLength(1);
-    expect(s.plantas[0].zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30, ppManual: null });
-    expect(s.plantas[0].zonas[0].permanentes.map((c) => [c.concepto, c.valor])).toEqual([
+    const baja = planta(s.plantas, BAJA);
+    const cubierta = planta(s.plantas, CUBIERTA);
+    expect(baja.zonas).toHaveLength(1);
+    expect(baja.zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30, ppManual: null });
+    expect(baja.zonas[0].permanentes.map((c) => [c.concepto, c.valor])).toEqual([
       ['Solado cerámico, de madera o hidráulico', 1],
       ['Tabiquería', 1],
     ]);
-    expect(s.plantas[0].zonas[0].uso.categoria).toBe('A1');
-    expect(s.plantas[2].zonas[0].uso.categoria).toBe('G');
-    expect(s.plantas[2].zonas[0].permanentes.map((c) => c.valor)).toEqual([2.5]);
-    expect(s.plantas[2].nieve.modo).toBe('ninguna');
+    expect(baja.zonas[0].uso.categoria).toBe('A1');
+    expect(cubierta.zonas[0].uso.categoria).toBe('G');
+    expect(cubierta.zonas[0].permanentes.map((c) => c.valor)).toEqual([2.5]);
+    expect(cubierta.nieve.modo).toBe('ninguna');
     expect(s.lineales.map((l) => [l.concepto, l.valor])).toEqual([['Cerramiento de fachada', 7]]);
     expect(s.ayuda).toBe(true);
   });
@@ -95,22 +104,23 @@ describe('estado por defecto', () => {
 describe('traducción al motor', () => {
   it('altitud, nieve sólo en cubiertas con modo, ppManual y los campos del uso según la categoría', () => {
     const s = sevilla();
-    s.plantas[2].nieve = { modo: 'manual', valor: 0.4, tsPub: null, inePub: null, faldon: null };
-    s.plantas[0].zonas[0].forjado.ppManual = 4.49;
-    s.plantas[1].zonas[0].uso = { ...s.plantas[1].zonas[0].uso, categoria: 'otro', qkManual: 35, psiComo: 'D' };
+    planta(s.plantas, CUBIERTA).nieve = { modo: 'manual', valor: 0.4, tsPub: null, inePub: null, faldon: null };
+    planta(s.plantas, BAJA).zonas[0].forjado.ppManual = 4.49;
+    const primera = planta(s.plantas, PRIMERA);
+    primera.zonas[0].uso = { ...primera.zonas[0].uso, categoria: 'otro', qkManual: 35, psiComo: 'D' };
     const e = entradaMotor(s);
     expect(e.altitud).toBe(10);
-    expect(e.plantas[2].nieve).toBe(0.4);
-    expect(e.plantas[0].nieve).toBeUndefined();
-    expect(e.plantas[0].zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30, ppManual: 4.49 });
-    expect(e.plantas[1].zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30 });
-    expect(e.plantas[1].zonas[0].uso).toEqual({ categoria: 'otro', qkManual: 35, psiComo: 'D', escalera: false, balcon: false });
-    expect(e.plantas[2].zonas[0].uso).toEqual({ categoria: 'G', inclinacion: 0, ligera: false, escalera: false, balcon: false });
+    expect(planta(e.plantas, CUBIERTA).nieve).toBe(0.4);
+    expect(planta(e.plantas, BAJA).nieve).toBeUndefined();
+    expect(planta(e.plantas, BAJA).zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30, ppManual: 4.49 });
+    expect(planta(e.plantas, PRIMERA).zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30 });
+    expect(planta(e.plantas, PRIMERA).zonas[0].uso).toEqual({ categoria: 'otro', qkManual: 35, psiComo: 'D', escalera: false, balcon: false });
+    expect(planta(e.plantas, CUBIERTA).zonas[0].uso).toEqual({ categoria: 'G', inclinacion: 0, ligera: false, escalera: false, balcon: false });
     expect(e.lineales).toEqual([{ id: s.lineales[0].id, concepto: 'Cerramiento de fachada', valor: 7 }]);
     s.emplazamiento.altitud = null;
-    s.plantas[2].nieve.modo = 'ninguna';
+    planta(s.plantas, CUBIERTA).nieve.modo = 'ninguna';
     expect(entradaMotor(s).altitud).toBeUndefined();
-    expect(entradaMotor(s).plantas[2].nieve).toBeUndefined();
+    expect(planta(entradaMotor(s).plantas, CUBIERTA).nieve).toBeUndefined();
   });
 });
 
@@ -119,16 +129,16 @@ describe('evaluar', () => {
     const ev = evaluar(sevilla(), null);
     expect(ev.errores).toBe(0);
     expect(ev.listo).toBe(true);
-    const baja = ev.resultado.plantas[0].zonas[0];
+    const baja = planta(ev.resultado.plantas, BAJA).zonas[0];
     expect(baja.forjado).toMatchObject({ pp: 5, ppOrigen: 'tablaC5' });
     expect(baja.G).toBe(7);
     expect(baja.qd).toBeCloseTo(9.45 + 3, 12);
-    expect(ev.resultado.plantas[2].zonas[0].uso.fila).toBe('G1');
+    expect(planta(ev.resultado.plantas, CUBIERTA).zonas[0].uso.fila).toBe('G1');
   });
 
   it('un error del motor bloquea y sin plantas no hay nada que publicar', () => {
     const s = sevilla();
-    s.plantas[0].zonas[0].forjado = { tipo: 'madera', canto: 0, ppManual: null };
+    planta(s.plantas, BAJA).zonas[0].forjado = { tipo: 'madera', canto: 0, ppManual: null };
     const ev = evaluar(s, null);
     expect(ev.errores).toBe(1);
     expect(ev.listo).toBe(false);
@@ -171,7 +181,7 @@ describe('la nieve del sobre de Viento y nieve', () => {
     const pub: NievePublicada = { ts: '2026-09-05T10:00:00.000Z', ine: '28', municipio: 'Madrid', provincia: 'Madrid', qnMax: 0.56, faldones: [{ nombre: 'Cubierta', inclinacion: 0, qn: 0.56 }] };
     const s = sevilla();
     s.emplazamiento.provincia = '28';
-    s.plantas[2].nieve = nieveDesdePublicacion(pub, 'Cubierta');
+    planta(s.plantas, CUBIERTA).nieve = nieveDesdePublicacion(pub, 'Cubierta');
     expect(avisosNieve(s, pub)).toEqual([]);
 
     const masNuevo = { ...pub, ts: '2026-09-06T10:00:00.000Z' };
@@ -192,19 +202,19 @@ describe('la nieve del sobre de Viento y nieve', () => {
     s.emplazamiento.provincia = '';
     expect(avisosNieve(s, otraObra)).toEqual([]);
     // Nieve manual o sin nieve: nada que avisar.
-    s.plantas[2].nieve = { modo: 'manual', valor: 1, tsPub: null, inePub: null, faldon: null };
+    planta(s.plantas, CUBIERTA).nieve = { modo: 'manual', valor: 1, tsPub: null, inePub: null, faldon: null };
     expect(avisosNieve(s, null)).toEqual([]);
   });
 
   it('los avisos de nieve cuentan como avisos de la evaluación y no bloquean', () => {
     const s = sevilla();
     s.emplazamiento.provincia = '28';
-    s.plantas[2].nieve = { modo: 'publicada', valor: 0.56, tsPub: '2026-09-05T10:00:00.000Z', inePub: '28', faldon: null };
+    planta(s.plantas, CUBIERTA).nieve = { modo: 'publicada', valor: 0.56, tsPub: '2026-09-05T10:00:00.000Z', inePub: '28', faldon: null };
     const ev = evaluar(s, null);
     expect(ev.avisosNieve).toHaveLength(1);
     expect(ev.avisos).toBe(1);
     expect(ev.listo).toBe(true);
-    expect(ev.resultado.plantas[2].zonas[0].nieve).toBe(0.56);
+    expect(planta(ev.resultado.plantas, CUBIERTA).zonas[0].nieve).toBe(0.56);
   });
 });
 
@@ -213,7 +223,7 @@ describe('publicación', () => {
     publicarMadrid();
     const s = sevilla();
     s.emplazamiento = { provincia: '28', municipio: 'Madrid', altitud: 660 };
-    s.plantas[2].nieve = nieveDesdePublicacion(leerNievePublicada()!);
+    planta(s.plantas, CUBIERTA).nieve = nieveDesdePublicacion(leerNievePublicada()!);
     const ev = evaluar(s);
     publicarResultado(s, ev);
     const pub = leerPublicacion<ReturnType<typeof datosPublicacion>>(MODULO_PUB, PUB_VERSION);
@@ -221,12 +231,12 @@ describe('publicación', () => {
     expect(pub!.obra).toEqual({ municipio: 'Madrid', provincia: 'Madrid', ine: '28' });
     const d = pub!.datos!;
     expect(d).toMatchObject({ provincia: 'Madrid', provinciaIne: '28', municipio: 'Madrid', altitud: 660, gamma: { G: 1.35, Q: 1.5, A: 1 } });
-    expect(d.plantas.map((p) => p.nombre)).toEqual(['Planta Baja', 'Planta Primera', 'Cubierta']);
-    expect(d.plantas[0].zonas[0]).toMatchObject({ nombre: null, forjado: { tipo: 'reticular', canto: 30 }, pp: 5, resto: 2, G: 7, categoria: 'A1', fila: 'A1', qUso: 2, qkConcentrada: 2, nieve: null, psi: { psi0: 0.7, psi1: 0.5, psi2: 0.3 } });
-    expect(d.plantas[0].zonas[0].qd).toBeCloseTo(12.45, 12);
-    expect(d.plantas[2].zonas[0].nieve).toBeCloseTo(0.56, 12);
+    expect(d.plantas.map((p) => p.nombre)).toEqual(['Cubierta', 'Planta Primera', 'Planta Baja']);
+    expect(planta(d.plantas, BAJA).zonas[0]).toMatchObject({ nombre: null, forjado: { tipo: 'reticular', canto: 30 }, pp: 5, resto: 2, G: 7, categoria: 'A1', fila: 'A1', qUso: 2, qkConcentrada: 2, nieve: null, psi: { psi0: 0.7, psi1: 0.5, psi2: 0.3 } });
+    expect(planta(d.plantas, BAJA).zonas[0].qd).toBeCloseTo(12.45, 12);
+    expect(planta(d.plantas, CUBIERTA).zonas[0].nieve).toBeCloseTo(0.56, 12);
     expect(d.lineales).toEqual([{ concepto: 'Cerramiento de fachada', gk: 7, Gd: 9.450000000000001 }]);
-    expect(d.nieveOrigen).toEqual({ ts: s.plantas[2].nieve.tsPub, ine: '28' });
+    expect(d.nieveOrigen).toEqual({ ts: planta(s.plantas, CUBIERTA).nieve.tsPub, ine: '28' });
   });
 
   it('sin provincia el sobre va sin obra, y lo que no está listo no pisa lo anterior', () => {
@@ -235,7 +245,7 @@ describe('publicación', () => {
     const antes = leerPublicacion(MODULO_PUB);
     expect(antes!.obra).toEqual({ municipio: null, provincia: null, ine: null });
     const roto = defaultCargasState();
-    roto.plantas[0].zonas[0].forjado = { tipo: 'otro', canto: 0, ppManual: null };
+    planta(roto.plantas, BAJA).zonas[0].forjado = { tipo: 'otro', canto: 0, ppManual: null };
     expect(datosPublicacion(roto, evaluar(roto, null))).toBeNull();
     publicarResultado(roto, evaluar(roto, null));
     expect(leerPublicacion(MODULO_PUB)).toEqual(antes);
