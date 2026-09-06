@@ -52,7 +52,7 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
         value={e.municipio}
         aria-label="Municipio"
         placeholder="Municipio"
-        title="Se imprime en el cuadro y viaja en la publicación"
+        title="No entra en el cálculo: viaja en la publicación para que los demás módulos sepan de qué obra es"
         className={INPUT_SUELTO + ' w-44 shrink-0'}
         onChange={(ev) => onCambiar({ municipio: ev.target.value })}
       />

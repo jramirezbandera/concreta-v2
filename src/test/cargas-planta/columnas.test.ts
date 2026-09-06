@@ -128,6 +128,22 @@ describe('la columna entera', () => {
     expect(claves(despues)).toEqual(['cat:solado', 'cat:tabiqueria', 'cat:cubierta-grava']);
   });
 
+  it('una carga añadida a toda la obra cae la ÚLTIMA, aunque la primera fila tenga menos cargas', () => {
+    // El edificio como arranca: la cubierta (sólo grava) la primera.
+    const plantas = [nuevaPlanta('Cubierta', true), nuevaPlanta('Planta Primera'), nuevaPlanta('Planta Baja')];
+    expect(claves(plantas)).toEqual(['cat:cubierta-grava', 'cat:solado', 'cat:tabiqueria']);
+    expect(claves(anadirColumna(plantas, 'agua'))).toEqual(['cat:cubierta-grava', 'cat:solado', 'cat:tabiqueria', 'cat:agua']);
+    expect(claves(anadirColumna(plantas, 'otro')).slice(0, 3)).toEqual(['cat:cubierta-grava', 'cat:solado', 'cat:tabiqueria']);
+  });
+
+  it('teclear en la celda de una zona que no llevaba la columna la deja en su sitio, no la manda al final', () => {
+    const plantas = obra();
+    const columnas = columnasEncima(plantas);
+    const solado = columnas.find((c) => c.clave === 'cat:solado')!;
+    plantas[2].zonas[0] = ponerEnCelda(plantas[2].zonas[0], solado, 1, columnas);
+    expect(claves(plantas)).toEqual(['cat:solado', 'cat:tabiqueria', 'cat:cubierta-grava']);
+  });
+
   it('quitarla la quita de todas las zonas', () => {
     const despues = quitarColumna(obra(), 'cat:solado');
     expect(claves(despues)).toEqual(['cat:tabiqueria', 'cat:cubierta-grava']);
@@ -140,6 +156,36 @@ describe('la columna entera', () => {
     expect(permanenteDe(despues[1].zonas[0], 'cat:tabiqueria')?.concepto).toBe('Tabiquería y falso techo');
     // La cubierta no la lleva: no se le añade por renombrar.
     expect(permanenteDe(despues[2].zonas[0], 'cat:tabiqueria')).toBeUndefined();
+  });
+
+  it('«Otra carga permanente» estrena UNA columna, la misma en todas las zonas', () => {
+    // Antes cada zona estrenaba la suya y salían tantas columnas como zonas.
+    const despues = anadirColumna(obra(), 'otro');
+    const libres = claves(despues).filter((c) => c.startsWith('col:'));
+    expect(libres).toHaveLength(1);
+    for (const p of despues) expect(permanenteDe(p.zonas[0], libres[0])).toMatchObject({ concepto: '', valor: 0, catalogoId: null });
+    // Y una segunda es otra columna, no la misma.
+    expect(claves(anadirColumna(despues, 'otro')).filter((c) => c.startsWith('col:'))).toHaveLength(2);
+  });
+
+  it('renombrar una columna libre no la parte ni la mueve, ni siquiera al vaciar el nombre', () => {
+    const conLibre = anadirColumna(obra(), 'otro');
+    const [clave] = claves(conLibre).filter((c) => c.startsWith('col:'));
+    const conNombre = renombrarColumna(conLibre, clave, 'Falso techo');
+    expect(claves(conNombre)).toEqual(claves(conLibre));
+    expect(columnasEncima(conNombre).find((c) => c.clave === clave)).toMatchObject({ etiqueta: 'Falso techo', concepto: 'Falso techo' });
+    const vacia = renombrarColumna(conNombre, clave, '');
+    expect(claves(vacia)).toEqual(claves(conLibre));
+    expect(columnasEncima(vacia).find((c) => c.clave === clave)).toMatchObject({ etiqueta: 'Sin nombre', concepto: '' });
+  });
+
+  it('teclear en la celda vacía de una columna libre la crea en esa zona con la misma identidad', () => {
+    const plantas = anadirColumna(obra(), 'otro');
+    const col = columnasEncima(plantas).find((c) => c.columna !== null)!;
+    const sinElla = ponerEnCelda(plantas[0].zonas[0], col, null);
+    expect(permanenteDe(sinElla, col.clave)).toBeUndefined();
+    const otraVez = ponerEnCelda(sinElla, col, 0.4);
+    expect(permanenteDe(otraVez, col.clave)).toMatchObject({ valor: 0.4, columna: col.columna, catalogoId: null });
   });
 
   it('ninguna operación toca las zonas de otras plantas por referencia', () => {

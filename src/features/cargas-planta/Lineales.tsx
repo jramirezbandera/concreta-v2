@@ -55,7 +55,15 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[12px]">
+        {/* Anchos fijos: con el reparto automático la papelera se llevaba 130 px
+            y el valor quedaba lejos de su cabecera. El nombre se queda con el resto. */}
+        <table className="w-full table-fixed border-collapse text-[12px]">
+          <colgroup>
+            <col />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 44 }} />
+          </colgroup>
           <thead>
             <tr>
               <th className={TH}>Elemento</th>

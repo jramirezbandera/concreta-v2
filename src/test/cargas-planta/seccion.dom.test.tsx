@@ -105,6 +105,16 @@ describe('la sección', () => {
     expect(onSeleccionar).toHaveBeenCalledTimes(1);
   });
 
+  it('el rótulo de la fachada se recorta a lo que cabe en su alto', () => {
+    // Con sitio, entero; sin sitio (fachada de unos 45 px), sólo el valor.
+    const { unmount } = pintar();
+    expect(screen.getByText('Cerramiento de fachada 7,0 kN/m')).toBeInTheDocument();
+    unmount();
+    pintar({ height: 200 });
+    expect(screen.queryByText(/Cerramiento/)).not.toBeInTheDocument();
+    expect(screen.getByText('7,0 kN/m')).toBeInTheDocument();
+  });
+
   it('sin plantas no dibuja edificio, pero sigue siendo un dibujo con su título', () => {
     const vacio = { ...resultado(), plantas: [] };
     pintar({ resultado: vacio });

@@ -45,6 +45,22 @@ interface Props {
 const esPeto = (concepto: string) => /peto|barandilla/i.test(concepto);
 const esFachada = (concepto: string) => /cerramiento|fachada|tabic|tabique|vidrio|muro/i.test(concepto);
 
+/** Ancho de un carácter del rótulo de fachada: mono de 8 px. */
+const ANCHO_CARACTER = 4.8;
+
+/**
+ * El rótulo que corre por la fachada, recortado a lo que cabe en su alto: con
+ * tres plantas «Cerramiento de fachada 7,0 kN/m» mide más que la fachada y
+ * asomaba por encima de la cubierta y por debajo de la rasante. Se intenta
+ * entero, luego con la primera palabra del concepto, luego sólo el valor.
+ */
+function rotuloFachada(concepto: string, gk: number, alto: number): string | null {
+  const cabe = (t: string) => t.length * ANCHO_CARACTER <= alto;
+  const valor = `${dec(gk, 1)} kN/m`;
+  const candidatos = [`${concepto} ${valor}`, `${concepto.split(/[ ,(]/)[0]} ${valor}`, valor];
+  return candidatos.find(cabe) ?? null;
+}
+
 export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar, width = 228, height = 560 }: Props) {
   const m = useMarcadores();
 
@@ -91,6 +107,9 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
 
   const peto = lineales.find((l) => esPeto(l.concepto));
   const fachada = lineales.find((l) => esFachada(l.concepto));
+  const altoFachada = yUltimo + GRUESO_FORJADO - yPrimero;
+  const textoFachada = fachada ? rotuloFachada(fachada.concepto, fachada.gk, altoFachada) : null;
+  const yFachada = (yPrimero + yUltimo + GRUESO_FORJADO) / 2;
 
   const teclado = (id: string) => (ev: KeyboardEvent<SVGGElement>) => {
     if (ev.key === 'Enter' || ev.key === ' ') {
@@ -118,9 +137,9 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         <>
           <line x1={bx} y1={yPrimero} x2={bx} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} />
           <line x1={bx + bw} y1={yPrimero} x2={bx + bw} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} />
-          {fachada && (
-            <text x={bx - 8} y={(yPrimero + yUltimo) / 2} fontSize={8} fill={COLOR.atenuado} textAnchor="middle" transform={`rotate(-90 ${bx - 8} ${(yPrimero + yUltimo) / 2})`} style={{ fontFamily: 'var(--font-mono)' }}>
-              {fachada.concepto} {dec(fachada.gk, 1)} kN/m
+          {textoFachada && (
+            <text x={bx - 8} y={yFachada} fontSize={8} fill={COLOR.atenuado} textAnchor="middle" transform={`rotate(-90 ${bx - 8} ${yFachada})`} style={{ fontFamily: 'var(--font-mono)' }}>
+              {textoFachada}
             </text>
           )}
         </>

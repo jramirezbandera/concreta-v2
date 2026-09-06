@@ -6,9 +6,12 @@
  * lenguaje de obra («¿qué forjado tiene?», «¿qué hay encima?») y las de columna,
  * el nombre corto con su unidad.
  *
- * La fila abierta despliega debajo su ficha (`Ficha.tsx`) y se resalta en la
- * sección de la derecha; pulsarla otra vez la cierra. Cada `<tr>` lleva
- * `data-zona` para que `useCotasFilas` mida a qué altura cae cada forjado.
+ * La fila abierta se resalta en la sección de la derecha y abre su ficha
+ * (`Ficha.tsx`); pulsarla otra vez la cierra. La ficha NO va dentro de la
+ * tabla: la pinta el módulo fuera de ella, para que abrirla no empuje las
+ * filas de abajo ni mueva la sección, y para que no herede el ancho mínimo de
+ * la tabla cuando esta scrollea. Cada `<tr>` lleva `data-zona` para que
+ * `useCotasFilas` mida a qué altura cae cada forjado.
  */
 
 import { Fragment } from 'react';
@@ -16,16 +19,16 @@ import { Trash2 } from 'lucide-react';
 import type { CargasResultado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import { CATALOGO_PERMANENTES } from './catalogos';
 import { columnasEncima } from './columnas';
-import { Ficha } from './Ficha';
 import { FilaZona } from './FilaZona';
 import { BOTON_MENOR, INPUT, SEP, TD, TH, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
 import type { NievePublicada } from './nievePub';
-import type { PlantaUI, ZonaUI } from './state';
+import { rotuloDeZona, type PlantaUI, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
-/** «Planta Baja (Vaso piscina)» o «Planta Baja»: el mismo rótulo que usa el motor. */
-const rotulo = (planta: string, zona: string) => (zona.trim() ? `${planta || 'Planta'} (${zona.trim()})` : planta || 'Planta');
+/** La caja del nombre de una columna libre: como una cabecera, pero se teclea. */
+const NOMBRE_COLUMNA =
+  'w-full min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0.5 text-right text-[9.5px] font-semibold uppercase text-text-secondary placeholder:font-normal placeholder:normal-case placeholder:text-text-disabled focus:border-accent focus:outline-none';
 
 interface Props {
   plantas: PlantaUI[];
@@ -45,8 +48,6 @@ interface Props {
   onMoverPlanta: (id: string, sentido: -1 | 1) => void;
   /** Da la vuelta al orden entero: el arreglo de un edificio tecleado del revés. */
   onInvertirPlantas: () => void;
-  onBorrarZona: (plantaId: string, zonaId: string) => void;
-  onUsarNieve: (plantaId: string, faldon: string | null) => void;
   onQuitarColumna: (clave: string) => void;
   onAnadirColumna: (catalogoId: string) => void;
   onRenombrarColumna: (clave: string, concepto: string) => void;
@@ -68,8 +69,6 @@ export function Tabla({
   onAnadirZona,
   onMoverPlanta,
   onInvertirPlantas,
-  onBorrarZona,
-  onUsarNieve,
   onQuitarColumna,
   onAnadirColumna,
   onRenombrarColumna,
@@ -91,7 +90,7 @@ export function Tabla({
    */
   const alReves = plantas.length > 1 && !plantas[0].esCubierta && plantas[plantas.length - 1].esCubierta;
   /** Anchos en px. Con `table-fixed` mandan estos y nada empuja al resto. */
-  const ANCHO = { planta: 148, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 58, uso: 104, quso: 42, nieve: 54, G: 46, Q: 44, qd: 54 };
+  const ANCHO = { planta: 148, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 42, nieve: 54, G: 46, Q: 44, qd: 54 };
   const anchoPx =
     ANCHO.planta + ANCHO.zona + ANCHO.forjado + ANCHO.canto + ANCHO.pp + Math.max(1, columnas.length) * ANCHO.encima + ANCHO.uso + ANCHO.quso + ANCHO.nieve + ANCHO.G + ANCHO.Q + ANCHO.qd;
 
@@ -178,20 +177,23 @@ export function Tabla({
               )}
               {columnas.map((c, i) => (
                 <th key={c.clave} scope="col" className={TH_NUM + (i === 0 ? ' ' + SEP : '')}>
-                  {/* Al revés en pantalla y del derecho en el DOM: así el rótulo
-                      acaba donde acaban los números de su columna, y el nombre
-                      accesible de la cabecera sigue empezando por la carga. */}
-                  <span className="flex flex-row-reverse items-center justify-start gap-0.5">
+                  {/* La papelera ENCIMA del rótulo, no al lado: en 80 px no caben
+                      «Tabiquería» y un icono en la misma línea. Del derecho en el
+                      DOM (rótulo, papelera) y al revés en pantalla, para que el
+                      nombre accesible de la cabecera siga empezando por la carga. */}
+                  <span className="flex flex-col-reverse items-end gap-0.5">
                     {c.catalogoId ? (
-                      <span className="truncate" title={`${c.etiqueta} — quitar la columna la quita de todas las zonas`}>
+                      <span className="max-w-full truncate" title={`${c.etiqueta} — quitar la columna la quita de todas las zonas`}>
                         {c.etiqueta.split(/[ ,(]/)[0]}
                       </span>
                     ) : (
                       <input
                         type="text"
-                        value={c.etiqueta}
+                        value={c.concepto}
+                        placeholder="nombre…"
                         aria-label={`Nombre de la carga ${c.etiqueta}`}
-                        className={INPUT + ' text-right text-[9.5px] uppercase'}
+                        title="El nombre de esta carga, en todas las zonas que la llevan"
+                        className={NOMBRE_COLUMNA}
                         onChange={(ev) => onRenombrarColumna(c.clave, ev.target.value)}
                       />
                     )}
@@ -230,8 +232,7 @@ export function Tabla({
 
           <tbody>
             {plantas.map((planta, iPlanta) => {
-              const zonaAbierta = planta.zonas.find((z) => z.id === zonaSel);
-              const plantaTocada = zonaAbierta !== undefined;
+              const plantaTocada = planta.zonas.some((z) => z.id === zonaSel);
               return (
                 <Fragment key={planta.id}>
                   {planta.zonas.map((z, i) => (
@@ -243,7 +244,7 @@ export function Tabla({
                       indice={i}
                       ultima={i === planta.zonas.length - 1}
                       columnas={columnas}
-                      quien={rotulo(planta.nombre, z.nombre)}
+                      quien={rotuloDeZona(planta, z)}
                       seleccionada={z.id === zonaSel}
                       plantaTocada={plantaTocada}
                       nievePubHay={nievePub !== null}
@@ -258,28 +259,6 @@ export function Tabla({
                       puedeBajar={iPlanta < plantas.length - 1}
                     />
                   ))}
-
-                  {/* La ficha va DETRÁS de todas las zonas de su planta: metida entre
-                      dos de ellas partiría el `rowSpan` de la celda de la planta. */}
-                  {zonaAbierta && (
-                    <tr data-ficha={zonaAbierta.id}>
-                      <td colSpan={anchoTotal} className="p-0">
-                        <Ficha
-                          planta={planta}
-                          z={zonaAbierta}
-                          r={porId.get(zonaAbierta.id)}
-                          quien={rotulo(planta.nombre, zonaAbierta.nombre)}
-                          unica={planta.zonas.length === 1 && !zonaAbierta.nombre}
-                          ayuda={ayuda}
-                          nievePub={nievePub}
-                          onZona={(cambio) => onZona(planta.id, zonaAbierta.id, cambio)}
-                          onPlanta={(cambio) => onPlanta(planta.id, cambio)}
-                          onBorrarZona={() => onBorrarZona(planta.id, zonaAbierta.id)}
-                          onUsarNieve={(faldon) => onUsarNieve(planta.id, faldon)}
-                        />
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               );
             })}

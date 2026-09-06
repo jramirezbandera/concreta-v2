@@ -14,7 +14,7 @@
  * lo que ya entrega la exportación.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -37,6 +37,7 @@ import { leerPublicacion } from '../../lib/pub';
 import { MODULO_PUB as MODULO_VIENTO_NIEVE, PUB_VERSION as PUB_VERSION_VIENTO_NIEVE, type PubVientoNieve } from '../viento-nieve/state';
 import { BarraObra } from './BarraObra';
 import { anadirColumna, quitarColumna, renombrarColumna } from './columnas';
+import { FichaDeZona } from './Ficha';
 import { Lineales } from './Lineales';
 import { leerNievePublicada, nieveDesdePublicacion } from './nievePub';
 import { resumenSismoPublicado } from './sismoPub';
@@ -141,6 +142,13 @@ export function CargasPlantaModule() {
   // Por debajo de `lg` la sección se coloca debajo de la tabla, y entonces ya
   // no hay filas con las que alinearse: reparte las plantas por igual.
   const estrecho = useIsMobile();
+  // La ficha de la fila abierta va fuera de la tabla: si al abrirla queda fuera
+  // de la vista, se acerca lo justo (`scrollIntoView` no existe en jsdom).
+  const refFicha = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = refFicha.current;
+    if (zonaSel && el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [zonaSel]);
 
   /** Todo cambio pasa por aquí: actualiza y persiste con la misma llamada. */
   const actualizar = (cambio: (prev: CargasState) => CargasState) => {
@@ -178,6 +186,11 @@ export function CargasPlantaModule() {
 
   const cambiarZona = (plantaId: string, zonaId: string, cambio: Partial<ZonaUI>) =>
     cambiarPlantas((plantas) => plantas.map((x) => (x.id === plantaId ? { ...x, zonas: x.zonas.map((z) => (z.id === zonaId ? { ...z, ...cambio } : z)) } : x)));
+
+  const borrarZona = (plantaId: string, zonaId: string) => {
+    if (zonaSel === zonaId) setZonaSel(null);
+    cambiarPlantas((plantas) => plantas.map((x) => (x.id === plantaId && x.zonas.length > 1 ? { ...x, zonas: x.zonas.filter((z) => z.id !== zonaId) } : x)));
+  };
 
   const usarNieve = (plantaId: string, faldon: string | null) => {
     const pub = leerNievePublicada();
@@ -270,6 +283,27 @@ export function CargasPlantaModule() {
       width={estrecho ? 300 : 232}
       height={estrecho ? 420 : Math.max(320, altoTabla)}
     />
+  );
+
+  // La ficha de la fila abierta va FUERA de la tabla. Entre sus filas empujaba
+  // las de abajo y la sección, que sigue a las filas, dibujaba más alta la
+  // planta abierta; y en estrecho heredaba el ancho mínimo de la tabla y se
+  // cortaba por la derecha. En ancho va debajo de la mesa; en estrecho, entre
+  // la tabla y la sección.
+  const fichaAbierta = zonaSel && (
+    <div ref={refFicha} className="overflow-hidden rounded border border-border-main">
+      <FichaDeZona
+        plantas={state.plantas}
+        resultado={evaluacion.resultado}
+        zonaSel={zonaSel}
+        ayuda={state.ayuda}
+        nievePub={nievePub}
+        onZona={cambiarZona}
+        onPlanta={cambiarPlanta}
+        onBorrarZona={borrarZona}
+        onUsarNieve={usarNieve}
+      />
+    </div>
   );
 
   const estado = (
@@ -394,16 +428,13 @@ export function CargasPlantaModule() {
                     }),
                   )
                 }
-                onBorrarZona={(plantaId, zonaId) => {
-                  if (zonaSel === zonaId) setZonaSel(null);
-                  cambiarPlantas((plantas) => plantas.map((x) => (x.id === plantaId && x.zonas.length > 1 ? { ...x, zonas: x.zonas.filter((z) => z.id !== zonaId) } : x)));
-                }}
-                onUsarNieve={usarNieve}
                 onQuitarColumna={(clave) => cambiarPlantas((plantas) => quitarColumna(plantas, clave))}
                 onAnadirColumna={(catalogoId) => cambiarPlantas((plantas) => anadirColumna(plantas, catalogoId))}
                 onRenombrarColumna={(clave, concepto) => cambiarPlantas((plantas) => renombrarColumna(plantas, clave, concepto))}
               />
             </div>
+
+            {estrecho && fichaAbierta}
 
             <div
               className={[
@@ -415,6 +446,8 @@ export function CargasPlantaModule() {
               {seccion}
             </div>
           </div>
+
+          {!estrecho && fichaAbierta}
 
           <Lineales
             lineales={state.lineales}

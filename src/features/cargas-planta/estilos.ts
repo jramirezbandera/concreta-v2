@@ -1,8 +1,22 @@
 /** Clases compartidas por la tabla y la ficha: un solo sitio para que las celdas sean iguales en todas partes. */
 
-/** Caja de texto o desplegable dentro de una celda. */
+/**
+ * Caja de texto o desplegable dentro de una celda. Con `py-1` mide 28 px, lo
+ * mismo que una caja de número (`RawNumberInput`): en una fila conviven las
+ * dos y con altos distintos ninguna línea quedaba a la misma altura.
+ */
 export const INPUT =
-  'w-full min-w-0 rounded border border-border-main bg-bg-primary px-1.5 py-0.5 text-[12px] text-text-primary focus:border-accent focus:outline-none';
+  'w-full min-w-0 rounded border border-border-main bg-bg-primary px-1.5 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
+
+/**
+ * La primera línea de una celda: una caja de 28 px, el alto de una caja de
+ * número, con lo que lleve centrado. Todas las celdas empiezan por una de
+ * estas —caja, desplegable, valor en azul, «toda», «—»— y así la fila se lee
+ * en una línea aunque debajo haya una segunda («tabla C.5», el chip de la
+ * planta, «+ zona»).
+ */
+export const LINEA = 'flex h-7 items-center';
+export const LINEA_DER = `${LINEA} justify-end`;
 
 /** El mismo, con aire, para la ficha (donde el campo ocupa toda la columna). */
 export const INPUT_ANCHO =
@@ -31,7 +45,8 @@ export const TH_DER = `${TH} text-right text-accent`;
 export const TH_GRUPO =
   'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[9.5px] uppercase text-text-disabled border-l border-border-sub';
 
-export const TD = 'border-b border-border-sub px-1.5 py-1 align-middle';
+/** Celda del cuerpo: arriba, porque lo que alinea la fila es su primera línea (`LINEA`). */
+export const TD = 'border-b border-border-sub px-1.5 py-1 align-top';
 export const TD_NUM = `${TD} text-right`;
 
 /**

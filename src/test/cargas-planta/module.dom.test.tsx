@@ -181,6 +181,18 @@ describe('Cargas por planta — la ficha de la fila', () => {
     expect(screen.queryByLabelText('Portal, meseta o escalera en Planta Baja')).not.toBeInTheDocument();
   });
 
+  it('en ancho va debajo de la mesa, no entre las filas: abrirla no mueve las de abajo ni la sección', () => {
+    montar();
+    // «sin nieve» también la abre: es donde se elige la nieve.
+    fireEvent.click(screen.getByRole('button', { name: 'sin nieve' }));
+    const casilla = screen.getByLabelText('Portal, meseta o escalera en Cubierta');
+    const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
+    expect(tabla.contains(casilla)).toBe(false);
+    expect(tabla.querySelector('tr[data-ficha]')).toBeNull();
+    expect(screen.getByLabelText('Origen de la nieve de Cubierta')).toBeInTheDocument();
+    expect(screen.getByText('Ficha ·').parentElement).toHaveTextContent('Cubierta');
+  });
+
   it('el incremento de escaleras de la ficha llega a la sobrecarga de la tabla', () => {
     montar();
     abrirFicha('Planta Baja');
@@ -219,6 +231,21 @@ describe('Cargas por planta — las columnas de encima', () => {
     expect(screen.getByRole('columnheader', { name: /Agua/ })).toBeInTheDocument();
     // Se teclea por espesor: la celda pide metros en todas las filas.
     expect(screen.getAllByLabelText(/^Espesor de Agua/)).toHaveLength(3);
+  });
+
+  it('«Otra carga permanente» estrena UNA columna sin nombre, la misma en las tres zonas', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Añadir una carga permanente a todas las zonas'), { target: { value: 'otro' } });
+
+    // Una sola caja de nombre en la cabecera y una celda por zona.
+    expect(screen.getAllByLabelText('Nombre de la carga Sin nombre')).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^Valor de Sin nombre en /)).toHaveLength(3);
+    expect(quitarColumnas()).toHaveLength(4);
+
+    // Ponerle nombre la renombra en todas las zonas, sin partirla.
+    fireEvent.change(screen.getByLabelText('Nombre de la carga Sin nombre'), { target: { value: 'Falso techo' } });
+    expect(screen.getAllByLabelText(/^Valor de Falso techo en /)).toHaveLength(3);
+    expect(quitarColumnas()).toHaveLength(4);
   });
 
   it('quitar una columna la quita de todas las zonas', () => {

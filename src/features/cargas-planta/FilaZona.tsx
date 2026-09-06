@@ -20,7 +20,7 @@ import { getPrecision } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CANTO_INICIAL, FORJADO_OPCIONES, USO_OPCIONES } from './catalogos';
 import { permanenteDe, ponerEnCelda, ponerEspesor, type ColumnaEncima } from './columnas';
-import { BOTON_CELDA, CAJA_DER, COLUMNA_QD, COLUMNA_QD_SEL, INPUT, SELECCION, SEP, TD, TD_NUM } from './estilos';
+import { BOTON_CELDA, CAJA_DER, COLUMNA_QD, COLUMNA_QD_SEL, INPUT, LINEA, LINEA_DER, SELECCION, SEP, TD, TD_NUM } from './estilos';
 import type { PlantaUI, ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
@@ -51,11 +51,11 @@ interface Props {
   puedeBajar: boolean;
 }
 
-/** Un valor que pone la norma: azul, mono, sin caja. */
+/** Un valor que pone la norma: azul, mono, sin caja; en la primera línea de la celda, a la altura de las cajas. */
 function Derivado({ valor, titulo, sub, fuerte, fallo }: { valor: string; titulo: string; sub?: string; fuerte?: boolean; fallo?: boolean }) {
   return (
     <span title={titulo} className="flex flex-col items-end leading-tight">
-      <span className={['font-mono text-[11.5px] tabular-nums', fallo ? 'text-state-fail' : 'text-accent', fuerte ? 'font-semibold' : ''].join(' ')}>{valor}</span>
+      <span className={[LINEA, 'font-mono text-[11.5px] tabular-nums', fallo ? 'text-state-fail' : 'text-accent', fuerte ? 'font-semibold' : ''].join(' ')}>{valor}</span>
       {sub && <span className="font-mono text-[8.5px] text-text-disabled">{sub}</span>}
     </span>
   );
@@ -101,7 +101,7 @@ export function FilaZona({
     if (c.porEspesor !== null) {
       return (
         <span className="flex flex-col items-end gap-0.5">
-          <RawNumberInput value={p ? (p.espesor ?? 0) : NaN} onChange={(espesor) => onZona({ permanentes: ponerEspesor(z, c, espesor).permanentes })} ariaLabel={`Espesor de ${etiqueta}`} unit="m" min={0} widthClass="w-10" />
+          <RawNumberInput value={p ? (p.espesor ?? 0) : NaN} onChange={(espesor) => onZona({ permanentes: ponerEspesor(z, c, espesor, columnas).permanentes })} ariaLabel={`Espesor de ${etiqueta}`} unit="m" min={0} widthClass="w-10" />
           {p && <span className="font-mono text-[9px] text-accent">= {mostrar(p.valor)}</span>}
         </span>
       );
@@ -109,7 +109,7 @@ export function FilaZona({
     // Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y pesa cero.
     return (
       <span className={CAJA_DER}>
-        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />
+        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor, columnas).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />
       </span>
     );
   };
@@ -178,7 +178,7 @@ export function FilaZona({
       <td className={TD + ' align-top'}>
         <div className="flex flex-col items-start gap-1">
           {nZonas === 1 && !z.nombre ? (
-            <span className="whitespace-nowrap text-[11px] text-text-disabled" title="Toda la planta: no tiene partes con distinto uso o forjado">
+            <span className={LINEA + ' whitespace-nowrap text-[11px] text-text-disabled'} title="Toda la planta: no tiene partes con distinto uso o forjado">
               toda
             </span>
           ) : (
@@ -212,7 +212,7 @@ export function FilaZona({
       </td>
       <td className={TD_NUM} onClick={(ev) => ev.stopPropagation()}>
         {sinCanto ? (
-          <span className="font-mono text-[11px] text-text-disabled">—</span>
+          <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'}>—</span>
         ) : (
           <span className={CAJA_DER}>
             <RawNumberInput value={z.forjado.canto} onChange={(canto) => onZona({ forjado: { ...z.forjado, canto } })} ariaLabel={`Canto del forjado de ${quien}`} min={0} max={200} widthClass="w-10" hideUnit />
@@ -287,10 +287,22 @@ export function FilaZona({
       {primera && (
         <td rowSpan={nZonas} className={TD_NUM + ' align-top ' + SEP} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
           {!planta.esCubierta ? (
-            <span className="font-mono text-[11px] text-text-disabled">—</span>
+            <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'}>—</span>
           ) : planta.nieve.modo === 'ninguna' ? (
-            <span className="whitespace-nowrap text-[10px] text-text-disabled underline decoration-dotted" title={nievePubHay ? 'Abra la ficha de la fila para tomar la nieve publicada' : 'Viento y nieve todavía no ha publicado'}>
-              sin nieve
+            // Un botón, no un texto subrayado: abre la ficha, que es donde se
+            // elige la nieve, y al pulsarlo dos veces no se selecciona la palabra.
+            <span className={LINEA_DER}>
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  onSeleccionar();
+                }}
+                className="whitespace-nowrap text-[10px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
+                title={nievePubHay ? 'Abre la ficha de la fila, donde se toma la nieve publicada' : 'Abre la ficha de la fila; Viento y nieve todavía no ha publicado'}
+              >
+                sin nieve
+              </button>
             </span>
           ) : (
             <Derivado

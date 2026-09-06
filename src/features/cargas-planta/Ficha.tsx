@@ -1,5 +1,11 @@
 /**
- * La ficha de la fila abierta: una fila de detalle bajo la zona seleccionada.
+ * La ficha de la fila abierta: el detalle de la zona seleccionada.
+ *
+ * Va FUERA de la tabla: metida entre las filas empujaba las de abajo y la
+ * sección, que sigue a las filas, dibujaba más alta la planta abierta, como si
+ * abrir la ficha cambiara el edificio; y en estrecho heredaba el ancho mínimo
+ * de la tabla y se cortaba por la derecha. En ancho va debajo de la mesa y en
+ * estrecho entre la tabla y la sección (`FichaDeZona` la busca por su id).
  *
  * Recoge lo que no merece una columna propia —los casos raros de la tabla 3.1,
  * que casi ninguna obra usa pero que cuando hacen falta hacen falta— y, a la
@@ -13,7 +19,7 @@
 
 import { Trash2 } from 'lucide-react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
-import type { ZonaCargasResuelta } from '../../lib/acciones/cargas';
+import type { CargasResultado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import type { CategoriaUso, FamiliaPsi } from '../../lib/acciones/tablasCargas';
 import { HIPOTESIS_TEXTO } from '../../lib/acciones/cuadrosCargas';
 import { toDisplay } from '../../lib/units/convert';
@@ -22,7 +28,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES, FAMILIA_PSI_OPCIONES, NIEVE_MODO_OPCIONES, USO_OPCIONES, type NieveModo } from './catalogos';
 import { BOTON_MENOR, INPUT_ANCHO } from './estilos';
 import type { NievePublicada } from './nievePub';
-import type { PlantaUI, UsoUI, ZonaUI } from './state';
+import { rotuloDeZona, type PlantaUI, type UsoUI, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
@@ -79,11 +85,14 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
   const nombreCatalogo = (catalogoId: string | null) => CATALOGO_PERMANENTES.find((e) => e.id === catalogoId)?.etiqueta;
 
   return (
-    <div className="flex flex-col gap-4 border-b border-border-main bg-bg-surface px-3 py-2.5 lg:flex-row lg:gap-6">
+    <div className="flex flex-col gap-4 bg-bg-surface px-3 py-2.5 lg:flex-row lg:gap-6">
       {/* Lo que se contesta: los casos raros de esta zona. */}
       <div className="flex w-full shrink-0 flex-col gap-2 lg:w-64">
         <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-[0.06em] text-accent">{quien}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-[0.06em] text-accent">
+            <span className="text-text-disabled">Ficha · </span>
+            {quien}
+          </span>
           {!unica && (
             <button type="button" onClick={onBorrarZona} aria-label={`Borrar la zona ${quien}`} className="rounded p-0.5 text-text-disabled hover:text-state-fail" title="Borrar esta zona">
               <Trash2 size={13} aria-hidden="true" />
@@ -193,7 +202,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
           </div>
         )}
 
-        {ayuda && <p className="text-[10.5px] leading-snug text-text-disabled">Casos raros de esta zona. Vuelva a pulsar la fila para cerrarla.</p>}
+        {ayuda && <p className="text-[10.5px] leading-snug text-text-disabled">Los casos raros de esta zona y, al lado, lo que dice la norma en ella. Vuelva a pulsar la fila para cerrarla.</p>}
       </div>
 
       {/* Lo que dice la norma, con los números de esta zona. */}
@@ -253,5 +262,45 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
         </div>
       )}
     </div>
+  );
+}
+
+interface FichaDeZonaProps {
+  plantas: PlantaUI[];
+  resultado: CargasResultado;
+  /** Id de la zona abierta; sin ella no hay ficha. */
+  zonaSel: string | null;
+  ayuda: boolean;
+  nievePub: NievePublicada | null;
+  onZona: (plantaId: string, zonaId: string, cambio: Partial<ZonaUI>) => void;
+  onPlanta: (id: string, cambio: Partial<PlantaUI>) => void;
+  onBorrarZona: (plantaId: string, zonaId: string) => void;
+  onUsarNieve: (plantaId: string, faldon: string | null) => void;
+}
+
+/**
+ * La ficha de la zona abierta, buscada por su id entre las plantas. Es la
+ * misma pieza tanto bajo la fila (estrecho) como bajo la mesa (ancho): quien
+ * la coloca sólo decide dónde.
+ */
+export function FichaDeZona({ plantas, resultado, zonaSel, ayuda, nievePub, onZona, onPlanta, onBorrarZona, onUsarNieve }: FichaDeZonaProps) {
+  const planta = zonaSel ? plantas.find((p) => p.zonas.some((z) => z.id === zonaSel)) : undefined;
+  const z = planta?.zonas.find((x) => x.id === zonaSel);
+  if (!planta || !z) return null;
+  const r = resultado.plantas.flatMap((p) => p.zonas).find((x) => x.id === z.id);
+  return (
+    <Ficha
+      planta={planta}
+      z={z}
+      r={r}
+      quien={rotuloDeZona(planta, z)}
+      unica={planta.zonas.length === 1 && !z.nombre}
+      ayuda={ayuda}
+      nievePub={nievePub}
+      onZona={(cambio) => onZona(planta.id, z.id, cambio)}
+      onPlanta={(cambio) => onPlanta(planta.id, cambio)}
+      onBorrarZona={() => onBorrarZona(planta.id, z.id)}
+      onUsarNieve={(faldon) => onUsarNieve(planta.id, faldon)}
+    />
   );
 }

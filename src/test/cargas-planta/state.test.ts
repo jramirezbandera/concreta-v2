@@ -260,6 +260,23 @@ describe('persistencia y lectura defensiva', () => {
     expect(cargarEstado()).toEqual(s);
   });
 
+  it('las cargas libres guardadas sin id de columna lo reciben: por nombre, y sin nombre cada una el suyo', () => {
+    const libre = (id: string, concepto: string) => ({ id, concepto, valor: 1, catalogoId: null, espesor: null });
+    const s = normalizar({
+      plantas: [
+        { nombre: 'A', zonas: [{ permanentes: [libre('c1', 'Falso techo'), libre('c2', '')] }] },
+        { nombre: 'B', zonas: [{ permanentes: [libre('c3', 'falso TECHO '), libre('c4', '')] }] },
+      ],
+    });
+    const [a1, a2] = s.plantas[0].zonas[0].permanentes;
+    const [b1, b2] = s.plantas[1].zonas[0].permanentes;
+    expect(a1.columna).toEqual(expect.any(String));
+    expect(a1.columna).toBe(b1.columna);
+    expect(a2.columna).not.toBe(b2.columna);
+    // Las del catálogo no lo necesitan: su columna es la entrada del catálogo.
+    expect(defaultCargasState().plantas[0].zonas[0].permanentes[0].columna).toBeUndefined();
+  });
+
   it('otra versión de esquema o JSON roto: estado por defecto', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sevilla()));
     localStorage.setItem(SCHEMA_VERSION_KEY, '0');
@@ -294,7 +311,8 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.plantas[1]).toMatchObject({ id: 'p2', nombre: 'Ático', esCubierta: true });
     expect(s.plantas[1].nieve).toEqual({ modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null });
     expect(s.plantas[1].zonas[0]).toMatchObject({ id: 'z1', forjado: { tipo: 'reticular', canto: 30, ppManual: null } });
-    expect(s.plantas[1].zonas[0].permanentes).toEqual([{ id: expect.any(String), concepto: 'Grava', valor: 2.5, catalogoId: null, espesor: null }]);
+    // Una carga libre guardada sin id de columna lo recibe al leerse.
+    expect(s.plantas[1].zonas[0].permanentes).toEqual([{ id: expect.any(String), concepto: 'Grava', valor: 2.5, catalogoId: null, espesor: null, columna: expect.any(String) }]);
     expect(s.plantas[1].zonas[0].uso).toMatchObject({ categoria: 'G', inclinacion: 30, escalera: false, ligera: false });
     expect(s.lineales).toEqual([{ id: expect.any(String), concepto: 'Peto', valor: 5, catalogoId: null }]);
     expect(s.ayuda).toBe(true);

@@ -15,6 +15,7 @@
 import {
   calcularCargas,
   provinciaPorIne,
+  rotuloZona,
   type CargasInput,
   type CargasResultado,
   type CategoriaUso,
@@ -74,6 +75,13 @@ export interface PermanenteUI {
   catalogoId: string | null;
   /** m; sólo en las entradas del catálogo que van por espesor (agua, tierra). */
   espesor: number | null;
+  /**
+   * Identidad de la columna de una carga LIBRE (sin catálogo): las zonas que
+   * comparten este id son la misma columna de la tabla, se llame la carga como
+   * se llame en ese momento. Las del catálogo no lo necesitan: su columna es la
+   * entrada del catálogo.
+   */
+  columna?: string;
 }
 
 export interface UsoUI {
@@ -144,7 +152,7 @@ export function usoPorDefecto(categoria: CategoriaUso | 'otro' = 'A1'): UsoUI {
 /** Una carga permanente del catálogo, con su valor propuesto (o el que da el espesor). */
 export function nuevoPermanente(catalogoId: string, espesor = 1): PermanenteUI {
   const c = CATALOGO_PERMANENTES.find((e) => e.id === catalogoId);
-  if (!c || c.id === 'otro') return { id: nuevoId('c'), concepto: '', valor: 0, catalogoId: null, espesor: null };
+  if (!c || c.id === 'otro') return { id: nuevoId('c'), concepto: '', valor: 0, catalogoId: null, espesor: null, columna: nuevoId('k') };
   if (c.porEspesor !== null) return { id: nuevoId('c'), concepto: c.etiqueta, valor: c.porEspesor * espesor, catalogoId: c.id, espesor };
   return { id: nuevoId('c'), concepto: c.etiqueta, valor: c.valor ?? 0, catalogoId: c.id, espesor: null };
 }
@@ -293,6 +301,7 @@ function normalizarZona(bruto: unknown, esCubierta: boolean): ZonaUI {
             valor: numero(c.valor, 0),
             catalogoId: textoONull(c.catalogoId),
             espesor: numeroONull(c.espesor),
+            ...(typeof c.columna === 'string' ? { columna: c.columna } : {}),
           }),
         )
       : base.permanentes,
@@ -307,6 +316,28 @@ function normalizarZona(bruto: unknown, esCubierta: boolean): ZonaUI {
       psiComo: uno(u.psiComo, FAMILIAS, 'A'),
     },
   };
+}
+
+/**
+ * Un estado guardado antes de que las cargas libres llevaran `columna` las
+ * agrupa como se agrupaban entonces: por nombre, y las que no tienen nombre
+ * cada una en la suya. A partir de aquí la columna ya no depende del nombre.
+ */
+function asignarColumnas(plantas: PlantaUI[]): void {
+  const porNombre = new Map<string, string>();
+  for (const p of plantas)
+    for (const z of p.zonas)
+      for (const c of z.permanentes) {
+        if (c.catalogoId !== null || c.columna !== undefined) continue;
+        const nombre = c.concepto.trim().toLocaleLowerCase('es');
+        if (!nombre) {
+          c.columna = nuevoId('k');
+          continue;
+        }
+        const id = porNombre.get(nombre) ?? nuevoId('k');
+        porNombre.set(nombre, id);
+        c.columna = id;
+      }
 }
 
 /**
@@ -338,6 +369,7 @@ export function normalizar(bruto: unknown): CargasState {
         };
       })
     : base.plantas;
+  asignarColumnas(plantas);
 
   const lineales = Array.isArray(bruto.lineales)
     ? bruto.lineales.filter(esObjeto).map(
@@ -383,6 +415,11 @@ export function guardarEstado(state: CargasState): void {
 }
 
 // ── Traducción al motor ─────────────────────────────────────────────────────
+
+/** «Planta Baja (Vaso piscina)» o «Planta Baja»: el rótulo con el que el motor y la tabla nombran una zona. */
+export function rotuloDeZona(planta: PlantaUI, zona: ZonaUI): string {
+  return rotuloZona(planta.nombre.trim() || 'Planta', zona.nombre);
+}
 
 export function entradaMotor(state: CargasState): CargasInput {
   return {
