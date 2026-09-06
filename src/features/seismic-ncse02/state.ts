@@ -24,6 +24,7 @@ import { publicar } from '../../lib/pub';
 import type { Procedencia } from './hazard';
 import type {
   ApplicabilityResult,
+  CategoriaMasa,
   ComponenteCarga,
   ElementoResistente,
   EmplazamientoResult,
@@ -810,6 +811,12 @@ export interface PubSismo {
     /** Periodo fundamental T_F, s, en cada dirección. */
     TF: { x: number; y: number };
     fuerzas: PubFuerzaPlanta[];
+    /** Opcionales y aditivos (v1.1), para la tabla sísmica completa de la ficha DB SE. */
+    nModos?: { x: number; y: number };
+    /** El único método del módulo, hoy: el simplificado del art. 3.7. */
+    metodo?: 'simplificado';
+    /** Categorías de masa presentes en las plantas y no excluidas, para la fracción cuasi-permanente (art. 3.2). */
+    categoriasMasa?: CategoriaMasa[];
   } | null;
 }
 

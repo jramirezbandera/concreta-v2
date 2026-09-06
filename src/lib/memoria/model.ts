@@ -59,6 +59,14 @@ export interface Valor<T> {
   origen: Origen;
   /** Una línea para el chip de origen o la nota al pie («zona de la capital; la provincia tiene frontera»). */
   nota?: string;
+  /**
+   * Los tres que convierten un valor en HUECO cuando su estado bloquea: la ruta
+   * del campo (`obra.geotecnia.empresa`, `pub.materiales`), su etiqueta en
+   * lenguaje de obra y el apartado donde se imprime. Un derivado no los lleva.
+   */
+  id?: string;
+  etiqueta?: string;
+  apartado?: ApartadoId;
 }
 
 /** Sí cuando el estado impide exportar. */

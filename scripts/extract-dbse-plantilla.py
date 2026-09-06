@@ -232,7 +232,7 @@ def main(argv: list[str]) -> int:
         salida[clave] = {"fichero": ruta.name, "bloques": volcar(ruta, crudo)}
         print(f"{clave}: {len(salida[clave]['bloques'])} bloques de {ruta.name}")
     destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(json.dumps(salida, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    destino.write_text(json.dumps(salida, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"escrito {destino}")
     # Símbolos sin traducir: hay que ampliar SYMBOL/OTRAS antes de fiarse.
     texto = destino.read_text(encoding="utf-8")

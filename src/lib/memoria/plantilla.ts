@@ -141,7 +141,12 @@ export const SE = {
       rotulo: 'Características de los materiales',
       texto: 'Los valores característicos de las propiedades de los materiales se detallarán en la justificación del DB correspondiente o bien en la justificación del Código Estructural.',
     },
-    modelo: { rotulo: 'Modelo análisis estructural' },
+    modelo: {
+      rotulo: 'Modelo análisis estructural',
+      /** Default del perfil de estudio. */
+      texto:
+        'Se realiza un cálculo espacial en tres dimensiones por métodos matriciales de rigidez, formando las barras los elementos que definen la estructura: pilares, vigas, brochales y viguetas. Se establece la compatibilidad de deformación en todos los nudos considerando seis grados de libertad y se crea la hipótesis de indeformabilidad del plano de cada planta, para simular el comportamiento del forjado, impidiendo los desplazamientos relativos entre nudos de este. A los efectos de obtención de solicitaciones y desplazamientos, para todos los estados de carga se realiza un cálculo estático y se supone un comportamiento lineal de los materiales, por tanto, un cálculo en primer orden.',
+    },
   },
   estabilidad: {
     rotulo: 'Verificación de la estabilidad',
