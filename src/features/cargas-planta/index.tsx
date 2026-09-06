@@ -9,9 +9,9 @@
  *
  * Una sola pantalla: la barra de la obra, la tabla de plantas y zonas con la
  * sección del edificio al lado, las cargas lineales y las notas de la norma.
- * No hay previsualización de documentos —el cuadro (Excel) y la memoria (Word)
- * se exportan desde la barra superior, cada uno con su botón—, porque las
- * pestañas duplicaban lo que ya entrega la exportación.
+ * No hay previsualización de documentos —las cuatro salidas cuelgan del
+ * desplegable «Exportar» de la barra superior—, porque las pestañas duplicaban
+ * lo que ya entrega la exportación.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -30,7 +30,7 @@ import {
   seccionesCargasXlsx,
   type ResumenVientoPlano,
 } from '../../lib/acciones/cuadrosCargas';
-import { CARGAS_PLANTA_FALLBACK_DOCX, CARGAS_PLANTA_FALLBACK_XLSX } from '../../lib/export/filename';
+import { CARGAS_PLANTA_FALLBACK_DOCX, CARGAS_PLANTA_FALLBACK_DXF, CARGAS_PLANTA_FALLBACK_PDF, CARGAS_PLANTA_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { leerPublicacion } from '../../lib/pub';
@@ -70,12 +70,14 @@ function leerDescartado(): boolean {
   }
 }
 
-type FormatoId = 'docx' | 'xlsx';
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf';
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
   docx: { etiqueta: 'Word', fallback: CARGAS_PLANTA_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
+  pdf: { etiqueta: 'PDF', fallback: CARGAS_PLANTA_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
   xlsx: { etiqueta: 'Excel', fallback: CARGAS_PLANTA_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
+  dxf: { etiqueta: 'DXF', fallback: CARGAS_PLANTA_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
 };
 
 const opcion = (id: FormatoId, detalle: string) => ({
@@ -85,20 +87,27 @@ const opcion = (id: FormatoId, detalle: string) => ({
 });
 
 /**
- * Lo que despliega «Exportar»: las dos salidas del módulo, cada una con el
- * documento que entrega y su destino en lenguaje de obra. Mismo desplegable que
- * el cuadro de materiales y Viento y nieve. El Excel lleva además la pestaña
- * «Predimensionado» con Gd/Qd/qd, que no va al plano, y por eso se nombra por
- * el cuadro y no sólo por el formato.
+ * Lo que despliega «Exportar»: las cuatro salidas del módulo, agrupadas por el
+ * documento que entregan y con su destino en lenguaje de obra. Mismo
+ * desplegable que el cuadro de materiales, y dentro de cada grupo va primero el
+ * formato editable. El Excel lleva además la pestaña «Predimensionado» con
+ * Gd/Qd/qd, que no va al plano —ni al DXF—, y por eso el grupo se nombra por el
+ * cuadro y no sólo por el formato.
  */
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   {
     titulo: 'Memoria',
-    opciones: [opcion('docx', 'para pegar en la memoria del proyecto')],
+    opciones: [
+      opcion('docx', 'para pegar en la memoria del proyecto'),
+      opcion('pdf', 'maquetado y cerrado, para enviar o imprimir'),
+    ],
   },
   {
     titulo: 'Cuadro de plano',
-    opciones: [opcion('xlsx', 'para capturar y pegar en el plano')],
+    opciones: [
+      opcion('xlsx', 'para capturar y pegar en el plano'),
+      opcion('dxf', 'dibujado, para insertar en el CAD'),
+    ],
   },
 ];
 
@@ -193,7 +202,7 @@ export function CargasPlantaModule() {
     actualizar(() => ejemploCargasState());
   };
 
-  // ── Exportación: dos salidas, cada una con su botón ───────────────────────
+  // ── Exportación: cuatro salidas en un solo desplegable ────────────────────
 
   // El título vive FUERA del estado del módulo: metido ahí, cada tecla
   // reejecutaría `evaluar()` y obligaría a versionar el esquema por un dato
@@ -211,6 +220,16 @@ export function CargasPlantaModule() {
       if (formatoElegido === 'xlsx') {
         const { exportarCargasPlantaXlsx } = await import('../../lib/xlsx/cargasPlanta');
         return exportarCargasPlantaXlsx(seccionesCargasXlsx(bloquesPlano, cuadroPredimensionado(evaluacion.resultado)), titulo);
+      }
+      if (formatoElegido === 'dxf') {
+        // El cuadro del plano tal cual: el predimensionado se queda en su
+        // pestaña del Excel, que es papel de trabajo y no se rotula en un plano.
+        const { exportarCargasPlantaDxf } = await import('../../lib/dxf/cargasPlanta');
+        return exportarCargasPlantaDxf(bloquesPlano, titulo);
+      }
+      if (formatoElegido === 'pdf') {
+        const { exportarCargasPlantaPdf } = await import('../../lib/pdf/cargasPlanta');
+        return exportarCargasPlantaPdf(bloquesMemoria, titulo);
       }
       const { exportarCargasPlantaDocx } = await import('../../lib/docx/cargasPlanta');
       return exportarCargasPlantaDocx(bloquesMemoria, titulo);

@@ -190,19 +190,28 @@ export function planificarDibujo(blocks: Block[], opciones: OpcionesDxf = {}): D
 
     // Cabecera: cada columna envuelta a lo suyo; el alto lo manda la que más
     // líneas necesite, que es como se rotula una cabecera en un plano.
+    //
+    // Un kvTable no tiene cabecera —tiene etiquetas a la izquierda—, y hasta
+    // que alguien miró un cuadro con uno, la banda se dibujaba igualmente: un
+    // recuadro vacío colgando encima de la primera fila.
+    const conCabecera = t.head.some((c) => c.trim() !== '');
     const lineasCab = t.head.map((c, j) => (c ? envolver(c, utiles[j], h) : ['']));
     const nLineas = lineasCab.reduce((m, l) => Math.max(m, l.length), 1);
-    const altoCab = Math.max(ALTO_FILA, nLineas * INTERLINEA + 0.65) * h;
+    const altoCab = conCabecera ? Math.max(ALTO_FILA, nLineas * INTERLINEA + 0.65) * h : 0;
     const yCab = y;
-    lineasCab.forEach((ls, j) => {
-      const centro = (bordes[j] + bordes[j + 1]) / 2;
-      // El bloque de líneas se centra en la banda, no se cuelga de arriba.
-      const arranque = yCab - (altoCab - (ls.length - 1) * INTERLINEA * h) / 2 - h * 0.36;
-      ls.forEach((l, k) => texto('CUADRO-TITULO', centro, arranque - k * INTERLINEA * h, l, true));
-    });
+    if (conCabecera) {
+      lineasCab.forEach((ls, j) => {
+        const centro = (bordes[j] + bordes[j + 1]) / 2;
+        // El bloque de líneas se centra en la banda, no se cuelga de arriba.
+        const arranque = yCab - (altoCab - (ls.length - 1) * INTERLINEA * h) / 2 - h * 0.36;
+        ls.forEach((l, k) => texto('CUADRO-TITULO', centro, arranque - k * INTERLINEA * h, l, true));
+      });
+    }
     y -= altoCab;
 
-    const yFilas: number[] = [yCab, y];
+    // Sin banda, `yCab` y la línea de arriba de la primera fila son la misma:
+    // ponerla dos veces dibujaría la misma línea dos veces en el plano.
+    const yFilas: number[] = conCabecera ? [yCab, y] : [y];
     for (const fila of t.rows) {
       const alto = ALTO_FILA * h;
       fila.forEach((celda, j) => {
