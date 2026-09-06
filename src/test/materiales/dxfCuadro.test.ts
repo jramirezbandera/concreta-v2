@@ -88,6 +88,24 @@ describe('geometría del cuadro', () => {
     expect(verticales).toHaveLength(4); // 3 columnas + 1
   });
 
+  it('un kvTable no lleva banda de cabecera: sus etiquetas ya van a la izquierda', () => {
+    // Dibujarla dejaba un recuadro vacío colgando encima de la primera fila.
+    // Se ve en el bloque de VIENTO del cuadro de acciones de Cargas por planta
+    // y en el de vida útil del cuadro de materiales.
+    const filas: [string, string][] = [
+      ['Zona eólica', 'A (velocidad básica 26 m/s)'],
+      ['Grado de aspereza', 'IV (zona urbana)'],
+    ];
+    const d = planificarDibujo([{ kind: 'kvTable', rows: filas }]);
+    const horizontales = d.entidades.filter((e) => e.tipo === 'linea' && e.y1 === e.y2);
+    expect(horizontales).toHaveLength(3); // 2 filas + cierre, sin banda
+    // Ni un texto en la capa de las cabeceras: no hay ninguna que rotular.
+    expect(d.entidades.some((e) => e.tipo === 'texto' && e.capa === 'CUADRO-TITULO')).toBe(false);
+    // Y el mismo contenido con cabecera de verdad ocupa más alto: la banda.
+    const conBanda = planificarDibujo([{ kind: 'table', head: ['Acción', 'Valor'], rows: filas }]);
+    expect(conBanda.alto).toBeGreaterThan(d.alto);
+  });
+
   it('el rótulo va pegado a su tabla, no flotando', () => {
     // Sin esto el rótulo separaba y la tabla volvía a separar: el cuadro salía
     // con el título lejos de lo que titula.

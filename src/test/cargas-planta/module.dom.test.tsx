@@ -9,7 +9,8 @@
  *   4. la nieve publicada se toma desde la ficha de la cubierta;
  *   5. las columnas de «lo que hay encima» se añaden y se quitan enteras;
  *   6. la fila abierta se resalta en la sección y al revés;
- *   7. los dos botones de la barra exportan Word y Excel;
+ *   7. el desplegable «Exportar» entrega las cuatro salidas, y cada una con
+ *      los bloques que le tocan: la memoria a Word y PDF, el plano a Excel y DXF;
  *   8. el edificio tecleado del revés se avisa y se endereza de una vez;
  *   9. la tabla no pierde columnas por el camino.
  */
@@ -43,6 +44,20 @@ const exportarCargasPlantaXlsx = vi.fn(async (_secciones: unknown, titulo?: stri
 vi.mock('../../lib/xlsx/cargasPlanta', () => ({
   exportarCargasPlantaXlsx: (secciones: unknown, titulo?: string) => exportarCargasPlantaXlsx(secciones, titulo),
 }));
+const exportarCargasPlantaPdf = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['%PDF-'], { type: 'application/pdf' }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.pdf` : 'cargas-por-planta.pdf',
+}));
+vi.mock('../../lib/pdf/cargasPlanta', () => ({
+  exportarCargasPlantaPdf: (blocks: unknown, titulo?: string) => exportarCargasPlantaPdf(blocks, titulo),
+}));
+const exportarCargasPlantaDxf = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['0\r\nEOF\r\n'], { type: 'image/vnd.dxf' }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.dxf` : 'cargas-por-planta.dxf',
+}));
+vi.mock('../../lib/dxf/cargasPlanta', () => ({
+  exportarCargasPlantaDxf: (blocks: unknown, titulo?: string) => exportarCargasPlantaDxf(blocks, titulo),
+}));
 
 function montar() {
   return render(
@@ -64,6 +79,18 @@ function publicarMadrid() {
   publicarVN(vn, evaluarVN(vn));
 }
 
+/**
+ * El único sitio que sabe cómo se pide cada formato en la barra: abre el
+ * desplegable «Exportar» y elige la opción por su formato. Cada opción lleva
+ * además su destino («para pegar en…»), de ahí el prefijo.
+ */
+const ROTULO: Record<'docx' | 'pdf' | 'xlsx' | 'dxf', RegExp> = { docx: /^Word/, pdf: /^PDF/, xlsx: /^Excel/, dxf: /^DXF/ };
+
+function pulsarExportar(formato: keyof typeof ROTULO) {
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: ROTULO[formato] }));
+}
+
 /** La fila de una zona por su nombre de planta; abrirla enseña su ficha. */
 const filaDe = (planta: string) => screen.getByLabelText('Nombre de la planta', { selector: `input[value="${planta}"]` }).closest('tr') as HTMLTableRowElement;
 const abrirFicha = (planta: string) => fireEvent.click(within(filaDe(planta)).getByText('toda'));
@@ -74,6 +101,8 @@ beforeEach(() => {
   localStorage.clear();
   exportarCargasPlantaDocx.mockClear();
   exportarCargasPlantaXlsx.mockClear();
+  exportarCargasPlantaPdf.mockClear();
+  exportarCargasPlantaDxf.mockClear();
 });
 
 afterEach(() => {
@@ -132,7 +161,7 @@ describe('Cargas por planta — la tabla', () => {
     expect(screen.getByText(/«Planta Baja»: indique el peso propio del forjado/)).toBeInTheDocument();
     expect(screen.getByText(/^· sin publicar$/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Memoria en Word' }));
+    pulsarExportar('docx');
     expect(await screen.findByText('Corrija los errores antes de exportar')).toBeInTheDocument();
     expect(screen.queryByLabelText('Título del elemento')).not.toBeInTheDocument();
   });
@@ -255,9 +284,9 @@ describe('Cargas por planta — la sección', () => {
 });
 
 describe('Cargas por planta — exportación', () => {
-  it('el botón principal entrega la memoria en Word', async () => {
+  it('«Word» entrega la memoria', async () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: 'Memoria en Word' }));
+    pulsarExportar('docx');
 
     const modal = await screen.findByRole('dialog');
     expect(within(modal).getByText('cargas-por-planta.docx')).toBeInTheDocument();
@@ -268,9 +297,9 @@ describe('Cargas por planta — exportación', () => {
     expect(exportarCargasPlantaXlsx).not.toHaveBeenCalled();
   });
 
-  it('el botón secundario entrega el cuadro en Excel', async () => {
+  it('«Excel» entrega el cuadro del plano', async () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: 'Cuadro en Excel' }));
+    pulsarExportar('xlsx');
 
     const modal = await screen.findByRole('dialog');
     expect(within(modal).getByText('cargas-por-planta.xlsx')).toBeInTheDocument();
@@ -278,5 +307,40 @@ describe('Cargas por planta — exportación', () => {
 
     await waitFor(() => expect(exportarCargasPlantaXlsx).toHaveBeenCalledTimes(1));
     expect(exportarCargasPlantaDocx).not.toHaveBeenCalled();
+  });
+
+  it('«PDF» entrega la MEMORIA, no el cuadro del plano', async () => {
+    montar();
+    pulsarExportar('pdf');
+
+    const modal = await screen.findByRole('dialog');
+    expect(within(modal).getByText('cargas-por-planta.pdf')).toBeInTheDocument();
+    fireEvent.click(within(modal).getByRole('button', { name: /Exportar|Descargar/ }));
+
+    await waitFor(() => expect(exportarCargasPlantaPdf).toHaveBeenCalledTimes(1));
+    expect(exportarCargasPlantaDocx).not.toHaveBeenCalled();
+    // Los bloques son los de memoria: se abren por su rótulo y llevan el peso
+    // propio con el canto escrito largo, que el plano abrevia.
+    const bloques = exportarCargasPlantaPdf.mock.calls[0][0] as { text?: string }[];
+    expect(bloques[0].text).toContain('CARGAS POR PLANTA');
+    expect(JSON.stringify(bloques)).toContain('Peso propio forjado reticular h = 30 cm');
+  });
+
+  it('«DXF» entrega el cuadro del PLANO, sin el predimensionado', async () => {
+    montar();
+    pulsarExportar('dxf');
+
+    const modal = await screen.findByRole('dialog');
+    expect(within(modal).getByText('cargas-por-planta.dxf')).toBeInTheDocument();
+    fireEvent.click(within(modal).getByRole('button', { name: /Exportar|Descargar/ }));
+
+    await waitFor(() => expect(exportarCargasPlantaDxf).toHaveBeenCalledTimes(1));
+    expect(exportarCargasPlantaXlsx).not.toHaveBeenCalled();
+    const bloques = exportarCargasPlantaDxf.mock.calls[0][0] as { text?: string }[];
+    expect(bloques[0].text).toBe('ACCIONES GRAVITATORIAS (SEGÚN DB SE-AE)');
+    const todo = JSON.stringify(bloques);
+    expect(todo).toContain('Peso propio reticular H=30 cm');
+    // Gd/Qd/qd son papel de trabajo: van en su pestaña del Excel y no al plano.
+    expect(todo).not.toContain('PREDIMENSIONADO');
   });
 });

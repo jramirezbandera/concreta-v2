@@ -6,8 +6,8 @@
  *   2. elegir la provincia rellena las zonas, la cota de cada planta y las
  *      fuerzas por planta del panel de resultados;
  *   3. cada vista del lienzo enseña sus zonas en resultados;
- *   4. los dos botones de la barra exportan lo suyo (Word la memoria, Excel el
- *      cuadro del plano) sin pasar por ninguna pestaña;
+ *   4. el desplegable «Exportar» de la barra entrega lo suyo (Word la memoria,
+ *      Excel el cuadro del plano) sin pasar por ninguna pestaña;
  *   5. la publicación aparece en `concreta-pub-viento-nieve`.
  */
 
@@ -77,11 +77,13 @@ const resultados = () => screen.getByRole('complementary', { name: 'Resultados' 
 const vista = (nombre: string) => fireEvent.click(within(screen.getByRole('group', { name: 'Vistas del lienzo' })).getByRole('button', { name: nombre }));
 
 /**
- * El único sitio que sabe cómo se pide cada formato en la barra. Cuando la
- * topbar cambie los dos botones por el desplegable «Exportar», sólo cambia esto.
+ * El único sitio que sabe cómo se pide cada formato en la barra: abre el
+ * desplegable «Exportar» y elige la opción por su formato. Cada opción lleva
+ * además su destino («para pegar en…»), de ahí el prefijo.
  */
 function pulsarExportar(formato: 'docx' | 'xlsx') {
-  fireEvent.click(screen.getByRole('button', { name: formato === 'docx' ? 'Memoria en Word' : 'Cuadro en Excel' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: formato === 'docx' ? /^Word/ : /^Excel/ }));
 }
 
 /** Filas de una tabla de resultados cuya primera celda empieza por el texto. */
@@ -225,7 +227,7 @@ describe('exportación', () => {
     expect(screen.queryByLabelText('Título del elemento')).not.toBeInTheDocument();
   });
 
-  it('«Memoria en Word»: el título confirmado llega al exportador con los bloques de MEMORIA', async () => {
+  it('«Word»: el título confirmado llega al exportador con los bloques de MEMORIA', async () => {
     let descargado = '';
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
       descargado = this.download;
@@ -246,7 +248,7 @@ describe('exportación', () => {
     click.mockRestore();
   });
 
-  it('«Cuadro en Excel» exporta las tres pestañas del plano desde cualquier vista', async () => {
+  it('«Excel» exporta las tres pestañas del plano desde cualquier vista', async () => {
     montar();
     rellenarMadrid();
     vista('Nieve');

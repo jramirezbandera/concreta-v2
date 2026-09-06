@@ -1,7 +1,7 @@
 // PDF export for Empresillado module — EC3 EN 1993-1-1 §6.4
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm, single page.
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { type EmpresalladoResult } from '../../lib/calculations/empresillado';
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -25,7 +25,7 @@ export async function exportEmpresalladoPDF(
   const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Pilar compuesto empresillado - CE Anejo 22 §6.4', M);

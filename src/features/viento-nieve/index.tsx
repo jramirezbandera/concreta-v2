@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -57,6 +58,30 @@ const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extensio
   docx: { etiqueta: 'Word', fallback: VIENTO_NIEVE_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
   xlsx: { etiqueta: 'Excel', fallback: VIENTO_NIEVE_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
 };
+
+const opcion = (id: FormatoId, detalle: string) => ({
+  id,
+  etiqueta: FORMATOS[id].etiqueta,
+  detalle,
+});
+
+/**
+ * Lo que despliega «Exportar»: las dos salidas del módulo, cada una con el
+ * documento que entrega y su destino en lenguaje de obra. Mismo desplegable que
+ * el cuadro de materiales — antes eran dos botones en la barra, y desde que hay
+ * más de un módulo con varias salidas nombrarlas en un solo sitio es lo que
+ * mantiene la barra igual en toda la app.
+ */
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Memoria',
+    opciones: [opcion('docx', 'para pegar en la memoria del proyecto')],
+  },
+  {
+    titulo: 'Cuadro de plano',
+    opciones: [opcion('xlsx', 'para capturar y pegar en el plano')],
+  },
+];
 
 function frase(huecos: string[]): string {
   if (huecos.length === 0) return '';
@@ -269,11 +294,9 @@ export function VientoNieveModule() {
         moduleLabel="Viento y nieve"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
-        onExportPdf={() => exportarComo('docx')}
-        exportLabel="Memoria en Word"
-        onExportSecondary={() => exportarComo('xlsx')}
-        exportSecondaryLabel="Cuadro en Excel"
-        pdfExporting={exportando}
+        exportMenu={
+          <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
+        }
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

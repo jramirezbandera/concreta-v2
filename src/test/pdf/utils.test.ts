@@ -1,7 +1,8 @@
 // Unit tests for src/lib/pdf/utils.ts
 //
 // Covers the foundation helpers extracted in the masonry-walls PDF rebuild:
-//   - pdfStr (Latin-1 sanitization, with Φ/Σ/Δ uppercase Greek)
+//   - pdfStr (Unicode: los símbolos viajan enteros) y pdfStrLatin1 (el
+//     saneador viejo, que sigue vivo para los recuadros en `courier`)
 //   - inputsFingerprint (FNV-1a, key-order independent)
 //   - ensureSpace (predictive page break + repeat-header callback)
 //   - drawTable (atomic rows, header repeat, zebra)
@@ -15,6 +16,8 @@ import { describe, expect, it, beforeAll } from 'vitest';
 import jsPDF from 'jspdf';
 import {
   pdfStr,
+  pdfStrLatin1,
+  tieneGlifo,
   inputsFingerprint,
   ensureSpace,
   drawTable,
@@ -37,64 +40,136 @@ beforeAll(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('pdfStr', () => {
+  // Lo que este bloque fija es la razón de ser de la fuente embebida: los
+  // símbolos que antes se degradaban ahora viajan enteros, y el PDF se puede
+  // buscar por ellos. Si alguien vuelve a meter una tabla de sustituciones
+  // aquí, estos casos se caen.
+  it('las griegas viajan como griegas, no como su nombre', () => {
+    expect(pdfStr('φ = 0,5')).toBe('φ = 0,5');
+    expect(pdfStr('σ_top')).toBe('σ_top');
+    expect(pdfStr('Φ vs φ')).toBe('Φ vs φ');
+    expect(pdfStr('Σ Fi')).toBe('Σ Fi');
+    expect(pdfStr('Δcdev = 10 mm')).toBe('Δcdev = 10 mm');
+    expect(pdfStr('Ω = 5 %')).toBe('Ω = 5 %');
+  });
+
+  it('los operadores viajan como operadores', () => {
+    expect(pdfStr('x ≤ 2 y ≥ 1')).toBe('x ≤ 2 y ≥ 1');
+    expect(pdfStr('a ≈ b, c ≠ d')).toBe('a ≈ b, c ≠ d');
+    expect(pdfStr('√(fck)')).toBe('√(fck)');
+    expect(pdfStr('ned=0,276→a=1,15')).toBe('ned=0,276→a=1,15');
+    expect(pdfStr('M−')).toBe('M−');
+  });
+
+  it('los sub/superíndices y la puntuación fina se quedan', () => {
+    expect(pdfStr('x₀ … x₅ y 10⁴')).toBe('x₀ … x₅ y 10⁴');
+    expect(pdfStr('A — B, C – D, 1,30‰, a•b')).toBe('A — B, C – D, 1,30‰, a•b');
+  });
+
+  it('lo que ya era Latin-1 sigue intacto', () => {
+    expect(pdfStr('4Ø16 + Ø6/c150')).toBe('4Ø16 + Ø6/c150');
+    expect(pdfStr('804 mm² · 1,5 m³ · 30°')).toBe('804 mm² · 1,5 m³ · 30°');
+    expect(pdfStr('hormigón armado, Categoría II')).toBe('hormigón armado, Categoría II');
+  });
+
+  // λ̄ (esbeltez reducida) y λ (esbeltez mecánica) son magnitudes distintas y
+  // antes se imprimían las DOS como «lam». El macrón combinante no se puede
+  // dejar pasar —conserva anchura y jsPDF no lo monta sobre la letra—, así que
+  // se traduce a un nombre que sí las distingue.
+  it('λ̄ no se confunde con λ', () => {
+    expect(pdfStr('λ̄y = 1,25')).toBe('λrely = 1,25');
+    expect(pdfStr('λy = 60')).toBe('λy = 60');
+    expect(pdfStr('λ̄y = 1,25')).not.toBe(pdfStr('λy = 1,25'));
+  });
+
+  it('las marcas combinantes sueltas se caen: sin GPOS sólo dejarían un hueco', () => {
+    expect(pdfStr('y\u0302')).toBe('y');
+  });
+
+  it('lo que la fuente no dibuja se traduce, y lo demás se marca con «?»', () => {
+    // `.notdef` es INVISIBLE en jsPDF, así que un símbolo sin glifo que se
+    // dejara pasar desaparecería del papel sin que nadie lo viera.
+    expect(pdfStr('a ⇒ b')).toBe('a => b');
+    expect(pdfStr('✓ hecho')).toBe('OK hecho');
+    expect(pdfStr('中')).toBe('?');
+    expect(pdfStr('🙂')).toBe('?'); // un par suplente cuenta como UN carácter
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// tieneGlifo — la cobertura sale de la fuente, no de una lista a mano
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('tieneGlifo', () => {
+  it('cubre lo que la app escribe y no cubre lo que no', () => {
+    for (const ch of 'AZaz09 ñÁüç·°²³Øµ±×÷γΔλΣΩ≤≥≠≈√∞−→…•‰—–₂⁴') {
+      expect(tieneGlifo(ch.codePointAt(0)!), ch).toBe(true);
+    }
+    for (const ch of '⇒✓★⚠中') {
+      expect(tieneGlifo(ch.codePointAt(0)!), ch).toBe(false);
+    }
+  });
+});
+
+describe('pdfStrLatin1 — el saneador de las fuentes core', () => {
   it('replaces lowercase Greek letters with ASCII tokens', () => {
-    expect(pdfStr('φ = 0.5')).toBe('phi = 0.5');
-    expect(pdfStr('λ = h/t')).toBe('lam = h/t');
-    expect(pdfStr('σ_top')).toBe('sigma_top');
-    expect(pdfStr('β·f_d')).toBe('beta·f_d');   // el `·` es Latin-1: se preserva
-    expect(pdfStr('ρw,min')).toBe('rhow,min');
-    expect(pdfStr('α_cc')).toBe('alpha_cc');
-    expect(pdfStr('ψ2')).toBe('psi2');
+    expect(pdfStrLatin1('φ = 0.5')).toBe('phi = 0.5');
+    expect(pdfStrLatin1('λ = h/t')).toBe('lam = h/t');
+    expect(pdfStrLatin1('σ_top')).toBe('sigma_top');
+    expect(pdfStrLatin1('β·f_d')).toBe('beta·f_d');   // el `·` es Latin-1: se preserva
+    expect(pdfStrLatin1('ρw,min')).toBe('rhow,min');
+    expect(pdfStrLatin1('α_cc')).toBe('alpha_cc');
+    expect(pdfStrLatin1('ψ2')).toBe('psi2');
   });
 
   // Estos caracteres SÍ existen en WinAnsi, así que jsPDF los pinta tal cual.
   // Degradarlos (Ø->ph, ²->2, ·->x) era una pérdida gratuita de fidelidad.
   it('preserves Latin-1 symbols that WinAnsi can render', () => {
-    expect(pdfStr('4Ø16 + Ø6/c150')).toBe('4Ø16 + Ø6/c150');
-    expect(pdfStr('804 mm²')).toBe('804 mm²');
-    expect(pdfStr('1.5 m³')).toBe('1.5 m³');
-    expect(pdfStr('30°')).toBe('30°');
-    expect(pdfStr('0.002·b·h')).toBe('0.002·b·h');
+    expect(pdfStrLatin1('4Ø16 + Ø6/c150')).toBe('4Ø16 + Ø6/c150');
+    expect(pdfStrLatin1('804 mm²')).toBe('804 mm²');
+    expect(pdfStrLatin1('1.5 m³')).toBe('1.5 m³');
+    expect(pdfStrLatin1('30°')).toBe('30°');
+    expect(pdfStrLatin1('0.002·b·h')).toBe('0.002·b·h');
   });
 
   it('maps non-Latin-1 chars that DO have a WinAnsi slot to that byte', () => {
-    expect(pdfStr('1.30‰')).toBe('1.30\x89');   // perthousand
-    expect(pdfStr('a•b')).toBe('a\x95b');       // bullet
-    expect(pdfStr('a…b')).toBe('a\x85b');       // ellipsis
+    expect(pdfStrLatin1('1.30‰')).toBe('1.30\x89');   // perthousand
+    expect(pdfStrLatin1('a•b')).toBe('a\x95b');       // bullet
+    expect(pdfStrLatin1('a…b')).toBe('a\x85b');       // ellipsis
   });
 
   it('substitutes arrows, minus and comparison operators', () => {
-    expect(pdfStr('ned=0.276→a=1.15')).toBe('ned=0.276->a=1.15');
-    expect(pdfStr('M−')).toBe('M-');            // U+2212, no el guion ASCII
-    expect(pdfStr('x ≤ 2 y ≥ 1')).toBe('x <= 2 y >= 1');
-    expect(pdfStr('a ≈ b, c ≠ d')).toBe('a ~= b, c != d');
+    expect(pdfStrLatin1('ned=0.276→a=1.15')).toBe('ned=0.276->a=1.15');
+    expect(pdfStrLatin1('M−')).toBe('M-');            // U+2212, no el guion ASCII
+    expect(pdfStrLatin1('x ≤ 2 y ≥ 1')).toBe('x <= 2 y >= 1');
+    expect(pdfStrLatin1('a ≈ b, c ≠ d')).toBe('a ~= b, c != d');
   });
 
   it('replaces uppercase Greek letters Φ/Σ/Δ/Ω (used in formulas)', () => {
-    expect(pdfStr('Φ = 0.66')).toBe('Phi = 0.66');
-    expect(pdfStr('Σ Fi')).toBe('Sum Fi');
-    expect(pdfStr('Δh = 5 mm')).toBe('Deltah = 5 mm');
+    expect(pdfStrLatin1('Φ = 0.66')).toBe('Phi = 0.66');
+    expect(pdfStrLatin1('Σ Fi')).toBe('Sum Fi');
+    expect(pdfStrLatin1('Δh = 5 mm')).toBe('Deltah = 5 mm');
     // Ω es el amortiguamiento en % del art. 2.5 de la NCSE-02. Sin mapeo caía
     // en el catch-all y el PDF de sismo escribía «? = 5,0 %».
-    expect(pdfStr('Ω = 5 %')).toBe('Omega = 5 %');
+    expect(pdfStrLatin1('Ω = 5 %')).toBe('Omega = 5 %');
   });
 
   it('does not double-replace when uppercase precedes lowercase', () => {
-    expect(pdfStr('Φ vs φ')).toBe('Phi vs phi');
+    expect(pdfStrLatin1('Φ vs φ')).toBe('Phi vs phi');
   });
 
   it('preserves Latin-1 accents (Spanish text)', () => {
-    expect(pdfStr('hormigón armado')).toBe('hormigón armado');
-    expect(pdfStr('Categoría II')).toBe('Categoría II');
+    expect(pdfStrLatin1('hormigón armado')).toBe('hormigón armado');
+    expect(pdfStrLatin1('Categoría II')).toBe('Categoría II');
   });
 
   it('substitutes em/en dashes', () => {
-    expect(pdfStr('A — B')).toBe('A  -  B');
-    expect(pdfStr('A – B')).toBe('A - B');
+    expect(pdfStrLatin1('A — B')).toBe('A  -  B');
+    expect(pdfStrLatin1('A – B')).toBe('A - B');
   });
 
   it('replaces any leftover non-Latin-1 with ?', () => {
-    expect(pdfStr('✓ done')).toBe('? done');
+    expect(pdfStrLatin1('✓ done')).toBe('? done');
   });
 });
 

@@ -130,6 +130,23 @@ describe('esquema de los estilos', () => {
   });
 });
 
+describe('celdas que envuelven', () => {
+  it('apuntan a un formato con ajuste de texto, igual al de su vecina en todo lo demás, y su fila lleva alto', () => {
+    const hoja = planificarHoja([{ kind: 'kvTable', rows: [['Clave', 'x'.repeat(120)]] }]);
+    const p = partesDelLibro([hoja]);
+    const xml = p['xl/worksheets/sheet1.xml'];
+    const sEtiqueta = Number(/<c r="A1" s="(\d+)"/.exec(xml)![1]);
+    const sDato = Number(/<c r="B1" s="(\d+)"/.exec(xml)![1]);
+    const x = p['xl/styles.xml'];
+    const xfs = x.slice(x.indexOf('<cellXfs'), x.indexOf('</cellXfs>')).split('<xf ').slice(1);
+    expect(xfs[sEtiqueta]).not.toContain('wrapText');
+    expect(xfs[sDato]).toContain('wrapText="1"');
+    expect(xfs[sDato]).toContain('horizontal="center"');
+    expect(xfs[sDato]).toContain('borderId="1"');
+    expect(xml).toMatch(/<row r="1" ht="\d+(\.\d+)?" customHeight="1">/);
+  });
+});
+
 describe('el paquete', () => {
   it('cada parte declarada en [Content_Types] existe de verdad', () => {
     const p = partes();

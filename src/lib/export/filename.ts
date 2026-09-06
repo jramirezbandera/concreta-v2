@@ -58,9 +58,17 @@ export function titledFilename(title: string, fallback: string, extension = 'pdf
 export const MATERIALES_FALLBACK_DOCX = 'cuadro-de-materiales.docx';
 export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';
 export const MATERIALES_FALLBACK_DXF = 'cuadro-de-materiales.dxf';
+export const MATERIALES_FALLBACK_PDF = 'cuadro-de-materiales.pdf';
 
 /** Los de «Viento y nieve», con el mismo reparto: memoria a Word, plano a Excel. */
 export const VIENTO_NIEVE_FALLBACK_DOCX = 'viento-y-nieve.docx';
 export const VIENTO_NIEVE_FALLBACK_XLSX = 'viento-y-nieve.xlsx';
+
+/**
+ * Los de «Cargas por planta», con las cuatro salidas del cuadro de materiales:
+ * la memoria a Word y a PDF, y el cuadro del plano a Excel y a DXF.
+ */
 export const CARGAS_PLANTA_FALLBACK_DOCX = 'cargas-por-planta.docx';
 export const CARGAS_PLANTA_FALLBACK_XLSX = 'cargas-por-planta.xlsx';
+export const CARGAS_PLANTA_FALLBACK_PDF = 'cargas-por-planta.pdf';
+export const CARGAS_PLANTA_FALLBACK_DXF = 'cargas-por-planta.dxf';

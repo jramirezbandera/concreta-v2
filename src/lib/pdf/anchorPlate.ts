@@ -7,7 +7,7 @@
 //   5. Solver summary
 //   6. Verdict banner + footer
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
 import { BOTTOM_ANCHORAGE_LABEL, TOP_CONNECTION_LABEL } from '../../data/anchorBars';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
@@ -58,7 +58,7 @@ export async function exportAnchorPlatePDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system, { precision: 1 });
 
   // ── 1. Header ──────────────────────────────────────────────────────────

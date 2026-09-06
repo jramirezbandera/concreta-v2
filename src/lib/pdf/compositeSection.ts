@@ -5,7 +5,7 @@
 // jsPDF built-in fonts (Helvetica) only cover latin-1.
 // Superscripts (⁴, ³, ²) and mid-dots must be substituted before passing to doc.text().
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type CompositeSectionInputs } from '../../data/defaults';
 import { type CompositeSectionResult } from '../../lib/calculations/compositeSection';
 import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -33,7 +33,7 @@ export async function exportCompositeSectionPDF(
   const elementTitle = title ?? inp.title ?? '';
   const fmtMrd = (v: number) => formatQuantity(v, 'moment', system, { precision: 1 });
   const fmtN = (v: number) => formatQuantity(v, 'force', system, { precision: 1 });
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const modeLabel = inp.mode === 'reinforced'

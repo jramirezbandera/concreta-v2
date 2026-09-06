@@ -21,7 +21,8 @@
 //   I2. Sin truncación silenciosa. Cada planta y cada machón aparecen siempre.
 //   I3. Estado `invalid` → 1 página con banner, metadata y footer intactos.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { WARN_UTIL } from '../calculations/types';
 import {
   MASONRY_ENGINE_VERSION,
@@ -48,6 +49,7 @@ import {
   PAGE_H,
   setGray,
   pdfStr,
+  pdfStrLatin1,
   ensureSpace,
   drawHeader,
   drawFootersAllPages,
@@ -99,7 +101,7 @@ interface ExportArgs {
 export async function exportMasonryWallsPDF({
   state, plantasCalc, critico, overall, invalid, system, title,
 }: ExportArgs): Promise<PdfResult> {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const hash = inputsFingerprint(state);
   const elementTitle = title ?? '';
   const headerMeta = {
@@ -659,13 +661,17 @@ function drawAnejoCBlock(
   y = boxY + 6;
   const colX = boxX + 4;
 
+  // Este recuadro va en `courier`, que NO tiene cara embebida: sigue siendo
+  // una fuente core de jsPDF y por tanto Latin-1. De ahí `pdfStrLatin1` en
+  // sus filas — con `pdfStr` un símbolo Unicode saldría en UTF-16 y pisaría
+  // la columna de al lado.
   doc.setFont('courier', 'normal');
   doc.setFontSize(9);
   setGray(doc, 30);
 
   // Row 1: tipo de muro + K
   doc.text(
-    pdfStr(
+    pdfStrLatin1(
       `Tipo de muro: ${TIPO_MURO_LABELS[state.anejoC_tipoMuro]} · K = ${r.K.toFixed(2)}`,
     ),
     colX,
@@ -675,7 +681,7 @@ function drawAnejoCBlock(
 
   // Row 2: fb / fm introducidos
   doc.text(
-    pdfStr(
+    pdfStrLatin1(
       `fb (pieza) = ${state.anejoC_fb} N/mm² · fm (mortero introducido) = ${state.anejoC_fm} N/mm²`,
     ),
     colX,
@@ -687,7 +693,7 @@ function drawAnejoCBlock(
   if (r.capped) {
     setGray(doc, 60);
     doc.text(
-      pdfStr(
+      pdfStrLatin1(
         `fm aplicado en calculo: ${r.fmApplied.toFixed(2)} N/mm² · nota C.1: min(20; 0,75·fb)`,
       ),
       colX,
@@ -699,7 +705,7 @@ function drawAnejoCBlock(
 
   // Row 4: fórmula con sustitución literal
   doc.text(
-    pdfStr(
+    pdfStrLatin1(
       `fk = K · fb^0,65 · fm^0,25 = ${r.K.toFixed(2)} · ${state.anejoC_fb}^0,65 · ${r.fmApplied.toFixed(2)}^0,25`,
     ),
     colX,

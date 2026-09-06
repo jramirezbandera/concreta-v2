@@ -295,8 +295,8 @@ describe('lo excluido de la masa sismica se lee', () => {
 
   it('avisa de que la fraccion del art. 3.2 no es el psi2 del CTE', async () => {
     const { texto } = await exportar(defaultSeismicState());
-    // `pdfStr` convierte psi griega en 'psi'.
-    expect(texto).toContain('psi2 del CTE');
+    // Desde la fuente embebida, la psi griega llega al papel como psi.
+    expect(texto).toContain('ψ2 del CTE');
   });
 });
 
@@ -407,9 +407,12 @@ describe('ningun glifo se pierde por el camino', () => {
     }
   });
 
-  it('Omega sale con su nombre, no como interrogante', async () => {
+  // El amortiguamiento del art. 2.5 pasó por las tres etapas: primero salió
+  // «? = 5,0 %» (sin mapeo), luego «Omega = 5,0 %» (con él) y hoy, con la
+  // fuente embebida, sale como lo escribe la Norma.
+  it('el amortiguamiento sale con su letra griega', async () => {
     const { texto } = await exportar(defaultSeismicState());
-    expect(texto).toContain('Omega = 5,0 %');
+    expect(texto).toContain('Ω = 5,0 %');
   });
 });
 

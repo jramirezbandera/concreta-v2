@@ -5,6 +5,7 @@
 // per module (15/18/20 mm). Do not export a default — modules choose.
 
 import type jsPDF from 'jspdf';
+import { ARIMO_RANGOS } from './cobertura';
 
 export const PAGE_W = 210;  // A4 width mm (portrait)
 export const PAGE_H = 297;  // A4 height mm (portrait)
@@ -16,27 +17,94 @@ export function setGray(doc: jsPDF, g: number): void {
 }
 
 /**
- * Sanitize a string for jsPDF Helvetica (WinAnsi / Latin-1 encoding).
- * Replaces known Unicode symbols with ASCII approximations,
- * then strips any remaining non-Latin-1 characters.
+ * Deja una cadena lista para `doc.text()`. OBLIGATORIO en todo texto del PDF.
  *
- * OBLIGATORIO en TODA cadena que llegue a `doc.text()`. Las fuentes core de
- * jsPDF sólo hablan Latin-1: si una cadena lleva UN carácter fuera de ese rango
- * (λ, ≤, ε, →…), jsPDF emite la cadena ENTERA en UTF-16BE. El visor pinta cada
- * byte como un glifo Latin-1 — los NUL salen como huecos ("E s b e l t e z") y
- * λ sale como "»" — y, peor, el texto ocupa el DOBLE del ancho que devuelve
- * `getTextWidth`, así que se sale de su columna y pisa la siguiente.
- * `src/test/pdf/latin1Encoding.dom.test.ts` vigila esta invariante.
+ * Desde que los documentos llevan una Arimo embebida (ver `fuente.ts`), sanear
+ * ya no es degradar: «Δcdev», «γc», «fck ≥ 30 N/mm²» y «Ø16» viajan tal cual, y
+ * el PDF queda además BUSCABLE — «Deltacdev» no se encontraba buscando «Δ».
  *
- * Covers all symbols used across Concreta modules:
- *   Greek lowercase: λ χ σ τ γ φ η ζ δ β θ ε ρ α ψ κ π ν μ
- *   Greek uppercase: Φ Σ Δ (used in formulas for masonry / fem / steel)
- *   Super/subscripts: ⁴ ⁶ ₀₁₂₃₄₅
- *   Math / punctuation: √ ≤ ≥ ≠ ≈ ∞ → ⇒ − ' — –
- *   Con glifo propio en WinAnsi (se mapean al byte, no a ASCII): ‰ • …
- *   Se preservan intactos (ya son Latin-1): ² ³ · ° Ø µ
+ * Sólo queda por traducir lo que la fuente no puede dibujar:
+ *
+ *  1. el macrón combinante de «λ̄». U+0304 conserva anchura y jsPDF no lo monta
+ *     sobre la letra, así que saldría «λ» y un hueco; y λ̄ (esbeltez reducida) y
+ *     λ (esbeltez mecánica) son magnitudes distintas que no pueden imprimirse
+ *     igual. Antes salían las dos «lam», que era el mismo error sin verse.
+ *  2. los pocos símbolos que el subconjunto de Arimo no trae (`SIN_GLIFO`);
+ *  3. cualquier otro carácter fuera del repertorio, que se marca con «?».
+ *
+ * Ese «?» final no es pereza: un carácter sin glifo se dibuja como `.notdef`,
+ * que en jsPDF es INVISIBLE — no una caja. Sin el interrogante el dato
+ * desaparecería del papel y nadie lo notaría.
+ *
+ * `src/test/pdf/unicodeEncoding.dom.test.ts` vigila la invariante sobre los
+ * BYTES del PDF ya generado, no sobre el código, así que atrapa cualquier
+ * `doc.text()` que alguien añada sin sanear.
  */
 export function pdfStr(s: string): string {
+  let out = '';
+  // Recorrido por punto de código: `for..of` itera code points, no unidades
+  // UTF-16, así que un par suplente cuenta como UN carácter y se sustituye
+  // entero en vez de partirse en dos interrogantes.
+  for (const ch of s.replace(/λ\u0304/g, 'λrel')) {
+    const cp = ch.codePointAt(0)!;
+    // Marcas combinantes sueltas: sin GPOS quedarían como un hueco. Fuera.
+    if (cp >= 0x0300 && cp <= 0x036f) continue;
+    if (tieneGlifo(cp)) out += ch;
+    else out += SIN_GLIFO[ch] ?? '?';
+  }
+  return out;
+}
+
+/**
+ * Lo que Arimo no dibuja y la app puede escribir, con su equivalente en ASCII.
+ * La lista es corta a propósito: cada entrada es un símbolo que se imprime peor
+ * de lo que se podría, así que antes de añadir una conviene mirar si el
+ * carácter cabe en el repertorio de `scripts/subset-pdf-font.py`, que es donde
+ * de verdad se arregla.
+ */
+const SIN_GLIFO: Record<string, string> = {
+  '⇒': '=>',
+  '⇄': '<->',
+  '↳': '->',
+  '∥': '||',
+  '≪': '<<',
+  '≫': '>>',
+  '⊥': 'perp.',
+  '∝': 'prop.',
+  '∈': ' de ',
+  '∪': ' U ',
+  '∛': 'cbrt',
+  '★': '*',
+  '⚠': '!',
+  '✓': 'OK',
+  '✗': 'NO',
+  '✕': 'x',
+  '▽': 'v',
+  '▸': '>',
+};
+
+/** Índice de los rangos cubiertos, montado una vez y consultado 344 veces. */
+const CUBIERTOS: Set<number> = new Set(
+  ARIMO_RANGOS.flatMap(([a, b]) => Array.from({ length: b - a + 1 }, (_, k) => a + k)),
+);
+
+/** ¿La fuente embebida sabe dibujar este punto de código? */
+export function tieneGlifo(cp: number): boolean {
+  return CUBIERTOS.has(cp);
+}
+
+/**
+ * El saneador VIEJO, a Latin-1 puro. Sólo para los dos sitios que siguen
+ * escribiendo con una fuente CORE de jsPDF —los bloques en `courier`, que no
+ * tiene cara embebida—: ahí un carácter fuera de WinAnsi haría que jsPDF
+ * emitiera la cadena entera en UTF-16BE, que el visor pinta byte a byte («E s
+ * b e l t e z») y que ocupa el DOBLE del ancho que declara `getTextWidth`, de
+ * modo que se sale de su columna y pisa la siguiente. Mojibake y descuadre son
+ * el mismo bug, y era el motivo de que esta función existiera.
+ *
+ * Para todo lo demás, `pdfStr`.
+ */
+export function pdfStrLatin1(s: string): string {
   return s
     // Superscripts sin hueco en WinAnsi (² y ³ SÍ lo tienen: se preservan)
     .replace(/⁴/g, '^4')
@@ -267,7 +335,10 @@ export interface DrawTableOpts<R> {
   zebra?: boolean;
   /** Row height (cell) in mm. Default 5. */
   rowH?: number;
-  /** Header band height in mm. Default 5. */
+  /**
+   * Header band height in mm. Default 5. Es la altura de UNA línea: si algún
+   * rótulo no cabe en su columna, la banda crece sola para alojarlo.
+   */
   headerH?: number;
   /** Header font size. Default 7.5. */
   headerFontSize?: number;
@@ -293,7 +364,9 @@ const PT2MM = 25.4 / 72;
  *
  * Cells are MEASURED before drawing: `wrap` columns split into several lines
  * (the row grows to the tallest cell); the rest are truncated with an ellipsis
- * to their column width, so no cell can ever overlap its neighbour.
+ * to their column width, so no cell can ever overlap its neighbour. Los
+ * RÓTULOS de la cabecera también se miden y se reparten en líneas, y la banda
+ * crece con ellos.
  *
  * Returns the y coordinate just below the last drawn row (caller advances).
  */
@@ -314,39 +387,54 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
   let y = opts.y;
 
   const totalW = cols.reduce((s, c) => s + c.w, 0);
+  const lineH = cellFontSize * 1.15 * PT2MM;
+  const lineHCab = headerFontSize * 1.15 * PT2MM;
+
+  // Los rótulos se reparten en líneas ANTES de dibujar nada, igual que las
+  // celdas con `wrap`, y la banda crece para caber. Sin esto un rótulo más
+  // ancho que su columna se dibujaba entero y se comía al de al lado: en una
+  // tabla de columnas estrechas la cabecera salía como una sola línea ilegible
+  // («Elemento estructuraTipo de aceroMedios de unión…») y la última se salía
+  // de la página. Con rótulos de una sola línea —el caso de los 20 módulos que
+  // dimensionan sus columnas a mano— esto no cambia ni un milímetro.
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(headerFontSize);
+  const rotulos = cols.map((col) => doc.splitTextToSize(pdfStr(col.label), col.w - 2 * pad) as string[]);
+  const nLineasCab = rotulos.reduce((mx, l) => Math.max(mx, l.length), 1);
+  const bandaH = headerH + (nLineasCab - 1) * lineHCab;
 
   const drawHeaderRow = (atY: number): number => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(headerFontSize);
     setGray(doc, 60);
     let cx = x;
-    for (const col of cols) {
-      const label = pdfStr(col.label);
+    cols.forEach((col, j) => {
+      // Alineadas por ARRIBA: con rótulos de distinto número de líneas, alinear
+      // por la base dejaría unos flotando y otros pegados al subrayado.
+      const base = atY + headerH - 1.5;
       if (col.align === 'right') {
-        doc.text(label, cx + col.w - pad, atY + headerH - 1.5, { align: 'right' });
+        doc.text(rotulos[j], cx + col.w - pad, base, { align: 'right' });
       } else if (col.align === 'center') {
-        doc.text(label, cx + col.w / 2, atY + headerH - 1.5, { align: 'center' });
+        doc.text(rotulos[j], cx + col.w / 2, base, { align: 'center' });
       } else {
-        doc.text(label, cx + pad, atY + headerH - 1.5);
+        doc.text(rotulos[j], cx + pad, base);
       }
       cx += col.w;
-    }
+    });
     // Header underline. The "+ 4" gap before returning the next y leaves
     // room for the first data row's text — fontSize ~7 extends ~2 mm above
     // the baseline, so a 1 mm gap (the previous value) made the underline
     // run through the top of the first data row's text.
     setGray(doc, 160);
     doc.setLineWidth(0.2);
-    doc.line(x, atY + headerH, x + totalW, atY + headerH);
-    return atY + headerH + 4;
+    doc.line(x, atY + bandaH, x + totalW, atY + bandaH);
+    return atY + bandaH + 4;
   };
 
   // La cabecera nunca queda huérfana al fondo de página: si no cabe junto con
   // la primera fila de datos, la tabla entera arranca en la página siguiente.
-  y = ensureSpace(doc, y, headerH + 4 + rowH, M);
+  y = ensureSpace(doc, y, bandaH + 4 + rowH, M);
   y = drawHeaderRow(y);
-
-  const lineH = cellFontSize * 1.15 * PT2MM;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];

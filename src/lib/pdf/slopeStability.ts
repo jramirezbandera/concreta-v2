@@ -34,7 +34,7 @@
 // cabecera de su tabla y ~2 filas: ni títulos ni cabeceras huérfanas al fondo
 // de la página.
 
-import jsPDF from "jspdf";
+import { crearPdf } from './fuente';
 import type { SlopeInputs } from "../../data/defaults";
 import type { SlopeResult, SlopeSlice } from "../../lib/calculations/geotech/types";
 import { formatQuantity, formatNumber, getUnitLabel } from "../units/format";
@@ -101,7 +101,7 @@ export async function exportSlopeStabilityPDF(
   // W/u por dovela: en técnico los valores son ~10× más pequeños (Tn, kg/cm²)
   // → 2 decimales para no perder lectura; en SI se mantiene 1 (como la UI).
   const slicePrec = system === "si" ? 1 : 2;
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const doc = await crearPdf();
 
   const engineVersion = `PySlope ${result.engine.pyslopeVersion}`;
 

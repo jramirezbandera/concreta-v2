@@ -47,6 +47,18 @@
 // PDF, que luego se reduce a 112 mm de papel). Un cuerpo fijo de 8 px era
 // diminuto en las dos puntas: ilegible en el papel y desaprovechado en pantalla
 // ancha. `escala()` ata el cuerpo al ancho, con tope arriba y abajo.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// EL NÚMERO DEL PLANO VA EN UNA BURBUJA, FUERA DE LA PLANTA
+// ─────────────────────────────────────────────────────────────────────────────
+// Antes cada plano llevaba un solo rótulo, «1 · 592 kN», y se leía como
+// «1592 kN»: el separador de este módulo, que en una cabecera funciona, entre
+// un entero y una fuerza es un punto de millar. Son dos datos distintos —la
+// IDENTIDAD del plano (su fila en la tabla, su columna j en el reparto) y el
+// VALOR que se lleva— y van en sitios distintos: el número en una burbuja al
+// extremo del trazo, como los ejes de cualquier plano de replanteo, y la
+// fuerza sola, dentro. Las burbujas van por la derecha (planos de X) y por
+// arriba (planos de Y), que son los dos lados sin acotación.
 
 import { useId } from 'react';
 
@@ -505,8 +517,8 @@ export function PlantaSVG({
   state: SeismicState;
   evaluacion: SeismicEvaluation;
   /**
-   * `'ambas'` dibuja las dos familias de planos con el mismo peso y rotula sólo
-   * el índice. Es lo que pide el PDF: allí la figura documenta la GEOMETRÍA
+   * `'ambas'` dibuja las dos familias de planos con el mismo peso y sólo con
+   * su burbuja. Es lo que pide el PDF: allí la figura documenta la GEOMETRÍA
    * introducida —una vez, antes de las dos secciones de dirección— y las
    * fuerzas por plano ya van en la tabla de reparto de cada una.
    */
@@ -529,10 +541,22 @@ export function PlantaSVG({
 
   const Lx = state.x.L;
   const Ly = state.y.L;
+  // Un plano cuya coordenada se sale de la planta es un dato mal metido —signo
+  // cambiado, o L de la otra dirección— y no hay ningún número del resultado
+  // que lo delate: γ_a sale grande y punto.
+  const fueraX = state.x.elementos.filter((e) => Math.abs(e.x) > Ly / 2 + 1e-6).length;
+  const fueraY = state.y.elementos.filter((e) => Math.abs(e.x) > Lx / 2 + 1e-6).length;
+  const fuera = fueraX + fueraY;
+
+  // Arriba y a la derecha tiene que caber la burbuja del número (centro a
+  // BURBUJA cuerpos del borde, radio medio cuerpo) sin pisar la cabecera. La
+  // del plano imposible va una burbuja más afuera, para no pisar la del plano
+  // de fachada al que se pega; y su aviso del pie va en una línea propia, que
+  // en móvil no cabía junto a la leyenda.
   const m = {
-    t: Math.round(f * 2.4),
-    r: Math.round(f * 1.6),
-    b: Math.round(f * 4.4),
+    t: Math.round(f * (3.1 + (fueraY > 0 ? 1.15 : 0))),
+    r: Math.round(f * (1.9 + (fueraX > 0 ? 1.15 : 0))),
+    b: Math.round(f * (4.4 + (fuera > 0 ? 1.2 : 0))),
     l: Math.round(f * 3.4),
   };
   const wDisp = width - m.l - m.r;
@@ -544,6 +568,8 @@ export function PlantaSVG({
   const pw = Lx * s;
   const ph = Ly * s;
   const h = Math.round(m.t + ph + m.b);
+  /** Línea base de la leyenda del pie; el aviso, si lo hay, va debajo. */
+  const pie = h - f * 0.55 - (fuera > 0 ? f * 1.2 : 0);
   const cx = m.l + wDisp / 2;
   const cy = m.t + ph / 2;
   /** Mundo → pantalla. `+Y` va hacia ARRIBA, como en cualquier planta. */
@@ -574,12 +600,6 @@ export function PlantaSVG({
   const kMaxX = kMax(state.x.elementos);
   const kMaxY = kMax(state.y.elementos);
 
-  // Un plano cuya coordenada se sale de la planta es un dato mal metido —signo
-  // cambiado, o L de la otra dirección— y no hay ningún número del resultado
-  // que lo delate: γ_a sale grande y punto.
-  const fueraX = state.x.elementos.filter((e) => Math.abs(e.x) > Ly / 2 + 1e-6).length;
-  const fueraY = state.y.elementos.filter((e) => Math.abs(e.x) > Lx / 2 + 1e-6).length;
-  const fuera = fueraX + fueraY;
 
   // El centro de rigidez sale CRUZADO: su cota Y la fijan los planos de X y su
   // cota X los de Y. Ver la cabecera de esta función.
@@ -591,14 +611,48 @@ export function PlantaSVG({
   const separados = cr !== null && Math.hypot(PX(cr.x) - PX(0), PY(cr.y) - PY(0)) > f * 1.2;
   const eTotal = cr ? Math.hypot(cr.x, cr.y) : 0;
 
-  const rotuloPlano = (el: ElementoResistente, i: number, activo: boolean, malo: boolean) => {
-    // Del plano imposible interesa la COORDENADA, no la fuerza: el número que
-    // hay que corregir es ése.
-    if (malo) return `${i + 1} · x = ${dec(el.x, 2)} m`;
-    const v = activo ? carga.get(el.id) : undefined;
-    return v === undefined
-      ? `${i + 1}`
-      : `${i + 1} · ${fuerza(v, system)} ${unidadFuerza(system)}`;
+  /**
+   * Lo que va DENTRO de la planta, pegado al plano: la fuerza que se lleva o,
+   * si el plano es imposible, su coordenada —el número que hay que corregir es
+   * ése, no la fuerza—. El número del plano no va aquí: va en su burbuja.
+   */
+  const rotuloPlano = (el: ElementoResistente, activo: boolean, malo: boolean): string | null => {
+    if (!activo) return null;
+    if (malo) return `x = ${dec(el.x, 2)} m`;
+    const v = carga.get(el.id);
+    return v === undefined ? null : `${fuerza(v, system)} ${unidadFuerza(system)}`;
+  };
+
+  /** Del borde de la planta al centro de la burbuja, en cuerpos. */
+  const BURBUJA = 0.95;
+  /**
+   * La burbuja con el número del plano, a la derecha (`'h'`, planos de X) o
+   * arriba (`'v'`, planos de Y). El trazo del plano entra hasta la burbuja,
+   * como en un plano de replanteo: así se ve de qué línea es cada número
+   * aunque dos planos vayan muy juntos.
+   */
+  const burbuja = (bx: number, by: number, n: number, color: string, lado: 'h' | 'v') => {
+    const r = f * 0.5;
+    return (
+      <g>
+        {lado === 'h' ? (
+          <line x1={der} y1={by} x2={bx - r} y2={by} stroke={color} strokeWidth={1} />
+        ) : (
+          <line x1={bx} y1={arr} x2={bx} y2={by + r} stroke={color} strokeWidth={1} />
+        )}
+        <circle cx={bx} cy={by} r={r} fill={C.papel} stroke={color} strokeWidth={1.3} />
+        <text
+          x={bx}
+          y={by + f * 0.28}
+          fontSize={f * 0.78}
+          fill={color}
+          textAnchor="middle"
+          fontFamily={MONO}
+        >
+          {n}
+        </text>
+      </g>
+    );
   };
 
   /**
@@ -675,11 +729,13 @@ export function PlantaSVG({
       <line x1={izq} y1={PY(0)} x2={der} y2={PY(0)} stroke={C.eje} strokeWidth={1} strokeDasharray="5 4" />
       <line x1={PX(0)} y1={arr} x2={PX(0)} y2={aba} stroke={C.eje} strokeWidth={1} strokeDasharray="5 4" />
 
-      {/* planos que resisten el sismo en Y: verticales */}
+      {/* planos que resisten el sismo en Y: verticales, numerados por ARRIBA */}
       {state.y.elementos.map((el, i) => {
         const activo = eje !== 'x';
         const malo = Math.abs(el.x) > Lx / 2 + 1e-6;
         const x = pegado(PX(el.x), !malo, izq - f * 0.55, der + f * 0.55);
+        const color = malo ? C.fallo : activo ? C.acento : C.elastico;
+        const rotulo = rotuloPlano(el, activo, malo);
         return (
           <g key={`y${el.id}`}>
             <title>{`Plano ${i + 1} de Y · x = ${dec(el.x, 2)} m · k = ${dec(el.k, 2)}`}</title>
@@ -688,17 +744,18 @@ export function PlantaSVG({
               y1={arr}
               x2={x}
               y2={aba}
-              stroke={malo ? C.fallo : activo ? C.acento : C.elastico}
+              stroke={color}
               strokeWidth={grosor(el.k, kMaxY, activo)}
               strokeLinecap={malo ? 'butt' : 'round'}
               strokeDasharray={malo ? '5 3' : undefined}
             />
+            {activo ? burbuja(x, arr - f * (BURBUJA + (malo ? 1.15 : 0)), i + 1, color, 'v') : null}
             {/*
-              El rótulo se pasa al otro lado del plano cuando éste roza el borde
-              derecho: un plano de fachada tiene x = L/2 exacto y su número se
+              La fuerza se pasa al otro lado del plano cuando éste roza el borde
+              derecho: un plano de fachada tiene x = L/2 exacto y el rótulo se
               salía de la figura.
             */}
-            {activo
+            {rotulo !== null
               ? (() => {
                   // El rótulo del plano imposible se mete DENTRO de la planta: su
                   // trazo ya está fuera, y ahí no hay sitio.
@@ -724,7 +781,7 @@ export function PlantaSVG({
                       strokeWidth={3}
                       strokeLinejoin="round"
                     >
-                      {rotuloPlano(el, i, activo, malo)}
+                      {rotulo}
                     </text>
                   );
                 })()
@@ -733,11 +790,13 @@ export function PlantaSVG({
         );
       })}
 
-      {/* planos que resisten el sismo en X: horizontales */}
+      {/* planos que resisten el sismo en X: horizontales, numerados por la DERECHA */}
       {state.x.elementos.map((el, i) => {
         const activo = eje !== 'y';
         const malo = Math.abs(el.x) > Ly / 2 + 1e-6;
         const y = pegado(PY(el.x), !malo, arr - f * 0.55, aba + f * 0.55);
+        const color = malo ? C.fallo : activo ? C.acento : C.elastico;
+        const rotulo = rotuloPlano(el, activo, malo);
         return (
           <g key={`x${el.id}`}>
             <title>{`Plano ${i + 1} de X · x = ${dec(el.x, 2)} m · k = ${dec(el.k, 2)}`}</title>
@@ -746,13 +805,14 @@ export function PlantaSVG({
               y1={y}
               x2={der}
               y2={y}
-              stroke={malo ? C.fallo : activo ? C.acento : C.elastico}
+              stroke={color}
               strokeWidth={grosor(el.k, kMaxX, activo)}
               strokeLinecap={malo ? 'butt' : 'round'}
               strokeDasharray={malo ? '5 3' : undefined}
             />
+            {activo ? burbuja(der + f * (BURBUJA + (malo ? 1.15 : 0)), y, i + 1, color, 'h') : null}
             {/* Mismo motivo, por arriba: el plano de fachada tiene y = arr. */}
-            {activo ? (
+            {rotulo !== null ? (
               <text
                 x={der - f * 0.4}
                 y={
@@ -773,7 +833,7 @@ export function PlantaSVG({
                 strokeWidth={3}
                 strokeLinejoin="round"
               >
-                {rotuloPlano(el, i, activo, malo)}
+                {rotulo}
               </text>
             ) : null}
           </g>
@@ -883,30 +943,30 @@ export function PlantaSVG({
       <g>
         <line
           x1={m.l}
-          y1={h - f * 0.9}
+          y1={pie - f * 0.35}
           x2={m.l + f * 1.7}
-          y2={h - f * 0.9}
+          y2={pie - f * 0.35}
           stroke={C.acento}
           strokeWidth={2.6}
           strokeLinecap="round"
         />
-        <text x={m.l + f * 2.3} y={h - f * 0.55} fontSize={f * 0.85} fill={C.texto} fontFamily={MONO}>
+        <text x={m.l + f * 2.3} y={pie} fontSize={f * 0.85} fill={C.texto} fontFamily={MONO}>
           {ambas ? 'planos resistentes' : `planos de ${E}`}
         </text>
         {ambas ? null : (
           <>
             <line
               x1={m.l + f * 8.2}
-              y1={h - f * 0.9}
+              y1={pie - f * 0.35}
               x2={m.l + f * 9.9}
-              y2={h - f * 0.9}
+              y2={pie - f * 0.35}
               stroke={C.elastico}
               strokeWidth={1.6}
               strokeLinecap="round"
             />
             <text
               x={m.l + f * 10.5}
-              y={h - f * 0.55}
+              y={pie}
               fontSize={f * 0.85}
               fill={C.texto}
               fontFamily={MONO}
@@ -917,14 +977,7 @@ export function PlantaSVG({
         )}
       </g>
       {fuera > 0 ? (
-        <text
-          x={width - m.r}
-          y={h - f * 0.55}
-          fontSize={f * 0.85}
-          fill={C.fallo}
-          textAnchor="end"
-          fontFamily={MONO}
-        >
+        <text x={m.l} y={h - f * 0.55} fontSize={f * 0.85} fill={C.fallo} fontFamily={MONO}>
           {fuera} plano{fuera === 1 ? '' : 's'} fuera de la planta
         </text>
       ) : null}

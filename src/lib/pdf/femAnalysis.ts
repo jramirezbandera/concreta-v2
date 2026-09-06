@@ -16,7 +16,8 @@
 // Mandatory even when verdict is INCUMPLE or there are model errors —
 // engineers may need a PDF to document a non-compliant section.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { MAT } from '../../features/fem-analysis/presets';
 import type { DesignBar, DesignModel, SolveResult } from '../../features/fem-analysis/types';
 import { formatQuantity, getUnitLabel } from '../units/format';
@@ -490,7 +491,7 @@ export async function exportFemAnalysisPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // Cover page.
   drawCover(doc, model, result, system, elementTitle);

@@ -17,7 +17,8 @@
 //   6. Tabla de comprobaciones (una fila por check, paginada).
 //   7. Disclaimer + footers en todas las páginas.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { STEEL_CATALOG } from '../frame-core/sections';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
@@ -278,7 +279,7 @@ export async function exportFem2DPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const checks = result.checks!;
 
   // ── Cabecera + línea normativa ────────────────────────────────────────────

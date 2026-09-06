@@ -1,7 +1,8 @@
 // PDF export for RC Columns module — biaxial bending (CE Anejo 19 §5.8.9)
 // A4 portrait, margins 20mm.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type RCColumnInputs } from '../../data/defaults';
 import { type RCColumnResult, type CheckStatus } from '../../lib/calculations/rcColumns';
 import { formatQuantity } from '../units/format';
@@ -42,7 +43,7 @@ export async function exportRCColumnsPDF(
     c.limitNum !== undefined && c.limitQty
       ? formatQuantity(c.limitNum, c.limitQty, system)
       : (c.limitStr ?? c.limit ?? '');
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ─────────────────────────────────────────────────────────────────
   const isCirc = result.sectionType === 'circular';

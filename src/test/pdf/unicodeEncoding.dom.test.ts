@@ -1,24 +1,28 @@
-// Invariante de codificación: NINGÚN texto del PDF puede salir en UTF-16.
+// Invariante de codificación de los PDF, comprobada sobre los BYTES del
+// documento generado y no sobre el código — así atrapa cualquier `doc.text()`
+// que alguien añada sin sanear, incluso si la cadena viene de
+// `lib/calculations` y no de un literal.
 //
-// jsPDF sólo sabe escribir Latin-1 con las fuentes core (Helvetica). En cuanto
-// una cadena contiene UN carácter SIN hueco en WinAnsi (λ ≤ ≥ ε σ ρ ∞ →…),
-// jsPDF emite la cadena ENTERA como UTF-16BE:
+// Los PDF embeben una Arimo subseteada (ver `lib/pdf/fuente.ts`), registrada
+// con el nombre `helvetica` para que las 340 llamadas a `setFont()` la cojan
+// sin tocarlas. Con ella, jsPDF escribe el texto como identificadores de glifo
+// —`<00250046...> Tj`— y los símbolos técnicos viajan enteros.
 //
-//   "Esbeltez λy" -> \0E\0s\0b\0e\0l\0t\0e\0z\0 \x03» \0y
+// Lo que este test vigila son las dos formas de perder eso:
 //
-// El visor pinta cada byte como un glifo Latin-1: los NUL salen como huecos
-// ("E s b e l t e z"), λ (0x03,0xBB) sale como "»" y ≤ (0x22,0x64) como '"d'.
-// Y, sobre todo, el texto ocupa el DOBLE de ancho del que `getTextWidth`
-// declara — así que se sale de su columna y pisa la siguiente. Mojibake y
-// descuadre son EL MISMO bug.
+//   1. QUE SE PIERDA LA FUENTE. Un documento construido con `new jsPDF()` en
+//      vez de `crearPdf()` vuelve a la Helvetica core sin avisar de nada: el
+//      PDF sigue saliendo, sólo que «Δcdev» pasa a ser «?cdev». Se detecta
+//      porque no habría ni una racha en hexadecimal.
 //
-// OJO: `— – ’ ‰ • …` SÍ tienen hueco en WinAnsi y jsPDF los emite como un byte;
-// no disparan UTF-16. Los que lo disparan son los que `pdfStr` debe traducir.
-//
-// De ahí que todo texto deba pasar por `pdfStr` antes de `doc.text()`. Este test
-// lo comprueba sobre los BYTES del PDF ya generado, no sobre el código, así que
-// atrapa cualquier `doc.text()` que alguien añada sin sanear, incluso si la
-// cadena problemática viene de `lib/calculations` y no de un literal.
+//   2. QUE VUELVA EL UTF-16. Las fuentes core de jsPDF sólo hablan Latin-1, y
+//      ante un carácter sin hueco en WinAnsi emiten la cadena ENTERA en
+//      UTF-16BE: el visor la pinta byte a byte («E s b e l t e z») y ocupa el
+//      DOBLE del ancho que declara `getTextWidth`, así que se sale de su
+//      columna y pisa la siguiente. Mojibake y descuadre son el mismo bug.
+//      Sigue estando vivo en los dos recuadros que se escriben en `courier`
+//      —una fuente core, sin cara embebida—, y por eso ésos usan
+//      `pdfStrLatin1` y no `pdfStr`.
 
 import { describe, expect, it } from 'vitest';
 
@@ -68,7 +72,7 @@ import { exportFemAnalysisPDF } from '../../lib/pdf/femAnalysis';
 import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { solveDesignModel } from '../../features/fem-analysis/solveDesignModel';
 
-import { pdfBytes, utf16Runs } from './utf16';
+import { pdfBytes, rachasEmbebidas, utf16Runs } from './utf16';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -111,19 +115,24 @@ const CASES: Array<[string, () => Promise<unknown>]> = [
   }],
 ];
 
-describe('PDF: todo el texto se emite en Latin-1 (nunca UTF-16)', () => {
+describe('PDF: fuente embebida y ni un texto en UTF-16', () => {
   for (const [name, run] of CASES) {
-    it(`${name}: sin texto UTF-16`, async () => {
-      expect(utf16Runs(await pdfBytes(run))).toEqual([]);
+    it(`${name}: escribe con la fuente embebida y sin UTF-16`, async () => {
+      const pdf = await pdfBytes(run);
+      expect(rachasEmbebidas(pdf)).toBeGreaterThan(0);
+      expect(utf16Runs(pdf)).toEqual([]);
     }, 30_000);
   }
 
-  it('rc-columns en sistema tecnico: sin texto UTF-16', async () => {
+  it('rc-columns en sistema tecnico: igual', async () => {
     const pdf = await pdfBytes(() => exportRCColumnsPDF(rcColumnDefaults, calcRCColumn(rcColumnDefaults), 'tecnico', T));
+    expect(rachasEmbebidas(pdf)).toBeGreaterThan(0);
     expect(utf16Runs(pdf)).toEqual([]);
   });
 
   // El detector debe DETECTAR: si esto pasa, el test de arriba no vale nada.
+  // Aquí SÍ se construye el documento a mano, que es justo lo que se quiere
+  // reproducir: un PDF con la Helvetica core y un carácter sin hueco.
   it('el detector caza una cadena UTF-16 de verdad', async () => {
     const jsPDF = (await import('jspdf')).default;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });

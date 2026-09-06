@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileText, X } from 'lucide-react';
-import { slugTitle, titledFilename } from '../../lib/pdf/utils';
+import { slugTitle, titledFilename } from '../../lib/export/filename';
 
 interface TitlePromptModalProps {
   /** Título inicial: el último usado (state.title) o '' en primer uso. */

@@ -8,7 +8,7 @@
 //   4. Checks table — 4 columns (Descripción | Valor | Límite | Ut%)
 //   5. Footer
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type PunchingInputs } from '../../data/defaults';
 import { type PunchingResult } from '../../lib/calculations/punching';
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -37,7 +37,7 @@ export async function exportPunchingPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Punzonamiento en losa - CE Anejo 19 §6.4', M);

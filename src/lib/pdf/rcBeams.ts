@@ -2,7 +2,8 @@
 // Uses jsPDF + svg2pdf.js to render the hidden SVG into a PDF page.
 // Page: A4 portrait, margins 20mm, grayscale section diagram + two results tables.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type RCBeamInputs } from '../../data/defaults';
 import { type RCBeamResult, type RCBeamSectionResult, type CheckStatus, pickSectionInputs } from '../calculations/rcBeams';
 import { solveSectionAtMoment } from '../calculations/rcBeamsSection';
@@ -167,7 +168,7 @@ export async function exportRCBeamsPDF(
     return exportRCBeamsSimplePDF(inp, result, system, elementTitle);
   }
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ────────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — ELU/ELS Viga Rectangular', M);
@@ -286,7 +287,7 @@ async function exportRCBeamsSimplePDF(
   system: UnitSystem,
   elementTitle = '',
 ): Promise<PdfResult> {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
 
   // Resolver la sección al Md (mismo motor que el viewer).
