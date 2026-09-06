@@ -2,7 +2,8 @@
 // A4 portrait — input summary + 4 SVG views (perfil, Rfc curva, sección, semáforos)
 // + tabla de comprobaciones.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../calculations/micropiles';
 import type { CheckStatus } from '../calculations/types';
@@ -56,7 +57,7 @@ export async function exportMicropilesPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ──────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — Micropilotes', M);

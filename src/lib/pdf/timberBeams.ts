@@ -9,7 +9,7 @@
 //   5. ELU/ELS key values
 //   6. Footer
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -48,7 +48,7 @@ export async function exportTimberBeamsPDF(
   const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 2) =>
     formatQuantity(v, q, system, { precision });
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Viga de madera - EC5 EN 1995-1-1 / 1995-1-2', M);

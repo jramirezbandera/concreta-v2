@@ -9,7 +9,7 @@
 //   5. Checks table (Vano + Apoyo + cortante + info)
 //   6. Footer
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type ForjadosInputs } from '../../data/defaults';
 import { type ForjadosResult } from '../calculations/rcSlabs';
 import { type CheckRow } from '../calculations/types';
@@ -42,7 +42,7 @@ export async function exportForjadosPDF(
   const frozenInp: ForjadosInputs = structuredClone(inp);
   const frozenResult: ForjadosResult = structuredClone(result);
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const isReticular = frozenResult.variant === 'reticular';
 
   // ── Header ───────────────────────────────────────────────────────────────

@@ -10,7 +10,8 @@
 // jsPDF built-in fonts (Helvetica) cover latin-1 only.
 // Greek letters (λ, χ, β) and special chars must be substituted with ASCII.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type SteelColumnInputs, type ColumnBCType } from '../../data/defaults';
 import { type SteelColumnResult } from '../calculations/steelColumns';
 import { type SteelCheckStatus } from '../calculations/steelBeams';
@@ -117,7 +118,7 @@ export async function exportSteelColumnsPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   _pageNum = 1;
   let y = M;
 

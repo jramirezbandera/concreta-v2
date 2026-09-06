@@ -35,7 +35,8 @@
 // `formato.ts` que usa la pantalla. La regla de siempre se mantiene: el papel
 // enseña exactamente los números que el usuario estaba viendo.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 
 import {
   PAGE_W,
@@ -1194,7 +1195,7 @@ export async function exportSeismicNCSE02PDF({
   if (bloqueo) throw new Error(bloqueo);
 
   const elementTitle = title ?? '';
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   const { aplicabilidad: ap, resultado: r } = evaluacion;
 

@@ -2,7 +2,7 @@
 // Usa la API moderna de utils.ts (drawHeader/drawTable/drawFootersAllPages/
 // embedSvgAsImage/ensureSpace) — no dibujo manual de tablas.
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import type { RockfillWallInputs } from '../../data/defaults';
 import type { RockfillWallResult, CourseCutPoint } from '../calculations/rockfillWall';
 import { checkValueStr, checkLimitStr, overallStatus } from '../calculations/checkFormat';
@@ -39,7 +39,7 @@ export async function exportRockfillWallPDF(
   system: UnitSystem = 'si',
   title?: string,
 ): Promise<PdfResult> {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
   const isGavion = inp.wallType === 'gaviones';
   const headerMeta = {
     title: `Concreta - Muros de ${isGavion ? 'gaviones' : 'escollera'} - Guia Fomento 2006`,

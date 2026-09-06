@@ -6,7 +6,7 @@
 // Greek letters (δ, λ, χ) and Unicode subscripts (₁) must be substituted
 // with ASCII equivalents before passing to doc.text().
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type SteelBeamInputs, type BeamType } from '../../data/defaults';
 import { type SteelBeamResult, type SteelCheckStatus } from '../../lib/calculations/steelBeams';
 import { BEAM_CASES } from '../calculations/beamCases';
@@ -54,7 +54,7 @@ export async function exportSteelBeamsPDF(
     c.limitNum !== undefined && c.limitQty
       ? formatQuantity(c.limitNum, c.limitQty, system)
       : (c.limitStr ?? c.limit ?? '');
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   const beamCase = BEAM_CASES[inp.beamType];
   const C1 = beamCase.C1;

@@ -2,7 +2,7 @@
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm.
 // jsPDF built-in fonts (Helvetica) only cover latin-1; replace non-latin chars.
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
@@ -27,7 +27,7 @@ export async function exportPileCapPDF(
   const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   const n       = inp.n as number;
   const phi_tie = inp.phi_tie as number;

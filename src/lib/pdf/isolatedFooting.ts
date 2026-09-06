@@ -2,12 +2,13 @@
 // jsPDF + svg2pdf.js — A4 portrait, margins 20mm.
 // Single SVG (planta + sección + diagrama). Inputs in InputsPanel order.
 
-import jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr,
+  pdfStrLatin1, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M = 20;
 
@@ -34,7 +35,7 @@ export async function exportIsolatedFootingPDF(
       ? formatQuantity(c.limitNum, c.limitQty, system)
       : (c.limitStr ?? c.limit ?? '');
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ──────────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Zapata aislada', M);
@@ -84,7 +85,10 @@ export async function exportIsolatedFootingPDF(
       doc.setFont('courier', 'normal');
       doc.setFontSize(6.5);
       setGray(doc, 102);  // #666666
-      doc.text(badge.text, COL_R + labelW + 2, ry);
+      // `courier` es una fuente CORE de jsPDF: Latin-1 y nada mas, asi que
+      // la insignia se sanea con el saneador viejo. Con `pdfStr` un simbolo
+      // Unicode saldria en UTF-16 y con el doble de ancho del declarado.
+      doc.text(pdfStrLatin1(badge.text), COL_R + labelW + 2, ry);
     }
     ry += LH;
     doc.setFont('helvetica', 'normal');

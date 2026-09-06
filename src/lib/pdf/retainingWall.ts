@@ -1,7 +1,8 @@
 // PDF export for Retaining Wall module
 // A4 portrait — input summary, SVG section diagram, check table.
 
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
+import { crearPdf } from './fuente';
 import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../calculations/retainingWall';
 import type { CheckStatus } from '../calculations/types';
@@ -41,7 +42,7 @@ export async function exportRetainingWallPDF(
   const elementTitle = title ?? inp.title ?? '';
   const fmtSi = (v: number, q: Quantity, precision = 2) =>
     formatQuantity(v, q, system, { precision });
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = await crearPdf();
 
   // ── Header ──────────────────────────────────────────────────────────────
   const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta — Muro de Contención RC', M);

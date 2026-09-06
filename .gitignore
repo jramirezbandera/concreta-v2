@@ -38,6 +38,12 @@ design-preview*.html
 # en predev/prebuild. No se versiona; se regenera desde node_modules/pyodide + CDN.
 public/pyodide/
 
+# Fuentes variables de origen de Arimo (~1 MB), sólo entrada de
+# scripts/subset-pdf-font.py. Lo que se versiona es su SALIDA subseteada
+# (src/lib/pdf/fuenteArimo.ts); el .ttf se vuelve a descargar si hace falta,
+# como los assets de Pyodide.
+scripts/vendor/
+
 # Bytecode de Python: lo genera py_compile / Pyodide sobre el PySlope vendorizado.
 __pycache__/
 *.pyc
