@@ -346,10 +346,97 @@ export interface DrawTableOpts<R> {
   cellFontSize?: number;
   /** Inner cell padding-left in mm (right-aligned cells use right padding). Default 1.5. */
   pad?: number;
+  /**
+   * Filas que no pueden quedarse SOLAS a un lado de un salto de página. Con 0
+   * (el defecto, y lo que hacen los veintiún módulos que dimensionan su tabla a
+   * mano) la paginación es fila a fila: la tabla se corta donde se acabe la
+   * página, aunque eso deje dos filas al pie y una en la siguiente.
+   *
+   * Con un valor > 0 se añaden tres reglas de tipógrafo, en este orden:
+   *
+   *   1. una tabla que quepa ENTERA en una página no se parte nunca: si no cabe
+   *      en lo que queda de ésta, empieza en la siguiente;
+   *   2. si hay que partirla, la banda de cabecera exige sitio para tantas
+   *      filas como diga esta opción, no para una sola;
+   *   3. las últimas filas viajan juntas: la última fila no se queda huérfana
+   *      al principio de una página.
+   *
+   * Lo usa `pdf/bloques.ts` (cuadros de materiales y de cargas), donde las
+   * tablas son cortas y una partida en dos es siempre un error de maquetación.
+   */
+  keepTogether?: number;
 }
 
 /** Interlínea real de jsPDF: fontSize (pt) × lineHeightFactor (1.15) → mm. */
 const PT2MM = 25.4 / 72;
+
+/** Una celda ya medida: su texto repartido en líneas y cómo se dibuja. */
+interface CeldaMedida<R> {
+  col: TableCol<R>;
+  lines: string[];
+  bold: boolean;
+  colorG: number;
+}
+
+/** Una tabla medida entera antes de dibujar un solo trazo. */
+interface TablaMedida<R> {
+  /** Alto de la banda de cabecera, con sus rótulos ya repartidos en líneas. */
+  bandaH: number;
+  /** Banda + el hueco que la separa de la primera fila. */
+  altoCabecera: number;
+  rotulos: string[][];
+  filas: { cells: CeldaMedida<R>[]; rH: number }[];
+  /** Cabecera + todas las filas: lo que ocuparía dibujada de una vez. */
+  altoTotal: number;
+}
+
+/**
+ * Mide una tabla SIN dibujarla: reparte los rótulos y las celdas `wrap` en
+ * líneas, trunca las demás y suma los altos. `drawTable` la usa para paginar
+ * con la tabla entera a la vista, y `pdf/bloques.ts` para saber si un
+ * encabezado y su tabla caben juntos antes de escribir el encabezado.
+ *
+ * Mide con la fuente que se va a dibujar, y por eso la fija celda a celda: el
+ * ancho de «HA-30/B/20/XC2» no es el mismo en negrita que en redonda.
+ */
+export function measureTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): TablaMedida<R> {
+  const {
+    cols, rows, rowH = 5, headerH = 5, headerFontSize = 7.5, cellFontSize = 7.5, pad = 1.5,
+  } = opts;
+  const lineH = cellFontSize * 1.15 * PT2MM;
+  const lineHCab = headerFontSize * 1.15 * PT2MM;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(headerFontSize);
+  const rotulos = cols.map((col) => doc.splitTextToSize(pdfStr(col.label), col.w - 2 * pad) as string[]);
+  const nLineasCab = rotulos.reduce((mx, l) => Math.max(mx, l.length), 1);
+  const bandaH = headerH + (nLineasCab - 1) * lineHCab;
+
+  const filas = rows.map((row) => {
+    const cells = cols.map((col): CeldaMedida<R> => {
+      const raw = col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '');
+      const text = pdfStr(raw);
+      const bold = !!(col.bold && col.bold(row));
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(cellFontSize);
+      const lines = col.wrap
+        ? (doc.splitTextToSize(text, col.w - 2 * pad) as string[])
+        : [truncateToWidth(doc, text, col.w - pad)];
+      return { col, lines, bold, colorG: col.color ? col.color(row) : 80 };
+    });
+    const nLines = cells.reduce((mx, c) => Math.max(mx, c.lines.length), 1);
+    return { cells, rH: rowH + (nLines - 1) * lineH };
+  });
+
+  const altoCabecera = bandaH + 4;
+  return {
+    bandaH,
+    altoCabecera,
+    rotulos,
+    filas,
+    altoTotal: altoCabecera + filas.reduce((s, f) => s + f.rH, 0),
+  };
+}
 
 /**
  * Draw a table with atomic-row pagination.
@@ -360,7 +447,8 @@ const PT2MM = 25.4 / 72;
  *
  * The header band itself is also protected: if it would not fit together with
  * the first data row, the whole table starts on the next page — no orphan
- * header stranded at the bottom of a page.
+ * header stranded at the bottom of a page. Con `keepTogether` la protección va
+ * más lejos y alcanza a la tabla entera — ver esa opción.
  *
  * Cells are MEASURED before drawing: `wrap` columns split into several lines
  * (the row grows to the tallest cell); the rest are truncated with an ellipsis
@@ -374,7 +462,6 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
   const {
     x,
     cols,
-    rows,
     M,
     headerRepeat = true,
     zebra = true,
@@ -383,25 +470,22 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
     headerFontSize = 7.5,
     cellFontSize = 7.5,
     pad = 1.5,
+    keepTogether = 0,
   } = opts;
   let y = opts.y;
 
   const totalW = cols.reduce((s, c) => s + c.w, 0);
-  const lineH = cellFontSize * 1.15 * PT2MM;
-  const lineHCab = headerFontSize * 1.15 * PT2MM;
 
-  // Los rótulos se reparten en líneas ANTES de dibujar nada, igual que las
-  // celdas con `wrap`, y la banda crece para caber. Sin esto un rótulo más
-  // ancho que su columna se dibujaba entero y se comía al de al lado: en una
-  // tabla de columnas estrechas la cabecera salía como una sola línea ilegible
-  // («Elemento estructuraTipo de aceroMedios de unión…») y la última se salía
-  // de la página. Con rótulos de una sola línea —el caso de los 20 módulos que
-  // dimensionan sus columnas a mano— esto no cambia ni un milímetro.
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(headerFontSize);
-  const rotulos = cols.map((col) => doc.splitTextToSize(pdfStr(col.label), col.w - 2 * pad) as string[]);
-  const nLineasCab = rotulos.reduce((mx, l) => Math.max(mx, l.length), 1);
-  const bandaH = headerH + (nLineasCab - 1) * lineHCab;
+  // La tabla se mide ENTERA antes de dibujar un solo trazo: los rótulos y las
+  // celdas con `wrap` repartidos en líneas, las demás truncadas, y el alto de
+  // cada fila. Sin medir los rótulos, uno más ancho que su columna se dibujaba
+  // entero y se comía al de al lado («Elemento estructuraTipo de acero…») y el
+  // último se salía de la página; sin medir las filas no hay forma de saber si
+  // la tabla cabe entera, que es lo que necesita `keepTogether`. Con rótulos de
+  // una sola línea —el caso de los 20 módulos que dimensionan sus columnas a
+  // mano— esto no cambia ni un milímetro.
+  const medida = measureTable(doc, opts);
+  const { bandaH, rotulos, filas: medidas } = medida;
 
   const drawHeaderRow = (atY: number): number => {
     doc.setFont('helvetica', 'bold');
@@ -431,33 +515,43 @@ export function drawTable<R>(doc: jsPDF, opts: DrawTableOpts<R>): number {
     return atY + bandaH + 4;
   };
 
+  // Lo que cabe en una página vacía: `ensureSpace` arranca las páginas nuevas
+  // en M + 10 y ninguna baja del suelo del pie.
+  const suelo = PAGE_H - M - FOOTER_RESERVE;
+  const altoPagina = suelo - (M + 10);
+  /** Lo que se exige sin llegar a pedir más de lo que cabe en una página. */
+  const exigir = (h: number) => ensureSpace(doc, y, Math.min(h, altoPagina), M);
+
   // La cabecera nunca queda huérfana al fondo de página: si no cabe junto con
   // la primera fila de datos, la tabla entera arranca en la página siguiente.
-  y = ensureSpace(doc, y, bandaH + 4 + rowH, M);
+  if (keepTogether <= 0) {
+    y = exigir(bandaH + 4 + rowH);
+  } else if (y + medida.altoTotal > suelo && medida.altoTotal <= altoPagina) {
+    // Regla 1: la tabla que cabe entera en una página no se parte NUNCA. Una de
+    // tres filas cortada en dos y tres no es una tabla larga, es un error de
+    // maquetación: se va entera a la página siguiente.
+    doc.addPage();
+    y = M + 10;
+  } else {
+    // Regla 2: si de verdad hay que partirla, la cabecera arranca acompañada.
+    y = exigir(medida.altoCabecera + medidas.slice(0, keepTogether).reduce((s, f) => s + f.rH, 0));
+  }
   y = drawHeaderRow(y);
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  for (let i = 0; i < medidas.length; i++) {
+    const { cells, rH } = medidas[i];
 
-    // Celdas medidas ANTES de dibujar: wrap → varias líneas (la fila crece);
-    // sin wrap → truncado con elipsis a la anchura de columna. getTextWidth /
-    // splitTextToSize dependen de la fuente activa: se fija por celda.
-    const cells = cols.map((col) => {
-      const raw = col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '');
-      const text = pdfStr(raw);
-      const bold = !!(col.bold && col.bold(row));
-      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-      doc.setFontSize(cellFontSize);
-      const lines = col.wrap
-        ? (doc.splitTextToSize(text, col.w - 2 * pad) as string[])
-        : [truncateToWidth(doc, text, col.w - pad)];
-      return { col, lines, bold, colorG: col.color ? col.color(row) : 80 };
-    });
-    const nLines = cells.reduce((mx, c) => Math.max(mx, c.lines.length), 1);
-    const rH = rowH + (nLines - 1) * lineH;
+    // Regla 3: las últimas filas viajan juntas. Sin esto, una tabla que SÍ hay
+    // que partir puede dejar su última fila sola al principio de la página
+    // siguiente — una viuda, con la cabecera repetida encima para ella sola.
+    const quedan = medidas.length - i;
+    const necesita =
+      keepTogether > 0 && quedan > 1 && quedan <= keepTogether
+        ? medidas.slice(i).reduce((s, f) => s + f.rH, 0)
+        : rH;
 
     // Atomic row: ensure rH fits, else page break + repeat header.
-    y = ensureSpace(doc, y, rH, M, headerRepeat ? (newY) => drawHeaderRow(newY) : undefined);
+    y = ensureSpace(doc, y, Math.min(necesita, altoPagina), M, headerRepeat ? (newY) => drawHeaderRow(newY) : undefined);
 
     if (zebra && i % 2 === 1) {
       doc.setFillColor(248, 250, 252); // slate-50 — barely visible on print

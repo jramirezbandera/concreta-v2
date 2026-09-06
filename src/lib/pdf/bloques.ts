@@ -27,8 +27,10 @@ import {
   PAGE_W,
   drawTable,
   ensureSpace,
+  measureTable,
   pdfStr,
   setGray,
+  type DrawTableOpts,
   type TableCol,
 } from './utils';
 
@@ -43,6 +45,16 @@ const AIRE = { h1: 6, h2: 5, h3: 4, parrafo: 3.5, tabla: 2, notas: 2.5 };
 
 const PAD = 1.5;
 
+/**
+ * Filas que no se quedan solas a un lado de un salto de página (`keepTogether`
+ * de `drawTable`). Los cuadros de este renderer son cortos —tres, cuatro, seis
+ * filas— y ninguno gana nada partido: una tabla de tres filas cortada en dos y
+ * una no es una tabla que sigue, es un cuadro roto. Con esto sólo se parte la
+ * que no cabe entera en una página, y aun ésa deja al menos dos filas a cada
+ * lado del corte.
+ */
+const FILAS_JUNTAS = 2;
+
 /** Una fila de tabla es un array de celdas; las columnas van por índice. */
 type Fila = string[];
 
@@ -55,6 +67,24 @@ export interface OpcionesBloques {
 
 /** Alto disponible antes de invadir la banda del pie. */
 const suelo = (M: number) => PAGE_H - M - FOOTER_RESERVE;
+
+/** Lo que cabe en una página nueva: `ensureSpace` las arranca en M + 10. */
+const altoPagina = (M: number) => suelo(M) - (M + 10);
+
+/** Alto de un texto ya repartido en líneas, con el cuerpo que esté activo. */
+function altoTexto(doc: jsPDF, texto: string, ancho: number): number {
+  const lineas: string[] = doc.splitTextToSize(pdfStr(texto), ancho);
+  return lineas.length * doc.getFontSize() * 0.3528 * 1.15;
+}
+
+/**
+ * Pide sitio para `h`, y sólo salta de página si con eso lo consigue: reservar
+ * más de lo que cabe en una página vacía dejaría la página en blanco y el
+ * problema igual una línea más abajo.
+ */
+function reservar(doc: jsPDF, y: number, h: number, M: number): number {
+  return h <= altoPagina(M) ? ensureSpace(doc, y, h, M) : y;
+}
 
 /**
  * Corta el texto en líneas que quepan en `ancho` y las escribe, paginando.
@@ -152,26 +182,34 @@ function caption(doc: jsPDF, texto: string, x: number, y: number, ancho: number,
   return parrafo(doc, texto, x, y, ancho, M) + 0.5;
 }
 
-function tabla(
+/** Un trozo de tabla con sus columnas ya repartidas, listo para medir o dibujar. */
+interface Trozo {
+  /** El rótulo gris de este trozo, con su « (cont.)» si lo lleva. */
+  texto?: string;
+  cols: TableCol<Fila>[];
+  rows: Fila[];
+}
+
+/**
+ * Reparte una tabla en trozos que quepan a lo ancho y les da sus columnas, sin
+ * dibujar nada. Separado del dibujo porque un encabezado necesita saber cuánto
+ * ocupa su tabla ANTES de escribirse: si no caben juntos, el que tiene que
+ * bajar de página es el encabezado, no la tabla sola.
+ */
+function prepararTabla(
   doc: jsPDF,
   cabecera: string[],
   filas: Fila[],
   rotulo: string | undefined,
-  o: OpcionesBloques,
-  y: number,
+  util: number,
   conBanda: boolean,
-): number {
-  const util = PAGE_W - 2 * o.M;
+): Trozo[] {
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(CUERPO.celda);
-  for (const [i, trozo] of trocear(doc, cabecera, filas, util).entries()) {
-    // El rótulo se repite en cada trozo con « (cont.)», que es lo que hace
-    // legible una tabla partida: sin él, el segundo trozo es una tabla huérfana.
+  return trocear(doc, cabecera, filas, util).map((trozo, i) => {
     // El «(cont.)» es lo que hace legible una tabla partida: sin él, el segundo
     // trozo parece otra tabla distinta que empieza por la misma columna.
     const texto = rotulo ? (i === 0 ? rotulo : `${rotulo} (cont.)`) : i > 0 ? '(cont.)' : undefined;
-    y += AIRE.tabla;
-    if (texto) y = caption(doc, texto, o.M, y, util, o.M);
-
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(CUERPO.celda);
     const w = anchos(doc, trozo.head, trozo.rows, util);
@@ -184,20 +222,84 @@ function tabla(
       // La columna de etiquetas en negrita: es la que dice qué se está leyendo.
       bold: () => j === 0 && !conBanda,
     }));
-    y = drawTable(doc, {
-      x: o.M,
-      y,
-      cols,
-      rows: trozo.rows,
-      M: o.M,
-      headerRepeat: conBanda,
-      headerH: conBanda ? 5 : 0,
-      headerFontSize: CUERPO.celda,
-      cellFontSize: CUERPO.celda,
-      pad: PAD,
-    });
+    return { texto, cols, rows: trozo.rows };
+  });
+}
+
+/** Las opciones con las que este renderer dibuja —y mide— todas sus tablas. */
+function opcionesTabla(t: Trozo, o: OpcionesBloques, y: number, conBanda: boolean): DrawTableOpts<Fila> {
+  return {
+    x: o.M,
+    y,
+    cols: t.cols,
+    rows: t.rows,
+    M: o.M,
+    headerRepeat: conBanda,
+    headerH: conBanda ? 5 : 0,
+    headerFontSize: CUERPO.celda,
+    cellFontSize: CUERPO.celda,
+    pad: PAD,
+    keepTogether: FILAS_JUNTAS,
+  };
+}
+
+/** Lo que ocupa el primer trozo con su aire y su rótulo: lo que hay que reservar. */
+function altoPrimerTrozo(doc: jsPDF, trozos: Trozo[], o: OpcionesBloques, conBanda: boolean): number {
+  const t = trozos[0];
+  if (!t) return 0;
+  const util = PAGE_W - 2 * o.M;
+  let h = AIRE.tabla;
+  if (t.texto) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(CUERPO.nota);
+    h += altoTexto(doc, t.texto, util) + 0.5;
+  }
+  return h + measureTable(doc, opcionesTabla(t, o, 0, conBanda)).altoTotal;
+}
+
+function tabla(
+  doc: jsPDF,
+  cabecera: string[],
+  filas: Fila[],
+  rotulo: string | undefined,
+  o: OpcionesBloques,
+  y: number,
+  conBanda: boolean,
+): number {
+  const util = PAGE_W - 2 * o.M;
+  const trozos = prepararTabla(doc, cabecera, filas, rotulo, util, conBanda);
+  for (const [i, t] of trozos.entries()) {
+    y += AIRE.tabla;
+    if (t.texto) {
+      // El rótulo tampoco se separa de su tabla: es un encabezado más, sólo que
+      // en gris. Se reserva para los dos, y `drawTable` ya no partirá lo que
+      // quepa entero (`keepTogether`).
+      if (i === 0) y = reservar(doc, y, altoPrimerTrozo(doc, trozos, o, conBanda) - AIRE.tabla, o.M);
+      y = caption(doc, t.texto, o.M, y, util, o.M);
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(CUERPO.celda);
+    y = drawTable(doc, opcionesTabla(t, o, y, conBanda));
   }
   return y;
+}
+
+/**
+ * Lo que ocupará el bloque que sigue a un encabezado, cuando sea una tabla. Un
+ * encabezado tiene que poder mirar hacia delante: reservar sólo su propia línea
+ * lo deja escrito al pie de la página con su tabla entera en la siguiente.
+ */
+function altoArrastrado(doc: jsPDF, siguiente: Block | undefined, o: OpcionesBloques): number {
+  if (!siguiente) return 0;
+  const util = PAGE_W - 2 * o.M;
+  if (siguiente.kind === 'table') {
+    return altoPrimerTrozo(doc, prepararTabla(doc, siguiente.head, siguiente.rows, siguiente.caption, util, true), o, true);
+  }
+  if (siguiente.kind === 'kvTable') {
+    const filas = siguiente.rows.map(([k, v]) => [k, v]);
+    return altoPrimerTrozo(doc, prepararTabla(doc, [], filas, siguiente.caption, util, false), o, false);
+  }
+  return 0;
 }
 
 /**
@@ -208,17 +310,25 @@ export function dibujarBloques(doc: jsPDF, blocks: Block[], o: OpcionesBloques):
   const util = PAGE_W - 2 * o.M;
   let y = o.y;
 
-  for (const b of blocks) {
+  for (const [i, b] of blocks.entries()) {
     switch (b.kind) {
       case 'heading': {
         const cuerpo = b.level === 1 ? CUERPO.h1 : b.level === 2 ? CUERPO.h2 : CUERPO.h3;
         const aire = b.level === 1 ? AIRE.h1 : b.level === 2 ? AIRE.h2 : AIRE.h3;
+        // El encabezado va con lo que titula, no con su primera línea: un
+        // título solo al pie de página no titula nada, y su tabla bajando a la
+        // página siguiente lo deja exactamente así. Se mide antes de escribir
+        // nada, y si el conjunto no cabe en una página se conserva la reserva
+        // de siempre (una línea larga y poco más).
+        const arrastre = altoArrastrado(doc, blocks[i + 1], o);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(cuerpo);
         setGray(doc, 25);
-        // El encabezado va con su primera línea o se va a la página siguiente:
-        // un título solo al pie de página no titula nada.
-        y = ensureSpace(doc, y + aire, 14, o.M);
+        y = reservar(doc, y + aire, altoTexto(doc, b.text, util) + arrastre, o.M);
+        // Y por debajo de eso, la reserva de siempre: cuando lo que sigue no es
+        // una tabla (o es uno de esos cuadros que no caben en una página ni
+        // solos), el encabezado aún tiene que ir con su primera línea.
+        y = ensureSpace(doc, y, 14, o.M);
         y = parrafo(doc, b.text, o.M, y, util, o.M);
         break;
       }
