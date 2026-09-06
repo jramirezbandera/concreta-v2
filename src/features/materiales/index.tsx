@@ -10,14 +10,21 @@
  * primitivos planos): clave propia en localStorage, como el módulo de sismo.
  * Ver `state.ts`.
  *
- * Cada vista tiene su formato porque tiene su destino, y por eso el botón de
- * exportar entrega LO QUE SE ESTÁ MIRANDO: la vista de memoria sale a Word, para
- * pegarla en la memoria del proyecto; la de plano sale a Excel, para capturarla
- * y meterla en el plano (y más adelante a DXF, para el CAD). Un solo botón que
- * cambia de rótulo, en vez de tres fijos en una barra ya cargada.
+ * Además de los tres ficheros, el cuadro sale por una cuarta puerta que no se
+ * descarga: en cuanto está resuelto se PUBLICA en `concreta-pub-materiales`
+ * (ver `lib/pub`), de donde lo tomará la ficha DB SE sin leer este estado.
+ *
+ * Cada cuadro tiene sus formatos porque tiene su destino: el de memoria sale a
+ * Word, para pegarlo en la memoria del proyecto, y a PDF, para enviarlo o
+ * imprimirlo; el de plano sale a Excel, para capturarlo, y a DXF, para el CAD.
+ * Las cuatro salidas cuelgan de UN botón «Exportar», el mismo en las tres
+ * pestañas, que las despliega agrupadas por cuadro. Antes la barra enseñaba el
+ * par de la vista abierta y cambiaba de rótulo con la pestaña: para bajar el
+ * Excel había que ir a Plano, y en Datos no se sabía qué se bajaba hasta pulsar.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -26,6 +33,7 @@ import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import {
   MATERIALES_FALLBACK_DOCX,
   MATERIALES_FALLBACK_DXF,
+  MATERIALES_FALLBACK_PDF,
   MATERIALES_FALLBACK_XLSX,
 } from '../../lib/export/filename';
 import {
@@ -51,8 +59,10 @@ import {
   filaDesdePreset,
   filaMaderaDesdePreset,
   guardarEstado,
+  hayMaterialesResueltos,
+  limpiezaPrescrita,
   nuevoId,
-  tipificacionLimpieza,
+  publicarResultado,
   type FilaAcero,
   type FilaHormigon,
   type FilaMadera,
@@ -68,7 +78,7 @@ const VISTAS: { id: Vista; etiqueta: string }[] = [
   { id: 'memoria', etiqueta: 'Memoria' },
 ];
 
-type FormatoId = 'docx' | 'xlsx' | 'dxf';
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf';
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<
@@ -88,7 +98,37 @@ const FORMATOS: Record<
     enError: 'Excel',
   },
   dxf: { etiqueta: 'DXF', fallback: MATERIALES_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
+  pdf: { etiqueta: 'PDF', fallback: MATERIALES_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
 };
+
+const opcion = (id: FormatoId, detalle: string) => ({
+  id,
+  etiqueta: FORMATOS[id].etiqueta,
+  detalle,
+});
+
+/**
+ * Lo que despliega «Exportar»: las cuatro salidas, agrupadas por el cuadro que
+ * entregan y con su destino en lenguaje de obra. El orden es el del uso: la
+ * memoria es el entregable principal, y dentro de cada cuadro va primero el
+ * formato editable.
+ */
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Cuadro de memoria',
+    opciones: [
+      opcion('docx', 'para pegar en la memoria del proyecto'),
+      opcion('pdf', 'maquetado y cerrado, para enviar o imprimir'),
+    ],
+  },
+  {
+    titulo: 'Cuadro de plano',
+    opciones: [
+      opcion('xlsx', 'para capturar y pegar en el plano'),
+      opcion('dxf', 'dibujado, para insertar en el CAD'),
+    ],
+  },
+];
 
 export function MaterialesModule() {
   const { openDrawer } = useDrawer();
@@ -105,6 +145,14 @@ export function MaterialesModule() {
   };
 
   const evaluacion = useMemo(() => evaluar(state), [state]);
+
+  // Publicar es un efecto del RESULTADO, no del tecleo: se hace después del
+  // render, con la evaluación ya hecha, y sólo si hay cuadro que publicar.
+  // Lo escrito en `concreta-pub-materiales` lo consumirá la ficha DB SE sin
+  // leer este estado (ver `lib/pub`).
+  useEffect(() => {
+    publicarResultado(state, evaluacion);
+  }, [state, evaluacion]);
 
   const derivacionesHormigon = useMemo(
     () => new Map(evaluacion.hormigon.map((h) => [h.fila.id, h.derivacion])),
@@ -187,8 +235,7 @@ export function MaterialesModule() {
         ...cuadroHormigonPlano(
           evaluacion.hormigon.map((h) => h.derivacion),
           evaluacion.limpieza.map((f) => ({
-            nombre: f.nombre.trim() || 'Hormigón de limpieza',
-            tipificacion: tipificacionLimpieza(f.consistencia, state.estudio.tamMaxArido),
+            ...limpiezaPrescrita(f, state.estudio.tamMaxArido),
             nivelControl: 'Según capítulos 13 y 14',
           })),
         ),
@@ -256,19 +303,17 @@ export function MaterialesModule() {
   // Un cuadro sin un solo material resuelto sí está «listo» —no hay huecos que
   // resolver— pero su documento es la frase «Sin materiales resueltos…». Eso no
   // es un Word que entregar, así que la puerta pide además que haya algo dentro.
-  const hayContenido =
-    evaluacion.hormigon.length + evaluacion.madera.length > 0 || evaluacion.acero !== null;
+  const hayContenido = hayMaterialesResueltos(evaluacion);
   const exportarBloqueado = !evaluacion.listo || !hayContenido;
 
   /**
-   * Qué se exporta lo decide la pestaña, porque cada vista tiene su destino. La
-   * de memoria sólo tiene uno, el Word que se pega en la memoria del proyecto;
-   * la de plano tiene DOS, el Excel para capturar y el DXF para el CAD, y por
-   * eso ahí la barra enseña dos botones en vez de esconderlos en un desplegable.
-   * En «Datos» no hay documento a la vista, así que se ofrece el Word, que es el
-   * entregable principal.
+   * Qué se exporta lo decide la opción elegida en «Exportar», no la pestaña
+   * abierta: el mismo desplegable en las tres, con las cuatro salidas
+   * agrupadas por cuadro (`GRUPOS_EXPORTAR`). Desde Datos se baja el DXF sin
+   * pasar por Plano. El formato elegido se guarda aparte porque el modal del
+   * título lo necesita antes de que exista el fichero: la preview del nombre y
+   * el rótulo de confirmar salen de él.
    */
-  const enPlano = vista === 'plano';
   const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
   const formato = FORMATOS[formatoElegido];
 
@@ -292,6 +337,10 @@ export function MaterialesModule() {
       if (formatoElegido === 'dxf') {
         const { exportarMaterialesDxf } = await import('../../lib/dxf/materiales');
         return exportarMaterialesDxf(bloquesPlano, titulo);
+      }
+      if (formatoElegido === 'pdf') {
+        const { exportarMaterialesPdf } = await import('../../lib/pdf/materiales');
+        return exportarMaterialesPdf(bloquesMemoria, titulo);
       }
       const { exportarMaterialesDocx } = await import('../../lib/docx/materiales');
       return exportarMaterialesDocx(bloquesMemoria, titulo);
@@ -322,11 +371,9 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
-        onExportPdf={() => exportarComo(enPlano ? 'xlsx' : 'docx')}
-        pdfExporting={exportando}
-        exportLabel={enPlano ? 'Exportar Excel' : 'Exportar Word'}
-        onExportSecondary={enPlano ? () => exportarComo('dxf') : undefined}
-        exportSecondaryLabel="Exportar DXF"
+        exportMenu={
+          <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
+        }
       />
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-main bg-bg-surface px-4 py-1.5">
@@ -367,6 +414,11 @@ export function MaterialesModule() {
             <span className="text-state-warn">
               {' · '}
               {evaluacion.avisos} {evaluacion.avisos === 1 ? 'aviso' : 'avisos'}
+            </span>
+          )}
+          {!exportarBloqueado && (
+            <span className="text-accent" title="El cuadro queda disponible para la ficha DB SE">
+              {' · '}publicado
             </span>
           )}
         </span>
@@ -481,6 +533,15 @@ export function MaterialesModule() {
               />
             )}
 
+            {state.ayuda && (
+              <p className="px-1 text-[11.5px] leading-snug text-text-disabled">
+                Mientras no queden huecos, el cuadro queda{' '}
+                <b className="text-accent">publicado</b>: los materiales de esta obra quedan
+                disponibles para los demás módulos y para la ficha de cumplimiento del DB SE, sin
+                volver a teclearlos. Se guarda en este navegador, con el resto de la obra.
+              </p>
+            )}
+
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-text-disabled">
               <span className="flex items-center gap-1.5">
                 <i
@@ -504,7 +565,7 @@ export function MaterialesModule() {
                   style={{ background: 'var(--color-state-fail)' }}
                   aria-hidden="true"
                 />
-                hueco sin resolver, bloquea exportar
+                hueco sin resolver, bloquea exportar y publicar
               </span>
             </p>
           </div>
@@ -520,14 +581,16 @@ export function MaterialesModule() {
             )}
             {state.ayuda && vista === 'memoria' && (
               <p className="mx-auto mb-3 max-w-[1100px] text-[11.5px] leading-snug text-text-disabled">
-                «Exportar Word» entrega <b className="text-text-secondary">este</b> cuadro, el de
-                memoria, con los estilos de Título de Word para que se pegue en la memoria del
-                proyecto y herede su numeración.
+                Este cuadro, el de memoria, tiene dos salidas en «Exportar».{' '}
+                <b className="text-text-secondary">Word</b> lo entrega con los estilos de Título,
+                para pegarlo en la memoria del proyecto y que herede su numeración y su tipografía.{' '}
+                <b className="text-text-secondary">PDF</b> lo entrega ya maquetado y cerrado, para
+                enviarlo, archivarlo o imprimirlo.
               </p>
             )}
             {state.ayuda && vista === 'plano' && (
               <p className="mx-auto mb-3 max-w-[1100px] text-[11.5px] leading-snug text-text-disabled">
-                Este cuadro, el de plano, tiene dos salidas.{' '}
+                Este cuadro, el de plano, tiene dos salidas en «Exportar».{' '}
                 <b className="text-text-secondary">Excel</b> lo entrega en una hoja sin cuadrícula y
                 con los anchos ajustados, para seleccionar, capturar y pegar la imagen.{' '}
                 <b className="text-text-secondary">DXF</b> lo entrega dibujado —líneas y textos en

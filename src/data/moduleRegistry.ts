@@ -63,7 +63,8 @@ export const moduleRegistry: ModuleEntry[] = [
     group: 'Memorias',
     // Estado anidado (elementos → situación, grupos de madera, acero), con
     // clave propia en localStorage como el módulo de sismo. El registro sólo
-    // necesita las banderas ligeras.
+    // necesita las banderas ligeras. Publica su cuadro en
+    // `concreta-pub-materiales` para la ficha DB SE (ver src/lib/pub).
     defaults: {} as unknown as ModuleInputs,
     shipped: true,
   },
@@ -87,8 +88,8 @@ export const moduleRegistry: ModuleEntry[] = [
     label: 'Viento y nieve',
     group: 'Acciones',
     // Estado anidado (plantas, faldones) con clave propia en localStorage,
-    // como sismo y materiales. Es el primer módulo que publica su resultado
-    // (`concreta-pub-viento-nieve`, ver src/lib/pub).
+    // como sismo y materiales. Fue el primero en publicar su resultado
+    // (`concreta-pub-viento-nieve`, ver src/lib/pub), el contrato que estrenó.
     defaults: {} as unknown as ModuleInputs,
     shipped: true,
   },

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { CalcButton } from '../calculator/CalcButton';
@@ -12,20 +13,19 @@ interface TopbarProps {
   pdfExporting?: boolean;
   /**
    * Etiqueta del botón de exportar. Por defecto «Exportar PDF»: los 21 módulos
-   * que no la pasan siguen exactamente igual. El cuadro de materiales entrega
-   * Word, y detrás vienen Excel y DXF del cuadro de plano — cuando existan de
-   * verdad, este botón se convertirá en un menú de formatos. Construirlo hoy
-   * sería especular sobre tres salidas que aún no están escritas.
+   * que no la pasan siguen exactamente igual. Viento y nieve la cambia con la
+   * pestaña (Word o Excel). Cuando una vista tiene VARIAS salidas a la vez, el
+   * botón se sustituye por `exportMenu`.
    */
   exportLabel?: string;
   /**
-   * Segunda salida de la misma vista, en un botón de menos peso a la izquierda
-   * del principal. Lo estrena el cuadro de materiales: su vista de plano tiene
-   * DOS destinos —Excel para capturar y DXF para el CAD— y nombrarlos es más
-   * claro que esconderlos en un desplegable de formatos.
+   * Desplegable de formatos que ocupa el sitio del botón de exportar, para las
+   * vistas con más de una salida. Lo estrena el cuadro de materiales, con
+   * cuatro (Word y PDF del cuadro de memoria, Excel y DXF del de plano): el
+   * módulo compone el `ExportarMenu` —él sabe qué formatos tiene y qué hacer
+   * con cada uno— y la barra sólo lo coloca. Excluyente con `onExportPdf`.
    */
-  onExportSecondary?: () => void;
-  exportSecondaryLabel?: string;
+  exportMenu?: ReactNode;
   onMenuOpen?: () => void;
   /**
    * Override for the "Copiar enlace" button. Modules that need a richer share
@@ -41,7 +41,7 @@ interface TopbarProps {
   onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF', onExportSecondary, exportSecondaryLabel }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF', exportMenu }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -85,23 +85,10 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         {/* Ajustes: recoge Unidades, Tema y Copiar enlace. */}
         <AjustesMenu onCopyLink={handleCopyUrl} />
-        {/* Salida secundaria de la vista: mismo tamaño, sin el realce. */}
-        {onExportSecondary && (
-          <button
-            onClick={onExportSecondary}
-            disabled={pdfExporting}
-            title={exportSecondaryLabel}
-            aria-label={exportSecondaryLabel}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-elevated disabled:opacity-40 transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-              <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
-            </svg>
-            <span className="hidden lg:inline">{exportSecondaryLabel}</span>
-          </button>
-        )}
-        {/* Salida principal de la vista — resaltado sutil (accent-outline). */}
-        {onExportPdf && (
+        {/* Salida del módulo — resaltado sutil (accent-outline). Con varias
+            salidas, el módulo pasa su desplegable y ocupa el mismo sitio. */}
+        {exportMenu}
+        {!exportMenu && onExportPdf && (
           <button
             onClick={onExportPdf}
             disabled={pdfExporting}

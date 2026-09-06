@@ -27,11 +27,16 @@ import type {
   CategoriaEjecucion,
   CategoriaUso,
   ClaseCorrosividad,
+  ClaseEjecucion,
+  ClaseExposicion,
+  ClaseServicio,
+  ClaseUso,
   Consistencia,
   ElementoAcero,
   ElementoHormigon,
   GrupoMadera,
   MallaElectrosoldada,
+  MedioUnion,
   NivelControlEjecucion,
   NivelControlHormigon,
   NivelRiesgo,
@@ -41,7 +46,18 @@ import type {
   TipoMadera,
   VidaUtil,
 } from '../../lib/materiales/types';
-import { CEMENTO_MIN_HL, CONSISTENCIAS, FCTK_005 } from '../../lib/materiales/tablasCE';
+import {
+  CEMENTO_MIN_HL,
+  CONSISTENCIAS,
+  FCTK_005,
+  FY_ACERO_ESTRUCTURAL,
+  FYK_ACERO_PASIVO,
+  FYK_MALLA,
+  GAMMA_MATERIALES,
+} from '../../lib/materiales/tablasCE';
+import { GAMMA_M_EXTRAORDINARIA } from '../../lib/materiales/tablasMadera';
+import { leerObra } from '../../lib/obra';
+import { publicar } from '../../lib/pub';
 import {
   ESPECIES,
   LAMINAS_POR_GL,
@@ -604,4 +620,291 @@ export function evaluar(state: MaterialesState): Evaluacion {
     errores,
     listo: huecos.length === 0 && huecosMadera.length === 0 && errores === 0,
   };
+}
+
+// ── Publicación ─────────────────────────────────────────────────────────────
+
+/**
+ * Nombre del módulo en las publicaciones y versión del esquema de `datos`.
+ * Tocar `PubMateriales` obliga a subir `PUB_VERSION`: un consumidor que pide la
+ * versión 1 y encuentra la 2 recibe `null` en vez de un objeto a medias
+ * (ver `lib/pub`).
+ */
+export const MODULO_PUB = 'materiales';
+export const PUB_VERSION = 1;
+
+/** Un coeficiente parcial con sus dos situaciones, como lo rotula el cuadro. */
+export interface GammaPub {
+  persistente: number;
+  accidental: number;
+}
+
+export interface PubElementoHormigon {
+  nombre: string;
+  /** CE 33.6 — T-R/C/TM/A. */
+  tipificacion: string;
+  /** La ADOPTADA: max(especificada, mínima por durabilidad), N/mm². */
+  fck: number;
+  /** fck/γc en situación persistente o transitoria, N/mm². */
+  fcd: number;
+  consistencia: Consistencia;
+  /** Todas las aplicables, en el orden de la tabla 27.1.a. */
+  clases: ClaseExposicion[];
+  /** Sí cuando las forzó el proyectista en vez de dejarlas derivar. */
+  clasesForzadas: boolean;
+  /** kg/m³; `null` cuando la norma no lo tabula para esas clases. */
+  cementoMin: number | null;
+  acMax: number | null;
+  /**
+   * Recubrimiento NOMINAL, mm: `deltaCdev` ya está sumado. 0 en hormigón en
+   * masa, que no tiene armadura que proteger, y `null` cuando la norma no
+   * tabula recubrimiento para alguna de las clases presentes — de ahí sale la
+   * nota al pie que el consumidor tendrá que escribir.
+   */
+  cnom: number | null;
+  /** CE tabla 43.4.1 — margen por control de ejecución, mm. */
+  deltaCdev: number;
+  nivelControl: NivelControlHormigon;
+}
+
+export interface PubHormigon {
+  gammaC: GammaPub;
+  /** El de la armadura pasiva, que el cuadro imprime junto al del hormigón. */
+  gammaS: GammaPub;
+  aceroPasivo: { designacion: AceroPasivo; fyk: number };
+  malla: { designacion: MallaElectrosoldada; fyk: number } | null;
+  tamMaxArido: number;
+  cemento: TipoCemento;
+  elementos: PubElementoHormigon[];
+  /** Los que se prescriben sin derivar: el hormigón de limpieza. */
+  prescritos: { nombre: string; tipificacion: string }[];
+}
+
+export interface PubAceroEstructural {
+  /** La del perfil de estudio, común a todos los elementos. */
+  designacion: AceroEstructural;
+  /** Límite elástico nominal, N/mm². */
+  fy: number;
+  gammaM: GammaPub;
+  nivelRiesgo: NivelRiesgo;
+  categoriaUso: CategoriaUso;
+  categoriaEjecucionDeclarada: CategoriaEjecucion;
+  /** La EFECTIVA, que puede subir a PC2 sola (CE 91.2.2.2). Es la que manda. */
+  categoriaEjecucion: CategoriaEjecucion;
+  claseEjecucion: ClaseEjecucion;
+  elementos: {
+    nombre: string;
+    designacion: AceroEstructural;
+    union: MedioUnion;
+    caracteristicasUnion: string;
+    corrosividad: ClaseCorrosividad;
+    proteccion: ProteccionAcero;
+    caracteristicasProteccion: string;
+  }[];
+}
+
+export interface PubMadera {
+  /** γM en situaciones extraordinarias, incendio incluido: 1,00 para todo. */
+  gammaMExtraordinaria: number;
+  grupos: {
+    nombre: string;
+    tipo: TipoMadera;
+    claseResistente: string;
+    especie: string | null;
+    /** Calidad visual exigible a esa especie para esa clase (DB SE-M tabla C.1). */
+    calidad: string | null;
+    claseLaminas: string | null;
+    claseServicio: ClaseServicio;
+    claseUso: ClaseUso;
+    /** DB SE-M tabla 2.3, situaciones persistentes y transitorias. */
+    gammaM: number;
+    /** DB SE-M tabla 3.1 — penetración exigida al tratamiento. */
+    nivelPenetracion: string;
+    proteccionHerrajes: string;
+  }[];
+}
+
+/**
+ * Esquema v1 de lo que publica el cuadro de materiales.
+ *
+ * Viajan HECHOS, no prosa ni `Block[]`. Los cuadros de `lib/materiales/cuadros`
+ * son presentación —mayúsculas, guiones, marcadores «(*)» apareados con sus
+ * notas al pie— y congelarlos aquí le impondría a la ficha DB SE la tipografía
+ * de este módulo en lugar de darle algo con lo que razonar: «¿hay madera?»,
+ * «¿cuál es el hormigón más desfavorable?», «¿qué recubrimiento pongo en la
+ * comprobación?». Las notas se regeneran desde estos mismos hechos: un `cnom`
+ * nulo es «la norma no lo tabula» y `clasesForzadas` es «lo decidió el
+ * proyectista».
+ *
+ * Tampoco viajan el estado interno (ids, presets, el conmutador de Ayuda) ni
+ * los mensajes y trazas del motor: son la conversación de este módulo con su
+ * usuario, no un dato del proyecto.
+ */
+export interface PubMateriales {
+  /** El tramo normativo de durabilidad: 50 o 100 años (CE tabla 43.2.1.b). */
+  vidaUtil: VidaUtil;
+  /** La cifra que se declara en la memoria, que puede no ser la del tramo. */
+  vidaUtilAnios: number;
+  nivelControlEjecucion: NivelControlEjecucion;
+  /** Texto de la columna «Nivel de control» del cuadro de aceros. */
+  nivelControlAcero: string;
+  /** R exigida por el DB SI 6, en minutos. `null` si no se ha indicado. */
+  resistenciaFuego: number | null;
+  /** Los modificadores de obra que endurecieron las clases de exposición. */
+  modificadores: {
+    costa: boolean;
+    heladas: boolean;
+    terrenoAgresivo: AgresividadQuimica;
+  };
+  hormigon: PubHormigon | null;
+  aceroEstructural: PubAceroEstructural | null;
+  madera: PubMadera | null;
+}
+
+/**
+ * ¿Hay algo que entregar? Un cuadro con los tres materiales apagados no tiene
+ * huecos que resolver —o sea, está «listo»— pero su documento es una sola
+ * frase. Ni se exporta ni se publica: un cuadro de materiales vacío y fechado
+ * le sirve al consumidor menos que la ausencia de publicación.
+ */
+export function hayMaterialesResueltos(ev: Evaluacion): boolean {
+  return ev.hormigon.length + ev.madera.length > 0 || ev.acero !== null;
+}
+
+/**
+ * El hormigón de limpieza tal y como se rotula, con su nombre por defecto.
+ * Lo comparten el cuadro de plano y la publicación para que no puedan decir
+ * cosas distintas del mismo hormigón.
+ */
+export function limpiezaPrescrita(
+  fila: FilaHormigon,
+  tamMaxArido: number,
+): { nombre: string; tipificacion: string } {
+  return {
+    nombre: fila.nombre.trim() || 'Hormigón de limpieza',
+    tipificacion: tipificacionLimpieza(fila.consistencia, tamMaxArido),
+  };
+}
+
+export function datosPublicacion(state: MaterialesState, ev: Evaluacion): PubMateriales | null {
+  if (!ev.listo || !hayMaterialesResueltos(ev)) return null;
+
+  const gamma = (g: { persistente: number; accidental: number }): GammaPub => ({
+    persistente: g.persistente,
+    accidental: g.accidental,
+  });
+
+  const hormigon: PubHormigon | null =
+    ev.hormigon.length > 0
+      ? {
+          gammaC: gamma(GAMMA_MATERIALES.hormigon),
+          gammaS: gamma(GAMMA_MATERIALES.armaduraPasiva),
+          aceroPasivo: {
+            designacion: state.estudio.aceroPasivo,
+            fyk: FYK_ACERO_PASIVO[state.estudio.aceroPasivo],
+          },
+          malla: state.estudio.malla
+            ? { designacion: state.estudio.malla, fyk: FYK_MALLA[state.estudio.malla] }
+            : null,
+          tamMaxArido: state.estudio.tamMaxArido,
+          cemento: state.estudio.cemento,
+          elementos: ev.hormigon.map(({ derivacion: d }) => ({
+            nombre: d.elemento.nombre,
+            tipificacion: d.tipificacion,
+            fck: d.fckAdoptada,
+            fcd: d.fcd,
+            consistencia: d.elemento.consistencia,
+            clases: d.clases,
+            clasesForzadas: d.clasesForzadas,
+            cementoMin: d.cementoMin,
+            acMax: d.acMax,
+            cnom: d.cnom,
+            deltaCdev: d.deltaCdev,
+            // El motor deja el nivel de control sin fijar cuando no se ha
+            // tocado; el cuadro imprime «Estadístico» y aquí viaja lo mismo.
+            nivelControl: d.elemento.nivelControl ?? 'estadistico',
+          })),
+          prescritos: ev.limpieza.map((f) => limpiezaPrescrita(f, state.estudio.tamMaxArido)),
+        }
+      : null;
+
+  const aceroEstructural: PubAceroEstructural | null = ev.acero
+    ? {
+        designacion: state.estudio.aceroEstructural,
+        fy: FY_ACERO_ESTRUCTURAL[state.estudio.aceroEstructural],
+        gammaM: gamma(GAMMA_MATERIALES.aceroEstructural),
+        nivelRiesgo: ev.acero.nivelRiesgo,
+        categoriaUso: ev.acero.categoriaUso,
+        categoriaEjecucionDeclarada: ev.acero.categoriaEjecucionDeclarada,
+        categoriaEjecucion: ev.acero.categoriaEjecucion,
+        claseEjecucion: ev.acero.claseEjecucion,
+        elementos: ev.acero.elementos.map((e) => ({
+          nombre: e.nombre,
+          designacion: e.designacion,
+          union: e.union,
+          caracteristicasUnion: e.caracteristicasUnion,
+          corrosividad: e.corrosividad,
+          proteccion: e.proteccion,
+          caracteristicasProteccion: e.caracteristicasProteccion,
+        })),
+      }
+    : null;
+
+  const madera: PubMadera | null =
+    ev.madera.length > 0
+      ? {
+          gammaMExtraordinaria: GAMMA_M_EXTRAORDINARIA,
+          grupos: ev.madera.map(({ derivacion: d }) => ({
+            nombre: d.grupo.nombre,
+            tipo: d.grupo.tipo,
+            claseResistente: d.grupo.claseResistente,
+            especie: d.grupo.especie ?? null,
+            calidad: d.calidad ?? null,
+            claseLaminas: d.grupo.claseLaminas ?? null,
+            claseServicio: d.claseServicio,
+            claseUso: d.claseUso,
+            gammaM: d.gammaM,
+            nivelPenetracion: d.nivelPenetracion,
+            proteccionHerrajes: d.proteccionHerrajes,
+          })),
+        }
+      : null;
+
+  return {
+    vidaUtil: state.estudio.vidaUtil,
+    vidaUtilAnios: state.estudio.vidaUtilAnios,
+    nivelControlEjecucion: state.estudio.nivelControlEjecucion,
+    nivelControlAcero: state.estudio.nivelControlAcero,
+    resistenciaFuego: state.resistenciaFuego,
+    modificadores: {
+      costa: state.costa,
+      heladas: state.heladas,
+      terrenoAgresivo: state.terrenoAgresivo,
+    },
+    hormigon,
+    aceroEstructural,
+    madera,
+  };
+}
+
+/**
+ * Publica el resultado si hay resultado. Si deja de haberlo —se abre un hueco,
+ * se apaga un material— la publicación anterior NO se retira: un consumidor
+ * prefiere un dato fechado a ninguno, y la fecha del sobre ya le dice que es
+ * viejo. Misma regla que «Viento y nieve».
+ */
+export function publicarResultado(state: MaterialesState, ev: Evaluacion): void {
+  const datos = datosPublicacion(state, ev);
+  if (!datos) return;
+  const obra = leerObra();
+  publicar(MODULO_PUB, PUB_VERSION, datos, {
+    municipio: obra?.municipio || null,
+    // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
+    // módulo no la necesita para nada más, así que no se arrastra: viaja el
+    // código INE, que es con lo que un consumidor comprueba que la publicación
+    // es de SU obra. Cinco dígitos si se conoce el municipio, dos si sólo se
+    // conoce la provincia (ver `ObraPublicada.ine`).
+    provincia: null,
+    ine: obra?.ine ?? (obra?.provincia || null),
+  });
 }

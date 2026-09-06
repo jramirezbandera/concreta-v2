@@ -10,7 +10,9 @@
  *   2. que el interruptor de costa no llegue al motor;
  *   3. que las pestañas del documento pinten algo distinto de lo que dice el
  *      editor;
- *   4. que un hueco sin resolver deje exportar.
+ *   4. que un hueco sin resolver deje exportar;
+ *   5. que el cuadro deje de publicarse y nadie se entere hasta que la ficha
+ *      DB SE, meses después, ensamble una memoria sin materiales.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -20,7 +22,13 @@ import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ToastContainer } from '../../components/ui/Toast';
 import { MaterialesModule } from '../../features/materiales';
-import { STORAGE_KEY } from '../../features/materiales/state';
+import {
+  MODULO_PUB,
+  PUB_VERSION,
+  STORAGE_KEY,
+  type PubMateriales,
+} from '../../features/materiales/state';
+import { leerPublicacion } from '../../lib/pub';
 
 // El módulo usa el drawer del AppShell; fuera de él, `useDrawer` necesita el
 // contexto. Doble mínimo para poder montarlo solo.
@@ -60,6 +68,14 @@ vi.mock('../../lib/dxf/materiales', () => ({
   exportarMaterialesDxf: (blocks: unknown, titulo?: string) =>
     exportarMaterialesDxf(blocks, titulo),
 }));
+const exportarMaterialesPdf = vi.fn(async (_blocks: unknown, titulo?: string) => ({
+  blob: new Blob(['%PDF-'], { type: 'application/pdf' }),
+  filename: titulo ? `${titulo.toLowerCase().replace(/ /g, '-')}.pdf` : 'cuadro-de-materiales.pdf',
+}));
+vi.mock('../../lib/pdf/materiales', () => ({
+  exportarMaterialesPdf: (blocks: unknown, titulo?: string) =>
+    exportarMaterialesPdf(blocks, titulo),
+}));
 
 function montar() {
   return render(
@@ -82,11 +98,21 @@ function filaDe(nombre: string): HTMLElement {
   return input.closest('tr')!;
 }
 
+/**
+ * Abre el desplegable «Exportar» de la barra y elige un formato por su nombre.
+ * Cada opción lleva además su destino («para pegar en…»), de ahí el prefijo.
+ */
+function exportarComo(formato: 'Word' | 'PDF' | 'Excel' | 'DXF') {
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(`^${formato}`) }));
+}
+
 beforeEach(() => {
   localStorage.clear();
   exportarMaterialesDocx.mockClear();
   exportarMaterialesXlsx.mockClear();
   exportarMaterialesDxf.mockClear();
+  exportarMaterialesPdf.mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -207,7 +233,7 @@ describe('heladas y terreno agresivo', () => {
     expect(within(cimentacion).getByText('XC2 + XA2')).toBeInTheDocument();
     // Anclado: las opciones de consistencia también dicen «(50-90 mm)».
     expect(within(cimentacion).queryByText(/^\d+ mm$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    exportarComo('Word');
     expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
   });
 });
@@ -438,7 +464,7 @@ describe('huecos y exportación', () => {
   it('con huecos, exportar avisa en vez de exportar', () => {
     montar();
     anadir('+ Añadir elemento', 'Otro… (fila en blanco)');
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    exportarComo('Word');
     expect(screen.getByText('Resuelva los huecos rojos antes de exportar')).toBeInTheDocument();
     // Y NO se abre el modal: escribir un título para chocar después con el aviso
     // es justo el orden que el gate de validez existe para evitar.
@@ -447,7 +473,7 @@ describe('huecos y exportación', () => {
 
   it('sin huecos, exportar abre el modal y promete un .docx', () => {
     montar();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    exportarComo('Word');
     expect(screen.getByLabelText('Título del elemento')).toBeInTheDocument();
     // La línea de preview es la misma `titledFilename` que usa el exportador:
     // si aquí pusiera «.pdf», el botón estaría mintiendo sobre el fichero.
@@ -463,12 +489,12 @@ describe('huecos y exportación', () => {
     let descargado = '';
 
     montar();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    exportarComo('Word');
     fireEvent.change(screen.getByLabelText('Título del elemento'), {
       target: { value: 'Nave taller' },
     });
-    // Con el modal abierto hay DOS botones «Exportar Word»: el de la barra y el
-    // de confirmar. El que cuenta es el del diálogo.
+    // El de confirmar se busca dentro del diálogo, para que el test no dependa
+    // de que la barra no tenga ya ningún otro «Exportar Word».
     const modal = screen.getByRole('dialog');
     fireEvent.click(within(modal).getByRole('button', { name: 'Exportar Word' }));
 
@@ -483,18 +509,12 @@ describe('huecos y exportación', () => {
     click.mockRestore();
   });
 
-  // El botón entrega lo que se está mirando: cada vista tiene su formato porque
-  // tiene su destino. El fallo que busca: que la pestaña cambie y el botón siga
-  // bajando el documento de la otra.
-  it('en la pestaña Plano el botón pasa a Excel y exporta los bloques de plano', async () => {
+  // Lo que se baja lo decide la opción elegida, no la pestaña abierta: el Excel
+  // del cuadro de plano se pide desde Datos, sin pasar por Plano. El fallo que
+  // busca: que el desplegable prometa un formato y baje el documento de otro.
+  it('Excel se elige desde Datos y exporta los bloques de plano', async () => {
     montar();
-    expect(screen.getByRole('button', { name: 'Exportar Word' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Exportar Word' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+    exportarComo('Excel');
     expect(screen.getByText('cuadro-de-materiales.xlsx')).toBeInTheDocument();
 
     const modal = screen.getByRole('dialog');
@@ -531,14 +551,33 @@ describe('huecos y exportación', () => {
     ).toBeInTheDocument();
   });
 
-  it('la vista de plano ofrece SUS DOS salidas: Excel y DXF', () => {
-    // Cada vista tiene su destino, y la de plano tiene dos: capturar y CAD. Se
-    // nombran los dos en la barra en vez de esconderlos en un desplegable.
+  it('«Exportar» despliega las cuatro salidas por cuadro, en las tres pestañas', () => {
+    // Un solo desplegable en vez del par de botones que cambiaba con la pestaña:
+    // así se baja cualquier formato desde cualquier vista, y en Datos se sabe
+    // qué se va a bajar antes de pulsar.
     montar();
-    expect(screen.queryByRole('button', { name: 'Exportar DXF' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByRole('button', { name: 'Exportar Excel' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Exportar DXF' })).toBeInTheDocument();
+    for (const pestana of ['Datos', 'Plano', 'Memoria']) {
+      fireEvent.click(screen.getByRole('tab', { name: pestana }));
+      expect(screen.queryByRole('menu', { name: 'Formatos de exportación' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+      const menu = screen.getByRole('menu', { name: 'Formatos de exportación' });
+      const nombres = (grupo: string) =>
+        within(within(menu).getByRole('group', { name: grupo }))
+          .getAllByRole('menuitem')
+          .map((m) => m.textContent);
+      expect(nombres('Cuadro de memoria')).toEqual([
+        expect.stringMatching(/^Word/),
+        expect.stringMatching(/^PDF/),
+      ]);
+      expect(nombres('Cuadro de plano')).toEqual([
+        expect.stringMatching(/^Excel/),
+        expect.stringMatching(/^DXF/),
+      ]);
+      // Escape lo cierra sin elegir nada: ni modal ni aviso.
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('menu', { name: 'Formatos de exportación' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    }
   });
 
   it('el DXF exporta los bloques de plano y promete un .dxf', async () => {
@@ -550,9 +589,8 @@ describe('huecos y exportación', () => {
     let descargado = '';
 
     montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar DXF' }));
-    // La preview del modal usa el formato ya elegido: si no, prometería .xlsx.
+    exportarComo('DXF');
+    // La preview del modal usa el formato ya elegido: si no, prometería .docx.
     expect(screen.getByText('cuadro-de-materiales.dxf')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Título del elemento'), {
@@ -575,18 +613,90 @@ describe('huecos y exportación', () => {
     click.mockRestore();
   });
 
-  it('vuelto a Memoria, el botón es Word otra vez', () => {
+  it('el menú se cierra al elegir y, cerrado el modal, el foco vuelve a «Exportar»', () => {
+    // El modal devuelve el foco a quien lo abrió. Si se quedara en la opción del
+    // menú —que ya no existe— el foco se perdería en el body.
     montar();
+    exportarComo('Word');
+    expect(screen.queryByRole('menu', { name: 'Formatos de exportación' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar' })).toHaveFocus();
+  });
+
+  it('el PDF exporta los bloques de MEMORIA aunque se pida desde Plano', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      descargado = this.download;
+    });
+    let descargado = '';
+
+    montar();
+    // Se pide desde Plano a propósito: la opción manda, no la pestaña abierta.
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Memoria' }));
-    expect(screen.getByRole('button', { name: 'Exportar Word' })).toBeInTheDocument();
+    exportarComo('PDF');
+    expect(screen.getByText('cuadro-de-materiales.pdf')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Título del elemento'), {
+      target: { value: 'Nave taller' },
+    });
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Exportar PDF' }));
+
+    await waitFor(() => expect(exportarMaterialesPdf).toHaveBeenCalled());
+    expect(exportarMaterialesDocx).not.toHaveBeenCalled();
+    const bloques = exportarMaterialesPdf.mock.calls[0][0] as { text?: string }[];
+    // El de memoria transpone el hormigón; el de plano no. Es la señal de que
+    // se ha exportado la vista buena.
+    expect(bloques.some((b) => b.text === 'Elementos de hormigón armado')).toBe(true);
+    expect(bloques.some((b) => b.text === 'HORMIGÓN (CÓDIGO ESTRUCTURAL)')).toBe(false);
+    await waitFor(() => expect(descargado).toBe('nave-taller.pdf'));
+
+    click.mockRestore();
   });
 
   it('sin ningún material encendido no deja exportar un documento vacío', () => {
     montar();
     fireEvent.click(screen.getByRole('button', { name: 'Hormigón' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar Word' }));
+    exportarComo('Word');
     expect(screen.getByText('Añada algún material antes de exportar')).toBeInTheDocument();
+  });
+});
+
+describe('publicación para la ficha DB SE', () => {
+  it('montar el módulo deja el cuadro publicado, y la barra lo dice', () => {
+    montar();
+    const pub = leerPublicacion<PubMateriales>(MODULO_PUB, PUB_VERSION);
+    expect(pub).not.toBeNull();
+    expect(pub!.datos.hormigon!.elementos.map((e) => e.nombre)).toEqual([
+      'Cimentación',
+      'Muros de sótano',
+      'Forjados',
+    ]);
+    // Por el rótulo de la barra, no por la palabra: el bloque de Ayuda
+    // también la usa para explicar qué significa.
+    expect(screen.getByTitle(/disponible para la ficha DB SE/)).toBeInTheDocument();
+  });
+
+  it('abrir un hueco retira el rótulo, pero no lo ya publicado', () => {
+    montar();
+    const antes = leerPublicacion(MODULO_PUB);
+    anadir('+ Añadir elemento', 'Otro… (fila en blanco)');
+    // Deja de estar al día —y se ve—, pero al consumidor le sigue sirviendo el
+    // último cuadro bueno: la fecha del sobre ya le dice que es viejo.
+    expect(screen.queryByTitle(/disponible para la ficha DB SE/)).not.toBeInTheDocument();
+    expect(leerPublicacion(MODULO_PUB)).toEqual(antes);
+  });
+
+  it('encender la madera vuelve a publicar, ahora con los dos materiales', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Madera' }));
+    anadir('+ Añadir grupo', 'Vigas y pilares');
+    const d = leerPublicacion<PubMateriales>(MODULO_PUB, PUB_VERSION)!.datos;
+    expect(d.hormigon).not.toBeNull();
+    expect(d.madera!.grupos.map((g) => g.nombre)).toEqual(['Vigas y pilares']);
   });
 });
 
