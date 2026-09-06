@@ -28,7 +28,7 @@ import { MAX_COLUMNAS, planificarDocx, type BloquePlan } from '../../lib/docx/pl
 import { documentoDeBloques } from '../../lib/docx/render';
 import { exportarVientoNieveDocx } from '../../lib/docx/vientoNieve';
 import type { Block } from '../../lib/materiales/cuadros';
-import { planificarHoja } from '../../lib/xlsx/hoja';
+import { cabeEnColumna, planificarHoja } from '../../lib/xlsx/hoja';
 import { exportarVientoNieveXlsx } from '../../lib/xlsx/vientoNieve';
 
 /** Ávila a 1.130 m, con limahoya, acumulación y voladizo: el caso que lo pinta todo. */
@@ -161,6 +161,39 @@ describe('plan de hoja del plano', () => {
       'Faldón sur — acumulación (2 m)',
       'Faldón sur — hielo en voladizos',
     ]);
+  });
+
+  it('la composición de la fuerza por planta va por dirección y ninguna celda se corta', () => {
+    // Un edificio largo según X (rozamiento > 10 %) con cubierta a dos aguas:
+    // el caso que, en una sola celda, daba cien caracteres cortados por los dos
+    // lados en el Excel («(11 %) según X, hastial en cubierta según X, …»).
+    const s = avila();
+    s.viento.dimensiones = { x: 40, y: 8 };
+    s.viento.cubierta = { ...s.viento.cubierta, activa: true, pendiente: 25 };
+    const { ev, plano } = cuadros(s);
+    expect(ev.viento!.x.rozamiento?.aplicado).toBe(true);
+    const [viento] = seccionesPlanoXlsx(plano);
+    const kv = viento.blocks.find((b) => b.kind === 'kvTable') as { rows: [string, string][] };
+    const composicion = kv.rows.filter(([k]) => k.startsWith('En la fuerza por planta'));
+    expect(composicion.map(([k]) => k)).toEqual(['En la fuerza por planta según X', 'En la fuerza por planta según Y']);
+    // El espacio del porcentaje es DURO: al envolver la celda, «(32» y «%)» no
+    // pueden acabar en líneas distintas.
+    expect(composicion[0][1]).toMatch(/^banda de fachada más rozamiento \(\d+\u00a0%\) y hastial en cubierta$/);
+    expect(composicion[1][1]).toBe('banda de fachada más faldones en cubierta');
+    for (const [etiqueta] of kv.rows) expect(etiqueta.length, etiqueta).toBeLessThanOrEqual(33);
+    // Y en la hoja, lo que no cabe en su columna envuelve con alto escrito.
+    const hoja = planificarHoja(viento.blocks, viento.nombre);
+    let envueltas = 0;
+    for (const f of hoja.filas) {
+      f.celdas.forEach((c, j) => {
+        if (c.estilo !== 'etiqueta' && c.estilo !== 'dato') return;
+        if (cabeEnColumna(c.texto, hoja.anchos[j])) return;
+        envueltas++;
+        expect(c.envolver, c.texto).toBe(true);
+        expect(f.alto, c.texto).toBeGreaterThanOrEqual(2 * 13);
+      });
+    }
+    expect(envueltas).toBeGreaterThan(0);
   });
 
   it('la pestaña de fuerzas tiene cuatro columnas y su total', () => {

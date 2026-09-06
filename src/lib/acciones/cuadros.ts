@@ -429,12 +429,17 @@ export function cuadroAccionesPlano(
   if (viento) {
     const a = ASPEREZAS[viento.aspereza];
     // Lo que la fuerza por planta lleva además de la banda de fachada, para
-    // que el plano no parezca que se contradice con la memoria.
-    const composicion: string[] = [];
+    // que el plano no parezca que se contradice con la memoria. Una fila por
+    // dirección, como los coeficientes: las dos juntas eran cien caracteres en
+    // una celda del Excel del plano y salían cortados por los dos lados.
+    const composicion: [string, string][] = [];
     for (const d of [viento.x, viento.y]) {
-      const eje = d.eje.toUpperCase();
-      if (d.rozamiento?.aplicado) composicion.push(`rozamiento (${num(d.rozamiento.fraccion * 100, 0)} %) según ${eje}`);
-      if (d.encima) composicion.push(`${d.encima.tipo === 'hastial' ? 'hastial' : 'faldones'} en cubierta según ${eje}`);
+      const extras: string[] = [];
+      // El espacio antes del % es DURO: si no, al envolver la celda el signo se
+      // queda solo en la línea siguiente («rozamiento (32» / «%) y hastial»).
+      if (d.rozamiento?.aplicado) extras.push(`rozamiento (${num(d.rozamiento.fraccion * 100, 0)}\u00a0%)`);
+      if (d.encima) extras.push(`${d.encima.tipo === 'hastial' ? 'hastial' : 'faldones'} en cubierta`);
+      if (extras.length) composicion.push([`En la fuerza por planta según ${d.eje.toUpperCase()}`, `banda de fachada más ${extras.join(' y ')}`]);
     }
     blocks.push(
       { kind: 'heading', level: 2, text: TITULO_VIENTO_PLANO },
@@ -451,7 +456,7 @@ export function cuadroAccionesPlano(
           // tiene un ancho, y las dos direcciones en una celda se salían.
           ['Coeficientes eólicos según X', `cp = ${num(viento.x.cp, 2)} · cs = ${num(viento.x.cs, 2)}`],
           ['Coeficientes eólicos según Y', `cp = ${num(viento.y.cp, 2)} · cs = ${num(viento.y.cs, 2)}`],
-          ...(composicion.length ? [['En la fuerza por planta', `banda de fachada más ${composicion.join(', ')}`] as [string, string]] : []),
+          ...composicion,
         ],
       },
       {

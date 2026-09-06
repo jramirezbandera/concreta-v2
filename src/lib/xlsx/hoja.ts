@@ -15,6 +15,8 @@
  *    recubrimientos» va en dos líneas sobre celdas que dicen «30 mm».
  *  - **Las bandas de sección se fusionan** a todo el ancho de la tabla, que es
  *    como se rotula un cuadro en un plano.
+ *  - **Lo que no cabe, envuelve.** Un dato que se pasa del tope de ancho no
+ *    puede estirar la columna, y sin ajuste de texto Excel lo corta sin avisar.
  *
  * A diferencia del .docx no hace falta trocear tablas anchas: una hoja no tiene
  * ancho de página, y la captura se recorta donde el cuadro termina.
@@ -34,6 +36,8 @@ export type EstiloCelda =
 export interface CeldaHoja {
   texto: string;
   estilo: EstiloCelda;
+  /** Ajuste de texto: la celda no cabe en su columna y envuelve en vez de cortarse. */
+  envolver?: boolean;
 }
 
 export interface FilaHoja {
@@ -72,30 +76,79 @@ const ENVOLTURA = {
 };
 
 /**
- * Alto de las notas envueltas, en puntos. Los números están MEDIDOS contra el
- * autoajuste del propio Excel, no estimados: se abrió el fichero por COM y se
- * comparó, nota a nota, el alto calculado aquí con el que Excel da a ese mismo
- * texto en una columna del mismo ancho.
+ * Celdas de etiqueta y de dato que NO caben en su columna. Envuelven, y su fila
+ * recibe alto escrito, porque lo que sobresale de una celda con vecina se corta
+ * sin avisar, y una celda centrada se corta por los DOS lados. Se vio en el
+ * bloque de viento del plano: «banda de fachada más rozamiento (11 %) según X,
+ * hastial en cubierta según X, faldones en cubierta según Y», cien caracteres
+ * en una columna de 34, salía como «(11 %) según X, hastial en cubierta…».
  *
- *   longitud   líneas   Excel pide
- *      125        1         13 pt
- *      154        1         13 pt
- *      219        2         22 pt
- *      363        2         22 pt
+ * Aquí contar caracteres no vale: el autoajuste de Excel, medido por COM en
+ * Arial 10, mete 1,25 caracteres por unidad de ancho en «IV (zona urbana,
+ * industrial o forestal)» (muchas letras estrechas), 1,11 en «banda de fachada
+ * más faldones en cubierta» y 0,88 en mayúsculas. Con un factor único, o
+ * envuelve lo que cabe o corta lo que no. Así que se mide el texto con las
+ * anchuras del propio Arial, que es la fuente de la hoja.
  *
- * De ahí 11 pt por línea y 4 de holgura: una línea suelta necesita 13, no 11.
- * Hace falta calcularlo porque una celda FUSIONADA con ajuste de texto es el
- * único sitio de Excel donde el alto automático no funciona; hay que escribirlo.
- * Sin esto, la nota de las longitudes de anclaje sale cortada en la captura, que
- * es justo el dato normativo que justifica la tabla.
- *
- * El factor de caracteres por línea va CORTO a propósito (la medida real anda
- * por 1,30): sobrar un renglón en blanco no se ve, y perder una línea de texto
- * normativo sí. Ante la duda, de más.
+ * La tabla es la del tipo de letra, en milésimas de em; la escala y la holgura
+ * están AJUSTADAS contra 98 textos medidos con el autoajuste del propio Excel
+ * (el test los lleva). Así medido, el modelo no se queda corto en ninguno de
+ * los 98 —quedarse corto es justo lo que corta la celda— y sobra entre un 2 y
+ * un 6 % en los textos largos, que es el lado bueno del error.
  */
-const ALTO_LINEA_NOTA = 11;
-const HOLGURA_NOTA = 4;
-const CHAR_POR_ANCHO_NOTA = 1.15;
+const ARIAL: readonly (readonly [number, string])[] = [
+  [191, "'"],
+  [222, 'ijl'],
+  [260, '|'],
+  // El segundo es el espacio DURO, que mide lo mismo que el normal.
+  [278, ' \u00a0!,./:;I[]\\ftÌÍÎÏìíîï'],
+  [333, 'r()-`¡²³'],
+  [334, '{}'],
+  [355, '"'],
+  [365, 'º'],
+  [370, 'ª'],
+  [389, '*'],
+  [400, '°'],
+  [469, '^'],
+  [500, 'Jcksvxyzç'],
+  [549, '≤≥'],
+  [553, 'θ'],
+  [556, '0123456789#$?_Labdeghnopqu«»±µμ–áàäâãéèëêñóòöôúùüû'],
+  [584, '+<=>~×÷−'],
+  [611, 'FTZß¿ø'],
+  [667, '&ABEKSVXYÀÁÂÃÄÅÈÉÊËÝ'],
+  [722, 'CDHNRUwÑÙÚÛÜ'],
+  [737, '©'],
+  [778, 'GOQÒÓÔÕÖØ'],
+  [833, 'Mm'],
+  [889, '%'],
+  [944, 'W'],
+  [987, '→'],
+  [1000, '—…'],
+  [1015, '@'],
+];
+
+const MILESIMAS = new Map<string, number>();
+for (const [u, glifos] of ARIAL) for (const g of glifos) MILESIMAS.set(g, u);
+
+/** Lo que vale un carácter que no está en la tabla: una letra corriente. */
+const MILESIMAS_MINUSCULA = 556;
+const MILESIMAS_MAYUSCULA = 722;
+/**
+ * Píxeles por milésima de em. Lo teórico para Arial 10 a 96 ppp es 0,01333;
+ * el 3 % de más sale de AJUSTAR contra las 98 medidas del propio Excel (ver el
+ * test): con 0,01333 el modelo se queda corto y una celda se corta.
+ */
+const PX_POR_MILESIMA = 0.01372;
+/** Holgura interna de la celda, en píxeles, también ajustada. */
+const PX_PADDING = 2;
+/** Una unidad de ancho de columna de Excel son 7 píxeles con esta fuente. */
+const PX_POR_UNIDAD = 7;
+/** Margen antes de dar una celda por llena: la holgura con la que Excel pinta. */
+const MARGEN_CABE = 0.5;
+/** Arial 10 pide 12,75 pt por línea en Excel. */
+const ALTO_LINEA_DATO = 13;
+const HOLGURA_DATO = 2;
 
 /** Una cabecera larga envuelve en vez de estirar su columna hasta este tope. */
 const CABECERA_ANTES_DE_ENVOLVER = 16;
@@ -163,15 +216,92 @@ function fila(textos: string[], estilos: EstiloCelda[], alto?: number): FilaHoja
   return { celdas: textos.map((texto, i) => ({ texto, estilo: estilos[i] })), alto };
 }
 
+function pxTexto(texto: string): number {
+  let milesimas = 0;
+  for (const c of texto) {
+    milesimas +=
+      MILESIMAS.get(c) ??
+      (c !== c.toLowerCase() && c === c.toUpperCase() ? MILESIMAS_MAYUSCULA : MILESIMAS_MINUSCULA);
+  }
+  return milesimas * PX_POR_MILESIMA;
+}
+
+/** Ancho que el autoajuste de Excel daría a un texto de Arial 10, en unidades de columna. */
+export function anchoTexto(texto: string): number {
+  return (pxTexto(texto) + PX_PADDING) / PX_POR_UNIDAD;
+}
+
+/** Si un texto de etiqueta o de dato cabe en una línea de una columna de `ancho`. */
+export function cabeEnColumna(texto: string, ancho: number): boolean {
+  return anchoTexto(texto) + MARGEN_CABE <= ancho;
+}
+
+/**
+ * Líneas que ocupa un texto envuelto en una columna de `ancho`: el mismo salto
+ * por palabras que hace Excel. Una palabra más larga que la línea se parte,
+ * como allí. La holgura ya está en la medida del texto, que sobra un 3 %;
+ * encoger además la línea daba un renglón en blanco de más.
+ */
+export function lineasEnvueltas(texto: string, ancho: number): number {
+  const capacidad = Math.max(PX_POR_UNIDAD, ancho * PX_POR_UNIDAD - PX_PADDING);
+  const pxEspacio = pxTexto(' ');
+  let lineas = 1;
+  let linea = 0;
+  for (const palabra of texto.split(' ')) {
+    const px = pxTexto(palabra);
+    if (linea === 0) linea = px;
+    else if (linea + pxEspacio + px <= capacidad) linea += pxEspacio + px;
+    else {
+      lineas++;
+      linea = px;
+    }
+    while (linea > capacidad) {
+      lineas++;
+      linea -= capacidad;
+    }
+  }
+  return lineas;
+}
+
+/** Alto de una celda de datos que envuelve en una columna de `ancho`, en puntos. */
+export function altoDato(texto: string, ancho: number): number {
+  return lineasEnvueltas(texto, ancho) * ALTO_LINEA_DATO + HOLGURA_DATO;
+}
+
+/**
+ * Fila de etiqueta y datos. La celda que no cabe en su columna envuelve, y la
+ * fila toma el alto de la que más líneas necesite; las demás, alto automático.
+ */
+function filaDatos(textos: string[], estilos: EstiloCelda[], anchos: number[]): FilaHoja {
+  let alto: number | undefined;
+  const celdas = textos.map((texto, j): CeldaHoja => {
+    const ancho = anchos[j] ?? ANCHO_MIN;
+    if (cabeEnColumna(texto, ancho)) return { texto, estilo: estilos[j] };
+    alto = Math.max(alto ?? 0, altoDato(texto, ancho));
+    return { texto, estilo: estilos[j], envolver: true };
+  });
+  return alto === undefined ? { celdas } : { celdas, alto };
+}
+
 function filaFusionada(texto: string, estilo: EstiloCelda, columnas: number, alto?: number): FilaHoja {
   return { celdas: [{ texto, estilo }], fusion: Math.max(1, columnas), alto };
 }
 
-/** Alto que necesita un texto envuelto en una banda de `anchoTotal` caracteres. */
+/**
+ * Alto que necesita un texto envuelto en una banda de `anchoTotal` de ancho: las
+ * notas y los párrafos, que van fusionados a todo el cuadro.
+ *
+ * Hay que escribirlo porque una celda FUSIONADA con ajuste de texto es el único
+ * sitio de Excel donde el alto automático no funciona, y si se queda corto la
+ * nota sale cortada en la captura — y son las notas las que justifican la tabla.
+ *
+ * Se calculaba contando caracteres a 11 pt por línea, y el error crecía con cada
+ * renglón porque Excel gasta 12,75: a las tres líneas ya cortaba. Abriendo el
+ * cuadro de materiales por COM, siete notas pedían más alto del escrito, una de
+ * ellas 38,25 pt contra 26. Va por el mismo modelo medido que los datos.
+ */
 export function altoEnvuelto(texto: string, anchoTotal: number): number {
-  const porLinea = Math.max(20, Math.floor(anchoTotal * CHAR_POR_ANCHO_NOTA));
-  const lineas = Math.max(1, Math.ceil(texto.length / porLinea));
-  return lineas * ALTO_LINEA_NOTA + HOLGURA_NOTA;
+  return altoDato(texto, anchoTotal);
 }
 
 export function planificarHoja(blocks: Block[], nombre = 'Cuadro de materiales'): Hoja {
@@ -218,7 +348,7 @@ export function planificarHoja(blocks: Block[], nombre = 'Cuadro de materiales')
         break;
       case 'kvTable': {
         if (b.caption) filas.push(filaFusionada(b.caption, 'caption', columnas, ALTO.caption));
-        for (const [k, v] of b.rows) filas.push(fila([k, v], ['etiqueta', 'dato']));
+        for (const [k, v] of b.rows) filas.push(filaDatos([k, v], ['etiqueta', 'dato'], anchos));
         break;
       }
       case 'table': {
@@ -227,7 +357,7 @@ export function planificarHoja(blocks: Block[], nombre = 'Cuadro de materiales')
           fila(b.head, b.head.map((): EstiloCelda => 'cabecera'), altoCabecera(b.head, anchos)),
         );
         for (const r of b.rows) {
-          filas.push(fila(r, r.map((_, i): EstiloCelda => (i === 0 ? 'etiqueta' : 'dato'))));
+          filas.push(filaDatos(r, r.map((_, i): EstiloCelda => (i === 0 ? 'etiqueta' : 'dato')), anchos));
         }
         break;
       }

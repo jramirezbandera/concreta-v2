@@ -6,7 +6,7 @@
  * Excel se dividen en las que no saben escribir estilos —inútiles cuando el
  * aspecto de la hoja ES el entregable, porque esto va a captura— y las que sí
  * pero pesan como una app entera. Aquí las partes son ocho más una por hoja, el
- * estilo es una tabla de siete formatos, y a cambio se controla al píxel lo que
+ * estilo es una tabla de nueve formatos, y a cambio se controla al píxel lo que
  * sale.
  *
  * Excel es implacable con el esquema y no explica nada: ante cualquier fallo
@@ -28,7 +28,7 @@
  */
 
 import JSZip from 'jszip';
-import type { EstiloCelda, Hoja } from './hoja';
+import type { CeldaHoja, EstiloCelda, Hoja } from './hoja';
 
 // ── XML ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +75,20 @@ const XF: Record<EstiloCelda, number> = {
 };
 
 /**
+ * El mismo formato, con ajuste de texto, para la etiqueta o el dato que no cabe
+ * en su columna (`CeldaHoja.envolver`). Sólo esos dos: las bandas, notas y
+ * cabeceras ya envuelven de por sí.
+ */
+const XF_ENVUELTO: Partial<Record<EstiloCelda, number>> = {
+  etiqueta: 8,
+  dato: 9,
+};
+
+function xfDe(c: CeldaHoja): number {
+  return (c.envolver ? XF_ENVUELTO[c.estilo] : undefined) ?? XF[c.estilo];
+}
+
+/**
  * Blanco con bordes finos y cabeceras en gris claro.
  *
  * El cuadro del plano está rotulado en rojo sobre negro porque vive en el
@@ -116,6 +130,9 @@ function styles(): string {
     '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>',
     '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>',
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>',
+    // 8 y 9: etiqueta y dato con ajuste de texto (XF_ENVUELTO).
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>',
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
   ];
   return (
     DECL +
@@ -146,7 +163,7 @@ function sheet(hoja: Hoja, activa: boolean): string {
       // `xml:space="preserve"` en TODAS: los marcadores de nota llegan como
       // " (*)" con espacio inicial y sin esto Excel se lo come.
       celdas.push(
-        '<c r="' + refCelda(i, j) + '" s="' + XF[c.estilo] + '" t="inlineStr">' +
+        '<c r="' + refCelda(i, j) + '" s="' + xfDe(c) + '" t="inlineStr">' +
           '<is><t xml:space="preserve">' + esc(c.texto) + '</t></is></c>',
       );
     });
