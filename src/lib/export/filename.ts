@@ -72,3 +72,7 @@ export const CARGAS_PLANTA_FALLBACK_DOCX = 'cargas-por-planta.docx';
 export const CARGAS_PLANTA_FALLBACK_XLSX = 'cargas-por-planta.xlsx';
 export const CARGAS_PLANTA_FALLBACK_PDF = 'cargas-por-planta.pdf';
 export const CARGAS_PLANTA_FALLBACK_DXF = 'cargas-por-planta.dxf';
+
+/** La ficha de cumplimiento del DB SE (`features/memoria-dbse`): Word para la memoria, PDF para enviar. */
+export const MEMORIA_DBSE_FALLBACK_DOCX = 'memoria-db-se.docx';
+export const MEMORIA_DBSE_FALLBACK_PDF = 'memoria-db-se.pdf';

@@ -43,12 +43,14 @@ import type { Block } from '../materiales/cuadros';
 import { planificarDocx, type BloquePlan, type EstiloParrafo, type FilaPlan } from './plan';
 
 export interface MetaDocx {
-  /** Título del usuario. Vacío ⇒ el documento no abre con encabezado. */
+  /** Título del documento: va como Heading1 al principio. Vacío = sin H1 (la ficha DB SE trae el suyo en los bloques). */
   titulo: string;
-  /** dc:subject. Por defecto «Cuadro de materiales». */
   asunto?: string;
-  /** dc:creator. Por defecto «Concreta». */
   autor?: string;
+  /** Metadatos del fichero (dc:title, dc:description, keywords) cuando el H1 no los da. */
+  tituloDocumento?: string;
+  descripcion?: string;
+  palabrasClave?: string;
 }
 
 /** A4 vertical en twips (1/1440"), y márgenes de 2 cm. */
@@ -193,13 +195,12 @@ export function documentoDeBloques(blocks: Block[], meta: MetaDocx): Document {
 
   return new Document({
     styles: ESTILOS,
-    title: plan.titulo || 'Cuadro de materiales',
+    title: plan.titulo || meta.tituloDocumento || 'Cuadro de materiales',
     subject: meta.asunto ?? 'Cuadro de materiales',
     creator: meta.autor ?? 'Concreta',
     lastModifiedBy: meta.autor ?? 'Concreta',
-    description:
-      'Cuadro de materiales generado con Concreta (Código Estructural, CTE DB SE-A y DB SE-M)',
-    keywords: 'hormigón, acero, madera, Código Estructural, cuadro de materiales',
+    description: meta.descripcion ?? 'Cuadro de materiales generado con Concreta (Código Estructural, CTE DB SE-A y DB SE-M)',
+    keywords: meta.palabrasClave ?? 'hormigón, acero, madera, Código Estructural, cuadro de materiales',
     sections: [
       {
         properties: {

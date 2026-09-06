@@ -83,6 +83,10 @@ const router = createBrowserRouter([
             lazy: lazyComponent(() => import('./features/materiales'), 'MaterialesModule'),
           },
           {
+            path: 'memorias/db-se',
+            lazy: lazyComponent(() => import('./features/memoria-dbse'), 'MemoriaDBSEModule'),
+          },
+          {
             path: 'horm/vigas',
             lazy: lazyComponent(() => import('./features/rc-beams'), 'RCBeamsModule'),
           },

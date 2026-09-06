@@ -5,8 +5,8 @@ export const INPUT =
 
 export const BOTON_MENOR = 'rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[11.5px] text-text-secondary hover:text-text-primary';
 
-/** Tinte de un hueco sin resolver: bloquea publicar y exportar. */
-export const HUECO = { background: 'color-mix(in srgb, var(--color-state-fail) 8%, transparent)' } as const;
+/** Tinte de un hueco sin resolver: bloquea publicar y exportar. Vive en `components/ui/estados`. */
+export { HUECO } from '../../components/ui/estados';
 
 /** Tinte de la fila seleccionada (la que está resaltada en el dibujo). */
 export const SELECCION = {

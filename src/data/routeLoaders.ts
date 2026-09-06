@@ -8,6 +8,7 @@
 
 export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/memorias/materiales': () => import('../features/materiales'),
+  '/memorias/db-se': () => import('../features/memoria-dbse'),
   '/horm/vigas': () => import('../features/rc-beams'),
   '/horm/pilares': () => import('../features/rc-columns'),
   '/horm/punzonamiento': () => import('../features/punching'),

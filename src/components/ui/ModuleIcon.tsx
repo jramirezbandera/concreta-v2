@@ -236,6 +236,17 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M1.5 5.5h3M1.5 8h4M1.5 10.5h3" strokeWidth="0.9" strokeOpacity="0.8"/>
         </svg>
       );
+    case 'concreta-memoria-dbse':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* Una hoja con la esquina doblada */}
+          <path d="M3.5 1.5h6l3 3v10h-9z" />
+          <path d="M9.5 1.5v3h3" />
+          {/* Dos líneas de texto y la marca de cumplimiento */}
+          <path d="M5.5 7.5h5M5.5 9.5h3" strokeOpacity="0.8" />
+          <path d="M5.5 12.2l1.3 1.3 2.7-2.7" strokeWidth="1.1" />
+        </svg>
+      );
     case 'concreta-cargas-planta':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">

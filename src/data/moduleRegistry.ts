@@ -69,6 +69,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-memoria-dbse',
+    route: '/memorias/db-se',
+    label: 'Cumplimiento del DB SE',
+    group: 'Memorias',
+    // La ficha 3.1 de la memoria: ensambla las cuatro publicaciones del
+    // capítulo (materiales, viento y nieve, cargas, sismo) con un formulario
+    // residual. Estado anidado en dos capas (estudio / obra) con clave propia.
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-seismic',
     route: '/analisis/sismo',
     label: 'Acción sísmica',

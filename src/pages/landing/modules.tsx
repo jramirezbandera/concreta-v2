@@ -29,6 +29,16 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/memorias/materiales',
     icon: <ModuleIcon moduleKey="concreta-materiales" size={ICON_SIZE} />,
   },
+  {
+    id: 'memoria-dbse',
+    group: 'MEMORIAS',
+    name: 'Cumplimiento del DB SE',
+    ref: 'CTE DB SE · SE-AE · SE-C · NCSE-02 · CE',
+    short:
+      'La ficha 3.1 de la memoria, ensamblada desde los módulos de materiales, viento y nieve, cargas y sismo, con lo que falta preguntado en lenguaje de obra. Nada del proyecto anterior llega al documento sin confirmarse. Word y PDF.',
+    route: '/memorias/db-se',
+    icon: <ModuleIcon moduleKey="concreta-memoria-dbse" size={ICON_SIZE} />,
+  },
 
   // ── ACCIONES
   {
