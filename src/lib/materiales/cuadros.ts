@@ -10,11 +10,12 @@
  * localización) y el de MEMORIA (transpuesto, una fila por propiedad). Son los
  * dos formatos que aparecen en los proyectos reales del estudio.
  *
- * Nota de ubicación: cuando exista el módulo de la ficha DB SE, el tipo `Block`
- * se moverá a `src/lib/memoria/model.ts` y este fichero lo importará. Vive aquí
- * porque el cuadro de materiales es el primer módulo que lo necesita.
+ * El tipo `Block` nació aquí y vive ahora en `src/lib/memoria/model.ts`, con la
+ * ficha DB SE, que es quien lo comparte con todo el capítulo. Se re-exporta
+ * para que los ficheros que lo importan de aquí sigan valiendo tal cual.
  */
 
+import type { Block } from '../memoria/model';
 import { NOTAS_ANCLAJE, tablaAnclajes } from './anclajes';
 import {
   CONSISTENCIAS,
@@ -42,12 +43,7 @@ import type {
 
 // ── Modelo de bloques ───────────────────────────────────────────────────────
 
-export type Block =
-  | { kind: 'heading'; level: 1 | 2 | 3; text: string }
-  | { kind: 'paragraph'; text: string }
-  | { kind: 'kvTable'; caption?: string; rows: [string, string][] }
-  | { kind: 'table'; caption?: string; head: string[]; rows: string[][] }
-  | { kind: 'notes'; items: string[] };
+export type { Block } from '../memoria/model';
 
 // ── Formato ─────────────────────────────────────────────────────────────────
 

@@ -1,0 +1,3175 @@
+{
+ "js662": {
+  "fichero": "JS-662_Seguridad_Estructural_CE_rev0.docx",
+  "bloques": [
+   {
+    "n": 0,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1. Seguridad Estructural"
+   },
+   {
+    "n": 1,
+    "tipo": "p",
+    "estilo": "CTETtulo2",
+    "texto": "Prescripciones aplicables conjuntamente con DB-SE"
+   },
+   {
+    "n": 2,
+    "tipo": "p",
+    "estilo": "CTENormal",
+    "texto": "El DB-SE constituye la base para los Documentos Básicos siguientes y se utilizará conjuntamente con ellos:",
+    "num": {
+     "numId": "0",
+     "ilvl": "0"
+    }
+   },
+   {
+    "n": 3,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "apartado",
+      "",
+      "Procede",
+      "No procede"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "DB-SE",
+      "3.1.1",
+      "Seguridad estructural:",
+      "[x]",
+      "[ ]"
+     ],
+     [
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "DB-SE-AE",
+      "3.1.2.",
+      "Acciones en la edificación",
+      "[x]",
+      "[ ]"
+     ],
+     [
+      "DB-SE-C",
+      "3.1.3.",
+      "Cimentaciones",
+      "[x]",
+      "[ ]"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "DB-SE-A",
+      "3.1.7.",
+      "Estructuras de acero",
+      "[x]",
+      "[ ]"
+     ],
+     [
+      "DB-SE-F",
+      "3.1.8.",
+      "Estructuras de fábrica",
+      "[ ]",
+      "[x]"
+     ],
+     [
+      "DB-SE-M",
+      "3.1.9.",
+      "Estructuras de madera",
+      "[ ]",
+      "[x]"
+     ]
+    ]
+   },
+   {
+    "n": 4,
+    "tipo": "p",
+    "estilo": "NumeracinCTE",
+    "texto": "Deberán tenerse en cuenta, además, las especificaciones de la normativa siguiente:",
+    "num": {
+     "numId": "0",
+     "ilvl": "0"
+    }
+   },
+   {
+    "n": 5,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "apartado",
+      "",
+      "Procede",
+      "No procede"
+     ],
+     [
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "NCSE",
+      "3.1.4.",
+      "Norma de construcción sismorresistente",
+      "[x]",
+      "[ ]"
+     ],
+     [
+      "CE",
+      "3.1.5",
+      "Código estructural",
+      "[x]",
+      "[ ]"
+     ]
+    ]
+   },
+   {
+    "n": 6,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "REAL DECRETO 314/2006, de 17 de marzo, por el que se aprueba el Código Técnico de la Edificación.( BOE núm. 74,Martes 28 marzo 2006)\nArtículo 10. Exigencias básicas de seguridad estructural (SE).\nEl objetivo del requisito básico «Seguridad estructural» consiste en asegurar que el edificio tiene un comportamiento estructural adecuado frente a las acciones e influencias previsibles a las que pueda estar sometido durante su construcción y uso previsto.\nPara satisfacer este objetivo, los edificios se proyectarán, fabricarán, construirán y mantendrán de forma que cumplan con una fiabilidad adecuada las exigencias básicas que se establecen en los apartados siguientes.\nLos Documentos Básicos «DB SE Seguridad Estructural», «DB-SE-AE Acciones en la edificación», «DBSE-C Cimientos», «DB-SE-A Acero», «DB-SE-F Fábrica» y «DB-SE-M Madera», especifican parámetros objetivos y procedimientos cuyo cumplimiento asegura la satisfacción de las exigencias básicas y la superación de los niveles mínimos de calidad propios del requisito básico de seguridad estructural.\nLas estructuras de hormigón están reguladas por la Instrucción de Hormigón Estructural vigente.\n10.1 Exigencia básica SE 1: Resistencia y estabilidad: la resistencia y la estabilidad serán las adecuadas para que no se generen riesgos indebidos, de forma que se mantenga la resistencia y la estabilidad frente a las acciones e influencias previsibles durante las fases de construcción y usos previstos de los edificios, y que un evento extraordinario no produzca consecuencias desproporcionadas respecto a la causa original y se facilite el mantenimiento previsto.\n10.2 Exigencia básica SE 2: Aptitud al servicio: la aptitud al servicio será conforme con el uso previsto del edificio, de forma que no se produzcan deformaciones inadmisibles, se limite a un nivel aceptable la probabilidad de un comportamiento dinámico inadmisible y no se produzcan degradaciones o anomalías inadmisibles."
+     ]
+    ]
+   },
+   {
+    "n": 7,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.1 Seguridad estructural (SE)"
+   },
+   {
+    "n": 8,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Análisis estructural y dimensionado"
+     ]
+    ]
+   },
+   {
+    "n": 9,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Proceso",
+      "-DETERMINACION DE SITUACIONES DE DIMENSIONADO\n-ESTABLECIMIENTO DE LAS ACCIONES\n-ANALISIS ESTRUCTURAL\n-DIMENSIONADO"
+     ]
+    ]
+   },
+   {
+    "n": 10,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Situaciones de dimensionado",
+      "PERSISTENTES",
+      "condiciones normales de uso"
+     ],
+     [
+      "",
+      "TRANSITORIAS",
+      "condiciones aplicables durante un tiempo limitado."
+     ],
+     [
+      "",
+      "EXTRAORDINARIAS",
+      "condiciones excepcionales en las que se puede encontrar o estar expuesto el edificio."
+     ]
+    ]
+   },
+   {
+    "n": 11,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Periodo de servicio",
+      "50 Años"
+     ]
+    ]
+   },
+   {
+    "n": 12,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Método de comprobación",
+      "Estados límites"
+     ]
+    ]
+   },
+   {
+    "n": 13,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Definición estado limite",
+      "Situaciones que, de ser superadas, puede considerarse que el edificio no cumple con alguno de los requisitos estructurales para los que ha sido concebido"
+     ]
+    ]
+   },
+   {
+    "n": 14,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Resistencia y estabilidad",
+      "ESTADO LIMITE ÚLTIMO:\nSituación que, de ser superada, existe un riesgo para las personas, ya sea por una puesta fuera de servicio o por colapso parcial o total de la estructura:\n- perdida de equilibrio\n- deformación excesiva\n- transformación estructura en mecanismo\n- rotura de elementos estructurales o sus uniones\n- inestabilidad de elementos estructurales"
+     ]
+    ]
+   },
+   {
+    "n": 15,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Aptitud de servicio",
+      "ESTADO LIMITE DE SERVICIO\nSituación que de ser superada se afecta:\nel nivel de confort y bienestar de los usuarios\ncorrecto funcionamiento del edificio\napariencia de la construcción"
+     ],
+     [
+      "Acciones"
+     ],
+     [
+      "Clasificación de las acciones",
+      "PERMANENTES",
+      "Aquellas que actúan en todo instante, con posición y valor constantes (pesos propios) o con variación despreciable: acciones reológicas"
+     ],
+     [
+      "",
+      "VARIABLES",
+      "Aquellas que pueden actuar o no sobre el edificio: uso y acciones climáticas"
+     ],
+     [
+      "",
+      "ACCIDENTALES",
+      "Aquellas cuya probabilidad de ocurrencia es pequeña, pero de gran importancia: sismo, incendio, impacto o explosión."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Valores característicos de las acciones",
+      "Los valores de las acciones se recogerán en la justificación del cumplimiento del DB SE-AE"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Datos geométricos de la estructura",
+      "La definición geométrica de la estructura está indicada en los planos de proyecto"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Características de los materiales",
+      "Los valores característicos de las propiedades de los materiales se detallarán en la justificación del DB correspondiente o bien en la justificación de la CE."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Modelo análisis estructural",
+      "Se realiza un cálculo espacial en tres dimensiones por métodos matriciales de rigidez, formando las barras los elementos que definen la estructura: pilares, vigas, brochales y viguetas. Se establece la compatibilidad de deformación en todos los nudos considerando seis grados de libertad y se crea la hipótesis de indeformabilidad del plano de cada planta, para simular el comportamiento del forjado, impidiendo los desplazamientos relativos entre nudos de este. A los efectos de obtención de solicitaciones y desplazamientos, para todos los estados de carga se realiza un cálculo estático y se supone un comportamiento lineal de los materiales, por tanto, un cálculo en primer orden."
+     ]
+    ]
+   },
+   {
+    "n": 16,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Verificación de la estabilidad"
+     ],
+     [
+      "Ed,dst ≤Ed,stb",
+      "Ed,dst: valor de cálculo del efecto de las acciones desestabilizadoras\nEd,stb: valor de cálculo del efecto de las acciones estabilizadoras"
+     ]
+    ]
+   },
+   {
+    "n": 17,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Verificación de la resistencia de la estructura"
+     ]
+    ]
+   },
+   {
+    "n": 18,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Ed ≤Rd",
+      "Ed : valor de cálculo del efecto de las acciones\nRd: valor de cálculo de la resistencia correspondiente"
+     ]
+    ]
+   },
+   {
+    "n": 19,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Combinación de acciones"
+     ]
+    ]
+   },
+   {
+    "n": 20,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "El valor de cálculo de las acciones correspondientes a una situación persistente o transitoria y los correspondientes coeficientes de seguridad se han obtenido de la fórmula 4.3 y de las tablas 4.1 y 4.2 del presente DB.\nEl valor de cálculo de las acciones correspondientes a una situación extraordinaria se ha obtenido de la expresión 4.4 del presente DB y los valores de cálculo de las acciones se ha considerado 0 o 1 si su acción es favorable o desfavorable respectivamente."
+     ]
+    ]
+   },
+   {
+    "n": 21,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Verificación de la aptitud de servicio"
+     ]
+    ]
+   },
+   {
+    "n": 22,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Se considera un comportamiento adecuado en relación con las deformaciones, las vibraciones o el deterioro si se cumple que el efecto de las acciones no alcanza el valor límite admisible establecido para dicho efecto."
+     ]
+    ]
+   },
+   {
+    "n": 23,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Flechas",
+      "La limitación de flecha activa establecida en general es de 1/500 de la luz"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "desplazamientos horizontales",
+      "El desplome total limite es 1/500 de la altura total"
+     ]
+    ]
+   },
+   {
+    "n": 24,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.2. Acciones en la edificación (SE-AE)"
+   },
+   {
+    "n": 25,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Acciones Permanentes\n(G):",
+      "Peso Propio de la estructura:",
+      "Corresponde generalmente a los elementos de hormigón armado, calculados a partir de su sección bruta y multiplicados por 25 (peso específico del hormigón armado) en pilares, paredes y vigas. En losas macizas será el canto h (cm) x 25 kN/m3."
+     ],
+     [
+      "",
+      "Cargas Muertas:",
+      "Se estiman uniformemente repartidas en la planta. Son elementos tales como el pavimento y la tabiquería (aunque esta última podría considerarse una carga variable, sí su posición o presencia varía a lo largo del tiempo)."
+     ],
+     [
+      "",
+      "Peso propio de tabiques pesados y muros de cerramiento:",
+      "Éstos se consideran al margen de la sobrecarga de tabiquería.\nEn el anejo C del DB-SE-AE se incluyen los pesos de algunos materiales y productos.\nEl pretensado se regirá por lo establecido en la Instrucción CE.\nLas acciones del terreno se tratarán de acuerdo con lo establecido en DB-SE-C."
+     ]
+    ]
+   },
+   {
+    "n": 26,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Acciones Variables\n(Q):",
+      "La sobrecarga de uso:",
+      "Se adoptarán los valores de la tabla 3.1. Los equipos pesados no están cubiertos por los valores indicados.\nLas fuerzas sobre las barandillas y elementos divisorios:\nSe considera una sobrecarga lineal de 2 kN/m en los balcones volados de toda clase de edificios."
+     ],
+     [
+      "",
+      "Las acciones climáticas:",
+      "El viento:\nLas disposiciones de este documento no se aplican en los edificios situados en altitudes superiores a 2.000 m. En general, las estructuras habituales de edificación no son sensibles a los efectos dinámicos del viento y podrán despreciarse estos efectos en edificios cuya esbeltez máxima (relación altura y anchura del edificio) sea menor que 6. En los casos especiales de estructuras sensibles al viento será necesario efectuar un análisis dinámico detallado.\nLa presión dinámica del viento Qb=1/2 · R· Vb². A falta de datos más precisos se adopta R=1.25 kg/m³. La velocidad del viento se obtiene del anejo D. Madrid está en zona A, con lo que v=26 m/s, correspondiente a un periodo de retorno de 50 años. Los coeficientes de presión exterior e interior se encuentran en el Anejo D.\nLa temperatura:\nEn estructuras habituales de hormigón estructural o metálicas formadas por pilares y vigas, pueden no considerarse las acciones térmicas cuando se dispongan de juntas de dilatación a una distancia máxima de 40 metros\nLa nieve:\nEste documento no se aplica a edificios situados en lugares que se encuentren en altitudes superiores a las indicadas en la tabla 3.11. En cualquier caso, incluso en localidades en las que el valor característico de la carga de nieve sobre un terreno horizontal Sk=0 se adoptará una sobrecarga no menor de 0.20 kN/m²"
+     ],
+     [
+      "",
+      "Las acciones químicas, físicas y biológicas:",
+      "Las acciones químicas que pueden causar la corrosión de los elementos de acero se pueden caracterizar mediante la velocidad de corrosión que se refiere a la pérdida de acero por unidad de superficie del elemento afectado y por unidad de tiempo. La velocidad de corrosión depende de parámetros ambientales tales como la disponibilidad del agente agresivo necesario para que se active el proceso de la corrosión, la temperatura, la humedad relativa, el viento o la radiación solar, pero también de las características del acero y del tratamiento de sus superficies, así como de la geometría de la estructura y de sus detalles constructivos.\nEl sistema de protección de las estructuras de acero se regirá por el DB-SE-A. En cuanto a las estructuras de hormigón estructural se regirán por el Art.3.4.2 del DB-SE-AE."
+     ],
+     [
+      "",
+      "Acciones accidentales (A):",
+      "Los impactos, las explosiones, el sismo, el fuego.\nLas acciones debidas al sismo están definidas en la Norma de Construcción Sismorresistente NCSE-02.\nEn este documento básico solamente se recogen los impactos de los vehículos en los edificios, por lo que solo representan las acciones sobre las estructuras portantes. Los valores de cálculo de las fuerzas estáticas equivalentes al impacto de vehículos están reflejados en la tabla 4.1"
+     ]
+    ]
+   },
+   {
+    "n": 27,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Cargas gravitatorias por niveles.",
+    "num": {
+     "numId": "0",
+     "ilvl": "12"
+    }
+   },
+   {
+    "n": 28,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Conforme a lo establecido en el DB-SE-AE en la tabla 3.1 y CE, las acciones gravitatorias, así como las sobrecargas de uso, tabiquería y nieve que se han considerado para el cálculo de la estructura de este edificio son las indicadas:"
+     ],
+     [
+      "Niveles",
+      "Sobrecarga\nde Uso",
+      "Sobrecarga de Tabiquería",
+      "Peso propio\ndel Forjado",
+      "Peso propio\ndel Solado",
+      "Carga Total"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ],
+     [
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»",
+      "«»"
+     ]
+    ]
+   },
+   {
+    "n": 29,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.3. Cimentaciones (SE-C)"
+   },
+   {
+    "n": 30,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Bases de cálculo"
+     ],
+     [
+      "Método de cálculo:",
+      "El dimensionado de secciones se realiza según la Teoría de los Estados Limites Últimos (apartado 3.2.1 DB-SE) y los Estados Límites de Servicio (apartado 3.2.2 DB-SE). El comportamiento de la cimentación debe comprobarse frente a la capacidad portante (resistencia y estabilidad) y la aptitud de servicio."
+     ],
+     [
+      "Verificaciones:",
+      "Las verificaciones de los Estados Límites están basadas en el uso de un modelo adecuado para al sistema de cimentación elegido y el terreno de apoyo de esta."
+     ],
+     [
+      "Acciones:",
+      "Se ha considerado las acciones que actúan sobre el edificio soportado según el documento DB-SE-AE y las acciones geotécnicas que transmiten o generan a través del terreno en que se apoya según el documento DB-SE en los apartados (4.3 - 4.4 – 4.5)."
+     ]
+    ]
+   },
+   {
+    "n": 31,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Estudio geotécnico realizado"
+     ],
+     [
+      "Generalidades:",
+      "El análisis y dimensionamiento de la cimentación exige el conocimiento previo de las características del terreno de apoyo, la tipología del edificio previsto y el entorno donde se ubica la construcción."
+     ],
+     [
+      "Empresa:",
+      "«»"
+     ],
+     [
+      "Nombre del autor/es firmantes:",
+      "«»"
+     ],
+     [
+      "Titulación/es:",
+      "«»"
+     ],
+     [
+      "Número de Sondeos:",
+      "«»"
+     ],
+     [
+      "Descripción de los terrenos:",
+      "«»"
+     ],
+     [
+      "Resumen parámetros geotécnicos:",
+      "Cota de cimentación",
+      "Variable (Ver planos)"
+     ],
+     [
+      "",
+      "Estrato previsto para cimentar",
+      "«»"
+     ],
+     [
+      "",
+      "Nivel freático",
+      "«»"
+     ],
+     [
+      "",
+      "Tensión admisible considerada",
+      "«»"
+     ],
+     [
+      "",
+      "Peso específico del terreno",
+      "«»"
+     ],
+     [
+      "",
+      "Angulo de rozamiento interno del terreno",
+      "«»"
+     ],
+     [
+      "",
+      "Coeficiente de empuje en reposo",
+      "«»"
+     ],
+     [
+      "",
+      "Coeficiente de Balasto",
+      "«»"
+     ]
+    ]
+   },
+   {
+    "n": 32,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Cimentación:"
+     ],
+     [
+      "Descripción:",
+      "Cimentación profunda mediante zapatas bajo las zonas exteriores y losa de cimentación bajo viviendas."
+     ],
+     [
+      "Material adoptado:",
+      "Hormigón armado."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Las dimensiones y armados se indican en planos de estructura. Se han dispuesto armaduras que cumplen con las cuantías mínimas indicadas en el artículo 9.3 del CE atendiendo a elemento estructural considerado."
+     ],
+     [
+      "Condiciones de ejecución:",
+      "Según indicaciones de geotécnico y planos de estructuras."
+     ]
+    ]
+   },
+   {
+    "n": 33,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Sistema de contenciones:"
+     ],
+     [
+      "Descripción:",
+      "Muros de hormigón armado a una cara, calculado en flexo-compresión compuesta con valores de empuje al reposo y como muro de sótano, es decir considerando la colaboración de los forjados en la estabilidad del muro."
+     ],
+     [
+      "Material adoptado:",
+      "Hormigón armado."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Las dimensiones y armados se indican en planos de estructura. Se han dispuesto armaduras que cumplen con las cuantías mínimas indicadas en el artículo 9.3 del CE atendiendo a elemento estructural considerado."
+     ],
+     [
+      "Condiciones de ejecución:",
+      "Según indicaciones de estudio geotécnico y planos de cimentación."
+     ]
+    ]
+   },
+   {
+    "n": 34,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Acción sísmica (NCSE-02)",
+    "num": {
+     "numId": "14",
+     "ilvl": "2"
+    }
+   },
+   {
+    "n": 35,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "RD 997/2002, de 27 de septiembre, por el que se aprueba la Norma de construcción sismorresistente: parte general y edificación (NCSR-02)."
+   },
+   {
+    "n": 36,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Clasificación de la construcción:",
+      "Edificio residencial\n(Construcción de normal importancia)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Tipo de Estructura:",
+      "Mixta: pórticos de hormigón y paredes de carga"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Aceleración Sísmica Básica (ab):",
+      "ab=0.07 g, (siendo g la aceleración de la gravedad)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Observaciones:",
+      "La aplicación de la norma de construcción sismorresistente (NCSE_02) no es obligatoria en los proyectos de construcción de importancia normal con pórticos bien arriostrados entre sí en todas las direcciones cuando la aceleración sísmica es inferior a 0,08g, siendo g la aceleración de la gravedad.\nPor la situación geográfica de la obra, la aceleración sísmica es de 0,07g, de modo que la aplicación de esta norma no será obligatoria.\nPor tanto, no se han considerado acciones sísmicas."
+     ]
+    ]
+   },
+   {
+    "n": 37,
+    "tipo": "p",
+    "estilo": "Textoindependiente3",
+    "texto": "Cumplimiento del Código Estructural,",
+    "num": {
+     "numId": "14",
+     "ilvl": "2"
+    }
+   },
+   {
+    "n": 38,
+    "tipo": "p",
+    "estilo": "Textoindependiente3",
+    "texto": "Título 2 “Estructuras de hormigón”"
+   },
+   {
+    "n": 39,
+    "tipo": "p",
+    "estilo": "Textoindependiente3",
+    "texto": "(RD 470/2021, de 29 de junio de 2021,"
+   },
+   {
+    "n": 40,
+    "tipo": "p",
+    "estilo": "Textoindependiente3",
+    "texto": "por el que se aprueba el Código Estructural)"
+   },
+   {
+    "n": 41,
+    "tipo": "p",
+    "estilo": "Textoindependiente2",
+    "texto": "3.1.5.1. Estructura"
+   },
+   {
+    "n": 42,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Descripción del sistema estructural:",
+      "La estructura horizontal en las plantas sobre rasante se ha realizado con un forjado unidireccional de viguetas de hormigón con un canto total de 30 cm, de los cuales 25cm son de canto de bovedilla y 5 cm de espesor de la capa de compresión. Contamos con un intereje de 76 cm y un ancho de nervio de 16 cm.\nBajo rasante se resuelve la estructural horizontal mediante forjado reticular de bloque perdido sobre trasteros y forjado reticular de bloque recuperable sobre garaje.\nLa estructura portante principal, está formada pilares de hormigón armado de sección rectangular y circular, así como pilares metálicos."
+     ]
+    ]
+   },
+   {
+    "n": 43,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.5.2. Programa de cálculo:"
+   },
+   {
+    "n": 44,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Nombre comercial:",
+      "Cypecad Espacial"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Empresa",
+      "Cype Ingenieros\nAvenida de Loring, 4.\n03003 Alicante. España"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Descripción del programa: idealización de la estructura: simplificaciones efectuadas.",
+      "El programa realiza un cálculo espacial en tres dimensiones por métodos matriciales de rigidez, formando las barras los elementos que definen la estructura: pilares, vigas, brochales y viguetas. Se establece la compatibilidad de deformación en todos los nudos considerando seis grados de libertad y se crea la hipótesis de indeformabilidad del plano de cada planta, para simular el comportamiento del forjado, impidiendo los desplazamientos relativos entre nudos de este.\nA los efectos de obtención de solicitaciones y desplazamientos, para todos los estados de carga se realiza un cálculo estático y se supone un comportamiento lineal de los materiales, por tanto, un cálculo en primer orden."
+     ]
+    ]
+   },
+   {
+    "n": 45,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Memoria de cálculo"
+     ],
+     [
+      "Método de cálculo",
+      "El dimensionado de secciones se realiza según la Teoría de los Estados Limites de la vigente CE, utilizando el Método de los Coeficientes Parciales, Anejo 18, Art. 3, 4 y 6.\nSe utilizan las combinaciones de hipótesis básicas definidas en el Anejo 19."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Redistribución de esfuerzos:",
+      "Se realiza una plastificación con los límites que establece el CE en su Artículo 5.5 “Análisis elástico lineal con redistribuciones limitadas, del Anejo 19, de hasta un 15% de momentos negativos en vigas"
+     ],
+     [
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "Deformaciones",
+      "Lím. flecha total",
+      "Lím. flecha activa",
+      "Máx. recomendada"
+     ],
+     [
+      "",
+      "L/300",
+      "L/500",
+      "1cm."
+     ],
+     [
+      "",
+      "Valores de acuerdo con el Artículo 7.4, del Anejo 19 del CE.\nPara la estimación de flechas se considera la Inercia Equivalente (Ie) a partir de la Formula de Branson.\nSe considera el módulo de deformación Ec establecido en el CE, Anejo 19, Art. 3.1.3"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cuantías geométricas",
+      "Estarán dentro de los límites máximos y mínimos fijados en el CE, Anejo 19, Art. 9."
+     ]
+    ]
+   },
+   {
+    "n": 46,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.5.3. Estado de cargas consideradas:"
+   },
+   {
+    "n": 47,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "Las combinaciones de las acciones consideradas se han establecido siguiendo los criterios de:",
+      "CÓDIGO ESTRUCTURAL (CE)\nDOCUMENTO BASICO SE (CODIGO TÉCNICO)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Los valores de las acciones serán los recogidos en:",
+      "DOCUMENTO BASICO SE-AE (CODIGO TECNICO)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "cargas verticales (valores en servicio)"
+     ],
+     [
+      "Forjado uso Aparcamiento",
+      "Peso propio forjado",
+      "25,0 kN/m3"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "1,00 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "4,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Trasteros",
+      "Peso propio forjado",
+      "25,0 kN/m3"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "1,50 kN/m²"
+     ],
+     [
+      "",
+      "Tabiquería",
+      "1,00 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "3,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Comercial",
+      "Peso propio forjado",
+      "4,57 kN/m²"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "3,50 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "5,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Accesos",
+      "Peso propio forjado",
+      "4,57 kN/m²"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "3,50 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "3,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Exterior",
+      "Peso propio forjado",
+      "4,57 kN/m²"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "4,00 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "5,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Centro de Transformación",
+      "Peso propio forjado",
+      "25,0 kN/m3"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "3,50 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "35,0 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Vivienda",
+      "Peso propio forjado",
+      "4,50 kN/m²"
+     ],
+     [
+      "",
+      "Solado + Acabado inferior",
+      "1,50 kN/m²"
+     ],
+     [
+      "",
+      "Tabiquería",
+      "1,00 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "2,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Cubierta ligera",
+      "Peso propio forjado",
+      "25,0 kN/m3"
+     ],
+     [
+      "",
+      "Formación de cubierta",
+      "2,00 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "1,00 kN/m²"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Forjado uso Cubierta",
+      "Peso propio forjado",
+      "4,50 kN/m²"
+     ],
+     [
+      "",
+      "Formación de cubierta",
+      "3,50 kN/m²"
+     ],
+     [
+      "",
+      "Sobrecarga de uso",
+      "2,00 kN/m²"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Verticales: Cerramientos",
+      "Fachada: 9,00 kN/m\nCerramiento interior pesado: 7,00 kN/m\nPetos: 5,00 kN/m"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Horizontales: Barandillas",
+      "0.8 KN/m a 1.20 metros de altura"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Horizontales: Viento",
+      "Se ha considerada la acción del viento estableciendo una presión dinámica de valor qb = 0,42 kN/m² sobre la superficie de fachadas. Esta presión se corresponde con una velocidad del viento de 26 m/s. Esta presión se ha considerado actuando en sus los dos ejes principales de la edificación."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cargas Térmicas",
+      "Dadas las dimensiones del edificio se ha previsto una junta de dilatación, por lo que al haber adoptado las cuantías geométricas exigidas por el CE en la en los apartados A19.9.2.1 para vigas y A19.9.5.2 para pilares, no se ha contabilizado la acción de la carga térmica."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Sobrecargas En El Terreno",
+      "10 kN/m²."
+     ]
+    ]
+   },
+   {
+    "n": 48,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.1.5. Características de los materiales:"
+   },
+   {
+    "n": 49,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "-Hormigón",
+      "HA-25/B/20/XC2"
+     ],
+     [
+      "-tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "-tamaño máximo de árido...",
+      "20 mm."
+     ],
+     [
+      "-máxima relación agua/cemento",
+      "0.60"
+     ],
+     [
+      "-mínimo contenido de cemento",
+      "275 kg/m3"
+     ],
+     [
+      "-FCK....",
+      "25 MPa"
+     ],
+     [
+      "-tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "-FYK...",
+      "500 N/mm²=5100 kg/cm²"
+     ],
+     [
+      "-Ubicación",
+      "Zapatas"
+     ]
+    ]
+   },
+   {
+    "n": 50,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "-Hormigón",
+      "HA-25/F/20/XC2"
+     ],
+     [
+      "-tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "-tamaño máximo de árido...",
+      "20 mm."
+     ],
+     [
+      "-máxima relación agua/cemento",
+      "0.60"
+     ],
+     [
+      "-mínimo contenido de cemento",
+      "275 kg/m3"
+     ],
+     [
+      "-FCK....",
+      "25 MPa"
+     ],
+     [
+      "-tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "-FYK...",
+      "500 N/mm²=5100 kg/cm²"
+     ],
+     [
+      "-Ubicación",
+      "Losa de cimentación y Muros"
+     ]
+    ]
+   },
+   {
+    "n": 51,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "-Hormigón",
+      "HA-35/F/20/XC1"
+     ],
+     [
+      "-tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "-tamaño máximo de árido...",
+      "20 mm."
+     ],
+     [
+      "-máxima relación agua/cemento",
+      "0.60"
+     ],
+     [
+      "-mínimo contenido de cemento",
+      "275 kg/m3"
+     ],
+     [
+      "-FCK....",
+      "35 MPa"
+     ],
+     [
+      "-tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "-FYK...",
+      "500 N/mm²=5100 kg/cm²"
+     ],
+     [
+      "-Ubicación",
+      "Soportes bajo rasante"
+     ]
+    ]
+   },
+   {
+    "n": 52,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "-Hormigón",
+      "HA-25/F/20/XC1"
+     ],
+     [
+      "-tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "-tamaño máximo de árido...",
+      "20 mm."
+     ],
+     [
+      "-máxima relación agua/cemento",
+      "0.60"
+     ],
+     [
+      "-mínimo contenido de cemento",
+      "275 kg/m3"
+     ],
+     [
+      "-FCK....",
+      "25 MPa"
+     ],
+     [
+      "-tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "-FYK...",
+      "500 N/mm²=5100 kg/cm²"
+     ],
+     [
+      "-Ubicación",
+      "Soportes sobre rasante"
+     ]
+    ]
+   },
+   {
+    "n": 53,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "-Hormigón",
+      "HA-30/F/20/XC4"
+     ],
+     [
+      "-tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "-tamaño máximo de árido...",
+      "20 mm."
+     ],
+     [
+      "-máxima relación agua/cemento",
+      "0.55"
+     ],
+     [
+      "-mínimo contenido de cemento",
+      "300 kg/m3"
+     ],
+     [
+      "-FCK....",
+      "30 Mpa (N/mm²)"
+     ],
+     [
+      "-tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "-FYK...",
+      "500 N/mm²=5100 kg/cm²"
+     ],
+     [
+      "-Ubicación",
+      "Elementos exteriores"
+     ]
+    ]
+   },
+   {
+    "n": 54,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Coeficientes de seguridad y niveles de control"
+     ],
+     [
+      "El nivel de control de ejecución de acuerdo con el art.º 22.4.1 de CE para esta obra es normal.\nEl nivel control de materiales es estadístico para el hormigón y normal para el acero de acuerdo Anejo 19 Art. 2.4.2.4 CE"
+     ],
+     [
+      "Hormigón",
+      "Coeficiente de minoración",
+      "1.50"
+     ],
+     [
+      "",
+      "Nivel de control",
+      "ESTADISTICO"
+     ],
+     [
+      "Acero",
+      "Coeficiente de minoración",
+      "1.15"
+     ],
+     [
+      "",
+      "Nivel de control",
+      "NORMAL"
+     ],
+     [
+      "Ejecución",
+      "Coeficiente de mayoración"
+     ],
+     [
+      "",
+      "Cargas Permanentes...",
+      "1.35",
+      "Cargas variables",
+      "1.5"
+     ],
+     [
+      "",
+      "Nivel de control...",
+      "NORMAL"
+     ]
+    ]
+   },
+   {
+    "n": 55,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Durabilidad"
+     ],
+     [
+      "Recubrimientos exigidos:",
+      "Al objeto de garantizar la durabilidad de la estructura durante su vida útil, el artículo 43 de la CE establece los siguientes parámetros."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Recubrimientos:",
+      "Se siguen los criterios expuestos en el CE a la hora de determinar los recubrimientos en función del tipo de ambiente apartado 4 anejo 19 CE\nA los efectos de determinar los recubrimientos exigidos en la tabla 44.2.1.1.a del vigente CE, se considera toda la estructura en ambiente XC1: esto es, exteriores sometidos a humedad alta (>65%).\nPara el ambiente XC1 se exigirá un recubrimiento mínimo de 20 mm, lo que requiere un recubrimiento nominal de 35 mm.\nPara garantizar estos recubrimientos se exigirá la disposición de separadores homologados de acuerdo con los criterios descritos en cuando a distancias y posición en el artículo 43.4.2 de la vigente CE."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cantidad mínima de cemento:",
+      "Para el ambiente considerado, la cantidad mínima de cemento requerida es (Tabla 43.2.1.a):\nXC1 y XC2: 275 kg/m³\nXC3 y XC4: 300 kg/m³"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cantidad máxima de cemento:",
+      "Según especificaciones CE."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Resistencia mínima esperada:",
+      "Para el ambiente considerado, la resistencia mínima del hormigón esperada es (Tabla 43.2.1.b):\nXC1 y XC2: 25 N/mm²\nXC3 y XC4: 30 N/mm²"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Relación agua cemento:",
+      "Para el ambiente considerado, la máxima relación agua/cemento es (Tabla 43.2.1.a):\nXC1 y XC2: ≤ 0,60\nXC3 y XC4: ≤ 0,55"
+     ]
+    ]
+   },
+   {
+    "n": 56,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Características de los forjados.",
+    "num": {
+     "numId": "14",
+     "ilvl": "2"
+    }
+   },
+   {
+    "n": 57,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "RD 642/2002, de 5 de Julio, por el que se aprueba instrucción para el proyecto y la ejecución de forjados unidireccionales de hormigón estructural realizados con elementos prefabricados"
+   },
+   {
+    "n": 58,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.6.1. Características técnicas de los forjados unidireccionales (viguetas in situ de hormigón).",
+    "num": {
+     "numId": "0",
+     "ilvl": "12"
+    }
+   },
+   {
+    "n": 59,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Material adoptado:",
+      "Forjados unidireccionales compuestos de viguetas de hormigón, más piezas de entrevigado aligerantes (bovedillas de hormigón vibroprensado), con armadura de reparto y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión)."
+     ],
+     [
+      "Sistema de unidades adoptado:",
+      "Se indican en los planos de los forjados los armados de refuerzo inferior, superior y cortante."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Canto Total",
+      "35 cm",
+      "Hormigón vigueta",
+      "HA-25"
+     ],
+     [
+      "",
+      "Capa de Compresión",
+      "5 cm",
+      "Hormigón “in situ”",
+      "HA-25"
+     ],
+     [
+      "",
+      "Intereje",
+      "76 cm",
+      "Acero pretensado",
+      "No aplica"
+     ],
+     [
+      "",
+      "Tipo de Vigueta",
+      "In situ",
+      "Acero refuerzos",
+      "B500"
+     ],
+     [
+      "",
+      "Tipo de Bovedilla",
+      "Hormigón",
+      "Peso propio",
+      "4.5 kN/M²"
+     ]
+    ]
+   },
+   {
+    "n": 60,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Observaciones:",
+      "El hormigón de las viguetas cumplirá las condiciones especificadas CE. Las armaduras activas cumplirán las condiciones CE. Las armaduras pasivas cumplirán las condiciones especificadas en el CE. El control de los recubrimientos de las viguetas cumplirá las condiciones especificadas en el CE.\nEl canto de los forjados unidireccionales de hormigón con viguetas armadas o pretensadas será superior al mínimo establecido en la norma EFHE (Art. 15.2.2) para las condiciones de diseño, materiales y cargas previstas; por lo que no es necesaria su comprobación de flecha.\nEn las expresiones anteriores “L” es la luz del vano, en centímetros, (distancia entre ejes de los pilares sí se trata de forjados apoyados en vigas planas) y, en el caso de voladizo, 1.6 veces el vuelo."
+     ],
+     [
+      "",
+      "Límite de flecha total a plazo infinito",
+      "Límite relativo de flecha activa"
+     ],
+     [
+      "",
+      "flecha ≤ L/250\nf ≤ L / 500 + 1 cm",
+      "flecha ≤ L/500\nf ≤ L / 1000 + 0.5 cm"
+     ]
+    ]
+   },
+   {
+    "n": 61,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.6.5. Características técnicas de los forjados de losas macizas de hormigón armado."
+   },
+   {
+    "n": 62,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Material adoptado:",
+      "Los forjados de losas macizas se definen por el canto (espesor del forjado) y la armadura, consta de una malla que se dispone en dos capas (superior e inferior) con los detalles de refuerzo a punzonamiento (en los pilares), con las cuantías y separaciones según se indican en los planos de los forjados de la estructura."
+     ],
+     [
+      "Sistema de unidades adoptado:",
+      "Se indican en los planos de los forjados de las losas macizas de hormigón armado los detalles de la sección del forjado, indicando el espesor total, y la cuantía y separación de la armadura."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Canto Total",
+      "Variable",
+      "Hormigón “in situ”",
+      "HA-25"
+     ],
+     [
+      "",
+      "Peso propio total",
+      "25 kN/m³",
+      "Acero refuerzos",
+      "B500"
+     ]
+    ]
+   },
+   {
+    "n": 63,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Observaciones:",
+      "En lo que respecta al estudio de la deformabilidad de las vigas de hormigón armado y los forjados de losas macizas de hormigón armado se han seguido las indicaciones del apartado 4.3 del CTE DB-SE.\nLos límites de deformación vertical (flechas) de las vigas y de los forjados de losas macizas, establecidos para asegurar la compatibilidad de deformaciones de los distintos elementos estructurales y constructivos, son los que se señalan en el cuadro que se incluye a continuación, según lo establecido en el apartado 4.3 del CTE DB-SE:"
+     ],
+     [
+      "",
+      "Límite de la flecha total\na plazo infinito",
+      "Límite relativo de\nla flecha activa",
+      "Límite absoluto de\nla flecha activa"
+     ],
+     [
+      "",
+      "flecha ≤ L/300",
+      "flecha ≤ L/500",
+      "flecha ≤ 1 cm"
+     ]
+    ]
+   },
+   {
+    "n": 64,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.6.6. Características técnicas de los forjados reticulares (casetón perdido).",
+    "num": {
+     "numId": "0",
+     "ilvl": "12"
+    }
+   },
+   {
+    "n": 65,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Material adoptado:",
+      "Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones perdidos), compuestas por bovedillas aligerantes de hormigón vibroprensado y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura."
+     ],
+     [
+      "Sistema de unidades adoptado:",
+      "Se indican en los planos de los forjados los detalles de la sección del forjado, indicando el espesor total, el intereje, ancho del nervio, dimensiones de las bovedillas de hormigón vibroprensado que forman los casetones perdidos y el espesor de la capa de compresión. Así mismo se indican los armados de los nervios inferiores y superiores en ambas direcciones."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Canto Total",
+      "30 cm",
+      "Casetón perdido",
+      "70x70"
+     ],
+     [
+      "",
+      "Capa de Compresión",
+      "5 cm",
+      "Nº. Piezas casetón",
+      "3"
+     ],
+     [
+      "",
+      "Intereje",
+      "84 cm",
+      "Hormigón “in situ”",
+      "HA-25"
+     ],
+     [
+      "",
+      "Arm. c. compresión",
+      "Ø5/20-20",
+      "Acero refuerzos",
+      "B-500S"
+     ],
+     [
+      "",
+      "Ancho del nervio",
+      "14 cm",
+      "Peso propio total",
+      "4,57 kN/m²"
+     ],
+     [
+      "",
+      "Tipo de Bovedilla",
+      "Hormigón",
+      "",
+      ""
+     ]
+    ]
+   },
+   {
+    "n": 66,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Observaciones:",
+      "En lo que respecta al estudio de la deformabilidad de las vigas de hormigón armado y los forjados reticulares, que son elementos estructurales solicitados a flexión simple o compuesta, se han aplicado las disposiciones descritas en el artículo 7.4.1 del Anejo 19 del Código Estructural, donde se establece la relación luz / canto útil para elementos de hormigón armado sin esfuerzo axil de compresión en la tabla A19.7.4. Además de establecer los casos en los que se pueden omitir los cálculos en el artículo 7.4.2 del Anejo 19 del Código Estructural.\nLos límites de deformación vertical (flechas) de las vigas y de los forjados reticulares, establecidos para asegurar la compatibilidad de deformaciones de los distintos elementos estructurales y constructivos, son los que se señalan en el cuadro que se incluye a continuación, según lo establecido en el artículo 7.4.1 del Anejo 19 del Código Estructural."
+     ],
+     [
+      "",
+      "Límite de la flecha total\na plazo infinito",
+      "Límite relativo de\nla flecha activa",
+      "Límite absoluto de\nla flecha activa"
+     ],
+     [
+      "",
+      "flecha ≤ L/250",
+      "flecha ≤ L/500",
+      "flecha ≤ 1 cm"
+     ]
+    ]
+   },
+   {
+    "n": 67,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.6.7. Características técnicas de los forjados reticulares (casetón recuperable).",
+    "num": {
+     "numId": "0",
+     "ilvl": "12"
+    }
+   },
+   {
+    "n": 68,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Material adoptado:",
+      "Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones recuperables), y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura."
+     ],
+     [
+      "Sistema de unidades adoptado:",
+      "Se indican en los planos de los forjados los detalles de la sección del forjado, indicando el espesor total, el intereje, ancho del nervio, dimensiones de los casetones recuperables y el espesor de la capa de compresión. Así mismo se indican los armados de los nervios inferiores y superiores en ambas direcciones."
+     ],
+     [
+      "Dimensiones y armado:",
+      "Canto Total",
+      "35 cm",
+      "Casetones",
+      "68x68"
+     ],
+     [
+      "",
+      "Capa de Compresión",
+      "5 cm",
+      "Nº. Piezas casetón",
+      "2"
+     ],
+     [
+      "",
+      "Intereje",
+      "84 cm",
+      "Hormigón “in situ”",
+      "HA-25"
+     ],
+     [
+      "",
+      "Arm. c. compresión",
+      "Ø5/20-20",
+      "Acero refuerzos",
+      "B-500S"
+     ],
+     [
+      "",
+      "Ancho del nervio",
+      "16 cm",
+      "Peso propio sin ábacos",
+      "4,58 kN/m²"
+     ],
+     [
+      "",
+      "Tipo de casetón",
+      "Hormigón",
+      "",
+      ""
+     ],
+     [
+      "Observaciones:",
+      "En lo que respecta al estudio de la deformabilidad de las vigas de hormigón armado y los forjados reticulares, que son elementos estructurales solicitados a flexión simple o compuesta, se han aplicado las disposiciones descritas en el artículo 7.4.1 del Anejo 19 del Código Estructural, donde se establece la relación luz / canto útil para elementos de hormigón armado sin esfuerzo axil de compresión en la tabla A19.7.4. Además de establecer los casos en los que se pueden omitir los cálculos en el artículo 7.4.2 del Anejo 19 del Código Estructural.\nLos límites de deformación vertical (flechas) de las vigas y de los forjados reticulares, establecidos para asegurar la compatibilidad de deformaciones de los distintos elementos estructurales y constructivos, son los que se señalan en el cuadro que se incluye a continuación, según lo establecido en el artículo 7.4.1 del Anejo 19 del Código Estructural."
+     ],
+     [
+      "",
+      "Límite de la flecha total\na plazo infinito",
+      "Límite relativo de\nla flecha activa",
+      "Límite absoluto de\nla flecha activa"
+     ],
+     [
+      "",
+      "flecha ≤ L/250",
+      "flecha ≤ L/400",
+      "flecha ≤ 1 cm"
+     ]
+    ]
+   },
+   {
+    "n": 69,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7. Estructuras de acero (SE-A)"
+   },
+   {
+    "n": 70,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.1. Bases de cálculo"
+   },
+   {
+    "n": 71,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      ""
+     ],
+     [
+      "Criterios de verificación",
+      ""
+     ],
+     [
+      "La verificación de los elementos estructurales de acero se ha realizado:"
+     ],
+     [
+      "[ ]",
+      "Manualmente",
+      "[ ]",
+      "Toda la estructura:",
+      "Presentar justificación de verificaciones"
+     ],
+     [
+      "",
+      "",
+      "[ ]",
+      "Parte de la estructura:",
+      "Identificar los elementos de la estructura"
+     ],
+     [
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "[x]",
+      "Mediante programa informático",
+      "[x]",
+      "Toda la estructura",
+      "Nombre del programa:",
+      "CYPECAD"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Versión:",
+      "V2022"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Empresa:",
+      "CYPECAD INGENIEROS"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Domicilio:",
+      "Avenida de Loring, 4.\n03003 Alicante. España"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      "[ ]",
+      "Parte de la estructura:",
+      "Identificar los elementos de la estructura:",
+      "-"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Nombre del programa:",
+      "-"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Versión:",
+      "-"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Empresa:",
+      "-"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "Domicilio:",
+      "-"
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "Se han seguido los criterios indicados en el Código Técnico para realizar la verificación de la estructura en base a los siguientes estados límites:"
+     ],
+     [
+      "",
+      "Estado límite último",
+      "Se comprueba los estados relacionados con fallos estructurales como son la estabilidad y la resistencia."
+     ],
+     [
+      "",
+      "Estado límite de servicio",
+      "Se comprueba los estados relacionados con el comportamiento estructural en servicio."
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ]
+    ]
+   },
+   {
+    "n": 72,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Modelado y análisis",
+      ""
+     ],
+     [
+      "El análisis de la estructura se ha basado en un modelo que proporciona una previsión suficientemente precisa del comportamiento de esta.\nLas condiciones de apoyo que se consideran en los cálculos corresponden con las disposiciones constructivas previstas.\nSe consideran a su vez los incrementos producidos en los esfuerzos por causa de las deformaciones (efectos de 2º orden) allí donde no resulten despreciables.\nEn el análisis estructural se han tenido en cuenta las diferentes fases de la construcción, incluyendo el efecto del apeo provisional de los forjados cuando así fuere necesario."
+     ],
+     [
+      ""
+     ],
+     [
+      "[x]",
+      "la estructura está formada por pilares y vigas",
+      "[x]",
+      "existen juntas de dilatación",
+      "[x]",
+      "separación máxima entre juntas de dilatación",
+      "d>40 metros",
+      "¿Se han tenido en cuenta las acciones térmicas y reológicas en el cálculo?",
+      "si [ ]",
+      ""
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "no [x]",
+      "► La bibliografía especializada en Edificación, Proyecto y cálculo de estructuras de hormigón del Profesor J. Calavera, establece que para estructuras de hormigón armado con distancias máximas entre juntas entre 60 y 90 m para edificios de planta rectangular son valores aceptables."
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "",
+      "",
+      "[ ]",
+      "no existen juntas de dilatación",
+      "",
+      "",
+      "",
+      "¿Se han tenido en cuenta las acciones térmicas y reológicas en el cálculo?",
+      "si [ ]",
+      ""
+     ],
+     [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "no [ ]",
+      ""
+     ]
+    ]
+   },
+   {
+    "n": 73,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      ""
+     ],
+     [
+      "[x]",
+      "Durante el proceso constructivo no se producen solicitaciones que aumenten las inicialmente previstas para la entrada en servicio del edificio"
+     ]
+    ]
+   },
+   {
+    "n": 74,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Estados límite últimos",
+      ""
+     ],
+     [
+      "",
+      "La verificación de la capacidad portante de la estructura de acero se ha comprobado para el estado límite último de estabilidad, en donde:"
+     ],
+     [
+      "",
+      "",
+      "[OLE]",
+      "siendo:\n[OLE] el valor de cálculo del efecto de las acciones desestabilizadoras\n[OLE] el valor de cálculo del efecto de las acciones estabilizadoras"
+     ],
+     [
+      "",
+      "y para el estado límite último de resistencia, en donde"
+     ],
+     [
+      "",
+      "",
+      "[OLE]",
+      "siendo:\n[OLE] el valor de cálculo del efecto de las acciones\n[OLE] el valor de cálculo de la resistencia correspondiente"
+     ],
+     [
+      "",
+      "Al evaluar [OLE] y [OLE], se han tenido en cuenta los efectos de segundo orden de acuerdo con los criterios establecidos en el Documento Básico."
+     ]
+    ]
+   },
+   {
+    "n": 75,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Estados límite de servicio",
+      ""
+     ],
+     [
+      "",
+      "Para los diferentes estados límite de servicio se ha verificado que:"
+     ],
+     [
+      "",
+      "",
+      "[OLE]",
+      "siendo:\n[OLE] el efecto de las acciones de cálculo;\n[OLE] valor límite para el mismo efecto."
+     ]
+    ]
+   },
+   {
+    "n": 76,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Geometría",
+      ""
+     ],
+     [
+      "",
+      "En la dimensión de la geometría de los elementos estructurales se ha utilizado como valor de cálculo el valor nominal de proyecto."
+     ]
+    ]
+   },
+   {
+    "n": 77,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.2. Durabilidad"
+   },
+   {
+    "n": 78,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "Se han considerado las estipulaciones del apartado “3 Durabilidad” del “Documento Básico SE-A. Seguridad estructural. Estructuras de acero”, y que se recogen en el presente proyecto en el apartado de “Pliego de Condiciones Técnicas”."
+     ]
+    ]
+   },
+   {
+    "n": 79,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.3. Materiales"
+   },
+   {
+    "n": 80,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "El tipo de acero utilizado en chapas y perfiles es:",
+      "S355JR"
+     ]
+    ]
+   },
+   {
+    "n": 81,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Designación",
+      "Espesor nominal t (mm)",
+      "Temperatura del\nensayo Charpy\nºC"
+     ],
+     [
+      "",
+      "fy (N/mm²)",
+      "fu (N/mm²)",
+      ""
+     ],
+     [
+      "",
+      "t ≤ 16 16 < t ≤ 40 40 < t ≤ 63",
+      "3 ≤ t ≤ 100",
+      ""
+     ],
+     [
+      "",
+      "",
+      "",
+      ""
+     ],
+     [
+      "S235JR\nS235J0\nS235J2",
+      "235 225 215",
+      "360",
+      "20\n0\n-20"
+     ],
+     [
+      "S275JR\nS275J0\nS275J2",
+      "275 265 255",
+      "410",
+      "2\n0\n-20"
+     ],
+     [
+      "S355JR\nS355J0\nS355J2\nS355K2",
+      "355 345 335",
+      "470",
+      "20\n0\n-20\n-20(1)"
+     ],
+     [
+      "S450J0",
+      "450 430 410",
+      "550",
+      "0"
+     ],
+     [
+      "(1) Se le exige una energía mínima de 40J.\nfy tensión de límite elástico del material\nfu tensión de rotura"
+     ]
+    ]
+   },
+   {
+    "n": 82,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.4. Análisis estructural"
+   },
+   {
+    "n": 83,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "La comprobación ante cada estado límite se realiza en dos fases: determinación de los efectos de las acciones (esfuerzos y desplazamientos de la estructura) y comparación con la correspondiente limitación (resistencias y flechas y vibraciones admisibles respectivamente). En el contexto del “Documento Básico SE-A. Seguridad estructural. Estructuras de acero” a la primera fase se la denomina de análisis y a la segunda de dimensionado."
+     ]
+    ]
+   },
+   {
+    "n": 84,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.5. Estados límite últimos"
+   },
+   {
+    "n": 85,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "La comprobación frente a los estados límites últimos supone la comprobación ordenada frente a la resistencia de las secciones, de las barras y las uniones.\nEl valor del límite elástico utilizado será el correspondiente al material base según se indica en el apartado 3 del “Documento Básico SE-A. Seguridad estructural. Estructuras de acero”. No se considera el efecto de endurecimiento derivado del conformado en frío o de cualquier otra operación.\nSe han seguido los criterios indicados en el apartado “6 Estados límite últimos” del “Documento Básico SE-A. Seguridad estructural. Estructuras de acero” para realizar la comprobación de la estructura, en base a los siguientes criterios de análisis:"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "",
+      "Descomposición de la barra en secciones y cálculo en cada una de ellas de los valores de resistencia:\n- Resistencia de las secciones a tracción\n- Resistencia de las secciones a corte\n- Resistencia de las secciones a compresión\n- Resistencia de las secciones a flexión\n- Interacción de esfuerzos:\n- Flexión compuesta sin cortante\n- Flexión y cortante\n- Flexión, axil y cortante\nComprobación de las barras de forma individual según esté sometida a:\n- Tracción\n- Compresión\n- Flexión\n- Interacción de esfuerzos:\n- Elementos flectados y traccionados\n- Elementos comprimidos y flectados"
+     ]
+    ]
+   },
+   {
+    "n": 86,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.7.6. Estados límite de servicio"
+   },
+   {
+    "n": 87,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "",
+      "Para las diferentes situaciones de dimensionado se ha comprobado que el comportamiento de la estructura en cuanto a deformaciones, vibraciones y otros estados límite, está dentro de los límites establecidos en el apartado “7.1.3. Valores límites” del “Documento Básico SE-A. Seguridad estructural. Estructuras de acero”."
+     ]
+    ]
+   }
+  ]
+ },
+ "corta": {
+  "fichero": "Cumplimiento del CTE DB SE.docx",
+  "bloques": [
+   {
+    "n": 0,
+    "tipo": "p",
+    "estilo": "Ttulo1",
+    "texto": "Cumplimiento del CTE",
+    "num": {
+     "numId": "1",
+     "ilvl": "0"
+    }
+   },
+   {
+    "n": 1,
+    "tipo": "p",
+    "estilo": "Ttulo2",
+    "texto": "Seguridad estructural DB SE",
+    "num": {
+     "numId": "1",
+     "ilvl": "1"
+    }
+   },
+   {
+    "n": 2,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Análisis estructural y dimensionado"
+     ]
+    ]
+   },
+   {
+    "n": 3,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Proceso",
+      "-DETERMINACIÓN DE SITUACIONES DE DIMENSIONADO\n-ESTABLECIMIENTO DE LAS ACCIONES\n-ANÁLISIS ESTRUCTURAL\n-DIMENSIONADO"
+     ]
+    ]
+   },
+   {
+    "n": 4,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Situaciones de dimensionado",
+      "PERSISTENTES",
+      "condiciones normales de uso"
+     ],
+     [
+      "",
+      "TRANSITORIAS",
+      "Condiciones aplicables durante un tiempo limitado."
+     ],
+     [
+      "",
+      "EXTRAORDINARIAS",
+      "Condiciones excepcionales en las que se puede encontrar o estar expuesto el edificio."
+     ]
+    ]
+   },
+   {
+    "n": 5,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Periodo de servicio",
+      "50 Años"
+     ]
+    ]
+   },
+   {
+    "n": 6,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Método de comprobación",
+      "Estados límites"
+     ]
+    ]
+   },
+   {
+    "n": 7,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Definición estado limite",
+      "Situaciones que de ser superadas, puede considerarse que el edificio no cumple con alguno de los requisitos estructurales para los que ha sido concebido"
+     ]
+    ]
+   },
+   {
+    "n": 8,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Resistencia y estabilidad",
+      "ESTADO LIMITE ÚLTIMO:\nSituación que de ser superada, existe un riesgo para las personas, ya sea por una puesta fuera de servicio o por colapso parcial o total de la estructura:\n- perdida de equilibrio\n- deformación excesiva\n- transformación estructura en mecanismo\n- rotura de elementos estructurales o sus uniones\n- inestabilidad de elementos estructurales"
+     ]
+    ]
+   },
+   {
+    "n": 9,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Aptitud de servicio",
+      "ESTADO LIMITE DE SERVICIO\nSituación que de ser superada se afecta::\nel nivel de confort y bienestar de los usuarios\ncorrecto funcionamiento del edificio\napariencia de la construcción"
+     ]
+    ]
+   },
+   {
+    "n": 10,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Acciones"
+     ],
+     [
+      "Clasificación de las acciones",
+      "PERMANENTES",
+      "Aquellas que actúan en todo instante, con posición constante y valor constante (pesos propios) o con variación despreciable: acciones reológicas"
+     ],
+     [
+      "",
+      "VARIABLES",
+      "Aquellas que pueden actuar o no sobre el edificio: uso y acciones climáticas"
+     ],
+     [
+      "",
+      "ACCIDENTALES",
+      "Aquellas cuya probabilidad de ocurrencia es pequeña pero de gran importancia: sismo, incendio, impacto o explosión."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Valores característicos de las acciones",
+      "Los valores de las acciones se recogerán en la justificación del cumplimiento del DB SE-AE"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Datos geométricos de la estructura",
+      "La definición geométrica de la estructura está indicada en los planos de proyecto"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Características de los materiales",
+      "Los valores característicos de las propiedades de los materiales se detallarán en la justificación del DB correspondiente o bien en la justificación de la Cod. Estructural"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Modelo análisis estructural",
+      "Se realiza un cálculo espacial en tres dimensiones por métodos matriciales de rigidez, formando las barras los elementos que definen la estructura: pilares, vigas, brochales y viguetas. Se establece la compatibilidad de deformación en todos los nudos considerando seis grados de libertad y se crea la hipótesis de indeformabilidad del plano de cada planta, para simular el comportamiento del forjado, impidiendo los desplazamientos relativos entre nudos del mismo. A los efectos de obtención de solicitaciones y desplazamientos, para todos los estados de carga se realiza un cálculo estático y se supone un comportamiento lineal de los materiales, por tanto, un cálculo en primer orden."
+     ],
+     [
+      "Verificación de la estabilidad"
+     ],
+     [
+      "Ed,dst ≤Ed,stb",
+      "Ed,dst: valor de cálculo del efecto de las acciones desestabilizadoras\nEd,stb: valor de cálculo del efecto de las acciones estabilizadoras"
+     ],
+     [
+      "Verificación de la resistencia de la estructura"
+     ],
+     [
+      "Ed ≤Rd",
+      "Ed : valor de calculo del efecto de las acciones\nRd: valor de cálculo de la resistencia correspondiente"
+     ],
+     [
+      "Combinación de acciones"
+     ],
+     [
+      "El valor de calculo de las acciones correspondientes a una situación persistente o transitoria y los correspondientes coeficientes de seguridad se han obtenido de la formula 4.3 y de las tablas 4.1 y 4.2 del presente DB.\nEl valor de cálculo de las acciones correspondientes a una situación extraordinaria se ha obtenido de la expresión 4.4 del presente DB y los valores de cálculo de las acciones se han considerado 0 o 1 si su acción es favorable o desfavorable respectivamente."
+     ]
+    ]
+   },
+   {
+    "n": 11,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Verificación de la aptitud de servicio"
+     ],
+     [
+      "Se considera un comportamiento adecuado en relación con las deformaciones, las vibraciones o el deterioro si se cumple que el efecto de las acciones no alcanza el valor límite admisible establecido para dicho efecto."
+     ]
+    ]
+   },
+   {
+    "n": 12,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Flechas",
+      "La limitación de flecha activa establecida en general es de 1/500 de la luz"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "desplazamientos horizontales",
+      "El desplome total limite es 1/500 de la altura total"
+     ]
+    ]
+   },
+   {
+    "n": 13,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Acciones en la edificación (SE-AE)"
+   },
+   {
+    "n": 14,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Acciones Permanentes\n(G):",
+      "Peso Propio de la estructura:",
+      "Corresponde generalmente a los elementos de hormigón armado, calculados a partir de su sección bruta y multiplicados por 25 (peso específico del hormigón armado) en pilares, paredes y vigas."
+     ],
+     [
+      "",
+      "Cargas Muertas:",
+      "Se estiman uniformemente repartidas en la planta. Son elementos tales como el pavimento y la tabiquería (aunque esta última podría considerarse una carga variable, sí su posición o presencia varía a lo largo del tiempo)."
+     ],
+     [
+      "",
+      "Peso propio de tabiques pesados y muros de cerramiento:",
+      "Éstos se consideran al margen de la sobrecarga de tabiquería.\nEn el anejo C del DB-SE-AE se incluyen los pesos de algunos materiales y productos.\nEl pretensado se regirá por lo establecido en Cod. Estructural.\nLas acciones del terreno se tratarán de acuerdo con lo establecido en DB-SE-C."
+     ]
+    ]
+   },
+   {
+    "n": 15,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Acciones Variables\n(Q):",
+      "La sobrecarga de uso:",
+      "Se adoptarán los valores de la tabla 3.1. Los equipos pesados no están cubiertos por los valores indicados.\nLas fuerzas sobre las barandillas y elementos divisorios:\nSe considera una sobrecarga lineal de 2 kN/m en los balcones volados de toda clase de edificios."
+     ],
+     [
+      "",
+      "Las acciones climáticas:",
+      "El viento:\nLas disposiciones de este documento no son de aplicación en los edificios situados en altitudes superiores a 2.000 m. En general, las estructuras habituales de edificación no son sensibles a los efectos dinámicos del viento y podrán despreciarse estos efectos en edificios cuya esbeltez máxima (relación altura y anchura del edificio) sea menor que 6. En los casos especiales de estructuras sensibles al viento será necesario efectuar un análisis dinámico detallado.\nLa presión dinámica del viento Qb=1/2 x Rx Vb2. A falta de datos más precisos se adopta R=1.25 kg/m3. La velocidad del viento se obtiene del anejo E. Málaga (Málaga) está en zona A, con lo que v=26 m/s, correspondiente a un periodo de retorno de 50 años.\nLos coeficientes de presión exterior e interior se encuentran en el Anejo D.\nLa temperatura:\nEn estructuras habituales de hormigón estructural o metálicas formadas por pilares y vigas, pueden no considerarse las acciones térmicas cuando se dispongan de juntas de dilatación a una distancia máxima de 40 metros\nLa nieve:\nEste documento no es de aplicación a edificios situados en lugares que se encuentren en altitudes superiores a las indicadas en la tabla 3.11. En cualquier caso, incluso en localidades en las que el valor característico de la carga de nieve sobre un terreno horizontal Sk=0 se adoptará una sobrecarga no menor de 0.20 Kn/m2"
+     ],
+     [
+      "",
+      "Las acciones químicas, físicas y biológicas:",
+      "Las acciones químicas que pueden causar la corrosión de los elementos de acero se pueden caracterizar mediante la velocidad de corrosión que se refiere a la pérdida de acero por unidad de superficie del elemento afectado y por unidad de tiempo. La velocidad de corrosión depende de parámetros ambientales tales como la disponibilidad del agente agresivo necesario para que se active el proceso de la corrosión, la temperatura, la humedad relativa, el viento o la radiación solar, pero también de las características del acero y del tratamiento de sus superficies, así como de la geometría de la estructura y de sus detalles constructivos.\nEl sistema de protección de las estructuras de acero se regirá por el DB-SE-A. En cuanto a las estructuras de hormigón estructural se regirán por el Art.3.4.2 del DB-SE-AE."
+     ],
+     [
+      "",
+      "Acciones accidentales (A):",
+      "Los impactos, las explosiones, el sismo, el fuego.\nLas acciones debidas al sismo están definidas en la Norma de Construcción Sismorresistente NCSE-02.\nEn este documento básico solamente se recogen los impactos de los vehículos en los edificios, por lo que solo representan las acciones sobre las estructuras portantes. Los valores de cálculo de las fuerzas estáticas equivalentes al impacto de vehículos están reflejados en la tabla 4.1"
+     ]
+    ]
+   },
+   {
+    "n": 16,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Cargas gravitatorias por niveles."
+   },
+   {
+    "n": 17,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Conforme a lo establecido en el DB-SE-AE en la tabla 3.1 y Cod. Estructural, las acciones gravitatorias, así como las sobrecargas de uso, tabiquería y nieve que se han considerado para el cálculo de la estructura de este edificio son las indicadas en el apartado correspondiente del anejo de cálculo de la estructura :"
+     ]
+    ]
+   },
+   {
+    "n": 18,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Acción sísmica (NCSE-02)"
+   },
+   {
+    "n": 19,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "RD 997/2002 , de 27 de Septiembre, por el que se aprueba la Norma de construcción sismorresistente: parte general y edificación (NCSR-02)."
+   },
+   {
+    "n": 20,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Clasificación de la construcción:",
+      "Edificio de Viviendas.\n(Construcción de normal importancia)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Tipo de Estructura:",
+      ""
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Aceleración Sísmica Básica (ab):",
+      "ab=0.08 g, (siendo g la aceleración de la gravedad)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Coeficiente de contribución (K):",
+      "K=1"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Coeficiente adimensional de riesgo (ρ):",
+      "ρ=1, (en construcciones de normal importancia)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Coeficiente de amplificación del terreno (S):\n(art. 2.2 de NCSE 02)",
+      "Para ρab < 0.1g),\ntenemos que S=C/1.25 = 1.56"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Coeficiente de tipo de terreno (C):\n(Valor de los 30 primeros metros bajo la superficie art. 2.4 NCSE 02)",
+      "Terreno tipo III (C=1.36)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Aceleración sísmica de cálculo (ac):",
+      "Ac= S x ρ x ab =1.06*1*0.08 = 0.084"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Método de cálculo adoptado:",
+      "Análisis Modal Espectral."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Factor de amortiguamiento:",
+      "Estructura de hormigón armado compartimentada: 5%"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Periodo de vibración de la estructura:",
+      "Se indican en los listados de cálculo por ordenador"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Número de modos de vibración considerados:",
+      "3 modos de vibración\n(La masa total desplazada >90% en ambos ejes)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Fracción cuasi-permanente de sobrecarga:",
+      "La parte de sobrecarga a considerar en la masa sísmica movilizable es = 0.5 (viviendas)"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Coeficiente de comportamiento por ductilidad:",
+      "μ = 2 (ductilidad baja )"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Efectos de segundo orden (efecto p∆):\n(La estabilidad global de la estructura)",
+      "Los desplazamientos reales de la estructura son los considerados en el cálculo multiplicados por 1."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Medidas constructivas consideradas:",
+      "Especificaciones de la zona de cimentación según planos adjuntos\nAtado de los pórticos de la estructura mediante losa de cimentación.\nConcentración de estribos en el pie y en cabeza de los pilares.\nPasar las hiladas alternativamente de unos tabiques sobre los otros."
+     ]
+    ]
+   },
+   {
+    "n": 21,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Cumplimiento de la instrucción de"
+   },
+   {
+    "n": 22,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Hormigón estructural"
+   },
+   {
+    "n": 23,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Real Decreto 470/2021 por el que se aprueba el Código Estructural, reglamentación que regula las estructuras de hormigón)"
+   },
+   {
+    "n": 24,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.1.3. Estructura"
+   },
+   {
+    "n": 25,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Descripción del sistema estructural:",
+      "Pórticos de hormigón armado constituidos por pilares hormigón armado de sección cuadrada o rectangular y por vigas de canto y/o planas en función de las luces a salvar.\nSobre los pilares se apoyan losas de distinto espesor y forjados reticulares de canto 25+5/72 de bovedilla aligerante de hormigón vibrado\nForjados reticulares de 30 cm de canto total con bovedillas no recuperables de hormigón aligerado de 60x22x20, capa de compresión de 5cm y nervios de 12cm de ancho con retícula entre ejes de nervios de 72cm. y un peso total de 4,26Kn/m2, apoyados sobre pilares de hormigón de sección según se define en el cálculo y que transmiten las cargas a la cimentación y al terreno"
+     ]
+    ]
+   },
+   {
+    "n": 26,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.1.4. Programa de cálculo:"
+   },
+   {
+    "n": 27,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Nombre comercial:",
+      "CYPECAD"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Empresa",
+      "CYPECAD"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Descripción del programa: idealización de la estructura: simplificaciones efectuadas.",
+      "El programa introduce en la estructura, sobre cada plano horizontal donde haya un forjado unidireccional, reticular o de losa y para cada modo de vibración, dos cargas puntuales (según las dos direcciones de los ejes horizontales generales X y Z) aplicadas a una distancia (excentricidad definida por la norma) del centro de masas del plano, y dos momentos como resultado de situar dichas cargas en el nudo de mayor numeración del plano para que coincidan con un nudo de la estructura.\nEn el caso de forjados unidireccionales las cargas son del tipo ‘Puntual en Nudo’ y ‘Momento en Nudo’. En el caso de forjados reticulares y de losa las cargas son del tipo ‘Puntual en Plano’ y ‘Momento en Plano’. Sobre cada uno de los nudos donde no haya forjado horizontal se introducen las dos cargas puntuales horizontales según los ejes X y Z. Si existe sismo vertical, se añade una tercera carga puntual en la dirección del eje Y.\nSi se han definido forjados horizontales, en el cálculo de las cargas sísmicas por el método dinámico se considera como hipótesis la indeformabilidad de los forjados horizontales en su plano. Se define como “grupo” el conjunto de nudos de una estructura incluidos dentro del perímetro de un forjado unidireccional, reticular o de losa horizontales. Todos los nudos incluidos en un mismo “grupo” tiene relacionados sus grados de libertad correspondientes a los desplazamientos en los ejes Xg y Zg, y al giro en eje Yg."
+     ],
+     [
+      "Memoria de cálculo"
+     ],
+     [
+      "Método de cálculo",
+      "(Normas EFHE, NCSE, NBE-EA95 y Eurocódigos) Cod. Estructural"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Redistribución de esfuerzos:",
+      "Cod. Estructural"
+     ],
+     [
+      "Deformaciones",
+      "Lím. flecha total",
+      "Lím. flecha activa",
+      "Máx. recomendada"
+     ],
+     [
+      "",
+      "L/250",
+      "L/400",
+      "1cm."
+     ],
+     [
+      "",
+      "Valores de acuerdo Cod. Estructural.\nPara la estimación de flechas se considera la Inercia Equivalente (Ie) a partir de la Formula de Branson.\nSe considera el modulo de deformación Ec establecido Cod. Estructural"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cuantías geométricas",
+      "Serán como mínimo las fijadas por la instrucción vigente."
+     ]
+    ]
+   },
+   {
+    "n": 28,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "3.1.1.5. Estado de cargas consideradas:"
+   },
+   {
+    "n": 29,
+    "tipo": "tabla",
+    "filas": [
+     [
+      ""
+     ],
+     [
+      "Las combinaciones de las acciones consideradas se han establecido siguiendo los criterios de:",
+      "Cod. Estructural\nDOCUMENTO BÁSICO SE (CÓDIGO TÉCNICO)"
+     ],
+     [
+      "Los valores de las acciones serán los recogidos en:",
+      "DOCUMENTO BÁSICO SE-AE (CÓDIGO TÉCNICO)\nCod. Estructural"
+     ],
+     [
+      "(CTE DB AE)",
+      "",
+      "",
+      "",
+      ""
+     ]
+    ]
+   },
+   {
+    "n": 30,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Estado de cargas consideradas:",
+      "Son las recogidas en el anejo Cálculo de la estructura, apartado evaluación de cargas"
+     ]
+    ]
+   },
+   {
+    "n": 31,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Características de los materiales:"
+   },
+   {
+    "n": 32,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Hormigón armado",
+      "HA-30/F/20/XC1"
+     ],
+     [
+      "tipo de cemento...",
+      "CEM I"
+     ],
+     [
+      "tamaño máximo de árido...",
+      "20 mm"
+     ],
+     [
+      "máxima relación agua/cemento",
+      "0.50"
+     ],
+     [
+      "mínimo contenido de cemento",
+      "275 kg/m3"
+     ],
+     [
+      "FCK....",
+      "25 Mpa (N/mm2)=250 Kg/cm2"
+     ],
+     [
+      "tipo de acero...",
+      "B-500S"
+     ],
+     [
+      "FYK...",
+      "500 N/mm2=5098 kg/cm²"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Acero estructural:",
+      "Acero laminado S275"
+     ],
+     [
+      "Límite elástico:",
+      "fy=280,4 N/mm2"
+     ],
+     [
+      "Tensión de rotura:",
+      "fu=410 N/mm2"
+     ],
+     [
+      "Coeficientes de seguridad:",
+      "ϒM0 = 1,05\nϒM1 = 1,05\nϒM2 = 1,25"
+     ],
+     [
+      "Módulo de Elasticidad",
+      "E = 210.000 N/mm2"
+     ],
+     [
+      "Módulo de Rigidez:",
+      "G= 81.000 N/mm2"
+     ],
+     [
+      "Coeficiente de Poisson:",
+      "0,3"
+     ],
+     [
+      "Coeficiente de dilatación térmica",
+      "1,2·10-5 (ºC)-1"
+     ],
+     [
+      "Densidad:",
+      "7.850 kg/m3"
+     ]
+    ]
+   },
+   {
+    "n": 33,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Coeficientes de seguridad y niveles de control:"
+     ],
+     [
+      "El nivel de control de ejecución de acuerdo con el Codigo Estrutural para esta obra es normal.\nEl nivel control de materiales es estadístico para el hormigón y normal para el acero de acuerdo con el Codigo Estrutural"
+     ],
+     [
+      "Hormigón",
+      "Coeficiente de minoración",
+      "1.50"
+     ],
+     [
+      "",
+      "Nivel de control",
+      "ESTADISTICO"
+     ],
+     [
+      "Acero de armar",
+      "Coeficiente de minoración",
+      "1.15"
+     ],
+     [
+      "",
+      "Nivel de control",
+      "NORMAL"
+     ],
+     [
+      "Ejecución",
+      "Coeficiente de mayoración"
+     ],
+     [
+      "",
+      "Cargas Permanentes...",
+      "1.35",
+      "Cargas variables",
+      "1.5"
+     ],
+     [
+      "",
+      "Nivel de control",
+      "NORMAL"
+     ],
+     [
+      "",
+      "",
+      ""
+     ],
+     [
+      "Según DB-SE-A art. 2.3 Estados límites últimos:"
+     ],
+     [
+      "Acero laminado",
+      "Coeficientes de minoración:",
+      ""
+     ],
+     [
+      "",
+      "Relativos a la plastificación del material",
+      "1.05"
+     ],
+     [
+      "",
+      "Relativos a fenómenos de inestabilidad",
+      "1.05"
+     ],
+     [
+      "",
+      "Parcial para la resistencia al deslizamiento",
+      "1.25"
+     ]
+    ]
+   },
+   {
+    "n": 34,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Durabilidad:"
+     ],
+     [
+      "Al objeto de garantizar la durabilidad de la estructura durante su vida útil, Código Estructural establece los siguientes parámetros:"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Recubrimientos :",
+      "Según el ambiente y la exposición es XC1.\nA los efectos de determinar los recubrimientos exigidos en , se considera toda la estructura en ambiente XC1: esto es elementos interiores sometidos a humedades relativas medias altas (\nPara el ambiente IIa se exigirá un recubrimiento mínimo de 25 mm, con un margen de recubrimiento de 10mm"
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cantidad mínima de cemento:",
+      "Para el ambiente considerado XC1, la cantidad mínima de cemento requerida es de 275 kg/m3."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Cantidad máxima de cemento",
+      "Para el tamaño de árido previsto de 20 mm la cantidad máxima de cemento es de 375 kg/m3."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Resistencia mínima recomendada:",
+      "Para ambiente ambiente XC1 la resistencia mínima es de 30 N/mm2."
+     ],
+     [
+      "",
+      ""
+     ],
+     [
+      "Relación agua cemento\n:",
+      "la cantidad máxima de agua se deduce de la relación a/c ≤ 0.55"
+     ]
+    ]
+   },
+   {
+    "n": 35,
+    "tipo": "p",
+    "estilo": "Normal",
+    "texto": "Características técnicas de los forjados reticulares."
+   },
+   {
+    "n": 36,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Material adoptado:",
+      "Se ha optado por una estructura de pórticos de hormigón armado con vigas planas y forjado reticular 25+5 de viguetas, del mismo material, ejecutadas en obra. Esta solución constructiva se ha basado en condiciones de economía, de seguridad durante la ejecución y en el mayor monolitismo que presenta el forjado unidireccional mediante nervios hormigonados en obra al mismo tiempo que las viga"
+     ],
+     [
+      "Sistema de unidades adoptado:",
+      "centímetros"
+     ],
+     [
+      "Dimensiones y armado:",
+      "Canto Total",
+      "30",
+      "Casetón perdido",
+      ""
+     ],
+     [
+      "",
+      "Capa de Compresión",
+      "5",
+      "Nº. Piezas casetón",
+      ""
+     ],
+     [
+      "",
+      "Intereje",
+      "72",
+      "Hormigón “in situ”",
+      "HA30 306 Kg/cm2"
+     ],
+     [
+      "",
+      "Arm. c. compresión",
+      "# Ø6/30",
+      "Acero refuerzos",
+      "B 500 S 5098 Kg/cm"
+     ],
+     [
+      "",
+      "Ancho del nervio",
+      "12",
+      "Peso aligeramiento",
+      "350"
+     ],
+     [
+      "",
+      "Tipo de Bovedilla",
+      "cerámica",
+      "Peso propio total",
+      ""
+     ],
+     [
+      "Material adoptado:",
+      "Esta solución constructiva se ha basado en condiciones de economía, de seguridad durante la ejecución y en el mayor monolitismo que presenta el forjado unidireccional mediante nervios hormigonados en obra al mismo tiempo que las viga"
+     ]
+    ]
+   },
+   {
+    "n": 37,
+    "tipo": "tabla",
+    "filas": [
+     [
+      "Observaciones:",
+      "El hormigón de las viguetas cumplirá las condiciones especificadas SEGÚN Código Estructural, así como las condiciones específicas y recubrimientos"
+     ],
+     [
+      "",
+      "Límite de flecha total a plazo infinito",
+      "Límite relativo de flecha activa"
+     ],
+     [
+      "",
+      "",
+      ""
+     ]
+    ]
+   }
+  ]
+ }
+}
