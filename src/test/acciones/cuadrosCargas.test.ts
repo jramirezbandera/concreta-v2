@@ -12,12 +12,14 @@ import {
   cuadroCargasMemoria,
   cuadroPredimensionado,
   etiquetaPesoPropioPlano,
+  nombreLineal,
   nombrePesoPropio,
   seccionesCargasXlsx,
   TITULO_CARGAS_MEMORIA,
   TITULO_GRAVITATORIAS_PLANO,
   TITULO_HORIZONTALES_PLANO,
   TITULO_LINEALES_PLANO,
+  TITULO_MUROS,
   TITULO_PREDIMENSIONADO,
 } from '../../lib/acciones/cuadrosCargas';
 import { MAX_COLUMNAS, planificarDocx, type BloquePlan } from '../../lib/docx/plan';
@@ -285,5 +287,82 @@ describe('predimensionado y pestañas del Excel', () => {
       for (const a of hoja.anchos) expect(a, s.nombre).toBeLessThanOrEqual(34);
       expect(hoja.anchos.reduce((a, b) => a + b, 0), s.nombre).toBeLessThan(120);
     }
+  });
+});
+
+/**
+ * Los dos bloques sueltos de la hoja del estudio: los muros (terreno de
+ * relleno, filas 60-65) y las cargas lineales medidas por alzado y altura
+ * (fila 46). El terreno se DECLARA —no se calcula ningún empuje aquí—, y la
+ * altura de un muro viaja en su nombre igual que el canto en el del peso
+ * propio: sin ella el kN/m no hay quien lo compruebe.
+ */
+describe('muros y muros medidos por alzado', () => {
+  const conMuros = (): CargasInput => ({
+    ...obra(),
+    lineales: [
+      { concepto: 'Cerramiento de fachada', valor: 0, alzado: 7 / 3, altura: 2.6 },
+      { concepto: 'Barandillas', valor: 1 },
+    ],
+    muros: { terreno: 'Terreno de relleno', phi: 30, gamma: 19, sobrecarga: 2 },
+  });
+  const r = calcularCargas(conMuros());
+  const viento = { zonaEolica: 'A' as const, vb: 26, aspereza: 'IV' as const };
+
+  it('la memoria pone el terreno detrás de las lineales y antes de los γ, con las filas de la hoja', () => {
+    const memoria = cuadroCargasMemoria(r);
+    expect(titulos(memoria)).toEqual([
+      TITULO_CARGAS_MEMORIA,
+      'Cargas lineales',
+      'Empuje del terreno sobre los muros',
+      'Coeficientes parciales de seguridad (DB SE, tabla 4.1)',
+      'Coeficientes de simultaneidad (DB SE, tabla 4.2)',
+    ]);
+    const [terreno] = memoria.filter((b): b is Extract<Block, { kind: 'kvTable' }> => b.kind === 'kvTable');
+    expect(terreno.rows).toEqual([
+      ['Terreno', 'Terreno de relleno'],
+      ['Ángulo de rozamiento interno', 'φ = 30º'],
+      ['Peso específico aparente', 'γ = 19,00 kN/m³'],
+      ['Sobrecarga sobre el terreno', '2,00 kN/m²'],
+    ]);
+  });
+
+  it('un muro lleva su altura en el nombre en la memoria y en el predimensionado; lo que no es muro, no', () => {
+    const [, , lineales] = tablas(cuadroCargasMemoria(r));
+    expect(lineales.rows).toEqual([
+      ['Cerramiento de fachada h = 2,60 m', '6,07'],
+      ['Barandillas', '1,00'],
+    ]);
+    const [, predimLineales] = tablas(cuadroPredimensionado(r));
+    expect(predimLineales.rows[0]).toEqual(['Cerramiento de fachada h = 2,60 m', '6,07', '8,19']);
+    expect(nombreLineal({ concepto: 'Peto', alzado: 5, altura: 1, gk: 5, Gd: 6.75 })).toBe('Peto h = 1,00 m');
+  });
+
+  it('el plano enuncia el terreno entre el sismo y la ejecución, y sin muros no lo enuncia', () => {
+    const plano = cuadroAccionesPlanoCargas(r, viento, null);
+    expect(titulos(plano)).toEqual([
+      TITULO_GRAVITATORIAS_PLANO,
+      TITULO_LINEALES_PLANO,
+      TITULO_HORIZONTALES_PLANO,
+      'VIENTO (SEGÚN DB SE-AE)',
+      'SISMO (SEGÚN NCSE-02)',
+      TITULO_MUROS,
+      'EJECUCIÓN',
+    ]);
+    // La etiqueta del muro en el plano NO lleva la altura: no cabe en 33.
+    const lineales = tablas(plano)[2];
+    expect(lineales.rows[0]).toEqual(['Cerramiento de fachada', '6,07']);
+    for (const kv of plano.filter((b): b is Extract<Block, { kind: 'kvTable' }> => b.kind === 'kvTable')) {
+      for (const [k] of kv.rows) expect(k.length, k).toBeLessThanOrEqual(33);
+    }
+    const sinMuros = cuadroAccionesPlanoCargas(calcularCargas(obra()), viento, null);
+    expect(titulos(sinMuros)).not.toContain(TITULO_MUROS);
+  });
+
+  it('el terreno cae en la pestaña de acciones horizontales del Excel', () => {
+    const plano = cuadroAccionesPlanoCargas(r, viento, null);
+    const secciones = seccionesCargasXlsx(plano, cuadroPredimensionado(r));
+    const horizontales = secciones.find((x) => x.nombre === 'Acciones horizontales')!;
+    expect(titulos(horizontales.blocks)).toContain(TITULO_MUROS);
   });
 });

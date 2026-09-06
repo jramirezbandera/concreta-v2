@@ -107,7 +107,11 @@ export function RawNumberInput({
       const prec = precision ?? getPrecision(quantity, system);
       return formatNumber(val, quantity, system, prec);
     }
-    return String(val);
+    // Sin `quantity` el número va tal cual; con `precision` se redondea. Lo pide
+    // el alzado de un muro, que sale de dividir por 3 m y arrastra quince
+    // decimales. Redondear aquí NO toca el valor: en modo crudo y sin `clamp`,
+    // ni el blur ni el efecto emiten `onChange`.
+    return precision !== undefined ? val.toFixed(precision) : String(val);
   };
 
   const [localStr, setLocalStr] = useState(() => formatForInput(value));

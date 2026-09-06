@@ -23,7 +23,7 @@
  */
 
 import type { Block } from '../materiales/cuadros';
-import type { CargasResultado, ForjadoResuelto, Hipotesis, TipoForjado, ZonaCargasResuelta } from './cargas';
+import type { CargasResultado, ForjadoResuelto, Hipotesis, LinealResuelto, MurosResuelto, TipoForjado, ZonaCargasResuelta } from './cargas';
 import { num } from './cuadros';
 import { ASPEREZAS, ZONAS_EOLICAS, type GradoAspereza, type ZonaEolica } from './tablasAE';
 
@@ -31,6 +31,7 @@ export const TITULO_CARGAS_MEMORIA = 'CARGAS POR PLANTA (DB SE-AE, art. 2 y 3.1;
 export const TITULO_GRAVITATORIAS_PLANO = 'ACCIONES GRAVITATORIAS (SEGÚN DB SE-AE)';
 export const TITULO_LINEALES_PLANO = 'CARGAS LINEALES';
 export const TITULO_HORIZONTALES_PLANO = 'ACCIONES HORIZONTALES';
+export const TITULO_MUROS = 'MUROS (EMPUJE DEL TERRENO)';
 export const TITULO_PREDIMENSIONADO = 'PREDIMENSIONADO (γG = 1,35 · γQ = 1,50)';
 
 export const HIPOTESIS_TEXTO: Record<Hipotesis, string> = {
@@ -77,6 +78,26 @@ export function etiquetaPesoPropioPlano(f: ForjadoResuelto): string {
   return conCanto(f) ? `${base} H=${num(f.canto)} cm` : base;
 }
 
+/**
+ * «Cerramiento de fachada h = 2,60 m»: un muro lleva su altura en el nombre,
+ * igual que el peso propio lleva su canto, porque sin ella el kN/m no se puede
+ * comprobar. En el plano NO se usa: la etiqueta de una tabla de CAD está
+ * limitada a 33 caracteres y el nombre de la carga ya se los come.
+ */
+export function nombreLineal(l: LinealResuelto): string {
+  return l.altura !== null ? `${l.concepto} h = ${num(l.altura, 2)} m` : l.concepto;
+}
+
+/** Lo declarado del terreno, en las mismas filas que la hoja del estudio. */
+function filasMuros(m: MurosResuelto): [string, string][] {
+  return [
+    ['Terreno', m.terreno],
+    ['Ángulo de rozamiento interno', `φ = ${num(m.phi)}º`],
+    ['Peso específico aparente', `γ = ${num(m.gamma, 2)} kN/m³`],
+    ['Sobrecarga sobre el terreno', `${num(m.sobrecarga, 2)} kN/m²`],
+  ];
+}
+
 // ── Memoria ─────────────────────────────────────────────────────────────────
 
 const filaUso = (z: ZonaCargasResuelta): string => {
@@ -110,7 +131,14 @@ export function cuadroCargasMemoria(r: CargasResultado): Block[] {
   if (r.lineales.length > 0) {
     blocks.push(
       { kind: 'heading', level: 3, text: 'Cargas lineales' },
-      { kind: 'table', head: ['Elemento', 'Carga (kN/m)'], rows: r.lineales.map((l) => [l.concepto, num(l.gk, 2)]) },
+      { kind: 'table', head: ['Elemento', 'Carga (kN/m)'], rows: r.lineales.map((l) => [nombreLineal(l), num(l.gk, 2)]) },
+    );
+  }
+
+  if (r.muros) {
+    blocks.push(
+      { kind: 'heading', level: 3, text: 'Empuje del terreno sobre los muros' },
+      { kind: 'kvTable', rows: filasMuros(r.muros) },
     );
   }
 
@@ -237,6 +265,12 @@ export function cuadroAccionesPlanoCargas(r: CargasResultado, viento: ResumenVie
     blocks.push({ kind: 'paragraph', text: 'Ver el módulo Sismo (NCSE-02): sin publicación de sismo para esta obra.' });
   }
 
+  // Los muros sólo se enuncian si los hay: a diferencia del viento y del
+  // sismo, un edificio puede no tener ninguno y entonces no hay nada que decir.
+  if (r.muros) {
+    blocks.push({ kind: 'heading', level: 3, text: TITULO_MUROS }, { kind: 'kvTable', rows: filasMuros(r.muros) });
+  }
+
   blocks.push(
     { kind: 'heading', level: 3, text: 'EJECUCIÓN' },
     {
@@ -278,7 +312,7 @@ export function cuadroPredimensionado(r: CargasResultado): Block[] {
       kind: 'table',
       caption: 'Cargas lineales',
       head: ['Elemento', 'gk (kN/m)', 'Gd (kN/m)'],
-      rows: r.lineales.map((l) => [l.concepto, num(l.gk, 2), num(l.Gd, 2)]),
+      rows: r.lineales.map((l) => [nombreLineal(l), num(l.gk, 2), num(l.Gd, 2)]),
     });
   }
   blocks.push({

@@ -427,3 +427,78 @@ describe('calcularCargas — composición, avisos y errores', () => {
     expect(r.lineales[0]).toMatchObject({ id: 'l1', concepto: 'Carga lineal', gk: 3 });
   });
 });
+
+/**
+ * Lo que la hoja del estudio tiene en sus dos bloques sueltos y el módulo no
+ * tenía: las columnas «Altura (m)» y «carga (kN/m²)» de las cargas lineales
+ * (fila 46) y el bloque «Muros» con el terreno de relleno (filas 60-65:
+ * φ = 30º, γ = 19 kN/m³, sobrecarga 2 kN/m²).
+ */
+describe('muros y cargas lineales medidas por alzado', () => {
+  const zona = () => ({ forjado: { tipo: 'reticular' as const, canto: 30 }, permanentes: [], uso: { categoria: 'A1' as const } });
+  const edificio = (extra: Partial<CargasInput> = {}): CargasInput => ({
+    plantas: [{ nombre: 'Planta Baja', esCubierta: false, zonas: [zona()] }],
+    lineales: [],
+    ...extra,
+  });
+
+  it('un muro se mide por su alzado: 2,33 kN/m² a 2,60 m son 6,07 kN/m', () => {
+    const r = calcularCargas(edificio({ lineales: [{ concepto: 'Cerramiento de fachada', valor: 0, alzado: 7 / 3, altura: 2.6 }] }));
+    expect(r.lineales[0].gk).toBeCloseTo(6.0667, 4);
+    expect(r.lineales[0].Gd).toBeCloseTo(8.19, 2);
+    expect(r.lineales[0]).toMatchObject({ alzado: 7 / 3, altura: 2.6 });
+  });
+
+  it('a los 3 m para los que está dada la tabla C.5, el muro vale lo que la tabla: 7 kN/m', () => {
+    const r = calcularCargas(edificio({ lineales: [{ concepto: 'Fachada', valor: 0, alzado: 7 / 3, altura: 3 }] }));
+    expect(r.lineales[0].gk).toBe(7);
+  });
+
+  it('lo que no es un muro se sigue tecleando en kN/m y llega sin alzado ni altura', () => {
+    const r = calcularCargas(edificio({ lineales: [{ concepto: 'Barandilla', valor: 1 }] }));
+    expect(r.lineales[0]).toMatchObject({ gk: 1, alzado: null, altura: null });
+  });
+
+  it('un muro sin altura, o con el alzado negativo, es un error y no un cero callado', () => {
+    const r = calcularCargas(
+      edificio({
+        lineales: [
+          { concepto: 'Sin altura', valor: 0, alzado: 2, altura: 0 },
+          { concepto: 'Negativo', valor: 0, alzado: -1, altura: 3 },
+        ],
+      }),
+    );
+    expect(r.errores).toEqual([
+      '«Sin altura»: la altura del muro tiene que ser mayor que cero.',
+      '«Negativo»: el peso por metro cuadrado de alzado no puede ser negativo.',
+    ]);
+  });
+
+  it('el terreno se declara tal cual, con su nota, y sin nombre lo recibe', () => {
+    const r = calcularCargas(edificio({ muros: { terreno: '  ', phi: 30, gamma: 19, sobrecarga: 2 } }));
+    expect(r.muros).toEqual({ terreno: 'Terreno de relleno', phi: 30, gamma: 19, sobrecarga: 2 });
+    expect(r.errores).toEqual([]);
+    expect(r.avisos).toEqual([]);
+    expect(r.notas.some((n) => n.includes('DB SE-C, capítulo 6'))).toBe(true);
+  });
+
+  it('sin muros no hay bloque ni nota: un edificio sin sótano no declara ningún terreno', () => {
+    const r = calcularCargas(edificio());
+    expect(r.muros).toBeNull();
+    expect(r.notas.some((n) => n.includes('geotécnico'))).toBe(false);
+  });
+
+  it('los parámetros imposibles del terreno son errores; los raros, avisos que no bloquean', () => {
+    const malos = calcularCargas(edificio({ muros: { terreno: 'Relleno', phi: 90, gamma: 0, sobrecarga: -1 } }));
+    expect(malos.errores).toEqual([
+      '«Relleno»: el ángulo de rozamiento interno tiene que estar entre 0º y 90º.',
+      '«Relleno»: el peso específico del terreno tiene que ser mayor que cero.',
+      '«Relleno»: la sobrecarga sobre el terreno no puede ser negativa.',
+    ]);
+    const raros = calcularCargas(edificio({ muros: { terreno: 'Fango', phi: 12, gamma: 26, sobrecarga: 2 } }));
+    expect(raros.errores).toEqual([]);
+    expect(raros.avisos).toHaveLength(2);
+    expect(raros.avisos[0]).toContain('12º');
+    expect(raros.avisos[1]).toContain('26,00 kN/m³');
+  });
+});

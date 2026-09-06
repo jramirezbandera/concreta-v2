@@ -11,6 +11,7 @@
 import { TIPOLOGIAS } from '../../data/forjadoTipologias';
 import type { TipoForjado } from '../../lib/acciones/cargas';
 import {
+  ALTURA_LIBRE_C5,
   DENSIDAD_RELLENOS,
   TABIQUERIA,
   TABLA_3_1,
@@ -34,6 +35,10 @@ export interface Opcion<T extends string> {
 }
 
 const kNm2 = (v: number) => `${String(v).replace('.', ',')} kN/m²`;
+const kNm = (v: number) => `${String(v).replace('.', ',')} kN/m`;
+/** El alzado sale de una división por 3 m: se redondea o salen quince decimales. */
+const kNm2Alzado = (v: number) => `${v.toFixed(2).replace('.', ',')} kN/m²`;
+const num = (v: number) => String(v).replace('.', ',');
 const q = (fila: FilaTabla31) => kNm2(TABLA_3_1[fila].uniforme);
 
 /** Tabla 3.1, preguntada como «¿Para qué se usa esta planta?». */
@@ -115,16 +120,49 @@ export const CATALOGO_PERMANENTES: EntradaCatalogo[] = [
   { id: 'otro', etiqueta: 'Otra carga permanente', valor: null, porEspesor: null, ayuda: 'Falsos techos, instalaciones colgadas, bancadas, recrecidos: teclee su peso.' },
 ];
 
-/** «¿Qué carga apoya en línea?»: cerramientos y petos, tabla C.5 y práctica del estudio. */
-export const CATALOGO_LINEALES: EntradaCatalogo[] = [
-  { id: 'fachada', etiqueta: 'Cerramiento de fachada', valor: TABLA_C5_CERRAMIENTOS.hojaExterior.peso, porEspesor: null, ayuda: `${TABLA_C5_CERRAMIENTOS.hojaExterior.descripcion}, para unos 3 m de altura libre (tabla C.5).` },
-  { id: 'tabicon', etiqueta: 'Tabicón u hoja simple de ladrillo', valor: TABLA_C5_CERRAMIENTOS.tabicon.peso, porEspesor: null, ayuda: `${TABLA_C5_CERRAMIENTOS.tabicon.descripcion}, para unos 3 m (tabla C.5).` },
-  { id: 'tabique', etiqueta: 'Tabique simple', valor: TABLA_C5_CERRAMIENTOS.tabique.peso, porEspesor: null, ayuda: `${TABLA_C5_CERRAMIENTOS.tabique.descripcion}, para unos 3 m (tabla C.5).` },
-  { id: 'vidrio', etiqueta: 'Cerramiento de vidrio', valor: 4, porEspesor: null, ayuda: 'Muro cortina o carpintería acristalada de suelo a techo. Valor habitual del estudio; compruébelo con el fabricante.' },
-  { id: 'peto', etiqueta: 'Peto de cubierta', valor: 5, porEspesor: null, ayuda: 'Peto de fábrica de un metro. Valor habitual del estudio.' },
-  { id: 'barandilla', etiqueta: 'Barandilla', valor: 1, porEspesor: null, ayuda: 'Peso propio de la barandilla. La acción horizontal sobre ella (tabla 3.3) no entra aquí.' },
-  { id: 'otro', etiqueta: 'Otra carga lineal', valor: null, porEspesor: null, ayuda: 'Teclee la carga por metro.' },
+/**
+ * Una carga que apoya en línea sobre vigas y bordes de forjado.
+ *
+ * Un MURO se teclea como muro: peso por m² de alzado y altura real, y la carga
+ * por metro sale de multiplicarlos. La tabla C.5 da sus cerramientos en kN/m
+ * «para una altura libre del orden de 3,0 m», así que el peso por m² de alzado
+ * es ese valor dividido por esos 3 m; con la altura de verdad de la planta el
+ * número deja de ser el de un edificio cualquiera. Lo que no es un muro —una
+ * barandilla— se teclea directamente en kN/m.
+ */
+export interface EntradaLineal {
+  id: string;
+  etiqueta: string;
+  /** kN/m tecleados tal cual. null = la carga sale del alzado por la altura. */
+  valor: number | null;
+  /** kN/m² de alzado. null = no es un muro. */
+  alzado: number | null;
+  /** Altura con la que arranca, m. Va con `alzado`. */
+  altura: number | null;
+  ayuda: string;
+}
+
+/** El kN/m de la tabla C.5 pasado a kN/m² de alzado. */
+const porAlzado = (pesoC5: number) => pesoC5 / ALTURA_LIBRE_C5;
+
+/** «¿Qué carga apoya en línea?»: muros, cerramientos y petos, tabla C.5 y práctica del estudio. */
+export const CATALOGO_LINEALES: EntradaLineal[] = [
+  { id: 'fachada', etiqueta: 'Cerramiento de fachada', valor: null, alzado: porAlzado(TABLA_C5_CERRAMIENTOS.hojaExterior.peso), altura: ALTURA_LIBRE_C5, ayuda: `${TABLA_C5_CERRAMIENTOS.hojaExterior.descripcion}: la tabla C.5 le da ${kNm(TABLA_C5_CERRAMIENTOS.hojaExterior.peso)} para una altura libre del orden de ${num(ALTURA_LIBRE_C5)} m, o sea ${kNm2Alzado(porAlzado(TABLA_C5_CERRAMIENTOS.hojaExterior.peso))} de alzado. Ponga la altura real de la planta.` },
+  { id: 'tabicon', etiqueta: 'Tabicón u hoja simple de ladrillo', valor: null, alzado: porAlzado(TABLA_C5_CERRAMIENTOS.tabicon.peso), altura: ALTURA_LIBRE_C5, ayuda: `${TABLA_C5_CERRAMIENTOS.tabicon.descripcion}: ${kNm(TABLA_C5_CERRAMIENTOS.tabicon.peso)} a ${num(ALTURA_LIBRE_C5)} m de altura libre (tabla C.5), o sea ${kNm2Alzado(porAlzado(TABLA_C5_CERRAMIENTOS.tabicon.peso))} de alzado.` },
+  { id: 'tabique', etiqueta: 'Tabique simple', valor: null, alzado: porAlzado(TABLA_C5_CERRAMIENTOS.tabique.peso), altura: ALTURA_LIBRE_C5, ayuda: `${TABLA_C5_CERRAMIENTOS.tabique.descripcion}: ${kNm(TABLA_C5_CERRAMIENTOS.tabique.peso)} a ${num(ALTURA_LIBRE_C5)} m de altura libre (tabla C.5), o sea ${kNm2Alzado(porAlzado(TABLA_C5_CERRAMIENTOS.tabique.peso))} de alzado.` },
+  { id: 'vidrio', etiqueta: 'Cerramiento de vidrio', valor: null, alzado: porAlzado(4), altura: ALTURA_LIBRE_C5, ayuda: 'Muro cortina o carpintería acristalada de suelo a techo. El valor habitual del estudio son 4 kN/m para unos 3 m; comprueba el del fabricante.' },
+  { id: 'muro', etiqueta: 'Otro muro o cerramiento', valor: null, alzado: 0, altura: ALTURA_LIBRE_C5, ayuda: 'Teclee el peso por m² de alzado del muro (el de su fábrica, con el revestimiento) y su altura; la carga por metro sale de multiplicarlos.' },
+  { id: 'peto', etiqueta: 'Peto de cubierta', valor: null, alzado: 5, altura: 1, ayuda: 'Peto de fábrica: el valor habitual del estudio son 5 kN/m para un metro de alto. Suba la altura y la carga sube con ella.' },
+  { id: 'barandilla', etiqueta: 'Barandilla', valor: 1, alzado: null, altura: null, ayuda: 'Peso propio de la barandilla, en kN/m: no se mide por alzado. La acción horizontal sobre ella (tabla 3.3) no entra aquí.' },
+  { id: 'otro', etiqueta: 'Otra carga lineal', valor: null, alzado: null, altura: null, ayuda: 'Teclee la carga por metro.' },
 ];
+
+/**
+ * Con lo que arranca el bloque de muros: los valores que el estudio viene
+ * usando en su hoja de evaluación de cargas. No son de la norma —el terreno lo
+ * dice el geotécnico—, sólo un punto de partida que se cambia encima.
+ */
+export const MUROS_INICIAL = { terreno: 'Terreno de relleno', phi: 30, gamma: 19, sobrecarga: 2 };
 
 export type NieveModo = 'ninguna' | 'publicada' | 'manual';
 

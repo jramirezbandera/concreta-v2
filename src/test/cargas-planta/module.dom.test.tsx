@@ -371,3 +371,49 @@ describe('Cargas por planta — exportación', () => {
     expect(todo).not.toContain('PREDIMENSIONADO');
   });
 });
+
+/**
+ * Los dos bloques que la hoja del estudio tiene y el módulo no tenía: un muro
+ * medido por su alzado y su altura, y el terreno de relleno de los muros de
+ * sótano, que se declara y viaja en el sobre.
+ */
+describe('Cargas por planta — los muros', () => {
+  it('la fachada arranca como muro y su carga sale de multiplicar alzado por altura', () => {
+    montar();
+    const alzado = screen.getByLabelText('Peso por metro cuadrado de alzado de Cerramiento de fachada');
+    const altura = screen.getByLabelText('Altura de Cerramiento de fachada');
+    expect(alzado).toHaveValue('2.33');
+    expect(altura).toHaveValue('3');
+
+    // A los 3 m para los que está dada la tabla C.5, sus 7 kN/m —y su Gd.
+    const fila = altura.closest('tr') as HTMLElement;
+    expect(fila).toHaveTextContent('7,00');
+    expect(fila).toHaveTextContent('9,45');
+
+    fireEvent.change(altura, { target: { value: '2,6' } });
+    expect(fila).toHaveTextContent('6,07');
+    expect(fila).toHaveTextContent('8,19');
+  });
+
+  it('lo que no es un muro se teclea en kN/m y no tiene ni alzado ni altura', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Añadir carga lineal'), { target: { value: 'barandilla' } });
+    expect(screen.getByLabelText('Carga de Barandilla')).toHaveValue('1');
+    expect(screen.queryByLabelText('Altura de Barandilla')).not.toBeInTheDocument();
+  });
+
+  it('el bloque de muros arranca apagado y, encendido, publica el terreno declarado', async () => {
+    montar();
+    expect(screen.queryByLabelText('Ángulo de rozamiento interno del terreno')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('La obra tiene muros de sótano o de contención'));
+    const phi = screen.getByLabelText('Ángulo de rozamiento interno del terreno');
+    expect(phi).toHaveValue('30');
+    fireEvent.change(phi, { target: { value: '32' } });
+
+    await waitFor(() => {
+      const sobre = leerPublicacion<PubCargasPlanta>(MODULO_PUB, 1);
+      expect(sobre?.datos.muros).toEqual({ terreno: 'Terreno de relleno', phi: 32, gamma: 19, sobrecarga: 2 });
+    });
+  });
+});

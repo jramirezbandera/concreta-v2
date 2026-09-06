@@ -7,8 +7,11 @@
 //   5. Key intermediate values
 //   6. Footer on every page
 //
-// jsPDF built-in fonts (Helvetica) cover latin-1 only.
-// Greek letters (λ, χ, β) and special chars must be substituted with ASCII.
+// El texto se escribe con la Arimo embebida que monta `crearPdf()` (ver
+// `fuente.ts`), así que los símbolos técnicos —λ̄, χ, β, γM0— y los acentos
+// viajan tal cual: nada de sustituirlos por ASCII. Lo único que `pdfStr()`
+// traduce es el macrón combinante, «λ̄» → «bbrel», porque jsPDF no lo monta
+// sobre la letra.
 
 import type jsPDF from 'jspdf';
 import { crearPdf } from './fuente';
@@ -72,10 +75,10 @@ function fmt(v: number, d = 1): string {
 }
 
 const BC_LABEL: Record<ColumnBCType, string> = {
-  pp:     'Art.-Art. (beta=1.0)',
-  pf:     'Art.-Emp. (beta=0.7)',
-  ff:     'Emp.-Emp. (beta=0.5)',
-  fc:     'Emp.-Libre (beta=2.0)',
+  pp:     'Art.-Art. (β=1.0)',
+  pf:     'Art.-Emp. (β=0.7)',
+  ff:     'Emp.-Emp. (β=0.5)',
+  fc:     'Emp.-Libre (β=2.0)',
   custom: 'Personalizado',
 };
 
@@ -87,10 +90,10 @@ function drawPageFooter(doc: jsPDF) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.text(
-    'concreta.app  |  Codigo Estructural DB-SE-A / EC3  |  gamM0 = 1.05  |  gamM1 = 1.05',
+    'concreta.app  |  Código Estructural DB-SE-A / EC3  |  γM0 = 1.05  |  γM1 = 1.05',
     M, footerY,
   );
-  doc.text(`Pag. ${_pageNum}`, PAGE_W - M, footerY, { align: 'right' });
+  doc.text(`Pág. ${_pageNum}`, PAGE_W - M, footerY, { align: 'right' });
   // thin rule above footer
   setGray(doc, 210);
   doc.setLineWidth(0.1);
@@ -166,14 +169,14 @@ export async function exportSteelColumnsPDF(
   setGray(doc, 20);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('Pilares de Acero — Verificacion ELU  (CE Anejo 22 §6.3 / CE DB-SE-A)', M, y);
+  doc.text('Pilares de Acero — Verificación ELU  (CE Anejo 22 §6.3 / CE DB-SE-A)', M, y);
 
   y += 4;
   setGray(doc, 110);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.text(
-    'Codigo Estructural DB-SE-A  |  Eurocodigo 3 EN 1993-1-1  |  Clasificacion seccion, pandeo, pandeo lateral, interaccion N+M',
+    'Código Estructural DB-SE-A  |  Eurocódigo 3 EN 1993-1-1  |  Clasificación de sección, pandeo, pandeo lateral, interacción N+M',
     M, y,
   );
 
@@ -190,10 +193,10 @@ export async function exportSteelColumnsPDF(
   setGray(doc, 50);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('DATOS DE SECCION Y GEOMETRIA', M, y);
+  doc.text('DATOS DE SECCIÓN Y GEOMETRÍA', M, y);
 
   // Right column: loads
-  doc.text('ESFUERZOS DE CALCULO', M + colW + 6, y);
+  doc.text('ESFUERZOS DE CÁLCULO', M + colW + 6, y);
   y += 4;
 
   const rowH = 4.5;
@@ -201,11 +204,11 @@ export async function exportSteelColumnsPDF(
     ['Perfil',           steelColumnProfileLabel(inp)],
     ['Acero',            inp.steel],
     ['Ly (eje fuerte)',  `${fmt(inp.Ly / 1000, 2)} m`],
-    ['Lz (eje debil)',   `${fmt(inp.Lz / 1000, 2)} m`],
+    ['Lz (eje débil)',   `${fmt(inp.Lz / 1000, 2)} m`],
     ['Cond. de apoyo',   BC_LABEL[inp.bcType]],
-    ['betay / betaz',    `${inp.beta_y.toFixed(2)}  /  ${inp.beta_z.toFixed(2)}`],
+    ['βy / βz',          `${inp.beta_y.toFixed(2)}  /  ${inp.beta_z.toFixed(2)}`],
     ['Lky (eje fuerte)', `${fmt(inp.beta_y * inp.Ly / 1000, 2)} m`],
-    ['Lkz (eje debil)',  `${fmt(inp.beta_z * inp.Lz / 1000, 2)} m`],
+    ['Lkz (eje débil)',  `${fmt(inp.beta_z * inp.Lz / 1000, 2)} m`],
   ];
   const rightRows: [string, string][] = [
     ['NEd',    fmtSi(inp.Ned,   'force')],
@@ -267,7 +270,7 @@ export async function exportSteelColumnsPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.text(
-      `Seccion transversal y geometria de pandeo  |  ${steelColumnProfileLabel(inp)}  ${inp.steel}`,
+      `Sección transversal y geometría de pandeo  |  ${steelColumnProfileLabel(inp)}  ${inp.steel}`,
       PAGE_W / 2, y, { align: 'center' },
     );
     y += 4;
@@ -287,7 +290,7 @@ export async function exportSteelColumnsPDF(
     setGray(doc, 140);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    doc.text('Contorno de interaccion biaxial My-Mz (CE Anejo 22 6.3.3)', PAGE_W / 2, y, { align: 'center' });
+    doc.text('Contorno de interacción biaxial My-Mz (CE Anejo 22 §6.3.3)', PAGE_W / 2, y, { align: 'center' });
     y += 4;
   }
 
@@ -307,9 +310,9 @@ export async function exportSteelColumnsPDF(
   setGray(doc, 90);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
-  doc.text('Verificacion', COL.desc, y);
+  doc.text('Verificación', COL.desc, y);
   doc.text('Valor', COL.value, y);
-  doc.text('Limite', COL.limit, y);
+  doc.text('Límite', COL.limit, y);
   doc.text('Ut%', COL.util, y);
   doc.text('Estado', COL.status, y);
   y += 2;
@@ -417,17 +420,17 @@ export async function exportSteelColumnsPDF(
     ['Nb,Rd,z',  fmtSi(result.Nb_Rd_z, 'force')],
   ];
   const kvRight: [string, string][] = [
-    ['lam_y',  result.lambda_y.toFixed(3)],
-    ['lam_z',  result.lambda_z.toFixed(3)],
-    ['chi_y',  result.chi_y.toFixed(3)],
-    ['chi_z',  result.chi_z.toFixed(3)],
+    ['λ̄ (eje y)', result.lambda_y.toFixed(3)],
+    ['λ̄ (eje z)', result.lambda_z.toFixed(3)],
+    ['χ (eje y)',  result.chi_y.toFixed(3)],
+    ['χ (eje z)',  result.chi_z.toFixed(3)],
   ];
   if (!result.isBox && result.Mcr > 0) {
     kvRight.push(
-      ['lam_LT', result.lambda_LT.toFixed(3)],
-      ['chi_LT', result.chi_LT.toFixed(3)],
-      ['Mcr',    fmtSi(result.Mcr,   'moment')],
-      ['Mb,Rd',  fmtSi(result.Mb_Rd, 'moment')],
+      ['λ̄LT',      result.lambda_LT.toFixed(3)],
+      ['χLT',       result.chi_LT.toFixed(3)],
+      ['Mcr',       fmtSi(result.Mcr,   'moment')],
+      ['Mb,Rd',     fmtSi(result.Mb_Rd, 'moment')],
     );
   }
 
@@ -477,7 +480,7 @@ export async function exportSteelColumnsPDF(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text(
-    `VEREDICTO GLOBAL:  ${STATUS_LABEL[overallStatus]}  (utilizacion maxima: ${(result.utilization * 100).toFixed(1)}%)`,
+    `VEREDICTO GLOBAL:  ${STATUS_LABEL[overallStatus]}  (utilización máxima: ${(result.utilization * 100).toFixed(1)}%)`,
     PAGE_W / 2, y + 1.5, { align: 'center' },
   );
   y += 10;

@@ -94,8 +94,29 @@ export interface PlantaCargas {
 export interface LinealCargas {
   id?: string;
   concepto: string;
-  /** kN/m. */
+  /** kN/m. Se ignora cuando vienen `alzado` y `altura`, que mandan. */
   valor: number;
+  /** Peso por m² de alzado del muro o cerramiento, kN/m². */
+  alzado?: number;
+  /** Altura del muro, m. */
+  altura?: number;
+}
+
+/**
+ * El terreno de relleno tras los muros de sótano o de contención. Aquí se
+ * DECLARAN los parámetros adoptados —los del estudio geotécnico— igual que se
+ * declara la nieve o el viento: el empuje sobre cada muro sale de ellos y de
+ * su geometría, que este módulo no conoce.
+ */
+export interface MurosCargas {
+  /** Cómo lo llama el geotécnico: «terreno de relleno», «arena densa»… */
+  terreno: string;
+  /** Ángulo de rozamiento interno, grados. */
+  phi: number;
+  /** Peso específico aparente, kN/m³. */
+  gamma: number;
+  /** Sobrecarga sobre el terreno, kN/m². */
+  sobrecarga: number;
 }
 
 export interface CargasInput {
@@ -103,6 +124,8 @@ export interface CargasInput {
   altitud?: number;
   plantas: PlantaCargas[];
   lineales: LinealCargas[];
+  /** Sin muros de sótano ni de contención, no hay bloque que declarar. */
+  muros?: MurosCargas;
 }
 
 // ── Salida ──────────────────────────────────────────────────────────────────
@@ -174,10 +197,17 @@ export interface PlantaCargasResuelta {
 export interface LinealResuelto {
   id?: string;
   concepto: string;
+  /** kN/m² de alzado, cuando la carga sale de un muro medido. */
+  alzado: number | null;
+  /** m, la del muro. */
+  altura: number | null;
   /** kN/m. */
   gk: number;
   Gd: number;
 }
+
+/** Lo declarado sobre el terreno, ya saneado. */
+export type MurosResuelto = MurosCargas;
 
 export interface PsiPresente {
   clave: FamiliaPsi | 'nieveBaja' | 'nieveAlta';
@@ -188,6 +218,8 @@ export interface PsiPresente {
 export interface CargasResultado {
   plantas: PlantaCargasResuelta[];
   lineales: LinealResuelto[];
+  /** El terreno declarado para los muros; `null` si la obra no tiene. */
+  muros: MurosResuelto | null;
   gamma: { G: number; Q: number; A: number };
   /** Las filas de la tabla 4.2 que aparecen en la obra, en el orden de la tabla. */
   psiPresentes: PsiPresente[];
@@ -202,6 +234,16 @@ export interface CargasResultado {
 // ── Piezas ──────────────────────────────────────────────────────────────────
 
 const kNm2 = (v: number, decimales = 2) => `${v.toFixed(decimales).replace('.', ',')} kN/m²`;
+const kNm3 = (v: number) => `${v.toFixed(2).replace('.', ',')} kN/m³`;
+const grados = (v: number) => `${v.toFixed(0)}º`;
+
+/**
+ * Fuera de estos márgenes no hay terreno de relleno que valga: se avisa para
+ * que se mire el geotécnico, pero no se bloquea —el valor lo adopta quien
+ * firma, y un relleno tratado o un terreno flojo pueden salirse de aquí.
+ */
+const PHI_HABITUAL = { min: 20, max: 45 };
+const GAMMA_HABITUAL = { min: 15, max: 22 };
 
 /**
  * Peso propio del forjado. Losas y soleras: ρ·h (que es lo que da la tabla C.5
@@ -478,16 +520,52 @@ export function calcularCargas(input: CargasInput): CargasResultado {
     };
   });
 
+  // Un muro se teclea como muro —peso por m² de alzado y altura real— y la
+  // carga por metro sale de ahí; lo que no es un muro (una barandilla) se
+  // teclea directamente en kN/m.
   const lineales: LinealResuelto[] = input.lineales.map((l) => {
     const concepto = l.concepto.trim() || 'Carga lineal';
-    if (l.valor < 0) errores.push(`«${concepto}»: una carga lineal no puede ser negativa.`);
+    const alzado = l.alzado ?? null;
+    const altura = l.altura ?? null;
+    let gk = l.valor;
+    if (alzado !== null && altura !== null) {
+      if (alzado < 0) errores.push(`«${concepto}»: el peso por metro cuadrado de alzado no puede ser negativo.`);
+      if (!(altura > 0)) errores.push(`«${concepto}»: la altura del muro tiene que ser mayor que cero.`);
+      gk = alzado * altura;
+    } else if (l.valor < 0) {
+      errores.push(`«${concepto}»: una carga lineal no puede ser negativa.`);
+    }
     return {
       ...(l.id !== undefined ? { id: l.id } : {}),
       concepto,
-      gk: l.valor,
-      Gd: GAMMA_DB_SE.G * l.valor,
+      alzado,
+      altura,
+      gk,
+      Gd: GAMMA_DB_SE.G * gk,
     };
   });
+
+  let muros: MurosResuelto | null = null;
+  if (input.muros) {
+    const m = input.muros;
+    const terreno = m.terreno.trim() || 'Terreno de relleno';
+    if (!(m.phi > 0) || m.phi >= 90) {
+      errores.push(`«${terreno}»: el ángulo de rozamiento interno tiene que estar entre 0º y 90º.`);
+    } else if (m.phi < PHI_HABITUAL.min || m.phi > PHI_HABITUAL.max) {
+      avisos.push(
+        `«${terreno}»: un ángulo de rozamiento interno de ${grados(m.phi)} se sale de lo corriente (${grados(PHI_HABITUAL.min)} a ${grados(PHI_HABITUAL.max)}); tómelo del estudio geotécnico.`,
+      );
+    }
+    if (!(m.gamma > 0)) {
+      errores.push(`«${terreno}»: el peso específico del terreno tiene que ser mayor que cero.`);
+    } else if (m.gamma < GAMMA_HABITUAL.min || m.gamma > GAMMA_HABITUAL.max) {
+      avisos.push(
+        `«${terreno}»: un peso específico de ${kNm3(m.gamma)} se sale de lo corriente (${kNm3(GAMMA_HABITUAL.min)} a ${kNm3(GAMMA_HABITUAL.max)}); tómelo del estudio geotécnico.`,
+      );
+    }
+    if (m.sobrecarga < 0) errores.push(`«${terreno}»: la sobrecarga sobre el terreno no puede ser negativa.`);
+    muros = { terreno, phi: m.phi, gamma: m.gamma, sobrecarga: m.sobrecarga };
+  }
 
   if (nievePsiSupuesta) {
     avisos.push(`Sin la altitud de la obra se toman los coeficientes ψ de la nieve de altitud ≤ ${ALTITUD_PSI_NIEVE} m (DB SE, tabla 4.2).`);
@@ -520,6 +598,11 @@ export function calcularCargas(input: CargasInput): CargasResultado {
   if (hayOtro) {
     notas.push('Las sobrecargas que no figuran en la tabla 3.1 (almacenes, equipos, instalaciones) se consignan en la memoria y en las instrucciones de uso con el valor adoptado (art. 3.1.1-5).');
   }
+  if (muros) {
+    notas.push(
+      'Los parámetros del terreno de relleno de los muros son los adoptados del estudio geotécnico (DB SE-C, capítulo 3); el empuje sobre cada muro se obtiene de ellos y de su geometría (DB SE-C, capítulo 6).',
+    );
+  }
   notas.push(
     `Valores característicos en servicio; los de cálculo se obtienen con γG = ${GAMMA_DB_SE.G.toFixed(2).replace('.', ',')} y γQ = ${GAMMA_DB_SE.Q.toFixed(2).replace('.', ',')} (DB SE, tabla 4.1). El viento y el sismo se tratan en sus módulos y no entran en estas sumas.`,
   );
@@ -530,5 +613,5 @@ export function calcularCargas(input: CargasInput): CargasResultado {
     psi: TABLA_4_2_PSI[clave],
   }));
 
-  return { plantas, lineales, gamma: { ...GAMMA_DB_SE }, psiPresentes, notas, avisos, errores };
+  return { plantas, lineales, muros, gamma: { ...GAMMA_DB_SE }, psiPresentes, notas, avisos, errores };
 }

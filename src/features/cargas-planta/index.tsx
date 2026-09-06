@@ -39,6 +39,7 @@ import { BarraObra } from './BarraObra';
 import { anadirColumna, quitarColumna, renombrarColumna } from './columnas';
 import { FichaDeZona } from './Ficha';
 import { Lineales } from './Lineales';
+import { Muros } from './Muros';
 import { leerNievePublicada, nieveDesdePublicacion } from './nievePub';
 import { resumenSismoPublicado } from './sismoPub';
 import { SeccionSVG } from './SeccionSVG';
@@ -456,6 +457,12 @@ export function CargasPlantaModule() {
             onLineal={(id, cambio) => actualizar((p) => ({ ...p, lineales: p.lineales.map((l) => (l.id === id ? { ...l, ...cambio } : l)) }))}
             onAnadir={(catalogoId) => actualizar((p) => ({ ...p, lineales: [...p.lineales, nuevoLineal(catalogoId)] }))}
             onBorrar={(id) => actualizar((p) => ({ ...p, lineales: p.lineales.filter((l) => l.id !== id) }))}
+          />
+
+          <Muros
+            muros={state.muros}
+            ayuda={state.ayuda}
+            onCambiar={(cambio) => actualizar((p) => ({ ...p, muros: { ...p.muros, ...cambio } }))}
           />
 
           {notas.length > 0 && (

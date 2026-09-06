@@ -30,6 +30,7 @@ import {
   CANTO_INICIAL,
   CATALOGO_LINEALES,
   CATALOGO_PERMANENTES,
+  MUROS_INICIAL,
   PERMANENTES_INICIALES,
   PLANTAS_INICIALES,
   type NieveModo,
@@ -120,15 +121,37 @@ export interface PlantaUI {
 export interface LinealUI {
   id: string;
   concepto: string;
-  /** kN/m. */
+  /** kN/m. Es lo tecleado sólo cuando la carga NO va por alzado y altura. */
   valor: number;
+  /** kN/m² de alzado; con `altura`, la carga por metro es su producto. null = no es un muro. */
+  alzado: number | null;
+  /** Altura del muro, m. */
+  altura: number | null;
   catalogoId: string | null;
+}
+
+/**
+ * El terreno de relleno tras los muros de sótano o de contención: se declara,
+ * como la nieve o el viento. `hay` apaga el bloque entero, porque un edificio
+ * sin muros no tiene nada que decir del terreno y no hay que hacerle escribir
+ * unos parámetros que no usa.
+ */
+export interface MurosUI {
+  hay: boolean;
+  terreno: string;
+  /** Grados. */
+  phi: number;
+  /** kN/m³. */
+  gamma: number;
+  /** kN/m². */
+  sobrecarga: number;
 }
 
 export interface CargasState {
   emplazamiento: Emplazamiento;
   plantas: PlantaUI[];
   lineales: LinealUI[];
+  muros: MurosUI;
   /** Modo Ayuda: encendido por defecto. */
   ayuda: boolean;
 }
@@ -159,8 +182,13 @@ export function nuevoPermanente(catalogoId: string, espesor = 1): PermanenteUI {
 
 export function nuevoLineal(catalogoId: string): LinealUI {
   const c = CATALOGO_LINEALES.find((e) => e.id === catalogoId);
-  if (!c || c.id === 'otro') return { id: nuevoId('l'), concepto: '', valor: 0, catalogoId: null };
-  return { id: nuevoId('l'), concepto: c.etiqueta, valor: c.valor ?? 0, catalogoId: c.id };
+  if (!c || c.id === 'otro') return { id: nuevoId('l'), concepto: '', valor: 0, alzado: null, altura: null, catalogoId: null };
+  return { id: nuevoId('l'), concepto: c.etiqueta, valor: c.valor ?? 0, alzado: c.alzado, altura: c.altura, catalogoId: c.id };
+}
+
+/** El bloque de muros apagado, con los valores de arranque ya puestos. */
+export function murosPorDefecto(): MurosUI {
+  return { hay: false, ...MUROS_INICIAL };
 }
 
 export function nuevaZona(esCubierta: boolean, nombre = ''): ZonaUI {
@@ -214,6 +242,7 @@ export function defaultCargasState(): CargasState {
     },
     plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.esCubierta)),
     lineales: [nuevoLineal('fachada')],
+    muros: murosPorDefecto(),
     ayuda: true,
   };
 }
@@ -250,6 +279,8 @@ export function ejemploCargasState(): CargasState {
       { ...baja, zonas: [vivienda, piscina] },
     ],
     lineales: [nuevoLineal('fachada'), nuevoLineal('peto')],
+    // El vaso de la piscina va contra el terreno: el ejemplo enseña también el bloque.
+    muros: { ...murosPorDefecto(), hay: true },
     ayuda: true,
   };
 }
@@ -264,7 +295,8 @@ export function esEstadoInicial(s: CargasState): boolean {
     s.plantas.length === PLANTAS_INICIALES.length &&
     s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && p.zonas.length === 1) &&
     s.plantas.every((p) => p.zonas[0].forjado.ppManual === null && p.zonas[0].forjado.tipo === 'reticular') &&
-    s.lineales.length === 1
+    s.lineales.length === 1 &&
+    !s.muros.hay
   );
 }
 
@@ -377,10 +409,23 @@ export function normalizar(bruto: unknown): CargasState {
           id: texto(l.id, nuevoId('l')),
           concepto: texto(l.concepto, ''),
           valor: numero(l.valor, 0),
+          // Un estado guardado antes de que los muros llevaran alzado y altura
+          // se queda con su kN/m tecleado, que es lo que decía entonces.
+          alzado: numeroONull(l.alzado),
+          altura: numeroONull(l.altura),
           catalogoId: textoONull(l.catalogoId),
         }),
       )
     : base.lineales;
+
+  const m = esObjeto(bruto.muros) ? bruto.muros : {};
+  const muros: MurosUI = {
+    hay: bool(m.hay, false),
+    terreno: texto(m.terreno, MUROS_INICIAL.terreno),
+    phi: numero(m.phi, MUROS_INICIAL.phi),
+    gamma: numero(m.gamma, MUROS_INICIAL.gamma),
+    sobrecarga: numero(m.sobrecarga, MUROS_INICIAL.sobrecarga),
+  };
 
   return {
     emplazamiento: {
@@ -390,6 +435,7 @@ export function normalizar(bruto: unknown): CargasState {
     },
     plantas,
     lineales,
+    muros,
     ayuda: bool(bruto.ayuda, true),
   };
 }
@@ -448,7 +494,15 @@ export function entradaMotor(state: CargasState): CargasInput {
         },
       })),
     })),
-    lineales: state.lineales.map((l) => ({ id: l.id, concepto: l.concepto, valor: l.valor })),
+    lineales: state.lineales.map((l) => ({
+      id: l.id,
+      concepto: l.concepto,
+      valor: l.valor,
+      ...(l.alzado !== null && l.altura !== null ? { alzado: l.alzado, altura: l.altura } : {}),
+    })),
+    ...(state.muros.hay
+      ? { muros: { terreno: state.muros.terreno, phi: state.muros.phi, gamma: state.muros.gamma, sobrecarga: state.muros.sobrecarga } }
+      : {}),
   };
 }
 
@@ -513,7 +567,10 @@ export interface PubCargasPlanta {
   municipio: string;
   altitud: number | null;
   plantas: PubPlantaCargas[];
-  lineales: { concepto: string; gk: number; Gd: number }[];
+  /** `alzado` y `altura` sólo en los muros medidos; en el resto, null. */
+  lineales: { concepto: string; alzado: number | null; altura: number | null; gk: number; Gd: number }[];
+  /** El terreno declarado para los muros de sótano y contención; null si no hay. */
+  muros: { terreno: string; phi: number; gamma: number; sobrecarga: number } | null;
   gamma: { G: number; Q: number; A: number };
   /** El sobre de Viento y nieve del que se tomó la nieve, si se tomó de uno. */
   nieveOrigen: { ts: string; ine: string | null } | null;
@@ -549,7 +606,8 @@ export function datosPublicacion(state: CargasState, ev: Evaluacion): PubCargasP
         qd: z.qd,
       })),
     })),
-    lineales: r.lineales.map((l) => ({ concepto: l.concepto, gk: l.gk, Gd: l.Gd })),
+    lineales: r.lineales.map((l) => ({ concepto: l.concepto, alzado: l.alzado, altura: l.altura, gk: l.gk, Gd: l.Gd })),
+    muros: r.muros ? { ...r.muros } : null,
     gamma: { ...r.gamma },
     nieveOrigen: origen ? { ts: origen.nieve.tsPub as string, ine: origen.nieve.inePub } : null,
   };

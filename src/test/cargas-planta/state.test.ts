@@ -76,7 +76,10 @@ describe('estado por defecto', () => {
     expect(cubierta.zonas[0].uso.categoria).toBe('G');
     expect(cubierta.zonas[0].permanentes.map((c) => c.valor)).toEqual([2.5]);
     expect(cubierta.nieve.modo).toBe('ninguna');
-    expect(s.lineales.map((l) => [l.concepto, l.valor])).toEqual([['Cerramiento de fachada', 7]]);
+    // La fachada arranca como MURO: 2,33 kN/m² de alzado por los 3 m para los
+    // que la tabla C.5 da sus 7 kN/m. Cambiada la altura, cambia la carga.
+    expect(s.lineales.map((l) => [l.concepto, l.alzado, l.altura])).toEqual([['Cerramiento de fachada', 7 / 3, 3]]);
+    expect(s.muros).toEqual({ hay: false, terreno: 'Terreno de relleno', phi: 30, gamma: 19, sobrecarga: 2 });
     expect(s.ayuda).toBe(true);
   });
 
@@ -89,7 +92,10 @@ describe('estado por defecto', () => {
     expect(nuevoPermanente('agua', 1.6)).toMatchObject({ concepto: 'Agua (piscina, aljibe)', valor: 16, catalogoId: 'agua', espesor: 1.6 });
     expect(nuevoPermanente('otro')).toMatchObject({ concepto: '', valor: 0, catalogoId: null, espesor: null });
     expect(nuevoPermanente('no-existe')).toMatchObject({ valor: 0, catalogoId: null });
-    expect(nuevoLineal('peto')).toMatchObject({ concepto: 'Peto de cubierta', valor: 5, catalogoId: 'peto' });
+    expect(nuevoLineal('peto')).toMatchObject({ concepto: 'Peto de cubierta', alzado: 5, altura: 1, catalogoId: 'peto' });
+    // Una barandilla no se mide por alzado: se teclea en kN/m y se queda sin altura.
+    expect(nuevoLineal('barandilla')).toMatchObject({ concepto: 'Barandilla', valor: 1, alzado: null, altura: null });
+    expect(nuevoLineal('otro')).toMatchObject({ concepto: '', valor: 0, alzado: null, altura: null, catalogoId: null });
     expect(nuevaZona(true).uso.categoria).toBe('G');
     const p = nuevaPlanta('Ático');
     const d = duplicarPlanta(p);
@@ -116,7 +122,12 @@ describe('traducción al motor', () => {
     expect(planta(e.plantas, PRIMERA).zonas[0].forjado).toEqual({ tipo: 'reticular', canto: 30 });
     expect(planta(e.plantas, PRIMERA).zonas[0].uso).toEqual({ categoria: 'otro', qkManual: 35, psiComo: 'D', escalera: false, balcon: false });
     expect(planta(e.plantas, CUBIERTA).zonas[0].uso).toEqual({ categoria: 'G', inclinacion: 0, ligera: false, escalera: false, balcon: false });
-    expect(e.lineales).toEqual([{ id: s.lineales[0].id, concepto: 'Cerramiento de fachada', valor: 7 }]);
+    expect(e.lineales).toEqual([{ id: s.lineales[0].id, concepto: 'Cerramiento de fachada', valor: 0, alzado: 7 / 3, altura: 3 }]);
+    // Sin muros el bloque no viaja al motor; con ellos, entero.
+    expect(e.muros).toBeUndefined();
+    s.muros = { hay: true, terreno: 'Zahorra', phi: 32, gamma: 20, sobrecarga: 2 };
+    expect(entradaMotor(s).muros).toEqual({ terreno: 'Zahorra', phi: 32, gamma: 20, sobrecarga: 2 });
+    s.muros = { ...s.muros, hay: false };
     s.emplazamiento.altitud = null;
     planta(s.plantas, CUBIERTA).nieve.modo = 'ninguna';
     expect(entradaMotor(s).altitud).toBeUndefined();
@@ -235,7 +246,8 @@ describe('publicación', () => {
     expect(planta(d.plantas, BAJA).zonas[0]).toMatchObject({ nombre: null, forjado: { tipo: 'reticular', canto: 30 }, pp: 5, resto: 2, G: 7, categoria: 'A1', fila: 'A1', qUso: 2, qkConcentrada: 2, nieve: null, psi: { psi0: 0.7, psi1: 0.5, psi2: 0.3 } });
     expect(planta(d.plantas, BAJA).zonas[0].qd).toBeCloseTo(12.45, 12);
     expect(planta(d.plantas, CUBIERTA).zonas[0].nieve).toBeCloseTo(0.56, 12);
-    expect(d.lineales).toEqual([{ concepto: 'Cerramiento de fachada', gk: 7, Gd: 9.450000000000001 }]);
+    expect(d.lineales).toEqual([{ concepto: 'Cerramiento de fachada', alzado: 7 / 3, altura: 3, gk: 7, Gd: 9.450000000000001 }]);
+    expect(d.muros).toBeNull();
     expect(d.nieveOrigen).toEqual({ ts: planta(s.plantas, CUBIERTA).nieve.tsPub, ine: '28' });
   });
 
@@ -314,7 +326,10 @@ describe('persistencia y lectura defensiva', () => {
     // Una carga libre guardada sin id de columna lo recibe al leerse.
     expect(s.plantas[1].zonas[0].permanentes).toEqual([{ id: expect.any(String), concepto: 'Grava', valor: 2.5, catalogoId: null, espesor: null, columna: expect.any(String) }]);
     expect(s.plantas[1].zonas[0].uso).toMatchObject({ categoria: 'G', inclinacion: 30, escalera: false, ligera: false });
-    expect(s.lineales).toEqual([{ id: expect.any(String), concepto: 'Peto', valor: 5, catalogoId: null }]);
+    // Un estado guardado antes de los muros no tenía alzado ni altura: su carga
+    // por metro sigue siendo la que decía, y el bloque de muros arranca apagado.
+    expect(s.lineales).toEqual([{ id: expect.any(String), concepto: 'Peto', valor: 5, alzado: null, altura: null, catalogoId: null }]);
+    expect(s.muros).toEqual({ hay: false, terreno: 'Terreno de relleno', phi: 30, gamma: 19, sobrecarga: 2 });
     expect(s.ayuda).toBe(true);
     expect(normalizar(null).plantas).toHaveLength(3);
     expect(normalizar({ plantas: 'no' }).plantas).toHaveLength(3);
