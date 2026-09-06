@@ -15,13 +15,15 @@ import { Campo } from '../../components/ui/Campo';
 import { CIMENTACION, CONTENCIONES, ESTRUCTURA, ESTUDIO_AYUDA, FABRICA, FORJADO, GEOTECNIA, JUNTAS, PIEZAS_FORJADO } from './catalogos';
 import { Area, CampoObra, Derivado, Interruptor, Numero, Selector, Texto, TextoConSugerencias } from './campos';
 import { idDom } from './ids';
-import { ANCHO, INPUT, REJILLA } from './estilos';
+import { ANCHO, BOTON_ACENTO, INPUT, REJILLA } from './estilos';
 
 export interface Acciones {
   teclear: (id: string, valor: unknown) => void;
   confirmar: (id: string) => void;
   fabrica: (procede: boolean) => void;
   estudio: (ruta: string, valor: unknown) => void;
+  /** Abre «Leer el PDF del geotécnico»: el estudio rellena el 3.1.3 en ámbar. */
+  geotecnico: () => void;
 }
 
 interface Props {
@@ -89,7 +91,13 @@ export function SeccionSEC({ datos, ayuda, on }: Props) {
   const largos = new Set(['empresa', 'sondeos', 'descripcionTerrenos']);
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Estudio geotécnico</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">Estudio geotécnico</p>
+        <button type="button" onClick={on.geotecnico} className={BOTON_ACENTO} title="Lee el PDF del estudio geotécnico con el asistente IA y deja estos campos en ámbar, para confirmarlos uno a uno">
+          Leer el PDF del geotécnico
+        </button>
+      </div>
+      {ayuda && <p className="text-[10.5px] leading-snug text-text-disabled">Casi todo lo de este apartado está en el estudio geotécnico: «Leer el PDF» lo transcribe con la página de donde sale cada dato y lo deja en ámbar para que lo confirme.</p>}
       <div className={REJILLA}>
         {(Object.keys(GEOTECNIA) as (keyof typeof GEOTECNIA)[]).map((k) => (
           <div key={k} className={largos.has(k) ? ANCHO : undefined}>

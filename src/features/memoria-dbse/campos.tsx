@@ -44,8 +44,10 @@ export function CampoObra<T>({ valor, ayuda, texto, onConfirmar, children }: Cam
         ✓ Confirmar
       </button>
     ) : null;
+  // La nota de ayuda sólo con el modo Ayuda; la fuente («Del geotécnico…»), siempre.
+  const nota = [ayuda ? texto.nota : undefined, valor.nota].filter(Boolean).join(' · ');
   return (
-    <Campo etiqueta={texto.etiqueta} ayuda={texto.ayuda} nota={ayuda ? texto.nota : undefined} estado={valor.estado} accion={accion}>
+    <Campo etiqueta={texto.etiqueta} ayuda={texto.ayuda} nota={nota || undefined} estado={valor.estado} accion={accion}>
       {children}
     </Campo>
   );

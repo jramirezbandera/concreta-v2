@@ -9,7 +9,7 @@
  * sigue los apartados del documento y enseña en azul lo que se imprimirá;
  * Word y PDF cuelgan del desplegable «Exportar».
  *
- * Tres piezas de este módulo que no tienen los otros:
+ * Cuatro piezas de este módulo que no tienen los otros:
  *
  *  - «Nueva obra»: el perfil de estudio pasa limpio y cada dato de la obra
  *    queda en ámbar hasta confirmarlo o cambiarlo (ver `lib/memoria/estado`);
@@ -17,7 +17,10 @@
  *    documento, abriendo la sección que lo contiene; con Enter en un campo
  *    heredado se confirma y se salta al siguiente;
  *  - las publicaciones se releen al volver a la pestaña (`focus`, `storage`),
- *    porque lo normal es ir al módulo de sismo, publicar, y volver.
+ *    porque lo normal es ir al módulo de sismo, publicar, y volver;
+ *  - «Leer el PDF del geotécnico»: el estudio geotécnico, leído con el
+ *    asistente IA, rellena el 3.1.3 en ámbar con la página de donde sale cada
+ *    dato (`lib/memoria/geotecnico`).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,12 +35,14 @@ import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
 import { asegurarForjados, confirmar, nuevaObra, teclear, tomarPublicacion, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
 import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha';
+import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
 import type { ApartadoId, Hueco } from '../../lib/memoria/model';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { BarraObra } from './BarraObra';
 import { idDom } from './ids';
 import { Fuentes } from './Fuentes';
+import { GeotecnicoModal } from './GeotecnicoModal';
 import { Seccion } from './Seccion';
 import { SeccionCE, SeccionEstudio, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
 import { leerSobres, type Sobres } from './sobres';
@@ -96,6 +101,7 @@ export function MemoriaDBSEModule() {
   const [obraGuardada, setObraGuardada] = useState(leerObra);
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(ABIERTAS_AL_ARRANCAR);
   const [nuevaObraAbierta, setNuevaObraAbierta] = useState(false);
+  const [geotecnicoAbierto, setGeotecnicoAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
 
   /** Todo cambio pasa por aquí: actualiza, persiste y relee lo ajeno. */
@@ -146,9 +152,23 @@ export function MemoriaDBSEModule() {
       confirmar: (id) => actualizar((p) => confirmar(p, id)),
       fabrica: (procede) => actualizar((p) => ({ ...p, obra: { ...p.obra, fabrica: { ...p.obra.fabrica, procede } } })),
       estudio: (ruta, valor) => actualizar((p) => ({ ...p, estudio: conRutaEstudio(p.estudio, ruta, valor) })),
+      geotecnico: () => setGeotecnicoAbierto(true),
     }),
     [actualizar],
   );
+
+  // El estado más reciente para el modal del geotécnico: su callback llega
+  // segundos después de abrirse (la IA tarda) y no debe pisar lo tecleado
+  // mientras tanto. Se escribe en un efecto, nunca en el render (React Compiler).
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const aplicarGeotecnico = (ex: ExtraccionGeotecnico, nombre: string): ResultadoLectura => {
+    const r = aplicarExtraccion(stateRef.current, ex, nombre);
+    actualizar(() => r.state);
+    return r;
+  };
 
   const tomar = (modulo: ModuloPub) => {
     const sobre = leerSobres()[modulo];
@@ -356,6 +376,8 @@ export function MemoriaDBSEModule() {
           <p>Se conserva el perfil del estudio. Los datos de esta obra quedan en ámbar hasta que los confirme o los cambie, y las publicaciones de los otros módulos habrá que volver a tomarlas: así ningún dato de la obra anterior llega al documento sin pasar por sus manos.</p>
         </ConfirmDialog>
       )}
+
+      {geotecnicoAbierto && <GeotecnicoModal onAplicar={aplicarGeotecnico} onClose={() => setGeotecnicoAbierto(false)} />}
 
       {titleOpen && (
         <TitlePromptModal initialTitle={tituloInicial} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} onConfirm={confirmTitle} onCancel={closeTitle} />

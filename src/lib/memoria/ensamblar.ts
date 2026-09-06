@@ -273,7 +273,7 @@ const derivado = <T>(valor: T, origen: Origen, nota?: string): Valor<T> => ({ va
 /** Un dato de la capa de obra, con su estado: vacío es falta, heredado es ámbar. */
 function deCampo<T>(c: Campo<T>, id: string, etiqueta: string, apartado: ApartadoId, vacio: (v: T) => boolean = (v) => v === null || v === ''): Valor<T> {
   const estado: Estado = vacio(c.valor) ? 'falta' : c.origen === 'heredado' ? 'heredado' : 'ok';
-  return { valor: vacio(c.valor) ? null : c.valor, estado, origen: c.origen, id, etiqueta, apartado };
+  return { valor: vacio(c.valor) ? null : c.valor, estado, origen: c.origen, id, etiqueta, apartado, ...(c.fuente ? { nota: c.fuente } : {}) };
 }
 
 /** Un booleano nunca está vacío: sólo puede estar heredado o confirmado. */
@@ -286,7 +286,8 @@ function faltaDeSobre<T>(modulo: ModuloPub, nota?: string): Valor<T> {
 
 const kN = (v: number) => `${num(v, 2)} kN/m²`;
 
-const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
+/** Las etiquetas de los huecos de geotecnia; las reutiliza el resumen de «Leer el PDF del geotécnico». */
+export const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
   empresa: '¿Quién hizo el estudio geotécnico? (empresa)',
   autores: 'Autor o autores que lo firman',
   titulacion: 'Su titulación',

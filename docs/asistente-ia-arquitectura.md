@@ -985,3 +985,42 @@ Patrón `reqId + AbortController` (el mismo de `AiFillModal` y `useSlopeSolver`)
 - `resultsRecalc: 'manual'` no es cosmético: sin él, el prompt AFIRMA que los
   resultados se recalculan solos y el modelo fingirá ver el efecto de lo
   aplicado. Todo módulo con botón "Calcular" debe declararlo.
+
+## 13. Lectura de documentos sin adapter: el geotécnico de la ficha DB SE
+
+La ficha DB SE (`features/memoria-dbse`) usa el transporte del asistente para
+algo que NO es un chat: leer el PDF del estudio geotécnico y rellenar el
+apartado 3.1.3. Es el primer consumidor de `runChatTurn` fuera de
+`AiChatModal`, y sirve de plantilla para cualquier otra lectura de documento
+(un certificado de materiales, una ficha técnica).
+
+Lo que reutiliza y lo que no:
+
+- **Reutiliza** `runChatTurn` (dispatcher + `parseChatEnvelope`), el envelope
+  `{reply, proposal}` de `buildChatSchema`, la clave y el proveedor de
+  `useAiSettings`, `ProviderStrip` y `ByokSettings`. Un solo turno de usuario;
+  el bloque estable del system es el prompt de lectura y el volátil, la ficha
+  del fichero.
+- **No** tiene `AiModuleAdapter`, ni snapshot, ni plan, ni guardarraíles: no hay
+  formulario de cálculo que proteger. Lo que vuelve entra en el estado de la
+  ficha como propuesta HEREDADA con su `fuente` («Del geotécnico «x.pdf»,
+  pág. 12»), y el usuario la confirma dato a dato. Ver `lib/memoria/geotecnico.ts`.
+
+Dos decisiones de transporte que conviene conocer antes de copiar el patrón:
+
+1. **Se manda texto, no el PDF.** pdf.js (`lib/ai/pdfPrep.ts`, chunk
+   `pdfjs-vendor`) saca el texto por páginas en el navegador; un geotécnico de
+   200 páginas y 25 MB son 200 k caracteres, que caben en los tres proveedores,
+   mientras que el PDF se sale de sus límites (20-32 MB, 100 páginas en OpenAI).
+   Si no cabe, `seleccionarTexto` prioriza las primeras páginas y las de
+   conclusiones. Sólo un informe escaneado (sin capa de texto) va como imágenes,
+   y sólo sus primeras páginas.
+2. **El schema no usa tipos anulables.** «No encontrado» es `texto: ''` y
+   `pagina: 0`. Con catorce campos `['string','null']` Anthropic tropezaría con
+   el tope de dieciséis uniones (§8); así la petición vale igual para los tres.
+
+Probado con cinco informes reales (58-207 páginas) el 2026-09-07 con
+`gemini-3.1-flash-lite` y la clave compartida: 3,5-4,2 s por informe, los
+catorce datos con su página en tres de ellos, trece y once en los otros dos,
+sin inventar los que faltaban. El test en vivo que lo repite es
+`src/test/live/geotecnico.live.test.ts` (`GEO_LIVE=1`).

@@ -41,6 +41,15 @@ export default defineConfig({
               name: "ai-vendor",
               test: /node_modules[\\/](@anthropic-ai[\\/]sdk|openai|@google[\\/]genai)[\\/]/,
             },
+            // pdf.js, sólo alcanzable por el `import()` de src/lib/ai/pdfPrep.ts
+            // («Leer el PDF del geotécnico» en la ficha DB SE). Mismo trato que
+            // ai-vendor: lazy y fuera del precache, porque la lectura acaba en
+            // una llamada a la IA que necesita red igualmente. Su worker sale
+            // aparte como asset `.mjs`, que globPatterns no recoge.
+            {
+              name: "pdfjs-vendor",
+              test: /node_modules[\\/]pdfjs-dist[\\/]/,
+            },
             // La librería `docx` y su cadena de zip/XML, sólo alcanzables por el
             // `import()` de src/features/materiales al pulsar "Exportar Word".
             // Nombre estable para poder medir su peso en cada build con un grep,
@@ -124,7 +133,7 @@ export default defineConfig({
         // depende de él, pero el módulo sí, y tras un deploy el SW viejo
         // pediría un `docx-vendor-<hashViejo>.js` ya purgado. Cabe de sobra
         // bajo el maximumFileSizeToCacheInBytes de 4 MiB.
-        globIgnores: ["**/ai-vendor-*.js"],
+        globIgnores: ["**/ai-vendor-*.js", "**/pdfjs-vendor-*.js"],
         // Concreta is offline-first: the whole app bundle must be precached.
         // The main chunk is >2 MiB (default limit), so raise the cap.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,

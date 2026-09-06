@@ -13,7 +13,8 @@
  *  - `obra`: lo que cambia con el proyecto, cada dato con su ORIGEN. Un dato
  *    `heredado` es el de la obra anterior sin confirmar —se ve, funciona, sale
  *    en ámbar y bloquea exportar— y pasa a `tecleado` al confirmarlo o
- *    cambiarlo. «Nueva obra» pone TODA la capa en heredado, salvo la
+ *    cambiarlo; lo leído del geotécnico entra igual, heredado y con su
+ *    `fuente` (`proponer`). «Nueva obra» pone TODA la capa en heredado, salvo la
  *    denominación, que nunca es la misma y queda vacía.
  *
  * Y `pubs`: por cada publicación consumida, el sobre que el usuario ACEPTÓ
@@ -38,9 +39,15 @@ export type OrigenCampo = 'tecleado' | 'heredado';
 export interface Campo<T> {
   valor: T;
   origen: OrigenCampo;
+  /**
+   * De dónde salió el valor cuando no lo tecleó el usuario: «Del geotécnico
+   * «GT-3654.pdf», pág. 3». Se enseña bajo el campo y se pierde al teclear.
+   */
+  fuente?: string;
 }
 
-export const campo = <T>(valor: T, origen: OrigenCampo = 'tecleado'): Campo<T> => ({ valor, origen });
+export const campo = <T>(valor: T, origen: OrigenCampo = 'tecleado', fuente?: string): Campo<T> =>
+  fuente ? { valor, origen, fuente } : { valor, origen };
 
 /** Límites de flecha de un forjado: total a plazo infinito, activa relativa y activa absoluta. */
 export interface LimitesFlecha {
@@ -338,6 +345,17 @@ export function teclear<T>(s: MemoriaState, id: string, valor: T): MemoriaState 
   return conRuta(s, ruta, () => campo(valor));
 }
 
+/**
+ * Escribe un dato como PROPUESTA: heredado, con la fuente de donde sale (el
+ * geotécnico y su página). Se ve, funciona, sale en ámbar y se confirma con
+ * un clic, igual que un dato de la obra anterior.
+ */
+export function proponer<T>(s: MemoriaState, id: string, valor: T, fuente: string): MemoriaState {
+  const ruta = rutaDe(id);
+  if (!ruta || !leerCampo(s, id)) return s;
+  return conRuta(s, ruta, () => campo(valor, 'heredado', fuente));
+}
+
 /** Acepta el sobre de un módulo tal como está ahora, desde la obra actual de la ficha. */
 export function tomarPublicacion(s: MemoriaState, modulo: ModuloPub, sobre: { ts: string; obra: { ine: string | null } }): MemoriaState {
   return { ...s, pubs: { ...s.pubs, [modulo]: { ts: sobre.ts, ine: sobre.obra.ine, provinciaFicha: s.obra.provincia.valor } } };
@@ -384,7 +402,8 @@ function leerCampoCon<T>(v: unknown, def: Campo<T>, lector: (valor: unknown, def
   // Si el lector tuvo que caer al default, cae el campo ENTERO: un default
   // rotulado como tecleado sería un dato confirmado que nadie confirmó.
   if (valor !== v.valor) return def;
-  return { valor, origen: v.origen === 'heredado' ? 'heredado' : 'tecleado' };
+  const fuente = typeof v.fuente === 'string' && v.fuente !== '' ? v.fuente : undefined;
+  return { valor, origen: v.origen === 'heredado' ? 'heredado' : 'tecleado', ...(fuente ? { fuente } : {}) };
 }
 
 const cTexto = (v: unknown, def: Campo<string>) => leerCampoCon(v, def, texto);
