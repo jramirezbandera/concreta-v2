@@ -680,9 +680,9 @@ export function SeismicInputs({
               onClick={() =>
                 setState((s) => ({ ...s, estratos: [...s.estratos, { C: 1.3, espesor: 5 }] }))
               }
-              className="text-[11px] text-text-disabled hover:text-accent transition-colors cursor-pointer"
+              className="mt-1 rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[11px] text-text-secondary transition-colors hover:text-text-primary cursor-pointer"
             >
-              + estrato
+              + Añadir estrato
             </button>
           </div>
         )}

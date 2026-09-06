@@ -671,6 +671,27 @@ function conTFAcorde(x: DireccionUI, y: DireccionUI): { x: DireccionUI; y: Direc
   };
 }
 
+/**
+ * Los planos, en el orden de la planta: de menor a mayor coordenada.
+ *
+ * El número de un plano —la fila de la tabla, la burbuja del dibujo, la
+ * columna j del reparto— es su ORDEN EN PLANTA, y sólo lo es si la lista está
+ * ordenada. Un plano añadido y luego movido al medio salía como «5» entre el 2
+ * y el 3, y eso no lo entendía nadie. La tabla no se puede ordenar tecla a
+ * tecla (una fila que salta bajo el cursor es ineditable), así que se ordena
+ * aquí, al cargar, y en el editor cuando el foco sale de la tabla o se cierra.
+ *
+ * Estable, y devuelve la MISMA lista si ya estaba en orden: así una llamada de
+ * más no dispara ni un render ni un guardado.
+ */
+export function ordenarElementos(elementos: ElementoResistente[]): ElementoResistente[] {
+  const ordenados = elementos
+    .map((el, i) => ({ el, i }))
+    .sort((a, b) => a.el.x - b.el.x || a.i - b.i)
+    .map(({ el }) => el);
+  return ordenados.every((el, i) => el === elementos[i]) ? elementos : ordenados;
+}
+
 function normalizarDireccion(x: unknown, porDefecto: DireccionUI): DireccionUI {
   if (!x || typeof x !== 'object') return porDefecto;
   const o = x as Record<string, unknown>;
@@ -678,16 +699,18 @@ function normalizarDireccion(x: unknown, porDefecto: DireccionUI): DireccionUI {
   return {
     L: num(o.L, porDefecto.L),
     B: num(o.B, porDefecto.B),
-    elementos: els.map((e) => {
-      const el = (e ?? {}) as Record<string, unknown>;
-      return {
-        id: typeof el.id === 'string' && el.id ? el.id : newId(),
-        // El signo de `x` se CONSERVA. Guardar |x| destruiría la geometría y
-        // dejaría al módulo sin poder calcular el centro de rigidez.
-        x: num(el.x, 0),
-        k: num(el.k, 1),
-      };
-    }),
+    elementos: ordenarElementos(
+      els.map((e) => {
+        const el = (e ?? {}) as Record<string, unknown>;
+        return {
+          id: typeof el.id === 'string' && el.id ? el.id : newId(),
+          // El signo de `x` se CONSERVA. Guardar |x| destruiría la geometría y
+          // dejaría al módulo sin poder calcular el centro de rigidez.
+          x: num(el.x, 0),
+          k: num(el.k, 1),
+        };
+      }),
+    ),
     TFModo: o.TFModo === 'manual' ? 'manual' : 'auto',
     TFManual: num(o.TFManual, 0),
   };

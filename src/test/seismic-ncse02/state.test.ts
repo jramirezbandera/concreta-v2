@@ -15,6 +15,7 @@ import {
   excentricidadDe,
   newId,
   normalizeSeismicState,
+  ordenarElementos,
   plantasSobreRasante,
   plantasTotales,
   toSeismicInput,
@@ -533,5 +534,30 @@ describe('blankSeismicState', () => {
     const ev = evaluarSismo(blankSeismicState());
     expect(ev.aplicabilidad.obligatoriedad.estado).toBe('exenta');
     expect(ev.resultado).toBeNull();
+  });
+});
+
+describe('los planos van en el orden de la planta', () => {
+  it('ordenarElementos ordena por coordenada, es estable y respeta la lista ya ordenada', () => {
+    const a = { id: 'a', x: 7.5, k: 1 };
+    const b = { id: 'b', x: -7.5, k: 1 };
+    const c = { id: 'c', x: 0, k: 2 };
+    const c2 = { id: 'c2', x: 0, k: 1 };
+    const ordenados = ordenarElementos([a, b, c, c2]);
+    expect(ordenados.map((e) => e.id)).toEqual(['b', 'c', 'c2', 'a']);
+    // La MISMA lista si ya esta en orden: ni render ni guardado de mas.
+    expect(ordenarElementos(ordenados)).toBe(ordenados);
+  });
+
+  it('un caso guardado con los planos desordenados se carga ordenado', () => {
+    // El numero de un plano es su fila, y la fila tiene que ser su orden en
+    // planta: «1, 2, 5, 3, 4» de abajo arriba no lo entendia nadie.
+    const d = defaultSeismicState();
+    const s = normalizeSeismicState({
+      ...d,
+      x: { ...d.x, elementos: [...d.x.elementos, { id: 'medio', x: 0, k: 1 }] },
+    });
+    expect(s.x.elementos.map((e) => e.x)).toEqual([-7.5, -3.75, 0, 3.75, 7.5]);
+    expect(s.x.elementos[2].id).toBe('medio');
   });
 });

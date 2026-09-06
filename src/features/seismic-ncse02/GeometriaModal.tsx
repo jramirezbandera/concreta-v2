@@ -22,9 +22,10 @@
 // mental.
 //
 // Los cambios se guardan según se teclean —como en todo el módulo—, así que no
-// hay «aceptar» ni «cancelar»: cerrar es sólo cerrar.
+// hay «aceptar» ni «cancelar»: cerrar es sólo cerrar (y dejar los planos en su orden
+// de planta, ver `ordenar`).
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Ruler, X } from 'lucide-react';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
@@ -35,6 +36,7 @@ import { PlantaSVG } from './SeismicSVG';
 import {
   excentricidadDe,
   newId,
+  ordenarElementos,
   type DireccionUI,
   type SeismicEvaluation,
   type SeismicState,
@@ -74,6 +76,26 @@ export function GeometriaModal({
   /** Confirmación en dos pasos del reparto uniforme, que sí machaca la lista. */
   const [confirmarReparto, setConfirmarReparto] = useState(false);
 
+  /**
+   * Los planos se ordenan por su posición cuando el foco SALE de la tabla y al
+   * cerrar; nunca tecla a tecla. Así el número de cada plano es su orden en
+   * planta —lo que espera quien los llama «pórtico 1, 2, 3»— sin que la fila
+   * salte bajo el cursor a mitad de escribir «15».
+   */
+  const ordenar = useCallback(
+    () =>
+      setState((s) => {
+        const d = s[eje];
+        const elementos = ordenarElementos(d.elementos);
+        return elementos === d.elementos ? s : { ...s, [eje]: { ...d, elementos } };
+      }),
+    [setState, eje],
+  );
+  const cerrar = useCallback(() => {
+    ordenar();
+    onClose();
+  }, [ordenar, onClose]);
+
   // Escape cierra, el scroll del fondo se bloquea y el foco vuelve al botón que
   // abrió el cuadro. Mismo contrato que PlantasModal y ConfirmDialog.
   useEffect(() => {
@@ -89,11 +111,11 @@ export function GeometriaModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') cerrar();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [cerrar]);
 
   const [lienzoRef, anchoLienzo] = useContainerWidth();
   const anchoSvg =
@@ -155,9 +177,9 @@ export function GeometriaModal({
   const excRel = exc && exc.dimension > 0 ? exc.e / exc.dimension : null;
   const Le = evaluacion.resultado?.[eje].Le;
 
-  // Vanos entre planos consecutivos, EN EL ORDEN DE LA PLANTA. La tabla no se
-  // ordena —una fila que salta bajo el cursor al teclear «1» de «15» es
-  // ineditable—, así que la lectura ordenada va aquí.
+  // Vanos entre planos consecutivos, EN EL ORDEN DE LA PLANTA. La tabla sólo
+  // se ordena al salir de ella (ver `ordenar`): mientras se teclea puede ir
+  // desordenada, así que la lectura ordenada se calcula aquí aparte.
   const bordes = dir.elementos.map((el) => aBorde(el.x, Lperp)).sort((a, b) => a - b);
   const vanos = bordes.slice(1).map((b, i) => redondear(b - bordes[i]));
 
@@ -169,7 +191,7 @@ export function GeometriaModal({
   return (
     <div
       className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50 flex items-center justify-center p-2 sm:p-4"
-      onClick={onClose}
+      onClick={cerrar}
       role="presentation"
     >
       <div
@@ -199,7 +221,7 @@ export function GeometriaModal({
           </span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={cerrar}
             aria-label="Cerrar"
             className="p-1.5 rounded hover:bg-bg-elevated text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
           >
@@ -292,8 +314,15 @@ export function GeometriaModal({
                 opcional.
               </p>
 
-              {/* La tabla de planos */}
-              <div className="grid grid-cols-[1rem_auto_auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5">
+              {/* La tabla de planos. Se ordena cuando el foco se va FUERA de
+                  ella (a otro campo, a una pestaña, al lienzo), no al pasar de
+                  la posición a la rigidez de la misma fila. */}
+              <div
+                className="grid grid-cols-[1rem_auto_auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5"
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) ordenar();
+                }}
+              >
                 <span aria-hidden="true" />
                 <span className="text-[9px] uppercase tracking-[0.07em] text-text-disabled">
                   desde el borde {bordeNombre}

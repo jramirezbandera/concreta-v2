@@ -293,6 +293,43 @@ describe('cuadro de geometría en planta', () => {
     expect(within(cuadro).getByText('x = -4,50 m')).toBeTruthy();
   });
 
+  it('mover un plano no reordena la tabla mientras se teclea, pero sí al salir de ella', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    const xs = () => guardado().x.elementos.map((e: { x: number }) => e.x);
+    const campo = within(cuadro).getByLabelText(
+      'Plano 1: posición desde el borde inferior, en metros',
+    ) as HTMLInputElement;
+    // El plano 1 pasa del borde (0) a 5 m: por delante del plano 2 (3,75).
+    fireEvent.change(campo, { target: { value: '5' } });
+    await waitFor(() => expect(guardado().x.elementos[0].x).toBe(-2.5));
+    // Sigue en la fila 1: una fila que salta bajo el cursor es ineditable.
+    expect(xs()).toEqual([-2.5, -3.75, 3.75, 7.5]);
+    // Al salir de la tabla se ordena, y el número vuelve a ser el orden en planta.
+    fireEvent.blur(campo);
+    await waitFor(() => expect(xs()).toEqual([-3.75, -2.5, 3.75, 7.5]));
+    const fila2 = within(cuadro).getByLabelText(
+      'Plano 2: posición desde el borde inferior, en metros',
+    ) as HTMLInputElement;
+    expect(fila2.value).toBe('5');
+  });
+
+  it('cerrar con Escape también deja los planos en orden', async () => {
+    montar();
+    abrir();
+    const cuadro = await screen.findByRole('dialog');
+    fireEvent.change(
+      within(cuadro).getByLabelText('Plano 1: posición desde el borde inferior, en metros'),
+      { target: { value: '5' } },
+    );
+    await waitFor(() => expect(guardado().x.elementos[0].x).toBe(-2.5));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() =>
+      expect(guardado().x.elementos.map((e: { x: number }) => e.x)).toEqual([-3.75, -2.5, 3.75, 7.5]),
+    );
+  });
+
   it('el selector de dirección cambia de lista y de borde de referencia', async () => {
     montar();
     abrir();
