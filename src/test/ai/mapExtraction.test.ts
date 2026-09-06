@@ -183,11 +183,11 @@ describe('buildApplyPlan — tubos SHS/RHS/CHS (regla 5b)', () => {
 });
 
 describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
-  it("useCategory 'B' sin qk → categoría aplicada + qk canónico 3.0 propuesto (autorrelleno UI)", () => {
-    const p = plan({ useCategory: 'B' });
-    expect(p.fields).toEqual({ useCategory: 'B', qk: 3 });
+  it("useCategory 'C1' sin qk → categoría aplicada + qk canónico 3.0 propuesto (autorrelleno UI)", () => {
+    const p = plan({ useCategory: 'C1' });
+    expect(p.fields).toEqual({ useCategory: 'C1', qk: 3 });
     expect(changeFor(p, 'Categoría de uso')).toMatchObject({
-      field: 'useCategory', before: catLabel('A1'), after: catLabel('B'), value: 'B',
+      field: 'useCategory', before: catLabel('A1'), after: catLabel('C1'), value: 'C1',
     });
     expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({
       field: 'qk', before: '2.00 kN/m²', after: '3.00 kN/m²', value: 3,
@@ -197,8 +197,21 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     expect(p.notFound).not.toContain('Sobrecarga qk');
   });
 
-  it("useCategory 'B' + qk 4.5 (distinto del canónico) → 'custom' + qk extraído + warning", () => {
-    const p = plan({ useCategory: 'B', qk_kNm2: 4.5 });
+  // La tabla 3.1 da 2,0 kN/m² a las zonas administrativas, igual que a las
+  // viviendas: cambiar de A1 a B cambia las ψ y la etiqueta, no la sobrecarga.
+  it("useCategory 'B' sin qk → categoría aplicada y qk 'Ya coincide' (2,0 = el actual)", () => {
+    const p = plan({ useCategory: 'B' });
+    expect(p.fields).toEqual({ useCategory: 'B' });
+    expect(changeFor(p, 'Categoría de uso')).toMatchObject({
+      field: 'useCategory', before: catLabel('A1'), after: catLabel('B'), value: 'B',
+    });
+    expect(changeFor(p, 'Sobrecarga qk')).toBeUndefined();
+    expect(skipFor(p, 'Sobrecarga qk')).toEqual({ field: 'qk_kNm2', label: 'Sobrecarga qk', reason: ALREADY });
+    expect(p.warnings).toEqual([]);
+  });
+
+  it("useCategory 'C1' + qk 4.5 (distinto del canónico) → 'custom' + qk extraído + warning", () => {
+    const p = plan({ useCategory: 'C1', qk_kNm2: 4.5 });
     expect(p.fields).toEqual({ useCategory: 'custom', qk: 4.5 });
     expect(changeFor(p, 'Categoría de uso')).toMatchObject({
       after: catLabel('custom'), value: 'custom',
@@ -209,9 +222,9 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     expect(p.warnings[0]).toMatch(/personalizada/);
   });
 
-  it("useCategory 'B' + qk 3.01 (coincidente ±0.01) → categoría B con su qk CANÓNICO (3.0, no 3.01), sin warning", () => {
-    const p = plan({ useCategory: 'B', qk_kNm2: 3.01 });
-    expect(p.fields).toEqual({ useCategory: 'B', qk: 3 });
+  it("useCategory 'C1' + qk 3.01 (coincidente ±0.01) → categoría C1 con su qk CANÓNICO (3.0, no 3.01), sin warning", () => {
+    const p = plan({ useCategory: 'C1', qk_kNm2: 3.01 });
+    expect(p.fields).toEqual({ useCategory: 'C1', qk: 3 });
     expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3.00 kN/m²', value: 3 });
     expect(p.warnings).toEqual([]);
   });
@@ -227,13 +240,13 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     expect(p.warnings).toEqual([]);
   });
 
-  it("useCategory 'B' + qk 60 (fuera de rango) → qk skipped por rango Y categoría aplicada con qk canónico", () => {
-    const p = plan({ useCategory: 'B', qk_kNm2: 60 });
+  it("useCategory 'C1' + qk 60 (fuera de rango) → qk skipped por rango Y categoría aplicada con qk canónico", () => {
+    const p = plan({ useCategory: 'C1', qk_kNm2: 60 });
     // El qk extraído se descarta por rango…
     expect(skipFor(p, 'Sobrecarga qk')).toBeDefined();
     expect(skipFor(p, 'Sobrecarga qk')!.reason).toMatch(/fuera del rango/);
     // …pero la categoría se aplica con su qk canónico (como si el LLM no hubiera dado qk).
-    expect(p.fields).toEqual({ useCategory: 'B', qk: 3 });
+    expect(p.fields).toEqual({ useCategory: 'C1', qk: 3 });
     expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3.00 kN/m²', value: 3 });
   });
 

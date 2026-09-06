@@ -4,6 +4,7 @@ import {
   USE_CATEGORIES, VARIABLE_ACTIONS, categoryLabel, categoryQk,
 } from '../../lib/calculations/loadGen';
 import { steelBeamDefaults } from '../../data/defaults';
+import { TABLA_3_1, type FilaTabla31 } from '../../lib/acciones/tablasCargas';
 
 // Base inputs for all tests: ss, A1 residential, bTrib=3m, L=6000mm, gk=1.0, qk=2.0
 // Hand-calc reference:
@@ -227,5 +228,32 @@ describe('VARIABLE_ACTIONS — acciones no ligadas al uso (nieve, viento)', () =
     const uso  = deriveFromLoads({ ...base, useCategory: 'G1' });
     const snow = deriveFromLoads({ ...base, useCategory: 'snow' });
     expect(snow.wEd).toBeCloseTo(uso.wEd, 9);
+  });
+});
+
+// ── La tabla 3.1, cotejada contra su transcripción íntegra ────────────────
+// `lib/acciones/tablasCargas.ts` copia las quince filas de la tabla 3.1 del DB
+// SE-AE (módulo Cargas por planta, auditado contra el BOE). El selector de una
+// sola acción variable ofrece un subconjunto de ellas, y ese subconjunto no
+// puede tener valores propios: B vivía con 3,0 kN/m² donde la norma dice 2,0.
+describe('USE_CATEGORIES — qk de catálogo = tabla 3.1 del DB SE-AE', () => {
+  // 'custom' no tiene valor de catálogo; 'E1' es del EN 1991-1-1 (ver loadGen).
+  const FUERA_DE_LA_3_1 = ['custom', 'E1'];
+
+  it.each(
+    USE_CATEGORIES.filter((c) => !FUERA_DE_LA_3_1.includes(c.value)).map((c) => [c.value, c.qk] as const),
+  )('%s → %s kN/m², el de la tabla', (value, qk) => {
+    expect(qk).toBe(TABLA_3_1[value as FilaTabla31].uniforme);
+  });
+
+  it('B (zonas administrativas) son 2,0 kN/m², no 3,0', () => {
+    expect(categoryQk('B')).toBe(2.0);
+    expect(TABLA_3_1.B.uniforme).toBe(2.0);
+  });
+
+  it("'custom' no tiene qk de catálogo y 'E1' no es una fila del CTE", () => {
+    expect(categoryQk('custom')).toBeNull();
+    expect(categoryQk('E1')).toBe(7.5);
+    expect(TABLA_3_1).not.toHaveProperty('E1');
   });
 });

@@ -8,11 +8,23 @@ export const GAMMA_Q = 1.50;
  * CTE DB-SE-AE Tabla 3.1 — use categories with characteristic Qk loads.
  * Single source of truth for both steel-beams and FEM 1D modules.
  * Each category links to a row of ψ factors in PSI_VALUES below (ELU/ELS).
+ *
+ * Los `qk` se cotejan en el test contra `lib/acciones/tablasCargas.ts`, que
+ * transcribe la tabla 3.1 entera con sus quince filas. Este es un SUBCONJUNTO
+ * suyo: aquí sólo están las categorías que un selector de una sola acción
+ * variable necesita ofrecer, y ninguna puede apartarse del valor de la norma.
+ * B llevaba 3,0 kN/m² donde la tabla dice 2,0 (zonas administrativas).
+ *
+ * EXCEPCIÓN: 'E1 Almacén' con 7,5 kN/m² NO es de la tabla 3.1 —la E del CTE es
+ * «tráfico y aparcamiento de vehículos ligeros», 2,0 kN/m²— sino de la tabla
+ * 6.2 del EN 1991-1-1 (áreas de almacenamiento, qk ≥ 7,5), igual que su fila de
+ * ψ (1,0/0,9/0,8). Se conserva porque es la única forma de pedir un almacén en
+ * este selector y porque es del lado seguro, pero no cotiza como fila del CTE.
  */
 export const USE_CATEGORIES = [
   { value: 'A1', label: 'A1  Residencial privado',  qk: 2.0 },
   { value: 'A2', label: 'A2  Trasteros',             qk: 3.0 },
-  { value: 'B',  label: 'B   Administrativa',        qk: 3.0 },
+  { value: 'B',  label: 'B   Administrativa',        qk: 2.0 },
   { value: 'C1', label: 'C1  Zonas con mesas',       qk: 3.0 },
   { value: 'C2', label: 'C2  Asientos fijos',        qk: 4.0 },
   { value: 'C3', label: 'C3  Sin obstáculos',        qk: 5.0 },
