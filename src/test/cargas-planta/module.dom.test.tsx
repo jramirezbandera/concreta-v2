@@ -10,7 +10,9 @@
  *   5. las columnas de «lo que hay encima» se añaden y se quitan enteras;
  *   6. la fila abierta se resalta en la sección y al revés;
  *   7. el desplegable «Exportar» entrega las cuatro salidas, y cada una con
- *      los bloques que le tocan: la memoria a Word y PDF, el plano a Excel y DXF.
+ *      los bloques que le tocan: la memoria a Word y PDF, el plano a Excel y DXF;
+ *   8. el edificio tecleado del revés se avisa y se endereza de una vez;
+ *   9. la tabla no pierde columnas por el camino.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -92,6 +94,8 @@ function pulsarExportar(formato: keyof typeof ROTULO) {
 /** La fila de una zona por su nombre de planta; abrirla enseña su ficha. */
 const filaDe = (planta: string) => screen.getByLabelText('Nombre de la planta', { selector: `input[value="${planta}"]` }).closest('tr') as HTMLTableRowElement;
 const abrirFicha = (planta: string) => fireEvent.click(within(filaDe(planta)).getByText('toda'));
+/** Los botones de la papelera de las cabeceras de «¿qué hay encima?». */
+const quitarColumnas = () => screen.queryAllByRole('button', { name: /^Quitar .+ de todas las zonas$/ });
 
 beforeEach(() => {
   localStorage.clear();
@@ -221,6 +225,43 @@ describe('Cargas por planta — las columnas de encima', () => {
     montar();
     fireEvent.click(screen.getByRole('button', { name: /Quitar Tabiquería de todas las zonas/ }));
     expect(screen.queryByRole('columnheader', { name: /Tabiquería/ })).not.toBeInTheDocument();
+  });
+
+  it('sin ninguna carga encima, las filas siguen teniendo tantas celdas como la cabecera', () => {
+    montar();
+    // Quitarlas todas: la cabecera deja una columna de recado y el cuerpo tiene
+    // que poner su celda, o todo lo que viene detrás se corre un sitio.
+    for (let botones = quitarColumnas(); botones.length > 0; botones = quitarColumnas()) fireEvent.click(botones[0]);
+
+    expect(screen.getByRole('columnheader', { name: 'nada encima' })).toBeInTheDocument();
+    const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
+    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
+  });
+});
+
+describe('Cargas por planta — el orden de las plantas', () => {
+  it('avisa cuando la cubierta ha quedado la última y da la vuelta al edificio de una vez', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Bajar Cubierta' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Bajar Cubierta' }));
+    expect(screen.getByText(/La cubierta está la última/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Poner la cubierta arriba' }));
+    expect(screen.queryByText(/La cubierta está la última/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Seleccionar / }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Seleccionar Cubierta',
+      'Seleccionar Planta Baja',
+      'Seleccionar Planta Primera',
+    ]);
+  });
+
+  it('la zona que era «toda» toma nombre en cuanto la planta tiene una segunda', () => {
+    montar();
+    fireEvent.click(within(filaDe('Planta Baja')).getByRole('button', { name: '+ zona' }));
+
+    expect(screen.getByLabelText('Uso de Planta Baja (Zona 1)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Uso de Planta Baja (Zona 2)')).toBeInTheDocument();
   });
 });
 
