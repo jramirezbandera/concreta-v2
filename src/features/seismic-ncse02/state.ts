@@ -875,6 +875,11 @@ export function datosPublicacion(s: SeismicState, ev: SeismicEvaluation): PubSis
             Fx: r.x.Fk[i] ?? 0,
             Fy: r.y.Fk[i] ?? 0,
           })),
+          nModos: { x: r.x.nModos, y: r.y.nModos },
+          metodo: 'simplificado',
+          // Las categorías de masa que de verdad pesan: presentes en alguna
+          // planta y no excluidas por el proyectista (art. 3.2).
+          categoriasMasa: [...new Set(s.plantas.flatMap((pl) => (pl.componentes ?? []).filter((c) => !c.excluida).map((c) => c.categoria)))],
         }
       : null,
   };

@@ -624,7 +624,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
         const ej = obra.fabrica.claseEjecucion.valor;
         return {
           pieza: deCampo(obra.fabrica.pieza, 'obra.fabrica.pieza', 'Tipo de pieza de la fábrica', 'sef'),
-          piezaEtiqueta: pieza !== null ? TABLA_4_4[pieza].label : null,
+          piezaEtiqueta: pieza !== null ? (TABLA_4_4[pieza]?.label ?? pieza) : null,
           fb: deCampo(obra.fabrica.fb, 'obra.fabrica.fb', 'Resistencia de las piezas fb (N/mm²)', 'sef'),
           fm: deCampo(obra.fabrica.fm, 'obra.fabrica.fm', 'Resistencia del mortero fm (N/mm²)', 'sef'),
           fk:

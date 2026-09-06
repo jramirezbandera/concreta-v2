@@ -208,7 +208,7 @@ describe('con los cuatro sobres de Granada, recién publicados', () => {
     expect(s.completo!.C).toBe('Terreno tipo II (C=1,30)');
     expect(s.completo!.S).toMatch(/^Para 0,1g ≤ ρ·ab < 0,4g/);
     expect(s.completo!.ductilidad).toBe('μ = 3 (ductilidad alta)');
-    expect(s.completo!.modos).toBe('Se indican en los listados de cálculo por ordenador');
+    expect(s.completo!.modos).toMatch(/^\d+ modos en la dirección X y \d+ en la dirección Y/);
   });
 
   it('un tipo de estructura tecleado manda sobre el del módulo', () => {

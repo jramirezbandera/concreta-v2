@@ -70,6 +70,20 @@ describe('hechos, no prosa', () => {
     expect(d.calculo!.TF.x).toBeGreaterThan(0);
   });
 
+  it('con cálculo viajan los modos, el método y las categorías de masa; sin cálculo, nada de eso', () => {
+    const d = granada();
+    expect(d.calculo!.nModos).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+    expect(d.calculo!.nModos!.x).toBeGreaterThan(0);
+    expect(d.calculo!.metodo).toBe('simplificado');
+    // El arranque lleva permanentes, tabiquería y uso residencial en las
+    // plantas tipo, y en la cubierta una sobrecarga de uso público EXCLUIDA por
+    // el proyectista, que no cuenta.
+    expect(d.calculo!.categoriasMasa).toEqual(['permanente', 'tabiqueria', 'uso-residencial']);
+    expect(d.calculo!.categoriasMasa).not.toContain('uso-publico');
+    const exento = datosDe({ ...defaultSeismicState(), ab: 0.02 });
+    expect(exento.calculo).toBeNull();
+  });
+
   it('la ductilidad viaja en palabras, y sólo las cuatro del art. 3.7.3.1', () => {
     expect([1, 2, 3, 4].map(nombreDuctilidad)).toEqual(['sin ductilidad', 'baja', 'alta', 'muy alta']);
     // Un μ justificado aparte no tiene nombre en la Norma: inventarle uno sería
