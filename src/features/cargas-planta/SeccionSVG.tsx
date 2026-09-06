@@ -1,8 +1,10 @@
 /**
  * La sección del edificio, alineada con las filas de la tabla.
  *
- * Un forjado por zona, dibujado a la altura de su fila (las cotas las mide
- * `useCotasFilas`). Encima de cada forjado, su carga de cálculo a escala: gris
+ * Un forjado por PLANTA, dibujado a la altura de sus filas (las cotas las mide
+ * `useCotasFilas`) y partido en tantos trozos como zonas tenga: las zonas de
+ * una misma planta son partes del mismo forjado y van a la misma altura, no
+ * escalonadas. Encima de cada forjado, su carga de cálculo a escala: gris
  * lo permanente (Gd), azul lo variable (Qd) y rayada la nieve cuando no manda.
  * El alto del bloque ES el número: dos plantas iguales se ven iguales y el vaso
  * de piscina destaca sin leer una cifra.
@@ -46,10 +48,10 @@ const esFachada = (concepto: string) => /cerramiento|fachada|tabic|tabique|vidri
 export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar, width = 228, height = 560 }: Props) {
   const m = useMarcadores();
 
-  // Las zonas en el orden de la tabla, con la cota medida de su fila.
+  // Las zonas en el orden de la tabla, cada una sabiendo de qué planta es.
   const porId = new Map<string, CotaFila>(cotas.map((c) => [c.id, c]));
-  const zonas: { z: ZonaCargasResuelta; planta: string; esCubierta: boolean; nieve: number | null }[] = [];
-  for (const p of resultado.plantas) for (const z of p.zonas) zonas.push({ z, planta: p.nombre, esCubierta: p.esCubierta, nieve: p.nieve });
+  const zonas: { z: ZonaCargasResuelta; iPlanta: number; iZona: number; nZonas: number }[] = [];
+  resultado.plantas.forEach((p, iPlanta) => p.zonas.forEach((z, iZona) => zonas.push({ z, iPlanta, iZona, nZonas: p.zonas.length })));
 
   const arriba = 46;
   const usable = Math.max(60, height - arriba - 96);
@@ -60,17 +62,32 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
   const bx = 34;
   const bw = Math.max(60, width - bx - 78);
 
-  /** El eje del forjado de cada zona. */
-  const yDe = (i: number, id?: string) => {
+  /** El eje del forjado que le toca a la fila i de la tabla. */
+  const yFila = (i: number, id?: string) => {
     if (uniforme) return arriba + paso * (i + 1) - GRUESO_FORJADO;
     const c = id ? porId.get(id) : undefined;
     if (!c) return arriba + paso * (i + 1);
     return c.top + c.alto - GRUESO_FORJADO - 1;
   };
 
-  const yPrimero = yDe(0, zonas[0]?.z.id);
-  const yUltimo = yDe(zonas.length - 1, zonas[zonas.length - 1]?.z.id);
+  /**
+   * La cota de cada PLANTA: la de su última fila, que es donde acaba su bloque
+   * de filas en la tabla. Todas sus zonas cuelgan de ahí.
+   */
+  const yPlanta = resultado.plantas.map((_, iPlanta) => {
+    let ultima = -1;
+    zonas.forEach((b, i) => {
+      if (b.iPlanta === iPlanta) ultima = i;
+    });
+    return ultima < 0 ? arriba : yFila(ultima, zonas[ultima].z.id);
+  });
+
+  const yPrimero = zonas.length > 0 ? yPlanta[zonas[0].iPlanta] : arriba;
+  const yUltimo = zonas.length > 0 ? yPlanta[zonas[zonas.length - 1].iPlanta] : arriba;
   const yRasante = yUltimo + GRUESO_FORJADO + 22;
+
+  /** El rótulo de la planta, recortado a lo que cabe en el margen del dibujo. */
+  const corto = (nombre: string) => (nombre.length > 15 ? `${nombre.slice(0, 14)}…` : nombre);
 
   const peto = lineales.find((l) => esPeto(l.concepto));
   const fachada = lineales.find((l) => esFachada(l.concepto));
@@ -93,7 +110,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         SECCIÓN · qd por forjado
       </Rotulo>
       <Rotulo x={4} y={28} tam={8.5} mono color={COLOR.atenuado}>
-        {uniforme ? 'sin escala vertical' : 'alineada con las filas · sin escala vertical'}
+        {uniforme ? 'sin escala vertical' : 'alineada con la tabla · sin escala vertical'}
       </Rotulo>
 
       {/* Fachadas: de la primera planta a la última */}
@@ -109,23 +126,22 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         </>
       )}
 
-      {/* Un forjado por zona, con su carga encima */}
-      {zonas.map(({ z, planta, esCubierta, nieve }, i) => {
-        const y = yDe(i, z.id);
-        const n = zonas.filter((x) => x.planta === planta).length;
-        const j = zonas.filter((x, k) => x.planta === planta && k < i).length;
-        const ancho = (bw - 2 * (n - 1)) / n;
-        const x = bx + j * (ancho + 2);
+      {/* Un forjado por planta, partido en sus zonas, con su carga encima */}
+      {zonas.map(({ z, iPlanta, iZona, nZonas }, i) => {
+        const p = resultado.plantas[iPlanta];
+        const y = yPlanta[iPlanta];
+        const ancho = (bw - 2 * (nZonas - 1)) / nZonas;
+        const x = bx + iZona * (ancho + 2);
         const sel = z.id === zonaSel;
         const hueco = z.forjado.ppOrigen === 'sinDato';
         const hG = Math.max(0, z.Gd * ESCALA);
         const hQ = Math.max(0, z.Qd * ESCALA);
-        const conNieve = esCubierta && nieve !== null && nieve > 0;
+        const conNieve = p.esCubierta && p.nieve !== null && p.nieve > 0;
         const yTop = y - hG - hQ - (conNieve ? ALTO_NIEVE : 0);
 
         return (
           <g
-            key={z.id ?? `${planta}-${i}`}
+            key={z.id ?? `${p.nombre}-${i}`}
             role="button"
             tabIndex={0}
             aria-label={`Seleccionar ${z.rotulo}`}
@@ -160,12 +176,22 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         );
       })}
 
+      {/* El nombre de cada planta, al lado de su forjado: sin él no se sabe qué
+          extremo del dibujo es la cubierta y cuál la planta baja. */}
+      {resultado.plantas.map((p, i) =>
+        p.zonas.length === 0 ? null : (
+          <Rotulo key={`rotulo-${p.id ?? i}`} x={bx + bw + 6} y={yPlanta[i] + 9} tam={8} mono color={COLOR.atenuado}>
+            {corto(p.nombre)}
+          </Rotulo>
+        ),
+      )}
+
       {/* Peto sobre la planta de arriba */}
       {peto && zonas.length > 0 && (
         <>
           <rect x={bx} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
           <rect x={bx + bw - 3} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
-          <Rotulo x={bx + bw + 6} y={yPrimero - 2} tam={8} mono color={COLOR.atenuado}>
+          <Rotulo x={bx + bw + 6} y={yPrimero - 3} tam={8} mono color={COLOR.atenuado}>
             {dec(peto.gk, 1)} kN/m
           </Rotulo>
         </>

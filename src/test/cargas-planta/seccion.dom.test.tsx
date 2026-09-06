@@ -52,6 +52,19 @@ describe('la sección', () => {
     expect(screen.getByText('11,63')).toBeInTheDocument();
   });
 
+  it('las zonas de una planta van a la misma altura: son trozos del mismo forjado', () => {
+    pintar();
+    // La losa de cada bloque: el único rectángulo pintado con el color de sección.
+    const yForjado = (nombre: string) => {
+      const g = screen.getByRole('button', { name: `Seleccionar ${nombre}` });
+      const losa = [...g.querySelectorAll('rect')].find((r) => r.getAttribute('fill') === 'var(--color-chart-section)');
+      return Number(losa?.getAttribute('y'));
+    };
+    expect(yForjado('Planta Baja (Vaso piscina)')).toBe(yForjado('Planta Baja (Vivienda)'));
+    // Y la planta baja, más abajo que la cubierta: la sección va de arriba abajo.
+    expect(yForjado('Planta Baja (Vivienda)')).toBeGreaterThan(yForjado('Cubierta'));
+  });
+
   it('el alto del bloque es la carga: el vaso de piscina dobla a la vivienda', () => {
     pintar();
     expect(altoDe('Planta Baja (Vaso piscina)')).toBeGreaterThan(altoDe('Planta Baja (Vivienda)') * 1.5);

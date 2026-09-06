@@ -15,6 +15,13 @@ export const INPUT_SUELTO =
 export const BOTON_MENOR =
   'inline-flex items-center gap-1 rounded border border-border-main bg-bg-elevated px-2 py-0.5 text-[11.5px] text-text-secondary hover:text-text-primary';
 
+/**
+ * Botón pequeño DENTRO de una celda. Lleva borde y fondo a propósito: sin
+ * ellos —«+ zona» era sólo texto— no se lee como algo que se puede pulsar.
+ */
+export const BOTON_CELDA =
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded border border-border-main bg-bg-elevated px-1.5 py-px text-[10px] leading-[1.5] text-text-secondary transition-colors hover:border-accent/50 hover:text-text-primary';
+
 /** Cabecera de columna. Las derivadas van en acento: es el código de color del módulo. */
 export const TH = 'border-b border-border-main px-1.5 pb-1 align-bottom text-left text-[9.5px] font-semibold uppercase text-text-disabled';
 export const TH_NUM = `${TH} text-right`;
@@ -27,6 +34,21 @@ export const TH_GRUPO =
 export const TD = 'border-b border-border-sub px-1.5 py-1 align-middle';
 export const TD_NUM = `${TD} text-right`;
 
+/**
+ * Primera celda de un grupo: la misma línea vertical que separa las preguntas
+ * en la cabecera, continuada por el cuerpo. Sin ella los grupos se ven en la
+ * cabecera y se pierden en cuanto empiezan los números.
+ */
+export const SEP = 'border-l border-border-sub';
+
+/**
+ * Una caja de número dentro de una celda numérica. `RawNumberInput` envuelve el
+ * campo en un `div` flex, que es de bloque y por tanto NO obedece al
+ * `text-right` de la celda: sin esto el número se queda a la izquierda debajo de
+ * una cabecera alineada a la derecha.
+ */
+export const CAJA_DER = 'flex justify-end';
+
 /** Tinte de la fila abierta, la que está resaltada en la sección. */
 export const SELECCION = { background: 'color-mix(in srgb, var(--color-accent) 8%, transparent)' } as const;
 
@@ -34,13 +56,15 @@ export const SELECCION = { background: 'color-mix(in srgb, var(--color-accent) 8
  * La columna qd es lo que se lleva al programa de cálculo, así que se queda
  * pegada al borde derecho: con muchas cargas encima la tabla scrollea, y esa
  * es justo la columna que no puede irse de la vista. Fondo opaco (el tinte va
- * encima) para que las celdas que pasan por debajo no se transparenten.
+ * encima) para que las celdas que pasan por debajo no se transparenten, y una
+ * sombra hacia fuera para que se lea como una columna clavada por encima de las
+ * demás y no como una columna partida por la mitad.
  */
 export const COLUMNA_QD = {
   position: 'sticky' as const,
   right: 0,
   background: 'linear-gradient(color-mix(in srgb, var(--color-accent) 5%, transparent), color-mix(in srgb, var(--color-accent) 5%, transparent)), var(--color-bg-primary)',
-  boxShadow: 'inset 1px 0 0 var(--color-border-sub)',
+  boxShadow: '-8px 0 8px -8px var(--color-border-main), inset 1px 0 0 var(--color-border-sub)',
 };
 export const COLUMNA_QD_SEL = {
   ...COLUMNA_QD,
@@ -51,5 +75,5 @@ export const TH_QD_STICKY = {
   position: 'sticky' as const,
   right: 0,
   background: 'var(--color-bg-primary)',
-  boxShadow: 'inset 1px 0 0 var(--color-border-sub)',
+  boxShadow: '-8px 0 8px -8px var(--color-border-main), inset 1px 0 0 var(--color-border-sub)',
 };

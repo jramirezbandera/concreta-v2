@@ -20,7 +20,7 @@ import { getPrecision } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CANTO_INICIAL, FORJADO_OPCIONES, USO_OPCIONES } from './catalogos';
 import { permanenteDe, ponerEnCelda, ponerEspesor, type ColumnaEncima } from './columnas';
-import { COLUMNA_QD, COLUMNA_QD_SEL, INPUT, SELECCION, TD, TD_NUM } from './estilos';
+import { BOTON_CELDA, CAJA_DER, COLUMNA_QD, COLUMNA_QD_SEL, INPUT, SELECCION, SEP, TD, TD_NUM } from './estilos';
 import type { PlantaUI, ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
@@ -31,6 +31,8 @@ interface Props {
   r: ZonaCargasResuelta | undefined;
   /** Índice de la zona dentro de su planta: la primera lleva las celdas con rowSpan. */
   indice: number;
+  /** La última de su planta: es la que remata la lista con el botón «+ zona». */
+  ultima: boolean;
   columnas: ColumnaEncima[];
   quien: string;
   seleccionada: boolean;
@@ -64,6 +66,7 @@ export function FilaZona({
   z,
   r,
   indice,
+  ultima,
   columnas,
   quien,
   seleccionada,
@@ -104,14 +107,18 @@ export function FilaZona({
       );
     }
     // Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y pesa cero.
-    return <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />;
+    return (
+      <span className={CAJA_DER}>
+        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />
+      </span>
+    );
   };
 
   return (
     <tr data-zona={z.id} onClick={onSeleccionar} style={tinte} className="cursor-pointer">
       {/* Planta — abarca sus zonas */}
       {primera && (
-        <td rowSpan={nZonas} className={TD + ' align-middle'} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
+        <td rowSpan={nZonas} className={TD + ' align-top'} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
           <div className="flex min-w-0 flex-col gap-0.5" onClick={(ev) => ev.stopPropagation()}>
             <input
               type="text"
@@ -120,7 +127,7 @@ export function FilaZona({
               className={INPUT + ' font-medium'}
               onChange={(ev) => onPlanta({ nombre: ev.target.value })}
             />
-            <div className="flex items-center gap-1">
+            <div className="flex flex-nowrap items-center gap-1">
               <button
                 type="button"
                 onClick={() => onPlanta({ esCubierta: !planta.esCubierta })}
@@ -134,10 +141,7 @@ export function FilaZona({
               >
                 {planta.esCubierta ? 'CUBIERTA' : 'PISO'}
               </button>
-              <span className="ml-auto flex items-center gap-0.5">
-                <button type="button" onClick={onAnadirZona} className="rounded px-1 text-[10px] text-text-secondary hover:text-text-primary" title="Otra parte de la misma planta con distinto uso o forjado">
-                  + zona
-                </button>
+              <span className="ml-auto flex flex-nowrap items-center gap-0.5">
                 <button
                   type="button"
                   onClick={() => onMoverPlanta(-1)}
@@ -170,19 +174,34 @@ export function FilaZona({
         </td>
       )}
 
-      {/* Zona */}
-      <td className={TD}>
-        {nZonas === 1 && !z.nombre ? (
-          <span className="whitespace-nowrap text-[11px] text-text-disabled" title="Toda la planta: no tiene partes con distinto uso o forjado">
-            toda
-          </span>
-        ) : (
-          <input type="text" value={z.nombre} aria-label={`Nombre de la zona de ${planta.nombre || 'la planta'}`} placeholder="Zona" className={INPUT} onClick={(ev) => ev.stopPropagation()} onChange={(ev) => onZona({ nombre: ev.target.value })} />
-        )}
+      {/* Zona — y, al final de la lista, el botón de añadir otra a esta planta */}
+      <td className={TD + ' align-top'}>
+        <div className="flex flex-col items-start gap-1">
+          {nZonas === 1 && !z.nombre ? (
+            <span className="whitespace-nowrap text-[11px] text-text-disabled" title="Toda la planta: no tiene partes con distinto uso o forjado">
+              toda
+            </span>
+          ) : (
+            <input type="text" value={z.nombre} aria-label={`Nombre de la zona de ${planta.nombre || 'la planta'}`} placeholder="Zona" className={INPUT} onClick={(ev) => ev.stopPropagation()} onChange={(ev) => onZona({ nombre: ev.target.value })} />
+          )}
+          {ultima && (
+            <button
+              type="button"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                onAnadirZona();
+              }}
+              className={BOTON_CELDA}
+              title="Otra parte de la misma planta con distinto uso o forjado"
+            >
+              + zona
+            </button>
+          )}
+        </div>
       </td>
 
       {/* Forjado */}
-      <td className={TD} onClick={(ev) => ev.stopPropagation()}>
+      <td className={TD + ' ' + SEP} onClick={(ev) => ev.stopPropagation()}>
         <select value={z.forjado.tipo} aria-label={`Tipo de forjado de ${quien}`} title={forjado?.etiqueta} className={INPUT} onChange={(ev) => cambiarTipo(ev.target.value as TipoForjado)}>
           {FORJADO_OPCIONES.map((o) => (
             <option key={o.id} value={o.id} title={o.ayuda}>
@@ -195,7 +214,9 @@ export function FilaZona({
         {sinCanto ? (
           <span className="font-mono text-[11px] text-text-disabled">—</span>
         ) : (
-          <RawNumberInput value={z.forjado.canto} onChange={(canto) => onZona({ forjado: { ...z.forjado, canto } })} ariaLabel={`Canto del forjado de ${quien}`} min={0} max={200} widthClass="w-10" hideUnit />
+          <span className={CAJA_DER}>
+            <RawNumberInput value={z.forjado.canto} onChange={(canto) => onZona({ forjado: { ...z.forjado, canto } })} ariaLabel={`Canto del forjado de ${quien}`} min={0} max={200} widthClass="w-10" hideUnit />
+          </span>
         )}
       </td>
       <td className={TD_NUM} onClick={(ev) => ev.stopPropagation()}>
@@ -233,15 +254,18 @@ export function FilaZona({
         </span>
       </td>
 
-      {/* ¿Qué hay encima? — una columna por carga de la obra */}
-      {columnas.map((c) => (
-        <td key={c.clave} className={TD_NUM} onClick={(ev) => ev.stopPropagation()}>
+      {/* ¿Qué hay encima? — una columna por carga de la obra. Sin ninguna, la
+          cabecera dibuja igualmente una columna: el cuerpo tiene que poner su
+          celda o todo lo que viene detrás se corre un sitio a la izquierda. */}
+      {columnas.length === 0 && <td className={TD + ' ' + SEP} />}
+      {columnas.map((c, i) => (
+        <td key={c.clave} className={TD_NUM + (i === 0 ? ' ' + SEP : '')} onClick={(ev) => ev.stopPropagation()}>
           {celdaEncima(c)}
         </td>
       ))}
 
       {/* Uso */}
-      <td className={TD} onClick={(ev) => ev.stopPropagation()}>
+      <td className={TD + ' ' + SEP} onClick={(ev) => ev.stopPropagation()}>
         <div className="flex items-center gap-1">
           <select value={z.uso.categoria} aria-label={`Uso de ${quien}`} title={uso?.etiqueta} className={INPUT} onChange={(ev) => onZona({ uso: { ...z.uso, categoria: ev.target.value as ZonaUI['uso']['categoria'] } })}>
             {USO_OPCIONES.map((o) => (
@@ -261,7 +285,7 @@ export function FilaZona({
 
       {/* Nieve — de la planta */}
       {primera && (
-        <td rowSpan={nZonas} className={TD_NUM} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
+        <td rowSpan={nZonas} className={TD_NUM + ' align-top ' + SEP} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
           {!planta.esCubierta ? (
             <span className="font-mono text-[11px] text-text-disabled">—</span>
           ) : planta.nieve.modo === 'ninguna' ? (
@@ -279,7 +303,7 @@ export function FilaZona({
       )}
 
       {/* Cálculo */}
-      <td className={TD_NUM}>
+      <td className={TD_NUM + ' ' + SEP}>
         <Derivado valor={r && !huecoPP ? mostrar(r.G) : '—'} titulo="Carga permanente total" fallo={huecoPP} />
       </td>
       <td className={TD_NUM}>

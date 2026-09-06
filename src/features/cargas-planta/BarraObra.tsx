@@ -51,12 +51,29 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
         type="text"
         value={e.municipio}
         aria-label="Municipio"
-        placeholder="Se imprime en el cuadro"
+        placeholder="Municipio"
+        title="Se imprime en el cuadro y viaja en la publicación"
         className={INPUT_SUELTO + ' w-44 shrink-0'}
         onChange={(ev) => onCambiar({ municipio: ev.target.value })}
       />
 
-      <RawNumberInput value={e.altitud ?? 0} onChange={(v) => onCambiar({ altitud: v })} ariaLabel="Altitud" unit="m" min={0} max={4000} widthClass="w-16" />
+      {/* La altitud sin rótulo era una caja con un número suelto: nadie sabe qué
+          se le pide. Y sin decirla la caja va VACÍA, no a cero: cero es el mar. */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <label htmlFor="cargas-altitud" className="text-[11.5px] text-text-secondary">
+          Altitud
+        </label>
+        <RawNumberInput
+          id="cargas-altitud"
+          value={e.altitud ?? NaN}
+          onChange={(v) => onCambiar({ altitud: v })}
+          ariaLabel="Altitud"
+          unit="m"
+          min={0}
+          max={4000}
+          widthClass="w-16"
+        />
+      </div>
 
       {e.altitud === null ? (
         ayuda && <span className="text-[11px] text-text-disabled">sin decir · ψ de nieve de ≤ 1.000 m</span>

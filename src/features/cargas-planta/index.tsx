@@ -330,8 +330,18 @@ export function CargasPlantaModule() {
                     return siguiente;
                   })
                 }
+                onInvertirPlantas={() => cambiarPlantas((plantas) => [...plantas].reverse())}
                 onAnadirZona={(plantaId) =>
-                  cambiarPlantas((plantas) => plantas.map((x) => (x.id === plantaId ? { ...x, zonas: [...x.zonas, nuevaZona(x.esCubierta, `Zona ${x.zonas.length + 1}`)] } : x)))
+                  cambiarPlantas((plantas) =>
+                    plantas.map((x) => {
+                      if (x.id !== plantaId) return x;
+                      // Mientras es la planta entera, la zona no lleva nombre («toda»).
+                      // En cuanto hay una segunda hay que poder distinguirlas, así que
+                      // la primera pasa a llamarse Zona 1 en vez de quedarse en blanco.
+                      const zonas = x.zonas.length === 1 && !x.zonas[0].nombre ? [{ ...x.zonas[0], nombre: 'Zona 1' }] : x.zonas;
+                      return { ...x, zonas: [...zonas, nuevaZona(x.esCubierta, `Zona ${zonas.length + 1}`)] };
+                    }),
+                  )
                 }
                 onBorrarZona={(plantaId, zonaId) => {
                   if (zonaSel === zonaId) setZonaSel(null);
