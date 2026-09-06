@@ -94,6 +94,17 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-cargas-planta',
+    route: '/acciones/cargas-planta',
+    label: 'Cargas por planta',
+    group: 'Acciones',
+    // Estado anidado (plantas → zonas → permanentes) con clave propia en
+    // localStorage. Primer módulo que CONSUME una publicación (la nieve de
+    // `concreta-pub-viento-nieve`) y publica la suya (`concreta-pub-cargas-planta`).
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-rc-beams',
     route: '/horm/vigas',
     label: 'Vigas',

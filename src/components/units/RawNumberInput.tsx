@@ -50,6 +50,12 @@ type RawNumberInputProps = {
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
   /**
+   * Oculta el sufijo de unidad y redondea la caja por los cuatro lados. Para
+   * celdas de tabla, donde la unidad ya la dice la cabecera de la columna y
+   * repetirla en cada fila es ruido (la tabla de Cargas por planta).
+   */
+  hideUnit?: boolean;
+  /**
    * Stretch the input to fill its container instead of the fixed `widthClass`.
    * Used by the stacked (label-on-top) layout so the box spans the full column
    * width — the fix for narrow sidebars where an inline `label ↔ w-15` row
@@ -81,6 +87,7 @@ export function RawNumberInput({
   allowNegative = false,
   widthClass = "w-15",
   fullWidth = false,
+  hideUnit = false,
 }: RawNumberInputProps) {
   const { system } = useUnitSystem();
 
@@ -183,12 +190,14 @@ export function RawNumberInput({
             setLocalStr(formatForInput(next));
           }
         }}
-        className={`${fullWidth ? "flex-1 min-w-0" : widthClass} text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+        className={`${fullWidth ? "flex-1 min-w-0" : widthClass} text-right bg-bg-primary border border-border-main ${hideUnit ? "rounded" : "rounded-l"} px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
         aria-label={ariaLabel}
       />
-      <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-        {unit}
-      </span>
+      {!hideUnit && (
+        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
+          {unit}
+        </span>
+      )}
     </div>
   );
 }

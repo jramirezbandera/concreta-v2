@@ -139,15 +139,29 @@ export const PROVINCIA_OPCIONES: readonly Provincia[] = [...PROVINCIAS].sort((a,
   a.nombre.localeCompare(b.nombre, 'es'),
 );
 
-/** Plantas con las que arranca un edificio nuevo: tres de 3 m. */
-export const PLANTAS_INICIALES: { nombre: string; h: number }[] = [
-  { nombre: 'Planta 1', h: 3 },
-  { nombre: 'Planta 2', h: 6 },
-  { nombre: 'Cubierta', h: 9 },
+/**
+ * Plantas con las que arranca un edificio nuevo: tres de 3 m. Cada planta
+ * lleva su altura de forjado a forjado, no su cota: es lo que se sabe en obra
+ * sin sumar nada. La cota sobre rasante la deriva el programa.
+ */
+export const PLANTAS_INICIALES: { nombre: string; altura: number }[] = [
+  { nombre: 'Planta 1', altura: 3 },
+  { nombre: 'Planta 2', altura: 3 },
+  { nombre: 'Cubierta', altura: 3 },
 ];
 
-/** Altura que se le da a la siguiente planta al añadirla: la última más 3 m. */
+/** Altura que se le da a una planta nueva al añadirla, m. */
 export const ALTURA_PLANTA_TIPO = 3;
+
+/** Las vistas del lienzo, en el orden de las pestañas. */
+export type VistaLienzo = 'edificio' | 'cubierta' | 'fachadas' | 'nieve';
+
+export const VISTAS_LIENZO: { id: VistaLienzo; etiqueta: string; titulo: string }[] = [
+  { id: 'edificio', etiqueta: 'Edificio', titulo: 'Alzado con la fuerza por planta' },
+  { id: 'cubierta', etiqueta: 'Cubierta', titulo: 'Zonas de la cubierta a dos aguas (tabla D.6)' },
+  { id: 'fachadas', etiqueta: 'Fachadas', titulo: 'Zonas de las fachadas (tabla D.3)' },
+  { id: 'nieve', etiqueta: 'Nieve', titulo: 'Nieve por faldón y sk por altitud' },
+];
 
 // ── Cubierta a dos aguas ────────────────────────────────────────────────────
 

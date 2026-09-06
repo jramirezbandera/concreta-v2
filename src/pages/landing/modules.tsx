@@ -51,6 +51,16 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/acciones/viento-nieve',
     icon: <ModuleIcon moduleKey="concreta-viento-nieve" size={ICON_SIZE} />,
   },
+  {
+    id: 'cargas-planta',
+    group: 'ACCIONES',
+    name: 'Cargas por planta',
+    ref: 'DB SE-AE art. 2.1 · 3.1 · Anejo C',
+    short:
+      'Peso propio del forjado, cargas permanentes y sobrecarga de uso de cada planta, con la nieve de las cubiertas tomada de Viento y nieve. Tabla de cargas para la memoria, cuadro de acciones para el plano y predimensionado con Gd, Qd y qd.',
+    route: '/acciones/cargas-planta',
+    icon: <ModuleIcon moduleKey="concreta-cargas-planta" size={ICON_SIZE} />,
+  },
 
   // ── HORMIGÓN ARMADO
   {

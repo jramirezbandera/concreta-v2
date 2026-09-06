@@ -63,3 +63,5 @@ export const MATERIALES_FALLBACK_PDF = 'cuadro-de-materiales.pdf';
 /** Los de «Viento y nieve», con el mismo reparto: memoria a Word, plano a Excel. */
 export const VIENTO_NIEVE_FALLBACK_DOCX = 'viento-y-nieve.docx';
 export const VIENTO_NIEVE_FALLBACK_XLSX = 'viento-y-nieve.xlsx';
+export const CARGAS_PLANTA_FALLBACK_DOCX = 'cargas-por-planta.docx';
+export const CARGAS_PLANTA_FALLBACK_XLSX = 'cargas-por-planta.xlsx';
