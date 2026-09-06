@@ -38,6 +38,7 @@ import { AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
 import {
   defaultSeismicState,
   evaluarSismo,
+  publicarResultado,
   normalizeSeismicState,
   type SeismicState,
 } from './state';
@@ -200,6 +201,14 @@ export function SeismicNCSE02Module() {
   }, [state]);
 
   const evaluacion = useMemo(() => evaluarSismo(state), [state]);
+
+  // Publicar es un efecto del RESULTADO, no del tecleo: lo que se deja en
+  // `concreta-pub-sismo` es lo que consumen el cuadro de acciones del plano y
+  // la ficha DB SE (ver `datosPublicacion`). Va después del autoguardado y por
+  // el mismo motivo: es estado derivado que se escribe fuera del módulo.
+  useEffect(() => {
+    publicarResultado(state, evaluacion);
+  }, [state, evaluacion]);
 
   // El sistema de unidades sólo viaja al PDF: la pantalla y los dibujos lo leen
   // cada uno del contexto, y el estado y el motor viven siempre en kN.

@@ -39,6 +39,7 @@ import { BarraObra } from './BarraObra';
 import { anadirColumna, quitarColumna, renombrarColumna } from './columnas';
 import { Lineales } from './Lineales';
 import { leerNievePublicada, nieveDesdePublicacion } from './nievePub';
+import { resumenSismoPublicado } from './sismoPub';
 import { SeccionSVG } from './SeccionSVG';
 import { Tabla } from './Tabla';
 import { useCotasFilas } from './useCotasFilas';
@@ -127,6 +128,7 @@ export function CargasPlantaModule() {
   // baratas y así un «Usar la nieve publicada» ve siempre el sobre actual.
   const [nievePub, setNievePub] = useState(leerNievePublicada);
   const [viento, setViento] = useState(resumenVientoPublicado);
+  const [sismo, setSismo] = useState(() => resumenSismoPublicado(state.emplazamiento.provincia));
 
   // Estado de interfaz: no se guarda, no entra en el cálculo.
   const [zonaSel, setZonaSel] = useState<string | null>(null);
@@ -151,6 +153,13 @@ export function CargasPlantaModule() {
     setViento(resumenVientoPublicado());
   };
 
+  // El sismo se relee aparte, en un efecto, porque su filtro necesita la
+  // provincia del estado YA aplicado: el sobre de otra obra se descarta (ver
+  // `sismoPub`), y dentro de `actualizar` sólo se conoce el estado entrante.
+  useEffect(() => {
+    setSismo(resumenSismoPublicado(state.emplazamiento.provincia));
+  }, [state]);
+
   const evaluacion = useMemo(() => evaluar(state, nievePub), [state, nievePub]);
 
   // Publicar es un efecto del resultado, no del tecleo.
@@ -158,7 +167,7 @@ export function CargasPlantaModule() {
     publicarResultado(state, evaluacion);
   }, [state, evaluacion]);
 
-  const bloquesPlano = useMemo<Block[]>(() => cuadroAccionesPlanoCargas(evaluacion.resultado, viento, null), [evaluacion, viento]);
+  const bloquesPlano = useMemo<Block[]>(() => cuadroAccionesPlanoCargas(evaluacion.resultado, viento, sismo), [evaluacion, viento, sismo]);
   const bloquesMemoria = useMemo<Block[]>(() => cuadroCargasMemoria(evaluacion.resultado), [evaluacion]);
 
   // ── Acciones de la tabla ──────────────────────────────────────────────────

@@ -151,7 +151,7 @@ export interface ResumenVientoPlano {
   aspereza: GradoAspereza;
 }
 
-/** Lo que el cuadro necesita de la publicación de sismo, cuando exista. */
+/** Lo que el cuadro necesita de la publicación de sismo; la feature lo traduce del sobre. */
 export interface ResumenSismoPlano {
   /** Aceleración sísmica de cálculo, en g. */
   ac: number;
@@ -163,6 +163,18 @@ export interface ResumenSismoPlano {
   ductilidad?: string;
   /** Años, si se conoce (vive en el cuadro de materiales). */
   vidaUtil?: number;
+  /**
+   * Sí cuando la NCSE-02 es de aplicación obligatoria (art. 1.2.3). Con `false`
+   * el cuadro no declara ductilidad —no hay cálculo del que declararla— y dice
+   * en su lugar por qué el edificio está exento: en un plano, «aquí no hay
+   * sismo» sin el motivo al lado no lo puede firmar nadie.
+   *
+   * Opcional para que un llamante que sólo tenga los tres números de siempre
+   * siga produciendo el cuadro de siempre.
+   */
+  obligatoria?: boolean;
+  /** El motivo de la exención, tal como lo redacta el módulo de sismo. */
+  exencion?: string;
 }
 
 function tablaZonaPlano(z: ZonaCargasResuelta): Block {
@@ -201,14 +213,28 @@ export function cuadroAccionesPlanoCargas(r: CargasResultado, viento: ResumenVie
     blocks.push({ kind: 'paragraph', text: 'Ver el módulo Viento y nieve: sin publicación de viento para esta obra.' });
   }
 
+  blocks.push({ kind: 'heading', level: 3, text: 'SISMO (SEGÚN NCSE-02)' });
   if (sismo) {
+    const exento = sismo.obligatoria === false;
     const rows: [string, string][] = [
       ['Aceleración sísmica de cálculo', `${num(sismo.ac, 2)}g`],
       ['Coeficiente de contribución K', num(sismo.K, 2)],
     ];
     if (sismo.vidaUtil !== undefined) rows.push(['Vida útil', `${num(sismo.vidaUtil)} años`]);
-    rows.push(['Ductilidad', `${sismo.ductilidad ? `${sismo.ductilidad}, ` : ''}μ = ${num(sismo.mu, 1)}`]);
-    blocks.push({ kind: 'heading', level: 3, text: 'SISMO (SEGÚN NCSE-02)' }, { kind: 'kvTable', rows });
+    // La ductilidad es una declaración sobre un cálculo hecho: en un edificio
+    // exento no hay tal cálculo, y ponerla haría creer que sí.
+    if (!exento) rows.push(['Ductilidad', `${sismo.ductilidad ? `${sismo.ductilidad}, ` : ''}μ = ${num(sismo.mu, 1)}`]);
+    blocks.push({ kind: 'kvTable', rows });
+    if (exento) {
+      blocks.push({
+        kind: 'paragraph',
+        text: sismo.exencion ?? 'No es obligatoria la aplicación de la NCSE-02 (art. 1.2.3).',
+      });
+    }
+  } else {
+    // Igual que el viento: la ausencia se dice, no se calla. Un cuadro de
+    // acciones sin la línea del sismo no distingue «no aplica» de «no se miró».
+    blocks.push({ kind: 'paragraph', text: 'Ver el módulo Sismo (NCSE-02): sin publicación de sismo para esta obra.' });
   }
 
   blocks.push(

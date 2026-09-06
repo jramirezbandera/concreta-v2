@@ -19,6 +19,8 @@ import {
   resolverEmplazamiento,
   resolverTF,
 } from '../../lib/codes/seismic/ncse02';
+import { leerObra } from '../../lib/obra';
+import { publicar } from '../../lib/pub';
 import type { Procedencia } from './hazard';
 import type {
   ApplicabilityResult,
@@ -714,4 +716,181 @@ function normalizarDireccion(x: unknown, porDefecto: DireccionUI): DireccionUI {
     TFModo: o.TFModo === 'manual' ? 'manual' : 'auto',
     TFManual: num(o.TFManual, 0),
   };
+}
+
+
+// ── Publicación ─────────────────────────────────────────────────────────────
+
+/**
+ * Nombre del módulo en las publicaciones y versión del esquema de `datos`.
+ * Tocar `PubSismo` —salvo para añadir campos opcionales— obliga a subir
+ * `PUB_VERSION`: un consumidor que pide la v1 y encuentra la v2 recibe `null`
+ * en vez de un objeto a medias (ver `lib/pub`).
+ */
+export const MODULO_PUB = 'sismo';
+export const PUB_VERSION = 1;
+
+/** La fuerza sísmica de una planta, en cada dirección. Simetría con viento. */
+export interface PubFuerzaPlanta {
+  nombre: string;
+  /** Altura de la planta sobre rasante, m. */
+  h: number;
+  /** Peso sísmico de la planta, kN. */
+  P: number;
+  /** F_k = V_k − V_(k+1), kN. Puede ser negativa: el SRSS destruye el signo. */
+  Fx: number;
+  Fy: number;
+}
+
+/**
+ * Esquema v1 de lo que este módulo publica.
+ *
+ * Viajan HECHOS y ya derivados —`ac` con su ρ y su S dentro, la ductilidad
+ * traducida a su palabra, el impedimento con su artículo—, no la prosa de la
+ * pantalla ni el estado interno del módulo: quien lo lee (el cuadro de acciones
+ * del plano, la ficha DB SE) no tiene el motor y no puede rehacer la cuenta.
+ *
+ * Y viaja SIEMPRE, haya cálculo o no. Un edificio exento del art. 1.2.3 no es
+ * un edificio sin datos sísmicos: es uno cuyo cuadro tiene que poder decir por
+ * qué no lleva fuerzas, que es justamente lo que se firma. Por eso `calculo` es
+ * lo único que puede faltar.
+ */
+export interface PubSismo {
+  /** Nombre del municipio; vacío en entrada manual de ab y K. */
+  municipio: string;
+  /** INE de cinco dígitos, o `null` si ab y K se metieron a mano. */
+  ine: string | null;
+
+  // — emplazamiento (cap. 2) —
+  /** ab/g, adimensional. */
+  ab: number;
+  K: number;
+  importancia: Importancia;
+  /** Coeficiente de riesgo ρ: 1,0 normal / 1,3 especial. */
+  rho: number;
+  /** Tipo de terreno I-IV, o `null` cuando se ponderó un perfil de estratos. */
+  terreno: TipoTerreno | null;
+  C: number;
+  S: number;
+  /** ac/g: la aceleración sísmica de CÁLCULO, la que va al cuadro del plano. */
+  ac: number;
+  TA: number;
+  TB: number;
+
+  // — estructura —
+  sistema: SistemaEstructural;
+  /** Coeficiente de comportamiento por ductilidad μ, art. 3.7.3.1. */
+  mu: number;
+  /** «sin ductilidad», «baja», «alta», «muy alta»; `null` si μ no es 1-4. */
+  ductilidad: string | null;
+  /** Amortiguamiento Ω, % del crítico. */
+  omega: number;
+  /** Plantas sobre rasante. */
+  n: number;
+  sotanos: number;
+  /** Altura sobre rasante, m. */
+  H: number;
+
+  // — la puerta del art. 1.2.3 —
+  /** Sí cuando la Norma es de aplicación obligatoria. */
+  obligatoria: boolean;
+  /** Por qué no hay cálculo, con su artículo. `null` exactamente cuando lo hay. */
+  impedimento: { articulo: string; texto: string } | null;
+
+  /** `null` cuando no hay resultado: exento, faltan datos, método no aplicable. */
+  calculo: {
+    /** Factor de amortiguamiento ν, art. 2.5. */
+    nu: number;
+    /** Coeficiente de respuesta β = ν/μ, art. 3.7.3.1. */
+    beta: number;
+    /** Suma de los P_k, kN. */
+    pesoSismico: number;
+    /** Cortante en la base, kN, en cada dirección. */
+    cortanteBasal: { x: number; y: number };
+    /** Periodo fundamental T_F, s, en cada dirección. */
+    TF: { x: number; y: number };
+    fuerzas: PubFuerzaPlanta[];
+  } | null;
+}
+
+/**
+ * La ductilidad en palabras, art. 3.7.3.1. La escala es la del propio artículo
+ * —1 sin ductilidad, 2 baja, 3 alta, 4 muy alta— y `null` fuera de ella: un μ
+ * intermedio justificado aparte no tiene nombre en la Norma, y ponerle uno
+ * sería inventarlo.
+ */
+export function nombreDuctilidad(mu: number): string | null {
+  return { 1: 'sin ductilidad', 2: 'baja', 3: 'alta', 4: 'muy alta' }[mu] ?? null;
+}
+
+/** Lo que se publica de un estado ya evaluado. */
+export function datosPublicacion(s: SeismicState, ev: SeismicEvaluation): PubSismo {
+  const e = ev.emplazamiento;
+  const r = ev.resultado;
+  // Por ID y no por posición: `calcularSismo` ordena las plantas por altura, y
+  // emparejando por índice el nombre de una planta acabaría junto a la fuerza
+  // de otra en cuanto las alturas dejaran de ir en orden creciente. Mismo
+  // cuidado que el PDF (ver `lib/pdf/seismicNCSE02.ts`).
+  const porId = new Map(s.plantas.map((pl) => [pl.id, pl]));
+  return {
+    municipio: s.municipioNombre.trim(),
+    ine: s.municipioIne,
+    ab: e.ab,
+    K: e.K,
+    importancia: s.importancia,
+    rho: e.rho,
+    terreno: s.terrenoModo === 'tipo' ? s.terreno : null,
+    C: e.C,
+    S: e.S,
+    ac: e.ac,
+    TA: e.TA,
+    TB: e.TB,
+    sistema: s.sistema,
+    mu: s.mu,
+    ductilidad: nombreDuctilidad(s.mu),
+    omega: s.omega,
+    n: plantasSobreRasante(s),
+    sotanos: s.sotanos,
+    H: s.H,
+    obligatoria: ev.aplicabilidad.obligatoriedad.estado === 'obligatoria',
+    impedimento: ev.impedimento ? { articulo: ev.impedimento.articulo, texto: ev.impedimento.texto } : null,
+    calculo: r
+      ? {
+          nu: r.nu,
+          beta: r.beta,
+          pesoSismico: r.pesoSismico,
+          cortanteBasal: { x: r.x.cortanteBasal, y: r.y.cortanteBasal },
+          TF: { x: r.x.TF, y: r.y.TF },
+          fuerzas: r.plantas.map((pl, i) => ({
+            nombre: (pl.id === undefined ? undefined : porId.get(pl.id))?.nombre ?? `Planta ${i + 1}`,
+            h: pl.h,
+            P: pl.P,
+            Fx: r.x.Fk[i] ?? 0,
+            Fy: r.y.Fk[i] ?? 0,
+          })),
+        }
+      : null,
+  };
+}
+
+/**
+ * Publica el resultado. A diferencia de viento y materiales, aquí no hay nada
+ * que retener: el emplazamiento siempre está resuelto y un caso exento es un
+ * dato tan publicable como uno calculado (ver `PubSismo`).
+ *
+ * La obra del sobre sale del emplazamiento del propio módulo cuando lo hay —es
+ * el municipio con el que se sacaron ab y K, no una referencia de despacho— y
+ * cae a `concreta-obra` en la entrada manual.
+ */
+export function publicarResultado(s: SeismicState, ev: SeismicEvaluation): void {
+  const datos = datosPublicacion(s, ev);
+  const obra = leerObra();
+  publicar(MODULO_PUB, PUB_VERSION, datos, {
+    municipio: datos.municipio || obra?.municipio || null,
+    // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
+    // módulo no lo necesita para nada: viaja el INE, que es con lo que un
+    // consumidor comprueba que la publicación es de SU obra.
+    provincia: null,
+    ine: datos.ine ?? obra?.ine ?? (obra?.provincia || null),
+  });
 }

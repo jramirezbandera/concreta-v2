@@ -184,13 +184,39 @@ describe('plano', () => {
     ]);
   });
 
-  it('sin publicaciones: el viento remite a su módulo y el sismo no aparece; el vb sale de la zona si no viene', () => {
+  it('sin publicaciones: viento y sismo remiten a su módulo; el vb sale de la zona si no viene', () => {
     const plano = cuadroAccionesPlanoCargas(r, null, null);
-    expect(titulos(plano)).not.toContain('SISMO (SEGÚN NCSE-02)');
+    // El hueco se dice, no se calla: un cuadro sin la línea del sismo no
+    // distingue «no aplica» de «no se ha mirado».
+    expect(titulos(plano)).toContain('SISMO (SEGÚN NCSE-02)');
     expect(plano.some((b) => b.kind === 'paragraph' && b.text.includes('Viento y nieve'))).toBe(true);
+    expect(plano.some((b) => b.kind === 'paragraph' && b.text.includes('módulo Sismo'))).toBe(true);
     const sinVb = cuadroAccionesPlanoCargas(r, { zonaEolica: 'C', vb: null, aspereza: 'II' }, null);
     const kv = sinVb.find((b) => b.kind === 'kvTable') as Extract<Block, { kind: 'kvTable' }>;
     expect(kv.rows[0]).toEqual(['Zona eólica', 'C (velocidad básica 29 m/s)']);
+  });
+
+  it('edificio exento del art. 1.2.3: sin ductilidad y con el motivo escrito al lado', () => {
+    const exento = {
+      ac: 0.04,
+      K: 1.0,
+      mu: 2,
+      ductilidad: 'baja',
+      vidaUtil: 50,
+      obligatoria: false,
+      exencion: 'La NCSE-02 no es de aplicación obligatoria: ab < 0,04 g (art. 1.2.3).',
+    };
+    const plano = cuadroAccionesPlanoCargas(r, viento, exento);
+    const kv = plano.filter((b): b is Extract<Block, { kind: 'kvTable' }> => b.kind === 'kvTable');
+    // ac, K y vida útil siguen: son los datos que JUSTIFICAN la exención. La
+    // ductilidad no, porque no hay cálculo del que declararla.
+    expect(kv[1].rows.map(([k]) => k)).toEqual(['Aceleración sísmica de cálculo', 'Coeficiente de contribución K', 'Vida útil']);
+    expect(plano.some((b) => b.kind === 'paragraph' && b.text === exento.exencion)).toBe(true);
+  });
+
+  it('exento sin motivo redactado: el cuadro pone el del artículo, nunca un hueco', () => {
+    const plano = cuadroAccionesPlanoCargas(r, viento, { ac: 0.04, K: 1, mu: 2, obligatoria: false });
+    expect(plano.some((b) => b.kind === 'paragraph' && b.text.includes('art. 1.2.3'))).toBe(true);
   });
 
   it('ninguna etiqueta del plano pasa de 33 caracteres, ni con tres cifras de canto', () => {
