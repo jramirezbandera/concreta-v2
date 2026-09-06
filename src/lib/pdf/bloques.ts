@@ -243,9 +243,8 @@ function opcionesTabla(t: Trozo, o: OpcionesBloques, y: number, conBanda: boolea
   };
 }
 
-/** Lo que ocupa el primer trozo con su aire y su rótulo: lo que hay que reservar. */
-function altoPrimerTrozo(doc: jsPDF, trozos: Trozo[], o: OpcionesBloques, conBanda: boolean): number {
-  const t = trozos[0];
+/** Lo que ocupa un trozo con su aire y su rótulo: lo que hay que reservar antes de escribir el rótulo. */
+function altoTrozo(doc: jsPDF, t: Trozo | undefined, o: OpcionesBloques, conBanda: boolean): number {
   if (!t) return 0;
   const util = PAGE_W - 2 * o.M;
   let h = AIRE.tabla;
@@ -268,13 +267,14 @@ function tabla(
 ): number {
   const util = PAGE_W - 2 * o.M;
   const trozos = prepararTabla(doc, cabecera, filas, rotulo, util, conBanda);
-  for (const [i, t] of trozos.entries()) {
+  for (const t of trozos) {
     y += AIRE.tabla;
     if (t.texto) {
       // El rótulo tampoco se separa de su tabla: es un encabezado más, sólo que
       // en gris. Se reserva para los dos, y `drawTable` ya no partirá lo que
-      // quepa entero (`keepTogether`).
-      if (i === 0) y = reservar(doc, y, altoPrimerTrozo(doc, trozos, o, conBanda) - AIRE.tabla, o.M);
+      // quepa entero (`keepTogether`). Vale para todos los trozos: un «(cont.)»
+      // solo al pie de página con su tabla en la siguiente es el mismo error.
+      y = reservar(doc, y, altoTrozo(doc, t, o, conBanda) - AIRE.tabla, o.M);
       y = caption(doc, t.texto, o.M, y, util, o.M);
     }
     doc.setFont('helvetica', 'normal');
@@ -284,28 +284,51 @@ function tabla(
   return y;
 }
 
+/** Un párrafo de hasta tres líneas: el que presenta una tabla, no el que la explica. */
+const LINEAS_PARRAFO_CORTO = 3;
+
+function esParrafoCorto(doc: jsPDF, texto: string, util: number): boolean {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(CUERPO.parrafo);
+  return altoTexto(doc, texto, util) <= LINEAS_PARRAFO_CORTO * CUERPO.parrafo * 0.3528 * 1.15;
+}
+
 /**
- * Lo que ocupará el bloque que sigue a un encabezado, cuando sea una tabla. Un
- * encabezado tiene que poder mirar hacia delante: reservar sólo su propia línea
- * lo deja escrito al pie de la página con su tabla entera en la siguiente.
+ * Lo que ocupa la cadena de bloques que va desde `desde` hasta la primera
+ * tabla, pasando sólo por encabezados y párrafos cortos: es lo que tiene que
+ * viajar junto. Un encabezado tiene que poder mirar hacia delante —reservar
+ * sólo su línea lo deja escrito al pie de la página con su tabla en la
+ * siguiente—, y «3.1.5.5. Coeficientes…» seguido de una línea de introducción
+ * y su tabla es la misma cosa con un párrafo en medio. Si en cuatro bloques no
+ * aparece ninguna tabla no hay nada que juntar: 0.
  */
-function altoArrastrado(doc: jsPDF, siguiente: Block | undefined, o: OpcionesBloques): number {
-  if (!siguiente) return 0;
+function altoArrastrado(doc: jsPDF, blocks: Block[], desde: number, o: OpcionesBloques): number {
   const util = PAGE_W - 2 * o.M;
-  if (siguiente.kind === 'table') {
-    return altoPrimerTrozo(doc, prepararTabla(doc, siguiente.head, siguiente.rows, siguiente.caption, util, true), o, true);
-  }
-  if (siguiente.kind === 'kvTable') {
-    const filas = siguiente.rows.map(([k, v]) => [k, v]);
-    return altoPrimerTrozo(doc, prepararTabla(doc, [], filas, siguiente.caption, util, false), o, false);
+  let acumulado = 0;
+  for (let j = desde; j < Math.min(blocks.length, desde + 4); j++) {
+    const b = blocks[j];
+    if (b.kind === 'table') {
+      return acumulado + altoTrozo(doc, prepararTabla(doc, b.head, b.rows, b.caption, util, true)[0], o, true);
+    }
+    if (b.kind === 'kvTable') {
+      const filas = b.rows.map(([k, v]) => [k, v]);
+      return acumulado + altoTrozo(doc, prepararTabla(doc, [], filas, b.caption, util, false)[0], o, false);
+    }
+    if (b.kind === 'heading') {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(b.level === 1 ? CUERPO.h1 : b.level === 2 ? CUERPO.h2 : CUERPO.h3);
+      acumulado += (b.level === 1 ? AIRE.h1 : b.level === 2 ? AIRE.h2 : AIRE.h3) + altoTexto(doc, b.text, util);
+      continue;
+    }
+    if (b.kind === 'paragraph' && esParrafoCorto(doc, b.text, util)) {
+      acumulado += AIRE.parrafo + altoTexto(doc, b.text, util);
+      continue;
+    }
+    return 0;
   }
   return 0;
 }
 
-/**
- * Dibuja los bloques y devuelve la `y` bajo el último. El llamante se encarga
- * de la cabecera del documento, de los pies y de cerrar el fichero.
- */
 export function dibujarBloques(doc: jsPDF, blocks: Block[], o: OpcionesBloques): number {
   const util = PAGE_W - 2 * o.M;
   let y = o.y;
@@ -320,7 +343,7 @@ export function dibujarBloques(doc: jsPDF, blocks: Block[], o: OpcionesBloques):
         // página siguiente lo deja exactamente así. Se mide antes de escribir
         // nada, y si el conjunto no cabe en una página se conserva la reserva
         // de siempre (una línea larga y poco más).
-        const arrastre = altoArrastrado(doc, blocks[i + 1], o);
+        const arrastre = altoArrastrado(doc, blocks, i + 1, o);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(cuerpo);
         setGray(doc, 25);
@@ -333,9 +356,16 @@ export function dibujarBloques(doc: jsPDF, blocks: Block[], o: OpcionesBloques):
         break;
       }
       case 'paragraph': {
+        // Un párrafo corto que presenta una tabla («…se establecen conforme al
+        // capítulo 4:») va con ella, como un encabezado: si los dos caben en
+        // una página pero no en lo que queda de ésta, bajan juntos. Uno largo
+        // se pagina línea a línea, que es lo suyo.
+        const corto = esParrafoCorto(doc, b.text, util);
+        const arrastre = corto ? altoArrastrado(doc, blocks, i + 1, o) : 0;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(CUERPO.parrafo);
         setGray(doc, 60);
+        if (arrastre > 0) y = reservar(doc, y + AIRE.parrafo, altoTexto(doc, b.text, util) + arrastre, o.M) - AIRE.parrafo;
         y = parrafo(doc, b.text, o.M, y + AIRE.parrafo, util, o.M);
         break;
       }

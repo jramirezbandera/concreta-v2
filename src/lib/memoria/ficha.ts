@@ -165,7 +165,7 @@ function bloquesSEC(d: FichaDatos): Block[] {
   const g = d.sec.geotecnia;
   const r = SEC.geotecnia.rotulos;
   const pf = SEC.geotecnia.parametros.filas;
-  const parametros: [string, string][] = (Object.keys(pf) as (keyof typeof pf)[]).map((k) => [`${SEC.geotecnia.parametros.rotulo} ${pf[k]}`, v(g[k])]);
+  const parametros: [string, string][] = (Object.keys(pf) as (keyof typeof pf)[]).map((k) => [pf[k], v(g[k])]);
   const cim = d.sec.cimentacion;
   const con = d.sec.contenciones;
   const bloques: Block[] = [
@@ -179,8 +179,8 @@ function bloquesSEC(d: FichaDatos): Block[] {
       [r.titulacion, v(g.titulacion)],
       [r.sondeos, v(g.sondeos)],
       [r.descripcionTerrenos, v(g.descripcionTerrenos)],
-      ...parametros,
     ]),
+    kv(parametros, SEC.geotecnia.parametros.rotulo),
     h3(SEC.cimentacion.bloque),
     kv([
       [SEC.cimentacion.rotulos.descripcion, v(cim.descripcion)],
