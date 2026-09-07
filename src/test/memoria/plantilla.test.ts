@@ -157,6 +157,20 @@ describe('transcripción literal de las fichas del estudio', () => {
     }
   });
 
+  it('la frase del material se une con la pieza: con la de la ficha vuelve a ser literal, y con otra concuerda', () => {
+    const { unidireccional, reticular } = plantilla.FORJADOS;
+    // Con el material que la JS-662 da por supuesto, las dos mitades vuelven a ser el párrafo del papel.
+    expect(estaEnLasFichas(plantilla.fraseMaterial(unidireccional.material, 'Hormigón'))).toBe(true);
+    expect(estaEnLasFichas(plantilla.fraseMaterial(reticular.materialPerdido, 'Hormigón'))).toBe(true);
+    expect(estaEnLasFichas(plantilla.fraseMaterial(reticular.materialRecuperable, null, true))).toBe(true);
+    // Con otra pieza, el párrafo la nombra concordando con el sustantivo de cada frase.
+    expect(plantilla.fraseMaterial(unidireccional.material, 'Cerámica')).toContain('(bovedillas cerámicas),');
+    expect(plantilla.fraseMaterial(reticular.materialPerdido, 'Poliestireno expandido')).toContain('bovedillas aligerantes de poliestireno expandido y hormigón');
+    expect(plantilla.fraseMaterial(reticular.materialRecuperable, 'Metálico', true)).toContain('(casetones recuperables metálicos),');
+    // Texto libre de una obra anterior: no se nombra, antes que escribir una concordancia falsa.
+    expect(plantilla.fraseMaterial(unidireccional.material, 'Casetón perdido de hormigón')).toContain('(bovedillas),');
+  });
+
   it('los rótulos de la tabla sísmica son los de la ficha del estudio, en su orden', () => {
     const corta = fixture.corta.bloques.find((b): b is Extract<Bloque, { tipo: 'tabla' }> => b.tipo === 'tabla' && b.filas.length > 20)!;
     const rotulosFicha = corta.filas.map((f) => corregir(f[0])).filter(Boolean);

@@ -22,7 +22,7 @@ import { DESCRIPCION_CLASE_SERVICIO } from '../materiales/tablasMadera';
 import { aceroDesdePub, maderaDesdePub } from './adaptadores';
 import type { FichaDatos, Juntas, Tipologia } from './ensamblar';
 import type { ApartadoId, Block, Valor } from './model';
-import { CE, FORJADOS, FORMULAS, INDICE, NCSE, RD_314, SE, SEA, SEAE, SEC, SEF, SEM, TITULO } from './plantilla';
+import { CE, FORJADOS, FORMULAS, INDICE, NCSE, RD_314, SE, SEA, SEAE, SEC, SEF, SEM, TITULO, fraseMaterial } from './plantilla';
 
 export interface Apartado {
   id: ApartadoId;
@@ -372,13 +372,14 @@ function bloquesForjado(t: Tipologia, n: number): Block[] {
     return [h3(`${numero} ${t.titulo}`), p(FORJADOS.otro(t.tipo, num(t.canto), num(t.pp, 2)))];
   }
   const es = t.tipo === 'reticular' ? FORJADOS.reticular : t.tipo === 'unidireccional' ? FORJADOS.unidireccional : FORJADOS.losa;
+  const pieza = t.pieza?.valor ?? null;
   const material =
     t.tipo === 'reticular'
       ? t.recuperable?.valor
-        ? FORJADOS.reticular.materialRecuperable
-        : FORJADOS.reticular.materialPerdido
+        ? fraseMaterial(FORJADOS.reticular.materialRecuperable, pieza, true)
+        : fraseMaterial(FORJADOS.reticular.materialPerdido, pieza)
       : t.tipo === 'unidireccional'
-        ? FORJADOS.unidireccional.material
+        ? fraseMaterial(FORJADOS.unidireccional.material, pieza)
         : FORJADOS.losa.material;
   const dimensiones: [string, string][] = [[r.cantoTotal, `${num(t.canto)} cm`]];
   if (t.tipo === 'reticular' || t.tipo === 'unidireccional') {

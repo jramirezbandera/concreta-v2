@@ -513,8 +513,11 @@ export const FORJADOS = {
   flecha: (limite: string) => `flecha ≤ ${limite}`,
   unidireccional: {
     titulo: 'Características técnicas de los forjados unidireccionales',
-    material:
-      'Forjados unidireccionales compuestos de viguetas de hormigón, más piezas de entrevigado aligerantes (bovedillas de hormigón vibroprensado), con armadura de reparto y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión).',
+    /** Partida por el hueco del material: las dos mitades siguen cotejándose literales con la JS-662. Las une `fraseMaterial`. */
+    material: [
+      'Forjados unidireccionales compuestos de viguetas de hormigón, más piezas de entrevigado aligerantes (bovedillas',
+      '), con armadura de reparto y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión).',
+    ],
     unidades: 'Se indican en los planos de los forjados los armados de refuerzo inferior, superior y cortante.',
     observaciones:
       'El hormigón de las viguetas cumplirá las condiciones especificadas en el Código Estructural. Las armaduras activas y pasivas cumplirán las condiciones especificadas en el Código Estructural. El control de los recubrimientos de las viguetas cumplirá las condiciones especificadas en el Código Estructural.',
@@ -530,10 +533,14 @@ export const FORJADOS = {
   },
   reticular: {
     titulo: 'Características técnicas de los forjados reticulares',
-    materialPerdido:
-      'Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones perdidos), compuestas por bovedillas aligerantes de hormigón vibroprensado y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura.',
-    materialRecuperable:
-      'Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones recuperables), y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura.',
+    materialPerdido: [
+      'Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones perdidos), compuestas por bovedillas aligerantes',
+      ' y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura.',
+    ],
+    materialRecuperable: [
+      'Los forjados reticulares están compuestos por nervios de hormigón armado en dos direcciones más piezas de entrevigado aligerantes (casetones recuperables',
+      '), y hormigón vertido en obra en relleno de nervios y formando la losa superior (capa de compresión), según detalles mostrados en los planos de la estructura.',
+    ],
     unidades:
       'Se indican en los planos de los forjados los detalles de la sección del forjado, indicando el espesor total, el intereje, ancho del nervio, dimensiones de las piezas de entrevigado y el espesor de la capa de compresión. Así mismo se indican los armados de los nervios inferiores y superiores en ambas direcciones.',
     observaciones:
@@ -543,6 +550,37 @@ export const FORJADOS = {
   otro: (tipo: string, canto: string, pp: string) =>
     `Forjado de tipo ${tipo}, de ${canto} cm de canto total y ${pp} kN/m² de peso propio, definido en los planos de estructura.`,
 } as const;
+
+/** Cómo se nombra cada material donde la frase dice «bovedillas»: femenino plural. */
+const MATERIAL_BOVEDILLA: Record<string, string> = {
+  Hormigón: 'de hormigón vibroprensado',
+  Cerámica: 'cerámicas',
+  'Poliestireno expandido': 'de poliestireno expandido',
+};
+
+/** Ídem donde dice «casetones recuperables»: masculino plural. */
+const MATERIAL_CASETON: Record<string, string> = {
+  Plástico: 'de plástico',
+  Metálico: 'metálicos',
+};
+
+/**
+ * Une las dos mitades de la frase del material con la pieza en medio.
+ *
+ * Las frases de la JS-662 se guardan partidas para poder cotejarlas literales
+ * con el papel; con el material que la ficha colegial da por supuesto —la
+ * bovedilla de hormigón vibroprensado, y el casetón recuperable sin decir de
+ * qué es— vuelven a serlo exactamente. Sin esto el cuadro de dimensiones podía
+ * decir «Cerámica» mientras el párrafo seguía diciendo hormigón.
+ *
+ * Un material que no esté en las tablas —texto libre de una obra anterior— no
+ * se nombra: sale en el cuadro de dimensiones y no en el párrafo, antes que
+ * escribir una concordancia falsa.
+ */
+export function fraseMaterial(frase: readonly [string, string], pieza: string | null, recuperable = false): string {
+  const dicho = pieza ? (recuperable ? MATERIAL_CASETON : MATERIAL_BOVEDILLA)[pieza] : undefined;
+  return `${frase[0]}${dicho ? ` ${dicho}` : ''}${frase[1]}`;
+}
 
 // ── 3.1.7 Estructuras de acero (SE-A) ───────────────────────────────────────
 
