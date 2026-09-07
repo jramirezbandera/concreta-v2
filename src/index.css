@@ -230,6 +230,19 @@ html.theme-switching *::after {
   }
 }
 
+/* ── Anillo de foco de los <g> clicables de un SVG ──
+   Un <g role="button" tabIndex={0}> recibe el foco AL PULSARLO, y el navegador
+   le pinta encima su outline `auto` —un recuadro casi negro sobre el bloque—
+   que no dice nada al que hace clic con el ratón: la selección ya la marca el
+   dibujo. Con esta clase el foco de ratón calla (:focus) y el de teclado sigue
+   viéndose en acento (:focus-visible). Misma regla que `.fem-focus-ring` de
+   fem-analysis, aquí para los lienzos que no cargan aquel CSS. WCAG 2.4.7. */
+.svg-focus-ring:focus { outline: none; }
+.svg-focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
 /* check-row hover-link highlight */
 .check-row { transition: background 120ms; }
 .check-row:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }

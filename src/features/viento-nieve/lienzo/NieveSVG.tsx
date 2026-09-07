@@ -83,7 +83,7 @@ function Glifo({ f, r, x, y, w, h, seleccionado, nieve, punta, formato, onSelect
   const cuna = acum ? clamp(acum.pa * 14, 6, 22) : 0;
 
   return (
-    <g role="button" tabIndex={0} aria-label={`Seleccionar ${nombre}`} aria-pressed={seleccionado} onClick={onSelect} onKeyDown={teclado} style={{ cursor: 'pointer' }}>
+    <g role="button" tabIndex={0} aria-label={`Seleccionar ${nombre}`} aria-pressed={seleccionado} onClick={onSelect} onKeyDown={teclado} className="svg-focus-ring" style={{ cursor: 'pointer' }}>
       <rect x={x} y={y} width={w} height={h} rx={4} fill={seleccionado ? mezcla(COLOR.accent, 8) : COLOR.fondo} stroke={seleccionado ? mezcla(COLOR.accent, 45) : COLOR.borde} strokeWidth={1} />
       <Rotulo x={x + 10} y={y + 16} tam={11} color={seleccionado ? COLOR.accent : COLOR.rotulo} peso={600}>
         {nombre}

@@ -167,6 +167,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
             aria-pressed={sel}
             onClick={() => z.id && onSeleccionar(sel ? null : z.id)}
             onKeyDown={z.id ? teclado(z.id) : undefined}
+            className="svg-focus-ring"
             style={{ cursor: 'pointer' }}
           >
             {/* Zona muerta clicable, para que la fila entera responda */}

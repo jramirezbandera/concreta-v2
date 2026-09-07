@@ -146,7 +146,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
           const b = bandas[i];
           const sel = p.id === plantaSel;
           return (
-            <g key={p.id} role="button" tabIndex={0} aria-label={`Seleccionar ${p.nombre || 'la planta'}`} aria-pressed={sel} onClick={() => onSelectPlanta(sel ? null : p.id)} onKeyDown={teclado(p.id)} style={{ cursor: 'pointer' }}>
+            <g key={p.id} role="button" tabIndex={0} aria-label={`Seleccionar ${p.nombre || 'la planta'}`} aria-pressed={sel} onClick={() => onSelectPlanta(sel ? null : p.id)} onKeyDown={teclado(p.id)} className="svg-focus-ring" style={{ cursor: 'pointer' }}>
               <rect x={bx} y={yz(b.zt)} width={bw} height={Math.max(0, (b.zt - b.zb) * s)} fill={mezcla(COLOR.accent, resultado ? (sel ? 14 : i % 2 ? 3 : 7) : sel ? 8 : 0)} stroke="none" />
             </g>
           );

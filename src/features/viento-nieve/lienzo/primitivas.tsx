@@ -52,7 +52,7 @@ export function PlantaLocalizador({ x, y, dimensiones, cumbrera, direccion, punt
   };
   const boton = (d: 'x' | 'y') =>
     onDireccion
-      ? { role: 'button' as const, tabIndex: 0, 'aria-label': `Viento según ${d.toUpperCase()}`, 'aria-pressed': activo(d), onClick: () => onDireccion(d), onKeyDown: teclado(d), style: { cursor: 'pointer' } }
+      ? { role: 'button' as const, tabIndex: 0, 'aria-label': `Viento según ${d.toUpperCase()}`, 'aria-pressed': activo(d), onClick: () => onDireccion(d), onKeyDown: teclado(d), className: 'svg-focus-ring', style: { cursor: 'pointer' } }
       : {};
 
   return (
