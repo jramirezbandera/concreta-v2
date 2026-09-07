@@ -14,8 +14,9 @@
  *  - «Nueva obra»: el perfil de estudio pasa limpio y cada dato de la obra
  *    queda en ámbar hasta confirmarlo o cambiarlo (ver `lib/memoria/estado`);
  *  - «Siguiente hueco»: lleva el foco al primer rojo o ámbar en el orden del
- *    documento, abriendo la sección que lo contiene; con Enter en un campo
- *    heredado se confirma y se salta al siguiente;
+ *    documento, abriendo la sección que lo contiene. Enter resuelve el hueco
+ *    que tiene el foco y baja al siguiente, y es el ritmo del módulo: los
+ *    catorce datos que deja el geotécnico se confirman con catorce Enter;
  *  - las publicaciones se releen al volver a la pestaña (`focus`, `storage`),
  *    porque lo normal es ir al módulo de sismo, publicar, y volver;
  *  - «Leer el PDF del geotécnico»: el estudio geotécnico, leído con el
@@ -33,7 +34,7 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib/export/filename';
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
-import { asegurarForjados, confirmar, nuevaObra, teclear, tomarPublicacion, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
+import { asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, tomarPublicacion, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
 import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha';
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
@@ -197,22 +198,65 @@ export function MemoriaDBSEModule() {
 
   const siguiente = () => irAHueco(siguienteHueco(huecos, huecoConFoco()?.id ?? null));
 
-  /** Enter en un campo heredado lo confirma y salta; en uno confirmado, salta. En un área, Ctrl+Enter. */
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Enter') return;
-    const t = e.target as HTMLElement;
-    if (t.tagName === 'TEXTAREA' && !e.ctrlKey) return;
-    if (t.tagName === 'BUTTON' || t.tagName === 'A') return;
-    const h = huecoConFoco();
-    e.preventDefault();
-    if (h && h.estado === 'heredado') {
-      on.confirmar(h.id);
-      const resto = huecos.filter((x) => x.id !== h.id);
-      irAHueco(siguienteHueco(resto, null));
-    } else {
-      siguiente();
+  /**
+   * Lo que Enter puede resolver de un hueco es lo que dice su `accion`:
+   * confirmar un dato heredado y aceptar una publicación por revisar. Un hueco
+   * por teclear, o que se resuelve publicando en otro módulo, no se resuelve
+   * desde el teclado: Enter pasa de largo y lo deja para su dueño.
+   */
+  const resolver = (h: Hueco) => {
+    if (h.accion === 'confirmar') on.confirmar(h.id);
+    if (h.accion === 'usarPublicado') {
+      const m = MODULOS_PUB.find((x) => h.id === `pub.${x}`);
+      if (m) tomar(m);
     }
   };
+
+  /**
+   * Enter: resuelve el hueco que tiene el foco y baja al SIGUIENTE en el orden
+   * del documento —no al primero: quien entra por el medio de la ficha no debe
+   * volver arriba—. Vale en TODOS los controles, porque la gracia es encadenar
+   * Enter sin mirar qué clase de campo viene: en un área Shift+Enter parte la
+   * línea, y en el «Sí/No» y en «Usar lo publicado» se corta la pulsación
+   * nativa para que Enter no cambie el valor ni navegue por su cuenta.
+   */
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.metaKey || e.altKey) return;
+    const t = e.target as HTMLElement;
+    if (t.tagName === 'TEXTAREA' && e.shiftKey) return;
+    const h = huecoConFoco();
+    if (!h) {
+      // Un botón o un enlace que no es un hueco (Exportar, ✓ Confirmar, la
+      // cabecera de una sección) hace lo suyo con Enter.
+      if (t.tagName === 'BUTTON' || t.tagName === 'A') return;
+      e.preventDefault();
+      siguiente();
+      return;
+    }
+    e.preventDefault();
+    resolver(h);
+    irAHueco(huecos.length > 1 ? siguienteHueco(huecos, h.id) : null);
+  };
+
+  /**
+   * La «↵» del botón «Siguiente hueco», también sin foco. Al entrar en el
+   * módulo —o al cerrar el lector del geotécnico, que devuelve el foco al
+   * body— el primer Enter no llegaría a ningún campo y no pasaría nada, que es
+   * justo cuando el usuario quiere empezar a confirmar. Sólo actúa con el foco
+   * suelto y sin ningún diálogo abierto: el Enter de un diálogo es suyo.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const el = document.activeElement;
+      if (el !== null && el !== document.body && el !== document.documentElement) return;
+      if (document.querySelector('[role="dialog"]') !== null) return;
+      e.preventDefault();
+      irAHueco(siguienteHueco(huecos, null));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [huecos, irAHueco]);
 
   // ── Obra ──────────────────────────────────────────────────────────────────
 
@@ -307,7 +351,7 @@ export function MemoriaDBSEModule() {
           </>
         )}
       </span>
-      <button type="button" onClick={siguiente} disabled={cuenta.total === 0} className={BOTON_ACENTO + ' disabled:cursor-default disabled:opacity-50'} title={cuenta.total === 0 ? 'No queda nada por resolver' : 'Salta al primer hueco (Enter)'}>
+      <button type="button" onClick={siguiente} disabled={cuenta.total === 0} className={BOTON_ACENTO + ' disabled:cursor-default disabled:opacity-50'} title={cuenta.total === 0 ? 'No queda nada por resolver' : 'Salta al primer hueco. Desde ahí, Enter confirma el dato y baja al siguiente; en un cuadro de texto, Shift+Enter parte la línea'}>
         Siguiente hueco ↵
       </button>
       <button
@@ -329,7 +373,7 @@ export function MemoriaDBSEModule() {
     <div className="flex h-full min-h-0 flex-col">
       <Topbar moduleLabel="Cumplimiento del DB SE" moduleGroup="Memorias" onMenuOpen={openDrawer} exportMenu={<ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />} />
 
-      <BarraObra obra={datos.obra} obraGuardada={obraGuardada} ayuda={ayuda} onTeclear={on.teclear} onConfirmar={on.confirmar} onUsarObra={usarObra} onGuardarObra={guardarComoObra} derecha={derecha} />
+      <BarraObra obra={datos.obra} obraGuardada={obraGuardada} ayuda={ayuda} onTeclear={on.teclear} onConfirmar={on.confirmar} onUsarObra={usarObra} onGuardarObra={guardarComoObra} onKeyDown={onKeyDown} derecha={derecha} />
 
       <div ref={contenedor} className="scroll-hide min-h-0 flex-1 overflow-y-auto px-3 py-3" onKeyDown={onKeyDown}>
         <div className="mx-auto flex max-w-[1100px] flex-col gap-3">

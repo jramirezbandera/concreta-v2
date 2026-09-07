@@ -9,7 +9,7 @@
  * Anejo habrá tres barras casi iguales y se extraerá una.
  */
 
-import type { ReactNode } from 'react';
+import type { KeyboardEventHandler, ReactNode } from 'react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { FichaDatos } from '../../lib/memoria/ensamblar';
 import type { Obra } from '../../lib/obra';
@@ -27,6 +27,8 @@ interface Props {
   onConfirmar: (id: string) => void;
   onUsarObra: () => void;
   onGuardarObra: () => void;
+  /** El Enter de la ficha: estos cinco datos también son huecos, y se confirman igual. */
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   /** El contador de huecos y los botones, alineados a la derecha de la misma fila. */
   derecha?: ReactNode;
 }
@@ -41,7 +43,7 @@ function Dato({ valor, children }: { valor: FichaDatos['obra'][keyof Omit<FichaD
   );
 }
 
-export function BarraObra({ obra, obraGuardada, ayuda, onTeclear, onConfirmar, onUsarObra, onGuardarObra, derecha }: Props) {
+export function BarraObra({ obra, obraGuardada, ayuda, onTeclear, onConfirmar, onUsarObra, onGuardarObra, onKeyDown, derecha }: Props) {
   const g = obraGuardada;
   const distinta =
     g !== null &&
@@ -59,7 +61,7 @@ export function BarraObra({ obra, obraGuardada, ayuda, onTeclear, onConfirmar, o
     ) : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5" onKeyDown={onKeyDown}>
       <span className="shrink-0 text-[11.5px] text-text-secondary">¿Qué obra es?</span>
 
       <Dato valor={obra.denominacion} onConfirmar={onConfirmar}>

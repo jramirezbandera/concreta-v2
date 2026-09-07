@@ -87,20 +87,6 @@ export function Area({ id, valor, placeholder, onChange }: TextoProps) {
 }
 
 /** Texto con sugerencias: un `datalist`, que deja escribir otra cosa. */
-export function TextoConSugerencias({ id, valor, placeholder, onChange, sugerencias }: TextoProps & { sugerencias: readonly string[] }) {
-  const lista = `${idDom(id)}-lista`;
-  return (
-    <>
-      <input id={idDom(id)} type="text" list={lista} className={INPUT} value={valor ?? ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      <datalist id={lista}>
-        {sugerencias.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-    </>
-  );
-}
-
 interface NumeroProps {
   id: string;
   valor: number | null;
@@ -135,12 +121,20 @@ export function Selector<T extends string>({ id, valor, opciones, vacio = 'Sin d
   );
 }
 
-/** Sí / No, como dos botones: un booleano no tiene estado vacío y con Enter se confirma sin cambiarlo. */
+/**
+ * Sí / No, como dos botones: un booleano no tiene estado vacío y con Enter se
+ * confirma sin cambiarlo.
+ *
+ * El id —lo que «Siguiente hueco» busca para llevar el foco— va en la opción
+ * VIGENTE, no en el «Sí». Puesto en el «Sí», el foco caía en la opción que NO
+ * estaba elegida y bastaba una barra espaciadora para cambiar la respuesta
+ * creyendo que se confirmaba.
+ */
 export function Interruptor({ id, valor, onChange, si = 'Sí', no = 'No' }: { id: string; valor: boolean; onChange: (v: boolean) => void; si?: string; no?: string }) {
   const boton = (activo: boolean, texto: string, v: boolean) => (
     <button
       type="button"
-      id={v ? idDom(id) : undefined}
+      id={activo ? idDom(id) : undefined}
       aria-pressed={activo}
       onClick={() => onChange(v)}
       className={[

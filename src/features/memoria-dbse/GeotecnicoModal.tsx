@@ -223,7 +223,7 @@ export function GeotecnicoModal({ onAplicar, onClose }: Props) {
               <Lista titulo="Conservados: ya los había tecleado" items={fase.resultado.conservados.map(conPagina)} tono="text-text-primary" />
               <Lista titulo="El informe no los dice" items={fase.resultado.noEncontrados.map((d) => d.etiqueta)} tono="text-state-fail" />
               <Lista titulo="Avisos del lector" items={fase.avisos} tono="text-text-primary" />
-              <p className="text-[11px] leading-snug text-text-secondary">Cada dato lleva debajo el informe y la página de donde sale. Confírmelos uno a uno con «Siguiente hueco»: Enter en cada campo lo confirma y salta al siguiente.</p>
+              <p className="text-[11px] leading-snug text-text-secondary">Cada dato lleva debajo el informe y la página de donde sale. Al cerrar, pulse Enter para ir al primero y siga pulsando Enter: cada uno se confirma y baja al siguiente. En los cuadros de texto largos, Shift+Enter parte la línea.</p>
             </>
           )}
         </div>

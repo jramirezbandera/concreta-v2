@@ -3,6 +3,9 @@
  * proveedor de IA sustituidos: elegir el fichero, la ficha del PDF, leer, el
  * resumen, y los campos del 3.1.3 en ámbar con su fuente debajo; lo que el
  * usuario ya había tecleado no se toca.
+ *
+ * Y el ritmo de después, que es la mitad del valor de leer el informe: con los
+ * catorce datos en ámbar, confirmarlos es pulsar Enter catorce veces.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,9 +13,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router';
 import { ToastContainer } from '../../components/ui/Toast';
 import { MemoriaDBSEModule } from '../../features/memoria-dbse';
+import { guardarEstado } from '../../features/memoria-dbse/state';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 import type { ChatRequest } from '../../lib/ai/types';
-import { GEOTECNICO_SCHEMA } from '../../lib/memoria/geotecnico';
+import { estadoPorDefecto } from '../../lib/memoria/estado';
+import { aplicarExtraccion, CLAVES_GEOTECNICO, GEOTECNICO_SCHEMA, type ExtraccionGeotecnico } from '../../lib/memoria/geotecnico';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
@@ -140,5 +145,84 @@ describe('Leer el PDF del geotécnico', () => {
     expect(within(modal).getByRole('button', { name: 'Leer con IA' })).toBeDisabled();
     expect(within(modal).getByText('Falta la API key')).toBeInTheDocument();
     expect(runChatTurn).not.toHaveBeenCalled();
+  });
+});
+
+// ── El ritmo de confirmar ───────────────────────────────────────────────────
+
+/** La ficha con el informe ya leído: los catorce datos en ámbar, con su página. */
+function conGeotecnicoLeido() {
+  const ex: ExtraccionGeotecnico = {
+    datos: Object.fromEntries(CLAVES_GEOTECNICO.map((k, i) => [k, { texto: `lo que dice el informe de ${k}`, pagina: i + 1 }])) as ExtraccionGeotecnico['datos'],
+    avisos: [],
+  };
+  guardarEstado(aplicarExtraccion(estadoPorDefecto(null), ex, 'GT-3654.pdf').state);
+}
+
+const confirmarVisibles = () => screen.getAllByRole('button', { name: '✓ Confirmar' }).length;
+
+describe('confirmar con Enter', () => {
+  it('Enter sin foco entra en la ficha, y cada Enter confirma y baja AL SIGUIENTE, no al primero', async () => {
+    conGeotecnicoLeido();
+    montar();
+
+    // 1. Sin nada enfocado, Enter lleva al primer hueco: la «↵» del botón vale
+    //    desde el primer momento (el primero es el nombre de la obra, vacío).
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-denominacion'));
+
+    // 2. Un hueco por teclear no se resuelve con Enter: sólo baja al siguiente.
+    const antesDeTeclear = confirmarVisibles();
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' });
+    await waitFor(() => expect(document.activeElement?.id).not.toBe('campo-obra-denominacion'));
+    expect(confirmarVisibles()).toBe(antesDeTeclear);
+
+    // 3. Entrando por el MEDIO de la geotecnia: confirma y baja al de al lado.
+    //    (Antes volvía al primer hueco de la ficha, arriba del todo.)
+    const cota = document.getElementById('campo-obra-geotecnia-cotaCimentacion') as HTMLInputElement;
+    const antes = confirmarVisibles();
+    cota.focus();
+    fireEvent.keyDown(cota, { key: 'Enter' });
+    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-geotecnia-estratoApoyo'));
+    expect(confirmarVisibles()).toBe(antes - 1);
+    expect(cota.value).toBe('lo que dice el informe de cotaCimentacion');
+  });
+
+  it('en un área, Enter confirma y Shift+Enter parte la línea', async () => {
+    conGeotecnicoLeido();
+    montar();
+    const terreno = document.getElementById('campo-obra-geotecnia-descripcionTerrenos') as HTMLTextAreaElement;
+    expect(terreno.tagName).toBe('TEXTAREA');
+
+    // Shift+Enter no confirma: es el salto de línea del texto largo.
+    const antes = confirmarVisibles();
+    terreno.focus();
+    fireEvent.keyDown(terreno, { key: 'Enter', shiftKey: true });
+    expect(confirmarVisibles()).toBe(antes);
+    expect(document.activeElement).toBe(terreno);
+
+    // Enter a secas sí: confirma y baja, como en cualquier otro campo.
+    fireEvent.keyDown(terreno, { key: 'Enter' });
+    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-geotecnia-cotaCimentacion'));
+    expect(confirmarVisibles()).toBe(antes - 1);
+  });
+
+  it('en un Sí/No, el foco va a la opción vigente y Enter la confirma sin cambiarla', async () => {
+    conGeotecnicoLeido();
+    montar();
+    // «¿Hay muros de contención?» arranca en No, heredado: el id va en el «No».
+    const no = document.getElementById('campo-obra-contenciones-existen') as HTMLButtonElement;
+    expect(no.textContent).toBe('No');
+    expect(no).toHaveAttribute('aria-pressed', 'true');
+
+    const antes = confirmarVisibles();
+    no.focus();
+    fireEvent.keyDown(no, { key: 'Enter' });
+    await waitFor(() => expect(confirmarVisibles()).toBe(antes - 1));
+    // Sigue siendo No, y no han aparecido los campos de los muros.
+    expect((document.getElementById('campo-obra-contenciones-existen') as HTMLButtonElement).textContent).toBe('No');
+    expect(document.getElementById('campo-obra-contenciones-descripcion')).toBeNull();
   });
 });
