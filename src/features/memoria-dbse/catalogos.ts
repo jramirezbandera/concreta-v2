@@ -78,7 +78,6 @@ export const GEOTECNIA: Record<GeotecniaCampo, Ayuda> = {
   tensionAdmisible: { etiqueta: 'Tensión admisible', ayuda: 'Con las unidades del informe: 2,0 kg/cm², 200 kPa…', placeholder: '2,0 kg/cm²' },
   pesoEspecifico: { etiqueta: 'Peso específico del terreno', placeholder: 'γ = 18 kN/m³' },
   anguloRozamiento: { etiqueta: 'Ángulo de rozamiento interno', placeholder: 'φ = 30º' },
-  empujeReposo: { etiqueta: 'Coeficiente de empuje en reposo', placeholder: 'K0 = 1 − sen φ = 0,50' },
   balasto: { etiqueta: 'Coeficiente de balasto', placeholder: '1.150 t/m³, o «no aplica»' },
 };
 
@@ -100,15 +99,20 @@ export const CONTENCIONES: Record<'existen' | 'descripcion' | 'material', Ayuda>
   material: { etiqueta: 'Material', placeholder: 'Hormigón armado.' },
 };
 
-export const FORJADO: Record<'intereje' | 'anchoNervio' | 'capaCompresion' | 'pieza', Ayuda> = {
+export const FORJADO: Record<'intereje' | 'anchoNervio' | 'capaCompresion' | 'recuperable' | 'pieza', Ayuda> = {
   intereje: { etiqueta: 'Intereje (cm)', ayuda: 'Distancia entre ejes de nervios o viguetas.' },
   anchoNervio: { etiqueta: 'Ancho del nervio (cm)' },
   capaCompresion: { etiqueta: 'Capa de compresión (cm)' },
-  pieza: { etiqueta: 'Pieza de entrevigado', ayuda: 'Bovedilla o casetón: de qué es. En reticular, «casetón recuperable» cambia el texto del apartado.' },
+  recuperable: {
+    etiqueta: '¿El casetón se recupera?',
+    ayuda: 'Perdido, la pieza se queda dentro del forjado; recuperable, el molde se desencofra y se vuelve a usar. Es lo que cambia el texto del apartado.',
+  },
+  pieza: { etiqueta: 'De qué es la pieza', ayuda: 'El material de la bovedilla o del casetón. Sale en el cuadro de dimensiones como «Tipo de bovedilla» o «Tipo de casetón».' },
 };
 
-/** Las piezas de entrevigado que se ofrecen; se puede escribir otra. */
-export const PIEZAS_FORJADO = ['Hormigón', 'Cerámica', 'Poliestireno expandido', 'Casetón recuperable', 'Casetón perdido de hormigón'];
+/** De qué puede ser la pieza de entrevigado: la perdida se queda en el forjado, la recuperable es un molde que se desencofra. */
+export const PIEZAS_PERDIDAS = ['Hormigón', 'Cerámica', 'Poliestireno expandido'];
+export const PIEZAS_RECUPERABLES = ['Plástico', 'Metálico'];
 
 export const FABRICA: Record<'procede' | 'pieza' | 'fb' | 'fm' | 'categoriaControl' | 'claseEjecucion', Ayuda> = {
   procede: {

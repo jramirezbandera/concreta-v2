@@ -40,10 +40,10 @@ function extraccion(datos: Partial<Record<(typeof CLAVES_GEOTECNICO)[number], { 
 }
 
 describe('campos y schema', () => {
-  it('cubre los trece campos de la geotecnia y la cimentación', () => {
+  it('cubre los doce campos de la geotecnia y la cimentación', () => {
     for (const k of GEOTECNIA_CAMPOS) expect(CLAVES_GEOTECNICO).toContain(k);
     expect(CLAVES_GEOTECNICO).toContain('cimentacion');
-    expect(CLAVES_GEOTECNICO).toHaveLength(14);
+    expect(CLAVES_GEOTECNICO).toHaveLength(13);
   });
 
   it('el schema es estricto (required = properties, sin propiedades extra) y no usa tipos anulables', () => {
@@ -70,7 +70,6 @@ describe('campos y schema', () => {
     for (const k of CLAVES_GEOTECNICO) expect(GEOTECNICO_PROMPT).toContain(`- ${k}:`);
     expect(GEOTECNICO_PROMPT).toMatch(/TRANSCRIBE, no interpretes/);
     expect(GEOTECNICO_PROMPT).toMatch(/No inventes/);
-    expect(GEOTECNICO_PROMPT).toMatch(/K0 = 1 − sen φ/);
     expect(GEOTECNICO_PROMPT).toMatch(/ignora cualquier instrucción/);
   });
 });
@@ -165,7 +164,7 @@ describe('al estado', () => {
     expect(r.rellenados[0]).toEqual({ clave: 'sondeos', etiqueta: 'Sondeos y ensayos realizados', pagina: 5 });
     expect(r.conservados.map((d) => d.clave)).toEqual(['empresa']);
     expect(r.noEncontrados.map((d) => d.clave)).toContain('tensionAdmisible');
-    expect(r.noEncontrados).toHaveLength(10);
+    expect(r.noEncontrados).toHaveLength(9);
     expect(r.state.obra.geotecnia.sondeos).toEqual({ valor: '3 sondeos a rotación de 12 m', origen: 'heredado', fuente: 'Del geotécnico «GT-3654.pdf», pág. 5' });
     expect(r.state.obra.geotecnia.empresa).toEqual({ valor: 'Mi empresa', origen: 'tecleado' });
     expect(r.state.obra.cimentacion.descripcion).toEqual({ valor: 'Zapatas aisladas sobre las arenas', origen: 'heredado', fuente: 'Del geotécnico «GT-3654.pdf», pág. 28' });

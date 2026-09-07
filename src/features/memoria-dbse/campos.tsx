@@ -86,21 +86,6 @@ export function Area({ id, valor, placeholder, onChange }: TextoProps) {
   return <textarea id={idDom(id)} className={AREA} value={valor ?? ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />;
 }
 
-/** Texto con sugerencias: un `datalist`, que deja escribir otra cosa. */
-export function TextoConSugerencias({ id, valor, placeholder, onChange, sugerencias }: TextoProps & { sugerencias: readonly string[] }) {
-  const lista = `${idDom(id)}-lista`;
-  return (
-    <>
-      <input id={idDom(id)} type="text" list={lista} className={INPUT} value={valor ?? ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      <datalist id={lista}>
-        {sugerencias.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-    </>
-  );
-}
-
 interface NumeroProps {
   id: string;
   valor: number | null;

@@ -191,7 +191,7 @@ describe('con los cuatro sobres de Granada, recién publicados', () => {
     expect(ret.flechas.total).toBe('L/250');
     // Confirmada la geometría, deja de ser hueco.
     let c = asegurarForjados(s, tipologiasDe(sobres.cargasPlanta));
-    for (const campo of ['intereje', 'anchoNervio', 'capaCompresion', 'pieza']) c = confirmar(c, `obra.forjados.${ret.clave}.${campo}`);
+    for (const campo of ['intereje', 'anchoNervio', 'capaCompresion', 'recuperable', 'pieza']) c = confirmar(c, `obra.forjados.${ret.clave}.${campo}`);
     expect(ensamblar(c, sobres).forjados.valor!.find((t) => t.tipo === 'reticular')!.intereje!.estado).toBe('ok');
   });
 

@@ -293,7 +293,6 @@ export const SEC = {
         tensionAdmisible: 'Tensión admisible considerada',
         pesoEspecifico: 'Peso específico del terreno',
         anguloRozamiento: 'Angulo de rozamiento interno del terreno',
-        empujeReposo: 'Coeficiente de empuje en reposo',
         balasto: 'Coeficiente de Balasto',
       },
     },

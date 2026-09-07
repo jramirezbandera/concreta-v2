@@ -205,6 +205,9 @@ export interface Tipologia {
   intereje: Valor<number | null> | null;
   anchoNervio: Valor<number | null> | null;
   capaCompresion: Valor<number | null> | null;
+  /** Sólo en reticular: el casetón se recupera o se queda perdido. */
+  recuperable: Valor<boolean> | null;
+  /** De qué es la pieza: el material de la bovedilla o del casetón. */
   pieza: Valor<string | null> | null;
   hormigon: string | null;
   acero: string | null;
@@ -299,7 +302,6 @@ export const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
   tensionAdmisible: 'Tensión admisible',
   pesoEspecifico: 'Peso específico del terreno',
   anguloRozamiento: 'Ángulo de rozamiento interno',
-  empujeReposo: 'Coeficiente de empuje en reposo',
   balasto: 'Coeficiente de balasto',
 };
 
@@ -556,7 +558,8 @@ function forjados(obra: CapaObra, estudio: PerfilEstudio, fCargas: Fuente, carga
       intereje: pide ? deCampo(residual.intereje, id('intereje'), `Intereje del ${quien}`, 'forjados') : null,
       anchoNervio: pide ? deCampo(residual.anchoNervio, id('anchoNervio'), `Ancho de nervio del ${quien}`, 'forjados') : null,
       capaCompresion: pide ? deCampo(residual.capaCompresion, id('capaCompresion'), `Capa de compresión del ${quien}`, 'forjados') : null,
-      pieza: pide ? deCampo(residual.pieza, id('pieza'), `Pieza de entrevigado del ${quien}`, 'forjados') : null,
+      recuperable: t.tipo === 'reticular' ? deBool(residual.recuperable, id('recuperable'), `¿El casetón del ${quien} se recupera?`, 'forjados') : null,
+      pieza: pide ? deCampo(residual.pieza, id('pieza'), `De qué es la pieza de entrevigado del ${quien}`, 'forjados') : null,
       hormigon: elementoForjado?.tipificacion ?? null,
       acero: h?.aceroPasivo.designacion ?? null,
       flechas: estudio.forjados[t.tipo],

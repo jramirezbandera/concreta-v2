@@ -12,8 +12,8 @@ import { CATEGORIA_LABELS, EJECUCION_LABELS, TABLA_4_4, type CategoriaControl, t
 import { num } from '../../lib/materiales/cuadros';
 import { CE, NCSE, SE, SEAE } from '../../lib/memoria/plantilla';
 import { Campo } from '../../components/ui/Campo';
-import { CIMENTACION, CONTENCIONES, ESTRUCTURA, ESTUDIO_AYUDA, FABRICA, FORJADO, GEOTECNIA, JUNTAS, PIEZAS_FORJADO } from './catalogos';
-import { Area, CampoObra, Derivado, Interruptor, Numero, Selector, Texto, TextoConSugerencias } from './campos';
+import { CIMENTACION, CONTENCIONES, ESTRUCTURA, ESTUDIO_AYUDA, FABRICA, FORJADO, GEOTECNIA, JUNTAS, PIEZAS_PERDIDAS, PIEZAS_RECUPERABLES } from './catalogos';
+import { Area, CampoObra, Derivado, Interruptor, Numero, Selector, Texto } from './campos';
 import { idDom } from './ids';
 import { ANCHO, BOTON_ACENTO, INPUT, REJILLA } from './estilos';
 
@@ -212,6 +212,18 @@ export function SeccionCE({ datos, ayuda, on }: Props) {
 
 // ── 3.1.6 ───────────────────────────────────────────────────────────────────
 
+/**
+ * De qué puede ser la pieza: la perdida se queda en el forjado y la recuperable
+ * es un molde. Si la obra traía otro material escrito, se conserva como opción
+ * para no perderlo al abrir la ficha.
+ */
+function opcionesPieza(t: Tipologia): { id: string; etiqueta: string }[] {
+  const familia = t.recuperable?.valor ? PIEZAS_RECUPERABLES : PIEZAS_PERDIDAS;
+  const actual = t.pieza?.valor;
+  const lista = actual && !familia.includes(actual) ? [actual, ...familia] : familia;
+  return lista.map((m) => ({ id: m, etiqueta: m }));
+}
+
 function Forjado({ t, ayuda, on }: { t: Tipologia; ayuda: boolean; on: Acciones }) {
   const campo = (valor: Tipologia['intereje'], texto: (typeof FORJADO)[keyof typeof FORJADO], unidad: string) =>
     valor ? (
@@ -230,9 +242,14 @@ function Forjado({ t, ayuda, on }: { t: Tipologia; ayuda: boolean; on: Acciones 
           {campo(t.intereje, FORJADO.intereje, 'cm')}
           {campo(t.anchoNervio, FORJADO.anchoNervio, 'cm')}
           {campo(t.capaCompresion, FORJADO.capaCompresion, 'cm')}
+          {t.recuperable && (
+            <CampoObra valor={t.recuperable} ayuda={ayuda} texto={FORJADO.recuperable} onConfirmar={on.confirmar}>
+              <Interruptor id={t.recuperable.id!} valor={t.recuperable.valor ?? false} onChange={(v) => on.teclear(t.recuperable!.id!, v)} si="Recuperable" no="Perdido" />
+            </CampoObra>
+          )}
           {t.pieza && (
             <CampoObra valor={t.pieza} ayuda={ayuda} texto={FORJADO.pieza} onConfirmar={on.confirmar}>
-              <TextoConSugerencias id={t.pieza.id!} valor={t.pieza.valor} sugerencias={PIEZAS_FORJADO} onChange={(v) => on.teclear(t.pieza!.id!, v || null)} />
+              <Selector id={t.pieza.id!} valor={t.pieza.valor} opciones={opcionesPieza(t)} onChange={(v) => on.teclear(t.pieza!.id!, v)} />
             </CampoObra>
           )}
         </div>

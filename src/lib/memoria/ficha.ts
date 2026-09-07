@@ -374,7 +374,7 @@ function bloquesForjado(t: Tipologia, n: number): Block[] {
   const es = t.tipo === 'reticular' ? FORJADOS.reticular : t.tipo === 'unidireccional' ? FORJADOS.unidireccional : FORJADOS.losa;
   const material =
     t.tipo === 'reticular'
-      ? t.pieza?.valor && /recuperable/i.test(t.pieza.valor)
+      ? t.recuperable?.valor
         ? FORJADOS.reticular.materialRecuperable
         : FORJADOS.reticular.materialPerdido
       : t.tipo === 'unidireccional'

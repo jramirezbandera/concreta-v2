@@ -99,7 +99,6 @@ export const GEOTECNIA_CAMPOS = [
   'tensionAdmisible',
   'pesoEspecifico',
   'anguloRozamiento',
-  'empujeReposo',
   'balasto',
 ] as const;
 export type GeotecniaCampo = (typeof GEOTECNIA_CAMPOS)[number];
@@ -110,7 +109,9 @@ export interface DatosForjado {
   intereje: Campo<number | null>;
   anchoNervio: Campo<number | null>;
   capaCompresion: Campo<number | null>;
-  /** Pieza de entrevigado: bovedilla o casetón. */
+  /** Sólo en reticular: el casetón se recupera (molde que se desencofra) o se queda perdido. */
+  recuperable: Campo<boolean>;
+  /** De qué es la pieza de entrevigado: el material de la bovedilla o del casetón. */
   pieza: Campo<string | null>;
 }
 
@@ -261,11 +262,12 @@ export function estadoPorDefecto(obra: Obra | null): MemoriaState {
 /** La clave de un forjado en `obra.forjados`: sin puntos, que son el separador de las rutas. */
 export const claveForjado = (tipo: TipoForjado, canto: number): string => `${tipo}-${String(canto).replace('.', ',')}`;
 
-export function datosForjadoPorDefecto(intereje: number | null, anchoNervio: number | null, capaCompresion: number | null, pieza: string | null): DatosForjado {
+export function datosForjadoPorDefecto(intereje: number | null, anchoNervio: number | null, capaCompresion: number | null, pieza: string | null, recuperable = false): DatosForjado {
   return {
     intereje: campo(intereje, 'heredado'),
     anchoNervio: campo(anchoNervio, 'heredado'),
     capaCompresion: campo(capaCompresion, 'heredado'),
+    recuperable: campo(recuperable, 'heredado'),
     pieza: campo(pieza, 'heredado'),
   };
 }
@@ -479,6 +481,7 @@ function normalizarObra(b: unknown, obra: Obra | null): CapaObra {
         intereje: cNumONull(v.intereje, def.intereje),
         anchoNervio: cNumONull(v.anchoNervio, def.anchoNervio),
         capaCompresion: cNumONull(v.capaCompresion, def.capaCompresion),
+        recuperable: cBool(v.recuperable, def.recuperable),
         pieza: cTextoONull(v.pieza, def.pieza),
       };
     }
