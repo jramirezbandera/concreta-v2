@@ -222,8 +222,10 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               </>
             ) : r.forjado.ppOrigen === 'tablaC5' ? (
               <>
-                Tabla C.5 para un grueso de {dec(r.forjado.canto, 0)} cm: <N>{mostrar(r.forjado.pp)}</N> {uQ}.{r.forjado.fueraDeTabla ? ' El canto se sale de la tabla y se ha tomado el último tramo.' : ''}
+                Tabla C.5 para un grueso de {dec(r.forjado.canto, 0)} cm: <N>{mostrar(r.forjado.pp)}</N> {uQ}.
               </>
+            ) : r.forjado.fueraDeTabla ? (
+              <>La tabla C.5 no llega a un canto de {dec(r.forjado.canto, 0)} cm en este forjado, y no se inventa: teclee en PP el del fabricante o el del programa.</>
             ) : (
               <>La norma no da un valor para este forjado: tecléelo en la columna PP.</>
             )}

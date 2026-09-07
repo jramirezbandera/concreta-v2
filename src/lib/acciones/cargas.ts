@@ -142,7 +142,7 @@ export interface ForjadoResuelto {
   /** kN/m². */
   pp: number;
   ppOrigen: OrigenPP;
-  /** El canto se sale de los tramos de la tabla C.5 y se ha tomado el último. */
+  /** El canto se sale de los tramos de la tabla C.5: la norma no da peso propio y hay que teclearlo. */
   fueraDeTabla: boolean;
 }
 
@@ -262,7 +262,10 @@ export function pesoPropioForjado(f: ForjadoCargas): ForjadoResuelto {
   const grueso = f.canto / 100;
   const tramo = tramos.find((t) => grueso < t.gruesoMax);
   if (tramo) return { ...base, pp: tramo.peso, ppOrigen: 'tablaC5' };
-  return { ...base, pp: tramos[tramos.length - 1].peso, ppOrigen: 'tablaC5', fueraDeTabla: true };
+  // Fuera de los tramos NO hay valor. Antes se tomaba el último y se marcaba
+  // «tabla C.5»: a un reticular de 40 cm se le daba el peso de uno de 35 con
+  // el sello de la norma encima. Queda en hueco, como la madera, y se teclea.
+  return { ...base, pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true };
 }
 
 /** Con qué fila de la tabla 4.2 va cada categoría. F toma la del uso de acceso; «otro», la que diga el usuario. */
@@ -430,14 +433,12 @@ export function calcularCargas(input: CargasInput): CargasResultado {
 
       if (f.ppManual !== undefined) {
         if (f.ppManual < 0) errores.push(`«${rotulo}»: el peso propio no puede ser negativo.`);
+      } else if (forjado.fueraDeTabla) {
+        errores.push(`«${rotulo}»: la tabla C.5 no llega a un canto de ${f.canto} cm en este tipo de forjado; teclee el peso propio del fabricante o del programa.`);
       } else if (forjado.ppOrigen === 'sinDato') {
         errores.push(`«${rotulo}»: indique el peso propio del forjado; la norma no da un valor para este tipo.`);
       } else if (!(f.canto > 0)) {
         errores.push(`«${rotulo}»: el canto del forjado tiene que ser mayor que cero.`);
-      } else if (forjado.fueraDeTabla) {
-        avisos.push(
-          `«${rotulo}»: la tabla C.5 no llega a un canto de ${f.canto} cm en este tipo de forjado; se toma el último tramo (${kNm2(forjado.pp)}). Sustitúyalo por el peso del fabricante o del programa.`,
-        );
       }
 
       let resto = 0;

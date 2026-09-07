@@ -246,7 +246,13 @@ export function FilaZona({
           ) : (
             <span
               className="whitespace-nowrap font-mono text-[8.5px] text-accent"
-              title={r?.forjado.ppOrigen === 'densidad' ? 'Peso propio del forjado · 25 kN/m³ por el canto (tabla C.1)' : 'Peso propio del forjado · tabla C.5'}
+              title={
+                r?.forjado.ppOrigen === 'densidad'
+                  ? 'Peso propio del forjado · 25 kN/m³ por el canto (tabla C.1)'
+                  : r?.forjado.ppOrigen === 'tablaC5'
+                    ? 'Peso propio del forjado · tabla C.5'
+                    : 'Peso propio del forjado · la norma no lo da para este forjado: tecléelo'
+              }
             >
               {r?.forjado.ppOrigen === 'densidad' ? '25·h' : r?.forjado.ppOrigen === 'tablaC5' ? 'tabla C.5' : 'tecléelo'}
             </span>

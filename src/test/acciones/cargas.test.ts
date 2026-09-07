@@ -196,17 +196,17 @@ describe('pesoPropioForjado — Anejo C', () => {
     expect(pesoPropioForjado({ tipo: 'solera', canto: 30 })).toMatchObject({ pp: 7.5, ppOrigen: 'densidad' });
   });
 
-  it('reticular, unidireccional y chapa: el tramo de la tabla C.5 (grueso < tope), el último con aviso', () => {
+  it('reticular, unidireccional y chapa: el tramo de la tabla C.5 (grueso < tope); fuera de ella, sin valor', () => {
     expect(pesoPropioForjado({ tipo: 'reticular', canto: 25 })).toMatchObject({ pp: 4, ppOrigen: 'tablaC5', fueraDeTabla: false });
     expect(pesoPropioForjado({ tipo: 'reticular', canto: 29 })).toMatchObject({ pp: 4, fueraDeTabla: false });
     expect(pesoPropioForjado({ tipo: 'reticular', canto: 30 })).toMatchObject({ pp: 5, fueraDeTabla: false }); // «< 0,30» no incluye 0,30
-    expect(pesoPropioForjado({ tipo: 'reticular', canto: 35 })).toMatchObject({ pp: 5, fueraDeTabla: true });
-    expect(pesoPropioForjado({ tipo: 'reticular', canto: 40 })).toMatchObject({ pp: 5, fueraDeTabla: true });
+    expect(pesoPropioForjado({ tipo: 'reticular', canto: 35 })).toMatchObject({ pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true });
+    expect(pesoPropioForjado({ tipo: 'reticular', canto: 40 })).toMatchObject({ pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true });
     expect(pesoPropioForjado({ tipo: 'unidireccional', canto: 25 })).toMatchObject({ pp: 3, fueraDeTabla: false });
     expect(pesoPropioForjado({ tipo: 'unidireccional', canto: 28 })).toMatchObject({ pp: 4, fueraDeTabla: false });
-    expect(pesoPropioForjado({ tipo: 'unidireccional', canto: 30 })).toMatchObject({ pp: 4, fueraDeTabla: true });
+    expect(pesoPropioForjado({ tipo: 'unidireccional', canto: 30 })).toMatchObject({ pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true });
     expect(pesoPropioForjado({ tipo: 'chapa', canto: 10 })).toMatchObject({ pp: 2, fueraDeTabla: false });
-    expect(pesoPropioForjado({ tipo: 'chapa', canto: 12 })).toMatchObject({ pp: 2, fueraDeTabla: true });
+    expect(pesoPropioForjado({ tipo: 'chapa', canto: 12 })).toMatchObject({ pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true });
   });
 
   it('madera y «otro» no tienen número en la norma; el tecleado manda siempre', () => {
@@ -347,7 +347,7 @@ describe('calcularCargas — composición, avisos y errores', () => {
     expect(r.psiPresentes.map((p) => p.clave)).toEqual(['A', 'G']);
   });
 
-  it('avisos: canto fuera de la C.5, escaleras fuera de A/B, tabiquería pesada', () => {
+  it('el canto fuera de la C.5 es un error, no un aviso; avisos de escaleras fuera de A/B y tabiquería pesada', () => {
     const r = calcularCargas({
       plantas: [
         { nombre: 'P1', esCubierta: false, zonas: [{ ...zonaBase(), forjado: { tipo: 'reticular', canto: 40 } }] },
@@ -356,17 +356,19 @@ describe('calcularCargas — composición, avisos y errores', () => {
       ],
       lineales: [],
     });
-    expect(r.errores).toEqual([]);
-    expect(r.avisos).toHaveLength(3);
-    expect(r.avisos[0]).toContain('«P1»');
-    expect(r.avisos[0]).toContain('40 cm');
-    expect(r.avisos[0]).toContain('5,00 kN/m²');
-    expect(r.avisos[1]).toContain('«P2»');
-    expect(r.avisos[1]).toContain('3.1.1-3');
+    // Fuera de la tabla no hay peso propio que dar: se exige teclearlo y no
+    // se pinta un número con el sello de la norma.
+    expect(r.errores).toHaveLength(1);
+    expect(r.errores[0]).toContain('«P1»');
+    expect(r.errores[0]).toContain('40 cm');
+    expect(r.errores[0]).not.toContain('5,00');
+    expect(r.plantas[0].zonas[0].forjado).toMatchObject({ pp: 0, ppOrigen: 'sinDato', fueraDeTabla: true });
+    expect(r.avisos).toHaveLength(2);
+    expect(r.avisos[0]).toContain('«P2»');
+    expect(r.avisos[0]).toContain('3.1.1-3');
     expect(r.plantas[1].zonas[0].uso.qUso).toBe(5);
-    expect(r.avisos[2]).toContain('«P3»');
-    expect(r.avisos[2]).toContain('2.1-3');
-    expect(r.plantas[0].zonas[0].forjado).toMatchObject({ pp: 5, fueraDeTabla: true });
+    expect(r.avisos[1]).toContain('«P3»');
+    expect(r.avisos[1]).toContain('2.1-3');
   });
 
   it('errores: sin plantas, sin zonas, sin peso propio, canto nulo, uso adoptado sin valor, negativos, inclinación', () => {

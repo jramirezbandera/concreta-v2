@@ -165,6 +165,22 @@ describe('Cargas por planta — la tabla', () => {
     expect(await screen.findByText('Corrija los errores antes de exportar')).toBeInTheDocument();
     expect(screen.queryByLabelText('Título del elemento')).not.toBeInTheDocument();
   });
+
+  it('un canto que la tabla C.5 no cubre tampoco da peso propio: se pide, y G y qd quedan en hueco', () => {
+    montar();
+    const fila = filaDe('Planta Baja');
+    // El reticular arranca a 30 cm, dentro de la tabla; a 40 se sale de ella.
+    expect(within(fila).getByText('tabla C.5')).toBeInTheDocument();
+    fireEvent.change(within(fila).getByLabelText('Canto del forjado de Planta Baja'), { target: { value: '40' } });
+
+    expect(screen.getByText(/«Planta Baja»: la tabla C.5 no llega a un canto de 40 cm/)).toBeInTheDocument();
+    expect(screen.getByText(/^· sin publicar$/)).toBeInTheDocument();
+    // Ni número con el sello de la norma encima, ni G y qd calculados con él.
+    expect(within(fila).queryByText('tabla C.5')).not.toBeInTheDocument();
+    expect(within(fila).getByText('tecléelo')).toBeInTheDocument();
+    expect(within(fila).getByTitle('Carga permanente total')).toHaveTextContent('—');
+    expect(within(fila).getByTitle('Gd + Qd')).toHaveTextContent('—');
+  });
 });
 
 describe('Cargas por planta — la ficha de la fila', () => {
