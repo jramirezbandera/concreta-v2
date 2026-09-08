@@ -1,11 +1,17 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Versión de la app (package.json) para el campo `app` de los ficheros de
+// proyecto: sirve para saber qué build escribió un .concreta.json.
+const versionApp = (JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string }).version;
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(versionApp) },
   base: '/',
   // Web Workers en módulo ES (Vite 8 nativo) — lo usa el worker de Pyodide del
   // módulo de taludes (geotech/pyslope.worker.ts), primer worker del repo.
@@ -56,9 +62,23 @@ export default defineConfig({
             // que es la puerta que decidió usar la librería en vez de escribir el
             // OOXML a mano. A DIFERENCIA de ai-vendor, este chunk SÍ se precachea:
             // ver el comentario de globIgnores más abajo.
+            // `pako` (deflate) lo comparten la cadena de `docx` (vía jszip) y
+            // `pdf-lib`. En su propio chunk, cada uno de los dos vendors lo importa
+            // sin arrastrar al otro: generar el anejo no descarga la librería de Word.
+            {
+              name: "pako",
+              test: /node_modules[\\/]pako[\\/]/,
+            },
             {
               name: "docx-vendor",
-              test: /node_modules[\\/](docx|jszip|pako|xml|xml-js|sax|nanoid|hash\.js|lie|setimmediate)[\\/]/,
+              test: /node_modules[\\/](docx|jszip|xml|xml-js|sax|nanoid|hash\.js|lie|setimmediate)[\\/]/,
+            },
+            // `pdf-lib`, sólo alcanzable por los `import()` de src/lib/anejo/concatenar.ts
+            // (concatenar el anejo, contar páginas, repintar pies). Precacheado como
+            // docx-vendor: el anejo se genera sin red.
+            {
+              name: "pdf-lib-vendor",
+              test: /node_modules[\\/](pdf-lib|@pdf-lib)[\\/]/,
             },
           ],
         },
