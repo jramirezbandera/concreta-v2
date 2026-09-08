@@ -39,11 +39,12 @@ import {
   type SlopeInputs,
   type RockfillWallInputs,
 } from './defaults';
+import { CLAVES_PROYECTO } from './proyectoKeys';
 
 export type ModuleInputs = RCBeamInputs | RCColumnInputs | SteelBeamInputs | SteelColumnInputs | FootingInputs | RetainingWallInputs | PunchingInputs | PileCapInputs | IsolatedFootingInputs | EmpresalladoInputs | MasonryWallsInputs | TimberBeamInputs | TimberColumnInputs | ForjadosInputs | AnchorPlateInputs | FemAnalysisInputs | MicropilesInputs | SlopeInputs | RockfillWallInputs;
 
 export interface ModuleEntry<T = ModuleInputs> {
-  key: string;       // localStorage key: 'concreta-rc-beams'
+  key: string;       // id de ruta/rótulo ('concreta-rc-beams'). NO es la clave de localStorage: ver src/data/proyectoKeys.ts
   route: string;     // URL route: '/horm/vigas'
   label: string;     // nav label: 'Vigas'
   group: string;     // nav group: 'Hormigón'
@@ -286,35 +287,23 @@ export const moduleRegistry: ModuleEntry[] = [
   },
 ] as const;
 
-// Per-module schema versions. Keys MUST match the literal passed to
-// useModuleState() in each module's index.tsx (NOT the registry `key` field).
-// Bump a single entry to wipe ONLY that module's localStorage on next load
-// (the rest preserve user state). Replaces the prior global SCHEMA_VERSION.
-export const MODULE_SCHEMA_VERSIONS: Record<string, string> = {
-  'rc-beams': '1',
-  'rc-columns': '1',
-  'steel-beams': '1',
-  'steel-columns': '1',
-  'isolated-footing': '2', // bumped: rewrite (sigma_adm input + single load set + distribution classification)
-  'retaining-wall': '2', // bumped 2026-07-13: cover m→mm (saneamiento pre-IA; estados antiguos en m se descartan)
-  'punching': '2', // bumped 2026-06-09: modo cruceta recortado a "compañero de hand-calc" (~14 inputs eliminados)
-  'forjados': '1',
-  'composite-section': '1',
-  'pile-cap': '1',
-  'micropiles': '9',          // v9 (2026-06-02): recubrimiento r auto (coverManualOverride → d_struct=Dn). v8: pandeo CR auto-calculado (crManualOverride) + Cu por estrato granular. v7: groutType (lechada/mortero) para recubrimiento mínimo Tabla 2.3 Guía Fomento. v6: tubo personalizado. v5: drillDiameter en mm. v4: cota→profundidad positiva.
-  'empresillado': '1',
-  'masonry-walls': '1',
-  'timber-beams': '1',
-  'timber-columns': '1',
-  'anchor-plate': '1',
-  'fem-2d': '1',
-  'fem2d': '2', // bumped 2026-07-18: editor libre — el blob pasa de Fem2DUiState paramétrico al Fem2DModel completo
-  'slope-stability': '2', // bumped Phase 2 (2026-06-24): SlopeInputs ganó `context` (excavation|global-foundation); el bump descarta el localStorage de Phase 1 en la próxima carga.
-  'rockfill-wall': '1',
-};
+// Versiones de esquema por módulo, DERIVADAS de la tabla única
+// (src/data/proyectoKeys.ts) y keyeadas por `idEsquema` y por nada más: es el
+// literal que cada módulo pasa a useModuleState() o a getModuleSchemaVersion(),
+// y en cinco módulos no coincide ni con `moduleRegistry.key` ni con la clave de
+// localStorage. Para subir una versión: `versionViva` en la tabla, y la copia
+// congelada de src/test/obra/proyectoKeys.test.ts. Subirla descarta en la
+// próxima carga SÓLO lo guardado por ese módulo.
+export const MODULE_SCHEMA_VERSIONS: Record<string, string> = Object.fromEntries(
+  CLAVES_PROYECTO.flatMap((e) => (e.idEsquema === null ? [] : [[e.idEsquema, e.versionViva] as const])),
+);
 
 export function getModuleSchemaVersion(moduleKey: string): string {
-  return MODULE_SCHEMA_VERSIONS[moduleKey] ?? '1';
+  const v = MODULE_SCHEMA_VERSIONS[moduleKey];
+  // Sin fallback a '1': con él, un id mal escrito reseteaba en silencio los seis
+  // módulos con versión ≠ '1' para todos los usuarios el día del despliegue.
+  if (v === undefined) throw new Error(`moduleRegistry: '${moduleKey}' no está en proyectoKeys.ts (idEsquema)`);
+  return v;
 }
 
 export function getModuleByRoute(route: string): ModuleEntry | undefined {
