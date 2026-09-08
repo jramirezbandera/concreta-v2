@@ -646,7 +646,7 @@ function HiladasView({ inp, result, mode, width, height }: Required<RockfillWall
       {/* Límite 1.0 */}
       <line x1={ux(1)} y1={crownY - 4} x2={ux(1)} y2={zy(g.H)} stroke={P.fail} strokeWidth={0.9} strokeDasharray="4 3" />
       <text x={ux(1)} y={crownY - 8} fontSize={9.5} fill={P.fail} textAnchor="middle"
-        fontFamily="ui-monospace, 'Geist Mono', monospace">1.0</text>
+        fontFamily="ui-monospace, 'Geist Mono', monospace">{dec(1, 1)}</text>
       {[0, 0.5].map((t) => (
         <g key={`tick-${t}`}>
           <line x1={ux(t)} y1={zy(g.H)} x2={ux(t)} y2={zy(g.H) + 4} stroke={P.dim} strokeWidth={0.7} />

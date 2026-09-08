@@ -140,7 +140,7 @@ export function CompositeSectionResults({ result }: Props) {
         )}
       </div>
       <ValueRow label={resultLabel('fy_steel')} value={`${result.fy_MPa} MPa`} />
-      <ValueRow label={resultLabel('gamma_M0')} value="1.05" />
+      <ValueRow label={resultLabel('gamma_M0')} value="1,05" />
 
       {isClass4 && (
         <p className="text-[10px] text-state-fail mt-2">
@@ -154,7 +154,7 @@ export function CompositeSectionResults({ result }: Props) {
           <GroupHeader label="Compresión / Pandeo" />
           <div className="flex items-center justify-between py-0.75">
             <span className="text-[11px] font-mono text-text-disabled">
-              Clase en compresión: {result.sectionClassCompression ?? '—'} · curva c (α=0.49)
+              Clase en compresión: {result.sectionClassCompression ?? '—'} · curva c (α=0,49)
             </span>
           </div>
           {result.compChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}

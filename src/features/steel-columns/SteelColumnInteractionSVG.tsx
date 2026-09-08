@@ -16,7 +16,7 @@ import {
   type SteelInteraction,
   buildSteelInteractionPolygon,
 } from '../../lib/calculations/steelColumns';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 interface SteelColumnInteractionSVGProps {
@@ -96,7 +96,7 @@ export function SteelColumnInteractionSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Contorno de interacción biaxial My-Mz: My_Ed=${mTxt(applied.My)}, Mz_Ed=${mTxt(applied.Mz)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(eta) ? eta.toFixed(2) : '∞'}`}
+      aria-label={`Contorno de interacción biaxial My-Mz: My_Ed=${mTxt(applied.My)}, Mz_Ed=${mTxt(applied.Mz)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(eta) ? dec(eta, 2) : '∞'}`}
       style={{ background: C.bg, display: 'block' }}
     >
       {/* Título */}
@@ -106,7 +106,7 @@ export function SteelColumnInteractionSVG({
       </text>
       <text x={width - padRight} y={14} fill={inside ? C.ok : C.fail} fontSize="10"
         fontWeight="600" fontFamily="var(--font-mono)" textAnchor="end">
-        η = {isFinite(eta) ? eta.toFixed(2) : '∞'}
+        η = {isFinite(eta) ? dec(eta, 2) : '∞'}
       </text>
 
       {/* Ejes */}

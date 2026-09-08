@@ -622,7 +622,7 @@ export function MasonryWallsSVG({
         <line x1={ox} y1={cimY + 28} x2={ox} y2={cimY + 36} stroke={cDim} strokeWidth="0.6" />
         <line x1={ox + muroW} y1={cimY + 28} x2={ox + muroW} y2={cimY + 36} stroke={cDim} strokeWidth="0.6" />
         <text x={ox + muroW / 2} y={cimY + 44} textAnchor="middle" fill={cDimText} fontSize="9" fontFamily={monoFamily}>
-          L = {(state.L / 1000).toFixed(2)} m  ·  t = {(state.t / 10).toFixed(1)} cm
+          L = {dec((state.L / 1000), 2)} m  ·  t = {dec((state.t / 10), 1)} cm
         </text>
       </svg>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   type CompositeSectionInputs,
   type CompositeSectionMode,
@@ -13,6 +13,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { IconGridSelector } from '../../components/ui/IconGridSelector';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { BC_OPTIONS } from '../steel-columns/columnBCOptions';
 import { dec } from '../../lib/units/format';
 
@@ -41,33 +42,19 @@ function NumField({
   onChange: (v: number) => void;
   id: string;
 }) {
-  const [local, setLocal] = useState(() => String(value));
-  useEffect(() => { setLocal(String(value)); }, [value]);
+  // La caja es el primitivo compartido: este panel tenía una copia suya, y la
+  // copia escribía `String(value)` —con el punto de JavaScript— y leía con
+  // `parseFloat`, que se para en la coma. El primitivo hace las dos cosas bien.
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel htmlFor={id} label={label} help={help} />
-      <div className="flex shrink-0">
-        <input
-          id={id}
-          type="text"
-          inputMode="decimal"
-          value={local}
-          onChange={(e) => {
-            setLocal(e.target.value);
-            const n = parseFloat(e.target.value);
-            if (!isNaN(n)) onChange(n);
-          }}
-          onBlur={() => {
-            const n = parseFloat(local);
-            if (isNaN(n)) setLocal(String(value));
-          }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
-          aria-label={`${label} (${unit})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
-        </span>
-      </div>
+      <RawNumberInput
+        id={id}
+        value={value}
+        onChange={onChange}
+        unit={unit}
+        ariaLabel={`${label} (${unit})`}
+      />
     </div>
   );
 }

@@ -19,7 +19,7 @@ import {
   type OverallStatus,
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
-import { dec, formatQuantity } from '../../lib/units/format';
+import { conComaDecimal, dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface Props {
@@ -198,7 +198,7 @@ export function MasonryWallsResults({
 
       <div className="px-4 py-3 text-[10px] font-mono text-text-disabled leading-relaxed">
         ELU: q<sub>d</sub> = γ<sub>G</sub>·G<sub>k</sub> + γ<sub>Q</sub>·Q<sub>k</sub> · DB-SE §4.2.4<br />
-        γ<sub>G</sub>={state.gamma_G} · γ<sub>Q</sub>={state.gamma_Q} · γ<sub>M</sub>={state.gamma_M} · §4.6.7<br />
+        γ<sub>G</sub>={conComaDecimal(String(state.gamma_G))} · γ<sub>Q</sub>={conComaDecimal(String(state.gamma_Q))} · γ<sub>M</sub>={conComaDecimal(String(state.gamma_M))} · §4.6.7<br />
         Φ = Φ_m·Φ_λ — comprobación en cabeza y pie del machón<br />
         k = 1/H_inf / (1/H_inf + 1/H_sup)
       </div>

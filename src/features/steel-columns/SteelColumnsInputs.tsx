@@ -7,6 +7,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { IconGridSelector } from '../../components/ui/IconGridSelector';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { dec } from '../../lib/units/format';
 import { BC_OPTIONS } from './columnBCOptions';
 
 interface SteelColumnsInputsProps {
@@ -62,7 +63,7 @@ function BetaAutoRow({ label, value }: { label: string; value: number }) {
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <span className="text-[13px] text-text-secondary whitespace-nowrap shrink-0">{label}</span>
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className="font-mono text-[12px] text-text-primary tabular-nums">{value.toFixed(2)}</span>
+        <span className="font-mono text-[12px] text-text-primary tabular-nums">{dec(value, 2)}</span>
         <span className="bg-bg-elevated text-text-disabled font-mono text-[10px] px-1 py-0.5 rounded">auto</span>
       </div>
     </div>
