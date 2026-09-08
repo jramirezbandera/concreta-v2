@@ -32,23 +32,23 @@ describe("units / format — labels and precision per system", () => {
 
 describe("units / format — formatQuantity", () => {
   it("formats with unit suffix by default", () => {
-    expect(formatQuantity(80, "force", "si")).toBe("80.00 kN");
-    expect(formatQuantity(80, "force", "tecnico")).toBe("8.16 Tn");
+    expect(formatQuantity(80, "force", "si")).toBe("80,00 kN");
+    expect(formatQuantity(80, "force", "tecnico")).toBe("8,16 Tn");
   });
   it("respects precision override", () => {
     expect(formatQuantity(80, "force", "si", { precision: 0 })).toBe("80 kN");
     expect(
       formatQuantity(80, "force", "tecnico", { precision: 4 })
-    ).toBe("8.1577 Tn");
+    ).toBe("8,1577 Tn");
   });
   it("withUnit:false returns numeric only", () => {
     expect(formatQuantity(80, "force", "si", { withUnit: false })).toBe(
-      "80.00"
+      "80,00"
     );
   });
   it("formatNumber is shorthand for withUnit:false", () => {
-    expect(formatNumber(80, "force", "si")).toBe("80.00");
-    expect(formatNumber(80, "force", "tecnico", 1)).toBe("8.2");
+    expect(formatNumber(80, "force", "si")).toBe("80,00");
+    expect(formatNumber(80, "force", "tecnico", 1)).toBe("8,2");
   });
 });
 
@@ -71,7 +71,7 @@ describe("units / format — non-finite handling", () => {
 describe("units / format — no thousands separator", () => {
   it("large numbers do not get commas", () => {
     expect(formatQuantity(1234567.89, "force", "si", { precision: 1 })).toBe(
-      "1234567.9 kN"
+      "1234567,9 kN"
     );
   });
 });

@@ -73,7 +73,7 @@ describe('loadGeometry — carga de magnitud nula', () => {
     expect(g.tail0.y).toBeCloseTo(-16, 6);
     // Etiqueta a 24 px del eje (una sola capa), con el valor formateado.
     expect(g.label.y).toBeCloseTo(-26, 6);
-    expect(g.text).toBe('10.00 kN/m');
+    expect(g.text).toBe('10,00 kN/m');
   });
 });
 

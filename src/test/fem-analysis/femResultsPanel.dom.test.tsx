@@ -110,7 +110,7 @@ describe('FEM 1D — resumen del modelo', () => {
     // El valor sale formateado por el sistema de unidades: si la fila viniera
     // del resumen `BarResult.checks` saldría el número desnudo, sin unidad.
     expect(screen.getByText('Comprobación flexion')).toBeInTheDocument();
-    expect(screen.getByText('120.00 kNm')).toBeInTheDocument();
+    expect(screen.getByText('120,00 kNm')).toBeInTheDocument();
   });
 
   it('la ficha de una barra se abre desde su icono, no desplegándola', () => {
@@ -138,7 +138,7 @@ describe('FEM 1D — resumen del modelo', () => {
     renderPanel();
     const reacciones = screen.getByText('Reacciones').closest('p')!;
     expect(within(reacciones).getByText('ELU')).toBeInTheDocument();
-    expect(screen.getByText('Ry=42.00 kN')).toBeInTheDocument();
+    expect(screen.getByText('Ry=42,00 kN')).toBeInTheDocument();
     expect(screen.getByText('Normativa')).toBeInTheDocument();
     expect(screen.getByText('CTE DB-SE-A · CE Anejo 22')).toBeInTheDocument();
   });

@@ -2,6 +2,7 @@ export type { Quantity, QuantitySpec, UnitSystem } from "./types";
 export { CATALOG } from "./catalog";
 export { toDisplay, fromDisplay } from "./convert";
 export {
+  conComaDecimal,
   formatNumber,
   formatQuantity,
   getPrecision,

@@ -23,7 +23,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { fromDisplay, toDisplay } from '../../lib/units/convert';
-import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import { conComaDecimal, getPrecision, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
@@ -232,7 +232,8 @@ export function InlineEdit({
 
 function formatDraft(value: number, decimals: number): string {
   if (!Number.isFinite(value)) return '0';
-  return value.toFixed(decimals);
+  // Coma decimal, como el resto de la app; `parseLocaleNumber` la acepta.
+  return conComaDecimal(value.toFixed(decimals));
 }
 
 /**

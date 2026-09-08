@@ -41,16 +41,20 @@ interface Props {
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
-/** Lo que se le pone al desplegable detrás del nombre: la carga con la que arranca. */
-function sufijoCatalogo(c: (typeof CATALOGO_LINEALES)[number]): string {
-  if (c.valor !== null) return ` (${dec(c.valor, 1)} kN/m)`;
-  if (c.alzado !== null && c.altura !== null && c.alzado > 0) return ` (${dec(c.alzado * c.altura, 1)} kN/m a ${dec(c.altura, 2)} m)`;
+/**
+ * Lo que se le pone al desplegable detrás del nombre: la carga con la que
+ * arranca, en las unidades en que se va a ver en la tabla.
+ */
+function sufijoCatalogo(c: (typeof CATALOGO_LINEALES)[number], mostrar: (v: number) => string, uL: string): string {
+  if (c.valor !== null) return ` (${mostrar(c.valor)} ${uL})`;
+  if (c.alzado !== null && c.altura !== null && c.alzado > 0) return ` (${mostrar(c.alzado * c.altura)} ${uL} a ${dec(c.altura, 2)} m)`;
   return '';
 }
 
 export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBorrar }: Props) {
   const { system } = useUnitSystem();
   const uL = getUnitLabel('linearLoad', system);
+  const uQ = getUnitLabel('areaLoad', system);
   const mostrar = (v: number) => dec(toDisplay(v, 'linearLoad', system), getPrecision('linearLoad', system));
   const porId = new Map(resultado.filter((l) => l.id).map((l) => [l.id as string, l]));
 
@@ -87,10 +91,10 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
             <tr>
               <th className={TH}>Elemento</th>
               <th className={TH_NUM} title="Lo que pesa un metro cuadrado de muro">
-                Alzado (kN/m²)
+                Alzado ({uQ})
               </th>
               <th className={TH_NUM}>Altura (m)</th>
-              <th className={TH_NUM}>Carga (kN/m)</th>
+              <th className={TH_NUM}>Carga ({uL})</th>
               <th className={TH_DER} title="1,35 · gk">
                 Gd ({uL})
               </th>
@@ -111,7 +115,7 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
                   <td className="px-2 py-1.5">
                     {esMuro ? (
                       <span className={CAJA_DER}>
-                        <RawNumberInput value={l.alzado ?? 0} onChange={(alzado) => onLineal(l.id, { alzado })} ariaLabel={`Peso por metro cuadrado de alzado de ${nombre}`} min={0} precision={2} widthClass="w-16" hideUnit />
+                        <RawNumberInput value={l.alzado ?? 0} onChange={(alzado) => onLineal(l.id, { alzado })} ariaLabel={`Peso por metro cuadrado de alzado de ${nombre} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-16" hideUnit />
                       </span>
                     ) : (
                       <div className={`${TD_DER} text-text-disabled`}>—</div>
@@ -130,10 +134,10 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
                     {esMuro ? (
                       // Derivado: alzado por altura. Va en acento, que es como
                       // el módulo dice «esto lo pone la app, no se teclea».
-                      <div className={`${TD_DER} text-accent`}>{r ? dec(r.gk, 2) : '—'}</div>
+                      <div className={`${TD_DER} text-accent`}>{r ? mostrar(r.gk) : '—'}</div>
                     ) : (
                       <span className={CAJA_DER}>
-                        <RawNumberInput value={l.valor} onChange={(valor) => onLineal(l.id, { valor })} ariaLabel={`Carga de ${nombre}`} min={0} widthClass="w-16" hideUnit />
+                        <RawNumberInput value={l.valor} onChange={(valor) => onLineal(l.id, { valor })} ariaLabel={`Carga de ${nombre} (${uL})`} quantity="linearLoad" min={0} widthClass="w-16" hideUnit />
                       </span>
                     )}
                   </td>
@@ -156,7 +160,7 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
           {CATALOGO_LINEALES.map((c) => (
             <option key={c.id} value={c.id}>
               {c.etiqueta}
-              {sufijoCatalogo(c)}
+              {sufijoCatalogo(c, mostrar, uL)}
             </option>
           ))}
         </select>

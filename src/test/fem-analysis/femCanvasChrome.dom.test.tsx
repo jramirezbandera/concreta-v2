@@ -109,7 +109,7 @@ describe('FEM 1D — familia de cargas en la paleta', () => {
     renderModule();
     fireEvent.click(screen.getByRole('button', { name: 'Cargas' }));
     // Arranca con el valor que el lienzo ponía a fuego (15 kN/m en la UDL).
-    expect(loadValue()).toBe('15.00');
+    expect(loadValue()).toBe('15,00');
     // La categoría de uso solo aparece cuando la hipótesis es variable.
     expect(screen.queryByLabelText('Categoría')).toBeNull();
     fireEvent.change(screen.getByLabelText('Hipótesis'), { target: { value: 'Q' } });
@@ -122,7 +122,7 @@ describe('FEM 1D — familia de cargas en la paleta', () => {
     expect(screen.getByText('por metro de barra')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: /Puntual/ }));
     expect(screen.queryByText('por metro de barra')).toBeNull();
-    expect(loadValue()).toBe('10.00');
+    expect(loadValue()).toBe('10,00');
   });
 });
 

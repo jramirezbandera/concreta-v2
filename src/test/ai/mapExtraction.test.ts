@@ -190,7 +190,7 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
       field: 'useCategory', before: catLabel('A1'), after: catLabel('C1'), value: 'C1',
     });
     expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({
-      field: 'qk', before: '2.00 kN/m²', after: '3.00 kN/m²', value: 3,
+      field: 'qk', before: '2,00 kN/m²', after: '3,00 kN/m²', value: 3,
     });
     expect(p.warnings).toEqual([]);
     // El mapper resolvió el qk (aunque el LLM no lo dio): no va a notFound.
@@ -216,7 +216,7 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     expect(changeFor(p, 'Categoría de uso')).toMatchObject({
       after: catLabel('custom'), value: 'custom',
     });
-    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '4.50 kN/m²', value: 4.5 });
+    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '4,50 kN/m²', value: 4.5 });
     expect(p.warnings).toHaveLength(1);
     expect(p.warnings[0]).toMatch(/no coincide/);
     expect(p.warnings[0]).toMatch(/personalizada/);
@@ -225,7 +225,7 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
   it("useCategory 'C1' + qk 3.01 (coincidente ±0.01) → categoría C1 con su qk CANÓNICO (3.0, no 3.01), sin warning", () => {
     const p = plan({ useCategory: 'C1', qk_kNm2: 3.01 });
     expect(p.fields).toEqual({ useCategory: 'C1', qk: 3 });
-    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3.00 kN/m²', value: 3 });
+    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3,00 kN/m²', value: 3 });
     expect(p.warnings).toEqual([]);
   });
 
@@ -247,7 +247,7 @@ describe('buildApplyPlan — useCategory / qk (regla 4)', () => {
     expect(skipFor(p, 'Sobrecarga qk')!.reason).toMatch(/fuera del rango/);
     // …pero la categoría se aplica con su qk canónico (como si el LLM no hubiera dado qk).
     expect(p.fields).toEqual({ useCategory: 'C1', qk: 3 });
-    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3.00 kN/m²', value: 3 });
+    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '3,00 kN/m²', value: 3 });
   });
 
   it("useCategory 'A1' (igual al current, con qk canónico = current.qk) → ambos skipped \"Ya coincide\"", () => {
@@ -271,7 +271,7 @@ describe('buildApplyPlan — guardarraíl de envolvente qk (contrato de cargas)'
   it("G1 + qk 0.20 (nieve sobre la sobrecarga de mantenimiento) → G1 con su qk 1.0; el 0.20 NUNCA se aplica", () => {
     const p = plan({ useCategory: 'G1', qk_kNm2: 0.2 });
     expect(p.fields).toEqual({ useCategory: 'G1', qk: 1 });
-    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '1.00 kN/m²', value: 1 });
+    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '1,00 kN/m²', value: 1 });
     // NO cae en la rama "categoría + qk distinto → personalizada" (esa aplicaba el 0.20):
     expect(p.fields.useCategory).not.toBe('custom');
     const aviso = p.warnings.find((w) => w.startsWith('Aviso de seguridad:'));
@@ -296,7 +296,7 @@ describe('buildApplyPlan — guardarraíl de envolvente qk (contrato de cargas)'
     const current: SteelBeamInputs = { ...steelBeamDefaults, useCategory: 'custom', qk: 1 };
     const p = withCurrent({ qk_kNm2: 0.2 }, current);
     expect(p.fields).toEqual({ qk: 0.2 });
-    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '0.20 kN/m²', value: 0.2 });
+    expect(changeFor(p, 'Sobrecarga qk')).toMatchObject({ after: '0,20 kN/m²', value: 0.2 });
     expect(p.warnings).toEqual([]);
   });
 
@@ -431,7 +431,7 @@ describe('buildApplyPlan — formato y redondeos (reglas 1 y 8)', () => {
     const p = plan({ gk_kNm2: 2.456 });
     expect(p.fields).toEqual({ gk: 2.46 });
     expect(changeFor(p, 'Carga permanente gk')).toMatchObject({
-      field: 'gk', before: '1.00 kN/m²', after: '2.46 kN/m²', value: 2.46,
+      field: 'gk', before: '1,00 kN/m²', after: '2,46 kN/m²', value: 2.46,
     });
   });
 
@@ -517,7 +517,7 @@ describe('buildApplyPlan — guardarraíles de seguridad (plan.risks)', () => {
     expect(p.warnings.some((w) => w.startsWith('Aviso de seguridad:'))).toBe(false); // …sin rechazo
     expect(p.risks).toHaveLength(1);                                          // …pero marcado
     expect(p.risks[0]).toMatchObject({
-      field: 'qk', label: 'Sobrecarga qk', before: '5.00 kN/m²', after: '1.00 kN/m²',
+      field: 'qk', label: 'Sobrecarga qk', before: '5,00 kN/m²', after: '1,00 kN/m²',
     });
     expect(p.risks[0].why).toMatch(/ENVOLVENTE/);
   });
@@ -529,7 +529,7 @@ describe('buildApplyPlan — guardarraíles de seguridad (plan.risks)', () => {
     expect(p.fields).toEqual({ gk: 2 });
     const change = changeFor(p, 'Carga permanente gk')!;
     expect(change).toMatchObject({
-      field: 'gk', before: '4.00 kN/m²', after: '2.00 kN/m²', value: 2,
+      field: 'gk', before: '4,00 kN/m²', after: '2,00 kN/m²', value: 2,
     });
 
     expect(p.risks).toHaveLength(1);
@@ -547,7 +547,7 @@ describe('buildApplyPlan — guardarraíles de seguridad (plan.risks)', () => {
     // El cambio se aplica igual…
     expect(p.fields).toEqual({ gk: 0.5 });
     expect(changeFor(p, 'Carga permanente gk')).toMatchObject({
-      before: '1.00 kN/m²', after: '0.50 kN/m²',
+      before: '1,00 kN/m²', after: '0,50 kN/m²',
     });
     // …pero nadie había fijado gk: el usuario está aportando su dato, no debilitando uno establecido.
     expect(p.risks).toEqual([]);

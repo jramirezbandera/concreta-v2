@@ -100,7 +100,7 @@ describe('timberBeams adapter — cargas lineales kN/m', () => {
   it('aplica gk/qk en kN/m sin conversión', () => {
     const p = plan({ gk_kNm: 4.5, qk_kNm: 2 });
     expect(p.fields).toMatchObject({ gk: 4.5, qk: 2 });
-    expect(changeFor(p, 'Carga permanente gk')?.after).toContain('4.5');
+    expect(changeFor(p, 'Carga permanente gk')?.after).toContain('4,5');
   });
 
   it('carga negativa → skip (el motor la rechaza)', () => {

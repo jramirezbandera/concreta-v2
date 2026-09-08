@@ -18,17 +18,17 @@ const render = (ui: React.ReactElement, options?: RenderOptions) =>
 describe('InlineEdit — display mode', () => {
   it('renders the value with default 2 decimals', () => {
     render(<InlineEdit value={5} onCommit={() => {}} />);
-    expect(screen.getByRole('button')).toHaveTextContent('5.00');
+    expect(screen.getByRole('button')).toHaveTextContent('5,00');
   });
 
   it('respects decimals prop', () => {
     render(<InlineEdit value={3.14159} decimals={3} onCommit={() => {}} />);
-    expect(screen.getByRole('button')).toHaveTextContent('3.142');
+    expect(screen.getByRole('button')).toHaveTextContent('3,142');
   });
 
   it('renders unit suffix when provided', () => {
     render(<InlineEdit value={6} unit="m" onCommit={() => {}} />);
-    expect(screen.getByRole('button')).toHaveTextContent('6.00m');
+    expect(screen.getByRole('button')).toHaveTextContent('6,00m');
   });
 
   it('disabled mode does not respond to click', () => {
@@ -79,7 +79,7 @@ describe('InlineEdit — cancel on escape', () => {
     fireEvent.change(input, { target: { value: '99' } });
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onCommit).not.toHaveBeenCalled();
-    expect(screen.getByRole('button')).toHaveTextContent('5.00');
+    expect(screen.getByRole('button')).toHaveTextContent('5,00');
   });
 });
 
@@ -102,7 +102,7 @@ describe('InlineEdit — locale number parsing', () => {
     fireEvent.change(input, { target: { value: 'abc' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onCommit).not.toHaveBeenCalled();
-    expect(screen.getByRole('button')).toHaveTextContent('5.00');
+    expect(screen.getByRole('button')).toHaveTextContent('5,00');
   });
 
   it('rejects empty input → reverts', () => {

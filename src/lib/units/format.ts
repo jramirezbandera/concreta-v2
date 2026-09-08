@@ -12,6 +12,22 @@ export function getPrecision(quantity: Quantity, system: UnitSystem): number {
   return system === "si" ? spec.precisionSi : spec.precisionTecnico;
 }
 
+/**
+ * La coma decimal, que es la que se escribe en español.
+ *
+ * `toFixed` da siempre el punto de JavaScript, y los lienzos y las tablas que
+ * formatean por su cuenta (`dec` en components/canvas/paleta) llevan coma desde
+ * el principio. El resultado era una fila de Cargas por planta con «5.00» en la
+ * caja y «7,50» tres columnas más allá, los dos números de la misma cuenta.
+ * Aquí se decide una vez y vale para pantalla, lienzos y PDF.
+ *
+ * El camino de vuelta ya la aceptaba: `parseQuantity` normaliza la coma antes
+ * de leer, igual que `parseLocaleNumber` de InlineEdit.
+ */
+export function conComaDecimal(texto: string): string {
+  return texto.replace(".", ",");
+}
+
 export function formatQuantity(
   valueSi: number,
   quantity: Quantity,
@@ -25,7 +41,7 @@ export function formatQuantity(
   const display = toDisplay(valueSi, quantity, system);
   const precision = options?.precision ?? getPrecision(quantity, system);
   const withUnit = options?.withUnit ?? true;
-  const num = display.toFixed(precision);
+  const num = conComaDecimal(display.toFixed(precision));
   if (!withUnit) return num;
   return `${num} ${getUnitLabel(quantity, system)}`;
 }

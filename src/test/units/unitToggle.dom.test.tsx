@@ -22,13 +22,13 @@ describe('InlineEdit — unit toggle integration', () => {
   it('SI default: muestra value en N/mm² para stress', () => {
     renderInProvider(<InlineEdit value={5} quantity="stress" onCommit={() => {}} />);
     // CATALOG.stress.siUnit = 'N/mm²', precisionSi = 1
-    expect(screen.getByRole('button').textContent).toContain('5.0');
+    expect(screen.getByRole('button').textContent).toContain('5,0');
     expect(screen.getByRole('button').textContent).toContain('N/mm²');
   });
 
   it('SI default: kN para force', () => {
     renderInProvider(<InlineEdit value={20} quantity="force" onCommit={() => {}} />);
-    expect(screen.getByRole('button').textContent).toContain('20.00');
+    expect(screen.getByRole('button').textContent).toContain('20,00');
     expect(screen.getByRole('button').textContent).toContain('kN');
   });
 
@@ -49,7 +49,7 @@ describe('InlineEdit — unit toggle integration', () => {
 
   it('legacy unit prop (sin quantity) sigue funcionando como antes', () => {
     renderInProvider(<InlineEdit value={42} unit="m" onCommit={() => {}} />);
-    expect(screen.getByRole('button').textContent).toContain('42.00');
+    expect(screen.getByRole('button').textContent).toContain('42,00');
     expect(screen.getByRole('button').textContent).toContain('m');
   });
 

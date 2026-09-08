@@ -23,6 +23,9 @@ import { COLOR, dec, mezcla } from '../../components/canvas/paleta';
 import { Rotulo, Suelo } from '../../components/canvas/primitivas';
 import { useMarcadores } from '../../components/canvas/useMarcadores';
 import type { CargasResultado, LinealResuelto, ZonaCargasResuelta } from '../../lib/acciones/cargas';
+import { toDisplay } from '../../lib/units/convert';
+import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { CotaFila } from './useCotasFilas';
 
 /** Píxeles por kN/m²: con qd = 25 salen 55 px, que caben entre dos filas de 46. */
@@ -54,15 +57,25 @@ const ANCHO_CARACTER = 4.8;
  * asomaba por encima de la cubierta y por debajo de la rasante. Se intenta
  * entero, luego con la primera palabra del concepto, luego sólo el valor.
  */
-function rotuloFachada(concepto: string, gk: number, alto: number): string | null {
+function rotuloFachada(concepto: string, valor: string, alto: number): string | null {
   const cabe = (t: string) => t.length * ANCHO_CARACTER <= alto;
-  const valor = `${dec(gk, 1)} kN/m`;
   const candidatos = [`${concepto} ${valor}`, `${concepto.split(/[ ,(]/)[0]} ${valor}`, valor];
   return candidatos.find(cabe) ?? null;
 }
 
 export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar, width = 228, height = 560 }: Props) {
   const m = useMarcadores();
+  /**
+   * Los rótulos del dibujo van en el sistema del usuario, como los de la tabla
+   * con la que está alineado: la fachada y el peto se leían en kN/m al lado de
+   * una columna Gd en kg/m.
+   */
+  const { system } = useUnitSystem();
+  const uQ = getUnitLabel('areaLoad', system);
+  const uL = getUnitLabel('linearLoad', system);
+  const lineal = (v: number) => dec(toDisplay(v, 'linearLoad', system), getPrecision('linearLoad', system));
+  /** El qd que rotula cada bloque: el mismo número que la columna qd de su fila. */
+  const superficial = (v: number) => dec(toDisplay(v, 'areaLoad', system), getPrecision('areaLoad', system));
 
   // Las zonas en el orden de la tabla, cada una sabiendo de qué planta es.
   const porId = new Map<string, CotaFila>(cotas.map((c) => [c.id, c]));
@@ -108,7 +121,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
   const peto = lineales.find((l) => esPeto(l.concepto));
   const fachada = lineales.find((l) => esFachada(l.concepto));
   const altoFachada = yUltimo + GRUESO_FORJADO - yPrimero;
-  const textoFachada = fachada ? rotuloFachada(fachada.concepto, fachada.gk, altoFachada) : null;
+  const textoFachada = fachada ? rotuloFachada(fachada.concepto, `${lineal(fachada.gk)} ${uL}`, altoFachada) : null;
   const yFachada = (yPrimero + yUltimo + GRUESO_FORJADO) / 2;
 
   const teclado = (id: string) => (ev: KeyboardEvent<SVGGElement>) => {
@@ -187,7 +200,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
                 <rect x={x} y={y - hG - hQ} width={ancho} height={hQ} fill={mezcla(COLOR.accent, 45)} stroke={COLOR.accent} strokeWidth={0.75} />
                 {conNieve && <rect x={x} y={yTop} width={ancho} height={ALTO_NIEVE} fill={m.nieve} stroke={mezcla(COLOR.accent, 50)} strokeWidth={0.5} />}
                 <Rotulo x={x + ancho / 2} y={yTop - 4} tam={9.5} mono color={COLOR.accent} peso={600} ancla="middle">
-                  {dec(z.qd, 2)}
+                  {superficial(z.qd)}
                 </Rotulo>
               </>
             )}
@@ -212,7 +225,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
           <rect x={bx} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
           <rect x={bx + bw - 3} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
           <Rotulo x={bx + bw + 6} y={yPrimero - 3} tam={8} mono color={COLOR.atenuado}>
-            {dec(peto.gk, 1)} kN/m
+            {lineal(peto.gk)} {uL}
           </Rotulo>
         </>
       )}
@@ -242,7 +255,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
           nieve cuando no manda
         </Rotulo>
         <Rotulo x={0} y={48} tam={8.5} mono color={COLOR.atenuado}>
-          alto del bloque ∝ kN/m²
+          alto del bloque ∝ {uQ}
         </Rotulo>
         <Rotulo x={0} y={60} tam={8.5} mono color={COLOR.atenuado}>
           clic en un bloque = su fila

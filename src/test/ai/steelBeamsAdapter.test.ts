@@ -173,7 +173,7 @@ describe('steelBeamsAdapter.buildPlan', () => {
     expect(plan.fields.gk).toBe(2);   // se aplica: los riesgos marcan, no bloquean
     expect(plan.risks).toHaveLength(1);
     expect(plan.risks[0]).toMatchObject({
-      field: 'gk', label: 'Carga permanente gk', before: '4.00 kN/m²', after: '2.00 kN/m²',
+      field: 'gk', label: 'Carga permanente gk', before: '4,00 kN/m²', after: '2,00 kN/m²',
     });
   });
 

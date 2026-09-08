@@ -20,10 +20,11 @@
 import { Trash2 } from 'lucide-react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { CargasResultado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
-import type { CategoriaUso, FamiliaPsi } from '../../lib/acciones/tablasCargas';
+import { DENSIDAD_HORMIGON, type CategoriaUso, type FamiliaPsi } from '../../lib/acciones/tablasCargas';
 import { HIPOTESIS_TEXTO } from '../../lib/acciones/cuadrosCargas';
 import { toDisplay } from '../../lib/units/convert';
 import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES, FAMILIA_PSI_OPCIONES, NIEVE_MODO_OPCIONES, USO_OPCIONES, type NieveModo } from './catalogos';
 import { BOTON_MENOR, INPUT_ANCHO } from './estilos';
@@ -78,7 +79,16 @@ function Casilla({ on, onCambiar, ariaLabel, children }: { on: boolean; onCambia
 export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onPlanta, onBorrarZona, onUsarNieve }: Props) {
   const { system } = useUnitSystem();
   const uQ = getUnitLabel('areaLoad', system);
+  const uL = getUnitLabel('linearLoad', system);
+  const uF = getUnitLabel('force', system);
+  const uD = getUnitLabel('weightDensity', system);
   const mostrar = (v: number) => dec(toDisplay(v, 'areaLoad', system), getPrecision('areaLoad', system));
+  /**
+   * Los valores que la ficha cita de la norma —el incremento de escaleras, el
+   * borde del balcón, la carga concentrada— van en las unidades del usuario
+   * como el resto: escritos a mano se leían en kN al lado de un total en kg.
+   */
+  const mostrarQ = (v: number, q: Quantity) => dec(toDisplay(v, q, system), getPrecision(q, system));
   const cambiarUso = (cambio: Partial<UsoUI>) => onZona({ uso: { ...z.uso, ...cambio } });
 
   const permanentes = z.permanentes.filter((p) => p.valor !== 0 || p.concepto.trim() !== '');
@@ -108,10 +118,10 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
         )}
 
         <Casilla on={z.uso.escalera} onCambiar={(escalera) => cambiarUso({ escalera })} ariaLabel={`Portal, meseta o escalera en ${quien}`}>
-          Es portal, meseta o escalera <span className="text-text-disabled">(+1 kN/m² en viviendas y oficinas)</span>
+          Es portal, meseta o escalera <span className="text-text-disabled">(+{mostrar(1)} {uQ} en viviendas y oficinas)</span>
         </Casilla>
         <Casilla on={z.uso.balcon} onCambiar={(balcon) => cambiarUso({ balcon })} ariaLabel={`Balcón volado en ${quien}`}>
-          Tiene balcones volados <span className="text-text-disabled">(2 kN/m en el borde)</span>
+          Tiene balcones volados <span className="text-text-disabled">({mostrarQ(2, 'linearLoad')} {uL} en el borde)</span>
         </Casilla>
 
         {z.uso.categoria === 'G' && (
@@ -121,7 +131,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               <RawNumberInput value={z.uso.inclinacion} onChange={(inclinacion) => cambiarUso({ inclinacion })} ariaLabel={`Inclinación de la cubierta de ${quien}`} unit="º" min={0} max={89} widthClass="w-14" />
             </label>
             <Casilla on={z.uso.ligera} onCambiar={(ligera) => cambiarUso({ ligera })} ariaLabel={`Cubierta ligera sobre correas en ${quien}`}>
-              Ligera sobre correas, sin forjado <span className="text-text-disabled">(0,4 kN/m²)</span>
+              Ligera sobre correas, sin forjado <span className="text-text-disabled">({mostrar(0.4)} {uQ})</span>
             </Casilla>
           </>
         )}
@@ -143,7 +153,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
           <>
             <label className="flex items-center gap-2">
               <span className="text-[11px] text-text-secondary">Sobrecarga adoptada</span>
-              <RawNumberInput value={z.uso.qkManual} onChange={(qkManual) => cambiarUso({ qkManual })} ariaLabel={`Sobrecarga adoptada en ${quien}`} unit="kN/m²" min={0} widthClass="w-16" />
+              <RawNumberInput value={z.uso.qkManual} onChange={(qkManual) => cambiarUso({ qkManual })} ariaLabel={`Sobrecarga adoptada en ${quien} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-16" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-text-secondary">Coeficientes ψ como…</span>
@@ -179,24 +189,24 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               ))}
             </select>
             {planta.nieve.modo === 'manual' && (
-              <RawNumberInput value={planta.nieve.valor} onChange={(valor) => onPlanta({ nieve: { ...planta.nieve, valor } })} ariaLabel={`Nieve tecleada en ${planta.nombre || 'la cubierta'}`} unit="kN/m²" min={0} widthClass="w-20" />
+              <RawNumberInput value={planta.nieve.valor} onChange={(valor) => onPlanta({ nieve: { ...planta.nieve, valor } })} ariaLabel={`Nieve tecleada en ${planta.nombre || 'la cubierta'} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-20" />
             )}
             {planta.nieve.modo === 'publicada' && nievePub && nievePub.faldones.length > 1 && (
               <select value={planta.nieve.faldon ?? ''} aria-label={`Faldón de la nieve publicada en ${planta.nombre || 'la cubierta'}`} className={INPUT_ANCHO} onChange={(ev) => onUsarNieve(ev.target.value === '' ? null : ev.target.value)}>
-                <option value="">El máximo ({dec(nievePub.qnMax, 2)} kN/m²)</option>
+                <option value="">El máximo ({mostrar(nievePub.qnMax)} {uQ})</option>
                 {nievePub.faldones.map((f) => (
                   <option key={f.nombre} value={f.nombre}>
-                    {f.nombre} ({dec(f.qn, 2)} kN/m²)
+                    {f.nombre} ({mostrar(f.qn)} {uQ})
                   </option>
                 ))}
               </select>
             )}
             {planta.nieve.modo === 'publicada' && (
-              <span className="font-mono text-[11.5px] text-accent">qn = {dec(planta.nieve.valor, 2)} kN/m²</span>
+              <span className="font-mono text-[11.5px] text-accent">qn = {mostrar(planta.nieve.valor)} {uQ}</span>
             )}
             {nievePub && planta.nieve.modo !== 'manual' && (
               <button type="button" onClick={() => onUsarNieve(planta.nieve.faldon)} className={BOTON_MENOR + ' self-start'} title="Volver a tomar la nieve del sobre de Viento y nieve">
-                Usar la nieve publicada ({dec(nievePub.qnMax, 2)} kN/m²)
+                Usar la nieve publicada ({mostrar(nievePub.qnMax)} {uQ})
               </button>
             )}
           </div>
@@ -217,8 +227,14 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
                 </button>
               </>
             ) : r.forjado.ppOrigen === 'densidad' ? (
+              /* Se dice de dónde sale, NO se plantea como una multiplicación:
+                 con el sistema técnico puesto, «25 kN/m³ × 0,30 m = 765 kg/m²»
+                 es falso en pantalla —el producto es 7,5— porque los dos lados
+                 del igual estaban en sistemas distintos. La densidad se cita
+                 con su unidad, que es como la da la tabla C.1. */
               <>
-                25 kN/m³ × {dec(r.forjado.canto / 100, 2)} m = <N>{mostrar(r.forjado.pp)}</N> {uQ} (tabla C.1).
+                Hormigón armado, {mostrarQ(DENSIDAD_HORMIGON, 'weightDensity')} {uD} (tabla C.1), por un canto de{' '}
+                {dec(r.forjado.canto, 0)} cm: <N>{mostrar(r.forjado.pp)}</N> {uQ}.
               </>
             ) : r.forjado.ppOrigen === 'tablaC5' ? (
               <>
@@ -252,8 +268,8 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
           <Bloque titulo="Sobrecarga de uso">
             {r.uso.etiqueta}: <N>{mostrar(r.uso.qUso)}</N> {uQ}
             {r.uso.incrementoEscaleras > 0 ? ` (${mostrar(r.uso.qk)} + ${mostrar(r.uso.incrementoEscaleras)} por escalera)` : ''}
-            {r.uso.qkConcentrada !== null ? ` y ${dec(r.uso.qkConcentrada, 0)} kN concentrados para comprobaciones locales` : ''} (tabla 3.1). ψ0 {dec(r.uso.psi.psi0, 1)} · ψ1 {dec(r.uso.psi.psi1, 1)} · ψ2 {dec(r.uso.psi.psi2, 1)} (DB SE, tabla 4.2).
-            {r.uso.bordeBalcon !== undefined ? ` En el borde del balcón, ${dec(r.uso.bordeBalcon, 0)} kN/m.` : ''}
+            {r.uso.qkConcentrada !== null ? ` y ${mostrarQ(r.uso.qkConcentrada, 'force')} ${uF} concentrados para comprobaciones locales` : ''} (tabla 3.1). ψ0 {dec(r.uso.psi.psi0, 1)} · ψ1 {dec(r.uso.psi.psi1, 1)} · ψ2 {dec(r.uso.psi.psi2, 1)} (DB SE, tabla 4.2).
+            {r.uso.bordeBalcon !== undefined ? ` En el borde del balcón, ${mostrarQ(r.uso.bordeBalcon, 'linearLoad')} ${uL}.` : ''}
           </Bloque>
 
           <Bloque titulo="Predimensionado">

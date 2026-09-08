@@ -38,8 +38,16 @@ import {
 import type { CheckRow, CheckStatus } from './types';
 import { toStatus } from './types';
 import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
-import { formatQuantity } from '../units/format';
+import { conComaDecimal, formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
+
+/**
+ * Un coeficiente adimensional dentro del texto de una comprobacion, con coma
+ * decimal. Sin esto la misma linea salia con los dos separadores —el valor por
+ * `fmtF` con coma y el parametro entre parentesis con punto—, porque uno pasa
+ * por el catalogo de unidades y el otro se escribia a mano con `toFixed`.
+ */
+const d = (v: number, n: number): string => conComaDecimal(v.toFixed(n));
 
 const fmtF = (v: number, system: UnitSystem) =>
   formatQuantity(v, 'force', system, { precision: 1 });
@@ -456,7 +464,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       mode: 'partial-lift-saturated',
       converged: false,
       noSolution: true,
-      note: `Profundidad bloque y_c=${y_c.toFixed(1)} mm fuera de rango físico`,
+      note: `Profundidad bloque y_c=${d(y_c, 1)} mm fuera de rango físico`,
       residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
     };
   }
@@ -508,7 +516,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     converged: !saturated,
     noSolution: saturated,
     note: saturated
-      ? `Tracción agotada — Ft/barra ${Ft_per_bar.toFixed(1)} kN > FtRd ${FtRd_kN.toFixed(1)} kN`
+      ? `Tracción agotada — Ft/barra ${d(Ft_per_bar, 1)} kN > FtRd ${d(FtRd_kN, 1)} kN`
       : 'Tracción parcial — bloque plástico rectangular (CE Anejo 18 §6.2.5)',
     residuals: { SN_kN: 0, SMx_kNm: SMx_residual_kNm, SMy_kNm: 0 },
   };
@@ -793,8 +801,8 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
     // solución física. Sin cap activo queda como APROX numérico.
     noSolution: !converged && best.capped,
     note: converged
-      ? `Biaxial plástico — φ=${((best.phi * 180) / Math.PI).toFixed(1)}°, residuo ${bestR.toFixed(2)} kNm`
-      : `Biaxial grid-search (APROX) — residuo ${bestR.toFixed(2)} kNm > tol ${tol.toFixed(2)}`,
+      ? `Biaxial plástico — φ=${d(((best.phi * 180) / Math.PI), 1)}°, residuo ${d(bestR, 2)} kNm`
+      : `Biaxial grid-search (APROX) — residuo ${d(bestR, 2)} kNm > tol ${d(tol, 2)}`,
     phi_NA: best.phi,
     d_NA: best.d,
     block: best.block,
@@ -943,7 +951,7 @@ export function solvePureTension(inp: AnchorPlateInputs): SolverResult {
     // saturación quedan como APROX (refinar PR futura).
     noSolution: saturated,
     note: saturated
-      ? `Tracción pura saturada — barra al cap FtRd=${FtRd_kN.toFixed(1)} kN`
+      ? `Tracción pura saturada — barra al cap FtRd=${d(FtRd_kN, 1)} kN`
       : (converged
         ? 'Tracción pura — distribución lineal sin bloque de compresión'
         : 'Tracción pura con barras descomprimidas — residuos no nulos (refinar PR futura)'),
@@ -1102,7 +1110,7 @@ export function checkPlateCompression(
     id: 'plate-compression',
     description: 'Compresión bajo placa (T-stub efectivo)',
     value: fmtF(Nc_kN, system),
-    limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${fjd.toFixed(1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
+    limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${d(fjd, 1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.5',
@@ -1142,8 +1150,8 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): Chec
   return {
     id: 'plate-bending',
     description: 'Flexión de la placa',
-    value: `mEd=${(m_Ed_Nmm_per_mm / 1000).toFixed(2)} kNm/m`,
-    limit: `mRd=${(m_Rd_Nmm_per_mm / 1000).toFixed(2)} kNm/m (c=${c_eff.toFixed(0)} mm)`,
+    value: `mEd=${d((m_Ed_Nmm_per_mm / 1000), 2)} kNm/m`,
+    limit: `mRd=${d((m_Rd_Nmm_per_mm / 1000), 2)} kNm/m (c=${c_eff.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.5',
@@ -1348,8 +1356,8 @@ export function checkBoltInteraction(
   return {
     id: 'bolt-interaction',
     description: 'Interacción N+V en barras (dúctil)',
-    value: `(${ratio_n.toFixed(2)})² + (${ratio_v.toFixed(2)})²`,
-    limit: `≤ 1.00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
+    value: `(${d(ratio_n, 2)})² + (${d(ratio_v, 2)})²`,
+    limit: `≤ 1,00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.3',
@@ -1476,7 +1484,7 @@ export function checkAnchorageLength(
   return {
     id: 'anchorage-length',
     description: 'Longitud de anclaje',
-    value: `lbd=${lbd.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${worstAlpha1.toFixed(2)}, α2=${worstAlpha2.toFixed(2)}, lb,min=${lb_min.toFixed(0)})`,
+    value: `lbd=${lbd.toFixed(0)} mm (barra ${worstIdx + 1}, α1=${d(worstAlpha1, 2)}, α2=${d(worstAlpha2, 2)}, lb,min=${lb_min.toFixed(0)})`,
     limit: `hef=${inp.bar_hef.toFixed(0)} mm (cd=${worstCd.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
@@ -1586,7 +1594,7 @@ export function checkConcreteCone(
     id: 'concrete-cone',
     description: 'Cono de hormigón',
     value: `Ft=${fmtF(Ft_total_kN, system)}`,
-    limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${(Ac_N / Ac_N0).toFixed(2)} · ψs=${psi_s.toFixed(2)} · ψec=${psi_ec_N.toFixed(2)} · ψre=${psi_re_N.toFixed(2)})`,
+    limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${d((Ac_N / Ac_N0), 2)} · ψs=${d(psi_s, 2)} · ψec=${d(psi_ec_N, 2)} · ψre=${d(psi_re_N, 2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.1.4',
@@ -1631,7 +1639,7 @@ export function checkPullout(
     id: 'pullout',
     description: 'Arrancamiento (pull-out)',
     value: `Ft=${fmtF(FtMax_kN, system)}`,
-    limit: `NRd,p=${fmtF(NRd_p_kN, system)} (k2=${k2}, ${crackTag}, Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
+    limit: `NRd,p=${fmtF(NRd_p_kN, system)} (k2=${d(k2, 1)}, ${crackTag}, Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.1.5',
@@ -1758,7 +1766,7 @@ export function checkSplitting(
     id: 'splitting',
     description: 'Splitting / side-face blowout',
     value: `Ft=${fmtF(Ft_total_kN, system)}`,
-    limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (ψh=${psi_h_sp.toFixed(2)} · ψec=${psi_ec_sp.toFixed(2)} · ψs=${psi_s_sp.toFixed(2)})`,
+    limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (ψh=${d(psi_h_sp, 2)} · ψec=${d(psi_ec_sp, 2)} · ψs=${d(psi_s_sp, 2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.1.6',
@@ -1828,8 +1836,8 @@ export function checkStiffener(
   return {
     id: 'stiffener',
     description: 'Rigidizadores (esbeltez + soldadura + aplastamiento)',
-    value: `c/t=${slend.toFixed(1)} · F_rib=${fmtF(F_rib_kN, system)}`,
-    limit: `c/t≤${slend_lim.toFixed(1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)}${
+    value: `c/t=${d(slend, 1)} · F_rib=${fmtF(F_rib_kN, system)}`,
+    limit: `c/t≤${d(slend_lim, 1)} · Fw,Rd=${fmtF(Fw_Rd_rib_kN, system)}${
       Fb_Rd_kN !== undefined ? ` · Fb,Rd=${fmtF(Fb_Rd_kN, system)}` : ''
     } (${governs})`,
     utilization: util,
@@ -1936,7 +1944,7 @@ export function checkConcreteEdgeBreakout(
     id: 'concrete-edge-breakout',
     description: 'Rotura del hormigón en cortante (edge breakout)',
     value: `VEd=${fmtF(Vmag, system)}`,
-    limit: `VRd,c=${fmtF(VRd_kN, system)} (c1=${c1.toFixed(0)} · ψs=${psi_s.toFixed(2)} · ψh=${psi_h.toFixed(2)})`,
+    limit: `VRd,c=${fmtF(VRd_kN, system)} (c1=${c1.toFixed(0)} · ψs=${d(psi_s, 2)} · ψh=${d(psi_h, 2)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.2.4',
@@ -2009,7 +2017,7 @@ export function checkConcretePryout(
     id: 'concrete-pryout',
     description: 'Rotura por pry-out (efecto palanca)',
     value: `VEd=${fmtF(shear.Vmag, system)}`,
-    limit: `VRd,cp=${fmtF(VRd_cp_kN, system)} (k=${k_pryout.toFixed(1)} · NRd,c=${fmtF(NRd_c_kN, system)})`,
+    limit: `VRd,cp=${fmtF(VRd_cp_kN, system)} (k=${d(k_pryout, 1)} · NRd,c=${fmtF(NRd_c_kN, system)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.2.3',
@@ -2131,7 +2139,7 @@ export function checkConcreteNVInteraction(
   return {
     id: 'concrete-interaction',
     description: 'Interacción N+V hormigón',
-    value: `(${utilN.toFixed(2)})^1.5 + (${utilV.toFixed(2)})^1.5`,
+    value: `(${d(utilN, 2)})^1.5 + (${d(utilV, 2)})^1.5`,
     limit: '≤ 1.00 (modos pésimos N y V)',
     utilization: util,
     status: toStatus(util),

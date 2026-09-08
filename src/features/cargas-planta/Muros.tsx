@@ -90,7 +90,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
               value={muros.gamma}
               onChange={(gamma) => onCambiar({ gamma })}
               ariaLabel="Peso específico aparente del terreno"
-              unit="kN/m³"
+              quantity="weightDensity"
               min={0}
               widthClass="w-14"
             />
@@ -105,7 +105,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
               value={muros.sobrecarga}
               onChange={(sobrecarga) => onCambiar({ sobrecarga })}
               ariaLabel="Sobrecarga sobre el terreno"
-              unit="kN/m²"
+              quantity="areaLoad"
               min={0}
               widthClass="w-14"
             />

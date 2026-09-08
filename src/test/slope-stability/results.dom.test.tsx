@@ -189,7 +189,7 @@ describe("SlopeResults — tabla de checks agrupada + tabla de dovelas (T3.3)", 
     // Dovela 1: nº=1 · x=1.00 · b=1.00 · W=42.5 · α=30.0º · u=12.3.
     // Columnas por posición (x y b ambos redondean a "1.00").
     const cells = within(rows[1]).getAllByRole("cell");
-    expect(cells.map((c) => c.textContent)).toEqual(["1", "1.00", "1.00", "42.5", "30.0", "12.3"]);
+    expect(cells.map((c) => c.textContent)).toEqual(["1", "1.00", "1.00", "42,5", "30.0", "12,3"]);
 
     // Dovela 3: sin física → "—" en W/α/u.
     const thirdData = within(rows[3]);
@@ -214,7 +214,7 @@ describe("SlopeResults — unidades técnico + header contextual", () => {
     // Dovela 1: W = 42.5 kN → 4.33 Tn · u = 12.3 kPa → 0.13 kg/cm². La geometría
     // (x, b en m) y α (º) no cambian de sistema.
     const cells = within(rows[1]).getAllByRole("cell");
-    expect(cells.map((c) => c.textContent)).toEqual(["1", "1.00", "1.00", "4.33", "30.0", "0.13"]);
+    expect(cells.map((c) => c.textContent)).toEqual(["1", "1.00", "1.00", "4,33", "30.0", "0,13"]);
   });
 
   it("header en excavación: FoS característico vs límite del check fos-static", () => {

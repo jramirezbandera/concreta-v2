@@ -242,7 +242,7 @@ describe('check 7 — concrete cone (EN 1992-4 §7.2.1.4)', () => {
       NEd: 50, Mx: 80, My: 0,
     });
     const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
-    expect(cc.limit).toContain('Ac/Ac0=2.00');
+    expect(cc.limit).toContain('Ac/Ac0=2,00');
   });
 
   it('deep hef + large edge distance → comfortable capacity', () => {
@@ -250,13 +250,13 @@ describe('check 7 — concrete cone (EN 1992-4 §7.2.1.4)', () => {
     const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
     expect(cc.utilization).toBeLessThan(cc.utilization + 1e-9); // finite
     // ψs should be 1.0 when c ≥ 1.5·hef = 450 mm.
-    expect(cc.limit).toContain('ψs=1.00');
+    expect(cc.limit).toContain('ψs=1,00');
   });
   it('close-to-edge → ψs reduction visible', () => {
     // c = 100 mm, hef = 200 → c_cr = 300 > 100, so ψs = 0.7 + 0.3·100/300 = 0.80
     const r = calcAnchorPlate({ ...base, bar_hef: 200, pedestal_cX: 100, pedestal_cY: 100 });
     const cc = r.checks.find((c) => c.id === 'concrete-cone')!;
-    expect(cc.limit).toContain('ψs=0.80');
+    expect(cc.limit).toContain('ψs=0,80');
   });
   it('no tension bars → check reports neutral with no utilization', () => {
     const r = calcAnchorPlate({ ...base, NEd: 400, Mx: 0, My: 0 });
@@ -274,23 +274,23 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
   it('patilla con cd > 3·φ → α1=0.70 (reducción permitida)', () => {
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'patilla' });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=0.70');
+    expect(an.value).toContain('α1=0,70');
   });
   it('gancho con cd > 3·φ → α1=0.70', () => {
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'gancho' });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=0.70');
+    expect(an.value).toContain('α1=0,70');
   });
   it('patilla con cd ≤ 3·φ (recubrimiento ajustado) → α1=1.00', () => {
     // pedestal_cX=50 → cd = min(50,200,140,90) = 50 ≤ 60 → α1=1.0.
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'patilla', pedestal_cX: 50 });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=1.00');
+    expect(an.value).toContain('α1=1,00');
   });
   it('prolongación recta → α1=1.00 siempre', () => {
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'prolongacion_recta' });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=1.00');
+    expect(an.value).toContain('α1=1,00');
   });
   // H3 (Phase 2 Tier 2): α2 continuo por recubrimiento.
   // α2 = 1 − 0.15·(cd − φ)/φ,  bounded 0.7 ≤ α2 ≤ 1.0.
@@ -298,7 +298,7 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
     // FTUX cd ≈ 90 mm; (90−20)/20 = 3.5 → α2 = 1 − 0.525 = 0.475, cap a 0.70.
     const r = calcAnchorPlate(base);
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toMatch(/α2=0\.70/);
+    expect(an.value).toMatch(/α2=0,70/);
   });
   it('H3 α2: cd ≤ φ (recubrimiento ajustado) → α2=1.00 (sin reducción)', () => {
     // pedestal_cX=10, bar_edge_x=80 → cornerX = 200-80 = 120, coverX(corner)
@@ -309,7 +309,7 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
       pedestal_cX: 10, pedestal_cY: 10,
     });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toMatch(/α2=1\.00/);
+    expect(an.value).toMatch(/α2=1,00/);
   });
   it('top_connection no afecta al check (ortogonal): soldada vs tuerca_arandela dan mismo α1 y utilización', () => {
     // Con prolongacion_recta en el fondo, cambiar top_connection no debe tocar
@@ -339,7 +339,7 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
     // así que pasar bar_spacing_x=70 NO cambia nada — α1 sigue siendo 0.70.
     const r = calcAnchorPlate({ ...base, bottom_anchorage: 'patilla', bar_spacing_x: 70 });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=0.70');
+    expect(an.value).toContain('α1=0,70');
   });
   it('H14 (PR5): layout 9 con plate pequeña → barras vecinas próximas → cd pequeño → α1=1.00', () => {
     // 9-grid 3×3 en placa 300×300 con bar_edge=40 → xs en {−110, 0, +110}.
@@ -355,7 +355,7 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
       My: 5,   // pequeño momento biaxial para que algunas barras estén traccionadas
     });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
-    expect(an.value).toContain('α1=1.00');
+    expect(an.value).toContain('α1=1,00');
   });
 });
 
@@ -388,8 +388,8 @@ describe('check 8 — pullout (EN 1992-4 §7.2.1.5)', () => {
       NEd: 100, NEd_G: 50, Mx: 40, My: 0,
     });
     const po = r.checks.find((c) => c.id === 'pullout')!;
-    expect(po.limit).toContain('NRd,p=206.2');
-    expect(po.limit).toContain('k2=7.5');
+    expect(po.limit).toContain('NRd,p=206,2');
+    expect(po.limit).toContain('k2=7,5');
     expect(po.limit).toContain('fisurado');
   });
   it('arandela_tuerca uncracked → NRd,p = 10.5·Ah·fck/γMc (≈+40%)', () => {
@@ -402,8 +402,8 @@ describe('check 8 — pullout (EN 1992-4 §7.2.1.5)', () => {
       NEd: 100, NEd_G: 50, Mx: 40, My: 0,
     });
     const po = r.checks.find((c) => c.id === 'pullout')!;
-    expect(po.limit).toContain('NRd,p=288.6');
-    expect(po.limit).toContain('k2=10.5');
+    expect(po.limit).toContain('NRd,p=288,6');
+    expect(po.limit).toContain('k2=10,5');
     expect(po.limit).toContain('no fisurado');
   });
 });
@@ -441,7 +441,7 @@ describe('check 10 — stiffener (CE Anejo 22 §5.5 + §4.5.3)', () => {
     const rS355 = calcAnchorPlate({ ...base, plate_steel: 'S355' });
     const st = rS355.checks.find((c) => c.id === 'stiffener')!;
     // ε = √(235/355) ≈ 0.814 → 14·ε ≈ 11.4 < 12 (rib_h/rib_t=120/10), esbeltez NO FAIL pero alta.
-    expect(st.limit).toContain('c/t≤11.4');
+    expect(st.limit).toContain('c/t≤11,4');
   });
 });
 
@@ -689,7 +689,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // FTUX: Nc,G = 195 kN → μ·Nc,G = 39.0 kN (antes 78.0).
     const r = calcAnchorPlate(anchorPlateDefaults);
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
-    expect(bs.limit).toContain('39.0');
+    expect(bs.limit).toContain('39,0');
   });
 
   it('anclaje con suelo lb,min = max(0.3·lb(fyd), 10φ, 100) — fix auditoría #27', () => {
@@ -736,7 +736,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('Pry-out usa k=2 cuando hef ≥ 60mm (caso típico)', () => {
     const r = calcAnchorPlate(anchorPlateDefaults);
     const po = r.checks.find((c) => c.id === 'concrete-pryout')!;
-    expect(po.limit).toContain('k=2.0');
+    expect(po.limit).toContain('k=2,0');
   });
 
   it('Breakout-V reporta neutral para hef ≥ 60mm (no aplica)', () => {
@@ -761,7 +761,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // value string debe contener (ratio)² + (ratio)² format.
     const r = calcAnchorPlate(anchorPlateDefaults);
     const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
-    expect(bi.value).toMatch(/\(\d+\.\d{2}\)² \+ \(\d+\.\d{2}\)²/);
+    expect(bi.value).toMatch(/\(\d+,\d{2}\)² \+ \(\d+,\d{2}\)²/);
     expect(bi.article).toBe('CE Anejo 11 §7.2.3');
   });
 
@@ -812,8 +812,8 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // Pero ψs cambia: sym c_min = 200 → ψs=0.833; asym c_min = 50 → ψs=0.733.
     // Net effect en util: ratio = 1/(1.143·0.733/0.833) ≈ 1/1.006 ≈ casi igual.
     // Verificar al menos que el ψs reportado refleja cX1=50:
-    expect(cone_asym.limit).toMatch(/ψs=0\.7[0-3]/);
-    expect(cone_sym.limit).toMatch(/ψs=0\.83/);
+    expect(cone_asym.limit).toMatch(/ψs=0,7[0-3]/);
+    expect(cone_sym.limit).toMatch(/ψs=0,83/);
   });
 
   it('asimétrico cY1 = 50 (placa cerca borde y+) → ψs limitado por cY1', () => {
@@ -823,7 +823,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     });
     const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
     // c_min = 50 < c_cr = 450 → ψs = 0.7 + 0.3·50/450 = 0.733
-    expect(cone.limit).toMatch(/ψs=0\.73/);
+    expect(cone.limit).toMatch(/ψs=0,73/);
   });
 
   it('helper preserva backward-compat: cambiar legacy pedestal_cX sin direccionales sigue funcionando', () => {
@@ -832,7 +832,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_cX: 500, pedestal_cY: 500 });
     const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
     // c_min = 500 ≥ c_cr = 450 → ψs = 1.00
-    expect(cone.limit).toMatch(/ψs=1\.00/);
+    expect(cone.limit).toMatch(/ψs=1,00/);
   });
 
   it('splitting con cY1 cercano al borde → ψs reducido', () => {
@@ -884,7 +884,7 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // Pedestal profundo (h=2000 > 2·hef=600), edge moderado (200) → ψh > 1 (cap-binding)
     const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 2000 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
-    expect(sp.limit).toMatch(/ψh=1\.[2-9]\d/);   // amplificación visible
+    expect(sp.limit).toMatch(/ψh=1,[2-9]\d/);   // amplificación visible
   });
 
   it('ψh,sp < 1 con macizo somero: la reducción por canto aplica (fix auditoría #24)', () => {
@@ -894,7 +894,7 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // con h=hef la capacidad quedaba ×1.6 sobreestimada.
     const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 400 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
-    expect(sp.limit).toContain('ψh=0.76');
+    expect(sp.limit).toContain('ψh=0,76');
   });
 
   it('h_pedestal ≥ 2·hef y c_min ≥ c_cr,sp → no crítico (neutral)', () => {
@@ -932,9 +932,9 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // FTUX con Mx grande crea grupo tensionado excéntrico.
     const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 80 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
-    const psi_ec_match = sp.limit?.match(/ψec=([\d.]+)/);
+    const psi_ec_match = sp.limit?.match(/ψec=([\d.,]+)/);
     if (psi_ec_match) {
-      const psi_ec = parseFloat(psi_ec_match[1]);
+      const psi_ec = parseFloat(psi_ec_match[1].replace(',', '.'));
       expect(psi_ec).toBeLessThan(1.0);
       expect(psi_ec).toBeGreaterThan(0.0);
     }

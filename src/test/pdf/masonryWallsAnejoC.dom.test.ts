@@ -102,8 +102,8 @@ describe('masonry-walls PDF · datos de partida', () => {
     // Etiquetas + valores introducidos, en la MISMA página que el fk global.
     expect(onDatosPage('fb (pieza)')).toHaveLength(1);
     expect(onDatosPage('fm (mortero)')).toHaveLength(1);
-    expect(onDatosPage('10.0 N/mm²')).not.toHaveLength(0);   // fb introducido
-    expect(onDatosPage('5.0 N/mm²')).not.toHaveLength(0);    // fm introducido
+    expect(onDatosPage('10,0 N/mm²')).not.toHaveLength(0);   // fb introducido
+    expect(onDatosPage('5,0 N/mm²')).not.toHaveLength(0);    // fm introducido
     expect(onDatosPage('fk (caracteristica)')).toHaveLength(1);
     // El tipo de muro (con su K) es el tercer input de eq. C.1: sin él, fk
     // tampoco se re-deriva. Va en fila propia a ancho completo.
@@ -115,10 +115,10 @@ describe('masonry-walls PDF · datos de partida', () => {
     // fb=10 ⇒ cap = min(20; 0,75·10) = 7,5. Con fm=25 introducido, el fk sale de
     // 7,5: publicar sólo el 25 dejaría un documento no re-derivable.
     await render(anejoCState(25));
-    expect(onDatosPage('25.0 N/mm²')).not.toHaveLength(0);
+    expect(onDatosPage('25,0 N/mm²')).not.toHaveLength(0);
     const nota = onDatosPage('fm aplicado en calculo');
     expect(nota).toHaveLength(1);
-    expect(nota[0].t).toContain('7.5 N/mm²');
+    expect(nota[0].t).toContain('7,5 N/mm²');
     expect(nota[0].t).toContain('min(20; 0,75·fb)');
   });
 

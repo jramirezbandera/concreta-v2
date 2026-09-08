@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
+  conComaDecimal,
   formatNumber,
   getPrecision,
+  getUnitLabel,
   parseQuantity,
 } from "../../lib/units/format";
 import type { Quantity } from "../../lib/units/types";
@@ -20,7 +22,13 @@ type RawNumberInputProps = {
 
   /** DOM id (for label `htmlFor`). */
   id?: string;
-  /** Unit suffix shown to the right of the input. Empty string → no chip. */
+  /**
+   * Sufijo de unidad a la derecha de la caja. Con `quantity` puesto y sin este
+   * prop, el rótulo lo pone el sistema de unidades activo — que es lo que se
+   * quiere casi siempre: escribirlo a mano es la forma de que la caja siga
+   * diciendo «kN/m²» mientras el número ya está en kg/m². Pásalo sólo para
+   * rotular algo que el catálogo no sabe (m, cm, grados).
+   */
   unit?: string;
   /** aria-label for the bare input. */
   ariaLabel?: string;
@@ -75,7 +83,7 @@ export function RawNumberInput({
   value,
   onChange,
   id,
-  unit = "",
+  unit,
   ariaLabel,
   quantity,
   precision,
@@ -90,6 +98,9 @@ export function RawNumberInput({
   hideUnit = false,
 }: RawNumberInputProps) {
   const { system } = useUnitSystem();
+  // El rótulo por defecto sale del catálogo cuando hay `quantity`: así la caja
+  // no puede quedarse en la unidad de otro sistema que el número que enseña.
+  const unitText = unit ?? (quantity ? getUnitLabel(quantity, system) : "");
 
   // Coerce into [min, max]. Only invoked from blur when `clamp` is set, so the
   // value never gets snapped mid-typing (which would fight the user).
@@ -111,7 +122,9 @@ export function RawNumberInput({
     // el alzado de un muro, que sale de dividir por 3 m y arrastra quince
     // decimales. Redondear aquí NO toca el valor: en modo crudo y sin `clamp`,
     // ni el blur ni el efecto emiten `onChange`.
-    return precision !== undefined ? val.toFixed(precision) : String(val);
+    // La coma también aquí: un canto o una altura tecleados «3,5» se volvían
+    // «3.5» al salir del campo, en una tabla donde todo lo demás lleva coma.
+    return conComaDecimal(precision !== undefined ? val.toFixed(precision) : String(val));
   };
 
   const [localStr, setLocalStr] = useState(() => formatForInput(value));
@@ -174,7 +187,7 @@ export function RawNumberInput({
             if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }
             const next = clamp ? clampToRange(Math.round(n)) : Math.round(n);
             if (clamp && next !== value) onChange(next);
-            setLocalStr(String(next));
+            setLocalStr(String(next));  // entero: no hay separador que poner
             return;
           }
           if (quantity) {
@@ -199,7 +212,7 @@ export function RawNumberInput({
       />
       {!hideUnit && (
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unit}
+          {unitText}
         </span>
       )}
     </div>

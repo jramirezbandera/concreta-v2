@@ -91,6 +91,6 @@ describe("RawNumberInput — raw numeric entry (no quantity)", () => {
     expect(captured).toBe(0);    // emitted verbatim while typing
     await user.tab();
     expect(captured).toBe(0.1);  // snapped on blur
-    expect(input.value).toBe("0.1");
+    expect(input.value).toBe("0,1");
   });
 });

@@ -10,6 +10,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { SeccionSVG } from '../../features/cargas-planta/SeccionSVG';
 import { calcularCargas } from '../../lib/acciones/cargas';
 import { defaultCargasState, entradaMotor, nuevaZona } from '../../features/cargas-planta/state';
@@ -31,8 +32,12 @@ function resultado(conPiscina = true) {
 
 const pintar = (props: Partial<Parameters<typeof SeccionSVG>[0]> = {}) => {
   const r = props.resultado ?? resultado();
+  // El dibujo rotula la fachada y el peto en las unidades del usuario, así que
+  // necesita el proveedor como cualquier otro lienzo de la app.
   return render(
-    <SeccionSVG resultado={r} cotas={[]} lineales={r.lineales} zonaSel={null} onSeleccionar={vi.fn()} width={232} height={560} {...props} />,
+    <UnitSystemProvider>
+      <SeccionSVG resultado={r} cotas={[]} lineales={r.lineales} zonaSel={null} onSeleccionar={vi.fn()} width={232} height={560} {...props} />
+    </UnitSystemProvider>,
   );
 };
 
@@ -89,7 +94,11 @@ describe('la sección', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Planta Baja (Vivienda)'.replace(/^/, 'Seleccionar ') }));
     expect(onSeleccionar).toHaveBeenCalledWith(id);
 
-    rerender(<SeccionSVG resultado={r} cotas={[]} lineales={r.lineales} zonaSel={id} onSeleccionar={onSeleccionar} width={232} height={560} />);
+    rerender(
+      <UnitSystemProvider>
+        <SeccionSVG resultado={r} cotas={[]} lineales={r.lineales} zonaSel={id} onSeleccionar={onSeleccionar} width={232} height={560} />
+      </UnitSystemProvider>,
+    );
     const bloque = screen.getByRole('button', { name: 'Seleccionar Planta Baja (Vivienda)' });
     expect(bloque).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(bloque);
@@ -108,11 +117,11 @@ describe('la sección', () => {
   it('el rótulo de la fachada se recorta a lo que cabe en su alto', () => {
     // Con sitio, entero; sin sitio (fachada de unos 45 px), sólo el valor.
     const { unmount } = pintar();
-    expect(screen.getByText('Cerramiento de fachada 7,0 kN/m')).toBeInTheDocument();
+    expect(screen.getByText('Cerramiento de fachada 7,00 kN/m')).toBeInTheDocument();
     unmount();
     pintar({ height: 200 });
     expect(screen.queryByText(/Cerramiento/)).not.toBeInTheDocument();
-    expect(screen.getByText('7,0 kN/m')).toBeInTheDocument();
+    expect(screen.getByText('7,00 kN/m')).toBeInTheDocument();
   });
 
   it('sin plantas no dibuja edificio, pero sigue siendo un dibujo con su título', () => {

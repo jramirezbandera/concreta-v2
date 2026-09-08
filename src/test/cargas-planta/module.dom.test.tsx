@@ -145,13 +145,13 @@ describe('Cargas por planta — la tabla', () => {
 
   it('el peso propio se pisa tecleándolo y se recupera desde la ficha', () => {
     montar();
-    const pp = screen.getByLabelText('Peso propio de Planta Baja');
+    const pp = screen.getByLabelText(/^Peso propio de Planta Baja/);
     fireEvent.change(pp, { target: { value: '6,2' } });
     expect(pp).toHaveValue('6,2');
 
     // Con valor propio, la fila ofrece volver a la norma.
     fireEvent.click(screen.getByRole('button', { name: 'Usar el peso propio de la norma en Planta Baja' }));
-    expect(screen.getByLabelText('Peso propio de Planta Baja')).toHaveValue('5');
+    expect(screen.getByLabelText(/^Peso propio de Planta Baja/)).toHaveValue('5,00');
   });
 
   it('un forjado sin peso en la norma es un error que bloquea la exportación', async () => {
@@ -396,9 +396,9 @@ describe('Cargas por planta — exportación', () => {
 describe('Cargas por planta — los muros', () => {
   it('la fachada arranca como muro y su carga sale de multiplicar alzado por altura', () => {
     montar();
-    const alzado = screen.getByLabelText('Peso por metro cuadrado de alzado de Cerramiento de fachada');
+    const alzado = screen.getByLabelText(/^Peso por metro cuadrado de alzado de Cerramiento de fachada/);
     const altura = screen.getByLabelText('Altura de Cerramiento de fachada');
-    expect(alzado).toHaveValue('2.33');
+    expect(alzado).toHaveValue('2,33');
     expect(altura).toHaveValue('3');
 
     // A los 3 m para los que está dada la tabla C.5, sus 7 kN/m —y su Gd.
@@ -414,7 +414,7 @@ describe('Cargas por planta — los muros', () => {
   it('lo que no es un muro se teclea en kN/m y no tiene ni alzado ni altura', () => {
     montar();
     fireEvent.change(screen.getByLabelText('Añadir carga lineal'), { target: { value: 'barandilla' } });
-    expect(screen.getByLabelText('Carga de Barandilla')).toHaveValue('1');
+    expect(screen.getByLabelText(/^Carga de Barandilla/)).toHaveValue('1,00');
     expect(screen.queryByLabelText('Altura de Barandilla')).not.toBeInTheDocument();
   });
 

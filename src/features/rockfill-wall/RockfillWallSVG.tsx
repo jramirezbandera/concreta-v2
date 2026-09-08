@@ -5,7 +5,7 @@
 import { type RockfillWallInputs } from '../../data/defaults';
 import { type RockfillWallResult } from '../../lib/calculations/rockfillWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { conComaDecimal, formatQuantity } from '../../lib/units/format';
 
 export type RockfillWallView = 'geometry' | 'loads' | 'hiladas';
 
@@ -564,7 +564,7 @@ function LoadsView({ inp, result, mode, width, height }: Required<RockfillWallSV
         })}
         <text x={p.sx(xR)} y={baseY + sigmaH + 14} fontSize={9.5} fill={P.reaction} textAnchor="middle"
           fontFamily="ui-monospace, 'Geist Mono', monospace">
-          {svgText(`σ=${formatQuantity(result.sigma_ref, 'soilPressure', system, { precision: 3 })} · b'=${bEq.toFixed(2)} m`, isPdf)}
+          {svgText(`σ=${formatQuantity(result.sigma_ref, 'soilPressure', system, { precision: 3 })} · b'=${conComaDecimal(bEq.toFixed(2))} m`, isPdf)}
         </text>
         <Arrow x1={p.sx(xR)} y1={baseY - 2} x2={p.sx(xR)} y2={baseY - 30} color={P.reaction} sw={1.4} head={6} />
         <text x={p.sx(xR) + 4} y={baseY - 22} fontSize={9} fill={P.reaction}

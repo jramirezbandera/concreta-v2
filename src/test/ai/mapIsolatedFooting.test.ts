@@ -443,10 +443,10 @@ describe('isolatedFootingAdapter — guardarraíles de seguridad (risks)', () =>
     expect(p.fields).toEqual({ N: 500, Mx: 20, My: 10, H: 15 });
     expect(p.risks.map((r) => r.field)).toEqual(['N', 'Mx', 'My', 'H']);
     expect(p.risks.map((r) => r.field)).toEqual(p.changes.map((c) => c.field));
-    expect(p.risks[0]).toMatchObject({ before: '900.00 kN', after: '500.00 kN' });
-    expect(p.risks[1]).toMatchObject({ before: '60.00 kNm', after: '20.00 kNm' });
-    expect(p.risks[2]).toMatchObject({ before: '30.00 kNm', after: '10.00 kNm' });
-    expect(p.risks[3]).toMatchObject({ before: '45.00 kN', after: '15.00 kN' });
+    expect(p.risks[0]).toMatchObject({ before: '900,00 kN', after: '500,00 kN' });
+    expect(p.risks[1]).toMatchObject({ before: '60,00 kNm', after: '20,00 kNm' });
+    expect(p.risks[2]).toMatchObject({ before: '30,00 kNm', after: '10,00 kNm' });
+    expect(p.risks[3]).toMatchObject({ before: '45,00 kN', after: '15,00 kN' });
   });
 
   it('bajar el coef. de mayoración CONFIRMADO (γ 1.5 → 1.0) → riesgo (baja TODA la demanda a la vez)', () => {
@@ -478,7 +478,7 @@ describe('isolatedFootingAdapter — guardarraíles de seguridad (risks)', () =>
     // con el dato del enunciado no es debilitar un valor ya establecido.
     const p = plan({ loadsAreFactored: false, N_kN: 200 });
     expect(p.fields).toEqual({ N: 200 });
-    expect(changeFor(p, 'Axil N')).toMatchObject({ before: '300.00 kN', after: '200.00 kN' });
+    expect(changeFor(p, 'Axil N')).toMatchObject({ before: '300,00 kN', after: '200,00 kN' });
     expect(p.risks).toEqual([]);
   });
 

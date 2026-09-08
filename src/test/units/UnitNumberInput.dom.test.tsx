@@ -31,14 +31,14 @@ describe("UnitNumberInput — display formatting", () => {
   it("shows SI value verbatim with default precision in SI mode", () => {
     renderInput(80, () => {});
     const input = screen.getByLabelText("N (kN)") as HTMLInputElement;
-    expect(input.value).toBe("80.00");
+    expect(input.value).toBe("80,00");
   });
 
   it("shows técnico-converted value with técnico precision when system=tecnico", () => {
     window.localStorage.setItem("unitSystem", "tecnico");
     renderInput(80, () => {});
     const input = screen.getByLabelText("N (Tn)") as HTMLInputElement;
-    expect(input.value).toBe("8.16");
+    expect(input.value).toBe("8,16");
   });
 
   it("respects precision override", () => {
@@ -60,7 +60,7 @@ describe("UnitNumberInput — display formatting", () => {
       </UnitSystemProvider>
     );
     const input = screen.getByLabelText("ψ ()") as HTMLInputElement;
-    expect(input.value).toBe("0.3");
+    expect(input.value).toBe("0,3");
   });
 });
 
@@ -142,7 +142,7 @@ describe("UnitNumberInput — system switch", () => {
       </UnitSystemProvider>
     );
     const inputSi = screen.getByLabelText("N (kN)") as HTMLInputElement;
-    expect(inputSi.value).toBe("98.07");
+    expect(inputSi.value).toBe("98,07");
     expect(count).toBe(0);
 
     act(() => {
@@ -166,7 +166,7 @@ describe("UnitNumberInput — system switch", () => {
       </UnitSystemProvider>
     );
     const inputTec = screen.getByLabelText("N (Tn)") as HTMLInputElement;
-    expect(inputTec.value).toBe("10.00");
+    expect(inputTec.value).toBe("10,00");
     expect(count).toBe(0);
   });
 });
@@ -213,7 +213,7 @@ describe("UnitNumberInput — onBlur normalization", () => {
     await user.type(input, "abc");
     expect(input.value).toBe("abc");
     await user.tab();
-    expect(input.value).toBe("80.00");
+    expect(input.value).toBe("80,00");
   });
 
   it("blur with valid input renormalizes to canonical precision", async () => {
@@ -225,7 +225,7 @@ describe("UnitNumberInput — onBlur normalization", () => {
     await user.type(input, "12.345");
     await user.tab();
     expect(captured).toBeCloseTo(12.345, 9);
-    expect(input.value).toBe("12.35");
+    expect(input.value).toBe("12,35");
   });
 });
 

@@ -20,7 +20,7 @@ describe('FTUX defaults', () => {
     const r = calcPunching(base);
     for (const c of r.checks) expect(c.status).not.toBe('fail');
   });
-  it('beta=1.15 for interior pilar (fix #132 — Anejo 19 fig. 6.21N)', () => expect(calcPunching(base).beta).toBe(1.15));
+  it('beta=1,15 for interior pilar (fix #132 — Anejo 19 fig. 6,21N)', () => expect(calcPunching(base).beta).toBe(1.15));
   it('rhoLClamped=false (Ø12@150 > rhoLMin)', () => expect(calcPunching(base).rhoLClamped).toBe(false));
 });
 
@@ -65,8 +65,8 @@ describe('beta', () => {
     expect(calcPunching(base).beta).toBe(1.15);
     expect(calcPunching({ ...base, mode: 'carga-puntual' }).beta).toBe(1.0);
   });
-  it('borde β=1.4',    () => expect(calcPunching({ ...base, position: 'borde' }).beta).toBe(1.4));
-  it('esquina β=1.5',  () => expect(calcPunching({ ...base, position: 'esquina' }).beta).toBe(1.5));
+  it('borde β=1,4',    () => expect(calcPunching({ ...base, position: 'borde' }).beta).toBe(1.4));
+  it('esquina β=1,5',  () => expect(calcPunching({ ...base, position: 'esquina' }).beta).toBe(1.5));
 });
 
 // ── β personalizado (método general §6.4.3) ──────────────────────────────────
@@ -181,7 +181,10 @@ describe('unidades de tensión (toggle N/mm² ↔ kg/cm²)', () => {
       expect(si,  `${id} SI`).toContain('N/mm²');
       expect(tec, `${id} técnico`).toContain('kg/cm²');
       // mismo valor físico ≈ ×10.2 (loose por el redondeo a 1 decimal del catálogo)
-      const ratio = parseFloat(tec) / parseFloat(si);
+      // `parseFloat` se para en la coma decimal ('12,50' -> 12): se normaliza
+      // antes de leer, igual que hace `parseQuantity` con lo que se teclea.
+      const numero = (t: string) => parseFloat(t.replace(',', '.'));
+      const ratio = numero(tec) / numero(si);
       expect(ratio, `${id} ratio`).toBeGreaterThan(8);
       expect(ratio, `${id} ratio`).toBeLessThan(12);
     }

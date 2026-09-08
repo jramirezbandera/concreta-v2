@@ -16,7 +16,7 @@ import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { TipoForjado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import { HIPOTESIS_TEXTO } from '../../lib/acciones/cuadrosCargas';
 import { toDisplay } from '../../lib/units/convert';
-import { getPrecision } from '../../lib/units/format';
+import { getPrecision, getUnitLabel } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CANTO_INICIAL, FORJADO_OPCIONES, USO_OPCIONES } from './catalogos';
 import { permanenteDe, ponerEnCelda, ponerEspesor, type ColumnaEncima } from './columnas';
@@ -84,6 +84,7 @@ export function FilaZona({
 }: Props) {
   const { system } = useUnitSystem();
   const mostrar = (v: number) => dec(toDisplay(v, 'areaLoad', system), getPrecision('areaLoad', system));
+  const uQ = getUnitLabel('areaLoad', system);
   const nZonas = planta.zonas.length;
   const primera = indice === 0;
   const uso = USO_OPCIONES.find((o) => o.id === z.uso.categoria);
@@ -109,7 +110,7 @@ export function FilaZona({
     // Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y pesa cero.
     return (
       <span className={CAJA_DER}>
-        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor, columnas).permanentes })} ariaLabel={`Valor de ${etiqueta}`} min={0} widthClass="w-11" hideUnit />
+        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor, columnas).permanentes })} ariaLabel={`Valor de ${etiqueta} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-11" hideUnit />
       </span>
     );
   };
@@ -224,7 +225,8 @@ export function FilaZona({
           <RawNumberInput
             value={z.forjado.ppManual ?? r?.forjado.pp ?? 0}
             onChange={(pp) => onZona({ forjado: { ...z.forjado, ppManual: pp } })}
-            ariaLabel={`Peso propio de ${quien}`}
+            ariaLabel={`Peso propio de ${quien} (${uQ})`}
+            quantity="areaLoad"
             min={0}
             widthClass="w-12"
             hideUnit
@@ -254,7 +256,11 @@ export function FilaZona({
                     : 'Peso propio del forjado · la norma no lo da para este forjado: tecléelo'
               }
             >
-              {r?.forjado.ppOrigen === 'densidad' ? '25·h' : r?.forjado.ppOrigen === 'tablaC5' ? 'tabla C.5' : 'tecléelo'}
+              {/* Antes decía «25·h». Con el sistema técnico activo el 25 quedaba
+                  debajo de un peso propio en kg/m² sin unidad que lo desmintiera y
+                  se leía como si fuera el mismo sistema. La densidad de la tabla
+                  C.1 se cita entera —con su unidad— en el title. */}
+              {r?.forjado.ppOrigen === 'densidad' ? 'tabla C.1' : r?.forjado.ppOrigen === 'tablaC5' ? 'tabla C.5' : 'tecléelo'}
             </span>
           )}
         </span>

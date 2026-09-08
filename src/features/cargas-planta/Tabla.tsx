@@ -17,6 +17,10 @@
 import { Fragment } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { CargasResultado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
+import { toDisplay } from '../../lib/units/convert';
+import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES } from './catalogos';
 import { columnasEncima } from './columnas';
 import { FilaZona } from './FilaZona';
@@ -73,6 +77,17 @@ export function Tabla({
   onAnadirColumna,
   onRenombrarColumna,
 }: Props) {
+  const { system } = useUnitSystem();
+  /**
+   * Las unidades de las cabeceras salen del sistema activo, no escritas a mano:
+   * la tabla enseña a la vez lo tecleado (PP, lo que hay encima) y lo calculado
+   * (G, Q, qd), y si el rótulo se queda fijo en kN/m² con el sistema técnico
+   * puesto, las dos mitades de la misma fila se leen en unidades distintas.
+   */
+  const uQ = getUnitLabel('areaLoad', system);
+  const uD = getUnitLabel('weightDensity', system);
+  const mostrar = (v: number, q: Quantity) => dec(toDisplay(v, q, system), getPrecision(q, system));
+
   const columnas = columnasEncima(plantas);
   const porId = new Map<string, ZonaCargasResuelta>();
   resultado.plantas.forEach((p) => p.zonas.forEach((z) => z.id && porId.set(z.id, z)));
@@ -89,8 +104,12 @@ export function Tabla({
    * darle la vuelta de una vez, en lugar de subir la cubierta a flechazos.
    */
   const alReves = plantas.length > 1 && !plantas[0].esCubierta && plantas[plantas.length - 1].esCubierta;
-  /** Anchos en px. Con `table-fixed` mandan estos y nada empuja al resto. */
-  const ANCHO = { planta: 148, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 42, nieve: 54, G: 46, Q: 44, qd: 54 };
+  /**
+   * Anchos en px. Con `table-fixed` mandan estos y nada empuja al resto. G, Q y
+   * qd van holgadas a propósito: en el sistema técnico sus valores tienen cuatro
+   * cifras (1.185 kg/m² son 11,63 kN/m²) y su cabecera de grupo lleva la unidad.
+   */
+  const ANCHO = { planta: 148, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 46, nieve: 54, G: 50, Q: 48, qd: 56 };
   const anchoPx =
     ANCHO.planta + ANCHO.zona + ANCHO.forjado + ANCHO.canto + ANCHO.pp + Math.max(1, columnas.length) * ANCHO.encima + ANCHO.uso + ANCHO.quso + ANCHO.nieve + ANCHO.G + ANCHO.Q + ANCHO.qd;
 
@@ -143,14 +162,14 @@ export function Tabla({
                 <span className="block truncate">¿Qué forjado tiene? · C.5</span>
               </th>
               <th colSpan={Math.max(1, columnas.length)} scope="colgroup" className={TH_GRUPO}>
-                <span className="block truncate">¿Qué hay encima? · kN/m² · C.5</span>
+                <span className="block truncate">¿Qué hay encima? · {uQ} · C.5</span>
               </th>
               <th colSpan={2} scope="colgroup" className={TH_GRUPO}>
                 <span className="block truncate">¿Para qué se usa? · 3.1</span>
               </th>
               <th scope="colgroup" className={TH_GRUPO} aria-label="Nieve" />
               <th colSpan={3} scope="colgroup" className={TH_GRUPO}>
-                <span className="block truncate">Cálculo · DB SE 4.1</span>
+                <span className="block truncate">Cálculo · {uQ} · DB SE 4.1</span>
               </th>
             </tr>
             {/* Cabecera de columna */}
@@ -167,8 +186,8 @@ export function Tabla({
               <th scope="col" className={TH_NUM}>
                 Canto <span className="block font-normal normal-case">cm</span>
               </th>
-              <th scope="col" className={TH_DER} title="Peso propio del forjado">
-                PP
+              <th scope="col" className={TH_DER} title={`Peso propio del forjado, en ${uQ}`}>
+                PP <span className="block font-normal normal-case">{uQ}</span>
               </th>
               {columnas.length === 0 && (
                 <th scope="col" className={TH + ' ' + SEP + ' whitespace-nowrap text-[10px] font-normal normal-case text-text-disabled'} title="Ninguna zona lleva carga encima del forjado: G es sólo el peso propio">
@@ -212,11 +231,11 @@ export function Tabla({
               <th scope="col" className={TH + ' ' + SEP}>
                 Uso
               </th>
-              <th scope="col" className={TH_DER} title="Sobrecarga de uso de la tabla 3.1">
-                q uso
+              <th scope="col" className={TH_DER} title={`Sobrecarga de uso de la tabla 3.1, en ${uQ}`}>
+                q uso <span className="block font-normal normal-case">{uQ}</span>
               </th>
               <th scope="col" className={TH_NUM + ' ' + SEP}>
-                Nieve
+                Nieve <span className="block font-normal normal-case">{uQ}</span>
               </th>
               <th scope="col" className={TH_DER + ' ' + SEP} title="Carga permanente total">
                 G
@@ -280,7 +299,14 @@ export function Tabla({
                     {CATALOGO_PERMANENTES.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.etiqueta}
-                        {c.valor !== null ? ` (${dec(c.valor, 1)} kN/m²)` : c.porEspesor !== null ? ` (${c.porEspesor} kN/m³)` : ''}
+                        {/* El valor que se va a meter en la celda: va en las
+                            unidades en que se va a ver allí, no en las del
+                            catálogo. */}
+                        {c.valor !== null
+                          ? ` (${mostrar(c.valor, 'areaLoad')} ${uQ})`
+                          : c.porEspesor !== null
+                            ? ` (${mostrar(c.porEspesor, 'weightDensity')} ${uD})`
+                            : ''}
                       </option>
                     ))}
                   </select>

@@ -84,7 +84,7 @@ describe('FEM 1D — un gesto, un cambio de modelo', () => {
   it('teclear en un campo NO acuña un cambio por tecla; comitea al salir', () => {
     const { calls } = renderPanel({ kind: 'load', id: 'l1' });
     const input = screen.getByLabelText(/^q /) as HTMLInputElement;
-    expect(input.value).toBe('15.00');
+    expect(input.value).toBe('15,00');
 
     // Cuatro pulsaciones. Con el NumField anterior esto eran cuatro setModel
     // seguidos y, con historial detrás, cuatro pasos de undo para deshacer un

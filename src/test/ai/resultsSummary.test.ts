@@ -104,7 +104,7 @@ describe('summarizeCalcResults — formato de línea por check', () => {
       ]),
     );
     expect(out.text.split('\n')[1]).toBe(
-      '- [CUMPLE] Axil de cálculo: 150.00 kN | límite: 200.00 kN | η=75% — CE art. 35',
+      '- [CUMPLE] Axil de cálculo: 150,00 kN | límite: 200,00 kN | η=75% — CE art. 35',
     );
   });
 

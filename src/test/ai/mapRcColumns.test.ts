@@ -252,7 +252,7 @@ describe('rcColumnsAdapter — esfuerzos (inputs directos del módulo)', () => {
   it('Nd_kN 1200 → aplicado con formatQuantity; Nd_kN 25000 → skip por rango', () => {
     const ok = plan({ Nd_kN: 1200 });
     expect(ok.fields).toEqual({ Nd: 1200 });
-    expect(changeFor(ok, 'Axil Nd')).toMatchObject({ field: 'Nd', before: '500.00 kN', after: '1200.00 kN' });
+    expect(changeFor(ok, 'Axil Nd')).toMatchObject({ field: 'Nd', before: '500,00 kN', after: '1200,00 kN' });
 
     const fuera = plan({ Nd_kN: 25000 });
     expect(fuera.fields).toEqual({});
@@ -262,7 +262,7 @@ describe('rcColumnsAdapter — esfuerzos (inputs directos del módulo)', () => {
   it('MEdy_kNm -45 → fields.MEdy = 45 (valor absoluto) + warning', () => {
     const p = plan({ MEdy_kNm: -45 });
     expect(p.fields).toEqual({ MEdy: 45 });
-    expect(changeFor(p, 'Momento MEd,y')).toMatchObject({ field: 'MEdy', before: '30.00 kNm', after: '45.00 kNm' });
+    expect(changeFor(p, 'Momento MEd,y')).toMatchObject({ field: 'MEdy', before: '30,00 kNm', after: '45,00 kNm' });
     expect(p.warnings).toHaveLength(1);
     expect(p.warnings[0]).toMatch(/valor absoluto/);
     expect(p.warnings[0]).toContain('-45');
@@ -438,11 +438,11 @@ describe('rcColumnsAdapter — guardarraíles de seguridad (risks)', () => {
     // Los riesgos NO bloquean: el campo sigue en fields y en changes.
     expect(p.fields).toEqual({ Nd: 600 });
     const ch = changeFor(p, 'Axil Nd')!;
-    expect(ch).toMatchObject({ field: 'Nd', before: '900.00 kN', after: '600.00 kN' });
+    expect(ch).toMatchObject({ field: 'Nd', before: '900,00 kN', after: '600,00 kN' });
 
     expect(p.risks).toHaveLength(1);
     expect(p.risks[0]).toMatchObject({
-      field: 'Nd', label: 'Axil Nd', before: '900.00 kN', after: '600.00 kN',
+      field: 'Nd', label: 'Axil Nd', before: '900,00 kN', after: '600,00 kN',
     });
     // before/after son EXACTAMENTE los del change (formateados una sola vez).
     expect(p.risks[0].before).toBe(ch.before);
@@ -455,7 +455,7 @@ describe('rcColumnsAdapter — guardarraíles de seguridad (risks)', () => {
     // aportando el dato del enunciado, no debilitando uno ya establecido.
     const p = plan({ Nd_kN: 300 });
     expect(p.fields).toEqual({ Nd: 300 });
-    expect(changeFor(p, 'Axil Nd')).toMatchObject({ before: '500.00 kN', after: '300.00 kN' });
+    expect(changeFor(p, 'Axil Nd')).toMatchObject({ before: '500,00 kN', after: '300,00 kN' });
     expect(p.risks).toEqual([]);
   });
 
@@ -491,8 +491,8 @@ describe('rcColumnsAdapter — guardarraíles de seguridad (risks)', () => {
     expect(p.risks.map((r) => r.field)).toEqual(['L', 'MEdy', 'MEdz']);
     expect(p.risks.map((r) => r.field)).toEqual(p.changes.map((c) => c.field));
     expect(p.risks[0]).toMatchObject({ before: '5.00 m', after: '3.00 m' });
-    expect(p.risks[1]).toMatchObject({ before: '60.00 kNm', after: '20.00 kNm' });
-    expect(p.risks[2]).toMatchObject({ before: '25.00 kNm', after: '5.00 kNm' });
+    expect(p.risks[1]).toMatchObject({ before: '60,00 kNm', after: '20,00 kNm' });
+    expect(p.risks[2]).toMatchObject({ before: '25,00 kNm', after: '5,00 kNm' });
   });
 
   it('SUBIR un esfuerzo confirmado (Nd 900 → 1200) → cambio sin riesgo (solo se marca la BAJADA)', () => {
