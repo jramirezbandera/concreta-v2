@@ -2,7 +2,7 @@ import { type TimberBeamResult, type TimberCheckRow, type CheckStatus } from '..
 import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle, checkLimitStr, checkValueStr } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {
@@ -170,13 +170,13 @@ export function TimberBeamsResults({ result }: Props) {
       {/* ── Factores de modificación ────────────────────────────────────── */}
       <GroupHeader label="Factores de modificación  (EC5 §2.4)" />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-3">
-        <ValueRow label={resultLabel('kmod')}           value={result.kmod.toFixed(2)} />
-        <ValueRow label="kh — factor de tamaño  (EC5 §3.2 / §3.3)" value={result.kh.toFixed(3)} />
-        <ValueRow label={resultLabel('kcr')}            value={result.kcr.toFixed(2)} />
-        <ValueRow label={resultLabel('ksys')}           value={result.ksys.toFixed(2)} />
-        <ValueRow label={resultLabel('kdef')}           value={result.kdef.toFixed(2)} />
-        <ValueRow label={resultLabel('gamma_M_timber')} value={result.gammaM.toFixed(2)} />
-        <ValueRow label={resultLabel('psi2')}           value={result.psi2.toFixed(2)} />
+        <ValueRow label={resultLabel('kmod')}           value={dec(result.kmod, 2)} />
+        <ValueRow label="kh — factor de tamaño  (EC5 §3.2 / §3.3)" value={dec(result.kh, 3)} />
+        <ValueRow label={resultLabel('kcr')}            value={dec(result.kcr, 2)} />
+        <ValueRow label={resultLabel('ksys')}           value={dec(result.ksys, 2)} />
+        <ValueRow label={resultLabel('kdef')}           value={dec(result.kdef, 2)} />
+        <ValueRow label={resultLabel('gamma_M_timber')} value={dec(result.gammaM, 2)} />
+        <ValueRow label={resultLabel('psi2')}           value={dec(result.psi2, 2)} />
       </div>
 
       {/* ── ELU ─────────────────────────────────────────────────────────── */}
@@ -188,8 +188,8 @@ export function TimberBeamsResults({ result }: Props) {
         <ValueRow label="fm,d · kh · ksys — resist. flexión efectiva  (EC5 §6.1.6)" value={fmtSi(fm_d_sys, 'stress')} />
         <ValueRow label="τd — tensión cortante (Av = kcr·A)" value={fmtSi(result.tau_d, 'stress')} />
         <ValueRow label={resultLabel('fv_d')} value={fmtSi(result.fv_d, 'stress')} />
-        <ValueRow label={resultLabel('lambda_rel')} value={result.lambda_rel_m.toFixed(3)} />
-        <ValueRow label={resultLabel('kcrit')} value={result.kcrit.toFixed(3)} />
+        <ValueRow label={resultLabel('lambda_rel')} value={dec(result.lambda_rel_m, 3)} />
+        <ValueRow label={resultLabel('kcrit')} value={dec(result.kcrit, 3)} />
       </div>
       <CheckRows checks={eluChecks} />
 
@@ -226,10 +226,10 @@ export function TimberBeamsResults({ result }: Props) {
       {/* ── ELS ─────────────────────────────────────────────────────────── */}
       <GroupHeader label="ELS — Deformaciones  (CTE DB-SE 4.3.3)" status={groupStatus(elsChecks)} />
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-        <ValueRow label="Activa (integridad)"  value={`${result.u_active.toFixed(1)} mm  ≤ ${result.u_active_lim.toFixed(1)}`} />
-        <ValueRow label="Sobrecarga (confort)" value={`${result.u_confort.toFixed(1)} mm  ≤ ${result.u_confort_lim.toFixed(1)} (L/350)`} />
-        <ValueRow label="Final (apariencia)"   value={`${result.u_fin.toFixed(1)} mm  ≤ ${result.u_fin_lim.toFixed(1)} (L/300)`} />
-        <ValueRow label="Instantánea total (informativa)" value={`${result.u_inst.toFixed(1)} mm`} />
+        <ValueRow label="Activa (integridad)"  value={`${dec(result.u_active, 1)} mm  ≤ ${dec(result.u_active_lim, 1)}`} />
+        <ValueRow label="Sobrecarga (confort)" value={`${dec(result.u_confort, 1)} mm  ≤ ${dec(result.u_confort_lim, 1)} (L/350)`} />
+        <ValueRow label="Final (apariencia)"   value={`${dec(result.u_fin, 1)} mm  ≤ ${dec(result.u_fin_lim, 1)} (L/300)`} />
+        <ValueRow label="Instantánea total (informativa)" value={`${dec(result.u_inst, 1)} mm`} />
       </div>
       <CheckRows checks={elsChecks} />
 
@@ -238,10 +238,10 @@ export function TimberBeamsResults({ result }: Props) {
         <>
           <GroupHeader label={`Incendio — R${result.t_fire}  (EN 1995-1-2 §4.2.2)`} status={groupStatus(fireChecks)} />
           <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
-            <ValueRow label={resultLabel('beta_n')}           value={`${result.betaN.toFixed(2)} mm/min`} />
-            <ValueRow label={resultLabel('dchar')}            value={`${result.dchar.toFixed(1)} mm`} />
+            <ValueRow label={resultLabel('beta_n')}           value={`${dec(result.betaN, 2)} mm/min`} />
+            <ValueRow label={resultLabel('dchar')}            value={`${dec(result.dchar, 1)} mm`} />
             <ValueRow label={resultLabel('d0_zeroStrength')}  value="7.0 mm" />
-            <ValueRow label={resultLabel('def_penetration')}  value={`${result.def.toFixed(1)} mm`} />
+            <ValueRow label={resultLabel('def_penetration')}  value={`${dec(result.def, 1)} mm`} />
             <ValueRow label="Sección residual  b_ef × h_ef"  value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
             <ValueRow label="MEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.MEd_fi, 'moment')} />
             <ValueRow label="VEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.VEd_fi, 'force')} />

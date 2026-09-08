@@ -25,6 +25,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { MicropilesInputs, SoilLayer } from '../../data/defaults';
+import { dec } from '../units/format';
 
 /** CR a partir del cual R ≤ 0 (tope estructural nulo). 1.07/0.027 ≈ 39.63. */
 export const CR_NULLIFIES = 1.07 / 0.027;
@@ -57,7 +58,7 @@ function lerp(x: number, x0: number, x1: number, y0: number, y1: number): number
   return y0 + t * (y1 - y0);
 }
 
-const f2 = (n: number) => n.toFixed(2);
+const f2 = (n: number) => dec(n, 2);
 
 interface Contributor {
   cr: number;

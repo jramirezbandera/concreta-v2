@@ -3,7 +3,7 @@ import { CheckRowItem, GroupHeader, ValueRow, ambientStyle } from '../../compone
 import { type CheckStatus } from '../../lib/calculations/types';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 
 interface Props {
   result: CompositeSectionResult;
@@ -84,8 +84,8 @@ export function CompositeSectionResults({ result }: Props) {
 
       {/* Propiedades compuestas */}
       <GroupHeader label="Propiedades compuestas" />
-      <ValueRow label="A total"          value={`${result.A_cm2.toFixed(1)} cm²`} />
-      <ValueRow label="y_c (desde abajo)" value={`${result.yc_mm.toFixed(1)} mm`} />
+      <ValueRow label="A total"          value={`${dec(result.A_cm2, 1)} cm²`} />
+      <ValueRow label="y_c (desde abajo)" value={`${dec(result.yc_mm, 1)} mm`} />
       <ValueRow label="Iy"               value={`${result.Iy_cm4.toFixed(0)} cm⁴`} />
       <ValueRow label="Wel,sup"          value={`${result.Wel_top_cm3.toFixed(0)} cm³`} />
       <ValueRow label="Wel,inf"          value={`${result.Wel_bot_cm3.toFixed(0)} cm³`} />
@@ -96,7 +96,7 @@ export function CompositeSectionResults({ result }: Props) {
         </span>
       </div>
       <ValueRow label="Wpl"              value={`${result.Wpl_cm3.toFixed(0)} cm³`} />
-      <ValueRow label="α (Wpl / Wel,min)" value={result.shapeFactor.toFixed(3)} />
+      <ValueRow label="α (Wpl / Wel,min)" value={dec(result.shapeFactor, 3)} />
 
       {/* Eje z (débil) */}
       <GroupHeader label="Eje z (débil)" />

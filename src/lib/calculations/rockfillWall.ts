@@ -32,6 +32,7 @@ import {
   type RockfillLitologia,
 } from '../../data/defaults';
 import { makeCheck, makeCheckQty, makeCheckNeutral, toStatus, type CheckRow } from './types';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -645,25 +646,25 @@ export function calcRockfillWall(inp: RockfillWallInputs): RockfillWallResult {
     checks.push(geomCheck(
       'geom-coronacion', 'Ancho mínimo de coronación',
       inp.a * GEOM_EPS >= aMin,
-      `a = ${inp.a.toFixed(2)} m`, `≥ ${aMin.toFixed(2)} m${H < 5 ? ' (H < 5 m)' : ''}`,
+      `a = ${dec(inp.a, 2)} m`, `≥ ${dec(aMin, 2)} m${H < 5 ? ' (H < 5 m)' : ''}`,
       `${guiaRef} §2.3`,
     ));
     checks.push(geomCheck(
       'geom-intrados', 'Talud del intradós no más vertical que 1H:3V',
       inp.mIntra * GEOM_EPS >= 1 / 3,
-      `${inp.mIntra.toFixed(2)}H:1V`, '≥ 0.33H:1V',
+      `${dec(inp.mIntra, 2)}H:1V`, '≥ 0.33H:1V',
       `${guiaRef} §2.3`,
     ));
     checks.push(geomCheck(
       'geom-hiladas', 'Contrainclinación de hiladas hacia el trasdós',
       inp.alphaHiladas * GEOM_EPS >= ALPHA_3H1V,
-      `α = ${inp.alphaHiladas.toFixed(1)}°`, `≥ ${ALPHA_3H1V.toFixed(1)}° (3H:1V)`,
+      `α = ${dec(inp.alphaHiladas, 1)}°`, `≥ ${dec(ALPHA_3H1V, 1)}° (3H:1V)`,
       `${guiaRef} §2.3`,
     ));
   } else {
     checks.push(makeCheckNeutral(
       'geom-filas',
-      `Cuerpo de ${nRows} filas de cajas de ${inp.hCaja.toFixed(2)} m (H efectiva = ${H.toFixed(2)} m)`,
+      `Cuerpo de ${nRows} filas de cajas de ${dec(inp.hCaja, 2)} m (H efectiva = ${dec(H, 2)} m)`,
       `${nRows} FILAS`,
       `${guiaRef} §2.3`,
     ));
@@ -671,40 +672,40 @@ export function calcRockfillWall(inp: RockfillWallInputs): RockfillWallResult {
   checks.push(geomCheck(
     'geom-cimiento', 'Profundidad mínima del cimiento',
     hz * GEOM_EPS >= 1.0,
-    `hz = ${hz.toFixed(2)} m`, '≥ 1.00 m',
+    `hz = ${dec(hz, 2)} m`, '≥ 1.00 m',
     `${guiaRef} §2.2`,
   ));
 
   if (inp.phiMode === 'guia' && dPhiN !== undefined) {
     checks.push(makeCheckNeutral(
       'phi-escollera',
-      `φ escollera = φb + Δφe − Δφn = ${PHI_B_LITOLOGIA[inp.litologia].toFixed(1)} + ${inp.dPhiE.toFixed(1)} − ${dPhiN.toFixed(1)}`,
-      `φ = ${phiEff.toFixed(1)}°`,
+      `φ escollera = φb + Δφe − Δφn = ${dec(PHI_B_LITOLOGIA[inp.litologia], 1)} + ${dec(inp.dPhiE, 1)} − ${dec(dPhiN, 1)}`,
+      `φ = ${dec(phiEff, 1)}°`,
       `${guiaRef} §4.1.3`,
     ));
   }
 
   // Estabilidad local (peor hilada/junta)
-  const zSlideStr = worstSlide.util > 0 ? ` (z = ${worstSlide.z.toFixed(2)} m)` : '';
+  const zSlideStr = worstSlide.util > 0 ? ` (z = ${dec(worstSlide.z, 2)} m)` : '';
   checks.push({
     id: 'hilada-deslizamiento',
     description: isGavion
       ? 'Deslizamiento entre filas de cajas (peor junta)'
       : 'Deslizamiento piedra sobre piedra (peor hilada)',
-    value: `I = ${worstSlide.util.toFixed(2)}${zSlideStr}`,
-    limit: `≤ 1.00 (γR = ${GAMMA_R_HILADA.toFixed(1)}, tan ${phiPP.toFixed(1)}°)`,
+    value: `I = ${dec(worstSlide.util, 2)}${zSlideStr}`,
+    limit: `≤ 1.00 (γR = ${dec(GAMMA_R_HILADA, 1)}, tan ${dec(phiPP, 1)}°)`,
     utilization: worstSlide.util,
     status: toStatus(worstSlide.util),
     article: `${guiaRef} §4.2.2.4`,
   });
-  const zOvertStr = worstOvert.util > 0 ? ` (z = ${worstOvert.z.toFixed(2)} m)` : '';
+  const zOvertStr = worstOvert.util > 0 ? ` (z = ${dec(worstOvert.z, 2)} m)` : '';
   checks.push({
     id: 'hilada-vuelco',
     description: isGavion
       ? 'Vuelco parcial entre filas (e ≤ b/4, peor junta)'
       : 'Vuelco parcial entre hiladas (e ≤ b/4, peor hilada)',
-    value: `I = ${worstOvert.util.toFixed(2)}${zOvertStr}`,
-    limit: `≤ 1.00 (γv = ${GAMMA_V_HILADA.toFixed(1)})`,
+    value: `I = ${dec(worstOvert.util, 2)}${zOvertStr}`,
+    limit: `≤ 1.00 (γv = ${dec(GAMMA_V_HILADA, 1)})`,
     utilization: worstOvert.util,
     status: toStatus(worstOvert.util),
     article: `${guiaRef} §4.2.2.4`,
@@ -715,19 +716,19 @@ export function calcRockfillWall(inp: RockfillWallInputs): RockfillWallResult {
   checks.push(makeCheck(
     'vuelco', `Estabilidad al vuelco${epSuffix}`,
     2.0, FS_vuelco,
-    `FS = ${isFinite(FS_vuelco) ? FS_vuelco.toFixed(2) : '∞'}`, '≥ 2.00',
+    `FS = ${isFinite(FS_vuelco) ? dec(FS_vuelco, 2) : '∞'}`, '≥ 2.00',
     'CTE DB-SE-C Tabla 2.1',
   ));
   checks.push(makeCheck(
     'deslizamiento', `Estabilidad al deslizamiento en el plano de apoyo${epSuffix}`,
     1.5, FS_desliz,
-    `FS = ${isFinite(FS_desliz) ? FS_desliz.toFixed(2) : '∞'}`, '≥ 1.50',
+    `FS = ${isFinite(FS_desliz) ? dec(FS_desliz, 2) : '∞'}`, '≥ 1.50',
     'CTE DB-SE-C §4.4.2',
   ));
   checks.push(makeCheck(
     'excentricidad', 'Resultante en tercio central (|e| ≤ B/6)',
     eAbs, B / 6,
-    `e = ${e.toFixed(3)} m`, `B/6 = ${(B / 6).toFixed(3)} m`,
+    `e = ${dec(e, 3)} m`, `B/6 = ${dec((B / 6), 3)} m`,
     'CTE DB-SE-C §4.4.3',
   ));
   checks.push(makeCheckQty(
@@ -760,25 +761,25 @@ export function calcRockfillWall(inp: RockfillWallInputs): RockfillWallResult {
     checks.push(makeCheck(
       'vuelco-sismico', `Estabilidad al vuelco (sísmica)${epSuffix}`,
       1.1, FS_vuelco_seis ?? 0,
-      `FS = ${FS_vuelco_seis !== undefined && isFinite(FS_vuelco_seis) ? FS_vuelco_seis.toFixed(2) : '∞'}`,
+      `FS = ${FS_vuelco_seis !== undefined && isFinite(FS_vuelco_seis) ? dec(FS_vuelco_seis, 2) : '∞'}`,
       '≥ 1.10',
       'NCSE-02 / NCSP-07',
     ));
     checks.push(makeCheck(
       'deslizamiento-sismico', `Estabilidad al deslizamiento (sísmico)${epSuffix}`,
       1.1, FS_desliz_seis ?? 0,
-      `FS = ${FS_desliz_seis !== undefined && isFinite(FS_desliz_seis) ? FS_desliz_seis.toFixed(2) : '∞'}`,
+      `FS = ${FS_desliz_seis !== undefined && isFinite(FS_desliz_seis) ? dec(FS_desliz_seis, 2) : '∞'}`,
       '≥ 1.10',
       'NCSE-02 / NCSP-07',
     ));
-    const zSeisStr = worstSlideSeis.util > 0 ? ` (z = ${worstSlideSeis.z.toFixed(2)} m)` : '';
+    const zSeisStr = worstSlideSeis.util > 0 ? ` (z = ${dec(worstSlideSeis.z, 2)} m)` : '';
     checks.push({
       id: 'hilada-deslizamiento-sismico',
       description: isGavion
         ? 'Deslizamiento entre filas de cajas (sísmico, peor junta)'
         : 'Deslizamiento piedra sobre piedra (sísmico, peor hilada)',
-      value: `I = ${worstSlideSeis.util.toFixed(2)}${zSeisStr}`,
-      limit: `≤ 1.00 (γR = ${GAMMA_R_HILADA_SEIS.toFixed(1)})`,
+      value: `I = ${dec(worstSlideSeis.util, 2)}${zSeisStr}`,
+      limit: `≤ 1.00 (γR = ${dec(GAMMA_R_HILADA_SEIS, 1)})`,
       utilization: worstSlideSeis.util,
       status: toStatus(worstSlideSeis.util),
       article: 'NCSE-02 / NCSP-07',

@@ -5,7 +5,7 @@ import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle } from '../../components/checks';
 import { SectionPropertiesBlock } from '../../components/checks/SectionPropertiesBlock';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface SteelColumnsResultsProps {
@@ -241,14 +241,14 @@ export function SteelColumnsResults({ result, zeroLoads }: SteelColumnsResultsPr
       <ValueRow label={resultLabel('MRd_z')}        value={fmtSi(result.Mz_Rd, 'moment')} />
       <ValueRow label={resultLabel('Nb_Rd_y')}      value={fmtSi(result.Nb_Rd_y, 'force')} />
       <ValueRow label={resultLabel('Nb_Rd_z')}      value={fmtSi(result.Nb_Rd_z, 'force')} />
-      <ValueRow label={resultLabel('chi_y')}        value={result.chi_y.toFixed(3)} />
-      <ValueRow label={resultLabel('chi_z')}        value={result.chi_z.toFixed(3)} />
-      <ValueRow label={resultLabel('lambda_bar_y')} value={result.lambda_y.toFixed(3)} />
-      <ValueRow label={resultLabel('lambda_bar_z')} value={result.lambda_z.toFixed(3)} />
+      <ValueRow label={resultLabel('chi_y')}        value={dec(result.chi_y, 3)} />
+      <ValueRow label={resultLabel('chi_z')}        value={dec(result.chi_z, 3)} />
+      <ValueRow label={resultLabel('lambda_bar_y')} value={dec(result.lambda_y, 3)} />
+      <ValueRow label={resultLabel('lambda_bar_z')} value={dec(result.lambda_z, 3)} />
       {hasLTB && (
         <>
           <ValueRow label={resultLabel('Mcr')}    value={fmtSi(result.Mcr, 'moment')} />
-          <ValueRow label={resultLabel('chi_LT')} value={result.chi_LT.toFixed(3)} />
+          <ValueRow label={resultLabel('chi_LT')} value={dec(result.chi_LT, 3)} />
           <ValueRow label={resultLabel('Mb_Rd')}  value={fmtSi(result.Mb_Rd, 'moment')} />
         </>
       )}

@@ -8,6 +8,7 @@
 export const MASONRY_ENGINE_VERSION = '2.0.0';
 
 import { toStatus, WARN_UTIL, type CheckRow } from './types';
+import { dec } from '../units/format';
 
 /** Esbeltez máxima admisible λ = h_ef/t (DB-SE-F §5.2.4). Límite ABSOLUTO:
  *  por encima el muro no es apto aunque η < 1. Fuente única — el motor, la
@@ -308,7 +309,7 @@ export interface AnejoCResult {
   K: number;
   /** fm introducido por el usuario (sin aplicar el cap). */
   fmInput: number;
-  /** fm efectivo en el cálculo tras aplicar `min(20, 0.75·fb)`. */
+  /** fm efectivo en el cálculo tras aplicar `min(20, 0,75·fb)`. */
   fmApplied: number;
   /** true si `fmApplied < fmInput` (warning visible en UI + PDF). */
   capped: boolean;
@@ -1527,7 +1528,7 @@ export function masonryMachonChecks(m: MachonResult, pl: PlantaResult): CheckRow
       id: 'pandeo',
       description: 'Pandeo (esbeltez λ)',
       article: 'DB-SE-F §5.2.4',
-      valueStr: `λ=${pl.lambda.toFixed(1)}`,
+      valueStr: `λ=${dec(pl.lambda, 1)}`,
       limitStr: `≤ ${MASONRY_LAMBDA_MAX}`,
       utilization: pl.lambda / MASONRY_LAMBDA_MAX,
       status: lambdaStatusMachon(pl.lambda),
@@ -1577,7 +1578,7 @@ export function masonryEsbeltezEdificioCheck(plantas: PlantaResult[]): CheckRow 
     id: 'esbeltez-edificio',
     description: 'Esbeltez máxima del edificio',
     article: 'DB-SE-F §5.2.4',
-    valueStr: peor ? `λ=${lambda.toFixed(1)} (${peor.nombre})` : 'λ=0.0',
+    valueStr: peor ? `λ=${dec(lambda, 1)} (${peor.nombre})` : 'λ=0,0',
     limitStr: `≤ ${MASONRY_LAMBDA_MAX}`,
     utilization: lambda / MASONRY_LAMBDA_MAX,
     status: lambda > MASONRY_LAMBDA_MAX ? 'fail' : 'ok',

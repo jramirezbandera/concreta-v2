@@ -12,7 +12,7 @@
 // mode='screen': dark theme. mode='pdf': grayscale + inline styles.
 
 import { type AxisInteraction } from '../../lib/calculations/rcColumns';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 interface RCColumnInteractionSVGProps {
@@ -111,7 +111,7 @@ export function RCColumnInteractionSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Diagrama de interacción N-M eje ${axis}: N_Ed=${nTxt(applied.N)} ${uF}, M_Ed=${mTxt(applied.M)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(utilization) ? utilization.toFixed(2) : '∞'}`}
+      aria-label={`Diagrama de interacción N-M eje ${axis}: N_Ed=${nTxt(applied.N)} ${uF}, M_Ed=${mTxt(applied.M)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(utilization) ? dec(utilization, 2) : '∞'}`}
       style={{ background: C.bg, display: 'block' }}
     >
       <g opacity={governing ? 1 : 0.55}>
@@ -129,7 +129,7 @@ export function RCColumnInteractionSVG({
         {/* η utilización, esquina superior derecha */}
         <text x={width - padRight} y={14} fill={inside ? C.ok : C.fail} fontSize="10"
           fontWeight="600" fontFamily="var(--font-mono)" textAnchor="end">
-          η = {isFinite(utilization) ? utilization.toFixed(2) : '∞'}
+          η = {isFinite(utilization) ? dec(utilization, 2) : '∞'}
         </text>
 
         {/* Marco del plot */}

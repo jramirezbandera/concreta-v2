@@ -5,7 +5,7 @@
 import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 
 export type RetainingWallView = 'geometry' | 'loads' | 'rebar';
 
@@ -381,22 +381,22 @@ function GeometryView({ inp, mode, width, height }: Required<Omit<RetainingWallS
 
       {/* Vertical dimensions */}
       <VDim y1={g.y_top} y2={g.y_fb} x={g.x_stemL - 6} side="left"
-        label={`H = ${g.H.toFixed(2)} m`} sub="alzado fuste" off={48} P={P} isPdf={isPdf} />
+        label={`H = ${dec(g.H, 2)} m`} sub="alzado fuste" off={48} P={P} isPdf={isPdf} />
       <VDim y1={g.y_fb} y2={g.y_b} x={g.x_toe - 6} side="left"
-        label={`hf = ${g.hf.toFixed(2)} m`} sub="canto zapata" off={48} P={P} isPdf={isPdf} />
+        label={`hf = ${dec(g.hf, 2)} m`} sub="canto zapata" off={48} P={P} isPdf={isPdf} />
       {g.df > 0.001 && (
         <VDim y1={g.y_front_ground} y2={g.y_fb} x={g.x_toe - 6} side="left"
-          label={`df = ${g.df.toFixed(2)} m`} sub="empot. frontal" off={48} P={P} isPdf={isPdf} />
+          label={`df = ${dec(g.df, 2)} m`} sub="empot. frontal" off={48} P={P} isPdf={isPdf} />
       )}
       <VDim y1={g.y_top} y2={g.y_b} x={g.x_heel + 6} side="right"
-        label={`Htot = ${g.Htot.toFixed(2)} m`} off={56} P={P} isPdf={isPdf} />
+        label={`Htot = ${dec(g.Htot, 2)} m`} off={56} P={P} isPdf={isPdf} />
 
       {/* Horizontal segment chips */}
       {(() => {
         const segs = [
-          { x1: g.x_toe,   x2: g.x_stemL, label: `bP = ${g.bP.toFixed(2)}`, sub: 'punta',      key: 'bp' },
-          { x1: g.x_stemL, x2: g.x_stemR, label: `t = ${g.t.toFixed(2)}`,   sub: 'fuste',      key: 't'  },
-          { x1: g.x_stemR, x2: g.x_heel,  label: `bT = ${g.bT.toFixed(2)}`, sub: 'talón',      key: 'bt' },
+          { x1: g.x_toe,   x2: g.x_stemL, label: `bP = ${dec(g.bP, 2)}`, sub: 'punta',      key: 'bp' },
+          { x1: g.x_stemL, x2: g.x_stemR, label: `t = ${dec(g.t, 2)}`,   sub: 'fuste',      key: 't'  },
+          { x1: g.x_stemR, x2: g.x_heel,  label: `bT = ${dec(g.bT, 2)}`, sub: 'talón',      key: 'bt' },
         ];
         const chipFor = (x1: number, x2: number) => Math.max(40, Math.min(58, Math.abs(x2 - x1) - 4));
         let floatRow = 0;
@@ -412,7 +412,7 @@ function GeometryView({ inp, mode, width, height }: Required<Omit<RetainingWallS
         });
       })()}
       <HDim x1={g.x_toe} x2={g.x_heel} y={g.y_b}
-        label={`B = ${g.B.toFixed(2)} m`} sub="ancho total" off={72} chipW={70} P={P} isPdf={isPdf} />
+        label={`B = ${dec(g.B, 2)} m`} sub="ancho total" off={72} chipW={70} P={P} isPdf={isPdf} />
 
       {/* Part labels (faint) */}
       <text x={(g.x_stemL + g.x_stemR) / 2} y={(g.y_top + g.y_fb) / 2 + 3}
@@ -607,7 +607,7 @@ function LoadsView({ inp, result, mode, width, height }: Required<Omit<Retaining
       {!isPdf && <TitleChip label="CARGAS Y EMPUJES" dotColor={P.seismic} w={155} P={P} />}
       <text x={width - 14} y={27} fontSize={9.5} textAnchor="end"
         fill={P.dim} fontFamily="ui-monospace, 'Geist Mono', monospace">
-        Ka = {Ka.toFixed(3)}
+        Ka = {dec(Ka, 3)}
       </text>
 
       {/* Soil on heel — when bTalon=0 we still render a behind-the-wall band so
@@ -722,7 +722,7 @@ function LoadsView({ inp, result, mode, width, height }: Required<Omit<Retaining
             fill={P.seismic} fillOpacity={0.1} stroke={P.seismic} strokeWidth={1} strokeDasharray="4 3" />
           <text x={g.x_stemR + arrowMax * 0.42} y={g.y_top - 4} fontSize={9.5}
             fill={P.seismic} textAnchor="middle" fontFamily="ui-monospace, 'Geist Mono', monospace">
-            {svgText('ΔEae · kh', isPdf)} = {kh.toFixed(2)}
+            {svgText('ΔEae · kh', isPdf)} = {dec(kh, 2)}
           </text>
         </>
       )}

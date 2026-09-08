@@ -14,6 +14,7 @@ import { InputLabel } from '../../components/ui/InputLabel';
 import { IconGridSelector } from '../../components/ui/IconGridSelector';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { BC_OPTIONS } from '../steel-columns/columnBCOptions';
+import { dec } from '../../lib/units/format';
 
 interface Props {
   state: CompositeSectionInputs;
@@ -416,10 +417,10 @@ export function CompositeSectionInputsPanel({ state, addPlate, removePlate, upda
             {state.bcType !== 'custom' ? (
               <div className="flex justify-between px-1 pt-1.5">
                 <span className="text-[10px] font-mono text-text-disabled">
-                  βy = {derivedBeta.beta_y.toFixed(2)}
+                  βy = {dec(derivedBeta.beta_y, 2)}
                 </span>
                 <span className="text-[10px] font-mono text-text-disabled">
-                  βz = {derivedBeta.beta_z.toFixed(2)}
+                  βz = {dec(derivedBeta.beta_z, 2)}
                 </span>
               </div>
             ) : (

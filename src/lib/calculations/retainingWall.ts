@@ -18,6 +18,7 @@ import { getConcrete } from '../../data/materials';
 import { GAMMA_S } from '../../data/factors';
 import { makeCheck, makeCheckQty, makeCheckNeutral, toStatus, solveRCBending, type CheckRow } from './types';
 import { GAMMA_G, GAMMA_Q } from './loadGen';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -34,7 +35,7 @@ export function asBar(diam: number, sep: number): number {
  * coacción (solera/atado a otra estructura), no el rozamiento de la zapata.
  */
 function deslizRestrainedCheck(id: string, FS: number, article: string): CheckRow {
-  const fsStr = isFinite(FS) ? FS.toFixed(2) : '∞';
+  const fsStr = isFinite(FS) ? dec(FS, 2) : '∞';
   return {
     id,
     description: `Estabilidad al deslizamiento — impedido (base coaccionada)`,
@@ -328,7 +329,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   checks.push(makeCheck(
     'vuelco', `Estabilidad al vuelco${vuelcoSuffix}`,
     2.0, FS_vuelco,
-    `FS = ${FS_vuelco.toFixed(2)}`, '≥ 2.00',
+    `FS = ${dec(FS_vuelco, 2)}`, '≥ 2,00',
     'CTE DB-SE-C Tabla 2.1',
   ));
   if (inp.slidingRestrained) {
@@ -341,14 +342,14 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     checks.push(makeCheck(
       'deslizamiento', `Estabilidad al deslizamiento${deslizSuffix}`,
       1.5, FS_desliz,
-      `FS = ${FS_desliz.toFixed(2)}`, '≥ 1.50',
+      `FS = ${dec(FS_desliz, 2)}`, '≥ 1,50',
       'CTE DB-SE-C §4.4.2',
     ));
   }
   checks.push(makeCheck(
     'excentricidad', 'Resultante en tercer medio (|e| ≤ B/6)',
     eAbs, B_m / 6,
-    `e = ${e.toFixed(3)} m`, `B/6 = ${(B_m / 6).toFixed(3)} m`,
+    `e = ${dec(e, 3)} m`, `B/6 = ${dec((B_m / 6), 3)} m`,
     'CTE DB-SE-C §4.4.3',
   ));
   checks.push(makeCheckQty(
@@ -464,7 +465,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     checks.push(makeCheck(
       'vuelco-sismico', `Estabilidad al vuelco (sismica)${vuelcoSuffix}`,
       1.1, FS_vuelco_seis,
-      `FS = ${FS_vuelco_seis.toFixed(2)}`, '≥ 1.10',
+      `FS = ${dec(FS_vuelco_seis, 2)}`, '≥ 1,10',
       'NCSE-02 / NCSP-07',
     ));
     if (inp.slidingRestrained) {
@@ -473,7 +474,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       checks.push(makeCheck(
         'deslizamiento-sismico', `Estabilidad al deslizamiento (sismico)${deslizSuffix}`,
         1.1, FS_desliz_seis,
-        `FS = ${FS_desliz_seis.toFixed(2)}`, '≥ 1.10',
+        `FS = ${dec(FS_desliz_seis, 2)}`, '≥ 1,10',
         'NCSE-02 / NCSP-07',
       ));
     }
@@ -581,7 +582,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
         id: 'fuste-bending',
         description: 'Flexion ELU en fuste',
         valueNum: MEd_fuste, valueQty: 'momentPerLength',
-        limitStr: `m = ${m_f.toFixed(3)} ≤ 0.5`,
+        limitStr: `m = ${dec(m_f, 3)} ≤ 0,5`,
         utilization: m_f / 0.5,
         status: toStatus(m_f / 0.5),
         article: 'CE Anejo 19 §6.1',
@@ -595,7 +596,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
     // Fuste asmin trasdós — CE Anejo 19 §9.6.2 (60% of 0.002·Ac on tension face)
     if (As_prov_fv_int > 0) {
       checks.push(makeCheck(
-        'fuste-asmin', 'Armadura minima fuste trasdós (60% de 0.002·Ac)',
+        'fuste-asmin', 'Armadura minima fuste trasdós (60% de 0,002·Ac)',
         As_min_fuste, As_prov_fv_int,
         `As,prov = ${As_prov_fv_int.toFixed(0)} mm²/m`,
         `As,min = ${As_min_fuste.toFixed(0)} mm²/m`,
@@ -605,7 +606,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const As_f_cap = isFinite(As_req_fuste) && As_req_fuste < As_min_fuste
         ? As_min_fuste * 1.001 : As_f;
       checks.push(makeCheck(
-        'fuste-asmin', 'Armadura minima fuste trasdós (60% de 0.002·Ac)',
+        'fuste-asmin', 'Armadura minima fuste trasdós (60% de 0,002·Ac)',
         As_min_fuste, As_f_cap,
         `As,min = ${As_min_fuste.toFixed(0)} mm²/m`, `As,prov = ${As_f.toFixed(0)} mm²/m`,
         'CE Anejo 19 §9.6.2',
@@ -683,7 +684,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           id: 'talon-bending',
           description: 'Flexion ELU en talon',
           valueNum: MEd_talon, valueQty: 'momentPerLength',
-          limitStr: `m = ${m_t.toFixed(3)} ≤ 0.5`,
+          limitStr: `m = ${dec(m_t, 3)} ≤ 0,5`,
           utilization: m_t / 0.5,
           status: toStatus(m_t / 0.5),
           article: 'CE Anejo 19 §6.1',
@@ -750,7 +751,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           id: 'punta-bending',
           description: 'Flexion ELU en punta',
           valueNum: MEd_punta, valueQty: 'momentPerLength',
-          limitStr: `m = ${m_p.toFixed(3)} ≤ 0.5`,
+          limitStr: `m = ${dec(m_p, 3)} ≤ 0,5`,
           utilization: m_p / 0.5,
           status: toStatus(m_p / 0.5),
           article: 'CE Anejo 19 §6.1',

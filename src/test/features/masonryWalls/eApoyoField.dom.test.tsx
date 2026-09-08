@@ -79,7 +79,7 @@ describe('EApoyoField — modo auto ⇄ manual', () => {
     expect(screen.getAllByText(/e_apoyo = t\/2 − a\/3/).length).toBeGreaterThan(0);
     // getAll: e_cabeza/e_pie son ahora filas ReadoutRow propias y pueden
     // coincidir numéricamente con el derivado — basta con que esté visible.
-    expect(screen.getAllByText('6.0 cm').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('6,0 cm').length).toBeGreaterThan(0);
   });
 
   it('activar manual siembra exactamente eApoyoForjado(t, a) en el state', () => {
@@ -111,6 +111,6 @@ describe('EApoyoField — modo auto ⇄ manual', () => {
     const initial = blankMasonryState();
     initial.t = 480; // 480/2 − 180/3 = 180 mm = 18.0 cm
     renderWith(initial);
-    expect(screen.getAllByText('18.0 cm').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('18,0 cm').length).toBeGreaterThan(0);
   });
 });

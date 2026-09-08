@@ -18,6 +18,7 @@ import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty } from './types';
 import { solveAtULU } from './rcBeamsSection';
+import { dec } from '../units/format';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -362,8 +363,8 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     checks.push({
       id: 'rho-w-min',
       description: 'Cuantia minima de armadura transversal',
-      value: `\u03c1w = ${rhoW.toFixed(5)}`,
-      limit: `\u03c1w,min = ${rhoWMin.toFixed(5)}`,
+      value: `\u03c1w = ${dec(rhoW, 5)}`,
+      limit: `\u03c1w,min = ${dec(rhoWMin, 5)}`,
       utilization: rhoWUtil,
       status: rhoWStatus,
       article: 'CE Anejo 19 §6.2.3',
@@ -405,7 +406,7 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
       id: 'rho-w-min',
       description: 'Cuantia minima de armadura transversal (obligatoria en vigas)',
       value: 'ρw = 0 (sin cercos)',
-      limit: `ρw,min = ${rhoWMin.toFixed(5)}`,
+      limit: `ρw,min = ${dec(rhoWMin, 5)}`,
       utilization: Infinity,
       status: 'fail',
       article: 'CE Anejo 19 §9.2.2(5)',
@@ -513,8 +514,8 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     'cracking',
     `Ancho de fisura wk <= wmax (clase ${inp.exposureClass})`,
     wk, wkLim,
-    `wk = ${wk.toFixed(3)} mm`,
-    `wmax = ${wkLim.toFixed(2)} mm`,
+    `wk = ${dec(wk, 3)} mm`,
+    `wmax = ${dec(wkLim, 2)} mm`,
     'CE Anejo 19 §7.3',
   ));
 
@@ -680,8 +681,8 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
       vano.checks.push({
         id: 'deflection-cracked',
         description: 'Flecha diferida (ELS-cp, seccion fisurada)',
-        value: `δ = ${deltaDif.toFixed(1)} mm (k = ${Number.isFinite(fis.k) ? fis.k.toFixed(2) : '∞'}, ζ = ${fis.zeta.toFixed(2)})`,
-        limit: `L/300 = ${adm.toFixed(1)} mm`,
+        value: `δ = ${dec(deltaDif, 1)} mm (k = ${Number.isFinite(fis.k) ? dec(fis.k, 2) : '∞'}, ζ = ${dec(fis.zeta, 2)})`,
+        limit: `L/300 = ${dec(adm, 1)} mm`,
         utilization: util,
         status: toStatus(util),
         article: 'CE Anejo 19 §7.4.3 · CTE DB-SE 4.3.3',
@@ -710,8 +711,8 @@ export function calcRCBeam(inp: RCBeamInputs): RCBeamResult {
     vano.checks.push({
       id: 'slenderness-ld',
       description: 'Esbeltez L/d (flecha sin calculo directo)',
-      value: `L/d = ${ld.toFixed(1)}`,
-      limit: `λ,lim = ${lambdaLim.toFixed(1)}`,
+      value: `L/d = ${dec(ld, 1)}`,
+      limit: `λ,lim = ${dec(lambdaLim, 1)}`,
       utilization: ld / lambdaLim,
       status: toStatus(ld / lambdaLim),
       article: 'CE Anejo 19 §7.4.2',

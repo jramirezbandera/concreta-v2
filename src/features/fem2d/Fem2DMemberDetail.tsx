@@ -22,6 +22,7 @@ import { diagColorFor, findLocalExtrema, fmtField, signRuns } from './canvasThem
 import { memberStatusToCheck, toCheckRow } from './checkMapping';
 import type { MemberEnvelopes2D, MemberVerdict2D } from './checks';
 import type { DisplayGroup2D, Fem2DMember } from './types';
+import { dec } from '../../lib/units/format';
 
 /** Etiqueta del grupo de PRESENTACIÓN (paso 12) — nunca enruta nada. */
 const GROUP_SINGULAR: Record<DisplayGroup2D, string> = {
@@ -221,7 +222,7 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, twoForce, amplif
           {/* Datos de partida */}
           <GroupHeader label="Datos de partida" />
           <ValueRow label="Barra" value={`${member.i} → ${member.j}`} />
-          {detail && <ValueRow label="Longitud" value={`${detail.L.toFixed(2)} m`} />}
+          {detail && <ValueRow label="Longitud" value={`${dec(detail.L, 2)} m`} />}
           <ValueRow
             label="Elemento"
             value={twoForce ? 'biela (solo axil, derivada)' : 'viga-columna'}
@@ -231,13 +232,13 @@ export function Fem2DMemberDetail({ member, verdict, envelopes, twoForce, amplif
           {showLtb && (
             <ValueRow
               label="Arriostramiento del ala comprimida (correas)"
-              value={member.ltbSpacing !== undefined ? `cada ${member.ltbSpacing.toFixed(2)} m` : 'sin arriostrar (Lcr = L)'}
+              value={member.ltbSpacing !== undefined ? `cada ${dec(member.ltbSpacing, 2)} m` : 'sin arriostrar (Lcr = L)'}
             />
           )}
           {member.material !== 'rc' && (
             <ValueRow
               label="Arriostramiento del eje débil"
-              value={member.weakAxisBracing !== undefined ? `cada ${member.weakAxisBracing.toFixed(2)} m` : 'sin arriostrar (Lcr,z = L)'}
+              value={member.weakAxisBracing !== undefined ? `cada ${dec(member.weakAxisBracing, 2)} m` : 'sin arriostrar (Lcr,z = L)'}
             />
           )}
           {!twoForce && (

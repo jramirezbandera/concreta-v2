@@ -374,7 +374,7 @@ describe('calcTimberBeam — carga puntual', () => {
   it('deja constancia del dato con una fila informativa', () => {
     const row = calcTimberBeam({ ...baseInp, P_Q: 20, aP: 2 }).checks.find(c => c.id === 'point-load');
     expect(row?.neutral).toBe(true);
-    expect(row?.description).toContain('a = 2.00 m');
+    expect(row?.description).toContain('a = 2,00 m');
     expect(calcTimberBeam(baseInp).checks.find(c => c.id === 'point-load')).toBeUndefined();
   });
 

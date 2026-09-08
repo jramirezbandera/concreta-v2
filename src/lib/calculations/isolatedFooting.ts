@@ -18,6 +18,7 @@ import { type IsolatedFootingInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, makeCheck, makeCheckQty, makeCheckNeutral, toStatus } from './types';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -560,9 +561,9 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const u_x = FS_VUELCO_MIN / FS_overturn_x;
     checks.push({
       id: 'overturn-x',
-      description: 'Vuelco dir. x (FS ≥ 2.0)',
-      value: `FS = ${FS_overturn_x.toFixed(2)}`,
-      limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
+      description: 'Vuelco dir. x (FS ≥ 2,0)',
+      value: `FS = ${dec(FS_overturn_x, 2)}`,
+      limit: `≥ ${dec(FS_VUELCO_MIN, 2)}`,
       utilization: u_x,
       status: toStatus(u_x),
       article: 'CTE DB-SE-C 4.4.2',
@@ -572,9 +573,9 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const u_y = FS_VUELCO_MIN / FS_overturn_y;
     checks.push({
       id: 'overturn-y',
-      description: 'Vuelco dir. y (FS ≥ 2.0)',
-      value: `FS = ${FS_overturn_y.toFixed(2)}`,
-      limit: `≥ ${FS_VUELCO_MIN.toFixed(2)}`,
+      description: 'Vuelco dir. y (FS ≥ 2,0)',
+      value: `FS = ${dec(FS_overturn_y, 2)}`,
+      limit: `≥ ${dec(FS_VUELCO_MIN, 2)}`,
       utilization: u_y,
       status: toStatus(u_y),
       article: 'CTE DB-SE-C 4.4.2',
@@ -586,9 +587,9 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const u_s = FS_SLIDE_MIN / FS_sliding;
     checks.push({
       id: 'sliding',
-      description: 'Deslizamiento (FS ≥ 1.5)',
-      value: `FS = ${FS_sliding.toFixed(2)}`,
-      limit: `≥ ${FS_SLIDE_MIN.toFixed(2)}`,
+      description: 'Deslizamiento (FS ≥ 1,5)',
+      value: `FS = ${dec(FS_sliding, 2)}`,
+      limit: `≥ ${dec(FS_SLIDE_MIN, 2)}`,
       utilization: u_s,
       status: toStatus(u_s),
       article: 'CTE DB-SE-C 4.4.3',

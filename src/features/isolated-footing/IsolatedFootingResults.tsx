@@ -8,7 +8,7 @@ import {
   overallStatus, ambientStyle,
 } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {
@@ -70,8 +70,8 @@ function FSRow({
     <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
       <span className="text-[12px] text-text-secondary">{label}</span>
       <span className="text-[11px] font-mono text-text-primary tabular-nums">
-        {fs.toFixed(2)}
-        <span className="text-text-disabled ml-2">(≥{FS_MIN.toFixed(1)})</span>
+        {dec(fs, 2)}
+        <span className="text-text-disabled ml-2">(≥{dec(FS_MIN, 1)})</span>
         <span className={`ml-2 ${colorClass}`}>{sym}</span>
       </span>
     </div>
@@ -133,8 +133,8 @@ export function IsolatedFootingResults({ result }: Props) {
       <div className="py-1 border-b border-border-sub">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] font-mono text-text-secondary tabular-nums">
-            {`ex = ${result.ex_sls.toFixed(3)} m`}
-            <span className="text-text-disabled ml-2">{`(ex/(B/6) = ${ex_ratio.toFixed(2)})`}</span>
+            {`ex = ${dec(result.ex_sls, 3)} m`}
+            <span className="text-text-disabled ml-2">{`(ex/(B/6) = ${dec(ex_ratio, 2)})`}</span>
           </span>
           <span className={`font-mono text-[11px] ${ex_ratio > 1 ? 'text-accent' : 'text-state-ok'}`}>
             {ex_ratio > 1 ? '▲' : '✓'}
@@ -142,8 +142,8 @@ export function IsolatedFootingResults({ result }: Props) {
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] font-mono text-text-secondary tabular-nums">
-            {`ey = ${result.ey_sls.toFixed(3)} m`}
-            <span className="text-text-disabled ml-2">{`(ey/(L/6) = ${ey_ratio.toFixed(2)})`}</span>
+            {`ey = ${dec(result.ey_sls, 3)} m`}
+            <span className="text-text-disabled ml-2">{`(ey/(L/6) = ${dec(ey_ratio, 2)})`}</span>
           </span>
           <span className={`font-mono text-[11px] ${ey_ratio > 1 ? 'text-accent' : 'text-state-ok'}`}>
             {ey_ratio > 1 ? '▲' : '✓'}

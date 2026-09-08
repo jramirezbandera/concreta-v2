@@ -26,7 +26,7 @@
 
 import { type SectionAtMomentResult } from '../../lib/calculations/rcBeamsSection';
 import { getConcrete } from '../../data/materials';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface RCBeamForcesSVGProps {
@@ -147,7 +147,7 @@ export function RCBeamForcesSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Fuerzas movilizadas: F_c=${F_concrete.toFixed(1)} kN (bloque parábola-rectángulo, σ_top=${sigmaTop.toFixed(1)} MPa = ${sigmaTopPct.toFixed(0)}% de fcd), F_s'=${F_s_comp.toFixed(1)} kN, F_s=${F_s_tens.toFixed(1)} kN`}
+      aria-label={`Fuerzas movilizadas: F_c=${dec(F_concrete, 1)} kN (bloque parábola-rectángulo, σ_top=${dec(sigmaTop, 1)} MPa = ${dec(sigmaTopPct, 0)}% de fcd), F_s'=${dec(F_s_comp, 1)} kN, F_s=${dec(F_s_tens, 1)} kN`}
       style={{ background: C.bg, display: 'block' }}
     >
       <defs>

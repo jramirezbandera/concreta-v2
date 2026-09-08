@@ -17,6 +17,7 @@
 //   CHS      Iy = Iz, Wel_y = Wel_z, Wpl_y = Wpl_z por axisimetría
 
 import type { SectionGeometry } from '../../lib/sections';
+import { dec } from '../../lib/units/format';
 
 export interface SectionPropertyRow {
   /** Etiqueta ya resuelta por familia, con la unidad incluida. */
@@ -43,7 +44,7 @@ export interface SectionPropertyRow {
 const STEEL_WEIGHT_PER_CM2 = 0.785;
 
 function num(v: number, decimals: number): string {
-  return Number.isFinite(v) ? v.toFixed(decimals) : '—';
+  return Number.isFinite(v) ? dec(v, decimals) : '—';
 }
 
 /** Dimensiones en mm — el catálogo publica 168.3 / 10.7, así que 1 decimal. */

@@ -2079,10 +2079,10 @@ export function validateAnchorPlate(inp: AnchorPlateInputs): ValidationWarning[]
     w.push({ field: 'plate_t', message: 'Espesor placa < 8 mm (mínimo práctico EC3)', severity: 'warn' });
   }
   if (inp.bar_edge_x < 1.5 * inp.bar_diam) {
-    w.push({ field: 'bar_edge_x', message: 'Distancia al borde < 1.5·φ', severity: 'warn' });
+    w.push({ field: 'bar_edge_x', message: 'Distancia al borde < 1,5·φ', severity: 'warn' });
   }
   if (inp.bar_edge_y < 1.5 * inp.bar_diam) {
-    w.push({ field: 'bar_edge_y', message: 'Distancia al borde < 1.5·φ', severity: 'warn' });
+    w.push({ field: 'bar_edge_y', message: 'Distancia al borde < 1,5·φ', severity: 'warn' });
   }
   if (needsBondAnchorage(inp.bottom_anchorage) && inp.bar_hef < 8 * inp.bar_diam) {
     w.push({ field: 'bar_hef', message: 'Profundidad anclaje < 8·φ (EC2 §8.4 lb,min)', severity: 'warn' });
@@ -2144,8 +2144,8 @@ export function checkConcreteNVInteraction(
   return {
     id: 'concrete-interaction',
     description: 'Interacción N+V hormigón',
-    value: `(${d(utilN, 2)})^1.5 + (${d(utilV, 2)})^1.5`,
-    limit: '≤ 1.00 (modos pésimos N y V)',
+    value: `(${d(utilN, 2)})^1,5 + (${d(utilV, 2)})^1,5`,
+    limit: '≤ 1,00 (modos pésimos N y V)',
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 11 §7.2.3',

@@ -28,6 +28,20 @@ export function conComaDecimal(texto: string): string {
   return texto.replace(".", ",");
 }
 
+/**
+ * Un número suelto con la coma española: lo que `toFixed` debería dar aquí.
+ *
+ * Para lo que NO es una magnitud del catálogo y por tanto no pasa por
+ * `formatQuantity`: cotas en metros, esbelteces, coeficientes de seguridad,
+ * ángulos, cocientes. Es la única forma de escribir un decimal en pantalla.
+ *
+ * NO vale para coordenadas de SVG (`x`, `d`, `points`): ahí el punto es
+ * sintaxis y la coma rompe el dibujo.
+ */
+export function dec(valor: number, decimales: number): string {
+  return conComaDecimal(valor.toFixed(decimales));
+}
+
 export function formatQuantity(
   valueSi: number,
   quantity: Quantity,

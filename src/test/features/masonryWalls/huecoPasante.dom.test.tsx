@@ -90,7 +90,7 @@ describe('hueco pasante — panel de inputs', () => {
   it('pasante: sin campo de alto editable, con el readout "alto = H de la planta"', () => {
     renderWith(stateConHueco(PASANTE));
     expect(screen.getByText(/alto = H de la planta/)).toBeTruthy();
-    expect(screen.getByText(/300\.0 cm/)).toBeTruthy();
+    expect(screen.getByText(/300,0 cm/)).toBeTruthy();
     expect(screen.queryByTitle('alto (hasta dintel)')).toBeNull();
     // Tampoco el hint "h máx = H − y", que solo tiene sentido con h editable.
     expect(screen.queryByText(/h máx/)).toBeNull();

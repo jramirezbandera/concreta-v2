@@ -7,7 +7,7 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
 import { exportRetainingWallPDF, retainingWallFallbackFilename } from '../../lib/pdf/retainingWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { retainingWallAdapter, summarizeRetainingWallResults } from '../../lib/ai/modules/retainingWall';
 import { Topbar } from '../../components/layout/Topbar';
@@ -85,9 +85,9 @@ function SummaryStrip({
   const { system } = useUnitSystem();
   return (
     <div className="flex items-center gap-5">
-      <Stat ok={okD} label="Deslizamiento" value={isFinite(fsd) ? fsd.toFixed(2) : '∞'} />
+      <Stat ok={okD} label="Deslizamiento" value={isFinite(fsd) ? dec(fsd, 2) : '∞'} />
       <div className="w-px h-7 bg-border-main" />
-      <Stat ok={okV} label="Vuelco"        value={isFinite(fsv) ? fsv.toFixed(2) : '∞'} />
+      <Stat ok={okV} label="Vuelco"        value={isFinite(fsv) ? dec(fsv, 2) : '∞'} />
       <div className="w-px h-7 bg-border-main" />
       <Stat
         ok={okS}

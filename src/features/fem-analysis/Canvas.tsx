@@ -24,7 +24,7 @@
 // ELU samples produced by the bridge (`solveDesignModel`).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { ZoomControls } from '../../components/ui/ZoomControls';
@@ -1548,7 +1548,7 @@ function DeformedBar({
           <g key={idx}>
             <circle cx={px} cy={yPx} r="2.5" fill="var(--color-accent)" />
             <text x={px + 4} y={yPx + labelDy} fontFamily="var(--font-mono)" fontSize="9" fill="var(--color-accent)">
-              δ={val < 0 ? '−' : '+'}{Math.abs(deltaMm).toFixed(1)} mm
+              δ={val < 0 ? '−' : '+'}{dec(Math.abs(deltaMm), 1)} mm
             </text>
           </g>
         );

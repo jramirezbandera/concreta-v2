@@ -21,6 +21,7 @@ import { MicropilesSVG, type MicropilesView } from './MicropilesSVG';
 import { MicropilesResults } from './MicropilesResults';
 import { loadSoil, saveSoil } from './soilStorage';
 import { buildShareUrl, readSoilFromUrl } from './serialize';
+import { dec } from '../../lib/units/format';
 
 // Pestañas de vista. "Semáforos" se retiró (2026-06-02): sus utilizaciones
 // ih/ic/im/iv ya están en el topbar (IH/IC/IM/IV) y en las comprobaciones del
@@ -75,7 +76,7 @@ function UtilStat({ label, util }: { label: string; util: number }) {
     <div className="flex flex-col items-end leading-none">
       <span className="text-[9px] uppercase tracking-[0.08em] text-text-disabled font-mono">{label}</span>
       <span className={['text-[14px] font-mono font-semibold mt-0.5', color].join(' ')}>
-        {isFinite(util) ? util.toFixed(2) : '∞'}
+        {isFinite(util) ? dec(util, 2) : '∞'}
       </span>
     </div>
   );

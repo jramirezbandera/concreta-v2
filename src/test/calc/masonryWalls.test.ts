@@ -2150,7 +2150,7 @@ describe('masonryBuildingChecks — paridad con el veredicto del motor', () => {
     const plantas = conLambdas(plantasCon(2), [18, 30]);
     const fila = masonryEsbeltezEdificioCheck(plantas);
     expect(fila.status).toBe('fail');
-    expect(fila.valueStr).toContain('30.0');
+    expect(fila.valueStr).toContain('30,0');
     expect(fila.valueStr).toContain('Cubierta');
     expect(plantaMasEsbelta(plantas)!.lambda).toBe(30);
   });

@@ -26,6 +26,7 @@
 import type { ReactElement } from 'react';
 import type { SlopeInputs } from '../../data/defaults';
 import type { SlopeRun, SlopePoint, SlopeCircleFoS } from '../../lib/calculations/geotech/types';
+import { dec } from '../../lib/units/format';
 
 interface SlopeSearchSVGProps {
   inp: SlopeInputs;
@@ -519,7 +520,7 @@ export function SlopeSearchSVG({
               textAnchor="middle"
               fontFamily={FONT_MONO}
             >
-              {svgText(`FoS = ${run.fos.toFixed(2)}`, isPdf)}
+              {svgText(`FoS = ${dec(run.fos, 2)}`, isPdf)}
             </text>
           </g>
         );
@@ -554,7 +555,7 @@ export function SlopeSearchSVG({
                     stroke={P.critical} strokeWidth={1.2} />
                   <text x={mx} y={ly + 4 + barH + 11} fontSize={8} textAnchor="middle"
                     fill={P.critical} fontFamily={FONT_MONO}>
-                    {svgText(run.fos.toFixed(2), isPdf)}
+                    {svgText(dec(run.fos, 2), isPdf)}
                   </text>
                 </g>
               );

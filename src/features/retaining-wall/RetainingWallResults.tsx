@@ -7,7 +7,7 @@ import { buildShareUrl } from '../slope-stability/serialize';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface RetainingWallResultsProps {
@@ -121,22 +121,22 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
       {/* Key values */}
       <div className="rounded border border-border-main px-4 py-3">
         <GroupHeader label="Valores geotécnicos" />
-        <ValueRow label={resultLabel('Ka_coulomb')}  value={result.Ka.toFixed(4)} />
+        <ValueRow label={resultLabel('Ka_coulomb')}  value={dec(result.Ka, 4)} />
         {result.kh_derived > 0 && (
           <>
-            <ValueRow label={resultLabel('kh_seismic')} value={result.kh_derived.toFixed(3)} />
-            <ValueRow label={resultLabel('kv_seismic')} value={result.kv_derived.toFixed(3)} />
+            <ValueRow label={resultLabel('kh_seismic')} value={dec(result.kh_derived, 3)} />
+            <ValueRow label={resultLabel('kv_seismic')} value={dec(result.kv_derived, 3)} />
           </>
         )}
         {result.KAD !== undefined && (
-          <ValueRow label={resultLabel('K_AE')}      value={result.KAD.toFixed(4)} />
+          <ValueRow label={resultLabel('K_AE')}      value={dec(result.KAD, 4)} />
         )}
         <ValueRow label="EAH total"             value={fmtSi(result.EAH_total, 'linearLoad')} />
         {result.EW !== undefined && (
           <ValueRow label="EW (hidráulica)"      value={fmtSi(result.EW, 'linearLoad')} />
         )}
         <ValueRow label="ΣV"                    value={fmtSi(result.ΣV, 'linearLoad')} />
-        <ValueRow label="e (excentricidad)"     value={`${result.e.toFixed(3)} m`} />
+        <ValueRow label="e (excentricidad)"     value={`${dec(result.e, 3)} m`} />
         <ValueRow label={resultLabel('sigma_max')} value={fmtSi(result.sigma_max, 'soilPressure', 3)} />
         <ValueRow label={resultLabel('sigma_min')} value={fmtSi(result.sigma_min, 'soilPressure', 3)} />
 

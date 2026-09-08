@@ -173,7 +173,8 @@ describe('classification', () => {
     // heavy-bottom case vs. the bare profile — tighter because α > 0.5.
     const barelim  = bare.checks.find(c => c.id === 'cls-web')!.limit ?? '';
     const heavylim = heavy.checks.find(c => c.id === 'cls-web')!.limit ?? '';
-    const parseLim = (s: string) => parseFloat(s.match(/([\d.]+)/)?.[1] ?? '0');
+    // El límite se pinta con coma decimal: `[\d.]+` cortaría en el separador.
+    const parseLim = (s: string) => parseFloat((s.match(/([\d,]+)/)?.[1] ?? '0').replace(',', '.'));
     expect(parseLim(heavylim)).toBeLessThan(parseLim(barelim));
   });
 
@@ -191,7 +192,7 @@ describe('classification', () => {
     // Class 1 web limit for α=0.5: 72·ε
     const ε = Math.sqrt(235 / r.fy_MPa);
     const limStr = r.checks.find(c => c.id === 'cls-web')!.limit ?? '';
-    const limVal = parseFloat(limStr.match(/([\d.]+)/)?.[1] ?? '0');
+    const limVal = parseFloat((limStr.match(/([\d,]+)/)?.[1] ?? '0').replace(',', '.'));
     expect(limVal).toBeCloseTo(72 * ε, 0);
   });
 });
@@ -826,7 +827,7 @@ describe('Auditoría #108: platabandas apiladas en compresión', () => {
       ],
     });
     const row = r.compChecks.find((c) => c.id === 'cls-comp-plate-2')!;
-    expect(row.value).toBe('2.1');
+    expect(row.value).toBe('2,1');
     expect(r.compClass4).toBe(false);
   });
 });

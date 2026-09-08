@@ -92,8 +92,8 @@ describe('MicropilesSVG', () => {
     // recubrimiento auto r=(Dn−de)/2 ⇒ d_struct=Dn=185 (bulbo = barreno), que
     // sube Fc,h y por tanto Nc,rd respecto al d_struct=180 del Excel manual.
     // Formato con punto decimal — adimensionales no llevan unidad ni coma local.
-    expect(text).toMatch(/0\.68/);
-    expect(text).toMatch(/0\.51/);
+    expect(text).toMatch(/0,68/);
+    expect(text).toMatch(/0,51/);
     // Y debe nombrar las dos comprobaciones, no solo los números.
     expect(text).toMatch(/Hundimiento por fuste/);
     expect(text).toMatch(/Tope compresión/);

@@ -7,7 +7,7 @@ import { WARN_UTIL } from '../../lib/calculations/types';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { getMinStructuralCover } from '../../data/micropileLookups';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
@@ -398,7 +398,7 @@ function RfcCurveView({
       {/* Labels eje Y */}
       {yGrid.map((z) => (
         <text key={`ty-${z}`} x={M.left - 5} y={yOfZ(z) + 3} textAnchor="end" fontSize={8.5} fill={p.textDim} fontFamily="ui-monospace, monospace">
-          {z.toFixed(1)}
+          {dec(z, 1)}
         </text>
       ))}
       <text x={18} y={M.top + plotH / 2} transform={`rotate(-90, 18, ${M.top + plotH / 2})`} textAnchor="middle" fontSize={9} fill={p.text} fontFamily="ui-monospace, monospace">z (m)</text>
@@ -419,7 +419,7 @@ function RfcCurveView({
         <g>
           <circle cx={xLoad} cy={yOfZ(zMinTheo)} r={3} fill={p.curveTheo} />
           <text x={xLoad + 6} y={yOfZ(zMinTheo) - 4} fontSize={8} fill={p.curveTheo} fontFamily="ui-monospace, monospace">
-            zmin = {zMinTheo.toFixed(1)} m
+            zmin = {dec(zMinTheo, 1)} m
           </text>
         </g>
       )}
@@ -588,7 +588,7 @@ function SemaphoresView({
       article: 'CE Anejo 22 §6.2.6' },
     { id: 'set', title: 'Asiento granular',
       util: result.settlementGranular / 25,
-      override: `${result.settlementGranular.toFixed(1)} mm / 25 mm`,
+      override: `${dec(result.settlementGranular, 1)} mm / 25 mm`,
       article: 'Criterio CTE DB-SE-C' },
     { id: 'eg', title: 'Garganta soldadura',          util: result.eg >= result.eg_min ? 0.5 : 1.2,
       override: `${result.eg} mm ≥ ${result.eg_min} mm`,
@@ -622,7 +622,7 @@ function SemaphoresView({
           card.util >= 1.0 ? p.fail :
           card.util >= WARN_UTIL ? p.warn :
                              p.ok;
-        const valueText = card.override ?? util.toFixed(2);
+        const valueText = card.override ?? dec(util, 2);
         return (
           <g key={card.id} transform={`translate(${x}, ${y})`}>
             <defs>

@@ -956,7 +956,7 @@ describe('Tubo personalizado (custom)', () => {
       baseSoil,
     );
     expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/Recubrimiento.*7\.5 mm.*20 mm/);
+    expect(r.error).toMatch(/Recubrimiento.*7,5 mm.*20 mm/);
     expect(r.error).toMatch(/lechada/);
     expect(r.error).toMatch(/compresión/);
   });
@@ -1002,7 +1002,7 @@ describe('Tabla 2.3 — recubrimiento mínimo dinámico', () => {
       baseSoil,
     );
     expect(failDesign.valid).toBe(false);
-    expect(failDesign.error).toMatch(/materializado.*5\.0 mm.*20 mm.*lechada.*compresión/);
+    expect(failDesign.error).toMatch(/materializado.*5,0 mm.*20 mm.*lechada.*compresión/);
   });
 
   it('lechada + tracción exige r ≥ 25 mm (Tabla 2.3)', () => {
@@ -1079,7 +1079,7 @@ describe('Tabla 2.3 — recubrimiento mínimo dinámico', () => {
       baseSoil,
     );
     expect(r.valid).toBe(false);
-    expect(r.error).toMatch(/materializado.*5\.0 mm.*20 mm/);
+    expect(r.error).toMatch(/materializado.*5,0 mm.*20 mm/);
   });
 
   it('tube="custom" delgado puede caer en clase 4 → invalid con mensaje específico', () => {
@@ -1375,7 +1375,7 @@ describe('Perfil de suelo no llega al apoyo', () => {
   it('mensaje de error reporta los metros que faltan', () => {
     const truncated = [{ ...baseSoil[0], thickness: 5.00 }];
     const r = calcMicropiles(baseInp, truncated);   // toeDepth = 17, suelo = 5, faltan 12
-    expect(r.error).toMatch(/12\.00 m/);
+    expect(r.error).toMatch(/12,00 m/);
   });
 
   it('admite suelo exactamente igual a toeDepth (frontera, sin epsilon)', () => {

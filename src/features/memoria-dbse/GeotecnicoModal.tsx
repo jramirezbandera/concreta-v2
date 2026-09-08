@@ -36,6 +36,7 @@ import {
   type Seleccion,
 } from '../../lib/memoria/geotecnico';
 import { BOTON_ACENTO, BOTON_MENOR } from './estilos';
+import { dec } from '../../lib/units/format';
 
 interface Props {
   /** Vuelca la extracción en el estado y devuelve qué entró, qué se conservó y qué falta. */
@@ -50,7 +51,7 @@ type Fase =
   | { id: 'leyendo'; pdf: PdfAbierto; seleccion: Seleccion | null }
   | { id: 'hecho'; pdf: PdfAbierto; reply: string; resultado: ResultadoLectura; avisos: string[] };
 
-const MB = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+const MB = (bytes: number) => `${dec((bytes / 1024 / 1024), 1)} MB`;
 
 function Lista({ titulo, items, tono }: { titulo: string; items: string[]; tono: string }) {
   if (items.length === 0) return null;

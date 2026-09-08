@@ -19,7 +19,7 @@ import {
   type OverallStatus,
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface Props {
@@ -130,7 +130,7 @@ export function MasonryWallsResults({
       {displayMachon && (
         <>
           <ValueRow label="Planta"                         value={displayMachon.planta.nombre} />
-          <ValueRow label="Machón"                         value={`${displayMachon.id} · ${(displayMachon.ancho / 10).toFixed(1)} cm`} />
+          <ValueRow label="Machón"                         value={`${displayMachon.id} · ${dec((displayMachon.ancho / 10), 1)} cm`} />
           <ValueRow label="N_directo · por ancho"          value={formatQuantity(displayMachon.N_lineal, 'force', system)} />
           {/* Desglose del N_directo: cuánto viene heredado del muro superior
               (cascada multi-planta) vs el forjado propio de esta planta.
@@ -153,9 +153,9 @@ export function MasonryWallsResults({
           <ValueRow label="N_Rd · resistencia"             value={formatQuantity(displayMachon.N_Rd, 'force', system)} />
           <ValueRow label="σ cabeza"                       value={formatQuantity(displayMachon.sigma_top, 'stress', system)} />
           <ValueRow label="σ pie"                          value={formatQuantity(displayMachon.sigma_bottom, 'stress', system)} />
-          <ValueRow label="Φ · reductor"                   value={displayMachon.Phi.toFixed(3)} />
-          <ValueRow label="λ · esbeltez"                   value={displayMachon.planta.lambda.toFixed(1)} />
-          <ValueRow label="e_total · exc. cálc."           value={`${(displayMachon.planta.e_total / 10).toFixed(1)} cm`} />
+          <ValueRow label="Φ · reductor"                   value={dec(displayMachon.Phi, 3)} />
+          <ValueRow label="λ · esbeltez"                   value={dec(displayMachon.planta.lambda, 1)} />
+          <ValueRow label="e_total · exc. cálc."           value={`${dec((displayMachon.planta.e_total / 10), 1)} cm`} />
         </>
       )}
 

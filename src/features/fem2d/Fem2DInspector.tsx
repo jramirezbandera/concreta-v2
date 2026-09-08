@@ -21,7 +21,7 @@ import { useState, type JSX } from 'react';
 import { ChevronLeft, Copy, Maximize2, Move, Trash2 } from 'lucide-react';
 import { showToast } from '../../components/ui/Toast';
 import { InputLabel } from '../../components/ui/InputLabel';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { lcOptionLabel, LC_HELP, CATEGORY_HELP } from '../../lib/text/loadCases';
 import { categoryLabel } from '../../lib/calculations/loadGen';
@@ -275,7 +275,7 @@ function loadSummary(ld: Fem2DLoad, system: 'si' | 'tecnico'): string {
     return `${ld.member} · ${parts.join(' · ') || '0'}${ld.frame === 'local' ? ' (local)' : ''}`;
   }
   const parts = [ld.Fx !== 0 ? `Fx ${F(ld.Fx)}` : null, ld.Fy !== 0 ? `Fy ${F(ld.Fy)}` : null].filter(Boolean);
-  return `${ld.member} @ ${ld.pos.toFixed(2)} · ${parts.join(' · ') || '0'}${ld.frame === 'local' ? ' (local)' : ''}`;
+  return `${ld.member} @ ${dec(ld.pos, 2)} · ${parts.join(' · ') || '0'}${ld.frame === 'local' ? ' (local)' : ''}`;
 }
 
 function GlobalPanel({ model, setModel, setSelected, readOnly }: Props): JSX.Element {

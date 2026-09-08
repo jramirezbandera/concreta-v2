@@ -37,5 +37,9 @@ export function mezcla(color: string, porcentaje: number): string {
 export const FUENTE_MONO = 'var(--font-mono)';
 export const FUENTE_SANS = 'var(--font-sans)';
 
-/** Número con coma decimal, como en toda la interfaz. */
-export const dec = (v: number, n: number): string => v.toFixed(n).replace('.', ',');
+/**
+ * Número con coma decimal, como en toda la interfaz. Se re-exporta el de
+ * `lib/units/format` para que haya UNA implementación: los lienzos lo tenían
+ * por su cuenta desde antes de que existiera la del catálogo.
+ */
+export { dec } from '../../lib/units/format';

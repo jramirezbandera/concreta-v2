@@ -44,6 +44,7 @@ import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_S } from '../../data/factors';
 import { type CheckRow, makeCheck, makeCheckQty } from './types';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -549,8 +550,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     checks.push({
       id: 'strut-angle',
       description: 'Ángulo biela θ (aumentar h_enc si INCUMPLE)',
-      value: `${theta_deg.toFixed(1)}°`,
-      limit: '26.5° – 63.5°',
+      value: `${dec(theta_deg, 1)}°`,
+      limit: '26,5° – 63,5°',
       utilization: theta_util,
       status: theta_status,
       article: 'CE Anejo 19 §6.5',

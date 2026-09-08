@@ -12,6 +12,7 @@
 import { type TimberColumnInputs } from '../../data/defaults';
 import { WARN_UTIL } from './types';
 import type { Quantity } from '../units/types';
+import { dec } from '../units/format';
 import {
   getTimberGrade,
   getKmod,
@@ -380,11 +381,11 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   const axisLabel = isStrong ? 'eje fuerte (y)' : 'eje débil (z)';
   const mTerm623 = isStrong ? 'σm,d/fm,d' : 'km·σm,d/fm,d';
   const mTerm624 = isStrong ? 'km·σm,d/fm,d' : 'σm,d/fm,d';
-  const label_623 = `σc/(kcy·fc0,d) + ${mTerm623} ≤ 1 — M en ${axisLabel}, kcy=${kc_y.toFixed(3)}`;
+  const label_623 = `σc/(kcy·fc0,d) + ${mTerm623} ≤ 1 — M en ${axisLabel}, kcy=${dec(kc_y, 3)}`;
   checks.push({
     id: 'comb-623',
     description: label_623,
-    value: util_623.toFixed(3),
+    value: dec(util_623, 3),
     limit: '1.000',
     utilization: util_623,
     status: toStatus(util_623),
@@ -392,11 +393,11 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
     group: 'elu',
   });
 
-  const label_624 = `σc/(kcz·fc0,d) + ${mTerm624} ≤ 1 — kcz=${kc_z.toFixed(3)}`;
+  const label_624 = `σc/(kcz·fc0,d) + ${mTerm624} ≤ 1 — kcz=${dec(kc_z, 3)}`;
   checks.push({
     id: 'comb-624',
     description: label_624,
-    value: util_624.toFixed(3),
+    value: dec(util_624, 3),
     limit: '1.000',
     utilization: util_624,
     status: toStatus(util_624),
@@ -408,8 +409,8 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   if (isStrong && Md > 0) {
     checks.push({
       id: 'comb-635',
-      description: `(σm/(kcrit·fm,d))² + σc/(kcz·fc0,d) ≤ 1 — kcrit=${kcrit_m.toFixed(3)}`,
-      value: util_635.toFixed(3),
+      description: `(σm/(kcrit·fm,d))² + σc/(kcz·fc0,d) ≤ 1 — kcrit=${dec(kcrit_m, 3)}`,
+      value: dec(util_635, 3),
       limit: '1.000',
       utilization: util_635,
       status: toStatus(util_635),
@@ -462,11 +463,11 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
       ));
 
       // Fire combined 6.23
-      const label_623_fi = `σc/(kcy,fi·fc0,k) + σm,d/fm,k ≤ 1 — kcy,fi=${kc_y_fi.toFixed(3)}`;
+      const label_623_fi = `σc/(kcy,fi·fc0,k) + σm,d/fm,k ≤ 1 — kcy,fi=${dec(kc_y_fi, 3)}`;
       checks.push({
         id: 'fire-comb-623',
         description: label_623_fi,
-        value: util_623_fi.toFixed(3),
+        value: dec(util_623_fi, 3),
         limit: '1.000',
         utilization: util_623_fi,
         status: toStatus(util_623_fi),
@@ -475,11 +476,11 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
       });
 
       // Fire combined 6.24
-      const label_624_fi = `σc/(kcz,fi·fc0,k) + km·σm,d/fm,k ≤ 1 — kcz,fi=${kc_z_fi.toFixed(3)}`;
+      const label_624_fi = `σc/(kcz,fi·fc0,k) + km·σm,d/fm,k ≤ 1 — kcz,fi=${dec(kc_z_fi, 3)}`;
       checks.push({
         id: 'fire-comb-624',
         description: label_624_fi,
-        value: util_624_fi.toFixed(3),
+        value: dec(util_624_fi, 3),
         limit: '1.000',
         utilization: util_624_fi,
         status: toStatus(util_624_fi),

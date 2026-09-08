@@ -5,6 +5,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { dec } from '../../lib/units/format';
 
 interface RetainingWallInputsProps {
   state: RetainingWallInputs;
@@ -366,8 +367,8 @@ export function RetainingWallInputsPanel({ state, setField }: RetainingWallInput
           <p className="text-[11px] text-text-disabled mt-1">Sin sismo (Ab = 0)</p>
         ) : (
           <p className="text-[11px] text-text-disabled mt-1">
-            kh = {((state.S as number) * (state.Ab as number)).toFixed(3)}&nbsp;&nbsp;
-            kv = {((state.S as number) * (state.Ab as number) / 2).toFixed(3)}
+            kh = {dec(((state.S as number) * (state.Ab as number)), 3)}&nbsp;&nbsp;
+            kv = {dec(((state.S as number) * (state.Ab as number) / 2), 3)}
           </p>
         )}
       </CollapsibleSection>

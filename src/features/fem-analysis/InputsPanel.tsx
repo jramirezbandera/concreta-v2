@@ -20,7 +20,7 @@ import { ToggleChip } from '../../components/ui/ToggleChip';
 import { DraftNumberField } from '../../components/units/DraftNumberField';
 import { VerdictBadge } from '../../components/checks';
 import { USE_CATEGORIES } from '../../lib/calculations/loadGen';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { barStatusToCheck } from './checkMapping';
 import { RcBarInputs } from './embedded/RcBarInputs';
@@ -264,7 +264,7 @@ function NodePanel({
 
   return (
     <CollapsibleSection label={`Nodo ${node.id}`}>
-      <Row label="x" value={`${node.x.toFixed(2)} m`} />
+      <Row label="x" value={`${dec(node.x, 2)} m`} />
       <Row label="Apoyo">
         <FieldSelect
           value={support?.type ?? 'none'}

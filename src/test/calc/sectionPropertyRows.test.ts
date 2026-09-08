@@ -60,7 +60,7 @@ describe('sectionPropertyRows — recuento y etiquetas por familia', () => {
     expect(labels(upn200)).toContain('b — ancho del cajón (mm)');
     expect(labels(upn200)).toContain('b_UPN — ancho de cada UPN (mm)');
     // b_UPN = b/2 — la envolvente son las dos UPN espalda contra espalda.
-    expect(valueOf(upn200, 'b_UPN')).toBe((upn200.b / 2).toFixed(1));
+    expect(valueOf(upn200, 'b_UPN')).toBe((upn200.b / 2).toFixed(1).replace('.', ','));
     expect(labels(upn200)).toContain('tf — espesor de ala UPN (mm)');
   });
 
@@ -125,7 +125,8 @@ describe('sectionPropertyRows — recuento y etiquetas por familia', () => {
 describe('sectionPropertyRows — peso derivado contra oráculo de catálogo', () => {
   // ρ = 7850 kg/m³ ⇒ peso [kg/m] = A [cm²] · 0.785. Tolerancia ~1%: el
   // catálogo redondea el peso publicado.
-  const weight = (s: SectionGeometry) => Number(valueOf(s, 'peso'));
+  // La coma es la del idioma, no la de JavaScript: `Number('61,3')` da NaN.
+  const weight = (s: SectionGeometry) => Number((valueOf(s, 'peso') ?? '').replace(',', '.'));
 
   it.each([
     ['IPE 300', ipe300, 42.2],
@@ -137,25 +138,26 @@ describe('sectionPropertyRows — peso derivado contra oráculo de catálogo', (
 });
 
 describe('sectionPropertyRows — formato', () => {
-  it('It con 2 decimales por debajo de 10: IPE 80 sale 0.70, no 1', () => {
-    expect(valueOf(ipe80, 'It')).toBe('0.70');
-    expect(valueOf(ipe300, 'It')).toBe('20.1');
+  // El separador es la coma, como en el resto de la interfaz.
+  it('It con 2 decimales por debajo de 10: IPE 80 sale 0,70, no 1', () => {
+    expect(valueOf(ipe80, 'It')).toBe('0,70');
+    expect(valueOf(ipe300, 'It')).toBe('20,1');
   });
 
-  it('Iw se expresa en 10³ cm⁶: IPE 300 → 125.9', () => {
+  it('Iw se expresa en 10³ cm⁶: IPE 300 → 125,9', () => {
     expect(ipe300.Iw).toBe(125900);
-    expect(valueOf(ipe300, 'Iw')).toBe('125.9');
+    expect(valueOf(ipe300, 'Iw')).toBe('125,9');
   });
 
   it('Wel/Wpl: 1 decimal por debajo de 100, 0 por encima', () => {
-    expect(valueOf(ipe80, 'Wel,y')).toBe('20.0');
+    expect(valueOf(ipe80, 'Wel,y')).toBe('20,0');
     expect(valueOf(ipe300, 'Wel,y')).toBe('557');
   });
 
   it('la unidad vive en la etiqueta — ningún valor la lleva', () => {
     for (const s of [ipe300, upn200, rhs150, shs100, chs168]) {
       for (const row of sectionPropertyRows(s)) {
-        expect(row.value).toMatch(/^-?[\d.]+$/);
+        expect(row.value).toMatch(/^-?[\d,]+$/);
       }
     }
   });

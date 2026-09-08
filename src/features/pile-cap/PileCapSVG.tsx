@@ -1,7 +1,7 @@
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 interface PileCapSVGProps {
@@ -262,7 +262,7 @@ function SectionView({
         fontFamily="monospace"
         textAnchor="start"
       >
-        {`θ=${theta_deg.toFixed(1)}°`}
+        {`θ=${dec(theta_deg, 1)}°`}
       </text>
 
       {/* Tie bar (horizontal line at cover depth) */}

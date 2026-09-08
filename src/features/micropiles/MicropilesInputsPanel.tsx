@@ -13,6 +13,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { SoilStrataEditor } from './SoilStrataEditor';
+import { dec } from '../../lib/units/format';
 
 interface MicropilesInputsPanelProps {
   state: MicropilesInputs;
@@ -456,7 +457,7 @@ export function MicropilesInputsPanel({
               aria-label="CR de pandeo auto-calculado"
               className="shrink-0 max-w-45 text-[12px] font-mono text-text-secondary px-2 py-1"
             >
-              {autoCR !== undefined ? autoCR.toFixed(2) : '—'}
+              {autoCR !== undefined ? dec(autoCR, 2) : '—'}
             </span>
           </div>
         )}
@@ -498,7 +499,7 @@ export function MicropilesInputsPanel({
               aria-label="Recubrimiento estructural auto-calculado"
               className="shrink-0 max-w-45 text-[12px] font-mono text-text-secondary px-2 py-1"
             >
-              {autoCover !== undefined ? `${autoCover.toFixed(2)} mm` : '—'}
+              {autoCover !== undefined ? `${dec(autoCover, 2)} mm` : '—'}
             </span>
           </div>
         )}

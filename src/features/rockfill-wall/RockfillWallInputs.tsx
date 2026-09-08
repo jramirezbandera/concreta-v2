@@ -8,6 +8,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { dec } from '../../lib/units/format';
 
 interface RockfillWallInputsProps {
   state: RockfillWallInputs;
@@ -200,7 +201,7 @@ export function RockfillWallInputsPanel({ state, setField }: RockfillWallInputsP
               label="hc" sub="Altura de caja"
               field="hCaja"
               value={state.hCaja as number}
-              options={[0.5, 1.0].map((v) => ({ value: v, label: `${v.toFixed(1)} m` }))}
+              options={[0.5, 1.0].map((v) => ({ value: v, label: `${dec(v, 1)} m` }))}
               setField={setField}
               help="Altura estándar de las cajas de gavión."
             />
@@ -268,7 +269,7 @@ export function RockfillWallInputsPanel({ state, setField }: RockfillWallInputsP
               value={state.litologia}
               options={(Object.keys(PHI_B_LITOLOGIA) as RockfillLitologia[]).map((k) => ({
                 value: k,
-                label: `${LITOLOGIA_LABELS[k]} (φb=${PHI_B_LITOLOGIA[k].toFixed(1)}°)`,
+                label: `${LITOLOGIA_LABELS[k]} (φb=${dec(PHI_B_LITOLOGIA[k], 1)}°)`,
               }))}
               setField={setField}
             />
@@ -372,8 +373,8 @@ export function RockfillWallInputsPanel({ state, setField }: RockfillWallInputsP
           <p className="text-[11px] text-text-disabled mt-1">Sin sismo (Ab = 0)</p>
         ) : (
           <p className="text-[11px] text-text-disabled mt-1">
-            kh = {((state.S as number) * (state.Ab as number)).toFixed(3)}&nbsp;&nbsp;
-            kv = {((state.S as number) * (state.Ab as number) / 2).toFixed(3)}
+            kh = {dec(((state.S as number) * (state.Ab as number)), 3)}&nbsp;&nbsp;
+            kv = {dec(((state.S as number) * (state.Ab as number) / 2), 3)}
           </p>
         )}
       </CollapsibleSection>

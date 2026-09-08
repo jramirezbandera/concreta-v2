@@ -9,7 +9,7 @@ import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface SteelBeamsInputsProps {
@@ -224,7 +224,7 @@ export function SteelBeamsInputs({
     }
   }, [state.tipo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const deltaAdm = (state.L / state.deflLimit).toFixed(1);
+  const deltaAdm = dec((state.L / state.deflLimit), 1);
   const fmt = (v: number, d = 1) => v.toFixed(d);
   // Caja de derivación / filas derivadas: convierten al sistema activo. En SI
   // mantienen 1 decimal (idéntico a antes); en técnico salen kg/m · mt · Tn.
@@ -251,8 +251,8 @@ export function SteelBeamsInputs({
   };
   const psiSymbol: Record<ElsCombo, string> = {
     characteristic:   'ψ=1.00',
-    frequent:         `ψ₁=${psiRow.psi1.toFixed(2)}`,
-    'quasi-permanent':`ψ₂=${psiRow.psi2.toFixed(2)}`,
+    frequent:         `ψ₁=${dec(psiRow.psi1, 2)}`,
+    'quasi-permanent':`ψ₂=${dec(psiRow.psi2, 2)}`,
   };
   const psiValue: Record<ElsCombo, number> = {
     characteristic:    1.0,
@@ -508,7 +508,7 @@ export function SteelBeamsInputs({
             ELS — Flecha
           </div>
           <div>
-            wSer = {derivedQ(loadGen?.Gk_line, 'linearLoad')} + {currentPsi.toFixed(2)}×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
+            wSer = {derivedQ(loadGen?.Gk_line, 'linearLoad')} + {dec(currentPsi, 2)}×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
             {derivedQ(loadGen?.wSer, 'linearLoad')} {uL('linearLoad')}
             <span className="text-text-disabled ml-1">
               [{elsComboLabel[state.elsCombo ?? 'characteristic']}, {psiSymbol[state.elsCombo ?? 'characteristic']}]
@@ -556,8 +556,8 @@ export function SteelBeamsInputs({
         value={state.elsCombo ?? 'characteristic'}
         options={[
           { value: 'characteristic',   label: 'Característica  (ψ=1.0)' },
-          { value: 'frequent',         label: `Frecuente  (ψ₁=${psiRow.psi1.toFixed(2)})` },
-          { value: 'quasi-permanent',  label: `Cuasi-perm.  (ψ₂=${psiRow.psi2.toFixed(2)})` },
+          { value: 'frequent',         label: `Frecuente  (ψ₁=${dec(psiRow.psi1, 2)})` },
+          { value: 'quasi-permanent',  label: `Cuasi-perm.  (ψ₂=${dec(psiRow.psi2, 2)})` },
         ]}
         setField={setField}
       />

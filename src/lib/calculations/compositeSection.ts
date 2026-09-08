@@ -7,6 +7,7 @@ import { makeISectionBySize } from '../sections';
 import { type CheckRow, makeCheckQty, makeCheckNeutral, toStatus } from './types';
 import { bucklingChi, BUCKLING_ALPHA } from './buckling';
 import { getBetaForBCType } from './steelColumnBC';
+import { dec } from '../units/format';
 
 // fy por grado y espesor (CTE DB-SE-A Tabla 4.1 / EN 10025-2). El fy de la
 // sección es el del elemento más DESFAVORABLE (t_max entre tf del perfil y
@@ -349,8 +350,8 @@ function classifyCompression(
     const lim = (cls === 1 ? limits[0] : cls === 2 ? limits[1] : limits[2]) * eps;
     checks.push({
       id, description: desc,
-      value: ratio.toFixed(1),
-      limit: `≤ ${lim.toFixed(1)} (Cl.${cls})`,
+      value: dec(ratio, 1),
+      limit: `≤ ${dec(lim, 1)} (Cl.${cls})`,
       utilization: Math.min(ratio / Math.max(lim, 1e-6), 2),
       status: cls <= 2 ? 'ok' : cls === 3 ? 'warn' : 'fail',
       article: 'CE Anejo 22 T.5.2 (compresión)',
@@ -722,8 +723,8 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     checks.push({
       id: 'cls-web',
       description: 'Alma',
-      value: `${webRatio.toFixed(1)}`,
-      limit: `≤ ${webLimVal.toFixed(1)} (Cl.${webClass})`,
+      value: `${dec(webRatio, 1)}`,
+      limit: `≤ ${dec(webLimVal, 1)} (Cl.${webClass})`,
       utilization: Math.min(webRatio / Math.max(webLimVal, 1e-6), 2),
       status: webClass <= 2 ? 'ok' : webClass === 3 ? 'warn' : 'fail',
       article: 'CE Anejo 22 §5.5 (T.5.2)',
@@ -734,8 +735,8 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     checks.push({
       id: 'cls-flange-top',
       description: topPlates.length > 0 ? 'Ala superior (platabanda)' : 'Ala superior',
-      value: `${flangeTopRatio.toFixed(1)}`,
-      limit: `≤ ${ftLimVal.toFixed(1)} (Cl.${flangeTopClass})`,
+      value: `${dec(flangeTopRatio, 1)}`,
+      limit: `≤ ${dec(ftLimVal, 1)} (Cl.${flangeTopClass})`,
       utilization: ftUtil,
       status: flangeTopClass <= 2 ? 'ok' : flangeTopClass === 3 ? 'warn' : 'fail',
       article: 'CE Anejo 22 §5.5 (T.5.2)',
@@ -745,8 +746,8 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
     checks.push({
       id: 'cls-flange-bot',
       description: 'Ala inferior',
-      value: `${flangeBotRatio.toFixed(1)}`,
-      limit: `≤ ${fbLimVal.toFixed(1)} (Cl.${flangeBotClass})`,
+      value: `${dec(flangeBotRatio, 1)}`,
+      limit: `≤ ${dec(fbLimVal, 1)} (Cl.${flangeBotClass})`,
       utilization: classUtil(flangeBotRatio, flangeBotClass, FLG_LIMITS, epsilon),
       status: flangeBotClass <= 2 ? 'ok' : flangeBotClass === 3 ? 'warn' : 'fail',
       article: 'CE Anejo 22 §5.5 (T.5.2)',
@@ -777,8 +778,8 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       checks.push({
         id: `cls-plate-${i}`,
         description: `Chapa ${el.label} (interno supuesto)`,
-        value: res.ratio.toFixed(1),
-        limit: `≤ ${res.lim.toFixed(1)} (Cl.${res.cls})`,
+        value: dec(res.ratio, 1),
+        limit: `≤ ${dec(res.lim, 1)} (Cl.${res.cls})`,
         utilization: Math.min(res.ratio / Math.max(res.lim, 1e-6), 2),
         status: res.cls <= 2 ? 'ok' : res.cls === 3 ? 'warn' : 'fail',
         article: 'CE Anejo 22 T.5.2 (orientativo)',
@@ -815,7 +816,7 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
       checks.push({
         id: 'overlap',
         description: 'Solape geométrico entre elementos — área e inercia contadas dos veces',
-        value: `${(overlapArea / 100).toFixed(1)} cm²`,
+        value: `${dec((overlapArea / 100), 1)} cm²`,
         limit: '0 cm²',
         utilization: 1,
         status: 'warn',
@@ -918,21 +919,21 @@ export function calcCompositeSection(inp: CompositeSectionInputs): CompositeSect
         });
       } else {
         compChecks.push(makeCheckQty('comp-Nby',
-          `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
+          `Pandeo eje y  (λ̄=${dec(lambda_y, 2)}, χ=${dec(chi_y, 2)})`,
           Ned_kN, Nb_Rd_y_kN, 'force', 'CE Anejo 22 §6.3.1'));
         compChecks.push(makeCheckQty('comp-Nbz',
-          `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
+          `Pandeo eje z  (λ̄=${dec(lambda_z, 2)}, χ=${dec(chi_z, 2)})`,
           Ned_kN, Nb_Rd_z_kN, 'force', 'CE Anejo 22 §6.3.1'));
         // Esbeltez reducida recomendada λ̄ ≤ 2.0
         compChecks.push({
-          id: 'comp-sy', description: `Esbeltez reducida  λ̄ (eje y) = ${lambda_y.toFixed(2)}`,
-          value: lambda_y.toFixed(2), limit: SLEND_MAX.toFixed(1),
+          id: 'comp-sy', description: `Esbeltez reducida  λ̄ (eje y) = ${dec(lambda_y, 2)}`,
+          value: dec(lambda_y, 2), limit: dec(SLEND_MAX, 1),
           utilization: lambda_y / SLEND_MAX, status: toStatus(lambda_y / SLEND_MAX),
           article: 'CTE DB-SE-A 6.3 (recomendación)',
         });
         compChecks.push({
-          id: 'comp-sz', description: `Esbeltez reducida  λ̄ (eje z) = ${lambda_z.toFixed(2)}`,
-          value: lambda_z.toFixed(2), limit: SLEND_MAX.toFixed(1),
+          id: 'comp-sz', description: `Esbeltez reducida  λ̄ (eje z) = ${dec(lambda_z, 2)}`,
+          value: dec(lambda_z, 2), limit: dec(SLEND_MAX, 1),
           utilization: lambda_z / SLEND_MAX, status: toStatus(lambda_z / SLEND_MAX),
           article: 'CTE DB-SE-A 6.3 (recomendación)',
         });

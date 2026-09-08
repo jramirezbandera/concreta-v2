@@ -18,7 +18,7 @@ import {
   peakColor, axisColor, admColor,
 } from './diagramStyle';
 import { beamPeakGeometry, type LabelPos } from './beamPeakGeometry';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
 interface SteelBeamsDiagramsProps {
@@ -196,7 +196,7 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
       <line x1={qx1} y1={dimY - 3} x2={qx1} y2={dimY + 3} stroke={baseColor} strokeWidth={0.75} />
       <text x={(qx0 + qx1) / 2} y={dimY + 12} fontSize={FS_ADM} fill={C_AXIS}
         textAnchor="middle" style={{ fontFamily: FF_MONO }}>
-        L = {(L / 1000).toFixed(2)} m
+        L = {dec((L / 1000), 2)} m
       </text>
     </>
   );
@@ -477,10 +477,10 @@ export const SteelBeamsDiagrams: FC<SteelBeamsDiagramsProps> = ({
         stroke={haloC} strokeWidth={3} strokeLinejoin="round" paintOrder="stroke"
         style={{ fontFamily: FF_MONO }}
       >
-        δadm = {deltaAdm.toFixed(1)} mm (L/{deflLimit})
+        δadm = {dec(deltaAdm, 1)} mm (L/{deflLimit})
       </text>
       {renderDot(geom.dPeak, dStroke)}
-      {renderLabel(geom.dLabel, `${deltaMax.toFixed(1)} mm`)}
+      {renderLabel(geom.dLabel, `${dec(deltaMax, 1)} mm`)}
     </svg>
   );
 };

@@ -15,6 +15,7 @@ import { type RCColumnInputs } from '../../data/defaults';
 import { getConcrete, getFyd, Es } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, toStatus, makeCheck, makeCheckQty } from './types';
+import { dec } from '../units/format';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -405,8 +406,8 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     const status: CheckStatus = lambda_y <= 100 ? 'ok' : 'warn';
     checks.push({
       id: 'lambda-y',
-      description: `Esbeltez \u03bby = ${lambda_y.toFixed(1)} — ${lambda_y <= 25 ? 'pilar corto (eje y)' : 'pilar esbelto, 2\u00ba orden (eje y)'}`,
-      value: `\u03bby = ${lambda_y.toFixed(1)}`,
+      description: `Esbeltez \u03bby = ${dec(lambda_y, 1)} — ${lambda_y <= 25 ? 'pilar corto (eje y)' : 'pilar esbelto, 2\u00ba orden (eje y)'}`,
+      value: `\u03bby = ${dec(lambda_y, 1)}`,
       limit: '\u03bb \u2264 100',
       utilization: lambda_y / 100,
       status,
@@ -419,8 +420,8 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     const status: CheckStatus = lambda_z <= 100 ? 'ok' : 'warn';
     checks.push({
       id: 'lambda-z',
-      description: `Esbeltez \u03bbz = ${lambda_z.toFixed(1)} — ${lambda_z <= 25 ? 'pilar corto (eje z)' : 'pilar esbelto, 2\u00ba orden (eje z)'}`,
-      value: `\u03bbz = ${lambda_z.toFixed(1)}`,
+      description: `Esbeltez \u03bbz = ${dec(lambda_z, 1)} — ${lambda_z <= 25 ? 'pilar corto (eje z)' : 'pilar esbelto, 2\u00ba orden (eje z)'}`,
+      value: `\u03bbz = ${dec(lambda_z, 1)}`,
       limit: '\u03bb \u2264 100',
       utilization: lambda_z / 100,
       status,
@@ -484,8 +485,8 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   checks.push({
     id: 'cond-5.38a',
     description: `Cond. 5.38a: \u03bby/\u03bbz \u2264 2 y \u03bbz/\u03bby \u2264 2 — ${cond_a ? 'cumple' : 'no cumple'}`,
-    value: `${(lambda_y / lambda_z).toFixed(2)} / ${(lambda_z / lambda_y).toFixed(2)}`,
-    limit: '\u2264 2.0',
+    value: `${dec((lambda_y / lambda_z), 2)} / ${dec((lambda_z / lambda_y), 2)}`,
+    limit: '\u2264 2,0',
     utilization: NaN,
     status: 'ok',  // informational only — never fails
     article: 'CE Anejo 19 §5.8.9',
@@ -494,9 +495,9 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   // cond-5.38b (informational)
   checks.push({
     id: 'cond-5.38b',
-    description: `Cond. 5.38b: ratio excentricidades = ${eccRatio.toFixed(2)} — ${cond_b ? 'uniaxial dominante' : 'biaxial requerido'}`,
-    value: eccRatio > 1000 ? '\u221e' : eccRatio.toFixed(2),
-    limit: '\u2265 5.0 \u00f3 \u2264 0.2',
+    description: `Cond. 5.38b: ratio excentricidades = ${dec(eccRatio, 2)} — ${cond_b ? 'uniaxial dominante' : 'biaxial requerido'}`,
+    value: eccRatio > 1000 ? '\u221e' : dec(eccRatio, 2),
+    limit: '\u2265 5,0 \u00f3 \u2264 0,2',
     utilization: NaN,
     status: 'ok',  // informational only
     article: 'CE Anejo 19 §5.8.9',
@@ -513,8 +514,8 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   } else {
     checks.push({
       id: 'biaxial-check',
-      description: `Flexi\u00f3n esviada: (MEdy/MRdy)\u1d43 + (MEdz/MRdz)\u1d43 \u2264 1.0  (a=${a.toFixed(2)})`,
-      value: biaxialUtil.toFixed(3),
+      description: `Flexi\u00f3n esviada: (MEdy/MRdy)\u1d43 + (MEdz/MRdz)\u1d43 \u2264 1,0  (a=${dec(a, 2)})`,
+      value: dec(biaxialUtil, 3),
       limit: '\u2264 1.0',
       utilization: biaxialUtil,
       status: toStatus(biaxialUtil),
@@ -529,7 +530,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const As_min = 0.002 * b * h;
   checks.push(makeCheck(
     'as-min',
-    'Armadura m\u00ednima geom.: As \u2265 0.002\u00b7b\u00b7h',
+    'Armadura m\u00ednima geom.: As \u2265 0,002\u00b7b\u00b7h',
     As_min, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min.toFixed(0)} mm\u00b2`,
@@ -554,7 +555,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const As_max = 0.04 * b * h;
   checks.push(makeCheck(
     'as-max',
-    'Armadura m\u00e1xima: As \u2264 0.04\u00b7b\u00b7h',
+    'Armadura m\u00e1xima: As \u2264 0,04\u00b7b\u00b7h',
     As_total, As_max,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2264 ${As_max.toFixed(0)} mm\u00b2`,
@@ -675,7 +676,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       const densStatus: CheckStatus = stirrupSpacing <= sMaxDens ? 'ok' : 'warn';
       checks.push({
         id: 'stirrup-densification',
-        description: `Densificación de estribos junto a vigas/forjados (${densZone.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0.6·smax`,
+        description: `Densificación de estribos junto a vigas/forjados (${densZone.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0,6·smax`,
         value: `${stirrupSpacing} mm`,
         limit: `≤ ${sMaxDens.toFixed(0)} mm`,
         utilization: stirrupSpacing / sMaxDens,
@@ -938,8 +939,8 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   // lambda (única)
   checks.push({
     id: 'lambda',
-    description: `Esbeltez λ = ${lambda.toFixed(1)} — ${lambda <= 25 ? 'pilar corto' : 'pilar esbelto, 2º orden'}`,
-    value: `λ = ${lambda.toFixed(1)}`,
+    description: `Esbeltez λ = ${dec(lambda, 1)} — ${lambda <= 25 ? 'pilar corto' : 'pilar esbelto, 2º orden'}`,
+    value: `λ = ${dec(lambda, 1)}`,
     limit: 'λ ≤ 100',
     utilization: lambda / 100,
     status: (lambda <= 100 ? 'ok' : 'warn') as CheckStatus,
@@ -958,7 +959,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     checks.push({
       id: 'flexion-check',
       description: 'Flexocompresión (M_res ≤ MRd) — N/A (aplastamiento gobierna)',
-      value: '—', limit: '≤ 1.0', utilization: Infinity, status: 'fail',
+      value: '—', limit: '≤ 1,0', utilization: Infinity, status: 'fail',
       article: 'CE Anejo 19 §6.1 + §5.8',
     });
   } else {
@@ -988,7 +989,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   const As_min = 0.002 * Ac;
   checks.push(makeCheck(
     'as-min',
-    'Armadura mínima geom.: As ≥ 0.002·Ac',
+    'Armadura mínima geom.: As ≥ 0,002·Ac',
     As_min, As_total,
     `${As_total.toFixed(0)} mm²`, `≥ ${As_min.toFixed(0)} mm²`,
     'CE Anejo 19 §9.5.2',
@@ -999,7 +1000,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   const As_min_mech = (0.10 * NEd_N) / fyc_d;
   checks.push(makeCheck(
     'as-min-mech',
-    'Armadura mínima mec.: As·f_yc,d ≥ 0.10·N_Ed',
+    'Armadura mínima mec.: As·f_yc,d ≥ 0,10·N_Ed',
     As_min_mech, As_total,
     `${As_total.toFixed(0)} mm²`, `≥ ${As_min_mech.toFixed(0)} mm²`,
     'CE Anejo 19 §9.5.2',
@@ -1009,7 +1010,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
   const As_max = 0.04 * Ac;
   checks.push(makeCheck(
     'as-max',
-    'Armadura máxima: As ≤ 0.04·Ac',
+    'Armadura máxima: As ≤ 0,04·Ac',
     As_total, As_max,
     `${As_total.toFixed(0)} mm²`, `≤ ${As_max.toFixed(0)} mm²`,
     'CE Anejo 19 §9.5.2',
@@ -1084,7 +1085,7 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
       const densStatus: CheckStatus = stirrupSpacing <= sMaxDens ? 'ok' : 'warn';
       checks.push({
         id: 'stirrup-densification',
-        description: `Densificación de cercos junto a vigas/forjados (${D.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0.6·smax`,
+        description: `Densificación de cercos junto a vigas/forjados (${D.toFixed(0)} mm arriba/abajo) y en solapes: s ≤ 0,6·smax`,
         value: `${stirrupSpacing} mm`,
         limit: `≤ ${sMaxDens.toFixed(0)} mm`,
         utilization: stirrupSpacing / sMaxDens,

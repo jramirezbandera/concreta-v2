@@ -4,7 +4,7 @@ import { type EmpresalladoInputs } from '../../data/defaults';
 import { type CheckRow, type CheckStatus } from '../../lib/calculations/types';
 import { ambientStyle, checkValueStr, checkLimitStr } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity, UnitSystem } from '../../lib/units/types';
 
 interface EmpresalladoResultsProps {
@@ -186,10 +186,10 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
         label="Geometría de la sección compuesta"
         description="Propiedades geométricas de los 4 angulares respecto al eje del pilar reforzado."
       />
-      <ValueRow label="Excentricidad centroides (dx / dy)" value={`${result.dx.toFixed(2)} / ${result.dy.toFixed(2)} cm`} />
-      <ValueRow label="Separacion entre centroides (hx / hy)" value={`${result.hx.toFixed(2)} / ${result.hy.toFixed(2)} cm`} />
+      <ValueRow label="Excentricidad centroides (dx / dy)" value={`${dec(result.dx, 2)} / ${dec(result.dy, 2)} cm`} />
+      <ValueRow label="Separacion entre centroides (hx / hy)" value={`${dec(result.hx, 2)} / ${dec(result.hy, 2)} cm`} />
       <ValueRow label="Inercia compuesta (I_X / I_Y)" value={`${result.I_X.toFixed(0)} / ${result.I_Y.toFixed(0)} cm4`} />
-      <ValueRow label="Radio de giro compuesto (i_X / i_Y)" value={`${result.i_X.toFixed(3)} / ${result.i_Y.toFixed(3)} cm`} />
+      <ValueRow label="Radio de giro compuesto (i_X / i_Y)" value={`${dec(result.i_X, 3)} / ${dec(result.i_Y, 3)} cm`} />
 
       {/* Chord compression */}
       <GroupHeader
@@ -212,8 +212,8 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
         label="Pandeo local del cordón — CE Anejo 22 §6.4.2.1"
         description="Pandeo del angular entre pletinas consecutivas. Longitud de pandeo lk = s (separación entre presillas, lado seguro: no se cuenta el empotramiento en la presilla)."
       />
-      <ValueRow label="Esbeltez local (lambda_v)" value={result.lambda_v.toFixed(3)} />
-      <ValueRow label="Coef. reducción local (chi_v) — curva b" value={result.chi_v.toFixed(3)} />
+      <ValueRow label="Esbeltez local (lambda_v)" value={dec(result.lambda_v, 3)} />
+      <ValueRow label="Coef. reducción local (chi_v) — curva b" value={dec(result.chi_v, 3)} />
       {localCheck && <CheckRowItem check={localCheck} description="Pandeo local eje v — N_chord / N_bv,Rd (CE Anejo 22 §6.4 / §6.3.1)" system={system} />}
 
       {/* Chord interaction — axial + Vierendeel bending */}
@@ -236,11 +236,11 @@ export function EmpresalladoResults({ result, inp }: EmpresalladoResultsProps) {
         label="Pandeo global de la sección compuesta — CE Anejo 22 §6.4.3"
         description="Esbeltez efectiva con corrección por pandeo local: lambda_eff = sqrt(lambda_0^2 + lambda_vl^2)."
       />
-      <ValueRow label="Esbeltez global no corregida (lambda_0) X / Y" value={`${result.lambda_0X.toFixed(3)} / ${result.lambda_0Y.toFixed(3)}`} />
-      <ValueRow label="Esbeltez local aportada (lambda_vl)" value={result.lambda_vl.toFixed(3)} />
-      <ValueRow label="Esbeltez efectiva corregida (lambda_eff) X / Y" value={`${result.lambda_effX.toFixed(3)} / ${result.lambda_effY.toFixed(3)}`} />
-      <ValueRow label="Coef. reducción de pandeo (chi) X / Y" value={`${result.chi_X.toFixed(3)} / ${result.chi_Y.toFixed(3)}`} />
-      <ValueRow label="Chi gobernante (eje más desfavorable)" value={result.chi.toFixed(3)} />
+      <ValueRow label="Esbeltez global no corregida (lambda_0) X / Y" value={`${dec(result.lambda_0X, 3)} / ${dec(result.lambda_0Y, 3)}`} />
+      <ValueRow label="Esbeltez local aportada (lambda_vl)" value={dec(result.lambda_vl, 3)} />
+      <ValueRow label="Esbeltez efectiva corregida (lambda_eff) X / Y" value={`${dec(result.lambda_effX, 3)} / ${dec(result.lambda_effY, 3)}`} />
+      <ValueRow label="Coef. reducción de pandeo (chi) X / Y" value={`${dec(result.chi_X, 3)} / ${dec(result.chi_Y, 3)}`} />
+      <ValueRow label="Chi gobernante (eje más desfavorable)" value={dec(result.chi, 3)} />
       {globalCheck && <CheckRowItem check={globalCheck} description="Pandeo global — N_Ed / N_b,Rd (CE Anejo 22 §6.4.3.1)" system={system} />}
 
       {/* Pletinas */}

@@ -3,7 +3,7 @@ import {
   VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle,
 } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {
@@ -69,7 +69,7 @@ export function ForjadosResults({ result }: Props) {
       <ValueRow label="As base"        value={`${result.vano.AsBase.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As refuerzo"    value={`${result.vano.AsRef.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As tracción (total)" value={`${result.vano.As.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
-      <ValueRow label="x (fibra neutra)" value={`${result.vano.x.toFixed(1)} mm`} />
+      <ValueRow label="x (fibra neutra)" value={`${dec(result.vano.x, 1)} mm`} />
       <ValueRow label="MRd"              value={fmtSi(result.vano.MRd, 'moment')} />
       <ValueRow label="Rama"             value={BRANCH_LABEL[result.vano.branch] ?? result.vano.branch} />
       {result.vano.checks.map((c) => <CheckRowItem key={`v-${c.id}`} check={c} />)}
@@ -81,7 +81,7 @@ export function ForjadosResults({ result }: Props) {
       <ValueRow label="As base"        value={`${result.apoyo.AsBase.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As refuerzo"    value={`${result.apoyo.AsRef.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
       <ValueRow label="As tracción (total)" value={`${result.apoyo.As.toFixed(0)} mm²${isReticular ? '' : '/m'}`} />
-      <ValueRow label="x (fibra neutra)" value={`${result.apoyo.x.toFixed(1)} mm`} />
+      <ValueRow label="x (fibra neutra)" value={`${dec(result.apoyo.x, 1)} mm`} />
       <ValueRow label="MRd"              value={fmtSi(result.apoyo.MRd, 'moment')} />
       <ValueRow label="Rama"             value={BRANCH_LABEL[result.apoyo.branch] ?? result.apoyo.branch} />
       {result.apoyo.checks.map((c) => <CheckRowItem key={`a-${c.id}`} check={c} />)}

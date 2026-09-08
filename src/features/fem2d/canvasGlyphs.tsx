@@ -24,6 +24,7 @@ import type { DeformedShape2D } from './deformed';
 import { memberFormulation } from './decompose';
 import { loadGeometry } from './loadGeometry';
 import type { Fem2DLoad, Fem2DModel } from './types';
+import { dec } from '../../lib/units/format';
 
 // ── Value label (kept inside the SVG bounds so nothing clips) ─────────────────
 //
@@ -545,8 +546,8 @@ export function DeformedLayer({
   // greedy box-collision pass, so labels never pile on top of each other
   // (the diagram views' standing overlap problem is NOT repeated here).
   const fmtMm = (v: number): string => {
-    const s = (v * 1000).toFixed(1);
-    return s === '-0.0' ? '0.0' : s;
+    const s = dec(v * 1000, 1);
+    return s === '-0,0' ? '0,0' : s;
   };
   const dPx = (p: { x: number; y: number; dx: number; dy: number }) => ({
     x: sx(p.x) + p.dx * kPx,

@@ -106,18 +106,18 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
       {/* Valores clave */}
       <div className="rounded border border-border-main px-4 py-3">
         <GroupHeader label="Valores geotécnicos" />
-        <ValueRow label={resultLabel('Ka_coulomb')} value={result.Ka.toFixed(4)} />
+        <ValueRow label={resultLabel('Ka_coulomb')} value={dec(result.Ka, 4)} />
         {result.kh_derived > 0 && (
           <>
-            <ValueRow label={resultLabel('kh_seismic')} value={result.kh_derived.toFixed(3)} />
-            <ValueRow label={resultLabel('kv_seismic')} value={result.kv_derived.toFixed(3)} />
+            <ValueRow label={resultLabel('kh_seismic')} value={dec(result.kh_derived, 3)} />
+            <ValueRow label={resultLabel('kv_seismic')} value={dec(result.kv_derived, 3)} />
           </>
         )}
         {result.KAD !== undefined && (
-          <ValueRow label={resultLabel('K_AE')} value={result.KAD.toFixed(4)} />
+          <ValueRow label={resultLabel('K_AE')} value={dec(result.KAD, 4)} />
         )}
-        <ValueRow label={isGavion ? 'φ relleno de cajas' : 'φ escollera'} value={`${result.phiEff.toFixed(1)}°`} />
-        <ValueRow label="φ entre hiladas" value={`${result.phiPP.toFixed(1)}°${inp.contactoMejorado ? '' : ' (⅔·φ)'}`} />
+        <ValueRow label={isGavion ? 'φ relleno de cajas' : 'φ escollera'} value={`${dec(result.phiEff, 1)}°`} />
+        <ValueRow label="φ entre hiladas" value={`${dec(result.phiPP, 1)}°${inp.contactoMejorado ? '' : ' (⅔·φ)'}`} />
         {result.dPhiN !== undefined && result.sigmaN !== undefined && (
           <ValueRow label="Δφn (σn)" value={`${dec(result.dPhiN, 2)}° (σn = ${fmtSi(result.sigmaN, 'soilPressure', 3)})`} />
         )}
@@ -135,8 +135,8 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
           <ValueRow label="W terreno solidario" value={fmtSi(result.W_relleno, 'linearLoad')} />
         )}
         <ValueRow label="ΣV" value={fmtSi(result.ΣV, 'linearLoad')} />
-        <ValueRow label="e (excentricidad)" value={`${result.e.toFixed(3)} m`} />
-        <ValueRow label="b' (Meyerhof)" value={`${result.bEq.toFixed(2)} m`} />
+        <ValueRow label="e (excentricidad)" value={`${dec(result.e, 3)} m`} />
+        <ValueRow label="b' (Meyerhof)" value={`${dec(result.bEq, 2)} m`} />
         <ValueRow label="σ referencia" value={fmtSi(result.sigma_ref, 'soilPressure', 3)} />
         <ValueRow label={resultLabel('sigma_max')} value={fmtSi(result.sigma_max, 'soilPressure', 3)} />
         <ValueRow label={resultLabel('sigma_min')} value={fmtSi(result.sigma_min, 'soilPressure', 3)} />
@@ -230,7 +230,7 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
               </p>
               {(inp.beta as number) > 0.01 && (
                 <p>
-                  β = {(inp.beta as number).toFixed(1)}° no se traslada: el motor fija la coronación
+                  β = {dec((inp.beta as number), 1)}° no se traslada: el motor fija la coronación
                   horizontal y no existe una sobrecarga equivalente general.
                 </p>
               )}

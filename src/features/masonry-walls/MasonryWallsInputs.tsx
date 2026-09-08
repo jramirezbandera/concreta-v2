@@ -43,7 +43,7 @@ import {
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
 import { fromDisplay, toDisplay } from '../../lib/units/convert';
-import { formatQuantity, getUnitLabel } from '../../lib/units/format';
+import { dec, formatQuantity, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
@@ -315,7 +315,7 @@ function EApoyoField({ t, e_apoyo, a_apoyo, onChange }: {
           <NumField label="e_apoyo" sub="excentricidad" value={e_apoyo} unit="cm" scale={0.1} decimals={1}
             onChange={onChange} />
           <p className="text-[10px] text-text-disabled leading-tight pl-1">
-            Auto daría t/2 − a/3 = {(derived / 10).toFixed(1)} cm. Con e_apoyo manual, <span className="font-mono">a</span> no interviene en el cálculo.
+            Auto daría t/2 − a/3 = {dec((derived / 10), 1)} cm. Con e_apoyo manual, <span className="font-mono">a</span> no interviene en el cálculo.
           </p>
           {e_apoyo >= t / 2 && (
             <p className="text-[10px] text-state-fail leading-tight pl-1 mt-0.5">
@@ -326,7 +326,7 @@ function EApoyoField({ t, e_apoyo, a_apoyo, onChange }: {
       ) : (
         <ReadoutRow
           label="e_apoyo = t/2 − a/3 · §5.2.3"
-          value={`${(derived / 10).toFixed(1)} cm`}
+          value={`${dec((derived / 10), 1)} cm`}
         />
       )}
       <ApoyoDiagram t={t} a={a_apoyo} e={eEff} showTriangle={!manual} />
@@ -464,7 +464,7 @@ function CustomFabricaBlock({
               label: TIPO_MURO_LABELS_SHORT[k],
             }))}
           />
-          <ReadoutRow label="K · coef. del tipo de muro" value={K.toFixed(2)} />
+          <ReadoutRow label="K · coef. del tipo de muro" value={dec(K, 2)} />
           <NumField
             label="fb"
             sub="resist. pieza"
@@ -502,7 +502,7 @@ function CustomFabricaBlock({
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
               <span>
-                fm limitado a {r.fmApplied.toFixed(2)} N/mm² · nota C.1:
+                fm limitado a {dec(r.fmApplied, 2)} N/mm² · nota C.1:
                 min(20; 0,75·fb)
               </span>
             </div>
@@ -796,7 +796,7 @@ export function MasonryWallsInputs({
           onChange={(v) => set('t', v)} />
         <ReadoutRow
           label="e_min = max(0,05·t; 2 cm) · §5.2.3"
-          value={`${(eMin(state.t) / 10).toFixed(1)} cm`}
+          value={`${dec((eMin(state.t) / 10), 1)} cm`}
         />
       </CollapsibleSection>
 
@@ -902,9 +902,9 @@ export function MasonryWallsInputs({
               <div className="rounded border border-border-main p-2 mt-2 mb-1 bg-bg-primary">
                 <ReadoutRow label={<>q<sub>d</sub> · carga mayorada</>}
                   value={formatQuantity(state.gamma_G * (plantaSel.q_G || 0) + state.gamma_Q * (plantaSel.q_Q || 0), 'linearLoad', system)} />
-                <ReadoutRow label="k · reparto cabeza/pie" value={plantaCalcSel.k_reparto.toFixed(2)} />
-                <ReadoutRow label="e_cabeza" value={`${(plantaCalcSel.e_cabeza / 10).toFixed(1)} cm`} />
-                <ReadoutRow label="e_pie" value={`${(plantaCalcSel.e_pie / 10).toFixed(1)} cm`} />
+                <ReadoutRow label="k · reparto cabeza/pie" value={dec(plantaCalcSel.k_reparto, 2)} />
+                <ReadoutRow label="e_cabeza" value={`${dec((plantaCalcSel.e_cabeza / 10), 1)} cm`} />
+                <ReadoutRow label="e_pie" value={`${dec((plantaCalcSel.e_pie / 10), 1)} cm`} />
               </div>
             )}
           </CollapsibleSection>
@@ -1019,7 +1019,7 @@ export function MasonryWallsInputs({
                       {h.tipo === 'pasante' ? (
                         <>
                           <ReadoutRow label="h · alto = H de la planta"
-                            value={`${(plantaSel.H / 10).toFixed(1)} cm`} />
+                            value={`${dec((plantaSel.H / 10), 1)} cm`} />
                           <p className="text-[9px] text-text-disabled mt-1 leading-tight">
                             De forjado a forjado: sin fábrica sobre el dintel (g_muro = 0).
                             El dintel sigue salvando el hueco y descargando en los machones.
@@ -1048,12 +1048,12 @@ export function MasonryWallsInputs({
                               "snap-back" cuando el usuario tipea por encima de H−y
                               no sorprenda. Consistente con el hint del muro sobre
                               la puerta de más abajo. */}
-                          <ReadoutRow label="h máx = H − y" value={`${((plantaSel.H - h.y) / 10).toFixed(1)} cm`} />
+                          <ReadoutRow label="h máx = H − y" value={`${dec(((plantaSel.H - h.y) / 10), 1)} cm`} />
                         </>
                       )}
                       {h.tipo === 'puerta' && plantaSel.H - h.h > 0 && (
                         <ReadoutRow label="muro sobre la puerta · cargado al dintel"
-                          value={`${((plantaSel.H - h.h) / 10).toFixed(1)} cm`} />
+                          value={`${dec(((plantaSel.H - h.h) / 10), 1)} cm`} />
                       )}
                       {/* Info del dintel */}
                       {(() => {
@@ -1062,7 +1062,7 @@ export function MasonryWallsInputs({
                         return (
                           <div className="mt-2 rounded border border-state-warn/60 p-2 bg-state-warn/5">
                             <div className="text-[10px] font-mono text-state-warn mb-1 uppercase" style={{ letterSpacing: '0.08em' }}>
-                              Dintel · luz {(d.luz / 1000).toFixed(2)} m
+                              Dintel · luz {dec((d.luz / 1000), 2)} m
                             </div>
                             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] font-mono">
                               <span className="text-text-secondary">q_dintel</span>
@@ -1070,7 +1070,7 @@ export function MasonryWallsInputs({
                               <span className="text-text-secondary">g_muro_sobre</span>
                               <span className="text-right tabular-nums">{formatQuantity(d.g_propio, 'linearLoad', system)}</span>
                               <span className="text-text-secondary">h_muro_sobre</span>
-                              <span className="text-right tabular-nums">{(d.h_muro_sobre / 10).toFixed(1)} cm</span>
+                              <span className="text-right tabular-nums">{dec((d.h_muro_sobre / 10), 1)} cm</span>
                               <span className="text-text-secondary">M_Ed</span>
                               <span className="text-right tabular-nums">{formatQuantity(d.M_Ed, 'moment', system)}</span>
                               <span className="text-text-secondary">V_Ed</span>

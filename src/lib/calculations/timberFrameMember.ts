@@ -31,6 +31,7 @@ import {
   type ServiceClass,
 } from '../../data/timberGrades';
 import { calcKc, calcLambdaRel } from './timberColumns';
+import { dec } from '../units/format';
 
 /** Sección rectangular de madera de una barra del FEM 2D (b, h en mm; h es el
  *  canto EN el plano del pórtico — la flexión del solver es de eje fuerte). */
@@ -178,8 +179,8 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
     checks.push({
       id: 'shear',
       description: 'Cortante τd ≤ fv,d (Av = kcr·b·h)',
-      value: `${tau_d.toFixed(2)} N/mm²`,
-      limit: `${fv_d.toFixed(2)} N/mm²`,
+      value: `${dec(tau_d, 2)} N/mm²`,
+      limit: `${dec(fv_d, 2)} N/mm²`,
       utilization: fv_d > 0 ? tau_d / fv_d : Infinity,
       article: 'EN 1995-1-1 §6.1.7(2)',
     });
@@ -194,18 +195,18 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
     checks.push({
       id: 'comb-623',
       description: hasM
-        ? `Pandeo en el plano + flexión: σc/(kc,y·fc0,d) + σm/fm,d ≤ 1 — kc,y = ${kc_y.toFixed(3)}`
-        : `Pandeo en el plano: σc/(kc,y·fc0,d) ≤ 1 — kc,y = ${kc_y.toFixed(3)}`,
-      value: util_623.toFixed(3),
+        ? `Pandeo en el plano + flexión: σc/(kc,y·fc0,d) + σm/fm,d ≤ 1 — kc,y = ${dec(kc_y, 3)}`
+        : `Pandeo en el plano: σc/(kc,y·fc0,d) ≤ 1 — kc,y = ${dec(kc_y, 3)}`,
+      value: dec(util_623, 3),
       limit: '1.000',
       utilization: util_623,
       article: 'EN 1995-1-1 §6.3.2(3) Ec. 6.23',
     }, {
       id: 'comb-624',
       description: hasM
-        ? `Pandeo fuera del plano + flexión: σc/(kc,z·fc0,d) + km·σm/fm,d ≤ 1 — kc,z = ${kc_z.toFixed(3)}, km = ${KM}`
-        : `Pandeo fuera del plano: σc/(kc,z·fc0,d) ≤ 1 — kc,z = ${kc_z.toFixed(3)}`,
-      value: util_624.toFixed(3),
+        ? `Pandeo fuera del plano + flexión: σc/(kc,z·fc0,d) + km·σm/fm,d ≤ 1 — kc,z = ${dec(kc_z, 3)}, km = ${KM}`
+        : `Pandeo fuera del plano: σc/(kc,z·fc0,d) ≤ 1 — kc,z = ${dec(kc_z, 3)}`,
+      value: dec(util_624, 3),
       limit: '1.000',
       utilization: util_624,
       article: 'EN 1995-1-1 §6.3.2(3) Ec. 6.24',
@@ -215,8 +216,8 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
       const util_635 = m_ratio * m_ratio + term_c_z;
       checks.push({
         id: 'comb-635',
-        description: `Vuelco lateral + compresión: (σm/(kcrit·fm,d))² + σc/(kc,z·fc0,d) ≤ 1 — kcrit = ${kcrit.toFixed(3)}`,
-        value: util_635.toFixed(3),
+        description: `Vuelco lateral + compresión: (σm/(kcrit·fm,d))² + σc/(kc,z·fc0,d) ≤ 1 — kcrit = ${dec(kcrit, 3)}`,
+        value: dec(util_635, 3),
         limit: '1.000',
         utilization: util_635,
         article: 'EN 1995-1-1 §6.3.3(4) Ec. 6.35',
@@ -231,7 +232,7 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
       description: hasM
         ? 'Flexotracción: σt/ft0,d + σm/fm,d ≤ 1'
         : 'Tracción: σt ≤ ft0,d',
-      value: util_t.toFixed(3),
+      value: dec(util_t, 3),
       limit: '1.000',
       utilization: util_t,
       article: 'EN 1995-1-1 §6.2.3 Ec. 6.17',
@@ -243,8 +244,8 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
       checks.push({
         id: 'bending',
         description: 'Flexión σm,d ≤ fm,d (con kh)',
-        value: `${sigma_m.toFixed(2)} N/mm²`,
-        limit: `${fm_d.toFixed(2)} N/mm²`,
+        value: `${dec(sigma_m, 2)} N/mm²`,
+        limit: `${dec(fm_d, 2)} N/mm²`,
         utilization: fm_d > 0 ? sigma_m / fm_d : Infinity,
         article: 'EN 1995-1-1 §6.1.6',
       });
@@ -254,9 +255,9 @@ export function calcTimberFrameMember(inp: TimberFrameMemberInputs): TimberFrame
     const fm_eff = kcrit * fm_d;
     checks.push({
       id: 'ltb',
-      description: `Vuelco lateral σm,d ≤ kcrit·fm,d — kcrit = ${kcrit.toFixed(3)} (λrel,m = ${lambda_rel_m.toFixed(2)})`,
-      value: `${sigma_m.toFixed(2)} N/mm²`,
-      limit: `${fm_eff.toFixed(2)} N/mm²`,
+      description: `Vuelco lateral σm,d ≤ kcrit·fm,d — kcrit = ${dec(kcrit, 3)} (λrel,m = ${dec(lambda_rel_m, 2)})`,
+      value: `${dec(sigma_m, 2)} N/mm²`,
+      limit: `${dec(fm_eff, 2)} N/mm²`,
       utilization: fm_eff > 0 ? sigma_m / fm_eff : Infinity,
       article: 'EN 1995-1-1 §6.3.3',
     });

@@ -23,6 +23,7 @@
 import { type PunchingInputs, type CrucetaSteel } from '../../data/defaults';
 import { getUPN, type UPNProfile } from '../../data/steelProfiles';
 import { type CheckRow, makeCheck, makeCheckNeutral, type CheckStatus } from './types';
+import { dec } from '../units/format';
 // ⚠ Import CIRCULAR con punching.ts (punching.ts importa calcCruceta para despachar el
 // modo cruceta; aquí importamos calcPunching para el punzonamiento de la placa). Funciona
 // porque ambos se usan SOLO en tiempo de llamada (dentro de funciones), nunca a nivel de
@@ -130,7 +131,7 @@ export function calcCruceta(inp: PunchingInputs): PunchingResult {
   checks.push(makeCheckNeutral(
     'cru-upn-cap',
     'Capacidades del UPN (dato para el hand-calc del reparto)',
-    `M_Rd ${MRd.toFixed(1)} kN·m · Vpl,Rd ${VplRd.toFixed(0)} kN`,
+    `M_Rd ${dec(MRd, 1)} kN·m · Vpl,Rd ${dec(VplRd, 0)} kN`,
     'CE Anejo 22 §6.2',
   ));
 

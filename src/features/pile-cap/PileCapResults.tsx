@@ -3,7 +3,7 @@ import { type PileCapResult } from '../../lib/calculations/pileCap';
 import { CheckRowItem, GroupHeader, ValueRow, VerdictBadge, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {
@@ -61,7 +61,7 @@ export function PileCapResults({ inp, result }: Props) {
       <GroupHeader label="Bielas y tirantes" />
       <ValueRow label="z_eff"      value={`${result.z_eff.toFixed(0)} mm`} />
       <ValueRow label="a_crit"     value={`${result.a_crit.toFixed(0)} mm`} />
-      <ValueRow label="θ (biela)"  value={`${result.theta_deg.toFixed(1)}°`} />
+      <ValueRow label="θ (biela)"  value={`${dec(result.theta_deg, 1)}°`} />
       <ValueRow
         label="Apoyo nodo"
         value={inp.plate_on

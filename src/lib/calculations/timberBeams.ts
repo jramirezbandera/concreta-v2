@@ -26,6 +26,7 @@ import {
 // superponer máximos. beamResponse resuelve el vano de verdad y reproduce esos
 // mismos coeficientes cuando no hay puntual — ver beamResponse.test.ts.
 import { beamResponse, beamDeflection, type PointLoad, type SupportKind } from './beamResponse';
+import { dec } from '../units/format';
 
 // γG, γQ ULS
 const γG = 1.35;
@@ -509,8 +510,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     const P_d = γG * inp.P_G + γQ * inp.P_Q;
     checks.push(mkNeutral(
       'point-load',
-      `Carga puntual Pd = ${P_d.toFixed(2)} kN (Gk ${inp.P_G.toFixed(2)} + Qk ${inp.P_Q.toFixed(2)}) `
-      + `en a = ${inp.aP.toFixed(2)} m del extremo izquierdo. MEd en x = ${xM.toFixed(2)} m`,
+      `Carga puntual Pd = ${dec(P_d, 2)} kN (Gk ${dec(inp.P_G, 2)} + Qk ${dec(inp.P_Q, 2)}) `
+      + `en a = ${dec(inp.aP, 2)} m del extremo izquierdo. MEd en x = ${dec(xM, 2)} m`,
       'PUNTUAL',
       'EN 1995-1-1 §6.1.6/§6.1.7 — esfuerzos por superposición de la repartida y la puntual',
       'elu',
@@ -522,7 +523,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     checks.push(mkNeutral(
       'elu-perm-combo',
       `Gobierna la combinación solo-permanente: 1.35·gk${hasPoint ? ' y 1.35·P_G' : ''} `
-      + `con kmod=${kmod.toFixed(2)} (EC5 §3.1.3(2))`,
+      + `con kmod=${dec(kmod, 2)} (EC5 §3.1.3(2))`,
       'G SOLO',
       'EN 1995-1-1 §3.1.3(2)',
       'elu',
@@ -530,8 +531,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   }
 
   // Bending (uses fm_d_sys = ksys × kmod×kh×fm_k/γM)
-  const khLabel   = kh   > 1.0 ? `·kh=${kh.toFixed(3)}`   : '';
-  const ksysLabel = ksys > 1.0 ? `·ksys=${ksys.toFixed(2)}` : '';
+  const khLabel   = kh   > 1.0 ? `·kh=${dec(kh, 3)}`   : '';
+  const ksysLabel = ksys > 1.0 ? `·ksys=${dec(ksys, 2)}` : '';
   checks.push(mkCheckQ(
     'bending',
     `Flexión σm,d ≤ kmod${khLabel}${ksysLabel}·fm,k/γM (§6.1.6)`,
@@ -554,8 +555,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   const kcritLabel = noLtb
     ? 'kcrit=1.0 (sección con b ≥ h: sin vuelco lateral posible)'
     : lambda_rel_m <= 0.75
-      ? `kcrit=1.0 (λrel,m=${lambda_rel_m.toFixed(2)} ≤ 0.75)`
-      : `kcrit=${kcrit.toFixed(3)} (λrel,m=${lambda_rel_m.toFixed(2)})`;
+      ? `kcrit=1.0 (λrel,m=${dec(lambda_rel_m, 2)} ≤ 0.75)`
+      : `kcrit=${dec(kcrit, 3)} (λrel,m=${dec(lambda_rel_m, 2)})`;
   checks.push({
     id: 'ltb',
     description: `Pandeo lateral σm,d ≤ kcrit·fm,d (§6.3.3) — ${kcritLabel}`,
@@ -578,8 +579,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     'defl-active',
     `Integridad — flecha activa (u_G·kdef + u_Q·(1+ψ2·kdef)) ≤ L/${integDenom} (${partLabel})`,
     u_active, u_active_lim,
-    `${u_active.toFixed(1)} mm`,
-    `${u_active_lim.toFixed(1)} mm  (L/${integDenom})`,
+    `${dec(u_active, 1)} mm`,
+    `${dec(u_active_lim, 1)} mm  (L/${integDenom})`,
     'CTE DB-SE 4.3.3.1.a — integridad de elementos constructivos',
     'els',
   ));
@@ -588,8 +589,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     'defl-confort',
     `Confort — sobrecarga instantánea u_Q ≤ L/350`,
     u_confort, u_confort_lim,
-    `${u_confort.toFixed(1)} mm`,
-    `${u_confort_lim.toFixed(1)} mm  (L/350)`,
+    `${dec(u_confort, 1)} mm`,
+    `${dec(u_confort_lim, 1)} mm  (L/350)`,
     'CTE DB-SE 4.3.3.1.b — confort de usuarios',
     'els',
   ));
@@ -598,8 +599,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     'defl-fin',
     `Apariencia — flecha final u_fin ≤ L/300`,
     u_fin, u_fin_lim,
-    `${u_fin.toFixed(1)} mm`,
-    `${u_fin_lim.toFixed(1)} mm  (L/300)`,
+    `${dec(u_fin, 1)} mm`,
+    `${dec(u_fin_lim, 1)} mm  (L/300)`,
     'CTE DB-SE 4.3.3.1.c — apariencia (comb. característica con fluencia, lado seguro)',
     'els',
   ));
@@ -609,7 +610,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     checks.push(mkNeutral(
       'fire-header',
       `Incendio ${inp.fireResistance} — Sección reducida`,
-      `def=${def.toFixed(1)} mm`,
+      `def=${dec(def, 1)} mm`,
       'EN 1995-1-2 §4.2.2',
       'fire',
     ));
@@ -617,7 +618,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     if (W_fi > 0) {
       checks.push(mkCheckQ(
         'fire-bending',
-        `Incendio — Flexión σm,fi ≤ kfi·fm,k (kfi=${kfi.toFixed(2)})`,
+        `Incendio — Flexión σm,fi ≤ kfi·fm,k (kfi=${dec(kfi, 2)})`,
         sigma_m_fi, fm_k_fi, 'stress',
         'EN 1995-1-2 §4.2.2 + §2.3 — Flexión en incendio (f20 = kfi·fk, γM,fi=1.0)',
         'fire',
@@ -637,7 +638,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
         const fm_fi_eff = kcrit_fi * fm_k_fi;
         checks.push(mkCheckQ(
           'fire-ltb',
-          `Incendio — Pandeo lateral σm,fi ≤ kcrit,fi·kfi·fm,k (kcrit,fi=${kcrit_fi.toFixed(2)}, sección residual ${b_ef.toFixed(0)}×${h_ef.toFixed(0)})`,
+          `Incendio — Pandeo lateral σm,fi ≤ kcrit,fi·kfi·fm,k (kcrit,fi=${dec(kcrit_fi, 2)}, sección residual ${dec(b_ef, 0)}×${dec(h_ef, 0)})`,
           sigma_m_fi, fm_fi_eff, 'stress',
           'EN 1995-1-2 §4.2.2 + EN 1995-1-1 §6.3.3 — LTB de la sección residual (4 caras, sin arriostrar)',
           'fire',

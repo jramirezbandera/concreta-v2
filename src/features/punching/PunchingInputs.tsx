@@ -9,6 +9,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { dec } from '../../lib/units/format';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
@@ -210,7 +211,7 @@ function BetaField({ state, setField }: PunchingInputsProps) {
       ) : (
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11">
           <span className="text-[10px] text-text-disabled">β simplificado (según posición)</span>
-          <span className="text-[10px] font-mono text-text-secondary tabular-nums">{auto.toFixed(2)}</span>
+          <span className="text-[10px] font-mono text-text-secondary tabular-nums">{dec(auto, 2)}</span>
         </div>
       )}
     </>

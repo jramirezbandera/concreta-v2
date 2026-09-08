@@ -12,6 +12,7 @@
 // La línea diagonal cruza el eje vertical en y = x (fibra neutra).
 
 import { type SectionAtMomentResult } from '../../lib/calculations/rcBeamsSection';
+import { dec } from '../../lib/units/format';
 
 interface RCBeamStrainSVGProps {
   /** Result from solveSectionAtMoment. */
@@ -103,7 +104,7 @@ export function RCBeamStrainSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Diagrama de deformación: ε_top=${epsTopP.toFixed(2)}‰, ε_s=${epsSTensP.toFixed(2)}‰`}
+      aria-label={`Diagrama de deformación: ε_top=${dec(epsTopP, 2)}‰, ε_s=${dec(epsSTensP, 2)}‰`}
       style={{ background: C.bg, display: 'block' }}
     >
       {/* Marco vertical (la sección como rectángulo silueta) */}
@@ -136,7 +137,7 @@ export function RCBeamStrainSVG({
       <FiberMarker
         cx={x1} cy={y1}
         labelX={x1} labelY={y1 - 8}
-        value={epsTopP.toFixed(2)}
+        value={dec(epsTopP, 2)}
         color={markerColorTop}
         labelColor={C.label}
         align="middle"
@@ -145,7 +146,7 @@ export function RCBeamStrainSVG({
       <FiberMarker
         cx={xForStrain(epsSCompP)} cy={yAt(r_s)}
         labelX={xForStrain(epsSCompP) - 4} labelY={yAt(r_s) + 3}
-        value={epsSCompP.toFixed(2)}
+        value={dec(epsSCompP, 2)}
         color={markerColorComp}
         labelColor={C.label}
         align="end"
@@ -154,7 +155,7 @@ export function RCBeamStrainSVG({
       <FiberMarker
         cx={xForStrain(epsSTensP)} cy={yAt(d)}
         labelX={xForStrain(epsSTensP) + 4} labelY={yAt(d) + 3}
-        value={epsSTensP.toFixed(2)}
+        value={dec(epsSTensP, 2)}
         color={markerColorTens}
         labelColor={C.label}
         align="start"
@@ -163,7 +164,7 @@ export function RCBeamStrainSVG({
       <FiberMarker
         cx={x2} cy={y2}
         labelX={x2} labelY={y2 + 14}
-        value={epsBotP.toFixed(2)}
+        value={dec(epsBotP, 2)}
         color={C.marker}
         labelColor={C.label}
         align="middle"

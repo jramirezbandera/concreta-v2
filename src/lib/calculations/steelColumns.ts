@@ -18,6 +18,7 @@ import {
 import { type SteelCheckRow, type SteelCheckStatus } from './steelBeams';
 import { makeCheckQty, makeCheckNeutral, WARN_UTIL } from './types';
 import { bucklingChi } from './buckling';
+import { dec } from '../units/format';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const E  = 210000;  // N/mm² — Young's modulus
@@ -385,38 +386,38 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   }
 
   // Buckling
-  checks.push(makeCheckQty('Nby', `Pandeo eje y  (λ̄=${lambda_y.toFixed(2)}, χ=${chi_y.toFixed(2)})`,
+  checks.push(makeCheckQty('Nby', `Pandeo eje y  (λ̄=${dec(lambda_y, 2)}, χ=${dec(chi_y, 2)})`,
     Ned, Nb_Rd_y, 'force', 'CE Anejo 22 §6.3.1'));
-  checks.push(makeCheckQty('Nbz', `Pandeo eje z  (λ̄=${lambda_z.toFixed(2)}, χ=${chi_z.toFixed(2)})`,
+  checks.push(makeCheckQty('Nbz', `Pandeo eje z  (λ̄=${dec(lambda_z, 2)}, χ=${dec(chi_z, 2)})`,
     Ned, Nb_Rd_z, 'force', 'CE Anejo 22 §6.3.1'));
 
   // LTB
   if (hasLTB) {
-    checks.push(makeCheckQty('LTB', `Pandeo lateral  (λ̄LT=${lambda_LT.toFixed(2)}, χLT=${chi_LT.toFixed(2)})`,
+    checks.push(makeCheckQty('LTB', `Pandeo lateral  (λ̄LT=${dec(lambda_LT, 2)}, χLT=${dec(chi_LT, 2)})`,
       My_Ed, Mb_Rd, 'moment', 'CE Anejo 22 §6.3.2'));
   }
 
   // Interaction — dimensionless ratios (stay on legacy string path)
   checks.push({
     id: 'int1', description: 'Interacción N+My+Mz  (Ec. 1)',
-    value: util_check1.toFixed(3), limit: '1.000',
+    value: dec(util_check1, 3), limit: '1.000',
     utilization: util_check1, status: toStatus(util_check1),
     article: 'CE Anejo 22 §6.3.3',
   });
   checks.push({
     id: 'int2', description: 'Interacción N+My+Mz  (Ec. 2)',
-    value: util_check2.toFixed(3), limit: '1.000',
+    value: dec(util_check2, 3), limit: '1.000',
     utilization: util_check2, status: toStatus(util_check2),
     article: 'CE Anejo 22 §6.3.3',
   });
 
   // Slenderness — dimensionless reduced slenderness ratio
   checks.push(checkStr('sy',
-    `Esbeltez reducida  λ̄ (eje y) = ${lambda_y.toFixed(2)}`,
-    lambda_y, SLEND_MAX, lambda_y.toFixed(2), `${SLEND_MAX.toFixed(1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
+    `Esbeltez reducida  λ̄ (eje y) = ${dec(lambda_y, 2)}`,
+    lambda_y, SLEND_MAX, dec(lambda_y, 2), `${dec(SLEND_MAX, 1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
   checks.push(checkStr('sz',
-    `Esbeltez reducida  λ̄ (eje z) = ${lambda_z.toFixed(2)}`,
-    lambda_z, SLEND_MAX, lambda_z.toFixed(2), `${SLEND_MAX.toFixed(1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
+    `Esbeltez reducida  λ̄ (eje z) = ${dec(lambda_z, 2)}`,
+    lambda_z, SLEND_MAX, dec(lambda_z, 2), `${dec(SLEND_MAX, 1)}`, 'CTE DB-SE-A 6.3 (recomendación)'));
 
   // Silence unused geometry readouts (h, b) — kept destructured for future
   // feature hooks (e.g. utilization warnings) without re-reading from `section`.

@@ -3,6 +3,7 @@ export { CATALOG } from "./catalog";
 export { toDisplay, fromDisplay } from "./convert";
 export {
   conComaDecimal,
+  dec,
   formatNumber,
   formatQuantity,
   getPrecision,

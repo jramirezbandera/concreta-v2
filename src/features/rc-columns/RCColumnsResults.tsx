@@ -2,7 +2,7 @@ import { type RCColumnResult } from '../../lib/calculations/rcColumns';
 import { VerdictBadge, CheckRowItem, GroupHeader, overallStatus, ambientStyle, checkValueStr } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import type { UnitSystem } from '../../lib/units/types';
 
@@ -144,19 +144,19 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
       />
       <BiaxValueRow
         label="λ (esbeltez)"
-        valueY={`${result.lambda_y.toFixed(1)}${result.lambda_y > 25 ? ' ★' : ''}`}
-        valueZ={`${result.lambda_z.toFixed(1)}${result.lambda_z > 25 ? ' ★' : ''}`}
+        valueY={`${dec(result.lambda_y, 1)}${result.lambda_y > 25 ? ' ★' : ''}`}
+        valueZ={`${dec(result.lambda_z, 1)}${result.lambda_z > 25 ? ' ★' : ''}`}
       />
-      <BiaxValueRow label="e1"     valueY={`${result.e1_y.toFixed(1)} mm`}    valueZ={`${result.e1_z.toFixed(1)} mm`} />
-      <BiaxValueRow label="e_imp"  valueY={`${result.e_imp_y.toFixed(1)} mm`} valueZ={`${result.e_imp_z.toFixed(1)} mm`} />
+      <BiaxValueRow label="e1"     valueY={`${dec(result.e1_y, 1)} mm`}    valueZ={`${dec(result.e1_z, 1)} mm`} />
+      <BiaxValueRow label="e_imp"  valueY={`${dec(result.e_imp_y, 1)} mm`} valueZ={`${dec(result.e_imp_z, 1)} mm`} />
       <BiaxValueRow
         label="e2  (2º orden)"
-        valueY={`${result.e2_y.toFixed(1)} mm`}
-        valueZ={`${result.e2_z.toFixed(1)} mm`}
+        valueY={`${dec(result.e2_y, 1)} mm`}
+        valueZ={`${dec(result.e2_z, 1)} mm`}
         hiddenY={!showE2y}
         hiddenZ={!showE2z}
       />
-      <BiaxValueRow label="e_tot"   valueY={`${result.e_tot_y.toFixed(1)} mm`}  valueZ={`${result.e_tot_z.toFixed(1)} mm`} />
+      <BiaxValueRow label="e_tot"   valueY={`${dec(result.e_tot_y, 1)} mm`}  valueZ={`${dec(result.e_tot_z, 1)} mm`} />
       <BiaxValueRow label="MEd,tot" valueY={fmtSi(result.MEd_tot_y, 'moment')} valueZ={fmtSi(result.MEd_tot_z, 'moment')} />
 
       {/* Shared values */}
@@ -165,7 +165,7 @@ export function RCColumnsResults({ result }: RCColumnsResultsProps) {
         <ValueRow label={resultLabel('As_total')}      value={`${result.As_total.toFixed(0)} mm\u00b2`} />
         <ValueRow label={resultLabel('NRd_max')}       value={fmtSi(result.NRd_max, 'force')} />
         <ValueRow label="MRdy / MRdz"                   value={`${fmtSi(result.MRdy, 'moment')} / ${fmtSi(result.MRdz, 'moment')}`} />
-        <ValueRow label={`ned \u2192 a  (${result.ned.toFixed(3)} \u2192 ${result.a.toFixed(2)})`} value="" />
+        <ValueRow label={`ned \u2192 a  (${dec(result.ned, 3)} \u2192 ${dec(result.a, 2)})`} value="" />
       </div>
 
       {/* ELU Flexión Esviada */}
@@ -245,17 +245,17 @@ function RCColumnsCircularResults({ result, system }: { result: RCColumnResult; 
       {/* Key values — single column */}
       <GroupHeader label="Valores clave" />
       <ValueRow label="D (diámetro)"            value={`${(result.D ?? 0).toFixed(0)} mm`} />
-      <ValueRow label="λ (esbeltez)"            value={`${(result.lambda ?? 0).toFixed(1)}${(result.lambda ?? 0) > 25 ? ' ★' : ''}`} />
+      <ValueRow label="λ (esbeltez)"            value={`${dec((result.lambda ?? 0), 1)}${(result.lambda ?? 0) > 25 ? ' ★' : ''}`} />
       <ValueRow label="d (canto útil)"          value={`${(result.d_circ ?? 0).toFixed(0)} mm`} />
-      <ValueRow label="e1"                       value={`${result.e1_y.toFixed(1)} mm`} />
-      <ValueRow label="e_imp"                    value={`${result.e_imp_y.toFixed(1)} mm`} />
-      {showE2 && <ValueRow label="e2  (2º orden)" value={`${result.e2_y.toFixed(1)} mm`} />}
-      <ValueRow label="e_tot"                    value={`${(result.e_tot_res ?? 0).toFixed(1)} mm`} />
+      <ValueRow label="e1"                       value={`${dec(result.e1_y, 1)} mm`} />
+      <ValueRow label="e_imp"                    value={`${dec(result.e_imp_y, 1)} mm`} />
+      {showE2 && <ValueRow label="e2  (2º orden)" value={`${dec(result.e2_y, 1)} mm`} />}
+      <ValueRow label="e_tot"                    value={`${dec((result.e_tot_res ?? 0), 1)} mm`} />
       <ValueRow label="M_res (resultante)"       value={fmtSi(result.M_res ?? 0, 'moment')} />
       <ValueRow label={resultLabel('As_total')}  value={`${result.As_total.toFixed(0)} mm²`} />
       <ValueRow label={resultLabel('NRd_max')}   value={fmtSi(result.NRd_max, 'force')} />
       <ValueRow label="MRd"                       value={fmtSi(result.MRd ?? 0, 'moment')} />
-      <ValueRow label={`ned (${result.ned.toFixed(3)})`} value="" />
+      <ValueRow label={`ned (${dec(result.ned, 3)})`} value="" />
 
       {/* Flexocompresión */}
       <GroupHeader label="Flexocompresión" />

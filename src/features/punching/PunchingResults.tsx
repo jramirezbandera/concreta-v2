@@ -2,7 +2,7 @@ import { type PunchingResult } from '../../lib/calculations/punching';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 
 interface PunchingResultsProps {
   result: PunchingResult;
@@ -100,15 +100,15 @@ export function PunchingResults({ result }: PunchingResultsProps) {
 
       {/* Parámetros */}
       <GroupHeader label="Parámetros" />
-      <ValueRow label={resultLabel('beta_punching')} value={result.beta.toFixed(2)} />
+      <ValueRow label={resultLabel('beta_punching')} value={dec(result.beta, 2)} />
       <ValueRow label="u0 — perímetro en cara del pilar" value={`${result.u0.toFixed(0)} mm`} />
       <ValueRow label={resultLabel('u1_perimeter')}  value={`${result.u1.toFixed(0)} mm`} />
-      <ValueRow label="k — factor de tamaño"         value={result.k.toFixed(3)} />
+      <ValueRow label="k — factor de tamaño"         value={dec(result.k, 3)} />
       <ValueRow label="As,sup — armado cara superior" value={`${(result.asSup * 1000).toFixed(0)} mm²/m`} />
       <ValueRow label="As,inf — armado cara inferior" value={`${(result.asInf * 1000).toFixed(0)} mm²/m`} />
-      <ValueRow label="ρl — cuantía geométrica efectiva" value={result.rhoL.toFixed(4)} />
+      <ValueRow label="ρl — cuantía geométrica efectiva" value={dec(result.rhoL, 4)} />
       {result.rhoLClamped && (
-        <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={result.rhoLMin.toFixed(4)} />
+        <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={dec(result.rhoLMin, 4)} />
       )}
       <ValueRow label="vmín — resistencia mínima"    value={fmtStress(result.vMin)} />
       <ValueRow label="vEd,0 — tensión en cara del pilar" value={fmtStress(result.vEd0)} />

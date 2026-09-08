@@ -5,7 +5,7 @@
 import { type RockfillWallInputs } from '../../data/defaults';
 import { type RockfillWallResult } from '../../lib/calculations/rockfillWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { conComaDecimal, formatQuantity } from '../../lib/units/format';
+import { conComaDecimal, dec, formatQuantity } from '../../lib/units/format';
 
 export type RockfillWallView = 'geometry' | 'loads' | 'hiladas';
 
@@ -398,15 +398,15 @@ function GeometryView({ inp, result, mode, width, height }: Required<RockfillWal
       )}
 
       {/* Cotas */}
-      <VDim y1={crownY} y2={fdnTopY} x={p.sx(Math.min(g.x0, 0.001) === g.x0 ? g.x0 : 0)} label={`${g.H.toFixed(2)}`} side="left" off={34} P={P} isPdf={isPdf} />
-      <VDim y1={fdnTopY} y2={baseY} x={p.sx(0)} label={`${g.hz.toFixed(2)}`} side="left" off={64} P={P} isPdf={isPdf} />
-      <HDim x1={p.sx(g.xb0 - (inp.a as number))} x2={p.sx(g.xb0)} y={crownY - 40} off={0} label={`a=${(inp.a as number).toFixed(2)}`} P={P} isPdf={isPdf} />
-      <HDim x1={p.sx(0)} x2={p.sx(g.B)} y={baseY} off={30} label={`B=${g.B.toFixed(2)}`} P={P} isPdf={isPdf} />
+      <VDim y1={crownY} y2={fdnTopY} x={p.sx(Math.min(g.x0, 0.001) === g.x0 ? g.x0 : 0)} label={`${dec(g.H, 2)}`} side="left" off={34} P={P} isPdf={isPdf} />
+      <VDim y1={fdnTopY} y2={baseY} x={p.sx(0)} label={`${dec(g.hz, 2)}`} side="left" off={64} P={P} isPdf={isPdf} />
+      <HDim x1={p.sx(g.xb0 - (inp.a as number))} x2={p.sx(g.xb0)} y={crownY - 40} off={0} label={`a=${dec((inp.a as number), 2)}`} P={P} isPdf={isPdf} />
+      <HDim x1={p.sx(0)} x2={p.sx(g.B)} y={baseY} off={30} label={`B=${dec(g.B, 2)}`} P={P} isPdf={isPdf} />
       {!isGavion && (
         <text x={p.sx(g.x0 + g.mIntra * g.H * 0.5) - 10} y={(crownY + fdnTopY) / 2}
           fontSize={9} fill={P.dim} textAnchor="end"
           fontFamily="ui-monospace, 'Geist Mono', monospace">
-          {svgText(`${(inp.mIntra as number).toFixed(2)}H:1V`, isPdf)}
+          {svgText(`${dec((inp.mIntra as number), 2)}H:1V`, isPdf)}
         </text>
       )}
       {isGavion && (
@@ -420,7 +420,7 @@ function GeometryView({ inp, result, mode, width, height }: Required<RockfillWal
       {(inp.alphaBase as number) > 0.1 && (
         <text x={(p.sx(0) + p.sx(g.B)) / 2} y={baseY + 14} fontSize={8.5} fill={P.dim} textAnchor="middle"
           fontFamily="ui-monospace, 'Geist Mono', monospace">
-          {svgText(`apoyo contrainclinado ${(inp.alphaBase as number).toFixed(1)}°`, isPdf)}
+          {svgText(`apoyo contrainclinado ${dec((inp.alphaBase as number), 1)}°`, isPdf)}
         </text>
       )}
     </svg>
@@ -548,7 +548,7 @@ function LoadsView({ inp, result, mode, width, height }: Required<RockfillWallSV
           <Arrow x1={p.sx(g.x0 + g.bBase / 2) - 40} y1={p.sy(g.hz + g.H * 0.62)}
             x2={p.sx(g.x0 + g.bBase / 2) + 8} y2={p.sy(g.hz + g.H * 0.62)} color={P.seismic} sw={1.6} head={7} />
           <text x={p.sx(g.x0 + g.bBase / 2) - 42} y={p.sy(g.hz + g.H * 0.62) - 6} fontSize={9} fill={P.seismic} textAnchor="end"
-            fontFamily="ui-monospace, 'Geist Mono', monospace">{svgText(`kh·W (kh=${result.kh_derived.toFixed(3)})`, isPdf)}</text>
+            fontFamily="ui-monospace, 'Geist Mono', monospace">{svgText(`kh·W (kh=${dec(result.kh_derived, 3)})`, isPdf)}</text>
         </g>
       )}
 
@@ -636,7 +636,7 @@ function HiladasView({ inp, result, mode, width, height }: Required<RockfillWall
             stroke={colorFor(worst.util)} strokeWidth={1.2} strokeDasharray="5 3" />
           <text x={p.sx(0) - 4} y={zy(worst.z) - 4} fontSize={8.5} fill={colorFor(worst.util)}
             fontFamily="ui-monospace, 'Geist Mono', monospace">
-            {svgText(`z=${worst.z.toFixed(2)} m`, isPdf)}</text>
+            {svgText(`z=${dec(worst.z, 2)} m`, isPdf)}</text>
         </g>
       )}
 
@@ -651,7 +651,7 @@ function HiladasView({ inp, result, mode, width, height }: Required<RockfillWall
         <g key={`tick-${t}`}>
           <line x1={ux(t)} y1={zy(g.H)} x2={ux(t)} y2={zy(g.H) + 4} stroke={P.dim} strokeWidth={0.7} />
           <text x={ux(t)} y={zy(g.H) + 14} fontSize={9} fill={P.dim} textAnchor="middle"
-            fontFamily="ui-monospace, 'Geist Mono', monospace">{t.toFixed(1)}</text>
+            fontFamily="ui-monospace, 'Geist Mono', monospace">{dec(t, 1)}</text>
         </g>
       ))}
       <text x={(chartX0 + chartX1) / 2} y={zy(g.H) + 28} fontSize={9.5} fill={P.dim} textAnchor="middle"
@@ -685,7 +685,7 @@ function HiladasView({ inp, result, mode, width, height }: Required<RockfillWall
             fill={P.chipBg} stroke={P.chipBorder} strokeWidth={0.5} />
           <text x={Math.min(ux(worst.util) + 10, chartX1 - 70)} y={zy(worst.z) - 9} fontSize={9.5}
             fill={colorFor(worst.util)} fontFamily="ui-monospace, 'Geist Mono', monospace">
-            {`I=${worst.util.toFixed(2)}`}</text>
+            {`I=${dec(worst.util, 2)}`}</text>
         </g>
       )}
 

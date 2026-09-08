@@ -19,6 +19,7 @@ import {
 } from '../sections';
 import { BEAM_CASES } from './beamCases';
 import { type CheckRow, type CheckStatus, makeCheckQty, WARN_UTIL } from './types';
+import { dec } from '../units/format';
 
 // CTE DB-SE-A constants
 const E = 210000;   // N/mm²  — Young's modulus
@@ -355,7 +356,7 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
     checks.push(
       checkNeutral(
         'lcr-warning',
-        `Lcr (${(inp.Lcr / 1000).toFixed(2)} m) > L (${(inp.L / 1000).toFixed(2)} m) — verificar longitud de pandeo`,
+        `Lcr (${dec((inp.Lcr / 1000), 2)} m) > L (${dec((inp.L / 1000), 2)} m) — verificar longitud de pandeo`,
         'REVISAR',
         'CE Anejo 22 §6.3.2 — Pandeo lateral torsional',
       ),
@@ -382,8 +383,8 @@ export function calcSteelBeam(inp: SteelBeamInputs): SteelBeamResult {
       'Flecha δmax (CTE DB-SE §4.3.3)',
       delta_max,
       delta_adm,
-      `${delta_max.toFixed(1)} mm`,
-      `L/${inp.deflLimit} = ${delta_adm.toFixed(1)} mm`,
+      `${dec(delta_max, 1)} mm`,
+      `L/${inp.deflLimit} = ${dec(delta_adm, 1)} mm`,
       'CTE DB-SE §4.3.3 — Estados límite de servicio. Flechas',
     ),
   );

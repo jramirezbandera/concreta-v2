@@ -9,7 +9,7 @@ import {
   type PlantaResult,
   type CriticoResult,
 } from '../../lib/calculations/masonryWalls';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import { WARN_UTIL } from '../../lib/calculations/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
@@ -526,7 +526,7 @@ export function MasonryWallsSVG({
               <line x1={ox - 25} y1={c.yTop} x2={ox - 19} y2={c.yTop} stroke={cDim} strokeWidth="0.5" />
               <line x1={ox - 25} y1={c.yBottom} x2={ox - 19} y2={c.yBottom} stroke={cDim} strokeWidth="0.5" />
               <text x={ox - 26} y={c.yTop + c.muroH / 2 + 3} textAnchor="end" fill={cDim} fontSize="8" fontFamily={monoFamily}>
-                {(pl.H / 1000).toFixed(2)} m
+                {dec((pl.H / 1000), 2)} m
               </text>
             </g>
           );

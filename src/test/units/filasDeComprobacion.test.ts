@@ -87,8 +87,8 @@ describe('Filas de comprobación — la unidad la pone el sistema, no el motor',
    * cualquier OTRO símbolo del SI rompe el test.
    */
   const CITAS_EN_SI = [
-    'E2: su no dado → su≈6·N=120.00 kPa (correlación NSPT), revisar.',
-    'E3: su no dado → su≈6·N=210.00 kPa (correlación NSPT), revisar.',
+    'E2: su no dado → su≈6·N=120,00 kPa (correlación NSPT), revisar.',
+    'E3: su no dado → su≈6·N=210,00 kPa (correlación NSPT), revisar.',
   ];
 
   it('micropilotes: flexión, cortante y el Rfc que no se adopta', () => {

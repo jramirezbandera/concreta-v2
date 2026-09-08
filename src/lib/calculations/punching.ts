@@ -12,6 +12,7 @@ import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, toStatus, makeCheckQty, WARN_UTIL } from './types';
 import { calcCruceta } from './cruceta';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -108,7 +109,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   if (inp.barDiamSup <= 0 || inp.barDiamInf <= 0) return invalid('Los diámetros de armado deben ser > 0');
   if (inp.fck < 12 || inp.fck > 90) return invalid('fck fuera de rango (12–90 MPa)');
   if (inp.betaMode === 'custom' && !(inp.betaManual >= 1)) {
-    return invalid('β personalizado debe ser ≥ 1.0 (no hay excentricidad que reduzca la demanda por debajo de la carga concéntrica)');
+    return invalid('β personalizado debe ser ≥ 1,0 (no hay excentricidad que reduzca la demanda por debajo de la carga concéntrica)');
   }
   if (inp.hasShearReinf && inp.sr <= 0) return invalid('Separación radial sr debe ser > 0');
   if (inp.hasShearReinf && inp.swLegs <= 0) return invalid('Nº de ramas debe ser > 0');
@@ -261,8 +262,8 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     checks.push({
       id:          'punz-rho-min',
       description: 'ρl ≥ ρl,min',
-      value:       `ρl = ${rhoDisplay.toFixed(4)}`,
-      limit:       `ρl,min = ${rhoLMin.toFixed(4)}`,
+      value:       `ρl = ${dec(rhoDisplay, 4)}`,
+      limit:       `ρl,min = ${dec(rhoLMin, 4)}`,
       utilization: util,
       status:      rhoLClamped ? 'warn' : toStatus(util),
       article:     'CE Anejo 19 §9.2.1.1',
@@ -276,9 +277,9 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     const srStatus: CheckRow['status'] = util > 1 ? 'fail' : util >= WARN_UTIL ? 'warn' : 'ok';
     checks.push({
       id:          'punz-sr-max',
-      description: 'sr ≤ 0.75·d (separación radial)',
+      description: 'sr ≤ 0,75·d (separación radial)',
       value:       `sr = ${inp.sr.toFixed(0)} mm`,
-      limit:       `0.75d = ${srMax.toFixed(0)} mm`,
+      limit:       `0,75d = ${srMax.toFixed(0)} mm`,
       utilization: Math.min(util, 1),
       status:      srStatus,
       article:     'CE Anejo 19 §9.4.3',
@@ -341,7 +342,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
     inp.betaMode === 'custom'
       ? {
           id: 'punz-beta-note',
-          description: `β=${beta.toFixed(2)} personalizado — introducido por el proyectista (método general §6.4.3: β=1+k·MEd·u1/(VEd·W1)); la app no verifica su cálculo`,
+          description: `β=${dec(beta, 2)} personalizado — introducido por el proyectista (método general §6.4.3: β=1+k·MEd·u1/(VEd·W1)); la app no verifica su cálculo`,
           value: '',
           limit: '',
           utilization: 0,
@@ -352,7 +353,7 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
         }
       : {
           id: 'punz-beta-note',
-          description: `β=${beta.toFixed(2)} simplificado — válido para estructura arriostrada con luces adyacentes que no difieren >25%; si no, calcular β con la transferencia de momento real`,
+          description: `β=${dec(beta, 2)} simplificado — válido para estructura arriostrada con luces adyacentes que no difieren >25%; si no, calcular β con la transferencia de momento real`,
           value: '',
           limit: '',
           utilization: 0,

@@ -41,6 +41,7 @@ import {
 import { CUSTOM_TUBE_SENTINEL, resolveTubeGeometry } from '../../data/micropileTubes';
 import { computeBucklingCR, type BucklingNote } from './micropilesBuckling';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
+import { dec } from '../units/format';
 
 export type { CheckRow } from './types';
 
@@ -211,8 +212,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   if (soilDepth + 1e-3 < inp.toeDepth) {
     const missing = inp.toeDepth - soilDepth;
     return invalid(
-      `El perfil de suelo (${soilDepth.toFixed(2)} m) no llega hasta el apoyo ` +
-      `del micropilote (${inp.toeDepth.toFixed(2)} m). Faltan ${missing.toFixed(2)} m: ` +
+      `El perfil de suelo (${dec(soilDepth, 2)} m) no llega hasta el apoyo ` +
+      `del micropilote (${dec(inp.toeDepth, 2)} m). Faltan ${dec(missing, 2)} m: ` +
       `añade un estrato o aumenta el espesor del último.`,
     );
   }
@@ -345,8 +346,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
       }
       // Único caso que queda: 2·e ≥ de
       return invalid(
-        `Tubo personalizado: espesor 2·e=${(2 * inp.customTubeE).toFixed(1)} mm ` +
-        `≥ Ø ext=${inp.customTubeDe.toFixed(1)} mm. El tubo no tiene hueco interior.`,
+        `Tubo personalizado: espesor 2·e=${dec((2 * inp.customTubeE), 1)} mm ` +
+        `≥ Ø ext=${dec(inp.customTubeDe, 1)} mm. El tubo no tiene hueco interior.`,
       );
     }
     return invalid(`Tubo "${inp.tube}" no encontrado en el catálogo PIRESA.`);
@@ -371,7 +372,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const geomCoverAvailable = (inp.drillDiameter - de) / 2;
   if (geomCoverAvailable < minCoverRequired - 1e-3) {
     return invalid(
-      `Recubrimiento entre tubo y pared del barreno = ${geomCoverAvailable.toFixed(1)} mm ` +
+      `Recubrimiento entre tubo y pared del barreno = ${dec(geomCoverAvailable, 1)} mm ` +
       `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${groutLabel}). ` +
       `Reduce Ø tubo o aumenta Dn (perforación).`,
     );
@@ -384,7 +385,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
 
   if (coverAdopted < minCoverRequired - 1e-3) {
     return invalid(
-      `Recubrimiento materializado r = ${coverAdopted.toFixed(1)} mm ` +
+      `Recubrimiento materializado r = ${dec(coverAdopted, 1)} mm ` +
       `< ${minCoverRequired} mm mínimo (Guía Fomento Tabla 2.3, ${groutLabel}). ` +
       `Aumenta el campo "r" en Ejecución y entorno al valor mínimo normativo.`,
     );
@@ -396,16 +397,16 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const dPerfMm  = inp.drillDiameter;                        // mm (v5: ya en mm)
   if (dTotal > dPerfMm + 1e-3) {
     return invalid(
-      `El bulbo estructural (${dTotal.toFixed(1)} mm) excede el diámetro de perforación ` +
-      `(${dPerfMm.toFixed(1)} mm). Reduce el recubrimiento estructural o aumenta Dn.`,
+      `El bulbo estructural (${dec(dTotal, 1)} mm) excede el diámetro de perforación ` +
+      `(${dec(dPerfMm, 1)} mm). Reduce el recubrimiento estructural o aumenta Dn.`,
     );
   }
   // Corrosión: si la pérdida radial re consume más de la mitad del espesor,
   // el área neta sería absurda. Invalidar antes de calcular capacidades.
   if (2 * re >= e) {
     return invalid(
-      `Pérdida por corrosión re=${re.toFixed(2)} mm consume todo el espesor de pared ` +
-      `(e=${e.toFixed(2)} mm). Elige un tubo más grueso o entorno menos agresivo.`,
+      `Pérdida por corrosión re=${dec(re, 2)} mm consume todo el espesor de pared ` +
+      `(e=${dec(e, 2)} mm). Elige un tubo más grueso o entorno menos agresivo.`,
     );
   }
   const As_y     = (Math.PI / 4) * (de * de - di * di);      // mm²
@@ -483,7 +484,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   const eg_min  = weldThroatMin(t_chapa);
   if (eg_min === null) {
     return invalid(
-      `Espesor de chapa t=${t_chapa.toFixed(2)} mm fuera del rango de la Tabla A-5.1 ` +
+      `Espesor de chapa t=${dec(t_chapa, 2)} mm fuera del rango de la Tabla A-5.1 ` +
       `(3 < t ≤ 20 mm). Selecciona un tubo con espesor en ese rango.`,
     );
   }
@@ -528,8 +529,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     const ratio = eEff > 0 ? deNet / eEff : Infinity;
     const limit3 = 90 * (235 / fy);
     return invalid(
-      `Sección clase 4 (EC3-1-1 Tabla 5.2): d/t = ${ratio.toFixed(1)} > ` +
-      `90·ε² = ${limit3.toFixed(1)} con fy = ${fy} N/mm². Selecciona un tubo ` +
+      `Sección clase 4 (EC3-1-1 Tabla 5.2): d/t = ${dec(ratio, 1)} > ` +
+      `90·ε² = ${dec(limit3, 1)} con fy = ${fy} N/mm². Selecciona un tubo ` +
       `con mayor espesor de pared o un acero de menor fy.`,
     );
   }
@@ -667,14 +668,14 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     description: R <= 0
       ? 'Tope estructural nulo por pandeo (CR ≥ 40)'
       : R < 1
-        ? `Pandeo: tope estructural reducido por R = ${R.toFixed(3)}`
+        ? `Pandeo: tope estructural reducido por R = ${dec(R, 3)}`
         : 'Pandeo: sin penalización (R = 1)',
-    value: `R = ${R.toFixed(3)}`,
-    limit: `CR = ${crAdopted.toFixed(2)} (${crGoverning})`,
+    value: `R = ${dec(R, 3)}`,
+    limit: `CR = ${dec(crAdopted, 2)} (${crGoverning})`,
     utilization: R <= 0 ? Infinity : 0,
     status: R <= 0 ? 'fail' : 'neutral',
     neutral: R > 0,
-    tag: `CR=${crAdopted.toFixed(2)}`,
+    tag: `CR=${dec(crAdopted, 2)}`,
     article: 'Guía Fomento §3.6.1 / Tabla 3.6',
   });
 
@@ -736,7 +737,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   checks.push({
     id: 'settlement-granular',
     description: 'Asiento estimado (granular)',
-    value: `${settlementGranular.toFixed(1)} mm`,
+    value: `${dec(settlementGranular, 1)} mm`,
     limit: `≤ ${settlementLimit} mm`,
     utilization: settlementUtil,
     status: toStatus(settlementUtil),

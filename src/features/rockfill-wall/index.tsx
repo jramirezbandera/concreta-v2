@@ -7,7 +7,7 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
 import { exportRockfillWallPDF, rockfillWallFallbackFilename } from '../../lib/pdf/rockfillWall';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { rockfillWallAdapter, summarizeRockfillWallResults } from '../../lib/ai/modules/rockfillWall';
 import { Topbar } from '../../components/layout/Topbar';
@@ -83,9 +83,9 @@ function SummaryStrip({
   const { system } = useUnitSystem();
   return (
     <div className="flex items-center gap-5">
-      <Stat ok={okD} label="Deslizamiento" value={isFinite(fsd) ? fsd.toFixed(2) : '∞'} />
+      <Stat ok={okD} label="Deslizamiento" value={isFinite(fsd) ? dec(fsd, 2) : '∞'} />
       <div className="w-px h-7 bg-border-main" />
-      <Stat ok={okH} label="Peor hilada" value={hiladaUtil.toFixed(2)} />
+      <Stat ok={okH} label="Peor hilada" value={dec(hiladaUtil, 2)} />
       <div className="w-px h-7 bg-border-main" />
       <Stat
         ok={okS}

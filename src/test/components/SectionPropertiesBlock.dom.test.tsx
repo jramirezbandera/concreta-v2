@@ -46,7 +46,7 @@ describe('Vigas de acero — bloque de propiedades', () => {
     expect(screen.getByText('Propiedades')).toBeInTheDocument();
     expect(screen.getByText('tf — espesor de ala (mm)')).toBeInTheDocument();
     expect(screen.getByText('Iw (10³ cm⁶)')).toBeInTheDocument();
-    expect(screen.getByText('42.2')).toBeInTheDocument();   // peso IPE 300
+    expect(screen.getByText('42,2')).toBeInTheDocument();   // peso IPE 300
     expect(screen.getByText('8356')).toBeInTheDocument();    // Iy
   });
 

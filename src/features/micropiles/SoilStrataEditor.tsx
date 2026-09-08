@@ -4,7 +4,7 @@ import { Trash2, ChevronDown } from 'lucide-react';
 import { type SoilLayer } from '../../data/defaults';
 import { type SoilType } from '../../data/micropileLookups';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatNumber, getUnitLabel, getPrecision, parseQuantity } from '../../lib/units/format';
+import { dec, formatNumber, getUnitLabel, getPrecision, parseQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface SoilStrataEditorProps {
@@ -195,7 +195,7 @@ function StrataCard({
               acababa el estrato y no se daba cuenta de que la cota se mide
               desde la rasante, no desde la cabeza del pilote. */}
           <span className="text-[10px] text-text-disabled font-mono whitespace-nowrap">
-            {depthTop.toFixed(2)}–{(depthTop + layer.thickness).toFixed(2)} m
+            {dec(depthTop, 2)}–{dec((depthTop + layer.thickness), 2)} m
           </span>
         </span>
         <span className="flex items-center gap-1 shrink-0">

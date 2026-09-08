@@ -13,6 +13,7 @@
 import { type EmpresalladoInputs } from '../../data/defaults';
 import { getAngleProfile } from '../../data/angleProfiles';
 import { makeCheckQty, toStatus, type CheckRow } from './types';
+import { dec } from '../units/format';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const γM0 = 1.05;
@@ -282,9 +283,9 @@ export function calcEmpresillado(inp: EmpresalladoInputs): EmpresalladoResult {
       N_chord_max, N_bv_Rd, 'force', 'CE Anejo 22 §6.4 / §6.3.1'),
     {
       id: 'cordon-interaccion',
-      description: `Cordón — pandeo + flexión Vierendeel: N/N_bv,Rd + M_ch/M_el,Rd (M_ch=${M_ch.toFixed(2)} kNm)`,
-      value: util_chord_int.toFixed(3),
-      limit: '1.000',
+      description: `Cordón — pandeo + flexión Vierendeel: N/N_bv,Rd + M_ch/M_el,Rd (M_ch=${dec(M_ch, 2)} kNm)`,
+      value: dec(util_chord_int, 3),
+      limit: '1,000',
       utilization: util_chord_int,
       status: toStatus(util_chord_int),
       article: 'CE Anejo 22 §6.4.3.1(1) — Cordón a axil + momento local',

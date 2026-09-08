@@ -10,6 +10,7 @@ import { GAMMA_C, wkMax } from '../../data/factors';
 import { getL0Factor } from '../../data/forjadoTipologias';
 import { solveTSection, solveRectangular, computeBEff } from './rcTSection';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty as checkQ } from './types';
+import { dec } from '../units/format';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -384,8 +385,8 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
       'cracking',
       `Ancho de fisura wk ≤ wmax (${inp.exposureClass})`,
       wk, wkLim,
-      `wk = ${wk.toFixed(3)} mm`,
-      `wmax = ${wkLim.toFixed(2)} mm`,
+      `wk = ${dec(wk, 3)} mm`,
+      `wmax = ${dec(wkLim, 2)} mm`,
       'CE Anejo 19 §7.3',
     ));
   }
@@ -758,8 +759,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     shearChecks.push({
       id: 'rho-w-min',
       description: 'Cuantía mínima armadura transversal',
-      value: `ρw = ${rhoW.toFixed(5)}`,
-      limit: `ρw,min = ${rhoWMin.toFixed(5)}`,
+      value: `ρw = ${dec(rhoW, 5)}`,
+      limit: `ρw,min = ${dec(rhoWMin, 5)}`,
       utilization: rhoWUtil, status: rhoWStatus,
       article: 'CE Anejo 19 §6.2.3',
     });
@@ -814,8 +815,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     description: ld_util <= 1
       ? 'Esbeltez L/d — exento de comprobar flecha'
       : 'Esbeltez L/d excede la exención — comprobar flecha aparte',
-    value: `L/d = ${ld_actual.toFixed(1)}`,
-    limit: `(L/d)lim = ${ld_lim.toFixed(1)} (K=${K_ld.toFixed(2)})`,
+    value: `L/d = ${dec(ld_actual, 1)}`,
+    limit: `(L/d)lim = ${dec(ld_lim, 1)} (K=${dec(K_ld, 2)})`,
     utilization: ld_util,
     status: ld_util <= 1 ? 'ok' : 'warn',
     article: 'CE Anejo 19 §7.4.2',

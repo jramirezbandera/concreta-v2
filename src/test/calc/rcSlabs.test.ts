@@ -298,8 +298,8 @@ describe('esbeltez L/d (CE Anejo 19 §7.4.2)', () => {
     const r = calcForjados({ ...base, stirrupsEnabled: false });
     const ld = r.infoChecks.find((c) => c.id === 'esbeltez-flecha')!;
     expect(ld.status).toBe('ok');
-    expect(ld.value).toContain('17.1');
-    expect(ld.limit).toContain('37.4');
+    expect(ld.value).toContain('17,1');
+    expect(ld.limit).toContain('37,4');
   });
 
   it('vano largo y canto escaso → warn "comprobar flecha aparte"', () => {

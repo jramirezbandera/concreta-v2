@@ -5,7 +5,7 @@
 
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
 interface Props {
@@ -136,7 +136,7 @@ function Planta({
       <text
         x={cx} y={fy + fh + 18}
         textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
-      >{`B=${B.toFixed(2)} m`}</text>
+      >{`B=${dec(B, 2)} m`}</text>
 
       <line x1={fx + fw + 8} y1={fy} x2={fx + fw + 8} y2={fy + fh}
         stroke={c.cota} strokeWidth={0.75} />
@@ -145,7 +145,7 @@ function Planta({
         textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
         transform={`rotate(-90 ${fx + fw + 14} ${cy})`}
-      >{`L=${L.toFixed(2)} m`}</text>
+      >{`L=${dec(L, 2)} m`}</text>
 
       {/* Cruz centro de presiones (cuando hay eccentricidad) */}
       {hasEcc && (
@@ -265,7 +265,7 @@ function Seccion({
         x={(footLeftX + (cx - colW / 2)) / 2} y={groundY + dfPx / 2}
         textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
-      >{`Df=${Df.toFixed(2)} m`}</text>
+      >{`Df=${dec(Df, 2)} m`}</text>
 
       {/* Cota h (derecha) — rotada vertical para no salir del box */}
       <line x1={footLeftX + capW + 10} y1={footTopY} x2={footLeftX + capW + 10} y2={footTopY + capH}
@@ -275,7 +275,7 @@ function Seccion({
         textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
         dominantBaseline="middle"
         transform={`rotate(-90 ${footLeftX + capW + 16} ${footTopY + capH / 2})`}
-      >{`h=${h.toFixed(2)} m`}</text>
+      >{`h=${dec(h, 2)} m`}</text>
 
       {/* d (canto útil) — sutil, debajo del rebar */}
       {!isFail && d_x > 0 && (
@@ -365,7 +365,7 @@ function Diagrama({
       <text
         x={box.x + box.w / 2} y={box.y + 10}
         textAnchor="middle" fontSize={9} fontFamily="monospace" fill={c.textDis}
-      >{pdfText(`σ bajo zapata — eje B (${B.toFixed(2)} m)`, isPdf)}</text>
+      >{pdfText(`σ bajo zapata — eje B (${dec(B, 2)} m)`, isPdf)}</text>
 
       {/* Baseline */}
       <line
@@ -404,7 +404,7 @@ function Diagrama({
           <text
             x={(lcLineX + xRight) / 2} y={baseY + 16}
             textAnchor="middle" fontSize={10} fontFamily="monospace" fill={c.cota}
-          >{`Lc=${(loaded_area_fraction * B).toFixed(2)} m`}</text>
+          >{`Lc=${dec((loaded_area_fraction * B), 2)} m`}</text>
         </>
       )}
     </g>

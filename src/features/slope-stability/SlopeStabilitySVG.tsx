@@ -16,7 +16,7 @@
 import type { ReactElement } from 'react';
 import type { SlopeInputs, SoilLayer, SlopeLoad } from '../../data/defaults';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { SlopeResult, SlopePoint } from '../../lib/calculations/geotech/types';
 
 interface SlopeStabilitySVGProps {
@@ -661,7 +661,7 @@ export function SlopeStabilitySVG({
                 textAnchor="middle"
                 fontFamily={FONT_MONO}
               >
-                {svgText(`FoS = ${run.fos.toFixed(2)}`, isPdf)}
+                {svgText(`FoS = ${dec(run.fos, 2)}`, isPdf)}
               </text>
             </g>
           )}

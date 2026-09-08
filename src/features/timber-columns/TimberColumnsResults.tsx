@@ -2,7 +2,7 @@ import { type TimberColumnResult, type TimberColumnCheckRow, type CheckStatus } 
 import { resultLabel } from '../../lib/text/labels';
 import { ambientStyle, checkLimitStr, checkValueStr } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface Props {
@@ -138,9 +138,9 @@ export function TimberColumnsResults({ result }: Props) {
       <div>
         <GroupHeader label="Parámetros EC5" />
         <div className="divide-y divide-border-sub">
-          <ValueRow label={resultLabel('kmod')}           value={result.kmod.toFixed(2)} />
-          <ValueRow label={resultLabel('gamma_M_timber')} value={result.gammaM.toFixed(2)} />
-          <ValueRow label="kh"                            value={result.kh.toFixed(3)} />
+          <ValueRow label={resultLabel('kmod')}           value={dec(result.kmod, 2)} />
+          <ValueRow label={resultLabel('gamma_M_timber')} value={dec(result.gammaM, 2)} />
+          <ValueRow label="kh"                            value={dec(result.kh, 3)} />
           <ValueRow label={resultLabel('fc0_d')}          value={fmtSi(result.fc0_d, 'stress')} />
           <ValueRow label={resultLabel('fm_d')}           value={fmtSi(result.fm_d, 'stress')} />
           <ValueRow label={resultLabel('fv_d')}           value={fmtSi(result.fv_d, 'stress')} />
@@ -150,14 +150,14 @@ export function TimberColumnsResults({ result }: Props) {
       <div>
         <GroupHeader label="Pandeo EC5 §6.3.2" />
         <div className="divide-y divide-border-sub">
-          <ValueRow label="Lef,y (eje fuerte)" value={`${(result.Lef_y / 1000).toFixed(2)} m`} />
-          <ValueRow label="Lef,z (eje débil)"  value={`${(result.Lef_z / 1000).toFixed(2)} m`} />
-          <ValueRow label="λy (eje fuerte)"    value={result.lambda_y.toFixed(1)} />
-          <ValueRow label="λz (eje débil)"     value={result.lambda_z.toFixed(1)} />
-          <ValueRow label="λrel,y"             value={result.lambda_rel_y.toFixed(3)} />
-          <ValueRow label="λrel,z"             value={result.lambda_rel_z.toFixed(3)} />
-          <ValueRow label={resultLabel('kc_y')} value={result.kc_y.toFixed(3)} />
-          <ValueRow label={resultLabel('kc_z')} value={result.kc_z.toFixed(3)} />
+          <ValueRow label="Lef,y (eje fuerte)" value={`${dec((result.Lef_y / 1000), 2)} m`} />
+          <ValueRow label="Lef,z (eje débil)"  value={`${dec((result.Lef_z / 1000), 2)} m`} />
+          <ValueRow label="λy (eje fuerte)"    value={dec(result.lambda_y, 1)} />
+          <ValueRow label="λz (eje débil)"     value={dec(result.lambda_z, 1)} />
+          <ValueRow label="λrel,y"             value={dec(result.lambda_rel_y, 3)} />
+          <ValueRow label="λrel,z"             value={dec(result.lambda_rel_z, 3)} />
+          <ValueRow label={resultLabel('kc_y')} value={dec(result.kc_y, 3)} />
+          <ValueRow label={resultLabel('kc_z')} value={dec(result.kc_z, 3)} />
         </div>
       </div>
 
@@ -175,8 +175,8 @@ export function TimberColumnsResults({ result }: Props) {
         <div>
           <GroupHeader label={`Sección residual R${result.t_fire}`} />
           <div className="divide-y divide-border-sub">
-            <ValueRow label={resultLabel('dchar')}           value={`${result.dchar.toFixed(1)} mm`} />
-            <ValueRow label={resultLabel('def_penetration')} value={`${result.def.toFixed(1)} mm`} />
+            <ValueRow label={resultLabel('dchar')}           value={`${dec(result.dchar, 1)} mm`} />
+            <ValueRow label={resultLabel('def_penetration')} value={`${dec(result.def, 1)} mm`} />
             <ValueRow label="Secc. residual"                 value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
           </div>
         </div>
