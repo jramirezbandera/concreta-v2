@@ -72,7 +72,7 @@ export function Viento({ v, ayuda, plantaSel, onSelectPlanta, onCambiar, onPlant
                 ))}
               </select>
               {v.qbModo === 'manual' && (
-                <RawNumberInput value={v.qbManual} onChange={(qbManual) => onCambiar({ qbManual })} ariaLabel="Presión dinámica tecleada" unit="kN/m²" min={0} widthClass="w-16" />
+                <RawNumberInput value={v.qbManual} onChange={(qbManual) => onCambiar({ qbManual })} ariaLabel="Presión dinámica tecleada" quantity="areaLoad" min={0} widthClass="w-16" />
               )}
             </div>
           </Campo>

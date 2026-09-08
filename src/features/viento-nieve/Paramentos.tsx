@@ -9,6 +9,9 @@
 import { ToggleChip } from '../../components/ui/ToggleChip';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { ParamentosResueltos } from '../../lib/acciones/viento';
+import { toDisplay } from '../../lib/units/convert';
+import { getPrecision, getUnitLabel } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Campo, FilaInterruptor, NotaSeccion } from './campos';
 import { AREA_MODO_PARAMENTOS_OPCIONES, type AreaModo } from './catalogos';
 import { INPUT } from './estilos';
@@ -24,6 +27,9 @@ interface Props {
 }
 
 export function Paramentos({ v, resultado, ayuda, onCambiar }: Props) {
+  const { system } = useUnitSystem();
+  const uQ = getUnitLabel('areaLoad', system);
+  const presion = (valor: number) => dec(toDisplay(valor, 'areaLoad', system), getPrecision('areaLoad', system));
   const p = v.paramentos;
   const areaModo = AREA_MODO_PARAMENTOS_OPCIONES.find((o) => o.id === p.areaModo);
 
@@ -63,7 +69,7 @@ export function Paramentos({ v, resultado, ayuda, onCambiar }: Props) {
               <p className="font-mono text-[11.5px] leading-relaxed text-text-primary">
                 h = {dec(resultado.h, 2)} m → ce {dec(resultado.ce, 3)}
                 <br />
-                qb·ce = {dec(resultado.qe, 3)} kN/m²
+                qb·ce = {presion(resultado.qe)} {uQ}
                 <br />
                 fachadas de {dec(resultado.alturaFachada, 2)} m para las áreas
               </p>

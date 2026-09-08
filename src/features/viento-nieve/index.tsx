@@ -25,6 +25,8 @@ import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
 import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { adaptadorDe } from '../../lib/anejo/modules';
+import { getUnitLabel } from '../../lib/units/format';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { ResultadoExport } from '../../lib/export/descargar';
 import { cuadroAccionesPlano, cuadroNieveMemoria, cuadroVientoMemoria, seccionesPlanoXlsx, type EmplazamientoCuadro } from '../../lib/acciones/cuadros';
 import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_PDF, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
@@ -126,6 +128,9 @@ function Leyenda({ color, children, rayado = false, discontinua = false }: { col
 
 export function VientoNieveModule() {
   const { openDrawer } = useDrawer();
+  // La leyenda del alzado dice en que unidad esta la flecha que rotula el
+  // dibujo: escrita a mano seguia diciendo kN con el tecnico puesto.
+  const uF = getUnitLabel('force', useUnitSystem().system);
   const [state, setState] = useState<VientoNieveState>(cargarEstado);
   const [obra, setObra] = useState(leerObra);
   const [descartado, setDescartado] = useState(leerDescartado);
@@ -397,7 +402,7 @@ export function VientoNieveModule() {
             {vista === 'edificio' && (
               <>
                 <Leyenda color="color-mix(in srgb, var(--color-accent) 12%, transparent)">banda tributaria</Leyenda>
-                <Leyenda color="var(--color-accent)">fuerza por planta ∝ kN</Leyenda>
+                <Leyenda color="var(--color-accent)">{`fuerza por planta ∝ ${uF}`}</Leyenda>
               </>
             )}
             {(vista === 'cubierta' || vista === 'fachadas') && (

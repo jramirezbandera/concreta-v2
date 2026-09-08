@@ -168,7 +168,7 @@ function ResultadosEdificio({ state, evaluacion, direccion, plantaSel }: Props) 
       <Tabla columnas={['Planta', 'z', 'ce', 'Fx', 'Fy']} filas={filas} />
 
       <Grupo label="Coeficientes" right="tabla 3.5" />
-      <ValueRow label={`qb · zona ${evaluacion.zonas.zonaEolica ?? '—'}`} value={`${dec(v.qb, 2)} ${uQ}${v.vb !== null ? ` (vb ${v.vb} m/s)` : ' (adoptada)'}`} />
+      <ValueRow label={`qb · zona ${evaluacion.zonas.zonaEolica ?? '—'}`} value={`${mostrar(v.qb, 'areaLoad')} ${uQ}${v.vb !== null ? ` (vb ${v.vb} m/s)` : ' (adoptada)'}`} />
       <ValueRow label={`Entorno ${v.aspereza}`} value={`k ${dec(v.parametros.k, 2)} · L ${dec(v.parametros.L, 2)} m · Z ${v.parametros.Z} m`} />
       {dir(v[direccion])}
       {dir(v[otra])}
@@ -194,7 +194,7 @@ function ResultadosEdificio({ state, evaluacion, direccion, plantaSel }: Props) 
 // ── Cubierta ────────────────────────────────────────────────────────────────
 
 function TablaCubierta({ d, cumbrera }: { d: DireccionResuelta; cumbrera: 'x' | 'y' }) {
-  const { mostrar } = useMostrar();
+  const { mostrar, uQ } = useMostrar();
   const valor = (s: number | null, p: number | null) => {
     if (s !== null && p !== null) return `${mostrar(s, 'areaLoad')} / +${mostrar(p, 'areaLoad')}`;
     if (p !== null) return `+${mostrar(p, 'areaLoad')}`;
@@ -203,7 +203,7 @@ function TablaCubierta({ d, cumbrera }: { d: DireccionResuelta; cumbrera: 'x' | 
   return (
     <Tabla
       caption={`${rotuloDireccionCubierta(d, cumbrera)} · b ${dec(d.b, 0)} · d ${dec(d.d, 0)} · e ${dec(d.e, 1)} m`}
-      columnas={['Zona', 'm²', 'cpe', 'kN/m²']}
+      columnas={['Zona', 'm²', 'cpe', uQ]}
       filas={d.zonas.map((z) => ({
         clave: z.zona,
         celdas: [
@@ -271,11 +271,11 @@ function ResultadosCubierta({ state, evaluacion }: Props) {
 // ── Fachadas ────────────────────────────────────────────────────────────────
 
 function TablaFachadas({ d }: { d: DireccionParamentos }) {
-  const { mostrar } = useMostrar();
+  const { mostrar, uQ } = useMostrar();
   return (
     <Tabla
       caption={`${rotuloParamentos(d)} · d ${dec(d.d, 0)} · b ${dec(d.b, 0)} m`}
-      columnas={['Zona', 'Ancho', 'm²', 'cpe', 'kN/m²']}
+      columnas={['Zona', 'Ancho', 'm²', 'cpe', uQ]}
       filas={d.zonas.map((z) => ({
         clave: z.zona,
         celdas: [

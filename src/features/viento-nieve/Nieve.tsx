@@ -67,7 +67,7 @@ export function Nieve({ n, ayuda, faldonSel, onSelectFaldon, onCambiar, onFaldon
                   </option>
                 ))}
               </select>
-              {n.skModo === 'manual' && <RawNumberInput value={n.skManual} onChange={(skManual) => onCambiar({ skManual })} ariaLabel="sk tecleada" unit="kN/m²" min={0} widthClass="w-16" />}
+              {n.skModo === 'manual' && <RawNumberInput value={n.skManual} onChange={(skManual) => onCambiar({ skManual })} ariaLabel="sk tecleada" quantity="areaLoad" min={0} widthClass="w-16" />}
             </div>
           </Campo>
 
