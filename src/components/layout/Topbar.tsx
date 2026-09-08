@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
-import { Menu } from 'lucide-react';
+import { Folder, Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { CalcButton } from '../calculator/CalcButton';
 import { useCalculator } from '../calculator/calculator-context';
 import { AiButton } from '../ai/AiButton';
 import { AjustesMenu } from './AjustesMenu';
+import { useDrawer } from './AppShell';
+import { useNombreObra } from '../../lib/proyecto/useProyectoActivo';
 
 interface TopbarProps {
   moduleLabel: string;
@@ -43,6 +45,8 @@ interface TopbarProps {
 
 export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF', exportMenu }: TopbarProps) {
   const { open: openCalc } = useCalculator();
+  const { openDrawer } = useDrawer();
+  const nombreObra = useNombreObra();
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       showToast('Enlace copiado', { autoDismiss: 2000 });
@@ -69,10 +73,24 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
             todo el ancho y no se corte a "V…". Aparece a partir de `sm`, donde
             los botones de la derecha también recuperan su etiqueta. */}
         <div className="flex items-center gap-2 min-w-0">
+          {/* Por debajo de `sm` el grupo se oculta y su hueco lo ocupa la OBRA:
+              el sidebar es un cajón y, sin esto, en móvil no se ve en qué obra
+              estás. Es pulsable y abre el cajón con el menú de obra desplegado.
+              Al truncar gana la obra: es `shrink-0` y el título del módulo cede. */}
+          <button
+            type="button"
+            onClick={() => openDrawer({ menuObra: true })}
+            className="sm:hidden inline-flex items-center gap-1 max-w-[65%] shrink-0 text-[11px] font-mono uppercase text-text-secondary hover:text-text-primary transition-colors"
+            style={{ letterSpacing: '0.06em' }}
+            aria-label={`Obra: ${nombreObra ?? 'sin obra'}. Abrir menú de obra`}
+          >
+            <Folder size={12} className="shrink-0 text-accent" aria-hidden="true" />
+            <span className="truncate">{nombreObra ?? 'Sin obra'}</span>
+          </button>
           <span className="hidden sm:inline text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
             {moduleGroup}
           </span>
-          <span className="hidden sm:inline text-text-disabled shrink-0">/</span>
+          <span className="text-text-disabled shrink-0">/</span>
           <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
             {moduleLabel}
           </span>

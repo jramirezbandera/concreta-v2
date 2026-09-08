@@ -257,6 +257,25 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M4.2 3.2l.8.8.8-.8M7.2 3.2l.8.8.8-.8M10.2 3.2l.8.8.8-.8" strokeWidth="0.9" strokeOpacity="0.8"/>
         </svg>
       );
+    // Datos de obra: un pin sobre la línea del suelo — dónde está la obra.
+    case 'concreta-datos-obra':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <path d="M8 12.5s3.5-3.3 3.5-6.3a3.5 3.5 0 1 0-7 0c0 3 3.5 6.3 3.5 6.3z" />
+          <circle cx="8" cy="6.2" r="1.2" />
+          <path d="M3 14h10" strokeWidth="0.75" strokeOpacity="0.7" />
+        </svg>
+      );
+    // Anejo de cálculo: una hoja con la esquina doblada y otra detrás.
+    case 'concreta-anejo':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <path d="M5.5 2h5l3 3v8h-8z" />
+          <path d="M10.5 2v3h3" />
+          <path d="M3.5 5v9h8" strokeWidth="0.75" strokeOpacity="0.6" />
+          <path d="M7.5 8h3.5M7.5 10.5h3.5" strokeWidth="0.75" strokeOpacity="0.7" />
+        </svg>
+      );
     default:
       return <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'currentColor' }} aria-hidden="true" />;
   }
