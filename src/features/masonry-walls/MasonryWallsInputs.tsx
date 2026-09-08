@@ -7,7 +7,7 @@
 // Las aclaraciones largas viven en los tooltips ⓘ; en el panel solo quedan
 // readouts de una línea (ReadoutRow) y cajas de valores derivados.
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Copy } from 'lucide-react';
 import { WARN_UTIL } from '../../lib/calculations/types';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
@@ -42,8 +42,9 @@ import {
   type Puntual,
   type PlantaResult,
 } from '../../lib/calculations/masonryWalls';
-import { fromDisplay, toDisplay } from '../../lib/units/convert';
-import { dec, formatQuantity, getUnitLabel } from '../../lib/units/format';
+import { toDisplay } from '../../lib/units/convert';
+import { conComaDecimal, dec, formatQuantity, getUnitLabel } from '../../lib/units/format';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 
@@ -155,28 +156,10 @@ function NumField({ label, sub, help, value, unit, scale = 1, decimals, onChange
   const displayValue = quantity ? toDisplay(value, quantity, system) : value * scale;
   const resolvedUnit = quantity ? getUnitLabel(quantity, system) : unit;
 
-  // Cadena local controlada (mismo patrón que empresillado): permite estados
-  // intermedios mientras el usuario escribe ("5.", "1.2"), y solo dispara
-  // onChange cuando el valor parsea limpio. onBlur canonicaliza si quedó algo
-  // inválido. useEffect sincroniza si el `value` o `system` cambia desde fuera.
-  const initial = String(displayValue);
-  const [localStr, setLocalStr] = useState<string>(initial);
-
-  useEffect(() => {
-    // Si el valor parseado coincide con el almacenado, no sobreescribir lo
-    // que el usuario está tecleando (preserva "5." y "5.0" mientras escribe).
-    const parsed = parseFloat(localStr);
-    const storedFromLocal = isNaN(parsed)
-      ? null
-      : (quantity ? fromDisplay(parsed, quantity, system) : parsed / scale);
-    if (storedFromLocal !== value) {
-      setLocalStr(String(displayValue));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, scale, system, quantity]);
-
-  void decimals;
-
+  // La caja es el primitivo compartido. Esta ficha tenía una copia suya y la
+  // copia escribía `String(displayValue)`: sin redondeo, la conversión dejaba
+  // «815.772968» dentro del campo, y con el punto de JavaScript. El primitivo
+  // redondea a la precisión del catálogo, escribe la coma y la acepta al leer.
   return (
     <div>
       <div className="flex items-center justify-between gap-2 py-1 max-lg:min-h-11">
@@ -190,30 +173,15 @@ function NumField({ label, sub, help, value, unit, scale = 1, decimals, onChange
           </span>
           {refNorma && <span className="text-[10px] font-mono text-text-disabled">{refNorma}</span>}
         </div>
-        <div className="flex shrink-0">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={localStr}
-            onChange={(e) => {
-              const raw = e.target.value;
-              setLocalStr(raw);
-              const n = parseFloat(raw);
-              if (!isNaN(n)) {
-                const si = quantity ? fromDisplay(n, quantity, system) : n / scale;
-                onChange(si);
-              }
-            }}
-            onBlur={() => {
-              const n = parseFloat(localStr);
-              if (isNaN(n)) setLocalStr(String(displayValue));
-            }}
-            className="w-16 text-right bg-bg-primary border border-border-main rounded-l px-2 py-1 text-[12px] font-mono text-text-primary outline-none focus:border-accent"
-          />
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.5 py-1 text-[10px] font-mono text-text-disabled flex items-center">
-            {resolvedUnit}
-          </span>
-        </div>
+        <RawNumberInput
+          value={quantity ? value : displayValue}
+          onChange={(n) => onChange(quantity ? n : n / scale)}
+          quantity={quantity}
+          precision={decimals}
+          unit={quantity ? undefined : resolvedUnit}
+          ariaLabel={resolvedUnit ? `${label} (${resolvedUnit})` : label}
+          widthClass="w-16"
+        />
       </div>
     </div>
   );
@@ -696,7 +664,7 @@ export function MasonryWallsInputs({
               help={HELP.fb}
               value={state.fb}
               onChange={(v) => setState((s) => ({ ...s, ...fbPatch(s, Number(v)) }))}
-              options={fbDisponibles.map((v) => ({ value: v, label: `${v} N/mm²` }))}
+              options={fbDisponibles.map((v) => ({ value: v, label: `${conComaDecimal(String(v))} N/mm²` }))}
             />
             <SelField
               label="fm"
@@ -704,7 +672,7 @@ export function MasonryWallsInputs({
               help={HELP.fm}
               value={state.fm}
               onChange={(v) => set('fm', Number(v))}
-              options={fmDisponibles.map((v) => ({ value: v, label: `${v} N/mm²` }))}
+              options={fmDisponibles.map((v) => ({ value: v, label: `${conComaDecimal(String(v))} N/mm²` }))}
             />
           </>
         ) : (
@@ -734,7 +702,7 @@ export function MasonryWallsInputs({
                   ...(['I', 'II', 'III'] as CategoriaControl[]).flatMap((c) =>
                     (['A', 'B'] as ClaseEjecucion[]).map((e) => ({
                       value: `${c}-${e}`,
-                      label: `Cat. ${c} · ejec. ${e} — γM ${GAMMA_M_TABLA[c][e]}`,
+                      label: `Cat. ${c} · ejec. ${e} — γM ${dec(GAMMA_M_TABLA[c][e], 1)}`,
                     })),
                   ),
                   { value: 'custom', label: 'Personalizado…' },

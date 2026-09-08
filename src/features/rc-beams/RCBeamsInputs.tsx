@@ -178,10 +178,10 @@ function SelectField({
 }
 
 const LOAD_TYPE_OPTIONS = [
-  { value: 'residential', label: 'Residencial (ψ₂=0.3)' },
-  { value: 'office',      label: 'Oficinas (ψ₂=0.3)' },
-  { value: 'parking',     label: 'Garaje (ψ₂=0.6)' },
-  { value: 'roof',        label: 'Cubierta (ψ₂=0.0)' },
+  { value: 'residential', label: 'Residencial (ψ₂=0,3)' },
+  { value: 'office',      label: 'Oficinas (ψ₂=0,3)' },
+  { value: 'parking',     label: 'Garaje (ψ₂=0,6)' },
+  { value: 'roof',        label: 'Cubierta (ψ₂=0,0)' },
   { value: 'custom',      label: 'Personalizado' },
 ];
 
@@ -357,10 +357,10 @@ export function RCBeamsInputs({
             field="structSystem"
             value={(state.structSystem as string) ?? 'ss'}
             options={[
-              { value: 'ss',         label: 'Biapoyada (K=1.0)' },
-              { value: 'end',        label: 'Vano extremo (K=1.3)' },
-              { value: 'interior',   label: 'Vano interior (K=1.5)' },
-              { value: 'cantilever', label: 'Ménsula (K=0.4)' },
+              { value: 'ss',         label: 'Biapoyada (K=1,0)' },
+              { value: 'end',        label: 'Vano extremo (K=1,3)' },
+              { value: 'interior',   label: 'Vano interior (K=1,5)' },
+              { value: 'cantilever', label: 'Ménsula (K=0,4)' },
             ]}
             setField={setField}
           />

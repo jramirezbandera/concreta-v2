@@ -15,13 +15,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { RCColumnInteractionSVG } from '../../features/rc-columns/RCColumnInteractionSVG';
 import { SteelColumnInteractionSVG } from '../../features/steel-columns/SteelColumnInteractionSVG';
 import { RockfillWallResults } from '../../features/rockfill-wall/RockfillWallResults';
 import { IsolatedFootingInputsPanel } from '../../features/isolated-footing/IsolatedFootingInputsPanel';
+import { RockfillWallInputsPanel } from '../../features/rockfill-wall/RockfillWallInputs';
 import { MicropilesInputsPanel } from '../../features/micropiles/MicropilesInputsPanel';
 import { calcRCColumn, buildColumnInteraction } from '../../lib/calculations/rcColumns';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
@@ -150,6 +151,58 @@ describe('Cajas con la unidad escrita a mano', () => {
     // 300 kPa son 3,06 kg/cm².
     const caja = screen.getByLabelText('p,inj (kg/cm²)') as HTMLInputElement;
     expect(caja.value).toBe('3,06');
+  });
+
+  /**
+   * Las cajas de estos cuatro módulos tenían cada una su propia copia del
+   * primitivo, y la copia escribía `String(value)` —el punto de JavaScript— y
+   * leía con `parseFloat`, que se para en la coma: «2,4» entraba como 2. Tres
+   * delegan ya en `RawNumberInput`; la de micropilotes conserva su validación
+   * de rango y arregla el separador en su sitio.
+   */
+  it('zapatas y escollera: la caja escribe con coma y acepta lo que se teclea', () => {
+    const anotadas: Array<[string, number]> = [];
+    conProvider(
+      <IsolatedFootingInputsPanel
+        state={isolatedFootingDefaults}
+        setField={((f: string, v: number) => anotadas.push([f, v])) as never}
+      />,
+    );
+    const ancho = screen.getByLabelText('B (m)') as HTMLInputElement;
+    expect(ancho.value).toBe('1,8');
+    fireEvent.change(ancho, { target: { value: '2,4' } });
+    expect(anotadas).toContainEqual(['B', 2.4]);
+    cleanup();
+
+    const enEscollera: Array<[string, number]> = [];
+    conProvider(
+      <RockfillWallInputsPanel
+        state={rockfillWallDefaults}
+        setField={((f: string, v: number) => enEscollera.push([f, v])) as never}
+      />,
+    );
+    const coronacion = screen.getByLabelText('a (m)') as HTMLInputElement;
+    expect(coronacion.value).toBe('2');
+    fireEvent.change(coronacion, { target: { value: '2,5' } });
+    expect(enEscollera).toContainEqual(['a', 2.5]);
+  });
+
+  it('micropilotes: la caja con validación propia también entiende la coma', () => {
+    const anotadas: Array<[string, number]> = [];
+    conProvider(
+      <MicropilesInputsPanel
+        state={micropilesDefaults}
+        setField={((f: string, v: number) => anotadas.push([f, v])) as never}
+        soil={[]}
+        addLayer={noop}
+        removeLayer={noop}
+        updateLayer={noop}
+      />,
+    );
+    const nf = screen.getByLabelText('z NF (m)') as HTMLInputElement;
+    expect(nf.value).toBe('7,5');
+    fireEvent.change(nf, { target: { value: '6,25' } });
+    expect(anotadas).toContainEqual(['waterTableDepth', 6.25]);
   });
 
   it('en el SI las dos siguen diciendo lo que decían', () => {

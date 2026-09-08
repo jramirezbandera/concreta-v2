@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import { type PileCapInputs } from '../../data/defaults';
 import { autoCapDims, minEdgeDistance } from '../../lib/calculations/pileCap';
 import { availableFck } from '../../data/materials';
@@ -7,6 +7,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 
 interface Props {
   state:    PileCapInputs;
@@ -26,9 +27,10 @@ function NumField({
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
 
-  useEffect(() => { setLocalStr(String(value)); }, [value]);
+  // La caja es el primitivo compartido: este panel tenía una copia suya, y la
+  // copia escribía `String(value)` —con el punto de JavaScript— y leía con
+  // `parseFloat`, que se para en la coma. El primitivo hace las dos cosas bien.
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
@@ -39,28 +41,13 @@ function NumField({
         sub={labelKey ? undefined : resolved.sub}
         help={help}
       />
-      <div className="flex shrink-0">
-        <input
-          id={`pc-${field}`}
-          type="text"
-          inputMode="decimal"
-          value={localStr}
-          onChange={(e) => {
-            setLocalStr(e.target.value);
-            const n = parseFloat(e.target.value);
-            if (!isNaN(n)) setField(field, n);
-          }}
-          onBlur={() => {
-            const n = parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
-          }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
-          aria-label={`${resolved.label} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
+      <RawNumberInput
+        id={`pc-${field}`}
+        value={value}
+        onChange={(n) => setField(field, n)}
+        unit={unitText}
+        ariaLabel={`${resolved.label} (${unitText})`}
+      />
     </div>
   );
 }

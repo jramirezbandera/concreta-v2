@@ -11,6 +11,7 @@ import { availableBarDiams } from '../../data/rebar';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { conComaDecimal } from '../../lib/units/format';
 
 interface Props {
   state: ForjadosInputs;
@@ -33,8 +34,8 @@ function NumField({
   integer?: boolean;
   setField: Props['setField'];
 }) {
-  const [localStr, setLocalStr] = useState(() => String(value));
-  useEffect(() => { setLocalStr(String(value)); }, [value]);
+  const [localStr, setLocalStr] = useState(() => conComaDecimal(String(value)));
+  useEffect(() => { setLocalStr(conComaDecimal(String(value))); }, [value]);
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel htmlFor={`input-${field}`} label={label} sub={sub} help={help} />
@@ -48,12 +49,12 @@ function NumField({
           onChange={(e) => {
             const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
             setLocalStr(raw);
-            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
+            const n = integer ? parseInt(raw, 10) : parseFloat(raw.replace(',', '.'));
             if (!isNaN(n)) setField(field, n);
           }}
           onBlur={() => {
-            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
+            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr.replace(',', '.'));
+            if (isNaN(n)) setLocalStr(conComaDecimal(String(value)));
           }}
           className={[
             'w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
@@ -172,10 +173,10 @@ const TIPOLOGIA_SHORT: Record<string, string> = {
   '35+10': '35+10 (h45)',
 };
 const TIPO_VANO_SHORT: Record<string, string> = {
-  'biapoyado':         'Biapoyado (1.00)',
-  'continuo-extremo':  'Cont. extremo (0.85)',
-  'continuo-interior': 'Cont. interior (0.70)',
-  'voladizo':          'Voladizo (2.00)',
+  'biapoyado':         'Biapoyado (1,00)',
+  'continuo-extremo':  'Cont. extremo (0,85)',
+  'continuo-interior': 'Cont. interior (0,70)',
+  'voladizo':          'Voladizo (2,00)',
 };
 const TIPOLOGIA_OPTIONS: Array<{ value: ForjadosTipologia; label: string }> = [
   ...TIPOLOGIAS.map((t) => ({ value: t.key, label: TIPOLOGIA_SHORT[t.key] ?? t.label })),

@@ -400,13 +400,13 @@ export function calcSteelColumn(inp: SteelColumnInputs): SteelColumnResult {
   // Interaction — dimensionless ratios (stay on legacy string path)
   checks.push({
     id: 'int1', description: 'Interacción N+My+Mz  (Ec. 1)',
-    value: dec(util_check1, 3), limit: '1.000',
+    value: dec(util_check1, 3), limit: '1,000',
     utilization: util_check1, status: toStatus(util_check1),
     article: 'CE Anejo 22 §6.3.3',
   });
   checks.push({
     id: 'int2', description: 'Interacción N+My+Mz  (Ec. 2)',
-    value: dec(util_check2, 3), limit: '1.000',
+    value: dec(util_check2, 3), limit: '1,000',
     utilization: util_check2, status: toStatus(util_check2),
     article: 'CE Anejo 22 §6.3.3',
   });

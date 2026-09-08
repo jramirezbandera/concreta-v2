@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import { type RCColumnInputs } from '../../data/defaults';
 import { availableFck, availableFyk } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
@@ -6,7 +6,9 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { IconGridSelector, type IconGridOption } from '../../components/ui/IconGridSelector';
+import { dec } from '../../lib/units/format';
 
 interface RCColumnsInputsProps {
   state: RCColumnInputs;
@@ -52,8 +54,8 @@ function NumberField({
   fieldKey,
   value,
   unit,
-  min: _min,
-  step: _step = 1,
+  min,
+  step = 1,
   integer = false,
   setField,
 }: {
@@ -73,11 +75,10 @@ function NumberField({
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
 
-  useEffect(() => {
-    setLocalStr(String(value));
-  }, [value]);
+  // La caja es el primitivo compartido: este panel tenía una copia suya, y la
+  // copia escribía `String(value)` —con el punto de JavaScript— y leía con
+  // `parseFloat`, que se para en la coma. El primitivo hace las dos cosas bien.
 
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
@@ -88,32 +89,17 @@ function NumberField({
         sub={labelKey ? undefined : resolved.sub}
         help={help}
       />
-      <div className="flex shrink-0">
-        <input
-          id={`input-${fieldKey}`}
-          type="text"
-          inputMode={integer ? 'numeric' : 'decimal'}
-          value={localStr}
-          onChange={(e) => {
-            const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
-            setLocalStr(raw);
-            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(fieldKey, n);
-          }}
-          onBlur={() => {
-            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
-            else if (integer) setLocalStr(String(Math.round(n)));
-          }}
-          aria-label={unitText ? `${resolved.label} (${unitText})` : resolved.label}
-          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
-        />
-        {unitText && (
-          <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-            {unitText}
-          </span>
-        )}
-      </div>
+      <RawNumberInput
+        id={`input-${fieldKey}`}
+        value={value}
+        onChange={(n) => setField(fieldKey, n)}
+        unit={unitText}
+        ariaLabel={unitText ? `${resolved.label} (${unitText})` : resolved.label}
+        integer={integer}
+        min={min}
+        step={step}
+        hideUnit={!unitText}
+      />
     </div>
   );
 }
@@ -168,7 +154,7 @@ function SelectField({
 }
 
 export function RCColumnsInputs({ state, setField }: RCColumnsInputsProps) {
-  const Lk = (state.L * state.beta).toFixed(2);
+  const Lk = dec(state.L * state.beta, 2);
   const isCircular = (state.sectionType ?? 'rectangular') === 'circular';
 
   const cornerArea = Math.PI * (state.cornerBarDiam / 2) ** 2;

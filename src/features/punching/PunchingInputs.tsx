@@ -9,7 +9,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
-import { dec } from '../../lib/units/format';
+import { conComaDecimal, dec } from '../../lib/units/format';
 
 interface PunchingInputsProps {
   state: PunchingInputs;
@@ -39,10 +39,10 @@ function NumField({
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
+  const [localStr, setLocalStr] = useState(() => conComaDecimal(String(value)));
 
   useEffect(() => {
-    setLocalStr(String(value));
+    setLocalStr(conComaDecimal(String(value)));
   }, [value]);
 
   return (
@@ -62,12 +62,12 @@ function NumField({
           value={localStr}
           onChange={(e) => {
             setLocalStr(e.target.value);
-            const n = parseFloat(e.target.value);
+            const n = parseFloat(e.target.value.replace(',', '.'));
             if (!isNaN(n)) setField(field, n);
           }}
           onBlur={() => {
-            const n = parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
+            const n = parseFloat(localStr.replace(',', '.'));
+            if (isNaN(n)) setLocalStr(conComaDecimal(String(value)));
           }}
           className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
@@ -476,7 +476,7 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
               <div className="flex items-center justify-between py-0.75 max-lg:min-h-11">
                 <span className="text-[10px] text-text-disabled">ρl cara tensión</span>
                 <span className="text-[10px] font-mono text-text-secondary tabular-nums">
-                  {(rhoL * 100).toFixed(3)}%
+                  {dec((rhoL * 100), 3)}%
                 </span>
               </div>
             );

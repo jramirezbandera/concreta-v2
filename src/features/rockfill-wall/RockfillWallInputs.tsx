@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import {
   type RockfillWallInputs,
   type RockfillLitologia,
@@ -8,6 +8,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { dec } from '../../lib/units/format';
 
 interface RockfillWallInputsProps {
@@ -44,12 +45,10 @@ function NumField({
     ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort, unit: unit ?? LABELS[labelKey].unit }
     : { label: label ?? '', sub, unit: unit ?? '' };
   const unitText = resolved.unit === '—' ? '' : resolved.unit;
-  const [localStr, setLocalStr] = useState(() => String(value));
 
-  useEffect(() => {
-    setLocalStr(String(value));
-  }, [value]);
-
+  // La caja es el primitivo compartido: esta ficha tenía una copia suya, y la
+  // copia escribía `String(value)` —con el punto de JavaScript— y leía con
+  // `parseFloat`, que se para en la coma. El primitivo hace las dos cosas bien.
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 min-w-0">
       <InputLabel
@@ -59,29 +58,14 @@ function NumField({
         sub={labelKey ? undefined : resolved.sub}
         help={help}
       />
-      <div className="flex shrink-0">
-        <input
-          id={`input-${field}`}
-          type="text"
-          inputMode={integer ? 'numeric' : 'decimal'}
-          value={localStr}
-          onChange={(e) => {
-            const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
-            setLocalStr(raw);
-            const n = integer ? parseInt(raw, 10) : parseFloat(raw);
-            if (!isNaN(n)) setField(field, n as RockfillWallInputs[typeof field]);
-          }}
-          onBlur={() => {
-            const n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-            if (isNaN(n)) setLocalStr(String(value));
-          }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
-          aria-label={`${resolved.label} (${unitText})`}
-        />
-        <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">
-          {unitText}
-        </span>
-      </div>
+      <RawNumberInput
+        id={`input-${field}`}
+        value={value}
+        onChange={(n) => setField(field, n as RockfillWallInputs[typeof field])}
+        unit={unitText}
+        ariaLabel={`${resolved.label} (${unitText})`}
+        integer={integer}
+      />
     </div>
   );
 }

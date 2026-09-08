@@ -508,7 +508,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     checks.push({
       id: 'biaxial-check',
       description: 'Flexi\u00f3n esviada (biaxial) \u2014 N/A (aplastamiento governa)',
-      value: '\u2014', limit: '\u2264 1.0', utilization: Infinity, status: 'fail',
+      value: '\u2014', limit: '\u2264 1,0', utilization: Infinity, status: 'fail',
       article: 'CE Anejo 19 §5.8.9',
     });
   } else {
@@ -516,7 +516,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
       id: 'biaxial-check',
       description: `Flexi\u00f3n esviada: (MEdy/MRdy)\u1d43 + (MEdz/MRdz)\u1d43 \u2264 1,0  (a=${dec(a, 2)})`,
       value: dec(biaxialUtil, 3),
-      limit: '\u2264 1.0',
+      limit: '\u2264 1,0',
       utilization: biaxialUtil,
       status: toStatus(biaxialUtil),
       article: 'CE Anejo 19 §5.8.9',
@@ -544,7 +544,7 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
   const As_min_mech = 0.10 * NEd_N / fyc_d;           // mm²
   checks.push(makeCheck(
     'as-min-mech',
-    'Armadura m\u00ednima mec.: As\u00b7f_yc,d \u2265 0.10\u00b7N_Ed',
+    'Armadura m\u00ednima mec.: As\u00b7f_yc,d \u2265 0,10\u00b7N_Ed',
     As_min_mech, As_total,
     `${As_total.toFixed(0)} mm\u00b2`,
     `\u2265 ${As_min_mech.toFixed(0)} mm\u00b2`,

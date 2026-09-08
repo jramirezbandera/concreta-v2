@@ -225,7 +225,7 @@ export function SteelBeamsInputs({
   }, [state.tipo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deltaAdm = dec((state.L / state.deflLimit), 1);
-  const fmt = (v: number, d = 1) => v.toFixed(d);
+  const fmt = (v: number, d = 1) => dec(v, d);
   // Caja de derivación / filas derivadas: convierten al sistema activo. En SI
   // mantienen 1 decimal (idéntico a antes); en técnico salen kg/m · mt · Tn.
   const derivedQ = (v: number | undefined, q: Quantity) =>
@@ -250,7 +250,7 @@ export function SteelBeamsInputs({
     'quasi-permanent':'Cuasi-permanente',
   };
   const psiSymbol: Record<ElsCombo, string> = {
-    characteristic:   'ψ=1.00',
+    characteristic:   'ψ=1,00',
     frequent:         `ψ₁=${dec(psiRow.psi1, 2)}`,
     'quasi-permanent':`ψ₂=${dec(psiRow.psi2, 2)}`,
   };
@@ -495,9 +495,9 @@ export function SteelBeamsInputs({
         <div>Gk = {fmtAL(state.gk)} × {fmt(state.bTrib)} = {derivedQ(loadGen?.Gk_line, 'linearLoad')} {uL('linearLoad')}</div>
         <div>Qk = {fmtAL(state.qk)} × {fmt(state.bTrib)} = {derivedQ(loadGen?.Qk_line, 'linearLoad')} {uL('linearLoad')}</div>
         <div>
-          wEd = 1.35×{derivedQ(loadGen?.Gk_line, 'linearLoad')} + 1.50×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
+          wEd = 1,35×{derivedQ(loadGen?.Gk_line, 'linearLoad')} + 1,50×{derivedQ(loadGen?.Qk_line, 'linearLoad')} ={' '}
           {derivedQ(loadGen?.wEd, 'linearLoad')} {uL('linearLoad')}
-          <span className="text-text-disabled ml-1">[γG=1.35, γQ=1.50]</span>
+          <span className="text-text-disabled ml-1">[γG=1,35, γQ=1,50]</span>
         </div>
         <div className="border-t border-border-sub mt-1 pt-1">
           <div>MEd  = {formulas.MEd} = {derivedQ(loadGen?.MEd, 'moment')} {uL('moment')}</div>
@@ -555,7 +555,7 @@ export function SteelBeamsInputs({
         field="elsCombo"
         value={state.elsCombo ?? 'characteristic'}
         options={[
-          { value: 'characteristic',   label: 'Característica  (ψ=1.0)' },
+          { value: 'characteristic',   label: 'Característica  (ψ=1,0)' },
           { value: 'frequent',         label: `Frecuente  (ψ₁=${dec(psiRow.psi1, 2)})` },
           { value: 'quasi-permanent',  label: `Cuasi-perm.  (ψ₂=${dec(psiRow.psi2, 2)})` },
         ]}

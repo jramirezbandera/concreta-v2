@@ -537,7 +537,7 @@ export function IsolatedFootingSVG({ inp, result, width, mode = 'screen', system
       >
         <title id={titleId}>Zapata aislada — planta, sección y diagrama de presión</title>
         <desc id={descId}>
-          {`Planta ${inp.B}×${inp.L} m con pilar ${inp.bc}×${inp.hc} m. `}
+          {`Planta ${dec(inp.B, 2)}×${dec(inp.L, 2)} m con pilar ${dec(inp.bc, 2)}×${dec(inp.hc, 2)} m. `}
           {`Distribución ${distLabel}. `}
           {pdfText(`σmáx ${formatQuantity(result.sigma_max, 'soilPressure', system)}, σmín ${formatQuantity(result.sigma_min, 'soilPressure', system)}.`, isPdf)}
         </desc>

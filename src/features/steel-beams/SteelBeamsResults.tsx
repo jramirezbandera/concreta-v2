@@ -4,7 +4,7 @@ import { LABELS, resultLabel } from '../../lib/text/labels';
 import { ambientStyle, checkValueStr, checkLimitStr } from '../../components/checks';
 import { SectionPropertiesBlock } from '../../components/checks/SectionPropertiesBlock';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { dec, formatQuantity } from '../../lib/units/format';
 import type { Quantity, UnitSystem } from '../../lib/units/types';
 
 interface SteelBeamsResultsProps {
@@ -203,10 +203,10 @@ export function SteelBeamsResults({ result, deflLimit, compact = false }: SteelB
       <ValueRow label={resultLabel('Mc_Rd')}        value={fmtSi(result.Mc_Rd, 'moment')} />
       <ValueRow label={resultLabel('Vc_Rd')}        value={fmtSi(result.Vc_Rd, 'force')} />
       <ValueRow label={resultLabel('Mb_Rd')}        value={fmtSi(result.Mb_Rd, 'moment')} />
-      <ValueRow label={resultLabel('chi_LT')}       value={result.chi_LT.toFixed(3)} />
-      <ValueRow label={resultLabel('lambda_bar_LT')} value={result.lambda_LT.toFixed(3)} />
-      <ValueRow label={resultLabel('delta_max')}    value={`${result.delta_max.toFixed(1)} mm`} />
-      <ValueRow label={`${LABELS.delta_adm.sym} — admisible (L/${deflLimit})`} value={`${result.delta_adm.toFixed(1)} mm`} />
+      <ValueRow label={resultLabel('chi_LT')}       value={dec(result.chi_LT, 3)} />
+      <ValueRow label={resultLabel('lambda_bar_LT')} value={dec(result.lambda_LT, 3)} />
+      <ValueRow label={resultLabel('delta_max')}    value={`${dec(result.delta_max, 1)} mm`} />
+      <ValueRow label={`${LABELS.delta_adm.sym} — admisible (L/${deflLimit})`} value={`${dec(result.delta_adm, 1)} mm`} />
 
       {/* Section classification */}
       <GroupHeader label="Sección" />

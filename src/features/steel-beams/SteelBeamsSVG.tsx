@@ -6,6 +6,7 @@
 import { type SteelBeamResult } from '../../lib/calculations/steelBeams';
 import { sectionOutline, outlinePathD } from '../../lib/sections';
 import { FF_MONO } from './diagramStyle';
+import { dec } from '../../lib/units/format';
 
 interface SteelBeamsSVGProps {
   result: SteelBeamResult;
@@ -129,7 +130,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
           className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
-          tf={profile.tf}
+          tf={dec(profile.tf, 1)}
         </text>
 
         <text
@@ -142,7 +143,7 @@ export function SteelBeamsSVG({ result, mode, width, height }: SteelBeamsSVGProp
           style={isPdf ? { fontFamily: FF_MONO, fontSize: '11px' } : undefined}
           className={isPdf ? undefined : 'text-[11px] font-mono fill-text-secondary'}
         >
-          tw={profile.tw}
+          tw={dec(profile.tw, 1)}
         </text>
 
         {/* Profile label */}

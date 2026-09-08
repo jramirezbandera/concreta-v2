@@ -13,7 +13,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { SoilStrataEditor } from './SoilStrataEditor';
-import { dec } from '../../lib/units/format';
+import { conComaDecimal, dec } from '../../lib/units/format';
 
 interface MicropilesInputsPanelProps {
   state: MicropilesInputs;
@@ -111,11 +111,24 @@ function NumField({
   max?: number;
   setField: MicropilesInputsPanelProps['setField'];
 }) {
-  const [localStr, setLocalStr] = useState(() => String(value));
-  useEffect(() => { setLocalStr(String(value)); }, [value]);
+  // Con la coma del idioma. Esta caja NO delega en `RawNumberInput` —como sí
+  // hacen las de zapatas, muros y escollera— porque tiene algo que el primitivo
+  // no da: fuera de rango NO propaga, pinta el borde en rojo y espera al blur.
+  const muestra = (v: number) => conComaDecimal(String(v));
+  const lee = (t: string) => (integer ? parseInt(t, 10) : parseFloat(t.replace(',', '.')));
+  const [localStr, setLocalStr] = useState(() => muestra(value));
+  useEffect(() => {
+    // Salta el reformateo cuando lo tecleado YA representa el valor: si no, cada
+    // pulsación vuelve del padre y pisa lo que se está escribiendo. Misma guarda
+    // que `RawNumberInput`.
+    const n = lee(localStr);
+    if (!isNaN(n) && Math.abs(n - value) < 1e-9) return;
+    setLocalStr(muestra(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
   const unitText = unit === '—' ? '' : unit ?? '';
 
-  const parsed = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+  const parsed = lee(localStr);
   const isParsed = !isNaN(parsed);
   const belowMin = isParsed && min !== undefined && parsed < min;
   const aboveMax = isParsed && max !== undefined && parsed > max;
@@ -136,7 +149,7 @@ function NumField({
             onChange={(e) => {
               const raw = integer ? e.target.value.replace(/[^0-9-]/g, '') : e.target.value;
               setLocalStr(raw);
-              const n = integer ? parseInt(raw, 10) : parseFloat(raw);
+              const n = lee(raw);
               // Solo propaga si el valor parseado está EN rango — fuera de
               // rango se queda en el local, pinta error y espera al blur.
               if (!isNaN(n) && (min === undefined || n >= min) && (max === undefined || n <= max)) {
@@ -144,12 +157,12 @@ function NumField({
               }
             }}
             onBlur={() => {
-              let n = integer ? parseInt(localStr, 10) : parseFloat(localStr);
-              if (isNaN(n)) { setLocalStr(String(value)); return; }
+              let n = lee(localStr);
+              if (isNaN(n)) { setLocalStr(muestra(value)); return; }
               if (min !== undefined && n < min) n = min;
               if (max !== undefined && n > max) n = max;
               if (integer) n = Math.round(n);
-              setLocalStr(String(n));
+              setLocalStr(muestra(n));
               setField(field, n as MicropilesInputs[typeof field]);
             }}
             className={[

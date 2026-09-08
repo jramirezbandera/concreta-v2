@@ -5,6 +5,7 @@ import { LABELS, type LabelKey } from '../../lib/text/labels';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
+import { conComaDecimal } from '../../lib/units/format';
 
 interface EmpresalladoInputsProps {
   state: EmpresalladoInputs;
@@ -39,8 +40,8 @@ function NumberField({ labelKey, label, sub, help, unit, value, onChange, min, e
       }
     : { label: label ?? '', sub, unit: unit ?? '' };
 
-  const [localStr, setLocalStr] = useState(() => String(value));
-  useEffect(() => { setLocalStr(String(value)); }, [value]);
+  const [localStr, setLocalStr] = useState(() => conComaDecimal(String(value)));
+  useEffect(() => { setLocalStr(conComaDecimal(String(value))); }, [value]);
 
   // min aplicado como clamp real (fix auditoría #127: antes el prop existía
   // pero nunca se aplicaba — bc=−30 o L=−3 entraban por teclado y daban
@@ -65,12 +66,12 @@ function NumberField({ labelKey, label, sub, help, unit, value, onChange, min, e
             value={localStr}
             onChange={(e) => {
               setLocalStr(e.target.value);
-              const n = parseFloat(e.target.value);
+              const n = parseFloat(e.target.value.replace(',', '.'));
               if (!isNaN(n)) onChange(clamp(n));
             }}
             onBlur={() => {
-              const n = parseFloat(localStr);
-              if (isNaN(n)) setLocalStr(String(value));
+              const n = parseFloat(localStr.replace(',', '.'));
+              if (isNaN(n)) setLocalStr(conComaDecimal(String(value)));
               else if (clamp(n) !== n) { setLocalStr(String(clamp(n))); onChange(clamp(n)); }
             }}
             className={[

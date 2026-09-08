@@ -4,7 +4,7 @@ import { Trash2, ChevronDown } from 'lucide-react';
 import { type SoilLayer } from '../../data/defaults';
 import { type SoilType } from '../../data/micropileLookups';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { dec, formatNumber, getUnitLabel, getPrecision, parseQuantity } from '../../lib/units/format';
+import { conComaDecimal, dec, formatNumber, getUnitLabel, getPrecision, parseQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface SoilStrataEditorProps {
@@ -61,7 +61,9 @@ function MiniNumField({ label, value, unit, quantity, precision, min, max, hint,
   const { system } = useUnitSystem();
   const prec = quantity ? (precision ?? getPrecision(quantity, system)) : undefined;
   // SI value → display string, and display string → SI value.
-  const fmt = (si: number) => (quantity ? formatNumber(si, quantity, system, prec) : String(si));
+  // Sin magnitud el número sale tal cual, pero con la coma del idioma: la vuelta
+  // ya la aceptaba (`toSi` normaliza), sólo faltaba la ida.
+  const fmt = (si: number) => (quantity ? formatNumber(si, quantity, system, prec) : conComaDecimal(String(si)));
   const toSi = (s: string): number | null => {
     if (quantity) return parseQuantity(s, quantity, system);
     const n = parseFloat(s.replace(',', '.'));
