@@ -58,6 +58,7 @@ import {
 import { GAMMA_M_EXTRAORDINARIA } from '../../lib/materiales/tablasMadera';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
+import { versionViva } from '../../data/proyectoKeys';
 import {
   ESPECIES,
   LAMINAS_POR_GL,
@@ -71,10 +72,11 @@ import {
   type SituacionId,
   type SituacionMaderaId,
 } from './catalogos';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export const STORAGE_KEY = 'concreta-materiales-model';
 export const SCHEMA_VERSION_KEY = 'concreta-materiales-model-version';
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = versionViva('concreta-materiales');
 
 // ── Forma del estado ────────────────────────────────────────────────────────
 
@@ -433,8 +435,8 @@ export function normalizar(bruto: unknown): MaterialesState {
 
 export function cargarEstado(): MaterialesState {
   try {
-    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultMaterialesState();
-    const bruto = localStorage.getItem(STORAGE_KEY);
+    if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultMaterialesState();
+    const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return defaultMaterialesState();
     return normalizar(JSON.parse(bruto));
   } catch {
@@ -443,12 +445,8 @@ export function cargarEstado(): MaterialesState {
 }
 
 export function guardarEstado(state: MaterialesState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  } catch {
-    // Almacenamiento lleno o modo privado: se ignora, como en el resto de módulos.
-  }
+  escribirClave(STORAGE_KEY, JSON.stringify(state));
+  escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
 }
 
 // ── Traducción al motor ─────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { escribirClave, leerClave } from '../lib/storage/seguro';
 
 /**
  * Título de documento persistido en localStorage, para módulos cuyo modelo de
@@ -14,21 +15,11 @@ import { useCallback, useState } from 'react';
  * del caso de cálculo.
  */
 export function useDocTitle(storageKey: string): [string, (t: string) => void] {
-  const [title, set] = useState<string>(() => {
-    try {
-      return localStorage.getItem(storageKey) ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const [title, set] = useState<string>(() => leerClave(storageKey) ?? '');
   const setTitle = useCallback(
     (t: string) => {
       set(t);
-      try {
-        localStorage.setItem(storageKey, t);
-      } catch {
-        /* almacenamiento no disponible (modo privado): el título vive solo en memoria */
-      }
+      escribirClave(storageKey, t);
     },
     [storageKey],
   );

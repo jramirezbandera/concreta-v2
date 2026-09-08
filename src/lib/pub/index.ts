@@ -17,6 +17,9 @@
  * Nace con «Viento y nieve» (D-VN4, 2026-09-04), el primer módulo que publica.
  */
 
+import { PREFIJO_PUB } from '../../data/proyectoKeys';
+import { borrarClave, escribirClave, leerClave } from '../storage/seguro';
+
 export interface ObraPublicada {
   municipio: string | null;
   /** Nombre de la provincia. */
@@ -34,7 +37,7 @@ export interface Publicacion<T> {
   datos: T;
 }
 
-export const PREFIJO_PUB = 'concreta-pub-';
+export { PREFIJO_PUB };
 
 export function clavePublicacion(modulo: string): string {
   return `${PREFIJO_PUB}${modulo}`;
@@ -76,12 +79,7 @@ export function publicar<T>(
     },
     datos,
   };
-  try {
-    localStorage.setItem(clavePublicacion(modulo), JSON.stringify(sobre));
-    return sobre;
-  } catch {
-    return null;
-  }
+  return escribirClave(clavePublicacion(modulo), JSON.stringify(sobre)) ? sobre : null;
 }
 
 /**
@@ -90,7 +88,7 @@ export function publicar<T>(
  */
 export function leerPublicacion<T>(modulo: string, v?: number): Publicacion<T> | null {
   try {
-    const bruto = localStorage.getItem(clavePublicacion(modulo));
+    const bruto = leerClave(clavePublicacion(modulo));
     if (!bruto) return null;
     const p: unknown = JSON.parse(bruto);
     if (!esSobre(p) || p.modulo !== modulo) return null;
@@ -102,9 +100,5 @@ export function leerPublicacion<T>(modulo: string, v?: number): Publicacion<T> |
 }
 
 export function retirarPublicacion(modulo: string): void {
-  try {
-    localStorage.removeItem(clavePublicacion(modulo));
-  } catch {
-    // Sin almacenamiento no hay nada que retirar.
-  }
+  borrarClave(clavePublicacion(modulo));
 }

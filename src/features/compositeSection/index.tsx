@@ -18,6 +18,7 @@ import { CompositeSectionInputsPanel } from './CompositeSectionInputs';
 import { CompositeSectionResults } from './CompositeSectionResults';
 import { CompositeSectionSVG } from './CompositeSectionSVG';
 import { buildShareUrl, readModelFromUrl } from './serialize';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 const STORAGE_KEY = 'concreta-composite-section';
 
@@ -35,7 +36,7 @@ function loadState(): CompositeSectionInputs {
   const fromUrl = readModelFromUrl();
   if (fromUrl) return fromUrl;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = leerClave(STORAGE_KEY);
     // Merge con defaults: estados guardados antes de los campos de compresión
     // (Ly/Lz/bcType/…) heredan los valores por defecto sin romper la UI.
     if (raw) return { ...compositeSectionDefaults, ...JSON.parse(raw) } as CompositeSectionInputs;
@@ -51,7 +52,7 @@ export function CompositeSectionModule() {
   const [inputs, setInputs] = useState<CompositeSectionInputs>(loadState);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
+    escribirClave(STORAGE_KEY, JSON.stringify(inputs));
   }, [inputs]);
 
   // Consumido el enlace entrante (?model=), lo limpiamos de la barra de

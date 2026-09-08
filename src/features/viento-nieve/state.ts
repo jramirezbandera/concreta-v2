@@ -38,6 +38,7 @@ import {
 } from '../../lib/acciones';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
+import { versionViva } from '../../data/proyectoKeys';
 import {
   ALTURA_PLANTA_TIPO,
   AREA_PROPIA_INICIAL,
@@ -49,10 +50,11 @@ import {
   type QbModo,
   type SkModo,
 } from './catalogos';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export const STORAGE_KEY = 'concreta-viento-nieve-model';
 export const SCHEMA_VERSION_KEY = 'concreta-viento-nieve-model-version';
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = versionViva('concreta-viento-nieve');
 
 /** Nombre del módulo en las publicaciones y versión del esquema de `datos`. */
 export const MODULO_PUB = 'viento-nieve';
@@ -431,8 +433,8 @@ export function normalizar(bruto: unknown): VientoNieveState {
 
 export function cargarEstado(): VientoNieveState {
   try {
-    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultVientoNieveState();
-    const bruto = localStorage.getItem(STORAGE_KEY);
+    if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultVientoNieveState();
+    const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return defaultVientoNieveState();
     return normalizar(JSON.parse(bruto));
   } catch {
@@ -441,12 +443,8 @@ export function cargarEstado(): VientoNieveState {
 }
 
 export function guardarEstado(state: VientoNieveState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  } catch {
-    // Almacenamiento lleno o modo privado: se ignora, como en el resto de módulos.
-  }
+  escribirClave(STORAGE_KEY, JSON.stringify(state));
+  escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
 }
 
 // ── Traducción al motor ─────────────────────────────────────────────────────

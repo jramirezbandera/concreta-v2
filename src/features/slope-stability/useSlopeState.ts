@@ -7,10 +7,11 @@
 // la prioridad de hidratación es URL (?model=) > localStorage > defaults; el
 // param se limpia de la URL tras consumirlo, como hace FEM.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { slopeDefaults, type SlopeInputs } from "../../data/defaults";
 import { getModuleSchemaVersion } from "../../data/moduleRegistry";
 import { decodeShareString } from "./serialize";
+import { borrarClave, escribirClaveDiferida, leerClave, volcarPendientes } from "../../lib/storage/seguro";
 
 // Reexporta el builder de enlaces para que T4.1 cablee onCopyLink en el Topbar
 // sin acoplarse al módulo de serialización directamente.
@@ -22,8 +23,8 @@ const SCHEMA = getModuleSchemaVersion("slope-stability");
 
 function loadFromStorage(): SlopeInputs {
   try {
-    if (localStorage.getItem(VERSION_KEY) !== SCHEMA) return slopeDefaults;
-    const raw = localStorage.getItem(LS_KEY);
+    if (leerClave(VERSION_KEY) !== SCHEMA) return slopeDefaults;
+    const raw = leerClave(LS_KEY);
     if (!raw) return slopeDefaults;
     const parsed = JSON.parse(raw) as Partial<SlopeInputs>;
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.strata)) {
@@ -70,7 +71,6 @@ export interface SlopeStateStore {
 export function useSlopeState(): SlopeStateStore {
   const [initial] = useState(load);
   const [state, setState] = useState<SlopeInputs>(initial.state);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Tras consumir ?model= al montar, lo retiramos para dejar la URL limpia
   // (espeja FEM). replaceState evita ensuciar el historial de navegación.
@@ -93,26 +93,17 @@ export function useSlopeState(): SlopeStateStore {
   // solo uso— es idempotente ante el doble montaje de StrictMode.
   useEffect(() => {
     if (initial.fromUrl && state === initial.state) return;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(state));
-        localStorage.setItem(VERSION_KEY, SCHEMA);
-      } catch {
-        /* almacenamiento no disponible — se ignora */
-      }
-    }, 300);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
+    // Cola diferida de lib/storage/seguro (300 ms): al desmontar se VUELCA, no se cancela.
+    escribirClaveDiferida(LS_KEY, () => JSON.stringify(state));
+    escribirClaveDiferida(VERSION_KEY, SCHEMA);
   }, [state, initial]);
 
+  useEffect(() => () => {
+    volcarPendientes();
+  }, []);
+
   const reset = useCallback(() => {
-    try {
-      localStorage.removeItem(LS_KEY);
-    } catch {
-      /* noop */
-    }
+    borrarClave(LS_KEY);
     setState(slopeDefaults);
   }, []);
 

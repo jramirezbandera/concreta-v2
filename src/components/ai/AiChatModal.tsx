@@ -74,6 +74,7 @@ import { showToast } from '../ui/Toast';
 import { ByokSettings } from './ByokSettings';
 import { ProposalCard } from './ProposalCard';
 import { ProviderStrip } from './ProviderStrip';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export interface AiChatModalProps<TInputs> {
   adapter: AiModuleAdapter<TInputs>;
@@ -188,7 +189,7 @@ interface UiState {
 function readUi(): UiState {
   if (typeof window === 'undefined') return { mode: 'panel', pos: null };
   try {
-    const raw = window.localStorage.getItem(UI_KEY);
+    const raw = leerClave(UI_KEY);
     if (raw === null) return { mode: 'panel', pos: null };
     const p = JSON.parse(raw) as { mode?: unknown; pos?: unknown };
     const mode: WindowMode = p.mode === 'floating' ? 'floating' : 'panel';
@@ -203,11 +204,7 @@ function readUi(): UiState {
   }
 }
 function persistUi(v: UiState): void {
-  try {
-    if (typeof window !== 'undefined') window.localStorage.setItem(UI_KEY, JSON.stringify(v));
-  } catch {
-    // persistencia opcional — el estado de la sesión sigue vivo
-  }
+  if (typeof window !== 'undefined') escribirClave(UI_KEY, JSON.stringify(v));
 }
 
 const VERDICT_LABEL: Record<AiVerdict, string | null> = {

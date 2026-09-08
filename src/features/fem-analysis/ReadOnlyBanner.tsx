@@ -1,23 +1,16 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 const STORAGE_KEY = 'concreta-fem-2d-mobile-readonly-banner-seen';
 
 function loadDismissed(): boolean {
   if (typeof window === 'undefined') return false;
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
+  return leerClave(STORAGE_KEY) === 'true';
 }
 
 function persistDismissed() {
-  try {
-    localStorage.setItem(STORAGE_KEY, 'true');
-  } catch {
-    // private mode / quota — accept transient loss
-  }
+  escribirClave(STORAGE_KEY, 'true');
 }
 
 /**

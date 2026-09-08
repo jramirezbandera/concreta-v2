@@ -17,13 +17,14 @@
 // Schema: MODULE_SCHEMA_VERSIONS['fem2d'] = '2' — a version mismatch discards
 // the stored blob (v1 stored parametric UI state, incompatible shape).
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getModuleSchemaVersion } from '../../data/moduleRegistry';
 import { useHistoryState } from '../../hooks/useHistoryState';
 import { validateModel2DBasic } from './builder';
 import { decodeShareStringDetailed, isPlausibleModel, normalizeLegacyModel } from './serialize';
 import { FEM2D_TEMPLATES } from './templates';
 import type { Fem2DModel } from './types';
+import { escribirClaveDiferida, leerClave, volcarPendientes } from '../../lib/storage/seguro';
 
 // Re-export so the shell wires "Copiar enlace" without importing serialize directly.
 export { buildShareUrl } from './serialize';
@@ -39,8 +40,8 @@ export function seedModel(): Fem2DModel {
 
 function loadFromStorage(): { model: Fem2DModel; migrated: boolean } | null {
   try {
-    if (localStorage.getItem(VERSION_KEY) !== SCHEMA) return null;
-    const raw = localStorage.getItem(LS_KEY);
+    if (leerClave(VERSION_KEY) !== SCHEMA) return null;
+    const raw = leerClave(LS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!isPlausibleModel(parsed)) return null;
@@ -107,7 +108,6 @@ export function useFem2DState(): Fem2DModelStore {
   const [initial] = useState(loadInitialWithSource);
 
   const h = useHistoryState<Fem2DModel>(() => initial.model);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Strip ?model= after the mount-time hydration so the URL stays clean
   // (mirrors slope/FEM 1D). replaceState keeps the nav history untouched.
@@ -128,19 +128,14 @@ export function useFem2DState(): Fem2DModelStore {
     // localStorage empty so a reload re-opens the landing. Any pick/edit/AI
     // replaces the reference and persistence resumes.
     if (!initial.fromSaved && model === initial.model) return;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(model));
-        localStorage.setItem(VERSION_KEY, SCHEMA);
-      } catch {
-        /* storage unavailable — ignore */
-      }
-    }, 300);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
+    // Cola diferida de lib/storage/seguro (300 ms): al desmontar se VUELCA, no se cancela.
+    escribirClaveDiferida(LS_KEY, () => JSON.stringify(model));
+    escribirClaveDiferida(VERSION_KEY, SCHEMA);
   }, [model, initial]);
+
+  useEffect(() => () => {
+    volcarPendientes();
+  }, []);
 
   // Estado (no const del montaje): el banner de migración cae cuando el modelo
   // se reemplaza ENTERO — antes se quedaba pegado toda la sesión y salía sobre

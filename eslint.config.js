@@ -31,4 +31,23 @@ export default defineConfig([
       ],
     },
   },
+  // localStorage sólo se toca desde src/lib/storage/seguro.ts: ahí la cuota
+  // llena y el modo privado se clasifican y se avisan en vez de tragarse en un
+  // catch mudo. Se prohíbe el identificador entero, no sólo setItem: removeItem
+  // también lanza y getItem falla en modo privado. Los tests quedan fuera
+  // porque siembran y leen el almacén a propósito.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/test/**', 'src/**/*.test.{ts,tsx}', 'src/lib/storage/seguro.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Identifier[name='localStorage']",
+          message:
+            'localStorage sólo desde src/lib/storage/seguro.ts (leerClave / escribirClave / escribirClaveDiferida / borrarClave): así la cuota llena y el modo privado se avisan en vez de perder el trabajo en silencio.',
+        },
+      ],
+    },
+  },
 ])

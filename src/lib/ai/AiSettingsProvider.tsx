@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { AiProviderId } from "./types";
 import { sharedKeyFor } from "./sharedKey";
+import { escribirClave, leerClave } from "../storage/seguro";
 
 // BYOK settings: the user's API keys live ONLY in localStorage, in plain text
 // (documented trade-off, see SPECS.md). SECURITY: never log keys (console.*)
@@ -64,21 +65,11 @@ function parseStored(raw: string | null): AiSettings {
 
 function readStored(): AiSettings {
   if (typeof window === "undefined") return defaultSettings();
-  try {
-    return parseStored(window.localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return defaultSettings(); // localStorage unavailable (private mode, disabled)
-  }
+  return parseStored(leerClave(STORAGE_KEY));
 }
 
 function persist(next: AiSettings): void {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    }
-  } catch {
-    // persistence failed — UI state still updates for the session
-  }
+  if (typeof window !== "undefined") escribirClave(STORAGE_KEY, JSON.stringify(next));
 }
 
 export interface AiSettingsContextValue {

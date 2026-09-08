@@ -50,6 +50,7 @@ import { useModelHistory } from './useModelHistory';
 import type { DesignModel, Selected, ToolId, ViewLayer, ViewState } from './types';
 
 import './styles.css';
+import { borrarClave, escribirClave, leerClave } from '../../lib/storage/seguro';
 
 const STORAGE_KEY = 'concreta-fem-2d-design';
 const RECENT_KEY = 'concreta-fem-2d-recent';
@@ -127,7 +128,7 @@ function migrateLegacyModel(raw: unknown): HydrationResult {
 
 function loadFromStorage(): HydrationResult {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = leerClave(STORAGE_KEY);
     if (!raw) return { model: null, qFallbacks: 0 };
     return migrateLegacyModel(JSON.parse(raw));
   } catch {
@@ -136,12 +137,8 @@ function loadFromStorage(): HydrationResult {
 }
 
 function saveToStorage(model: DesignModel | null) {
-  try {
-    if (model) localStorage.setItem(STORAGE_KEY, JSON.stringify(model));
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // private mode / quota — ignore
-  }
+  if (model) escribirClave(STORAGE_KEY, JSON.stringify(model));
+  else borrarClave(STORAGE_KEY);
 }
 
 interface RecentEntry {
@@ -153,7 +150,7 @@ interface RecentEntry {
 
 function loadRecent(): RecentEntry[] {
   try {
-    const raw = localStorage.getItem(RECENT_KEY);
+    const raw = leerClave(RECENT_KEY);
     return raw ? (JSON.parse(raw) as RecentEntry[]) : [];
   } catch {
     return [];
@@ -170,7 +167,7 @@ function pushRecent(preset: DesignPresetId, eta: number) {
       eta,
     };
     const merged = [next, ...list.filter((r) => r.preset !== preset)].slice(0, 5);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(merged));
+    escribirClave(RECENT_KEY, JSON.stringify(merged));
   } catch {
     // ignore
   }
@@ -187,7 +184,7 @@ export function FemAnalysisModule() {
   // when default useCategory='B' was applied silently to legacy data.
   const initialResult = useState<{ model: DesignModel | null; qFallbacks: number }>(() => {
     if (typeof window !== 'undefined') {
-      tipSeenRef.current = localStorage.getItem(TIP_SEEN_KEY) === 'true';
+      tipSeenRef.current = leerClave(TIP_SEEN_KEY) === 'true';
     }
     const shareParam = searchParams.get('model');
     if (shareParam) {
@@ -395,7 +392,7 @@ export function FemAnalysisModule() {
   const inlineTipSeen = tipSeenRef.current;
   function dismissInlineTip() {
     tipSeenRef.current = true;
-    try { localStorage.setItem(TIP_SEEN_KEY, 'true'); } catch { /* noop */ }
+    escribirClave(TIP_SEEN_KEY, 'true');
   }
 
   if (!model) {

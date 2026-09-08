@@ -42,10 +42,12 @@ import {
   normalizeSeismicState,
   type SeismicState,
 } from './state';
+import { versionViva } from '../../data/proyectoKeys';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 const STORAGE_KEY = 'concreta-seismic-ncse02-model';
 const SCHEMA_VERSION_KEY = 'concreta-seismic-ncse02-model-version';
-const SCHEMA_VERSION = '1';
+const SCHEMA_VERSION = versionViva('concreta-seismic');
 
 /**
  * Lo que hay que hacer al abrir el módulo, resuelto de una vez.
@@ -94,8 +96,8 @@ function cargar(): CasoInicial {
 
 function guardado(): SeismicState {
   try {
-    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultSeismicState();
-    const bruto = localStorage.getItem(STORAGE_KEY);
+    if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultSeismicState();
+    const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return defaultSeismicState();
     return normalizeSeismicState(JSON.parse(bruto));
   } catch {
@@ -191,13 +193,8 @@ export function SeismicNCSE02Module() {
   }, [inicial]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-    } catch {
-      // Cuota llena o almacenamiento bloqueado: el módulo sigue funcionando en
-      // memoria, y perder el autoguardado no justifica romper el cálculo.
-    }
+    escribirClave(STORAGE_KEY, JSON.stringify(state));
+    escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
   }, [state]);
 
   const evaluacion = useMemo(() => evaluarSismo(state), [state]);

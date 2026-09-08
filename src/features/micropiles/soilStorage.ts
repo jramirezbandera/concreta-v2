@@ -9,6 +9,7 @@
 // NaN. Ahora si la forma no cuadra, fallback a defaults.
 
 import { micropilesSoilDefaults, type SoilLayer } from '../../data/defaults';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export const SOIL_STORAGE_KEY = 'concreta-micropiles-soil';
 
@@ -42,9 +43,8 @@ function freshDefaults(): SoilLayer[] {
  * En entorno sin window (SSR/Node sin jsdom) también devuelve defaults.
  */
 export function loadSoil(): SoilLayer[] {
-  if (typeof localStorage === 'undefined') return freshDefaults();
   try {
-    const raw = localStorage.getItem(SOIL_STORAGE_KEY);
+    const raw = leerClave(SOIL_STORAGE_KEY);
     if (!raw) return freshDefaults();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return freshDefaults();
@@ -55,10 +55,7 @@ export function loadSoil(): SoilLayer[] {
   }
 }
 
-/** Persiste el array. Silencioso en caso de quota / SSR. */
+/** Persiste el array; la cuota llena la avisa `lib/storage/seguro`. */
 export function saveSoil(soil: SoilLayer[]): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(SOIL_STORAGE_KEY, JSON.stringify(soil));
-  } catch { /* ignore */ }
+  escribirClave(SOIL_STORAGE_KEY, JSON.stringify(soil));
 }

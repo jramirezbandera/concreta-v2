@@ -8,8 +8,11 @@
  * módulos lo leen como valor por defecto y pueden sobrescribirlo en su propio
  * estado; lo que publican lleva la obra a la que pertenece (ver `lib/pub`).
  *
- * Sólo cinco campos: los que decide la obra y no el cálculo.
+ * Seis campos: los que decide la obra y no el cálculo.
  */
+
+import { CLAVE_OBRA } from '../../data/proyectoKeys';
+import { escribirClave, leerClave } from '../storage/seguro';
 
 export interface Obra {
   denominacion: string;
@@ -24,7 +27,7 @@ export interface Obra {
   uso: string;
 }
 
-export const OBRA_KEY = 'concreta-obra';
+export const OBRA_KEY = CLAVE_OBRA;
 export const OBRA_VERSION = 1;
 
 export function obraVacia(): Obra {
@@ -52,7 +55,7 @@ export function normalizarObra(bruto: unknown): Obra {
 /** `null` si no hay obra guardada (o no se puede leer). */
 export function leerObra(): Obra | null {
   try {
-    const bruto = localStorage.getItem(OBRA_KEY);
+    const bruto = leerClave(OBRA_KEY);
     if (!bruto) return null;
     const p: unknown = JSON.parse(bruto);
     if (!esObjeto(p) || p.v !== OBRA_VERSION) return null;
@@ -62,14 +65,19 @@ export function leerObra(): Obra | null {
   }
 }
 
+/**
+ * Sustituye la obra entera, sin fundir con la anterior. Es lo que hace el
+ * contenedor de proyectos al desplegar un `ProyectoFile`: la obra vive en la
+ * raíz del fichero y aquí sólo se reconstruye.
+ */
+export function reemplazarObra(obra: Obra): boolean {
+  return escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra: normalizarObra(obra) }));
+}
+
 /** Funde el cambio con lo guardado y lo escribe. Devuelve la obra resultante. */
 export function guardarObra(cambio: Partial<Obra>): Obra {
   const obra = { ...(leerObra() ?? obraVacia()), ...cambio };
-  try {
-    localStorage.setItem(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra }));
-  } catch {
-    // Sin almacenamiento la obra vive sólo en memoria; el módulo sigue.
-  }
+  escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra }));
   return obra;
 }
 

@@ -12,6 +12,7 @@
 
 import { FEM2D_TEMPLATES } from './templates';
 import type { Fem2DTemplateId } from './types';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 const RECENT_KEY = 'concreta-fem2d-recent';
 const MAX_RECENT = 5;
@@ -26,7 +27,7 @@ export interface Fem2DRecentEntry {
 
 export function loadRecent(): Fem2DRecentEntry[] {
   try {
-    const raw = localStorage.getItem(RECENT_KEY);
+    const raw = leerClave(RECENT_KEY);
     if (!raw) return [];
     const list = JSON.parse(raw) as unknown;
     if (!Array.isArray(list)) return [];
@@ -47,7 +48,7 @@ export function pushRecent(templateId: Fem2DTemplateId, eta: number): void {
     const ts = Date.now();
     const next: Fem2DRecentEntry = { id: `${templateId}-${ts}`, templateId, ts, eta };
     const merged = [next, ...loadRecent().filter((r) => r.templateId !== templateId)].slice(0, MAX_RECENT);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(merged));
+    escribirClave(RECENT_KEY, JSON.stringify(merged));
   } catch {
     /* private mode / quota — ignore */
   }

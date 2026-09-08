@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { getModuleSchemaVersion } from '../data/moduleRegistry';
 import { showToast } from '../components/ui/Toast';
+import { borrarClave, escribirClaveDiferida, leerClave, volcarPendientes } from '../lib/storage/seguro';
 
 // Canonical state priority: URL query params > localStorage > hardcoded defaults
 //
@@ -12,8 +13,9 @@ import { showToast } from '../components/ui/Toast';
 // (?campo=valor) se lee al montar y se limpia de la URL acto seguido. Esto
 // elimina la carrera del debounce que dejaba enlaces sin parámetros.
 //
-// Debounce: 300 ms — sólo escritura a localStorage (las actualizaciones de
-// SVG/cálculo las maneja cada módulo vía useMemo/useEffect a ~50 ms).
+// Debounce: 300 ms, por la cola drenable de lib/storage/seguro (las
+// actualizaciones de SVG/cálculo las maneja cada módulo vía useMemo/useEffect a
+// ~50 ms). Al desmontar se VUELCA lo pendiente, no se cancela.
 
 type Primitive = string | number | boolean;
 // Loose internal record type used for dynamic key access in URL/storage helpers.
@@ -44,11 +46,11 @@ function getVersionKey(moduleKey: string) {
 }
 
 function readLocalStorage<T>(moduleKey: string, defaults: T): T | null {
+  const version = leerClave(getVersionKey(moduleKey));
+  if (version !== getModuleSchemaVersion(moduleKey)) return null;
+  const raw = leerClave(moduleKey);
+  if (!raw) return null;
   try {
-    const version = localStorage.getItem(getVersionKey(moduleKey));
-    if (version !== getModuleSchemaVersion(moduleKey)) return null;
-    const raw = localStorage.getItem(moduleKey);
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<T>;
     // Merge with defaults so new fields added in future schema versions are present
     return { ...defaults, ...parsed };
@@ -57,22 +59,17 @@ function readLocalStorage<T>(moduleKey: string, defaults: T): T | null {
   }
 }
 
+// Escritura DIFERIDA (300 ms) por la cola de lib/storage/seguro: al desmontar,
+// el hook la VUELCA en vez de cancelarla, y serializar() puede volcarla desde
+// fuera de React con el módulo montado. La cuota llena ya no es muda.
 function writeLocalStorage<T>(moduleKey: string, state: T): void {
-  try {
-    localStorage.setItem(moduleKey, JSON.stringify(state));
-    localStorage.setItem(getVersionKey(moduleKey), getModuleSchemaVersion(moduleKey));
-  } catch {
-    // Storage full or private mode — silently ignore
-  }
+  escribirClaveDiferida(moduleKey, () => JSON.stringify(state));
+  escribirClaveDiferida(getVersionKey(moduleKey), getModuleSchemaVersion(moduleKey));
 }
 
 function clearLocalStorage(moduleKey: string): void {
-  try {
-    localStorage.removeItem(moduleKey);
-    localStorage.removeItem(getVersionKey(moduleKey));
-  } catch {
-    // ignore
-  }
+  borrarClave(moduleKey);
+  borrarClave(getVersionKey(moduleKey));
 }
 
 // Parse URL params into state, coercing types from defaults
@@ -105,7 +102,6 @@ function toUrlParams<T>(state: T): Record<string, string> {
 
 export function useModuleState<T>(moduleKey: string, defaults: T): UseModuleStateReturn<T> {
   const [searchParams, setSearchParams] = useSearchParams();
-  const writeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Compute initial state once: URL > localStorage > defaults
   const [state, setState] = useState<T>(() => {
@@ -122,14 +118,12 @@ export function useModuleState<T>(moduleKey: string, defaults: T): UseModuleStat
     return fromStorage ?? defaults;
   });
 
-  // Debounced write to localStorage (300ms). Ya NO escribimos en la URL: el
-  // enlace se construye bajo demanda (getShareUrl) y la barra queda limpia.
+  // Escritura diferida (300 ms, cola de lib/storage/seguro). Ya NO escribimos
+  // en la URL: el enlace se construye bajo demanda (getShareUrl) y la barra
+  // queda limpia.
   const schedulePersist = useCallback(
     (nextState: T) => {
-      if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
-      writeTimerRef.current = setTimeout(() => {
-        writeLocalStorage(moduleKey, nextState);
-      }, 300);
+      writeLocalStorage(moduleKey, nextState);
     },
     [moduleKey],
   );
@@ -146,7 +140,6 @@ export function useModuleState<T>(moduleKey: string, defaults: T): UseModuleStat
   );
 
   const reset = useCallback(() => {
-    if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
     clearLocalStorage(moduleKey);
     setSearchParams({}, { replace: true });
     setState(defaults);
@@ -174,17 +167,25 @@ export function useModuleState<T>(moduleKey: string, defaults: T): UseModuleStat
   // leído al estado inicial arriba. Los retiramos de la barra para que quede
   // limpia durante el uso; el enlace se reconstruye bajo demanda. Se ejecuta
   // una sola vez con los searchParams de la primera renderización.
+  //
+  // Y se PERSISTE el estado hidratado: hasta aquí sólo escribía setField, así
+  // que un módulo abierto desde un enlace tenía cero bytes en el almacén y
+  // «Guardar proyecto» habría guardado la viga anterior con la compartida en
+  // pantalla. Lo que se ve es lo que se guarda.
   useEffect(() => {
     if (Array.from(searchParams).length > 0) {
       setSearchParams({}, { replace: true });
+      writeLocalStorage(moduleKey, state);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cleanup pending timer on unmount
+  // Al desmontar: VOLCAR lo pendiente, no cancelarlo. Si se cancelase, cambiar
+  // de módulo o de obra perdería lo tecleado en los últimos 300 ms con el valor
+  // todavía en pantalla.
   useEffect(() => {
     return () => {
-      if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
+      volcarPendientes();
     };
   }, []);
 

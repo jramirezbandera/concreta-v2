@@ -36,10 +36,12 @@ import {
   type NieveModo,
 } from './catalogos';
 import { avisosNieve, leerNievePublicada, type NievePublicada } from './nievePub';
+import { versionViva } from '../../data/proyectoKeys';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export const STORAGE_KEY = 'concreta-cargas-planta-model';
 export const SCHEMA_VERSION_KEY = 'concreta-cargas-planta-model-version';
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = versionViva('concreta-cargas-planta');
 
 /** Nombre del módulo en las publicaciones y versión del esquema de `datos`. */
 export const MODULO_PUB = 'cargas-planta';
@@ -442,8 +444,8 @@ export function normalizar(bruto: unknown): CargasState {
 
 export function cargarEstado(): CargasState {
   try {
-    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultCargasState();
-    const bruto = localStorage.getItem(STORAGE_KEY);
+    if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultCargasState();
+    const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return defaultCargasState();
     return normalizar(JSON.parse(bruto));
   } catch {
@@ -452,12 +454,8 @@ export function cargarEstado(): CargasState {
 }
 
 export function guardarEstado(state: CargasState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  } catch {
-    // Almacenamiento lleno o modo privado: se ignora, como en el resto de módulos.
-  }
+  escribirClave(STORAGE_KEY, JSON.stringify(state));
+  escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
 }
 
 // ── Traducción al motor ─────────────────────────────────────────────────────

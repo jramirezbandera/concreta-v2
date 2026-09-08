@@ -7,16 +7,18 @@
 
 import { normalizar, estadoPorDefecto, type MemoriaState } from '../../lib/memoria/estado';
 import { leerObra } from '../../lib/obra';
+import { versionViva } from '../../data/proyectoKeys';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 export const STORAGE_KEY = 'concreta-memoria-dbse-model';
 export const SCHEMA_VERSION_KEY = 'concreta-memoria-dbse-model-version';
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = versionViva('concreta-memoria-dbse');
 
 export function cargarEstado(): MemoriaState {
   const obra = leerObra();
   try {
-    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return estadoPorDefecto(obra);
-    const bruto = localStorage.getItem(STORAGE_KEY);
+    if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return estadoPorDefecto(obra);
+    const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return estadoPorDefecto(obra);
     return normalizar(JSON.parse(bruto), obra);
   } catch {
@@ -25,12 +27,8 @@ export function cargarEstado(): MemoriaState {
 }
 
 export function guardarEstado(state: MemoriaState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  } catch {
-    // Almacenamiento lleno o modo privado: se ignora, el módulo sigue en memoria.
-  }
+  escribirClave(STORAGE_KEY, JSON.stringify(state));
+  escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
 }
 
 export type { MemoriaState } from '../../lib/memoria/estado';

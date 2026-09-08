@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Theme } from "./types";
+import { escribirClave, leerClave } from "../storage/seguro";
 
 const STORAGE_KEY = "concreta-theme";
 
@@ -24,12 +25,8 @@ function isTheme(v: unknown): v is Theme {
 
 function storedTheme(): Theme | null {
   if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return isTheme(raw) ? raw : null;
-  } catch {
-    return null; // localStorage unavailable (private mode, disabled)
-  }
+  const raw = leerClave(STORAGE_KEY);
+  return isTheme(raw) ? raw : null;
 }
 
 function osPrefersDark(): boolean {
@@ -112,25 +109,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(STORAGE_KEY, next);
-      }
-    } catch {
-      // persistence failed — UI state still updates for the session
-    }
+    if (typeof window !== "undefined") escribirClave(STORAGE_KEY, next);
   }, []);
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {
       const next: Theme = prev === "dark" ? "light" : "dark";
-      try {
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(STORAGE_KEY, next);
-        }
-      } catch {
-        // ignore
-      }
+      if (typeof window !== "undefined") escribirClave(STORAGE_KEY, next);
       return next;
     });
   }, []);

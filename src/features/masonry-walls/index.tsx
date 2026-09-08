@@ -41,10 +41,12 @@ import { buildShareUrl, decodeShareStringWithMeta } from './serialize';
 import { MasonryWallsInputs } from './MasonryWallsInputs';
 import { MasonryWallsResults } from './MasonryWallsResults';
 import { MasonryWallsSVG } from './MasonryWallsSVG';
+import { versionViva } from '../../data/proyectoKeys';
+import { borrarClave, escribirClave, escribirClaveDiferida, leerClave, volcarPendientes } from '../../lib/storage/seguro';
 
 const STORAGE_KEY = 'concreta-masonry-walls-model';
 const SCHEMA_VERSION_KEY = 'concreta-masonry-walls-model-version';
-const SCHEMA_VERSION = '1';
+const SCHEMA_VERSION = versionViva('concreta-masonry-walls');
 // Persistencia del aviso "¿Quieres ver un caso de ejemplo?" — una vez aceptado
 // o descartado, el globo no vuelve a aparecer (ni al recargar).
 const EXAMPLE_PROMPT_DISMISSED_KEY = 'concreta-masonry-walls-example-prompt-dismissed';
@@ -77,9 +79,9 @@ function loadState(): LoadResult {
     }
   }
   try {
-    const v = localStorage.getItem(SCHEMA_VERSION_KEY);
+    const v = leerClave(SCHEMA_VERSION_KEY);
     if (v !== SCHEMA_VERSION) return { state: blankMasonryState(), migratedLegacy: false };
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = leerClave(STORAGE_KEY);
     if (!raw) return { state: blankMasonryState(), migratedLegacy: false };
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return { state: blankMasonryState(), migratedLegacy: false };
@@ -99,13 +101,11 @@ function loadState(): LoadResult {
 // que los consume solo corre una vez por mount.
 let pendingInvalidLinkToast = false;
 
+// Escritura DIFERIDA por la cola de lib/storage/seguro (300 ms): al desmontar
+// se VUELCA, no se cancela.
 function saveState(s: MasonryWallState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  } catch {
-    // ignore quota/serialization errors
-  }
+  escribirClaveDiferida(STORAGE_KEY, () => JSON.stringify(s));
+  escribirClaveDiferida(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
 }
 
 export function MasonryWallsModule() {
@@ -122,13 +122,7 @@ export function MasonryWallsModule() {
   // Si el usuario abre el módulo por primera vez quedaría en 'inputs' por
   // defecto y no vería el CTA hasta cambiar de pestaña. Arrancamos en
   // 'diagramas' SOLO cuando el aviso todavía procede (blank + no dismissed).
-  const initialPromptDismissed = (() => {
-    try {
-      return localStorage.getItem(EXAMPLE_PROMPT_DISMISSED_KEY) === '1';
-    } catch {
-      return false;
-    }
-  })();
+  const initialPromptDismissed = leerClave(EXAMPLE_PROMPT_DISMISSED_KEY) === '1';
   const initialIsBlank = isBlankMasonryState(initial.state);
   const [tab, setTab] = useState<MobileTab>(
     initialIsBlank && !initialPromptDismissed ? 'diagramas' : 'inputs',
@@ -160,11 +154,14 @@ export function MasonryWallsModule() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist with debounce so rapid edits don't thrash localStorage.
+  // Persistencia con debounce (la cola de lib/storage/seguro) para que teclear
+  // no machaque el almacén; al desmontar se vuelca lo pendiente.
   useEffect(() => {
-    const t = setTimeout(() => saveState(state), 300);
-    return () => clearTimeout(t);
+    saveState(state);
   }, [state]);
+  useEffect(() => () => {
+    volcarPendientes();
+  }, []);
 
   // El aviso del ejemplo solo procede si el edificio sigue en su forma canónica
   // blank (1 planta, 0 huecos, 0 puntuales) — no queremos taparle el lienzo a
@@ -248,12 +245,8 @@ export function MasonryWallsModule() {
   // persistencia local. El edificio de ejemplo no se considera el "punto cero"
   // del módulo: se carga bajo demanda vía el aviso del lienzo.
   const reset = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(SCHEMA_VERSION_KEY);
-    } catch {
-      // ignore — quota / private mode
-    }
+    borrarClave(STORAGE_KEY);
+    borrarClave(SCHEMA_VERSION_KEY);
     setState(blankMasonryState());
     resetSelectionState();
   };
@@ -263,11 +256,7 @@ export function MasonryWallsModule() {
   const acceptExample = () => {
     setState(defaultMasonryState());
     resetSelectionState();
-    try {
-      localStorage.setItem(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
-    } catch {
-      // ignore
-    }
+    escribirClave(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
     setExamplePromptDismissed(true);
   };
 
@@ -277,11 +266,7 @@ export function MasonryWallsModule() {
   // está el "+ Añadir planta" / "+ Hueco" para que el siguiente paso sea
   // obvio. En desktop no afecta (ambos paneles siempre visibles).
   const dismissExample = () => {
-    try {
-      localStorage.setItem(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
-    } catch {
-      // ignore
-    }
+    escribirClave(EXAMPLE_PROMPT_DISMISSED_KEY, '1');
     setExamplePromptDismissed(true);
     setTab('inputs');
   };
