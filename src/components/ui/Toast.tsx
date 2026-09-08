@@ -41,7 +41,10 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       <span className="flex-1">{toast.message}</span>
       {toast.action && (
         <button
-          onClick={toast.action.onClick}
+          onClick={() => {
+            toast.action?.onClick();
+            onDismiss(toast.id);
+          }}
           className="text-accent hover:text-accent-hover font-medium shrink-0 transition-colors"
         >
           {toast.action.label}

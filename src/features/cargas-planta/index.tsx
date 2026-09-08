@@ -23,6 +23,10 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
+import { adaptadorDe } from '../../lib/anejo/modules';
+import type { ResultadoExport } from '../../lib/export/descargar';
 import {
   cuadroAccionesPlanoCargas,
   cuadroCargasMemoria,
@@ -60,20 +64,19 @@ import {
   type PlantaUI,
   type ZonaUI,
 } from './state';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 // Persistencia del aviso «¿Quiere ver un caso de ejemplo?»: una vez aceptado
 // o descartado, la banda no vuelve a aparecer (patrón de Muros de fábrica).
 const EJEMPLO_DESCARTADO_KEY = 'concreta-cargas-planta-example-dismissed';
 
 function leerDescartado(): boolean {
-  try {
-    return localStorage.getItem(EJEMPLO_DESCARTADO_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return leerClave(EJEMPLO_DESCARTADO_KEY) === '1';
 }
 
-type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf';
+const ANEJO = adaptadorDe('concreta-cargas-planta');
+
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf' | IdAnejo;
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
@@ -81,6 +84,7 @@ const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extensio
   pdf: { etiqueta: 'PDF', fallback: CARGAS_PLANTA_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
   xlsx: { etiqueta: 'Excel', fallback: CARGAS_PLANTA_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
   dxf: { etiqueta: 'DXF', fallback: CARGAS_PLANTA_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
+  anejo: { ...FORMATO_ANEJO, fallback: CARGAS_PLANTA_FALLBACK_PDF },
 };
 
 const opcion = (id: FormatoId, detalle: string) => ({
@@ -112,6 +116,7 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
       opcion('dxf', 'dibujado, para insertar en el CAD'),
     ],
   },
+  GRUPO_ANEJO,
 ];
 
 /** El bloque de viento del cuadro del plano, del sobre de Viento y nieve. */
@@ -213,11 +218,7 @@ export function CargasPlantaModule() {
 
   const descartarEjemplo = () => {
     setDescartado(true);
-    try {
-      localStorage.setItem(EJEMPLO_DESCARTADO_KEY, '1');
-    } catch {
-      /* modo privado: la banda vuelve la próxima vez, sin más */
-    }
+    escribirClave(EJEMPLO_DESCARTADO_KEY, '1');
   };
   const verEjemplo = () => {
     descartarEjemplo();
@@ -236,6 +237,13 @@ export function CargasPlantaModule() {
   const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
   const formato = FORMATOS[formatoElegido];
 
+  // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
+  // guardado como capítulo del anejo de la obra en vez de bajar al disco.
+  const anejo = useGuardarEnAnejo();
+  const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
+    await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
+  };
+
   const { exportando, titleOpen, openExport, confirmTitle, closeTitle } = useTitledFileExport({
     // El `import()` va DENTRO del manejador, nunca memoizado durante el
     // render: así cada exportador sigue en su chunk perezoso.
@@ -250,7 +258,7 @@ export function CargasPlantaModule() {
         const { exportarCargasPlantaDxf } = await import('../../lib/dxf/cargasPlanta');
         return exportarCargasPlantaDxf(bloquesPlano, titulo);
       }
-      if (formatoElegido === 'pdf') {
+      if (formatoElegido === 'pdf' || formatoElegido === 'anejo') {
         const { exportarCargasPlantaPdf } = await import('../../lib/pdf/cargasPlanta');
         return exportarCargasPlantaPdf(bloquesMemoria, titulo);
       }
@@ -259,6 +267,7 @@ export function CargasPlantaModule() {
     },
     valid: evaluacion.listo,
     onTitleChange: setDocTitle,
+    entregar: formatoElegido === 'anejo' ? entregarAlAnejo : undefined,
     formatoLabel: formato.enError,
     invalidMessage: evaluacion.errores > 0 ? 'Corrija los errores antes de exportar' : 'Añada al menos una planta antes de exportar',
   });
@@ -499,6 +508,7 @@ export function CargasPlantaModule() {
         </div>
       </div>
 
+      {anejo.dialogo}
       {titleOpen && (
         <TitlePromptModal
           initialTitle={docTitle}
@@ -506,6 +516,7 @@ export function CargasPlantaModule() {
           exporting={exportando}
           formatLabel={formato.etiqueta}
           extension={formato.extension}
+          {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />

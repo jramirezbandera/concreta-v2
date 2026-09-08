@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { FileText, X } from 'lucide-react';
 import { slugTitle, titledFilename } from '../../lib/export/filename';
 
@@ -17,6 +17,15 @@ interface TitlePromptModalProps {
   formatLabel?: string;
   /** Extensión del fichero, sin punto. Por defecto 'pdf'. */
   extension?: string;
+  /**
+   * Cuando el documento no va al disco sino a otro destino (el anejo de
+   * cálculo), la cabecera, el botón y la línea de destino lo dicen: si no, el
+   * modal prometería una descarga que no va a ocurrir. Por defecto,
+   * «Exportar {formatLabel}» y «Se descargará como: …».
+   */
+  titulo?: string;
+  confirmar?: string;
+  lineaDestino?: ReactNode;
 }
 
 /**
@@ -47,6 +56,9 @@ export function TitlePromptModal({
   onCancel,
   formatLabel = 'PDF',
   extension = 'pdf',
+  titulo,
+  confirmar,
+  lineaDestino,
 }: TitlePromptModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -106,7 +118,7 @@ export function TitlePromptModal({
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border-main">
           <FileText size={16} className="text-text-secondary" aria-hidden="true" />
           <span id="title-prompt-heading" className="text-sm font-medium text-text-primary">
-            Exportar {formatLabel}
+            {titulo ?? `Exportar ${formatLabel}`}
           </span>
           <div className="flex-1" />
           <button
@@ -140,10 +152,14 @@ export function TitlePromptModal({
             className="w-full bg-bg-primary border border-border-main rounded px-3 py-2 text-sm text-text-primary placeholder:text-text-disabled outline-none focus:border-accent"
           />
           <p className="mt-2.5 text-xs text-text-secondary">
-            Se descargará como:{' '}
-            <span className={`font-mono ${isFallback ? 'text-text-disabled' : 'text-accent'}`}>
-              {filename}
-            </span>
+            {lineaDestino ?? (
+              <>
+                Se descargará como:{' '}
+                <span className={`font-mono ${isFallback ? 'text-text-disabled' : 'text-accent'}`}>
+                  {filename}
+                </span>
+              </>
+            )}
           </p>
         </div>
 
@@ -174,7 +190,7 @@ export function TitlePromptModal({
                 Generando…
               </>
             ) : (
-              `Exportar ${formatLabel}`
+              (confirmar ?? `Exportar ${formatLabel}`)
             )}
           </button>
         </div>

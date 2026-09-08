@@ -9,8 +9,8 @@
  * Mesa de trabajo como el resto de módulos: datos a la izquierda, el dibujo
  * en el centro con cuatro vistas (Edificio · Cubierta · Fachadas · Nieve) y
  * lo que pone la norma a la derecha. No hay previsualización de documentos:
- * el cuadro del plano (Excel) y la memoria (Word) se exportan desde la barra
- * superior, cada uno con su botón.
+ * el cuadro del plano (Excel) y la memoria (Word o PDF) se exportan desde el
+ * desplegable «Exportar» de la barra superior.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -22,8 +22,12 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
+import { adaptadorDe } from '../../lib/anejo/modules';
+import type { ResultadoExport } from '../../lib/export/descargar';
 import { cuadroAccionesPlano, cuadroNieveMemoria, cuadroVientoMemoria, seccionesPlanoXlsx, type EmplazamientoCuadro } from '../../lib/acciones/cuadros';
-import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
+import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_PDF, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { VISTAS_LIENZO, type VistaLienzo } from './catalogos';
@@ -46,17 +50,22 @@ import {
   type PlantaUI,
   type VientoNieveState,
 } from './state';
+import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
 // Persistencia del aviso «¿Quiere ver un caso de ejemplo?»: una vez aceptado o
 // descartado, la banda no vuelve a aparecer (patrón de Muros de fábrica).
 const EJEMPLO_DESCARTADO_KEY = 'concreta-viento-nieve-example-dismissed';
 
-type FormatoId = 'docx' | 'xlsx';
+const ANEJO = adaptadorDe('concreta-viento-nieve');
+
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | IdAnejo;
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
   docx: { etiqueta: 'Word', fallback: VIENTO_NIEVE_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
+  pdf: { etiqueta: 'PDF', fallback: VIENTO_NIEVE_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
   xlsx: { etiqueta: 'Excel', fallback: VIENTO_NIEVE_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
+  anejo: { ...FORMATO_ANEJO, fallback: VIENTO_NIEVE_FALLBACK_PDF },
 };
 
 const opcion = (id: FormatoId, detalle: string) => ({
@@ -66,8 +75,9 @@ const opcion = (id: FormatoId, detalle: string) => ({
 });
 
 /**
- * Lo que despliega «Exportar»: las dos salidas del módulo, cada una con el
- * documento que entrega y su destino en lenguaje de obra. Mismo desplegable que
+ * Lo que despliega «Exportar»: las tres salidas del módulo, cada una con el
+ * documento que entrega y su destino en lenguaje de obra. El PDF de la memoria
+ * es además el capítulo que entra en el anejo de cálculo. Mismo desplegable que
  * el cuadro de materiales — antes eran dos botones en la barra, y desde que hay
  * más de un módulo con varias salidas nombrarlas en un solo sitio es lo que
  * mantiene la barra igual en toda la app.
@@ -75,12 +85,16 @@ const opcion = (id: FormatoId, detalle: string) => ({
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   {
     titulo: 'Memoria',
-    opciones: [opcion('docx', 'para pegar en la memoria del proyecto')],
+    opciones: [
+      opcion('docx', 'para pegar en la memoria del proyecto'),
+      opcion('pdf', 'maquetado y cerrado, para enviar o imprimir'),
+    ],
   },
   {
     titulo: 'Cuadro de plano',
     opciones: [opcion('xlsx', 'para capturar y pegar en el plano')],
   },
+  GRUPO_ANEJO,
 ];
 
 function frase(huecos: string[]): string {
@@ -90,11 +104,7 @@ function frase(huecos: string[]): string {
 }
 
 function leerDescartado(): boolean {
-  try {
-    return localStorage.getItem(EJEMPLO_DESCARTADO_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return leerClave(EJEMPLO_DESCARTADO_KEY) === '1';
 }
 
 function Leyenda({ color, children, rayado = false, discontinua = false }: { color: string; children: string; rayado?: boolean; discontinua?: boolean }) {
@@ -207,18 +217,14 @@ export function VientoNieveModule() {
 
   const descartarEjemplo = () => {
     setDescartado(true);
-    try {
-      localStorage.setItem(EJEMPLO_DESCARTADO_KEY, '1');
-    } catch {
-      /* modo privado: la banda vuelve la próxima vez, sin más */
-    }
+    escribirClave(EJEMPLO_DESCARTADO_KEY, '1');
   };
   const verEjemplo = () => {
     descartarEjemplo();
     actualizar(() => ejemploVientoNieveState());
   };
 
-  // ── Exportación: dos salidas, cada una con su botón ───────────────────────
+  // ── Exportación: tres salidas en un desplegable ───────────────────────────
 
   // El título vive FUERA del estado del módulo, como en materiales: metido
   // ahí, cada tecla reejecutaría `evaluar()` y obligaría a versionar el
@@ -229,6 +235,13 @@ export function VientoNieveModule() {
   // exista el fichero: la preview del nombre y el rótulo de confirmar salen de él.
   const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
   const formato = FORMATOS[formatoElegido];
+
+  // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
+  // guardado como capítulo del anejo de la obra en vez de bajar al disco.
+  const anejo = useGuardarEnAnejo();
+  const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
+    await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
+  };
 
   const { exportando, titleOpen, openExport, confirmTitle, closeTitle } = useTitledFileExport({
     // El `import()` va DENTRO del manejador, nunca memoizado durante el render:
@@ -244,11 +257,16 @@ export function VientoNieveModule() {
       const bloquesMemoria: Block[] = [];
       if (evaluacion.viento) bloquesMemoria.push(...cuadroVientoMemoria(evaluacion.viento, emplazamientoCuadro));
       if (evaluacion.nieve) bloquesMemoria.push(...cuadroNieveMemoria(evaluacion.nieve, emplazamientoCuadro));
+      if (formatoElegido === 'pdf' || formatoElegido === 'anejo') {
+        const { exportarVientoNievePdf } = await import('../../lib/pdf/vientoNieve');
+        return exportarVientoNievePdf(bloquesMemoria, titulo);
+      }
       const { exportarVientoNieveDocx } = await import('../../lib/docx/vientoNieve');
       return exportarVientoNieveDocx(bloquesMemoria, titulo);
     },
     valid: evaluacion.listo,
     onTitleChange: setDocTitle,
+    entregar: formatoElegido === 'anejo' ? entregarAlAnejo : undefined,
     formatoLabel: formato.enError,
     invalidMessage:
       evaluacion.huecos.length > 0
@@ -414,8 +432,9 @@ export function VientoNieveModule() {
         </div>
       </div>
 
+      {anejo.dialogo}
       {titleOpen && (
-        <TitlePromptModal initialTitle={docTitle} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} onConfirm={confirmTitle} onCancel={closeTitle} />
+        <TitlePromptModal initialTitle={docTitle} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
       )}
     </div>
   );

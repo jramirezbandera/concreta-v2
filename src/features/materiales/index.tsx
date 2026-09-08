@@ -30,6 +30,10 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
+import { adaptadorDe } from '../../lib/anejo/modules';
+import type { ResultadoExport } from '../../lib/export/descargar';
 import {
   MATERIALES_FALLBACK_DOCX,
   MATERIALES_FALLBACK_DXF,
@@ -78,7 +82,9 @@ const VISTAS: { id: Vista; etiqueta: string }[] = [
   { id: 'memoria', etiqueta: 'Memoria' },
 ];
 
-type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf';
+const ANEJO = adaptadorDe('concreta-materiales');
+
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf' | IdAnejo;
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<
@@ -99,6 +105,7 @@ const FORMATOS: Record<
   },
   dxf: { etiqueta: 'DXF', fallback: MATERIALES_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
   pdf: { etiqueta: 'PDF', fallback: MATERIALES_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
+  anejo: { ...FORMATO_ANEJO, fallback: MATERIALES_FALLBACK_PDF },
 };
 
 const opcion = (id: FormatoId, detalle: string) => ({
@@ -128,6 +135,7 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
       opcion('dxf', 'dibujado, para insertar en el CAD'),
     ],
   },
+  GRUPO_ANEJO,
 ];
 
 export function MaterialesModule() {
@@ -317,6 +325,13 @@ export function MaterialesModule() {
   const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
   const formato = FORMATOS[formatoElegido];
 
+  // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
+  // guardado como capítulo del anejo de la obra en vez de bajar al disco.
+  const anejo = useGuardarEnAnejo();
+  const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
+    await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
+  };
+
   const { exportando, titleOpen, openExport, confirmTitle, closeTitle } = useTitledFileExport({
     // El `import()` va DENTRO del manejador, nunca memoizado durante el render:
     // así cada exportador sigue en su chunk perezoso y sólo lo descarga quien
@@ -338,7 +353,7 @@ export function MaterialesModule() {
         const { exportarMaterialesDxf } = await import('../../lib/dxf/materiales');
         return exportarMaterialesDxf(bloquesPlano, titulo);
       }
-      if (formatoElegido === 'pdf') {
+      if (formatoElegido === 'pdf' || formatoElegido === 'anejo') {
         const { exportarMaterialesPdf } = await import('../../lib/pdf/materiales');
         return exportarMaterialesPdf(bloquesMemoria, titulo);
       }
@@ -347,6 +362,7 @@ export function MaterialesModule() {
     },
     valid: !exportarBloqueado,
     onTitleChange: setDocTitle,
+    entregar: formatoElegido === 'anejo' ? entregarAlAnejo : undefined,
     formatoLabel: formato.enError,
     invalidMessage: evaluacion.listo
       ? 'Añada algún material antes de exportar'
@@ -603,6 +619,7 @@ export function MaterialesModule() {
         )}
       </div>
 
+      {anejo.dialogo}
       {titleOpen && (
         <TitlePromptModal
           initialTitle={docTitle}
@@ -610,6 +627,7 @@ export function MaterialesModule() {
           exporting={exportando}
           formatLabel={formato.etiqueta}
           extension={formato.extension}
+          {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />

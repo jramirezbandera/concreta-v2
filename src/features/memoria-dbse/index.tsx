@@ -32,6 +32,10 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { LeyendaEstados } from '../../components/ui/LeyendaEstados';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
+import { adaptadorDe } from '../../lib/anejo/modules';
+import type { ResultadoExport } from '../../lib/export/descargar';
 import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib/export/filename';
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
 import { asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, tomarPublicacion, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
@@ -50,11 +54,14 @@ import { leerSobres, type Sobres } from './sobres';
 import { cargarEstado, guardarEstado } from './state';
 import { BOTON_ACENTO, BOTON_MENOR } from './estilos';
 
-type FormatoId = 'docx' | 'pdf';
+const ANEJO = adaptadorDe('concreta-memoria-dbse');
+
+type FormatoId = 'docx' | 'pdf' | IdAnejo;
 
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
   docx: { etiqueta: 'Word', fallback: MEMORIA_DBSE_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
   pdf: { etiqueta: 'PDF', fallback: MEMORIA_DBSE_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
+  anejo: { ...FORMATO_ANEJO, fallback: MEMORIA_DBSE_FALLBACK_PDF },
 };
 
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
@@ -65,6 +72,7 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
       { id: 'pdf', etiqueta: 'PDF', detalle: 'maquetado y cerrado, para enviar o imprimir' },
     ],
   },
+  GRUPO_ANEJO,
 ];
 
 /** Referencia normativa de cada sección, a la derecha de su cabecera. */
@@ -292,10 +300,17 @@ export function MemoriaDBSEModule() {
   const bloques = useMemo(() => bloquesFicha(datos), [datos]);
   const tituloInicial = `Memoria DB SE — ${state.obra.denominacion.valor || 'obra'}`;
 
+  // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
+  // guardado como capítulo del anejo de la obra en vez de bajar al disco.
+  const anejo = useGuardarEnAnejo();
+  const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
+    await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
+  };
+
   const { exportando, titleOpen, openExport, confirmTitle, closeTitle } = useTitledFileExport({
     // El `import()` va DENTRO del manejador: cada exportador sigue en su chunk perezoso.
     exportFn: async (titulo) => {
-      if (formatoElegido === 'pdf') {
+      if (formatoElegido === 'pdf' || formatoElegido === 'anejo') {
         const { exportarMemoriaDBSEPdf } = await import('../../lib/pdf/memoriaDBSE');
         return exportarMemoriaDBSEPdf(bloques, titulo);
       }
@@ -304,6 +319,7 @@ export function MemoriaDBSEModule() {
     },
     valid: listo,
     onTitleChange: () => {},
+    entregar: formatoElegido === 'anejo' ? entregarAlAnejo : undefined,
     formatoLabel: formato.enError,
     invalidMessage: mensajeBloqueo ?? undefined,
   });
@@ -423,8 +439,9 @@ export function MemoriaDBSEModule() {
 
       {geotecnicoAbierto && <GeotecnicoModal onAplicar={aplicarGeotecnico} onClose={() => setGeotecnicoAbierto(false)} />}
 
+      {anejo.dialogo}
       {titleOpen && (
-        <TitlePromptModal initialTitle={tituloInicial} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} onConfirm={confirmTitle} onCancel={closeTitle} />
+        <TitlePromptModal initialTitle={tituloInicial} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
       )}
     </div>
   );
