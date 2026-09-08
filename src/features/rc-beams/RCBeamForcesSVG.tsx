@@ -202,7 +202,7 @@ export function RCBeamForcesSVG({
             fill={C.labelDim} fontSize="8" textAnchor="start"
             fontFamily="var(--font-mono)"
           >
-            σ_top={sigmaTop.toFixed(1)} MPa ({sigmaTopPct.toFixed(0)}% fcd)
+            σ_top={formatQuantity(sigmaTop, 'stress', system)} ({sigmaTopPct.toFixed(0)}% fcd)
           </text>
           {/* Label fcd en el borde izquierdo del envelope */}
           <text
@@ -211,7 +211,7 @@ export function RCBeamForcesSVG({
             fontFamily="var(--font-mono)"
             transform={`rotate(-90 ${blockLeftX - 2} ${envelopeYTop + envelopeH / 2})`}
           >
-            σ=fcd={fcd.toFixed(1)}
+            σ=fcd={formatQuantity(fcd, 'stress', system, { withUnit: false })}
           </text>
           {/* Label FN debajo de la línea punteada de la fibra neutra */}
           <text

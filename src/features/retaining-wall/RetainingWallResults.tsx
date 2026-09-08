@@ -236,7 +236,7 @@ export function RetainingWallResults({ result, inp }: RetainingWallResultsProps)
               </p>
               <p className="text-state-warn">
                 Revisa el estrato de cimentación antes de calcular: va con un valor genérico
-                (φ′ = {FOUNDATION_PLACEHOLDER.phi}°, c′ = {FOUNDATION_PLACEHOLDER.c} kPa) porque
+                (φ′ = {FOUNDATION_PLACEHOLDER.phi}°, c′ = {fmtSi(FOUNDATION_PLACEHOLDER.c, 'cohesion')}) porque
                 este módulo no pide los parámetros del terreno. Es el dato que gobierna el resultado.
               </p>
               <p>

@@ -14,6 +14,7 @@ import { type TimberBeamInputs } from '../../data/defaults';
 import { type TimberBeamResult } from '../../lib/calculations/timberBeams';
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
+import { checkLimitStr, checkValueStr } from '../calculations/checkFormat';
 import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
@@ -46,7 +47,9 @@ export async function exportTimberBeamsPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+  // Sin precisión, la del catálogo — la misma que la pantalla, para que el
+  // mismo valor no se lea con dos redondeos distintos.
+  const fmtSi = (v: number, q: Quantity, precision?: number) =>
     formatQuantity(v, q, system, { precision });
   const doc = await crearPdf();
 
@@ -285,8 +288,8 @@ export async function exportTimberBeamsPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     setGray(doc, 75);
-    doc.text(pdfStr(ch.value), TC.value, rowY, { maxWidth: 23 });
-    doc.text(pdfStr(ch.limit), TC.limit, rowY, { maxWidth: 23 });
+    doc.text(pdfStr(checkValueStr(ch, system)), TC.value, rowY, { maxWidth: 23 });
+    doc.text(pdfStr(checkLimitStr(ch, system)), TC.limit, rowY, { maxWidth: 23 });
 
     // Ut% — bold if failing/warning
     const textG = isFail ? 60 : isWarn ? 80 : 100;

@@ -10,6 +10,7 @@
 
 import { type TimberBeamInputs } from '../../data/defaults';
 import { WARN_UTIL } from './types';
+import type { Quantity } from '../units/types';
 import {
   getTimberGrade,
   getKmod,
@@ -51,11 +52,31 @@ export function psi2ForLoadType(inp: Pick<TimberBeamInputs, 'loadType' | 'psi2Cu
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
+/**
+ * Una fila de comprobación. Mismo contrato que el `CheckRow` compartido (ver
+ * `lib/calculations/types.ts`) más el grupo de este módulo, así que la ruta
+ * numérica es la buena:
+ *
+ * - `valueNum` + `valueQty` guardan el valor EN SI y la magnitud, y quien la
+ *   pinta la convierte al sistema activo (`checkValueStr(check, system)`).
+ * - `value`/`limit` son el texto ya montado, para lo que no es una magnitud
+ *   —una esbeltez, una flecha en mm, un cociente—.
+ *
+ * Escribir la unidad a mano en `value` no sólo deja la fila en el SI: le da al
+ * asistente de IA el texto del usuario en lugar de un número.
+ */
 export interface TimberCheckRow {
   id: string;
   description: string;
-  value: string;
-  limit: string;
+  /** Valor en SI; con `valueQty`, se convierte al pintar. */
+  valueNum?: number;
+  valueQty?: Quantity;
+  /** Límite en SI; con `limitQty`, se convierte al pintar. */
+  limitNum?: number;
+  limitQty?: Quantity;
+  /** Texto ya montado, para lo que no es una magnitud del catálogo. */
+  value?: string;
+  limit?: string;
   utilization: number;
   status: CheckStatus;
   article: string;
@@ -160,6 +181,29 @@ function mkCheck(
 ): TimberCheckRow {
   const util = capacity > 0 ? demand / capacity : Infinity;
   return { id, description, value: valueStr, limit: limitStr, utilization: util, status: toStatus(util), article, group };
+}
+
+/**
+ * Lo mismo, pero por la ruta numérica: la demanda y la capacidad SON el valor y
+ * el límite que se enseñan, así que no hay que volver a escribirlos con su
+ * unidad. Para todo lo que sea una magnitud del catálogo.
+ */
+function mkCheckQ(
+  id: string,
+  description: string,
+  demand: number,
+  capacity: number,
+  qty: Quantity,
+  article: string,
+  group: TimberCheckRow['group'],
+): TimberCheckRow {
+  const util = capacity > 0 ? demand / capacity : Infinity;
+  return {
+    id, description,
+    valueNum: demand, valueQty: qty,
+    limitNum: capacity, limitQty: qty,
+    utilization: util, status: toStatus(util), article, group,
+  };
 }
 
 function mkNeutral(
@@ -488,23 +532,19 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   // Bending (uses fm_d_sys = ksys × kmod×kh×fm_k/γM)
   const khLabel   = kh   > 1.0 ? `·kh=${kh.toFixed(3)}`   : '';
   const ksysLabel = ksys > 1.0 ? `·ksys=${ksys.toFixed(2)}` : '';
-  checks.push(mkCheck(
+  checks.push(mkCheckQ(
     'bending',
     `Flexión σm,d ≤ kmod${khLabel}${ksysLabel}·fm,k/γM (§6.1.6)`,
-    sigma_m, fm_d_sys,
-    `${sigma_m.toFixed(2)} N/mm²`,
-    `${fm_d_sys.toFixed(2)} N/mm²`,
+    sigma_m, fm_d_sys, 'stress',
     'EN 1995-1-1 §6.1.6 — Resistencia a flexión (con factor de tamaño kh y sistema ksys)',
     'elu',
   ));
 
   // Shear
-  checks.push(mkCheck(
+  checks.push(mkCheckQ(
     'shear',
     'Cortante τd ≤ fv,d — Av=kcr·b·h (§6.1.7)',
-    tau_d, fv_d,
-    `${tau_d.toFixed(2)} N/mm²`,
-    `${fv_d.toFixed(2)} N/mm²`,
+    tau_d, fv_d, 'stress',
     'EN 1995-1-1 §6.1.7(2) — Cortante (kcr=0.67, área efectiva)',
     'elu',
   ));
@@ -519,8 +559,8 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   checks.push({
     id: 'ltb',
     description: `Pandeo lateral σm,d ≤ kcrit·fm,d (§6.3.3) — ${kcritLabel}`,
-    value: `${sigma_m.toFixed(2)} N/mm²`,
-    limit: `${fm_d_eff.toFixed(2)} N/mm²`,
+    valueNum: sigma_m, valueQty: 'stress',
+    limitNum: fm_d_eff, limitQty: 'stress',
     utilization: ltbUtil,
     status: toStatus(ltbUtil),
     article: 'EN 1995-1-1 §6.3.3 — Pandeo lateral (vuelco lateral)',
@@ -575,22 +615,18 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
     ));
 
     if (W_fi > 0) {
-      checks.push(mkCheck(
+      checks.push(mkCheckQ(
         'fire-bending',
         `Incendio — Flexión σm,fi ≤ kfi·fm,k (kfi=${kfi.toFixed(2)})`,
-        sigma_m_fi, fm_k_fi,
-        `${sigma_m_fi.toFixed(2)} N/mm²`,
-        `${fm_k_fi.toFixed(2)} N/mm²`,
+        sigma_m_fi, fm_k_fi, 'stress',
         'EN 1995-1-2 §4.2.2 + §2.3 — Flexión en incendio (f20 = kfi·fk, γM,fi=1.0)',
         'fire',
       ));
 
-      checks.push(mkCheck(
+      checks.push(mkCheckQ(
         'fire-shear',
         `Incendio — Cortante τfi ≤ kfi·fv,k`,
-        tau_fi, fv_k_fi,
-        `${tau_fi.toFixed(2)} N/mm²`,
-        `${fv_k_fi.toFixed(2)} N/mm²`,
+        tau_fi, fv_k_fi, 'stress',
         'EN 1995-1-2 §4.2.2 + §2.3 — Cortante en incendio (γM,fi=1.0)',
         'fire',
       ));
@@ -599,12 +635,10 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
       // la sección residual es muy esbelta (fix auditoría #111)
       if (inp.exposedFaces === 4) {
         const fm_fi_eff = kcrit_fi * fm_k_fi;
-        checks.push(mkCheck(
+        checks.push(mkCheckQ(
           'fire-ltb',
           `Incendio — Pandeo lateral σm,fi ≤ kcrit,fi·kfi·fm,k (kcrit,fi=${kcrit_fi.toFixed(2)}, sección residual ${b_ef.toFixed(0)}×${h_ef.toFixed(0)})`,
-          sigma_m_fi, fm_fi_eff,
-          `${sigma_m_fi.toFixed(2)} N/mm²`,
-          `${fm_fi_eff.toFixed(2)} N/mm²`,
+          sigma_m_fi, fm_fi_eff, 'stress',
           'EN 1995-1-2 §4.2.2 + EN 1995-1-1 §6.3.3 — LTB de la sección residual (4 caras, sin arriostrar)',
           'fire',
         ));

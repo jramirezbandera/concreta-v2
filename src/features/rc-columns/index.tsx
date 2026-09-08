@@ -151,8 +151,8 @@ export function RCColumnsModule() {
                 <RCColumnsSVG inp={state} result={result} mode="screen" width={triW} height={triSecH} />
                 {interaction.valid && interaction.y && (
                   <>
-                    <RCColumnInteractionSVG data={interaction.y} mode="screen" width={triW} height={triW} />
-                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={triW} height={triW} />}
+                    <RCColumnInteractionSVG data={interaction.y} mode="screen" system={system} width={triW} height={triW} />
+                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" system={system} width={triW} height={triW} />}
                   </>
                 )}
               </div>
@@ -161,8 +161,8 @@ export function RCColumnsModule() {
                 <RCColumnsSVG inp={state} result={result} mode="screen" width={svgW} height={svgH} />
                 {interaction.valid && interaction.y && (
                   <div className="flex flex-row items-start justify-center gap-3">
-                    <RCColumnInteractionSVG data={interaction.y} mode="screen" width={diagW} height={diagW} />
-                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={diagW} height={diagW} />}
+                    <RCColumnInteractionSVG data={interaction.y} mode="screen" system={system} width={diagW} height={diagW} />
+                    {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" system={system} width={diagW} height={diagW} />}
                   </div>
                 )}
               </div>
@@ -180,8 +180,8 @@ export function RCColumnsModule() {
             <RCColumnsSVG inp={state} result={result} mode="screen" width={mobileW} height={Math.round(mobileW * 1.15)} />
             {interaction.valid && interaction.y && (
               <>
-                <RCColumnInteractionSVG data={interaction.y} mode="screen" width={mobileW} height={320} />
-                {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" width={mobileW} height={320} />}
+                <RCColumnInteractionSVG data={interaction.y} mode="screen" system={system} width={mobileW} height={320} />
+                {interaction.z && <RCColumnInteractionSVG data={interaction.z} mode="screen" system={system} width={mobileW} height={320} />}
               </>
             )}
           </div>
@@ -203,14 +203,14 @@ export function RCColumnsModule() {
               id="rc-columns-interaction-y-pdf"
               style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
             >
-              <RCColumnInteractionSVG data={interaction.y} mode="pdf" width={300} height={300} />
+              <RCColumnInteractionSVG data={interaction.y} mode="pdf" system={system} width={300} height={300} />
             </div>
             {interaction.z && (
               <div
                 id="rc-columns-interaction-z-pdf"
                 style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
               >
-                <RCColumnInteractionSVG data={interaction.z} mode="pdf" width={300} height={300} />
+                <RCColumnInteractionSVG data={interaction.z} mode="pdf" system={system} width={300} height={300} />
               </div>
             )}
           </>

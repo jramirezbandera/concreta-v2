@@ -136,6 +136,23 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: '✓ Confirmar' }).length).toBe(antes - 1));
   });
 
+  /**
+   * La sobrecarga en el terreno era la única caja con dimensión de la ficha, y
+   * llevaba el «kN/m²» escrito a mano: en el rótulo del campo y en el chip. Con
+   * el técnico puesto, la ficha entera hablaba en kg menos ese dato.
+   */
+  it('la sobrecarga en el terreno se teclea en la unidad activa', () => {
+    localStorage.setItem('unitSystem', 'tecnico');
+    obraGranada();
+    montar();
+    // 10 kN/m² heredados son 1020 kg/m².
+    const caja = document.getElementById('campo-obra-sobrecargaTerreno') as HTMLInputElement;
+    expect(caja.value).toBe('1020');
+    // Y el rótulo ya no lleva una unidad escrita a mano que la contradiga.
+    expect(screen.getByText('Sobrecarga en el terreno')).toBeInTheDocument();
+    expect(screen.queryByText(/Sobrecarga en el terreno \(kN\/m²\)/)).toBeNull();
+  });
+
   it('«Nueva obra» deja la obra en ámbar y vacía el nombre', async () => {
     obraGranada();
     montar();

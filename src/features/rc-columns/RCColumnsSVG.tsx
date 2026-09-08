@@ -252,7 +252,7 @@ export function RCColumnsSVG({
         fill={colors.dim} fontSize={smallFont} fontFamily="monospace"
         textAnchor="end" dominantBaseline="middle"
       >
-        N={inp.Nd}kN
+        N={formatQuantity(inp.Nd as number, 'force', system, { precision: system === 'si' ? 0 : 1 })}
       </text>
 
       {/* Top annotations: λy/λz tag + MEdy/MEdz */}
@@ -392,7 +392,7 @@ function RCColumnsCircularSVG({
       {/* N (izquierda) */}
       <text x={cx - radius - 8} y={cy} fill={colors.dim} fontSize={smallFont} fontFamily="monospace"
         textAnchor="end" dominantBaseline="middle">
-        N={inp.Nd}kN
+        N={formatQuantity(inp.Nd as number, 'force', system, { precision: system === 'si' ? 0 : 1 })}
       </text>
 
       {/* Anotaciones superiores: λ + M_res */}

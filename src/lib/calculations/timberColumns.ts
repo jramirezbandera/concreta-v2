@@ -11,6 +11,7 @@
 
 import { type TimberColumnInputs } from '../../data/defaults';
 import { WARN_UTIL } from './types';
+import type { Quantity } from '../units/types';
 import {
   getTimberGrade,
   getKmod,
@@ -23,11 +24,25 @@ import {
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
+/**
+ * Una fila de comprobación; mismo contrato que el `CheckRow` compartido (ver
+ * `lib/calculations/types.ts`) más el grupo de este módulo. La ruta buena es la
+ * numérica: `valueNum` + `valueQty` guardan el valor EN SI y su magnitud, y
+ * quien la pinta la convierte al sistema activo. `value`/`limit` quedan para lo
+ * que no es una magnitud del catálogo (un cociente, una esbeltez).
+ */
 export interface TimberColumnCheckRow {
   id: string;
   description: string;
-  value: string;
-  limit: string;
+  /** Valor en SI; con `valueQty`, se convierte al pintar. */
+  valueNum?: number;
+  valueQty?: Quantity;
+  /** Límite en SI; con `limitQty`, se convierte al pintar. */
+  limitNum?: number;
+  limitQty?: Quantity;
+  /** Texto ya montado, para lo que no es una magnitud del catálogo. */
+  value?: string;
+  limit?: string;
   utilization: number;
   status: CheckStatus;
   article: string;
@@ -96,18 +111,26 @@ function toStatus(util: number): CheckStatus {
   return 'fail';
 }
 
-function mkCheck(
+/**
+ * Una fila de comprobación por la ruta numérica: la demanda y la capacidad SON el valor y el
+ * límite que se enseñan, así que no hay que volver a escribirlos con su unidad.
+ */
+function mkCheckQ(
   id: string,
   description: string,
   demand: number,
   capacity: number,
-  valueStr: string,
-  limitStr: string,
+  qty: Quantity,
   article: string,
   group: TimberColumnCheckRow['group'],
 ): TimberColumnCheckRow {
   const util = capacity > 0 ? demand / capacity : Infinity;
-  return { id, description, value: valueStr, limit: limitStr, utilization: util, status: toStatus(util), article, group };
+  return {
+    id, description,
+    valueNum: demand, valueQty: qty,
+    limitNum: capacity, limitQty: qty,
+    utilization: util, status: toStatus(util), article, group,
+  };
 }
 
 function mkNeutral(
@@ -342,12 +365,10 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   checks.push(mkNeutral('elu-header', 'ELU — Estado Límite Último', 'EC5 §6', 'EN 1995-1-1 §6', 'elu'));
 
   // Shear §6.1.7
-  checks.push(mkCheck(
+  checks.push(mkCheckQ(
     'shear',
     'Cortante τd ≤ fv,d — Av=kcr·b·h (§6.1.7)',
-    tau_d, fv_d,
-    `${tau_d.toFixed(2)} N/mm²`,
-    `${fv_d.toFixed(2)} N/mm²`,
+    tau_d, fv_d, 'stress',
     'EN 1995-1-1 §6.1.7(2) — Cortante (kcr=0.67, área efectiva)',
     'elu',
   ));
@@ -432,12 +453,10 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
       });
     } else {
       // Fire shear
-      checks.push(mkCheck(
+      checks.push(mkCheckQ(
         'fire-shear',
         `Cortante (fuego) τfi ≤ fv,k — sección ${b_ef.toFixed(0)}×${h_ef.toFixed(0)} mm`,
-        tau_fi, fv_d_fi,
-        `${tau_fi.toFixed(2)} N/mm²`,
-        `${fv_d_fi.toFixed(2)} N/mm²`,
+        tau_fi, fv_d_fi, 'stress',
         'EN 1995-1-2 §4.2.2 — Cortante en sección residual (γM,fi=1.0)',
         'fire',
       ));

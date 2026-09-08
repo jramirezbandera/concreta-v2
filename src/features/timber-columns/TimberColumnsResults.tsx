@@ -1,6 +1,9 @@
 import { type TimberColumnResult, type TimberColumnCheckRow, type CheckStatus } from '../../lib/calculations/timberColumns';
 import { resultLabel } from '../../lib/text/labels';
-import { ambientStyle } from '../../components/checks';
+import { ambientStyle, checkLimitStr, checkValueStr } from '../../components/checks';
+import { useUnitSystem } from '../../lib/units/useUnitSystem';
+import { formatQuantity } from '../../lib/units/format';
+import type { Quantity } from '../../lib/units/types';
 
 interface Props {
   result: TimberColumnResult;
@@ -65,8 +68,13 @@ function NeutralRow({ check }: { check: TimberColumnCheckRow }) {
 }
 
 function ActiveRow({ check }: { check: TimberColumnCheckRow }) {
+  const { system } = useUnitSystem();
   const st  = check.status;
   const pct = Math.min(check.utilization * 100, 100);
+  // Las filas con magnitud se convierten aquí; las de texto ya montado (los
+  // cocientes de las ecuaciones 6.23/6.24) salen tal cual.
+  const valueText = checkValueStr(check, system);
+  const limitText = checkLimitStr(check, system);
   return (
     <div className="grid items-start gap-3 py-1.75 border-b border-border-sub last:border-b-0"
       style={{ gridTemplateColumns: '1fr auto 112px auto' }}>
@@ -77,8 +85,8 @@ function ActiveRow({ check }: { check: TimberColumnCheckRow }) {
         )}
       </div>
       <div className="text-right">
-        <span className="text-[11px] font-mono text-text-primary block tabular-nums">{check.value}</span>
-        <span className="text-[10px] font-mono text-text-disabled block tabular-nums">{`≤ ${check.limit}`}</span>
+        <span className="text-[11px] font-mono text-text-primary block tabular-nums">{valueText}</span>
+        <span className="text-[10px] font-mono text-text-disabled block tabular-nums">{`≤ ${limitText}`}</span>
       </div>
       <div className="flex flex-col gap-1 justify-center min-w-0">
         <div className="h-1 rounded-sm bg-border-main overflow-hidden mt-1">
@@ -94,6 +102,8 @@ function ActiveRow({ check }: { check: TimberColumnCheckRow }) {
 }
 
 export function TimberColumnsResults({ result }: Props) {
+  const { system } = useUnitSystem();
+  const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system);
   if (!result.valid) {
     return (
       <div className="rounded border border-state-fail/30 bg-state-fail/5 px-4 py-3">
@@ -131,9 +141,9 @@ export function TimberColumnsResults({ result }: Props) {
           <ValueRow label={resultLabel('kmod')}           value={result.kmod.toFixed(2)} />
           <ValueRow label={resultLabel('gamma_M_timber')} value={result.gammaM.toFixed(2)} />
           <ValueRow label="kh"                            value={result.kh.toFixed(3)} />
-          <ValueRow label={resultLabel('fc0_d')}          value={`${result.fc0_d.toFixed(2)} N/mm²`} />
-          <ValueRow label={resultLabel('fm_d')}           value={`${result.fm_d.toFixed(2)} N/mm²`} />
-          <ValueRow label={resultLabel('fv_d')}           value={`${result.fv_d.toFixed(2)} N/mm²`} />
+          <ValueRow label={resultLabel('fc0_d')}          value={fmtSi(result.fc0_d, 'stress')} />
+          <ValueRow label={resultLabel('fm_d')}           value={fmtSi(result.fm_d, 'stress')} />
+          <ValueRow label={resultLabel('fv_d')}           value={fmtSi(result.fv_d, 'stress')} />
         </div>
       </div>
 
@@ -154,9 +164,9 @@ export function TimberColumnsResults({ result }: Props) {
       <div>
         <GroupHeader label="Tensiones" />
         <div className="divide-y divide-border-sub">
-          <ValueRow label="σc,0,d"  value={`${result.sigma_c.toFixed(2)} N/mm²`} />
-          <ValueRow label="σm,d"    value={`${result.sigma_m.toFixed(2)} N/mm²`} />
-          <ValueRow label="τd"      value={`${result.tau_d.toFixed(2)} N/mm²`} />
+          <ValueRow label="σc,0,d"  value={fmtSi(result.sigma_c, 'stress')} />
+          <ValueRow label="σm,d"    value={fmtSi(result.sigma_m, 'stress')} />
+          <ValueRow label="τd"      value={fmtSi(result.tau_d, 'stress')} />
         </div>
       </div>
 

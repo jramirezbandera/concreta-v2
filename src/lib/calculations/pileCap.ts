@@ -43,7 +43,7 @@ import { type PileCapInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_S } from '../../data/factors';
-import { type CheckRow, makeCheck } from './types';
+import { type CheckRow, makeCheck, makeCheckQty } from './types';
 
 export type { CheckRow } from './types';
 
@@ -508,12 +508,10 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   ));
 
   // 4. Pile reaction vs R_adm
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'pile-react-max',
     'Reacción máxima pilote R_max',
-    R_max, R_adm,
-    `${R_max.toFixed(1)} kN`,
-    `${R_adm.toFixed(0)} kN`,
+    R_max, R_adm, 'force',
     '—',
   ));
 
@@ -524,8 +522,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     checks.push({
       id: 'pile-react-tension',
       description: 'Pilote a tracción — verificar R_t,Rd con proveedor',
-      value: `${R_min.toFixed(1)} kN`,
-      limit: 'R_t,Rd (no introducida)',
+      valueNum: R_min, valueQty: 'force',
+      limitStr: 'R_t,Rd (no introducida)',
       utilization: 0,
       status: 'warn',
       article: '—',
@@ -560,14 +558,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   }
 
   // 7. Strut capacity — CE Anejo 19 §6.5
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'strut-capacity',
     plate_on
       ? `Tensión nodal biela (nodo C-C-T, placa ${plate_shape === 'cuad' ? '□' : 'Ø'}${d_plate.toFixed(0)})`
       : 'Tensión nodal biela (nodo C-C-T, micro Ø' + d_p.toFixed(0) + ')',
-    sigma_strut, sigma_Rd_max,
-    `${sigma_strut.toFixed(2)} MPa`,
-    `${sigma_Rd_max.toFixed(2)} MPa`,
+    sigma_strut, sigma_Rd_max, 'stress',
     'CE Anejo 19 §6.5',
   ));
 
@@ -665,12 +661,10 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   ));
 
   // 12. Column node C-C-C (CE Anejo 19 §6.5.4, k1 = 1.0) — fix auditoría #83
-  checks.push(makeCheck(
+  checks.push(makeCheckQty(
     'node-column',
     'Tensión nodal bajo pilar (nodo C-C-C)',
-    sigma_col, sigma_Rd_col,
-    `${sigma_col.toFixed(2)} MPa`,
-    `${sigma_Rd_col.toFixed(2)} MPa`,
+    sigma_col, sigma_Rd_col, 'stress',
     'CE Anejo 19 §6.5.4',
   ));
 

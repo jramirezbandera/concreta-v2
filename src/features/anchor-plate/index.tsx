@@ -163,6 +163,7 @@ export function AnchorPlateModule() {
               inp={deferredState}
               result={result}
               mode="screen"
+              system={system}
               width={svgW}
               height={svgH}
             />
@@ -183,6 +184,7 @@ export function AnchorPlateModule() {
               inp={deferredState}
               result={result}
               mode="screen"
+              system={system}
               width={mobileSvgW}
               height={mobileSvgH}
             />
@@ -200,6 +202,7 @@ export function AnchorPlateModule() {
             inp={deferredState}
             result={result}
             mode="pdf"
+            system={system}
             width={420}
             height={460}
           />

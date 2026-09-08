@@ -622,14 +622,17 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
     const row = makeCheckQty(id, `${label}${adopted ? '' : ' — no adoptado'}`,
       inp.designLoad, Rfc, 'force', article);
     if (adopted) return row;
-    // Neutral: sin utilización ni estado. `tag` lleva el número para que la
-    // fila siga informando en la UI (las filas neutras solo pintan el tag).
+    // Neutral: sin utilización ni estado. El Rfc que NO se adopta pasa a ser el
+    // VALOR de la fila —y no un `tag` con la unidad escrita a mano—, porque la
+    // fila neutra pinta `tag ?? valor` y por la ruta numérica sale en el
+    // sistema del usuario. Sin límite: no hay nada contra lo que compararlo.
     return {
       ...row,
+      valueNum: Rfc, valueQty: 'force',
+      limitNum: undefined, limitQty: undefined, limitStr: '',
       utilization: 0,
       status: 'neutral',
       neutral: true,
-      tag: `Rfc = ${Rfc.toFixed(0)} kN`,
     };
   };
 
@@ -700,8 +703,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   checks.push({
     id: 'bending',
     description: 'Flexión (MEd = (Md + Vd·Lef)·me)',
-    value:  `${MEd.toFixed(2)} kNm`,
-    limit:  `${Mpl_rdm.toFixed(2)} kNm`,
+    valueNum: MEd, valueQty: 'moment',
+    limitNum: Mpl_rdm, limitQty: 'moment',
     utilization: bendingUtil,
     status: toStatus(bendingUtil),
     article: 'CE Anejo 22 §6.2.5 + §6.2.9 / Guía §3.7 (Tablas 3.8/3.9)',
@@ -709,8 +712,8 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   checks.push({
     id: 'shear',
     description: 'Cortante',
-    value: `${VEd.toFixed(2)} kN`,
-    limit: `${Vpl_rd.toFixed(2)} kN`,
+    valueNum: VEd, valueQty: 'force',
+    limitNum: Vpl_rd, limitQty: 'force',
     utilization: iv,
     status: toStatus(iv),
     article: 'CE Anejo 22 §6.2.6 / Guía §3.7 (γa=1.10)',

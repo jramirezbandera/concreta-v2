@@ -16,12 +16,20 @@ import {
   type SteelInteraction,
   buildSteelInteractionPolygon,
 } from '../../lib/calculations/steelColumns';
+import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface SteelColumnInteractionSVGProps {
   data: SteelInteraction;
   mode?: 'screen' | 'pdf';
   width?: number;
   height?: number;
+  /**
+   * Sistema en el que se rotula el contorno; por defecto el SI, que es como lo
+   * dan los motores. Lo pasan la pantalla y el clon del PDF: el exportador de
+   * este módulo también formatea en el sistema activo.
+   */
+  system?: UnitSystem;
 }
 
 // Screen palette via theme tokens (dark values match the old literals).
@@ -45,8 +53,13 @@ export function SteelColumnInteractionSVG({
   mode = 'screen',
   width = 300,
   height = 300,
+  system = 'si',
 }: SteelColumnInteractionSVGProps) {
   const C = mode === 'pdf' ? PDF : SCREEN;
+  // Rótulos y cifras del sistema activo; el contorno se sigue trazando con los
+  // kNm del motor.
+  const uM = getUnitLabel('moment', system);
+  const mTxt = (v: number, p = 1) => formatNumber(v, 'moment', system, p);
   const padTop = 30, padBottom = 36, padLeft = 48, padRight = 16;
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
@@ -83,7 +96,7 @@ export function SteelColumnInteractionSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Contorno de interacción biaxial My-Mz: My_Ed=${applied.My.toFixed(1)}, Mz_Ed=${applied.Mz.toFixed(1)} kN·m, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(eta) ? eta.toFixed(2) : '∞'}`}
+      aria-label={`Contorno de interacción biaxial My-Mz: My_Ed=${mTxt(applied.My)}, Mz_Ed=${mTxt(applied.Mz)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(eta) ? eta.toFixed(2) : '∞'}`}
       style={{ background: C.bg, display: 'block' }}
     >
       {/* Título */}
@@ -125,26 +138,26 @@ export function SteelColumnInteractionSVG({
         stroke={mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)'} strokeWidth="1" />
       <text x={mx + 9} y={my - 5} fill={C.label} fontSize="11" fontWeight="600"
         fontFamily="var(--font-mono)" textAnchor="start">
-        ({applied.My.toFixed(1)}; {applied.Mz.toFixed(1)})
+        ({mTxt(applied.My)}; {mTxt(applied.Mz)})
       </text>
 
       {/* Ticks */}
       <text x={padLeft} y={padTop + plotH + 12} fill={C.labelDim} fontSize="9.5"
         textAnchor="middle" fontFamily="var(--font-mono)">0</text>
       <text x={padLeft + plotW} y={padTop + plotH + 12} fill={C.labelDim} fontSize="9.5"
-        textAnchor="middle" fontFamily="var(--font-mono)">{(myMax / 1.15).toFixed(0)}</text>
+        textAnchor="middle" fontFamily="var(--font-mono)">{mTxt(myMax / 1.15, system === 'si' ? 0 : 1)}</text>
       <text x={padLeft - 4} y={padTop + 3} fill={C.labelDim} fontSize="9.5"
-        textAnchor="end" fontFamily="var(--font-mono)">{(mzMax / 1.15).toFixed(0)}</text>
+        textAnchor="end" fontFamily="var(--font-mono)">{mTxt(mzMax / 1.15, system === 'si' ? 0 : 1)}</text>
 
       {/* Etiquetas de eje */}
       <text x={padLeft + plotW / 2} y={height - 6} fill={C.labelDim} fontSize="10.5"
         textAnchor="middle" fontFamily="var(--font-mono)">
-        My (kN·m)
+        My ({uM})
       </text>
       <text x={11} y={padTop + plotH / 2} fill={C.labelDim} fontSize="10.5"
         textAnchor="middle" fontFamily="var(--font-mono)"
         transform={`rotate(-90 11 ${padTop + plotH / 2})`}>
-        Mz (kN·m)
+        Mz ({uM})
       </text>
     </svg>
   );

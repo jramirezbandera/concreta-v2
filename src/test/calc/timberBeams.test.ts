@@ -562,8 +562,10 @@ describe('calcTimberBeam — ksys (EC5 §6.6)', () => {
     // fm_d_sys = ksys × fm_d_kh → bending check limit increases 10%
     const bendIso = rIso.checks.find(c => c.id === 'bending')!;
     const bendSys = rSys.checks.find(c => c.id === 'bending')!;
-    const limIso = parseFloat(bendIso.limit);
-    const limSys = parseFloat(bendSys.limit);
+    // El límite viaja como número en SI (`limitNum`), no como texto: leerlo con
+    // parseFloat de un string ya formateado se rompería con la coma decimal.
+    const limIso = bendIso.limitNum!;
+    const limSys = bendSys.limitNum!;
     expect(limSys / limIso).toBeCloseTo(1.10, 3);
   });
 

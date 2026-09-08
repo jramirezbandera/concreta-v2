@@ -162,6 +162,7 @@ export function SteelColumnsModule() {
               <SteelColumnInteractionSVG
                 data={result.interaction}
                 mode="screen"
+                system={system}
                 width={interW}
                 height={interW}
               />
@@ -179,7 +180,7 @@ export function SteelColumnsModule() {
           <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
             <SteelColumnsSVG inp={effectiveInputs} result={result} mode="screen" width={mobileW} height={Math.round(mobileW * 0.7)} />
             {result.interaction && (
-              <SteelColumnInteractionSVG data={result.interaction} mode="screen" width={mobileInterW} height={mobileInterW} />
+              <SteelColumnInteractionSVG data={result.interaction} mode="screen" system={system} width={mobileInterW} height={mobileInterW} />
             )}
           </div>
         )}
@@ -205,7 +206,7 @@ export function SteelColumnsModule() {
             id="steel-columns-interaction-pdf"
             style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
           >
-            <SteelColumnInteractionSVG data={result.interaction} mode="pdf" width={300} height={300} />
+            <SteelColumnInteractionSVG data={result.interaction} mode="pdf" system={system} width={300} height={300} />
           </div>
         )}
       </div>

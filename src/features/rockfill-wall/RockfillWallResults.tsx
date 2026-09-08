@@ -7,7 +7,7 @@ import { buildShareUrl } from '../slope-stability/serialize';
 import { VerdictBadge, CheckRowItem, GroupHeader, ValueRow, overallStatus, ambientStyle } from '../../components/checks';
 import { resultLabel } from '../../lib/text/labels';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { formatQuantity } from '../../lib/units/format';
+import { conComaDecimal, formatQuantity, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 
 interface RockfillWallResultsProps {
@@ -18,6 +18,15 @@ interface RockfillWallResultsProps {
 export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
+  // La tabla hilada a hilada: la unidad la dice la cabecera y las celdas van
+  // desnudas, así que las dos tienen que salir del mismo sitio. En técnico el
+  // kg/m es cien veces mayor, y ahí el decimal sobra.
+  const uLin = getUnitLabel('linearLoad', system);
+  const lin = (v: number) => formatQuantity(v, 'linearLoad', system, { precision: system === 'si' ? 1 : 0, withUnit: false });
+  // Con el N y el Q ya convertidos —y por tanto con coma—, el resto de la fila
+  // no puede seguir con el punto de `toFixed`: la misma fila enseñaría las dos
+  // convenciones.
+  const dec = (v: number, n: number) => conComaDecimal(v.toFixed(n));
   const isGavion = inp.wallType === 'gaviones';
 
   // Enlace a Taludes con el modelo prefabricado. Sólo se ofrece si el muro ya
@@ -110,7 +119,7 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
         <ValueRow label={isGavion ? 'φ relleno de cajas' : 'φ escollera'} value={`${result.phiEff.toFixed(1)}°`} />
         <ValueRow label="φ entre hiladas" value={`${result.phiPP.toFixed(1)}°${inp.contactoMejorado ? '' : ' (⅔·φ)'}`} />
         {result.dPhiN !== undefined && result.sigmaN !== undefined && (
-          <ValueRow label="Δφn (σn)" value={`${result.dPhiN.toFixed(2)}° (σn = ${fmtSi(result.sigmaN, 'soilPressure', 3)})`} />
+          <ValueRow label="Δφn (σn)" value={`${dec(result.dPhiN, 2)}° (σn = ${fmtSi(result.sigmaN, 'soilPressure', 3)})`} />
         )}
         <ValueRow label="Ea (empuje activo)" value={fmtSi(result.Ea, 'linearLoad')} />
         <ValueRow label="EAH total" value={fmtSi(result.EAH_total, 'linearLoad')} />
@@ -153,8 +162,8 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
                 <tr className="text-text-disabled text-left">
                   <th className="font-normal py-0.5 pr-2">z (m)</th>
                   <th className="font-normal py-0.5 pr-2">b (m)</th>
-                  <th className="font-normal py-0.5 pr-2">N (kN/m)</th>
-                  <th className="font-normal py-0.5 pr-2">Q (kN/m)</th>
+                  <th className="font-normal py-0.5 pr-2">N ({uLin})</th>
+                  <th className="font-normal py-0.5 pr-2">Q ({uLin})</th>
                   <th className="font-normal py-0.5 pr-2">I desl.</th>
                   <th className="font-normal py-0.5">I vuelco</th>
                 </tr>
@@ -164,15 +173,15 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
                   const worst = c.z === result.worstSlide.z || c.z === result.worstOvert.z;
                   return (
                     <tr key={c.z} className={worst ? 'text-text-primary' : undefined}>
-                      <td className="py-0.5 pr-2">{c.z.toFixed(2)}{worst ? ' ◂' : ''}</td>
-                      <td className="py-0.5 pr-2">{c.b.toFixed(2)}</td>
-                      <td className="py-0.5 pr-2">{c.N.toFixed(1)}</td>
-                      <td className="py-0.5 pr-2">{c.Q.toFixed(1)}</td>
+                      <td className="py-0.5 pr-2">{dec(c.z, 2)}{worst ? ' ◂' : ''}</td>
+                      <td className="py-0.5 pr-2">{dec(c.b, 2)}</td>
+                      <td className="py-0.5 pr-2">{lin(c.N)}</td>
+                      <td className="py-0.5 pr-2">{lin(c.Q)}</td>
                       <td className={`py-0.5 pr-2 ${c.utilSlide >= 1 ? 'text-state-fail' : c.utilSlide >= 0.95 ? 'text-state-warn' : ''}`}>
-                        {c.utilSlide.toFixed(2)}
+                        {dec(c.utilSlide, 2)}
                       </td>
                       <td className={`py-0.5 ${c.utilOvert >= 1 ? 'text-state-fail' : c.utilOvert >= 0.95 ? 'text-state-warn' : ''}`}>
-                        {c.utilOvert.toFixed(2)}
+                        {dec(c.utilOvert, 2)}
                       </td>
                     </tr>
                   );
@@ -216,7 +225,7 @@ export function RockfillWallResults({ result, inp }: RockfillWallResultsProps) {
               </p>
               <p className="text-state-warn">
                 Revisa el estrato de cimentación antes de calcular: va con un valor genérico
-                (φ′ = {FOUNDATION_PLACEHOLDER.phi}°, c′ = {FOUNDATION_PLACEHOLDER.c} kPa) porque
+                (φ′ = {FOUNDATION_PLACEHOLDER.phi}°, c′ = {fmtSi(FOUNDATION_PLACEHOLDER.c, 'cohesion')}) porque
                 este módulo no pide los parámetros del terreno. Es el dato que gobierna el resultado.
               </p>
               {(inp.beta as number) > 0.01 && (

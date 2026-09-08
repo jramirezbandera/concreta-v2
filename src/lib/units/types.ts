@@ -3,6 +3,7 @@ export type UnitSystem = "si" | "tecnico";
 export type Quantity =
   | "force"
   | "moment"
+  | "momentPerLength"
   | "linearLoad"
   | "areaLoad"
   | "stress"

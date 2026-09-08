@@ -363,7 +363,9 @@ describe('Mononobe-Okabe seismic', () => {
     //   (sin el 100: 26.2 → gobernaba νmin=109.7, ~10% infravalorado aquí)
     const r = calcRetainingWall({ ...base, diam_fv_int: 16, sep_fv_int: 200 });
     const c = r.checks.find((ch) => ch.id === 'fuste-shear')!;
-    expect(c.limit).toContain('121.8');
+    // VRd,c viaja como número en SI (`limitNum`): la fila se pinta luego en
+    // el sistema del usuario, así que aquí no hay texto que leer.
+    expect(c.limitNum!).toBeCloseTo(121.8, 1);
   });
 
   it('e negativa (resultante hacia talón): σ_talón gobierna y |e| en el check (fix #42)', () => {
@@ -515,8 +517,10 @@ describe('structural design', () => {
     const r = calcRetainingWall(base);
     const c = r.checks.find((ch) => ch.id === 'fuste-shear');
     expect(c).toBeDefined();
-    expect(c!.value).toMatch(/VEd/);
-    expect(c!.limit).toMatch(/VRd/);
+    // Cortante por metro: valor y límite van como número + magnitud.
+    expect(c!.valueQty).toBe('linearLoad');
+    expect(c!.valueNum).toBeGreaterThan(0);
+    expect(c!.limitNum).toBeGreaterThan(0);
   });
 
   it('short punta bP=0.1m → MEd_punta ≈ 0 (self-weight may dominate)', () => {
@@ -641,7 +645,8 @@ describe('rebar verification', () => {
     const r = calcRetainingWall(base);
     const c = r.checks.find((ch) => ch.id === 'fuste-bending');
     expect(c).toBeDefined();
-    expect(c!.value).toMatch(/MEd/);
+    expect(c!.valueQty).toBe('momentPerLength');
+    expect(c!.valueNum).toBeGreaterThan(0);
   });
 
   // Fuste trasdós — rebar specified → upgraded check

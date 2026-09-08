@@ -12,12 +12,25 @@
 // mode='screen': dark theme. mode='pdf': grayscale + inline styles.
 
 import { type AxisInteraction } from '../../lib/calculations/rcColumns';
+import { formatNumber, getUnitLabel } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface RCColumnInteractionSVGProps {
   data: AxisInteraction;
   mode?: 'screen' | 'pdf';
   width?: number;
   height?: number;
+  /**
+   * Sistema en el que se rotula el diagrama; por defecto el SI, que es como lo
+   * dan los motores. Lo pasan los dos sitios que lo pintan —la pantalla y el
+   * clon que se lleva el PDF—, porque el exportador de este módulo formatea sus
+   * tablas en el sistema activo (`exportRCColumnsPDF(state, result, system)`) y
+   * un eje en kN junto a una tabla en Tn es la misma mentira que en pantalla.
+   *
+   * Va como prop y no del contexto para que el componente siga siendo puro: se
+   * pinta también fuera de un `UnitSystemProvider`.
+   */
+  system?: UnitSystem;
 }
 
 // Screen palette via theme tokens (dark values match the old literals).
@@ -41,8 +54,15 @@ export function RCColumnInteractionSVG({
   mode = 'screen',
   width = 300,
   height = 300,
+  system = 'si',
 }: RCColumnInteractionSVGProps) {
   const C = mode === 'pdf' ? PDF : SCREEN;
+  // Rótulos y cifras del sistema activo. El dibujo se sigue trazando con los
+  // valores del motor (kN, kNm): sólo se convierte lo que se lee.
+  const uF = getUnitLabel('force', system);
+  const uM = getUnitLabel('moment', system);
+  const nTxt = (v: number, p = 0) => formatNumber(v, 'force', system, p);
+  const mTxt = (v: number, p = 1) => formatNumber(v, 'moment', system, p);
   const padTop = 30, padBottom = 34, padLeft = 44, padRight = 16;
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
@@ -91,7 +111,7 @@ export function RCColumnInteractionSVG({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Diagrama de interacción N-M eje ${axis}: N_Ed=${applied.N.toFixed(0)} kN, M_Ed=${applied.M.toFixed(1)} kN·m, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(utilization) ? utilization.toFixed(2) : '∞'}`}
+      aria-label={`Diagrama de interacción N-M eje ${axis}: N_Ed=${nTxt(applied.N)} ${uF}, M_Ed=${mTxt(applied.M)} ${uM}, ${inside ? 'dentro' : 'fuera'} de la envolvente, η=${isFinite(utilization) ? utilization.toFixed(2) : '∞'}`}
       style={{ background: C.bg, display: 'block' }}
     >
       <g opacity={governing ? 1 : 0.55}>
@@ -143,33 +163,33 @@ export function RCColumnInteractionSVG({
           stroke={mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)'} strokeWidth="1" />
         <text x={mx + 9} y={my - 5} fill={C.label} fontSize="9" fontWeight="600"
           fontFamily="var(--font-mono)" textAnchor="start">
-          ({applied.N.toFixed(0)}; {applied.M.toFixed(1)})
+          ({nTxt(applied.N)}; {mTxt(applied.M)})
         </text>
 
         {/* Ticks eje N */}
         {nTicks.map((v) => (
           <text key={`n${v}`} x={xAt(v)} y={padTop + plotH + 12} fill={C.labelDim}
             fontSize="7.5" textAnchor="middle" fontFamily="var(--font-mono)">
-            {v.toFixed(0)}
+            {nTxt(v)}
           </text>
         ))}
         {/* Ticks eje M */}
         {mTicks.map((v) => (
           <text key={`m${v}`} x={padLeft - 4} y={yAt(v) + 3} fill={C.labelDim}
             fontSize="7.5" textAnchor="end" fontFamily="var(--font-mono)">
-            {v.toFixed(0)}
+            {mTxt(v, system === 'si' ? 0 : 1)}
           </text>
         ))}
 
         {/* Etiquetas de eje */}
         <text x={padLeft + plotW / 2} y={height - 6} fill={C.labelDim} fontSize="8"
           textAnchor="middle" fontFamily="var(--font-mono)">
-          N (kN)
+          N ({uF})
         </text>
         <text x={11} y={padTop + plotH / 2} fill={C.labelDim} fontSize="8"
           textAnchor="middle" fontFamily="var(--font-mono)"
           transform={`rotate(-90 11 ${padTop + plotH / 2})`}>
-          M (kN·m)
+          M ({uM})
         </text>
 
         {/* Leyenda */}

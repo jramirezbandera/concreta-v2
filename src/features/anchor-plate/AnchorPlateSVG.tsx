@@ -1,6 +1,8 @@
 import type { AnchorPlateInputs } from '../../data/defaults';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
 import { makeISectionBySize } from '../../lib/sections';
+import { formatQuantity } from '../../lib/units/format';
+import type { UnitSystem } from '../../lib/units/types';
 
 interface Props {
   inp: AnchorPlateInputs;
@@ -8,6 +10,13 @@ interface Props {
   mode: 'screen' | 'pdf';
   width: number;
   height: number;
+  /**
+   * Sistema en el que se rotula el dibujo; por defecto el SI, que es como lo da
+   * el motor. Lo pasan la pantalla y el clon del PDF —el exportador de este
+   * módulo también formatea en el sistema activo—, y va como prop para que el
+   * componente siga siendo puro fuera de un `UnitSystemProvider`.
+   */
+  system?: UnitSystem;
 }
 
 // Colors chosen to match the steel-columns module:
@@ -61,7 +70,7 @@ const COLORS = {
 // evita colisión entre el SVG de pantalla y el oculto del PDF.
 const svgInstanceCounter = 0;
 
-export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
+export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si' }: Props) {
   const C = COLORS[mode];
   const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
   // ID determinista a partir de `mode` para que no genere mismatch SSR/CSR.
@@ -227,7 +236,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height }: Props) {
                   opacity={0.95}
                   style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)', strokeWidth: 2 }}
                 >
-                  {`fjd=${result.solver.fjd_MPa.toFixed(1)} MPa`}
+                  {`fjd=${formatQuantity(result.solver.fjd_MPa, 'stress', system)}`}
                 </text>
               )}
             </>

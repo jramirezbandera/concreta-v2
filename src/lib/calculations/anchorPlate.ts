@@ -51,6 +51,11 @@ const d = (v: number, n: number): string => conComaDecimal(v.toFixed(n));
 
 const fmtF = (v: number, system: UnitSystem) =>
   formatQuantity(v, 'force', system, { precision: 1 });
+/** Tensiones (fjd, fyd) y momentos por metro (mEd, mRd) del sistema activo. */
+const fmtS = (v: number, system: UnitSystem) =>
+  formatQuantity(v, 'stress', system);
+const fmtM = (v: number, system: UnitSystem) =>
+  formatQuantity(v, 'momentPerLength', system);
 
 // ─── Partial safety factors ─────────────────────────────────────────────
 const GAMMA_C   = 1.5;
@@ -1110,7 +1115,7 @@ export function checkPlateCompression(
     id: 'plate-compression',
     description: 'Compresión bajo placa (T-stub efectivo)',
     value: fmtF(Nc_kN, system),
-    limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${d(fjd, 1)} MPa, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
+    limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${fmtS(fjd, system)}, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.5',
@@ -1126,7 +1131,7 @@ export function checkPlateCompression(
 //   rib_count=4: 4 nervios (2+2) parten el voladizo en los dos ejes.
 // Tomamos el peor (max) de los dos voladizos efectivos por tratarse del
 // panel plástico más crítico.
-export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): CheckRow {
+export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number, system: UnitSystem = 'si'): CheckRow {
   const p = makeISectionBySize(
     inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
     inp.sectionSize,
@@ -1150,8 +1155,8 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number): Chec
   return {
     id: 'plate-bending',
     description: 'Flexión de la placa',
-    value: `mEd=${d((m_Ed_Nmm_per_mm / 1000), 2)} kNm/m`,
-    limit: `mRd=${d((m_Rd_Nmm_per_mm / 1000), 2)} kNm/m (c=${c_eff.toFixed(0)} mm)`,
+    value: `mEd=${fmtM(m_Ed_Nmm_per_mm / 1000, system)}`,
+    limit: `mRd=${fmtM(m_Rd_Nmm_per_mm / 1000, system)} (c=${c_eff.toFixed(0)} mm)`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.5',
@@ -1253,7 +1258,7 @@ export function checkBoltTension(
     id: 'bolt-tension',
     description: 'Tracción en barras',
     value: `Ft=${fmtF(Ft_per_bar_kN, system)}`,
-    limit: `FtRd=${fmtF(FtRd_kN, system)} (As=${As.toFixed(0)} mm², fyd=${fyd.toFixed(0)} MPa)`,
+    limit: `FtRd=${fmtF(FtRd_kN, system)} (As=${As.toFixed(0)} mm², fyd=${fmtS(fyd, system)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 19 §3.2',
@@ -2257,7 +2262,7 @@ export function calcAnchorPlate(
 
   const checks: CheckRow[] = [
     checkPlateCompression(inp, solver.Nc, system),
-    checkPlateBending(inp, fjd),
+    checkPlateBending(inp, fjd, system),
     checkPlateTensionTStub(inp, solver.bolts, system),       // AUDIT-9 T-stub tracción
     checkBoltTension(inp, Ft_per_bar, system),
     checkBoltShear(inp, solver.bolts, Nc_G_kN, system),

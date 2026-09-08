@@ -68,8 +68,8 @@ export function PileCapResults({ inp, result }: Props) {
           ? `placa ${inp.plate_shape === 'cuad' ? '□' : 'Ø'}${(inp.d_plate as number).toFixed(0)} → ${result.A_node.toFixed(0)} mm²`
           : `micro Ø${(inp.d_p as number).toFixed(0)} → ${result.A_node.toFixed(0)} mm²`}
       />
-      <ValueRow label="σ_biela"    value={`${result.sigma_strut.toFixed(2)} MPa`} />
-      <ValueRow label="σ_Rd,max"   value={`${result.sigma_Rd_max.toFixed(2)} MPa`} />
+      <ValueRow label="σ_biela"    value={fmtSi(result.sigma_strut, 'stress')} />
+      <ValueRow label="σ_Rd,max"   value={fmtSi(result.sigma_Rd_max, 'stress')} />
       <ValueRow label="Ft,x"       value={fmtSi(result.Ft_x, 'force')} />
       {result.Ft_y !== null && (
         <ValueRow label="Ft,y" value={fmtSi(result.Ft_y, 'force')} />

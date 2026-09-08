@@ -247,7 +247,11 @@ export function MicropilesInputsPanel({
         <NumField label="z apoyo"     sub="bajo rasante"     help={HELP.toeDepth}     field="toeDepth"        value={state.toeDepth}        unit="m" setField={setField} />
         <NumField label="Dn"          sub="Ø perforación"    help={HELP.drillDiameter} field="drillDiameter"   value={state.drillDiameter}   unit="mm" integer {...LIMITS.drillDiameter} setField={setField} />
         <NumField label="z NF"        sub="nivel freático"   help={HELP.waterTable}   field="waterTableDepth" value={state.waterTableDepth} unit="m" setField={setField} />
-        <NumField label="p,inj"       sub="presión"          help={HELP.injPressure}  field="injectionPressure" value={state.injectionPressure} unit="kPa" integer {...LIMITS.injectionPressure} setField={setField} />
+        {/* `cohesion` es la entrada del catálogo de las presiones guardadas en
+            kPa que se leen mejor en kPa que en N/mm² —la misma que usan c′ y su
+            del editor de estratos—: en el SI sigue rotulando «kPa» y en técnico
+            pasa a kg/cm². No lleva `integer`, que salta la conversión. */}
+        <UnitNumberInput label="p,inj" sub="presión" help={HELP.injPressure} field="injectionPressure" value={state.injectionPressure} quantity="cohesion" clamp {...LIMITS.injectionPressure} onChange={(n) => setField('injectionPressure', n)} />
       </CollapsibleSection>
 
       <CollapsibleSection label="Carga y modo" refNorma="Guía Fomento cap. 3.3">

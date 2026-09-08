@@ -1,6 +1,6 @@
 import { type TimberBeamResult, type TimberCheckRow, type CheckStatus } from '../../lib/calculations/timberBeams';
 import { resultLabel } from '../../lib/text/labels';
-import { ambientStyle } from '../../components/checks';
+import { ambientStyle, checkLimitStr, checkValueStr } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { formatQuantity } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
@@ -72,8 +72,13 @@ function NeutralRow({ check }: { check: TimberCheckRow }) {
 }
 
 function ActiveRow({ check }: { check: TimberCheckRow }) {
+  const { system } = useUnitSystem();
   const st  = check.status;
   const pct = Math.min(check.utilization * 100, 100);
+  // Las filas que traen magnitud se convierten aquí; las que traen texto ya
+  // montado (flechas en mm, cocientes) salen tal cual.
+  const valueText = checkValueStr(check, system);
+  const limitText = checkLimitStr(check, system);
   return (
     <div className="grid items-start gap-3 py-1.75 border-b border-border-sub last:border-b-0"
       style={{ gridTemplateColumns: '1fr auto 112px auto' }}>
@@ -86,8 +91,8 @@ function ActiveRow({ check }: { check: TimberCheckRow }) {
       </div>
       {/* Value / limit stacked */}
       <div className="flex flex-col items-end gap-0 shrink-0 pt-0.5">
-        <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">{check.value}</span>
-        <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">{check.limit}</span>
+        <span className="font-mono text-[11px] text-text-primary tabular-nums whitespace-nowrap">{valueText}</span>
+        <span className="font-mono text-[10px] text-text-disabled tabular-nums whitespace-nowrap">{limitText}</span>
       </div>
       {/* Utilization bar */}
       <div className="h-1 bg-border-main rounded-sm overflow-hidden mt-1.5">
@@ -127,7 +132,9 @@ function groupStatus(checks: TimberCheckRow[]): CheckStatus {
 
 export function TimberBeamsResults({ result }: Props) {
   const { system } = useUnitSystem();
-  const fmtSi = (v: number, q: Quantity, precision = 2) => formatQuantity(v, q, system, { precision });
+  // Sin precisión, la del catálogo: 2 decimales en esfuerzos y 1 en tensiones,
+  // que es la que usan también las filas de comprobación de este módulo.
+  const fmtSi = (v: number, q: Quantity, precision?: number) => formatQuantity(v, q, system, { precision });
 
   if (!result.valid) {
     return (
@@ -177,10 +184,10 @@ export function TimberBeamsResults({ result }: Props) {
       <div className="rounded border border-border-sub divide-y divide-border-sub px-3 mb-1.5">
         <ValueRow label={resultLabel('MEd')} value={fmtSi(result.MEd, 'moment')} />
         <ValueRow label={resultLabel('VEd')} value={fmtSi(result.VEd, 'force')}  />
-        <ValueRow label="σm,d — tensión de flexión" value={`${result.sigma_m.toFixed(2)} N/mm²`} />
-        <ValueRow label="fm,d · kh · ksys — resist. flexión efectiva  (EC5 §6.1.6)" value={`${fm_d_sys.toFixed(2)} N/mm²`} />
-        <ValueRow label="τd — tensión cortante (Av = kcr·A)" value={`${result.tau_d.toFixed(2)} N/mm²`} />
-        <ValueRow label={resultLabel('fv_d')} value={`${result.fv_d.toFixed(2)} N/mm²`} />
+        <ValueRow label="σm,d — tensión de flexión" value={fmtSi(result.sigma_m, 'stress')} />
+        <ValueRow label="fm,d · kh · ksys — resist. flexión efectiva  (EC5 §6.1.6)" value={fmtSi(fm_d_sys, 'stress')} />
+        <ValueRow label="τd — tensión cortante (Av = kcr·A)" value={fmtSi(result.tau_d, 'stress')} />
+        <ValueRow label={resultLabel('fv_d')} value={fmtSi(result.fv_d, 'stress')} />
         <ValueRow label={resultLabel('lambda_rel')} value={result.lambda_rel_m.toFixed(3)} />
         <ValueRow label={resultLabel('kcrit')} value={result.kcrit.toFixed(3)} />
       </div>
@@ -238,8 +245,8 @@ export function TimberBeamsResults({ result }: Props) {
             <ValueRow label="Sección residual  b_ef × h_ef"  value={`${result.b_ef.toFixed(0)} × ${result.h_ef.toFixed(0)} mm`} />
             <ValueRow label="MEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.MEd_fi, 'moment')} />
             <ValueRow label="VEd,fi — combinación incendio (η_fi)"  value={fmtSi(result.VEd_fi, 'force')} />
-            <ValueRow label="fm,k — resist. flexión  (γM,fi = 1.0)" value={`${result.fm_k_fi.toFixed(2)} N/mm²`} />
-            <ValueRow label="fv,k — resist. cortante  (γM,fi = 1.0)" value={`${result.fv_k_fi.toFixed(2)} N/mm²`} />
+            <ValueRow label="fm,k — resist. flexión  (γM,fi = 1.0)" value={fmtSi(result.fm_k_fi, 'stress')} />
+            <ValueRow label="fv,k — resist. cortante  (γM,fi = 1.0)" value={fmtSi(result.fv_k_fi, 'stress')} />
           </div>
           <CheckRows checks={fireChecks} />
         </>

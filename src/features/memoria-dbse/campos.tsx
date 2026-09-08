@@ -12,6 +12,7 @@
 import type { ReactNode } from 'react';
 import { Campo } from '../../components/ui/Campo';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
+import type { Quantity } from '../../lib/units/types';
 import type { Valor } from '../../lib/memoria/model';
 import type { Ayuda } from './catalogos';
 import { AREA, BOTON_CONFIRMAR, INPUT } from './estilos';
@@ -90,13 +91,19 @@ interface NumeroProps {
   id: string;
   valor: number | null;
   unidad?: string;
+  /**
+   * Magnitud del catálogo de unidades. Puesta, la caja convierte en los dos
+   * sentidos y el rótulo lo pone el sistema activo; el dato sigue guardándose
+   * en el SI. `unidad` es para lo que el catálogo no sabe (m, cm, grados).
+   */
+  magnitud?: Quantity;
   min?: number;
   max?: number;
   onChange: (v: number) => void;
 }
 
-export function Numero({ id, valor, unidad, min, max, onChange }: NumeroProps) {
-  return <RawNumberInput id={idDom(id)} value={valor ?? NaN} onChange={onChange} unit={unidad} min={min} max={max} widthClass="w-24" />;
+export function Numero({ id, valor, unidad, magnitud, min, max, onChange }: NumeroProps) {
+  return <RawNumberInput id={idDom(id)} value={valor ?? NaN} onChange={onChange} unit={unidad} quantity={magnitud} min={min} max={max} widthClass="w-24" />;
 }
 
 interface SelectorProps<T extends string> {

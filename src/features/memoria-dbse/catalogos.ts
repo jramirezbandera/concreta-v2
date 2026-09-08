@@ -44,7 +44,8 @@ export const ESTRUCTURA: Record<'descripcionSistema' | 'tipoEstructuraSismo' | '
     ayuda: 'En blanco, se toma del sistema estructural que declara el módulo de sismo. Escríbalo sólo si quiere otra redacción («Mixta: pórticos de hormigón y paredes de carga»).',
   },
   sobrecargaTerreno: {
-    etiqueta: 'Sobrecarga en el terreno (kN/m²)',
+    // Sin la unidad en el rótulo: la pone la caja, que es la que la convierte.
+    etiqueta: 'Sobrecarga en el terreno',
     ayuda: 'La que se aplica en el trasdós de los muros y en la coronación de taludes; 10 kN/m² es lo habitual en edificación.',
   },
 };

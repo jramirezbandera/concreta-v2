@@ -195,7 +195,7 @@ export function SeccionCE({ datos, ayuda, on }: Props) {
         <Interruptor id={j.termicasConsideradas.id!} valor={j.termicasConsideradas.valor ?? false} onChange={(v) => on.teclear(j.termicasConsideradas.id!, v)} />
       </CampoObra>
       <CampoObra valor={ce.sobrecargaTerreno} ayuda={ayuda} texto={ESTRUCTURA.sobrecargaTerreno} onConfirmar={on.confirmar}>
-        <Numero id={ce.sobrecargaTerreno.id!} valor={ce.sobrecargaTerreno.valor} unidad="kN/m²" min={0} max={100} onChange={(v) => on.teclear(ce.sobrecargaTerreno.id!, v)} />
+        <Numero id={ce.sobrecargaTerreno.id!} valor={ce.sobrecargaTerreno.valor} magnitud="areaLoad" min={0} max={100} onChange={(v) => on.teclear(ce.sobrecargaTerreno.id!, v)} />
       </CampoObra>
       <Derivado valor={ce.materiales} ayuda={ayuda} etiqueta={CE.materiales.titulo}>
         {ce.materiales.valor && ce.materiales.valor.length > 0 ? ce.materiales.valor.map((e) => `${e.ubicacion}: ${e.hormigon}`).join(' · ') : (ce.materiales.nota ?? 'Sin el cuadro de materiales no hay hormigones.')}

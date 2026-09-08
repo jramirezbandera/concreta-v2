@@ -15,6 +15,17 @@ export const CATALOG: Record<Quantity, QuantitySpec> = {
     precisionSi: 2,
     precisionTecnico: 2,
   },
+  // Momento por metro de ancho: el que se calcula en lo que se arma por metro
+  // —el fuste de un muro, la punta y el talón de su zapata, el voladizo de una
+  // placa de anclaje—. Mismo factor que el momento; la unidad NO es la misma y
+  // rotularlo «kNm» sería falso.
+  momentPerLength: {
+    siUnit: "kNm/m",
+    tecnicoUnit: "mt/m",
+    toTecnico: 0.101971621,
+    precisionSi: 2,
+    precisionTecnico: 2,
+  },
   linearLoad: {
     siUnit: "kN/m",
     tecnicoUnit: "kg/m",

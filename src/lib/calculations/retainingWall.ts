@@ -580,17 +580,16 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       checks.push({
         id: 'fuste-bending',
         description: 'Flexion ELU en fuste',
-        value: `MEd = ${MEd_fuste.toFixed(1)} kNm/m`,
-        limit: `m = ${m_f.toFixed(3)} ≤ 0.5`,
+        valueNum: MEd_fuste, valueQty: 'momentPerLength',
+        limitStr: `m = ${m_f.toFixed(3)} ≤ 0.5`,
         utilization: m_f / 0.5,
         status: toStatus(m_f / 0.5),
         article: 'CE Anejo 19 §6.1',
       });
     }
-    checks.push(makeCheck(
+    checks.push(makeCheckQty(
       'fuste-shear', 'Cortante ELU en fuste (sin armadura transversal)',
-      VEd_fuste, VRd_c_f,
-      `VEd = ${VEd_fuste.toFixed(1)} kN/m`, `VRd,c = ${VRd_c_f.toFixed(1)} kN/m`,
+      VEd_fuste, VRd_c_f, 'linearLoad',
       'CE Anejo 19 §6.2.2',
     ));
     // Fuste asmin trasdós — CE Anejo 19 §9.6.2 (60% of 0.002·Ac on tension face)
@@ -683,8 +682,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
         checks.push({
           id: 'talon-bending',
           description: 'Flexion ELU en talon',
-          value: `MEd = ${MEd_talon.toFixed(1)} kNm/m`,
-          limit: `m = ${m_t.toFixed(3)} ≤ 0.5`,
+          valueNum: MEd_talon, valueQty: 'momentPerLength',
+          limitStr: `m = ${m_t.toFixed(3)} ≤ 0.5`,
           utilization: m_t / 0.5,
           status: toStatus(m_t / 0.5),
           article: 'CE Anejo 19 §6.1',
@@ -750,8 +749,8 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
         checks.push({
           id: 'punta-bending',
           description: 'Flexion ELU en punta',
-          value: `MEd = ${MEd_punta.toFixed(1)} kNm/m`,
-          limit: `m = ${m_p.toFixed(3)} ≤ 0.5`,
+          valueNum: MEd_punta, valueQty: 'momentPerLength',
+          limitStr: `m = ${m_p.toFixed(3)} ≤ 0.5`,
           utilization: m_p / 0.5,
           status: toStatus(m_p / 0.5),
           article: 'CE Anejo 19 §6.1',

@@ -13,6 +13,7 @@ import { type TimberColumnInputs } from '../../data/defaults';
 import { type TimberColumnResult } from '../../lib/calculations/timberColumns';
 import { embedSvgAsImage, ensureSpace, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
+import { checkLimitStr, checkValueStr } from '../calculations/checkFormat';
 import type { Quantity, UnitSystem } from '../units/types';
 
 const M = 20;
@@ -52,7 +53,9 @@ export async function exportTimberColumnsPDF(
   title?: string,
 ): Promise<PdfResult> {
   const elementTitle = title ?? inp.title ?? '';
-  const fmtSi = (v: number, q: Quantity, precision = 2) =>
+  // Sin precisión, la del catálogo — la misma que la pantalla, para que el
+  // mismo valor no se lea con dos redondeos distintos.
+  const fmtSi = (v: number, q: Quantity, precision?: number) =>
     formatQuantity(v, q, system, { precision });
   const doc = await crearPdf();
 
@@ -154,8 +157,8 @@ export async function exportTimberColumnsPDF(
   ry += 1;
   rSecHeader('FACTORES EC5');
   rRow(`kmod = ${result.kmod.toFixed(2)}`, `gM = ${result.gammaM.toFixed(2)}`);
-  rRow(`fc0,d = ${result.fc0_d.toFixed(2)} N/mm2`);
-  rRow(`fm,d = ${result.fm_d.toFixed(2)} N/mm2`);
+  rRow(`fc0,d = ${fmtSi(result.fc0_d, 'stress')}`);
+  rRow(`fm,d = ${fmtSi(result.fm_d, 'stress')}`);
   ry += 1;
   rSecHeader('PANDEO EC5 §6.3.2');
   rRow(`lam,y = ${result.lambda_y.toFixed(1)}`, `lam,z = ${result.lambda_z.toFixed(1)}`);
@@ -163,8 +166,8 @@ export async function exportTimberColumnsPDF(
   rRow(`kc,y = ${result.kc_y.toFixed(3)}`, `kc,z = ${result.kc_z.toFixed(3)}`);
   ry += 1;
   rSecHeader('TENSIONES');
-  rRow(`sc,0,d = ${result.sigma_c.toFixed(2)} N/mm2`);
-  rRow(`sm,d = ${result.sigma_m.toFixed(2)} N/mm2`, `td = ${result.tau_d.toFixed(2)} N/mm2`);
+  rRow(`sc,0,d = ${fmtSi(result.sigma_c, 'stress')}`);
+  rRow(`sm,d = ${fmtSi(result.sigma_m, 'stress')}`, `td = ${fmtSi(result.tau_d, 'stress')}`);
 
   // ── Checks table ─────────────────────────────────────────────────────────────
   const tableY = Math.max(ly, ry) + 4;
@@ -272,8 +275,8 @@ export async function exportTimberColumnsPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     setGray(doc, 75);
-    doc.text(pdfStr(ch.value), TC.value, rowY, { maxWidth: 23 });
-    doc.text(pdfStr(ch.limit), TC.limit, rowY, { maxWidth: 23 });
+    doc.text(pdfStr(checkValueStr(ch, system)), TC.value, rowY, { maxWidth: 23 });
+    doc.text(pdfStr(checkLimitStr(ch, system)), TC.limit, rowY, { maxWidth: 23 });
 
     const textG = isFail ? 60 : isWarn ? 80 : 100;
     doc.setFont('helvetica', isFail || isWarn ? 'bold' : 'normal');

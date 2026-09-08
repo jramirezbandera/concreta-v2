@@ -9,7 +9,7 @@ import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { getL0Factor } from '../../data/forjadoTipologias';
 import { solveTSection, solveRectangular, computeBEff } from './rcTSection';
-import { type CheckRow, type CheckStatus, toStatus, makeCheck as check } from './types';
+import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty as checkQ } from './types';
 
 export type { CheckStatus, CheckRow } from './types';
 
@@ -667,20 +667,16 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   });
 
   // ── Flexión check rows (prepend to each section's checks) ─────────────
-  vano.checks.unshift(check(
+  vano.checks.unshift(checkQ(
     'bending',
     variant === 'reticular' ? 'Momento vano MRd ≥ Md (sección T)' : 'Momento vano MRd ≥ Md',
-    vano_Md, vano.MRd,
-    `Md = ${vano_Md.toFixed(1)} kNm`,
-    `MRd = ${vano.MRd.toFixed(1)} kNm`,
+    vano_Md, vano.MRd, 'moment',
     'CE Anejo 19 §6.1',
   ));
-  apoyo.checks.unshift(check(
+  apoyo.checks.unshift(checkQ(
     'bending',
     variant === 'reticular' ? 'Momento apoyo MRd ≥ |M-| (b_w)' : 'Momento apoyo MRd ≥ |M-|',
-    apoyo_Md, apoyo.MRd,
-    `|M-| = ${apoyo_Md.toFixed(1)} kNm`,
-    `MRd = ${apoyo.MRd.toFixed(1)} kNm`,
+    apoyo_Md, apoyo.MRd, 'moment',
     'CE Anejo 19 §6.1',
   ));
 
@@ -737,20 +733,16 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     VRdmax = (nu1 * fcd * bShear * z / (cotTheta + 1 / cotTheta)) / 1000;
     VRd    = Math.min(VRds, VRdmax);
 
-    shearChecks.push(check(
+    shearChecks.push(checkQ(
       'shear',
       'Cortante VEd ≤ VRd (con cercos)',
-      VEd, VRd,
-      `VEd = ${VEd.toFixed(1)} kN`,
-      `VRd = ${VRd.toFixed(1)} kN`,
+      VEd, VRd, 'force',
       'CE Anejo 19 §6.2',
     ));
-    shearChecks.push(check(
+    shearChecks.push(checkQ(
       'shear-max',
       'Aplastamiento biela VEd ≤ VRd,max',
-      VEd, VRdmax,
-      `VEd = ${VEd.toFixed(1)} kN`,
-      `VRd,max = ${VRdmax.toFixed(1)} kN`,
+      VEd, VRdmax, 'force',
       'CE Anejo 19 §6.2',
     ));
 
@@ -783,12 +775,10 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       'CE Anejo 19 §9.2.2(6)',
     ));
   } else {
-    shearChecks.push(check(
+    shearChecks.push(checkQ(
       'shear',
       'Cortante VEd ≤ VRd,c (sin cercos)',
-      VEd, VRdc,
-      `VEd = ${VEd.toFixed(1)} kN`,
-      `VRd,c = ${VRdc.toFixed(1)} kN`,
+      VEd, VRdc, 'force',
       'CE Anejo 19 §6.2',
     ));
   }

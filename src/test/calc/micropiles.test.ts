@@ -584,8 +584,10 @@ describe('Empujes horizontales', () => {
     const r0 = calcMicropiles({ ...baseInp, baseShear: 50, baseMoment: 100, designLoad: 0.001 }, baseSoil);
     const bN = rN.checks.find((c) => c.id === 'bending')!;
     const b0 = r0.checks.find((c) => c.id === 'bending')!;
-    expect(b0.limit).toContain('26.56');   // n ≈ 0 → sin reducción
-    expect(bN.limit).toContain('22.44');   // n = 0.334 → ×0.845
+    // El límite viaja como número en SI (`limitNum`), no como texto ya
+    // formateado: la fila se pinta en el sistema del usuario.
+    expect(b0.limitNum!).toBeCloseTo(26.56, 2);   // n ≈ 0 → sin reducción
+    expect(bN.limitNum!).toBeCloseTo(22.44, 2);   // n = 0.334 → ×0.845
   });
 
   // ── Fix C4 — MEd = (M₀ + V·Lef) · me en el empotramiento ficticio ────────
@@ -602,7 +604,7 @@ describe('Empujes horizontales', () => {
     const bend = r.checks.find((c) => c.id === 'bending');
     expect(bend).toBeDefined();
     const expectedMEd = 50 * r.Lef * 0.85;        // V·Lef·me (FTUX L/Le≈36 → me=0.85)
-    expect(bend!.value).toContain(expectedMEd.toFixed(2));
+    expect(bend!.valueNum!).toBeCloseTo(expectedMEd, 2);
   });
 
   it('cortante VEd no incluye conversión M→V ficticia', () => {
@@ -612,7 +614,7 @@ describe('Empujes horizontales', () => {
       baseSoil,
     );
     const shear = r.checks.find((c) => c.id === 'shear');
-    expect(shear!.value).toContain('20.00');   // VEd = 20, no 20 + 100/(Lef/2)
+    expect(shear!.valueNum!).toBeCloseTo(20, 6);   // VEd = 20, no 20 + 100/(Lef/2)
   });
 });
 
@@ -1183,7 +1185,7 @@ describe('interpolateMe (Guía Fomento Tabla 3.9)', () => {
     expect(bend).toBeDefined();
     // Para FTUX L=16 m, Le ≈ 0.44 m → L/Le ≈ 36 → me = 0.85 (clamp).
     const expectedMEd = 50 * r.Lef * 0.85;
-    expect(bend!.value).toContain(expectedMEd.toFixed(2));
+    expect(bend!.valueNum!).toBeCloseTo(expectedMEd, 2);
   });
 });
 

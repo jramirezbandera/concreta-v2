@@ -218,7 +218,10 @@ export function IsolatedFootingInputsPanel({ state, setField }: Props) {
 
       {/* 6. Suelo */}
       <CollapsibleSection label="Suelo">
-        <NumField labelKey="gamma_soil"  field="gamma_soil_kN_m3" value={state.gamma_soil_kN_m3} setField={setField}
+        {/* El único campo con dimensión que quedaba en el `NumField` local, que
+            enseña la unidad del catálogo sin convertir nada: con el técnico
+            puesto decía «kN/m³» sobre un módulo que ya iba en toneladas. */}
+        <UnitNumberInput id="if-gamma_soil_kN_m3" labelKey="gamma_soil" field="gamma_soil_kN_m3" value={state.gamma_soil_kN_m3} quantity="weightDensity" onChange={(v) => setField('gamma_soil_kN_m3', v)}
           help="Peso específico del terreno sobre la zapata. Determina el peso de tierras que estabiliza frente a vuelco y deslizamiento." />
         <NumField labelKey="mu_friction" field="mu_friction"      value={state.mu_friction}      setField={setField} />
       </CollapsibleSection>
