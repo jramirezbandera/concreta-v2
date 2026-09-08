@@ -1,12 +1,24 @@
-import { Suspense, createContext, useContext, useState } from 'react';
+import { Suspense, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
+import { BandaAlmacen } from './BandaAlmacen';
+import { BandaProyecto } from './BandaProyecto';
+import { informeDeArranque, listar } from '../../lib/proyecto';
+import { showToast } from '../ui/Toast';
+
+/** Lo que se espera antes de recoger los PDF huérfanos del anejo: primero que la app cargue. */
+const RETARDO_PURGA_MS = 4000;
+
+interface OpcionesDrawer {
+  /** Abrir el cajón con el menú de obra ya desplegado (la ficha de obra de la topbar móvil). */
+  menuObra?: boolean;
+}
 
 interface DrawerContextType {
-  openDrawer: () => void;
+  openDrawer: (opciones?: OpcionesDrawer) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- context co-located with the AppShell provider; HMR full-reload is acceptable
@@ -17,11 +29,44 @@ export function useDrawer() {
   return useContext(DrawerContext);
 }
 
+/** Cuenta, una vez por carga, lo que `repararAlArrancar()` tuvo que hacer con un cambio de obra a medias. */
+function avisarDeArranque(): void {
+  const informe = informeDeArranque();
+  if (!informe?.recuperacion) return;
+  const { centinela, resultado } = informe.recuperacion;
+  const nombreDe = (id: string | null) => (id ? (listar().find((e) => e.id === id)?.nombre ?? 'la obra') : 'la obra');
+  if (resultado === 'destino') {
+    showToast(`El cambio a «${nombreDe(centinela.a)}» se había interrumpido; se ha vuelto a abrir.`, { autoDismiss: 8000 });
+  } else if (resultado === 'origen') {
+    showToast(`No se pudo abrir «${nombreDe(centinela.a)}»; se ha vuelto a «${nombreDe(centinela.de)}».`, { autoDismiss: 8000 });
+  } else {
+    showToast('Un cambio de obra se quedó a medias y no se ha podido recuperar: revisa los datos antes de guardar.');
+  }
+}
+
 export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [peticionMenuObra, setPeticionMenuObra] = useState(0);
+
+  const openDrawer = useCallback((opciones?: OpcionesDrawer) => {
+    setDrawerOpen(true);
+    if (opciones?.menuObra) setPeticionMenuObra((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    avisarDeArranque();
+    // Mantenimiento: los PDF del anejo que ya no referencia ningún índice
+    // (obras borradas, un guardado que se cortó a mitad) ocupan sitio en
+    // IndexedDB y nadie los reclama. Con retardo y por `import()`, para no
+    // competir con la carga de la pantalla ni meter `lib/anejo` en el arranque.
+    const t = setTimeout(() => {
+      void import('../../lib/anejo').then((m) => m.purgarEnSegundoPlano());
+    }, RETARDO_PURGA_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <DrawerContext.Provider value={{ openDrawer: () => setDrawerOpen(true) }}>
+    <DrawerContext.Provider value={{ openDrawer }}>
       <CalculatorProvider>
         <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
 
@@ -34,9 +79,11 @@ export function AppShell() {
             />
           )}
 
-          <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+          <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} peticionMenuObra={peticionMenuObra} />
 
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <BandaAlmacen />
+            <BandaProyecto />
             <ChunkErrorBoundary>
               <Suspense fallback={<RouteFallback />}>
                 <Outlet />

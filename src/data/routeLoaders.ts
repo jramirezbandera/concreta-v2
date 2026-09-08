@@ -7,6 +7,8 @@
 // defaults, schema versions) doesn't get coupled to bundling concerns.
 
 export const routeLoaders: Record<string, () => Promise<unknown>> = {
+  '/proyecto/datos': () => import('../features/datos-obra'),
+  '/proyecto/anejo': () => import('../features/anejo'),
   '/memorias/materiales': () => import('../features/materiales'),
   '/memorias/db-se': () => import('../features/memoria-dbse'),
   '/horm/vigas': () => import('../features/rc-beams'),

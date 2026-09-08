@@ -1106,3 +1106,21 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** VERIFICAR ANTES DE BORRAR `countQLoadsWithoutCategory`. Su comentario dice que existe para que la hidratación (`loadFromStorage` / `decodeShareString`) muestre un toast cuando se aplicaron categorías por defecto, y lo documenta como arreglo de un *trust bug* señalado por Codex ("silent fallback was a trust bug"). Que hoy no tenga consumidores puede significar dos cosas muy distintas: que la función se quedó huérfana en un refactor, o **que el bug ha vuelto** porque su llamador desapareció. Si es lo segundo, lo que hay que hacer no es borrarla sino volver a llamarla.
 
 **Depends on / blocked by:** nada. PR propia, pequeña.
+
+## Anejo de cálculo — los 14 módulos que quedaron fuera de la v1
+
+**Status:** APLAZADO CONSCIENTEMENTE — plan-eng-review del anejo de cálculo (2026-09-07, decisión D1). Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/javie-main-design-20260907-190349.md`.
+
+**What:** extender el anejo automático a los módulos que la v1 deja fuera: micropilotes, taludes, escollera, empresillado, sección compuesta, placas de anclaje, muros de fábrica, punzonamiento, encepados, muros de contención, madera (vigas y pilares) y los dos FEM. La v1 cubre sólo los 10 de uso corriente: vigas y pilares de hormigón, zapatas aisladas, forjados, vigas y pilares de acero, sismo, más los tres que ya pasan por `Block[]` (materiales, cargas por planta, ficha DB SE).
+
+**Why:** un anejo de edificación corriente usa esos 10. Los otros 14 son de especialista y salen en una obra de cada veinte, así que meterlos en la v1 eran ~3 días de refactor mecánico pagados ANTES de saber si el ensamblador funciona. Mientras no entren, el capítulo correspondiente se pega a mano.
+
+**Pros:** cualquier obra sale completa del tirón. Y con el adaptador ya hecho, cada módulo es trabajo acotado y comprobado por el compilador.
+
+**Cons:** ninguno estructural. Es tiempo, repartido en 14 trozos pequeños.
+
+**Context:** el patrón vive en `src/lib/anejo/modules/<modulo>.ts`, espejo de `src/lib/ai/modules/` (21 ficheros). Añadir un módulo es: (1) crear su fichero de adaptador con los siete campos `{clave, claveVersion, versionViva, idEsquema, titulo, Figures, draw}`; (2) su entrada en `src/data/proyectoKeys.ts`; (3) partir su exportador en `drawXxx(doc, …)` + envoltura `exportXxxPDF`; (4) extraer sus clones ocultos a `<XxxPdfFigures>`. Si te dejas un campo, no compila.
+
+**TALUDES ES EL ÚNICO ESPECIAL.** Su resultado sale de un worker de Pyodide (PySlope, ~16 MB wasm), **no se persiste** (`useSlopeState.ts` sólo guarda `SlopeInputs`) y sus SVG dibujan a propósito la geometría exacta del worker, nunca recalculada. No se puede regenerar desde el estado guardado: hay que congelar su SVG en el momento de «Guardar en el anejo» e inyectarlo en el `id` que espera `lib/pdf/slopeStability.ts`.
+
+**Depends on / blocked by:** F4b y F5 del design doc cerradas (el arnés sin pantalla y el botón de guardar en el anejo). Antes de eso no hay dónde enchufarlos.
