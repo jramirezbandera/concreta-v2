@@ -5,6 +5,7 @@ import { CalcButton } from '../calculator/CalcButton';
 import { useCalculator } from '../calculator/calculator-context';
 import { AiButton } from '../ai/AiButton';
 import { AjustesMenu } from './AjustesMenu';
+import { PiezaMenu } from './PiezaMenu';
 import { useDrawer } from './AppShell';
 import { useNombreObra } from '../../lib/proyecto/useProyectoActivo';
 
@@ -94,6 +95,10 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
           <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
             {moduleLabel}
           </span>
+          {/* La miga sigue con el cálculo abierto: «HORMIGÓN / Vigas / V-3». Se
+              coloca sola —sabe qué módulo es por la ruta— y no aparece en los
+              módulos sin nada guardado en el anejo. */}
+          <PiezaMenu />
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
