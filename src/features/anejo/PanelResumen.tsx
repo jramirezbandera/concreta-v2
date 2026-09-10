@@ -18,7 +18,8 @@ export interface PanelResumenProps {
   obra: Obra | null;
   resumen: ResumenAnejo;
   /** Piezas incluidas cuyo PDF es de antes del último cambio del cálculo. */
-  porRecalcular: number;
+  /** Piezas incluidas hechas con una versión anterior de Concreta. */
+  deVersionAnterior: number;
   /** Por qué no se puede generar ahora mismo, o `null`. */
   motivoBloqueo: string | null;
   generacion: EstadoGeneracion;
@@ -91,14 +92,17 @@ export function PanelResumen(p: PanelResumenProps) {
         <p className="m-0 border-b border-border-sub px-4 py-2 text-[11.5px] text-text-secondary">{p.motivoBloqueo}</p>
       )}
 
-      {p.porRecalcular > 0 && (
+      {p.deVersionAnterior > 0 && (
         <div className="border-b border-border-sub px-4 py-2.5">
           <p className="m-0 flex items-center gap-1.5 text-[12px] font-medium text-state-warn">
             <AlertTriangle size={13} aria-hidden="true" />
-            {p.porRecalcular === 1 ? '1 pieza por recalcular' : `${p.porRecalcular} piezas por recalcular`}
+            {p.deVersionAnterior === 1
+              ? '1 pieza de una versión anterior'
+              : `${p.deVersionAnterior} piezas de una versión anterior`}
           </p>
           <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-            Su PDF es de antes del último cambio del cálculo. Vuelve a guardarlas desde su módulo, o genera igualmente con lo que hay.
+            Su cálculo se hizo con una versión anterior de Concreta y ya no se puede abrir ni renombrar. El PDF sigue siendo
+            válido y entra en el anejo tal cual; si hay que tocar el cálculo, hay que rehacerlo.
           </p>
         </div>
       )}

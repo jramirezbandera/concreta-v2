@@ -11,14 +11,17 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastContainer } from '../../components/ui/Toast';
 import { routeLoaders } from '../../data/routeLoaders';
 import { routeMeta } from '../../data/routeMeta';
 import { AnejoModule } from '../../features/anejo';
-import { adaptadorDe, escribirAnejo, huellaDeModulo, leerAnejo, type Pieza } from '../../lib/anejo';
+import { adaptadorDe, escribirAnejo, huellaDeModulo, leerAnejo, rutaDeModulo, type Pieza } from '../../lib/anejo';
 import { _reiniciarBlobsParaTests, guardarBlob } from '../../lib/anejo/blobs';
+import { blobDePdf } from '../../lib/anejo/concatenar';
+import { crearPdf } from '../../lib/pdf/fuente';
+import { drawElementTitle } from '../../lib/pdf/utils';
 import { ErrorDeAnejo } from '../../lib/anejo/errores';
 import { generarAnejo, type PeticionAnejo } from '../../lib/anejo/generar';
 import { capitulosDe } from '../../lib/anejo/maqueta';
@@ -54,6 +57,8 @@ function pieza(id: string, modulo: string, titulo: string, extra: Partial<Pieza>
     blobId: `blob-${id}`,
     paginas: 2,
     huella: 'ajena',
+    datos: null,
+    tituloEnPdf: false,
     incluida: true,
     ...extra,
   };
@@ -68,7 +73,7 @@ async function conPiezas(opciones: { pdfDeMemoria?: boolean } = {}) {
     v: 1,
     piezas: [
       pieza('p1', 'concreta-rc-beams', 'Viga V-1', { esquema: vigas.entrada.versionViva, huella: huellaDeModulo(vigas), paginas: 3 }),
-      pieza('p2', 'concreta-rc-columns', 'Pilar P-3', { paginas: 2 }),
+      pieza('p2', 'concreta-rc-columns', 'Pilar P-3', { paginas: 2, esquema: '0' }),
       pieza('m1', 'concreta-viento-nieve', 'Viento de la nave', { paginas: 4 }),
     ],
   });
@@ -145,8 +150,10 @@ describe('Anejo de cálculo', () => {
     const piezas = screen.getByRole('list', { name: 'Cálculos de pieza' });
     expect(within(memoria).getAllByRole('listitem').map((li) => li.getAttribute('aria-label'))).toEqual(['Capítulo 1: Viento de la nave']);
     expect(within(piezas).getAllByRole('listitem').map((li) => li.getAttribute('aria-label'))).toEqual(['Capítulo 2: Viga V-1', 'Capítulo 3: Pilar P-3']);
-    expect(within(fila('Viga V-1')).getByText('AL DÍA')).toBeInTheDocument();
-    expect(within(fila('Pilar P-3')).getByText('RECALCULAR')).toBeInTheDocument();
+    // La insignia sólo sale cuando hay algo que contar: una pieza coherente
+    // consigo misma no lleva ninguna. El pilar es de otro esquema.
+    expect(within(fila('Viga V-1')).queryByText(/VERSIÓN ANTERIOR|ABIERTA/)).toBeNull();
+    expect(within(fila('Pilar P-3')).getByText('VERSIÓN ANTERIOR')).toBeInTheDocument();
     expect(within(fila('Viga V-1')).getByText(/Vigas de hormigón · 3 págs\./)).toBeInTheDocument();
 
     const resumen = panel();
@@ -154,7 +161,7 @@ describe('Anejo de cálculo', () => {
     expect(within(resumen).getByText('Páginas de cálculo').nextSibling?.textContent).toBe('9');
     expect(within(resumen).getByText('Portada e índice').nextSibling?.textContent).toBe('2');
     expect(within(resumen).getByText('Total').nextSibling?.textContent).toBe('11 páginas');
-    expect(within(resumen).getByText('2 piezas por recalcular')).toBeInTheDocument();
+    expect(within(resumen).getByText('1 pieza de una versión anterior')).toBeInTheDocument();
     expect(botonGenerar()).toBeEnabled();
   });
 
@@ -308,5 +315,163 @@ describe('Anejo de cálculo', () => {
     expect(botonGenerar()).toBeDisabled();
     expect(within(panel()).getByText('Otra pestaña ha cambiado de obra. Recarga antes de generar.')).toBeInTheDocument();
     expect(generarAnejo).not.toHaveBeenCalled();
+  });
+});
+
+/** Dónde ha acabado la navegación, para poder afirmarlo. */
+function Donde() {
+  return <span data-testid="ruta">{useLocation().pathname}</span>;
+}
+
+function montarConRuta() {
+  return render(
+    <ThemeProvider>
+      <UnitSystemProvider>
+        <MemoryRouter initialEntries={['/proyecto/anejo']}>
+          <ToastContainer />
+          <Donde />
+          <AnejoModule />
+        </MemoryRouter>
+      </UnitSystemProvider>
+    </ThemeProvider>,
+  );
+}
+
+const ruta = () => screen.getByTestId('ruta').textContent;
+const RUTA_VIGAS = rutaDeModulo('concreta-rc-beams');
+const V3 = '{"title":"Viga V-3","L":9}';
+
+/** Una viga guardada con sus datos, y el módulo con OTRO cálculo dentro. */
+function conViga(extra: Partial<Pieza> = {}) {
+  const vigas = adaptadorDe('concreta-rc-beams');
+  escribirAnejo({
+    v: 1,
+    piezas: [
+      pieza('p1', 'concreta-rc-beams', 'Viga V-3', {
+        esquema: vigas.entrada.versionViva,
+        datos: { 'rc-beams': V3, 'rc-beams-version': vigas.entrada.versionViva },
+        ...extra,
+      }),
+    ],
+  });
+  localStorage.setItem('rc-beams', '{"title":"Viga V-5","L":4}');
+  localStorage.setItem('rc-beams-version', vigas.entrada.versionViva);
+}
+
+describe('abrir un cálculo del anejo en su módulo', () => {
+  it('con el cálculo ya guardado, pinchar el título lleva al módulo sin preguntar nada', async () => {
+    const vigas = adaptadorDe('concreta-rc-beams');
+    localStorage.setItem('rc-beams', V3);
+    localStorage.setItem('rc-beams-version', vigas.entrada.versionViva);
+    escribirAnejo({
+      v: 1,
+      piezas: [
+        pieza('p1', 'concreta-rc-beams', 'Viga V-3', {
+          esquema: vigas.entrada.versionViva,
+          huella: huellaDeModulo(vigas),
+          datos: { 'rc-beams': V3, 'rc-beams-version': vigas.entrada.versionViva },
+        }),
+      ],
+    });
+    montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Viga V-3' }));
+    expect(screen.queryByText(/no está guardado en el anejo/)).toBeNull();
+    expect(ruta()).toBe(RUTA_VIGAS);
+    expect(localStorage.getItem('rc-beams')).toBe(V3);
+  });
+
+  it('con un cálculo sin guardar avisa, y cancelar no toca nada', async () => {
+    conViga();
+    montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Viga V-3' }));
+    expect(screen.getByText(/no está guardado en el anejo/)).toBeInTheDocument();
+    expect(ruta()).toBe('/proyecto/anejo');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(localStorage.getItem('rc-beams')).toBe('{"title":"Viga V-5","L":4}');
+    expect(ruta()).toBe('/proyecto/anejo');
+  });
+
+  it('«Abrir igualmente» pisa lo que había; «Ir a guardarlo primero» lleva al módulo sin tocarlo', async () => {
+    conViga();
+    const { unmount } = montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Viga V-3' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir igualmente' }));
+    expect(localStorage.getItem('rc-beams')).toBe(V3);
+    expect(ruta()).toBe(RUTA_VIGAS);
+    unmount();
+
+    conViga();
+    montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Viga V-3' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ir a guardarlo primero' }));
+    expect(localStorage.getItem('rc-beams')).toBe('{"title":"Viga V-5","L":4}');
+    expect(ruta()).toBe(RUTA_VIGAS);
+  });
+
+  it('un capítulo de memoria lleva a su módulo sin restaurar nada', async () => {
+    escribirAnejo({ v: 1, piezas: [pieza('m1', 'concreta-viento-nieve', 'Viento de la nave', { datos: { 'concreta-viento-nieve-model': 'VIEJO' } })] });
+    localStorage.setItem('concreta-viento-nieve-model', 'LO DE AHORA');
+    montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Viento de la nave' }));
+    expect(localStorage.getItem('concreta-viento-nieve-model')).toBe('LO DE AHORA');
+    expect(ruta()).toBe(rutaDeModulo('concreta-viento-nieve'));
+  });
+
+  it('una pieza sin datos no es pinchable, y dice por qué', () => {
+    escribirAnejo({ v: 1, piezas: [pieza('p1', 'concreta-rc-beams', 'Viga vieja')] });
+    montarConRuta();
+    expect(screen.queryByRole('button', { name: 'Viga vieja' })).toBeNull();
+    expect(screen.getByTitle(/sólo queda el PDF/)).toBeInTheDocument();
+  });
+});
+
+describe('renombrar y ver desde la fila', () => {
+  it('renombrar cambia el capítulo en la lista, y lo dice', async () => {
+    const vigas = adaptadorDe('concreta-rc-beams');
+    const doc = await crearPdf();
+    drawElementTitle(doc, 'Viga V-3', 'Concreta - Vigas de hormigón', 20);
+    await guardarBlob('blob-r1', blobDePdf(new Uint8Array(doc.output('arraybuffer'))));
+    escribirAnejo({
+      v: 1,
+      piezas: [
+        pieza('r1', 'concreta-rc-beams', 'Viga V-3', {
+          esquema: vigas.entrada.versionViva,
+          blobId: 'blob-r1',
+          tituloEnPdf: true,
+          datos: { 'rc-beams': '{"title":"Viga V-3","L":6}', 'rc-beams-version': vigas.entrada.versionViva },
+        }),
+      ],
+    });
+    montarConRuta();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Renombrar el capítulo «Viga V-3»' }));
+    const campo = screen.getByRole('textbox', { name: 'Nombre del capítulo «Viga V-3»' });
+    await userEvent.clear(campo);
+    await userEvent.type(campo, 'Viga V-3 del pórtico 2');
+    await userEvent.click(screen.getByRole('button', { name: 'Renombrar' }));
+
+    // Con holgura a propósito: renombrar carga pdf-lib y la fuente Arimo para
+    // repintar el título dentro del PDF, y con la suite entera en paralelo eso
+    // se pasa del plazo por defecto.
+    await waitFor(() => expect(leerAnejo().piezas[0].titulo).toBe('Viga V-3 del pórtico 2'), { timeout: 15000 });
+    expect(JSON.parse(leerAnejo().piezas[0].datos!['rc-beams']).title).toBe('Viga V-3 del pórtico 2');
+  });
+
+  it('la exportada sin nombre no se puede renombrar, y el botón explica por qué', () => {
+    escribirAnejo({ v: 1, piezas: [pieza('r1', 'concreta-rc-beams', 'Vigas de hormigón', { tituloEnPdf: false })] });
+    montarConRuta();
+    const boton = screen.getByRole('button', { name: 'Renombrar el capítulo «Vigas de hormigón»' });
+    expect(boton).toBeDisabled();
+    expect(boton.title).toMatch(/se exportó sin nombre/);
+  });
+
+  it('«Ver el PDF» abre la previsualización sin el botón de guardar en el anejo', async () => {
+    await guardarBlob('blob-v1', blobDePdf(new Uint8Array([0x25, 0x50, 0x44, 0x46])));
+    escribirAnejo({ v: 1, piezas: [pieza('v1', 'concreta-rc-beams', 'Viga V-1', { blobId: 'blob-v1' })] });
+    montarConRuta();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver el PDF de «Viga V-1»' }));
+    expect(await screen.findByText('Previsualización PDF')).toBeInTheDocument();
+    // La ruta es la del anejo, no la de un módulo: ahí no se guarda nada.
+    expect(screen.queryByRole('button', { name: /Guardar en el anejo|Actualizar el capítulo/ })).toBeNull();
   });
 });

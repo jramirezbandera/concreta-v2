@@ -14,7 +14,7 @@
  */
 
 import { useState, type DragEvent, type FormEvent } from 'react';
-import { Check, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Eye, GripVertical, PenLine, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { getModuleByKey } from '../../data/moduleRegistry';
 import type { EstadoPieza, Pieza } from '../../lib/anejo';
@@ -29,6 +29,16 @@ export interface ListaPiezasProps {
   /** Piezas cuyo PDF no está en esta máquina. */
   sinPdf: ReadonlySet<string>;
   generacion: EstadoGeneracion;
+  /** Por qué NO se puede abrir cada pieza en su módulo; `null` si se puede. */
+  noAbrible: (pieza: Pieza) => string | null;
+  /** La que el módulo tiene abierta ahora mismo. */
+  abierta: (pieza: Pieza) => boolean;
+  onVerPdf: (pieza: Pieza) => void;
+  onRenombrar: (pieza: Pieza, titulo: string) => void;
+  /** Si abrirla pisaría un cálculo que no está guardado en ninguna pieza. */
+  avisar: (pieza: Pieza) => boolean;
+  onAbrir: (pieza: Pieza) => void;
+  onIrAlModulo: (pieza: Pieza) => void;
   /** Mover la pieza a la posición (1 = la primera) dentro de su sección. */
   onMover: (pieza: Pieza, posicion: number) => void;
   onIncluir: (pieza: Pieza, incluida: boolean) => void;
@@ -85,7 +95,7 @@ export function ListaPiezas(props: ListaPiezasProps) {
                 posicion={i + 1}
                 total={propias.length}
                 numero={props.numeros.get(p.id) ?? null}
-                estado={props.estados.get(p.id) ?? 'recalcular'}
+                estado={props.estados.get(p.id) ?? 'version-anterior'}
                 faltaPdf={props.sinPdf.has(p.id)}
                 error={props.generacion.fase === 'error' && props.generacion.piezaId === p.id ? props.generacion.mensaje : null}
                 entrada={
@@ -93,6 +103,13 @@ export function ListaPiezas(props: ListaPiezasProps) {
                 }
                 arrastrada={arrastrando?.id === p.id}
                 esDestino={destino === p.id}
+                noAbrible={props.noAbrible(p)}
+                abierta={props.abierta(p)}
+                avisar={props.avisar(p)}
+                onVerPdf={props.onVerPdf}
+                onRenombrar={props.onRenombrar}
+                onAbrir={props.onAbrir}
+                onIrAlModulo={props.onIrAlModulo}
                 onMover={props.onMover}
                 onIncluir={props.onIncluir}
                 onQuitar={props.onQuitar}
@@ -147,18 +164,33 @@ const BOTON_FILA =
 const BOTON_SALIDA = 'rounded border border-border-main bg-bg-primary px-2 py-0.5 text-[11.5px] text-text-primary hover:bg-bg-elevated transition-colors';
 const ENLACE = 'text-accent hover:text-accent-hover underline-offset-2 hover:underline';
 
-function Badge({ estado }: { estado: EstadoPieza }) {
-  const alDia = estado === 'al-dia';
+const INSIGNIA = 'inline-flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold';
+
+/**
+ * La insignia de la fila. Ya no dice «AL DÍA», porque una pieza lleva su PDF y
+ * sus datos juntos y no puede contradecirse a sí misma: decirlo en todas las
+ * filas sería ruido. Sólo aparece cuando hay algo que contar.
+ */
+function Badge({ estado, abierta }: { estado: EstadoPieza; abierta: boolean }) {
+  if (estado === 'version-anterior') {
+    return (
+      <span
+        className={`${INSIGNIA} bg-state-warn/10 text-state-warn`}
+        style={{ letterSpacing: '0.02em' }}
+        title="Este cálculo se hizo con una versión anterior de Concreta. El módulo de hoy ya no sabe leer sus datos, así que no se puede abrir ni renombrar: si hace falta tocarlo, hay que rehacerlo."
+      >
+        VERSIÓN ANTERIOR
+      </span>
+    );
+  }
+  if (!abierta) return null;
   return (
     <span
-      className={[
-        'inline-flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold',
-        alDia ? 'bg-state-ok/10 text-state-ok' : 'bg-state-warn/10 text-state-warn',
-      ].join(' ')}
+      className={`${INSIGNIA} bg-accent/10 text-accent`}
       style={{ letterSpacing: '0.02em' }}
-      title={alDia ? 'El PDF se hizo con el estado que el módulo tiene guardado ahora.' : 'El PDF es de antes del último cambio del cálculo: vuelve a guardarlo desde el módulo.'}
+      title="Es la que tienes abierta en su módulo: al exportar desde ahí se actualiza este capítulo, no se añade otro."
     >
-      {alDia ? 'AL DÍA' : 'RECALCULAR'}
+      ABIERTA
     </span>
   );
 }
@@ -175,6 +207,17 @@ interface FilaPiezaProps {
   entrada: 'pendiente' | 'hecha' | null;
   arrastrada: boolean;
   esDestino: boolean;
+  /** Por qué NO se puede abrir en su módulo, o `null` si se puede. */
+  noAbrible: string | null;
+  /** Si es la que el módulo tiene abierta ahora. */
+  abierta: boolean;
+  onVerPdf: (pieza: Pieza) => void;
+  onRenombrar: (pieza: Pieza, titulo: string) => void;
+  /** Si abrirla pisaría un cálculo que no está guardado en ninguna pieza. */
+  avisar: boolean;
+  onAbrir: (pieza: Pieza) => void;
+  /** Llevar al módulo SIN restaurar, para poder guardar lo que hay a medias. */
+  onIrAlModulo: (pieza: Pieza) => void;
   onMover: (pieza: Pieza, posicion: number) => void;
   onIncluir: (pieza: Pieza, incluida: boolean) => void;
   onQuitar: (pieza: Pieza) => void;
@@ -190,6 +233,8 @@ function FilaPieza(f: FilaPiezaProps) {
   const [moviendo, setMoviendo] = useState(false);
   const [posicionNueva, setPosicionNueva] = useState('');
   const [confirmandoQuitar, setConfirmandoQuitar] = useState(false);
+  const [confirmandoAbrir, setConfirmandoAbrir] = useState(false);
+  const [renombrando, setRenombrando] = useState<string | null>(null);
   const modulo = getModuleByKey(pieza.modulo);
   const roja = f.faltaPdf || f.error !== null;
   const fecha = new Date(pieza.ts);
@@ -213,7 +258,10 @@ function FilaPieza(f: FilaPiezaProps) {
       onDrop={(e) => f.onDrop(e, pieza)}
       onDragEnd={f.onDragEnd}
       className={[
-        'group grid grid-cols-[14px_28px_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-border-sub px-2 py-0.5 transition-colors',
+        // En estrecho los botones bajan a su propia línea. Son siete de 44 px:
+        // en la misma fila que el título no dejan sitio ni para el nombre del
+        // capítulo, que es lo único que de verdad hay que leer.
+        'group grid grid-cols-[14px_28px_minmax(0,1fr)] sm:grid-cols-[14px_28px_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-border-sub px-2 py-0.5 transition-colors',
         roja ? 'bg-state-fail/5' : f.esDestino ? 'bg-accent/5' : 'hover:bg-bg-elevated',
         f.arrastrada ? 'opacity-50' : '',
       ].join(' ')}
@@ -227,8 +275,31 @@ function FilaPieza(f: FilaPiezaProps) {
 
       <div className="min-w-0 py-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={['truncate text-[13px]', pieza.incluida ? 'text-text-primary' : 'text-text-disabled'].join(' ')}>{pieza.titulo}</span>
-          <Badge estado={f.estado} />
+          {f.noAbrible === null ? (
+            <button
+              type="button"
+              onClick={() => (f.avisar ? setConfirmandoAbrir(true) : f.onAbrir(pieza))}
+              title={`Abrir «${pieza.titulo}» en su módulo, con los datos con los que se calculó`}
+              // Subrayado punteado en reposo: sin él el título se lee igual que
+              // el de una pieza que NO se puede abrir, y la función entera
+              // depende de que se descubra que ahí se pincha.
+              className={[
+                'truncate rounded text-left text-[13px] underline decoration-dotted decoration-text-disabled underline-offset-[3px]',
+                'hover:decoration-solid hover:decoration-accent hover:text-accent transition-colors',
+                pieza.incluida ? 'text-text-primary' : 'text-text-disabled',
+              ].join(' ')}
+            >
+              {pieza.titulo}
+            </button>
+          ) : (
+            <span
+              title={f.noAbrible}
+              className={['truncate text-[13px]', pieza.incluida ? 'text-text-primary' : 'text-text-disabled'].join(' ')}
+            >
+              {pieza.titulo}
+            </span>
+          )}
+          <Badge estado={f.estado} abierta={f.abierta} />
           {f.entrada === 'hecha' && (
             <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] text-state-ok">
               <Check size={12} aria-hidden="true" /> en el documento
@@ -288,6 +359,65 @@ function FilaPieza(f: FilaPiezaProps) {
             </button>
           </form>
         )}
+        {renombrando !== null && (
+          <form
+            className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-text-secondary"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const nuevo = renombrando.trim();
+              setRenombrando(null);
+              if (nuevo && nuevo !== pieza.titulo) f.onRenombrar(pieza, nuevo);
+            }}
+          >
+            <label className="flex items-center gap-1.5">
+              Nombre del capítulo
+              <input
+                autoFocus
+                value={renombrando}
+                onChange={(e) => setRenombrando(e.target.value)}
+                aria-label={`Nombre del capítulo «${pieza.titulo}»`}
+                className="w-56 rounded border border-border-main bg-bg-primary px-1.5 py-0.5 text-text-primary outline-none focus:border-accent"
+              />
+            </label>
+            <button type="submit" className={BOTON_SALIDA} disabled={renombrando.trim().length === 0}>
+              Renombrar
+            </button>
+            <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => setRenombrando(null)}>
+              Cancelar
+            </button>
+            <span className="basis-full text-text-disabled">Cambia también el nombre que va arriba en el PDF.</span>
+          </form>
+        )}
+        {confirmandoAbrir && (
+          <p className="m-0 mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-text-secondary">
+            <span>
+              En {capituloDePieza(pieza)} tienes un cálculo que no está guardado en el anejo. Si abres «{pieza.titulo}», se pierde.
+            </span>
+            <button
+              type="button"
+              className={BOTON_SALIDA}
+              onClick={() => {
+                setConfirmandoAbrir(false);
+                f.onIrAlModulo(pieza);
+              }}
+            >
+              Ir a guardarlo primero
+            </button>
+            <button
+              type="button"
+              className={BOTON_SALIDA}
+              onClick={() => {
+                setConfirmandoAbrir(false);
+                f.onAbrir(pieza);
+              }}
+            >
+              Abrir igualmente
+            </button>
+            <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => setConfirmandoAbrir(false)}>
+              Cancelar
+            </button>
+          </p>
+        )}
         {confirmandoQuitar && (
           <p className="m-0 mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-text-secondary">
             <span>Quitar «{pieza.titulo}» del anejo y borrar su PDF guardado.</span>
@@ -308,7 +438,7 @@ function FilaPieza(f: FilaPiezaProps) {
         )}
       </div>
 
-      <div className="flex items-center">
+      <div className="col-span-3 flex items-center justify-end sm:col-span-1 sm:justify-start">
         <button type="button" className={BOTON_FILA} aria-label={`Subir «${pieza.titulo}»`} disabled={f.posicion === 1} onClick={() => f.onMover(pieza, f.posicion - 1)}>
           <ChevronUp size={14} aria-hidden="true" />
         </button>
@@ -323,6 +453,30 @@ function FilaPieza(f: FilaPiezaProps) {
           onClick={() => setMoviendo((v) => !v)}
         >
           Mover a…
+        </button>
+        <button
+          type="button"
+          className={BOTON_FILA}
+          aria-label={`Ver el PDF de «${pieza.titulo}»`}
+          title="Ver el PDF guardado, sin salir del anejo"
+          disabled={f.faltaPdf}
+          onClick={() => f.onVerPdf(pieza)}
+        >
+          <Eye size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={BOTON_FILA}
+          aria-label={`Renombrar el capítulo «${pieza.titulo}»`}
+          title={
+            pieza.tituloEnPdf
+              ? 'Cambiar el nombre del capítulo, también dentro del PDF'
+              : 'Este PDF se exportó sin nombre, así que no tiene dónde escribirlo. Ábrelo en su módulo y vuelve a exportarlo.'
+          }
+          disabled={!pieza.tituloEnPdf}
+          onClick={() => setRenombrando(pieza.titulo)}
+        >
+          <PenLine size={14} aria-hidden="true" />
         </button>
         <button type="button" className={BOTON_FILA} aria-label={`Quitar «${pieza.titulo}» del anejo`} onClick={() => setConfirmandoQuitar(true)}>
           <Trash2 size={14} aria-hidden="true" />

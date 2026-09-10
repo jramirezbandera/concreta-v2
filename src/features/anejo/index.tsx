@@ -15,17 +15,38 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { FileDown } from 'lucide-react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { Topbar } from '../../components/layout/Topbar';
 import { showToast } from '../../components/ui/Toast';
-import { estadoDePieza, fijarIncluida, piezasSinPdf, quitarPieza, reordenarPiezas, type EstadoPieza, type Pieza } from '../../lib/anejo';
+import {
+  estadoDePieza,
+  fijarIncluida,
+  hayTrabajoSinGuardar,
+  motivoDeNoAbrir,
+  piezaAbierta,
+  renombrarPieza,
+  piezasSinPdf,
+  quitarPieza,
+  reordenarPiezas,
+  restaurarPieza,
+  type FalloRenombrar,
+  type FalloRestaurar,
+  rutaDeModulo,
+  type EstadoPieza,
+  type Pieza,
+} from '../../lib/anejo';
 import { moverEnSeccion, numerosDeCapitulo, piezasDeSeccion, resumenDe, seccionDePieza } from '../../lib/anejo/maqueta';
 import { useAnejo } from '../../lib/anejo/useAnejo';
+import { leerBlob } from '../../lib/anejo/blobs';
+import { descargarBlob } from '../../lib/export/descargar';
+import { titledFilename } from '../../lib/export/filename';
 import { leerObra } from '../../lib/obra';
 import { pestanaDesfasada } from '../../lib/proyecto';
 import { useNombreObra, useProyectoActivo } from '../../lib/proyecto/useProyectoActivo';
 import { ListaPiezas } from './ListaPiezas';
+import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { PanelResumen } from './PanelResumen';
 import { useGenerarAnejo } from './useGenerarAnejo';
 
@@ -39,6 +60,52 @@ const DESFASADA_CAMBIO = 'Otra pestaña ha cambiado de obra: esta ya no guarda c
  * decir «libera espacio» ahí sería mentir sobre la causa.
  */
 const motivoDeNoGuardar = () => (pestanaDesfasada() ? DESFASADA_CAMBIO : SIN_SITIO);
+
+/** El nombre con el que se descarga el PDF de una pieza suelta desde el visor. */
+const nombreDeFichero = (pieza: Pieza) => titledFilename(pieza.titulo, 'capitulo-del-anejo.pdf');
+
+/** Por qué una pieza no se puede abrir en su módulo, dicho en lenguaje de obra. */
+const NO_ABRIBLE: Record<'desconocido' | 'esquema' | 'sin-datos', string> = {
+  desconocido: 'Es de un módulo que esta versión de Concreta no tiene.',
+  esquema: 'Se calculó con una versión anterior de Concreta, y el módulo de hoy ya no sabe leer sus datos.',
+  'sin-datos': 'Se guardó antes de que las piezas llevaran sus datos dentro: de ésta sólo queda el PDF.',
+};
+
+/** Por qué no se ha podido renombrar el capítulo, en lenguaje de obra. */
+function motivoDeNoRenombrar(motivo: FalloRenombrar): string {
+  switch (motivo) {
+    case 'desfasada':
+      return DESFASADA_CAMBIO;
+    case 'sin-pieza':
+      return 'Esa pieza ya no está en el anejo.';
+    case 'sin-pdf':
+      return 'El PDF de esa pieza no está en esta máquina: ábrela en su módulo y vuelve a exportarla.';
+    case 'sitio':
+    case 'almacen':
+      return 'No hay sitio para guardar el PDF renombrado. Libera espacio en el navegador.';
+    case 'vacio':
+      return 'El capítulo tiene que tener nombre.';
+    case 'no-cabe':
+      return 'El nombre anterior es demasiado largo para sustituirlo dentro del PDF sin dejar rastro. Ábrela en su módulo y vuelve a exportarla.';
+    default:
+      // 'sin-banda' y 'sin-marca': el PDF no tiene dónde escribir el nombre.
+      return 'Ese PDF se exportó sin nombre, así que no tiene dónde escribirlo. Ábrelo en su módulo y vuelve a exportarlo.';
+  }
+}
+
+/** Y por qué no se ha podido abrir cuando ya se había intentado. */
+function motivoDeNoRestaurar(motivo: FalloRestaurar): string {
+  switch (motivo) {
+    case 'desfasada':
+      return DESFASADA_CAMBIO;
+    case 'sitio':
+      return 'No hay sitio para abrir la pieza. Libera espacio en el navegador.';
+    case 'sin-pieza':
+      return 'Esa pieza ya no está en el anejo.';
+    default:
+      return NO_ABRIBLE[motivo];
+  }
+}
 
 function BotonGenerar({ ocupado, motivoBloqueo, onClick }: { ocupado: boolean; motivoBloqueo: string | null; onClick: () => void }) {
   return (
@@ -62,12 +129,14 @@ function BotonGenerar({ ocupado, motivoBloqueo, onClick }: { ocupado: boolean; m
 
 export function AnejoModule() {
   const { openDrawer } = useDrawer();
+  const navegar = useNavigate();
   const anejo = useAnejo();
   const nombreObra = useNombreObra();
   const { desfasada } = useProyectoActivo();
   const obra = leerObra();
   const [sinPdf, setSinPdf] = useState<ReadonlySet<string>>(() => new Set());
   const [anuncio, setAnuncio] = useState('');
+  const [viendo, setViendo] = useState<{ pieza: Pieza; url: string; blob: Blob } | null>(null);
   const generacion = useGenerarAnejo();
 
   // Las piezas cuyo PDF no está en esta máquina (obra traída de otra, datos
@@ -88,7 +157,7 @@ export function AnejoModule() {
   const estados: ReadonlyMap<string, EstadoPieza> = new Map(anejo.piezas.map((p) => [p.id, estadoDePieza(p)]));
   const numeros = numerosDeCapitulo(anejo.piezas);
   const resumen = resumenDe(anejo.piezas);
-  const porRecalcular = anejo.piezas.filter((p) => p.incluida && estados.get(p.id) === 'recalcular').length;
+  const deVersionAnterior = anejo.piezas.filter((p) => p.incluida && estados.get(p.id) === 'version-anterior').length;
   const generando = generacion.estado.fase === 'generando';
 
   const motivoBloqueo = generando
@@ -122,6 +191,68 @@ export function AnejoModule() {
     } else {
       showToast(pestanaDesfasada() ? DESFASADA_CAMBIO : 'No se pudo quitar la pieza del anejo.', { autoDismiss: 5000 });
     }
+  };
+
+  // Abrir una pieza en su módulo. Los capítulos de MEMORIA no restauran nada:
+  // son uno por obra y el módulo ya es su sitio, así que llevar allí es todo lo
+  // que hay que hacer —y así abrirlos no puede echar atrás trabajo posterior.
+  const abrir = (pieza: Pieza) => {
+    if (seccionDePieza(pieza) === 'memoria') return irAlModulo(pieza);
+    const r = restaurarPieza(pieza.id);
+    if (!r.ok) {
+      showToast(motivoDeNoRestaurar(r.motivo), { autoDismiss: 6000 });
+      return;
+    }
+    setAnuncio(`«${pieza.titulo}» abierta en su módulo`);
+    navegar(r.ruta);
+  };
+
+  const irAlModulo = (pieza: Pieza) => {
+    const ruta = rutaDeModulo(pieza.modulo);
+    if (ruta === null) {
+      showToast('Esa pieza es de un módulo que esta versión de Concreta no tiene.', { autoDismiss: 5000 });
+      return;
+    }
+    navegar(ruta);
+  };
+
+  /**
+   * Por qué no se puede abrir, en lenguaje de obra; `null` si se puede. Un
+   * capítulo de memoria se abre siempre: lleva a su módulo sin restaurar nada,
+   * y para eso no hacen falta ni datos ni que el esquema cuadre.
+   */
+  const noAbrible = (pieza: Pieza): string | null => {
+    if (rutaDeModulo(pieza.modulo) === null) return NO_ABRIBLE.desconocido;
+    if (seccionDePieza(pieza) === 'memoria') return null;
+    const motivo = motivoDeNoAbrir(pieza);
+    return motivo === null ? null : NO_ABRIBLE[motivo];
+  };
+
+  const renombrar = async (pieza: Pieza, titulo: string) => {
+    const r = await renombrarPieza(pieza.id, titulo);
+    if (r.ok) {
+      showToast(`Capítulo renombrado: «${r.pieza.titulo}»`, { autoDismiss: 3000 });
+      setAnuncio(`«${pieza.titulo}» renombrada a «${r.pieza.titulo}»`);
+      return;
+    }
+    showToast(motivoDeNoRenombrar(r.motivo), { autoDismiss: 6000 });
+  };
+
+  // El PDF guardado, en el mismo modal de previsualización de los módulos. Ahí
+  // el botón «Guardar en el anejo» no sale: lo enseña sólo cuando la ruta es la
+  // de un módulo, y ésta no lo es.
+  const verPdf = async (pieza: Pieza) => {
+    const blob = await leerBlob(pieza.blobId).catch(() => null);
+    if (blob === null) {
+      showToast('El PDF de esa pieza no está en esta máquina.', { autoDismiss: 5000 });
+      return;
+    }
+    setViendo({ pieza, url: URL.createObjectURL(blob), blob });
+  };
+
+  const cerrarPdf = () => {
+    if (viendo) URL.revokeObjectURL(viendo.url);
+    setViendo(null);
   };
 
   const generarCon = (piezas: readonly Pieza[]) => {
@@ -161,6 +292,13 @@ export function AnejoModule() {
               estados={estados}
               sinPdf={sinPdf}
               generacion={generacion.estado}
+              noAbrible={noAbrible}
+              abierta={(pieza) => piezaAbierta(pieza.modulo)?.id === pieza.id}
+              avisar={(pieza) => seccionDePieza(pieza) !== 'memoria' && hayTrabajoSinGuardar(pieza.modulo)}
+              onVerPdf={(pieza) => void verPdf(pieza)}
+              onRenombrar={(pieza, titulo) => void renombrar(pieza, titulo)}
+              onAbrir={abrir}
+              onIrAlModulo={irAlModulo}
               onMover={mover}
               onIncluir={incluir}
               onQuitar={(p) => void quitar(p)}
@@ -172,12 +310,21 @@ export function AnejoModule() {
           nombreObra={nombreObra}
           obra={obra}
           resumen={resumen}
-          porRecalcular={porRecalcular}
+          deVersionAnterior={deVersionAnterior}
           motivoBloqueo={motivoBloqueo}
           generacion={generacion.estado}
           onDescargarOtraVez={generacion.descargarOtraVez}
         />
       </div>
+      {viendo && (
+        <PdfPreviewModal
+          blobUrl={viendo.url}
+          filename={nombreDeFichero(viendo.pieza)}
+          pageCount={viendo.pieza.paginas}
+          onDownload={() => descargarBlob({ blob: viendo.blob, filename: nombreDeFichero(viendo.pieza) })}
+          onClose={cerrarPdf}
+        />
+      )}
     </div>
   );
 }
