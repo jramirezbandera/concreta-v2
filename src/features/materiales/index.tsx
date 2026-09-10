@@ -68,6 +68,7 @@ import {
   nuevoId,
   publicarResultado,
   type FilaAcero,
+  type FilaFuego,
   type FilaHormigon,
   type FilaMadera,
   type MaterialesState,
@@ -231,7 +232,7 @@ export function MaterialesModule() {
         aceroLaminado: state.usaAceroEstructural,
         aceroDeArmar: state.usaHormigon,
         hormigon: state.usaHormigon,
-      }, state.resistenciaFuego),
+      }, evaluacion.fuego),
     );
     return bloques;
   }, [state, evaluacion, bloquesAnclajes]);
@@ -279,6 +280,12 @@ export function MaterialesModule() {
   }, [state.usaHormigon, evaluacion, bloquesComunes]);
 
   // ── Acciones del formulario ───────────────────────────────────────────────
+
+  const cambiarFilaFuego = (id: string, cambio: Partial<FilaFuego>) =>
+    actualizar((p) => ({
+      ...p,
+      exigenciasFuego: p.exigenciasFuego.map((f) => (f.id === id ? { ...f, ...cambio } : f)),
+    }));
 
   const cambiarFila = (id: string, cambio: Partial<FilaHormigon>) =>
     actualizar((p) => ({
@@ -379,7 +386,8 @@ export function MaterialesModule() {
 
   const nElementos =
     evaluacion.hormigon.length + evaluacion.limpieza.length + evaluacion.madera.length;
-  const nHuecos = evaluacion.huecos.length + evaluacion.huecosMadera.length;
+  const nHuecos =
+    evaluacion.huecos.length + evaluacion.huecosMadera.length + evaluacion.huecosFuego.length;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -464,6 +472,22 @@ export function MaterialesModule() {
               onMaterial={(cambio) => actualizar((p) => ({ ...p, ...cambio }))}
               onEstudio={(cambio: Partial<Perfil>) =>
                 actualizar((p) => ({ ...p, estudio: { ...p.estudio, ...cambio } }))
+              }
+              onCambiarFuego={cambiarFilaFuego}
+              onBorrarFuego={(id) =>
+                actualizar((p) => ({
+                  ...p,
+                  exigenciasFuego: p.exigenciasFuego.filter((f) => f.id !== id),
+                }))
+              }
+              onAnadirFuego={(ambito) =>
+                actualizar((p) => ({
+                  ...p,
+                  exigenciasFuego: [
+                    ...p.exigenciasFuego,
+                    { id: nuevoId('f'), ambito, minutos: null },
+                  ],
+                }))
               }
             />
 

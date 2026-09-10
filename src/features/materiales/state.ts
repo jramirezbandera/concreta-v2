@@ -13,12 +13,15 @@
  */
 
 import {
+  AMBITO_TODA_LA_ESTRUCTURA,
   deriveAcero,
   deriveHormigon,
   deriveMadera,
+  exigenciasResueltas,
   type DerivacionAcero,
   type DerivacionHormigon,
   type DerivacionMadera,
+  type ExigenciaFuego,
 } from '../../lib/materiales';
 import type {
   AceroEstructural,
@@ -116,6 +119,20 @@ export interface FilaMadera {
   especie: string;
 }
 
+/**
+ * Una exigencia de resistencia al fuego. `minutos` en null es el hueco rojo:
+ * la fila existe pero no dice nada, igual que un elemento sin situación.
+ *
+ * El ámbito es texto libre —los habituales se eligen al añadir la fila— porque
+ * un proyecto puede exigirle R90 a «los soportes del voladizo» y esa lista no
+ * se cierra. Ver `lib/materiales/fuego`.
+ */
+export interface FilaFuego {
+  id: string;
+  ambito: string;
+  minutos: number | null;
+}
+
 export interface FilaAcero {
   id: string;
   nombre: string;
@@ -144,8 +161,13 @@ export interface MaterialesState {
   heladas: boolean;
   /** Agresividad química del terreno según el geotécnico: XA1/XA2/XA3 en lo enterrado. */
   terrenoAgresivo: AgresividadQuimica;
-  /** Resistencia al fuego exigida a la estructura (DB SI 6), en minutos. null = sin indicar. */
-  resistenciaFuego: number | null;
+  /**
+   * Resistencia al fuego exigida (DB SI 6), por partes de la estructura. Vacío
+   * = sin indicar, y entonces no se imprime nada. No es una sola cifra: el
+   * sótano con aparcamiento, las plantas sobre rasante y la cubierta ligera
+   * salen con R distintas en cualquier edificio corriente.
+   */
+  exigenciasFuego: FilaFuego[];
   elementos: FilaHormigon[];
   aceroEstr: {
     nivelRiesgo: NivelRiesgo;
@@ -216,7 +238,7 @@ export function defaultMaterialesState(): MaterialesState {
     costa: false,
     heladas: false,
     terrenoAgresivo: 'ninguna',
-    resistenciaFuego: null,
+    exigenciasFuego: [],
     elementos: [
       filaDesdePreset('Cimentación'),
       filaDesdePreset('Muros de sótano'),
@@ -410,11 +432,7 @@ export function normalizar(bruto: unknown): MaterialesState {
       ['ninguna', 'debil', 'moderada', 'alta'] as const,
       base.terrenoAgresivo,
     ),
-    resistenciaFuego: (RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(
-      bruto.resistenciaFuego as number,
-    )
-      ? (bruto.resistenciaFuego as number)
-      : null,
+    exigenciasFuego: normalizarFuego(bruto),
     elementos,
     aceroEstr: {
       nivelRiesgo: str(acero.nivelRiesgo, ['CC1', 'CC2', 'CC3'] as const, base.aceroEstr.nivelRiesgo),
@@ -431,6 +449,34 @@ export function normalizar(bruto: unknown): MaterialesState {
     hormigonesAnclaje: hormigonesAnclaje.length ? hormigonesAnclaje : base.hormigonesAnclaje,
     ayuda: bool(bruto.ayuda, base.ayuda),
   };
+}
+
+/**
+ * Las exigencias de fuego de lo guardado. Hasta el 10-09-2026 el módulo
+ * guardaba UNA `resistenciaFuego` para toda la obra; lo escrito con aquel
+ * esquema se hereda como una sola exigencia de ámbito «toda la estructura»,
+ * que es exactamente lo que decía, y su nota sale redactada igual que antes.
+ * Por eso esto migra en vez de subir `versionViva`: subirla tiraría el cuadro
+ * entero —elementos, madera, acero— por un campo que sabemos convertir.
+ */
+function normalizarFuego(bruto: Record<string, unknown>): FilaFuego[] {
+  const minutos = (v: unknown): number | null =>
+    (RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(v as number) ? (v as number) : null;
+
+  if (Array.isArray(bruto.exigenciasFuego)) {
+    return bruto.exigenciasFuego
+      .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null)
+      .map((f) => ({
+        id: typeof f.id === 'string' ? f.id : nuevoId('f'),
+        ambito: typeof f.ambito === 'string' ? f.ambito : '',
+        minutos: minutos(f.minutos),
+      }));
+  }
+
+  const heredada = minutos(bruto.resistenciaFuego);
+  return heredada === null
+    ? []
+    : [{ id: nuevoId('f'), ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: heredada }];
 }
 
 export function cargarEstado(): MaterialesState {
@@ -545,6 +591,10 @@ export interface Evaluacion {
   madera: { fila: FilaMadera; derivacion: DerivacionMadera }[];
   huecosMadera: FilaMadera[];
   acero: DerivacionAcero | null;
+  /** Exigencias de fuego resueltas, las que se imprimen. */
+  fuego: ExigenciaFuego[];
+  /** Exigencias a medio rellenar: el hueco rojo del bloque de fuego. */
+  huecosFuego: FilaFuego[];
   /** Nº de mensajes de aviso y de error en toda la obra. */
   avisos: number;
   errores: number;
@@ -599,6 +649,13 @@ export function evaluar(state: MaterialesState): Evaluacion {
       })
     : null;
 
+  // Una exigencia a medias no se imprime —saldría «R60 en .»— y además es un
+  // hueco: bloquea exportar y publicar, como una fila sin situación.
+  const fuego = exigenciasResueltas(state.exigenciasFuego);
+  const huecosFuego = state.exigenciasFuego.filter(
+    (f) => f.ambito.trim() === '' || f.minutos === null,
+  );
+
   const mensajes = [
     ...hormigon.flatMap((h) => h.derivacion.mensajes),
     ...madera.flatMap((m) => m.derivacion.mensajes),
@@ -614,9 +671,12 @@ export function evaluar(state: MaterialesState): Evaluacion {
     madera,
     huecosMadera,
     acero,
+    fuego,
+    huecosFuego,
     avisos,
     errores,
-    listo: huecos.length === 0 && huecosMadera.length === 0 && errores === 0,
+    listo:
+      huecos.length === 0 && huecosMadera.length === 0 && huecosFuego.length === 0 && errores === 0,
   };
 }
 
@@ -627,9 +687,14 @@ export function evaluar(state: MaterialesState): Evaluacion {
  * Tocar `PubMateriales` obliga a subir `PUB_VERSION`: un consumidor que pide la
  * versión 1 y encuentra la 2 recibe `null` en vez de un objeto a medias
  * (ver `lib/pub`).
+ *
+ * v2 (10-09-2026): `resistenciaFuego` —una cifra para toda la obra— pasa a
+ * `exigenciasFuego`, una por parte de la estructura. Al abrir el cuadro se
+ * republica solo, así que el sobre v1 que hubiera guardado se sustituye sin
+ * que el usuario tenga que hacer nada.
  */
 export const MODULO_PUB = 'materiales';
-export const PUB_VERSION = 1;
+export const PUB_VERSION = 2;
 
 /** Un coeficiente parcial con sus dos situaciones, como lo rotula el cuadro. */
 export interface GammaPub {
@@ -746,8 +811,12 @@ export interface PubMateriales {
   nivelControlEjecucion: NivelControlEjecucion;
   /** Texto de la columna «Nivel de control» del cuadro de aceros. */
   nivelControlAcero: string;
-  /** R exigida por el DB SI 6, en minutos. `null` si no se ha indicado. */
-  resistenciaFuego: number | null;
+  /**
+   * R exigida por el DB SI 6, por partes de la estructura. Lista vacía si la
+   * obra no la ha indicado. Una sola entrada de ámbito «toda la estructura» es
+   * lo que publicaba el esquema v1 con su `resistenciaFuego` suelta.
+   */
+  exigenciasFuego: ExigenciaFuego[];
   /** Los modificadores de obra que endurecieron las clases de exposición. */
   modificadores: {
     costa: boolean;
@@ -873,7 +942,7 @@ export function datosPublicacion(state: MaterialesState, ev: Evaluacion): PubMat
     vidaUtilAnios: state.estudio.vidaUtilAnios,
     nivelControlEjecucion: state.estudio.nivelControlEjecucion,
     nivelControlAcero: state.estudio.nivelControlAcero,
-    resistenciaFuego: state.resistenciaFuego,
+    exigenciasFuego: ev.fuego,
     modificadores: {
       costa: state.costa,
       heladas: state.heladas,

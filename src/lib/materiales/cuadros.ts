@@ -17,6 +17,7 @@
 
 import type { Block } from '../memoria/model';
 import { NOTAS_ANCLAJE, tablaAnclajes } from './anclajes';
+import { AMBITO_TODA_LA_ESTRUCTURA, fraseAmbito, type ExigenciaFuego } from './fuego';
 import {
   CONSISTENCIAS,
   FYK_ACERO_PASIVO,
@@ -414,19 +415,24 @@ const ANEJO_FUEGO_DB_SI: [keyof MaterialesPresentes, string][] = [
 
 function anejosFuego(presentes: MaterialesPresentes): string {
   const letras = [...new Set(ANEJO_FUEGO_DB_SI.filter(([c]) => presentes[c]).map(([, l]) => l))];
-  if (letras.length === 0) return 'los anejos C a F';
-  if (letras.length === 1) return `el anejo ${letras[0]}`;
-  return `los anejos ${letras.slice(0, -1).join(', ')} y ${letras[letras.length - 1]}`;
+  // Contraído: la frase dice «los métodos simplificados …», y sin el «de» salía
+  // «los métodos simplificados el anejo C del DB SI» en todo documento.
+  if (letras.length === 0) return 'de los anejos C a F';
+  if (letras.length === 1) return `del anejo ${letras[0]}`;
+  return `de los anejos ${letras.slice(0, -1).join(', ')} y ${letras[letras.length - 1]}`;
 }
 
 /**
- * El cuadro de acciones lleva una tabla de coeficientes de minoración con
- * columna de INCENDIO, filtrada a los materiales realmente presentes en la
- * obra. En incendio todos valen 1,00 (situación extraordinaria).
- *
- * La resistencia al fuego exigida (R30, R60…) la fija el DB SI 6 según uso y
- * altura de evacuación, y es un dato de la obra: sólo se imprime si se ha
+ * La R exigida (R30, R60…) la fija el DB SI 6 según uso y altura de
+ * evacuación, y es un dato de la obra: sólo se imprime lo que se haya
  * indicado. El oráculo decía «R30» y así salía en todos los documentos.
+ *
+ * Y no es UNA cifra: el DB SI 6 tiene columna aparte para las plantas de
+ * sótano y regla propia para la cubierta ligera, así que lo corriente es el
+ * sótano con aparcamiento por un lado, las plantas sobre rasante por otro y la
+ * cubierta por un tercero. Con una sola exigencia —la que hereda lo guardado
+ * antes, con ámbito «toda la estructura»— la nota se redacta como siempre; con
+ * varias, se enumeran.
  *
  * La nota NO certifica que «la estructura será R30»: el DB SI 6 §6.1 admite
  * justificar la R con las tablas o los métodos de los anejos C a F, y esos
@@ -435,9 +441,41 @@ function anejosFuego(presentes: MaterialesPresentes): string {
  * válidas y cuál se adopta lo decide el proyecto elemento a elemento, así que
  * el cuadro deja las dos abiertas en vez de comprometer la sección desnuda.
  */
+export function notasResistenciaFuego(
+  presentes: MaterialesPresentes,
+  fuego: readonly ExigenciaFuego[],
+): string[] {
+  if (fuego.length === 0) return [];
+
+  // Con una sola cifra en toda la obra la frase puede hablar de «dicha
+  // resistencia»; con varias hay que decir en cuál de ellas, y el objetivo de
+  // las protecciones deja de ser un número concreto.
+  const valores = [...new Set(fuego.map((e) => e.minutos))];
+  const unica = valores.length === 1 ? `R${valores[0]}` : null;
+  const todaLaObra = fuego.length === 1 && fuego[0].ambito === AMBITO_TODA_LA_ESTRUCTURA;
+
+  return [
+    todaLaObra
+      ? `Resistencia al fuego exigida a la estructura: R${fuego[0].minutos}, según el CTE DB SI 6 (tabla 3.1).`
+      : `Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ${fuego
+          .map((e) => `R${e.minutos} en ${fraseAmbito(e.ambito)}`)
+          .join('; ')}.`,
+    `${
+      unica
+        ? 'La estructura alcanzará dicha resistencia'
+        : 'La estructura alcanzará en cada zona la resistencia exigida'
+    } bien por su propia configuración —dimensiones de la sección y recubrimientos, comprobados con las tablas o los métodos simplificados ${anejosFuego(presentes)} del DB SI—, bien disponiendo protecciones adicionales (morteros o placas de protección, pinturas intumescentes u otros revestimientos) que garanticen ${unica ?? 'la resistencia exigida'} en los elementos que no la alcancen por sí mismos. Ambas vías son válidas; la contribución de las protecciones se justificará por ensayo (UNE-EN 13381) o por su marcado CE.`,
+  ];
+}
+
+/**
+ * El cuadro de acciones lleva una tabla de coeficientes de minoración con
+ * columna de INCENDIO, filtrada a los materiales realmente presentes en la
+ * obra. En incendio todos valen 1,00 (situación extraordinaria).
+ */
 export function cuadroCoeficientesMinoracion(
   presentes: MaterialesPresentes,
-  resistenciaFuego: number | null = null,
+  fuego: readonly ExigenciaFuego[] = [],
 ): Block[] {
   const todos: [keyof MaterialesPresentes, string, number][] = [
     ['maderaLaminada', 'Madera laminada', GAMMA_M_MADERA.laminada],
@@ -451,14 +489,10 @@ export function cuadroCoeficientesMinoracion(
     .filter(([clave]) => presentes[clave])
     .map(([, etiqueta, gamma]) => [etiqueta, num(gamma, 2), num(GAMMA_M_EXTRAORDINARIA, 2)]);
 
-  const items = ['Aplicable a los valores característicos.'];
-  if (resistenciaFuego !== null) {
-    const R = `R${resistenciaFuego}`;
-    items.push(
-      `Resistencia al fuego exigida a la estructura: ${R}, según el CTE DB SI 6 (tabla 3.1).`,
-      `La estructura alcanzará dicha resistencia bien por su propia configuración —dimensiones de la sección y recubrimientos, comprobados con las tablas o los métodos simplificados ${anejosFuego(presentes)} del DB SI—, bien disponiendo protecciones adicionales (morteros o placas de protección, pinturas intumescentes u otros revestimientos) que garanticen ${R} en los elementos que no la alcancen por sí mismos. Ambas vías son válidas; la contribución de las protecciones se justificará por ensayo (UNE-EN 13381) o por su marcado CE.`,
-    );
-  }
+  const items = [
+    'Aplicable a los valores característicos.',
+    ...notasResistenciaFuego(presentes, fuego),
+  ];
 
   return [
     { kind: 'heading', level: 2, text: 'COEFICIENTES DE MINORACIÓN' },

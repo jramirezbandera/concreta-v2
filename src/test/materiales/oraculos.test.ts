@@ -27,6 +27,7 @@ import {
   cuadroHormigonMemoria,
   cuadroHormigonPlano,
 } from '../../lib/materiales/cuadros';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
 import { TIPIFICACION_HORMIGON_LIMPIEZA } from '../../lib/materiales/tablasCE';
 import { DURABILIDAD_ESPECIES } from '../../lib/materiales/tablasMadera';
 import type { ElementoHormigon, GrupoMadera, OpcionesObra } from '../../lib/materiales/types';
@@ -427,6 +428,9 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     expect(DURABILIDAD_ESPECIES['Pinus pinaster'].impregnabilidadDuramen).toBe('4');
   });
 
+  /** La R de siempre: una sola, para toda la obra. */
+  const toda = (minutos: number) => ({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos });
+
   const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
     const n = blocks.find((b) => b.kind === 'notes');
     if (n?.kind !== 'notes') throw new Error('sin notas');
@@ -437,10 +441,10 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     // El oráculo dice «La estructura será R30 acorde al CTE DB SI» y así salía
     // en todo documento. La R la fija el DB SI 6 por uso y altura: es un dato.
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }))).not.toContain('R30');
-    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 30))).toContain(
+    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [toda(30)]))).toContain(
       'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6 (tabla 3.1).',
     );
-    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 90))).toContain('R90');
+    expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [toda(90)]))).toContain('R90');
   });
 
   it('la nota de fuego deja abiertas las dos vías del DB SI 6 y no certifica que la estructura «será R30» por sí sola', () => {
@@ -449,17 +453,21 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     // madera protegida) la admiten con protecciones añadidas. El oráculo
     // comprometía la sección desnuda; el cuadro dice que vale cualquiera de
     // las dos y cita sólo los anejos de los materiales presentes.
-    const soloHormigon = notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, 30));
+    const soloHormigon = notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [toda(30)]));
     expect(soloHormigon).not.toContain('La estructura será R30');
     expect(soloHormigon).toContain('por su propia configuración');
     expect(soloHormigon).toContain('protecciones adicionales');
     expect(soloHormigon).toContain('que garanticen R30');
-    expect(soloHormigon).toContain('el anejo C del DB SI');
+    // Con la preposición: «los métodos simplificados DEL anejo C del DB SI».
+    expect(soloHormigon).toContain('los métodos simplificados del anejo C del DB SI');
 
     const mixta = notasDe(
-      cuadroCoeficientesMinoracion({ hormigon: true, aceroLaminado: true, maderaMaciza: true }, 60),
+      cuadroCoeficientesMinoracion(
+        { hormigon: true, aceroLaminado: true, maderaMaciza: true },
+        [toda(60)],
+      ),
     );
-    expect(mixta).toContain('los anejos C, D y E del DB SI');
+    expect(mixta).toContain('los métodos simplificados de los anejos C, D y E del DB SI');
     expect(mixta).toContain('que garanticen R60');
   });
 });

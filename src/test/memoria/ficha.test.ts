@@ -178,3 +178,50 @@ describe('lo que dice la ficha completa', () => {
     for (const p of ['Madrid', 'Sevilla', 'Elabora', 'Entrenúcleos']) expect(t).not.toContain(p);
   });
 });
+
+/**
+ * La R exigida por el DB SI 6 vivía dentro del 3.1.9, porque el apartado de
+ * madera era el único que llamaba a `cuadroCoeficientesMinoracion`: una obra
+ * de hormigón —la mayoría— salía sin mencionarla. Es una exigencia a la
+ * ESTRUCTURA, así que se enuncia una vez en el 3.1.1.
+ */
+describe('resistencia al fuego', () => {
+  const R = [
+    { id: 'f1', ambito: 'Sótano con aparcamiento', minutos: 120 },
+    { id: 'f2', ambito: 'Plantas sobre rasante', minutos: 60 },
+  ];
+  const conFuego = (o: Parameters<typeof sobresGranada>[0] = {}) => {
+    const sobres = sobresGranada({ ...o, fuego: R });
+    const datos = ensamblar(completar(fichaGranadaConFabrica(), sobres), sobres);
+    return { datos, aps: apartados(datos) };
+  };
+  const deApartado = (aps: ReturnType<typeof apartados>, id: string) =>
+    texto(aps.find((a) => a.id === id)!.bloques);
+
+  it('una obra de sólo hormigón la enuncia en el 3.1.1, citando el anejo C', () => {
+    const { aps } = conFuego({ acero: false, madera: false });
+    const se = deApartado(aps, 'se');
+    expect(se).toContain('Resistencia al fuego');
+    expect(se).toContain(
+      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ' +
+        'R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.',
+    );
+    expect(se).toContain('los métodos simplificados del anejo C del DB SI');
+  });
+
+  it('con hormigón, acero y madera cita los tres anejos, y se dice una sola vez', () => {
+    const { datos, aps } = conFuego();
+    expect(deApartado(aps, 'se')).toContain('de los anejos C, D y E del DB SI');
+    // El 3.1.9 conserva su tabla de coeficientes, sin repetir la R.
+    const sem = deApartado(aps, 'sem');
+    expect(sem).toContain('COEFICIENTES DE MINORACIÓN');
+    expect(sem).not.toContain('Resistencia al fuego exigida');
+    const t = texto(bloquesFicha(datos));
+    expect(t.match(/Resistencia al fuego exigida a la estructura/g)).toHaveLength(1);
+  });
+
+  it('sin exigencias indicadas no se menciona en ningún apartado', () => {
+    const { datos } = fichaCompleta();
+    expect(texto(bloquesFicha(datos))).not.toContain('Resistencia al fuego');
+  });
+});

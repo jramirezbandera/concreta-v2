@@ -41,6 +41,8 @@ import { CATEGORIA_LABELS, EJECUCION_LABELS, TABLA_4_4, lookupFk, lookupGammaM, 
 import { FRACCION_MASA } from '../codes/seismic/ncse02';
 import type { CategoriaMasa } from '../codes/seismic/types';
 import { num } from '../materiales/cuadros';
+import type { ExigenciaFuego } from '../materiales/fuego';
+import type { MaterialesPresentes } from '../materiales/cuadros';
 import type { ObraPublicada, Publicacion } from '../pub';
 import {
   GEOTECNIA_CAMPOS,
@@ -232,7 +234,19 @@ export interface FichaDatos {
   };
   fuentes: Record<ModuloPub, Fuente>;
   procede: Record<ApartadoId, boolean>;
-  se: { periodoServicio: Valor<number>; modeloAnalisis: string; flechaActiva: string; desplome: string };
+  se: {
+    periodoServicio: Valor<number>;
+    modeloAnalisis: string;
+    flechaActiva: string;
+    desplome: string;
+    /**
+     * La R exigida por el DB SI 6, con los materiales de la obra para citar
+     * sus anejos. Va en el 3.1.1 y no en cada apartado de material: es una
+     * exigencia a la ESTRUCTURA, y repetirla tres veces sería ruido. `null`
+     * si la obra no la ha indicado o no hay cuadro de materiales publicado.
+     */
+    fuego: { exigencias: ExigenciaFuego[]; presentes: MaterialesPresentes } | null;
+  };
   seae: { viento: Valor<Viento>; nieve: Valor<Nieve | null>; niveles: Valor<Nivel[]> };
   sec: {
     geotecnia: Record<GeotecniaCampo, Valor<string>>;
@@ -266,7 +280,7 @@ export interface FichaDatos {
     categoriaEtiqueta: string | null;
     ejecucionEtiqueta: string | null;
   } | null;
-  sem: { madera: PubMadera; resistenciaFuego: number | null; vidaUtilAnios: number } | null;
+  sem: { madera: PubMadera; vidaUtilAnios: number } | null;
 }
 
 // ── Ayudantes ───────────────────────────────────────────────────────────────
@@ -581,6 +595,26 @@ function juntas(obra: CapaObra, apartado: ApartadoId): Juntas {
 
 // ── Ensamblado ──────────────────────────────────────────────────────────────
 
+/**
+ * La exigencia de fuego de la obra, con los materiales presentes para que la
+ * nota cite los anejos del DB SI que le tocan (C hormigón, D acero, E madera).
+ * El acero de armar va con el hormigón: si hay hormigón estructural, hay
+ * armadura pasiva.
+ */
+function fuego(datos: PubMateriales | null): FichaDatos['se']['fuego'] {
+  if (!datos || datos.exigenciasFuego.length === 0) return null;
+  return {
+    exigencias: datos.exigenciasFuego,
+    presentes: {
+      hormigon: datos.hormigon !== null,
+      aceroDeArmar: datos.hormigon !== null,
+      aceroLaminado: datos.aceroEstructural !== null,
+      maderaLaminada: datos.madera?.grupos.some((g) => g.tipo === 'laminada') ?? false,
+      maderaMaciza: datos.madera?.grupos.some((g) => g.tipo === 'maciza') ?? false,
+    },
+  };
+}
+
 export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
   const { obra, estudio, pubs } = s;
   const provinciaFicha = obra.provincia.valor;
@@ -660,6 +694,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
       modeloAnalisis: estudio.modeloAnalisis,
       flechaActiva: estudio.flechaActivaGeneral,
       desplome: estudio.desplome,
+      fuego: fuego(materiales?.datos ?? null),
     },
     seae: {
       viento: viento(obra, fuentes.vientoNieve, sobres.vientoNieve, provinciaNombre),
@@ -708,7 +743,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
           }
         : null,
     sef,
-    sem: procede.sem && materiales?.datos.madera ? { madera: materiales.datos.madera, resistenciaFuego: materiales.datos.resistenciaFuego, vidaUtilAnios } : null,
+    sem: procede.sem && materiales?.datos.madera ? { madera: materiales.datos.madera, vidaUtilAnios } : null,
   };
 }
 

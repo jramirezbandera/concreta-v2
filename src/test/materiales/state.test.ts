@@ -314,14 +314,12 @@ describe('lectura defensiva', () => {
   });
 
   it('los modificadores de obra nuevos se leen y se validan', () => {
-    const s = normalizar({ heladas: true, terrenoAgresivo: 'moderada', resistenciaFuego: 60 });
+    const s = normalizar({ heladas: true, terrenoAgresivo: 'moderada' });
     expect(s.heladas).toBe(true);
     expect(s.terrenoAgresivo).toBe('moderada');
-    expect(s.resistenciaFuego).toBe(60);
-    const malo = normalizar({ heladas: 'sí', terrenoAgresivo: 'mucho', resistenciaFuego: 45 });
+    const malo = normalizar({ heladas: 'sí', terrenoAgresivo: 'mucho' });
     expect(malo.heladas).toBe(false);
     expect(malo.terrenoAgresivo).toBe('ninguna');
-    expect(malo.resistenciaFuego).toBeNull();
   });
 });
 

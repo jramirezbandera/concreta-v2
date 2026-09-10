@@ -15,6 +15,8 @@ import { num } from '../../lib/materiales/cuadros';
 import type { AgresividadQuimica, DerivacionHormigon } from '../../lib/materiales/types';
 import {
   CONSISTENCIA_OPCIONES,
+  CRITERIO_COSTA,
+  CRITERIO_HELADAS,
   FCK_OPCIONES,
   ORDEN_SITUACIONES,
   PRESETS_HORMIGON,
@@ -77,7 +79,10 @@ export function TablaHormigon({
         {/* Los tres modificadores de obra: alcanzan a varios elementos a la vez y
             por eso viven aquí y no en cada fila. */}
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-secondary">
-          <label className="flex items-center gap-2">
+          {/* La distancia va VISIBLE, no sólo en el tooltip: la pregunta de quien
+              marca la casilla es «¿esto cuenta como costa?», y la respuesta del
+              CE es una cifra. El resto de la nota, al pasar por encima. */}
+          <label className="flex items-center gap-2" title={CRITERIO_COSTA}>
             <input
               type="checkbox"
               checked={costa}
@@ -85,10 +90,11 @@ export function TablaHormigon({
               className="accent-[var(--color-accent)]"
             />
             <span>
-              La obra está <b className="font-semibold text-text-primary">en la costa</b>
+              La obra está <b className="font-semibold text-text-primary">en la costa</b>{' '}
+              <span className="text-text-disabled">(a menos de 5 km)</span>
             </span>
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2" title={CRITERIO_HELADAS}>
             <input
               type="checkbox"
               checked={heladas}
@@ -121,8 +127,10 @@ export function TablaHormigon({
         <p className="border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
           Conteste dónde va a estar cada elemento; las columnas azules las pone el Código
           Estructural. Marcar «en la costa» añade el ambiente marino (XS1) a todo lo que tenga caras
-          al aire libre: sube el cemento, baja el agua y engorda el recubrimiento. «Heladas» añade
-          XF1 a las caras que reciben lluvia. El terreno agresivo lo dice el informe geotécnico
+          al aire libre: sube el cemento, baja el agua y engorda el recubrimiento; el CE lo aplica a
+          menos de 5 km de la costa. «Heladas» añade XF1 a las caras que reciben lluvia, y el CE la
+          da por probable donde el invierno pasa del 75 % de humedad y hay más de un 50 % de
+          probabilidad anual de bajar de -5 °C. El terreno agresivo lo dice el informe geotécnico
           (sulfatos, acidez, CO₂ agresivo) y añade XA1, XA2 o XA3 a todo lo enterrado.
         </p>
       )}

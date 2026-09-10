@@ -405,9 +405,28 @@ export const CATEGORIA_EJECUCION_OPCIONES = [
 /**
  * DB SI 6, tabla 3.1: la resistencia al fuego exigida a la estructura depende
  * del uso y de la altura de evacuación, y la fija el proyecto de incendios. El
- * cuadro sólo la imprime si se ha indicado; antes decía «R30» en toda obra.
+ * cuadro sólo imprime lo que se le indique; antes decía «R30» en toda obra.
+ *
+ * Se elige una por cada parte de la estructura que tenga R distinta —la tabla
+ * 3.1 ya separa las plantas de sótano de las de sobre rasante—; los ámbitos
+ * están en `lib/materiales/fuego`.
  */
 export const RESISTENCIA_FUEGO_OPCIONES = [30, 60, 90, 120, 180, 240] as const;
+
+/**
+ * Cuándo se marca cada modificador de obra, en las palabras del Código
+ * Estructural. Van de tooltip del propio interruptor: «¿esto cuenta como
+ * costa?» es una pregunta que se hace al marcarlo, no al leer la ayuda, y
+ * hasta ahora había que saberse la cifra de memoria.
+ *
+ * Las dos salen de la tabla 27.1.a: el párrafo que cierra la tabla para el
+ * ambiente marino, y su nota (1) para la helada.
+ */
+export const CRITERIO_COSTA =
+  'Código Estructural, tabla 27.1.a: «en general, la clase XS1 se aplicará en estructuras marinas aéreas ubicadas a menos de 5 km de la costa». El autor del proyecto puede adoptar otra clase, bajo su responsabilidad, si dispone de datos experimentales de estructuras próximas ya existentes en condiciones similares.';
+
+export const CRITERIO_HELADAS =
+  'Código Estructural, nota (1) de la tabla 27.1.a: se considera expuesto a la helada lo ubicado en zonas con humedad ambiental en invierno superior al 75 % y con probabilidad anual mayor del 50 % de alcanzar al menos una vez temperaturas por debajo de -5 °C.';
 
 /** CE tabla 27.1.b, resumida para el desplegable: lo dice el informe geotécnico. */
 export const TERRENO_OPCIONES = [

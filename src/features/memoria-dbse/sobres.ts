@@ -21,7 +21,7 @@ import type { PubVientoNieve } from '../viento-nieve/state';
 
 /** Clave del sobre y versión del esquema que esta ficha sabe leer. */
 export const MODULOS: Record<ModuloPub, { modulo: string; version: number; etiqueta: string; ruta: string }> = {
-  materiales: { modulo: 'materiales', version: 1, etiqueta: 'Cuadro de materiales', ruta: '/memorias/materiales' },
+  materiales: { modulo: 'materiales', version: 2, etiqueta: 'Cuadro de materiales', ruta: '/memorias/materiales' },
   vientoNieve: { modulo: 'viento-nieve', version: 1, etiqueta: 'Viento y nieve', ruta: '/acciones/viento-nieve' },
   cargasPlanta: { modulo: 'cargas-planta', version: 1, etiqueta: 'Cargas por planta', ruta: '/acciones/cargas-planta' },
   sismo: { modulo: 'sismo', version: 1, etiqueta: 'Acción sísmica', ruta: '/analisis/sismo' },

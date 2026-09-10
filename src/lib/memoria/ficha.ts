@@ -17,7 +17,7 @@
  * los forjados se renumeran consecutivos según las tipologías que haya.
  */
 
-import { cuadroAceroEstructural, cuadroCoeficientesMinoracion, cuadroDurabilidadMadera, cuadroMadera, num } from '../materiales/cuadros';
+import { cuadroAceroEstructural, cuadroCoeficientesMinoracion, cuadroDurabilidadMadera, cuadroMadera, notasResistenciaFuego, num } from '../materiales/cuadros';
 import { DESCRIPCION_CLASE_SERVICIO } from '../materiales/tablasMadera';
 import { aceroDesdePub, maderaDesdePub } from './adaptadores';
 import type { FichaDatos, Juntas, Tipologia } from './ensamblar';
@@ -91,6 +91,26 @@ function bloquesIndice(d: FichaDatos): Block[] {
 
 // ── 3.1.1 ───────────────────────────────────────────────────────────────────
 
+/**
+ * La R exigida, enunciada UNA vez para toda la estructura.
+ *
+ * Vivía dentro del apartado de madera, porque era el único que llamaba a
+ * `cuadroCoeficientesMinoracion`: una obra de hormigón o de acero salía sin
+ * mencionarla. Es una exigencia a la estructura, no una propiedad de un
+ * material, así que va en el 3.1.1 —donde las situaciones extraordinarias ya
+ * nombran el incendio— y la nota cita los anejos del DB SI de TODOS los
+ * materiales de la obra, no sólo los de uno.
+ */
+function bloquesFuego(d: FichaDatos): Block[] {
+  const f = d.se.fuego;
+  if (!f) return [];
+  // La primera nota es el enunciado —rótulo y valor, como el resto de la
+  // ficha—; la segunda es un párrafo de prosa, que en un kvTable de dos
+  // columnas se quedaría en el 60 % del ancho con media página en blanco.
+  const [exigida, ...resto] = notasResistenciaFuego(f.presentes, f.exigencias);
+  return [h3(SE.fuego.bloque), kv([[SE.fuego.rotulo, exigida]]), ...resto.map(p)];
+}
+
 function bloquesSE(d: FichaDatos): Block[] {
   return [
     h3(SE.bloque),
@@ -111,6 +131,7 @@ function bloquesSE(d: FichaDatos): Block[] {
       [SE.acciones.materiales.rotulo, SE.acciones.materiales.texto],
       [SE.acciones.modelo.rotulo, d.se.modeloAnalisis],
     ]),
+    ...bloquesFuego(d),
     h3(SE.estabilidad.rotulo),
     kv([[SE.estabilidad.formula, lista(SE.estabilidad.leyenda)]]),
     h3(SE.resistencia.rotulo),
@@ -514,7 +535,8 @@ function bloquesSEM(d: FichaDatos): Block[] {
     p(SEM.materiales.intro),
     ...rebajar(cuadroMadera(derivaciones)),
     ...rebajar(cuadroDurabilidadMadera(derivaciones)),
-    ...rebajar(cuadroCoeficientesMinoracion({ maderaLaminada: laminada, maderaMaciza: maciza }, m.resistenciaFuego)),
+    // Sin la R: la enuncia el 3.1.1 para toda la estructura (ver `bloquesFuego`).
+    ...rebajar(cuadroCoeficientesMinoracion({ maderaLaminada: laminada, maderaMaciza: maciza })),
     h3(SEM.analisis.titulo),
     p(SEM.analisis.texto),
     h3(SEM.elu.titulo),

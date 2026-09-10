@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Block } from '../../lib/materiales/cuadros';
 import { cuadroCoeficientesMinoracion } from '../../lib/materiales/cuadros';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
 import { COLOR_DE_CAPA, envolver, planificarDibujo } from '../../lib/dxf/cuadro';
 import { anchoDeTexto } from '../../lib/dxf/anchos';
 import { aLatin1, dxfStr, escribirDxf } from '../../lib/dxf/escribir';
@@ -187,7 +188,7 @@ describe('geometría del cuadro', () => {
             ['Hormigón de limpieza', 'HL-150/B/20', '-', '-', '-', 'Según capítulos 13 y 14'],
           ],
         },
-        ...cuadroCoeficientesMinoracion({ hormigon: true, aceroDeArmar: true }, 30),
+        ...cuadroCoeficientesMinoracion({ hormigon: true, aceroDeArmar: true }, [{ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 30 }]),
       ],
       { altura: h },
     );
@@ -306,7 +307,7 @@ describe('el fichero DXF', () => {
   });
 
   it('no revienta con los bloques reales del módulo', () => {
-    const bloques = cuadroCoeficientesMinoracion({ hormigon: true, aceroDeArmar: true }, 30);
+    const bloques = cuadroCoeficientesMinoracion({ hormigon: true, aceroDeArmar: true }, [{ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 30 }]);
     const d = escribirDxf(planificarDibujo(bloques));
     expect(d).toContain('R30');
     expect(pares(d).length % 2).toBe(0);

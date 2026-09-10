@@ -204,6 +204,18 @@ describe('el interruptor de costa', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /en la costa/ }));
     expect(screen.getByText(/caras no expuestas a ese ambiente bastaría 30 mm/)).toBeInTheDocument();
   });
+
+  it('dice a qué distancia de la costa cuenta, sin abrir la ayuda', () => {
+    montar();
+    // Visible en el propio rótulo: la pregunta se hace al marcar la casilla.
+    expect(screen.getByRole('checkbox', { name: /en la costa/ })).toHaveAccessibleName(
+      /a menos de 5 km/,
+    );
+    // Y la nota entera del CE, con la salida que deja al proyectista.
+    const rotulo = screen.getByText(/La obra está/).closest('label');
+    expect(rotulo).toHaveAttribute('title', expect.stringContaining('menos de 5 km de la costa'));
+    expect(rotulo).toHaveAttribute('title', expect.stringContaining('tabla 27.1.a'));
+  });
 });
 
 describe('heladas y terreno agresivo', () => {
@@ -262,14 +274,47 @@ describe('conmutadores de material', () => {
     expect(screen.getByText(/son categoría de ejecución PC2/)).toBeInTheDocument();
   });
 
+  /** Añade una exigencia de fuego eligiendo un ámbito del menú y su R. */
+  function exigirFuego(ambito: string, minutos: string) {
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir exigencia' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: ambito }));
+    fireEvent.change(screen.getByLabelText(`Resistencia al fuego de ${ambito}`), {
+      target: { value: minutos },
+    });
+  }
+
   it('la resistencia al fuego sólo sale en el documento si se indica', () => {
     montar();
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.queryByText(/Resistencia al fuego exigida/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Resistencia al fuego exigida a la estructura/),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Datos' }));
-    fireEvent.change(screen.getByLabelText('Resistencia al fuego'), { target: { value: '60' } });
+    exigirFuego('Toda la estructura', '60');
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
     expect(screen.getByText(/Resistencia al fuego exigida a la estructura: R60/)).toBeInTheDocument();
+  });
+
+  it('el sótano, las plantas y la cubierta pueden pedir R distintas a la vez', () => {
+    montar();
+    exigirFuego('Sótano con aparcamiento', '120');
+    exigirFuego('Cubierta ligera', '30');
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(
+      screen.getByText(/R120 en el sótano con aparcamiento; R30 en la cubierta ligera/),
+    ).toBeInTheDocument();
+  });
+
+  it('una exigencia sin R es un hueco y bloquea exportar', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir exigencia' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cubierta ligera' }));
+    expect(screen.getByText(/1 sin resolver/)).toBeInTheDocument();
+    // Y sin R no se imprime a medias en el documento.
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+    expect(
+      screen.queryByText(/Resistencia al fuego exigida a la estructura/),
+    ).not.toBeInTheDocument();
   });
 
   it('encender acero estructural deriva la clase de ejecución', () => {

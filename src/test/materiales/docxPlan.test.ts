@@ -17,6 +17,7 @@ import {
   type PlanDocx,
 } from '../../lib/docx/plan';
 import { cuadroAceros, cuadroCoeficientesMinoracion } from '../../lib/materiales/cuadros';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
 import type { Block } from '../../lib/materiales/cuadros';
 
 type TablaPlan = Extract<BloquePlan, { tipo: 'tabla' }>;
@@ -367,7 +368,7 @@ describe('integración con los cuadros reales', () => {
   it('el cuadro de coeficientes de minoración sale con su título, su tabla y sus notas', () => {
     const blocks = cuadroCoeficientesMinoracion(
       { maderaLaminada: true, aceroDeArmar: true, hormigon: true },
-      30,
+      [{ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 30 }],
     );
     const plan = planificarDocx(blocks, 'Coeficientes');
 

@@ -11,3 +11,4 @@ export * from './tablasMadera';
 export * from './derive';
 export * from './anclajes';
 export * from './cuadros';
+export * from './fuego';

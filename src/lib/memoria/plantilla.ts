@@ -148,6 +148,15 @@ export const SE = {
         'Se realiza un cálculo espacial en tres dimensiones por métodos matriciales de rigidez, formando las barras los elementos que definen la estructura: pilares, vigas, brochales y viguetas. Se establece la compatibilidad de deformación en todos los nudos considerando seis grados de libertad y se crea la hipótesis de indeformabilidad del plano de cada planta, para simular el comportamiento del forjado, impidiendo los desplazamientos relativos entre nudos de este. A los efectos de obtención de solicitaciones y desplazamientos, para todos los estados de carga se realiza un cálculo estático y se supone un comportamiento lineal de los materiales, por tanto, un cálculo en primer orden.',
     },
   },
+  /**
+   * La R exigida la fija el DB SI 6, no el DB SE, pero la ficha la enuncia:
+   * es una exigencia a la estructura, va aquí una sola vez —no repetida en
+   * hormigón, acero y madera— y sólo si la obra la ha indicado.
+   */
+  fuego: {
+    bloque: 'Resistencia al fuego',
+    rotulo: 'Resistencia al fuego exigida',
+  },
   estabilidad: {
     rotulo: 'Verificación de la estabilidad',
     formula: FORMULAS.estabilidad,

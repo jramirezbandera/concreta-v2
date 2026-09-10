@@ -9,8 +9,9 @@
  * reparto que evita la fatiga de confirmación.
  */
 
-import { CONTROL_EJECUCION_OPCIONES, RESISTENCIA_FUEGO_OPCIONES } from './catalogos';
-import type { MaterialesState, PerfilEstudio as Perfil } from './state';
+import { CONTROL_EJECUCION_OPCIONES } from './catalogos';
+import { ExigenciasFuego } from './Fuego';
+import type { FilaFuego, MaterialesState, PerfilEstudio as Perfil } from './state';
 
 const INPUT =
   'w-full min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
@@ -34,11 +35,12 @@ interface Props {
   state: MaterialesState;
   ayuda: boolean;
   onMaterial: (
-    cambio: Partial<
-      Pick<MaterialesState, 'usaHormigon' | 'usaAceroEstructural' | 'usaMadera' | 'resistenciaFuego'>
-    >,
+    cambio: Partial<Pick<MaterialesState, 'usaHormigon' | 'usaAceroEstructural' | 'usaMadera'>>,
   ) => void;
   onEstudio: (cambio: Partial<Perfil>) => void;
+  onCambiarFuego: (id: string, cambio: Partial<FilaFuego>) => void;
+  onBorrarFuego: (id: string) => void;
+  onAnadirFuego: (ambito: string) => void;
 }
 
 function Conmutador({
@@ -76,7 +78,15 @@ function Fila({ etiqueta, children }: { etiqueta: string; children: React.ReactN
   );
 }
 
-export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
+export function PerfilEstudio({
+  state,
+  ayuda,
+  onMaterial,
+  onEstudio,
+  onCambiarFuego,
+  onBorrarFuego,
+  onAnadirFuego,
+}: Props) {
   const e = state.estudio;
 
   return (
@@ -107,34 +117,22 @@ export function PerfilEstudio({ state, ayuda, onMaterial, onEstudio }: Props) {
             onToggle={() => onMaterial({ usaMadera: !state.usaMadera })}
           />
         </div>
-        <div className="px-4 pb-3">
-          <Fila etiqueta="Resistencia al fuego exigida (DB SI 6)">
-            <select
-              value={state.resistenciaFuego ?? ''}
-              aria-label="Resistencia al fuego"
-              className={INPUT}
-              onChange={(ev) =>
-                onMaterial({
-                  resistenciaFuego: ev.target.value === '' ? null : Number(ev.target.value),
-                })
-              }
-            >
-              <option value="">Sin indicar</option>
-              {RESISTENCIA_FUEGO_OPCIONES.map((r) => (
-                <option key={r} value={r}>
-                  R{r}
-                </option>
-              ))}
-            </select>
-          </Fila>
-        </div>
+        <ExigenciasFuego
+          filas={state.exigenciasFuego}
+          ayuda={ayuda}
+          onCambiar={onCambiarFuego}
+          onBorrar={onBorrarFuego}
+          onAnadir={onAnadirFuego}
+        />
         {ayuda && (
           <p className="px-4 pb-3 text-[11px] leading-snug text-text-disabled">
             Marque lo que lleva esta obra. El hormigón está casi siempre, aunque sólo sea la
             cimentación; acero y madera, según el proyecto. Lo que no se marca desaparece del
             formulario y del documento. La resistencia al fuego la fija el DB SI según el uso y la
-            altura del edificio: sólo se imprime si la indica, y el cuadro aclara que puede
-            cumplirse por la propia sección o con protecciones añadidas, sin comprometer una u otra.
+            altura del edificio, y no tiene por qué ser una sola: el sótano con aparcamiento suele
+            pedir más que las plantas, y una cubierta ligera menos. Ponga una línea por cada R
+            distinta; sólo se imprime lo que indique, y el cuadro aclara que puede cumplirse por la
+            propia sección o con protecciones añadidas, sin comprometer una u otra.
           </p>
         )}
       </section>

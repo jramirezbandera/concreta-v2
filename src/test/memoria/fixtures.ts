@@ -6,7 +6,7 @@
  */
 
 import { defaultCargasState, datosPublicacion as pubCargas, evaluar as evaluarCargas } from '../../features/cargas-planta/state';
-import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset } from '../../features/materiales/state';
+import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset, type FilaFuego } from '../../features/materiales/state';
 import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
 import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as evaluarViento } from '../../features/viento-nieve/state';
 import { evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
@@ -26,6 +26,8 @@ export interface OpcionesSobres {
   madera?: boolean;
   /** El estado de sismo, si no es el de Granada por defecto. */
   sismo?: SeismicState;
+  /** Exigencias de resistencia al fuego del cuadro de materiales. */
+  fuego?: FilaFuego[];
 }
 
 /** Los cuatro sobres de una obra en Granada. */
@@ -37,6 +39,7 @@ export function sobresGranada(o: OpcionesSobres = {}): Sobres {
     usaAceroEstructural: acero,
     usaMadera: madera,
     maderaGrupos: madera ? [filaMaderaDesdePreset('Vigas y pilares')] : [],
+    exigenciasFuego: o.fuego ?? [],
   };
   const materiales = pubMateriales(m, evaluarMateriales(m))!;
   const v = ejemploVientoNieveState();

@@ -227,11 +227,21 @@ describe('lo común a la obra', () => {
     expect(d.modificadores).toEqual({ costa: true, heladas: true, terrenoAgresivo: 'debil' });
   });
 
-  it('la R exigida viaja como número, no como el párrafo del DB SI', () => {
-    const d = datos({ ...conHormigon(), resistenciaFuego: 90 });
-    expect(d.resistenciaFuego).toBe(90);
+  it('las R exigidas viajan como cifras con su ámbito, no como el párrafo del DB SI', () => {
+    const d = datos({
+      ...conHormigon(),
+      exigenciasFuego: [
+        { id: 'f1', ambito: 'Sótano con aparcamiento', minutos: 120 },
+        { id: 'f2', ambito: 'Plantas sobre rasante', minutos: 60 },
+      ],
+    });
+    // Sin el id, que es del formulario y no del proyecto.
+    expect(d.exigenciasFuego).toEqual([
+      { ambito: 'Sótano con aparcamiento', minutos: 120 },
+      { ambito: 'Plantas sobre rasante', minutos: 60 },
+    ]);
     expect(JSON.stringify(d)).not.toContain('DB SI');
-    expect(datos(conHormigon()).resistenciaFuego).toBeNull();
+    expect(datos(conHormigon()).exigenciasFuego).toEqual([]);
   });
 });
 
