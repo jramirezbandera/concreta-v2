@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookPlus, Check, FileText, X, Download } from 'lucide-react';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { destinoDeGuardado, type DestinoGuardado } from '../../lib/anejo';
 import { blobDeUrl } from '../../lib/anejo/bytes';
 import { useModuloEnPantalla } from '../../lib/anejo/useModuloEnPantalla';
 import { volcarPendientes } from '../../lib/storage/seguro';
@@ -21,6 +22,12 @@ export function PdfPreviewModal({ blobUrl, filename, pageCount, onClose, onDownl
   const adaptador = useModuloEnPantalla();
   const anejo = useGuardarEnAnejo();
   const [enAnejo, setEnAnejo] = useState(false);
+
+  // Qué va a hacer el botón: estrenar capítulo o pisar el que el módulo tiene
+  // abierto. Se lee al pintar, sin estado ni efecto, porque el nombre ya está
+  // en el almacén: `useTitledPdfExport` lo vuelca al confirmarlo, justo antes
+  // de mandar a generar este PDF.
+  const destino = adaptador ? destinoDeGuardado(adaptador.modulo, adaptador.tituloGuardado() ?? '') : null;
 
   // Lock body scroll
   useEffect(() => {
@@ -86,7 +93,7 @@ export function PdfPreviewModal({ blobUrl, filename, pageCount, onClose, onDownl
             <button
               onClick={guardarEnAnejo}
               disabled={anejo.guardando || enAnejo}
-              title={enAnejo ? 'Ya está en el anejo de esta obra' : `Guardar este PDF como capítulo «${adaptador.capitulo}» del anejo de la obra`}
+              title={enAnejo ? 'Ya está en el anejo de esta obra' : explicacionDe(destino, adaptador.capitulo)}
               className="inline-flex items-center gap-1.5 shrink-0 rounded px-4 py-1.5 text-sm text-accent disabled:opacity-60 transition-all"
               style={{
                 border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
@@ -100,7 +107,7 @@ export function PdfPreviewModal({ blobUrl, filename, pageCount, onClose, onDownl
               ) : (
                 <BookPlus size={14} aria-hidden="true" />
               )}
-              {enAnejo ? 'En el anejo' : 'Guardar en el anejo'}
+              {enAnejo ? 'En el anejo' : rotuloDe(destino)}
             </button>
           )}
           <button
@@ -130,4 +137,30 @@ export function PdfPreviewModal({ blobUrl, filename, pageCount, onClose, onDownl
       </div>
     </div>
   );
+}
+
+/**
+ * Lo que pone el botón. Sale de `destinoDeGuardado`, el mismo que decide lo que
+ * el botón HACE: por eso lo que se lee es lo que pasa, y no hay ninguna regla
+ * sobre el nombre que el usuario tenga que aprenderse.
+ *
+ * Mientras el destino no está resuelto —un frame, o un módulo sin adaptador—
+ * pone lo de siempre, que es además lo que hará.
+ */
+function rotuloDe(destino: DestinoGuardado | null): string {
+  if (destino?.tipo === 'actualiza') {
+    return destino.numero === null ? 'Actualizar el capítulo' : `Actualizar el capítulo ${destino.numero}`;
+  }
+  return destino?.desde ? 'Guardar como pieza nueva' : 'Guardar en el anejo';
+}
+
+/** Y el porqué, al pasar por encima: lo que se actualiza, o lo que se queda como está. */
+function explicacionDe(destino: DestinoGuardado | null, capitulo: string): string {
+  if (destino?.tipo === 'actualiza') {
+    return `Sustituir el PDF y los datos de «${destino.pieza.titulo}» en el anejo, en su mismo sitio`;
+  }
+  if (destino?.desde) {
+    return `Añadir una pieza nueva al anejo: le has cambiado el nombre, así que «${destino.desde.titulo}» se queda como está`;
+  }
+  return `Guardar este PDF como capítulo «${capitulo}» del anejo de la obra`;
 }

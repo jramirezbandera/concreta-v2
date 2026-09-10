@@ -56,6 +56,9 @@ export function useGuardarEnAnejo() {
           return { ok: false, donde: 'obra', motivo: 'cuota' };
         }
       }
+      // Estrenar capítulo o pisar el que el módulo tenía abierto lo decide
+      // `guardarPieza` por dentro (`destinoDeGuardado`), que es donde vive la
+      // regla. Aquí sólo se cuenta el desenlace.
       const r = await guardarPieza(p);
       showToast(mensajeDe(r), {
         autoDismiss: 6000,

@@ -12,7 +12,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { showToast } from '../../components/ui/Toast';
-import { piezas } from '../../lib/anejo';
+import { guardarPieza, piezaAbierta, piezas } from '../../lib/anejo';
 import { _reiniciarBlobsParaTests, leerBlob } from '../../lib/anejo/blobs';
 import { guardarObra } from '../../lib/obra';
 import { _reiniciarProyectoParaTests, guardarComoNueva, proyectoActivo } from '../../lib/proyecto';
@@ -163,5 +163,45 @@ describe('PdfPreviewModal — Guardar en el anejo', () => {
     await waitFor(() => expect(toasts()).toEqual(['No se pudo leer el PDF para guardarlo en el anejo']));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(proyectoActivo()).toBeNull();
+  });
+});
+
+describe('el botón dice lo que va a hacer', () => {
+  const boton = () => screen.getByRole('button', { name: /anejo|capítulo|pieza nueva/ });
+
+  /** Deja una V-1 guardada y el módulo ligado a ella, como después de guardarla. */
+  async function conLaV1Guardada() {
+    guardarComoNueva('Nave en Ávila');
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-1', L: 6 }));
+    localStorage.setItem('rc-beams-version', '1');
+    const r = await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-1', blob: PDF, paginas: 3 });
+    expect(r.ok).toBe(true);
+    expect(piezaAbierta('concreta-rc-beams')).not.toBeNull();
+  }
+
+  it('sin nada guardado ofrece guardar, y lo que hace es añadir', async () => {
+    guardarComoNueva('Nave en Ávila');
+    montar();
+    expect(boton()).toHaveTextContent('Guardar en el anejo');
+    await userEvent.click(boton());
+    await waitFor(() => expect(piezas()).toHaveLength(1));
+  });
+
+  it('con la pieza abierta y el mismo nombre, ofrece ACTUALIZAR su capítulo, y no duplica', async () => {
+    await conLaV1Guardada();
+    montar();
+    await waitFor(() => expect(boton()).toHaveTextContent('Actualizar el capítulo 1'));
+    await userEvent.click(boton());
+    await waitFor(() => expect(piezas()).toHaveLength(1));
+  });
+
+  it('si le has cambiado el nombre, ofrece guardar como pieza NUEVA, y la anterior se queda', async () => {
+    await conLaV1Guardada();
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-4', L: 9 }));
+    montar();
+    await waitFor(() => expect(boton()).toHaveTextContent('Guardar como pieza nueva'));
+    expect(boton().title).toMatch(/«Viga V-1» se queda como está/);
+    await userEvent.click(boton());
+    await waitFor(() => expect(piezas().map((x) => x.titulo)).toEqual(['Viga V-1', 'Viga V-4']));
   });
 });

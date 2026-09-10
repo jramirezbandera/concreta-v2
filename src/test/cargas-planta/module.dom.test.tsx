@@ -357,6 +357,9 @@ describe('Cargas por planta — exportación', () => {
     pulsarExportar('pdf');
 
     const modal = await screen.findByRole('dialog');
+    // El PDF pide nombre: es lo que le pone la banda de título, y sin ella no se
+    // puede renombrar el capítulo después desde el anejo.
+    fireEvent.change(within(modal).getByRole('textbox'), { target: { value: 'Cargas por planta' } });
     expect(within(modal).getByText('cargas-por-planta.pdf')).toBeInTheDocument();
     fireEvent.click(within(modal).getByRole('button', { name: /Exportar|Descargar/ }));
 

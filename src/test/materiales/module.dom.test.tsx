@@ -637,7 +637,9 @@ describe('huecos y exportación', () => {
     // Se pide desde Plano a propósito: la opción manda, no la pestaña abierta.
     fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
     exportarComo('PDF');
-    expect(screen.getByText('cuadro-de-materiales.pdf')).toBeInTheDocument();
+    // El PDF pide nombre: es lo que le pone la banda de título, y sin ella no
+    // se puede renombrar el capítulo después desde el anejo.
+    expect(screen.getByRole('button', { name: 'Exportar PDF' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('Título del elemento'), {
       target: { value: 'Nave taller' },

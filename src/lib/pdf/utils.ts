@@ -220,13 +220,38 @@ export function truncateToWidth(doc: jsPDF, text: string, maxW: number): string 
  * The H1 shifts subsequent content, so the caller must thread the returned `y`
  * instead of hardcoding `m + N` offsets.
  */
+/**
+ * La marca que el PDF lleva dentro para poder REPINTAR su título después.
+ *
+ * Renombrar un capítulo desde el anejo cambia el nombre también dentro del PDF,
+ * y para eso hay que saber dónde está escrito. El margen no es el mismo en
+ * todos los módulos (20, 18 y 15 mm), así que el anejo no puede adivinarlo ni
+ * llevar una tabla espejo —se desincronizaría en silencio el día que alguien
+ * mueva un margen—. Lo escribe aquí el mismo código que dibuja el título: el
+ * PDF se describe a sí mismo.
+ *
+ * Va en `/Keywords`, que no lo usa nadie más, con la forma
+ * `concreta-titulo=<margen en mm>` y `,motor` cuando la línea del título lleva
+ * además el bloque «Motor v… · Inputs …» pegado a la derecha, al que el
+ * repintado tiene que dejarle sitio.
+ *
+ * Sólo se escribe cuando HAY título: sin él no hay banda que repintar (el H1 lo
+ * ocupa el rótulo del módulo), y además así el Info dict —y por tanto los
+ * bytes— del caso sin título se queda como estaba.
+ */
+export const MARCA_TITULO = 'concreta-titulo';
+
+export function marcaDeTitulo(m: number, conMotor: boolean): string {
+  return `${MARCA_TITULO}=${m}${conMotor ? ',motor' : ''}`;
+}
+
 export function drawElementTitle(doc: jsPDF, title: string, moduleTitle: string, m: number): number {
   const clean = title.trim();
   if (clean) {
     // Metadatos /Title: los visores (Chrome, Acrobat) rotulan la pestaña con
     // esto en vez de con el UUID del blob. Sólo con título, para no alterar el
     // Info dict — y por tanto los bytes — del caso sin título.
-    doc.setProperties({ title: clean, creator: 'Concreta' });
+    doc.setProperties({ title: clean, creator: 'Concreta', keywords: marcaDeTitulo(m, false) });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     setGray(doc, 20);
@@ -636,6 +661,8 @@ export function drawHeader(
     setGray(doc, 110);
     doc.text(pdfStr(meta.title), M, M + 5.5);
     dy = 5.5;
+    // Dónde está el título, para poder repintarlo al renombrar el capítulo.
+    doc.setProperties({ title: elementTitle, creator: 'Concreta', keywords: marcaDeTitulo(M, Boolean(meta.engineVersion || meta.inputsHash)) });
   }
 
   // Right-aligned engine version + fingerprint on the H1 line

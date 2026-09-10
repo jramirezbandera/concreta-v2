@@ -97,8 +97,20 @@ export function TitlePromptModal({
   const filename = titledFilename(title, fallbackFilename, extension);
   const isFallback = slugTitle(title) === '';
 
+  // En un PDF el nombre es OBLIGATORIO, y no es una manía de formulario: es lo
+  // que hace que el documento lleve arriba su banda de título. Sin ella,
+  // renombrar ese capítulo más tarde desde el anejo no puede cambiar el nombre
+  // DENTRO del PDF —habría que bajar 5,5 mm todo el contenido de la página—, y
+  // el anejo acabaría diciendo una cosa y el papel otra. Se paga aquí, una vez,
+  // en vez de no poder arreglarlo después.
+  //
+  // En los demás formatos NO se pide: un .docx, un .xlsx o un .dxf no tienen
+  // banda de título ni entran nunca en el anejo, así que exigirles nombre sería
+  // fricción a cambio de nada.
+  const sinNombre = extension === 'pdf' && title.trim().length === 0;
+
   const confirm = () => {
-    if (!exporting) onConfirm(title);
+    if (!exporting && !sinNombre) onConfirm(title);
   };
 
   return (
@@ -141,7 +153,7 @@ export function TitlePromptModal({
             ref={inputRef}
             type="text"
             value={title}
-            placeholder="Sin título"
+            placeholder="Viga V-3, MP-1, Zapata Z-2…"
             onChange={e => setTitle(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {
@@ -151,16 +163,26 @@ export function TitlePromptModal({
             }}
             className="w-full bg-bg-primary border border-border-main rounded px-3 py-2 text-sm text-text-primary placeholder:text-text-disabled outline-none focus:border-accent"
           />
-          <p className="mt-2.5 text-xs text-text-secondary">
-            {lineaDestino ?? (
-              <>
+          {/* El aviso del nombre y la línea de destino son cosas distintas y
+              pueden convivir: una dice qué falta, la otra a dónde va esto. Lo
+              que el aviso sí sustituye es la vista previa del nombre de
+              fichero, que sin nombre prometería una descarga que no va a
+              ocurrir. */}
+          {sinNombre && (
+            <p className="mt-2.5 text-xs text-text-disabled">
+              Ponle nombre: es el que llevará arriba el documento y con el que entrará en el anejo.
+            </p>
+          )}
+          {lineaDestino ? (
+            <p className="mt-2.5 text-xs text-text-secondary">{lineaDestino}</p>
+          ) : (
+            !sinNombre && (
+              <p className="mt-2.5 text-xs text-text-secondary">
                 Se descargará como:{' '}
-                <span className={`font-mono ${isFallback ? 'text-text-disabled' : 'text-accent'}`}>
-                  {filename}
-                </span>
-              </>
-            )}
-          </p>
+                <span className={`font-mono ${isFallback ? 'text-text-disabled' : 'text-accent'}`}>{filename}</span>
+              </p>
+            )
+          )}
         </div>
 
         {/* Footer */}
@@ -174,7 +196,8 @@ export function TitlePromptModal({
           </button>
           <button
             onClick={confirm}
-            disabled={exporting}
+            disabled={exporting || sinNombre}
+            title={sinNombre ? 'Escribe el nombre del cálculo para poder exportarlo' : undefined}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded text-sm text-accent disabled:opacity-40 transition-all"
             style={{
               border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',

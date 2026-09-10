@@ -679,10 +679,13 @@ describe('exportación a PDF', () => {
     fireEvent.click(screen.getByLabelText('Exportar PDF'));
     const dialogo = await screen.findByRole('dialog');
     expect(dialogo.getAttribute('aria-labelledby')).toBe('title-prompt-heading');
-    // La vista previa del nombre sale del MISMO fallback que usa el
-    // exportador: si se separasen, el usuario vería un nombre y descargaría
-    // otro.
-    expect(dialogo.textContent).toMatch(/sismo-ncse02-granada-\d{4}-\d{2}-\d{2}\.pdf/);
+    // Sin nombre no se exporta: un PDF sin banda de título no se puede
+    // renombrar después desde el anejo.
+    expect(within(dialogo).getByRole('button', { name: /Exportar|Generar/ })).toBeDisabled();
+    // Y con nombre, la vista previa sale de la MISMA función que usa el
+    // exportador: si se separasen, el usuario vería un nombre y descargaría otro.
+    fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Sismo de la nave' } });
+    expect(dialogo.textContent).toMatch(/sismo-de-la-nave\.pdf/);
   });
 
   it('con un requisito sin declarar NO abre el modal, y dice por qué', async () => {

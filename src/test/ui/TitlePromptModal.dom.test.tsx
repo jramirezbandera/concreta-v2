@@ -6,7 +6,7 @@
 // regresiones al propagar a los otros módulos (eng-review §Pass 6).
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 
@@ -45,9 +45,20 @@ describe('TitlePromptModal', () => {
     expect(screen.getByText('dintel-de-ventana.pdf')).toBeInTheDocument();
   });
 
-  it('título vacío → preview muestra el fallback con fecha', () => {
-    setup({ initialTitle: '' });
-    expect(screen.getByText(FALLBACK)).toBeInTheDocument();
+  it('un PDF sin nombre no se puede exportar, y el modal dice por qué', async () => {
+    const { onConfirm } = setup({ initialTitle: '' });
+    const boton = screen.getByRole('button', { name: /Exportar|Generar/ });
+    expect(boton).toBeDisabled();
+    expect(screen.getByText(/Ponle nombre/)).toBeInTheDocument();
+    // Ni por Enter, que es el atajo con el que se sale del modal sin mirar.
+    fireEvent.keyDown(screen.getByLabelText('Título del elemento'), { key: 'Enter' });
+    expect(onConfirm).not.toHaveBeenCalled();
+    // Es del PDF: la banda de título es lo que permite renombrar el capítulo
+    // después desde el anejo. Un .docx no tiene banda y no se le pide nada.
+    cleanup();
+    setup({ initialTitle: '', extension: 'docx', formatLabel: 'Word', fallbackFilename: 'cuadro.docx' });
+    expect(screen.getByRole('button', { name: /Exportar|Generar/ })).toBeEnabled();
+    expect(screen.getByText('cuadro.docx')).toBeInTheDocument();
   });
 
   // El formato es una prop, no un fork del componente. Estos dos tests son el

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { showToast } from '../components/ui/Toast';
+import { volcarPendientes } from '../lib/storage/seguro';
 import { usePdfPreview } from './usePdfPreview';
 import type { PdfResult } from '../lib/pdf/utils';
 
@@ -45,6 +46,13 @@ export function useTitledPdfExport({ exportFn, valid, onTitleChange, invalidMess
   const confirmTitle = useCallback(
     (title: string) => {
       onTitleChange(title);
+      // Y se VUELCA, en vez de dejarlo 300 ms en la cola de `useModuleState`.
+      // El nombre lo acaba de confirmar el usuario a propósito: no hay nada que
+      // agrupar. Y desde aquí hasta el botón «Guardar en el anejo» hay quien lo
+      // lee del almacén para saber si esta exportación actualiza el capítulo
+      // abierto o estrena uno; con el nombre todavía en la cola, ese botón
+      // rotularía con el nombre ANTERIOR y prometería lo que no va a hacer.
+      volcarPendientes();
       setTitleOpen(false);
       void pdf.handleExportPdf(title);
     },

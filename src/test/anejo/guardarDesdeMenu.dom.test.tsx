@@ -115,6 +115,7 @@ describe('Guardar en el anejo desde «Exportar»', () => {
     rellenarMadrid();
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /^Guardar en el anejo/ }));
+    await user.type(screen.getByLabelText('Título del elemento'), 'Viento de la nave');
     await user.click(screen.getByRole('button', { name: 'Guardar en el anejo' }));
 
     const nombre = await screen.findByLabelText('Nombre de la obra');
@@ -134,6 +135,7 @@ describe('Guardar en el anejo desde «Exportar»', () => {
     rellenarMadrid();
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /^PDF/ }));
+    await user.type(screen.getByLabelText('Título del elemento'), 'Viento de la nave');
     await user.click(screen.getByRole('button', { name: 'Exportar PDF' }));
     await waitFor(() => expect(descargarBlob).toHaveBeenCalledTimes(1));
     expect(guardarPieza).not.toHaveBeenCalled();
