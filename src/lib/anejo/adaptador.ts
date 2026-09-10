@@ -69,6 +69,33 @@ function tituloGenerico(e: EntradaProyecto): string | null {
   return null;
 }
 
+
+/**
+ * Los mismos datos con OTRO nombre de documento dentro, escrito donde cada
+ * módulo lo guarde: en su satélite `*-title` los que usan `useDocTitle`, y como
+ * `title` dentro del estado los de `useModuleState`.
+ *
+ * Hace falta al renombrar un capítulo desde el anejo. Sin esto la pieza se
+ * quedaría con el nombre nuevo en la lista y en su PDF, pero con el viejo en
+ * los datos: la reabres y el módulo te devuelve el nombre de antes, que es
+ * justo la incoherencia que renombrar venía a quitar.
+ *
+ * Los módulos que no guardan nombre —la ficha DB SE— salen intactos.
+ */
+export function datosConTitulo(e: EntradaProyecto, datos: Record<string, string>, titulo: string): Record<string, string> {
+  const satelite = clavesDeDato(e).find(esClaveDeTitulo);
+  if (satelite) return { ...datos, [satelite]: titulo };
+  const crudo = datos[e.clave];
+  if (crudo === undefined) return datos;
+  try {
+    const p: unknown = JSON.parse(crudo);
+    if (!esObjeto(p) || typeof p.title !== 'string') return datos;
+    return { ...datos, [e.clave]: JSON.stringify({ ...p, title: titulo }) };
+  } catch {
+    return datos;
+  }
+}
+
 /** El estado sin su `title`: cambiar el nombre del documento no es cambiar el cálculo. */
 function sinTitulo(raw: string): unknown {
   try {
@@ -95,21 +122,61 @@ function sinTitulo(raw: string): unknown {
  * correcto.
  */
 export function huellaDeModulo(a: AdaptadorAnejo): string | null {
-  const e = a.entrada;
   const partes: Record<string, unknown> = {};
   let hay = false;
-  const principal = leerClave(e.clave);
-  if (principal !== null) {
-    partes[e.clave] = sinTitulo(principal);
+  for (const clave of clavesDeDato(a.entrada)) {
+    // El nombre del documento no es el cálculo: ni el satélite `*-title`…
+    if (esClaveDeTitulo(clave)) continue;
+    const v = leerClave(clave);
+    if (v === null) continue;
+    // …ni el `title` de dentro del estado.
+    partes[clave] = clave === a.entrada.clave ? sinTitulo(v) : v;
     hay = true;
   }
-  for (const s of e.satelites ?? []) {
-    if (esClaveDeTitulo(s) || s.startsWith(PREFIJO_PUB)) continue;
-    const v = leerClave(s);
-    if (v !== null) {
-      partes[s] = v;
-      hay = true;
-    }
-  }
   return hay ? inputsFingerprint(partes) : null;
+}
+
+/**
+ * Las claves del módulo que son DATO, en el orden en que se leen: la principal
+ * y sus satélites, menos los sobres publicados.
+ *
+ * Una sola enumeración para los dos usos —la huella y los datos de la pieza—
+ * para que no puedan divergir: si una clave entra en la huella, entra en el
+ * snapshot, y al revés. Lo que sí difiere es la PROYECCIÓN, y a propósito: la
+ * huella ignora el nombre del documento (renombrar no es recalcular) y el
+ * snapshot lo guarda (restaurar tiene que devolver la pieza con su nombre).
+ *
+ * Los `concreta-pub-*` se quedan fuera de los dos. Son derivados de la clave
+ * principal, no dato, y reescribir uno al restaurar cambiaría lo que ve OTRO
+ * módulo. Ver la nota de `Pieza.datos`.
+ */
+export function clavesDeDato(e: EntradaProyecto): string[] {
+  return [e.clave, ...(e.satelites ?? []).filter((s) => !s.startsWith(PREFIJO_PUB))];
+}
+
+/**
+ * El estado del módulo tal como está guardado ahora, clave por clave y EN
+ * CRUDO, listo para volver a escribirlo tal cual. `null` si el módulo no tiene
+ * nada guardado.
+ *
+ * La clave de versión de esquema va con lo demás, y no es un detalle: sin ella
+ * `useModuleState` compara la versión, no la encuentra, y descarta en silencio
+ * todo lo que se acabe de restaurar.
+ */
+export function datosDeModulo(a: AdaptadorAnejo): Record<string, string> | null {
+  const datos: Record<string, string> = {};
+  let hay = false;
+  for (const clave of clavesDeDato(a.entrada)) {
+    const v = leerClave(clave);
+    if (v === null) continue;
+    datos[clave] = v;
+    hay = true;
+  }
+  if (!hay) return null;
+  const version = a.entrada.claveVersion;
+  if (version !== null) {
+    const v = leerClave(version);
+    if (v !== null) datos[version] = v;
+  }
+  return datos;
 }

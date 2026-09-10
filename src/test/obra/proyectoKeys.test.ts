@@ -152,6 +152,7 @@ const AYUDANTES_CON_CLAVE_DINAMICA = new Set([
   'lib/storage/seguro.ts', // localStorage.*(clave), por parámetro: es el único que lo toca
   'lib/proyecto/index.ts', // el contenedor: enumera y escribe claves de proyecto y concreta-proyecto-<id>
   'lib/anejo/adaptador.ts', // el anejo lee el estado de cada módulo por su fila de la tabla (título y huella)
+  'lib/anejo/index.ts', // restaurar una pieza REESCRIBE las claves de su módulo, también por su fila de la tabla
 ]);
 
 function fuentes(dir: string): string[] {

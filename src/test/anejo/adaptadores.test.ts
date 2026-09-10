@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { moduleRegistry } from '../../data/moduleRegistry';
 import { CLAVES_PROYECTO, entradaDe, MODULOS_SIN_REGISTRO } from '../../data/proyectoKeys';
-import { definirAdaptador, huellaDeModulo } from '../../lib/anejo/adaptador';
+import { clavesDeDato, datosDeModulo, definirAdaptador, huellaDeModulo } from '../../lib/anejo/adaptador';
 import { ADAPTADORES_ANEJO, adaptadorDe, buscarAdaptador } from '../../lib/anejo/modules';
 import { _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
 
@@ -123,5 +123,54 @@ describe('huellaDeModulo', () => {
     const a = adaptadorDe('concreta-fem-2d');
     localStorage.setItem('concreta-fem-2d-design', 'crudo');
     expect(huellaDeModulo(a)).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe('los datos que la pieza se lleva', () => {
+  it('son la clave principal y sus satélites, sin los sobres publicados', () => {
+    expect(clavesDeDato(adaptadorDe('concreta-viento-nieve').entrada)).toEqual([
+      'concreta-viento-nieve-model',
+      'concreta-viento-nieve-title',
+    ]);
+    expect(clavesDeDato(adaptadorDe('concreta-micropiles').entrada)).toEqual(['micropiles', 'concreta-micropiles-soil']);
+    expect(clavesDeDato(adaptadorDe('concreta-rc-beams').entrada)).toEqual(['rc-beams']);
+  });
+
+  it('guardan el nombre del documento y la versión de esquema, que la huella no mira', () => {
+    const viento = adaptadorDe('concreta-viento-nieve');
+    localStorage.setItem('concreta-viento-nieve-model', '{"v":1}');
+    localStorage.setItem('concreta-viento-nieve-model-version', '1');
+    localStorage.setItem('concreta-viento-nieve-title', 'Nave en Ávila');
+    localStorage.setItem('concreta-pub-viento-nieve', '{"sobre":1}');
+    expect(datosDeModulo(viento)).toEqual({
+      'concreta-viento-nieve-model': '{"v":1}',
+      'concreta-viento-nieve-title': 'Nave en Ávila',
+      'concreta-viento-nieve-model-version': '1',
+    });
+  });
+
+  it('sin estado guardado no hay datos, y la versión sola no cuenta como estado', () => {
+    const vigas = adaptadorDe('concreta-rc-beams');
+    expect(datosDeModulo(vigas)).toBeNull();
+    localStorage.setItem('rc-beams-version', '1');
+    expect(datosDeModulo(vigas)).toBeNull();
+  });
+
+  it('en los 25 módulos: toda clave de dato entra en el snapshot, y mueve la huella salvo la del nombre', () => {
+    for (const a of ADAPTADORES_ANEJO) {
+      for (const clave of clavesDeDato(a.entrada)) {
+        localStorage.clear();
+        _reiniciarAlmacenParaTests();
+        localStorage.setItem(a.entrada.clave, '{"x":1}');
+        const antes = huellaDeModulo(a);
+        localStorage.setItem(clave, clave === a.entrada.clave ? '{"x":2}' : 'valor');
+        const donde = `${a.modulo} / ${clave}`;
+        const datos = datosDeModulo(a);
+        expect(datos, donde).not.toBeNull();
+        expect(Object.keys(datos!), donde).toContain(clave);
+        if (clave.endsWith('-title')) expect(huellaDeModulo(a), donde).toBe(antes);
+        else expect(huellaDeModulo(a), donde).not.toBe(antes);
+      }
+    }
   });
 });

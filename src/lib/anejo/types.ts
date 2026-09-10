@@ -1,14 +1,21 @@
 /**
  * El anejo de cálculo: qué es una pieza y qué declara cada módulo para entrar.
  *
- * Una PIEZA es un PDF que el usuario ya vio en pantalla —el mismo que descarga
- * «Exportar»— congelado con sus metadatos. No se regenera nunca: por eso el
- * anejo no puede llevar números distintos a los de la pantalla, y por eso
- * «RECALCULAR» significa exactamente «este PDF es de antes de que cambiaras el
- * cálculo». Los bytes viven en IndexedDB (`blobs.ts`) bajo `blobId`; el índice
- * de piezas es la clave de proyecto `concreta-anejo`, ligera, que viaja en el
- * `.concreta` como cualquier otra. Los bytes NO viajan: en otra máquina la
- * pieza aparece sin su PDF y la pantalla pide volver a guardarla.
+ * Una PIEZA es un CÁLCULO: el PDF que el usuario vio en pantalla —el mismo que
+ * descarga «Exportar»— MÁS los datos con los que se hizo. Los dos entran
+ * juntos y salen juntos, así que una pieza no puede contradecirse a sí misma.
+ *
+ * El PDF sigue sin regenerarse nunca por su cuenta: sale del exportador de
+ * siempre, con el módulo en pantalla y pasando por la previsualización. Por
+ * eso el anejo no puede llevar números distintos a los que se vieron. Lo que
+ * los datos añaden es el camino de vuelta: pinchar una pieza la abre en su
+ * módulo tal como se calculó, y volver a guardar actualiza ese capítulo.
+ *
+ * Dos almacenes. Los bytes del PDF viven en IndexedDB (`blobs.ts`) bajo
+ * `blobId`; el índice de piezas —con los datos dentro— es la clave de proyecto
+ * `concreta-anejo`, que viaja en el `.concreta` como cualquier otra. Los bytes
+ * NO viajan, los datos SÍ: en otra máquina la pieza aparece sin su PDF, pero
+ * se puede abrir en su módulo y volver a exportarla.
  */
 
 import type { EntradaProyecto } from '../../data/proyectoKeys';
@@ -48,6 +55,33 @@ export interface Pieza {
    * calculable el ámbar.
    */
   huella: string | null;
+  /**
+   * El estado del módulo con el que se hizo el PDF, clave por clave y en
+   * crudo: la principal, sus satélites que no son sobres publicados —el
+   * nombre del documento, el suelo de micropilotes— y la clave de versión de
+   * esquema. Restaurar es volver a escribir esto tal cual; el anejo no sabe
+   * ni tiene que saber qué hay dentro.
+   *
+   * `null` en las piezas guardadas antes de esta versión, que sólo tienen
+   * PDF (`adoptarDatosDeModulos` recupera las que se pueda).
+   *
+   * Los sobres `concreta-pub-*` se quedan fuera a propósito: son derivados, y
+   * reescribir uno al abrir una pieza cambiaría lo que ven OTROS módulos.
+   * Como los cinco módulos que publican son exactamente los cinco de
+   * `memoria`, y los de memoria no se restauran, no llega a poder pasar.
+   */
+  datos: Record<string, string> | null;
+  /**
+   * Si el PDF lleva arriba la banda del título, que es lo que hace repintable
+   * el nombre al renombrar el capítulo.
+   *
+   * `false` cuando se exportó con el nombre vacío: entonces el H1 lo ocupa el
+   * rótulo del módulo, no existe la línea de subtítulo, y meter un nombre
+   * bajaría 5,5 mm todo el contenido de la página —eso ya no es repintar, es
+   * rehacer el PDF—. `false` también en las piezas de antes de esta versión,
+   * donde no hay manera de saberlo.
+   */
+  tituloEnPdf: boolean;
   /** Casilla «incluir» de la pantalla del anejo. Nace en `true`. */
   incluida: boolean;
 }

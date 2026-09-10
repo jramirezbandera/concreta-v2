@@ -10,10 +10,17 @@ import { IDBFactory } from 'fake-indexeddb';
 import { PDFDocument } from 'pdf-lib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  adaptadorDe,
+  adoptarDatosDeModulos,
+  destinoDeGuardado,
+  piezaAbierta,
   blobIdsReferenciados,
   escribirAnejo,
   estadoDePieza,
+  fijarIncluida,
   guardarPieza,
+  hayTrabajoSinGuardar,
+  huellaDeModulo,
   leerAnejo,
   piezaPorId,
   piezas,
@@ -21,12 +28,19 @@ import {
   purgarBlobsHuerfanos,
   purgarEnSegundoPlano,
   quitarPieza,
+  renombrarPieza,
+  restaurarPieza,
+  rutaDeModulo,
+  soltarVinculo,
   type Pieza,
 } from '../../lib/anejo';
 import { _reiniciarBlobsParaTests, borrarBlob, guardarBlob, idsDeBlobs, leerBlob } from '../../lib/anejo/blobs';
+import { crearPdf } from '../../lib/pdf/fuente';
+import { drawElementTitle } from '../../lib/pdf/utils';
 import { blobDePdf } from '../../lib/anejo/concatenar';
+import { leerVinculo } from '../../lib/anejo/vinculo';
 import { _reiniciarProyectoParaTests, guardar, proyectoNuevo } from '../../lib/proyecto';
-import { _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
+import { escribirClaveDiferida, hayPendientes, _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
 
 async function pdf(paginas = 2): Promise<Blob> {
   const doc = await PDFDocument.create();
@@ -77,7 +91,7 @@ describe('el índice', () => {
   });
 
   it('escribirAnejo escribe el índice y la versión viva; una pieza antigua sin `incluida` nace incluida', () => {
-    const p: Pieza = { id: 'p1', modulo: 'concreta-rc-beams', clave: 'rc-beams', titulo: 'V-1', ts: 't', esquema: '1', blobId: 'b1', paginas: 2, huella: null, incluida: true };
+    const p: Pieza = { id: 'p1', modulo: 'concreta-rc-beams', clave: 'rc-beams', titulo: 'V-1', ts: 't', esquema: '1', blobId: 'b1', paginas: 2, huella: null, datos: null, tituloEnPdf: false, incluida: true };
     expect(escribirAnejo({ v: 1, piezas: [p] })).toBe(true);
     expect(localStorage.getItem('concreta-anejo-version')).toBe('1');
     const guardado = JSON.parse(localStorage.getItem('concreta-anejo')!) as { piezas: Record<string, unknown>[] };
@@ -192,33 +206,18 @@ describe('estadoDePieza', () => {
     expect(estadoDePieza(await piezaDeVigas())).toBe('al-dia');
   });
 
-  it('cambiar el cálculo la pone a recalcular; cambiar sólo el título, no', async () => {
+  it('que el módulo tenga OTRA cosa ya no la desfasa: la pieza lleva sus datos', async () => {
     const p = await piezaDeVigas();
-    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-1 (renombrada)', L: 6 }));
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-5', L: 9 }));
     expect(estadoDePieza(p)).toBe('al-dia');
-    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-1', L: 7 }));
-    expect(estadoDePieza(p)).toBe('recalcular');
-  });
-
-  it('borrar el estado del módulo también la pone a recalcular', async () => {
-    const p = await piezaDeVigas();
     localStorage.removeItem('rc-beams');
-    expect(estadoDePieza(p)).toBe('recalcular');
-  });
-
-  it('una pieza hecha sin estado guardado está al día hasta que el usuario toca algo', async () => {
-    localStorage.removeItem('rc-beams');
-    const p = await piezaDeVigas();
-    expect(p.huella).toBeNull();
     expect(estadoDePieza(p)).toBe('al-dia');
-    localStorage.setItem('rc-beams', JSON.stringify({ L: 5 }));
-    expect(estadoDePieza(p)).toBe('recalcular');
   });
 
-  it('otro esquema, o un módulo que esta versión no conoce: recalcular', async () => {
+  it('lo que sí la desfasa es el esquema: el módulo de hoy ya no sabe leer sus datos', async () => {
     const p = await piezaDeVigas();
-    expect(estadoDePieza({ ...p, esquema: '0' })).toBe('recalcular');
-    expect(estadoDePieza({ ...p, modulo: 'concreta-de-otra-version' })).toBe('recalcular');
+    expect(estadoDePieza({ ...p, esquema: '0' })).toBe('version-anterior');
+    expect(estadoDePieza({ ...p, modulo: 'concreta-de-otra-version' })).toBe('version-anterior');
   });
 });
 
@@ -294,5 +293,322 @@ describe('huérfanos y ausentes', () => {
     expect(await piezasSinPdf()).toEqual(new Set());
     await borrarBlob(b.pieza.blobId);
     expect(await piezasSinPdf()).toEqual(new Set([b.pieza.id]));
+  });
+});
+
+const DATOS_VIGAS = { 'rc-beams': JSON.stringify({ title: 'Viga V-1', L: 6 }), 'rc-beams-version': '1' };
+
+/** Una pieza como las que guardaba la versión anterior: PDF y huella, sin datos. */
+function antigua(id: string, huella: string | null, extra: Partial<Pieza> = {}): Pieza {
+  return {
+    id,
+    modulo: 'concreta-rc-beams',
+    clave: 'rc-beams',
+    titulo: `V-${id}`,
+    ts: '2026-09-08T10:00:00.000Z',
+    esquema: '1',
+    blobId: `b-${id}`,
+    paginas: 2,
+    huella,
+    datos: null,
+    tituloEnPdf: false,
+    incluida: true,
+    ...extra,
+  };
+}
+
+describe('los datos que la pieza se lleva', () => {
+  it('guardar apunta el estado del módulo y que el PDF lleva banda de título', async () => {
+    expect((await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-1', blob: await pdf() })).ok).toBe(true);
+    const p = piezas()[0];
+    expect(p.datos).toEqual(DATOS_VIGAS);
+    expect(p.tituloEnPdf).toBe(true);
+  });
+
+  it('exportada sin nombre: el capítulo pone el rótulo y no hay banda que repintar', async () => {
+    await guardarPieza({ modulo: 'concreta-rc-beams', titulo: '   ', blob: await pdf() });
+    const p = piezas()[0];
+    expect(p.titulo).toBe('Vigas de hormigón');
+    expect(p.tituloEnPdf).toBe(false);
+    expect(p.datos).toEqual(DATOS_VIGAS);
+  });
+
+  it('una pieza de la versión anterior se lee entera, sin datos y sin banda', () => {
+    const vieja = { ...antigua('p1', 'abc') } as Record<string, unknown>;
+    delete vieja.datos;
+    delete vieja.tituloEnPdf;
+    localStorage.setItem('concreta-anejo', JSON.stringify({ v: 1, piezas: [vieja] }));
+    const p = piezaPorId('p1')!;
+    expect(p.titulo).toBe('V-p1');
+    expect(p.datos).toBeNull();
+    expect(p.tituloEnPdf).toBe(false);
+  });
+
+  it('unos datos a medias no se restauran a medias: si un valor no es texto, se caen enteros', () => {
+    const rota = { ...antigua('p1', 'abc'), datos: { 'rc-beams': '{}', 'rc-beams-version': 1 } };
+    localStorage.setItem('concreta-anejo', JSON.stringify({ v: 1, piezas: [rota] }));
+    expect(piezaPorId('p1')!.datos).toBeNull();
+  });
+});
+
+describe('la adopción de lo guardado antes', () => {
+  it('adopta la que coincide, deja la que no, y no toca la que ya tiene datos', () => {
+    const h = huellaDeModulo(adaptadorDe('concreta-rc-beams'));
+    expect(h).not.toBeNull();
+    escribirAnejo({
+      v: 1,
+      piezas: [antigua('p1', h), antigua('p2', 'otra'), antigua('p3', h, { datos: { 'rc-beams': 'mío' } })],
+    });
+    expect(adoptarDatosDeModulos()).toBe(1);
+    expect(piezaPorId('p1')!.datos).toEqual(DATOS_VIGAS);
+    expect(piezaPorId('p2')!.datos).toBeNull();
+    expect(piezaPorId('p3')!.datos).toEqual({ 'rc-beams': 'mío' });
+  });
+
+  it('lo adoptado no gana banda de título: de un PDF de antes no se puede saber', () => {
+    escribirAnejo({ v: 1, piezas: [antigua('p1', huellaDeModulo(adaptadorDe('concreta-rc-beams')))] });
+    expect(adoptarDatosDeModulos()).toBe(1);
+    expect(piezaPorId('p1')!.tituloEnPdf).toBe(false);
+  });
+
+  it('con el esquema cambiado no adopta: lo que el módulo guarda hoy ya no es lo que hizo aquel PDF', () => {
+    const h = huellaDeModulo(adaptadorDe('concreta-rc-beams'));
+    escribirAnejo({ v: 1, piezas: [antigua('p1', h, { esquema: '0' })] });
+    expect(adoptarDatosDeModulos()).toBe(0);
+    expect(piezaPorId('p1')!.datos).toBeNull();
+  });
+
+  it('sin huella no adopta, y una pieza de un módulo desconocido tampoco', () => {
+    escribirAnejo({ v: 1, piezas: [antigua('p1', null), antigua('p2', 'x', { modulo: 'concreta-de-otra-version' })] });
+    expect(adoptarDatosDeModulos()).toBe(0);
+  });
+
+  it('es idempotente: la segunda pasada no adopta nada ni reescribe', () => {
+    escribirAnejo({ v: 1, piezas: [antigua('p1', huellaDeModulo(adaptadorDe('concreta-rc-beams')))] });
+    expect(adoptarDatosDeModulos()).toBe(1);
+    const indice = localStorage.getItem('concreta-anejo');
+    expect(adoptarDatosDeModulos()).toBe(0);
+    expect(localStorage.getItem('concreta-anejo')).toBe(indice);
+  });
+});
+
+describe('abrir una pieza en su módulo', () => {
+  /** Una pieza de vigas con el estado que se le pase, ya en el índice. */
+  function conDatos(datos: Record<string, string>, extra: Partial<Pieza> = {}): Pieza {
+    const p = antigua('p1', 'h', { datos, ...extra });
+    escribirAnejo({ v: 1, piezas: [p] });
+    return p;
+  }
+
+  it('deja el módulo como estaba y dice a dónde navegar', () => {
+    conDatos({ 'rc-beams': '{"title":"V-3","L":9}', 'rc-beams-version': '1' });
+    localStorage.setItem('rc-beams', '{"title":"V-5","L":4}');
+    const r = restaurarPieza('p1');
+    expect(r).toEqual({ ok: true, ruta: rutaDeModulo('concreta-rc-beams') });
+    expect(localStorage.getItem('rc-beams')).toBe('{"title":"V-3","L":9}');
+  });
+
+  it('borra lo que el módulo tenga y la pieza no traiga: el suelo de la anterior no se pega a ésta', () => {
+    const micro = antigua('m1', 'h', {
+      modulo: 'concreta-micropiles',
+      clave: 'micropiles',
+      esquema: '9',
+      datos: { micropiles: '{"n":4}', 'micropiles-version': '9' },
+    });
+    escribirAnejo({ v: 1, piezas: [micro] });
+    localStorage.setItem('micropiles', '{"n":9}');
+    localStorage.setItem('concreta-micropiles-soil', '[{"estrato":"arcilla"}]');
+    expect(restaurarPieza('m1').ok).toBe(true);
+    expect(localStorage.getItem('micropiles')).toBe('{"n":4}');
+    expect(localStorage.getItem('concreta-micropiles-soil')).toBeNull();
+  });
+
+  it('vuelca la cola diferida antes de escribir: la última tecla de lo que abandonas no pisa lo restaurado', () => {
+    conDatos({ 'rc-beams': '{"L":9}', 'rc-beams-version': '1' });
+    escribirClaveDiferida('rc-beams', () => '{"L":4}');
+    expect(hayPendientes()).toBe(true);
+    expect(restaurarPieza('p1').ok).toBe(true);
+    expect(hayPendientes()).toBe(false);
+    expect(localStorage.getItem('rc-beams')).toBe('{"L":9}');
+  });
+
+  it('si una escritura falla a mitad, deshace las anteriores', () => {
+    const micro = antigua('m1', 'h', {
+      modulo: 'concreta-micropiles',
+      clave: 'micropiles',
+      esquema: '9',
+      datos: { micropiles: '{"n":4}', 'concreta-micropiles-soil': '[]', 'micropiles-version': '9' },
+    });
+    escribirAnejo({ v: 1, piezas: [micro] });
+    localStorage.setItem('micropiles', 'ANTES');
+    localStorage.setItem('concreta-micropiles-soil', 'SUELO-ANTES');
+    const real = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === 'concreta-micropiles-soil' && v === '[]') throw cuotaLlena();
+      real.call(this, k, v);
+    });
+    expect(restaurarPieza('m1')).toEqual({ ok: false, motivo: 'sitio' });
+    vi.restoreAllMocks();
+    expect(localStorage.getItem('micropiles')).toBe('ANTES');
+    expect(localStorage.getItem('concreta-micropiles-soil')).toBe('SUELO-ANTES');
+  });
+
+  it('no restaura lo que no puede: sin pieza, sin datos, con el esquema cambiado o de un módulo desconocido', () => {
+    expect(restaurarPieza('nada')).toEqual({ ok: false, motivo: 'sin-pieza' });
+    escribirAnejo({ v: 1, piezas: [antigua('p1', 'h')] });
+    expect(restaurarPieza('p1')).toEqual({ ok: false, motivo: 'sin-datos' });
+    conDatos({ 'rc-beams': '{}' }, { esquema: '0' });
+    expect(restaurarPieza('p1')).toEqual({ ok: false, motivo: 'esquema' });
+    escribirAnejo({ v: 1, piezas: [antigua('p1', 'h', { modulo: 'concreta-de-otra-version', datos: { x: 'y' } })] });
+    expect(restaurarPieza('p1')).toEqual({ ok: false, motivo: 'desconocido' });
+  });
+});
+
+describe('el aviso de trabajo sin guardar', () => {
+  it('no avisa si lo que el módulo tiene ya está en una pieza del anejo', async () => {
+    expect((await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-1', blob: await pdf() })).ok).toBe(true);
+    expect(hayTrabajoSinGuardar('concreta-rc-beams')).toBe(false);
+  });
+
+  it('avisa en cuanto el cálculo cambia, y deja de avisar al volver a guardarlo', async () => {
+    await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-1', blob: await pdf() });
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-5', L: 9 }));
+    expect(hayTrabajoSinGuardar('concreta-rc-beams')).toBe(true);
+    await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-5', blob: await pdf() });
+    expect(hayTrabajoSinGuardar('concreta-rc-beams')).toBe(false);
+  });
+
+  it('renombrar no es trabajar: el nombre no entra en la huella', async () => {
+    await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-1', blob: await pdf() });
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Otro nombre', L: 6 }));
+    expect(hayTrabajoSinGuardar('concreta-rc-beams')).toBe(false);
+  });
+
+  it('con los valores por defecto intactos no hay nada que perder', () => {
+    localStorage.removeItem('rc-beams');
+    expect(hayTrabajoSinGuardar('concreta-rc-beams')).toBe(false);
+    expect(hayTrabajoSinGuardar('concreta-de-otra-version')).toBe(false);
+  });
+});
+
+const vigaV1 = async (titulo = 'Viga V-1') =>
+  guardarPieza({ modulo: 'concreta-rc-beams', titulo, blob: await pdf() });
+
+describe('el vínculo con la pieza abierta', () => {
+  it('guardar deja el módulo ligado a la pieza, y volver a guardar la ACTUALIZA en vez de duplicarla', async () => {
+    const primera = await vigaV1();
+    expect(primera.ok).toBe(true);
+    expect(piezaAbierta('concreta-rc-beams')?.titulo).toBe('Viga V-1');
+
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-1', L: 7 }));
+    expect(destinoDeGuardado('concreta-rc-beams', 'Viga V-1').tipo).toBe('actualiza');
+    const r = await vigaV1();
+    expect(r.ok && r.reemplazada).not.toBeNull();
+    expect(piezas()).toHaveLength(1);
+    expect(piezas()[0].datos).toEqual({ 'rc-beams': JSON.stringify({ title: 'Viga V-1', L: 7 }), 'rc-beams-version': '1' });
+  });
+
+  it('cambiar el nombre suelta el vínculo: sale una pieza nueva y la anterior se queda como estaba', async () => {
+    await vigaV1();
+    const antes = piezas()[0];
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-4', L: 9 }));
+    const destino = destinoDeGuardado('concreta-rc-beams', 'Viga V-4');
+    expect(destino).toEqual({ tipo: 'nueva', desde: expect.objectContaining({ titulo: 'Viga V-1' }) });
+    await vigaV1('Viga V-4');
+    expect(piezas().map((p) => p.titulo)).toEqual(['Viga V-1', 'Viga V-4']);
+    expect(piezas()[0]).toEqual(antes);
+    expect(piezaAbierta('concreta-rc-beams')?.titulo).toBe('Viga V-4');
+  });
+
+  it('abrir una pieza del anejo también liga el módulo a ella', async () => {
+    await vigaV1();
+    const id = piezas()[0].id;
+    soltarVinculo();
+    expect(piezaAbierta('concreta-rc-beams')).toBeNull();
+    expect(restaurarPieza(id).ok).toBe(true);
+    expect(leerVinculo()).toEqual({ modulo: 'concreta-rc-beams', piezaId: id });
+  });
+
+  it('la pieza que se quitó del anejo deja de estar abierta, y guardar vuelve a estrenar capítulo', async () => {
+    await vigaV1();
+    const id = piezas()[0].id;
+    expect(await quitarPieza(id)).toBe(true);
+    expect(piezaAbierta('concreta-rc-beams')).toBeNull();
+    expect(destinoDeGuardado('concreta-rc-beams', 'Viga V-1')).toEqual({ tipo: 'nueva', desde: null });
+  });
+
+  it('un capítulo de memoria pisa siempre el suyo, se llame como se llame', async () => {
+    localStorage.setItem('concreta-viento-nieve-model', '{"v":1}');
+    await guardarPieza({ modulo: 'concreta-viento-nieve', titulo: 'Viento de la nave', blob: await pdf() });
+    expect(destinoDeGuardado('concreta-viento-nieve', 'Otro nombre cualquiera').tipo).toBe('actualiza');
+  });
+});
+
+describe('renombrar un capítulo', () => {
+  /** Un PDF de verdad, con su banda de título: lo que hace repintable el nombre. */
+  async function pdfConNombre(titulo: string): Promise<Blob> {
+    const doc = await crearPdf();
+    drawElementTitle(doc, titulo, 'Concreta - Vigas de hormigón', 20);
+    return blobDePdf(new Uint8Array(doc.output('arraybuffer')));
+  }
+
+  async function laV3(): Promise<Pieza> {
+    localStorage.setItem('rc-beams', JSON.stringify({ title: 'Viga V-3', L: 6 }));
+    const r = await guardarPieza({ modulo: 'concreta-rc-beams', titulo: 'Viga V-3', blob: await pdfConNombre('Viga V-3'), paginas: 1 });
+    if (!r.ok) throw new Error('no guardó');
+    return r.pieza;
+  }
+
+  it('cambia el nombre en la lista, en el PDF y en los datos que la pieza se lleva', async () => {
+    const antes = await laV3();
+    const r = await renombrarPieza(antes.id, 'Viga V-3 del pórtico 2');
+    expect(r.ok).toBe(true);
+    const p = piezaPorId(antes.id)!;
+    expect(p.titulo).toBe('Viga V-3 del pórtico 2');
+    // En los datos: si no, al reabrirla el módulo devolvería el nombre viejo.
+    expect(JSON.parse(p.datos!['rc-beams']).title).toBe('Viga V-3 del pórtico 2');
+    // Y dentro del PDF, que es lo que se lee en el papel.
+    const { PDFDocument } = await import('pdf-lib');
+    const doc = await PDFDocument.load(await (await leerBlob(p.blobId))!.arrayBuffer());
+    expect(doc.getTitle()).toBe('Viga V-3 del pórtico 2');
+  });
+
+  it('mantiene su sitio, su casilla y su fecha: renombrar no es recalcular', async () => {
+    const antes = await laV3();
+    await guardarPieza({ modulo: 'concreta-rc-columns', titulo: 'P-1', blob: await pdf(), paginas: 1 });
+    expect(fijarIncluida(antes.id, false)).toBe(true);
+    expect((await renombrarPieza(antes.id, 'Viga V-9')).ok).toBe(true);
+    const p = piezaPorId(antes.id)!;
+    expect(piezas()[0].id).toBe(antes.id);
+    expect(p.incluida).toBe(false);
+    expect(p.ts).toBe(antes.ts);
+    expect(p.huella).toBe(antes.huella);
+  });
+
+  it('el PDF viejo se borra y el nuevo ocupa su sitio', async () => {
+    const antes = await laV3();
+    expect((await renombrarPieza(antes.id, 'Viga V-9')).ok).toBe(true);
+    const p = piezaPorId(antes.id)!;
+    expect(p.blobId).not.toBe(antes.blobId);
+    expect(await leerBlob(antes.blobId)).toBeNull();
+    expect(await leerBlob(p.blobId)).not.toBeNull();
+  });
+
+  it('sin banda de título no se renombra, y el mismo nombre no toca nada', async () => {
+    const antes = await laV3();
+    expect(await renombrarPieza(antes.id, '   ')).toEqual({ ok: false, motivo: 'vacio' });
+    expect(await renombrarPieza('nada', 'X')).toEqual({ ok: false, motivo: 'sin-pieza' });
+    const r = await renombrarPieza(antes.id, 'Viga V-3');
+    expect(r.ok && r.pieza.blobId).toBe(antes.blobId);
+
+    escribirAnejo({ v: 1, piezas: [{ ...antes, tituloEnPdf: false }] });
+    expect(await renombrarPieza(antes.id, 'Viga V-9')).toEqual({ ok: false, motivo: 'sin-banda' });
+  });
+
+  it('sin el PDF en esta máquina tampoco: no hay dónde escribirlo', async () => {
+    const antes = await laV3();
+    await borrarBlob(antes.blobId);
+    expect(await renombrarPieza(antes.id, 'Viga V-9')).toEqual({ ok: false, motivo: 'sin-pdf' });
+    expect(piezaPorId(antes.id)!.titulo).toBe('Viga V-3');
   });
 });

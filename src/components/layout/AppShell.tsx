@@ -1,4 +1,5 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useRemonte } from '../../lib/anejo/remonte';
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
@@ -48,6 +49,8 @@ export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [peticionMenuObra, setPeticionMenuObra] = useState(0);
 
+  const remonte = useRemonte();
+
   const openDrawer = useCallback((opciones?: OpcionesDrawer) => {
     setDrawerOpen(true);
     if (opciones?.menuObra) setPeticionMenuObra((n) => n + 1);
@@ -60,7 +63,15 @@ export function AppShell() {
     // IndexedDB y nadie los reclama. Con retardo y por `import()`, para no
     // competir con la carga de la pantalla ni meter `lib/anejo` en el arranque.
     const t = setTimeout(() => {
-      void import('../../lib/anejo').then((m) => m.purgarEnSegundoPlano());
+      void import('../../lib/anejo').then((m) => {
+        // Antes de purgar: las piezas de antes de que la pieza llevara sus
+        // datos adoptan los del módulo si la huella coincide. Va aquí y no en
+        // la pantalla del anejo porque la ventana se cierra sola —en cuanto se
+        // toca el módulo, la huella deja de coincidir y ya no se puede—, y
+        // aquí es lo más pronto que `lib/anejo` entra sin pesar en el arranque.
+        m.adoptarDatosDeModulos();
+        return m.purgarEnSegundoPlano();
+      });
     }, RETARDO_PURGA_MS);
     return () => clearTimeout(t);
   }, []);
@@ -86,7 +97,12 @@ export function AppShell() {
             <BandaProyecto />
             <ChunkErrorBoundary>
               <Suspense fallback={<RouteFallback />}>
-                <Outlet />
+                {/* La `key` remonta la ruta activa cuando el desplegable de la
+                    topbar salta a otro cálculo o empieza uno nuevo. Los módulos
+                    leen el almacén sólo al montarse: sin esto se les cambiarían
+                    los datos por debajo y seguirían enseñando los de antes. Sólo
+                    sube cuando se pide (`pedirRemonte`), nunca al guardar. */}
+                <Outlet key={remonte} />
               </Suspense>
             </ChunkErrorBoundary>
           </div>

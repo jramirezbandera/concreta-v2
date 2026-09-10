@@ -199,13 +199,15 @@ export const CLAVES_PROYECTO: readonly EntradaProyecto[] = [
     satelites: ['concreta-slope-title'],
   },
 
-  // --- Anejo de cálculo (F6): índice de piezas, ligero; los bytes viven en IndexedDB.
+  // --- Anejo de cálculo (F6): índice de piezas con sus datos; los bytes del PDF
+  //     viven en IndexedDB. El satélite es qué pieza tiene abierta cada módulo.
   {
     modulo: 'concreta-anejo',
     clave: 'concreta-anejo',
     idEsquema: null,
     claveVersion: 'concreta-anejo-version',
     versionViva: '1',
+    satelites: ['concreta-anejo-abierta'],
   },
 ];
 

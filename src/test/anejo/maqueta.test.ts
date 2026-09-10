@@ -43,6 +43,8 @@ function pieza(id: string, modulo: string, extra: Partial<Pieza> = {}): Pieza {
     blobId: `b-${id}`,
     paginas: 2,
     huella: null,
+    datos: null,
+    tituloEnPdf: false,
     incluida: true,
     ...extra,
   };
