@@ -757,6 +757,35 @@ describe('AiChatModal — memoria del hilo (snapshot decorado)', () => {
   });
 });
 
+describe("AiChatModal — el módulo que no comprueba nada (verdict 'none')", () => {
+  // Cargas por planta y el cuadro de materiales entregan un RESULTADO, no un
+  // veredicto: no hay ninguna comprobación que cumpla. "Predimensionar" pide
+  // "valores que cumplan todas las comprobaciones", así que ahí no dice nada.
+  const PREDIM_BTN = /Predimensionar/;
+
+  it('la cabecera no rotula ningún veredicto', () => {
+    seedKey();
+    renderModal({ verdict: 'none', text: 'TABLA COMPLETA: 3 plantas y 3 zonas de carga.' });
+    expect(screen.queryByText(/CUMPLE/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/INCUMPLE/)).not.toBeInTheDocument();
+  });
+
+  it('el atajo de predimensionar no se ofrece', () => {
+    seedKey();
+    renderModal({ verdict: 'none', text: 'TABLA COMPLETA: 3 plantas y 3 zonas de carga.' });
+    expect(screen.queryByRole('button', { name: PREDIM_BTN })).not.toBeInTheDocument();
+    // Los otros dos atajos siguen ahí: rellenar desde un enunciado es justo lo
+    // que estos módulos necesitan.
+    expect(screen.getByRole('button', { name: /Pegar un enunciado de ejemplo/ })).toBeInTheDocument();
+  });
+
+  it('con un veredicto normal, el atajo sigue estando', () => {
+    seedKey();
+    renderModal();
+    expect(screen.getByRole('button', { name: PREDIM_BTN })).toBeInTheDocument();
+  });
+});
+
 describe('AiChatModal — tarjeta "¿Por qué no cumple?" (estado vacío)', () => {
   it("ausente con verdict 'ok'", () => {
     seedKey();

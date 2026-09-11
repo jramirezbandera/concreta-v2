@@ -22,7 +22,14 @@
 import type { CheckRow, CheckStatus } from '../calculations/types';
 import { checkValueStr, checkLimitStr, overallStatus } from '../calculations/checkFormat';
 
-export type AiVerdict = 'ok' | 'warn' | 'fail' | 'invalid';
+/**
+ * `none` es el módulo que NO comprueba nada: entrega un resultado (una tabla de
+ * cargas, un cuadro) y no hay comprobación que cumpla o incumpla. Sin él, la
+ * cabecera del asistente rotulaba «CUMPLE» encima de un módulo que no ha
+ * comprobado una sola sección. `summarizeCalcResults` no lo produce nunca: lo
+ * eligen los adapters que escriben su resumen a mano.
+ */
+export type AiVerdict = 'ok' | 'warn' | 'fail' | 'invalid' | 'none';
 
 export interface AiResultsSummary {
   verdict: AiVerdict;

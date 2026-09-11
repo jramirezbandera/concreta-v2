@@ -212,6 +212,8 @@ const VERDICT_LABEL: Record<AiVerdict, string | null> = {
   warn: 'ADVERT.',
   fail: 'INCUMPLE',
   invalid: null,
+  // El módulo no comprueba nada: no hay veredicto que rotular (cargas por planta).
+  none: null,
 };
 
 // Botón secundario inline (Cancelar, Reintentar…) — lenguaje del sistema.
@@ -741,6 +743,8 @@ export function AiChatModal<TInputs>({
   const exampleText = adapter.placeholder.replace(/^Ej\.:\s*/i, '');
   const verdictLabel = VERDICT_LABEL[results.verdict];
   const subtitle = verdictLabel ? `${adapter.label} · ${verdictLabel}` : adapter.label;
+  /** El módulo no comprueba nada: entrega un resultado, no un veredicto. */
+  const sinComprobaciones = results.verdict === 'none';
   const hasPending = findPendingPayload(items) != null;
 
   // Geometría de la ventana flotante (dock abajo-derecha si no hay posición
@@ -846,8 +850,9 @@ export function AiChatModal<TInputs>({
             </span>
             <span className="text-[14px] font-semibold text-text-primary">¿En qué te ayudo?</span>
             <span className="text-[11.5px] leading-relaxed text-text-secondary max-w-[34ch]">
-              Puedo rellenar datos desde un enunciado, explicar por qué falla el cálculo o
-              predimensionar. Tú revisas y decides qué aplicar.
+              {sinComprobaciones
+                ? 'Puedo rellenar los datos desde un enunciado y explicarte qué dice la norma en cada fila. Tú revisas y decides qué aplicar.'
+                : 'Puedo rellenar datos desde un enunciado, explicar por qué falla el cálculo o predimensionar. Tú revisas y decides qué aplicar.'}
             </span>
           </div>
 
@@ -867,19 +872,25 @@ export function AiChatModal<TInputs>({
               </span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={startPredim}
-            disabled={!canStartGuided}
-            className="w-full text-left rounded border border-border-main px-3 py-2.5 transition-colors disabled:opacity-40 hover:border-accent/40 disabled:hover:border-border-main"
-          >
-            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-accent mb-0.5">
-              Predimensionar
-            </span>
-            <span className="block text-[11.5px] leading-snug text-text-secondary">
-              Propón unos valores que cumplan con estas cargas y geometría.
-            </span>
-          </button>
+          {/* Predimensionar pide "valores que cumplan TODAS las comprobaciones", y
+              hay módulos que no tienen ninguna: entregan un resultado (una tabla
+              de cargas, un cuadro de materiales) y no comprueban nada. Ahí el
+              atajo no significa nada, y lo dice su veredicto. */}
+          {!sinComprobaciones && (
+            <button
+              type="button"
+              onClick={startPredim}
+              disabled={!canStartGuided}
+              className="w-full text-left rounded border border-border-main px-3 py-2.5 transition-colors disabled:opacity-40 hover:border-accent/40 disabled:hover:border-border-main"
+            >
+              <span className="block text-[9.5px] font-semibold uppercase tracking-[0.06em] text-accent mb-0.5">
+                Predimensionar
+              </span>
+              <span className="block text-[11.5px] leading-snug text-text-secondary">
+                Propón unos valores que cumplan con estas cargas y geometría.
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
