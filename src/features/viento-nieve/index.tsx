@@ -19,6 +19,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
+import { SelectorDireccion } from '../../components/ui/SelectorDireccion';
 import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
@@ -291,23 +292,6 @@ export function VientoNieveModule() {
 
   const nHuecos = evaluacion.huecos.length;
   const cumbrera = state.viento.cubierta.activa ? state.viento.cubierta.cumbrera : null;
-  const botonDireccion = (d: 'x' | 'y', etiqueta: string) => (
-    <button
-      key={d}
-      type="button"
-      onClick={() => setDireccionElegida(d)}
-      aria-pressed={direccion === d}
-      className="cursor-pointer rounded border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors"
-      style={{
-        background: direccion === d ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
-        borderColor: direccion === d ? 'var(--color-accent)' : 'var(--color-text-disabled)',
-        color: direccion === d ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-        letterSpacing: '0.04em',
-      }}
-    >
-      {direccion === d ? '●' : '○'} {etiqueta}
-    </button>
-  );
   // Con cubierta, la dirección se rotula también con el ángulo θ de la tabla D.6.
   const etiquetaTheta = (d: 'x' | 'y') => (cumbrera ? `θ = ${(cumbrera === 'x') === (d === 'y') ? '0º' : '90º'} · según ${d.toUpperCase()}` : `según ${d.toUpperCase()}`);
 
@@ -423,9 +407,15 @@ export function VientoNieveModule() {
               </>
             )}
             {vista !== 'nieve' && (
-              <span className="ml-auto flex items-center gap-1.5">
-                {botonDireccion('x', etiquetaTheta('x'))}
-                {botonDireccion('y', etiquetaTheta('y'))}
+              <span className="ml-auto flex items-center">
+                <SelectorDireccion
+                  opciones={[
+                    { id: 'x', etiqueta: etiquetaTheta('x') },
+                    { id: 'y', etiqueta: etiquetaTheta('y') },
+                  ]}
+                  activa={direccion}
+                  onSelect={setDireccionElegida}
+                />
               </span>
             )}
           </div>

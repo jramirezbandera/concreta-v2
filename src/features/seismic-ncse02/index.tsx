@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
+import { SelectorDireccion } from '../../components/ui/SelectorDireccion';
+import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { AiChatModal } from '../../components/ai/AiChatModal';
@@ -105,12 +107,25 @@ function guardado(): SeismicState {
   }
 }
 
+/** Las tres figuras del módulo, en el orden en que se leen. */
+type VistaSismo = 'espectro' | 'planta' | 'alzado';
+
+const VISTAS_SISMO: ReadonlyArray<{ id: VistaSismo; label: string; title: string }> = [
+  { id: 'espectro', label: 'Espectro', title: 'Espectro de respuesta elástica y los modos sobre él (art. 2.3, 3.7.3)' },
+  { id: 'planta', label: 'Planta', title: 'Planta a escala con los planos resistentes de cada dirección (art. 3.7.2)' },
+  { id: 'alzado', label: 'Alzado', title: 'Fuerzas por planta y cortante acumulado en la dirección elegida' },
+];
+
 export function SeismicNCSE02Module() {
   const { openDrawer } = useDrawer();
   const [inicial] = useState(cargar);
   const [state, setState] = useState<SeismicState>(inicial.estado);
   const [tab, setTab] = useState<MobileTab>('inputs');
   const [ejeDibujo, setEjeDibujo] = useState<'x' | 'y'>('x');
+  // Qué figura enseña el lienzo. Las tres estaban apiladas en scroll; en
+  // pestañas cada una ocupa el sitio que necesita y la barra es la misma que la
+  // de viento y nieve y los dos FEM.
+  const [vista, setVista] = useState<VistaSismo>('espectro');
   // El cuadro de plantas se monta aquí, con los demás modales, y no dentro del
   // panel: la barra lateral vive bajo varios `overflow-hidden`, y un `fixed`
   // que nazca ahí depende de que ningún antepasado tenga transform para no
@@ -198,6 +213,9 @@ export function SeismicNCSE02Module() {
   }, [state]);
 
   const evaluacion = useMemo(() => evaluarSismo(state), [state]);
+  // Lo que cuenta la barra del lienzo: los avisos de la Norma, que salen de las
+  // dos puertas —la de obligatoriedad y la del método simplificado—.
+  const avisos = evaluacion.aplicabilidad.avisos.length + evaluacion.aplicabilidad.obligatoriedad.avisos.length;
 
   // Publicar es un efecto del RESULTADO, no del tecleo: lo que se deja en
   // `concreta-pub-sismo` es lo que consumen el cuadro de acciones del plano y
@@ -316,59 +334,65 @@ export function SeismicNCSE02Module() {
             'lg:block',
           ].join(' ')}
         >
-          {/* Lienzo con la retícula de puntos, como en todos los módulos: los
-              dibujos son el protagonista y los resultados van debajo, en su
-              propio bloque. */}
+          {/*
+            La barra del lienzo, la misma que viento y nieve y los dos FEM:
+            pestañas a la izquierda, estado del módulo a la derecha. Antes aquí
+            no había nada y las tres figuras se apilaban en scroll, que es lo que
+            hacía que este módulo no se pareciera a sus hermanos del capítulo.
+          */}
+          <div className="flex shrink-0 items-center border-b border-border-main bg-bg-surface">
+            <div role="group" aria-label="Vistas del lienzo" className="flex shrink-0">
+              <ViewTabs tabs={VISTAS_SISMO} active={vista} onSelect={setVista} />
+            </div>
+            <span className="min-w-0 flex-1 truncate px-3 text-right font-mono text-[11px] text-text-disabled">
+              {evaluacion.resultado
+                ? 'sismo'
+                : evaluacion.aplicabilidad.obligatoriedad.estado === 'exenta'
+                  ? 'exenta'
+                  : 'sin resultado'}
+              {avisos > 0 && (
+                <span className="text-state-warn">
+                  {' · '}
+                  {avisos} {avisos === 1 ? 'aviso' : 'avisos'}
+                </span>
+              )}
+              {/* Sismo publica SIEMPRE, también el caso exento: la exención es
+                  justamente lo que el cuadro del plano y la ficha necesitan. */}
+              <span className="text-accent">{' · '}publicado</span>
+            </span>
+          </div>
+
           <div
             ref={lienzoRef}
-            className="canvas-dot-grid border-b border-border-main px-4 py-4 space-y-4"
+            className="canvas-dot-grid border-b border-border-main px-4 py-4"
           >
-            {/*
-              El selector de eje manda sobre los TRES dibujos —espectro, planta y
-              alzado— y por eso vive fuera de ellos, arriba y una sola vez.
-              Colgado del alzado, como estaba, parecía gobernar sólo esa figura,
-              y encima desaparecía con él en cuanto no había resultado: la planta
-              es geometría introducida y se dibuja igual, haya cálculo o no.
-            */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-[0.07em] text-text-disabled">
-                Dirección
-              </span>
-              {(['x', 'y'] as const).map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => setEjeDibujo(e)}
-                  aria-pressed={ejeDibujo === e}
-                  aria-label={`Dibujar la dirección ${e.toUpperCase()}`}
-                  className={[
-                    'px-2 py-0.5 text-[11px] rounded border transition-colors cursor-pointer',
-                    ejeDibujo === e
-                      ? 'border-accent text-text-primary'
-                      : 'border-border-main text-text-disabled hover:border-accent/40',
-                  ].join(' ')}
-                >
-                  {e.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-4 items-start">
-              {/* La planta va DEBAJO del espectro: son las dos figuras que no
-                  dependen de que haya cálculo, y juntas equilibran la altura del
-                  alzado en la columna de al lado. */}
-              <div className="space-y-4">
-                <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />
-                <PlantaSVG
-                  state={state}
-                  evaluacion={evaluacion}
-                  width={anchoSvg}
-                  eje={ejeDibujo}
-                />
-              </div>
-              {evaluacion.resultado ? (
+            {vista === 'espectro' && <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />}
+            {vista === 'planta' && <PlantaSVG state={state} evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />}
+            {vista === 'alzado' &&
+              (evaluacion.resultado ? (
                 <AlzadoSVG evaluacion={evaluacion} eje={ejeDibujo} width={anchoSvg} />
-              ) : null}
+              ) : (
+                /* El alzado es el reparto de la fuerza sísmica: sin cálculo no
+                   hay nada que dibujar, y una figura en blanco no lo explica. */
+                <p className="m-0 max-w-md text-[12px] leading-relaxed text-text-disabled">
+                  El alzado dibuja las fuerzas por planta y el cortante acumulado, así que necesita el cálculo hecho.
+                  {evaluacion.impedimento ? ' Mira los resultados: ahí está por qué todavía no lo hay.' : ''}
+                </p>
+              ))}
+
+            {/* Abajo y a la derecha, pegada a la figura: exactamente donde la
+                pone viento y nieve, y con el mismo componente. */}
+            <div className="mt-4 flex">
+              <span className="ml-auto">
+                <SelectorDireccion
+                  opciones={[
+                    { id: 'x', etiqueta: 'según X' },
+                    { id: 'y', etiqueta: 'según Y' },
+                  ]}
+                  activa={ejeDibujo}
+                  onSelect={setEjeDibujo}
+                />
+              </span>
             </div>
           </div>
 

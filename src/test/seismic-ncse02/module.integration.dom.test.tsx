@@ -98,6 +98,9 @@ describe('arranque', () => {
 
   it('dibuja el alzado con fuerzas y el diagrama de cortantes', () => {
     montar();
+    // El lienzo reparte las tres figuras en pestañas, como viento y nieve: el
+    // alzado está en la suya.
+    fireEvent.click(screen.getByRole('button', { name: 'Alzado' }));
     // Por el nombre completo: el espectro también dice de qué dirección son sus
     // modos, y antes no lo decía — pintaba siempre los de X sin rotularlo.
     expect(screen.getByRole('img', { name: /Fuerzas y cortantes en dirección X/i })).toBeTruthy();
