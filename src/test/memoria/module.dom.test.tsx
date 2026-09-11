@@ -63,7 +63,7 @@ function montar() {
 }
 
 /** La obra de la ficha, en el contexto compartido: Granada. */
-const obraGranada = () => guardarObra({ denominacion: 'Edificio en Granada', municipio: 'Granada', ine: '18087', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
+const obraGranada = () => guardarObra({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
 
 /** Los otros tres módulos publicados para Granada (viento es opcional y no se publica). */
 function publicarLosOtros(acero = false) {

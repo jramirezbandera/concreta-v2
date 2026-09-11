@@ -24,7 +24,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-const conObra = () => estadoPorDefecto({ denominacion: 'Edificio en Ávila', municipio: 'Ávila', ine: '05019', provincia: '05', altitud: 1130, uso: 'Residencial' });
+const conObra = () => estadoPorDefecto({ denominacion: 'Edificio en Ávila', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Residencial' });
 
 describe('arranque', () => {
   it('lo que el contexto de obra ya sabe entra CONFIRMADO; los defaults con criterio, heredados; lo demás, vacío', () => {
@@ -185,7 +185,7 @@ describe('lectura defensiva', () => {
 
 describe('persistencia', () => {
   it('ida y vuelta por localStorage, con la obra del contexto como arranque', () => {
-    guardarObra({ denominacion: 'Nave', municipio: 'Ávila', ine: '05019', provincia: '05', altitud: 1130, uso: 'Industrial' });
+    guardarObra({ denominacion: 'Nave', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Industrial' });
     expect(cargarEstado().obra.denominacion.valor).toBe('Nave');
     const s = teclear(cargarEstado(), 'obra.geotecnia.empresa', 'Geo');
     guardarEstado(s);

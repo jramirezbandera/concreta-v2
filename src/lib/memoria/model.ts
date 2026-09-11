@@ -34,7 +34,7 @@ export type Block =
  *  - `falta`    rojo: sin valor. Bloquea exportar.
  *  - `heredado` ámbar: valor de la obra anterior sin confirmar. Bloquea.
  *  - `revisar`  ámbar: tomado de una publicación que ha cambiado desde que se
- *               tomó, o que es de otra obra. Bloquea.
+ *               tomó, o que se calculó en otro sitio. Bloquea.
  *  - `derivado` azul: lo puso la norma o una publicación. No bloquea.
  *  - `ok`       normal: tecleado o confirmado en esta obra. No bloquea.
  */

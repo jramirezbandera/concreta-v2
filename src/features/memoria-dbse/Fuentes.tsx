@@ -1,9 +1,9 @@
 /**
  * Las cuatro publicaciones vistas desde la ficha: una fila por módulo con si
- * hay sobre, de cuándo y de qué obra, y en qué estado entra. El botón «Usar lo
- * publicado» es lo que acepta un sobre; si es de otra obra, el botón lo dice
- * en su rótulo y no lo esconde: el cuadro de materiales no tiene emplazamiento
- * propio y estampa el `concreta-obra` que hubiera al publicar.
+ * hay sobre, de cuándo, de qué sitio y en qué estado entra. El botón «Usar lo
+ * publicado» es lo que acepta un sobre; si se calculó en otro sitio, el botón
+ * lo dice en su rótulo y no lo esconde: el cuadro de materiales no tiene
+ * emplazamiento propio y estampa el `concreta-obra` que hubiera al publicar.
  */
 
 import { Link } from 'react-router';
@@ -41,16 +41,16 @@ export function Fuentes({ fuentes, ayuda, onTomar }: Props) {
         {(Object.keys(fuentes) as ModuloPub[]).map((m) => {
           const f = fuentes[m];
           const e = ESTADO_TEXTO[f.estado];
-          const obraSobre = f.obraSobre ? f.obraSobre.municipio || f.obraSobre.provincia || (f.obraSobre.ine ? `INE ${f.obraSobre.ine}` : null) : null;
+          const sitioSobre = f.obraSobre ? f.obraSobre.municipio || f.obraSobre.provincia || (f.obraSobre.ine ? `INE ${f.obraSobre.ine}` : null) : null;
           return (
             <li key={m} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
               <span className={`rounded border px-1.5 font-mono text-[10px] ${e.clase}`}>{e.texto}</span>
               <span className="text-text-primary">{MODULOS[m].etiqueta}</span>
               {f.ts ? <span className="text-text-disabled">publicado el {fecha(f.ts)}</span> : null}
-              {obraSobre ? <span className={f.otraObra ? 'text-state-warn' : 'text-text-disabled'}>obra: {obraSobre}</span> : null}
+              {sitioSobre ? <span className={f.otroEmplazamiento ? 'text-state-warn' : 'text-text-disabled'}>sitio: {sitioSobre}</span> : null}
               {f.estado === 'revisar' && (
-                <button type="button" id={idDom(f.id!)} className={BOTON_ACENTO} onClick={() => onTomar(m)} title={f.otraObra ? f.nota : 'Aceptar esta publicación tal como está ahora'}>
-                  {f.otraObra ? 'Usar aunque sea de otra obra' : 'Usar lo publicado'}
+                <button type="button" id={idDom(f.id!)} className={BOTON_ACENTO} onClick={() => onTomar(m)} title={f.otroEmplazamiento ? f.nota : 'Aceptar esta publicación tal como está ahora'}>
+                  {f.otroEmplazamiento ? 'Usar aunque sea de otro sitio' : 'Usar lo publicado'}
                 </button>
               )}
               {f.estado === 'falta' && (

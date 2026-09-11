@@ -1,5 +1,5 @@
 /**
- * Datos de obra: los seis campos del contexto compartido (`concreta-obra`) en
+ * Datos de obra: los cinco campos del contexto compartido (`concreta-obra`) en
  * una página propia, dentro del grupo PROYECTO.
  *
  * Hasta ahora sólo se tecleaban desde la barra de Cargas por planta o de la
@@ -26,16 +26,8 @@ export function DatosObraModule() {
   const { openDrawer } = useDrawer();
   const nombreProyecto = useNombreObra();
   const [obra, setObra] = useState<Obra>(() => leerObra() ?? obraVacia());
-  const [ineTexto, setIneTexto] = useState(obra.ine ?? '');
 
   const cambiar = (cambio: Partial<Obra>) => setObra(guardarObra(cambio));
-
-  const cambiarIne = (v: string) => {
-    const limpio = v.replace(/\D/g, '').slice(0, 5);
-    setIneTexto(limpio);
-    if (limpio === '') cambiar({ ine: null });
-    else if (limpio.length === 5) cambiar({ ine: limpio });
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -113,7 +105,7 @@ export function DatosObraModule() {
                 className={INPUT}
                 onChange={(e) => cambiar({ municipio: e.target.value })}
               />
-              <p className={NOTA}>Es lo que comprueba que lo publicado por un módulo es de esta obra.</p>
+              <p className={NOTA}>Se imprime en la memoria y lo heredan los módulos de acciones.</p>
             </div>
 
             <div>
@@ -131,22 +123,6 @@ export function DatosObraModule() {
                 widthClass="w-28"
               />
               <p className={NOTA}>Sin decirla va vacía, no a cero: cero es el mar. Cambia la nieve a partir de 1.000 m.</p>
-            </div>
-
-            <div>
-              <label htmlFor="obra-ine" className={ETIQUETA}>
-                Código INE del municipio
-              </label>
-              <input
-                id="obra-ine"
-                type="text"
-                inputMode="numeric"
-                value={ineTexto}
-                placeholder="41038"
-                className={`${INPUT} w-28`}
-                onChange={(e) => cambiarIne(e.target.value)}
-              />
-              <p className={NOTA}>Cinco cifras; opcional. Lo usan sismo y nieve para reconocer el municipio.</p>
             </div>
           </div>
         </div>

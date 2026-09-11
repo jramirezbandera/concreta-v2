@@ -60,7 +60,7 @@ describe('importar', () => {
 
   it('la obra se normaliza y lo que falta cae al vacío, nunca lanza', () => {
     const p = importar(ficheroCon({ obra: { denominacion: 'Solo nombre', ine: '12', altitud: 'alto' } }));
-    expect(p.obra).toEqual({ denominacion: 'Solo nombre', municipio: '', ine: null, provincia: '', altitud: null, uso: '' });
+    expect(p.obra).toEqual({ denominacion: 'Solo nombre', municipio: '', provincia: '', altitud: null, uso: '' });
     expect(importar(ficheroCon({ obra: 'nada' })).obra.denominacion).toBe('');
   });
 

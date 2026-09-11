@@ -48,16 +48,9 @@ describe('Datos de obra', () => {
     expect(leerObra()?.municipio).toBe('Dos Hermanas');
   });
 
-  it('el código INE sólo se guarda con cinco cifras, y se borra al vaciarlo', async () => {
-    const user = userEvent.setup();
+  it('no pide el código INE del municipio: nadie se lo sabe y nada lo leía', () => {
     montar();
-    const ine = screen.getByLabelText('Código INE del municipio');
-    await user.type(ine, '4103');
-    expect(leerObra()?.ine ?? null).toBeNull();
-    await user.type(ine, '8');
-    expect(leerObra()?.ine).toBe('41038');
-    await user.clear(ine);
-    expect(leerObra()?.ine).toBeNull();
+    expect(screen.queryByLabelText(/INE/i)).toBeNull();
   });
 
   it('la ficha de obra de la topbar dice la obra abierta, o «Sin obra»', () => {

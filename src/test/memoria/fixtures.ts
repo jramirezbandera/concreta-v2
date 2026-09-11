@@ -58,7 +58,7 @@ export function sobresGranada(o: OpcionesSobres = {}): Sobres {
 }
 
 export const fichaGranada = (): MemoriaState =>
-  estadoPorDefecto({ denominacion: 'Edificio en Granada', municipio: 'Granada', ine: '18087', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
+  estadoPorDefecto({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
 
 /** La misma ficha con la fábrica marcada: el único Procede que se pone a mano. */
 export const fichaGranadaConFabrica = (): MemoriaState => {

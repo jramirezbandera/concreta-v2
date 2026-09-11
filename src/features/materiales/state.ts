@@ -967,11 +967,10 @@ export function publicarResultado(state: MaterialesState, ev: Evaluacion): void 
   publicar(MODULO_PUB, PUB_VERSION, datos, {
     municipio: obra?.municipio || null,
     // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
-    // módulo no la necesita para nada más, así que no se arrastra: viaja el
-    // código INE, que es con lo que un consumidor comprueba que la publicación
-    // es de SU obra. Cinco dígitos si se conoce el municipio, dos si sólo se
-    // conoce la provincia (ver `ObraPublicada.ine`).
+    // módulo no la necesita para nada más, así que no se arrastra: viaja su
+    // código INE de dos dígitos, que es con lo que un consumidor comprueba que
+    // la publicación es del MISMO EMPLAZAMIENTO (ver `ObraPublicada.ine`).
     provincia: null,
-    ine: obra?.ine ?? (obra?.provincia || null),
+    ine: obra?.provincia || null,
   });
 }

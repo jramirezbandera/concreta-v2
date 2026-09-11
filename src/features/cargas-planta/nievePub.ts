@@ -3,8 +3,9 @@
  *
  * Primer consumidor de una publicación en la app (ver `lib/pub`): se lee el
  * sobre, nunca el estado interno del otro módulo, y lo que se toma de él se
- * copia con su fecha y su obra. Si después aparece un sobre más nuevo, o el
- * sobre es de otra obra, o ya no existe, el módulo avisa en ámbar: no bloquea,
+ * copia con su fecha y su emplazamiento. Si después aparece un sobre más
+ * nuevo, o el sobre se calculó en otro sitio, o ya no existe, el módulo avisa
+ * en ámbar: no bloquea,
  * porque un dato fechado sigue valiendo más que ninguno.
  */
 
@@ -15,7 +16,7 @@ import type { CargasState, NieveUI, PlantaUI } from './state';
 export interface NievePublicada {
   /** Fecha del sobre, ISO 8601. */
   ts: string;
-  /** INE de la obra del sobre (dos dígitos de provincia, o cinco de municipio). */
+  /** INE del emplazamiento del sobre (dos dígitos de provincia, o cinco de municipio). */
   ine: string | null;
   municipio: string | null;
   provincia: string | null;
@@ -77,7 +78,7 @@ function avisosPlanta(p: PlantaUI, pub: NievePublicada | null, provinciaObra: st
   }
   const provinciaSobre = provinciaDelSobre(pub.ine);
   if (provinciaObra && provinciaSobre && provinciaSobre !== provinciaObra) {
-    avisos.push(`${quien}: la nieve publicada es de otra obra (${pub.municipio || pub.provincia || `INE ${pub.ine}`}); compruebe que Viento y nieve está en la misma obra que este cuadro.`);
+    avisos.push(`${quien}: la nieve publicada se calculó en otro sitio (${pub.municipio || pub.provincia || `INE ${pub.ine}`}); compruebe que Viento y nieve tiene el mismo emplazamiento que este cuadro.`);
   } else if (p.nieve.faldon !== null && valorPublicado(pub, p.nieve.faldon) === null) {
     avisos.push(`${quien}: el faldón «${p.nieve.faldon}» ya no está en la publicación de Viento y nieve. Elija otro o use el máximo.`);
   }

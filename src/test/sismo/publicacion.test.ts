@@ -158,13 +158,14 @@ describe('el sobre', () => {
     expect(sobre.obra).toEqual({ municipio: 'Granada', provincia: null, ine: '18087' });
   });
 
-  it('en entrada manual de ab y K, la obra cae a `concreta-obra`', () => {
-    guardarObra({ municipio: 'Espartinas', ine: '41038', provincia: '41' });
+  it('en entrada manual de ab y K, el emplazamiento cae a `concreta-obra`', () => {
+    guardarObra({ municipio: 'Espartinas', provincia: '41' });
     const s = { ...defaultSeismicState(), municipioIne: null, municipioNombre: '' };
     publicarResultado(s, evaluarSismo(s));
     const sobre = leerPublicacion<PubSismo>(MODULO_PUB, PUB_VERSION)!;
     expect(sobre.obra.municipio).toBe('Espartinas');
-    expect(sobre.obra.ine).toBe('41038');
+    // Sin municipio del Anejo 1, el sello es el INE de la provincia de la obra.
+    expect(sobre.obra.ine).toBe('41');
   });
 
   it('pedir otra versión del esquema devuelve null, no un objeto a medias', () => {

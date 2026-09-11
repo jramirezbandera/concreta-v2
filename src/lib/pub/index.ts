@@ -11,8 +11,13 @@
  *    versión 1 y encuentra la 2 recibe `null`, no un objeto a medias.
  *  - `ts` es la fecha de publicación. Si es más nueva que la confirmación del
  *    consumidor, lo heredado pasa a ámbar («revisar»).
- *  - `obra` es la obra a la que pertenece lo publicado. Si el municipio no
- *    coincide con el del consumidor, es un dato fantasma a escala de módulo.
+ *  - `obra` es el EMPLAZAMIENTO en el que se calculó lo publicado, y se
+ *    compara por PROVINCIA: es la escala a la que cambian la zona eólica, la
+ *    nieve y la peligrosidad sísmica. Si no coincide con la del consumidor, lo
+ *    publicado es un dato fantasma —la zona de Granada en una memoria de
+ *    Málaga—. No distingue DOS OBRAS del mismo sitio, y no pretende hacerlo:
+ *    de eso se encarga el contenedor de proyectos, que al abrir otra obra
+ *    reemplaza estas claves en vez de fundirlas (ver `lib/proyecto`).
  *
  * Nace con «Viento y nieve» (D-VN4, 2026-09-04), el primer módulo que publica.
  */

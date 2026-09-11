@@ -34,11 +34,10 @@ describe('leerObra / guardarObra', () => {
     expect(leerObra()).toBeNull();
     localStorage.setItem(OBRA_KEY, JSON.stringify({ v: 99, obra: { provincia: '28' } }));
     expect(leerObra()).toBeNull();
-    expect(normalizarObra({ provincia: 'Madrid', altitud: 'alta', ine: '28', municipio: 3 })).toEqual(obraVacia());
-    expect(normalizarObra({ provincia: '28', altitud: 660, ine: '28079' })).toMatchObject({
-      provincia: '28',
-      altitud: 660,
-      ine: '28079',
-    });
+    expect(normalizarObra({ provincia: 'Madrid', altitud: 'alta', municipio: 3 })).toEqual(obraVacia());
+    expect(normalizarObra({ provincia: '28', altitud: 660 })).toMatchObject({ provincia: '28', altitud: 660 });
+    // El INE de cinco cifras del municipio se fue del modelo: un fichero
+    // antiguo que lo traiga lo pierde, y no queda rastro suyo en la obra.
+    expect(normalizarObra({ provincia: '28', ine: '28079' })).toEqual({ ...obraVacia(), provincia: '28' });
   });
 });

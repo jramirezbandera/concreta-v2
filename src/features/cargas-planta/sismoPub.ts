@@ -38,17 +38,17 @@ const provinciaDe = (ine: string | null) => (ine && ine.length >= 2 ? ine.slice(
 
 /**
  * El bloque de sismo del cuadro del plano. `null` cuando no hay publicación —el
- * cuadro lo dice, igual que con el viento— y también cuando la que hay es de
- * OTRA obra.
+ * cuadro lo dice, igual que con el viento— y también cuando la que hay se
+ * calculó en OTRO SITIO.
  *
  * Ese segundo filtro no es celo: el módulo de sismo arranca con un caso de
  * ejemplo completo en Granada (ab = 0,23 g), y sin él bastaría con haberlo
  * abierto una vez para que el plano de una obra en Ávila declarase la
  * aceleración de Granada. Es exactamente el dato fantasma para el que `lib/pub`
- * mete la obra en el sobre. Se compara por PROVINCIA porque es lo que gobierna
- * la peligrosidad sísmica a esta escala, y sólo cuando las dos partes la
- * conocen: sin obra que comparar no hay discrepancia que demostrar, y un dato
- * fechado vale más que ninguno.
+ * mete el emplazamiento en el sobre. Se compara por PROVINCIA porque es lo que
+ * gobierna la peligrosidad sísmica a esta escala, y sólo cuando las dos partes
+ * la conocen: sin sitio que comparar no hay discrepancia que demostrar, y un
+ * dato fechado vale más que ninguno.
  *
  * @param provinciaObra INE de dos dígitos de la obra del cuadro; '' si no se ha
  *                      elegido.

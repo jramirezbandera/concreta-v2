@@ -116,7 +116,7 @@ describe('el cuadro del plano completo', () => {
   });
 });
 
-describe('el sobre de otra obra no entra en el cuadro', () => {
+describe('el sobre de otro emplazamiento no entra en el cuadro', () => {
   it('provincia distinta: se descarta, y el cuadro dice que no hay publicación', () => {
     publicar(defaultSeismicState()); // Granada, INE 18087
     expect(resumenSismoPublicado('18')).not.toBeNull();

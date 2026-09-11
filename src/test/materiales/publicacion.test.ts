@@ -76,18 +76,18 @@ describe('el sobre', () => {
     expect(leerPublicacion(MODULO_PUB, PUB_VERSION + 1)).toBeNull();
   });
 
-  it('estampa el municipio y el INE de la obra; el nombre de la provincia, no', () => {
-    guardarObra({ municipio: 'Bormujos', ine: '41017', provincia: '41' });
+  it('estampa el municipio y el INE de la provincia; el nombre de la provincia, no', () => {
+    guardarObra({ municipio: 'Bormujos', provincia: '41' });
     // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
     // módulo no la arrastra: lo que compara un consumidor es el código.
     expect(publicar(conHormigon())!.obra).toEqual({
       municipio: 'Bormujos',
       provincia: null,
-      ine: '41017',
+      ine: '41',
     });
   });
 
-  it('con la provincia sola, el INE viaja con dos dígitos', () => {
+  it('sin municipio, el sello es sólo el INE de la provincia', () => {
     guardarObra({ provincia: '41' });
     expect(publicar(conHormigon())!.obra).toEqual({
       municipio: null,

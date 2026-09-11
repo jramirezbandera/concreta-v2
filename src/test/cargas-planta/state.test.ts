@@ -188,7 +188,7 @@ describe('la nieve del sobre de Viento y nieve', () => {
     expect(nieveDesdePublicacion(pub, 'Nada')).toMatchObject({ valor: pub.qnMax, faldon: null });
   });
 
-  it('avisos: sobre más nuevo, de otra obra, desaparecido, faldón que ya no está', () => {
+  it('avisos: sobre más nuevo, de otro sitio, desaparecido, faldón que ya no está', () => {
     const pub: NievePublicada = { ts: '2026-09-05T10:00:00.000Z', ine: '28', municipio: 'Madrid', provincia: 'Madrid', qnMax: 0.56, faldones: [{ nombre: 'Cubierta', inclinacion: 0, qn: 0.56 }] };
     const s = sevilla();
     s.emplazamiento.provincia = '28';
@@ -199,8 +199,8 @@ describe('la nieve del sobre de Viento y nieve', () => {
     expect(avisosNieve(s, masNuevo)).toHaveLength(1);
     expect(avisosNieve(s, masNuevo)[0]).toMatch(/«Cubierta».*publicado de nuevo/);
 
-    const otraObra = { ...pub, ine: '41', municipio: 'Sevilla' };
-    expect(avisosNieve(s, otraObra)[0]).toMatch(/otra obra \(Sevilla\)/);
+    const otroSitio = { ...pub, ine: '41', municipio: 'Sevilla' };
+    expect(avisosNieve(s, otroSitio)[0]).toMatch(/se calculó en otro sitio \(Sevilla\)/);
     const cincoDigitos = { ...pub, ine: '28079' };
     expect(avisosNieve(s, cincoDigitos)).toEqual([]);
 
@@ -209,9 +209,9 @@ describe('la nieve del sobre de Viento y nieve', () => {
     const sinFaldon = { ...pub, faldones: [{ nombre: 'Otro', inclinacion: 0, qn: 0.5 }] };
     expect(avisosNieve(s, sinFaldon)[0]).toMatch(/faldón «Cubierta» ya no está/);
 
-    // Sin provincia en la obra no se puede comparar: no se avisa de obra.
+    // Sin provincia en la obra no se puede comparar: no se avisa del sitio.
     s.emplazamiento.provincia = '';
-    expect(avisosNieve(s, otraObra)).toEqual([]);
+    expect(avisosNieve(s, otroSitio)).toEqual([]);
     // Nieve manual o sin nieve: nada que avisar.
     planta(s.plantas, CUBIERTA).nieve = { modo: 'manual', valor: 1, tsPub: null, inePub: null, faldon: null };
     expect(avisosNieve(s, null)).toEqual([]);

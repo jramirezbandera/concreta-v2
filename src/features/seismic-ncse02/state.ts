@@ -890,9 +890,9 @@ export function datosPublicacion(s: SeismicState, ev: SeismicEvaluation): PubSis
  * que retener: el emplazamiento siempre está resuelto y un caso exento es un
  * dato tan publicable como uno calculado (ver `PubSismo`).
  *
- * La obra del sobre sale del emplazamiento del propio módulo cuando lo hay —es
- * el municipio con el que se sacaron ab y K, no una referencia de despacho— y
- * cae a `concreta-obra` en la entrada manual.
+ * El emplazamiento del sobre sale del propio módulo cuando lo hay —es el
+ * municipio con el que se sacaron ab y K, no una referencia de despacho— y cae
+ * a `concreta-obra` en la entrada manual.
  */
 export function publicarResultado(s: SeismicState, ev: SeismicEvaluation): void {
   const datos = datosPublicacion(s, ev);
@@ -901,8 +901,10 @@ export function publicarResultado(s: SeismicState, ev: SeismicEvaluation): void 
     municipio: datos.municipio || obra?.municipio || null,
     // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
     // módulo no lo necesita para nada: viaja el INE, que es con lo que un
-    // consumidor comprueba que la publicación es de SU obra.
+    // consumidor comprueba que la publicación es del MISMO EMPLAZAMIENTO. Cinco
+    // cifras cuando el municipio sale del Anejo 1; dos, las de la provincia de
+    // la obra, en la entrada manual de ab y K.
     provincia: null,
-    ine: datos.ine ?? obra?.ine ?? (obra?.provincia || null),
+    ine: datos.ine ?? (obra?.provincia || null),
   });
 }

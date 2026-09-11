@@ -75,10 +75,17 @@ export const SIN_SOBRES: Sobres = { materiales: null, vientoNieve: null, cargasP
 export const provinciaDe = (ine: string | null | undefined): string | null => (ine && ine.length >= 2 ? ine.slice(0, 2) : null);
 
 /**
- * Sí cuando el sobre es de otra provincia que la ficha, y sólo cuando las dos
- * partes la conocen: sin obra que comparar no hay discrepancia que demostrar.
+ * Sí cuando el sobre se calculó en otra provincia que la ficha, y sólo cuando
+ * las dos partes la conocen: sin sitio que comparar no hay discrepancia que
+ * demostrar.
+ *
+ * Compara EMPLAZAMIENTOS, no obras. Dos obras del mismo municipio son
+ * indistinguibles aquí a propósito: lo que esto evita es imprimir la zona
+ * eólica de Granada en una memoria de Málaga. Que una publicación sea de la
+ * obra abierta lo garantiza el contenedor de proyectos, que al abrir otra
+ * reemplaza los sobres en vez de fundirlos (ver `lib/proyecto`).
  */
-export function esDeOtraObra(sobre: Publicacion<unknown> | null, ineSobre: string | null | undefined, provinciaFicha: string): boolean {
+export function esDeOtroEmplazamiento(sobre: Publicacion<unknown> | null, ineSobre: string | null | undefined, provinciaFicha: string): boolean {
   if (!sobre || !provinciaFicha) return false;
   const p = provinciaDe(ineSobre ?? sobre.obra.ine);
   return p !== null && p !== provinciaFicha;
@@ -102,7 +109,8 @@ export interface Fuente extends Valor<boolean> {
   modulo: ModuloPub;
   ts: string | null;
   obraSobre: ObraPublicada | null;
-  otraObra: boolean;
+  /** El sobre se calculó en otra provincia que la ficha. */
+  otroEmplazamiento: boolean;
   obligatorio: boolean;
 }
 
@@ -323,12 +331,12 @@ export const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
 
 function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, tomada: Tomada | null, provinciaFicha: string, obligatorio: boolean, ineSobre?: string | null): Fuente {
   const estado = estadoSobre(sobre, tomada, provinciaFicha, obligatorio);
-  const otraObra = esDeOtraObra(sobre, ineSobre, provinciaFicha);
+  const otroEmplazamiento = esDeOtroEmplazamiento(sobre, ineSobre, provinciaFicha);
   const nota =
     !sobre && !obligatorio
       ? 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
-      : otraObra
-        ? `Esta publicación es de otra obra (${sobre?.obra.municipio || sobre?.obra.provincia || `INE ${sobre?.obra.ine}`}).`
+      : otroEmplazamiento
+        ? `Esta publicación se calculó en otro sitio (${sobre?.obra.municipio || sobre?.obra.provincia || `INE ${sobre?.obra.ine}`}).`
         : undefined;
   return {
     modulo,
@@ -340,7 +348,7 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, tomada: T
     apartado: APARTADO_DE[modulo],
     ts: sobre?.ts ?? null,
     obraSobre: sobre?.obra ?? null,
-    otraObra,
+    otroEmplazamiento,
     obligatorio,
     ...(nota ? { nota } : {}),
   };

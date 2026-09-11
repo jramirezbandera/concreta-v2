@@ -17,7 +17,7 @@ import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as eval
 import { provinciaPorIne } from '../../lib/acciones/provincias';
 import { ZONAS_EOLICAS } from '../../lib/acciones/tablasAE';
 import { lookupFk, lookupGammaM } from '../../lib/calculations/masonryWalls';
-import { SIN_SOBRES, ensamblar, esDeOtraObra, estadoSobre, evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
+import { SIN_SOBRES, ensamblar, esDeOtroEmplazamiento, estadoSobre, evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
 import { asegurarForjados, confirmar, estadoPorDefecto, teclear, tomarPublicacion, type MemoriaState } from '../../lib/memoria/estado';
 import type { Publicacion } from '../../lib/pub';
 
@@ -46,7 +46,7 @@ function sobresGranada(): Sobres {
   };
 }
 
-const fichaGranada = () => estadoPorDefecto({ denominacion: 'Edificio en Granada', municipio: 'Granada', ine: '18087', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
+const fichaGranada = () => estadoPorDefecto({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
 
 /** Acepta los cuatro sobres tal como están. */
 function tomarTodo(s: MemoriaState, sobres: Sobres): MemoriaState {
@@ -58,7 +58,7 @@ function tomarTodo(s: MemoriaState, sobres: Sobres): MemoriaState {
   return t;
 }
 
-describe('estadoSobre y otra obra', () => {
+describe('estadoSobre y otro emplazamiento', () => {
   const so = sobre('materiales', {}, { ine: '18087' });
   it('sin sobre: falta si es obligatorio, derivado si no (viento)', () => {
     expect(estadoSobre(null, null, '18', true)).toBe('falta');
@@ -70,13 +70,13 @@ describe('estadoSobre y otra obra', () => {
     expect(estadoSobre(so, { ts: TS, ine: '18087', provinciaFicha: '29' }, '18', true)).toBe('revisar');
     expect(estadoSobre(so, { ts: TS, ine: '18087', provinciaFicha: '18' }, '18', true)).toBe('ok');
   });
-  it('otra obra sólo cuando las dos provincias se conocen y difieren', () => {
-    expect(esDeOtraObra(so, undefined, '18')).toBe(false);
-    expect(esDeOtraObra(so, undefined, '29')).toBe(true);
-    expect(esDeOtraObra(so, undefined, '')).toBe(false);
-    expect(esDeOtraObra(sobre('x', {}, { ine: null }), undefined, '29')).toBe(false);
+  it('otro emplazamiento sólo cuando las dos provincias se conocen y difieren', () => {
+    expect(esDeOtroEmplazamiento(so, undefined, '18')).toBe(false);
+    expect(esDeOtroEmplazamiento(so, undefined, '29')).toBe(true);
+    expect(esDeOtroEmplazamiento(so, undefined, '')).toBe(false);
+    expect(esDeOtroEmplazamiento(sobre('x', {}, { ine: null }), undefined, '29')).toBe(false);
     // El de sismo lleva su propio INE dentro de los datos, que manda sobre el del sobre.
-    expect(esDeOtraObra(so, '29067', '18')).toBe(true);
+    expect(esDeOtroEmplazamiento(so, '29067', '18')).toBe(true);
   });
 });
 
@@ -95,7 +95,7 @@ describe('sin ninguna publicación', () => {
   });
 
   it('Málaga sin sobre: zona A, 26 m/s, 0,42 kN/m²', () => {
-    const m = ensamblar(estadoPorDefecto({ denominacion: '', municipio: 'Málaga', ine: '29067', provincia: '29', altitud: 10, uso: '' }), SIN_SOBRES);
+    const m = ensamblar(estadoPorDefecto({ denominacion: '', municipio: 'Málaga', provincia: '29', altitud: 10, uso: '' }), SIN_SOBRES);
     expect(m.seae.viento.valor).toMatchObject({ lugar: 'Málaga (Málaga)', zona: 'A', vb: 26, qb: 0.42 });
   });
 
@@ -248,17 +248,17 @@ describe('sismo exento y sismo sin resolver', () => {
   });
 });
 
-describe('otra obra y revisar', () => {
+describe('otro emplazamiento y revisar', () => {
   it('el sobre de sismo de Granada en una ficha de Málaga: se avisa, y sigue siendo tomable', () => {
     const sobres = sobresGranada();
-    const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', ine: '29067', provincia: '29', altitud: 10, uso: 'Viviendas' });
+    const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
     const d = ensamblar(malaga, sobres);
-    expect(d.fuentes.sismo.otraObra).toBe(true);
-    expect(d.fuentes.sismo.nota).toContain('otra obra');
+    expect(d.fuentes.sismo.otroEmplazamiento).toBe(true);
+    expect(d.fuentes.sismo.nota).toContain('en otro sitio');
     expect(d.fuentes.sismo.estado).toBe('revisar');
     const t = ensamblar(tomarTodo(malaga, sobres), sobres);
     expect(t.fuentes.sismo.estado).toBe('ok');
-    expect(t.fuentes.sismo.otraObra).toBe(true);
+    expect(t.fuentes.sismo.otroEmplazamiento).toBe(true);
   });
 
   it('cambiar la provincia de la ficha después de aceptar devuelve los sobres a revisar', () => {

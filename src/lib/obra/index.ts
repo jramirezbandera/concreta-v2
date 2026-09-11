@@ -8,7 +8,14 @@
  * módulos lo leen como valor por defecto y pueden sobrescribirlo en su propio
  * estado; lo que publican lleva la obra a la que pertenece (ver `lib/pub`).
  *
- * Seis campos: los que decide la obra y no el cálculo.
+ * Cinco campos: los que decide la obra y no el cálculo.
+ *
+ * El INE de cinco cifras del municipio vivió aquí hasta el 2026-09-11 y se
+ * fue por inútil: sólo se escribía en el sello de las publicaciones, y de él
+ * sólo se leían las dos primeras cifras —la provincia, que ya tiene su campo—.
+ * Eran cinco cifras que nadie sabe de memoria pedidas para nada. Un fichero
+ * antiguo que las traiga las pierde al abrirlo, sin cambiar ningún resultado:
+ * el sello cae a la provincia y la comparación da lo mismo.
  */
 
 import { CLAVE_OBRA } from '../../data/proyectoKeys';
@@ -17,8 +24,6 @@ import { escribirClave, leerClave } from '../storage/seguro';
 export interface Obra {
   denominacion: string;
   municipio: string;
-  /** Código INE de cinco dígitos del municipio, si se conoce. */
-  ine: string | null;
   /** Código INE de dos dígitos de la provincia. Cadena vacía = sin elegir. */
   provincia: string;
   /** Altitud topográfica, m. */
@@ -31,7 +36,7 @@ export const OBRA_KEY = CLAVE_OBRA;
 export const OBRA_VERSION = 1;
 
 export function obraVacia(): Obra {
-  return { denominacion: '', municipio: '', ine: null, provincia: '', altitud: null, uso: '' };
+  return { denominacion: '', municipio: '', provincia: '', altitud: null, uso: '' };
 }
 
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
@@ -45,7 +50,6 @@ export function normalizarObra(bruto: unknown): Obra {
   return {
     denominacion: texto(bruto.denominacion),
     municipio: texto(bruto.municipio),
-    ine: typeof bruto.ine === 'string' && /^\d{5}$/.test(bruto.ine) ? bruto.ine : null,
     provincia: typeof bruto.provincia === 'string' && /^\d{2}$/.test(bruto.provincia) ? bruto.provincia : '',
     altitud: typeof bruto.altitud === 'number' && Number.isFinite(bruto.altitud) ? bruto.altitud : null,
     uso: texto(bruto.uso),

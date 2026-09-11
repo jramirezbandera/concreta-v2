@@ -64,7 +64,7 @@ export interface NieveUI {
   valor: number;
   /** Fecha del sobre del que se copió, para avisar si hay uno más nuevo. */
   tsPub: string | null;
-  /** INE del sobre, para avisar si es de otra obra. */
+  /** INE del sobre, para avisar si se calculó en otro sitio. */
   inePub: string | null;
   /** Faldón elegido en la publicación; null = el máximo. */
   faldon: string | null;
@@ -512,7 +512,7 @@ export function entradaMotor(state: CargasState): CargasInput {
 
 export interface Evaluacion {
   resultado: CargasResultado;
-  /** Avisos de la nieve tomada de la publicación: más nueva, de otra obra, desaparecida. */
+  /** Avisos de la nieve tomada de la publicación: más nueva, de otro sitio, desaparecida. */
   avisosNieve: string[];
   errores: number;
   avisos: number;
