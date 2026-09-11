@@ -356,8 +356,12 @@ function normalizarZona(bruto: unknown, esCubierta: boolean): ZonaUI {
  * Un estado guardado antes de que las cargas libres llevaran `columna` las
  * agrupa como se agrupaban entonces: por nombre, y las que no tienen nombre
  * cada una en la suya. A partir de aquí la columna ya no depende del nombre.
+ *
+ * También la usa el asistente IA: cuando propone la tabla entera, las cargas
+ * libres llegan sin columna y hay que agruparlas con la misma regla que al leer
+ * un estado guardado. Muta el array que recibe.
  */
-function asignarColumnas(plantas: PlantaUI[]): void {
+export function asignarColumnas(plantas: PlantaUI[]): void {
   const porNombre = new Map<string, string>();
   for (const p of plantas)
     for (const z of p.zonas)

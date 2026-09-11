@@ -14,6 +14,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { AiChatModal } from '../../components/ai/AiChatModal';
+import { vientoNieveAdapter, summarizeVientoNieveResults } from '../../lib/ai/modules/vientoNieve';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { showToast } from '../../components/ui/Toast';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -154,6 +158,24 @@ export function VientoNieveModule() {
   };
 
   const evaluacion = useMemo(() => evaluar(state), [state]);
+
+  // ── Asistente ─────────────────────────────────────────────────────────────
+  // Las plantas y los faldones REEMPLAZAN a los vigentes (ver `lib/ai/modules/
+  // vientoNieve`), así que el plan los lleva reconstruidos sobre el estado que
+  // había al proponerlos: lo que se teclee entre proponer y aplicar se pisa.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeVientoNieveResults(evaluacion), [evaluacion]);
+
+  const aplicarPlanIa = (plan: AiApplyPlan<VientoNieveState>) => {
+    actualizar((p) => ({ ...p, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} cambio${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+        + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
 
   // Publicar es un efecto del resultado, no del tecleo: se hace después del
   // render, cuando la evaluación ya está hecha, y sólo si está lista.
@@ -301,6 +323,7 @@ export function VientoNieveModule() {
         moduleLabel="Viento y nieve"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
+        onOpenAssistant={() => setAiOpen(true)}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -428,6 +451,15 @@ export function VientoNieveModule() {
       </div>
 
       {anejo.dialogo}
+      {aiOpen && (
+        <AiChatModal
+          adapter={vientoNieveAdapter}
+          current={state}
+          results={aiResults}
+          onApply={aplicarPlanIa}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
       {titleOpen && (
         <TitlePromptModal initialTitle={docTitle} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
       )}

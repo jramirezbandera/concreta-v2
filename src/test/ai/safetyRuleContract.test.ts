@@ -1,4 +1,4 @@
-// Contrato de las TABLAS DE SEGURIDAD de los 20 adapters (auditoría 2026-07-14).
+// Contrato de las TABLAS DE SEGURIDAD de los 24 adapters (auditoría 2026-07-14).
 //
 // El gate anti-ruido de safety.ts levanta la protección de un campo cuando el
 // hilo ya lo trató, y busca la clave en el espacio del PAYLOAD (`t_cm`), no del
@@ -66,6 +66,15 @@ import {
   seismicNCSE02Adapter, SEISMIC_SAFETY_RULES, SEISMIC_RESOLVED_RULES,
 } from '../../lib/ai/modules/seismicNCSE02';
 import { rockfillWallAdapter, ROCKFILL_WALL_SAFETY_RULES } from '../../lib/ai/modules/rockfillWall';
+import {
+  cargasPlantaAdapter, CARGAS_SAFETY_RULES, CARGAS_RESOLVED_RULES,
+} from '../../lib/ai/modules/cargasPlanta';
+import {
+  materialesAdapter, MATERIALES_SAFETY_RULES, MATERIALES_RESOLVED_RULES,
+} from '../../lib/ai/modules/materiales';
+import {
+  vientoNieveAdapter, VIENTO_NIEVE_SAFETY_RULES, VIENTO_NIEVE_RESOLVED_RULES,
+} from '../../lib/ai/modules/vientoNieve';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 20 TInputs distintos */
 
@@ -133,6 +142,21 @@ const ENTRIES: readonly Entry[] = [
     resolved: SEISMIC_RESOLVED_RULES,
   },
   { adapter: rockfillWallAdapter, rules: ROCKFILL_WALL_SAFETY_RULES },
+  {
+    adapter: cargasPlantaAdapter,
+    rules: CARGAS_SAFETY_RULES,
+    resolved: CARGAS_RESOLVED_RULES,
+  },
+  {
+    adapter: materialesAdapter,
+    rules: MATERIALES_SAFETY_RULES,
+    resolved: MATERIALES_RESOLVED_RULES,
+  },
+  {
+    adapter: vientoNieveAdapter,
+    rules: VIENTO_NIEVE_SAFETY_RULES,
+    resolved: VIENTO_NIEVE_RESOLVED_RULES,
+  },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -140,10 +164,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 21 adapters están en el contrato', () => {
+describe('los 24 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(21);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(21);
+    expect(ENTRIES).toHaveLength(24);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(24);
   });
 });
 
@@ -207,6 +231,19 @@ describe.each(ENTRIES.map((e) => [e.adapter.id, e] as const))(
           .flatMap((r) => r.confirmKeys.map((k) => ({ id: r.id, confirmKey: k })))
           .filter((r) => !keys.includes(r.confirmKey));
         expect(huerfanas).toEqual([]);
+      });
+
+      // Una `ResolvedSafetyRule` resuelve a NÚMERO (`resolve: (s) => number | null`),
+      // así que su `level` tiene que aceptar números. Los ayudantes booleanos
+      // (`trueIsSafer`, `falseIsSafer`) devuelven null ante cualquier cosa que no
+      // sea un boolean: puestos aquí, la comparación se salta siempre y el campo
+      // queda sin red SIN QUE NADA FALLE. Es la misma clase de fuga que la puerta
+      // de `custom`, y se coló de verdad en el `costa` del cuadro de materiales.
+      it('su `level` acepta el número que `resolve` devuelve (no un ayudante booleano)', () => {
+        const sordas = entry.resolved!
+          .filter((r) => r.level(1) === null || r.level(0) === null)
+          .map((r) => r.id);
+        expect(sordas).toEqual([]);
       });
 
       it('su id NO colisiona con un campo del estado (sería una clave duplicada en la tarjeta)', () => {

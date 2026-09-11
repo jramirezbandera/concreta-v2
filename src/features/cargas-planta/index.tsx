@@ -15,6 +15,10 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AiChatModal } from '../../components/ai/AiChatModal';
+import { cargasPlantaAdapter, summarizeCargasResults } from '../../lib/ai/modules/cargasPlanta';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { showToast } from '../../components/ui/Toast';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -156,6 +160,13 @@ export function CargasPlantaModule() {
     if (zonaSel && el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [zonaSel]);
 
+  // ── Asistente ─────────────────────────────────────────────────────────────
+  // La propuesta REEMPLAZA la tabla entera (ver `lib/ai/modules/cargasPlanta`),
+  // así que el plan lleva las plantas ya reconstruidas sobre el estado que
+  // había al proponerlas: lo que se teclee entre proponer y aplicar se pisa.
+  // Es el precio del reemplazo, y va dicho en la regla 12 del prompt.
+  const [aiOpen, setAiOpen] = useState(false);
+
   /** Todo cambio pasa por aquí: actualiza y persiste con la misma llamada. */
   const actualizar = (cambio: (prev: CargasState) => CargasState) => {
     setState((prev) => {
@@ -168,13 +179,26 @@ export function CargasPlantaModule() {
   };
 
   // El sismo se relee aparte, en un efecto, porque su filtro necesita la
-  // provincia del estado YA aplicado: el sobre de otra obra se descarta (ver
+  // provincia del estado YA aplicado: el sobre de otro sitio se descarta (ver
   // `sismoPub`), y dentro de `actualizar` sólo se conoce el estado entrante.
   useEffect(() => {
     setSismo(resumenSismoPublicado(state.emplazamiento.provincia));
   }, [state]);
 
   const evaluacion = useMemo(() => evaluar(state, nievePub), [state, nievePub]);
+
+  const aiResults = useMemo(() => summarizeCargasResults(evaluacion), [evaluacion]);
+
+  const aplicarPlanIa = (plan: AiApplyPlan<CargasState>) => {
+    actualizar((p) => ({ ...p, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} cambio${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+        + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
 
   // Publicar es un efecto del resultado, no del tecleo.
   useEffect(() => {
@@ -355,6 +379,7 @@ export function CargasPlantaModule() {
         moduleLabel="Cargas por planta"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
+        onOpenAssistant={() => setAiOpen(true)}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -509,6 +534,15 @@ export function CargasPlantaModule() {
       </div>
 
       {anejo.dialogo}
+      {aiOpen && (
+        <AiChatModal
+          adapter={cargasPlantaAdapter}
+          current={state}
+          results={aiResults}
+          onApply={aplicarPlanIa}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
       {titleOpen && (
         <TitlePromptModal
           initialTitle={docTitle}

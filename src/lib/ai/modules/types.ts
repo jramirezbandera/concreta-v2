@@ -46,7 +46,28 @@ export type AiModuleId =
   | 'seismic-ncse02'
   // Muro de gravedad de escollera/gaviones: estado plano con DOS tipologías
   // gateadas por `wallType` y φ del muro con dos modos (directo | guía 2006).
-  | 'rockfill-wall';
+  | 'rockfill-wall'
+  // Ola 8 — el payload es LA TABLA. Primer módulo de acciones que se teclea en
+  // filas, y el trabajo del usuario es justamente llenarlas: `zonas` es la
+  // proyección PLANA de plantas→zonas→permanentes con semántica de reemplazo, y
+  // las plantas se reconstruyen agrupando filas consecutivas con el mismo
+  // nombre. Fuera del payload quedan la provincia y el municipio (se heredan de
+  // la obra) y la nieve tomada de un sobre de Viento y nieve. Ver la cabecera
+  // de `cargasPlanta.ts`.
+  | 'cargas-planta'
+  // Ola 8 — el cuadro se DERIVA, no se teclea: el usuario dice dónde está cada
+  // elemento y la norma pone el recubrimiento, la tipificación y las clases. El
+  // payload, por tanto, es la lista de SITUACIONES, y se organiza en objetos
+  // agrupados (`estudio`, `obra`, `acero`) para no reventar el tope de uniones.
+  // Fuera quedan el recubrimiento forzado a mano y la tabla de anclajes. Ver la
+  // cabecera de `materiales.ts`.
+  | 'materiales'
+  // Ola 8 — la exclusión más nítida de las tres: la zona eólica y la de clima
+  // invernal salen de los mapas D.1 y E.2 y las resuelve la app desde la
+  // PROVINCIA, que sí es campo del payload (por su código INE) porque es la
+  // entrada principal del cálculo. sk y qb sólo se escriben con el número que
+  // dé el usuario. Ver la cabecera de `vientoNieve.ts`.
+  | 'viento-nieve';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)

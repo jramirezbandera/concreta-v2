@@ -9,7 +9,7 @@
 //    null, o anyOf con {type:'null'}): null = "sin cambio" es el contrato del
 //    merge de propuestas y del prompt.
 //
-// Este test recorre los 20 adapters para que el próximo módulo no pueda
+// Este test recorre los 24 adapters para que el próximo módulo no pueda
 // olvidarse de una clave en required (el error solo se vería con una API key
 // real de OpenAI).
 
@@ -35,6 +35,9 @@ import { femAnalysisAdapter } from '../../lib/ai/modules/femAnalysis';
 import { fem2dAdapter } from '../../lib/ai/modules/fem2d';
 import { seismicNCSE02Adapter } from '../../lib/ai/modules/seismicNCSE02';
 import { rockfillWallAdapter } from '../../lib/ai/modules/rockfillWall';
+import { cargasPlantaAdapter } from '../../lib/ai/modules/cargasPlanta';
+import { materialesAdapter } from '../../lib/ai/modules/materiales';
+import { vientoNieveAdapter } from '../../lib/ai/modules/vientoNieve';
 
 const ADAPTERS = [
   steelBeamsAdapter, rcColumnsAdapter, isolatedFootingAdapter,
@@ -43,7 +46,7 @@ const ADAPTERS = [
   steelColumnsAdapter, empresalladoAdapter, punchingAdapter,
   rcBeamsAdapter, forjadosAdapter, retainingWallAdapter, anchorPlateAdapter,
   masonryWallsAdapter, femAnalysisAdapter, fem2dAdapter, seismicNCSE02Adapter,
-  rockfillWallAdapter,
+  rockfillWallAdapter, cargasPlantaAdapter, materialesAdapter, vientoNieveAdapter,
 ] as const;
 
 interface SchemaLike {

@@ -24,6 +24,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { AiChatModal } from '../../components/ai/AiChatModal';
+import { materialesAdapter, summarizeMaterialesResults } from '../../lib/ai/modules/materiales';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
+import { showToast } from '../../components/ui/Toast';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -154,6 +158,24 @@ export function MaterialesModule() {
   };
 
   const evaluacion = useMemo(() => evaluar(state), [state]);
+
+  // ── Asistente ─────────────────────────────────────────────────────────────
+  // Las listas del cuadro REEMPLAZAN a las vigentes (ver `lib/ai/modules/
+  // materiales`), así que el plan lleva las filas reconstruidas sobre el estado
+  // que había al proponerlas: lo que se teclee entre proponer y aplicar se pisa.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeMaterialesResults(evaluacion), [evaluacion]);
+
+  const aplicarPlanIa = (plan: AiApplyPlan<MaterialesState>) => {
+    actualizar((p) => ({ ...p, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} cambio${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+        + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
 
   // Publicar es un efecto del RESULTADO, no del tecleo: se hace después del
   // render, con la evaluación ya hecha, y sólo si hay cuadro que publicar.
@@ -395,6 +417,7 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
+        onOpenAssistant={() => setAiOpen(true)}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -644,6 +667,15 @@ export function MaterialesModule() {
       </div>
 
       {anejo.dialogo}
+      {aiOpen && (
+        <AiChatModal
+          adapter={materialesAdapter}
+          current={state}
+          results={aiResults}
+          onApply={aplicarPlanIa}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
       {titleOpen && (
         <TitlePromptModal
           initialTitle={docTitle}
