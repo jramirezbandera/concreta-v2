@@ -126,10 +126,18 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     // Ni avisos: los tres sobres son de Granada y están configurados.
     expect(screen.queryByText('Lo que falta calcular en otros módulos')).toBeNull();
 
-    // La frase del viento, con la zona de la provincia (no hay sobre de viento).
-    expect(screen.getByText(/Granada \(Granada\) está en zona [ABC], con lo que v=\d+ m\/s/)).toBeInTheDocument();
-    // Y la tabla sísmica de Granada, ya impresa.
-    expect(screen.getByText(/ab=0,23 g/)).toBeInTheDocument();
+    // Los apartados resueltos arrancan plegados, así que se abren para mirar
+    // lo que imprimen: la zona eólica derivada de la provincia (no hay sobre
+    // de viento) y la tabla sísmica de Granada, ya puesta sin pedir permiso.
+    const abrir = (nombre: RegExp) => {
+      const region = screen.getByRole('region', { name: nombre });
+      const cabecera = within(region).queryByRole('button', { expanded: false });
+      if (cabecera) fireEvent.click(cabecera);
+      return region;
+    };
+
+    expect(within(abrir(/Acciones en la edificación/i)).getByText(/Granada \(Granada\) está en zona [ABC], con lo que v=\d+ m\/s/)).toBeInTheDocument();
+    expect(within(abrir(/Acción sísmica/i)).getByText(/ab=0,23 g/)).toBeInTheDocument();
   });
 
   it('un módulo con sus valores de partida NO entra: se avisa y se ofrece la salida', async () => {
@@ -188,6 +196,25 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     // Y el rótulo ya no lleva una unidad escrita a mano que la contradiga.
     expect(screen.getByText('Sobrecarga en el terreno')).toBeInTheDocument();
     expect(screen.queryByText(/Sobrecarga en el terreno \(kN\/m²\)/)).toBeNull();
+  });
+
+  it('arranca abierto lo que pide algo y plegado lo que ya está', () => {
+    obraGranada();
+    publicarLosOtros();
+    montar();
+
+    // Abría seis de nueve secciones pasara lo que pasara: doscientas líneas de
+    // formulario sin decir cuál de ellas pedía algo. Ahora decide el contenido.
+    const abiertas = screen.getAllByRole('button', { expanded: true });
+    const cerradas = screen.getAllByRole('button', { expanded: false });
+    expect(abiertas.length).toBeGreaterThan(0);
+    expect(cerradas.length).toBeGreaterThan(0);
+
+    // Con sismo, cargas y materiales publicados y sin huecos, su apartado se
+    // pliega; el del terreno, que se teclea entero, no.
+    const plegada = (nombre: RegExp) => within(screen.getByRole('region', { name: nombre })).queryByRole('button', { expanded: false }) !== null;
+    expect(plegada(/Acción sísmica/i)).toBe(true);
+    expect(plegada(/Cimentaciones/i)).toBe(false);
   });
 
   it('la ficha ya no tiene su propio «Nueva obra»: la obra la crea su menú', () => {

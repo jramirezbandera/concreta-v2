@@ -91,15 +91,32 @@ const REF: Record<ApartadoId, string> = {
   sem: 'DB SE-M',
 };
 
-/** Las secciones que arrancan abiertas: las que piden algo. Las de texto fijo, cerradas. */
-const ABIERTAS_AL_ARRANCAR: Record<string, boolean> = { indice: false, se: false, seae: true, sec: true, ncse: true, ce: true, forjados: true, sea: false, sef: true, sem: false };
+/**
+ * Qué secciones arrancan abiertas: las que PIDEN algo, y cerradas las que ya
+ * están. Es la misma regla del panel de la obra —lo hecho se pliega, lo que
+ * falta sale entero— y por las mismas razones.
+ *
+ * Arrancaban seis de nueve abiertas pasara lo que pasara, y eso era la pared:
+ * al entrar en la ficha lo primero que se veía eran doscientas líneas de
+ * formulario sin saber cuál de ellas pedía algo. Cerrar las nueve tampoco
+ * valía —la ficha quedaba sin nada accionable—, así que decide el contenido.
+ *
+ * Se calcula UNA vez, al entrar. Si se recalculara, cada sección se cerraría
+ * sola al terminarla y el sitio donde estabas se te iría de debajo.
+ *
+ * No hace falta un índice aparte, que es lo que se había llegado a diseñar:
+ * cerradas, las nueve secciones caben en una pantalla con su chip de cuánto
+ * les falta, así que la ficha ES su propio índice. Un índice al lado sería una
+ * segunda navegación sobre exactamente la misma información.
+ */
+const aperturaAlArrancar = (apartados: readonly string[], huecos: readonly Hueco[]): Record<string, boolean> =>
+  Object.fromEntries(apartados.map((id) => [id, huecos.some((h) => h.apartado === id)]));
 
 export function MemoriaDBSEModule() {
   const { openDrawer } = useDrawer();
   const [state, setState] = useState<MemoriaState>(cargarEstado);
   const [sobres, setSobres] = useState<Sobres>(leerSobres);
   const [obraGuardada, setObraGuardada] = useState(leerObra);
-  const [abiertas, setAbiertas] = useState<Record<string, boolean>>(ABIERTAS_AL_ARRANCAR);
   const [obraAbierta, setObraAbierta] = useState(false);
   const [faltasAbierto, setFaltasAbierto] = useState(false);
   const [avisoAbierto, setAvisoAbierto] = useState(false);
@@ -154,6 +171,7 @@ export function MemoriaDBSEModule() {
   const evaluacion = useMemo(() => evaluar(state, sobres), [state, sobres]);
   const { datos, huecos, listo, mensajeBloqueo, mensajeAviso } = evaluacion;
   const cuenta = contarHuecos(huecos);
+  const [abiertas, setAbiertas] = useState<Record<string, boolean>>(() => aperturaAlArrancar(Object.keys(datos.procede), huecos));
   const ayuda = state.ayuda;
 
   const on: Acciones = useMemo(
@@ -363,7 +381,7 @@ export function MemoriaDBSEModule() {
                 numero={a.numero}
                 titulo={a.titulo.replace(/^3\.1\.\d\.?\s*/, '')}
                 refNorma={REF[a.id]}
-                open={abiertas[a.id] ?? true}
+                open={abiertas[a.id] ?? false}
                 onOpenChange={abrir(a.id)}
                 huecos={huecosDe(a.id)}
                 procede={a.procede}
