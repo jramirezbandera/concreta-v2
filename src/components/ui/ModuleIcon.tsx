@@ -257,8 +257,8 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M4.2 3.2l.8.8.8-.8M7.2 3.2l.8.8.8-.8M10.2 3.2l.8.8.8-.8" strokeWidth="0.9" strokeOpacity="0.8"/>
         </svg>
       );
-    // Datos de obra: un pin sobre la línea del suelo — dónde está la obra.
-    case 'concreta-datos-obra':
+    // La obra: un pin sobre la línea del suelo — dónde está la obra.
+    case 'concreta-obra':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
           <path d="M8 12.5s3.5-3.3 3.5-6.3a3.5 3.5 0 1 0-7 0c0 3 3.5 6.3 3.5 6.3z" />

@@ -7,7 +7,6 @@
  */
 
 import { AlertTriangle, Download } from 'lucide-react';
-import { Link } from 'react-router';
 import type { ResumenAnejo } from '../../lib/anejo/maqueta';
 import { emplazamientoDe } from '../../lib/anejo/maqueta';
 import type { Obra } from '../../lib/obra';
@@ -43,8 +42,6 @@ function Valor({ rotulo, valor, destacado = false }: { rotulo: string; valor: st
   );
 }
 
-const ENLACE = 'text-accent hover:text-accent-hover underline-offset-2 hover:underline';
-
 export function PanelResumen(p: PanelResumenProps) {
   const denominacion = p.obra?.denominacion.trim() || p.nombreObra || '';
   const emplazamiento = emplazamientoDe(p.obra);
@@ -61,9 +58,6 @@ export function PanelResumen(p: PanelResumenProps) {
         <span className={['min-w-0 truncate text-[12.5px]', p.nombreObra ? 'text-text-primary' : 'text-text-disabled'].join(' ')}>
           {p.nombreObra ?? 'Sin obra'}
         </span>
-        <Link to="/proyecto/datos" className={`${ENLACE} shrink-0 text-[11.5px]`}>
-          Datos de obra
-        </Link>
       </div>
 
       <Cabecera>Portada</Cabecera>
@@ -74,7 +68,7 @@ export function PanelResumen(p: PanelResumenProps) {
         <p className={['m-0 truncate text-[11.5px]', segunda ? 'text-text-secondary' : 'text-text-disabled'].join(' ')}>
           {segunda || 'Sin emplazamiento ni uso'}
         </p>
-        <p className="m-0 mt-1.5 text-[11px] text-text-disabled">La portada sale de los datos de obra; se edita allí.</p>
+        <p className="m-0 mt-1.5 text-[11px] text-text-disabled">La portada sale de los datos de la obra; se editan en el menú de obra.</p>
       </div>
 
       <Cabecera>Documento</Cabecera>

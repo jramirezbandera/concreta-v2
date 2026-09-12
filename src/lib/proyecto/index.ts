@@ -151,9 +151,16 @@ export function hayTrabajoVivo(): boolean {
   return clavesVivas().length > 0;
 }
 
-/** Un proyecto vacío con esa denominación. Desplegarlo deja la app en blanco. */
-export function proyectoNuevo(denominacion = ''): ProyectoFile {
-  const obra = { ...obraVacia(), denominacion };
+/**
+ * Un proyecto vacío con esa obra. Desplegarlo deja la app en blanco.
+ *
+ * Admite sólo la denominación —es como nació, y como lo llaman «Guardar» y
+ * «Exportar», que piden un campo— o la obra entera, que es lo que manda el
+ * diálogo de obra nueva desde 2026-09-12: si la provincia se escribe al crear
+ * la obra, los módulos de acciones ya arrancan con su emplazamiento.
+ */
+export function proyectoNuevo(inicial: string | Partial<Obra> = ''): ProyectoFile {
+  const obra = typeof inicial === 'string' ? { ...obraVacia(), denominacion: inicial } : { ...obraVacia(), ...inicial };
   return {
     formato: FORMATO_PROYECTO,
     v: VERSION_CONTENEDOR,

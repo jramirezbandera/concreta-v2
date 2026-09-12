@@ -10,6 +10,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ObraMenu } from '../../components/layout/ObraMenu';
+import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { showToast } from '../../components/ui/Toast';
 import { CLAVE_PROYECTO_ACTIVO } from '../../data/proyectoKeys';
 import { leerObra } from '../../lib/obra';
@@ -32,8 +33,17 @@ vi.mock('../../lib/proyecto/navegador', () => ({
 }));
 vi.mock('../../components/ui/Toast', () => ({ showToast: vi.fn() }));
 
+/** Con el contexto de unidades: el diálogo de obra pide la altitud con `RawNumberInput`. */
+const montar = () => render(<ObraMenu />, { wrapper: UnitSystemProvider });
+
 const abrirMenu = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole('button', { name: /menú de obra/i }));
+};
+
+/** Los dos campos obligatorios del diálogo de obra nueva: denominación y provincia. */
+const rellenarObra = async (user: ReturnType<typeof userEvent.setup>, nombre: string, provincia = '18') => {
+  await user.type(screen.getByLabelText('Nombre de la obra'), nombre);
+  await user.selectOptions(screen.getByLabelText('Provincia'), provincia);
 };
 
 const toasts = () => vi.mocked(showToast).mock.calls.map((c) => c[0]);
@@ -56,7 +66,7 @@ beforeEach(() => {
 describe('ObraMenu', () => {
   it('sin obra: el disparador dice «Sin obra» y no hay recientes', async () => {
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     expect(screen.getByRole('button', { name: /menú de obra/i }).textContent).toMatch(/Sin obra/);
     await abrirMenu(user);
     expect(screen.getByRole('menu', { name: 'Obra' })).toBeInTheDocument();
@@ -65,10 +75,10 @@ describe('ObraMenu', () => {
 
   it('Nueva obra: pide el nombre, la crea, la deja activa y recarga', async () => {
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
-    await user.click(screen.getByRole('menuitem', { name: /nueva obra/i }));
-    await user.type(screen.getByLabelText('Nombre de la obra'), 'Nave nueva');
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+    await rellenarObra(user, 'Nave nueva');
     await user.click(screen.getByRole('button', { name: 'Crear y abrir' }));
 
     await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
@@ -81,10 +91,10 @@ describe('ObraMenu', () => {
     window.localStorage.setItem('rc-beams', '{"L":6}');
     window.localStorage.setItem('rc-beams-version', '1');
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
-    await user.click(screen.getByRole('menuitem', { name: /nueva obra/i }));
-    await user.type(screen.getByLabelText('Nombre de la obra'), 'Nave nueva');
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+    await rellenarObra(user, 'Nave nueva');
     await user.click(screen.getByRole('button', { name: 'Crear y abrir' }));
 
     const dialogo = await screen.findByRole('dialog', { name: 'Hay cálculos sin obra' });
@@ -100,10 +110,76 @@ describe('ObraMenu', () => {
     expect(leerClave('rc-beams')).toBeNull(); // la nueva está en blanco
   });
 
+  it('Nueva obra no se crea sin provincia, y escribe los cinco datos', async () => {
+    const user = userEvent.setup();
+    montar();
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+
+    // Con nombre pero sin provincia el botón no confirma, y dice por qué: sin
+    // provincia no hay zona eólica, ni de nieve, ni peligrosidad sísmica.
+    await user.type(screen.getByLabelText('Nombre de la obra'), 'Nave en Dos Hermanas');
+    const crear = screen.getByRole('button', { name: 'Crear y abrir' });
+    expect(crear).toBeDisabled();
+    expect(screen.getByRole('status').textContent).toMatch(/provincia/i);
+
+    await user.selectOptions(screen.getByLabelText('Provincia'), '41');
+    await user.type(screen.getByLabelText('Uso'), 'Nave industrial');
+    await user.type(screen.getByLabelText('Municipio'), 'Dos Hermanas');
+    await user.type(screen.getByLabelText('Altitud'), '42');
+    expect(crear).toBeEnabled();
+    await user.click(crear);
+
+    await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
+    expect(leerObra()).toEqual({
+      denominacion: 'Nave en Dos Hermanas',
+      uso: 'Nave industrial',
+      provincia: '41',
+      municipio: 'Dos Hermanas',
+      altitud: 42,
+    });
+  });
+
+  it('«Datos de la obra…» abre los mismos cinco campos con lo que ya hay, y los guarda', async () => {
+    const user = userEvent.setup();
+    montar();
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+    await rellenarObra(user, 'Nave nueva', '18');
+    await user.click(screen.getByRole('button', { name: 'Crear y abrir' }));
+    await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
+
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /datos de la obra/i }));
+    expect(screen.getByLabelText('Nombre de la obra')).toHaveValue('Nave nueva');
+    expect(screen.getByLabelText('Provincia')).toHaveValue('18');
+
+    await user.selectOptions(screen.getByLabelText('Provincia'), '41');
+    await user.click(screen.getByRole('button', { name: 'Guardar los datos' }));
+
+    expect(leerObra()?.provincia).toBe('41');
+    expect(leerObra()?.denominacion).toBe('Nave nueva');
+  });
+
+  it('Guardar y Exportar siguen pidiendo UN campo: no heredan los cinco de la obra', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('forjados', '{"x":1}');
+    montar();
+
+    for (const item of ['Guardar', 'Exportar…'] as const) {
+      await abrirMenu(user);
+      await user.click(screen.getByRole('menuitem', { name: item }));
+      expect(screen.getByLabelText('Nombre de la obra')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Provincia')).toBeNull();
+      expect(screen.queryByLabelText('Altitud')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    }
+  });
+
   it('Guardar sin obra pide el nombre y la crea; con obra, guarda sin preguntar', async () => {
     window.localStorage.setItem('forjados', '{"x":1}');
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
     await user.click(screen.getByRole('menuitem', { name: 'Guardar' }));
     await user.type(screen.getByLabelText('Nombre de la obra'), 'Mi obra');
@@ -125,7 +201,7 @@ describe('ObraMenu', () => {
   it('pestaña desfasada: Guardar y Exportar quedan deshabilitados', async () => {
     fijarProyectoActivo('mia');
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     act(() => {
       window.localStorage.setItem(CLAVE_PROYECTO_ACTIVO, 'otra');
       window.dispatchEvent(new StorageEvent('storage', { key: CLAVE_PROYECTO_ACTIVO, newValue: 'otra' }));
@@ -139,7 +215,7 @@ describe('ObraMenu', () => {
   it('abrir un reciente guardado con otro esquema: diálogo que nombra el módulo, y al confirmar cambia y recarga', async () => {
     archivada('Nave B', 'b', { claves: { 'rc-beams': '{}', 'rc-beams-version': '0' }, esquemas: { 'rc-beams': '0' } });
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
     await user.click(screen.getByRole('menuitem', { name: /Nave B/ }));
 
@@ -156,7 +232,7 @@ describe('ObraMenu', () => {
   it('abrir un reciente limpio no pregunta; con una versión nueva esperando, lo dice', async () => {
     archivada('Nave C', 'c');
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
     await user.click(screen.getByRole('menuitem', { name: /Nave C/ }));
     await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
@@ -171,7 +247,7 @@ describe('ObraMenu', () => {
   });
 
   it('importar un fichero que no es un proyecto: toast con el motivo, y nada cambia', async () => {
-    render(<ObraMenu />);
+    montar();
     const input = screen.getByLabelText('Fichero de obra');
     fireEvent.change(input, { target: { files: [new File(['{no es json'], 'x.json', { type: 'application/json' })] } });
     await waitFor(() => expect(toasts()).toEqual([expect.stringMatching(/JSON/)]));
@@ -183,7 +259,7 @@ describe('ObraMenu', () => {
     window.localStorage.setItem('concreta-ai-settings', '{"key":"mia"}');
     const p = { ...proyectoNuevo('Importada'), id: 'imp', claves: { forjados: '{}', 'concreta-ai-settings': '{"key":"robada"}' } };
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     const input = screen.getByLabelText('Fichero de obra');
     fireEvent.change(input, { target: { files: [new File([JSON.stringify(p)], 'importada.concreta.json', { type: 'application/json' })] } });
 
@@ -202,7 +278,7 @@ describe('ObraMenu', () => {
   it('borrar un reciente: confirma y desaparece del listado', async () => {
     archivada('Para borrar', 'pb');
     const user = userEvent.setup();
-    render(<ObraMenu />);
+    montar();
     await abrirMenu(user);
     await user.click(screen.getByRole('button', { name: 'Borrar Para borrar' }));
     await user.click(screen.getByRole('button', { name: 'Borrar' }));

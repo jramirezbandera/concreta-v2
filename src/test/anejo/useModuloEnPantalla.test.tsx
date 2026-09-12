@@ -24,7 +24,7 @@ describe('adaptadorDeRuta', () => {
   });
 
   it('una ruta que no es de módulo no tiene adaptador', () => {
-    expect(adaptadorDeRuta('/proyecto/datos')).toBeNull();
+    expect(adaptadorDeRuta('/pricing')).toBeNull();
     expect(adaptadorDeRuta('/')).toBeNull();
   });
 });

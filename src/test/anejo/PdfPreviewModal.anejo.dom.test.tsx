@@ -62,7 +62,7 @@ afterEach(() => {
 
 describe('PdfPreviewModal — Guardar en el anejo', () => {
   it('en una ruta sin módulo no hay botón; Descargar y cerrar siguen igual', () => {
-    const { onDownload } = montar('/proyecto/datos');
+    const { onDownload } = montar('/pricing');
     expect(screen.queryByRole('button', { name: /anejo/i })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     expect(onDownload).toHaveBeenCalled();

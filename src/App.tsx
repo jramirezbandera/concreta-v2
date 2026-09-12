@@ -79,10 +79,6 @@ const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           {
-            path: 'proyecto/datos',
-            lazy: lazyComponent(() => import('./features/datos-obra'), 'DatosObraModule'),
-          },
-          {
             path: 'proyecto/anejo',
             lazy: lazyComponent(() => import('./features/anejo'), 'AnejoModule'),
           },

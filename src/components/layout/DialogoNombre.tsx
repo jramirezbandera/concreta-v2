@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Folder, X } from 'lucide-react';
 
 interface Props {
@@ -12,6 +12,14 @@ interface Props {
   secundario?: { label: string; onClick: () => void };
   onConfirm: (nombre: string) => void;
   onCancel: () => void;
+  /**
+   * Campos adicionales, bajo el del nombre. Los tres consumidores de siempre
+   * —Guardar obra, Exportar obra y «hay cálculos sin obra»— no los pasan y
+   * siguen pidiendo UNA cosa; `DialogoObra` mete aquí los otros cuatro datos.
+   */
+  children?: ReactNode;
+  /** Por qué no se puede confirmar todavía, aparte de tener el nombre en blanco. Se enseña en el pie. */
+  impedimento?: string | null;
 }
 
 /**
@@ -20,10 +28,10 @@ interface Props {
  * con Cancelar y la acción en acento; Escape cierra; el foco vuelve al
  * disparador). No se puede confirmar en blanco.
  */
-export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundario, onConfirm, onCancel }: Props) {
+export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundario, onConfirm, onCancel, children, impedimento = null }: Props) {
   const [nombre, setNombre] = useState(inicial);
   const inputRef = useRef<HTMLInputElement>(null);
-  const valido = nombre.trim().length > 0;
+  const valido = nombre.trim().length > 0 && impedimento === null;
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -93,9 +101,15 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
             }}
             className="w-full bg-bg-primary border border-border-main rounded px-3 py-2 text-sm text-text-primary placeholder:text-text-disabled outline-none focus:border-accent"
           />
+          {children}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border-main">
+          {impedimento !== null && (
+            <p className="m-0 mr-auto text-[11.5px] text-state-warn" role="status">
+              {impedimento}
+            </p>
+          )}
           <button
             type="button"
             onClick={onCancel}

@@ -17,15 +17,15 @@ beforeEach(() => {
 });
 
 describe('Sidebar', () => {
-  it('grupo PROYECTO con Datos de obra y Anejo de cálculo, los dos activos, antes que los módulos', () => {
+  it('grupo PROYECTO con el Anejo de cálculo activo, antes que los módulos', () => {
     render(
       <MemoryRouter>
         <Sidebar />
       </MemoryRouter>,
     );
-    const datos = screen.getByRole('link', { name: /Datos de obra/ });
-    expect(datos).toHaveAttribute('href', '/proyecto/datos');
-    expect(datos).toHaveAttribute('aria-disabled', 'false');
+    // Los cinco datos de obra se piden en el diálogo del menú de obra desde
+    // 2026-09-12; ya no hay página propia que enlazar aquí.
+    expect(screen.queryByRole('link', { name: /Datos de obra/ })).toBeNull();
     const anejo = screen.getByRole('link', { name: /Anejo de cálculo/ });
     expect(anejo).toHaveAttribute('href', '/proyecto/anejo');
     expect(anejo).toHaveAttribute('aria-disabled', 'false');

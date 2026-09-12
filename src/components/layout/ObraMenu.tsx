@@ -13,7 +13,7 @@
 // los esquemas contra la versión vieja.
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { ChevronDown, Download, FilePlus2, Folder, Save, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Download, FilePlus2, Folder, MapPin, Save, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { getModuleByKey } from '../../data/moduleRegistry';
 import {
   borrar,
@@ -39,11 +39,14 @@ import { useNombreObra, useProyectoActivo, useRecientes } from '../../lib/proyec
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { showToast } from '../ui/Toast';
 import { DialogoNombre } from './DialogoNombre';
+import { DialogoObra } from './DialogoObra';
+import { guardarObra, leerObra, type Obra } from '../../lib/obra';
 
 type Origen = 'reciente' | 'fichero' | 'nueva';
 
 type Dialogo =
   | { tipo: 'nombre'; titulo: string; texto: string; confirmar: string; alConfirmar: (nombre: string) => void }
+  | { tipo: 'obra'; titulo: string; texto: string; confirmar: string; inicial: Obra | null; alConfirmar: (obra: Obra) => void }
   | { tipo: 'guardar-primero'; luego: () => void }
   | { tipo: 'abrir'; destino: ProyectoFile; origen: Origen; desajustes: Desajuste[]; descartadas: number; actualizacion: boolean }
   | { tipo: 'borrar'; entrada: EntradaIndice }
@@ -177,13 +180,33 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
   const nueva = () => {
     cerrar();
     setDialogo({
-      tipo: 'nombre',
+      tipo: 'obra',
       titulo: 'Nueva obra',
-      texto: activo ? 'La obra abierta se guarda y se abre una en blanco.' : 'Se abre una obra en blanco.',
+      texto: activo
+        ? 'La obra abierta se guarda y se abre una en blanco. Estos datos los heredan todos los módulos.'
+        : 'Se abre una obra en blanco. Estos datos los heredan todos los módulos.',
       confirmar: 'Crear y abrir',
-      alConfirmar: (n) => {
+      inicial: null,
+      alConfirmar: (obra) => {
         cerrarDialogo();
-        void prepararApertura(proyectoNuevo(n), 'nueva');
+        void prepararApertura(proyectoNuevo(obra), 'nueva');
+      },
+    });
+  };
+
+  /** Los mismos cinco datos, para corregirlos sin crear otra obra. */
+  const datosDeLaObra = () => {
+    cerrar();
+    setDialogo({
+      tipo: 'obra',
+      titulo: 'Datos de la obra',
+      texto: 'Los heredan todos los módulos y se imprimen en la memoria.',
+      confirmar: 'Guardar los datos',
+      inicial: leerObra(),
+      alConfirmar: (obra) => {
+        cerrarDialogo();
+        guardarObra(obra);
+        showToast('Datos de la obra guardados', { autoDismiss: 3000 });
       },
     });
   };
@@ -304,6 +327,9 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
           <Item icon={FilePlus2} onClick={nueva}>
             Nueva obra…
           </Item>
+          <Item icon={MapPin} onClick={datosDeLaObra}>
+            Datos de la obra…
+          </Item>
           <Item
             icon={Save}
             onClick={guardar}
@@ -371,6 +397,17 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
           titulo={dialogo.titulo}
           texto={dialogo.texto}
           confirmar={dialogo.confirmar}
+          onConfirm={dialogo.alConfirmar}
+          onCancel={cerrarDialogo}
+        />
+      )}
+
+      {dialogo?.tipo === 'obra' && (
+        <DialogoObra
+          titulo={dialogo.titulo}
+          texto={dialogo.texto}
+          confirmar={dialogo.confirmar}
+          inicial={dialogo.inicial}
           onConfirm={dialogo.alConfirmar}
           onCancel={cerrarDialogo}
         />
