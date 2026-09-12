@@ -365,15 +365,26 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado:
   const otroEmplazamiento = esDeOtroEmplazamiento(sobre, ineSobre, provinciaFicha);
   const vigente = sobre !== null && aceptado !== null && aceptado === huellaSobre(sobre, obra);
   const estado = estadoSobre(sobre, vigente, otroEmplazamiento, obligatorio);
+  const lugarSobre = sobre ? sobre.obra.municipio || sobre.obra.provincia || `INE ${sobre.obra.ine}` : '';
+  // El aviso lo manda la DECISIÓN del usuario, no sólo el sobre: una vez dado
+  // por bueno, seguir diciendo «ábralo y calcule los de esta obra» contradice
+  // al «hecho» de la misma fila. Y la declaración se nombra en vez de
+  // callarse, porque en una memoria firmada importa quién decidió qué.
   const nota = !sobre
     ? obligatorio
-      ? undefined
+      ? `${ETIQUETA_DE[modulo]} no se ha calculado todavía en esta obra.`
       : 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
-    : sobre.configurado !== true
-      ? `${ETIQUETA_DE[modulo]} sigue con sus valores de partida: ábralo y calcule los de esta obra.`
-      : otroEmplazamiento && !vigente
-        ? `Esta publicación se calculó en otro sitio (${sobre.obra.municipio || sobre.obra.provincia || `INE ${sobre.obra.ine}`}).`
-        : undefined;
+    : vigente
+      ? sobre.configurado !== true
+        ? 'Sus valores de partida, dados por buenos para esta obra.'
+        : otroEmplazamiento
+          ? `Calculado en ${lugarSobre} y dado por bueno para esta obra.`
+          : undefined
+      : sobre.configurado !== true
+        ? `${ETIQUETA_DE[modulo]} sigue con sus valores de partida: ábralo y calcule los de esta obra.`
+        : otroEmplazamiento
+          ? `Esta publicación se calculó en otro sitio (${lugarSobre}).`
+          : undefined;
   return {
     modulo,
     valor: sobre !== null,

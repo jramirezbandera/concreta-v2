@@ -47,17 +47,20 @@ export function FilaEstado({ estado, etiqueta, detalle, a, onClick }: Props) {
 
   const clases = 'flex min-h-[44px] w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0';
   const etiquetaAria = `${etiqueta}: ${e.palabra}${detalle ? `, ${detalle}` : ''}`;
+  // El destino se nombra por lo que hay que hacer allí: quien oye «hecho, ir a
+  // resolverlo» deja de fiarse de las dos mitades de la frase.
+  const destino = estado === 'falta' || estado === 'revisar' ? 'Ir a resolverlo' : 'Ir a verlo';
 
   if (a) {
     return (
-      <Link to={a} className={`${clases} hover:bg-bg-elevated`} aria-label={`${etiquetaAria}. Ir a resolverlo`}>
+      <Link to={a} className={`${clases} hover:bg-bg-elevated`} aria-label={`${etiquetaAria}. ${destino}`}>
         {cuerpo}
       </Link>
     );
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={`${clases} hover:bg-bg-elevated`} aria-label={`${etiquetaAria}. Ir a resolverlo`}>
+      <button type="button" onClick={onClick} className={`${clases} hover:bg-bg-elevated`} aria-label={`${etiquetaAria}. ${destino}`}>
         {cuerpo}
       </button>
     );

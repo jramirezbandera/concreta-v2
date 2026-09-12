@@ -162,6 +162,23 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     for (const b of botones) fireEvent.click(b);
     await waitFor(() => expect(screen.queryByText('Lo que falta calcular en otros módulos')).toBeNull());
     expect(screen.getByText(/ab=0,23 g/)).toBeInTheDocument();
+    // Y el aviso deja de pedir lo que el usuario ya decidió: nadie tiene que
+    // «abrirlo y calcular los de esta obra» después de darlos por buenos.
+    expect(screen.queryByText(/sigue con sus valores de partida/)).toBeNull();
+  });
+
+  it('un módulo que no se ha abierto nunca no ofrece «Son los de esta obra»', () => {
+    // Sin sobre no hay nada que dar por bueno: `aceptarPub` sale por
+    // `if (!sobre) return`, así que el botón sería un no-op. Es el estado de
+    // TODA obra recién creada, o sea el primero que ve el usuario.
+    obraGranada();
+    montar();
+
+    expect(screen.getByText('Lo que falta calcular en otros módulos')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Son los de esta obra' })).toBeNull();
+    // Y la fila dice por qué está ahí, en vez de nombrar el módulo y callarse.
+    expect(screen.getAllByText(/no se ha calculado todavía en esta obra/).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Abrir el módulo' }).length).toBeGreaterThan(0);
   });
 
   it('«Siguiente hueco» lleva el foco al primer hueco, y el botón ✓ confirma un dato heredado', async () => {

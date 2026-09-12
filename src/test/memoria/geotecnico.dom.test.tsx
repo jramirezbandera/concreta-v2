@@ -172,8 +172,10 @@ describe('el ritmo de confirmar', () => {
     expect(antes).toBeGreaterThan(5);
 
     // Cada apartado tiene el suyo: el del terreno se lleva los catorce del
-    // informe, y los de los demás apartados siguen ahí.
-    const botones = screen.getAllByRole('button', { name: /Marcar como revisados los \d+ datos de otra obra/ });
+    // informe, y los de los demás apartados siguen ahí. El botón dice «sin
+    // confirmar» y no «de otra obra» justamente por este caso: estos catorce
+    // vienen de un PDF, no de otra obra.
+    const botones = screen.getAllByRole('button', { name: /Marcar como revisados los \d+ datos sin confirmar/ });
     expect(botones.length).toBeGreaterThan(1);
     const terreno = screen.getByRole('region', { name: /Cimentaciones/i });
     fireEvent.click(within(terreno).getByRole('button', { name: /Marcar como revisados/ }));

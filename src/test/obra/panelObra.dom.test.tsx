@@ -75,6 +75,18 @@ describe('una obra a medias', () => {
     expect(fila).toHaveAttribute('href', '/memorias/materiales');
   });
 
+  it('un módulo opcional sin publicar está «sin empezar», no «no procede»', async () => {
+    obraGranada();
+    montar();
+
+    // Viento y nieve no bloquea (la zona sale de la provincia), pero decir «no
+    // procede» en la misma pantalla donde ese estado significa «este capítulo
+    // no va en esta obra» son dos cosas con una palabra.
+    const fila = await screen.findByRole('link', { name: /Viento y nieve: sin empezar/ });
+    expect(fila).toHaveAttribute('href', '/acciones/viento-nieve');
+    expect(screen.queryByRole('link', { name: /Viento y nieve: no procede/ })).toBeNull();
+  });
+
   it('el total del panel es el mismo que impide exportar en la ficha', () => {
     obraGranada();
     const r = resumenDeObra();

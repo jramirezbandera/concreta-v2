@@ -8,8 +8,10 @@
  * interna —qué módulo publica qué, cuándo, desde dónde— para pedir un trámite
  * que ya no existe, porque la ficha usa siempre lo último calculado.
  *
- * Quedan dos casos, y sólo salen cuando ocurren:
+ * Quedan tres casos, y sólo salen cuando ocurren:
  *
+ *  - el módulo no se ha abierto nunca: la única salida es entrar y calcularlo,
+ *    porque no hay nada publicado que dar por bueno;
  *  - el módulo sigue con sus valores de partida: o se entra y se calcula, o se
  *    declara que esos valores SON los de esta obra;
  *  - lo publicado se calculó en otra provincia: o se da por bueno, o se rehace
@@ -59,9 +61,15 @@ export function Avisos({ fuentes, onAceptar }: Props) {
                   <Link to={MODULOS[m].ruta} className={BOTON_ACENTO}>
                     Abrir el módulo
                   </Link>
-                  <button type="button" className={BOTON_MENOR} onClick={() => onAceptar(m)} title="La ficha imprimirá lo publicado tal como está">
-                    Son los de esta obra
-                  </button>
+                  {/* «Son los de esta obra» acepta UN SOBRE tal como está. Si el
+                      módulo no se ha abierto nunca no hay sobre, y el botón sería
+                      un no-op: `aceptarPub` sale por `if (!sobre) return`. Un
+                      botón que no hace nada enseña a desconfiar de todos. */}
+                  {f.valor && (
+                    <button type="button" className={BOTON_MENOR} onClick={() => onAceptar(m)} title="La ficha imprimirá lo publicado tal como está">
+                      Son los de esta obra
+                    </button>
+                  )}
                 </>
               ) : (
                 <>

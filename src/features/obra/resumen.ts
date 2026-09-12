@@ -16,7 +16,7 @@ import { apartados } from '../../lib/memoria/ficha';
 import type { ApartadoId } from '../../lib/memoria/model';
 import type { ModuloPub } from '../../lib/memoria/estado';
 
-export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede';
+export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede' | 'sinEmpezar';
 
 export interface FilaResumen {
   id: string;
@@ -67,7 +67,11 @@ export function resumenDeObra(): ResumenObra {
     return {
       id: `pub.${m}`,
       etiqueta: MODULOS[m].etiqueta,
-      estado: f.estado === 'falta' ? 'falta' : f.estado === 'revisar' ? 'revisar' : !f.valor && !f.obligatorio ? 'noProcede' : 'hecho',
+      // Un módulo opcional sin publicar está SIN EMPEZAR, no «no procede»:
+      // cuatro filas más abajo «no procede» quiere decir que ese capítulo no
+      // va en esta obra (no hay acero, no hay fábrica), y la misma palabra no
+      // puede significar dos cosas en la misma pantalla.
+      estado: f.estado === 'falta' ? 'falta' : f.estado === 'revisar' ? 'revisar' : !f.valor && !f.obligatorio ? 'sinEmpezar' : 'hecho',
       detalle: f.nota ?? null,
       ruta: MODULOS[m].ruta,
     };

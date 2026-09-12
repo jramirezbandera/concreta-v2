@@ -77,9 +77,9 @@ export function Seccion({ id, numero, titulo, refNorma, open, onOpenChange, huec
                 type="button"
                 onClick={onRevisar}
                 className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
-                title="Vienen de otra obra. Darlos por revisados los deja como suyos; se puede deshacer."
+                title="No los ha escrito usted: vienen de la plantilla, de otra obra o del PDF del geotécnico. Darlos por revisados los deja como suyos; se puede deshacer."
               >
-                Marcar como {porRevisar === 1 ? 'revisado' : 'revisados'} {porRevisar === 1 ? 'el dato' : `los ${porRevisar} datos`} de otra obra
+                Marcar como {porRevisar === 1 ? 'revisado' : 'revisados'} {porRevisar === 1 ? 'el dato' : `los ${porRevisar} datos`} sin confirmar
               </button>
             </div>
           )}
