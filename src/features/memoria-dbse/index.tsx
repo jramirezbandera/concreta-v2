@@ -29,6 +29,7 @@ import { ExportarMenu, type GrupoExportar } from '../../components/layout/Export
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { DialogoObra } from '../../components/layout/DialogoObra';
 import { LeyendaEstados } from '../../components/ui/LeyendaEstados';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
@@ -43,7 +44,7 @@ import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha'
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
 import type { ApartadoId, Hueco } from '../../lib/memoria/model';
-import { guardarObra, leerObra } from '../../lib/obra';
+import { guardarObra, leerObra, mismaObra } from '../../lib/obra';
 import { BarraObra } from './BarraObra';
 import { idDom } from './ids';
 import { Fuentes } from './Fuentes';
@@ -110,6 +111,7 @@ export function MemoriaDBSEModule() {
   const [obraGuardada, setObraGuardada] = useState(leerObra);
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(ABIERTAS_AL_ARRANCAR);
   const [nuevaObraAbierta, setNuevaObraAbierta] = useState(false);
+  const [obraAbierta, setObraAbierta] = useState(false);
   const [geotecnicoAbierto, setGeotecnicoAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
 
@@ -137,6 +139,14 @@ export function MemoriaDBSEModule() {
       window.removeEventListener('storage', releer);
     };
   }, []);
+
+  // `datosObra` es el reflejo de `concreta-obra` dentro del estado. Si la obra
+  // cambia —el diálogo de aquí, el del menú, otra pestaña— la ficha tiene que
+  // verlo sin recargar. En la pantalla de la obra esto lo hará un store con
+  // `useSyncExternalStore`, y este efecto sobrará.
+  useEffect(() => {
+    setState((prev) => (mismaObra(prev.datosObra, obraGuardada) ? prev : { ...prev, datosObra: obraGuardada }));
+  }, [obraGuardada]);
 
   // Los forjados que publica Cargas por planta entran en la capa de obra con
   // sus defaults heredados, para que «Confirmar» tenga dónde escribir.
@@ -267,38 +277,17 @@ export function MemoriaDBSEModule() {
   }, [huecos, irAHueco]);
 
   // ── Obra ──────────────────────────────────────────────────────────────────
-
-  const usarObra = () => {
-    const o = leerObra();
-    if (!o) return;
-    actualizar((p) => {
-      let s = teclear(p, 'obra.denominacion', o.denominacion);
-      s = teclear(s, 'obra.uso', o.uso);
-      s = teclear(s, 'obra.provincia', o.provincia);
-      s = teclear(s, 'obra.municipio', o.municipio);
-      return teclear(s, 'obra.altitud', o.altitud);
-    });
-  };
-
-  const guardarComoObra = () => {
-    const o = state.obra;
-    setObraGuardada(
-      guardarObra({
-        denominacion: o.denominacion.valor,
-        uso: o.uso.valor,
-        provincia: o.provincia.valor,
-        municipio: o.municipio.valor,
-        altitud: o.altitud.valor,
-      }),
-    );
-  };
+  //
+  // Ya no hay nada que sincronizar: los cinco datos son de `concreta-obra`, se
+  // piden en el diálogo del menú de obra y la ficha sólo los enseña. Los dos
+  // botones de copiarlos de un lado a otro se fueron con la duplicación.
 
   // ── Exportación: Word y PDF ───────────────────────────────────────────────
 
   const [formatoElegido, setFormatoElegido] = useState<FormatoId>('docx');
   const formato = FORMATOS[formatoElegido];
   const bloques = useMemo(() => bloquesFicha(datos), [datos]);
-  const tituloInicial = `Memoria DB SE — ${state.obra.denominacion.valor || 'obra'}`;
+  const tituloInicial = `Memoria DB SE — ${obraGuardada?.denominacion || 'obra'}`;
 
   // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
   // guardado como capítulo del anejo de la obra en vez de bajar al disco.
@@ -389,7 +378,7 @@ export function MemoriaDBSEModule() {
     <div className="flex h-full min-h-0 flex-col">
       <Topbar moduleLabel="Cumplimiento del DB SE" moduleGroup="Memorias" onMenuOpen={openDrawer} exportMenu={<ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />} />
 
-      <BarraObra obra={datos.obra} obraGuardada={obraGuardada} ayuda={ayuda} onTeclear={on.teclear} onConfirmar={on.confirmar} onUsarObra={usarObra} onGuardarObra={guardarComoObra} onKeyDown={onKeyDown} derecha={derecha} />
+      <BarraObra obra={datos.obra} ayuda={ayuda} onEditar={() => setObraAbierta(true)} onKeyDown={onKeyDown} derecha={derecha} />
 
       <div ref={contenedor} className="scroll-hide min-h-0 flex-1 overflow-y-auto px-3 py-3" onKeyDown={onKeyDown}>
         <div className="mx-auto flex max-w-[1100px] flex-col gap-3">
@@ -435,6 +424,20 @@ export function MemoriaDBSEModule() {
         >
           <p>Se conserva el perfil del estudio. Los datos de esta obra quedan en ámbar hasta que los confirme o los cambie, y las publicaciones de los otros módulos habrá que volver a tomarlas: así ningún dato de la obra anterior llega al documento sin pasar por sus manos.</p>
         </ConfirmDialog>
+      )}
+
+      {obraAbierta && (
+        <DialogoObra
+          titulo="Datos de la obra"
+          texto="Los heredan todos los módulos y encabezan la memoria."
+          confirmar="Guardar los datos"
+          inicial={obraGuardada}
+          onConfirm={(o) => {
+            setObraGuardada(guardarObra(o));
+            setObraAbierta(false);
+          }}
+          onCancel={() => setObraAbierta(false)}
+        />
       )}
 
       {geotecnicoAbierto && <GeotecnicoModal onAplicar={aplicarGeotecnico} onClose={() => setGeotecnicoAbierto(false)} />}

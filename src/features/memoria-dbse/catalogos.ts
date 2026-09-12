@@ -19,19 +19,6 @@ export interface Ayuda {
   placeholder?: string;
 }
 
-export const OBRA: Record<'denominacion' | 'uso', Ayuda> = {
-  denominacion: {
-    etiqueta: 'Nombre de la obra',
-    ayuda: 'Va en el nombre del fichero («Memoria DB SE — {obra}») y en el título del documento.',
-    placeholder: 'Edificio de 12 viviendas en…',
-  },
-  uso: {
-    etiqueta: '¿Para qué es el edificio?',
-    ayuda: 'El uso principal, en una o dos palabras. Encabeza la clasificación de la construcción en la tabla sísmica: «Edificio de viviendas (construcción de normal importancia)».',
-    placeholder: 'Edificio de viviendas',
-  },
-};
-
 export const ESTRUCTURA: Record<'descripcionSistema' | 'tipoEstructuraSismo' | 'sobrecargaTerreno', Ayuda> = {
   descripcionSistema: {
     etiqueta: '¿Cómo es la estructura?',

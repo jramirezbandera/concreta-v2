@@ -1,147 +1,81 @@
 /**
  * ¿Qué obra es? — una fila con los cinco datos del contexto de obra (nombre,
- * uso, provincia, municipio, altitud), cada uno con su estado, y los dos
- * botones que lo sincronizan con `concreta-obra`. Es el primer módulo que
- * escribe la denominación y el uso en el contexto: los demás sólo leían.
+ * uso, provincia, municipio, altitud).
  *
- * Duplicada de la de Cargas por planta a propósito: aquélla lleva su rótulo y
- * su nota de ψ de nieve, y ésta dos campos más y los estados. Cuando llegue el
- * Anejo habrá tres barras casi iguales y se extraerá una.
+ * Los ENSEÑA, no los pide: desde 2026-09-12 se teclean una sola vez en el
+ * diálogo del menú de obra, y esta barra es su reflejo. Hasta entonces los
+ * pedía aquí TAMBIÉN, con dos botones para copiarlos a `concreta-obra` y de
+ * vuelta; eran la misma información en dos formularios que podían discrepar.
+ *
+ * Lo que falta sigue saliendo en rojo y conserva su `id` en el DOM, para que
+ * «Siguiente hueco» pueda aterrizar en él. Su salida es «Editar…», que abre el
+ * mismo diálogo: no hay otro sitio donde escribirlos.
  */
 
 import type { KeyboardEventHandler, ReactNode } from 'react';
-import { RawNumberInput } from '../../components/units/RawNumberInput';
+import { Pencil } from 'lucide-react';
 import type { FichaDatos } from '../../lib/memoria/ensamblar';
-import type { Obra } from '../../lib/obra';
-import { PROVINCIA_OPCIONES } from '../viento-nieve/catalogos';
-import { OBRA, USOS_SUGERIDOS } from './catalogos';
+import { HUECO } from '../../components/ui/estados';
 import { idDom } from './ids';
-import { AMBAR, HUECO } from '../../components/ui/estados';
-import { BOTON_CONFIRMAR, BOTON_MENOR, INPUT_SUELTO } from './estilos';
+import { BOTON_MENOR } from './estilos';
+
+type DatoObra = FichaDatos['obra'][keyof Omit<FichaDatos['obra'], 'provinciaNombre'>];
 
 interface Props {
   obra: FichaDatos['obra'];
-  obraGuardada: Obra | null;
   ayuda: boolean;
-  onTeclear: (id: string, valor: unknown) => void;
-  onConfirmar: (id: string) => void;
-  onUsarObra: () => void;
-  onGuardarObra: () => void;
-  /** El Enter de la ficha: estos cinco datos también son huecos, y se confirman igual. */
+  /** Abre el diálogo de los cinco datos. */
+  onEditar: () => void;
+  /**
+   * El Enter de la ficha. Estos cinco siguen siendo huecos —«Siguiente hueco»
+   * aterriza en ellos—, pero ya no se editan aquí: el Enter sólo pasa de largo
+   * al siguiente, que sin este manejador se quedaría atascado.
+   */
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   /** El contador de huecos y los botones, alineados a la derecha de la misma fila. */
   derecha?: ReactNode;
 }
 
-/** El tinte y el botón de confirmar de un dato de obra, alrededor de su caja. */
-function Dato({ valor, children }: { valor: FichaDatos['obra'][keyof Omit<FichaDatos['obra'], 'provinciaNombre'>]; children: ReactNode; onConfirmar: (id: string) => void }) {
-  const tinte = valor.estado === 'falta' ? HUECO : valor.estado === 'heredado' ? AMBAR : undefined;
+/** Un dato con su rótulo; en rojo y con su etiqueta si falta. */
+function Dato({ valor, texto }: { valor: DatoObra; texto: string | null }) {
+  const falta = valor.estado === 'falta';
   return (
-    <span className={['flex shrink-0 items-center gap-1', tinte ? 'rounded px-1 py-0.5' : ''].join(' ')} style={tinte}>
-      {children}
+    <span
+      id={valor.id ? idDom(valor.id) : undefined}
+      tabIndex={-1}
+      className={['flex shrink-0 items-center gap-1 text-[12px]', falta ? 'rounded px-1 py-0.5 text-state-fail' : 'text-text-primary'].join(' ')}
+      style={falta ? HUECO : undefined}
+    >
+      {falta ? `falta ${valor.etiqueta?.toLowerCase() ?? 'un dato'}` : texto}
     </span>
   );
 }
 
-export function BarraObra({ obra, obraGuardada, ayuda, onTeclear, onConfirmar, onUsarObra, onGuardarObra, onKeyDown, derecha }: Props) {
-  const g = obraGuardada;
-  const distinta =
-    g !== null &&
-    (g.denominacion !== (obra.denominacion.valor ?? '') ||
-      g.uso !== (obra.uso.valor ?? '') ||
-      g.provincia !== (obra.provincia.valor ?? '') ||
-      g.municipio !== (obra.municipio.valor ?? '') ||
-      g.altitud !== obra.altitud.valor);
-  const hayAlgo = Boolean(obra.denominacion.valor || obra.provincia.valor || obra.municipio.valor);
-  const confirmar = (v: { estado: string; id?: string }) =>
-    v.estado === 'heredado' && v.id ? (
-      <button type="button" className={BOTON_CONFIRMAR} onClick={() => onConfirmar(v.id!)} title="Es de la obra anterior: confírmelo o cámbielo">
-        ✓
-      </button>
-    ) : null;
+export function BarraObra({ obra, ayuda, onEditar, onKeyDown, derecha }: Props) {
+  const lugar = obra.provincia.valor ? (obra.provinciaNombre ?? obra.provincia.valor) : null;
 
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5" onKeyDown={onKeyDown}>
       <span className="shrink-0 text-[11.5px] text-text-secondary">¿Qué obra es?</span>
 
-      <Dato valor={obra.denominacion} onConfirmar={onConfirmar}>
-        <input
-          type="text"
-          id={idDom('obra.denominacion')}
-          value={obra.denominacion.valor ?? ''}
-          aria-label={OBRA.denominacion.etiqueta}
-          placeholder={OBRA.denominacion.placeholder}
-          title={OBRA.denominacion.ayuda}
-          className={INPUT_SUELTO + ' w-56'}
-          onChange={(ev) => onTeclear('obra.denominacion', ev.target.value)}
-        />
-        {confirmar(obra.denominacion)}
-      </Dato>
+      <Dato valor={obra.denominacion} texto={obra.denominacion.valor} />
+      <span aria-hidden="true" className="text-text-disabled">
+        ·
+      </span>
+      <Dato valor={obra.uso} texto={obra.uso.valor} />
+      <span aria-hidden="true" className="text-text-disabled">
+        ·
+      </span>
+      <Dato valor={obra.municipio} texto={obra.municipio.valor ? `${obra.municipio.valor}${lugar ? ` (${lugar})` : ''}` : null} />
+      {!obra.municipio.valor && <Dato valor={obra.provincia} texto={lugar} />}
+      <Dato valor={obra.altitud} texto={obra.altitud.valor !== null ? `${obra.altitud.valor} m` : null} />
 
-      <Dato valor={obra.uso} onConfirmar={onConfirmar}>
-        <input
-          type="text"
-          id={idDom('obra.uso')}
-          list="memoria-usos"
-          value={obra.uso.valor ?? ''}
-          aria-label={OBRA.uso.etiqueta}
-          placeholder={OBRA.uso.placeholder}
-          title={OBRA.uso.ayuda}
-          className={INPUT_SUELTO + ' w-44'}
-          onChange={(ev) => onTeclear('obra.uso', ev.target.value)}
-        />
-        <datalist id="memoria-usos">
-          {USOS_SUGERIDOS.map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
-        {confirmar(obra.uso)}
-      </Dato>
+      <button type="button" onClick={onEditar} className={`${BOTON_MENOR} flex items-center gap-1`} title="Cambiar los datos de la obra">
+        <Pencil size={11} aria-hidden="true" />
+        Editar…
+      </button>
 
-      <Dato valor={obra.provincia} onConfirmar={onConfirmar}>
-        <select id={idDom('obra.provincia')} value={obra.provincia.valor ?? ''} aria-label="Provincia" className={INPUT_SUELTO + ' w-36'} onChange={(ev) => onTeclear('obra.provincia', ev.target.value)}>
-          <option value="">Provincia</option>
-          {PROVINCIA_OPCIONES.map((o) => (
-            <option key={o.ine} value={o.ine}>
-              {o.nombre}
-            </option>
-          ))}
-        </select>
-        {confirmar(obra.provincia)}
-      </Dato>
-
-      <Dato valor={obra.municipio} onConfirmar={onConfirmar}>
-        <input
-          type="text"
-          id={idDom('obra.municipio')}
-          value={obra.municipio.valor ?? ''}
-          aria-label="Municipio"
-          placeholder="Municipio"
-          className={INPUT_SUELTO + ' w-40'}
-          onChange={(ev) => onTeclear('obra.municipio', ev.target.value)}
-        />
-        {confirmar(obra.municipio)}
-      </Dato>
-
-      <Dato valor={obra.altitud} onConfirmar={onConfirmar}>
-        <label htmlFor={idDom('obra.altitud')} className="text-[11.5px] text-text-secondary">
-          Altitud
-        </label>
-        <RawNumberInput id={idDom('obra.altitud')} value={obra.altitud.valor ?? NaN} onChange={(v) => onTeclear('obra.altitud', v)} ariaLabel="Altitud" unit="m" min={0} max={4000} widthClass="w-16" />
-        {confirmar(obra.altitud)}
-      </Dato>
-
-      {g && distinta && (
-        <button type="button" onClick={onUsarObra} className={BOTON_MENOR} title="Tomar nombre, uso, provincia, municipio y altitud de los datos de la obra">
-          Usar los datos de la obra{g.denominacion ? ` (${g.denominacion})` : g.municipio ? ` (${g.municipio})` : ''}
-        </button>
-      )}
-      {hayAlgo && (g === null || distinta) && (
-        <button type="button" onClick={onGuardarObra} className={BOTON_MENOR} title="Guardar estos datos como los de la obra, para que los demás módulos los hereden">
-          Guardar como datos de la obra
-        </button>
-      )}
-      {ayuda && !hayAlgo && <span className="text-[11px] text-text-disabled">el nombre y el sitio de la obra encabezan la ficha y comprueban que las publicaciones son de aquí</span>}
+      {ayuda && <span className="text-[11px] text-text-disabled">se teclean una vez en el menú de obra y los heredan todos los módulos</span>}
 
       {derecha && <div className="ml-auto flex shrink-0 items-center gap-2">{derecha}</div>}
     </div>

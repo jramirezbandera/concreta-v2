@@ -265,7 +265,9 @@ describe('otro emplazamiento y revisar', () => {
     const sobres = sobresGranada();
     const s = tomarTodo(fichaGranada(), sobres);
     expect(ensamblar(s, sobres).fuentes.materiales.estado).toBe('ok');
-    const movida = teclear(s, 'obra.provincia', '29');
+    // La provincia ya no se teclea en la ficha: es de `concreta-obra`, y la
+    // ficha la refleja. Mover la obra es cambiarla ahí.
+    const movida = { ...s, datosObra: { ...s.datosObra!, provincia: '29' } };
     expect(ensamblar(movida, sobres).fuentes.materiales.estado).toBe('revisar');
   });
 

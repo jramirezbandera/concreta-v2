@@ -7,11 +7,11 @@
  *      enseña la frase del viento con la zona;
  *   3. «Siguiente hueco» lleva el foco al primer hueco, y Enter en un dato
  *      heredado lo confirma;
- *   4. «Nueva obra» deja la obra en ámbar y vacía el nombre;
+ *   4. «Nueva obra» deja la ficha en ámbar sin tocar los datos de la obra;
  *   5. la sección de acero aparece cuando el cuadro de materiales lo publica;
  *   6. con la ficha completa, Word y PDF llaman a su exportador con los
  *      bloques de la ficha, que empiezan por «3.1. Seguridad estructural»;
- *   7. «Guardar como datos de la obra» escribe nombre y uso en `concreta-obra`.
+ *   7. «Editar…» escribe los cinco datos en `concreta-obra`.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -153,18 +153,22 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     expect(screen.queryByText(/Sobrecarga en el terreno \(kN\/m²\)/)).toBeNull();
   });
 
-  it('«Nueva obra» deja la obra en ámbar y vacía el nombre', async () => {
+  it('«Nueva obra» deja la ficha en ámbar y no toca los datos de la obra', async () => {
     obraGranada();
     montar();
-    const nombre = screen.getByLabelText('Nombre de la obra') as HTMLInputElement;
-    expect(nombre.value).toBe('Edificio en Granada');
+    const barra = screen.getByText('¿Qué obra es?').parentElement!;
+    expect(barra.textContent).toContain('Edificio en Granada');
+
     fireEvent.click(screen.getByRole('button', { name: 'Nueva obra' }));
     const dialogo = await screen.findByRole('dialog');
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Empezar la obra nueva' }));
-    await waitFor(() => expect((screen.getByLabelText('Nombre de la obra') as HTMLInputElement).value).toBe(''));
-    // El municipio sigue, pero heredado: con su ✓ al lado.
-    expect((screen.getByLabelText('Municipio') as HTMLInputElement).value).toBe('Granada');
-    expect(screen.getAllByRole('button', { name: '✓' }).length).toBeGreaterThan(0);
+
+    // Lo de la FICHA queda heredado: el contador pasa a tener «por confirmar».
+    await waitFor(() => expect(barra.textContent).toMatch(/\d+ por confirmar/));
+    // ...y los cinco datos de la obra siguen donde estaban: no son suyos, se
+    // cambian en el menú de obra, que es quien abre otra obra de verdad.
+    expect(barra.textContent).toContain('Edificio en Granada');
+    expect(leerObra()?.denominacion).toBe('Edificio en Granada');
   });
 
   it('la sección de acero aparece cuando el cuadro de materiales lo publica', async () => {
@@ -204,14 +208,22 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     await waitFor(() => expect(exportarPdf).toHaveBeenCalledTimes(1));
   });
 
-  it('«Guardar como datos de la obra» escribe nombre y uso en el contexto compartido', async () => {
+  it('«Editar…» abre el diálogo de obra y escribe los cinco en el contexto compartido', async () => {
     montar();
-    fireEvent.change(screen.getByLabelText('Nombre de la obra'), { target: { value: 'Nave en Ávila' } });
-    fireEvent.change(screen.getByLabelText('¿Para qué es el edificio?'), { target: { value: 'Nave industrial' } });
-    fireEvent.change(screen.getByLabelText('Provincia'), { target: { value: '05' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar como datos de la obra' }));
+    // La barra ENSEÑA los datos; para cambiarlos hay un solo sitio.
+    expect(screen.queryByLabelText('Municipio')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Editar/ }));
+
+    const dialogo = await screen.findByRole('dialog', { name: 'Datos de la obra' });
+    fireEvent.change(within(dialogo).getByLabelText('Nombre de la obra'), { target: { value: 'Nave en Ávila' } });
+    fireEvent.change(within(dialogo).getByLabelText('Uso'), { target: { value: 'Nave industrial' } });
+    fireEvent.change(within(dialogo).getByLabelText('Provincia'), { target: { value: '05' } });
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Guardar los datos' }));
+
     await waitFor(() => expect(leerObra()?.denominacion).toBe('Nave en Ávila'));
     expect(leerObra()?.uso).toBe('Nave industrial');
     expect(leerObra()?.provincia).toBe('05');
+    // Y la barra lo refleja sin recargar: es una proyección, no una copia.
+    await waitFor(() => expect(screen.getByText('¿Qué obra es?').parentElement!.textContent).toContain('Nave en Ávila'));
   });
 });

@@ -74,6 +74,22 @@ export function leerObra(): Obra | null {
  * contenedor de proyectos al desplegar un `ProyectoFile`: la obra vive en la
  * raíz del fichero y aquí sólo se reconstruye.
  */
+/**
+ * ¿Son la misma obra, campo a campo? `leerObra()` construye un objeto nuevo en
+ * cada llamada, así que comparar por identidad da siempre `false`: quien
+ * refleje la obra en otro sitio necesita comparar por valor para no repintar.
+ */
+export function mismaObra(a: Obra | null, b: Obra | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.denominacion === b.denominacion &&
+    a.uso === b.uso &&
+    a.provincia === b.provincia &&
+    a.municipio === b.municipio &&
+    a.altitud === b.altitud
+  );
+}
+
 export function reemplazarObra(obra: Obra): boolean {
   return escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra: normalizarObra(obra) }));
 }

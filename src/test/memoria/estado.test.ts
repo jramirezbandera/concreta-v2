@@ -27,11 +27,12 @@ beforeEach(() => {
 const conObra = () => estadoPorDefecto({ denominacion: 'Edificio en Ávila', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Residencial' });
 
 describe('arranque', () => {
-  it('lo que el contexto de obra ya sabe entra CONFIRMADO; los defaults con criterio, heredados; lo demás, vacío', () => {
+  it('los cinco datos de la obra entran como PROYECCIÓN; los defaults con criterio, heredados; lo demás, vacío', () => {
     const s = conObra();
-    expect(s.obra.denominacion).toEqual(campo('Edificio en Ávila'));
-    expect(s.obra.provincia).toEqual(campo('05'));
-    expect(s.obra.altitud).toEqual(campo(1130));
+    // No son campos de la ficha: son el reflejo de `concreta-obra`, sin origen
+    // que confirmar, porque se teclean en el diálogo de obra y ya está.
+    expect(s.datosObra).toEqual({ denominacion: 'Edificio en Ávila', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Residencial' });
+    expect(s.obra).not.toHaveProperty('denominacion');
     expect(s.obra.sobrecargaTerreno).toEqual(campo(10, 'heredado'));
     expect(s.obra.juntas.separacionMax).toEqual(campo(40, 'heredado'));
     expect(s.obra.geotecnia.empresa).toEqual(campo(''));
@@ -41,11 +42,8 @@ describe('arranque', () => {
     expect(s.ayuda).toBe(true);
   });
 
-  it('sin contexto de obra, los cinco campos de obra quedan vacíos', () => {
-    const s = estadoPorDefecto(null);
-    expect(s.obra.denominacion.valor).toBe('');
-    expect(s.obra.provincia.valor).toBe('');
-    expect(s.obra.altitud.valor).toBeNull();
+  it('sin contexto de obra no hay datos de obra que reflejar', () => {
+    expect(estadoPorDefecto(null).datosObra).toBeNull();
   });
 
   it('el perfil de estudio trae los defaults de la ficha colegial', () => {
@@ -89,14 +87,15 @@ describe('confirmar y teclear por ruta', () => {
 });
 
 describe('Nueva obra', () => {
-  it('el estudio sigue igual, la obra queda heredada, la denominación vacía y las publicaciones olvidadas', () => {
+  it('el estudio sigue igual, la ficha queda heredada y las publicaciones olvidadas', () => {
     let s = teclear(conObra(), 'obra.geotecnia.empresa', 'Geotecnia SL');
     s = tomarPublicacion(s, 'sismo', { ts: '2026-09-06T10:00:00.000Z', obra: { ine: '05019' } });
     s = { ...s, obra: { ...s.obra, fabrica: { ...s.obra.fabrica, procede: true } } };
     const n = nuevaObra(s);
     expect(n.estudio).toBe(s.estudio);
-    expect(n.obra.denominacion).toEqual(campo(''));
-    expect(n.obra.municipio).toEqual(campo('Ávila', 'heredado'));
+    // Los cinco datos no son suyos: los pide el diálogo de obra, y «Nueva
+    // obra» del menú abre otra con los suyos propios.
+    expect(n.datosObra).toBe(s.datosObra);
     expect(n.obra.geotecnia.empresa).toEqual(campo('Geotecnia SL', 'heredado'));
     expect(n.obra.juntas.existen.origen).toBe('heredado');
     expect(n.obra.fabrica.procede).toBe(true);
@@ -139,7 +138,7 @@ describe('lectura defensiva', () => {
   it('basura, null o una versión con otra forma caen al arranque sin lanzar', () => {
     for (const bruto of [null, 42, 'x', [], {}, { obra: 'no', estudio: [], pubs: 7 }]) {
       const s = normalizar(bruto, null);
-      expect(s.obra.denominacion).toEqual(campo(''));
+      expect(s.datosObra).toBeNull();
       expect(s.estudio.programa.nombre).toBe('Cypecad Espacial');
       expect(s.pubs.materiales).toBeNull();
     }
@@ -166,9 +165,6 @@ describe('lectura defensiva', () => {
     expect(s.estudio.flechas).toEqual({ total: 'L/400', activa: 'L/500', maxRecomendada: '1 cm' });
     expect(s.estudio.verificacionAcero).toBe('informatica');
     expect(s.estudio.control.vidaUtilAnios).toBe(100);
-    expect(s.obra.provincia).toEqual(campo(''));
-    expect(s.obra.municipio).toEqual(campo('Vitoria', 'heredado'));
-    expect(s.obra.altitud).toEqual(campo(null));
     expect(s.obra.geotecnia.empresa).toEqual(campo('Geo'));
     expect(s.obra.geotecnia.balasto).toEqual(campo(''));
     expect(Object.keys(s.obra.forjados)).toEqual(['reticular-30']);
@@ -183,10 +179,26 @@ describe('lectura defensiva', () => {
   });
 });
 
+describe('los datos de la obra son una proyección, no una copia', () => {
+  it('lo guardado no manda: la obra viva repone los cinco en cada lectura', () => {
+    // Una ficha guardada cuando la obra era otra. Antes esto era una copia
+    // editable y podían discrepar; ahora se repone y la discrepancia no existe.
+    const guardada = { ...conObra(), datosObra: { denominacion: 'La de antes', municipio: 'Soria', provincia: '42', altitud: 1065, uso: 'Nave' } };
+    const viva = { denominacion: 'La de ahora', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Residencial' };
+
+    expect(normalizar(JSON.parse(JSON.stringify(guardada)), viva).datosObra).toEqual(viva);
+  });
+
+  it('sin obra viva, lo guardado tampoco sobrevive', () => {
+    const guardada = { ...conObra(), datosObra: { denominacion: 'Fantasma', municipio: '', provincia: '05', altitud: null, uso: '' } };
+    expect(normalizar(JSON.parse(JSON.stringify(guardada)), null).datosObra).toBeNull();
+  });
+});
+
 describe('persistencia', () => {
   it('ida y vuelta por localStorage, con la obra del contexto como arranque', () => {
     guardarObra({ denominacion: 'Nave', municipio: 'Ávila', provincia: '05', altitud: 1130, uso: 'Industrial' });
-    expect(cargarEstado().obra.denominacion.valor).toBe('Nave');
+    expect(cargarEstado().datosObra?.denominacion).toBe('Nave');
     const s = teclear(cargarEstado(), 'obra.geotecnia.empresa', 'Geo');
     guardarEstado(s);
     expect(localStorage.getItem(SCHEMA_VERSION_KEY)).toBe('1');
@@ -197,6 +209,6 @@ describe('persistencia', () => {
     // Basura en la clave: arranque, sin lanzar.
     localStorage.setItem(SCHEMA_VERSION_KEY, '1');
     localStorage.setItem(STORAGE_KEY, '{no es json');
-    expect(cargarEstado().obra.denominacion.valor).toBe('Nave');
+    expect(cargarEstado().datosObra?.denominacion).toBe('Nave');
   });
 });

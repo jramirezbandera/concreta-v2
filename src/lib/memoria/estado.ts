@@ -115,13 +115,15 @@ export interface DatosForjado {
   pieza: Campo<string | null>;
 }
 
+/**
+ * Lo que se rellena EN LA FICHA. Los cinco datos de la obra —denominación,
+ * uso, provincia, municipio y altitud— NO están aquí: viven en
+ * `concreta-obra`, se piden en el diálogo de obra y entran en `MemoriaState`
+ * como `datosObra`. Tenerlos también aquí era la misma información en dos
+ * formularios que podían discrepar, con dos botones para copiarla de uno a
+ * otro (ver el diseño del panel de obra, 2026-09-12).
+ */
 export interface CapaObra {
-  denominacion: Campo<string>;
-  uso: Campo<string>;
-  /** INE de dos dígitos; '' = sin elegir. */
-  provincia: Campo<string>;
-  municipio: Campo<string>;
-  altitud: Campo<number | null>;
   /** 3.1.5.1. */
   descripcionSistema: Campo<string>;
   /** Para la tabla sísmica; null = derivar del sistema que publica el módulo de sismo. */
@@ -165,6 +167,13 @@ export const MODULOS_PUB: readonly ModuloPub[] = ['materiales', 'vientoNieve', '
 export interface MemoriaState {
   estudio: PerfilEstudio;
   obra: CapaObra;
+  /**
+   * Los cinco datos de la obra, tal como estaban en `concreta-obra` al cargar.
+   * Es una PROYECCIÓN, no una copia editable: `normalizar` la repone desde la
+   * obra viva en cada lectura, así que no puede quedarse vieja ni discrepar.
+   * `null` mientras no haya obra.
+   */
+  datosObra: Obra | null;
   pubs: Record<ModuloPub, Tomada | null>;
   ayuda: boolean;
 }
@@ -213,19 +222,13 @@ const geotecniaVacia = (): Record<GeotecniaCampo, Campo<string>> =>
   Object.fromEntries(GEOTECNIA_CAMPOS.map((k) => [k, campo('')])) as Record<GeotecniaCampo, Campo<string>>;
 
 /**
- * La capa de obra de arranque. Lo que el contexto de obra ya sabe —municipio,
- * provincia, altitud, denominación, uso— entra confirmado: lo tecleó el usuario
- * para ESTA obra. Los defaults con criterio (sobrecarga en el terreno, juntas,
- * hormigón armado) entran HEREDADOS: son una propuesta, y se confirman con un
- * clic. Lo que no tiene default razonable queda vacío, que es FALTA.
+ * La capa de obra de arranque. Los defaults con criterio (sobrecarga en el
+ * terreno, juntas, hormigón armado) entran HEREDADOS: son una propuesta, y se
+ * confirman con un clic. Lo que no tiene default razonable queda vacío, que es
+ * FALTA.
  */
-export function obraPorDefecto(obra: Obra | null): CapaObra {
+export function obraPorDefecto(): CapaObra {
   return {
-    denominacion: campo(obra?.denominacion ?? ''),
-    uso: campo(obra?.uso ?? ''),
-    provincia: campo(obra?.provincia ?? ''),
-    municipio: campo(obra?.municipio ?? ''),
-    altitud: campo(obra?.altitud ?? null),
     descripcionSistema: campo(''),
     tipoEstructuraSismo: campo(null),
     juntas: {
@@ -258,7 +261,8 @@ export function obraPorDefecto(obra: Obra | null): CapaObra {
 export function estadoPorDefecto(obra: Obra | null, estudio?: PerfilEstudio): MemoriaState {
   return {
     estudio: estudio ?? perfilEstudioPorDefecto(),
-    obra: obraPorDefecto(obra),
+    obra: obraPorDefecto(),
+    datosObra: obra,
     pubs: { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null },
     ayuda: true,
   };
@@ -365,7 +369,7 @@ export function proponer<T>(s: MemoriaState, id: string, valor: T, fuente: strin
 
 /** Acepta el sobre de un módulo tal como está ahora, desde la obra actual de la ficha. */
 export function tomarPublicacion(s: MemoriaState, modulo: ModuloPub, sobre: { ts: string; obra: { ine: string | null } }): MemoriaState {
-  return { ...s, pubs: { ...s.pubs, [modulo]: { ts: sobre.ts, ine: sobre.obra.ine, provinciaFicha: s.obra.provincia.valor } } };
+  return { ...s, pubs: { ...s.pubs, [modulo]: { ts: sobre.ts, ine: sobre.obra.ine, provinciaFicha: s.datosObra?.provincia ?? '' } } };
 }
 
 /** Todo lo que sea un `Campo` bajo el nodo pasa a heredado. */
@@ -377,18 +381,17 @@ function heredarTodo<T>(nodo: T): T {
 }
 
 /**
- * «Nueva obra»: el estudio pasa limpio y sin preguntas; cada dato de la obra
- * se conserva pero en HEREDADO, salvo la denominación, que se vacía (no hay
- * dos obras con el mismo nombre: heredarla sería el dato fantasma en la
- * portada). Las publicaciones aceptadas se olvidan: habrá que volver a
- * tomarlas, y con ellas se verá si son de esta obra. No toca `concreta-obra`
- * ni las publicaciones de los otros módulos: eso es de ellos.
+ * «Nueva obra»: el estudio pasa limpio y sin preguntas; cada dato de la ficha
+ * se conserva pero en HEREDADO. Las publicaciones aceptadas se olvidan: habrá
+ * que volver a tomarlas, y con ellas se verá si son de esta obra. No toca
+ * `concreta-obra` —los cinco datos los pide el diálogo de obra— ni las
+ * publicaciones de los otros módulos: eso es de ellos.
  */
 export function nuevaObra(s: MemoriaState): MemoriaState {
   const obra = heredarTodo(s.obra);
   return {
     ...s,
-    obra: { ...obra, denominacion: campo(''), fabrica: { ...obra.fabrica, procede: s.obra.fabrica.procede } },
+    obra: { ...obra, fabrica: { ...obra.fabrica, procede: s.obra.fabrica.procede } },
     pubs: { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null },
   };
 }
@@ -475,8 +478,8 @@ export function normalizarEstudio(b: unknown): PerfilEstudio {
   };
 }
 
-function normalizarObra(b: unknown, obra: Obra | null): CapaObra {
-  const d = obraPorDefecto(obra);
+function normalizarObra(b: unknown): CapaObra {
+  const d = obraPorDefecto();
   if (!esObjeto(b)) return d;
   const j = esObjeto(b.juntas) ? b.juntas : {};
   const g = esObjeto(b.geotecnia) ? b.geotecnia : {};
@@ -498,11 +501,6 @@ function normalizarObra(b: unknown, obra: Obra | null): CapaObra {
     }
   }
   return {
-    denominacion: cTexto(b.denominacion, d.denominacion),
-    uso: cTexto(b.uso, d.uso),
-    provincia: leerCampoCon(b.provincia, d.provincia, (v, def) => (typeof v === 'string' && /^(\d{2})?$/.test(v) ? v : def)),
-    municipio: cTexto(b.municipio, d.municipio),
-    altitud: cNumONull(b.altitud, d.altitud),
     descripcionSistema: cTexto(b.descripcionSistema, d.descripcionSistema),
     tipoEstructuraSismo: cTextoONull(b.tipoEstructuraSismo, d.tipoEstructuraSismo),
     juntas: {
@@ -543,7 +541,9 @@ export function normalizar(bruto: unknown, obra: Obra | null): MemoriaState {
   const pubs = esObjeto(bruto.pubs) ? bruto.pubs : {};
   return {
     estudio: normalizarEstudio(bruto.estudio),
-    obra: normalizarObra(bruto.obra, obra),
+    obra: normalizarObra(bruto.obra),
+    // La obra viva MANDA sobre lo que hubiera guardado: es una proyección.
+    datosObra: obra,
     pubs: Object.fromEntries(MODULOS_PUB.map((m) => [m, normalizarTomada(pubs[m])])) as Record<ModuloPub, Tomada | null>,
     ayuda: bool(bruto.ayuda, d.ayuda),
   };

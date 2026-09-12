@@ -56,6 +56,7 @@ import {
   type PerfilEstudio,
   type Tomada,
 } from './estado';
+import type { Obra } from '../obra';
 import { colaHuecos, mensajeBloqueo } from './huecos';
 import type { ApartadoId, Estado, Hueco, Origen, Valor } from './model';
 import { AMORTIGUAMIENTO_TEXTO, IMPORTANCIA_TEXTO, NCSE, SEA, TIPO_ESTRUCTURA_SISMO, TITULO_FORJADO } from './plantilla';
@@ -301,6 +302,17 @@ function deCampo<T>(c: Campo<T>, id: string, etiqueta: string, apartado: Apartad
   return { valor: vacio(c.valor) ? null : c.valor, estado, origen: c.origen, id, etiqueta, apartado, ...(c.fuente ? { nota: c.fuente } : {}) };
 }
 
+/**
+ * Un `Valor` a partir de un dato PLANO de `concreta-obra`. No pasa por `Campo`,
+ * así que no puede estar heredado: o está —y lo tecleó el usuario en el
+ * diálogo de obra, que es confirmarlo— o falta. Su hueco se resuelve abriendo
+ * ese diálogo, no escribiendo en la ficha.
+ */
+function deDatoObra<T>(valor: T | null | undefined, id: string, etiqueta: string): Valor<T> {
+  const vacio = valor === null || valor === undefined || valor === '';
+  return { valor: vacio ? null : (valor as T), estado: vacio ? 'falta' : 'ok', origen: 'obra', id, etiqueta, apartado: 'indice' };
+}
+
 /** Un booleano nunca está vacío: sólo puede estar heredado o confirmado. */
 const deBool = (c: Campo<boolean>, id: string, etiqueta: string, apartado: ApartadoId): Valor<boolean> => deCampo(c, id, etiqueta, apartado, () => false);
 
@@ -359,20 +371,20 @@ const usable = (f: Fuente) => f.estado === 'ok';
 
 // ── Apartados ───────────────────────────────────────────────────────────────
 
-function viento(obra: CapaObra, f: Fuente, sobre: Publicacion<PubVientoNieve> | null, provinciaNombre: string | null): Valor<Viento> {
+function viento(datos: Obra | null, f: Fuente, sobre: Publicacion<PubVientoNieve> | null, provinciaNombre: string | null): Valor<Viento> {
   const v = usable(f) ? sobre?.datos.viento : null;
   if (v && sobre) {
     const lugar = sobre.datos.municipio || sobre.datos.provincia;
     return derivado({ lugar, zona: v.zonaEolica, vb: v.vb ?? ZONAS_EOLICAS[v.zonaEolica].vb, qb: v.qb }, 'viento-nieve');
   }
   // Sin sobre usable: la zona de la provincia (DB SE-AE, Anejo D). El lugar es el municipio de la ficha.
-  const p = obra.provincia.valor ? provinciaPorIne(obra.provincia.valor) : undefined;
+  const p = datos?.provincia ? provinciaPorIne(datos.provincia) : undefined;
   if (!p) {
     // Sin provincia no hay zona: el hueco es el de la provincia, no éste.
     return { valor: null, estado: 'falta', origen: 'obra', nota: 'Elija la provincia de la obra.' };
   }
   const z = ZONAS_EOLICAS[p.zonaEolica];
-  const lugar = obra.municipio.valor ? `${obra.municipio.valor} (${p.nombre})` : provinciaNombre ?? p.nombre;
+  const lugar = datos?.municipio ? `${datos.municipio} (${p.nombre})` : provinciaNombre ?? p.nombre;
   const nota = f.estado === 'revisar' ? 'Hay una publicación de Viento y nieve sin tomar: se usa la zona de la provincia.' : p.frontera?.eolica;
   return derivado({ lugar, zona: p.zonaEolica, vb: z.vb, qb: z.qb }, 'norma', nota);
 }
@@ -432,7 +444,7 @@ const CATEGORIA_MASA_TEXTO: Record<CategoriaMasa, string> = {
   agua: 'agua',
 };
 
-function sismo(obra: CapaObra, estudio: PerfilEstudio, f: Fuente, sobre: Publicacion<PubSismo> | null): Valor<Sismo> {
+function sismo(obra: CapaObra, uso: string, estudio: PerfilEstudio, f: Fuente, sobre: Publicacion<PubSismo> | null): Valor<Sismo> {
   if (!usable(f) || !sobre) return faltaDeSobre('sismo');
   const d = sobre.datos;
   const sistema = TIPO_ESTRUCTURA_SISMO[d.sistema];
@@ -441,7 +453,7 @@ function sismo(obra: CapaObra, estudio: PerfilEstudio, f: Fuente, sobre: Publica
     forzado !== null && forzado !== ''
       ? deCampo({ valor: forzado, origen: obra.tipoEstructuraSismo.origen }, 'obra.tipoEstructuraSismo', 'Tipo de estructura (para el sismo)', 'ncse')
       : derivado(sistema, 'sismo');
-  const clasificacion = `${obra.uso.valor || 'Edificio'} ${NCSE.textos.importancia(IMPORTANCIA_TEXTO[d.importancia] ?? d.importancia)}`;
+  const clasificacion = `${uso || 'Edificio'} ${NCSE.textos.importancia(IMPORTANCIA_TEXTO[d.importancia] ?? d.importancia)}`;
   const base = { clasificacion, tipoEstructura, ab: NCSE.textos.ab(num(d.ab, 2)), obligatoria: d.obligatoria };
 
   if (!d.obligatoria) {
@@ -625,7 +637,8 @@ function fuego(datos: PubMateriales | null): FichaDatos['se']['fuego'] {
 
 export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
   const { obra, estudio, pubs } = s;
-  const provinciaFicha = obra.provincia.valor;
+  const datos = s.datosObra;
+  const provinciaFicha = datos?.provincia ?? '';
   const provinciaNombre = provinciaFicha ? (provinciaPorIne(provinciaFicha)?.nombre ?? null) : null;
 
   const fuentes: Record<ModuloPub, Fuente> = {
@@ -688,11 +701,11 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
 
   return {
     obra: {
-      denominacion: deCampo(obra.denominacion, 'obra.denominacion', 'Nombre de la obra', 'indice'),
-      uso: deCampo(obra.uso, 'obra.uso', 'Uso principal del edificio', 'indice'),
-      provincia: deCampo(obra.provincia, 'obra.provincia', 'Provincia', 'indice'),
-      municipio: deCampo(obra.municipio, 'obra.municipio', 'Municipio', 'indice'),
-      altitud: deCampo(obra.altitud, 'obra.altitud', 'Altitud (m)', 'indice'),
+      denominacion: deDatoObra(datos?.denominacion, 'obra.denominacion', 'Nombre de la obra'),
+      uso: deDatoObra(datos?.uso, 'obra.uso', 'Uso principal del edificio'),
+      provincia: deDatoObra(datos?.provincia, 'obra.provincia', 'Provincia'),
+      municipio: deDatoObra(datos?.municipio, 'obra.municipio', 'Municipio'),
+      altitud: deDatoObra(datos?.altitud, 'obra.altitud', 'Altitud (m)'),
       provinciaNombre,
     },
     fuentes,
@@ -705,7 +718,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
       fuego: fuego(materiales?.datos ?? null),
     },
     seae: {
-      viento: viento(obra, fuentes.vientoNieve, sobres.vientoNieve, provinciaNombre),
+      viento: viento(datos, fuentes.vientoNieve, sobres.vientoNieve, provinciaNombre),
       nieve: nieve(fuentes.vientoNieve, sobres.vientoNieve),
       niveles: niveles(fuentes.cargasPlanta, sobres.cargasPlanta),
     },
@@ -724,7 +737,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
         ejecucion: estudio.contenciones.condicionesEjecucion,
       },
     },
-    ncse: sismo(obra, estudio, fuentes.sismo, sobres.sismo),
+    ncse: sismo(obra, datos?.uso ?? '', estudio, fuentes.sismo, sobres.sismo),
     ce: {
       descripcionSistema: deCampo(obra.descripcionSistema, 'obra.descripcionSistema', 'Descripción del sistema estructural', 'ce'),
       programa: estudio.programa,
