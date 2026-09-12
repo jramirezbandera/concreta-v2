@@ -83,7 +83,11 @@ export const CLAVES_PROYECTO: readonly EntradaProyecto[] = [
     clave: 'concreta-memoria-dbse-model',
     idEsquema: null,
     claveVersion: 'concreta-memoria-dbse-model-version',
-    versionViva: '1',
+    // v2 (2026-09-12): `pubs` —el registro de qué publicación se había
+    // «tomado»— desaparece, y con él los cinco datos de obra duplicados en la
+    // capa de la ficha. La ficha guardada se descarta; el perfil del despacho
+    // sobrevive porque se rescató a `concreta-estudio` en la versión anterior.
+    versionViva: '2',
   },
   {
     modulo: 'concreta-seismic',

@@ -65,14 +65,20 @@ function montar() {
 /** La obra de la ficha, en el contexto compartido: Granada. */
 const obraGranada = () => guardarObra({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
 
-/** Los otros tres módulos publicados para Granada (viento es opcional y no se publica). */
+/**
+ * Los otros tres módulos publicados para Granada (viento es opcional y no se
+ * publica). Los tres estados salen TOCADOS a propósito: desde que el sobre
+ * lleva `configurado`, publicar los valores de arranque de un módulo no cuenta
+ * como haberlo calculado, y la ficha los daría por falta. Es justo lo que
+ * comprueba `test/pub/configurado.test.ts`.
+ */
 function publicarLosOtros(acero = false) {
-  const m = { ...defaultMaterialesState(), usaAceroEstructural: acero };
+  const m = { ...defaultMaterialesState(), usaAceroEstructural: acero, costa: true };
   publicarMateriales(m, evaluarMateriales(m));
-  const c = defaultCargasState();
-  c.emplazamiento = { provincia: '18', municipio: 'Granada', altitud: 680 };
+  const c0 = defaultCargasState();
+  const c = { ...c0, emplazamiento: { provincia: '18', municipio: 'Granada', altitud: 680 }, plantas: c0.plantas.slice(0, 2) };
   publicarCargas(c, evaluarCargas(c, null));
-  const s = defaultSeismicState();
+  const s = { ...defaultSeismicState(), sotanos: 1 };
   publicarSismo(s, evaluarSismo(s));
 }
 
@@ -103,20 +109,44 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     expect(exportarDocx).not.toHaveBeenCalled();
   });
 
-  it('«Usar lo publicado» acepta los sobres y el viento se deriva de la provincia', async () => {
+  it('lo publicado se usa sin pedir permiso, y no queda tabla de publicaciones que leer', async () => {
     obraGranada();
     publicarLosOtros();
     montar();
-    // Tres sobres por revisar (materiales, cargas, sismo); viento es opcional.
-    const botones = screen.getAllByRole('button', { name: 'Usar lo publicado' });
+
+    // Se acabó el «tomar»: ni botones ni tabla de estados de publicación.
+    expect(screen.queryByRole('button', { name: /Usar lo publicado/ })).toBeNull();
+    expect(screen.queryByText('Lo que publican los otros módulos')).toBeNull();
+    // Ni avisos: los tres sobres son de Granada y están configurados.
+    expect(screen.queryByText('Lo que falta calcular en otros módulos')).toBeNull();
+
+    // La frase del viento, con la zona de la provincia (no hay sobre de viento).
+    expect(screen.getByText(/Granada \(Granada\) está en zona [ABC], con lo que v=\d+ m\/s/)).toBeInTheDocument();
+    // Y la tabla sísmica de Granada, ya impresa.
+    expect(screen.getByText(/ab=0,23 g/)).toBeInTheDocument();
+  });
+
+  it('un módulo con sus valores de partida NO entra: se avisa y se ofrece la salida', async () => {
+    obraGranada();
+    // Los tres tal cual arrancan. El de sismo es el peligroso: Granada con
+    // ab = 0,23 g cableado, publicado por el mero hecho de abrir el módulo.
+    const m = defaultMaterialesState();
+    publicarMateriales(m, evaluarMateriales(m));
+    const c = { ...defaultCargasState(), emplazamiento: { provincia: '18', municipio: 'Granada', altitud: 680 } };
+    publicarCargas(c, evaluarCargas(c, null));
+    const sis = defaultSeismicState();
+    publicarSismo(sis, evaluarSismo(sis));
+    montar();
+
+    expect(screen.getByText('Lo que falta calcular en otros módulos')).toBeInTheDocument();
+    expect(screen.getAllByText(/sigue con sus valores de partida/).length).toBe(3);
+    expect(screen.queryByText(/ab=0,23 g/)).toBeNull();
+
+    // La salida para quien SÍ quiere los de partida: declararlo.
+    const botones = screen.getAllByRole('button', { name: 'Son los de esta obra' });
     expect(botones).toHaveLength(3);
     for (const b of botones) fireEvent.click(b);
-    await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Usar lo publicado' })).toHaveLength(0));
-    expect(screen.getAllByText('tomada').length).toBe(3);
-    expect(screen.getByText('opcional')).toBeInTheDocument();
-    // La frase del viento, en azul, con la zona de la provincia.
-    expect(screen.getByText(/Granada \(Granada\) está en zona [ABC], con lo que v=\d+ m\/s/)).toBeInTheDocument();
-    // Y la tabla sísmica de Granada.
+    await waitFor(() => expect(screen.queryByText('Lo que falta calcular en otros módulos')).toBeNull());
     expect(screen.getByText(/ab=0,23 g/)).toBeInTheDocument();
   });
 
@@ -124,9 +154,10 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     obraGranada();
     publicarLosOtros();
     montar();
-    // El primer hueco es la primera publicación por tomar: su botón recibe el foco.
+    // Ya no hay publicaciones que tomar, así que el primer hueco es un dato de
+    // la ficha, no un trámite.
     fireEvent.click(screen.getByRole('button', { name: /Siguiente hueco/ }));
-    await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole('button', { name: 'Usar lo publicado' })[0]));
+    await waitFor(() => expect(document.activeElement?.id).toMatch(/^campo-obra-/));
     // Un dato heredado con su botón de confirmar: la sobrecarga en el terreno.
     const sobrecarga = document.getElementById('campo-obra-sobrecargaTerreno') as HTMLInputElement;
     expect(sobrecarga).not.toBeNull();
@@ -175,7 +206,7 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     obraGranada();
     publicarLosOtros(true);
     montar();
-    for (const b of screen.getAllByRole('button', { name: 'Usar lo publicado' })) fireEvent.click(b);
+    // Sin trámite: el cuadro publica acero y el apartado aparece solo.
     const acero = await screen.findByRole('region', { name: /Estructuras de acero/ });
     expect(within(acero).getByRole('button', { expanded: false })).toBeInTheDocument();
     fireEvent.click(within(acero).getByRole('button'));

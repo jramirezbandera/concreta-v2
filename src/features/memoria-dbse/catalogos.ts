@@ -120,10 +120,3 @@ export const USOS_SUGERIDOS = ['Edificio de viviendas', 'Vivienda unifamiliar', 
 export const ESTUDIO_AYUDA =
   'Lo que no cambia entre obras del despacho: el programa de cálculo, los límites de flecha, la redacción del método. Se edita aquí una vez y no vuelve a preguntar.';
 
-/** Qué toma la ficha de cada publicación, para el modo Ayuda del panel de fuentes. */
-export const QUE_TOMA: Record<'materiales' | 'vientoNieve' | 'cargasPlanta' | 'sismo', string> = {
-  materiales: 'Hormigones por elemento (3.1.5.4 y durabilidad), aceros, madera, vida útil y niveles de control; y si proceden el acero (3.1.7) y la madera (3.1.9).',
-  vientoNieve: 'La zona eólica, la velocidad básica y la presión dinámica, y la nieve. Es opcional: sin publicar, la zona sale de la provincia.',
-  cargasPlanta: 'La tabla de cargas por niveles (3.1.2), el estado de cargas (3.1.5.3) y las tipologías de forjado (3.1.6).',
-  sismo: 'La tabla sísmica entera (3.1.4): ab, K, ρ, C, S, ac, método, modos, ductilidad; o el motivo de la exención.',
-};

@@ -84,6 +84,6 @@ export {
   leerCampo,
   nuevaObra,
   teclear,
-  tomarPublicacion,
+  aceptar,
 } from '../../lib/memoria/estado';
 export { evaluar, type Evaluacion, type FichaDatos } from '../../lib/memoria/ensamblar';

@@ -10,65 +10,40 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defaultCargasState, datosPublicacion as pubCargas, evaluar as evaluarCargas } from '../../features/cargas-planta/state';
-import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset } from '../../features/materiales/state';
 import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo } from '../../features/seismic-ncse02/state';
-import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as evaluarViento } from '../../features/viento-nieve/state';
 import { provinciaPorIne } from '../../lib/acciones/provincias';
 import { ZONAS_EOLICAS } from '../../lib/acciones/tablasAE';
 import { lookupFk, lookupGammaM } from '../../lib/calculations/masonryWalls';
 import { SIN_SOBRES, ensamblar, esDeOtroEmplazamiento, estadoSobre, evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
-import { asegurarForjados, confirmar, estadoPorDefecto, teclear, tomarPublicacion, type MemoriaState } from '../../lib/memoria/estado';
-import type { Publicacion } from '../../lib/pub';
+import { asegurarForjados, confirmar, estadoPorDefecto, teclear } from '../../lib/memoria/estado';
+import { completar, fichaGranada, sobre, sobresGranada, tomarTodo } from './fixtures';
 
-const TS = '2026-09-06T10:00:00.000Z';
-
-function sobre<T>(modulo: string, datos: T, obra: Partial<Publicacion<T>['obra']> = {}, ts = TS): Publicacion<T> {
-  return { v: 1, ts, modulo, obra: { municipio: null, provincia: null, ine: null, ...obra }, datos };
-}
-
-/** Los cuatro sobres de una obra en Granada, con acero y madera en el cuadro de materiales. */
-function sobresGranada(): Sobres {
-  const m = { ...defaultMaterialesState(), usaAceroEstructural: true, usaMadera: true, maderaGrupos: [filaMaderaDesdePreset('Vigas y pilares')] };
-  const materiales = pubMateriales(m, evaluarMateriales(m))!;
-  const v = ejemploVientoNieveState();
-  const viento = pubViento(v, evaluarViento(v))!;
-  const c = defaultCargasState();
-  c.emplazamiento = { provincia: '18', municipio: 'Granada', altitud: 680 };
-  const cargas = pubCargas(c, evaluarCargas(c, null))!;
-  const s = defaultSeismicState();
-  const sismo = pubSismo(s, evaluarSismo(s));
-  return {
-    materiales: sobre('materiales', materiales, { municipio: 'Granada', ine: '18087' }),
-    vientoNieve: sobre('viento-nieve', viento, { municipio: viento.municipio, provincia: viento.provincia, ine: viento.provinciaIne }),
-    cargasPlanta: sobre('cargas-planta', cargas, { municipio: 'Granada', provincia: 'Granada', ine: '18' }),
-    sismo: sobre('sismo', sismo, { municipio: 'Granada', ine: '18087' }),
-  };
-}
-
-const fichaGranada = () => estadoPorDefecto({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: 'Edificio de viviendas' });
-
-/** Acepta los cuatro sobres tal como están. */
-function tomarTodo(s: MemoriaState, sobres: Sobres): MemoriaState {
-  let t = s;
-  for (const m of ['materiales', 'vientoNieve', 'cargasPlanta', 'sismo'] as const) {
-    const so = sobres[m];
-    if (so) t = tomarPublicacion(t, m, so);
-  }
-  return t;
-}
+// Los ayudantes viven en `./fixtures`, que es también quien estampa
+// `configurado` en los sobres: la marca decide si un sobre sirve, y tenerla en
+// dos sitios era pedir que se separaran.
 
 describe('estadoSobre y otro emplazamiento', () => {
   const so = sobre('materiales', {}, { ine: '18087' });
+  const sinConfigurar = { ...so, configurado: false };
   it('sin sobre: falta si es obligatorio, derivado si no (viento)', () => {
-    expect(estadoSobre(null, null, '18', true)).toBe('falta');
-    expect(estadoSobre(null, null, '18', false)).toBe('derivado');
+    expect(estadoSobre(null, false, false, true)).toBe('falta');
+    expect(estadoSobre(null, false, false, false)).toBe('derivado');
   });
-  it('sin aceptar, con otra fecha o aceptado desde otra provincia: revisar; si no, ok', () => {
-    expect(estadoSobre(so, null, '18', true)).toBe('revisar');
-    expect(estadoSobre(so, { ts: '2026-09-05T00:00:00.000Z', ine: '18087', provinciaFicha: '18' }, '18', true)).toBe('revisar');
-    expect(estadoSobre(so, { ts: TS, ine: '18087', provinciaFicha: '29' }, '18', true)).toBe('revisar');
-    expect(estadoSobre(so, { ts: TS, ine: '18087', provinciaFicha: '18' }, '18', true)).toBe('ok');
+  it('un sobre con los valores de partida del módulo es FALTA, no un dato de esta obra', () => {
+    expect(estadoSobre(sinConfigurar, false, false, true)).toBe('falta');
+    // Y lo mismo si al sobre le falta la marca entera, que es todo sobre
+    // escrito antes de que existiera.
+    expect(estadoSobre({ ...so, configurado: undefined }, false, false, true)).toBe('falta');
+  });
+  it('configurado y del mismo sitio se usa sin preguntar: ya no hay nada que «tomar»', () => {
+    expect(estadoSobre(so, false, false, true)).toBe('derivado');
+  });
+  it('de otra provincia avisa, y darlo por bueno lo desbloquea', () => {
+    expect(estadoSobre(so, false, true, true)).toBe('revisar');
+    expect(estadoSobre(so, true, true, true)).toBe('derivado');
+  });
+  it('darlo por bueno también desbloquea los valores de partida: «son los de esta obra»', () => {
+    expect(estadoSobre(sinConfigurar, true, false, true)).toBe('derivado');
   });
   it('otro emplazamiento sólo cuando las dos provincias se conocen y difieren', () => {
     expect(esDeOtroEmplazamiento(so, undefined, '18')).toBe(false);
@@ -130,20 +105,39 @@ describe('sin ninguna publicación', () => {
 describe('con los cuatro sobres de Granada, recién publicados', () => {
   const sobres = sobresGranada();
 
-  it('sin aceptarlos están en «revisar» y lo que sale de ellos falta', () => {
+  it('se usan tal cual: la ficha ya no pide aceptarlos uno a uno', () => {
     const d = ensamblar(fichaGranada(), sobres);
-    expect(d.fuentes.materiales.estado).toBe('revisar');
-    expect(d.fuentes.sismo.estado).toBe('revisar');
-    expect(d.ncse.estado).toBe('falta');
-    expect(d.seae.niveles.estado).toBe('falta');
-    // El viento con sobre sin tomar: se deriva de la provincia y se avisa.
+    // Los tres de Granada entran solos: están configurados y son de aquí.
+    expect(d.fuentes.materiales.estado).toBe('derivado');
+    expect(d.fuentes.cargasPlanta.estado).toBe('derivado');
+    expect(d.fuentes.sismo.estado).toBe('derivado');
+    expect(d.ncse.estado).not.toBe('falta');
+    expect(d.seae.niveles.estado).not.toBe('falta');
+
+    // El de viento NO, y es el caso que justifica que quede un aviso: el
+    // fixture lo calcula en Aranda de Duero (Burgos) sobre una ficha de
+    // Granada, y la zona eólica de uno no vale para el otro.
+    expect(d.fuentes.vientoNieve.estado).toBe('revisar');
+    expect(d.fuentes.vientoNieve.otroEmplazamiento).toBe(true);
     expect(d.seae.viento.origen).toBe('norma');
-    expect(d.seae.viento.nota).toContain('sin tomar');
   });
 
-  it('aceptados, todo lo derivado se resuelve', () => {
+  it('un sobre SIN CONFIGURAR sí falta, y el viento cae a la provincia diciéndolo', () => {
+    const arranque: Sobres = {
+      ...sobres,
+      materiales: { ...sobres.materiales!, configurado: false },
+      vientoNieve: { ...sobres.vientoNieve!, configurado: false },
+    };
+    const d = ensamblar(fichaGranada(), arranque);
+    expect(d.fuentes.materiales.estado).toBe('falta');
+    expect(d.fuentes.materiales.nota).toContain('valores de partida');
+    expect(d.seae.viento.origen).toBe('norma');
+    expect(d.seae.viento.nota).toContain('no se usa');
+  });
+
+  it('dados por buenos, todo lo derivado se resuelve', () => {
     const d = ensamblar(tomarTodo(fichaGranada(), sobres), sobres);
-    for (const f of Object.values(d.fuentes)) expect(f.estado, f.modulo).toBe('ok');
+    for (const f of Object.values(d.fuentes)) expect(f.estado, f.modulo).toBe('derivado');
     expect(d.procede.sea).toBe(true);
     expect(d.procede.sem).toBe(true);
     expect(d.se.periodoServicio).toMatchObject({ valor: 50, origen: 'materiales' });
@@ -249,7 +243,7 @@ describe('sismo exento y sismo sin resolver', () => {
 });
 
 describe('otro emplazamiento y revisar', () => {
-  it('el sobre de sismo de Granada en una ficha de Málaga: se avisa, y sigue siendo tomable', () => {
+  it('el sobre de sismo de Granada en una ficha de Málaga: se avisa, y se puede dar por bueno', () => {
     const sobres = sobresGranada();
     const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
     const d = ensamblar(malaga, sobres);
@@ -257,25 +251,34 @@ describe('otro emplazamiento y revisar', () => {
     expect(d.fuentes.sismo.nota).toContain('en otro sitio');
     expect(d.fuentes.sismo.estado).toBe('revisar');
     const t = ensamblar(tomarTodo(malaga, sobres), sobres);
-    expect(t.fuentes.sismo.estado).toBe('ok');
+    expect(t.fuentes.sismo.estado).toBe('derivado');
     expect(t.fuentes.sismo.otroEmplazamiento).toBe(true);
   });
 
   it('cambiar la provincia de la ficha después de aceptar devuelve los sobres a revisar', () => {
     const sobres = sobresGranada();
     const s = tomarTodo(fichaGranada(), sobres);
-    expect(ensamblar(s, sobres).fuentes.materiales.estado).toBe('ok');
+    expect(ensamblar(s, sobres).fuentes.materiales.estado).toBe('derivado');
     // La provincia ya no se teclea en la ficha: es de `concreta-obra`, y la
     // ficha la refleja. Mover la obra es cambiarla ahí.
     const movida = { ...s, datosObra: { ...s.datosObra!, provincia: '29' } };
     expect(ensamblar(movida, sobres).fuentes.materiales.estado).toBe('revisar');
   });
 
-  it('un sobre nuevo del mismo módulo (otra fecha) también vuelve a revisar', () => {
+  it('republicar lo MISMO no reabre el aviso; republicar otra cosa sí', () => {
+    // Era el ruido del viejo «revisar»: volver a entrar en un módulo bastaba
+    // para que la ficha pidiera confirmar otra vez lo mismo. La huella mira el
+    // resultado, no la fecha.
     const sobres = sobresGranada();
-    const s = tomarTodo(fichaGranada(), sobres);
-    const nuevos: Sobres = { ...sobres, materiales: { ...sobres.materiales!, ts: '2026-09-07T08:00:00.000Z' } };
-    expect(ensamblar(s, nuevos).fuentes.materiales.estado).toBe('revisar');
+    const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
+    const s = tomarTodo(malaga, sobres);
+    expect(ensamblar(s, sobres).fuentes.sismo.estado).toBe('derivado');
+
+    const otraFecha: Sobres = { ...sobres, sismo: { ...sobres.sismo!, ts: '2026-09-07T08:00:00.000Z' } };
+    expect(ensamblar(s, otraFecha).fuentes.sismo.estado).toBe('derivado');
+
+    const otroResultado: Sobres = { ...sobres, sismo: { ...sobres.sismo!, datos: { ...sobres.sismo!.datos, ab: 0.19 } } };
+    expect(ensamblar(s, otroResultado).fuentes.sismo.estado).toBe('revisar');
   });
 });
 
@@ -307,18 +310,9 @@ describe('fábrica', () => {
 
 describe('la propiedad de «Siguiente hueco»', () => {
   it('cada hueco se resuelve con la acción que declara, y sin huecos la ficha está lista', () => {
+    // `completar` es ese mismo bucle, y lanza si un hueco no tiene salida.
     const sobres = sobresGranada();
-    let s = asegurarForjados(fichaGranada(), tipologiasDe(sobres.cargasPlanta));
-    for (let vuelta = 0; vuelta < 50; vuelta++) {
-      const ev = evaluar(s, sobres);
-      if (ev.listo) break;
-      const h = ev.huecos[0];
-      if (h.accion === 'usarPublicado') s = tomarPublicacion(s, h.id.replace('pub.', '') as 'materiales', sobres[h.id.replace('pub.', '') as 'materiales']!);
-      else if (h.accion === 'confirmar') s = confirmar(s, h.id);
-      else if (h.accion === 'teclear') s = teclear(s, h.id, h.id.endsWith('altitud') ? 680 : 'dato de la obra');
-      else throw new Error(`hueco sin salida: ${h.id} (${h.accion})`);
-    }
-    const ev = evaluar(s, sobres);
+    const ev = evaluar(completar(fichaGranada(), sobres), sobres);
     expect(ev.huecos.map((h) => h.id)).toEqual([]);
     expect(ev.listo).toBe(true);
     expect(ev.mensajeBloqueo).toBeNull();

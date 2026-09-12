@@ -39,7 +39,7 @@ import { adaptadorDe } from '../../lib/anejo/modules';
 import type { ResultadoExport } from '../../lib/export/descargar';
 import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib/export/filename';
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
-import { asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, tomarPublicacion, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
+import { aceptar, asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
 import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha';
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
@@ -47,7 +47,7 @@ import type { ApartadoId, Hueco } from '../../lib/memoria/model';
 import { guardarObra, leerObra, mismaObra } from '../../lib/obra';
 import { BarraObra } from './BarraObra';
 import { idDom } from './ids';
-import { Fuentes } from './Fuentes';
+import { Avisos } from './Avisos';
 import { GeotecnicoModal } from './GeotecnicoModal';
 import { Seccion } from './Seccion';
 import { SeccionCE, SeccionEstudio, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
@@ -189,10 +189,15 @@ export function MemoriaDBSEModule() {
     return r;
   };
 
-  const tomar = (modulo: ModuloPub) => {
+  /**
+   * Dar por bueno lo publicado tal como está: el aviso de que se calculó en
+   * otro sitio, o el de que el módulo sigue con sus valores de partida. Es la
+   * única aceptación que queda; usar lo publicado ya no se pide.
+   */
+  const aceptarPub = (modulo: ModuloPub) => {
     const sobre = leerSobres()[modulo];
     if (!sobre) return;
-    actualizar((p) => tomarPublicacion(p, modulo, sobre));
+    actualizar((p) => aceptar(p, modulo, sobre));
   };
 
   // ── Siguiente hueco ───────────────────────────────────────────────────────
@@ -226,7 +231,7 @@ export function MemoriaDBSEModule() {
     if (h.accion === 'confirmar') on.confirmar(h.id);
     if (h.accion === 'usarPublicado') {
       const m = MODULOS_PUB.find((x) => h.id === `pub.${x}`);
-      if (m) tomar(m);
+      if (m) aceptarPub(m);
     }
   };
 
@@ -382,7 +387,7 @@ export function MemoriaDBSEModule() {
 
       <div ref={contenedor} className="scroll-hide min-h-0 flex-1 overflow-y-auto px-3 py-3" onKeyDown={onKeyDown}>
         <div className="mx-auto flex max-w-[1100px] flex-col gap-3">
-          <Fuentes fuentes={datos.fuentes} ayuda={ayuda} onTomar={tomar} />
+          <Avisos fuentes={datos.fuentes} onAceptar={aceptarPub} />
 
           {lista
             .filter((a) => a.id !== 'indice')

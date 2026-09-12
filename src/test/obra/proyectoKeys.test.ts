@@ -76,7 +76,7 @@ const MAP_CONGELADO: Record<string, string> = {
 
 const VERSIONES_CONGELADAS: Record<string, string> = {
   'concreta-materiales': '1',
-  'concreta-memoria-dbse': '1',
+  'concreta-memoria-dbse': '2',
   'concreta-seismic': '1',
   'concreta-viento-nieve': '1',
   'concreta-cargas-planta': '1',

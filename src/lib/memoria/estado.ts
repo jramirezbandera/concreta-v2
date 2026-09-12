@@ -17,11 +17,11 @@
  *    `fuente` (`proponer`). «Nueva obra» pone TODA la capa en heredado, salvo la
  *    denominación, que nunca es la misma y queda vacía.
  *
- * Y `pubs`: por cada publicación consumida, el sobre que el usuario ACEPTÓ
- * (`tomada`): su fecha, su obra y desde qué provincia de la ficha se aceptó.
- * Los VALORES no se copian —se leen del sobre vivo cada vez, como hace
- * `cargas-planta/sismoPub.ts`—; sólo se copia la aceptación, que es lo que
- * permite decir «esto cambió desde que lo tomaste».
+ * Y `aceptados`: lo publicado ya no se «toma». La ficha usa SIEMPRE lo último
+ * calculado, y lo único que queda por dar por bueno es el aviso de que un
+ * sobre se calculó en otra provincia. `aceptados` guarda la huella del sobre
+ * que el usuario aceptó pese a eso, para callar el aviso sin olvidarlo: si
+ * cambia el resultado o el emplazamiento, vuelve a salir.
  */
 
 import { TIPOLOGIAS } from '../../data/forjadoTipologias';
@@ -154,19 +154,21 @@ export interface CapaObra {
   };
 }
 
-/** El sobre que el usuario aceptó: fecha, obra del sobre, y desde qué obra de la ficha lo aceptó. */
-export interface Tomada {
-  ts: string;
-  ine: string | null;
-  provinciaFicha: string;
-}
-
 export type ModuloPub = 'materiales' | 'vientoNieve' | 'cargasPlanta' | 'sismo';
 export const MODULOS_PUB: readonly ModuloPub[] = ['materiales', 'vientoNieve', 'cargasPlanta', 'sismo'];
+
+export type Aceptados = Record<ModuloPub, string | null>;
+
+const sinAceptar = (): Aceptados => ({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
 
 export interface MemoriaState {
   estudio: PerfilEstudio;
   obra: CapaObra;
+  /**
+   * Por módulo, la huella del sobre que el usuario dio por bueno PESE a estar
+   * calculado en otra provincia. `null` = nada aceptado.
+   */
+  aceptados: Aceptados;
   /**
    * Los cinco datos de la obra, tal como estaban en `concreta-obra` al cargar.
    * Es una PROYECCIÓN, no una copia editable: `normalizar` la repone desde la
@@ -174,7 +176,6 @@ export interface MemoriaState {
    * `null` mientras no haya obra.
    */
   datosObra: Obra | null;
-  pubs: Record<ModuloPub, Tomada | null>;
   ayuda: boolean;
 }
 
@@ -262,8 +263,8 @@ export function estadoPorDefecto(obra: Obra | null, estudio?: PerfilEstudio): Me
   return {
     estudio: estudio ?? perfilEstudioPorDefecto(),
     obra: obraPorDefecto(),
+    aceptados: sinAceptar(),
     datosObra: obra,
-    pubs: { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null },
     ayuda: true,
   };
 }
@@ -367,9 +368,35 @@ export function proponer<T>(s: MemoriaState, id: string, valor: T, fuente: strin
   return conRuta(s, ruta, () => campo(valor, 'heredado', fuente));
 }
 
-/** Acepta el sobre de un módulo tal como está ahora, desde la obra actual de la ficha. */
-export function tomarPublicacion(s: MemoriaState, modulo: ModuloPub, sobre: { ts: string; obra: { ine: string | null } }): MemoriaState {
-  return { ...s, pubs: { ...s.pubs, [modulo]: { ts: sobre.ts, ine: sobre.obra.ine, provinciaFicha: s.datosObra?.provincia ?? '' } } };
+/** Hash FNV-1a de 32 bits, en hexadecimal. La huella se guarda y se compara, no se lee. */
+function hash32(texto: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+/**
+ * La huella de un sobre visto desde ESTA obra: su RESULTADO —lo que se va a
+ * imprimir— y el emplazamiento de la obra.
+ *
+ * Lo que NO entra, a propósito, es el `ts`. Republicar sin tocar nada no es un
+ * cambio que haya que volver a dar por bueno, y ése era exactamente el ruido
+ * del viejo «revisar»: bastaba volver a entrar en un módulo para que la ficha
+ * pidiera confirmar otra vez lo mismo.
+ */
+export function huellaSobre(sobre: { datos: unknown }, obra: Obra | null): string {
+  return hash32(JSON.stringify([sobre.datos, obra?.provincia ?? '', obra?.municipio ?? '', obra?.altitud ?? null]));
+}
+
+/**
+ * El usuario da por bueno un sobre calculado en otro sitio. Calla el aviso
+ * hasta que cambie el resultado o el emplazamiento de la obra.
+ */
+export function aceptar(s: MemoriaState, modulo: ModuloPub, sobre: { datos: unknown }): MemoriaState {
+  return { ...s, aceptados: { ...s.aceptados, [modulo]: huellaSobre(sobre, s.datosObra) } };
 }
 
 /** Todo lo que sea un `Campo` bajo el nodo pasa a heredado. */
@@ -382,8 +409,8 @@ function heredarTodo<T>(nodo: T): T {
 
 /**
  * «Nueva obra»: el estudio pasa limpio y sin preguntas; cada dato de la ficha
- * se conserva pero en HEREDADO. Las publicaciones aceptadas se olvidan: habrá
- * que volver a tomarlas, y con ellas se verá si son de esta obra. No toca
+ * se conserva pero en HEREDADO. Lo dado por bueno pese a venir de otro sitio
+ * se olvida: en otra obra hay que volver a mirarlo. No toca
  * `concreta-obra` —los cinco datos los pide el diálogo de obra— ni las
  * publicaciones de los otros módulos: eso es de ellos.
  */
@@ -392,7 +419,7 @@ export function nuevaObra(s: MemoriaState): MemoriaState {
   return {
     ...s,
     obra: { ...obra, fabrica: { ...obra.fabrica, procede: s.obra.fabrica.procede } },
-    pubs: { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null },
+    aceptados: sinAceptar(),
   };
 }
 
@@ -529,22 +556,20 @@ function normalizarObra(b: unknown): CapaObra {
   };
 }
 
-function normalizarTomada(v: unknown): Tomada | null {
-  if (!esObjeto(v) || typeof v.ts !== 'string' || typeof v.provinciaFicha !== 'string') return null;
-  return { ts: v.ts, ine: typeof v.ine === 'string' ? v.ine : null, provinciaFicha: v.provinciaFicha };
-}
+/** Una huella es una cadena y nada más; lo que venga de una versión anterior se olvida. */
+const normalizarAceptado = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
 /** Todo lo que no se reconozca cae al valor de arranque; nunca se lanza. */
 export function normalizar(bruto: unknown, obra: Obra | null): MemoriaState {
   const d = estadoPorDefecto(obra);
   if (!esObjeto(bruto)) return d;
-  const pubs = esObjeto(bruto.pubs) ? bruto.pubs : {};
+  const ac = esObjeto(bruto.aceptados) ? bruto.aceptados : {};
   return {
     estudio: normalizarEstudio(bruto.estudio),
     obra: normalizarObra(bruto.obra),
+    aceptados: Object.fromEntries(MODULOS_PUB.map((m) => [m, normalizarAceptado(ac[m])])) as Aceptados,
     // La obra viva MANDA sobre lo que hubiera guardado: es una proyección.
     datosObra: obra,
-    pubs: Object.fromEntries(MODULOS_PUB.map((m) => [m, normalizarTomada(pubs[m])])) as Record<ModuloPub, Tomada | null>,
     ayuda: bool(bruto.ayuda, d.ayuda),
   };
 }

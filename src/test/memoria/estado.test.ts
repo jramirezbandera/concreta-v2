@@ -4,7 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { cargarEstado, guardarEstado, SCHEMA_VERSION_KEY, STORAGE_KEY } from '../../features/memoria-dbse/state';
+import { cargarEstado, guardarEstado, SCHEMA_VERSION, SCHEMA_VERSION_KEY, STORAGE_KEY } from '../../features/memoria-dbse/state';
 import {
   asegurarForjados,
   campo,
@@ -16,7 +16,7 @@ import {
   normalizar,
   nuevaObra,
   teclear,
-  tomarPublicacion,
+  aceptar,
 } from '../../lib/memoria/estado';
 import { guardarObra } from '../../lib/obra';
 
@@ -38,7 +38,7 @@ describe('arranque', () => {
     expect(s.obra.geotecnia.empresa).toEqual(campo(''));
     expect(s.obra.descripcionSistema).toEqual(campo(''));
     expect(s.obra.fabrica.procede).toBe(false);
-    expect(s.pubs).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
+    expect(s.aceptados).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
     expect(s.ayuda).toBe(true);
   });
 
@@ -87,9 +87,9 @@ describe('confirmar y teclear por ruta', () => {
 });
 
 describe('Nueva obra', () => {
-  it('el estudio sigue igual, la ficha queda heredada y las publicaciones olvidadas', () => {
+  it('el estudio sigue igual, la ficha queda heredada y lo dado por bueno se olvida', () => {
     let s = teclear(conObra(), 'obra.geotecnia.empresa', 'Geotecnia SL');
-    s = tomarPublicacion(s, 'sismo', { ts: '2026-09-06T10:00:00.000Z', obra: { ine: '05019' } });
+    s = aceptar(s, 'sismo', { datos: { ab: 0.23 } });
     s = { ...s, obra: { ...s.obra, fabrica: { ...s.obra.fabrica, procede: true } } };
     const n = nuevaObra(s);
     expect(n.estudio).toBe(s.estudio);
@@ -99,15 +99,39 @@ describe('Nueva obra', () => {
     expect(n.obra.geotecnia.empresa).toEqual(campo('Geotecnia SL', 'heredado'));
     expect(n.obra.juntas.existen.origen).toBe('heredado');
     expect(n.obra.fabrica.procede).toBe(true);
-    expect(n.pubs.sismo).toBeNull();
+    expect(n.aceptados.sismo).toBeNull();
     expect(n.ayuda).toBe(true);
   });
 });
 
-describe('sobres aceptados', () => {
-  it('tomarPublicacion guarda la fecha del sobre, su obra y la provincia de la ficha en ese momento', () => {
-    const s = tomarPublicacion(conObra(), 'materiales', { ts: '2026-09-06T10:00:00.000Z', obra: { ine: null } });
-    expect(s.pubs.materiales).toEqual({ ts: '2026-09-06T10:00:00.000Z', ine: null, provinciaFicha: '05' });
+describe('el silenciador del aviso de emplazamiento', () => {
+  const so = { datos: { ab: 0.23, K: 1 } };
+
+  it('la huella es del RESULTADO y del emplazamiento, no de la fecha', () => {
+    const s = aceptar(conObra(), 'materiales', so);
+    expect(s.aceptados.materiales).toEqual(expect.any(String));
+    // Republicar lo mismo más tarde da la misma huella: no se vuelve a
+    // preguntar por algo que no ha cambiado.
+    expect(aceptar(conObra(), 'materiales', { datos: so.datos }).aceptados.materiales).toBe(s.aceptados.materiales);
+  });
+
+  it('cambiar el resultado la invalida', () => {
+    const a = aceptar(conObra(), 'materiales', so).aceptados.materiales;
+    expect(aceptar(conObra(), 'materiales', { datos: { ab: 0.19, K: 1 } }).aceptados.materiales).not.toBe(a);
+  });
+
+  it('mover la obra la invalida: provincia, municipio o altitud', () => {
+    const base = conObra();
+    const a = aceptar(base, 'materiales', so).aceptados.materiales;
+    for (const cambio of [{ provincia: '29' }, { municipio: 'Otro' }, { altitud: 5 }]) {
+      const movida = { ...base, datosObra: { ...base.datosObra!, ...cambio } };
+      expect(aceptar(movida, 'materiales', so).aceptados.materiales, JSON.stringify(cambio)).not.toBe(a);
+    }
+  });
+
+  it('sólo toca su módulo', () => {
+    const s = aceptar(conObra(), 'materiales', so);
+    expect(s.aceptados.sismo).toBeNull();
   });
 });
 
@@ -136,11 +160,11 @@ describe('forjados residuales', () => {
 
 describe('lectura defensiva', () => {
   it('basura, null o una versión con otra forma caen al arranque sin lanzar', () => {
-    for (const bruto of [null, 42, 'x', [], {}, { obra: 'no', estudio: [], pubs: 7 }]) {
+    for (const bruto of [null, 42, 'x', [], {}, { obra: 'no', estudio: [], aceptados: 7 }]) {
       const s = normalizar(bruto, null);
       expect(s.datosObra).toBeNull();
       expect(s.estudio.programa.nombre).toBe('Cypecad Espacial');
-      expect(s.pubs.materiales).toBeNull();
+      expect(s.aceptados.materiales).toBeNull();
     }
   });
 
@@ -156,7 +180,7 @@ describe('lectura defensiva', () => {
           forjados: { 'reticular-30': { intereje: { valor: 84, origen: 'tecleado' } }, 'con.punto': {}, mal: 'x' },
           fabrica: { procede: true, pieza: { valor: 'macizo', origen: 'tecleado' }, categoriaControl: { valor: 'IV', origen: 'tecleado' } },
         },
-        pubs: { sismo: { ts: '2026-01-01T00:00:00.000Z', ine: 5, provinciaFicha: '05' }, materiales: { ts: 3 } },
+        aceptados: { sismo: 'deadbeef', materiales: 3 },
         ayuda: 'sí',
       },
       null,
@@ -173,8 +197,8 @@ describe('lectura defensiva', () => {
     expect(s.obra.fabrica.procede).toBe(true);
     expect(s.obra.fabrica.pieza).toEqual(campo('macizo'));
     expect(s.obra.fabrica.categoriaControl).toEqual(campo('II', 'heredado'));
-    expect(s.pubs.sismo).toEqual({ ts: '2026-01-01T00:00:00.000Z', ine: null, provinciaFicha: '05' });
-    expect(s.pubs.materiales).toBeNull();
+    expect(s.aceptados.sismo).toBe('deadbeef');
+    expect(s.aceptados.materiales).toBeNull();
     expect(s.ayuda).toBe(true);
   });
 });
@@ -201,13 +225,13 @@ describe('persistencia', () => {
     expect(cargarEstado().datosObra?.denominacion).toBe('Nave');
     const s = teclear(cargarEstado(), 'obra.geotecnia.empresa', 'Geo');
     guardarEstado(s);
-    expect(localStorage.getItem(SCHEMA_VERSION_KEY)).toBe('1');
+    expect(localStorage.getItem(SCHEMA_VERSION_KEY)).toBe(SCHEMA_VERSION);
     expect(cargarEstado()).toEqual(s);
     // Otra versión de esquema: se descarta lo guardado.
-    localStorage.setItem(SCHEMA_VERSION_KEY, '0');
+    localStorage.setItem(SCHEMA_VERSION_KEY, 'otra');
     expect(cargarEstado().obra.geotecnia.empresa.valor).toBe('');
     // Basura en la clave: arranque, sin lanzar.
-    localStorage.setItem(SCHEMA_VERSION_KEY, '1');
+    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
     localStorage.setItem(STORAGE_KEY, '{no es json');
     expect(cargarEstado().datosObra?.denominacion).toBe('Nave');
   });

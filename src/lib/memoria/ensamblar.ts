@@ -18,12 +18,12 @@
  *  2. Viento y nieve es OPCIONAL: sin sobre, la zona eólica y la velocidad
  *     salen de la provincia (Anejo D por provincia, con nota de frontera). Los
  *     otros tres sobres son obligatorios para su apartado: sin ellos, falta.
- *  3. Lo tomado de un sobre pasa a «revisar» si el sobre ha cambiado desde que
- *     se aceptó (`ts` distinto, no «más nuevo»: un sobre restaurado con fecha
- *     anterior también es otro sobre) o si la ficha cambió de provincia después
- *     de aceptarlo. Que el sobre sea de OTRA obra no bloquea solo —el cuadro de
- *     materiales no tiene emplazamiento propio y estampa el `concreta-obra`
- *     que hubiera— pero se dice, y el botón cambia de rótulo.
+ *  3. Ya no se «toma» nada: la ficha usa SIEMPRE lo último publicado. Lo que
+ *     un sobre tiene que demostrar es otra cosa: que alguien lo calculó para
+ *     esta obra (`configurado`) y que se calculó AQUÍ. Un sobre con los valores
+ *     de arranque del módulo es FALTA, y uno de otra provincia queda en ámbar
+ *     hasta que el usuario lo dé por bueno —la zona eólica de Granada no se
+ *     imprime en una memoria de Málaga por descuido—.
  *
  * Única excepción, documentada, a «lib/ no importa de features/»: los TIPOS
  * de las cuatro publicaciones, con `import type`, que se borra al compilar.
@@ -54,7 +54,7 @@ import {
   type MemoriaState,
   type ModuloPub,
   type PerfilEstudio,
-  type Tomada,
+  huellaSobre,
 } from './estado';
 import type { Obra } from '../obra';
 import { colaHuecos, mensajeBloqueo } from './huecos';
@@ -92,11 +92,30 @@ export function esDeOtroEmplazamiento(sobre: Publicacion<unknown> | null, ineSob
   return p !== null && p !== provinciaFicha;
 }
 
-/** La regla 3 de la cabecera. `obligatorio = false` es Viento y nieve: sin sobre no falta, se deriva. */
-export function estadoSobre(sobre: Publicacion<unknown> | null, tomada: Tomada | null, provinciaFicha: string, obligatorio: boolean): Estado {
+/**
+ * La regla 3 de la cabecera, en cuatro líneas:
+ *
+ *  - sin sobre: `falta` si el apartado lo necesita, `derivado` si es opcional
+ *    (Viento y nieve, que sin sobre sale de la provincia);
+ *  - con sobre SIN CONFIGURAR —los valores de arranque del módulo, su caso de
+ *    ejemplo—: `falta`. Un sobre que nadie ha mirado no es un dato de esta
+ *    obra;
+ *  - de OTRA PROVINCIA: `revisar`;
+ *  - configurado y del mismo sitio: `derivado`. Lo puso otro módulo, se
+ *    imprime y no se pregunta.
+ *
+ * Los dos casos intermedios los desbloquea lo MISMO: que el usuario lo dé por
+ * bueno explícitamente. En el de otra provincia eso es «es correcto, úsalo»; en
+ * el de los valores de partida es «son los de esta obra», que existe porque el
+ * cuadro de materiales arranca en HA-25 + B500SD + control estadístico, el caso
+ * español más corriente: obligar a fingir un cambio para desbloquear sería peor
+ * que no tener el control.
+ */
+export function estadoSobre(sobre: Publicacion<unknown> | null, aceptado: boolean, otroEmplazamiento: boolean, obligatorio: boolean): Estado {
   if (!sobre) return obligatorio ? 'falta' : 'derivado';
-  if (!tomada || tomada.ts !== sobre.ts || tomada.provinciaFicha !== provinciaFicha) return 'revisar';
-  return 'ok';
+  if (aceptado) return 'derivado';
+  if (sobre.configurado !== true) return 'falta';
+  return otroEmplazamiento ? 'revisar' : 'derivado';
 }
 
 // ── Lo que devuelve ─────────────────────────────────────────────────────────
@@ -341,14 +360,19 @@ export const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
 
 // ── Fuentes ─────────────────────────────────────────────────────────────────
 
-function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, tomada: Tomada | null, provinciaFicha: string, obligatorio: boolean, ineSobre?: string | null): Fuente {
-  const estado = estadoSobre(sobre, tomada, provinciaFicha, obligatorio);
+function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado: string | null, obra: Obra | null, obligatorio: boolean, ineSobre?: string | null): Fuente {
+  const provinciaFicha = obra?.provincia ?? '';
   const otroEmplazamiento = esDeOtroEmplazamiento(sobre, ineSobre, provinciaFicha);
-  const nota =
-    !sobre && !obligatorio
-      ? 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
-      : otroEmplazamiento
-        ? `Esta publicación se calculó en otro sitio (${sobre?.obra.municipio || sobre?.obra.provincia || `INE ${sobre?.obra.ine}`}).`
+  const vigente = sobre !== null && aceptado !== null && aceptado === huellaSobre(sobre, obra);
+  const estado = estadoSobre(sobre, vigente, otroEmplazamiento, obligatorio);
+  const nota = !sobre
+    ? obligatorio
+      ? undefined
+      : 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
+    : sobre.configurado !== true
+      ? `${ETIQUETA_DE[modulo]} sigue con sus valores de partida: ábralo y calcule los de esta obra.`
+      : otroEmplazamiento && !vigente
+        ? `Esta publicación se calculó en otro sitio (${sobre.obra.municipio || sobre.obra.provincia || `INE ${sobre.obra.ine}`}).`
         : undefined;
   return {
     modulo,
@@ -366,8 +390,12 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, tomada: T
   };
 }
 
-/** Sí cuando el sobre se puede usar para imprimir: existe y está aceptado tal cual. */
-const usable = (f: Fuente) => f.estado === 'ok';
+/**
+ * Sí cuando el sobre se puede imprimir: lo hay, está configurado y no queda
+ * ningún aviso pendiente. El `f.valor` es imprescindible: «sin sobre y
+ * opcional» también es `derivado`, y ahí no hay nada que imprimir.
+ */
+const usable = (f: Fuente) => f.valor && f.estado === 'derivado';
 
 // ── Apartados ───────────────────────────────────────────────────────────────
 
@@ -385,7 +413,10 @@ function viento(datos: Obra | null, f: Fuente, sobre: Publicacion<PubVientoNieve
   }
   const z = ZONAS_EOLICAS[p.zonaEolica];
   const lugar = datos?.municipio ? `${datos.municipio} (${p.nombre})` : provinciaNombre ?? p.nombre;
-  const nota = f.estado === 'revisar' ? 'Hay una publicación de Viento y nieve sin tomar: se usa la zona de la provincia.' : p.frontera?.eolica;
+  // Hay sobre pero no sirve —sin configurar, o de otra provincia sin dar por
+  // bueno—: se dice, porque si no el usuario ve la zona de la provincia y no
+  // entiende para qué calculó el módulo.
+  const nota = f.valor && !usable(f) ? 'Hay una publicación de Viento y nieve que no se usa: se toma la zona de la provincia.' : p.frontera?.eolica;
   return derivado({ lugar, zona: p.zonaEolica, vb: z.vb, qb: z.qb }, 'norma', nota);
 }
 
@@ -636,16 +667,16 @@ function fuego(datos: PubMateriales | null): FichaDatos['se']['fuego'] {
 }
 
 export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
-  const { obra, estudio, pubs } = s;
+  const { obra, estudio } = s;
   const datos = s.datosObra;
   const provinciaFicha = datos?.provincia ?? '';
   const provinciaNombre = provinciaFicha ? (provinciaPorIne(provinciaFicha)?.nombre ?? null) : null;
 
   const fuentes: Record<ModuloPub, Fuente> = {
-    materiales: fuente('materiales', sobres.materiales, pubs.materiales, provinciaFicha, true),
-    vientoNieve: fuente('vientoNieve', sobres.vientoNieve, pubs.vientoNieve, provinciaFicha, false),
-    cargasPlanta: fuente('cargasPlanta', sobres.cargasPlanta, pubs.cargasPlanta, provinciaFicha, true),
-    sismo: fuente('sismo', sobres.sismo, pubs.sismo, provinciaFicha, true, sobres.sismo?.datos.ine),
+    materiales: fuente('materiales', sobres.materiales, s.aceptados.materiales, datos, true),
+    vientoNieve: fuente('vientoNieve', sobres.vientoNieve, s.aceptados.vientoNieve, datos, false),
+    cargasPlanta: fuente('cargasPlanta', sobres.cargasPlanta, s.aceptados.cargasPlanta, datos, true),
+    sismo: fuente('sismo', sobres.sismo, s.aceptados.sismo, datos, true, sobres.sismo?.datos.ine),
   };
 
   const materiales = usable(fuentes.materiales) ? sobres.materiales : null;

@@ -10,13 +10,21 @@ import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as e
 import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
 import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as evaluarViento } from '../../features/viento-nieve/state';
 import { evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
-import { asegurarForjados, confirmar, estadoPorDefecto, teclear, tomarPublicacion, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
+import { aceptar, asegurarForjados, confirmar, estadoPorDefecto, MODULOS_PUB, teclear, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
 import type { Publicacion } from '../../lib/pub';
 
 export const TS = '2026-09-06T10:00:00.000Z';
 
+/**
+ * `configurado: true` a mano, y es importante: estos sobres se construyen con
+ * los `datosPublicacion` REALES de cada módulo pero SIN pasar por `publicar()`,
+ * que es quien estampa la marca. Y el de viento sale del CASO DE EJEMPLO
+ * (`ejemploVientoNieveState`, más abajo), que `publicar()` marcaría como no
+ * configurado. Aquí se afirma que el usuario lo hizo suyo, que es lo que
+ * supone el documento que estos tests congelan.
+ */
 export function sobre<T>(modulo: string, datos: T, obra: Partial<Publicacion<T>['obra']> = {}, ts = TS): Publicacion<T> {
-  return { v: 1, ts, modulo, obra: { municipio: null, provincia: null, ine: null, ...obra }, datos };
+  return { v: 1, ts, modulo, obra: { municipio: null, provincia: null, ine: null, ...obra }, configurado: true, datos };
 }
 
 export interface OpcionesSobres {
@@ -66,6 +74,17 @@ export const fichaGranadaConFabrica = (): MemoriaState => {
   return { ...s, obra: { ...s.obra, fabrica: { ...s.obra.fabrica, procede: true } } };
 };
 
+const OBRA_VACIA = { denominacion: '', uso: '', provincia: '', municipio: '', altitud: null };
+
+/** Los cinco ids que ya no son campos de la ficha, con su nombre en `Obra`. */
+const DATOS_OBRA: Record<string, 'denominacion' | 'uso' | 'provincia' | 'municipio' | 'altitud'> = {
+  'obra.denominacion': 'denominacion',
+  'obra.uso': 'uso',
+  'obra.provincia': 'provincia',
+  'obra.municipio': 'municipio',
+  'obra.altitud': 'altitud',
+};
+
 /** Lo que `completar` teclea en los campos que no admiten un texto cualquiera. */
 const VALORES: Record<string, unknown> = {
   'obra.fabrica.pieza': 'macizo',
@@ -74,12 +93,17 @@ const VALORES: Record<string, unknown> = {
   'obra.altitud': 680,
 };
 
-/** Acepta los sobres que haya tal como están. */
+/**
+ * Da por buenos los sobres que haya. Desde que se acabó el «tomar» sólo hace
+ * falta cuando el sobre es de OTRA provincia: con los de Granada sobre una
+ * ficha de Granada no cambia nada, y se conserva porque los tests de la ficha
+ * lo nombran y no se tocan.
+ */
 export function tomarTodo(s: MemoriaState, sobres: Sobres): MemoriaState {
   let t = s;
-  for (const m of ['materiales', 'vientoNieve', 'cargasPlanta', 'sismo'] as const) {
+  for (const m of MODULOS_PUB) {
     const so = sobres[m];
-    if (so) t = tomarPublicacion(t, m, so);
+    if (so) t = aceptar(t, m, so);
   }
   return t;
 }
@@ -93,13 +117,20 @@ export function completar(s0: MemoriaState, sobres: Sobres): MemoriaState {
   let s = asegurarForjados(s0, tipologiasDe(sobres.cargasPlanta));
   for (let vuelta = 0; vuelta < 80; vuelta++) {
     const ev = evaluar(s, sobres);
-    if (ev.listo) return s;
+    // No `ev.listo`: desde F4 eso significa «no quedan FALTAS», y `completar`
+    // tiene que dejar la ficha sin ningún hueco, también los ámbares.
+    if (ev.huecos.length === 0) return s;
     const h = ev.huecos[0];
     if (h.accion === 'usarPublicado') {
       const m = h.id.replace('pub.', '') as ModuloPub;
       const so = sobres[m];
-      if (!so) throw new Error(`no hay sobre que tomar para ${h.id}`);
-      s = tomarPublicacion(s, m, so);
+      if (!so) throw new Error(`no hay sobre que dar por bueno para ${h.id}`);
+      s = aceptar(s, m, so);
+    } else if (h.id in DATOS_OBRA) {
+      // Los cinco datos de la obra ya no son campos de la ficha: viven en
+      // `concreta-obra` y se teclean en su diálogo. Aquí se escriben donde les
+      // toca, no con `teclear`, que no los encontraría.
+      s = { ...s, datosObra: { ...(s.datosObra ?? OBRA_VACIA), [DATOS_OBRA[h.id]]: VALORES[h.id] ?? `dato de la obra (${h.id.split('.').pop()})` } };
     } else if (h.accion === 'confirmar') s = confirmar(s, h.id);
     else if (h.accion === 'teclear') s = teclear(s, h.id, h.id in VALORES ? VALORES[h.id] : `dato de la obra (${h.id.split('.').pop()})`);
     else throw new Error(`hueco sin salida: ${h.id} (${h.accion})`);
