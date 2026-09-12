@@ -1217,7 +1217,7 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Cons:** no es una casilla. Hay que decidir **qué imprime entonces la ficha**: si el apartado desaparece del documento, si sale con una línea que lo justifica, o si el que firma tiene que escribir por qué no procede. La opción de borrarlo callando es la peligrosa: una memoria sin el apartado de sismo no se distingue de una memoria a la que se le olvidó.
 
-**Context:** `estadoSobre()` en `src/lib/memoria/ensamblar.ts` es la tabla de verdad de cuatro líneas; `Estado` vive en `src/lib/memoria/model.ts` con sus dos predicados `pendiente()` y `bloquea()`. `FilaEstado` (`src/components/ui/FilaEstado.tsx`) **ya tiene pintado el estado «no procede»**, sin nadie que lo produzca. E17 pedía tres salidas por fila en los avisos, y ésta es la que falta.
+**Context:** `estadoSobre()` en `src/lib/memoria/ensamblar.ts` es la tabla de verdad de cuatro líneas; `Estado` vive en `src/lib/memoria/model.ts` con sus dos predicados `pendiente()` y `bloquea()`. Ojo: el estado «no procede» de `FilaEstado` **ya se produce**, pero sólo para los CAPÍTULOS que la ficha deduce del material elegido (acero, fábrica, madera: `apartados(datos)` decide `procede`). Lo que no existe es declararlo a mano para un MÓDULO, que es lo que pide R5. E17 pedía tres salidas por fila en los avisos, y ésta es la que falta.
 
 **Depends on / blocked by:** nada técnico; falta la decisión de producto sobre el documento.
 
@@ -1234,5 +1234,21 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Cons:** el cuadro del plano se quedará vacío en obras donde hoy sale relleno, y eso se leerá como una regresión hasta que se entienda que lo que salía era mentira. Hace falta decidir qué pinta el cuadro cuando el sobre no vale: hueco, raya, o una nota de que falta calcularlo.
 
 **Context:** `configurado` es opcional en `Publicacion<T>` (`src/lib/pub/index.ts`) y quinto parámetro posicional de `publicar()`; la coerción correcta es `!== true`, no `=== false`, porque los sobres viejos no lo traen. La guarda ya escrita que sirve de modelo está en `estadoSobre()` de `src/lib/memoria/ensamblar.ts`.
+
+**Depends on / blocked by:** nada.
+
+## La barra lateral dice «Sin obra» mientras el panel enseña el nombre de la obra
+
+**Status:** DETECTADO probando el panel en el navegador (2026-09-13). No arreglado porque hay que decidir qué nombre manda, y eso es producto.
+
+**What:** que el control de obra del Sidebar y la cabecera de `/obra` no puedan decir cosas distintas sobre la misma obra en la misma pantalla.
+
+**Why:** son dos nombres de dos sitios. El Sidebar pinta el nombre del PROYECTO (`useNombreObra()` → el `.concreta` activo en `CLAVE_PROYECTO_ACTIVO`), y el panel pinta la `denominacion` de la OBRA (`concreta-obra`). Quien rellena «Datos de la obra…» y todavía no ha usado «Guardar obra» ve su edificio nombrado arriba y un «Sin obra» a la izquierda. El rediseño no creó la duplicación —viene de que proyecto y obra son dos cosas— pero la puso a la vista al llevar la denominación a la cabecera del panel.
+
+**Pros:** se cierra la última pareja de datos duplicados que quedaba visible; era la queja original del usuario sobre «Datos de obra».
+
+**Cons:** hay que elegir, y las dos opciones tienen coste. Si manda la denominación de la obra, el Sidebar deja de nombrar el fichero que se está guardando, que es lo que ese menú maneja. Si manda el proyecto, hay que crear el proyecto al confirmar el diálogo de obra, y entonces «la obra se crea perezosamente» —que es lo que hoy documenta `ObraMenu.tsx` en su cabecera— deja de ser cierto.
+
+**Context:** `src/components/layout/ObraMenu.tsx:116` y `:345`; `src/lib/proyecto/useProyectoActivo.ts:23`; la cabecera del panel en `src/features/obra/index.tsx`. `rutaDeEntrada()` (`src/lib/obra/entrada.ts`) ya trata las DOS claves como «hay obra», así que el criterio de entrada no distingue: el que distingue es el rótulo.
 
 **Depends on / blocked by:** nada.
