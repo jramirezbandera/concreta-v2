@@ -404,25 +404,47 @@ export function aceptar(s: MemoriaState, modulo: ModuloPub, sobre: { datos: unkn
 }
 
 /** Todo lo que sea un `Campo` bajo el nodo pasa a heredado. */
-function heredarTodo<T>(nodo: T): T {
+function heredar<T>(nodo: T): T {
   if (esCampo(nodo)) return { ...nodo, origen: 'heredado' } as T;
   if (typeof nodo !== 'object' || nodo === null) return nodo;
-  if (Array.isArray(nodo)) return nodo.map(heredarTodo) as T;
-  return Object.fromEntries(Object.entries(nodo as Record<string, unknown>).map(([k, v]) => [k, heredarTodo(v)])) as T;
+  if (Array.isArray(nodo)) return nodo.map(heredar) as T;
+  return Object.fromEntries(Object.entries(nodo as Record<string, unknown>).map(([k, v]) => [k, heredar(v)])) as T;
 }
 
 /**
- * «Nueva obra»: el estudio pasa limpio y sin preguntas; cada dato de la ficha
- * se conserva pero en HEREDADO. Lo dado por bueno pese a venir de otro sitio
- * se olvida: en otra obra hay que volver a mirarlo. No toca
- * `concreta-obra` —los cinco datos los pide el diálogo de obra— ni las
- * publicaciones de los otros módulos: eso es de ellos.
+ * La ficha de esta obra, preparada para partir de ella en otra.
+ *
+ * Hasta 2026-09-12 «Nueva obra» heredaba TODO en ámbar, y eso convertía la
+ * obra nueva en un campo de minas: cuarenta datos por confirmar, de los cuales
+ * treinta y cinco eran los mismos de siempre. Ahora cada obra nace limpia —lo
+ * hace el menú de obra— y esto es lo otro: duplicar a propósito.
+ *
+ * Sólo se marca en ámbar lo que CAMBIA de obra a obra y se imprime tal cual:
+ *
+ *  - la geotecnia entera (es de otro solar);
+ *  - la descripción del sistema estructural y las juntas;
+ *  - la cimentación y las contenciones, que describen ESTE edificio.
+ *
+ * Lo demás —sobrecarga en el terreno, la fábrica, los residuales de forjado—
+ * son criterios del despacho o se derivan de lo publicado, y volver a pedirlos
+ * es la fatiga de confirmar que el reparto de las dos capas existe para evitar.
+ *
+ * Lo dado por bueno pese a venir de otro sitio se olvida: en otra obra hay que
+ * volver a mirarlo. No toca `concreta-obra` —los cinco datos los pide el
+ * diálogo— ni las publicaciones de los otros módulos: eso es de ellos.
  */
-export function nuevaObra(s: MemoriaState): MemoriaState {
-  const obra = heredarTodo(s.obra);
+export function duplicarFicha(s: MemoriaState): MemoriaState {
+  const o = s.obra;
   return {
     ...s,
-    obra: { ...obra, fabrica: { ...obra.fabrica, procede: s.obra.fabrica.procede } },
+    obra: {
+      ...o,
+      descripcionSistema: heredar(o.descripcionSistema),
+      juntas: heredar(o.juntas),
+      geotecnia: heredar(o.geotecnia),
+      cimentacion: heredar(o.cimentacion),
+      contenciones: heredar(o.contenciones),
+    },
     aceptados: sinAceptar(),
   };
 }

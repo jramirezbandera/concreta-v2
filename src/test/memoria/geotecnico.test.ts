@@ -10,7 +10,7 @@ import { leerSobres } from '../../features/memoria-dbse/sobres';
 import { textoDeItems } from '../../lib/ai/pdfPrep';
 import { exceedsAnthropicUnionLimit, toAnthropicSchema, toOpenAiSchema } from '../../lib/ai/providers/schemaConvert';
 import { evaluar } from '../../lib/memoria/ensamblar';
-import { confirmar, estadoPorDefecto, GEOTECNIA_CAMPOS, normalizar, nuevaObra, proponer, teclear } from '../../lib/memoria/estado';
+import { confirmar, estadoPorDefecto, GEOTECNIA_CAMPOS, normalizar, duplicarFicha, proponer, teclear } from '../../lib/memoria/estado';
 import {
   aplicarExtraccion,
   CLAVES_GEOTECNICO,
@@ -173,7 +173,7 @@ describe('al estado', () => {
   });
 
   it('lo heredado de la obra anterior sí se pisa: el informe nuevo manda', () => {
-    const s0 = nuevaObra(teclear(estadoPorDefecto(null), 'obra.geotecnia.balasto', 'el de la obra anterior'));
+    const s0 = duplicarFicha(teclear(estadoPorDefecto(null), 'obra.geotecnia.balasto', 'el de la obra anterior'));
     expect(s0.obra.geotecnia.balasto.origen).toBe('heredado');
     const r = aplicarExtraccion(s0, ex(), 'GT-3663.pdf');
     expect(r.rellenados.map((d) => d.clave)).toContain('balasto');

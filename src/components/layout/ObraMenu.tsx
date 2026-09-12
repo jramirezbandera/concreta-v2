@@ -13,7 +13,7 @@
 // los esquemas contra la versión vieja.
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { ChevronDown, Download, FilePlus2, Folder, MapPin, Save, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Copy, Download, FilePlus2, Folder, MapPin, Save, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { getModuleByKey } from '../../data/moduleRegistry';
 import {
   borrar,
@@ -40,6 +40,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { showToast } from '../ui/Toast';
 import { DialogoNombre } from './DialogoNombre';
 import { DialogoObra } from './DialogoObra';
+import { prepararDuplicado } from '../../features/memoria-dbse/state';
 import { guardarObra, leerObra, type Obra } from '../../lib/obra';
 
 type Origen = 'reciente' | 'fichero' | 'nueva';
@@ -211,6 +212,39 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
     });
   };
 
+  /**
+   * Partir de esta obra para la siguiente. Cada obra nace limpia —eso lo hace
+   * «Nueva obra»—, así que duplicar es un acto aparte y explícito.
+   *
+   * El orden importa: se guarda ANTES la obra original, de modo que lo que se
+   * marca en ámbar a continuación ya no puede tocarla. Lo que se conserva son
+   * los cálculos de los módulos; lo que cambia de solar a solar —geotecnia,
+   * descripción de la estructura, juntas, cimentación y contenciones— queda en
+   * ámbar para que nada del edificio anterior llegue al documento sin pasar
+   * por las manos de alguien.
+   */
+  const duplicar = () => {
+    cerrar();
+    if (pestanaDesfasada()) return avisarDesfasada();
+    setDialogo({
+      tipo: 'obra',
+      titulo: 'Duplicar esta obra',
+      texto: 'Se guarda la obra abierta y se abre una copia. Los cálculos se conservan; lo que cambia de solar a solar queda en ámbar.',
+      confirmar: 'Duplicar y abrir',
+      inicial: { ...(leerObra() ?? { denominacion: '', uso: '', provincia: '', municipio: '', altitud: null }), denominacion: '' },
+      alConfirmar: (obra) => {
+        cerrarDialogo();
+        if (proyectoActivo() !== null && !guardarActual()) return avisarGuardado(null);
+        if (!prepararDuplicado()) return avisarGuardado(null);
+        guardarObra(obra);
+        const copia = guardarComoNueva(obra.denominacion);
+        if (!copia) return avisarGuardado(null);
+        showToast(`Duplicada: ${copia.nombre}`, { autoDismiss: 3500 });
+        recargar();
+      },
+    });
+  };
+
   const guardar = () => {
     cerrar();
     if (pestanaDesfasada()) return avisarDesfasada();
@@ -329,6 +363,9 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
           </Item>
           <Item icon={MapPin} onClick={datosDeLaObra}>
             Datos de la obra…
+          </Item>
+          <Item icon={Copy} onClick={duplicar} disabled={desfasada} title={desfasada ? 'Esta pestaña muestra otra obra: recárgala antes' : 'Partir de esta obra para la siguiente'}>
+            Duplicar esta obra…
           </Item>
           <Item
             icon={Save}

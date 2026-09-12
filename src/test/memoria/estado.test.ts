@@ -14,7 +14,7 @@ import {
   estadoPorDefecto,
   leerCampo,
   normalizar,
-  nuevaObra,
+  duplicarFicha,
   teclear,
   aceptar,
 } from '../../lib/memoria/estado';
@@ -86,19 +86,32 @@ describe('confirmar y teclear por ruta', () => {
   });
 });
 
-describe('Nueva obra', () => {
-  it('el estudio sigue igual, la ficha queda heredada y lo dado por bueno se olvida', () => {
+describe('duplicar la ficha', () => {
+  it('marca en ámbar lo que cambia de solar a solar, y SÓLO eso', () => {
     let s = teclear(conObra(), 'obra.geotecnia.empresa', 'Geotecnia SL');
+    s = teclear(s, 'obra.sobrecargaTerreno', 12);
     s = aceptar(s, 'sismo', { datos: { ab: 0.23 } });
     s = { ...s, obra: { ...s.obra, fabrica: { ...s.obra.fabrica, procede: true } } };
-    const n = nuevaObra(s);
-    expect(n.estudio).toBe(s.estudio);
-    // Los cinco datos no son suyos: los pide el diálogo de obra, y «Nueva
-    // obra» del menú abre otra con los suyos propios.
-    expect(n.datosObra).toBe(s.datosObra);
+
+    const n = duplicarFicha(s);
+
+    // Lo del solar y lo de ESTE edificio: en ámbar.
     expect(n.obra.geotecnia.empresa).toEqual(campo('Geotecnia SL', 'heredado'));
     expect(n.obra.juntas.existen.origen).toBe('heredado');
+    expect(n.obra.descripcionSistema.origen).toBe('heredado');
+    expect(n.obra.cimentacion.material.origen).toBe('heredado');
+    expect(n.obra.contenciones.existen.origen).toBe('heredado');
+
+    // Los criterios del despacho NO se vuelven a preguntar: heredar todo era
+    // convertir la obra nueva en cuarenta confirmaciones, treinta y cinco de
+    // ellas las mismas de siempre.
+    expect(n.obra.sobrecargaTerreno).toEqual(campo(12));
+    expect(n.obra.fabrica.categoriaControl.origen).toBe('heredado'); // ya lo era
     expect(n.obra.fabrica.procede).toBe(true);
+
+    expect(n.estudio).toBe(s.estudio);
+    expect(n.datosObra).toBe(s.datosObra);
+    // Lo dado por bueno pese a venir de otro sitio se olvida.
     expect(n.aceptados.sismo).toBeNull();
     expect(n.ayuda).toBe(true);
   });

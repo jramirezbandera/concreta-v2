@@ -13,7 +13,7 @@
  */
 
 import { CLAVE_ESTUDIO, versionViva } from '../../data/proyectoKeys';
-import { diferenciasDePerfil, estadoPorDefecto, normalizar, normalizarEstudio, perfilEstudioPorDefecto, perfilGuardado, type MemoriaState, type PerfilEstudio } from '../../lib/memoria/estado';
+import { diferenciasDePerfil, duplicarFicha, estadoPorDefecto, normalizar, normalizarEstudio, perfilEstudioPorDefecto, perfilGuardado, type MemoriaState, type PerfilEstudio } from '../../lib/memoria/estado';
 import { leerObra } from '../../lib/obra';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
@@ -70,6 +70,24 @@ export function cargarEstado(): MemoriaState {
 }
 
 /**
+ * Deja la ficha VIVA preparada para partir de ella en otra obra: lo que cambia
+ * de solar a solar queda en ámbar. La usa «Duplicar esta obra» del menú, que
+ * guarda antes la obra original, así que esto no pisa nada.
+ *
+ * Devuelve `false` si el almacenamiento no admitió la escritura.
+ */
+export function prepararDuplicado(): boolean {
+  try {
+    const bruto = leerClave(STORAGE_KEY);
+    if (bruto === null) return true; // no hay ficha que duplicar; el resto sigue
+    const estado = normalizar(JSON.parse(bruto), leerObra(), leerPerfilEstudio() ?? undefined);
+    return escribirClave(STORAGE_KEY, JSON.stringify(duplicarFicha(estado)));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Adopta como perfil del despacho el que traía esta obra. Para cuando el
  * fichero llega de quien tiene el perfil bueno y el de aquí es el colegial.
  */
@@ -118,7 +136,7 @@ export {
   asegurarForjados,
   confirmar,
   leerCampo,
-  nuevaObra,
+  duplicarFicha,
   teclear,
   aceptar,
 } from '../../lib/memoria/estado';

@@ -14,6 +14,8 @@ import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { showToast } from '../../components/ui/Toast';
 import { CLAVE_PROYECTO_ACTIVO } from '../../data/proyectoKeys';
 import { leerObra } from '../../lib/obra';
+import { cargarEstado, guardarEstado } from '../../features/memoria-dbse/state';
+import { teclear } from '../../lib/memoria/estado';
 import {
   _reiniciarProyectoParaTests,
   cargar,
@@ -174,6 +176,46 @@ describe('ObraMenu', () => {
       expect(screen.queryByLabelText('Altitud')).toBeNull();
       await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     }
+  });
+
+  it('Duplicar guarda la original intacta y abre una copia con el solar en ámbar', async () => {
+    const user = userEvent.setup();
+    montar();
+
+    // Una obra con la ficha rellena: la geotecnia confirmada y la sobrecarga
+    // en el terreno tecleada.
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+    await rellenarObra(user, 'Nave A', '18');
+    await user.click(screen.getByRole('button', { name: 'Crear y abrir' }));
+    await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
+
+    let ficha = teclear(cargarEstado(), 'obra.geotecnia.empresa', 'Geotecnia SL');
+    ficha = teclear(ficha, 'obra.sobrecargaTerreno', 12);
+    guardarEstado(ficha);
+
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /duplicar esta obra/i }));
+    await rellenarObra(user, 'Nave B', '18');
+    await user.click(screen.getByRole('button', { name: 'Duplicar y abrir' }));
+    await waitFor(() => expect(recargar).toHaveBeenCalledTimes(2));
+
+    // Dos obras, y la nueva es la activa.
+    const nombres = listar().map((e) => e.nombre).sort();
+    expect(nombres).toEqual(['Nave A', 'Nave B']);
+    expect(listar().find((e) => e.id === proyectoActivo())?.nombre).toBe('Nave B');
+
+    // La original, intacta: su geotecnia sigue confirmada.
+    const a = listar().find((e) => e.nombre === 'Nave A')!;
+    const fichaA = JSON.parse(cargar(a.id)!.claves['concreta-memoria-dbse-model']) as { obra: { geotecnia: { empresa: { origen: string } } } };
+    expect(fichaA.obra.geotecnia.empresa.origen).toBe('tecleado');
+
+    // La copia: el solar en ámbar, los criterios del despacho tal cual.
+    const copia = cargarEstado();
+    expect(copia.obra.geotecnia.empresa.valor).toBe('Geotecnia SL');
+    expect(copia.obra.geotecnia.empresa.origen).toBe('heredado');
+    expect(copia.obra.sobrecargaTerreno.origen).toBe('tecleado');
+    expect(leerObra()?.denominacion).toBe('Nave B');
   });
 
   it('Guardar sin obra pide el nombre y la crea; con obra, guarda sin preguntar', async () => {

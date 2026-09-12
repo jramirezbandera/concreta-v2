@@ -39,7 +39,7 @@ import { adaptadorDe } from '../../lib/anejo/modules';
 import type { ResultadoExport } from '../../lib/export/descargar';
 import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib/export/filename';
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
-import { aceptar, asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
+import { aceptar, asegurarForjados, confirmar, MODULOS_PUB, teclear, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
 import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha';
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
@@ -53,7 +53,7 @@ import { Seccion } from './Seccion';
 import { SeccionCE, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
 import { leerSobres, type Sobres } from './sobres';
 import { cargarEstado, guardarEstado } from './state';
-import { BOTON_ACENTO, BOTON_MENOR } from './estilos';
+import { BOTON_ACENTO } from './estilos';
 
 const ANEJO = adaptadorDe('concreta-memoria-dbse');
 
@@ -99,7 +99,6 @@ export function MemoriaDBSEModule() {
   const [sobres, setSobres] = useState<Sobres>(leerSobres);
   const [obraGuardada, setObraGuardada] = useState(leerObra);
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(ABIERTAS_AL_ARRANCAR);
-  const [nuevaObraAbierta, setNuevaObraAbierta] = useState(false);
   const [obraAbierta, setObraAbierta] = useState(false);
   const [faltasAbierto, setFaltasAbierto] = useState(false);
   const [avisoAbierto, setAvisoAbierto] = useState(false);
@@ -384,9 +383,6 @@ export function MemoriaDBSEModule() {
       >
         Ayuda {ayuda ? '✓' : ''}
       </button>
-      <button type="button" onClick={() => setNuevaObraAbierta(true)} className={BOTON_MENOR} title="Empezar otra obra conservando el perfil de estudio">
-        Nueva obra
-      </button>
     </>
   );
 
@@ -422,21 +418,6 @@ export function MemoriaDBSEModule() {
           <LeyendaEstados />
         </div>
       </div>
-
-      {nuevaObraAbierta && (
-        <ConfirmDialog
-          title="Nueva obra"
-          confirmLabel="Empezar la obra nueva"
-          onConfirm={() => {
-            actualizar((p) => nuevaObra(p));
-            setAbiertas(ABIERTAS_AL_ARRANCAR);
-            setNuevaObraAbierta(false);
-          }}
-          onCancel={() => setNuevaObraAbierta(false)}
-        >
-          <p>Se conserva el perfil del estudio. Los datos de esta obra quedan en ámbar hasta que los confirme o los cambie, y las publicaciones de los otros módulos habrá que volver a tomarlas: así ningún dato de la obra anterior llega al documento sin pasar por sus manos.</p>
-        </ConfirmDialog>
-      )}
 
       {faltasAbierto && (
         <ConfirmDialog

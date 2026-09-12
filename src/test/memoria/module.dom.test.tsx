@@ -7,7 +7,7 @@
  *      enseña la frase del viento con la zona;
  *   3. «Siguiente hueco» lleva el foco al primer hueco, y Enter en un dato
  *      heredado lo confirma;
- *   4. «Nueva obra» deja la ficha en ámbar sin tocar los datos de la obra;
+ *   4. la ficha ya no tiene su propio «Nueva obra»;
  *   5. la sección de acero aparece cuando el cuadro de materiales lo publica;
  *   6. con la ficha completa, Word y PDF llaman a su exportador con los
  *      bloques de la ficha, que empiezan por «3.1. Seguridad estructural»;
@@ -190,22 +190,13 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     expect(screen.queryByText(/Sobrecarga en el terreno \(kN\/m²\)/)).toBeNull();
   });
 
-  it('«Nueva obra» deja la ficha en ámbar y no toca los datos de la obra', async () => {
+  it('la ficha ya no tiene su propio «Nueva obra»: la obra la crea su menú', () => {
     obraGranada();
     montar();
-    const barra = screen.getByText('¿Qué obra es?').parentElement!;
-    expect(barra.textContent).toContain('Edificio en Granada');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva obra' }));
-    const dialogo = await screen.findByRole('dialog');
-    fireEvent.click(within(dialogo).getByRole('button', { name: 'Empezar la obra nueva' }));
-
-    // Lo de la FICHA queda heredado: el contador pasa a tener «por confirmar».
-    await waitFor(() => expect(barra.textContent).toMatch(/\d+ por confirmar/));
-    // ...y los cinco datos de la obra siguen donde estaban: no son suyos, se
-    // cambian en el menú de obra, que es quien abre otra obra de verdad.
-    expect(barra.textContent).toContain('Edificio en Granada');
-    expect(leerObra()?.denominacion).toBe('Edificio en Granada');
+    // Había DOS «nueva obra» que hacían cosas distintas: la del menú abría un
+    // proyecto en blanco y ésta dejaba la ficha entera en ámbar sin tocar nada
+    // más. Queda la del menú, y duplicar es un acto aparte y explícito.
+    expect(screen.queryByRole('button', { name: 'Nueva obra' })).toBeNull();
   });
 
   it('la sección de acero aparece cuando el cuadro de materiales lo publica', async () => {
