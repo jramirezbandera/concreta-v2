@@ -5,7 +5,6 @@ import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import {
-  APP_ROUTE,
   BETA,
   BETA_CTA,
   BETA_LINE,
@@ -15,6 +14,7 @@ import {
   planBadge,
   sectionEyebrow,
 } from './landing/constants';
+import { rutaDeEntrada } from '../lib/obra/entrada';
 import './marketing.css';
 import './subpage.css';
 
@@ -165,7 +165,7 @@ export function Pricing() {
               <p className="beta-banner-text">
                 <strong>Ahora mismo no se cobra nada.</strong> {BETA_LINE}
               </p>
-              <Link to={APP_ROUTE} className="btn btn-primary">
+              <Link to={rutaDeEntrada()} className="btn btn-primary">
                 {BETA_CTA} <span className="arr">→</span>
               </Link>
             </div>

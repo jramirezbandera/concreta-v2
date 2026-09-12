@@ -12,7 +12,8 @@
 // check still cites its article.
 
 import { Link } from 'react-router';
-import { APP_ROUTE, sectionEyebrow } from '../../constants';
+import { sectionEyebrow } from '../../constants';
+import { rutaDeEntrada } from '../../../../lib/obra/entrada';
 import { AssistantPreview } from './AssistantPreview';
 import './assistant.css';
 
@@ -71,7 +72,7 @@ export function AssistantSection() {
               uno, con el valor actual y el propuesto. Nada se aplica hasta que
               tú pulsas.
             </span>
-            <Link to={APP_ROUTE} className="link-arrow">
+            <Link to={rutaDeEntrada()} className="link-arrow">
               Probarlo en vigas HA →
             </Link>
           </figcaption>

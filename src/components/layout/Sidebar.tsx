@@ -14,6 +14,7 @@ const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
  * contenedor; el anejo ordena lo guardado desde los módulos y monta el PDF).
  */
 const PROYECTO = [
+  { key: 'concreta-obra', route: '/obra', label: 'La obra', shipped: true },
   { key: 'concreta-anejo', route: '/proyecto/anejo', label: 'Anejo de cálculo', shipped: true },
 ] as const;
 

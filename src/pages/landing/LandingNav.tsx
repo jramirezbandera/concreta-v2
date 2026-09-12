@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { APP_ROUTE, BETA, BETA_CTA } from './constants';
+import { BETA, BETA_CTA } from './constants';
+import { rutaDeEntrada } from '../../lib/obra/entrada';
 import { ThemeToggle } from '../../components/theme/ThemeToggle';
 
 interface NavLink {
@@ -64,7 +65,7 @@ export function LandingNav() {
               opens a price table, and no button on this site should promise
               more than its destination does. */}
           <Link to="/pricing" className="btn btn-ghost">Ver precios</Link>
-          <Link to={APP_ROUTE} className="btn btn-primary">
+          <Link to={rutaDeEntrada()} className="btn btn-primary">
             {BETA ? BETA_CTA : 'Acceder'} <span className="arr">→</span>
           </Link>
         </div>
@@ -106,7 +107,7 @@ export function LandingNav() {
           <div className="nav-mobile-actions">
             <ThemeToggle />
             <Link to="/pricing" className="btn btn-ghost">Ver precios</Link>
-            <Link to={APP_ROUTE} className="btn btn-primary">
+            <Link to={rutaDeEntrada()} className="btn btn-primary">
               {BETA ? BETA_CTA : 'Acceder'} <span className="arr">→</span>
             </Link>
           </div>

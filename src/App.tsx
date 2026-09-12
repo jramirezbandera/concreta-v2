@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-rou
 import { HelmetProvider } from 'react-helmet-async';
 import { AppShell } from './components/layout/AppShell';
 import { Landing } from './pages/Landing';
+import { rutaDeEntrada } from './lib/obra/entrada';
 import { RouteFallback } from './components/layout/RouteFallback';
 import { RouteHelmet } from './components/layout/RouteHelmet';
 import { RouteProgressBar } from './components/layout/RouteProgressBar';
@@ -78,6 +79,10 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          {
+            path: 'obra',
+            lazy: lazyComponent(() => import('./features/obra'), 'ObraModule'),
+          },
           {
             path: 'proyecto/anejo',
             lazy: lazyComponent(() => import('./features/anejo'), 'AnejoModule'),
@@ -193,7 +198,10 @@ const router = createBrowserRouter([
 
       // Catch-all redirect. Hoisted out of AppShell children so a 404 doesn't
       // bootstrap the entire sidebar tree just to redirect.
-      { path: '*', element: <Navigate to="/horm/vigas" replace /> },
+      // Adónde cae una URL desconocida. No es la entrada de la app —`start_url`
+      // es `/`, que pinta la landing— pero tiene que aterrizar donde lo haría
+      // el usuario: en su obra si la hay.
+      { path: '*', element: <Navigate to={rutaDeEntrada()} replace /> },
     ],
   },
 ]);

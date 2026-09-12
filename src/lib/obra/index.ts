@@ -70,11 +70,6 @@ export function leerObra(): Obra | null {
 }
 
 /**
- * Sustituye la obra entera, sin fundir con la anterior. Es lo que hace el
- * contenedor de proyectos al desplegar un `ProyectoFile`: la obra vive en la
- * raíz del fichero y aquí sólo se reconstruye.
- */
-/**
  * ¿Son la misma obra, campo a campo? `leerObra()` construye un objeto nuevo en
  * cada llamada, así que comparar por identidad da siempre `false`: quien
  * refleje la obra en otro sitio necesita comparar por valor para no repintar.
@@ -90,18 +85,67 @@ export function mismaObra(a: Obra | null, b: Obra | null): boolean {
   );
 }
 
+/**
+ * Sustituye la obra entera, sin fundir con la anterior. Es lo que hace el
+ * contenedor de proyectos al desplegar un `ProyectoFile`: la obra vive en la
+ * raíz del fichero y aquí sólo se reconstruye.
+ */
 export function reemplazarObra(obra: Obra): boolean {
-  return escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra: normalizarObra(obra) }));
+  const ok = escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra: normalizarObra(obra) }));
+  avisarObra();
+  return ok;
 }
 
 /** Funde el cambio con lo guardado y lo escribe. Devuelve la obra resultante. */
 export function guardarObra(cambio: Partial<Obra>): Obra {
   const obra = { ...(leerObra() ?? obraVacia()), ...cambio };
   escribirClave(OBRA_KEY, JSON.stringify({ v: OBRA_VERSION, obra }));
+  avisarObra();
   return obra;
 }
 
 /** Sí cuando la obra tiene al menos provincia o municipio: algo que heredar. */
 export function obraConEmplazamiento(obra: Obra | null): obra is Obra {
   return obra !== null && (obra.provincia !== '' || obra.municipio !== '');
+}
+
+// ── El store ────────────────────────────────────────────────────────────────
+//
+// Quien enseñe la obra en pantalla necesita enterarse de que ha cambiado: el
+// diálogo de obra, el menú, otra pestaña. Hasta 2026-09-12 la ficha DB SE lo
+// hacía a mano con `focus` y `storage`, y el evento `storage` NO se dispara en
+// la pestaña que escribe: cambiar la obra desde el diálogo no repintaba nada
+// hasta cambiar de ventana y volver.
+//
+// Mismo patrón que `lib/anejo`: oyentes locales + `storage` para las otras
+// pestañas, y una instantánea con identidad estable, que es lo que
+// `useSyncExternalStore` exige para no entrar en bucle de render.
+
+const oyentes = new Set<() => void>();
+
+function avisarObra(): void {
+  for (const fn of oyentes) fn();
+}
+
+export function suscribirObra(fn: () => void): () => void {
+  oyentes.add(fn);
+  // `key: null` es el `clear()` del cambio de obra.
+  const otraPestana = (e: StorageEvent) => {
+    if (e.key === null || e.key === OBRA_KEY) fn();
+  };
+  window.addEventListener('storage', otraPestana);
+  return () => {
+    oyentes.delete(fn);
+    window.removeEventListener('storage', otraPestana);
+  };
+}
+
+let instantanea: { raw: string | null; valor: Obra | null } | null = null;
+
+/** `leerObra()` con identidad estable mientras la obra guardada no cambie. */
+export function instantaneaObra(): Obra | null {
+  const raw = leerClave(OBRA_KEY);
+  if (instantanea && instantanea.raw === raw) return instantanea.valor;
+  instantanea = { raw, valor: leerObra() };
+  return instantanea.valor;
 }

@@ -9,7 +9,8 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { APP_ROUTE, BETA, BETA_CTA, BETA_LINE, BETA_TAG } from '../../constants';
+import { BETA, BETA_CTA, BETA_LINE, BETA_TAG } from '../../constants';
+import { rutaDeEntrada } from '../../../../lib/obra/entrada';
 import { MODULE_LIBRARY } from '../../modules';
 import { HERO_SLIDES } from '../../heroCase';
 import { HERO_CANVASES } from './canvases';
@@ -49,7 +50,7 @@ function HeroCTAs() {
   return (
     <div className="hero-actions">
       <div className="hero-cta">
-        <Link to={APP_ROUTE} className="btn btn-primary btn-lg">
+        <Link to={rutaDeEntrada()} className="btn btn-primary btn-lg">
           {BETA ? BETA_CTA : 'Abrir Concreta'} <span className="arr">→</span>
         </Link>
         <Link to="/#modulos" className="btn btn-lg">Ver módulos</Link>

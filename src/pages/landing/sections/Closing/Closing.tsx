@@ -1,7 +1,8 @@
 // Closing.tsx — final CTA card at the bottom of the landing page.
 
 import { Link } from 'react-router';
-import { APP_ROUTE, BETA, BETA_CTA } from '../../constants';
+import { BETA, BETA_CTA } from '../../constants';
+import { rutaDeEntrada } from '../../../../lib/obra/entrada';
 import './closing.css';
 
 export function ClosingCTA() {
@@ -19,7 +20,7 @@ export function ClosingCTA() {
               : 'El plan Libre trae vigas de hormigón, vigas de acero, pórticos 2D y el asistente, sin tarjeta de crédito. El PDF del anejo va en Pro, a 19 €/mes.'}
           </p>
           <div className="closing-cta">
-            <Link to={APP_ROUTE} className="btn btn-primary btn-lg">
+            <Link to={rutaDeEntrada()} className="btn btn-primary btn-lg">
               {BETA ? BETA_CTA : 'Abrir Concreta'} <span className="arr">→</span>
             </Link>
             <Link to="/pricing" className="btn btn-lg">Ver precios</Link>

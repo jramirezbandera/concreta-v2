@@ -102,7 +102,9 @@ export function publicar<T>(
     configurado,
     datos,
   };
-  return escribirClave(clavePublicacion(modulo), JSON.stringify(sobre)) ? sobre : null;
+  if (!escribirClave(clavePublicacion(modulo), JSON.stringify(sobre))) return null;
+  marcarCambio();
+  return sobre;
 }
 
 /**
@@ -124,4 +126,44 @@ export function leerPublicacion<T>(modulo: string, v?: number): Publicacion<T> |
 
 export function retirarPublicacion(modulo: string): void {
   borrarClave(clavePublicacion(modulo));
+  marcarCambio();
+}
+
+// ── El store ────────────────────────────────────────────────────────────────
+//
+// Un consumidor que enseña lo publicado tiene que enterarse de que ha cambiado
+// sin recargar: se publica desde OTRA ruta de la app —el usuario va al módulo
+// de sismo, calcula y vuelve—, y el evento `storage` no se dispara en la
+// pestaña que escribe. Mismo patrón que `lib/anejo`, y por las mismas razones.
+
+const oyentes = new Set<() => void>();
+
+export function suscribirPubs(fn: () => void): () => void {
+  oyentes.add(fn);
+  // `key: null` es el `clear()` del cambio de obra.
+  const otraPestana = (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith(PREFIJO_PUB)) fn();
+  };
+  window.addEventListener('storage', otraPestana);
+  return () => {
+    oyentes.delete(fn);
+    window.removeEventListener('storage', otraPestana);
+  };
+}
+
+/**
+ * Una marca que cambia cuando cambia CUALQUIER sobre. No es el contenido: cada
+ * consumidor lee los suyos con `leerPublicacion`, que ya sabe qué versiones
+ * quiere. Lo que `useSyncExternalStore` necesita es un valor estable que se
+ * mueva cuando haya que repintar, y eso es esto.
+ */
+export function versionDePubs(): number {
+  return version;
+}
+
+let version = 0;
+
+function marcarCambio(): void {
+  version += 1;
+  for (const fn of oyentes) fn();
 }

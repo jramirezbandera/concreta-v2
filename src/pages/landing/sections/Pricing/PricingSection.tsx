@@ -10,7 +10,6 @@
 
 import { Link } from 'react-router';
 import {
-  APP_ROUTE,
   BETA,
   BETA_CTA,
   BETA_LINE,
@@ -19,6 +18,7 @@ import {
   planBadge,
   sectionEyebrow,
 } from '../../constants';
+import { rutaDeEntrada } from '../../../../lib/obra/entrada';
 import './pricing-section.css';
 
 export function PricingSection() {
@@ -43,7 +43,7 @@ export function PricingSection() {
             <p className="beta-banner-text">
               <strong>Ahora mismo no se cobra nada.</strong> {BETA_LINE}
             </p>
-            <Link to={APP_ROUTE} className="btn btn-primary">
+            <Link to={rutaDeEntrada()} className="btn btn-primary">
               {BETA_CTA} <span className="arr">→</span>
             </Link>
           </div>

@@ -107,6 +107,11 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Viento y nieve — Concreta · DB SE-AE',
     description: 'Acción del viento por planta (presión dinámica por zona, coeficiente de exposición del Anejo D, coeficientes eólicos de la tabla 3.5) y carga de nieve por faldón (zona de clima invernal, altitud, coeficiente de forma, acumulación) según el CTE DB SE-AE.',
   },
+  '/obra': {
+    title: 'La obra — Concreta',
+    description:
+      'El estado de la obra de un vistazo: qué falta para poder exportar la justificación del DB SE, qué se ha calculado en cada módulo y qué hay guardado en el anejo de cálculo.',
+  },
   '/proyecto/anejo': {
     title: 'Anejo de cálculo — Concreta',
     description: 'El anejo de cálculo de la obra en un solo PDF: portada, índice verificado y los cálculos guardados desde cada módulo, ordenados y con numeración continua.',
