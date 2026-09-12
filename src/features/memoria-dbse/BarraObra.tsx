@@ -12,7 +12,7 @@
  * mismo diálogo: no hay otro sitio donde escribirlos.
  */
 
-import type { KeyboardEventHandler, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import type { FichaDatos } from '../../lib/memoria/ensamblar';
 import { HUECO } from '../../components/ui/estados';
@@ -26,12 +26,6 @@ interface Props {
   ayuda: boolean;
   /** Abre el diálogo de los cinco datos. */
   onEditar: () => void;
-  /**
-   * El Enter de la ficha. Estos cinco siguen siendo huecos —«Siguiente hueco»
-   * aterriza en ellos—, pero ya no se editan aquí: el Enter sólo pasa de largo
-   * al siguiente, que sin este manejador se quedaría atascado.
-   */
-  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   /** El contador de huecos y los botones, alineados a la derecha de la misma fila. */
   derecha?: ReactNode;
 }
@@ -51,11 +45,11 @@ function Dato({ valor, texto }: { valor: DatoObra; texto: string | null }) {
   );
 }
 
-export function BarraObra({ obra, ayuda, onEditar, onKeyDown, derecha }: Props) {
+export function BarraObra({ obra, ayuda, onEditar, derecha }: Props) {
   const lugar = obra.provincia.valor ? (obra.provinciaNombre ?? obra.provincia.valor) : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5" onKeyDown={onKeyDown}>
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5">
       <span className="shrink-0 text-[11.5px] text-text-secondary">¿Qué obra es?</span>
 
       <Dato valor={obra.denominacion} texto={obra.denominacion.valor} />

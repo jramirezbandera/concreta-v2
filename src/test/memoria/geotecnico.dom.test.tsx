@@ -161,68 +161,57 @@ function conGeotecnicoLeido() {
 
 const confirmarVisibles = () => screen.getAllByRole('button', { name: '✓ Confirmar' }).length;
 
-describe('confirmar con Enter', () => {
-  it('Enter sin foco entra en la ficha, y cada Enter confirma y baja AL SIGUIENTE, no al primero', async () => {
+describe('el ritmo de confirmar', () => {
+  it('«Marcar como revisados» da por buenos los datos del apartado de una vez, y se deshace', async () => {
+    // Catorce pulsaciones para decir catorce veces «sí» no eran un control de
+    // nada: quien las daba acababa dándolas sin mirar. Era la queja literal.
     conGeotecnicoLeido();
     montar();
 
-    // 1. Sin nada enfocado, Enter lleva al primer hueco: la «↵» del botón vale
-    //    desde el primer momento (el primero es el nombre de la obra, vacío).
-    (document.activeElement as HTMLElement | null)?.blur();
-    expect(document.activeElement).toBe(document.body);
-    fireEvent.keyDown(document.body, { key: 'Enter' });
-    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-denominacion'));
+    const antes = confirmarVisibles();
+    expect(antes).toBeGreaterThan(5);
 
-    // 2. Un hueco por teclear no se resuelve con Enter: sólo baja al siguiente.
-    const antesDeTeclear = confirmarVisibles();
-    fireEvent.keyDown(document.activeElement!, { key: 'Enter' });
-    await waitFor(() => expect(document.activeElement?.id).not.toBe('campo-obra-denominacion'));
-    expect(confirmarVisibles()).toBe(antesDeTeclear);
+    // Cada apartado tiene el suyo: el del terreno se lleva los catorce del
+    // informe, y los de los demás apartados siguen ahí.
+    const botones = screen.getAllByRole('button', { name: /Marcar como revisados los \d+ datos de otra obra/ });
+    expect(botones.length).toBeGreaterThan(1);
+    const terreno = screen.getByRole('region', { name: /Cimentaciones/i });
+    fireEvent.click(within(terreno).getByRole('button', { name: /Marcar como revisados/ }));
 
-    // 3. Entrando por el MEDIO de la geotecnia: confirma y baja al de al lado.
-    //    (Antes volvía al primer hueco de la ficha, arriba del todo.)
+    await waitFor(() => expect(confirmarVisibles()).toBeLessThan(antes));
+    expect(within(terreno).queryByRole('button', { name: /Marcar como revisados/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /Marcar como revisados/ }).length).toBe(botones.length - 1);
+
+    // Y se puede deshacer: no es obligatorio y no debe parecerlo.
+    fireEvent.click(await screen.findByRole('button', { name: 'Deshacer' }));
+    await waitFor(() => expect(confirmarVisibles()).toBe(antes));
+  });
+
+  it('Enter ya no confirma ni encadena: escribir en un campo no dispara nada', async () => {
+    conGeotecnicoLeido();
+    montar();
+
     const cota = document.getElementById('campo-obra-geotecnia-cotaCimentacion') as HTMLInputElement;
     const antes = confirmarVisibles();
     cota.focus();
     fireEvent.keyDown(cota, { key: 'Enter' });
-    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-geotecnia-estratoApoyo'));
-    expect(confirmarVisibles()).toBe(antes - 1);
-    expect(cota.value).toBe('lo que dice el informe de cotaCimentacion');
+
+    // Ni confirma, ni mueve el foco. El encadenado global se fue con el
+    // «Marcar como revisados», que hace lo mismo sin catorce pulsaciones.
+    await waitFor(() => expect(confirmarVisibles()).toBe(antes));
+    expect(document.activeElement).toBe(cota);
   });
 
-  it('en un área, Enter confirma y Shift+Enter parte la línea', async () => {
+  it('en un área, Enter parte la línea como en cualquier cuadro de texto', () => {
     conGeotecnicoLeido();
     montar();
     const terreno = document.getElementById('campo-obra-geotecnia-descripcionTerrenos') as HTMLTextAreaElement;
     expect(terreno.tagName).toBe('TEXTAREA');
 
-    // Shift+Enter no confirma: es el salto de línea del texto largo.
     const antes = confirmarVisibles();
     terreno.focus();
-    fireEvent.keyDown(terreno, { key: 'Enter', shiftKey: true });
+    fireEvent.keyDown(terreno, { key: 'Enter' });
     expect(confirmarVisibles()).toBe(antes);
     expect(document.activeElement).toBe(terreno);
-
-    // Enter a secas sí: confirma y baja, como en cualquier otro campo.
-    fireEvent.keyDown(terreno, { key: 'Enter' });
-    await waitFor(() => expect(document.activeElement?.id).toBe('campo-obra-geotecnia-cotaCimentacion'));
-    expect(confirmarVisibles()).toBe(antes - 1);
-  });
-
-  it('en un Sí/No, el foco va a la opción vigente y Enter la confirma sin cambiarla', async () => {
-    conGeotecnicoLeido();
-    montar();
-    // «¿Hay muros de contención?» arranca en No, heredado: el id va en el «No».
-    const no = document.getElementById('campo-obra-contenciones-existen') as HTMLButtonElement;
-    expect(no.textContent).toBe('No');
-    expect(no).toHaveAttribute('aria-pressed', 'true');
-
-    const antes = confirmarVisibles();
-    no.focus();
-    fireEvent.keyDown(no, { key: 'Enter' });
-    await waitFor(() => expect(confirmarVisibles()).toBe(antes - 1));
-    // Sigue siendo No, y no han aparecido los campos de los muros.
-    expect((document.getElementById('campo-obra-contenciones-existen') as HTMLButtonElement).textContent).toBe('No');
-    expect(document.getElementById('campo-obra-contenciones-descripcion')).toBeNull();
   });
 });

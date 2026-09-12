@@ -23,6 +23,12 @@ interface Props {
   summary?: ReactNode;
   /** Un apartado que no procede se ve, plegado, pero no abre. */
   procede?: boolean;
+  /**
+   * Da por revisados de una vez los datos de esta sección que vienen de otra
+   * obra. Se enseña sólo cuando los hay, y lleva su deshacer: no es
+   * obligatorio y no debe parecerlo.
+   */
+  onRevisar?: () => void;
   children: ReactNode;
 }
 
@@ -36,9 +42,10 @@ function Chip({ huecos }: { huecos: Hueco[] }) {
   return <span className={`font-mono text-[10px] normal-case tracking-normal ${c.faltan > 0 ? 'text-state-fail' : 'text-state-warn'}`}>{partes.join(' · ')}</span>;
 }
 
-export function Seccion({ id, numero, titulo, refNorma, open, onOpenChange, huecos, summary, procede = true, children }: Props) {
+export function Seccion({ id, numero, titulo, refNorma, open, onOpenChange, huecos, summary, procede = true, onRevisar, children }: Props) {
   const contentId = useId();
   const abierta = procede && open;
+  const porRevisar = huecos ? contarHuecos(huecos).heredados : 0;
   return (
     <section id={`seccion-${id}`} aria-label={titulo}>
       <button
@@ -64,6 +71,18 @@ export function Seccion({ id, numero, titulo, refNorma, open, onOpenChange, huec
       </button>
       {abierta && (
         <div id={contentId} className="animate-[fadeIn_150ms_ease-out] py-2.5">
+          {onRevisar && porRevisar > 0 && (
+            <div className="mb-2.5 flex justify-end">
+              <button
+                type="button"
+                onClick={onRevisar}
+                className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+                title="Vienen de otra obra. Darlos por revisados los deja como suyos; se puede deshacer."
+              >
+                Marcar como {porRevisar === 1 ? 'revisado' : 'revisados'} {porRevisar === 1 ? 'el dato' : `los ${porRevisar} datos`} de otra obra
+              </button>
+            </div>
+          )}
           {children}
         </div>
       )}

@@ -5,7 +5,7 @@
  *   1. arranca con huecos y Exportar avisa con el toast, sin exportar;
  *   2. publicar los otros módulos y «Usar lo publicado» apaga el ámbar y
  *      enseña la frase del viento con la zona;
- *   3. «Siguiente hueco» lleva el foco al primer hueco, y Enter en un dato
+ *   3. «Siguiente hueco» lleva el foco al primer hueco, y el ✓ de un dato
  *      heredado lo confirma;
  *   4. la ficha ya no tiene su propio «Nueva obra»;
  *   5. la sección de acero aparece cuando el cuadro de materiales lo publica;
@@ -156,7 +156,7 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     expect(screen.getByText(/ab=0,23 g/)).toBeInTheDocument();
   });
 
-  it('«Siguiente hueco» lleva el foco al primer hueco, y Enter confirma un dato heredado', async () => {
+  it('«Siguiente hueco» lleva el foco al primer hueco, y el botón ✓ confirma un dato heredado', async () => {
     obraGranada();
     publicarLosOtros();
     montar();
@@ -167,9 +167,9 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     // Un dato heredado con su botón de confirmar: la sobrecarga en el terreno.
     const sobrecarga = document.getElementById('campo-obra-sobrecargaTerreno') as HTMLInputElement;
     expect(sobrecarga).not.toBeNull();
-    const antes = screen.getAllByRole('button', { name: '✓ Confirmar' }).length;
-    sobrecarga.focus();
-    fireEvent.keyDown(sobrecarga, { key: 'Enter' });
+    const confirmar = screen.getAllByRole('button', { name: '✓ Confirmar' });
+    const antes = confirmar.length;
+    fireEvent.click(confirmar[0]);
     await waitFor(() => expect(screen.getAllByRole('button', { name: '✓ Confirmar' }).length).toBe(antes - 1));
   });
 

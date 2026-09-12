@@ -354,6 +354,15 @@ export function confirmar(s: MemoriaState, id: string): MemoriaState {
   return conRuta(s, ruta, (c) => ({ ...(c as Campo<unknown>), origen: 'tecleado' }));
 }
 
+/**
+ * Confirma de golpe varios datos heredados. Es lo que sustituye al encadenado
+ * de Enter: catorce pulsaciones para decir catorce veces «sí» no son un
+ * control de nada, y quien las da acaba dándolas sin mirar.
+ */
+export function confirmarVarios(s: MemoriaState, ids: readonly string[]): MemoriaState {
+  return ids.reduce(confirmar, s);
+}
+
 /** Escribe un dato; editar confirma. */
 export function teclear<T>(s: MemoriaState, id: string, valor: T): MemoriaState {
   const ruta = rutaDe(id);
