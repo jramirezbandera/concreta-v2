@@ -302,6 +302,30 @@ export function esEstadoInicial(s: CargasState): boolean {
   );
 }
 
+/** Sin los `id`, que se generan nuevos en cada llamada y nunca coincidirían. */
+const sinId = <T extends { id?: string }>({ id: _id, ...resto }: T) => resto;
+
+const huellaEdificio = (s: CargasState) =>
+  JSON.stringify({
+    plantas: s.plantas.map((p) => ({
+      ...sinId(p),
+      zonas: p.zonas.map((z) => ({ ...sinId(z), permanentes: z.permanentes.map(sinId) })),
+    })),
+    lineales: s.lineales.map(sinId),
+    muros: s.muros,
+  });
+
+/**
+ * ¿El edificio es el del caso de ejemplo? Mira la estructura y no el
+ * emplazamiento, igual que `esEstadoInicial`.
+ */
+export function esEjemplo(s: CargasState): boolean {
+  return huellaEdificio(s) === huellaEdificio(ejemploCargasState());
+}
+
+/** ¿Hay aquí algo que decir de ESTA obra? Ver `viento-nieve/state.ts`. */
+export const estaConfigurado = (s: CargasState): boolean => !esEstadoInicial(s) && !esEjemplo(s);
+
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -623,9 +647,11 @@ export function datosPublicacion(state: CargasState, ev: Evaluacion): PubCargasP
 export function publicarResultado(state: CargasState, ev: Evaluacion): void {
   const datos = datosPublicacion(state, ev);
   if (!datos) return;
-  publicar(MODULO_PUB, PUB_VERSION, datos, {
-    municipio: datos.municipio || null,
-    provincia: datos.provincia,
-    ine: datos.provinciaIne,
-  });
+  publicar(
+    MODULO_PUB,
+    PUB_VERSION,
+    datos,
+    { municipio: datos.municipio || null, provincia: datos.provincia, ine: datos.provinciaIne },
+    estaConfigurado(state),
+  );
 }

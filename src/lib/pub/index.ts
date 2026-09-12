@@ -11,6 +11,9 @@
  *    versión 1 y encuentra la 2 recibe `null`, no un objeto a medias.
  *  - `ts` es la fecha de publicación. Si es más nueva que la confirmación del
  *    consumidor, lo heredado pasa a ámbar («revisar»).
+ *  - `configurado` dice si el módulo tenía algo que decir, o si lo que hay es
+ *    su caso de arranque. Sin él, abrir un módulo una vez bastaba para que sus
+ *    valores de partida entraran en un documento firmado.
  *  - `obra` es el EMPLAZAMIENTO en el que se calculó lo publicado, y se
  *    compara por PROVINCIA: es la escala a la que cambian la zona eólica, la
  *    nieve y la peligrosidad sísmica. Si no coincide con la del consumidor, lo
@@ -39,6 +42,17 @@ export interface Publicacion<T> {
   ts: string;
   modulo: string;
   obra: ObraPublicada;
+  /**
+   * El módulo tenía algo QUE DECIR de ESTA obra: ni los valores de arranque ni
+   * el caso de ejemplo. Lo decide cada módulo, que es el único que sabe cómo
+   * es su estado inicial; el consumidor sólo lee el booleano.
+   *
+   * OPCIONAL y aditivo a propósito: un sobre escrito antes de 2026-09-12 no lo
+   * lleva, y por eso NO sube la `v` de nadie. Subirla habría dejado a Cargas
+   * por planta sin viento, sin nieve y sin sismo en su cuadro del plano, sin
+   * decir nada. Ausente o distinto de `true` = sin configurar.
+   */
+  configurado?: boolean;
   datos: T;
 }
 
@@ -72,6 +86,7 @@ export function publicar<T>(
   v: number,
   datos: T,
   obra: Partial<ObraPublicada> = {},
+  configurado?: boolean,
 ): Publicacion<T> | null {
   const sobre: Publicacion<T> = {
     v,
@@ -82,6 +97,9 @@ export function publicar<T>(
       provincia: obra.provincia ?? null,
       ine: obra.ine ?? null,
     },
+    // `undefined` no se serializa: el sobre de quien no lo pase sigue siendo
+    // byte a byte el de antes.
+    configurado,
     datos,
   };
   return escribirClave(clavePublicacion(modulo), JSON.stringify(sobre)) ? sobre : null;

@@ -258,6 +258,37 @@ function direccionPorDefecto(L: number, B: number, ancho: number): DireccionUI {
   };
 }
 
+/** Sin los `id`, que `newId()` genera nuevos en cada llamada y nunca coincidirían. */
+const sinId = <T extends { id?: string }>({ id: _id, ...resto }: T) => resto;
+
+const huellaSismo = (s: SeismicState) =>
+  JSON.stringify({
+    ...s,
+    plantas: s.plantas.map(sinId),
+    x: { ...s.x, elementos: s.x.elementos.map(sinId) },
+    y: { ...s.y, elementos: s.y.elementos.map(sinId) },
+  });
+
+/**
+ * ¿El sismo sigue siendo el de arranque? A diferencia de Viento y nieve y de
+ * Cargas por planta, aquí el EMPLAZAMIENTO cuenta: `ab` y `K` son el
+ * resultado, no el contexto, y elegir otro municipio ya es configurar el
+ * módulo.
+ *
+ * Esta función carga sola con todo el peso. `defaultSeismicState()` es Granada
+ * con ab = 0,23 g y diez plantas de 300 m², y `publicarResultado` es el único
+ * de los cuatro publicadores SIN guarda: abrir el módulo una vez deja ese sobre
+ * escrito. Hasta 2026-09-12 nada distinguía «hay un sobre» de «hay un cálculo
+ * de esta obra», y esa sismicidad podía acabar firmada en una memoria de
+ * Sevilla.
+ */
+export function esEstadoInicial(s: SeismicState): boolean {
+  return huellaSismo(s) === huellaSismo(defaultSeismicState());
+}
+
+/** ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. */
+export const estaConfigurado = (s: SeismicState): boolean => !esEstadoInicial(s);
+
 /** Estado mínimo: una planta, sin municipio. Para empezar de cero. */
 export function blankSeismicState(): SeismicState {
   const s = defaultSeismicState();
@@ -897,14 +928,20 @@ export function datosPublicacion(s: SeismicState, ev: SeismicEvaluation): PubSis
 export function publicarResultado(s: SeismicState, ev: SeismicEvaluation): void {
   const datos = datosPublicacion(s, ev);
   const obra = leerObra();
-  publicar(MODULO_PUB, PUB_VERSION, datos, {
-    municipio: datos.municipio || obra?.municipio || null,
-    // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
-    // módulo no lo necesita para nada: viaja el INE, que es con lo que un
-    // consumidor comprueba que la publicación es del MISMO EMPLAZAMIENTO. Cinco
-    // cifras cuando el municipio sale del Anejo 1; dos, las de la provincia de
-    // la obra, en la entrada manual de ab y K.
-    provincia: null,
-    ine: datos.ine ?? (obra?.provincia || null),
-  });
+  publicar(
+    MODULO_PUB,
+    PUB_VERSION,
+    datos,
+    {
+      municipio: datos.municipio || obra?.municipio || null,
+      // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
+      // módulo no lo necesita para nada: viaja el INE, que es con lo que un
+      // consumidor comprueba que la publicación es del MISMO EMPLAZAMIENTO. Cinco
+      // cifras cuando el municipio sale del Anejo 1; dos, las de la provincia de
+      // la obra, en la entrada manual de ab y K.
+      provincia: null,
+      ine: datos.ine ?? (obra?.provincia || null),
+    },
+    estaConfigurado(s),
+  );
 }

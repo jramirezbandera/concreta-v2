@@ -280,6 +280,42 @@ export function defaultMaterialesState(): MaterialesState {
   };
 }
 
+/** Sin los `id`, que `nuevoId()` genera nuevos en cada llamada y nunca coincidirían. */
+const sinId = <T extends { id?: string }>({ id: _id, ...resto }: T) => resto;
+
+const huellaCuadro = (s: MaterialesState) =>
+  JSON.stringify({
+    usaHormigon: s.usaHormigon,
+    usaAceroEstructural: s.usaAceroEstructural,
+    usaMadera: s.usaMadera,
+    estudio: s.estudio,
+    costa: s.costa,
+    heladas: s.heladas,
+    terrenoAgresivo: s.terrenoAgresivo,
+    exigenciasFuego: s.exigenciasFuego.map(sinId),
+    elementos: s.elementos.map(sinId),
+    aceroEstr: { ...s.aceroEstr, elementos: s.aceroEstr.elementos.map(sinId) },
+    maderaGrupos: s.maderaGrupos.map(sinId),
+    diametrosAnclaje: s.diametrosAnclaje,
+    hormigonesAnclaje: s.hormigonesAnclaje,
+  });
+
+/**
+ * ¿El cuadro sigue tal cual arranca? Las cuatro filas de `filaDesdePreset`
+ * —cimentación, muros de sótano, forjados, hormigón de limpieza— con HA-25 y
+ * B500SD son una propuesta razonable, y por eso mismo son peligrosas:
+ * impresas sin que nadie las mire parecen el cuadro de ESTA obra.
+ *
+ * Fuera de la comparación van los `id` y el modo Ayuda. Este módulo no tiene
+ * caso de ejemplo, así que no hay `esEjemplo` que escribir.
+ */
+export function esEstadoInicial(s: MaterialesState): boolean {
+  return huellaCuadro(s) === huellaCuadro(defaultMaterialesState());
+}
+
+/** ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. */
+export const estaConfigurado = (s: MaterialesState): boolean => !esEstadoInicial(s);
+
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
 const esConsistencia = (v: unknown): v is Consistencia =>
@@ -964,13 +1000,19 @@ export function publicarResultado(state: MaterialesState, ev: Evaluacion): void 
   const datos = datosPublicacion(state, ev);
   if (!datos) return;
   const obra = leerObra();
-  publicar(MODULO_PUB, PUB_VERSION, datos, {
-    municipio: obra?.municipio || null,
-    // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
-    // módulo no la necesita para nada más, así que no se arrastra: viaja su
-    // código INE de dos dígitos, que es con lo que un consumidor comprueba que
-    // la publicación es del MISMO EMPLAZAMIENTO (ver `ObraPublicada.ine`).
-    provincia: null,
-    ine: obra?.provincia || null,
-  });
+  publicar(
+    MODULO_PUB,
+    PUB_VERSION,
+    datos,
+    {
+      municipio: obra?.municipio || null,
+      // El NOMBRE de la provincia vive en la tabla del capítulo Acciones y este
+      // módulo no la necesita para nada más, así que no se arrastra: viaja su
+      // código INE de dos dígitos, que es con lo que un consumidor comprueba que
+      // la publicación es del MISMO EMPLAZAMIENTO (ver `ObraPublicada.ine`).
+      provincia: null,
+      ine: obra?.provincia || null,
+    },
+    estaConfigurado(state),
+  );
 }

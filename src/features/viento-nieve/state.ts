@@ -317,6 +317,34 @@ export function esEstadoInicial(s: VientoNieveState): boolean {
   );
 }
 
+/** Sin los `id`, que se generan nuevos en cada llamada y nunca coincidirían. */
+const sinId = <T extends { id?: string }>({ id: _id, ...resto }: T) => resto;
+
+const huellaEdificio = (s: VientoNieveState) =>
+  JSON.stringify({
+    viento: { ...s.viento, plantas: s.viento.plantas.map(sinId) },
+    nieve: { ...s.nieve, faldones: s.nieve.faldones.map(sinId) },
+  });
+
+/**
+ * ¿El edificio es el del caso de ejemplo, tal cual lo dejó el botón «Ver
+ * ejemplo»? Mira la ESTRUCTURA y no el emplazamiento, por lo mismo que
+ * `esEstadoInicial`: pegar el ejemplo y cambiar el municipio sigue siendo el
+ * ejemplo. De los dos errores posibles éste es el bueno —un aviso de más,
+ * nunca los números de Aranda de Duero impresos a nombre de otra obra—.
+ */
+export function esEjemplo(s: VientoNieveState): boolean {
+  return huellaEdificio(s) === huellaEdificio(ejemploVientoNieveState());
+}
+
+/**
+ * ¿Hay aquí algo que decir de ESTA obra? Es lo que se estampa en la
+ * publicación, y lo que decide si la ficha DB SE puede imprimirlo o tiene que
+ * pedir que se configure. Ni el arranque ni el ejemplo cuentan: los dos son
+ * edificios que el usuario no ha mirado.
+ */
+export const estaConfigurado = (s: VientoNieveState): boolean => !esEstadoInicial(s) && !esEjemplo(s);
+
 // ── Lectura defensiva ───────────────────────────────────────────────────────
 
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
@@ -770,9 +798,11 @@ export function datosPublicacion(state: VientoNieveState, ev: Evaluacion): PubVi
 export function publicarResultado(state: VientoNieveState, ev: Evaluacion): void {
   const datos = datosPublicacion(state, ev);
   if (!datos) return;
-  publicar(MODULO_PUB, PUB_VERSION, datos, {
-    municipio: datos.municipio || null,
-    provincia: datos.provincia,
-    ine: datos.provinciaIne,
-  });
+  publicar(
+    MODULO_PUB,
+    PUB_VERSION,
+    datos,
+    { municipio: datos.municipio || null, provincia: datos.provincia, ine: datos.provinciaIne },
+    estaConfigurado(state),
+  );
 }
