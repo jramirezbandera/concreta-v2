@@ -112,6 +112,8 @@ export function MemoriaDBSEModule() {
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(ABIERTAS_AL_ARRANCAR);
   const [nuevaObraAbierta, setNuevaObraAbierta] = useState(false);
   const [obraAbierta, setObraAbierta] = useState(false);
+  const [faltasAbierto, setFaltasAbierto] = useState(false);
+  const [avisoAbierto, setAvisoAbierto] = useState(false);
   const [geotecnicoAbierto, setGeotecnicoAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
 
@@ -161,7 +163,7 @@ export function MemoriaDBSEModule() {
   }, [sobres.cargasPlanta]);
 
   const evaluacion = useMemo(() => evaluar(state, sobres), [state, sobres]);
-  const { datos, huecos, listo, mensajeBloqueo } = evaluacion;
+  const { datos, huecos, listo, mensajeBloqueo, mensajeAviso } = evaluacion;
   const cuenta = contarHuecos(huecos);
   const ayuda = state.ayuda;
 
@@ -318,10 +320,26 @@ export function MemoriaDBSEModule() {
     invalidMessage: mensajeBloqueo ?? undefined,
   });
 
+  /**
+   * Exportar, con las dos paradas que hacían falta:
+   *
+   *  - con FALTAS no se puede, y hasta 2026-09-12 eso era un toast que decía
+   *    cuántos huecos quedaban sin decir CUÁLES. Ahora los enumera y lleva al
+   *    primero;
+   *  - con ámbares sí se puede —es lo que cambió—, pero se dicen antes de
+   *    generar el fichero, no después.
+   *
+   * Los dos avisos van ANTES del diálogo del título: preguntar cómo se llama
+   * el documento y luego negarse a generarlo era el peor orden posible.
+   */
   const exportarComo = (id: FormatoId) => {
     setFormatoElegido(id);
+    if (!listo) return setFaltasAbierto(true);
+    if (mensajeAviso !== null) return setAvisoAbierto(true);
     openExport();
   };
+
+  const faltas = huecos.filter((h) => h.estado === 'falta');
 
   // ── Secciones ─────────────────────────────────────────────────────────────
 
@@ -347,17 +365,22 @@ export function MemoriaDBSEModule() {
 
   const derecha = (
     <>
-      <span className="font-mono text-[11px] text-text-disabled">
-        {cuenta.total === 0 ? (
+      <span className="font-mono text-[11px] text-text-disabled" aria-live="polite">
+        {cuenta.faltan > 0 ? (
+          <>
+            <span className="text-state-fail">
+              {cuenta.faltan} {cuenta.faltan === 1 ? 'falta' : 'faltan'}
+            </span>
+            {cuenta.heredados > 0 && <span className="text-state-warn"> · {cuenta.heredados} por confirmar</span>}
+            {cuenta.revisar > 0 && <span className="text-state-warn"> · {cuenta.revisar} de otro sitio</span>}
+          </>
+        ) : cuenta.total === 0 ? (
           <span className="text-accent">sin huecos · lista para exportar</span>
         ) : (
           <>
-            <span className={cuenta.faltan > 0 ? 'text-state-fail' : 'text-state-warn'}>
-              {cuenta.total} {cuenta.total === 1 ? 'hueco' : 'huecos'}
-            </span>
-            {cuenta.faltan > 0 && <span className="text-state-fail"> · {cuenta.faltan} por rellenar</span>}
+            <span className="text-accent">lista para exportar</span>
             {cuenta.heredados > 0 && <span className="text-state-warn"> · {cuenta.heredados} por confirmar</span>}
-            {cuenta.revisar > 0 && <span className="text-state-warn"> · {cuenta.revisar} por revisar</span>}
+            {cuenta.revisar > 0 && <span className="text-state-warn"> · {cuenta.revisar} de otro sitio</span>}
           </>
         )}
       </span>
@@ -428,6 +451,40 @@ export function MemoriaDBSEModule() {
           onCancel={() => setNuevaObraAbierta(false)}
         >
           <p>Se conserva el perfil del estudio. Los datos de esta obra quedan en ámbar hasta que los confirme o los cambie, y las publicaciones de los otros módulos habrá que volver a tomarlas: así ningún dato de la obra anterior llega al documento sin pasar por sus manos.</p>
+        </ConfirmDialog>
+      )}
+
+      {faltasAbierto && (
+        <ConfirmDialog
+          title={mensajeBloqueo ?? 'Faltan datos'}
+          confirmLabel="Ir al primero"
+          onConfirm={() => {
+            setFaltasAbierto(false);
+            irAHueco(faltas[0] ?? null);
+          }}
+          onCancel={() => setFaltasAbierto(false)}
+        >
+          <p>Sin estos datos la ficha no se puede cerrar:</p>
+          <ul className="mt-1.5 ml-4 list-disc">
+            {faltas.slice(0, 8).map((h) => (
+              <li key={h.id}>{h.etiqueta}</li>
+            ))}
+          </ul>
+          {faltas.length > 8 && <p className="mt-1.5">y {faltas.length - 8} más.</p>}
+        </ConfirmDialog>
+      )}
+
+      {avisoAbierto && (
+        <ConfirmDialog
+          title="Hay cosas por mirar"
+          confirmLabel="Exportar igualmente"
+          onConfirm={() => {
+            setAvisoAbierto(false);
+            openExport();
+          }}
+          onCancel={() => setAvisoAbierto(false)}
+        >
+          <p>Queda {mensajeAviso}. Se imprime tal cual: no impide entregar el documento, pero conviene mirarlo antes de firmarlo.</p>
         </ConfirmDialog>
       )}
 

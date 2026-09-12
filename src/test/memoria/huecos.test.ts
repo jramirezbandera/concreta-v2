@@ -4,8 +4,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { colaHuecos, contarHuecos, mensajeBloqueo, siguienteHueco } from '../../lib/memoria/huecos';
-import type { Valor } from '../../lib/memoria/model';
+import { bloqueanExportar, colaHuecos, contarHuecos, mensajeAviso, mensajeBloqueo, siguienteHueco } from '../../lib/memoria/huecos';
+import { bloquea, pendiente, type Valor } from '../../lib/memoria/model';
 
 const v = <T>(valor: T | null, estado: Valor<T>['estado'], origen: Valor<T>['origen'], id?: string, etiqueta?: string): Valor<T> => ({
   valor,
@@ -82,8 +82,27 @@ describe('contador y mensaje de bloqueo', () => {
       d: v(true, 'revisar', 'sismo', 'pub.sismo'),
     });
     expect(contarHuecos(huecos)).toEqual({ total: 4, faltan: 2, heredados: 1, revisar: 1 });
-    expect(mensajeBloqueo(huecos)).toBe('Quedan 4 huecos: 2 por rellenar, 1 por confirmar y 1 publicación por revisar. Pulse «Siguiente hueco».');
-    expect(mensajeBloqueo(huecos.slice(0, 1))).toBe('Queda 1 hueco: 1 por rellenar. Pulse «Siguiente hueco».');
+    expect(mensajeBloqueo(huecos)).toBe('Faltan 2 datos por rellenar.');
+    expect(mensajeBloqueo(huecos.slice(0, 1))).toBe('Falta 1 dato por rellenar.');
     expect(mensajeBloqueo([])).toBeNull();
+    expect(mensajeAviso(huecos)).toBe('1 dato de la obra anterior sin confirmar y 1 publicación calculada en otro sitio');
+  });
+
+  it('sólo las FALTAS cierran la puerta: lo ámbar se avisa y se imprime', () => {
+    const ambar = colaHuecos({
+      c: v('x', 'heredado', 'heredado', 'obra.c'),
+      d: v(true, 'revisar', 'sismo', 'pub.sismo'),
+    });
+    // Siguen siendo huecos —entran en la cola y en el contador—, pero no
+    // impiden entregar el documento: lo que hay se imprime.
+    expect(ambar).toHaveLength(2);
+    expect(pendiente('heredado')).toBe(true);
+    expect(pendiente('revisar')).toBe(true);
+    expect(bloquea('heredado')).toBe(false);
+    expect(bloquea('revisar')).toBe(false);
+    expect(bloquea('falta')).toBe(true);
+    expect(bloqueanExportar(ambar)).toBe(false);
+    expect(mensajeBloqueo(ambar)).toBeNull();
+    expect(mensajeAviso(ambar)).not.toBeNull();
   });
 });

@@ -1,8 +1,8 @@
 /**
  * La cola de lo que falta: «Siguiente hueco», el contador y el bloqueo de exportar.
  *
- * Un hueco es cualquier `Valor` de la ficha ensamblada cuyo estado bloquea
- * —falta, heredado o revisar— y que lleva `id`: los derivados no lo llevan y
+ * Un hueco es cualquier `Valor` de la ficha ensamblada que deja algo por
+ * hacer —falta, heredado o revisar— y que lleva `id`: los derivados no lo llevan y
  * por eso nunca son huecos, y el perfil de estudio ni siquiera pasa por aquí.
  * La cola se recorre en el orden en que `ensamblar` construye `FichaDatos`,
  * que es el orden del documento; así «Siguiente hueco» lleva de arriba abajo,
@@ -10,7 +10,7 @@
  */
 
 import type { Estado, Hueco, Valor } from './model';
-import { bloquea } from './model';
+import { bloquea, pendiente } from './model';
 
 /** Sí cuando es un `Valor` de la ficha: tiene `estado` y `origen`. */
 const esValor = (v: unknown): v is Valor<unknown> =>
@@ -32,7 +32,7 @@ export function colaHuecos(datos: unknown): Hueco[] {
   const recorrer = (nodo: unknown) => {
     if (typeof nodo !== 'object' || nodo === null) return;
     if (esValor(nodo)) {
-      if (nodo.id && nodo.apartado && bloquea(nodo.estado) && !vistos.has(nodo.id)) {
+      if (nodo.id && nodo.apartado && pendiente(nodo.estado) && !vistos.has(nodo.id)) {
         vistos.add(nodo.id);
         out.push({
           id: nodo.id,
@@ -60,7 +60,10 @@ export function siguienteHueco(huecos: Hueco[], actualId: string | null): Hueco 
   return huecos[(i + 1) % huecos.length];
 }
 
-/** Cuántos de cada, para el contador y el mensaje. */
+/** Sí cuando queda alguna falta: la exportación está cerrada. */
+export const bloqueanExportar = (huecos: Hueco[]): boolean => huecos.some((h) => bloquea(h.estado));
+
+/** Cuántos de cada, para el contador y el mensaje. `faltan` es lo que bloquea. */
 export function contarHuecos(huecos: Hueco[]): { total: number; faltan: number; heredados: number; revisar: number } {
   return {
     total: huecos.length,
@@ -73,16 +76,22 @@ export function contarHuecos(huecos: Hueco[]): { total: number; faltan: number; 
 const plural = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
 
 /**
- * Lo que dice el aviso al intentar exportar con huecos. `null` si no hay: la
- * exportación está abierta.
+ * Lo que dice el aviso al intentar exportar. `null` cuando se puede exportar:
+ * desde 2026-09-12 sólo cierran la puerta las FALTAS. Lo que está por
+ * confirmar o por dar por bueno se cuenta y se avisa, pero se imprime.
  */
 export function mensajeBloqueo(huecos: Hueco[]): string | null {
   const c = contarHuecos(huecos);
-  if (c.total === 0) return null;
+  if (c.faltan === 0) return null;
+  return `${plural(c.faltan, 'Falta', 'Faltan')} ${c.faltan} ${plural(c.faltan, 'dato', 'datos')} por rellenar.`;
+}
+
+/** Lo que se avisa al exportar con ámbares, que no impiden nada. */
+export function mensajeAviso(huecos: Hueco[]): string | null {
+  const c = contarHuecos(huecos);
   const partes: string[] = [];
-  if (c.faltan > 0) partes.push(`${c.faltan} por rellenar`);
-  if (c.heredados > 0) partes.push(`${c.heredados} por confirmar`);
-  if (c.revisar > 0) partes.push(`${c.revisar} ${plural(c.revisar, 'publicación', 'publicaciones')} por revisar`);
-  const lista = partes.length > 1 ? `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}` : partes[0];
-  return `${plural(c.total, 'Queda', 'Quedan')} ${c.total} ${plural(c.total, 'hueco', 'huecos')}: ${lista}. Pulse «Siguiente hueco».`;
+  if (c.heredados > 0) partes.push(`${c.heredados} ${plural(c.heredados, 'dato', 'datos')} de la obra anterior sin confirmar`);
+  if (c.revisar > 0) partes.push(`${c.revisar} ${plural(c.revisar, 'publicación', 'publicaciones')} calculada${c.revisar === 1 ? '' : 's'} en otro sitio`);
+  if (partes.length === 0) return null;
+  return partes.length > 1 ? `${partes[0]} y ${partes[1]}` : partes[0];
 }

@@ -31,12 +31,13 @@ export type Block =
  * Los cuatro estados del diseño de Memorias, más «revisar», que es el ámbar de
  * lo tomado de una publicación:
  *
- *  - `falta`    rojo: sin valor. Bloquea exportar.
- *  - `heredado` ámbar: valor de la obra anterior sin confirmar. Bloquea.
- *  - `revisar`  ámbar: tomado de una publicación que ha cambiado desde que se
- *               tomó, o que se calculó en otro sitio. Bloquea.
- *  - `derivado` azul: lo puso la norma o una publicación. No bloquea.
- *  - `ok`       normal: tecleado o confirmado en esta obra. No bloquea.
+ *  - `falta`    rojo: sin valor. Es lo ÚNICO que impide exportar.
+ *  - `heredado` ámbar: valor de la obra anterior sin confirmar. Queda por
+ *               hacer, pero se imprime.
+ *  - `revisar`  ámbar: publicación calculada en otro sitio, sin dar por buena.
+ *               Queda por hacer, pero se imprime.
+ *  - `derivado` azul: lo puso la norma o una publicación. Nada que hacer.
+ *  - `ok`       normal: tecleado o confirmado en esta obra. Nada que hacer.
  */
 export type Estado = 'falta' | 'heredado' | 'revisar' | 'derivado' | 'ok';
 
@@ -69,9 +70,24 @@ export interface Valor<T> {
   apartado?: ApartadoId;
 }
 
-/** Sí cuando el estado impide exportar. */
-export function bloquea(estado: Estado): boolean {
+/**
+ * Sí cuando el estado deja algo QUE HACER: entra en la cola de «Siguiente
+ * hueco» y se cuenta en la barra.
+ */
+export function pendiente(estado: Estado): boolean {
   return estado === 'falta' || estado === 'heredado' || estado === 'revisar';
+}
+
+/**
+ * Sí cuando el estado IMPIDE EXPORTAR. Sólo las faltas.
+ *
+ * Hasta 2026-09-12 bloqueaban los tres, y el usuario no entendía por qué
+ * seguía cerrado el botón: un dato heredado de la obra anterior se ve, se
+ * imprime y sale en ámbar, y una publicación de otro sitio también. Lo que no
+ * hay no se puede imprimir; lo que hay, aunque esté por mirar, sí.
+ */
+export function bloquea(estado: Estado): boolean {
+  return estado === 'falta';
 }
 
 /** Identificador de apartado de la ficha, en el orden del documento. */

@@ -57,7 +57,7 @@ import {
   huellaSobre,
 } from './estado';
 import type { Obra } from '../obra';
-import { colaHuecos, mensajeBloqueo } from './huecos';
+import { bloqueanExportar, colaHuecos, mensajeAviso, mensajeBloqueo } from './huecos';
 import type { ApartadoId, Estado, Hueco, Origen, Valor } from './model';
 import { AMORTIGUAMIENTO_TEXTO, IMPORTANCIA_TEXTO, NCSE, SEA, TIPO_ESTRUCTURA_SISMO, TITULO_FORJADO } from './plantilla';
 
@@ -804,15 +804,24 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
 export interface Evaluacion {
   datos: FichaDatos;
   huecos: Hueco[];
-  /** Sí cuando no queda ningún hueco: se puede exportar. */
+  /** Sí cuando no queda ninguna FALTA: se puede exportar aunque queden avisos. */
   listo: boolean;
+  /** Por qué no se puede exportar. `null` cuando sí se puede. */
   mensajeBloqueo: string | null;
+  /** Lo que conviene mirar antes de entregar, aunque no impida exportar. */
+  mensajeAviso: string | null;
 }
 
 export function evaluar(s: MemoriaState, sobres: Sobres): Evaluacion {
   const datos = ensamblar(s, sobres);
   const huecos = colaHuecos(datos);
-  return { datos, huecos, listo: huecos.length === 0, mensajeBloqueo: mensajeBloqueo(huecos) };
+  return {
+    datos,
+    huecos,
+    listo: !bloqueanExportar(huecos),
+    mensajeBloqueo: mensajeBloqueo(huecos),
+    mensajeAviso: mensajeAviso(huecos),
+  };
 }
 
 /** Las tipologías de forjado que la ficha va a imprimir, para materializar sus datos residuales en el estado. */

@@ -1,8 +1,12 @@
 /**
  * La leyenda de los cuatro estados de un valor del capítulo Memorias, al pie
- * de la página: azul derivado, ámbar por confirmar o revisar, rojo hueco, y el
- * normal de lo confirmado. Materiales y Cargas por planta llevan la suya
- * escrita a mano con tres colores; la ficha DB SE estrena ésta con los cuatro.
+ * de la página: azul derivado, ámbar por mirar, rojo falta, y el normal de lo
+ * confirmado. Materiales y Cargas por planta llevan la suya escrita a mano con
+ * tres colores; la ficha DB SE estrena ésta con los cuatro.
+ *
+ * Decía que el ámbar «bloquea exportar», y desde 2026-09-12 es falso: lo único
+ * que cierra la puerta son las faltas. Un dato heredado se ve, se imprime y se
+ * avisa; lo que no hay no se puede imprimir.
  */
 
 const CUADRO = 'inline-block h-2.5 w-2.5 rounded-[2px]';
@@ -16,11 +20,11 @@ export function LeyendaEstados() {
       </span>
       <span className="flex items-center gap-1.5">
         <i className={CUADRO} style={{ background: 'var(--color-state-warn)' }} aria-hidden="true" />
-        por confirmar o por revisar, bloquea exportar
+        por confirmar o calculado en otro sitio: se imprime y se avisa
       </span>
       <span className="flex items-center gap-1.5">
         <i className={CUADRO} style={{ background: 'var(--color-state-fail)' }} aria-hidden="true" />
-        hueco sin resolver, bloquea exportar
+        falta: es lo único que impide exportar
       </span>
       <span className="flex items-center gap-1.5">
         <i className={`${CUADRO} border border-border-main`} aria-hidden="true" />

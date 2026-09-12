@@ -30,9 +30,9 @@ function Chip({ huecos }: { huecos: Hueco[] }) {
   const c = contarHuecos(huecos);
   if (c.total === 0) return <span className="font-mono text-[10px] normal-case tracking-normal text-accent">al día</span>;
   const partes: string[] = [];
-  if (c.faltan > 0) partes.push(`${c.faltan} por rellenar`);
+  if (c.faltan > 0) partes.push(`${c.faltan} ${c.faltan === 1 ? 'falta' : 'faltan'}`);
   if (c.heredados > 0) partes.push(`${c.heredados} por confirmar`);
-  if (c.revisar > 0) partes.push(`${c.revisar} por revisar`);
+  if (c.revisar > 0) partes.push(`${c.revisar} de otro sitio`);
   return <span className={`font-mono text-[10px] normal-case tracking-normal ${c.faltan > 0 ? 'text-state-fail' : 'text-state-warn'}`}>{partes.join(' · ')}</span>;
 }
 

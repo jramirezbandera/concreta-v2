@@ -98,15 +98,21 @@ afterEach(() => {
 });
 
 describe('Cumplimiento del DB SE — el módulo', () => {
-  it('arranca con huecos y Exportar avisa sin exportar', async () => {
+  it('arranca con faltas, y Exportar las ENUMERA y lleva a la primera', async () => {
     obraGranada();
     montar();
-    expect(screen.getByText(/huecos/)).toBeInTheDocument();
+    expect(screen.getAllByText(/faltan?/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Siguiente hueco/ })).toBeEnabled();
+
     pulsarExportar('docx');
-    expect(await screen.findByText(/Quedan \d+ huecos/)).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).toBeNull();
+    // Antes era un toast que decía cuántos huecos quedaban, sin decir cuáles.
+    const dialogo = await screen.findByRole('dialog');
+    expect(within(dialogo).getByText(/Sin estos datos la ficha no se puede cerrar/)).toBeInTheDocument();
+    expect(within(dialogo).getAllByRole('listitem').length).toBeGreaterThan(0);
     expect(exportarDocx).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Ir al primero' }));
+    await waitFor(() => expect(document.activeElement?.id).toMatch(/^campo-/));
   });
 
   it('lo publicado se usa sin pedir permiso, y no queda tabla de publicaciones que leer', async () => {
