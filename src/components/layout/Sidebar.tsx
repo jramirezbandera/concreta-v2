@@ -16,6 +16,7 @@ const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
 const PROYECTO = [
   { key: 'concreta-obra', route: '/obra', label: 'La obra', shipped: true },
   { key: 'concreta-anejo', route: '/proyecto/anejo', label: 'Anejo de cálculo', shipped: true },
+  { key: 'concreta-estudio', route: '/ajustes/estudio', label: 'Mi estudio', shipped: true },
 ] as const;
 
 interface SidebarProps {

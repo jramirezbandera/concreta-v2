@@ -10,15 +10,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CLAVE_ESTUDIO } from '../../data/proyectoKeys';
 import {
+  adoptarPerfilDeLaObra,
   cargarEstado,
   guardarEstado,
   guardarPerfilEstudio,
   leerPerfilEstudio,
+  perfilDeLaObraDifiere,
   SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
   STORAGE_KEY,
 } from '../../features/memoria-dbse/state';
-import { estadoPorDefecto, perfilEstudioPorDefecto, type PerfilEstudio } from '../../lib/memoria/estado';
+import { diferenciasDePerfil, estadoPorDefecto, perfilEstudioPorDefecto, type PerfilEstudio } from '../../lib/memoria/estado';
 import { _reiniciarAlmacenParaTests, escribirClave, leerClave } from '../../lib/storage/seguro';
 
 /** Un perfil que costó una tarde: otro programa, otra redistribución, otro desplome. */
@@ -105,5 +107,49 @@ describe('la clave global se mantiene al día', () => {
     escribirClave(SCHEMA_VERSION_KEY, VERSION_VIEJA);
 
     expect(cargarEstado().estudio.programa.nombre).toBe('el de ahora');
+  });
+});
+
+describe('el perfil es del despacho, no de la obra', () => {
+  it('lo que traiga el fichero NO manda: se imprime el de esta máquina', () => {
+    // El `.concreta` de un compañero trae SU perfil dentro; la clave global no
+    // viaja, porque es preferencia de esta máquina.
+    guardarPerfilEstudio(afinado('el mío'));
+    guardadoCon(SCHEMA_VERSION, afinado('el suyo'));
+
+    expect(cargarEstado().estudio.programa.nombre).toBe('el mío');
+  });
+
+  it('pero se dice en qué se diferencian, para poder mirarlo', () => {
+    guardarPerfilEstudio(perfilEstudioPorDefecto());
+    guardadoCon(SCHEMA_VERSION, afinado('el suyo'));
+
+    const d = perfilDeLaObraDifiere();
+    expect(d).toContain('el programa de cálculo');
+    expect(d).toContain('la redistribución de momentos');
+    expect(d).toContain('el desplome límite');
+    // Y lo que no cambia no se nombra.
+    expect(d).not.toContain('las cuantías');
+  });
+
+  it('con el mismo perfil no hay nada que decir', () => {
+    guardarPerfilEstudio(afinado());
+    guardadoCon(SCHEMA_VERSION, afinado());
+    expect(perfilDeLaObraDifiere()).toEqual([]);
+  });
+
+  it('«adoptar el de esta obra» lo promociona a la clave global', () => {
+    guardarPerfilEstudio(perfilEstudioPorDefecto());
+    guardadoCon(SCHEMA_VERSION, afinado('el suyo'));
+
+    expect(adoptarPerfilDeLaObra()).toBe(true);
+    expect(leerPerfilEstudio()?.programa.nombre).toBe('el suyo');
+    expect(perfilDeLaObraDifiere()).toEqual([]);
+  });
+
+  it('diferenciasDePerfil compara por áreas, no campo a campo', () => {
+    const a = perfilEstudioPorDefecto();
+    expect(diferenciasDePerfil(a, a)).toEqual([]);
+    expect(diferenciasDePerfil(a, { ...a, cuantias: 'otra cosa' })).toEqual(['las cuantías']);
   });
 });

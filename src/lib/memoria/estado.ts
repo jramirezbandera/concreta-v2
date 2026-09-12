@@ -8,8 +8,12 @@
  * Dos capas, como se decidió en el diseño de Memorias:
  *
  *  - `estudio`: el perfil del despacho. Programa de cálculo, límites de
- *    flecha, redacciones del método. Viaja de obra en obra y NUNCA pide
- *    confirmación: ése es el reparto que evita la fatiga de confirmar.
+ *    flecha, redacciones del método. Desde 2026-09-12 se edita en Ajustes ›
+ *    Mi estudio y vive en `concreta-estudio`, una clave de PREFERENCIA: es del
+ *    despacho, no de la obra. Aquí es una PROYECCIÓN —`normalizar` la repone
+ *    desde esa clave en cada lectura—, y lo que queda guardado dentro del
+ *    `.concreta` es la copia con la que se exportó aquella vez, que sirve para
+ *    avisar al abrir una obra hecha con otro perfil.
  *  - `obra`: lo que cambia con el proyecto, cada dato con su ORIGEN. Un dato
  *    `heredado` es el de la obra anterior sin confirmar —se ve, funciona, sale
  *    en ámbar y bloquea exportar— y pasa a `tecleado` al confirmarlo o
@@ -559,13 +563,50 @@ function normalizarObra(b: unknown): CapaObra {
 /** Una huella es una cadena y nada más; lo que venga de una versión anterior se olvida. */
 const normalizarAceptado = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
-/** Todo lo que no se reconozca cae al valor de arranque; nunca se lanza. */
-export function normalizar(bruto: unknown, obra: Obra | null): MemoriaState {
-  const d = estadoPorDefecto(obra);
+/**
+ * El perfil que traía un estado guardado, sin normalizar contra nada: es la
+ * copia con la que se exportó esa obra. `null` si no traía ninguno.
+ */
+export function perfilGuardado(bruto: unknown): PerfilEstudio | null {
+  return esObjeto(bruto) && esObjeto(bruto.estudio) ? normalizarEstudio(bruto.estudio) : null;
+}
+
+/** Las partes del perfil, con su nombre, para decir en qué se diferencian dos. */
+const AREAS_DEL_PERFIL: ReadonlyArray<[keyof PerfilEstudio, string]> = [
+  ['programa', 'el programa de cálculo'],
+  ['metodoCalculo', 'el método de cálculo'],
+  ['redistribucion', 'la redistribución de momentos'],
+  ['flechas', 'los límites de flecha de vigas'],
+  ['flechaActivaGeneral', 'la flecha activa general'],
+  ['desplome', 'el desplome límite'],
+  ['modeloAnalisis', 'el modelo de análisis'],
+  ['cuantias', 'las cuantías'],
+  ['verificacionAcero', 'la verificación del acero'],
+  ['barandillas', 'las barandillas'],
+  ['forjados', 'los límites de flecha por tipo de forjado'],
+  ['sismo', 'las redacciones de sismo'],
+  ['cimentacion', 'las redacciones de cimentación'],
+  ['contenciones', 'las redacciones de contenciones'],
+  ['control', 'los niveles de control'],
+];
+
+/** En qué se diferencian dos perfiles, en lenguaje de despacho. Vacío = son el mismo. */
+export function diferenciasDePerfil(a: PerfilEstudio, b: PerfilEstudio): string[] {
+  return AREAS_DEL_PERFIL.filter(([k]) => JSON.stringify(a[k]) !== JSON.stringify(b[k])).map(([, nombre]) => nombre);
+}
+
+/**
+ * Todo lo que no se reconozca cae al valor de arranque; nunca se lanza.
+ *
+ * `estudio` entra por parámetro cuando lo hay: es de la máquina, no de la
+ * obra, y manda sobre lo que trajera el fichero.
+ */
+export function normalizar(bruto: unknown, obra: Obra | null, estudio?: PerfilEstudio): MemoriaState {
+  const d = estadoPorDefecto(obra, estudio);
   if (!esObjeto(bruto)) return d;
   const ac = esObjeto(bruto.aceptados) ? bruto.aceptados : {};
   return {
-    estudio: normalizarEstudio(bruto.estudio),
+    estudio: estudio ?? normalizarEstudio(bruto.estudio),
     obra: normalizarObra(bruto.obra),
     aceptados: Object.fromEntries(MODULOS_PUB.map((m) => [m, normalizarAceptado(ac[m])])) as Aceptados,
     // La obra viva MANDA sobre lo que hubiera guardado: es una proyección.

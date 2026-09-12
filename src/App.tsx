@@ -84,6 +84,10 @@ const router = createBrowserRouter([
             lazy: lazyComponent(() => import('./features/obra'), 'ObraModule'),
           },
           {
+            path: 'ajustes/estudio',
+            lazy: lazyComponent(() => import('./features/ajustes-estudio'), 'AjustesEstudioModule'),
+          },
+          {
             path: 'proyecto/anejo',
             lazy: lazyComponent(() => import('./features/anejo'), 'AnejoModule'),
           },

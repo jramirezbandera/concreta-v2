@@ -117,6 +117,3 @@ export const FABRICA: Record<'procede' | 'pieza' | 'fb' | 'fm' | 'categoriaContr
 /** Usos habituales para el desplegable del nombre del edificio; se puede escribir otro. */
 export const USOS_SUGERIDOS = ['Edificio de viviendas', 'Vivienda unifamiliar', 'Edificio de oficinas', 'Nave industrial', 'Edificio docente', 'Edificio sanitario', 'Aparcamiento', 'Local comercial'];
 
-export const ESTUDIO_AYUDA =
-  'Lo que no cambia entre obras del despacho: el programa de cálculo, los límites de flecha, la redacción del método. Se edita aquí una vez y no vuelve a preguntar.';
-

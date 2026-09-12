@@ -13,7 +13,7 @@
  */
 
 import { CLAVE_ESTUDIO, versionViva } from '../../data/proyectoKeys';
-import { estadoPorDefecto, normalizar, normalizarEstudio, type MemoriaState, type PerfilEstudio } from '../../lib/memoria/estado';
+import { diferenciasDePerfil, estadoPorDefecto, normalizar, normalizarEstudio, perfilEstudioPorDefecto, perfilGuardado, type MemoriaState, type PerfilEstudio } from '../../lib/memoria/estado';
 import { leerObra } from '../../lib/obra';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
@@ -59,12 +59,48 @@ export function cargarEstado(): MemoriaState {
     const bruto = leerClave(STORAGE_KEY);
     const guardado: unknown = bruto === null ? null : JSON.parse(bruto);
     if (guardado !== null) rescatarPerfilEstudio(guardado);
+    const perfil = leerPerfilEstudio() ?? undefined;
     if (guardado === null || leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) {
-      return estadoPorDefecto(obra, leerPerfilEstudio() ?? undefined);
+      return estadoPorDefecto(obra, perfil);
     }
-    return normalizar(guardado, obra);
+    return normalizar(guardado, obra, perfil);
   } catch {
     return estadoPorDefecto(obra, leerPerfilEstudio() ?? undefined);
+  }
+}
+
+/**
+ * Adopta como perfil del despacho el que traía esta obra. Para cuando el
+ * fichero llega de quien tiene el perfil bueno y el de aquí es el colegial.
+ */
+export function adoptarPerfilDeLaObra(): boolean {
+  try {
+    const bruto = leerClave(STORAGE_KEY);
+    if (bruto === null) return false;
+    const suyo = perfilGuardado(JSON.parse(bruto));
+    return suyo === null ? false : guardarPerfilEstudio(suyo);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Esta obra se guardó con OTRO perfil de despacho: en qué se diferencia del de
+ * esta máquina. Vacío cuando son el mismo, o cuando la obra no traía ninguno.
+ *
+ * Pasa al abrir el `.concreta` de un compañero —el perfil es preferencia y no
+ * viaja— y también entre obras propias hechas antes de afinarlo. Lo que se
+ * imprime es SIEMPRE el de esta máquina; esto sólo lo dice.
+ */
+export function perfilDeLaObraDifiere(): string[] {
+  try {
+    const bruto = leerClave(STORAGE_KEY);
+    if (bruto === null) return [];
+    const suyo = perfilGuardado(JSON.parse(bruto));
+    if (suyo === null) return [];
+    return diferenciasDePerfil(suyo, leerPerfilEstudio() ?? perfilEstudioPorDefecto());
+  } catch {
+    return [];
   }
 }
 

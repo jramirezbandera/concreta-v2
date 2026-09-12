@@ -112,6 +112,11 @@ export const routeMeta: Record<string, RouteMeta> = {
     description:
       'El estado de la obra de un vistazo: qué falta para poder exportar la justificación del DB SE, qué se ha calculado en cada módulo y qué hay guardado en el anejo de cálculo.',
   },
+  '/ajustes/estudio': {
+    title: 'Mi estudio — Concreta',
+    description:
+      'El perfil del despacho: programa de cálculo, límites de flecha, niveles de control y las redacciones fijas del método. Se rellena una vez y lo hereda cada obra nueva.',
+  },
   '/proyecto/anejo': {
     title: 'Anejo de cálculo — Concreta',
     description: 'El anejo de cálculo de la obra en un solo PDF: portada, índice verificado y los cálculos guardados desde cada módulo, ordenados y con numeración continua.',

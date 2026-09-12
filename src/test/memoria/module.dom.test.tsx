@@ -245,6 +245,15 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     await waitFor(() => expect(exportarPdf).toHaveBeenCalledTimes(1));
   });
 
+  it('la ficha ya no lleva el perfil del estudio: se edita en Ajustes', () => {
+    obraGranada();
+    montar();
+    // Era una sección plegada más entre diez, con la mitad de los campos del
+    // perfil y en la ficha de UNA obra, cuando el perfil es del despacho.
+    expect(screen.queryByRole('region', { name: /Perfil del estudio/ })).toBeNull();
+    expect(screen.queryByLabelText('Programa de cálculo')).toBeNull();
+  });
+
   it('«Editar…» abre el diálogo de obra y escribe los cinco en el contexto compartido', async () => {
     montar();
     // La barra ENSEÑA los datos; para cambiarlos hay un solo sitio.

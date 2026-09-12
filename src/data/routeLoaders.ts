@@ -8,6 +8,7 @@
 
 export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/obra': () => import('../features/obra'),
+  '/ajustes/estudio': () => import('../features/ajustes-estudio'),
   '/proyecto/anejo': () => import('../features/anejo'),
   '/memorias/materiales': () => import('../features/materiales'),
   '/memorias/db-se': () => import('../features/memoria-dbse'),

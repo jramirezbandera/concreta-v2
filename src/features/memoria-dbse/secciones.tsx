@@ -12,16 +12,14 @@ import { CATEGORIA_LABELS, EJECUCION_LABELS, TABLA_4_4, type CategoriaControl, t
 import { num } from '../../lib/materiales/cuadros';
 import { CE, NCSE, SE, SEAE } from '../../lib/memoria/plantilla';
 import { Campo } from '../../components/ui/Campo';
-import { CIMENTACION, CONTENCIONES, ESTRUCTURA, ESTUDIO_AYUDA, FABRICA, FORJADO, GEOTECNIA, JUNTAS, PIEZAS_PERDIDAS, PIEZAS_RECUPERABLES } from './catalogos';
+import { CIMENTACION, CONTENCIONES, ESTRUCTURA, FABRICA, FORJADO, GEOTECNIA, JUNTAS, PIEZAS_PERDIDAS, PIEZAS_RECUPERABLES } from './catalogos';
 import { Area, CampoObra, Derivado, Interruptor, Numero, Selector, Texto } from './campos';
-import { idDom } from './ids';
-import { ANCHO, BOTON_ACENTO, INPUT, REJILLA } from './estilos';
+import { ANCHO, BOTON_ACENTO, REJILLA } from './estilos';
 
 export interface Acciones {
   teclear: (id: string, valor: unknown) => void;
   confirmar: (id: string) => void;
   fabrica: (procede: boolean) => void;
-  estudio: (ruta: string, valor: unknown) => void;
   /** Abre «Leer el PDF del geotécnico»: el estudio rellena el 3.1.3 en ámbar. */
   geotecnico: () => void;
 }
@@ -356,42 +354,3 @@ export function SeccionSEM({ datos, ayuda }: Props) {
 
 // ── Perfil de estudio ───────────────────────────────────────────────────────
 
-export function SeccionEstudio({ state, ayuda, on }: Props) {
-  const e = state.estudio;
-  const texto = (ruta: string, etiqueta: string, valor: string, ayudaTexto?: string) => (
-    <Campo etiqueta={etiqueta} ayuda={ayudaTexto}>
-      <input type="text" className={INPUT} value={valor} id={idDom(`estudio.${ruta}`)} onChange={(ev) => on.estudio(ruta, ev.target.value)} />
-    </Campo>
-  );
-  return (
-    <div className="flex flex-col gap-3">
-      {ayuda && <p className="text-[10.5px] leading-snug text-text-disabled">{ESTUDIO_AYUDA}</p>}
-      <div className={REJILLA}>
-        {texto('programa.nombre', 'Programa de cálculo', e.programa.nombre)}
-        {texto('programa.version', 'Versión', e.programa.version)}
-        {texto('programa.empresa', 'Empresa del programa', e.programa.empresa)}
-        {texto('programa.domicilio', 'Domicilio de la empresa', e.programa.domicilio)}
-        <div className={ANCHO}>
-          <Campo etiqueta="Descripción del programa (idealización de la estructura)">
-            <textarea className={INPUT + ' min-h-[64px] resize-y'} value={e.programa.descripcion} onChange={(ev) => on.estudio('programa.descripcion', ev.target.value)} />
-          </Campo>
-        </div>
-        <Campo etiqueta="Verificación del acero (3.1.7.1)">
-          <select className={INPUT} value={e.verificacionAcero} onChange={(ev) => on.estudio('verificacionAcero', ev.target.value)}>
-            <option value="informatica">Con el programa, toda la estructura</option>
-            <option value="manual">A mano, toda la estructura</option>
-          </select>
-        </Campo>
-        <Campo etiqueta="Redistribución de momentos negativos en vigas (%)">
-          <Numero id="estudio.redistribucion" valor={e.redistribucion} unidad="%" min={0} max={30} onChange={(v) => on.estudio('redistribucion', v)} />
-        </Campo>
-        {texto('flechas.total', 'Límite de flecha total (vigas)', e.flechas.total)}
-        {texto('flechas.activa', 'Límite de flecha activa (vigas)', e.flechas.activa)}
-        {texto('flechas.maxRecomendada', 'Flecha máxima recomendada', e.flechas.maxRecomendada)}
-        {texto('flechaActivaGeneral', 'Flecha activa general (3.1.1)', e.flechaActivaGeneral, 'Fracción de la luz: 1/500.')}
-        {texto('desplome', 'Desplome total límite (3.1.1)', e.desplome, 'Fracción de la altura total: 1/500.')}
-        {texto('barandillas', 'Barandillas (3.1.5.3)', e.barandillas)}
-      </div>
-    </div>
-  );
-}

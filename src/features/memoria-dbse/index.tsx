@@ -39,7 +39,7 @@ import { adaptadorDe } from '../../lib/anejo/modules';
 import type { ResultadoExport } from '../../lib/export/descargar';
 import { MEMORIA_DBSE_FALLBACK_DOCX, MEMORIA_DBSE_FALLBACK_PDF } from '../../lib/export/filename';
 import { evaluar, tipologiasDe } from '../../lib/memoria/ensamblar';
-import { aceptar, asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, type MemoriaState, type ModuloPub, type PerfilEstudio } from '../../lib/memoria/estado';
+import { aceptar, asegurarForjados, confirmar, MODULOS_PUB, nuevaObra, teclear, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
 import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha';
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
@@ -50,7 +50,7 @@ import { idDom } from './ids';
 import { Avisos } from './Avisos';
 import { GeotecnicoModal } from './GeotecnicoModal';
 import { Seccion } from './Seccion';
-import { SeccionCE, SeccionEstudio, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
+import { SeccionCE, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
 import { leerSobres, type Sobres } from './sobres';
 import { cargarEstado, guardarEstado } from './state';
 import { BOTON_ACENTO, BOTON_MENOR } from './estilos';
@@ -91,18 +91,7 @@ const REF: Record<ApartadoId, string> = {
 };
 
 /** Las secciones que arrancan abiertas: las que piden algo. Las de texto fijo, cerradas. */
-const ABIERTAS_AL_ARRANCAR: Record<string, boolean> = { indice: false, se: false, seae: true, sec: true, ncse: true, ce: true, forjados: true, sea: false, sef: true, sem: false, estudio: false };
-
-/** Escribe un valor en una ruta con puntos dentro del perfil de estudio, sin mutar. */
-function conRutaEstudio(estudio: PerfilEstudio, ruta: string, valor: unknown): PerfilEstudio {
-  const partes = ruta.split('.');
-  const poner = (nodo: unknown, i: number): unknown => {
-    if (i === partes.length) return valor;
-    const o = (nodo ?? {}) as Record<string, unknown>;
-    return { ...o, [partes[i]]: poner(o[partes[i]], i + 1) };
-  };
-  return poner(estudio, 0) as PerfilEstudio;
-}
+const ABIERTAS_AL_ARRANCAR: Record<string, boolean> = { indice: false, se: false, seae: true, sec: true, ncse: true, ce: true, forjados: true, sea: false, sef: true, sem: false };
 
 export function MemoriaDBSEModule() {
   const { openDrawer } = useDrawer();
@@ -172,7 +161,6 @@ export function MemoriaDBSEModule() {
       teclear: (id, valor) => actualizar((p) => teclear(p, id, valor)),
       confirmar: (id) => actualizar((p) => confirmar(p, id)),
       fabrica: (procede) => actualizar((p) => ({ ...p, obra: { ...p.obra, fabrica: { ...p.obra.fabrica, procede } } })),
-      estudio: (ruta, valor) => actualizar((p) => ({ ...p, estudio: conRutaEstudio(p.estudio, ruta, valor) })),
       geotecnico: () => setGeotecnicoAbierto(true),
     }),
     [actualizar],
@@ -430,10 +418,6 @@ export function MemoriaDBSEModule() {
                 {cuerpo[a.id]}
               </Seccion>
             ))}
-
-          <Seccion id="estudio" titulo="Perfil del estudio" refNorma="no pide confirmación" open={abiertas.estudio ?? false} onOpenChange={abrir('estudio')} summary={`${state.estudio.programa.nombre} ${state.estudio.programa.version} · flechas ${state.estudio.flechas.total} · ${state.estudio.flechas.activa} · ${state.estudio.flechas.maxRecomendada}`}>
-            <SeccionEstudio {...props} />
-          </Seccion>
 
           <LeyendaEstados />
         </div>

@@ -31,6 +31,7 @@ import { FilaEstado } from '../../components/ui/FilaEstado';
 import { piezasSinPdf } from '../../lib/anejo';
 import { useAnejo } from '../../lib/anejo/useAnejo';
 import { resumenDe } from '../../lib/anejo/maqueta';
+import { adoptarPerfilDeLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
 import { guardarObra } from '../../lib/obra';
 import { useObra } from '../../lib/obra/useObra';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
@@ -39,6 +40,7 @@ import type { ResumenObra } from './resumen';
 const RUTA_FICHA = '/memorias/db-se';
 const RUTA_ANEJO = '/proyecto/anejo';
 const RUTA_MATERIALES = '/memorias/materiales';
+const RUTA_ESTUDIO = '/ajustes/estudio';
 
 const CABECERA = 'px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled';
 const BLOQUE = 'rounded border border-border-main bg-bg-surface';
@@ -52,6 +54,10 @@ export function ObraModule() {
   const [resumen, setResumen] = useState<ResumenObra | null>(null);
   const [sinPdf, setSinPdf] = useState<Set<string> | null>(null);
   const [fallo, setFallo] = useState(false);
+  // El perfil del despacho NO viaja en el `.concreta` —es preferencia de esta
+  // máquina—, así que la obra de un compañero trae el suyo dentro y el que se
+  // imprime es el de aquí. Se dice; no se cambia nada a espaldas de nadie.
+  const [perfilDistinto, setPerfilDistinto] = useState<string[]>(() => perfilDeLaObraDifiere());
 
   // El resumen de la ficha, un fotograma después: su chunk trae la plantilla
   // del CTE y la cabecera no puede esperarlo.
@@ -122,6 +128,37 @@ export function ObraModule() {
               Editar
             </button>
           </div>
+
+          {perfilDistinto.length > 0 && (
+            <div className="mt-3 rounded px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--color-state-warn) 9%, transparent)' }}>
+              <p className="m-0 text-[12.5px] font-medium text-text-primary">Esta obra se guardó con otro perfil de despacho</p>
+              <p className="m-0 mt-1 text-[12px] leading-relaxed text-text-secondary">
+                Cambian {perfilDistinto.join(', ')}. Se imprime el perfil de esta máquina, no el que traía la obra.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPerfilDistinto([])}
+                  className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+                >
+                  Dejar el mío
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    adoptarPerfilDeLaObra();
+                    setPerfilDistinto([]);
+                  }}
+                  className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+                >
+                  Adoptar el de esta obra
+                </button>
+                <Link to={RUTA_ESTUDIO} className="self-center text-[11.5px] text-accent underline-offset-2 hover:underline">
+                  Ver mi estudio
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* El veredicto y LA acción. */}
           {vacia ? (
