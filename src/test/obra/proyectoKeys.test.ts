@@ -21,6 +21,7 @@ import { getModuleSchemaVersion, MODULE_SCHEMA_VERSIONS, moduleRegistry } from '
 import {
   CLAVE_DESPLEGANDO,
   CLAVE_INDICE_PROYECTOS,
+  CLAVE_ESTUDIO,
   CLAVE_OBRA,
   CLAVE_PROYECTO_ACTIVO,
   CLAVES_INFRAESTRUCTURA,
@@ -176,6 +177,7 @@ const RE_ALIAS = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::\s*string)?\s*=\s*(
 /** Constantes exportadas por la tabla: el fichero que las importa las tiene resueltas. */
 const SEMILLAS: ReadonlyArray<[string, string]> = [
   ['CLAVE_OBRA', CLAVE_OBRA],
+  ['CLAVE_ESTUDIO', CLAVE_ESTUDIO],
   ['CLAVE_INDICE_PROYECTOS', CLAVE_INDICE_PROYECTOS],
   ['CLAVE_PROYECTO_ACTIVO', CLAVE_PROYECTO_ACTIVO],
   ['CLAVE_DESPLEGANDO', CLAVE_DESPLEGANDO],

@@ -250,9 +250,14 @@ export function obraPorDefecto(obra: Obra | null): CapaObra {
   };
 }
 
-export function estadoPorDefecto(obra: Obra | null): MemoriaState {
+/**
+ * El estado de arranque. `estudio` entra por PARÁMETRO —lo pasa la feature, que
+ * es quien sabe leer `concreta-estudio`— y cae al colegial si no se pasa: así
+ * una ficha nueva hereda el perfil del despacho en vez de reponer la plantilla.
+ */
+export function estadoPorDefecto(obra: Obra | null, estudio?: PerfilEstudio): MemoriaState {
   return {
-    estudio: perfilEstudioPorDefecto(),
+    estudio: estudio ?? perfilEstudioPorDefecto(),
     obra: obraPorDefecto(obra),
     pubs: { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null },
     ayuda: true,
@@ -416,7 +421,13 @@ const cTextoONull = (v: unknown, def: Campo<string | null>) => leerCampoCon(v, d
 const TIPOS_FORJADO: readonly TipoForjado[] = ['losa', 'solera', 'reticular', 'unidireccional', 'chapa', 'madera', 'otro'];
 const PIEZAS: readonly PiezaTipo[] = ['macizo_junta_delgada', 'macizo', 'perforado', 'bloque_aligerado', 'bloque_hueco'];
 
-function normalizarEstudio(b: unknown): PerfilEstudio {
+/**
+ * Lee un perfil de despacho de cualquier cosa; lo que no se reconozca cae al
+ * valor colegial. Exportada porque `features/memoria-dbse/state.ts` la necesita
+ * para leer la clave global `concreta-estudio`: este fichero vive en `lib/` a
+ * propósito y no toca el almacenamiento.
+ */
+export function normalizarEstudio(b: unknown): PerfilEstudio {
   const d = perfilEstudioPorDefecto();
   if (!esObjeto(b)) return d;
   const prog = esObjeto(b.programa) ? b.programa : {};

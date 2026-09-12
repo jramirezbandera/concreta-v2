@@ -55,6 +55,15 @@ export const PREFIJO_PUB = 'concreta-pub-';
 /** Contexto de obra compartido (`lib/obra`). Vive en la RAÍZ del `ProyectoFile`, nunca en `claves`. */
 export const CLAVE_OBRA = 'concreta-obra';
 
+/**
+ * El perfil del despacho: programa de cálculo, límites de flecha, redacciones
+ * del método. Es de ESTA MÁQUINA y no de la obra —el mismo despacho firma
+ * todas sus obras igual—, así que es PREFERENCIA y no viaja en el `.concreta`.
+ * Hasta 2026-09-12 vivía dentro del estado de la ficha DB SE, donde una subida
+ * de versión de esquema se lo llevaba por delante.
+ */
+export const CLAVE_ESTUDIO = 'concreta-estudio';
+
 // ---------------------------------------------------------------------------
 // Cubo 1: claves de proyecto
 // ---------------------------------------------------------------------------
@@ -225,6 +234,8 @@ export const CLAVES_PREFERENCIA: readonly string[] = [
   // ignora aunque venga dentro de uno.
   'concreta-ai-settings',
   'concreta-ai-assistant-ui',
+  // El perfil del despacho: el mismo para todas sus obras.
+  CLAVE_ESTUDIO,
   // Globos y avisos ya vistos.
   'concreta-cargas-planta-example-dismissed',
   'concreta-viento-nieve-example-dismissed',
