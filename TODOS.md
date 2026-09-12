@@ -1124,3 +1124,83 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **TALUDES ES EL ÚNICO ESPECIAL.** Su resultado sale de un worker de Pyodide (PySlope, ~16 MB wasm), **no se persiste** (`useSlopeState.ts` sólo guarda `SlopeInputs`) y sus SVG dibujan a propósito la geometría exacta del worker, nunca recalculada. No se puede regenerar desde el estado guardado: hay que congelar su SVG en el momento de «Guardar en el anejo» e inyectarlo en el `id` que espera `lib/pdf/slopeStability.ts`.
 
 **Depends on / blocked by:** F4b y F5 del design doc cerradas (el arnés sin pantalla y el botón de guardar en el anejo). Antes de eso no hay dónde enchufarlos.
+
+## Diálogo de obra — validar que el municipio pertenece a la provincia
+
+**Status:** DIFERIDO — plan-design-review del panel de obra (2026-09-12, D17). Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/javie-main-design-20260912-105936.md`.
+
+**What:** comprobar que el municipio tecleado existe dentro de la provincia elegida, en vez de aceptarlo como texto libre.
+
+**Why:** hoy provincia es un `<select>` de códigos INE y municipio un `<input>` libre, y nada los relaciona. Al mudarlos al diálogo de crear obra —donde se teclean una vez y no se vuelven a mirar— el error se vuelve más fácil de cometer y más difícil de ver. El municipio se imprime en la memoria.
+
+**Pros:** el emplazamiento impreso deja de poder ser imposible, y abre la puerta a derivar la altitud del municipio en vez de pedirla.
+
+**Cons:** exige la tabla de municipios del INE (8.131 entradas) en el bundle o en un chunk perezoso.
+
+**Context:** el INE de cinco cifras del municipio se retiró de `lib/obra` el 2026-09-11 por inútil (sólo se usaban las dos primeras cifras, que son la provincia y ya tienen campo). Esto NO lo resucita: valida el nombre contra la provincia, no reintroduce el código.
+
+**Depends on / blocked by:** F1 del design doc (el diálogo de obra con los cinco campos).
+
+## Lector del geotécnico — informes escaneados
+
+**Status:** DIFERIDO — plan-design-review del panel de obra (2026-09-12, D18).
+
+**What:** poder leer un PDF de geotécnico que sean imágenes escaneadas, sin capa de texto.
+
+**Why:** F8 diseña el mensaje de error («este PDF no lleva texto, pásalo por un OCR») pero no resuelve el caso, y los informes viejos —justo los de las obras de reforma, donde más se agradece— suelen estar escaneados. Ahí el lector de IA no sirve de nada.
+
+**Pros:** el lector pasaría de servir para los informes modernos a servir para todos.
+
+**Cons:** un motor de OCR en el navegador son megas de descarga; mandar las páginas como imagen al asistente cuesta bastante más por lectura y sube el consumo BYOK del usuario sin que se note.
+
+**Context:** antes de gastar nada, MEDIR: contar cuántos de los informes reales de `ejemplos geotecnico/` tienen capa de texto. La lectura actual va por pdf.js (`lib/memoria/geotecnico.ts`) y se probó con 5 informes reales, todos con texto.
+
+**Depends on / blocked by:** F8 del design doc.
+
+## Unidades — los cuatro módulos nuevos ignoran el conmutador N/mm² ↔ kg/cm²
+
+**Status:** DIFERIDO — plan-design-review del panel de obra (2026-09-12, D19). Detectado antes en la auditoría de unidades de 2026-09.
+
+**What:** hacer que materiales, viento y nieve, cargas por planta y sismo respeten el sistema de unidades elegido, y que Cargas por planta deje de enseñar los dos sistemas en la misma fila.
+
+**Why:** el núcleo del conmutador está limpio, pero los cuatro módulos nuevos lo ignoran. El panel `/obra` va a enfrentar números de los cuatro en la misma pantalla, que es donde la incoherencia se ve de golpe.
+
+**Pros:** el panel y la ficha hablarían en las unidades que el usuario ha elegido, no en las que decidió cada módulo por su cuenta.
+
+**Cons:** toca cuatro módulos ya entregados y probados, por un motivo que no es el del rediseño.
+
+**Context:** `src/lib/units/` y `UnitSystemProvider`; el `toggleDisabled` de `useUnitSystem` ya permite que un módulo declare que fija sus unidades, que es la salida honesta para los que no puedan conmutar.
+
+**Depends on / blocked by:** nada.
+
+## Pruebas — el renombrado del anejo se pasa del timeout bajo carga
+
+**Status:** DIFERIDO — plan-eng-review del panel de obra (2026-09-12, D13).
+
+**What:** que `src/test/anejo/AnejoModule.dom.test.tsx > renombrar y ver desde la fila > renombrar cambia el capítulo en la lista, y lo dice` deje de agotar los 5.000 ms por defecto de vitest.
+
+**Why:** el 2026-09-12 tumbó un commit y pasó sola al reintentar, sin tocar nada. Con la suíte movida de `pre-commit` a `pre-push` (D11 de esa misma revisión) el fallo no desaparece: se muda al momento de empujar, que es peor porque llega cuando ya dabas el trabajo por bueno.
+
+**Pros:** se acaba el fallo aleatorio, y con él la costumbre de reintentar sin leer qué falló. Un hook que falla por ruido enseña a ignorar los hooks.
+
+**Cons:** hay que averiguar primero si es la prueba o la máquina. Renombrar repinta el título DENTRO del PDF con pdf-lib (`lib/anejo/titulo.ts`), que no es barato, así que puede ser legítimamente lenta y necesitar `testTimeout` propio en vez de optimización.
+
+**Context:** la corrida completa fueron 78,58 s de pruebas con 421,48 s de transformación y 649 s de entorno, o sea la máquina muy cargada. 318 ficheros pasaron; sólo éste falló. Reproducir con la máquina ocupada, no en frío.
+
+**Depends on / blocked by:** nada.
+
+## Un solo patrón para leer almacenes externos desde React
+
+**Status:** DIFERIDO — plan-eng-review del panel de obra (2026-09-12, D14).
+
+**What:** llevar `src/lib/proyecto/index.ts` y `src/components/pwa/PwaUpdatePrompt.tsx` al patrón `useSyncExternalStore` que ya usa `src/lib/anejo/useAnejo.ts` y que estrenarán las publicaciones y la obra en el rediseño.
+
+**Why:** al terminar el rediseño habrá tres formas distintas de leer un almacén externo en el mismo repositorio: la buena (suscripción + instantánea de identidad estable, en anejo, publicaciones y obra) y dos a mano con `addEventListener('focus')` y `('storage')`. Tres patrones para un problema es cómo se acaba sin saber cuál es el bueno.
+
+**Pros:** un solo patrón en toda la app, y de paso los dos avisos dejan de depender de que la ruta se desmonte para refrescarse. El evento `storage` NO se dispara en la pestaña que escribe, así que el patrón a mano sólo se entera de lo que pasa en OTRAS pestañas.
+
+**Cons:** toca código que hoy funciona y que ninguna queja del usuario menciona. Y puede que para el aviso de actualización de la PWA el patrón a mano sea el correcto, porque no es un dato de obra sino un evento del service worker: hay que mirarlo antes de uniformar por uniformar.
+
+**Context:** la plantilla es `src/lib/anejo/useAnejo.ts:14` con `suscribirAnejo` (`index.ts:138`) e `instantaneaAnejo` (`index.ts:153`), que cachea por `raw`+`version` para dar identidad estable, que es lo que `useSyncExternalStore` exige para no repintar en bucle.
+
+**Depends on / blocked by:** que el patrón de `suscribirPubs`/`suscribirObra` esté implementado en el aterrizaje 1.

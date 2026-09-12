@@ -18,6 +18,8 @@
     "format": "prettier -w .",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:changed": "vitest run --changed --passWithNoTests",
+    "typecheck": "tsc -b",
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {

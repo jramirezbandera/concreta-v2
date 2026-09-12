@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# La red de verdad, antes de que nada salga de esta máquina: el typecheck (que
+# hasta ahora sólo corría dentro de `build`) y las 7.702 pruebas.
+bun run typecheck && bun run test:run
