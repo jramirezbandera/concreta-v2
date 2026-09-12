@@ -1204,3 +1204,35 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** la plantilla es `src/lib/anejo/useAnejo.ts:14` con `suscribirAnejo` (`index.ts:138`) e `instantaneaAnejo` (`index.ts:153`), que cachea por `raw`+`version` para dar identidad estable, que es lo que `useSyncExternalStore` exige para no repintar en bucle.
 
 **Depends on / blocked by:** que el patrón de `suscribirPubs`/`suscribirObra` esté implementado en el aterrizaje 1.
+
+## Ficha DB SE — «No procede en esta obra» para un módulo entero
+
+**Status:** DIFERIDO — implementación del rediseño del panel de obra (2026-09-12, R5 del design doc `~/.gstack/projects/jramirezbandera-concreta-v2/javie-main-design-20260912-105936.md`). Sacado del aterrizaje 1 por alcance: necesita estado propio.
+
+**What:** poder declarar que un módulo no aplica a esta obra —una nave sin sismo por estar en zona de `ab < 0,04 g`, un edificio sin contenciones— y que deje de contar como falta sin tener que calcularlo en falso.
+
+**Why:** hoy la tabla de verdad de `estadoSobre()` sólo conoce tres situaciones: no hay sobre, hay sobre sin configurar, y hay sobre configurado. La primera bloquea exportar si el módulo es obligatorio, y la única forma de desbloquear es abrir el módulo y tocarlo. Quien no necesita ese cálculo se ve obligado a fabricar uno, que es exactamente el dato fantasma contra el que va todo el rediseño.
+
+**Pros:** el panel dejaría de enseñar rojos que no son problemas, y el contador de faltas volvería a significar «esto impide entregar» en todas las obras, no sólo en las que usan los cuatro módulos.
+
+**Cons:** no es una casilla. Hay que decidir **qué imprime entonces la ficha**: si el apartado desaparece del documento, si sale con una línea que lo justifica, o si el que firma tiene que escribir por qué no procede. La opción de borrarlo callando es la peligrosa: una memoria sin el apartado de sismo no se distingue de una memoria a la que se le olvidó.
+
+**Context:** `estadoSobre()` en `src/lib/memoria/ensamblar.ts` es la tabla de verdad de cuatro líneas; `Estado` vive en `src/lib/memoria/model.ts` con sus dos predicados `pendiente()` y `bloquea()`. `FilaEstado` (`src/components/ui/FilaEstado.tsx`) **ya tiene pintado el estado «no procede»**, sin nadie que lo produzca. E17 pedía tres salidas por fila en los avisos, y ésta es la que falta.
+
+**Depends on / blocked by:** nada técnico; falta la decisión de producto sobre el documento.
+
+## Cargas por planta — consume sobres sin mirar `configurado`
+
+**Status:** DIFERIDO — implementación del rediseño del panel de obra (2026-09-12). Se dijo en el commit de F2 y se dejó fuera para no mezclar el rediseño de la ficha con otro módulo.
+
+**What:** que `src/features/cargas-planta/nievePub.ts:29` y `src/features/cargas-planta/sismoPub.ts:32,57` comprueben `configurado === true` antes de dar por bueno el sobre, igual que hace ya `estadoSobre()` en la ficha.
+
+**Why:** es la misma enfermedad que F2 curó en la ficha DB SE, en otro módulo. Hoy Cargas por planta se lleva tan contenta la nieve de un Viento y nieve que nadie ha tocado —o el sismo de Granada de `defaultSeismicState()`, que son `ab = 0,23 g` y diez plantas— y lo escribe en el cuadro del plano sin decir nada. El plano es peor sitio que la memoria para un valor de demostración: se imprime, va a obra, y nadie lo lee dos veces.
+
+**Pros:** tres líneas de guarda cierran el último camino por el que un valor de partida entra en un documento firmado.
+
+**Cons:** el cuadro del plano se quedará vacío en obras donde hoy sale relleno, y eso se leerá como una regresión hasta que se entienda que lo que salía era mentira. Hace falta decidir qué pinta el cuadro cuando el sobre no vale: hueco, raya, o una nota de que falta calcularlo.
+
+**Context:** `configurado` es opcional en `Publicacion<T>` (`src/lib/pub/index.ts`) y quinto parámetro posicional de `publicar()`; la coerción correcta es `!== true`, no `=== false`, porque los sobres viejos no lo traen. La guarda ya escrita que sirve de modelo está en `estadoSobre()` de `src/lib/memoria/ensamblar.ts`.
+
+**Depends on / blocked by:** nada.
