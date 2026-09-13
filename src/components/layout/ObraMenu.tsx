@@ -42,6 +42,7 @@ import { DialogoNombre } from './DialogoNombre';
 import { DialogoObra } from './DialogoObra';
 import { prepararDuplicado } from '../../features/memoria-dbse/state';
 import { guardarObra, leerObra, obraVacia, type Obra } from '../../lib/obra';
+import { useObra } from '../../lib/obra/useObra';
 
 type Origen = 'reciente' | 'fichero' | 'nueva';
 
@@ -114,6 +115,13 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const ficheroRef = useRef<HTMLInputElement>(null);
   const nombre = useNombreObra();
+  // El rótulo es el del PROYECTO guardado. Sin él, y con datos de obra ya
+  // tecleados, decir «Sin obra» al lado de un panel que enseña el nombre del
+  // edificio era decir dos cosas a la vez (auditoría del 13-09-2026). Se
+  // enseña el nombre, y que aún no está guardado: el proyecto sigue naciendo
+  // perezosamente, al guardar o exportar.
+  const obraViva = useObra();
+  const rotulo = nombre ?? (obraViva?.denominacion ? `${obraViva.denominacion} · sin guardar` : null);
   const { activo, desfasada } = useProyectoActivo();
   const recientes = useRecientes();
 
@@ -350,12 +358,15 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
         onClick={() => setAbierto((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={abierto}
-        aria-label={`Obra: ${nombre ?? 'sin obra'}. Menú de obra`}
+        aria-label={`Obra: ${rotulo ?? 'sin obra'}. Menú de obra`}
+        // El rótulo se trunca con los nombres largos, y «· sin guardar» es lo
+        // primero que desaparece: aquí sale entero.
+        title={rotulo ?? 'Sin obra'}
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[12.5px] hover:bg-bg-elevated transition-colors"
       >
         <Folder size={14} className="shrink-0 text-accent" aria-hidden="true" />
-        <span className={`min-w-0 flex-1 truncate text-left ${nombre ? 'text-text-primary' : 'text-text-disabled'}`}>
-          {nombre ?? 'Sin obra'}
+        <span className={`min-w-0 flex-1 truncate text-left ${rotulo ? 'text-text-primary' : 'text-text-disabled'}`}>
+          {rotulo ?? 'Sin obra'}
         </span>
         <ChevronDown
           size={12}

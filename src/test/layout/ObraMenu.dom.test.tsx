@@ -66,6 +66,16 @@ beforeEach(() => {
 });
 
 describe('ObraMenu', () => {
+  it('con datos de obra tecleados y sin proyecto guardado, el disparador dice el nombre y que no está guardada', () => {
+    // Decía «Sin obra» al lado de un panel que enseñaba «Nave en Granada»: dos
+    // nombres de dos sitios (el proyecto y la obra) en la misma pantalla.
+    guardarObra({ denominacion: 'Nave en Granada', provincia: '18' });
+    montar();
+    const disparador = screen.getByRole('button', { name: /menú de obra/i });
+    expect(disparador.textContent).toMatch(/Nave en Granada · sin guardar/);
+    expect(disparador).toHaveAccessibleName(/Nave en Granada · sin guardar/);
+  });
+
   it('sin obra: el disparador dice «Sin obra» y no hay recientes', async () => {
     const user = userEvent.setup();
     montar();
