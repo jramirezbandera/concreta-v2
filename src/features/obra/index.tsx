@@ -31,7 +31,8 @@ import { FilaEstado } from '../../components/ui/FilaEstado';
 import { piezasSinPdf } from '../../lib/anejo';
 import { useAnejo } from '../../lib/anejo/useAnejo';
 import { resumenDe } from '../../lib/anejo/maqueta';
-import { adoptarPerfilDeLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
+import { adoptarPerfilDeLaObra, dejarMiPerfilEnLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
+import { showToast } from '../../components/ui/Toast';
 import { guardarObra } from '../../lib/obra';
 import { useObra } from '../../lib/obra/useObra';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
@@ -44,6 +45,12 @@ const RUTA_ESTUDIO = '/ajustes/estudio';
 
 const CABECERA = 'px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled';
 const BLOQUE = 'rounded border border-border-main bg-bg-surface';
+/** LA acción primaria: la misma pinta sea enlace o botón. */
+const ACCION = 'ml-auto rounded px-3 py-1.5 text-[12.5px] text-accent transition-all';
+const ACCION_ESTILO = {
+  border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+  background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
+} as const;
 
 export function ObraModule() {
   const { openDrawer } = useDrawer();
@@ -104,7 +111,11 @@ export function ObraModule() {
   const lugar = [obra?.municipio, obra?.altitud != null ? `${obra.altitud} m` : null].filter(Boolean).join(' · ');
   const vacia = obra === null || (!obra.denominacion && !obra.provincia);
 
-  const faltan = (resumen?.faltan ?? 0) + (resumen?.datosObra.length ?? 0);
+  // `faltan` ya cuenta los datos de la obra: es el MISMO número que la ficha.
+  // Sumarles `datosObra.length` otra vez —que es lo que hacía— daba «Faltan
+  // 19» aquí y «18 faltan» allí, la contradicción que este panel existe para
+  // matar.
+  const faltan = resumen?.faltan ?? 0;
   const ambar = resumen?.ambar ?? 0;
 
   return (
@@ -136,9 +147,15 @@ export function ObraModule() {
                 Cambian {perfilDistinto.join(', ')}. Se imprime el perfil de esta máquina, no el que traía la obra.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
+                {/* Las dos son DECISIONES: se persisten, y si el almacén no las
+                    admite se dice (E8). Hasta el 13-09-2026 «Dejar el mío» sólo
+                    cerraba la banda, y volvía en la visita siguiente. */}
                 <button
                   type="button"
-                  onClick={() => setPerfilDistinto([])}
+                  onClick={() => {
+                    if (!dejarMiPerfilEnLaObra()) return showToast('No se ha podido guardar la decisión (¿almacenamiento lleno?)', { autoDismiss: 6000 });
+                    setPerfilDistinto([]);
+                  }}
                   className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
                 >
                   Dejar el mío
@@ -146,7 +163,7 @@ export function ObraModule() {
                 <button
                   type="button"
                   onClick={() => {
-                    adoptarPerfilDeLaObra();
+                    if (!adoptarPerfilDeLaObra()) return showToast('No se ha podido adoptar el perfil (¿almacenamiento lleno?)', { autoDismiss: 6000 });
                     setPerfilDistinto([]);
                   }}
                   className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
@@ -176,16 +193,19 @@ export function ObraModule() {
                         ? `No falta nada. Quedan ${ambar} ${ambar === 1 ? 'dato' : 'datos'} por mirar, que no impiden entregar.`
                         : 'No falta nada: la justificación se puede exportar.'}
               </p>
-              <Link
-                to={RUTA_FICHA}
-                className="ml-auto rounded px-3 py-1.5 text-[12.5px] text-accent transition-all"
-                style={{
-                  border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-                  background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
-                }}
-              >
-                {faltan > 0 ? 'Resolver lo que falta' : 'Revisar y exportar'}
-              </Link>
+              {/* R2: UNA acción, y lleva a la PRIMERA falta esté donde esté —el
+                  diálogo de la obra, el módulo sin calcular, o la ficha—. Hasta
+                  el 13-09-2026 iba siempre a la ficha, que a su vez decía
+                  «Abrir el módulo»: dos saltos para lo que la fila hace en uno. */}
+              {resumen !== null && resumen.datosObra.length > 0 ? (
+                <button type="button" onClick={() => setEditando(true)} className={ACCION} style={ACCION_ESTILO}>
+                  Resolver lo que falta
+                </button>
+              ) : (
+                <Link to={(faltan > 0 && resumen?.modulos.find((f) => f.estado === 'falta')?.ruta) || RUTA_FICHA} className={ACCION} style={ACCION_ESTILO}>
+                  {faltan > 0 ? 'Resolver lo que falta' : 'Revisar y exportar'}
+                </Link>
+              )}
             </div>
           )}
 

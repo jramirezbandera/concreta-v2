@@ -68,7 +68,9 @@ describe('una obra a medias', () => {
     montar();
 
     expect(await screen.findByText(/Faltan \d+ datos para poder exportar/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Resolver lo que falta' })).toHaveAttribute('href', '/memorias/db-se');
+    // La acción lleva a la PRIMERA falta (R2): con nada calculado, el cuadro de
+    // materiales, no la ficha para que la ficha diga «Abrir el módulo».
+    expect(screen.getByRole('link', { name: 'Resolver lo que falta' })).toHaveAttribute('href', '/memorias/materiales');
 
     // Cada módulo sin calcular es una fila con su destino.
     const fila = await screen.findByRole('link', { name: /Cuadro de materiales: falta/ });
@@ -87,15 +89,22 @@ describe('una obra a medias', () => {
     expect(screen.queryByRole('link', { name: /Viento y nieve: no procede/ })).toBeNull();
   });
 
-  it('el total del panel es el mismo que impide exportar en la ficha', () => {
-    obraGranada();
+  it('el total del panel es el mismo que impide exportar en la ficha, también con un dato de obra sin rellenar', async () => {
+    // Sin uso a propósito: es un dato de obra que falta, y la versión anterior
+    // del panel lo contaba dos veces (una dentro de `faltan` y otra en
+    // `datosObra`). Con la obra completa el fallo no se veía.
+    guardarObra({ denominacion: 'Edificio en Granada', municipio: 'Granada', provincia: '18', altitud: 680, uso: '' });
     const r = resumenDeObra();
     const ev = evaluar(cargarEstado(), leerSobres());
+    const faltasFicha = ev.huecos.filter((h) => h.estado === 'falta').length;
 
-    // El panel cuenta los datos de obra aparte, porque se resuelven en su
-    // diálogo y no en la ficha; sumados, son exactamente las faltas.
-    expect(r.faltan + r.datosObra.length).toBe(ev.huecos.filter((h) => h.estado === 'falta').length);
-    expect(ev.listo).toBe(r.faltan + r.datosObra.length === 0);
+    expect(r.datosObra).toEqual(['Uso principal del edificio']);
+    expect(r.faltan).toBe(faltasFicha);
+    expect(ev.listo).toBe(r.faltan === 0);
+
+    // Y lo que se pinta dice ese número, no otro.
+    montar();
+    expect(await screen.findByText(`Faltan ${faltasFicha} datos para poder exportar la justificación.`)).toBeInTheDocument();
   });
 
   it('se entera de lo que se publica en otro módulo sin recargar', async () => {

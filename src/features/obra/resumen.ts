@@ -13,7 +13,7 @@ import { cargarEstado } from '../memoria-dbse/state';
 import { leerSobres } from '../memoria-dbse/sobres';
 import { evaluar } from '../../lib/memoria/ensamblar';
 import { apartados } from '../../lib/memoria/ficha';
-import type { ApartadoId } from '../../lib/memoria/model';
+import { bloquea, type ApartadoId } from '../../lib/memoria/model';
 import type { ModuloPub } from '../../lib/memoria/estado';
 
 export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede' | 'sinEmpezar';
@@ -104,9 +104,13 @@ export function resumenDeObra(): ResumenObra {
       };
     });
 
+  // `faltan` es EL MISMO número que impide exportar en la ficha, con los datos
+  // de la obra dentro: `datosObra` sólo los nombra para llevar a su diálogo, no
+  // los cuenta aparte. Y se pregunta a `bloquea()`, no a un literal: si un día
+  // bloquea otro estado, el panel se entera solo.
   return {
-    faltan: huecos.filter((h) => h.estado === 'falta').length,
-    ambar: huecos.filter((h) => h.estado !== 'falta').length,
+    faltan: huecos.filter((h) => bloquea(h.estado)).length,
+    ambar: huecos.filter((h) => !bloquea(h.estado)).length,
     modulos,
     ficha,
     datosObra,
