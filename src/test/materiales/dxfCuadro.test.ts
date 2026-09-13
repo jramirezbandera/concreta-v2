@@ -284,6 +284,28 @@ describe('el fichero DXF', () => {
     expect(d).toContain('ANSI_1252');
   });
 
+  it('trae la vista con la que el CAD tiene que abrirlo, encuadrando el cuadro', () => {
+    // El cuadro son unos centímetros junto al origen. Sin tabla VPORT el CAD
+    // abría con la vista de su plantilla —cientos de unidades de ancho— y el
+    // cuadro quedaba como un punto invisible en la esquina: había que hacer
+    // «zoom extensión» a mano cada vez que se abría el fichero.
+    const dibujo = planificarDibujo(CUADRO);
+    const L = pares(escribirDxf(dibujo));
+    const i = L.indexOf('*ACTIVE');
+    expect(i).toBeGreaterThan(0);
+    const codigo: Record<string, string> = {};
+    for (let k = i + 1; L[k] !== '0'; k += 2) codigo[L[k]] = L[k + 1];
+    const alto = Number(codigo['40']);
+    const ancho = alto * Number(codigo['41']);
+    const cx = Number(codigo['12']);
+    const cy = Number(codigo['22']);
+    // La caja del dibujo —x de 0 a ancho, y de -alto a 0— dentro de la vista.
+    expect(cx - ancho / 2).toBeLessThan(0);
+    expect(cx + ancho / 2).toBeGreaterThan(dibujo.ancho);
+    expect(cy - alto / 2).toBeLessThan(-dibujo.alto);
+    expect(cy + alto / 2).toBeGreaterThan(0);
+  });
+
   it('declara toda capa que use, con su color', () => {
     const d = dxf();
     const usadas = [...d.matchAll(/\r\n8\r\n(CUADRO-[A-Z]+)\r\n/g)].map((m) => m[1]);

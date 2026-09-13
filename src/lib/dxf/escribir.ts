@@ -63,12 +63,109 @@ function cabecera(d: Dibujo): string {
     par(10, real(d.ancho)) +
     par(20, real(0)) +
     par(30, real(0)) +
+    // Los límites, iguales a los extremos: es lo que mira el CAD cuando el
+    // usuario hace «zoom todo» en vez de «zoom extensión».
+    par(9, '$LIMMIN') +
+    par(10, real(0)) +
+    par(20, real(-d.alto)) +
+    par(9, '$LIMMAX') +
+    par(10, real(d.ancho)) +
+    par(20, real(0)) +
+    // La vista guardada del fichero. Va por duplicado —aquí y en la tabla
+    // VPORT— porque no todos los programas miran la misma.
+    par(9, '$VIEWCTR') +
+    par(10, real(d.ancho / 2)) +
+    par(20, real(-d.alto / 2)) +
+    par(9, '$VIEWSIZE') +
+    par(40, real(altoDeVista(d))) +
     par(0, 'ENDSEC')
   );
 }
 
-function tablas(capas: Capa[]): string {
-  let s = par(0, 'SECTION') + par(2, 'TABLES');
+/**
+ * Altura de la vista inicial, en unidades de dibujo.
+ *
+ * El cuadro mide unos pocos centímetros y está pegado al origen: la altura de
+ * texto son 2,5 mm y las unidades del dibujo son metros. Un DXF que no diga con
+ * qué vista abrirse lo abre el CAD con la de su plantilla —cientos de unidades
+ * de ancho—, y el cuadro queda como un punto invisible en la esquina del 0,0:
+ * hay que hacer «zoom extensión» a mano cada vez. De ahí que el fichero lleve
+ * su propia vista, encuadrando el cuadro con un poco de aire.
+ *
+ * Insertado en un plano esto no pinta nada: la vista es del fichero, no de la
+ * geometría, y al insertar se descarta.
+ */
+const RELACION_VISTA = 1.6; // ancho/alto de una pantalla apaisada
+const AIRE_VISTA = 1.15;
+
+function altoDeVista(d: Dibujo): number {
+  // Un cuadro vacío no tiene caja, y una vista de altura 0 el CAD la ignora.
+  const ancho = d.ancho > 0 ? d.ancho : 1;
+  const alto = d.alto > 0 ? d.alto : 1;
+  return Math.max(alto, ancho / RELACION_VISTA) * AIRE_VISTA;
+}
+
+/**
+ * El registro *ACTIVE de la tabla VPORT: la vista con la que AutoCAD y ZWCAD
+ * abren el dibujo. Los códigos son los de un R12 completo —dirección de vista,
+ * rejilla, forzado de cursor, recortes— porque un VPORT al que le falten campos
+ * hay programas que lo descartan entero y vuelven a su vista de plantilla.
+ */
+function vport(d: Dibujo): string {
+  const altura = altoDeVista(d);
+  // El dibujo ocupa x ∈ [0, ancho] e y ∈ [-alto, 0]: crece hacia abajo.
+  const cx = (d.ancho > 0 ? d.ancho : 1) / 2;
+  const cy = -(d.alto > 0 ? d.alto : 1) / 2;
+  // Rejilla y forzado a una décima de la vista: números redondos para el
+  // tamaño del cuadro, en vez de la unidad que traiga la plantilla del CAD.
+  const paso = altura / 10;
+  return (
+    par(0, 'TABLE') +
+    par(2, 'VPORT') +
+    par(70, 1) +
+    par(0, 'VPORT') +
+    par(2, '*ACTIVE') +
+    par(70, 0) +
+    par(10, real(0)) + // esquina inferior izquierda de la ventana, en pantalla
+    par(20, real(0)) +
+    par(11, real(1)) + // y la superior derecha: la pantalla entera
+    par(21, real(1)) +
+    par(12, real(cx)) + // centro de la vista, en coordenadas del dibujo
+    par(22, real(cy)) +
+    par(13, real(0)) + // base del forzado de cursor
+    par(23, real(0)) +
+    par(14, real(paso)) + // paso del forzado
+    par(24, real(paso)) +
+    par(15, real(paso)) + // paso de la rejilla
+    par(25, real(paso)) +
+    par(16, real(0)) + // dirección de vista: desde arriba
+    par(26, real(0)) +
+    par(36, real(1)) +
+    par(17, real(0)) + // punto mirado
+    par(27, real(0)) +
+    par(37, real(0)) +
+    par(40, real(altura)) + // alto de la vista, en unidades de dibujo
+    par(41, real(RELACION_VISTA)) +
+    par(42, real(50)) + // distancia focal, la de por defecto
+    par(43, real(0)) + // sin recorte delantero
+    par(44, real(0)) + // ni trasero
+    par(45, real(0)) +
+    par(50, real(0)) + // rejilla sin girar
+    par(51, real(0)) + // vista sin girar
+    par(71, 0) +
+    par(72, 100) +
+    par(73, 1) +
+    par(74, 3) +
+    par(75, 0) +
+    par(76, 0) +
+    par(77, 0) +
+    par(78, 0) +
+    par(0, 'ENDTAB')
+  );
+}
+
+function tablas(d: Dibujo, capas: Capa[]): string {
+  let s = par(0, 'SECTION') + par(2, 'TABLES') + vport(d);
 
   // Dos estilos. STANDARD porque un DXF suelto lo necesita —es al que apunta
   // todo TEXT que no diga otra cosa— y el del cuadro, que es el que se usa.
@@ -148,7 +245,7 @@ export function escribirDxf(d: Dibujo): string {
   const capas = [...new Set(d.entidades.map((e) => e.capa))].sort();
   return (
     cabecera(d) +
-    tablas(capas.length ? capas : ['CUADRO-LINEAS']) +
+    tablas(d, capas.length ? capas : ['CUADRO-LINEAS']) +
     par(0, 'SECTION') +
     par(2, 'ENTITIES') +
     d.entidades.map(entidad).join('') +
