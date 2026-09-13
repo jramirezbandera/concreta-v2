@@ -22,10 +22,16 @@ import { ModuleIcon } from './ModuleIcon';
 
 export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede' | 'sinEmpezar';
 
+// El tinte va en `bg-state-*/10`, que es la receta de insignia de la casa
+// (`components/checks/index.tsx:20-25` y nueve sitios más). `bg-tint-fail` NO
+// vale: los `--color-tint-*` están declarados en `:root` y no dentro de
+// `@theme`, así que Tailwind v4 no fabrica esa utilidad y la clase no pinta
+// nada. Se vio aquí porque el chip teñido es la idea del rediseño, pero el
+// fallo es viejo y se lo comen también BandaProyecto y BandaAlmacen (TODOS.md).
 const ESTADOS = {
   hecho: { icono: Check, palabra: 'hecho', clase: 'text-state-ok', tinte: '' },
-  falta: { icono: X, palabra: 'falta', clase: 'text-state-fail', tinte: 'bg-tint-fail' },
-  revisar: { icono: AlertTriangle, palabra: 'revíselo', clase: 'text-state-warn', tinte: 'bg-tint-warn' },
+  falta: { icono: X, palabra: 'falta', clase: 'text-state-fail', tinte: 'bg-state-fail/10' },
+  revisar: { icono: AlertTriangle, palabra: 'revíselo', clase: 'text-state-warn', tinte: 'bg-state-warn/10' },
   noProcede: { icono: Circle, palabra: 'no procede', clase: 'text-text-disabled', tinte: '' },
   sinEmpezar: { icono: Circle, palabra: 'sin empezar', clase: 'text-text-disabled', tinte: '' },
 } as const;
@@ -39,9 +45,9 @@ export function Marca({ estado }: { estado: EstadoFila }) {
   const e = ESTADOS[estado];
   const Icono = e.icono;
   return (
-    <span className={`flex w-[96px] shrink-0 items-center gap-1 rounded px-1.5 py-0.5 ${e.tinte} ${e.clase}`}>
+    <span className={`flex w-[104px] shrink-0 items-center gap-1 rounded px-1.75 py-0.5 ${e.tinte} ${e.clase}`}>
       <Icono size={12} aria-hidden="true" className="shrink-0 stroke-current" />
-      <span className="font-mono text-[10px] whitespace-nowrap">{e.palabra}</span>
+      <span className="font-mono text-[10px] font-semibold tracking-[0.05em] whitespace-nowrap">{e.palabra}</span>
     </span>
   );
 }

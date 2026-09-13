@@ -29,7 +29,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { Check, ChevronDown, FilePlus2, Pencil } from 'lucide-react';
+import { ChevronDown, FilePlus2, Pencil } from 'lucide-react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { DialogoObra } from '../../components/layout/DialogoObra';
 import { Topbar } from '../../components/layout/Topbar';
@@ -545,10 +545,7 @@ function Filas({ filas, vacia }: { filas: FilaResumen[]; vacia: boolean }) {
           aria-expanded={verHechas}
           className="flex min-h-[44px] w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0 hover:bg-bg-elevated"
         >
-          <span className="flex w-[96px] shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-state-ok">
-            <Check size={12} aria-hidden="true" className="shrink-0 stroke-current" />
-            <span className="font-mono text-[10px]">hecho</span>
-          </span>
+          <Marca estado="hecho" />
           {/* El hueco del icono que estas filas no tienen: sin él la etiqueta
               empieza 24 px antes que las de arriba y la lista deja de alinear. */}
           <span className="w-3.5 shrink-0" aria-hidden="true" />
