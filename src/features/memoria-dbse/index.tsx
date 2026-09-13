@@ -45,14 +45,16 @@ import { apartados as apartadosDe, bloquesFicha } from '../../lib/memoria/ficha'
 import { aplicarExtraccion, type ExtraccionGeotecnico, type ResultadoLectura } from '../../lib/memoria/geotecnico';
 import { contarHuecos, siguienteHueco } from '../../lib/memoria/huecos';
 import type { ApartadoId, Hueco } from '../../lib/memoria/model';
-import { guardarObra, leerObra, mismaObra } from '../../lib/obra';
+import { guardarObra, mismaObra } from '../../lib/obra';
+import { useObra } from '../../lib/obra/useObra';
+import { useVersionDePubs } from '../../lib/pub/usePubs';
 import { BarraObra } from './BarraObra';
 import { idDom } from './ids';
 import { Avisos } from './Avisos';
 import { GeotecnicoModal } from './GeotecnicoModal';
 import { Seccion } from './Seccion';
 import { SeccionCE, SeccionForjados, SeccionNCSE, SeccionSE, SeccionSEA, SeccionSEAE, SeccionSEC, SeccionSEF, SeccionSEM, type Acciones } from './secciones';
-import { leerSobres, type Sobres } from './sobres';
+import { leerSobres } from './sobres';
 import { cargarEstado, guardarEstado } from './state';
 import { BOTON_ACENTO } from './estilos';
 
@@ -115,58 +117,57 @@ const aperturaAlArrancar = (apartados: readonly string[], huecos: readonly Hueco
 export function MemoriaDBSEModule() {
   const { openDrawer } = useDrawer();
   const [state, setState] = useState<MemoriaState>(cargarEstado);
-  const [sobres, setSobres] = useState<Sobres>(leerSobres);
-  const [obraGuardada, setObraGuardada] = useState(leerObra);
+  // Los otros dos almacenes se leen por su store, como en el panel de la obra:
+  // la ficha y el panel ven LA MISMA instantánea (E4). Hasta el 13-09-2026 esto
+  // era `useState(leerSobres)` más un par `focus`/`storage` a mano.
+  const versionPubs = useVersionDePubs();
+  // `versionPubs` no se usa DENTRO a propósito: es la marca que dice «vuelve a
+  // leer», no un dato. Por eso el lint cree que sobra.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sobres = useMemo(() => leerSobres(), [versionPubs]);
+  const obraGuardada = useObra();
   const [obraAbierta, setObraAbierta] = useState(false);
   const [faltasAbierto, setFaltasAbierto] = useState(false);
   const [avisoAbierto, setAvisoAbierto] = useState(false);
   const [geotecnicoAbierto, setGeotecnicoAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
 
-  /** Todo cambio pasa por aquí: actualiza, persiste y relee lo ajeno. */
-  const actualizar = useCallback((cambio: (prev: MemoriaState) => MemoriaState) => {
-    setState((prev) => {
-      const siguiente = cambio(prev);
-      if (siguiente !== prev) guardarEstado(siguiente);
-      return siguiente;
-    });
-    setSobres(leerSobres());
-    setObraGuardada(leerObra());
+  // El estado más reciente: para que dos cambios en el mismo tic se encadenen,
+  // y para el modal del geotécnico, cuyo callback llega segundos después de
+  // abrirse y no debe pisar lo tecleado mientras tanto. Se escribe en
+  // `actualizar`, nunca en el render (React Compiler).
+  const stateRef = useRef(state);
+
+  /**
+   * Todo cambio pasa por aquí: actualiza, persiste y DICE si no pudo. Es la
+   * decisión E8: «son los de esta obra», «es correcto» y «revisados» no pueden
+   * fallar en silencio, y hasta el 13-09-2026 fallaban —el aviso desaparecía de
+   * pantalla y al recargar estaba otra vez—. `false` si el almacén no admitió
+   * la escritura.
+   */
+  const actualizar = useCallback((cambio: (prev: MemoriaState) => MemoriaState): boolean => {
+    const siguiente = cambio(stateRef.current);
+    if (siguiente === stateRef.current) return true;
+    stateRef.current = siguiente;
+    const ok = guardarEstado(siguiente);
+    setState(siguiente);
+    if (!ok) showToast('No se ha podido guardar el cambio (¿almacenamiento lleno?)', { autoDismiss: 6000 });
+    return ok;
   }, []);
 
-  // Lo normal es ir al módulo de sismo, publicar, y volver: al volver se relee.
+  // `datosObra` es el reflejo de `concreta-obra` dentro del estado: si la obra
+  // cambia —el diálogo de aquí, el del menú, otra pestaña— la ficha lo ve.
   useEffect(() => {
-    const releer = () => {
-      setSobres(leerSobres());
-      setObraGuardada(leerObra());
-    };
-    window.addEventListener('focus', releer);
-    window.addEventListener('storage', releer);
-    return () => {
-      window.removeEventListener('focus', releer);
-      window.removeEventListener('storage', releer);
-    };
-  }, []);
-
-  // `datosObra` es el reflejo de `concreta-obra` dentro del estado. Si la obra
-  // cambia —el diálogo de aquí, el del menú, otra pestaña— la ficha tiene que
-  // verlo sin recargar. En la pantalla de la obra esto lo hará un store con
-  // `useSyncExternalStore`, y este efecto sobrará.
-  useEffect(() => {
-    setState((prev) => (mismaObra(prev.datosObra, obraGuardada) ? prev : { ...prev, datosObra: obraGuardada }));
-  }, [obraGuardada]);
+    actualizar((prev) => (mismaObra(prev.datosObra, obraGuardada) ? prev : { ...prev, datosObra: obraGuardada }));
+  }, [obraGuardada, actualizar]);
 
   // Los forjados que publica Cargas por planta entran en la capa de obra con
   // sus defaults heredados, para que «Confirmar» tenga dónde escribir.
   useEffect(() => {
     const tipologias = tipologiasDe(sobres.cargasPlanta);
     if (tipologias.length === 0) return;
-    setState((prev) => {
-      const s = asegurarForjados(prev, tipologias);
-      if (s !== prev) guardarEstado(s);
-      return s;
-    });
-  }, [sobres.cargasPlanta]);
+    actualizar((prev) => asegurarForjados(prev, tipologias));
+  }, [sobres.cargasPlanta, actualizar]);
 
   const evaluacion = useMemo(() => evaluar(state, sobres), [state, sobres]);
   const { datos, huecos, listo, mensajeBloqueo, mensajeAviso } = evaluacion;
@@ -184,13 +185,8 @@ export function MemoriaDBSEModule() {
     [actualizar],
   );
 
-  // El estado más reciente para el modal del geotécnico: su callback llega
-  // segundos después de abrirse (la IA tarda) y no debe pisar lo tecleado
-  // mientras tanto. Se escribe en un efecto, nunca en el render (React Compiler).
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  // El callback del geotécnico llega segundos después de abrirse (la IA tarda)
+  // y no debe pisar lo tecleado mientras tanto: lee `stateRef`, no `state`.
   const aplicarGeotecnico = (ex: ExtraccionGeotecnico, nombre: string): ResultadoLectura => {
     const r = aplicarExtraccion(stateRef.current, ex, nombre);
     actualizar(() => r.state);
@@ -218,7 +214,9 @@ export function MemoriaDBSEModule() {
     const ids = huecos.filter((h) => h.apartado === apartado && h.estado === 'heredado').map((h) => h.id);
     if (ids.length === 0) return;
     const anterior = state;
-    actualizar((p) => confirmarVarios(p, ids));
+    // Si no se pudo guardar, `actualizar` ya lo ha dicho: no se anuncia un
+    // éxito que no hubo (E8).
+    if (!actualizar((p) => confirmarVarios(p, ids))) return;
     showToast(`${ids.length} ${ids.length === 1 ? 'dato dado por revisado' : 'datos dados por revisados'}`, {
       autoDismiss: 6000,
       action: { label: 'Deshacer', onClick: () => actualizar(() => anterior) },
@@ -437,7 +435,8 @@ export function MemoriaDBSEModule() {
           confirmar="Guardar los datos"
           inicial={obraGuardada}
           onConfirm={(o) => {
-            setObraGuardada(guardarObra(o));
+            // El store avisa: `useObra()` repinta y el efecto de `datosObra` hace el resto.
+            guardarObra(o);
             setObraAbierta(false);
           }}
           onCancel={() => setObraAbierta(false)}

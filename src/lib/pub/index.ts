@@ -138,16 +138,35 @@ export function retirarPublicacion(modulo: string): void {
 
 const oyentes = new Set<() => void>();
 
+// Declarado ANTES de quien lo lee: un `let` de módulo leído antes de
+// escribirse es una trampa que este repo ya ha pisado con el compilador de
+// React.
+let version = 0;
+
+function marcarCambio(): void {
+  version += 1;
+  for (const fn of oyentes) fn();
+}
+
+// Lo que llega de OTRA pestaña tiene que mover la marca, no sólo avisar:
+// `useSyncExternalStore` compara instantáneas, y si `versionDePubs()` devolvía
+// lo mismo de antes, el aviso se perdía y la otra pestaña no repintaba nunca
+// (así estuvo del 12 al 13-09-2026). Un solo oyente para todo el módulo, que
+// vive lo que viva la página. `key: null` es el `clear()` del cambio de obra.
+let escuchandoOtrasPestanas = false;
+function escucharOtrasPestanas(): void {
+  if (escuchandoOtrasPestanas || typeof window === 'undefined') return;
+  escuchandoOtrasPestanas = true;
+  window.addEventListener('storage', (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith(PREFIJO_PUB)) marcarCambio();
+  });
+}
+
 export function suscribirPubs(fn: () => void): () => void {
   oyentes.add(fn);
-  // `key: null` es el `clear()` del cambio de obra.
-  const otraPestana = (e: StorageEvent) => {
-    if (e.key === null || e.key.startsWith(PREFIJO_PUB)) fn();
-  };
-  window.addEventListener('storage', otraPestana);
+  escucharOtrasPestanas();
   return () => {
     oyentes.delete(fn);
-    window.removeEventListener('storage', otraPestana);
   };
 }
 
@@ -159,11 +178,4 @@ export function suscribirPubs(fn: () => void): () => void {
  */
 export function versionDePubs(): number {
   return version;
-}
-
-let version = 0;
-
-function marcarCambio(): void {
-  version += 1;
-  for (const fn of oyentes) fn();
 }

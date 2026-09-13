@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { Topbar } from '../../components/layout/Topbar';
+import { showToast } from '../../components/ui/Toast';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { CONTROL_EJECUCION_OPCIONES } from '../materiales/catalogos';
 import { guardarPerfilEstudio, leerPerfilEstudio } from '../memoria-dbse/state';
@@ -50,13 +51,15 @@ export function AjustesEstudioModule() {
   const { openDrawer } = useDrawer();
   const [perfil, setPerfil] = useState<PerfilEstudio>(() => leerPerfilEstudio() ?? perfilEstudioPorDefecto());
 
-  /** Todo cambio pasa por aquí: escribe y persiste, sin botón de guardar. */
+  /**
+   * Todo cambio pasa por aquí: escribe, persiste y DICE si no pudo. Sin botón
+   * de guardar, éste es el único sitio donde el usuario puede enterarse de que
+   * el almacén no admitió la escritura (E8).
+   */
   const cambiar = (cambio: (p: PerfilEstudio) => PerfilEstudio) => {
-    setPerfil((prev) => {
-      const siguiente = cambio(prev);
-      guardarPerfilEstudio(siguiente);
-      return siguiente;
-    });
+    const siguiente = cambio(perfil);
+    setPerfil(siguiente);
+    if (!guardarPerfilEstudio(siguiente)) showToast('No se ha podido guardar el perfil (¿almacenamiento lleno?)', { autoDismiss: 6000 });
   };
 
   const texto = (id: string, etiqueta: string, valor: string, poner: (v: string) => PerfilEstudio, nota?: string, area = false) => (

@@ -181,6 +181,36 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     expect(screen.getAllByRole('link', { name: 'Abrir el módulo' }).length).toBeGreaterThan(0);
   });
 
+  it('se entera de lo que se publica en otro módulo sin recargar (E4)', async () => {
+    obraGranada();
+    montar();
+    expect(await screen.findAllByRole('link', { name: 'Abrir el módulo' })).toHaveLength(3);
+
+    // Otro módulo publica un cuadro de verdad: la fila de materiales se va sola.
+    const m = { ...defaultMaterialesState(), costa: true };
+    publicarMateriales(m, evaluarMateriales(m));
+
+    await waitFor(() => expect(screen.getAllByRole('link', { name: 'Abrir el módulo' })).toHaveLength(2));
+  });
+
+  it('si el almacén no admite la escritura, «Son los de esta obra» lo dice en vez de fingir (E8)', async () => {
+    obraGranada();
+    const m = defaultMaterialesState();
+    publicarMateriales(m, evaluarMateriales(m));
+    montar();
+    const boton = await screen.findByRole('button', { name: 'Son los de esta obra' });
+
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('lleno', 'QuotaExceededError');
+    });
+    try {
+      fireEvent.click(boton);
+      expect(await screen.findByText(/No se ha podido guardar el cambio/)).toBeInTheDocument();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it('«Siguiente hueco» lleva el foco al primer hueco, y el botón ✓ confirma un dato heredado', async () => {
     obraGranada();
     publicarLosOtros();
