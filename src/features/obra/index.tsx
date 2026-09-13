@@ -33,6 +33,7 @@ import { ChevronDown, FilePlus2, Pencil } from 'lucide-react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { DialogoObra } from '../../components/layout/DialogoObra';
 import { Topbar } from '../../components/layout/Topbar';
+import { destinoDe, palabraDe } from '../../components/ui/estadoFila';
 import { FilaEstado, Marca } from '../../components/ui/FilaEstado';
 import { hayTrabajoSinGuardar, piezasSinPdf } from '../../lib/anejo';
 import { ADAPTADORES_ANEJO } from '../../lib/anejo/modules';
@@ -41,6 +42,7 @@ import { useAnejo } from '../../lib/anejo/useAnejo';
 import { resumenDe } from '../../lib/anejo/maqueta';
 import { provinciaDe } from '../../lib/acciones/provincias';
 import { adoptarPerfilDeLaObra, dejarMiPerfilEnLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
+import { AMBAR } from '../../components/ui/estados';
 import { showToast } from '../../components/ui/Toast';
 import { guardarObra } from '../../lib/obra';
 import { useObra } from '../../lib/obra/useObra';
@@ -53,9 +55,21 @@ const RUTA_MATERIALES = '/memorias/materiales';
 const RUTA_ESTUDIO = '/ajustes/estudio';
 
 const BLOQUE = 'rounded border border-border-main bg-bg-surface';
-/** LA acción primaria: la misma pinta sea enlace o botón. */
+/**
+ * LA acción primaria: la misma pinta sea enlace o botón.
+ *
+ * Outline fuerte —tinte acento 12 %, borde 45 %, texto acento—, que es la
+ * receta del control más destacado de la app (`AiButton`). No un relleno
+ * sólido: la decisión del 2026-07-17 (DESIGN.md) fija la jerarquía por
+ * intensidad de acento justamente porque un sólido de SaaS chirría con la
+ * tesis «instrumento, no dashboard», y esto está a 40 px de una topbar donde
+ * ningún control va relleno.
+ */
 const ACCION =
-  'flex shrink-0 items-center gap-1.5 rounded bg-btn-primary-bg px-4 py-2 text-[13px] font-medium text-btn-primary-fg transition-colors hover:bg-btn-primary-bg-hover';
+  'flex shrink-0 items-center gap-1.5 rounded border border-accent/45 bg-accent/12 px-4 py-2 text-[13px] font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/20';
+/** Los secundarios, con la misma caja que los de la ficha y Viento y nieve. */
+const BOTON_MENOR =
+  'flex items-center gap-1.5 rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary';
 
 /**
  * El icono de cada fila: el MISMO que su módulo lleva en la barra lateral, que
@@ -200,7 +214,7 @@ export function ObraModule() {
     <div className="flex h-full min-h-0 flex-col">
       <Topbar moduleGroup="Proyecto" moduleLabel="La obra" onMenuOpen={openDrawer} />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="scroll-hide flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1188px] px-4 pb-10 sm:px-6">
           {/* Quién es esta obra, y con qué datos. */}
           <div className="flex flex-wrap items-start gap-x-6 gap-y-3 py-5">
@@ -222,7 +236,7 @@ export function ObraModule() {
             <button
               type="button"
               onClick={() => setEditando(true)}
-              className="flex items-center gap-1.5 rounded border border-border-main px-2.5 py-1.5 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+              className={BOTON_MENOR}
             >
               <Pencil size={11} aria-hidden="true" />
               Editar los datos
@@ -230,7 +244,7 @@ export function ObraModule() {
           </div>
 
           {perfilDistinto.length > 0 && (
-            <div className="mb-3 rounded px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--color-state-warn) 9%, transparent)' }}>
+            <div className="mb-3 rounded border border-state-warn/35 px-3 py-2.5" style={AMBAR} role="status">
               <p className="m-0 text-[12.5px] font-medium text-text-primary">Esta obra se guardó con otro perfil de despacho</p>
               <p className="m-0 mt-1 text-[12px] leading-relaxed text-text-secondary">
                 Cambian {perfilDistinto.join(', ')}. Se imprime el perfil de esta máquina, no el que traía la obra.
@@ -245,7 +259,7 @@ export function ObraModule() {
                     if (!dejarMiPerfilEnLaObra()) return showToast('No se ha podido guardar la decisión (¿almacenamiento lleno?)', { autoDismiss: 6000 });
                     setPerfilDistinto([]);
                   }}
-                  className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+                  className={BOTON_MENOR}
                 >
                   Dejar el mío
                 </button>
@@ -255,7 +269,7 @@ export function ObraModule() {
                     if (!adoptarPerfilDeLaObra()) return showToast('No se ha podido adoptar el perfil (¿almacenamiento lleno?)', { autoDismiss: 6000 });
                     setPerfilDistinto([]);
                   }}
-                  className="rounded border border-border-main px-2.5 py-1 text-[11.5px] text-text-secondary transition-colors hover:text-text-primary"
+                  className={BOTON_MENOR}
                 >
                   Adoptar el de esta obra
                 </button>
@@ -272,8 +286,16 @@ export function ObraModule() {
           ) : (
             <div className="flex flex-wrap items-center gap-x-7 gap-y-4 border-t border-border-main py-4">
               <div className="min-w-0 flex-1">
-                {cuenta !== null && cuenta.total > 0 && <Medidor hechas={cuenta.hechas} total={cuenta.total} />}
-                <p className="m-0 mt-2.5 text-[13.5px] leading-snug text-text-primary" aria-live="polite">
+                {/* El medidor y el recuento sólo se saben tras resolver el chunk
+                    de la ficha. Sin reservarles el hueco, el bloque crecía 36 px
+                    un fotograma después de abrir la app y empujaba las catorce
+                    filas hacia abajo. Las listas ya tenían esqueleto; esto no. */}
+                {cuenta !== null && cuenta.total > 0 ? (
+                  <Medidor hechas={cuenta.hechas} total={cuenta.total} />
+                ) : (
+                  <div className="h-1.5 max-w-[420px] rounded-[1px] bg-bg-elevated" aria-hidden="true" />
+                )}
+                <p className="m-0 mt-2.5 text-[13px] leading-snug text-text-primary" aria-live="polite">
                   {fallo
                     ? 'No se ha podido comprobar qué falta. Recargue la página.'
                     : resumen === null
@@ -284,23 +306,39 @@ export function ObraModule() {
                           ? `No falta nada. Quedan ${ambar} ${ambar === 1 ? 'dato' : 'datos'} por mirar, que no impiden entregar.`
                           : 'No falta nada: la justificación se puede exportar.'}
                 </p>
-                {cuenta !== null && (
-                  <p className="m-0 mt-1 text-[12px] text-text-secondary">
-                    {cuenta.hechas} de {cuenta.total} comprobaciones resueltas
-                    {cuenta.noProceden > 0 && ` · ${cuenta.noProceden} no ${cuenta.noProceden === 1 ? 'procede' : 'proceden'} en esta obra`}
-                  </p>
-                )}
+                <p className="m-0 mt-1 text-[12px] text-text-secondary" aria-hidden={cuenta === null}>
+                  {cuenta === null ? (
+                    // Espacio duro: uno normal colapsa y la línea no reservaría su
+                    // alto, que es justo para lo que está aquí.
+                    ' '
+                  ) : (
+                    <>
+                      {cuenta.hechas} de {cuenta.total} comprobaciones resueltas
+                      {cuenta.noProceden > 0 && ` · ${cuenta.noProceden} no ${cuenta.noProceden === 1 ? 'procede' : 'proceden'} en esta obra`}
+                    </>
+                  )}
+                </p>
               </div>
               {/* R2: UNA acción, y lleva a la PRIMERA falta esté donde esté —el
                   diálogo de la obra, el módulo sin calcular, o la ficha—. Hasta
                   el 13-09-2026 iba siempre a la ficha, que a su vez decía
                   «Abrir el módulo»: dos saltos para lo que la fila hace en uno. */}
-              {resumen !== null && resumen.datosObra.length > 0 ? (
+              {/* Mientras carga no hay acción honesta que ofrecer. Lo que salía
+                  era «Revisar y exportar» llevando a la ficha —porque `faltan`
+                  vale 0 hasta que resuelve el chunk—, así que en la obra más
+                  corriente el botón decía lo contrario de la verdad y quien lo
+                  pulsara rápido aterrizaba en el sitio equivocado. Se le reserva
+                  el hueco y no se enseña. */}
+              {resumen === null ? (
+                <span className={`${ACCION} invisible`} aria-hidden="true">
+                  Resolver lo que falta
+                </span>
+              ) : resumen.datosObra.length > 0 ? (
                 <button type="button" onClick={() => setEditando(true)} className={ACCION}>
                   Resolver lo que falta
                 </button>
               ) : (
-                <Link to={(faltan > 0 && resumen?.modulos.find((f) => f.estado === 'falta')?.ruta) || RUTA_FICHA} className={ACCION}>
+                <Link to={(faltan > 0 && resumen.modulos.find((f) => f.estado === 'falta')?.ruta) || RUTA_FICHA} className={ACCION}>
                   {faltan > 0 ? 'Resolver lo que falta' : 'Revisar y exportar'}
                 </Link>
               )}
@@ -351,7 +389,7 @@ export function ObraModule() {
             </div>
 
             {/* Los dos documentos que salen de aquí, dibujados. */}
-            <aside className="w-full shrink-0 lg:w-[304px]">
+            <aside className="w-full shrink-0 lg:sticky lg:top-0 lg:w-[304px]">
               <Rotulo>Lo que se entrega</Rotulo>
               <div className={BLOQUE}>
                 <Documento
@@ -412,7 +450,7 @@ export function ObraModule() {
 function Rotulo({ children, contador }: { children: ReactNode; contador?: string | null }) {
   return (
     <div className="flex items-center gap-3 pt-6 pb-2">
-      <h2 className="m-0 text-[10px] font-semibold tracking-[0.1em] text-text-disabled uppercase">{children}</h2>
+      <h2 className="m-0 text-[10px] font-semibold tracking-[0.07em] text-text-disabled uppercase">{children}</h2>
       <span className="h-px flex-1 bg-border-sub" aria-hidden="true" />
       {contador && <span className="shrink-0 font-mono text-[10px] text-text-disabled">{contador}</span>}
     </div>
@@ -440,7 +478,7 @@ function Dato({ rotulo, valor, mono }: { rotulo: string; valor?: string | null; 
  */
 function Medidor({ hechas, total }: { hechas: number; total: number }) {
   return (
-    <div className="flex h-1.5 gap-0.5" role="img" aria-label={`${hechas} de ${total} comprobaciones resueltas`}>
+    <div className="flex h-1.5 max-w-[420px] gap-0.5" role="img" aria-label={`${hechas} de ${total} comprobaciones resueltas`}>
       {Array.from({ length: total }, (_, i) => (
         <span key={i} className={`flex-1 rounded-[1px] ${i < hechas ? 'bg-state-ok' : 'bg-border-main'}`} />
       ))}
@@ -468,7 +506,7 @@ function Documento({
     <Link
       to={a}
       className="flex gap-3.5 border-b border-border-sub p-3.5 transition-colors last:border-b-0 hover:bg-bg-elevated"
-      aria-label={`${titulo}: ${nota} Ir a verlo`}
+      aria-label={`${titulo}: ${palabraDe(estado)}${pie ? `, ${pie}` : ''}. ${nota} ${destinoDe(estado)}`}
     >
       <Hoja tipo={hoja} apagada={estado === 'falta' || estado === 'sinEmpezar'} />
       <span className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -543,16 +581,13 @@ function Filas({ filas, vacia }: { filas: FilaResumen[]; vacia: boolean }) {
           type="button"
           onClick={() => setVerHechas((v) => !v)}
           aria-expanded={verHechas}
-          className="flex min-h-[44px] w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0 hover:bg-bg-elevated"
+          className="flex min-h-11 w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0 hover:bg-bg-elevated"
         >
           <Marca estado="hecho" />
           {/* El hueco del icono que estas filas no tienen: sin él la etiqueta
               empieza 24 px antes que las de arriba y la lista deja de alinear. */}
           <span className="w-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-secondary">
-            {hechas.length} comprobaciones hechas
-            <span className="text-text-disabled"> · {hechas.map((h) => h.etiqueta.toLowerCase()).join(', ')}</span>
-          </span>
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-secondary">{hechas.length} comprobaciones hechas</span>
           <ChevronDown size={13} aria-hidden="true" className={`shrink-0 text-text-disabled transition-transform ${verHechas ? 'rotate-180' : ''}`} />
         </button>
       )}
@@ -566,7 +601,7 @@ function Esqueleto({ filas }: { filas: number }) {
   return (
     <>
       {Array.from({ length: filas }, (_, i) => (
-        <div key={i} className="flex min-h-[44px] items-center border-b border-border-sub px-3 last:border-b-0">
+        <div key={i} className="flex min-h-11 items-center border-b border-border-sub px-3 last:border-b-0">
           <span className="h-2.5 w-40 rounded bg-bg-elevated" aria-hidden="true" />
         </div>
       ))}
@@ -580,7 +615,7 @@ function Esqueleto({ filas }: { filas: number }) {
  */
 function EstadoVacio() {
   return (
-    <div className="my-3 rounded px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)' }}>
+    <div className="my-3 rounded border border-accent/35 bg-accent/8 px-3 py-2.5">
       <p className="m-0 flex items-center gap-1.5 text-[12.5px] font-medium text-text-primary">
         <FilePlus2 size={13} aria-hidden="true" className="text-accent" />
         Por dónde se empieza

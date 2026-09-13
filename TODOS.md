@@ -1268,3 +1268,19 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** `src/features/obra/index.tsx`; `hayTrabajoSinGuardar` en `src/lib/anejo`; el plegado de la ficha en `aperturaAlArrancar` de `src/features/memoria-dbse/index.tsx`.
 
 **Depends on / blocked by:** nada.
+
+## `bg-tint-*` no existe como utilidad: dos bandas de la app llevan sin tinte
+
+**Status:** pendiente. Encontrado por `/design-review` el 2026-09-13 al auditar el panel de obra.
+
+**What:** mover los seis `--color-tint-*` de `:root` (`src/index.css:466-473`) a dentro de `@theme`, o cambiar los tres sitios que usan `bg-tint-*` por la receta que sí compila.
+
+**Why:** Tailwind v4 sólo fabrica utilidades a partir de lo declarado en `@theme`. Los tints están en `:root`, así que `bg-tint-fail` y `bg-tint-warn` no generan CSS y la clase no pinta nada. Verificado de dos maneras: el CSS construido (`dist/assets/index-*.css`) contiene las seis declaraciones `--color-tint-*` y **ninguna** regla `.bg-tint-*`; y midiendo el píxel de una captura, el fondo del chip salía `#f8fafc`, exactamente el de la superficie. Lo destapó el chip teñido del panel, que ya se ha pasado a `bg-state-fail/10`; los que siguen sin tinte son `BandaProyecto.tsx:21` (aviso de proyecto, ámbar) y `BandaAlmacen.tsx:53` (aviso de almacenamiento lleno, rojo), o sea las dos bandas que avisan de que algo va mal.
+
+**Pros:** dos avisos vuelven a verse como avisos. Y las seis utilidades quedan disponibles de verdad para el que las escriba pensando que existen — que es lo que ya ha pasado tres veces.
+
+**Cons:** cambia el aspecto de dos bandas que nadie ha pedido revisar, así que quiere su propio antes/después. Y hay que decidir si se quedan los seis tints o se unifica con `bg-state-*/10`, que es lo que ya usan diez sitios: hoy conviven TRES mecanismos para el mismo tinte (las constantes `HUECO`/`AMBAR` de `components/ui/estados.ts` al 8-9 %, `var(--color-tint-*)` en línea al 10 %, y `bg-state-*/10`).
+
+**Context:** `src/index.css:466-473`; `src/components/layout/BandaProyecto.tsx:21`; `src/components/layout/BandaAlmacen.tsx:53`; `src/components/ui/estadoFila.ts` (la receta que sí compila); `src/components/checks/index.tsx:20-25` (los diez usos de `bg-state-*/10`).
+
+**Depends on / blocked by:** nada.

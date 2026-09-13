@@ -1,10 +1,11 @@
 /**
  * Una fila del esquema de la obra: marca, nombre, qué pasa, y adónde lleva.
  *
- * CUATRO estados y cuatro en toda la app. Nunca color solo: la marca va
- * SIEMPRE con su palabra al lado, porque el color no lo ve todo el mundo y
- * porque un icono sin texto hay que aprendérselo. La fila entera es el
- * objetivo táctil, con su `aria-label` diciendo estado y destino.
+ * El vocabulario —los cinco estados y sus palabras— vive en `estadoFila.ts`,
+ * que es de donde lo saca también el raíl de lo que se entrega. Nunca color
+ * solo: la marca va SIEMPRE con su palabra al lado, porque el color no lo ve
+ * todo el mundo y porque un icono sin texto hay que aprendérselo. La fila
+ * entera es el objetivo táctil, con su `aria-label` diciendo estado y destino.
  *
  * Dos cosas que vienen del rediseño del 2026-09-13:
  *
@@ -17,24 +18,9 @@
  */
 
 import { Link } from 'react-router';
-import { AlertTriangle, Check, ChevronRight, Circle, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { destinoDe, ESTADOS, type EstadoFila } from './estadoFila';
 import { ModuleIcon } from './ModuleIcon';
-
-export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede' | 'sinEmpezar';
-
-// El tinte va en `bg-state-*/10`, que es la receta de insignia de la casa
-// (`components/checks/index.tsx:20-25` y nueve sitios más). `bg-tint-fail` NO
-// vale: los `--color-tint-*` están declarados en `:root` y no dentro de
-// `@theme`, así que Tailwind v4 no fabrica esa utilidad y la clase no pinta
-// nada. Se vio aquí porque el chip teñido es la idea del rediseño, pero el
-// fallo es viejo y se lo comen también BandaProyecto y BandaAlmacen (TODOS.md).
-const ESTADOS = {
-  hecho: { icono: Check, palabra: 'hecho', clase: 'text-state-ok', tinte: '' },
-  falta: { icono: X, palabra: 'falta', clase: 'text-state-fail', tinte: 'bg-state-fail/10' },
-  revisar: { icono: AlertTriangle, palabra: 'revíselo', clase: 'text-state-warn', tinte: 'bg-state-warn/10' },
-  noProcede: { icono: Circle, palabra: 'no procede', clase: 'text-text-disabled', tinte: '' },
-  sinEmpezar: { icono: Circle, palabra: 'sin empezar', clase: 'text-text-disabled', tinte: '' },
-} as const;
 
 /**
  * La marca de estado, suelta. La fila la usa a la izquierda; el bloque de lo
@@ -84,11 +70,9 @@ export function FilaEstado({ estado, etiqueta, detalle, icono, a, onClick }: Pro
     </>
   );
 
-  const clases = 'flex min-h-[44px] w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0';
+  const clases = 'flex min-h-11 w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0';
   const etiquetaAria = `${etiqueta}: ${e.palabra}${detalle ? `, ${detalle}` : ''}`;
-  // El destino se nombra por lo que hay que hacer allí: quien oye «hecho, ir a
-  // resolverlo» deja de fiarse de las dos mitades de la frase.
-  const destino = estado === 'falta' || estado === 'revisar' ? 'Ir a resolverlo' : 'Ir a verlo';
+  const destino = destinoDe(estado);
 
   if (a) {
     return (
@@ -104,9 +88,8 @@ export function FilaEstado({ estado, etiqueta, detalle, icono, a, onClick }: Pro
       </button>
     );
   }
-  return (
-    <div className={clases} aria-label={etiquetaAria}>
-      {cuerpo}
-    </div>
-  );
+  // Sin `aria-label`: un `div` es `role=generic` y un rol genérico no admite
+  // nombre accesible, así que se descartaba. Tampoco hace falta — la palabra,
+  // el nombre y el detalle ya son texto visible y se leen tal cual.
+  return <div className={clases}>{cuerpo}</div>;
 }

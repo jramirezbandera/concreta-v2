@@ -114,8 +114,11 @@ export function resumenDeObra(): ResumenObra {
         id: a.id,
         etiqueta: TITULO_CORTO[a.id] ?? a.titulo,
         estado: !a.procede ? 'noProcede' : faltan > 0 ? 'falta' : ambar > 0 ? 'revisar' : 'hecho',
+        // Sin detalle cuando no procede: la marca de la fila ya dice «no
+        // procede», y ponerlo otra vez a ochocientos píxeles de distancia era
+        // la misma frase dos veces en la misma línea.
         detalle: !a.procede
-          ? 'no procede en esta obra'
+          ? null
           : faltan > 0
             ? plural(faltan, 'dato', 'datos')
             : ambar > 0
