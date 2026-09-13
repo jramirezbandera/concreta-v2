@@ -12,6 +12,7 @@ import { CLAVE_ESTUDIO } from '../../data/proyectoKeys';
 import {
   adoptarPerfilDeLaObra,
   cargarEstado,
+  dejarMiPerfilEnLaObra,
   guardarEstado,
   guardarPerfilEstudio,
   leerPerfilEstudio,
@@ -85,28 +86,72 @@ describe('el perfil del despacho sobrevive al descarte por versión', () => {
   });
 });
 
-describe('la clave global se mantiene al día', () => {
-  it('guardar la ficha refleja el perfil en la clave global', () => {
-    guardarEstado({ ...estadoPorDefecto(null), estudio: afinado() });
+describe('la clave global es de Mi estudio, no de la ficha', () => {
+  it('guardar la ficha NO toca la clave global', () => {
+    // Hasta el 13-09-2026 `guardarEstado` reflejaba `state.estudio` en la
+    // clave: desde que la ficha no edita el perfil, eso sólo servía para que
+    // una pestaña abierta con el perfil viejo pisara el nuevo con una tecla.
+    guardarPerfilEstudio(afinado('el nuevo'));
+    guardarEstado({ ...estadoPorDefecto(null), estudio: afinado('el viejo, de una pestaña rezagada') });
 
-    expect(leerPerfilEstudio()?.desplome).toBe('1/750');
+    expect(leerPerfilEstudio()?.programa.nombre).toBe('el nuevo');
   });
 
-  it('editar el perfil DESPUÉS del rescate y luego subir la versión conserva la última edición', () => {
+  it('editar el perfil en Mi estudio DESPUÉS del rescate y luego subir la versión conserva la última edición', () => {
     // 1. Estado viejo con el perfil de siempre: al abrir, se rescata.
     guardadoCon(VERSION_VIEJA, afinado('el de antes'));
-    const rescatado = cargarEstado();
+    cargarEstado();
     expect(leerPerfilEstudio()?.programa.nombre).toBe('el de antes');
 
-    // 2. El usuario cambia de programa de cálculo y la ficha se guarda con la
-    //    versión viva. Sin la sincronización de `guardarEstado`, la clave
-    //    global se quedaría en «el de antes».
-    guardarEstado({ ...rescatado, estudio: afinado('el de ahora') });
+    // 2. El usuario cambia de programa en Mi estudio.
+    guardarPerfilEstudio(afinado('el de ahora'));
 
     // 3. Llega la subida de versión y el estado se descarta.
     escribirClave(SCHEMA_VERSION_KEY, VERSION_VIEJA);
 
     expect(cargarEstado().estudio.programa.nombre).toBe('el de ahora');
+  });
+});
+
+describe('la copia del perfil que trae la obra se conserva hasta que el usuario decide', () => {
+  it('guardar la ficha no la sustituye por la proyección', () => {
+    // El `.concreta` de un compañero, abierto aquí: la ficha carga con MI
+    // perfil proyectado, y cualquier guardado —el efecto de forjados al entrar,
+    // una tecla— escribía ese perfil encima de la copia de él. La banda de la
+    // diferencia moría antes de que nadie decidiera nada.
+    guardarPerfilEstudio(afinado('el mío'));
+    guardadoCon(SCHEMA_VERSION, afinado('el suyo'));
+    const s = cargarEstado();
+    expect(s.estudio.programa.nombre).toBe('el mío');
+
+    expect(guardarEstado(s)).toBe(true);
+
+    expect(perfilDeLaObraDifiere()).toEqual(expect.arrayContaining(['el programa de cálculo']));
+    // Y «Adoptar el de esta obra» sigue teniendo qué adoptar.
+    expect(adoptarPerfilDeLaObra()).toBe(true);
+    expect(leerPerfilEstudio()?.programa.nombre).toBe('el suyo');
+  });
+
+  it('«Dejar el mío» es la decisión persistida: la obra pasa a estar guardada con el de esta máquina', () => {
+    guardarPerfilEstudio(afinado('el mío'));
+    guardadoCon(SCHEMA_VERSION, afinado('el suyo'));
+    expect(perfilDeLaObraDifiere()).not.toEqual([]);
+
+    expect(dejarMiPerfilEnLaObra()).toBe(true);
+
+    expect(perfilDeLaObraDifiere()).toEqual([]);
+    expect(leerPerfilEstudio()?.programa.nombre).toBe('el mío');
+  });
+
+  it('una ficha nueva se guarda con el perfil de esta máquina, y desde entonces ésa es su copia', () => {
+    guardarPerfilEstudio(afinado('el mío'));
+    guardarEstado(cargarEstado());
+    expect(perfilDeLaObraDifiere()).toEqual([]);
+
+    // Afinarlo después es exactamente el caso «obras propias hechas antes de
+    // afinarlo»: se avisa, y se decide.
+    guardarPerfilEstudio(afinado('el mío, afinado'));
+    expect(perfilDeLaObraDifiere()).toEqual(expect.arrayContaining(['el programa de cálculo']));
   });
 });
 

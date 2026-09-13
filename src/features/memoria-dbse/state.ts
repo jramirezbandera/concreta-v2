@@ -122,13 +122,50 @@ export function perfilDeLaObraDifiere(): string[] {
   }
 }
 
-export function guardarEstado(state: MemoriaState): void {
-  escribirClave(STORAGE_KEY, JSON.stringify(state));
+/**
+ * Guarda la ficha. `false` si el almacén no admitió la escritura: quien guarda
+ * una DECISIÓN tiene que poder decirlo (E8).
+ *
+ * Dos cosas que NO hace desde el 13-09-2026:
+ *
+ *  - no refleja `state.estudio` en `concreta-estudio`. La ficha ya no edita el
+ *    perfil —vive en Ajustes › Mi estudio—, así que el espejo sólo servía para
+ *    que una pestaña abierta con el perfil viejo pisara el nuevo con cualquier
+ *    tecla;
+ *  - no sustituye la copia del perfil que traía el fichero. `state.estudio` es
+ *    la proyección del de esta máquina, y guardarla aquí mataba la banda «esta
+ *    obra se guardó con otro perfil» con la primera escritura —incluida la del
+ *    efecto de forjados al entrar—, antes de que el usuario decidiera nada. La
+ *    copia se conserva hasta que decide: `dejarMiPerfilEnLaObra` o
+ *    `adoptarPerfilDeLaObra`.
+ */
+export function guardarEstado(state: MemoriaState): boolean {
+  const traido = perfilGuardado(leerGuardado());
+  const ok = escribirClave(STORAGE_KEY, JSON.stringify({ ...state, estudio: traido ?? state.estudio }));
   escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-  // El perfil se refleja SIEMPRE en su clave global. Sin esto, editarlo en la
-  // ficha dejaría la clave vieja, y el primer descarte por versión restauraría
-  // el perfil de antes de las últimas ediciones creyendo que lo rescataba.
-  guardarPerfilEstudio(state.estudio);
+  return ok;
+}
+
+/** El estado guardado, crudo, o `null`. Nunca lanza. */
+function leerGuardado(): unknown {
+  try {
+    const bruto = leerClave(STORAGE_KEY);
+    return bruto === null ? null : JSON.parse(bruto);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * «Dejar el mío»: esta obra pasa a estar guardada con el perfil de esta
+ * máquina, y la banda de la diferencia no vuelve a salir. Es la decisión
+ * PERSISTIDA; hasta el 13-09-2026 sólo se cerraba la banda, y reaparecía en la
+ * visita siguiente.
+ */
+export function dejarMiPerfilEnLaObra(): boolean {
+  const guardado = leerGuardado();
+  if (typeof guardado !== 'object' || guardado === null) return true; // sin ficha guardada no hay nada que decidir
+  return escribirClave(STORAGE_KEY, JSON.stringify({ ...guardado, estudio: leerPerfilEstudio() ?? perfilEstudioPorDefecto() }));
 }
 
 export type { MemoriaState } from '../../lib/memoria/estado';
