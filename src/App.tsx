@@ -1,8 +1,8 @@
-import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router';
+import { createBrowserRouter, RouterProvider, Outlet } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
 import { AppShell } from './components/layout/AppShell';
 import { Landing } from './pages/Landing';
-import { rutaDeEntrada } from './lib/obra/entrada';
+import { Entrada } from './components/layout/Entrada';
 import { RouteFallback } from './components/layout/RouteFallback';
 import { RouteHelmet } from './components/layout/RouteHelmet';
 import { RouteProgressBar } from './components/layout/RouteProgressBar';
@@ -204,8 +204,12 @@ const router = createBrowserRouter([
       // bootstrap the entire sidebar tree just to redirect.
       // Adónde cae una URL desconocida. No es la entrada de la app —`start_url`
       // es `/`, que pinta la landing— pero tiene que aterrizar donde lo haría
-      // el usuario: en su obra si la hay.
-      { path: '*', element: <Navigate to={rutaDeEntrada()} replace /> },
+      // el usuario: en su obra si la hay. Es un COMPONENTE y no
+      // `<Navigate to={rutaDeEntrada()} />` a propósito: este router se construye
+      // una vez al cargar el módulo, y la expresión se evaluaba entonces, con lo
+      // que quien creaba su obra sin recargar seguía cayendo en el cuadro de
+      // materiales.
+      { path: '*', element: <Entrada /> },
     ],
   },
 ]);

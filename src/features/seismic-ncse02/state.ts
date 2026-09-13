@@ -286,8 +286,18 @@ export function esEstadoInicial(s: SeismicState): boolean {
   return huellaSismo(s) === huellaSismo(defaultSeismicState());
 }
 
-/** ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. */
-export const estaConfigurado = (s: SeismicState): boolean => !esEstadoInicial(s);
+/**
+ * ¿El sismo está EN BLANCO —sin municipio, ab = 0—? Es la segunda línea base
+ * que pedía E13: «distinto del arranque» no es lo mismo que «configurado», y
+ * sin esto `blankSeismicState()` publicaba un sismo exento con ab = 0 como si
+ * fuera un cálculo de la obra.
+ */
+export function esEnBlanco(s: SeismicState): boolean {
+  return huellaSismo(s) === huellaSismo(blankSeismicState());
+}
+
+/** ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. Ni el arranque (Granada) ni el blanco cuentan. */
+export const estaConfigurado = (s: SeismicState): boolean => !esEstadoInicial(s) && !esEnBlanco(s);
 
 /** Estado mínimo: una planta, sin municipio. Para empezar de cero. */
 export function blankSeismicState(): SeismicState {

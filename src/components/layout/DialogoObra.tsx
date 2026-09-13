@@ -120,6 +120,13 @@ export function DialogoObra({ titulo, texto, confirmar, inicial, onConfirm, onCa
             widthClass="w-full"
           />
         </div>
+
+        {/* Opcionales para CREAR la obra, no para entregarla: la memoria los
+            necesita, y sin ellos el panel los pedirá. Decirlo aquí evita que
+            «opcional» se lea como «da igual». */}
+        <p className="col-span-2 m-0 text-[11px] leading-snug text-text-disabled">
+          El municipio y la altitud se pueden dejar para después, pero la memoria los necesita: el panel de la obra los pedirá.
+        </p>
       </div>
     </DialogoNombre>
   );

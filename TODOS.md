@@ -1252,3 +1252,19 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** `src/components/layout/ObraMenu.tsx:116` y `:345`; `src/lib/proyecto/useProyectoActivo.ts:23`; la cabecera del panel en `src/features/obra/index.tsx`. `rutaDeEntrada()` (`src/lib/obra/entrada.ts`) ya trata las DOS claves como «hay obra», así que el criterio de entrada no distingue: el que distingue es el rótulo.
 
 **Depends on / blocked by:** nada.
+
+## Panel de obra — las dos mitades que el rediseño dejó sin hacer (D12 y R1)
+
+**Status:** DETECTADO en la auditoría del rediseño (2026-09-13). Ninguna de las dos se dijo en un commit; por eso están aquí.
+
+**What:** (1) D12: que el bloque del anejo del panel avise de lo «calculado sin guardar» —un módulo con resultado en pantalla y sin pieza en el anejo—, que es la segunda mitad de la decisión. (2) R1: que las filas en verde del panel se plieguen a «N comprobaciones hechas ▸», y sólo faltas y ámbares salgan enteras.
+
+**Why:** hoy el panel enseña las filas hechas enteras y no sabe nada de lo calculado sin guardar. La ficha (F7b) sí pliega; el panel no.
+
+**Pros:** el primer pantallazo resume lo hecho en vez de listarlo, y el anejo del panel deja de decir «al día» con cálculos sin guardar por detrás.
+
+**Cons:** `hayTrabajoSinGuardar(modulo)` hay que consultarlo módulo a módulo y en el panel eso son lecturas de varias claves en la ruta de entrada; y plegar lo hecho quita una fila de contexto a quien entra por primera vez.
+
+**Context:** `src/features/obra/index.tsx`; `hayTrabajoSinGuardar` en `src/lib/anejo`; el plegado de la ficha en `aperturaAlArrancar` de `src/features/memoria-dbse/index.tsx`.
+
+**Depends on / blocked by:** nada.

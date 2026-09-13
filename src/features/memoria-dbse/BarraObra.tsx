@@ -61,7 +61,10 @@ export function BarraObra({ obra, ayuda, onEditar, derecha }: Props) {
         ·
       </span>
       <Dato valor={obra.municipio} texto={obra.municipio.valor ? `${obra.municipio.valor}${lugar ? ` (${lugar})` : ''}` : null} />
-      {!obra.municipio.valor && <Dato valor={obra.provincia} texto={lugar} />}
+      {/* La provincia va dentro del municipio —«Granada (Granada)»— salvo
+          cuando FALTA: entonces se pinta sola, con su id, o «Ir al primero»
+          no tendría dónde aterrizar. */}
+      {(!obra.municipio.valor || obra.provincia.estado === 'falta') && <Dato valor={obra.provincia} texto={lugar} />}
       <Dato valor={obra.altitud} texto={obra.altitud.valor !== null ? `${obra.altitud.valor} m` : null} />
 
       <button type="button" onClick={onEditar} className={`${BOTON_MENOR} flex items-center gap-1`} title="Cambiar los datos de la obra">
