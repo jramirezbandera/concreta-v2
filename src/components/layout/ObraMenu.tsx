@@ -41,7 +41,7 @@ import { showToast } from '../ui/Toast';
 import { DialogoNombre } from './DialogoNombre';
 import { DialogoObra } from './DialogoObra';
 import { prepararDuplicado } from '../../features/memoria-dbse/state';
-import { guardarObra, leerObra, type Obra } from '../../lib/obra';
+import { guardarObra, leerObra, obraVacia, type Obra } from '../../lib/obra';
 
 type Origen = 'reciente' | 'fichero' | 'nueva';
 
@@ -216,33 +216,46 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
    * Partir de esta obra para la siguiente. Cada obra nace limpia —eso lo hace
    * «Nueva obra»—, así que duplicar es un acto aparte y explícito.
    *
-   * El orden importa: se guarda ANTES la obra original, de modo que lo que se
-   * marca en ámbar a continuación ya no puede tocarla. Lo que se conserva son
-   * los cálculos de los módulos; lo que cambia de solar a solar —geotecnia,
-   * descripción de la estructura, juntas, cimentación y contenciones— queda en
-   * ámbar para que nada del edificio anterior llegue al documento sin pasar
-   * por las manos de alguien.
+   * El orden es lo que protege el original, y hasta el 13-09-2026 estaba al
+   * revés: se ambarizaba la ficha VIVA y se pisaba la obra antes de crear la
+   * copia, de modo que sin proyecto guardado el original desaparecía, y con
+   * él, un fallo a medio camino lo dejaba mutado. Ahora:
+   *
+   *  1. si hay cálculos sin obra, se pide guardarlos primero, igual que hace
+   *     «Nueva obra» —es el mismo diálogo—;
+   *  2. la obra abierta se guarda tal como está;
+   *  3. la copia nace del estado vivo SIN tocar, y pasa a ser la activa;
+   *  4. sólo entonces se escriben los datos nuevos y se marca en ámbar lo que
+   *     cambia de solar a solar —geotecnia, descripción de la estructura,
+   *     juntas, cimentación y contenciones—, ya dentro de la copia.
+   *
+   * Un fallo en el paso 4 deja la copia a medias, nunca el original.
    */
   const duplicar = () => {
     cerrar();
     if (pestanaDesfasada()) return avisarDesfasada();
-    setDialogo({
-      tipo: 'obra',
-      titulo: 'Duplicar esta obra',
-      texto: 'Se guarda la obra abierta y se abre una copia. Los cálculos se conservan; lo que cambia de solar a solar queda en ámbar.',
-      confirmar: 'Duplicar y abrir',
-      inicial: { ...(leerObra() ?? { denominacion: '', uso: '', provincia: '', municipio: '', altitud: null }), denominacion: '' },
-      alConfirmar: (obra) => {
-        cerrarDialogo();
-        if (proyectoActivo() !== null && !guardarActual()) return avisarGuardado(null);
-        if (!prepararDuplicado()) return avisarGuardado(null);
-        guardarObra(obra);
-        const copia = guardarComoNueva(obra.denominacion);
-        if (!copia) return avisarGuardado(null);
-        showToast(`Duplicada: ${copia.nombre}`, { autoDismiss: 3500 });
-        recargar();
-      },
-    });
+    conTrabajoResuelto(() =>
+      setDialogo({
+        tipo: 'obra',
+        titulo: 'Duplicar esta obra',
+        texto: 'Se guarda la obra abierta y se abre una copia. Los cálculos se conservan; lo que cambia de solar a solar queda en ámbar.',
+        confirmar: 'Duplicar y abrir',
+        inicial: { ...(leerObra() ?? obraVacia()), denominacion: '' },
+        alConfirmar: (obra) => {
+          cerrarDialogo();
+          if (proyectoActivo() !== null && !guardarActual()) return avisarGuardado(null);
+          const copia = guardarComoNueva(obra.denominacion);
+          if (!copia) return avisarGuardado(null);
+          guardarObra(obra);
+          if (!prepararDuplicado() || !guardarActual()) {
+            showToast(`La copia «${copia.nombre}» se ha creado, pero no se ha podido preparar del todo (¿almacenamiento lleno?): revise su ficha`, { autoDismiss: 7000 });
+          } else {
+            showToast(`Duplicada: ${copia.nombre}`, { autoDismiss: 3500 });
+          }
+          recargar();
+        },
+      }),
+    );
   };
 
   const guardar = () => {

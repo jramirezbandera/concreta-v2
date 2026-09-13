@@ -13,7 +13,7 @@ import { ObraMenu } from '../../components/layout/ObraMenu';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { showToast } from '../../components/ui/Toast';
 import { CLAVE_PROYECTO_ACTIVO } from '../../data/proyectoKeys';
-import { leerObra } from '../../lib/obra';
+import { guardarObra, leerObra } from '../../lib/obra';
 import { cargarEstado, guardarEstado } from '../../features/memoria-dbse/state';
 import { teclear } from '../../lib/memoria/estado';
 import {
@@ -216,6 +216,36 @@ describe('ObraMenu', () => {
     expect(copia.obra.geotecnia.empresa.origen).toBe('heredado');
     expect(copia.obra.sobrecargaTerreno.origen).toBe('tecleado');
     expect(leerObra()?.denominacion).toBe('Nave B');
+  });
+
+  it('Duplicar sin proyecto guardado pide guardar el original primero, y no lo pisa', async () => {
+    // Hasta el 13-09-2026 este camino DESTRUÍA el original: se ambarizaba la
+    // ficha viva y se pisaba la obra antes de crear la copia, y como no había
+    // proyecto activo, nada de aquello se había guardado en ningún sitio.
+    const user = userEvent.setup();
+    guardarObra({ denominacion: 'Nave A', provincia: '18', municipio: 'Granada', altitud: 680, uso: 'Nave industrial' });
+    guardarEstado(teclear(cargarEstado(), 'obra.geotecnia.empresa', 'Geotecnia SL'));
+    montar();
+
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /duplicar esta obra/i }));
+
+    // El mismo diálogo que «Nueva obra»: ponle nombre al original antes.
+    expect(screen.getByText('Hay cálculos sin obra')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Nombre de la obra'), 'Nave A');
+    await user.click(screen.getByRole('button', { name: 'Guardar y seguir' }));
+
+    // Y ahora sí, la copia.
+    await rellenarObra(user, 'Nave B', '18');
+    await user.click(screen.getByRole('button', { name: 'Duplicar y abrir' }));
+    await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
+
+    expect(listar().map((e) => e.nombre).sort()).toEqual(['Nave A', 'Nave B']);
+    expect(listar().find((e) => e.id === proyectoActivo())?.nombre).toBe('Nave B');
+    const a = listar().find((e) => e.nombre === 'Nave A')!;
+    const fichaA = JSON.parse(cargar(a.id)!.claves['concreta-memoria-dbse-model']) as { obra: { geotecnia: { empresa: { origen: string } } } };
+    expect(fichaA.obra.geotecnia.empresa.origen).toBe('tecleado');
+    expect(cargarEstado().obra.geotecnia.empresa.origen).toBe('heredado');
   });
 
   it('Guardar sin obra pide el nombre y la crea; con obra, guarda sin preguntar', async () => {
