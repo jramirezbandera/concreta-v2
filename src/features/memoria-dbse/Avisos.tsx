@@ -49,6 +49,11 @@ export function Avisos({ fuentes, onAceptar }: Props) {
         {pendientes.map((m) => {
           const f = fuentes[m];
           const falta = f.estado === 'falta';
+          // Las salidas las decide QUÉ le pasa al sobre, no su color: un cálculo
+          // de otra provincia bloquea si la memoria lo necesita (rojo) y sólo
+          // avisa si es opcional (ámbar), pero en los dos casos la salida es la
+          // misma: darlo por bueno, o rehacerlo aquí.
+          const deOtroSitio = f.valor && f.configurado && f.otroEmplazamiento;
           return (
             <li key={m} id={idDom(f.id!)} tabIndex={-1} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px]">
               <span className={falta ? 'text-state-fail' : 'text-state-warn'} aria-hidden="true">
@@ -56,7 +61,16 @@ export function Avisos({ fuentes, onAceptar }: Props) {
               </span>
               <span className="text-text-primary">{MODULOS[m].etiqueta}</span>
               {f.nota && <span className="basis-full text-[11px] leading-snug text-text-secondary">{f.nota}</span>}
-              {falta ? (
+              {deOtroSitio ? (
+                <>
+                  <button type="button" className={BOTON_ACENTO} onClick={() => onAceptar(m)}>
+                    Es correcto, úsalo
+                  </button>
+                  <Link to={MODULOS[m].ruta} className={BOTON_MENOR}>
+                    Rehacerlo aquí
+                  </Link>
+                </>
+              ) : (
                 <>
                   <Link to={MODULOS[m].ruta} className={BOTON_ACENTO}>
                     Abrir el módulo
@@ -70,15 +84,6 @@ export function Avisos({ fuentes, onAceptar }: Props) {
                       Son los de esta obra
                     </button>
                   )}
-                </>
-              ) : (
-                <>
-                  <button type="button" className={BOTON_ACENTO} onClick={() => onAceptar(m)}>
-                    Es correcto, úsalo
-                  </button>
-                  <Link to={MODULOS[m].ruta} className={BOTON_MENOR}>
-                    Rehacerlo aquí
-                  </Link>
                 </>
               )}
             </li>

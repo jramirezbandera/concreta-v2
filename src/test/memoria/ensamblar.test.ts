@@ -16,6 +16,7 @@ import { ZONAS_EOLICAS } from '../../lib/acciones/tablasAE';
 import { lookupFk, lookupGammaM } from '../../lib/calculations/masonryWalls';
 import { SIN_SOBRES, ensamblar, esDeOtroEmplazamiento, estadoSobre, evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
 import { asegurarForjados, confirmar, estadoPorDefecto, teclear } from '../../lib/memoria/estado';
+import { bloqueanExportar } from '../../lib/memoria/huecos';
 import { completar, fichaGranada, sobre, sobresGranada, tomarTodo } from './fixtures';
 
 // Los ayudantes viven en `./fixtures`, que es también quien estampa
@@ -38,9 +39,16 @@ describe('estadoSobre y otro emplazamiento', () => {
   it('configurado y del mismo sitio se usa sin preguntar: ya no hay nada que «tomar»', () => {
     expect(estadoSobre(so, false, false, true)).toBe('derivado');
   });
-  it('de otra provincia avisa, y darlo por bueno lo desbloquea', () => {
-    expect(estadoSobre(so, false, true, true)).toBe('revisar');
+  it('de otra provincia: FALTA si la memoria lo necesita (E12), y darlo por bueno lo desbloquea', () => {
+    // Un sismo de Granada no se puede imprimir en una memoria de Sevilla, y lo
+    // que no se imprime bloquea. Del 12 al 13 de septiembre fue «revisar», y
+    // eso dejaba exportar con la tabla sísmica en guiones.
+    expect(estadoSobre(so, false, true, true)).toBe('falta');
     expect(estadoSobre(so, true, true, true)).toBe('derivado');
+  });
+  it('de otra provincia y OPCIONAL: revisar, porque la ficha imprime lo de la provincia y no el sobre', () => {
+    expect(estadoSobre(so, false, true, false)).toBe('revisar');
+    expect(estadoSobre(so, true, true, false)).toBe('derivado');
   });
   it('darlo por bueno también desbloquea los valores de partida: «son los de esta obra»', () => {
     expect(estadoSobre(sinConfigurar, true, false, true)).toBe('derivado');
@@ -242,27 +250,53 @@ describe('sismo exento y sismo sin resolver', () => {
   });
 });
 
-describe('otro emplazamiento y revisar', () => {
-  it('el sobre de sismo de Granada en una ficha de Málaga: se avisa, y se puede dar por bueno', () => {
+describe('otro emplazamiento: bloquea lo que la memoria necesita (E12), avisa lo opcional', () => {
+  const malaga = () => estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
+
+  it('el sobre de sismo de Granada en una ficha de Málaga es FALTA, y darlo por bueno lo resuelve', () => {
     const sobres = sobresGranada();
-    const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
-    const d = ensamblar(malaga, sobres);
+    const d = ensamblar(malaga(), sobres);
     expect(d.fuentes.sismo.otroEmplazamiento).toBe(true);
+    expect(d.fuentes.sismo.configurado).toBe(true);
     expect(d.fuentes.sismo.nota).toContain('en otro sitio');
-    expect(d.fuentes.sismo.estado).toBe('revisar');
-    const t = ensamblar(tomarTodo(malaga, sobres), sobres);
+    expect(d.fuentes.sismo.estado).toBe('falta');
+    const t = ensamblar(tomarTodo(malaga(), sobres), sobres);
     expect(t.fuentes.sismo.estado).toBe('derivado');
     expect(t.fuentes.sismo.otroEmplazamiento).toBe(true);
   });
 
-  it('cambiar la provincia de la ficha después de aceptar devuelve los sobres a revisar', () => {
+  it('y bloquea exportar, con la publicación en la lista de faltas', () => {
+    // Del 12 al 13-09-2026 el sobre quedaba en «revisar» (no bloquea) y, como
+    // no se imprime, el capítulo caía a `faltaDeSobre()` con el MISMO id que la
+    // fuente: la cola deduplica por id, se quedaba con el ámbar y la falta
+    // desaparecía. Se podía exportar con la tabla sísmica en guiones.
+    const sobres = sobresGranada();
+    const ev = evaluar(malaga(), sobres);
+    const pubs = ev.huecos.filter((h) => h.id.startsWith('pub.'));
+    expect(bloqueanExportar(pubs)).toBe(true);
+    const faltas = pubs.filter((h) => h.estado === 'falta').map((h) => h.id);
+    expect(faltas).toEqual(expect.arrayContaining(['pub.sismo', 'pub.materiales', 'pub.cargasPlanta']));
+    // La salida que declara el hueco es darlo por bueno, no volver a publicar:
+    // el sobre está calculado, lo que no está es en esta provincia.
+    for (const h of pubs.filter((x) => x.estado === 'falta')) expect(h.accion, h.id).toBe('usarPublicado');
+    // El viento no: la ficha imprime la zona de Málaga, que es correcta.
+    expect(faltas).not.toContain('pub.vientoNieve');
+    expect(ev.datos.fuentes.vientoNieve.estado).toBe('revisar');
+
+    // Dados por buenos los cuatro, la ficha se deja completar y exportar.
+    const hecha = evaluar(completar(malaga(), sobres), sobres);
+    expect(hecha.listo).toBe(true);
+    expect(hecha.huecos).toEqual([]);
+  });
+
+  it('cambiar la provincia de la ficha después de aceptar devuelve el sobre a falta', () => {
     const sobres = sobresGranada();
     const s = tomarTodo(fichaGranada(), sobres);
     expect(ensamblar(s, sobres).fuentes.materiales.estado).toBe('derivado');
     // La provincia ya no se teclea en la ficha: es de `concreta-obra`, y la
     // ficha la refleja. Mover la obra es cambiarla ahí.
     const movida = { ...s, datosObra: { ...s.datosObra!, provincia: '29' } };
-    expect(ensamblar(movida, sobres).fuentes.materiales.estado).toBe('revisar');
+    expect(ensamblar(movida, sobres).fuentes.materiales.estado).toBe('falta');
   });
 
   it('republicar lo MISMO no reabre el aviso; republicar otra cosa sí', () => {
@@ -270,15 +304,14 @@ describe('otro emplazamiento y revisar', () => {
     // para que la ficha pidiera confirmar otra vez lo mismo. La huella mira el
     // resultado, no la fecha.
     const sobres = sobresGranada();
-    const malaga = estadoPorDefecto({ denominacion: 'Bloque', municipio: 'Málaga', provincia: '29', altitud: 10, uso: 'Viviendas' });
-    const s = tomarTodo(malaga, sobres);
+    const s = tomarTodo(malaga(), sobres);
     expect(ensamblar(s, sobres).fuentes.sismo.estado).toBe('derivado');
 
     const otraFecha: Sobres = { ...sobres, sismo: { ...sobres.sismo!, ts: '2026-09-07T08:00:00.000Z' } };
     expect(ensamblar(s, otraFecha).fuentes.sismo.estado).toBe('derivado');
 
     const otroResultado: Sobres = { ...sobres, sismo: { ...sobres.sismo!, datos: { ...sobres.sismo!.datos, ab: 0.19 } } };
-    expect(ensamblar(s, otroResultado).fuentes.sismo.estado).toBe('revisar');
+    expect(ensamblar(s, otroResultado).fuentes.sismo.estado).toBe('falta');
   });
 });
 

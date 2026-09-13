@@ -19,6 +19,12 @@ const esValor = (v: unknown): v is Valor<unknown> =>
 function accionDe(v: Valor<unknown>): Hueco['accion'] {
   if (v.estado === 'revisar') return 'usarPublicado';
   if (v.estado === 'heredado') return 'confirmar';
+  // Una publicación CALCULADA pero en otra provincia es falta (E12), y su
+  // salida es darla por buena o rehacerla, no volver a publicar. Lo sabe la
+  // fuente, que lleva esas dos marcas; el capítulo que cae por ella no, pero
+  // la fuente va antes en el documento y es la que entra en la cola.
+  const f = v as Partial<{ otroEmplazamiento: boolean; configurado: boolean }>;
+  if (f.otroEmplazamiento === true && f.configurado === true) return 'usarPublicado';
   // Falta: si el origen es un módulo, lo resuelve publicar allí; si no, teclearlo.
   return v.origen === 'materiales' || v.origen === 'viento-nieve' || v.origen === 'cargas-planta' || v.origen === 'sismo'
     ? 'publicarModulo'

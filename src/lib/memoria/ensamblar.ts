@@ -100,7 +100,14 @@ export function esDeOtroEmplazamiento(sobre: Publicacion<unknown> | null, ineSob
  *  - con sobre SIN CONFIGURAR —los valores de arranque del módulo, su caso de
  *    ejemplo—: `falta`. Un sobre que nadie ha mirado no es un dato de esta
  *    obra;
- *  - de OTRA PROVINCIA: `revisar`;
+ *  - de OTRA PROVINCIA: `falta` si el apartado lo necesita, `revisar` si es
+ *    opcional. Es la decisión E12 del diseño: un sismo de Granada no se puede
+ *    imprimir en una memoria de Sevilla, y como no se imprime, bloquea. Del
+ *    13-09-2026 al 12 fue `revisar` para los dos, y eso dejaba exportar con la
+ *    tabla sísmica en guiones: el capítulo caía a `faltaDeSobre()` y la cola
+ *    de huecos, que deduplica por id, se quedaba con la fuente en ámbar y
+ *    perdía la falta. El viento sí puede quedarse en ámbar: sin sobre usable la
+ *    ficha imprime la zona de la provincia, que es correcta;
  *  - configurado y del mismo sitio: `derivado`. Lo puso otro módulo, se
  *    imprime y no se pregunta.
  *
@@ -115,7 +122,8 @@ export function estadoSobre(sobre: Publicacion<unknown> | null, aceptado: boolea
   if (!sobre) return obligatorio ? 'falta' : 'derivado';
   if (aceptado) return 'derivado';
   if (sobre.configurado !== true) return 'falta';
-  return otroEmplazamiento ? 'revisar' : 'derivado';
+  if (!otroEmplazamiento) return 'derivado';
+  return obligatorio ? 'falta' : 'revisar';
 }
 
 // ── Lo que devuelve ─────────────────────────────────────────────────────────
@@ -131,6 +139,8 @@ export interface Fuente extends Valor<boolean> {
   obraSobre: ObraPublicada | null;
   /** El sobre se calculó en otra provincia que la ficha. */
   otroEmplazamiento: boolean;
+  /** El sobre lleva un cálculo de verdad, no los valores de arranque del módulo. `false` sin sobre. */
+  configurado: boolean;
   obligatorio: boolean;
 }
 
@@ -396,6 +406,7 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado:
     ts: sobre?.ts ?? null,
     obraSobre: sobre?.obra ?? null,
     otroEmplazamiento,
+    configurado: sobre?.configurado === true,
     obligatorio,
     ...(nota ? { nota } : {}),
   };

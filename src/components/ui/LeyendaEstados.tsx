@@ -20,11 +20,11 @@ export function LeyendaEstados() {
       </span>
       <span className="flex items-center gap-1.5">
         <i className={CUADRO} style={{ background: 'var(--color-state-warn)' }} aria-hidden="true" />
-        por confirmar o calculado en otro sitio: se imprime y se avisa
+        por confirmar: se imprime y se avisa
       </span>
       <span className="flex items-center gap-1.5">
         <i className={CUADRO} style={{ background: 'var(--color-state-fail)' }} aria-hidden="true" />
-        falta: es lo único que impide exportar
+        falta, o un cálculo de otra provincia que la memoria necesita: impide exportar
       </span>
       <span className="flex items-center gap-1.5">
         <i className={`${CUADRO} border border-border-main`} aria-hidden="true" />

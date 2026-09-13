@@ -34,8 +34,11 @@ export type Block =
  *  - `falta`    rojo: sin valor. Es lo ÚNICO que impide exportar.
  *  - `heredado` ámbar: valor de la obra anterior sin confirmar. Queda por
  *               hacer, pero se imprime.
- *  - `revisar`  ámbar: publicación calculada en otro sitio, sin dar por buena.
- *               Queda por hacer, pero se imprime.
+ *  - `revisar`  ámbar: publicación OPCIONAL calculada en otro sitio, sin dar
+ *               por buena. No se imprime ella —se imprime lo que la norma da
+ *               para la provincia— y por eso no bloquea. La obligatoria en ese
+ *               caso es `falta`: lo que la memoria necesita y no puede
+ *               imprimir, bloquea (E12).
  *  - `derivado` azul: lo puso la norma o una publicación. Nada que hacer.
  *  - `ok`       normal: tecleado o confirmado en esta obra. Nada que hacer.
  */
