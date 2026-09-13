@@ -11,7 +11,7 @@
 import { MODULOS } from '../memoria-dbse/sobres';
 import { cargarEstado } from '../memoria-dbse/state';
 import { leerSobres } from '../memoria-dbse/sobres';
-import { evaluar } from '../../lib/memoria/ensamblar';
+import { evaluar, type Fuente } from '../../lib/memoria/ensamblar';
 import { apartados } from '../../lib/memoria/ficha';
 import { bloquea, type ApartadoId } from '../../lib/memoria/model';
 import type { ModuloPub } from '../../lib/memoria/estado';
@@ -58,6 +58,27 @@ const TITULO_CORTO: Partial<Record<ApartadoId, string>> = {
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
+/**
+ * En qué está un módulo, en corto.
+ *
+ * La `nota` que la ficha imprime nombra su módulo y da la instrucción entera
+ * —«Cuadro de materiales sigue con sus valores de partida: ábralo y calcule
+ * los de esta obra.»—, que allí es lo suyo: se lee un apartado cada vez. En el
+ * panel salían cuatro de esas seguidas, con el nombre del módulo repetido a
+ * dos columnas de su propia etiqueta, y parecía un registro de errores. Aquí
+ * la fila dice sólo EN QUÉ ESTÁ, y la instrucción se da una vez sobre el
+ * bloque.
+ *
+ * Sale de las banderas del sobre, no de mirar el texto de la nota: `nota` es
+ * prosa para una memoria firmada y puede cambiar de redacción cualquier día.
+ */
+function enQueEsta(f: Fuente): string | null {
+  if (!f.valor) return f.obligatorio ? 'sin calcular en esta obra' : 'sin publicar: se toma lo de la provincia';
+  if (!f.configurado) return 'con los valores de partida';
+  if (f.otroEmplazamiento) return 'calculado en otro emplazamiento';
+  return null;
+}
+
 export function resumenDeObra(): ResumenObra {
   const ev = evaluar(cargarEstado(), leerSobres());
   const { datos, huecos } = ev;
@@ -72,7 +93,7 @@ export function resumenDeObra(): ResumenObra {
       // va en esta obra (no hay acero, no hay fábrica), y la misma palabra no
       // puede significar dos cosas en la misma pantalla.
       estado: f.estado === 'falta' ? 'falta' : f.estado === 'revisar' ? 'revisar' : !f.valor && !f.obligatorio ? 'sinEmpezar' : 'hecho',
-      detalle: f.nota ?? null,
+      detalle: enQueEsta(f),
       ruta: MODULOS[m].ruta,
     };
   });
