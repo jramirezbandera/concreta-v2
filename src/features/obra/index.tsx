@@ -23,12 +23,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { FilePlus2, Pencil } from 'lucide-react';
+import { Check, ChevronDown, FilePlus2, Pencil } from 'lucide-react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { DialogoObra } from '../../components/layout/DialogoObra';
 import { Topbar } from '../../components/layout/Topbar';
 import { FilaEstado } from '../../components/ui/FilaEstado';
-import { piezasSinPdf } from '../../lib/anejo';
+import { hayTrabajoSinGuardar, piezasSinPdf } from '../../lib/anejo';
+import { ADAPTADORES_ANEJO } from '../../lib/anejo/modules';
+import { getModuleByKey } from '../../data/moduleRegistry';
 import { useAnejo } from '../../lib/anejo/useAnejo';
 import { resumenDe } from '../../lib/anejo/maqueta';
 import { adoptarPerfilDeLaObra, dejarMiPerfilEnLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
@@ -36,7 +38,7 @@ import { showToast } from '../../components/ui/Toast';
 import { guardarObra } from '../../lib/obra';
 import { useObra } from '../../lib/obra/useObra';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
-import type { ResumenObra } from './resumen';
+import type { FilaResumen, ResumenObra } from './resumen';
 
 const RUTA_FICHA = '/memorias/db-se';
 const RUTA_ANEJO = '/proyecto/anejo';
@@ -60,6 +62,7 @@ export function ObraModule() {
   const [editando, setEditando] = useState(false);
   const [resumen, setResumen] = useState<ResumenObra | null>(null);
   const [sinPdf, setSinPdf] = useState<Set<string> | null>(null);
+  const [sinGuardar, setSinGuardar] = useState<{ id: string; etiqueta: string; ruta: string }[]>([]);
   const [fallo, setFallo] = useState(false);
   // El perfil del despacho NO viaja en el `.concreta` —es preferencia de esta
   // máquina—, así que la obra de un compañero trae el suyo dentro y el que se
@@ -107,6 +110,30 @@ export function ObraModule() {
 
   const resumenAnejo = useMemo(() => resumenDe(anejo.piezas), [anejo]);
   const faltanPdf = sinPdf !== null && sinPdf.size > 0;
+
+  // D12: el bloque del anejo son sus piezas MÁS lo calculado y sin guardar. Un
+  // módulo con trabajo vivo que no está en ninguna pieza no sale en el
+  // documento que se entrega, y hasta el 13-09-2026 el panel no lo decía.
+  //
+  // Se calcula después del primer pintado, como `sinPdf`: son dos lecturas de
+  // localStorage por cada uno de los veinticuatro adaptadores y esto es la ruta
+  // de entrada de la app.
+  //
+  // Los de sección «memoria» quedan fuera, la misma regla que usa el panel del
+  // anejo: son documentos que se regeneran, y su estado ya lo cuentan los dos
+  // bloques de arriba. Contarlo aquí otra vez sería el doble recuento de R9.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setSinGuardar(
+        ADAPTADORES_ANEJO.filter((a) => a.seccion !== 'memoria' && hayTrabajoSinGuardar(a.modulo)).map((a) => ({
+          id: a.modulo,
+          etiqueta: a.capitulo,
+          ruta: getModuleByKey(a.modulo)?.route ?? RUTA_ANEJO,
+        })),
+      );
+    });
+    return () => cancelAnimationFrame(id);
+  }, [anejo, versionPubs]);
 
   const lugar = [obra?.municipio, obra?.altitud != null ? `${obra.altitud} m` : null].filter(Boolean).join(' · ');
   const vacia = obra === null || (!obra.denominacion && !obra.provincia);
@@ -211,13 +238,7 @@ export function ObraModule() {
 
           <p className={CABECERA}>Lo que se calcula en otros módulos</p>
           <div className={BLOQUE}>
-            {resumen === null ? (
-              <Esqueleto filas={4} />
-            ) : (
-              resumen.modulos.map((f) => (
-                <FilaEstado key={f.id} estado={vacia ? 'sinEmpezar' : f.estado} etiqueta={f.etiqueta} detalle={vacia ? null : f.detalle} a={f.ruta} />
-              ))
-            )}
+            {resumen === null ? <Esqueleto filas={4} /> : <Filas filas={resumen.modulos} vacia={vacia} />}
           </div>
 
           <p className={CABECERA}>Lo que se rellena en la ficha</p>
@@ -232,13 +253,7 @@ export function ObraModule() {
                 onClick={() => setEditando(true)}
               />
             )}
-            {resumen === null ? (
-              <Esqueleto filas={6} />
-            ) : (
-              resumen.ficha.map((f) => (
-                <FilaEstado key={f.id} estado={vacia ? 'sinEmpezar' : f.estado} etiqueta={f.etiqueta} detalle={vacia ? null : f.detalle} a={f.ruta} />
-              ))
-            )}
+            {resumen === null ? <Esqueleto filas={6} /> : <Filas filas={resumen.ficha} vacia={vacia} />}
           </div>
 
           <p className={CABECERA}>El anejo de cálculo</p>
@@ -259,6 +274,10 @@ export function ObraModule() {
                 a={RUTA_ANEJO}
               />
             )}
+            {/* Lo calculado que todavía no está en el anejo: no se entrega. */}
+            {sinGuardar.map((m) => (
+              <FilaEstado key={m.id} estado="revisar" etiqueta={m.etiqueta} detalle="calculado y sin guardar en el anejo" a={m.ruta} />
+            ))}
           </div>
         </div>
       </div>
@@ -277,6 +296,41 @@ export function ObraModule() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Las filas de un bloque, con lo HECHO plegado (R1): el primer pantallazo
+ * resume lo hecho y enseña entero lo que falta o queda por mirar. Con una
+ * sola fila hecha no hay nada que resumir y se deja a la vista: plegar una
+ * fila en otra fila no ahorra nada y esconde el nombre.
+ */
+function Filas({ filas, vacia }: { filas: FilaResumen[]; vacia: boolean }) {
+  const [verHechas, setVerHechas] = useState(false);
+  const hechas = vacia ? [] : filas.filter((f) => f.estado === 'hecho');
+  const plegar = hechas.length >= 2;
+  const visibles = plegar ? filas.filter((f) => f.estado !== 'hecho') : filas;
+  const fila = (f: FilaResumen) => <FilaEstado key={f.id} estado={vacia ? 'sinEmpezar' : f.estado} etiqueta={f.etiqueta} detalle={vacia ? null : f.detalle} a={f.ruta} />;
+  return (
+    <>
+      {visibles.map(fila)}
+      {plegar && (
+        <button
+          type="button"
+          onClick={() => setVerHechas((v) => !v)}
+          aria-expanded={verHechas}
+          className="flex min-h-[44px] w-full items-center gap-2.5 border-b border-border-sub px-3 text-left last:border-b-0 hover:bg-bg-elevated"
+        >
+          <span className="flex shrink-0 items-center gap-1 text-state-ok">
+            <Check size={13} aria-hidden="true" className="stroke-current" />
+            <span className="font-mono text-[10px]">hecho</span>
+          </span>
+          <span className="min-w-0 flex-1 text-[12.5px] text-text-secondary">{hechas.length} comprobaciones hechas</span>
+          <ChevronDown size={13} aria-hidden="true" className={`shrink-0 text-text-disabled transition-transform ${verHechas ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+      {plegar && verHechas && hechas.map(fila)}
+    </>
   );
 }
 

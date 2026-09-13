@@ -13,13 +13,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ObraModule } from '../../features/obra';
 import { resumenDeObra } from '../../features/obra/resumen';
-import { cargarEstado } from '../../features/memoria-dbse/state';
+import { cargarEstado, guardarEstado } from '../../features/memoria-dbse/state';
 import { leerSobres } from '../../features/memoria-dbse/sobres';
 import { evaluar } from '../../lib/memoria/ensamblar';
 import { defaultMaterialesState, evaluar as evaluarMateriales, publicarResultado as publicarMateriales } from '../../features/materiales/state';
@@ -117,5 +117,41 @@ describe('una obra a medias', () => {
     publicarMateriales(m, evaluarMateriales(m));
 
     await waitFor(() => expect(screen.getByRole('link', { name: /Cuadro de materiales: hecho/ })).toBeInTheDocument());
+  });
+
+  it('lo hecho se pliega y lo que falta sale entero (R1)', async () => {
+    obraGranada();
+    montar();
+
+    // Las faltas, a la vista; las cuatro secciones hechas de la ficha, en una fila.
+    const plegado = await screen.findByRole('button', { name: /4 comprobaciones hechas/ });
+    expect(plegado).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('link', { name: /El terreno y la cimentación: falta/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /La estructura y las juntas: hecho/ })).toBeNull();
+
+    fireEvent.click(plegado);
+    expect(plegado).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: /La estructura y las juntas: hecho/ })).toBeInTheDocument();
+  });
+
+  it('un módulo calculado y sin guardar en el anejo sale en el bloque del anejo (D12)', async () => {
+    obraGranada();
+    // Unas vigas calculadas y ninguna pieza en el anejo: trabajo vivo que NO
+    // está en el documento que se entrega, y el panel no lo decía.
+    localStorage.setItem('rc-beams', JSON.stringify({ luz: 5 }));
+    localStorage.setItem('rc-beams-version', '1');
+    montar();
+
+    const fila = await screen.findByRole('link', { name: /Vigas de hormigón: revíselo, calculado y sin guardar en el anejo/ });
+    expect(fila).toHaveAttribute('href', '/horm/vigas');
+  });
+
+  it('pero las memorias no se cuentan dos veces: su estado ya está en los dos bloques de arriba (R9)', async () => {
+    obraGranada();
+    guardarEstado(cargarEstado());
+    montar();
+
+    await screen.findByText(/Faltan \d+ datos/);
+    expect(screen.queryByRole('link', { name: /Cumplimiento del DB SE: revíselo, calculado y sin guardar/ })).toBeNull();
   });
 });

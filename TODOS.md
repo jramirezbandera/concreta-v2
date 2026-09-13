@@ -1221,9 +1221,9 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada técnico; falta la decisión de producto sobre el documento.
 
-## Cargas por planta — consume sobres sin mirar `configurado`
+## ~~Cargas por planta — consume sobres sin mirar `configurado`~~
 
-**Status:** DIFERIDO — implementación del rediseño del panel de obra (2026-09-12). Se dijo en el commit de F2 y se dejó fuera para no mezclar el rediseño de la ficha con otro módulo.
+**Status:** HECHO (2026-09-13). `leerNievePublicada`, `resumenSismoPublicado` y la vida útil del cuadro de materiales tratan un sobre sin `configurado` como si no hubiera publicación: el cuadro del plano dice «sin publicar», que es lo que ya decía sin sobre.
 
 **What:** que `src/features/cargas-planta/nievePub.ts:29` y `src/features/cargas-planta/sismoPub.ts:32,57` comprueben `configurado === true` antes de dar por bueno el sobre, igual que hace ya `estadoSobre()` en la ficha.
 
@@ -1237,9 +1237,9 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## La barra lateral dice «Sin obra» mientras el panel enseña el nombre de la obra
+## ~~La barra lateral dice «Sin obra» mientras el panel enseña el nombre de la obra~~
 
-**Status:** DETECTADO probando el panel en el navegador (2026-09-13). No arreglado porque hay que decidir qué nombre manda, y eso es producto.
+**Status:** HECHO (2026-09-13), por la salida reversible: el rótulo sigue siendo el del proyecto, y sin proyecto enseña la denominación de la obra con «· sin guardar». El proyecto sigue naciendo perezosamente.
 
 **What:** que el control de obra del Sidebar y la cabecera de `/obra` no puedan decir cosas distintas sobre la misma obra en la misma pantalla.
 
@@ -1253,9 +1253,9 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## Panel de obra — las dos mitades que el rediseño dejó sin hacer (D12 y R1)
+## ~~Panel de obra — las dos mitades que el rediseño dejó sin hacer (D12 y R1)~~
 
-**Status:** DETECTADO en la auditoría del rediseño (2026-09-13). Ninguna de las dos se dijo en un commit; por eso están aquí.
+**Status:** HECHO (2026-09-13). R1: lo hecho se pliega a «N comprobaciones hechas» cuando hay dos o más. D12: cada módulo con trabajo vivo y sin pieza en el anejo sale como fila en el bloque del anejo, en ámbar, con su enlace.
 
 **What:** (1) D12: que el bloque del anejo del panel avise de lo «calculado sin guardar» —un módulo con resultado en pantalla y sin pieza en el anejo—, que es la segunda mitad de la decisión. (2) R1: que las filas en verde del panel se plieguen a «N comprobaciones hechas ▸», y sólo faltas y ámbares salgan enteras.
 

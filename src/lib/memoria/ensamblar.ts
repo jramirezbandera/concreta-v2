@@ -383,7 +383,9 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado:
   const nota = !sobre
     ? obligatorio
       ? `${ETIQUETA_DE[modulo]} no se ha calculado todavía en esta obra.`
-      : 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
+      : modulo === 'vientoNieve'
+        ? 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
+        : `${ETIQUETA_DE[modulo]} sin publicar: se toma lo que la norma da para la provincia.`
     : vigente
       ? sobre.configurado !== true
         ? 'Sus valores de partida, dados por buenos para esta obra.'

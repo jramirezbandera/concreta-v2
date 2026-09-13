@@ -23,10 +23,8 @@ import { leerClave } from '../storage/seguro';
 /** La pantalla de la obra. */
 export const RUTA_OBRA = '/obra';
 
-/** ¿Hay una obra que enseñar? Una obra guardada, o datos de obra tecleados sin guardarla todavía. */
-export function hayObra(): boolean {
-  if (leerClave(CLAVE_PROYECTO_ACTIVO) !== null) return true;
-  const bruto = leerClave(CLAVE_OBRA);
+function hayObraEn(activo: string | null, bruto: string | null): boolean {
+  if (activo !== null) return true;
   if (bruto === null) return false;
   try {
     const p: unknown = JSON.parse(bruto);
@@ -35,6 +33,19 @@ export function hayObra(): boolean {
   } catch {
     return false;
   }
+}
+
+// La landing lo pregunta en cada pintado de cada CTA —siete—, y es su LCP:
+// leer las dos claves es barato, parsear la obra cada vez no hacía falta.
+let ultimo: { activo: string | null; bruto: string | null; hay: boolean } | null = null;
+
+/** ¿Hay una obra que enseñar? Una obra guardada, o datos de obra tecleados sin guardarla todavía. */
+export function hayObra(): boolean {
+  const activo = leerClave(CLAVE_PROYECTO_ACTIVO);
+  const bruto = leerClave(CLAVE_OBRA);
+  if (ultimo !== null && ultimo.activo === activo && ultimo.bruto === bruto) return ultimo.hay;
+  ultimo = { activo, bruto, hay: hayObraEn(activo, bruto) };
+  return ultimo.hay;
 }
 
 export function rutaDeEntrada(): string {
