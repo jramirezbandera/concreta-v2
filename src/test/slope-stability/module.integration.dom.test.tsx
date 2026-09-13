@@ -30,6 +30,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, cleanup, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { UnitSystemProvider } from "../../lib/units/UnitSystemProvider";
 import { ThemeProvider } from "../../lib/theme/ThemeProvider";
 import type { SlopeResult } from "../../lib/calculations/geotech/types";
@@ -110,13 +111,17 @@ vi.mock("../../features/slope-stability/useSlopeSolver", () => ({
 import { SlopeStabilityModule } from "../../features/slope-stability";
 import { moduleRegistry } from "../../data/moduleRegistry";
 
+// MemoryRouter: desde F6 (2026-09-13) el menú Ajustes de la topbar lleva un
+// <NavLink> a Mi estudio, así que montar el módulo entero exige un Router.
 function renderModule() {
   return render(
-    <ThemeProvider>
-      <UnitSystemProvider>
-        <SlopeStabilityModule />
-      </UnitSystemProvider>
-    </ThemeProvider>,
+    <MemoryRouter initialEntries={["/geotec/taludes"]}>
+      <ThemeProvider>
+        <UnitSystemProvider>
+          <SlopeStabilityModule />
+        </UnitSystemProvider>
+      </ThemeProvider>
+    </MemoryRouter>,
   );
 }
 

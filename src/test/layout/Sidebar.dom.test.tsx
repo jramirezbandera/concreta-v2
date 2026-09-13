@@ -26,6 +26,9 @@ describe('Sidebar', () => {
     // Los cinco datos de obra se piden en el diálogo del menú de obra desde
     // 2026-09-12; ya no hay página propia que enlazar aquí.
     expect(screen.queryByRole('link', { name: /Datos de obra/ })).toBeNull();
+    // Y «Mi estudio» se fue al menú Ajustes de la topbar el 2026-09-13 (F6):
+    // es del despacho, no de la obra abierta, que es lo que lista este grupo.
+    expect(screen.queryByRole('link', { name: /Mi estudio/ })).toBeNull();
     const anejo = screen.getByRole('link', { name: /Anejo de cálculo/ });
     expect(anejo).toHaveAttribute('href', '/proyecto/anejo');
     expect(anejo).toHaveAttribute('aria-disabled', 'false');

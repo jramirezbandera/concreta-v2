@@ -12,11 +12,14 @@ const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
  * El grupo PROYECTO va antes que los módulos y no sale del registro: no son
  * cálculos con estado propio (los datos de obra escriben `concreta-obra`, del
  * contenedor; el anejo ordena lo guardado desde los módulos y monta el PDF).
+ *
+ * Los dos son DE ESTA OBRA, y ése es el criterio de la lista. «Mi estudio» se
+ * fue al menú Ajustes de la topbar el 2026-09-13 (F6): es del despacho y de
+ * esta máquina, no del proyecto abierto.
  */
 const PROYECTO = [
   { key: 'concreta-obra', route: '/obra', label: 'La obra', shipped: true },
   { key: 'concreta-anejo', route: '/proyecto/anejo', label: 'Anejo de cálculo', shipped: true },
-  { key: 'concreta-estudio', route: '/ajustes/estudio', label: 'Mi estudio', shipped: true },
 ] as const;
 
 interface SidebarProps {
