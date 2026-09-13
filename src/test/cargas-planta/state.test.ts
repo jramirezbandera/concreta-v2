@@ -45,6 +45,10 @@ function sevilla(): CargasState {
 function publicarMadrid() {
   const vn = defaultVientoNieveState();
   vn.emplazamiento = { ...vn.emplazamiento, provincia: '28', municipio: 'Madrid', altitud: 660 };
+  // Un edificio TOCADO, no el de arranque: desde el 13-09-2026 el cuadro sólo
+  // lee sobres configurados, y el emplazamiento por sí solo no configura nada.
+  // La planta no cambia la nieve: qn sigue siendo la de Madrid a 660 m.
+  vn.viento = { ...vn.viento, dimensiones: { x: 21, y: 12 } };
   publicarVN(vn, evaluarVN(vn));
 }
 

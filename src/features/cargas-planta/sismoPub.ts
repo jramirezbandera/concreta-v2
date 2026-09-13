@@ -30,7 +30,9 @@ import {
 /** La vida útil declarada en el cuadro de materiales, si lo hay publicado. */
 function vidaUtilPublicada(): number | undefined {
   const sobre = leerPublicacion<PubMateriales>(MODULO_MATERIALES, PUB_VERSION_MATERIALES);
-  return sobre?.datos?.vidaUtilAnios;
+  // Sólo de un cuadro CALCULADO: el de arranque también dice 50 años, pero
+  // nadie lo ha decidido para esta obra.
+  return sobre?.configurado === true ? sobre.datos?.vidaUtilAnios : undefined;
 }
 
 /** Provincia de un INE, que puede venir con cinco dígitos o con dos. */
@@ -55,7 +57,12 @@ const provinciaDe = (ine: string | null) => (ine && ine.length >= 2 ? ine.slice(
  */
 export function resumenSismoPublicado(provinciaObra = ''): ResumenSismoPlano | null {
   const sobre = leerPublicacion<PubSismo>(MODULO_SISMO, PUB_VERSION_SISMO);
-  const d = sobre?.datos;
+  // Y el tercer filtro, desde el 13-09-2026: el sobre tiene que llevar un
+  // CÁLCULO, no los valores de arranque. El emplazamiento sólo cazaba a Granada
+  // fuera de Granada; una obra en Granada que abriera el módulo sin tocarlo
+  // rotulaba ab = 0,23 g como si alguien lo hubiera decidido.
+  if (!sobre || sobre.configurado !== true) return null;
+  const d = sobre.datos;
   if (!d) return null;
   const provinciaSobre = provinciaDe(d.ine ?? sobre.obra.ine);
   if (provinciaObra && provinciaSobre && provinciaSobre !== provinciaObra) return null;

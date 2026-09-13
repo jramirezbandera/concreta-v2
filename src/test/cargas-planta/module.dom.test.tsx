@@ -72,10 +72,17 @@ function montar() {
   );
 }
 
-/** Viento y nieve publicado en Madrid a 660 m: zona A, aspereza IV, sk 0,56. */
+/**
+ * Viento y nieve publicado en Madrid a 660 m: zona A, aspereza IV, sk 0,56.
+ *
+ * Con el edificio TOCADO, no el de arranque: desde el 13-09-2026 este cuadro
+ * sólo lee sobres configurados, y elegir emplazamiento no configura nada (el
+ * emplazamiento se hereda de la obra). La planta no cambia la nieve.
+ */
 function publicarMadrid() {
   const vn = defaultVientoNieveState();
   vn.emplazamiento = { ...vn.emplazamiento, provincia: '28', municipio: 'Madrid', altitud: 660 };
+  vn.viento = { ...vn.viento, dimensiones: { x: 21, y: 12 } };
   publicarVN(vn, evaluarVN(vn));
 }
 

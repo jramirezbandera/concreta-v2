@@ -27,7 +27,11 @@ export interface NievePublicada {
 
 export function leerNievePublicada(): NievePublicada | null {
   const sobre = leerPublicacion<PubVientoNieve>(MODULO_VIENTO_NIEVE, PUB_VERSION_VIENTO_NIEVE);
-  if (!sobre || !sobre.datos || !sobre.datos.nieve) return null;
+  // Un sobre SIN CONFIGURAR —los valores de arranque de Viento y nieve, o su
+  // caso de ejemplo de Aranda de Duero— no es la nieve de ninguna obra: se
+  // trata como si no hubiera publicación, igual que hace la ficha DB SE. Hasta
+  // el 13-09-2026 entraba en el cuadro del plano por haber abierto el módulo.
+  if (!sobre || sobre.configurado !== true || !sobre.datos || !sobre.datos.nieve) return null;
   const n = sobre.datos.nieve;
   return {
     ts: sobre.ts,

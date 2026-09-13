@@ -7,6 +7,11 @@
  * La vida útil entra por otra puerta —el cuadro de materiales— y esa costura es
  * la que más fácil se descose: el cuadro la enseña en la ficha del sismo, pero
  * no la calcula la NCSE-02.
+ *
+ * Desde el 13-09-2026 el cuadro sólo lee sobres CONFIGURADOS: el de arranque
+ * (Granada, ab = 0,23 g) no es el sismo de ninguna obra, ni siquiera de una en
+ * Granada. Por eso las pruebas publican un sismo «calculado» —el de arranque
+ * con algo tocado— y el de arranque tiene su propia prueba: la de que no entra.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -32,6 +37,12 @@ beforeEach(() => {
 
 const publicar = (s: SeismicState) => publicarSismo(s, evaluarSismo(s));
 
+/** Un sismo CALCULADO: el de arranque (Granada, μ = 3) con un sótano declarado, que no cambia ac, K ni μ. */
+const calculado = (cambio: Partial<SeismicState> = {}): SeismicState => ({ ...defaultSeismicState(), sotanos: 1, ...cambio });
+
+/** Un cuadro de materiales CALCULADO: el de arranque en la costa, que no cambia la vida útil. */
+const materialesCalculados = () => ({ ...defaultMaterialesState(), costa: true });
+
 /** El cuadro del plano de una obra cualquiera, con el sismo que haya publicado. */
 function bloquesPlano(): Block[] {
   const estado = defaultCargasState();
@@ -48,9 +59,26 @@ describe('sin publicación de sismo', () => {
   });
 });
 
+describe('el sobre sin configurar no entra en el plano', () => {
+  it('el sismo de arranque —abrir el módulo y no tocarlo— se trata como si no hubiera publicación', () => {
+    publicar(defaultSeismicState());
+    expect(resumenSismoPublicado()).toBeNull();
+    // Tampoco en Granada: el emplazamiento coincide, pero nadie lo ha calculado.
+    expect(resumenSismoPublicado('18')).toBeNull();
+    expect(bloquesPlano().some((b) => b.kind === 'paragraph' && b.text.includes('módulo Sismo'))).toBe(true);
+  });
+
+  it('el cuadro de materiales de arranque no presta su vida útil', () => {
+    publicar(calculado());
+    const m = defaultMaterialesState();
+    publicarMateriales(m, evaluarMateriales(m));
+    expect(resumenSismoPublicado()!.vidaUtil).toBeUndefined();
+  });
+});
+
 describe('con el sismo publicado', () => {
   it('el cuadro toma ac, K y la ductilidad del sobre, sin leer el estado del otro módulo', () => {
-    const s = defaultSeismicState(); // Granada, μ = 3
+    const s = calculado(); // Granada, μ = 3
     publicar(s);
     const r = resumenSismoPublicado()!;
     expect(r.ac).toBeCloseTo(evaluarSismo(s).emplazamiento.ac, 12);
@@ -71,15 +99,15 @@ describe('con el sismo publicado', () => {
   });
 
   it('la vida útil la pone el cuadro de materiales, no el de sismo', () => {
-    publicar(defaultSeismicState());
-    const m = defaultMaterialesState();
+    publicar(calculado());
+    const m = materialesCalculados();
     publicarMateriales(m, evaluarMateriales(m));
     expect(resumenSismoPublicado()!.vidaUtil).toBe(50);
     expect(kvTables(bloquesPlano())[0].rows.map(([k]) => k)).toContain('Vida útil');
   });
 
   it('exento: el cuadro no declara ductilidad y escribe el motivo con su artículo', () => {
-    publicar({ ...defaultSeismicState(), ab: 0.02 });
+    publicar(calculado({ ab: 0.02 }));
     const r = resumenSismoPublicado()!;
     expect(r.obligatoria).toBe(false);
     expect(r.exencion).toBeTruthy();
@@ -90,23 +118,23 @@ describe('con el sismo publicado', () => {
   });
 
   it('lo que se imprime es SIEMPRE lo último publicado: el sismo no se congela en el estado', () => {
-    publicar(defaultSeismicState());
+    publicar(calculado());
     const antes = resumenSismoPublicado()!.mu;
-    publicar({ ...defaultSeismicState(), mu: 2 });
+    publicar(calculado({ mu: 2 }));
     expect(antes).toBe(3);
     expect(resumenSismoPublicado()!.mu).toBe(2);
     expect(kvTables(bloquesPlano())[0].rows).toContainEqual(['Ductilidad', 'baja, μ = 2,0']);
   });
 
   it('un sobre de otro módulo en la misma clave no se lee como sismo', () => {
-    localStorage.setItem('concreta-pub-sismo', JSON.stringify({ v: 1, ts: '2026-09-06T00:00:00Z', modulo: 'viento-nieve', obra: {}, datos: { ac: 9 } }));
+    localStorage.setItem('concreta-pub-sismo', JSON.stringify({ v: 1, ts: '2026-09-06T00:00:00Z', modulo: 'viento-nieve', obra: {}, configurado: true, datos: { ac: 9 } }));
     expect(resumenSismoPublicado()).toBeNull();
   });
 });
 
 describe('el cuadro del plano completo', () => {
   it('viento y sismo se ensamblan cada uno de su publicación, en su orden', () => {
-    publicar(defaultSeismicState());
+    publicar(calculado());
     const r = evaluar(defaultCargasState(), null).resultado;
     const plano = cuadroAccionesPlanoCargas(r, { zonaEolica: 'A', vb: 26, aspereza: 'IV' }, resumenSismoPublicado());
     const titulos = plano.filter((b): b is Extract<Block, { kind: 'heading' }> => b.kind === 'heading').map((b) => b.text);
@@ -118,19 +146,19 @@ describe('el cuadro del plano completo', () => {
 
 describe('el sobre de otro emplazamiento no entra en el cuadro', () => {
   it('provincia distinta: se descarta, y el cuadro dice que no hay publicación', () => {
-    publicar(defaultSeismicState()); // Granada, INE 18087
+    publicar(calculado()); // Granada, INE 18087
     expect(resumenSismoPublicado('18')).not.toBeNull();
-    // Ávila. El caso real: abrir el módulo de sismo una vez, con su ejemplo de
-    // Granada dentro, y que el plano de otra obra declarase su aceleración.
+    // Ávila. El caso real: un sismo calculado para Granada, y el plano de otra
+    // obra declarando su aceleración.
     expect(resumenSismoPublicado('05')).toBeNull();
   });
 
   it('sin provincia en el cuadro, o sin INE en el sobre, no hay discrepancia que demostrar', () => {
-    publicar(defaultSeismicState());
+    publicar(calculado());
     expect(resumenSismoPublicado('')).not.toBeNull();
     localStorage.clear();
     // ab y K a mano y sin obra guardada: el sobre no sabe de dónde es.
-    publicar({ ...defaultSeismicState(), municipioIne: null, municipioNombre: '' });
+    publicar(calculado({ municipioIne: null, municipioNombre: '' }));
     expect(resumenSismoPublicado('05')).not.toBeNull();
   });
 });
