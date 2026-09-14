@@ -79,6 +79,7 @@ import {
   dec,
   decFiel,
   fuerza,
+  magnitud,
   pct as pctFmt,
   unidadCargaSup,
   unidadFuerza,
@@ -473,25 +474,25 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
           : `Anejo 1 de la NCSE-02 · ${manifiesto.attribution}, capa ${manifiesto.layer}`;
 
   const filas: FilaParam[] = [
-    { p: 'ab', v: `${decFiel(e.ab, 2)} g`, o: `Aceleración sísmica básica. ${origenAb}` },
-    { p: 'K', v: decFiel(e.K, 1), o: `Coeficiente de contribución. ${origenAb}` },
+    { p: 'ab', v: `${magnitud(e.ab, 'ab')} g`, o: `Aceleración sísmica básica. ${origenAb}` },
+    { p: 'K', v: magnitud(e.K, 'K'), o: `Coeficiente de contribución. ${origenAb}` },
     {
       p: 'ρ',
-      v: num(e.rho, 1),
+      v: magnitud(e.rho, 'rho'),
       o: `Coeficiente de riesgo (art. 1.2.2) · importancia ${IMPORTANCIA_LABEL[state.importancia].toLowerCase()}`,
     },
     {
       p: 'C',
-      v: decFiel(e.C, 2),
+      v: magnitud(e.C, 'C'),
       o:
         state.terrenoModo === 'perfil'
           ? 'Coeficiente del terreno (art. 2.4) · media ponderada en los 30 m superiores'
           : `Coeficiente del terreno (art. 2.4) · tipo ${state.terreno}`,
     },
-    { p: 'S', v: num(e.S, 4), o: 'Coeficiente de amplificación del terreno (art. 2.2)' },
-    { p: 'ac', v: `${num(e.ac, 4)} g`, o: 'Aceleración sísmica de cálculo (art. 2.2) · ac = S · ρ · ab' },
-    { p: 'T_A', v: `${num(e.TA, 3)} s`, o: 'Período de esquina del espectro elástico (art. 2.3) · T_A = K·C/10' },
-    { p: 'T_B', v: `${num(e.TB, 3)} s`, o: 'Decide la rama de alpha en el art. 3.7.3 · T_B = K·C/2,5' },
+    { p: 'S', v: magnitud(e.S, 'S'), o: 'Coeficiente de amplificación del terreno (art. 2.2)' },
+    { p: 'ac', v: `${magnitud(e.ac, 'ac')} g`, o: 'Aceleración sísmica de cálculo (art. 2.2) · ac = S · ρ · ab' },
+    { p: 'T_A', v: `${magnitud(e.TA, 'TA')} s`, o: 'Período de esquina del espectro elástico (art. 2.3) · T_A = K·C/10' },
+    { p: 'T_B', v: `${magnitud(e.TB, 'TB')} s`, o: 'Decide la rama de alpha en el art. 3.7.3 · T_B = K·C/2,5' },
   ];
 
   ny = drawTable(doc, { x: M, y: ny, M, cols: COLS_PARAM, rows: filas });

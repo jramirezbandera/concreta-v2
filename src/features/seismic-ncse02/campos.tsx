@@ -19,9 +19,13 @@ export const INPUT_CLS =
   'w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 ' +
   'text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 ' +
   'hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors';
+// `text-text-secondary` y no `text-text-disabled`: sobre el fondo de la
+// pastilla (`bg-bg-elevated`, #f1f5f9) el gris apagado daba 4,34:1 y el suelo
+// de AA son 4,5:1. Con #475569 sube a 6,92:1. Son las unidades de los campos
+// editables («m», «%»), o sea lo que dice en qué se está midiendo.
 export const UNIT_CLS =
   'bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 ' +
-  'text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center';
+  'text-[10px] text-text-secondary font-mono whitespace-nowrap flex items-center';
 export const SELECT_CLS =
   'bg-bg-primary border border-border-main rounded px-1.5 py-1 text-[12px] ' +
   'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors';

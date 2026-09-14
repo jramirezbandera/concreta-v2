@@ -25,8 +25,8 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { Num, NumIn, SELECT_CLS, UNIT_CLS } from './campos';
-import { dec, fuerza, unidadFuerza } from './formato';
+import { Num, NumIn, SELECT_CLS } from './campos';
+import { dec, fuerza, magnitud, unidadFuerza } from './formato';
 import type {
   Importancia,
   SistemaEstructural,
@@ -124,9 +124,19 @@ function SeDeduce() {
 }
 
 /**
- * Valor calculado. Borde discontinuo (la convención de sólo-lectura de
- * Concreta) y la procedencia a la vista, para que nadie lo confunda con un
- * campo que haya que rellenar.
+ * Valor calculado: SIN caja, y con la procedencia a la vista.
+ *
+ * Antes iba en una caja de borde discontinuo, y este comentario decía que ése
+ * era «la convención de sólo-lectura de Concreta». No lo era. Los ocho usos de
+ * `border-dashed` fuera de este módulo son botones de «+ añadir» y zonas de
+ * soltar ficheros —todos con `hover:border-accent` y `cursor-pointer`—
+ * (`MasonryWallsInputs.tsx:824,840,905,1076`, `CompositeSectionInputs.tsx:256,363`,
+ * `GeotecnicoModal.tsx:169`, `TemplateLanding.tsx:86`), y DESIGN.md no menciona
+ * el borde discontinuo en ninguna parte. O sea que sismo estaba marcando «esto
+ * no se toca» con la señal que en el resto de la app significa «pulsa aquí».
+ *
+ * La regla ahora es la del modal de geometría en planta: con caja se escribe,
+ * sin caja se ha calculado.
  */
 function Derivado({
   label,
@@ -151,18 +161,22 @@ function Derivado({
           <span className="text-[12px] text-text-secondary truncate">{label}</span>
           {help ? <HelpTooltip text={help} fieldLabel={label} /> : null}
         </span>
-        <div className="text-[10px] text-text-disabled truncate font-mono">{origen}</div>
+        {/* `line-clamp-2` y no `truncate`: la procedencia es la frase que
+            explica DE DÓNDE sale el número, y a 170 px de columna se cortaba
+            justo por la mitad («K·C/10 · esquina del espect…», «K·C/2,5 ·
+            decide la rama de…», «plantas sobre rasante · de la t…»). En móvil
+            y en tablet ya cabían enteras: era un problema del ancho de la
+            columna de escritorio, no del texto. */}
+        <div className="text-[10px] text-text-disabled line-clamp-2 font-mono leading-snug">{origen}</div>
       </div>
-      <div className="flex shrink-0">
-        <span
-          className={
-            'w-15 text-right bg-transparent border border-dashed border-border-main ' +
-            'rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary'
-          }
-        >
+      {/* `w-15` y `tabular-nums`: la columna de cifras sigue alineada con la
+          de los campos editables y los decimales cuadran entre filas. */}
+      <div className="flex shrink-0 items-baseline gap-1">
+        <span className="w-15 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
           {valor}
         </span>
-        <span className={UNIT_CLS}>{unit ?? ''}</span>
+        {/* Igual que `Num` en campos.tsx:199: sin unidad no hay hueco. */}
+        <span className="w-4 text-[10px] text-text-disabled font-mono">{unit ?? ''}</span>
       </div>
     </div>
   );
@@ -387,7 +401,21 @@ function BuscadorMunicipio({
           : {})}
         className={
           'w-full bg-bg-primary border border-border-main rounded px-2 py-1.5 text-[12px] ' +
-          'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors'
+          'text-text-primary outline-none hover:border-accent/40 focus:border-accent transition-colors ' +
+          /*
+            El municipio ELEGIDO se pinta como un valor, no como una pista.
+            Aquí `value` es la búsqueda —vacía mientras no se teclea— y el
+            municipio vigente viaja en el `placeholder`, así que el navegador lo
+            sacaba al 50 % de opacidad: en la pantalla se leía una casilla vacía
+            con la palabra «Granada» en gris, o sea «escribe aquí tu municipio»,
+            mientras TODO el cálculo de abajo ya corría con Granada (ab 0,23 g,
+            K 1,0). Quien abre el módulo no podía distinguir su emplazamiento de
+            un resto de demostración, y este campo es el que manda en la
+            peligrosidad.
+          */
+          (state.municipioNombre
+            ? 'placeholder:text-text-primary placeholder:opacity-100'
+            : 'placeholder:text-text-disabled')
         }
       />
       {state.municipioIne && !q ? (
@@ -530,7 +558,6 @@ const SISTEMAS: { v: SistemaEstructural; t: string }[] = [
   { v: 'otro', t: 'Otro' },
 ];
 
-const f = (v: number | undefined, d = 2) => (v === undefined ? '—' : dec(v, d));
 
 /**
  * Rótulo de procedencia de `ab` y `K` bajo "se deduce". Un municipio segregado
@@ -552,6 +579,8 @@ export function SeismicInputs({
 }: SeismicInputsProps) {
   const e = evaluacion.emplazamiento;
   const r = evaluacion.resultado;
+  /** ¿El período fundamental sale distinto en X y en Y? Ver la nota en la fila de T_F. */
+  const tfDifiere = !!r && Math.abs(r.x.TF - r.y.TF) >= 5e-4;
   // Sale de la tabla y no de `resultado`: un caso exento del art. 1.2.3 no tiene
   // resultado, y con él como única fuente el resumen decía «Σ P = 0 kN» para un
   // edificio con diez plantas de masa dentro.
@@ -694,14 +723,14 @@ export function SeismicInputs({
             <Derivado
               label="ab"
               origen={origenPeligrosidad(state)}
-              valor={f(state.ab)}
+              valor={magnitud(state.ab, 'ab')}
               unit="g"
               help={AYUDA_AB}
             />
             <Derivado
               label="K"
               origen={origenPeligrosidad(state)}
-              valor={f(state.K, 1)}
+              valor={magnitud(state.K, 'K')}
               help={AYUDA_K}
             />
           </>
@@ -709,39 +738,39 @@ export function SeismicInputs({
         <Derivado
           label="ρ"
           origen={`importancia ${state.importancia}`}
-          valor={f(e.rho, 1)}
+          valor={magnitud(e.rho, 'rho')}
           help="Coeficiente adimensional de riesgo (art. 2.2), según la importancia del edificio: 1,0 para importancia normal y 1,3 para especial. Multiplica a ab en la aceleración de cálculo."
         />
         <Derivado
           label="C"
           origen={state.terrenoModo === 'tipo' ? `terreno ${state.terreno}` : 'perfil ponderado'}
-          valor={f(e.C)}
+          valor={magnitud(e.C, 'C')}
           help="Coeficiente del terreno (art. 2.4): de 1,0 (roca compacta) a 2,0 (suelo blando). Con perfil de estratos es la media ponderada de los 30 m superiores."
         />
         <Derivado
           label="S"
           origen="art. 2.2"
-          valor={f(e.S, 3)}
+          valor={magnitud(e.S, 'S')}
           help="Coeficiente de amplificación del terreno (art. 2.2). Sale de C y de ρ·ab: para aceleraciones bajas amplifica más, y a partir de 0,4 g deja de amplificar."
         />
         <Derivado
           label="ac"
           origen="S · ρ · ab"
-          valor={f(e.ac, 3)}
+          valor={magnitud(e.ac, 'ac')}
           unit="g"
           help="Aceleración sísmica de cálculo: ac = S · ρ · ab (art. 2.2). Es la aceleración con la que se construyen el espectro y las fuerzas."
         />
         <Derivado
           label="T_A"
           origen="K·C/10 · esquina del espectro elástico"
-          valor={f(e.TA)}
+          valor={magnitud(e.TA, 'TA')}
           unit="s"
           help="Período característico del espectro elástico (art. 2.3): T_A = K·C/10, en segundos. Por debajo de él el espectro elástico crece con T; no interviene en las fuerzas del método simplificado."
         />
         <Derivado
           label="T_B"
           origen="K·C/2,5 · decide la rama de α"
-          valor={f(e.TB)}
+          valor={magnitud(e.TB, 'TB')}
           unit="s"
           help="Período característico del espectro (art. 2.3): T_B = K·C/2,5, en segundos. Decide la rama del coeficiente α: por debajo α = 2,5 y por encima α = 2,5·T_B/T."
         />
@@ -828,8 +857,18 @@ export function SeismicInputs({
                 fieldLabel="T_F"
               />
             </span>
-            <div className="text-[10px] text-text-disabled font-mono truncate">
+            <div className="text-[10px] text-text-disabled font-mono line-clamp-2 leading-snug">
               {state.x.TFModo === 'manual' ? 'impuesto · art. 3.6.2.3.2' : 'art. 3.7.2.2'}
+              {/*
+                T_F NO siempre es el mismo en las dos direcciones: en fábrica
+                (fórmula 1), pórticos con pantallas (3) y acero triangulado (5)
+                entra la dimensión en planta, que cambia de X a Y. Esta fila
+                enseñaba siempre el de X bajo la etiqueta neutra «T_F», que es
+                exactamente el fallo que `SeismicSVG.tsx:153-157` ya corrigió en
+                la figura del espectro («antes se pintaba siempre X, sin
+                decirlo»). Cuando difieren se dice cuál es cuál.
+              */}
+              {tfDifiere ? ` · X ${magnitud(r?.x.TF, 'TF')} · Y ${magnitud(r?.y.TF, 'TF')}` : ''}
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -861,29 +900,36 @@ export function SeismicInputs({
                 }
               />
             ) : (
-              <span className="w-15 text-right border border-dashed border-border-main rounded px-1.75 py-1 text-[12px] font-mono text-text-primary">
-                {f(r?.x.TF, 3)}
+              /* Misma regla que `Derivado`: en automático es un valor
+                 calculado, así que va sin caja. En manual es un `NumIn` de
+                 verdad y conserva la suya. */
+              <span className="w-15 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
+                {magnitud(r?.x.TF, 'TF')}
               </span>
             )}
-            <span className="text-[9px] text-text-disabled font-mono">s</span>
+            <span className="w-4 text-[10px] text-text-disabled font-mono">s</span>
           </div>
         </div>
         <Derivado
           label="Nº de modos"
-          origen="art. 3.7.2.1"
+          origen={
+            r && r.x.nModos !== r.y.nModos
+              ? `art. 3.7.2.1 · X ${r.x.nModos} · Y ${r.y.nModos}`
+              : 'art. 3.7.2.1'
+          }
           valor={r ? String(r.x.nModos) : '—'}
           help="Modos de vibración que exige considerar el art. 3.7.2.1 según T_F: 1 hasta 0,75 s, 2 hasta 1,25 s y 3 por encima."
         />
         <Derivado
           label="ν"
           origen={`art. 2.5 · Ω = ${state.omega} %`}
-          valor={f(evaluacion.resultado?.nu, 3)}
+          valor={magnitud(evaluacion.resultado?.nu, 'nu')}
           help="Factor de modificación del espectro por amortiguamiento distinto del 5 % de referencia: ν = (5/Ω)^0,4 (art. 2.5)."
         />
         <Derivado
           label="β"
           origen="ν / μ · art. 3.7.3.1"
-          valor={f(evaluacion.resultado?.beta, 3)}
+          valor={magnitud(evaluacion.resultado?.beta, 'beta')}
           help="Coeficiente de respuesta β = ν/μ (art. 3.7.3.1): condensa amortiguamiento y ductilidad en un solo factor que multiplica a las fuerzas sísmicas."
         />
       </CollapsibleSection>
@@ -899,7 +945,11 @@ export function SeismicInputs({
           <span className="text-[11px] text-text-disabled">
             {state.plantas.length} planta{state.plantas.length === 1 ? '' : 's'}
           </span>
-          <span className="text-[11px] font-mono text-accent">
+          {/* `accent-hover` (#0369a1 claro / #0ea5e9 oscuro) y no `accent`: el
+              acento a 11 px sobre la superficie elevada daba 3,91:1 y AA pide
+              4,5:1. Con el tono oscuro del acento sube a 5,67:1 y no se pierde
+              la señal de «esto es el resumen calculado». */}
+          <span className="text-[11px] font-mono text-accent-hover">
             Σ P = {fuerza(sumaP, system)} {unidadFuerza(system)}
           </span>
         </div>
@@ -936,7 +986,11 @@ export function SeismicInputs({
             {state.x.elementos.length} plano{state.x.elementos.length === 1 ? '' : 's'} en X ·{' '}
             {state.y.elementos.length} en Y
           </span>
-          <span className="text-[11px] font-mono text-accent">
+          {/* `accent-hover` (#0369a1 claro / #0ea5e9 oscuro) y no `accent`: el
+              acento a 11 px sobre la superficie elevada daba 3,91:1 y AA pide
+              4,5:1. Con el tono oscuro del acento sube a 5,67:1 y no se pierde
+              la señal de «esto es el resumen calculado». */}
+          <span className="text-[11px] font-mono text-accent-hover">
             {dec(state.x.L, 2)} × {dec(state.y.L, 2)} m
           </span>
         </div>

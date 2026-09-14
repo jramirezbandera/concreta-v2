@@ -39,6 +39,54 @@ export function decFiel(v: number, n: number, max = 6): string {
   return dec(v, max);
 }
 
+/**
+ * Decimales por magnitud. La misma cifra en la columna, en los resultados y en
+ * el papel.
+ *
+ * Por qué existe: cada sitio decidía los suyos por su cuenta y las tres vistas
+ * no coincidían. En la misma pantalla de 1280×720 se veía a la vez `S 1,023` en
+ * la columna y `S 1,0227` en resultados; igual `ac` (0,235 / 0,2352), `T_A`
+ * (0,13 / 0,130) y `T_B` (0,52 / 0,520). Para quien tiene que firmar el cálculo,
+ * el mismo símbolo con dos valores obliga a parar y decidir cuál manda.
+ *
+ * Los números son los que ya usaban resultados y PDF, que sí estaban de acuerdo
+ * entre sí (`SeismicResults.tsx` y `lib/pdf/seismicNCSE02.ts`): el que se movió
+ * fue el panel de entradas, que era el discrepante.
+ *
+ * `S` y `ac` llevan cuatro porque con dos se pierde la diferencia entre perfiles
+ * de terreno vecinos, que es justo lo que el usuario está comprobando.
+ */
+export const DECIMALES = {
+  ab: 2,
+  K: 1,
+  rho: 1,
+  C: 2,
+  S: 4,
+  ac: 4,
+  TA: 3,
+  TB: 3,
+  TF: 3,
+  nu: 3,
+  beta: 3,
+} as const;
+
+/**
+ * Las tres magnitudes que el usuario puede TECLEAR (o que salen de una media
+ * ponderada de su perfil de terreno) van por `decFiel`: sus decimales son un
+ * mínimo, no un tope, para que redondear no se trague lo que escribió. Las
+ * demás son salida del motor y llevan decimales fijos.
+ *
+ * Es exactamente el reparto que ya hacía el PDF (`lib/pdf/seismicNCSE02.ts:475-494`);
+ * lo que faltaba era que la pantalla lo siguiera.
+ */
+const FIELES = new Set<keyof typeof DECIMALES>(['ab', 'K', 'C']);
+
+/** El valor de una magnitud con SUS decimales, o «—» si no lo hay. */
+export function magnitud(v: number | undefined, k: keyof typeof DECIMALES): string {
+  if (v === undefined) return '—';
+  return FIELES.has(k) ? decFiel(v, DECIMALES[k]) : dec(v, DECIMALES[k]);
+}
+
 /** Porcentaje a partir de una fracción: `0,917` → «91,7 %». */
 export function pct(v: number, n = 1): string {
   return `${dec(v * 100, n)} %`;

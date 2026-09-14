@@ -35,7 +35,7 @@ import { GeometriaModal } from './GeometriaModal';
 import { PlantasModal } from './PlantasModal';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { SeismicInputs } from './SeismicInputs';
-import { SeismicResults } from './SeismicResults';
+import { ID_APLICABILIDAD, SeismicResults } from './SeismicResults';
 import { ALTO_FIGURA, AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
 import {
   defaultSeismicState,
@@ -351,14 +351,33 @@ export function SeismicNCSE02Module() {
                   ? 'exenta'
                   : 'sin resultado'}
               {avisos > 0 && (
-                <span className="text-state-warn">
+                <>
                   {' · '}
-                  {avisos} {avisos === 1 ? 'aviso' : 'avisos'}
-                </span>
+                  {/*
+                    El contador LLEVA a los avisos. Antes era un `span` muerto:
+                    un número en gris a 11 px arriba a la derecha, mientras el
+                    aviso que contaba estaba ~600 px más abajo dentro de un
+                    panel con scroll propio. Un contador que no se puede pulsar
+                    es un contador que nadie usa.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document
+                        .getElementById(ID_APLICABILIDAD)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                    className="text-state-warn underline decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer"
+                  >
+                    {avisos} {avisos === 1 ? 'aviso' : 'avisos'}
+                  </button>
+                </>
               )}
               {/* Sismo publica SIEMPRE, también el caso exento: la exención es
                   justamente lo que el cuadro del plano y la ficha necesitan. */}
-              <span className="text-accent">{' · '}publicado</span>
+              {/* `accent-hover`: el acento sobre esta superficie da 3,91:1 y AA
+                  pide 4,5:1. Ver la nota en SeismicInputs. */}
+              <span className="text-accent-hover">{' · '}publicado</span>
             </span>
           </div>
 
