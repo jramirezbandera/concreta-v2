@@ -352,6 +352,17 @@ export interface PruebaClase {
   am: number | null;
   /** Cuál de las opciones de la tabla se usó, o por qué no pasa ninguna. */
   motivo: string;
+  /**
+   * mm. Lo que le falta a la distancia al eje, y a la dimensión de la sección.
+   *
+   * Separados porque se arreglan de maneras DISTINTAS: al recubrimiento se le
+   * puede añadir un revestimiento —el C.2.4 tabula la equivalencia del mortero
+   * de yeso—, pero a la dimensión no, porque el C.2.4 acota expresamente esa
+   * equivalencia a la distancia al eje (ver el C.2.3.5.1, «a efectos de dicha
+   * distancia»). Un pilar estrecho no se arregla enfoscándolo.
+   */
+  faltaAm: number;
+  faltaB: number;
 }
 
 export interface ResultadoHormigon {
@@ -411,46 +422,91 @@ function probarClase(e: EntradaHormigon, clase: ClaseR, eje: number): PruebaClas
   const b = e.b as number;
   const tabla = tablaDe(e, clase);
 
-  const noPasa = (motivo: string): PruebaClase => ({ clase, cumple: false, am, motivo });
+  const noPasa = (motivo: string, faltaAm = 0, faltaB = 0): PruebaClase => ({
+    clase,
+    cumple: false,
+    am,
+    motivo,
+    faltaAm: redondear(faltaAm),
+    faltaB: redondear(faltaB),
+  });
+  const pasa = (motivo: string): PruebaClase => ({ clase, cumple: true, am, motivo, faltaAm: 0, faltaB: 0 });
+
+  /**
+   * Qué le falta a la sección, y por qué opción de la tabla se queda más cerca.
+   *
+   * Se miran primero las opciones cuyo ancho YA se cumple: en ésas lo único que
+   * falta es recubrimiento, que es lo único que un revestimiento puede aportar.
+   * Nombrar esa opción y no la primera de la fila es lo que convierte el aviso
+   * en accionable: una viga de 250 con 40 al eje no necesita «200 / 50», que es
+   * la primera de la tabla, sino cinco milímetros más para la «250 / 45».
+   */
+  const deficit = (opciones: readonly Opcion[]) => {
+    const conAncho = opciones.filter((o) => b >= red(o.b));
+    if (conAncho.length > 0) {
+      const mejor = conAncho.reduce((x, o) => (red(o.am) < red(x.am) ? o : x));
+      return { am: Math.max(0, redondear(red(mejor.am) - am)), b: 0, opcion: mejor };
+    }
+    const masCerca = opciones.reduce((x, o) => (red(o.b) - b < red(x.b) - b ? o : x));
+    return {
+      am: Math.max(0, redondear(red(masCerca.am) - am)),
+      b: redondear(red(masCerca.b) - b),
+      opcion: masCerca,
+    };
+  };
+
+  /** El aviso de una tabla con varias opciones, nombrando la más cercana. */
+  const noEncaja = (tabla: 'C.3' | 'C.5', opciones: readonly Opcion[]) => {
+    const d = deficit(opciones);
+    const par = `${n1(red(d.opcion.b))} / ${n1(red(d.opcion.am))}`;
+    return d.b > 0
+      ? noPasa(
+          `la opción más cercana de la tabla ${tabla} pide ${par} y hay ${b} / ${n1(am)}: faltan ${n1(d.b)} mm de ${tabla === 'C.5' ? 'nervio' : 'ancho'}`,
+          d.am,
+          d.b,
+        )
+      : noPasa(`pide ${n1(red(d.opcion.am))} mm al eje y hay ${n1(am)} (opción ${par})`, d.am, d.b);
+  };
 
   if (tabla === 'C.2') {
     const o = TABLA_C2[clase][e.tipo as TipoCompresion];
-    if (b < o.b) return noPasa(`pide ${o.b} mm de lado y hay ${b}`);
-    if (am < o.am) return noPasa(`pide ${o.am} mm al eje y hay ${n1(am)}`);
-    return { clase, cumple: true, am, motivo: `tabla C.2, ${o.b} / ${o.am}` };
+    const d = deficit([o]);
+    if (b < o.b) return noPasa(`pide ${o.b} mm de lado y hay ${b}`, d.am, d.b);
+    if (am < o.am) return noPasa(`pide ${o.am} mm al eje y hay ${n1(am)}`, d.am, d.b);
+    return pasa(`tabla C.2, ${o.b} / ${o.am}`);
   }
 
   if (tabla === 'C.4') {
     const fila = TABLA_C4[clase];
     const col = columnaC4(e, fila);
-    if (am < red(col.am)) return noPasa(`pide ${n1(red(col.am))} mm al eje y hay ${n1(am)}`);
-    if (e.compartimenta && e.h !== null && e.h < red(fila.h)) {
-      return noPasa(`compartimenta y pide ${n1(red(fila.h))} mm de espesor; hay ${e.h}`);
+    if (am < red(col.am)) {
+      return noPasa(`pide ${n1(red(col.am))} mm al eje y hay ${n1(am)}`, red(col.am) - am);
     }
-    return { clase, cumple: true, am, motivo: `tabla C.4, ${col.rotulo}, ${n1(red(col.am))} mm al eje` };
+    if (e.compartimenta && e.h !== null && e.h < red(fila.h)) {
+      // El espesor de una losa que compartimenta va por los criterios E e I, no
+      // por el R: un revestimiento por la cara de abajo no lo suple.
+      return noPasa(`compartimenta y pide ${n1(red(fila.h))} mm de espesor; hay ${e.h}`, 0, red(fila.h) - e.h);
+    }
+    return pasa(`tabla C.4, ${col.rotulo}, ${n1(red(col.am))} mm al eje`);
   }
 
   if (tabla === 'C.5') {
     const fila = TABLA_C5[clase];
     if (e.compartimenta && e.h !== null && e.h < red(fila.h)) {
-      return noPasa(`compartimenta y pide ${n1(red(fila.h))} mm de espesor; hay ${e.h}`);
+      return noPasa(`compartimenta y pide ${n1(red(fila.h))} mm de espesor; hay ${e.h}`, 0, red(fila.h) - e.h);
     }
     const vale = fila.opciones.find((o) => b >= red(o.b) && am >= red(o.am));
-    if (!vale) {
-      const primera = fila.opciones[0];
-      return noPasa(
-        `ninguna opción de la tabla C.5 encaja; la menos exigente en nervio pide ${n1(red(primera.b))} / ${n1(red(primera.am))} y hay ${b} / ${n1(am)}`,
-      );
-    }
+    if (!vale) return noEncaja('C.5', fila.opciones);
     const i = fila.opciones.indexOf(vale) + 1;
-    return { clase, cumple: true, am, motivo: `tabla C.5, opción ${i} (${vale.b} / ${vale.am})` };
+    return pasa(`tabla C.5, opción ${i} (${vale.b} / ${vale.am})`);
   }
 
   // C.3 — vigas, y el forjado unidireccional que se comprueba como tal.
   const fila = TABLA_C3[clase];
   const alma = e.b0 ?? b;
   if (alma < red(fila.b0)) {
-    return noPasa(`el alma pide ${n1(red(fila.b0))} mm y hay ${n1(alma)}`);
+    // El alma es dimensión de la sección: tampoco la arregla un revestimiento.
+    return noPasa(`el alma pide ${n1(red(fila.b0))} mm y hay ${n1(alma)}`, 0, red(fila.b0) - alma);
   }
   const candidatas = fila.opciones.filter((o) => b >= red(o.b) && am >= red(o.am));
   // C.2.3.2: expuesta por todas sus caras, además, área ≥ 2·(bmín)².
@@ -466,17 +522,17 @@ function probarClase(e: EntradaHormigon, clase: ClaseR, eje: number): PruebaClas
     if (candidatas.length > 0 && e.tipo === 'vigaTodasCaras') {
       const o = candidatas[0];
       const area = e.h === null ? 0 : b * e.h;
+      // Falta canto, no recubrimiento: se apunta como déficit de sección.
       return noPasa(
         `expuesta por todas sus caras: pide un área de ${Math.round(2 * red(o.b) ** 2)} mm² (2·bmín²) y hay ${Math.round(area)}`,
+        0,
+        1,
       );
     }
-    const primera = fila.opciones[0];
-    return noPasa(
-      `ninguna opción de la tabla C.3 encaja; la menos exigente en ancho pide ${n1(red(primera.b))} / ${n1(red(primera.am))} y hay ${b} / ${n1(am)}`,
-    );
+    return noEncaja('C.3', fila.opciones);
   }
   const i = fila.opciones.indexOf(vale) + 1;
-  return { clase, cumple: true, am, motivo: `tabla C.3, opción ${i} (${vale.b} / ${vale.am})` };
+  return pasa(`tabla C.3, opción ${i} (${vale.b} / ${vale.am})`);
 }
 
 /**

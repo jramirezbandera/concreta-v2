@@ -41,6 +41,7 @@ const elemento = (o: Partial<ElementoEntrada> = {}): ElementoEntrada => ({
   material: 'hormigon',
   hormigon: { ...entradaHormigonInicial(), tipo: 'soporte', b: 300, h: 300, rnom: 35, dCerco: 8, dBarra: 20 },
   acero: entradaAceroInicial(),
+  proteccion: { familia: '', lambda: null },
   ...o,
 });
 
@@ -217,5 +218,131 @@ describe('el documento', () => {
     expect(tabla?.rows[0][3]).toBe('Viga, Am/V = 193 m⁻¹');
     const notas = bs.find((b) => b.kind === 'notes');
     expect(notas?.items.join(' ')).toContain('Am = 3·150 + 2·300 − 2·7,1');
+  });
+});
+
+/**
+ * Y con qué se protege lo que no llega.
+ *
+ * Lo que importa aquí es qué se ESCRIBE en cada caso: sin familia elegida, la
+ * magnitud que pide la norma; con familia y espesor, el espesor rotulado de
+ * orientativo; y con familia sin espesor —una intumescente— la familia más la
+ * magnitud, porque el número lo pone el fabricante y no nosotros.
+ */
+describe('la protección', () => {
+  /** Una viga 250×500 con 40 mm al eje: llega a R 90 y le piden R 120. */
+  const vigaCorta = (proteccion = { familia: '', lambda: null as number | null }) =>
+    uno({
+      nombre: 'Vigas',
+      exigidaManual: 120,
+      hormigon: {
+        ...entradaHormigonInicial(),
+        tipo: 'vigaTresCaras',
+        b: 250,
+        h: 500,
+        rnom: 22,
+        dCerco: 8,
+        dBarra: 20,
+      },
+      proteccion,
+    });
+
+  it('sin familia elegida se enuncia lo que pide la norma, no un producto', () => {
+    const r = vigaCorta();
+    expect(r.via).toBe('proteccion');
+    expect(r.alcanza).toBe(90);
+    expect(r.proteccion).toBeNull();
+    expect(r.loQueFalta).toContain('pide 45 mm al eje y hay 40');
+  });
+
+  it('con mortero de yeso sale el espesor por la equivalencia del C.2.4.2', () => {
+    const r = vigaCorta({ familia: 'morteroYeso', lambda: null });
+    // Faltan 5 mm al eje; 5 / 1,8 = 2,8 mm, al escalón de 5.
+    expect(r.proteccion?.espesor).toBe(5);
+    expect(r.loQueFalta).toBe('Revestimiento de mortero de yeso, 5 mm (orientativo)');
+    expect(r.avisos.join(' ')).toContain('«Vigas»: ');
+    expect(r.avisos.join(' ')).toContain('por proyección');
+  });
+
+  it('pero a un pilar estrecho el enfoscado no lo ensancha, y se dice', () => {
+    const r = uno(
+      { proteccion: { familia: 'morteroYeso', lambda: null } },
+      { clase: claseUso('comercial'), minutosManual: 180 },
+    );
+    // El soporte 300×300 se queda a 50 mm del lado de 350 que pide la R 180.
+    expect(r.proteccion?.espesor).toBeNull();
+    expect(r.proteccion?.aplicable).toBe(false);
+    expect(r.avisos.join(' ')).toContain('50 mm de sección, no de recubrimiento');
+    // Y el documento NO nombra el yeso: escribirlo al lado de «pide 350 mm de
+    // lado» daría a entender que el enfoscado ensancha el pilar.
+    expect(r.loQueFalta).not.toContain('mortero de yeso');
+    expect(r.loQueFalta).toContain('pide 350 mm de lado');
+  });
+
+  it('y en el acero el espesor sale del d/λp de la tabla D.1', () => {
+    const r = uno({
+      nombre: 'Jácenas',
+      material: 'acero',
+      acero: { ...entradaAceroInicial(), perfil: 'IPE 300', modo: 'contorno3' },
+      proteccion: { familia: 'placaYeso', lambda: null },
+    });
+    expect(r.dLambda).toBe(0.15);
+    expect(r.proteccion?.espesor).toBe(37.5);
+    expect(r.loQueFalta).toBe('Placa de yeso laminado tipo F (cortafuego), 37,5 mm (orientativo)');
+  });
+
+  it('la intumescente deja la familia y la magnitud, y manda al fabricante', () => {
+    const r = uno({
+      nombre: 'Jácenas',
+      material: 'acero',
+      acero: { ...entradaAceroInicial(), perfil: 'IPE 300', modo: 'contorno3' },
+      proteccion: { familia: 'intumescente', lambda: null },
+    });
+    expect(r.proteccion?.espesor).toBeNull();
+    expect(r.loQueFalta).toBe('Pintura intumescente, d/λp = 0,15 m²K/W');
+    expect(r.avisos.join(' ')).toContain('película seca');
+  });
+
+  it('una familia del otro material se ignora en vez de calcular cualquier cosa', () => {
+    // «morteroYeso» es del hormigón: en una jácena de acero no se aplica.
+    const r = uno({
+      nombre: 'Jácenas',
+      material: 'acero',
+      acero: { ...entradaAceroInicial(), perfil: 'IPE 300', modo: 'contorno3' },
+      proteccion: { familia: 'morteroYeso', lambda: null },
+    });
+    expect(r.proteccion).toBeNull();
+    expect(r.loQueFalta).toBe('d/λp = 0,15 m²K/W');
+  });
+
+  it('y el documento lleva el espesor, su cuenta y la coletilla del marcado CE', () => {
+    const bs = bloquesElementos(
+      resolverElementos(
+        [
+          elemento({ id: 'a', nombre: 'Soportes' }),
+          elemento({
+            id: 'b',
+            nombre: 'Jácenas',
+            material: 'acero',
+            acero: { ...entradaAceroInicial(), perfil: 'IPE 300', modo: 'contorno3' },
+            proteccion: { familia: 'placaYeso', lambda: null },
+          }),
+        ],
+        sectores(),
+      ),
+    );
+    const tabla = bs.find((b) => b.kind === 'table');
+    expect(tabla?.rows[1][4]).toBe(
+      'Con protección: Placa de yeso laminado tipo F (cortafuego), 37,5 mm (orientativo)',
+    );
+    const notas = bs.find((b) => b.kind === 'notes');
+    expect(notas?.items.join(' ')).toContain('d = (d/λp)·λp = 0,15 · 0,25 = 37,5 mm');
+    expect(notas?.items.join(' ')).toContain('UNE-EN 13381');
+
+    // Y el resumen que el anejo puede permitirse ya, con elementos comprobados.
+    const parrafo = bs.find((b) => b.kind === 'paragraph');
+    expect(parrafo?.text).toBe(
+      'De los 2 elementos comprobados, 1 alcanza la resistencia exigida por su propia configuración y 1 mediante productos de protección.',
+    );
   });
 });

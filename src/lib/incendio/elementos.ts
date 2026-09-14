@@ -20,8 +20,15 @@ import {
   type EntradaHormigon,
   type PruebaClase,
   type ResultadoHormigon,
+  type TipoHormigon,
 } from './anejoC';
 import { resistenciaAcero, type EntradaAcero, type ResultadoAcero } from './anejoD';
+import {
+  familiaPorId,
+  proteccionAcero,
+  proteccionHormigon,
+  type PropuestaProteccion,
+} from './protecciones';
 import type { SectorResuelto } from './sectores';
 
 export type MaterialElemento = 'hormigon' | 'acero';
@@ -35,6 +42,14 @@ export type MaterialElemento = 'hormigon' | 'acero';
  */
 export type ViaResistencia = 'propia' | 'proteccion' | 'sinResolver';
 
+/** Con qué se protege un elemento que no llega por su propia sección. */
+export interface EntradaProteccion {
+  /** Id de la familia genérica. `''` = todavía sin elegir. */
+  familia: string;
+  /** W/mK. El λp declarado del producto, cuando la familia no tiene tabulado. */
+  lambda: number | null;
+}
+
 export interface ElementoEntrada {
   id: string;
   nombre: string;
@@ -46,6 +61,7 @@ export interface ElementoEntrada {
   /** Los dos conviven aunque sólo se use uno: cambiar de material no borra nada. */
   hormigon: EntradaHormigon;
   acero: EntradaAcero;
+  proteccion: EntradaProteccion;
 }
 
 export interface ElementoResuelto {
@@ -73,6 +89,8 @@ export interface ElementoResuelto {
   masividad: number | null;
   /** m²K/W. Coeficiente de protección necesario, acero. */
   dLambda: number | null;
+  /** El revestimiento propuesto, cuando la vía es la protección y se ha elegido. */
+  proteccion: PropuestaProteccion | null;
   avisos: string[];
   /** Fila a medio rellenar: bloquea exportar y publicar. */
   hueco: boolean;
@@ -87,10 +105,41 @@ export function elementoInicial(
   hormigon: EntradaHormigon,
   acero: EntradaAcero,
 ): ElementoEntrada {
-  return { id, nombre, sectorId: '', exigidaManual: null, material: 'hormigon', hormigon, acero };
+  return {
+    id,
+    nombre,
+    sectorId: '',
+    exigidaManual: null,
+    material: 'hormigon',
+    hormigon,
+    acero,
+    // Sin familia por defecto: el módulo no presume el producto. Mientras no se
+    // elija, lo que se enuncia es la MAGNITUD que hay que alcanzar —el d/λp de
+    // la tabla D.1, o los milímetros que le faltan al eje—, que es lo único que
+    // dice la norma.
+    proteccion: { familia: '', lambda: null },
+  };
 }
 
 const n2 = (v: number) => v.toFixed(2).replace('.', ',');
+const mm = (v: number) => (Math.round(v * 10) / 10).toString().replace('.', ',');
+
+/** Los tipos cuyo revestimiento NO va en un techo. */
+const ES_VERTICAL: readonly TipoHormigon[] = ['soporte', 'muroUnaCara', 'muroDosCaras'];
+
+/**
+ * Qué se escribe en «cómo alcanza la R» cuando hace falta protegerlo.
+ *
+ * Sin familia elegida se enuncia la MAGNITUD que hay que alcanzar, que es lo
+ * único que dice la norma; con familia y espesor, el espesor; y con familia
+ * pero sin espesor —una intumescente, una lana sin λp declarado— se dice la
+ * familia y se deja la magnitud, porque el número lo pone el fabricante.
+ */
+function frase(prop: PropuestaProteccion | null, magnitud: string): string {
+  if (prop === null || !prop.aplicable) return magnitud;
+  if (prop.espesor === null) return `${prop.familia.etiqueta}, ${magnitud}`;
+  return `${prop.familia.etiqueta}, ${mm(prop.espesor)} mm (orientativo)`;
+}
 
 /** La prueba de la clase que hay que alcanzar, para decir qué le falta. */
 function pruebaDeLaExigida(r: ResultadoHormigon, exigida: number | null): PruebaClase | null {
@@ -122,6 +171,15 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
           : r.dLambda === 0
             ? 'propia'
             : 'proteccion';
+    const familia = familiaPorId(e.proteccion.familia);
+    const prop =
+      via === 'proteccion' && familia !== undefined && familia.para === 'acero'
+        ? proteccionAcero(
+            familia,
+            { dLambda: r.dLambda, masividad: r.masividad, clase: r.claseComprobada },
+            e.proteccion.lambda,
+          )
+        : null;
     return {
       ...base,
       tipo: e.acero.tipo === 'soporte' ? 'Soporte' : e.acero.tipo === 'tirante' ? 'Tirante' : 'Viga',
@@ -133,15 +191,15 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
           : r.dLambda === 0
             ? 'el perfil desnudo llega (tabla D.1)'
             : `tabla D.1, Am/V ${r.filaAmV} m⁻¹, ${r.banda}`,
-      loQueFalta:
-        via === 'proteccion' && r.dLambda !== null
-          ? `un revestimiento de d/λp = ${n2(r.dLambda)} m²K/W`
-          : '',
+      loQueFalta: via === 'proteccion' ? frase(prop, `d/λp = ${n2(r.dLambda as number)} m²K/W`) : '',
       am: null,
       amCuenta: '',
       masividad: r.masividad,
       dLambda: r.dLambda,
-      avisos: r.avisos.map((a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`),
+      proteccion: prop,
+      avisos: [...r.avisos, ...(prop?.avisos ?? [])].map(
+        (a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`,
+      ),
       hueco: nombre === '' || r.faltan.length > 0,
       hormigon: null,
       acero: r,
@@ -154,18 +212,34 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
   const via: ViaResistencia =
     r.faltan.length > 0 || exigida === null ? 'sinResolver' : llega ? 'propia' : 'proteccion';
 
+  const familia = familiaPorId(e.proteccion.familia);
+  const prop =
+    via === 'proteccion' && prueba !== null && familia !== undefined && familia.para === 'hormigon'
+      ? proteccionHormigon(familia, {
+          faltaAm: prueba.faltaAm,
+          faltaB: prueba.faltaB,
+          clase: prueba.clase,
+          // El C.2.4.2 le pone condiciones al yeso «aplicado en techos», y el
+          // techo es la cara de abajo de todo lo que no es vertical.
+          enTecho: !ES_VERTICAL.includes(e.hormigon.tipo),
+        })
+      : null;
+
   return {
     ...base,
     tipo: etiquetaTipo(e.hormigon.tipo),
     via,
     alcanza: r.alcanza,
     justificacion: llega ? r.porOpcion : '',
-    loQueFalta: via === 'proteccion' && prueba ? prueba.motivo : '',
+    loQueFalta: via === 'proteccion' && prueba ? frase(prop, prueba.motivo) : '',
     am: r.am,
     amCuenta: r.eje.cuenta,
     masividad: null,
     dLambda: null,
-    avisos: r.avisos.map((a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`),
+    proteccion: prop,
+    avisos: [...r.avisos, ...(prop?.avisos ?? [])].map(
+      (a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`,
+    ),
     hueco: nombre === '' || r.faltan.length > 0,
     hormigon: r,
     acero: null,

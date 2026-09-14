@@ -228,6 +228,25 @@ describe('vigas (tabla C.3)', () => {
     expect(corta.pruebas.find((p) => p.clase === 120)?.motivo).toContain('2·bmín²');
   });
 
+  it('cuando no llega, nombra la opción MÁS CERCANA, no la primera de la fila', () => {
+    // Una 250×500 con 40 al eje: la primera opción de la R 120 es «200 / 50»,
+    // pero a esta viga le sirve la «250 / 45» y sólo le faltan 5 mm. Decirle
+    // que necesita 50 sería mandarla a picar 10 mm que no hacen falta.
+    const r = resistenciaHormigon(viga({ b: 250, rnom: 22 }));
+    const p = r.pruebas.find((x) => x.clase === 120);
+    expect(p?.motivo).toBe('pide 45 mm al eje y hay 40 (opción 250 / 45)');
+    expect(p?.faltaAm).toBe(5);
+    expect(p?.faltaB).toBe(0);
+  });
+
+  it('y cuando lo que falta es ancho, lo separa del recubrimiento', () => {
+    // Una 150×400: ni el ancho de la opción 1 de la R 120 (200 mm) llega.
+    const r = resistenciaHormigon(viga({ b: 150, b0: 150 }));
+    const p = r.pruebas.find((x) => x.clase === 120);
+    expect(p?.faltaB).toBe(50);
+    expect(p?.motivo).toContain('faltan 50 mm de ancho');
+  });
+
   it('R 90 o más arrastra la regla de los negativos al 33 %', () => {
     expect(resistenciaHormigon(viga()).avisos.join(' ')).toContain('33 % de la luz del tramo');
     // Una viga que sólo llega a R 60 no la arrastra.

@@ -42,7 +42,9 @@ import {
   resolverElementos,
   type ElementoEntrada,
   type ElementoResuelto,
+  type EntradaProteccion,
 } from '../../lib/incendio/elementos';
+import { FAMILIAS } from '../../lib/incendio/protecciones';
 import {
   ACTIVIDADES_B3,
   CONSECUENCIAS_B5,
@@ -168,6 +170,7 @@ export function nuevoElemento(nombre = ''): ElementoEntrada {
     material: 'hormigon',
     hormigon: entradaHormigonInicial(),
     acero: entradaAceroInicial(),
+    proteccion: { familia: '', lambda: null },
   };
 }
 
@@ -345,6 +348,20 @@ function normalizarAcero(bruto: unknown): EntradaAcero {
   };
 }
 
+const FAMILIAS_VALIDAS = FAMILIAS.map((f) => f.id);
+
+function normalizarProteccion(bruto: unknown): EntradaProteccion {
+  if (!esObjeto(bruto)) return { familia: '', lambda: null };
+  const familia = texto(bruto.familia);
+  return {
+    // Una familia que ya no existe se cae a «sin elegir»: entonces se enuncia
+    // la magnitud que hay que alcanzar, que es lo que decía la norma de todos
+    // modos, en vez de calcular con un λp inventado.
+    familia: FAMILIAS_VALIDAS.includes(familia) ? familia : '',
+    lambda: positivoONull(bruto.lambda),
+  };
+}
+
 export function normalizarElementos(brutos: unknown): ElementoEntrada[] {
   if (!Array.isArray(brutos)) return [];
   return brutos.filter(esObjeto).map((e) => ({
@@ -355,6 +372,7 @@ export function normalizarElementos(brutos: unknown): ElementoEntrada[] {
     material: e.material === 'acero' ? 'acero' : 'hormigon',
     hormigon: normalizarHormigon(e.hormigon),
     acero: normalizarAcero(e.acero),
+    proteccion: normalizarProteccion(e.proteccion),
   }));
 }
 

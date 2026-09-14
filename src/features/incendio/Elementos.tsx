@@ -32,7 +32,12 @@ import {
   type ModoCalentamiento,
   type TipoAcero,
 } from '../../lib/incendio/anejoD';
-import type { ElementoEntrada, ElementoResuelto } from '../../lib/incendio/elementos';
+import type {
+  ElementoEntrada,
+  ElementoResuelto,
+  EntradaProteccion,
+} from '../../lib/incendio/elementos';
+import { familiaPorId, familiasDe } from '../../lib/incendio/protecciones';
 import type { SectorResuelto } from '../../lib/incendio/sectores';
 import { RESISTENCIA_FUEGO_OPCIONES } from './catalogos';
 import { Campo } from './Campo';
@@ -81,6 +86,69 @@ function Casilla({
       <input type="checkbox" checked={marcado} aria-label={aria} onChange={(e) => onCambiar(e.target.checked)} />
       {texto} {detalle && <span className="text-text-disabled">{detalle}</span>}
     </label>
+  );
+}
+
+/**
+ * Con qué se protege, cuando no llega por su propia sección.
+ *
+ * Va aquí, pegado al veredicto, y no detrás de «Afinar»: es la decisión que
+ * sigue a «necesita protección», y esconderla dejaría al proyectista con un
+ * d/λp en la mano y sin saber si eso son 18 mm o 60.
+ */
+function Proteccion({
+  d,
+  r,
+  nombre,
+  onCambiar,
+}: {
+  d: EntradaProteccion;
+  r: ElementoResuelto;
+  nombre: string;
+  onCambiar: (c: Partial<EntradaProteccion>) => void;
+}) {
+  const familias = familiasDe(r.material);
+  const elegida = familiaPorId(d.familia);
+  // Sólo las familias sin λ tabulado piden el del producto; en las que el
+  // D.2.1 autoriza el de 20 ºC, preguntarlo sería ruido.
+  const pideLambda = elegida !== undefined && elegida.lambda === null && elegida.vehiculo === 'aislante';
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-end gap-2 rounded bg-bg-elevated px-2 py-1.5">
+      <label className="flex flex-col gap-0.5">
+        <span className="text-[10px] uppercase text-text-disabled">Se protege con</span>
+        <select
+          value={d.familia}
+          aria-label={`Protección de ${nombre}`}
+          className={`${INPUT} max-w-[250px]`}
+          onChange={(e) => onCambiar({ familia: e.target.value })}
+        >
+          <option value="">— sin concretar —</option>
+          {familias.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.etiqueta}
+            </option>
+          ))}
+        </select>
+      </label>
+      {pideLambda && (
+        <Campo
+          rotulo="λp"
+          simbolo
+          unidad="W/mK"
+          valor={d.lambda}
+          paso="0.01"
+          requerido
+          aria={`Conductividad declarada del revestimiento de ${nombre}`}
+          onCambiar={(lambda) => onCambiar({ lambda })}
+        />
+      )}
+      {r.proteccion?.espesor != null && (
+        <span className={`${DERIVADO} pb-1`} title={r.proteccion.cuenta}>
+          {r.proteccion.espesor.toString().replace('.', ',')} mm
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -578,6 +646,14 @@ export function Elementos({ elementos, resueltos, sectores, ayuda, onCambiar, on
                 )}
 
                 {r && <Veredicto r={r} />}
+                {r?.via === 'proteccion' && (
+                  <Proteccion
+                    d={e.proteccion}
+                    r={r}
+                    nombre={nombre}
+                    onCambiar={(c) => onCambiar(e.id, { proteccion: { ...e.proteccion, ...c } })}
+                  />
+                )}
 
                 <button
                   type="button"

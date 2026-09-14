@@ -7,7 +7,8 @@
  */
 
 import type { Block } from '../memoria/model';
-import type { ElementoResuelto } from './elementos';
+import { resumenElementos, type ElementoResuelto } from './elementos';
+import { ROTULO_ORIENTATIVO } from './protecciones';
 import type { ExigenciaFuego } from './exigencias';
 import { notasResistenciaFuego, type MaterialesPresentes } from './notas';
 import type { SectorResuelto } from './sectores';
@@ -104,13 +105,35 @@ export function bloquesElementos(elementos: readonly ElementoResuelto[]): Block[
   const notas = conNombre
     .map((e) => ({
       nombre: e.nombre,
-      cuenta: e.material === 'acero' ? (e.acero?.cuentaMasividad ?? '') : e.amCuenta,
+      cuenta: [
+        e.material === 'acero' ? (e.acero?.cuentaMasividad ?? '') : e.amCuenta,
+        e.proteccion?.cuenta ?? '',
+      ]
+        .filter((t) => t !== '')
+        .join('. '),
     }))
     .filter((x) => x.cuenta !== '')
     .map((x) => `${x.nombre}: ${x.cuenta}.`);
 
+  // Toda cifra de protección arrastra su coletilla, y una sola vez: el DB SI no
+  // tabula ningún producto, sólo la magnitud que hay que alcanzar.
+  const conProteccion = conNombre.some((e) => e.proteccion?.orientativo === true);
+
+  const n = resumenElementos(conNombre);
+  const total = conNombre.length;
+  const plural = (k: number, uno: string, varios: string) => (k === 1 ? uno : varios);
+  // Con todos los elementos por la misma vía la frase no necesita repartir, y
+  // repartir sin sujeto —«3 la alcanzan mediante…»— deja la línea coja.
+  const resumen =
+    n.proteccion === 0
+      ? `${plural(total, 'El elemento comprobado alcanza', `Los ${total} elementos comprobados alcanzan`)} la resistencia exigida por su propia configuración.`
+      : n.propia === 0
+        ? `${plural(total, 'El elemento comprobado alcanza', `Los ${total} elementos comprobados alcanzan`)} la resistencia exigida mediante productos de protección.`
+        : `De los ${total} elementos comprobados, ${n.propia} ${plural(n.propia, 'alcanza', 'alcanzan')} la resistencia exigida por su propia configuración y ${n.proteccion} mediante productos de protección.`;
+
   return [
     { kind: 'heading', level: 3, text: 'Comprobación de las secciones (anejos C y D)' },
+    { kind: 'paragraph', text: resumen },
     {
       kind: 'table',
       head: ['Elemento', 'Sector', 'R exigida', 'Sección', 'Cómo alcanza la R'],
@@ -129,6 +152,7 @@ export function bloquesElementos(elementos: readonly ElementoResuelto[]): Block[
         ...notas,
         'Las comprobaciones se han hecho por las tablas de los anejos C y D del DB SI, que es la vía del SI 6 § 6.1.a.',
         'Los recubrimientos que exija la durabilidad pueden ser mayores que estos mínimos.',
+        ...(conProteccion ? [ROTULO_ORIENTATIVO] : []),
       ],
     },
   ];
