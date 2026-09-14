@@ -17,10 +17,23 @@ import { alturasDeEvacuacion, type AlturasEdificio, type ModoAltura } from '../.
 import { exigenciasResueltas, type ExigenciaFuego } from '../../lib/incendio/exigencias';
 import {
   clasesValidas,
+  datosAnejoBIniciales,
   resolverSectores,
+  type DatosAnejoB,
   type SectorEntrada,
   type SectorResuelto,
 } from '../../lib/incendio/sectores';
+import {
+  ACTIVIDADES_B3,
+  CONSECUENCIAS_B5,
+  KB_POR_DEFECTO,
+  M_CELULOSICO,
+  USOS_B6,
+  type ActividadB3,
+  type ConsecuenciasB5,
+  type MaterialSeccion,
+  type UsoB6,
+} from '../../lib/incendio/anejoB';
 import { USOS_DB_SI } from '../../lib/incendio/tabla31';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
@@ -134,6 +147,7 @@ export function nuevoSector(nombre = ''): SectorUI {
     adosada: false,
     bajoCubiertaSinRiesgo: false,
     minutosManual: null,
+    anejoB: null,
   };
 }
 
@@ -207,6 +221,38 @@ export function normalizarPlantas(brutas: unknown): AnotacionPlanta[] {
     }));
 }
 
+const MATERIALES: readonly MaterialSeccion[] = ['hormigon', 'aceroProtegido', 'aceroSinProteger'];
+
+/** Lo del Anejo B de un sector, leído a la defensiva. `null` = no lo usa. */
+export function normalizarAnejoB(bruto: unknown): DatosAnejoB | null {
+  if (!esObjeto(bruto)) return null;
+  const d = datosAnejoBIniciales();
+  const m = esObjeto(bruto.medidas) ? bruto.medidas : {};
+  const uno = <T extends string>(v: unknown, lista: readonly T[]): T | null =>
+    typeof v === 'string' && (lista as readonly string[]).includes(v) ? (v as T) : null;
+  return {
+    af: positivoONull(bruto.af),
+    av: typeof bruto.av === 'number' && Number.isFinite(bruto.av) && bruto.av >= 0 ? bruto.av : null,
+    ah: typeof bruto.ah === 'number' && Number.isFinite(bruto.ah) && bruto.ah >= 0 ? bruto.ah : 0,
+    h: positivoONull(bruto.h),
+    at: positivoONull(bruto.at),
+    hHuecos: positivoONull(bruto.hHuecos),
+    kb: positivoONull(bruto.kb) ?? KB_POR_DEFECTO,
+    material: uno(bruto.material, MATERIALES) ?? d.material,
+    qfkManual: positivoONull(bruto.qfkManual),
+    usoB6: uno<UsoB6>(bruto.usoB6, USOS_B6.map((u) => u.id)),
+    m: positivoONull(bruto.m) ?? M_CELULOSICO,
+    actividad: uno<ActividadB3>(bruto.actividad, ACTIVIDADES_B3.map((a) => a.id)),
+    medidas: {
+      deteccion: bool(m.deteccion),
+      alarmaBomberos: bool(m.alarmaBomberos),
+      extincion: bool(m.extincion),
+    },
+    consecuencias: uno<ConsecuenciasB5>(bruto.consecuencias, CONSECUENCIAS_B5.map((c) => c.id)),
+    criticidadAlta: bool(bruto.criticidadAlta),
+  };
+}
+
 export function normalizarSectores(brutos: unknown): SectorUI[] {
   if (!Array.isArray(brutos)) return [];
   const validas = clasesValidas(USOS_DB_SI.map((u) => u.id));
@@ -223,6 +269,7 @@ export function normalizarSectores(brutos: unknown): SectorUI[] {
       adosada: bool(s.adosada),
       bajoCubiertaSinRiesgo: bool(s.bajoCubiertaSinRiesgo),
       minutosManual: normalizarMinutos(s.minutosManual),
+      anejoB: normalizarAnejoB(s.anejoB),
     };
   });
 }
@@ -380,7 +427,7 @@ export function evaluar(state: IncendioState, publicadas = plantasPublicadas()):
   const alturaAMano = state.alturaEvacuacionManual !== null;
   const alturaEvacuacion = alturaAMano ? state.alturaEvacuacionManual : alturas.descendente;
 
-  const sectores = resolverSectores(state.sectores, alturaEvacuacion);
+  const sectores = resolverSectores(state.sectores, alturaEvacuacion, alturas.ascendente);
   for (const s of sectores) avisos.push(...s.avisos);
 
   const deSectores: ExigenciaFuego[] = sectores

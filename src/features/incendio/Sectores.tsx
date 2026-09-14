@@ -12,9 +12,17 @@
 
 import { Trash2 } from 'lucide-react';
 import { MenuAnadir } from '../../components/ui/MenuAnadir';
-import { claseRegla, claseRiesgo, claseUso, type SectorResuelto } from '../../lib/incendio/sectores';
+import {
+  claseRegla,
+  claseRiesgo,
+  claseUso,
+  datosAnejoBIniciales,
+  type DatosAnejoB,
+  type SectorResuelto,
+} from '../../lib/incendio/sectores';
 import { ETIQUETA_RIESGO, REGLAS_SUELTAS, USOS_DB_SI } from '../../lib/incendio/tabla31';
 import { RESISTENCIA_FUEGO_OPCIONES } from './catalogos';
+import { TiempoEquivalente } from './TiempoEquivalente';
 import { AYUDA, FONDO_HUECO, INPUT, ROTULO } from './estilos';
 import type { SectorUI } from './state';
 
@@ -158,7 +166,34 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                   </label>
                 )}
 
-                {/* La R: la de la tabla, y la que se declara. */}
+                {/* El Anejo B: sustituye a la tabla, y por eso va ANTES de la R. */}
+                {(esUso || esRiesgo) && (
+                  <label className={`${CASILLA} pt-2`}>
+                    <input
+                      type="checkbox"
+                      checked={s.anejoB !== null}
+                      aria-label={`Calcular el tiempo equivalente de ${s.nombre || 'el sector sin nombre'}`}
+                      onChange={(e) =>
+                        onCambiar(s.id, { anejoB: e.target.checked ? datosAnejoBIniciales() : null })
+                      }
+                    />
+                    calcular el tiempo equivalente{' '}
+                    <span className="text-text-disabled">(Anejo B)</span>
+                  </label>
+                )}
+                {s.anejoB !== null && (
+                  <TiempoEquivalente
+                    datos={s.anejoB}
+                    resuelto={r}
+                    ayuda={ayuda}
+                    nombre={s.nombre || 'el sector sin nombre'}
+                    onCambiar={(cambio: Partial<DatosAnejoB>) =>
+                      onCambiar(s.id, { anejoB: { ...(s.anejoB as DatosAnejoB), ...cambio } })
+                    }
+                  />
+                )}
+
+                {/* La R: la de la tabla o la del Anejo B, y la que se declara. */}
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                   <span className="text-[11px] text-text-secondary">R</span>
                   <select
@@ -175,7 +210,7 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                       {r?.sinExigencia
                         ? 'sin exigencia (norma)'
                         : r?.derivada !== null && r?.derivada !== undefined
-                          ? `R${r.derivada} (tabla)`
+                          ? `R${r.derivada} (${s.anejoB ? 'Anejo B' : 'tabla'})`
                           : '— sin resolver —'}
                     </option>
                     {RESISTENCIA_FUEGO_OPCIONES.map((v) => (

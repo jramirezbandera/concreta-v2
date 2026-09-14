@@ -13,6 +13,19 @@
  */
 
 import {
+  KB_POR_DEFECTO,
+  M_CELULOSICO,
+  TABLA_B6,
+  consecuenciasPorAltura,
+  tiempoEquivalente,
+  type ActividadB3,
+  type ConsecuenciasB5,
+  type MaterialSeccion,
+  type MedidasActivas,
+  type TiempoEquivalente,
+  type UsoB6,
+} from './anejoB';
+import {
   REGLAS_SUELTAS,
   TABLA_3_1,
   TABLA_3_2,
@@ -49,6 +62,109 @@ export function clasesValidas(usos: readonly UsoDbSi[]): ClaseSector[] {
   ];
 }
 
+/**
+ * Lo que hace falta para el tiempo equivalente de un sector (Anejo B).
+ *
+ * Casi todo tiene propuesta: la actividad de la tabla B.3 y la carga de fuego
+ * de la B.6 salen del uso que ya tiene el sector, y la fila de la B.5 sale de
+ * la altura de evacuación del edificio. Lo que no se puede deducir de nada es
+ * la GEOMETRÍA —superficie, huecos y altura del sector—, que es lo único que
+ * hay que teclear sí o sí.
+ */
+export interface DatosAnejoB {
+  /** m². Superficie construida del sector. */
+  af: number | null;
+  /** m². Aberturas en fachada. */
+  av: number | null;
+  /** m². Aberturas en techo. */
+  ah: number;
+  /** m. Altura del sector. */
+  h: number | null;
+  /** m². Envolvente del sector. Sólo para la (B.6) y para el acero sin proteger. */
+  at: number | null;
+  /** m. Altura media de los huecos verticales. Con `at`, da el coeficiente `O`. */
+  hHuecos: number | null;
+  /** Coeficiente de conversión de la envolvente; 0,07 salvo justificación. */
+  kb: number;
+  material: MaterialSeccion;
+  /** MJ/m². Tecleado. `null` = el que da la tabla B.6 para `usoB6`. */
+  qfkManual: number | null;
+  /** `null` = el que propone el uso del sector. */
+  usoB6: UsoB6 | null;
+  /** Coeficiente de combustión. */
+  m: number;
+  /** `null` = la que propone el uso del sector. */
+  actividad: ActividadB3 | null;
+  medidas: MedidasActivas;
+  /** `null` = la que propone la altura de evacuación. */
+  consecuencias: ConsecuenciasB5 | null;
+  /** Hospitales y edificios que no pueden quedar fuera de servicio: ×1,5. */
+  criticidadAlta: boolean;
+}
+
+export function datosAnejoBIniciales(): DatosAnejoB {
+  return {
+    af: null,
+    av: null,
+    ah: 0,
+    h: null,
+    at: null,
+    hHuecos: null,
+    kb: KB_POR_DEFECTO,
+    material: 'hormigon',
+    qfkManual: null,
+    usoB6: null,
+    m: M_CELULOSICO,
+    actividad: null,
+    medidas: { deteccion: false, alarmaBomberos: false, extincion: false },
+    consecuencias: null,
+    criticidadAlta: false,
+  };
+}
+
+/** Qué fila de la tabla B.3 le toca al uso del DB SI 6 de un sector. */
+export function actividadDeUso(uso: UsoDbSi): ActividadB3 {
+  switch (uso) {
+    case 'comercial':
+    case 'publicaConcurrencia':
+    case 'hospitalario':
+    case 'aparcamientoExclusivo':
+    case 'aparcamientoBajoOtroUso':
+      return 'comercialAparcamientoHospitalarioPublica';
+    default:
+      return 'viviendaAdministrativoResidencialDocente';
+  }
+}
+
+/** Qué fila de la tabla B.6 le toca. La unifamiliar va con Residencial Vivienda. */
+export function usoB6DeUso(uso: UsoDbSi): UsoB6 {
+  switch (uso) {
+    case 'comercial':
+      return 'comercial';
+    case 'viviendaUnifamiliar':
+    case 'residencialVivienda':
+      return 'residencialVivienda';
+    case 'hospitalario':
+    case 'residencialPublico':
+      return 'hospitalarioResidencialPublico';
+    case 'administrativo':
+      return 'administrativo';
+    case 'docente':
+      return 'docente';
+    case 'publicaConcurrencia':
+      return 'publicaConcurrencia';
+    default:
+      return 'aparcamiento';
+  }
+}
+
+/** Y qué fila de la B.3 le toca a una zona de riesgo especial. */
+const ACTIVIDAD_RIESGO: Record<NivelRiesgo, ActividadB3> = {
+  bajo: 'riesgoBajo',
+  medio: 'riesgoMedio',
+  alto: 'riesgoAlto',
+};
+
 export interface SectorEntrada {
   id: string;
   nombre: string;
@@ -63,6 +179,13 @@ export interface SectorEntrada {
   bajoCubiertaSinRiesgo: boolean;
   /** Pisa la R derivada. `null` = se declara la de la tabla. */
   minutosManual: number | null;
+  /**
+   * Datos del Anejo B. `null` = este sector va por la tabla 3.1.
+   *
+   * Con ellos, el tiempo equivalente SUSTITUYE a la clase de la tabla: el
+   * SI 6 § 3.1.b lo admite como alternativa, y se declara en minutos exactos.
+   */
+  anejoB: DatosAnejoB | null;
 }
 
 export interface SectorResuelto {
@@ -81,6 +204,10 @@ export interface SectorResuelto {
   avisos: string[];
   /** Fila a medio rellenar: bloquea exportar y publicar. */
   hueco: boolean;
+  /** El tiempo equivalente, si el sector va por el Anejo B. */
+  ted: TiempoEquivalente | null;
+  /** La R que habría dado la tabla 3.1, cuando manda el tiempo equivalente. */
+  deLaTabla: number | null;
 }
 
 function derivar(
@@ -126,6 +253,78 @@ function derivar(
 }
 
 /**
+ * El tiempo equivalente de un sector, si lo pide.
+ *
+ * La actividad, la carga de fuego y la fila de consecuencias tienen propuesta
+ * —del uso del sector y de la altura del edificio—; lo que no se puede deducir
+ * es la geometría, y sin ella no hay número.
+ */
+function tedDelSector(
+  s: SectorEntrada,
+  alturaEvacuacion: number | null,
+  ascendente: number | null,
+): { ted: TiempoEquivalente; avisos: string[] } | null {
+  const b = s.anejoB;
+  if (!b) return null;
+
+  const [tipo, resto] = s.clase.split(':');
+  const uso = tipo === 'uso' && resto in TABLA_3_1 ? (resto as UsoDbSi) : null;
+  const nivel = tipo === 'riesgo' && resto in TABLA_3_2 ? (resto as NivelRiesgo) : null;
+
+  const actividad =
+    b.actividad ?? (nivel ? ACTIVIDAD_RIESGO[nivel] : uso ? actividadDeUso(uso) : null);
+  const usoB6 = b.usoB6 ?? (uso ? usoB6DeUso(uso) : null);
+  const qfk = b.qfkManual ?? (usoB6 ? TABLA_B6[usoB6] : null);
+  const consecuencias = b.consecuencias ?? consecuenciasPorAltura(alturaEvacuacion, ascendente);
+
+  const faltan: string[] = [];
+  if (b.af === null || b.af <= 0) faltan.push('la superficie del sector');
+  if (b.av === null || b.av < 0) faltan.push('la superficie de huecos en fachada');
+  if (b.h === null || b.h <= 0) faltan.push('la altura del sector');
+  if (qfk === null) faltan.push('la densidad de carga de fuego');
+  if (actividad === null) faltan.push('la actividad de la tabla B.3');
+  if (consecuencias === null) faltan.push('la fila de consecuencias de la tabla B.5');
+
+  if (faltan.length > 0) {
+    return {
+      ted: {
+        ted: null,
+        declarado: null,
+        kb: b.kb,
+        kc: null,
+        ventilacion: {
+          wf: null, alfaV: 0, alfaVAcotada: false, alfaH: 0, bv: 0,
+          o: null, oAcotado: false, formula: 'B.3', avisos: [],
+        },
+        carga: { qfd: 0, dq1: 0, dq2: 0, dn: 0, dc: 0 },
+        avisos: [],
+      },
+      avisos: [
+        `Para el tiempo equivalente de «${s.nombre.trim() || 'el sector sin nombre'}» falta ${faltan.join(', ')}.`,
+      ],
+    };
+  }
+
+  const ted = tiempoEquivalente({
+    af: b.af as number,
+    av: b.av as number,
+    ah: b.ah,
+    h: b.h as number,
+    at: b.at,
+    hHuecos: b.hHuecos,
+    kb: b.kb,
+    material: b.material,
+    qfk: qfk as number,
+    m: b.m,
+    actividad: actividad as ActividadB3,
+    medidas: b.medidas,
+    consecuencias: consecuencias as ConsecuenciasB5,
+    criticidadAlta: b.criticidadAlta,
+  });
+  return { ted, avisos: ted.avisos };
+}
+
+/**
  * Resuelve todos los sectores.
  *
  * En dos pasadas, por la llamada (1) de la tabla 3.2: una zona de riesgo
@@ -138,6 +337,7 @@ function derivar(
 export function resolverSectores(
   sectores: readonly SectorEntrada[],
   alturaEvacuacion: number | null,
+  ascendente: number | null = null,
 ): SectorResuelto[] {
   const deUso = sectores.filter((s) => s.clase.startsWith('uso:'));
   const rPorSituacion = (sotano: boolean): number | null => {
@@ -161,6 +361,8 @@ export function resolverSectores(
         sinExigencia: false,
         avisos: [],
         hueco: true,
+        ted: null,
+        deLaTabla: null,
       };
     }
 
@@ -176,17 +378,38 @@ export function resolverSectores(
         sinExigencia: false,
         avisos: ['No se reconoce lo que es este sector.'],
         hueco: true,
+        ted: null,
+        deLaTabla: null,
       };
     }
 
-    const derivada = d.r.minutos;
+    const deLaTabla = d.r.minutos;
+    const avisos = [...d.r.avisos];
+
+    // El tiempo equivalente SUSTITUYE a la clase de la tabla (SI 6 § 3.1.b),
+    // en minutos exactos. Por encima de él manda lo declarado a mano.
+    const eq = tedDelSector(s, alturaEvacuacion, ascendente);
+    if (eq) avisos.push(...eq.avisos);
+    const porAnejoB = eq?.ted.declarado ?? null;
+
+    const derivada = eq ? porAnejoB : deLaTabla;
+    const referenciaDerivada = eq
+      ? `tiempo equivalente de exposición al fuego del Anejo B del DB SI (SI 6 § 3.1.b)`
+      : d.r.referencia;
+
     const aMano = s.minutosManual !== null;
     const minutos = aMano ? s.minutosManual : derivada;
-    const avisos = [...d.r.avisos];
 
     if (aMano && derivada !== null && s.minutosManual !== derivada) {
       avisos.push(
-        `Declarado R ${s.minutosManual} a mano; la ${d.r.referencia} daba R ${derivada}.`,
+        `Declarado R ${s.minutosManual} a mano; ${eq ? 'el tiempo equivalente daba' : `la ${d.r.referencia} daba R`} ${derivada}.`,
+      );
+    }
+    if (eq && porAnejoB !== null && deLaTabla !== null) {
+      avisos.push(
+        porAnejoB < deLaTabla
+          ? `«${nombre || 'Sector sin nombre'}»: el tiempo equivalente da ${porAnejoB} min frente a los R ${deLaTabla} de la tabla 3.1. Se declara el tiempo equivalente, que es la vía del SI 6 § 3.1.b.`
+          : `«${nombre || 'Sector sin nombre'}»: el tiempo equivalente da ${porAnejoB} min, MÁS que los R ${deLaTabla} de la tabla 3.1. Calcularlo no ha compensado aquí; puede declararse la clase de la tabla.`,
       );
     }
 
@@ -195,13 +418,15 @@ export function resolverSectores(
       nombre,
       minutos,
       derivada,
-      referencia: aMano ? 'declarado por el proyectista' : d.r.referencia,
+      referencia: aMano ? 'declarado por el proyectista' : referenciaDerivada,
       aMano,
-      sinExigencia: d.sinExigencia && !aMano,
+      sinExigencia: d.sinExigencia && !aMano && !eq,
       avisos,
       // Sin nombre no se puede imprimir; sin R tampoco, salvo que la norma
       // diga expresamente que a eso no se le exige nada.
-      hueco: nombre === '' || (minutos === null && !d.sinExigencia),
+      hueco: nombre === '' || (minutos === null && !(d.sinExigencia && !eq)),
+      ted: eq?.ted ?? null,
+      deLaTabla,
     };
   });
 }

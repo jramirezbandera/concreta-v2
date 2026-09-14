@@ -16,6 +16,7 @@ import {
   resolverSectores,
   type SectorEntrada,
 } from '../../lib/incendio/sectores';
+import { datosAnejoBIniciales } from '../../lib/incendio/sectores';
 import { USOS_DB_SI } from '../../lib/incendio/tabla31';
 
 const sector = (o: Partial<SectorEntrada> = {}): SectorEntrada => ({
@@ -27,6 +28,7 @@ const sector = (o: Partial<SectorEntrada> = {}): SectorEntrada => ({
   adosada: false,
   bajoCubiertaSinRiesgo: false,
   minutosManual: null,
+  anejoB: null,
   ...o,
 });
 
@@ -172,5 +174,105 @@ describe('el catálogo de clases', () => {
     expect(v).toContain('uso:administrativo');
     expect(v).toContain('riesgo:medio');
     expect(v).toContain('regla:cubiertaLigera');
+  });
+});
+
+/**
+ * El tiempo equivalente del Anejo B, cuando un sector se acoge a él.
+ *
+ * El SI 6 § 3.1.b lo admite COMO ALTERNATIVA a la clase de la tabla 3.1, así
+ * que la sustituye, y en minutos exactos. Lo que no puede pasar es que se
+ * calcule y luego se declare la tabla igualmente: entonces no habría servido
+ * de nada.
+ */
+describe('el tiempo equivalente sustituye a la tabla 3.1', () => {
+  /** La geometría del caso de la hoja del estudio. */
+  const geometria = {
+    ...datosAnejoBIniciales(),
+    af: 663,
+    av: 15,
+    ah: 0,
+    h: 4.5,
+    medidas: { deteccion: false, alarmaBomberos: false, extincion: true },
+  };
+
+  it('manda el te,d, y la referencia lo dice', () => {
+    // Pública concurrencia a 20 m: la tabla 3.1 pediría R 120.
+    const r = uno({ clase: claseUso('publicaConcurrencia'), anejoB: geometria }, 20);
+    expect(r.deLaTabla).toBe(120);
+    expect(r.minutos).toBe(97);
+    expect(r.derivada).toBe(97);
+    expect(r.referencia).toContain('Anejo B');
+    expect(r.referencia).toContain('3.1.b');
+    expect(r.hueco).toBe(false);
+  });
+
+  it('y saca de su uso la actividad y la carga de fuego, sin teclearlas', () => {
+    const r = uno({ clase: claseUso('publicaConcurrencia'), anejoB: geometria }, 20);
+    // Tabla B.3: pública concurrencia → 1,25. Tabla B.6: 365 MJ/m².
+    expect(r.ted?.carga.dq2).toBe(1.25);
+    expect(r.ted?.ted).toBeCloseTo(96.230172, 6);
+  });
+
+  it('y de la altura del edificio la fila de consecuencias', () => {
+    // A 20 m, δc = 1,5; por encima de 28, 2,0.
+    expect(uno({ clase: claseUso('publicaConcurrencia'), anejoB: geometria }, 20).ted?.carga.dc).toBe(1.5);
+    expect(uno({ clase: claseUso('publicaConcurrencia'), anejoB: geometria }, 35).ted?.carga.dc).toBe(2);
+  });
+
+  it('avisa cuando el cálculo ha compensado, y cuánto', () => {
+    const r = uno({ clase: claseUso('publicaConcurrencia'), anejoB: geometria }, 20);
+    expect(r.avisos.join(' ')).toContain('97 min frente a los R 120 de la tabla 3.1');
+  });
+
+  it('y también cuando NO ha compensado, que es lo que nadie mira', () => {
+    // Una vivienda pequeña: la tabla le pide R 60 y el anejo puede pedir más.
+    const r = uno(
+      {
+        clase: claseUso('residencialVivienda'),
+        anejoB: { ...geometria, af: 300, av: 6, h: 3 },
+      },
+      10,
+    );
+    expect(r.deLaTabla).toBe(60);
+    if ((r.minutos as number) > 60) {
+      expect(r.avisos.join(' ')).toContain('MÁS que los R 60');
+      expect(r.avisos.join(' ')).toContain('no ha compensado');
+    }
+  });
+
+  it('sin la geometría no se inventa un número: es un hueco y dice qué falta', () => {
+    const r = uno({ clase: claseUso('publicaConcurrencia'), anejoB: datosAnejoBIniciales() }, 20);
+    expect(r.minutos).toBeNull();
+    expect(r.hueco).toBe(true);
+    expect(r.avisos.join(' ')).toContain('la superficie del sector');
+    expect(r.avisos.join(' ')).toContain('la altura del sector');
+  });
+
+  it('una zona de riesgo especial entra por su fila de la tabla B.3', () => {
+    // Riesgo medio → δq2 = 1,40, y la carga de fuego hay que teclearla: la
+    // tabla B.6 no tiene fila para un local de riesgo especial.
+    const r = uno(
+      { clase: claseRiesgo('medio'), anejoB: { ...geometria, qfkManual: 800 } },
+      20,
+    );
+    expect(r.ted?.carga.dq2).toBe(1.4);
+    expect(r.minutos).not.toBeNull();
+  });
+
+  it('y sin carga de fuego tecleada, una zona de riesgo no cierra', () => {
+    const r = uno({ clase: claseRiesgo('medio'), anejoB: geometria }, 20);
+    expect(r.minutos).toBeNull();
+    expect(r.avisos.join(' ')).toContain('la densidad de carga de fuego');
+  });
+
+  it('declarar a mano sigue mandando por encima del te,d', () => {
+    const r = uno(
+      { clase: claseUso('publicaConcurrencia'), anejoB: geometria, minutosManual: 120 },
+      20,
+    );
+    expect(r.minutos).toBe(120);
+    expect(r.aMano).toBe(true);
+    expect(r.avisos.join(' ')).toContain('el tiempo equivalente daba 97');
   });
 });
