@@ -127,6 +127,46 @@ const PAPEL: Paleta = {
 const paletaDe = (m: ModoDibujo): Paleta => (m === 'pdf' ? PAPEL : PANTALLA);
 
 /**
+ * Alto máximo de una figura en pantalla, en px. Es el presupuesto que hace que
+ * las tres vistas midan lo mismo: sin él, espectro, planta y alzado salían con
+ * tres alturas distintas y la banda de resultados saltaba hasta 156 px al
+ * cambiar de pestaña.
+ */
+export const ALTO_FIGURA = 420;
+
+/**
+ * Medidas del `<svg>` según el modo.
+ *
+ * En PAPEL van en píxeles fijos y no se tocan: el exportador busca estos nodos
+ * por id y la figura del documento tiene que salir igual en un portátil y en un
+ * monitor de 32".
+ *
+ * En PANTALLA el `viewBox` sigue siendo el de la geometría calculada y el
+ * navegador escala: `width: 100%` para que la figura ocupe el lienzo, y un
+ * `maxWidth` deducido de la propia relación de aspecto (`altoMax · width / h`)
+ * para que al llegar a ese ancho mida exactamente `ALTO_FIGURA` de alto. Así
+ * nunca hay que letterboxear: la figura crece hasta el tope y se centra.
+ *
+ * Antes el ancho venía tapado a 520 px en `index.tsx`, de modo que a 1280 px se
+ * quedaba el 32 % del lienzo vacío y a 1920 px el 64 %. El DESIGN.md dice que
+ * el SVG es el protagonista; era el único elemento de la pantalla que no
+ * crecía.
+ */
+function dimsSvg(modo: ModoDibujo, width: number, h: number) {
+  if (modo === 'pdf') return { width, height: h };
+  return {
+    preserveAspectRatio: 'xMidYMid meet',
+    style: {
+      display: 'block',
+      width: '100%',
+      maxWidth: Math.round(ALTO_FIGURA * (width / h)),
+      height: 'auto',
+      margin: '0 auto',
+    } as const,
+  };
+}
+
+/**
  * Cuerpo de letra relativo al ancho de la figura, acotado por los dos extremos.
  *
  * Sin tope inferior, la figura de 220 px se quedaría con rótulos de 5 px; sin
@@ -136,7 +176,20 @@ function escala(width: number): number {
   return Math.min(1.15, Math.max(0.82, width / 440));
 }
 
-const MONO = 'monospace';
+/**
+ * La misma Geist Mono que el resto de la app, no la monoespaciada que le toque
+ * al navegador. El SVG es la superficie protagonista: dejarla en `monospace` a
+ * secas hacía que los 31 rótulos de las tres figuras salieran en Courier o
+ * DejaVu Sans Mono según la máquina, mientras cada número del panel de al lado
+ * iba en Geist. `AnchorPlateSVG.tsx:144` y `cargas-planta/SeccionSVG.tsx:154`
+ * ya lo resuelven así.
+ *
+ * La reserva `monospace` importa: si alguna vez se rasteriza esta figura fuera
+ * del documento (el `ModoDibujo` 'pdf' existe pero hoy no lo usa nadie: el PDF
+ * lo dibuja `lib/pdf/seismicNCSE02.ts` con jsPDF), la variable no resuelve y se
+ * cae al comportamiento de antes en vez de a la de sistema.
+ */
+const MONO = 'var(--font-mono, monospace)';
 
 /** Centro de rigidez de una lista de planos, o `null` si no hay rigidez. */
 function centroide(elementos: ElementoResistente[]): number | null {
@@ -238,8 +291,7 @@ export function EspectroSVG({
 
   return (
     <svg
-      width={width}
-      height={h}
+      {...dimsSvg(modo, width, h)}
       viewBox={`0 0 ${width} ${h}`}
       role="img"
       aria-label={`Espectro de respuesta, dirección ${EJE_ROTULO}`}
@@ -674,8 +726,7 @@ export function PlantaSVG({
 
   return (
     <svg
-      width={width}
-      height={h}
+      {...dimsSvg(modo, width, h)}
       viewBox={`0 0 ${width} ${h}`}
       role="img"
       aria-label={`Planta con los planos resistentes, dirección ${E}`}
@@ -1070,8 +1121,7 @@ export function AlzadoSVG({
 
   return (
     <svg
-      width={width}
-      height={h}
+      {...dimsSvg(modo, width, h)}
       viewBox={`0 0 ${width} ${h}`}
       role="img"
       aria-label={`Fuerzas y cortantes en dirección ${E}`}

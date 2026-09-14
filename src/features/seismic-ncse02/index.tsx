@@ -36,7 +36,7 @@ import { PlantasModal } from './PlantasModal';
 import { buildShareUrl, decodeShareString } from './serialize';
 import { SeismicInputs } from './SeismicInputs';
 import { SeismicResults } from './SeismicResults';
-import { AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
+import { ALTO_FIGURA, AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
 import {
   defaultSeismicState,
   evaluarSismo,
@@ -362,9 +362,17 @@ export function SeismicNCSE02Module() {
             </span>
           </div>
 
+          {/*
+            Alto fijo: las tres pestañas son vistas de LO MISMO, así que la
+            banda de resultados no puede moverse al cambiar de una a otra.
+            Antes espectro, planta y alzado medían 322, 432 y 478 px y la banda
+            saltaba hasta 156 px bajo los pies del usuario. `ALTO_FIGURA` es el
+            mismo presupuesto que usa el `maxWidth` de cada figura.
+          */}
           <div
             ref={lienzoRef}
-            className="canvas-dot-grid border-b border-border-main px-4 py-4"
+            className="canvas-dot-grid flex flex-col items-center justify-center border-b border-border-main px-4 py-4"
+            style={{ minHeight: ALTO_FIGURA + 32 }}
           >
             {vista === 'espectro' && <EspectroSVG evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />}
             {vista === 'planta' && <PlantaSVG state={state} evaluacion={evaluacion} width={anchoSvg} eje={ejeDibujo} />}
