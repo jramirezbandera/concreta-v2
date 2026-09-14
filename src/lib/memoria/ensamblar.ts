@@ -30,6 +30,7 @@
  */
 
 import type { PubCargasPlanta } from '../../features/cargas-planta/state';
+import type { PubIncendio } from '../../features/incendio/state';
 import type { PubAceroEstructural, PubMadera, PubMateriales } from '../../features/materiales/state';
 import type { PubSismo } from '../../features/seismic-ncse02/state';
 import type { PubVientoNieve } from '../../features/viento-nieve/state';
@@ -41,8 +42,9 @@ import { CATEGORIA_LABELS, EJECUCION_LABELS, TABLA_4_4, lookupFk, lookupGammaM, 
 import { FRACCION_MASA } from '../codes/seismic/ncse02';
 import type { CategoriaMasa } from '../codes/seismic/types';
 import { num } from '../materiales/cuadros';
-import type { ExigenciaFuego } from '../materiales/fuego';
-import type { MaterialesPresentes } from '../materiales/cuadros';
+import type { ExigenciaFuego } from '../incendio/exigencias';
+import { presentesDeSobre } from '../incendio/notas';
+import type { MaterialesPresentes } from '../incendio/notas';
 import type { ObraPublicada, Publicacion } from '../pub';
 import {
   GEOTECNIA_CAMPOS,
@@ -68,9 +70,10 @@ export interface Sobres {
   vientoNieve: Publicacion<PubVientoNieve> | null;
   cargasPlanta: Publicacion<PubCargasPlanta> | null;
   sismo: Publicacion<PubSismo> | null;
+  incendio: Publicacion<PubIncendio> | null;
 }
 
-export const SIN_SOBRES: Sobres = { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null };
+export const SIN_SOBRES: Sobres = { materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null, incendio: null };
 
 /** Provincia de un INE, que puede venir con cinco dígitos o con dos. */
 export const provinciaDe = (ine: string | null | undefined): string | null => (ine && ine.length >= 2 ? ine.slice(0, 2) : null);
@@ -128,9 +131,9 @@ export function estadoSobre(sobre: Publicacion<unknown> | null, aceptado: boolea
 
 // ── Lo que devuelve ─────────────────────────────────────────────────────────
 
-const ORIGEN_DE: Record<ModuloPub, Origen> = { materiales: 'materiales', vientoNieve: 'viento-nieve', cargasPlanta: 'cargas-planta', sismo: 'sismo' };
-const ETIQUETA_DE: Record<ModuloPub, string> = { materiales: 'Cuadro de materiales', vientoNieve: 'Viento y nieve', cargasPlanta: 'Cargas por planta', sismo: 'Acción sísmica' };
-const APARTADO_DE: Record<ModuloPub, ApartadoId> = { materiales: 'ce', vientoNieve: 'seae', cargasPlanta: 'seae', sismo: 'ncse' };
+const ORIGEN_DE: Record<ModuloPub, Origen> = { materiales: 'materiales', vientoNieve: 'viento-nieve', cargasPlanta: 'cargas-planta', sismo: 'sismo', incendio: 'incendio' };
+const ETIQUETA_DE: Record<ModuloPub, string> = { materiales: 'Cuadro de materiales', vientoNieve: 'Viento y nieve', cargasPlanta: 'Cargas por planta', sismo: 'Acción sísmica', incendio: 'Incendio' };
+const APARTADO_DE: Record<ModuloPub, ApartadoId> = { materiales: 'ce', vientoNieve: 'seae', cargasPlanta: 'seae', sismo: 'ncse', incendio: 'se' };
 
 /** Una publicación vista desde la ficha: si hay sobre, de cuándo y de qué obra, y en qué estado entra. */
 export interface Fuente extends Valor<boolean> {
@@ -385,7 +388,9 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado:
       ? `${ETIQUETA_DE[modulo]} no se ha calculado todavía en esta obra.`
       : modulo === 'vientoNieve'
         ? 'Sin publicar: la zona eólica y la nieve salen de la provincia.'
-        : `${ETIQUETA_DE[modulo]} sin publicar: se toma lo que la norma da para la provincia.`
+        : modulo === 'incendio'
+          ? 'Sin publicar: la R exigida no se enuncia en la memoria.'
+          : `${ETIQUETA_DE[modulo]} sin publicar: se toma lo que la norma da para la provincia.`
     : vigente
       ? sobre.configurado !== true
         ? 'Sus valores de partida, dados por buenos para esta obra.'
@@ -676,18 +681,20 @@ function juntas(obra: CapaObra, apartado: ApartadoId): Juntas {
  * El acero de armar va con el hormigón: si hay hormigón estructural, hay
  * armadura pasiva.
  */
-function fuego(datos: PubMateriales | null): FichaDatos['se']['fuego'] {
-  if (!datos || datos.exigenciasFuego.length === 0) return null;
-  return {
-    exigencias: datos.exigenciasFuego,
-    presentes: {
-      hormigon: datos.hormigon !== null,
-      aceroDeArmar: datos.hormigon !== null,
-      aceroLaminado: datos.aceroEstructural !== null,
-      maderaLaminada: datos.madera?.grupos.some((g) => g.tipo === 'laminada') ?? false,
-      maderaMaciza: datos.madera?.grupos.some((g) => g.tipo === 'maciza') ?? false,
-    },
-  };
+function fuego(
+  inc: PubIncendio | null,
+  mat: PubMateriales | null,
+): FichaDatos['se']['fuego'] {
+  // Las exigencias son del módulo de incendio. El repliegue al campo legado del
+  // cuadro de materiales cubre la obra que aún no ha pasado por el módulo
+  // nuevo; desaparece con la fase de limpieza.
+  const exigencias = inc?.exigencias ?? mat?.exigenciasFuego ?? [];
+  if (exigencias.length === 0) return null;
+  // Los materiales, en cambio, SIEMPRE salen del cuadro de materiales. Sin él,
+  // `anejosFuego` tiene su rama —«de los anejos C a F»—, que se escribió para
+  // este caso y hasta ahora no alcanzaba nadie: antes las dos mitades venían
+  // del mismo sobre y no podían faltar por separado.
+  return { exigencias, presentes: presentesDeSobre(mat) };
 }
 
 export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
@@ -701,6 +708,9 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
     vientoNieve: fuente('vientoNieve', sobres.vientoNieve, s.aceptados.vientoNieve, datos, false),
     cargasPlanta: fuente('cargasPlanta', sobres.cargasPlanta, s.aceptados.cargasPlanta, datos, true),
     sismo: fuente('sismo', sobres.sismo, s.aceptados.sismo, datos, true, sobres.sismo?.datos.ine),
+    // `obligatorio: false`: una obra sin módulo de incendio no tiene por qué
+    // ponerse en rojo ni bloquear la exportación del DB SE.
+    incendio: fuente('incendio', sobres.incendio, s.aceptados.incendio, datos, false),
   };
 
   const materiales = usable(fuentes.materiales) ? sobres.materiales : null;
@@ -770,7 +780,7 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
       modeloAnalisis: estudio.modeloAnalisis,
       flechaActiva: estudio.flechaActivaGeneral,
       desplome: estudio.desplome,
-      fuego: fuego(materiales?.datos ?? null),
+      fuego: fuego(usable(fuentes.incendio) ? (sobres.incendio?.datos ?? null) : null, materiales?.datos ?? null),
     },
     seae: {
       viento: viento(datos, fuentes.vientoNieve, sobres.vientoNieve, provinciaNombre),

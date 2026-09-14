@@ -224,4 +224,53 @@ describe('resistencia al fuego', () => {
     const { datos } = fichaCompleta();
     expect(texto(bloquesFicha(datos))).not.toContain('Resistencia al fuego');
   });
+
+  /**
+   * Desde que las exigencias salieron del cuadro de materiales, las dos
+   * mitades de la frase vienen de SOBRES DISTINTOS y pueden faltar por
+   * separado: hay obra con módulo de incendio calculado y cuadro de materiales
+   * todavía en sus valores de partida, que no publica. La R se enuncia igual y
+   * la cita de anejos se degrada sola.
+   *
+   * La rama «de los anejos C a F» llevaba escrita desde el principio y hasta
+   * ahora no la alcanzaba nadie.
+   */
+  it('con sobre de incendio pero sin el de materiales, enuncia la R y cita los anejos C a F', () => {
+    // La ficha se completa con TODOS los sobres —el de materiales es
+    // obligatorio y sin él no hay hueco que resolver— y luego se ensambla
+    // contra un juego sin él, que es la situación real: el cuadro sigue en sus
+    // valores de partida y por eso no publica.
+    const completos = sobresGranada({ fuego: R });
+    const estado = completar(fichaGranadaConFabrica(), completos);
+    const datos = ensamblar(estado, { ...completos, materiales: null });
+    const se = texto(apartados(datos).find((a) => a.id === 'se')!.bloques);
+    expect(se).toContain(
+      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ' +
+        'R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.',
+    );
+    expect(se).toContain('los métodos simplificados de los anejos C a F del DB SI');
+    // Y las dos vías siguen abiertas: eso no depende de saber los materiales.
+    expect(se).toContain('bien disponiendo protecciones adicionales');
+  });
+
+  /**
+   * Al revés: un `.concreta` guardado antes de la mudanza llega sin sobre de
+   * incendio, pero su cuadro de materiales todavía lleva la R dentro. La
+   * memoria no puede perderla sin avisar.
+   */
+  it('sin sobre de incendio, se repliega al legado que viaja en el de materiales', () => {
+    const sobres = { ...sobresGranada({ fuego: R }), incendio: null };
+    sobres.materiales!.datos.exigenciasFuego = R.map(({ ambito, minutos }) => ({ ambito, minutos }));
+    const datos = ensamblar(completar(fichaGranadaConFabrica(), sobres), sobres);
+    const se = texto(apartados(datos).find((a) => a.id === 'se')!.bloques);
+    expect(se).toContain('R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.');
+  });
+
+  it('el módulo de incendio no bloquea la exportación de una obra que no habla de fuego', () => {
+    // `obligatorio: false`: sin sobre, la fuente entra como «derivado» y no
+    // cuenta como falta. Si entrara como «falta», toda obra sin módulo de
+    // incendio se quedaría sin poder exportar el DB SE.
+    const { datos } = fichaCompleta();
+    expect(datos.fuentes.incendio.estado).toBe('derivado');
+  });
 });

@@ -17,6 +17,7 @@ import { leerPublicacion } from '../../lib/pub';
 import type { PubCargasPlanta } from '../cargas-planta/state';
 import type { PubMateriales } from '../materiales/state';
 import type { PubSismo } from '../seismic-ncse02/state';
+import type { PubIncendio } from '../incendio/state';
 import type { PubVientoNieve } from '../viento-nieve/state';
 
 /** Clave del sobre y versión del esquema que esta ficha sabe leer. */
@@ -25,6 +26,7 @@ export const MODULOS: Record<ModuloPub, { modulo: string; version: number; etiqu
   vientoNieve: { modulo: 'viento-nieve', version: 1, etiqueta: 'Viento y nieve', ruta: '/acciones/viento-nieve' },
   cargasPlanta: { modulo: 'cargas-planta', version: 1, etiqueta: 'Cargas por planta', ruta: '/acciones/cargas-planta' },
   sismo: { modulo: 'sismo', version: 1, etiqueta: 'Acción sísmica', ruta: '/analisis/sismo' },
+  incendio: { modulo: 'incendio', version: 1, etiqueta: 'Incendio', ruta: '/acciones/incendio' },
 };
 
 export type { Sobres };
@@ -36,5 +38,6 @@ export function leerSobres(): Sobres {
     vientoNieve: leerPublicacion<PubVientoNieve>(MODULOS.vientoNieve.modulo, MODULOS.vientoNieve.version),
     cargasPlanta: leerPublicacion<PubCargasPlanta>(MODULOS.cargasPlanta.modulo, MODULOS.cargasPlanta.version),
     sismo: leerPublicacion<PubSismo>(MODULOS.sismo.modulo, MODULOS.sismo.version),
+    incendio: leerPublicacion<PubIncendio>(MODULOS.incendio.modulo, MODULOS.incendio.version),
   };
 }

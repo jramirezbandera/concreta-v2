@@ -36,6 +36,7 @@ export const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/analisis/sismo': () => import('../features/seismic-ncse02'),
   '/acciones/viento-nieve': () => import('../features/viento-nieve'),
   '/acciones/cargas-planta': () => import('../features/cargas-planta'),
+  '/acciones/incendio': () => import('../features/incendio'),
   '/geotec/taludes': () => import('../features/slope-stability'),
   '/geotec/escollera': () => import('../features/rockfill-wall'),
 };

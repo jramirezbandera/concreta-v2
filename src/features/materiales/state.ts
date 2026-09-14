@@ -13,16 +13,18 @@
  */
 
 import {
-  AMBITO_TODA_LA_ESTRUCTURA,
   deriveAcero,
   deriveHormigon,
   deriveMadera,
-  exigenciasResueltas,
   type DerivacionAcero,
   type DerivacionHormigon,
   type DerivacionMadera,
-  type ExigenciaFuego,
 } from '../../lib/materiales';
+import {
+  AMBITO_TODA_LA_ESTRUCTURA,
+  exigenciasResueltas,
+  type ExigenciaFuego,
+} from '../../lib/incendio/exigencias';
 import type {
   AceroEstructural,
   AceroPasivo,
@@ -162,12 +164,14 @@ export interface MaterialesState {
   /** Agresividad química del terreno según el geotécnico: XA1/XA2/XA3 en lo enterrado. */
   terrenoAgresivo: AgresividadQuimica;
   /**
-   * Resistencia al fuego exigida (DB SI 6), por partes de la estructura. Vacío
-   * = sin indicar, y entonces no se imprime nada. No es una sola cifra: el
-   * sótano con aparcamiento, las plantas sobre rasante y la cubierta ligera
-   * salen con R distintas en cualquier edificio corriente.
+   * LEGADO. Las exigencias de resistencia al fuego que este módulo guardó antes
+   * de que existiera `/acciones/incendio` (13-09-2026). Ya no se edita, no se
+   * evalúa y no abre huecos: se conserva para que el módulo de incendio la
+   * adopte la primera vez que se abre esta obra, y para que el cuadro siga
+   * imprimiendo su nota mientras eso no pase —que es lo que ocurre al abrir un
+   * `.concreta` guardado antes del cambio—. Se retira en la fase de limpieza.
    */
-  exigenciasFuego: FilaFuego[];
+  exigenciasFuegoLegado?: FilaFuego[];
   elementos: FilaHormigon[];
   aceroEstr: {
     nivelRiesgo: NivelRiesgo;
@@ -238,7 +242,6 @@ export function defaultMaterialesState(): MaterialesState {
     costa: false,
     heladas: false,
     terrenoAgresivo: 'ninguna',
-    exigenciasFuego: [],
     elementos: [
       filaDesdePreset('Cimentación'),
       filaDesdePreset('Muros de sótano'),
@@ -292,7 +295,6 @@ const huellaCuadro = (s: MaterialesState) =>
     costa: s.costa,
     heladas: s.heladas,
     terrenoAgresivo: s.terrenoAgresivo,
-    exigenciasFuego: s.exigenciasFuego.map(sinId),
     elementos: s.elementos.map(sinId),
     aceroEstr: { ...s.aceroEstr, elementos: s.aceroEstr.elementos.map(sinId) },
     maderaGrupos: s.maderaGrupos.map(sinId),
@@ -409,6 +411,10 @@ export function normalizar(bruto: unknown): MaterialesState {
     ? bruto.diametrosAnclaje.filter((d): d is number => typeof d === 'number' && d > 0)
     : [];
 
+  // El fuego ya no es de este módulo; sólo se conserva para entregárselo al de
+  // incendio y para que el cuadro siga imprimiendo su nota hasta que lo adopte.
+  const legadoFuego = normalizarFuego(bruto);
+
   const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
   const num = (v: unknown, def: number) => (typeof v === 'number' && v > 0 ? v : def);
   const str = <T extends string>(v: unknown, permitidos: readonly T[], def: T): T =>
@@ -468,7 +474,7 @@ export function normalizar(bruto: unknown): MaterialesState {
       ['ninguna', 'debil', 'moderada', 'alta'] as const,
       base.terrenoAgresivo,
     ),
-    exigenciasFuego: normalizarFuego(bruto),
+    ...(legadoFuego.length > 0 ? { exigenciasFuegoLegado: legadoFuego } : {}),
     elementos,
     aceroEstr: {
       nivelRiesgo: str(acero.nivelRiesgo, ['CC1', 'CC2', 'CC3'] as const, base.aceroEstr.nivelRiesgo),
@@ -488,19 +494,29 @@ export function normalizar(bruto: unknown): MaterialesState {
 }
 
 /**
- * Las exigencias de fuego de lo guardado. Hasta el 10-09-2026 el módulo
- * guardaba UNA `resistenciaFuego` para toda la obra; lo escrito con aquel
- * esquema se hereda como una sola exigencia de ámbito «toda la estructura»,
- * que es exactamente lo que decía, y su nota sale redactada igual que antes.
- * Por eso esto migra en vez de subir `versionViva`: subirla tiraría el cuadro
- * entero —elementos, madera, acero— por un campo que sabemos convertir.
+ * El legado de fuego de lo guardado, en cualquiera de sus tres generaciones:
+ *
+ *   1. `resistenciaFuego`, un número suelto para toda la obra (hasta el 10-09-2026);
+ *   2. `exigenciasFuego`, la lista con ámbito (hasta el 13-09-2026);
+ *   3. `exigenciasFuegoLegado`, esa misma lista ya jubilada, que es como se
+ *      vuelve a guardar desde que las exigencias viven en `/acciones/incendio`.
+ *
+ * Se leen las tres porque un `.concreta` guardado hace meses puede traer
+ * cualquiera. Esto MIGRA en vez de subir `versionViva`: subirla tiraría el
+ * cuadro entero —elementos, madera, acero— por un campo que sabemos convertir.
  */
 function normalizarFuego(bruto: Record<string, unknown>): FilaFuego[] {
   const minutos = (v: unknown): number | null =>
     (RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(v as number) ? (v as number) : null;
 
-  if (Array.isArray(bruto.exigenciasFuego)) {
-    return bruto.exigenciasFuego
+  const lista = Array.isArray(bruto.exigenciasFuegoLegado)
+    ? bruto.exigenciasFuegoLegado
+    : Array.isArray(bruto.exigenciasFuego)
+      ? bruto.exigenciasFuego
+      : null;
+
+  if (lista) {
+    return lista
       .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null)
       .map((f) => ({
         id: typeof f.id === 'string' ? f.id : nuevoId('f'),
@@ -627,10 +643,6 @@ export interface Evaluacion {
   madera: { fila: FilaMadera; derivacion: DerivacionMadera }[];
   huecosMadera: FilaMadera[];
   acero: DerivacionAcero | null;
-  /** Exigencias de fuego resueltas, las que se imprimen. */
-  fuego: ExigenciaFuego[];
-  /** Exigencias a medio rellenar: el hueco rojo del bloque de fuego. */
-  huecosFuego: FilaFuego[];
   /** Nº de mensajes de aviso y de error en toda la obra. */
   avisos: number;
   errores: number;
@@ -685,13 +697,6 @@ export function evaluar(state: MaterialesState): Evaluacion {
       })
     : null;
 
-  // Una exigencia a medias no se imprime —saldría «R60 en .»— y además es un
-  // hueco: bloquea exportar y publicar, como una fila sin situación.
-  const fuego = exigenciasResueltas(state.exigenciasFuego);
-  const huecosFuego = state.exigenciasFuego.filter(
-    (f) => f.ambito.trim() === '' || f.minutos === null,
-  );
-
   const mensajes = [
     ...hormigon.flatMap((h) => h.derivacion.mensajes),
     ...madera.flatMap((m) => m.derivacion.mensajes),
@@ -707,12 +712,11 @@ export function evaluar(state: MaterialesState): Evaluacion {
     madera,
     huecosMadera,
     acero,
-    fuego,
-    huecosFuego,
     avisos,
     errores,
-    listo:
-      huecos.length === 0 && huecosMadera.length === 0 && huecosFuego.length === 0 && errores === 0,
+    // El fuego ya no cierra este candado: una exigencia a medias bloquea el
+    // módulo de incendio, que es de quien es, no el cuadro de materiales.
+    listo: huecos.length === 0 && huecosMadera.length === 0 && errores === 0,
   };
 }
 
@@ -978,7 +982,7 @@ export function datosPublicacion(state: MaterialesState, ev: Evaluacion): PubMat
     vidaUtilAnios: state.estudio.vidaUtilAnios,
     nivelControlEjecucion: state.estudio.nivelControlEjecucion,
     nivelControlAcero: state.estudio.nivelControlAcero,
-    exigenciasFuego: ev.fuego,
+    exigenciasFuego: exigenciasResueltas(state.exigenciasFuegoLegado ?? []),
     modificadores: {
       costa: state.costa,
       heladas: state.heladas,

@@ -1,13 +1,14 @@
 /**
  * Pinta un `Block[]` como la hoja que se va a entregar.
  *
- * Es el primero de los renderers de la frontera `Block[]`; el de Word ya existe
- * (`src/lib/docx/`), y detrás vienen los del cuadro de plano a Excel y DXF. Por
- * eso no toma el estado del módulo sino los bloques ya compuestos: lo que se ve
- * aquí es literalmente lo que se exporta.
+ * Compartido por el cuadro de materiales y el módulo de incendio: lo que se
+ * ve en pantalla es literalmente lo que sale por Word, PDF, Excel y DXF.
+ *
+ * No toma el estado de ningún módulo, sino los bloques ya compuestos: por eso
+ * sirve para los dos y servirá para el siguiente.
  */
 
-import type { Block } from '../../lib/materiales/cuadros';
+import type { Block } from '../../lib/memoria/model';
 
 function Tabla({ head, rows, caption }: { head: string[]; rows: string[][]; caption?: string }) {
   return (

@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Block } from '../../lib/materiales/cuadros';
 import { cuadroCoeficientesMinoracion } from '../../lib/materiales/cuadros';
-import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/incendio/exigencias';
 import { COLOR_DE_CAPA, envolver, planificarDibujo } from '../../lib/dxf/cuadro';
 import { anchoDeTexto } from '../../lib/dxf/anchos';
 import { aLatin1, dxfStr, escribirDxf } from '../../lib/dxf/escribir';

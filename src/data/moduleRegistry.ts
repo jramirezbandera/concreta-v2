@@ -117,6 +117,19 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
+    key: 'concreta-incendio',
+    route: '/acciones/incendio',
+    label: 'Incendio',
+    group: 'Acciones',
+    // Va DETRÁS de cargas-planta a propósito: su test de registro fija que
+    // cargas-planta sea viento-nieve + 1, y meterse en medio lo rompe.
+    // Nació sacando del cuadro de materiales las exigencias del DB SI 6, que
+    // vivían allí de prestado; publica en `concreta-pub-incendio` y aquel
+    // cuadro pasó a leerlas de ahí.
+    defaults: {} as unknown as ModuleInputs,
+    shipped: true,
+  },
+  {
     key: 'concreta-rc-beams',
     route: '/horm/vigas',
     label: 'Vigas',

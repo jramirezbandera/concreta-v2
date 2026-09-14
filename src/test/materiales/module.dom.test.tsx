@@ -274,49 +274,6 @@ describe('conmutadores de material', () => {
     expect(screen.getByText(/son categoría de ejecución PC2/)).toBeInTheDocument();
   });
 
-  /** Añade una exigencia de fuego eligiendo un ámbito del menú y su R. */
-  function exigirFuego(ambito: string, minutos: string) {
-    fireEvent.click(screen.getByRole('button', { name: '+ Añadir exigencia' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: ambito }));
-    fireEvent.change(screen.getByLabelText(`Resistencia al fuego de ${ambito}`), {
-      target: { value: minutos },
-    });
-  }
-
-  it('la resistencia al fuego sólo sale en el documento si se indica', () => {
-    montar();
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(
-      screen.queryByText(/Resistencia al fuego exigida a la estructura/),
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Datos' }));
-    exigirFuego('Toda la estructura', '60');
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(screen.getByText(/Resistencia al fuego exigida a la estructura: R60/)).toBeInTheDocument();
-  });
-
-  it('el sótano, las plantas y la cubierta pueden pedir R distintas a la vez', () => {
-    montar();
-    exigirFuego('Sótano con aparcamiento', '120');
-    exigirFuego('Cubierta ligera', '30');
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(
-      screen.getByText(/R120 en el sótano con aparcamiento; R30 en la cubierta ligera/),
-    ).toBeInTheDocument();
-  });
-
-  it('una exigencia sin R es un hueco y bloquea exportar', () => {
-    montar();
-    fireEvent.click(screen.getByRole('button', { name: '+ Añadir exigencia' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Cubierta ligera' }));
-    expect(screen.getByText(/1 sin resolver/)).toBeInTheDocument();
-    // Y sin R no se imprime a medias en el documento.
-    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
-    expect(
-      screen.queryByText(/Resistencia al fuego exigida a la estructura/),
-    ).not.toBeInTheDocument();
-  });
-
   it('encender acero estructural deriva la clase de ejecución', () => {
     montar();
     fireEvent.click(screen.getByRole('button', { name: 'Acero estructural' }));

@@ -71,6 +71,16 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     route: '/acciones/cargas-planta',
     icon: <ModuleIcon moduleKey="concreta-cargas-planta" size={ICON_SIZE} />,
   },
+  {
+    id: 'incendio',
+    group: 'ACCIONES',
+    name: 'Incendio',
+    ref: 'CTE DB SI 6 · Anejos B, C y D',
+    short:
+      'Resistencia al fuego exigida a la estructura por uso y altura de evacuación, con el tiempo equivalente de exposición del Anejo B como alternativa, la comprobación de lo que aguanta cada sección de hormigón y acero, y la protección que hace falta donde no llegue.',
+    route: '/acciones/incendio',
+    icon: <ModuleIcon moduleKey="concreta-incendio" size={ICON_SIZE} />,
+  },
 
   // ── HORMIGÓN ARMADO
   {

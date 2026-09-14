@@ -1,19 +1,22 @@
 /**
  * La resistencia al fuego exigida, que no es UNA cifra.
  *
- * El módulo nació con un solo desplegable de R para toda la obra, y eso no
- * describe a casi ningún edificio: el DB SI 6 tiene columna aparte para las
- * plantas de sótano y regla propia para la cubierta ligera, así que lo normal
- * es el sótano con aparcamiento por un lado, las plantas sobre rasante por
- * otro y la cubierta por un tercero.
+ * El cuadro de materiales nació con un solo desplegable de R para toda la obra,
+ * y eso no describe a casi ningún edificio: el DB SI 6 tiene columna aparte
+ * para las plantas de sótano y regla propia para la cubierta ligera, así que lo
+ * normal es el sótano con aparcamiento por un lado, las plantas sobre rasante
+ * por otro y la cubierta por un tercero.
  *
  * Lo que se fija aquí:
  *
  *  - con una sola exigencia de ámbito «toda la estructura» —la que hereda lo
  *    guardado con el esquema viejo— la nota sale REDACTADA IGUAL que antes;
  *  - con varias se enumeran, y la segunda frase deja de hablar de un número;
- *  - una exigencia a medio rellenar es un hueco: ni se imprime ni se publica,
- *    y bloquea exportar.
+ *  - una exigencia a medio rellenar no se imprime.
+ *
+ * La nota se sigue probando A TRAVÉS del cuadro de coeficientes de minoración,
+ * que es quien la imprime en el plano y en la memoria: lo que importa es que
+ * ese documento no cambie ni una coma al haberse mudado el dato de módulo.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -22,14 +25,8 @@ import {
   AMBITO_TODA_LA_ESTRUCTURA,
   exigenciasResueltas,
   fraseAmbito,
-} from '../../lib/materiales/fuego';
-import {
-  datosPublicacion,
-  defaultMaterialesState,
-  evaluar,
-  normalizar,
-  type MaterialesState,
-} from '../../features/materiales/state';
+} from '../../lib/incendio/exigencias';
+import { anejosFuego, presentesDeSobre } from '../../lib/incendio/notas';
 
 const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
   const n = blocks.find((b) => b.kind === 'notes');
@@ -39,11 +36,6 @@ const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
 
 const nota = (...fuego: { ambito: string; minutos: number }[]) =>
   notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, fuego));
-
-const conFuego = (filas: MaterialesState['exigenciasFuego']): MaterialesState => ({
-  ...defaultMaterialesState(),
-  exigenciasFuego: filas,
-});
 
 describe('la nota del cuadro', () => {
   it('con una sola R para toda la obra dice lo mismo que decía', () => {
@@ -104,9 +96,32 @@ describe('la nota del cuadro', () => {
     expect(n).not.toContain('DB SI');
     expect(n).toContain('Aplicable a los valores característicos.');
   });
+
+  it('una R que no es de las tabuladas se imprime igual', () => {
+    // El tiempo equivalente del Anejo B da minutos exactos. Nada en la
+    // redacción supone que la R sea una de las seis clases.
+    expect(nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 97 })).toContain(
+      'Resistencia al fuego exigida a la estructura: R97, según el CTE DB SI 6 (tabla 3.1).',
+    );
+  });
 });
 
-describe('huecos', () => {
+describe('los anejos que cita la nota', () => {
+  it('nombra sólo los de los materiales que hay', () => {
+    expect(anejosFuego({ hormigon: true })).toBe('del anejo C');
+    expect(anejosFuego({ hormigon: true, aceroLaminado: true })).toBe('de los anejos C y D');
+    expect(anejosFuego({ maderaLaminada: true, maderaMaciza: true })).toBe('del anejo E');
+  });
+
+  it('sin saber de qué es la obra, los nombra todos', () => {
+    // Deja de ser teórico desde que las exigencias y los materiales vienen de
+    // sobres distintos: puede haber uno y faltar el otro.
+    expect(anejosFuego({})).toBe('de los anejos C a F');
+    expect(anejosFuego(presentesDeSobre(null))).toBe('de los anejos C a F');
+  });
+});
+
+describe('las exigencias resueltas', () => {
   it('una exigencia a medio rellenar no se imprime', () => {
     expect(
       exigenciasResueltas([
@@ -116,59 +131,22 @@ describe('huecos', () => {
       ]),
     ).toEqual([{ ambito: 'Cubierta ligera', minutos: 30 }]);
   });
-
-  it('y bloquea exportar y publicar, como una fila sin situación', () => {
-    const sinR = evaluar(conFuego([{ id: 'f1', ambito: 'Sótano', minutos: null }]));
-    expect(sinR.huecosFuego).toHaveLength(1);
-    expect(sinR.listo).toBe(false);
-    expect(datosPublicacion(conFuego([{ id: 'f1', ambito: 'Sótano', minutos: null }]), sinR)).toBeNull();
-
-    const entera = conFuego([{ id: 'f1', ambito: 'Sótano', minutos: 120 }]);
-    const ev = evaluar(entera);
-    expect(ev.huecosFuego).toHaveLength(0);
-    expect(ev.listo).toBe(true);
-    expect(datosPublicacion(entera, ev)?.exigenciasFuego).toEqual([
-      { ambito: 'Sótano', minutos: 120 },
-    ]);
-  });
-
-  it('el estado por defecto no trae ninguna: sin indicar es sin indicar', () => {
-    expect(defaultMaterialesState().exigenciasFuego).toEqual([]);
-    expect(evaluar(defaultMaterialesState()).listo).toBe(true);
-  });
 });
 
-describe('lo guardado con el esquema anterior', () => {
-  it('la R suelta se hereda como una exigencia de toda la estructura', () => {
-    expect(normalizar({ resistenciaFuego: 60 }).exigenciasFuego).toEqual([
-      { id: expect.any(String), ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 60 },
-    ]);
-    // Y la nota que sale de ahí es la de antes, palabra por palabra.
+describe('de qué está hecha la obra, según el sobre', () => {
+  it('ata el acero de armar al hormigón y lee los tipos de madera', () => {
     expect(
-      nota(...exigenciasResueltas(normalizar({ resistenciaFuego: 60 }).exigenciasFuego)),
-    ).toContain('Resistencia al fuego exigida a la estructura: R60, según el CTE DB SI 6 (tabla 3.1).');
-  });
-
-  it('una R que no está en la lista no se hereda', () => {
-    expect(normalizar({ resistenciaFuego: 45 }).exigenciasFuego).toEqual([]);
-    expect(normalizar({ resistenciaFuego: 'R60' }).exigenciasFuego).toEqual([]);
-    expect(normalizar({}).exigenciasFuego).toEqual([]);
-  });
-
-  it('la lista nueva se valida entrada por entrada, sin tirar las buenas', () => {
-    const s = normalizar({
-      exigenciasFuego: [
-        { id: 'f1', ambito: 'Sótano', minutos: 120 },
-        { id: 'f2', ambito: 'Cubierta', minutos: 45 },
-        { ambito: 7, minutos: 30 },
-        'basura',
-      ],
+      presentesDeSobre({
+        hormigon: { fck: 30 },
+        aceroEstructural: null,
+        madera: { grupos: [{ tipo: 'laminada' }] },
+      }),
+    ).toEqual({
+      hormigon: true,
+      aceroDeArmar: true,
+      aceroLaminado: false,
+      maderaLaminada: true,
+      maderaMaciza: false,
     });
-    expect(s.exigenciasFuego).toEqual([
-      { id: 'f1', ambito: 'Sótano', minutos: 120 },
-      // R45 no existe en el desplegable: la fila sobrevive como hueco.
-      { id: 'f2', ambito: 'Cubierta', minutos: null },
-      { id: expect.any(String), ambito: '', minutos: 30 },
-    ]);
   });
 });

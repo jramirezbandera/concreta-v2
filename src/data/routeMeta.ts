@@ -129,6 +129,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     title: 'Cargas por planta — Concreta · DB SE-AE',
     description: 'Cuadro de cargas por planta según el CTE DB SE-AE: peso propio del forjado (Anejo C), cargas permanentes, sobrecarga de uso de la tabla 3.1 y nieve en cubiertas, con los valores de cálculo Gd, Qd y qd. Tabla para la memoria y cuadro de acciones para el plano.',
   },
+  '/acciones/incendio': {
+    title: 'Resistencia al fuego — Concreta · CTE DB SI 6',
+    description: 'Resistencia al fuego exigida a la estructura según el CTE DB SI 6: la R de la tabla 3.1 por uso y altura de evacuación, el tiempo equivalente del Anejo B y la comprobación de secciones de hormigón y acero con los anejos C y D.',
+  },
   '/geotec/taludes': {
     title: 'Taludes — Estabilidad de taludes · Concreta',
     description: 'Factor de seguridad de taludes por el método de Bishop simplificado. Predimensionamiento geotécnico según CTE DB-SE-C art. 7.2.2.1.',

@@ -19,6 +19,9 @@ const MEMORIA_JUSTIFICATIVA = [
   'concreta-cargas-planta',
   'concreta-seismic',
   'concreta-memoria-dbse',
+  // Sexto desde el 13-09-2026: la R exigida por el DB SI 6, que hasta entonces
+  // se tecleaba dentro del cuadro de materiales.
+  'concreta-incendio',
 ];
 
 beforeEach(() => {
@@ -41,7 +44,7 @@ describe('cobertura de la tabla', () => {
     }
   });
 
-  it('los cinco capítulos de la MEMORIA JUSTIFICATIVA, y sólo ellos, van a la sección memoria', () => {
+  it('los seis capítulos de la MEMORIA JUSTIFICATIVA, y sólo ellos, van a la sección memoria', () => {
     const memoria = ADAPTADORES_ANEJO.filter((a) => a.seccion === 'memoria').map((a) => a.modulo);
     expect([...memoria].sort()).toEqual([...MEMORIA_JUSTIFICATIVA].sort());
   });

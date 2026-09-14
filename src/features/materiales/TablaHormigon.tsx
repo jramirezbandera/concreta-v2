@@ -24,7 +24,7 @@ import {
   TERRENO_OPCIONES,
   type SituacionId,
 } from './catalogos';
-import { MenuAnadir } from './MenuAnadir';
+import { MenuAnadir } from '../../components/ui/MenuAnadir';
 import { tipificacionLimpieza, type FilaHormigon } from './state';
 
 interface Props {

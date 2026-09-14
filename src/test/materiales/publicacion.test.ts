@@ -227,10 +227,15 @@ describe('lo común a la obra', () => {
     expect(d.modificadores).toEqual({ costa: true, heladas: true, terrenoAgresivo: 'debil' });
   });
 
-  it('las R exigidas viajan como cifras con su ámbito, no como el párrafo del DB SI', () => {
+  it('las R exigidas del LEGADO siguen viajando, como cifras con su ámbito', () => {
+    // Las exigencias se teclean en `/acciones/incendio` desde el 13-09-2026,
+    // pero el sobre de materiales sigue llevando las que este módulo guardó en
+    // su día: es lo que hace que una obra que aún no ha pasado por el módulo
+    // nuevo imprima su memoria igual que la semana pasada. Se retira en la
+    // fase de limpieza, con PUB_VERSION 3.
     const d = datos({
       ...conHormigon(),
-      exigenciasFuego: [
+      exigenciasFuegoLegado: [
         { id: 'f1', ambito: 'Sótano con aparcamiento', minutos: 120 },
         { id: 'f2', ambito: 'Plantas sobre rasante', minutos: 60 },
       ],

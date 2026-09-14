@@ -27,12 +27,10 @@
  *     alucinación. Si el proyectista quiere forzarlo, lo teclea él y el
  *     formulario lo deja marcado.
  *
- * 2 · LA RESISTENCIA AL FUEGO NO SE DEDUCE AQUÍ. `minutos` SÍ es un campo del
- *     payload —el usuario dice «R90 en las plantas sobre rasante» y eso hay que
- *     poder escribirlo—, pero la R exigida la fija el proyecto de incendios por
- *     la tabla 3.1 del DB SI 6 (uso y altura de evacuación), y este módulo no
- *     la calcula a propósito. El prompt prohíbe deducirla: sólo se escribe lo
- *     que el usuario diga.
+ * 2 · LA RESISTENCIA AL FUEGO YA NO ESTÁ AQUÍ. Se teclea en `/acciones/incendio`
+ *     desde el 13-09-2026 y este cuadro sólo la imprime, leída del sobre. Si el
+ *     usuario la menciona, el asistente le dice dónde va; escribirla desde aquí
+ *     no tendría dónde guardarla.
  *
  * 3 · LA TABLA DE ANCLAJES. `diametrosAnclaje` y `hormigonesAnclaje` eligen QUÉ
  *     columnas tiene un cuadro de consulta del Anejo 19; no son materiales de
@@ -66,7 +64,6 @@ import {
   type SafetyRule,
 } from '../safety';
 import type { UnitSystem } from '../../units/types';
-import { AMBITOS_FUEGO } from '../../materiales/fuego';
 import { FY_ACERO_ESTRUCTURAL, FYK_ACERO_PASIVO } from '../../materiales/tablasCE';
 import type {
   AceroEstructural,
@@ -103,7 +100,6 @@ import {
   nuevoId,
   type Evaluacion,
   type FilaAcero,
-  type FilaFuego,
   type FilaHormigon,
   type FilaMadera,
   type MaterialesState,
@@ -131,8 +127,6 @@ const CORROSIVIDADES: readonly ClaseCorrosividad[] = ['C1', 'C2', 'C3', 'C4', 'C
 const UNIONES: readonly MedioUnion[] = ['soldadura', 'atornillado'];
 const TIPOS_MADERA_IDS: readonly TipoMadera[] = TIPOS_MADERA.map((t) => t.id);
 const ESPECIES_IDS: readonly string[] = ESPECIES.map((e) => e.id);
-const AMBITOS: readonly string[] = AMBITOS_FUEGO.map((a) => a.etiqueta);
-const MINUTOS_FUEGO: readonly number[] = [30, 60, 90, 120, 180, 240];
 
 /** Todas las clases resistentes del catálogo, con el tipo al que pertenecen. */
 const CLASES_POR_TIPO = new Map<TipoMadera, readonly string[]>(
@@ -172,7 +166,7 @@ const listaPresets = (): string => Object.keys(PRESETS_HORMIGON).join(', ');
 export const MATERIALES_PAYLOAD_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['materiales_usados', 'estudio', 'obra', 'fuego', 'hormigon', 'madera', 'acero', 'warnings'],
+  required: ['materiales_usados', 'estudio', 'obra', 'hormigon', 'madera', 'acero', 'warnings'],
   properties: {
     materiales_usados: {
       type: ['object', 'null'],
@@ -257,26 +251,6 @@ export const MATERIALES_PAYLOAD_SCHEMA: Record<string, unknown> = {
           type: 'string',
           enum: [...AGRESIVIDADES],
           description: 'Agresividad química del terreno (CE tabla 27.1.b), que añade XA1/XA2/XA3 a lo enterrado: "ninguna", "debil" XA1, "moderada" XA2, "alta" XA3. LO DICE EL ESTUDIO GEOTÉCNICO, no tú: si el usuario no te lo da, deja este objeto en null y pregúntaselo.',
-        },
-      },
-    },
-    fuego: {
-      type: ['array', 'null'],
-      description: 'Resistencia al fuego exigida a la estructura (DB SI 6), por partes. Lista COMPLETA: REEMPLAZA la actual entera; null = sin cambio; lista vacía = el cuadro no dice nada del fuego. NO DEDUZCAS LA R: la fija el proyecto de incendios por la tabla 3.1 del DB SI 6, y sólo se escribe la que el usuario diga.',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['ambito', 'minutos'],
-        properties: {
-          ambito: {
-            type: 'string',
-            description: `A qué parte de la estructura se le exige. Los habituales, tal cual: ${AMBITOS.map((a) => `"${a}"`).join(', ')}. Vale cualquier otro texto si el proyecto exige una R a una zona concreta.`,
-          },
-          minutos: {
-            type: 'number',
-            enum: [...MINUTOS_FUEGO],
-            description: 'Minutos de la R exigida: 30, 60, 90, 120, 180 o 240.',
-          },
         },
       },
     },
@@ -406,10 +380,10 @@ export const MATERIALES_PAYLOAD_SCHEMA: Record<string, unknown> = {
 // ── Prompt del módulo ────────────────────────────────────────────────────────
 
 const PROMPT_RULES = `Reglas específicas del módulo Cuadro de materiales (Código Estructural, DB SE-M y DB SI 6):
-1. UNIDADES: las resistencias en N/mm² (= MPa), el tamaño máximo del árido y los recubrimientos en MILÍMETROS, la vida útil en años, la resistencia al fuego en minutos. Añade un warning con cada conversión (kp/cm² a N/mm² se divide por 10,2: un H-250 de la vieja EHE son 25 N/mm²).
+1. UNIDADES: las resistencias en N/mm² (= MPa), el tamaño máximo del árido y los recubrimientos en MILÍMETROS, la vida útil en años. Añade un warning con cada conversión (kp/cm² a N/mm² se divide por 10,2: un H-250 de la vieja EHE son 25 N/mm²).
 2. TU TRABAJO ES TRADUCIR EL EDIFICIO A SITUACIONES, NO A NÚMEROS. El cuadro no se teclea, se deriva: de dónde está cada elemento salen las clases de exposición de la tabla 27.1.a, y de ellas el recubrimiento (tablas 44.2.1.1), la relación a/c máxima y el cemento mínimo (43.2.1.a), la resistencia mínima (43.2.1.b) y la tipificación (33.6). Si aciertas la situación, el resto lo pone la norma. No cites de memoria un recubrimiento ni una relación a/c: el módulo los calcula y los enseña en los resultados.
 3. EL RECUBRIMIENTO NO ES UN CAMPO DE TU PROPUESTA. Se puede forzar a mano en el formulario, pero no desde aquí: el cuadro lo imprime con el mismo aspecto tenga el origen que tenga, y un recubrimiento tuyo saldría con pinta de venir de las tablas 44.2. Si el usuario quiere forzarlo, dile que lo teclee en la fila, donde queda marcado como forzado.
-4. LA RESISTENCIA AL FUEGO NO SE DEDUCE. La R exigida la fija el proyecto de incendios con la tabla 3.1 del DB SI 6, por uso y altura de evacuación, y este módulo NO la calcula a propósito. Escribe "fuego" SÓLO con lo que el usuario te diga ("R90 en las plantas sobre rasante"). Si no lo sabe, dile de dónde sale y no se lo adivines: un R60 inventado se imprime en la memoria como una exigencia del proyecto.
+4. LA RESISTENCIA AL FUEGO NO SE TECLEA AQUÍ. Vive en el módulo Incendio (Acciones), y este cuadro sólo la imprime leyendo lo que aquel publica. Si el usuario te dice "R90 en las plantas sobre rasante", no tienes dónde escribirlo: dile que lo indique en Incendio y que el cuadro lo recogerá solo.
 5. LA AGRESIVIDAD DEL TERRENO LA DICE EL GEOTÉCNICO. XA1, XA2 y XA3 salen de los sulfatos, el pH y el CO2 agresivo medidos en el informe (tabla 27.1.b), no de que el terreno "parezca" arcilloso. Si no te lo dan, deja "obra" en null y pregúntalo.
 6. LA COSTA Y LAS HELADAS TIENEN CRITERIO ESCRITO. Costa es a menos de 5 km del mar (tabla 27.1.a). Helada es humedad invernal por encima del 75 % y probabilidad anual mayor del 50 % de bajar de -5 ºC (nota 1). No los marques "por si acaso" ni los desmarques porque el usuario no los mencione: si la obra está en un sitio que no conoces, pregunta.
 7. UNA FILA POR GRUPO QUE COMPARTE AMBIENTE. No hace falta una fila por elemento: el cuadro agrupa. Lo habitual en un edificio de viviendas son cuatro o cinco filas —cimentación, muros de sótano, pilares, vigas y forjados, hormigón de limpieza—, y se añaden las que tengan ambiente propio (vaso de piscina, losa de aparcamiento, estructura a la intemperie). Las listas "hormigon", "madera" y "acero.elementos" REEMPLAZAN la actual entera: mándalas completas cada turno.
@@ -451,11 +425,6 @@ export interface ObraAi {
   terreno_agresivo: AgresividadQuimica;
 }
 
-export interface FuegoAi {
-  ambito: string;
-  minutos: number;
-}
-
 export interface HormigonAi {
   nombre: string;
   situacion: SituacionId;
@@ -491,7 +460,6 @@ interface MaterialesPayload {
   materiales_usados: MaterialesUsadosAi | null;
   estudio: EstudioAi | null;
   obra: ObraAi | null;
-  fuego: FuegoAi[] | null;
   hormigon: HormigonAi[] | null;
   madera: MaderaAi[] | null;
   acero: AceroAi | null;
@@ -565,12 +533,6 @@ export function parsePayload(raw: unknown): MaterialesPayload {
         heladas: boolO(raw.obra.heladas, D.heladas),
         terreno_agresivo: unoDe(raw.obra.terreno_agresivo, AGRESIVIDADES, D.terrenoAgresivo),
       }
-      : null,
-    fuego: Array.isArray(raw.fuego)
-      ? raw.fuego.filter(esObjeto).map((f) => ({
-        ambito: textoO(f.ambito, ''),
-        minutos: numeroO(f.minutos, 0),
-      }))
       : null,
     hormigon: Array.isArray(raw.hormigon)
       ? raw.hormigon.filter(esObjeto).map((h) => ({
@@ -891,11 +853,6 @@ const APAGAR_WHY =
   'Apagar un material borra su bloque del formulario Y del cuadro impreso: la obra se queda sin las '
   + 'prescripciones de ese material. Sólo se apaga cuando la obra de verdad no lo lleva.';
 
-const FUEGO_WHY =
-  'La resistencia al fuego exigida baja, o desaparece. La R la fija el proyecto de incendios con la '
-  + 'tabla 3.1 del DB SI 6; rebajarla desde aquí cambia lo que la memoria declara sin que nadie haya '
-  + 'revisado el proyecto de incendios.';
-
 /**
  * Riesgos del cuadro: se EVALÚA el estado antes y después y se comparan las
  * magnitudes DERIVADAS fila a fila. Cambiar «al exterior a la lluvia» por
@@ -1022,33 +979,6 @@ function riesgosDeCuadro(
     }
   }
 
-  // ── Fuego: la R exigida ────────────────────────────────────────────────────
-  const fa = antes.fuego;
-  const fd = despues.fuego;
-  if (fa.length > 0) {
-    const porAmbito = new Map(fd.map((f) => [f.ambito, f.minutos]));
-    for (const e of fa) {
-      const ahora = porAmbito.get(e.ambito);
-      if (ahora === undefined) {
-        risks.push({
-          field: `fuego.${e.ambito}`,
-          label: `Fuego — ${e.ambito}`,
-          before: `R${e.minutos}`,
-          after: 'sin exigencia',
-          why: FUEGO_WHY,
-        });
-      } else if (ahora < e.minutos) {
-        risks.push({
-          field: `fuego.${e.ambito}`,
-          label: `Fuego — ${e.ambito}`,
-          before: `R${e.minutos}`,
-          after: `R${ahora}`,
-          why: FUEGO_WHY,
-        });
-      }
-    }
-  }
-
   return risks;
 }
 
@@ -1139,33 +1069,6 @@ function buildMaterialesPlan(
     if (o.heladas !== current.heladas) { fields.heladas = o.heladas; anota('obra.heladas', 'Zona con heladas', si(current.heladas), si(o.heladas)); algo = true; }
     if (o.terreno_agresivo !== current.terrenoAgresivo) { fields.terrenoAgresivo = o.terreno_agresivo; anota('obra.terreno_agresivo', 'Agresividad del terreno', AGRES[current.terrenoAgresivo], AGRES[o.terreno_agresivo]); algo = true; }
     if (!algo) skipped.push({ field: 'obra', label: 'Modificadores de la obra', reason: ALREADY });
-  }
-
-  // ── Resistencia al fuego ───────────────────────────────────────────────────
-  if (payload.fuego !== null) {
-    const validas = payload.fuego.filter((f) => {
-      if (f.ambito.trim() === '') {
-        skipped.push({ field: 'fuego', label: 'Exigencia de fuego sin ámbito', reason: 'Una exigencia sin ámbito no se puede imprimir («R60 en .») y además bloquea la exportación.' });
-        return false;
-      }
-      if (!MINUTOS_FUEGO.includes(f.minutos)) {
-        skipped.push({ field: 'fuego', label: `Fuego — ${f.ambito.trim()}`, reason: `R${f.minutos} no es una de las resistencias tabuladas (30, 60, 90, 120, 180, 240).` });
-        return false;
-      }
-      return true;
-    });
-    const filas: FilaFuego[] = validas.map((f, i) => ({
-      id: current.exigenciasFuego[i]?.id ?? nuevoId('f'),
-      ambito: f.ambito.trim(),
-      minutos: f.minutos,
-    }));
-    const texto = (f: { ambito: string; minutos: number | null }) => `${f.ambito}: R${f.minutos ?? '—'}`;
-    cambiosDeLista('fuego', 'Exigencia de fuego', filas, current.exigenciasFuego, (f) => f.ambito, texto, changes);
-    if (JSON.stringify(filas) !== JSON.stringify(current.exigenciasFuego.map((f) => ({ id: f.id, ambito: f.ambito, minutos: f.minutos })))) {
-      fields.exigenciasFuego = filas;
-    } else if (validas.length === payload.fuego.length) {
-      skipped.push({ field: 'fuego', label: 'Resistencia al fuego exigida', reason: ALREADY });
-    }
   }
 
   // ── Hormigón ───────────────────────────────────────────────────────────────
@@ -1263,7 +1166,6 @@ function buildSnapshot(c: MaterialesState): string {
     materiales_usados: { hormigon: c.usaHormigon, acero_estructural: c.usaAceroEstructural, madera: c.usaMadera },
     estudio: estudioDe(c),
     obra: { costa: c.costa, heladas: c.heladas, terreno_agresivo: c.terrenoAgresivo },
-    fuego: c.exigenciasFuego.map((f) => ({ ambito: f.ambito, minutos: f.minutos })),
     hormigon: c.elementos.map(hormigonDe),
     madera: c.maderaGrupos.map(maderaDe),
     acero: {
@@ -1279,7 +1181,6 @@ function buildSnapshot(c: MaterialesState): string {
   if (igualQueFabrica(c.elementos.map(hormigonDe), D.elementos.map(hormigonDe))) sinConfirmar.push('hormigon');
   if (igualQueFabrica(estudioDe(c), estudioDe(D))) sinConfirmar.push('estudio');
   if (!c.costa && !c.heladas && c.terrenoAgresivo === 'ninguna') sinConfirmar.push('obra');
-  if (c.exigenciasFuego.length === 0) sinConfirmar.push('fuego');
   if (c.maderaGrupos.length === 0) sinConfirmar.push('madera');
   if (igualQueFabrica(c.aceroEstr.elementos.map(elementoAceroDe), D.aceroEstr.elementos.map(elementoAceroDe))) sinConfirmar.push('acero');
 
@@ -1299,7 +1200,6 @@ function buildSnapshot(c: MaterialesState): string {
   valores.huecos_por_resolver = {
     hormigon_sin_situacion: ev.huecos.map((f) => f.nombre || 'sin nombre'),
     madera_sin_situacion: ev.huecosMadera.map((f) => f.nombre || 'sin nombre'),
-    fuego_a_medias: ev.huecosFuego.map((f) => f.ambito || 'sin ámbito'),
   };
   valores.cuadro_de_la_plantilla = igualQueFabrica(c.elementos.map(hormigonDe), D.elementos.map(hormigonDe));
 
@@ -1321,7 +1221,7 @@ const ALCANCE_LINEA =
  */
 export function summarizeMaterialesResults(ev: Evaluacion): AiResultsSummary {
   const lines: string[] = [];
-  const huecos = ev.huecos.length + ev.huecosMadera.length + ev.huecosFuego.length;
+  const huecos = ev.huecos.length + ev.huecosMadera.length;
 
   if (huecos > 0 || ev.errores > 0) {
     lines.push(`CUADRO INCOMPLETO: ${huecos} hueco${huecos === 1 ? '' : 's'} sin resolver y ${ev.errores} error${ev.errores === 1 ? '' : 'es'}. Bloquean exportar y publicar.`);
@@ -1373,13 +1273,8 @@ export function summarizeMaterialesResults(ev: Evaluacion): AiResultsSummary {
     }
   }
 
-  if (ev.fuego.length > 0) {
-    lines.push(`- Fuego exigido: ${ev.fuego.map((f) => `${f.ambito} R${f.minutos}`).join(' · ')}`);
-  }
-
   for (const f of ev.huecos) lines.push(`HUECO: el elemento de hormigón «${f.nombre || 'sin nombre'}» no tiene situación elegida.`);
   for (const f of ev.huecosMadera) lines.push(`HUECO: el grupo de madera «${f.nombre || 'sin nombre'}» no tiene situación elegida.`);
-  for (const f of ev.huecosFuego) lines.push(`HUECO: la exigencia de fuego «${f.ambito || 'sin ámbito'}» está a medias.`);
 
   lines.push(ALCANCE_LINEA);
 

@@ -13,6 +13,7 @@ import { memoriaDBSEAnejo } from './memoriaDBSE';
 import { seismicNCSE02Anejo } from './seismicNCSE02';
 import { vientoNieveAnejo } from './vientoNieve';
 import { cargasPlantaAnejo } from './cargasPlanta';
+import { incendioAnejo } from './incendio';
 import { rcBeamsAnejo } from './rcBeams';
 import { rcColumnsAnejo } from './rcColumns';
 import { steelBeamsAnejo } from './steelBeams';
@@ -40,6 +41,7 @@ export const ADAPTADORES_ANEJO: readonly AdaptadorAnejo[] = [
   seismicNCSE02Anejo,
   vientoNieveAnejo,
   cargasPlantaAnejo,
+  incendioAnejo,
   rcBeamsAnejo,
   rcColumnsAnejo,
   steelBeamsAnejo,

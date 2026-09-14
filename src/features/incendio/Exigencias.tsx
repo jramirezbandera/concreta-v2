@@ -1,29 +1,27 @@
 /**
- * Las exigencias de resistencia al fuego, dentro de M0.
+ * La tabla de exigencias de resistencia al fuego.
  *
- * Era un desplegable suelto con UNA R para toda la obra, y eso no se puede
- * decir de casi ningún edificio: el DB SI 6 le exige al sótano con aparcamiento
- * una cosa, a las plantas sobre rasante otra y a la cubierta ligera otra. Aquí
- * se teclean tantas como haga falta.
+ * Era un desplegable suelto con UNA R para toda la obra dentro del cuadro de
+ * materiales, y eso no se puede decir de casi ningún edificio: el DB SI 6 le
+ * exige al sótano con aparcamiento una cosa, a las plantas sobre rasante otra
+ * y a la cubierta ligera otra. Aquí se teclean tantas como haga falta.
  *
- * Va en M0 —y no en una columna de las tablas de material— porque las filas de
- * aquellas están agrupadas por exposición, no por sector de incendio: pedirle
- * su R a cada fila obligaría a partir «Forjados» en dos para separar el techo
- * del sótano, y el cuadro del plano imprimiría dos HA-30 idénticos.
- *
- * La R no la propone el módulo: la fija el proyecto de incendios.
+ * Salió del cuadro de materiales porque no era de ahí: las filas de aquellas
+ * tablas están agrupadas por clase de exposición, no por sector de incendio, y
+ * pedirle su R a cada una obligaba a partir «Forjados» en dos para separar el
+ * techo del sótano, con el resultado de imprimir dos HA-30 idénticos en el plano.
  */
 
 import { Trash2 } from 'lucide-react';
-import { AMBITOS_FUEGO } from '../../lib/materiales/fuego';
+import { MenuAnadir } from '../../components/ui/MenuAnadir';
+import { AMBITOS_FUEGO } from '../../lib/incendio/exigencias';
 import { RESISTENCIA_FUEGO_OPCIONES } from './catalogos';
-import { MenuAnadir } from './MenuAnadir';
-import type { FilaFuego } from './state';
+import type { FilaExigencia } from './state';
 
 interface Props {
-  filas: FilaFuego[];
+  filas: FilaExigencia[];
   ayuda: boolean;
-  onCambiar: (id: string, cambio: Partial<FilaFuego>) => void;
+  onCambiar: (id: string, cambio: Partial<FilaExigencia>) => void;
   onBorrar: (id: string) => void;
   /** Recibe el ámbito elegido en el menú, o '' para una fila en blanco. */
   onAnadir: (ambito: string) => void;
@@ -31,19 +29,18 @@ interface Props {
 
 const INPUT =
   'w-full min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
-const TH =
-  'px-2 pb-1 text-left text-[10px] font-semibold uppercase text-text-disabled';
+const TH = 'px-2 pb-1 text-left text-[10px] font-semibold uppercase text-text-disabled';
 
-export function ExigenciasFuego({ filas, ayuda, onCambiar, onBorrar, onAnadir }: Props) {
+export function Exigencias({ filas, ayuda, onCambiar, onBorrar, onAnadir }: Props) {
   return (
-    <div className="border-t border-border-sub px-4 py-3">
+    <div className="px-1 py-1">
       <p className="pb-1.5 text-[11px] text-text-secondary">
         Resistencia al fuego exigida (DB SI 6)
       </p>
 
       {filas.length === 0 ? (
         <p className="pb-2 text-[12px] text-text-disabled">
-          Sin indicar: no se imprime en el cuadro.
+          Sin indicar: no se imprime en ningún documento.
         </p>
       ) : (
         <table className="w-full border-collapse">
@@ -61,6 +58,12 @@ export function ExigenciasFuego({ filas, ayuda, onCambiar, onBorrar, onAnadir }:
               // Mismo criterio que las tablas de material: a medio rellenar es
               // un hueco rojo, y bloquea exportar y publicar.
               const hueco = fila.ambito.trim() === '' || fila.minutos === null;
+              // El tiempo equivalente del Anejo B da minutos exactos (97, no
+              // 120), así que el valor guardado puede no estar entre las seis
+              // clases del desplegable. Se añade como opción para no perderlo.
+              const fueraDeClase =
+                fila.minutos !== null &&
+                !(RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(fila.minutos);
               return (
                 <tr
                   key={fila.id}
@@ -99,6 +102,7 @@ export function ExigenciasFuego({ filas, ayuda, onCambiar, onBorrar, onAnadir }:
                           R{r}
                         </option>
                       ))}
+                      {fueraDeClase && <option value={fila.minutos as number}>R{fila.minutos}</option>}
                     </select>
                   </td>
                   <td className="px-2 py-1 text-right">

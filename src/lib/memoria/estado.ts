@@ -158,12 +158,12 @@ export interface CapaObra {
   };
 }
 
-export type ModuloPub = 'materiales' | 'vientoNieve' | 'cargasPlanta' | 'sismo';
-export const MODULOS_PUB: readonly ModuloPub[] = ['materiales', 'vientoNieve', 'cargasPlanta', 'sismo'];
+export type ModuloPub = 'materiales' | 'vientoNieve' | 'cargasPlanta' | 'sismo' | 'incendio';
+export const MODULOS_PUB: readonly ModuloPub[] = ['materiales', 'vientoNieve', 'cargasPlanta', 'sismo', 'incendio'];
 
 export type Aceptados = Record<ModuloPub, string | null>;
 
-const sinAceptar = (): Aceptados => ({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
+const sinAceptar = (): Aceptados => ({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null, incendio: null });
 
 export interface MemoriaState {
   estudio: PerfilEstudio;

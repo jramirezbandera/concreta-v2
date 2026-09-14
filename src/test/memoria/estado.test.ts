@@ -38,7 +38,7 @@ describe('arranque', () => {
     expect(s.obra.geotecnia.empresa).toEqual(campo(''));
     expect(s.obra.descripcionSistema).toEqual(campo(''));
     expect(s.obra.fabrica.procede).toBe(false);
-    expect(s.aceptados).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
+    expect(s.aceptados).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null, incendio: null });
     expect(s.ayuda).toBe(true);
   });
 

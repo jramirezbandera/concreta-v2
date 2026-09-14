@@ -80,6 +80,7 @@ const VERSIONES_CONGELADAS: Record<string, string> = {
   'concreta-seismic': '1',
   'concreta-viento-nieve': '1',
   'concreta-cargas-planta': '1',
+  'concreta-incendio': '1',
   'concreta-rc-beams': '1',
   'concreta-rc-columns': '1',
   'concreta-steel-beams': '1',
@@ -348,7 +349,7 @@ describe('proyectoKeys — coherencia', () => {
     for (const e of CLAVES_PROYECTO) {
       expect(registro.has(e.modulo) || MODULOS_SIN_REGISTRO.includes(e.modulo), `${e.modulo} no es moduleRegistry.key`).toBe(true);
     }
-    expect(moduleRegistry).toHaveLength(25);
+    expect(moduleRegistry).toHaveLength(26);
   });
 
   it('ninguna clave aparece dos veces ni en dos cubos', () => {

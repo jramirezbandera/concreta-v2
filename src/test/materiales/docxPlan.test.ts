@@ -17,7 +17,7 @@ import {
   type PlanDocx,
 } from '../../lib/docx/plan';
 import { cuadroAceros, cuadroCoeficientesMinoracion } from '../../lib/materiales/cuadros';
-import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/incendio/exigencias';
 import type { Block } from '../../lib/materiales/cuadros';
 
 type TablaPlan = Extract<BloquePlan, { tipo: 'tabla' }>;

@@ -247,6 +247,16 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M5.5 12.2l1.3 1.3 2.7-2.7" strokeWidth="1.1" />
         </svg>
       );
+    case 'concreta-incendio':
+      return (
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          {/* El forjado que hay que sostener durante el incendio */}
+          <path d="M2 13.5h12"/>
+          {/* La llama */}
+          <path d="M8 2.2c1.6 2 2.5 3.3 2.5 4.6 0 .9-.4 1.6-1 2.1.2-.9-.2-1.7-.9-2.3-.1 1.5-1 2-1.8 2.8-.7.7-1.1 1.4-1.1 2.2 0 1.1.9 1.9 2.3 1.9s2.8-1 2.8-2.7"/>
+          <path d="M8 2.2C6.6 3.9 5.5 5.4 5.5 6.9c0 1 .3 1.8.9 2.4" strokeOpacity="0.75" strokeWidth="0.9"/>
+        </svg>
+      );
     case 'concreta-cargas-planta':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">

@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as cargas from '../../features/cargas-planta/state';
+import * as incendio from '../../features/incendio/state';
 import * as materiales from '../../features/materiales/state';
 import { leerSobres, MODULOS } from '../../features/memoria-dbse/sobres';
 import * as sismo from '../../features/seismic-ncse02/state';
@@ -25,6 +26,7 @@ describe('las constantes literales coinciden con las de cada módulo', () => {
     ['vientoNieve', viento.MODULO_PUB, viento.PUB_VERSION],
     ['cargasPlanta', cargas.MODULO_PUB, cargas.PUB_VERSION],
     ['sismo', sismo.MODULO_PUB, sismo.PUB_VERSION],
+    ['incendio', incendio.MODULO_PUB, incendio.PUB_VERSION],
   ] as const)('%s', (clave, modulo, version) => {
     expect(MODULOS[clave].modulo).toBe(modulo);
     expect(MODULOS[clave].version).toBe(version);
@@ -37,8 +39,8 @@ describe('las constantes literales coinciden con las de cada módulo', () => {
 });
 
 describe('leerSobres', () => {
-  it('sin nada publicado, cuatro nulls', () => {
-    expect(leerSobres()).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null });
+  it('sin nada publicado, cinco nulls', () => {
+    expect(leerSobres()).toEqual({ materiales: null, vientoNieve: null, cargasPlanta: null, sismo: null, incendio: null });
   });
 
   it('lee el sobre real de sismo y rechaza uno de otro módulo en su clave', () => {

@@ -8,7 +8,8 @@
  * ligera con su propia regla— y con un solo campo no se podía decir.
  *
  * Aquí viven la forma del dato y los ámbitos habituales; la redacción de la
- * nota está en `cuadros.ts`, junto a la tabla de coeficientes que la lleva.
+ * nota está en `notas.ts`, que comparten el cuadro de materiales, el
+ * documento de este módulo y la ficha del DB SE.
  *
  * El ámbito es TEXTO, no un id: la lista de abajo son atajos, pero un proyecto
  * puede exigir R90 a «los soportes del voladizo de la cafetería» y eso no se

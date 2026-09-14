@@ -17,7 +17,8 @@
  * los forjados se renumeran consecutivos según las tipologías que haya.
  */
 
-import { cuadroAceroEstructural, cuadroCoeficientesMinoracion, cuadroDurabilidadMadera, cuadroMadera, notasResistenciaFuego, num } from '../materiales/cuadros';
+import { cuadroAceroEstructural, cuadroCoeficientesMinoracion, cuadroDurabilidadMadera, cuadroMadera, num } from '../materiales/cuadros';
+import { notasResistenciaFuego } from '../incendio/notas';
 import { DESCRIPCION_CLASE_SERVICIO } from '../materiales/tablasMadera';
 import { aceroDesdePub, maderaDesdePub } from './adaptadores';
 import type { FichaDatos, Juntas, Tipologia } from './ensamblar';

@@ -18,7 +18,7 @@ import {
   TIPOS_MADERA,
   type SituacionMaderaId,
 } from './catalogos';
-import { MenuAnadir } from './MenuAnadir';
+import { MenuAnadir } from '../../components/ui/MenuAnadir';
 import type { FilaMadera } from './state';
 
 const ROMANO: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III' };

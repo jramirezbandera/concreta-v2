@@ -245,35 +245,6 @@ describe('el acero estructural', () => {
   });
 });
 
-describe('la resistencia al fuego', () => {
-  it('una R que la tabla no tabula se rechaza', () => {
-    const current = cuadroReal();
-    const p = plan(payload({ fuego: [{ ambito: 'Plantas sobre rasante', minutos: 45 }] }), current);
-    expect(p.fields.exigenciasFuego).toBeUndefined();
-    expect(p.skipped.find((s) => s.field === 'fuego')?.reason).toMatch(/no es una de las resistencias tabuladas/);
-  });
-
-  it('una exigencia sin ámbito se rechaza: sería un hueco rojo', () => {
-    const current = cuadroReal();
-    const p = plan(payload({ fuego: [{ ambito: '  ', minutos: 90 }] }), current);
-    expect(p.skipped.find((s) => s.field === 'fuego')?.reason).toMatch(/sin ámbito/i);
-  });
-
-  it('dos ámbitos con su R entran enteros', () => {
-    const current = cuadroReal();
-    const p = plan(payload({
-      fuego: [
-        { ambito: 'Plantas sobre rasante', minutos: 90 },
-        { ambito: 'Sótano con aparcamiento', minutos: 120 },
-      ],
-    }), current);
-    expect(p.fields.exigenciasFuego!.map((f) => [f.ambito, f.minutos])).toEqual([
-      ['Plantas sobre rasante', 90],
-      ['Sótano con aparcamiento', 120],
-    ]);
-  });
-});
-
 describe('seguridad — lo que se protege son las magnitudes DERIVADAS', () => {
   /** Un cuadro con el ambiente ya declarado a mano: el gate está abierto. */
   const conAmbiente = (): MaterialesState => ({
@@ -332,29 +303,6 @@ describe('seguridad — lo que se protege son las magnitudes DERIVADAS', () => {
     const current = conAmbiente();
     const p = plan(payload({ materiales_usados: { hormigon: false, acero_estructural: false, madera: false } }), current);
     expect(p.risks.map((r) => r.field)).toContain('materiales_usados.usaHormigon');
-  });
-
-  it('rebajar la R exigida es un riesgo', () => {
-    const s = conAmbiente();
-    const current: MaterialesState = {
-      ...s,
-      exigenciasFuego: [{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 120 }],
-    };
-    const p = plan(payload({ fuego: [{ ambito: 'Plantas sobre rasante', minutos: 60 }] }), current);
-    const r = p.risks.find((x) => x.field === 'fuego.Plantas sobre rasante');
-    expect(r).toBeDefined();
-    expect(r!.before).toBe('R120');
-    expect(r!.after).toBe('R60');
-  });
-
-  it('quitar una exigencia de fuego también', () => {
-    const s = conAmbiente();
-    const current: MaterialesState = {
-      ...s,
-      exigenciasFuego: [{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 120 }],
-    };
-    const p = plan(payload({ fuego: [] }), current);
-    expect(p.risks.find((x) => x.field === 'fuego.Plantas sobre rasante')?.after).toBe('sin exigencia');
   });
 
   it('GATE: sobre el cuadro de arranque, la primera propuesta es RELLENAR', () => {
@@ -425,9 +373,12 @@ describe('lo que el prompt prohíbe', () => {
     expect(reglas).toMatch(/EL RECUBRIMIENTO NO ES UN CAMPO DE TU PROPUESTA/);
   });
 
-  it('la resistencia al fuego no se deduce', () => {
-    expect(reglas).toMatch(/LA RESISTENCIA AL FUEGO NO SE DEDUCE/);
-    expect(reglas).toMatch(/DB SI 6/);
+  it('la resistencia al fuego manda al módulo de incendio, que es donde vive', () => {
+    expect(reglas).toMatch(/LA RESISTENCIA AL FUEGO NO SE TECLEA AQUÍ/);
+    expect(reglas).toMatch(/módulo Incendio/);
+    // Y no queda rastro del campo: si el modelo lo mandara, no habría dónde
+    // guardarlo.
+    expect(Object.keys((MATERIALES_PAYLOAD_SCHEMA.properties as object))).not.toContain('fuego');
   });
 
   it('la agresividad del terreno sale del geotécnico', () => {
@@ -446,8 +397,9 @@ describe('lo que el prompt prohíbe', () => {
 describe('contrato del adapter', () => {
   it('el esquema cabe holgadamente en el tope de uniones de Anthropic', () => {
     const unions = countAnthropicUnions(buildChatSchema(MATERIALES_PAYLOAD_SCHEMA));
-    // 7 anulables de primer nivel + la unión de `proposal` del envelope.
-    expect(unions).toBe(8);
+    // 6 anulables de primer nivel —eran 7 hasta que el fuego se mudó a su
+    // módulo— más la unión de `proposal` del envelope.
+    expect(unions).toBe(7);
     expect(unions).toBeLessThanOrEqual(16);
   });
 

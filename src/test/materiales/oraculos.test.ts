@@ -27,7 +27,7 @@ import {
   cuadroHormigonMemoria,
   cuadroHormigonPlano,
 } from '../../lib/materiales/cuadros';
-import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/materiales/fuego';
+import { AMBITO_TODA_LA_ESTRUCTURA } from '../../lib/incendio/exigencias';
 import { TIPIFICACION_HORMIGON_LIMPIEZA } from '../../lib/materiales/tablasCE';
 import { DURABILIDAD_ESPECIES } from '../../lib/materiales/tablasMadera';
 import type { ElementoHormigon, GrupoMadera, OpcionesObra } from '../../lib/materiales/types';

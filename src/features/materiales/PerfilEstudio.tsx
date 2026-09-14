@@ -10,8 +10,7 @@
  */
 
 import { CONTROL_EJECUCION_OPCIONES } from './catalogos';
-import { ExigenciasFuego } from './Fuego';
-import type { FilaFuego, MaterialesState, PerfilEstudio as Perfil } from './state';
+import type { MaterialesState, PerfilEstudio as Perfil } from './state';
 
 const INPUT =
   'w-full min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
@@ -38,9 +37,6 @@ interface Props {
     cambio: Partial<Pick<MaterialesState, 'usaHormigon' | 'usaAceroEstructural' | 'usaMadera'>>,
   ) => void;
   onEstudio: (cambio: Partial<Perfil>) => void;
-  onCambiarFuego: (id: string, cambio: Partial<FilaFuego>) => void;
-  onBorrarFuego: (id: string) => void;
-  onAnadirFuego: (ambito: string) => void;
 }
 
 function Conmutador({
@@ -83,9 +79,6 @@ export function PerfilEstudio({
   ayuda,
   onMaterial,
   onEstudio,
-  onCambiarFuego,
-  onBorrarFuego,
-  onAnadirFuego,
 }: Props) {
   const e = state.estudio;
 
@@ -117,22 +110,13 @@ export function PerfilEstudio({
             onToggle={() => onMaterial({ usaMadera: !state.usaMadera })}
           />
         </div>
-        <ExigenciasFuego
-          filas={state.exigenciasFuego}
-          ayuda={ayuda}
-          onCambiar={onCambiarFuego}
-          onBorrar={onBorrarFuego}
-          onAnadir={onAnadirFuego}
-        />
         {ayuda && (
           <p className="px-4 pb-3 text-[11px] leading-snug text-text-disabled">
             Marque lo que lleva esta obra. El hormigón está casi siempre, aunque sólo sea la
             cimentación; acero y madera, según el proyecto. Lo que no se marca desaparece del
-            formulario y del documento. La resistencia al fuego la fija el DB SI según el uso y la
-            altura del edificio, y no tiene por qué ser una sola: el sótano con aparcamiento suele
-            pedir más que las plantas, y una cubierta ligera menos. Ponga una línea por cada R
-            distinta; sólo se imprime lo que indique, y el cuadro aclara que puede cumplirse por la
-            propia sección o con protecciones añadidas, sin comprometer una u otra.
+            formulario y del documento. La resistencia al fuego exigida se indica ahora en el
+            módulo Incendio, dentro de Acciones; el cuadro la sigue imprimiendo, pero se teclea
+            allí.
           </p>
         )}
       </section>

@@ -1,12 +1,13 @@
 /**
- * Una obra completa para los tests de la ficha: los cuatro sobres construidos
+ * Una obra completa para los tests de la ficha: los cinco sobres construidos
  * con los `datosPublicacion` REALES de cada módulo (Granada, con acero y
  * madera en el cuadro de materiales), la ficha de esa obra, y cómo dejarla
  * sin huecos resolviendo cada uno con la acción que declara.
  */
 
 import { defaultCargasState, datosPublicacion as pubCargas, evaluar as evaluarCargas } from '../../features/cargas-planta/state';
-import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset, type FilaFuego } from '../../features/materiales/state';
+import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset } from '../../features/materiales/state';
+import { datosPublicacion as pubIncendio, defaultIncendioState, evaluar as evaluarIncendio, type FilaExigencia } from '../../features/incendio/state';
 import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
 import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as evaluarViento } from '../../features/viento-nieve/state';
 import { evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
@@ -34,11 +35,11 @@ export interface OpcionesSobres {
   madera?: boolean;
   /** El estado de sismo, si no es el de Granada por defecto. */
   sismo?: SeismicState;
-  /** Exigencias de resistencia al fuego del cuadro de materiales. */
-  fuego?: FilaFuego[];
+  /** Exigencias de resistencia al fuego. Van en SU sobre, el del módulo de incendio. */
+  fuego?: FilaExigencia[];
 }
 
-/** Los cuatro sobres de una obra en Granada. */
+/** Los cinco sobres de una obra en Granada. */
 export function sobresGranada(o: OpcionesSobres = {}): Sobres {
   const acero = o.acero ?? true;
   const madera = o.madera ?? true;
@@ -47,7 +48,6 @@ export function sobresGranada(o: OpcionesSobres = {}): Sobres {
     usaAceroEstructural: acero,
     usaMadera: madera,
     maderaGrupos: madera ? [filaMaderaDesdePreset('Vigas y pilares')] : [],
-    exigenciasFuego: o.fuego ?? [],
   };
   const materiales = pubMateriales(m, evaluarMateriales(m))!;
   const v = ejemploVientoNieveState();
@@ -57,11 +57,17 @@ export function sobresGranada(o: OpcionesSobres = {}): Sobres {
   const cargas = pubCargas(c, evaluarCargas(c, null))!;
   const s = o.sismo ?? defaultSeismicState();
   const sismo = pubSismo(s, evaluarSismo(s));
+  // El fuego viaja en su propio sobre desde que salió del cuadro de materiales.
+  const i = { ...defaultIncendioState(), exigencias: o.fuego ?? [] };
+  const incendio = pubIncendio(evaluarIncendio(i));
   return {
     materiales: sobre('materiales', materiales, { municipio: 'Granada', ine: '18087' }),
     vientoNieve: sobre('viento-nieve', viento, { municipio: viento.municipio, provincia: viento.provincia, ine: viento.provinciaIne }),
     cargasPlanta: sobre('cargas-planta', cargas, { municipio: 'Granada', provincia: 'Granada', ine: '18' }),
     sismo: sobre('sismo', sismo, { municipio: 'Granada', ine: '18087' }),
+    // Sin exigencias no hay sobre: el módulo no publica uno vacío, porque la
+    // ficha lo tomaría por «falta» y bloquearía la exportación del DB SE.
+    incendio: incendio ? sobre('incendio', incendio) : null,
   };
 }
 

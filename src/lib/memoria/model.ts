@@ -54,7 +54,8 @@ export type Origen =
   | 'materiales'
   | 'viento-nieve'
   | 'cargas-planta'
-  | 'sismo';
+  | 'sismo'
+  | 'incendio';
 
 export interface Valor<T> {
   /** `null` cuando falta. */

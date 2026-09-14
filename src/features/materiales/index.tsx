@@ -57,7 +57,9 @@ import {
 } from '../../lib/materiales/cuadros';
 import { FYK_ACERO_PASIVO } from '../../lib/materiales/tablasCE';
 import { AceroEstructural } from './AceroEstructural';
-import { Documento } from './Documento';
+import { Documento } from '../../components/ui/Documento';
+import { exigenciasDelCuadro } from './incendioPub';
+import { useVersionDePubs } from '../../lib/pub/usePubs';
 import { PerfilEstudio } from './PerfilEstudio';
 import { TablaHormigon } from './TablaHormigon';
 import { TablaMadera } from './TablaMadera';
@@ -72,7 +74,6 @@ import {
   nuevoId,
   publicarResultado,
   type FilaAcero,
-  type FilaFuego,
   type FilaHormigon,
   type FilaMadera,
   type MaterialesState,
@@ -158,6 +159,19 @@ export function MaterialesModule() {
   };
 
   const evaluacion = useMemo(() => evaluar(state), [state]);
+
+  // La R exigida ya no se teclea aquí: la publica `/acciones/incendio` y este
+  // cuadro la lee. El repliegue al legado cubre la obra que aún no ha pasado
+  // por el módulo nuevo —y la que se abre desde un `.concreta` de antes del
+  // cambio, que llega sin sobre de incendio ninguno—.
+  const versionPubs = useVersionDePubs();
+  // `versionPubs` no se usa DENTRO a propósito: es la marca que dice «vuelve a
+  // leer», no un dato. Por eso el lint cree que sobra.
+  const fuegoDelCuadro = useMemo(
+    () => exigenciasDelCuadro(state.exigenciasFuegoLegado),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [versionPubs, state.exigenciasFuegoLegado],
+  );
 
   // ── Asistente ─────────────────────────────────────────────────────────────
   // Las listas del cuadro REEMPLAZAN a las vigentes (ver `lib/ai/modules/
@@ -254,10 +268,10 @@ export function MaterialesModule() {
         aceroLaminado: state.usaAceroEstructural,
         aceroDeArmar: state.usaHormigon,
         hormigon: state.usaHormigon,
-      }, evaluacion.fuego),
+      }, fuegoDelCuadro),
     );
     return bloques;
-  }, [state, evaluacion, bloquesAnclajes]);
+  }, [state, evaluacion, bloquesAnclajes, fuegoDelCuadro]);
 
   const bloquesPlano = useMemo<Block[]>(() => {
     const bloques: Block[] = [];
@@ -302,12 +316,6 @@ export function MaterialesModule() {
   }, [state.usaHormigon, evaluacion, bloquesComunes]);
 
   // ── Acciones del formulario ───────────────────────────────────────────────
-
-  const cambiarFilaFuego = (id: string, cambio: Partial<FilaFuego>) =>
-    actualizar((p) => ({
-      ...p,
-      exigenciasFuego: p.exigenciasFuego.map((f) => (f.id === id ? { ...f, ...cambio } : f)),
-    }));
 
   const cambiarFila = (id: string, cambio: Partial<FilaHormigon>) =>
     actualizar((p) => ({
@@ -408,8 +416,7 @@ export function MaterialesModule() {
 
   const nElementos =
     evaluacion.hormigon.length + evaluacion.limpieza.length + evaluacion.madera.length;
-  const nHuecos =
-    evaluacion.huecos.length + evaluacion.huecosMadera.length + evaluacion.huecosFuego.length;
+  const nHuecos = evaluacion.huecos.length + evaluacion.huecosMadera.length;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -495,22 +502,6 @@ export function MaterialesModule() {
               onMaterial={(cambio) => actualizar((p) => ({ ...p, ...cambio }))}
               onEstudio={(cambio: Partial<Perfil>) =>
                 actualizar((p) => ({ ...p, estudio: { ...p.estudio, ...cambio } }))
-              }
-              onCambiarFuego={cambiarFilaFuego}
-              onBorrarFuego={(id) =>
-                actualizar((p) => ({
-                  ...p,
-                  exigenciasFuego: p.exigenciasFuego.filter((f) => f.id !== id),
-                }))
-              }
-              onAnadirFuego={(ambito) =>
-                actualizar((p) => ({
-                  ...p,
-                  exigenciasFuego: [
-                    ...p.exigenciasFuego,
-                    { id: nuevoId('f'), ambito, minutos: null },
-                  ],
-                }))
               }
             />
 
