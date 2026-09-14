@@ -16,6 +16,46 @@ trabajo, no la de la publicación.
 
 ---
 
+## El panel de la obra enseña lo que se entrega — v260914.0 (2026-09-13 a 09-14)
+
+### Cambiado
+- La pantalla de la obra pasa a **dos columnas**: la lista de lo que falta a la
+  izquierda y, a la derecha, **los dos documentos que salen de aquí dibujados** —la
+  justificación del DB SE y el anejo de cálculo—, cada uno con su estado y su
+  camino. La pantalla existía para producir esos dos documentos y no enseñaba
+  ninguno. En pantalla estrecha el raíl cae debajo.
+- La cabecera enseña **los cinco datos de la obra** en tira, y los que faltan salen
+  en rojo. En una obra en blanco no: a quien acaba de empezar no se le reprocha nada.
+- **Un medidor de segmentos** bajo el veredicto, uno por comprobación que aplica en
+  esta obra. No es un porcentaje: una obra no se entrega «al 60 %».
+- Cada fila lleva el **icono de su módulo**, el mismo que tiene en la barra lateral,
+  y la marca de estado vive en una **columna de ancho fijo**: sin ella «no procede»
+  empujaba la etiqueta y catorce filas empezaban en cuatro sitios distintos.
+- Las filas dejan de repetir la instrucción entera. La nota que imprime la ficha
+  nombra su módulo y dice qué hacer —bien para un apartado que se lee de uno en
+  uno—, pero cuatro seguidas parecían un registro de errores: ahora la fila dice
+  sólo en qué está.
+- El bloque del anejo se parte en dos: el documento se va al raíl y **lo calculado
+  que aún no está en el anejo** se queda como bloque propio, que es un aviso y no
+  un capítulo.
+
+### Arreglado
+- **El chip teñido de las filas no se pintaba.** `bg-tint-*` no genera CSS —los
+  tokens están declarados fuera de `@theme`—, así que el fondo del chip era el de
+  la superficie. Pasa a la receta de insignia que usa el resto de la app. El mismo
+  fallo deja sin tinte a las dos bandas de aviso de la app: anotado en `TODOS.md`.
+- **La acción principal mentía mientras cargaba**: decía «Revisar y exportar» y
+  llevaba a la ficha, porque el contador vale cero hasta que resuelve el chunk. En
+  la obra más corriente era lo contrario de la verdad. Ahora no se enseña hasta
+  saber qué falta.
+- **La pantalla de entrada daba un salto de 36 px** al cargar: el medidor y el
+  recuento aparecían después y empujaban la lista hacia abajo.
+- Los dos documentos del raíl **no anunciaban su estado** a un lector de pantalla.
+- «No procede» se decía dos veces en la misma fila, a ochocientos píxeles de
+  distancia.
+- En pantalla estrecha el detalle se comía el nombre del módulo («Cuadro de …»).
+
+
 ## Las piezas del anejo dejan de estar congeladas — v260910.0 (2026-09-10)
 
 ### Añadido
