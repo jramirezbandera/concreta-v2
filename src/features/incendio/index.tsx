@@ -34,13 +34,16 @@ import { cuadroIncendioMemoria } from '../../lib/incendio/cuadros';
 import { exigenciasResueltas } from '../../lib/incendio/exigencias';
 import { materialesPublicados } from './materialesPub';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
+import type { ElementoEntrada } from '../../lib/incendio/elementos';
 import { Edificio } from './Edificio';
+import { Elementos } from './Elementos';
 import { Exigencias } from './Exigencias';
 import { Sectores } from './Sectores';
 import {
   cargarEstado,
   evaluar,
   guardarEstado,
+  nuevoElemento,
   nuevoId,
   nuevoSector,
   publicarResultado,
@@ -111,6 +114,7 @@ export function IncendioModule() {
         alturaAMano: evaluacion.alturaAMano,
         sectores: evaluacion.sectores,
         sueltas: exigenciasResueltas(state.exigencias),
+        elementos: evaluacion.elementos,
       }),
     [presentes, evaluacion, state.exigencias],
   );
@@ -168,6 +172,18 @@ export function IncendioModule() {
 
   const onAnadirSector = (nombre: string) =>
     actualizar((p) => ({ ...p, sectores: [...p.sectores, nuevoSector(nombre)] }));
+
+  const onElemento = (id: string, cambio: Partial<ElementoEntrada>) =>
+    actualizar((p) => ({
+      ...p,
+      elementos: p.elementos.map((x) => (x.id === id ? { ...x, ...cambio } : x)),
+    }));
+
+  const onBorrarElemento = (id: string) =>
+    actualizar((p) => ({ ...p, elementos: p.elementos.filter((x) => x.id !== id) }));
+
+  const onAnadirElemento = (nombre: string) =>
+    actualizar((p) => ({ ...p, elementos: [...p.elementos, nuevoElemento(nombre)] }));
 
   // ── Exportación ───────────────────────────────────────────────────────────
 
@@ -249,6 +265,15 @@ export function IncendioModule() {
               onCambiar={onSector}
               onBorrar={onBorrarSector}
               onAnadir={onAnadirSector}
+            />
+            <Elementos
+              elementos={state.elementos}
+              resueltos={evaluacion.elementos}
+              sectores={evaluacion.sectores}
+              ayuda={state.ayuda}
+              onCambiar={onElemento}
+              onBorrar={onBorrarElemento}
+              onAnadir={onAnadirElemento}
             />
             <Exigencias
               filas={state.exigencias}

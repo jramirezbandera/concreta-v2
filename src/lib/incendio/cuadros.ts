@@ -7,6 +7,7 @@
  */
 
 import type { Block } from '../memoria/model';
+import type { ElementoResuelto } from './elementos';
 import type { ExigenciaFuego } from './exigencias';
 import { notasResistenciaFuego, type MaterialesPresentes } from './notas';
 import type { SectorResuelto } from './sectores';
@@ -20,9 +21,13 @@ export interface DetalleIncendio {
   sectores: readonly SectorResuelto[];
   /** Exigencias tecleadas sueltas, las que no son sector. */
   sueltas: readonly ExigenciaFuego[];
+  /** Las secciones comprobadas por los anejos C y D. */
+  elementos?: readonly ElementoResuelto[];
 }
 
 const m2 = (v: number) => v.toFixed(2).replace('.', ',');
+/** Los milímetros se acotan enteros o con un decimal, no con dos. */
+const mm = (v: number) => (Math.round(v * 10) / 10).toString().replace('.', ',');
 
 /**
  * La justificación del tiempo equivalente, sector a sector.
@@ -68,6 +73,68 @@ function bloquesAnejoB(sectores: readonly SectorResuelto[]): Block[] {
 }
 
 /**
+ * La comprobación de las secciones, elemento a elemento (anejos C y D).
+ *
+ * Es la segunda mitad del capítulo y contesta a la pregunta que el SI 6 § 3.1
+ * deja abierta: si la estructura aguanta «por su propia configuración» o
+ * «mediante la aplicación de productos de protección». Sin elementos
+ * comprobados no sale nada y la memoria se queda como estaba, enunciando la R
+ * exigida y dejando las dos vías abiertas.
+ *
+ * La cuenta de la distancia al eje va escrita al pie y no en la tabla: es lo
+ * que permite a quien revise rehacerla, y es donde está el error clásico de
+ * confundir el recubrimiento con la distancia al eje de la armadura.
+ */
+export function bloquesElementos(elementos: readonly ElementoResuelto[]): Block[] {
+  const conNombre = elementos.filter((e) => e.nombre !== '' && e.via !== 'sinResolver');
+  if (conNombre.length === 0) return [];
+
+  const como = (e: ElementoResuelto) =>
+    e.via === 'propia'
+      ? `Por su propia sección${e.justificacion === '' ? '' : ` (${e.justificacion})`}`
+      : `Con protección: ${e.loQueFalta}`;
+
+  const seccion = (e: ElementoResuelto) =>
+    e.material === 'acero'
+      ? [e.tipo, e.acero?.masividad === null ? null : `Am/V = ${e.acero?.masividad} m⁻¹`]
+          .filter(Boolean)
+          .join(', ')
+      : [e.tipo, e.am === null ? null : `am = ${mm(e.am)} mm`].filter(Boolean).join(', ');
+
+  const notas = conNombre
+    .map((e) => ({
+      nombre: e.nombre,
+      cuenta: e.material === 'acero' ? (e.acero?.cuentaMasividad ?? '') : e.amCuenta,
+    }))
+    .filter((x) => x.cuenta !== '')
+    .map((x) => `${x.nombre}: ${x.cuenta}.`);
+
+  return [
+    { kind: 'heading', level: 3, text: 'Comprobación de las secciones (anejos C y D)' },
+    {
+      kind: 'table',
+      head: ['Elemento', 'Sector', 'R exigida', 'Sección', 'Cómo alcanza la R'],
+      rows: conNombre.map((e) => [
+        e.nombre,
+        e.sector === '' ? '—' : e.sector,
+        e.exigida === null ? '—' : `R ${e.exigida}`,
+        seccion(e),
+        como(e),
+      ]),
+    },
+    {
+      kind: 'notes',
+      items: [
+        'Distancia mínima equivalente al eje am = Σ[Asi·fyki·(asi + Δasi)] / Σ Asi·fyki (expresión C.1), con asi medida desde el paramento expuesto.',
+        ...notas,
+        'Las comprobaciones se han hecho por las tablas de los anejos C y D del DB SI, que es la vía del SI 6 § 6.1.a.',
+        'Los recubrimientos que exija la durabilidad pueden ser mayores que estos mínimos.',
+      ],
+    },
+  ];
+}
+
+/**
  * El capítulo de la memoria: qué R se le exige a cada parte de la estructura,
  * de dónde sale y por qué vía se va a alcanzar.
  *
@@ -83,7 +150,8 @@ export function cuadroIncendioMemoria(
   const sectores = detalle?.sectores ?? [];
   const conAlgoQueDecir = sectores.filter((s) => s.nombre !== '' && (s.minutos !== null || s.sinExigencia));
 
-  if (exigencias.length === 0 && conAlgoQueDecir.length === 0) return [];
+  const elementos = (detalle?.elementos ?? []).filter((e) => e.nombre !== '' && e.via !== 'sinResolver');
+  if (exigencias.length === 0 && conAlgoQueDecir.length === 0 && elementos.length === 0) return [];
 
   const bloques: Block[] = [
     { kind: 'heading', level: 2, text: 'RESISTENCIA AL FUEGO DE LA ESTRUCTURA' },
@@ -130,6 +198,7 @@ export function cuadroIncendioMemoria(
   bloques.push({ kind: 'notes', items: notasResistenciaFuego(presentes, exigencias) });
 
   bloques.push(...bloquesAnejoB(sectores));
+  bloques.push(...bloquesElementos(detalle?.elementos ?? []));
 
   // Lo que la norma dice que no se automatiza, y que en una memoria firmada
   // tiene que estar escrito aunque el módulo no pueda comprobarlo.

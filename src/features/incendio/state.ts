@@ -24,6 +24,26 @@ import {
   type SectorResuelto,
 } from '../../lib/incendio/sectores';
 import {
+  entradaHormigonInicial,
+  TIPOS_HORMIGON,
+  type EntradaHormigon,
+  type TipoHormigon,
+} from '../../lib/incendio/anejoC';
+import {
+  entradaAceroInicial,
+  MODOS_CALENTAMIENTO,
+  ROTULOS_PERFIL,
+  TIPOS_ACERO,
+  type EntradaAcero,
+  type ModoCalentamiento,
+  type TipoAcero,
+} from '../../lib/incendio/anejoD';
+import {
+  resolverElementos,
+  type ElementoEntrada,
+  type ElementoResuelto,
+} from '../../lib/incendio/elementos';
+import {
   ACTIVIDADES_B3,
   CONSECUENCIAS_B5,
   KB_POR_DEFECTO,
@@ -127,6 +147,8 @@ export interface IncendioState {
   sectores: SectorUI[];
   /** Exigencias sueltas, tecleadas a mano o heredadas del cuadro de materiales. */
   exigencias: FilaExigencia[];
+  /** Las secciones que se comprueban por los anejos C y D. */
+  elementos: ElementoEntrada[];
   /** Modo Ayuda: los rótulos largos de al lado de cada campo. */
   ayuda: boolean;
 }
@@ -135,6 +157,18 @@ let contador = 0;
 export function nuevoId(prefijo = 'f'): string {
   contador += 1;
   return `${prefijo}${Date.now().toString(36)}${contador.toString(36)}`;
+}
+
+export function nuevoElemento(nombre = ''): ElementoEntrada {
+  return {
+    id: nuevoId('e'),
+    nombre,
+    sectorId: '',
+    exigidaManual: null,
+    material: 'hormigon',
+    hormigon: entradaHormigonInicial(),
+    acero: entradaAceroInicial(),
+  };
 }
 
 export function nuevoSector(nombre = ''): SectorUI {
@@ -159,13 +193,14 @@ export function defaultIncendioState(): IncendioState {
     alturaEvacuacionManual: null,
     sectores: [],
     exigencias: [],
+    elementos: [],
     ayuda: false,
   };
 }
 
-/** Sin sectores ni exigencias no hay nada que decir. */
+/** Sin sectores, exigencias ni elementos no hay nada que decir. */
 export function esEstadoInicial(s: IncendioState): boolean {
-  return s.sectores.length === 0 && s.exigencias.length === 0;
+  return s.sectores.length === 0 && s.exigencias.length === 0 && s.elementos.length === 0;
 }
 
 export function estaConfigurado(s: IncendioState): boolean {
@@ -253,6 +288,76 @@ export function normalizarAnejoB(bruto: unknown): DatosAnejoB | null {
   };
 }
 
+const TIPOS_H = TIPOS_HORMIGON.map((t) => t.id);
+const TIPOS_A = TIPOS_ACERO.map((t) => t.id);
+const MODOS = MODOS_CALENTAMIENTO.map((m) => m.id);
+
+const unoDe = <T extends string>(v: unknown, lista: readonly T[], def: T): T =>
+  typeof v === 'string' && (lista as readonly string[]).includes(v) ? (v as T) : def;
+
+/** Cero o positivo: los diámetros y las relaciones de luces admiten el cero. */
+function noNegativoONull(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+function normalizarHormigon(bruto: unknown): EntradaHormigon {
+  const d = entradaHormigonInicial();
+  if (!esObjeto(bruto)) return d;
+  return {
+    tipo: unoDe<TipoHormigon>(bruto.tipo, TIPOS_H, d.tipo),
+    b: positivoONull(bruto.b),
+    h: positivoONull(bruto.h),
+    b0: positivoONull(bruto.b0),
+    rnom: positivoONull(bruto.rnom),
+    dCerco: noNegativoONull(bruto.dCerco) ?? 0,
+    dBarra: positivoONull(bruto.dBarra),
+    ejeManual: positivoONull(bruto.ejeManual),
+    aridoCalizo: bool(bruto.aridoCalizo),
+    mufi: positivoONull(bruto.mufi),
+    cargaUniforme: bool(bruto.cargaUniforme, d.cargaUniforme),
+    esquinaUnaCapa: bool(bruto.esquinaUnaCapa),
+    relacionLuces: positivoONull(bruto.relacionLuces),
+    compartimenta: bool(bruto.compartimenta),
+    entrevigadoProtegido: bool(bruto.entrevigadoProtegido, d.entrevigadoProtegido),
+    ejecutadoEnObra: bool(bruto.ejecutadoEnObra),
+    cuantiaAlta: bool(bruto.cuantiaAlta),
+    apoyosPuntuales: bool(bruto.apoyosPuntuales),
+    traccionado: bool(bruto.traccionado),
+  };
+}
+
+function normalizarAcero(bruto: unknown): EntradaAcero {
+  const d = entradaAceroInicial();
+  if (!esObjeto(bruto)) return d;
+  const perfil = texto(bruto.perfil);
+  return {
+    tipo: unoDe<TipoAcero>(bruto.tipo, TIPOS_A, d.tipo),
+    // Un perfil que ya no está en el catálogo se cae a «masividad a mano»: la
+    // fila sobrevive como hueco en vez de calcular con una sección inventada.
+    perfil: ROTULOS_PERFIL.includes(perfil) ? perfil : '',
+    modo: unoDe<ModoCalentamiento>(bruto.modo, MODOS, d.modo),
+    masividadManual: positivoONull(bruto.masividadManual),
+    mufi: positivoONull(bruto.mufi),
+    clase4: bool(bruto.clase4),
+    arriostrado: bool(bruto.arriostrado, d.arriostrado),
+    revestidoFabrica: bool(bruto.revestidoFabrica),
+    rFabrica: positivoONull(bruto.rFabrica),
+  };
+}
+
+export function normalizarElementos(brutos: unknown): ElementoEntrada[] {
+  if (!Array.isArray(brutos)) return [];
+  return brutos.filter(esObjeto).map((e) => ({
+    id: texto(e.id) || nuevoId('e'),
+    nombre: texto(e.nombre),
+    sectorId: texto(e.sectorId),
+    exigidaManual: normalizarMinutos(e.exigidaManual),
+    material: e.material === 'acero' ? 'acero' : 'hormigon',
+    hormigon: normalizarHormigon(e.hormigon),
+    acero: normalizarAcero(e.acero),
+  }));
+}
+
 export function normalizarSectores(brutos: unknown): SectorUI[] {
   if (!Array.isArray(brutos)) return [];
   const validas = clasesValidas(USOS_DB_SI.map((u) => u.id));
@@ -282,6 +387,7 @@ export function normalizar(bruto: unknown): IncendioState {
     alturaEvacuacionManual: positivoONull(bruto.alturaEvacuacionManual),
     sectores: normalizarSectores(bruto.sectores),
     exigencias: normalizarExigencias(bruto.exigencias),
+    elementos: normalizarElementos(bruto.elementos),
     ayuda: bool(bruto.ayuda),
   };
 }
@@ -362,6 +468,8 @@ export interface Evaluacion {
   exigencias: ExigenciaFuego[];
   /** Los sectores con su cuenta hecha, para enseñar de dónde sale cada R. */
   sectores: SectorResuelto[];
+  /** Los elementos comprobados por los anejos C y D. */
+  elementos: ElementoResuelto[];
   /** Las plantas publicadas y anotadas, de abajo arriba. Vacío si no hay sobre. */
   plantas: PlantaAnotada[];
   /** `true` cuando «Cargas por planta» no tiene nada publicado. */
@@ -436,11 +544,15 @@ export function evaluar(state: IncendioState, publicadas = plantasPublicadas()):
 
   const exigencias = [...deSectores, ...exigenciasResueltas(state.exigencias)];
 
+  const elementos = resolverElementos(state.elementos, sectores);
+  for (const e of elementos) avisos.push(...e.avisos);
+
   const huecos = [
     ...sectores.filter((s) => s.hueco).map((s) => ({ id: s.id, que: s.nombre || 'un sector sin nombre' })),
     ...state.exigencias
       .filter((f) => f.ambito.trim() === '' || f.minutos === null)
       .map((f) => ({ id: f.id, que: f.ambito.trim() || 'una exigencia sin ámbito' })),
+    ...elementos.filter((e) => e.hueco).map((e) => ({ id: e.id, que: e.nombre || 'un elemento sin nombre' })),
   ];
 
   // Un sector al que la norma no le exige nada cuenta como «hay algo dicho»:
@@ -452,6 +564,7 @@ export function evaluar(state: IncendioState, publicadas = plantasPublicadas()):
   return {
     exigencias,
     sectores,
+    elementos,
     plantas,
     sinPlantas: publicadas === null,
     alturas,

@@ -26,6 +26,7 @@ import {
   type MaterialSeccion,
 } from '../../lib/incendio/anejoB';
 import type { DatosAnejoB, SectorResuelto } from '../../lib/incendio/sectores';
+import { Campo } from './Campo';
 import { AYUDA, INPUT } from './estilos';
 
 interface Props {
@@ -37,46 +38,7 @@ interface Props {
 }
 
 const CASILLA = 'flex items-center gap-1.5 text-[11px] text-text-secondary';
-const NUM = `${INPUT} max-w-[74px]`;
 const n2 = (v: number) => v.toFixed(2).replace('.', ',');
-
-/** Un número con su rótulo encima, que es lo que cabe en la columna. */
-function Campo({
-  rotulo,
-  unidad,
-  valor,
-  aria,
-  paso = '0.1',
-  requerido = false,
-  onCambiar,
-}: {
-  rotulo: string;
-  unidad: string;
-  valor: number | null;
-  aria: string;
-  paso?: string;
-  requerido?: boolean;
-  onCambiar: (v: number | null) => void;
-}) {
-  const falta = requerido && (valor === null || valor <= 0);
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase text-text-disabled">
-        {rotulo} <span className="normal-case">{unidad}</span>
-      </span>
-      <input
-        type="number"
-        step={paso}
-        min="0"
-        value={valor ?? ''}
-        aria-label={aria}
-        className={NUM}
-        style={falta ? { borderColor: 'var(--color-state-fail)' } : undefined}
-        onChange={(e) => onCambiar(e.target.value === '' ? null : Number(e.target.value))}
-      />
-    </label>
-  );
-}
 
 export function TiempoEquivalente({ datos, resuelto, ayuda, nombre, onCambiar }: Props) {
   const [afinar, setAfinar] = useState(false);
