@@ -692,8 +692,9 @@ export interface PileCapInputs {
   fyk:      number;  // MPa
   cover:    number;  // mm — bottom cover to tie bar centroid
   phi_tie:  number;  // mm — tie bar diameter
-  /** Armadura secundaria (ex-EHE 58.4.1.4), dispuesta por el usuario y
-   *  comprobada frente al mínimo: superior, cercos verticales y horizontal de caras. */
+  /** Armadura secundaria (EHE-08 art. 58.4.1.2; el CE no fija mínimos propios),
+   *  dispuesta por el usuario y comprobada frente al mínimo: superior y retícula
+   *  lateral (2 pilotes); retícula inferior entre bandas y cercos de banda (3 y 4). */
   phi_top:  number;  // mm — barras superiores (por banda)
   n_top:    number;  // ud — barras superiores por banda
   phi_cv:   number;  // mm — cercos verticales
@@ -701,6 +702,8 @@ export interface PileCapInputs {
   n_cv:     number;  // ud — ramas verticales de cada cerco
   phi_ch:   number;  // mm — armadura horizontal de las caras laterales
   s_ch:     number;  // mm — separación vertical entre horizontales
+  phi_g:    number;  // mm — retícula inferior entre bandas (n ≥ 3)
+  s_g:      number;  // mm — separación de la retícula inferior
   N_Ed:     number;  // kN — design axial (compression > 0)
   Mx_Ed:    number;  // kNm — moment about x-axis (Navier)
   My_Ed:    number;  // kNm — moment about y-axis
@@ -733,8 +736,9 @@ export const pileCapDefaults: PileCapInputs = {
   fyk:     500,
   cover:   60,
   phi_tie: 12,
-  // Secundaria: b_ref = min(1150, 400) = 400 → 4‰ = 1600 mm²/m; Ø12 c/100 con
-  // 2 ramas = 2262 mm²/m (71 %); superior 2Ø12 = 226 vs 113 mm² (50 %).
+  // Secundaria (n=2, EHE-08 58.4.1.2.1.2): b_ref = min(1150, 400) = 400 → 4‰ =
+  // 1600 mm²/m; Ø12 c/100 con 2 ramas = 2262 mm²/m (71 %); superior 2Ø12 = 226
+  // vs 113 mm² (50 %). Retícula inferior Ø12 c/100 sólo cuenta con n ≥ 3.
   phi_top: 12,
   n_top:   2,
   phi_cv:  12,
@@ -742,6 +746,8 @@ export const pileCapDefaults: PileCapInputs = {
   n_cv:    2,
   phi_ch:  12,
   s_ch:    100,
+  phi_g:   12,
+  s_g:     100,
   N_Ed:    300,
   Mx_Ed:   0,
   My_Ed:   0,

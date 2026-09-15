@@ -102,24 +102,28 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.lb_net).toBeGreaterThan(0.5 * r.lb);
   });
 
-  it('armadura secundaria dispuesta vs mínimo ex-EHE 58.4.1.4: sup 2Ø12 ≥ 10 % inf, caras 4‰ de b_ref = h/2', () => {
+  it('secundaria de 2 pilotes (EHE-08 58.4.1.2.1.2): sup 2Ø12 ≥ 1/10 inf; retícula lateral 4‰ con b_ref = h/2', () => {
+    // Texto de la EHE-08 (pág. 271): «Su capacidad mecánica no será inferior a
+    // 1/10 de la capacidad mecánica de la armadura inferior» y «La cuantía de
+    // estas armaduras, referida al área de la sección de hormigón perpendicular
+    // a su dirección, será, como mínimo, del 4‰. Si el ancho supera a la mitad
+    // del canto, la sección de referencia se toma con un ancho igual a la mitad
+    // del canto.»
     expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);     // 113.1 mm²
     expect(r.As_top_prov).toBeCloseTo(2 * 113.1, 0);             // 2Ø12
     expect(r.b_ref).toBe(400);                                   // min(1950, 1150, 800/2)
-    expect(r.As_cv_min).toBeCloseTo(1600, 6);                    // 0,004·400·1000
-    expect(r.As_ch_min).toBeCloseTo(1600, 6);                    // misma sección de referencia
+    expect(r.As_cv_req).toBeCloseTo(1600, 6);                    // 0,004·400·1000 por metro
+    expect(r.As_ch_req).toBeCloseTo(1600, 6);                    // misma sección de referencia
     expect(r.As_cv_prov).toBeCloseTo(2 * 113.1 * 10, 0);         // Ø12 c/100, 2 ramas = 2262 mm²/m
     expect(r.As_ch_prov).toBeCloseTo(2 * 113.1 * 10, 0);
-    // Criterios mecánicos de la hoja del estudio: muy por debajo del 4‰
-    expect(r.As_cv_mech).toBeCloseTo(300 / 3 * 1000 / r.fyd / 1.95, 1);  // N/(1,5·2) en 1,95 m
-    expect(r.As_ch_mech).toBeCloseTo(r.Ft_x / 4 * 1000 / r.fyd / 0.8, 3);
-    expect(r.As_cv_req).toBe(r.As_cv_min);
-    expect(r.As_ch_req).toBe(r.As_ch_min);
+    expect(r.As_g_req).toBe(0);                                  // la retícula inferior es de n ≥ 3
+    expect(r.As_cv_tot_req).toBe(0);
     for (const id of ['top-steel', 'stirrups-v', 'face-steel-h']) {
       const row = r.checks.find((c) => c.id === id)!;
       expect(row.status).toBe('ok');
-      expect(row.article).toMatch(/58\.4\.1\.4/);
+      expect(row.article).toBe('EHE-08 58.4.1.2.1.2');
     }
+    expect(r.checks.map((c) => c.id)).not.toContain('grid-h');
     expect(r.checks.find((c) => c.id === 'stirrups-v')!.description).toMatch(/0,4 %/);
   });
 
@@ -137,13 +141,37 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(calcPileCap({ ...base, s_cv: 0 }).valid).toBe(false);
   });
 
-  it('el criterio mecánico gobierna cuando el 4‰ es pequeño (encepado esbelto muy cargado)', () => {
-    // h=400 → b_ref = 200 → 4‰ = 800 mm²/m; N=6000 → N/(1,5·2)=2000 kN → 4600 mm² en 1,95 m
-    const r2 = calcPileCap({ ...base, h_enc: 400, cover: 40, N_Ed: 6000, R_adm: 4000 });
-    expect(r2.valid).toBe(true);
-    expect(r2.As_cv_mech).toBeGreaterThan(r2.As_cv_min);
-    expect(r2.As_cv_req).toBe(r2.As_cv_mech);
-    expect(r2.checks.find((c) => c.id === 'stirrups-v')!.description).toMatch(/1,5·n/);
+  it('n=3 (EHE-08 58.4.1.2.2): retícula inferior ≥ 1/4 de la banda, cercos de banda ≥ N_Ed/(1,5·n); superior y caras sólo informativas', () => {
+    const r3 = calcPileCap({ ...base, n: 3 });
+    // 58.4.1.2.2.2: N/(1,5·3) = 66,7 kN → 153 mm² en 3 bandas de 1200 + 2·(400 − 60) = 1880 mm
+    expect(r3.As_cv_tot_req).toBeCloseTo(300 / 4.5 * 1000 / r3.fyd, 3);
+    expect(r3.L_bands).toBe(3 * 1880);
+    expect(r3.As_cv_req).toBeCloseTo(r3.As_cv_tot_req / 5.64, 3);
+    expect(r3.As_cv_tot_prov).toBeCloseTo(r3.As_cv_prov * 5.64, 3);
+    // 58.4.1.2.2.1: 1/4 de la banda (16Ø12 = 1810 mm²) en el ancho libre L_y − 2·w_band
+    expect(r3.As_g_req).toBeCloseTo(0.25 * r3.As_prov_x / ((r3.L_y - 2 * r3.w_band) / 1000), 3);
+    expect(r3.As_g_prov).toBeCloseTo(113.1 * 10, 0);
+    expect(r3.As_top_req).toBe(0);
+    expect(r3.As_ch_req).toBe(0);
+    const ids = r3.checks.map((c) => c.id);
+    expect(ids).toContain('grid-h');
+    expect(ids).toContain('stirrups-v');
+    expect(ids).toContain('secondary-info');
+    expect(ids).not.toContain('top-steel');
+    expect(ids).not.toContain('face-steel-h');
+    expect(r3.checks.find((c) => c.id === 'grid-h')!.article).toBe('EHE-08 58.4.1.2.2.1');
+    expect(r3.checks.find((c) => c.id === 'grid-h')!.status).toBe('ok');
+    expect(r3.checks.find((c) => c.id === 'stirrups-v')!.article).toBe('EHE-08 58.4.1.2.2.2');
+    expect(r3.checks.find((c) => c.id === 'stirrups-v')!.status).toBe('ok');
+  });
+
+  it('n=4: la retícula se compara con las DOS bandas de cada sentido; Ø12 c/100 cumple y c/200 no', () => {
+    const r4 = calcPileCap({ ...base, n: 4 });
+    expect(r4.As_g_req).toBeCloseTo(0.25 * 2 * r4.As_prov_x / ((r4.L_y - 2 * r4.w_band) / 1000), 3);
+    expect(r4.checks.find((c) => c.id === 'grid-h')!.status).toBe('ok');
+    const poor = calcPileCap({ ...base, n: 4, s_g: 200 });
+    expect(poor.checks.find((c) => c.id === 'grid-h')!.status).toBe('fail');
+    expect(calcPileCap({ ...base, n: 4, s_g: 0 }).valid).toBe(false);
   });
 
   it('todas las filas no neutrales en ok (FTUX verde)', () => {

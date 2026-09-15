@@ -404,7 +404,7 @@ function buildPileCapPlan(
 type StateKey = Exclude<
   keyof PileCapInputs,
   'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 'plate_on' | 'plate_shape' | 'd_plate'
-  | 'phi_top' | 'n_top' | 'phi_cv' | 's_cv' | 'n_cv' | 'phi_ch' | 's_ch'
+  | 'phi_top' | 'n_top' | 'phi_cv' | 's_cv' | 'n_cv' | 'phi_ch' | 's_ch' | 'phi_g' | 's_g'
 >;
 
 const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {

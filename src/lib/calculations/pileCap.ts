@@ -25,14 +25,17 @@
 //     T = Hd/(2·cos30°) = 0,68·R/d·(0,58·s − 0,25·a). Rigidez: s ≤ 2,6·h.
 //   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
 //     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4.4) (#75)
-//   - armadura secundaria (ex-EHE 58.4.1.4): superior ≥ 10 % de la inferior,
-//     cercos verticales y armadura horizontal de las caras con cuantía ≥ 4‰
-//     del área perpendicular (ancho de referencia ≤ h/2), más los criterios
-//     mecánicos de la práctica (cercos ≥ N_Ed/(1,5·n), horizontal ≥ T/4). La
-//     dispone el usuario (Ø, separación, ramas) y se comprueba requerido vs
-//     dispuesto. Bajo CE es recomendación (Anejo 19 §9.8.1 no la exige con
-//     carácter general, #79), pero se comprueba como el resto de la práctica
-//     consolidada del módulo.
+//   - armadura secundaria: el CE no fija mínimos propios para encepados
+//     (Anejo 19 §9.8.1), así que se aplican los de la EHE-08 art. 58.4.1.2,
+//     que distingue por número de pilotes. n=2 (58.4.1.2.1.2): superior con
+//     capacidad ≥ 1/10 de la inferior y retícula lateral de cercos verticales
+//     y horizontales ≥ 4‰ del área de la sección perpendicular (ancho de
+//     referencia ≤ h/2). n≥3 (58.4.1.2.2): retícula inferior entre las bandas
+//     con capacidad por sentido ≥ 1/4 de la de las bandas (58.4.1.2.2.1) y
+//     cercos verticales atando las bandas con capacidad total ≥ N_Ed/(1,5·n)
+//     (58.4.1.2.2.2). La dispone el usuario (Ø, separación, ramas) y se
+//     comprueba requerido vs dispuesto; lo que la norma no exige para ese n
+//     se dibuja y se informa, sin verificación.
 //
 // CE Anejo 19 §6.5 — strut-and-tie model, strut angle limits
 // CE Anejo 19 §6.5.2 — strut crushing 0.60·ν'·fcd (lado seguro frente al nodo
@@ -109,18 +112,20 @@ export interface PileCapResult {
   sigma_col: number;     // [MPa]
   sigma_Rd_col: number;  // [MPa]
 
-  // Armadura secundaria (ex-EHE 58.4.1.4) — requerida vs dispuesta
-  As_top_req: number;    // superior ≥ 10 % de la inferior dispuesta [mm² por banda]
+  // Armadura secundaria (EHE-08 art. 58.4.1.2; el CE no fija mínimos propios)
+  // — requerida vs dispuesta. Lo que la norma no exige para ese n vale 0 en «req».
+  As_top_req: number;    // n=2: ≥ 1/10 de la inferior dispuesta [mm² por banda]; n≥3: 0
   As_top_prov: number;   // n_top·A(φ_top) [mm²]
-  b_ref: number;         // ancho de referencia del 4‰: min(ancho, h/2) [mm]
-  As_cv_min: number;     // cercos verticales, 4‰ [mm²/m de longitud]
-  As_cv_mech: number;    // cercos verticales, N_Ed/(1,5·n) repartido en L [mm²/m]
-  As_cv_req: number;     // el mayor de los dos [mm²/m]
+  b_ref: number;         // ancho de referencia del 4‰ (n=2): min(ancho, h/2) [mm]
+  As_cv_req: number;     // cercos [mm²/m]: n=2 4‰·b_ref; n≥3 N_Ed/(1,5·n) repartido en las bandas
   As_cv_prov: number;    // ramas·A(φ_cv)·1000/s_cv [mm²/m]
-  As_ch_min: number;     // horizontal de caras, 4‰ [mm²/m de altura]
-  As_ch_mech: number;    // horizontal de caras, T/4 repartido en h [mm²/m]
-  As_ch_req: number;
+  As_cv_tot_req: number; // n≥3: acero total exigido N_Ed/(1,5·n)/fyd [mm²]; n=2: 0
+  As_cv_tot_prov: number;// n≥3: ramas de todos los cercos de banda [mm²]; n=2: 0
+  L_bands: number;       // n≥3: longitud total de bandas que llevan cercos [mm]; n=2: 0
+  As_ch_req: number;     // horizontal de caras [mm²/m de altura]: n=2 4‰·b_ref; n≥3 0
   As_ch_prov: number;    // 2·A(φ_ch)·1000/s_ch (dos caras) [mm²/m]
+  As_g_req: number;      // n≥3: retícula inferior entre bandas [mm²/m], 1/4 de las bandas; n=2: 0
+  As_g_prov: number;     // A(φ_g)·1000/s_g [mm²/m]
 
   // Tie band width over piles [mm]
   w_band: number;
@@ -164,8 +169,8 @@ const EMPTY: PileCapResult = {
   Fs_max: 0, A_node: 0, sigma_strut: 0, sigma_Rd_max: 0,
   sigma_col: 0, sigma_Rd_col: 0,
   As_top_req: 0, As_top_prov: 0, b_ref: 0,
-  As_cv_min: 0, As_cv_mech: 0, As_cv_req: 0, As_cv_prov: 0,
-  As_ch_min: 0, As_ch_mech: 0, As_ch_req: 0, As_ch_prov: 0,
+  As_cv_req: 0, As_cv_prov: 0, As_cv_tot_req: 0, As_cv_tot_prov: 0, L_bands: 0,
+  As_ch_req: 0, As_ch_prov: 0, As_g_req: 0, As_g_prov: 0,
   w_band: 0,
   Ft_x: 0, Ft_y: null,
   fyd: 0,
@@ -418,6 +423,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const n_cv    = (inp.n_cv as number | undefined) ?? 2;
   const phi_ch  = (inp.phi_ch as number | undefined) ?? 12;
   const s_ch    = (inp.s_ch as number | undefined) ?? 100;
+  const phi_g   = (inp.phi_g as number | undefined) ?? 12;
+  const s_g     = (inp.s_g as number | undefined) ?? 100;
 
   // ── Input validation ──────────────────────────────────────────────────────
   if (n !== 2 && n !== 3 && n !== 4) return invalid('n debe ser 2, 3 ó 4 micropilotes');
@@ -429,8 +436,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   if (fck < 20 || fck > 50) return invalid('fck fuera de rango (20–50 MPa)');
   if (cover <= 0) return invalid('Recubrimiento debe ser > 0');
   if (phi_tie <= 0) return invalid('Diámetro tirante debe ser > 0');
-  if (!(s_cv > 0) || !(s_ch > 0)) {
-    return invalid('Separación de cercos y de armadura horizontal debe ser > 0');
+  if (!(s_cv > 0) || !(s_ch > 0) || !(s_g > 0)) {
+    return invalid('Separaciones de cercos, horizontal de caras y retícula deben ser > 0');
   }
   if (!(n_cv >= 1) || !(n_top >= 0)) return invalid('Ramas de cerco ≥ 1 y barras superiores ≥ 0');
   if (plate_on) {
@@ -661,27 +668,49 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const c_top = Math.max(40, phi_tie);
   const lb_avail = (e_borde - cover) + (h_enc - cover - c_top); // horizontal + vertical [mm]
 
-  // ── Armadura secundaria (ex-EHE 58.4.1.4) — dispuesta por el usuario ──────
-  // a) superior ≥ 10 % de la capacidad de la inferior (por banda);
-  // b) cercos verticales y armadura horizontal de las caras con cuantía ≥ 4‰
-  //    del área de la sección perpendicular a su dirección; si el ancho supera
-  //    la mitad del canto, se toma b_ref = h/2. Por metro: 0,004·b_ref·1000.
-  // c) criterios mecánicos de la práctica (hoja del estudio): capacidad total
-  //    de los cercos ≥ N_Ed/(1,5·n) repartida en la longitud L_x, y de la
-  //    armadura horizontal ≥ T/4 repartida en el canto. Gobierna el mayor.
-  // (Antes la retícula horizontal usaba min(h, L_y/2), que no es la sección
-  // perpendicular a las barras: es la misma b_ref que la vertical.)
-  const As_top_req  = 0.1 * Math.max(As_prov_x, As_prov_y ?? 0);
+  // ── Armadura secundaria (EHE-08 art. 58.4.1.2) — dispuesta por el usuario ─
+  // El CE no fija mínimos para encepados (Anejo 19 §9.8.1), así que rigen los
+  // de la EHE-08, que distingue por número de pilotes:
+  //  n=2 (58.4.1.2.1.2): superior con capacidad ≥ 1/10 de la inferior; retícula
+  //    lateral de cercos verticales y horizontales con cuantía ≥ 4‰ del área de
+  //    la sección perpendicular a cada una; si el ancho supera la mitad del
+  //    canto, la sección de referencia toma b_ref = h/2. Por metro: 4·b_ref.
+  //  n≥3 (58.4.1.2.2.1): retícula inferior ENTRE las bandas con capacidad por
+  //    sentido ≥ 1/4 de la de las bandas de ese sentido (n=4: sus dos bandas;
+  //    n=3: una banda, lectura de la hoja del estudio), repartida en el ancho
+  //    libre entre bandas (L_perp − 2·w_band). (58.4.1.2.2.2): cercos verticales
+  //    atando las bandas con capacidad TOTAL ≥ N_Ed/(1,5·n), repartida en la
+  //    longitud de las bandas (s + 2·(e − c) cada una). La superior y la
+  //    horizontal de caras no se exigen para n≥3: se dibujan y se informan.
   const As_top_prov = n_top * getBarArea(phi_top);
+  const As_cv_prov  = n_cv * getBarArea(phi_cv) * 1000 / s_cv;   // mm²/m de banda o de encepado
+  const As_ch_prov  = 2 * getBarArea(phi_ch) * 1000 / s_ch;      // dos caras, mm²/m de altura
+  const As_g_prov   = getBarArea(phi_g) * 1000 / s_g;            // mm²/m por sentido
   const b_ref = Math.min(L_x, L_y, h_enc / 2);
-  const As_cv_min  = 0.004 * b_ref * 1000;                                // mm²/m
-  const As_cv_mech = (N_Ed / (1.5 * n)) * 1000 / fyd / (L_x / 1000);    // mm²/m
-  const As_cv_req  = Math.max(As_cv_min, As_cv_mech);
-  const As_cv_prov = n_cv * getBarArea(phi_cv) * 1000 / s_cv;            // mm²/m
-  const As_ch_min  = 0.004 * b_ref * 1000;                                // mm²/m de altura
-  const As_ch_mech = (Ft_x / 4) * 1000 / fyd / (h_enc / 1000);           // mm²/m
-  const As_ch_req  = Math.max(As_ch_min, As_ch_mech);
-  const As_ch_prov = 2 * getBarArea(phi_ch) * 1000 / s_ch;               // dos caras
+  let As_top_req = 0;
+  let As_cv_req = 0;
+  let As_ch_req = 0;
+  let As_g_req = 0;
+  let As_cv_tot_req = 0;
+  let As_cv_tot_prov = 0;
+  let L_bands = 0;
+  if (n === 2) {
+    As_top_req = 0.1 * As_prov_x;
+    As_cv_req  = 0.004 * b_ref * 1000;
+    As_ch_req  = 0.004 * b_ref * 1000;
+  } else {
+    const n_bands = n === 3 ? 3 : 4;
+    const L_band  = s + 2 * Math.max(e_borde - cover, 0);
+    L_bands = n_bands * L_band;
+    As_cv_tot_req  = (N_Ed / (1.5 * n)) * 1000 / fyd;
+    As_cv_req      = As_cv_tot_req / (L_bands / 1000);
+    As_cv_tot_prov = As_cv_prov * L_bands / 1000;
+    const free_y = Math.max(L_y - 2 * w_band, 100);   // ancho libre para las barras ∥ x
+    const free_x = Math.max(L_x - 2 * w_band, 100);   // ídem para las barras ∥ y
+    const req_x = 0.25 * (n === 4 ? 2 : 1) * As_prov_x / (free_y / 1000);
+    const req_y = n === 4 && As_prov_y !== null ? 0.25 * 2 * As_prov_y / (free_x / 1000) : 0;
+    As_g_req = Math.max(req_x, req_y);
+  }
 
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -906,32 +935,62 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CE Anejo 19 §6.5.4',
   ));
 
-  // 13. Armadura secundaria dispuesta vs requerida (ex-EHE 58.4.1.4). Bajo CE
-  //     es recomendación (Anejo 19 §9.8.1 no la exige con carácter general).
-  checks.push(makeCheck(
-    'top-steel',
-    `Armadura superior ${n_top}Ø${phi_top} por banda (≥ 10 % de la inferior)`,
-    As_top_req, As_top_prov,
-    `${As_top_req.toFixed(0)} mm²`,
-    `${As_top_prov.toFixed(0)} mm²`,
-    'Práctica ex-EHE 58.4.1.4',
-  ));
-  checks.push(makeCheck(
-    'stirrups-v',
-    `Cercos verticales Ø${phi_cv} c/${s_cv} (${n_cv} ramas) — ${As_cv_mech > As_cv_min ? 'N_Ed/(1,5·n)' : `0,4 % · b_ref ${b_ref.toFixed(0)}`}`,
-    As_cv_req, As_cv_prov,
-    `${As_cv_req.toFixed(0)} mm²/m`,
-    `${As_cv_prov.toFixed(0)} mm²/m`,
-    'Práctica ex-EHE 58.4.1.4',
-  ));
-  checks.push(makeCheck(
-    'face-steel-h',
-    `Armadura horizontal de caras Ø${phi_ch} c/${s_ch} (2 caras) — ${As_ch_mech > As_ch_min ? 'T/4' : `0,4 % · b_ref ${b_ref.toFixed(0)}`}`,
-    As_ch_req, As_ch_prov,
-    `${As_ch_req.toFixed(0)} mm²/m`,
-    `${As_ch_prov.toFixed(0)} mm²/m`,
-    'Práctica ex-EHE 58.4.1.4',
-  ));
+  // 13. Armadura secundaria dispuesta vs requerida — EHE-08 art. 58.4.1.2 (el
+  //     CE no fija mínimos propios para encepados).
+  if (n === 2) {
+    checks.push(makeCheck(
+      'top-steel',
+      `Armadura superior ${n_top}Ø${phi_top} (capacidad ≥ 1/10 de la inferior)`,
+      As_top_req, As_top_prov,
+      `${As_top_req.toFixed(0)} mm²`,
+      `${As_top_prov.toFixed(0)} mm²`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+    checks.push(makeCheck(
+      'stirrups-v',
+      `Cercos verticales Ø${phi_cv} c/${s_cv} (${n_cv} ramas) — 0,4 % · b_ref ${b_ref.toFixed(0)}`,
+      As_cv_req, As_cv_prov,
+      `${As_cv_req.toFixed(0)} mm²/m`,
+      `${As_cv_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+    checks.push(makeCheck(
+      'face-steel-h',
+      `Armadura horizontal de caras Ø${phi_ch} c/${s_ch} (2 caras) — 0,4 % · b_ref ${b_ref.toFixed(0)}`,
+      As_ch_req, As_ch_prov,
+      `${As_ch_req.toFixed(0)} mm²/m`,
+      `${As_ch_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+  } else {
+    checks.push(makeCheck(
+      'grid-h',
+      `Retícula inferior entre bandas Ø${phi_g} c/${s_g} (capacidad por sentido ≥ 1/4 de las bandas)`,
+      As_g_req, As_g_prov,
+      `${As_g_req.toFixed(0)} mm²/m`,
+      `${As_g_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.2.1',
+    ));
+    checks.push(makeCheck(
+      'stirrups-v',
+      `Cercos de banda Ø${phi_cv} c/${s_cv} (${n_cv} ramas) — total ≥ N_Ed/(1,5·n) = ${(N_Ed / (1.5 * n)).toFixed(0)} kN`,
+      As_cv_req, As_cv_prov,
+      `${As_cv_req.toFixed(0)} mm²/m`,
+      `${As_cv_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.2.2',
+    ));
+    checks.push({
+      id: 'secondary-info',
+      description: `Superior ${n_top}Ø${phi_top} y horizontal de caras Ø${phi_ch} c/${s_ch}: no exigidas con ${n} pilotes (buena práctica; se dibujan)`,
+      value: '',
+      limit: '',
+      utilization: 0,
+      status: 'neutral',
+      article: 'EHE-08 58.4.1.2.2',
+      neutral: true,
+      tag: 'INFO',
+    });
+  }
 
   return {
     valid: true,
@@ -944,8 +1003,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     Fs_max, A_node, sigma_strut, sigma_Rd_max,
     sigma_col, sigma_Rd_col,
     As_top_req, As_top_prov, b_ref,
-    As_cv_min, As_cv_mech, As_cv_req, As_cv_prov,
-    As_ch_min, As_ch_mech, As_ch_req, As_ch_prov,
+    As_cv_req, As_cv_prov, As_cv_tot_req, As_cv_tot_prov, L_bands,
+    As_ch_req, As_ch_prov, As_g_req, As_g_prov,
     w_band,
     Ft_x, Ft_y,
     fyd,

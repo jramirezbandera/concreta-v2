@@ -28,6 +28,7 @@ function colors(isPdf: boolean) {
     pile:      isPdf ? '#94a3b8' : 'var(--color-chart-rebar-dim)',
     bottom:    isPdf ? '#0f172a' : 'var(--color-text-primary)',
     top:       isPdf ? '#64748b' : 'var(--color-chart-dim-text)',
+    grid:      isPdf ? '#94a3b8' : 'var(--color-chart-rebar-dim)',
     stirrup:   isPdf ? '#b45309' : 'var(--color-state-warn)',
     face:      isPdf ? '#0ea5e9' : 'var(--color-accent)',
     text:      isPdf ? '#0f172a' : 'var(--color-text-primary)',
@@ -38,6 +39,35 @@ function colors(isPdf: boolean) {
 const FONT = 'monospace';
 const MAX_BARS_DRAWN = 30;   // por banda: más allá no se distingue nada
 const MAX_STIRRUPS_DRAWN = 80;
+const MAX_MESH_LINES = 60;   // por sentido
+
+/** Recorte de un segmento a un polígono convexo antihorario (Cyrus–Beck):
+ *  la malla de la retícula inferior se dibuja sólo dentro del anillo a
+ *  recubrimiento. null si el segmento queda fuera. */
+function clipSegmentToConvex(p: PilePos, q: PilePos, poly: PilePos[]): { p: PilePos; q: PilePos } | null {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    // interior a la izquierda de cada arista: f(t) = f0 + t·df ≥ 0
+    const f0 = ex * (p.y - a.y) - ey * (p.x - a.x);
+    const df = ex * dy - ey * dx;
+    if (Math.abs(df) < 1e-12) {
+      if (f0 < 0) return null;
+      continue;
+    }
+    const t = -f0 / df;
+    if (df > 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return null;
+  }
+  return { p: { x: p.x + dx * t0, y: p.y + dy * t0 }, q: { x: p.x + dx * t1, y: p.y + dy * t1 } };
+}
 
 type Sec = ReturnType<typeof secondary>;
 
@@ -51,6 +81,8 @@ function secondary(inp: PileCapInputs) {
     n_cv:    (inp.n_cv as number | undefined) ?? 2,
     phi_ch:  (inp.phi_ch as number | undefined) ?? 12,
     s_ch:    (inp.s_ch as number | undefined) ?? 100,
+    phi_g:   (inp.phi_g as number | undefined) ?? 12,
+    s_g:     (inp.s_g as number | undefined) ?? 100,
   };
 }
 
@@ -110,12 +142,41 @@ function PlanRebar({
   const ring = insetPolygon(outline, cover);
   const r_pile = Math.min(Math.max((d_p / 2) * scale, 4), 18);
 
+  // Retícula inferior entre bandas (n ≥ 3, EHE-08 58.4.1.2.2.1): malla a s_g en
+  // los dos sentidos, simétrica respecto al centroide y recortada al anillo.
+  const n = inp.n as number;
+  const mesh: { p: PilePos; q: PilePos }[] = [];
+  if (n >= 3) {
+    const xmin = Math.min(...xs);
+    const xmax = Math.max(...xs);
+    const ymin = Math.min(...ys);
+    const ymax = Math.max(...ys);
+    const xsMesh: number[] = [0];
+    for (let x = sec.s_g; x <= xmax && xsMesh.length < MAX_MESH_LINES; x += sec.s_g) xsMesh.push(x, -x);
+    const ysMesh: number[] = [0];
+    for (let y = sec.s_g; y <= ymax && ysMesh.length < MAX_MESH_LINES; y += sec.s_g) ysMesh.push(y);
+    for (let y = -sec.s_g; y >= ymin && ysMesh.length < MAX_MESH_LINES; y -= sec.s_g) ysMesh.push(y);
+    for (const x of xsMesh) {
+      const seg = clipSegmentToConvex({ x, y: ymin }, { x, y: ymax }, ring);
+      if (seg) mesh.push(seg);
+    }
+    for (const y of ysMesh) {
+      const seg = clipSegmentToConvex({ x: xmin, y }, { x: xmax, y }, ring);
+      if (seg) mesh.push(seg);
+    }
+  }
+
   return (
     <g>
       <polygon
         points={outline.map((p) => `${px(p.x)},${py(p.y)}`).join(' ')}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5} strokeLinejoin="round"
       />
+      {/* Retícula inferior entre bandas (n ≥ 3) */}
+      {mesh.map((l, i) => (
+        <line key={`g-${i}`} x1={px(l.p.x)} y1={py(l.p.y)} x2={px(l.q.x)} y2={py(l.q.y)}
+          stroke={c.grid} strokeWidth={0.7} />
+      ))}
       {/* Horizontal de caras: anillo a recubrimiento */}
       <polygon
         points={ring.map((p) => `${px(p.x)},${py(p.y)}`).join(' ')}
@@ -241,12 +302,18 @@ function LongSection({
 }
 
 // ── Sección transversal (por el pilar) ────────────────────────────────────────
+// Plano x = 0. Corta las bandas ∥ x: la única (n=2, con el cerco perimetral de
+// la retícula lateral), las dos a ±s/2 (n=4) o la inferior B–C y el cruce de las
+// dos inclinadas sobre A (n=3). Con n ≥ 3 los cercos van alrededor de cada banda
+// (EHE-08 58.4.1.2.2.2) y la retícula inferior aparece como puntos entre bandas.
 
 function TransSection({
   inp, result, width, height, isPdf, sec,
 }: { inp: PileCapInputs; result: PileCapResult; width: number; height: number; isPdf: boolean; sec: Sec }) {
   const c = colors(isPdf);
-  const { L_y, w_band, n_bars_x } = result;
+  const { L_y, w_band, n_bars_x, outline, pilePos } = result;
+  const n     = inp.n as number;
+  const s_pil = inp.s as number;
   const h_enc = inp.h_enc as number;
   const h_col = inp.h_col as number;
   const cover = inp.cover as number;
@@ -266,34 +333,65 @@ function TransSection({
   const cTop = Math.max(40, phi_tie) * scale;
   const rBar = Math.max(1.6, (phi_tie / 2) * scale);
   const rFace = Math.max(1.4, (sec.phi_ch / 2) * scale);
+  const yMin = Math.min(...outline.map((p) => p.y));
+  const X = (y: number) => ox + (y - yMin) * scale;   // y del encepado → x del dibujo
 
-  const dots = (count: number, widthFactor: number): number[] => {
+  const bands: { y: number; w: number }[] = n === 2
+    ? [{ y: 0, w: w_band }]
+    : n === 4
+      ? [{ y: -s_pil / 2, w: w_band }, { y: s_pil / 2, w: w_band }]
+      : [{ y: pilePos[1].y, w: w_band }, { y: pilePos[0].y, w: w_band / Math.cos(Math.PI / 6) }];
+  const dotsAt = (yc: number, w: number, count: number, factor: number): number[] => {
     const k = Math.min(count, MAX_BARS_DRAWN);
-    const w = w_band * widthFactor * scale;
-    return Array.from({ length: k }, (_, i) => ox + capW / 2 + (k > 1 ? -w / 2 + (i * w) / (k - 1) : 0));
+    const ww = w * factor * scale;
+    return Array.from({ length: k }, (_, i) => X(yc) + (k > 1 ? -ww / 2 + (i * ww) / (k - 1) : 0));
   };
   const faceYs: number[] = [];
   for (let y = oy + capH - cov - sec.s_ch * scale; y > oy + cTop + 1; y -= sec.s_ch * scale) faceYs.push(y);
-  const legs: number[] = [];
-  for (let k = 1; k < sec.n_cv - 1; k++) legs.push(ox + cov + (k * (capW - 2 * cov)) / (sec.n_cv - 1));
+  const gridXs: number[] = [];
+  if (n >= 3) {
+    for (let x = ox + cov, k = 0; x <= ox + capW - cov + 1e-6 && k < MAX_STIRRUPS_DRAWN; x += sec.s_g * scale, k++) gridXs.push(x);
+  }
+  const legsIn = (x0: number, w: number): number[] => {
+    const out: number[] = [];
+    for (let k = 1; k < sec.n_cv - 1; k++) out.push(x0 + (k * w) / (sec.n_cv - 1));
+    return out;
+  };
 
   return (
     <g>
       <text x={ox} y={11} fontSize={isPdf ? 7 : 8} fill={c.textSec} fontFamily={FONT}>
         SECCIÓN TRANSVERSAL
       </text>
-      <rect x={ox + capW / 2 - (h_col / 2) * scale} y={oy - colStub + 14}
+      <rect x={X(0) - (h_col / 2) * scale} y={oy - colStub + 14}
         width={h_col * scale} height={colStub - 14}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1} />
       <rect x={ox} y={oy} width={capW} height={capH}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5} />
-      {/* Cerco cerrado y ramas intermedias */}
-      <rect x={ox + cov} y={oy + cTop} width={capW - 2 * cov} height={capH - cov - cTop} rx={3}
-        fill="none" stroke={c.stirrup} strokeWidth={1.4} />
-      {legs.map((x, i) => (
-        <line key={`leg-${i}`} x1={x} y1={oy + cTop} x2={x} y2={oy + capH - cov}
-          stroke={c.stirrup} strokeWidth={1.4} />
-      ))}
+      {/* Cercos: perimetral (n=2) o alrededor de cada banda (n ≥ 3) */}
+      {n === 2 ? (
+        <g>
+          <rect x={ox + cov} y={oy + cTop} width={capW - 2 * cov} height={capH - cov - cTop} rx={3}
+            fill="none" stroke={c.stirrup} strokeWidth={1.4} />
+          {legsIn(ox + cov, capW - 2 * cov).map((x, i) => (
+            <line key={`leg-${i}`} x1={x} y1={oy + cTop} x2={x} y2={oy + capH - cov}
+              stroke={c.stirrup} strokeWidth={1.4} />
+          ))}
+        </g>
+      ) : bands.map((b, bi) => {
+        const x0 = X(b.y) - (b.w / 2) * scale;
+        const w = b.w * scale;
+        return (
+          <g key={`band-${bi}`}>
+            <rect x={x0} y={oy + cTop} width={w} height={capH - cov - cTop} rx={3}
+              fill="none" stroke={c.stirrup} strokeWidth={1.4} />
+            {legsIn(x0, w).map((x, i) => (
+              <line key={`leg-${bi}-${i}`} x1={x} y1={oy + cTop} x2={x} y2={oy + capH - cov}
+                stroke={c.stirrup} strokeWidth={1.4} />
+            ))}
+          </g>
+        );
+      })}
       {/* Horizontal de caras */}
       {faceYs.map((y, i) => (
         <g key={`f-${i}`}>
@@ -301,12 +399,20 @@ function TransSection({
           <circle cx={ox + capW - cov} cy={y} r={rFace} fill={c.face} />
         </g>
       ))}
-      {/* Barras inferiores (banda) y superiores */}
-      {dots(n_bars_x, 1).map((x, i) => (
-        <circle key={`b-${i}`} cx={x} cy={oy + capH - cov} r={rBar} fill={c.bottom} />
+      {/* Retícula inferior entre bandas (n ≥ 3) */}
+      {gridXs.map((x, i) => (
+        <circle key={`gd-${i}`} cx={x} cy={oy + capH - cov} r={Math.max(1.2, (sec.phi_g / 2) * scale)} fill={c.grid} />
       ))}
-      {dots(sec.n_top, 0.6).map((x, i) => (
-        <circle key={`t-${i}`} cx={x} cy={oy + cTop} r={Math.max(1.6, (sec.phi_top / 2) * scale)} fill={c.top} />
+      {/* Barras de banda (inferiores) y superiores */}
+      {bands.map((b, bi) => (
+        <g key={`bars-${bi}`}>
+          {dotsAt(b.y, b.w, n_bars_x, 1).map((x, i) => (
+            <circle key={`b-${i}`} cx={x} cy={oy + capH - cov} r={rBar} fill={c.bottom} />
+          ))}
+          {dotsAt(b.y, b.w, sec.n_top, 0.6).map((x, i) => (
+            <circle key={`t-${i}`} cx={x} cy={oy + cTop} r={Math.max(1.6, (sec.phi_top / 2) * scale)} fill={c.top} />
+          ))}
+        </g>
       ))}
       {/* Rótulos */}
       <text x={ox + capW + 6} y={oy + (capH + cTop - cov) / 2} fontSize={isPdf ? 6.5 : 7.5}
@@ -317,9 +423,15 @@ function TransSection({
         fill={c.face} fontFamily={FONT} dominantBaseline="middle">
         por cara
       </text>
-      <text x={ox + capW / 2} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 7.5}
+      {n >= 3 && (
+        <text x={ox + capW + 6} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 7.5}
+          fill={c.grid} fontFamily={FONT}>
+          {`retícula Ø${sec.phi_g} c/${sec.s_g}`}
+        </text>
+      )}
+      <text x={X(0)} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 7.5}
         fill={c.stirrup} fontFamily={FONT}>
-        {`cerco Ø${sec.phi_cv} · ${sec.n_cv} ramas`}
+        {n === 2 ? `cerco Ø${sec.phi_cv} · ${sec.n_cv} ramas` : `cercos de banda Ø${sec.phi_cv} · ${sec.n_cv} ramas`}
       </text>
       <text x={ox - 4} y={oy + capH - cov} textAnchor="end" fontSize={isPdf ? 6.5 : 7.5}
         fill={c.bottom} fontFamily={FONT} dominantBaseline="middle">
@@ -331,17 +443,34 @@ function TransSection({
 
 // ── Leyenda ───────────────────────────────────────────────────────────────────
 
+function legendItems(inp: PileCapInputs, result: PileCapResult, sec: Sec, c: ReturnType<typeof colors>) {
+  const n = inp.n as number;
+  const phi_tie = inp.phi_tie as number;
+  const inferior = { color: c.bottom, text: `Inferior: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)` };
+  const superior = (suffix: string) => ({ color: c.top, dash: '6 3', text: `Superior${suffix}: ${sec.n_top}Ø${sec.phi_top} por banda (${result.As_top_prov.toFixed(0)} mm²)` });
+  const caras = (suffix: string) => ({ color: c.face, dash: '5 3', text: `Horizontal caras${suffix}: Ø${sec.phi_ch} c/${sec.s_ch} (${result.As_ch_prov.toFixed(0)} mm²/m)` });
+  if (n === 2) {
+    return [
+      inferior,
+      superior(''),
+      { color: c.stirrup, text: `Cercos: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
+      caras(''),
+    ];
+  }
+  return [
+    inferior,
+    { color: c.grid, text: `Retícula inferior: Ø${sec.phi_g} c/${sec.s_g} (${result.As_g_prov.toFixed(0)} mm²/m)` },
+    { color: c.stirrup, text: `Cercos de banda: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
+    superior(' (práctica)'),
+    caras(' (práctica)'),
+  ];
+}
+
 function Legend({
   inp, result, width, isPdf, sec,
 }: { inp: PileCapInputs; result: PileCapResult; width: number; isPdf: boolean; sec: Sec }) {
   const c = colors(isPdf);
-  const phi_tie = inp.phi_tie as number;
-  const items: { color: string; dash?: string; text: string }[] = [
-    { color: c.bottom, text: `Inferior: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)` },
-    { color: c.top, dash: '6 3', text: `Superior: ${sec.n_top}Ø${sec.phi_top} por banda (${result.As_top_prov.toFixed(0)} mm²)` },
-    { color: c.stirrup, text: `Cercos: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
-    { color: c.face, dash: '5 3', text: `Horizontal caras: Ø${sec.phi_ch} c/${sec.s_ch} (${result.As_ch_prov.toFixed(0)} mm²/m)` },
-  ];
+  const items: { color: string; dash?: string; text: string }[] = legendItems(inp, result, sec, c);
   const fs = isPdf ? 6.5 : 7.5;
   const twoCols = width >= 520;
   return (
@@ -382,7 +511,8 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
   const planSize = grid ? Math.round(width * 0.42) : Math.min(width, 280);
   const secW = grid ? width - planSize - gap : width;
   const secH = Math.round(secW * 0.5);
-  const legendH = grid ? 36 : 62;
+  const legendRows = (inp.n as number) === 2 ? 4 : 5;
+  const legendH = (grid ? Math.ceil(legendRows / 2) : legendRows) * 14 + 8;
   const bodyH = grid ? Math.max(planSize, 2 * secH + gap) : planSize + 2 * (secH + gap);
   const totalH = bodyH + gap + legendH;
 

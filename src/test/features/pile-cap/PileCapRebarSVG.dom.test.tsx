@@ -31,8 +31,13 @@ describe('PileCapRebarSVG — vista Armado', () => {
       expect(texts.some((t) => t.startsWith('PLANTA'))).toBe(true);
       expect(texts).toContain('SECCIÓN LONGITUDINAL');
       expect(texts).toContain('SECCIÓN TRANSVERSAL');
-      expect(texts.some((t) => t.startsWith('Cercos: Ø12 c/100'))).toBe(true);
-      expect(texts.some((t) => t.startsWith('Horizontal caras: Ø12 c/100'))).toBe(true);
+      expect(texts.some((t) => /^Cercos( de banda)?: Ø12 c\/100/.test(t))).toBe(true);
+      expect(texts.some((t) => /^Horizontal caras( \(práctica\))?: Ø12 c\/100/.test(t))).toBe(true);
+      // La retícula inferior entre bandas es cosa de 3 y 4 pilotes (EHE-08 58.4.1.2.2.1)
+      expect(texts.some((t) => t.startsWith('Retícula inferior: Ø12 c/100'))).toBe(n >= 3);
+      // Sección transversal: cerco perimetral (n=2) o un cerco por banda cortada (2 con n=3 y n=4)
+      const stirrupRects = Array.from(svg.querySelectorAll('rect')).filter((r) => r.getAttribute('rx') === '3');
+      expect(stirrupRects.length).toBe(n === 2 ? 1 : 2);
       expect(svg.outerHTML).not.toMatch(/NaN/);
     });
   }

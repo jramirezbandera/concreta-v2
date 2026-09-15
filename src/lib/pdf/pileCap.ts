@@ -142,10 +142,19 @@ export async function exportPileCapPDF(
   gap();
 
   // ARMADURA SECUNDARIA — dispuesta por el usuario vs mínimo ex-EHE 58.4.1.4
-  secHeader('ARMADURA SECUNDARIA (disp. / req., ex-EHE 58.4.1.4)');
-  twoCol(`Superior ${inp.n_top} ph${inp.phi_top}`, `${result.As_top_prov.toFixed(0)} / ${result.As_top_req.toFixed(0)} mm2`);
-  twoCol(`Cercos ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
-  twoCol(`Horiz. caras ph${inp.phi_ch} c/${inp.s_ch}`, `${result.As_ch_prov.toFixed(0)} / ${result.As_ch_req.toFixed(0)} mm2/m`);
+  // EHE-08 art. 58.4.1.2 (el CE no fija minimos propios): 2 pilotes → 58.4.1.2.1.2;
+  // 3 y 4 → 58.4.1.2.2. Lo no exigido para ese n se lista sin requerido.
+  if (n === 2) {
+    secHeader('ARMADURA SECUNDARIA (disp. / req., EHE-08 58.4.1.2.1.2)');
+    twoCol(`Superior ${inp.n_top} ph${inp.phi_top}`, `${result.As_top_prov.toFixed(0)} / ${result.As_top_req.toFixed(0)} mm2`);
+    twoCol(`Cercos ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
+    twoCol(`Horiz. caras ph${inp.phi_ch} c/${inp.s_ch}`, `${result.As_ch_prov.toFixed(0)} / ${result.As_ch_req.toFixed(0)} mm2/m`);
+  } else {
+    secHeader('ARMADURA SECUNDARIA (disp. / req., EHE-08 58.4.1.2.2)');
+    twoCol(`Reticula inf. ph${inp.phi_g} c/${inp.s_g}`, `${result.As_g_prov.toFixed(0)} / ${result.As_g_req.toFixed(0)} mm2/m`);
+    twoCol(`Cercos banda ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
+    twoCol(`Sup. ${inp.n_top}ph${inp.phi_top}, caras ph${inp.phi_ch}c/${inp.s_ch}`, 'no exigidas');
+  }
 
   // ── Divider + checks table ──────────────────────────────────────────────────
   // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:

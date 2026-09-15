@@ -388,27 +388,53 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         )}
       </CollapsibleSection>
 
-      {/* Armadura secundaria (ex-EHE 58.4.1.4): la dispone el usuario y el
-        * motor la comprueba frente al mínimo (10 % superior, 4‰ en caras) */}
+      {/* Armadura secundaria — EHE-08 art. 58.4.1.2 (el CE no fija mínimos
+        * propios): con 2 pilotes, superior y retícula lateral (58.4.1.2.1.2);
+        * con 3 y 4, retícula inferior entre bandas y cercos de banda
+        * (58.4.1.2.2). Lo no exigido para ese n se sigue disponiendo (se
+        * dibuja) sin verificación. */}
       <CollapsibleSection label="Armadura secundaria">
+        {n >= 3 && (
+          <>
+            <RebarSpecField
+              label="Retícula inf." sub="Entre bandas" fieldDiam="phi_g" fieldSep="s_g"
+              diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
+              help="Retícula inferior en los dos sentidos, entre las bandas de la armadura principal. Su capacidad mecánica en cada sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (EHE-08 58.4.1.2.2.1)."
+            />
+            <RebarSpecField
+              label="Cercos banda" sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
+              help="Cercos verticales que atan la armadura principal de cada banda, a lo largo de toda la banda. Capacidad mecánica total ≥ N_Ed/(1,5·n) (EHE-08 58.4.1.2.2.2)."
+            />
+            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+              help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
+            <p className="text-[10px] text-text-disabled leading-relaxed pt-2 pb-0.5">
+              No exigidas con {n} pilotes (buena práctica; se dibujan):
+            </p>
+          </>
+        )}
+        {n === 2 && (
+          <>
+            <RebarSpecField
+              label="Cercos vert." sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
+              help="Cercos verticales cerrados que atan la armadura superior e inferior, en toda la longitud del encepado. Cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
+            />
+            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+              help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
+          </>
+        )}
         <SelectField
           label="Ø superior" field="phi_top" value={state.phi_top as number}
           options={barOptions} setField={setField}
-          help="Diámetro de las barras superiores, extendidas sin escalonar en toda la longitud de cada banda. Su capacidad debe ser ≥ 10 % de la de la armadura inferior (práctica ex-EHE 58.4.1.4)."
+          help="Diámetro de las barras superiores, extendidas sin escalonar en toda la longitud. Con 2 pilotes su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2)."
         />
         <NumField label="n_sup" sub="Barras sup./banda" field="n_top" value={state.n_top as number} unit="ud" setField={setField}
           help="Número de barras superiores por banda (por dirección con 4 pilotes; por lado con 3)." />
         <RebarSpecField
-          label="Cercos vert." sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
-          diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
-          help="Cercos verticales cerrados que atan la armadura superior e inferior, repartidos a lo largo del encepado. Cuantía mínima 4‰ del área de la sección perpendicular (ancho de referencia ≤ h/2) y capacidad total ≥ N_Ed/(1,5·n)."
-        />
-        <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
-          help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
-        <RebarSpecField
           label="Horiz. caras" sub="Ø y sep. vertical" fieldDiam="phi_ch" fieldSep="s_ch"
           diam={state.phi_ch as number} sep={state.s_ch as number} barOptions={barOptions} setField={setField}
-          help="Armadura horizontal de las dos caras laterales (cercos horizontales o barras de piel), repartida en el canto. Cuantía mínima 4‰ del área de la sección perpendicular (ancho de referencia ≤ h/2) y capacidad total ≥ T/4."
+          help="Cercos horizontales de las caras laterales, repartidos en el canto. Con 2 pilotes, cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
         />
       </CollapsibleSection>
     </div>
