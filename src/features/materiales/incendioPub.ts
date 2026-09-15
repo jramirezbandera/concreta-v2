@@ -16,17 +16,14 @@
  *    guardia del «dato fantasma» tiene sentido con la zona eólica o la
  *    peligrosidad sísmica; aquí sólo produciría falsos positivos, y por eso el
  *    módulo de incendio publica con `ine: null`.
- * 2. El repliegue al LEGADO. Hasta que el usuario abra el módulo nuevo —o si
- *    abre un `.concreta` guardado antes de que existiera, que `desplegar()`
- *    despliega borrando las claves que el fichero no trae— no hay sobre de
- *    incendio, y la nota tiene que seguir saliendo. Se cae entonces a lo que
- *    este módulo guardó en su día. Desaparece en la fase de limpieza, cuando el
- *    legado se retire.
+ * 2. Sin sobre no se imprime nada, y ya está. Hasta el 15-09-2026 había un
+ *    repliegue al campo legado de este módulo, para la obra que todavía no
+ *    había pasado por el módulo nuevo; se retiró con el legado.
  */
 
-import { exigenciasResueltas, type ExigenciaFuego } from '../../lib/incendio/exigencias';
+import type { ExigenciaFuego } from '../../lib/incendio/exigencias';
 import { leerPublicacion } from '../../lib/pub';
-import type { FilaExigencia, PubIncendio } from '../incendio/state';
+import type { PubIncendio } from '../incendio/state';
 
 /**
  * A mano, y sólo el tipo importado: así el chunk del cuadro de materiales no
@@ -50,9 +47,11 @@ export function exigenciasPublicadas(): ExigenciaFuego[] | null {
 }
 
 /**
- * Lo que imprime el cuadro: el sobre si lo hay, y si no el legado que este
- * módulo guardó cuando las exigencias eran suyas.
+ * Lo que imprime el cuadro: lo publicado por el módulo de incendio, o nada.
+ *
+ * Sin exigencias la nota no sale, que es como se comportaba el cuadro antes de
+ * que el fuego existiera en él: sólo se imprime lo que se haya indicado.
  */
-export function exigenciasDelCuadro(legado: readonly FilaExigencia[] | undefined): ExigenciaFuego[] {
-  return exigenciasPublicadas() ?? exigenciasResueltas(legado ?? []);
+export function exigenciasDelCuadro(): ExigenciaFuego[] {
+  return exigenciasPublicadas() ?? [];
 }

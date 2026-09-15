@@ -403,17 +403,6 @@ export const CATEGORIA_EJECUCION_OPCIONES = [
 ] as const;
 
 /**
- * DB SI 6, tabla 3.1: la resistencia al fuego exigida a la estructura depende
- * del uso y de la altura de evacuación, y la fija el proyecto de incendios. El
- * cuadro sólo imprime lo que se le indique; antes decía «R30» en toda obra.
- *
- * Se elige una por cada parte de la estructura que tenga R distinta —la tabla
- * 3.1 ya separa las plantas de sótano de las de sobre rasante—; los ámbitos
- * están en `lib/materiales/fuego`.
- */
-export const RESISTENCIA_FUEGO_OPCIONES = [30, 60, 90, 120, 180, 240] as const;
-
-/**
  * Cuándo se marca cada modificador de obra, en las palabras del Código
  * Estructural. Van de tooltip del propio interruptor: «¿esto cuenta como
  * costa?» es una pregunta que se hace al marcarlo, no al leer la ayuda, y

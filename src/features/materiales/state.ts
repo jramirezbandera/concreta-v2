@@ -20,11 +20,6 @@ import {
   type DerivacionHormigon,
   type DerivacionMadera,
 } from '../../lib/materiales';
-import {
-  AMBITO_TODA_LA_ESTRUCTURA,
-  exigenciasResueltas,
-  type ExigenciaFuego,
-} from '../../lib/incendio/exigencias';
 import type {
   AceroEstructural,
   AceroPasivo,
@@ -70,7 +65,6 @@ import {
   PRESETS_HORMIGON,
   PRESETS_MADERA,
   PROTECCION_SUGERIDA,
-  RESISTENCIA_FUEGO_OPCIONES,
   SITUACIONES,
   SITUACIONES_MADERA,
   TIPOS_MADERA,
@@ -121,20 +115,6 @@ export interface FilaMadera {
   especie: string;
 }
 
-/**
- * Una exigencia de resistencia al fuego. `minutos` en null es el hueco rojo:
- * la fila existe pero no dice nada, igual que un elemento sin situación.
- *
- * El ámbito es texto libre —los habituales se eligen al añadir la fila— porque
- * un proyecto puede exigirle R90 a «los soportes del voladizo» y esa lista no
- * se cierra. Ver `lib/materiales/fuego`.
- */
-export interface FilaFuego {
-  id: string;
-  ambito: string;
-  minutos: number | null;
-}
-
 export interface FilaAcero {
   id: string;
   nombre: string;
@@ -163,15 +143,6 @@ export interface MaterialesState {
   heladas: boolean;
   /** Agresividad química del terreno según el geotécnico: XA1/XA2/XA3 en lo enterrado. */
   terrenoAgresivo: AgresividadQuimica;
-  /**
-   * LEGADO. Las exigencias de resistencia al fuego que este módulo guardó antes
-   * de que existiera `/acciones/incendio` (13-09-2026). Ya no se edita, no se
-   * evalúa y no abre huecos: se conserva para que el módulo de incendio la
-   * adopte la primera vez que se abre esta obra, y para que el cuadro siga
-   * imprimiendo su nota mientras eso no pase —que es lo que ocurre al abrir un
-   * `.concreta` guardado antes del cambio—. Se retira en la fase de limpieza.
-   */
-  exigenciasFuegoLegado?: FilaFuego[];
   elementos: FilaHormigon[];
   aceroEstr: {
     nivelRiesgo: NivelRiesgo;
@@ -411,10 +382,6 @@ export function normalizar(bruto: unknown): MaterialesState {
     ? bruto.diametrosAnclaje.filter((d): d is number => typeof d === 'number' && d > 0)
     : [];
 
-  // El fuego ya no es de este módulo; sólo se conserva para entregárselo al de
-  // incendio y para que el cuadro siga imprimiendo su nota hasta que lo adopte.
-  const legadoFuego = normalizarFuego(bruto);
-
   const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
   const num = (v: unknown, def: number) => (typeof v === 'number' && v > 0 ? v : def);
   const str = <T extends string>(v: unknown, permitidos: readonly T[], def: T): T =>
@@ -474,7 +441,6 @@ export function normalizar(bruto: unknown): MaterialesState {
       ['ninguna', 'debil', 'moderada', 'alta'] as const,
       base.terrenoAgresivo,
     ),
-    ...(legadoFuego.length > 0 ? { exigenciasFuegoLegado: legadoFuego } : {}),
     elementos,
     aceroEstr: {
       nivelRiesgo: str(acero.nivelRiesgo, ['CC1', 'CC2', 'CC3'] as const, base.aceroEstr.nivelRiesgo),
@@ -491,44 +457,6 @@ export function normalizar(bruto: unknown): MaterialesState {
     hormigonesAnclaje: hormigonesAnclaje.length ? hormigonesAnclaje : base.hormigonesAnclaje,
     ayuda: bool(bruto.ayuda, base.ayuda),
   };
-}
-
-/**
- * El legado de fuego de lo guardado, en cualquiera de sus tres generaciones:
- *
- *   1. `resistenciaFuego`, un número suelto para toda la obra (hasta el 10-09-2026);
- *   2. `exigenciasFuego`, la lista con ámbito (hasta el 13-09-2026);
- *   3. `exigenciasFuegoLegado`, esa misma lista ya jubilada, que es como se
- *      vuelve a guardar desde que las exigencias viven en `/acciones/incendio`.
- *
- * Se leen las tres porque un `.concreta` guardado hace meses puede traer
- * cualquiera. Esto MIGRA en vez de subir `versionViva`: subirla tiraría el
- * cuadro entero —elementos, madera, acero— por un campo que sabemos convertir.
- */
-function normalizarFuego(bruto: Record<string, unknown>): FilaFuego[] {
-  const minutos = (v: unknown): number | null =>
-    (RESISTENCIA_FUEGO_OPCIONES as readonly number[]).includes(v as number) ? (v as number) : null;
-
-  const lista = Array.isArray(bruto.exigenciasFuegoLegado)
-    ? bruto.exigenciasFuegoLegado
-    : Array.isArray(bruto.exigenciasFuego)
-      ? bruto.exigenciasFuego
-      : null;
-
-  if (lista) {
-    return lista
-      .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null)
-      .map((f) => ({
-        id: typeof f.id === 'string' ? f.id : nuevoId('f'),
-        ambito: typeof f.ambito === 'string' ? f.ambito : '',
-        minutos: minutos(f.minutos),
-      }));
-  }
-
-  const heredada = minutos(bruto.resistenciaFuego);
-  return heredada === null
-    ? []
-    : [{ id: nuevoId('f'), ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: heredada }];
 }
 
 export function cargarEstado(): MaterialesState {
@@ -729,12 +657,21 @@ export function evaluar(state: MaterialesState): Evaluacion {
  * (ver `lib/pub`).
  *
  * v2 (10-09-2026): `resistenciaFuego` —una cifra para toda la obra— pasa a
- * `exigenciasFuego`, una por parte de la estructura. Al abrir el cuadro se
- * republica solo, así que el sobre v1 que hubiera guardado se sustituye sin
- * que el usuario tenga que hacer nada.
+ * `exigenciasFuego`, una por parte de la estructura.
+ *
+ * v3 (15-09-2026): se va `exigenciasFuego`. La resistencia al fuego dejó de ser
+ * de este módulo el 13-09-2026, cuando nació `/acciones/incendio`, y hasta hoy
+ * seguía viajando en el sobre para que la ficha del DB SE no se quedara sin
+ * ella mientras hubiera obras sin migrar. Quien la quiera, la pide al sobre de
+ * incendio.
+ *
+ * Subir la versión INVALIDA el sobre que cada usuario tenga guardado: como este
+ * módulo es obligatorio para la ficha del DB SE, ésta se pone en rojo y `/obra`
+ * dice «sin calcular» hasta que se reabra el cuadro, que republica solo. Es el
+ * precio de la limpieza y por eso se dejó para el final.
  */
 export const MODULO_PUB = 'materiales';
-export const PUB_VERSION = 2;
+export const PUB_VERSION = 3;
 
 /** Un coeficiente parcial con sus dos situaciones, como lo rotula el cuadro. */
 export interface GammaPub {
@@ -851,12 +788,6 @@ export interface PubMateriales {
   nivelControlEjecucion: NivelControlEjecucion;
   /** Texto de la columna «Nivel de control» del cuadro de aceros. */
   nivelControlAcero: string;
-  /**
-   * R exigida por el DB SI 6, por partes de la estructura. Lista vacía si la
-   * obra no la ha indicado. Una sola entrada de ámbito «toda la estructura» es
-   * lo que publicaba el esquema v1 con su `resistenciaFuego` suelta.
-   */
-  exigenciasFuego: ExigenciaFuego[];
   /** Los modificadores de obra que endurecieron las clases de exposición. */
   modificadores: {
     costa: boolean;
@@ -982,7 +913,6 @@ export function datosPublicacion(state: MaterialesState, ev: Evaluacion): PubMat
     vidaUtilAnios: state.estudio.vidaUtilAnios,
     nivelControlEjecucion: state.estudio.nivelControlEjecucion,
     nivelControlAcero: state.estudio.nivelControlAcero,
-    exigenciasFuego: exigenciasResueltas(state.exigenciasFuegoLegado ?? []),
     modificadores: {
       costa: state.costa,
       heladas: state.heladas,

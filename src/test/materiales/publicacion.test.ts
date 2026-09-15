@@ -227,26 +227,15 @@ describe('lo común a la obra', () => {
     expect(d.modificadores).toEqual({ costa: true, heladas: true, terrenoAgresivo: 'debil' });
   });
 
-  it('las R exigidas del LEGADO siguen viajando, como cifras con su ámbito', () => {
-    // Las exigencias se teclean en `/acciones/incendio` desde el 13-09-2026,
-    // pero el sobre de materiales sigue llevando las que este módulo guardó en
-    // su día: es lo que hace que una obra que aún no ha pasado por el módulo
-    // nuevo imprima su memoria igual que la semana pasada. Se retira en la
-    // fase de limpieza, con PUB_VERSION 3.
-    const d = datos({
-      ...conHormigon(),
-      exigenciasFuegoLegado: [
-        { id: 'f1', ambito: 'Sótano con aparcamiento', minutos: 120 },
-        { id: 'f2', ambito: 'Plantas sobre rasante', minutos: 60 },
-      ],
-    });
-    // Sin el id, que es del formulario y no del proyecto.
-    expect(d.exigenciasFuego).toEqual([
-      { ambito: 'Sótano con aparcamiento', minutos: 120 },
-      { ambito: 'Plantas sobre rasante', minutos: 60 },
-    ]);
-    expect(JSON.stringify(d)).not.toContain('DB SI');
-    expect(datos(conHormigon()).exigenciasFuego).toEqual([]);
+  it('la R exigida YA NO viaja en este sobre: es del módulo de incendio', () => {
+    // Hasta el 15-09-2026 el sobre llevaba `exigenciasFuego`, el legado que
+    // este módulo guardó cuando el fuego se tecleaba en él. Con la v3 se fue:
+    // quien quiera la R la pide al sobre de incendio, que es de donde sale.
+    // El guardia es que ninguna clave del sobre vuelva a hablar de fuego, no
+    // sólo que falte la que se quitó.
+    const d = datos(conHormigon());
+    expect(Object.keys(d).filter((k) => /fuego|incendio/i.test(k))).toEqual([]);
+    expect(PUB_VERSION).toBe(3);
   });
 });
 

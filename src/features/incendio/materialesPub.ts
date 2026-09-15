@@ -22,7 +22,7 @@ import { leerPublicacion } from '../../lib/pub';
 import type { PubMateriales } from '../materiales/state';
 
 export const MODULO_MATERIALES = 'materiales';
-export const PUB_VERSION_MATERIALES = 2;
+export const PUB_VERSION_MATERIALES = 3;
 
 /**
  * Los materiales de la obra, o `{}` si no hay nada publicado.

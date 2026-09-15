@@ -18,7 +18,7 @@ import { routeLoaders } from '../../data/routeLoaders';
 import { routeMeta } from '../../data/routeMeta';
 import { adaptadorDe } from '../../lib/anejo/modules';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
-import { CLAVE_MIGRADO, CLAVE_TITULO, MODULO_PUB, STORAGE_KEY } from '../../features/incendio/state';
+import { CLAVE_TITULO, MODULO_PUB, STORAGE_KEY } from '../../features/incendio/state';
 
 describe('registro de incendio', () => {
   it('está en el registro, en Acciones y detrás de cargas por planta', () => {
@@ -45,15 +45,14 @@ describe('registro de incendio', () => {
     expect(renderToStaticMarkup(<ModuleIcon moduleKey="concreta-incendio" />)).toContain('<svg');
   });
 
-  it('viaja en el .concreta con sus satélites, la marca de migración incluida', () => {
+  it('viaja en el .concreta con sus satélites: el título y su publicación', () => {
     const fila = entradaDe('concreta-incendio');
     expect(fila?.clave).toBe(STORAGE_KEY);
-    // La marca de «ya migrado» tiene que ser SATÉLITE DE PROYECTO y no una
-    // preferencia: `desplegar()` reemplaza las claves de proyecto al abrir una
-    // obra, y una preferencia global suprimiría la migración en la siguiente.
-    expect(fila?.satelites).toContain(CLAVE_MIGRADO);
     expect(fila?.satelites).toContain(CLAVE_TITULO);
     expect(fila?.satelites).toContain(`concreta-pub-${MODULO_PUB}`);
+    // Aquí viajó `concreta-incendio-migrado` mientras existió el legado del
+    // cuadro de materiales. Se fue con él el 15-09-2026.
+    expect(fila?.satelites).not.toContain('concreta-incendio-migrado');
   });
 
   it('y tiene adaptador del anejo, como capítulo de memoria', () => {

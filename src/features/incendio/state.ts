@@ -60,29 +60,11 @@ import { USOS_DB_SI } from '../../lib/incendio/tabla31';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
-import { leerExigenciasFuegoLegado, type ExigenciaLegada } from '../materiales/legadoFuego';
 import { cuentaParaEvacuacion, plantasPublicadas, type PlantaPublicada } from './plantasPub';
 
 export const STORAGE_KEY = 'concreta-incendio-model';
 export const SCHEMA_VERSION_KEY = 'concreta-incendio-model-version';
 export const SCHEMA_VERSION = versionViva('concreta-incendio');
-
-/**
- * La marca de «el legado del cuadro de materiales ya se adoptó en esta obra».
- *
- * Es un SATÉLITE DE PROYECTO, no una preferencia, y la diferencia importa:
- * `desplegar()` reemplaza —no mezcla— las claves de proyecto al abrir un
- * `.concreta`, borrando las que el fichero no traiga. Con una preferencia
- * global, abrir una obra vieja borraría el modelo de incendio, la marca
- * sobreviviría, y la migración no volvería a correr: la obra se quedaría sin su
- * R. Siendo satélite, viaja con la obra y cada una se migra una sola vez.
- *
- * Y es explícita, no implícita («ya hay modelo de incendio»): el día que este
- * módulo suba de versión de esquema, `cargarEstado` devolvería el estado por
- * defecto y una marca implícita resucitaría exigencias que el usuario borró a
- * propósito.
- */
-export const CLAVE_MIGRADO = 'concreta-incendio-migrado';
 
 /** El título del documento, fuera del estado de cálculo (ver `useDocTitle`). */
 export const CLAVE_TITULO = 'concreta-incendio-title';
@@ -412,22 +394,6 @@ export function normalizar(bruto: unknown): IncendioState {
 
 // ── La adopción del legado ──────────────────────────────────────────────────
 
-/**
- * Función pura, para poder probarla sin tocar el almacén: qué estado queda tras
- * ofrecerle el legado del cuadro de materiales.
- *
- * No pisa nada. Si el módulo ya tiene exigencias o sectores —porque el usuario
- * ya trabajó aquí— el legado se descarta: lo de este módulo es más reciente por
- * definición.
- */
-export function adoptarLegado(base: IncendioState, legado: readonly ExigenciaLegada[]): IncendioState {
-  if (legado.length === 0 || !esEstadoInicial(base)) return base;
-  return {
-    ...base,
-    exigencias: legado.map((e) => ({ id: nuevoId(), ambito: e.ambito, minutos: e.minutos })),
-  };
-}
-
 // ── Persistencia ────────────────────────────────────────────────────────────
 
 export function cargarEstado(): IncendioState {
@@ -442,16 +408,7 @@ export function cargarEstado(): IncendioState {
     }
   })();
 
-  if (leerClave(CLAVE_MIGRADO) === '1') return base;
-
-  // La marca se pone SIEMPRE, haya legado o no: si no, una obra sin fuego
-  // volvería a mirar el cuadro de materiales en cada carga, y el día que el
-  // usuario borrara aquí una exigencia migrada, reaparecería.
-  const legado = leerExigenciasFuegoLegado();
-  escribirClave(CLAVE_MIGRADO, '1');
-  const adoptado = adoptarLegado(base, legado);
-  if (adoptado !== base) guardarEstado(adoptado);
-  return adoptado;
+  return base;
 }
 
 export function guardarEstado(state: IncendioState): void {

@@ -685,10 +685,9 @@ function fuego(
   inc: PubIncendio | null,
   mat: PubMateriales | null,
 ): FichaDatos['se']['fuego'] {
-  // Las exigencias son del módulo de incendio. El repliegue al campo legado del
-  // cuadro de materiales cubre la obra que aún no ha pasado por el módulo
-  // nuevo; desaparece con la fase de limpieza.
-  const exigencias = inc?.exigencias ?? mat?.exigenciasFuego ?? [];
+  // Las exigencias son del módulo de incendio, y sólo de él: el repliegue al
+  // campo legado del cuadro de materiales se retiró con el legado (15-09-2026).
+  const exigencias = inc?.exigencias ?? [];
   if (exigencias.length === 0) return null;
   // Los materiales, en cambio, SIEMPRE salen del cuadro de materiales. Sin él,
   // `anejosFuego` tiene su rama —«de los anejos C a F»—, que se escribió para

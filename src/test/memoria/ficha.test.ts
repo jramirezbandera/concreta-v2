@@ -254,16 +254,23 @@ describe('resistencia al fuego', () => {
   });
 
   /**
-   * Al revés: un `.concreta` guardado antes de la mudanza llega sin sobre de
-   * incendio, pero su cuadro de materiales todavía lleva la R dentro. La
-   * memoria no puede perderla sin avisar.
+   * Al revés: sin sobre de incendio no hay R, y la ficha NO la inventa.
+   *
+   * Hasta el 15-09-2026 se replegaba al campo legado que viajaba en el sobre
+   * del cuadro de materiales, para la obra que aún no había pasado por el
+   * módulo nuevo. Ese campo se retiró con la v3 del sobre, así que la única
+   * fuente de la R es el módulo que la calcula. El apartado se queda sin el
+   * párrafo de fuego, que es lo correcto: una obra que no habla de fuego no
+   * tiene por qué hacerlo.
    */
-  it('sin sobre de incendio, se repliega al legado que viaja en el de materiales', () => {
+  it('sin sobre de incendio no hay R que imprimir, y no se saca de ningún otro sitio', () => {
     const sobres = { ...sobresGranada({ fuego: R }), incendio: null };
-    sobres.materiales!.datos.exigenciasFuego = R.map(({ ambito, minutos }) => ({ ambito, minutos }));
     const datos = ensamblar(completar(fichaGranadaConFabrica(), sobres), sobres);
     const se = texto(apartados(datos).find((a) => a.id === 'se')!.bloques);
-    expect(se).toContain('R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.');
+    expect(se).not.toContain('Resistencia al fuego exigida a la estructura');
+    expect(se).not.toContain('R120');
+    // Y no bloquea: el módulo de incendio es opcional para la ficha.
+    expect(datos.fuentes.incendio.estado).toBe('derivado');
   });
 
   it('el módulo de incendio no bloquea la exportación de una obra que no habla de fuego', () => {

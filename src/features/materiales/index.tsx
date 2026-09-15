@@ -168,9 +168,9 @@ export function MaterialesModule() {
   // `versionPubs` no se usa DENTRO a propósito: es la marca que dice «vuelve a
   // leer», no un dato. Por eso el lint cree que sobra.
   const fuegoDelCuadro = useMemo(
-    () => exigenciasDelCuadro(state.exigenciasFuegoLegado),
+    () => exigenciasDelCuadro(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [versionPubs, state.exigenciasFuegoLegado],
+    [versionPubs],
   );
 
   // ── Asistente ─────────────────────────────────────────────────────────────

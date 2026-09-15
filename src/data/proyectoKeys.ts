@@ -119,17 +119,10 @@ export const CLAVES_PROYECTO: readonly EntradaProyecto[] = [
     idEsquema: null,
     claveVersion: 'concreta-incendio-model-version',
     versionViva: '1',
-    // `concreta-incendio-migrado` es la marca de «ya se adoptó el legado de
-    // fuego del cuadro de materiales». Va de SATÉLITE DE PROYECTO, no de
-    // preferencia, porque `desplegar()` reemplaza las claves de proyecto al
-    // abrir un `.concreta`: con una preferencia global, abrir una obra vieja
-    // borraría el modelo de incendio, la marca sobreviviría y esa obra se
-    // quedaría sin su R para siempre.
-    satelites: [
-      'concreta-incendio-title',
-      'concreta-incendio-migrado',
-      `${PREFIJO_PUB}incendio`,
-    ],
+    // Aquí vivió `concreta-incendio-migrado`, la marca de «ya se adoptó el
+    // legado de fuego del cuadro de materiales». Se fue con el legado el
+    // 15-09-2026; la clave que quede suelta en un navegador es inerte.
+    satelites: ['concreta-incendio-title', `${PREFIJO_PUB}incendio`],
   },
 
   // --- Piezas con useModuleState: clave CRUDA sin prefijo, versión en `<clave>-version`

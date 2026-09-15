@@ -2,20 +2,18 @@
  * El cuadro de materiales sigue imprimiendo la nota de fuego, pero ya no la
  * teclea: la lee del sobre de `/acciones/incendio`.
  *
- * Es la prueba de que la mudanza no rompió el papel. Cubre las cuatro
+ * Es la prueba de que la mudanza no rompió el papel. Cubre las tres
  * situaciones que puede encontrarse una obra real:
  *
  *   1. hay sobre de incendio → se imprime lo que diga;
  *   2. el sobre existe pero nadie lo configuró → no se imprime nada;
- *   3. no hay sobre pero sí legado (la obra no ha pasado aún por el módulo
- *      nuevo, o viene de un `.concreta` anterior al cambio) → se imprime el
- *      legado;
- *   4. ni sobre ni legado → no se imprime nada, como siempre.
+ *   3. no hay sobre → no se imprime nada, como antes de que el fuego existiera
+ *      en este cuadro.
  *
- * El caso 3 es el que evita la regresión silenciosa: `desplegar()` REEMPLAZA
- * las claves de proyecto al abrir un `.concreta`, así que una obra guardada
- * antes del cambio llega sin `concreta-pub-incendio` y, sin el repliegue, su
- * memoria perdería la R sin que nadie se enterase.
+ * Hubo un cuarto caso mientras duró el legado: sin sobre se replegaba a las
+ * exigencias que este módulo había guardado cuando el fuego se tecleaba en él,
+ * para que una obra anterior a la mudanza no perdiera su R en silencio. El
+ * legado se retiró el 15-09-2026 con la v3 del sobre, y el repliegue con él.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,15 +62,6 @@ function sobreDeIncendio(
   );
 }
 
-/** Deja escrito un cuadro de materiales con el legado de fuego dentro. */
-function cuadroConLegado(exigencias: { id: string; ambito: string; minutos: number }[]) {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({ exigenciasFuegoLegado: exigencias }),
-  );
-  localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
-}
-
 /** Monta y abre la pestaña del documento: el cuadro arranca en «Datos». */
 function montarYVerElPlano() {
   montar();
@@ -101,25 +90,22 @@ describe('la nota de fuego del cuadro', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('sin sobre, se repliega al legado que este módulo guardó en su día', () => {
-    cuadroConLegado([{ id: 'f1', ambito: 'Toda la estructura', minutos: 60 }]);
+  it('sin sobre no se imprime nada de fuego', () => {
     montarYVerElPlano();
     expect(
-      screen.getByText(/Resistencia al fuego exigida a la estructura: R60/),
-    ).toBeInTheDocument();
-  });
-
-  it('el sobre manda sobre el legado', () => {
-    cuadroConLegado([{ id: 'f1', ambito: 'Toda la estructura', minutos: 60 }]);
-    sobreDeIncendio([{ ambito: 'Plantas sobre rasante', minutos: 120 }]);
-    montarYVerElPlano();
-    expect(screen.getByText(/R120 en las plantas sobre rasante/)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Resistencia al fuego exigida a la estructura: R60/),
+      screen.queryByText(/Resistencia al fuego exigida a la estructura/),
     ).not.toBeInTheDocument();
   });
 
-  it('sin sobre ni legado no se imprime nada de fuego', () => {
+  it('y un cuadro con el legado viejo dentro tampoco lo resucita', () => {
+    // Un `concreta-materiales-model` de antes de la mudanza sigue teniendo su
+    // `exigenciasFuego` guardado. Ya no se lee: si se leyera, la nota saldría
+    // de un dato que ningún módulo mantiene.
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ exigenciasFuego: [{ id: 'f1', ambito: 'Toda la estructura', minutos: 60 }] }),
+    );
+    localStorage.setItem(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
     montarYVerElPlano();
     expect(
       screen.queryByText(/Resistencia al fuego exigida a la estructura/),
