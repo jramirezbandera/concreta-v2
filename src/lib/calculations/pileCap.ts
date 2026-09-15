@@ -13,8 +13,11 @@
 //     eje del pilar (v + 0.25a), por dirección (#78)
 //   - tirantes EN BANDA sobre los pilotes (ancho d_p + 2·cover), no repartidos
 //     en todo el ancho del encepado (#80, #86)
-//   - fyd de tirantes = fyk/γs SIN tope de 400 N/mm² — el tope era de
-//     EHE 58.4.1.1 y el CE Anejo 19 §6.5.3 no lo recoge (#85)
+//   - fyd de tirantes = min(fyk/γs, 400 N/mm²): el tope del art. 40.2 de la
+//     EHE-08, que el 58.4.1.2 repite para el tirante de encepados. La auditoría
+//     #85 lo había quitado por no recogerlo el CE Anejo 19 §6.5.3; el usuario
+//     decidió (2026-09-15) que los encepados sigan la EHE-08 también en esto,
+//     coherente con aplicar sus mínimos de armadura (el CE no tiene propios)
 //   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
 //   - n=3 (encepado rígido de tres pilotes, Calavera fig. 14-9 / ex-EHE
 //     58.4.1.2.2): planta TRIANGULAR — triángulo de lado s ampliado la
@@ -459,9 +462,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const mat  = getConcrete(fck);
   const fctm = mat.fctm;     // MPa
   const fcd  = mat.fcd;      // MPa
-  // fyd de tirantes = fyk/γs (CE Anejo 19 §6.5.3). El tope de 400 N/mm² era
-  // de la EHE-08 58.4.1.1 (derogada) y el CE no lo recoge (#85).
-  const fyd  = fyk / GAMMA_S; // MPa
+  // fyd de tirantes = min(fyk/γs, 400): tope del art. 40.2 de la EHE-08, que
+  // el 58.4.1.2 repite para el tirante («con fyd ≤ 400 N/mm²»). Decisión del
+  // usuario (2026-09-15): los encepados siguen la EHE-08, que es de donde
+  // salen también sus mínimos de armadura. Con B500 sube un 8,7 % el acero
+  // del tirante y de los cercos de banda, y acorta la lb básica.
+  const fyd  = Math.min(fyk / GAMMA_S, 400); // MPa
 
   // ── Pile positions & cap dimensions ──────────────────────────────────────
   const pilePos = getPilePositions(n, s);

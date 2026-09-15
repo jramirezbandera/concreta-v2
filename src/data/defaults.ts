@@ -714,8 +714,8 @@ export interface PileCapInputs {
 // Verified hand-calc (modelo B&T CE Anejo 19 §6.5, geometría ex-EHE, fix
 // adenda 2 + dims auto redondeadas a 5 cm): Lx×Ly = 1950×1150, e_borde=375;
 // W_cap=44.85 kN → R_max=180.3 kN (72% de R_adm); θ=51.3°; σ_strut=6.08 vs
-// σ_Rd=9.02 → 67%; tirante 332/1131 mm² → 29% (fyd=fyk/γs, sin tope EHE);
-// anclaje lb,req≈337 vs 1015 mm → 33%.
+// σ_Rd=9.02 → 67%; tirante 361/1131 mm² → 32% (fyd = min(fyk/γs, 400), tope
+// EHE-08 40.2); anclaje lb,req≈310 vs 1015 mm → 31%.
 // L_x/L_y por defecto = valores auto (semilla al pasar a modo manual).
 export const pileCapDefaults: PileCapInputs = {
   title:   '',

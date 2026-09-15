@@ -3,7 +3,7 @@
 //
 // Oracles calculados a mano con el modelo B&T de CE Anejo 19 §6.5 (geometría
 // de práctica consolidada ex-EHE): z = 0.85·d, brazo v + 0.25a, bandas sobre
-// pilotes, fyd = fyk/γs (SIN tope 400 — EHE derogada), peso propio 25 kN/m³
+// pilotes, fyd = min(fyk/γs, 400) (tope EHE-08 40.2, decisión 2026-09-15), peso propio 25 kN/m³
 // con γG=1.35, anclaje fctd = 0.7·fctm/1.5 y demanda lbd de patilla (α1=0.7).
 //
 // Defaults (n=2, d_p=220, s=1200, h=800, col 400×400, C25, B500, c=60, φ12,
@@ -14,9 +14,9 @@
 //   d = 800−60−6 = 734 → z = 623.9 ; a_eff = 600−100 = 500 → θ = 51.3°
 //   Fs = 180.27/sin51.3° = 231.0 kN ; A_node = π·110² = 38013 mm²
 //   σ_strut = 6.08 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
-//   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 332.3 mm² (fyd=434.78)
+//   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 361.2 mm² (fyd = 400)
 //   As_min = 0.26·(2.56/500)·1150·734 = 1123.7 mm² → 10Ø12 = 1131 mm²
-//   lb = 3·434.78/2.688 = 485.2 ; lb,req = 0.7·485.2·(1123.7/1131) = 337.5 mm
+//   lb = 3·400/2.688 = 446.4 ; lb,req = 0.7·446.4·(1123.7/1131) = 310.5 mm
 //   lb,disp = (375−60) + (800−60−40) = 1015 mm
 
 import { describe, expect, it } from 'vitest';
@@ -47,8 +47,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.R_max).toBeCloseTo((base.N_Ed + 1.35 * r.W_cap) / 2, 3);
   });
 
-  it('fyd = fyk/γs = 434.8 (CE Anejo 19 — sin el tope 400 de la EHE derogada, #85)', () => {
-    expect(r.fyd).toBeCloseTo(500 / 1.15, 2);
+  it('fyd = min(fyk/γs, 400) = 400 con B500 (tope EHE-08 40.2 para el tirante, 58.4.1.2)', () => {
+    expect(r.fyd).toBe(400);
+    expect(calcPileCap({ ...base, fyk: 400 }).fyd).toBeCloseTo(400 / 1.15, 2);
   });
 
   it('brazos del modelo B&T: d_eff=734, z=0.85·d=623.9, a_eff=500 (fix #78)', () => {
@@ -73,9 +74,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'node-column')!.status).toBe('ok');
   });
 
-  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 332 mm², 10Ø12 = 1131 mm²', () => {
+  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 361 mm² (fyd = 400), 10Ø12 = 1131 mm²', () => {
     expect(r.Ft_x).toBeCloseTo(144.47, 1);
-    expect(r.As_tie_x).toBeCloseTo(332.3, 1);
+    expect(r.As_tie_x).toBeCloseTo(361.2, 1);
     expect(r.As_min_x).toBeCloseTo(1123.7, 0);
     expect(r.n_bars_x).toBe(10);
     expect(r.As_prov_x).toBeCloseTo(1131, 0);
@@ -83,7 +84,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
 
   it('check de tirante usa la DEMANDA As_tie, no As_min (fix #82)', () => {
     const c = r.checks.find((ch) => ch.id === 'tie-steel-x')!;
-    expect(c.utilization).toBeCloseTo(332.3 / 1131, 2);
+    expect(c.utilization).toBeCloseTo(361.2 / 1131, 2);
     expect(c.status).toBe('ok');
   });
 
@@ -92,9 +93,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.s_bar_x).toBeCloseTo(340 / 9, 1);
   });
 
-  it('anclaje: lb ≈ 485.2 (fctd con 0.7), lb,req ≈ 337.5, lb,disp = 1015 (fix #75)', () => {
-    expect(r.lb).toBeCloseTo(485.2, 1);
-    expect(r.lb_net).toBeCloseTo(337.5, 1);
+  it('anclaje: lb ≈ 446.4 (fctd con 0.7, fyd = 400), lb,req ≈ 310.5, lb,disp = 1015 (fix #75)', () => {
+    expect(r.lb).toBeCloseTo(446.4, 1);
+    expect(r.lb_net).toBeCloseTo(310.5, 1);
     expect(r.lb_avail).toBe(1015);
   });
 
@@ -426,8 +427,9 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     expect(r.Ft_x).toBeLessThan(0.681 * r.R_max * r.a_eff / r.z_eff);
   });
 
-  it('fyk=400 → fyd = 347.8 (fyd = fyk/γs para cualquier grado)', () => {
+  it('fyk=400 → fyd = 347.8 (el tope 400 sólo muerde con B500)', () => {
     expect(calcPileCap({ ...base, fyk: 400 }).fyd).toBeCloseTo(400 / 1.15, 2);
+    expect(calcPileCap({ ...base, fyk: 500 }).fyd).toBe(400);
   });
 
   it('congestión: muchas barras en banda → bar-spacing-min fail (fix #82)', () => {

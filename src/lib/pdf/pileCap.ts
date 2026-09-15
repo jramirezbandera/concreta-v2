@@ -131,6 +131,7 @@ export async function exportPileCapPDF(
 
   // ARMADURA TIRANTES
   secHeader('ARMADURA TIRANTES');
+  twoCol(`fyd = ${result.fyd.toFixed(0)} MPa (tope EHE)`, '');
   twoCol(
     `As,x = ${result.n_bars_x} ph${phi_tie} (${result.As_prov_x.toFixed(0)} mm^2)`,
     result.n_bars_y !== null

@@ -78,6 +78,7 @@ export function PileCapResults({ inp, result }: Props) {
       />
       <ValueRow label="σ_biela"    value={fmtSi(result.sigma_strut, 'stress')} />
       <ValueRow label="σ_Rd,max"   value={fmtSi(result.sigma_Rd_max, 'stress')} />
+      <ValueRow label="fyd tirante" value={`${fmtSi(result.fyd, 'stress', 0)} (≤ 400, EHE-08 40.2)`} />
       <ValueRow label="Ft,x"       value={fmtSi(result.Ft_x, 'force')} />
       {result.Ft_y !== null && (
         <ValueRow label="Ft,y" value={fmtSi(result.Ft_y, 'force')} />
