@@ -57,8 +57,29 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
   });
 
   return (
-    <header className="h-12 shrink-0 flex items-center justify-between px-5 bg-bg-surface border-b border-border-main">
-      <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+    /*
+      Por debajo de `sm` la barra va en DOS filas: las acciones arriba y la miga
+      abajo, a todo el ancho. Por encima, una sola fila de 48 px como siempre.
+
+      Por qué: a 375 px la fila estaba sobresuscrita. Hamburguesa 42 + obra 77 +
+      botonera 172 + padding 40 = 331 de 375, así que al título del módulo le
+      quedaban 18 px para los 91 que necesita «Acción sísmica». No es que se
+      truncara: se borraba a una letra, y pasaba con cualquier obra cargada, no
+      sólo con el marcador «Sin obra». La barra dejaba de contestar «¿en qué
+      pantalla estoy?», que es la pregunta que una miga existe para contestar.
+
+      Se probaron las alternativas de una fila y ninguna cabe: repartir el ancho
+      deja obra y título cortados a la vez («Casa… / Acción…»), y plegar la
+      calculadora dentro de Ajustes sólo sube el título a 69 de 91. Con dos
+      filas cabe entero, medido.
+
+      El precio es el alto en móvil, que es justo donde escasea. Por eso la
+      segunda fila es la miga y no las acciones: la miga es texto de 13 px y
+      cabe en ~20 px, mientras que mover la botonera dejaría la fila de arriba
+      casi vacía.
+    */
+    <header className="shrink-0 flex flex-wrap items-center justify-between gap-y-0.5 px-5 py-1 bg-bg-surface border-b border-border-main sm:h-12 sm:flex-nowrap sm:gap-y-0 sm:py-0">
+      <div className="order-2 w-full flex items-center gap-2.5 min-w-0 overflow-hidden sm:order-none sm:w-auto">
         {/* Hamburger — mobile only */}
         {onMenuOpen && (
           <button
@@ -101,7 +122,10 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
           <PiezaMenu />
         </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      {/* `order-1` + `ml-auto` la suben a la primera fila y la pegan a la
+          derecha mientras la barra va en dos filas. A partir de `sm` vuelve a
+          su sitio natural. */}
+      <div className="order-1 ml-auto flex items-center gap-1 shrink-0 sm:order-none sm:ml-0">
         {/* Asistente IA — acción primaria (único botón relleno). */}
         {onOpenAssistant && <AiButton onClick={onOpenAssistant} />}
         <CalcButton onClick={openCalc} />
