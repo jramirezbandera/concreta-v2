@@ -1,5 +1,5 @@
 // PDF export for Micropilotes module
-// A4 portrait — input summary + 4 SVG views (perfil, Rfc curva, sección, semáforos)
+// A4 portrait — input summary + 3 SVG views (perfil, Rfc curva, sección)
 // + tabla de comprobaciones.
 
 import type jsPDF from 'jspdf';
@@ -329,11 +329,13 @@ export async function exportMicropilesPDF(
     y = artY + 5;
   }
 
-  // ── Páginas adicionales: Rfc curva, sección, semáforos ──────────────────
+  // ── Páginas adicionales: Rfc curva, sección ───────────────────────────
+  // La página de SEMÁFOROS se retiró (2026-09-15): repetía ih/ic/im/iv, asiento
+  // y garganta — todos ya en la tabla de COMPROBACIONES con valor, límite,
+  // utilización y artículo — y los rótulos se salían de las tarjetas.
   const diagramPages: Array<{ id: string; title: string; aspect: number }> = [
     { id: 'micropiles-svg-pdf-rfc',     title: 'RFC ACUMULADA',  aspect: 400 / 500 },
     { id: 'micropiles-svg-pdf-section', title: 'SECCIÓN DEL TOPE', aspect: 400 / 500 },
-    { id: 'micropiles-svg-pdf-sema',    title: 'SEMÁFOROS',       aspect: 360 / 500 },
   ];
 
   for (const { id, title, aspect } of diagramPages) {

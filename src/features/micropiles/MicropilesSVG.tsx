@@ -3,14 +3,13 @@
 
 import { type MicropilesInputs, type SoilLayer } from '../../data/defaults';
 import { type MicropilesResult } from '../../lib/calculations/micropiles';
-import { WARN_UTIL } from '../../lib/calculations/types';
 import { resolveTubeGeometry } from '../../data/micropileTubes';
 import { getMinStructuralCover } from '../../data/micropileLookups';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { dec, formatQuantity, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
-export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection' | 'semaphores';
+export type MicropilesView = 'profile' | 'rfcCurve' | 'topSection';
 
 interface MicropilesSVGProps {
   inp: MicropilesInputs;
@@ -571,88 +570,6 @@ function TopSectionView({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// View 4: semáforos (grid de tarjetas)
-// ────────────────────────────────────────────────────────────────────────────
-
-function SemaphoresView({
-  result, p, width, height,
-}: { result: MicropilesResult; p: Palette; width: number; height: number }) {
-  const cards = [
-    { id: 'ih', title: 'ih — Hundimiento por fuste', util: result.ih,
-      article: 'Guía Fomento cap. 3.4' },
-    { id: 'ic', title: 'ic — Tope compresión',        util: result.ic,
-      article: 'Guía Fomento eq. 3.5' },
-    { id: 'im', title: 'im — Flexión',                util: result.im,
-      article: 'CE Anejo 22 §6.2.5' },
-    { id: 'iv', title: 'iv — Cortante',               util: result.iv,
-      article: 'CE Anejo 22 §6.2.6' },
-    { id: 'set', title: 'Asiento granular',
-      util: result.settlementGranular / 25,
-      override: `${dec(result.settlementGranular, 1)} mm / 25 mm`,
-      article: 'Criterio CTE DB-SE-C' },
-    { id: 'eg', title: 'Garganta soldadura',          util: result.eg >= result.eg_min ? 0.5 : 1.2,
-      override: `${result.eg} mm ≥ ${result.eg_min} mm`,
-      article: 'Guía Fomento Tabla A-5.1' },
-  ];
-
-  const cols = 3;
-  const rows = Math.ceil(cards.length / cols);
-  const pad  = 10;
-  const cellW = (width  - pad * (cols + 1)) / cols;
-  // Antes la altura de cada celda se calculaba para llenar todo el canvas,
-  // dando cards de ~245px con el contenido (titulo + valor + barra + nota)
-  // ocupando solo ~100px y dejando huecos vacíos enormes. Se acota la
-  // altura a 132px y se centra el grid verticalmente.
-  const naturalCellH = (height - pad * (rows + 1)) / rows;
-  const cellH = Math.min(132, naturalCellH);
-  const gridH = pad + rows * (cellH + pad);
-  const yOffset = Math.max(0, (height - gridH) / 2);
-
-  return (
-    <g>
-      {cards.map((card, i) => {
-        const r = Math.floor(i / cols);
-        const c = i % cols;
-        const x = pad + c * (cellW + pad);
-        const y = yOffset + pad + r * (cellH + pad);
-        const util = Math.min(1, Math.max(0, card.util));
-        // util ≤ 0 (p.ej., im=iv=0 sin empujes aplicados) cuenta como "CUMPLE"
-        // — coherente con la tira de utilizaciones del header (UtilStat).
-        const stateColor =
-          card.util >= 1.0 ? p.fail :
-          card.util >= WARN_UTIL ? p.warn :
-                             p.ok;
-        const valueText = card.override ?? dec(util, 2);
-        return (
-          <g key={card.id} transform={`translate(${x}, ${y})`}>
-            <defs>
-              <linearGradient id={`amb-${card.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stopColor={stateColor} stopOpacity="0.18" />
-                <stop offset="80%" stopColor={stateColor} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <rect x={0} y={0} width={cellW} height={cellH} rx={5} fill={p.bgPanel} stroke={p.border} strokeWidth={0.6} />
-            <rect x={0} y={0} width={cellW} height={cellH} rx={5} fill={`url(#amb-${card.id})`} />
-            <line x1={0} y1={0} x2={cellW} y2={0} stroke={stateColor} strokeWidth={2} />
-
-            {/* Posiciones absolutas para que el contenido se vea compacto
-                en cualquier cellH dentro del rango razonable (110-140). */}
-            <text x={12} y={20}  fontSize={10.5} fill={p.text} fontFamily="ui-monospace, monospace" fontWeight={600}>{card.title}</text>
-            <text x={12} y={62}  fontSize={20}   fill={stateColor} fontFamily="ui-monospace, monospace" fontWeight={700}>{valueText}</text>
-
-            {/* Barra de utilización */}
-            <rect x={12} y={78} width={cellW - 24} height={5} rx={2} fill={p.border} opacity={0.5} />
-            <rect x={12} y={78} width={(cellW - 24) * util} height={5} rx={2} fill={stateColor} />
-
-            <text x={12} y={cellH - 12} fontSize={8.5} fill={p.textDim} fontFamily="ui-monospace, monospace">{card.article}</text>
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // Public component
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -669,7 +586,6 @@ export function MicropilesSVG({
       {view === 'profile'    && <PerfilView      inp={inp} soil={soil} p={p} width={width} height={height} system={system} />}
       {view === 'rfcCurve'   && <RfcCurveView    inp={inp} result={result} p={p} width={width} height={height} system={system} />}
       {view === 'topSection' && <TopSectionView  inp={inp} result={result} p={p} width={width} height={height} system={system} />}
-      {view === 'semaphores' && <SemaphoresView  result={result} p={p} width={width} height={height} />}
     </svg>
   );
 }

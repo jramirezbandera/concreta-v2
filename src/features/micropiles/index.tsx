@@ -23,10 +23,10 @@ import { loadSoil, saveSoil } from './soilStorage';
 import { buildShareUrl, readSoilFromUrl } from './serialize';
 import { dec } from '../../lib/units/format';
 
-// Pestañas de vista. "Semáforos" se retiró (2026-06-02): sus utilizaciones
-// ih/ic/im/iv ya están en el topbar (IH/IC/IM/IV) y en las comprobaciones del
-// panel de resultados — info redundante en pantalla. La vista sigue existiendo
-// en MicropilesSVG para el PDF, donde no hay topbar.
+// Pestañas de vista. "Semáforos" se retiró de la pantalla (2026-06-02) y del
+// PDF (2026-09-15): sus utilizaciones ih/ic/im/iv ya están en el topbar
+// (IH/IC/IM/IV), en las comprobaciones del panel de resultados y en la tabla
+// COMPROBACIONES del PDF — info redundante en los dos sitios.
 const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string }[] = [
   { id: 'profile',    num: '1', label: 'Perfil',     color: '#a8825a' },
   { id: 'rfcCurve',   num: '2', label: 'Rfc curva',  color: '#38bdf8' },
@@ -341,9 +341,6 @@ export function MicropilesModule() {
         </div>
         <div id="micropiles-svg-pdf-section">
           <MicropilesSVG inp={state} soil={soil} result={result} view="topSection" mode="pdf" width={500} height={400} />
-        </div>
-        <div id="micropiles-svg-pdf-sema">
-          <MicropilesSVG inp={state} soil={soil} result={result} view="semaphores" mode="pdf" width={500} height={360} />
         </div>
       </div>
 

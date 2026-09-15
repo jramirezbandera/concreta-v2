@@ -1,4 +1,4 @@
-// MicropilesSVG — verifica que las 4 vistas renderan sin crash con un
+// MicropilesSVG — verifica que las 3 vistas renderan sin crash con un
 // result calculado por el motor real.
 //
 // Estrategia: motor → result → mount. No mockear el result (un result
@@ -17,7 +17,7 @@ import { UnitSystemProvider } from '../../../lib/units/UnitSystemProvider';
 const render = (ui: Parameters<typeof rtlRender>[0]) =>
   rtlRender(ui, { wrapper: UnitSystemProvider });
 
-const VIEWS: MicropilesView[] = ['profile', 'rfcCurve', 'topSection', 'semaphores'];
+const VIEWS: MicropilesView[] = ['profile', 'rfcCurve', 'topSection'];
 
 describe('MicropilesSVG', () => {
   for (const view of VIEWS) {
@@ -74,29 +74,6 @@ describe('MicropilesSVG', () => {
       );
       expect(container.querySelector('svg'), `pdf mode crashed en vista ${view}`).not.toBeNull();
     }
-  });
-
-  it('vista "semaphores" muestra las utilizaciones ih/ic del result', () => {
-    const result = calcMicropiles(micropilesDefaults, micropilesSoilDefaults);
-    const { container } = render(
-      <MicropilesSVG
-        inp={micropilesDefaults}
-        soil={micropilesSoilDefaults}
-        result={result}
-        view="semaphores"
-      />,
-    );
-    const text = container.textContent ?? '';
-    // ih FTUX ≈ 0.68 (post #47: Rfc ~516 → 350/516 ≈ 0.68).
-    // ic ≈ 0.51 con los defaults AUTO: pandeo CR=8 (E1 arena floja, R=0.854) y
-    // recubrimiento auto r=(Dn−de)/2 ⇒ d_struct=Dn=185 (bulbo = barreno), que
-    // sube Fc,h y por tanto Nc,rd respecto al d_struct=180 del Excel manual.
-    // Formato con punto decimal — adimensionales no llevan unidad ni coma local.
-    expect(text).toMatch(/0,68/);
-    expect(text).toMatch(/0,51/);
-    // Y debe nombrar las dos comprobaciones, no solo los números.
-    expect(text).toMatch(/Hundimiento por fuste/);
-    expect(text).toMatch(/Tope compresión/);
   });
 
   it('se puede cambiar de vista re-renderizando con otro prop "view"', () => {
