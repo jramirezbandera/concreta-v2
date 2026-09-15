@@ -80,7 +80,9 @@ function Glifo({ f, r, x, y, w, h, seleccionado, nieve, punta, formato, onSelect
   };
   const otro = clamp(f.inclinacionOtro, 0, 89);
   const acum = r?.acumulacion;
-  const cuna = acum ? clamp(acum.pa * 14, 6, 22) : 0;
+  // El cambio de nivel baja 18 px: la cubierta baja queda por encima del texto del pie («cambio de nivel: se acumula abajo»).
+  const caida = 18;
+  const cuna = acum ? clamp(acum.pa * 10, 5, 12) : 0;
 
   return (
     <g role="button" tabIndex={0} aria-label={`Seleccionar ${nombre}`} aria-pressed={seleccionado} onClick={onSelect} onKeyDown={teclado} className="svg-focus-ring" style={{ cursor: 'pointer' }}>
@@ -138,20 +140,16 @@ function Glifo({ f, r, x, y, w, h, seleccionado, nieve, punta, formato, onSelect
       )}
       {f.limahoya === 'cambioNivel' && (
         <>
-          <line x1={xPie} y1={yPie} x2={xPie} y2={yPie + 26} stroke={COLOR.seccion} strokeWidth={2} />
-          <line x1={xPie} y1={yPie + 26} x2={xPie + 46} y2={yPie + 26} stroke={COLOR.seccion} strokeWidth={2} />
-          {acum && (
-            <>
-              <polygon points={`${xPie},${yPie + 26 - cuna} ${xPie + 28},${yPie + 26} ${xPie},${yPie + 26}`} fill={mezcla(COLOR.accent, 35)} stroke={COLOR.accent} strokeWidth={1} />
-              <Flecha x1={xPie + 6} y1={yPie + 2} x2={xPie + 6} y2={yPie + 26 - cuna - 4} punta={punta} color={COLOR.accent} grosor={1} discontinua />
-            </>
-          )}
+          <line x1={xPie} y1={yPie} x2={xPie} y2={yPie + caida} stroke={COLOR.seccion} strokeWidth={2} />
+          <line x1={xPie} y1={yPie + caida} x2={xPie + 46} y2={yPie + caida} stroke={COLOR.seccion} strokeWidth={2} />
+          {acum && <polygon points={`${xPie},${yPie + caida - cuna} ${xPie + 28},${yPie + caida} ${xPie},${yPie + caida}`} fill={mezcla(COLOR.accent, 35)} stroke={COLOR.accent} strokeWidth={1} />}
         </>
       )}
       {r?.hielo !== undefined && (
         <>
           <circle cx={xPie + (f.limahoya === 'ninguna' ? 0 : -6)} cy={yPie + 6} r={3} fill={COLOR.accent} />
-          <Rotulo x={xPie - 10} y={yPie + 32} tam={9.5} mono color={COLOR.accent} ancla="end">
+          {/* Arriba a la derecha, bajo la línea de α y μ: al pie pisaría el texto del alero. */}
+          <Rotulo x={x + w - 10} y={y + 42} tam={9.5} mono color={COLOR.accent} ancla="end">
             hielo {formato.lineal(r.hielo)} {formato.uL}
           </Rotulo>
         </>

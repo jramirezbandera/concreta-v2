@@ -12,9 +12,120 @@ import { CubiertaSVG } from '../../features/viento-nieve/lienzo/CubiertaSVG';
 import { EdificioSVG } from '../../features/viento-nieve/lienzo/EdificioSVG';
 import { FachadasSVG } from '../../features/viento-nieve/lienzo/FachadasSVG';
 import { NieveSVG } from '../../features/viento-nieve/lienzo/NieveSVG';
-import { defaultVientoNieveState, ejemploVientoNieveState, evaluar, type VientoNieveState } from '../../features/viento-nieve/state';
+import { defaultVientoNieveState, ejemploVientoNieveState, evaluar, nuevaPlanta, type VientoNieveState } from '../../features/viento-nieve/state';
 
 afterEach(() => cleanup());
+
+// ── Solapes: jsdom no mide texto, así que se estima la caja de cada <text> con
+// el mismo ancho por carácter que usan los dibujos para colocar sus rótulos ──
+interface Caja {
+  texto: string;
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+function cajasTexto(svg: SVGSVGElement): Caja[] {
+  return [...svg.querySelectorAll('text')].map((t) => {
+    const x = Number(t.getAttribute('x'));
+    const y = Number(t.getAttribute('y'));
+    const tam = Number(t.getAttribute('font-size') ?? 11);
+    const texto = t.textContent ?? '';
+    const estilo = t.getAttribute('style') ?? '';
+    const porCaracter = estilo.includes('mono') ? 0.6 : t.hasAttribute('letter-spacing') ? 0.66 : 0.52;
+    const negrita = Number(t.getAttribute('font-weight') ?? 400) >= 600 ? 1.05 : 1;
+    const w = texto.length * tam * porCaracter * negrita;
+    const ancla = t.getAttribute('text-anchor') ?? 'start';
+    const x0 = ancla === 'end' ? x - w : ancla === 'middle' ? x - w / 2 : x;
+    return { texto, x0, x1: x0 + w, y0: y - tam * 0.75, y1: y + tam * 0.2 };
+  });
+}
+
+/** Pares de rótulos cuyas cajas estimadas se cruzan más de 2 px en las dos direcciones. */
+function solapes(cajas: Caja[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < cajas.length; i++) {
+    for (let j = i + 1; j < cajas.length; j++) {
+      const a = cajas[i];
+      const b = cajas[j];
+      const dx = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+      const dy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      if (dx > 2 && dy > 2) out.push(`«${a.texto}» ∩ «${b.texto}»`);
+    }
+  }
+  return out;
+}
+
+/** Rótulos que se salen del lienzo (más de 2 px). */
+function fuera(cajas: Caja[], width: number, height: number): string[] {
+  return cajas.filter((c) => c.x0 < -2 || c.x1 > width + 2 || c.y0 < -2 || c.y1 > height + 2).map((c) => `«${c.texto}»`);
+}
+
+function plantas(n: number, h: number) {
+  return Array.from({ length: n }, (_, i) => nuevaPlanta(i === n - 1 ? 'Cubierta' : `Planta ${i + 1}`, h));
+}
+
+/** Geometrías que destaparon solapes el 2026-09-15: la obra del usuario, una nave larga y una torre estrecha. */
+function geometrias(): [string, VientoNieveState][] {
+  const base = () => {
+    const s = defaultVientoNieveState();
+    s.emplazamiento = { ...s.emplazamiento, provincia: '29', municipio: 'Benahavís', altitud: 150 };
+    s.viento.paramentos = { ...s.viento.paramentos, activos: true };
+    return s;
+  };
+  const usuario = base();
+  usuario.viento.dimensiones = { x: 44, y: 21 };
+  usuario.viento.plantas = plantas(3, 3);
+  const nave = base();
+  nave.viento.dimensiones = { x: 60, y: 15 };
+  nave.viento.plantas = plantas(1, 8);
+  nave.viento.cubierta = { ...nave.viento.cubierta, activa: true, pendiente: 10, cumbrera: 'x' };
+  const torre = base();
+  torre.viento.dimensiones = { x: 12, y: 40 };
+  torre.viento.plantas = plantas(10, 3);
+  torre.viento.cubierta = { ...torre.viento.cubierta, activa: true, pendiente: 25, cumbrera: 'y' };
+  return [
+    ['44 × 21 m, 3 plantas, cubierta plana', usuario],
+    ['nave 60 × 15 m a 10º', nave],
+    ['torre 12 × 40 m, 10 plantas', torre],
+    ['ejemplo', ejemploVientoNieveState()],
+  ];
+}
+
+const TAMANOS: [number, number][] = [
+  [1130, 830],
+  [760, 600],
+  [360, 420],
+];
+
+describe('los rótulos no se pisan ni se salen con geometrías alargadas', () => {
+  for (const [nombre, s] of geometrias()) {
+    for (const [w, h] of TAMANOS) {
+      it(`${nombre} a ${w} × ${h}`, () => {
+        const ev = evaluar(s);
+        const cumbrera = s.viento.cubierta.activa ? s.viento.cubierta.cumbrera : null;
+        for (const dir of ['x', 'y'] as const) {
+          const vistas = [
+            <EdificioSVG key="e" viento={s.viento} resultado={ev.viento} direccion={dir} plantaSel={null} onSelectPlanta={() => {}} onDireccion={() => {}} forceWidth={w} forceHeight={h} />,
+            <CubiertaSVG key="c" viento={s.viento} cubierta={ev.viento?.cubierta ?? null} direccion={dir} forceWidth={w} forceHeight={h} />,
+            <FachadasSVG key="f" viento={s.viento} paramentos={ev.viento?.paramentos ?? null} cumbrera={cumbrera} direccion={dir} forceWidth={w} forceHeight={h} />,
+          ];
+          for (const vista of vistas) {
+            const { container } = render(<UnitSystemProvider>{vista}</UnitSystemProvider>);
+            const svg = container.querySelector('svg')!;
+            const cajas = cajasTexto(svg);
+            // El título de la primera línea puede pasarse en móvil: es lo único que se admite.
+            const sinTitulo = cajas.filter((c) => c.y0 > 12);
+            expect(solapes(sinTitulo), `${svg.getAttribute('aria-label')} según ${dir}`).toEqual([]);
+            expect(fuera(sinTitulo, w, h), `${svg.getAttribute('aria-label')} según ${dir}`).toEqual([]);
+            cleanup();
+          }
+        }
+      });
+    }
+  }
+});
 
 function madrid(): VientoNieveState {
   const s = defaultVientoNieveState();

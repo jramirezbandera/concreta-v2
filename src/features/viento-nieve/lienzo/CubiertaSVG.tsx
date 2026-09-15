@@ -14,7 +14,7 @@ import type { VientoUI } from '../state';
 import { escalaQueCabe, zonasCubiertaEnPlanta, type RectZonaCubierta } from './geometria';
 import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla, rellenoZona } from './paleta';
-import { Cabecera, CotaH, CotaV, Flecha, Rotulo } from './primitivas';
+import { anchoEstimado, Cabecera, CotaH, CotaV, Flecha, Rotulo } from './primitivas';
 import { useFormato } from './useFormato';
 import { useMarcadores } from '../../../components/canvas/useMarcadores';
 import { useMedida } from '../../../components/canvas/useMedida';
@@ -70,7 +70,8 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
   // ── Sitio: planta arriba, sección y texto abajo ─────────────────────────
   const altoSeccion = estrecho ? 0 : 200;
   const margenIzq = 100;
-  const margenDer = 70;
+  // A la derecha va la cota vertical «15 m · Y»: 22 px de separación y unos 60 de texto.
+  const margenDer = 90;
   const arriba = 76;
   const s = clamp(escalaQueCabe(dims.x, dims.y, width - margenIzq - margenDer, height - arriba - altoSeccion - 70), 2, 40);
   const pw = dims.x * s;
@@ -93,7 +94,9 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
         : z.succion !== null
           ? f.presion(z.succion)
           : '—';
-    const lineas = h >= 44 && w >= 150 ? 3 : h >= 26 && w >= 60 ? 2 : 1;
+    const unidad = w >= 150 ? ` ${f.uQ}` : '';
+    // Dos líneas sólo si el valor («+0,07 / −0,99») cabe en la pieza: en un rincón F de 4 m se sale.
+    const lineas = h >= 44 && w >= 150 ? 3 : h >= 26 && w >= anchoEstimado(valor + unidad, 10, true) + 8 ? 2 : 1;
     return (
       <g key={`${z.zona}-${r.x}-${r.y}`}>
         <Rotulo x={cx} y={cy + (lineas === 1 ? 5 : lineas === 2 ? -1 : -6)} tam={lineas === 1 ? 12 : 15} color={COLOR.rotulo} peso={600} ancla="middle">
@@ -102,7 +105,7 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
         {lineas >= 2 && (
           <Rotulo x={cx} y={cy + (lineas === 2 ? 12 : 8)} tam={10} mono color={COLOR.rotulo} ancla="middle">
             {valor}
-            {w >= 150 ? ` ${f.uQ}` : ''}
+            {unidad}
           </Rotulo>
         )}
         {lineas >= 3 && (
@@ -123,11 +126,17 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
   const H = cubierta.alturaCoronacion - (anchoHastial / 2) * Math.tan((Math.max(cubierta.pendiente, 0) * Math.PI) / 180);
   const subida = Math.max(0, cubierta.alturaCoronacion - H);
   const ySec = oy + ph + 70;
-  const sSec = clamp(escalaQueCabe(anchoHastial, Math.max(subida, 1), Math.min(220, width * 0.4), altoSeccion - 90), 2, 24);
+  const xSecMargen = 40 + 90;
+  const textoE = `e = min(b, 2h) = ${dec(d.e, 1)} m · la banda e/10 y los rincones e/4 se miden desde donde entra el viento`;
+  // La sección deja a su derecha unos 310 px para el texto; por debajo de 760 px se estrecha.
+  const sSec = clamp(escalaQueCabe(anchoHastial, Math.max(subida, 1), Math.min(220, Math.max(120, width - xSecMargen - 310)), altoSeccion - 90), 2, 24);
   const xSec = 40;
   const baseSec = ySec + 40 + subida * sSec;
   const apexSec = xSec + (anchoHastial * sSec) / 2;
   const xTexto = xSec + anchoHastial * sSec + 90;
+  // La línea de coronación bajo la sección mide unos 300 px: si llega al texto de la derecha, en dos.
+  const coronacionUna = `coronación ${dec(cubierta.alturaCoronacion, 2)} m · ce ${dec(cubierta.ce, 3)} · qb·ce = ${f.presion(cubierta.qe)} ${f.uQ}`;
+  const coronacionEnDos = xSec + anchoEstimado(coronacionUna, 10, true) > xTexto - 16;
 
   return (
     <div ref={ref} style={{ width: '100%', height: '100%', minHeight: 320 }}>
@@ -166,7 +175,8 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
         {planta.rects.map(rotulosZona)}
         <rect x={ox} y={oy} width={pw} height={ph} fill="none" stroke={COLOR.seccion} strokeWidth={1.5} />
         <line x1={px(planta.cumbrera.x1)} y1={py(planta.cumbrera.y1)} x2={px(planta.cumbrera.x2)} y2={py(planta.cumbrera.y2)} stroke={COLOR.seccion} strokeWidth={1.5} strokeDasharray="6 4" />
-        <Rotulo x={cumbrera === 'x' ? px(dims.x) - 4 : px(dims.x / 2) + 5} y={cumbrera === 'x' ? py(dims.y / 2) - 5 : oy + 12} tam={10} mono color={COLOR.secundario} ancla={cumbrera === 'x' ? 'end' : 'start'}>
+        {/* «cumbrera» fuera de la planta, en el arranque de la línea: dentro pisaba el valor de H o de G en plantas pequeñas. */}
+        <Rotulo x={cumbrera === 'x' ? ox - 6 : px(dims.x / 2) + 5} y={cumbrera === 'x' ? py(dims.y / 2) - 8 : oy - 6} tam={10} mono color={COLOR.secundario} ancla={cumbrera === 'x' ? 'end' : 'start'}>
           cumbrera
         </Rotulo>
 
@@ -179,9 +189,21 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
           ))}
         <CotaH x1={ox} x2={ox + pw} y={oy + ph + 24} texto={`${dec(dims.x, 2)} m · lado X${vientoY ? ` · b = ${dec(d.b, 0)} m` : ` · d = ${dec(d.d, 0)} m`}`} />
         <CotaV x={ox + pw + 22} y1={oy} y2={oy + ph} texto={`${dec(dims.y, 0)} m · Y`} />
-        <Rotulo x={ox} y={oy + ph + 44} tam={10} color={COLOR.atenuado}>
-          e = min(b, 2h) = {dec(d.e, 1)} m · la banda e/10 y los rincones e/4 se miden desde donde entra el viento
-        </Rotulo>
+        {/* La línea de e mide unos 450 px: empieza en la planta si desde ahí cabe, si no más a la izquierda; en estrecho, en dos líneas. */}
+        {estrecho ? (
+          <>
+            <Rotulo x={24} y={oy + ph + 44} tam={10} color={COLOR.atenuado}>
+              e = min(b, 2h) = {dec(d.e, 1)} m
+            </Rotulo>
+            <Rotulo x={24} y={oy + ph + 58} tam={10} color={COLOR.atenuado}>
+              e/10 y e/4 se miden desde donde entra el viento
+            </Rotulo>
+          </>
+        ) : (
+          <Rotulo x={Math.max(24, Math.min(ox, width - anchoEstimado(textoE, 10) - 8))} y={oy + ph + 44} tam={10} color={COLOR.atenuado}>
+            {textoE}
+          </Rotulo>
+        )}
 
         {/* Sección del hastial */}
         {!estrecho && (
@@ -192,13 +214,25 @@ export function CubiertaSVG({ viento, cubierta, direccion, forceWidth, forceHeig
             <polygon points={`${xSec},${baseSec} ${apexSec},${baseSec - subida * sSec} ${xSec + anchoHastial * sSec},${baseSec}`} fill={mezcla(COLOR.accent, 8)} stroke={COLOR.seccion} strokeWidth={1.5} />
             <line x1={xSec} y1={baseSec} x2={xSec} y2={baseSec + 18} stroke={COLOR.seccion} strokeWidth={1.5} />
             <line x1={xSec + anchoHastial * sSec} y1={baseSec} x2={xSec + anchoHastial * sSec} y2={baseSec + 18} stroke={COLOR.seccion} strokeWidth={1.5} />
-            <Rotulo x={xSec + 30} y={baseSec - 6} tam={10} mono color={COLOR.accent}>
+            {/* El ángulo, encima del faldón de la izquierda siguiendo su pendiente: a 10º el faldón pasa casi por la base. */}
+            <Rotulo x={xSec + 30} y={baseSec - 30 * Math.tan((Math.max(cubierta.pendiente, 0) * Math.PI) / 180) - 8} tam={10} mono color={COLOR.accent}>
               α = {dec(cubierta.pendiente, 0)}º
             </Rotulo>
             <CotaV x={xSec + anchoHastial * sSec + 18} y1={baseSec - subida * sSec} y2={baseSec} texto={`${dec(subida, 2)} m`} />
-            <Rotulo x={xSec} y={baseSec + 34} tam={10} mono color={COLOR.secundario}>
-              coronación {dec(cubierta.alturaCoronacion, 2)} m · ce {dec(cubierta.ce, 3)} · qb·ce = {f.presion(cubierta.qe)} {f.uQ}
-            </Rotulo>
+            {coronacionEnDos ? (
+              <>
+                <Rotulo x={xSec} y={baseSec + 34} tam={10} mono color={COLOR.secundario}>
+                  coronación {dec(cubierta.alturaCoronacion, 2)} m · ce {dec(cubierta.ce, 3)}
+                </Rotulo>
+                <Rotulo x={xSec} y={baseSec + 48} tam={10} mono color={COLOR.secundario}>
+                  qb·ce = {f.presion(cubierta.qe)} {f.uQ}
+                </Rotulo>
+              </>
+            ) : (
+              <Rotulo x={xSec} y={baseSec + 34} tam={10} mono color={COLOR.secundario}>
+                {coronacionUna}
+              </Rotulo>
+            )}
 
             <Cabecera x={xTexto} y={ySec + 8}>
               {d.resultante ? 'Resultante horizontal de los faldones' : 'Viento a lo largo de la cumbrera'}

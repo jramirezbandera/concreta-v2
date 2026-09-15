@@ -25,6 +25,11 @@ export function anchoEstimado(texto: string, tam: number, mono = false, peso: 40
   return texto.length * tam * (mono ? 0.6 : 0.52) * (peso >= 600 ? 1.05 : 1);
 }
 
+/** Ancho aproximado de una `Cabecera`, px: mayúsculas con 0,08 em de espaciado, 0,66 em por carácter. */
+export function anchoCabecera(texto: string): number {
+  return texto.length * 10 * 0.66;
+}
+
 /** Alto que ocupa la planta pequeña por debajo de su borde inferior: la cota interior o, si no cabe, debajo, y el rótulo «según X». */
 export function altoBajoLocalizador(): number {
   return 34;

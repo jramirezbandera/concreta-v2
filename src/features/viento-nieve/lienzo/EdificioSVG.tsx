@@ -15,7 +15,7 @@ import type { VientoResultado } from '../../../lib/acciones/viento';
 import { alturaCoronacionEfectiva, cotasPlantas, type VientoUI } from '../state';
 import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla } from './paleta';
-import { Cabecera, CotaH, Flecha, PlantaLocalizador, Rotulo, Suelo } from './primitivas';
+import { altoBajoLocalizador, anchoCabecera, anchoEstimado, Cabecera, CotaH, Flecha, PlantaLocalizador, Rotulo, Suelo } from './primitivas';
 import { useFormato } from './useFormato';
 import { useMarcadores } from '../../../components/canvas/useMarcadores';
 import { useMedida } from '../../../components/canvas/useMedida';
@@ -51,7 +51,9 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
   const estrecho = width < 600;
   const margenIzq = estrecho ? 150 : 200;
   const margenDer = estrecho ? 96 : 130;
-  const arriba = 52;
+  // Bajo el título van las flechas del viento entrante (y 26..50): el edificio empieza debajo,
+  // para que el rótulo de fuerza del último forjado de una cubierta plana no las pise.
+  const arriba = 64;
   const bandaInferior = estrecho ? 170 : 210;
   const altoAlzado = Math.max(160, height - arriba - bandaInferior - 40);
   const s = clamp(Math.min((width - margenIzq - margenDer) / Math.max(d, 1), altoAlzado / Math.max(hc, 1)), 3, 34);
@@ -74,6 +76,19 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
     zt: i === cotas.length - 1 ? z : (z + cotas[i + 1]) / 2,
   }));
 
+  // Con las plantas apretadas (menos de 13 px) no caben todos los rótulos de fuerza: se salta el que pisaría al de arriba.
+  const conRotuloF = new Set<string>();
+  let yUltimoRotulo = -Infinity;
+  for (const p of [...viento.plantas].reverse()) {
+    const r = porId.get(p.id);
+    if (!r) continue;
+    const y = yz(r.z);
+    if (y - yUltimoRotulo >= 13) {
+      conRotuloF.add(p.id);
+      yUltimoRotulo = y;
+    }
+  }
+
   const teclado = (id: string) => (ev: KeyboardEvent<SVGGElement>) => {
     if (ev.key === 'Enter' || ev.key === ' ') {
       ev.preventDefault();
@@ -92,11 +107,14 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
   })();
   const nDer = [-nIzq[0], nIzq[1]] as const;
 
-  // Rótulos de la derecha: si las plantas están apretadas, menos líneas.
+  // Rótulos de la derecha: si las plantas están apretadas, menos líneas (cuatro ocupan 38 px, dos 14).
   const lineasPorPlanta = (i: number) => {
     const alto = viento.plantas[i].altura * s;
-    return alto >= 44 ? 4 : alto >= 26 ? 2 : 1;
+    return alto >= 52 ? 4 : alto >= 28 ? 2 : 1;
   };
+  // El bloque «coronación» va entre la coronación y el rótulo del último forjado: con poca subida, menos líneas; sin sitio, nada.
+  const subidaPx = (hc - H) * s;
+  const lineasCoronacion = subidaPx >= 48 ? 3 : subidaPx >= 30 ? 2 : subidaPx >= 16 ? 1 : 0;
 
   const rotuloDireccion = (eje: 'x' | 'y', r: { Ftotal: number } | null) => `según ${eje.toUpperCase()} · ${r ? `${f.fuerza(r.Ftotal)} ${f.uF}` : '—'}`;
   const pct = (r: { fraccion: number; aplicado: boolean } | null | undefined) => (r ? `${dec(r.fraccion * 100, 0)} % (${r.aplicado ? 'sumado' : 'despreciado'})` : '—');
@@ -115,9 +133,22 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
       ].filter(Boolean)
     : ['Elija la provincia y la altitud en la columna de', 'datos: la norma pone la zona, la presión dinámica', 'y el coeficiente de exposición de cada forjado.', '', 'El edificio ya se dibuja con lo que teclee:', 'alturas, lados en planta y cubierta.'];
 
-  const escalaPlanta = estrecho ? 6 : 9;
+  // ── Banda inferior: la planta pequeña, su rótulo «según Y · 216,3 kN» a la derecha y, si cabe, el texto ──
+  // La planta se reduce hasta caber en el sitio que queda: un edificio de 60 × 15 m a 9 px/m
+  // serían 540 px, y uno de 12 × 40 se saldría por abajo.
   const yBanda = y0 + 92;
-  const xTexto = 60 + Math.max(1, viento.dimensiones.x) * escalaPlanta + 70;
+  const xPlan = 60;
+  const rotulosDir = { x: rotuloDireccion('x', resultado ? resultado.x : null), y: rotuloDireccion('y', resultado ? resultado.y : null) };
+  const anchoRotuloDir = Math.max(anchoEstimado(rotulosDir.x, 11, true, 600), anchoEstimado(rotulosDir.y, 11, true, 600));
+  const anchoExplicacion = 330;
+  const anchoLibre = width - xPlan - 10 - anchoRotuloDir - 12;
+  const conTexto = !estrecho && anchoLibre - anchoExplicacion - 24 >= 90;
+  const anchoPlanMax = conTexto ? anchoLibre - anchoExplicacion - 24 : anchoLibre;
+  const altoPlanMax = Math.max(40, height - yBanda - altoBajoLocalizador());
+  const escalaPlanta = clamp(Math.min(estrecho ? 6 : 9, anchoPlanMax / Math.max(1, viento.dimensiones.x), altoPlanMax / Math.max(1, viento.dimensiones.y)), 1, 9);
+  const anchoPlan = Math.max(1, viento.dimensiones.x) * escalaPlanta;
+  const cabeceraPlanta = 'Planta · pulse una dirección';
+  const xTexto = Math.max(xPlan + anchoPlan + 10 + anchoRotuloDir + 24, 30 + anchoCabecera(cabeceraPlanta) + 24);
 
   return (
     <div ref={ref} style={{ width: '100%', height: '100%', minHeight: 320 }}>
@@ -133,12 +164,12 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
               : `ALZADO · viento según ${D} · sin resultado: falta la provincia o la altitud`}
         </Rotulo>
 
-        {/* Viento entrante */}
-        <Rotulo x={20} y={arriba + 6} tam={10} mono color={COLOR.atenuado}>
+        {/* Viento entrante, entre el título y el edificio */}
+        <Rotulo x={20} y={30} tam={10} mono color={COLOR.atenuado}>
           viento según {D}
         </Rotulo>
-        {[20, 32, 44].map((dy) => (
-          <Flecha key={dy} x1={20} y1={arriba + dy} x2={64} y2={arriba + dy} punta={m.punta('atenuado')} color={COLOR.cota} grosor={1.25} />
+        {[38, 45, 52].map((yy) => (
+          <Flecha key={yy} x1={20} y1={yy} x2={64} y2={yy} punta={m.punta('atenuado')} color={COLOR.cota} grosor={1.25} />
         ))}
 
         {/* Bandas tributarias, clicables */}
@@ -154,7 +185,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         {bandas.map((b, i) => (
           <line key={`corte-${i}`} x1={bx - 10} y1={yz(b.zb)} x2={bx + bw + 10} y2={yz(b.zb)} stroke={COLOR.cota} strokeWidth={1} strokeDasharray="3 3" />
         ))}
-        {cotas.length > 0 && resultado && (
+        {cotas.length > 0 && resultado && bandas[0].zb * s >= 16 && (
           <Rotulo x={bx - 14} y={yz(bandas[0].zb) + 3} tam={9} mono color={COLOR.atenuado} ancla="end">
             {dec(bandas[0].zb, 1)} m: a cimentación
           </Rotulo>
@@ -169,9 +200,11 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         {conCubierta && !hastialVisible && hc > H && (
           <>
             <rect x={bx} y={yz(hc)} width={bw} height={(hc - H) * s} fill={mezcla(COLOR.accent, 6)} stroke={COLOR.seccion} strokeWidth={1.25} strokeDasharray="5 3" />
-            <Rotulo x={apexX} y={yz(H) - (hc - H) * s * 0.5 + 4} tam={10} mono color={COLOR.atenuado} ancla="middle">
-              hastial · cumbrera ∥ {viento.cubierta.cumbrera.toUpperCase()}
-            </Rotulo>
+            {subidaPx >= 16 && (
+              <Rotulo x={apexX} y={yz(H) - subidaPx * 0.5 + 4} tam={10} mono color={COLOR.atenuado} ancla="middle">
+                hastial · cumbrera ∥ {viento.cubierta.cumbrera.toUpperCase()}
+              </Rotulo>
+            )}
           </>
         )}
         {!conCubierta && (
@@ -180,8 +213,8 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
           </Rotulo>
         )}
 
-        {/* Presiones sobre los faldones */}
-        {hastialVisible && cub && (
+        {/* Presiones sobre los faldones: con un hastial de menos de 40 px las flechas y sus rótulos se pisan con los del último forjado y con «coronación». */}
+        {hastialVisible && cub && subidaPx >= 40 && (
           <>
             {[0.3, 0.55, 0.8].map((k) => {
               const px = bx + (apexX - bx) * k;
@@ -206,41 +239,52 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
                 alero +{dec(zona('F')!.presion!, 2)}
               </Rotulo>
             )}
-            {!estrecho && zona('J')?.succion != null && (
+            {/* Los de succión van bajo el bloque «coronación», a la derecha: sólo con hastial alto (≥ 72 px) hay sitio entre él y «Cubierta». */}
+            {!estrecho && subidaPx >= 72 && zona('J')?.succion != null && (
               <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) - 8} tam={10} mono color={COLOR.accent}>
                 succión {dec(zona('J')!.succion!, 2)}
               </Rotulo>
             )}
-            {!estrecho && zona('I')?.succion != null && (
+            {!estrecho && subidaPx >= 72 && zona('I')?.succion != null && (
               <Rotulo x={bx + bw + 8} y={yz(H + (hc - H) * 0.3) + 4} tam={10} mono color={COLOR.accent}>
                 resto {dec(zona('I')!.succion!, 2)}
               </Rotulo>
             )}
           </>
         )}
-        {dir?.encima && (
-          <Rotulo x={apexX} y={yz(hc) - 8} tam={10} mono color={COLOR.accent} ancla="middle" peso={600}>
-            {estrecho ? `${dir.encima.tipo} +${f.fuerza(dir.encima.F)} ${f.uF}` : `${dir.encima.tipo}: +${f.fuerza(dir.encima.F)} ${f.uF} a la planta de cubierta`}
-          </Rotulo>
-        )}
+        {dir?.encima &&
+          (() => {
+            const texto = estrecho ? `${dir.encima.tipo} +${f.fuerza(dir.encima.F)} ${f.uF}` : `${dir.encima.tipo}: +${f.fuerza(dir.encima.F)} ${f.uF} a la planta de cubierta`;
+            // Si el rótulo es más ancho que el edificio se sale por la derecha, donde está «coronación»: una fila más arriba.
+            const y = anchoEstimado(texto, 10, true, 600) > bw ? yz(hc) - 20 : yz(hc) - 8;
+            return (
+              <Rotulo x={apexX} y={y} tam={10} mono color={COLOR.accent} ancla="middle" peso={600}>
+                {texto}
+              </Rotulo>
+            );
+          })()}
 
         <Suelo x1={bx - 60} x2={bx + bw + 60} y={y0} patron={m.suelo} />
 
         {/* Flechas de fuerza por planta */}
         {resultado
-          ? viento.plantas.map((p) => {
+          ? viento.plantas.map((p, i) => {
               const r = porId.get(p.id);
               if (!r) return null;
               const L = Fmax > 0 ? (r.F / Fmax) * largoMax : 0;
               const y = yz(r.z);
               const sel = p.id === plantaSel;
+              // La segunda línea («60,1 + 7,2») baja 13 px: sólo si la planta de abajo no está pegada.
+              const sitioAbajo = p.altura * s >= 26;
               return (
                 <g key={`F-${p.id}`}>
                   <Flecha x1={bx - 8 - L} y1={y} x2={bx - 3} y2={y} punta={m.punta('accent')} color={COLOR.accent} grosor={sel ? 2.5 : 2} />
-                  <Rotulo x={bx - 14 - L} y={y - 5} tam={12} mono color={COLOR.accent} ancla="end" peso={600}>
-                    {f.fuerza(r.F)} {f.uF}
-                  </Rotulo>
-                  {r.Fencima > 0 && (
+                  {conRotuloF.has(p.id) && (
+                    <Rotulo x={bx - 14 - L} y={y - 5} tam={12} mono color={COLOR.accent} ancla="end" peso={600}>
+                      {f.fuerza(r.F)} {f.uF}
+                    </Rotulo>
+                  )}
+                  {conRotuloF.has(p.id) && r.Fencima > 0 && (sitioAbajo || i === 0) && (
                     <Rotulo x={bx - 14 - L} y={y + 8} tam={9.5} mono color={COLOR.atenuado} ancla="end">
                       {f.fuerza(r.Fbanda + r.Frozamiento)} + {f.fuerza(r.Fencima)}
                     </Rotulo>
@@ -290,7 +334,12 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
             </g>
           );
         })}
-        {conCubierta && hc > H && (
+        {conCubierta && hc > H && lineasCoronacion === 1 && (
+          <Rotulo x={bx + bw + 14} y={yz(hc) + 4} tam={10} color={COLOR.rotulo} peso={500}>
+            {estrecho ? 'coronación' : `coronación ${dec(hc, 2)} m`}
+          </Rotulo>
+        )}
+        {conCubierta && hc > H && lineasCoronacion >= 2 && (
           <>
             <Rotulo x={bx + bw + 14} y={yz(hc) + 4} tam={11} color={COLOR.rotulo} peso={500}>
               coronación
@@ -298,7 +347,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
             <Rotulo x={bx + bw + 14} y={yz(hc) + 17} tam={10} mono color={COLOR.atenuado}>
               {dec(hc, 2)} m
             </Rotulo>
-            {dir?.encima && !estrecho && (
+            {dir?.encima && !estrecho && lineasCoronacion >= 3 && (
               <Rotulo x={bx + bw + 14} y={yz(hc) + 29} tam={10} mono color={COLOR.atenuado}>
                 ce {dec(dir.encima.ce, 3)}
               </Rotulo>
@@ -309,23 +358,13 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         <CotaH x1={bx} x2={bx + bw} y={y0 + 26} texto={`${dec(d, 2)} m · lado ${D}, paralelo al viento (d)`} />
 
         {/* Planta pequeña: selector de dirección */}
-        <PlantaLocalizador
-          x={60}
-          y={yBanda}
-          dimensiones={viento.dimensiones}
-          cumbrera={conCubierta ? viento.cubierta.cumbrera : null}
-          direccion={direccion}
-          punta={m.punta}
-          onDireccion={onDireccion}
-          rotulos={{ x: rotuloDireccion('x', resultado ? resultado.x : null), y: rotuloDireccion('y', resultado ? resultado.y : null) }}
-          escala={escalaPlanta}
-        />
+        <PlantaLocalizador x={xPlan} y={yBanda} dimensiones={viento.dimensiones} cumbrera={conCubierta ? viento.cubierta.cumbrera : null} direccion={direccion} punta={m.punta} onDireccion={onDireccion} rotulos={rotulosDir} escala={escalaPlanta} />
         <Cabecera x={30} y={yBanda - 34}>
-          Planta · pulse una dirección
+          {cabeceraPlanta}
         </Cabecera>
 
-        {/* De qué se compone la fuerza */}
-        {!estrecho && (
+        {/* De qué se compone la fuerza: sólo si cabe a la derecha del rótulo de dirección */}
+        {conTexto && (
           <>
             <Cabecera x={xTexto} y={yBanda - 34}>
               De qué se compone la fuerza por planta
