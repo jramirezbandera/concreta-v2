@@ -56,6 +56,13 @@ export const PREFIJO_PUB = 'concreta-pub-';
 export const CLAVE_OBRA = 'concreta-obra';
 
 /**
+ * El edificio de la obra (`lib/edificio`): las plantas con su tipo y altura.
+ * Lo escribe Cargas por planta y lo leen los demás, así que viaja como
+ * SATÉLITE suyo: en el fichero con la obra, y fuera con «Nueva obra».
+ */
+export const CLAVE_EDIFICIO = 'concreta-edificio';
+
+/**
  * El perfil del despacho: programa de cálculo, límites de flecha, redacciones
  * del método. Es de ESTA MÁQUINA y no de la obra —el mismo despacho firma
  * todas sus obras igual—, así que es PREFERENCIA y no viaja en el `.concreta`.
@@ -111,7 +118,7 @@ export const CLAVES_PROYECTO: readonly EntradaProyecto[] = [
     idEsquema: null,
     claveVersion: 'concreta-cargas-planta-model-version',
     versionViva: '1',
-    satelites: ['concreta-cargas-planta-title', `${PREFIJO_PUB}cargas-planta`],
+    satelites: ['concreta-cargas-planta-title', `${PREFIJO_PUB}cargas-planta`, CLAVE_EDIFICIO],
   },
   {
     modulo: 'concreta-incendio',
