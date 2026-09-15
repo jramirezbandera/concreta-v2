@@ -233,6 +233,9 @@ export function FilaZona({
                 —
               </span>
             ) : (
+              // Vaciar la caja es DECIR que no se sabe: la altura queda en null y
+              // la cota deja de salir, aquí y en los módulos que la leen. Sin
+              // `allowEmpty` la caja recuperaba al salir el número borrado.
               <span className={CAJA_DER}>
                 <RawNumberInput
                   value={planta.altura ?? NaN}
@@ -241,6 +244,7 @@ export function FilaZona({
                   unit="m"
                   min={0}
                   precision={2}
+                  allowEmpty
                   widthClass="w-12"
                   hideUnit
                 />

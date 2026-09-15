@@ -411,6 +411,17 @@ describe('Cargas por planta — el orden de las plantas', () => {
     expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
   });
 
+  it('la altura se puede dejar sin decir: se vacía la caja y la cota deja de salir', () => {
+    montar();
+    const altura = screen.getByLabelText('Altura de Planta Baja');
+    fireEvent.change(altura, { target: { value: '' } });
+    fireEvent.blur(altura);
+    expect(altura).toHaveValue('');
+    // Sin esa altura no hay cota por encima de la planta baja, que sigue a ±0,00.
+    expect(screen.getAllByText('cota —')).toHaveLength(2);
+    expect(leerEdificio()!.plantas.map((p) => p.altura)).toEqual([null, 3, null]);
+  });
+
   it('la banda dice de qué es cada mitad de la mesa: lo que pesa siempre y lo que va y viene', () => {
     montar();
     expect(screen.getByRole('columnheader', { name: /^Pesa siempre · carga permanente G$/ })).toBeInTheDocument();
