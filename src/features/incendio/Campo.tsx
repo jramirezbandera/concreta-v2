@@ -18,6 +18,7 @@ export function Campo({
   aria,
   paso = '0.1',
   requerido = false,
+  invalido = false,
   simbolo = false,
   ancho,
   onCambiar,
@@ -29,6 +30,13 @@ export function Campo({
   paso?: string;
   requerido?: boolean;
   /**
+   * Lo tecleado no vale aunque el campo sea opcional —un μfi de cero—. Mismo
+   * borde rojo que `requerido`: el motor lo trata como si no estuviera, y hay
+   * que verlo, o el documento de la sesión y el de la recarga dirían lo mismo
+   * por motivos distintos.
+   */
+  invalido?: boolean;
+  /**
    * El rótulo es un símbolo y va tal cual, sin versalitas: «μfi» en mayúsculas
    * sale «MFI», que ya no es el mismo símbolo, y «as» sale «AS».
    */
@@ -37,7 +45,7 @@ export function Campo({
   ancho?: string;
   onCambiar: (v: number | null) => void;
 }) {
-  const falta = requerido && (valor === null || valor <= 0);
+  const falta = (requerido && (valor === null || valor <= 0)) || invalido;
   return (
     <label className="flex flex-col gap-0.5">
       <span className={`text-[10px] text-text-disabled ${simbolo ? '' : 'uppercase'}`}>

@@ -210,6 +210,11 @@ export interface DatosAcero {
  *
  * `d = (d/λp) · λp`, con `d/λp` en m²K/W y λp en W/mK, así que `d` sale en
  * metros y se pasa a milímetros. Nada más: toda la física está en la tabla D.1.
+ *
+ * El λp declarado (`lambdaManual`) sólo cuenta en las familias que NO lo
+ * tienen tabulado: son las únicas que lo piden. En un yeso o un mortero manda
+ * el de la familia, aunque llegue un manual —sería el de OTRO producto, el que
+ * se tecleó antes de cambiar de familia—.
  */
 export function proteccionAcero(
   familia: FamiliaProteccion,
@@ -239,7 +244,8 @@ export function proteccionAcero(
     return sinEspesor(`d/λp = ${n2(datos.dLambda)} m²K/W (objetivo)`);
   }
 
-  const lambda = lambdaManual ?? familia.lambda;
+  const deTabla = familia.lambda !== null;
+  const lambda = deTabla ? familia.lambda : lambdaManual;
   if (lambda === null || lambda <= 0) {
     avisos.push(`${familia.nota} Sin él no se puede estimar el espesor.`);
     return sinEspesor(`d/λp = ${n2(datos.dLambda)} m²K/W (objetivo)`);
@@ -248,7 +254,6 @@ export function proteccionAcero(
   // d/λp está en m²K/W y λp en W/mK: el producto sale en metros.
   const bruto = datos.dLambda * lambda * 1000;
   const espesor = alEscalon(bruto, familia.escalon);
-  const deTabla = lambdaManual === null;
 
   if (deTabla && familia.rango) {
     avisos.push(

@@ -81,7 +81,52 @@ describe('la publicación', () => {
   });
 });
 
+describe('el sobre se retira cuando ya no hay nada que decir', () => {
+  it('quitar la última exigencia borra el sobre anterior', () => {
+    // Si se quedara, el cuadro de materiales y la ficha del DB SE seguirían
+    // imprimiendo una R que ya no existe en ningún sitio.
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    expect(leerPublicacion('incendio', 1)).not.toBeNull();
+
+    const vacio = defaultIncendioState();
+    publicarResultado(vacio, evaluar(vacio));
+    expect(leerPublicacion('incendio', 1)).toBeNull();
+  });
+
+  it('y una exigencia a medias también lo retira: el sobre refleja la evaluación de ahora', () => {
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    const aMedias = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: null }]);
+    publicarResultado(aMedias, evaluar(aMedias));
+    expect(leerPublicacion('incendio', 1)).toBeNull();
+  });
+
+  it('sin sobre que retirar no se mueve la marca de cambio', () => {
+    const d = defaultIncendioState();
+    publicarResultado(d, evaluar(d));
+    expect(localStorage.getItem('concreta-pub-incendio')).toBeNull();
+  });
+});
+
 describe('lectura defensiva', () => {
+  it('el λp guardado sólo sobrevive en las familias que lo piden', () => {
+    // Un λp pegado a una placa de yeso es el de OTRO producto: el que se
+    // tecleó antes de cambiar de familia. La cuenta usaría esa conductividad
+    // con el λ tabulado del yeso... o peor, en vez de él.
+    const elemento = (familia: string) =>
+      normalizar({ elementos: [{ id: 'e1', nombre: 'Jácenas', proteccion: { familia, lambda: 0.05 } }] })
+        .elementos[0].proteccion;
+    expect(elemento('lanaMineral')).toEqual({ familia: 'lanaMineral', lambda: 0.05 });
+    expect(elemento('silicatoCalcico')).toEqual({ familia: 'silicatoCalcico', lambda: 0.05 });
+    expect(elemento('placaYeso')).toEqual({ familia: 'placaYeso', lambda: null });
+    expect(elemento('morteroVermiculita')).toEqual({ familia: 'morteroVermiculita', lambda: null });
+    expect(elemento('intumescente')).toEqual({ familia: 'intumescente', lambda: null });
+    expect(elemento('morteroYeso')).toEqual({ familia: 'morteroYeso', lambda: null });
+    expect(elemento('')).toEqual({ familia: '', lambda: null });
+    expect(elemento('inventada')).toEqual({ familia: '', lambda: null });
+  });
+
   it('valida entrada por entrada, sin tirar las buenas', () => {
     const s = normalizar({
       exigencias: [

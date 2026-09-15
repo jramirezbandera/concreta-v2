@@ -44,7 +44,7 @@ import {
   type ElementoResuelto,
   type EntradaProteccion,
 } from '../../lib/incendio/elementos';
-import { FAMILIAS } from '../../lib/incendio/protecciones';
+import { familiaPorId } from '../../lib/incendio/protecciones';
 import {
   ACTIVIDADES_B3,
   CONSECUENCIAS_B5,
@@ -58,7 +58,7 @@ import {
 } from '../../lib/incendio/anejoB';
 import { USOS_DB_SI } from '../../lib/incendio/tabla31';
 import { leerObra } from '../../lib/obra';
-import { publicar } from '../../lib/pub';
+import { leerPublicacion, publicar, retirarPublicacion } from '../../lib/pub';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 import { cuentaParaEvacuacion, plantasPublicadas, type PlantaPublicada } from './plantasPub';
 
@@ -330,18 +330,28 @@ function normalizarAcero(bruto: unknown): EntradaAcero {
   };
 }
 
-const FAMILIAS_VALIDAS = FAMILIAS.map((f) => f.id);
+/**
+ * ¿Pide esta familia el λp declarado del producto? Sólo las aislantes que no
+ * lo tienen tabulado: en las demás, un λp guardado es el de OTRO producto —el
+ * que se tecleó antes de cambiar de familia— y no puede entrar en la cuenta.
+ */
+export function familiaPideLambda(familia: string): boolean {
+  const f = familiaPorId(familia);
+  return f !== undefined && f.lambda === null && f.vehiculo === 'aislante';
+}
+
+/** Una protección con el λp sólo si su familia lo pide; si no, en blanco. */
+export function proteccionCon(familia: string, lambda: number | null): EntradaProteccion {
+  return { familia, lambda: familiaPideLambda(familia) ? lambda : null };
+}
 
 function normalizarProteccion(bruto: unknown): EntradaProteccion {
   if (!esObjeto(bruto)) return { familia: '', lambda: null };
   const familia = texto(bruto.familia);
-  return {
-    // Una familia que ya no existe se cae a «sin elegir»: entonces se enuncia
-    // la magnitud que hay que alcanzar, que es lo que decía la norma de todos
-    // modos, en vez de calcular con un λp inventado.
-    familia: FAMILIAS_VALIDAS.includes(familia) ? familia : '',
-    lambda: positivoONull(bruto.lambda),
-  };
+  // Una familia que ya no existe se cae a «sin elegir»: entonces se enuncia
+  // la magnitud que hay que alcanzar, que es lo que decía la norma de todos
+  // modos, en vez de calcular con un λp inventado.
+  return proteccionCon(familiaPorId(familia) ? familia : '', positivoONull(bruto.lambda));
 }
 
 export function normalizarElementos(brutos: unknown): ElementoEntrada[] {
@@ -425,6 +435,8 @@ export interface PlantaAnotada {
   altura: number | null;
   /** m. El que se usa: el tecleado a mano, y si no el publicado. */
   canto: number | null;
+  /** m. El tecleado a mano en este módulo, o `null`. */
+  cantoManual: number | null;
   /** m. El que publica «Cargas por planta», o `null` si sus zonas no coinciden. */
   cantoPublicado: number | null;
   /** Las zonas de la planta traen cantos distintos: hay que elegir uno. */
@@ -474,6 +486,7 @@ export function plantasAnotadas(
       esCubierta: p.esCubierta,
       altura: a?.altura ?? null,
       canto: a?.cantoManual ?? p.canto,
+      cantoManual: a?.cantoManual ?? null,
       cantoPublicado: p.canto,
       cantosDistintos: p.cantosDistintos,
       bajoRasante: a?.bajoRasante ?? false,
@@ -522,7 +535,21 @@ export function evaluar(state: IncendioState, publicadas = plantasPublicadas()):
   const elementos = resolverElementos(state.elementos, sectores);
   for (const e of elementos) avisos.push(...e.avisos);
 
+  // La altura de evacuación es la entrada de la tabla 3.1: sin ella, todo
+  // sector de uso se queda sin R (y ya es hueco por su cuenta). Se nombra
+  // aparte para que el mensaje diga QUÉ falta —la altura, no el sector—, y
+  // sólo cuando hace falta: un documento de exigencias sueltas no la necesita.
+  const faltaAltura =
+    alturaEvacuacion === null && state.sectores.some((s) => s.clase.startsWith('uso:'));
+  const porQue =
+    alturas.sinAltura.length > 0
+      ? ` (falta la altura de ${alturas.sinAltura.join(', ')})`
+      : publicadas
+        ? ''
+        : ' (sin plantas publicadas, tecléela a mano)';
+
   const huecos = [
+    ...(faltaAltura ? [{ id: 'altura-evacuacion', que: `la altura de evacuación${porQue}` }] : []),
     ...sectores.filter((s) => s.hueco).map((s) => ({ id: s.id, que: s.nombre || 'un sector sin nombre' })),
     ...state.exigencias
       .filter((f) => f.ambito.trim() === '' || f.minutos === null)
@@ -587,7 +614,14 @@ export function datosPublicacion(ev: Evaluacion): PubIncendio | null {
  */
 export function publicarResultado(state: IncendioState, ev: Evaluacion): void {
   const datos = datosPublicacion(ev);
-  if (!datos) return;
+  if (!datos) {
+    // Sin nada que decir NO basta con no publicar: el sobre de la vez anterior
+    // seguiría ahí, y el cuadro de materiales y la ficha del DB SE imprimirían
+    // una R que ya no existe. Se retira, y sólo si lo hay: retirar mueve la
+    // marca de cambio de todos los sobres y no hay por qué moverla en vano.
+    if (leerPublicacion(MODULO_PUB) !== null) retirarPublicacion(MODULO_PUB);
+    return;
+  }
   const obra = leerObra();
   publicar(
     MODULO_PUB,

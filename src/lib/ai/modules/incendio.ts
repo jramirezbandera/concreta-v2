@@ -65,7 +65,7 @@ import {
 } from '../../incendio/anejoD';
 import { FAMILIAS } from '../../incendio/protecciones';
 import { clasesValidas } from '../../incendio/sectores';
-import { REGLAS_SUELTAS, USOS_DB_SI } from '../../incendio/tabla31';
+import { REGLAS_SUELTAS, TABLA_3_2, USOS_DB_SI, type NivelRiesgo } from '../../incendio/tabla31';
 import {
   defaultIncendioState,
   esEstadoInicial,
@@ -179,7 +179,7 @@ export const INCENDIO_PAYLOAD_SCHEMA: Record<string, unknown> = {
           },
           sotano: {
             type: 'boolean',
-            description: 'true si el sector está bajo rasante. La tabla 3.1 tiene COLUMNA APARTE para las plantas de sótano y suele pedir más: marcarlo mal cambia la R.',
+            description: 'true si el sector está bajo rasante. La tabla 3.1 tiene COLUMNA APARTE para las plantas de sótano y suele pedir más: marcarlo mal cambia la R. También en las zonas de riesgo especial: la llamada 1 de la tabla 3.2 las compara con la estructura de SU lado de la rasante.',
           },
           robotizado: {
             type: 'boolean',
@@ -191,7 +191,7 @@ export const INCENDIO_PAYLOAD_SCHEMA: Record<string, unknown> = {
           },
           bajo_cubierta_sin_riesgo: {
             type: 'boolean',
-            description: 'Sólo con "regla:cubiertaLigera": true si su fallo no puede dañar a edificios próximos ni comprometer otras plantas ni la compartimentación, que es la excepción de la llamada de la tabla 3.2. false en todo lo demás.',
+            description: 'Sólo con "riesgo:bajo|medio|alto": true si la zona de riesgo especial está bajo una cubierta NO prevista para evacuación y cuyo fallo no compromete la estabilidad de otras plantas ni la compartimentación. Es la excepción de la llamada 1 de la tabla 3.2 y REBAJA la zona a R 30 donde la tabla pedía R 90, R 120 o R 180: sólo con el usuario diciéndolo expresamente de esa zona, nunca por deducción. false en todo lo demás.',
           },
         },
       },
@@ -301,7 +301,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Incendio (CTE DB SI 6):
 3. LAS PLANTAS NO SE CREAN AQUÍ. Vienen del módulo «Cargas por planta»; el snapshot te da sus nombres en plantas_publicadas y hay que usarlos EXACTAMENTE. Lo que se anota aquí es la altura de cada una, si está bajo rasante y si es origen de evacuación. Si el usuario describe un edificio del que no hay plantas publicadas, dile que las calcule en Cargas por planta, y mientras tanto usa la altura de evacuación a mano.
 4. "cuenta_evacuacion" SE DEJA EN "como_proponga". Lo decide el uso con el que se dimensionó el forjado en Cargas por planta, y las cubiertas accesibles sólo para conservación ya salen fuera. Ponerlo a "no" baja la altura de evacuación de todo el edificio y con ella la R: hazlo sólo si el usuario dice que esa planta es de ocupación nula (un trastero, un cuarto de instalaciones bajo cubierta).
 5. EL SÓTANO ES UNA COLUMNA DISTINTA. La tabla 3.1 pide su propia R a las plantas bajo rasante, y casi siempre más. Marca "sotano" en los sectores que estén abajo. Y un aparcamiento tiene dos filas: "aparcamientoExclusivo" cuando el edificio es sólo aparcamiento o está sobre otro uso, y "aparcamientoBajoOtroUso" cuando está debajo de otro uso, que pide R 120.
-6. LAS ZONAS DE RIESGO ESPECIAL SON SECTORES APARTE. Una sala de calderas, una cocina de más de 20 kW o un almacén de residuos no son "el mismo sector con un matiz": van como "riesgo:bajo|medio|alto" en su propia fila, con su nombre. La aplicación les pone R 90, R 120 o R 180 y además comprueba que no queden por debajo de la de la planta.
+6. LAS ZONAS DE RIESGO ESPECIAL SON SECTORES APARTE. Una sala de calderas, una cocina de más de 20 kW o un almacén de residuos no son "el mismo sector con un matiz": van como "riesgo:bajo|medio|alto" en su propia fila, con su nombre y con "sotano" si están abajo. La aplicación les pone R 90, R 120 o R 180 y además comprueba que no queden por debajo de la de la planta. "bajo_cubierta_sin_riesgo" las deja en R 30 y es una excepción de la norma: sólo si el usuario dice que ESA zona está bajo una cubierta no prevista para evacuación cuyo fallo no compromete nada.
 7. LOS MILÍMETROS SON MILÍMETROS. Las secciones de los elementos van en mm (250×500, recubrimiento 30, cerco 8, barra 20), no en cm. Y el RECUBRIMIENTO NOMINAL no es la distancia al eje: la aplicación calcula el eje como recubrimiento + cerco + medio diámetro de barra. Si el usuario te da "35 mm al eje", eso no es el recubrimiento; dilo y pregunta.
 8. μfi SÓLO CON UN NÚMERO DEL USUARIO. Es el coeficiente de sobredimensionado del elemento en incendio, y sale de su cálculo: cuánta de su capacidad está solicitada en la situación accidental. Con 0 la aplicación va por el lado seguro. Bajarlo rebaja el revestimiento que hace falta, así que no lo estimes ni lo pongas "típico".
 9. EL ESPESOR DEL REVESTIMIENTO NO LO DICES TÚ. El DB SI no tabula ningún producto de protección: remite a la UNE-EN 13381 y al marcado CE. Tú eliges la FAMILIA y la aplicación estima el espesor con la conductividad que le corresponde. Y NUNCA des la conductividad de un producto de memoria: el λ de catálogo de una lana de roca a 20 ºC no es el efectivo en incendio, y con él salen 7 mm donde en obra van 40. Ese dato lo teclea quien tenga la ficha del producto delante.
@@ -516,7 +516,12 @@ function sectorDePropuesta(s: SectorAi, previo: SectorUI | undefined): SectorUI 
   };
 }
 
-/** Lo mismo con un elemento: se conservan el λp del producto y el armado fino. */
+/**
+ * Lo mismo con un elemento: se conservan el armado fino y el λp del producto,
+ * pero éste SÓLO si la familia del revestimiento es la misma. Con otra familia
+ * el λp guardado es el de otro producto, y el espesor saldría con la
+ * conductividad de una lana para una placa.
+ */
 function elementoDePropuesta(
   e: ElementoAi,
   previo: ElementoEntrada | undefined,
@@ -551,7 +556,10 @@ function elementoDePropuesta(
       masividadManual: cero(e.masividad_m1),
       mufi: e.material === 'acero' ? cero(e.mufi) : anterior.acero.mufi,
     },
-    proteccion: { ...anterior.proteccion, familia: e.proteccion },
+    proteccion:
+      e.proteccion === anterior.proteccion.familia
+        ? anterior.proteccion
+        : { familia: e.proteccion, lambda: null },
   };
 }
 
@@ -575,6 +583,8 @@ const textoSector = (s: SectorAi) =>
     s.sotano ? 'bajo rasante' : null,
     s.robotizado ? 'robotizado' : null,
     s.adosada ? 'adosada' : null,
+    // Baja la zona a R 30: tiene que verse en la tarjeta, no sólo aplicarse.
+    s.bajo_cubierta_sin_riesgo ? 'bajo cubierta sin riesgo (R 30)' : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -694,6 +704,12 @@ const ELIMINAR_SECTORES_WHY =
   'La propuesta deja menos sectores de los que hay. Un sector que desaparece deja de tener R '
   + 'exigida, y con él se va la fila que lo justificaba en la memoria y en el cuadro del plano.';
 
+const BAJO_CUBIERTA_WHY =
+  'La excepción de la llamada 1 de la tabla 3.2 deja una zona de riesgo especial en R 30 donde la '
+  + 'tabla pedía R 90, R 120 o R 180. Sólo vale bajo una cubierta no prevista para evacuación y '
+  + 'cuyo fallo no compromete la estabilidad de otras plantas ni la compartimentación: es un dato '
+  + 'del edificio, no una hipótesis cómoda.';
+
 const ELIMINAR_ELEMENTOS_WHY =
   'La propuesta deja menos elementos de los que hay. Un elemento que desaparece deja de '
   + 'comprobarse: ni se dice si su sección llega sola ni qué protección necesita.';
@@ -743,6 +759,23 @@ function riesgosDeIncendio(
       before: `R ${a.minutos}`,
       after: `R ${b.minutos}`,
       why: R_SECTOR_WHY,
+    });
+  }
+
+  // La excepción de la llamada (1) de la tabla 3.2. En un sector que ya
+  // existía la ve la comparación de arriba (R 180 → R 30); una zona NUEVA que
+  // llega con la casilla marcada no tiene «antes», y era la puerta por la que
+  // un R 30 entraba sin que saltara nada.
+  for (const b of final.sectores) {
+    if (!b.bajoCubiertaSinRiesgo || !b.clase.startsWith('riesgo:') || b.nombre.trim() === '') continue;
+    if (actual.sectores.some((x) => norm(x.nombre) === norm(b.nombre))) continue;
+    const nivel = b.clase.slice('riesgo:'.length) as NivelRiesgo;
+    riesgos.push({
+      field: `bajo_cubierta_${b.id}`,
+      label: `R exigida a «${b.nombre.trim()}»`,
+      before: `R ${TABLA_3_2[nivel]} (tabla 3.2)`,
+      after: 'R 30 (bajo cubierta sin riesgo)',
+      why: BAJO_CUBIERTA_WHY,
     });
   }
 

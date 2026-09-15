@@ -102,6 +102,39 @@ describe('el enganche por nombre', () => {
 });
 
 describe('la evaluación con plantas', () => {
+  it('con la cadena de alturas cortada no hay R, y el hueco dice qué falta', () => {
+    // Cuatro plantas, y la cubierta cuenta: con sólo la altura de la baja,
+    // antes salía 3,2 m y R 60 impresos y publicados, sin ninguna señal.
+    const cuatro = publicadas(
+      ['Planta Baja', ['A1']],
+      ['Planta Primera', ['A1']],
+      ['Planta Segunda', ['A1']],
+      ['Cubierta', ['F'], true],
+    );
+    const s = estado({
+      plantas: [anot('Planta Baja', { altura: 3.2 })],
+      sectores: [{ ...nuevoSector('Plantas'), clase: claseUso('residencialVivienda') }],
+    });
+    const ev = evaluar(s, cuatro);
+    expect(ev.alturaEvacuacion).toBeNull();
+    expect(ev.exigencias).toEqual([]);
+    expect(ev.listo).toBe(false);
+    expect(ev.huecos.map((h) => h.que)).toEqual([
+      'la altura de evacuación (falta la altura de Planta Primera, Planta Segunda)',
+      'Plantas',
+    ]);
+  });
+
+  it('el hueco de la altura sólo sale cuando hace falta: un documento de exigencias sueltas no la usa', () => {
+    const s = estado({
+      exigencias: [{ id: 'f1', ambito: 'Toda la estructura', minutos: 60 }],
+    });
+    const ev = evaluar(s, EDIFICIO);
+    expect(ev.alturaEvacuacion).toBeNull();
+    expect(ev.huecos).toEqual([]);
+    expect(ev.listo).toBe(true);
+  });
+
   it('deriva la altura de evacuación y la mete en la tabla 3.1', () => {
     const s = estado({
       plantas: [anot('Planta Baja', { altura: 3.2 }), anot('Planta Primera', { altura: 3 })],

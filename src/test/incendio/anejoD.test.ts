@@ -153,6 +153,16 @@ describe('la banda de μfi', () => {
     expect(b.indice).toBe(2);
     expect(b.aviso).toContain('no baja más');
   });
+
+  it('pero un μfi de cero no es un μfi: va a la banda MÁS exigente, como si no estuviera', () => {
+    // Tecleado en sesión caía en la banda blanda (0,50 > μfi ≥ 0,40) y al
+    // recargar `normalizar` lo tiraba y volvía a la exigente: dos documentos
+    // del mismo estado. Ahora el motor lo trata como `normalizar`.
+    const b = bandaDeMufi(0);
+    expect(b.indice).toBe(0);
+    expect(b.aviso).toContain('no es un coeficiente de sobredimensionado');
+    expect(bandaDeMufi(-0.5).indice).toBe(0);
+  });
 });
 
 describe('lo que hace falta para una R', () => {

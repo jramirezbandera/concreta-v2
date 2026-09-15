@@ -63,7 +63,7 @@ describe('las cotas', () => {
     expect(a.plantas[1].esLaMasAlta).toBe(true);
   });
 
-  it('una altura que falta corta la cuenta de ahí para arriba', () => {
+  it('una altura que falta corta la cuenta de ahí para arriba, y entonces NO hay altura de evacuación', () => {
     const a = alturasDeEvacuacion([
       p('Planta Baja', 3.2),
       p('Planta Primera', null),
@@ -72,8 +72,57 @@ describe('las cotas', () => {
     ]);
     expect(a.sinAltura).toEqual(['Planta Primera']);
     expect(a.plantas.map((x) => x.cota)).toEqual([0, 3.2, null, null]);
-    expect(a.descendente).toBe(3.2);
+    // Antes devolvía 3,2 —la cota más alta que pudo acumular— y ese número,
+    // más bajo que el real, entraba en la tabla 3.1 y salía impreso.
+    expect(a.descendente).toBeNull();
     expect(a.avisos.join(' ')).toContain('Falta la altura de Planta Primera');
+    expect(a.avisos.join(' ')).toContain('no se puede cerrar');
+  });
+
+  it('sin ninguna altura tecleada no da cero: da nada', () => {
+    const a = alturasDeEvacuacion([
+      p('Planta Baja', null),
+      p('Planta Primera', null),
+      p('Cubierta', null),
+    ]);
+    expect(a.descendente).toBeNull();
+    expect(a.ascendente).toBe(0);
+  });
+
+  it('pero una altura que falta por ENCIMA del último origen no corta nada', () => {
+    // La de la primera sólo hace falta para la cota de la cubierta, y la
+    // cubierta no cuenta: la altura de evacuación está cerrada en 3,2.
+    const a = alturasDeEvacuacion([
+      p('Planta Baja', 3.2),
+      p('Planta Primera', null),
+      p('Cubierta', null, { cuenta: false }),
+    ]);
+    expect(a.descendente).toBe(3.2);
+    expect(a.sinAltura).toEqual(['Planta Primera']);
+    expect(a.avisos.join(' ')).toContain('No cambia la altura de evacuación');
+  });
+
+  it('un sótano sin altura corta la ascendente y deja la descendente', () => {
+    const a = alturasDeEvacuacion([
+      p('Sótano', null, { bajoRasante: true }),
+      p('Planta Baja', 3.2),
+      p('Planta Primera', 3),
+      p('Cubierta', null, { cuenta: false }),
+    ]);
+    // La descendente llega al forjado de la primera (la cubierta no cuenta).
+    expect(a.descendente).toBeCloseTo(3.2, 10);
+    expect(a.ascendente).toBeNull();
+  });
+
+  it('y un sótano que no se ocupa puede quedarse sin altura sin cortar nada', () => {
+    const a = alturasDeEvacuacion([
+      p('Sótano', null, { bajoRasante: true, cuenta: false }),
+      p('Planta Baja', 3.2),
+      p('Cubierta', null, { cuenta: false }),
+    ]);
+    // Sólo cuenta la planta de salida: cero, como en el edificio de una planta.
+    expect(a.descendente).toBe(0);
+    expect(a.ascendente).toBe(0);
   });
 });
 

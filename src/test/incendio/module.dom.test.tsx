@@ -17,7 +17,7 @@ import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ToastContainer } from '../../components/ui/Toast';
 import { IncendioModule } from '../../features/incendio';
 import { MODULO_PUB, PUB_VERSION, type PubIncendio } from '../../features/incendio/state';
-import { leerPublicacion } from '../../lib/pub';
+import { leerPublicacion, publicar } from '../../lib/pub';
 
 vi.mock('../../components/layout/AppShell', () => ({
   useDrawer: () => ({ openDrawer: vi.fn() }),
@@ -145,5 +145,145 @@ describe('los sectores, de la tabla 3.1 a la pantalla', () => {
     montar();
     expect(screen.getByText(/Las plantas salen de/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Abrir Cargas por planta/ })).toBeInTheDocument();
+  });
+
+  it('quitar el único sector retira el sobre: el cuadro de materiales no puede seguir imprimiendo su R', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Altura de evacuación del edificio'), {
+      target: { value: '12' },
+    });
+    sector('Plantas sobre rasante', 'uso:residencialVivienda');
+    expect(leerPublicacion<PubIncendio>(MODULO_PUB, PUB_VERSION)?.datos.exigencias).toEqual([
+      { ambito: 'Plantas sobre rasante', minutos: 60 },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar Plantas sobre rasante' }));
+    expect(leerPublicacion(MODULO_PUB, PUB_VERSION)).toBeNull();
+  });
+
+  it('cambiar la familia del revestimiento tira el λp tecleado: era el del producto de antes', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir elemento' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Jácenas metálicas' }));
+    const de = (que: string) => screen.getByLabelText(`${que} Jácenas metálicas`);
+    fireEvent.change(de('Material de'), { target: { value: 'acero' } });
+    fireEvent.change(de('Perfil de'), { target: { value: 'IPE 300' } });
+    fireEvent.change(de('Resistencia exigida a'), { target: { value: '60' } });
+
+    // Una IPE 300 desnuda no llega a R 60: pide protección, y con una lana
+    // hay que teclear el λp del producto.
+    fireEvent.change(de('Protección de'), { target: { value: 'lanaMineral' } });
+    fireEvent.change(de('Conductividad declarada del revestimiento de'), { target: { value: '0.25' } });
+    expect(de('Conductividad declarada del revestimiento de')).toHaveValue(0.25);
+
+    // Con un silicato el λp de la lana no vale: la casilla vuelve en blanco.
+    fireEvent.change(de('Protección de'), { target: { value: 'silicatoCalcico' } });
+    expect(de('Conductividad declarada del revestimiento de')).toHaveValue(null);
+  });
+
+  it('una zona de riesgo especial también puede estar bajo rasante, y entonces se compara con el sótano', () => {
+    montar();
+    fireEvent.change(screen.getByLabelText('Altura de evacuación del edificio'), {
+      target: { value: '12' },
+    });
+    sector('Plantas sobre rasante', 'uso:residencialVivienda'); // R 60
+    sector('Aparcamiento', 'uso:aparcamientoBajoOtroUso'); // R 120
+    fireEvent.click(screen.getByLabelText('Aparcamiento está bajo rasante'));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir sector' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Otro sector… (en blanco)' }));
+    const nombres = screen.getAllByLabelText('Nombre del sector');
+    fireEvent.change(nombres[nombres.length - 1], { target: { value: 'Sala de calderas' } });
+    fireEvent.change(screen.getByLabelText('Qué es Sala de calderas'), { target: { value: 'riesgo:bajo' } });
+
+    // Sin decir de qué lado está, la llamada (1) la compara con las plantas
+    // de arriba: R 90 de la tabla contra R 60 → R 90.
+    const r = () => screen.getByLabelText<HTMLSelectElement>('Resistencia al fuego de Sala de calderas').options[0].textContent;
+    expect(r()).toContain('R90');
+
+    // Antes esta casilla no existía en las zonas de riesgo, y la sala de
+    // calderas del aparcamiento salía R 90 donde toca R 120.
+    fireEvent.click(screen.getByLabelText('Sala de calderas está bajo rasante'));
+    expect(r()).toContain('R120');
+  });
+});
+
+/**
+ * Con plantas publicadas. El sobre de «Cargas por planta» va de arriba abajo y
+ * los cantos en centímetros, como los escribe aquel módulo.
+ */
+describe('con las plantas de Cargas por planta', () => {
+  type Zona = { fila: string; forjado: { canto: number | null } };
+  const publicarPlantas = (plantas: [string, boolean, Zona[]][]) =>
+    publicar(
+      'cargas-planta',
+      1,
+      { plantas: plantas.map(([nombre, esCubierta, zonas]) => ({ nombre, esCubierta, zonas })) },
+      {},
+      true,
+    );
+  const zona = (fila: string, canto: number | null = 30): Zona => ({ fila, forjado: { canto } });
+
+  function sector(nombre: string, clase: string) {
+    fireEvent.click(screen.getByRole('button', { name: '+ Añadir sector' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: nombre }));
+    fireEvent.change(screen.getByLabelText(`Qué es ${nombre}`), { target: { value: clase } });
+  }
+  const altura = (planta: string, m: string) =>
+    fireEvent.change(screen.getByLabelText(`Altura de ${planta}`), { target: { value: m } });
+
+  it('con una altura en blanco no se imprime ninguna R ni se publica, y el hueco dice cuál falta', () => {
+    publicarPlantas([
+      ['Cubierta', true, [zona('G1')]],
+      ['Planta Segunda', false, [zona('A1')]],
+      ['Planta Primera', false, [zona('A1')]],
+      ['Planta Baja', false, [zona('A1')]],
+    ]);
+    montar();
+    sector('Plantas sobre rasante', 'uso:residencialVivienda');
+    altura('Planta Baja', '3.2');
+
+    // Antes: 3,20 m —la cota más alta que pudo acumular— y R 60, impresos y
+    // publicados, sin ninguna señal. Con la cadena entera son 9,20 m.
+    expect(screen.queryByText(/Resistencia al fuego exigida a la estructura/)).not.toBeInTheDocument();
+    expect(leerPublicacion(MODULO_PUB, PUB_VERSION)).toBeNull();
+    expect(screen.getByText(/2 sin resolver/)).toBeInTheDocument();
+    expect(screen.getByText(/Faltan las alturas de Planta Primera y Planta Segunda/)).toBeInTheDocument();
+
+    altura('Planta Primera', '3');
+    altura('Planta Segunda', '3');
+    expect(screen.getByText(/R60 en las plantas sobre rasante/)).toBeInTheDocument();
+    // Hasta el forjado de la segunda: la cubierta es de conservación y no cuenta.
+    expect(leerPublicacion<PubIncendio>(MODULO_PUB, PUB_VERSION)?.datos.alturaEvacuacion).toBeCloseTo(6.2, 10);
+  });
+
+  it('en modo libre, el canto que se teclea en una fila es el del forjado de ENCIMA, y ahí se guarda', () => {
+    // La cubierta tiene dos cantos distintos en Cargas por planta: hay que
+    // elegir uno, y se pide en la fila de la planta de debajo, que es la que
+    // sube hasta ese forjado. Antes se escribía en la propia planta —una fila
+    // más abajo de donde hacía falta— y el de la más alta no tenía casilla.
+    publicarPlantas([
+      ['Cubierta', true, [zona('G1', 25), zona('G1', 30)]],
+      ['Planta Primera', false, [zona('A1')]],
+      ['Planta Baja', false, [zona('A1')]],
+    ]);
+    montar();
+    fireEvent.change(screen.getByLabelText('Qué altura se teclea en cada planta'), {
+      target: { value: 'libre' },
+    });
+    altura('Planta Baja', '2.9');
+    altura('Planta Primera', '2.7');
+
+    // El canto de la primera lo publica Cargas por planta: su fila no lo pide.
+    expect(screen.queryByLabelText('Canto del forjado sobre Planta Baja')).not.toBeInTheDocument();
+    // El de la cubierta no: se teclea en la fila de la primera.
+    fireEvent.change(screen.getByLabelText('Canto del forjado sobre Planta Primera'), {
+      target: { value: '0.35' },
+    });
+    // 2,90 + 0,30 + 2,70 + 0,35 = 6,25 en el forjado de cubierta (en la tabla
+    // y en la sección dibujada, que acota la misma cota).
+    expect(screen.getAllByText('+6,25').length).toBeGreaterThan(0);
+    // Y lo tecleado sigue a la vista, para poder corregirlo.
+    expect(screen.getByLabelText('Canto del forjado sobre Planta Primera')).toHaveValue(0.35);
   });
 });

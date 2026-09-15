@@ -120,6 +120,16 @@ export function bandaDeMufi(mufi: number | null): { indice: 0 | 1 | 2 | null; ba
       aviso: 'Sin coeficiente de sobredimensionado se toma la columna más exigente de la tabla D.1 (0,70 > μfi ≥ 0,60).',
     };
   }
+  // Cero o menos no es un μfi: es una casilla mal tecleada. Se trata como si
+  // no estuviera, que es lo que hará `normalizar` al releer el estado; si
+  // entrara en las comparaciones de abajo caería en la banda MENOS exigente.
+  if (mufi <= 0) {
+    return {
+      indice: 0,
+      banda: BANDAS_MUFI[0],
+      aviso: `μfi = ${n2(mufi)} no es un coeficiente de sobredimensionado: se toma la columna más exigente de la tabla D.1 (0,70 > μfi ≥ 0,60), como si no se hubiera tecleado.`,
+    };
+  }
   if (mufi >= MUFI_MAX_D1) {
     return {
       indice: null,

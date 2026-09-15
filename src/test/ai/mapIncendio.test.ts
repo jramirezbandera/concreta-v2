@@ -345,6 +345,28 @@ describe('los elementos', () => {
     expect(p.fields.elementos?.[0].id).toBe('e1');
   });
 
+  it('pero cambiar de familia tira ese λp: era el del producto de antes', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Jácenas',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'acero',
+          hormigon: entradaHormigonInicial(),
+          acero: { ...entradaAceroInicial(), perfil: 'IPE 300' },
+          proteccion: { familia: 'lanaMineral', lambda: 0.25 },
+        },
+      ],
+    });
+    const p = plan(
+      { ...VACIO, elementos: [elementoAi({ nombre: 'Jácenas', material: 'acero', perfil: 'IPE 300', proteccion: 'silicatoCalcico' })] },
+      base,
+    );
+    expect(p.fields.elementos?.[0].proteccion).toEqual({ familia: 'silicatoCalcico', lambda: null });
+  });
+
   it('un elemento nuevo parte de los valores de fábrica, no de ceros', () => {
     const p = plan({ ...VACIO, elementos: [elementoAi()] }, defaultIncendioState());
     // `cargaUniforme` y `entrevigadoProtegido` no viajan en el payload y no
@@ -434,6 +456,62 @@ describe('lo que baja la exigencia y no se ve', () => {
     const r = p.risks.find((x) => x.label.includes('μfi'));
     expect(r?.before).toBe('0,65');
     expect(r?.after).toBe('0,45');
+  });
+
+  it('una zona de riesgo NUEVA que llega «bajo cubierta sin riesgo» es un riesgo, y la tarjeta lo dice', () => {
+    // Es la excepción de la llamada 1 de la tabla 3.2: deja la zona en R 30
+    // donde la tabla pedía R 180. Una zona nueva no tiene «antes» con el que
+    // compararla, así que era la puerta por la que un R 30 entraba mudo.
+    const p = plan(
+      {
+        ...VACIO,
+        sectores: [
+          sectorAi(),
+          sectorAi({ nombre: 'Sala de calderas', clase: 'riesgo:alto', bajo_cubierta_sin_riesgo: true }),
+        ],
+      },
+      conSector(),
+      new Set(['sectores']),
+    );
+    const r = p.risks.find((x) => x.field.startsWith('bajo_cubierta_'));
+    expect(r?.label).toContain('Sala de calderas');
+    expect(r?.before).toBe('R 180 (tabla 3.2)');
+    expect(r?.after).toBe('R 30 (bajo cubierta sin riesgo)');
+    const fila = p.changes.find((c) => c.after.includes('Sala de calderas'));
+    expect(fila?.after).toContain('bajo cubierta sin riesgo (R 30)');
+  });
+
+  it('y en una zona que ya existía lo ve la comparación sector a sector, sin duplicarse', () => {
+    const conRiesgo = conSector();
+    conRiesgo.sectores.push({
+      id: 's2',
+      nombre: 'Sala de calderas',
+      clase: 'riesgo:alto',
+      sotano: false,
+      robotizado: false,
+      adosada: false,
+      bajoCubiertaSinRiesgo: false,
+      minutosManual: null,
+      anejoB: null,
+    });
+    const p = plan(
+      {
+        ...VACIO,
+        sectores: [sectorAi(), sectorAi({ nombre: 'Sala de calderas', clase: 'riesgo:alto', bajo_cubierta_sin_riesgo: true })],
+      },
+      conRiesgo,
+      new Set(['sectores']),
+    );
+    const sobreLaSala = p.risks.filter((x) => x.label.includes('Sala de calderas'));
+    expect(sobreLaSala).toHaveLength(1);
+    expect(sobreLaSala[0]).toMatchObject({ before: 'R 180', after: 'R 30' });
+  });
+
+  it('y el esquema dice de qué zonas es esa casilla: de las de riesgo, no de la cubierta ligera', () => {
+    const d = String((itemsDe('sectores').items.properties.bajo_cubierta_sin_riesgo as { description: string }).description);
+    expect(d).toContain('riesgo:bajo|medio|alto');
+    expect(d).toContain('R 30');
+    expect(d).not.toContain('regla:cubiertaLigera');
   });
 
   it('subir la altura o la R no es riesgo ninguno', () => {

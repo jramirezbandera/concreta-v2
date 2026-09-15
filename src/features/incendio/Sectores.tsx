@@ -117,7 +117,12 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                     </optgroup>
                   </select>
 
-                  {esUso && (
+                  {/* También en las zonas de riesgo: la llamada (1) de la
+                      tabla 3.2 las compara con la estructura de SU planta, y
+                      sin decir de qué lado de la rasante están se compararían
+                      con las plantas de arriba. Una sala de calderas en el
+                      sótano de un aparcamiento saldría R 90 donde toca R 120. */}
+                  {(esUso || esRiesgo) && (
                     <label className={CASILLA}>
                       <input
                         type="checkbox"

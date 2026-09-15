@@ -135,6 +135,16 @@ describe('la corrección de la tabla C.1', () => {
     expect(correccionC1(viga(), 120).delta).toBe(0);
   });
 
+  it('un μfi de cero no es un μfi: se trata como si no estuviera, y se dice', () => {
+    // Si entrara en la interpolación caería en la fila «≤ 0,4» y daría los
+    // +5 mm más favorables; y al recargar, `normalizar` lo tira y darían 0.
+    // El mismo estado no puede imprimir dos documentos.
+    const c = correccionC1(viga({ mufi: 0 }), 120);
+    expect(c.delta).toBe(0);
+    expect(c.avisos.join(' ')).toContain('no es un coeficiente de sobredimensionado');
+    expect(correccionC1(viga({ mufi: -0.3 }), 120).delta).toBe(0);
+  });
+
   it('por encima de 0,60 la tabla no llega, y lo dice', () => {
     const c = correccionC1(viga({ mufi: 0.8 }), 120);
     expect(c.delta).toBe(-5);

@@ -121,7 +121,9 @@ function Proteccion({
           value={d.familia}
           aria-label={`Protección de ${nombre}`}
           className={`${INPUT} max-w-[250px]`}
-          onChange={(e) => onCambiar({ familia: e.target.value })}
+          // Cambiar de familia tira el λp: era el del producto de ANTES, y con
+          // él el espesor saldría con la conductividad de otra cosa.
+          onChange={(e) => onCambiar({ familia: e.target.value, lambda: null })}
         >
           <option value="">— sin concretar —</option>
           {familias.map((f) => (
@@ -299,6 +301,7 @@ function Hormigon({
               unidad=""
               valor={d.mufi}
               paso="0.05"
+              invalido={d.mufi !== null && d.mufi <= 0}
               aria={`Coeficiente de sobredimensionado de ${nombre}`}
               onCambiar={(mufi) => onCambiar({ mufi })}
             />
@@ -481,6 +484,7 @@ function Acero({
               unidad=""
               valor={d.mufi}
               paso="0.05"
+              invalido={d.mufi !== null && d.mufi <= 0}
               aria={`Coeficiente de sobredimensionado de ${nombre}`}
               onCambiar={(mufi) => onCambiar({ mufi })}
             />

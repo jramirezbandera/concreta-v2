@@ -303,6 +303,18 @@ export function correccionC1(e: EntradaHormigon, clase: ClaseR): CorreccionC1 {
   // Soportes y muros van por «Resto de los casos», que vale cero para todo μfi.
   if (esCompresion(e.tipo) || e.mufi === null) return { delta: 0, avisos };
 
+  // μfi es la fracción de la capacidad que está solicitada en el incendio, y
+  // cero o menos no es un valor: es una casilla mal tecleada. Se trata como si
+  // no estuviera —sin corrección—, que es lo mismo que hará `normalizar` al
+  // releer el estado; dejarlo pasar daría los +5 mm de la fila más baja de la
+  // tabla en sesión y ninguno tras recargar.
+  if (e.mufi <= 0) {
+    avisos.push(
+      `μfi = ${n1(e.mufi)} no es un coeficiente de sobredimensionado: se comprueba sin la corrección de la tabla C.1, como si no se hubiera tecleado.`,
+    );
+    return { delta: 0, avisos };
+  }
+
   let delta: number;
   if (e.mufi > MUFI_MAX_C1) {
     // La tabla no llega, y extrapolar hacia abajo sería inventarse una

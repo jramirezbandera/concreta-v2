@@ -122,12 +122,28 @@ export function Edificio({
               </tr>
             </thead>
             <tbody>
-              {filas.map((p) => {
+              {filas.map((p, k) => {
                 const anotada = plantas.find((x) => x.nombre === p.nombre);
                 const faltaAltura = !p.esLaMasAlta && (p.altura === null || p.altura <= 0);
+                // El canto que se le suma a esta planta es el del forjado de
+                // ENCIMA, y ahí —en la planta de encima— es donde se guarda lo
+                // que se teclee en esta fila. Las filas van de arriba abajo,
+                // así que la de encima es la anterior. Escribirlo en la propia
+                // planta lo desplazaba una fila y dejaba el canto de la más
+                // alta sin sitio donde teclearlo.
+                const encima = k > 0 ? filas[k - 1] : null;
+                const anotadaEncima =
+                  encima === null ? undefined : plantas.find((x) => x.nombre === encima.nombre);
                 // En modo libre, un canto que falta corta la cuenta igual que
-                // una altura: hay que poder teclearlo.
-                const cantoPedido = libre && !p.esLaMasAlta && p.cantoUsado === null;
+                // una altura: hay que poder teclearlo. Y el que se tecleó a
+                // mano tiene que poder corregirse.
+                const cantoDe =
+                  libre &&
+                  !p.esLaMasAlta &&
+                  encima !== null &&
+                  (p.cantoUsado === null || (anotadaEncima?.cantoManual ?? null) !== null)
+                    ? encima
+                    : null;
                 return (
                   <tr key={p.nombre} className="border-b border-border-sub last:border-0">
                     <td className="px-2 py-1 text-[12px] text-text-primary">
@@ -167,27 +183,40 @@ export function Edificio({
                     <td className="px-2 py-1">
                       {p.esLaMasAlta ? (
                         <span className="text-[11px] text-text-disabled">—</span>
-                      ) : cantoPedido ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={anotada?.canto ?? ''}
-                          placeholder="canto"
-                          aria-label={`Canto del forjado sobre ${p.nombre}`}
-                          className={INPUT}
-                          style={{ borderColor: 'var(--color-state-fail)' }}
-                          title={
-                            anotada?.cantosDistintos
-                              ? 'Esa planta tiene zonas con cantos distintos en Cargas por planta: elija uno'
-                              : 'Cargas por planta no publica el canto de esa planta'
-                          }
-                          onChange={(e) =>
-                            onPlanta(p.nombre, {
-                              cantoManual: e.target.value === '' ? null : Number(e.target.value),
-                            })
-                          }
-                        />
+                      ) : cantoDe !== null ? (
+                        <span className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={anotadaEncima?.cantoManual ?? ''}
+                            placeholder="canto"
+                            aria-label={`Canto del forjado sobre ${p.nombre}`}
+                            className={INPUT}
+                            style={
+                              p.cantoUsado === null
+                                ? { borderColor: 'var(--color-state-fail)' }
+                                : undefined
+                            }
+                            title={
+                              anotadaEncima?.cantosDistintos
+                                ? `${cantoDe.nombre} tiene zonas con cantos distintos en Cargas por planta: elija uno`
+                                : anotadaEncima?.cantoPublicado === null
+                                  ? `Cargas por planta no publica el canto de ${cantoDe.nombre}`
+                                  : `Canto del forjado de ${cantoDe.nombre}, tecleado a mano`
+                            }
+                            onChange={(e) =>
+                              onPlanta(cantoDe.nombre, {
+                                cantoManual: e.target.value === '' ? null : Number(e.target.value),
+                              })
+                            }
+                          />
+                          {p.subida !== null && (
+                            <span className="font-mono text-[11px] text-text-disabled">
+                              = {m2(p.subida)}
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <span
                           className="font-mono text-[11px] text-text-disabled"

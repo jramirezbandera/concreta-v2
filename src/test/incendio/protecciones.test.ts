@@ -97,6 +97,16 @@ describe('la protección de un elemento de acero', () => {
     expect(p.avisos.join(' ')).not.toContain('valor alto de la familia');
   });
 
+  it('un λp que llega a una familia con λ tabulado se ignora: sería el de otro producto', () => {
+    // El de la placa de yeso lo autoriza el D.2.1 y no se pregunta; si llega
+    // uno manual es el que se tecleó para una lana antes de cambiar de
+    // familia, y con 0,05 saldrían 12,5 mm donde tocan 37,5.
+    const p = proteccionAcero(f('placaYeso'), datos, 0.05);
+    expect(p.espesor).toBe(37.5);
+    expect(p.cuenta).toContain('0,15 · 0,25');
+    expect(p.avisos.join(' ')).toContain('valor alto de la familia');
+  });
+
   it('la intumescente no da espesor nunca: se le pide al fabricante', () => {
     const p = proteccionAcero(f('intumescente'), datos, null);
     expect(p.espesor).toBeNull();

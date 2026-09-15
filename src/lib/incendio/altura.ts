@@ -65,10 +65,12 @@ export interface AlturasEdificio {
   plantas: PlantaConCota[];
   /**
    * m. Altura de evacuación descendente: la cota del origen de evacuación más
-   * alto. Es la que entra en la tabla 3.1. `null` si no se puede calcular.
+   * alto. Es la que entra en la tabla 3.1. `null` si no se puede calcular, y
+   * eso incluye la cadena de alturas cortada por debajo de un origen: no se
+   * devuelve una altura «parcial», que sería más baja que la real.
    */
   descendente: number | null;
-  /** m. Altura de evacuación ascendente, desde el sótano ocupado más bajo. */
+  /** m. Altura de evacuación ascendente, desde el sótano ocupado más bajo. Misma regla. */
   ascendente: number | null;
   /** Nombres de las plantas a las que les falta la altura para cerrar la cuenta. */
   sinAltura: string[];
@@ -170,21 +172,33 @@ export function alturasDeEvacuacion(
     };
   });
 
-  const origenes = conCota.filter((p) => p.cuenta && p.cota !== null);
-  const arriba = origenes.filter((p) => (p.cota as number) > 0).map((p) => p.cota as number);
-  const abajo = origenes.filter((p) => (p.cota as number) < 0).map((p) => p.cota as number);
+  // Un origen de evacuación SIN COTA es una cadena cortada, y entonces no hay
+  // altura de evacuación: ni la de la tabla 3.1 ni ninguna. Devolver «la cota
+  // más alta que se pudo acumular» daría un número más bajo que el real —una
+  // planta en blanco a media altura deja fuera todas las de encima—, siempre
+  // del lado inseguro y con la misma pinta que uno bueno. Las plantas que no
+  // cuentan pueden quedarse sin cota sin cortar nada: no son origen.
+  const encima = conCota.filter((p, i) => p.cuenta && i > iSalida);
+  const debajo = conCota.filter((p, i) => p.cuenta && i < iSalida);
+  const cortadaArriba = encima.some((p) => p.cota === null);
+  const cortadaAbajo = debajo.some((p) => p.cota === null);
+  const arriba = encima.map((p) => p.cota).filter((c): c is number => c !== null && c > 0);
+  const abajo = debajo.map((p) => p.cota).filter((c): c is number => c !== null && c < 0);
 
-  const descendente = iSalida === -1 ? null : arriba.length > 0 ? Math.max(...arriba) : 0;
-  const ascendente = iSalida === -1 ? null : abajo.length > 0 ? Math.abs(Math.min(...abajo)) : 0;
+  const descendente =
+    iSalida === -1 || cortadaArriba ? null : arriba.length > 0 ? Math.max(...arriba) : 0;
+  const ascendente =
+    iSalida === -1 || cortadaAbajo ? null : abajo.length > 0 ? Math.abs(Math.min(...abajo)) : 0;
 
   const lista = (ns: string[]) =>
     ns.length === 1 ? ns[0] : `${ns.slice(0, -1).join(', ')} y ${ns[ns.length - 1]}`;
 
   if (sinAltura.length > 0) {
+    const que = sinAltura.length === 1 ? `Falta la altura de ${sinAltura[0]}` : `Faltan las alturas de ${lista(sinAltura)}`;
     avisos.push(
-      sinAltura.length === 1
-        ? `Falta la altura de ${sinAltura[0]}: sin ella no se puede cerrar la altura de evacuación.`
-        : `Faltan las alturas de ${lista(sinAltura)}: sin ellas no se puede cerrar la altura de evacuación.`,
+      cortadaArriba || cortadaAbajo
+        ? `${que}: sin ${sinAltura.length === 1 ? 'ella' : 'ellas'} no se puede cerrar la altura de evacuación.`
+        : `${que}. No cambia la altura de evacuación, porque las plantas que se quedan sin cota no son origen de evacuación, pero la sección se dibuja sin ellas.`,
     );
   }
   if (sinCanto.length > 0) {
