@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, type JSX, type ReactNode } from 'react';
 import { X, type LucideIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface ConfirmDialogProps {
   /** Título corto del header. */
@@ -56,7 +57,15 @@ export function ConfirmDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  return (
+  // El diálogo se cuelga de `body`, no de donde se le invoca. Este se abre
+  // desde sitios muy distintos —el menú de obra del Sidebar, y media docena de
+  // módulos—, y el Sidebar lleva `translate-x` por debajo de `lg` (el cajón
+  // deslizante): un ancestro con `translate` distinto de `none` pasa a ser el
+  // BLOQUE CONTENEDOR de sus descendientes `fixed`, así que ahí dentro el
+  // `inset-0` de este fondo medía los 204 px del cajón en vez de la pantalla.
+  // Ojo al diagnosticarlo: Tailwind v4 escribe la propiedad `translate`, así
+  // que `transform` sale `none` y el culpable no aparece si sólo se mira ahí.
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center px-4"
       role="presentation"
@@ -109,6 +118,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

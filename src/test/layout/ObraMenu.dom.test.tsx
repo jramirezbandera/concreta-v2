@@ -185,6 +185,23 @@ describe('ObraMenu', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
+  it('El diálogo cuelga de body, no del Sidebar que lo abre', async () => {
+    const user = userEvent.setup();
+    const { container } = montar();
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+
+    // El Sidebar lleva `translate-x` por debajo de `lg` (el cajón deslizante),
+    // y un ancestro con `translate` distinto de `none` pasa a ser el BLOQUE
+    // CONTENEDOR de sus descendientes `fixed`. Colgando de ahí, el `inset-0`
+    // del fondo medía los 204 px del cajón en vez de la pantalla: a 400 px el
+    // diálogo entero se dibujaba dentro de la barra lateral, con el nombre de
+    // la obra cortado y «Crear y abrir» partido en tres líneas.
+    const fondo = screen.getByRole('dialog').parentElement!;
+    expect(fondo.parentElement).toBe(document.body);
+    expect(container.contains(fondo)).toBe(false);
+  });
+
   it('La altitud dice cuál pide: la del terreno, no la del edificio', async () => {
     const user = userEvent.setup();
     montar();

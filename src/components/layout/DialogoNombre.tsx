@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Folder, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   titulo: string;
@@ -57,7 +58,15 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
     if (valido) onConfirm(nombre.trim());
   };
 
-  return (
+  // El diálogo se cuelga de `body`, no de donde se le invoca. En móvil el
+  // cajón lateral lleva `translate-x` (Sidebar.tsx), y un ancestro con
+  // `translate` distinto de `none` pasa a ser el BLOQUE CONTENEDOR de sus
+  // descendientes `fixed`: `inset-0` dejaba de medir la pantalla y medía los
+  // 204 px del cajón. El diálogo entero se dibujaba dentro de la barra, con el
+  // nombre de la obra cortado y «Crear y abrir» partido en tres líneas. Ojo:
+  // Tailwind v4 escribe la propiedad `translate`, así que `transform` sale
+  // `none` y el culpable no aparece si sólo se mira ahí.
+  return createPortal(
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center px-4" role="presentation">
       <div
         className="bg-bg-surface rounded-lg shadow-2xl border border-border-main w-[440px] max-w-full flex flex-col"
@@ -104,16 +113,23 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
           {children}
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border-main">
+        {/* El pie ENVUELVE, pero SÓLO en estrecho. A 400 px el aviso de la
+            provincia («de ella salen el viento, la nieve y el sismo») dejaba a
+            los botones 90 px y «Crear y abrir» salía partido en tres líneas,
+            una palabra por línea; ahí el aviso se lleva su propia línea y los
+            botones caen enteros debajo. De `sm` para arriba se vuelve a la
+            fila única de siempre, con el aviso a la izquierda: en 440 px de
+            diálogo cabe, y cambiarlo no era lo que había que arreglar. */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 px-5 py-3 border-t border-border-main">
           {impedimento !== null && (
-            <p className="m-0 mr-auto text-[11.5px] text-state-warn" role="status">
+            <p className="m-0 w-full text-[11.5px] text-state-warn sm:w-auto sm:mr-auto" role="status">
               {impedimento}
             </p>
           )}
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-1.5 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+            className="shrink-0 whitespace-nowrap px-4 py-1.5 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
           >
             Cancelar
           </button>
@@ -121,7 +137,7 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
             <button
               type="button"
               onClick={secundario.onClick}
-              className="px-4 py-1.5 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+              className="shrink-0 whitespace-nowrap px-4 py-1.5 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
             >
               {secundario.label}
             </button>
@@ -130,7 +146,7 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
             type="button"
             onClick={confirmarSiValido}
             disabled={!valido}
-            className="px-4 py-1.5 rounded text-sm text-accent disabled:opacity-40 transition-all"
+            className="shrink-0 whitespace-nowrap px-4 py-1.5 rounded text-sm text-accent disabled:opacity-40 transition-all"
             style={{
               border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
               background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
@@ -140,6 +156,7 @@ export function DialogoNombre({ titulo, texto, confirmar, inicial = '', secundar
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
