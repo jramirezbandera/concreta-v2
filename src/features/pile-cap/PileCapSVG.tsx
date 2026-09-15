@@ -91,9 +91,11 @@ function PlanView({
         strokeLinejoin="round"
       />
 
-      {/* Tie lines (bottom layer) */}
+      {/* Tie lines (bottom layer) — sólo entre pilotes CONTIGUOS (a distancia
+        * s): son las bandas que arma el motor. Con 4 pilotes las diagonales
+        * (s·√2) no son tirantes del modelo y se pintaban como si lo fueran. */}
       {pilePos.map((p, i) =>
-        pilePos.slice(i + 1).map((q, j) => (
+        pilePos.slice(i + 1).filter((q) => Math.hypot(q.x - p.x, q.y - p.y) <= s_pil * 1.01).map((q, j) => (
           <line
             key={`tie-${i}-${j}`}
             x1={px(p.x)} y1={py(p.y)}

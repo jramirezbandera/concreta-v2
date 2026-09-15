@@ -65,6 +65,13 @@ describe('PileCapSVG — contorno en planta', () => {
     expect(texts.some((t) => t.startsWith('Lx='))).toBe(false);
   });
 
+  it('tirantes sólo entre pilotes contiguos: 1 con n=2, 3 con n=3 y 4 con n=4 (sin diagonales)', () => {
+    const ties = (n: number) => planPolygon(n).plan.querySelectorAll('line').length;
+    expect(ties(2)).toBe(1);
+    expect(ties(3)).toBe(3);
+    expect(ties(4)).toBe(4);
+  });
+
   it('la cota superior queda por encima del contorno (no lo pisa)', () => {
     const { pts, plan } = planPolygon(3);
     const top = Math.min(...pts.map((p) => p.y));
