@@ -3,7 +3,8 @@
  * obra, el motor, la pantalla y la publicación existe.
  *
  *   1. sin provincia el módulo enseña el hueco, dibuja el edificio y no publica;
- *   2. elegir la provincia rellena las zonas, la cota de cada planta y las
+ *   2. elegir la provincia rellena las zonas, la cota de cada planta (las
+ *      plantas vienen del edificio compartido, en sólo lectura) y las
  *      fuerzas por planta del panel de resultados;
  *   3. cada vista del lienzo enseña sus zonas en resultados;
  *   4. el desplegable «Exportar» de la barra entrega lo suyo (Word la memoria,
@@ -19,6 +20,7 @@ import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ToastContainer } from '../../components/ui/Toast';
 import { VientoNieveModule } from '../../features/viento-nieve';
 import { MODULO_PUB } from '../../features/viento-nieve/state';
+import { edificioInicial, guardarEdificio } from '../../lib/edificio';
 import { leerPublicacion } from '../../lib/pub';
 
 vi.mock('../../components/layout/AppShell', () => ({
@@ -114,14 +116,16 @@ describe('Viento y nieve — módulo', () => {
     expect((screen.getByLabelText('Zona eólica') as HTMLSelectElement).options[0].text).toMatch(/^A — la de la provincia/);
     expect((screen.getByLabelText('Zona de clima invernal') as HTMLSelectElement).options[0].text).toMatch(/^4 — la de la provincia/);
 
-    // Las plantas se teclean por altura y enseñan su cota: la cubierta, tres de 3 m, a 9,00.
-    const filaCubierta = (screen.getAllByLabelText('Nombre de la planta') as HTMLInputElement[]).find((i) => i.value === 'Cubierta')!.closest('[data-planta]')!;
-    expect(filaCubierta.textContent).toContain('9,00');
+    // Las plantas vienen del edificio compartido, en sólo lectura y con su cota: la cubierta, dos plantas de 3 m, a 6,00.
+    const filaCubierta = [...document.querySelectorAll('[data-planta]')].find((el) => el.textContent?.includes('Cubierta'))!;
+    expect(filaCubierta.textContent).toContain('6,00');
+    expect(screen.queryByLabelText('Nombre de la planta')).toBeNull();
+    expect(screen.getByRole('link', { name: /Editar las plantas en Cargas por planta/ })).toHaveAttribute('href', '/acciones/cargas-planta');
 
     // Resultados: la tabla de fuerzas por planta tiene Fx y Fy.
     const fila = filasQueEmpiezan('Cubierta')[0];
     const celdas = within(fila).getAllByRole('cell');
-    expect(celdas[1].textContent).toBe('9,00');
+    expect(celdas[1].textContent).toBe('6,00');
     expect(celdas[3].textContent).toMatch(/\d/);
     expect(celdas[4].textContent).toMatch(/\d/);
     // Madrid 20 × 12 trae el aviso del rozamiento según X: publicado con avisos.
@@ -136,7 +140,7 @@ describe('Viento y nieve — módulo', () => {
     await waitFor(() => expect(leerPublicacion(MODULO_PUB)).not.toBeNull());
     const pub = leerPublicacion<{ viento: { fuerzas: { z: number }[] } | null }>(MODULO_PUB);
     expect(pub!.obra.provincia).toBe('Madrid');
-    expect(pub!.datos.viento?.fuerzas.map((f) => f.z)).toEqual([3, 6, 9]);
+    expect(pub!.datos.viento?.fuerzas.map((f) => f.z)).toEqual([3, 6]);
   });
 
   it('el atajo «0 m» fija la altitud y el estado pasa a viento y nieve', () => {
@@ -149,14 +153,24 @@ describe('Viento y nieve — módulo', () => {
     expect(within(resultados()).getByText(/qb · zona C/)).toBeInTheDocument();
   });
 
-  it('cambiar la altura de una planta mueve su cota y la de las de encima', () => {
+  it('una altura tecleada en Cargas por planta mueve la cota de las de encima; una que falta es un hueco con enlace', () => {
+    const e = edificioInicial();
+    e.plantas[2].altura = 4; // la planta baja mide 4 m
+    guardarEdificio(e);
     montar();
     rellenarMadrid();
-    fireEvent.change(screen.getByLabelText('Altura de Planta 1'), { target: { value: '4' } });
-    fireEvent.blur(screen.getByLabelText('Altura de Planta 1'));
-    const filaCubierta = (screen.getAllByLabelText('Nombre de la planta') as HTMLInputElement[]).find((i) => i.value === 'Cubierta')!.closest('[data-planta]')!;
-    expect(filaCubierta.textContent).toContain('10,00');
-    expect(within(filasQueEmpiezan('Cubierta')[0]).getAllByRole('cell')[1].textContent).toBe('10,00');
+    const filaCubierta = [...document.querySelectorAll('[data-planta]')].find((el) => el.textContent?.includes('Cubierta'))!;
+    expect(filaCubierta.textContent).toContain('7,00');
+    expect(within(filasQueEmpiezan('Cubierta')[0]).getAllByRole('cell')[1].textContent).toBe('7,00');
+    cleanup();
+
+    e.plantas[1].altura = null; // la primera no dice cuánto mide: la cubierta no se sabe dónde está
+    guardarEdificio(e);
+    montar();
+    rellenarMadrid();
+    expect(screen.getByText(/«Planta Primera»: falta la altura/)).toBeInTheDocument();
+    expect(within(resultados()).getByText(/Falta la altura de «Planta Primera»/)).toBeInTheDocument();
+    expect(screen.queryByText(/· publicado/)).not.toBeInTheDocument();
   });
 
   it('el lienzo sigue a la sección que se toca: tocar un faldón enseña la nieve', () => {
@@ -179,16 +193,12 @@ describe('Viento y nieve — módulo', () => {
     expect(screen.getByRole('img', { name: /fachadas/i })).toBeInTheDocument();
   });
 
-  it('el faldón y la planta recién añadidos quedan seleccionados en el dibujo', () => {
+  it('el faldón recién añadido queda seleccionado en el dibujo', () => {
     montar();
     rellenarMadrid();
     vista('Nieve');
     fireEvent.click(screen.getByRole('button', { name: '+ Añadir faldón' }));
     expect(screen.getByRole('button', { name: 'Seleccionar Faldón 2' })).toHaveAttribute('aria-pressed', 'true');
-
-    vista('Edificio');
-    fireEvent.click(screen.getByRole('button', { name: '+ Añadir planta' }));
-    expect(screen.getByRole('button', { name: 'Seleccionar Planta 4' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('omitir el viento lo quita de resultados y de la publicación', async () => {
@@ -307,7 +317,7 @@ describe('paramentos verticales', () => {
 
     await waitFor(() => {
       const pub = leerPublicacion<{ viento: { paramentos?: { h: number } } | null }>(MODULO_PUB);
-      expect(pub?.datos.viento?.paramentos?.h).toBe(9);
+      expect(pub?.datos.viento?.paramentos?.h).toBe(6);
     });
   });
 });

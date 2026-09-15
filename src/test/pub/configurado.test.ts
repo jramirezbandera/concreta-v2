@@ -16,6 +16,7 @@ import { defaultSeismicState, evaluarSismo, publicarResultado as publicarSismo }
 import { defaultVientoNieveState, ejemploVientoNieveState, evaluar as evaluarViento, publicarResultado as publicarViento } from '../../features/viento-nieve/state';
 import { leerPublicacion } from '../../lib/pub';
 import { guardarObra } from '../../lib/obra';
+import { edificioInicial, guardarEdificio } from '../../lib/edificio';
 import { _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
 
 const marcaDe = (modulo: string) => leerPublicacion(modulo)?.configurado;
@@ -48,6 +49,15 @@ describe('viento y nieve', () => {
     const s = defaultVientoNieveState();
     const tocado = { ...s, viento: { ...s.viento, dimensiones: { x: 32, y: 14 } } };
     publicarViento(tocado, evaluarViento(tocado));
+    expect(marcaDe('viento-nieve')).toBe(true);
+  });
+
+  it('tocar una altura en Cargas por planta también configura viento: las plantas son del edificio', () => {
+    const e = edificioInicial();
+    e.plantas[2].altura = 3.2;
+    guardarEdificio(e);
+    const s = defaultVientoNieveState();
+    publicarViento(s, evaluarViento(s));
     expect(marcaDe('viento-nieve')).toBe(true);
   });
 

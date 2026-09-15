@@ -57,8 +57,8 @@ import {
   type GradoAspereza,
   type SuperficieExterior,
 } from '../../acciones';
+import { leerEdificio } from '../../edificio';
 import {
-  ALTURA_PLANTA_TIPO,
   type AreaModo,
   type EjeCumbrera,
   type LimahoyaUI,
@@ -67,15 +67,14 @@ import {
 } from '../../../features/viento-nieve/catalogos';
 import {
   alturaCoronacionEfectiva,
-  cotasPlantas,
   defaultVientoNieveState,
   esEstadoInicial,
   evaluar,
   nuevoId,
+  plantasDelEdificio,
   zonasEfectivas,
   type Evaluacion,
   type FaldonUI,
-  type PlantaUI,
   type VientoNieveState,
 } from '../../../features/viento-nieve/state';
 
@@ -106,16 +105,18 @@ const D = defaultVientoNieveState();
 
 // ── Payload schema ───────────────────────────────────────────────────────────
 //
-// Presupuesto de uniones Anthropic: 5 anulables de primer nivel + la unión de
-// `proposal` del envelope = 6, sobre un tope de 16. `plantas` y `faldones` van
-// SUELTOS en vez de dentro de sus bloques a propósito: son lo que más se
-// corrige durante la entrevista, y meterlos dentro obligaría a reenviar el
-// bloque entero para mover una altura.
+// Presupuesto de uniones Anthropic: 4 anulables de primer nivel + la unión de
+// `proposal` del envelope = 5, sobre un tope de 16. `faldones` va SUELTO en
+// vez de dentro de `nieve` a propósito: es lo que más se corrige durante la
+// entrevista, y meterlo dentro obligaría a reenviar el bloque entero para
+// mover una inclinación. Las PLANTAS no son campos: desde el 15-09-2026
+// viven en `lib/edificio`, se teclean en Cargas por planta y aquí sólo se
+// leen (van en el snapshot como contexto).
 
 export const VIENTO_NIEVE_PAYLOAD_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['emplazamiento', 'viento', 'plantas', 'nieve', 'faldones', 'warnings'],
+  required: ['emplazamiento', 'viento', 'nieve', 'faldones', 'warnings'],
   properties: {
     emplazamiento: {
       type: ['object', 'null'],
@@ -211,19 +212,6 @@ export const VIENTO_NIEVE_PAYLOAD_SCHEMA: Record<string, unknown> = {
         },
       },
     },
-    plantas: {
-      type: ['array', 'null'],
-      description: 'Lista COMPLETA de plantas del edificio, de ABAJO ARRIBA (la primera apoyada en la rasante). REEMPLAZA la actual entera; null = sin cambio. Cada planta lleva su ALTURA de forjado a forjado, no su cota: la cota sobre rasante la acumula la aplicación en el orden de la lista.',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['nombre', 'altura_m'],
-        properties: {
-          nombre: { type: 'string', description: 'Cómo se llama en el plano: "Planta Baja", "Planta Primera", "Cubierta".' },
-          altura_m: { type: 'number', description: 'Altura de la planta de forjado a forjado, METROS. Lo corriente en vivienda son 3 m.' },
-        },
-      },
-    },
     nieve: {
       type: ['object', 'null'],
       additionalProperties: false,
@@ -299,7 +287,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Viento y nieve (CTE DB SE-
 2. LA ZONA EÓLICA Y LA DE CLIMA INVERNAL NO LAS PONES TÚ. Salen de los mapas D.1 y E.2 del DB, y esta aplicación las resuelve a partir de la PROVINCIA. NO son campos de tu propuesta y NO puedes escribirlas. NUNCA digas de memoria en qué zona eólica o invernal está un municipio: la letra o el número que dijeras decidirían la presión de todo el edificio, y el documento los imprimiría como si vinieran del mapa. Tú eliges la provincia por su código INE y la aplicación pone la zona. Si el usuario sabe que su municipio cae al otro lado de una frontera del mapa, dile que fuerce la zona en el panel «¿Dónde está la obra?», donde queda marcada como forzada.
 3. NI sk NI qb SE CITAN DE MEMORIA. La sobrecarga de nieve sale de la tabla 3.8 (capital) o de la E.2 por zona y altitud; la presión dinámica, del mapa D.1. Las dos las calcula la aplicación. Los modos "manual" existen para quien trae una ordenanza municipal o un estudio de viento: escribe ahí SÓLO el número que te dé el usuario. Si te pide "la nieve de Ávila a 1.100 m", no la estimes — pon la provincia y la altitud y deja que salga.
 4. LA ALTITUD IMPORTA MUCHO EN LA NIEVE. La tabla E.2 sube deprisa con la altitud, y por encima de lo tabulado para cada zona la norma remite a la ordenanza municipal (art. 3.5.2-3). Pregúntala siempre: sin ella no hay nieve que calcular.
-5. LAS PLANTAS SE TECLEAN DE FORJADO A FORJADO. Cada planta lleva su ALTURA, no su cota: la cota sobre rasante se acumula sola en el orden de la lista, de abajo arriba. La lista REEMPLAZA la actual entera, así que mándala completa cada turno.
+5. LAS PLANTAS DEL EDIFICIO NO SON CAMPOS DE TU PROPUESTA. Se teclean una vez en el módulo Cargas por planta, con su altura de forjado a forjado, y este módulo las lee de ahí (las ves en el snapshot, con su cota). Si el usuario quiere añadir una planta o cambiar una altura, dile que lo haga en Cargas por planta; aquí no puedes escribirlas.
 6. EL GRADO DE ASPEREZA VA DE I A V DE MÁS A MENOS EXPUESTO. "IV" (pueblo, ciudad, polígono o bosque) es el caso habitual en edificación. "V" es el centro de una gran ciudad con edificios en altura que se protegen unos a otros, y no es lo mismo que "una ciudad": no lo uses para un barrio corriente. Cambiar de I hacia V rebaja el coeficiente de exposición de todas las plantas a la vez.
 7. LA EXPOSICIÓN DE LA NIEVE NO ES UNA VARIABLE DE AJUSTE. "protegida" rebaja la carga un 20 % y exige que el entorno lo justifique —edificios más altos alrededor o arbolado que frene el viento—; "expuesta" la sube un 20 % y es OBLIGATORIA en un alto, en campo abierto o en primera línea. En la duda, "normal".
 8. UNA CUBIERTA PLANA ES UN FALDÓN DE 0º. No hace falta activar la cubierta a dos aguas para calcular la nieve: el bloque "viento.cubierta" es para las zonas de presión del Anejo D.6, y sólo se enciende cuando la cubierta es de verdad a dos aguas. La nieve se calcula siempre por faldones.
@@ -347,11 +335,6 @@ export interface VientoAi {
   paramentos: ParamentosAi;
 }
 
-export interface PlantaAi {
-  nombre: string;
-  altura_m: number;
-}
-
 export interface NieveAi {
   activo: boolean;
   exposicion: ExposicionNieve;
@@ -372,7 +355,6 @@ export interface FaldonAi {
 interface VientoNievePayload {
   emplazamiento: EmplazamientoAi | null;
   viento: VientoAi | null;
-  plantas: PlantaAi[] | null;
   nieve: NieveAi | null;
   faldones: FaldonAi[] | null;
   warnings: string[];
@@ -432,12 +414,6 @@ export function parsePayload(raw: unknown): VientoNievePayload {
         },
       }
       : null,
-    plantas: Array.isArray(raw.plantas)
-      ? raw.plantas.filter(esObjeto).map((p) => ({
-        nombre: textoO(p.nombre, ''),
-        altura_m: numeroO(p.altura_m, ALTURA_PLANTA_TIPO),
-      }))
-      : null,
     nieve: n
       ? {
         activo: boolO(n.activo, D.nieve.activo),
@@ -467,8 +443,6 @@ export function parsePayload(raw: unknown): VientoNievePayload {
 }
 
 // ── Proyección plana del estado ──────────────────────────────────────────────
-
-const plantaDe = (p: PlantaUI): PlantaAi => ({ nombre: p.nombre, altura_m: p.altura });
 
 const faldonDe = (f: FaldonUI): FaldonAi => ({
   nombre: f.nombre,
@@ -551,8 +525,6 @@ const ETIQUETA_EXPOSICION: Record<ExposicionNieve, string> = {
   protegida: 'protegida (−20 %)',
   expuesta: 'muy expuesta (+20 %)',
 };
-
-const textoPlanta = (p: PlantaAi) => `${p.nombre.trim() || 'Planta'}: ${m(p.altura_m)}`;
 
 const textoFaldon = (f: FaldonAi) =>
   `${f.nombre.trim() || 'Faldón'}: ${gr(f.inclinacion_grados)}`
@@ -669,10 +641,6 @@ const APAGAR_WHY = (que: string) =>
   `Apagar ${que} lo borra del cálculo Y del documento: la obra se queda sin esa acción, y lo que `
   + 'este módulo publica deja de traerla. Sólo se apaga cuando se trata fuera de esta herramienta.';
 
-const ELIMINAR_PLANTAS_WHY =
-  'La propuesta deja menos plantas de las que hay. El edificio se queda más bajo, y con él bajan el '
-  + 'coeficiente de exposición de la coronación y la fuerza total de viento.';
-
 const ELIMINAR_FALDONES_WHY =
   'La propuesta deja menos faldones de los que hay. Un faldón que desaparece deja de tener carga de '
   + 'nieve calculada, y con él su acumulación al pie.';
@@ -702,7 +670,7 @@ function riesgosDeAcciones(
   }
 
   const gateAbierto = !esEstadoInicial(actual)
-    || confirmed.has('plantas') || confirmed.has('faldones')
+    || confirmed.has('faldones')
     || confirmed.has('viento') || confirmed.has('nieve');
   if (!gateAbierto) return risks;
 
@@ -723,15 +691,6 @@ function riesgosDeAcciones(
         why: F_WHY,
       });
     }
-  }
-  if (final.viento.plantas.length < actual.viento.plantas.length) {
-    risks.push({
-      field: 'plantas.eliminadas',
-      label: 'Plantas que se eliminan',
-      before: `${actual.viento.plantas.length} plantas`,
-      after: `${final.viento.plantas.length} plantas`,
-      why: ELIMINAR_PLANTAS_WHY,
-    });
   }
 
   // ── Nieve: el qn de cada faldón ────────────────────────────────────────────
@@ -874,31 +833,6 @@ function buildVientoNievePlan(
     else if (rechazos === 0) skipped.push({ field: 'viento', label: 'Viento', reason: ALREADY });
   }
 
-  // ── Plantas ────────────────────────────────────────────────────────────────
-  if (payload.plantas !== null) {
-    if (payload.plantas.length === 0) {
-      skipped.push({ field: 'plantas', label: 'Plantas del edificio', reason: 'La lista llega vacía: un edificio sin plantas no tiene altura sobre la que calcular el viento.' });
-    } else {
-      const malas = payload.plantas.filter((p) => p.altura_m <= 0 || p.altura_m > 30);
-      if (malas.length > 0) {
-        skipped.push({ field: 'plantas', label: 'Plantas del edificio', reason: `Hay ${malas.length} planta${malas.length === 1 ? '' : 's'} con altura fuera de rango (se admite de 0 a 30 m por planta).` });
-      } else {
-        const plantas: PlantaUI[] = payload.plantas.map((p, i) => ({
-          id: current.viento.plantas[i]?.id ?? nuevoId('p'),
-          nombre: p.nombre.trim(),
-          altura: p.altura_m,
-        }));
-        cambiosDeLista('plantas', 'Planta', plantas.map(plantaDe), current.viento.plantas.map(plantaDe), textoPlanta, changes);
-        if (JSON.stringify(plantas.map(plantaDe)) !== JSON.stringify(current.viento.plantas.map(plantaDe))) {
-          vientoBase.plantas = plantas;
-          vientoTocado = true;
-        } else {
-          skipped.push({ field: 'plantas', label: 'Plantas del edificio', reason: ALREADY });
-        }
-      }
-    }
-  }
-
   if (vientoTocado) fields.viento = vientoBase;
 
   // ── Nieve (sin los faldones) ───────────────────────────────────────────────
@@ -978,14 +912,13 @@ function buildSnapshot(c: VientoNieveState): string {
       altitud_m: c.emplazamiento.altitud,
     },
     viento: vientoDe(c),
-    plantas: c.viento.plantas.map(plantaDe),
     nieve: nieveDe(c),
     faldones: c.nieve.faldones.map(faldonDe),
   };
 
   const sinConfirmar: string[] = [];
   if (!c.emplazamiento.provincia || c.emplazamiento.altitud === null) sinConfirmar.push('emplazamiento');
-  if (esEstadoInicial(c)) sinConfirmar.push('viento', 'plantas', 'nieve', 'faldones');
+  if (esEstadoInicial(c)) sinConfirmar.push('viento', 'nieve', 'faldones');
 
   // Contexto de SOLO LECTURA, dentro de `valores` (ver la nota de seismicNCSE02).
   valores.zonas_que_pone_la_norma = {
@@ -1004,8 +937,15 @@ function buildSnapshot(c: VientoNieveState): string {
       + 'mapa, las fuerza el proyectista en el panel. Que la obra esté en la capital tampoco es un campo '
       + 'tuyo: se deduce del municipio que escribas, y con él la nieve pasa a salir de la tabla 3.8.',
   };
-  valores.cotas_derivadas_m = cotasPlantas(c.viento.plantas);
-  valores.altura_coronacion_efectiva_m = alturaCoronacionEfectiva(c.viento);
+  // Las plantas, de SOLO LECTURA: vienen del edificio compartido, con su cota.
+  const plantas = plantasDelEdificio(leerEdificio());
+  valores.plantas_del_edificio = {
+    forjados: plantas.map((p) => ({ nombre: p.nombre, cota_m: p.h })),
+    nota: 'Las plantas y sus alturas se teclean en Cargas por planta. NO son campos de tu propuesta: si hay que '
+      + 'cambiar una, dile al usuario que lo haga allí.',
+  };
+  valores.cotas_derivadas_m = plantas.map((p) => p.h);
+  valores.altura_coronacion_efectiva_m = alturaCoronacionEfectiva(c.viento, plantas);
   valores.edificio_de_la_plantilla = esEstadoInicial(c);
 
   return JSON.stringify({ valores, sin_confirmar: sinConfirmar });

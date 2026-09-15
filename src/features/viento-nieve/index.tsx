@@ -36,6 +36,7 @@ import type { ResultadoExport } from '../../lib/export/descargar';
 import { cuadroAccionesPlano, cuadroNieveMemoria, cuadroVientoMemoria, seccionesPlanoXlsx, type EmplazamientoCuadro } from '../../lib/acciones/cuadros';
 import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_PDF, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
+import { useEdificio } from '../../lib/edificio/useEdificio';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { VISTAS_LIENZO, type VistaLienzo } from './catalogos';
 import { Datos } from './Datos';
@@ -52,9 +53,7 @@ import {
   guardarEstado,
   nuevoFaldon,
   publicarResultado,
-  siguientePlanta,
   type FaldonUI,
-  type PlantaUI,
   type VientoNieveState,
 } from './state';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
@@ -138,6 +137,8 @@ export function VientoNieveModule() {
   const uF = getUnitLabel('force', useUnitSystem().system);
   const [state, setState] = useState<VientoNieveState>(cargarEstado);
   const [obra, setObra] = useState(leerObra);
+  // Las plantas del edificio: las escribe Cargas por planta y aquí se leen en vivo.
+  const edificio = useEdificio();
   const [descartado, setDescartado] = useState(leerDescartado);
 
   // Estado de interfaz: no se guarda, no entra en el cálculo.
@@ -145,7 +146,7 @@ export function VientoNieveModule() {
   const [direccionElegida, setDireccionElegida] = useState<'x' | 'y' | null>(null);
   const [plantaSel, setPlantaSel] = useState<string | null>(null);
   const [faldonSel, setFaldonSel] = useState<string | null>(null);
-  const mostrarEjemplo = !descartado && esEstadoInicial(state);
+  const mostrarEjemplo = !descartado && esEstadoInicial(state, edificio);
   const [tab, setTab] = useState<MobileTab>(mostrarEjemplo ? 'diagramas' : 'inputs');
 
   /** Todo cambio pasa por aquí: actualiza y persiste con la misma llamada. */
@@ -157,12 +158,12 @@ export function VientoNieveModule() {
     });
   };
 
-  const evaluacion = useMemo(() => evaluar(state), [state]);
+  const evaluacion = useMemo(() => evaluar(state, edificio), [state, edificio]);
 
   // ── Asistente ─────────────────────────────────────────────────────────────
-  // Las plantas y los faldones REEMPLAZAN a los vigentes (ver `lib/ai/modules/
-  // vientoNieve`), así que el plan los lleva reconstruidos sobre el estado que
-  // había al proponerlos: lo que se teclee entre proponer y aplicar se pisa.
+  // Los faldones REEMPLAZAN a los vigentes (ver `lib/ai/modules/vientoNieve`),
+  // así que el plan los lleva reconstruidos sobre el estado que había al
+  // proponerlos: lo que se teclee entre proponer y aplicar se pisa.
   const [aiOpen, setAiOpen] = useState(false);
   const aiResults = useMemo(() => summarizeVientoNieveResults(evaluacion), [evaluacion]);
 
@@ -214,19 +215,6 @@ export function VientoNieveModule() {
       setObra(guardarObra({ provincia: e.provincia, municipio: e.municipio, altitud: e.altitud }));
     },
     onViento: (cambio: Partial<VientoNieveState['viento']>) => actualizar((p) => ({ ...p, viento: { ...p.viento, ...cambio } })),
-    onPlanta: (id: string, cambio: Partial<PlantaUI>) =>
-      actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: p.viento.plantas.map((f) => (f.id === id ? { ...f, ...cambio } : f)) } })),
-    // La planta nueva queda seleccionada: se ve resaltada en el alzado, que es
-    // adónde mira el usuario después de pulsar «Añadir».
-    onAnadirPlanta: () => {
-      const nueva = siguientePlanta(state.viento.plantas);
-      setPlantaSel(nueva.id);
-      actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: [...p.viento.plantas, nueva] } }));
-    },
-    onBorrarPlanta: (id: string) => {
-      if (plantaSel === id) setPlantaSel(null);
-      actualizar((p) => ({ ...p, viento: { ...p.viento, plantas: p.viento.plantas.filter((f) => f.id !== id) } }));
-    },
     onCubierta: (cambio: Partial<VientoNieveState['viento']['cubierta']>) => actualizar((p) => ({ ...p, viento: { ...p.viento, cubierta: { ...p.viento.cubierta, ...cambio } } })),
     onParamentos: (cambio: Partial<VientoNieveState['viento']['paramentos']>) => actualizar((p) => ({ ...p, viento: { ...p.viento, paramentos: { ...p.viento.paramentos, ...cambio } } })),
     onNieve: (cambio: Partial<VientoNieveState['nieve']>) => actualizar((p) => ({ ...p, nieve: { ...p.nieve, ...cambio } })),
@@ -375,7 +363,7 @@ export function VientoNieveModule() {
 
           <div className="canvas-dot-grid relative min-h-0 flex-1 p-4">
             {vista === 'edificio' && (
-              <EdificioSVG viento={state.viento} resultado={evaluacion.viento} direccion={direccion} plantaSel={plantaSel} onSelectPlanta={setPlantaSel} onDireccion={setDireccionElegida} />
+              <EdificioSVG viento={state.viento} plantas={evaluacion.plantas} resultado={evaluacion.viento} direccion={direccion} plantaSel={plantaSel} onSelectPlanta={setPlantaSel} onDireccion={setDireccionElegida} />
             )}
             {vista === 'cubierta' && <CubiertaSVG viento={state.viento} cubierta={evaluacion.viento?.cubierta ?? null} direccion={direccion} />}
             {vista === 'fachadas' && <FachadasSVG viento={state.viento} paramentos={evaluacion.viento?.paramentos ?? null} cumbrera={cumbrera} direccion={direccion} />}

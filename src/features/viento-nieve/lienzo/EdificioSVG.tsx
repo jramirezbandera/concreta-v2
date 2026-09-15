@@ -12,7 +12,7 @@
 
 import type { KeyboardEvent } from 'react';
 import type { VientoResultado } from '../../../lib/acciones/viento';
-import { alturaCoronacionEfectiva, cotasPlantas, type VientoUI } from '../state';
+import { alturaCoronacionEfectiva, type PlantaViento, type VientoUI } from '../state';
 import { Marcadores } from '../../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla } from './paleta';
 import { altoBajoLocalizador, anchoCabecera, anchoEstimado, Cabecera, CotaH, Flecha, PlantaLocalizador, Rotulo, Suelo } from './primitivas';
@@ -22,6 +22,8 @@ import { useMedida } from '../../../components/canvas/useMedida';
 
 interface Props {
   viento: VientoUI;
+  /** Los forjados que ven el viento, de abajo arriba, con su cota (del edificio compartido). */
+  plantas: readonly PlantaViento[];
   resultado: VientoResultado | null;
   direccion: 'x' | 'y';
   plantaSel: string | null;
@@ -33,16 +35,18 @@ interface Props {
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
-export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectPlanta, onDireccion, forceWidth, forceHeight }: Props) {
+export function EdificioSVG({ viento, plantas, resultado, direccion, plantaSel, onSelectPlanta, onDireccion, forceWidth, forceHeight }: Props) {
   const { ref, width, height } = useMedida(forceWidth, forceHeight);
   const m = useMarcadores();
   const f = useFormato();
 
   const D = direccion.toUpperCase();
-  const cotas = cotasPlantas(viento.plantas);
+  const cotas = plantas.map((p) => p.h);
+  // La altura de cada banda: de la cota de abajo a la suya (la primera, desde la rasante).
+  const alturas = cotas.map((z, i) => z - (i === 0 ? 0 : cotas[i - 1]));
   const H = cotas.reduce((a, z) => Math.max(a, z), 0);
   const conCubierta = viento.cubierta.activa;
-  const hc = conCubierta ? Math.max(H, alturaCoronacionEfectiva(viento)) : H;
+  const hc = conCubierta ? Math.max(H, alturaCoronacionEfectiva(viento, plantas)) : H;
   const d = Math.max(0, viento.dimensiones[direccion]);
   // La sección corta la cumbrera cuando ésta es perpendicular al viento: se ve el hastial.
   const hastialVisible = conCubierta && (viento.cubierta.cumbrera === 'x') === (direccion === 'y');
@@ -79,7 +83,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
   // Con las plantas apretadas (menos de 13 px) no caben todos los rótulos de fuerza: se salta el que pisaría al de arriba.
   const conRotuloF = new Set<string>();
   let yUltimoRotulo = -Infinity;
-  for (const p of [...viento.plantas].reverse()) {
+  for (const p of [...plantas].reverse()) {
     const r = porId.get(p.id);
     if (!r) continue;
     const y = yz(r.z);
@@ -109,7 +113,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
 
   // Rótulos de la derecha: si las plantas están apretadas, menos líneas (cuatro ocupan 38 px, dos 14).
   const lineasPorPlanta = (i: number) => {
-    const alto = viento.plantas[i].altura * s;
+    const alto = alturas[i] * s;
     return alto >= 52 ? 4 : alto >= 28 ? 2 : 1;
   };
   // El bloque «coronación» va entre la coronación y el rótulo del último forjado: con poca subida, menos líneas; sin sitio, nada.
@@ -173,7 +177,7 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
         ))}
 
         {/* Bandas tributarias, clicables */}
-        {viento.plantas.map((p, i) => {
+        {plantas.map((p, i) => {
           const b = bandas[i];
           const sel = p.id === plantaSel;
           return (
@@ -268,14 +272,14 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
 
         {/* Flechas de fuerza por planta */}
         {resultado
-          ? viento.plantas.map((p, i) => {
+          ? plantas.map((p, i) => {
               const r = porId.get(p.id);
               if (!r) return null;
               const L = Fmax > 0 ? (r.F / Fmax) * largoMax : 0;
               const y = yz(r.z);
               const sel = p.id === plantaSel;
               // La segunda línea («60,1 + 7,2») baja 13 px: sólo si la planta de abajo no está pegada.
-              const sitioAbajo = p.altura * s >= 26;
+              const sitioAbajo = alturas[i] * s >= 26;
               return (
                 <g key={`F-${p.id}`}>
                   <Flecha x1={bx - 8 - L} y1={y} x2={bx - 3} y2={y} punta={m.punta('accent')} color={COLOR.accent} grosor={sel ? 2.5 : 2} />
@@ -304,13 +308,13 @@ export function EdificioSVG({ viento, resultado, direccion, plantaSel, onSelectP
             )}
 
         {/* Rótulos de planta a la derecha */}
-        {viento.plantas.map((p, i) => {
+        {plantas.map((p, i) => {
           const z = cotas[i];
           const y = yz(z);
           const sel = p.id === plantaSel;
           const r = porId.get(p.id);
           const lineas = lineasPorPlanta(i);
-          const invalida = p.altura <= 0;
+          const invalida = alturas[i] <= 0;
           return (
             <g key={`rot-${p.id}`}>
               <Rotulo x={bx + bw + 14} y={y - 2} tam={11} color={invalida ? COLOR.fallo : sel ? COLOR.accent : COLOR.rotulo} peso={sel ? 600 : 500}>

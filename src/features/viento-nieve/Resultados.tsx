@@ -19,7 +19,7 @@ import { getPrecision, getUnitLabel } from '../../lib/units/format';
 import type { Quantity } from '../../lib/units/types';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { VistaLienzo } from './catalogos';
-import { cotasPlantas, type Evaluacion, type VientoNieveState } from './state';
+import type { Evaluacion, VientoNieveState } from './state';
 import { Arreglo, Aviso, CabeceraEstado, Errores, Grande, Grupo, Nota, Tabla, type Estado, type FilaTabla } from './resultadosUi';
 
 const dec = (v: number, n: number) => v.toFixed(n).replace('.', ',');
@@ -81,7 +81,7 @@ function ArregloHuecos() {
 
 function SinViento({ state, evaluacion }: { state: VientoNieveState; evaluacion: Evaluacion }) {
   const v = state.viento;
-  const H = cotasPlantas(v.plantas).reduce((m, z) => Math.max(m, z), 0);
+  const H = evaluacion.plantas.reduce((m, p) => Math.max(m, p.h), 0);
   if (!v.activo) {
     return (
       <>
@@ -99,7 +99,7 @@ function SinViento({ state, evaluacion }: { state: VientoNieveState; evaluacion:
       <ArregloHuecos />
       <Grupo label="Lo que ya se sabe" />
       <ValueRow label="Lados en planta" value={`${dec(v.dimensiones.x, 2)} × ${dec(v.dimensiones.y, 2)} m`} />
-      <ValueRow label="Plantas" value={`${v.plantas.length} · último forjado ${dec(H, 2)} m`} />
+      <ValueRow label="Plantas" value={`${evaluacion.plantas.length} ${evaluacion.plantas.length === 1 ? 'forjado' : 'forjados'} · último a ${dec(H, 2)} m`} />
       <ValueRow label="Entorno" value={v.aspereza} />
       <ValueRow label="Superficie" value={v.superficie === 'rugosa' ? 'rugosa · cfr 0,02' : v.superficie === 'lisa' ? 'muy lisa · cfr 0,01' : 'muy rugosa · cfr 0,04'} />
       <Nota>Los coeficientes de exposición se podrían calcular ya, pero la presión dinámica qb depende de la zona eólica del mapa D.1.</Nota>

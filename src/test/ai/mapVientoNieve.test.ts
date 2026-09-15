@@ -15,7 +15,6 @@ import {
   type EmplazamientoAi,
   type FaldonAi,
   type NieveAi,
-  type PlantaAi,
   type VientoAi,
 } from '../../lib/ai/modules/vientoNieve';
 import { buildChatSchema } from '../../lib/ai/chatSchema';
@@ -23,7 +22,6 @@ import { countAnthropicUnions } from '../../lib/ai/providers/schemaConvert';
 import {
   defaultVientoNieveState,
   evaluar,
-  nuevaPlanta,
   nuevoFaldon,
   zonasEfectivas,
   type VientoNieveState,
@@ -52,7 +50,6 @@ const nieve = (over: Partial<NieveAi> = {}): NieveAi => ({
   activo: true, exposicion: 'normal', sk_modo: 'auto', sk_manual_kNm2: 1, ...over,
 });
 
-const planta = (nombre: string, altura_m: number): PlantaAi => ({ nombre, altura_m });
 
 const faldon = (over: Partial<FaldonAi> = {}): FaldonAi => ({
   nombre: 'Cubierta',
@@ -66,7 +63,7 @@ const faldon = (over: Partial<FaldonAi> = {}): FaldonAi => ({
 });
 
 const payload = (over: Record<string, unknown> = {}) => ({
-  emplazamiento: null, viento: null, plantas: null, nieve: null, faldones: null, warnings: [], ...over,
+  emplazamiento: null, viento: null, nieve: null, faldones: null, warnings: [], ...over,
 });
 
 const plan = (p: Record<string, unknown>, current: VientoNieveState, confirmed = new Set<string>()) =>
@@ -83,11 +80,21 @@ function edificioReal(): VientoNieveState {
     viento: {
       ...s.viento,
       dimensiones: { x: 22, y: 14 },
-      plantas: [nuevaPlanta('Planta Baja', 3.5), nuevaPlanta('Planta Primera', 3), nuevaPlanta('Planta Segunda', 3), nuevaPlanta('Cubierta', 3)],
     },
     nieve: { ...s.nieve, faldones: [nuevoFaldon('Faldón norte', 25), nuevoFaldon('Faldón sur', 25)] },
   };
 }
+
+describe('las plantas NO son del asistente', () => {
+  it('no hay campo plantas: viven en Cargas por planta y aquí se leen como contexto, con su cota', () => {
+    const props = VIENTO_NIEVE_PAYLOAD_SCHEMA.properties as Record<string, unknown>;
+    expect(Object.keys(props)).not.toContain('plantas');
+    expect(VIENTO_NIEVE_PAYLOAD_SCHEMA.required).not.toContain('plantas');
+    const snap = JSON.parse(vientoNieveAdapter.snapshot(edificioReal())) as { valores: Record<string, unknown> };
+    expect(snap.valores.cotas_derivadas_m).toEqual([3, 6]);
+    expect(JSON.stringify(snap.valores.plantas_del_edificio)).toContain('Cargas por planta');
+  });
+});
 
 describe('las zonas de los mapas NO son del asistente', () => {
   it('ni la eólica ni la invernal son campos del payload', () => {
@@ -160,43 +167,6 @@ describe('el emplazamiento', () => {
   });
 });
 
-describe('las plantas se teclean de forjado a forjado', () => {
-  it('la lista reemplaza la vigente y conserva los ids por posición', () => {
-    const current = edificioReal();
-    const ids = current.viento.plantas.map((p) => p.id);
-    const p = plan(payload({
-      plantas: [planta('Planta Baja', 4), planta('Planta Primera', 3), planta('Cubierta', 3)],
-    }), current);
-    expect(p.fields.viento!.plantas.map((x) => x.id)).toEqual(ids.slice(0, 3));
-    expect(p.fields.viento!.plantas.map((x) => x.altura)).toEqual([4, 3, 3]);
-  });
-
-  it('la cota se DERIVA de las alturas, no se teclea', () => {
-    const current = edificioReal();
-    const p = plan(payload({ plantas: [planta('Baja', 4), planta('Primera', 3), planta('Cubierta', 3)] }), current);
-    const final: VientoNieveState = { ...current, ...p.fields };
-    const snap = JSON.parse(vientoNieveAdapter.snapshot(final)) as { valores: Record<string, unknown> };
-    expect(snap.valores.cotas_derivadas_m).toEqual([4, 7, 10]);
-    // Y la fila del payload lleva ALTURA, no cota: la palabra «cota» sólo puede
-    // aparecer en las descripciones (que es donde se le explica al modelo).
-    const props = VIENTO_NIEVE_PAYLOAD_SCHEMA.properties as Record<string, Record<string, Record<string, Record<string, unknown>>>>;
-    expect(Object.keys(props.plantas.items.properties)).toEqual(['nombre', 'altura_m']);
-  });
-
-  it('una lista vacía se rechaza', () => {
-    const current = edificioReal();
-    const p = plan(payload({ plantas: [] }), current);
-    expect(p.fields.viento).toBeUndefined();
-    expect(p.skipped.find((s) => s.field === 'plantas')?.reason).toMatch(/vac[íi]a/i);
-  });
-
-  it('una altura absurda se rechaza sin romper el resto', () => {
-    const current = edificioReal();
-    const p = plan(payload({ plantas: [planta('Baja', 300), planta('Primera', 3)] }), current);
-    expect(p.fields.viento).toBeUndefined();
-    expect(p.skipped.find((s) => s.field === 'plantas')?.reason).toMatch(/fuera de rango/i);
-  });
-});
 
 describe('el viento', () => {
   it('la cubierta a dos aguas entra con su pendiente y su cumbrera', () => {
@@ -318,13 +288,11 @@ describe('seguridad — lo que se protege son las ACCIONES resueltas', () => {
     expect(p.risks.map((r) => r.field)).toContain('nieve.activo');
   });
 
-  it('quitar plantas y faldones es un riesgo agregado', () => {
+  it('quitar faldones es un riesgo agregado', () => {
     const current = edificioReal();
     const p = plan(payload({
-      plantas: [planta('Baja', 3.5), planta('Primera', 3)],
       faldones: [faldon({ inclinacion_grados: 25 })],
     }), current);
-    expect(p.risks.map((r) => r.field)).toContain('plantas.eliminadas');
     expect(p.risks.map((r) => r.field)).toContain('faldones.eliminados');
   });
 
@@ -333,7 +301,6 @@ describe('seguridad — lo que se protege son las ACCIONES resueltas', () => {
     const virgen: VientoNieveState = { ...s, emplazamiento: { ...s.emplazamiento, provincia: '40', altitud: 1000 } };
     const p = plan(payload({
       viento: viento({ aspereza: 'V', dimension_x_m: 10, dimension_y_m: 8 }),
-      plantas: [planta('Baja', 3)],
     }), virgen);
     expect(p.risks.filter((r) => r.field.startsWith('viento.F_') || r.field.endsWith('.eliminadas'))).toEqual([]);
   });
@@ -409,8 +376,9 @@ describe('lo que el prompt prohíbe', () => {
 describe('contrato del adapter', () => {
   it('el esquema cabe holgadamente en el tope de uniones de Anthropic', () => {
     const unions = countAnthropicUnions(buildChatSchema(VIENTO_NIEVE_PAYLOAD_SCHEMA));
-    // 5 anulables de primer nivel + la unión de `proposal` del envelope.
-    expect(unions).toBe(6);
+    // 4 anulables de primer nivel + la unión de `proposal` del envelope: las
+    // plantas ya no son un campo (viven en Cargas por planta).
+    expect(unions).toBe(5);
     expect(unions).toBeLessThanOrEqual(16);
   });
 

@@ -20,11 +20,9 @@ import { Nieve } from './Nieve';
 import { Paramentos } from './Paramentos';
 import {
   alturaCoronacionEfectiva,
-  cotasPlantas,
   type Emplazamiento as EmplazamientoUI,
   type Evaluacion,
   type FaldonUI,
-  type PlantaUI,
   type VientoNieveState,
   type VientoUI,
   type CubiertaUI,
@@ -40,9 +38,6 @@ export interface AccionesDatos {
   onUsarObra: () => void;
   onGuardarObra: () => void;
   onViento: (cambio: Partial<VientoUI>) => void;
-  onPlanta: (id: string, cambio: Partial<PlantaUI>) => void;
-  onAnadirPlanta: () => void;
-  onBorrarPlanta: (id: string) => void;
   onCubierta: (cambio: Partial<CubiertaUI>) => void;
   onParamentos: (cambio: Partial<ParamentosUI>) => void;
   onNieve: (cambio: Partial<NieveUI>) => void;
@@ -81,16 +76,16 @@ function SeccionVista({ vista, onVista, children }: { vista: VistaLienzo; onVist
 export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectPlanta, onSelectFaldon, onVista, ...a }: Props) {
   const { emplazamiento: e, viento: v, nieve: n, ayuda } = state;
   const { zonas } = evaluacion;
-  const H = cotasPlantas(v.plantas).reduce((m, z) => Math.max(m, z), 0);
+  const H = evaluacion.plantas.reduce((m, p) => Math.max(m, p.h), 0);
 
   const resumenEmplazamiento = zonas.provincia
     ? `${zonas.provincia.nombre} · eólica ${zonas.zonaEolica ?? '—'} · invernal ${zonas.zonaInvernal ?? '—'} · ${e.altitud === null ? 'sin altitud' : `${e.altitud} m`}`
     : 'sin provincia · sin altitud';
   const resumenViento = v.activo
-    ? `${v.aspereza} · ${evaluacion.viento ? `qb ${dec(evaluacion.viento.qb, 2)} · ` : ''}${dec(v.dimensiones.x, 0)} × ${dec(v.dimensiones.y, 0)} m · ${v.plantas.length} plantas · H ${dec(H, 2)} m`
+    ? `${v.aspereza} · ${evaluacion.viento ? `qb ${dec(evaluacion.viento.qb, 2)} · ` : ''}${dec(v.dimensiones.x, 0)} × ${dec(v.dimensiones.y, 0)} m · ${evaluacion.plantas.length} ${evaluacion.plantas.length === 1 ? 'forjado' : 'forjados'} · H ${dec(H, 2)} m`
     : 'omitido';
   const resumenCubierta = v.cubierta.activa
-    ? `incluida · ${dec(v.cubierta.pendiente, 0)}º · cumbrera ∥ ${v.cubierta.cumbrera.toUpperCase()} · coronación ${dec(alturaCoronacionEfectiva(v), 2)} m`
+    ? `incluida · ${dec(v.cubierta.pendiente, 0)}º · cumbrera ∥ ${v.cubierta.cumbrera.toUpperCase()} · coronación ${dec(alturaCoronacionEfectiva(v, evaluacion.plantas), 2)} m`
     : 'plana u omitida';
   const resumenFachadas = v.paramentos.activos ? `incluidas · ${v.paramentos.areaModo === 'zona' ? 'cerramientos grandes' : v.paramentos.areaModo === 'local' ? 'carpinterías y anclajes' : `A = ${dec(v.paramentos.areaPropia, 1)} m²`}` : 'omitidas';
   const resumenNieve = n.activo
@@ -105,7 +100,7 @@ export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectP
 
       <SeccionVista vista="edificio" onVista={onVista}>
         <CollapsibleSection label="Viento" refNorma="art. 3.3" summary={resumenViento}>
-          <Viento v={v} ayuda={ayuda} plantaSel={plantaSel} onSelectPlanta={onSelectPlanta} onCambiar={a.onViento} onPlanta={a.onPlanta} onAnadirPlanta={a.onAnadirPlanta} onBorrarPlanta={a.onBorrarPlanta} />
+          <Viento v={v} ayuda={ayuda} plantaSel={plantaSel} onSelectPlanta={onSelectPlanta} onCambiar={a.onViento} plantas={evaluacion.plantas} faltanAlturas={evaluacion.faltanAlturas} />
         </CollapsibleSection>
       </SeccionVista>
 
@@ -113,7 +108,7 @@ export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectP
         <>
           <SeccionVista vista="cubierta" onVista={onVista}>
             <CollapsibleSection label="Cubierta a dos aguas" refNorma="Anejo D.6" summary={resumenCubierta}>
-              <Cubierta v={v} hDerivada={alturaCoronacionEfectiva({ ...v, cubierta: { ...v.cubierta, alturaCoronacion: null } })} ayuda={ayuda} onCambiar={a.onCubierta} />
+              <Cubierta v={v} hDerivada={alturaCoronacionEfectiva({ ...v, cubierta: { ...v.cubierta, alturaCoronacion: null } }, evaluacion.plantas)} ayuda={ayuda} onCambiar={a.onCubierta} />
             </CollapsibleSection>
           </SeccionVista>
 

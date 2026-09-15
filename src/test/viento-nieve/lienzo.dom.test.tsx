@@ -12,7 +12,8 @@ import { CubiertaSVG } from '../../features/viento-nieve/lienzo/CubiertaSVG';
 import { EdificioSVG } from '../../features/viento-nieve/lienzo/EdificioSVG';
 import { FachadasSVG } from '../../features/viento-nieve/lienzo/FachadasSVG';
 import { NieveSVG } from '../../features/viento-nieve/lienzo/NieveSVG';
-import { defaultVientoNieveState, ejemploVientoNieveState, evaluar, nuevaPlanta, type VientoNieveState } from '../../features/viento-nieve/state';
+import { defaultVientoNieveState, ejemploVientoNieveState, evaluar, type VientoNieveState } from '../../features/viento-nieve/state';
+import type { Edificio, PlantaEdificio } from '../../lib/edificio';
 
 afterEach(() => cleanup());
 
@@ -62,12 +63,16 @@ function fuera(cajas: Caja[], width: number, height: number): string[] {
   return cajas.filter((c) => c.x0 < -2 || c.x1 > width + 2 || c.y0 < -2 || c.y1 > height + 2).map((c) => `«${c.texto}»`);
 }
 
-function plantas(n: number, h: number) {
-  return Array.from({ length: n }, (_, i) => nuevaPlanta(i === n - 1 ? 'Cubierta' : `Planta ${i + 1}`, h));
+/** Un edificio de n forjados a h m cada uno, como lo escribe Cargas por planta: de arriba abajo, la cubierta la primera. */
+function edificio(n: number, h: number): Edificio {
+  const plantas: PlantaEdificio[] = [];
+  for (let i = n; i >= 1; i--) plantas.push({ id: `p${i}`, nombre: i === n ? 'Cubierta' : `Planta ${i}`, tipo: i === n ? 'cubierta' : 'planta', altura: h });
+  plantas.push({ id: 'pb', nombre: 'Planta Baja', tipo: 'planta', altura: h });
+  return { plantas };
 }
 
 /** Geometrías que destaparon solapes el 2026-09-15: la obra del usuario, una nave larga y una torre estrecha. */
-function geometrias(): [string, VientoNieveState][] {
+function geometrias(): [string, VientoNieveState, Edificio][] {
   const base = () => {
     const s = defaultVientoNieveState();
     s.emplazamiento = { ...s.emplazamiento, provincia: '29', municipio: 'Benahavís', altitud: 150 };
@@ -76,20 +81,17 @@ function geometrias(): [string, VientoNieveState][] {
   };
   const usuario = base();
   usuario.viento.dimensiones = { x: 44, y: 21 };
-  usuario.viento.plantas = plantas(3, 3);
   const nave = base();
   nave.viento.dimensiones = { x: 60, y: 15 };
-  nave.viento.plantas = plantas(1, 8);
   nave.viento.cubierta = { ...nave.viento.cubierta, activa: true, pendiente: 10, cumbrera: 'x' };
   const torre = base();
   torre.viento.dimensiones = { x: 12, y: 40 };
-  torre.viento.plantas = plantas(10, 3);
   torre.viento.cubierta = { ...torre.viento.cubierta, activa: true, pendiente: 25, cumbrera: 'y' };
   return [
-    ['44 × 21 m, 3 plantas, cubierta plana', usuario],
-    ['nave 60 × 15 m a 10º', nave],
-    ['torre 12 × 40 m, 10 plantas', torre],
-    ['ejemplo', ejemploVientoNieveState()],
+    ['44 × 21 m, 3 plantas, cubierta plana', usuario, edificio(3, 3)],
+    ['nave 60 × 15 m a 10º', nave, edificio(1, 8)],
+    ['torre 12 × 40 m, 10 plantas', torre, edificio(10, 3)],
+    ['ejemplo', ejemploVientoNieveState(), edificio(3, 3)],
   ];
 }
 
@@ -100,14 +102,14 @@ const TAMANOS: [number, number][] = [
 ];
 
 describe('los rótulos no se pisan ni se salen con geometrías alargadas', () => {
-  for (const [nombre, s] of geometrias()) {
+  for (const [nombre, s, e] of geometrias()) {
     for (const [w, h] of TAMANOS) {
       it(`${nombre} a ${w} × ${h}`, () => {
-        const ev = evaluar(s);
+        const ev = evaluar(s, e);
         const cumbrera = s.viento.cubierta.activa ? s.viento.cubierta.cumbrera : null;
         for (const dir of ['x', 'y'] as const) {
           const vistas = [
-            <EdificioSVG key="e" viento={s.viento} resultado={ev.viento} direccion={dir} plantaSel={null} onSelectPlanta={() => {}} onDireccion={() => {}} forceWidth={w} forceHeight={h} />,
+            <EdificioSVG key="e" viento={s.viento} plantas={ev.plantas} resultado={ev.viento} direccion={dir} plantaSel={null} onSelectPlanta={() => {}} onDireccion={() => {}} forceWidth={w} forceHeight={h} />,
             <CubiertaSVG key="c" viento={s.viento} cubierta={ev.viento?.cubierta ?? null} direccion={dir} forceWidth={w} forceHeight={h} />,
             <FachadasSVG key="f" viento={s.viento} paramentos={ev.viento?.paramentos ?? null} cumbrera={cumbrera} direccion={dir} forceWidth={w} forceHeight={h} />,
           ];
@@ -133,13 +135,13 @@ function madrid(): VientoNieveState {
   return s;
 }
 
-function montarEdificio(state: VientoNieveState, extra: Partial<Parameters<typeof EdificioSVG>[0]> = {}) {
-  const ev = evaluar(state);
+function montarEdificio(state: VientoNieveState, extra: Partial<Parameters<typeof EdificioSVG>[0]> = {}, e: Edificio | null = null) {
+  const ev = evaluar(state, e);
   const onSelectPlanta = vi.fn();
   const onDireccion = vi.fn();
   const utils = render(
     <UnitSystemProvider>
-      <EdificioSVG viento={state.viento} resultado={ev.viento} direccion="y" plantaSel={null} onSelectPlanta={onSelectPlanta} onDireccion={onDireccion} forceWidth={760} forceHeight={600} {...extra} />
+      <EdificioSVG viento={state.viento} plantas={ev.plantas} resultado={ev.viento} direccion="y" plantaSel={null} onSelectPlanta={onSelectPlanta} onDireccion={onDireccion} forceWidth={760} forceHeight={600} {...extra} />
     </UnitSystemProvider>,
   );
   return { ...utils, ev, onSelectPlanta, onDireccion };
@@ -180,7 +182,7 @@ describe('EdificioSVG', () => {
     const { onDireccion, onSelectPlanta } = montarEdificio(madrid());
     fireEvent.click(screen.getByRole('button', { name: 'Viento según X' }));
     expect(onDireccion).toHaveBeenCalledWith('x');
-    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar Planta 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar Planta Primera' }));
     expect(onSelectPlanta).toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole('button', { name: 'Seleccionar Cubierta' }), { key: 'Enter' });
     expect(onSelectPlanta).toHaveBeenCalledTimes(2);
@@ -190,16 +192,14 @@ describe('EdificioSVG', () => {
     const { container } = montarEdificio(defaultVientoNieveState());
     const texto = container.querySelector('svg')!.textContent ?? '';
     expect(texto).toContain('aparecerán aquí');
-    expect(texto).toContain('Planta 1');
+    expect(texto).toContain('Planta Primera');
     expect(texto).not.toContain(' kN');
   });
 
   it('el ejemplo (cubierta a 40º) y un edificio sin plantas no revientan', () => {
     expect(() => montarEdificio(ejemploVientoNieveState())).not.toThrow();
     cleanup();
-    const vacio = madrid();
-    vacio.viento.plantas = [];
-    expect(() => montarEdificio(vacio)).not.toThrow();
+    expect(() => montarEdificio(madrid(), {}, { plantas: [] })).not.toThrow();
   });
 });
 

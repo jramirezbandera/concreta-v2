@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   alturaCoronacionDerivada,
   cargarEstado,
-  cotasPlantas,
   datosPublicacion,
   defaultVientoNieveState,
   ejemploVientoNieveState,
@@ -18,14 +17,15 @@ import {
   guardarEstado,
   MODULO_PUB,
   normalizar,
+  plantasDelEdificio,
   PUB_VERSION,
   publicarResultado,
   SCHEMA_VERSION_KEY,
-  siguientePlanta,
   STORAGE_KEY,
   zonasEfectivas,
   type VientoNieveState,
 } from '../../features/viento-nieve/state';
+import { edificioInicial, guardarEdificio, type Edificio } from '../../lib/edificio';
 import { guardarObra } from '../../lib/obra';
 import { leerPublicacion } from '../../lib/pub';
 
@@ -33,7 +33,20 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-/** Madrid a 660 m con las plantas y faldón por defecto. */
+/** Un edificio tecleado en Cargas por planta: tres plantas sobre rasante y un sótano. */
+function conSotano(): Edificio {
+  return {
+    plantas: [
+      { id: 'c', nombre: 'Cubierta', tipo: 'cubierta', altura: null },
+      { id: 'p2', nombre: 'Planta Segunda', tipo: 'planta', altura: 3 },
+      { id: 'p1', nombre: 'Planta Primera', tipo: 'planta', altura: 3 },
+      { id: 'pb', nombre: 'Planta Baja', tipo: 'planta', altura: 3.5 },
+      { id: 's1', nombre: 'Sótano -1', tipo: 'sotano', altura: 3 },
+    ],
+  };
+}
+
+/** Madrid a 660 m con el faldón por defecto; las plantas, las del edificio compartido. */
 function madrid(): VientoNieveState {
   const s = defaultVientoNieveState();
   s.emplazamiento = { ...s.emplazamiento, provincia: '28', municipio: 'Madrid', altitud: 660 };
@@ -45,7 +58,6 @@ describe('estado por defecto', () => {
     const s = defaultVientoNieveState();
     expect(s.emplazamiento.provincia).toBe('');
     expect(s.emplazamiento.altitud).toBeNull();
-    expect(s.viento.plantas).toHaveLength(3);
     expect(s.nieve.faldones).toHaveLength(1);
     expect(s.ayuda).toBe(true);
   });
@@ -56,58 +68,57 @@ describe('estado por defecto', () => {
     expect(s.emplazamiento).toMatchObject({ provincia: '41', municipio: 'Sevilla', altitud: 10 });
   });
 
-  it('las plantas se teclean por altura y la cota se acumula en el orden de la lista', () => {
-    const s = defaultVientoNieveState();
-    expect(s.viento.plantas.map((p) => p.altura)).toEqual([3, 3, 3]);
-    expect(cotasPlantas(s.viento.plantas)).toEqual([3, 6, 9]);
-    expect(siguientePlanta(s.viento.plantas)).toMatchObject({ nombre: 'Planta 4', altura: 3 });
-    expect(siguientePlanta([]).altura).toBe(3);
-    expect(cotasPlantas([])).toEqual([]);
-  });
-
-  it('borrar una planta intermedia baja las de encima', () => {
-    const s = defaultVientoNieveState();
-    const sinSegunda = s.viento.plantas.filter((_, i) => i !== 1);
-    expect(cotasPlantas(sinSegunda)).toEqual([3, 6]);
+  it('las plantas vienen del edificio compartido: sin él, el de arranque (dos forjados, a 3 y 6 m)', () => {
+    expect(plantasDelEdificio(null).map((p) => [p.nombre, p.h])).toEqual([
+      ['Planta Primera', 3],
+      ['Cubierta', 6],
+    ]);
+    // Con edificio escrito: ni el forjado a ±0,00 ni los sótanos reciben viento.
+    guardarEdificio(conSotano());
+    expect(evaluar(madrid()).plantas.map((p) => [p.nombre, p.h])).toEqual([
+      ['Planta Primera', 3.5],
+      ['Planta Segunda', 6.5],
+      ['Cubierta', 9.5],
+    ]);
   });
 });
 
-describe('alturas relativas (2026-09-05)', () => {
-  it('un estado guardado con cotas se convierte en alturas y publica las mismas fuerzas', () => {
+describe('las plantas son del edificio compartido (2026-09-15)', () => {
+  it('un estado guardado con plantas propias (por cota o por altura) las ignora: el edificio manda', () => {
     const viejo = normalizar({
       ...madrid(),
-      viento: {
-        ...madrid().viento,
-        // Desordenadas a propósito: el estado viejo se leía por cota, no por posición.
-        plantas: [
-          { id: 'c', nombre: 'Cubierta', h: 9 },
-          { id: 'a', nombre: 'Planta 1', h: 3 },
-          { id: 'b', nombre: 'Planta 2', h: 6 },
-        ],
-      },
+      viento: { ...madrid().viento, plantas: [{ id: 'c', nombre: 'Cubierta', h: 9 }, { id: 'a', nombre: 'Planta 1', altura: 3 }] },
     });
-    expect(viejo.viento.plantas.map((p) => [p.nombre, p.altura])).toEqual([
-      ['Planta 1', 3],
-      ['Planta 2', 3],
-      ['Cubierta', 3],
+    expect('plantas' in viejo.viento).toBe(false);
+    const fuerzas = (s: VientoNieveState) => datosPublicacion(s, evaluar(s))!.viento!.fuerzas.map((f) => [f.nombre, f.z]);
+    expect(fuerzas(viejo)).toEqual([
+      ['Planta Primera', 3],
+      ['Cubierta', 6],
     ]);
-    const fuerzas = (s: VientoNieveState) => datosPublicacion(s, evaluar(s))!.viento!.fuerzas.map((f) => [f.nombre, f.z, f.Fx, f.Fy]);
-    expect(fuerzas(viejo)).toEqual(fuerzas(madrid()));
   });
 
-  it('una lista con alguna planta sin altura se trata entera como vieja; una cota que no sube da altura cero', () => {
-    const s = normalizar({ viento: { plantas: [{ h: 3, altura: 3 }, { h: 3 }] } });
-    expect(s.viento.plantas.map((p) => p.altura)).toEqual([3, 0]);
-    const t = normalizar({ viento: { plantas: [{ altura: 4 }, { altura: 2.5 }] } });
-    expect(cotasPlantas(t.viento.plantas)).toEqual([4, 6.5]);
-  });
-
-  it('el motor recibe cotas, no alturas', () => {
+  it('el motor recibe cotas, no alturas, y la coronación parte del forjado más alto', () => {
     const s = madrid();
-    s.viento.plantas[1].altura = 4;
-    expect(entradaViento(s, zonasEfectivas(s.emplazamiento))?.plantas.map((p) => p.h)).toEqual([3, 7, 10]);
-    // La coronación deducida parte del forjado más alto (10 m) y sube con la pendiente por defecto.
-    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(10 + 6 * Math.tan(Math.PI / 9), 12);
+    guardarEdificio(conSotano());
+    const ev = evaluar(s);
+    expect(entradaViento(s, zonasEfectivas(s.emplazamiento), ev.plantas)?.plantas.map((p) => p.h)).toEqual([3.5, 6.5, 9.5]);
+    // La coronación deducida parte del forjado más alto (9,5 m) y sube con la pendiente por defecto.
+    expect(alturaCoronacionDerivada(s.viento, ev.plantas)).toBeCloseTo(9.5 + 6 * Math.tan(Math.PI / 9), 12);
+  });
+
+  it('una planta sin altura es un hueco que remite a Cargas por planta, y no se publica', () => {
+    const e = conSotano();
+    e.plantas[2].altura = null; // la primera no dice cuánto mide: la segunda y la cubierta no se sitúan
+    guardarEdificio(e);
+    const ev = evaluar(madrid());
+    expect(ev.faltanAlturas).toEqual(['Planta Primera']);
+    expect(ev.huecos).toEqual(['la altura de «Planta Primera» (en Cargas por planta)']);
+    expect(ev.plantas.map((p) => p.nombre)).toEqual(['Planta Primera']);
+    expect(ev.listo).toBe(false);
+    // Con el viento omitido la altura no hace falta.
+    const sinViento = madrid();
+    sinViento.viento.activo = false;
+    expect(evaluar(sinViento).huecos).toEqual([]);
   });
 
   it('el ejemplo es Aranda de Duero a 800 m, con cubierta a 40º, fachadas y acumulación de nieve, y está listo', () => {
@@ -126,9 +137,12 @@ describe('alturas relativas (2026-09-05)', () => {
   it('esEstadoInicial mira la estructura del edificio, no el emplazamiento', () => {
     expect(esEstadoInicial(defaultVientoNieveState())).toBe(true);
     expect(esEstadoInicial(madrid())).toBe(true);
-    const t = madrid();
-    t.viento.plantas[0].altura = 4;
-    expect(esEstadoInicial(t)).toBe(false);
+    // Tocar una altura en Cargas por planta configura este módulo.
+    const tocado = edificioInicial();
+    tocado.plantas[2].altura = 4;
+    expect(esEstadoInicial(madrid(), tocado)).toBe(false);
+    guardarEdificio(tocado);
+    expect(esEstadoInicial(madrid())).toBe(false);
     const u = madrid();
     u.viento.cubierta.activa = true;
     expect(esEstadoInicial(u)).toBe(false);
@@ -182,17 +196,18 @@ describe('traducción al motor', () => {
   it('viento: qb según el modo, altitud y plantas con id', () => {
     const s = madrid();
     const z = zonasEfectivas(s.emplazamiento);
-    expect(entradaViento(s, z)).toMatchObject({ zona: 'A', aspereza: 'IV', altitud: 660 });
-    expect(entradaViento(s, z)?.qbManual).toBeUndefined();
+    const pl = plantasDelEdificio(null);
+    expect(entradaViento(s, z, pl)).toMatchObject({ zona: 'A', aspereza: 'IV', altitud: 660 });
+    expect(entradaViento(s, z, pl)?.qbManual).toBeUndefined();
     s.viento.qbModo = 'simplificado';
-    expect(entradaViento(s, z)?.qbManual).toBe(0.5);
+    expect(entradaViento(s, z, pl)?.qbManual).toBe(0.5);
     s.viento.qbModo = 'manual';
     s.viento.qbManual = 0.61;
-    expect(entradaViento(s, z)?.qbManual).toBe(0.61);
-    expect(entradaViento(s, z)?.plantas.map((p) => p.id)).toEqual(s.viento.plantas.map((p) => p.id));
-    expect(entradaViento(s, z)?.plantas.map((p) => p.h)).toEqual([3, 6, 9]);
+    expect(entradaViento(s, z, pl)?.qbManual).toBe(0.61);
+    expect(entradaViento(s, z, pl)?.plantas.map((p) => p.id)).toEqual(pl.map((p) => p.id));
+    expect(entradaViento(s, z, pl)?.plantas.map((p) => p.h)).toEqual([3, 6]);
     s.viento.activo = false;
-    expect(entradaViento(s, z)).toBeNull();
+    expect(entradaViento(s, z, pl)).toBeNull();
   });
 
   it('nieve: capital, valor propio y limahoyas', () => {
@@ -231,7 +246,7 @@ describe('evaluar', () => {
     expect(ev.huecos).toEqual([]);
     expect(ev.viento?.qb).toBe(0.42);
     expect(ev.viento?.vb).toBe(26);
-    expect(ev.viento?.x.plantas).toHaveLength(3);
+    expect(ev.viento?.x.plantas).toHaveLength(2);
     // El municipio es la capital: manda la tabla 3.8 (0,60), no la E.2 a 660 m
     // (0,56). Es la diferencia que antes dependía de marcar una casilla.
     expect(ev.nieve?.sk).toBeCloseTo(0.6, 12);
@@ -278,8 +293,8 @@ describe('publicación', () => {
     expect(pub!.obra).toEqual({ municipio: 'Madrid', provincia: 'Madrid', ine: '28' });
     const d = pub!.datos!;
     expect(d.viento?.zonaEolica).toBe('A');
-    expect(d.viento?.fuerzas).toHaveLength(3);
-    expect(d.viento?.fuerzas[0]).toMatchObject({ nombre: 'Planta 1', z: 3 });
+    expect(d.viento?.fuerzas).toHaveLength(2);
+    expect(d.viento?.fuerzas[0]).toMatchObject({ nombre: 'Planta Primera', z: 3 });
     expect(d.viento?.fuerzas[0].Fx).toBeCloseTo(ev.viento!.x.plantas[0].F, 12);
     expect(d.nieve?.zonaInvernal).toBe(4);
     expect(d.nieve?.qnMax).toBeCloseTo(0.6, 12);
@@ -329,15 +344,13 @@ describe('persistencia y lectura defensiva', () => {
     expect(Object.keys(s.emplazamiento)).not.toContain('esCapital');
     expect(s.viento.qbModo).toBe('zona');
     expect(s.viento.aspereza).toBe('IV');
-    expect(s.viento.plantas).toHaveLength(2);
-    // Plantas viejas, por cota: 3 y 6 m se convierten en dos alturas de 3 m.
-    expect(s.viento.plantas[0]).toMatchObject({ nombre: 'Planta 1', altura: 3 });
-    expect(s.viento.plantas[1]).toMatchObject({ id: 'a', nombre: 'Ático', altura: 3 });
+    // Las plantas guardadas se ignoran: son del edificio compartido.
+    expect('plantas' in s.viento).toBe(false);
     expect(s.viento.dimensiones).toEqual({ x: 20, y: 12 });
     expect(s.nieve.exposicion).toBe('normal');
     expect(s.nieve.faldones[0]).toMatchObject({ inclinacion: 45, limahoya: 'ninguna', L: null, inclinacionOtro: 45 });
     expect(s.ayuda).toBe(true);
-    expect(normalizar(null).viento.plantas).toHaveLength(3);
+    expect('plantas' in normalizar(null).viento).toBe(false);
   });
 });
 
@@ -374,7 +387,8 @@ describe('auditoría 2026-09-05', () => {
     expect(d.viento?.x.encima).toEqual({ tipo: 'hastial', F: v.x.encima!.F });
     expect(d.viento?.y.encima).toEqual({ tipo: 'faldones', F: v.y.encima!.F });
     expect(d.viento?.x.rozamiento).toEqual({ cfr: 0.02, F: v.x.rozamiento!.F, aplicado: v.x.rozamiento!.aplicado });
-    expect(d.viento?.fuerzas[2].Fx).toBeCloseTo(v.x.plantas[2].F, 12);
+    // El último forjado (la cubierta): con el edificio de arranque son dos.
+    expect(d.viento?.fuerzas[1].Fx).toBeCloseTo(v.x.plantas[1].F, 12);
     expect(d.viento?.x.Ftotal).toBeCloseTo(v.x.Ftotal, 12);
     const plana = madrid();
     expect(datosPublicacion(plana, evaluar(plana))!.viento?.x.encima).toBeUndefined();
@@ -392,8 +406,8 @@ describe('cubierta a dos aguas', () => {
   it('activa: la altura de coronación se deduce del último forjado y la pendiente, y se puede teclear', () => {
     const s = madrid();
     s.viento.cubierta = { ...s.viento.cubierta, activa: true, pendiente: 20, cumbrera: 'x' };
-    // Cubierta a 9 m y 12 m de ancho perpendicular a la cumbrera: 9 + 6·tan 20º.
-    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(9 + 6 * Math.tan(Math.PI / 9), 12);
+    // Cubierta a 6 m (el edificio de arranque) y 12 m de ancho perpendicular a la cumbrera: 6 + 6·tan 20º.
+    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(6 + 6 * Math.tan(Math.PI / 9), 12);
     const z = zonasEfectivas(s.emplazamiento);
     const e = entradaViento(s, z)!;
     expect(e.cubierta).toMatchObject({ pendiente: 20, cumbrera: 'x' });
@@ -408,7 +422,7 @@ describe('cubierta a dos aguas', () => {
     s.viento.cubierta.areaPropia = 4;
     expect(entradaViento(s, z)?.cubierta?.areaInfluencia).toBe(4);
     s.viento.cubierta.cumbrera = 'y';
-    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(9 + 10 * Math.tan(Math.PI / 9), 12);
+    expect(alturaCoronacionDerivada(s.viento)).toBeCloseTo(6 + 10 * Math.tan(Math.PI / 9), 12);
   });
 
   it('se publica dentro del viento, con las zonas de las dos direcciones', () => {
@@ -462,7 +476,7 @@ describe('paramentos verticales', () => {
     expect(ev.errores).toBe(0);
     expect(ev.listo).toBe(true);
     const d = datosPublicacion(s, ev)!;
-    expect(d.viento?.paramentos?.h).toBe(9);
+    expect(d.viento?.paramentos?.h).toBe(6);
     expect(d.viento?.paramentos?.x.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'C', 'D', 'E']);
     expect(d.viento?.paramentos?.y.zonas.map((z) => z.zona)).toEqual(['A', 'B', 'D', 'E']);
     expect(d.viento?.paramentos?.areaInfluencia).toBeNull();

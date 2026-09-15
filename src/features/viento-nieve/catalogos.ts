@@ -187,19 +187,8 @@ export const PROVINCIA_OPCIONES: readonly Provincia[] = [...PROVINCIAS].sort((a,
   a.nombre.localeCompare(b.nombre, 'es'),
 );
 
-/**
- * Plantas con las que arranca un edificio nuevo: tres de 3 m. Cada planta
- * lleva su altura de forjado a forjado, no su cota: es lo que se sabe en obra
- * sin sumar nada. La cota sobre rasante la deriva el programa.
- */
-export const PLANTAS_INICIALES: { nombre: string; altura: number }[] = [
-  { nombre: 'Planta 1', altura: 3 },
-  { nombre: 'Planta 2', altura: 3 },
-  { nombre: 'Cubierta', altura: 3 },
-];
-
-/** Altura que se le da a una planta nueva al añadirla, m. */
-export const ALTURA_PLANTA_TIPO = 3;
+// Las plantas del edificio ya no arrancan aquí: desde el 15-09-2026 viven en
+// `lib/edificio`, se teclean en Cargas por planta y este módulo las lee.
 
 /** Las vistas del lienzo, en el orden de las pestañas. */
 export type VistaLienzo = 'edificio' | 'cubierta' | 'fachadas' | 'nieve';
