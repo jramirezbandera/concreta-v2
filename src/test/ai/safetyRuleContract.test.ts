@@ -1,4 +1,4 @@
-// Contrato de las TABLAS DE SEGURIDAD de los 24 adapters (auditoría 2026-07-14).
+// Contrato de las TABLAS DE SEGURIDAD de los 25 adapters (auditoría 2026-07-14).
 //
 // El gate anti-ruido de safety.ts levanta la protección de un campo cuando el
 // hilo ya lo trató, y busca la clave en el espacio del PAYLOAD (`t_cm`), no del
@@ -75,6 +75,9 @@ import {
 import {
   vientoNieveAdapter, VIENTO_NIEVE_SAFETY_RULES, VIENTO_NIEVE_RESOLVED_RULES,
 } from '../../lib/ai/modules/vientoNieve';
+import {
+  incendioAdapter, INCENDIO_SAFETY_RULES, INCENDIO_RESOLVED_RULES,
+} from '../../lib/ai/modules/incendio';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el contrato es estructural: recorre 20 TInputs distintos */
 
@@ -157,6 +160,11 @@ const ENTRIES: readonly Entry[] = [
     rules: VIENTO_NIEVE_SAFETY_RULES,
     resolved: VIENTO_NIEVE_RESOLVED_RULES,
   },
+  {
+    adapter: incendioAdapter,
+    rules: INCENDIO_SAFETY_RULES,
+    resolved: INCENDIO_RESOLVED_RULES,
+  },
 ];
 
 function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
@@ -164,10 +172,10 @@ function payloadKeys(adapter: AiModuleAdapter<any>): string[] {
   return Object.keys(schema.properties ?? {});
 }
 
-describe('los 24 adapters están en el contrato', () => {
+describe('los 25 adapters están en el contrato', () => {
   it('no falta ninguno (el próximo módulo tiene que entrar aquí)', () => {
-    expect(ENTRIES).toHaveLength(24);
-    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(24);
+    expect(ENTRIES).toHaveLength(25);
+    expect(new Set(ENTRIES.map((e) => e.adapter.id)).size).toBe(25);
   });
 });
 

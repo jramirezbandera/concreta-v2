@@ -22,6 +22,7 @@
 import { ExternalLink } from 'lucide-react';
 import { Link } from 'react-router';
 import type { ModoAltura } from '../../lib/incendio/altura';
+import { SeccionSVG } from './SeccionSVG';
 import { AYUDA, INPUT, ROTULO, TH } from './estilos';
 import type { AnotacionPlanta, Evaluacion } from './state';
 
@@ -289,6 +290,22 @@ export function Edificio({
           Máxima diferencia de cotas entre un origen de evacuación y la salida del edificio (Anejo A
           del DB SI). Es la que entra en la tabla 3.1.
         </p>
+      )}
+
+      {/* La sección, debajo del número y no encima: es la comprobación de lo
+          que se acaba de teclear. Una cadena de cotas cortada o una planta de
+          salida que no es la que uno creía se ven aquí y no en la tabla. */}
+      {alturas.plantas.length > 0 && (
+        <div className="pt-3">
+          <SeccionSVG
+            plantas={alturas.plantas}
+            alturaEvacuacion={alturaEvacuacion}
+            alturaAMano={alturaAMano}
+            ascendente={alturas.ascendente}
+            sectores={evaluacion.sectores}
+            width={344}
+          />
+        </div>
       )}
     </section>
   );

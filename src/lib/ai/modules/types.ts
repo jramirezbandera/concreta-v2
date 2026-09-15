@@ -67,7 +67,15 @@ export type AiModuleId =
   // PROVINCIA, que sí es campo del payload (por su código INE) porque es la
   // entrada principal del cálculo. sk y qb sólo se escriben con el número que
   // dé el usuario. Ver la cabecera de `vientoNieve.ts`.
-  | 'viento-nieve';
+  | 'viento-nieve'
+  // Ola 8 — el que MÁS deja fuera: la R exigida no es campo del payload. Sale
+  // de la tabla 3.1 cruzando el uso con la altura de evacuación, y un «R 90»
+  // citado de memoria se imprimiría en la memoria y en el plano como si viniera
+  // de la tabla. El modelo dice QUÉ ES cada sector; la R la pone la norma.
+  // Fuera quedan también la altura de evacuación calculada (sólo la que dé el
+  // usuario) y el λp declarado de un producto de protección. Ver la cabecera de
+  // `incendio.ts`.
+  | 'incendio';
 
 export interface AiFieldChange {
   field: string;      // clave de TInputs (string por varianza)

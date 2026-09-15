@@ -455,7 +455,13 @@ describe('renombrar y ver desde la fila', () => {
     // se pasa del plazo por defecto.
     await waitFor(() => expect(leerAnejo().piezas[0].titulo).toBe('Viga V-3 del pórtico 2'), { timeout: 15000 });
     expect(JSON.parse(leerAnejo().piezas[0].datos!['rc-beams']).title).toBe('Viga V-3 del pórtico 2');
-  });
+    // El plazo va TAMBIÉN en el `it`: la holgura del `waitFor` de arriba no
+    // servía de nada porque vitest corta la prueba entera a los 5 s por
+    // defecto, y este caso escribe DOS PDF con la Arimo dentro —el de la
+    // preparación y el del renombrado—. Fallaba una vez de cada tantas con la
+    // suite completa en paralelo, y en aislado nunca: la peor clase de prueba
+    // intermitente, la que aparece en la ejecución de otra cosa.
+  }, 20000);
 
   it('la exportada sin nombre no se puede renombrar, y el botón explica por qué', () => {
     escribirAnejo({ v: 1, piezas: [pieza('r1', 'concreta-rc-beams', 'Vigas de hormigón', { tituloEnPdf: false })] });

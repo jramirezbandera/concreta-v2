@@ -74,12 +74,11 @@ export const CARGAS_PLANTA_FALLBACK_XLSX = 'cargas-por-planta.xlsx';
 export const CARGAS_PLANTA_FALLBACK_PDF = 'cargas-por-planta.pdf';
 export const CARGAS_PLANTA_FALLBACK_DXF = 'cargas-por-planta.dxf';
 
-/**
- * Los de «Incendio» (DB SI 6). De momento sólo la memoria; el cuadro del plano
- * llega con la fase de los elementos.
- */
+/** Los de «Incendio» (DB SI 6): la memoria, y el cuadro de resistencia al fuego del plano. */
 export const INCENDIO_FALLBACK_DOCX = 'resistencia-al-fuego.docx';
 export const INCENDIO_FALLBACK_PDF = 'resistencia-al-fuego.pdf';
+export const INCENDIO_FALLBACK_XLSX = 'resistencia-al-fuego.xlsx';
+export const INCENDIO_FALLBACK_DXF = 'resistencia-al-fuego.dxf';
 
 /** La ficha de cumplimiento del DB SE (`features/memoria-dbse`): Word para la memoria, PDF para enviar. */
 export const MEMORIA_DBSE_FALLBACK_DOCX = 'memoria-db-se.docx';

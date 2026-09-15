@@ -16,21 +16,30 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { AiChatModal } from '../../components/ai/AiChatModal';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { Topbar } from '../../components/layout/Topbar';
 import { useDrawer } from '../../components/layout/AppShell';
 import { Documento } from '../../components/ui/Documento';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
+import { showToast } from '../../components/ui/Toast';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { incendioAdapter, summarizeIncendioResults } from '../../lib/ai/modules/incendio';
+import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { adaptadorDe } from '../../lib/anejo/modules';
 import type { ResultadoExport } from '../../lib/export/descargar';
-import { INCENDIO_FALLBACK_DOCX, INCENDIO_FALLBACK_PDF } from '../../lib/export/filename';
+import {
+  INCENDIO_FALLBACK_DOCX,
+  INCENDIO_FALLBACK_DXF,
+  INCENDIO_FALLBACK_PDF,
+  INCENDIO_FALLBACK_XLSX,
+} from '../../lib/export/filename';
 import type { ModoAltura } from '../../lib/incendio/altura';
-import { cuadroIncendioMemoria } from '../../lib/incendio/cuadros';
+import { cuadroIncendioMemoria, cuadroIncendioPlano } from '../../lib/incendio/cuadros';
 import { exigenciasResueltas } from '../../lib/incendio/exigencias';
 import { materialesPublicados } from './materialesPub';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
@@ -55,22 +64,37 @@ import {
 
 const ANEJO = adaptadorDe('concreta-incendio');
 
-type FormatoId = 'docx' | 'pdf' | IdAnejo;
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf' | IdAnejo;
 
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
   docx: { etiqueta: 'Word', fallback: INCENDIO_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
   pdf: { etiqueta: 'PDF', fallback: INCENDIO_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
+  xlsx: { etiqueta: 'Excel', fallback: INCENDIO_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
+  dxf: { etiqueta: 'DXF', fallback: INCENDIO_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
   anejo: { ...FORMATO_ANEJO, fallback: INCENDIO_FALLBACK_PDF },
 };
 
 const opcion = (id: FormatoId, detalle: string) => ({ id, etiqueta: FORMATOS[id].etiqueta, detalle });
 
+/**
+ * Dos grupos porque son dos documentos distintos, no dos formatos del mismo:
+ * la memoria comprueba las secciones elemento a elemento y el cuadro del plano
+ * no certifica ninguna —dice qué R se exige y qué hay que poner en obra—. Ver
+ * la cabecera de `cuadroIncendioPlano`.
+ */
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   {
     titulo: 'Memoria',
     opciones: [
       opcion('docx', 'para pegar en la memoria del proyecto'),
       opcion('pdf', 'maquetado y cerrado, para enviar o imprimir'),
+    ],
+  },
+  {
+    titulo: 'Cuadro de plano',
+    opciones: [
+      opcion('xlsx', 'para capturar y pegar en el plano'),
+      opcion('dxf', 'dibujado, para insertar en el CAD'),
     ],
   },
   GRUPO_ANEJO,
@@ -118,6 +142,39 @@ export function IncendioModule() {
       }),
     [presentes, evaluacion, state.exigencias],
   );
+
+  // El cuadro del plano sale de los MISMOS datos y dice menos: no certifica
+  // secciones. Se calcula siempre —no sólo al exportar— porque es barato y así
+  // no hay una rama que nadie haya mirado el día que se pulsa el botón.
+  const bloquesPlano = useMemo(
+    () =>
+      cuadroIncendioPlano(presentes, evaluacion.exigencias, {
+        alturaEvacuacion: evaluacion.alturaEvacuacion,
+        alturaAMano: evaluacion.alturaAMano,
+        sectores: evaluacion.sectores,
+        sueltas: exigenciasResueltas(state.exigencias),
+        elementos: evaluacion.elementos,
+      }),
+    [presentes, evaluacion, state.exigencias],
+  );
+
+  // ── Asistente ─────────────────────────────────────────────────────────────
+  // Las tres listas REEMPLAZAN a las vigentes (ver `lib/ai/modules/incendio`),
+  // así que el plan las lleva reconstruidas sobre el estado que había al
+  // proponerlas: lo que se teclee entre proponer y aplicar se pisa.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiResults = useMemo(() => summarizeIncendioResults(evaluacion), [evaluacion]);
+
+  const aplicarPlanIa = (plan: AiApplyPlan<IncendioState>) => {
+    actualizar((p) => ({ ...p, ...plan.fields }));
+    const n = plan.changes.length;
+    const w = plan.warnings.length;
+    showToast(
+      `IA: ${n} cambio${n === 1 ? '' : 's'} aplicado${n === 1 ? '' : 's'}`
+        + (w > 0 ? ` · ${w} aviso${w === 1 ? '' : 's'}` : ''),
+      { autoDismiss: 4000 },
+    );
+  };
 
   // ── Acciones del formulario ───────────────────────────────────────────────
 
@@ -200,6 +257,14 @@ export function IncendioModule() {
     // El `import()` va DENTRO del manejador, nunca memoizado durante el render:
     // así cada exportador sigue en su chunk perezoso.
     exportFn: async (titulo) => {
+      if (formatoElegido === 'xlsx') {
+        const { exportarIncendioXlsx } = await import('../../lib/xlsx/incendio');
+        return exportarIncendioXlsx(bloquesPlano, titulo);
+      }
+      if (formatoElegido === 'dxf') {
+        const { exportarIncendioDxf } = await import('../../lib/dxf/incendio');
+        return exportarIncendioDxf(bloquesPlano, titulo);
+      }
       if (formatoElegido === 'pdf' || formatoElegido === 'anejo') {
         const { exportarIncendioPdf } = await import('../../lib/pdf/incendio');
         return exportarIncendioPdf(bloques, titulo);
@@ -233,6 +298,7 @@ export function IncendioModule() {
         moduleLabel="Incendio"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
+        onOpenAssistant={() => setAiOpen(true)}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -321,6 +387,15 @@ export function IncendioModule() {
         </div>
       </div>
 
+      {aiOpen && (
+        <AiChatModal
+          adapter={incendioAdapter}
+          current={state}
+          results={aiResults}
+          onApply={aplicarPlanIa}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
       {titleOpen && (
         <TitlePromptModal
           initialTitle={docTitle}

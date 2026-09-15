@@ -240,3 +240,99 @@ export function cuadroIncendioMemoria(
 
   return bloques;
 }
+
+// ── El cuadro del plano ─────────────────────────────────────────────────────
+
+export const TITULO_INCENDIO_PLANO = 'RESISTENCIA AL FUEGO (SEGÚN DB SI 6)';
+export const TITULO_PROTECCIONES_PLANO = 'PROTECCIONES PREVISTAS';
+
+/**
+ * El cuadro compacto que va rotulado en el plano.
+ *
+ * Tiene el mismo origen que el capítulo de la memoria y dice menos a propósito.
+ * La diferencia no es de espacio, es de qué se está firmando en cada papel:
+ *
+ *  - **El plano no certifica secciones.** La memoria puede decir «el soporte
+ *    P1 alcanza R 120 por su propia sección (tabla C.2, opción 250/45)»; el
+ *    cuadro del plano NO, porque un cuadro es lo que hay que cumplir en obra,
+ *    no la comprobación de que se cumple. De ahí que la columna «cómo alcanza
+ *    la R» —la mitad del capítulo— se quede fuera, y que la nota de las dos
+ *    vías siga abierta igual que antes de que este módulo existiera.
+ *  - **Lo que sí entra son las protecciones**, y no por certificar nada, sino
+ *    por lo contrario: un revestimiento es una PARTIDA que alguien tiene que
+ *    ejecutar, y si no está en el plano no se ejecuta. Se enuncian como
+ *    requisito («se protege con…»), no como resultado («alcanza R…»).
+ *
+ * Y el número de la protección va siempre con su «(orientativo)» pegado: en un
+ * plano, un espesor sin ese rótulo se compra.
+ */
+export function cuadroIncendioPlano(
+  presentes: MaterialesPresentes,
+  exigencias: readonly ExigenciaFuego[],
+  detalle?: DetalleIncendio,
+): Block[] {
+  const sectores = (detalle?.sectores ?? []).filter(
+    (s) => s.nombre !== '' && (s.minutos !== null || s.sinExigencia),
+  );
+  if (exigencias.length === 0 && sectores.length === 0) return [];
+
+  const bloques: Block[] = [{ kind: 'heading', level: 2, text: TITULO_INCENDIO_PLANO }];
+
+  // La altura de evacuación es el dato con el que se entra en la tabla 3.1, y
+  // en un plano es además la cota que cualquiera puede contrastar con la
+  // sección dibujada al lado.
+  if (detalle && detalle.alturaEvacuacion !== null && sectores.length > 0) {
+    bloques.push({
+      kind: 'kvTable',
+      rows: [
+        [
+          'Altura de evacuación',
+          `${m2(detalle.alturaEvacuacion)} m${detalle.alturaAMano ? ' (adoptada)' : ''}`,
+        ],
+      ],
+    });
+  }
+
+  // Sin sectores —una obra que viene del cuadro de materiales viejo— quedan las
+  // exigencias sueltas, que es exactamente lo que ese cuadro imprimía.
+  const filas: string[][] =
+    sectores.length > 0
+      ? [
+          ...sectores.map((s) => [s.nombre, s.sinExigencia ? 'No se exige' : `R ${s.minutos}`]),
+          ...(detalle?.sueltas ?? []).map((e) => [e.ambito, `R ${e.minutos}`]),
+        ]
+      : exigencias.map((e) => [e.ambito, `R ${e.minutos}`]);
+
+  bloques.push({ kind: 'table', head: ['Parte de la estructura', 'Exigida'], rows: filas });
+
+  // Sólo los elementos que NO llegan solos: los que llegan por su sección no
+  // le piden nada a nadie en obra, y una fila que no pide nada sobra en un
+  // cuadro.
+  const protegidos = (detalle?.elementos ?? []).filter(
+    (e) => e.via === 'proteccion' && e.nombre !== '',
+  );
+  if (protegidos.length > 0) {
+    bloques.push(
+      { kind: 'heading', level: 3, text: TITULO_PROTECCIONES_PLANO },
+      {
+        kind: 'table',
+        head: ['Elemento', 'R exigida', 'Protección'],
+        rows: protegidos.map((e) => [
+          e.nombre,
+          e.exigida === null ? '—' : `R ${e.exigida}`,
+          e.loQueFalta,
+        ]),
+      },
+    );
+  }
+
+  bloques.push({
+    kind: 'notes',
+    items: [
+      ...notasResistenciaFuego(presentes, exigencias),
+      ...(protegidos.length > 0 ? [ROTULO_ORIENTATIVO] : []),
+    ],
+  });
+
+  return bloques;
+}

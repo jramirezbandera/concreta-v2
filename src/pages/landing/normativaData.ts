@@ -4,7 +4,7 @@
 
 export type NormStatus = 'ok' | 'warn' | 'dim';
 
-// ── Landing summary table (6 rows) ─────────────────────────────────────────────
+// ── Landing summary table (7 rows) ─────────────────────────────────────────────
 export interface NormSummaryRow {
   code: string;
   full: string;
@@ -19,6 +19,7 @@ export const NORM_SUMMARY: NormSummaryRow[] = [
   { code: 'CTE DB-SE-A', full: 'Acero estructural', year: '2008', mods: ['Vigas y pilares acero'], status: 'ok' },
   { code: 'CTE DB-SE-C', full: 'Cimentaciones', year: '2008', mods: ['Zapatas · Muros · Escollera'], status: 'ok' },
   { code: 'CTE DB-SE-M', full: 'Estructuras de madera', year: '2008', mods: ['Madera'], status: 'ok' },
+  { code: 'CTE DB-SI', full: 'Seguridad en caso de incendio', year: '2019', mods: ['Incendio'], status: 'warn' },
   { code: 'EC2 · EC3 · EC5', full: 'Apoyo técnico secundario', year: '—', mods: ['Cuando la norma nacional remite'], status: 'warn' },
 ];
 
@@ -125,6 +126,27 @@ export const NORM_BLOCKS: NormBlock[] = [
     ],
   },
   {
+    id: 'cte-dbsi',
+    tocLabel: 'Incendio',
+    title: 'Resistencia al fuego de la estructura',
+    code: 'CTE DB-SI 6 · 2019',
+    status: 'warn',
+    statusLabel: '● parcial',
+    reviewed: '09/2026',
+    queEs: 'el DB del CTE para la seguridad en caso de incendio. Su sección 6 es la que afecta a la estructura: dice qué resistencia al fuego (R 30, R 60, R 90…) hay que exigirle a cada parte del edificio, y sus anejos traen las tablas con las que se comprueba si una sección la alcanza.',
+    paraQue: 'es lo que respalda la R que se escribe en la memoria y en el cuadro del plano, y la que decide si un pilar necesita un revestimiento o llega con su propia sección.',
+    articles: [
+      { code: 'SI 6, tabla 3.1', desc: 'R exigida según el uso del sector y la altura de evacuación', mod: 'Incendio' },
+      { code: 'SI 6, tabla 3.2', desc: 'Cubierta ligera no prevista para evacuación', mod: 'Incendio' },
+      { code: 'SI 6 §3.3 y §4', desc: 'Escaleras protegidas, elementos secundarios y carpas', mod: 'Incendio' },
+      { code: 'Anejo A', desc: 'Altura de evacuación — cotas y origen de evacuación', mod: 'Incendio' },
+      { code: 'Anejo B', desc: 'Tiempo equivalente de exposición al fuego (alternativa del §3.1.b)', mod: 'Incendio' },
+      { code: 'Anejo C', desc: 'Hormigón — tablas C.1 a C.5 y capas protectoras del C.2.4', mod: 'Incendio' },
+      { code: 'Anejo D', desc: 'Acero — masividad, tabla D.1 y elementos revestidos', mod: 'Incendio' },
+      { code: 'Anejo E', desc: 'Madera — sección residual carbonizada', mod: 'Vigas y pilares madera' },
+    ],
+  },
+  {
     id: 'eurocodigos',
     tocLabel: 'Eurocódigos',
     title: 'Eurocódigos (referencia auxiliar)',
@@ -154,7 +176,6 @@ export const NORM_BLOCKS: NormBlock[] = [
       { code: 'v0.6', desc: 'CTE DB-SE-AE — acción sísmica y NCSE-02', mod: 'Pilares · FEM' },
       { code: 'v0.7', desc: 'CE — secciones en T, secciones huecas y vigas mixtas', mod: 'Vigas HA' },
       { code: 'v0.8', desc: 'CTE DB-SE-F — fábricas y muros portantes', mod: 'Módulo nuevo' },
-      { code: 'v0.9', desc: 'CTE DB-SI — comprobaciones de resistencia al fuego', mod: 'Transversal' },
       { code: 'v1.0', desc: 'Cimentaciones profundas — pilotes, micropilotes', mod: 'Cimentación' },
     ],
   },
@@ -266,7 +287,25 @@ export const MODULE_DOCS: ModuleDoc[] = [
     limitaciones: [
       'Sin uniones mecánicas (clavijas, tornillos).',
       'Sin elementos en flexotracción ni compuestos.',
-      'Sin resistencia al fuego — pendiente DB-SI.',
+      'El fuego se comprueba por sección residual carbonizada; la R exigida la fija el módulo Incendio.',
+    ],
+  },
+  {
+    id: 'doc-incendio',
+    title: 'Incendio',
+    ref: 'CTE DB-SI 6 · Anejos A a D',
+    usos: [
+      'R exigida por la tabla 3.1, sector a sector, con la altura de evacuación del Anejo A.',
+      'Zonas de riesgo especial, cubierta ligera, escaleras protegidas y elementos secundarios.',
+      'Tiempo equivalente de exposición al fuego (Anejo B) como alternativa a la tabla.',
+      'Hormigón: distancia al eje y dimensiones mínimas por las tablas C.2 a C.5.',
+      'Acero: masividad según el modo de calentamiento y d/λp por la tabla D.1.',
+      'Espesor orientativo del revestimiento cuando la sección no llega sola.',
+    ],
+    limitaciones: [
+      'Sin madera ni fábrica: la madera se comprueba en su propio módulo por sección residual.',
+      'Sin el método de la isoterma de 500 ºC ni los métodos avanzados del §6.1.b y c.',
+      'Los espesores de protección son orientativos: el DB SI no tabula ningún producto y remite al marcado CE o al ensayo UNE-EN 13381.',
     ],
   },
 ];

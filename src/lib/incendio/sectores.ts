@@ -191,6 +191,13 @@ export interface SectorEntrada {
 export interface SectorResuelto {
   id: string;
   nombre: string;
+  /**
+   * De qué lado de la rasante está, tal como se declaró. Se arrastra a la
+   * salida porque la tabla 3.1 tiene columna aparte para el sótano: es lo que
+   * permite a la sección del edificio poner cada R en su mitad del dibujo sin
+   * volver a mirar el estado tecleado.
+   */
+  sotano: boolean;
   /** La R que se declara. `null` = no hay nada que declarar todavía. */
   minutos: number | null;
   /** La que daba la tabla, aunque se haya pisado. */
@@ -354,6 +361,7 @@ export function resolverSectores(
       return {
         id: s.id,
         nombre,
+        sotano: s.sotano,
         minutos: null,
         derivada: null,
         referencia: '',
@@ -371,6 +379,7 @@ export function resolverSectores(
       return {
         id: s.id,
         nombre,
+        sotano: s.sotano,
         minutos: null,
         derivada: null,
         referencia: '',
@@ -416,6 +425,7 @@ export function resolverSectores(
     return {
       id: s.id,
       nombre,
+      sotano: s.sotano,
       minutos,
       derivada,
       referencia: aMano ? 'declarado por el proyectista' : referenciaDerivada,
