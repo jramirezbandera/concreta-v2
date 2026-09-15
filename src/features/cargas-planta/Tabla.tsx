@@ -16,6 +16,7 @@
 
 import { Fragment } from 'react';
 import { Trash2 } from 'lucide-react';
+import { BOTON_ANADIR } from '../../components/ui/MenuAnadir';
 import type { CargasResultado, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import { toDisplay } from '../../lib/units/convert';
 import { getPrecision, getUnitLabel } from '../../lib/units/format';
@@ -285,7 +286,10 @@ export function Tabla({
             <tr>
               <td colSpan={anchoTotal} className={TD + ' border-b-0'}>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <button type="button" onClick={onAnadirPlanta} className={BOTON_MENOR}>
+                  {/* En el acento, como «+ Añadir elemento» de materiales y de
+                      incendio: al pie de la tabla y en gris pasaba por una nota
+                      y no por lo que es, la manera de meter una planta más. */}
+                  <button type="button" onClick={onAnadirPlanta} className={BOTON_ANADIR}>
                     + Añadir planta
                   </button>
                   <select

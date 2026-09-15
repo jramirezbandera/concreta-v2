@@ -71,6 +71,7 @@ import {
   guardarEstado,
   hayMaterialesResueltos,
   limpiezaPrescrita,
+  moverEnLista,
   nuevoId,
   publicarResultado,
   type FilaAcero,
@@ -329,6 +330,30 @@ export function MaterialesModule() {
       maderaGrupos: p.maderaGrupos.map((f) => (f.id === id ? { ...f, ...cambio } : f)),
     }));
 
+  // Reordenar: el orden de las filas ES el del cuadro del plano y el de los
+  // párrafos de la memoria, así que mover la fila aquí lo mueve todo. Si el
+  // arrastre no cambia nada se devuelve el estado tal cual, para no reescribir
+  // el almacén ni republicar el sobre por un gesto en balde.
+  const reordenarElementos = (desde: number, hasta: number) =>
+    actualizar((p) => {
+      const elementos = moverEnLista(p.elementos, desde, hasta);
+      return elementos === p.elementos ? p : { ...p, elementos };
+    });
+
+  const reordenarMadera = (desde: number, hasta: number) =>
+    actualizar((p) => {
+      const maderaGrupos = moverEnLista(p.maderaGrupos, desde, hasta);
+      return maderaGrupos === p.maderaGrupos ? p : { ...p, maderaGrupos };
+    });
+
+  const reordenarAcero = (desde: number, hasta: number) =>
+    actualizar((p) => {
+      const elementos = moverEnLista(p.aceroEstr.elementos, desde, hasta);
+      return elementos === p.aceroEstr.elementos
+        ? p
+        : { ...p, aceroEstr: { ...p.aceroEstr, elementos } };
+    });
+
   const cambiarFilaAcero = (id: string, cambio: Partial<FilaAcero>) =>
     actualizar((p) => ({
       ...p,
@@ -518,6 +543,7 @@ export function MaterialesModule() {
                 onBorrar={(id) =>
                   actualizar((p) => ({ ...p, elementos: p.elementos.filter((f) => f.id !== id) }))
                 }
+                onReordenar={reordenarElementos}
                 onAnadir={(nombre) =>
                   actualizar((p) => ({ ...p, elementos: [...p.elementos, filaDesdePreset(nombre)] }))
                 }
@@ -536,6 +562,7 @@ export function MaterialesModule() {
                   actualizar((p) => ({ ...p, aceroEstr: { ...p.aceroEstr, ...cambio } }))
                 }
                 onCambiarFila={cambiarFilaAcero}
+                onReordenar={reordenarAcero}
                 onBorrar={(id) =>
                   actualizar((p) => ({
                     ...p,
@@ -572,6 +599,7 @@ export function MaterialesModule() {
                 derivaciones={derivacionesMadera}
                 ayuda={state.ayuda}
                 onCambiar={cambiarFilaMadera}
+                onReordenar={reordenarMadera}
                 onBorrar={(id) =>
                   actualizar((p) => ({
                     ...p,

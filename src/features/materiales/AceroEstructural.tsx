@@ -17,6 +17,8 @@ import {
   NIVEL_RIESGO_OPCIONES,
   PROTECCION_SUGERIDA,
 } from './catalogos';
+import { AsaOrden } from '../../components/ui/AsaOrden';
+import { BOTON_ANADIR } from '../../components/ui/MenuAnadir';
 import type { FilaAcero, MaterialesState } from './state';
 
 const TH =
@@ -31,6 +33,8 @@ interface Props {
   onCambiarClasificacion: (cambio: Partial<Omit<MaterialesState['aceroEstr'], 'elementos'>>) => void;
   onCambiarFila: (id: string, cambio: Partial<FilaAcero>) => void;
   onBorrar: (id: string) => void;
+  /** Saca la fila de `desde` y la mete en `hasta`: el orden es el del plano. */
+  onReordenar: (desde: number, hasta: number) => void;
   onAnadir: () => void;
 }
 
@@ -66,6 +70,7 @@ export function AceroEstructural({
   onCambiarClasificacion,
   onCambiarFila,
   onBorrar,
+  onReordenar,
   onAnadir,
 }: Props) {
   const exc = derivacion?.claseEjecucion;
@@ -151,6 +156,7 @@ export function AceroEstructural({
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr>
+              <th className={TH} style={{ width: 22 }} aria-label="Orden" />
               <th className={TH}>Elemento</th>
               <th className={TH}>Medio de unión</th>
               <th className={TH}>Características</th>
@@ -163,10 +169,19 @@ export function AceroEstructural({
             </tr>
           </thead>
           <tbody>
-            {datos.elementos.map((fila) => {
+            {datos.elementos.map((fila, i) => {
               const sugerida = PROTECCION_SUGERIDA[fila.corrosividad];
               return (
                 <tr key={fila.id} className="border-b border-border-sub last:border-0">
+                  <td className="py-1.5 pl-2 pr-0 align-middle">
+                    <AsaOrden
+                      indice={i}
+                      total={datos.elementos.length}
+                      etiqueta={fila.nombre || 'el elemento'}
+                      onMover={onReordenar}
+                    />
+                  </td>
+
                   <td className="px-2 py-1.5" style={{ minWidth: 140 }}>
                     <input
                       value={fila.nombre}
@@ -262,14 +277,16 @@ export function AceroEstructural({
         </table>
       </div>
 
-      <div className="border-t border-border-main px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onAnadir}
-          className="rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
-        >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-main px-4 py-2.5">
+        <button type="button" onClick={onAnadir} className={BOTON_ANADIR}>
           + Añadir elemento
         </button>
+        {ayuda && (
+          <span className="text-[11px] text-text-disabled">
+            El orden de las filas es el del plano y el de la memoria: para cambiarlo,
+            arrastre la fila por el asa de la izquierda, o muévala con las flechas ↑ ↓.
+          </span>
+        )}
       </div>
     </section>
   );

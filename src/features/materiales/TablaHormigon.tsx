@@ -24,6 +24,7 @@ import {
   TERRENO_OPCIONES,
   type SituacionId,
 } from './catalogos';
+import { AsaOrden } from '../../components/ui/AsaOrden';
 import { MenuAnadir } from '../../components/ui/MenuAnadir';
 import { tipificacionLimpieza, type FilaHormigon } from './state';
 
@@ -39,6 +40,8 @@ interface Props {
   ayuda: boolean;
   onCambiar: (id: string, cambio: Partial<FilaHormigon>) => void;
   onBorrar: (id: string) => void;
+  /** Saca la fila de `desde` y la mete en `hasta`: el orden es el del plano. */
+  onReordenar: (desde: number, hasta: number) => void;
   /** Recibe el nombre elegido en el menú, o '' para una fila en blanco. */
   onAnadir: (nombre: string) => void;
   onCosta: (valor: boolean) => void;
@@ -64,6 +67,7 @@ export function TablaHormigon({
   ayuda,
   onCambiar,
   onBorrar,
+  onReordenar,
   onAnadir,
   onCosta,
   onHeladas,
@@ -139,6 +143,7 @@ export function TablaHormigon({
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr>
+              <th className={TH} style={{ width: 22 }} aria-label="Orden" />
               <th className={TH}>Elemento</th>
               <th className={TH}>¿Dónde va a estar?</th>
               <th className={TH}>Hormigón</th>
@@ -162,7 +167,7 @@ export function TablaHormigon({
             </tr>
           </thead>
           <tbody>
-            {filas.map((fila) => {
+            {filas.map((fila, i) => {
               const d = derivaciones.get(fila.id);
               const esLimpieza = fila.situacion === 'limpieza';
               const hueco = fila.situacion === '';
@@ -179,6 +184,15 @@ export function TablaHormigon({
                       : undefined
                   }
                 >
+                  <td className="py-1.5 pl-2 pr-0 align-middle">
+                    <AsaOrden
+                      indice={i}
+                      total={filas.length}
+                      etiqueta={fila.nombre || 'el elemento'}
+                      onMover={onReordenar}
+                    />
+                  </td>
+
                   <td className="px-2 py-1.5" style={{ minWidth: 150 }}>
                     {/* Texto libre a secas: el nombre es del usuario y puede ser
                         «Brochal del hueco de la escalera». Los elementos
@@ -345,7 +359,9 @@ export function TablaHormigon({
         />
         {ayuda && (
           <span className="text-[11px] text-text-disabled">
-            Elegir un elemento habitual trae la fila rellena; «Otro…» la deja en blanco.
+            Elegir un elemento habitual trae la fila rellena; «Otro…» la deja en blanco.{' '}
+            El orden de las filas es el del plano y el de la memoria: para cambiarlo,
+            arrastre la fila por el asa de la izquierda, o muévala con las flechas ↑ ↓.
           </span>
         )}
       </div>

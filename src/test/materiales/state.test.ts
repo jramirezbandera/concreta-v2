@@ -21,6 +21,7 @@ import {
   filaMaderaDesdePreset,
   grupoDeMotor,
   guardarEstado,
+  moverEnLista,
   normalizar,
   opcionesObra,
   SCHEMA_VERSION_KEY,
@@ -408,5 +409,30 @@ describe('catálogo de madera', () => {
     const grupo = { ...grupoDeMotor(filaMaderaDesdePreset('Correas y riostras'))!, especie: 'Tectona grandis' };
     const avisos = deriveMadera(grupo).mensajes.map((m) => m.texto);
     expect(avisos.some((t) => /No hay datos de durabilidad natural/.test(t))).toBe(true);
+  });
+});
+
+describe('mover una fila de sitio', () => {
+  const lista = ['a', 'b', 'c', 'd'];
+
+  it('saca el elemento y lo mete donde se pide', () => {
+    expect(moverEnLista(lista, 0, 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moverEnLista(lista, 3, 0)).toEqual(['d', 'a', 'b', 'c']);
+    expect(moverEnLista(lista, 1, 2)).toEqual(['a', 'c', 'b', 'd']);
+  });
+
+  it('devuelve la MISMA lista si el movimiento no cambia nada', () => {
+    // No es una optimización de estilo: el módulo se apoya en la identidad para
+    // no reescribir el almacén ni republicar el cuadro por un arrastre en balde.
+    expect(moverEnLista(lista, 2, 2)).toBe(lista);
+    expect(moverEnLista(lista, -1, 2)).toBe(lista);
+    expect(moverEnLista(lista, 0, 9)).toBe(lista);
+    expect(moverEnLista([], 0, 0)).toHaveLength(0);
+  });
+
+  it('no toca la lista que recibe', () => {
+    const original = lista.slice();
+    moverEnLista(original, 0, 3);
+    expect(original).toEqual(lista);
   });
 });

@@ -18,6 +18,7 @@ import {
   TIPOS_MADERA,
   type SituacionMaderaId,
 } from './catalogos';
+import { AsaOrden } from '../../components/ui/AsaOrden';
 import { MenuAnadir } from '../../components/ui/MenuAnadir';
 import type { FilaMadera } from './state';
 
@@ -37,11 +38,21 @@ interface Props {
   ayuda: boolean;
   onCambiar: (id: string, cambio: Partial<FilaMadera>) => void;
   onBorrar: (id: string) => void;
+  /** Saca la fila de `desde` y la mete en `hasta`: el orden es el del plano. */
+  onReordenar: (desde: number, hasta: number) => void;
   /** Recibe el nombre elegido en el menú, o '' para una fila en blanco. */
   onAnadir: (nombre: string) => void;
 }
 
-export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, onAnadir }: Props) {
+export function TablaMadera({
+  filas,
+  derivaciones,
+  ayuda,
+  onCambiar,
+  onBorrar,
+  onReordenar,
+  onAnadir,
+}: Props) {
   return (
     <section className="rounded border border-border-main bg-bg-surface">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-main px-4 py-2.5">
@@ -68,6 +79,7 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr>
+                <th className={TH} style={{ width: 22 }} aria-label="Orden" />
                 <th className={TH}>Grupo</th>
                 <th className={TH}>¿Dónde va a estar?</th>
                 <th className={TH}>Tipo</th>
@@ -89,7 +101,7 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
               </tr>
             </thead>
             <tbody>
-              {filas.map((fila) => {
+              {filas.map((fila, i) => {
                 const d = derivaciones.get(fila.id);
                 const hueco = fila.situacion === '';
                 const tipo = TIPOS_MADERA.find((t) => t.id === fila.tipo) ?? TIPOS_MADERA[0];
@@ -105,6 +117,15 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
                         : undefined
                     }
                   >
+                    <td className="py-1.5 pl-2 pr-0 align-middle">
+                      <AsaOrden
+                        indice={i}
+                        total={filas.length}
+                        etiqueta={fila.nombre || 'el grupo'}
+                        onMover={onReordenar}
+                      />
+                    </td>
+
                     <td className="px-2 py-1.5" style={{ minWidth: 150 }}>
                       <input
                         value={fila.nombre}
@@ -265,7 +286,9 @@ export function TablaMadera({ filas, derivaciones, ayuda, onCambiar, onBorrar, o
         />
         {ayuda && (
           <span className="text-[11px] text-text-disabled">
-            Elegir un grupo habitual trae la fila rellena; «Otro…» la deja en blanco.
+            Elegir un grupo habitual trae la fila rellena; «Otro…» la deja en blanco.{' '}
+            El orden de las filas es el del plano y el de la memoria: para cambiarlo,
+            arrastre la fila por el asa de la izquierda, o muévala con las flechas ↑ ↓.
           </span>
         )}
       </div>

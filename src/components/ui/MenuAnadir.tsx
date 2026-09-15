@@ -33,6 +33,18 @@ interface Props {
 const ITEM =
   'block w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-surface hover:text-text-primary';
 
+/**
+ * Traza del botón que abre el menú. Va en el acento de la aplicación —el mismo
+ * de «Guardar en el anejo» y del asistente— porque en gris, al pie de la tabla y
+ * con el peso de la línea de ayuda de al lado, pasaba por una nota al pie y no
+ * por lo que es: la única manera de añadir una fila.
+ *
+ * Se exporta porque el acero estructural no tiene lista de habituales y añade
+ * con un botón suelto, que tiene que verse igual que éste.
+ */
+export const BOTON_ANADIR =
+  'inline-flex items-center gap-1.5 rounded border border-accent/45 bg-accent/12 px-3 py-1.5 text-[12px] font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/20';
+
 export function MenuAnadir({ etiqueta, nombres, etiquetaLibre, onElegir }: Props) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
@@ -65,7 +77,7 @@ export function MenuAnadir({ etiqueta, nombres, etiquetaLibre, onElegir }: Props
         aria-haspopup="menu"
         aria-expanded={abierto}
         onClick={() => setAbierto((a) => !a)}
-        className="rounded border border-border-main bg-bg-elevated px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+        className={BOTON_ANADIR}
       >
         {etiqueta}
       </button>

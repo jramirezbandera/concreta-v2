@@ -190,6 +190,24 @@ export function filaMaderaDesdePreset(nombre: string): FilaMadera {
   };
 }
 
+/**
+ * Saca el elemento de `desde` y lo mete en `hasta`. Devuelve la MISMA lista si
+ * el movimiento no la cambia (fuera de rango, o al sitio en el que ya estaba):
+ * así el `actualizar` del módulo puede no tocar el estado y no reescribir el
+ * almacén ni republicar el cuadro por un arrastre que no llegó a nada.
+ *
+ * El orden importa más de lo que parece: es el del cuadro del plano, el de los
+ * párrafos de la memoria y el del sobre que leen los demás módulos.
+ */
+export function moverEnLista<T>(lista: T[], desde: number, hasta: number): T[] {
+  if (desde === hasta) return lista;
+  if (desde < 0 || hasta < 0 || desde >= lista.length || hasta >= lista.length) return lista;
+  const siguiente = lista.slice();
+  const [fila] = siguiente.splice(desde, 1);
+  siguiente.splice(hasta, 0, fila);
+  return siguiente;
+}
+
 export function defaultMaterialesState(): MaterialesState {
   return {
     usaHormigon: true,

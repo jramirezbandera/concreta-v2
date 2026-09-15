@@ -321,6 +321,82 @@ describe('consistencia — CE 33.5', () => {
   });
 });
 
+describe('el orden de las filas', () => {
+  const nombres = () =>
+    (screen.getAllByLabelText('Nombre del elemento') as HTMLInputElement[]).map((i) => i.value);
+
+  /** El asa de reordenar de la fila cuyo nombre se pasa. */
+  const asaDe = (nombre: string) =>
+    within(filaDe(nombre)).getByRole('button', {
+      name: new RegExp(`^Cambiar de sitio ${nombre},`),
+    });
+
+  it('las flechas del asa bajan y suben la fila', () => {
+    montar();
+    fireEvent.keyDown(asaDe('Cimentación'), { key: 'ArrowDown' });
+    expect(nombres()).toEqual([
+      'Muros de sótano',
+      'Cimentación',
+      'Forjados',
+      'Hormigón de limpieza',
+    ]);
+    fireEvent.keyDown(asaDe('Cimentación'), { key: 'ArrowUp' });
+    expect(nombres()).toEqual([
+      'Cimentación',
+      'Muros de sótano',
+      'Forjados',
+      'Hormigón de limpieza',
+    ]);
+  });
+
+  it('la primera fila no sube más, ni la última baja', () => {
+    montar();
+    fireEvent.keyDown(asaDe('Cimentación'), { key: 'ArrowUp' });
+    fireEvent.keyDown(asaDe('Hormigón de limpieza'), { key: 'ArrowDown' });
+    expect(nombres()).toEqual([
+      'Cimentación',
+      'Muros de sótano',
+      'Forjados',
+      'Hormigón de limpieza',
+    ]);
+  });
+
+  it('el orden nuevo es el que sale en el cuadro del plano', () => {
+    // Lo que de verdad importa: el orden del editor NO es cosa de la pantalla,
+    // es el del cuadro que se imprime. El hormigón de limpieza se queda el
+    // último pase lo que pase, porque va por su propia vía.
+    montar();
+    fireEvent.keyDown(asaDe('Forjados'), { key: 'ArrowUp' });
+    fireEvent.keyDown(asaDe('Forjados'), { key: 'ArrowUp' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano' }));
+
+    const cuadro = screen.getAllByRole('table')[0];
+    const localizacion = within(cuadro)
+      .getAllByRole('row')
+      .slice(1)
+      .map((f) => f.children[0].textContent);
+    expect(localizacion).toEqual([
+      'Forjados',
+      'Cimentación',
+      'Muros de sótano',
+      'Hormigón de limpieza',
+    ]);
+  });
+
+  it('el orden sobrevive a recargar el módulo', () => {
+    const { unmount } = montar();
+    fireEvent.keyDown(asaDe('Hormigón de limpieza'), { key: 'ArrowUp' });
+    unmount();
+    montar();
+    expect(nombres()).toEqual([
+      'Cimentación',
+      'Muros de sótano',
+      'Hormigón de limpieza',
+      'Forjados',
+    ]);
+  });
+});
+
 describe('las pestañas del documento', () => {
   it('el cuadro de plano dice lo mismo que el editor', () => {
     montar();
