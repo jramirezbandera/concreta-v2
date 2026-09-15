@@ -11,12 +11,16 @@ import { Trash2 } from 'lucide-react';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { ToggleChip } from '../../components/ui/ToggleChip';
 import { CabeceraLista, Campo, FilaInterruptor, NotaSeccion } from './campos';
-import { EXPOSICION_OPCIONES, LIMAHOYA_OPCIONES, SK_MODO_OPCIONES, type LimahoyaUI, type SkModo } from './catalogos';
+import { EXPOSICION_OPCIONES, LIMAHOYA_OPCIONES, opcionesSkModo, type LimahoyaUI, type SkModo } from './catalogos';
 import { BOTON_MENOR, INPUT, SELECCION } from './estilos';
-import type { FaldonUI, NieveUI } from './state';
+import type { FaldonUI, NieveUI, Zonas } from './state';
 
 interface Props {
   n: NieveUI;
+  /** Provincia y zonas del emplazamiento: deciden de qué tabla sale sk. */
+  zonas: Zonas;
+  /** Altitud tecleada, m. Sólo para rotular la opción de la tabla E.2. */
+  altitud: number | null;
   ayuda: boolean;
   faldonSel: string | null;
   onSelectFaldon: (id: string | null) => void;
@@ -26,9 +30,17 @@ interface Props {
   onBorrarFaldon: (id: string) => void;
 }
 
-export function Nieve({ n, ayuda, faldonSel, onSelectFaldon, onCambiar, onFaldon, onAnadirFaldon, onBorrarFaldon }: Props) {
+export function Nieve({ n, zonas, altitud, ayuda, faldonSel, onSelectFaldon, onCambiar, onFaldon, onAnadirFaldon, onBorrarFaldon }: Props) {
   const exposicion = EXPOSICION_OPCIONES.find((o) => o.id === n.exposicion);
-  const skModo = SK_MODO_OPCIONES.find((o) => o.id === n.skModo);
+  const skOpciones = opcionesSkModo({
+    capital: zonas.provincia?.capital ?? null,
+    esCapital: zonas.esCapital,
+    zonaInvernal: zonas.zonaInvernal,
+    altitud,
+  });
+  // Un modo que ya no se ofrece (se cambió de provincia, o el municipio dejó
+  // de ser la capital) se comporta como `auto`: así lo resuelve `origenSk`.
+  const skModo = skOpciones.find((o) => o.id === n.skModo) ?? skOpciones[0];
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -58,10 +70,10 @@ export function Nieve({ n, ayuda, faldonSel, onSelectFaldon, onCambiar, onFaldon
             </select>
           </Campo>
 
-          <Campo etiqueta="Sobrecarga sobre terreno horizontal sk" ayuda={skModo?.ayuda} nota={ayuda ? skModo?.ayuda : undefined}>
+          <Campo etiqueta="Sobrecarga sobre terreno horizontal sk" derivado={skModo.id === 'auto'} ayuda={skModo.ayuda} nota={ayuda ? skModo.ayuda : undefined}>
             <div className="flex gap-2">
-              <select value={n.skModo} aria-label="Origen de sk" className={INPUT} onChange={(ev) => onCambiar({ skModo: ev.target.value as SkModo })}>
-                {SK_MODO_OPCIONES.map((o) => (
+              <select value={skModo.id} aria-label="Origen de sk" className={INPUT} onChange={(ev) => onCambiar({ skModo: ev.target.value as SkModo })}>
+                {skOpciones.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.etiqueta}
                   </option>

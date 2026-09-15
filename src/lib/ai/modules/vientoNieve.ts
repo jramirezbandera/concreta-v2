@@ -85,7 +85,11 @@ const INES: readonly string[] = PROVINCIAS.map((p) => p.ine);
 const ASPEREZAS: readonly GradoAspereza[] = ORDEN_ASPEREZAS;
 const SUPERFICIES: readonly SuperficieExterior[] = ['rugosa', 'lisa', 'muyRugosa'];
 const QB_MODOS: readonly QbModo[] = ['zona', 'simplificado', 'manual'];
-const SK_MODOS: readonly SkModo[] = ['auto', 'manual'];
+const SK_MODOS: readonly SkModo[] = ['auto', 'tabla38', 'anejoE', 'manual'];
+// Al modelo se le ofrecen dos: qué tabla de la norma manda lo decide el
+// municipio, no él. Los otros dos modos son la corrección a mano del
+// proyectista y sólo tienen que atravesar el parseo sin perderse.
+const SK_MODOS_OFRECIDOS: readonly SkModo[] = ['auto', 'manual'];
 const EXPOSICIONES: readonly ExposicionNieve[] = ['normal', 'protegida', 'expuesta'];
 const CUMBRERAS: readonly EjeCumbrera[] = ['x', 'y'];
 const AREA_MODOS: readonly AreaModo[] = ['zona', 'local', 'propia'];
@@ -116,7 +120,7 @@ export const VIENTO_NIEVE_PAYLOAD_SCHEMA: Record<string, unknown> = {
     emplazamiento: {
       type: ['object', 'null'],
       additionalProperties: false,
-      required: ['provincia_ine', 'municipio', 'altitud_m', 'es_capital'],
+      required: ['provincia_ine', 'municipio', 'altitud_m'],
       description: 'Dónde está la obra. De la PROVINCIA salen la zona eólica (mapa D.1) y la de clima invernal (mapa E.2); de la ALTITUD, la carga de nieve. null = sin cambio.',
       properties: {
         provincia_ine: {
@@ -126,15 +130,11 @@ export const VIENTO_NIEVE_PAYLOAD_SCHEMA: Record<string, unknown> = {
         },
         municipio: {
           type: 'string',
-          description: 'Nombre del municipio. Sólo se imprime y viaja en la publicación; no entra en el cálculo salvo a través de "es_capital".',
+          description: 'Nombre del municipio. Se imprime, viaja en la publicación y ADEMÁS decide: si es la capital de la provincia, la aplicación toma la carga de nieve de la tabla 3.8 (el valor de esa capital) en vez de la E.2. Escríbelo como lo diga el usuario; no lo fuerces a la capital para cambiar la tabla.',
         },
         altitud_m: {
           type: 'number',
           description: 'Altitud del emplazamiento sobre el nivel del mar, METROS. La carga de nieve sube con ella (tabla E.2). Por encima de lo tabulado para su zona, la norma remite a la ordenanza municipal (art. 3.5.2-3) y hay que dar un valor propio.',
-        },
-        es_capital: {
-          type: 'boolean',
-          description: 'true SÓLO si la obra está en la capital de provincia: entonces la carga de nieve sale de la tabla 3.8, que da el valor de la capital con su altitud, en vez de la tabla E.2 por zona y altitud. No lo marques por estar "cerca" de la capital.',
         },
       },
     },
@@ -238,8 +238,8 @@ export const VIENTO_NIEVE_PAYLOAD_SCHEMA: Record<string, unknown> = {
         },
         sk_modo: {
           type: 'string',
-          enum: [...SK_MODOS],
-          description: '"auto": la sobrecarga de nieve sale de la norma (tabla 3.8 si la obra está en la capital, tabla E.2 por zona y altitud si no), y es lo normal. "manual": un valor propio de la ordenanza municipal o de datos empíricos, que es lo que la norma pide por encima de las altitudes tabuladas.',
+          enum: [...SK_MODOS_OFRECIDOS],
+          description: '"auto": la sobrecarga de nieve sale de la norma, y la tabla la decide el municipio (la 3.8 si es la capital, la E.2 por zona y altitud si no). Es lo normal. "manual": un valor propio de la ordenanza municipal o de datos empíricos, que es lo que la norma pide por encima de las altitudes tabuladas. Para cambiar de tabla NO uses este campo: escribe bien el municipio.',
         },
         sk_manual_kNm2: {
           type: 'number',
@@ -318,7 +318,6 @@ export interface EmplazamientoAi {
   provincia_ine: string;
   municipio: string;
   altitud_m: number;
-  es_capital: boolean;
 }
 
 export interface CubiertaAi {
@@ -407,7 +406,6 @@ export function parsePayload(raw: unknown): VientoNievePayload {
         provincia_ine: textoO(e.provincia_ine, ''),
         municipio: textoO(e.municipio, ''),
         altitud_m: numeroO(e.altitud_m, -1),
-        es_capital: boolO(e.es_capital, false),
       }
       : null,
     viento: v
@@ -504,6 +502,13 @@ const vientoDe = (s: VientoNieveState): VientoAi => ({
     area_propia_m2: s.viento.paramentos.areaPropia,
   },
 });
+
+/** Cómo se lee el modo de sk en la lista de cambios: las dos tablas se nombran. */
+const etiquetaSk = (n: NieveAi): string =>
+  n.sk_modo === 'manual' ? `valor propio ${kNm2(n.sk_manual_kNm2)}`
+    : n.sk_modo === 'tabla38' ? 'la tabla 3.8 (capital), forzada'
+      : n.sk_modo === 'anejoE' ? 'la tabla E.2 (zona y altitud), forzada'
+        : 'la de la norma';
 
 const nieveDe = (s: VientoNieveState): NieveAi => ({
   activo: s.nieve.activo,
@@ -810,11 +815,6 @@ function buildVientoNievePlan(
         anota('emplazamiento.altitud_m', 'Altitud', antes.altitud === null ? 'sin decir' : `${antes.altitud} m`, `${e.altitud_m} m`);
       }
     }
-    if (e.es_capital !== antes.esCapital) {
-      emplazamiento.esCapital = e.es_capital;
-      anota('emplazamiento.es_capital', 'La obra está en la capital', antes.esCapital ? 'sí' : 'no', e.es_capital ? 'sí' : 'no');
-    }
-
     if (JSON.stringify(emplazamiento) !== JSON.stringify(antes)) fields.emplazamiento = emplazamiento;
     else if (rechazos === 0) skipped.push({ field: 'emplazamiento', label: 'Emplazamiento', reason: ALREADY });
   }
@@ -920,9 +920,7 @@ function buildVientoNievePlan(
     const despues = nieveDe({ ...current, nieve: nieveBase });
     anota('nieve.activo', 'Se calcula la nieve', antes.activo ? 'sí' : 'no', despues.activo ? 'sí' : 'no');
     anota('nieve.exposicion', 'Exposición al viento', ETIQUETA_EXPOSICION[antes.exposicion], ETIQUETA_EXPOSICION[despues.exposicion]);
-    anota('nieve.sk_modo', 'Sobrecarga de nieve',
-      antes.sk_modo === 'manual' ? `valor propio ${kNm2(antes.sk_manual_kNm2)}` : 'la de la norma',
-      despues.sk_modo === 'manual' ? `valor propio ${kNm2(despues.sk_manual_kNm2)}` : 'la de la norma');
+    anota('nieve.sk_modo', 'Sobrecarga de nieve', etiquetaSk(antes), etiquetaSk(despues));
     if (JSON.stringify(despues) !== JSON.stringify(antes)) nieveTocada = true;
     else skipped.push({ field: 'nieve', label: 'Nieve', reason: ALREADY });
   }
@@ -978,7 +976,6 @@ function buildSnapshot(c: VientoNieveState): string {
       provincia_ine: c.emplazamiento.provincia || null,
       municipio: c.emplazamiento.municipio || null,
       altitud_m: c.emplazamiento.altitud,
-      es_capital: c.emplazamiento.esCapital,
     },
     viento: vientoDe(c),
     plantas: c.viento.plantas.map(plantaDe),
@@ -997,11 +994,15 @@ function buildSnapshot(c: VientoNieveState): string {
     zona_invernal: zonas.zonaInvernal,
     eolica_forzada_por_el_proyectista: zonas.eolicaForzada,
     invernal_forzada_por_el_proyectista: zonas.invernalForzada,
-    sk_de_la_capital_tabla_3_8: zonas.skCapital,
+    el_municipio_tecleado_es_la_capital: zonas.esCapital,
+    capital_de_la_provincia: zonas.provincia
+      ? { nombre: zonas.provincia.capital.capital, altitud_m: zonas.provincia.capital.altitud, sk_tabla_3_8_kNm2: zonas.provincia.capital.sk }
+      : null,
     frontera: zonas.provincia?.frontera ?? null,
     nota: 'Las dos zonas salen de los mapas D.1 y E.2 a partir de la provincia. NO son campos de tu '
       + 'propuesta y NUNCA las cites de memoria: si el municipio cae al otro lado de una frontera del '
-      + 'mapa, las fuerza el proyectista en el panel.',
+      + 'mapa, las fuerza el proyectista en el panel. Que la obra esté en la capital tampoco es un campo '
+      + 'tuyo: se deduce del municipio que escribas, y con él la nieve pasa a salir de la tabla 3.8.',
   };
   valores.cotas_derivadas_m = cotasPlantas(c.viento.plantas);
   valores.altura_coronacion_efectiva_m = alturaCoronacionEfectiva(c.viento);
@@ -1038,7 +1039,7 @@ export function summarizeVientoNieveResults(ev: Evaluacion): AiResultsSummary {
     `Emplazamiento: ${ev.zonas.provincia?.nombre ?? 'sin provincia'}`
     + ` · zona eólica ${ev.zonas.zonaEolica ?? '—'}${ev.zonas.eolicaForzada ? ' (FORZADA por el proyectista)' : ''}`
     + ` · zona de clima invernal ${ev.zonas.zonaInvernal ?? '—'}${ev.zonas.invernalForzada ? ' (FORZADA)' : ''}`
-    + (ev.zonas.skCapital !== null ? ` · sk de capital (tabla 3.8) = ${ev.zonas.skCapital} kN/m²` : ''),
+    + (ev.zonas.esCapital && ev.zonas.provincia ? ` · el municipio es la capital: sk de la tabla 3.8 = ${ev.zonas.provincia.capital.sk} kN/m²` : ''),
   );
 
   const v = ev.viento;

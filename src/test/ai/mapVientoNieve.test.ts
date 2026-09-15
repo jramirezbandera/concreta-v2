@@ -32,7 +32,7 @@ import {
 const SI = 'si' as const;
 
 const emplazamiento = (over: Partial<EmplazamientoAi> = {}): EmplazamientoAi => ({
-  provincia_ine: '40', municipio: 'Segovia', altitud_m: 1000, es_capital: true, ...over,
+  provincia_ine: '40', municipio: 'Segovia', altitud_m: 1000, ...over,
 });
 
 const viento = (over: Partial<VientoAi> = {}): VientoAi => ({
@@ -79,7 +79,7 @@ function edificioReal(): VientoNieveState {
   const s = base();
   return {
     ...s,
-    emplazamiento: { provincia: '40', municipio: 'Segovia', altitud: 1000, esCapital: true, zonaEolica: null, zonaInvernal: null },
+    emplazamiento: { provincia: '40', municipio: 'Segovia', altitud: 1000, zonaEolica: null, zonaInvernal: null },
     viento: {
       ...s.viento,
       dimensiones: { x: 22, y: 14 },
@@ -93,7 +93,9 @@ describe('las zonas de los mapas NO son del asistente', () => {
   it('ni la eólica ni la invernal son campos del payload', () => {
     const props = VIENTO_NIEVE_PAYLOAD_SCHEMA.properties as Record<string, Record<string, unknown>>;
     const emp = (props.emplazamiento.properties ?? {}) as Record<string, unknown>;
-    expect(Object.keys(emp)).toEqual(['provincia_ine', 'municipio', 'altitud_m', 'es_capital']);
+    expect(Object.keys(emp)).toEqual(['provincia_ine', 'municipio', 'altitud_m']);
+    // Estar en la capital tampoco: se deduce del municipio (tabla 3.8).
+    expect(JSON.stringify(VIENTO_NIEVE_PAYLOAD_SCHEMA)).not.toContain('es_capital');
     expect(JSON.stringify(VIENTO_NIEVE_PAYLOAD_SCHEMA)).not.toContain('zona_eolica');
     expect(JSON.stringify(VIENTO_NIEVE_PAYLOAD_SCHEMA)).not.toContain('zona_invernal');
   });
@@ -131,12 +133,15 @@ describe('las zonas de los mapas NO son del asistente', () => {
 });
 
 describe('el emplazamiento', () => {
-  it('la provincia, el municipio, la altitud y la capital llegan enteros', () => {
+  it('la provincia, el municipio y la altitud llegan enteros', () => {
     const current = base();
     const p = plan(payload({ emplazamiento: emplazamiento() }), current);
     expect(p.fields.emplazamiento).toMatchObject({
-      provincia: '40', municipio: 'Segovia', altitud: 1000, esCapital: true,
+      provincia: '40', municipio: 'Segovia', altitud: 1000,
     });
+    // Y con el municipio escrito, la nieve ya sale de la tabla 3.8 sin que el
+    // modelo haya dicho nada: Segovia es la capital.
+    expect(zonasEfectivas(p.fields.emplazamiento!).esCapital).toBe(true);
   });
 
   it('una altitud fuera de rango se rechaza', () => {

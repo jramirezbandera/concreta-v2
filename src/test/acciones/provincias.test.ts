@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { cargaNieveTerreno } from '../../lib/acciones/nieve';
-import { PROVINCIAS, provinciaDe, provinciaPorIne } from '../../lib/acciones/provincias';
+import { esCapitalDeProvincia, PROVINCIAS, provinciaDe, provinciaPorIne } from '../../lib/acciones/provincias';
 import type { ZonaEolica, ZonaInvernal } from '../../lib/acciones/tablasAE';
 
 describe('forma', () => {
@@ -110,6 +110,48 @@ describe('avisos de frontera', () => {
     }
     for (const p of PROVINCIAS) {
       for (const texto of Object.values(p.frontera ?? {})) expect(texto.endsWith('.')).toBe(true);
+    }
+  });
+});
+
+describe('¿el municipio es la capital?', () => {
+  it('cada capital se reconoce por su nombre, entero y por mitades', () => {
+    for (const p of PROVINCIAS) {
+      const nombre = p.capital.capital;
+      expect(esCapitalDeProvincia(p.ine, nombre), nombre).toBe(true);
+      for (const mitad of nombre.split(' / ')) {
+        expect(esCapitalDeProvincia(p.ine, mitad), mitad).toBe(true);
+      }
+    }
+  });
+
+  it('una capital no cuela como capital de otra provincia', () => {
+    for (const p of PROVINCIAS) {
+      const otras = PROVINCIAS.filter((q) => q.ine !== p.ine && esCapitalDeProvincia(q.ine, p.capital.capital));
+      expect(otras.map((q) => q.nombre), p.capital.capital).toEqual([]);
+    }
+  });
+
+  it('los nombres oficiales largos y los bilingües que la tabla 3.8 no escribe', () => {
+    const casos: [ine: string, municipio: string][] = [
+      ['38', 'Santa Cruz de Tenerife'], ['35', 'Las Palmas de Gran Canaria'], ['07', 'Palma'],
+      ['12', 'Castelló de la Plana'], ['12', 'Castellón de la Plana'], ['31', 'Iruñea'],
+      ['01', 'Vitoria-Gasteiz'], ['20', 'Donostia-San Sebastián'], ['15', 'La Coruña'],
+      ['15', 'A CORUÑA'], ['33', 'Oviedo/Uviéu'], ['46', 'valencia'], ['05', 'Avila'],
+    ];
+    for (const [ine, municipio] of casos) {
+      expect(esCapitalDeProvincia(ine, municipio), `${municipio} (${ine})`).toBe(true);
+    }
+  });
+
+  it('lo que no es la capital se queda fuera, y en la duda no se inventa', () => {
+    const casos: [ine: string, municipio: string][] = [
+      ['29', 'Benahavís'], ['29', 'Marbella'], ['28', 'Alcalá de Henares'], ['09', 'Aranda de Duero'],
+      ['14', 'Palma del Río'], ['24', 'Valencia de Don Juan'], ['38', 'San Cristóbal de La Laguna'],
+      ['28', ''], ['28', '   '], ['99', 'Madrid'],
+    ];
+    for (const [ine, municipio] of casos) {
+      expect(esCapitalDeProvincia(ine, municipio), `${municipio} (${ine})`).toBe(false);
     }
   });
 });

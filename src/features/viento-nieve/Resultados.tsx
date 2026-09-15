@@ -73,8 +73,8 @@ export function Resultados(props: Props) {
 function ArregloHuecos() {
   return (
     <Arreglo>
-      Elija la provincia en «Emplazamiento» (o fuerce la zona eólica) y teclee la altitud. Si la obra está en la capital, marque
-      la casilla: la altitud se rellena sola y la nieve sale de la tabla 3.8.
+      Elija la provincia en «Emplazamiento» (o fuerce la zona eólica), teclee el municipio y la altitud. Si el municipio es la
+      capital, la nieve sale sola de la tabla 3.8.
     </Arreglo>
   );
 }

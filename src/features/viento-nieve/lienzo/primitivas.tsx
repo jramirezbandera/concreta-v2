@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- las dos medidas de abajo (`anchoEstimado`, `altoBajoLocalizador`) son de los dibujos que viven aquí: sacarlas a otro fichero separaría la cifra de lo que la usa para colocar sus rótulos. Mismo criterio que `canvasGlyphs.tsx` y `campos.tsx`. HMR full-reload aceptable. */
 /**
  * Lo que este módulo añade a las primitivas comunes de los lienzos
  * (`components/canvas/primitivas.tsx`): la planta pequeña que sitúa la
@@ -15,6 +16,20 @@ import type { Punta } from '../../../components/canvas/Marcadores';
 
 export { Rotulo, Cabecera, Flecha, CotaH, CotaV, Suelo } from '../../../components/canvas/primitivas';
 
+/**
+ * Ancho aproximado de un rótulo, px, para colocar lo que va a su lado sin
+ * medir el DOM: 0,6 em por carácter en mono, 0,52 en sans, un 5 % más en
+ * negrita. Sobra un poco a propósito: mejor un hueco que un solape.
+ */
+export function anchoEstimado(texto: string, tam: number, mono = false, peso: 400 | 500 | 600 = 400): number {
+  return texto.length * tam * (mono ? 0.6 : 0.52) * (peso >= 600 ? 1.05 : 1);
+}
+
+/** Alto que ocupa la planta pequeña por debajo de su borde inferior: la cota interior o, si no cabe, debajo, y el rótulo «según X». */
+export function altoBajoLocalizador(): number {
+  return 34;
+}
+
 interface LocalizadorProps {
   x: number;
   y: number;
@@ -27,7 +42,7 @@ interface LocalizadorProps {
   onDireccion?: (d: 'x' | 'y') => void;
   /** Rótulo de cada dirección («según Y · 215,8 kN»). */
   rotulos?: { x: string; y: string };
-  /** Píxeles por metro del dibujito; con 20 × 12 m y 9 px/m salen 180 × 108 px. */
+  /** Píxeles por metro del dibujito; con 20 × 12 m y 9 px/m salen 180 × 108 px. Quien llama la reduce para que quepa. */
   escala?: number;
 }
 
@@ -41,6 +56,8 @@ interface LocalizadorProps {
 export function PlantaLocalizador({ x, y, dimensiones, cumbrera, direccion, punta, onDireccion, rotulos, escala = 9 }: LocalizadorProps) {
   const w = Math.max(1, dimensiones.x) * escala;
   const h = Math.max(1, dimensiones.y) * escala;
+  // La cota «44 × 21 m» va dentro si cabe; en una planta diminuta, debajo, y «según X» baja con ella.
+  const cotaDentro = w >= 80 && h >= 26;
   const activo = (d: 'x' | 'y') => d === direccion;
   const color = (d: 'x' | 'y') => (activo(d) ? COLOR.accent : COLOR.atenuado);
   const teclado = (d: 'x' | 'y') => (ev: KeyboardEvent<SVGGElement>) => {
@@ -60,7 +77,7 @@ export function PlantaLocalizador({ x, y, dimensiones, cumbrera, direccion, punt
       <rect x={x} y={y} width={w} height={h} fill={COLOR.fondo} stroke={COLOR.seccion} strokeWidth={1.25} />
       {cumbrera === 'x' && <line x1={x} y1={y + h / 2} x2={x + w} y2={y + h / 2} stroke={COLOR.cota} strokeWidth={1} strokeDasharray="4 3" />}
       {cumbrera === 'y' && <line x1={x + w / 2} y1={y} x2={x + w / 2} y2={y + h} stroke={COLOR.cota} strokeWidth={1} strokeDasharray="4 3" />}
-      <Rotulo x={x + w / 2} y={y + h - 5} tam={9.5} color={COLOR.atenuado} mono ancla="middle">
+      <Rotulo x={x + w / 2} y={cotaDentro ? y + h - 5 : y + h + 12} tam={9.5} color={COLOR.atenuado} mono ancla="middle">
         {dec(dimensiones.x, 0)} × {dec(dimensiones.y, 0)} m
       </Rotulo>
       <g {...boton('y')}>
@@ -78,7 +95,7 @@ export function PlantaLocalizador({ x, y, dimensiones, cumbrera, direccion, punt
           <Flecha key={k} x1={x - 30} y1={y + h * k} x2={x - 6} y2={y + h * k} punta={punta(activo('x') ? 'accent' : 'atenuado')} color={color('x')} grosor={activo('x') ? 2 : 1.25} />
         ))}
         {rotulos && (
-          <Rotulo x={x - 30} y={y + h + 18} tam={11} color={color('x')} mono peso={activo('x') ? 600 : 400}>
+          <Rotulo x={x - 30} y={y + h + (cotaDentro ? 18 : 30)} tam={11} color={color('x')} mono peso={activo('x') ? 600 : 400}>
             {rotulos.x}
           </Rotulo>
         )}

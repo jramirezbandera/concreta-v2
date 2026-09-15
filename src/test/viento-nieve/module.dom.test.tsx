@@ -311,3 +311,42 @@ describe('paramentos verticales', () => {
     });
   });
 });
+
+describe('la capital sale del municipio, no de una casilla', () => {
+  it('teclear «Madrid» cambia la tabla de sk, lo dice, y se puede volver a la E.2', () => {
+    montar();
+    rellenarMadrid();
+
+    // Sin municipio: la E.2 por zona y altitud.
+    expect(screen.queryByLabelText(/La obra está en la capital/i)).not.toBeInTheDocument();
+    vista('Nieve');
+    expect(within(resultados()).getByText('sk · tabla E.2')).toBeInTheDocument();
+    expect(within(resultados()).getByText('0,56 kN/m²')).toBeInTheDocument();
+
+    // Tecleado el municipio, manda la tabla 3.8 sin preguntar nada.
+    fireEvent.change(screen.getByLabelText('Municipio'), { target: { value: 'Madrid' } });
+    expect(screen.getByText(/Es la capital de Madrid/)).toBeInTheDocument();
+    expect(within(resultados()).getByText('sk · tabla 3.8, capital')).toBeInTheDocument();
+    expect(within(resultados()).getByText('0,60 kN/m²')).toBeInTheDocument();
+
+    // Y la salida: forzar la E.2 desde el desplegable de la sección Nieve.
+    const origen = screen.getByLabelText('Origen de sk') as HTMLSelectElement;
+    expect(origen.options[0].text).toMatch(/^Tabla 3\.8 — Madrid, la capital$/);
+    fireEvent.change(origen, { target: { value: 'anejoE' } });
+    expect(within(resultados()).getByText('sk · tabla E.2')).toBeInTheDocument();
+    expect(within(resultados()).getByText('0,56 kN/m²')).toBeInTheDocument();
+  });
+
+  it('en un municipio que no es la capital, la 3.8 sigue a mano para quien la necesite', () => {
+    montar();
+    rellenarMadrid();
+    fireEvent.change(screen.getByLabelText('Municipio'), { target: { value: 'Alcalá de Henares' } });
+    expect(screen.queryByText(/Es la capital/)).not.toBeInTheDocument();
+
+    vista('Nieve');
+    const origen = screen.getByLabelText('Origen de sk') as HTMLSelectElement;
+    expect(origen.options[0].text).toMatch(/^Tabla E\.2 — zona 4 a 660 m$/);
+    fireEvent.change(origen, { target: { value: 'tabla38' } });
+    expect(within(resultados()).getByText('sk · tabla 3.8, capital')).toBeInTheDocument();
+  });
+});

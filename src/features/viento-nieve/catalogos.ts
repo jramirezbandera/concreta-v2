@@ -7,7 +7,7 @@
  */
 
 import { PROVINCIAS, type Provincia } from '../../lib/acciones/provincias';
-import type { ExposicionNieve, GradoAspereza, SuperficieExterior } from '../../lib/acciones/tablasAE';
+import type { CapitalNieve, ExposicionNieve, GradoAspereza, SuperficieExterior, ZonaInvernal } from '../../lib/acciones/tablasAE';
 
 export interface Opcion<T extends string> {
   id: T;
@@ -119,20 +119,68 @@ export const SUPERFICIE_OPCIONES: Opcion<SuperficieExterior>[] = [
   },
 ];
 
-export type SkModo = 'auto' | 'manual';
+/**
+ * De dónde sale sk. `auto` es lo que dice la norma con el municipio tecleado
+ * —la tabla 3.8 si es la capital, la E.2 si no—; los otros dos modos son esa
+ * misma decisión tomada a mano, y el cuarto es un valor propio.
+ */
+export type SkModo = 'auto' | 'tabla38' | 'anejoE' | 'manual';
 
-export const SK_MODO_OPCIONES: Opcion<SkModo>[] = [
-  {
-    id: 'auto',
-    etiqueta: 'Según la norma',
-    ayuda: 'Tabla 3.8 si la obra está en la capital; si no, tabla E.2 por zona y altitud, interpolando.',
-  },
-  {
-    id: 'manual',
-    etiqueta: 'Un valor propio (ordenanza, datos empíricos)',
-    ayuda: 'Por encima de las altitudes tabuladas la norma remite a la ordenanza municipal o a los datos disponibles (art. 3.5.2-3).',
-  },
-];
+const VALOR_PROPIO: Opcion<SkModo> = {
+  id: 'manual',
+  etiqueta: 'Un valor propio (ordenanza, datos empíricos)',
+  ayuda: 'Por encima de las altitudes tabuladas la norma remite a la ordenanza municipal o a los datos disponibles (art. 3.5.2-3).',
+};
+
+/** Contexto del emplazamiento que cambia lo que puede elegirse y cómo se rotula. */
+export interface ContextoSk {
+  /** La capital de la provincia elegida, con su altitud y su sk. null = sin provincia. */
+  capital: CapitalNieve | null;
+  /** El municipio tecleado es esa capital. */
+  esCapital: boolean;
+  zonaInvernal: ZonaInvernal | null;
+  altitud: number | null;
+}
+
+const soloNombre = (capital: string) => capital.split(' / ')[0];
+const kNm2 = (v: number) => `${v.toFixed(2).replace('.', ',')} kN/m²`;
+
+/**
+ * Las opciones del desplegable, rotuladas con lo que de verdad va a pasar. La
+ * casilla «la obra está en la capital» del emplazamiento vivía aquí desde el
+ * 2026-09-15: el municipio ya lo dice, así que la primera opción enseña qué
+ * tabla sale de él y las demás son la salida para corregirlo.
+ */
+export function opcionesSkModo({ capital, esCapital, zonaInvernal, altitud }: ContextoSk): Opcion<SkModo>[] {
+  const e2 = zonaInvernal !== null && altitud !== null ? `zona ${zonaInvernal} a ${altitud} m` : 'por zona y altitud';
+  const auto: Opcion<SkModo> = esCapital && capital
+    ? {
+      id: 'auto',
+      etiqueta: `Tabla 3.8 — ${soloNombre(capital.capital)}, la capital`,
+      ayuda: `Lo que dice la norma con este municipio: es la capital, y la tabla 3.8 le da sk = ${kNm2(capital.sk)} a ${capital.altitud} m, que manda sobre la E.2.`,
+    }
+    : {
+      id: 'auto',
+      etiqueta: `Tabla E.2 — ${e2}`,
+      ayuda: 'Lo que dice la norma con este municipio: por zona de clima invernal y altitud, interpolando entre filas. La tabla 3.8 sólo vale en la capital de provincia.',
+    };
+
+  if (!capital) return [auto, VALOR_PROPIO];
+
+  const aMano: Opcion<SkModo> = esCapital
+    ? {
+      id: 'anejoE',
+      etiqueta: `Tabla E.2 — ${e2}, aunque sea la capital`,
+      ayuda: `Por zona y altitud, como un municipio cualquiera. Útil si la obra está en el término de ${soloNombre(capital.capital)} pero a una altitud muy distinta de los ${capital.altitud} m de la tabla 3.8.`,
+    }
+    : {
+      id: 'tabla38',
+      etiqueta: `Tabla 3.8 — la obra está en ${soloNombre(capital.capital)}`,
+      ayuda: `sk = ${kNm2(capital.sk)} a ${capital.altitud} m. Elíjalo si la obra está en la capital y el municipio tecleado no lo dice con ese nombre.`,
+    };
+
+  return [auto, aMano, VALOR_PROPIO];
+}
 
 /** Las 52 provincias en orden alfabético, que es como se buscan en un desplegable. */
 export const PROVINCIA_OPCIONES: readonly Provincia[] = [...PROVINCIAS].sort((a, b) =>

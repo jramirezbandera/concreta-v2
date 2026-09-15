@@ -116,3 +116,63 @@ export function provinciaPorIne(ine: string): Provincia | undefined {
 export function provinciaDe(ine: string): string {
   return provinciaPorIne(ine)?.nombre ?? '';
 }
+
+// ── ¿El municipio es la capital? ────────────────────────────────────────────
+
+/**
+ * Nombres con los que se teclea una capital y que la tabla 3.8 no escribe: el
+ * nombre oficial largo («Santa Cruz de Tenerife» por «Tenerife») o el de la
+ * otra lengua que no está en la tabla. Los pares que la tabla ya trae con
+ * barra («Vitoria / Gasteiz») no hacen falta: se parten solos.
+ */
+const ALIAS_CAPITAL: Record<string, readonly string[]> = {
+  '07': ['Palma'],
+  '12': ['Castelló de la Plana', 'Castellón de la Plana'],
+  '31': ['Iruñea'],
+  '33': ['Uviéu'],
+  '35': ['Las Palmas de Gran Canaria'],
+  '38': ['Santa Cruz de Tenerife'],
+};
+
+/** Artículo inicial que se cae: «A Coruña», «La Coruña» y «Coruña» son el mismo sitio. */
+const ARTICULOS = ['a', 'o', 'el', 'la', 'las', 'los', 'les', 'els'];
+
+/**
+ * Un nombre de municipio reducido a lo comparable: sin tildes ni eñes, sin
+ * paréntesis, sin signos, en minúsculas y sin artículo delante.
+ */
+function normalizarNombre(nombre: string): string {
+  const base = nombre
+    .replace(/\([^)]*\)/g, ' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  const [primera, ...resto] = base.split(' ');
+  return resto.length > 0 && ARTICULOS.includes(primera) ? resto.join(' ') : base;
+}
+
+/** El nombre entero y cada mitad de los bilingües: «Vitoria-Gasteiz» → entero, «vitoria», «gasteiz». */
+function variantes(nombre: string): string[] {
+  const trozos = nombre.split('/').flatMap((t) => t.split('-'));
+  return [nombre, ...trozos].map(normalizarNombre).filter((v) => v !== '');
+}
+
+/**
+ * ¿El municipio tecleado es la capital de esa provincia?
+ *
+ * La tabla 3.8 da un sk propio para las 52 capitales, y en 28 de ellas no es
+ * el que sale de interpolar la E.2 con su altitud: hay que saber si la obra
+ * está en la capital. Antes se preguntaba con una casilla al lado del
+ * municipio —que es preguntar dos veces lo mismo—, así que se deduce del
+ * nombre tecleado. Compara sin tildes, sin artículo y por las dos mitades de
+ * los nombres bilingües; lo que no se reconozca queda en «no es la capital» y
+ * el usuario siempre puede forzar la tabla en la sección Nieve.
+ */
+export function esCapitalDeProvincia(ine: string, municipio: string): boolean {
+  const p = provinciaPorIne(ine);
+  if (!p || municipio.trim() === '') return false;
+  const aceptadas = new Set([...variantes(p.capital.capital), ...(ALIAS_CAPITAL[p.ine] ?? []).flatMap(variantes)]);
+  return variantes(municipio).some((v) => aceptadas.has(v));
+}

@@ -127,7 +127,7 @@ export function Datos({ state, evaluacion, obra, plantaSel, faldonSel, onSelectP
 
       <SeccionVista vista="nieve" onVista={onVista}>
         <CollapsibleSection label="Nieve" refNorma="art. 3.5 · Anejo E" summary={resumenNieve}>
-          <Nieve n={n} ayuda={ayuda} faldonSel={faldonSel} onSelectFaldon={onSelectFaldon} onCambiar={a.onNieve} onFaldon={a.onFaldon} onAnadirFaldon={a.onAnadirFaldon} onBorrarFaldon={a.onBorrarFaldon} />
+          <Nieve n={n} zonas={zonas} altitud={e.altitud} ayuda={ayuda} faldonSel={faldonSel} onSelectFaldon={onSelectFaldon} onCambiar={a.onNieve} onFaldon={a.onFaldon} onAnadirFaldon={a.onAnadirFaldon} onBorrarFaldon={a.onBorrarFaldon} />
         </CollapsibleSection>
       </SeccionVista>
     </div>

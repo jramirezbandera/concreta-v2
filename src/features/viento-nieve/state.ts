@@ -16,6 +16,7 @@ import {
   AREA_CPE,
   calcularNieve,
   calcularViento,
+  esCapitalDeProvincia,
   ORDEN_ASPEREZAS,
   provinciaPorIne,
   QB_SIMPLIFICADO,
@@ -65,12 +66,18 @@ export const PUB_VERSION = 1;
 export interface Emplazamiento {
   /** Código INE de la provincia, dos dígitos. '' = hueco sin resolver. */
   provincia: string;
-  /** Texto libre; sólo se imprime. */
+  /**
+   * Texto libre. Se imprime, y además DECIDE: si es el nombre de la capital
+   * de la provincia, la nieve sale de la tabla 3.8 en vez de la E.2
+   * (`esCapitalDeProvincia`). Hasta el 2026-09-15 eso se preguntaba aparte con
+   * una casilla «la obra está en la capital», que era preguntar dos veces lo
+   * mismo; un estado guardado con la casilla marcada y el municipio en blanco
+   * la pierde al abrirlo y cae a la tabla E.2, que es lo que dice la norma
+   * cuando no consta que la obra esté en la capital.
+   */
   municipio: string;
   /** null = hueco sin resolver (la nieve lo necesita). */
   altitud: number | null;
-  /** La obra está en la capital: sk sale de la tabla 3.8. */
-  esCapital: boolean;
   /** Zona forzada por el usuario. null = la de la provincia. */
   zonaEolica: ZonaEolica | null;
   zonaInvernal: ZonaInvernal | null;
@@ -240,7 +247,6 @@ export function defaultVientoNieveState(): VientoNieveState {
       provincia: obra?.provincia ?? '',
       municipio: obra?.municipio ?? '',
       altitud: obra?.altitud ?? null,
-      esCapital: false,
       zonaEolica: null,
       zonaInvernal: null,
     },
@@ -280,7 +286,7 @@ export function ejemploVientoNieveState(): VientoNieveState {
   const baja = nuevoFaldon('Cubierta baja', 0);
   return {
     ...base,
-    emplazamiento: { provincia: '09', municipio: 'Aranda de Duero', altitud: 800, esCapital: false, zonaEolica: null, zonaInvernal: null },
+    emplazamiento: { provincia: '09', municipio: 'Aranda de Duero', altitud: 800, zonaEolica: null, zonaInvernal: null },
     viento: {
       ...base.viento,
       plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.altura)),
@@ -420,7 +426,6 @@ export function normalizar(bruto: unknown): VientoNieveState {
       provincia,
       municipio: texto(e.municipio, ''),
       altitud: typeof e.altitud === 'number' && Number.isFinite(e.altitud) ? e.altitud : null,
-      esCapital: bool(e.esCapital, false),
       zonaEolica: ['A', 'B', 'C'].includes(e.zonaEolica as string) ? (e.zonaEolica as ZonaEolica) : null,
       zonaInvernal: (ZONAS_INVERNALES as number[]).includes(e.zonaInvernal as number)
         ? (e.zonaInvernal as ZonaInvernal)
@@ -451,7 +456,7 @@ export function normalizar(bruto: unknown): VientoNieveState {
     nieve: {
       activo: bool(n.activo, true),
       exposicion: uno(n.exposicion, ['normal', 'protegida', 'expuesta'] as const, 'normal'),
-      skModo: uno(n.skModo, ['auto', 'manual'] as const, 'auto'),
+      skModo: uno(n.skModo, ['auto', 'tabla38', 'anejoE', 'manual'] as const, 'auto'),
       skManual: numero(n.skManual, 1),
       faldones,
     },
@@ -484,8 +489,11 @@ export interface Zonas {
   /** true si la zona la ha forzado el usuario y no coincide con la de la provincia. */
   eolicaForzada: boolean;
   invernalForzada: boolean;
-  /** sk de la tabla 3.8 cuando la obra está en la capital. */
-  skCapital: number | null;
+  /**
+   * El municipio tecleado es la capital de la provincia: la tabla 3.8 tiene un
+   * sk propio para él. Deducido del nombre, no preguntado.
+   */
+  esCapital: boolean;
 }
 
 export function zonasEfectivas(e: Emplazamiento): Zonas {
@@ -498,8 +506,25 @@ export function zonasEfectivas(e: Emplazamiento): Zonas {
     zonaInvernal,
     eolicaForzada: provincia !== null && e.zonaEolica !== null && e.zonaEolica !== provincia.zonaEolica,
     invernalForzada: provincia !== null && e.zonaInvernal !== null && e.zonaInvernal !== provincia.zonaInvernal,
-    skCapital: e.esCapital && provincia ? provincia.capital.sk : null,
+    esCapital: provincia !== null && esCapitalDeProvincia(provincia.ine, e.municipio),
   };
+}
+
+/** De dónde sale sk con el modo elegido y el municipio tecleado. */
+export type OrigenSk = 'tabla3.8' | 'anejoE' | 'manual';
+
+/**
+ * Qué tabla manda. `auto` es lo que dice la norma con estos datos —la 3.8 si
+ * el municipio es la capital, la E.2 si no—, y los otros dos modos son la
+ * misma decisión tomada a mano: en la capital, quien prefiera la E.2; fuera de
+ * ella, quien sepa que su municipio SÍ es la capital y el nombre tecleado no
+ * se haya reconocido.
+ */
+export function origenSk(n: NieveUI, zonas: Zonas): OrigenSk {
+  if (n.skModo === 'manual') return 'manual';
+  if (n.skModo === 'anejoE' || zonas.provincia === null) return 'anejoE';
+  if (n.skModo === 'tabla38') return 'tabla3.8';
+  return zonas.esCapital ? 'tabla3.8' : 'anejoE';
 }
 
 export function entradaViento(state: VientoNieveState, zonas: Zonas): VientoInput | null {
@@ -533,13 +558,14 @@ export function entradaNieve(state: VientoNieveState, zonas: Zonas): NieveInput 
   const e = state.emplazamiento;
   if (!state.nieve.activo || zonas.zonaInvernal === null || e.altitud === null) return null;
   const n = state.nieve;
+  const origen = origenSk(n, zonas);
   return {
     zona: zonas.zonaInvernal,
     altitud: e.altitud,
-    ...(zonas.skCapital !== null && zonas.provincia
-      ? { skCapital: zonas.skCapital, altitudCapital: zonas.provincia.capital.altitud }
+    ...(origen === 'tabla3.8' && zonas.provincia
+      ? { skCapital: zonas.provincia.capital.sk, altitudCapital: zonas.provincia.capital.altitud }
       : {}),
-    ...(n.skModo === 'manual' ? { skManual: n.skManual } : {}),
+    ...(origen === 'manual' ? { skManual: n.skManual } : {}),
     exposicion: n.exposicion,
     faldones: n.faldones.map((f) => ({
       id: f.id,

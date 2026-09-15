@@ -6,7 +6,7 @@
  *   pa = min(μi, 1) · pd          acumulación en la discontinuidad   (3.5)
  *   pn = k · μ² · sk              hielo en voladizos, > 1.000 m      (3.3)
  *
- * sk sale de la tabla 3.8 si la obra está en la capital, y si no de la E.2 por
+ * sk sale de la tabla 3.8 si el municipio es la capital, y si no de la E.2 por
  * zona de clima invernal y altitud, interpolando linealmente entre filas
  * (D-VN2). El coeficiente de forma μ va faldón a faldón con las reglas del
  * 3.5.3; la acumulación del 3.5.4 entra en la v1 porque el estudio la usa, y
@@ -174,11 +174,17 @@ export function calcularNieve(input: NieveInput): NieveResultado {
   } else if (sk < 0) {
     errores.push('La sobrecarga de nieve no puede ser negativa.');
   }
-  if (origen === 'tabla3.8' && input.altitudCapital !== undefined && input.altitud !== input.altitudCapital) {
+  // La tabla 3.8 entra sola en cuanto el municipio es la capital, así que el
+  // aviso salta mucho más que cuando lo pedía una casilla: sólo se escribe si
+  // la otra tabla diría OTRA cosa. Por debajo de media centésima el aviso
+  // repetiría el mismo número dos veces y sería ruido.
+  if (origen === 'tabla3.8' && input.altitudCapital !== undefined && input.altitud !== input.altitudCapital && sk !== null) {
     const e2 = cargaNieveTerreno(input.zona, input.altitud);
-    avisos.push(
-      `El sk de la tabla 3.8 es el de la capital a ${input.altitudCapital} m y la obra está a ${input.altitud} m: la tabla E.2 daría ${e2 === null ? 'una altitud fuera de tabla' : kNm2(e2)}. Si la obra no está en la capital, desmarque la casilla.`,
-    );
+    if (e2 === null || Math.abs(e2 - sk) >= 0.005) {
+      avisos.push(
+        `El sk de la tabla 3.8 es el de la capital a ${input.altitudCapital} m y la obra está a ${input.altitud} m: la tabla E.2 daría ${e2 === null ? 'una altitud fuera de tabla' : kNm2(e2)}. Si la obra no está en la capital, cambie el origen de sk a la tabla E.2 en la sección Nieve.`,
+      );
+    }
   }
 
   const factorExposicion = FACTOR_EXPOSICION_NIEVE[input.exposicion];

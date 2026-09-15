@@ -17,6 +17,8 @@ import { PROVINCIA_OPCIONES } from './catalogos';
 import { BOTON_MENOR, INPUT } from './estilos';
 import type { Emplazamiento as EmplazamientoUI, Zonas } from './state';
 
+const dec = (v: number) => v.toFixed(2).replace('.', ',');
+
 interface Props {
   e: EmplazamientoUI;
   zonas: Zonas;
@@ -38,6 +40,7 @@ export function Emplazamiento({ e, zonas, ayuda, obra, onCambiar, onUsarObra, on
         <NotaSeccion>
           La provincia decide la zona eólica (mapa D.1) y la de clima invernal (mapa E.2); la altitud, la nieve. Los mapas van
           por líneas, no por provincias: si el municipio está cerca de una frontera, el aviso lo dice y la zona se puede forzar.
+          En la capital, la nieve sale de la tabla 3.8: se reconoce por el nombre del municipio.
         </NotaSeccion>
       )}
 
@@ -46,7 +49,7 @@ export function Emplazamiento({ e, zonas, ayuda, obra, onCambiar, onUsarObra, on
           value={e.provincia}
           aria-label="Provincia"
           className={INPUT}
-          onChange={(ev) => onCambiar({ provincia: ev.target.value, zonaEolica: null, zonaInvernal: null, esCapital: false })}
+          onChange={(ev) => onCambiar({ provincia: ev.target.value, zonaEolica: null, zonaInvernal: null })}
         >
           <option value="">Elija la provincia</option>
           {PROVINCIA_OPCIONES.map((o) => (
@@ -66,6 +69,13 @@ export function Emplazamiento({ e, zonas, ayuda, obra, onCambiar, onUsarObra, on
           className={INPUT}
           onChange={(ev) => onCambiar({ municipio: ev.target.value })}
         />
+        {/* El nombre tecleado decide si la nieve sale de la tabla 3.8: se dice
+            aquí, donde se teclea, y se puede cambiar en la sección Nieve. */}
+        {zonas.esCapital && p && (
+          <p className="text-[11px] leading-snug text-accent">
+            Es la capital de {p.nombre}: la nieve sale de la tabla 3.8 ({dec(p.capital.sk)} kN/m² a {p.capital.altitud} m), no de la E.2.
+          </p>
+        )}
       </Campo>
 
       <Campo etiqueta="Altitud sobre el nivel del mar" hueco={e.altitud === null}>
@@ -88,20 +98,6 @@ export function Emplazamiento({ e, zonas, ayuda, obra, onCambiar, onUsarObra, on
           )}
         </div>
       </Campo>
-
-      <label className="flex items-center gap-2 text-[12px] text-text-secondary">
-        <input
-          type="checkbox"
-          checked={e.esCapital}
-          disabled={!p}
-          onChange={(ev) => onCambiar({ esCapital: ev.target.checked, ...(ev.target.checked && p ? { altitud: p.capital.altitud } : {}) })}
-          className="accent-[var(--color-accent)]"
-        />
-        <span>
-          La obra está en <b className="font-semibold text-text-primary">la capital</b>
-          {p ? ` (${p.capital.capital.split(' / ')[0]})` : ''}
-        </span>
-      </label>
 
       <Campo etiqueta="Zona eólica (mapa D.1)" derivado nota={ayuda ? 'La de la provincia, salvo que se fuerce: el mapa cruza provincias.' : undefined}>
         <select

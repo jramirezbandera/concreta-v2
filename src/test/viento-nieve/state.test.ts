@@ -137,25 +137,44 @@ describe('alturas relativas (2026-09-05)', () => {
 
 describe('zonas efectivas', () => {
   it('la provincia decide; el usuario puede forzar y queda marcado', () => {
-    const z = zonasEfectivas({ provincia: '28', municipio: '', altitud: null, esCapital: false, zonaEolica: null, zonaInvernal: null });
+    const z = zonasEfectivas({ provincia: '28', municipio: '', altitud: null, zonaEolica: null, zonaInvernal: null });
     expect(z.provincia?.nombre).toBe('Madrid');
     expect(z.zonaEolica).toBe('A');
     expect(z.zonaInvernal).toBe(4);
     expect(z.eolicaForzada).toBe(false);
-    expect(z.skCapital).toBeNull();
+    expect(z.esCapital).toBe(false);
 
-    const f = zonasEfectivas({ provincia: '28', municipio: '', altitud: null, esCapital: true, zonaEolica: 'C', zonaInvernal: 4 });
+    const f = zonasEfectivas({ provincia: '28', municipio: 'Madrid', altitud: null, zonaEolica: 'C', zonaInvernal: 4 });
     expect(f.zonaEolica).toBe('C');
     expect(f.eolicaForzada).toBe(true);
     expect(f.invernalForzada).toBe(false);
-    expect(f.skCapital).toBe(0.6);
+    expect(f.esCapital).toBe(true);
+  });
+
+  it('la capital se deduce del municipio, no se pregunta', () => {
+    const en = (municipio: string, provincia = '28') => zonasEfectivas({ provincia, municipio, altitud: null, zonaEolica: null, zonaInvernal: null }).esCapital;
+    expect(en('Madrid')).toBe(true);
+    expect(en('madrid')).toBe(true);
+    expect(en('Alcalá de Henares')).toBe(false);
+    expect(en('')).toBe(false);
+    // El nombre de la capital de OTRA provincia no cuela.
+    expect(en('Segovia')).toBe(false);
+    // Bilingües y nombres oficiales largos, que es como los teclea la gente.
+    expect(en('Vitoria-Gasteiz', '01')).toBe(true);
+    expect(en('Donostia / San Sebastián', '20')).toBe(true);
+    expect(en('A Coruña', '15')).toBe(true);
+    expect(en('La Coruña', '15')).toBe(true);
+    expect(en('Santa Cruz de Tenerife', '38')).toBe(true);
+    expect(en('Las Palmas de Gran Canaria', '35')).toBe(true);
+    expect(en('Palma', '07')).toBe(true);
+    expect(en('Castelló de la Plana', '12')).toBe(true);
   });
 
   it('sin provincia no hay zonas', () => {
-    const z = zonasEfectivas({ provincia: '', municipio: '', altitud: 100, esCapital: true, zonaEolica: null, zonaInvernal: null });
+    const z = zonasEfectivas({ provincia: '', municipio: 'Madrid', altitud: 100, zonaEolica: null, zonaInvernal: null });
     expect(z.provincia).toBeNull();
     expect(z.zonaEolica).toBeNull();
-    expect(z.skCapital).toBeNull();
+    expect(z.esCapital).toBe(false);
   });
 });
 
@@ -179,32 +198,44 @@ describe('traducción al motor', () => {
   it('nieve: capital, valor propio y limahoyas', () => {
     const s = madrid();
     s.nieve.faldones[0] = { ...s.nieve.faldones[0], inclinacion: 20, limahoya: 'contrario', inclinacionOtro: 30, L: 6 };
-    const z = zonasEfectivas(s.emplazamiento);
-    const e = entradaNieve(s, z)!;
+    const paso = () => entradaNieve(s, zonasEfectivas(s.emplazamiento));
+    const e = paso()!;
     expect(e).toMatchObject({ zona: 4, altitud: 660, exposicion: 'normal' });
-    expect(e.skCapital).toBeUndefined();
+    // El municipio es «Madrid»: la tabla 3.8 entra sola, sin casilla ninguna.
+    expect(e.skCapital).toBe(0.6);
     expect(e.faldones[0]).toMatchObject({ inclinacion: 20, L: 6, limahoya: { tipo: 'contrario', inclinacionOtro: 30 } });
 
-    s.emplazamiento.esCapital = true;
-    expect(entradaNieve(s, zonasEfectivas(s.emplazamiento))?.skCapital).toBe(0.6);
+    s.emplazamiento.municipio = 'Alcalá de Henares';
+    expect(paso()?.skCapital).toBeUndefined();
+
+    // Las dos correcciones a mano, en los dos sentidos.
+    s.nieve.skModo = 'tabla38';
+    expect(paso()?.skCapital).toBe(0.6);
+    s.emplazamiento.municipio = 'Madrid';
+    s.nieve.skModo = 'anejoE';
+    expect(paso()?.skCapital).toBeUndefined();
+
     s.nieve.skModo = 'manual';
     s.nieve.skManual = 1.4;
-    expect(entradaNieve(s, zonasEfectivas(s.emplazamiento))?.skManual).toBe(1.4);
+    expect(paso()?.skManual).toBe(1.4);
+    expect(paso()?.skCapital).toBeUndefined();
 
     s.emplazamiento.altitud = null;
-    expect(entradaNieve(s, zonasEfectivas(s.emplazamiento))).toBeNull();
+    expect(paso()).toBeNull();
   });
 });
 
 describe('evaluar', () => {
-  it('Madrid a 660 m: viento en zona A y nieve de la zona 4', () => {
+  it('Madrid a 660 m: viento en zona A y nieve de la tabla 3.8', () => {
     const ev = evaluar(madrid());
     expect(ev.huecos).toEqual([]);
     expect(ev.viento?.qb).toBe(0.42);
     expect(ev.viento?.vb).toBe(26);
     expect(ev.viento?.x.plantas).toHaveLength(3);
-    expect(ev.nieve?.sk).toBeCloseTo(0.56, 12);
-    expect(ev.nieve?.faldones[0].qn).toBeCloseTo(0.56, 12);
+    // El municipio es la capital: manda la tabla 3.8 (0,60), no la E.2 a 660 m
+    // (0,56). Es la diferencia que antes dependía de marcar una casilla.
+    expect(ev.nieve?.sk).toBeCloseTo(0.6, 12);
+    expect(ev.nieve?.faldones[0].qn).toBeCloseTo(0.6, 12);
     expect(ev.errores).toBe(0);
     expect(ev.listo).toBe(true);
   });
@@ -251,7 +282,7 @@ describe('publicación', () => {
     expect(d.viento?.fuerzas[0]).toMatchObject({ nombre: 'Planta 1', z: 3 });
     expect(d.viento?.fuerzas[0].Fx).toBeCloseTo(ev.viento!.x.plantas[0].F, 12);
     expect(d.nieve?.zonaInvernal).toBe(4);
-    expect(d.nieve?.qnMax).toBeCloseTo(0.56, 12);
+    expect(d.nieve?.qnMax).toBeCloseTo(0.6, 12);
   });
 
   it('lo que no está listo no se publica, y no pisa lo anterior', () => {
@@ -293,7 +324,9 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.emplazamiento.altitud).toBeNull();
     expect(s.emplazamiento.zonaEolica).toBeNull();
     expect(s.emplazamiento.zonaInvernal).toBeNull();
-    expect(s.emplazamiento.esCapital).toBe(false);
+    // La casilla «la obra está en la capital» ya no existe: un estado viejo la
+    // trae y se cae sin dejar rastro (la decide el municipio).
+    expect(Object.keys(s.emplazamiento)).not.toContain('esCapital');
     expect(s.viento.qbModo).toBe('zona');
     expect(s.viento.aspereza).toBe('IV');
     expect(s.viento.plantas).toHaveLength(2);
@@ -321,13 +354,12 @@ describe('auditoría 2026-09-05', () => {
   it('el cambio de nivel llega al motor como limahoya sin inclinación, y la capital lleva su altitud', () => {
     const s = madrid();
     s.nieve.faldones[0] = { ...s.nieve.faldones[0], inclinacion: 40, limahoya: 'cambioNivel', L: 5 };
-    s.emplazamiento.esCapital = true;
     const e = entradaNieve(s, zonasEfectivas(s.emplazamiento))!;
     expect(e.faldones[0].limahoya).toEqual({ tipo: 'cambioNivel' });
     expect(e.skCapital).toBe(0.6);
     expect(e.altitudCapital).toBe(660);
     expect(normalizar({ nieve: { faldones: [{ inclinacion: 30, limahoya: 'cambioNivel' }] } }).nieve.faldones[0].limahoya).toBe('cambioNivel');
-    s.emplazamiento.esCapital = false;
+    s.emplazamiento.municipio = 'Aranjuez';
     expect(entradaNieve(s, zonasEfectivas(s.emplazamiento))?.altitudCapital).toBeUndefined();
   });
 

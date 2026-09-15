@@ -213,6 +213,12 @@ describe('calcularNieve — composición', () => {
     expect(r.avisos.join()).toMatch(/1,90 kN\/m²/);
     const igual = calcularNieve({ zona: 4, altitud: 660, skCapital: 0.6, altitudCapital: 660, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
     expect(igual.avisos).toEqual([]);
+
+    // Otra altitud pero el MISMO sk: Málaga (0,20 a 0 m) con la obra a 150 m,
+    // donde la zona 6 también da 0,20. El aviso repetiría el número: se calla.
+    const malaga = calcularNieve({ zona: 6, altitud: 150, skCapital: 0.2, altitudCapital: 0, exposicion: 'normal', faldones: [{ inclinacion: 0 }] });
+    expect(malaga.sk).toBe(0.2);
+    expect(malaga.avisos).toEqual([]);
   });
 
   it('altitud no tabulada para la zona: sk null y error del 3.5.2-3', () => {
