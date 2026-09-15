@@ -83,7 +83,7 @@ describe('Cargas por planta — un solo sistema de unidades', () => {
     montar();
     expect(screen.getByText(/¿Qué hay encima\? · kg\/m² · C\.5/)).toBeInTheDocument();
     expect(screen.getByText(/Cálculo · kg\/m² · DB SE 4\.1/)).toBeInTheDocument();
-    expect(screen.getByText(/^Alzado \(kg\/m²\)$/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Peso por m² kg/m²' })).toBeInTheDocument();
     expect(screen.getByText(/^Carga \(kg\/m\)$/)).toBeInTheDocument();
   });
 
@@ -122,7 +122,7 @@ describe('Cargas por planta — un solo sistema de unidades', () => {
     montar();
     // Cerramiento de fachada: 2,33 kN/m² de alzado → 238 kg/m², por 3 m son
     // 714 kg/m, y Gd = 1,35 · 7,00 kN/m → 964 kg/m.
-    const alzado = screen.getByLabelText(/^Peso por metro cuadrado de alzado de Cerramiento de fachada/);
+    const alzado = screen.getByLabelText(/^Peso por metro cuadrado de Cerramiento de fachada/);
     expect(alzado).toHaveValue('238');
     const fila = alzado.closest('tr') as HTMLElement;
     expect(fila).toHaveTextContent('714');

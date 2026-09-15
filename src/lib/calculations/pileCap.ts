@@ -13,14 +13,32 @@
 //     eje del pilar (v + 0.25a), por dirección (#78)
 //   - tirantes EN BANDA sobre los pilotes (ancho d_p + 2·cover), no repartidos
 //     en todo el ancho del encepado (#80, #86)
-//   - fyd de tirantes = fyk/γs SIN tope de 400 N/mm² — el tope era de
-//     EHE 58.4.1.1 y el CE Anejo 19 §6.5.3 no lo recoge (#85)
+//   - fyd de tirantes = min(fyk/γs, 400 N/mm²): el tope del art. 40.2 de la
+//     EHE-08, que el 58.4.1.2 repite para el tirante de encepados. La auditoría
+//     #85 lo había quitado por no recogerlo el CE Anejo 19 §6.5.3; el usuario
+//     decidió (2026-09-15) que los encepados sigan la EHE-08 también en esto,
+//     coherente con aplicar sus mínimos de armadura (el CE no tiene propios)
 //   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
+//   - n=3 (encepado rígido de tres pilotes, Calavera fig. 14-9 / ex-EHE
+//     58.4.1.2.2): planta TRIANGULAR — triángulo de lado s ampliado la
+//     distancia a borde e por cada lado y esquinas achaflanadas a e del eje
+//     de cada pilote (hexágono), no un rectángulo Lx × Ly. Cotas de obra: s,
+//     e y h. Tirantes en banda sobre los tres lados: el radial del pilote más
+//     cargado Hd = R·a_eff/z se reparte en los dos lados concurrentes,
+//     T = Hd/(2·cos30°) = 0,68·R/d·(0,58·s − 0,25·a). Rigidez: s ≤ 2,6·h.
 //   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
 //     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4.4) (#75)
-//   - armadura secundaria (superior ≥ 10% de la inferior, retícula h+v ≥ 4‰):
-//     RECOMENDACIÓN de buena práctica (ex-EHE 58.4.1.4); CE Anejo 19 §9.8.1
-//     no la exige con carácter general (#79)
+//   - armadura secundaria: el CE no fija mínimos propios para encepados
+//     (Anejo 19 §9.8.1), así que se aplican los de la EHE-08 art. 58.4.1.2,
+//     que distingue por número de pilotes. n=2 (58.4.1.2.1.2): superior con
+//     capacidad ≥ 1/10 de la inferior y retícula lateral de cercos verticales
+//     y horizontales ≥ 4‰ del área de la sección perpendicular (ancho de
+//     referencia ≤ h/2). n≥3 (58.4.1.2.2): retícula inferior entre las bandas
+//     con capacidad por sentido ≥ 1/4 de la de las bandas (58.4.1.2.2.1) y
+//     cercos verticales atando las bandas con capacidad total ≥ N_Ed/(1,5·n)
+//     (58.4.1.2.2.2). La dispone el usuario (Ø, separación, ramas) y se
+//     comprueba requerido vs dispuesto; lo que la norma no exige para ese n
+//     se dibuja y se informa, sin verificación.
 //
 // CE Anejo 19 §6.5 — strut-and-tie model, strut angle limits
 // CE Anejo 19 §6.5.2 — strut crushing 0.60·ν'·fcd (lado seguro frente al nodo
@@ -65,9 +83,13 @@ export interface PileCapResult {
   R_max: number;
   R_min: number;
 
-  // Cap dimensions [mm]
+  // Cap dimensions [mm] — para n=3 son la ENVOLVENTE del hexágono
   L_x: number;
   L_y: number;
+  /** Contorno en planta (mm desde el centroide del grupo), antihorario:
+   *  rectángulo para n=2/4, hexágono (triángulo achaflanado) para n=3. */
+  outline: PilePos[];
+  A_cap: number;    // área en planta real [mm²] (la del contorno)
   e_borde: number;  // actual MIN axis-to-edge distance (≥ e_min en modo auto)
   e_min: number;
   s_min: number;
@@ -93,10 +115,20 @@ export interface PileCapResult {
   sigma_col: number;     // [MPa]
   sigma_Rd_col: number;  // [MPa]
 
-  // Secondary reinforcement — recomendación de práctica (ex-EHE 58.4.1.4)
-  As_top_req: number;    // top steel ≥ 10% of bottom [mm²]
-  As_grid_v: number;     // vertical grid (cercos) [mm²/m]
-  As_grid_h: number;     // horizontal grid [mm²/m]
+  // Armadura secundaria (EHE-08 art. 58.4.1.2; el CE no fija mínimos propios)
+  // — requerida vs dispuesta. Lo que la norma no exige para ese n vale 0 en «req».
+  As_top_req: number;    // n=2: ≥ 1/10 de la inferior dispuesta [mm² por banda]; n≥3: 0
+  As_top_prov: number;   // n_top·A(φ_top) [mm²]
+  b_ref: number;         // ancho de referencia del 4‰ (n=2): min(ancho, h/2) [mm]
+  As_cv_req: number;     // cercos [mm²/m]: n=2 4‰·b_ref; n≥3 N_Ed/(1,5·n) repartido en las bandas
+  As_cv_prov: number;    // ramas·A(φ_cv)·1000/s_cv [mm²/m]
+  As_cv_tot_req: number; // n≥3: acero total exigido N_Ed/(1,5·n)/fyd [mm²]; n=2: 0
+  As_cv_tot_prov: number;// n≥3: ramas de todos los cercos de banda [mm²]; n=2: 0
+  L_bands: number;       // n≥3: longitud total de bandas que llevan cercos [mm]; n=2: 0
+  As_ch_req: number;     // horizontal de caras [mm²/m de altura]: n=2 4‰·b_ref; n≥3 0
+  As_ch_prov: number;    // 2·A(φ_ch)·1000/s_ch (dos caras) [mm²/m]
+  As_g_req: number;      // n≥3: retícula inferior entre bandas [mm²/m], 1/4 de las bandas; n=2: 0
+  As_g_prov: number;     // A(φ_g)·1000/s_g [mm²/m]
 
   // Tie band width over piles [mm]
   w_band: number;
@@ -134,12 +166,14 @@ export interface PileCapResult {
 const EMPTY: PileCapResult = {
   valid: false,
   pilePos: [], reactions: [], R_max: 0, R_min: 0,
-  L_x: 0, L_y: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
+  L_x: 0, L_y: 0, outline: [], A_cap: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
   W_cap: 0,
   d_eff: 0, z_eff: 0, a_crit: 0, a_eff: 0, theta_deg: 0,
   Fs_max: 0, A_node: 0, sigma_strut: 0, sigma_Rd_max: 0,
   sigma_col: 0, sigma_Rd_col: 0,
-  As_top_req: 0, As_grid_v: 0, As_grid_h: 0,
+  As_top_req: 0, As_top_prov: 0, b_ref: 0,
+  As_cv_req: 0, As_cv_prov: 0, As_cv_tot_req: 0, As_cv_tot_prov: 0, L_bands: 0,
+  As_ch_req: 0, As_ch_prov: 0, As_g_req: 0, As_g_prov: 0,
   w_band: 0,
   Ft_x: 0, Ft_y: null,
   fyd: 0,
@@ -203,15 +237,144 @@ function pileExtents(n: number, s: number): { ext_x: number; ext_y: number } {
 /** Redondeo hacia ARRIBA a múltiplo de 50 mm (cota ejecutable en obra). */
 const roundUp50 = (v: number) => Math.ceil(v / 50) * 50;
 
+const SQRT3 = Math.sqrt(3);
+
+/** Rectángulo L_x × L_y centrado en el origen, antihorario. */
+function rectOutline(L_x: number, L_y: number): PilePos[] {
+  const a = L_x / 2;
+  const b = L_y / 2;
+  return [{ x: -a, y: -b }, { x: a, y: -b }, { x: a, y: b }, { x: -a, y: b }];
+}
+
+/**
+ * Contorno del encepado de 3 pilotes (Calavera fig. 14-9, práctica ex-EHE):
+ * el triángulo equilátero de los ejes, ampliado e hacia fuera por cada lado,
+ * con cada esquina achaflanada por una recta perpendicular al radio del
+ * pilote a distancia e de su eje. Cada pilote queda a e de sus tres bordes.
+ * Hexágono antihorario: chaflán superior (A), inferior izquierdo (B) e
+ * inferior derecho (C). Medio chaflán = e·tan30° = e/√3; la envolvente mide
+ * s + 2·e·(2/√3) de ancho (vértices a la altura de los pilotes inferiores) y
+ * s·√3/2 + 2·e de alto.
+ */
+export function triCapOutline(s: number, e: number): PilePos[] {
+  const t = e / SQRT3;
+  const pts: PilePos[] = [];
+  for (const p of getPilePositions(3, s)) {
+    const r = Math.hypot(p.x, p.y);
+    const ux = p.x / r;
+    const uy = p.y / r;          // radial unitario centroide → pilote
+    const vx = -uy;
+    const vy = ux;               // giro +90°
+    pts.push({ x: p.x + e * ux - t * vx, y: p.y + e * uy - t * vy });
+    pts.push({ x: p.x + e * ux + t * vx, y: p.y + e * uy + t * vy });
+  }
+  return pts;
+}
+
+/** Área de un polígono simple (shoelace), positiva si es antihorario. */
+export function polygonArea(pts: PilePos[]): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+/** Polígono convexo antihorario desplazado hacia dentro una distancia c
+ *  (recubrimiento): cada arista se traslada según su normal interior y los
+ *  vértices son las intersecciones de aristas consecutivas. */
+export function insetPolygon(pts: PilePos[], c: number): PilePos[] {
+  const n = pts.length;
+  const lines = pts.map((p, i) => {
+    const q = pts[(i + 1) % n];
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { px: p.x - (dy / len) * c, py: p.y + (dx / len) * c, dx, dy };
+  });
+  return lines.map((l1, i) => {
+    const l0 = lines[(i - 1 + n) % n];
+    const det = l0.dx * l1.dy - l0.dy * l1.dx;
+    if (Math.abs(det) < 1e-9) return { x: l1.px, y: l1.py };
+    const t = ((l1.px - l0.px) * l1.dy - (l1.py - l0.py) * l1.dx) / det;
+    return { x: l0.px + l0.dx * t, y: l0.py + l0.dy * t };
+  });
+}
+
+function polygonBBox(pts: PilePos[]): { L_x: number; L_y: number } {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  return {
+    L_x: Math.max(...xs) - Math.min(...xs),
+    L_y: Math.max(...ys) - Math.min(...ys),
+  };
+}
+
+/** ¿Cabe el rectángulo b × h centrado en el origen dentro del polígono convexo
+ *  antihorario? (las 4 esquinas a la izquierda de cada arista, con tolerancia). */
+function rectFitsConvex(pts: PilePos[], b: number, h: number): boolean {
+  const corners = [
+    { x: -b / 2, y: -h / 2 }, { x: b / 2, y: -h / 2 },
+    { x: b / 2, y: h / 2 }, { x: -b / 2, y: h / 2 },
+  ];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    for (const c of corners) {
+      const cross = (q.x - p.x) * (c.y - p.y) - (q.y - p.y) * (c.x - p.x);
+      if (cross < -1e-6) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Distancia a borde e que necesita el pilar b_col × h_col para caber en la
+ * planta triangular de separación s: la mayor proyección de una esquina del
+ * pilar sobre las normales de los tres lados (distancia centroide–lado
+ * s/(2√3) + e) y sobre los tres radios de los chaflanes (s/√3 + e).
+ */
+function edgeNeededByColumn3(s: number, b_col: number, h_col: number): number {
+  const corners = [
+    { x: -b_col / 2, y: -h_col / 2 }, { x: b_col / 2, y: -h_col / 2 },
+    { x: b_col / 2, y: h_col / 2 }, { x: -b_col / 2, y: h_col / 2 },
+  ];
+  const sideN = [{ x: 0, y: -1 }, { x: -SQRT3 / 2, y: 0.5 }, { x: SQRT3 / 2, y: 0.5 }];
+  const chamferU = [{ x: 0, y: 1 }, { x: -SQRT3 / 2, y: -0.5 }, { x: SQRT3 / 2, y: -0.5 }];
+  let need = 0;
+  for (const c of corners) {
+    for (const nrm of sideN) need = Math.max(need, c.x * nrm.x + c.y * nrm.y - s / (2 * SQRT3));
+    for (const u of chamferU) need = Math.max(need, c.x * u.x + c.y * u.y - s / SQRT3);
+  }
+  return need;
+}
+
+/**
+ * Distancia eje de pilote a borde AUTOMÁTICA del encepado de 3 pilotes: la
+ * mínima de buena práctica (o la que exija el pilar para caber), redondeada
+ * hacia arriba a 5 cm. Es la cota «C» de los planos de encepados de tres
+ * micropilotes (Ø180 → e_min = 340 → 350 mm).
+ */
+export function autoEdge3(d_p: number, s: number, b_col: number, h_col: number): number {
+  return roundUp50(Math.max(minEdgeDistance(d_p), edgeNeededByColumn3(s, b_col, h_col)));
+}
+
 /**
  * Dimensiones en planta AUTOMÁTICAS: extensión del grupo + 2·e_min por
  * dirección, redondeadas hacia arriba a 5 cm. Para n=2 la dirección y no tiene
- * pilotes: manda el mayor de pilar y pilote. Exportada para que el panel de
+ * pilotes: manda el mayor de pilar y pilote. Para n=3 la planta es triangular
+ * y lo que se fija es e (autoEdge3); Lx × Ly devuelven su ENVOLVENTE, sin
+ * redondear (las cotas de obra son s y e). Exportada para que el panel de
  * entradas muestre el valor auto y lo siembre al pasar a modo manual.
  */
 export function autoCapDims(
   n: number, s: number, d_p: number, b_col: number, h_col: number,
 ): { L_x: number; L_y: number } {
+  if (n === 3) {
+    return polygonBBox(triCapOutline(s, autoEdge3(d_p, s, b_col, h_col)));
+  }
   const e = minEdgeDistance(d_p);
   const { ext_x, ext_y } = pileExtents(n, s);
   const L_x = roundUp50(ext_x + 2 * e);
@@ -254,6 +417,17 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const Mx_Ed   = inp.Mx_Ed as number;
   const My_Ed   = inp.My_Ed as number;
   const R_adm   = inp.R_adm as number;
+  // Armadura secundaria dispuesta (pueden faltar en estados guardados antes
+  // de este campo → valores por defecto del módulo).
+  const phi_top = (inp.phi_top as number | undefined) ?? 12;
+  const n_top   = (inp.n_top as number | undefined) ?? 2;
+  const phi_cv  = (inp.phi_cv as number | undefined) ?? 12;
+  const s_cv    = (inp.s_cv as number | undefined) ?? 100;
+  const n_cv    = (inp.n_cv as number | undefined) ?? 2;
+  const phi_ch  = (inp.phi_ch as number | undefined) ?? 12;
+  const s_ch    = (inp.s_ch as number | undefined) ?? 100;
+  const phi_g   = (inp.phi_g as number | undefined) ?? 12;
+  const s_g     = (inp.s_g as number | undefined) ?? 100;
 
   // ── Input validation ──────────────────────────────────────────────────────
   if (n !== 2 && n !== 3 && n !== 4) return invalid('n debe ser 2, 3 ó 4 micropilotes');
@@ -265,6 +439,10 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   if (fck < 20 || fck > 50) return invalid('fck fuera de rango (20–50 MPa)');
   if (cover <= 0) return invalid('Recubrimiento debe ser > 0');
   if (phi_tie <= 0) return invalid('Diámetro tirante debe ser > 0');
+  if (!(s_cv > 0) || !(s_ch > 0) || !(s_g > 0)) {
+    return invalid('Separaciones de cercos, horizontal de caras y retícula deben ser > 0');
+  }
+  if (!(n_cv >= 1) || !(n_top >= 0)) return invalid('Ramas de cerco ≥ 1 y barras superiores ≥ 0');
   if (plate_on) {
     if (!(d_plate > 0)) return invalid('Dimensión de la placa de reparto debe ser > 0');
     if (d_plate < d_p) {
@@ -284,9 +462,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const mat  = getConcrete(fck);
   const fctm = mat.fctm;     // MPa
   const fcd  = mat.fcd;      // MPa
-  // fyd de tirantes = fyk/γs (CE Anejo 19 §6.5.3). El tope de 400 N/mm² era
-  // de la EHE-08 58.4.1.1 (derogada) y el CE no lo recoge (#85).
-  const fyd  = fyk / GAMMA_S; // MPa
+  // fyd de tirantes = min(fyk/γs, 400): tope del art. 40.2 de la EHE-08, que
+  // el 58.4.1.2 repite para el tirante («con fyd ≤ 400 N/mm²»). Decisión del
+  // usuario (2026-09-15): los encepados siguen la EHE-08, que es de donde
+  // salen también sus mínimos de armadura. Con B500 sube un 8,7 % el acero
+  // del tirante y de los cercos de banda, y acorta la lb básica.
+  const fyd  = Math.min(fyk / GAMMA_S, 400); // MPa
 
   // ── Pile positions & cap dimensions ──────────────────────────────────────
   const pilePos = getPilePositions(n, s);
@@ -296,35 +477,61 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // Dimensiones en planta: automáticas (e_min a borde, redondeo a 5 cm) o
   // definidas por el usuario. En manual NO se impone e_min: se comprueba como
   // check ('edge-distance') para que el usuario decida cotas de obra exactas.
+  //
+  // n=3: planta TRIANGULAR (triángulo achaflanado, ver triCapOutline). La cota
+  // es e, la distancia de eje de pilote a borde; Lx × Ly es solo su envolvente.
+  // n=2/4: rectángulo Lx × Ly centrado en la caja de ejes de pilotes.
   let L_x: number;
   let L_y: number;
-  if (dims_auto) {
-    ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
-  } else {
-    L_x = inp.L_x as number;
-    L_y = inp.L_y as number;
-    if (!(L_x > 0) || !(L_y > 0)) return invalid('Dimensiones en planta Lx y Ly deben ser > 0');
-    if (b_col > L_x || h_col > L_y) {
-      return invalid('El pilar no cabe en planta: se requiere Lx ≥ b_col y Ly ≥ h_col');
+  let e_borde: number;
+  let outline: PilePos[];
+  if (n === 3) {
+    const e = dims_auto ? autoEdge3(d_p, s, b_col, h_col) : (inp.e_man as number);
+    if (!(e > 0)) return invalid('La distancia de eje de pilote a borde e debe ser > 0');
+    if (e < d_p / 2) {
+      return invalid('Los pilotes no caben en planta: aumenta e (eje a borde < d_p/2)');
     }
-  }
+    if (plate_on && e < d_plate / 2) {
+      return invalid('La placa de reparto no cabe en planta: aumenta e o reduce la placa');
+    }
+    outline = triCapOutline(s, e);
+    ({ L_x, L_y } = polygonBBox(outline));
+    e_borde = e;
+    if (!rectFitsConvex(outline, b_col, h_col)) {
+      return invalid('El pilar no cabe en la planta triangular: aumenta e o la separación s');
+    }
+  } else {
+    if (dims_auto) {
+      ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
+    } else {
+      L_x = inp.L_x as number;
+      L_y = inp.L_y as number;
+      if (!(L_x > 0) || !(L_y > 0)) return invalid('Dimensiones en planta Lx y Ly deben ser > 0');
+      if (b_col > L_x || h_col > L_y) {
+        return invalid('El pilar no cabe en planta: se requiere Lx ≥ b_col y Ly ≥ h_col');
+      }
+    }
 
-  // Distancia REAL de eje de pilote a borde por dirección (encepado centrado
-  // en la caja de ejes de pilotes; para n=2, e_y = L_y/2).
-  const e_x = (L_x - ext_x) / 2;
-  const e_y = (L_y - ext_y) / 2;
-  const e_borde = Math.min(e_x, e_y);
-  if (e_x < d_p / 2 || e_y < d_p / 2) {
-    return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+    // Distancia REAL de eje de pilote a borde por dirección (encepado centrado
+    // en la caja de ejes de pilotes; para n=2, e_y = L_y/2).
+    const e_x = (L_x - ext_x) / 2;
+    const e_y = (L_y - ext_y) / 2;
+    e_borde = Math.min(e_x, e_y);
+    if (e_x < d_p / 2 || e_y < d_p / 2) {
+      return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+    }
+    if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
+      return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
+    }
+    outline = rectOutline(L_x, L_y);
   }
-  if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
-    return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
-  }
+  const A_cap = polygonArea(outline);  // mm² — la del contorno real, no la envolvente
 
   // ── Navier reactions ──────────────────────────────────────────────────────
   // Incluyen el peso propio del encepado (25 kN/m³, mayorado γG=1.35) —
   // omitirlo dejaba R_max un ~14% corto con defaults (fix auditoría #77).
-  const W_cap = 25e-9 * L_x * L_y * h_enc;  // kN (característico)
+  // Con el área real: para n=3 la envolvente Lx·Ly sobrestimaba el hexágono.
+  const W_cap = 25e-9 * A_cap * h_enc;  // kN (característico)
   const sumXi2 = pilePos.reduce((acc, p) => acc + p.x * p.x, 0);  // mm²
   const sumYi2 = pilePos.reduce((acc, p) => acc + p.y * p.y, 0);
 
@@ -396,13 +603,16 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     // 58.4.1.2.1.1: Td = R·(v + 0.25a)/z, brazo = s/2 − 0.25·b_col
     Ft_x = R_max * Math.max(s / 2 - 0.25 * b_col, 50) / z_eff;
   } else if (n === 3) {
-    // Tirantes EN LOS LADOS del triángulo (coherente con el SVG y con un
-    // armado físicamente válido — fix auditoría #80; antes se despiezaba
-    // todo en X y el tirante del pilote superior quedaba sin barras).
-    // Descomposición exacta del radial en los dos lados concurrentes:
-    // T_lado = T_radial/(2·cos30°) = T_radial/√3, con margen 1.18 alineado
-    // con el 0.68 de la práctica EHE/Calavera (1.18/√3 = 0.681).
-    Ft_x = 0.681 * R_max * a_eff / z_eff;   // per side (3 lados iguales)
+    // Tirantes EN LOS LADOS del triángulo (Calavera fig. 14-9, ex-EHE
+    // 58.4.1.2.2; fix auditoría #80: antes se despiezaba todo en X y el
+    // tirante del pilote superior quedaba sin barras). El radial del pilote
+    // más cargado, Hd = R·a_eff/z, se descompone en los dos lados
+    // concurrentes: T = Hd/(2·cos30°) = Hd/√3. Con z = 0,85·d y
+    // a_eff = 0,58·s − 0,25·a queda T = 0,68·R/d·(0,58·s − 0,25·a), la
+    // expresión de la práctica. (Hasta ahora se aplicaba 0,681·Hd: ese 0,68
+    // ya lleva dentro el 1/0,85 del brazo, y al dividir además por z salía
+    // un 18 % por encima de la referencia.)
+    Ft_x = R_max * a_eff / z_eff / SQRT3;   // per side (3 lados iguales)
   } else {
     // n === 4 (58.4.1.2.1.2): bandas sobre cada fila de pilotes, por
     // dirección; cada banda se arma para su pilote más cargado.
@@ -464,13 +674,49 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const c_top = Math.max(40, phi_tie);
   const lb_avail = (e_borde - cover) + (h_enc - cover - c_top); // horizontal + vertical [mm]
 
-  // ── Armadura secundaria recomendada (ex-EHE 58.4.1.4) — fix auditoría #79 ──
-  // a) superior ≥ 10% de la capacidad de la inferior; b) retícula horizontal
-  // y vertical con cuantía ≥ 4‰ del área de la sección perpendicular, con
-  // ancho de referencia ≤ h/2.
-  const As_top_req = 0.1 * As_prov_x;
-  const As_grid_v = 4 * Math.min(L_y, h_enc / 2);  // mm²/m (0.004·w_ref·1000mm/m)
-  const As_grid_h = 4 * Math.min(h_enc, L_y / 2);  // mm²/m
+  // ── Armadura secundaria (EHE-08 art. 58.4.1.2) — dispuesta por el usuario ─
+  // El CE no fija mínimos para encepados (Anejo 19 §9.8.1), así que rigen los
+  // de la EHE-08, que distingue por número de pilotes:
+  //  n=2 (58.4.1.2.1.2): superior con capacidad ≥ 1/10 de la inferior; retícula
+  //    lateral de cercos verticales y horizontales con cuantía ≥ 4‰ del área de
+  //    la sección perpendicular a cada una; si el ancho supera la mitad del
+  //    canto, la sección de referencia toma b_ref = h/2. Por metro: 4·b_ref.
+  //  n≥3 (58.4.1.2.2.1): retícula inferior ENTRE las bandas con capacidad por
+  //    sentido ≥ 1/4 de la de las bandas de ese sentido (n=4: sus dos bandas;
+  //    n=3: una banda, lectura de la hoja del estudio), repartida en el ancho
+  //    libre entre bandas (L_perp − 2·w_band). (58.4.1.2.2.2): cercos verticales
+  //    atando las bandas con capacidad TOTAL ≥ N_Ed/(1,5·n), repartida en la
+  //    longitud de las bandas (s + 2·(e − c) cada una). La superior y la
+  //    horizontal de caras no se exigen para n≥3: se dibujan y se informan.
+  const As_top_prov = n_top * getBarArea(phi_top);
+  const As_cv_prov  = n_cv * getBarArea(phi_cv) * 1000 / s_cv;   // mm²/m de banda o de encepado
+  const As_ch_prov  = 2 * getBarArea(phi_ch) * 1000 / s_ch;      // dos caras, mm²/m de altura
+  const As_g_prov   = getBarArea(phi_g) * 1000 / s_g;            // mm²/m por sentido
+  const b_ref = Math.min(L_x, L_y, h_enc / 2);
+  let As_top_req = 0;
+  let As_cv_req = 0;
+  let As_ch_req = 0;
+  let As_g_req = 0;
+  let As_cv_tot_req = 0;
+  let As_cv_tot_prov = 0;
+  let L_bands = 0;
+  if (n === 2) {
+    As_top_req = 0.1 * As_prov_x;
+    As_cv_req  = 0.004 * b_ref * 1000;
+    As_ch_req  = 0.004 * b_ref * 1000;
+  } else {
+    const n_bands = n === 3 ? 3 : 4;
+    const L_band  = s + 2 * Math.max(e_borde - cover, 0);
+    L_bands = n_bands * L_band;
+    As_cv_tot_req  = (N_Ed / (1.5 * n)) * 1000 / fyd;
+    As_cv_req      = As_cv_tot_req / (L_bands / 1000);
+    As_cv_tot_prov = As_cv_prov * L_bands / 1000;
+    const free_y = Math.max(L_y - 2 * w_band, 100);   // ancho libre para las barras ∥ x
+    const free_x = Math.max(L_x - 2 * w_band, 100);   // ídem para las barras ∥ y
+    const req_x = 0.25 * (n === 4 ? 2 : 1) * As_prov_x / (free_y / 1000);
+    const req_y = n === 4 && As_prov_y !== null ? 0.25 * 2 * As_prov_y / (free_x / 1000) : 0;
+    As_g_req = Math.max(req_x, req_y);
+  }
 
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -507,6 +753,32 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     `${h_enc.toFixed(0)} mm`,
     'CTE DB-SE-C §5.1',
   ));
+
+  // 3b. Rigidez del encepado — condición de aplicabilidad del modelo de
+  //     bielas y tirantes. n=3: l ≤ 2,6·h (Calavera fig. 14-9). n=2/4: vuelo
+  //     de la cara del pilar al eje del pilote v ≤ 2·h (ex-EHE 58.2.1).
+  if (n === 3) {
+    checks.push(makeCheck(
+      'rigidity',
+      'Encepado rígido: separación s ≤ 2,6·h',
+      s, 2.6 * h_enc,
+      `${s.toFixed(0)} mm`,
+      `${(2.6 * h_enc).toFixed(0)} mm`,
+      'Calavera fig. 14-9 (encepado rígido de 3 pilotes)',
+    ));
+  } else {
+    const v_max = n === 2
+      ? s / 2 - b_col / 2
+      : Math.max(s / 2 - b_col / 2, s / 2 - h_col / 2);
+    checks.push(makeCheck(
+      'rigidity',
+      'Encepado rígido: vuelo cara pilar–eje pilote v ≤ 2·h',
+      v_max, 2 * h_enc,
+      `${v_max.toFixed(0)} mm`,
+      `${(2 * h_enc).toFixed(0)} mm`,
+      'Práctica ex-EHE 58.2.1',
+    ));
+  }
 
   // 4. Pile reaction vs R_adm
   checks.push(makeCheckQty(
@@ -669,32 +941,76 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     'CE Anejo 19 §6.5.4',
   ));
 
-  // 13. Armadura secundaria (informativa) — fix auditoría #79. Bajo CE es
-  //     RECOMENDACIÓN de buena práctica (CE Anejo 19 §9.8.1 no la exige con
-  //     carácter general); los valores siguen la tradición ex-EHE 58.4.1.4.
-  checks.push({
-    id: 'secondary-rebar',
-    description: `Armadura secundaria recomendada: superior ≥ ${As_top_req.toFixed(0)} mm² (10% inf.); retícula h+v ≥ 4‰ (V ${As_grid_v.toFixed(0)} mm²/m, H ${As_grid_h.toFixed(0)} mm²/m)`,
-    value: '',
-    limit: '',
-    utilization: 0,
-    status: 'neutral',
-    article: 'CE Anejo 19 §9.8.1 (práctica ex-EHE 58.4.1.4)',
-    neutral: true,
-    tag: 'RECOMENDADA',
-  });
+  // 13. Armadura secundaria dispuesta vs requerida — EHE-08 art. 58.4.1.2 (el
+  //     CE no fija mínimos propios para encepados).
+  if (n === 2) {
+    checks.push(makeCheck(
+      'top-steel',
+      `Armadura superior ${n_top}Ø${phi_top} (capacidad ≥ 1/10 de la inferior)`,
+      As_top_req, As_top_prov,
+      `${As_top_req.toFixed(0)} mm²`,
+      `${As_top_prov.toFixed(0)} mm²`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+    checks.push(makeCheck(
+      'stirrups-v',
+      `Cercos verticales Ø${phi_cv} c/${s_cv} (${n_cv} ramas) — 0,4 % · b_ref ${b_ref.toFixed(0)}`,
+      As_cv_req, As_cv_prov,
+      `${As_cv_req.toFixed(0)} mm²/m`,
+      `${As_cv_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+    checks.push(makeCheck(
+      'face-steel-h',
+      `Armadura horizontal de caras Ø${phi_ch} c/${s_ch} (2 caras) — 0,4 % · b_ref ${b_ref.toFixed(0)}`,
+      As_ch_req, As_ch_prov,
+      `${As_ch_req.toFixed(0)} mm²/m`,
+      `${As_ch_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.1.2',
+    ));
+  } else {
+    checks.push(makeCheck(
+      'grid-h',
+      `Retícula inferior entre bandas Ø${phi_g} c/${s_g} (capacidad por sentido ≥ 1/4 de las bandas)`,
+      As_g_req, As_g_prov,
+      `${As_g_req.toFixed(0)} mm²/m`,
+      `${As_g_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.2.1',
+    ));
+    checks.push(makeCheck(
+      'stirrups-v',
+      `Cercos de banda Ø${phi_cv} c/${s_cv} (${n_cv} ramas) — total ≥ N_Ed/(1,5·n) = ${(N_Ed / (1.5 * n)).toFixed(0)} kN`,
+      As_cv_req, As_cv_prov,
+      `${As_cv_req.toFixed(0)} mm²/m`,
+      `${As_cv_prov.toFixed(0)} mm²/m`,
+      'EHE-08 58.4.1.2.2.2',
+    ));
+    checks.push({
+      id: 'secondary-info',
+      description: `Superior ${n_top}Ø${phi_top} y horizontal de caras Ø${phi_ch} c/${s_ch}: no exigidas con ${n} pilotes (buena práctica; se dibujan)`,
+      value: '',
+      limit: '',
+      utilization: 0,
+      status: 'neutral',
+      article: 'EHE-08 58.4.1.2.2',
+      neutral: true,
+      tag: 'INFO',
+    });
+  }
 
   return {
     valid: true,
     pilePos,
     reactions,
     R_max, R_min,
-    L_x, L_y, e_borde, e_min, s_min, h_min,
+    L_x, L_y, outline, A_cap, e_borde, e_min, s_min, h_min,
     W_cap,
     d_eff, z_eff, a_crit, a_eff, theta_deg,
     Fs_max, A_node, sigma_strut, sigma_Rd_max,
     sigma_col, sigma_Rd_col,
-    As_top_req, As_grid_v, As_grid_h,
+    As_top_req, As_top_prov, b_ref,
+    As_cv_req, As_cv_prov, As_cv_tot_req, As_cv_tot_prov, L_bands,
+    As_ch_req, As_ch_prov, As_g_req, As_g_prov,
     w_band,
     Ft_x, Ft_y,
     fyd,

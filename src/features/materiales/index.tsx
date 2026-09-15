@@ -44,19 +44,9 @@ import {
   MATERIALES_FALLBACK_PDF,
   MATERIALES_FALLBACK_XLSX,
 } from '../../lib/export/filename';
-import {
-  cuadroAceroEstructural,
-  cuadroAceros,
-  cuadroAnclajes,
-  cuadroCoeficientesMinoracion,
-  cuadroDurabilidadMadera,
-  cuadroHormigonMemoria,
-  cuadroHormigonPlano,
-  cuadroMadera,
-  type Block,
-} from '../../lib/materiales/cuadros';
-import { FYK_ACERO_PASIVO } from '../../lib/materiales/tablasCE';
+import { cuadroHormigonMemoria, type Block } from '../../lib/materiales/cuadros';
 import { AceroEstructural } from './AceroEstructural';
+import { bloquesComunes as comunesDelCuadro, bloquesDeAnclajes, bloquesDePlano } from './plano';
 import { Documento } from '../../components/ui/Documento';
 import { exigenciasDelCuadro } from './incendioPub';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
@@ -70,7 +60,6 @@ import {
   filaMaderaDesdePreset,
   guardarEstado,
   hayMaterialesResueltos,
-  limpiezaPrescrita,
   moverEnLista,
   nuevoId,
   publicarResultado,
@@ -211,84 +200,17 @@ export function MaterialesModule() {
 
   // ── Documento ─────────────────────────────────────────────────────────────
 
-  /**
-   * Lo que llevan las DOS vistas del documento: aceros, madera y coeficientes.
-   * Plano y memoria sólo se diferencian en la tabla de hormigón —una fila por
-   * elemento frente a una columna—, así que el resto se construye una vez. Que
-   * estuviera escrito sólo dentro del plano era el motivo de que la memoria
-   * saliera con el hormigón y nada más.
-   */
-  /**
-   * Los anclajes no son un apartado que se pida: salen solos del acero corrugado
-   * elegido —un B 400 tiene otras longitudes que un B 500— y de los hormigones
-   * que la obra usa de verdad. En pantalla y en el Word van pegados al cuadro de
-   * acero, que es de donde sale el fyk que los gobierna; en el Excel se van a su
-   * propia pestaña, porque sus celdas son números de dos cifras y compartir
-   * columna con «Mín. contenido de cemento» los dejaba estirados. Por eso viven
-   * en su propio memo en vez de dentro de `bloquesComunes`.
-   *
-   * Los hormigones que se tabulan son los de los elementos; el par por defecto
-   * sólo cubre el arranque, cuando aún no hay ninguno resuelto: una tabla de
-   * anclajes de un HA que no aparece en ningún elemento es ruido en el plano.
-   */
-  const bloquesAnclajes = useMemo<Block[]>(() => {
-    if (!state.usaHormigon) return [];
-    const enObra = [...new Set(evaluacion.hormigon.map((h) => h.derivacion.fckAdoptada))].sort(
-      (a, b) => a - b,
-    );
-    return cuadroAnclajes(
-      enObra.length > 0 ? enObra : state.hormigonesAnclaje,
-      FYK_ACERO_PASIVO[state.estudio.aceroPasivo],
-      state.diametrosAnclaje,
-      state.estudio.aceroPasivo,
-    );
-  }, [state, evaluacion]);
+  const bloquesAnclajes = useMemo<Block[]>(() => bloquesDeAnclajes(state, evaluacion), [state, evaluacion]);
 
-  const bloquesComunes = useMemo<Block[]>(() => {
-    const bloques: Block[] = [];
-    bloques.push(
-      ...cuadroAceros({
-        aceroPasivo: state.estudio.aceroPasivo,
-        malla: state.estudio.malla,
-        aceroEstructural: state.usaAceroEstructural ? state.estudio.aceroEstructural : null,
-        nivelControl: state.estudio.nivelControlAcero,
-      }),
-    );
-    bloques.push(...bloquesAnclajes);
-    if (state.usaAceroEstructural && evaluacion.acero) {
-      bloques.push(...cuadroAceroEstructural(evaluacion.acero, state.estudio.vidaUtilAnios));
-    }
-    if (state.usaMadera && evaluacion.madera.length > 0) {
-      const derivaciones = evaluacion.madera.map((m) => m.derivacion);
-      bloques.push(...cuadroMadera(derivaciones), ...cuadroDurabilidadMadera(derivaciones));
-    }
-    bloques.push(
-      ...cuadroCoeficientesMinoracion({
-        maderaLaminada: state.usaMadera && evaluacion.madera.some((m) => m.fila.tipo === 'laminada'),
-        maderaMaciza: state.usaMadera && evaluacion.madera.some((m) => m.fila.tipo === 'maciza'),
-        aceroLaminado: state.usaAceroEstructural,
-        aceroDeArmar: state.usaHormigon,
-        hormigon: state.usaHormigon,
-      }, fuegoDelCuadro),
-    );
-    return bloques;
-  }, [state, evaluacion, bloquesAnclajes, fuegoDelCuadro]);
+  const bloquesComunes = useMemo<Block[]>(
+    () => comunesDelCuadro(state, evaluacion, bloquesAnclajes, fuegoDelCuadro),
+    [state, evaluacion, bloquesAnclajes, fuegoDelCuadro],
+  );
 
-  const bloquesPlano = useMemo<Block[]>(() => {
-    const bloques: Block[] = [];
-    if (state.usaHormigon) {
-      bloques.push(
-        ...cuadroHormigonPlano(
-          evaluacion.hormigon.map((h) => h.derivacion),
-          evaluacion.limpieza.map((f) => ({
-            ...limpiezaPrescrita(f, state.estudio.tamMaxArido),
-            nivelControl: 'Según capítulos 13 y 14',
-          })),
-        ),
-      );
-    }
-    return [...bloques, ...bloquesComunes];
-  }, [state, evaluacion, bloquesComunes]);
+  const bloquesPlano = useMemo<Block[]>(
+    () => bloquesDePlano(state, evaluacion, bloquesComunes),
+    [state, evaluacion, bloquesComunes],
+  );
 
   /**
    * El cuadro de plano sin los anclajes, para la primera pestaña del Excel. Se

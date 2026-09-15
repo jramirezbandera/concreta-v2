@@ -49,7 +49,7 @@ export const PILE_CAP_PAYLOAD_SCHEMA: Record<string, unknown> = {
     'N_Ed_kN', 'Mx_kNm', 'My_kNm', 'R_adm_kN', 'warnings',
   ],
   properties: {
-    n: { type: ['integer', 'null'], enum: [...N_OPTIONS, null], description: 'Número de micropilotes del encepado: 2, 3 ó 4. Con 2 van alineados en x; con 3 forman triángulo equilátero; con 4, cuadrado.' },
+    n: { type: ['integer', 'null'], enum: [...N_OPTIONS, null], description: 'Número de micropilotes del encepado: 2, 3 ó 4. Con 2 van alineados en x; con 3 forman triángulo equilátero (encepado de planta triangular); con 4, cuadrado.' },
     d_p_mm: { type: ['number', 'null'], description: 'Diámetro del micropilote en mm.' },
     s_mm: { type: ['number', 'null'], description: 'Separación entre ejes de micropilotes (centro a centro) en mm.' },
     h_enc_mm: { type: ['number', 'null'], description: 'Canto del encepado en mm.' },
@@ -399,11 +399,12 @@ function buildPileCapPlan(
 // ── Snapshot del estado ───────────────────────────────────────────────────────
 
 // Solo claves NUMÉRICAS del estado: fuera `title`, el flag `dims_auto` con sus
-// cotas manuales L_x/L_y, y la placa de reparto (plate_*) — la IA trabaja con
+// cotas manuales L_x/L_y/e_man, la placa de reparto (plate_*) y la secundaria dispuesta — la IA trabaja con
 // la geometría del grupo, no con las cotas del encepado ni el detalle de cabeza.
 type StateKey = Exclude<
   keyof PileCapInputs,
-  'title' | 'dims_auto' | 'L_x' | 'L_y' | 'plate_on' | 'plate_shape' | 'd_plate'
+  'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 'plate_on' | 'plate_shape' | 'd_plate'
+  | 'phi_top' | 'n_top' | 'phi_cv' | 's_cv' | 'n_cv' | 'phi_ch' | 's_ch' | 'phi_g' | 's_g'
 >;
 
 const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {

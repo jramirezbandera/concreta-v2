@@ -333,9 +333,10 @@ describe('calcularCargas — composición, avisos y errores', () => {
     expect(alta.plantas[0].zonas[0].hipotesis).toBe('nieve+uso');
   });
 
-  it('la nieve sólo cuenta en cubiertas, y la nieve nula no pinta hipótesis', () => {
+  it('la nieve sólo cuenta en lo que está a la intemperie, y la nieve nula no pinta hipótesis', () => {
     const r = calcularCargas({
       plantas: [
+        // Una planta de viviendas bajo techo: la nieve declarada no cae en ninguna parte.
         { nombre: 'P1', esCubierta: false, nieve: 0.5, zonas: [zonaBase()] },
         { nombre: 'Cubierta', esCubierta: true, nieve: 0, zonas: [{ ...zonaBase(), uso: { categoria: 'G' } }] },
       ],
@@ -345,6 +346,36 @@ describe('calcularCargas — composición, avisos y errores', () => {
     expect(r.plantas[0].zonas[0].nieve).toBeNull();
     expect(r.plantas[1].zonas[0]).toMatchObject({ nieve: 0, psiNieve: null, hipotesis: 'uso' });
     expect(r.psiPresentes.map((p) => p.clave)).toEqual(['A', 'G']);
+  });
+
+  it('una planta baja con terraza: la nieve cae en la terraza (F) y no en la vivienda de al lado', () => {
+    const r = calcularCargas({
+      altitud: 660,
+      plantas: [
+        {
+          nombre: 'Planta Baja',
+          esCubierta: false,
+          nieve: 1.2,
+          zonas: [
+            { ...zonaBase(), nombre: 'Vivienda' },
+            { ...zonaBase(), nombre: 'Terraza', uso: { categoria: 'F' } },
+          ],
+        },
+      ],
+      lineales: [],
+    });
+    const [vivienda, terraza] = r.plantas[0].zonas;
+    // La planta declara nieve porque tiene algo al aire libre…
+    expect(r.plantas[0].nieve).toBe(1.2);
+    // …pero dentro no entra: la vivienda sigue mandando su sobrecarga de uso.
+    expect(vivienda.nieve).toBeNull();
+    expect(vivienda).toMatchObject({ Q: 2, hipotesis: 'uso' });
+    // En la terraza (F: 1 kN/m²) manda la nieve más ψ0 por el uso: 1,2 + 0,7 · 1
+    // = 1,9, contra 1 + 0,5 · 1,2 = 1,6 de la otra hipótesis.
+    expect(terraza.nieve).toBe(1.2);
+    expect(terraza.uso.qUso).toBe(1);
+    expect(terraza).toMatchObject({ hipotesis: 'nieve+uso' });
+    expect(terraza.Q).toBeCloseTo(1.9, 12);
   });
 
   it('el canto fuera de la C.5 es un error, no un aviso; avisos de escaleras fuera de A/B y tabiquería pesada', () => {

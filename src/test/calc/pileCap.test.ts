@@ -3,7 +3,7 @@
 //
 // Oracles calculados a mano con el modelo B&T de CE Anejo 19 §6.5 (geometría
 // de práctica consolidada ex-EHE): z = 0.85·d, brazo v + 0.25a, bandas sobre
-// pilotes, fyd = fyk/γs (SIN tope 400 — EHE derogada), peso propio 25 kN/m³
+// pilotes, fyd = min(fyk/γs, 400) (tope EHE-08 40.2, decisión 2026-09-15), peso propio 25 kN/m³
 // con γG=1.35, anclaje fctd = 0.7·fctm/1.5 y demanda lbd de patilla (α1=0.7).
 //
 // Defaults (n=2, d_p=220, s=1200, h=800, col 400×400, C25, B500, c=60, φ12,
@@ -14,13 +14,13 @@
 //   d = 800−60−6 = 734 → z = 623.9 ; a_eff = 600−100 = 500 → θ = 51.3°
 //   Fs = 180.27/sin51.3° = 231.0 kN ; A_node = π·110² = 38013 mm²
 //   σ_strut = 6.08 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
-//   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 332.3 mm² (fyd=434.78)
+//   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 361.2 mm² (fyd = 400)
 //   As_min = 0.26·(2.56/500)·1150·734 = 1123.7 mm² → 10Ø12 = 1131 mm²
-//   lb = 3·434.78/2.688 = 485.2 ; lb,req = 0.7·485.2·(1123.7/1131) = 337.5 mm
+//   lb = 3·400/2.688 = 446.4 ; lb,req = 0.7·446.4·(1123.7/1131) = 310.5 mm
 //   lb,disp = (375−60) + (800−60−40) = 1015 mm
 
 import { describe, expect, it } from 'vitest';
-import { calcPileCap } from '../../lib/calculations/pileCap';
+import { calcPileCap, autoEdge3, polygonArea, triCapOutline } from '../../lib/calculations/pileCap';
 import { pileCapDefaults } from '../../data/defaults';
 
 const base = { ...pileCapDefaults };
@@ -47,8 +47,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.R_max).toBeCloseTo((base.N_Ed + 1.35 * r.W_cap) / 2, 3);
   });
 
-  it('fyd = fyk/γs = 434.8 (CE Anejo 19 — sin el tope 400 de la EHE derogada, #85)', () => {
-    expect(r.fyd).toBeCloseTo(500 / 1.15, 2);
+  it('fyd = min(fyk/γs, 400) = 400 con B500 (tope EHE-08 40.2 para el tirante, 58.4.1.2)', () => {
+    expect(r.fyd).toBe(400);
+    expect(calcPileCap({ ...base, fyk: 400 }).fyd).toBeCloseTo(400 / 1.15, 2);
   });
 
   it('brazos del modelo B&T: d_eff=734, z=0.85·d=623.9, a_eff=500 (fix #78)', () => {
@@ -73,9 +74,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'node-column')!.status).toBe('ok');
   });
 
-  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 332 mm², 10Ø12 = 1131 mm²', () => {
+  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 361 mm² (fyd = 400), 10Ø12 = 1131 mm²', () => {
     expect(r.Ft_x).toBeCloseTo(144.47, 1);
-    expect(r.As_tie_x).toBeCloseTo(332.3, 1);
+    expect(r.As_tie_x).toBeCloseTo(361.2, 1);
     expect(r.As_min_x).toBeCloseTo(1123.7, 0);
     expect(r.n_bars_x).toBe(10);
     expect(r.As_prov_x).toBeCloseTo(1131, 0);
@@ -83,7 +84,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
 
   it('check de tirante usa la DEMANDA As_tie, no As_min (fix #82)', () => {
     const c = r.checks.find((ch) => ch.id === 'tie-steel-x')!;
-    expect(c.utilization).toBeCloseTo(332.3 / 1131, 2);
+    expect(c.utilization).toBeCloseTo(361.2 / 1131, 2);
     expect(c.status).toBe('ok');
   });
 
@@ -92,9 +93,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.s_bar_x).toBeCloseTo(340 / 9, 1);
   });
 
-  it('anclaje: lb ≈ 485.2 (fctd con 0.7), lb,req ≈ 337.5, lb,disp = 1015 (fix #75)', () => {
-    expect(r.lb).toBeCloseTo(485.2, 1);
-    expect(r.lb_net).toBeCloseTo(337.5, 1);
+  it('anclaje: lb ≈ 446.4 (fctd con 0.7, fyd = 400), lb,req ≈ 310.5, lb,disp = 1015 (fix #75)', () => {
+    expect(r.lb).toBeCloseTo(446.4, 1);
+    expect(r.lb_net).toBeCloseTo(310.5, 1);
     expect(r.lb_avail).toBe(1015);
   });
 
@@ -102,13 +103,76 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.lb_net).toBeGreaterThan(0.5 * r.lb);
   });
 
-  it('armadura secundaria recomendada (fix #79, práctica ex-EHE): sup ≥ 10% inf, retícula 4‰', () => {
-    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);
-    expect(r.As_grid_v).toBeCloseTo(4 * Math.min(1150, 400), 1);  // 1600 mm²/m
-    expect(r.As_grid_h).toBeCloseTo(4 * Math.min(800, 575), 1);   // 2300 mm²/m
-    const row = r.checks.find((c) => c.id === 'secondary-rebar')!;
-    expect(row.status).toBe('neutral');
-    expect(row.article).toMatch(/58\.4\.1\.4/);
+  it('secundaria de 2 pilotes (EHE-08 58.4.1.2.1.2): sup 2Ø12 ≥ 1/10 inf; retícula lateral 4‰ con b_ref = h/2', () => {
+    // Texto de la EHE-08 (pág. 271): «Su capacidad mecánica no será inferior a
+    // 1/10 de la capacidad mecánica de la armadura inferior» y «La cuantía de
+    // estas armaduras, referida al área de la sección de hormigón perpendicular
+    // a su dirección, será, como mínimo, del 4‰. Si el ancho supera a la mitad
+    // del canto, la sección de referencia se toma con un ancho igual a la mitad
+    // del canto.»
+    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);     // 113.1 mm²
+    expect(r.As_top_prov).toBeCloseTo(2 * 113.1, 0);             // 2Ø12
+    expect(r.b_ref).toBe(400);                                   // min(1950, 1150, 800/2)
+    expect(r.As_cv_req).toBeCloseTo(1600, 6);                    // 0,004·400·1000 por metro
+    expect(r.As_ch_req).toBeCloseTo(1600, 6);                    // misma sección de referencia
+    expect(r.As_cv_prov).toBeCloseTo(2 * 113.1 * 10, 0);         // Ø12 c/100, 2 ramas = 2262 mm²/m
+    expect(r.As_ch_prov).toBeCloseTo(2 * 113.1 * 10, 0);
+    expect(r.As_g_req).toBe(0);                                  // la retícula inferior es de n ≥ 3
+    expect(r.As_cv_tot_req).toBe(0);
+    for (const id of ['top-steel', 'stirrups-v', 'face-steel-h']) {
+      const row = r.checks.find((c) => c.id === id)!;
+      expect(row.status).toBe('ok');
+      expect(row.article).toBe('EHE-08 58.4.1.2.1.2');
+    }
+    expect(r.checks.map((c) => c.id)).not.toContain('grid-h');
+    expect(r.checks.find((c) => c.id === 'stirrups-v')!.description).toMatch(/0,4 %/);
+  });
+
+  it('secundaria insuficiente → INCUMPLE; ramas y separación entran en lo dispuesto', () => {
+    // Ø10 c/200 con 2 ramas = 785 mm²/m < 1600
+    const poor = calcPileCap({ ...base, phi_cv: 10, s_cv: 200, phi_ch: 10, s_ch: 200, n_top: 0 });
+    expect(poor.As_cv_prov).toBeCloseTo(2 * 78.5 * 5, 0);
+    expect(poor.checks.find((c) => c.id === 'stirrups-v')!.status).toBe('fail');
+    expect(poor.checks.find((c) => c.id === 'face-steel-h')!.status).toBe('fail');
+    expect(poor.checks.find((c) => c.id === 'top-steel')!.status).toBe('fail');
+    // Cerco doble (4 ramas) duplica lo dispuesto
+    const four = calcPileCap({ ...base, phi_cv: 10, s_cv: 200, n_cv: 4 });
+    expect(four.As_cv_prov).toBeCloseTo(2 * poor.As_cv_prov, 6);
+    // Separación nula → invalid
+    expect(calcPileCap({ ...base, s_cv: 0 }).valid).toBe(false);
+  });
+
+  it('n=3 (EHE-08 58.4.1.2.2): retícula inferior ≥ 1/4 de la banda, cercos de banda ≥ N_Ed/(1,5·n); superior y caras sólo informativas', () => {
+    const r3 = calcPileCap({ ...base, n: 3 });
+    // 58.4.1.2.2.2: N/(1,5·3) = 66,7 kN → 153 mm² en 3 bandas de 1200 + 2·(400 − 60) = 1880 mm
+    expect(r3.As_cv_tot_req).toBeCloseTo(300 / 4.5 * 1000 / r3.fyd, 3);
+    expect(r3.L_bands).toBe(3 * 1880);
+    expect(r3.As_cv_req).toBeCloseTo(r3.As_cv_tot_req / 5.64, 3);
+    expect(r3.As_cv_tot_prov).toBeCloseTo(r3.As_cv_prov * 5.64, 3);
+    // 58.4.1.2.2.1: 1/4 de la banda (16Ø12 = 1810 mm²) en el ancho libre L_y − 2·w_band
+    expect(r3.As_g_req).toBeCloseTo(0.25 * r3.As_prov_x / ((r3.L_y - 2 * r3.w_band) / 1000), 3);
+    expect(r3.As_g_prov).toBeCloseTo(113.1 * 10, 0);
+    expect(r3.As_top_req).toBe(0);
+    expect(r3.As_ch_req).toBe(0);
+    const ids = r3.checks.map((c) => c.id);
+    expect(ids).toContain('grid-h');
+    expect(ids).toContain('stirrups-v');
+    expect(ids).toContain('secondary-info');
+    expect(ids).not.toContain('top-steel');
+    expect(ids).not.toContain('face-steel-h');
+    expect(r3.checks.find((c) => c.id === 'grid-h')!.article).toBe('EHE-08 58.4.1.2.2.1');
+    expect(r3.checks.find((c) => c.id === 'grid-h')!.status).toBe('ok');
+    expect(r3.checks.find((c) => c.id === 'stirrups-v')!.article).toBe('EHE-08 58.4.1.2.2.2');
+    expect(r3.checks.find((c) => c.id === 'stirrups-v')!.status).toBe('ok');
+  });
+
+  it('n=4: la retícula se compara con las DOS bandas de cada sentido; Ø12 c/100 cumple y c/200 no', () => {
+    const r4 = calcPileCap({ ...base, n: 4 });
+    expect(r4.As_g_req).toBeCloseTo(0.25 * 2 * r4.As_prov_x / ((r4.L_y - 2 * r4.w_band) / 1000), 3);
+    expect(r4.checks.find((c) => c.id === 'grid-h')!.status).toBe('ok');
+    const poor = calcPileCap({ ...base, n: 4, s_g: 200 });
+    expect(poor.checks.find((c) => c.id === 'grid-h')!.status).toBe('fail');
+    expect(calcPileCap({ ...base, n: 4, s_g: 0 }).valid).toBe(false);
   });
 
   it('todas las filas no neutrales en ok (FTUX verde)', () => {
@@ -121,7 +185,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     const ids = r.checks.map((c) => c.id);
     for (const id of ['spacing', 'edge-distance', 'cap-depth', 'pile-react-max', 'strut-angle',
       'strut-capacity', 'tie-steel-x', 'bar-spacing', 'bar-spacing-min',
-      'anchorage', 'node-column', 'secondary-rebar']) {
+      'anchorage', 'node-column', 'rigidity', 'top-steel', 'stirrups-v', 'face-steel-h']) {
       expect(ids).toContain(id);
     }
   });
@@ -184,9 +248,11 @@ describe('Geometría generada', () => {
     expect(calcPileCap({ ...base, d_p: 300, s: 1200 }).s_min).toBe(900);
   });
 
-  it('n=3: L_y = s·√3/2 + 2e redondeado ↑ a 50 mm (1759.2 → 1800)', () => {
+  it('n=3: planta triangular con e = 400 (360 ↑ 5 cm); envolvente s+2e·2/√3 × s·√3/2+2e', () => {
     const r = calcPileCap({ ...base, n: 3 });
-    expect(r.L_y).toBe(1800);
+    expect(r.e_borde).toBe(400);
+    expect(r.L_x).toBeCloseTo(1200 + 2 * 400 * 2 / Math.sqrt(3), 2);  // 2123.8
+    expect(r.L_y).toBeCloseTo(1200 * Math.sqrt(3) / 2 + 800, 2);      // 1839.2
   });
 
   it('n=4: L_x = L_y = s + 2e redondeado ↑ a 50 mm (1920 → 1950)', () => {
@@ -347,21 +413,129 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     expect(r.Ft_y!).toBeLessThan(r.Ft_x);
   });
 
-  it('n=3: tirante POR LADO = 0.681·R_max·a_eff/z (fix #80)', () => {
+  it('n=3: tirante POR LADO = Hd/√3 = 0,68·R/d·(0,58·s − 0,25·a) (Calavera fig. 14-9)', () => {
     const r = calcPileCap({ ...base, n: 3 });
     const a_r = 1200 / Math.sqrt(3);
     expect(r.a_eff).toBeCloseTo(a_r - 100, 1);
-    expect(r.Ft_x).toBeCloseTo(0.681 * r.R_max * r.a_eff / r.z_eff, 2);
+    // Descomposición exacta del radial en los dos lados concurrentes
+    expect(r.Ft_x).toBeCloseTo(r.R_max * r.a_eff / r.z_eff / Math.sqrt(3), 6);
+    // Expresión de la práctica (0,58 ≈ 1/√3 redondeado): Td = 0,68·N/d·(0,58·l − 0,25·a)
+    const ehe = 0.68 * r.R_max / r.d_eff * (0.58 * 1200 - 0.25 * 400);
+    expect(r.Ft_x / ehe).toBeGreaterThan(0.985);
+    expect(r.Ft_x / ehe).toBeLessThan(1.015);
+    // Antes: 0,681·Hd (el 0,68 ya llevaba el 1/0,85 y se dividía otra vez por z) → +18 %
+    expect(r.Ft_x).toBeLessThan(0.681 * r.R_max * r.a_eff / r.z_eff);
   });
 
-  it('fyk=400 → fyd = 347.8 (fyd = fyk/γs para cualquier grado)', () => {
+  it('fyk=400 → fyd = 347.8 (el tope 400 sólo muerde con B500)', () => {
     expect(calcPileCap({ ...base, fyk: 400 }).fyd).toBeCloseTo(400 / 1.15, 2);
+    expect(calcPileCap({ ...base, fyk: 500 }).fyd).toBe(400);
   });
 
   it('congestión: muchas barras en banda → bar-spacing-min fail (fix #82)', () => {
     const r = calcPileCap({ ...base, N_Ed: 4000, R_adm: 3000 });
     expect(r.s_bar_x).toBeLessThan(20);
     expect(r.checks.find((c) => c.id === 'bar-spacing-min')!.status).toBe('fail');
+  });
+});
+
+// ── Planta triangular (n=3) ───────────────────────────────────────────────
+// Encepado rígido de tres pilotes (Calavera fig. 14-9; plano tipo del
+// usuario: Ø180, A=70, B=60, C=35, H=95): triángulo de lado s ampliado e por
+// cada lado con las esquinas achaflanadas a e del eje de cada pilote. Cotas
+// de obra s, e y h; Lx × Ly es solo la envolvente del hexágono.
+describe('Planta triangular (n=3)', () => {
+  const r = calcPileCap({ ...base, n: 3 });
+  const SQ3 = Math.sqrt(3);
+
+  it('el contorno es un hexágono antihorario y cada pilote queda a e de sus TRES bordes', () => {
+    expect(r.outline).toHaveLength(6);
+    expect(polygonArea(r.outline)).toBeGreaterThan(0);
+    // Distancia de cada pilote a la recta de cada arista adyacente = e
+    const distToEdge = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      return Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) / Math.hypot(dx, dy);
+    };
+    // Vértices: 0-1 chaflán A (superior), 1-2 lado izquierdo, 2-3 chaflán B,
+    // 3-4 lado inferior, 4-5 chaflán C, 5-0 lado derecho.
+    // Pilote B (inferior izquierdo) = pilePos[1]
+    const pB = r.pilePos[1];
+    const o = r.outline;
+    expect(distToEdge(pB, o[2], o[3])).toBeCloseTo(400, 6);  // chaflán B
+    expect(distToEdge(pB, o[3], o[4])).toBeCloseTo(400, 6);  // lado inferior
+    expect(distToEdge(pB, o[1], o[2])).toBeCloseTo(400, 6);  // lado izquierdo
+    // y NO a e del lado opuesto ni del chaflán de A
+    expect(distToEdge(pB, o[0], o[1])).toBeGreaterThan(1000);
+    // Chaflán superior horizontal a e sobre el pilote A, de ancho 2·e/√3
+    expect(o[0].y).toBeCloseTo(r.pilePos[0].y + 400, 6);
+    expect(o[1].y).toBeCloseTo(o[0].y, 6);
+    expect(o[0].x - o[1].x).toBeCloseTo(2 * 400 / SQ3, 6);
+  });
+
+  it('área real = triángulo ampliado menos los tres picos; peso propio con esa área', () => {
+    const L = 1200 + 2 * SQ3 * 400;                 // lado del triángulo ampliado
+    const pico = (SQ3 / 4) * (2 * 400 / SQ3) ** 2;   // triángulo equilátero de altura e
+    const A = (SQ3 / 4) * L * L - 3 * pico;
+    expect(r.A_cap).toBeCloseTo(A, 3);
+    expect(r.A_cap).toBeLessThan(r.L_x * r.L_y);    // ~ 2/3 de la envolvente
+    expect(r.W_cap).toBeCloseTo(25e-9 * A * 800, 6);
+  });
+
+  it('plano tipo Ø180, s=700, pilar 30×30: e auto = 350 (la cota C = 35 cm del plano)', () => {
+    expect(autoEdge3(180, 700, 300, 300)).toBe(350);
+    const t = calcPileCap({ ...base, n: 3, d_p: 180, s: 700, h_enc: 950, b_col: 300, h_col: 300 });
+    expect(t.valid).toBe(true);
+    expect(t.e_borde).toBe(350);
+    expect(t.L_y).toBeCloseTo(700 * SQ3 / 2 + 700, 2);   // B + 2C = 60,6 + 70 cm
+  });
+
+  it('pilar grande: e auto crece hasta que el pilar cabe en el hexágono', () => {
+    // Esquinas (±750, ±750) contra el lado izquierdo: 0,866·750 + 0,5·750 − s/(2√3) = 678 → 700
+    const t = calcPileCap({ ...base, n: 3, b_col: 1500, h_col: 1500 });
+    expect(t.valid).toBe(true);
+    expect(t.e_borde).toBe(700);
+    // Manual con e insuficiente: el pilar no cabe → invalid
+    const m = calcPileCap({ ...base, n: 3, b_col: 1500, h_col: 1500, dims_auto: false, e_man: 400 });
+    expect(m.valid).toBe(false);
+    expect(m.error).toMatch(/pilar no cabe/);
+  });
+
+  it('manual: e_man es la cota; por debajo de e_min → edge-distance INCUMPLE; < d_p/2 → invalid', () => {
+    const m = calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 350 });
+    expect(m.valid).toBe(true);
+    expect(m.e_borde).toBe(350);
+    expect(m.checks.find((c) => c.id === 'edge-distance')!.status).toBe('fail');
+    expect(m.outline).toEqual(triCapOutline(1200, 350));
+    expect(calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 100 }).valid).toBe(false);
+    expect(calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 0 }).valid).toBe(false);
+  });
+
+  it('Lx/Ly manuales NO afectan a n=3 (la planta la definen s y e)', () => {
+    const m = calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 400, L_x: 5000, L_y: 5000 });
+    expect(m.L_x).toBeCloseTo(r.L_x, 6);
+    expect(m.A_cap).toBeCloseTo(r.A_cap, 6);
+  });
+
+  it('rigidez: s ≤ 2,6·h (1200 ≤ 2080 cumple; con h=400 incumple)', () => {
+    const ok = r.checks.find((c) => c.id === 'rigidity')!;
+    expect(ok.status).toBe('ok');
+    expect(ok.limit).toBe('2080 mm');
+    const bad = calcPileCap({ ...base, n: 3, h_enc: 400, cover: 40 });
+    expect(bad.checks.find((c) => c.id === 'rigidity')!.status).toBe('fail');
+  });
+
+  it('n=2/4: rigidez por vuelo cara pilar–eje pilote v ≤ 2·h (defaults: 400 ≤ 1600)', () => {
+    for (const n of [2, 4]) {
+      const t = calcPileCap({ ...base, n });
+      const row = t.checks.find((c) => c.id === 'rigidity')!;
+      expect(row.status).toBe('ok');
+      expect(row.value).toBe('400 mm');
+    }
+    // n=2/4 siguen siendo rectángulos: 4 vértices y área Lx·Ly
+    const t2 = calcPileCap(base);
+    expect(t2.outline).toHaveLength(4);
+    expect(t2.A_cap).toBeCloseTo(t2.L_x * t2.L_y, 6);
   });
 });
 
@@ -401,7 +575,7 @@ describe('Sin NaN/Infinity', () => {
       expect(r.valid).toBe(true);
       for (const v of [r.R_max, r.R_min, r.theta_deg, r.Fs_max, r.sigma_strut,
         r.Ft_x, r.As_tie_x, r.As_prov_x, r.s_bar_x, r.lb, r.lb_net, r.lb_avail,
-        r.W_cap, r.sigma_col, r.As_grid_v, r.As_grid_h]) {
+        r.W_cap, r.sigma_col, r.As_cv_req, r.As_ch_req, r.As_top_prov]) {
         expect(Number.isFinite(v)).toBe(true);
       }
       r.checks.filter((c) => !c.neutral).forEach((c) => {

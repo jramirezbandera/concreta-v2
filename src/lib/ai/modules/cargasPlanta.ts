@@ -89,7 +89,9 @@ import {
   esEstadoInicial,
   nievePorDefecto,
   nuevoId,
+  plantaALaIntemperie,
   usoPorDefecto,
+  zonaALaIntemperie,
   type CargasState,
   type Evaluacion,
   type LinealUI,
@@ -160,7 +162,7 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
           },
           es_cubierta: {
             type: 'boolean',
-            description: 'true si esta planta es la cubierta del edificio: es la única que admite carga de nieve. Todas las filas de la misma planta deben decir lo mismo.',
+            description: 'true si TODA la planta está a la intemperie (la cubierta del edificio, un cuerpo bajo, un ático retranqueado). Todas las filas de la misma planta deben decir lo mismo. Una planta normal con una terraza NO es una cubierta: la terraza va como una fila más de esa planta con uso F, y también admite nieve.',
           },
           bajo_rasante: {
             type: 'boolean',
@@ -254,7 +256,7 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
           },
           nieve_kNm2: {
             type: 'number',
-            description: 'Carga de nieve en PROYECCIÓN HORIZONTAL, kN/m². Sólo cuenta si es_cubierta = true. Pon 0 para que la cubierta no lleve nieve. Si esta cubierta ya toma su nieve del módulo Viento y nieve, la aplicación RECHAZARÁ tu valor: ese número viene de un cálculo publicado y no se pisa desde aquí.',
+            description: 'Carga de nieve en PROYECCIÓN HORIZONTAL, kN/m². Sólo cuenta en lo que está a la intemperie: una planta con es_cubierta = true, o una fila de uso F o G. Es la misma para toda la planta. Pon 0 para que no lleve nieve. Si esta cubierta ya toma su nieve del módulo Viento y nieve, la aplicación RECHAZARÁ tu valor: ese número viene de un cálculo publicado y no se pisa desde aquí.',
           },
         },
       },
@@ -499,7 +501,9 @@ function filaDeZona(p: PlantaUI, z: ZonaUI): FilaAi {
     acceso_desde: z.uso.accesoDesde,
     escalera: z.uso.escalera,
     balcon: z.uso.balcon,
-    nieve_kNm2: p.esCubierta && p.nieve.modo !== 'ninguna' ? p.nieve.valor : 0,
+    // La nieve es de la planta pero sólo cae sobre las zonas a la intemperie:
+    // una terraza (uso F) en una planta baja la lleva, y la vivienda de al lado no.
+    nieve_kNm2: p.nieve.modo !== 'ninguna' && zonaALaIntemperie(p, z) ? p.nieve.valor : 0,
   };
 }
 
@@ -622,18 +626,28 @@ function plantasDePropuesta(
     const base = origenes[i]?.planta;
     const esCubierta = cabecera.es_cubierta;
 
-    // La nieve es de la PLANTA: manda la primera fila de la planta.
+    /**
+     * La nieve es de la PLANTA y cae sobre sus zonas a la intemperie: la
+     * cubierta entera, o una terraza (uso F) en una planta que por lo demás
+     * está bajo techo. Por eso vale cualquiera de sus filas, no sólo la
+     * primera: la que trae la nieve puede ser la terraza y no la vivienda.
+     */
+    const filasPlanta = filas.slice(i, fin);
+    const aLaIntemperie = esCubierta || filasPlanta.some((f) => f.uso === 'G' || f.uso === 'F');
+    const nieveDicha = Math.max(0, ...filasPlanta.map((f) => f.nieve_kNm2));
     let nieve = base && base.nombre.trim() === nombre ? { ...base.nieve } : nievePorDefecto();
-    if (!esCubierta) {
+    if (!aLaIntemperie) {
       nieve = nievePorDefecto();
     } else if (nieve.modo === 'publicada') {
       // Un sobre vivo no se pisa (ver cabecera del fichero).
-      if (Math.abs(nieve.valor - cabecera.nieve_kNm2) > 1e-9 && !nieveRechazada) {
+      if (Math.abs(nieve.valor - nieveDicha) > 1e-9 && !nieveRechazada) {
         skipped.push({ field: 'zonas', label: `${nombre || 'Cubierta'} — nieve`, reason: NIEVE_PUBLICADA_REASON });
         nieveRechazada = true;
       }
-    } else if (cabecera.nieve_kNm2 > 0) {
-      nieve = { ...nievePorDefecto(), modo: 'manual', valor: cabecera.nieve_kNm2 };
+    } else if (nieveDicha > 0) {
+      // Un valor que viene de la propuesta es una elección: no lo pisa después
+      // la nieve publicada, que sólo se pone sola en lo que nadie ha tocado.
+      nieve = { ...nievePorDefecto(), modo: 'manual', valor: nieveDicha, elegida: true };
     } else {
       nieve = nievePorDefecto();
     }
@@ -713,7 +727,7 @@ const CAMPOS_FILA: readonly Campo[] = [
       return extras.length > 0 ? `${base} (${extras.join(', ')})` : base;
     },
   },
-  { clave: 'nieve', etiqueta: 'nieve', texto: (f, s) => (f.es_cubierta && f.nieve_kNm2 > 0 ? q2(f.nieve_kNm2, s) : 'sin nieve') },
+  { clave: 'nieve', etiqueta: 'nieve', texto: (f, s) => (f.nieve_kNm2 > 0 ? q2(f.nieve_kNm2, s) : 'sin nieve') },
 ];
 
 const textoLineal = (l: LinealAi, s: UnitSystem) =>
@@ -736,7 +750,6 @@ function cambiosDeFilas(
       changes.push({ field: `zonas[${i}].nombre`, label: `Fila ${i + 1} — nombre`, before: rotuloFila(a), after: rotuloFila(p) });
     }
     for (const c of CAMPOS_FILA) {
-      if (c.clave === 'nieve' && !a.es_cubierta && !p.es_cubierta) continue;
       const antes = c.texto(a, system);
       const despues = c.texto(p, system);
       if (antes !== despues) {
@@ -1158,7 +1171,7 @@ function buildSnapshot(c: CargasState): string {
     nota: 'La provincia y el municipio se heredan de los datos de obra y NO son campos de tu propuesta.',
   };
   valores.nieve_de_cada_cubierta = c.plantas
-    .filter((p) => p.esCubierta)
+    .filter(plantaALaIntemperie)
     .map((p) => ({
       planta: p.nombre,
       modo: p.nieve.modo === 'publicada' ? 'tomada del módulo Viento y nieve' : (p.nieve.modo === 'manual' ? 'un valor propio' : 'sin nieve'),

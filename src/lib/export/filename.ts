@@ -60,10 +60,19 @@ export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';
 export const MATERIALES_FALLBACK_DXF = 'cuadro-de-materiales.dxf';
 export const MATERIALES_FALLBACK_PDF = 'cuadro-de-materiales.pdf';
 
-/** Los de «Viento y nieve», con el mismo reparto: memoria a Word y a PDF, plano a Excel. */
+/** Los de «Viento y nieve»: la memoria a Word y a PDF, el cuadro del plano a Excel y a DXF. */
 export const VIENTO_NIEVE_FALLBACK_DOCX = 'viento-y-nieve.docx';
 export const VIENTO_NIEVE_FALLBACK_XLSX = 'viento-y-nieve.xlsx';
 export const VIENTO_NIEVE_FALLBACK_PDF = 'viento-y-nieve.pdf';
+export const VIENTO_NIEVE_FALLBACK_DXF = 'viento-y-nieve.dxf';
+
+/**
+ * Los de la exportación CONJUNTA de la obra: los cuadros de plano de todos los
+ * módulos rellenados, en un solo fichero. No llevan nombre de módulo porque no
+ * son de ninguno: son de la obra, y por eso se piden desde su panel.
+ */
+export const CUADROS_PLANO_FALLBACK_DXF = 'cuadros-de-plano.dxf';
+export const CUADROS_PLANO_FALLBACK_XLSX = 'cuadros-de-plano.xlsx';
 
 /**
  * Los de «Cargas por planta», con las cuatro salidas del cuadro de materiales:

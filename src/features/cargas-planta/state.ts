@@ -44,7 +44,7 @@ import {
   PLANTAS_INICIALES,
   type NieveModo,
 } from './catalogos';
-import { avisosNieve, leerNievePublicada, type NievePublicada } from './nievePub';
+import { avisosNieve, leerNievePublicada, nieveDesdePublicacion, type NievePublicada } from './nievePub';
 import { versionViva } from '../../data/proyectoKeys';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
@@ -77,6 +77,20 @@ export interface NieveUI {
   inePub: string | null;
   /** Faldón elegido en la publicación; null = el máximo. */
   faldon: string | null;
+  /**
+   * El usuario ya ha dicho algo de la nieve de esta planta (ha elegido origen,
+   * ha tecleado un valor o ha pulsado «usar la publicada»).
+   *
+   * Mientras está a false, la nieve de las plantas a la intemperie SIGUE a la
+   * publicación de Viento y nieve: se toma sola al abrir el módulo y se vuelve
+   * a tomar si aquel módulo publica otra vez. Es lo que hace que la nieve
+   * declarada en un sitio no haya que copiarla en el otro. En cuanto el usuario
+   * la toca, manda él y los cambios del sobre pasan a ser un aviso ámbar.
+   *
+   * Opcional en lo guardado: un estado anterior al 15-09-2026 no lo trae y se
+   * lee como «sin tocar», que es lo que era.
+   */
+  elegida?: boolean;
 }
 
 export interface PermanenteUI {
@@ -156,6 +170,56 @@ export function cambioDeTipo(tipo: TipoPlanta): Pick<PlantaUI, 'esCubierta' | 'b
   return { esCubierta: tipo === 'cubierta', bajoRasante: tipo === 'sotano' };
 }
 
+/**
+ * ¿A esta zona le llega la nieve?
+ *
+ * La nieve cae sobre lo que está a la intemperie, y eso no es lo mismo que
+ * «la planta es una cubierta»: una planta baja puede tener una terraza, y una
+ * cubierta puede tener un castillete. Se resuelve por el USO de la zona —G,
+ * cubierta sólo para conservación, y F, terraza transitable— más la planta
+ * entera declarada cubierta, que es como se venía diciendo y sigue valiendo.
+ *
+ * El valor, en cambio, es de la PLANTA: a la misma altura cae la misma nieve.
+ */
+export function zonaALaIntemperie(planta: Pick<PlantaUI, 'esCubierta'>, zona: ZonaUI): boolean {
+  return planta.esCubierta || zona.uso.categoria === 'G' || zona.uso.categoria === 'F';
+}
+
+/** ¿Tiene esta planta algo a la intemperie? Entonces se le puede declarar nieve. */
+export function plantaALaIntemperie(planta: PlantaUI): boolean {
+  return planta.zonas.some((z) => zonaALaIntemperie(planta, z));
+}
+
+/** ¿Son la misma declaración de nieve? Para no reescribir el estado sin motivo. */
+const mismaNieve = (a: NieveUI, b: NieveUI) =>
+  a.modo === b.modo && a.valor === b.valor && a.tsPub === b.tsPub && a.inePub === b.inePub && a.faldon === b.faldon && !!a.elegida === !!b.elegida;
+
+/**
+ * La nieve por defecto: la que ya está declarada en Viento y nieve.
+ *
+ * Toda planta a la intemperie que el usuario no haya tocado toma la nieve del
+ * sobre, y la vuelve a tomar si aquel módulo publica otra vez —así no hay que
+ * copiar a mano un dato que ya está dicho en la obra—. En cuanto el usuario
+ * elige (otro origen, un valor propio, «sin nieve»), esta función deja de
+ * tocar esa planta y los cambios del sobre pasan a ser el aviso ámbar de
+ * `avisosNieve`.
+ *
+ * Devuelve el MISMO array cuando no hay nada que cambiar: quien la llama lo usa
+ * para no reescribir el estado en cada render.
+ */
+export function adoptarNievePublicada(plantas: PlantaUI[], pub: NievePublicada | null): PlantaUI[] {
+  if (!pub) return plantas;
+  let cambio = false;
+  const siguiente = plantas.map((p) => {
+    if (p.nieve.elegida || !plantaALaIntemperie(p)) return p;
+    const nieve = nieveDesdePublicacion(pub, p.nieve.faldon, false);
+    if (mismaNieve(p.nieve, nieve)) return p;
+    cambio = true;
+    return { ...p, nieve };
+  });
+  return cambio ? siguiente : plantas;
+}
+
 export interface LinealUI {
   id: string;
   concepto: string;
@@ -203,7 +267,7 @@ export function nuevoId(prefijo = 'p'): string {
 }
 
 export function nievePorDefecto(): NieveUI {
-  return { modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null };
+  return { modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null, elegida: false };
 }
 
 export function usoPorDefecto(categoria: CategoriaUso | 'otro' = 'A1'): UsoUI {
@@ -342,10 +406,18 @@ export function esEstadoInicial(s: CargasState): boolean {
 /** Sin los `id`, que se generan nuevos en cada llamada y nunca coincidirían. */
 const sinId = <T extends { id?: string }>({ id: _id, ...resto }: T) => resto;
 
+/**
+ * La nieve que el usuario NO ha elegido no cuenta como diferencia: la pone
+ * sola la publicación de Viento y nieve, y que el edificio de arranque o el
+ * caso de ejemplo la tomen no los convierte en la obra de nadie.
+ */
+const nieveHuella = (n: NieveUI) => (n.elegida ? n : nievePorDefecto());
+
 const huellaEdificio = (s: CargasState) =>
   JSON.stringify({
     plantas: s.plantas.map((p) => ({
       ...sinId(p),
+      nieve: nieveHuella(p.nieve),
       zonas: p.zonas.map((z) => ({ ...sinId(z), permanentes: z.permanentes.map(sinId) })),
     })),
     lineales: s.lineales.map(sinId),
@@ -469,6 +541,7 @@ export function normalizar(bruto: unknown): CargasState {
             tsPub: textoONull(n.tsPub),
             inePub: textoONull(n.inePub),
             faldon: textoONull(n.faldon),
+            elegida: bool(n.elegida, false),
           },
           zonas: zonas.length > 0 ? zonas : [nuevaZona(esCubierta)],
         };
@@ -596,7 +669,9 @@ export function entradaMotor(state: CargasState): CargasInput {
       esCubierta: p.esCubierta,
       bajoRasante: p.bajoRasante,
       altura: p.altura,
-      ...(p.esCubierta && p.nieve.modo !== 'ninguna' ? { nieve: p.nieve.valor } : {}),
+      // La nieve viaja siempre que esté declarada: el motor decide a qué zonas
+      // les llega (las de uso G y F, y todas si la planta es cubierta).
+      ...(p.nieve.modo !== 'ninguna' ? { nieve: p.nieve.valor } : {}),
       zonas: p.zonas.map((z) => ({
         id: z.id,
         nombre: z.nombre,

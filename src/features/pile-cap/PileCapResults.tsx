@@ -53,8 +53,16 @@ export function PileCapResults({ inp, result }: Props) {
 
       {/* Geometría del encepado */}
       <GroupHeader label="Geometría del encepado" />
-      <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+      {n === 3 ? (
+        <>
+          <ValueRow label="Planta"     value="triangular, chaflanes a e" />
+          <ValueRow label="Envolvente" value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+        </>
+      ) : (
+        <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+      )}
       <ValueRow label="e_borde"  value={`${result.e_borde.toFixed(0)} mm`} />
+      <ValueRow label="A_planta" value={`${(result.A_cap / 1e6).toFixed(2)} m²`} />
       <ValueRow label="h_min"    value={`${result.h_min.toFixed(0)} mm`} />
 
       {/* Bielas y tirantes */}
@@ -70,6 +78,7 @@ export function PileCapResults({ inp, result }: Props) {
       />
       <ValueRow label="σ_biela"    value={fmtSi(result.sigma_strut, 'stress')} />
       <ValueRow label="σ_Rd,max"   value={fmtSi(result.sigma_Rd_max, 'stress')} />
+      <ValueRow label="fyd tirante" value={`${fmtSi(result.fyd, 'stress', 0)} (≤ 400, EHE-08 40.2)`} />
       <ValueRow label="Ft,x"       value={fmtSi(result.Ft_x, 'force')} />
       {result.Ft_y !== null && (
         <ValueRow label="Ft,y" value={fmtSi(result.Ft_y, 'force')} />
@@ -108,6 +117,27 @@ export function PileCapResults({ inp, result }: Props) {
         <ValueRow label="s_bar,y" value={`${result.s_bar_y.toFixed(0)} mm`} />
       )}
 
+      {/* Armadura secundaria dispuesta vs requerida — EHE-08 art. 58.4.1.2
+        * (el CE no fija mínimos propios): 2 pilotes → 58.4.1.2.1.2; 3 y 4 →
+        * 58.4.1.2.2. Lo no exigido para ese n se informa sin «req.». */}
+      <GroupHeader label={n === 2 ? 'Armadura secundaria (EHE-08 58.4.1.2.1.2)' : 'Armadura secundaria (EHE-08 58.4.1.2.2)'} />
+      {n === 2 ? (
+        <>
+          <ValueRow label="b_ref (4‰)" value={`${result.b_ref.toFixed(0)} mm`} />
+          <ValueRow label="Superior" value={`${inp.n_top as number}Ø${inp.phi_top as number} → ${result.As_top_prov.toFixed(0)} mm² (req. ${result.As_top_req.toFixed(0)})`} />
+          <ValueRow label="Cercos vert." value={`Ø${inp.phi_cv as number} c/${inp.s_cv as number} ×${inp.n_cv as number} → ${result.As_cv_prov.toFixed(0)} mm²/m (req. ${result.As_cv_req.toFixed(0)})`} />
+          <ValueRow label="Horiz. caras" value={`Ø${inp.phi_ch as number} c/${inp.s_ch as number} → ${result.As_ch_prov.toFixed(0)} mm²/m (req. ${result.As_ch_req.toFixed(0)})`} />
+        </>
+      ) : (
+        <>
+          <ValueRow label="Retícula inf." value={`Ø${inp.phi_g as number} c/${inp.s_g as number} → ${result.As_g_prov.toFixed(0)} mm²/m (req. ${result.As_g_req.toFixed(0)})`} />
+          <ValueRow label="Cercos banda" value={`Ø${inp.phi_cv as number} c/${inp.s_cv as number} ×${inp.n_cv as number} → ${result.As_cv_prov.toFixed(0)} mm²/m (req. ${result.As_cv_req.toFixed(0)})`} />
+          <ValueRow label="Cercos total" value={`${result.As_cv_tot_prov.toFixed(0)} mm² en ${(result.L_bands / 1000).toFixed(2)} m (req. ${result.As_cv_tot_req.toFixed(0)})`} />
+          <ValueRow label="Superior" value={`${inp.n_top as number}Ø${inp.phi_top as number} → ${result.As_top_prov.toFixed(0)} mm² (no exigida)`} />
+          <ValueRow label="Horiz. caras" value={`Ø${inp.phi_ch as number} c/${inp.s_ch as number} → ${result.As_ch_prov.toFixed(0)} mm²/m (no exigida)`} />
+        </>
+      )}
+
       {/* Anclaje */}
       <GroupHeader label="Anclaje (CE Anejo 19 §8.4.4)" />
       <ValueRow label="lb,básica" value={`${result.lb.toFixed(0)} mm`} />
@@ -120,8 +150,9 @@ export function PileCapResults({ inp, result }: Props) {
 
       {n === 3 && (
         <p className="text-[10px] text-text-secondary mt-2 leading-relaxed">
-          Nota n=3: Ft calculado conservadoramente como R_max·a_crit/z_eff (~15% sobre el valor exacto).
-          CE Anejo 19 §6.5 / EHE-08 art. 58.
+          Nota n=3: encepado rígido de tres pilotes (Calavera fig. 14-9). Planta triangular con
+          las esquinas achaflanadas a e del eje de cada pilote; tirantes en banda sobre los tres
+          lados, T = 0,68·R_max/d·(0,58·s − 0,25·a) por lado. CE Anejo 19 §6.5.
         </p>
       )}
     </div>

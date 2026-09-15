@@ -45,6 +45,16 @@ export const TH_DER = `${TH} text-right text-accent`;
 export const TH_GRUPO =
   'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[9.5px] uppercase text-text-disabled border-l border-border-sub';
 
+/**
+ * La banda de arriba del todo: de qué es cada mitad de la mesa. A la izquierda
+ * se teclea lo que pesa siempre (G) y a la derecha lo que va y viene (Q), y sin
+ * decirlo las dos mitades se leían como dos listas de números cualesquiera.
+ * Lleva fondo porque es lo único que la hace leerse como una banda sobre varias
+ * columnas y no como otra fila de cabeceras.
+ */
+export const TH_BANDA =
+  'rounded-t bg-bg-elevated px-1.5 py-0.5 text-left font-mono text-[9px] uppercase tracking-[0.07em] text-text-secondary';
+
 /** Celda del cuerpo: arriba, porque lo que alinea la fila es su primera línea (`LINEA`). */
 export const TD = 'border-b border-border-sub px-1.5 py-1 align-top';
 export const TD_NUM = `${TD} text-right`;

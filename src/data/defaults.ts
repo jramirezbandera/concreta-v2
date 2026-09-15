@@ -683,12 +683,27 @@ export interface PileCapInputs {
   dims_auto: boolean;
   L_x:      number;  // mm — cap plan dimension x (solo modo manual)
   L_y:      number;  // mm — cap plan dimension y (solo modo manual)
+  /** n=3: distancia de eje de pilote a borde e (cota «C» del plano; solo modo manual).
+   *  La planta triangular achaflanada queda definida por s, e y h. */
+  e_man:    number;  // mm
   b_col:    number;  // mm — column width (x)
   h_col:    number;  // mm — column depth (y)
   fck:      number;  // MPa
   fyk:      number;  // MPa
   cover:    number;  // mm — bottom cover to tie bar centroid
   phi_tie:  number;  // mm — tie bar diameter
+  /** Armadura secundaria (EHE-08 art. 58.4.1.2; el CE no fija mínimos propios),
+   *  dispuesta por el usuario y comprobada frente al mínimo: superior y retícula
+   *  lateral (2 pilotes); retícula inferior entre bandas y cercos de banda (3 y 4). */
+  phi_top:  number;  // mm — barras superiores (por banda)
+  n_top:    number;  // ud — barras superiores por banda
+  phi_cv:   number;  // mm — cercos verticales
+  s_cv:     number;  // mm — separación de cercos a lo largo del encepado
+  n_cv:     number;  // ud — ramas verticales de cada cerco
+  phi_ch:   number;  // mm — armadura horizontal de las caras laterales
+  s_ch:     number;  // mm — separación vertical entre horizontales
+  phi_g:    number;  // mm — retícula inferior entre bandas (n ≥ 3)
+  s_g:      number;  // mm — separación de la retícula inferior
   N_Ed:     number;  // kN — design axial (compression > 0)
   Mx_Ed:    number;  // kNm — moment about x-axis (Navier)
   My_Ed:    number;  // kNm — moment about y-axis
@@ -699,8 +714,8 @@ export interface PileCapInputs {
 // Verified hand-calc (modelo B&T CE Anejo 19 §6.5, geometría ex-EHE, fix
 // adenda 2 + dims auto redondeadas a 5 cm): Lx×Ly = 1950×1150, e_borde=375;
 // W_cap=44.85 kN → R_max=180.3 kN (72% de R_adm); θ=51.3°; σ_strut=6.08 vs
-// σ_Rd=9.02 → 67%; tirante 332/1131 mm² → 29% (fyd=fyk/γs, sin tope EHE);
-// anclaje lb,req≈337 vs 1015 mm → 33%.
+// σ_Rd=9.02 → 67%; tirante 361/1131 mm² → 32% (fyd = min(fyk/γs, 400), tope
+// EHE-08 40.2); anclaje lb,req≈310 vs 1015 mm → 31%.
 // L_x/L_y por defecto = valores auto (semilla al pasar a modo manual).
 export const pileCapDefaults: PileCapInputs = {
   title:   '',
@@ -714,12 +729,25 @@ export const pileCapDefaults: PileCapInputs = {
   dims_auto: true,
   L_x:     1950,
   L_y:     1150,
+  e_man:   400,      // e auto para d_p=220 con n=3 (semilla al pasar a manual)
   b_col:   400,
   h_col:   400,
   fck:     25,
   fyk:     500,
   cover:   60,
   phi_tie: 12,
+  // Secundaria (n=2, EHE-08 58.4.1.2.1.2): b_ref = min(1150, 400) = 400 → 4‰ =
+  // 1600 mm²/m; Ø12 c/100 con 2 ramas = 2262 mm²/m (71 %); superior 2Ø12 = 226
+  // vs 113 mm² (50 %). Retícula inferior Ø12 c/100 sólo cuenta con n ≥ 3.
+  phi_top: 12,
+  n_top:   2,
+  phi_cv:  12,
+  s_cv:    100,
+  n_cv:    2,
+  phi_ch:  12,
+  s_ch:    100,
+  phi_g:   12,
+  s_g:     100,
   N_Ed:    300,
   Mx_Ed:   0,
   My_Ed:   0,

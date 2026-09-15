@@ -14,7 +14,9 @@
  *
  * La nieve vive aquí y no en una columna porque es de la PLANTA, no de la zona,
  * y porque su origen (el sobre de Viento y nieve, un valor propio o ninguna)
- * necesita más sitio del que da una celda.
+ * necesita más sitio del que da una celda. Se pide en las zonas a la
+ * intemperie: la cubierta entera, o la terraza de una planta que por lo demás
+ * está bajo techo.
  */
 
 import { Trash2 } from 'lucide-react';
@@ -29,7 +31,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES, FAMILIA_PSI_OPCIONES, NIEVE_MODO_OPCIONES, USO_OPCIONES, type NieveModo } from './catalogos';
 import { BOTON_MENOR, INPUT_ANCHO } from './estilos';
 import type { NievePublicada } from './nievePub';
-import { rotuloDeZona, type PlantaUI, type UsoUI, type ZonaUI } from './state';
+import { rotuloDeZona, zonaALaIntemperie, type PlantaUI, type UsoUI, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
@@ -42,7 +44,10 @@ interface Props {
   r: ZonaCargasResuelta | undefined;
   /** Nombre de la zona en los aria-label: «Planta Baja (Vaso piscina)». */
   quien: string;
+  /** La planta tiene una sola zona y sin nombre: no hay nada que nombrar. */
   unica: boolean;
+  /** Hay más de una zona: la última no se borra, se renombra. */
+  puedeBorrar: boolean;
   ayuda: boolean;
   nievePub: NievePublicada | null;
   onZona: (cambio: Partial<ZonaUI>) => void;
@@ -76,7 +81,7 @@ function Casilla({ on, onCambiar, ariaLabel, children }: { on: boolean; onCambia
   );
 }
 
-export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onPlanta, onBorrarZona, onUsarNieve }: Props) {
+export function Ficha({ planta, z, r, quien, unica, puedeBorrar, ayuda, nievePub, onZona, onPlanta, onBorrarZona, onUsarNieve }: Props) {
   const { system } = useUnitSystem();
   const uQ = getUnitLabel('areaLoad', system);
   const uL = getUnitLabel('linearLoad', system);
@@ -92,6 +97,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
   const cambiarUso = (cambio: Partial<UsoUI>) => onZona({ uso: { ...z.uso, ...cambio } });
 
   const permanentes = z.permanentes.filter((p) => p.valor !== 0 || p.concepto.trim() !== '');
+  const intemperie = zonaALaIntemperie(planta, z);
   const nombreCatalogo = (catalogoId: string | null) => CATALOGO_PERMANENTES.find((e) => e.id === catalogoId)?.etiqueta;
 
   return (
@@ -103,7 +109,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
             <span className="text-text-disabled">Ficha · </span>
             {quien}
           </span>
-          {!unica && (
+          {puedeBorrar && (
             <button type="button" onClick={onBorrarZona} aria-label={`Borrar la zona ${quien}`} className="rounded p-0.5 text-text-disabled hover:text-state-fail" title="Borrar esta zona">
               <Trash2 size={13} aria-hidden="true" />
             </button>
@@ -168,9 +174,13 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
           </>
         )}
 
-        {planta.esCubierta && (
+        {/* La nieve se pide donde hay algo a la intemperie: la cubierta entera,
+            o una terraza (uso F) en una planta que por lo demás está bajo
+            techo. El valor es de la PLANTA —a la misma altura, la misma
+            nieve— y cae sobre todas sus zonas al aire libre. */}
+        {intemperie && (
           <div className="flex flex-col gap-1.5 border-t border-border-sub pt-2">
-            <span className="text-[11px] text-text-secondary">Nieve sobre la cubierta</span>
+            <span className="text-[11px] text-text-secondary">{planta.esCubierta ? 'Nieve sobre la cubierta' : 'Nieve sobre esta zona a la intemperie'}</span>
             <select
               value={planta.nieve.modo}
               aria-label={`Origen de la nieve de ${planta.nombre || 'la cubierta'}`}
@@ -178,7 +188,9 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               onChange={(ev) => {
                 const m = ev.target.value as NieveModo;
                 if (m === 'publicada') onUsarNieve(planta.nieve.faldon);
-                else onPlanta({ nieve: { ...planta.nieve, modo: m, tsPub: null, inePub: null } });
+                // A partir de aquí manda el usuario: la nieve deja de seguir
+                // sola a la publicación de Viento y nieve (ver `NieveUI`).
+                else onPlanta({ nieve: { ...planta.nieve, modo: m, tsPub: null, inePub: null, elegida: true } });
               }}
             >
               {NIEVE_MODO_OPCIONES.map((o) => (
@@ -189,7 +201,7 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               ))}
             </select>
             {planta.nieve.modo === 'manual' && (
-              <RawNumberInput value={planta.nieve.valor} onChange={(valor) => onPlanta({ nieve: { ...planta.nieve, valor } })} ariaLabel={`Nieve tecleada en ${planta.nombre || 'la cubierta'} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-20" />
+              <RawNumberInput value={planta.nieve.valor} onChange={(valor) => onPlanta({ nieve: { ...planta.nieve, valor, elegida: true } })} ariaLabel={`Nieve tecleada en ${planta.nombre || 'la cubierta'} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-20" />
             )}
             {planta.nieve.modo === 'publicada' && nievePub && nievePub.faldones.length > 1 && (
               <select value={planta.nieve.faldon ?? ''} aria-label={`Faldón de la nieve publicada en ${planta.nombre || 'la cubierta'}`} className={INPUT_ANCHO} onChange={(ev) => onUsarNieve(ev.target.value === '' ? null : ev.target.value)}>
@@ -208,6 +220,18 @@ export function Ficha({ planta, z, r, quien, unica, ayuda, nievePub, onZona, onP
               <button type="button" onClick={() => onUsarNieve(planta.nieve.faldon)} className={BOTON_MENOR + ' self-start'} title="Volver a tomar la nieve del sobre de Viento y nieve">
                 Usar la nieve publicada ({mostrar(nievePub.qnMax)} {uQ})
               </button>
+            )}
+            {/* Puesta sola: se dice, porque es un número que el usuario no ha
+                tecleado y que entra en qd. */}
+            {planta.nieve.modo === 'publicada' && !planta.nieve.elegida && (
+              <span className="text-[10.5px] leading-snug text-text-disabled">
+                Puesta sola: es la que declara Viento y nieve. Cámbiela aquí si esta planta lleva otra.
+              </span>
+            )}
+            {ayuda && !planta.esCubierta && (
+              <span className="text-[10.5px] leading-snug text-text-disabled">
+                Es la nieve de la planta: cae sobre sus zonas a la intemperie —terrazas y cubiertas—, no sobre las de dentro.
+              </span>
             )}
           </div>
         )}
@@ -313,6 +337,7 @@ export function FichaDeZona({ plantas, resultado, zonaSel, ayuda, nievePub, onZo
       r={r}
       quien={rotuloDeZona(planta, z)}
       unica={planta.zonas.length === 1 && !z.nombre}
+      puedeBorrar={planta.zonas.length > 1}
       ayuda={ayuda}
       nievePub={nievePub}
       onZona={(cambio) => onZona(planta.id, z.id, cambio)}

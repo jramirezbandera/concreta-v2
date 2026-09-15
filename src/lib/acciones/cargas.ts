@@ -90,7 +90,13 @@ export interface PlantaCargas {
   bajoRasante?: boolean;
   /** m, de forjado a forjado. Tampoco cambia ninguna carga: de largo, como `bajoRasante`. */
   altura?: number | null;
-  /** Carga de nieve en proyección horizontal, kN/m². Sólo cuenta en cubiertas. */
+  /**
+   * Carga de nieve en proyección horizontal, kN/m². Se declara una vez por
+   * planta —a la misma altura cae la misma nieve— y cae sobre las zonas A LA
+   * INTEMPERIE: todas si la planta es cubierta, y si no, las de uso G (cubierta
+   * sólo para conservación) y F (terraza transitable). Así una planta baja con
+   * terraza lleva su nieve sin que le llegue a la vivienda de al lado.
+   */
   nieve?: number;
   zonas: ZonaCargas[];
 }
@@ -179,7 +185,7 @@ export interface ZonaCargasResuelta {
   /** pp + resto, kN/m². */
   G: number;
   uso: UsoResuelto;
-  /** Nieve de la planta si es cubierta, kN/m². */
+  /** Nieve que le llega a esta zona, kN/m²; null si está bajo techo. */
   nieve: number | null;
   psiNieve: Psi | null;
   /** La variable característica que manda, kN/m²: qUso, la nieve, o la combinación con ψ0. */
@@ -195,7 +201,9 @@ export interface PlantaCargasResuelta {
   nombre: string;
   esCubierta: boolean;
   bajoRasante: boolean;
+  /** m, de forjado a forjado; null si no se ha dicho. */
   altura: number | null;
+  /** Nieve declarada en la planta, kN/m²; null si no hay o si no tiene nada a la intemperie. */
   nieve: number | null;
   zonas: ZonaCargasResuelta[];
 }
@@ -361,7 +369,7 @@ export function sobrecargaUso(uso: UsoCargas): UsoResuelto {
 export interface CombinacionCubierta {
   G: number;
   qUso: number;
-  /** `null` = sin nieve (planta que no es cubierta, o cubierta sin nieve). */
+  /** `null` = sin nieve (zona bajo techo, o a la intemperie sin nieve declarada). */
   nieve: number | null;
   /** Categoría G: la sobrecarga de conservación no es concomitante con la nieve (tabla 3.1, nota 7). */
   noConcomitante: boolean;
@@ -428,8 +436,16 @@ export function calcularCargas(input: CargasInput): CargasResultado {
 
   const plantas: PlantaCargasResuelta[] = input.plantas.map((planta) => {
     const nombrePlanta = planta.nombre.trim() || 'Planta';
-    const nieve = planta.esCubierta && planta.nieve !== undefined ? planta.nieve : null;
-    if (nieve !== null && nieve < 0) errores.push(`«${nombrePlanta}»: la carga de nieve no puede ser negativa.`);
+    if (planta.nieve !== undefined && planta.nieve < 0) errores.push(`«${nombrePlanta}»: la carga de nieve no puede ser negativa.`);
+    /**
+     * A la intemperie: la planta declarada cubierta entera, o la zona cuyo uso
+     * ya dice que está al aire libre —G, cubierta sólo para conservación, y F,
+     * terraza transitable—. Es lo que decide a qué zonas les llega la nieve.
+     */
+    const aLaIntemperie = (z: ZonaCargas) => planta.esCubierta || z.uso.categoria === 'G' || z.uso.categoria === 'F';
+    // La nieve declarada en una planta que no tiene nada al aire libre no cae
+    // en ninguna parte: la planta se resuelve sin nieve.
+    const nieve = planta.nieve !== undefined && planta.zonas.some(aLaIntemperie) ? planta.nieve : null;
     if (planta.zonas.length === 0) errores.push(`«${nombrePlanta}»: no tiene ninguna zona de carga.`);
 
     const zonas: ZonaCargasResuelta[] = planta.zonas.map((zona) => {
@@ -488,7 +504,9 @@ export function calcularCargas(input: CargasInput): CargasResultado {
       presentes.add(uso.familiaPsi);
 
       const G = forjado.pp + resto;
-      const conNieve = nieve !== null && nieve > 0;
+      // La nieve de la planta, pero sólo si a ESTA zona le llega.
+      const nieveZona = nieve !== null && aLaIntemperie(zona) ? nieve : null;
+      const conNieve = nieveZona !== null && nieveZona > 0;
       const noConcomitante = u.categoria === 'G';
       if (conNieve) {
         presentes.add(nievePsi.clave);
@@ -498,7 +516,7 @@ export function calcularCargas(input: CargasInput): CargasResultado {
       const comb = combinarCubierta({
         G,
         qUso: uso.qUso,
-        nieve: conNieve ? nieve : null,
+        nieve: conNieve ? nieveZona : null,
         noConcomitante,
         psi0Uso: uso.psi.psi0,
         psi0Nieve: nievePsi.psi.psi0,
@@ -512,7 +530,7 @@ export function calcularCargas(input: CargasInput): CargasResultado {
         resto,
         G,
         uso,
-        nieve,
+        nieve: nieveZona,
         psiNieve: conNieve ? nievePsi.psi : null,
         ...comb,
       };

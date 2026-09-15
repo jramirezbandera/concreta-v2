@@ -252,6 +252,29 @@ describe('Cargas por planta — la ficha de la fila', () => {
     expect(screen.getByText(/«Cubierta»: Viento y nieve ha publicado de nuevo/)).toBeInTheDocument();
     expect(screen.getByText(/1 aviso/)).toBeInTheDocument();
   });
+
+  it('con un sobre publicado, la nieve se pone sola al abrir: no hay que ir a buscarla', () => {
+    publicarMadrid();
+    montar();
+
+    expect(screen.getByTitle('Carga de nieve de la cubierta')).toHaveTextContent('0,60');
+    expect(screen.queryByRole('button', { name: 'sin nieve' })).not.toBeInTheDocument();
+    // Y se dice que la ha puesto la app, porque es un número que nadie ha tecleado.
+    abrirFicha('Cubierta');
+    expect(screen.getByLabelText('Origen de la nieve de Cubierta')).toHaveValue('publicada');
+    expect(screen.getByText(/Puesta sola: es la que declara Viento y nieve/)).toBeInTheDocument();
+  });
+
+  it('una terraza en planta baja lleva nieve; la vivienda de al lado, no', () => {
+    publicarMadrid();
+    montar();
+    // La planta baja se declara terraza transitable: uso F, a la intemperie.
+    fireEvent.change(screen.getByLabelText('Uso de Planta Baja'), { target: { value: 'F' } });
+
+    expect(within(filaDe('Planta Baja')).getByTitle(/Carga de nieve/)).toHaveTextContent('0,60');
+    // La planta de al lado sigue bajo techo: su celda de nieve es un guion.
+    expect(within(filaDe('Planta Primera')).getByTitle('Bajo techo: no le llega la nieve')).toBeInTheDocument();
+  });
 });
 
 describe('Cargas por planta — las columnas de encima', () => {
@@ -262,6 +285,26 @@ describe('Cargas por planta — las columnas de encima', () => {
     expect(screen.getByRole('columnheader', { name: /Agua/ })).toBeInTheDocument();
     // Se teclea por espesor: la celda pide metros en todas las filas.
     expect(screen.getAllByLabelText(/^Espesor de Agua/)).toHaveLength(3);
+  });
+
+  it('vaciar una celda quita esa carga de la zona, y no reaparece al salir del campo', () => {
+    montar();
+    const solado = () => within(filaDe('Planta Baja')).getByLabelText(/^Valor de Solado cerámico/);
+    const G = () => within(filaDe('Planta Baja')).getByTitle('Carga permanente total');
+    // Reticular de 30 (5,00) + solado (1,00) + tabiquería (1,00).
+    expect(G()).toHaveTextContent('7,00');
+
+    fireEvent.change(solado(), { target: { value: '' } });
+    expect(solado()).toHaveValue('');
+    expect(G()).toHaveTextContent('6,00');
+
+    // Al salir del campo sigue vacía: antes volvía el 1,00 recién borrado.
+    fireEvent.blur(solado());
+    expect(solado()).toHaveValue('');
+    expect(G()).toHaveTextContent('6,00');
+    // La columna sigue ahí, porque otras zonas la llevan: se vuelve a teclear.
+    fireEvent.change(solado(), { target: { value: '2' } });
+    expect(G()).toHaveTextContent('8,00');
   });
 
   it('«Otra carga permanente» estrena UNA columna sin nombre, la misma en las tres zonas', () => {
@@ -293,7 +336,10 @@ describe('Cargas por planta — las columnas de encima', () => {
 
     expect(screen.getByRole('columnheader', { name: 'nada encima' })).toBeInTheDocument();
     const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
-    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    const filasCabecera = tabla.querySelectorAll('thead tr');
+    // La ÚLTIMA fila de la cabecera es la de columnas: encima van la banda
+    // (permanente / variable) y las preguntas de grupo, que abarcan varias.
+    const cabecera = filasCabecera[filasCabecera.length - 1] as HTMLTableRowElement;
     expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
   });
 });
@@ -333,7 +379,10 @@ describe('Cargas por planta — el orden de las plantas', () => {
     ]);
     // El desplegable vive dentro de la celda de la planta: la fila no gana ni pierde celdas.
     const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
-    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    const filasCabecera = tabla.querySelectorAll('thead tr');
+    // La ÚLTIMA fila de la cabecera es la de columnas: encima van la banda
+    // (permanente / variable) y las preguntas de grupo, que abarcan varias.
+    const cabecera = filasCabecera[filasCabecera.length - 1] as HTMLTableRowElement;
     expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
   });
 
@@ -354,10 +403,29 @@ describe('Cargas por planta — el orden de las plantas', () => {
       ['Planta Primera', 'planta', 3],
       ['Planta Baja', 'planta', 4],
     ]);
-    // La columna nueva no descuadra la fila con la cabecera.
+    // La columna nueva no descuadra la fila con la cabecera de columnas,
+    // que es la ÚLTIMA: encima van la banda y las preguntas de grupo.
     const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
-    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    const filasCabecera = tabla.querySelectorAll('thead tr');
+    const cabecera = filasCabecera[filasCabecera.length - 1] as HTMLTableRowElement;
     expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
+  });
+
+  it('la banda dice de qué es cada mitad de la mesa: lo que pesa siempre y lo que va y viene', () => {
+    montar();
+    expect(screen.getByRole('columnheader', { name: /^Pesa siempre · carga permanente G$/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /^Va y viene · sobrecarga variable Q$/ })).toBeInTheDocument();
+  });
+
+  it('una zona se borra desde la tabla, no sólo desde su ficha', () => {
+    montar();
+    fireEvent.click(within(filaDe('Planta Baja')).getByRole('button', { name: '+ zona' }));
+    expect(screen.getByLabelText('Uso de Planta Baja (Zona 2)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar la zona Planta Baja (Zona 2)' }));
+    expect(screen.queryByLabelText('Uso de Planta Baja (Zona 2)')).not.toBeInTheDocument();
+    // Con una sola zona ya no hay papelera: la última no se borra, se renombra.
+    expect(screen.queryByRole('button', { name: /^Borrar la zona/ })).not.toBeInTheDocument();
   });
 
   it('la zona que era «toda» toma nombre en cuanto la planta tiene una segunda', () => {
@@ -460,7 +528,7 @@ describe('Cargas por planta — exportación', () => {
 describe('Cargas por planta — los muros', () => {
   it('la fachada arranca como muro y su carga sale de multiplicar alzado por altura', () => {
     montar();
-    const alzado = screen.getByLabelText(/^Peso por metro cuadrado de alzado de Cerramiento de fachada/);
+    const alzado = screen.getByLabelText(/^Peso por metro cuadrado de Cerramiento de fachada/);
     const altura = screen.getByLabelText('Altura de Cerramiento de fachada');
     expect(alzado).toHaveValue('2,33');
     expect(altura).toHaveValue('3');

@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  adoptarNievePublicada,
   cambioDeTipo,
   cargarEstado,
   datosPublicacion,
@@ -194,9 +195,63 @@ describe('la nieve del sobre de Viento y nieve', () => {
   it('tomarla congela valor, fecha y obra; el faldón que no existe cae al máximo', () => {
     publicarMadrid();
     const pub = leerNievePublicada()!;
-    expect(nieveDesdePublicacion(pub)).toEqual({ modo: 'publicada', valor: pub.qnMax, tsPub: pub.ts, inePub: '28', faldon: null });
+    // `elegida`: la ha pedido el usuario, así que deja de seguir sola al sobre.
+    expect(nieveDesdePublicacion(pub)).toEqual({ modo: 'publicada', valor: pub.qnMax, tsPub: pub.ts, inePub: '28', faldon: null, elegida: true });
+    expect(nieveDesdePublicacion(pub, null, false).elegida).toBe(false);
     expect(nieveDesdePublicacion(pub, 'Cubierta').faldon).toBe('Cubierta');
     expect(nieveDesdePublicacion(pub, 'Nada')).toMatchObject({ valor: pub.qnMax, faldon: null });
+  });
+
+  it('por defecto la toman solas las plantas a la intemperie que nadie ha tocado', () => {
+    publicarMadrid();
+    const pub = leerNievePublicada()!;
+    const s = sevilla();
+
+    const plantas = adoptarNievePublicada(s.plantas, pub);
+    expect(planta(plantas, CUBIERTA).nieve).toMatchObject({ modo: 'publicada', valor: pub.qnMax, tsPub: pub.ts, elegida: false });
+    // La planta de viviendas no: ahí no cae nieve, y no hay nada que declarar.
+    expect(planta(plantas, BAJA).nieve.modo).toBe('ninguna');
+    // Puesta ya, no se vuelve a escribir: el mismo array, que es lo que corta
+    // el efecto del módulo.
+    expect(adoptarNievePublicada(plantas, pub)).toBe(plantas);
+    // Y sin publicación no se toca nada.
+    expect(adoptarNievePublicada(s.plantas, null)).toBe(s.plantas);
+  });
+
+  it('una terraza en planta baja también la toma; lo elegido a mano no se pisa', () => {
+    publicarMadrid();
+    const pub = leerNievePublicada()!;
+    const s = sevilla();
+    // La planta baja pasa a tener una terraza: uso F, a la intemperie.
+    planta(s.plantas, BAJA).zonas[0].uso = { ...planta(s.plantas, BAJA).zonas[0].uso, categoria: 'F' };
+    // Y la cubierta la ha dicho el usuario: «sin nieve» es una decisión suya.
+    planta(s.plantas, CUBIERTA).nieve = { modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null, elegida: true };
+
+    const plantas = adoptarNievePublicada(s.plantas, pub);
+    expect(planta(plantas, BAJA).nieve).toMatchObject({ modo: 'publicada', valor: pub.qnMax });
+    expect(planta(plantas, CUBIERTA).nieve.modo).toBe('ninguna');
+    // Esa nieve llega a la terraza y no a la cubierta, que dijo que no.
+    const ev = evaluar({ ...s, plantas }, pub);
+    expect(planta(ev.resultado.plantas, BAJA).zonas[0].nieve).toBeCloseTo(pub.qnMax, 12);
+    expect(planta(ev.resultado.plantas, CUBIERTA).zonas[0].nieve).toBeNull();
+  });
+
+  it('la tomada sola sigue al sobre; no cuenta como obra configurada', () => {
+    publicarMadrid();
+    const s = sevilla();
+    const plantas = adoptarNievePublicada(s.plantas, leerNievePublicada());
+    // Sigue siendo el edificio de arranque: la nieve que pone la app sola no
+    // es «algo que decir de esta obra».
+    expect(esEstadoInicial({ ...s, plantas })).toBe(true);
+
+    // Un sobre más nuevo se vuelve a tomar solo, sin aviso que atender.
+    const masNuevo: NievePublicada = { ...leerNievePublicada()!, ts: '2099-01-01T00:00:00.000Z', qnMax: 0.9 };
+    const alDia = adoptarNievePublicada(plantas, masNuevo);
+    expect(planta(alDia, CUBIERTA).nieve).toMatchObject({ valor: 0.9, tsPub: masNuevo.ts });
+    // Ya está al día: el aviso de «ha publicado de nuevo» no tiene nada que
+    // pedirle a nadie. (El de emplazamiento distinto sigue, y hace falta: el
+    // sobre es de Madrid y esta obra es de Sevilla.)
+    expect(avisosNieve({ ...s, plantas: alDia }, masNuevo).filter((a) => /publicado de nuevo/.test(a))).toEqual([]);
   });
 
   it('avisos: sobre más nuevo, de otro sitio, desaparecido, faldón que ya no está', () => {
@@ -336,7 +391,7 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.plantas[0].zonas).toHaveLength(1);
     expect(s.plantas[0].zonas[0].uso.categoria).toBe('A1');
     expect(s.plantas[1]).toMatchObject({ id: 'p2', nombre: 'Ático', esCubierta: true });
-    expect(s.plantas[1].nieve).toEqual({ modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null });
+    expect(s.plantas[1].nieve).toEqual({ modo: 'ninguna', valor: 0, tsPub: null, inePub: null, faldon: null, elegida: false });
     expect(s.plantas[1].zonas[0]).toMatchObject({ id: 'z1', forjado: { tipo: 'reticular', canto: 30, ppManual: null } });
     // Una carga libre guardada sin id de columna lo recibe al leerse.
     expect(s.plantas[1].zonas[0].permanentes).toEqual([{ id: expect.any(String), concepto: 'Grava', valor: 2.5, catalogoId: null, espesor: null, columna: expect.any(String) }]);

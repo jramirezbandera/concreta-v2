@@ -36,7 +36,9 @@ function PlanView({
   inp, result, size, isPdf, system,
 }: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; system: UnitSystem }) {
   const c = colors(isPdf);
-  const { pilePos, reactions, L_x, L_y, R_max } = result;
+  const { pilePos, reactions, L_x, L_y, R_max, outline, e_borde } = result;
+  const n     = inp.n as number;
+  const s_pil = inp.s as number;
   const d_p   = inp.d_p as number;
   const b_col = inp.b_col as number;
   const h_col = inp.h_col as number;
@@ -50,12 +52,19 @@ function PlanView({
   const scaleY = (size - 2 * margin) / L_y;
   const scale  = Math.min(scaleX, scaleY);
 
-  // Origin = cap center in px
+  // Se centra la ENVOLVENTE del contorno, no el centroide del grupo: el
+  // hexágono de n=3 no es simétrico respecto al centroide (sube 2h/3+e y
+  // baja h/3+e) y centrarlo por el centroide lo sacaba del lienzo por arriba
+  // y pisaba la cota superior. Coordenadas del motor: mm desde el centroide.
+  const xs = outline.map((p) => p.x);
+  const ys = outline.map((p) => p.y);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
   const ox = size / 2;
   const oy = size / 2;
 
-  const px = (x: number) => ox + x * scale;
-  const py = (y: number) => oy - y * scale;  // SVG y-axis flipped
+  const px = (x: number) => ox + (x - cx) * scale;
+  const py = (y: number) => oy - (y - cy) * scale;  // SVG y-axis flipped
 
   const capHalfX = (L_x / 2) * scale;
   const capHalfY = (L_y / 2) * scale;
@@ -74,16 +83,19 @@ function PlanView({
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Vista en planta del encepado"
     >
-      {/* Cap outline */}
-      <rect
-        x={ox - capHalfX} y={oy - capHalfY}
-        width={2 * capHalfX} height={2 * capHalfY}
+      {/* Cap outline: rectángulo (n=2/4) o triángulo achaflanado (n=3) — el
+        * contorno real lo da el motor, aquí solo se proyecta */}
+      <polygon
+        points={outline.map((p) => `${px(p.x)},${py(p.y)}`).join(' ')}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5}
+        strokeLinejoin="round"
       />
 
-      {/* Tie lines (bottom layer) */}
+      {/* Tie lines (bottom layer) — sólo entre pilotes CONTIGUOS (a distancia
+        * s): son las bandas que arma el motor. Con 4 pilotes las diagonales
+        * (s·√2) no son tirantes del modelo y se pintaban como si lo fueran. */}
       {pilePos.map((p, i) =>
-        pilePos.slice(i + 1).map((q, j) => (
+        pilePos.slice(i + 1).filter((q) => Math.hypot(q.x - p.x, q.y - p.y) <= s_pil * 1.01).map((q, j) => (
           <line
             key={`tie-${i}-${j}`}
             x1={px(p.x)} y1={py(p.y)}
@@ -94,9 +106,9 @@ function PlanView({
         ))
       )}
 
-      {/* Column */}
+      {/* Column — en el centroide del grupo de pilotes */}
       <rect
-        x={ox - colHalfX} y={oy - colHalfY}
+        x={px(0) - colHalfX} y={py(0) - colHalfY}
         width={2 * colHalfX} height={2 * colHalfY}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
@@ -143,22 +155,37 @@ function PlanView({
         );
       })}
 
-      {/* Dimension labels */}
+      {/* Dimension labels — n=3: las cotas de obra son s y e (la envolvente
+        * Lx × Ly no es una cota, se da como referencia) */}
       <text
         x={ox} y={oy - capHalfY - 5}
         textAnchor="middle" fontSize={isPdf ? 7 : 8}
         fill={c.textSec} fontFamily="monospace"
       >
-        {`Lx=${L_x.toFixed(0)} mm`}
+        {n === 3
+          ? `s=${s_pil.toFixed(0)} · e=${e_borde.toFixed(0)} mm`
+          : `Lx=${L_x.toFixed(0)} mm`}
       </text>
-      <text
-        x={ox + capHalfX + 5} y={oy}
-        textAnchor="start" fontSize={isPdf ? 7 : 8}
-        fill={c.textSec} fontFamily="monospace"
-        dominantBaseline="middle"
-      >
-        {`Ly=${L_y.toFixed(0)}`}
-      </text>
+      {n === 3 ? (
+        // Envolvente del hexágono: abajo a la derecha (a la derecha del
+        // contorno no cabe en el clon del PDF de 280 px)
+        <text
+          x={size - 6} y={size - 10}
+          textAnchor="end" fontSize={isPdf ? 7 : 8}
+          fill={c.textSec} fontFamily="monospace"
+        >
+          {`env. ${L_x.toFixed(0)}×${L_y.toFixed(0)} mm`}
+        </text>
+      ) : (
+        <text
+          x={ox + capHalfX + 5} y={oy}
+          textAnchor="start" fontSize={isPdf ? 7 : 8}
+          fill={c.textSec} fontFamily="monospace"
+          dominantBaseline="middle"
+        >
+          {`Ly=${L_y.toFixed(0)}`}
+        </text>
+      )}
 
       {/* Legend */}
       <circle cx={12} cy={size - 14} r={4} fill={c.pileFill} stroke={c.accent} strokeWidth={1.5} />

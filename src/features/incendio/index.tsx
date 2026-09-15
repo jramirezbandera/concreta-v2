@@ -39,9 +39,10 @@ import {
   INCENDIO_FALLBACK_XLSX,
 } from '../../lib/export/filename';
 import type { ModoAltura } from '../../lib/incendio/altura';
-import { cuadroIncendioMemoria, cuadroIncendioPlano } from '../../lib/incendio/cuadros';
+import { cuadroIncendioMemoria } from '../../lib/incendio/cuadros';
 import { exigenciasResueltas } from '../../lib/incendio/exigencias';
 import { materialesPublicados } from './materialesPub';
+import { bloquesDePlano } from './plano';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
 import type { ElementoEntrada } from '../../lib/incendio/elementos';
 import { Edificio } from './Edificio';
@@ -152,15 +153,8 @@ export function IncendioModule() {
   // secciones. Se calcula siempre —no sólo al exportar— porque es barato y así
   // no hay una rama que nadie haya mirado el día que se pulsa el botón.
   const bloquesPlano = useMemo(
-    () =>
-      cuadroIncendioPlano(presentes, evaluacion.exigencias, {
-        alturaEvacuacion: evaluacion.alturaEvacuacion,
-        alturaAMano: evaluacion.alturaAMano,
-        sectores: evaluacion.sectores,
-        sueltas: exigenciasResueltas(state.exigencias),
-        elementos: evaluacion.elementos,
-      }),
-    [presentes, evaluacion, state.exigencias],
+    () => bloquesDePlano(state, evaluacion, presentes),
+    [presentes, evaluacion, state],
   );
 
   // ── Asistente ─────────────────────────────────────────────────────────────

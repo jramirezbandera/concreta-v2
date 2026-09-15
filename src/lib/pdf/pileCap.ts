@@ -104,8 +104,14 @@ export async function exportPileCapPDF(
   // GEOMETRIA ENCEPADO — indica si las dims en planta son auto o del usuario
   const dimsAuto = (inp.dims_auto as boolean | undefined) ?? true;
   secHeader(dimsAuto ? 'GEOMETRIA ENCEPADO (DIMS. AUTO)' : 'GEOMETRIA ENCEPADO (DIMS. USUARIO)');
-  twoCol(`Lx = ${result.L_x.toFixed(0)} mm`, `Ly = ${result.L_y.toFixed(0)} mm`);
+  if (n === 3) {
+    // Planta triangular achaflanada: la cota es e; Lx x Ly solo es la envolvente
+    twoCol('Planta triangular (chaflanes a e)', `envolv. ${result.L_x.toFixed(0)} x ${result.L_y.toFixed(0)} mm`);
+  } else {
+    twoCol(`Lx = ${result.L_x.toFixed(0)} mm`, `Ly = ${result.L_y.toFixed(0)} mm`);
+  }
   twoCol(`e_borde = ${result.e_borde.toFixed(0)} mm`, `h_min = ${result.h_min.toFixed(0)} mm`);
+  twoCol(`A_planta = ${(result.A_cap / 1e6).toFixed(2)} m2`, '');
   gap();
 
   // BIELAS Y TIRANTES
@@ -125,6 +131,7 @@ export async function exportPileCapPDF(
 
   // ARMADURA TIRANTES
   secHeader('ARMADURA TIRANTES');
+  twoCol(`fyd = ${result.fyd.toFixed(0)} MPa (tope EHE)`, '');
   twoCol(
     `As,x = ${result.n_bars_x} ph${phi_tie} (${result.As_prov_x.toFixed(0)} mm^2)`,
     result.n_bars_y !== null
@@ -133,9 +140,27 @@ export async function exportPileCapPDF(
   );
   twoCol(`s_bar,x = ${result.s_bar_x.toFixed(0)} mm`, `s_max = ${result.s_max.toFixed(0)} mm`);
   twoCol(`lb,req = ${result.lb_net.toFixed(0)} mm`, `lb,disp = ${result.lb_avail.toFixed(0)} mm`);
+  gap();
+
+  // ARMADURA SECUNDARIA — dispuesta por el usuario vs mínimo ex-EHE 58.4.1.4
+  // EHE-08 art. 58.4.1.2 (el CE no fija minimos propios): 2 pilotes → 58.4.1.2.1.2;
+  // 3 y 4 → 58.4.1.2.2. Lo no exigido para ese n se lista sin requerido.
+  if (n === 2) {
+    secHeader('ARMADURA SECUNDARIA (disp. / req., EHE-08 58.4.1.2.1.2)');
+    twoCol(`Superior ${inp.n_top} ph${inp.phi_top}`, `${result.As_top_prov.toFixed(0)} / ${result.As_top_req.toFixed(0)} mm2`);
+    twoCol(`Cercos ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
+    twoCol(`Horiz. caras ph${inp.phi_ch} c/${inp.s_ch}`, `${result.As_ch_prov.toFixed(0)} / ${result.As_ch_req.toFixed(0)} mm2/m`);
+  } else {
+    secHeader('ARMADURA SECUNDARIA (disp. / req., EHE-08 58.4.1.2.2)');
+    twoCol(`Reticula inf. ph${inp.phi_g} c/${inp.s_g}`, `${result.As_g_prov.toFixed(0)} / ${result.As_g_req.toFixed(0)} mm2/m`);
+    twoCol(`Cercos banda ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
+    twoCol(`Sup. ${inp.n_top}ph${inp.phi_top}, caras ph${inp.phi_ch}c/${inp.s_ch}`, 'no exigidas');
+  }
 
   // ── Divider + checks table ──────────────────────────────────────────────────
-  const tableY = svgY + SVG_H + 6;
+  // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:
+  // con Mx, placa y la secundaria la columna ya baja mas que la figura.
+  const tableY = Math.max(svgY + SVG_H + 6, ry + 4);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -218,6 +243,21 @@ export async function exportPileCapPDF(
     setGray(doc, 215);
     doc.line(M, rowY, PAGE_W - M, rowY);
     rowY += 4;
+  }
+
+  // ── Figura de armado (planta + secciones + leyenda), en una sola imagen ───
+  const rebarContainer = document.getElementById('pile-cap-rebar-svg-pdf');
+  const rebarEl = rebarContainer?.querySelector('svg') as SVGSVGElement | null;
+  if (rebarEl) {
+    const vb = rebarEl.viewBox?.baseVal;   // jsdom no implementa viewBox
+    const REBAR_W = PAGE_W - 2 * M;
+    const REBAR_H = vb && vb.width > 0 ? REBAR_W * (vb.height / vb.width) : 110;
+    rowY = ensureSpace(doc, rowY + 2, REBAR_H + 8, M);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    setGray(doc, 60);
+    doc.text('ARMADO', M, rowY + 3);
+    await embedSvgAsImage(doc, rebarEl, { x: M, y: rowY + 6, width: REBAR_W, height: REBAR_H });
   }
 
   // ── Footer (every page) ─────────────────────────────────────────────────────

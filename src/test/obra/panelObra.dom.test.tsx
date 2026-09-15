@@ -9,12 +9,15 @@
  *   3. el total que dice el panel es EXACTAMENTE el que impide exportar en la
  *      ficha: si los dos se separan, el usuario deja de creerse ninguno de los
  *      dos;
- *   4. el panel se entera de lo que se publica en otro módulo sin recargar.
+ *   4. el panel se entera de lo que se publica en otro módulo sin recargar;
+ *   5. los cuadros que van al plano se bajan de aquí, todos en un fichero, y
+ *      sólo los de los módulos que alguien haya rellenado.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { ToastContainer } from '../../components/ui/Toast';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ObraModule } from '../../features/obra';
@@ -22,7 +25,14 @@ import { resumenDeObra } from '../../features/obra/resumen';
 import { cargarEstado, guardarEstado } from '../../features/memoria-dbse/state';
 import { leerSobres } from '../../features/memoria-dbse/sobres';
 import { evaluar } from '../../lib/memoria/ensamblar';
-import { defaultMaterialesState, evaluar as evaluarMateriales, publicarResultado as publicarMateriales } from '../../features/materiales/state';
+import {
+  defaultMaterialesState,
+  evaluar as evaluarMateriales,
+  filaDesdePreset,
+  guardarEstado as guardarMateriales,
+  nuevoId,
+  publicarResultado as publicarMateriales,
+} from '../../features/materiales/state';
 import { guardarObra } from '../../lib/obra';
 import { _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
 
@@ -32,6 +42,9 @@ function montar() {
       <ThemeProvider>
         <UnitSystemProvider>
           <ObraModule />
+          {/* Vive en la raíz de la app, no en el módulo: sin él los avisos de
+              «no hay ningún cuadro» no tendrían dónde pintarse. */}
+          <ToastContainer />
         </UnitSystemProvider>
       </ThemeProvider>
     </MemoryRouter>,
@@ -153,5 +166,85 @@ describe('una obra a medias', () => {
 
     await screen.findByText(/Faltan \d+ datos/);
     expect(screen.queryByRole('link', { name: /Cumplimiento del DB SE: revíselo, calculado y sin guardar/ })).toBeNull();
+  });
+});
+
+describe('los cuadros para el plano', () => {
+  /**
+   * La tarjeta y el recuento salen de un `import()` perezoso —el chunk trae el
+   * estado y los cuadros de los cuatro módulos—, así que aquí se espera más de
+   * lo habitual: con la suite entera en marcha, transformar ese chunk se pasa
+   * del segundo por defecto de `findBy`.
+   */
+  const ESPERA = { timeout: 8000 };
+
+  it('en una obra en blanco no hay ni botón de exportar', async () => {
+    // Nada que bajar y ningún reproche: la misma regla que la banda de «por
+    // dónde se empieza».
+    montar();
+    await screen.findByText('Por dónde se empieza');
+    expect(screen.queryByRole('button', { name: 'Exportar' })).toBeNull();
+  });
+
+  it('la tarjeta dice que no hay ninguno mientras nadie haya rellenado un módulo', async () => {
+    obraGranada();
+    montar();
+    expect(
+      await screen.findByText(/Ninguno todavía: salen de materiales, viento y nieve, cargas por planta e incendio\./, {}, ESPERA),
+    ).toBeInTheDocument();
+  });
+
+  it('con un módulo relleno, la tarjeta lo nombra y cuenta cuántos hay', async () => {
+    obraGranada();
+    const m = defaultMaterialesState();
+    m.elementos = [{ ...filaDesdePreset('Cimentación'), id: nuevoId(), fck: 35 }];
+    guardarMateriales(m);
+    montar();
+
+    // El botón de la tarjeta baja el DXF; el menú de la barra, los dos formatos.
+    const tarjeta = await screen.findByRole('button', { name: /Cuadros para el plano.*Descargar el DXF/s }, ESPERA);
+    expect(tarjeta).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('1 de 4 cuadros')).toBeInTheDocument(), ESPERA);
+    expect(screen.getByText(/Cuadro de materiales\. En un solo fichero\./)).toBeInTheDocument();
+  });
+
+  it('el menú de la barra ofrece el DXF y el Excel, y nada de la memoria', async () => {
+    obraGranada();
+    montar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Exportar' }));
+
+    const menu = screen.getByRole('menu', { name: 'Formatos de exportación' });
+    expect(menu).toBeInTheDocument();
+    const opciones = screen.getAllByRole('menuitem').map((b) => b.textContent);
+    expect(opciones).toHaveLength(2);
+    expect(opciones[0]).toMatch(/^DXF/);
+    expect(opciones[1]).toMatch(/^Excel/);
+  });
+
+  it('pedirlos sin ningún módulo relleno lo dice en vez de bajar un fichero vacío', async () => {
+    obraGranada();
+    montar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Exportar' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^DXF/ }));
+
+    expect(
+      await screen.findByText(/Todavía no hay ningún cuadro que llevar al plano/, {}, ESPERA),
+    ).toBeInTheDocument();
+  });
+
+  it('los cuadros NO entran en el medidor: un plano no es obligatorio para entregar', async () => {
+    // Contarlos dejaría en «falta algo» a toda obra que no vaya a CAD.
+    obraGranada();
+    montar();
+    const antes = (await screen.findByText(/\d+ de \d+ comprobaciones resueltas/)).textContent;
+
+    cleanup();
+    const m = defaultMaterialesState();
+    m.elementos = [{ ...filaDesdePreset('Cimentación'), id: nuevoId(), fck: 35 }];
+    guardarMateriales(m);
+    montar();
+    await waitFor(() => expect(screen.getByText('1 de 4 cuadros')).toBeInTheDocument(), ESPERA);
+    const total = (n: string | null) => n?.split(' de ')[1];
+    expect(total(screen.getByText(/\d+ de \d+ comprobaciones resueltas/).textContent)).toBe(total(antes ?? null));
   });
 });

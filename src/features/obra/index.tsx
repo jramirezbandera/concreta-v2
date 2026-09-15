@@ -32,6 +32,7 @@ import { Link } from 'react-router';
 import { ChevronDown, FilePlus2, Pencil } from 'lucide-react';
 import { useDrawer } from '../../components/layout/AppShell';
 import { DialogoObra } from '../../components/layout/DialogoObra';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { Topbar } from '../../components/layout/Topbar';
 import { destinoDe, palabraDe } from '../../components/ui/estadoFila';
 import { FilaEstado, Marca } from '../../components/ui/FilaEstado';
@@ -44,9 +45,11 @@ import { provinciaDe } from '../../lib/acciones/provincias';
 import { adoptarPerfilDeLaObra, dejarMiPerfilEnLaObra, perfilDeLaObraDifiere } from '../memoria-dbse/state';
 import { AMBAR } from '../../components/ui/estados';
 import { showToast } from '../../components/ui/Toast';
+import { descargarBlob } from '../../lib/export/descargar';
 import { guardarObra } from '../../lib/obra';
 import { useObra } from '../../lib/obra/useObra';
 import { useVersionDePubs } from '../../lib/pub/usePubs';
+import { TOTAL_CUADROS, type CuadroDeObra } from '../../lib/plano/obra';
 import type { FilaResumen, ResumenObra } from './resumen';
 
 const RUTA_FICHA = '/memorias/db-se';
@@ -55,6 +58,29 @@ const RUTA_MATERIALES = '/memorias/materiales';
 const RUTA_ESTUDIO = '/ajustes/estudio';
 
 const BLOQUE = 'rounded border border-border-main bg-bg-surface';
+
+/**
+ * Lo que despliega «Exportar» aquí: los cuadros que van al PLANO, de todos los
+ * módulos rellenados y en un solo fichero. Los otros dos documentos de la obra
+ * no cuelgan de este menú porque cada uno tiene ya su pantalla —la ficha y el
+ * anejo—, y duplicarlos aquí daría dos sitios para lo mismo.
+ *
+ * El grupo se nombra por el DESTINO y no por el formato: lo que distingue a
+ * estas dos salidas de las demás de la app no es que sean DXF o Excel, es que
+ * van al plano y no a la memoria.
+ */
+type FormatoPlano = 'dxf' | 'xlsx';
+
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoPlano>[] = [
+  {
+    titulo: 'Cuadros para el plano',
+    opciones: [
+      { id: 'dxf', etiqueta: 'DXF', detalle: 'todos los cuadros dibujados, para insertar en el CAD' },
+      { id: 'xlsx', etiqueta: 'Excel', detalle: 'todos los cuadros en un libro, para capturar' },
+    ],
+  },
+];
+
 /**
  * LA acción primaria: la misma pinta sea enlace o botón.
  *
@@ -106,6 +132,10 @@ export function ObraModule() {
   // máquina—, así que la obra de un compañero trae el suyo dentro y el que se
   // imprime es el de aquí. Se dice; no se cambia nada a espaldas de nadie.
   const [perfilDistinto, setPerfilDistinto] = useState<string[]>(() => perfilDeLaObraDifiere());
+  // Los cuadros que hoy irían al plano. `null` mientras no se ha mirado: la
+  // tarjeta no puede decir «ninguno» por no haber podido comprobarlo.
+  const [cuadros, setCuadros] = useState<CuadroDeObra[] | null>(null);
+  const [exportando, setExportando] = useState(false);
 
   // El resumen de la ficha, un fotograma después: su chunk trae la plantilla
   // del CTE y la cabecera no puede esperarlo.
@@ -145,6 +175,61 @@ export function ObraModule() {
       vivo = false;
     };
   }, [anejo]);
+
+  // Los cuadros de plano, como `sinPdf` y `sinGuardar`: después del primer
+  // pintado y en su propio chunk, que arrastra el estado y los cuadros de los
+  // cuatro módulos y esto es la ruta de entrada de la app.
+  useEffect(() => {
+    let vivo = true;
+    void import('../../lib/plano/obra')
+      .then((m) => {
+        if (vivo) setCuadros(m.cuadrosDeLaObra());
+      })
+      .catch((e: unknown) => {
+        console.error('No se han podido leer los cuadros de plano:', e);
+        if (vivo) setCuadros(null);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [obra, versionPubs, anejo]);
+
+  /**
+   * Bajar los cuadros de los cuatro módulos en UN fichero.
+   *
+   * Los cuadros se vuelven a leer AQUÍ y no se toman de `cuadros`: ese es de
+   * cuando se pintó la pantalla, y entre pintarla y pulsar el botón cabe un
+   * cambio hecho en otra pestaña. Un cuadro viejo en un plano no se nota hasta
+   * que está en obra.
+   *
+   * Sin modal de título: el fichero se llama como la obra, que es el nombre
+   * que esta misma pantalla lleva escrito arriba. Preguntarlo sería pedir algo
+   * que ya está a la vista, y aquí —a diferencia de un módulo— no hay un
+   * elemento con nombre propio que nombrar.
+   */
+  const exportarCuadros = async (formato: FormatoPlano) => {
+    setExportando(true);
+    try {
+      const { cuadrosDeLaObra } = await import('../../lib/plano/obra');
+      const lista = cuadrosDeLaObra();
+      setCuadros(lista);
+      if (lista.length === 0) {
+        showToast('Todavía no hay ningún cuadro que llevar al plano: rellene materiales, viento y nieve, cargas por planta o incendio.', { autoDismiss: 6000 });
+        return;
+      }
+      const titulo = obra?.denominacion ?? '';
+      const resultado =
+        formato === 'dxf'
+          ? await (await import('../../lib/dxf/obra')).exportarCuadrosObraDxf(lista, titulo)
+          : await (await import('../../lib/xlsx/obra')).exportarCuadrosObraXlsx(lista, titulo);
+      descargarBlob(resultado);
+    } catch (e) {
+      console.error('No se han podido exportar los cuadros de plano:', e);
+      showToast(`Error al generar el ${formato === 'dxf' ? 'DXF' : 'Excel'} de los cuadros`, { autoDismiss: 4000 });
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const resumenAnejo = useMemo(() => resumenDe(anejo.piezas), [anejo]);
   const faltanPdf = sinPdf !== null && sinPdf.size > 0;
@@ -212,7 +297,14 @@ export function ObraModule() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Topbar moduleGroup="Proyecto" moduleLabel="La obra" onMenuOpen={openDrawer} />
+      <Topbar
+        moduleGroup="Proyecto"
+        moduleLabel="La obra"
+        onMenuOpen={openDrawer}
+        // En la obra en blanco no hay nada que exportar y el botón sobra: es
+        // la misma regla que la banda de «por dónde se empieza».
+        exportMenu={vacia ? undefined : <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={(f) => void exportarCuadros(f)} exportando={exportando} />}
+      />
 
       <div className="scroll-hide flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1188px] px-4 pb-10 sm:px-6">
@@ -418,6 +510,35 @@ export function ObraModule() {
                   estado={estadoAnejo}
                   a={RUTA_ANEJO}
                 />
+                {/* El tercer documento, y el único que no tiene pantalla
+                    propia: los cuadros se calculan en cuatro módulos y no hay
+                    un sitio donde «verlos». Por eso la tarjeta no lleva a
+                    ninguna parte: exporta, que es lo único que se hace con
+                    ellos. Y por eso no entra en el medidor de arriba —un plano
+                    no es obligatorio para entregar la justificación, y contarlo
+                    dejaría toda obra sin CAD en «falta algo»—. */}
+                <Documento
+                  hoja="plano"
+                  titulo="Cuadros para el plano"
+                  nota={
+                    cuadros === null
+                      ? 'De los módulos rellenados, en un DXF o un Excel.'
+                      : cuadros.length === 0
+                        ? 'Ninguno todavía: salen de materiales, viento y nieve, cargas por planta e incendio.'
+                        : `${cuadros.map((c) => c.etiqueta).join(', ')}. En un solo fichero.`
+                  }
+                  estado={vacia || cuadros === null || cuadros.length === 0 ? 'sinEmpezar' : 'hecho'}
+                  pie={
+                    !vacia && cuadros !== null && cuadros.length > 0
+                      // El plural lo manda el TOTAL, no la cuenta: «1 de 4
+                      // cuadro» no es castellano.
+                      ? `${cuadros.length} de ${TOTAL_CUADROS} cuadros`
+                      : undefined
+                  }
+                  onClick={() => void exportarCuadros('dxf')}
+                  accion={exportando ? 'Generando…' : 'Descargar el DXF'}
+                  ocupado={exportando}
+                />
                 {!vacia && faltan > 0 && (
                   <p className="m-0 border-t border-border-sub px-3.5 py-3 text-[11.5px] leading-relaxed text-text-disabled">
                     La justificación se desbloquea cuando no falte ningún dato. El anejo se puede exportar siempre.
@@ -486,7 +607,16 @@ function Medidor({ hechas, total }: { hechas: number; total: number }) {
   );
 }
 
-/** Una de las dos salidas: su hoja dibujada, qué es, y en qué está. */
+/**
+ * Una de las salidas de la obra: su hoja dibujada, qué es, y en qué está.
+ *
+ * Lleva a su pantalla (`a`) o hace algo (`onClick`), nunca las dos. Las dos
+ * primeras navegan —la ficha y el anejo tienen dónde mirarse—; los cuadros del
+ * plano no tienen pantalla y lo único que se hace con ellos es bajarlos, así
+ * que su tarjeta es un botón. Se dice en voz alta con `accion`, porque una
+ * tarjeta que descarga con la misma pinta que una que navega sería una
+ * descarga sorpresa.
+ */
 function Documento({
   hoja,
   titulo,
@@ -494,20 +624,25 @@ function Documento({
   estado,
   pie,
   a,
+  onClick,
+  accion,
+  ocupado,
 }: {
-  hoja: 'ficha' | 'anejo';
+  hoja: 'ficha' | 'anejo' | 'plano';
   titulo: string;
   nota: string;
   estado: 'hecho' | 'falta' | 'revisar' | 'sinEmpezar';
   pie?: string;
-  a: string;
+  a?: string;
+  onClick?: () => void;
+  accion?: string;
+  /** Mientras se genera el fichero: ni un segundo clic ni dos descargas. */
+  ocupado?: boolean;
 }) {
-  return (
-    <Link
-      to={a}
-      className="flex gap-3.5 border-b border-border-sub p-3.5 transition-colors last:border-b-0 hover:bg-bg-elevated"
-      aria-label={`${titulo}: ${palabraDe(estado)}${pie ? `, ${pie}` : ''}. ${nota} ${destinoDe(estado)}`}
-    >
+  const caja = 'flex w-full gap-3.5 border-b border-border-sub p-3.5 text-left transition-colors last:border-b-0 hover:bg-bg-elevated';
+  const etiqueta = `${titulo}: ${palabraDe(estado)}${pie ? `, ${pie}` : ''}. ${nota} ${a ? destinoDe(estado) : (accion ?? '')}`;
+  const dentro = (
+    <>
       <Hoja tipo={hoja} apagada={estado === 'falta' || estado === 'sinEmpezar'} />
       <span className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="text-[13px] font-medium text-text-primary">{titulo}</span>
@@ -515,9 +650,19 @@ function Documento({
         <span className="flex items-center gap-1.5">
           <Marca estado={estado} />
           {pie && <span className="min-w-0 truncate text-[11px] text-text-secondary">{pie}</span>}
+          {accion && <span className="min-w-0 truncate text-[11px] text-accent">{accion}</span>}
         </span>
       </span>
+    </>
+  );
+  return a !== undefined ? (
+    <Link to={a} className={caja} aria-label={etiqueta}>
+      {dentro}
     </Link>
+  ) : (
+    <button type="button" onClick={onClick} disabled={ocupado} className={`${caja} disabled:opacity-60`} aria-label={etiqueta}>
+      {dentro}
+    </button>
   );
 }
 
@@ -526,9 +671,11 @@ function Documento({
  * a propósito: sin ella el panel no enseña en ningún sitio LO QUE SE ENTREGA,
  * que es para lo que se abre la app.
  */
-function Hoja({ tipo, apagada }: { tipo: 'ficha' | 'anejo'; apagada: boolean }) {
+function Hoja({ tipo, apagada }: { tipo: 'ficha' | 'anejo' | 'plano'; apagada: boolean }) {
   const borde = apagada ? 'var(--color-border-main)' : 'var(--color-text-disabled)';
   const linea = 'var(--color-border-main)';
+  /** Lo que la hoja destaca. Apagada, se funde con el resto del dibujo. */
+  const acento = apagada ? linea : 'var(--color-accent)';
   return (
     <svg width="56" height="74" viewBox="0 0 64 85" className="shrink-0" aria-hidden="true">
       <rect x="7" y="5" width="52" height="76" rx="1" fill="var(--color-bg-primary)" stroke={linea} />
@@ -543,6 +690,26 @@ function Hoja({ tipo, apagada }: { tipo: 'ficha' | 'anejo'; apagada: boolean }) 
             <path d="M12 43h32M12 50h32M23 36v20M34 36v20" stroke={linea} strokeWidth="0.8" />
             <rect x="12" y="62" width="20" height="1.6" rx="0.8" fill={linea} />
           </>
+        ) : tipo === 'plano' ? (
+          // Un plano, no un documento: sin un solo renglón —un plano no se lee,
+          // se mira— y con su cajetín en el pie. Lo que lleva encima son los
+          // cuadros, que es exactamente lo que se entrega aquí: tres, del
+          // tamaño que salen, no una planta dibujada. Se probó con la planta a
+          // un lado y a este tamaño no se distinguía de otra tabla.
+          //
+          // El contorno va en acento y la rejilla de dentro en gris: con los
+          // tres cuadros enteros en acento, la hoja pesaba el triple que la del
+          // anejo, que es su vecina en el raíl.
+          <>
+            <path d="M12 15h34v12H12z" fill="none" stroke={acento} strokeWidth="1" />
+            <path d="M12 19h34M24 15v12M35 15v12" stroke={linea} strokeWidth="0.6" />
+            <path d="M12 31h34v10H12z" fill="none" stroke={acento} strokeWidth="1" />
+            <path d="M12 35h34M24 31v10M35 31v10" stroke={linea} strokeWidth="0.6" />
+            <path d="M12 45h22v8H12z" fill="none" stroke={acento} strokeWidth="1" />
+            <path d="M12 49h22M24 45v8" stroke={linea} strokeWidth="0.6" />
+            <path d="M30 58h16v8H30z" fill="none" stroke={linea} strokeWidth="1" />
+            <path d="M30 62h16" stroke={linea} strokeWidth="0.7" />
+          </>
         ) : (
           <>
             <rect x="12" y="14" width="18" height="3" rx="1" fill={linea} />
@@ -550,7 +717,7 @@ function Hoja({ tipo, apagada }: { tipo: 'ficha' | 'anejo'; apagada: boolean }) 
             <rect x="12" y="28" width="30" height="1.6" rx="0.8" fill={linea} />
             <rect x="12" y="33" width="32" height="1.6" rx="0.8" fill={linea} />
             <path d="M12 40v20h33" stroke={linea} strokeWidth="0.9" fill="none" />
-            <path d="M13 57l7-9 6 5 5-8 5 6 6-11" fill="none" stroke={apagada ? linea : 'var(--color-accent)'} strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M13 57l7-9 6 5 5-8 5 6 6-11" fill="none" stroke={acento} strokeWidth="1.2" strokeLinejoin="round" />
             <rect x="12" y="66" width="22" height="1.6" rx="0.8" fill={linea} />
           </>
         )}

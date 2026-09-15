@@ -1,6 +1,6 @@
 
 import { type PileCapInputs } from '../../data/defaults';
-import { autoCapDims, minEdgeDistance } from '../../lib/calculations/pileCap';
+import { autoCapDims, autoEdge3, minEdgeDistance } from '../../lib/calculations/pileCap';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
@@ -95,6 +95,42 @@ function SelectField({
   );
 }
 
+// ── RebarSpecField: Ø + separación en una fila ────────────────────────────────
+
+function RebarSpecField({
+  label, sub, help, fieldDiam, fieldSep, diam, sep, barOptions, setField,
+}: {
+  label: string; sub?: string; help?: string;
+  fieldDiam: keyof PileCapInputs; fieldSep: keyof PileCapInputs;
+  diam: number; sep: number;
+  barOptions: Array<{ value: number; label: string }>;
+  setField: Props['setField'];
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+      <InputLabel htmlFor={`pc-${String(fieldSep)}`} label={label} sub={sub} help={help} />
+      <div className="flex items-center gap-1 shrink-0">
+        <select
+          value={diam}
+          onChange={(e) => setField(fieldDiam, Number(e.target.value) as PileCapInputs[typeof fieldDiam])}
+          aria-label={`${label} — diámetro`}
+          className="bg-bg-primary border border-border-main rounded pl-1.5 pr-5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        >
+          {barOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <span className="text-[10px] text-text-disabled font-mono">c/</span>
+        <RawNumberInput
+          id={`pc-${String(fieldSep)}`}
+          value={sep}
+          onChange={(n) => setField(fieldSep, n as PileCapInputs[typeof fieldSep])}
+          unit="mm"
+          ariaLabel={`${label} — separación (mm)`}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const N_OPTIONS = [2, 3, 4] as const;
@@ -110,6 +146,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
     state.b_col as number, state.h_col as number,
   );
   const eMin = minEdgeDistance(state.d_p as number);
+  // n=3: la planta es triangular y la cota de obra es e (eje de pilote a
+  // borde), no Lx × Ly — que solo es la envolvente del hexágono.
+  const isTri = n === 3;
+  const eAuto3 = autoEdge3(
+    state.d_p as number, state.s as number,
+    state.b_col as number, state.h_col as number,
+  );
 
   const fckOptions = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
   const fykOptions = [{ value: 500, label: '500 MPa' }, { value: 400, label: '400 MPa' }];
@@ -232,9 +275,11 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
           <InputLabel
             htmlFor="pc-dims-mode"
-            label="Lx × Ly"
-            sub="Dims. en planta"
-            help={`Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
+            label={isTri ? 'e a borde' : 'Lx × Ly'}
+            sub={isTri ? 'Planta triangular' : 'Dims. en planta'}
+            help={isTri
+              ? `Con 3 micropilotes la planta es un triángulo con las esquinas achaflanadas: cada pilote queda a la distancia e de sus tres bordes (la cota C de los planos de encepados). Automático: e mínima de buena práctica (≥ ${eMin.toFixed(0)} mm) o la que necesite el pilar para caber, redondeada hacia arriba a 5 cm. Manual: defines e; se comprueba como verificación en resultados.`
+              : `Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
           />
           <div
             id="pc-dims-mode"
@@ -260,6 +305,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
                       // Al pasar a manual, partir de las dims auto vigentes
                       setField('L_x', auto.L_x);
                       setField('L_y', auto.L_y);
+                      setField('e_man', eAuto3);
                     }
                   }}
                   className={[
@@ -278,8 +324,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
         {dimsAuto ? (
           <p className="text-[10px] text-text-secondary leading-relaxed py-0.75">
-            Auto: {auto.L_x} × {auto.L_y} mm (e ≥ {eMin.toFixed(0)} mm a borde, redondeo a 5 cm)
+            {isTri
+              ? `Auto: e = ${eAuto3} mm a borde (≥ ${eMin.toFixed(0)} mm, redondeo a 5 cm) → envolvente ${auto.L_x.toFixed(0)} × ${auto.L_y.toFixed(0)} mm`
+              : `Auto: ${auto.L_x} × ${auto.L_y} mm (e ≥ ${eMin.toFixed(0)} mm a borde, redondeo a 5 cm)`}
           </p>
+        ) : isTri ? (
+          <NumField label="e" sub="Eje pilote a borde" field="e_man" value={state.e_man as number} unit="mm" setField={setField}
+            help="Distancia del eje de cada micropilote a los bordes del encepado triangular (lados y chaflanes). Es la cota C del plano: con s y h define toda la planta. Se comprueba frente a la mínima de buena práctica en resultados." />
         ) : (
           <>
             <NumField label="L_x" sub="Ancho planta (x)" field="L_x" value={state.L_x as number} unit="mm" setField={setField}
@@ -335,6 +386,56 @@ export function PileCapInputsPanel({ state, setField }: Props) {
             n=2: 2 pilotes alineados en X. Mx_Ed debe ser 0 (staticamente inadmisible). Usar n=4 para momento biaxial.
           </p>
         )}
+      </CollapsibleSection>
+
+      {/* Armadura secundaria — EHE-08 art. 58.4.1.2 (el CE no fija mínimos
+        * propios): con 2 pilotes, superior y retícula lateral (58.4.1.2.1.2);
+        * con 3 y 4, retícula inferior entre bandas y cercos de banda
+        * (58.4.1.2.2). Lo no exigido para ese n se sigue disponiendo (se
+        * dibuja) sin verificación. */}
+      <CollapsibleSection label="Armadura secundaria">
+        {n >= 3 && (
+          <>
+            <RebarSpecField
+              label="Retícula inf." sub="Entre bandas" fieldDiam="phi_g" fieldSep="s_g"
+              diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
+              help="Retícula inferior en los dos sentidos, entre las bandas de la armadura principal. Su capacidad mecánica en cada sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (EHE-08 58.4.1.2.2.1)."
+            />
+            <RebarSpecField
+              label="Cercos banda" sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
+              help="Cercos verticales que atan la armadura principal de cada banda, a lo largo de toda la banda. Capacidad mecánica total ≥ N_Ed/(1,5·n) (EHE-08 58.4.1.2.2.2)."
+            />
+            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+              help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
+            <p className="text-[10px] text-text-disabled leading-relaxed pt-2 pb-0.5">
+              No exigidas con {n} pilotes (buena práctica; se dibujan):
+            </p>
+          </>
+        )}
+        {n === 2 && (
+          <>
+            <RebarSpecField
+              label="Cercos vert." sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
+              help="Cercos verticales cerrados que atan la armadura superior e inferior, en toda la longitud del encepado. Cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
+            />
+            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+              help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
+          </>
+        )}
+        <SelectField
+          label="Ø superior" field="phi_top" value={state.phi_top as number}
+          options={barOptions} setField={setField}
+          help="Diámetro de las barras superiores, extendidas sin escalonar en toda la longitud. Con 2 pilotes su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2)."
+        />
+        <NumField label="n_sup" sub="Barras sup./banda" field="n_top" value={state.n_top as number} unit="ud" setField={setField}
+          help="Número de barras superiores por banda (por dirección con 4 pilotes; por lado con 3)." />
+        <RebarSpecField
+          label="Horiz. caras" sub="Ø y sep. vertical" fieldDiam="phi_ch" fieldSep="s_ch"
+          diam={state.phi_ch as number} sep={state.s_ch as number} barOptions={barOptions} setField={setField}
+          help="Cercos horizontales de las caras laterales, repartidos en el canto. Con 2 pilotes, cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
+        />
       </CollapsibleSection>
     </div>
   );

@@ -36,24 +36,23 @@ import {
   cuadroCargasMemoria,
   cuadroPredimensionado,
   seccionesCargasXlsx,
-  type ResumenVientoPlano,
 } from '../../lib/acciones/cuadrosCargas';
 import { CARGAS_PLANTA_FALLBACK_DOCX, CARGAS_PLANTA_FALLBACK_DXF, CARGAS_PLANTA_FALLBACK_PDF, CARGAS_PLANTA_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
-import { leerPublicacion } from '../../lib/pub';
-import { MODULO_PUB as MODULO_VIENTO_NIEVE, PUB_VERSION as PUB_VERSION_VIENTO_NIEVE, type PubVientoNieve } from '../viento-nieve/state';
 import { BarraObra } from './BarraObra';
 import { anadirColumna, quitarColumna, renombrarColumna } from './columnas';
 import { FichaDeZona } from './Ficha';
 import { Lineales } from './Lineales';
 import { Muros } from './Muros';
 import { leerNievePublicada, nieveDesdePublicacion } from './nievePub';
+import { resumenVientoPublicado } from './plano';
 import { resumenSismoPublicado } from './sismoPub';
 import { SeccionSVG } from './SeccionSVG';
 import { Tabla } from './Tabla';
 import { useCotasFilas } from './useCotasFilas';
 import {
+  adoptarNievePublicada,
   cargarEstado,
   duplicarPlanta,
   ejemploCargasState,
@@ -123,14 +122,6 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   GRUPO_ANEJO,
 ];
 
-/** El bloque de viento del cuadro del plano, del sobre de Viento y nieve. */
-function resumenVientoPublicado(): ResumenVientoPlano | null {
-  const sobre = leerPublicacion<PubVientoNieve>(MODULO_VIENTO_NIEVE, PUB_VERSION_VIENTO_NIEVE);
-  const v = sobre?.datos?.viento;
-  if (!v) return null;
-  return { zonaEolica: v.zonaEolica, vb: v.vb, aspereza: v.aspereza };
-}
-
 export function CargasPlantaModule() {
   const { openDrawer } = useDrawer();
   const [state, setState] = useState<CargasState>(cargarEstado);
@@ -185,6 +176,20 @@ export function CargasPlantaModule() {
     setSismo(resumenSismoPublicado(state.emplazamiento.provincia));
   }, [state]);
 
+  /**
+   * La nieve por defecto es la que ya está declarada en Viento y nieve.
+   *
+   * Toda planta a la intemperie que el usuario no haya tocado la toma sola: al
+   * abrir el módulo, al declarar una planta cubierta o una zona de terraza, y
+   * cada vez que aquel módulo vuelve a publicar. `adoptarNievePublicada`
+   * devuelve el MISMO array cuando no hay nada que cambiar, y esa igualdad es
+   * lo que impide reescribir el estado en cada render.
+   */
+  useEffect(() => {
+    if (adoptarNievePublicada(state.plantas, nievePub) === state.plantas) return;
+    actualizar((p) => ({ ...p, plantas: adoptarNievePublicada(p.plantas, nievePub) }));
+  }, [state.plantas, nievePub]);
+
   const evaluacion = useMemo(() => evaluar(state, nievePub), [state, nievePub]);
 
   const aiResults = useMemo(() => summarizeCargasResults(evaluacion), [evaluacion]);
@@ -225,6 +230,8 @@ export function CargasPlantaModule() {
   const usarNieve = (plantaId: string, faldon: string | null) => {
     const pub = leerNievePublicada();
     if (!pub) return;
+    // Pedida por el usuario: a partir de aquí la nieve es suya y deja de
+    // seguir sola al sobre (`elegida`, en `adoptarNievePublicada`).
     cambiarPlanta(plantaId, { nieve: nieveDesdePublicacion(pub, faldon) });
   };
 
@@ -464,6 +471,7 @@ export function CargasPlantaModule() {
                     }),
                   )
                 }
+                onBorrarZona={borrarZona}
                 onQuitarColumna={(clave) => cambiarPlantas((plantas) => quitarColumna(plantas, clave))}
                 onAnadirColumna={(catalogoId) => cambiarPlantas((plantas) => anadirColumna(plantas, catalogoId))}
                 onRenombrarColumna={(clave, concepto) => cambiarPlantas((plantas) => renombrarColumna(plantas, clave, concepto))}
