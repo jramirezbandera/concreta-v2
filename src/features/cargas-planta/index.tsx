@@ -52,6 +52,7 @@ import { SeccionSVG } from './SeccionSVG';
 import { Tabla } from './Tabla';
 import { useCotasFilas } from './useCotasFilas';
 import {
+  adoptarNievePublicada,
   cargarEstado,
   duplicarPlanta,
   ejemploCargasState,
@@ -175,6 +176,20 @@ export function CargasPlantaModule() {
     setSismo(resumenSismoPublicado(state.emplazamiento.provincia));
   }, [state]);
 
+  /**
+   * La nieve por defecto es la que ya está declarada en Viento y nieve.
+   *
+   * Toda planta a la intemperie que el usuario no haya tocado la toma sola: al
+   * abrir el módulo, al declarar una planta cubierta o una zona de terraza, y
+   * cada vez que aquel módulo vuelve a publicar. `adoptarNievePublicada`
+   * devuelve el MISMO array cuando no hay nada que cambiar, y esa igualdad es
+   * lo que impide reescribir el estado en cada render.
+   */
+  useEffect(() => {
+    if (adoptarNievePublicada(state.plantas, nievePub) === state.plantas) return;
+    actualizar((p) => ({ ...p, plantas: adoptarNievePublicada(p.plantas, nievePub) }));
+  }, [state.plantas, nievePub]);
+
   const evaluacion = useMemo(() => evaluar(state, nievePub), [state, nievePub]);
 
   const aiResults = useMemo(() => summarizeCargasResults(evaluacion), [evaluacion]);
@@ -215,6 +230,8 @@ export function CargasPlantaModule() {
   const usarNieve = (plantaId: string, faldon: string | null) => {
     const pub = leerNievePublicada();
     if (!pub) return;
+    // Pedida por el usuario: a partir de aquí la nieve es suya y deja de
+    // seguir sola al sobre (`elegida`, en `adoptarNievePublicada`).
     cambiarPlanta(plantaId, { nieve: nieveDesdePublicacion(pub, faldon) });
   };
 
@@ -454,6 +471,7 @@ export function CargasPlantaModule() {
                     }),
                   )
                 }
+                onBorrarZona={borrarZona}
                 onQuitarColumna={(clave) => cambiarPlantas((plantas) => quitarColumna(plantas, clave))}
                 onAnadirColumna={(catalogoId) => cambiarPlantas((plantas) => anadirColumna(plantas, catalogoId))}
                 onRenombrarColumna={(clave, concepto) => cambiarPlantas((plantas) => renombrarColumna(plantas, clave, concepto))}

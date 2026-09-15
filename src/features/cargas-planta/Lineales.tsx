@@ -69,9 +69,9 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
       {ayuda && (
         <p className="border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
           Cerramientos de fachada, muros, tabiques pesados, petos y barandillas: cargas por metro que el programa de
-          cálculo recibe sobre vigas y bordes de forjado. Un muro se mide por su alzado: teclee lo que pesa un metro
-          cuadrado de fábrica y la altura de la planta, y la carga por metro sale sola. Los valores del catálogo son los
-          de la tabla C.5, que los da para unos 3 m de altura libre.
+          cálculo recibe sobre vigas y bordes de forjado. Un muro se mide por metro cuadrado: teclee lo que pesa un
+          metro cuadrado de fábrica —lo que la norma llama su alzado— y la altura de la planta, y la carga por metro
+          sale sola. Los valores del catálogo son los de la tabla C.5, que los da para unos 3 m de altura libre.
         </p>
       )}
 
@@ -81,7 +81,7 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
         <table className="w-full table-fixed border-collapse text-[12px]">
           <colgroup>
             <col />
-            <col style={{ width: 112 }} />
+            <col style={{ width: 116 }} />
             <col style={{ width: 96 }} />
             <col style={{ width: 112 }} />
             <col style={{ width: 104 }} />
@@ -90,8 +90,11 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
           <thead>
             <tr>
               <th className={TH}>Elemento</th>
-              <th className={TH_NUM} title="Lo que pesa un metro cuadrado de muro">
-                Alzado ({uQ})
+              {/* «Alzado» a secas se leía como la vista de alzado del muro, no
+                  como lo que pesa un metro cuadrado de él. La unidad, debajo:
+                  en una línea con el rótulo entero no cabe. */}
+              <th className={TH_NUM} title={`Lo que pesa un metro cuadrado de muro, con su revestimiento, en ${uQ}. La carga por metro sale de multiplicarlo por la altura.`}>
+                Peso por m² <span className="block font-normal normal-case">{uQ}</span>
               </th>
               <th className={TH_NUM}>Altura (m)</th>
               <th className={TH_NUM}>Carga ({uL})</th>
@@ -115,7 +118,7 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
                   <td className="px-2 py-1.5">
                     {esMuro ? (
                       <span className={CAJA_DER}>
-                        <RawNumberInput value={l.alzado ?? 0} onChange={(alzado) => onLineal(l.id, { alzado })} ariaLabel={`Peso por metro cuadrado de alzado de ${nombre} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-16" hideUnit />
+                        <RawNumberInput value={l.alzado ?? 0} onChange={(alzado) => onLineal(l.id, { alzado })} ariaLabel={`Peso por metro cuadrado de ${nombre} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-16" hideUnit />
                       </span>
                     ) : (
                       <div className={`${TD_DER} text-text-disabled`}>—</div>

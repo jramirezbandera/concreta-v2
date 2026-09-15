@@ -25,7 +25,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES } from './catalogos';
 import { columnasEncima } from './columnas';
 import { FilaZona } from './FilaZona';
-import { BOTON_MENOR, INPUT, SEP, TD, TH, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
+import { BOTON_MENOR, INPUT, SEP, TD, TH, TH_BANDA, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
 import type { NievePublicada } from './nievePub';
 import { rotuloDeZona, type PlantaUI, type ZonaUI } from './state';
 
@@ -50,6 +50,7 @@ interface Props {
   onDuplicarPlanta: (id: string) => void;
   onBorrarPlanta: (id: string) => void;
   onAnadirZona: (plantaId: string) => void;
+  onBorrarZona: (plantaId: string, zonaId: string) => void;
   onMoverPlanta: (id: string, sentido: -1 | 1) => void;
   /** Da la vuelta al orden entero: el arreglo de un edificio tecleado del revés. */
   onInvertirPlantas: () => void;
@@ -74,6 +75,7 @@ export function Tabla({
   onDuplicarPlanta,
   onBorrarPlanta,
   onAnadirZona,
+  onBorrarZona,
   onMoverPlanta,
   onInvertirPlantas,
   onOrdenarSotanos,
@@ -130,10 +132,12 @@ export function Tabla({
       {ayuda && (
         <p className="px-1 pb-2 text-[11.5px] leading-snug text-text-disabled">
           Una fila por zona de carga. Diga qué forjado tiene, qué hay encima y para qué se usa: la norma pone en azul
-          el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Si una planta tiene partes
+          el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Lo de la izquierda pesa
+          siempre (carga permanente G); lo de la derecha va y viene (sobrecarga variable Q). Si una planta tiene partes
           con distinto uso o forjado —vivienda y vaso de piscina—, añádale una zona. Pulse una fila para ver lo que
-          dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano—: la nieve sólo se pide
-          en cubiertas y los sótanos se dibujan bajo la rasante.
+          dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano—: los sótanos se dibujan
+          bajo la rasante. La nieve se pide en lo que está a la intemperie: una cubierta, o una terraza suelta en una
+          planta que por lo demás está bajo techo.
         </p>
       )}
 
@@ -182,6 +186,19 @@ export function Tabla({
             <col style={{ width: ANCHO.qd }} />
           </colgroup>
           <thead>
+            {/* Banda: de qué es cada mitad de la mesa. Lo de la izquierda pesa
+                siempre y va a G; lo de la derecha va y viene y va a Q. La nieve
+                cae del lado variable, que es lo que dice la norma. */}
+            <tr>
+              <th aria-hidden="true" colSpan={2} className="p-0" />
+              <th colSpan={3 + Math.max(1, columnas.length)} scope="colgroup" className={TH_BANDA}>
+                <span className="block truncate">Pesa siempre · carga permanente G</span>
+              </th>
+              <th colSpan={3} scope="colgroup" className={TH_BANDA}>
+                <span className="block truncate">Va y viene · sobrecarga variable Q</span>
+              </th>
+              <th aria-hidden="true" colSpan={3} className="p-0" />
+            </tr>
             {/* Cabecera de grupo: las preguntas de obra */}
             <tr>
               <th colSpan={2} scope="colgroup" className={TH_GRUPO + ' border-l-0'}>
@@ -302,6 +319,7 @@ export function Tabla({
                       onDuplicarPlanta={() => onDuplicarPlanta(planta.id)}
                       onBorrarPlanta={() => onBorrarPlanta(planta.id)}
                       onAnadirZona={() => onAnadirZona(planta.id)}
+                      onBorrarZona={() => onBorrarZona(planta.id, z.id)}
                       onMoverPlanta={(sentido) => onMoverPlanta(planta.id, sentido)}
                       puedeSubir={iPlanta > 0}
                       puedeBajar={iPlanta < plantas.length - 1}

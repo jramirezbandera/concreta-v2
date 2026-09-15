@@ -21,7 +21,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CANTO_INICIAL, FORJADO_OPCIONES, TIPO_PLANTA_OPCIONES, USO_OPCIONES } from './catalogos';
 import { permanenteDe, ponerEnCelda, ponerEspesor, type ColumnaEncima } from './columnas';
 import { BOTON_CELDA, CAJA_DER, COLUMNA_QD, COLUMNA_QD_SEL, INPUT, LINEA, LINEA_DER, SELECCION, SEP, TD, TD_NUM } from './estilos';
-import { cambioDeTipo, tipoDePlanta, type PlantaUI, type TipoPlanta, type ZonaUI } from './state';
+import { cambioDeTipo, tipoDePlanta, zonaALaIntemperie, type PlantaUI, type TipoPlanta, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
@@ -55,6 +55,7 @@ interface Props {
   onDuplicarPlanta: () => void;
   onBorrarPlanta: () => void;
   onAnadirZona: () => void;
+  onBorrarZona: () => void;
   /** Mover la planta en el orden de la tabla, que es el orden de la sección. */
   onMoverPlanta: (sentido: -1 | 1) => void;
   puedeSubir: boolean;
@@ -88,6 +89,7 @@ export function FilaZona({
   onDuplicarPlanta,
   onBorrarPlanta,
   onAnadirZona,
+  onBorrarZona,
   onMoverPlanta,
   puedeSubir,
   puedeBajar,
@@ -100,27 +102,53 @@ export function FilaZona({
   const uso = USO_OPCIONES.find((o) => o.id === z.uso.categoria);
   const forjado = FORJADO_OPCIONES.find((o) => o.id === z.forjado.tipo);
   const sinCanto = z.forjado.tipo === 'madera' || z.forjado.tipo === 'otro';
+  /** ¿Le llega la nieve a ESTA zona? La cubierta entera, o una terraza suelta. */
+  const intemperie = zonaALaIntemperie(planta, z);
   const huecoPP = r?.forjado.ppOrigen === 'sinDato';
   const tinte = seleccionada ? SELECCION : undefined;
 
   /** Cambiar de tipo reinicia el canto y suelta el peso tecleado: era de otro forjado. */
   const cambiarTipo = (tipo: TipoForjado) => onZona({ forjado: { tipo, canto: CANTO_INICIAL[tipo], ppManual: null } });
 
+  /**
+   * Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y
+   * pesa cero. Por eso las dos cajas van con `allowEmpty`: borrar el número es
+   * decir que esta zona NO lleva esa carga, y entonces la carga se quita de la
+   * zona (`NaN` → `ponerEnCelda(..., null)`). Sin ello la caja recuperaba al
+   * salir el valor borrado.
+   */
   const celdaEncima = (c: ColumnaEncima) => {
     const p = permanenteDe(z, c.clave);
     const etiqueta = `${c.etiqueta} en ${quien}`;
+    const quitar = () => onZona({ permanentes: ponerEnCelda(z, c, null, columnas).permanentes });
     if (c.porEspesor !== null) {
       return (
         <span className="flex flex-col items-end gap-0.5">
-          <RawNumberInput value={p ? (p.espesor ?? 0) : NaN} onChange={(espesor) => onZona({ permanentes: ponerEspesor(z, c, espesor, columnas).permanentes })} ariaLabel={`Espesor de ${etiqueta}`} unit="m" min={0} widthClass="w-10" />
+          <RawNumberInput
+            value={p ? (p.espesor ?? 0) : NaN}
+            onChange={(espesor) => (Number.isNaN(espesor) ? quitar() : onZona({ permanentes: ponerEspesor(z, c, espesor, columnas).permanentes }))}
+            ariaLabel={`Espesor de ${etiqueta}`}
+            unit="m"
+            min={0}
+            allowEmpty
+            widthClass="w-10"
+          />
           {p && <span className="font-mono text-[9px] text-accent">= {mostrar(p.valor)}</span>}
         </span>
       );
     }
-    // Sin carga, la caja va VACÍA: un cero diría que la zona lleva esa carga y pesa cero.
     return (
       <span className={CAJA_DER}>
-        <RawNumberInput value={p ? p.valor : NaN} onChange={(valor) => onZona({ permanentes: ponerEnCelda(z, c, valor, columnas).permanentes })} ariaLabel={`Valor de ${etiqueta} (${uQ})`} quantity="areaLoad" min={0} widthClass="w-11" hideUnit />
+        <RawNumberInput
+          value={p ? p.valor : NaN}
+          onChange={(valor) => (Number.isNaN(valor) ? quitar() : onZona({ permanentes: ponerEnCelda(z, c, valor, columnas).permanentes }))}
+          ariaLabel={`Valor de ${etiqueta} (${uQ})`}
+          quantity="areaLoad"
+          min={0}
+          allowEmpty
+          widthClass="w-11"
+          hideUnit
+        />
       </span>
     );
   };
@@ -195,7 +223,26 @@ export function FilaZona({
               toda
             </span>
           ) : (
-            <input type="text" value={z.nombre} aria-label={`Nombre de la zona de ${planta.nombre || 'la planta'}`} placeholder="Zona" className={INPUT} onClick={(ev) => ev.stopPropagation()} onChange={(ev) => onZona({ nombre: ev.target.value })} />
+            // La papelera al lado del nombre, no sólo en la ficha: una zona se
+            // añade desde la tabla y se tiene que poder quitar desde la tabla.
+            // Sólo cuando hay más de una: la última no se borra, se renombra.
+            <div className="flex w-full min-w-0 items-center gap-0.5">
+              <input type="text" value={z.nombre} aria-label={`Nombre de la zona de ${planta.nombre || 'la planta'}`} placeholder="Zona" className={INPUT} onClick={(ev) => ev.stopPropagation()} onChange={(ev) => onZona({ nombre: ev.target.value })} />
+              {nZonas > 1 && (
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    onBorrarZona();
+                  }}
+                  aria-label={`Borrar la zona ${quien}`}
+                  title="Borrar esta zona de la planta"
+                  className="shrink-0 rounded p-px text-text-disabled hover:text-state-fail"
+                >
+                  <Trash2 size={11} aria-hidden="true" />
+                </button>
+              )}
+            </div>
           )}
           {ultima && (
             <button
@@ -307,36 +354,40 @@ export function FilaZona({
         <Derivado valor={r ? mostrar(r.uso.qUso) : '—'} titulo={r ? r.uso.etiqueta : 'Sobrecarga de uso'} />
       </td>
 
-      {/* Nieve — de la planta */}
-      {primera && (
-        <td rowSpan={nZonas} className={TD_NUM + ' align-top ' + SEP} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
-          {!planta.esCubierta ? (
-            <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'}>—</span>
-          ) : planta.nieve.modo === 'ninguna' ? (
-            // Un botón, no un texto subrayado: abre la ficha, que es donde se
-            // elige la nieve, y al pulsarlo dos veces no se selecciona la palabra.
-            <span className={LINEA_DER}>
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  onSeleccionar();
-                }}
-                className="whitespace-nowrap text-[10px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
-                title={nievePubHay ? 'Abre la ficha de la fila, donde se toma la nieve publicada' : 'Abre la ficha de la fila; Viento y nieve todavía no ha publicado'}
-              >
-                sin nieve
-              </button>
-            </span>
-          ) : (
-            <Derivado
-              valor={dec(planta.nieve.valor, 2)}
-              titulo="Carga de nieve de la cubierta"
-              sub={planta.nieve.modo === 'publicada' ? 'publicada' : 'propia'}
-            />
-          )}
-        </td>
-      )}
+      {/* Nieve — se declara una vez por planta (misma altura, misma nieve) y
+          cae sobre las zonas a la intemperie: la cubierta entera, o la terraza
+          de una planta que por lo demás está bajo techo. Por eso la celda es de
+          la ZONA y no lleva `rowSpan`: en una planta baja con terraza, la
+          vivienda de al lado pone «—». */}
+      <td className={TD_NUM + ' align-top ' + SEP}>
+        {!intemperie ? (
+          <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'} title="Bajo techo: no le llega la nieve">
+            —
+          </span>
+        ) : planta.nieve.modo === 'ninguna' ? (
+          // Un botón, no un texto subrayado: abre la ficha, que es donde se
+          // elige la nieve, y al pulsarlo dos veces no se selecciona la palabra.
+          <span className={LINEA_DER}>
+            <button
+              type="button"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                onSeleccionar();
+              }}
+              className="whitespace-nowrap text-[10px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
+              title={nievePubHay ? 'Abre la ficha de la fila, donde se toma la nieve publicada' : 'Abre la ficha de la fila; Viento y nieve todavía no ha publicado'}
+            >
+              sin nieve
+            </button>
+          </span>
+        ) : (
+          <Derivado
+            valor={dec(planta.nieve.valor, 2)}
+            titulo={planta.esCubierta ? 'Carga de nieve de la cubierta' : 'Carga de nieve sobre esta zona a la intemperie'}
+            sub={planta.nieve.modo === 'publicada' ? 'publicada' : 'propia'}
+          />
+        )}
+      </td>
 
       {/* Cálculo */}
       <td className={TD_NUM + ' ' + SEP}>

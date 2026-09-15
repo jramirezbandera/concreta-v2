@@ -55,6 +55,16 @@ type RawNumberInputProps = {
    */
   allowNegative?: boolean;
 
+  /**
+   * Vaciar la caja ES un valor: emite `NaN` y el campo se queda vacío, en vez
+   * de recuperar al salir el último número tecleado. Para las celdas donde «sin
+   * número» significa algo —una zona que no lleva esa carga encima del
+   * forjado—; sin esto, borrar el solado dejaba la caja en blanco y al perder
+   * el foco reaparecía el 1,00 de antes, que además seguía sumando en G.
+   * Quien lo active tiene que tratar el `NaN` en su `onChange`.
+   */
+  allowEmpty?: boolean;
+
   /** Tailwind width utility for the input box (default `w-15`). */
   widthClass?: string;
   /**
@@ -93,6 +103,7 @@ export function RawNumberInput({
   step,
   clamp = false,
   allowNegative = false,
+  allowEmpty = false,
   widthClass = "w-15",
   fullWidth = false,
   hideUnit = false,
@@ -167,6 +178,12 @@ export function RawNumberInput({
             ? e.target.value.replace(/[^0-9-]/g, "")
             : e.target.value;
           setLocalStr(raw);
+          // Vaciar la caja se emite en el acto: si esperara al blur, G y qd
+          // seguirían contando la carga que el usuario acaba de borrar.
+          if (allowEmpty && raw.trim() === "") {
+            onChange(NaN);
+            return;
+          }
           if (integer) {
             const n = parseInt(raw, 10);
             if (!isNaN(n)) onChange(n);
@@ -182,6 +199,9 @@ export function RawNumberInput({
           if (!isNaN(n)) onChange(n);
         }}
         onBlur={() => {
+          // Vacía y con `allowEmpty`: se queda vacía. El `NaN` ya salió al
+          // teclear, así que aquí sólo hay que NO restaurar el valor de antes.
+          if (allowEmpty && localStr.trim() === "") return;
           if (integer) {
             const n = parseInt(localStr, 10);
             if (isNaN(n)) { setLocalStr(formatForInput(value)); return; }

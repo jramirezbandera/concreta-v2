@@ -167,8 +167,8 @@ export const MUROS_INICIAL = { terreno: 'Terreno de relleno', phi: 30, gamma: 19
 export type NieveModo = 'ninguna' | 'publicada' | 'manual';
 
 export const NIEVE_MODO_OPCIONES: Opcion<NieveModo>[] = [
-  { id: 'ninguna', etiqueta: 'Sin nieve', ayuda: 'La cubierta no lleva carga de nieve (o se trata fuera).' },
-  { id: 'publicada', etiqueta: 'La que publica Viento y nieve', ayuda: 'Toma la carga de nieve qn del faldón elegido en el módulo Viento y nieve. Si aquel módulo vuelve a publicar, aquí aparece un aviso para actualizarla.' },
+  { id: 'ninguna', etiqueta: 'Sin nieve', ayuda: 'Esta planta no lleva carga de nieve (o se trata fuera).' },
+  { id: 'publicada', etiqueta: 'La que publica Viento y nieve', ayuda: 'Toma la carga de nieve qn del faldón elegido en el módulo Viento y nieve. Es lo que se pone solo mientras no se elija otra cosa; una vez elegida a mano, si aquel módulo vuelve a publicar, aquí aparece un aviso para actualizarla.' },
   { id: 'manual', etiqueta: 'Un valor propio', ayuda: 'Teclee la carga de nieve en proyección horizontal, kN/m².' },
 ];
 
@@ -194,7 +194,7 @@ export const TIPO_PLANTA_OPCIONES: Opcion<'cubierta' | 'planta' | 'sotano'>[] = 
   {
     id: 'cubierta',
     etiqueta: 'Cubierta',
-    ayuda: 'La nieve y la sobrecarga de conservación sólo se piden en las cubiertas. Puede haber más de una: un cuerpo bajo, un ático retranqueado.',
+    ayuda: 'Toda la planta está a la intemperie: lleva nieve y la sobrecarga de conservación. Puede haber más de una: un cuerpo bajo, un ático retranqueado. Una planta normal con una terraza no es esto: se declara la terraza como zona de uso F y la nieve se pide allí.',
   },
   { id: 'planta', etiqueta: 'Planta', ayuda: 'Sobre rasante. Recibe viento y cuenta para la altura de evacuación.' },
   {

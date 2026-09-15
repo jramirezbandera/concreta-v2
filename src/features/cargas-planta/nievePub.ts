@@ -50,8 +50,13 @@ export function valorPublicado(pub: NievePublicada, faldon: string | null): numb
   return f ? f.qn : null;
 }
 
-/** La nieve de una planta tomada del sobre, congelada con su fecha y su obra. */
-export function nieveDesdePublicacion(pub: NievePublicada, faldon: string | null = null): NieveUI {
+/**
+ * La nieve de una planta tomada del sobre, congelada con su fecha y su obra.
+ *
+ * `elegida` dice si la ha pedido el usuario (el botón «usar la nieve
+ * publicada») o si se la ha puesto sola la app por defecto; ver `NieveUI`.
+ */
+export function nieveDesdePublicacion(pub: NievePublicada, faldon: string | null = null, elegida = true): NieveUI {
   const valor = valorPublicado(pub, faldon);
   return {
     modo: 'publicada',
@@ -59,6 +64,7 @@ export function nieveDesdePublicacion(pub: NievePublicada, faldon: string | null
     tsPub: pub.ts,
     inePub: pub.ine,
     faldon: valor === null ? null : faldon,
+    elegida,
   };
 }
 
