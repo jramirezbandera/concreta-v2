@@ -114,7 +114,13 @@ export function IncendioModule() {
     });
   };
 
-  const evaluacion = useMemo(() => evaluar(state), [state]);
+  // Las plantas del edificio son de OTRO módulo y se leen del sobre en cada
+  // evaluación, así que `versionPubs` es una dependencia real: sin ella, con el
+  // sobre de «Cargas por planta» cambiado desde otra pestaña, la tabla y la R
+  // seguían enseñando lo viejo hasta que se tecleara algo aquí.
+  const versionPubs = useVersionDePubs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const evaluacion = useMemo(() => evaluar(state), [state, versionPubs]);
 
   // Publicar es un efecto del resultado, no del tecleo: se hace después del
   // render, cuando la evaluación ya está hecha, y sólo si está lista.
@@ -125,7 +131,6 @@ export function IncendioModule() {
   // De qué está hecha la obra, para citar los anejos del DB SI que le tocan.
   // Se relee en cada cambio de sobre: es un rótulo, no un sumando, así que no
   // se copia ni se congela (mismo criterio que el sismo en cargas por planta).
-  const versionPubs = useVersionDePubs();
   // `versionPubs` no se usa DENTRO a propósito: es la marca que dice «vuelve a
   // leer», no un dato. Por eso el lint cree que sobra.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,6 +320,25 @@ export function IncendioModule() {
           ].join(' ')}
         >
           <div className="scroll-hide flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-3.5">
+            {/* El modo Ayuda: los cinco paneles llevan sus rótulos largos
+                escritos desde F2 y hasta ahora no había forma de encenderlos.
+                Mismo botón que en viento y nieve. */}
+            <div className="flex justify-end pb-2">
+              <button
+                type="button"
+                onClick={() => actualizar((p) => ({ ...p, ayuda: !p.ayuda }))}
+                aria-pressed={state.ayuda}
+                title="Muestra u oculta las explicaciones de cada campo"
+                className={[
+                  'rounded px-2.5 py-1 text-[11.5px] transition-colors',
+                  state.ayuda
+                    ? 'border border-accent/40 bg-accent/15 text-accent'
+                    : 'border border-border-main bg-bg-elevated text-text-disabled hover:text-text-secondary',
+                ].join(' ')}
+              >
+                Ayuda {state.ayuda ? '✓' : ''}
+              </button>
+            </div>
             <Edificio
               evaluacion={evaluacion}
               ayuda={state.ayuda}

@@ -40,12 +40,29 @@ const NOMBRES = [
   'Plantas sobre rasante',
   'Sótano',
   'Aparcamiento',
+  'Garaje',
   'Locales comerciales',
   'Cubierta',
   'Escalera protegida',
 ];
 
 const CASILLA = 'flex items-center gap-1.5 text-[11px] text-text-secondary';
+
+/**
+ * Sólo el nivel bajo lleva ejemplo, y sólo uno: el garaje.
+ *
+ * «Riesgo especial bajo» es el nombre que le da la tabla 3.2, y no lo busca ahí
+ * quien tiene un garaje: acababa dentro del sector de la casa, que es el R 30
+ * de la tabla 3.1 donde la norma pide R 90. Los otros dos niveles se dejan
+ * limpios a propósito —la tabla 2.1 del DB SI 1 tiene tres docenas de filas y
+ * un ejemplo suelto orienta tan mal como ninguno— y la explicación entera vive
+ * en la ayuda del tablero, que no compite por el ancho del desplegable.
+ */
+const EJEMPLO_RIESGO: Record<'bajo' | 'medio' | 'alto', string> = {
+  bajo: ' — garaje…',
+  medio: '',
+  alto: '',
+};
 
 export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAnadir }: Props) {
   return (
@@ -105,6 +122,7 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                       {(['bajo', 'medio', 'alto'] as const).map((n) => (
                         <option key={n} value={claseRiesgo(n)}>
                           {ETIQUETA_RIESGO[n]}
+                          {EJEMPLO_RIESGO[n]}
                         </option>
                       ))}
                     </optgroup>
@@ -171,8 +189,11 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                   </label>
                 )}
 
-                {/* El Anejo B: sustituye a la tabla, y por eso va ANTES de la R. */}
-                {(esUso || esRiesgo) && (
+                {/* El Anejo B: sustituye a la tabla, y por eso va ANTES de la R.
+                    La casilla sale también con el Anejo B ya encendido aunque
+                    la clase no lo admita: reclasificando un sector a «caso
+                    aparte» desaparecía y no quedaba forma de apagarlo. */}
+                {(esUso || esRiesgo || s.anejoB !== null) && (
                   <label className={`${CASILLA} pt-2`}>
                     <input
                       type="checkbox"
@@ -192,6 +213,7 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                     resuelto={r}
                     ayuda={ayuda}
                     nombre={s.nombre || 'el sector sin nombre'}
+                    clase={s.clase}
                     onCambiar={(cambio: Partial<DatosAnejoB>) =>
                       onCambiar(s.id, { anejoB: { ...(s.anejoB as DatosAnejoB), ...cambio } })
                     }
@@ -215,7 +237,11 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
                       {r?.sinExigencia
                         ? 'sin exigencia (norma)'
                         : r?.derivada !== null && r?.derivada !== undefined
-                          ? `R${r.derivada} (${s.anejoB ? 'Anejo B' : 'tabla'})`
+                          ? // De dónde sale la que se enseña: el tiempo equivalente
+                            // sólo si SE HA APLICADO. Mirando `s.anejoB` se rotulaba
+                            // «(Anejo B)» en un sector reclasificado a caso aparte,
+                            // donde la R la pone su apartado y no el Anejo B.
+                            `R${r.derivada} (${r.ted ? 'Anejo B' : s.clase.startsWith('regla:') ? 'norma' : 'tabla'})`
                           : '— sin resolver —'}
                     </option>
                     {RESISTENCIA_FUEGO_OPCIONES.map((v) => (
@@ -245,7 +271,11 @@ export function Sectores({ sectores, resueltos, ayuda, onCambiar, onBorrar, onAn
         />
         {ayuda && (
           <span className={AYUDA}>
-            Un sector por cada zona con uso propio. La R sale de la tabla 3.1 y se puede pisar.
+            Un sector por cada zona con uso propio. La R sale de la tabla 3.1 y se puede pisar. El
+            garaje va SIEMPRE en su propio sector, como riesgo especial bajo: la tabla 2.1 del DB SI
+            1 clasifica así el de una vivienda unifamiliar —cualquiera que sea su superficie— y el
+            aparcamiento de hasta 100 m², que por debajo de esa superficie no llega al uso
+            Aparcamiento (Anejo SI A). Son R 90 por la tabla 3.2, no el R 30 de la vivienda.
           </span>
         )}
       </div>

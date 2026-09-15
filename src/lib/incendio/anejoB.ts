@@ -276,23 +276,57 @@ export const CONSECUENCIAS_B5: readonly { id: ConsecuenciasB5; etiqueta: string 
   { id: 'masDe28', etiqueta: 'Descendente de más de 28 m, o ascendente de más de una planta' },
 ];
 
+/** m. Lo que la fila de δc = 1,5 escribe como ascendente de una planta. */
+export const ASCENDENTE_UNA_PLANTA = 2.8;
+
+/** Cuál de dos filas de la B.5 pide más. */
+export function filaMasExigente(a: ConsecuenciasB5, b: ConsecuenciasB5): ConsecuenciasB5 {
+  return TABLA_B5[a] >= TABLA_B5[b] ? a : b;
+}
+
+export interface PropuestaB5 {
+  /** La fila de la tabla B.5. `null` cuando no hay altura con la que entrar. */
+  fila: ConsecuenciasB5 | null;
+  /** Lo que la tabla no cierra y decide quien firma. */
+  avisos: string[];
+}
+
 /**
  * La fila de la tabla B.5 que le toca a un edificio, a partir de lo que ya se
  * sabe de sus plantas. Es una PROPUESTA: la fila de en medio menciona también
- * los aparcamientos bajo otros usos, que no se deducen de la altura.
+ * los aparcamientos bajo otros usos, que no se deducen de la altura, y de eso
+ * se ocupa quien conoce el uso del sector.
+ *
+ * Las dos filas de arriba miden cosas distintas y hay que respetarlo: la de
+ * 2,0 dice «ascendente de MÁS DE UNA PLANTA» y la de 1,5 «ascendente hasta
+ * 2,8 m». Un solo sótano de 3,20 m cae en el hueco que dejan las dos —es una
+ * planta, y pasa de 2,8 m—, así que se propone la de 1,5 y se dice.
  */
 export function consecuenciasPorAltura(
   descendente: number | null,
   ascendente: number | null,
-): ConsecuenciasB5 | null {
-  if (descendente === null) return null;
-  if (descendente > 28) return 'masDe28';
-  // «Ascendente de más de una planta» no se puede leer de un número solo; el
-  // umbral de 2,8 m de la fila de en medio es lo que sí está escrito.
-  if (ascendente !== null && ascendente > 2.8) return 'masDe28';
-  if (descendente >= 15) return 'entre15y28oBajoOtroUso';
-  if (ascendente !== null && ascendente > 0) return 'entre15y28oBajoOtroUso';
-  return 'bajo15oAparcamiento';
+  plantasAscendentes = 0,
+): PropuestaB5 {
+  const avisos: string[] = [];
+  const con = (fila: ConsecuenciasB5 | null): PropuestaB5 => ({ fila, avisos });
+
+  if (descendente === null) return con(null);
+  if (descendente > 28) return con('masDe28');
+  // Se cuentan PLANTAS, no metros: traducir esta fila por «ascendente > 2,8 m»
+  // mandaba un edificio entero a δc = 2,0 por tener un solo sótano alto.
+  if (plantasAscendentes > 1) return con('masDe28');
+  if (descendente >= 15) return con('entre15y28oBajoOtroUso');
+
+  const sube = plantasAscendentes > 0 || (ascendente !== null && ascendente > 0);
+  if (sube) {
+    if (ascendente !== null && ascendente > ASCENDENTE_UNA_PLANTA) {
+      avisos.push(
+        `La evacuación ascendente sube una sola planta pero salva ${ascendente.toFixed(2).replace('.', ',')} m, más de los 2,8 m que escribe la fila de δc = 1,5 de la tabla B.5. Se propone esa fila porque la de 2,0 habla de más de una planta; la tabla no cierra el caso y puede elegirse la de 2,0 a mano.`,
+      );
+    }
+    return con('entre15y28oBajoOtroUso');
+  }
+  return con('bajo15oAparcamiento');
 }
 
 /** Tabla B.6 — densidad de carga de fuego variable característica, MJ/m². */

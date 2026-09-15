@@ -122,6 +122,51 @@ describe('lo que la tabla no dice', () => {
   });
 });
 
+/**
+ * El garaje: la frontera está en el DB SI 1 y en el Anejo SI A, no en la tabla
+ * 3.1, y por eso es la fila que más se equivoca. Ninguno de los dos casos vale
+ * R 30: el de la unifamiliar sube a R 90 por la tabla 3.2, y el de hasta
+ * 100 m² tampoco llega a la fila de aparcamiento.
+ */
+describe('el garaje no cabe en la fila que parece', () => {
+  it('la vivienda unifamiliar avisa de que su garaje va aparte, y de que son R 90', () => {
+    const r = rExigida({ uso: 'viviendaUnifamiliar', bajoRasante: true, alturaEvacuacion: 8 });
+    // La fila sigue siendo la que dice el papel para la VIVIENDA.
+    expect(r.minutos).toBe(30);
+    const dicho = r.avisos.join(' ');
+    expect(dicho).toContain('garaje de una vivienda unifamiliar');
+    expect(dicho).toContain('riesgo especial bajo');
+    expect(dicho).toContain('R 90');
+    expect(dicho).toContain('tabla 2.1 del DB SI 1');
+  });
+
+  it('y lo avisa esté donde esté, que el garaje de una unifamiliar no siempre es el sótano', () => {
+    const r = rExigida({ uso: 'viviendaUnifamiliar', bajoRasante: false, alturaEvacuacion: 8 });
+    expect(r.avisos.join(' ')).toContain('garaje de una vivienda unifamiliar');
+  });
+
+  it('las dos filas de aparcamiento recuerdan que empiezan en los 100 m²', () => {
+    for (const uso of ['aparcamientoExclusivo', 'aparcamientoBajoOtroUso'] as const) {
+      const r = rExigida({ uso, bajoRasante: true, alturaEvacuacion: 10 });
+      expect(r.avisos.join(' ')).toContain('más de 100 m² construidos');
+      expect(r.avisos.join(' ')).toContain('riesgo especial bajo');
+    }
+  });
+
+  it('a los demás usos no les dice nada de garajes', () => {
+    for (const uso of ['residencialVivienda', 'comercial', 'docente'] as const) {
+      expect(rExigida({ uso, bajoRasante: false, alturaEvacuacion: 10 }).avisos).toEqual([]);
+    }
+  });
+
+  it('el garaje declarado como toca no baja de la estructura de su planta', () => {
+    // Un garaje en el sótano de una unifamiliar: R 90 por la 3.2, no el R 30
+    // de la casa. Y en un edificio de viviendas, R 120 por la llamada (1).
+    expect(rRiesgoEspecial('bajo', 30).minutos).toBe(90);
+    expect(rRiesgoEspecial('bajo', 120).minutos).toBe(120);
+  });
+});
+
 describe('la tabla 3.2, zonas de riesgo especial', () => {
   it('son R 90, R 120 y R 180', () => {
     expect(TABLA_3_2).toEqual({ bajo: 90, medio: 120, alto: 180 });

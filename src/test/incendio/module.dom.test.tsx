@@ -84,7 +84,9 @@ describe('las exigencias de resistencia al fuego', () => {
     montar();
     exigirFuego('Plantas sobre rasante', '90');
     const sobre = leerPublicacion<PubIncendio>(MODULO_PUB, PUB_VERSION);
-    expect(sobre?.datos.exigencias).toEqual([{ ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    expect(sobre?.datos.exigencias).toEqual([
+      { ambito: 'Plantas sobre rasante', minutos: 90, cita: 'declarada en el proyecto' },
+    ]);
     expect(sobre?.configurado).toBe(true);
   });
 
@@ -141,6 +143,22 @@ describe('los sectores, de la tabla 3.1 a la pantalla', () => {
     expect(screen.getByText(/1 sin resolver/)).toBeInTheDocument();
   });
 
+  /**
+   * El modo Ayuda: los cinco paneles llevan sus rótulos largos escritos desde
+   * F2 —incluido el que explica el convenio de alturas— y no había ningún
+   * control que los encendiera. Eran código muerto.
+   */
+  it('el botón de Ayuda enciende las explicaciones de los paneles', () => {
+    montar();
+    expect(screen.queryByText(/Máxima diferencia de cotas/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Ayuda/ }));
+    expect(screen.getByText(/Máxima diferencia de cotas/)).toBeInTheDocument();
+    expect(screen.getByText(/La R sale de la tabla 3\.1 y se puede pisar/)).toBeInTheDocument();
+    // Y se apaga.
+    fireEvent.click(screen.getByRole('button', { name: /^Ayuda/ }));
+    expect(screen.queryByText(/Máxima diferencia de cotas/)).not.toBeInTheDocument();
+  });
+
   it('sin plantas publicadas lo dice y ofrece el módulo que las tiene', () => {
     montar();
     expect(screen.getByText(/Las plantas salen de/)).toBeInTheDocument();
@@ -154,7 +172,7 @@ describe('los sectores, de la tabla 3.1 a la pantalla', () => {
     });
     sector('Plantas sobre rasante', 'uso:residencialVivienda');
     expect(leerPublicacion<PubIncendio>(MODULO_PUB, PUB_VERSION)?.datos.exigencias).toEqual([
-      { ambito: 'Plantas sobre rasante', minutos: 60 },
+      { ambito: 'Plantas sobre rasante', minutos: 60, cita: 'tabla 3.1' },
     ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Quitar Plantas sobre rasante' }));

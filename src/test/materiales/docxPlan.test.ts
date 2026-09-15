@@ -397,7 +397,7 @@ describe('integración con los cuadros reales', () => {
     const captions = parrafos(plan).filter((p) => p.estilo === 'Caption');
     expect(captions.map((p) => p.texto)).toEqual([
       'Aplicable a los valores característicos.',
-      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6 (tabla 3.1).',
+      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6.',
       expect.stringContaining('protecciones adicionales'),
     ]);
   });

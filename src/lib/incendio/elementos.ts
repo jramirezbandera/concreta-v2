@@ -153,6 +153,30 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
   const sector = sectores.find((s) => s.id === e.sectorId) ?? null;
   const exigida = e.exigidaManual ?? sector?.minutos ?? null;
 
+  // Un elemento que apunta a un sector BORRADO no es trabajo a medias: es una
+  // referencia rota. Se queda sin R, desaparece del documento —`via` es
+  // 'sinResolver' y el cuadro filtra esos— y hasta ahora se iba sin hueco, sin
+  // aviso y sin bloquear la exportación: se borraba «Sótano» y «Pilares de
+  // sótano» dejaba de imprimirse.
+  const sectorPerdido = e.sectorId !== '' && sector === null;
+  // Sólo bloquea cuando deja al elemento SIN R: con una R tecleada a mano el
+  // elemento sigue imprimiéndose entero y lo único roto es el rótulo del
+  // sector, que se avisa igual.
+  const perdidoSinR = sectorPerdido && e.exigidaManual === null;
+  // Y sin sector NINGUNO tampoco entra en el documento, pero eso sí es un
+  // estado de trabajo legítimo —se describe la sección antes de repartir los
+  // sectores—, así que se avisa en vez de bloquear.
+  const sinExigir = !sectorPerdido && e.sectorId === '' && e.exigidaManual === null;
+
+  const deLaLista = [
+    ...(sectorPerdido
+      ? ['el sector del que tomaba la R ya no existe: elija otro o teclee la R exigida.']
+      : []),
+    ...(sinExigir && nombre !== ''
+      ? ['no tiene R exigida, así que no entra en el documento: cuélguelo de un sector o tecléela.']
+      : []),
+  ];
+
   const base = {
     id: e.id,
     nombre,
@@ -197,10 +221,10 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
       masividad: r.masividad,
       dLambda: r.dLambda,
       proteccion: prop,
-      avisos: [...r.avisos, ...(prop?.avisos ?? [])].map(
+      avisos: [...deLaLista, ...r.avisos, ...(prop?.avisos ?? [])].map(
         (a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`,
       ),
-      hueco: nombre === '' || r.faltan.length > 0,
+      hueco: nombre === '' || r.faltan.length > 0 || perdidoSinR,
       hormigon: null,
       acero: r,
     };
@@ -237,10 +261,10 @@ function resolverUno(e: ElementoEntrada, sectores: readonly SectorResuelto[]): E
     masividad: null,
     dLambda: null,
     proteccion: prop,
-    avisos: [...r.avisos, ...(prop?.avisos ?? [])].map(
+    avisos: [...deLaLista, ...r.avisos, ...(prop?.avisos ?? [])].map(
       (a) => `«${nombre || 'Elemento sin nombre'}»: ${a}`,
     ),
-    hueco: nombre === '' || r.faltan.length > 0,
+    hueco: nombre === '' || r.faltan.length > 0 || perdidoSinR,
     hormigon: r,
     acero: null,
   };

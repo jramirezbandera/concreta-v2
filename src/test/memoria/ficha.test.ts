@@ -202,8 +202,10 @@ describe('resistencia al fuego', () => {
     const { aps } = conFuego({ acero: false, madera: false });
     const se = deApartado(aps, 'se');
     expect(se).toContain('Resistencia al fuego');
+    // Son filas tecleadas en el módulo de incendio, no derivadas de la tabla:
+    // la nota cita de dónde salen de verdad.
     expect(se).toContain(
-      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ' +
+      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (declarada en el proyecto): ' +
         'R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.',
     );
     expect(se).toContain('los métodos simplificados del anejo C del DB SI');
@@ -245,7 +247,7 @@ describe('resistencia al fuego', () => {
     const datos = ensamblar(estado, { ...completos, materiales: null });
     const se = texto(apartados(datos).find((a) => a.id === 'se')!.bloques);
     expect(se).toContain(
-      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ' +
+      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (declarada en el proyecto): ' +
         'R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante.',
     );
     expect(se).toContain('los métodos simplificados de los anejos C a F del DB SI');

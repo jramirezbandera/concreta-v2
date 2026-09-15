@@ -145,7 +145,7 @@ describe('la evaluación con plantas', () => {
     expect(ev.alturaEvacuacion).toBe(3.2);
     expect(ev.alturaAMano).toBe(false);
     expect(ev.sectores[0].minutos).toBe(60);
-    expect(ev.exigencias).toEqual([{ ambito: 'Plantas', minutos: 60 }]);
+    expect(ev.exigencias).toEqual([{ ambito: 'Plantas', minutos: 60, cita: 'tabla 3.1' }]);
     expect(ev.listo).toBe(true);
   });
 

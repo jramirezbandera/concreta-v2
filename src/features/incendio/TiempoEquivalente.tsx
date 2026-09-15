@@ -25,7 +25,7 @@ import {
   USOS_B6,
   type MaterialSeccion,
 } from '../../lib/incendio/anejoB';
-import type { DatosAnejoB, SectorResuelto } from '../../lib/incendio/sectores';
+import { criticidadPorUso, type DatosAnejoB, type SectorResuelto } from '../../lib/incendio/sectores';
 import { Campo } from './Campo';
 import { AYUDA, INPUT } from './estilos';
 
@@ -34,13 +34,15 @@ interface Props {
   resuelto: SectorResuelto | undefined;
   ayuda: boolean;
   nombre: string;
+  /** Qué es el sector: de ahí sale la propuesta del ×1,5 del B.4.5. */
+  clase: string;
   onCambiar: (cambio: Partial<DatosAnejoB>) => void;
 }
 
 const CASILLA = 'flex items-center gap-1.5 text-[11px] text-text-secondary';
 const n2 = (v: number) => v.toFixed(2).replace('.', ',');
 
-export function TiempoEquivalente({ datos, resuelto, ayuda, nombre, onCambiar }: Props) {
+export function TiempoEquivalente({ datos, resuelto, ayuda, nombre, clase, onCambiar }: Props) {
   const [afinar, setAfinar] = useState(false);
   const ted = resuelto?.ted ?? null;
   const v = ted?.ventilacion ?? null;
@@ -247,7 +249,7 @@ export function TiempoEquivalente({ datos, resuelto, ayuda, nombre, onCambiar }:
                 onCambiar({ consecuencias: (e.target.value || null) as DatosAnejoB['consecuencias'] })
               }
             >
-              <option value="">— la de la altura de evacuación —</option>
+              <option value="">— la que proponen la altura y el uso —</option>
               {CONSECUENCIAS_B5.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.etiqueta}
@@ -256,11 +258,22 @@ export function TiempoEquivalente({ datos, resuelto, ayuda, nombre, onCambiar }:
             </select>
           </label>
 
+          {/* Propuesta desde el uso, como el resto del panel: el B.4.5 nombra
+              los hospitales, y ahí el ×1,5 no es opcional. Los demás casos
+              —edificios que no pueden quedar fuera de servicio— los marca
+              quien firma, porque no se deducen del uso. */}
           <label className={CASILLA}>
             <input
               type="checkbox"
-              checked={datos.criticidadAlta}
+              checked={datos.criticidadAlta ?? criticidadPorUso(clase)}
               aria-label={`${nombre} no puede quedar fuera de servicio`}
+              title={
+                datos.criticidadAlta === null
+                  ? criticidadPorUso(clase)
+                    ? 'Propuesto por el uso Hospitalario (B.4.5)'
+                    : 'Propuesto por el uso del sector: no procede'
+                  : 'Decidido a mano'
+              }
               onChange={(e) => onCambiar({ criticidadAlta: e.target.checked })}
             />
             no puede quedar fuera de servicio, o muchas víctimas{' '}

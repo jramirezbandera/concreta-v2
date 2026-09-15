@@ -441,9 +441,15 @@ describe('cuadros de madera («cuadro madera.png» y «acciones madera.png»)', 
     // El oráculo dice «La estructura será R30 acorde al CTE DB SI» y así salía
     // en todo documento. La R la fija el DB SI 6 por uso y altura: es un dato.
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }))).not.toContain('R30');
+    // Sin procedencia —un sobre escrito antes de que la llevara— se cita el
+    // DB SI 6 a secas: es lo único cierto. Llamarlo «tabla 3.1» era falso en
+    // cuanto la R salía del Anejo B, de la 3.2 o de la mano del proyectista.
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [toda(30)]))).toContain(
-      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6 (tabla 3.1).',
+      'Resistencia al fuego exigida a la estructura: R30, según el CTE DB SI 6.',
     );
+    expect(
+      notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [{ ...toda(30), cita: 'tabla 3.1' }])),
+    ).toContain('R30, según el CTE DB SI 6 (tabla 3.1).');
     expect(notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, [toda(90)]))).toContain('R90');
   });
 

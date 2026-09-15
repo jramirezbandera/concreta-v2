@@ -50,6 +50,16 @@ describe('estadoSobre y otro emplazamiento', () => {
     expect(estadoSobre(so, false, true, false)).toBe('revisar');
     expect(estadoSobre(so, true, true, false)).toBe('derivado');
   });
+  it('y un sobre calculado sobre otro que ha cambiado después: revisar, y se desbloquea igual', () => {
+    // Es el caso de incendio: la R sale de la altura de evacuación, y ésta de
+    // las plantas de «Cargas por planta». Si allí se publica algo después, el
+    // sobre de incendio queda fresco de fecha y viejo de contenido.
+    expect(estadoSobre(so, false, false, false, true)).toBe('revisar');
+    expect(estadoSobre(so, true, false, false, true)).toBe('derivado');
+    // Sin desfasar sigue entrando sin preguntar.
+    expect(estadoSobre(so, false, false, false, false)).toBe('derivado');
+  });
+
   it('darlo por bueno también desbloquea los valores de partida: «son los de esta obra»', () => {
     expect(estadoSobre(sinConfigurar, true, false, true)).toBe('derivado');
   });
@@ -235,6 +245,40 @@ describe('sismo exento y sismo sin resolver', () => {
     expect(d.ncse.valor!.obligatoria).toBe(false);
     expect(d.ncse.valor!.completo).toBeNull();
     expect(d.ncse.valor!.exencion).toContain('0,04');
+  });
+
+  it('irregular y calculado por ordenador: la tabla sísmica SALE, con lo que aporta cada uno', () => {
+    // El caso que dejaba el apartado 3.1.4 en blanco hasta el 2026-09-15: un
+    // edificio que no pasa el art. 3.5.1 y cuya acción sísmica calcula CypeCAD.
+    const s = { ...ejemploSeismicState(), metodo: 'programa' as const, regularidadGeometrica: false };
+    const pub = pubSismo(s, evaluarSismo(s));
+    expect(pub.calculo).toBeNull();
+    const sobres: Sobres = { ...SIN_SOBRES, sismo: sobre('sismo', pub, { ine: '18087' }) };
+    const d = ensamblar(tomarTodo(fichaGranada(), sobres), sobres);
+
+    expect(d.ncse.estado).toBe('derivado');
+    const c = d.ncse.valor!.completo!;
+    // El emplazamiento entero, igual que en la vía simplificada.
+    expect(d.ncse.valor!.ab).toBe('ab=0,23 g, (siendo g la aceleración de la gravedad)');
+    expect(c.K).toBe('K=1,00');
+    expect(c.C).toBe('Terreno tipo II (C=1,30)');
+    expect(c.ac).toMatch(/^ac = S·ρ·ab = /);
+    expect(c.ductilidad).toBe('μ = 3 (ductilidad alta)');
+    // El método nombra el programa del perfil del despacho y dice por qué.
+    expect(c.metodo).toContain('art. 3.6.2');
+    expect(c.metodo).toContain('Cypecad Espacial V2022 (Cype Ingenieros)');
+    expect(c.metodo).toContain('no se cumplen los requisitos (3)');
+    // Y lo que sólo puede decir el programa, remitido a sus listados.
+    expect(c.periodo).toContain('listados');
+    expect(c.modos).toContain('listados');
+    expect(c.fraccion).toContain('art. 3.2');
+  });
+
+  it('por ordenador con los seis requisitos en cumple: se dice que se eligió, no que no valiera', () => {
+    const s = { ...ejemploSeismicState(), metodo: 'programa' as const };
+    const sobres: Sobres = { ...SIN_SOBRES, sismo: sobre('sismo', pubSismo(s, evaluarSismo(s)), { ine: '18087' }) };
+    const c = ensamblar(tomarTodo(fichaGranada(), sobres), sobres).ncse.valor!.completo!;
+    expect(c.metodo).toContain('sería aplicable, pero no se emplea');
   });
 
   it('obligatorio pero sin cálculo (una declaración sin hacer): falta, y el hueco lleva al módulo', () => {

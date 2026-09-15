@@ -55,7 +55,11 @@ function pintar(plantas: PlantaParaAltura[] = EDIFICIO, sectores: SectorEntrada[
       alturaEvacuacion={a.descendente}
       alturaAMano={false}
       ascendente={a.ascendente}
-      sectores={resolverSectores(sectores, a.descendente, a.ascendente)}
+      sectores={resolverSectores(sectores, {
+        alturaEvacuacion: a.descendente,
+        ascendente: a.ascendente,
+        plantasAscendentes: a.plantasAscendentes,
+      })}
     />,
   );
   return { container, alturas: a, texto: container.textContent ?? '' };

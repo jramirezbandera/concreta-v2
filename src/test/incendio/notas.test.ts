@@ -23,6 +23,10 @@ import { describe, expect, it } from 'vitest';
 import { cuadroCoeficientesMinoracion } from '../../lib/materiales/cuadros';
 import {
   AMBITO_TODA_LA_ESTRUCTURA,
+  CITA_ANEJO_B,
+  CITA_PROYECTISTA,
+  CITA_TABLA_31,
+  CITA_TABLA_32,
   exigenciasResueltas,
   fraseAmbito,
 } from '../../lib/incendio/exigencias';
@@ -34,12 +38,15 @@ const notasDe = (blocks: ReturnType<typeof cuadroCoeficientesMinoracion>) => {
   return n.items.join(' ');
 };
 
-const nota = (...fuego: { ambito: string; minutos: number }[]) =>
+const nota = (...fuego: { ambito: string; minutos: number; cita?: string }[]) =>
   notasDe(cuadroCoeficientesMinoracion({ hormigon: true }, fuego));
+
+/** Lo que publica un sector de uso resuelto por la tabla 3.1. */
+const deTabla = (ambito: string, minutos: number) => ({ ambito, minutos, cita: CITA_TABLA_31 });
 
 describe('la nota del cuadro', () => {
   it('con una sola R para toda la obra dice lo mismo que decía', () => {
-    const n = nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 60 });
+    const n = nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 60, cita: CITA_TABLA_31 });
     expect(n).toContain(
       'Resistencia al fuego exigida a la estructura: R60, según el CTE DB SI 6 (tabla 3.1).',
     );
@@ -49,14 +56,49 @@ describe('la nota del cuadro', () => {
 
   it('con varias zonas las enumera, en el orden en que se tecleen', () => {
     const n = nota(
-      { ambito: 'Sótano con aparcamiento', minutos: 120 },
-      { ambito: 'Plantas sobre rasante', minutos: 60 },
-      { ambito: 'Cubierta ligera', minutos: 30 },
+      deTabla('Sótano con aparcamiento', 120),
+      deTabla('Plantas sobre rasante', 60),
+      deTabla('Cubierta ligera', 30),
     );
     expect(n).toContain(
       'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ' +
         'R120 en el sótano con aparcamiento; R60 en las plantas sobre rasante; ' +
         'R30 en la cubierta ligera.',
+    );
+  });
+
+  /**
+   * El DB SI 6 admite cuatro caminos para la R y la nota los citaba todos como
+   * «(tabla 3.1)»: en la memoria del módulo, la tabla de encima decía la
+   * procedencia y la nota de debajo la contradecía; en el cuadro de materiales
+   * y en la ficha del DB SE sólo se veía la cita equivocada.
+   */
+  it('y cuando no todas salen del mismo sitio, cada una dice el suyo', () => {
+    const n = nota(
+      deTabla('Plantas sobre rasante', 60),
+      { ambito: 'Oficinas', minutos: 107, cita: CITA_ANEJO_B },
+      { ambito: 'Zonas de riesgo especial', minutos: 120, cita: CITA_TABLA_32 },
+    );
+    expect(n).toContain(
+      'Resistencia al fuego exigida a la estructura, según el CTE DB SI 6: ' +
+        'R60 en las plantas sobre rasante (tabla 3.1); ' +
+        'R107 en Oficinas (tiempo equivalente del Anejo B, § 3.1.b); ' +
+        'R120 en las zonas de riesgo especial (tabla 3.2).',
+    );
+  });
+
+  it('y la R que declara el proyectista se cita como lo que es', () => {
+    const n = nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 90, cita: CITA_PROYECTISTA });
+    expect(n).toContain(
+      'Resistencia al fuego exigida a la estructura: R90, según el CTE DB SI 6 (declarada en el proyecto).',
+    );
+  });
+
+  it('un sobre viejo, sin procedencia, cita el DB SI 6 a secas', () => {
+    // El campo es aditivo y no sube la versión del sobre: lo escrito antes de
+    // llevarlo no puede imprimir una cita inventada.
+    expect(nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 60 })).toContain(
+      'Resistencia al fuego exigida a la estructura: R60, según el CTE DB SI 6.',
     );
   });
 
@@ -100,8 +142,11 @@ describe('la nota del cuadro', () => {
   it('una R que no es de las tabuladas se imprime igual', () => {
     // El tiempo equivalente del Anejo B da minutos exactos. Nada en la
     // redacción supone que la R sea una de las seis clases.
-    expect(nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 97 })).toContain(
-      'Resistencia al fuego exigida a la estructura: R97, según el CTE DB SI 6 (tabla 3.1).',
+    expect(
+      nota({ ambito: AMBITO_TODA_LA_ESTRUCTURA, minutos: 97, cita: CITA_ANEJO_B }),
+    ).toContain(
+      'Resistencia al fuego exigida a la estructura: R97, según el CTE DB SI 6 '
+        + '(tiempo equivalente del Anejo B, § 3.1.b).',
     );
   });
 });
@@ -129,7 +174,7 @@ describe('las exigencias resueltas', () => {
         { ambito: '   ', minutos: 60 },
         { ambito: 'Cubierta ligera', minutos: 30 },
       ]),
-    ).toEqual([{ ambito: 'Cubierta ligera', minutos: 30 }]);
+    ).toEqual([{ ambito: 'Cubierta ligera', minutos: 30, cita: CITA_PROYECTISTA }]);
   });
 });
 

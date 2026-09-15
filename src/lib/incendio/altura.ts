@@ -72,6 +72,15 @@ export interface AlturasEdificio {
   descendente: number | null;
   /** m. Altura de evacuación ascendente, desde el sótano ocupado más bajo. Misma regla. */
   ascendente: number | null;
+  /**
+   * Cuántas plantas que cuentan quedan por debajo de la de salida, es decir por
+   * cuántas plantas sube la evacuación ascendente.
+   *
+   * Es un CONTEO, no una cota, y por eso vale aunque falte alguna altura: la
+   * fila de δc = 2,0 de la tabla B.5 del Anejo B dice «ascendente de más de una
+   * planta», que es esto y no los metros.
+   */
+  plantasAscendentes: number;
   /** Nombres de las plantas a las que les falta la altura para cerrar la cuenta. */
   sinAltura: string[];
   /** Lo que hay que decirle al proyectista antes de creerse el número. */
@@ -91,7 +100,14 @@ export function alturasDeEvacuacion(
 ): AlturasEdificio {
   const avisos: string[] = [];
   if (plantas.length === 0) {
-    return { plantas: [], descendente: null, ascendente: null, sinAltura: [], avisos };
+    return {
+      plantas: [],
+      descendente: null,
+      ascendente: null,
+      plantasAscendentes: 0,
+      sinAltura: [],
+      avisos,
+    };
   }
 
   const ultima = plantas.length - 1;
@@ -218,7 +234,14 @@ export function alturasDeEvacuacion(
     );
   }
 
-  return { plantas: conCota, descendente, ascendente, sinAltura, avisos };
+  return {
+    plantas: conCota,
+    descendente,
+    ascendente,
+    plantasAscendentes: debajo.length,
+    sinAltura,
+    avisos,
+  };
 }
 
 /** La banda de la tabla 3.1 en la que cae una altura de evacuación. */

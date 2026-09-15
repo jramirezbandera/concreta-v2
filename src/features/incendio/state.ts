@@ -18,6 +18,7 @@ import { exigenciasResueltas, type ExigenciaFuego } from '../../lib/incendio/exi
 import {
   clasesValidas,
   datosAnejoBIniciales,
+  notaSueloEntreSectores,
   resolverSectores,
   type DatosAnejoB,
   type SectorEntrada,
@@ -60,7 +61,12 @@ import { USOS_DB_SI } from '../../lib/incendio/tabla31';
 import { leerObra } from '../../lib/obra';
 import { leerPublicacion, publicar, retirarPublicacion } from '../../lib/pub';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
-import { cuentaParaEvacuacion, plantasPublicadas, type PlantaPublicada } from './plantasPub';
+import {
+  cuentaParaEvacuacion,
+  plantasPublicadas,
+  tsDePlantasPublicadas,
+  type PlantaPublicada,
+} from './plantasPub';
 
 export const STORAGE_KEY = 'concreta-incendio-model';
 export const SCHEMA_VERSION_KEY = 'concreta-incendio-model-version';
@@ -269,7 +275,9 @@ export function normalizarAnejoB(bruto: unknown): DatosAnejoB | null {
       extincion: bool(m.extincion),
     },
     consecuencias: uno<ConsecuenciasB5>(bruto.consecuencias, CONSECUENCIAS_B5.map((c) => c.id)),
-    criticidadAlta: bool(bruto.criticidadAlta),
+    // `null` = lo que proponga el uso del sector, como el resto de campos con
+    // propuesta de este panel.
+    criticidadAlta: typeof bruto.criticidadAlta === 'boolean' ? bruto.criticidadAlta : null,
   };
 }
 
@@ -523,12 +531,21 @@ export function evaluar(state: IncendioState, publicadas = plantasPublicadas()):
   const alturaAMano = state.alturaEvacuacionManual !== null;
   const alturaEvacuacion = alturaAMano ? state.alturaEvacuacionManual : alturas.descendente;
 
-  const sectores = resolverSectores(state.sectores, alturaEvacuacion, alturas.ascendente);
+  const sectores = resolverSectores(state.sectores, {
+    alturaEvacuacion,
+    ascendente: alturas.ascendente,
+    plantasAscendentes: alturas.plantasAscendentes,
+  });
   for (const s of sectores) avisos.push(...s.avisos);
 
   const deSectores: ExigenciaFuego[] = sectores
     .filter((s) => s.minutos !== null && s.nombre !== '')
-    .map((s) => ({ ambito: s.nombre, minutos: s.minutos as number }));
+    .map((s) => ({ ambito: s.nombre, minutos: s.minutos as number, cita: s.cita }));
+
+  // La llamada (1) de la tabla 3.1: el suelo que separa dos sectores lleva la R
+  // del de abajo. No se puede deducir sector a sector, así que se advierte.
+  const suelo = notaSueloEntreSectores(sectores);
+  if (suelo !== null) avisos.push(suelo);
 
   const exigencias = [...deSectores, ...exigenciasResueltas(state.exigencias)];
 
@@ -588,6 +605,15 @@ export interface PubIncendio {
   exigencias: ExigenciaFuego[];
   /** m. La altura de evacuación con la que se entró en la tabla 3.1. */
   alturaEvacuacion?: number | null;
+  /**
+   * Cuándo publicó «Cargas por planta» las plantas con las que se calculó esto.
+   *
+   * La R sale de la altura de evacuación, y la altura de las plantas de allí:
+   * si allí se añade una planta con este módulo cerrado, nadie republica y este
+   * sobre queda fresco de fecha y viejo de contenido. Con esta marca, quien lo
+   * consuma puede verlo. Opcional y aditivo: no sube la versión del sobre.
+   */
+  plantasOrigen?: { ts: string } | null;
 }
 
 /**
@@ -623,11 +649,33 @@ export function publicarResultado(state: IncendioState, ev: Evaluacion): void {
     return;
   }
   const obra = leerObra();
+  const ts = tsDePlantasPublicadas();
+  const municipio = obra?.municipio || null;
+  const configurado = estaConfigurado(state);
+  const nuevos = { ...datos, plantasOrigen: ts === null ? null : { ts } };
+
+  // Republicar lo MISMO no es inocuo, por dos razones:
+  //
+  //  - mueve la marca de cambio de los sobres, y la evaluación de este módulo
+  //    depende de ella —las plantas son de otro módulo—: se republicaría a sí
+  //    mismo en bucle;
+  //  - refresca la fecha del sobre sin que nada haya cambiado, y esa fecha es
+  //    lo que la ficha del DB SE compara con la confirmación del usuario.
+  const vigente = leerPublicacion<PubIncendio>(MODULO_PUB, PUB_VERSION);
+  if (
+    vigente !== null &&
+    vigente.configurado === configurado &&
+    vigente.obra.municipio === municipio &&
+    JSON.stringify(vigente.datos) === JSON.stringify(nuevos)
+  ) {
+    return;
+  }
+
   publicar(
     MODULO_PUB,
     PUB_VERSION,
-    datos,
-    { municipio: obra?.municipio || null, provincia: null, ine: null },
-    estaConfigurado(state),
+    nuevos,
+    { municipio, provincia: null, ine: null },
+    configurado,
   );
 }

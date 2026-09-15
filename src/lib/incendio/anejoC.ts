@@ -299,48 +299,51 @@ export interface CorreccionC1 {
  */
 export function correccionC1(e: EntradaHormigon, clase: ClaseR): CorreccionC1 {
   const avisos: string[] = [];
+  let delta = 0;
 
+  // ── La corrección por sobredimensionado ───────────────────────────────────
   // Soportes y muros van por «Resto de los casos», que vale cero para todo μfi.
-  if (esCompresion(e.tipo) || e.mufi === null) return { delta: 0, avisos };
-
-  // μfi es la fracción de la capacidad que está solicitada en el incendio, y
-  // cero o menos no es un valor: es una casilla mal tecleada. Se trata como si
-  // no estuviera —sin corrección—, que es lo mismo que hará `normalizar` al
-  // releer el estado; dejarlo pasar daría los +5 mm de la fila más baja de la
-  // tabla en sesión y ninguno tras recargar.
-  if (e.mufi <= 0) {
-    avisos.push(
-      `μfi = ${n1(e.mufi)} no es un coeficiente de sobredimensionado: se comprueba sin la corrección de la tabla C.1, como si no se hubiera tecleado.`,
-    );
-    return { delta: 0, avisos };
+  if (!esCompresion(e.tipo) && e.mufi !== null) {
+    if (e.mufi <= 0) {
+      // μfi es la fracción de la capacidad que está solicitada en el incendio,
+      // y cero o menos no es un valor: es una casilla mal tecleada. Se trata
+      // como si no estuviera, que es lo mismo que hará `normalizar` al releer
+      // el estado; dejarlo pasar daría los +5 mm de la fila más baja de la
+      // tabla en sesión y ninguno tras recargar.
+      avisos.push(
+        `μfi = ${n1(e.mufi)} no es un coeficiente de sobredimensionado: se comprueba sin la corrección de la tabla C.1, como si no se hubiera tecleado.`,
+      );
+    } else if (e.mufi > MUFI_MAX_C1) {
+      // La tabla no llega, y extrapolar hacia abajo sería inventarse una
+      // penalización. Se toma la última tabulada, que es la más desfavorable de
+      // las tres, y se dice que no cubre este caso.
+      delta = TABLA_C1_VIGAS[TABLA_C1_VIGAS.length - 1][1];
+      avisos.push(
+        `La tabla C.1 no pasa de μfi = 0,60 y aquí vale ${n1(e.mufi)}. Se aplica la corrección de 0,60 (${delta} mm), que es la más desfavorable tabulada, pero la tabla no cubre este caso: conviene comprobar la sección por el método de la isoterma 500 (C.3).`,
+      );
+    } else if (!e.cargaUniforme && e.mufi < MUFI_MAX_C1) {
+      // C.1: las correcciones para μfi < 0,6 en vigas, losas y forjados sólo
+      // pueden considerarse con cargas sensiblemente uniformes.
+      avisos.push(
+        'Sin cargas sensiblemente uniformes, la tabla C.1 no permite la corrección por sobredimensionado para μfi < 0,60: se comprueba con la distancia al eje sin corregir.',
+      );
+    } else {
+      delta = interpolar(
+        e.mufi,
+        TABLA_C1_VIGAS.map(([m]) => m),
+        TABLA_C1_VIGAS.map(([, d]) => d),
+      );
+    }
   }
 
-  let delta: number;
-  if (e.mufi > MUFI_MAX_C1) {
-    // La tabla no llega, y extrapolar hacia abajo sería inventarse una
-    // penalización. Se toma la última tabulada, que es la más desfavorable de
-    // las tres, y se dice que no cubre este caso.
-    delta = TABLA_C1_VIGAS[TABLA_C1_VIGAS.length - 1][1];
-    avisos.push(
-      `La tabla C.1 no pasa de μfi = 0,60 y aquí vale ${n1(e.mufi)}. Se aplica la corrección de 0,60 (${delta} mm), que es la más desfavorable tabulada, pero la tabla no cubre este caso: conviene comprobar la sección por el método de la isoterma 500 (C.3).`,
-    );
-  } else if (!e.cargaUniforme && e.mufi < MUFI_MAX_C1) {
-    // C.1: las correcciones para μfi < 0,6 en vigas, losas y forjados sólo
-    // pueden considerarse con cargas sensiblemente uniformes.
-    delta = 0;
-    avisos.push(
-      'Sin cargas sensiblemente uniformes, la tabla C.1 no permite la corrección por sobredimensionado para μfi < 0,60: se comprueba con la distancia al eje sin corregir.',
-    );
-  } else {
-    delta = interpolar(
-      e.mufi,
-      TABLA_C1_VIGAS.map(([m]) => m),
-      TABLA_C1_VIGAS.map(([, d]) => d),
-    );
-  }
-
-  // Llamada (1): armaduras de esquina de vigas con una sola capa, en vigas más
-  // estrechas que el bmín de la columna 3 de la tabla C.3.
+  // ── La llamada (1), que NO depende de μfi ─────────────────────────────────
+  // Va fuera del bloque de arriba a propósito: su texto no menciona el
+  // sobredimensionado —«en el caso de armaduras situadas en las esquinas de
+  // vigas con una sola capa de armadura se reducirán los valores de asi en 10
+  // mm, cuando el ancho de las mismas sea inferior a los valores de bmin
+  // especificados en la columna 3 de la tabla C.3»—, porque penaliza cómo se
+  // calienta una barra de esquina, no cuánto está cargada la viga. Dentro del
+  // bloque se perdía justo en el caso corriente, que es el de μfi sin teclear.
   if (e.esquinaUnaCapa && esViga(e.tipo)) {
     const umbral = TABLA_C3[clase].opciones[1]?.b ?? null;
     if (umbral !== null && e.b !== null && e.b < umbral) {
@@ -570,7 +573,10 @@ function avisosDelTexto(e: EntradaHormigon, alcanza: ClaseR | null, eje: number 
       'Armadura superior al 2 % de la sección y R mayor que 90: el C.2.2.2 pide distribuirla en todas las caras, salvo en las zonas de solapo.',
     );
   }
-  if ((e.tipo === 'muroUnaCara' || e.tipo === 'muroDosCaras') && alcanza !== null) {
+  // La llamada (3) está SÓLO en la columna del muro expuesto por una cara: en
+  // la tabla del DB SI el superíndice no aparece en la de ambas caras, y no hay
+  // otro sitio donde la norma extienda el REI a ese caso.
+  if (e.tipo === 'muroUnaCara' && alcanza !== null) {
     avisos.push(`La resistencia al fuego del muro se puede considerar REI ${alcanza} (llamada 3 de la tabla C.2).`);
   }
   if (e.traccionado) {

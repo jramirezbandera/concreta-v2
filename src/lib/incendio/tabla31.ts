@@ -39,12 +39,18 @@ export const USOS_DB_SI: readonly { id: UsoDbSi; etiqueta: string; ayuda?: strin
   {
     id: 'aparcamientoExclusivo',
     etiqueta: 'Aparcamiento (edificio exclusivo o sobre otro uso)',
-    ayuda: 'R 90 tanto en sótano como sobre rasante: su fila de la tabla no depende de la altura.',
+    ayuda:
+      'R 90 tanto en sótano como sobre rasante: su fila de la tabla no depende de la altura. '
+      + 'Uso Aparcamiento es el de más de 100 m² construidos; por debajo, y en el garaje de una '
+      + 'vivienda unifamiliar, es zona de riesgo especial bajo.',
   },
   {
     id: 'aparcamientoBajoOtroUso',
     etiqueta: 'Aparcamiento (bajo un uso distinto)',
-    ayuda: 'R 120, y R 180 si es un aparcamiento robotizado.',
+    ayuda:
+      'R 120, y R 180 si es un aparcamiento robotizado. Uso Aparcamiento es el de más de 100 m² '
+      + 'construidos; por debajo, y en el garaje de una vivienda unifamiliar, es zona de riesgo '
+      + 'especial bajo.',
   },
 ];
 
@@ -81,6 +87,39 @@ export const TABLA_3_1: Record<UsoDbSi, FilaTabla31> = {
   aparcamientoExclusivo: { sotano: 90, h15: 90, h28: 90, mas28: 90 },
   aparcamientoBajoOtroUso: { sotano: 120, h15: 120, h28: 120, mas28: 120 },
 };
+
+/**
+ * El garaje, que es donde más se equivoca la fila.
+ *
+ * El uso Aparcamiento del DB SI no es «donde se aparca»: el Anejo SI A lo
+ * define como el estacionamiento «cuya superficie construida exceda de 100 m²»
+ * y EXCLUYE de él «los garajes, cualquiera que sea su superficie, de una
+ * vivienda unifamiliar». Lo que queda fuera no se va sin regla: la tabla 2.1
+ * del DB SI 1 clasifica como zona de riesgo especial BAJO —«en todo caso»— el
+ * «aparcamiento de vehículos cuya superficie S no exceda de 100 m² o integrado
+ * en una vivienda unifamiliar», y de ahí la tabla 3.2 saca R 90.
+ *
+ * Así que un garaje no puede acabar nunca en el R 30 de la fila de vivienda
+ * unifamiliar, que es lo que sale de meterlo en el sector de la casa: sube a
+ * R 90 por la 3.2, y encima la llamada (1) de esa tabla no lo deja bajar de la
+ * estructura portante de su planta. Ni al revés: un garaje de comunidad de
+ * 80 m² no es R 120 por la fila de «aparcamiento bajo otro uso», porque a esa
+ * fila no llega.
+ *
+ * No se decide aquí —la superficie no se teclea en este módulo y el garaje de
+ * una unifamiliar puede no existir—: se avisa, con la cita, y el sector se
+ * declara como zona de riesgo especial bajo, que ya está en el desplegable.
+ */
+const AVISO_GARAJE_UNIFAMILIAR =
+  'El garaje de una vivienda unifamiliar no va por esta fila: el Anejo SI A lo excluye del uso '
+  + 'Aparcamiento cualquiera que sea su superficie, y la tabla 2.1 del DB SI 1 lo clasifica en todo '
+  + 'caso como zona de riesgo especial bajo, que la tabla 3.2 pone en R 90 y no en el R 30 de la '
+  + 'vivienda. Si la obra tiene garaje, declárelo en su propio sector como riesgo especial bajo.';
+
+const AVISO_APARCAMIENTO_100 =
+  'Uso Aparcamiento es el estacionamiento de más de 100 m² construidos (Anejo SI A). Hasta 100 m², '
+  + 'y en el garaje de una vivienda unifamiliar sea cual sea su superficie, no se entra en esta fila: '
+  + 'es zona de riesgo especial bajo (tabla 2.1 del DB SI 1), R 90 por la tabla 3.2.';
 
 /** Los usos a los que la llamada (3) les sube el sótano a R 180 por encima de 28 m. */
 const CON_LLAMADA_3: readonly UsoDbSi[] = ['comercial', 'publicaConcurrencia', 'hospitalario'];
@@ -125,6 +164,11 @@ export function rExigida(e: EntradaTabla31): ExigenciaDerivada {
     avisos.push(
       'Vivienda unifamiliar agrupada o adosada: los elementos de la estructura común llevan la resistencia exigible a Residencial Vivienda (llamada 2 de la tabla 3.1).',
     );
+  }
+
+  if (e.uso === 'viviendaUnifamiliar') avisos.push(AVISO_GARAJE_UNIFAMILIAR);
+  if (e.uso === 'aparcamientoExclusivo' || e.uso === 'aparcamientoBajoOtroUso') {
+    avisos.push(AVISO_APARCAMIENTO_100);
   }
 
   const fila = TABLA_3_1[uso];

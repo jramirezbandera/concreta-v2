@@ -185,6 +185,7 @@ describe('la altura de evacuación', () => {
       plantas: [],
       descendente: null,
       ascendente: null,
+      plantasAscendentes: 0,
       sinAltura: [],
       avisos: [],
     });

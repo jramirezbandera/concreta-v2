@@ -228,6 +228,27 @@ describe('las anotaciones de planta', () => {
     expect(p.notFound).toEqual([]);
   });
 
+  /**
+   * El adapter empareja con `norm` —sin tildes ni mayúsculas— y el módulo con
+   * `===` exacto. Guardar el nombre que trajo el modelo dejaba la anotación
+   * huérfana con su altura dentro, y el aviso salía en el módulo, no aquí.
+   */
+  it('se guardan con el nombre EXACTO que publica Cargas por planta', () => {
+    publicarPlantas();
+    const p = plan(
+      {
+        ...VACIO,
+        plantas: [
+          { nombre: 'planta baja', altura_m: 3.2, canto_m: 0, bajo_rasante: false, cuenta_evacuacion: 'como_proponga' },
+          { nombre: 'PLANTA PRIMERA', altura_m: 3, canto_m: 0, bajo_rasante: false, cuenta_evacuacion: 'como_proponga' },
+        ],
+      },
+      defaultIncendioState(),
+    );
+    expect(p.fields.plantas?.map((x) => x.nombre)).toEqual(['Planta Baja', 'Planta Primera']);
+    expect(p.notFound).toEqual([]);
+  });
+
   it('una planta que no existe en el sobre se rechaza y se dice', () => {
     publicarPlantas();
     const p = plan(
@@ -300,6 +321,87 @@ describe('los sectores', () => {
 
 // ── Los elementos ────────────────────────────────────────────────────────────
 
+describe('los nombres repetidos y los que se pierden', () => {
+  /**
+   * Dos filas con el mismo nombre heredaban el id del mismo sector anterior:
+   * React pintaba dos hijos con la misma clave, los manejadores actuaban sobre
+   * las dos tarjetas y los elementos colgaban todos de la primera.
+   */
+  it('dos sectores con el mismo nombre: se aplica el primero y se dice', () => {
+    const p = plan(
+      { ...VACIO, sectores: [sectorAi({ nombre: 'Sótano' }), sectorAi({ nombre: 'SÓTANO', sotano: true })] },
+      defaultIncendioState(),
+    );
+    expect(p.fields.sectores).toHaveLength(1);
+    expect(p.fields.sectores?.[0].sotano).toBe(false);
+    expect(p.skipped.map((x) => x.label)).toContain('Sectores repetidos');
+  });
+
+  it('y dos elementos con el mismo nombre, igual', () => {
+    const p = plan(
+      { ...VACIO, elementos: [elementoAi(), elementoAi({ b_mm: 400 })] },
+      conSector(),
+    );
+    expect(p.fields.elementos).toHaveLength(1);
+    expect(p.fields.elementos?.[0].hormigon.b).toBe(300);
+    expect(p.skipped.map((x) => x.label)).toContain('Elementos repetidos');
+  });
+
+  /**
+   * Un sector que vuelve con otro nombre es un sector NUEVO: id nuevo, sin
+   * Anejo B y sin la R declarada. El único rastro era una fila de cambio de
+   * nombre, y detrás había media hora de tecleo.
+   */
+  it('renombrar un sector con Anejo B avisa de lo que se pierde', () => {
+    const base = conSector({
+      sectores: [
+        {
+          id: 's1',
+          nombre: 'Sala de calderas',
+          clase: 'riesgo:bajo',
+          sotano: false,
+          robotizado: false,
+          adosada: false,
+          bajoCubiertaSinRiesgo: false,
+          minutosManual: 90,
+          anejoB: datosAnejoBIniciales(),
+        },
+      ],
+    });
+    const p = plan(
+      { ...VACIO, sectores: [sectorAi({ nombre: 'Sala de máquinas', clase: 'riesgo:bajo' })] },
+      base,
+    );
+    expect(p.warnings.join(' ')).toContain('Sala de calderas');
+    expect(p.warnings.join(' ')).toContain('se pierde');
+    expect(p.fields.sectores?.[0].anejoB).toBeNull();
+  });
+
+  it('pero si vuelve con su nombre no se avisa de nada', () => {
+    const base = conSector({
+      sectores: [
+        {
+          id: 's1',
+          nombre: 'Sala de calderas',
+          clase: 'riesgo:bajo',
+          sotano: false,
+          robotizado: false,
+          adosada: false,
+          bajoCubiertaSinRiesgo: false,
+          minutosManual: 90,
+          anejoB: datosAnejoBIniciales(),
+        },
+      ],
+    });
+    const p = plan(
+      { ...VACIO, sectores: [sectorAi({ nombre: 'Sala de calderas', clase: 'riesgo:bajo', sotano: true })] },
+      base,
+    );
+    expect(p.warnings.join(' ')).not.toContain('se pierde');
+    expect(p.fields.sectores?.[0].anejoB).not.toBeNull();
+  });
+});
+
 describe('los elementos', () => {
   it('se cuelgan del sector propuesto en el MISMO turno', () => {
     const p = plan(
@@ -311,6 +413,70 @@ describe('los elementos', () => {
     const ev = evaluar({ ...defaultIncendioState(), alturaEvacuacionManual: 10, ...p.fields }, null);
     expect(ev.elementos[0].exigida).toBe(60);
     expect(ev.elementos[0].via).toBe('propia');
+  });
+
+  /**
+   * La detección de «no hay nada que cambiar» comparaba el TEXTO de la tarjeta,
+   * que no proyecta todos los campos: un cerco de 8 a 16 mm cambia la distancia
+   * al eje y el veredicto, y la lista entera se descartaba como «Ya coincide».
+   * Y como «ya coincide» es el descarte benigno, tampoco se le realimentaba al
+   * modelo.
+   */
+  it('un cambio que la tarjeta no enseña se aplica igual: se comparan los campos', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Soportes',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'hormigon',
+          hormigon: {
+            ...entradaHormigonInicial(),
+            tipo: 'soporte',
+            b: 300,
+            h: 300,
+            rnom: 35,
+            dCerco: 8,
+            dBarra: 20,
+          },
+          acero: entradaAceroInicial(),
+          proteccion: { familia: '', lambda: null },
+        },
+      ],
+    });
+    // Mismo texto de tarjeta: sólo cambia el cerco, que no se proyecta.
+    const p = plan({ ...VACIO, elementos: [elementoAi({ cerco_mm: 16 })] }, base);
+    expect(p.fields.elementos?.[0].hormigon.dCerco).toBe(16);
+    expect(p.skipped.map((x) => x.field)).not.toContain('elementos');
+  });
+
+  it('y uno idéntico de verdad sigue descartándose entero', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Soportes',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'hormigon',
+          hormigon: {
+            ...entradaHormigonInicial(),
+            tipo: 'soporte',
+            b: 300,
+            h: 300,
+            rnom: 35,
+            dCerco: 8,
+            dBarra: 20,
+          },
+          acero: entradaAceroInicial(),
+          proteccion: { familia: '', lambda: null },
+        },
+      ],
+    });
+    const p = plan({ ...VACIO, elementos: [elementoAi()] }, base);
+    expect(p.fields.elementos).toBeUndefined();
+    expect(p.skipped.map((x) => x.field)).toContain('elementos');
   });
 
   it('un perfil que no está en el catálogo se dice, no se traga', () => {
@@ -512,6 +678,88 @@ describe('lo que baja la exigencia y no se ve', () => {
     expect(d).toContain('riesgo:bajo|medio|alto');
     expect(d).toContain('R 30');
     expect(d).not.toContain('regla:cubiertaLigera');
+  });
+
+  /**
+   * El `null` de μfi NO es «sin valor»: es la posición SEGURA —la columna más
+   * exigente de la D.1, sin corrección de la C.1—. El gate lo leía como «sin
+   * línea base» y no comparaba, que es el patrón de centinela que la auditoría
+   * de julio documentó como fuga.
+   */
+  it('declarar un μfi donde no había ninguno también rebaja, y se marca', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Jácenas',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'acero',
+          hormigon: entradaHormigonInicial(),
+          acero: { ...entradaAceroInicial(), perfil: 'IPE 300' },
+          proteccion: { familia: '', lambda: null },
+        },
+      ],
+    });
+    const p = plan(
+      { ...VACIO, elementos: [elementoAi({ nombre: 'Jácenas', material: 'acero', perfil: 'IPE 300', mufi: 0.45 })] },
+      base,
+    );
+    const r = p.risks.find((x) => x.label.includes('μfi'));
+    expect(r?.before).toContain('sin declarar');
+    expect(r?.after).toBe('0,45');
+  });
+
+  it('pero uno que se queda en la misma columna de la D.1 no cambia nada', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Jácenas',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'acero',
+          hormigon: entradaHormigonInicial(),
+          acero: { ...entradaAceroInicial(), perfil: 'IPE 300' },
+          proteccion: { familia: '', lambda: null },
+        },
+      ],
+    });
+    const p = plan(
+      { ...VACIO, elementos: [elementoAi({ nombre: 'Jácenas', material: 'acero', perfil: 'IPE 300', mufi: 0.65 })] },
+      base,
+    );
+    expect(p.risks.filter((x) => x.label.includes('μfi'))).toEqual([]);
+  });
+
+  it('y teclear una masividad por debajo de la del perfil, igual', () => {
+    const base = conSector({
+      elementos: [
+        {
+          id: 'e1',
+          nombre: 'Jácenas',
+          sectorId: 's1',
+          exigidaManual: null,
+          material: 'acero',
+          hormigon: entradaHormigonInicial(),
+          acero: { ...entradaAceroInicial(), perfil: 'IPE 300' },
+          proteccion: { familia: '', lambda: null },
+        },
+      ],
+    });
+    const p = plan(
+      {
+        ...VACIO,
+        elementos: [
+          elementoAi({ nombre: 'Jácenas', material: 'acero', perfil: 'IPE 300', masividad_m1: 50 }),
+        ],
+      },
+      base,
+    );
+    const r = p.risks.find((x) => x.label.includes('Masividad'));
+    expect(r).toBeDefined();
+    expect(r?.after).toBe('50 m⁻¹');
+    expect(r?.why).toContain('d/λp');
   });
 
   it('subir la altura o la R no es riesgo ninguno', () => {

@@ -46,7 +46,7 @@ const elemento = (o: Partial<ElementoEntrada> = {}): ElementoEntrada => ({
 });
 
 /** Un sector de vivienda a 10 m: la tabla 3.1 le pide R 60. */
-const sectores = (o: Partial<SectorEntrada> = {}) => resolverSectores([sector(o)], 10);
+const sectores = (o: Partial<SectorEntrada> = {}) => resolverSectores([sector(o)], { alturaEvacuacion: 10 });
 
 const uno = (e: Partial<ElementoEntrada> = {}, s: Partial<SectorEntrada> = {}) =>
   resolverElementos([elemento(e)], sectores(s))[0];
@@ -69,6 +69,33 @@ describe('de dónde sale la R que se le exige', () => {
     // Y NO es un hueco: describir una sección y no haberle asignado sector
     // todavía es un estado de trabajo legítimo.
     expect(r.hueco).toBe(false);
+    // Pero se avisa, porque tampoco entra en el documento.
+    expect(r.avisos.join(' ')).toContain('no tiene R exigida');
+  });
+
+  /**
+   * Borrar un sector dejaba a sus elementos apuntando al vacío: se quedaban en
+   * `sinResolver`, el cuadro filtra esos, y «Pilares de sótano» desaparecía de
+   * la memoria y del plano sin hueco, sin aviso y sin bloquear la exportación.
+   */
+  it('pero apuntar a un sector BORRADO sí es un hueco, y lo dice', () => {
+    const r = resolverElementos([elemento({ sectorId: 'sBorrado' })], sectores())[0];
+    expect(r.exigida).toBeNull();
+    expect(r.via).toBe('sinResolver');
+    expect(r.hueco).toBe(true);
+    expect(r.avisos.join(' ')).toContain('ya no existe');
+  });
+
+  it('salvo que lleve su propia R tecleada: entonces el sector no hace falta', () => {
+    const r = resolverElementos(
+      [elemento({ sectorId: 'sBorrado', exigidaManual: 90 })],
+      sectores(),
+    )[0];
+    expect(r.exigida).toBe(90);
+    // No bloquea: el elemento se imprime entero y lo único roto es el rótulo
+    // del sector. Pero se dice.
+    expect(r.hueco).toBe(false);
+    expect(r.avisos.join(' ')).toContain('ya no existe');
   });
 });
 

@@ -11,7 +11,7 @@ import { resumenElementos, type ElementoResuelto } from './elementos';
 import { ROTULO_ORIENTATIVO } from './protecciones';
 import type { ExigenciaFuego } from './exigencias';
 import { notasResistenciaFuego, type MaterialesPresentes } from './notas';
-import type { SectorResuelto } from './sectores';
+import { notaSueloEntreSectores, type SectorResuelto } from './sectores';
 
 /** Lo que hace falta para justificar la R, además de la lista de exigencias. */
 export interface DetalleIncendio {
@@ -219,7 +219,13 @@ export function cuadroIncendioMemoria(
     });
   }
 
-  bloques.push({ kind: 'notes', items: notasResistenciaFuego(presentes, exigencias) });
+  // La llamada (1) de la tabla 3.1 va con la nota de fuego y no en la tabla: no
+  // habla de un sector sino del forjado que separa dos, que no tiene fila.
+  const suelo = notaSueloEntreSectores(sectores);
+  bloques.push({
+    kind: 'notes',
+    items: [...notasResistenciaFuego(presentes, exigencias), ...(suelo === null ? [] : [suelo])],
+  });
 
   bloques.push(...bloquesAnejoB(sectores));
   bloques.push(...bloquesElementos(detalle?.elementos ?? []));
@@ -326,10 +332,15 @@ export function cuadroIncendioPlano(
     );
   }
 
+  const suelo = notaSueloEntreSectores(sectores);
   bloques.push({
     kind: 'notes',
     items: [
       ...notasResistenciaFuego(presentes, exigencias),
+      // En el plano importa aún más que en la memoria: el cuadro es lo que hay
+      // que cumplir en obra, y quien lo lee ve dos R y ninguna regla para el
+      // forjado que las separa.
+      ...(suelo === null ? [] : [suelo]),
       ...(protegidos.length > 0 ? [ROTULO_ORIENTATIVO] : []),
     ],
   });

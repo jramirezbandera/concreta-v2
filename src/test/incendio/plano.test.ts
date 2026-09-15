@@ -51,7 +51,7 @@ const elemento = (o: Partial<ElementoEntrada> = {}): ElementoEntrada => ({
 });
 
 /** Vivienda a 10 m: la tabla 3.1 pide R 60. */
-const sectores = (o: Partial<SectorEntrada> = {}) => resolverSectores([sector(o)], 10);
+const sectores = (o: Partial<SectorEntrada> = {}) => resolverSectores([sector(o)], { alturaEvacuacion: 10 });
 
 function plano(elementos: ElementoEntrada[] = [], s: Partial<SectorEntrada> = {}): Block[] {
   const ss = sectores(s);

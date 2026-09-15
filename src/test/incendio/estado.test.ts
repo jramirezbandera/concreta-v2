@@ -20,7 +20,7 @@ import {
   type FilaExigencia,
   type IncendioState,
 } from '../../features/incendio/state';
-import { leerPublicacion } from '../../lib/pub';
+import { leerPublicacion, publicar, versionDePubs } from '../../lib/pub';
 
 const con = (filas: FilaExigencia[]): IncendioState => ({ ...defaultIncendioState(), exigencias: filas });
 
@@ -42,7 +42,9 @@ describe('huecos', () => {
     const ev = evaluar(entera);
     expect(ev.huecos).toHaveLength(0);
     expect(ev.listo).toBe(true);
-    expect(datosPublicacion(ev)?.exigencias).toEqual([{ ambito: 'Sótano', minutos: 120 }]);
+    expect(datosPublicacion(ev)?.exigencias).toEqual([
+      { ambito: 'Sótano', minutos: 120, cita: 'declarada en el proyecto' },
+    ]);
   });
 
   it('un ámbito en blanco también es hueco', () => {
@@ -77,7 +79,9 @@ describe('la publicación', () => {
     expect(sobre?.obra.ine).toBeNull();
     expect(sobre?.obra.provincia).toBeNull();
     expect(sobre?.configurado).toBe(true);
-    expect(sobre?.datos.exigencias).toEqual([{ ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    expect(sobre?.datos.exigencias).toEqual([
+      { ambito: 'Plantas sobre rasante', minutos: 90, cita: 'declarada en el proyecto' },
+    ]);
   });
 });
 
@@ -106,6 +110,59 @@ describe('el sobre se retira cuando ya no hay nada que decir', () => {
     const d = defaultIncendioState();
     publicarResultado(d, evaluar(d));
     expect(localStorage.getItem('concreta-pub-incendio')).toBeNull();
+  });
+});
+
+/**
+ * La R sale de la altura de evacuación, y ésta de las plantas que publica
+ * «Cargas por planta». El sobre deja dicho CON QUÉ publicación de plantas se
+ * calculó, para que quien lo consuma pueda ver que han cambiado después.
+ */
+describe('la marca de las plantas con las que se calculó', () => {
+  const plantas = () =>
+    publicar(
+      'cargas-planta',
+      1,
+      { plantas: [{ nombre: 'Planta Baja', esCubierta: false, zonas: [] }] },
+      {},
+      true,
+    );
+
+  it('viaja en el sobre, con la fecha de la publicación de plantas', () => {
+    const p = plantas();
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    const sobre = leerPublicacion<{ plantasOrigen: { ts: string } | null }>('incendio', 1);
+    expect(sobre?.datos.plantasOrigen).toEqual({ ts: p?.ts });
+  });
+
+  it('y sin plantas publicadas queda en null, no se inventa una fecha', () => {
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    const sobre = leerPublicacion<{ plantasOrigen: unknown }>('incendio', 1);
+    expect(sobre?.datos.plantasOrigen).toBeNull();
+  });
+
+  /**
+   * Republicar lo mismo mueve la marca de cambio de los sobres, y la
+   * evaluación de este módulo depende de ella —las plantas son de otro
+   * módulo—: el módulo se republicaba a sí mismo en bucle.
+   */
+  it('publicar dos veces lo mismo no mueve la marca de cambio', () => {
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    const v = versionDePubs();
+    publicarResultado(s, evaluar(s));
+    expect(versionDePubs()).toBe(v);
+  });
+
+  it('pero un cambio de verdad sí la mueve', () => {
+    const s = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 90 }]);
+    publicarResultado(s, evaluar(s));
+    const v = versionDePubs();
+    const otra = con([{ id: 'f1', ambito: 'Plantas sobre rasante', minutos: 120 }]);
+    publicarResultado(otra, evaluar(otra));
+    expect(versionDePubs()).toBeGreaterThan(v);
   });
 });
 

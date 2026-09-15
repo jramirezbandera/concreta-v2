@@ -281,26 +281,47 @@ describe('la (B.6) de los sectores pequeños', () => {
 });
 
 describe('la fila de la tabla B.5 que propone la altura', () => {
+  const fila = (d: number | null, a: number | null, plantas = 0) =>
+    consecuenciasPorAltura(d, a, plantas).fila;
+
   it('por debajo de 15 m, y sin sótano ocupado, es 1,0', () => {
-    expect(consecuenciasPorAltura(9, 0)).toBe('bajo15oAparcamiento');
+    expect(fila(9, 0)).toBe('bajo15oAparcamiento');
   });
 
   it('entre 15 y 28, 1,5', () => {
-    expect(consecuenciasPorAltura(15, 0)).toBe('entre15y28oBajoOtroUso');
-    expect(consecuenciasPorAltura(28, 0)).toBe('entre15y28oBajoOtroUso');
+    expect(fila(15, 0)).toBe('entre15y28oBajoOtroUso');
+    expect(fila(28, 0)).toBe('entre15y28oBajoOtroUso');
   });
 
   it('por encima de 28, 2,0', () => {
-    expect(consecuenciasPorAltura(28.5, 0)).toBe('masDe28');
+    expect(fila(28.5, 0)).toBe('masDe28');
   });
 
-  it('un sótano ocupado sube de fila, y pasados 2,8 m se va a la de arriba', () => {
-    expect(consecuenciasPorAltura(9, 2.5)).toBe('entre15y28oBajoOtroUso');
-    expect(consecuenciasPorAltura(9, 3.2)).toBe('masDe28');
+  it('un sótano ocupado sube de fila', () => {
+    expect(fila(9, 2.5, 1)).toBe('entre15y28oBajoOtroUso');
+  });
+
+  /**
+   * Las dos filas de arriba de la B.5 no miden lo mismo: la de 2,0 dice
+   * «ascendente de más de UNA PLANTA» y la de 1,5 «ascendente hasta 2,8 m». Un
+   * solo sótano de 3,20 m cae en el hueco entre las dos, y traducir la de 2,0
+   * por los metros mandaba el edificio entero a δc = 2,0 por un sótano alto.
+   */
+  it('pero un solo sótano NO llega a la fila de 2,0, aunque pase de 2,8 m', () => {
+    const p = consecuenciasPorAltura(9, 3.2, 1);
+    expect(p.fila).toBe('entre15y28oBajoOtroUso');
+    expect(p.avisos.join(' ')).toContain('una sola planta');
+    expect(p.avisos.join(' ')).toContain('2,8 m');
+  });
+
+  it('y dos sótanos ocupados sí: eso es más de una planta', () => {
+    const p = consecuenciasPorAltura(9, 5.4, 2);
+    expect(p.fila).toBe('masDe28');
+    expect(p.avisos).toEqual([]);
   });
 
   it('sin altura no propone nada', () => {
-    expect(consecuenciasPorAltura(null, null)).toBeNull();
+    expect(fila(null, null)).toBeNull();
   });
 });
 

@@ -317,15 +317,23 @@ export function proteccionHormigon(
     return { familia, espesor: null, cuenta: '', avisos, orientativo: false, aplicable: true };
   }
 
+  // En techo y por encima de R 120 el C.2.4.2 dice que «su aportación sólo
+  // puede justificarse mediante ensayo»: entonces NO hay espesor que dar. Se
+  // nombra la familia y lo que falta, como con la intumescente, porque un
+  // número en el cuadro del plano es una partida que alguien compra, y el
+  // aviso de debajo no viaja con ella.
+  if (datos.enTecho && datos.clase !== null && datos.clase > R_MAX_YESO_EN_TECHO) {
+    avisos.push(
+      `Aplicado en techo y para más de R ${R_MAX_YESO_EN_TECHO}, el C.2.4.2 dice que su aportación sólo puede justificarse mediante ensayo: hay que pedirle al fabricante el espesor ensayado, no estimarlo con la equivalencia de 1,8.`,
+    );
+    return { familia, espesor: null, cuenta: '', avisos, orientativo: false, aplicable: true };
+  }
+
   const bruto = datos.faltaAm / EQUIVALENCIA_YESO;
   const espesor = alEscalon(bruto, familia.escalon);
 
   if (datos.enTecho) {
-    avisos.push(
-      datos.clase !== null && datos.clase > R_MAX_YESO_EN_TECHO
-        ? `Aplicado en techo y para más de R ${R_MAX_YESO_EN_TECHO}, el C.2.4.2 dice que su aportación sólo puede justificarse mediante ensayo.`
-        : 'Aplicado en techo, el C.2.4.2 recomienda ponerlo por proyección.',
-    );
+    avisos.push('Aplicado en techo, el C.2.4.2 recomienda ponerlo por proyección.');
   }
 
   return {

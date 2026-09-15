@@ -93,6 +93,22 @@ export function cuentaParaEvacuacion(p: PlantaPublicada): boolean {
  * —Cubierta, Planta Primera, Planta Baja—, y sin el filtro este módulo se
  * poblaría solo de plantas fantasma con pinta de tecleadas.
  */
+/**
+ * Cuándo se publicaron las plantas con las que se está calculando.
+ *
+ * Viaja en el sobre de incendio para que quien lo consuma —la ficha del DB SE—
+ * pueda ver que las plantas han cambiado DESPUÉS: la R de la tabla 3.1 sale de
+ * la altura de evacuación, y si allí se añade una planta el edificio puede
+ * pasar de 14 a 20 m con este módulo cerrado. Nadie republica, y la ficha da
+ * por vigente un sobre con fecha fresca que ya no responde al edificio.
+ *
+ * Mismo patrón que el `nieveOrigen` de «Cargas por planta».
+ */
+export function tsDePlantasPublicadas(): string | null {
+  const sobre = leerPublicacion<PubCargasPlanta>(MODULO_CARGAS, PUB_VERSION_CARGAS);
+  return sobre && sobre.configurado === true ? sobre.ts : null;
+}
+
 export function plantasPublicadas(): PlantaPublicada[] | null {
   const sobre = leerPublicacion<PubCargasPlanta>(MODULO_CARGAS, PUB_VERSION_CARGAS);
   if (!sobre || sobre.configurado !== true || !sobre.datos) return null;

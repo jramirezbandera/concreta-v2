@@ -17,6 +17,7 @@ import {
   M_CELULOSICO,
   TABLA_B6,
   consecuenciasPorAltura,
+  filaMasExigente,
   tiempoEquivalente,
   type ActividadB3,
   type ConsecuenciasB5,
@@ -25,6 +26,12 @@ import {
   type TiempoEquivalente,
   type UsoB6,
 } from './anejoB';
+import {
+  CITA_ANEJO_B,
+  CITA_PROYECTISTA,
+  CITA_TABLA_31,
+  CITA_TABLA_32,
+} from './exigencias';
 import {
   REGLAS_SUELTAS,
   TABLA_3_1,
@@ -96,10 +103,13 @@ export interface DatosAnejoB {
   /** `null` = la que propone el uso del sector. */
   actividad: ActividadB3 | null;
   medidas: MedidasActivas;
-  /** `null` = la que propone la altura de evacuación. */
+  /** `null` = la que propone la altura de evacuación y el uso del sector. */
   consecuencias: ConsecuenciasB5 | null;
-  /** Hospitales y edificios que no pueden quedar fuera de servicio: ×1,5. */
-  criticidadAlta: boolean;
+  /**
+   * Hospitales y edificios que no pueden quedar fuera de servicio: ×1,5 (B.4.5).
+   * `null` = lo que proponga el uso del sector.
+   */
+  criticidadAlta: boolean | null;
 }
 
 export function datosAnejoBIniciales(): DatosAnejoB {
@@ -118,8 +128,49 @@ export function datosAnejoBIniciales(): DatosAnejoB {
     actividad: null,
     medidas: { deteccion: false, alarmaBomberos: false, extincion: false },
     consecuencias: null,
-    criticidadAlta: false,
+    criticidadAlta: null,
   };
+}
+
+/**
+ * El contexto del edificio con el que se resuelve un sector: lo que sale de las
+ * plantas y ningún sector sabe por su cuenta.
+ *
+ * Va en un objeto y no en tres argumentos sueltos porque dos de los tres son
+ * números que hablan de lo mismo —los metros que sube la evacuación y las
+ * plantas que sube— y confundirlos cambia el δc del Anejo B.
+ */
+export interface ContextoEdificio {
+  /** m. Altura de evacuación descendente: la que entra en la tabla 3.1. */
+  alturaEvacuacion: number | null;
+  /** m. Altura de evacuación ascendente. */
+  ascendente?: number | null;
+  /** Por cuántas plantas sube la evacuación ascendente (tabla B.5). */
+  plantasAscendentes?: number;
+}
+
+/**
+ * El δc que pide el USO del sector, al margen de la altura del edificio.
+ *
+ * La fila de 1,5 de la tabla B.5 termina con «Aparcamientos bajo otros usos»,
+ * sin condición de altura: un aparcamiento bajo viviendas en un edificio bajo
+ * no es un caso de 1,0 aunque la altura lo sitúe ahí.
+ */
+export function consecuenciasPorUso(clase: ClaseSector): ConsecuenciasB5 | null {
+  return clase === claseUso('aparcamientoBajoOtroUso') ? 'entre15y28oBajoOtroUso' : null;
+}
+
+/**
+ * Si el uso del sector propone el ×1,5 del B.4.5.
+ *
+ * «En el caso de edificios en los que no sea admisible que puedan quedar fuera
+ * de servicio o en los que se pueda haber un número elevado de víctimas en caso
+ * de incendio, como es el caso de los hospitales, los valores indicados deben
+ * ser multiplicados por 1,5.» El uso Hospitalario es el que la norma nombra;
+ * los demás casos los marca quien firma, porque no se deducen del uso.
+ */
+export function criticidadPorUso(clase: ClaseSector): boolean {
+  return clase === claseUso('hospitalario');
 }
 
 /** Qué fila de la tabla B.3 le toca al uso del DB SI 6 de un sector. */
@@ -204,6 +255,8 @@ export interface SectorResuelto {
   derivada: number | null;
   /** De dónde sale, tal como entra en el documento. */
   referencia: string;
+  /** Lo mismo en corto, para citarlo dentro de la nota de fuego. */
+  cita: string;
   /** El proyectista pisó la tabla. */
   aMano: boolean;
   /** El § 3 dice expresamente que a esto no se le exige resistencia al fuego. */
@@ -221,7 +274,7 @@ function derivar(
   s: SectorEntrada,
   alturaEvacuacion: number | null,
   rDeLaPlanta: number | null,
-): { r: ExigenciaDerivada; sinExigencia: boolean } | null {
+): { r: ExigenciaDerivada; sinExigencia: boolean; cita: string } | null {
   const [tipo, resto] = s.clase.split(':');
   // Se comprueba que lo guardado siga existiendo. `normalizarSectores` ya lo
   // filtra al leer, pero esta función es pública y pura: una clase de otra
@@ -238,6 +291,7 @@ function derivar(
         adosada: s.adosada,
       }),
       sinExigencia: false,
+      cita: CITA_TABLA_31,
     };
   }
   if (tipo === 'riesgo') {
@@ -245,6 +299,7 @@ function derivar(
     return {
       r: rRiesgoEspecial(resto as NivelRiesgo, rDeLaPlanta, s.bajoCubiertaSinRiesgo),
       sinExigencia: false,
+      cita: CITA_TABLA_32,
     };
   }
   if (tipo === 'regla') {
@@ -254,6 +309,9 @@ function derivar(
       r: { minutos: regla.minutos, referencia: regla.referencia, avisos: [] },
       // Una regla sin minutos NO es un hueco: es que la norma no exige nada.
       sinExigencia: regla.minutos === null,
+      // «DB SI 6 § 3.2» dentro de una frase que ya nombra el DB SI sobra: en la
+      // nota basta el apartado.
+      cita: regla.referencia.replace(/^DB SI 6\s*/, ''),
     };
   }
   return null;
@@ -268,8 +326,7 @@ function derivar(
  */
 function tedDelSector(
   s: SectorEntrada,
-  alturaEvacuacion: number | null,
-  ascendente: number | null,
+  ctx: ContextoEdificio,
 ): { ted: TiempoEquivalente; avisos: string[] } | null {
   const b = s.anejoB;
   if (!b) return null;
@@ -282,7 +339,39 @@ function tedDelSector(
     b.actividad ?? (nivel ? ACTIVIDAD_RIESGO[nivel] : uso ? actividadDeUso(uso) : null);
   const usoB6 = b.usoB6 ?? (uso ? usoB6DeUso(uso) : null);
   const qfk = b.qfkManual ?? (usoB6 ? TABLA_B6[usoB6] : null);
-  const consecuencias = b.consecuencias ?? consecuenciasPorAltura(alturaEvacuacion, ascendente);
+
+  // δc: la fila de la altura del edificio cruzada con la que pide el uso del
+  // sector, y de las dos se propone la MÁS exigente. La tabla B.5 mezcla los
+  // dos criterios en la misma columna y cada fila puede llegar por cualquiera
+  // de ellos; quedarse sólo con la altura deja un aparcamiento bajo viviendas
+  // en 1,0 cuando su fila dice 1,5 sin condición de altura.
+  const propuesta = consecuenciasPorAltura(ctx.alturaEvacuacion, ctx.ascendente ?? null, ctx.plantasAscendentes ?? 0);
+  const delUso = consecuenciasPorUso(s.clase);
+  const propuestaFinal =
+    propuesta.fila === null
+      ? delUso
+      : delUso === null
+        ? propuesta.fila
+        : filaMasExigente(propuesta.fila, delUso);
+  const consecuencias = b.consecuencias ?? propuestaFinal;
+  const criticidadAlta = b.criticidadAlta ?? criticidadPorUso(s.clase);
+
+  // Sólo se explican las propuestas que se están usando: con la fila elegida a
+  // mano, contar por qué se proponía otra es ruido.
+  const dePropuesta: string[] = [];
+  if (b.consecuencias === null) {
+    dePropuesta.push(...propuesta.avisos);
+    if (delUso !== null && propuestaFinal === delUso && propuesta.fila !== delUso) {
+      dePropuesta.push(
+        `«${s.nombre.trim() || 'El sector sin nombre'}» es un aparcamiento bajo otros usos: la tabla B.5 lo pone en δc = 1,5 sea cual sea la altura de evacuación.`,
+      );
+    }
+  }
+  if (b.criticidadAlta === null && criticidadAlta) {
+    dePropuesta.push(
+      `Uso Hospitalario: el B.4.5 multiplica δc por 1,5 en los edificios que no pueden quedar fuera de servicio. Se ha aplicado; quítelo si no es el caso.`,
+    );
+  }
 
   const faltan: string[] = [];
   if (b.af === null || b.af <= 0) faltan.push('la superficie del sector');
@@ -326,9 +415,50 @@ function tedDelSector(
     actividad: actividad as ActividadB3,
     medidas: b.medidas,
     consecuencias: consecuencias as ConsecuenciasB5,
-    criticidadAlta: b.criticidadAlta,
+    criticidadAlta,
   });
-  return { ted, avisos: ted.avisos };
+  return { ted, avisos: [...dePropuesta, ...ted.avisos] };
+}
+
+/**
+ * La llamada (1) de la tabla 3.1, que no se puede automatizar y hasta ahora no
+ * llegaba a ningún papel.
+ *
+ * «La resistencia al fuego suficiente R de los elementos estructurales de un
+ * suelo que separa sectores de incendio es función del uso del sector
+ * INFERIOR.» Al declarar sector por sector nadie dice de quién es el forjado
+ * que los separa, y en el edificio corriente —aparcamiento R 120 abajo,
+ * viviendas R 60 arriba— ese forjado es R 120 y la memoria listaba las dos R
+ * sin decirlo. Es la llamada que más forjados mal clasificados produce.
+ *
+ * Devuelve `null` cuando no hay nada que advertir: con una sola R en toda la
+ * obra, o sin sectores, la frase sobra.
+ */
+export function notaSueloEntreSectores(sectores: readonly SectorResuelto[]): string | null {
+  const conR = sectores.filter((s) => s.nombre !== '' && s.minutos !== null);
+  if (conR.length < 2) return null;
+  if (new Set(conR.map((s) => s.minutos)).size < 2) return null;
+
+  const base =
+    'La resistencia al fuego de los elementos estructurales de un suelo que separa dos sectores de incendio es la que corresponde al uso del sector INFERIOR (llamada 1 de la tabla 3.1 del DB SI 6).';
+
+  // El caso que la norma tiene en la cabeza: algo más exigente debajo de la
+  // rasante que encima. Ahí se puede nombrar el forjado concreto.
+  const abajo = conR.filter((s) => s.sotano);
+  const arriba = conR.filter((s) => !s.sotano);
+  if (abajo.length > 0 && arriba.length > 0) {
+    const mayor = abajo.reduce((a, b) => ((b.minutos as number) > (a.minutos as number) ? b : a));
+    const menores = arriba.filter((s) => (s.minutos as number) < (mayor.minutos as number));
+    if (menores.length > 0) {
+      const nombres =
+        menores.length === 1
+          ? `«${menores[0].nombre}» (R ${menores[0].minutos})`
+          : menores.map((s) => `«${s.nombre}» (R ${s.minutos})`).join(', ');
+      return `${base} El forjado que separa «${mayor.nombre}» (R ${mayor.minutos}) de ${nombres} lleva R ${mayor.minutos}, la del sector de abajo.`;
+    }
+  }
+
+  return `${base} En esta obra se exigen resistencias distintas a unos sectores y a otros: compruebe qué R le toca a cada forjado de separación.`;
 }
 
 /**
@@ -343,9 +473,9 @@ function tedDelSector(
  */
 export function resolverSectores(
   sectores: readonly SectorEntrada[],
-  alturaEvacuacion: number | null,
-  ascendente: number | null = null,
+  ctx: ContextoEdificio,
 ): SectorResuelto[] {
+  const { alturaEvacuacion } = ctx;
   const deUso = sectores.filter((s) => s.clase.startsWith('uso:'));
   const rPorSituacion = (sotano: boolean): number | null => {
     const rs = deUso
@@ -365,6 +495,7 @@ export function resolverSectores(
         minutos: null,
         derivada: null,
         referencia: '',
+        cita: '',
         aMano: false,
         sinExigencia: false,
         avisos: [],
@@ -383,6 +514,7 @@ export function resolverSectores(
         minutos: null,
         derivada: null,
         referencia: '',
+        cita: '',
         aMano: false,
         sinExigencia: false,
         avisos: ['No se reconoce lo que es este sector.'],
@@ -397,7 +529,19 @@ export function resolverSectores(
 
     // El tiempo equivalente SUSTITUYE a la clase de la tabla (SI 6 § 3.1.b),
     // en minutos exactos. Por encima de él manda lo declarado a mano.
-    const eq = tedDelSector(s, alturaEvacuacion, ascendente);
+    //
+    // Y sustituye a la TABLA 3.1, no al § 3.2 ni al § 3.3 ni al § 4: los casos
+    // aparte tienen su propia regla y el Anejo B no es alternativa a ellas.
+    // Reclasificar un sector de uso a «caso aparte» dejaba el Anejo B encendido
+    // y declaraba R 79 a una escalera especialmente protegida, a la que la
+    // norma no exige nada. Los datos NO se tiran: se dice y se deja apagarlo.
+    const esRegla = s.clase.startsWith('regla:');
+    const eq = esRegla ? null : tedDelSector(s, ctx);
+    if (esRegla && s.anejoB !== null) {
+      avisos.push(
+        `«${nombre || 'Sector sin nombre'}»: el tiempo equivalente del Anejo B sustituye a la clase de la tabla 3.1, y este sector va por el ${d.r.referencia}. No se ha aplicado; quite la casilla del Anejo B o cambie lo que es el sector.`,
+      );
+    }
     if (eq) avisos.push(...eq.avisos);
     const porAnejoB = eq?.ted.declarado ?? null;
 
@@ -429,6 +573,7 @@ export function resolverSectores(
       minutos,
       derivada,
       referencia: aMano ? 'declarado por el proyectista' : referenciaDerivada,
+      cita: aMano ? CITA_PROYECTISTA : eq ? CITA_ANEJO_B : d.cita,
       aMano,
       sinExigencia: d.sinExigencia && !aMano && !eq,
       avisos,

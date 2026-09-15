@@ -128,11 +128,20 @@ export function notasResistenciaFuego(
   const unica = valores.length === 1 ? `R${valores[0]}` : null;
   const todaLaObra = fuego.length === 1 && fuego[0].ambito === AMBITO_TODA_LA_ESTRUCTURA;
 
+  // La procedencia se cita UNA vez cuando todas vienen del mismo sitio —que es
+  // el caso corriente, y entonces la frase queda como siempre— y pegada a cada
+  // R cuando se mezclan. Sin saberla se cita el DB SI 6 a secas: es lo único
+  // cierto, y llamarlo «tabla 3.1» era falso en cuanto había un tiempo
+  // equivalente, una zona de riesgo o una R declarada a mano.
+  const entre = (c: string | undefined) => (c === undefined || c === '' ? '' : ` (${c})`);
+  const citas = [...new Set(fuego.map((e) => e.cita ?? ''))];
+  const comun = citas.length === 1 ? entre(citas[0]) : '';
+
   return [
     todaLaObra
-      ? `Resistencia al fuego exigida a la estructura: R${fuego[0].minutos}, según el CTE DB SI 6 (tabla 3.1).`
-      : `Resistencia al fuego exigida a la estructura, según el CTE DB SI 6 (tabla 3.1): ${fuego
-          .map((e) => `R${e.minutos} en ${fraseAmbito(e.ambito)}`)
+      ? `Resistencia al fuego exigida a la estructura: R${fuego[0].minutos}, según el CTE DB SI 6${entre(fuego[0].cita)}.`
+      : `Resistencia al fuego exigida a la estructura, según el CTE DB SI 6${comun}: ${fuego
+          .map((e) => `R${e.minutos} en ${fraseAmbito(e.ambito)}${comun === '' ? entre(e.cita) : ''}`)
           .join('; ')}.`,
     `${
       unica

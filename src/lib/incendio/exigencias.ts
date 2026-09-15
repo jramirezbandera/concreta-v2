@@ -18,12 +18,31 @@
  * tal como se escribió.
  */
 
+/**
+ * De dónde sale una R, en corto y tal como se cita dentro de la nota.
+ *
+ * El DB SI 6 admite cuatro caminos y la nota los citaba todos como «(tabla
+ * 3.1)»: en la memoria del módulo, la tabla de encima decía la procedencia y la
+ * nota de debajo la contradecía; en el cuadro de materiales y en la ficha del
+ * DB SE sólo se veía la cita equivocada.
+ */
+export const CITA_TABLA_31 = 'tabla 3.1';
+export const CITA_TABLA_32 = 'tabla 3.2';
+export const CITA_ANEJO_B = 'tiempo equivalente del Anejo B, § 3.1.b';
+export const CITA_PROYECTISTA = 'declarada en el proyecto';
+
 /** Una exigencia resuelta: la que ya se puede imprimir. */
 export interface ExigenciaFuego {
   /** Parte de la estructura a la que se le exige esa R, en lenguaje de obra. */
   ambito: string;
   /** R exigida, en minutos. */
   minutos: number;
+  /**
+   * De dónde sale, para citarlo en la nota. OPCIONAL y aditivo: un sobre
+   * escrito antes de 2026-09-15 no lo lleva, y por eso NO sube la versión del
+   * sobre. Sin él la nota cita el DB SI 6 a secas, que es lo único cierto.
+   */
+  cita?: string;
 }
 
 /**
@@ -67,5 +86,11 @@ export function exigenciasResueltas(
 ): ExigenciaFuego[] {
   return filas
     .filter((f) => f.ambito.trim() !== '' && f.minutos !== null)
-    .map((f) => ({ ambito: f.ambito.trim(), minutos: f.minutos as number }));
+    .map((f) => ({
+      ambito: f.ambito.trim(),
+      minutos: f.minutos as number,
+      // Estas filas las teclea el proyectista: no salen de ninguna tabla, y la
+      // tabla de la memoria ya las rotula «Indicado en el proyecto».
+      cita: CITA_PROYECTISTA,
+    }));
 }

@@ -174,6 +174,30 @@ describe('la protección de un elemento de hormigón', () => {
     expect(proteccionHormigon(f('morteroYeso'), { ...base, faltaAm: 10 }).espesor).toBe(10);
   });
 
+  /**
+   * El C.2.4.2 remite a ensayo el yeso aplicado en techos por encima de R 120.
+   * Dar el número igual y avisar debajo no vale: el aviso se queda en pantalla
+   * y el espesor viaja al cuadro del plano, donde una cifra es una partida.
+   */
+  it('en techo y por encima de R 120 no da espesor: el C.2.4.2 lo remite a ensayo', () => {
+    const p = proteccionHormigon(f('morteroYeso'), { ...base, clase: 180, enTecho: true });
+    expect(p.espesor).toBeNull();
+    expect(p.orientativo).toBe(false);
+    // La familia sigue siendo una vía: lo que no hay es número que dar.
+    expect(p.aplicable).toBe(true);
+    expect(p.avisos.join(' ')).toContain('mediante ensayo');
+  });
+
+  it('hasta R 120 sí lo da, recomendando la proyección', () => {
+    const p = proteccionHormigon(f('morteroYeso'), { ...base, clase: 120, enTecho: true });
+    expect(p.espesor).toBe(5);
+    expect(p.avisos.join(' ')).toContain('por proyección');
+  });
+
+  it('y en un elemento vertical el tope no aplica: no es un techo', () => {
+    expect(proteccionHormigon(f('morteroYeso'), { ...base, clase: 180 }).espesor).toBe(5);
+  });
+
   it('pero NO arregla un déficit de sección: la equivalencia es a efectos del eje', () => {
     const p = proteccionHormigon(f('morteroYeso'), { ...base, faltaAm: 0, faltaB: 50 });
     expect(p.espesor).toBeNull();

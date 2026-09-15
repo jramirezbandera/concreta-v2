@@ -166,6 +166,30 @@ describe('la corrección de la tabla C.1', () => {
     // Pero sí para la R 180, cuya opción 2 pide 350.
     expect(correccionC1(viga({ b: 300, mufi: 0.5, esquinaUnaCapa: true }), 180).delta).toBe(-10);
   });
+
+  /**
+   * La llamada (1) penaliza cómo se calienta una barra de esquina, no cuánto
+   * está cargada la viga: su texto no menciona el sobredimensionado. Colgarla
+   * del μfi la perdía justo en el caso corriente, que es el de μfi sin teclear.
+   */
+  it('y esa llamada NO depende de μfi: se aplica igual sin declararlo', () => {
+    expect(correccionC1(viga({ b: 200, esquinaUnaCapa: true }), 120).delta).toBe(-10);
+    expect(correccionC1(viga({ b: 200, mufi: 0, esquinaUnaCapa: true }), 120).delta).toBe(-10);
+    // Y se suma a la corrección del sobredimensionado cuando la hay.
+    expect(correccionC1(viga({ b: 200, mufi: 0.4, esquinaUnaCapa: true }), 120).delta).toBe(-5);
+  });
+
+  it('y la comprobación entera la arrastra, sin μfi', () => {
+    // Viga de 200 mm con 55 mm al eje (37 + ø8 + ø20/2) y armadura de esquina
+    // en una sola capa. La columna 3 de la C.3 pide 250 mm para la R 120, así
+    // que los 10 mm de la llamada (1) dejan 45 al eje y la clase cae a R 90.
+    // Con la corrección colgada del μfi, sin teclearlo pasaba por R 120.
+    const con = viga({ b: 200, rnom: 37, esquinaUnaCapa: true });
+    expect(resistenciaHormigon(con).alcanza).toBe(90);
+    expect(resistenciaHormigon({ ...con, esquinaUnaCapa: false }).alcanza).toBe(120);
+    // Y la R 120 se cae con el am ya corregido, no con el bruto.
+    expect(resistenciaHormigon(con).pruebas.find((x) => x.clase === 120)?.am).toBe(45);
+  });
 });
 
 describe('soportes y muros (tabla C.2)', () => {
@@ -187,12 +211,28 @@ describe('soportes y muros (tabla C.2)', () => {
     expect(r.avisos.join(' ')).toContain('dimensión mínima de 250 mm');
   });
 
-  it('un muro por ambas caras de 200 mm llega a R 120, y se puede declarar REI', () => {
+  it('un muro por ambas caras de 200 mm llega a R 120', () => {
     const r = resistenciaHormigon(
       base({ tipo: 'muroDosCaras', b: 200, rnom: 25, dCerco: 0, dBarra: 20 }),
     );
     expect(r.alcanza).toBe(120); // as = 35 ≥ 35
-    expect(r.avisos.join(' ')).toContain('REI 120');
+  });
+
+  /**
+   * La llamada (3) de la tabla C.2 —«la resistencia al fuego aportada se puede
+   * considerar REI»— lleva su superíndice SOLO en la columna del muro de carga
+   * expuesto por una cara. La de ambas caras no lo lleva, y no hay otro sitio
+   * donde el anejo C extienda el REI a ese caso.
+   */
+  it('y el REI de la llamada (3) es sólo del muro expuesto por UNA cara', () => {
+    const unaCara = resistenciaHormigon(
+      base({ tipo: 'muroUnaCara', b: 200, rnom: 25, dCerco: 0, dBarra: 20 }),
+    );
+    expect(unaCara.avisos.join(' ')).toContain('REI');
+    const dosCaras = resistenciaHormigon(
+      base({ tipo: 'muroDosCaras', b: 200, rnom: 25, dCerco: 0, dBarra: 20 }),
+    );
+    expect(dosCaras.avisos.join(' ')).not.toContain('REI');
   });
 
   it('los áridos calizos NO rebajan un soporte: el C.2.1.3 sólo habla de vigas, losas y forjados', () => {

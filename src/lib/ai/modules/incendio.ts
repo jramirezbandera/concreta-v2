@@ -57,6 +57,7 @@ import { higherIsSafer, type AiSafetyRisk, type ResolvedSafetyRule, type SafetyR
 import type { UnitSystem } from '../../units/types';
 import { TIPOS_HORMIGON, type TipoHormigon } from '../../incendio/anejoC';
 import {
+  bandaDeMufi,
   MODOS_CALENTAMIENTO,
   ROTULOS_PERFIL,
   TIPOS_ACERO,
@@ -301,7 +302,8 @@ const PROMPT_RULES = `Reglas específicas del módulo Incendio (CTE DB SI 6):
 3. LAS PLANTAS NO SE CREAN AQUÍ. Vienen del módulo «Cargas por planta»; el snapshot te da sus nombres en plantas_publicadas y hay que usarlos EXACTAMENTE. Lo que se anota aquí es la altura de cada una, si está bajo rasante y si es origen de evacuación. Si el usuario describe un edificio del que no hay plantas publicadas, dile que las calcule en Cargas por planta, y mientras tanto usa la altura de evacuación a mano.
 4. "cuenta_evacuacion" SE DEJA EN "como_proponga". Lo decide el uso con el que se dimensionó el forjado en Cargas por planta, y las cubiertas accesibles sólo para conservación ya salen fuera. Ponerlo a "no" baja la altura de evacuación de todo el edificio y con ella la R: hazlo sólo si el usuario dice que esa planta es de ocupación nula (un trastero, un cuarto de instalaciones bajo cubierta).
 5. EL SÓTANO ES UNA COLUMNA DISTINTA. La tabla 3.1 pide su propia R a las plantas bajo rasante, y casi siempre más. Marca "sotano" en los sectores que estén abajo. Y un aparcamiento tiene dos filas: "aparcamientoExclusivo" cuando el edificio es sólo aparcamiento o está sobre otro uso, y "aparcamientoBajoOtroUso" cuando está debajo de otro uso, que pide R 120.
-6. LAS ZONAS DE RIESGO ESPECIAL SON SECTORES APARTE. Una sala de calderas, una cocina de más de 20 kW o un almacén de residuos no son "el mismo sector con un matiz": van como "riesgo:bajo|medio|alto" en su propia fila, con su nombre y con "sotano" si están abajo. La aplicación les pone R 90, R 120 o R 180 y además comprueba que no queden por debajo de la de la planta. "bajo_cubierta_sin_riesgo" las deja en R 30 y es una excepción de la norma: sólo si el usuario dice que ESA zona está bajo una cubierta no prevista para evacuación cuyo fallo no compromete nada.
+5 bis. EL GARAJE NO ENTRA POR LA PUERTA QUE PARECE. Uso Aparcamiento es el estacionamiento de MÁS de 100 m² construidos, y el Anejo SI A excluye de él "los garajes, cualquiera que sea su superficie, de una vivienda unifamiliar". Lo que no llega a esas dos filas no se queda sin R: la tabla 2.1 del DB SI 1 clasifica EN TODO CASO como zona de riesgo especial BAJO el "aparcamiento de vehículos cuya superficie S no exceda de 100 m² o integrado en una vivienda unifamiliar". Así que el garaje de una unifamiliar, y el aparcamiento de hasta 100 m², van como "riesgo:bajo" EN SU PROPIO SECTOR —nunca dentro del sector de la vivienda, que es la fila de R 30—: la aplicación les pone R 90 por la tabla 3.2 y los sube a la R de la planta si es mayor. Si el usuario no dice la superficie del garaje, pregúntasela; en una unifamiliar no hace falta, porque ahí da igual cuánto mida.
+6. LAS ZONAS DE RIESGO ESPECIAL SON SECTORES APARTE. Una sala de calderas, una cocina de más de 20 kW, un garaje de los del punto anterior o un almacén de residuos no son "el mismo sector con un matiz": van como "riesgo:bajo|medio|alto" en su propia fila, con su nombre y con "sotano" si están abajo. La aplicación les pone R 90, R 120 o R 180 y además comprueba que no queden por debajo de la de la planta. "bajo_cubierta_sin_riesgo" las deja en R 30 y es una excepción de la norma: sólo si el usuario dice que ESA zona está bajo una cubierta no prevista para evacuación cuyo fallo no compromete nada.
 7. LOS MILÍMETROS SON MILÍMETROS. Las secciones de los elementos van en mm (250×500, recubrimiento 30, cerco 8, barra 20), no en cm. Y el RECUBRIMIENTO NOMINAL no es la distancia al eje: la aplicación calcula el eje como recubrimiento + cerco + medio diámetro de barra. Si el usuario te da "35 mm al eje", eso no es el recubrimiento; dilo y pregunta.
 8. μfi SÓLO CON UN NÚMERO DEL USUARIO. Es el coeficiente de sobredimensionado del elemento en incendio, y sale de su cálculo: cuánta de su capacidad está solicitada en la situación accidental. Con 0 la aplicación va por el lado seguro. Bajarlo rebaja el revestimiento que hace falta, así que no lo estimes ni lo pongas "típico".
 9. EL ESPESOR DEL REVESTIMIENTO NO LO DICES TÚ. El DB SI no tabula ningún producto de protección: remite a la UNE-EN 13381 y al marcado CE. Tú eliges la FAMILIA y la aplicación estima el espesor con la conductividad que le corresponde. Y NUNCA des la conductividad de un producto de memoria: el λ de catálogo de una lana de roca a 20 ºC no es el efectivo en incendio, y con él salen 7 mm donde en obra van 40. Ese dato lo teclea quien tenga la ficha del producto delante.
@@ -607,13 +609,50 @@ function textoElemento(e: ElementoAi): string {
 }
 
 /**
+ * ¿Traen los mismos datos estas dos filas?
+ *
+ * Campo a campo, y NO por su texto. Las proyecciones son objetos planos de
+ * primitivas —lo que viaja en el payload— así que comparar sus claves las
+ * cubre todas; el texto de la tarjeta, en cambio, sólo enseña algunas, y
+ * decidir con él descartaba cambios reales: un cerco de 8 a 16 mm cambia la
+ * distancia al eje y el veredicto, y la tarjeta decía «ya coincide».
+ */
+function mismosCampos<T extends object>(a: T, b: T): boolean {
+  const claves = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof T>;
+  for (const k of claves) if (a[k] !== b[k]) return false;
+  return true;
+}
+
+/**
+ * Dos filas con el mismo nombre heredarían el id del mismo sector o elemento
+ * anterior, y a partir de ahí React pinta dos hijos con la misma clave, los
+ * manejadores actúan sobre las dos tarjetas a la vez y todo lo que cuelgue se
+ * va a la primera. Se queda la primera y se dice.
+ */
+function sinRepetidos<T>(filas: readonly T[], nombre: (x: T) => string): { unicos: T[]; repetidos: string[] } {
+  const vistos = new Set<string>();
+  const unicos: T[] = [];
+  const repetidos: string[] = [];
+  for (const f of filas) {
+    const clave = norm(nombre(f));
+    if (vistos.has(clave)) {
+      repetidos.push(nombre(f).trim());
+      continue;
+    }
+    vistos.add(clave);
+    unicos.push(f);
+  }
+  return { unicos, repetidos };
+}
+
+/**
  * Filas de la tarjeta para una lista que se reemplaza entera.
  *
  * Posición a posición, que es como se lee una lista: la fila 2 de antes y la
  * fila 2 de ahora. Lo que sobra al final se rotula como eliminado, y lo que
  * falta, como nuevo.
  */
-function cambiosDeLista<T>(
+function cambiosDeLista<T extends object>(
   campo: string,
   singular: string,
   antes: readonly T[],
@@ -628,7 +667,7 @@ function cambiosDeLista<T>(
     const b = despues[i];
     const textoA = a === undefined ? '' : `${nombre(a) || singular}: ${texto(a)}`;
     const textoB = b === undefined ? '' : `${nombre(b) || singular}: ${texto(b)}`;
-    if (textoA === textoB) continue;
+    if (a !== undefined && b !== undefined && mismosCampos(a, b)) continue;
     filas.push({
       field: `${campo}[${i}]`,
       label: b === undefined ? `${singular} eliminado` : `${singular} ${i + 1}`,
@@ -714,6 +753,11 @@ const ELIMINAR_ELEMENTOS_WHY =
   'La propuesta deja menos elementos de los que hay. Un elemento que desaparece deja de '
   + 'comprobarse: ni se dice si su sección llega sola ni qué protección necesita.';
 
+const MASIVIDAD_WHY =
+  'La masividad Am/V es lo que decide cuánto se calienta el perfil: bajarla rebaja el d/λp que pide '
+  + 'la tabla D.1 y con él el espesor del revestimiento. Sale del perfil y del modo de calentamiento, '
+  + 'y tecleada a mano pisa la del catálogo.';
+
 const MUFI_WHY =
   'Bajar μfi rebaja la protección que hace falta: es la fracción de la capacidad del elemento que '
   + 'está solicitada en el incendio, y con ella bajan la banda de la tabla D.1 y el d/λp exigido. '
@@ -746,8 +790,10 @@ function riesgosDeIncendio(
 
   // Sector a sector, por nombre: la R máxima puede no moverse y haber bajado la
   // de uno de ellos, que es el caso corriente en un edificio con tres sectores.
-  const antesSec = evaluar(actual).sectores;
-  const despuesSec = evaluar(final).sectores;
+  const antesEv = evaluar(actual);
+  const despuesEv = evaluar(final);
+  const antesSec = antesEv.sectores;
+  const despuesSec = despuesEv.sectores;
   for (const a of antesSec) {
     if (a.minutos === null || a.nombre === '') continue;
     const b = despuesSec.find((x) => norm(x.nombre) === norm(a.nombre));
@@ -801,19 +847,54 @@ function riesgosDeIncendio(
   // μfi elemento a elemento: no lo ve ninguna magnitud global, y es lo que
   // decide el espesor del revestimiento.
   const mufiDe = (e: ElementoEntrada) => (e.material === 'acero' ? e.acero.mufi : e.hormigon.mufi);
+  // Sin declarar, el módulo toma la columna MÁS exigente de la tabla D.1 y no
+  // corrige por la C.1: `null` no es «sin valor», es la posición segura.
+  const bandaSegura = bandaDeMufi(null).indice;
   for (const a of actual.elementos) {
     if (a.nombre.trim() === '') continue;
-    const antes = mufiDe(a);
-    if (antes === null) continue;
     const b = final.elementos.find((x) => norm(x.nombre) === norm(a.nombre));
-    const despues = b === undefined ? null : mufiDe(b);
-    if (despues === null || despues >= antes - EPS) continue;
+    if (b === undefined) continue;
+    const antes = mufiDe(a);
+    const despues = mufiDe(b);
+    if (despues === null) continue;
+
+    if (antes === null) {
+      // De `null` a un número: sólo es una rebaja si cae de banda. Un μfi
+      // declarado de 0,65 se queda en la misma columna y no cambia nada.
+      const banda = bandaDeMufi(despues).indice;
+      if (banda === null || bandaSegura === null || banda <= bandaSegura) continue;
+      riesgos.push({
+        field: `mufi_${a.id}`,
+        label: `μfi de «${a.nombre.trim()}»`,
+        before: 'sin declarar (columna más exigente)',
+        after: despues.toFixed(2).replace('.', ','),
+        why: MUFI_WHY,
+      });
+      continue;
+    }
+
+    if (despues >= antes - EPS) continue;
     riesgos.push({
       field: `mufi_${a.id}`,
       label: `μfi de «${a.nombre.trim()}»`,
       before: antes.toFixed(2).replace('.', ','),
       after: despues.toFixed(2).replace('.', ','),
       why: MUFI_WHY,
+    });
+  }
+
+  // Y la masividad, que no la vigilaba nadie: con el perfil puesto, teclearla
+  // a mano pisa la del catálogo y baja el d/λp igual que el μfi.
+  for (const a of antesEv.elementos) {
+    if (a.nombre === '' || a.masividad === null) continue;
+    const b = despuesEv.elementos.find((x) => norm(x.nombre) === norm(a.nombre));
+    if (b === undefined || b.masividad === null || b.masividad >= a.masividad - EPS) continue;
+    riesgos.push({
+      field: `masividad_${a.id}`,
+      label: `Masividad de «${a.nombre}»`,
+      before: `${a.masividad} m⁻¹`,
+      after: `${b.masividad} m⁻¹`,
+      why: MASIVIDAD_WHY,
     });
   }
 
@@ -890,7 +971,16 @@ function buildIncendioPlan(
       );
     }
 
-    const validas = conNombre.filter((p) => !huerfanas.includes(p));
+    // Se guarda el nombre TAL COMO ESTÁ PUBLICADO, no el que trajo el modelo:
+    // el adapter empareja con `norm` y el módulo con `===`, así que una
+    // «planta baja» en minúsculas pasaba el filtro de aquí, se aplicaba, y
+    // allí no casaba con ninguna planta. La anotación quedaba huérfana —con su
+    // altura dentro— y el aviso salía en el módulo, no en la tarjeta.
+    const exacto = (nombre: string) =>
+      publicadas?.find((x) => norm(x.nombre) === norm(nombre))?.nombre ?? nombre.trim();
+    const validas = conNombre
+      .filter((p) => !huerfanas.includes(p))
+      .map((p) => ({ ...p, nombre: exacto(p.nombre) }));
     const antes = current.plantas.map(plantaDe);
     const filas = cambiosDeLista('plantas', 'Planta', antes, validas, (p) => p.nombre.trim(), textoPlanta);
     if (filas.length === 0) {
@@ -911,12 +1001,20 @@ function buildIncendioPlan(
         reason: 'Ningún sector trae nombre: sin él no se puede imprimir la fila que justifica su R.',
       });
     } else {
+      const { unicos, repetidos } = sinRepetidos(conNombre, (s) => s.nombre);
+      if (repetidos.length > 0) {
+        skipped.push({
+          field: 'sectores',
+          label: 'Sectores repetidos',
+          reason: `Ya había un sector con ese nombre: ${repetidos.join(', ')}. Dos sectores no pueden llamarse igual —la memoria no podría distinguirlos— y sólo se ha aplicado el primero.`,
+        });
+      }
       const antes = current.sectores.map(sectorDe);
-      const filas = cambiosDeLista('sectores', 'Sector', antes, conNombre, (s) => s.nombre.trim(), textoSector);
+      const filas = cambiosDeLista('sectores', 'Sector', antes, unicos, (s) => s.nombre.trim(), textoSector);
       if (filas.length === 0) {
         skipped.push({ field: 'sectores', label: 'Sectores de incendio', reason: ALREADY });
       } else {
-        fields.sectores = conNombre.map((s) =>
+        fields.sectores = unicos.map((s) =>
           sectorDePropuesta(
             s,
             current.sectores.find((x) => norm(x.nombre) === norm(s.nombre)),
@@ -925,12 +1023,28 @@ function buildIncendioPlan(
         changes.push(...filas);
         // Lo que se conserva del sector anterior no sale en ninguna fila, y es
         // justo lo que más cuesta volver a teclear: se dice.
-        const conTed = conNombre.filter((s) =>
+        const conTed = unicos.filter((s) =>
           current.sectores.some((x) => norm(x.nombre) === norm(s.nombre) && x.anejoB !== null),
         );
         if (conTed.length > 0) {
           warnings.push(
             `Se conserva el tiempo equivalente del Anejo B de: ${conTed.map((s) => s.nombre.trim()).join(', ')}.`,
+          );
+        }
+        // Y lo que se PIERDE, también: un sector que vuelve con otro nombre es
+        // un sector nuevo —id nuevo, sin Anejo B y sin la R declarada—, y el
+        // único rastro era una fila de cambio de nombre. Media hora de tecleo.
+        const perdidos = current.sectores.filter(
+          (x) =>
+            x.nombre.trim() !== '' &&
+            (x.anejoB !== null || x.minutosManual !== null) &&
+            !unicos.some((s) => norm(s.nombre) === norm(x.nombre)),
+        );
+        if (perdidos.length > 0) {
+          warnings.push(
+            `Estos sectores no vuelven en la propuesta y se pierde lo que se tecleó en ellos —el tiempo equivalente del Anejo B y la R declarada a mano—: ${perdidos
+              .map((x) => x.nombre.trim())
+              .join(', ')}. Si sólo los ha renombrado, dígaselo al asistente para conservarlos.`,
           );
         }
       }
@@ -965,12 +1079,21 @@ function buildIncendioPlan(
       );
     }
 
+    const { unicos, repetidos } = sinRepetidos(conNombre, (e) => e.nombre);
+    if (repetidos.length > 0) {
+      skipped.push({
+        field: 'elementos',
+        label: 'Elementos repetidos',
+        reason: `Ya había un elemento con ese nombre: ${repetidos.join(', ')}. Sólo se ha aplicado el primero.`,
+      });
+    }
+
     const antes = current.elementos.map((e) => elementoDe(e, current.sectores));
-    const filas = cambiosDeLista('elementos', 'Elemento', antes, conNombre, (e) => e.nombre.trim(), textoElemento);
+    const filas = cambiosDeLista('elementos', 'Elemento', antes, unicos, (e) => e.nombre.trim(), textoElemento);
     if (filas.length === 0) {
       skipped.push({ field: 'elementos', label: 'Elementos comprobados', reason: ALREADY });
     } else {
-      fields.elementos = conNombre.map((e) =>
+      fields.elementos = unicos.map((e) =>
         elementoDePropuesta(
           e,
           current.elementos.find((x) => norm(x.nombre) === norm(e.nombre)),
