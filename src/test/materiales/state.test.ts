@@ -22,6 +22,7 @@ import {
   grupoDeMotor,
   guardarEstado,
   moverEnLista,
+  esEstadoInicial,
   normalizar,
   opcionesObra,
   SCHEMA_VERSION_KEY,
@@ -332,7 +333,10 @@ describe('consistencia', () => {
       expect(fila.prescripcionFluida, n).toBe(true);
     }
     // La cimentación no: ahí la blanda es lo normal y no hay nada que avisar.
-    expect(filaDesdePreset('Cimentación').prescripcionFluida).toBeUndefined();
+    // `false` y no `undefined`: la clave se escribe siempre, porque el estado
+    // recién creado y el mismo estado releído tienen que serializarse igual
+    // (ver «sigue con los valores de partida» al final de este fichero).
+    expect(filaDesdePreset('Cimentación').prescripcionFluida).toBe(false);
   });
 
   it('la marca llega al motor con la fila', () => {
@@ -434,5 +438,26 @@ describe('mover una fila de sitio', () => {
     const original = lista.slice();
     moverEnLista(original, 0, 3);
     expect(original).toEqual(lista);
+  });
+});
+
+describe('«sigue con los valores de partida» tras guardar y releer', () => {
+  it('el cuadro de partida guardado y releído SIGUE siendo el de partida', () => {
+    // `esEstadoInicial` compara dos estados serializados, así que una clave que
+    // exista en uno y no en el otro los separa aunque digan lo mismo:
+    // `filaDesdePreset` dejaba `prescripcionFluida` sin poner en los presets que
+    // no la traen y `normalizar` la escribía como `false` al releer. Con eso, en
+    // cuanto el módulo guardaba una vez, el cuadro de partida pasaba a contar
+    // como configurado: la ficha DB SE dejaba de avisar de que nadie lo había
+    // mirado, y el cuadro se colaba en el DXF conjunto de la obra.
+    guardarEstado(defaultMaterialesState());
+    expect(esEstadoInicial(cargarEstado())).toBe(true);
+  });
+
+  it('y en cuanto se toca un elemento, deja de serlo', () => {
+    const s = defaultMaterialesState();
+    s.elementos[0].fck = 35;
+    guardarEstado(s);
+    expect(esEstadoInicial(cargarEstado())).toBe(false);
   });
 });

@@ -174,7 +174,13 @@ export function filaDesdePreset(nombre: string): FilaHormigon {
     fck: preset ? preset.fck : 30,
     consistencia: preset ? preset.consistencia : 'blanda',
     recubrimientoManual: null,
-    prescripcionFluida: preset?.prescripcionFluida,
+    // Booleano SIEMPRE, nunca `undefined`: `normalizar` lo escribe como `false`
+    // al releer, y una clave que existe en el almacén y no en el estado recién
+    // creado hacía que `esEstadoInicial` —que compara los dos serializados—
+    // dijera que no lo era. El cuadro de partida se declaraba entonces
+    // configurado en cuanto se hubiera guardado una vez, y con eso la ficha
+    // dejaba de avisar de que seguía con los valores de partida.
+    prescripcionFluida: preset?.prescripcionFluida === true,
   };
 }
 
