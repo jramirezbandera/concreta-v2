@@ -145,6 +145,49 @@ describe('un caso exento también se publica', () => {
   });
 });
 
+describe('el cálculo por ordenador también se publica', () => {
+  /** El caso de Granada, declarado para un programa de elementos finitos. */
+  const porPrograma = (over: Partial<SeismicState> = {}) =>
+    datosDe({ ...ejemploSeismicState(), metodo: 'programa', ...over });
+
+  it('viaja el emplazamiento y la clasificación enteros, y `calculo` en null', () => {
+    const d = porPrograma();
+    expect(d.metodo).toBe('programa');
+    expect(d.obligatoria).toBe(true);
+    // Lo que se teclea en el programa, que es lo que este módulo aporta.
+    expect(d.ab).toBe(0.23);
+    expect(d.K).toBe(1);
+    expect(d.ac).toBeGreaterThan(0);
+    expect(d.mu).toBe(3);
+    expect(d.ductilidad).toBe(nombreDuctilidad(3));
+    expect(d.omega).toBe(5);
+    // Y lo que sale de los listados del programa, que no.
+    expect(d.calculo).toBeNull();
+  });
+
+  it('el impedimento es el de la vía del art. 3.6.2, no una carencia', () => {
+    const d = porPrograma();
+    expect(d.impedimento?.articulo).toBe('3.6.2');
+    expect(d.impedimento?.texto).toContain('análisis modal espectral');
+  });
+
+  it('viaja POR QUÉ no se emplea el simplificado, para que la ficha lo redacte', () => {
+    expect(porPrograma({ regularidadGeometrica: false }).razonNoSimplificado).toBe(
+      'no se cumplen los requisitos (3)',
+    );
+    // Con los seis en cumple no hay razón que dar: se eligió el modal, sin más.
+    expect(porPrograma().razonNoSimplificado).toBeNull();
+  });
+
+  it('el método no viaja como prosa: es la decisión, en una palabra', () => {
+    expect(JSON.stringify(porPrograma())).toContain('"metodo":"programa"');
+  });
+
+  it('un caso del método simplificado lo dice igualmente', () => {
+    expect(granada().metodo).toBe('simplificado');
+  });
+});
+
 describe('el sobre', () => {
   it('se escribe en concreta-pub-sismo con la versión del esquema y la obra del módulo', () => {
     const s = ejemploSeismicState();

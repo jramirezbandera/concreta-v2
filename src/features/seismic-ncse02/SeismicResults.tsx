@@ -30,8 +30,8 @@ import type { CheckStatus } from '../../lib/calculations/types';
 import { ambientStyle } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { textoFalta } from '../../lib/codes/seismic/applicability';
-import { emplazamientoPendiente, type SeismicEvaluation, type SeismicState } from './state';
-import { dec, fuerza, magnitud, pct, unidadFuerza } from './formato';
+import { emplazamientoPendiente, nombreDuctilidad, type SeismicEvaluation, type SeismicState } from './state';
+import { IMPORTANCIA_CORTA, SISTEMA_CORTO, dec, fuerza, magnitud, pct, unidadFuerza } from './formato';
 
 // Una sola convención decimal en todo el módulo: ver `formato.ts`. Las fuerzas
 // pasan por `fuerza()`/`unidadFuerza()`, que además convierten al sistema de
@@ -55,6 +55,10 @@ const VEREDICTO: Record<MotivoImpedimento, { status: CheckStatus; tag: string }>
   'prohibicion-art-1.2.3': { status: 'fail', tag: 'PROHIBIDA' },
   'metodo-simplificado-no-aplicable': { status: 'fail', tag: 'NO APLICABLE' },
   'faltan-datos-de-calculo': { status: 'warn', tag: 'FALTAN DATOS' },
+  // Neutral, no `warn`: calcular con programa es la otra vía de la Norma, no un
+  // problema por resolver. Rotularla en ámbar dejaba una pantalla entera con
+  // pinta de aviso para un caso que está perfectamente en regla.
+  'calculo-por-programa': { status: 'neutral', tag: 'POR ORDENADOR' },
 };
 
 const TAG_CLS: Record<CheckStatus, string> = {
@@ -339,14 +343,18 @@ function Direccionales({ casos }: { casos: CasoDireccional[] }) {
 export function SeismicResults({
   state,
   evaluacion,
+  programa = null,
 }: {
   state: SeismicState;
   evaluacion: SeismicEvaluation;
+  /** El programa de cálculo del despacho, ya compuesto; `null` si no hay ninguno. */
+  programa?: string | null;
 }) {
   const { emplazamiento: e, aplicabilidad: ap, resultado: r, impedimento: imp } = evaluacion;
   const obl = ap.obligatoriedad;
   const { system } = useUnitSystem();
   const veredicto = imp ? VEREDICTO[imp.motivo] : { status: 'ok' as CheckStatus, tag: 'APLICABLE' };
+  const porPrograma = imp?.motivo === 'calculo-por-programa';
 
   return (
     <div className="flex flex-col" aria-label="Resultados" style={ambientStyle(veredicto.status)}>
@@ -382,7 +390,7 @@ export function SeismicResults({
             'text-[13px] font-medium pt-1.5 pb-1.5',
             !imp
               ? 'text-state-ok'
-              : imp.motivo === 'norma-no-obligatoria'
+              : imp.motivo === 'norma-no-obligatoria' || imp.motivo === 'calculo-por-programa'
                 ? 'text-text-secondary'
                 : imp.motivo === 'obligatoriedad-indeterminada' ||
                     imp.motivo === 'faltan-datos-de-calculo'
@@ -400,13 +408,22 @@ export function SeismicResults({
                   ? 'La Norma rige y PROHÍBE esta construcción'
                   : imp.motivo === 'faltan-datos-de-calculo'
                     ? 'La Norma rige y el método vale, pero faltan datos para calcular'
-                    : 'La Norma rige, pero el método simplificado NO es aplicable'}
+                    : imp.motivo === 'calculo-por-programa'
+                      ? 'La Norma rige y la acción sísmica la calcula el programa (art. 3.6.2)'
+                      : 'La Norma rige, pero el método simplificado NO es aplicable'}
         </div>
 
         {imp?.motivo === 'norma-no-obligatoria' ? (
           <p className="px-4 text-[11px] leading-snug text-text-disabled">
             Que no sea obligatoria no impide calcular la acción sísmica si el proyectista quiere
             hacerlo; lo que no hay es obligación de justificarla.
+          </p>
+        ) : null}
+
+        {imp?.motivo === 'calculo-por-programa' ? (
+          <p className="px-4 text-[11px] leading-snug text-text-disabled">
+            {imp.texto}
+            {programa ? ` El programa declarado es ${programa}.` : ''}
           </p>
         ) : null}
 
@@ -421,20 +438,34 @@ export function SeismicResults({
         {ap.metodoSimplificado ? (
           <div className="mt-2 pt-2 border-t border-border-sub">
             <div className="flex items-baseline justify-between pb-1">
-              <span className="text-[11px] text-text-secondary">Requisitos del art. 3.5.1</span>
-              {ap.metodoSimplificado.via ? (
+              <span className="text-[11px] text-text-secondary">
+                Requisitos del art. 3.5.1
+                {porPrograma ? (
+                  <span className="text-text-disabled"> · informativos</span>
+                ) : null}
+              </span>
+              {porPrograma ? (
+                <span className="text-[10px] font-mono text-text-disabled">no deciden</span>
+              ) : ap.metodoSimplificado.via ? (
                 <span className="text-[10px] font-mono text-text-disabled">
                   {ap.metodoSimplificado.via === 'pasarela-4-plantas' ? 'pasarela ≤4 plantas' : 'seis requisitos'}
                 </span>
               ) : null}
             </div>
             <Requisitos reqs={ap.metodoSimplificado.requisitos} />
-            {ap.metodoSimplificado.bloqueo ? (
+            {/*
+              Con el cálculo por ordenador la tabla queda a título informativo:
+              sigue en pantalla —y en el papel— porque es la justificación de por
+              qué no se emplea el simplificado, pero ni el bloqueo en rojo ni el
+              aviso de torsión de la pasarela vienen a cuento. Los dos hablan de
+              los límites DEL MÉTODO SIMPLIFICADO, y aquí no se usa.
+            */}
+            {ap.metodoSimplificado.bloqueo && !porPrograma ? (
               <p className="mt-2 mx-4 text-[11px] leading-snug text-state-fail border-l-2 border-state-fail pl-2">
                 {ap.metodoSimplificado.bloqueo}
               </p>
             ) : null}
-            <Avisos avisos={ap.metodoSimplificado.avisos} />
+            {porPrograma ? null : <Avisos avisos={ap.metodoSimplificado.avisos} />}
           </div>
         ) : null}
       </section>
@@ -464,6 +495,28 @@ export function SeismicResults({
           <Fila k="T_A" sub="esquina del espectro elástico" v={`${magnitud(e.TA, 'TA')} s`} />
           <Fila k="T_B" sub="decide la rama de α" v={`${magnitud(e.TB, 'TB')} s`} />
         </section>
+
+        {/*
+          La otra mitad de lo que este módulo entrega cuando calcula el programa.
+          No es adorno de relleno: son EXACTAMENTE las cuatro filas que la ficha
+          DB SE publica junto al emplazamiento —clasificación, tipo de
+          estructura, μ y amortiguamiento—, y las que se teclean en el programa.
+          Sin ellas la columna derecha quedaba vacía y la pantalla daba a entender
+          que aquí ya no queda nada.
+        */}
+        {porPrograma ? (
+          <section>
+            <Cabecera titulo="Clasificación" sub="lo que se publica" refNorma="art. 1.2.2 · 3.7.3.1" />
+            <Fila k="Importancia" sub="art. 1.2.2" v={IMPORTANCIA_CORTA[state.importancia]} />
+            <Fila k="Tipo de estructura" v={SISTEMA_CORTO[state.sistema]} />
+            <Fila
+              k="μ"
+              sub="ductilidad"
+              v={dec(state.mu, 0) + (nombreDuctilidad(state.mu) ? ` · ${nombreDuctilidad(state.mu)}` : '')}
+            />
+            <Fila k="Ω" sub="amortiguamiento" v={`${dec(state.omega, 0)} %`} />
+          </section>
+        ) : null}
 
         {r ? (
           <section>
@@ -516,18 +569,37 @@ export function SeismicResults({
       ) : (
         <section>
           <Cabecera
-            titulo="Sin cálculo"
+            titulo={porPrograma ? 'Lo que aporta el programa' : 'Sin cálculo'}
             {...(imp?.articulo ? { refNorma: `art. ${imp.articulo}` } : {})}
           />
-          <p className="px-4 text-[11px] leading-snug text-text-secondary pt-1.5">
-            {imp?.texto ??
-              'No se calcula la acción sísmica mientras alguna de las dos puertas lo impida.'}
-          </p>
-          <p className="px-4 text-[11px] leading-snug text-text-disabled mt-1.5">
-            {imp?.motivo === 'faltan-datos-de-calculo'
-              ? 'En cuanto haya período fundamental, el resultado aparece aquí.'
-              : 'Resuelve lo que marca el bloque de aplicabilidad y el resultado aparece aquí.'}
-          </p>
+          {porPrograma ? (
+            <>
+              <p className="px-4 text-[11px] leading-snug text-text-secondary pt-1.5">
+                Con los parámetros de arriba, {programa ?? 'el programa de cálculo'} determina el
+                período fundamental, los modos de vibración, la masa sísmica movilizada y los
+                esfuerzos. Sus listados son la justificación del{' '}
+                <span className="font-mono">art. 3.6.2</span> y se adjuntan al anejo.
+              </p>
+              <p className="px-4 text-[11px] leading-snug text-text-disabled mt-1.5">
+                Concreta no los reproduce ni los comprueba. Lo que firma este módulo es el
+                emplazamiento, la clasificación y el veredicto de las dos puertas.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="px-4 text-[11px] leading-snug text-text-secondary pt-1.5">
+                {imp?.texto ??
+                  'No se calcula la acción sísmica mientras alguna de las dos puertas lo impida.'}
+              </p>
+              <p className="px-4 text-[11px] leading-snug text-text-disabled mt-1.5">
+                {imp?.motivo === 'faltan-datos-de-calculo'
+                  ? 'En cuanto haya período fundamental, el resultado aparece aquí.'
+                  : imp?.motivo === 'metodo-simplificado-no-aplicable'
+                    ? 'Resuelve lo que marca el bloque de aplicabilidad, o pasa el método a «por ordenador» si el edificio se calcula con un programa de elementos finitos.'
+                    : 'Resuelve lo que marca el bloque de aplicabilidad y el resultado aparece aquí.'}
+              </p>
+            </>
+          )}
         </section>
       )}
     </div>

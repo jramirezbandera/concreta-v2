@@ -524,6 +524,44 @@ describe('normalizeSeismicState', () => {
   });
 });
 
+describe('el método de cálculo', () => {
+  it('arranca en el simplificado, que es el único que Concreta calcula', () => {
+    expect(ejemploSeismicState().metodo).toBe('simplificado');
+  });
+
+  it('un caso guardado o compartido sin método cae al simplificado', () => {
+    // Es el caso de todo lo escrito antes de que existiera el conmutador: dar
+    // por bueno «lo calculó un programa» sería declarar en su nombre.
+    expect(normalizeSeismicState({ ...ejemploSeismicState(), metodo: undefined }).metodo).toBe(
+      'simplificado',
+    );
+    expect(normalizeSeismicState({ metodo: 'cypecad' }).metodo).toBe('simplificado');
+    expect(normalizeSeismicState({ metodo: 'programa' }).metodo).toBe('programa');
+  });
+
+  it('con «programa» no hay resultado, y el motivo lo dice la puerta', () => {
+    const ev = evaluarSismo({ ...ejemploSeismicState(), metodo: 'programa' });
+    expect(ev.resultado).toBeNull();
+    expect(ev.impedimento?.motivo).toBe('calculo-por-programa');
+    // El emplazamiento SÍ se resuelve: es lo que este módulo sigue aportando.
+    expect(ev.emplazamiento.ac).toBeGreaterThan(0);
+  });
+
+  it('no se salta la puerta de T_F: con «programa» no llega a mirarla', () => {
+    // Sin período fundamental el método simplificado se para (`faltan-datos-de-calculo`);
+    // por ordenador ese dato lo da el programa, así que no puede ser lo que corte.
+    const sinTF: SeismicState = {
+      ...ejemploSeismicState(),
+      x: { ...ejemploSeismicState().x, L: 0 },
+      sistema: 'otro',
+    };
+    expect(evaluarSismo(sinTF).impedimento?.motivo).toBe('faltan-datos-de-calculo');
+    expect(evaluarSismo({ ...sinTF, metodo: 'programa' }).impedimento?.motivo).toBe(
+      'calculo-por-programa',
+    );
+  });
+});
+
 describe('blankSeismicState', () => {
   it('arranca sin municipio y sin declaraciones contestadas', () => {
     const s = blankSeismicState();

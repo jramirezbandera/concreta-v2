@@ -26,9 +26,10 @@ import { HelpTooltip } from '../../components/ui/HelpTooltip';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Num, NumIn, SELECT_CLS } from './campos';
-import { dec, fuerza, magnitud, unidadFuerza } from './formato';
+import { SISTEMA_CORTO, dec, fuerza, magnitud, unidadFuerza } from './formato';
 import type {
   Importancia,
+  MetodoCalculo,
   SistemaEstructural,
   TipoTerreno,
 } from '../../lib/codes/seismic/types';
@@ -65,6 +66,12 @@ export interface SeismicInputsProps {
    * el campo y se ofrece la búsqueda a un clic.
    */
   avisoObra?: AvisoObra | null;
+  /**
+   * El programa de cálculo del perfil del despacho, ya compuesto —«Cypecad
+   * Espacial V2022 (Cype Ingenieros)»—, o `null` si no hay ninguno nombrado.
+   * Lo lee el módulo (`index.tsx`), que es quien toca el almacenamiento.
+   */
+  programa?: string | null;
 }
 
 /** Lo que pasó al buscar el municipio de la obra en el Anejo 1, cuando no se enlazó. */
@@ -586,17 +593,13 @@ function BuscadorMunicipio({
 
 // ── Panel ────────────────────────────────────────────────────────────────────
 
-const SISTEMAS: { v: SistemaEstructural; t: string }[] = [
-  { v: 'porticos-ha', t: 'Pórticos de HA' },
-  { v: 'porticos-ha-pantallas', t: 'Pórticos de HA con pantallas' },
-  { v: 'porticos-acero', t: 'Pórticos de acero' },
-  { v: 'acero-triangulado', t: 'Acero triangulado' },
-  { v: 'fabrica', t: 'Muros de fábrica' },
-  { v: 'mamposteria-seco', t: 'Mampostería en seco' },
-  { v: 'adobe', t: 'Adobe' },
-  { v: 'tapial', t: 'Tapial' },
-  { v: 'otro', t: 'Otro' },
-];
+// El orden ES el del catálogo (`SISTEMA_CORTO` en formato.ts): lo frecuente
+// primero y los tres materiales prohibidos por el art. 1.2.3 al final. Con dos
+// listas separadas, el día que se añada un sistema aparecería en una y no en
+// la otra.
+const SISTEMAS: { v: SistemaEstructural; t: string }[] = (
+  Object.keys(SISTEMA_CORTO) as SistemaEstructural[]
+).map((v) => ({ v, t: SISTEMA_CORTO[v] }));
 
 
 /**
@@ -617,6 +620,7 @@ export function SeismicInputs({
   onEditPlantas,
   onEditGeometria,
   avisoObra = null,
+  programa = null,
 }: SeismicInputsProps) {
   const e = evaluacion.emplazamiento;
   const r = evaluacion.resultado;
@@ -817,6 +821,51 @@ export function SeismicInputs({
         />
       </CollapsibleSection>
 
+      {/*
+        El conmutador de método va AQUÍ —después del emplazamiento, antes de
+        todo lo demás— porque decide si lo que viene después se usa. Con el
+        análisis por ordenador, las plantas y los planos resistentes dejan de
+        alimentar ningún cálculo de este módulo: las masas y los períodos los
+        determina el programa. Esconderlo al final, o sólo cuando el art. 3.5.1
+        falla, obligaba a rellenar dos cuadros para luego descubrir que sobraban.
+      */}
+      <CollapsibleSection label="Método de cálculo" refNorma="art. 3.5.1 · 3.6.2">
+        <Sel<MetodoCalculo>
+          label="Método"
+          help="Cómo se determina la acción sísmica. El simplificado (art. 3.7) lo calcula Concreta entero, pero sólo vale si el edificio cumple el art. 3.5.1. El análisis modal por ordenador (art. 3.6.2) lo hace un programa de elementos finitos que incluye sismo; Concreta aporta los parámetros del emplazamiento —los que se teclean en el programa— y la clasificación."
+          value={state.metodo}
+          options={[
+            // Sin el artículo detrás: el desplegable mide 160 px y «Por ordenador
+            // · art. 3.6.2» se cortaba por la mitad. Los dos artículos ya están en
+            // la referencia de la cabecera de la sección.
+            { v: 'simplificado', t: 'Simplificado' },
+            { v: 'programa', t: 'Por ordenador' },
+          ]}
+          onChange={(v) => setState((s) => ({ ...s, metodo: v }))}
+        />
+        <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
+          {state.metodo === 'simplificado' ? (
+            <>
+              Concreta calcula el cortante basal, las fuerzas por planta y su reparto entre planos
+              resistentes. Exige cumplir los seis requisitos del{' '}
+              <span className="font-mono">art. 3.5.1</span>.
+            </>
+          ) : (
+            <>
+              Concreta da el emplazamiento y la clasificación —lo que se teclea en{' '}
+              {programa ?? 'el programa'}— y lo hace constar en la memoria. Los períodos, los
+              modos, la masa sísmica y los cortantes salen de sus listados: aquí no se calculan.
+            </>
+          )}
+        </p>
+        {state.metodo === 'programa' && programa === null ? (
+          <p className="mt-1.5 text-[10px] leading-snug text-state-warn">
+            No hay programa de cálculo nombrado. Se declara en Ajustes del estudio, y es el mismo
+            que sale en el apartado 3.1.5.2 de la ficha DB SE.
+          </p>
+        ) : null}
+      </CollapsibleSection>
+
       <CollapsibleSection label="Estructura" refNorma="art. 3.7.2">
         <Sel<SistemaEstructural>
           label="Sistema"
@@ -1009,6 +1058,9 @@ export function SeismicInputs({
         <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
           Cotas, superficies y cargas del <span className="font-mono">art. 3.2</span>, sobre el
           alzado del edificio.
+          {state.metodo === 'programa'
+            ? ' Con el cálculo por ordenador no entran en la memoria: la masa sísmica la determina el programa.'
+            : ''}
         </p>
       </CollapsibleSection>
 
@@ -1050,6 +1102,9 @@ export function SeismicInputs({
         <p className="mt-1.5 text-[10px] leading-snug text-text-disabled">
           Dimensiones y planos resistentes del <span className="font-mono">art. 3.7.5</span>, sobre
           la planta dibujada y midiendo desde la fachada.
+          {state.metodo === 'programa'
+            ? ' Con el cálculo por ordenador sólo sirven para comprobar la excentricidad del requisito (6); el reparto lo hace el programa.'
+            : ''}
         </p>
       </CollapsibleSection>
 
@@ -1061,8 +1116,17 @@ export function SeismicInputs({
           justificación sísmica.
         */}
         <p className="text-[10px] leading-snug text-text-disabled pb-1">
-          Sin contestar (<span className="font-mono">—</span>) no se calcula. Darlas por buenas por
-          omisión produciría un proyecto sin justificación sísmica y sin ningún aviso.
+          {state.metodo === 'simplificado' ? (
+            <>
+              Sin contestar (<span className="font-mono">—</span>) no se calcula. Darlas por buenas
+              por omisión produciría un proyecto sin justificación sísmica y sin ningún aviso.
+            </>
+          ) : (
+            <>
+              Con el cálculo por ordenador no impiden nada: sólo documentan por qué no se emplea
+              el método simplificado, que es lo que la memoria tiene que poder decir.
+            </>
+          )}
         </p>
         <Declaracion
           label="Pórticos bien arriostrados"

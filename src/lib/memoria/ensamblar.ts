@@ -50,6 +50,7 @@ import {
   GEOTECNIA_CAMPOS,
   claveForjado,
   datosForjadoInicial,
+  nombrePrograma,
   type Campo,
   type CapaObra,
   type GeotecniaCampo,
@@ -121,11 +122,14 @@ export function esDeOtroEmplazamiento(sobre: Publicacion<unknown> | null, ineSob
  * español más corriente: obligar a fingir un cambio para desbloquear sería peor
  * que no tener el control.
  */
-export function estadoSobre(sobre: Publicacion<unknown> | null, aceptado: boolean, otroEmplazamiento: boolean, obligatorio: boolean): Estado {
+export function estadoSobre(sobre: Publicacion<unknown> | null, aceptado: boolean, otroEmplazamiento: boolean, obligatorio: boolean, desfasado = false): Estado {
   if (!sobre) return obligatorio ? 'falta' : 'derivado';
   if (aceptado) return 'derivado';
   if (sobre.configurado !== true) return 'falta';
-  if (!otroEmplazamiento) return 'derivado';
+  // `desfasado`: el sobre se calculó a partir de OTRO sobre que ha cambiado
+  // después. Es el mismo ámbar que el de otra provincia —lo publicado puede ya
+  // no responder a esta obra— y se desbloquea igual, dándolo por bueno.
+  if (!otroEmplazamiento && !desfasado) return 'derivado';
   return obligatorio ? 'falta' : 'revisar';
 }
 
@@ -373,11 +377,11 @@ export const ETIQUETAS_GEOTECNIA: Record<GeotecniaCampo, string> = {
 
 // ── Fuentes ─────────────────────────────────────────────────────────────────
 
-function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado: string | null, obra: Obra | null, obligatorio: boolean, ineSobre?: string | null): Fuente {
+function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado: string | null, obra: Obra | null, obligatorio: boolean, ineSobre?: string | null, desfasado = false): Fuente {
   const provinciaFicha = obra?.provincia ?? '';
   const otroEmplazamiento = esDeOtroEmplazamiento(sobre, ineSobre, provinciaFicha);
   const vigente = sobre !== null && aceptado !== null && aceptado === huellaSobre(sobre, obra);
-  const estado = estadoSobre(sobre, vigente, otroEmplazamiento, obligatorio);
+  const estado = estadoSobre(sobre, vigente, otroEmplazamiento, obligatorio, desfasado);
   const lugarSobre = sobre ? sobre.obra.municipio || sobre.obra.provincia || `INE ${sobre.obra.ine}` : '';
   // El aviso lo manda la DECISIÓN del usuario, no sólo el sobre: una vez dado
   // por bueno, seguir diciendo «ábralo y calcule los de esta obra» contradice
@@ -401,7 +405,9 @@ function fuente(modulo: ModuloPub, sobre: Publicacion<unknown> | null, aceptado:
         ? `${ETIQUETA_DE[modulo]} sigue con sus valores de partida: ábralo y calcule los de esta obra.`
         : otroEmplazamiento
           ? `Esta publicación se calculó en otro sitio (${lugarSobre}).`
-          : undefined;
+          : desfasado
+            ? `${ETIQUETA_DE[modulo]} se calculó con unas plantas que han cambiado después: ábralo y compruébelo.`
+            : undefined;
   return {
     modulo,
     valor: sobre !== null,
@@ -519,11 +525,11 @@ function sismo(obra: CapaObra, uso: string, estudio: PerfilEstudio, f: Fuente, s
   if (!d.obligatoria) {
     return derivado({ ...base, exencion: d.impedimento?.texto ?? null, completo: null }, 'sismo');
   }
-  if (!d.calculo) {
-    // Obligatoria y sin cálculo: no es exención, es un cálculo por resolver en el módulo.
-    return faltaDeSobre('sismo', d.impedimento ? `Resuelva el cálculo en el módulo de sismo: ${d.impedimento.texto}` : 'El módulo de sismo no tiene resultado.');
-  }
-  const c = d.calculo;
+
+  // Las cinco filas del capítulo 2, que NO dependen de quién haga el cálculo:
+  // salen del emplazamiento y de la clasificación, y son las mismas que se
+  // teclean en el programa de elementos finitos. Se resuelven antes de bifurcar
+  // precisamente porque las dos vías las comparten.
   const rhoAb = d.rho * d.ab;
   const S =
     rhoAb < 0.1
@@ -531,31 +537,81 @@ function sismo(obra: CapaObra, uso: string, estudio: PerfilEstudio, f: Fuente, s
       : rhoAb < 0.4
         ? `Para 0,1g ≤ ρ·ab < 0,4g, S = C/1,25 + 3,33·(ρ·ab/g − 0,1)·(1 − C/1,25) = ${num(d.S, 2)}`
         : `Para ρ·ab ≥ 0,4g, S = 1,0`;
+  const emplazamientoFilas = {
+    K: `K=${num(d.K, 2)}`,
+    rho: d.importancia === 'especial' ? NCSE.textos.rhoEspecial : NCSE.textos.rhoNormal,
+    S,
+    C: d.terreno !== null ? `Terreno tipo ${d.terreno} (C=${num(d.C, 2)})` : `Perfil de estratos ponderado en los 30 primeros metros (C=${num(d.C, 2)})`,
+    ac: `ac = S·ρ·ab = ${num(d.S, 2)}·${num(d.rho, 2)}·${num(d.ab, 2)} = ${num(d.ac, 3)} g`,
+  };
+  const amortiguamiento = AMORTIGUAMIENTO_TEXTO(num(d.omega, 0), sistema);
+  const ductilidad = `μ = ${num(d.mu, 0)}${d.ductilidad ? ` (ductilidad ${d.ductilidad})` : ''}`;
+
+  // ── La vía del art. 3.6.2 ─────────────────────────────────────────────────
+  //
+  // Hasta el 2026-09-15 este apartado quedaba EN BLANCO —clasificación «—», ab
+  // «—» y un «resuelva el cálculo en el módulo de sismo» en Observaciones—
+  // cuando el edificio no pasaba el art. 3.5.1. Y un edificio irregular NO es
+  // un edificio sin datos sísmicos: su ab, su K, su ρ, su C y su ac son
+  // exactamente los que hay que declarar, y su acción sísmica la calcula un
+  // programa. De los listados sólo salen las filas que dependen del modelo.
+  if (d.metodo === 'programa') {
+    return derivado(
+      {
+        ...base,
+        exencion: null,
+        completo: {
+          ...emplazamientoFilas,
+          metodo: NCSE.textos.metodoPrograma(
+            nombrePrograma(estudio.programa),
+            d.razonNoSimplificado ?? null,
+          ),
+          amortiguamiento,
+          periodo: NCSE.textos.segunListados,
+          modos: NCSE.textos.segunListadosPlural,
+          // Genérica a propósito: las categorías de masa que conoce este módulo
+          // son las de SUS plantas, y con el cálculo por ordenador las masas
+          // que se movilizan son las del modelo del programa. Enumerar aquí
+          // unas fracciones que el programa no usó sería afirmar lo que no
+          // consta en ninguno de los dos documentos.
+          fraccion: NCSE.textos.fraccionGenerica,
+          ductilidad,
+          segundoOrden: estudio.sismo.efectosSegundoOrden,
+          medidas: estudio.sismo.medidasConstructivas,
+        },
+      },
+      'sismo',
+    );
+  }
+
+  if (!d.calculo) {
+    // Obligatoria, con método simplificado y sin cálculo: no es exención, es un
+    // cálculo por resolver en el módulo —o un edificio que tiene que irse al
+    // art. 3.6.2, y entonces lo que falta es declararlo allí—.
+    return faltaDeSobre('sismo', d.impedimento ? `Resuelva el cálculo en el módulo de sismo: ${d.impedimento.texto}` : 'El módulo de sismo no tiene resultado.');
+  }
+  const c = d.calculo;
   const modos = c.nModos
     ? `${c.nModos.x} modos en la dirección X y ${c.nModos.y} en la dirección Y (art. 3.6.2.3.1)`
-    : 'Se indican en los listados de cálculo por ordenador';
+    : NCSE.textos.segunListadosPlural;
   const fraccion = c.categoriasMasa && c.categoriasMasa.length > 0
     ? `La parte de sobrecarga a considerar en la masa sísmica movilizable (art. 3.2) es: ${[...new Set(c.categoriasMasa)]
         .filter((k) => k !== 'permanente' && k !== 'tabiqueria' && k !== 'agua')
         .map((k) => `${num(FRACCION_MASA[k], 1)} (${CATEGORIA_MASA_TEXTO[k]})`)
         .join('; ')}`
-    : 'La parte de sobrecarga a considerar en la masa sísmica movilizable es la que fija el art. 3.2 de la NCSE-02 según el uso de cada planta.';
+    : NCSE.textos.fraccionGenerica;
   return derivado(
     {
       ...base,
       exencion: null,
       completo: {
-        K: `K=${num(d.K, 2)}`,
-        rho: d.importancia === 'especial' ? NCSE.textos.rhoEspecial : NCSE.textos.rhoNormal,
-        S,
-        C: d.terreno !== null ? `Terreno tipo ${d.terreno} (C=${num(d.C, 2)})` : `Perfil de estratos ponderado en los 30 primeros metros (C=${num(d.C, 2)})`,
-        ac: `ac = S·ρ·ab = ${num(d.S, 2)}·${num(d.rho, 2)}·${num(d.ab, 2)} = ${num(d.ac, 3)} g`,
-        metodo: 'Método simplificado de cálculo de la NCSE-02 (art. 3.7): análisis modal espectral.',
-        amortiguamiento: AMORTIGUAMIENTO_TEXTO(num(d.omega, 0), sistema),
+        ...emplazamientoFilas,
+        metodo: NCSE.textos.metodoSimplificado,
+        amortiguamiento,
         periodo: `TF = ${num(c.TF.x, 2)} s (dirección X) / ${num(c.TF.y, 2)} s (dirección Y)`,
         modos,
         fraccion,
-        ductilidad: `μ = ${num(d.mu, 0)}${d.ductilidad ? ` (ductilidad ${d.ductilidad})` : ''}`,
+        ductilidad,
         segundoOrden: estudio.sismo.efectosSegundoOrden,
         medidas: estudio.sismo.medidasConstructivas,
       },
@@ -696,6 +752,20 @@ function fuego(
   return { exigencias, presentes: presentesDeSobre(mat) };
 }
 
+/**
+ * ¿Se publicaron las plantas DESPUÉS de calcularse la R de incendio?
+ *
+ * Sin la marca —un sobre de incendio escrito antes de que la llevara— no se
+ * puede saber, y entonces no se dice nada: inventar un ámbar sobre una obra
+ * que está bien sería peor que el hueco que tapa.
+ */
+function plantasDesfasadas(sobres: Sobres): boolean {
+  const origen = sobres.incendio?.datos.plantasOrigen;
+  const plantas = sobres.cargasPlanta;
+  if (!origen || !plantas || plantas.configurado !== true) return false;
+  return plantas.ts > origen.ts;
+}
+
 export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
   const { obra, estudio } = s;
   const datos = s.datosObra;
@@ -709,7 +779,20 @@ export function ensamblar(s: MemoriaState, sobres: Sobres): FichaDatos {
     sismo: fuente('sismo', sobres.sismo, s.aceptados.sismo, datos, true, sobres.sismo?.datos.ine),
     // `obligatorio: false`: una obra sin módulo de incendio no tiene por qué
     // ponerse en rojo ni bloquear la exportación del DB SE.
-    incendio: fuente('incendio', sobres.incendio, s.aceptados.incendio, datos, false),
+    //
+    // La R de incendio sale de la altura de evacuación, y ésta de las plantas
+    // de «Cargas por planta»: si allí se publica algo después, este sobre
+    // queda fresco de fecha y viejo de contenido, y sólo se rehace abriendo el
+    // módulo. Se contrasta la marca que incendio deja al publicar.
+    incendio: fuente(
+      'incendio',
+      sobres.incendio,
+      s.aceptados.incendio,
+      datos,
+      false,
+      undefined,
+      plantasDesfasadas(sobres),
+    ),
   };
 
   const materiales = usable(fuentes.materiales) ? sobres.materiales : null;

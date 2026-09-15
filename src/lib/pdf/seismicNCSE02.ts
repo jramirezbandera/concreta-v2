@@ -69,6 +69,7 @@ import type {
 } from '../codes/seismic/types';
 import {
   excentricidadDe,
+  nombreDuctilidad,
   plantasSobreRasante,
   type DireccionUI,
   type SeismicEvaluation,
@@ -214,6 +215,12 @@ export function seismicPdfBlocker(evaluacion: SeismicEvaluation): string | null 
       'parecería una justificación sin serlo.'
     );
   }
+  // Con el cálculo por ordenador, los requisitos del art. 3.5.1 son informativos
+  // y pueden estar sin declarar sin que falte nada: el documento no los recoge
+  // como justificados, los recoge como el motivo de haber ido al art. 3.6.2 —y
+  // no haber contestado es un motivo tan válido como cualquiera, porque la vía
+  // modal no necesita permiso de nadie—.
+  if (evaluacion.impedimento?.motivo === 'calculo-por-programa') return null;
   // La pasarela de las cuatro plantas LEVANTA los requisitos (3) a (6): que
   // estén sin declarar es su régimen normal, no un descuido. Bloquear ahí
   // negaba el documento a un caso que el módulo calcula entero y enseña en
@@ -360,9 +367,12 @@ const TITULAR: Record<MotivoImpedimento, string> = {
   'faltan-datos-de-calculo':
     'La NCSE-02 es de aplicación y el método simplificado del art. 3.5.1 es aplicable, ' +
     'pero faltan datos para calcular la acción sísmica.',
+  'calculo-por-programa':
+    'La NCSE-02 es de aplicación y la acción sísmica se determina por análisis modal ' +
+    'espectral (art. 3.6.2), con programa de cálculo.',
 };
 
-function veredicto(doc: jsPDF, y: number, ev: SeismicEvaluation): number {
+function veredicto(doc: jsPDF, y: number, ev: SeismicEvaluation, programa: string | null): number {
   const { obligatoriedad: obl, metodoSimplificado: met } = ev.aplicabilidad;
   const imp = ev.impedimento;
 
@@ -394,6 +404,25 @@ function veredicto(doc: jsPDF, y: number, ev: SeismicEvaluation): number {
       'La comprobación del art. 3.5.1 que sigue se recoge a título informativo: ' +
         'cumplirla NO levanta la prohibición del art. 1.2.3. Este documento NO ' +
         'contiene la acción sísmica.',
+      { size: 8, gray: 80, italic: true },
+    );
+  } else if (imp?.motivo === 'calculo-por-programa') {
+    // La ÚNICA rama en la que no hay acción sísmica y NO falta nada: el papel
+    // dice qué aporta y qué no, y a quién hay que pedirle lo que falta. Sin esta
+    // frase el documento se lee como una justificación incompleta cuando es una
+    // pieza de una justificación repartida en dos documentos.
+    ny = parrafo(doc, ny + 1, imp.texto, { size: 8, gray: 80 });
+    if (programa) {
+      ny = parrafo(doc, ny, `Programa de cálculo: ${programa}.`, { size: 8, gray: 80 });
+    }
+    ny = parrafo(
+      doc,
+      ny,
+      'Este documento recoge la comprobación de las dos puertas, los datos del ' +
+        'emplazamiento y la clasificación de la construcción —los parámetros que se ' +
+        'introducen en el programa—. El período fundamental, los modos de vibración, ' +
+        'la masa sísmica movilizada y los esfuerzos constan en los listados de cálculo ' +
+        'del programa, que se adjuntan.',
       { size: 8, gray: 80, italic: true },
     );
   } else if (imp) {
@@ -539,18 +568,40 @@ function emplazamiento(doc: jsPDF, y: number, state: SeismicState, ev: SeismicEv
   return ny;
 }
 
-function requisitos(doc: jsPDF, y: number, reqs: Requisito[], via: string | null): number {
-  let ny = seccion(doc, y, 'REQUISITOS DEL METODO SIMPLIFICADO', 'art. 3.5.1');
+function requisitos(
+  doc: jsPDF,
+  y: number,
+  reqs: Requisito[],
+  via: string | null,
+  informativos = false,
+): number {
+  let ny = seccion(
+    doc,
+    y,
+    informativos
+      ? 'REQUISITOS DEL METODO SIMPLIFICADO (INFORMATIVO)'
+      : 'REQUISITOS DEL METODO SIMPLIFICADO',
+    'art. 3.5.1',
+  );
 
   ny = parrafo(
     doc,
     ny,
-    'La columna «Vía» distingue lo que comprueba la herramienta con los datos ' +
-      'introducidos de lo que DECLARA el proyectista. Una declaración no es una ' +
-      'comprobación: este documento la recoge como tal y no la respalda.' +
-      (via === 'pasarela-4-plantas'
-        ? ' El edificio entra por la vía de las cuatro plantas en total, que levanta los requisitos (3) a (6).'
-        : ''),
+    // Con el cálculo por ordenador la tabla sigue en el papel, y no es relleno:
+    // es la justificación de POR QUÉ no se emplea el simplificado, que es lo
+    // primero que pregunta quien revisa. Lo que cambia es su fuerza: aquí no
+    // autoriza ni impide nada.
+    informativos
+      ? 'Esta comprobación se recoge a título informativo: documenta en qué ' +
+          'situación queda el método simplificado, que no se emplea. La columna ' +
+          '«Vía» distingue lo que comprueba la herramienta de lo que DECLARA el ' +
+          'proyectista, y una declaración no es una comprobación.'
+      : 'La columna «Vía» distingue lo que comprueba la herramienta con los datos ' +
+          'introducidos de lo que DECLARA el proyectista. Una declaración no es una ' +
+          'comprobación: este documento la recoge como tal y no la respalda.' +
+          (via === 'pasarela-4-plantas'
+            ? ' El edificio entra por la vía de las cuatro plantas en total, que levanta los requisitos (3) a (6).'
+            : ''),
     { size: 7, gray: 120 },
   );
 
@@ -1139,7 +1190,43 @@ function avisos(doc: jsPDF, y: number, lista: AvisoNorma[], titulo: string): num
   });
 }
 
-function alcance(doc: jsPDF, y: number, hayResultado: boolean): number {
+/**
+ * Los dos parámetros de estructura que, en la vía simplificada, viajan dentro de
+ * los bloques de cálculo —ν y β los arrastran consigo— y aquí se quedarían sin
+ * imprimir. Son justamente los que se teclean en el programa de elementos
+ * finitos, y los que la ficha DB SE publica en su apartado 3.1.4.
+ *
+ * Con el método simplificado esta sección NO se dibuja: repetiría lo que la
+ * cadena de fuerzas ya declara con su ν y su β al lado.
+ */
+function clasificacionEstructura(doc: jsPDF, y: number, state: SeismicState): number {
+  let ny = seccion(doc, y, 'CLASIFICACION DE LA ESTRUCTURA', 'art. 3.7.3.1');
+  const nombre = nombreDuctilidad(state.mu);
+  const filas: FilaParam[] = [
+    {
+      p: 'Sistema',
+      v: `n = ${plantasSobreRasante(state)}`,
+      o: `${SISTEMA_LABEL[state.sistema]} · H = ${num(state.H, 2)} m sobre rasante` +
+        (state.sotanos > 0 ? ` · ${state.sotanos} bajo rasante` : ''),
+    },
+    {
+      p: 'μ',
+      v: num(state.mu, 0),
+      o:
+        'Coeficiente de comportamiento por ductilidad (art. 3.7.3.1)' +
+        (nombre ? ` · ductilidad ${nombre}` : ''),
+    },
+    {
+      p: 'Ω',
+      v: `${num(state.omega, 0)} %`,
+      o: 'Amortiguamiento, en % del crítico (art. 3.7.3.1) · entra en el espectro por el factor ν del art. 2.5',
+    },
+  ];
+  ny = drawTable(doc, { x: M, y: ny, M, cols: COLS_PARAM, rows: filas });
+  return ny + 3;
+}
+
+function alcance(doc: jsPDF, y: number, hayResultado: boolean, porPrograma = false): number {
   let ny = seccion(doc, y, 'ALCANCE DE ESTE DOCUMENTO');
   ny = parrafo(
     doc,
@@ -1148,8 +1235,13 @@ function alcance(doc: jsPDF, y: number, hayResultado: boolean): number {
       ? 'Entra emplazamiento, cargas, estructura y planos resistentes. Sale F_k, V_k, ' +
           'el cortante basal, f_kj con torsión y las ocho combinaciones direccionales. ' +
           'El módulo TERMINA en la fuerza que le toca a cada plano resistente.'
-      : 'Este documento recoge la comprobación de las dos puertas normativas y los ' +
-          'datos del emplazamiento. No contiene acción sísmica calculada.',
+      : porPrograma
+        ? 'Este documento recoge la comprobación de las dos puertas normativas, los ' +
+            'datos del emplazamiento y la clasificación de la construcción. La acción ' +
+            'sísmica y sus efectos constan en los listados del programa de cálculo, que ' +
+            'esta herramienta no reproduce ni comprueba.'
+        : 'Este documento recoge la comprobación de las dos puertas normativas y los ' +
+            'datos del emplazamiento. No contiene acción sísmica calculada.',
     { size: 8, gray: 60 },
   );
   ny = parrafo(
@@ -1178,6 +1270,15 @@ export interface SeismicPdfArgs {
    * presentación.
    */
   system?: UnitSystem;
+  /**
+   * El programa de cálculo del despacho, ya compuesto —«Cypecad Espacial V2022
+   * (Cype Ingenieros)»—, para la vía del art. 3.6.2. Llega por parámetro y no se
+   * lee aquí: el exportador no toca el almacenamiento, y así el documento se
+   * puede probar con el programa que se quiera. `null` cuando no hay ninguno
+   * declarado, y entonces el papel no nombra a nadie en vez de inventarse un
+   * nombre.
+   */
+  programa?: string | null;
 }
 
 export async function exportSeismicNCSE02PDF({
@@ -1185,6 +1286,7 @@ export async function exportSeismicNCSE02PDF({
   evaluacion,
   title,
   system = 'si',
+  programa = null,
 }: SeismicPdfArgs): Promise<PdfResult> {
   // La puerta, aquí también. Hoy la respeta el único llamador —`seismicPdfBlocker`
   // alimenta el `valid` de `useTitledPdfExport`— pero la regla vivía SÓLO en el
@@ -1199,6 +1301,7 @@ export async function exportSeismicNCSE02PDF({
   const doc = await crearPdf();
 
   const { aplicabilidad: ap, resultado: r } = evaluacion;
+  const porPrograma = evaluacion.impedimento?.motivo === 'calculo-por-programa';
 
   const { contentY } = drawHeader(
     doc,
@@ -1224,7 +1327,14 @@ export async function exportSeismicNCSE02PDF({
   const traz = doc.splitTextToSize(
     pdfStr(
       'NCSE-02, Norma de Construcción Sismorresistente: Parte general y edificación ' +
-        '(RD 997/2002)  ·  Método simplificado de cálculo, art. 3.5  ·  ' +
+        '(RD 997/2002)  ·  ' +
+        // La línea de trazabilidad decía SIEMPRE «método simplificado», incluso en
+        // el documento de exención. Con la vía del art. 3.6.2 eso pasa de
+        // impreciso a falso: la primera línea del papel anunciaría un método que
+        // el propio documento dice a renglón seguido que no se ha empleado.
+        (porPrograma
+          ? 'Análisis modal espectral, art. 3.6.2  ·  '
+          : 'Método simplificado de cálculo, art. 3.5  ·  ') +
         `Motor NCSE-02 v${NCSE02_ENGINE_VERSION}  ·  Datos en ${unidadFuerza(system)} y m`,
     ),
     ANCHO,
@@ -1236,14 +1346,24 @@ export async function exportSeismicNCSE02PDF({
   // 1 · El veredicto, antes que ningún número. Un cortante basal calculado
   //     sobre un edificio que no cumple el art. 3.5.1 no significa nada, y
   //     enseñarlo primero invita a copiarlo igual.
-  y = veredicto(doc, y, evaluacion);
+  y = veredicto(doc, y, evaluacion, programa);
 
   // 2 · Emplazamiento — el único bloque que existe en los cuatro estados.
   y = emplazamiento(doc, y, state, evaluacion);
 
+  // 2 bis · La clasificación de la estructura, sólo en la vía del art. 3.6.2:
+  //         es la otra mitad de lo que este documento aporta cuando no calcula.
+  if (porPrograma) y = clasificacionEstructura(doc, y, state);
+
   // 3 · Requisitos del art. 3.5.1, cuando la Norma rige.
   if (ap.metodoSimplificado) {
-    y = requisitos(doc, y, ap.metodoSimplificado.requisitos, ap.metodoSimplificado.via);
+    y = requisitos(
+      doc,
+      y,
+      ap.metodoSimplificado.requisitos,
+      porPrograma ? null : ap.metodoSimplificado.via,
+      porPrograma,
+    );
   }
 
   // 4 · Avisos de las puertas. Van aquí y no al final: un bloqueo del art. 1.2.3
@@ -1261,7 +1381,7 @@ export async function exportSeismicNCSE02PDF({
     y = avisos(doc, y, r.avisos, 'Avisos del calculo');
   }
 
-  alcance(doc, y, !!r);
+  alcance(doc, y, !!r, porPrograma);
 
   drawFootersAllPages(
     doc,

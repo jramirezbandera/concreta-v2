@@ -240,6 +240,68 @@ describe('las puertas cortan en pantalla, no solo en el motor', () => {
   });
 });
 
+describe('el conmutador de metodo de calculo', () => {
+  /**
+   * El desplegable de la seccion «Metodo de calculo». La seccion arranca
+   * ABIERTA —a diferencia de «Declaraciones»— porque decide si lo que viene
+   * despues se usa: hacer clic en su cabecera aqui la cerraria.
+   */
+  const selectorMetodo = () => screen.getByLabelText('Método');
+
+  it('arranca en el simplificado y calcula, como siempre', () => {
+    const { container } = montar();
+    expect(selectorMetodo()).toHaveValue('simplificado');
+    expect(container.textContent).toContain('Cortante basal');
+  });
+
+  it('pasar a «por ordenador» retira el calculo y lo dice sin rotularlo como fallo', async () => {
+    const { container } = montar();
+    fireEvent.change(selectorMetodo(), { target: { value: 'programa' } });
+
+    await waitFor(() => {
+      expect(container.textContent).toContain('POR ORDENADOR');
+    });
+    expect(container.textContent).toContain('art. 3.6.2');
+    // Ni cortante ni fuerzas: aqui ya no se calculan.
+    expect(container.textContent).not.toContain('Cortante basal');
+    // Pero SI el emplazamiento y la clasificacion, que es lo que aporta.
+    expect(container.textContent).toContain('Emplazamiento');
+    expect(container.textContent).toContain('Clasificación');
+  });
+
+  it('rescata el edificio irregular que antes se quedaba sin nada', async () => {
+    const { container } = montar();
+    fireEvent.click(screen.getByText('Declaraciones'));
+    const fila = screen.getByText('Regularidad geométrica').closest('div.flex.items-start');
+    fireEvent.click(within(fila as HTMLElement).getByText('No'));
+
+    await waitFor(() => {
+      expect(container.textContent).toContain('NO es aplicable');
+    });
+
+    fireEvent.change(selectorMetodo(), { target: { value: 'programa' } });
+
+    await waitFor(() => {
+      expect(container.textContent).toContain('POR ORDENADOR');
+    });
+    // La tabla de requisitos sigue: es la justificacion de por que no se emplea.
+    expect(container.textContent).toContain('Requisitos del art. 3.5.1');
+    expect(container.textContent).toContain('informativos');
+  });
+
+  it('con la Norma no obligatoria, el metodo no la resucita', async () => {
+    const { container } = montar();
+    fireEvent.change(selectorMetodo(), { target: { value: 'programa' } });
+    fireEvent.click(screen.getByText(/introducir a mano/i));
+    fireEvent.change(screen.getByLabelText('ab (g)'), { target: { value: '0.03' } });
+
+    await waitFor(() => {
+      expect(container.textContent).toMatch(/no es de aplicación obligatoria/i);
+    });
+    expect(container.textContent).not.toContain('POR ORDENADOR');
+  });
+});
+
 describe('n sale de la tabla de plantas, no de un campo aparte', () => {
   // El escenario de C4: «+ planta» subía `n` y dejaba `n total` quieto, y
   // borrar una fila no tocaba ninguno de los dos. Con `n total` por debajo de

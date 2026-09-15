@@ -361,6 +361,42 @@ export const NCSE = {
       'Especificaciones de la zona de cimentación según planos adjuntos. Atado de los pórticos de la estructura mediante losa de cimentación. Concentración de estribos en el pie y en cabeza de los pilares. Pasar las hiladas alternativamente de unos tabiques sobre los otros.',
     /** La observación de la ficha exenta, tras el motivo que publica el módulo de sismo. */
     exento: 'Por tanto, no se han considerado acciones sísmicas.',
+    /** Método de cálculo cuando lo resuelve Concreta (art. 3.7). */
+    metodoSimplificado:
+      'Método simplificado de cálculo de la NCSE-02 (art. 3.7): análisis modal espectral.',
+    /**
+     * Método de cálculo cuando lo resuelve un programa de elementos finitos.
+     *
+     * La frase lleva SIEMPRE en qué situación queda el art. 3.5.1, porque son dos
+     * cosas distintas de firmar: que el simplificado no valga OBLIGA al modal, y
+     * que valga y no se use es una elección más exigente. Una memoria que dice
+     * «análisis modal» sin decir por qué es la que vuelve del visado.
+     *
+     * @param programa Nombre compuesto del programa, o `null` si no hay ninguno
+     *                 declarado en el perfil del despacho.
+     * @param razon    Qué le pasa al art. 3.5.1 —«no se cumplen los requisitos
+     *                 (3)»—, o `null` si los seis están en cumple.
+     */
+    metodoPrograma: (programa: string | null, razon: string | null) =>
+      `Análisis modal espectral conforme al art. 3.6.2 de la NCSE-02` +
+      (programa ? `, realizado con ${programa}` : ', realizado con programa de cálculo') +
+      '. ' +
+      (razon
+        ? `No es aplicable el método simplificado del art. 3.5.1: ${razon}.`
+        : 'El método simplificado del art. 3.5.1 sería aplicable, pero no se emplea.') +
+      ' Los listados de cálculo del programa se adjuntan.',
+    /**
+     * La fila del período cuando lo determina el programa. Singular de la frase
+     * que la ficha del estudio ya usa para los modos: no se inventa registro,
+     * se concuerda el verbo.
+     */
+    segunListados: 'Se indica en los listados de cálculo por ordenador',
+    /** La de los modos, literal de la ficha del estudio. */
+    segunListadosPlural: 'Se indican en los listados de cálculo por ordenador',
+    /** Fracción del art. 3.2 cuando no se conocen las categorías de masa. */
+    fraccionGenerica:
+      'La parte de sobrecarga a considerar en la masa sísmica movilizable es la que fija ' +
+      'el art. 3.2 de la NCSE-02 según el uso de cada planta.',
   },
 } as const;
 

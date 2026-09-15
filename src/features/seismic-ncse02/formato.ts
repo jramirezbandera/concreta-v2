@@ -16,6 +16,35 @@
 import { toDisplay } from '../../lib/units/convert';
 import { getUnitLabel } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
+import type { Importancia, SistemaEstructural } from '../../lib/codes/seismic/types';
+
+/**
+ * El sistema estructural en corto, para la PANTALLA. El PDF tiene el suyo
+ * —«Pórticos de hormigón armado» frente a «Pórticos de HA»— y la diferencia es
+ * deliberada: en 288 px de panel el nombre largo se corta, y en un folio el
+ * corto parece una abreviatura de albarán.
+ *
+ * El orden es el de la lista desplegable: lo más frecuente primero, y los tres
+ * materiales que el art. 1.2.3 prohíbe al final, donde no se eligen por error.
+ */
+export const SISTEMA_CORTO: Record<SistemaEstructural, string> = {
+  'porticos-ha': 'Pórticos de HA',
+  'porticos-ha-pantallas': 'Pórticos de HA con pantallas',
+  'porticos-acero': 'Pórticos de acero',
+  'acero-triangulado': 'Acero triangulado',
+  fabrica: 'Muros de fábrica',
+  'mamposteria-seco': 'Mampostería en seco',
+  adobe: 'Adobe',
+  tapial: 'Tapial',
+  otro: 'Otro',
+};
+
+/** La importancia del art. 1.2.2, en pantalla. */
+export const IMPORTANCIA_CORTA: Record<Importancia, string> = {
+  moderada: 'Moderada',
+  normal: 'Normal',
+  especial: 'Especial',
+};
 
 /** Decimal con coma y punto de millar, con `dec` decimales fijos. */
 export function dec(v: number, n = 0): string {

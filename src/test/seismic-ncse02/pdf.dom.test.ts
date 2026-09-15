@@ -254,6 +254,65 @@ describe('la Norma rige pero el metodo simplificado no', () => {
   });
 });
 
+describe('el documento de la via del art. 3.6.2', () => {
+  /** Granada, irregular, declarado para un programa de elementos finitos. */
+  const porPrograma = (extra: Partial<SeismicState> = {}): SeismicState => ({
+    ...ejemploSeismicState(),
+    metodo: 'programa',
+    regularidadGeometrica: false,
+    ...extra,
+  });
+
+  it('anuncia la via, y NO trae cadena de fuerzas', async () => {
+    resetProbe();
+    const state = porPrograma();
+    await exportSeismicNCSE02PDF({
+      state,
+      evaluacion: evaluarSismo(state),
+      title: 'Edificio 1',
+      programa: 'Cypecad Espacial V2022 (Cype Ingenieros)',
+    });
+    const texto = emitido();
+    expect(texto).toContain('La NCSE-02 es de aplicación');
+    expect(texto).toContain('análisis modal espectral');
+    expect(texto).toContain('Cypecad Espacial V2022');
+    // Y ni un numero de los que no ha calculado nadie aqui.
+    expect(texto).not.toContain('CORTANTE BASAL');
+    expect(texto).not.toContain('MASA SISMICA');
+  });
+
+  it('la primera linea del papel ya no anuncia un metodo que no se ha usado', async () => {
+    const { texto } = await exportar(porPrograma());
+    expect(texto).toContain('Análisis modal espectral, art. 3.6.2');
+    expect(texto).not.toContain('Método simplificado de cálculo, art. 3.5');
+  });
+
+  it('trae el emplazamiento entero y la clasificacion de la estructura', async () => {
+    const { texto } = await exportar(porPrograma());
+    expect(texto).toContain('EMPLAZAMIENTO Y ACELERACION DE CALCULO');
+    expect(texto).toContain('CLASIFICACION DE LA ESTRUCTURA');
+    // mu y Omega, que en la via simplificada viajan dentro de los bloques de calculo.
+    expect(texto).toContain('ductilidad alta');
+  });
+
+  it('los requisitos del art. 3.5.1 siguen, rotulados como informativos', async () => {
+    const { texto } = await exportar(porPrograma());
+    expect(texto).toContain('REQUISITOS DEL METODO SIMPLIFICADO (INFORMATIVO)');
+    expect(texto).toContain('a título informativo');
+  });
+
+  it('sin programa declarado no se inventa ninguno', async () => {
+    const { texto } = await exportar(porPrograma());
+    expect(texto).not.toContain('Programa de cálculo:');
+    expect(texto).toContain('análisis modal espectral');
+  });
+
+  it('con el metodo simplificado la clasificacion NO se repite', async () => {
+    const { texto } = await exportar(ejemploSeismicState());
+    expect(texto).not.toContain('CLASIFICACION DE LA ESTRUCTURA');
+  });
+});
+
 describe('declarado no es comprobado', () => {
   it('rotula la via de cada requisito, y el rotulo cabe entero', async () => {
     const { texto } = await exportar(ejemploSeismicState());
@@ -399,6 +458,10 @@ describe('ningun glifo se pierde por el camino', () => {
       ejemploSeismicState(),
       { ...ejemploSeismicState(), importancia: 'moderada' as const },
       conPlantas(25),
+      // La vía del art. 3.6.2 trae su propia sección con μ y Ω, que en la vía
+      // simplificada viajan por otro sitio: sin barrerla, sus dos griegas se
+      // quedaban fuera de esta red.
+      { ...ejemploSeismicState(), metodo: 'programa' as const, regularidadGeometrica: false },
     ]) {
       const { texto } = await exportar(state);
       expect(/\s\?/.test(texto), `interrogante suelto: ${/.{0,40}\s\?.{0,40}/.exec(texto)?.[0]}`).toBe(
@@ -414,6 +477,16 @@ describe('ningun glifo se pierde por el camino', () => {
     const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('Ω = 5,0 %');
   });
+
+  it('μ y Ω salen con su letra en la clasificación de la vía del art. 3.6.2', async () => {
+    const { texto } = await exportar({
+      ...ejemploSeismicState(),
+      metodo: 'programa',
+      regularidadGeometrica: false,
+    });
+    expect(texto).toContain('μ');
+    expect(texto).toContain('Ω');
+  });
 });
 
 describe('la puerta de exportacion', () => {
@@ -427,6 +500,22 @@ describe('la puerta de exportacion', () => {
   it('tampoco bloquea cuando el metodo simplificado no vale: ese papel tambien sirve', () => {
     expect(
       seismicPdfBlocker(evaluarSismo(conPlantas(25))),
+    ).toBeNull();
+  });
+
+  it('NO bloquea la via del art. 3.6.2 con requisitos sin declarar', () => {
+    // Con el calculo por ordenador los requisitos son informativos: el documento
+    // no los recoge como justificados, los recoge como el motivo de haber ido al
+    // art. 3.6.2, y no haber contestado es un motivo tan valido como otro.
+    expect(
+      seismicPdfBlocker(
+        evaluarSismo({
+          ...ejemploSeismicState(),
+          metodo: 'programa',
+          regularidadGeometrica: null,
+          soportesContinuos: null,
+        }),
+      ),
     ).toBeNull();
   });
 

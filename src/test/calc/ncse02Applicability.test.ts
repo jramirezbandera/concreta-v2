@@ -20,6 +20,7 @@ import {
   checkApplicability,
   checkMetodoSimplificado,
   checkObligatoriedad,
+  razonNoSimplificado,
 } from "../../lib/codes/seismic/applicability";
 import type {
   MetodoSimplificadoInput,
@@ -583,6 +584,107 @@ describe("NCSE-02 · puerta completa", () => {
     const r = checkApplicability(obl({ sistema: "adobe" }), met());
     expect(r.metodoSimplificado?.aplicable).toBe(true);
     expect(r.puedeCalcular).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PUERTA 3 · art. 3.6.2 · la vía del cálculo por ordenador
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Es la única rama en la que NO hay acción sísmica y tampoco falta nada: la
+// calcula un programa de elementos finitos. Lo que estos tests vigilan es que
+// la vía sustituya al MÉTODO y nada más — que no se convierta en una puerta
+// trasera para las prohibiciones del art. 1.2.3, ni resucite un edificio exento.
+
+describe("NCSE-02 art. 3.6.2 · el cálculo por ordenador", () => {
+  it("no calcula aquí, y lo dice con su artículo", () => {
+    const r = checkApplicability(obl(), met(), "programa");
+    expect(r.puedeCalcular).toBe(false);
+    expect(r.impedimento?.motivo).toBe("calculo-por-programa");
+    expect(r.impedimento?.articulo).toBe("3.6.2");
+  });
+
+  it("sigue comprobando el art. 3.5.1, para poder decir por qué no se emplea", () => {
+    const r = checkApplicability(
+      obl(),
+      met({ regularidadGeometrica: false }),
+      "programa",
+    );
+    expect(r.metodoSimplificado?.requisitos).toHaveLength(6);
+    expect(r.metodoSimplificado?.aplicable).toBe(false);
+    expect(r.impedimento?.texto).toContain("no se cumplen los requisitos (3)");
+  });
+
+  it("distingue «no vale el simplificado» de «vale y no se usa»", () => {
+    const noVale = checkApplicability(
+      obl(),
+      met({ regularidadMecanica: false }),
+      "programa",
+    );
+    expect(noVale.impedimento?.texto).toContain("No es aplicable el método simplificado");
+
+    const valeYNoSeUsa = checkApplicability(obl(), met(), "programa");
+    expect(valeYNoSeUsa.metodoSimplificado?.aplicable).toBe(true);
+    expect(valeYNoSeUsa.impedimento?.texto).toContain("sería aplicable, pero no se emplea");
+  });
+
+  it("los requisitos SIN DECLARAR no impiden la vía: la modal no pide permiso", () => {
+    const r = checkApplicability(
+      obl(),
+      met({ regularidadGeometrica: null, soportesContinuos: null, regularidadMecanica: null }),
+      "programa",
+    );
+    expect(r.impedimento?.motivo).toBe("calculo-por-programa");
+    expect(r.impedimento?.texto).toContain("quedan sin declarar los requisitos (3, 4, 5)");
+  });
+
+  it("NO levanta la prohibición del art. 1.2.3: el material manda sobre el método", () => {
+    const r = checkApplicability(obl({ sistema: "adobe" }), met(), "programa");
+    expect(r.impedimento?.motivo).toBe("prohibicion-art-1.2.3");
+    expect(r.impedimento?.articulo).toBe("1.2.3");
+  });
+
+  it("NO resucita un edificio exento: sin Norma no hay acción que encargar", () => {
+    const r = checkApplicability(obl({ importancia: "moderada" }), met(), "programa");
+    expect(r.impedimento?.motivo).toBe("norma-no-obligatoria");
+    expect(r.metodoSimplificado).toBeNull();
+  });
+
+  it("no arrastra el aviso de torsión de la pasarela: es un límite DEL simplificado", () => {
+    const entrada = {
+      ...met({ n: 3, nTotal: 4, H: 10, regularidadGeometrica: false }),
+    };
+    const simplificado = checkApplicability(obl({ n: 3 }), entrada);
+    expect(simplificado.avisos.some((a) => a.id === "torsion-pasarela")).toBe(true);
+
+    const porPrograma = checkApplicability(obl({ n: 3 }), entrada, "programa");
+    expect(porPrograma.avisos.some((a) => a.id === "torsion-pasarela")).toBe(false);
+    // Los del art. 1.2.3 sí siguen: no dependen del método.
+    expect(porPrograma.avisos.some((a) => a.id === "terrenos-inestables")).toBe(true);
+  });
+
+  it("por defecto el método es el simplificado: un llamador que no lo pasa calcula como siempre", () => {
+    expect(checkApplicability(obl(), met()).puedeCalcular).toBe(true);
+  });
+});
+
+describe("NCSE-02 · razonNoSimplificado, una sola redacción", () => {
+  it("es null con los seis en cumple", () => {
+    expect(razonNoSimplificado(checkMetodoSimplificado(met()).requisitos)).toBeNull();
+  });
+
+  it("une lo incumplido y lo no declarado con «y», en ese orden", () => {
+    const reqs = checkMetodoSimplificado(
+      met({ regularidadGeometrica: false, soportesContinuos: null }),
+    ).requisitos;
+    expect(razonNoSimplificado(reqs)).toBe(
+      "no se cumplen los requisitos (3) y quedan sin declarar los requisitos (4)",
+    );
+  });
+
+  it("es LA MISMA frase que sale en el bloqueo del art. 3.5.1", () => {
+    const r = checkMetodoSimplificado(met({ regularidadMecanica: false }));
+    expect(r.bloqueo).toContain(razonNoSimplificado(r.requisitos) as string);
   });
 });
 

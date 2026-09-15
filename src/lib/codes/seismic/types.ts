@@ -137,6 +137,23 @@ export interface ExcentricidadDireccion {
 
 export type ViaMetodoSimplificado = "requisitos" | "pasarela-4-plantas";
 
+/**
+ * Con qué se determina la acción sísmica. Es una DECISIÓN del proyectista, no
+ * un resultado de la puerta: la Norma admite siempre el análisis modal completo
+ * del art. 3.6.2, y sólo restringe el simplificado del art. 3.5.1.
+ *
+ *   simplificado  lo calcula esta herramienta, entero (art. 3.7).
+ *   programa      lo calcula un programa de elementos finitos que incluye
+ *                 sismo —CypeCAD y compañía— por análisis modal espectral
+ *                 (art. 3.6.2). Concreta aporta los parámetros del capítulo 2
+ *                 —los que se teclean en el programa— y la clasificación; los
+ *                 períodos, los modos y los cortantes salen de sus listados.
+ *
+ * La vía `programa` NO levanta nada: ni las prohibiciones del art. 1.2.3, ni la
+ * exención cuando la Norma no rige. Sólo sustituye al método de cálculo.
+ */
+export type MetodoCalculo = "simplificado" | "programa";
+
 export interface MetodoSimplificadoInput {
   importancia: Importancia;
   /** Plantas sobre rasante — requisito (1). */
@@ -169,7 +186,7 @@ export interface MetodoSimplificadoResult {
 // ── Puerta completa ──────────────────────────────────────────────────────────
 
 /**
- * POR QUÉ no se entrega acción sísmica. Son cinco motivos distintos y NO se
+ * POR QUÉ no se entrega acción sísmica. Son seis motivos distintos y NO se
  * pueden deducir de `puedeCalcular === false`.
  *
  * Existe porque deducirlos es exactamente lo que se hacía mal. Un edificio de
@@ -192,7 +209,14 @@ export type MotivoImpedimento =
   /** Art. 3.5.1: no se cumplen los requisitos, o están sin declarar. */
   | "metodo-simplificado-no-aplicable"
   /** El método vale, pero falta un dato sin el cual la cadena no se sostiene. */
-  | "faltan-datos-de-calculo";
+  | "faltan-datos-de-calculo"
+  /**
+   * Art. 3.6.2: el proyectista calcula con programa. No es un fallo ni una
+   * carencia —por eso no se rotula en rojo en ninguna parte—: es la otra vía
+   * de la Norma, y aquí sólo consta que la acción sísmica no la produce esta
+   * herramienta.
+   */
+  | "calculo-por-programa";
 
 export interface Impedimento {
   motivo: MotivoImpedimento;

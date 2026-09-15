@@ -866,6 +866,14 @@ function buildSnapshot(c: SeismicState): string {
   valores.plantas_por_defecto = plantasSonDeFabrica(c);
   valores.direcciones = direccionesContext(c);
   valores.declaraciones = declaracionesContext(c);
+  // De SOLO LECTURA, como el emplazamiento: el asistente tiene que saber que el
+  // cálculo lo hace un programa —si no, propone planos resistentes y rigideces
+  // a quien no los va a usar—, pero cambiar de método es una decisión del
+  // proyectista que no se delega en una frase suelta del chat.
+  valores.metodo_de_calculo =
+    c.metodo === 'programa'
+      ? 'análisis modal espectral por ordenador (art. 3.6.2): lo calcula un programa externo'
+      : 'método simplificado de la NCSE-02 (art. 3.7): lo calcula Concreta';
   return JSON.stringify({ valores, sin_confirmar: sinConfirmar });
 }
 
@@ -976,7 +984,7 @@ export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary
   const checks = requisitosChecks(ev);
   const extras: string[] = [emplaz];
 
-  if (met?.via === 'pasarela-4-plantas') {
+  if (met?.via === 'pasarela-4-plantas' && ev.impedimento?.motivo !== 'calculo-por-programa') {
     extras.push(
       'El edificio entra por la PASARELA del art. 3.5.1 (edificios de pisos de importancia '
       + 'normal de hasta cuatro plantas EN TOTAL, sótanos incluidos) sin cumplir todos los '
@@ -997,7 +1005,13 @@ export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary
       ev.impedimento?.motivo === 'prohibicion-art-1.2.3'
         ? 'NO hay acción sísmica calculada, y cumplir el art. 3.5.1 no levantaría la prohibición: '
           + 'lo que hay que cambiar es la construcción, no el método de cálculo.'
-        : 'NO hay acción sísmica calculada: este módulo sólo implementa el método simplificado.',
+        : ev.impedimento?.motivo === 'calculo-por-programa'
+          ? 'NO falta nada: el proyectista ha declarado que la acción sísmica la determina un '
+            + 'programa de elementos finitos por análisis modal espectral (art. 3.6.2). Este módulo '
+            + 'aporta el emplazamiento y la clasificación; el período, los modos, la masa sísmica y '
+            + 'los esfuerzos salen de los listados del programa. NO propongas planos resistentes ni '
+            + 'rigideces: aquí no se usan.'
+          : 'NO hay acción sísmica calculada: este módulo sólo implementa el método simplificado.',
     );
     extras.push(...ev.aplicabilidad.avisos.map((a) => `Aviso (art. ${a.articulo}): ${a.texto}`));
     extras.push(ALCANCE_LINEA);

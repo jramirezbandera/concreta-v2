@@ -48,6 +48,8 @@ import {
   type SeismicState,
 } from './state';
 import { useObra } from '../../lib/obra/useObra';
+import { nombrePrograma, perfilEstudioPorDefecto } from '../../lib/memoria/estado';
+import { leerPerfilEstudio } from '../memoria-dbse/state';
 import { versionViva } from '../../data/proyectoKeys';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
@@ -284,6 +286,20 @@ export function SeismicNCSE02Module() {
   // cada uno del contexto, y el estado y el motor viven siempre en kN.
   const { system } = useUnitSystem();
 
+  // El programa de cálculo del despacho, para la vía del art. 3.6.2. Se lee una
+  // vez al montar y NO se guarda en el estado del módulo: el programa es del
+  // despacho —apartado 3.1.5.2 de la ficha— y copiarlo aquí dejaría dos
+  // nombres que pueden discrepar dentro de la misma memoria. `useState` con
+  // initializer y no `useMemo`, porque leer el almacenamiento no es un cálculo
+  // y no debe rehacerse en cada repintado.
+  // El `?? perfilEstudioPorDefecto()` NO es celo: es lo que hace la ficha DB SE
+  // al ensamblar (`memoria-dbse/state.ts`). Sin él, un despacho que nunca ha
+  // entrado en Ajustes vería «no hay programa nombrado» en sismo y «Cypecad
+  // Espacial V2022» en el apartado 3.1.5.2 de la misma memoria.
+  const [programa] = useState<string | null>(() =>
+    nombrePrograma((leerPerfilEstudio() ?? perfilEstudioPorDefecto()).programa),
+  );
+
   // El botón NO se deshabilita por «no hay resultado»: un caso exento produce
   // un documento completo y valioso —la justificación de que la Norma no rige—
   // y negárselo al usuario sería el error opuesto al que se quiere evitar. Sólo
@@ -300,7 +316,8 @@ export function SeismicNCSE02Module() {
     confirmTitle,
     closeTitle,
   } = useTitledPdfExport({
-    exportFn: (title) => exportSeismicNCSE02PDF({ state, evaluacion, title, system }),
+    exportFn: (title) =>
+      exportSeismicNCSE02PDF({ state, evaluacion, title, system, programa }),
     valid: !bloqueoPdf,
     onTitleChange: setDocTitle,
     ...(bloqueoPdf ? { invalidMessage: bloqueoPdf } : {}),
@@ -368,6 +385,7 @@ export function SeismicNCSE02Module() {
               onEditPlantas={() => setPlantasOpen(true)}
               onEditGeometria={() => setGeometriaOpen(true)}
               avisoObra={avisoObraVisible}
+              programa={programa}
             />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
@@ -482,7 +500,7 @@ export function SeismicNCSE02Module() {
           {/* Resultados — mismo marco que el resto de módulos (px-6 py-5 bajo
               el lienzo; la cabecera con veredicto la pone SeismicResults). */}
           <div className="px-6 py-5">
-            <SeismicResults state={state} evaluacion={evaluacion} />
+            <SeismicResults state={state} evaluacion={evaluacion} programa={programa} />
           </div>
         </div>
       </div>

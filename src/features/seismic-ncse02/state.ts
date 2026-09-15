@@ -11,7 +11,7 @@
 // 1.2.3 y las tres declaraciones de regularidad. Meterlos en `SeismicInput`
 // habría obligado al motor a cargar con datos que no usa.
 
-import { checkApplicability } from '../../lib/codes/seismic/applicability';
+import { checkApplicability, razonNoSimplificado } from '../../lib/codes/seismic/applicability';
 import {
   TEXTO_SIN_TF,
   calcularSismo,
@@ -32,6 +32,7 @@ import type {
   ExcentricidadDireccion,
   Impedimento,
   Importancia,
+  MetodoCalculo,
   PlantaInput,
   SeismicInput,
   SeismicResult,
@@ -89,6 +90,32 @@ export interface SeismicState {
   terrenoModo: 'tipo' | 'perfil';
   terreno: TipoTerreno;
   estratos: Estrato[];
+
+  // — método de cálculo —
+  /**
+   * Con qué se determina la acción sísmica, art. 3.5.1 frente a art. 3.6.2.
+   *
+   * ——————————————————————————————————————————————————————————————————————————
+   * POR QUÉ ES UNA DECISIÓN Y NO UN RESULTADO DE LA PUERTA
+   * ——————————————————————————————————————————————————————————————————————————
+   * Hasta el 2026-09-15 este módulo sólo contemplaba su propio método: un
+   * edificio que no pasaba el art. 3.5.1 se quedaba sin cortante basal Y sin
+   * tabla sísmica en la ficha DB SE, con el apartado 3.1.4 en blanco. Pero ese
+   * edificio no es un edificio sin datos sísmicos: es uno cuya acción sísmica
+   * la calcula un programa de elementos finitos, y cuyo ab, K, ρ, C, S y ac
+   * siguen siendo exactamente los que hay que declarar —y los que se teclean en
+   * el propio programa—.
+   *
+   * Se ofrece SIEMPRE, no sólo cuando el simplificado falla: hay obras
+   * perfectamente regulares que se calculan con CypeCAD igual, y con el
+   * conmutador escondido la memoria de ésas decía «método simplificado de la
+   * NCSE-02» cuando no fue el método que se usó.
+   *
+   * Lo que NO hace: levantar nada. Las prohibiciones del art. 1.2.3 —adobe,
+   * tapial, fábrica por encima de sus alturas— mandan igual, y un edificio
+   * exento sigue exento. Ver `checkApplicability`.
+   */
+  metodo: MetodoCalculo;
 
   // — estructura —
   sistema: SistemaEstructural;
@@ -210,6 +237,7 @@ export function ejemploSeismicState(): SeismicState {
     terrenoModo: 'tipo',
     terreno: 'II',
     estratos: [{ C: 1.3, espesor: 30 }],
+    metodo: 'simplificado',
     sistema: 'porticos-ha',
     // n = 10 sale de las diez filas de `plantas`; sin sótanos, nTotal = 10.
     sotanos: 0,
@@ -587,6 +615,7 @@ export function evaluarSismo(s: SeismicState): SeismicEvaluation {
         : {}),
       excentricidadDeclarada: s.excentricidadDeclarada,
     },
+    s.metodo,
   );
 
   if (!aplicabilidad.puedeCalcular) {
@@ -752,6 +781,11 @@ export function normalizeSeismicState(x: unknown): SeismicState {
           return { C: num(o.C, 1.3), espesor: num(o.espesor, 0) } as Estrato;
         })
       : d.estratos,
+    // Cualquier cosa que no sea 'programa' cae al simplificado: es el método
+    // que esta herramienta CALCULA, y un caso antiguo —guardado o compartido
+    // antes de que existiera el conmutador— no puede acabar declarando que lo
+    // calculó un programa que nadie ha nombrado.
+    metodo: s.metodo === 'programa' ? 'programa' : 'simplificado',
     sistema: SISTEMAS.includes(s.sistema as SistemaEstructural)
       ? (s.sistema as SistemaEstructural)
       : d.sistema,
@@ -913,6 +947,22 @@ export interface PubSismo {
   /** Altura sobre rasante, m. */
   H: number;
 
+  // — método de cálculo —
+  /**
+   * Con qué se determina la acción sísmica. Opcional y aditivo (v1.1): un sobre
+   * escrito antes del conmutador no lo trae, y se lee como `'simplificado'`,
+   * que es lo que aquel módulo hacía.
+   */
+  metodo?: MetodoCalculo;
+  /**
+   * Qué le pasa al art. 3.5.1, en media frase —«no se cumplen los requisitos
+   * (3)»—, o `null` si los seis están en cumple. Viaja para que la ficha DB SE
+   * pueda redactar POR QUÉ se fue al art. 3.6.2 sin rehacer la comprobación:
+   * no tiene los requisitos, y un «no es aplicable el simplificado» a secas en
+   * una memoria es exactamente la frase que el visador devuelve.
+   */
+  razonNoSimplificado?: string | null;
+
   // — la puerta del art. 1.2.3 —
   /** Sí cuando la Norma es de aplicación obligatoria. */
   obligatoria: boolean;
@@ -980,6 +1030,10 @@ export function datosPublicacion(s: SeismicState, ev: SeismicEvaluation): PubSis
     n: plantasSobreRasante(s),
     sotanos: s.sotanos,
     H: s.H,
+    metodo: s.metodo,
+    razonNoSimplificado: ev.aplicabilidad.metodoSimplificado
+      ? razonNoSimplificado(ev.aplicabilidad.metodoSimplificado.requisitos)
+      : null,
     obligatoria: ev.aplicabilidad.obligatoriedad.estado === 'obligatoria',
     impedimento: ev.impedimento ? { articulo: ev.impedimento.articulo, texto: ev.impedimento.texto } : null,
     calculo: r

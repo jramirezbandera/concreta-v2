@@ -114,6 +114,12 @@ const REDACTADOS: Record<string, string> = {
   [plantilla.CE.cargas.termicas.sinJuntas]: 'rama sin juntas: la JS-662 la deja en casillas sin marcar',
   [plantilla.CE.cargas.termicas.sinJuntasNiTermicas]: 'ídem',
   [plantilla.NCSE.textos.medidas]: 'cuatro líneas de una celda, unidas con punto',
+  [plantilla.NCSE.textos.metodoSimplificado]:
+    'la ficha sólo dice «Análisis Modal Espectral.»; se le añade de qué método es y su artículo',
+  [plantilla.NCSE.textos.segunListados]:
+    'singular de la frase de los modos, para la fila del período',
+  [plantilla.NCSE.textos.fraccionGenerica]:
+    'la ficha da la fracción concreta (0,5 viviendas); ésta es la remisión al art. 3.2 cuando no se conocen los usos',
   [plantilla.NCSE.textos.rhoEspecial]: 'la ficha del estudio sólo tiene la rama de importancia normal',
   [plantilla.FORJADOS.intro]: 'sustituye al RD 642/2002 (EFHE), derogado por el Código Estructural',
   [plantilla.FORJADOS.unidireccional.observaciones]: 'sin la comprobación por canto mínimo de la EFHE (art. 15.2.2)',

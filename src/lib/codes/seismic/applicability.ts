@@ -25,6 +25,7 @@
 import type {
   AvisoNorma,
   ApplicabilityResult,
+  MetodoCalculo,
   MetodoSimplificadoInput,
   MetodoSimplificadoResult,
   ObligatoriedadInput,
@@ -448,10 +449,32 @@ export function checkMetodoSimplificado(
     };
   }
 
+  return {
+    aplicable: false,
+    via: null,
+    requisitos,
+    avisos,
+    bloqueo:
+      "No es aplicable el método simplificado del art. 3.5.1: " +
+      (razonNoSimplificado(requisitos) ?? "no se cumplen sus condiciones") +
+      ". El edificio requiere un análisis modal completo (art. 3.6.2).",
+  };
+}
+
+// ── Art. 3.6.2 · la otra vía ───────────────────────────────────────
+
+/**
+ * Qué le pasa al art. 3.5.1, en media frase y sin mayúscula: «no se cumplen los
+ * requisitos (3)», «quedan sin declarar los requisitos (4, 5)», o las dos unidas
+ * por «y». `null` cuando los seis están en cumple.
+ *
+ * Sale de `checkMetodoSimplificado` para que la vía del art. 3.6.2 diga lo MISMO
+ * con otra continuación. Con dos copias, el día que se retoque una redacción el
+ * papel diría dos cosas distintas del mismo edificio.
+ */
+export function razonNoSimplificado(requisitos: Requisito[]): string | null {
   const fallan = requisitos.filter((r) => r.cumple === false).map((r) => r.id);
-  const sinDeclarar = requisitos
-    .filter((r) => r.cumple === null)
-    .map((r) => r.id);
+  const sinDeclarar = requisitos.filter((r) => r.cumple === null).map((r) => r.id);
 
   const partes: string[] = [];
   if (fallan.length > 0) {
@@ -462,17 +485,35 @@ export function checkMetodoSimplificado(
       "quedan sin declarar los requisitos (" + sinDeclarar.join(", ") + ")",
     );
   }
+  return partes.length === 0 ? null : partes.join(" y ");
+}
 
-  return {
-    aplicable: false,
-    via: null,
-    requisitos,
-    avisos,
-    bloqueo:
-      "No es aplicable el método simplificado del art. 3.5.1: " +
-      partes.join(" y ") +
-      ". El edificio requiere un análisis modal completo (art. 3.6.2).",
-  };
+/**
+ * El texto de la vía del art. 3.6.2, listo para enseñar.
+ *
+ * NO nombra el programa: el motor no sabe cuál es —vive en el perfil del
+ * despacho, apartado 3.1.5.2 de la ficha— y lo añade quien pinta. Y dice
+ * siempre en qué situación queda el art. 3.5.1, porque las dos son distintas de
+ * firmar: que el simplificado NO valga obliga al modal; que valga y no se use es
+ * una elección, más exigente, y perfectamente legal.
+ */
+export function textoCalculoPorPrograma(met: MetodoSimplificadoResult): string {
+  const cola =
+    "La acción sísmica se determina mediante análisis modal espectral " +
+    "(art. 3.6.2), con un programa de cálculo que la incluye.";
+  if (met.aplicable) {
+    return (
+      "El método simplificado del art. 3.5.1 sería aplicable, pero no se emplea. " +
+      cola
+    );
+  }
+  const razon = razonNoSimplificado(met.requisitos);
+  return (
+    "No es aplicable el método simplificado del art. 3.5.1" +
+    (razon ? ": " + razon : "") +
+    ". " +
+    cola
+  );
 }
 
 // ── Puerta completa ──────────────────────────────────────────────────────────
@@ -482,10 +523,14 @@ export function checkMetodoSimplificado(
  * sólo se evalúa si la Norma es de aplicación: preguntarse qué método usar en
  * un edificio exento no tiene sentido, y presentar requisitos incumplidos de un
  * artículo que no rige sólo confunde.
+ *
+ * @param metodo Con qué se determina la acción sísmica. Por defecto el
+ *               simplificado, que es el único que esta herramienta calcula.
  */
 export function checkApplicability(
   obligatoriedad: ObligatoriedadInput,
   simplificado: MetodoSimplificadoInput,
+  metodo: MetodoCalculo = "simplificado",
 ): ApplicabilityResult {
   const obl = checkObligatoriedad(obligatoriedad);
 
@@ -535,6 +580,36 @@ export function checkApplicability(
         texto: prohibicion.texto,
       },
       avisos: [...obl.avisos, ...met.avisos],
+    };
+  }
+
+  // La vía del art. 3.6.2, y va aquí por dos razones de orden, no de estilo.
+  //
+  // DESPUÉS de la exención: un edificio al que la Norma no obliga no tiene
+  // acción sísmica que encargarle a nadie, y la salida temprana de arriba ya
+  // devolvió su documento.
+  //
+  // DESPUÉS de la prohibición: calcular con un programa de elementos finitos no
+  // autoriza un edificio de adobe. Cambia cómo se obtienen las fuerzas, no qué
+  // se puede construir. Ponerla antes convertía el conmutador de método en una
+  // puerta trasera para el art. 1.2.3.
+  if (metodo === "programa") {
+    return {
+      obligatoriedad: obl,
+      metodoSimplificado: met,
+      puedeCalcular: false,
+      impedimento: {
+        motivo: "calculo-por-programa",
+        articulo: "3.6.2",
+        texto: textoCalculoPorPrograma(met),
+      },
+      // Los avisos del art. 3.5.1 se quedan fuera. El único que hay es el
+      // estudio especial de torsión de la pasarela de cuatro plantas, y es una
+      // limitación DEL MÉTODO SIMPLIFICADO: exigirlo en un documento que dice
+      // haber hecho un modelo espacial completo es pedir lo que ya está hecho.
+      // Los del art. 1.2.3 —terrenos inestables— siguen, que no dependen del
+      // método.
+      avisos: obl.avisos,
     };
   }
 

@@ -60,6 +60,22 @@ export interface LimitesFlecha {
   absoluta: string;
 }
 
+/**
+ * «Cypecad Espacial V2022 (Cype Ingenieros)», o `null` si no hay nombre que dar.
+ *
+ * Vive junto a `PerfilEstudio` y no en el módulo que lo enseña porque lo leen
+ * dos sitios muy separados: el apartado 3.1.5.2 de la ficha y la vía del art.
+ * 3.6.2 del módulo de sismo. Con una copia en cada uno, la misma memoria podría
+ * nombrar el programa de dos maneras distintas en dos páginas seguidas.
+ */
+export function nombrePrograma(p: PerfilEstudio['programa'] | null | undefined): string | null {
+  const nombre = p?.nombre.trim();
+  if (!nombre) return null;
+  const version = p?.version.trim();
+  const empresa = p?.empresa.trim();
+  return nombre + (version ? ` ${version}` : '') + (empresa ? ` (${empresa})` : '');
+}
+
 export interface PerfilEstudio {
   programa: { nombre: string; version: string; empresa: string; domicilio: string; descripcion: string };
   /** Texto del método de cálculo (3.1.5.2, memoria de cálculo). */
