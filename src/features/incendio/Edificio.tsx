@@ -23,7 +23,7 @@ import { ExternalLink } from 'lucide-react';
 import { Link } from 'react-router';
 import type { ModoAltura } from '../../lib/incendio/altura';
 import { SeccionSVG } from './SeccionSVG';
-import { AYUDA, INPUT, ROTULO, TH } from './estilos';
+import { AYUDA, INPUT, INPUT_ESTRECHO, ROTULO, TH_ESTRECHO } from './estilos';
 import type { AnotacionPlanta, Evaluacion } from './state';
 
 interface Props {
@@ -93,10 +93,10 @@ export function Edificio({
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={TH}>Planta</th>
+                <th className={TH_ESTRECHO}>Planta</th>
                 <th
-                  className={TH}
-                  style={{ width: 72 }}
+                  className={TH_ESTRECHO}
+                  style={{ width: 70 }}
                   title={
                     libre
                       ? 'De la cara superior de su forjado a la cara inferior del forjado de encima'
@@ -106,8 +106,8 @@ export function Edificio({
                   {libre ? 'Libre' : 'Total'}
                 </th>
                 <th
-                  className={TH}
-                  style={{ width: 92 }}
+                  className={TH_ESTRECHO}
+                  style={{ width: libre ? 66 : 52 }}
                   title={
                     libre
                       ? 'Canto del forjado de encima, y la altura total que resulta'
@@ -116,9 +116,9 @@ export function Edificio({
                 >
                   {libre ? '+ canto' : 'Libre'}
                 </th>
-                <th className={TH} style={{ width: 56 }}>Cota</th>
-                <th className={TH} style={{ width: 40 }} title="Planta bajo rasante">Sót.</th>
-                <th className={TH} style={{ width: 40 }} title="¿Es origen de evacuación?">Ocup.</th>
+                <th className={TH_ESTRECHO} style={{ width: 50 }}>Cota</th>
+                <th className={TH_ESTRECHO} style={{ width: 34 }} title="Planta bajo rasante">Sót.</th>
+                <th className={TH_ESTRECHO} style={{ width: 34 }} title="¿Es origen de evacuación?">Ocup.</th>
               </tr>
             </thead>
             <tbody>
@@ -146,7 +146,7 @@ export function Edificio({
                     : null;
                 return (
                   <tr key={p.nombre} className="border-b border-border-sub last:border-0">
-                    <td className="px-2 py-1 text-[12px] text-text-primary">
+                    <td className="px-1.5 py-1 text-[12px] text-text-primary">
                       {p.nombre}
                       {p.esSalida && (
                         <span
@@ -157,7 +157,7 @@ export function Edificio({
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-1">
+                    <td className="px-1.5 py-1">
                       {p.esLaMasAlta ? (
                         <span className="text-[11px] text-text-disabled" title="No tiene forjado encima que medir">
                           —
@@ -169,7 +169,7 @@ export function Edificio({
                           min="0"
                           value={p.altura ?? ''}
                           aria-label={`Altura de ${p.nombre}`}
-                          className={INPUT}
+                          className={INPUT_ESTRECHO}
                           style={faltaAltura ? { borderColor: 'var(--color-state-fail)' } : undefined}
                           onChange={(e) =>
                             onPlanta(p.nombre, {
@@ -180,11 +180,11 @@ export function Edificio({
                       )}
                     </td>
                     {/* La otra altura, y en modo libre el canto que se le suma. */}
-                    <td className="px-2 py-1">
+                    <td className="px-1.5 py-1">
                       {p.esLaMasAlta ? (
                         <span className="text-[11px] text-text-disabled">—</span>
                       ) : cantoDe !== null ? (
-                        <span className="flex items-center gap-1">
+                        <span className="flex flex-col items-start gap-0.5">
                           <input
                             type="number"
                             step="0.01"
@@ -192,7 +192,7 @@ export function Edificio({
                             value={anotadaEncima?.cantoManual ?? ''}
                             placeholder="canto"
                             aria-label={`Canto del forjado sobre ${p.nombre}`}
-                            className={INPUT}
+                            className={INPUT_ESTRECHO}
                             style={
                               p.cantoUsado === null
                                 ? { borderColor: 'var(--color-state-fail)' }
@@ -219,27 +219,34 @@ export function Edificio({
                         </span>
                       ) : (
                         <span
-                          className="font-mono text-[11px] text-text-disabled"
+                          className="font-mono text-[11px] leading-tight text-text-disabled"
                           title={
                             libre
                               ? `Canto del forjado de encima, de Cargas por planta. Total: ${p.subida !== null ? `${m2(p.subida)} m` : '—'}`
                               : 'Descontando el canto del forjado de encima'
                           }
                         >
-                          {libre
-                            ? p.cantoUsado === null
-                              ? '—'
-                              : `+${m2(p.cantoUsado)} = ${p.subida !== null ? m2(p.subida) : '—'}`
-                            : p.otraAltura === null
-                              ? '—'
-                              : m2(p.otraAltura)}
+                          {libre ? (
+                            p.cantoUsado === null ? (
+                              '—'
+                            ) : (
+                              <>
+                                +{m2(p.cantoUsado)}
+                                <br />= {p.subida !== null ? m2(p.subida) : '—'}
+                              </>
+                            )
+                          ) : p.otraAltura === null ? (
+                            '—'
+                          ) : (
+                            m2(p.otraAltura)
+                          )}
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-1 font-mono text-[11px] text-text-secondary">
+                    <td className="px-1.5 py-1 font-mono text-[11px] text-text-secondary">
                       {p.cota === null ? '—' : `${p.cota > 0 ? '+' : ''}${m2(p.cota)}`}
                     </td>
-                    <td className="px-2 py-1 text-center">
+                    <td className="px-1.5 py-1 text-center">
                       <input
                         type="checkbox"
                         checked={p.bajoRasante}
@@ -247,7 +254,7 @@ export function Edificio({
                         onChange={(e) => onPlanta(p.nombre, { bajoRasante: e.target.checked })}
                       />
                     </td>
-                    <td className="px-2 py-1 text-center">
+                    <td className="px-1.5 py-1 text-center">
                       <input
                         type="checkbox"
                         checked={p.cuenta}
